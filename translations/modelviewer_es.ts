@@ -13495,7 +13495,7 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1797"/>
-        <location filename="../ui/SettingsDialog.ui" line="1884"/>
+        <location filename="../ui/SettingsDialog.ui" line="1897"/>
         <source>Supported Formats:</source>
         <translation>Formatos compatibles:</translation>
     </message>
@@ -13530,12 +13530,12 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Construir Curvas</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1878"/>
+        <location filename="../ui/SettingsDialog.ui" line="1891"/>
         <source>Assimp Import Settings</source>
         <translation>Configuración de Importación de Assimp</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1891"/>
+        <location filename="../ui/SettingsDialog.ui" line="1904"/>
         <source>3DS, BLEND, DAE, FBX, IFC, X3D, MD2, MD3, MD5, MDC, MDL, NFF, PLY, STL, VRML, 3MF, AMF, X</source>
         <translation>3DS, BLEND, DAE, FBX, IFC, X3D, MD2, MD3, MD5, MDC, MDL, NFF, PLY, STL, VRML, 3MF, AMF, X</translation>
     </message>
@@ -13544,27 +13544,27 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Caras Triangulares</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1904"/>
+        <location filename="../ui/SettingsDialog.ui" line="1917"/>
         <source>Generate Normals</source>
         <translation>Generar Normales</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1917"/>
+        <location filename="../ui/SettingsDialog.ui" line="1930"/>
         <source>Smooth Normals</source>
         <translation>Normales Suaves</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1930"/>
+        <location filename="../ui/SettingsDialog.ui" line="1943"/>
         <source>Calculate Tangents</source>
         <translation>Calcular Tangentes</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1943"/>
+        <location filename="../ui/SettingsDialog.ui" line="1956"/>
         <source>Optimize Mesh</source>
         <translation>Optimizar Malla</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1953"/>
+        <location filename="../ui/SettingsDialog.ui" line="1966"/>
         <source>Remove Duplicate Vertices</source>
         <translation>Eliminar Vértices Duplicados</translation>
     </message>
@@ -13577,12 +13577,12 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Modelos de escala automática</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1967"/>
+        <location filename="../ui/SettingsDialog.ui" line="1980"/>
         <source>Auto Orient Models</source>
         <translation>Modelos de uso automático</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1980"/>
+        <location filename="../ui/SettingsDialog.ui" line="1993"/>
         <source>Export Settings</source>
         <translation>Configuración de Exportación</translation>
     </message>
@@ -13705,13 +13705,13 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Compatibilidad de la Fuerza Legado OpenGL Modo</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="2028"/>
-        <location filename="../ui/SettingsDialog.ui" line="2062"/>
+        <location filename="../ui/SettingsDialog.ui" line="2041"/>
+        <location filename="../ui/SettingsDialog.ui" line="2075"/>
         <source>Debug</source>
         <translation>Depurar</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="2034"/>
+        <location filename="../ui/SettingsDialog.ui" line="2047"/>
         <source>Debug Information</source>
         <translation>Información de Depuración</translation>
     </message>
@@ -13728,22 +13728,22 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Mostrar Información de OpenGL</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="2040"/>
+        <location filename="../ui/SettingsDialog.ui" line="2053"/>
         <source>Enable Debug Logging</source>
         <translation>Habilitar el Registro de Depuración</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="2054"/>
+        <location filename="../ui/SettingsDialog.ui" line="2067"/>
         <source>Log Level:</source>
         <translation>Nivel de Registro:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="2077"/>
+        <location filename="../ui/SettingsDialog.ui" line="2090"/>
         <source>Error</source>
         <translation>Error</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="2047"/>
+        <location filename="../ui/SettingsDialog.ui" line="2060"/>
         <source>Enable Console Output</source>
         <translation>Activación de consolas</translation>
     </message>
@@ -14123,71 +14123,81 @@ pregunte de nuevo la próxima vez</translation>
         <translation>Tolerancia angular de teselación para superficies curvas (importación STEP/IGES)</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1901"/>
+        <location filename="../ui/SettingsDialog.ui" line="1872"/>
+        <source>Some STEP/IGES files contain faces OpenCascade cannot tessellate (invalid curves on the surface). Left out, they make the part open and unusable for Mass Properties. When on, such faces are healed or rebuilt from their boundary on import.</source>
+        <translation>Algunos archivos STEP/IGES contienen caras que OpenCascade no puede teselar (curvas no válidas sobre la superficie). Si se omiten, la pieza queda abierta e inservible para Propiedades de masa. Si está activado, esas caras se reparan o se reconstruyen a partir de su contorno al importar.</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1875"/>
+        <source>Rebuild faces that fail to tessellate</source>
+        <translation>Reconstruir las caras que no se pueden teselar</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1914"/>
         <source>Generate vertex normals if the imported file has none</source>
         <translation>Generar normales de vértice si el archivo importado no tiene ninguna</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1914"/>
+        <location filename="../ui/SettingsDialog.ui" line="1927"/>
         <source>Smooth generated normals across adjacent faces</source>
         <translation>Suavizar las normales generadas entre caras adyacentes</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1927"/>
+        <location filename="../ui/SettingsDialog.ui" line="1940"/>
         <source>Compute tangent vectors, needed for normal mapping</source>
         <translation>Calcular vectores tangentes, necesarios para el mapeo normal</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1940"/>
+        <location filename="../ui/SettingsDialog.ui" line="1953"/>
         <source>Merge/optimize meshes on import for better performance</source>
         <translation>Fusionar/optimizar mallas al importar para un mejor rendimiento</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1963"/>
+        <location filename="../ui/SettingsDialog.ui" line="1976"/>
         <source>Automatically reorient the model to match this app&apos;s up
 axis</source>
         <translation>Reorientar automáticamente el modelo para coincidir con el eje vertical
 de esta app</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1988"/>
+        <location filename="../ui/SettingsDialog.ui" line="2001"/>
         <source>Export Whole Scene</source>
         <translation>Exportar escena completa</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1998"/>
+        <location filename="../ui/SettingsDialog.ui" line="2011"/>
         <source>Export Selected Meshes</source>
         <translation>Exportar mallas seleccionadas</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="2072"/>
+        <location filename="../ui/SettingsDialog.ui" line="2085"/>
         <source>Warning</source>
         <translation>Advertencia</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="2085"/>
+        <location filename="../ui/SettingsDialog.ui" line="2098"/>
         <source>Console Buffer Lines:</source>
         <translation>Líneas de búfer de consola:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="2092"/>
+        <location filename="../ui/SettingsDialog.ui" line="2105"/>
         <source>Maximum number of lines kept in the console window&apos;s scrollback</source>
         <translation>Número máximo de líneas mantenidas en el desplazamiento hacia atrás de la ventana de consola</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="2120"/>
+        <location filename="../ui/SettingsDialog.ui" line="2133"/>
         <source>Log per-frame rendering timings for performance profiling</source>
         <translation>Registrar los tiempos de renderizado por fotograma para el perfilado de rendimiento</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="2130"/>
+        <location filename="../ui/SettingsDialog.ui" line="2143"/>
         <source>Adds a Texture Debugger entry to the Tools menu.
 The panel shows GPU-side texture bindings for the selected mesh.</source>
         <translation>Añade una entrada Depurador de texturas al menú Herramientas.
 El panel muestra las vinculaciones de textura del lado de la GPU para la malla seleccionada.</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="2067"/>
+        <location filename="../ui/SettingsDialog.ui" line="2080"/>
         <source>Info</source>
         <translation>Info</translation>
     </message>
@@ -14196,7 +14206,7 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation type="vanished">Verboso</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="2114"/>
+        <location filename="../ui/SettingsDialog.ui" line="2127"/>
         <source>Diagnostics</source>
         <translation>Diagnóstico</translation>
     </message>
@@ -14209,7 +14219,7 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation type="vanished">Validar Shaders</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="2123"/>
+        <location filename="../ui/SettingsDialog.ui" line="2136"/>
         <source>Profile Rendering</source>
         <translation>Renderizado de Perfiles</translation>
     </message>
@@ -14218,17 +14228,17 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation type="vanished">Añade una entrada de Depurador de texturas al menú Herramientas. El panel muestra las vinculaciones de texturas del lado de la GPU para la malla seleccionada.</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="2134"/>
+        <location filename="../ui/SettingsDialog.ui" line="2147"/>
         <source>Enable Texture Debugger in Tools menu</source>
         <translation>Activar el Depurador de texturas en el menú Herramientas</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="2141"/>
+        <location filename="../ui/SettingsDialog.ui" line="2154"/>
         <source>Free GPU texture memory cached across all open documents</source>
         <translation>Liberar memoria de textura de GPU almacenada en caché en todos los documentos abiertos</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="2144"/>
+        <location filename="../ui/SettingsDialog.ui" line="2157"/>
         <source>Clear All Caches</source>
         <translation>Borrar Todos los Cachés</translation>
     </message>
@@ -14272,42 +14282,42 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation>Los valores predeterminados están cargados en el diálogo. Haga clic en Aplicar o Aceptar para guardarlos.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="585"/>
+        <location filename="../src/SettingsDialog.cpp" line="587"/>
         <source>Some settings apply immediately. Others take effect only for newly opened documents or after restarting the application.</source>
         <translation>Algunos ajustes se aplican de inmediato. Otros surten efecto solo en documentos recién abiertos o después de reiniciar la aplicación.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="591"/>
+        <location filename="../src/SettingsDialog.cpp" line="593"/>
         <source>Most settings on this tab apply immediately. MSAA and some graphics options may still require restarting the application.</source>
         <translation>La mayoría de los ajustes de esta pestaña se aplican de inmediato. MSAA y algunas opciones gráficas pueden requerir reiniciar la aplicación.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="596"/>
+        <location filename="../src/SettingsDialog.cpp" line="598"/>
         <source>These settings are primarily used for newly opened documents and future imports/exports. They may not affect models that are already loaded.</source>
         <translation>Estos ajustes se usan principalmente para documentos recién abiertos y futuras importaciones/exportaciones. Es posible que no afecten a los modelos ya cargados.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="601"/>
+        <location filename="../src/SettingsDialog.cpp" line="603"/>
         <source>These settings are mainly used as defaults for future actions and newly opened documents.</source>
         <translation>Estos ajustes se usan principalmente como valores predeterminados para futuras acciones y documentos recién abiertos.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="1096"/>
+        <location filename="../src/SettingsDialog.cpp" line="1101"/>
         <source>Select Top Color</source>
         <translation>Seleccionar color superior</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="1108"/>
+        <location filename="../src/SettingsDialog.cpp" line="1113"/>
         <source>Select Bottom Color</source>
         <translation>Seleccionar color inferior</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="1257"/>
+        <location filename="../src/SettingsDialog.cpp" line="1262"/>
         <source>Select Hatch Line Color</source>
         <translation>Seleccionar color de línea de rayado</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="1341"/>
+        <location filename="../src/SettingsDialog.cpp" line="1346"/>
         <source>Settings Reset</source>
         <translation>Ajustes Reset</translation>
     </message>
@@ -14324,12 +14334,12 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation type="vanished">Por favor reinicie la solicitud para que el cambio de idioma surta efecto.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="1220"/>
+        <location filename="../src/SettingsDialog.cpp" line="1225"/>
         <source>MSAA Change</source>
         <translation>MSAA Cambio</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="1220"/>
+        <location filename="../src/SettingsDialog.cpp" line="1225"/>
         <source>Please restart the application for the MSAA change to take effect.</source>
         <translation>Por favor reinicie la solicitud para que el cambio MSAA surta efecto.</translation>
     </message>
@@ -14342,7 +14352,7 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation type="vanished">Por favor reinicie la aplicación para que el cambio de anisotropía surta efecto.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="1341"/>
+        <location filename="../src/SettingsDialog.cpp" line="1346"/>
         <source>UV Prompt settings have been cleared.</source>
         <translation>Los ajustes UV Prompt han sido despejados.</translation>
     </message>

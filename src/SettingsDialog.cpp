@@ -372,6 +372,7 @@ void SettingsDialog::applySettings()
     // Import/Export Tab - OpenCascade
     settings.setValue("linearDeflectionSpinBox", import_linearDeflection);
     settings.setValue("angularDeflectionSpinBox", import_angularDeflection);
+    settings.setValue("healUntessellatedFacesCheckBox", import_healFaces);
 
     // Import/Export Tab - Assimp
     settings.setValue("assimpGenNormalsCheckBox", import_assimpGenNormals);
@@ -545,6 +546,7 @@ void SettingsDialog::setDefaultValues()
     // OpenCascade settings
     ui->linearDeflectionSpinBox->setValue(0.1);
     ui->angularDeflectionSpinBox->setValue(0.3);
+    ui->healUntessellatedFacesCheckBox->setChecked(true);
 
     // Assimp settings
     ui->assimpGenNormalsCheckBox->setChecked(true);
@@ -703,6 +705,7 @@ void SettingsDialog::syncStateFromUi()
     // Import/Export Tab
     import_linearDeflection = ui->linearDeflectionSpinBox->value();
     import_angularDeflection = ui->angularDeflectionSpinBox->value();
+    import_healFaces = ui->healUntessellatedFacesCheckBox->isChecked();
     import_assimpGenNormals = ui->assimpGenNormalsCheckBox->isChecked();
     import_assimpSmoothNormals = ui->assimpSmoothNormalsCheckBox->isChecked();
     import_assimpCalcTangents = ui->assimpCalcTangentsCheckBox->isChecked();
@@ -888,6 +891,8 @@ void SettingsDialog::loadSettings()
     ui->linearDeflectionSpinBox->setValue(dVal);
     dVal = settings.value("angularDeflectionSpinBox", ui->angularDeflectionSpinBox->value()).toDouble();
     ui->angularDeflectionSpinBox->setValue(dVal);
+    bVal = settings.value("healUntessellatedFacesCheckBox", ui->healUntessellatedFacesCheckBox->isChecked()).toBool();
+    ui->healUntessellatedFacesCheckBox->setChecked(bVal);
     bVal = settings.value("assimpGenNormalsCheckBox", ui->assimpGenNormalsCheckBox->isChecked()).toBool();
     ui->assimpGenNormalsCheckBox->setChecked(bVal);
     bVal = settings.value("assimpSmoothNormalsCheckBox", ui->assimpSmoothNormalsCheckBox->isChecked()).toBool();
@@ -998,7 +1003,7 @@ void SettingsDialog::restoreDefaults()
         ui->comboUVMethod, ui->spinAngleThreshold, ui->checkPreserveUVs,
         ui->checkAutoPackUVs, ui->checkRelaxUVs,
         ui->checkRememberUV, ui->buttonResetUVPrompt,
-        ui->linearDeflectionSpinBox, ui->angularDeflectionSpinBox,
+        ui->linearDeflectionSpinBox, ui->angularDeflectionSpinBox, ui->healUntessellatedFacesCheckBox,
         ui->assimpGenNormalsCheckBox, ui->assimpSmoothNormalsCheckBox,
         ui->assimpCalcTangentsCheckBox, ui->assimpOptimizeMeshCheckBox, ui->assimpRemoveDuplicatesCheckBox,
 		ui->assimpAutoOrientCheckBox,
@@ -1350,6 +1355,11 @@ void SettingsDialog::on_linearDeflectionSpinBox_valueChanged()
 void SettingsDialog::on_angularDeflectionSpinBox_valueChanged()
 {
     import_angularDeflection = ui->angularDeflectionSpinBox->value();
+}
+
+void SettingsDialog::on_healUntessellatedFacesCheckBox_stateChanged()
+{
+    import_healFaces = ui->healUntessellatedFacesCheckBox->isChecked();
 }
 
 // Import/Export Tab - Assimp

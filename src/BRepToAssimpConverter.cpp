@@ -1,7 +1,9 @@
 ﻿#include "BRepToAssimpConverter.h"
 #include "MainWindow.h"
+#include "FaceFallbackTriangulator.h"
 #include <algorithm>
 #include <QCoreApplication>
+#include <QDebug>
 #include <QSettings>
 #include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
@@ -28,6 +30,7 @@
 #include <TDF_ChildIterator.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Compound.hxx>
 #include <TopoDS_Face.hxx>
@@ -53,6 +56,15 @@ std::unordered_map<const aiMesh*, BRepToAssimpConverter::OccFaceData>
     BRepToAssimpConverter::s_occFaces;
 
 namespace {
+// Settings > Import/Export > OpenCascade: rebuild faces the mesher could not tessellate (default on).
+bool healUntessellatedFacesEnabled()
+{
+	return QSettings(QCoreApplication::organizationName(),
+	                 QCoreApplication::applicationName())
+	    .value("healUntessellatedFacesCheckBox", true)
+	    .toBool();
+}
+
 bool wireframeFeaturesEnabled()
 {
 	return QSettings(QCoreApplication::organizationName(),
@@ -994,6 +1006,15 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 	// contributes; a final sentinel is appended once the whole loop ends.
 	OccFaceData faceData;
 
+	// Faces OpenCASCADE could not tessellate at all (typically invalid curves-on-surface in the source file), and how
+	// many of those were rebuilt from their boundary - see FaceFallbackTriangulator. A part with a face missing is
+	// not watertight, so this is reported once per part below.
+	const bool healFaces = healUntessellatedFacesEnabled();
+	TopTools_IndexedDataMapOfShapeListOfShape edgeToFaces; // built lazily, only if a face needs it
+	bool edgeToFacesBuilt = false;
+	int unmeshedFaces = 0;
+	int rebuiltFaces = 0;
+
 	for (int f = 1; f <= faceCount; ++f)
 	{
 		TopoDS_Face face = TopoDS::Face(faceGroup(f));
@@ -1011,8 +1032,22 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 		// triangulation is present (e.g. shapes loaded via a code path that skips the pre-pass).
 		triangulation = BRep_Tool::Triangulation(face, loc);
 
+		FaceFallbackTriangulator::Boundary fallbackBoundary;
 		if (triangulation.IsNull())
 		{
+			// The neighbours' discretization of this face's edges is what the last-resort triangulation below is built
+			// from, and BRepTools::Clean() just after removes it from the shared edges - capture it first.
+			if (healFaces)
+			{
+				if (!edgeToFacesBuilt)
+				{
+					for (int i = 1; i <= faceGroup.Extent(); ++i)
+						TopExp::MapShapesAndAncestors(faceGroup(i), TopAbs_EDGE, TopAbs_FACE, edgeToFaces);
+					edgeToFacesBuilt = true;
+				}
+				fallbackBoundary = FaceFallbackTriangulator::captureBoundary(face, edgeToFaces);
+			}
+
 			// No pre-computed triangulation — mesh this face individually.
 			BRepTools::Clean(face);
 			BRepLib::BuildCurves3d(face);
@@ -1025,8 +1060,10 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 
 				if (triangulation.IsNull())
 				{
+					// BRepCheck_Analyzer often calls a face the mesher cannot use "valid", so with healing enabled the
+					// repair is attempted for every untessellated face, not only the ones it flags.
 					BRepCheck_Analyzer analyzer(processedFace);
-					if (!analyzer.IsValid())
+					if (healFaces || !analyzer.IsValid())
 					{
 						TopoDS_Face healedFace = healAndTriangulateFace(processedFace, deflection, angularDeflection, 1.0e-3);
 						if (!healedFace.IsNull())
@@ -1042,11 +1079,28 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 			}
 			catch (...)
 			{
-				continue;
+				// fall through: the boundary-based fallback below may still be able to build this face
+			}
+
+			if (triangulation.IsNull() && healFaces)
+			{
+				// Last resort: triangulate from the boundary the neighbours discretized (nodes come back already in the
+				// part's coordinate frame, so no location).
+				triangulation = FaceFallbackTriangulator::triangulate(face, fallbackBoundary);
+				if (!triangulation.IsNull())
+				{
+					processedFace = face;
+					loc = TopLoc_Location();
+					++rebuiltFaces;
+				}
 			}
 		}
 
-		if (triangulation.IsNull()) continue;
+		if (triangulation.IsNull())
+		{
+			++unmeshedFaces;
+			continue;
+		}
 
 		const int nNodes = triangulation->NbNodes();
 		const int nTriangles = triangulation->NbTriangles();
@@ -1220,6 +1274,15 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 		}
 
 		vertexOffset = static_cast<int>(vertices.size());
+	}
+
+	if (unmeshedFaces > 0 || rebuiltFaces > 0)
+	{
+		// Not silent: a face missing from a part leaves it open, which Mass Properties and the wall-thickness
+		// analysis then reject.
+		qWarning().noquote() << QStringLiteral("[STEP import] mesh %1: %2 face(s) could not be tessellated by OpenCASCADE - %3 rebuilt from "
+			"their boundary, %4 left out (the part may not be watertight)")
+			.arg(meshIndex).arg(unmeshedFaces + rebuiltFaces).arg(rebuiltFaces).arg(unmeshedFaces);
 	}
 
 	// Performance and statistics reporting
@@ -1404,7 +1467,7 @@ TopoDS_Face BRepToAssimpConverter::healAndTriangulateFace(const TopoDS_Face& inp
 	double angularDeflection,
 	double fixTolerance)
 {
-	TopoDS_Face healedFace;
+	TopoDS_Face healedFace = inputFace; // a valid input is healed as-is (it used to stay null and throw below)
 	try
 	{
 		// 1. Validate original face

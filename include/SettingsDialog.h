@@ -204,6 +204,7 @@ private slots:
     void on_buttonResetUVPrompt_clicked();
     void on_linearDeflectionSpinBox_valueChanged();
     void on_angularDeflectionSpinBox_valueChanged();
+    void on_healUntessellatedFacesCheckBox_stateChanged();
     void on_assimpGenNormalsCheckBox_stateChanged();
     void on_assimpSmoothNormalsCheckBox_stateChanged();
     void on_assimpCalcTangentsCheckBox_stateChanged();
@@ -327,6 +328,7 @@ private:
     // OpenCascade
     double import_linearDeflection = 0.1;
     double import_angularDeflection = 0.3;
+    bool import_healFaces = true; // rebuild faces the STEP/IGES mesher cannot tessellate
 
     // Assimp
     bool import_assimpGenNormals = true;
