@@ -46,8 +46,9 @@ MeshSelectionBox::MeshSelectionBox(QWidget* parent)
 		button->setToolTip(tip);
 		return button;
 	};
-	_pickButton = makeIconButton(QStringLiteral(":/icons/res/select.png"),
-		tr("Add meshes from the scene or tree, then click again to confirm"), true);
+	_idlePickIcon = QIcon(QStringLiteral(":/icons/res/select.png"));
+	_confirmPickIcon = QIcon(QStringLiteral(":/icons/res/checkmark.png"));
+	_pickButton = makeIconButton(QStringLiteral(":/icons/res/select.png"), QString(), true);
 	connect(_pickButton, &QPushButton::toggled, this, &MeshSelectionBox::onPickToggled);
 	row->addWidget(_pickButton);
 	_editButton = makeIconButton(QStringLiteral(":/icons/res/edit_selection.png"), tr("Edit Selection..."), false);
@@ -57,6 +58,7 @@ MeshSelectionBox::MeshSelectionBox(QWidget* parent)
 	connect(_clearButton, &QPushButton::clicked, this, &MeshSelectionBox::clearSelection);
 	row->addWidget(_clearButton);
 
+	updatePickVisual();
 	updateDisplay();
 }
 
@@ -124,9 +126,7 @@ void MeshSelectionBox::setSingleMeshMode(bool single)
 {
 	_single = single;
 	_editButton->setVisible(!single);
-	_pickButton->setToolTip(single
-		? tr("Pick a mesh from the scene or tree, then click again to confirm")
-		: tr("Add meshes from the scene or tree, then click again to confirm"));
+	updatePickVisual();
 	_field->setPlaceholderText(emptyPlaceholder());
 	if (single && _uuids.size() > 1)
 		setMeshUuids(_uuids);
@@ -212,17 +212,31 @@ void MeshSelectionBox::updateDisplay()
 	_clearButton->setEnabled(!_uuids.isEmpty());
 }
 
+void MeshSelectionBox::updatePickVisual()
+{
+	const bool picking = _pickButton->isChecked();
+	_pickButton->setIcon(picking ? _confirmPickIcon : _idlePickIcon);
+	_pickButton->setToolTip(picking
+		? tr("Adjust scene or tree selection, then click again to confirm")
+		: (_single ? tr("Pick a mesh from the scene or tree, then click again to confirm")
+		           : tr("Add meshes from the scene or tree, then click again to confirm")));
+}
+
 void MeshSelectionBox::stopPicking()
 {
 	if (!_pickButton->isChecked())
 		return;
-	QSignalBlocker blocker(_pickButton);
-	_pickButton->setChecked(false);
+	{
+		QSignalBlocker blocker(_pickButton);
+		_pickButton->setChecked(false);
+	}
+	updatePickVisual();
 	_field->setPlaceholderText(emptyPlaceholder());
 }
 
 void MeshSelectionBox::onPickToggled(bool checked)
 {
+	updatePickVisual();
 	if (checked)
 	{
 		// Picking happens in the viewport/tree, which stay usable because the tool dialogs are non-modal.

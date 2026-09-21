@@ -6713,25 +6713,24 @@ geradlinigen Abstand. Beide Punkte müssen auf demselben Mesh liegen.</translati
         <translation>Die ausgewählten Meshes. Rechtsklick zum Bearbeiten oder Leeren.</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="50"/>
-        <location filename="../src/MeshSelectionBox.cpp" line="129"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="222"/>
         <source>Add meshes from the scene or tree, then click again to confirm</source>
         <translation>Meshes aus der Szene oder dem Baum hinzufügen, dann zur Bestätigung erneut klicken</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="53"/>
-        <location filename="../src/MeshSelectionBox.cpp" line="313"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="54"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="327"/>
         <source>Edit Selection...</source>
         <translation>Auswahl bearbeiten...</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="56"/>
-        <location filename="../src/MeshSelectionBox.cpp" line="317"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="57"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="331"/>
         <source>Clear Selection</source>
         <translation>Auswahl löschen</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="128"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="221"/>
         <source>Pick a mesh from the scene or tree, then click again to confirm</source>
         <translation>Ein Mesh aus der Szene oder dem Baum wählen, dann zur Bestätigung erneut klicken</translation>
     </message>
@@ -6746,12 +6745,17 @@ geradlinigen Abstand. Beide Punkte müssen auf demselben Mesh liegen.</translati
         <translation>%1 Meshes</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="229"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="220"/>
+        <source>Adjust scene or tree selection, then click again to confirm</source>
+        <translation>Szenen- oder Baumauswahl anpassen, dann erneut klicken zum Bestätigen</translation>
+    </message>
+    <message>
+        <location filename="../src/MeshSelectionBox.cpp" line="243"/>
         <source>Pick a mesh, then click again to confirm...</source>
         <translation>Mesh wählen, dann erneut klicken zum Bestätigen ...</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="230"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="244"/>
         <source>Add meshes, then click again to confirm...</source>
         <translation>Meshes hinzufügen, dann erneut klicken zum Bestätigen...</translation>
     </message>

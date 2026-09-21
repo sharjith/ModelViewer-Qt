@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QIcon>
 #include <QPoint>
 #include <QUuid>
 #include <QVector>
@@ -82,6 +83,9 @@ private:
 	void updateDisplay();
 	QString describe() const;
 	void stopPicking();
+	// Pick button look: the select icon while idle, the green check mark while it waits for the confirming click
+	// (the same cue as the Exploded View panel's pick button).
+	void updatePickVisual();
 	QString emptyPlaceholder() const;
 
 	ModelViewer* _modelViewer = nullptr; // not owned
@@ -93,6 +97,8 @@ private:
 	QPushButton* _clearButton = nullptr;
 	QVector<QUuid> _excluded;
 	bool _single = false;
+	QIcon _idlePickIcon;
+	QIcon _confirmPickIcon;
 	QString _editorIntro;
 	QString _editorMembers;
 };
