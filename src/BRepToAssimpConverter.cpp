@@ -22,7 +22,9 @@
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepTools.hxx>
 #include <cmath>
+#include <unordered_set>
 #include <gp_Pnt.hxx>
+#include <Poly_PolygonOnTriangulation.hxx>
 #include <Poly_Triangulation.hxx>
 #include <ShapeFix_Face.hxx>
 #include <ShapeFix_Wire.hxx>
@@ -63,6 +65,83 @@ bool healUntessellatedFacesEnabled()
 	                 QCoreApplication::applicationName())
 	    .value("healUntessellatedFacesCheckBox", true)
 	    .toBool();
+}
+
+// Settings > Import/Export > OpenCascade: import each face colour of a part as its own mesh (default off - one mesh per
+// part, the face colours kept as vertex colours).
+bool keepColorGroupsSeparateEnabled()
+{
+	return QSettings(QCoreApplication::organizationName(),
+	                 QCoreApplication::applicationName())
+	    .value("keepColorGroupsSeparateCheckBox", false)
+	    .toBool();
+}
+
+// True when a face's own triangulation has holes: triangle edges used by only one triangle that are not part of the
+// face's boundary (the polygons the mesher recorded for its edges), or boundary segments no triangle uses. The mesher
+// can leave such gaps inside a face it has trouble with (a cone bounded by several curves, say) while still reporting a
+// triangulation; a hole there is invisible on screen but leaves the part open.
+bool faceTriangulationHasGaps(const TopoDS_Face& face, const Handle(Poly_Triangulation)& tri)
+{
+	if (tri.IsNull() || tri->NbTriangles() <= 0)
+		return false;
+	auto key = [](int a, int b) {
+		if (a > b) std::swap(a, b);
+		return (static_cast<unsigned long long>(a) << 32) | static_cast<unsigned int>(b);
+	};
+
+	std::unordered_map<unsigned long long, int> uses;
+	uses.reserve(static_cast<size_t>(tri->NbTriangles()) * 2);
+	for (int i = 1; i <= tri->NbTriangles(); ++i)
+	{
+		int n1, n2, n3;
+		tri->Triangle(i).Get(n1, n2, n3);
+		if (n1 == n2 || n2 == n3 || n1 == n3)
+			continue;
+		++uses[key(n1, n2)];
+		++uses[key(n2, n3)];
+		++uses[key(n3, n1)];
+	}
+
+	std::unordered_set<unsigned long long> boundary;
+	for (TopExp_Explorer ex(face, TopAbs_EDGE); ex.More(); ex.Next())
+	{
+		const TopoDS_Edge edge = TopoDS::Edge(ex.Current());
+		if (BRep_Tool::Degenerated(edge))
+			continue;
+		TopLoc_Location edgeLoc;
+		const Handle(Poly_PolygonOnTriangulation) polygon = BRep_Tool::PolygonOnTriangulation(edge, tri, edgeLoc);
+		if (polygon.IsNull())
+			return false; // an edge without a recorded polygon: no basis to judge the face by
+		const auto& nodes = polygon->Nodes();
+		for (int i = nodes.Lower(); i < nodes.Upper(); ++i)
+			boundary.insert(key(nodes(i), nodes(i + 1)));
+	}
+	if (boundary.empty())
+		return false; // no boundary information to judge by
+
+	for (const auto& use : uses)
+	{
+		if (use.second != 1 || boundary.count(use.first))
+			continue;
+		// A free edge between two nodes at the same place (a cone apex) is not a gap.
+		const int a = static_cast<int>(use.first >> 32);
+		const int b = static_cast<int>(use.first & 0xffffffffu);
+		if (tri->Node(a).Distance(tri->Node(b)) < 1.0e-9)
+			continue;
+		return true;
+	}
+	for (const unsigned long long segment : boundary)
+	{
+		if (!uses.count(segment))
+		{
+			const int a = static_cast<int>(segment >> 32);
+			const int b = static_cast<int>(segment & 0xffffffffu);
+			if (tri->Node(a).Distance(tri->Node(b)) >= 1.0e-9)
+				return true;
+		}
+	}
+	return false;
 }
 
 bool wireframeFeaturesEnabled()
@@ -757,10 +836,64 @@ std::vector<aiMesh*> BRepToAssimpConverter::convertFaceGroupToMeshesWithCache(
 	}
 
 	// ------------------------------------------------------------------
-	// Step 4 — Convert each colour group into an aiMesh + aiMaterial
+	// Step 3b — A part with several face colours stays ONE mesh: splitting it by colour cuts a closed solid into open
+	// shells (each colour group is only the faces of that colour), which Mass Properties, Fill Holes, wall thickness
+	// and section capping then all see as broken parts. The colours are kept as vertex colours instead, on a white
+	// material so they show exactly as before (albedo x vertex colour). Settings > Import/Export can restore the old
+	// one-mesh-per-colour import.
 	// ------------------------------------------------------------------
 	std::vector<aiMesh*> meshes;
 
+	if (colorFaceGroups.size() > 1 && !keepColorGroupsSeparateEnabled())
+	{
+		std::vector<aiColor4D> faceColors;
+		faceColors.reserve(static_cast<size_t>(faceGroup.Extent()));
+		for (int f = 1; f <= faceGroup.Extent(); ++f)
+		{
+			const TopoDS_Face face = TopoDS::Face(faceGroup(f));
+			Quantity_Color faceColor = partColor;
+			const auto it = faceColorMap.find(face);
+			if (it != faceColorMap.end())
+				faceColor = it->second;
+			faceColors.emplace_back(static_cast<float>(faceColor.Red()), static_cast<float>(faceColor.Green()),
+				static_cast<float>(faceColor.Blue()), 1.0f);
+		}
+
+		aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex, false, &faceColors);
+		if (mesh)
+		{
+			mesh->mName = "Mesh_" + std::to_string(meshIndex);
+			++meshIndex;
+
+			const Quantity_Color white(1.0, 1.0, 1.0, Quantity_TOC_RGB);
+			if (materialMap.find(white) == materialMap.end())
+			{
+				aiMaterial* material = new aiMaterial();
+				aiColor3D diffuseColor(1.0f, 1.0f, 1.0f);
+				material->AddProperty(&diffuseColor, 1, AI_MATKEY_COLOR_DIFFUSE);
+
+				aiColor3D ambientColor = diffuseColor * 0.3f;
+				material->AddProperty(&ambientColor, 1, AI_MATKEY_COLOR_AMBIENT);
+
+				aiColor3D specularColor(0.8f, 0.8f, 1.0f);
+				material->AddProperty(&specularColor, 1, AI_MATKEY_COLOR_SPECULAR);
+
+				float shininess = 24.0f;
+				material->AddProperty(&shininess, 1, AI_MATKEY_SHININESS);
+
+				materialMap[white] = materials.size();
+				materials.push_back(material);
+			}
+			mesh->mMaterialIndex = materialMap[white];
+			meshes.push_back(mesh);
+			return meshes;
+		}
+		// The combined mesh could not be built: fall through to the per-colour meshes.
+	}
+
+	// ------------------------------------------------------------------
+	// Step 4 — Convert each colour group into an aiMesh + aiMaterial
+	// ------------------------------------------------------------------
 	for (const auto& [color, faces] : colorFaceGroups)
 	{
 		TopTools_IndexedMapOfShape faceMap;
@@ -950,7 +1083,8 @@ bool BRepToAssimpConverter::isShapeMeshable(const TopoDS_Shape& shape)
  *
  * @since Version 2.0 - Optimized performance implementation
  */
-aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapOfShape& faceGroup, int meshIndex, bool enableStatistics)
+aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapOfShape& faceGroup, int meshIndex, bool enableStatistics,
+	const std::vector<aiColor4D>* faceColors)
 {
 
 	// PERFORMANCE ANALYSIS:
@@ -991,6 +1125,7 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 	// Statistics (only if enabled to avoid overhead)
 	int totalTriangles = 0;
 	int degenerateTriangles = 0;
+	int sliverTriangles = 0; // tiny/thin but not degenerate: kept, only left out of the vertex normals
 
 	// C2: Flat per-vertex normal accumulators declared outside the face loop so their
 	// heap capacity is reused across all faces via assign() instead of being reallocated
@@ -1014,6 +1149,23 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 	bool edgeToFacesBuilt = false;
 	int unmeshedFaces = 0;
 	int rebuiltFaces = 0;
+	int holedFaces = 0; // faces whose own triangulation had holes, rebuilt from their neighbours' edges
+
+	// The face built from the points its neighbours already carry on the shared edges (null, with the reason, if that
+	// is not possible). The neighbour map is built once, lazily.
+	auto buildFromNeighbours = [&](const TopoDS_Face& target, std::string& failure) -> Handle(Poly_Triangulation) {
+		if (!edgeToFacesBuilt)
+		{
+			for (int i = 1; i <= faceGroup.Extent(); ++i)
+				TopExp::MapShapesAndAncestors(faceGroup(i), TopAbs_EDGE, TopAbs_FACE, edgeToFaces);
+			edgeToFacesBuilt = true;
+		}
+		const FaceFallbackTriangulator::Boundary boundary = FaceFallbackTriangulator::captureBoundary(target, edgeToFaces);
+		return FaceFallbackTriangulator::triangulate(target, boundary, &failure);
+	};
+
+	// Vertex colours, when the caller gave one colour per face: pushed alongside every vertex below.
+	std::vector<aiColor4D> vertexColors;
 
 	for (int f = 1; f <= faceCount; ++f)
 	{
@@ -1021,9 +1173,14 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 
 		if (face.IsNull()) continue;
 
+		aiColor4D faceColor(1.0f, 1.0f, 1.0f, 1.0f);
+		if (faceColors && static_cast<size_t>(f - 1) < faceColors->size())
+			faceColor = (*faceColors)[static_cast<size_t>(f - 1)];
+
 		Handle(Poly_Triangulation) triangulation;
 		TopLoc_Location loc;
 		TopoDS_Face processedFace = face;  // may be replaced by a healed face below
+		bool builtFromNeighbours = false;  // triangulation came from FaceFallbackTriangulator (already in the part's frame)
 
 		// OPTIMIZATION 2: Reuse pre-computed triangulation when available.
 		// If a parallel pre-tessellation pass (e.g. BRepMesh_IncrementalMesh on the full compound
@@ -1042,19 +1199,13 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 			// per-face meshing / healing is only the fallback when that is not possible.
 			if (healFaces)
 			{
-				if (!edgeToFacesBuilt)
-				{
-					for (int i = 1; i <= faceGroup.Extent(); ++i)
-						TopExp::MapShapesAndAncestors(faceGroup(i), TopAbs_EDGE, TopAbs_FACE, edgeToFaces);
-					edgeToFacesBuilt = true;
-				}
-				const FaceFallbackTriangulator::Boundary boundary = FaceFallbackTriangulator::captureBoundary(face, edgeToFaces);
 				std::string fallbackFailure;
-				triangulation = FaceFallbackTriangulator::triangulate(face, boundary, &fallbackFailure);
+				triangulation = buildFromNeighbours(face, fallbackFailure);
 				if (!triangulation.IsNull())
 				{
 					processedFace = face;
 					loc = TopLoc_Location(); // the nodes come back already in the part's coordinate frame
+					builtFromNeighbours = true;
 					++rebuiltFaces;
 				}
 				else
@@ -1106,6 +1257,26 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 		{
 			++unmeshedFaces;
 			continue;
+		}
+
+		// A triangulation the mesher returned can still have holes in it. Rebuild such a face from its neighbours' edges
+		// (keeping the mesher's triangulation if that is not possible).
+		if (healFaces && !builtFromNeighbours && processedFace.IsSame(face) && faceTriangulationHasGaps(face, triangulation))
+		{
+			std::string gapFailure;
+			const Handle(Poly_Triangulation) rebuilt = buildFromNeighbours(face, gapFailure);
+			if (!rebuilt.IsNull())
+			{
+				triangulation = rebuilt;
+				loc = TopLoc_Location();
+				builtFromNeighbours = true;
+				++holedFaces;
+			}
+			else
+			{
+				qWarning().noquote() << QStringLiteral("[STEP import] mesh %1: a face's tessellation has holes and could not be rebuilt (%2)")
+					.arg(meshIndex).arg(QString::fromStdString(gapFailure));
+			}
 		}
 
 		const int nNodes = triangulation->NbNodes();
@@ -1209,8 +1380,13 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 
 			totalTriangles++;
 
-			// OPTIMIZATION 7: Fast degenerate check (inline, minimal overhead)
-			if (!isTriangleValid(v0, v1, v2, threshold))
+			// OPTIMIZATION 7: Fast degenerate check (inline, minimal overhead).
+			// Only a triangle with two coincident corners is left out - it has no area and all its edges are its own.
+			// A merely tiny or thin triangle is KEPT: its neighbours still reference its corners, so dropping it cuts a
+			// hole in the mesh, and a CAD part with a few slivers (fillet runs, thread ends, a split washer) then came
+			// out open and unusable for Mass Properties. It is only left out of the vertex normals below, where its
+			// near-zero normal would be noise.
+			if (v0 == v1 || v1 == v2 || v0 == v2)
 			{
 				degenerateTriangles++;
 
@@ -1222,20 +1398,27 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 				continue;
 			}
 
-			// Normal calculation for valid triangles
-			const aiVector3D edge1 = v1 - v0;
-			const aiVector3D edge2 = v2 - v0;
-			aiVector3D normal = edge1 ^ edge2;
+			if (isTriangleValid(v0, v1, v2, threshold))
+			{
+				// Normal calculation for regular triangles
+				const aiVector3D edge1 = v1 - v0;
+				const aiVector3D edge2 = v2 - v0;
+				aiVector3D normal = edge1 ^ edge2;
 
-			const float normalLengthSq = normal.SquareLength();
-			normal /= sqrtf(normalLengthSq); // Already validated above
+				const float normalLengthSq = normal.SquareLength();
+				normal /= sqrtf(normalLengthSq); // Already validated above
 
-			normalAccum[n1] += normal;
-			normalAccum[n2] += normal;
-			normalAccum[n3] += normal;
-			++normalCount[n1];
-			++normalCount[n2];
-			++normalCount[n3];
+				normalAccum[n1] += normal;
+				normalAccum[n2] += normal;
+				normalAccum[n3] += normal;
+				++normalCount[n1];
+				++normalCount[n2];
+				++normalCount[n3];
+			}
+			else
+			{
+				++sliverTriangles;
+			}
 
 			// OPTIMIZATION 8: Direct face creation (no intermediate copies)
 			aiFace meshFace;
@@ -1253,6 +1436,8 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 		for (size_t i = 0; i < localVertexCount; ++i)
 		{
 			vertices.push_back(localVertices[i]);
+			if (faceColors)
+				vertexColors.push_back(faceColor);
 
 			aiVector3D smoothedNormal(0.0f, 0.0f, 0.0f);
 
@@ -1282,6 +1467,12 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 		vertexOffset = static_cast<int>(vertices.size());
 	}
 
+	if (holedFaces > 0)
+	{
+		qWarning().noquote() << QStringLiteral("[STEP import] mesh %1: %2 face(s) had holes in their tessellation - rebuilt from their neighbours' edges")
+			.arg(meshIndex).arg(holedFaces);
+	}
+
 	if (unmeshedFaces > 0 || rebuiltFaces > 0)
 	{
 		// Not silent: a face missing from a part leaves it open, which Mass Properties and the wall-thickness
@@ -1304,6 +1495,7 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 			std::cout << "  Processing time: " << duration.count() << "ms" << std::endl;
 			std::cout << "  Total triangles: " << totalTriangles << std::endl;
 			std::cout << "  Degenerate: " << degenerateTriangles << " (" << degeneratePercentage << "%)" << std::endl;
+			std::cout << "  Slivers kept: " << sliverTriangles << std::endl;
 			std::cout << "  Valid triangles: " << (totalTriangles - degenerateTriangles) << std::endl;
 			std::cout << "  Threshold: " << threshold << std::endl;
 		}
@@ -1334,6 +1526,12 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 		for (size_t i = 0; i < faces.size(); ++i)
 		{
 			mesh->mFaces[i] = faces[i];
+		}
+
+		if (faceColors && vertexColors.size() == vertices.size())
+		{
+			mesh->mColors[0] = new aiColor4D[vertexColors.size()];
+			std::copy(vertexColors.begin(), vertexColors.end(), mesh->mColors[0]);
 		}
 
 		mesh->mMaterialIndex = 0;

@@ -373,6 +373,7 @@ void SettingsDialog::applySettings()
     settings.setValue("linearDeflectionSpinBox", import_linearDeflection);
     settings.setValue("angularDeflectionSpinBox", import_angularDeflection);
     settings.setValue("healUntessellatedFacesCheckBox", import_healFaces);
+    settings.setValue("keepColorGroupsSeparateCheckBox", import_keepColorGroupsSeparate);
 
     // Import/Export Tab - Assimp
     settings.setValue("assimpGenNormalsCheckBox", import_assimpGenNormals);
@@ -547,6 +548,7 @@ void SettingsDialog::setDefaultValues()
     ui->linearDeflectionSpinBox->setValue(0.1);
     ui->angularDeflectionSpinBox->setValue(0.3);
     ui->healUntessellatedFacesCheckBox->setChecked(true);
+    ui->keepColorGroupsSeparateCheckBox->setChecked(false);
 
     // Assimp settings
     ui->assimpGenNormalsCheckBox->setChecked(true);
@@ -706,6 +708,7 @@ void SettingsDialog::syncStateFromUi()
     import_linearDeflection = ui->linearDeflectionSpinBox->value();
     import_angularDeflection = ui->angularDeflectionSpinBox->value();
     import_healFaces = ui->healUntessellatedFacesCheckBox->isChecked();
+    import_keepColorGroupsSeparate = ui->keepColorGroupsSeparateCheckBox->isChecked();
     import_assimpGenNormals = ui->assimpGenNormalsCheckBox->isChecked();
     import_assimpSmoothNormals = ui->assimpSmoothNormalsCheckBox->isChecked();
     import_assimpCalcTangents = ui->assimpCalcTangentsCheckBox->isChecked();
@@ -893,6 +896,8 @@ void SettingsDialog::loadSettings()
     ui->angularDeflectionSpinBox->setValue(dVal);
     bVal = settings.value("healUntessellatedFacesCheckBox", ui->healUntessellatedFacesCheckBox->isChecked()).toBool();
     ui->healUntessellatedFacesCheckBox->setChecked(bVal);
+    bVal = settings.value("keepColorGroupsSeparateCheckBox", ui->keepColorGroupsSeparateCheckBox->isChecked()).toBool();
+    ui->keepColorGroupsSeparateCheckBox->setChecked(bVal);
     bVal = settings.value("assimpGenNormalsCheckBox", ui->assimpGenNormalsCheckBox->isChecked()).toBool();
     ui->assimpGenNormalsCheckBox->setChecked(bVal);
     bVal = settings.value("assimpSmoothNormalsCheckBox", ui->assimpSmoothNormalsCheckBox->isChecked()).toBool();
@@ -1004,6 +1009,7 @@ void SettingsDialog::restoreDefaults()
         ui->checkAutoPackUVs, ui->checkRelaxUVs,
         ui->checkRememberUV, ui->buttonResetUVPrompt,
         ui->linearDeflectionSpinBox, ui->angularDeflectionSpinBox, ui->healUntessellatedFacesCheckBox,
+        ui->keepColorGroupsSeparateCheckBox,
         ui->assimpGenNormalsCheckBox, ui->assimpSmoothNormalsCheckBox,
         ui->assimpCalcTangentsCheckBox, ui->assimpOptimizeMeshCheckBox, ui->assimpRemoveDuplicatesCheckBox,
 		ui->assimpAutoOrientCheckBox,
@@ -1360,6 +1366,11 @@ void SettingsDialog::on_angularDeflectionSpinBox_valueChanged()
 void SettingsDialog::on_healUntessellatedFacesCheckBox_stateChanged()
 {
     import_healFaces = ui->healUntessellatedFacesCheckBox->isChecked();
+}
+
+void SettingsDialog::on_keepColorGroupsSeparateCheckBox_stateChanged()
+{
+    import_keepColorGroupsSeparate = ui->keepColorGroupsSeparateCheckBox->isChecked();
 }
 
 // Import/Export Tab - Assimp

@@ -211,7 +211,10 @@ private:
 
 	static bool isShapeMeshable(const TopoDS_Shape& shape);
 
-	static aiMesh* convertFaceGroupToMesh(const TopTools_IndexedMapOfShape& faceGroup, int meshIndex, bool enableStatistics = false);
+	// faceColors (optional): one colour per face of faceGroup, in faceGroup order - stored as the mesh's vertex colours,
+	// so one mesh can carry a part's per-face colours.
+	static aiMesh* convertFaceGroupToMesh(const TopTools_IndexedMapOfShape& faceGroup, int meshIndex, bool enableStatistics = false,
+		const std::vector<aiColor4D>* faceColors = nullptr);
 
 	static std::vector<aiMesh*> convertFaceGroupToMeshesWithCache(
 		const TopTools_IndexedMapOfShape& faceGroup,

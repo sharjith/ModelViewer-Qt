@@ -14133,6 +14133,16 @@ pregunte de nuevo la próxima vez</translation>
         <translation>Reconstruir las caras que no se pueden teselar</translation>
     </message>
     <message>
+        <location filename="../ui/SettingsDialog.ui" line="1890"/>
+        <source>Import each face colour as a separate mesh</source>
+        <translation>Importar cada color de cara como una malla independiente</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1886"/>
+        <source>A STEP/IGES part whose faces have different colours is normally imported as ONE mesh, the face colours stored as vertex colours - like other CAD viewers do. Turn this on to import one mesh per colour instead (each colour then has its own material, but a part is no longer a single closed solid).</source>
+        <translation>Una pieza STEP/IGES cuyas caras tienen distintos colores se importa normalmente como UNA sola malla, con los colores de las caras guardados como colores de vértice, como hacen otros visores CAD. Active esta opción para importar en su lugar una malla por color (cada color tendrá entonces su propio material, pero la pieza deja de ser un único sólido cerrado).</translation>
+    </message>
+    <message>
         <location filename="../ui/SettingsDialog.ui" line="1914"/>
         <source>Generate vertex normals if the imported file has none</source>
         <translation>Generar normales de vértice si el archivo importado no tiene ninguna</translation>

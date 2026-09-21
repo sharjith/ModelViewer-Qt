@@ -205,6 +205,7 @@ private slots:
     void on_linearDeflectionSpinBox_valueChanged();
     void on_angularDeflectionSpinBox_valueChanged();
     void on_healUntessellatedFacesCheckBox_stateChanged();
+    void on_keepColorGroupsSeparateCheckBox_stateChanged();
     void on_assimpGenNormalsCheckBox_stateChanged();
     void on_assimpSmoothNormalsCheckBox_stateChanged();
     void on_assimpCalcTangentsCheckBox_stateChanged();
@@ -329,6 +330,7 @@ private:
     double import_linearDeflection = 0.1;
     double import_angularDeflection = 0.3;
     bool import_healFaces = true; // rebuild faces the STEP/IGES mesher cannot tessellate
+    bool import_keepColorGroupsSeparate = false; // one mesh per face colour (off: one mesh per part, colours as vertex colours)
 
     // Assimp
     bool import_assimpGenNormals = true;

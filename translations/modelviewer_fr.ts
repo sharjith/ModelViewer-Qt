@@ -14130,6 +14130,16 @@ edemande la prochaine fois</translation>
         <translation>Reconstruire les faces qui échouent à la tessellation</translation>
     </message>
     <message>
+        <location filename="../ui/SettingsDialog.ui" line="1890"/>
+        <source>Import each face colour as a separate mesh</source>
+        <translation>Importer chaque couleur de face comme un maillage séparé</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1886"/>
+        <source>A STEP/IGES part whose faces have different colours is normally imported as ONE mesh, the face colours stored as vertex colours - like other CAD viewers do. Turn this on to import one mesh per colour instead (each colour then has its own material, but a part is no longer a single closed solid).</source>
+        <translation>Une pièce STEP/IGES dont les faces ont des couleurs différentes est normalement importée comme UN seul maillage, les couleurs des faces étant stockées comme couleurs de sommet, comme le font les autres visionneuses CAO. Activez cette option pour importer plutôt un maillage par couleur (chaque couleur a alors son propre matériau, mais la pièce n&apos;est plus un solide fermé unique).</translation>
+    </message>
+    <message>
         <location filename="../ui/SettingsDialog.ui" line="1914"/>
         <source>Generate vertex normals if the imported file has none</source>
         <translation>Générer des normales de sommet si le fichier importé n&apos;en a pas</translation>

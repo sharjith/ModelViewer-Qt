@@ -14133,6 +14133,16 @@ chiederà di nuovo la prossima volta</translation>
         <translation>Ricostruisci le facce che non si riescono a tassellare</translation>
     </message>
     <message>
+        <location filename="../ui/SettingsDialog.ui" line="1890"/>
+        <source>Import each face colour as a separate mesh</source>
+        <translation>Importa ogni colore delle facce come mesh separata</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1886"/>
+        <source>A STEP/IGES part whose faces have different colours is normally imported as ONE mesh, the face colours stored as vertex colours - like other CAD viewers do. Turn this on to import one mesh per colour instead (each colour then has its own material, but a part is no longer a single closed solid).</source>
+        <translation>Un pezzo STEP/IGES le cui facce hanno colori diversi viene normalmente importato come UNA sola mesh, con i colori delle facce salvati come colori dei vertici, come fanno altri visualizzatori CAD. Attiva questa opzione per importare invece una mesh per colore (ogni colore avrà allora il proprio materiale, ma il pezzo non sarà più un unico solido chiuso).</translation>
+    </message>
+    <message>
         <location filename="../ui/SettingsDialog.ui" line="1914"/>
         <source>Generate vertex normals if the imported file has none</source>
         <translation>Genera normali dei vertici se il file importato non ne ha</translation>

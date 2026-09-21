@@ -1879,6 +1879,19 @@ asks again next time</string>
                    </property>
                   </widget>
                  </item>
+                 <item row="3" column="0" colspan="2">
+                  <widget class="QCheckBox" name="keepColorGroupsSeparateCheckBox">
+                   <property name="toolTip">
+                    <string>A STEP/IGES part whose faces have different colours is normally imported as ONE mesh, the face colours stored as vertex colours - like other CAD viewers do. Turn this on to import one mesh per colour instead (each colour then has its own material, but a part is no longer a single closed solid).</string>
+                   </property>
+                   <property name="text">
+                    <string>Import each face colour as a separate mesh</string>
+                   </property>
+                   <property name="checked">
+                    <bool>false</bool>
+                   </property>
+                  </widget>
+                 </item>
                 </layout>
                </widget>
               </item>

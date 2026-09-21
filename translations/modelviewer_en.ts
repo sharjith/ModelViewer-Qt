@@ -11626,6 +11626,16 @@ asks again next time</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../ui/SettingsDialog.ui" line="1890"/>
+        <source>Import each face colour as a separate mesh</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1886"/>
+        <source>A STEP/IGES part whose faces have different colours is normally imported as ONE mesh, the face colours stored as vertex colours - like other CAD viewers do. Turn this on to import one mesh per colour instead (each colour then has its own material, but a part is no longer a single closed solid).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../ui/SettingsDialog.ui" line="1891"/>
         <source>Assimp Import Settings</source>
         <translation></translation>
