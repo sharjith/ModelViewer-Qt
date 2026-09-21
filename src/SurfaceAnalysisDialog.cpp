@@ -229,22 +229,26 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 
 		pageLayout->addSpacing(8);
 		pageLayout->addLayout(makeSectionHeader(page, tr("Wall-Thickness"),
-			tr("Wall-Thickness estimates how thick the material is behind each point of "
-			   "the surface - blue is thin, red is thick. Local thickness samples many points "
-			   "per face and casts rays into the material from each, so thin ribs and slots are "
-			   "found, the result does not depend on how the surface was triangulated, and the "
-			   "colours show where WITHIN a large face the value changes; the ray spread sets how "
-			   "far off the straight-in direction those rays may fan out (0 = straight in only). "
-			   "Normal ray is the older, faster single-ray estimate. Both are ESTIMATES, not exact "
-			   "minima. Requires a closed, non-self-intersecting mesh that bounds a volume - "
-			   "otherwise the whole mesh is rejected with a reason, never partially colored. "
-			   "Hovering a value writes the ray behind it to the log.")));
+			tr("Wall-Thickness estimates how thick the material is behind each point of the surface - blue is "
+			   "thin, red is thick. Inscribed sphere finds, for each point, the largest sphere that fits inside "
+			   "the part while touching the surface there; its diameter is the wall thickness. It reads slanted "
+			   "and curved walls correctly, always gives a value, and finds thick spots at corners and rib roots. "
+			   "Along a sharp convex edge no large sphere can touch the surface, so a thin border would appear "
+			   "there; \"Ignore sharp-edge effect\" (on by default) gives those points the value of the nearest "
+			   "interior point of the face instead. Local thickness casts rays into the material from many "
+			   "points per face (the ray spread sets how far they may fan out; 0 = straight in only) and Normal "
+			   "ray is the older, faster single-ray estimate; both measure along a ray, so they can over-read "
+			   "where the far wall is slanted and leave gaps where it is too steep. All methods are ESTIMATES, "
+			   "not exact minima. Requires a closed, non-self-intersecting mesh that bounds a volume - otherwise "
+			   "the whole mesh is rejected with a reason, never partially colored. Hovering a value writes how "
+			   "it was measured to the log.")));
 
 		auto* methodRow = new QHBoxLayout();
 		methodRow->addWidget(new QLabel(tr("Method:"), page));
 		_thicknessMethodCombo = new QComboBox(page);
-		_thicknessMethodCombo->addItem(tr("Local thickness (recommended)"), QVariant(0));
-		_thicknessMethodCombo->addItem(tr("Normal ray (fast)"), QVariant(1));
+		_thicknessMethodCombo->addItem(tr("Inscribed sphere (recommended)"), QVariant(static_cast<int>(WallThicknessMethod::Sphere)));
+		_thicknessMethodCombo->addItem(tr("Local thickness (rays)"), QVariant(static_cast<int>(WallThicknessMethod::LocalThickness)));
+		_thicknessMethodCombo->addItem(tr("Normal ray (fast)"), QVariant(static_cast<int>(WallThicknessMethod::NormalRay)));
 		methodRow->addWidget(_thicknessMethodCombo, 1);
 		pageLayout->addLayout(methodRow);
 
@@ -262,10 +266,22 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 		                                    "sample but reads a flat face's sloped neighbours as thinner."));
 		spreadRow->addWidget(_thicknessSpreadSpin, 1);
 		pageLayout->addLayout(spreadRow);
+
+		// Inscribed sphere only.
+		_thicknessEdgeReliefCheck = new QCheckBox(tr("Ignore sharp-edge effect"), page);
+		_thicknessEdgeReliefCheck->setChecked(true);
+		_thicknessEdgeReliefCheck->setToolTip(tr("Along a sharp convex edge (or the rim of a hole) the largest sphere that touches "
+		                                         "the surface is small, which would read as a thin wall there. With this on, such "
+		                                         "points take the value of the nearest interior point of the face. Points squeezed "
+		                                         "between two walls (such as the end of a thin rib) keep their small value."));
+		pageLayout->addWidget(_thicknessEdgeReliefCheck);
 		connect(_thicknessMethodCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int)
 		{
-			_thicknessSpreadSpin->setEnabled(_thicknessMethodCombo->currentData().toInt() == 0);
+			const int method = _thicknessMethodCombo->currentData().toInt();
+			_thicknessSpreadSpin->setEnabled(method == static_cast<int>(WallThicknessMethod::LocalThickness));
+			_thicknessEdgeReliefCheck->setEnabled(method == static_cast<int>(WallThicknessMethod::Sphere));
 		});
+		_thicknessSpreadSpin->setEnabled(false); // the initial method is Inscribed sphere
 
 		_applyThicknessButton = new QPushButton(tr("Apply Wall-Thickness"), page);
 		connect(_applyThicknessButton, &QPushButton::clicked, this, &SurfaceAnalysisDialog::onApplyWallThicknessClicked);
@@ -597,6 +613,8 @@ void SurfaceAnalysisDialog::logThicknessWitness(SceneMesh* mesh, const MeshSurfa
 	const WallThicknessWitness* witness = thicknessWitnessAt(mesh, anchor, n, sample, toMm);
 	if (!witness)
 		return;
+	const auto setIt = _thicknessWitness.constFind(mesh);
+	const bool sphere = setIt != _thicknessWitness.constEnd() && setIt->sphere;
 	if (mesh == _lastLoggedThicknessMesh && anchor.triangleIndex == _lastLoggedThicknessTriangle && sample == _lastLoggedThicknessSample)
 		return;
 	_lastLoggedThicknessMesh = mesh;
@@ -617,6 +635,25 @@ void SurfaceAnalysisDialog::logThicknessWitness(SceneMesh* mesh, const MeshSurfa
 			.arg(mesh->getName()).arg(anchor.triangleIndex).arg(n).arg(sample)
 			.arg(thicknessStatusText(w.status)).arg(origin).arg(hitPoint).arg(lengthMm, 0, 'f', 3)
 			.arg(w.hitTriangle).arg(w.facing, 0, 'f', 3);
+		return;
+	}
+
+	if (sphere)
+	{
+		// The witness is the contact that limits the sphere: it touches the surface at `origin` and here.
+		qInfo().noquote() << QStringLiteral("[WallThickness] '%1' triangle %2 (%3x%3 samples), sample %4: %5 mm | inscribed sphere, diameter %6 mm, "
+			"touching the surface at %7 and at %8 (triangle %9, wall facing %10), contact %11 deg off the inward normal "
+			"| points in model units, lengths in mm")
+			.arg(mesh->getName()).arg(anchor.triangleIndex).arg(n).arg(sample)
+			.arg(valueMm, 0, 'f', 3).arg(lengthMm, 0, 'f', 3).arg(origin).arg(hitPoint)
+			.arg(w.hitTriangle).arg(w.facing, 0, 'f', 3).arg(w.angleDegrees, 0, 'f', 1);
+		if (w.reliefSteps > 0)
+		{
+			// The sphere above was measured at an interior point, not at the sample: the sample sat within reach of a
+			// sharp convex edge, which limits a sphere touching the surface there.
+			qInfo().noquote() << QStringLiteral("[WallThickness]   edge relief: value taken from the interior point (%1, %2, %3) after %4 move(s) off the edge")
+				.arg(w.source[0], 0, 'g', 7).arg(w.source[1], 0, 'g', 7).arg(w.source[2], 0, 'g', 7).arg(static_cast<int>(w.reliefSteps));
+		}
 		return;
 	}
 
@@ -1070,12 +1107,16 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 	params.insert(QStringLiteral("mode"), QStringLiteral("wallThickness"));
 	// The method is part of the cache key: switching it must not leave a result computed the other way looking valid.
 	WallThicknessParams analysisParams;
-	analysisParams.method = (_thicknessMethodCombo && _thicknessMethodCombo->currentData().toInt() == 1)
-		? WallThicknessMethod::NormalRay : WallThicknessMethod::LocalThickness;
+	analysisParams.method = _thicknessMethodCombo
+		? static_cast<WallThicknessMethod>(_thicknessMethodCombo->currentData().toInt())
+		: WallThicknessMethod::Sphere;
 	params.insert(QStringLiteral("method"), static_cast<int>(analysisParams.method));
 	analysisParams.coneHalfAngleDegrees = _thicknessSpreadSpin ? _thicknessSpreadSpin->value() : 0.0;
 	if (analysisParams.method == WallThicknessMethod::LocalThickness)
 		params.insert(QStringLiteral("spreadDegrees"), analysisParams.coneHalfAngleDegrees);
+	analysisParams.edgeRelief = !_thicknessEdgeReliefCheck || _thicknessEdgeReliefCheck->isChecked();
+	if (analysisParams.method == WallThicknessMethod::Sphere)
+		params.insert(QStringLiteral("edgeRelief"), analysisParams.edgeRelief);
 
 	std::vector<AnalysisMeshSnapshot> snapshots;
 	snapshots.reserve(selected.size());
@@ -1174,6 +1215,7 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 				witness.offset = scaled.samples.offset;
 				witness.witness = scaled.sampleWitness;
 				witness.toMm = toMm;
+				witness.sphere = analysisParams.method == WallThicknessMethod::Sphere;
 			}
 			_lastLoggedThicknessMesh = nullptr;
 		}

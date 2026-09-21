@@ -232,10 +232,11 @@ private:
 	QComboBox* _pullDirectionCombo = nullptr;
 	QPushButton* _applyDraftButton = nullptr;
 	QPushButton* _applyThicknessButton = nullptr;
-	QComboBox* _thicknessMethodCombo = nullptr;       // Local thickness / Normal ray
+	QComboBox* _thicknessMethodCombo = nullptr;       // Inscribed sphere / Local thickness / Normal ray (data = WallThicknessMethod)
 	QCheckBox* _thicknessHighlightCheck = nullptr;    // switch the display to a pass/fail threshold map
 	QDoubleSpinBox* _thicknessLimitSpin = nullptr;    // the limit, in mm
 	QDoubleSpinBox* _thicknessSpreadSpin = nullptr;   // Local thickness ray spread (cone half angle), degrees
+	QCheckBox* _thicknessEdgeReliefCheck = nullptr;   // Inscribed sphere: ignore the sharp-edge effect
 	QLabel* _thicknessSummaryLabel = nullptr;
 	QLabel* _thicknessRejectionNote = nullptr;
 	// Top of the continuous ramp (mm) for the current result: a robust percentile rather than the maximum, so one
@@ -252,6 +253,7 @@ private:
 		std::vector<unsigned int> offset;
 		std::vector<WallThicknessWitness> witness;
 		float toMm = 1.0f;
+		bool sphere = false; // measured with the inscribed-sphere method (the witness is a contact, not a ray)
 	};
 	QHash<SceneMesh*, ThicknessWitnessSet> _thicknessWitness;
 	// Last hovered sample that was logged, so a still cursor does not repeat the same line on every mouse move.

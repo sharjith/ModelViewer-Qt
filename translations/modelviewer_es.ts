@@ -14356,21 +14356,21 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
     <name>SurfaceAnalysisDialog</name>
     <message>
         <location filename="../src/SurfaceAnalysisDialog.cpp" line="49"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="889"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="918"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1007"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1039"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1063"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1197"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1248"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1406"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1491"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1581"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1587"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1603"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1647"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1659"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1667"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="926"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="955"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1044"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1076"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1100"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1239"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1290"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1448"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1533"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1623"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1629"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1645"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1689"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1701"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1709"/>
         <source>Surface Analysis</source>
         <translation>Análisis de superficie</translation>
     </message>
@@ -14392,7 +14392,7 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
     </message>
     <message>
         <location filename="../src/SurfaceAnalysisDialog.cpp" line="103"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="309"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="325"/>
         <source>Deviation</source>
         <translation>Desviación</translation>
     </message>
@@ -14482,22 +14482,21 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation type="vanished">Espesor de pared estima cuánto material hay detrás de cada punto de la superficie: azul es delgado, rojo es grueso. El espesor local muestrea muchos puntos por cara y lanza un cono de rayos hacia el material, de modo que se detectan nervios y ranuras finos y el resultado no depende de cómo se triangulase la superficie; Rayo normal es la estimación anterior, más rápida, de un solo rayo. Ambas son ESTIMACIONES, no mínimos exactos. Requiere una malla cerrada y sin autointersecciones que delimite un volumen; de lo contrario se rechaza toda la malla indicando el motivo, nunca se colorea parcialmente.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="244"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="247"/>
         <source>Method:</source>
         <translation>Método:</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="246"/>
         <source>Local thickness (recommended)</source>
-        <translation>Espesor local (recomendado)</translation>
+        <translation type="vanished">Espesor local (recomendado)</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="247"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="251"/>
         <source>Normal ray (fast)</source>
         <translation>Rayo normal (rápido)</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="532"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="548"/>
         <source>Thickness: %1 mm</source>
         <translation>Espesor: %1 mm</translation>
     </message>
@@ -14506,58 +14505,58 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation type="vanished">Espesor de pared colorea cada cara según la distancia de un rayo hacia el interior hasta la pared opuesta: azul es delgado, rojo es grueso. Es una ESTIMACIÓN, no un mínimo real garantizado (el mínimo real puede darse en una dirección distinta de la normal de la superficie). Requiere una malla cerrada y sin autointersecciones que delimite un volumen; si no lo cumple, se rechaza toda la malla indicando el motivo, sin colorearla parcialmente.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="270"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="286"/>
         <source>Apply Wall-Thickness</source>
         <translation>Aplicar espesor de pared</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="277"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="293"/>
         <source>Highlight walls thinner than:</source>
         <translation>Resaltar paredes más delgadas que:</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="280"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1380"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="296"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1422"/>
         <source> mm</source>
         <translation> mm</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="310"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="326"/>
         <source>Colors the selected mesh by its unsigned distance to a reference mesh&apos;s surface - dark blue is a close match, red is the largest deviation found. Both meshes must already be aligned in the same coordinate frame and use the same units; a plain offset between them will read as a false deviation. This is a sampled result (measured per vertex), not exhaustive coverage.</source>
         <translation>Colorea la malla seleccionada según su distancia sin signo a la superficie de una malla de referencia: azul oscuro es una buena coincidencia y rojo es la mayor desviación encontrada. Ambas mallas deben estar ya alineadas en el mismo sistema de coordenadas y usar las mismas unidades; un simple desplazamiento entre ellas se leerá como una falsa desviación. Es un resultado muestreado (medido por vértice), no una cobertura exhaustiva.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="317"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="333"/>
         <source>Reference mesh:</source>
         <translation>Malla de referencia:</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="322"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="338"/>
         <source>Apply</source>
         <translation>Aplicar</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="340"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="356"/>
         <source>Show Readout on Hover</source>
         <translation>Mostrar lectura al pasar el cursor</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="357"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="373"/>
         <source>Clear Overlay</source>
         <translation>Borrar superposición</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="361"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="377"/>
         <source>Close</source>
         <translation>Cerrar</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="528"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="544"/>
         <source>Draft: %1°</source>
         <translation>Desmoldeo: %1°</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="530"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="546"/>
         <source>Curvature: %1</source>
         <translation>Curvatura: %1</translation>
     </message>
@@ -14566,157 +14565,185 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation type="vanished">Espesor: %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="232"/>
         <source>Wall-Thickness estimates how thick the material is behind each point of the surface - blue is thin, red is thick. Local thickness samples many points per face and casts rays into the material from each, so thin ribs and slots are found, the result does not depend on how the surface was triangulated, and the colours show where WITHIN a large face the value changes; the ray spread sets how far off the straight-in direction those rays may fan out (0 = straight in only). Normal ray is the older, faster single-ray estimate. Both are ESTIMATES, not exact minima. Requires a closed, non-self-intersecting mesh that bounds a volume - otherwise the whole mesh is rejected with a reason, never partially colored. Hovering a value writes the ray behind it to the log.</source>
-        <translation>Espesor de pared estima cuánto material hay detrás de cada punto de la superficie: azul es delgado, rojo es grueso. El espesor local muestrea muchos puntos por cara y lanza rayos hacia el material desde cada uno, de modo que se detectan nervios y ranuras finos, el resultado no depende de cómo se triangulase la superficie y los colores muestran dónde CAMBIA el valor dentro de una cara grande; la dispersión de rayos fija cuánto pueden desviarse esos rayos de la dirección recta hacia dentro (0 = solo recto hacia dentro). Rayo normal es la estimación anterior, más rápida, de un solo rayo. Ambas son ESTIMACIONES, no mínimos exactos. Requiere una malla cerrada y sin autointersecciones que delimite un volumen; de lo contrario se rechaza toda la malla indicando el motivo, nunca se colorea parcialmente. Al pasar el cursor sobre un valor, el rayo que lo produjo se escribe en el registro.</translation>
+        <translation type="vanished">Espesor de pared estima cuánto material hay detrás de cada punto de la superficie: azul es delgado, rojo es grueso. El espesor local muestrea muchos puntos por cara y lanza rayos hacia el material desde cada uno, de modo que se detectan nervios y ranuras finos, el resultado no depende de cómo se triangulase la superficie y los colores muestran dónde CAMBIA el valor dentro de una cara grande; la dispersión de rayos fija cuánto pueden desviarse esos rayos de la dirección recta hacia dentro (0 = solo recto hacia dentro). Rayo normal es la estimación anterior, más rápida, de un solo rayo. Ambas son ESTIMACIONES, no mínimos exactos. Requiere una malla cerrada y sin autointersecciones que delimite un volumen; de lo contrario se rechaza toda la malla indicando el motivo, nunca se colorea parcialmente. Al pasar el cursor sobre un valor, el rayo que lo produjo se escribe en el registro.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="253"/>
+        <source>Wall-Thickness estimates how thick the material is behind each point of the surface - blue is thin, red is thick. Inscribed sphere finds, for each point, the largest sphere that fits inside the part while touching the surface there; its diameter is the wall thickness. It reads slanted and curved walls correctly, always gives a value, and finds thick spots at corners and rib roots. Along a sharp convex edge no large sphere can touch the surface, so a thin border can appear there - a rounded edge reads normally. Local thickness casts rays into the material from many points per face (the ray spread sets how far they may fan out; 0 = straight in only) and Normal ray is the older, faster single-ray estimate; both measure along a ray, so they can over-read where the far wall is slanted and leave gaps where it is too steep. All methods are ESTIMATES, not exact minima. Requires a closed, non-self-intersecting mesh that bounds a volume - otherwise the whole mesh is rejected with a reason, never partially colored. Hovering a value writes how it was measured to the log.</source>
+        <translation type="vanished">Espesor de pared estima cuánto material hay detrás de cada punto de la superficie: azul es delgado, rojo es grueso. La esfera inscrita busca, para cada punto, la esfera más grande que cabe dentro de la pieza tocando allí la superficie; su diámetro es el espesor de pared. Lee correctamente las paredes inclinadas y curvas, siempre da un valor y encuentra zonas gruesas en esquinas y raíces de nervios. En una arista convexa viva ninguna esfera grande puede tocar la superficie, por lo que allí puede aparecer un borde delgado; una arista redondeada se lee con normalidad. El espesor local lanza rayos hacia el material desde muchos puntos por cara (la dispersión de rayos fija cuánto pueden abrirse; 0 = solo recto hacia dentro) y Rayo normal es la estimación anterior, más rápida, de un solo rayo; ambos miden a lo largo de un rayo, por lo que pueden leer de más donde la pared opuesta está inclinada y dejar huecos donde es demasiado inclinada. Todos los métodos son ESTIMACIONES, no mínimos exactos. Requiere una malla cerrada y sin autointersecciones que delimite un volumen; de lo contrario se rechaza toda la malla indicando el motivo, nunca se colorea parcialmente. Al pasar el cursor sobre un valor, se escribe en el registro cómo se midió.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="232"/>
+        <source>Wall-Thickness estimates how thick the material is behind each point of the surface - blue is thin, red is thick. Inscribed sphere finds, for each point, the largest sphere that fits inside the part while touching the surface there; its diameter is the wall thickness. It reads slanted and curved walls correctly, always gives a value, and finds thick spots at corners and rib roots. Along a sharp convex edge no large sphere can touch the surface, so a thin border would appear there; &quot;Ignore sharp-edge effect&quot; (on by default) gives those points the value of the nearest interior point of the face instead. Local thickness casts rays into the material from many points per face (the ray spread sets how far they may fan out; 0 = straight in only) and Normal ray is the older, faster single-ray estimate; both measure along a ray, so they can over-read where the far wall is slanted and leave gaps where it is too steep. All methods are ESTIMATES, not exact minima. Requires a closed, non-self-intersecting mesh that bounds a volume - otherwise the whole mesh is rejected with a reason, never partially colored. Hovering a value writes how it was measured to the log.</source>
+        <translation>Espesor de pared estima cuánto material hay detrás de cada punto de la superficie: azul es delgado, rojo es grueso. La esfera inscrita busca, para cada punto, la esfera más grande que cabe dentro de la pieza tocando allí la superficie; su diámetro es el espesor de pared. Lee correctamente las paredes inclinadas y curvas, siempre da un valor y encuentra zonas gruesas en esquinas y raíces de nervios. En una arista convexa viva ninguna esfera grande puede tocar la superficie, por lo que allí aparecería un borde delgado; «Ignorar el efecto de aristas vivas» (activado por defecto) da a esos puntos el valor del punto interior más cercano de la cara. El espesor local lanza rayos hacia el material desde muchos puntos por cara (la dispersión de rayos fija cuánto pueden abrirse; 0 = solo recto hacia dentro) y Rayo normal es la estimación anterior, más rápida, de un solo rayo; ambos miden a lo largo de un rayo, por lo que pueden leer de más donde la pared opuesta está inclinada y dejar huecos donde es demasiado inclinada. Todos los métodos son ESTIMACIONES, no mínimos exactos. Requiere una malla cerrada y sin autointersecciones que delimite un volumen; de lo contrario se rechaza toda la malla indicando el motivo, nunca se colorea parcialmente. Al pasar el cursor sobre un valor, se escribe en el registro cómo se midió.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="249"/>
+        <source>Inscribed sphere (recommended)</source>
+        <translation>Esfera inscrita (recomendado)</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="250"/>
+        <source>Local thickness (rays)</source>
+        <translation>Espesor local (rayos)</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="257"/>
         <source>Ray spread:</source>
         <translation>Dispersión de rayos:</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="260"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="264"/>
         <source>0 measures straight in from each sample (the wall directly behind it). Larger values also probe obliquely, which finds thin features beside a sample but reads a flat face&apos;s sloped neighbours as thinner.</source>
         <translation>0 mide en línea recta hacia dentro desde cada muestra (la pared justo detrás). Valores mayores también sondean en oblicuo, lo que encuentra detalles finos junto a una muestra pero lee los vecinos inclinados de una cara plana como más delgados.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="534"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="271"/>
+        <source>Ignore sharp-edge effect</source>
+        <translation>Ignorar el efecto de aristas vivas</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="273"/>
+        <source>Along a sharp convex edge (or the rim of a hole) the largest sphere that touches the surface is small, which would read as a thin wall there. With this on, such points take the value of the nearest interior point of the face. Points squeezed between two walls (such as the end of a thin rib) keep their small value.</source>
+        <translation>En una arista convexa viva (o el borde de un taladro) la esfera más grande que toca la superficie es pequeña, lo que allí se leería como pared delgada. Con esto activado, esos puntos toman el valor del punto interior más cercano de la cara. Los puntos atrapados entre dos paredes (como el extremo de una nervadura delgada) conservan su valor pequeño.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="550"/>
         <source>Deviation: %1</source>
         <translation>Desviación: %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="563"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="579"/>
         <source>no wall found behind the surface</source>
         <translation>no se encontró pared detrás de la superficie</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="565"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="581"/>
         <source>the wall behind belongs to a different body</source>
         <translation>la pared de detrás pertenece a otro cuerpo</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="567"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="583"/>
         <source>the ray meets a surface from outside (touching or overlapping bodies)</source>
         <translation>el rayo llega a una superficie desde fuera (cuerpos en contacto o solapados)</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="569"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="585"/>
         <source>the wall behind is too steep to measure straight through</source>
         <translation>la pared de detrás es demasiado inclinada para medir en línea recta</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="571"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="587"/>
         <source>the wall behind is a degenerate triangle</source>
         <translation>la pared de detrás es un triángulo degenerado</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="586"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="602"/>
         <source>No value: %1</source>
         <translation>Sin valor: %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="762"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="799"/>
         <source>Overlay cleared for %1 mesh(es) - transform changed, click Apply to recompute.</source>
         <translation>Superposición borrada para %1 malla(s): la transformación cambió, haga clic en Aplicar para recalcular.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="776"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="813"/>
         <source>No mesh selected - select one or more meshes in the scene tree first.</source>
         <translation>Ninguna malla seleccionada: seleccione primero una o más mallas en el árbol de escena.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="782"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="819"/>
         <source>%1 meshes selected - Deviation needs exactly one (the scan/comparison side).</source>
         <translation>%1 mallas seleccionadas: Desviación necesita exactamente una (el lado de escaneo/comparación).</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="799"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="836"/>
         <source>Comparing: %1</source>
         <translation>Comparando: %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="804"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="841"/>
         <source>Selected: %1</source>
         <translation>Seleccionado: %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="805"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="842"/>
         <source>Selected (%1): %2</source>
         <translation>Seleccionadas (%1): %2</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="889"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="918"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1063"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1406"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="926"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="955"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1100"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1448"/>
         <source>Select one or more meshes first.</source>
         <translation>Seleccione primero una o más mallas.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="934"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1087"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1427"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1625"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="971"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1128"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1469"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1667"/>
         <source>Cancel</source>
         <translation>Cancelar</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1008"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1198"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1492"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1648"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1660"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1045"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1240"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1534"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1690"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1702"/>
         <source>Selection changed during computation - re-run Apply.</source>
         <translation>La selección cambió durante el cálculo: vuelva a ejecutar Aplicar.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1040"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1077"/>
         <source>Could not compute a usable curvature result for the current selection.</source>
         <translation>No se pudo calcular un resultado de curvatura utilizable para la selección actual.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1249"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1291"/>
         <source>Could not compute wall thickness - no face found a valid opposite-wall hit.</source>
         <translation>No se pudo calcular el espesor de pared: ninguna cara encontró un impacto válido en la pared opuesta.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1375"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1417"/>
         <source>&lt; %1 mm</source>
         <translation>&lt; %1 mm</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1375"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1417"/>
         <source>&gt;= %1 mm</source>
         <translation>&gt;= %1 mm</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1386"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1428"/>
         <source>Thinnest wall found: %1 mm.</source>
         <translation>Pared más delgada encontrada: %1 mm.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1389"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1431"/>
         <source>%1% of the analysed surface is thinner than %2 mm.</source>
         <translation>El %1 % de la superficie analizada es más delgada que %2 mm.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1582"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1624"/>
         <source>Select exactly one mesh to compare (the scan/comparison side).</source>
         <translation>Seleccione exactamente una malla para comparar (el lado de escaneo/comparación).</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1588"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1630"/>
         <source>No other loaded mesh is available to compare against.</source>
         <translation>No hay ninguna otra malla cargada con la que comparar.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1604"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1646"/>
         <source>The chosen reference mesh is no longer available - pick another one.</source>
         <translation>La malla de referencia elegida ya no está disponible: elija otra.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1668"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1710"/>
         <source>Could not compute deviation - the reference mesh has no usable triangles.</source>
         <translation>No se pudo calcular la desviación: la malla de referencia no tiene triángulos utilizables.</translation>
     </message>

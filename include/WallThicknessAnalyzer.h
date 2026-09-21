@@ -53,13 +53,22 @@ class SceneMesh;
 //    the smallest of its samples. Finds ribs, slots and fins a single normal ray misses, and does not depend on how
 //    the surface was tessellated. Still an estimate of the medial-sphere definition, not an exact evaluation
 //    of it.
-enum class WallThicknessMethod { NormalRay, LocalThickness };
+//  * Sphere - for each sample point, the largest sphere that fits inside the part while touching the surface at that
+//    point; its diameter is the thickness. Found by shrinking: start from a sphere sized by the wall straight
+//    behind the point, then, while any surface point lies inside it, shrink it (keeping it tangent at the sample)
+//    until that point lies on it. This is the "sphere method" of CAD thickness analysis, the mould-oriented
+//    definition: it reads a slanted or curved wall correctly (a ray's length there is longer than the wall is
+//    thick), always yields a value, and finds thick spots at corners and rib roots. Along a SHARP convex edge no
+//    large sphere can touch the surface, so a thin border appears there (rounded edges read normally) - that is
+//    inherent to the definition, not an error.
+enum class WallThicknessMethod { NormalRay, LocalThickness, Sphere };
 
 struct WallThicknessParams
 {
-	WallThicknessMethod method = WallThicknessMethod::LocalThickness;
+	WallThicknessMethod method = WallThicknessMethod::Sphere;
 
-	// ---- LocalThickness tuning (fixed by the UI today; exposed so a future option can adjust them) ----
+	// ---- Sampling / Local thickness tuning (the sample grid is shared by LocalThickness and Sphere; the ray cone
+	// only applies to LocalThickness) ----
 	// Half angle of the ray cone around the inward normal, 0 - 45 degrees. 0 casts only the straight-in ray from
 	// each sample (the distance to the wall directly behind it); larger values also probe obliquely, which finds
 	// thin features that sit off to the side of a sample at the cost of reading a flat wall's sloped neighbours
@@ -73,6 +82,12 @@ struct WallThicknessParams
 	// rays that leave through an adjacent side wall (near a convex edge), which would otherwise read as
 	// spuriously thin.
 	double minExitAlignment = 0.5;
+	// Sphere method only. Along a SHARP convex edge the largest sphere touching the surface is small (it must fit
+	// in the wedge), so the pure definition reads a thin band there although the wall is not thin. With relief on, a
+	// sample whose limiting contact is such an edge contact (a wall meeting its own face at a convex edge, not a
+	// wall opposite it) takes the value of the nearest interior point of the surface instead - unless the sample is
+	// squeezed from both sides (e.g. the end of a thin rib), where the small value is the truth.
+	bool edgeRelief = true;
 };
 
 // How a sample's ray(s) ended - Valid, or why the sample has no value.
@@ -100,6 +115,10 @@ struct WallThicknessWitness
 	float facing = 0.0f;
 	int hitTriangle = -1;
 	WallThicknessSampleStatus status = WallThicknessSampleStatus::NoHit;
+	// Sphere method with edge relief: the point the value was actually measured at (equal to origin unless the
+	// sample was moved off a sharp edge) and how many moves that took (0 = measured at the sample itself).
+	float source[3] = { 0, 0, 0 };
+	unsigned char reliefSteps = 0;
 };
 
 struct WallThicknessResult

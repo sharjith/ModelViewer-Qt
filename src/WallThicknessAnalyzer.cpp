@@ -256,11 +256,206 @@ namespace
 		// The tree must be fully built BEFORE it is queried from several threads (a query on an unbuilt tree
 		// builds it lazily, which is not safe to race).
 		tree.build();
+		const bool sphereMethod = params.method == WallThicknessMethod::Sphere;
+		if (sphereMethod)
+			tree.accelerate_distance_queries(); // built up front for the same reason as build(): queried from several threads
 
 		const double minAlignment = params.minExitAlignment;
 		std::vector<unsigned char> validFlags(faceCount, 0);
 		// How many hits along one ray may be stepped over before the sample is given up on.
 		constexpr int kMaxHitWalk = 8;
+
+		// The pure sphere fit at one surface point `p` (inward unit normal `in`, on face `self`): the largest sphere
+		// tangent to the surface at p (centre p + r * in) that no surface point lies inside. The shrinking iteration:
+		// the nearest hit straight behind the point bounds the diameter (r0 = d / 2); then, while the surface point q
+		// nearest to the centre lies inside the sphere, the sphere tangent at p and passing through q has
+		// radius |q - p|^2 / (2 (q - p) . in), strictly smaller, and becomes the new candidate.
+		struct SphereFit
+		{
+			double r = 0.0;
+			double upper = 0.0;        // the initial bound: half the distance to the first surface hit straight behind p
+			double contact[3] = { 0, 0, 0 };
+			FaceDescriptor face;
+			bool ok = false;
+		};
+		const auto fitSphere = [&](const double p[3], const double in[3], const FaceDescriptor self) -> SphereFit
+		{
+			SphereFit fit;
+			const WtRay3 ray(WtPoint3(p[0], p[1], p[2]), WtKernel::Vector_3(in[0], in[1], in[2]));
+			const auto first = tree.first_intersection(ray, [self](const FaceDescriptor& id) { return id == self; });
+			double distance = 0.0;
+			if (!first || !hitPointFrom(first->first, p, fit.contact, distance) || !(distance > 0.0))
+				return fit;
+			fit.face = first->second;
+			fit.r = fit.upper = 0.5 * distance;
+
+			for (int iteration = 0; iteration < 48; ++iteration)
+			{
+				const double c[3] = { p[0] + fit.r * in[0], p[1] + fit.r * in[1], p[2] + fit.r * in[2] };
+				const auto nearest = tree.closest_point_and_primitive(WtPoint3(c[0], c[1], c[2]));
+				const double q[3] = { CGAL::to_double(nearest.first.x()), CGAL::to_double(nearest.first.y()), CGAL::to_double(nearest.first.z()) };
+				const double dq = std::sqrt((q[0] - c[0]) * (q[0] - c[0]) + (q[1] - c[1]) * (q[1] - c[1]) + (q[2] - c[2]) * (q[2] - c[2]));
+				if (dq >= fit.r * (1.0 - 1.0e-3))
+					break; // nothing inside the sphere (the origin face touches it at p itself, at distance exactly r)
+
+				const double qp[3] = { q[0] - p[0], q[1] - p[1], q[2] - p[2] };
+				const double qpLen2 = qp[0] * qp[0] + qp[1] * qp[1] + qp[2] * qp[2];
+				const double along = in[0] * qp[0] + in[1] * qp[1] + in[2] * qp[2];
+				if (!(along > 1.0e-9 * std::sqrt(qpLen2)))
+					break; // a point on or behind the tangent plane cannot lie inside a sphere touching it at p (rounding noise)
+				const double rNew = qpLen2 / (2.0 * along);
+				if (!(rNew < fit.r))
+					break;
+				fit.r = rNew;
+				fit.contact[0] = q[0]; fit.contact[1] = q[1]; fit.contact[2] = q[2];
+				fit.face = nearest.second;
+			}
+			fit.ok = fit.r > 1.0e-7 * diag && std::isfinite(fit.r);
+			return fit;
+		};
+
+		const bool edgeRelief = params.edgeRelief;
+		constexpr int kMaxReliefSteps = 10;
+		constexpr double kEdgeContactMinAngleDegrees = 40.0; // a contact this far off the inward normal is a side contact ...
+		constexpr double kEdgeContactMaxAngleDegrees = 75.0; // ... but not a near-tangent one: beyond ~75 degrees (dihedral > 150)
+		                                                    // the sphere is limited by the surface's CURVATURE (a thin rod, a
+		                                                    // tessellated fillet), which is a real limit, not a sharp edge
+		constexpr double kEdgeContactMaxFacing = 0.35;       // ... on a wall that does not face back at the sample
+
+		// Sphere method for one sample: the pure fit, then - with edge relief - moved off a sharp convex edge. Returns
+		// the diameter and fills `w` (origin, the point measured at, the contact that limits the sphere, its direction
+		// relative to the inward normal, the contacted wall's facing).
+		const auto solveSphere = [&](const double p0[3], const double in0[3], const FaceDescriptor self0,
+		                             double& outDiameter, WallThicknessWitness& w) -> WallThicknessSampleStatus
+		{
+			for (int axis = 0; axis < 3; ++axis)
+			{
+				w.origin[axis] = static_cast<float>(p0[axis]);
+				w.source[axis] = w.origin[axis];
+			}
+
+			double p[3] = { p0[0], p0[1], p0[2] };
+			double in[3] = { in0[0], in0[1], in0[2] };
+			SphereFit fit = fitSphere(p, in, self0);
+			if (!fit.ok)
+				return WallThicknessSampleStatus::NoHit;
+			const double upper = fit.upper; // the shift budget is tied to the wall found straight behind the ORIGINAL sample
+
+			// Relief only ever RAISES a value (it removes an edge limit), so the walk keeps the largest fit it saw:
+			// a step that lands somewhere worse (a point on an edge, a thinner neighbouring feature) cannot lower it.
+			SphereFit best = fit;
+			double bestP[3] = { p[0], p[1], p[2] };
+			double bestIn[3] = { in[0], in[1], in[2] };
+			int bestSteps = 0;
+
+			int steps = 0;
+			double totalShift = 0.0;
+			while (edgeRelief && steps < kMaxReliefSteps)
+			{
+				const double cp[3] = { fit.contact[0] - p[0], fit.contact[1] - p[1], fit.contact[2] - p[2] };
+				const double cpLen = std::sqrt(cp[0] * cp[0] + cp[1] * cp[1] + cp[2] * cp[2]);
+				if (!(cpLen > 0.0))
+					break;
+				const double along = in[0] * cp[0] + in[1] * cp[1] + in[2] * cp[2];
+				const double angle = std::acos(std::clamp(along / cpLen, -1.0, 1.0)) * 180.0 / pi;
+				const size_t contactIndex = static_cast<size_t>(fit.face.idx());
+				const double facing = contactIndex < geom.size()
+					? geom[contactIndex].n[0] * in[0] + geom[contactIndex].n[1] * in[1] + geom[contactIndex].n[2] * in[2] : 1.0;
+				if (angle < kEdgeContactMinAngleDegrees || angle > kEdgeContactMaxAngleDegrees || facing > kEdgeContactMaxFacing)
+					break; // a wall behind the sample: this is the thickness, nothing to relieve
+
+				// The way toward the edge, in the sample's tangent plane.
+				double u[3] = { cp[0] - along * in[0], cp[1] - along * in[1], cp[2] - along * in[2] };
+				const double uLen = std::sqrt(u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+				if (!(uLen > 1.0e-9 * cpLen))
+					break;
+				for (double& v : u) v /= uLen;
+
+				// Squeezed from both sides (a wall also close on the far side of the sphere's centre)? Then the small
+				// value is genuine - the end of a thin rib, a narrow web - and is kept.
+				const double c[3] = { p[0] + fit.r * in[0], p[1] + fit.r * in[1], p[2] + fit.r * in[2] };
+				const WtRay3 sideRay(WtPoint3(c[0], c[1], c[2]), WtKernel::Vector_3(-u[0], -u[1], -u[2]));
+				const auto sideHit = tree.first_intersection(sideRay, [](const FaceDescriptor&) { return false; });
+				double sideHitPoint[3] = { 0, 0, 0 };
+				double sideDistance = 0.0;
+				if (sideHit && hitPointFrom(sideHit->first, c, sideHitPoint, sideDistance) && sideDistance <= 1.3 * fit.r)
+					break;
+
+				// Move one radius away from the edge and re-project onto the surface (which may be the next face).
+				totalShift += fit.r;
+				if (totalShift > 1.5 * upper)
+					break;
+				const auto projected = tree.closest_point_and_primitive(WtPoint3(p[0] - u[0] * fit.r, p[1] - u[1] * fit.r, p[2] - u[2] * fit.r));
+				const FaceDescriptor projectedFace = projected.second;
+				const FaceGeom& pg = geom[static_cast<size_t>(projectedFace.idx())];
+				if (!pg.ok)
+					break;
+				double pp[3] = { CGAL::to_double(projected.first.x()), CGAL::to_double(projected.first.y()), CGAL::to_double(projected.first.z()) };
+				// The nearest surface point of a point that left its face lies ON an edge, where the neighbouring face
+				// touches the sphere at once and collapses it. Keep the new sample inside its face: if any barycentric
+				// coordinate is under 3%, pull it 10% of the way to the centroid (which puts every coordinate over 3%).
+				{
+					const double v0[3] = { pg.b[0] - pg.a[0], pg.b[1] - pg.a[1], pg.b[2] - pg.a[2] };
+					const double v1[3] = { pg.c[0] - pg.a[0], pg.c[1] - pg.a[1], pg.c[2] - pg.a[2] };
+					const double v2[3] = { pp[0] - pg.a[0], pp[1] - pg.a[1], pp[2] - pg.a[2] };
+					const double d00 = v0[0] * v0[0] + v0[1] * v0[1] + v0[2] * v0[2];
+					const double d01 = v0[0] * v1[0] + v0[1] * v1[1] + v0[2] * v1[2];
+					const double d11 = v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2];
+					const double d20 = v2[0] * v0[0] + v2[1] * v0[1] + v2[2] * v0[2];
+					const double d21 = v2[0] * v1[0] + v2[1] * v1[1] + v2[2] * v1[2];
+					const double denom = d00 * d11 - d01 * d01;
+					if (denom > 0.0)
+					{
+						const double bv = (d11 * d20 - d01 * d21) / denom;
+						const double bw = (d00 * d21 - d01 * d20) / denom;
+						const double bu = 1.0 - bv - bw;
+						if (std::min({ bu, bv, bw }) < 0.03)
+						{
+							for (int axis = 0; axis < 3; ++axis)
+								pp[axis] += 0.1 * ((pg.a[axis] + pg.b[axis] + pg.c[axis]) / 3.0 - pp[axis]);
+						}
+					}
+				}
+				const double inNew[3] = { -pg.n[0], -pg.n[1], -pg.n[2] };
+				const SphereFit next = fitSphere(pp, inNew, projectedFace);
+				if (!next.ok)
+					break;
+				p[0] = pp[0]; p[1] = pp[1]; p[2] = pp[2];
+				in[0] = inNew[0]; in[1] = inNew[1]; in[2] = inNew[2];
+				fit = next;
+				++steps;
+				if (fit.r > best.r)
+				{
+					best = fit;
+					bestP[0] = p[0]; bestP[1] = p[1]; bestP[2] = p[2];
+					bestIn[0] = in[0]; bestIn[1] = in[1]; bestIn[2] = in[2];
+					bestSteps = steps;
+				}
+			}
+			fit = best;
+			p[0] = bestP[0]; p[1] = bestP[1]; p[2] = bestP[2];
+			in[0] = bestIn[0]; in[1] = bestIn[1]; in[2] = bestIn[2];
+			steps = bestSteps;
+
+			const double cp[3] = { fit.contact[0] - p[0], fit.contact[1] - p[1], fit.contact[2] - p[2] };
+			const double cpLen = std::sqrt(cp[0] * cp[0] + cp[1] * cp[1] + cp[2] * cp[2]);
+			const size_t contactIndex = static_cast<size_t>(fit.face.idx());
+			for (int axis = 0; axis < 3; ++axis)
+			{
+				w.hit[axis] = static_cast<float>(fit.contact[axis]);
+				w.source[axis] = static_cast<float>(p[axis]);
+			}
+			w.distance = static_cast<float>(2.0 * fit.r);
+			w.angleDegrees = static_cast<float>(cpLen > 0.0
+				? std::acos(std::clamp((in[0] * cp[0] + in[1] * cp[1] + in[2] * cp[2]) / cpLen, -1.0, 1.0)) * 180.0 / pi : 0.0);
+			w.hitTriangle = contactIndex < origFaceIndex.size() ? static_cast<int>(origFaceIndex[contactIndex]) : -1;
+			if (contactIndex < geom.size())
+				w.facing = static_cast<float>(geom[contactIndex].n[0] * in[0] + geom[contactIndex].n[1] * in[1] + geom[contactIndex].n[2] * in[2]);
+			w.reliefSteps = static_cast<unsigned char>(steps);
+			w.status = WallThicknessSampleStatus::Valid;
+			outDiameter = 2.0 * fit.r;
+			return WallThicknessSampleStatus::Valid;
+		};
 
 		const auto processFace = [&](size_t i)
 		{
@@ -299,6 +494,24 @@ namespace
 					g.oa[0] + cu * (g.ob[0] - g.oa[0]) + cv * (g.oc[0] - g.oa[0]),
 					g.oa[1] + cu * (g.ob[1] - g.oa[1]) + cv * (g.oc[1] - g.oa[1]),
 					g.oa[2] + cu * (g.ob[2] - g.oa[2]) + cv * (g.oc[2] - g.oa[2]) };
+
+				if (sphereMethod)
+				{
+					double diameter = 0.0;
+					WallThicknessWitness w;
+					const WallThicknessSampleStatus status = solveSphere(origin, in, self, diameter, w);
+					w.status = status;
+					sampleWitnesses[sampleIndex] = w;
+					if (status != WallThicknessSampleStatus::Valid)
+						return;
+					sampleValues[sampleIndex] = static_cast<float>(diameter);
+					if (!faceValid || diameter < faceMin)
+					{
+						faceMin = diameter;
+						faceValid = true;
+					}
+					return;
+				}
 
 				double sampleMin = 0.0;
 				bool sampleValid = false;
@@ -455,16 +668,26 @@ namespace
 		// One line saying how the samples fared - the quickest way to see whether gaps in the display are a few
 		// stray samples or a systematic problem, and why.
 		size_t statusCount[6] = { 0, 0, 0, 0, 0, 0 };
+		size_t relievedCount = 0;
 		for (size_t k2 = 0; k2 < out.samples.values.size(); ++k2)
 		{
 			if (!std::isnan(out.samples.values[k2]))
+			{
 				++statusCount[0];
+				if (out.sampleWitness[k2].reliefSteps > 0)
+					++relievedCount;
+			}
 			else
+			{
 				++statusCount[std::min<size_t>(5, static_cast<size_t>(out.sampleWitness[k2].status))];
+			}
 		}
-		qInfo().noquote() << QStringLiteral("[WallThickness] %1 samples on %2 triangles (spread %3 deg): %4 valid, no value: %5 no wall found, "
+		qInfo().noquote() << QStringLiteral("[WallThickness] %1 samples on %2 triangles (%3): %4 valid, no value: %5 no wall found, "
 			"%6 other body, %7 entering face, %8 steep/edge-on wall, %9 degenerate wall")
-			.arg(totalSamples).arg(faceCount).arg(coneDegrees, 0, 'f', 0)
+			.arg(totalSamples).arg(faceCount)
+			.arg(sphereMethod
+				? QStringLiteral("inscribed sphere, edge relief %1, %2 samples relieved").arg(edgeRelief ? QStringLiteral("on") : QStringLiteral("off")).arg(relievedCount)
+				: QStringLiteral("rays, spread %1 deg").arg(coneDegrees, 0, 'f', 0))
 			.arg(statusCount[0]).arg(statusCount[1]).arg(statusCount[2]).arg(statusCount[3]).arg(statusCount[4]).arg(statusCount[5]);
 		return true;
 	}
@@ -648,7 +871,7 @@ WallThicknessResult WallThicknessAnalyzer::computeThickness(
 	result.thicknessPerFace.assign(origFaceCount, 0.0f);
 	result.validPerFace.assign(origFaceCount, false);
 
-	if (params.method == WallThicknessMethod::LocalThickness)
+	if (params.method != WallThicknessMethod::NormalRay)
 	{
 		LocalThicknessOutput local;
 		if (computeLocalThickness(workingMesh, aabbTree, volumeIdMap, origFaceIndex, origPoints, origIndices, params, local))
