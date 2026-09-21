@@ -1157,7 +1157,7 @@ da usare come texture del tappo</translation>
     <message>
         <location filename="../ui/ExplodedViewPanel.ui" line="214"/>
         <location filename="../src/ExplodedViewPanel.cpp" line="1467"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3118"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3120"/>
         <source>Select assembly or meshes...</source>
         <translation>Seleziona assieme o mesh...</translation>
     </message>
@@ -1183,7 +1183,7 @@ da usare come texture del tappo</translation>
         <location filename="../ui/ExplodedViewPanel.ui" line="290"/>
         <location filename="../src/ExplodedViewPanel.cpp" line="1502"/>
         <location filename="../src/ExplodedViewPanel.cpp" line="1524"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3119"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3121"/>
         <source>Select anchor mesh (optional)...</source>
         <translation>Seleziona mesh di ancoraggio (opzionale)...</translation>
     </message>
@@ -1267,7 +1267,7 @@ da usare come texture del tappo</translation>
     </message>
     <message>
         <location filename="../ui/ExplodedViewPanel.ui" line="701"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3414"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3416"/>
         <source>Manual placement will reuse the transform gizmo to stage exploded poses without changing the real model transform.</source>
         <translation>Il posizionamento manuale riutilizzerà il gizmo di trasformazione per preparare pose esplose senza modificare la trasformazione reale del modello.</translation>
     </message>
@@ -1287,7 +1287,7 @@ da usare come texture del tappo</translation>
     </message>
     <message>
         <location filename="../ui/ExplodedViewPanel.ui" line="752"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4104"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4106"/>
         <source>Start Placement</source>
         <translation>Avvia posizionamento</translation>
     </message>
@@ -1600,7 +1600,7 @@ lo stato esploso corrente</translation>
     </message>
     <message>
         <location filename="../ui/ExplodedViewPanel.ui" line="1334"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3348"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3350"/>
         <source>Unsaved</source>
         <translation>Non salvato</translation>
     </message>
@@ -1645,7 +1645,7 @@ lo stato esploso corrente</translation>
     </message>
     <message>
         <location filename="../ui/ExplodedViewPanel.ui" line="1465"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4370"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4372"/>
         <source>Remove</source>
         <translation>Rimuovi</translation>
     </message>
@@ -1661,7 +1661,7 @@ lo stato esploso corrente</translation>
     </message>
     <message>
         <location filename="../ui/ExplodedViewPanel.ui" line="1500"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3937"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3939"/>
         <source>Play</source>
         <translation>Riproduci</translation>
     </message>
@@ -1699,13 +1699,13 @@ Posizionamento manuale, non solo quelli della modalità attiva</translation>
     </message>
     <message>
         <location filename="../src/ExplodedViewPanel.cpp" line="670"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="2054"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="2056"/>
         <source>Step %1</source>
         <translation>Passaggio %1</translation>
     </message>
     <message>
         <location filename="../src/ExplodedViewPanel.cpp" line="849"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="2732"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="2734"/>
         <source>Exploded View %1</source>
         <translation>Vista esplosa %1</translation>
     </message>
@@ -1768,96 +1768,106 @@ Posizionamento manuale, non solo quelli della modalità attiva</translation>
         <translation>Sconosciuto</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="1949"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="1960"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="1979"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="1815"/>
+        <source>Review and refine the meshes in the current assembly.</source>
+        <translation>Rivedi e perfeziona le mesh nell&apos;assieme corrente.</translation>
+    </message>
+    <message>
+        <location filename="../src/ExplodedViewPanel.cpp" line="1816"/>
+        <source>Assembly Members</source>
+        <translation>Membri dell&apos;assieme</translation>
+    </message>
+    <message>
+        <location filename="../src/ExplodedViewPanel.cpp" line="1951"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="1962"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="1981"/>
         <source>%1 meshes</source>
         <translation>%1 mesh</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="2217"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="2219"/>
         <source>no captured mesh motions are available in the candidate subtree</source>
         <translation>Nessun movimento di mesh catturato disponibile nel sottoalbero candidato</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="2224"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="2226"/>
         <source>the candidate transform basis could not be inverted</source>
         <translation>Impossibile invertire la base di trasformazione candidata</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="2243"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="2245"/>
         <source>captured meshes in the candidate subtree do not resolve to one rigid node transform</source>
         <translation>Le mesh catturate nel sottoalbero candidato non si risolvono in un&apos;unica trasformazione di nodo rigido</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="2307"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="2309"/>
         <source>Group %1</source>
         <translation>Gruppo %1</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="2756"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="2758"/>
         <source>Parallel</source>
         <translation>Parallelo</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="2990"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="2992"/>
         <source>Sequential</source>
         <translation>Sequenziale</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3085"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3087"/>
         <source>Reset Exploded View</source>
         <translation>Ripristina vista esplosa</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3086"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3088"/>
         <source>This will clear the current exploded-view selection, settings, manual placement, and captured steps for the active preset. Continue?</source>
         <translation>Questa operazione cancellerà la selezione corrente della vista esplosa, le impostazioni, il posizionamento manuale e i passaggi catturati per il preset attivo. Continuare?</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3224"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3226"/>
         <source>Rename Preset</source>
         <translation>Rinomina preset</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3226"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3228"/>
         <source>Delete Preset</source>
         <translation>Elimina preset</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3242"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3244"/>
         <source>Rename Exploded View Preset</source>
         <translation>Rinomina preset vista esplosa</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3243"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3245"/>
         <source>Preset name</source>
         <translation>Nome del preset</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3267"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3269"/>
         <source>Delete Exploded View Preset</source>
         <translation>Elimina preset vista esplosa</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3268"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3270"/>
         <source>Delete preset &quot;%1&quot; and its captured steps?</source>
         <translation>Eliminare il preset &quot;%1&quot; e i relativi passaggi catturati?</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3340"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3342"/>
         <source>Uncaptured</source>
         <translation>Non catturato</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3341"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3343"/>
         <source>There are staged auto or manual placements that
 have not been captured into a step yet.</source>
         <translation>Ci sono posizionamenti automatici o manuali predisposti
 non ancora catturati in un passo.</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3349"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3351"/>
         <source>The exploded-view presets or captures have changed and
 need to be saved with the document.</source>
         <translation>I preset o le catture della vista esplosa sono cambiati e
@@ -1872,122 +1882,59 @@ devono essere salvati con il documento.</translation>
         <translation type="vanished">I preset o le catture della vista esplosa sono cambiati e devono essere salvati con il documento.</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3410"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3412"/>
         <source>Manual placement is active. Translate or rotate the selected meshes to refine the staged exploded pose.</source>
         <translation>Il posizionamento manuale è attivo. Trasla o ruota le mesh selezionate per perfezionare la posa esplosa preparata.</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3412"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3414"/>
         <source>Manual placement is staged. You can resume placement for another selection or capture the current exploded pose.</source>
         <translation>Il posizionamento manuale è preparato. Puoi riprendere il posizionamento per un&apos;altra selezione o catturare la posa esplosa corrente.</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3937"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3939"/>
         <source>Pause</source>
         <translation>Pausa</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4077"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4079"/>
         <source>Adjust scene or tree selection, then click again to confirm</source>
         <translation>Regola la selezione della scena o dell&apos;albero, quindi fai di nuovo clic per confermare</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4078"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4080"/>
         <source>Pick meshes from scene or tree</source>
         <translation>Scegli mesh dalla scena o dall&apos;albero</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4105"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4107"/>
         <source>Select one or more meshes in the tree or viewport before starting manual placement.</source>
         <translation>Seleziona una o più mesh nell&apos;albero o nella vista prima di avviare il posizionamento manuale.</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4173"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4175"/>
         <source>%1 capture%2, %3 mesh%4</source>
         <translation>%1 cattura%2, %3 mesh%4</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4323"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4325"/>
         <source>Group</source>
         <translation>Gruppo</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4323"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4325"/>
         <source>Step</source>
         <translation>Passaggio</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4360"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4362"/>
         <source>Group Selected</source>
         <translation>Raggruppa selezione</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4369"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4371"/>
         <source>Ungroup</source>
         <translation>Separa</translation>
-    </message>
-</context>
-<context>
-    <name>ExplodedViewSelectionEditor</name>
-    <message>
-        <location filename="../ui/ExplodedViewSelectionEditor.ui" line="14"/>
-        <source>Edit Selection</source>
-        <translation>Modifica selezione</translation>
-    </message>
-    <message>
-        <location filename="../ui/ExplodedViewSelectionEditor.ui" line="23"/>
-        <source>Review and refine the meshes in the current assembly.</source>
-        <translation>Rivedi e perfeziona le mesh nell&apos;assieme corrente.</translation>
-    </message>
-    <message>
-        <location filename="../ui/ExplodedViewSelectionEditor.ui" line="33"/>
-        <source>Assembly Members</source>
-        <translation>Membri dell&apos;assieme</translation>
-    </message>
-    <message>
-        <location filename="../ui/ExplodedViewSelectionEditor.ui" line="50"/>
-        <location filename="../src/ExplodedViewSelectionEditor.cpp" line="53"/>
-        <location filename="../src/ExplodedViewSelectionEditor.cpp" line="107"/>
-        <location filename="../src/ExplodedViewSelectionEditor.cpp" line="134"/>
-        <source>Selected: None</source>
-        <translation>Selezionati: Nessuno</translation>
-    </message>
-    <message>
-        <location filename="../ui/ExplodedViewSelectionEditor.ui" line="59"/>
-        <source>Close this dialog and pick more meshes
-to add from the scene/tree</source>
-        <translation>Chiudi questa finestra e scegli altre mesh
-da aggiungere dalla scena/albero</translation>
-    </message>
-    <message>
-        <location filename="../ui/ExplodedViewSelectionEditor.ui" line="63"/>
-        <source>Add...</source>
-        <translation>Aggiungi...</translation>
-    </message>
-    <message>
-        <location filename="../ui/ExplodedViewSelectionEditor.ui" line="70"/>
-        <source>Remove</source>
-        <translation>Rimuovi</translation>
-    </message>
-    <message>
-        <location filename="../ui/ExplodedViewSelectionEditor.ui" line="107"/>
-        <source>Done</source>
-        <translation>Fatto</translation>
-    </message>
-    <message>
-        <location filename="../ui/ExplodedViewSelectionEditor.ui" line="117"/>
-        <source>Cancel</source>
-        <translation>Annulla</translation>
-    </message>
-    <message>
-        <location filename="../src/ExplodedViewSelectionEditor.cpp" line="141"/>
-        <source>Selected: %1</source>
-        <translation>Selezionati: %1</translation>
-    </message>
-    <message>
-        <location filename="../src/ExplodedViewSelectionEditor.cpp" line="145"/>
-        <source>Selected: %1 items</source>
-        <translation>Selezionati: %1 elementi</translation>
     </message>
 </context>
 <context>
@@ -6754,6 +6701,77 @@ distanza in linea retta. Entrambi i punti devono trovarsi sulla stessa mesh.</tr
         <location filename="../src/MeasurementDialog.cpp" line="388"/>
         <source>Cancelled - pick a tool to resume</source>
         <translation>Annullato - scegli uno strumento per riprendere</translation>
+    </message>
+</context>
+<context>
+    <name>MeshSelectionEditor</name>
+    <message>
+        <location filename="../ui/MeshSelectionEditor.ui" line="14"/>
+        <source>Edit Selection</source>
+        <translation>Modifica selezione</translation>
+    </message>
+    <message>
+        <source>Review and refine the meshes in the current assembly.</source>
+        <translation type="vanished">Rivedi e perfeziona le mesh nell&apos;assieme corrente.</translation>
+    </message>
+    <message>
+        <source>Assembly Members</source>
+        <translation type="vanished">Membri dell&apos;assieme</translation>
+    </message>
+    <message>
+        <location filename="../ui/MeshSelectionEditor.ui" line="23"/>
+        <source>Review and refine the selected meshes.</source>
+        <translation>Controlla e affina le mesh selezionate.</translation>
+    </message>
+    <message>
+        <location filename="../ui/MeshSelectionEditor.ui" line="33"/>
+        <source>Meshes</source>
+        <translation>Mesh</translation>
+    </message>
+    <message>
+        <location filename="../ui/MeshSelectionEditor.ui" line="50"/>
+        <location filename="../src/MeshSelectionEditor.cpp" line="53"/>
+        <location filename="../src/MeshSelectionEditor.cpp" line="107"/>
+        <location filename="../src/MeshSelectionEditor.cpp" line="134"/>
+        <source>Selected: None</source>
+        <translation>Selezionati: Nessuno</translation>
+    </message>
+    <message>
+        <location filename="../ui/MeshSelectionEditor.ui" line="59"/>
+        <source>Close this dialog and pick more meshes
+to add from the scene/tree</source>
+        <translation>Chiudi questa finestra e scegli altre mesh
+da aggiungere dalla scena/albero</translation>
+    </message>
+    <message>
+        <location filename="../ui/MeshSelectionEditor.ui" line="63"/>
+        <source>Add...</source>
+        <translation>Aggiungi...</translation>
+    </message>
+    <message>
+        <location filename="../ui/MeshSelectionEditor.ui" line="70"/>
+        <source>Remove</source>
+        <translation>Rimuovi</translation>
+    </message>
+    <message>
+        <location filename="../ui/MeshSelectionEditor.ui" line="107"/>
+        <source>Done</source>
+        <translation>Fatto</translation>
+    </message>
+    <message>
+        <location filename="../ui/MeshSelectionEditor.ui" line="117"/>
+        <source>Cancel</source>
+        <translation>Annulla</translation>
+    </message>
+    <message>
+        <location filename="../src/MeshSelectionEditor.cpp" line="141"/>
+        <source>Selected: %1</source>
+        <translation>Selezionati: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/MeshSelectionEditor.cpp" line="145"/>
+        <source>Selected: %1 items</source>
+        <translation>Selezionati: %1 elementi</translation>
     </message>
 </context>
 <context>

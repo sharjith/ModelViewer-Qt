@@ -1,4 +1,4 @@
-#include "ExplodedViewSelectionEditor.h"
+#include "MeshSelectionEditor.h"
 
 #include "LanguageManager.h"
 
@@ -9,7 +9,7 @@ namespace
 constexpr int kUuidRole = Qt::UserRole;
 }
 
-ExplodedViewSelectionEditor::ExplodedViewSelectionEditor(QWidget* parent)
+MeshSelectionEditor::MeshSelectionEditor(QWidget* parent)
     : QDialog(parent)
 {
     setupUi(this);
@@ -23,22 +23,22 @@ ExplodedViewSelectionEditor::ExplodedViewSelectionEditor(QWidget* parent)
         });
 
     connect(listWidgetMembers, &QListWidget::currentItemChanged,
-            this, &ExplodedViewSelectionEditor::onCurrentItemChanged);
+            this, &MeshSelectionEditor::onCurrentItemChanged);
     connect(listWidgetMembers, &QListWidget::itemSelectionChanged,
-            this, &ExplodedViewSelectionEditor::updateSelectionUi);
+            this, &MeshSelectionEditor::updateSelectionUi);
     connect(pushButtonRemove, &QPushButton::clicked,
-            this, &ExplodedViewSelectionEditor::onRemoveClicked);
+            this, &MeshSelectionEditor::onRemoveClicked);
     connect(pushButtonAdd, &QPushButton::clicked,
-            this, &ExplodedViewSelectionEditor::onAddClicked);
+            this, &MeshSelectionEditor::onAddClicked);
     connect(pushButtonDone, &QPushButton::clicked,
-            this, &ExplodedViewSelectionEditor::onDoneClicked);
+            this, &MeshSelectionEditor::onDoneClicked);
     connect(pushButtonCancel, &QPushButton::clicked,
-            this, &ExplodedViewSelectionEditor::onCancelClicked);
+            this, &MeshSelectionEditor::onCancelClicked);
 
     pushButtonRemove->setEnabled(false);
 }
 
-void ExplodedViewSelectionEditor::setEntries(const QVector<Entry>& entries)
+void MeshSelectionEditor::setEntries(const QVector<Entry>& entries)
 {
     listWidgetMembers->clear();
     for (const Entry& entry : entries)
@@ -55,17 +55,17 @@ void ExplodedViewSelectionEditor::setEntries(const QVector<Entry>& entries)
     updateSelectionUi();
 }
 
-void ExplodedViewSelectionEditor::setIntroText(const QString& text)
+void MeshSelectionEditor::setIntroText(const QString& text)
 {
     labelIntro->setText(text);
 }
 
-void ExplodedViewSelectionEditor::setMembersText(const QString& text)
+void MeshSelectionEditor::setMembersText(const QString& text)
 {
     labelMembers->setText(text);
 }
 
-QVector<ExplodedViewSelectionEditor::Entry> ExplodedViewSelectionEditor::entries() const
+QVector<MeshSelectionEditor::Entry> MeshSelectionEditor::entries() const
 {
     QVector<Entry> out;
     out.reserve(listWidgetMembers->count());
@@ -83,14 +83,14 @@ QVector<ExplodedViewSelectionEditor::Entry> ExplodedViewSelectionEditor::entries
     return out;
 }
 
-void ExplodedViewSelectionEditor::onCurrentItemChanged(QListWidgetItem* current, QListWidgetItem* previous)
+void MeshSelectionEditor::onCurrentItemChanged(QListWidgetItem* current, QListWidgetItem* previous)
 {
     Q_UNUSED(previous);
     if (current)
         emit previewEntryRequested(current->data(kUuidRole).toUuid());
 }
 
-void ExplodedViewSelectionEditor::onRemoveClicked()
+void MeshSelectionEditor::onRemoveClicked()
 {
     const QList<QListWidgetItem*> selectedItems = listWidgetMembers->selectedItems();
     if (selectedItems.isEmpty())
@@ -111,22 +111,22 @@ void ExplodedViewSelectionEditor::onRemoveClicked()
     updateSelectionUi();
 }
 
-void ExplodedViewSelectionEditor::onAddClicked()
+void MeshSelectionEditor::onAddClicked()
 {
     done(AddMoreResult);
 }
 
-void ExplodedViewSelectionEditor::onDoneClicked()
+void MeshSelectionEditor::onDoneClicked()
 {
     accept();
 }
 
-void ExplodedViewSelectionEditor::onCancelClicked()
+void MeshSelectionEditor::onCancelClicked()
 {
     reject();
 }
 
-void ExplodedViewSelectionEditor::updateSelectionUi()
+void MeshSelectionEditor::updateSelectionUi()
 {
     const QList<QListWidgetItem*> selectedItems = listWidgetMembers->selectedItems();
     if (selectedItems.isEmpty())

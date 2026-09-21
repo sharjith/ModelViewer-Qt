@@ -877,7 +877,7 @@ to use as the cap texture</source>
     <message>
         <location filename="../ui/ExplodedViewPanel.ui" line="214"/>
         <location filename="../src/ExplodedViewPanel.cpp" line="1467"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3118"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3120"/>
         <source>Select assembly or meshes...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -895,7 +895,7 @@ to use as the cap texture</source>
         <location filename="../ui/ExplodedViewPanel.ui" line="290"/>
         <location filename="../src/ExplodedViewPanel.cpp" line="1502"/>
         <location filename="../src/ExplodedViewPanel.cpp" line="1524"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3119"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3121"/>
         <source>Select anchor mesh (optional)...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -971,7 +971,7 @@ to use as the cap texture</source>
     </message>
     <message>
         <location filename="../ui/ExplodedViewPanel.ui" line="701"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3414"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3416"/>
         <source>Manual placement will reuse the transform gizmo to stage exploded poses without changing the real model transform.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -987,7 +987,7 @@ to use as the cap texture</source>
     </message>
     <message>
         <location filename="../ui/ExplodedViewPanel.ui" line="752"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4104"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4106"/>
         <source>Start Placement</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1276,7 +1276,7 @@ the current exploded state</source>
     </message>
     <message>
         <location filename="../ui/ExplodedViewPanel.ui" line="1334"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3348"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3350"/>
         <source>Unsaved</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1317,7 +1317,7 @@ the current exploded state</source>
     </message>
     <message>
         <location filename="../ui/ExplodedViewPanel.ui" line="1465"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4370"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4372"/>
         <source>Remove</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1333,7 +1333,7 @@ the current exploded state</source>
     </message>
     <message>
         <location filename="../ui/ExplodedViewPanel.ui" line="1500"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3937"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3939"/>
         <source>Play</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1370,13 +1370,13 @@ offsets together, not just the active mode&apos;s</source>
     </message>
     <message>
         <location filename="../src/ExplodedViewPanel.cpp" line="670"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="2054"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="2056"/>
         <source>Step %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ExplodedViewPanel.cpp" line="849"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="2732"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="2734"/>
         <source>Exploded View %1</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1439,214 +1439,162 @@ offsets together, not just the active mode&apos;s</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="1949"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="1960"/>
-        <location filename="../src/ExplodedViewPanel.cpp" line="1979"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="1815"/>
+        <source>Review and refine the meshes in the current assembly.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ExplodedViewPanel.cpp" line="1816"/>
+        <source>Assembly Members</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ExplodedViewPanel.cpp" line="1951"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="1962"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="1981"/>
         <source>%1 meshes</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="2217"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="2219"/>
         <source>no captured mesh motions are available in the candidate subtree</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="2224"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="2226"/>
         <source>the candidate transform basis could not be inverted</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="2243"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="2245"/>
         <source>captured meshes in the candidate subtree do not resolve to one rigid node transform</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="2307"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="2309"/>
         <source>Group %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="2756"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="2758"/>
         <source>Parallel</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="2990"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="2992"/>
         <source>Sequential</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3085"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3087"/>
         <source>Reset Exploded View</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3086"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3088"/>
         <source>This will clear the current exploded-view selection, settings, manual placement, and captured steps for the active preset. Continue?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3224"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3226"/>
         <source>Rename Preset</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3226"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3228"/>
         <source>Delete Preset</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3242"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3244"/>
         <source>Rename Exploded View Preset</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3243"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3245"/>
         <source>Preset name</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3267"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3269"/>
         <source>Delete Exploded View Preset</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3268"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3270"/>
         <source>Delete preset &quot;%1&quot; and its captured steps?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3340"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3342"/>
         <source>Uncaptured</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3341"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3343"/>
         <source>There are staged auto or manual placements that
 have not been captured into a step yet.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3349"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3351"/>
         <source>The exploded-view presets or captures have changed and
 need to be saved with the document.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3410"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3412"/>
         <source>Manual placement is active. Translate or rotate the selected meshes to refine the staged exploded pose.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3412"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3414"/>
         <source>Manual placement is staged. You can resume placement for another selection or capture the current exploded pose.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="3937"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="3939"/>
         <source>Pause</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4077"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4079"/>
         <source>Adjust scene or tree selection, then click again to confirm</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4078"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4080"/>
         <source>Pick meshes from scene or tree</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4105"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4107"/>
         <source>Select one or more meshes in the tree or viewport before starting manual placement.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4173"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4175"/>
         <source>%1 capture%2, %3 mesh%4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4323"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4325"/>
         <source>Group</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4323"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4325"/>
         <source>Step</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4360"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4362"/>
         <source>Group Selected</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewPanel.cpp" line="4369"/>
+        <location filename="../src/ExplodedViewPanel.cpp" line="4371"/>
         <source>Ungroup</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>ExplodedViewSelectionEditor</name>
-    <message>
-        <location filename="../ui/ExplodedViewSelectionEditor.ui" line="14"/>
-        <source>Edit Selection</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../ui/ExplodedViewSelectionEditor.ui" line="23"/>
-        <source>Review and refine the meshes in the current assembly.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../ui/ExplodedViewSelectionEditor.ui" line="33"/>
-        <source>Assembly Members</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../ui/ExplodedViewSelectionEditor.ui" line="50"/>
-        <location filename="../src/ExplodedViewSelectionEditor.cpp" line="53"/>
-        <location filename="../src/ExplodedViewSelectionEditor.cpp" line="107"/>
-        <location filename="../src/ExplodedViewSelectionEditor.cpp" line="134"/>
-        <source>Selected: None</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../ui/ExplodedViewSelectionEditor.ui" line="59"/>
-        <source>Close this dialog and pick more meshes
-to add from the scene/tree</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../ui/ExplodedViewSelectionEditor.ui" line="63"/>
-        <source>Add...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../ui/ExplodedViewSelectionEditor.ui" line="70"/>
-        <source>Remove</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../ui/ExplodedViewSelectionEditor.ui" line="107"/>
-        <source>Done</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../ui/ExplodedViewSelectionEditor.ui" line="117"/>
-        <source>Cancel</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ExplodedViewSelectionEditor.cpp" line="141"/>
-        <source>Selected: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ExplodedViewSelectionEditor.cpp" line="145"/>
-        <source>Selected: %1 items</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -5825,6 +5773,68 @@ straight-line distance. Both points must land on the same mesh.</source>
     <message>
         <location filename="../src/MeasurementDialog.cpp" line="388"/>
         <source>Cancelled - pick a tool to resume</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>MeshSelectionEditor</name>
+    <message>
+        <location filename="../ui/MeshSelectionEditor.ui" line="14"/>
+        <source>Edit Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/MeshSelectionEditor.ui" line="23"/>
+        <source>Review and refine the selected meshes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/MeshSelectionEditor.ui" line="33"/>
+        <source>Meshes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/MeshSelectionEditor.ui" line="50"/>
+        <location filename="../src/MeshSelectionEditor.cpp" line="53"/>
+        <location filename="../src/MeshSelectionEditor.cpp" line="107"/>
+        <location filename="../src/MeshSelectionEditor.cpp" line="134"/>
+        <source>Selected: None</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/MeshSelectionEditor.ui" line="59"/>
+        <source>Close this dialog and pick more meshes
+to add from the scene/tree</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/MeshSelectionEditor.ui" line="63"/>
+        <source>Add...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/MeshSelectionEditor.ui" line="70"/>
+        <source>Remove</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/MeshSelectionEditor.ui" line="107"/>
+        <source>Done</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/MeshSelectionEditor.ui" line="117"/>
+        <source>Cancel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/MeshSelectionEditor.cpp" line="141"/>
+        <source>Selected: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/MeshSelectionEditor.cpp" line="145"/>
+        <source>Selected: %1 items</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

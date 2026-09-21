@@ -23,7 +23,7 @@ class ViewportWidget;
 class ModelViewer;
 class SceneGraph;
 class QTimer;
-class ExplodedViewSelectionEditor;
+class MeshSelectionEditor;
 class QTreeWidgetItem;
 
 class ExplodedViewPanel : public QWidget, private Ui::ExplodedViewPanel
@@ -175,9 +175,9 @@ private:
     void restorePresetManualStateIntoRuntime(const ExplodedViewPreset& preset);
     QVector<QUuid> orderedAssemblyUuids() const;
     QString displayLabelForMeshUuid(const QUuid& uuid) const;
-    void showExplodedViewSelectionEditor();
-    void reopenExplodedViewSelectionEditor();
-    void onExplodedViewSelectionEditorFinished(int result);
+    void showMeshSelectionEditor();
+    void reopenMeshSelectionEditor();
+    void onMeshSelectionEditorFinished(int result);
     void applyAssemblyEntries(const QVector<QUuid>& assemblyUuids);
     void previewAssemblyEntry(const QUuid& uuid);
     void clearAssemblyPreviewSelection();
@@ -282,7 +282,7 @@ private:
     QVector<QUuid> _manualPlacementSelectionUuids;
     bool _reopenAssemblyEditDialogAfterPick = false;
     bool _assemblyEditPickActive = false;
-    ExplodedViewSelectionEditor* _explodedViewSelectionEditor = nullptr;
+    MeshSelectionEditor* _meshSelectionEditor = nullptr;
     bool _syncingCapturedViewsList = false;
 
 private slots:

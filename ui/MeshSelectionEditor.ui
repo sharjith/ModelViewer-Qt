@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>ExplodedViewSelectionEditor</class>
- <widget class="QDialog" name="ExplodedViewSelectionEditor">
+ <class>MeshSelectionEditor</class>
+ <widget class="QDialog" name="MeshSelectionEditor">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -20,7 +20,7 @@
    <item>
     <widget class="QLabel" name="labelIntro">
      <property name="text">
-      <string>Review and refine the meshes in the current assembly.</string>
+      <string>Review and refine the selected meshes.</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
@@ -30,7 +30,7 @@
    <item>
     <widget class="QLabel" name="labelMembers">
      <property name="text">
-      <string>Assembly Members</string>
+      <string>Meshes</string>
      </property>
     </widget>
    </item>

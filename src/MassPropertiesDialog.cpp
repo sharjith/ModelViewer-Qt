@@ -7,7 +7,7 @@
 #include "LengthUnits.h"
 #include "AnalysisMeshSnapshot.h"
 #include "AnalysisComputeSession.h"
-#include "ExplodedViewSelectionEditor.h"
+#include "MeshSelectionEditor.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -274,10 +274,10 @@ void MassPropertiesDialog::editSelection()
 	if (_activeSession || !viewport || _meshUuids.isEmpty())
 		return;
 
-	ExplodedViewSelectionEditor editor(this);
+	MeshSelectionEditor editor(this);
 	editor.setIntroText(tr("Review and refine the meshes in this report."));
 	editor.setMembersText(tr("Meshes"));
-	QVector<ExplodedViewSelectionEditor::Entry> entries;
+	QVector<MeshSelectionEditor::Entry> entries;
 	for (const QUuid& uuid : std::as_const(_meshUuids))
 	{
 		if (SceneMesh* mesh = viewport->getMeshByUuid(uuid))
@@ -289,20 +289,20 @@ void MassPropertiesDialog::editSelection()
 	QSet<int> previousSelection;
 	for (int id : _modelViewer->getSelectedIDs())
 		previousSelection.insert(id);
-	connect(&editor, &ExplodedViewSelectionEditor::previewEntryRequested, this, [this](const QUuid& uuid) {
+	connect(&editor, &MeshSelectionEditor::previewEntryRequested, this, [this](const QUuid& uuid) {
 		_modelViewer->setSelectionWithoutUndo(QSet<QUuid>{ uuid });
 	});
 
 	const int result = editor.exec();
 	_modelViewer->setSelectionWithoutUndo(previousSelection);
-	if (result != QDialog::Accepted && result != ExplodedViewSelectionEditor::AddMoreResult)
+	if (result != QDialog::Accepted && result != MeshSelectionEditor::AddMoreResult)
 		return;
 
 	QVector<QUuid> updated;
-	for (const ExplodedViewSelectionEditor::Entry& entry : editor.entries())
+	for (const MeshSelectionEditor::Entry& entry : editor.entries())
 		updated.append(entry.uuid);
 	applyMeshUuids(updated);
-	if (result == ExplodedViewSelectionEditor::AddMoreResult && _pickButton)
+	if (result == MeshSelectionEditor::AddMoreResult && _pickButton)
 		_pickButton->setChecked(true);
 }
 
