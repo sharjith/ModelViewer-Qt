@@ -89,7 +89,14 @@ public:
 	// nothing has ever set this; resolution then falls through to the
 	// hardcoded Millimeter default.
 	LengthUnit defaultImportUnit() const { return _defaultImportUnit; }
-	void setDefaultImportUnit(LengthUnit unit) { _defaultImportUnit = unit; }
+	void setDefaultImportUnit(LengthUnit unit)
+	{
+		if (_defaultImportUnit == unit)
+			return;
+		_defaultImportUnit = unit;
+		emit importUnitsChanged();
+	}
+	void notifyImportUnitsChanged() { emit importUnitsChanged(); }
 	QMap<QString, CachedMaterial>* getMaterialCache() { return &_materialCache; }
 	void registerOwnedUnsavedMaterial(const QString& materialKey) { _ownedUnsavedMaterials.insert(materialKey); }
 
@@ -193,6 +200,7 @@ public:
 
 signals:
 	void documentModifiedChanged(bool modified);
+	void importUnitsChanged();
 	// Emitted from updateVisibilityUiFromState() alongside its own overlay
 	// labelMeshCount update - lets MainWindow's Document dock mirror the
 	// same count for whichever document is currently active, without
@@ -502,6 +510,16 @@ public slots:
 	// in a new group), unlike Merge/Split which need 2+. Undoable
 	// (GroupMeshesCommand).
 	void groupSelectedMeshes();
+
+	// Organizational "Purge": collapses a sub-assembly node that exists solely to wrap a single mesh (one child,
+	// no meshes of its own; that child has no children and exactly one mesh) - the mesh is promoted into the
+	// wrapper, renamed to the wrapper's own (usually more meaningful) name, and the child is removed. Run bottom-
+	// up over scanRoot's subtree, so a CHAIN of such wrappers collapses in one pass, not just the innermost.
+	// scanRoot itself is never eliminated (only ever a promotion target for ITS OWN children) - pass nullptr to
+	// sweep the whole scene (Tools > Purge Redundant Nodes), or a specific node (the scene tree's own context
+	// menu) to purge just that subtree. No geometry is touched; undoable (PurgeRedundantNodesCommand). Does
+	// nothing, silently, if scanRoot's subtree has nothing to collapse.
+	void purgeRedundantAssemblyNodes(SceneNode* scanRoot = nullptr);
 
 	// Shrink Wrap: opens the non-modal ShrinkWrapDialog (Tools -> Shrink
 	// Wrap...), findChild-reuse-or-create/show/raise, same pattern as

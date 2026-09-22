@@ -17,6 +17,7 @@
 #include "SplitByConnectivityCommand.h"
 #include "MergeByAdjacencyCommand.h"
 #include "GroupMeshesCommand.h"
+#include "PurgeRedundantNodesCommand.h"
 #include "ShrinkWrapCommand.h"
 #include "ExplodedViewPanel.h"
 #include "PasteCommand.h"
@@ -2201,6 +2202,25 @@ void ModelViewer::mouseMoveEvent(QMouseEvent* event)
 
 void ModelViewer::closeEvent(QCloseEvent* event)
 {
+	// The analysis dialogs run a responsive nested event loop while their
+	// background worker is active. Do not let closing this parent destroy a
+	// dialog whose member function is still on the stack; request cancellation
+	// and let the user close the document again once it has unwound.
+	if (auto* dialog = findChild<SurfaceAnalysisDialog*>(QString(), Qt::FindDirectChildrenOnly);
+		dialog && dialog->isComputationInFlight())
+	{
+		dialog->requestComputationCancel();
+		event->ignore();
+		return;
+	}
+	if (auto* dialog = findChild<MassPropertiesDialog*>(QString(), Qt::FindDirectChildrenOnly);
+		dialog && dialog->isComputationInFlight())
+	{
+		dialog->requestComputationCancel();
+		event->ignore();
+		return;
+	}
+
 	// Check for unsaved materials first
 	MaterialPropertiesPanel* materialPanel = predefinedMaterialsPanel;
 	QSet<QString> unsavedKeys = materialPanel ? materialPanel->getUnsavedMaterialKeys() : QSet<QString>();
@@ -2562,6 +2582,19 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 			if (SceneNode* fileNode = _sceneGraph->findNodeByUuid(nodeUuid))
 				showImportUnitsDialog(fileNode);
 		});
+		myMenu.addSeparator();
+	}
+
+	// ---- Purge Redundant Nodes (any assembly node - collapses redundant single-mesh wrapper nodes within its own
+	// subtree only; see purgeRedundantAssemblyNodes()'s own doc comment). Same "does not set actionTaken" reasoning
+	// as Import Units just above - this reorganizes structure below the clicked node, not the mesh selection. ----
+	if (clickedAssembly && assemblyNode)
+	{
+		myMenu.addAction(QIcon(":/icons/res/ungroup_captures.png"), tr("Purge Redundant Nodes"), this,
+		    [this, nodeUuid = assemblyNode->nodeUuid]() {
+		        if (SceneNode* node = _sceneGraph->findNodeByUuid(nodeUuid))
+		            purgeRedundantAssemblyNodes(node);
+		    });
 		myMenu.addSeparator();
 	}
 
@@ -4070,6 +4103,79 @@ void ModelViewer::groupSelectedMeshes()
 	QApplication::restoreOverrideCursor();
 
 	MainWindow::showStatusMessage(tr("Grouped %1 mesh(es).").arg(meshEntries.size()));
+}
+
+namespace
+{
+	// Bottom-up (children first): a node only qualifies once its own single child has already settled into a
+	// leaf with exactly one mesh - which a nested wrapper only reaches after ITS OWN children have already been
+	// promoted. Applies each qualifying promotion immediately, through the real SceneGraph API, rather than a
+	// separate dry-run scan - so by the time recursion returns to a node's parent, that node's children/meshUuids
+	// (and the SceneGraph's own UUID lookup table) already reflect the promotion, and the parent's own check
+	// sees it exactly as it will be, with no separate simulation to keep in sync.
+	void purgeNodeRecursive(SceneGraph* sceneGraph, ViewportWidget* viewport, SceneNode* node,
+		QVector<PurgeRedundantNodesCommand::PromotionEntry>& promotions)
+	{
+		const QList<SceneNode*> children = node->children; // snapshot - node->children shrinks as children settle
+		for (SceneNode* child : children)
+			purgeNodeRecursive(sceneGraph, viewport, child, promotions);
+
+		if (node->children.size() != 1 || !node->meshUuids.isEmpty())
+			return;
+
+		SceneNode* onlyChild = node->children.first();
+		if (!onlyChild->children.isEmpty() || onlyChild->meshUuids.size() != 1)
+			return;
+
+		PurgeRedundantNodesCommand::PromotionEntry entry;
+		entry.meshUuid = onlyChild->meshUuids.first();
+		entry.survivorNode = node;
+		entry.eliminatedNode = onlyChild;
+		entry.meshNameAfter = node->name;
+		if (SceneMesh* mesh = viewport->getMeshByUuid(entry.meshUuid))
+			entry.meshNameBefore = mesh->getName();
+
+		int pos = 0;
+		sceneGraph->removeMeshUuid(entry.meshUuid, pos);
+		sceneGraph->restoreMeshUuid(node, entry.meshUuid, node->meshUuids.size());
+
+		sceneGraph->removeChildNode(node, onlyChild, entry.eliminatedPosition);
+
+		if (SceneMesh* mesh = viewport->getMeshByUuid(entry.meshUuid))
+			mesh->setName(entry.meshNameAfter);
+
+		promotions.append(entry);
+	}
+}
+
+void ModelViewer::purgeRedundantAssemblyNodes(SceneNode* scanRoot)
+{
+	if (!scanRoot)
+		scanRoot = _sceneGraph->root();
+	if (!scanRoot)
+		return;
+
+	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
+	const QSet<QUuid> originalSelection(selectedUuids.begin(), selectedUuids.end());
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	QVector<PurgeRedundantNodesCommand::PromotionEntry> promotions;
+	purgeNodeRecursive(_sceneGraph, _viewportWidget, scanRoot, promotions);
+
+	if (promotions.isEmpty())
+	{
+		QApplication::restoreOverrideCursor();
+		MainWindow::showStatusMessage(tr("Nothing to purge - no redundant single-mesh sub-assembly nodes found."));
+		return;
+	}
+
+	updateDisplayList();
+	_undoStack->push(new PurgeRedundantNodesCommand(this, _viewportWidget, promotions, originalSelection));
+
+	QApplication::restoreOverrideCursor();
+
+	MainWindow::showStatusMessage(tr("Purged %1 redundant node(s).").arg(promotions.size()));
 }
 
 void ModelViewer::openShrinkWrapDialog()

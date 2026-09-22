@@ -879,6 +879,13 @@ MainWindow::MainWindow(QWidget* parent)
         if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("uv"));
     });
 
+	// Tools → Purge Redundant Nodes - sweeps the whole active document's scene tree (nullptr = SceneGraph's own
+	// root); the scene tree's own context menu offers the same operation scoped to just one right-clicked
+	// assembly node, see ModelViewer::purgeRedundantAssemblyNodes()'s own doc comment.
+	connect(ui->actionPurgeRedundantNodes, &QAction::triggered, this, [this]() {
+		if (auto* child = activeMdiChild()) child->purgeRedundantAssemblyNodes(nullptr);
+	});
+
 	updateMenus();
 
 	StartupSplash::report(tr("Restoring window layout..."), 55);
@@ -2483,6 +2490,7 @@ void MainWindow::updateMenus()
 	ui->actionRepairMesh->setEnabled(hasMdiChild);
 	ui->actionFillHoles->setEnabled(hasMdiChild);
 	ui->actionGenerateUVs->setEnabled(hasMdiChild);
+	ui->actionPurgeRedundantNodes->setEnabled(hasMdiChild);
 	{
 		QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 		const bool debugEnabled = s.value("showTextureDebugPanelCheckBox", false).toBool();

@@ -197,6 +197,8 @@
     <addaction name="actionRepairMesh"/>
     <addaction name="actionFillHoles"/>
     <addaction name="actionGenerateUVs"/>
+    <addaction name="separator"/>
+    <addaction name="actionPurgeRedundantNodes"/>
    </widget>
    <widget class="QMenu" name="menuVisualization">
     <property name="title">
@@ -971,6 +973,18 @@
    </property>
    <property name="statusTip">
     <string>Generate UV coordinates for meshes using a chosen projection method, from a working list you build in the dialog</string>
+   </property>
+  </action>
+  <action name="actionPurgeRedundantNodes">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/ungroup_captures.png</normaloff>:/icons/res/ungroup_captures.png</iconset>
+   </property>
+   <property name="text">
+    <string>Purge Redundant Nodes</string>
+   </property>
+   <property name="statusTip">
+    <string>Collapse sub-assembly nodes that exist only to wrap a single mesh (whole scene) - the mesh is promoted into the wrapper, renamed to its own name, and the wrapper's empty child is removed</string>
    </property>
   </action>
   <action name="actionVisualizationSeparator">
