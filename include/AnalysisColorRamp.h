@@ -40,7 +40,20 @@ public:
 		const std::vector<float>& scalarPerSample,
 		const std::vector<bool>& validPerSample,
 		float rangeMin, float rangeMax,
-		AnalysisColormap colormap);
+		AnalysisColormap colormap,
+		// 0/1 = smooth; >= 2 quantizes the normalized value into this many
+		// equal-width display bands without changing the stored scalar data.
+		int discreteBands = 0);
+
+	// Encodes a normalized scalar in R and validity in A for the fragment
+	// shader's true per-pixel discrete-band path. Unlike mapToRGBA(), this
+	// deliberately does not quantize on the CPU: the interpolated scalar is
+	// quantized after rasterization, producing continuous contour boundaries
+	// instead of interpolating already-quantized RGB colors.
+	static std::vector<float> mapToNormalizedScalarRGBA(
+		const std::vector<float>& scalarPerSample,
+		const std::vector<bool>& validPerSample,
+		float rangeMin, float rangeMax);
 
 	// A small horizontal gradient strip for the analysis dialog's legend,
 	// with min/max value labels (plus an optional unit suffix, e.g. " mm")
@@ -52,7 +65,9 @@ public:
 		const QString& unitSuffix = QString(),
 		// True when values above rangeMax are clamped to the top colour (a robust range that deliberately
 		// excludes outliers): the max label then reads ">= max" instead of implying max is the largest value.
-		bool openEndedMax = false);
+		bool openEndedMax = false,
+		int discreteBands = 0,
+		bool openEndedMin = false);
 
 	// Legend for AnalysisColormap::Threshold: two labelled blocks (below / at-or-above the threshold).
 	static QPixmap thresholdLegend(int width, int height, const QString& belowText, const QString& aboveText);

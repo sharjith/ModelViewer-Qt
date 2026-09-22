@@ -18,6 +18,7 @@ class QLabel;
 class QComboBox;
 class QCheckBox;
 class QDoubleSpinBox;
+class QSpinBox;
 class QPushButton;
 class QCloseEvent;
 class QTimer;
@@ -68,6 +69,8 @@ class SurfaceAnalysisDialog : public QDialog
 	Q_OBJECT
 public:
 	explicit SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* parent = nullptr);
+	bool isComputationInFlight() const { return _activeSession != nullptr; }
+	void requestComputationCancel();
 
 	// Re-seeds the list of meshes from the viewer's current selection (used when the tool is invoked again while
 	// this dialog is already open). Does nothing if nothing is selected in the viewer.
@@ -134,6 +137,7 @@ private slots:
 	// SurfaceAnalysisOverlay's own doc comment for why it can't protect
 	// itself from this on its own.
 	void onMeshAboutToBeDeleted(SceneMesh* mesh);
+	void onImportUnitsChanged();
 	// Idle staleness poll - isValid()'s first real caller (see
 	// SurfaceAnalysisOverlay's own doc comment). Ticks on a QTimer, not a
 	// push notification, since no transform-changed signal exists anywhere
@@ -163,6 +167,7 @@ private:
 	// Legend + one-line summary (thinnest wall, share of surface under the limit) for the meshes that currently
 	// show a Wall-Thickness result.
 	void updateThicknessLegendAndSummary();
+	int thicknessDisplayBands() const;
 	// Millimetres-per-unit scale for a mesh: multiplies its native-unit distances into millimetres, via the
 	// same import-unit resolution Mass Properties uses.
 	double lengthScaleForMesh(SceneMesh* mesh) const;
@@ -248,6 +253,8 @@ private:
 	QDoubleSpinBox* _thicknessLimitSpin = nullptr;    // the limit, in mm
 	QDoubleSpinBox* _thicknessSpreadSpin = nullptr;   // Local thickness ray spread (cone half angle), degrees
 	QCheckBox* _thicknessEdgeReliefCheck = nullptr;   // Inscribed sphere: ignore the sharp-edge effect
+	QComboBox* _thicknessDisplayCombo = nullptr;      // CATIA-style discrete ranges or smoothly interpolated ramp
+	QSpinBox* _thicknessBandCountSpin = nullptr;
 	QLabel* _thicknessSummaryLabel = nullptr;
 	NotesListBox* _thicknessRejectionNote = nullptr;
 	// Top of the continuous ramp (mm) for the current result: a robust percentile rather than the maximum, so one

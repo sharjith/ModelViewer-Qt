@@ -29,7 +29,7 @@ public:
 	// Wall-Thickness a WallThicknessResult, Mass Properties a
 	// MeshTopologyCheckResult. The caller (which knows which analysis it
 	// asked for) std::any_cast<>s the concrete type back out of results().
-	using TaskFn = std::function<std::any(const AnalysisMeshSnapshot&)>;
+	using TaskFn = std::function<std::any(const AnalysisMeshSnapshot&, const std::atomic<bool>& cancelRequested)>;
 
 	explicit AnalysisComputeWorker(QObject* parent = nullptr) : QObject(parent) {}
 
@@ -49,17 +49,16 @@ public:
 public slots:
 	// Invoked via QMetaObject::invokeMethod(worker, &AnalysisComputeWorker::run,
 	// Qt::QueuedConnection) once this object has been moved to its own
-	// QThread - runs _taskFn once per snapshot, in order, checking for a
-	// cancellation request BETWEEN meshes only (coarse-grained, matching
-	// AssImpModelLoader's per-batch granularity - one analyzer call per mesh
-	// is already this app's natural unit of uninterruptible work; there is
-	// no finer-grained CGAL-internal cancellation hook to build on).
+	// QThread - runs _taskFn once per snapshot, in order. It checks for a
+	// cancellation request between meshes and supplies the same atomic token
+	// to each task so analyzers can also stop during their own long loops.
+	// Individual third-party calls remain uninterruptible until they return.
 	void run();
 
-	// Sets the cancellation flag this object's own run() loop polls -
-	// invoked cross-thread via Qt::QueuedConnection (same idiom
-	// AssImpModelLoader::cancelLoading() already uses), never called
-	// directly from another thread.
+	// Sets only an atomic flag and is therefore deliberately safe to call
+	// directly from the UI thread while run() occupies the worker thread's
+	// event loop. Queuing this call to the worker thread would deadlock the
+	// cancellation protocol: that queue cannot drain until run() returns.
 	void cancel();
 
 signals:

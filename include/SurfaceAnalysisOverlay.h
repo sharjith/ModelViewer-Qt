@@ -109,7 +109,8 @@ public:
 		const CacheKey& key,
 		float rangeMin, float rangeMax,
 		AnalysisColormap colormap,
-		AnalysisKind kind);
+		AnalysisKind kind,
+		int discreteBands = 0);
 
 	// Same as applyResult() above, but for a PER-FACE result (draft angle -
 	// one scalar per TRIANGLE, uploaded via RenderableMesh::
@@ -123,14 +124,15 @@ public:
 		const CacheKey& key,
 		float rangeMin, float rangeMax,
 		AnalysisColormap colormap,
-		AnalysisKind kind);
+		AnalysisKind kind,
+		int discreteBands = 0);
 
 	// Same as applyFlatResult(), but each triangle is additionally drawn as an n x n grid of sub-triangles, each in
 	// the colour of its OWN value (see SubTriangleGrid) - so a result measured at many points per triangle (wall
 	// thickness) shows where within a large triangle the value changes, instead of one colour per triangle.
 	// scalarPerFace/validPerFace are the per-triangle summary (used for statistics and as the fallback);
-	// `refined` holds the per-sub-triangle values in the SAME units, NaN where a sample has no value. Uploaded via
-	// RenderableMesh::setAnalysisOverlaySubTriangleColors().
+	// `refined` holds the per-sub-triangle values in the SAME units, NaN where a sample has no value, plus optional
+	// reconciled corner values for a continuous display. Uploaded via RenderableMesh::setAnalysisOverlaySubTriangleColors().
 	void applyRefinedResult(
 		SceneMesh* mesh,
 		const std::vector<float>& scalarPerFace,
@@ -139,7 +141,8 @@ public:
 		const CacheKey& key,
 		float rangeMin, float rangeMax,
 		AnalysisColormap colormap,
-		AnalysisKind kind);
+		AnalysisKind kind,
+		int discreteBands = 0);
 
 	// Re-runs ONLY the color mapping (not the underlying geometry analysis)
 	// against the already-cached scalar field for `mesh`, via whichever
@@ -147,7 +150,7 @@ public:
 	// with - e.g. the dialog's legend range slider or colormap picker
 	// changed, nothing about the mesh or analysis parameters themselves did.
 	// No-op if this mesh has no cached result.
-	void recolor(SceneMesh* mesh, float rangeMin, float rangeMax, AnalysisColormap colormap);
+	void recolor(SceneMesh* mesh, float rangeMin, float rangeMax, AnalysisColormap colormap, int discreteBands = 0);
 
 	// True only if `mesh` currently has a cached result AND it was computed
 	// against exactly `currentKey` (same geometry revision/transform/
@@ -248,6 +251,7 @@ private:
 		float rangeMin = 0.0f;
 		float rangeMax = 0.0f;
 		AnalysisColormap colormap = AnalysisColormap::Sequential;
+		int discreteBands = 0;
 		// Which RenderableMesh upload path this result uses - see
 		// applyResult() vs applyFlatResult()'s doc comments.
 		bool isFlat = false;

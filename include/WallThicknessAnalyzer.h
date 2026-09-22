@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <atomic>
 #include <vector>
 #include <QString>
 
@@ -127,12 +128,13 @@ struct WallThicknessResult
 	// order), populated only if succeeded is true.
 	std::vector<float> thicknessPerFace;
 	std::vector<bool> validPerFace;
-	// LocalThickness only (empty for NormalRay): the value at each sub-triangle sample of each triangle, so a
-	// display can show where within a large triangle the thickness changes instead of one colour per triangle.
-	// thicknessPerFace[t] is the minimum of triangle t's samples.
+	// LocalThickness and Sphere (empty for NormalRay): the robust, crease-aware value at each sub-triangle sample,
+	// plus reconciled corner values so the display can interpolate continuously instead of exposing tessellation
+	// cells. thicknessPerFace[t] is the minimum of triangle t's filtered samples.
 	SubTriangleField samples;
-	// LocalThickness only: for each entry of samples.values, the ray behind it (same indexing) - for a sample
-	// without a value, the ray that ruled it out and why. Empty for NormalRay.
+	// LocalThickness and Sphere: for each entry of samples.values, a real nearby measurement that supports its
+	// robust value (same indexing); for a sample without a value, the ray that ruled it out and why. Empty for
+	// NormalRay.
 	std::vector<WallThicknessWitness> sampleWitness;
 	// Non-empty only when the whole mesh was rejected (succeeded == false) -
 	// the specific reason (open boundary / self-intersecting / unresolved
@@ -145,7 +147,8 @@ struct WallThicknessResult
 class WallThicknessAnalyzer
 {
 public:
-	static WallThicknessResult computeThickness(SceneMesh* mesh, const WallThicknessParams& params = WallThicknessParams());
+	static WallThicknessResult computeThickness(SceneMesh* mesh, const WallThicknessParams& params = WallThicknessParams(),
+		const std::atomic<bool>* cancelRequested = nullptr);
 
 	// Snapshot-based entry point - identical computation, but reads world-
 	// space points/indices directly instead of a live SceneMesh*, so it's
@@ -154,5 +157,6 @@ public:
 	// wrapper around this one.
 	static WallThicknessResult computeThickness(
 		const std::vector<float>& points, const std::vector<unsigned int>& indices,
-		const WallThicknessParams& params = WallThicknessParams());
+		const WallThicknessParams& params = WallThicknessParams(),
+		const std::atomic<bool>* cancelRequested = nullptr);
 };

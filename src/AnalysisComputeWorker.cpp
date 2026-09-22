@@ -13,7 +13,12 @@ void AnalysisComputeWorker::run()
 			return;
 		}
 
-		_results[i] = _taskFn ? _taskFn(_snapshots[i]) : std::any();
+		_results[i] = _taskFn ? _taskFn(_snapshots[i], _cancelRequested) : std::any();
+		if (_cancelRequested.load(std::memory_order_acquire))
+		{
+			emit cancelled();
+			return;
+		}
 		emit perMeshResult(i);
 		emit progress(i + 1, total);
 	}

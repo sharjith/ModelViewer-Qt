@@ -1069,6 +1069,8 @@ void RenderableMesh::setupUniforms()
 	// authored data, nothing to restore" contract (see RenderableMesh.h's
 	// doc comment on _analysisOverlayColorBuffer).
 	_prog->setUniformValue("analysisOverlayActive", _hasAnalysisOverlay || _hasAnalysisFlatOverlay);
+	_prog->setUniformValue("analysisOverlayBands", _analysisOverlayBands);
+	_prog->setUniformValue("analysisOverlayColormap", _analysisOverlayColormap);
 	_prog->setUniformValue("zebraStripeActive", _zebraStripeActive);
 	_prog->setUniformValue("zebraStripeFrequency", _zebraStripeFrequency);
 	_prog->setUniformValue("hasNegativeScale", hasNegativeScale());
@@ -3081,10 +3083,10 @@ void RenderableMesh::uploadAnalysisFlatBuffers(
 }
 
 void RenderableMesh::setAnalysisOverlaySubTriangleColors(
-	const std::vector<unsigned char>& gridN, const std::vector<unsigned int>& offset, const std::vector<float>& rgbaPerSample)
+	const std::vector<unsigned char>& gridN, const std::vector<unsigned int>& offset, const std::vector<float>& rgba)
 {
 	const size_t faceCount = _indices.size() / 3;
-	if (rgbaPerSample.empty() || faceCount == 0 || _points.empty() || _normals.empty()
+	if (rgba.empty() || faceCount == 0 || _points.empty() || _normals.empty()
 		|| gridN.size() != faceCount || offset.size() != faceCount)
 	{
 		clearAnalysisOverlay();
@@ -3101,6 +3103,7 @@ void RenderableMesh::setAnalysisOverlaySubTriangleColors(
 	// and size the output: each triangle with grid resolution n contributes n*n sub-triangles; a triangle with no
 	// grid (n == 0) contributes nothing and is simply not overdrawn.
 	size_t subTriangleCount = 0;
+	size_t requiredSamples = 0;
 	for (size_t f = 0; f < faceCount; ++f)
 	{
 		for (int corner = 0; corner < 3; ++corner)
@@ -3114,14 +3117,16 @@ void RenderableMesh::setAnalysisOverlaySubTriangleColors(
 		const size_t n = gridN[f];
 		if (n == 0)
 			continue;
-		if (static_cast<size_t>(offset[f]) + n * n > rgbaPerSample.size() / 4)
-		{
-			clearAnalysisOverlay();
-			return;
-		}
+		requiredSamples = std::max(requiredSamples, static_cast<size_t>(offset[f]) + n * n);
 		subTriangleCount += n * n;
 	}
 	if (subTriangleCount == 0)
+	{
+		clearAnalysisOverlay();
+		return;
+	}
+	const bool colorsPerCorner = rgba.size() == requiredSamples * 3 * 4;
+	if (!colorsPerCorner && rgba.size() != requiredSamples * 4)
 	{
 		clearAnalysisOverlay();
 		return;
@@ -3164,18 +3169,31 @@ void RenderableMesh::setAnalysisOverlaySubTriangleColors(
 			pushVertex(u0, v0);
 			pushVertex(u1, v1);
 			pushVertex(u2, v2);
-			const size_t c = (firstSample + static_cast<size_t>(sample)) * 4;
+			const size_t firstColor = colorsPerCorner
+				? (firstSample + static_cast<size_t>(sample)) * 3 * 4
+				: (firstSample + static_cast<size_t>(sample)) * 4;
 			for (int corner = 0; corner < 3; ++corner)
 			{
-				colors.push_back(rgbaPerSample[c + 0]);
-				colors.push_back(rgbaPerSample[c + 1]);
-				colors.push_back(rgbaPerSample[c + 2]);
-				colors.push_back(rgbaPerSample[c + 3]);
+				const size_t c = firstColor + (colorsPerCorner ? static_cast<size_t>(corner) * 4 : 0);
+				colors.push_back(rgba[c + 0]);
+				colors.push_back(rgba[c + 1]);
+				colors.push_back(rgba[c + 2]);
+				colors.push_back(rgba[c + 3]);
 			}
 		});
 	}
 
 	uploadAnalysisFlatBuffers(positions, normals, colors);
+}
+
+void RenderableMesh::setAnalysisOverlayBanding(int bands, int colormap)
+{
+	const int normalizedBands = bands >= 2 ? bands : 0;
+	if (_analysisOverlayBands == normalizedBands && _analysisOverlayColormap == colormap)
+		return;
+	_analysisOverlayBands = normalizedBands;
+	_analysisOverlayColormap = colormap;
+	markUniformsDirty();
 }
 
 void RenderableMesh::setAnalysisOverlayActive(bool active)
@@ -3209,6 +3227,8 @@ void RenderableMesh::clearAnalysisOverlay()
 	_hasAnalysisOverlay = false;
 	_analysisFlatVertexCount = 0;
 	_hasAnalysisFlatOverlay = false;
+	_analysisOverlayBands = 0;
+	_analysisOverlayColormap = 0;
 	markUniformsDirty();
 }
 

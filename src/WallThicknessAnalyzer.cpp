@@ -1,5 +1,6 @@
 #include "WallThicknessAnalyzer.h"
 #include "SceneMesh.h"
+#include "UnionFind.h"
 #include "MeshProperties.h" // MeshPropertyUnavailableReason / describeMeshPropertyUnavailableReason - shared reason wording
 
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
@@ -19,9 +20,12 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <functional>
 #include <iterator>
 #include <limits>
+#include <memory>
 #include <thread>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <variant>
@@ -38,6 +42,7 @@ namespace
 
 	using VertexDescriptor = boost::graph_traits<WtMesh>::vertex_descriptor;
 	using FaceDescriptor = boost::graph_traits<WtMesh>::face_descriptor;
+	using EdgeDescriptor = boost::graph_traits<WtMesh>::edge_descriptor;
 	using VPM = boost::property_map<WtMesh, boost::vertex_point_t>::const_type;
 	using AABBPrimitive = CGAL::AABB_face_graph_triangle_primitive<WtMesh, VPM>;
 	using AABBTraits = CGAL::AABB_traits_3<WtKernel, AABBPrimitive>;
@@ -47,14 +52,13 @@ namespace
 	// this codebase's own convention for a small CGAL-typed helper needed the same way in more than one file - see
 	// e.g. findMdiArea() in the tool dialogs): a self-intersection confined to under 1% of the mesh's OWN surface
 	// area is a mesher-tessellation artifact (a hairline crossing at a curved seam), not a real defect. Without this,
-	// the exact same mesh that Mass Properties now accepts (with an "approximate" volume) was rejected outright here
-	// - a real user-visible inconsistency between the two tools for one identical mesh, not an intentional
-	// difference. does_bound_a_volume() is still never called on self-intersecting input (undefined behavior); what
-	// follows this gate (orient_to_bound_a_volume(), then per-face raycasting) is far more tolerant of a tiny local
-	// defect - it works from a global signed-volume sum, the same way Mass Properties' divergence-theorem volume
-	// does, so a fraction-of-a-percent self-intersection can't flip its answer. A reading taken from exactly the
-	// handful of self-intersecting triangles themselves can still be locally unreliable; nothing here tries to
-	// detect and exclude just those faces from the result.
+	// the exact same mesh Mass Properties accepts (with an "approximate" volume) is rejected outright here - a real
+	// user-visible inconsistency between the two tools for one identical mesh, not an intentional difference.
+	// does_bound_a_volume() is still never called on self-intersecting input (undefined behavior); orient_to_bound_a_
+	// volume() + the per-face raycasting that follows is far more tolerant of a tiny local defect - it works from a
+	// global signed-volume/winding sum, so a fraction-of-a-percent self-intersection can't flip its answer. A
+	// reading taken from exactly the handful of self-intersecting triangles themselves can still be locally
+	// unreliable; nothing here tries to detect and exclude just those faces from the result.
 	constexpr double kMinorSelfIntersectionAreaRatio = 0.01; // 1% of the mesh's own surface area
 
 	double selfIntersectingAreaRatio(const WtMesh& mesh)
@@ -80,6 +84,43 @@ namespace
 				involvedArea += area;
 		}
 		return totalArea > 0.0 ? involvedArea / totalArea : 1.0;
+	}
+
+	struct GridVertexKey
+	{
+		std::size_t patch = 0;
+		long long x = 0, y = 0, z = 0;
+		bool operator==(const GridVertexKey& other) const
+		{
+			return patch == other.patch && x == other.x && y == other.y && z == other.z;
+		}
+	};
+
+	struct GridVertexKeyHash
+	{
+		std::size_t operator()(const GridVertexKey& key) const
+		{
+			std::size_t h = std::hash<std::size_t>{}(key.patch);
+			const auto mix = [&h](long long value)
+			{
+				h ^= std::hash<long long>{}(value) + 0x9e3779b97f4a7c15ull + (h << 6) + (h >> 2);
+			};
+			mix(key.x); mix(key.y); mix(key.z);
+			return h;
+		}
+	};
+
+	float medianValue(std::vector<float> values)
+	{
+		if (values.empty())
+			return std::numeric_limits<float>::quiet_NaN();
+		const size_t middle = values.size() / 2;
+		std::nth_element(values.begin(), values.begin() + middle, values.end());
+		const float upper = values[middle];
+		if (values.size() % 2 != 0)
+			return upper;
+		const float lower = *std::max_element(values.begin(), values.begin() + middle);
+		return 0.5f * (lower + upper);
 	}
 
 	bool isFinitePoint(const std::vector<float>& pts, size_t vertexIndex)
@@ -143,8 +184,15 @@ namespace
 		const WtMesh& mesh, AABBTree& tree, const VolumeIdMap& volumeIds,
 		const std::vector<size_t>& origFaceIndex,
 		const std::vector<float>& origPoints, const std::vector<unsigned int>& origIndices,
-		const WallThicknessParams& params, LocalThicknessOutput& out)
+		const WallThicknessParams& params, LocalThicknessOutput& out,
+		const std::atomic<bool>* cancelRequested)
 	{
+		const auto cancelled = [cancelRequested]()
+		{
+			return cancelRequested && cancelRequested->load(std::memory_order_acquire);
+		};
+		if (cancelled())
+			return false;
 		struct FaceGeom
 		{
 			double a[3]{}, b[3]{}, c[3]{};      // working-mesh vertices (define the outward normal)
@@ -166,6 +214,8 @@ namespace
 		size_t k = 0;
 		for (FaceDescriptor f : faces(mesh))
 		{
+			if (cancelled())
+				return false;
 			// The whole scheme indexes per-face data by creation order == descriptor index (polygon_soup_to_
 			// polygon_mesh() adds faces one by one, no removals) - the same assumption the normal-ray loop
 			// makes. Verify it rather than trust it.
@@ -232,9 +282,18 @@ namespace
 		if (!(spacing > 0.0) || !std::isfinite(spacing))
 			spacing = 1.0;
 		constexpr int kMaxSubdivisions = 12;
+		// One sample is enough numerically for a tiny triangle, but it leaves
+		// the reconstructed scalar field piecewise-linear over the source
+		// tessellation and makes broad triangular patches visible. Guarantee a
+		// 3x3 or 2x2 grid whenever nine or four samples per face fit inside
+		// the existing global budget; dense meshes retain the one-sample floor.
+		const int minimumSubdivisions = faceCount <= params.sampleBudget / 9 ? 3
+			: (faceCount <= params.sampleBudget / 4 ? 2 : 1);
 		std::vector<int> subdivisions(faceCount, 1);
 		for (int attempt = 0; attempt < 8; ++attempt)
 		{
+			if (cancelled())
+				return false;
 			size_t total = 0;
 			for (size_t i = 0; i < faceCount; ++i)
 			{
@@ -245,7 +304,7 @@ namespace
 				// agree, so nothing changes there.
 				const double size = geom[i].ok ? std::sqrt(std::sqrt(2.0 * geom[i].area) * geom[i].longestEdge) : 0.0;
 				const int n = geom[i].ok
-					? std::clamp(static_cast<int>(std::ceil(size / spacing)), 1, kMaxSubdivisions)
+					? std::clamp(static_cast<int>(std::ceil(size / spacing)), minimumSubdivisions, kMaxSubdivisions)
 					: 1;
 				subdivisions[i] = n;
 				total += static_cast<size_t>(n) * static_cast<size_t>(n);
@@ -296,15 +355,35 @@ namespace
 			}
 		}
 
-		// The tree must be fully built BEFORE it is queried from several threads (a query on an unbuilt tree
-		// builds it lazily, which is not safe to race).
-		tree.build();
 		const bool sphereMethod = params.method == WallThicknessMethod::Sphere;
+		// The tree must be fully built BEFORE it is queried from several threads (a query on an unbuilt tree
+		// builds it lazily, which is not safe to race). Only the NormalRay path ever queries `tree` itself (its one
+		// call site is tree.first_intersection() further down, reached only when !sphereMethod) - Sphere exclusively
+		// queries the separate per-volume sphereTrees below, so building `tree` for it would be a full, never-
+		// queried O(n log n) AABB build wasted on every Sphere-method run.
+		if (!sphereMethod)
+			tree.build();
+		// Sphere fitting needs nearest-point queries restricted to the source
+		// solid. One tree per volume region keeps a nearby disconnected body in
+		// the same SceneMesh from becoming a false limiting wall/contact.
+		std::unordered_map<std::size_t, std::unique_ptr<AABBTree>> sphereTrees;
 		if (sphereMethod)
-			tree.accelerate_distance_queries(); // built up front for the same reason as build(): queried from several threads
+		{
+			std::unordered_map<std::size_t, std::vector<FaceDescriptor>> facesByVolume;
+			for (FaceDescriptor f : faces(mesh))
+				facesByVolume[volumeIds[f]].push_back(f);
+			for (auto& item : facesByVolume)
+			{
+				if (cancelled())
+					return false;
+				auto solidTree = std::make_unique<AABBTree>(item.second.begin(), item.second.end(), mesh);
+				solidTree->build();
+				solidTree->accelerate_distance_queries();
+				sphereTrees.emplace(item.first, std::move(solidTree));
+			}
+		}
 
 		const double minAlignment = params.minExitAlignment;
-		std::vector<unsigned char> validFlags(faceCount, 0);
 		// How many hits along one ray may be stepped over before the sample is given up on.
 		constexpr int kMaxHitWalk = 8;
 
@@ -321,11 +400,13 @@ namespace
 			FaceDescriptor face;
 			bool ok = false;
 		};
-		const auto fitSphere = [&](const double p[3], const double in[3], const FaceDescriptor self) -> SphereFit
+		const auto fitSphere = [&](AABBTree& solidTree, const double p[3], const double in[3], const FaceDescriptor self) -> SphereFit
 		{
 			SphereFit fit;
+			if (cancelled())
+				return fit;
 			const WtRay3 ray(WtPoint3(p[0], p[1], p[2]), WtKernel::Vector_3(in[0], in[1], in[2]));
-			const auto first = tree.first_intersection(ray, [self](const FaceDescriptor& id) { return id == self; });
+			const auto first = solidTree.first_intersection(ray, [self](const FaceDescriptor& id) { return id == self; });
 			double distance = 0.0;
 			if (!first || !hitPointFrom(first->first, p, fit.contact, distance) || !(distance > 0.0))
 				return fit;
@@ -334,8 +415,10 @@ namespace
 
 			for (int iteration = 0; iteration < 48; ++iteration)
 			{
+				if (cancelled())
+					return SphereFit();
 				const double c[3] = { p[0] + fit.r * in[0], p[1] + fit.r * in[1], p[2] + fit.r * in[2] };
-				const auto nearest = tree.closest_point_and_primitive(WtPoint3(c[0], c[1], c[2]));
+				const auto nearest = solidTree.closest_point_and_primitive(WtPoint3(c[0], c[1], c[2]));
 				const double q[3] = { CGAL::to_double(nearest.first.x()), CGAL::to_double(nearest.first.y()), CGAL::to_double(nearest.first.z()) };
 				const double dq = std::sqrt((q[0] - c[0]) * (q[0] - c[0]) + (q[1] - c[1]) * (q[1] - c[1]) + (q[2] - c[2]) * (q[2] - c[2]));
 				if (dq >= fit.r * (1.0 - 1.0e-3))
@@ -368,7 +451,7 @@ namespace
 		// Sphere method for one sample: the pure fit, then - with edge relief - moved off a sharp convex edge. Returns
 		// the diameter and fills `w` (origin, the point measured at, the contact that limits the sphere, its direction
 		// relative to the inward normal, the contacted wall's facing).
-		const auto solveSphere = [&](const double p0[3], const double in0[3], const FaceDescriptor self0,
+		const auto solveSphere = [&](AABBTree& solidTree, const double p0[3], const double in0[3], const FaceDescriptor self0,
 		                             double& outDiameter, WallThicknessWitness& w) -> WallThicknessSampleStatus
 		{
 			for (int axis = 0; axis < 3; ++axis)
@@ -379,7 +462,7 @@ namespace
 
 			double p[3] = { p0[0], p0[1], p0[2] };
 			double in[3] = { in0[0], in0[1], in0[2] };
-			SphereFit fit = fitSphere(p, in, self0);
+			SphereFit fit = fitSphere(solidTree, p, in, self0);
 			if (!fit.ok)
 				return WallThicknessSampleStatus::NoHit;
 			const double upper = fit.upper; // the shift budget is tied to the wall found straight behind the ORIGINAL sample
@@ -395,6 +478,8 @@ namespace
 			double totalShift = 0.0;
 			while (edgeRelief && steps < kMaxReliefSteps)
 			{
+				if (cancelled())
+					return WallThicknessSampleStatus::NoHit;
 				const double cp[3] = { fit.contact[0] - p[0], fit.contact[1] - p[1], fit.contact[2] - p[2] };
 				const double cpLen = std::sqrt(cp[0] * cp[0] + cp[1] * cp[1] + cp[2] * cp[2]);
 				if (!(cpLen > 0.0))
@@ -418,7 +503,7 @@ namespace
 				// value is genuine - the end of a thin rib, a narrow web - and is kept.
 				const double c[3] = { p[0] + fit.r * in[0], p[1] + fit.r * in[1], p[2] + fit.r * in[2] };
 				const WtRay3 sideRay(WtPoint3(c[0], c[1], c[2]), WtKernel::Vector_3(-u[0], -u[1], -u[2]));
-				const auto sideHit = tree.first_intersection(sideRay, [](const FaceDescriptor&) { return false; });
+				const auto sideHit = solidTree.first_intersection(sideRay, [](const FaceDescriptor&) { return false; });
 				double sideHitPoint[3] = { 0, 0, 0 };
 				double sideDistance = 0.0;
 				if (sideHit && hitPointFrom(sideHit->first, c, sideHitPoint, sideDistance) && sideDistance <= 1.3 * fit.r)
@@ -428,7 +513,7 @@ namespace
 				totalShift += fit.r;
 				if (totalShift > 1.5 * upper)
 					break;
-				const auto projected = tree.closest_point_and_primitive(WtPoint3(p[0] - u[0] * fit.r, p[1] - u[1] * fit.r, p[2] - u[2] * fit.r));
+				const auto projected = solidTree.closest_point_and_primitive(WtPoint3(p[0] - u[0] * fit.r, p[1] - u[1] * fit.r, p[2] - u[2] * fit.r));
 				const FaceDescriptor projectedFace = projected.second;
 				const FaceGeom& pg = geom[static_cast<size_t>(projectedFace.idx())];
 				if (!pg.ok)
@@ -460,7 +545,7 @@ namespace
 					}
 				}
 				const double inNew[3] = { -pg.n[0], -pg.n[1], -pg.n[2] };
-				const SphereFit next = fitSphere(pp, inNew, projectedFace);
+				const SphereFit next = fitSphere(solidTree, pp, inNew, projectedFace);
 				if (!next.ok)
 					break;
 				p[0] = pp[0]; p[1] = pp[1]; p[2] = pp[2];
@@ -502,11 +587,21 @@ namespace
 
 		const auto processFace = [&](size_t i)
 		{
+			if (cancelled())
+				return;
 			const FaceGeom& g = geom[i];
 			if (!g.ok)
 				return;
 			const FaceDescriptor self = faceOf[i];
 			const size_t ownVolume = volumeIds[self];
+			AABBTree* solidTree = nullptr;
+			if (sphereMethod)
+			{
+				const auto treeIt = sphereTrees.find(ownVolume);
+				if (treeIt == sphereTrees.end())
+					return;
+				solidTree = treeIt->second.get();
+			}
 			const size_t origFace = origFaceIndex[i];
 
 			// Inward normal and an arbitrary orthonormal frame around it.
@@ -533,6 +628,8 @@ namespace
 
 			SubTriangleGrid::forEach(n, [&](int sampleIndex, double, double, double, double, double, double, double cu, double cv)
 			{
+				if (cancelled())
+					return;
 				const double origin[3] = {
 					g.oa[0] + cu * (g.ob[0] - g.oa[0]) + cv * (g.oc[0] - g.oa[0]),
 					g.oa[1] + cu * (g.ob[1] - g.oa[1]) + cv * (g.oc[1] - g.oa[1]),
@@ -542,7 +639,7 @@ namespace
 				{
 					double diameter = 0.0;
 					WallThicknessWitness w;
-					const WallThicknessSampleStatus status = solveSphere(origin, in, self, diameter, w);
+					const WallThicknessSampleStatus status = solveSphere(*solidTree, origin, in, self, diameter, w);
 					w.status = status;
 					sampleWitnesses[sampleIndex] = w;
 					if (status != WallThicknessSampleStatus::Valid)
@@ -562,6 +659,8 @@ namespace
 				WallThicknessWitness axisOutcome; // the axis ray's outcome - what a sample with no value reports
 				for (size_t rayIndex = 0; rayIndex < cone.size(); ++rayIndex)
 				{
+					if (cancelled())
+						return;
 					const ConeRay& cr = cone[rayIndex];
 					const double d[3] = {
 						t[0] * cr.x + b[0] * cr.y + in[0] * cr.z,
@@ -671,10 +770,7 @@ namespace
 			});
 
 			if (faceValid && std::isfinite(faceMin))
-			{
 				out.thickness[origFace] = static_cast<float>(faceMin);
-				validFlags[i] = 1;
-			}
 		};
 
 		// Faces are independent: split them across the available cores in small chunks.
@@ -686,6 +782,8 @@ namespace
 		{
 			for (;;)
 			{
+				if (cancelled())
+					break;
 				const size_t begin = next.fetch_add(kChunk);
 				if (begin >= faceCount)
 					break;
@@ -693,7 +791,19 @@ namespace
 				for (size_t i = begin; i < end; ++i)
 				{
 					try { processFace(i); }
-					catch (...) { validFlags[i] = 0; } // never let a CGAL exception escape a worker thread
+					catch (...)
+					{
+						// Never let a CGAL exception escape a worker thread - but a throw partway through processFace()
+						// can leave some (not all) of this face's samples already written by the SubTriangleGrid::forEach
+						// callback. Validity is inferred later purely from which sample slots are finite (see the
+						// out.valid[] pass below), so an untouched partial write would silently report a thickness from
+						// an incomplete measurement instead of the whole face being discarded, as it was before this
+						// per-sample model replaced the old whole-face validFlags[i] = 0.
+						const size_t base = sampleBase[i];
+						const size_t count = static_cast<size_t>(subdivisions[i]) * static_cast<size_t>(subdivisions[i]);
+						for (size_t s = base; s < base + count && s < out.samples.values.size(); ++s)
+							out.samples.values[s] = std::numeric_limits<float>::quiet_NaN();
+					}
 				}
 			}
 		};
@@ -704,9 +814,173 @@ namespace
 		for (std::thread& th : pool)
 			th.join();
 
+		// Build crease-aware smooth-surface patches. Measurements may be
+		// reconciled across tessellation edges inside one patch, but never
+		// across a real sharp edge, a boundary, or another solid region.
+		UnionFind patchUnion(faceCount);
+		// 15 degrees, matching SceneMesh.cpp's own smoothing-crease convention (kCreaseAngleDegrees, used for its
+		// per-run vertex-normal averaging) and MeshRepair.h's creaseAngleDegrees default - NOT the 30-degree
+		// feature-edge/wireframe threshold. SceneMesh.cpp's own doc comment on that exact choice explains why: 30
+		// degrees is tuned for "is this edge worth drawing as a visible line," a coarser bar than "is blending/
+		// smoothing VALUES across this angle still meaningful" - the question this patch grouping is actually
+		// asking. Using 30 (or an arbitrary third value) here would smooth over some edges the wireframe/feature-
+		// edge overlay still draws as sharp, at exactly the angles that comment found "visibly wrong when smoothed."
+		constexpr double kSmoothCreaseCosine = 0.9659258262890683; // cos(15 degrees)
+		const FaceDescriptor nullFace = boost::graph_traits<WtMesh>::null_face();
+		for (EdgeDescriptor edge : edges(mesh))
+		{
+			if (cancelled())
+				return false;
+			const auto h = halfedge(edge, mesh);
+			const FaceDescriptor first = face(h, mesh);
+			const FaceDescriptor second = face(opposite(h, mesh), mesh);
+			if (first == nullFace || second == nullFace || volumeIds[first] != volumeIds[second])
+				continue;
+			const size_t a = static_cast<size_t>(first.idx()), b2 = static_cast<size_t>(second.idx());
+			if (a >= faceCount || b2 >= faceCount || !geom[a].ok || !geom[b2].ok)
+				continue;
+			const double alignment = geom[a].n[0] * geom[b2].n[0]
+				+ geom[a].n[1] * geom[b2].n[1] + geom[a].n[2] * geom[b2].n[2];
+			if (alignment >= kSmoothCreaseCosine)
+				patchUnion.unite(a, b2);
+		}
+		std::vector<size_t> parent(faceCount);
+		for (size_t i = 0; i < faceCount; ++i)
+			parent[i] = patchUnion.find(i);
+
+		// Group coincident grid corners inside each smooth patch. A robust
+		// median over the cells incident on a corner removes isolated sphere-
+		// fit switches, while the shared corner value lets the renderer
+		// interpolate continuously instead of exposing every sampling cell.
+		const double weldTolerance = std::max(diag * 1.0e-8, std::numeric_limits<double>::epsilon());
+		std::unordered_map<GridVertexKey, size_t, GridVertexKeyHash> groupByPosition;
+		std::vector<std::vector<size_t>> samplesByCornerGroup;
+		std::vector<size_t> cornerGroup(totalSamples * 3, 0);
+		for (size_t i = 0; i < faceCount; ++i)
+		{
+			if (cancelled())
+				return false;
+			const FaceGeom& g = geom[i];
+			const size_t base = sampleBase[i];
+			const auto groupCorner = [&](size_t sample, int corner, double u, double v)
+			{
+				const double p[3] = {
+					g.oa[0] + u * (g.ob[0] - g.oa[0]) + v * (g.oc[0] - g.oa[0]),
+					g.oa[1] + u * (g.ob[1] - g.oa[1]) + v * (g.oc[1] - g.oa[1]),
+					g.oa[2] + u * (g.ob[2] - g.oa[2]) + v * (g.oc[2] - g.oa[2]) };
+				const GridVertexKey key { parent[i],
+					std::llround((p[0] - bbMin[0]) / weldTolerance),
+					std::llround((p[1] - bbMin[1]) / weldTolerance),
+					std::llround((p[2] - bbMin[2]) / weldTolerance) };
+				auto [it, inserted] = groupByPosition.emplace(key, samplesByCornerGroup.size());
+				if (inserted)
+					samplesByCornerGroup.emplace_back();
+				cornerGroup[(base + sample) * 3 + static_cast<size_t>(corner)] = it->second;
+				samplesByCornerGroup[it->second].push_back(base + sample);
+			};
+			SubTriangleGrid::forEach(subdivisions[i], [&](int sample, double u0, double v0, double u1, double v1,
+				double u2, double v2, double, double)
+			{
+				groupCorner(static_cast<size_t>(sample), 0, u0, v0);
+				groupCorner(static_cast<size_t>(sample), 1, u1, v1);
+				groupCorner(static_cast<size_t>(sample), 2, u2, v2);
+			});
+		}
+
+		// Two small, topology-local median passes build a DISPLAY field that
+		// suppresses single-cell and single-facet outliers without allowing
+		// values to cross a crease. Keep the measured sample values untouched:
+		// minima, threshold-area statistics, and cached analysis data must still
+		// describe actual measurements rather than the visualization filter.
+		std::vector<float> smoothedValues = out.samples.values;
+		std::vector<WallThicknessWitness> displayWitness = out.sampleWitness;
+		for (int pass = 0; pass < 2; ++pass)
+		{
+			std::vector<float> nextValues = smoothedValues;
+			std::vector<WallThicknessWitness> nextWitness = displayWitness;
+			for (size_t sample = 0; sample < totalSamples; ++sample)
+			{
+				if ((sample & 1023u) == 0u && cancelled())
+					return false;
+				if (!std::isfinite(smoothedValues[sample]))
+					continue;
+				std::vector<size_t> neighbours;
+				neighbours.reserve(24);
+				for (int corner = 0; corner < 3; ++corner)
+				{
+					const std::vector<size_t>& incident = samplesByCornerGroup[cornerGroup[sample * 3 + corner]];
+					neighbours.insert(neighbours.end(), incident.begin(), incident.end());
+				}
+				std::sort(neighbours.begin(), neighbours.end());
+				neighbours.erase(std::unique(neighbours.begin(), neighbours.end()), neighbours.end());
+				std::vector<float> neighbourValues;
+				neighbourValues.reserve(neighbours.size());
+				for (size_t neighbour : neighbours)
+					if (neighbour < totalSamples && std::isfinite(smoothedValues[neighbour]))
+						neighbourValues.push_back(smoothedValues[neighbour]);
+				if (neighbourValues.size() < 3)
+					continue;
+				const float filtered = medianValue(std::move(neighbourValues));
+				if (!std::isfinite(filtered))
+					continue;
+				nextValues[sample] = filtered;
+				// Keep diagnostics tied to a real nearby measurement rather than
+				// inventing a synthetic ray for the filtered value.
+				size_t representative = sample;
+				float closest = std::abs(smoothedValues[sample] - filtered);
+				for (size_t neighbour : neighbours)
+				{
+					if (neighbour >= totalSamples || !std::isfinite(smoothedValues[neighbour]))
+						continue;
+					const float delta = std::abs(smoothedValues[neighbour] - filtered);
+					if (delta < closest)
+					{
+						closest = delta;
+						representative = neighbour;
+					}
+				}
+				nextWitness[sample] = displayWitness[representative];
+			}
+			smoothedValues.swap(nextValues);
+			displayWitness.swap(nextWitness);
+		}
+		out.sampleWitness.swap(displayWitness);
+
+		out.samples.cornerValues.assign(totalSamples * 3, std::numeric_limits<float>::quiet_NaN());
+		std::vector<float> cornerMedian(samplesByCornerGroup.size(), std::numeric_limits<float>::quiet_NaN());
+		for (size_t group = 0; group < samplesByCornerGroup.size(); ++group)
+		{
+			if ((group & 1023u) == 0u && cancelled())
+				return false;
+			std::vector<float> values;
+			for (size_t sample : samplesByCornerGroup[group])
+				if (sample < totalSamples && std::isfinite(smoothedValues[sample]))
+					values.push_back(smoothedValues[sample]);
+			cornerMedian[group] = medianValue(std::move(values));
+		}
+		for (size_t sample = 0; sample < totalSamples; ++sample)
+		{
+			if (!std::isfinite(smoothedValues[sample]))
+				continue;
+			for (int corner = 0; corner < 3; ++corner)
+				out.samples.cornerValues[sample * 3 + corner] = cornerMedian[cornerGroup[sample * 3 + corner]];
+		}
+
 		out.valid.assign(origFaceCount, false);
 		for (size_t i = 0; i < faceCount; ++i)
-			out.valid[origFaceIndex[i]] = validFlags[i] != 0;
+		{
+			const size_t origFace = origFaceIndex[i];
+			float measuredMin = std::numeric_limits<float>::infinity();
+			const size_t count = static_cast<size_t>(subdivisions[i]) * subdivisions[i];
+			for (size_t sample = sampleBase[i]; sample < sampleBase[i] + count; ++sample)
+				if (std::isfinite(out.samples.values[sample]))
+					measuredMin = std::min(measuredMin, out.samples.values[sample]);
+			if (std::isfinite(measuredMin))
+			{
+				out.thickness[origFace] = measuredMin;
+				out.valid[origFace] = true;
+			}
+		}
 
 		// One line saying how the samples fared - the quickest way to see whether gaps in the display are a few
 		// stray samples or a systematic problem, and why.
@@ -736,18 +1010,25 @@ namespace
 	}
 }
 
-WallThicknessResult WallThicknessAnalyzer::computeThickness(SceneMesh* mesh, const WallThicknessParams& params)
+WallThicknessResult WallThicknessAnalyzer::computeThickness(SceneMesh* mesh, const WallThicknessParams& params,
+	const std::atomic<bool>* cancelRequested)
 {
 	if (!mesh)
 		return WallThicknessResult();
-	return computeThickness(mesh->getTrsfPoints(), mesh->getIndices(), params);
+	return computeThickness(mesh->getTrsfPoints(), mesh->getIndices(), params, cancelRequested);
 }
 
 WallThicknessResult WallThicknessAnalyzer::computeThickness(
 	const std::vector<float>& origPoints, const std::vector<unsigned int>& origIndices,
-	const WallThicknessParams& params)
+	const WallThicknessParams& params, const std::atomic<bool>* cancelRequested)
 {
 	WallThicknessResult result;
+	const auto cancelled = [cancelRequested]()
+	{
+		return cancelRequested && cancelRequested->load(std::memory_order_acquire);
+	};
+	if (cancelled())
+		return result;
 	const size_t origVertexCount = origPoints.size() / 3;
 	const size_t origFaceCount = origIndices.size() / 3;
 	if (origPoints.empty() || origIndices.size() < 3)
@@ -769,7 +1050,11 @@ WallThicknessResult WallThicknessAnalyzer::computeThickness(
 	// working mesh entirely. ----
 	std::vector<bool> vertexFinite(origVertexCount, false);
 	for (size_t v = 0; v < origVertexCount; ++v)
+	{
+		if (cancelled())
+			return result;
 		vertexFinite[v] = isFinitePoint(origPoints, v);
+	}
 
 	std::vector<std::array<unsigned int, 3>> validFaces;
 	std::vector<size_t> origFaceIndex;
@@ -777,6 +1062,8 @@ WallThicknessResult WallThicknessAnalyzer::computeThickness(
 	origFaceIndex.reserve(origFaceCount);
 	for (size_t f = 0; f < origFaceCount; ++f)
 	{
+		if (cancelled())
+			return result;
 		const unsigned int ia = origIndices[f * 3 + 0];
 		const unsigned int ib = origIndices[f * 3 + 1];
 		const unsigned int ic = origIndices[f * 3 + 2];
@@ -853,6 +1140,8 @@ WallThicknessResult WallThicknessAnalyzer::computeThickness(
 		soupFaces.push_back({ f[0], f[1], f[2] });
 
 	CGAL::Polygon_mesh_processing::merge_duplicate_points_in_polygon_soup(soupPoints, soupFaces);
+	if (cancelled())
+		return result;
 
 	if (!PMP::is_polygon_soup_a_polygon_mesh(soupFaces))
 	{
@@ -862,6 +1151,8 @@ WallThicknessResult WallThicknessAnalyzer::computeThickness(
 
 	WtMesh workingMesh;
 	PMP::polygon_soup_to_polygon_mesh(soupPoints, soupFaces, workingMesh);
+	if (cancelled())
+		return result;
 	if (workingMesh.number_of_vertices() == 0 || workingMesh.number_of_faces() != soupFaces.size())
 	{
 		// polygon_soup_to_polygon_mesh() can legitimately produce fewer
@@ -884,6 +1175,8 @@ WallThicknessResult WallThicknessAnalyzer::computeThickness(
 		result.rejectionReason = describeMeshPropertyUnavailableReason(MeshPropertyUnavailableReason::SelfIntersecting);
 		return result;
 	}
+	if (cancelled())
+		return result;
 	// does_bound_a_volume() is undefined behavior on self-intersecting input - skipped for a minor crossing, same as
 	// MeshProperties.cpp; orient_to_bound_a_volume() below is what actually needs to run either way.
 	if (!selfIntersects && !PMP::does_bound_a_volume(workingMesh))
@@ -901,15 +1194,21 @@ WallThicknessResult WallThicknessAnalyzer::computeThickness(
 	// in place here already satisfies "never mutate the document's actual
 	// coordinates" without needing a further internal copy-of-a-copy. ----
 	PMP::orient_to_bound_a_volume(workingMesh);
+	if (cancelled())
+		return result;
 
 	// ---- Solid-region classification (see this class's own doc comment
 	// for why volume_connected_components(), not surface-connected-
 	// components). ----
 	auto volumeIdMap = workingMesh.add_property_map<FaceDescriptor, std::size_t>("f:volume", 0).first;
 	PMP::volume_connected_components(workingMesh, volumeIdMap);
+	if (cancelled())
+		return result;
 
 	AABBTree aabbTree;
 	PMP::build_AABB_tree(workingMesh, aabbTree);
+	if (cancelled())
+		return result;
 
 	// ---- Per-face inward raycast. Iterates workingMesh's faces in their
 	// natural creation order, which polygon_soup_to_polygon_mesh() assigns
@@ -922,7 +1221,7 @@ WallThicknessResult WallThicknessAnalyzer::computeThickness(
 	if (params.method != WallThicknessMethod::NormalRay)
 	{
 		LocalThicknessOutput local;
-		if (computeLocalThickness(workingMesh, aabbTree, volumeIdMap, origFaceIndex, origPoints, origIndices, params, local))
+		if (computeLocalThickness(workingMesh, aabbTree, volumeIdMap, origFaceIndex, origPoints, origIndices, params, local, cancelRequested))
 		{
 			// Already indexed by ORIGINAL triangle (degenerate faces dropped from the working mesh stay invalid).
 			result.thicknessPerFace = std::move(local.thickness);
@@ -932,6 +1231,8 @@ WallThicknessResult WallThicknessAnalyzer::computeThickness(
 			result.succeeded = true;
 			return result;
 		}
+		if (cancelled())
+			return result;
 		// Face numbering did not match expectations: fall through to the normal-ray estimate rather than fail.
 	}
 
@@ -940,6 +1241,8 @@ WallThicknessResult WallThicknessAnalyzer::computeThickness(
 	size_t k = 0;
 	for (FaceDescriptor f : faces(workingMesh))
 	{
+		if (cancelled())
+			return result;
 		if (k >= origFaceIndex.size())
 			break;
 		const size_t thisOrigFace = origFaceIndex[k];

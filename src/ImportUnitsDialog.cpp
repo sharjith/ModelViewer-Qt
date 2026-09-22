@@ -77,10 +77,19 @@ void ImportUnitsDialog::onAccept()
 	if (_fileNode)
 	{
 		const LengthUnit chosen = static_cast<LengthUnit>(_unitCombo->currentData().toInt());
+		LengthUnit previousEffective = _fileNode->importUnit;
+		if (previousEffective == LengthUnit::Unknown && _modelViewer)
+			previousEffective = _modelViewer->defaultImportUnit();
+		if (previousEffective == LengthUnit::Unknown)
+			previousEffective = LengthUnit::Millimeter;
 		_fileNode->importUnit = chosen;
 		_fileNode->importUnitUserOverridden = true;
 		if (_modelViewer)
+		{
 			_modelViewer->markNonUndoDocumentModified();
+			if (chosen != previousEffective)
+				_modelViewer->notifyImportUnitsChanged();
+		}
 	}
 	accept();
 }

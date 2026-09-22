@@ -98,5 +98,5 @@ std::vector<AnalysisComputeSession::PerMeshOutcome> AnalysisComputeSession::runB
 void AnalysisComputeSession::requestCancel()
 {
 	if (_worker)
-		QMetaObject::invokeMethod(_worker, &AnalysisComputeWorker::cancel, Qt::QueuedConnection);
+		_worker->cancel(); // thread-safe atomic store; must not be queued behind run()
 }

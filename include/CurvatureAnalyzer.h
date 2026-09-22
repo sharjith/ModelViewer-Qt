@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <vector>
 #include <QString>
 
@@ -26,10 +27,13 @@ class SceneMesh;
 // and the result is accepted only if BOTH the interpolated normal at that
 // location is reasonably close to the original vertex's own normal AND the
 // matched face's connected component corresponds to the original vertex's
-// own connected component (majority-voted per component, not per vertex) -
-// jointly, not distance alone, which is exactly what would otherwise let a
-// match jump across a thin double-wall to the geometrically-close opposite
-// side. A vertex failing either check is marked invalid rather than
+// own connected component (majority-voted per component, not per vertex).
+// Repair is allowed to reverse a whole component; that orientation is
+// majority-detected, accepted, and used to restore the source curvature
+// sign before the per-vertex normal test. Distance, orientation, and
+// component identity are checked jointly; distance alone would let a match
+// jump across a thin double-wall to the geometrically-close opposite side.
+// A vertex failing any check is marked invalid rather than
 // silently colored from the nearest-but-wrong point.
 // ---------------------------------------------------------------------------
 struct CurvatureResult
@@ -53,16 +57,18 @@ public:
 	// immediately around each vertex, no smoothing expansion) - a positive
 	// value expands the measure over a ball of that world-space radius,
 	// trading locality for noise reduction on a dense/noisy mesh.
-	static CurvatureResult computeMeanCurvature(SceneMesh* mesh, double ballRadius = -1.0);
+	static CurvatureResult computeMeanCurvature(SceneMesh* mesh, double ballRadius = -1.0,
+		const std::atomic<bool>* cancelRequested = nullptr);
 
 	// Snapshot-based entry point - identical computation, but reads world-
 	// space points/normals/indices directly instead of a live SceneMesh*, so
 	// it's safe to call from a background thread against an
 	// AnalysisMeshSnapshot's copied-out geometry. The SceneMesh* overload
-	// above is now a thin wrapper around this one. normals.size() must equal
-	// points.size() (same requirement the SceneMesh* overload already had
-	// via getTrsfNormals()).
+	// above is now a thin wrapper around this one. `normals` may be empty or
+	// incomplete; geometric area-weighted vertex normals are used wherever
+	// an imported normal is unavailable, non-finite, or degenerate.
 	static CurvatureResult computeMeanCurvature(
 		const std::vector<float>& points, const std::vector<float>& normals,
-		const std::vector<unsigned int>& indices, double ballRadius = -1.0);
+		const std::vector<unsigned int>& indices, double ballRadius = -1.0,
+		const std::atomic<bool>* cancelRequested = nullptr);
 };

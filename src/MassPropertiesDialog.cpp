@@ -256,6 +256,12 @@ void MassPropertiesDialog::seedFromViewportSelection()
 		_selectionBox->seedFromViewportSelection(); // recomputes through onSelectionListChanged()
 }
 
+void MassPropertiesDialog::requestComputationCancel()
+{
+	if (_activeSession)
+		_activeSession->requestCancel();
+}
+
 void MassPropertiesDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)
 {
 	const bool isOwnDocumentActive = _modelViewer
@@ -549,7 +555,7 @@ void MassPropertiesDialog::populate()
 	// real progress bar and Cancel support.
 	const std::vector<AnalysisComputeSession::PerMeshOutcome> outcomes = session.runBlocking(
 		std::move(snapshots),
-		[](const AnalysisMeshSnapshot& snapshot) -> std::any
+		[](const AnalysisMeshSnapshot& snapshot, const std::atomic<bool>&) -> std::any
 		{
 			return computeMeshGeometry(snapshot.points, snapshot.indices, snapshot.boundingBox);
 		},

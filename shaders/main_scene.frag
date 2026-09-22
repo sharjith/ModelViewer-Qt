@@ -44,6 +44,11 @@ uniform bool hasNegativeScale;
 // once, early, near the top of main() - see that check for the full
 // reasoning.
 uniform bool analysisOverlayActive;
+// When >= 2, v_analysisColor carries a normalized scalar in R and validity
+// in A. Quantization happens here, after interpolation, so band boundaries
+// follow the scalar field instead of the source triangles.
+uniform int analysisOverlayBands;
+uniform int analysisOverlayColormap; // AnalysisColormap: 0 sequential, 1 diverging, 2 threshold
 // Zebra-stripe reflection-line overlay (Surface Analysis's Curvature panel) -
 // see RenderableMesh::setZebraStripeActive()'s doc comment. Also handled
 // early, right after analysisOverlayActive above.
@@ -848,6 +853,31 @@ vec4 computeGridOverlayColor()
 	return vec4(baseColor, alpha);
 }
 
+vec3 analysisHsvToRgb(vec3 hsv)
+{
+	vec3 p = abs(fract(hsv.xxx + vec3(0.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0);
+	return hsv.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), hsv.y);
+}
+
+vec3 analysisRampColor(float t, int colormap)
+{
+	t = clamp(t, 0.0, 1.0);
+	if (colormap == 2)
+		return t < 0.5 ? vec3(214.0, 48.0, 49.0) / 255.0
+			: vec3(46.0, 160.0, 96.0) / 255.0;
+	if (colormap == 1)
+	{
+		if (t < 0.5)
+		{
+			float channel = t * 2.0;
+			return vec3(channel, channel, 1.0);
+		}
+		float channel = 1.0 - (t - 0.5) * 2.0;
+		return vec3(1.0, channel, channel);
+	}
+	return analysisHsvToRgb(vec3((1.0 - t) * (240.0 / 360.0), 1.0, 1.0));
+}
+
 // ---- void main() ------------------------------------------------------------
 
 void main()
@@ -913,7 +943,20 @@ void main()
 	// concept, never meant to leak into either of those.
 	if (analysisOverlayActive && !sssCapture && !isReflectedPass)
 	{
-		fragColor = vec4(v_analysisColor.rgb, 1.0);
+		if (analysisOverlayBands >= 2)
+		{
+			if (v_analysisColor.a < 0.5)
+				fragColor = vec4(vec3(128.0 / 255.0), 1.0);
+			else
+			{
+				float t = clamp(v_analysisColor.r, 0.0, 1.0);
+				int band = min(int(floor(t * float(analysisOverlayBands))), analysisOverlayBands - 1);
+				float bandCenter = (float(band) + 0.5) / float(analysisOverlayBands);
+				fragColor = vec4(analysisRampColor(bandCenter, analysisOverlayColormap), 1.0);
+			}
+		}
+		else
+			fragColor = vec4(v_analysisColor.rgb, 1.0);
 		return;
 	}
 

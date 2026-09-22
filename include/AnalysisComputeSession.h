@@ -19,25 +19,11 @@ class SceneMesh;
 // it never touches GL). One instance is created, used for one runBlocking()
 // call, and destroyed - not meant to be reused across multiple Apply clicks.
 //
-// KNOWN, DISCLOSED LIMITATION (not yet solved): runBlocking()'s nested
-// QEventLoop keeps the caller's own UI responsive - which is the whole point
-// - but that also means Qt can process a pending DeferredDelete event for an
-// ANCESTOR of the calling dialog while runBlocking() is still on the call
-// stack (e.g. the parent ModelViewer document being closed via
-// deleteLater()/WA_DeleteOnClose while an Apply is in flight). If that
-// ancestor owns the dialog that called runBlocking() (Qt parent-child
-// ownership - true for SurfaceAnalysisDialog/MassPropertiesDialog, both
-// constructed with the ModelViewer as parent), the calling dialog itself
-// gets destroyed mid-call, and the remainder of that member function
-// (including everything after runBlocking() returns) then executes on a
-// dangling `this` - undefined behavior no local null-check inside that
-// function can guard against, since the check itself would already be
-// reading a destroyed object. Closing this requires the ANCESTOR's own
-// close/destroy path to refuse or defer while a descendant reports an
-// in-flight computation (out of scope for the dialog-side wiring this class
-// exists for) - not yet done. Low-probability in practice (requires closing
-// the whole document during the narrow window an Apply is computing) but
-// real; flagged here rather than silently shipped.
+// runBlocking()'s nested QEventLoop keeps the caller's UI responsive. The
+// owning ModelViewer therefore refuses document closure while either tool
+// dialog reports an active session, requests cancellation, and lets the user
+// close again after the stack has unwound. This prevents an ancestor's
+// DeferredDelete from destroying the caller while this method is active.
 class AnalysisComputeSession : public QObject
 {
 	Q_OBJECT
@@ -75,7 +61,7 @@ public:
 	// Safe to call from the calling thread WHILE runBlocking() is executing
 	// (e.g. from a Cancel button's clicked() handler, itself only reachable
 	// because runBlocking()'s nested QEventLoop keeps processing UI events) -
-	// queues a cancel request onto the worker thread. A no-op if no
+	// atomically requests cancellation immediately. A no-op if no
 	// runBlocking() call is currently in flight.
 	void requestCancel();
 

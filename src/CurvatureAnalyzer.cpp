@@ -1,4 +1,5 @@
 #include "CurvatureAnalyzer.h"
+#include "UnionFind.h"
 #include "SceneMesh.h"
 #include "MeshRepair.h"
 
@@ -18,8 +19,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <functional>
 #include <limits>
-#include <numeric>
 #include <unordered_map>
 #include <utility>
 
@@ -48,51 +49,79 @@ namespace
 		return true;
 	}
 
-	// Simple union-find over the ORIGINAL mesh's own raw index buffer -
-	// two triangles are connected if they share a vertex index. Used only
-	// to answer "are these two original vertices on the same connected
-	// piece of the original surface", the reference point the constrained-
-	// matching validation below checks a repaired-mesh match against.
-	class UnionFind
+	// Union-find over the ORIGINAL mesh. Indexed adjacency is added directly;
+	// geometric-edge adjacency across duplicated seam vertices is added below.
+	// Used only to answer whether two original vertices belong to the same
+	// connected surface piece for repaired-mesh correspondence validation.
+	struct OriginalPointKey
 	{
-	public:
-		explicit UnionFind(size_t n) : _parent(n)
+		float x = 0.0f, y = 0.0f, z = 0.0f;
+		bool operator==(const OriginalPointKey& other) const
 		{
-			std::iota(_parent.begin(), _parent.end(), 0);
+			return x == other.x && y == other.y && z == other.z;
 		}
-		size_t find(size_t x)
+	};
+	struct OriginalPointKeyHash
+	{
+		size_t operator()(const OriginalPointKey& key) const
 		{
-			while (_parent[x] != x)
-			{
-				_parent[x] = _parent[_parent[x]];
-				x = _parent[x];
-			}
-			return x;
+			size_t h = std::hash<float>{}(key.x);
+			h ^= std::hash<float>{}(key.y) + 0x9e3779b9u + (h << 6) + (h >> 2);
+			h ^= std::hash<float>{}(key.z) + 0x9e3779b9u + (h << 6) + (h >> 2);
+			return h;
 		}
-		void unite(size_t a, size_t b)
+	};
+
+	bool pointKeyLess(const OriginalPointKey& a, const OriginalPointKey& b)
+	{
+		if (a.x != b.x) return a.x < b.x;
+		if (a.y != b.y) return a.y < b.y;
+		return a.z < b.z;
+	}
+
+	struct OriginalEdgeKey
+	{
+		OriginalPointKey first;
+		OriginalPointKey second;
+		bool operator==(const OriginalEdgeKey& other) const
 		{
-			a = find(a); b = find(b);
-			if (a != b) _parent[a] = b;
+			return first == other.first && second == other.second;
 		}
-	private:
-		std::vector<size_t> _parent;
+	};
+	struct OriginalEdgeKeyHash
+	{
+		size_t operator()(const OriginalEdgeKey& key) const
+		{
+			const OriginalPointKeyHash pointHash;
+			size_t h = pointHash(key.first);
+			h ^= pointHash(key.second) + 0x9e3779b9u + (h << 6) + (h >> 2);
+			return h;
+		}
 	};
 }
 
-CurvatureResult CurvatureAnalyzer::computeMeanCurvature(SceneMesh* mesh, double ballRadius)
+CurvatureResult CurvatureAnalyzer::computeMeanCurvature(SceneMesh* mesh, double ballRadius,
+	const std::atomic<bool>* cancelRequested)
 {
 	if (!mesh)
 		return CurvatureResult();
-	return computeMeanCurvature(mesh->getTrsfPoints(), mesh->getTrsfNormals(), mesh->getIndices(), ballRadius);
+	return computeMeanCurvature(mesh->getTrsfPoints(), mesh->getTrsfNormals(), mesh->getIndices(), ballRadius, cancelRequested);
 }
 
 CurvatureResult CurvatureAnalyzer::computeMeanCurvature(
 	const std::vector<float>& origPoints, const std::vector<float>& origNormals,
-	const std::vector<unsigned int>& origIndices, double ballRadius)
+	const std::vector<unsigned int>& origIndices, double ballRadius,
+	const std::atomic<bool>* cancelRequested)
 {
 	CurvatureResult result;
+	const auto cancelled = [cancelRequested]()
+	{
+		return cancelRequested && cancelRequested->load(std::memory_order_acquire);
+	};
+	if (cancelled())
+		return result;
 	const size_t origVertexCount = origPoints.size() / 3;
-	if (origPoints.empty() || origIndices.size() < 3 || origNormals.size() != origPoints.size())
+	if (origPoints.empty() || origIndices.size() < 3)
 		return result;
 
 	// ---- Vertex validity + a filtered face list, shared by soup-building,
@@ -107,13 +136,19 @@ CurvatureResult CurvatureAnalyzer::computeMeanCurvature(
 	// nothing actually excluded that vertex's incident faces before. ----
 	std::vector<bool> vertexFinite(origVertexCount, false);
 	for (size_t v = 0; v < origVertexCount; ++v)
+	{
+		if ((v & 1023u) == 0u && cancelled())
+			return result;
 		vertexFinite[v] = isFinitePoint(origPoints, v);
+	}
 
 	const size_t rawFaceCount = origIndices.size() / 3;
 	std::vector<std::array<unsigned int, 3>> validFaces;
 	validFaces.reserve(rawFaceCount);
 	for (size_t f = 0; f < rawFaceCount; ++f)
 	{
+		if ((f & 1023u) == 0u && cancelled())
+			return result;
 		const unsigned int ia = origIndices[f * 3 + 0];
 		const unsigned int ib = origIndices[f * 3 + 1];
 		const unsigned int ic = origIndices[f * 3 + 2];
@@ -133,7 +168,7 @@ CurvatureResult CurvatureAnalyzer::computeMeanCurvature(
 	// this app's importer deliberately preserves all-zero normals for
 	// positions-only triangle meshes (a valid input), which would otherwise
 	// fail every single vertex's correspondence check even on perfectly
-	// valid, successfully-repaired geometry. Unweighted face-normal average
+	// valid, successfully-repaired geometry. Area-weighted face-normal average
 	// per vertex, same cross-product convention DraftAngleAnalyzer already
 	// uses for its own per-face geometric normal. ----
 	std::vector<QVector3D> geomNormalAccum(origVertexCount, QVector3D(0.0f, 0.0f, 0.0f));
@@ -147,6 +182,16 @@ CurvatureResult CurvatureAnalyzer::computeMeanCurvature(
 		geomNormalAccum[f[1]] += faceNormal;
 		geomNormalAccum[f[2]] += faceNormal;
 	}
+	const auto originalNormalAt = [&](size_t vertex)
+	{
+		QVector3D normal;
+		if (vertex * 3 + 2 < origNormals.size())
+			normal = QVector3D(origNormals[vertex * 3 + 0], origNormals[vertex * 3 + 1], origNormals[vertex * 3 + 2]);
+		if (!std::isfinite(normal.x()) || !std::isfinite(normal.y()) || !std::isfinite(normal.z())
+			|| normal.lengthSquared() < 1.0e-12f)
+			normal = geomNormalAccum[vertex];
+		return normal;
+	};
 
 	// Scale-aware correspondence distance limit (Pass 2 below) - a fixed
 	// world-unit threshold would be wrong for both a tiny part and a large
@@ -164,6 +209,10 @@ CurvatureResult CurvatureAnalyzer::computeMeanCurvature(
 	}
 	const double bboxDiagonal = static_cast<double>((bboxMax - bboxMin).length());
 	const double maxCorrespondenceDistance = std::max(bboxDiagonal * 0.02, 1.0e-6);
+	// Hoisted above the voting loop below (Pass 2 also uses it, unchanged) - a vote whose own cosine doesn't clear
+	// this same bar is too weak to say anything about orientation either way, so it must not be counted as a vote
+	// for either sign (see orientationVotesByMapping's own doc comment).
+	constexpr double kNormalSimilarityThreshold = 0.3; // ~72 degrees - generous, but rejects a genuine opposite-side match
 
 	// ---- Build the soup and repair it (see this class's doc comment for why) ----
 	std::vector<CvPoint3> soupPoints;
@@ -187,6 +236,8 @@ CurvatureResult CurvatureAnalyzer::computeMeanCurvature(
 	const bool repaired = MeshRepair::repairSoupToMesh(std::move(soupPoints), std::move(soupFaces), workingMesh, &report);
 	if (!repaired || workingMesh.number_of_vertices() == 0 || workingMesh.number_of_faces() == 0)
 		return result;
+	if (cancelled())
+		return result;
 
 	result.repairSummary = report.wasAlreadyValid
 		? QObject::tr("Mesh was already valid - no repair needed.")
@@ -205,6 +256,8 @@ CurvatureResult CurvatureAnalyzer::computeMeanCurvature(
 	auto meanCurvatureMap = workingMesh.add_property_map<VertexDescriptor, double>("v:mean_curvature", 0.0).first;
 	PMP::interpolated_corrected_curvatures(workingMesh,
 		CGAL::parameters::vertex_mean_curvature_map(meanCurvatureMap).ball_radius(ballRadius));
+	if (cancelled())
+		return result;
 
 	auto vertexNormalMap = workingMesh.add_property_map<VertexDescriptor, CvKernel::Vector_3>("v:normal", CvKernel::Vector_3(0, 0, 0)).first;
 	PMP::compute_vertex_normals(workingMesh, vertexNormalMap);
@@ -218,12 +271,55 @@ CurvatureResult CurvatureAnalyzer::computeMeanCurvature(
 	// ---- Original mesh's own connected components (see UnionFind's doc
 	// comment) - built from validFaces, not raw origIndices, so an
 	// out-of-bounds or non-finite-referencing face can't reach unite() with
-	// an invalid index either. ----
+	// an invalid index either. Duplicate-index faces that share a complete
+	// geometric edge are joined for COMPONENT CLASSIFICATION only: many
+	// imported CAD meshes split indices at UV/normal seams. Requiring a
+	// shared edge, instead of welding every coincident point, keeps otherwise
+	// disconnected solids that merely touch at one vertex in separate voting
+	// groups. The authored geometry and returned indexing remain untouched.
+	//
+	// KNOWN GAP (confirmed, not yet fixed): this key is geometry-only - two DIFFERENT solids that happen to share a
+	// full contact edge (not just a point), already combined into one SceneMesh (e.g. by an import or Merge
+	// Selected/Mesh Union), are indistinguishable from a genuine UV/normal seam of ONE solid and get unioned into
+	// the same voting component. is_polygon_soup_a_polygon_mesh() analysis restricted to only this mesh - not
+	// cross-mesh - cannot resolve it: a seam and a deliberate contact edge are geometrically identical from here. A
+	// complete fix needs source-body/source-topology provenance carried into this function (not present today);
+	// short of that, this stays an explicit heuristic tradeoff, only partially mitigated by the majority-vote +
+	// per-component orientation-consensus checks below (a wrongly-merged solid whose vertices vote for a
+	// DIFFERENT repaired component than the majority still gets excluded there). ----
 	UnionFind origUnion(origVertexCount);
+	struct EdgeEndpoints { size_t first = 0; size_t second = 0; };
+	std::unordered_map<OriginalEdgeKey, EdgeEndpoints, OriginalEdgeKeyHash> firstVerticesAtEdge;
+	firstVerticesAtEdge.reserve(validFaces.size() * 3);
+	size_t componentFaceIndex = 0;
 	for (const auto& f : validFaces)
 	{
+		if ((componentFaceIndex++ & 1023u) == 0u && cancelled())
+			return result;
 		origUnion.unite(f[0], f[1]);
 		origUnion.unite(f[1], f[2]);
+		for (int edge = 0; edge < 3; ++edge)
+		{
+			const size_t a = f[edge];
+			const size_t b = f[(edge + 1) % 3];
+			OriginalPointKey aKey { origPoints[a * 3], origPoints[a * 3 + 1], origPoints[a * 3 + 2] };
+			OriginalPointKey bKey { origPoints[b * 3], origPoints[b * 3 + 1], origPoints[b * 3 + 2] };
+			if (aKey == bKey)
+				continue;
+			EdgeEndpoints endpoints { a, b };
+			if (pointKeyLess(bKey, aKey))
+			{
+				std::swap(aKey, bKey);
+				std::swap(endpoints.first, endpoints.second);
+			}
+			auto [it, inserted] = firstVerticesAtEdge.emplace(
+				OriginalEdgeKey { aKey, bKey }, endpoints);
+			if (!inserted)
+			{
+				origUnion.unite(endpoints.first, it->second.first);
+				origUnion.unite(endpoints.second, it->second.second);
+			}
+		}
 	}
 
 	// ---- Pass 1: locate every original vertex on the repaired mesh, tally
@@ -245,9 +341,23 @@ CurvatureResult CurvatureAnalyzer::computeMeanCurvature(
 	};
 	std::vector<Located> located(origVertexCount);
 	std::unordered_map<size_t, std::unordered_map<std::size_t, size_t>> votesByOrigComponent;
+	// Per (origComp, repairedComp) pairing: counts of STRONG votes (|cosine| >= kNormalSimilarityThreshold, the
+	// same bar Pass 2 itself validates against) split by which side of zero they fell on - not a running sum. A
+	// sum can hide real disagreement: a component whose vertices are genuinely split between two orientations
+	// (repair reversed only some of the original faces, or the imported normals themselves disagree with the
+	// repaired winding - both real, not hypothetical, since orient_polygon_soup() only guarantees the REPAIRED
+	// mesh is consistently wound, not that its relationship to the ORIGINAL normals is uniform) would still net
+	// out to one sign, and every vertex on the losing side then gets validated against the WRONG sign - an
+	// opposite-side match can pass if its own negative cosine happens to agree with a majority sign that was only
+	// a bare 51/49 split. Counting and requiring consensus (see kOrientationConsensusRatio below) instead of just
+	// trusting the sum catches this.
+	struct OrientationVotes { size_t positive = 0, negative = 0; };
+	std::unordered_map<size_t, std::unordered_map<std::size_t, OrientationVotes>> orientationVotesByMapping;
 
 	for (size_t v = 0; v < origVertexCount; ++v)
 	{
+		if ((v & 1023u) == 0u && cancelled())
+			return result;
 		if (!isFinitePoint(origPoints, v))
 			continue;
 
@@ -294,11 +404,44 @@ CurvatureResult CurvatureAnalyzer::computeMeanCurvature(
 		// match must not be allowed to skew (or dominate) the majority
 		// vote itself, on top of being rejected individually in Pass 2.
 		if (l.distanceSq <= maxCorrespondenceDistance * maxCorrespondenceDistance)
-			votesByOrigComponent[origUnion.find(v)][l.repairedComponent]++;
+		{
+			const size_t originalComponent = origUnion.find(v);
+			votesByOrigComponent[originalComponent][l.repairedComponent]++;
+			const QVector3D originalNormalQ = originalNormalAt(v);
+			const CvKernel::Vector_3 originalNormal(originalNormalQ.x(), originalNormalQ.y(), originalNormalQ.z());
+			const double originalLength = std::sqrt(CGAL::to_double(originalNormal.squared_length()));
+			const double repairedLength = std::sqrt(CGAL::to_double(l.normal.squared_length()));
+			if (std::isfinite(originalLength) && std::isfinite(repairedLength)
+				&& originalLength >= 1.0e-9 && repairedLength >= 1.0e-9)
+			{
+				const double cosine = CGAL::to_double(originalNormal * l.normal) / (originalLength * repairedLength);
+				// Only a STRONG vote (the same bar Pass 2 validates against) says anything about orientation - a
+				// near-perpendicular match is orientation-neutral noise and must not count toward either sign.
+				if (std::isfinite(cosine) && std::abs(cosine) >= kNormalSimilarityThreshold)
+				{
+					OrientationVotes& votes = orientationVotesByMapping[originalComponent][l.repairedComponent];
+					if (cosine > 0.0)
+						++votes.positive;
+					else
+						++votes.negative;
+				}
+			}
+		}
 	}
 
 	// Majority repaired-component per original component.
 	std::unordered_map<size_t, std::size_t> majorityRepairedComponent;
+	// +1/-1 = confident sign; 0.0 = mixed or insufficiently supported (no strong consensus either way) - Pass 2
+	// below invalidates every vertex of such a component rather than guess, since signed mean curvature has no
+	// reliable concave/convex meaning once the source component's own orientation is ambiguous.
+	std::unordered_map<size_t, double> repairedOrientationSign;
+	// A component is only confidently one sign when a strong majority of its own STRONG votes agree - not merely
+	// "more than the other side" (a 51/49 split is not consensus). 0.85 is the midpoint of the reasonable 80-90%
+	// range: high enough that a genuinely mixed-orientation component (repair reversed only some of the original
+	// faces, or imported normals disagreeing with the repaired winding at some vertices - both real, not
+	// hypothetical) gets caught, not so high that ordinary vote noise routinely fails a genuinely consistent
+	// component.
+	constexpr double kOrientationConsensusRatio = 0.85;
 	for (const auto& [origComp, votes] : votesByOrigComponent)
 	{
 		std::size_t bestComp = 0;
@@ -312,6 +455,29 @@ CurvatureResult CurvatureAnalyzer::computeMeanCurvature(
 			}
 		}
 		majorityRepairedComponent[origComp] = bestComp;
+
+		size_t positive = 0, negative = 0;
+		const auto orientationIt = orientationVotesByMapping.find(origComp);
+		if (orientationIt != orientationVotesByMapping.end())
+		{
+			const auto votesIt = orientationIt->second.find(bestComp);
+			if (votesIt != orientationIt->second.end())
+			{
+				positive = votesIt->second.positive;
+				negative = votesIt->second.negative;
+			}
+		}
+		const size_t totalStrong = positive + negative;
+		double sign = 0.0; // ambiguous/no data, unless consensus is found below
+		if (totalStrong > 0)
+		{
+			const double positiveRatio = static_cast<double>(positive) / static_cast<double>(totalStrong);
+			if (positiveRatio >= kOrientationConsensusRatio)
+				sign = 1.0;
+			else if (positiveRatio <= 1.0 - kOrientationConsensusRatio)
+				sign = -1.0;
+		}
+		repairedOrientationSign[origComp] = sign;
 	}
 
 	// ---- Pass 2: validate distance+normal+component jointly - all three,
@@ -322,12 +488,13 @@ CurvatureResult CurvatureAnalyzer::computeMeanCurvature(
 	result.meanCurvaturePerVertex.assign(origVertexCount, 0.0f);
 	result.validPerVertex.assign(origVertexCount, false);
 
-	constexpr double kNormalSimilarityThreshold = 0.3; // ~72 degrees - generous, but rejects a genuine opposite-side match
 	const double maxCorrespondenceDistanceSq = maxCorrespondenceDistance * maxCorrespondenceDistance;
 	for (size_t v = 0; v < origVertexCount; ++v)
 	{
+		if ((v & 1023u) == 0u && cancelled())
+			return result;
 		const Located& l = located[v];
-		if (!l.ok)
+		if (!l.ok || !std::isfinite(l.curvature))
 			continue;
 
 		if (l.distanceSq > maxCorrespondenceDistanceSq)
@@ -337,24 +504,28 @@ CurvatureResult CurvatureAnalyzer::computeMeanCurvature(
 		// the position-derived geometric one ONLY when the imported normal
 		// is degenerate/absent (see geomNormalAccum's doc comment) - a
 		// valid positions-only import must not fail every vertex here.
-		QVector3D origNormalQ(origNormals[v * 3 + 0], origNormals[v * 3 + 1], origNormals[v * 3 + 2]);
-		if (origNormalQ.lengthSquared() < 1.0e-12f)
-			origNormalQ = geomNormalAccum[v];
+		const QVector3D origNormalQ = originalNormalAt(v);
 		const CvKernel::Vector_3 origNormal(origNormalQ.x(), origNormalQ.y(), origNormalQ.z());
 		const double origLen = std::sqrt(CGAL::to_double(origNormal.squared_length()));
 		const double matchLen = std::sqrt(CGAL::to_double(l.normal.squared_length()));
-		if (origLen < 1e-9 || matchLen < 1e-9)
+		if (!std::isfinite(origLen) || !std::isfinite(matchLen) || origLen < 1e-9 || matchLen < 1e-9)
 			continue;
 		const double cosAngle = CGAL::to_double(origNormal * l.normal) / (origLen * matchLen);
-		if (cosAngle < kNormalSimilarityThreshold)
-			continue; // opposite-side / thin-wall guard
 
 		const size_t origComp = origUnion.find(v);
 		const auto majIt = majorityRepairedComponent.find(origComp);
 		if (majIt == majorityRepairedComponent.end() || majIt->second != l.repairedComponent)
 			continue; // disconnected-piece guard
+		const double orientationSign = repairedOrientationSign[origComp];
+		if (orientationSign == 0.0)
+			continue; // this original component's own orientation is ambiguous (mixed or insufficiently-supported votes) - see repairedOrientationSign's doc comment
+		if (!std::isfinite(cosAngle) || cosAngle * orientationSign < kNormalSimilarityThreshold)
+			continue; // opposite-side / thin-wall guard after accounting for a globally reversed repaired component
 
-		result.meanCurvaturePerVertex[v] = static_cast<float>(l.curvature);
+		// Mean-curvature sign follows the surface normal. Keep concave/convex
+		// semantics aligned with the source mesh when repair flipped a whole
+		// connected component.
+		result.meanCurvaturePerVertex[v] = static_cast<float>(l.curvature * orientationSign);
 		result.validPerVertex[v] = true;
 	}
 

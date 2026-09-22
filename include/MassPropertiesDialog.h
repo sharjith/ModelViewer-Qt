@@ -55,6 +55,8 @@ class MassPropertiesDialog : public QDialog
 	Q_OBJECT
 public:
 	explicit MassPropertiesDialog(ModelViewer* modelViewer, QWidget* parent = nullptr);
+	bool isComputationInFlight() const { return _activeSession != nullptr; }
+	void requestComputationCancel();
 
 	// Re-seeds the mesh list from the viewport's current selection (used when the tool is invoked again while this
 	// dialog is already open) and recomputes. Does nothing if nothing is selected in the viewport.

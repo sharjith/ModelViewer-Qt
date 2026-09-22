@@ -534,12 +534,18 @@ public:
 
 	// Sub-triangle variant of the flat overlay, for an analysis that measures many points per triangle (wall
 	// thickness): triangle t is drawn as a gridN[t] x gridN[t] grid of sub-triangles (see SubTriangleGrid.h for the
-	// numbering and barycentric convention), each in its OWN colour, rgbaPerSample[(offset[t] + k) * 4 ..] for
-	// sub-triangle k. gridN/offset must have one entry per triangle of this mesh; a triangle with gridN 0 is not
+	// numbering and barycentric convention). `rgba` contains either one colour per sub-triangle, or three colours
+	// per sub-triangle (one per corner) for a continuously interpolated field. gridN/offset must have one entry per
+	// triangle of this mesh; a triangle with gridN 0 is not
 	// overdrawn. Render-only, in mesh-local coordinates, sharing the flat overlay's VAO/buffers - mutually
 	// exclusive with the other two overlay representations exactly as setAnalysisOverlayFlatColors() is.
 	void setAnalysisOverlaySubTriangleColors(
-		const std::vector<unsigned char>& gridN, const std::vector<unsigned int>& offset, const std::vector<float>& rgbaPerSample);
+		const std::vector<unsigned char>& gridN, const std::vector<unsigned int>& offset, const std::vector<float>& rgba);
+	// Enables true fragment-level contour bands for a scalar-encoded overlay
+	// buffer (R = normalized scalar, A = validity). Pass bands < 2 for the
+	// ordinary pre-colored RGBA path. `colormap` uses AnalysisColormap's
+	// integer values without introducing that UI-oriented dependency here.
+	void setAnalysisOverlayBanding(int bands, int colormap);
 
 	void setAnalysisOverlayActive(bool active);
 	void clearAnalysisOverlay();
@@ -742,6 +748,8 @@ protected:
 	// alongside _colorBuffer.
 	std::vector<float> _analysisOverlayColors;
 	bool _hasAnalysisOverlay = false;
+	int _analysisOverlayBands = 0;
+	int _analysisOverlayColormap = 0;
 
 	// Primitive mode from glTF (GL_POINTS=0, GL_LINES=1, GL_LINE_STRIP=3, GL_TRIANGLE_STRIP=5, GL_TRIANGLES=4)
 	GLenum _primitiveMode = GL_TRIANGLES;  // Default to triangles for backward compatibility

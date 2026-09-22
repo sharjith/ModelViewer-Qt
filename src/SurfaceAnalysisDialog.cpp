@@ -27,6 +27,7 @@
 #include <QComboBox>
 #include <QCheckBox>
 #include <QDoubleSpinBox>
+#include <QSpinBox>
 #include <QJsonObject>
 #include <QPushButton>
 #include <QMessageBox>
@@ -304,6 +305,26 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 		});
 		_thicknessSpreadSpin->setEnabled(false); // the initial method is Inscribed sphere
 
+		auto* displayRow = new QHBoxLayout();
+		displayRow->addWidget(new QLabel(tr("Display:"), page));
+		_thicknessDisplayCombo = new QComboBox(page);
+		_thicknessDisplayCombo->addItem(tr("Discrete ranges"), true);
+		_thicknessDisplayCombo->addItem(tr("Smooth interpolation"), false);
+		_thicknessDisplayCombo->setToolTip(tr("Discrete ranges show the calculated result in distinct color bands.\n"
+			"Smooth interpolation blends between values and is easier to read, but displayed colors between samples are estimates."));
+		displayRow->addWidget(_thicknessDisplayCombo, 1);
+		displayRow->addWidget(new QLabel(tr("Bands:"), page));
+		_thicknessBandCountSpin = new QSpinBox(page);
+		_thicknessBandCountSpin->setRange(3, 20);
+		_thicknessBandCountSpin->setValue(10);
+		_thicknessBandCountSpin->setToolTip(tr("Number of thickness ranges used by the discrete display."));
+		displayRow->addWidget(_thicknessBandCountSpin);
+		pageLayout->addLayout(displayRow);
+		connect(_thicknessDisplayCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+			this, &SurfaceAnalysisDialog::onThicknessDisplayChanged);
+		connect(_thicknessBandCountSpin, QOverload<int>::of(&QSpinBox::valueChanged),
+			this, &SurfaceAnalysisDialog::onThicknessDisplayChanged);
+
 		_applyThicknessButton = new QPushButton(tr("Apply Wall-Thickness"), page);
 		connect(_applyThicknessButton, &QPushButton::clicked, this, &SurfaceAnalysisDialog::onApplyWallThicknessClicked);
 		pageLayout->addWidget(_applyThicknessButton);
@@ -429,6 +450,8 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 	// active tab.
 	if (_modelViewer)
 	{
+		connect(_modelViewer, &ModelViewer::importUnitsChanged,
+			this, &SurfaceAnalysisDialog::onImportUnitsChanged);
 		if (QMdiArea* mdiArea = findMdiArea(_modelViewer))
 			connect(mdiArea, &QMdiArea::subWindowActivated, this, &SurfaceAnalysisDialog::onActiveSubWindowChanged);
 	}
@@ -767,6 +790,46 @@ void SurfaceAnalysisDialog::onMeshAboutToBeDeleted(SceneMesh* mesh)
 		_deletedWhileComputing.insert(mesh);
 }
 
+void SurfaceAnalysisDialog::requestComputationCancel()
+{
+	if (_activeSession)
+		_activeSession->requestCancel();
+}
+
+void SurfaceAnalysisDialog::onImportUnitsChanged()
+{
+	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
+	if (!viewport)
+		return;
+
+	bool cleared = false;
+	viewport->makeCurrent();
+	for (SceneMesh* mesh : _overlay.trackedMeshes())
+	{
+		AnalysisKind kind;
+		if (!_overlay.kindOf(mesh, kind) || kind != AnalysisKind::WallThickness)
+			continue;
+		_overlay.clearOverlay(mesh);
+		_thicknessWitness.remove(mesh);
+		cleared = true;
+	}
+	viewport->doneCurrent();
+	if (!cleared)
+		return;
+
+	_lastLoggedThicknessMesh = nullptr;
+	_legendLabel->setVisible(false);
+	if (_thicknessSummaryLabel)
+		_thicknessSummaryLabel->setVisible(false);
+	viewport->clearSurfaceAnalysisHoverReadout();
+	viewport->update();
+	if (_selectionStatusLabel)
+	{
+		_selectionStatusLabel->setText(tr("Wall-Thickness overlay cleared because the import units changed. Click Apply to recompute."));
+		_selectionStatusLabel->setVisible(true);
+	}
+}
+
 void SurfaceAnalysisDialog::checkForStaleOverlays()
 {
 	// Per-document singleton - a background/inactive document's dialog
@@ -1004,9 +1067,21 @@ void SurfaceAnalysisDialog::applyCurvatureToSelection()
 	// just a wait cursor.
 	const std::vector<AnalysisComputeSession::PerMeshOutcome> outcomes = session.runBlocking(
 		std::move(snapshots),
-		[](const AnalysisMeshSnapshot& snapshot) -> std::any
+		[](const AnalysisMeshSnapshot& snapshot, const std::atomic<bool>& cancelRequested) -> std::any
 		{
-			return CurvatureAnalyzer::computeMeanCurvature(snapshot.points, snapshot.normals, snapshot.indices);
+			try
+			{
+				return CurvatureAnalyzer::computeMeanCurvature(
+					snapshot.points, snapshot.normals, snapshot.indices, -1.0, &cancelRequested);
+			}
+			catch (...)
+			{
+				// A malformed mesh can make a third-party repair/curvature
+				// routine throw. Return a normal failed result so the UI clears
+				// any stale overlay and reports the failure instead of allowing
+				// an exception to escape the worker thread.
+				return CurvatureResult{};
+			}
 		});
 
 	_activeSession = nullptr;
@@ -1019,7 +1094,7 @@ void SurfaceAnalysisDialog::applyCurvatureToSelection()
 	std::vector<PerMesh> perMesh;
 	perMesh.reserve(outcomes.size());
 
-	float bound = 0.0f;
+	std::vector<float> curvatureMagnitudes;
 	bool anyValid = false;
 	bool anyStale = false;
 	QVector<NotesListBox::Note> repairNotes;
@@ -1050,11 +1125,11 @@ void SurfaceAnalysisDialog::applyCurvatureToSelection()
 		if (result->succeeded)
 		{
 			repairNotes.append({ mesh->getName(), result->repairSummary, NotesListBox::Severity::Info });
-			for (size_t i = 0; i < result->meanCurvaturePerVertex.size(); ++i)
+			for (size_t i = 0; i < result->meanCurvaturePerVertex.size() && i < result->validPerVertex.size(); ++i)
 			{
-				if (result->validPerVertex[i])
+				if (result->validPerVertex[i] && std::isfinite(result->meanCurvaturePerVertex[i]))
 				{
-					bound = std::max(bound, std::fabs(result->meanCurvaturePerVertex[i]));
+					curvatureMagnitudes.push_back(std::fabs(result->meanCurvaturePerVertex[i]));
 					anyValid = true;
 				}
 			}
@@ -1072,6 +1147,15 @@ void SurfaceAnalysisDialog::applyCurvatureToSelection()
 		return;
 	}
 
+	float bound = curvatureMagnitudes.empty()
+		? 0.0f : *std::max_element(curvatureMagnitudes.begin(), curvatureMagnitudes.end());
+	if (curvatureMagnitudes.size() >= 16)
+	{
+		const size_t rank = std::min(curvatureMagnitudes.size() - 1,
+			static_cast<size_t>(std::ceil(curvatureMagnitudes.size() * 0.98)) - 1);
+		std::nth_element(curvatureMagnitudes.begin(), curvatureMagnitudes.begin() + rank, curvatureMagnitudes.end());
+		bound = curvatureMagnitudes[rank];
+	}
 	const float rangeMin = bound > 1.0e-6f ? -bound : -1.0f;
 	const float rangeMax = bound > 1.0e-6f ? bound : 1.0f;
 
@@ -1103,7 +1187,9 @@ void SurfaceAnalysisDialog::applyCurvatureToSelection()
 		return;
 	}
 
-	_legendLabel->setPixmap(AnalysisColorRamp::legendGradient(280, 44, rangeMin, rangeMax, AnalysisColormap::Diverging, QString()));
+	_legendLabel->setPixmap(AnalysisColorRamp::legendGradient(
+		280, 44, rangeMin, rangeMax, AnalysisColormap::Diverging, QString(),
+		curvatureMagnitudes.size() >= 16, 0, curvatureMagnitudes.size() >= 16));
 	_legendLabel->setVisible(true);
 
 	if (_curvatureRepairNote)
@@ -1143,7 +1229,12 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 	std::vector<AnalysisMeshSnapshot> snapshots;
 	snapshots.reserve(selected.size());
 	for (int id : selected)
-		snapshots.push_back(captureAnalysisMeshSnapshot(meshStore.at(id), params));
+	{
+		SceneMesh* mesh = meshStore.at(id);
+		QVariantMap meshParams = params;
+		meshParams.insert(QStringLiteral("millimetersPerUnit"), lengthScaleForMesh(mesh));
+		snapshots.push_back(captureAnalysisMeshSnapshot(mesh, meshParams));
+	}
 
 	_deletedWhileComputing.clear();
 	const QString originalText = _applyThicknessButton->text();
@@ -1159,9 +1250,9 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 	// worker, not just a wait cursor.
 	const std::vector<AnalysisComputeSession::PerMeshOutcome> outcomes = session.runBlocking(
 		std::move(snapshots),
-		[analysisParams](const AnalysisMeshSnapshot& snapshot) -> std::any
+		[analysisParams](const AnalysisMeshSnapshot& snapshot, const std::atomic<bool>& cancelRequested) -> std::any
 		{
-			return WallThicknessAnalyzer::computeThickness(snapshot.points, snapshot.indices, analysisParams);
+			return WallThicknessAnalyzer::computeThickness(snapshot.points, snapshot.indices, analysisParams, &cancelRequested);
 		});
 
 	_activeSession = nullptr;
@@ -1192,7 +1283,9 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 		// Re-validate against the mesh's CURRENT state before trusting a
 		// result computed on a background thread. See
 		// SurfaceAnalysisOverlay::computeCurrentKey()'s own doc comment.
-		const SurfaceAnalysisOverlay::CacheKey currentKey = SurfaceAnalysisOverlay::computeCurrentKey(mesh, params);
+		QVariantMap currentParams = outcome.snapshotKey.parameters;
+		currentParams.insert(QStringLiteral("millimetersPerUnit"), lengthScaleForMesh(mesh));
+		const SurfaceAnalysisOverlay::CacheKey currentKey = SurfaceAnalysisOverlay::computeCurrentKey(mesh, currentParams);
 		if (!(currentKey == outcome.snapshotKey))
 		{
 			anyStale = true;
@@ -1217,6 +1310,8 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 			}
 			for (float& v : scaled.samples.values)
 				v *= toMm; // NaN (no value) stays NaN
+			for (float& v : scaled.samples.cornerValues)
+				v *= toMm;
 			// The display and the robust range are driven by the per-sample values when there are any (Local
 			// thickness), otherwise by the per-triangle ones.
 			const bool useSamples = !scaled.samples.values.empty();
@@ -1278,6 +1373,7 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 	_thicknessRangeMax = rangeMax;
 	const bool highlight = _thicknessHighlightCheck && _thicknessHighlightCheck->isChecked();
 	const float limitMm = _thicknessLimitSpin ? static_cast<float>(_thicknessLimitSpin->value()) : 1.0f;
+	const int displayBands = highlight ? 0 : thicknessDisplayBands();
 
 	// setAnalysisOverlayFlatColors() below uploads a real GPU buffer - same
 	// makeCurrent()/doneCurrent() reasoning as every other Apply here. Runs
@@ -1297,7 +1393,8 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 		// Local thickness supplies sub-triangle samples (drawn as such); Normal ray only has one value per triangle.
 		_overlay.applyRefinedResult(pm.mesh, pm.result.thicknessPerFace, pm.result.validPerFace, pm.result.samples,
 			pm.key, 0.0f, highlight ? 2.0f * limitMm : rangeMax,
-			highlight ? AnalysisColormap::Threshold : AnalysisColormap::Sequential, AnalysisKind::WallThickness);
+			highlight ? AnalysisColormap::Threshold : AnalysisColormap::Sequential, AnalysisKind::WallThickness,
+			displayBands);
 	}
 	viewport->doneCurrent();
 	viewport->update();
@@ -1337,6 +1434,11 @@ void SurfaceAnalysisDialog::onThicknessDisplayChanged()
 
 	const bool highlight = _thicknessHighlightCheck && _thicknessHighlightCheck->isChecked();
 	const float limitMm = _thicknessLimitSpin ? static_cast<float>(_thicknessLimitSpin->value()) : 1.0f;
+	const int displayBands = highlight ? 0 : thicknessDisplayBands();
+	if (_thicknessDisplayCombo)
+		_thicknessDisplayCombo->setEnabled(!highlight);
+	if (_thicknessBandCountSpin)
+		_thicknessBandCountSpin->setEnabled(!highlight && displayBands >= 2);
 
 	bool any = false;
 	viewport->makeCurrent();
@@ -1348,7 +1450,7 @@ void SurfaceAnalysisDialog::onThicknessDisplayChanged()
 		if (highlight)
 			_overlay.recolor(mesh, 0.0f, 2.0f * limitMm, AnalysisColormap::Threshold);
 		else
-			_overlay.recolor(mesh, 0.0f, _thicknessRangeMax, AnalysisColormap::Sequential);
+			_overlay.recolor(mesh, 0.0f, _thicknessRangeMax, AnalysisColormap::Sequential, displayBands);
 		any = true;
 	}
 	viewport->doneCurrent();
@@ -1358,6 +1460,13 @@ void SurfaceAnalysisDialog::onThicknessDisplayChanged()
 	updateThicknessLegendAndSummary();
 	viewport->clearSurfaceAnalysisHoverReadout(); // its cached text/colour was computed from the old colouring
 	viewport->update();
+}
+
+int SurfaceAnalysisDialog::thicknessDisplayBands() const
+{
+	if (!_thicknessDisplayCombo || !_thicknessDisplayCombo->currentData().toBool())
+		return 0;
+	return _thicknessBandCountSpin ? _thicknessBandCountSpin->value() : 10;
 }
 
 void SurfaceAnalysisDialog::updateThicknessLegendAndSummary()
@@ -1438,7 +1547,7 @@ void SurfaceAnalysisDialog::updateThicknessLegendAndSummary()
 	else
 	{
 		_legendLabel->setPixmap(AnalysisColorRamp::legendGradient(280, 44, 0.0f, _thicknessRangeMax,
-			AnalysisColormap::Sequential, tr(" mm"), true));
+			AnalysisColormap::Sequential, tr(" mm"), true, thicknessDisplayBands()));
 	}
 	_legendLabel->setVisible(true);
 
@@ -1492,7 +1601,7 @@ void SurfaceAnalysisDialog::applyDraftAngleToSelection()
 
 	const std::vector<AnalysisComputeSession::PerMeshOutcome> outcomes = session.runBlocking(
 		std::move(snapshots),
-		[pullDirection](const AnalysisMeshSnapshot& snapshot) -> std::any
+		[pullDirection](const AnalysisMeshSnapshot& snapshot, const std::atomic<bool>&) -> std::any
 		{
 			return DraftAngleAnalyzer::computeDraftAnglesDegrees(snapshot.points, snapshot.indices, pullDirection);
 		});
@@ -1664,7 +1773,7 @@ void SurfaceAnalysisDialog::applyDeviationToSelection()
 
 	const std::vector<AnalysisComputeSession::PerMeshOutcome> outcomes = session.runBlocking(
 		std::move(snapshots),
-		[referencePoints, referenceIndices](const AnalysisMeshSnapshot& snapshot) -> std::any
+		[referencePoints, referenceIndices](const AnalysisMeshSnapshot& snapshot, const std::atomic<bool>&) -> std::any
 		{
 			return DeviationAnalyzer::computeDeviation(snapshot.points, snapshot.indices, referencePoints, referenceIndices);
 		});

@@ -8,7 +8,8 @@ std::vector<float> AnalysisColorRamp::mapToRGBA(
 	const std::vector<float>& scalarPerSample,
 	const std::vector<bool>& validPerSample,
 	float rangeMin, float rangeMax,
-	AnalysisColormap colormap)
+	AnalysisColormap colormap,
+	int discreteBands)
 {
 	std::vector<float> rgba;
 	rgba.reserve(scalarPerSample.size() * 4);
@@ -20,7 +21,8 @@ std::vector<float> AnalysisColorRamp::mapToRGBA(
 
 	for (size_t i = 0; i < scalarPerSample.size(); ++i)
 	{
-		const bool valid = (i < validPerSample.size()) ? validPerSample[i] : true;
+		const bool valid = ((i < validPerSample.size()) ? validPerSample[i] : true)
+			&& std::isfinite(scalarPerSample[i]);
 		QColor color;
 		if (!valid)
 		{
@@ -28,9 +30,14 @@ std::vector<float> AnalysisColorRamp::mapToRGBA(
 		}
 		else
 		{
-			const float t = degenerateRange
+			float t = degenerateRange
 				? 0.5f
 				: std::clamp((scalarPerSample[i] - rangeMin) / range, 0.0f, 1.0f);
+			if (discreteBands >= 2)
+			{
+				const int band = std::min(static_cast<int>(t * discreteBands), discreteBands - 1);
+				t = (static_cast<float>(band) + 0.5f) / static_cast<float>(discreteBands);
+			}
 			color = colorForNormalized(t, colormap);
 		}
 		rgba.push_back(static_cast<float>(color.redF()));
@@ -39,6 +46,29 @@ std::vector<float> AnalysisColorRamp::mapToRGBA(
 		rgba.push_back(1.0f);
 	}
 	return rgba;
+}
+
+std::vector<float> AnalysisColorRamp::mapToNormalizedScalarRGBA(
+	const std::vector<float>& scalarPerSample,
+	const std::vector<bool>& validPerSample,
+	float rangeMin, float rangeMax)
+{
+	std::vector<float> encoded;
+	encoded.reserve(scalarPerSample.size() * 4);
+	const float range = rangeMax - rangeMin;
+	const bool degenerateRange = std::fabs(range) < 1.0e-9f;
+	for (size_t i = 0; i < scalarPerSample.size(); ++i)
+	{
+		const bool valid = (i >= validPerSample.size() || validPerSample[i]) && std::isfinite(scalarPerSample[i]);
+		const float t = valid
+			? (degenerateRange ? 0.5f : std::clamp((scalarPerSample[i] - rangeMin) / range, 0.0f, 1.0f))
+			: 0.0f;
+		encoded.push_back(t);
+		encoded.push_back(0.0f);
+		encoded.push_back(0.0f);
+		encoded.push_back(valid ? 1.0f : 0.0f);
+	}
+	return encoded;
 }
 
 QColor AnalysisColorRamp::colorForNormalized(float t, AnalysisColormap colormap)
@@ -87,7 +117,9 @@ QPixmap AnalysisColorRamp::legendGradient(
 	float rangeMin, float rangeMax,
 	AnalysisColormap colormap,
 	const QString& unitSuffix,
-	bool openEndedMax)
+	bool openEndedMax,
+	int discreteBands,
+	bool openEndedMin)
 {
 	QPixmap pixmap(std::max(width, 1), std::max(height, 1));
 	pixmap.fill(Qt::transparent);
@@ -100,13 +132,19 @@ QPixmap AnalysisColorRamp::legendGradient(
 	const int barHeight = std::max(static_cast<int>(height * 0.6), 4);
 	for (int x = 0; x < width; ++x)
 	{
-		const float t = width > 1 ? static_cast<float>(x) / static_cast<float>(width - 1) : 0.0f;
+		float t = width > 1 ? static_cast<float>(x) / static_cast<float>(width - 1) : 0.0f;
+		if (discreteBands >= 2)
+		{
+			const int band = std::min(static_cast<int>(t * discreteBands), discreteBands - 1);
+			t = (static_cast<float>(band) + 0.5f) / static_cast<float>(discreteBands);
+		}
 		painter.setPen(colorForNormalized(t, colormap));
 		painter.drawLine(x, 0, x, barHeight - 1);
 	}
 
 	painter.setPen(Qt::black);
-	const QString minLabel = QString::number(rangeMin, 'g', 3) + unitSuffix;
+	const QString minLabel = (openEndedMin ? QString(QChar(0x2264)) + QLatin1Char(' ') : QString())
+		+ QString::number(rangeMin, 'g', 3) + unitSuffix;
 	const QString maxLabel = (openEndedMax ? QString(QChar(0x2265)) + QLatin1Char(' ') : QString())
 		+ QString::number(rangeMax, 'g', 3) + unitSuffix;
 	painter.drawText(QRect(0, barHeight, width / 2, height - barHeight), Qt::AlignLeft | Qt::AlignVCenter, minLabel);
