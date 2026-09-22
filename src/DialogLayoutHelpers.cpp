@@ -6,6 +6,7 @@
 #include <QLabel>
 #include <QObject>
 #include <QPalette>
+#include <QPointer>
 #include <QSizePolicy>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -13,11 +14,18 @@
 namespace
 {
 	// The placeholder label lives on the view's viewport and follows its size and its row count.
+	//
+	// Parented to the VIEWPORT, not the view itself: QAbstractScrollArea's destructor deletes its viewport outright,
+	// ahead of the view's own QObject children (its model among them) being torn down by the normal end-of-~QObject
+	// child cleanup. Parenting here means this hint is destroyed in that same early step, before the model's
+	// destructor can emit a rows-removed signal into a lambda that would otherwise reach back into a
+	// half-destroyed view/viewport and crash. (_view is a QPointer as a second line of defence, in case a future
+	// caller reparents things differently.)
 	class EmptyViewHint : public QObject
 	{
 	public:
 		EmptyViewHint(QAbstractItemView* view, const QString& text)
-			: QObject(view), _view(view)
+			: QObject(view->viewport()), _view(view)
 		{
 			_label = new QLabel(text, view->viewport());
 			_label->setWordWrap(true);
@@ -40,7 +48,7 @@ namespace
 
 		bool eventFilter(QObject* watched, QEvent* event) override
 		{
-			if (watched == _view->viewport() && (event->type() == QEvent::Resize || event->type() == QEvent::Show))
+			if (_view && watched == _view->viewport() && (event->type() == QEvent::Resize || event->type() == QEvent::Show))
 				reposition();
 			return false;
 		}
@@ -48,6 +56,8 @@ namespace
 	private:
 		void refresh()
 		{
+			if (!_view || !_label)
+				return;
 			const QAbstractItemModel* model = _view->model();
 			const bool empty = !model || model->rowCount(_view->rootIndex()) == 0;
 			_label->setVisible(empty);
@@ -56,11 +66,13 @@ namespace
 
 		void reposition()
 		{
+			if (!_view || !_label)
+				return;
 			_label->setGeometry(_view->viewport()->rect().adjusted(12, 8, -12, -8));
 		}
 
-		QAbstractItemView* _view;
-		QLabel* _label = nullptr;
+		QPointer<QAbstractItemView> _view;
+		QPointer<QLabel> _label;
 	};
 }
 

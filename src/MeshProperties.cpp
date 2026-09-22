@@ -20,14 +20,56 @@
 #include <CGAL/Polygon_mesh_processing/polygon_soup_to_polygon_mesh.h>
 #include <CGAL/Polygon_mesh_processing/repair_polygon_soup.h> // merge_duplicate_points_in_polygon_soup() - see its call site below
 #include <CGAL/Polygon_mesh_processing/self_intersections.h>
+#include <CGAL/Polygon_mesh_processing/measure.h> // face_area() - used by selfIntersectingAreaRatio() below
 #include <CGAL/Polygon_mesh_processing/orientation.h>
 #include <CGAL/boost/graph/helpers.h> // CGAL::is_closed() - NOT a Polygon_mesh_processing:: function
+
+#include <iterator>
+#include <unordered_set>
+#include <utility>
 
 namespace
 {
 	using PropsKernel = CGAL::Exact_predicates_inexact_constructions_kernel;
 	using PropsPoint3 = PropsKernel::Point_3;
 	using PropsMesh   = CGAL::Surface_mesh<PropsPoint3>;
+
+	// A self-intersection this small a fraction of the mesh's OWN surface area is treated as a mesher artifact (a
+	// hairline crossing at a curved seam - a cone/fillet junction, a split ring) rather than a real defect: it is
+	// scale-free (the same threshold suits a small washer and a large crank-case alike, since both the numerator and
+	// denominator are the mesh's own area) and resolution-independent (unlike a triangle-COUNT ratio, it does not
+	// shift if the part happens to be tessellated more finely). Found empirically on two real cases: DIN 128 spring
+	// washers (~0.3-0.4% of area) and an engine crank-case/crank-halves import (0.09-0.37%) - see
+	// project_step_import_watertight_fixes.md.
+	constexpr double kMinorSelfIntersectionAreaRatio = 0.01; // 1% of the mesh's own surface area
+
+	// The fraction of `mesh`'s surface area covered by faces CGAL::Polygon_mesh_processing::self_intersections()
+	// reports as part of a crossing pair. Only called once does_self_intersect() has already confirmed there is at
+	// least one - self_intersections() itself has no precondition beyond a valid mesh, so it is always safe to call.
+	double selfIntersectingAreaRatio(const PropsMesh& mesh)
+	{
+		std::vector<std::pair<PropsMesh::Face_index, PropsMesh::Face_index>> pairs;
+		CGAL::Polygon_mesh_processing::self_intersections(mesh, std::back_inserter(pairs));
+		if (pairs.empty())
+			return 1.0; // does_self_intersect() said yes but found nothing to enumerate - treat as unbounded, not minor
+
+		std::unordered_set<PropsMesh::Face_index> involved;
+		for (const auto& pair : pairs)
+		{
+			involved.insert(pair.first);
+			involved.insert(pair.second);
+		}
+
+		double totalArea = 0.0, involvedArea = 0.0;
+		for (const PropsMesh::Face_index face : mesh.faces())
+		{
+			const double area = CGAL::to_double(CGAL::Polygon_mesh_processing::face_area(face, mesh));
+			totalArea += area;
+			if (involved.count(face))
+				involvedArea += area;
+		}
+		return totalArea > 0.0 ? involvedArea / totalArea : 1.0;
+	}
 }
 
 MeshTopologyCheckResult computeMeshTopology(const std::vector<float>& points, const std::vector<unsigned int>& indices)
@@ -74,7 +116,22 @@ MeshTopologyCheckResult computeMeshTopology(const std::vector<float>& points, co
 	}
 	else if (CGAL::Polygon_mesh_processing::does_self_intersect(cgalMesh))
 	{
-		check.unavailableReason = MeshPropertyUnavailableReason::SelfIntersecting;
+		// does_bound_a_volume() is undefined behavior on self-intersecting input, so it is never reached from here -
+		// a minor crossing (see kMinorSelfIntersectionAreaRatio's doc comment) is accepted on the strength of
+		// is_closed() plus the divergence-theorem sum in computeMeshGeometry() below, which is well-defined on ANY
+		// closed, consistently-wound mesh and is off by at most about this same small area fraction. A self-
+		// intersection this small is very unlikely to coincide with the mesh being wound inconsistently overall - that
+		// would ordinarily show up as a large intersecting area (inside-out faces overlapping broadly), which fails
+		// this same ratio check and falls through to outright rejection below, same as before this tolerance existed.
+		if (selfIntersectingAreaRatio(cgalMesh) <= kMinorSelfIntersectionAreaRatio)
+		{
+			check.hasValidVolume = true;
+			check.isApproximate = true;
+		}
+		else
+		{
+			check.unavailableReason = MeshPropertyUnavailableReason::SelfIntersecting;
+		}
 	}
 	else if (!CGAL::Polygon_mesh_processing::does_bound_a_volume(cgalMesh))
 	{
@@ -122,6 +179,7 @@ namespace
 		std::vector<unsigned char> faceIsSolid; // per ORIGINAL face: 1 = belongs to a valid solid piece, 0 = shell
 		int solidPieces = 0;
 		int shellPieces = 0;
+		bool anyApproximate = false; // at least one solid piece was accepted despite a minor self-intersection
 	};
 
 	size_t findRoot(std::vector<size_t>& parent, size_t x)
@@ -209,10 +267,21 @@ namespace
 				PropsMesh pieceMesh;
 				CGAL::Polygon_mesh_processing::polygon_soup_to_polygon_mesh(localPoints, localFaces, pieceMesh);
 				// Short-circuit order matters: does_bound_a_volume() is undefined behaviour on non-closed or
-				// self-intersecting input (see computeMeshGeometry()'s note).
-				solid = CGAL::is_closed(pieceMesh)
-					&& !CGAL::Polygon_mesh_processing::does_self_intersect(pieceMesh)
-					&& CGAL::Polygon_mesh_processing::does_bound_a_volume(pieceMesh);
+				// self-intersecting input (see computeMeshGeometry()'s note). A minor self-intersection (see
+				// kMinorSelfIntersectionAreaRatio's doc comment) is accepted the same way computeMeshTopology()
+				// accepts one on the whole mesh, without calling does_bound_a_volume().
+				if (CGAL::is_closed(pieceMesh))
+				{
+					if (!CGAL::Polygon_mesh_processing::does_self_intersect(pieceMesh))
+					{
+						solid = CGAL::Polygon_mesh_processing::does_bound_a_volume(pieceMesh);
+					}
+					else if (selfIntersectingAreaRatio(pieceMesh) <= kMinorSelfIntersectionAreaRatio)
+					{
+						solid = true;
+						split.anyApproximate = true;
+					}
+				}
 			}
 
 			if (solid)
@@ -263,6 +332,7 @@ MeshGeometryComputeResult computeMeshGeometry(const std::vector<float>& points, 
 		const MeshTopologyCheckResult topology = computeMeshTopology(points, indices);
 		result.hasValidVolume = topology.hasValidVolume;
 		result.volumeUnavailableReason = topology.unavailableReason;
+		result.isApproximateVolume = topology.isApproximate;
 	}
 
 	// Empty = "no per-piece information": with hasValidVolume every face is solid, without it none is.
@@ -287,6 +357,7 @@ MeshGeometryComputeResult computeMeshGeometry(const std::vector<float>& points, 
 			{
 				result.hasValidVolume = true;
 				result.volumeUnavailableReason = MeshPropertyUnavailableReason::None;
+				result.isApproximateVolume = split.anyApproximate;
 			}
 		}
 	}
@@ -351,7 +422,7 @@ MeshGeometryComputeResult computeMeshGeometry(const std::vector<float>& points, 
 		// Reject outright rather than partially proceed - an incomplete
 		// result must never be returned as if it were valid.
 		std::cout << "Exception raised in computeMeshGeometry\n" << ex.what() << std::endl;
-		return MeshGeometryComputeResult{ false, 0.0f, false, MeshPropertyUnavailableReason::InvalidIndices, 0.0, QVector3D(0, 0, 0) };
+		return MeshGeometryComputeResult{ false, 0.0f, false, MeshPropertyUnavailableReason::InvalidIndices, false, 0.0, QVector3D(0, 0, 0) };
 	}
 
 	result.hasValidGeometry = true;
@@ -398,6 +469,7 @@ MeshVolumeSummary summarizeMeshVolume(const MeshGeometryComputeResult& geometry,
 		summary.valid = true;
 		summary.volume = solidVolume;
 		summary.centerOfMass = solidCom;
+		summary.approximate = geometry.isApproximateVolume;
 		return summary;
 	}
 

@@ -561,6 +561,7 @@ void MassPropertiesDialog::populate()
 	// thickness on their material WOULD have included - both drive a footnote below.
 	int shellMeshCount = 0;
 	int shellCapableExcludedCount = 0;
+	int approximateVolumeMeshCount = 0;
 
 	// resolveEffectiveImportUnit() takes viewerState as a QJsonObject (the
 	// same shape it's persisted in) rather than a bare LengthUnit, so a
@@ -690,13 +691,23 @@ void MassPropertiesDialog::populate()
 		{
 			QString volumeText = QString::number(scaledVolume, 'f', 2);
 			auto* volumeItem = new SortItem(QString(), true, scaledVolume);
+			QStringList volumeTooltips;
 			if (volumeSummary.shellPieceCount > 0)
 			{
 				volumeText = tr("%1 (incl. shell)").arg(volumeText);
-				volumeItem->setToolTip(tr("%1 mm³ of this volume is open surface area x the material's shell thickness (%2 open piece(s)).")
+				volumeTooltips.append(tr("%1 mm³ of this volume is open surface area x the material's shell thickness (%2 open piece(s)).")
 					.arg(volumeSummary.shellVolume, 0, 'f', 2).arg(volumeSummary.shellPieceCount));
 				++shellMeshCount;
 			}
+			if (volumeSummary.approximate)
+			{
+				volumeText = tr("%1 (approx.)").arg(volumeText);
+				volumeTooltips.append(tr("This mesh has a minor self-intersection (a hairline crossing confined to a small fraction of "
+				                          "its surface, typically a tessellation seam artifact) - volume is a close approximation, not exact."));
+				++approximateVolumeMeshCount;
+			}
+			if (!volumeTooltips.isEmpty())
+				volumeItem->setToolTip(volumeTooltips.join(QStringLiteral("\n")));
 			volumeItem->setText(volumeText);
 			_table->setItem(row, 2, volumeItem);
 			knownVolumeSubtotal += scaledVolume;
@@ -782,6 +793,12 @@ void MassPropertiesDialog::populate()
 		notes.append({ QString(), tr("%1 mesh(es) are open surfaces and were excluded - set a Shell thickness on their "
 		                              "material (Materials > Physical Properties) to include them.").arg(shellCapableExcludedCount),
 		               NotesListBox::Severity::Warning });
+	}
+	if (approximateVolumeMeshCount > 0)
+	{
+		notes.append({ QString(), tr("%1 mesh(es) have a minor self-intersection (well under 1% of their own surface area, "
+		                              "typically a tessellation seam artifact) - their volume is a close approximation, not exact.")
+		                              .arg(approximateVolumeMeshCount), NotesListBox::Severity::Info });
 	}
 	_notesBox->setNotes(notes);
 

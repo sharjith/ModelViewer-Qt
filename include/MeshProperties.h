@@ -42,6 +42,12 @@ struct MeshTopologyCheckResult
 {
 	bool hasValidVolume = false;
 	MeshPropertyUnavailableReason unavailableReason = MeshPropertyUnavailableReason::None;
+	// true when hasValidVolume was accepted despite a self-intersection, because it was confined to a small enough
+	// fraction of the mesh's OWN surface area (see computeMeshTopology()'s doc comment) - a real self-intersection
+	// still fails outright and sets unavailableReason instead. The resulting volume is a close approximation, not
+	// exact: does_bound_a_volume() is undefined behavior on self-intersecting input, so it is never called on a
+	// mesh this flag is true for - see computeMeshGeometry()'s doc comment for what is computed instead.
+	bool isApproximate = false;
 };
 
 // The CGAL topology predicate sequence (weld exact-coincident duplicate
@@ -68,6 +74,9 @@ struct MeshGeometryComputeResult
 	// couldn't be treated as solid (open boundary, self-intersection, ...).
 	bool hasValidVolume = false;
 	MeshPropertyUnavailableReason volumeUnavailableReason = MeshPropertyUnavailableReason::None;
+	// true when volume/hasValidVolume rest on at least one piece accepted despite a minor self-intersection - see
+	// MeshTopologyCheckResult::isApproximate. Meaningless when hasValidVolume is false.
+	bool isApproximateVolume = false;
 	// Volume and centre of mass of the SOLID pieces, valid whenever solidPieceCount > 0 - even when other pieces
 	// of the same mesh are open surfaces (hasValidVolume false). Zero/unset otherwise.
 	double volume = 0.0;
@@ -110,6 +119,7 @@ struct MeshVolumeSummary
 	double shellVolume = 0.0;     // the part of `volume` that came from area x thickness
 	int shellPieceCount = 0;      // pieces treated as shells (0 for a plain solid)
 	bool shellCapable = false;    // !valid, but a shell thickness on the material WOULD make it valid
+	bool approximate = false;     // valid, but resting on a piece accepted despite a minor self-intersection (see MeshGeometryComputeResult::isApproximateVolume) - volume is a close approximation, not exact
 };
 MeshVolumeSummary summarizeMeshVolume(const MeshGeometryComputeResult& geometry, double lengthScale, float shellThicknessMm);
 
