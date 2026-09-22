@@ -3321,7 +3321,11 @@ Unsupported file format: </source>
 </context>
 <context>
     <name>MassPropertiesDialog</name>
-    <message>
+        <message>
+        <source>Search meshes or materials...</source>
+        <translation type="unfinished"></translation>
+    </message>
+<message>
         <location filename="../src/MassPropertiesDialog.cpp" line="36"/>
         <source>Mass Properties</source>
         <translation type="unfinished"></translation>

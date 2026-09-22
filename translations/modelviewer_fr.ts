@@ -3923,7 +3923,11 @@ Format de fichier non pris en charge : </translation>
 </context>
 <context>
     <name>MassPropertiesDialog</name>
-    <message>
+        <message>
+        <source>Search meshes or materials...</source>
+        <translation>Rechercher des maillages ou des matériaux...</translation>
+    </message>
+<message>
         <location filename="../src/MassPropertiesDialog.cpp" line="36"/>
         <source>Mass Properties</source>
         <translation>Propriétés de masse</translation>

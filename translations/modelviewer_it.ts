@@ -3923,7 +3923,11 @@ Formato del file non supportato: </translation>
 </context>
 <context>
     <name>MassPropertiesDialog</name>
-    <message>
+        <message>
+        <source>Search meshes or materials...</source>
+        <translation>Cerca mesh o materiali...</translation>
+    </message>
+<message>
         <location filename="../src/MassPropertiesDialog.cpp" line="36"/>
         <source>Mass Properties</source>
         <translation>Proprietà di massa</translation>

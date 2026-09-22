@@ -120,6 +120,14 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 	_noSelectionLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
 	layout->addWidget(_noSelectionLabel, 1);
 
+	// Filters _table's rows as you type (Mesh or Material column) - purely visual, see applyTableSearchFilter().
+	// Shown/hidden together with _table itself (both toggle on the same "is anything selected" condition below).
+	_searchEdit = new QLineEdit(this);
+	_searchEdit->setPlaceholderText(tr("Search meshes or materials..."));
+	_searchEdit->setClearButtonEnabled(true);
+	connect(_searchEdit, &QLineEdit::textChanged, this, &MassPropertiesDialog::applyTableSearchFilter);
+	layout->addWidget(_searchEdit);
+
 	_table = new QTableWidget(this);
 	_table->setColumnCount(5);
 	_table->setHorizontalHeaderLabels({ tr("Mesh"), tr("Material"), tr("Volume (mm³)"), tr("Surface Area (mm²)"), tr("Mass (kg)") });
@@ -146,6 +154,7 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 		_sortColumn = column;
 		_table->horizontalHeader()->setSortIndicator(_sortColumn, _sortOrder);
 		_table->sortItems(_sortColumn, _sortOrder);
+		applyTableSearchFilter(); // sortItems() reassigns row content by physical row index - hidden state does not follow it
 	});
 	_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
 	// Rows are selectable so the right-click menu (Center Screen / Hide / Show) can act on several meshes at once.
@@ -278,6 +287,23 @@ QVector<QUuid> MassPropertiesDialog::meshesOfSelectedRows() const
 			uuids.append(uuid);
 	}
 	return uuids;
+}
+
+void MassPropertiesDialog::applyTableSearchFilter()
+{
+	if (!_table || !_searchEdit)
+		return;
+	const QString needle = _searchEdit->text().trimmed();
+	for (int row = 0; row < _table->rowCount(); ++row)
+	{
+		bool visible = needle.isEmpty();
+		for (int column = 0; !visible && column <= 1; ++column) // Mesh, Material
+		{
+			const QTableWidgetItem* item = _table->item(row, column);
+			visible = item && item->text().contains(needle, Qt::CaseInsensitive);
+		}
+		_table->setRowHidden(row, !visible);
+	}
 }
 
 void MassPropertiesDialog::onTableRowSelectionChanged()
@@ -468,6 +494,7 @@ void MassPropertiesDialog::populate()
 	if (selected.empty())
 		_notesBox->clearNotes();
 	_table->setVisible(!selected.empty());
+	_searchEdit->setVisible(!selected.empty());
 	_totalsLabel->setVisible(!selected.empty());
 	_materialBreakdownLabel->setVisible(false);
 	_materialTable->setVisible(false);
@@ -545,6 +572,7 @@ void MassPropertiesDialog::populate()
 		// means there's no earlier valid state to fall back to either, so
 		// there's nothing left to show.
 		_table->setVisible(false);
+		_searchEdit->setVisible(false);
 		_totalsLabel->setVisible(false);
 		return;
 	}
@@ -794,6 +822,7 @@ void MassPropertiesDialog::populate()
 
 	if (_sortColumn >= 0)
 		_table->sortItems(_sortColumn, _sortOrder);
+	applyTableSearchFilter(); // rows were just freshly (re)filled above - re-run rather than trust stale hidden state
 
 	// Only warn about an unverified unit assumption when at least one
 	// selected mesh actually needed the fallback - a mesh with a real,

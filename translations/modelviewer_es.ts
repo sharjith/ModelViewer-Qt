@@ -3922,7 +3922,11 @@ Formato de archivo no compatible: </translation>
 </context>
 <context>
     <name>MassPropertiesDialog</name>
-    <message>
+        <message>
+        <source>Search meshes or materials...</source>
+        <translation>Buscar mallas o materiales...</translation>
+    </message>
+<message>
         <location filename="../src/MassPropertiesDialog.cpp" line="36"/>
         <source>Mass Properties</source>
         <translation>Propiedades de masa</translation>

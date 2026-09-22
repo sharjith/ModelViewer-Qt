@@ -9,6 +9,7 @@
 
 class QTableWidget;
 class QLabel;
+class QLineEdit;
 class MeshSelectionBox;
 class NotesListBox;
 class QPushButton;
@@ -102,6 +103,13 @@ private:
 	// The meshes behind the currently selected table rows (the right-clicked row if it was not selected).
 	QVector<QUuid> meshesOfSelectedRows() const;
 
+	// Hides every _table row whose Mesh/Material column doesn't contain _searchEdit's text (case-insensitive) -
+	// purely visual, does not touch the underlying data or trigger a recompute. Re-run after populate() refills the
+	// table and after every sortItems() call (row hidden-state is tracked by physical row index, which sorting
+	// reassigns - recomputing from scratch, rather than trying to carry the old state along, is what stays correct
+	// regardless of how sortItems() happens to move things internally).
+	void applyTableSearchFilter();
+
 	// Window geometry persistence - same QSettings("<key>/geometry") pattern
 	// every other dialog in this app already uses.
 	void loadSettings();
@@ -138,6 +146,7 @@ private:
 
 	NotesListBox* _notesBox = nullptr; // units / density / shell footnotes, refreshed per populate() - height-capped, so it never pushes the dialog off-screen
 	QLabel* _noSelectionLabel = nullptr;
+	QLineEdit* _searchEdit = nullptr; // filters _table's rows by Mesh/Material text - see applyTableSearchFilter()
 	QTableWidget* _table = nullptr;
 	QLabel* _totalsLabel = nullptr;
 	QLabel* _materialBreakdownLabel = nullptr;
