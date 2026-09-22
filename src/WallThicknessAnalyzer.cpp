@@ -7,6 +7,7 @@
 #include <CGAL/Polygon_mesh_processing/repair_polygon_soup.h> // merge_duplicate_points_in_polygon_soup()
 #include <CGAL/Polygon_mesh_processing/polygon_soup_to_polygon_mesh.h>
 #include <CGAL/Polygon_mesh_processing/self_intersections.h>
+#include <CGAL/Polygon_mesh_processing/measure.h> // face_area() - used by selfIntersectingAreaRatio() below
 #include <CGAL/Polygon_mesh_processing/orientation.h>
 #include <CGAL/Polygon_mesh_processing/locate.h> // PMP::build_AABB_tree() - declared here, not in AABB_tree.h itself
 #include <CGAL/boost/graph/helpers.h> // CGAL::is_closed()
@@ -18,8 +19,11 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <iterator>
 #include <limits>
 #include <thread>
+#include <unordered_set>
+#include <utility>
 #include <variant>
 
 #include <QDebug>
@@ -38,6 +42,45 @@ namespace
 	using AABBPrimitive = CGAL::AABB_face_graph_triangle_primitive<WtMesh, VPM>;
 	using AABBTraits = CGAL::AABB_traits_3<WtKernel, AABBPrimitive>;
 	using AABBTree = CGAL::AABB_tree<AABBTraits>;
+
+	// Same tolerance as MeshProperties.cpp's identically-named/-valued constant and function (duplicated locally per
+	// this codebase's own convention for a small CGAL-typed helper needed the same way in more than one file - see
+	// e.g. findMdiArea() in the tool dialogs): a self-intersection confined to under 1% of the mesh's OWN surface
+	// area is a mesher-tessellation artifact (a hairline crossing at a curved seam), not a real defect. Without this,
+	// the exact same mesh that Mass Properties now accepts (with an "approximate" volume) was rejected outright here
+	// - a real user-visible inconsistency between the two tools for one identical mesh, not an intentional
+	// difference. does_bound_a_volume() is still never called on self-intersecting input (undefined behavior); what
+	// follows this gate (orient_to_bound_a_volume(), then per-face raycasting) is far more tolerant of a tiny local
+	// defect - it works from a global signed-volume sum, the same way Mass Properties' divergence-theorem volume
+	// does, so a fraction-of-a-percent self-intersection can't flip its answer. A reading taken from exactly the
+	// handful of self-intersecting triangles themselves can still be locally unreliable; nothing here tries to
+	// detect and exclude just those faces from the result.
+	constexpr double kMinorSelfIntersectionAreaRatio = 0.01; // 1% of the mesh's own surface area
+
+	double selfIntersectingAreaRatio(const WtMesh& mesh)
+	{
+		std::vector<std::pair<WtMesh::Face_index, WtMesh::Face_index>> pairs;
+		CGAL::Polygon_mesh_processing::self_intersections(mesh, std::back_inserter(pairs));
+		if (pairs.empty())
+			return 1.0; // does_self_intersect() said yes but found nothing to enumerate - treat as unbounded, not minor
+
+		std::unordered_set<WtMesh::Face_index> involved;
+		for (const auto& pair : pairs)
+		{
+			involved.insert(pair.first);
+			involved.insert(pair.second);
+		}
+
+		double totalArea = 0.0, involvedArea = 0.0;
+		for (const WtMesh::Face_index face : mesh.faces())
+		{
+			const double area = CGAL::to_double(CGAL::Polygon_mesh_processing::face_area(face, mesh));
+			totalArea += area;
+			if (involved.count(face))
+				involvedArea += area;
+		}
+		return totalArea > 0.0 ? involvedArea / totalArea : 1.0;
+	}
 
 	bool isFinitePoint(const std::vector<float>& pts, size_t vertexIndex)
 	{
@@ -757,26 +800,28 @@ WallThicknessResult WallThicknessAnalyzer::computeThickness(
 		if (!vertexFinite[ia] || !vertexFinite[ib] || !vertexFinite[ic])
 			continue; // in-bounds but NaN/Inf position - safe to just exclude this one face, no OOB risk downstream
 
-		// True degeneracy test via CGAL::collinear() - an exact geometric
-		// predicate (this kernel's orientation test), not a magnitude/angle
-		// threshold of any kind. A fixed absolute cross-product cutoff
-		// rejects every face of a small part; a relative sin^2(angle)
-		// threshold instead wrongly conflates "skinny" with "degenerate" -
-		// a real, valid triangle with edges (1000,0,0) and (1000,0.0001,0)
-		// has a perfectly well-defined, tiny-but-nonzero area (it's a
-		// legitimate thin side-wall triangle, not degenerate), yet a
-		// relative-angle threshold flags it anyway since sin^2 of its
-		// vertex angle is extremely small regardless of the triangle's
-		// actual (nonzero) area. CGAL::collinear() answers the only
-		// question that actually matters - are these 3 points exactly
-		// collinear (which subsumes the coincident-point case too) - with
-		// no epsilon/threshold of any kind, so it can't misclassify either
-		// a small-but-valid part or a skinny-but-valid triangle.
+		// Degeneracy test: exact-coincident-corner only (an exact equality test, not a magnitude/angle threshold of
+		// any kind - a fixed absolute cross-product cutoff rejects every face of a small part; a relative
+		// sin^2(angle) threshold instead wrongly conflates "skinny" with "degenerate" - a real, valid triangle with
+		// edges (1000,0,0) and (1000,0.0001,0) has a perfectly well-defined, tiny-but-nonzero area, yet a relative-
+		// angle threshold flags it anyway).
+		//
+		// This used to be CGAL::collinear() instead - also exact, but a WIDER test: every coincident-corner triangle
+		// is trivially collinear, but a collinear triangle need not have a coincident corner (3 genuinely distinct
+		// points that happen to lie on a line has zero area too). BRepToAssimpConverter.cpp's import-time triangle
+		// filter keeps exactly such slivers on purpose - dropping a zero-area-but-non-degenerate triangle whose
+		// neighbours still reference its corners opens a hole, which is what made this mesh "open" before that fix
+		// (see project_step_import_watertight_fixes.md). CGAL::collinear() here was reopening the very same hole,
+		// independently, inside this file's own soup: this analyzer's rejection ("invalid geometry" -
+		// is_polygon_soup_a_polygon_mesh() failing on the welded-but-now-non-manifold soup) survived even after
+		// MeshProperties.cpp's mass/volume gate was fixed, because the two gates dropped a different set of
+		// triangles. Matching the import-time definition exactly is what keeps the two gates agreeing on the same
+		// mesh - see this session's cross-tool "invalid geometry" report.
 		const WtPoint3 wpa(static_cast<double>(origPoints[ia * 3 + 0]), static_cast<double>(origPoints[ia * 3 + 1]), static_cast<double>(origPoints[ia * 3 + 2]));
 		const WtPoint3 wpb(static_cast<double>(origPoints[ib * 3 + 0]), static_cast<double>(origPoints[ib * 3 + 1]), static_cast<double>(origPoints[ib * 3 + 2]));
 		const WtPoint3 wpc(static_cast<double>(origPoints[ic * 3 + 0]), static_cast<double>(origPoints[ic * 3 + 1]), static_cast<double>(origPoints[ic * 3 + 2]));
-		if (CGAL::collinear(wpa, wpb, wpc))
-			continue; // degenerate triangle (coincident points or exactly collinear edges)
+		if (wpa == wpb || wpb == wpc || wpa == wpc)
+			continue; // degenerate triangle (two exactly coincident corners)
 
 		validFaces.push_back({ ia, ib, ic });
 		origFaceIndex.push_back(f);
@@ -833,12 +878,15 @@ WallThicknessResult WallThicknessAnalyzer::computeThickness(
 		result.rejectionReason = describeMeshPropertyUnavailableReason(MeshPropertyUnavailableReason::OpenBoundary);
 		return result;
 	}
-	if (PMP::does_self_intersect(workingMesh))
+	const bool selfIntersects = PMP::does_self_intersect(workingMesh);
+	if (selfIntersects && selfIntersectingAreaRatio(workingMesh) > kMinorSelfIntersectionAreaRatio)
 	{
 		result.rejectionReason = describeMeshPropertyUnavailableReason(MeshPropertyUnavailableReason::SelfIntersecting);
 		return result;
 	}
-	if (!PMP::does_bound_a_volume(workingMesh))
+	// does_bound_a_volume() is undefined behavior on self-intersecting input - skipped for a minor crossing, same as
+	// MeshProperties.cpp; orient_to_bound_a_volume() below is what actually needs to run either way.
+	if (!selfIntersects && !PMP::does_bound_a_volume(workingMesh))
 	{
 		result.rejectionReason = describeMeshPropertyUnavailableReason(MeshPropertyUnavailableReason::UnresolvedOrientation);
 		return result;
@@ -921,11 +969,14 @@ WallThicknessResult WallThicknessAnalyzer::computeThickness(
 		// rejects every face of a small part, since a cross-product
 		// magnitude scales with the SQUARE of the part's size (a 1e-5-unit
 		// cube's faces measure ~1e-10, under any single fixed cutoff, even
-		// though this triangle already passed the exact CGAL::collinear()
+		// though this triangle already passed the exact-coincident-corner
 		// non-degeneracy check above). Only an exact-zero cross product -
-		// mathematically only possible for a truly collinear/coincident
-		// triangle, which collinear() already excluded - is guarded here,
-		// as a pure defensive backstop rather than a source of rejection.
+		// a genuinely collinear triangle (3 distinct points on a line) that
+		// the upstream filter deliberately does NOT drop, to stay in step
+		// with the import-time sliver-keep fix - is guarded here: skipped
+		// for its OWN thickness reading only, as a pure defensive backstop,
+		// while still counting toward workingMesh's closedness like any
+		// other face.
 		const double e1x = pbx - pax, e1y = pby - pay, e1z = pbz - paz;
 		const double e2x = pcx - pax, e2y = pcy - pay, e2z = pcz - paz;
 		const double nx = e1y * e2z - e1z * e2y;
