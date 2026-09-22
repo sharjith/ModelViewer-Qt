@@ -192,11 +192,29 @@ private:
 	// Documents live in _mdiArea (native QMdiArea - tiling/cascading/
 	// restoring, most-recently-used Next/Previous, all built in). The
 	// tool-panel column (Document/Properties/Environment) is three plain
-	// QDockWidgets, tabified together in QMainWindow's own right-side dock
-	// area - no custom splitter needed, QMainWindow's native dock system
-	// already reserves/resizes that area and persists it via
-	// saveState()/restoreState().
+	// QDockWidgets, tabified together - but hosted in a NESTED QMainWindow
+	// (_rightPanelWindow) rather than in this outer one, specifically so the
+	// panel column as a WHOLE sits inside a real QSplitter pane
+	// (_rightPanelSplitter) alongside _mdiArea: QMainWindow's own dock-area
+	// resize has no equivalent of QSplitter::setChildrenCollapsible() (drag
+	// past a pane's minimum size and it snaps to width 0) - there is no way
+	// to make a plain top-level dock area collapse fully by dragging its
+	// separator, only ever down to its content's minimum width. Docks added
+	// to a nested QMainWindow keep every native behavior (floating,
+	// undocking, tabbing, per-dock toggleViewAction()) exactly as if they
+	// were on the outer one - QSplitter does not care what a pane contains,
+	// so the OUTER splitter's handle is what actually gets dragged, and it
+	// collapses the WHOLE nested window (all three docks) the same way
+	// _documentTabSplitter already collapses-or-not below (this one leaves
+	// setChildrenCollapsible() at its default true, deliberately, unlike
+	// that one). See the constructor for the setWindowFlags(Qt::Widget)
+	// this needs to embed properly instead of trying to be a second
+	// top-level window, and readSettings()/writeSettings() for its own
+	// saveState()/restoreState() (separate from this outer window's) plus
+	// _rightPanelSplitter's own persisted sizes.
 	QMdiArea* _mdiArea = nullptr;
+	QMainWindow* _rightPanelWindow = nullptr;
+	QSplitter* _rightPanelSplitter = nullptr;
 	QDockWidget* _propertiesDock = nullptr;
 	QDockWidget* _environmentDock = nullptr;
 	QDockWidget* _documentDock = nullptr;

@@ -171,7 +171,26 @@ MainWindow::MainWindow(QWidget* parent)
 		_mdiArea->setTabsClosable(true);
 		_mdiArea->setTabsMovable(true);
 		_mdiArea->setTabPosition(QTabWidget::North);
-		setCentralWidget(_mdiArea);
+
+		// _rightPanelWindow hosts the Document/Properties/Environment docks (added further below) instead of this
+		// outer MainWindow - see _rightPanelWindow's own doc comment (header) for why. Qt::Widget clears the Window
+		// flag QMainWindow's constructor sets unconditionally, regardless of parent - without it, this would try to
+		// render as a second top-level window instead of embedding into _rightPanelSplitter below.
+		_rightPanelWindow = new QMainWindow();
+		_rightPanelWindow->setWindowFlags(Qt::Widget);
+
+		_rightPanelSplitter = new QSplitter(Qt::Horizontal);
+		// Default true, kept explicit: this is the whole point of routing the dock column through a splitter pane
+		// instead of relying on QMainWindow's own (non-collapsible) dock-area resize - see the header comment.
+		_rightPanelSplitter->setChildrenCollapsible(true);
+		_rightPanelSplitter->addWidget(_mdiArea);
+		_rightPanelSplitter->addWidget(_rightPanelWindow);
+		// The viewport is what should absorb extra space on a window resize; the panel column keeps whatever width
+		// the user last dragged it to (restoreState() below overrides this on every run after the first).
+		_rightPanelSplitter->setStretchFactor(0, 1);
+		_rightPanelSplitter->setStretchFactor(1, 0);
+		_rightPanelSplitter->setSizes({ 1000, 320 });
+		setCentralWidget(_rightPanelSplitter);
 
 		// Single activation source, unlike Qt-ADS's multi-area document
 		// splitting - one connection covers every document-switch case.
@@ -282,7 +301,7 @@ MainWindow::MainWindow(QWidget* parent)
 		// tab bar - matches every other QTabWidget in this app
 		// (_documentTabWidget/_propertiesTabWidget above both explicitly
 		// set North too).
-		setTabPosition(Qt::RightDockWidgetArea, QTabWidget::North);
+		_rightPanelWindow->setTabPosition(Qt::RightDockWidgetArea, QTabWidget::North);
 
 		auto* documentDock = new QDockWidget(tr("Document"), this);
 		documentDock->setObjectName(QStringLiteral("documentDock"));
@@ -293,7 +312,7 @@ MainWindow::MainWindow(QWidget* parent)
 		// Not wrapped in a scroll area like the other docks, so without this a long translation of any label,
 		// button or check box in here sets the dock's minimum width and pushes it into the viewport.
 		allowTextToShrink(documentTabContainer);
-		addDockWidget(Qt::RightDockWidgetArea, documentDock);
+		_rightPanelWindow->addDockWidget(Qt::RightDockWidgetArea, documentDock);
 		_documentDock = documentDock;
 
 		// --- Properties dock: Materials + Transformations sub-tabs, single
@@ -324,8 +343,8 @@ MainWindow::MainWindow(QWidget* parent)
 		_propertiesDock->setObjectName(QStringLiteral("propertiesDock"));
 		_propertiesDock->setWindowIcon(QIcon(":/icons/res/properties.png"));
 		_propertiesDock->setWidget(_propertiesTabWidget);
-		addDockWidget(Qt::RightDockWidgetArea, _propertiesDock);
-		tabifyDockWidget(documentDock, _propertiesDock);
+		_rightPanelWindow->addDockWidget(Qt::RightDockWidgetArea, _propertiesDock);
+		_rightPanelWindow->tabifyDockWidget(documentDock, _propertiesDock);
 
 		// --- Environment dock: single shared VisualizationEnvironmentPanel.
 		_visualizationEnvironmentPanel = new VisualizationEnvironmentPanel();
@@ -337,8 +356,8 @@ MainWindow::MainWindow(QWidget* parent)
 		_environmentDock->setObjectName(QStringLiteral("environmentDock"));
 		_environmentDock->setWindowIcon(QIcon(":/icons/res/environment.png"));
 		_environmentDock->setWidget(scrollAreaEnv);
-		addDockWidget(Qt::RightDockWidgetArea, _environmentDock);
-		tabifyDockWidget(_propertiesDock, _environmentDock);
+		_rightPanelWindow->addDockWidget(Qt::RightDockWidgetArea, _environmentDock);
+		_rightPanelWindow->tabifyDockWidget(_propertiesDock, _environmentDock);
 
 		// Default to the Document tab up front, matching the tab order
 		// documents were tabbed in above.
@@ -1531,8 +1550,15 @@ void MainWindow::readSettings()
 	// bytes that previously lived under "dockState". Gate restore on an
 	// explicit version/key pair so a branch switch from Qt-ADS does not try
 	// to deserialize stale foreign state into the new MDI/dock layout.
+	// The three right-panel docks live on the NESTED _rightPanelWindow now (see its own doc comment), so their
+	// state is restored there, not on this outer window - restoreState() only covers a QMainWindow's OWN docks/
+	// toolbars, never a descendant one's.
 	if (settings.value("dockStateNativeMdiVersion", 0).toInt() == kNativeMdiDockStateVersion)
+	{
 		restoreState(settings.value("dockStateNativeMdi").toByteArray());
+		if (_rightPanelWindow)
+			_rightPanelWindow->restoreState(settings.value("dockStateRightPanel").toByteArray());
+	}
 
 	// _documentTabSplitter's handle position isn't part of QMainWindow's own
 	// dock/toolbar state above (that only covers QDockWidget geometry, not
@@ -1540,6 +1566,12 @@ void MainWindow::readSettings()
 	const QByteArray splitterState = settings.value("documentTabSplitterState").toByteArray();
 	if (_documentTabSplitter && !splitterState.isEmpty())
 		_documentTabSplitter->restoreState(splitterState);
+
+	// _rightPanelSplitter's own handle position - same reasoning as _documentTabSplitter above, a separate key
+	// since QMainWindow's saveState()/restoreState() knows nothing about a QSplitter it happens to be embedded in.
+	const QByteArray rightPanelSplitterState = settings.value("rightPanelSplitterState").toByteArray();
+	if (_rightPanelSplitter && !rightPanelSplitterState.isEmpty())
+		_rightPanelSplitter->restoreState(rightPanelSplitterState);
 }
 
 void MainWindow::writeSettings()
@@ -1549,8 +1581,12 @@ void MainWindow::writeSettings()
 	settings.setValue("geometry", saveGeometry());
 	settings.setValue("dockStateNativeMdiVersion", kNativeMdiDockStateVersion);
 	settings.setValue("dockStateNativeMdi", saveState());
+	if (_rightPanelWindow)
+		settings.setValue("dockStateRightPanel", _rightPanelWindow->saveState());
 	if (_documentTabSplitter)
 		settings.setValue("documentTabSplitterState", _documentTabSplitter->saveState());
+	if (_rightPanelSplitter)
+		settings.setValue("rightPanelSplitterState", _rightPanelSplitter->saveState());
 }
 
 
