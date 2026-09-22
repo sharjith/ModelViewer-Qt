@@ -14,6 +14,7 @@ class NotesListBox;
 class QPushButton;
 class QProgressBar;
 class QCloseEvent;
+class QMdiSubWindow;
 class ModelViewer;
 class SceneMesh;
 class AnalysisComputeSession;
@@ -90,6 +91,10 @@ private slots:
 	// does not change the rows. Ignored while the pick button is on (the viewer selection is then being gathered)
 	// and while the table is being rebuilt.
 	void onTableRowSelectionChanged();
+
+	// Hides/shows this dialog as its own document's MDI subwindow loses/gains focus - mirrors RepairMeshDialog/
+	// ShrinkWrapDialog/FillHolesDialog's identical mechanism (see the constructor's connect() for why).
+	void onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow);
 
 private:
 	void populate();

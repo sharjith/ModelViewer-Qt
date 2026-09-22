@@ -28,10 +28,25 @@
 #include <QCollator>
 #include <QSettings>
 #include <QJsonObject>
+#include <QMdiArea>
+#include <QMdiSubWindow>
 #include <any>
 
 namespace
 {
+	// Walks up the parent chain from a widget inside the MDI area to find the QMdiArea itself -
+	// same helper as RepairMeshDialog.cpp/ShrinkWrapDialog.cpp, redeclared locally per that
+	// convention.
+	QMdiArea* findMdiArea(QWidget* widget)
+	{
+		for (QWidget* w = widget; w; w = w->parentWidget())
+		{
+			if (auto* area = qobject_cast<QMdiArea*>(w))
+				return area;
+		}
+		return nullptr;
+	}
+
 	// A table cell that sorts by what it means rather than by its text: a real number sorts numerically, every
 	// "N/A (reason)" cell sorts after the numbers and groups with the others of the same reason (so the invalid,
 	// open, self-intersecting ... meshes end up together), and names sort naturally ("Part 2" before "Part 10").
@@ -212,6 +227,16 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 	_selectionBox->seedFromViewportSelection();
 	connect(_selectionBox, &MeshSelectionBox::meshUuidsChanged, this, &MassPropertiesDialog::onSelectionListChanged);
 
+	// Hide/show this dialog as its OWN document's MDI subwindow loses/gains focus - mirrors RepairMeshDialog/
+	// ShrinkWrapDialog/FillHolesDialog's identical mechanism. Without this, a dialog opened for one document
+	// kept showing (and still reporting on) that document's stale selection even while a different one became
+	// the active tab.
+	if (_modelViewer)
+	{
+		if (QMdiArea* mdiArea = findMdiArea(_modelViewer))
+			connect(mdiArea, &QMdiArea::subWindowActivated, this, &MassPropertiesDialog::onActiveSubWindowChanged);
+	}
+
 	populate();
 	loadSettings();
 }
@@ -220,6 +245,14 @@ void MassPropertiesDialog::seedFromViewportSelection()
 {
 	if (!_activeSession)
 		_selectionBox->seedFromViewportSelection(); // recomputes through onSelectionListChanged()
+}
+
+void MassPropertiesDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)
+{
+	const bool isOwnDocumentActive = _modelViewer
+		&& activeSubWindow
+		&& activeSubWindow->widget() == static_cast<QWidget*>(_modelViewer);
+	setVisible(isOwnDocumentActive);
 }
 
 void MassPropertiesDialog::onSelectionListChanged()

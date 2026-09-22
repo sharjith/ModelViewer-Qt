@@ -21,6 +21,7 @@ class QDoubleSpinBox;
 class QPushButton;
 class QCloseEvent;
 class QTimer;
+class QMdiSubWindow;
 class ModelViewer;
 class MeshSelectionBox;
 class NotesListBox;
@@ -141,6 +142,10 @@ private slots:
 	// transform/geometry change) as a cheap "did anything worth re-checking
 	// happen" gate before doing any real work.
 	void checkForStaleOverlays();
+
+	// Hides/shows this dialog as its own document's MDI subwindow loses/gains focus - mirrors RepairMeshDialog/
+	// ShrinkWrapDialog/FillHolesDialog's identical mechanism (see the constructor's connect() for why).
+	void onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow);
 
 private:
 	enum class Mode { Curvature, WallThickness, Deviation };

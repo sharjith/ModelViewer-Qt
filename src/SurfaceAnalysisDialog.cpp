@@ -43,6 +43,24 @@
 #include <limits>
 #include <utility>
 #include <QStringList>
+#include <QMdiArea>
+#include <QMdiSubWindow>
+
+namespace
+{
+	// Walks up the parent chain from a widget inside the MDI area to find the QMdiArea itself -
+	// same helper as RepairMeshDialog.cpp/ShrinkWrapDialog.cpp, redeclared locally per that
+	// convention.
+	QMdiArea* findMdiArea(QWidget* widget)
+	{
+		for (QWidget* w = widget; w; w = w->parentWidget())
+		{
+			if (auto* area = qobject_cast<QMdiArea*>(w))
+				return area;
+		}
+		return nullptr;
+	}
+}
 
 SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* parent)
 	: QDialog(parent)
@@ -405,7 +423,25 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 	connect(_stalenessTimer, &QTimer::timeout, this, &SurfaceAnalysisDialog::checkForStaleOverlays);
 	_stalenessTimer->start();
 
+	// Hide/show this dialog as its OWN document's MDI subwindow loses/gains focus - mirrors RepairMeshDialog/
+	// ShrinkWrapDialog/FillHolesDialog's identical mechanism. Without this, a dialog opened for one document
+	// kept showing (and still acting on) that document's stale selection even while a different one became the
+	// active tab.
+	if (_modelViewer)
+	{
+		if (QMdiArea* mdiArea = findMdiArea(_modelViewer))
+			connect(mdiArea, &QMdiArea::subWindowActivated, this, &SurfaceAnalysisDialog::onActiveSubWindowChanged);
+	}
+
 	loadSettings();
+}
+
+void SurfaceAnalysisDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)
+{
+	const bool isOwnDocumentActive = _modelViewer
+		&& activeSubWindow
+		&& activeSubWindow->widget() == static_cast<QWidget*>(_modelViewer);
+	setVisible(isOwnDocumentActive);
 }
 
 void SurfaceAnalysisDialog::closeEvent(QCloseEvent* event)
