@@ -662,7 +662,7 @@ color, if Gradient is off)</source>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="266"/>
-        <source>Clip the model with a box: all six planes (min and max on each axis) at once. Replaces the XY/YZ/XZ planes while on.</source>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Clip the model with a box: all six planes (min and max on each axis) at once. Replaces the XY/YZ/XZ planes while on.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -4740,7 +4740,7 @@ Trans. Color</source>
     </message>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="5357"/>
-        <source>Check for thin-film/decorative materials (e.g. clear coat, sheen) where a bulk density is not physically meaningful</source>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Check for thin-film/decorative materials (e.g. clear coat, sheen) where a bulk density is not physically meaningful&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -4755,7 +4755,7 @@ Trans. Color</source>
     </message>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="5374"/>
-        <source>Bulk density in kg/m³ - used to compute mass from volume in the Mass Properties dialog. Library-supplied values are typical/nominal for a generic grade, not an exact spec.</source>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Bulk density in kg/m³ - used to compute mass from volume in the Mass Properties dialog. Library-supplied values are typical/nominal for a generic grade, not an exact spec.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -4782,7 +4782,7 @@ Trans. Color</source>
     </message>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="5416"/>
-        <source>Pseudo thickness in millimetres. Lets Mass Properties treat an open or sheet-like surface of this material (sheet metal, laminates) as area x thickness, instead of reporting it as having no volume. Closed solids ignore it and use their real volume. Leave Unknown to keep open surfaces excluded.</source>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Pseudo thickness in millimetres. Lets Mass Properties treat an open or sheet-like surface of this material (sheet metal, laminates) as area x thickness, instead of reporting it as having no volume. Closed solids ignore it and use their real volume. Leave Unknown to keep open surfaces excluded.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -11633,7 +11633,7 @@ asks again next time</source>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1872"/>
-        <source>Some STEP/IGES files contain faces OpenCascade cannot tessellate (invalid curves on the surface). Left out, they make the part open and unusable for Mass Properties. When on, such faces are healed or rebuilt from their boundary on import.</source>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Some STEP/IGES files contain faces OpenCascade cannot tessellate (invalid curves on the surface). Left out, they make the part open and unusable for Mass Properties. When on, such faces are healed or rebuilt from their boundary on import.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -11648,7 +11648,7 @@ asks again next time</source>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1886"/>
-        <source>A STEP/IGES part whose faces have different colours is normally imported as ONE mesh, the face colours stored as vertex colours - like other CAD viewers do. Turn this on to import one mesh per colour instead (each colour then has its own material, but a part is no longer a single closed solid).</source>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;A STEP/IGES part whose faces have different colours is normally imported as ONE mesh, the face colours stored as vertex colours - like other CAD viewers do. Turn this on to import one mesh per colour instead (each colour then has its own material, but a part is no longer a single closed solid).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

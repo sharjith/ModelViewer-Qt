@@ -815,8 +815,8 @@ pieno, se il gradiente è disattivato)</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="266"/>
-        <source>Clip the model with a box: all six planes (min and max on each axis) at once. Replaces the XY/YZ/XZ planes while on.</source>
-        <translation>Taglia il modello con un box: tutti e sei i piani (min e max su ogni asse) contemporaneamente. Sostituisce i piani XY/YZ/XZ quando è attivo.</translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Clip the model with a box: all six planes (min and max on each axis) at once. Replaces the XY/YZ/XZ planes while on.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Taglia il modello con un box: tutti e sei i piani (min e max su ogni asse) contemporaneamente. Sostituisce i piani XY/YZ/XZ quando è attivo.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="269"/>
@@ -5676,8 +5676,8 @@ Colore Trans.</translation>
     </message>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="5357"/>
-        <source>Check for thin-film/decorative materials (e.g. clear coat, sheen) where a bulk density is not physically meaningful</source>
-        <translation>Selezionare per materiali a film sottile/decorativi (ad es. vernice trasparente, sheen) per i quali una densità apparente non ha significato fisico</translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Check for thin-film/decorative materials (e.g. clear coat, sheen) where a bulk density is not physically meaningful&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Selezionare per materiali a film sottile/decorativi (ad es. vernice trasparente, sheen) per i quali una densità apparente non ha significato fisico&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="5360"/>
@@ -5691,8 +5691,8 @@ Colore Trans.</translation>
     </message>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="5374"/>
-        <source>Bulk density in kg/m³ - used to compute mass from volume in the Mass Properties dialog. Library-supplied values are typical/nominal for a generic grade, not an exact spec.</source>
-        <translation>Densità apparente in kg/m³: usata per calcolare la massa dal volume nella finestra Proprietà di massa. I valori forniti dalla libreria sono tipici/nominali per un grado generico, non una specifica esatta.</translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Bulk density in kg/m³ - used to compute mass from volume in the Mass Properties dialog. Library-supplied values are typical/nominal for a generic grade, not an exact spec.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Densità apparente in kg/m³: usata per calcolare la massa dal volume nella finestra Proprietà di massa. I valori forniti dalla libreria sono tipici/nominali per un grado generico, non una specifica esatta.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="5377"/>
@@ -5718,8 +5718,8 @@ Colore Trans.</translation>
     </message>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="5416"/>
-        <source>Pseudo thickness in millimetres. Lets Mass Properties treat an open or sheet-like surface of this material (sheet metal, laminates) as area x thickness, instead of reporting it as having no volume. Closed solids ignore it and use their real volume. Leave Unknown to keep open surfaces excluded.</source>
-        <translation>Spessore fittizio in millimetri. Consente a Proprietà di massa di trattare una superficie aperta o laminare di questo materiale (lamiera, laminati) come area × spessore, invece di segnalarla priva di volume. I solidi chiusi lo ignorano e usano il loro volume reale. Lascia su Sconosciuto per mantenere escluse le superfici aperte.</translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Pseudo thickness in millimetres. Lets Mass Properties treat an open or sheet-like surface of this material (sheet metal, laminates) as area x thickness, instead of reporting it as having no volume. Closed solids ignore it and use their real volume. Leave Unknown to keep open surfaces excluded.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Spessore fittizio in millimetri. Consente a Proprietà di massa di trattare una superficie aperta o laminare di questo materiale (lamiera, laminati) come area × spessore, invece di segnalarla priva di volume. I solidi chiusi lo ignorano e usano il loro volume reale. Lascia su Sconosciuto per mantenere escluse le superfici aperte.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="5441"/>
@@ -14140,8 +14140,8 @@ chiederà di nuovo la prossima volta</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1872"/>
-        <source>Some STEP/IGES files contain faces OpenCascade cannot tessellate (invalid curves on the surface). Left out, they make the part open and unusable for Mass Properties. When on, such faces are healed or rebuilt from their boundary on import.</source>
-        <translation>Alcuni file STEP/IGES contengono facce che OpenCascade non riesce a tassellare (curve non valide sulla superficie). Se omesse, il pezzo resta aperto e inutilizzabile per Proprietà di massa. Se attivo, tali facce vengono riparate o ricostruite dal loro contorno all&apos;importazione.</translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Some STEP/IGES files contain faces OpenCascade cannot tessellate (invalid curves on the surface). Left out, they make the part open and unusable for Mass Properties. When on, such faces are healed or rebuilt from their boundary on import.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Alcuni file STEP/IGES contengono facce che OpenCascade non riesce a tassellare (curve non valide sulla superficie). Se omesse, il pezzo resta aperto e inutilizzabile per Proprietà di massa. Se attivo, tali facce vengono riparate o ricostruite dal loro contorno all&apos;importazione.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1875"/>
@@ -14155,8 +14155,8 @@ chiederà di nuovo la prossima volta</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1886"/>
-        <source>A STEP/IGES part whose faces have different colours is normally imported as ONE mesh, the face colours stored as vertex colours - like other CAD viewers do. Turn this on to import one mesh per colour instead (each colour then has its own material, but a part is no longer a single closed solid).</source>
-        <translation>Un pezzo STEP/IGES le cui facce hanno colori diversi viene normalmente importato come UNA sola mesh, con i colori delle facce salvati come colori dei vertici, come fanno altri visualizzatori CAD. Attiva questa opzione per importare invece una mesh per colore (ogni colore avrà allora il proprio materiale, ma il pezzo non sarà più un unico solido chiuso).</translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;A STEP/IGES part whose faces have different colours is normally imported as ONE mesh, the face colours stored as vertex colours - like other CAD viewers do. Turn this on to import one mesh per colour instead (each colour then has its own material, but a part is no longer a single closed solid).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Un pezzo STEP/IGES le cui facce hanno colori diversi viene normalmente importato come UNA sola mesh, con i colori delle facce salvati come colori dei vertici, come fanno altri visualizzatori CAD. Attiva questa opzione per importare invece una mesh per colore (ogni colore avrà allora il proprio materiale, ma il pezzo non sarà più un unico solido chiuso).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1914"/>

@@ -5354,7 +5354,7 @@ for this texture</string>
            <item row="1" column="0" colspan="2">
             <widget class="QCheckBox" name="densityNotApplicableCheck">
              <property name="toolTip">
-              <string>Check for thin-film/decorative materials (e.g. clear coat, sheen) where a bulk density is not physically meaningful</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Check for thin-film/decorative materials (e.g. clear coat, sheen) where a bulk density is not physically meaningful&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="text">
               <string>Not applicable (thin-film/decorative material)</string>
@@ -5371,7 +5371,7 @@ for this texture</string>
            <item row="2" column="1">
             <widget class="QDoubleSpinBox" name="densitySpin">
              <property name="toolTip">
-              <string>Bulk density in kg/m³ - used to compute mass from volume in the Mass Properties dialog. Library-supplied values are typical/nominal for a generic grade, not an exact spec.</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Bulk density in kg/m³ - used to compute mass from volume in the Mass Properties dialog. Library-supplied values are typical/nominal for a generic grade, not an exact spec.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="specialValueText">
               <string>Unknown</string>
@@ -5413,7 +5413,7 @@ for this texture</string>
            <item row="4" column="1">
             <widget class="QDoubleSpinBox" name="shellThicknessSpin">
              <property name="toolTip">
-              <string>Pseudo thickness in millimetres. Lets Mass Properties treat an open or sheet-like surface of this material (sheet metal, laminates) as area x thickness, instead of reporting it as having no volume. Closed solids ignore it and use their real volume. Leave Unknown to keep open surfaces excluded.</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Pseudo thickness in millimetres. Lets Mass Properties treat an open or sheet-like surface of this material (sheet metal, laminates) as area x thickness, instead of reporting it as having no volume. Closed solids ignore it and use their real volume. Leave Unknown to keep open surfaces excluded.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="specialValueText">
               <string>Unknown</string>

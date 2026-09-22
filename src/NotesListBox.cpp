@@ -14,6 +14,20 @@
 #include <algorithm>
 #include <utility>
 
+namespace
+{
+	// A plain-text tooltip does not word-wrap in Qt (rich text does) - long enough and it renders as one very wide
+	// single line. Every entry's row already wraps in the list itself (that's this whole widget's point), but its
+	// tooltip is set separately from `full`, which is plain text - wrap it as rich text so it wraps too. `\n` (the
+	// multi-subject case's one-name-per-line list) becomes <br>, everything else is HTML-escaped first so a mesh
+	// name containing '<'/'&' can't break the markup.
+	QString toRichTooltip(const QString& plain)
+	{
+		return QStringLiteral("<html><body><p>%1</p></body></html>")
+			.arg(plain.toHtmlEscaped().replace(QLatin1Char('\n'), QStringLiteral("<br>")));
+	}
+}
+
 NotesListBox::NotesListBox(QWidget* parent)
 	: QWidget(parent)
 {
@@ -120,7 +134,7 @@ void NotesListBox::setNotes(const QVector<Note>& notes)
 		auto* item = new QListWidgetItem(
 			style()->standardIcon(group.severity == Severity::Warning ? QStyle::SP_MessageBoxWarning : QStyle::SP_MessageBoxInformation),
 			text, _list);
-		item->setToolTip(full);
+		item->setToolTip(toRichTooltip(full));
 		_plainTexts.append(full);
 	}
 
