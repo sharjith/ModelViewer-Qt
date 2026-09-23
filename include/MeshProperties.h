@@ -23,6 +23,13 @@ enum class MeshPropertyUnavailableReason
 	None,                  // value is valid - no reason needed
 	InvalidIndices,        // raw soup fails CGAL::Polygon_mesh_processing::is_polygon_soup_a_polygon_mesh() -
 	                       // degenerate/inconsistent faces, or the per-triangle scan itself threw
+	NonManifoldTopology,   // raw soup fails is_polygon_soup_a_polygon_mesh() specifically because of non-manifold
+	                       // connectivity (e.g. a real B-Rep edge shared by 3+ faces - a legitimate CAD topology
+	                       // that just isn't representable as a strict 2-manifold triangle soup as-is), AND either
+	                       // CGAL::Polygon_mesh_processing::repair_polygon_soup() couldn't fix it, or fixing it
+	                       // would need more than a minor amount of point duplication to trust (see
+	                       // computeMeshTopology()'s doc comment) - a more accurate reason than the generic
+	                       // InvalidIndices for this specific, now-distinguished case
 	OpenBoundary,          // mesh has boundary edges (CGAL::is_closed() false)
 	SelfIntersecting,      // CGAL::Polygon_mesh_processing::does_self_intersect() true
 	UnresolvedOrientation, // closed + non-self-intersecting but does_bound_a_volume() is still false

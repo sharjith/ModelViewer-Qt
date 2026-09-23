@@ -1143,9 +1143,13 @@ WallThicknessResult WallThicknessAnalyzer::computeThickness(
 	if (cancelled())
 		return result;
 
+	// A soup that fails this most commonly means a genuinely non-manifold edge (shared by more than
+	// 2 faces) - see MeshProperties.cpp's computeMeshTopology()'s identical check and doc comment
+	// for the real case this covers (MBB Gehause Rohteil.step) and why an attempted automatic
+	// repair was tried and reverted rather than kept.
 	if (!PMP::is_polygon_soup_a_polygon_mesh(soupFaces))
 	{
-		result.rejectionReason = describeMeshPropertyUnavailableReason(MeshPropertyUnavailableReason::InvalidIndices);
+		result.rejectionReason = describeMeshPropertyUnavailableReason(MeshPropertyUnavailableReason::NonManifoldTopology);
 		return result;
 	}
 

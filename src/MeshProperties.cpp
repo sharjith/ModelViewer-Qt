@@ -101,9 +101,26 @@ MeshTopologyCheckResult computeMeshTopology(const std::vector<float>& points, co
 	// local soup copy only.
 	CGAL::Polygon_mesh_processing::merge_duplicate_points_in_polygon_soup(soupPoints, soupFaces);
 
-	if (!indicesInBounds || !CGAL::Polygon_mesh_processing::is_polygon_soup_a_polygon_mesh(soupFaces))
+	if (!indicesInBounds)
 	{
 		check.unavailableReason = MeshPropertyUnavailableReason::InvalidIndices;
+		return check;
+	}
+
+	// A soup that fails this specifically (as opposed to the out-of-bounds-index case above) most
+	// commonly means a genuinely non-manifold edge (shared by more than 2 faces) - a real, if
+	// unusual, CAD topology (confirmed via FreeCAD headless reproduction on a real model,
+	// MBB Gehause Rohteil.step: shape.isValid() true at the OCC/BRep level, one edge legitimately
+	// shared by 4 faces - a rib/wall feature pinching to a knife-edge). An attempted automatic
+	// repair (splitting the offending edge) was tried and reverted - CGAL has no ready-made soup-
+	// level tool for this, and a from-scratch fan-walk implementation, though reasoned through
+	// carefully and matching the same principle CGAL's own vertex-level duplicate_non_manifold_
+	// vertices() uses, still did not produce a valid soup in practice for unknown reasons that
+	// couldn't be diagnosed further without compiler/debugger access. Reporting this reason
+	// accurately (instead of the generic InvalidIndices) is the extent of the fix for now.
+	if (!CGAL::Polygon_mesh_processing::is_polygon_soup_a_polygon_mesh(soupFaces))
+	{
+		check.unavailableReason = MeshPropertyUnavailableReason::NonManifoldTopology;
 		return check;
 	}
 
@@ -151,6 +168,7 @@ QString describeMeshPropertyUnavailableReason(MeshPropertyUnavailableReason reas
 	{
 	case MeshPropertyUnavailableReason::None:                  return QString();
 	case MeshPropertyUnavailableReason::InvalidIndices:         return QObject::tr("invalid geometry");
+	case MeshPropertyUnavailableReason::NonManifoldTopology:    return QObject::tr("non-manifold topology");
 	case MeshPropertyUnavailableReason::OpenBoundary:           return QObject::tr("open surface");
 	case MeshPropertyUnavailableReason::SelfIntersecting:       return QObject::tr("self-intersecting");
 	case MeshPropertyUnavailableReason::UnresolvedOrientation:  return QObject::tr("unresolved orientation");
