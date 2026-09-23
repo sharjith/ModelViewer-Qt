@@ -737,7 +737,7 @@ void logBooleanUnionMeshStats(const char* label, const Mesh& m)
 } // namespace
 
 SceneMesh* SceneMesh::booleanUnionMeshes(const QVector<SceneMesh*>& meshes, const QString& mergedName,
-                                          bool* outUsedRealUnion)
+                                          bool* outUsedRealUnion, bool allowMergeFallback)
 {
 	if (outUsedRealUnion)
 		*outUsedRealUnion = false;
@@ -748,7 +748,12 @@ SceneMesh* SceneMesh::booleanUnionMeshes(const QVector<SceneMesh*>& meshes, cons
 	// Single fallback exit point so every one of this function's several
 	// "abandon the real union, use plain concatenation instead" returns
 	// correctly reports that choice to the caller via outUsedRealUnion.
-	auto fallback = [&]() { return mergeMeshes(meshes, mergedName); };
+	// allowMergeFallback=false turns every one of those same exit points into
+	// a plain "return nullptr" instead - see this function's own header doc
+	// comment for why (ModelViewer::unionSelectedMeshes() uses this to ask
+	// the user first, rather than silently combining differently from what
+	// they asked for).
+	auto fallback = [&]() -> SceneMesh* { return allowMergeFallback ? mergeMeshes(meshes, mergedName) : nullptr; };
 
 	if (meshes.size() < 2 || !meshes[0])
 		return fallback();

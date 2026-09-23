@@ -294,17 +294,23 @@ public:
 	// removal, orientation) since corefinement requires watertight,
 	// self-intersection-free, consistently-oriented input. If repair or
 	// corefinement fails for ANY pair in the fold, abandons the whole
-	// attempt and falls back to mergeMeshes()'s plain concatenation - never
-	// worse than today's "Merge Selected", better whenever the geometry
-	// allows a real solid union. See the plan/[[project_cgal_capabilities_reference]]
-	// for why this is all-or-nothing rather than per-pair partial fallback.
+	// attempt - see allowMergeFallback below for what happens then. See the
+	// plan/[[project_cgal_capabilities_reference]] for why this is all-or-
+	// nothing rather than per-pair partial fallback.
 	// outUsedRealUnion, if non-null, is set to true when a real CGAL union
 	// was produced and false whenever the mergeMeshes() fallback ran instead
 	// (at any of this function's several fallback points) - lets a caller
 	// tell the user which actually happened rather than reporting a generic
 	// "merged" message regardless of which path ran.
+	// allowMergeFallback (default true, matching this function's original
+	// behavior): when the real union can't be produced, true falls back to
+	// mergeMeshes()'s plain concatenation automatically (never worse than
+	// "Merge Selected"); false returns nullptr instead of falling back
+	// silently - the caller (ModelViewer::unionSelectedMeshes()) uses this to
+	// ask the user first whether they want the plain-concatenation fallback,
+	// rather than committing to it without asking.
 	static SceneMesh* booleanUnionMeshes(const QVector<SceneMesh*>& meshes, const QString& mergedName,
-	                                      bool* outUsedRealUnion = nullptr);
+	                                      bool* outUsedRealUnion = nullptr, bool allowMergeFallback = true);
 
 	// Computes a suggested alpha/offset pair for shrinkWrapMeshes() below,
 	// from the combined world-space bounding-box diagonal of meshes (alpha

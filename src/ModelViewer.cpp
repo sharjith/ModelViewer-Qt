@@ -3921,6 +3921,7 @@ void ModelViewer::combineSelectedMeshes(
 	QVector<MergeByAdjacencyCommand*> commands;
 	int meshesCombinedCount = 0;
 	int groupsUsedFallback = 0;
+	int groupsDeclinedByUser = 0;
 	for (const std::vector<int>& group : groupsToCombine)
 	{
 		SceneMesh* groupRefMesh = meshes[group[0]];
@@ -3932,6 +3933,16 @@ void ModelViewer::combineSelectedMeshes(
 		const QString mergedName = _viewportWidget->generateUniqueMeshName(groupRefMesh->getName() + "_Merged");
 		QString detail;
 		SceneMesh* merged = combineFn(groupMeshes, mergedName, &detail);
+		if (!merged)
+		{
+			// combineFn (currently only unionSelectedMeshes()'s) can decline to
+			// produce a result - e.g. the user was asked whether to fall back
+			// to a plain merge after a real union failed, and said no. Leave
+			// this group's meshes exactly as they were (no recycle-bin move,
+			// no command) and move on to the next group.
+			++groupsDeclinedByUser;
+			continue;
+		}
 		if (!detail.isEmpty())
 			++groupsUsedFallback;
 		_viewportWidget->addToDisplay(merged);
@@ -3989,7 +4000,15 @@ void ModelViewer::combineSelectedMeshes(
 
 	QApplication::restoreOverrideCursor();
 
-	if (commands.size() == 1 && separatedSingletonCount == 0)
+	if (commands.isEmpty() && groupsDeclinedByUser > 0)
+	{
+		// Every group was declined (the common case: a single-group union
+		// that failed, and the user said no to the plain-merge fallback) -
+		// nothing was combined at all, so neither of the two messages below
+		// (which both assume at least one result) fits.
+		MainWindow::showStatusMessage(tr("Nothing combined - union declined for %1 group(s).").arg(groupsDeclinedByUser));
+	}
+	else if (commands.size() == 1 && separatedSingletonCount == 0 && groupsDeclinedByUser == 0)
 	{
 		// Exact wording as before this change, for the common (already-compatible or
 		// merge-anyway) single-result case - no behavior/message change there.
@@ -4003,6 +4022,8 @@ void ModelViewer::combineSelectedMeshes(
 		QStringList details;
 		if (groupsUsedFallback > 0)
 			details << tr("%1 group(s) couldn't be unioned - used plain concatenation instead").arg(groupsUsedFallback);
+		if (groupsDeclinedByUser > 0)
+			details << tr("%1 group(s) left uncombined - union declined").arg(groupsDeclinedByUser);
 		if (separatedSingletonCount > 0)
 			details << tr("%1 mesh(es) left uncombined - unique material within the selection").arg(separatedSingletonCount);
 		if (!details.isEmpty())
@@ -4023,17 +4044,36 @@ void ModelViewer::mergeSelectedMeshes()
 void ModelViewer::unionSelectedMeshes()
 {
 	combineSelectedMeshes(
-		[](const QVector<SceneMesh*>& meshes, const QString& name, QString* outDetail) {
+		[this](const QVector<SceneMesh*>& meshes, const QString& name, QString* outDetail) -> SceneMesh* {
+			// allowMergeFallback=false: don't let booleanUnionMeshes() silently
+			// substitute plain concatenation for a real union - ask the user
+			// first (see this function's own doc comment history / project
+			// memory project_curvature_edge_welding_provenance_design.md's
+			// "deferred as a separate follow-up" note for why this replaced
+			// the previous silent-fallback-with-a-status-message behavior).
 			bool usedRealUnion = false;
-			SceneMesh* result = SceneMesh::booleanUnionMeshes(meshes, name, &usedRealUnion);
-			// Mesh Union's own fallback-to-concatenation behavior is
-			// intentionally silent by design (never worse than plain Merge
-			// Selected, whatever the input geometry) - but the user should
-			// still be able to tell which actually happened, rather than
-			// both paths reporting an identical "Combined" message.
-			if (outDetail && !usedRealUnion)
+			SceneMesh* result = SceneMesh::booleanUnionMeshes(meshes, name, &usedRealUnion, /*allowMergeFallback=*/false);
+			if (result)
+				return result; // real union succeeded
+
+			// Real union failed - same makeCurrent()/doneCurrent()-safe pattern as the
+			// material-compatibility prompt above: restore the override cursor before a
+			// blocking dialog, reapply it after, so a modal prompt doesn't sit under a
+			// wait cursor.
+			QApplication::restoreOverrideCursor();
+			const QMessageBox::StandardButton choice = QMessageBox::question(this, tr("Mesh Union"),
+				tr("\"%1\" and the rest of the selection couldn't be combined into a true solid union.\n\n"
+				   "Merge them as a plain combination instead (like \"Merge Selected\")? "
+				   "Choosing \"No\" leaves these meshes uncombined.").arg(meshes.first() ? meshes.first()->getName() : QString()),
+				QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+			QApplication::setOverrideCursor(Qt::WaitCursor);
+
+			if (choice != QMessageBox::Yes)
+				return nullptr; // user declined - this group is left uncombined
+
+			if (outDetail)
 				*outDetail = tr(" (geometry couldn't be unioned - used plain concatenation instead)");
-			return result;
+			return SceneMesh::mergeMeshes(meshes, name);
 		},
 		tr("Mesh Union"));
 }
