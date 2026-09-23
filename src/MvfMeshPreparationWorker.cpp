@@ -498,6 +498,21 @@ QVector<PreparedMvfMesh> MvfMeshPreparationWorker::prepare(const Mvf::Document& 
 		}
 		prepared.occEdgeVertexTolerance = extras[QStringLiteral("occEdgeVertexTolerance")].toDouble();
 
+		// The file carries small per-mesh LOCAL group numbers (0, 1, 2, ...),
+		// not raw ids - see MvfSceneBuilder.cpp's write-side doc comment for
+		// why (JSON numbers can't round-trip a random 64-bit id exactly).
+		// remapLocalGroupsToFreshIds() mints one fresh, process-local id per
+		// distinct group number, preserving equality/inequality among them
+		// without any of the actual values surviving the round trip.
+		std::vector<quint64> sourceMeshLocalGroups;
+		for (const QJsonValue& sv : extras[QStringLiteral("sourceMeshIds")].toArray())
+			sourceMeshLocalGroups.push_back(static_cast<quint64>(sv.toInt()));
+		// A mismatched count (a hand-edited or older-version file) is
+		// treated as absent - defensive, same convention CurvatureAnalyzer
+		// itself applies to a mismatched sourceMeshIds array.
+		if (sourceMeshLocalGroups.size() == prepared.vertices.size())
+			prepared.sourceMeshIds = MeshImportAdaptor::remapLocalGroupsToFreshIds(sourceMeshLocalGroups);
+
 		for (const QJsonValue& tv : extras[QStringLiteral("occFaceTriangleIndices")].toArray())
 			prepared.occFaceTriangleIndices.push_back(tv.toInt());
 		for (const QJsonValue& fv : extras[QStringLiteral("occFaceIndexPerTriangle")].toArray())

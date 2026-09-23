@@ -786,6 +786,7 @@ void UVGenerationDialog::onGenerateClicked()
         SceneMesh* mesh;
         std::vector<Vertex> beforeVertices;
         std::vector<unsigned int> beforeIndices;
+        std::vector<quint64> beforeSourceMeshIds;
     };
     std::vector<Target> targets;
     targets.reserve(ui->meshSelectionBox->meshUuids().size());
@@ -802,6 +803,7 @@ void UVGenerationDialog::onGenerateClicked()
         target.uuid = uuid;
         target.mesh = mesh;
         mesh->getMeshData(target.beforeVertices, target.beforeIndices);
+        target.beforeSourceMeshIds = mesh->getSourceMeshIds();
         targets.push_back(std::move(target));
     }
 
@@ -834,9 +836,16 @@ void UVGenerationDialog::onGenerateClicked()
         std::vector<Vertex> afterVertices;
         std::vector<unsigned int> afterIndices;
         target.mesh->getMeshData(afterVertices, afterIndices);
+        // Read back AFTER generateUVsForMeshes() has already run (see this
+        // function's own doc comment on the mutate-then-construct-command
+        // convention) - reflects whatever ViewportWidget::generateUVsForMeshes()
+        // /UVGenerator's own setMeshData() call remapped beforeSourceMeshIds
+        // through (see SceneMesh::setMeshData()'s doc comment).
+        const std::vector<quint64> afterSourceMeshIds = target.mesh->getSourceMeshIds();
         commands.push_back(new SetMeshUVsCommand(_modelViewer, viewport, target.uuid,
             std::move(target.beforeVertices), std::move(target.beforeIndices),
             std::move(afterVertices), std::move(afterIndices),
+            std::move(target.beforeSourceMeshIds), afterSourceMeshIds,
             tr("Generate UVs (%1)").arg(getMethodName(method))));
     }
     _modelViewer->commitUVGeneration(commands, getMethodName(method));

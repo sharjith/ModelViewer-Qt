@@ -2,8 +2,12 @@
 
 #include "GltfAnimationData.h"
 
+#include <QRandomGenerator>
 #include <QString>
+#include <QtGlobal>
 #include <QVector>
+#include <atomic>
+#include <unordered_map>
 #include <vector>
 
 // Analytic circle for one topological B-Rep edge (Edge Radius measurement
@@ -123,6 +127,90 @@ public:
     const std::vector<OccFaceAxisInfo>& occFaceAxes() const { return _occFaceAxes; }
     bool hasOccFaces() const { return !_occFaceTriangleIndices.empty(); }
 
+    // ---- Source-mesh provenance (Curvature Analysis cross-body advisory) ---
+    // One id per CURRENT vertex (same order as SceneMesh::vertices()), tying
+    // it back to which originally-distinct SceneMesh it came from - see
+    // project memory project_curvature_edge_welding_provenance_design.md.
+    // EMPTY (the default for every freshly imported, cloned-from-a-never-
+    // merged-source, or Split-by-Connectivity-fragment mesh) means "this
+    // whole mesh is one implicit body" - callers must treat an empty array
+    // the same as every entry reading the same value, NOT as "no data"
+    // requiring a separate branch (see sourceMeshIdForVertex() below).
+    // Populated ONLY by SceneMesh::mergeMeshes() ("Merge Selected", and by
+    // extension booleanUnionMeshes()'s fallback to it - a true CGAL boolean
+    // union never needs this, since it genuinely fuses its inputs into one
+    // continuous solid with no leftover body boundary). Kept in lockstep
+    // with SceneMesh::optimizeMesh()'s vertex-fetch reorder (same `remap`
+    // permutation applied to both), NOT re-derived by position matching -
+    // unlike occFaceTriangleIndices/occFaceIndexPerTriangle above, which are
+    // triangle-indexed and need SceneMesh::remapOccFaceTriangleIndicesByPosition()
+    // because they're rarely rebuilt in lockstep with a reorder; this one
+    // always is, since it is only ever set once, at construction time,
+    // before optimizeMesh() runs.
+    void setSourceMeshIds(std::vector<quint64> ids) { _sourceMeshIds = std::move(ids); }
+    const std::vector<quint64>& sourceMeshIds() const { return _sourceMeshIds; }
+    bool hasSourceMeshIds() const { return !_sourceMeshIds.empty(); }
+
+    // Mints a fresh, process-lifetime-unique id (never 0 - that value is
+    // reserved as the "no tag / uniform" sentinel an empty sourceMeshIds()
+    // implicitly means). Thread-safe; called from mergeMeshes() (a live
+    // merge) and remapLocalGroupsToFreshIds() (an MVF reload) - kept atomic
+    // defensively since mesh construction is not guaranteed single-threaded
+    // everywhere in this codebase.
+    //
+    // Seeded once per process from QRandomGenerator rather than a fixed 1,
+    // so two ids minted in the SAME process (e.g. a live merge right after
+    // an MVF file was reloaded, each independently calling this) can never
+    // collide with each other via coincidentally retracing the same 1, 2,
+    // 3, ... sequence - same reasoning as QUuid. (MVF itself never persists
+    // or reloads a raw id value at all - see remapLocalGroupsToFreshIds()'s
+    // doc comment for why - so this is a same-process guarantee only, not a
+    // cross-session one; a random seed still costs nothing to keep.)
+    static quint64 nextSourceMeshId()
+    {
+        static std::atomic<quint64> counter { []() -> quint64
+        {
+            const quint64 seed = QRandomGenerator::global()->generate64();
+            return seed == 0 ? 1 : seed; // 0 is the reserved "no tag" sentinel
+        }() };
+        return counter.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    // MVF read-side counterpart to the write-side remap
+    // MvfSceneBuilder.cpp's mesh-export loop performs on sourceMeshIds()
+    // before serializing it: a raw id from nextSourceMeshId() is a random
+    // 64-bit value, and a standard JSON number only carries 53 bits of
+    // integer precision (IEEE-754 double), so writing it directly would
+    // silently collapse two originally-distinct ids that happen to round to
+    // the same double - exactly defeating the point. The file therefore
+    // never carries a raw id at all: only small, sequential per-mesh LOCAL
+    // group numbers (0, 1, 2, ... in order of first appearance), which are
+    // exact in a JSON double. This function is the inverse - given such a
+    // small-number array read back from a file, it mints one FRESH,
+    // process-local id per distinct group number and returns the expanded
+    // array, so equality/inequality among the file's original groups is
+    // preserved even though none of the actual numeric values survive the
+    // round trip (they were never meaningful outside a same-process
+    // comparison anyway - see nextSourceMeshId()'s own doc comment).
+    // Returns an empty vector unchanged (nothing to remap).
+    static std::vector<quint64> remapLocalGroupsToFreshIds(const std::vector<quint64>& localGroups)
+    {
+        if (localGroups.empty())
+            return {};
+        std::unordered_map<quint64, quint64> freshIdByGroup;
+        freshIdByGroup.reserve(localGroups.size());
+        std::vector<quint64> result;
+        result.reserve(localGroups.size());
+        for (quint64 group : localGroups)
+        {
+            auto it = freshIdByGroup.find(group);
+            if (it == freshIdByGroup.end())
+                it = freshIdByGroup.emplace(group, nextSourceMeshId()).first;
+            result.push_back(it->second);
+        }
+        return result;
+    }
+
 private:
     bool    _skipOptimization      = false;
     int     _sceneIndex           = -1;
@@ -138,4 +226,5 @@ private:
     std::vector<int>              _occFaceTriangleIndices;
     std::vector<int>              _occFaceIndexPerTriangle;
     std::vector<OccFaceAxisInfo>  _occFaceAxes;
+    std::vector<quint64>          _sourceMeshIds;
 };

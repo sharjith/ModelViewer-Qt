@@ -1072,7 +1072,8 @@ void SurfaceAnalysisDialog::applyCurvatureToSelection()
 			try
 			{
 				return CurvatureAnalyzer::computeMeanCurvature(
-					snapshot.points, snapshot.normals, snapshot.indices, -1.0, &cancelRequested);
+					snapshot.points, snapshot.normals, snapshot.indices, -1.0, &cancelRequested,
+					snapshot.sourceMeshIds);
 			}
 			catch (...)
 			{
@@ -1125,6 +1126,8 @@ void SurfaceAnalysisDialog::applyCurvatureToSelection()
 		if (result->succeeded)
 		{
 			repairNotes.append({ mesh->getName(), result->repairSummary, NotesListBox::Severity::Info });
+			if (!result->crossBodyWeldAdvisory.isEmpty())
+				repairNotes.append({ mesh->getName(), result->crossBodyWeldAdvisory, NotesListBox::Severity::Warning });
 			for (size_t i = 0; i < result->meanCurvaturePerVertex.size() && i < result->validPerVertex.size(); ++i)
 			{
 				if (result->validPerVertex[i] && std::isfinite(result->meanCurvaturePerVertex[i]))

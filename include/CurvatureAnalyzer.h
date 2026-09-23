@@ -3,6 +3,7 @@
 #include <atomic>
 #include <vector>
 #include <QString>
+#include <QtGlobal>
 
 class SceneMesh;
 
@@ -47,6 +48,16 @@ struct CurvatureResult
 	// see this class's doc comment for why repair (unlike Draft Angle/
 	// Deviation, which deliberately avoid it) is warranted here.
 	QString repairSummary;
+	// Non-blocking advisory (empty when nothing to report): set when the
+	// input mesh carries source-mesh provenance (SceneMesh::getSourceMeshIds(),
+	// populated only by a "Merge Selected"/Mesh-Union-fallback combine - see
+	// project memory project_curvature_edge_welding_provenance_design.md) AND
+	// the edge-welding step below actually welded across two different
+	// source ids at least once. The weld itself is NOT suppressed - this is
+	// a detect-and-warn design, not a correctness gate, so
+	// meanCurvaturePerVertex/validPerVertex are unaffected either way.
+	QString crossBodyWeldAdvisory;
+	int crossBodyWeldCount = 0;
 	bool succeeded = false;
 };
 
@@ -67,8 +78,13 @@ public:
 	// above is now a thin wrapper around this one. `normals` may be empty or
 	// incomplete; geometric area-weighted vertex normals are used wherever
 	// an imported normal is unavailable, non-finite, or degenerate.
+	// `sourceMeshIds`, when non-empty, must be one entry per ORIGINAL vertex
+	// (same order/count as `points`/`normals`) - see
+	// SceneMesh::getSourceMeshIds()'s doc comment. Empty (the default) is the
+	// common case and behaves exactly as before this parameter existed.
 	static CurvatureResult computeMeanCurvature(
 		const std::vector<float>& points, const std::vector<float>& normals,
 		const std::vector<unsigned int>& indices, double ballRadius = -1.0,
-		const std::atomic<bool>* cancelRequested = nullptr);
+		const std::atomic<bool>* cancelRequested = nullptr,
+		const std::vector<quint64>& sourceMeshIds = {});
 };

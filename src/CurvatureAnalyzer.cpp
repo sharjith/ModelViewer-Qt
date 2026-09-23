@@ -105,13 +105,14 @@ CurvatureResult CurvatureAnalyzer::computeMeanCurvature(SceneMesh* mesh, double 
 {
 	if (!mesh)
 		return CurvatureResult();
-	return computeMeanCurvature(mesh->getTrsfPoints(), mesh->getTrsfNormals(), mesh->getIndices(), ballRadius, cancelRequested);
+	return computeMeanCurvature(mesh->getTrsfPoints(), mesh->getTrsfNormals(), mesh->getIndices(), ballRadius,
+		cancelRequested, mesh->getSourceMeshIds());
 }
 
 CurvatureResult CurvatureAnalyzer::computeMeanCurvature(
 	const std::vector<float>& origPoints, const std::vector<float>& origNormals,
 	const std::vector<unsigned int>& origIndices, double ballRadius,
-	const std::atomic<bool>* cancelRequested)
+	const std::atomic<bool>* cancelRequested, const std::vector<quint64>& sourceMeshIds)
 {
 	CurvatureResult result;
 	const auto cancelled = [cancelRequested]()
@@ -123,6 +124,9 @@ CurvatureResult CurvatureAnalyzer::computeMeanCurvature(
 	const size_t origVertexCount = origPoints.size() / 3;
 	if (origPoints.empty() || origIndices.size() < 3)
 		return result;
+	// A mismatched-size array is treated as absent (defensive - see this
+	// class's header doc comment on sourceMeshIds' expected size).
+	const bool hasSourceMeshIds = sourceMeshIds.size() == origVertexCount;
 
 	// ---- Vertex validity + a filtered face list, shared by soup-building,
 	// the original mesh's own connected-components union-find, and the
@@ -288,9 +292,26 @@ CurvatureResult CurvatureAnalyzer::computeMeanCurvature(
 	// per-component orientation-consensus checks below (a wrongly-merged solid whose vertices vote for a
 	// DIFFERENT repaired component than the majority still gets excluded there). ----
 	UnionFind origUnion(origVertexCount);
-	struct EdgeEndpoints { size_t first = 0; size_t second = 0; };
+	// countedCrossBody: guards against double-counting the SAME physical edge
+	// into crossBodyWeldCount below when it is shared by 3+ faces (non-
+	// manifold input) - firstVerticesAtEdge's key already de-dupes to ONE
+	// entry per distinct edge position, but every visit past the second still
+	// takes the `!inserted` branch, so without this flag a 3rd/4th/... face
+	// on the same edge would each add another (redundant) count for what is,
+	// to the user, one contact location.
+	struct EdgeEndpoints { size_t first = 0; size_t second = 0; bool countedCrossBody = false; };
 	std::unordered_map<OriginalEdgeKey, EdgeEndpoints, OriginalEdgeKeyHash> firstVerticesAtEdge;
 	firstVerticesAtEdge.reserve(validFaces.size() * 3);
+	// Detect-and-warn counterpart to the KNOWN GAP documented above: when
+	// sourceMeshIds distinguishes the two faces about to be welded as coming
+	// from different originally-separate meshes (a "Merge Selected" result -
+	// see SceneMesh::getSourceMeshIds()' doc comment), the weld still
+	// proceeds exactly as before (this stays a heuristic, not a gate), but
+	// is counted so the caller can surface a non-blocking advisory instead of
+	// silently blending curvature across a real part boundary. Zero cost and
+	// always false when sourceMeshIds is empty (the common, never-merged
+	// case), so this adds no new branch to the majority of analyses.
+	size_t crossBodyWeldCount = 0;
 	size_t componentFaceIndex = 0;
 	for (const auto& f : validFaces)
 	{
@@ -316,10 +337,24 @@ CurvatureResult CurvatureAnalyzer::computeMeanCurvature(
 				OriginalEdgeKey { aKey, bKey }, endpoints);
 			if (!inserted)
 			{
+				if (hasSourceMeshIds && !it->second.countedCrossBody
+					&& sourceMeshIds[endpoints.first] != sourceMeshIds[it->second.first])
+				{
+					++crossBodyWeldCount;
+					it->second.countedCrossBody = true;
+				}
 				origUnion.unite(endpoints.first, it->second.first);
 				origUnion.unite(endpoints.second, it->second.second);
 			}
 		}
+	}
+	if (crossBodyWeldCount > 0)
+	{
+		result.crossBodyWeldCount = static_cast<int>(crossBodyWeldCount);
+		result.crossBodyWeldAdvisory = QObject::tr(
+			"%1 contact edge(s) between originally separate parts of this mesh were treated as "
+			"continuous surface during analysis - curvature/validity results near these locations "
+			"may blend across a part boundary.").arg(static_cast<qulonglong>(crossBodyWeldCount));
 	}
 
 	// ---- Pass 1: locate every original vertex on the repaired mesh, tally

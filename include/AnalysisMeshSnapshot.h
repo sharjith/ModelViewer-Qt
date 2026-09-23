@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <QtGlobal>
 
 #include "BoundingBox.h"
 #include "SurfaceAnalysisOverlay.h"
@@ -25,6 +26,7 @@ struct AnalysisMeshSnapshot
 	std::vector<float> points;          // world-space, mirrors getTrsfPoints()
 	std::vector<unsigned int> indices;  // mirrors getIndices()
 	std::vector<float> normals;         // mirrors getTrsfNormals() - only CurvatureAnalyzer needs this
+	std::vector<quint64> sourceMeshIds; // mirrors getSourceMeshIds() - only CurvatureAnalyzer needs this
 	BoundingBox boundingBox;
 
 	// Stamped via SurfaceAnalysisOverlay::computeCurrentKey() at capture

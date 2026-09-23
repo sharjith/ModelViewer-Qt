@@ -52,7 +52,13 @@ public:
 
 	/*  Functions  */
 	// Constructor
-	SceneMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Material::Texture> textures, Material material, bool skipOptimization = false, GLenum primitiveMode = GL_TRIANGLES);
+	// initialSourceMeshIds: optional, one entry per vertex (matching `vertices`),
+	// see MeshImportAdaptor::sourceMeshIds()'s doc comment. Left at its default
+	// (empty) by every call site except SceneMesh::mergeMeshes() and clone()
+	// (when cloning an already-merged mesh) - stored BEFORE optimizeMesh() runs
+	// so its vertex-fetch reorder can permute this array in lockstep with
+	// _vertices, the same way _baseVertices is kept in sync.
+	SceneMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Material::Texture> textures, Material material, bool skipOptimization = false, GLenum primitiveMode = GL_TRIANGLES, std::vector<quint64> initialSourceMeshIds = {});
 	~SceneMesh();
 	virtual SceneMesh* clone();
 	void setProg(QOpenGLShaderProgram* prog) override;
@@ -126,6 +132,36 @@ public:
 	// axes[i] describes the analytic axis for topological face i (see
 	// OccFaceAxisInfo's doc comment) - look up i via getOccTriangleFaceIndex().
 	const std::vector<OccFaceAxisInfo>& getOccFaceAxes() const { return _importState.occFaceAxes(); }
+
+	// Source-mesh provenance for CurvatureAnalyzer's cross-body edge-weld
+	// advisory - see MeshImportAdaptor::sourceMeshIds()'s doc comment. Empty
+	// for the vast majority of meshes (anything that was never combined via
+	// Merge Selected/Mesh Union's fallback); a non-empty array has one entry
+	// per CURRENT vertex (vertices()/getTrsfPoints() order).
+	const std::vector<quint64>& getSourceMeshIds() const { return _importState.sourceMeshIds(); }
+	// Restores provenance captured at MVF save time - unlike the constructor's
+	// initialSourceMeshIds parameter, this is for the ViewportWidget::
+	// uploadOneMvfMesh() reload path, which constructs the mesh with EMPTY
+	// geometry first and populates it afterward via setMeshData() (which
+	// never reorders - "no optimization", see its own doc comment), so the
+	// save-time array is still in the correct order with no remap needed.
+	// Silently ignored (left empty) if `ids` doesn't match the CURRENT
+	// vertex count - defensive, same convention as everywhere else this data
+	// is consumed.
+	void setPrecomputedSourceMeshIds(const std::vector<quint64>& ids)
+	{
+		if (ids.size() == _vertices.size())
+			_importState.setSourceMeshIds(ids);
+	}
+	// Per-vertex convenience query - 0 (the reserved "uniform/no tag"
+	// sentinel) for any mesh whose getSourceMeshIds() is empty, or for an
+	// out-of-range index.
+	quint64 getSourceMeshIdForVertex(unsigned int vertexIndex) const
+	{
+		const std::vector<quint64>& ids = _importState.sourceMeshIds();
+		return vertexIndex < ids.size() ? ids[vertexIndex] : 0;
+	}
+
 	// Returns the getOccFaceAxes() index for triangle `triangleIndex` in
 	// THIS mesh's own current triangle order, or -1 if that triangle isn't
 	// on a captured cylindrical/conical face. Lazily builds a hash-map from

@@ -657,6 +657,48 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
             primitiveExtras.insert(QStringLiteral("sourceFile"), mesh->getSourceFile());
         if (!mesh->getSourceNodeName().isEmpty())
             primitiveExtras.insert(QStringLiteral("sourceNodeName"), mesh->getSourceNodeName());
+
+        // Source-mesh provenance for CurvatureAnalyzer's cross-body edge-weld
+        // advisory (see MeshImportAdaptor::sourceMeshIds()'s doc comment and
+        // project memory project_curvature_edge_welding_provenance_design.md) -
+        // one entry per CURRENT vertex, same order as the geometry chunk
+        // below. Empty for the vast majority of meshes (only ever populated
+        // by a "Merge Selected"/Mesh-Union-fallback combine). Restored on
+        // reload via SceneMesh::setPrecomputedSourceMeshIds() (see
+        // ViewportWidget::uploadOneMvfMesh()) - no position-based re-
+        // derivation is needed there, unlike occFaceTriangleIndices/
+        // occFaceIndexPerTriangle above, since that reload path's own
+        // setMeshData() call never reorders vertices.
+        //
+        // What's written here is NOT mesh->getSourceMeshIds()' raw values:
+        // those are random 64-bit ids (MeshImportAdaptor::nextSourceMeshId()),
+        // and a standard JSON number only carries 53 bits of integer
+        // precision, so writing them directly would silently collapse two
+        // originally-distinct ids onto the same rounded double on reload -
+        // exactly defeating the point. Only the EQUIVALENCE CLASSES need to
+        // survive the round trip (which vertices share a body), never the
+        // actual id values (which were never meaningful outside a same-
+        // process comparison to begin with) - so each mesh's own ids are
+        // remapped here to small, sequential, JSON-exact LOCAL group numbers
+        // (0, 1, 2, ... in order of first appearance); MvfMeshPreparationWorker
+        // mints fresh process-local ids from them on reload (see
+        // MeshImportAdaptor::remapLocalGroupsToFreshIds()).
+        const std::vector<quint64>& sourceMeshIds = mesh->getSourceMeshIds();
+        if (!sourceMeshIds.empty())
+        {
+            std::unordered_map<quint64, int> localGroupByGlobalId;
+            localGroupByGlobalId.reserve(sourceMeshIds.size());
+            QJsonArray sourceMeshIdsJson;
+            for (quint64 id : sourceMeshIds)
+            {
+                auto it = localGroupByGlobalId.find(id);
+                if (it == localGroupByGlobalId.end())
+                    it = localGroupByGlobalId.emplace(id, static_cast<int>(localGroupByGlobalId.size())).first;
+                sourceMeshIdsJson.append(it->second);
+            }
+            primitiveExtras.insert(QStringLiteral("sourceMeshIds"), sourceMeshIdsJson);
+        }
+
         if (mesh->hasVariants())
             primitiveExtras.insert(QStringLiteral("variantMappings"), variantMappingsToJson(mesh->variantMappings()));
 

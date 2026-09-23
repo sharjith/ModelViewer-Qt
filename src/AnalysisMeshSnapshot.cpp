@@ -12,6 +12,7 @@ AnalysisMeshSnapshot captureAnalysisMeshSnapshot(SceneMesh* mesh, const QVariant
 	snapshot.points = mesh->getTrsfPoints();
 	snapshot.indices = mesh->getIndices();
 	snapshot.normals = mesh->getTrsfNormals();
+	snapshot.sourceMeshIds = mesh->getSourceMeshIds();
 	snapshot.boundingBox = mesh->getBoundingBox();
 	snapshot.key = SurfaceAnalysisOverlay::computeCurrentKey(mesh, parameters, referenceMesh);
 
