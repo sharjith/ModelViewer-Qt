@@ -37,19 +37,15 @@ enum class AnalysisKind { Curvature, DraftAngle, WallThickness, Deviation };
 // responsible for actually invoking isValid()/clearOverlay() at the right
 // moments. Deletion IS wired up (SurfaceAnalysisDialog connects to
 // ViewportWidget::meshAboutToBeDeleted and calls clearOverlay() before the
-// mesh is destroyed - see that signal's own doc comment). Geometry-edit/undo
-// invalidation (via isValid()'s cache key) and rendering-mode-change
-// invalidation are NOT yet wired to anything - isValid() currently has no
-// caller, a known, disclosed gap (not a silent one): an in-flight overlay can
-// go stale if the analyzed mesh's geometry changes, or its transform/
-// reference-mesh state changes, while the dialog stays open. computeCurrentKey()/
-// trackedMeshes()/storedKey() below exist specifically so a future idle-poll
-// trigger (planned: comparing RenderableMesh::currentRuntimeBoundsRevision(),
-// which already ticks on every transform change, against a last-seen value -
-// see that revision counter's own doc comment - since no transform-changed
-// signal exists anywhere on SceneMesh/RenderableMesh today) can be added as a
-// pure caller-side addition, with no further changes needed here; that
-// trigger is not wired up yet.
+// mesh is destroyed - see that signal's own doc comment). Transform/geometry-
+// change staleness IS also wired up (SurfaceAnalysisDialog::_stalenessTimer +
+// checkForStaleOverlays(), 500ms tick, cheaply skipped via
+// RenderableMesh::currentRuntimeBoundsRevision() when nothing has moved) -
+// computeCurrentKey()/trackedMeshes()/storedKey() below exist for exactly
+// that caller to re-derive each tracked mesh's current key and compare it
+// against isValid() every tick, auto-clearing (not graying out - see
+// checkForStaleOverlays()'s own doc comment for why) anything that no longer
+// matches.
 class SurfaceAnalysisOverlay
 {
 public:

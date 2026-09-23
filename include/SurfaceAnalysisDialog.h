@@ -164,6 +164,16 @@ private:
 	void applyDeviationToSelection();
 	void applyCurvatureToSelection();
 	void applyWallThicknessToSelection();
+	// Zebra Stripe and an _overlay-tracked colormap result (curvature/thickness/
+	// draft-angle/deviation) are mutually exclusive rendering modes on the same
+	// mesh - called at each of the four applyXToSelection() overlay-apply sites
+	// so a fresh colormap result doesn't leave a previously-enabled Zebra Stripe
+	// still shading the same mesh underneath it. The reverse direction (turning
+	// Zebra Stripe ON clearing an existing colormap overlay) is handled directly
+	// in applyZebraStripeToSelection() itself. No-op if `mesh` doesn't currently
+	// have Zebra Stripe active; unchecks the toggle button once no tracked mesh
+	// has it active anymore.
+	void disableZebraStripeFor(SceneMesh* mesh);
 	// Legend + one-line summary (thinnest wall, share of surface under the limit) for the meshes that currently
 	// show a Wall-Thickness result.
 	void updateThicknessLegendAndSummary();

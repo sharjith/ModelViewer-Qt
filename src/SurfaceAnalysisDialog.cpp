@@ -1023,12 +1023,41 @@ void SurfaceAnalysisDialog::applyZebraStripeToSelection(bool active)
 		SceneMesh* mesh = meshStore.at(id);
 		mesh->setZebraStripeActive(active);
 		if (active)
+		{
 			_zebraStripeMeshes.insert(mesh);
+			// Mutually exclusive with any existing colormap overlay (curvature/
+			// thickness/draft-angle/deviation) on the SAME mesh - see
+			// disableZebraStripeFor()'s own doc comment for the reverse
+			// direction. Without this, turning Zebra Stripe on left a prior
+			// Mean Curvature (etc.) result still shaded underneath/alongside it
+			// instead of visibly switching to the zebra pattern.
+			if (_overlay.hasOverlay(mesh))
+			{
+				_overlay.clearOverlay(mesh);
+				viewport->clearSurfaceAnalysisHoverReadout(); // its cached text/colour was computed from the just-cleared overlay
+			}
+		}
 		else
 			_zebraStripeMeshes.remove(mesh);
 	}
 
 	viewport->update();
+}
+
+void SurfaceAnalysisDialog::disableZebraStripeFor(SceneMesh* mesh)
+{
+	if (!mesh || !_zebraStripeMeshes.contains(mesh))
+		return;
+	mesh->setZebraStripeActive(false);
+	_zebraStripeMeshes.remove(mesh);
+	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
+		viewport->clearSurfaceAnalysisHoverReadout(); // its cached text/colour was computed while Zebra Stripe was shading this mesh
+	if (_zebraStripeMeshes.isEmpty() && _zebraStripeToggle)
+	{
+		_zebraStripeToggle->blockSignals(true);
+		_zebraStripeToggle->setChecked(false);
+		_zebraStripeToggle->blockSignals(false);
+	}
 }
 
 void SurfaceAnalysisDialog::applyCurvatureToSelection()
@@ -1177,6 +1206,7 @@ void SurfaceAnalysisDialog::applyCurvatureToSelection()
 			_overlay.clearOverlay(pm.mesh);
 			continue;
 		}
+		disableZebraStripeFor(pm.mesh);
 		_overlay.applyResult(pm.mesh, pm.result.meanCurvaturePerVertex, pm.result.validPerVertex,
 			pm.key, rangeMin, rangeMax, AnalysisColormap::Diverging, AnalysisKind::Curvature);
 	}
@@ -1393,6 +1423,7 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 			_overlay.clearOverlay(pm.mesh);
 			continue;
 		}
+		disableZebraStripeFor(pm.mesh);
 		// Local thickness supplies sub-triangle samples (drawn as such); Normal ray only has one value per triangle.
 		_overlay.applyRefinedResult(pm.mesh, pm.result.thicknessPerFace, pm.result.validPerFace, pm.result.samples,
 			pm.key, 0.0f, highlight ? 2.0f * limitMm : rangeMax,
@@ -1687,7 +1718,10 @@ void SurfaceAnalysisDialog::applyDraftAngleToSelection()
 	// actual paintGL() draw call.
 	viewport->makeCurrent();
 	for (PerMesh& pm : perMesh)
+	{
+		disableZebraStripeFor(pm.mesh);
 		_overlay.applyFlatResult(pm.mesh, pm.angles, {}, pm.key, rangeMin, rangeMax, AnalysisColormap::Diverging, AnalysisKind::DraftAngle);
+	}
 	viewport->doneCurrent();
 
 	_legendLabel->setPixmap(AnalysisColorRamp::legendGradient(280, 44, rangeMin, rangeMax, AnalysisColormap::Diverging, QStringLiteral("°")));
@@ -1828,6 +1862,7 @@ void SurfaceAnalysisDialog::applyDeviationToSelection()
 	// setAnalysisOverlayColors() below uploads a real GPU buffer - same
 	// makeCurrent()/doneCurrent() reasoning as applyDraftAngleToSelection().
 	viewport->makeCurrent();
+	disableZebraStripeFor(mesh);
 	_overlay.applyResult(mesh, *distances, {}, outcome.snapshotKey, 0.0f, rangeMax, AnalysisColormap::Sequential, AnalysisKind::Deviation);
 	viewport->doneCurrent();
 
