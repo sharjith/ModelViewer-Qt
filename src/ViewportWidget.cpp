@@ -18676,6 +18676,7 @@ bool ViewportWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& mes
         // currently unused, so the two don't silently diverge further.
         if (!pm.sourceMeshIds.empty())
             mesh->setPrecomputedSourceMeshIds(pm.sourceMeshIds);
+        mesh->setTopologyRepaired(pm.topologyRepaired);
         mesh->setVariantMappings(pm.variantMappings);
         mesh->setAllVariantMaterials(pm.allVariantMaterials);
         if (pm.hasSceneRenderTransform)
@@ -18797,6 +18798,7 @@ void ViewportWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
     // save-time order) is still correctly aligned to pm.vertices' order here.
     if (!pm.sourceMeshIds.empty())
         mesh->setPrecomputedSourceMeshIds(pm.sourceMeshIds);
+    mesh->setTopologyRepaired(pm.topologyRepaired);
 
     // Restore skeletal skinning data so bone animations work after MVF reload.
     if (!pm.skinJoints.isEmpty())

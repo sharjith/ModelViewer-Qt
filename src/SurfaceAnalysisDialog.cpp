@@ -1285,7 +1285,9 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 		std::move(snapshots),
 		[analysisParams](const AnalysisMeshSnapshot& snapshot, const std::atomic<bool>& cancelRequested) -> std::any
 		{
-			return WallThicknessAnalyzer::computeThickness(snapshot.points, snapshot.indices, analysisParams, &cancelRequested);
+			WallThicknessParams meshParams = analysisParams;
+			meshParams.topologyRepaired = snapshot.topologyRepaired;
+			return WallThicknessAnalyzer::computeThickness(snapshot.points, snapshot.indices, meshParams, &cancelRequested);
 		});
 
 	_activeSession = nullptr;

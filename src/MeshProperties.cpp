@@ -21,7 +21,10 @@
 #include <CGAL/Polygon_mesh_processing/repair_polygon_soup.h> // merge_duplicate_points_in_polygon_soup() - see its call site below
 #include <CGAL/Polygon_mesh_processing/self_intersections.h>
 #include <CGAL/Polygon_mesh_processing/measure.h> // face_area() - used by selfIntersectingAreaRatio() below
+#include <QDebug>
+#include "SelfIntersectionContact.h"
 #include <CGAL/Polygon_mesh_processing/orientation.h>
+#include <CGAL/Polygon_mesh_processing/orient_polygon_soup.h> // orient_polygon_soup() - non-manifold vertex duplication fallback
 #include <CGAL/boost/graph/helpers.h> // CGAL::is_closed() - NOT a Polygon_mesh_processing:: function
 
 #include <iterator>
@@ -51,11 +54,19 @@ namespace
 		std::vector<std::pair<PropsMesh::Face_index, PropsMesh::Face_index>> pairs;
 		CGAL::Polygon_mesh_processing::self_intersections(mesh, std::back_inserter(pairs));
 		if (pairs.empty())
+		{
 			return 1.0; // does_self_intersect() said yes but found nothing to enumerate - treat as unbounded, not minor
+		}
 
 		std::unordered_set<PropsMesh::Face_index> involved;
 		for (const auto& pair : pairs)
 		{
+			// Surfaces that merely touch (e.g. the split vertices of a knife-edge pinch) are not crossings.
+			const FacePairKind kind = classifyFacePair(mesh, pair.first, pair.second);
+			if (isContactKind(kind))
+			{
+				continue;
+			}
 			involved.insert(pair.first);
 			involved.insert(pair.second);
 		}
@@ -72,7 +83,7 @@ namespace
 	}
 }
 
-MeshTopologyCheckResult computeMeshTopology(const std::vector<float>& points, const std::vector<unsigned int>& indices)
+MeshTopologyCheckResult computeMeshTopology(const std::vector<float>& points, const std::vector<unsigned int>& indices, bool topologyRepaired)
 {
 	MeshTopologyCheckResult check;
 
@@ -120,8 +131,21 @@ MeshTopologyCheckResult computeMeshTopology(const std::vector<float>& points, co
 	// accurately (instead of the generic InvalidIndices) is the extent of the fix for now.
 	if (!CGAL::Polygon_mesh_processing::is_polygon_soup_a_polygon_mesh(soupFaces))
 	{
-		check.unavailableReason = MeshPropertyUnavailableReason::NonManifoldTopology;
-		return check;
+		// The weld above also merges the vertices Repair Mesh deliberately split (CGAL's
+		// orient_polygon_soup()/duplicate_non_manifold_vertices()), since a split vertex is
+		// indistinguishable from a normal-seam duplicate by position - which would make Repair
+		// Mesh's output rejected here for the very defect it just fixed. Apply the same vertex
+		// duplication (topology only, never moves a point or drops a face) to the local welded
+		// soup, and reject only if that still can't produce a valid polygon mesh.
+		const size_t faceCountBefore = soupFaces.size();
+		if (topologyRepaired)
+			CGAL::Polygon_mesh_processing::orient_polygon_soup(soupPoints, soupFaces);
+		if (!topologyRepaired || soupFaces.size() != faceCountBefore
+			|| !CGAL::Polygon_mesh_processing::is_polygon_soup_a_polygon_mesh(soupFaces))
+		{
+			check.unavailableReason = MeshPropertyUnavailableReason::NonManifoldTopology;
+			return check;
+		}
 	}
 
 	PropsMesh cgalMesh;
@@ -319,7 +343,7 @@ namespace
 	}
 }
 
-MeshGeometryComputeResult computeMeshGeometry(const std::vector<float>& points, const std::vector<unsigned int>& indices, const BoundingBox& boundingBox)
+MeshGeometryComputeResult computeMeshGeometry(const std::vector<float>& points, const std::vector<unsigned int>& indices, const BoundingBox& boundingBox, bool topologyRepaired)
 {
 	MeshGeometryComputeResult result;
 	const size_t offset = 3; // each index points to 3 floats
@@ -347,7 +371,7 @@ MeshGeometryComputeResult computeMeshGeometry(const std::vector<float>& points, 
 	// otherwise sound import no longer makes the ENTIRE mesh unusable.
 	// ------------------------------------------------------------------
 	{
-		const MeshTopologyCheckResult topology = computeMeshTopology(points, indices);
+		const MeshTopologyCheckResult topology = computeMeshTopology(points, indices, topologyRepaired);
 		result.hasValidVolume = topology.hasValidVolume;
 		result.volumeUnavailableReason = topology.unavailableReason;
 		result.isApproximateVolume = topology.isApproximate;

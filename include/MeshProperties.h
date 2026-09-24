@@ -63,7 +63,9 @@ struct MeshTopologyCheckResult
 // documented undefined behavior on non-closed/self-intersecting input) that
 // decides whether a raw point/index soup has a well-defined enclosed volume
 // at all.
-MeshTopologyCheckResult computeMeshTopology(const std::vector<float>& points, const std::vector<unsigned int>& indices);
+// `topologyRepaired` (SceneMesh::topologyRepaired()) allows the local welded copy to re-apply Repair Mesh's
+// vertex split; without it a non-manifold mesh is reported as such, honestly.
+MeshTopologyCheckResult computeMeshTopology(const std::vector<float>& points, const std::vector<unsigned int>& indices, bool topologyRepaired = false);
 
 // Surface area (always), and (only if computeMeshTopology() found a valid
 // volume) signed volume + volume-weighted centroid, all in the mesh's OWN
@@ -110,7 +112,7 @@ struct MeshGeometryComputeResult
 // with fabs() applied only to the volume value reported as a magnitude,
 // never to the centroid itself - a centroid legitimately has negative
 // coordinates (e.g. a part centered left of the mesh's own bbox center).
-MeshGeometryComputeResult computeMeshGeometry(const std::vector<float>& points, const std::vector<unsigned int>& indices, const BoundingBox& boundingBox);
+MeshGeometryComputeResult computeMeshGeometry(const std::vector<float>& points, const std::vector<unsigned int>& indices, const BoundingBox& boundingBox, bool topologyRepaired = false);
 
 // The volume a mesh contributes to Mass Properties, in mm^3 / mm, with the shell-thickness rule applied: solid
 // pieces use their real volume; pieces that are open surfaces (sheet metal, laminates) count as area x

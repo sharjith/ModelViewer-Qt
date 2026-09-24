@@ -71,6 +71,9 @@ struct PreparedMvfMesh
 	// creation path. Empty for the vast majority of meshes.
 	std::vector<quint64> sourceMeshIds;
 
+	// SceneMesh::topologyRepaired() - Repair Mesh's intentional non-manifold vertex split marker.
+	bool topologyRepaired = false;
+
 	// Per-mesh user transform (gizmo TRS) preserved across MVF save/load.
 	QVector3D   meshTranslation  = QVector3D(0.0f, 0.0f, 0.0f);
 	QVector3D   meshRotation     = QVector3D(0.0f, 0.0f, 0.0f);

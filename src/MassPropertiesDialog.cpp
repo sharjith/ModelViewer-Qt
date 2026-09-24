@@ -557,7 +557,7 @@ void MassPropertiesDialog::populate()
 		std::move(snapshots),
 		[](const AnalysisMeshSnapshot& snapshot, const std::atomic<bool>&) -> std::any
 		{
-			return computeMeshGeometry(snapshot.points, snapshot.indices, snapshot.boundingBox);
+			return computeMeshGeometry(snapshot.points, snapshot.indices, snapshot.boundingBox, snapshot.topologyRepaired);
 		},
 		[this](int processed, int total)
 		{

@@ -513,6 +513,8 @@ QVector<PreparedMvfMesh> MvfMeshPreparationWorker::prepare(const Mvf::Document& 
 		if (sourceMeshLocalGroups.size() == prepared.vertices.size())
 			prepared.sourceMeshIds = MeshImportAdaptor::remapLocalGroupsToFreshIds(sourceMeshLocalGroups);
 
+		prepared.topologyRepaired = extras[QStringLiteral("topologyRepaired")].toBool(false);
+
 		for (const QJsonValue& tv : extras[QStringLiteral("occFaceTriangleIndices")].toArray())
 			prepared.occFaceTriangleIndices.push_back(tv.toInt());
 		for (const QJsonValue& fv : extras[QStringLiteral("occFaceIndexPerTriangle")].toArray())

@@ -699,6 +699,11 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
             primitiveExtras.insert(QStringLiteral("sourceMeshIds"), sourceMeshIdsJson);
         }
 
+        // Repair Mesh's intentional non-manifold vertex split marker (SceneMesh::topologyRepaired()) -
+        // without it a reloaded repaired mesh would be rejected as non-manifold again.
+        if (mesh->topologyRepaired())
+            primitiveExtras.insert(QStringLiteral("topologyRepaired"), true);
+
         if (mesh->hasVariants())
             primitiveExtras.insert(QStringLiteral("variantMappings"), variantMappingsToJson(mesh->variantMappings()));
 

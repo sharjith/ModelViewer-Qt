@@ -27,6 +27,7 @@ struct AnalysisMeshSnapshot
 	std::vector<unsigned int> indices;  // mirrors getIndices()
 	std::vector<float> normals;         // mirrors getTrsfNormals() - only CurvatureAnalyzer needs this
 	std::vector<quint64> sourceMeshIds; // mirrors getSourceMeshIds() - only CurvatureAnalyzer needs this
+	bool topologyRepaired = false;      // mirrors SceneMesh::topologyRepaired() - Mass Properties/Wall Thickness only
 	BoundingBox boundingBox;
 
 	// Stamped via SurfaceAnalysisOverlay::computeCurrentKey() at capture

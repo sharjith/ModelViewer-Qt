@@ -10,6 +10,7 @@
 #include <CGAL/Polygon_mesh_processing/self_intersections.h>
 #include <CGAL/Polygon_mesh_processing/measure.h> // face_area() - used by selfIntersectingAreaRatio() below
 #include <CGAL/Polygon_mesh_processing/orientation.h>
+#include <CGAL/Polygon_mesh_processing/orient_polygon_soup.h> // orient_polygon_soup() - non-manifold vertex duplication fallback
 #include <CGAL/Polygon_mesh_processing/locate.h> // PMP::build_AABB_tree() - declared here, not in AABB_tree.h itself
 #include <CGAL/boost/graph/helpers.h> // CGAL::is_closed()
 #include <CGAL/AABB_tree.h>
@@ -31,6 +32,7 @@
 #include <variant>
 
 #include <QDebug>
+#include "SelfIntersectionContact.h"
 
 namespace
 {
@@ -66,11 +68,19 @@ namespace
 		std::vector<std::pair<WtMesh::Face_index, WtMesh::Face_index>> pairs;
 		CGAL::Polygon_mesh_processing::self_intersections(mesh, std::back_inserter(pairs));
 		if (pairs.empty())
+		{
 			return 1.0; // does_self_intersect() said yes but found nothing to enumerate - treat as unbounded, not minor
+		}
 
 		std::unordered_set<WtMesh::Face_index> involved;
 		for (const auto& pair : pairs)
 		{
+			// Surfaces that merely touch (e.g. the split vertices of a knife-edge pinch) are not crossings.
+			const FacePairKind kind = classifyFacePair(mesh, pair.first, pair.second);
+			if (isContactKind(kind))
+			{
+				continue;
+			}
 			involved.insert(pair.first);
 			involved.insert(pair.second);
 		}
@@ -1015,7 +1025,9 @@ WallThicknessResult WallThicknessAnalyzer::computeThickness(SceneMesh* mesh, con
 {
 	if (!mesh)
 		return WallThicknessResult();
-	return computeThickness(mesh->getTrsfPoints(), mesh->getIndices(), params, cancelRequested);
+	WallThicknessParams meshParams = params;
+	meshParams.topologyRepaired = mesh->topologyRepaired();
+	return computeThickness(mesh->getTrsfPoints(), mesh->getIndices(), meshParams, cancelRequested);
 }
 
 WallThicknessResult WallThicknessAnalyzer::computeThickness(
@@ -1149,8 +1161,17 @@ WallThicknessResult WallThicknessAnalyzer::computeThickness(
 	// repair was tried and reverted rather than kept.
 	if (!PMP::is_polygon_soup_a_polygon_mesh(soupFaces))
 	{
-		result.rejectionReason = describeMeshPropertyUnavailableReason(MeshPropertyUnavailableReason::NonManifoldTopology);
-		return result;
+		// Same vertex-duplication fallback as computeMeshTopology(): the weld above re-merges the
+		// vertices Repair Mesh split, so orient_polygon_soup() re-applies that (topology only, face
+		// count and order preserved so origFaceIndex below stays 1:1).
+		const size_t faceCountBefore = soupFaces.size();
+		if (params.topologyRepaired)
+			PMP::orient_polygon_soup(soupPoints, soupFaces);
+		if (!params.topologyRepaired || soupFaces.size() != faceCountBefore || !PMP::is_polygon_soup_a_polygon_mesh(soupFaces))
+		{
+			result.rejectionReason = describeMeshPropertyUnavailableReason(MeshPropertyUnavailableReason::NonManifoldTopology);
+			return result;
+		}
 	}
 
 	WtMesh workingMesh;

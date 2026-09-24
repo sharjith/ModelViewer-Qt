@@ -153,6 +153,14 @@ public:
 		if (ids.size() == _vertices.size())
 			_importState.setSourceMeshIds(ids);
 	}
+	// True when Repair Mesh deliberately split non-manifold vertices to make this mesh a valid polygon
+	// mesh (CGAL orient_polygon_soup()/duplicate_non_manifold_vertices()). The split leaves coincident,
+	// unconnected vertices, which are indistinguishable by position from an exporter's normal-seam
+	// duplicates - so the analysis tools (Mass Properties, Wall Thickness) only re-apply that split to
+	// their private welded copy for a mesh carrying this flag. An UNflagged mesh with a non-manifold edge
+	// is reported honestly as non-manifold. Set only by Repair Mesh; copied by clone(); persisted in MVF.
+	bool topologyRepaired() const { return _topologyRepaired; }
+	void setTopologyRepaired(bool repaired) { _topologyRepaired = repaired; }
 	// Per-vertex convenience query - 0 (the reserved "uniform/no tag"
 	// sentinel) for any mesh whose getSourceMeshIds() is empty, or for an
 	// out-of-range index.
@@ -602,6 +610,7 @@ private:
 protected:
 	// ---- Import provenance + animation state (moved from RenderableMesh) --------
 	MeshImportAdaptor  _importState;
+	bool               _topologyRepaired = false; // see topologyRepaired()
 	MeshAnimationState _animState;
 
 	// ---- Interleaved CPU geometry (owned here until DeformableGeometry* composition) ---

@@ -392,6 +392,7 @@ SceneMesh* SceneMesh::clone()
 	mesh->setSourceFile(getSourceFile());
 	mesh->setSourceNodeName(getSourceNodeName());
 	mesh->setSkinJoints(skinJoints());
+	mesh->setTopologyRepaired(_topologyRepaired);
 
 	// Copy material variant tables.
 	mesh->setVariantMappings(variantMappings());
@@ -2750,6 +2751,10 @@ SceneMesh* SceneMesh::repairMesh(SceneMesh* mesh, const QString& newName, MeshRe
 	result->setSceneRenderTransformFast(QMatrix4x4());
 
 	result->fullUpdateRuntimeBounds();
+
+	// Repair split non-manifold vertices - mark it so strict analysis tools know those coincident
+	// vertices are intentional (see SceneMesh::topologyRepaired()).
+	result->setTopologyRepaired(report.nonManifoldVerticesFixed > 0);
 
 	return result;
 }

@@ -68,6 +68,11 @@ struct WallThicknessParams
 {
 	WallThicknessMethod method = WallThicknessMethod::Sphere;
 
+	// SceneMesh::topologyRepaired() of the mesh being analysed - lets the topology gate re-apply Repair Mesh's
+	// non-manifold vertex split on its private welded copy (see MeshProperties.h). An unflagged non-manifold
+	// mesh is rejected as such.
+	bool topologyRepaired = false;
+
 	// ---- Sampling / Local thickness tuning (the sample grid is shared by LocalThickness and Sphere; the ray cone
 	// only applies to LocalThickness) ----
 	// Half angle of the ray cone around the inward normal, 0 - 45 degrees. 0 casts only the straight-in ray from
