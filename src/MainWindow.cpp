@@ -2174,7 +2174,7 @@ void MainWindow::dropEvent(QDropEvent* event)
 		QFileInfo fi(fileName);
 		QString extn = fi.suffix();
 		if (!supportedExtensions[0].contains(extn, Qt::CaseInsensitive)
-			&& extn != "mvf")
+			&& extn != "mvf" && !isSupportedResultFile(fileName))
 		{
 			QMessageBox::critical(this, tr("Error"), url.toString() + tr("\nUnsupported file format: ") + extn);
 		}
@@ -2224,6 +2224,13 @@ void MainWindow::on_actionOpen_triggered()
 	fileDialog.setFileMode(QFileDialog::ExistingFile);	
 	QStringList supportedExtensions = ModelViewerApplication::supportedImportExtensions();
 	supportedExtensions[0].insert(supportedExtensions[0].lastIndexOf(')'), " *.mvf");
+	// Simulation results (.vtu/.vtk, ...): part of "All Supported Files" and offered as their own filter. They open
+	// in a new document like any other file (ModelViewer::loadFile() routes them).
+	QString resultGlobs;
+	for (const QString& extension : supportedResultExtensions())
+		resultGlobs += QStringLiteral(" *.") + extension;
+	supportedExtensions[0].insert(supportedExtensions[0].lastIndexOf(')'), resultGlobs);
+	supportedExtensions.append(tr("Simulation Results (%1)").arg(resultGlobs.trimmed()));
 	QStringList nativeFilter = { "ModelViewer Files (*.mvf)" };
 	supportedExtensions.append(nativeFilter);
 	fileDialog.setNameFilters(supportedExtensions);

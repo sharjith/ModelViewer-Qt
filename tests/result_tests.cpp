@@ -925,6 +925,8 @@ namespace
 		CHECK(!readResultFile(QStringLiteral("x.unknown")).ok());
 		CHECK(!isSupportedResultFile(QStringLiteral("x.stl")));
 		CHECK(isSupportedResultFile(QStringLiteral("a/b/C.VTU")));
+		CHECK(supportedResultExtensions().contains(QStringLiteral("vtu")) && supportedResultExtensions().contains(QStringLiteral("vtk")));
+		CHECK(isSupportedResultFile(QStringLiteral("model.vtk")) && !isSupportedResultFile(QStringLiteral("model.stl")));
 
 		ResultReadOutcome poly = readBytes(buildVtu(singleTet(), Enc::Ascii, "PolyData"));
 		CHECK(!poly.ok());

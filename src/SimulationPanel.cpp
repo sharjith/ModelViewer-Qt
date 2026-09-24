@@ -87,8 +87,9 @@ void SimulationPanel::buildUi()
 	auto* root = new QVBoxLayout(this);
 	root->setContentsMargins(6, 6, 6, 6);
 
-	auto* openButton = new QPushButton(tr("Open Result..."), this);
-	openButton->setToolTip(tr("Open a simulation result (VTK .vtu / .vtk) and show its outer surface coloured by a result field"));
+	auto* openButton = new QPushButton(tr("Add Result..."), this);
+	openButton->setToolTip(tr("Add a simulation result (VTK .vtu / .vtk) to this document, shown as its outer surface coloured by a result field.\n"
+	                          "To open a result in its own document, use File > Open."));
 	connect(openButton, &QPushButton::clicked, this, &SimulationPanel::openRequested);
 	root->addWidget(openButton);
 
@@ -99,9 +100,9 @@ void SimulationPanel::buildUi()
 	auto* emptyPage = new QWidget(_stack);
 	auto* emptyLayout = new QVBoxLayout(emptyPage);
 	auto* hint = new QLabel(
-		tr("No simulation result in this document.\n\nUse \"Open Result...\" to load a .vtu or .vtk file. The result "
-		   "is shown as its outer surface, coloured by a result field; the controls for the field, range, colormap "
-		   "and contours appear here."),
+		tr("No simulation result in this document.\n\nUse File > Open to open a .vtu or .vtk result in its own "
+		   "document, or \"Add Result...\" to add one to this document. A result is shown as its outer surface, "
+		   "coloured by a result field; the controls for the field, range, colormap and contours appear here."),
 		emptyPage);
 	hint->setWordWrap(true);
 	hint->setAlignment(Qt::AlignTop | Qt::AlignLeft);

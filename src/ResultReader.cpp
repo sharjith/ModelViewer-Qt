@@ -5,10 +5,14 @@
 
 #include <QFileInfo>
 
+QStringList supportedResultExtensions()
+{
+	return { QStringLiteral("vtu"), QStringLiteral("vtk") };
+}
+
 bool isSupportedResultFile(const QString& path)
 {
-	const QString suffix = QFileInfo(path).suffix().toLower();
-	return suffix == QLatin1String("vtu") || suffix == QLatin1String("vtk");
+	return supportedResultExtensions().contains(QFileInfo(path).suffix().toLower());
 }
 
 QStringList supportedResultFileFilters()

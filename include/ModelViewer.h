@@ -586,6 +586,10 @@ public slots:
 	// scene node holding the boundary surface coloured by a default field. See
 	// docs/simulation_results_design.md and src/ModelViewerSimulation.cpp.
 	void openSimulationResult();
+	// Starts reading and showing the result file `path` in THIS document (off-thread; the outcome is reported when
+	// the read finishes). Called by openSimulationResult() after its file dialog, and by loadFile()/drop handling
+	// when a result file is opened through File > Open or dropped. Returns false if it could not be started.
+	bool openSimulationResultFile(const QString& path);
 
 	// The result whose controls the Simulation panel shows: the last one selected/opened whose mesh is still
 	// displayed, or nullptr. See src/ModelViewerSimulation.cpp.
@@ -721,6 +725,7 @@ private:
 	// Builds the scene node/mesh/legend for a loaded simulation result (main thread; see openSimulationResult()).
 	void presentSimulationResult(const QString& path, LoadedSimulationResult& result);
 	SimulationSession* findSimulationSession(const QUuid& meshUuid);
+	void closeEmptyResultDocument();
 	SimulationSession* activeSimulationSessionMutable();
 	void connectSimulationHooks();
 	void refreshSimulationDisplay(SimulationSession& session);
@@ -914,6 +919,10 @@ private:
 
 	QUndoStack* _undoStack;
 	bool _simulationLoadInFlight = false;
+	// True when this document was just created (File > Open) only to show one result file: if reading it fails,
+	// the still-empty document is closed again instead of being left blank, and a successful open leaves the
+	// document unmodified and without an undo step (like importing any other format).
+	bool _closeOnSimulationLoadFailure = false;
 	std::vector<SimulationSession> _simulationSessions; // every result opened in this document
 	QUuid _activeSimulationMesh;                        // the session the Simulation panel currently shows
 	bool _simulationHooksConnected = false;

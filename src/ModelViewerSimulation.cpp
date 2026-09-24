@@ -63,10 +63,22 @@ void ModelViewer::openSimulationResult()
 	const QString lastDir = settings.value(QStringLiteral("simulation/lastDirectory")).toString();
 	QStringList filters = supportedResultFileFilters();
 	filters.prepend(tr("All simulation results (*.vtu *.vtk)"));
-	const QString path = QFileDialog::getOpenFileName(this, tr("Open Simulation Result"), lastDir, filters.join(QStringLiteral(";;")));
+	const QString path = QFileDialog::getOpenFileName(this, tr("Add Simulation Result"), lastDir, filters.join(QStringLiteral(";;")));
 	if (path.isEmpty())
 		return;
 	settings.setValue(QStringLiteral("simulation/lastDirectory"), QFileInfo(path).absolutePath());
+	openSimulationResultFile(path);
+}
+
+bool ModelViewer::openSimulationResultFile(const QString& path)
+{
+	if (!_viewportWidget || !_sceneGraph || !_undoStack)
+		return false;
+	if (_simulationLoadInFlight)
+	{
+		MainWindow::showStatusMessage(tr("A simulation result is already loading."), 3000);
+		return false;
+	}
 
 	// Read and extract off the UI thread: a production-size result must not freeze the application.
 	_simulationLoadInFlight = true;
@@ -88,6 +100,7 @@ void ModelViewer::openSimulationResult()
 		self->presentSimulationResult(path, *holder);
 	});
 	thread->start();
+	return true;
 }
 
 void ModelViewer::presentSimulationResult(const QString& path, LoadedSimulationResult& result)
@@ -96,6 +109,7 @@ void ModelViewer::presentSimulationResult(const QString& path, LoadedSimulationR
 	{
 		QMessageBox::warning(this, tr("Open Simulation Result"),
 			tr("Could not open '%1':\n\n%2").arg(QDir::toNativeSeparators(path), result.error));
+		closeEmptyResultDocument();
 		return;
 	}
 	const std::size_t triangleCount = result.surface.triangleCount();
@@ -105,6 +119,7 @@ void ModelViewer::presentSimulationResult(const QString& path, LoadedSimulationR
 			tr("'%1' was read (%2 nodes, %3 cells) but contains nothing that can be displayed yet.\n\n%4")
 				.arg(QFileInfo(path).fileName(), formatCount(result.dataset->nodeCount()), formatCount(result.dataset->cellCount()),
 				     result.warnings.join(QLatin1Char('\n'))));
+		closeEmptyResultDocument();
 		return;
 	}
 
@@ -165,9 +180,20 @@ void ModelViewer::presentSimulationResult(const QString& path, LoadedSimulationR
 	connectSimulationHooks();
 	refreshSimulationDisplay(_simulationSessions.back()); // colours + legend
 
-	// One undoable step, reusing the "add one node + one mesh" command Shrink Wrap/Repair Mesh use.
-	_undoStack->push(new ShrinkWrapCommand(this, viewport, node, parent, position, meshUuid, originalSelection,
-	                                       tr("Open Simulation Result")));
+	if (_closeOnSimulationLoadFailure)
+	{
+		// This document was created by File > Open just for this file: like importing any other format, that is
+		// not an undoable step, and the document starts out unmodified.
+		_closeOnSimulationLoadFailure = false;
+		setDocumentModified(false);
+	}
+	else
+	{
+		// Added to a document that already has content: one undoable step, reusing the "add one node + one mesh"
+		// command Shrink Wrap/Repair Mesh use.
+		_undoStack->push(new ShrinkWrapCommand(this, viewport, node, parent, position, meshUuid, originalSelection,
+		                                       tr("Open Simulation Result")));
+	}
 	viewport->fitAll();
 
 	QString message = tr("%1: %2 nodes, %3 cells, %4 boundary triangles").arg(
@@ -182,6 +208,20 @@ void ModelViewer::presentSimulationResult(const QString& path, LoadedSimulationR
 	MainWindow::showStatusMessage(message, 12000);
 
 	emit simulationSessionChanged(true);
+}
+
+// Called when reading a result failed: a document that File > Open created only for that file is still empty, so
+// close it instead of leaving a blank document behind. Does nothing for a document that already had content.
+void ModelViewer::closeEmptyResultDocument()
+{
+	if (!_closeOnSimulationLoadFailure)
+		return;
+	_closeOnSimulationLoadFailure = false;
+	if (_simulationSessions.empty() && _viewportWidget && _viewportWidget->getMeshStore().empty())
+	{
+		setDocumentModified(false); // no unsaved-changes prompt for a document that never had content
+		close();
+	}
 }
 
 // ---------------------------------------------------------------------------------------------------------------

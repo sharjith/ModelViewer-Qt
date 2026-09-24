@@ -20,6 +20,9 @@ struct ResultReadOutcome
 	bool ok() const { return dataset != nullptr; }
 };
 
+// Lower-case extensions (without the dot) this build can read: currently "vtu" and "vtk".
+QStringList supportedResultExtensions();
+
 // True when the file extension is one this build can read (.vtu XML and legacy .vtk).
 bool isSupportedResultFile(const QString& path);
 

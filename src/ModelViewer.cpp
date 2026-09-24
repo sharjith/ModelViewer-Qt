@@ -2151,13 +2151,15 @@ void ModelViewer::dropEvent(QDropEvent* event)
 		QFileInfo fi(fileName);
 		QString extn = fi.suffix();
 		if (!supportedExtensions[0].contains(extn, Qt::CaseInsensitive)
-			&& extn != "mvf")
+			&& extn != "mvf" && !isSupportedResultFile(fileName))
 		{
 			QMessageBox::critical(this, tr("Error"), url.toString() + tr("\nUnsupported file format: ") + extn);
 		}
 		else
 		{
-			if (extn == "mvf")
+			if (isSupportedResultFile(fileName))
+				openSimulationResultFile(fileName); // dropped onto a document: added to it
+			else if (extn == "mvf")
 				loadFromFile(fileName);
 			else
 			{
@@ -5741,6 +5743,20 @@ void ModelViewer::onFileExport()
 bool ModelViewer::loadFile(const QString& fileName)
 {
 	_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
+
+	if (isSupportedResultFile(fileName))
+	{
+		// A simulation result: read off-thread and shown as a coloured surface (see openSimulationResultFile()),
+		// so this returns as soon as the read has started. A document that File > Open just created for this file
+		// is closed again if the read fails; a Shift+recent import into a document with content is not.
+		_closeOnSimulationLoadFailure = _simulationSessions.empty() && _viewportWidget->getMeshStore().empty();
+		if (!openSimulationResultFile(fileName))
+		{
+			_closeOnSimulationLoadFailure = false;
+			return false;
+		}
+		return true;
+	}
 
 	QString errMsg;
 	bool success = false;
