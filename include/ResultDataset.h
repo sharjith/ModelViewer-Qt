@@ -67,9 +67,16 @@ struct ResultField
 	// Optional names of the components when the file provides them (CalculiX: SXX, SYY, SZZ, SXY, SYZ, SZX).
 	// Empty, or exactly `components` entries.
 	std::vector<QString> componentNames;
-	// Filled by the unit handling (design section 7); empty until the user/file confirms them.
+	// Units (see ResultUnits.h, design section 7). quantityKind is a ResultUnits kind id ("pressure", "length", ...);
+	// fileUnit is what the stored numbers are written in, displayUnit what they are shown in (empty = the file
+	// unit). All empty means "not specified". unitConfirmed is false while fileUnit is only a guess.
 	QString quantityKind;
 	QString fileUnit;
+	QString displayUnit;
+	bool unitConfirmed = false;
+	// For a field computed from another (von Mises from STRESS): that field's index; -1 otherwise. Derived fields
+	// always share their source's units.
+	int derivedFromField = -1;
 	std::vector<std::vector<float>> stepData;
 
 	std::size_t tupleCount(std::size_t step = 0) const

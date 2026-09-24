@@ -259,6 +259,11 @@ MainWindow::MainWindow(QWidget* parent)
 			if (auto* child = activeMdiChild())
 				child->applySimulationViewState(state);
 		});
+		connect(_simulationPanel, &SimulationPanel::unitsChanged, this,
+			[this](int fieldIndex, const QString& kindId, const QString& fileUnit, const QString& displayUnit) {
+				if (auto* child = activeMdiChild())
+					child->applySimulationUnits(fieldIndex, kindId, fileUnit, displayUnit);
+			});
 
 		// Auto Fit View / Selection Highlighting: moved here from the
 		// per-document nav overlay, above the Variants/Animations/Cameras

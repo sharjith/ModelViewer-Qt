@@ -53,8 +53,9 @@ void addDerivedStressFields(ResultDataset& dataset)
 		return false;
 	};
 
-	for (const ResultField& source : dataset.fields)
+	for (std::size_t sourceIndex = 0; sourceIndex < dataset.fields.size(); ++sourceIndex)
 	{
+		const ResultField& source = dataset.fields[sourceIndex];
 		if (source.association != ResultFieldAssociation::Node || source.components != 6
 			|| !source.name.contains(QLatin1String("stress"), Qt::CaseInsensitive))
 			continue;
@@ -73,6 +74,9 @@ void addDerivedStressFields(ResultDataset& dataset)
 			out[k].components = 1;
 			out[k].quantityKind = source.quantityKind;
 			out[k].fileUnit = source.fileUnit;
+			out[k].displayUnit = source.displayUnit;
+			out[k].unitConfirmed = source.unitConfirmed;
+			out[k].derivedFromField = static_cast<int>(sourceIndex);
 			out[k].stepData.resize(source.stepData.size());
 		}
 

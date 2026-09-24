@@ -35,6 +35,8 @@ public:
 signals:
 	void openRequested();
 	void viewStateChanged(const SimulationViewState& state);
+	// The user changed the quantity or a unit of a field (empty strings = "not specified").
+	void unitsChanged(int fieldIndex, const QString& kindId, const QString& fileUnit, const QString& displayUnit);
 
 private:
 	void buildUi();
@@ -50,6 +52,14 @@ private:
 	void onFieldChanged();
 	void onRangeModeChanged();
 
+	// Units of the current field (see ResultUnits.h). populateUnits() fills the three combos and labels from the
+	// dataset without emitting; the handlers below emit unitsChanged().
+	void populateUnits(int fieldIndex);
+	void populateUnitCombos(const QString& kindId, const QString& fileUnit, const QString& displayUnit);
+	void updateUnitLabels(int fieldIndex);
+	void onKindEdited();
+	void onUnitEdited();
+
 	QStackedWidget* _stack = nullptr;
 	QLabel* _fileLabel = nullptr;
 	QLabel* _infoLabel = nullptr;
@@ -58,6 +68,12 @@ private:
 	QLabel* _componentLabel = nullptr;
 	QComboBox* _componentCombo = nullptr;
 	QComboBox* _rangeModeCombo = nullptr;
+	QComboBox* _kindCombo = nullptr;
+	QComboBox* _fileUnitCombo = nullptr;
+	QComboBox* _displayUnitCombo = nullptr;
+	QLabel* _unitStatusLabel = nullptr;
+	QLabel* _minLabel = nullptr;
+	QLabel* _maxLabel = nullptr;
 	QDoubleSpinBox* _minSpin = nullptr;
 	QDoubleSpinBox* _maxSpin = nullptr;
 	QComboBox* _colormapCombo = nullptr;

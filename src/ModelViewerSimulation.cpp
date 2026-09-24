@@ -10,8 +10,8 @@
 // Rendering deliberately reuses the Surface Analysis overlay's GPU path (main_scene.frag with
 // analysisOverlayBands >= 2: the interpolated normalized scalar is quantized per fragment, so colours are
 // correct on coarse meshes and contour bands fall inside triangles) instead of a new shader - see
-// docs/simulation_results_design.md section 6. Interim limits: no unit handling yet (the legend says so), node
-// data only, one time step, and the coloured overlay is not persisted in MVF (the portable snapshot is a later
+// docs/simulation_results_design.md section 6. Units: see ResultUnits.h (a guessed file unit only labels the
+// numbers; "Show in" converts). Interim limits: node data only, one time step, and the coloured overlay is not persisted in MVF (the portable snapshot is a later
 // slice).
 
 #include "ModelViewer.h"
@@ -19,6 +19,7 @@
 #include "AnalysisColorRamp.h"
 #include "MainWindow.h"
 #include "MeshVertex.h"
+#include "ResultUnits.h"
 #include "SceneGraph.h"
 #include "SceneMesh.h"
 #include "ShaderProgram.h"
@@ -38,8 +39,10 @@
 #include <QSettings>
 #include <QThread>
 
+#include <algorithm>
 #include <cmath>
 #include <memory>
+#include <utility>
 
 namespace
 {
@@ -292,6 +295,44 @@ void ModelViewer::applySimulationViewState(const SimulationViewState& state)
 	emit simulationSessionChanged(false); // lets the panel show e.g. the recomputed automatic range
 }
 
+void ModelViewer::applySimulationUnits(int fieldIndex, const QString& kindId, const QString& fileUnit, const QString& displayUnit)
+{
+	SimulationSession* session = activeSimulationSessionMutable();
+	if (!session || !session->dataset)
+		return;
+	ResultDataset& dataset = *session->dataset;
+	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size())
+		return;
+
+	const ResultField before = dataset.fields[static_cast<std::size_t>(fieldIndex)];
+	const QString oldDisplay = before.displayUnit.isEmpty() ? before.fileUnit : before.displayUnit;
+	if (!setFieldUnits(dataset, fieldIndex, kindId, fileUnit, displayUnit))
+	{
+		emit simulationSessionChanged(false); // invalid combination: let the panel show what is really set
+		return;
+	}
+	const ResultField& after = dataset.fields[static_cast<std::size_t>(fieldIndex)];
+	const QString newDisplay = after.displayUnit.isEmpty() ? after.fileUnit : after.displayUnit;
+
+	if (session->state.customRange)
+	{
+		const bool numbersChanged = before.quantityKind != after.quantityKind || before.fileUnit != after.fileUnit;
+		const UnitConversion follow = unitConversion(after.quantityKind, oldDisplay, newDisplay);
+		if (!numbersChanged && follow.valid)
+		{
+			// Same numbers, shown in another unit: the range the user set is the same physical range.
+			session->state.rangeMin = follow.apply(session->state.rangeMin);
+			session->state.rangeMax = follow.apply(session->state.rangeMax);
+			if (session->state.rangeMin > session->state.rangeMax)
+				std::swap(session->state.rangeMin, session->state.rangeMax);
+		}
+		else
+			session->state.customRange = false; // what the numbers mean changed: a range typed for the old ones no longer applies
+	}
+	refreshSimulationDisplay(*session);
+	emit simulationSessionChanged(false);
+}
+
 // Recolours the session's mesh and updates the legend from session.state.
 void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 {
@@ -331,8 +372,10 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 	{
 		if (!_simulationLegend)
 			_simulationLegend = new SimulationLegendWidget(_viewportWidget);
-		// No units yet (design section 7): say so instead of implying a unit.
-		_simulationLegend->setLegend(tr("%1  [unit not specified]").arg(scalar.label), lo, hi, session.state.colormap,
+		// Unit in brackets: the display unit, flagged when it is only a guess, or an honest "not specified".
+		const QString unitText = scalar.unit.isEmpty() ? tr("unit not specified")
+			: (scalar.unitAssumed ? tr("%1, assumed").arg(scalar.unit) : scalar.unit);
+		_simulationLegend->setLegend(tr("%1  [%2]").arg(scalar.label, unitText), lo, hi, session.state.colormap,
 		                             session.state.bands,
 		                             tr("%1\n%2").arg(QDir::toNativeSeparators(session.filePath), session.warnings.join(QLatin1Char('\n'))));
 		// Shown only while this result's mesh is still displayed (it disappears with Undo, returns with Redo).

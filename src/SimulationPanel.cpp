@@ -1,5 +1,7 @@
 #include "SimulationPanel.h"
 
+#include "ResultUnits.h"
+
 #include <QComboBox>
 #include <QFileInfo>
 #include <QFormLayout>
@@ -134,6 +136,18 @@ void SimulationPanel::buildUi()
 	_componentCombo = new QComboBox(content);
 	form->addRow(_componentLabel, _componentCombo);
 
+	// ---- Units of the current field. Result files carry no units, so the file unit starts as a labelled guess;
+	// "Show in" converts. See ResultUnits.h.
+	_kindCombo = new QComboBox(content);
+	form->addRow(tr("Quantity:"), _kindCombo);
+	_fileUnitCombo = new QComboBox(content);
+	form->addRow(tr("Values are in:"), _fileUnitCombo);
+	_displayUnitCombo = new QComboBox(content);
+	form->addRow(tr("Show in:"), _displayUnitCombo);
+	_unitStatusLabel = new QLabel(content);
+	_unitStatusLabel->setWordWrap(true);
+	form->addRow(_unitStatusLabel);
+
 	_rangeModeCombo = new QComboBox(content);
 	_rangeModeCombo->addItem(tr("Automatic (data range)"), false);
 	_rangeModeCombo->addItem(tr("Custom"), true);
@@ -151,9 +165,11 @@ void SimulationPanel::buildUi()
 		return spin;
 	};
 	_minSpin = makeRangeSpin();
-	form->addRow(tr("Minimum:"), _minSpin);
+	_minLabel = new QLabel(tr("Minimum:"), content);
+	form->addRow(_minLabel, _minSpin);
 	_maxSpin = makeRangeSpin();
-	form->addRow(tr("Maximum:"), _maxSpin);
+	_maxLabel = new QLabel(tr("Maximum:"), content);
+	form->addRow(_maxLabel, _maxSpin);
 
 	_colormapCombo = new QComboBox(content);
 	_colormapCombo->addItem(tr("Rainbow (sequential)"), 0);
@@ -171,7 +187,8 @@ void SimulationPanel::buildUi()
 	form->addRow(_noteLabel);
 
 	auto* units = new QLabel(
-		tr("Units are not read from the file yet, so values are shown without a unit."), content);
+		tr("Result files do not store units. The unit above is a guess from the field name and the file type until "
+		   "you confirm it; choosing a different \"Show in\" unit converts the values and the legend."), content);
 	units->setWordWrap(true);
 	form->addRow(units);
 
@@ -187,6 +204,9 @@ void SimulationPanel::buildUi()
 		emitState();
 	});
 	connect(_rangeModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { onRangeModeChanged(); });
+	connect(_kindCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { onKindEdited(); });
+	connect(_fileUnitCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { onUnitEdited(); });
+	connect(_displayUnitCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { onUnitEdited(); });
 	connect(_minSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_updating) emitState(); });
 	connect(_maxSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_updating) emitState(); });
 	connect(_colormapCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { if (!_updating) emitState(); });
@@ -213,6 +233,7 @@ void SimulationPanel::setSession(const SimulationSession* session)
 
 	populateFields(state.fieldIndex);
 	populateComponents(_fieldCombo->currentData().toInt(), state.component);
+	populateUnits(_fieldCombo->currentData().toInt());
 
 	_rangeModeCombo->setCurrentIndex(state.customRange ? 1 : 0);
 	_colormapCombo->setCurrentIndex(std::max(0, _colormapCombo->findData(state.colormap)));
@@ -363,6 +384,7 @@ void SimulationPanel::onFieldChanged()
 	const int fieldIndex = _fieldCombo->currentData().toInt();
 	// Default component for the new field: the magnitude of a vector, the first component of a tensor.
 	populateComponents(fieldIndex, -1);
+	populateUnits(fieldIndex);
 	refreshRangeEdits();
 	emitState();
 }
@@ -385,4 +407,110 @@ void SimulationPanel::onRangeModeChanged()
 	else
 		refreshRangeEdits();
 	emitState();
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Units
+// ---------------------------------------------------------------------------------------------------------------
+
+void SimulationPanel::populateUnits(int fieldIndex)
+{
+	const ResultField* field = nullptr;
+	if (_dataset && fieldIndex >= 0 && static_cast<std::size_t>(fieldIndex) < _dataset->fields.size())
+		field = &_dataset->fields[static_cast<std::size_t>(fieldIndex)];
+
+	const QSignalBlocker blockKind(_kindCombo);
+	_kindCombo->clear();
+	_kindCombo->addItem(tr("Not specified"), QString());
+	for (const QuantityKindInfo& kind : quantityKinds())
+		_kindCombo->addItem(kind.label, kind.id);
+	const QString kindId = field ? field->quantityKind : QString();
+	_kindCombo->setCurrentIndex(std::max(0, _kindCombo->findData(kindId)));
+	_kindCombo->setEnabled(field != nullptr);
+
+	populateUnitCombos(kindId, field ? field->fileUnit : QString(),
+	                   field ? (field->displayUnit.isEmpty() ? field->fileUnit : field->displayUnit) : QString());
+	updateUnitLabels(fieldIndex);
+
+	if (!field)
+		_unitStatusLabel->setText(QString());
+	else if (field->quantityKind.isEmpty() || field->fileUnit.isEmpty())
+		_unitStatusLabel->setText(tr("Unit not specified. Choose the quantity, then the unit the values are written in."));
+	else if (!field->unitConfirmed)
+		_unitStatusLabel->setText(tr("Assumed from the field name and the file type. Confirm or change it."));
+	else
+		_unitStatusLabel->setText(QString());
+	_unitStatusLabel->setVisible(!_unitStatusLabel->text().isEmpty());
+}
+
+void SimulationPanel::populateUnitCombos(const QString& kindId, const QString& fileUnit, const QString& displayUnit)
+{
+	const QSignalBlocker blockFile(_fileUnitCombo);
+	const QSignalBlocker blockDisplay(_displayUnitCombo);
+	_fileUnitCombo->clear();
+	_displayUnitCombo->clear();
+	const QStringList symbols = unitSymbols(kindId);
+	_fileUnitCombo->addItem(tr("(not specified)"), QString());
+	if (symbols.isEmpty())
+	{
+		_displayUnitCombo->addItem(tr("(not specified)"), QString());
+		_fileUnitCombo->setEnabled(false);
+		_displayUnitCombo->setEnabled(false);
+		return;
+	}
+	for (const QString& symbol : symbols)
+	{
+		_fileUnitCombo->addItem(symbol, symbol);
+		_displayUnitCombo->addItem(symbol, symbol);
+	}
+	_fileUnitCombo->setCurrentIndex(std::max(0, _fileUnitCombo->findData(fileUnit)));
+	_fileUnitCombo->setEnabled(true);
+	// Showing in another unit needs to know what the numbers are in first.
+	if (fileUnit.isEmpty())
+	{
+		_displayUnitCombo->insertItem(0, tr("(not specified)"), QString());
+		_displayUnitCombo->setCurrentIndex(0);
+		_displayUnitCombo->setEnabled(false);
+	}
+	else
+	{
+		_displayUnitCombo->setCurrentIndex(std::max(0, _displayUnitCombo->findData(displayUnit.isEmpty() ? fileUnit : displayUnit)));
+		_displayUnitCombo->setEnabled(true);
+	}
+}
+
+// The range boxes are in the display unit; say which.
+void SimulationPanel::updateUnitLabels(int fieldIndex)
+{
+	QString unit;
+	if (_dataset && fieldIndex >= 0 && static_cast<std::size_t>(fieldIndex) < _dataset->fields.size())
+	{
+		const ResultField& f = _dataset->fields[static_cast<std::size_t>(fieldIndex)];
+		unit = f.displayUnit.isEmpty() ? f.fileUnit : f.displayUnit;
+	}
+	_minLabel->setText(unit.isEmpty() ? tr("Minimum:") : tr("Minimum [%1]:").arg(unit));
+	_maxLabel->setText(unit.isEmpty() ? tr("Maximum:") : tr("Maximum [%1]:").arg(unit));
+}
+
+void SimulationPanel::onKindEdited()
+{
+	if (_updating)
+		return;
+	const QString kindId = _kindCombo->currentData().toString();
+	// A new quantity: the unit is NOT assumed - the user says what the values are written in next.
+	populateUnitCombos(kindId, QString(), QString());
+	emit unitsChanged(_fieldCombo->currentData().toInt(), kindId, QString(), QString());
+}
+
+void SimulationPanel::onUnitEdited()
+{
+	if (_updating)
+		return;
+	const QString fileUnit = _fileUnitCombo->currentData().toString();
+	QString displayUnit = _displayUnitCombo->currentData().toString();
+	if (fileUnit.isEmpty())
+		displayUnit.clear();
+	else if (displayUnit.isEmpty())
+		displayUnit = fileUnit; // just told what the values are in: show them as they are until another unit is chosen
+	emit unitsChanged(_fieldCombo->currentData().toInt(), _kindCombo->currentData().toString(), fileUnit, displayUnit);
 }

@@ -37,14 +37,17 @@ struct DisplayScalar
 	int fieldIndex = -1;  // index into ResultDataset::fields
 	int component = -1;   // -1 = magnitude of a 3-component field, otherwise the component index
 	QString label;        // e.g. "von Mises Stress" or "Displacement (magnitude)"
-	std::vector<float> nodeValues; // one per dataset node (may contain non-finite values)
-	float minValue = 0.0f; // over the finite values of ALL nodes
+	std::vector<float> nodeValues; // one per dataset node, in `unit` (may contain non-finite values)
+	float minValue = 0.0f; // over the finite values of ALL nodes, in `unit`
 	float maxValue = 0.0f;
+	QString unit;              // the unit of nodeValues/minValue/maxValue (the field's display unit); empty = not specified
+	bool unitAssumed = false;  // `unit` is a guess the user has not confirmed
 
 	bool valid() const { return fieldIndex >= 0 && !nodeValues.empty(); }
 };
 
-// Builds a DisplayScalar from a node field of step 0. A scalar field ignores `component`; a 3-component field
+// Builds a DisplayScalar from a node field of step 0, converted from the field's file unit to its display unit
+// (when both are known; otherwise the numbers are untouched). A scalar field ignores `component`; a 3-component field
 // uses `component` (0-2) or, with -1, its Euclidean magnitude; fields with other component counts need an
 // explicit `component`. Returns false when the field is not a loaded node field or the request does not fit.
 bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int component, DisplayScalar& out);

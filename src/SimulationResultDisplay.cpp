@@ -1,5 +1,7 @@
 #include "SimulationResultDisplay.h"
 
+#include "ResultUnits.h"
+
 #include <algorithm>
 #include <cmath>
 #include <initializer_list>
@@ -18,6 +20,7 @@ LoadedSimulationResult loadSimulationResult(const QString& path, const std::atom
 	}
 
 	std::shared_ptr<ResultDataset> dataset(read.dataset.release());
+	assignGuessedUnits(*dataset); // labelled, unconfirmed guesses (see ResultUnits.h)
 	QString boundaryError;
 	if (!extractBoundarySurface(*dataset, result.surface, cancel, &boundaryError))
 	{
@@ -69,6 +72,14 @@ bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int compon
 	else
 		return false; // a 6/9-component tensor needs an explicit component
 
+	// Numbers are converted only when the file unit and a different display unit are both known: a guessed file
+	// unit alone never changes them.
+	const UnitConversion conversion = unitConversion(field.quantityKind, field.fileUnit,
+		field.displayUnit.isEmpty() ? field.fileUnit : field.displayUnit);
+	if (conversion.valid && !conversion.isIdentity())
+		for (float& v : values)
+			v = static_cast<float>(conversion.apply(static_cast<double>(v)));
+
 	float lo = std::numeric_limits<float>::max();
 	float hi = std::numeric_limits<float>::lowest();
 	for (float v : values)
@@ -87,6 +98,11 @@ bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int compon
 	out.nodeValues = std::move(values);
 	out.minValue = lo;
 	out.maxValue = hi;
+	if (!field.fileUnit.isEmpty())
+	{
+		out.unit = conversion.valid ? (field.displayUnit.isEmpty() ? field.fileUnit : field.displayUnit) : field.fileUnit;
+		out.unitAssumed = !field.unitConfirmed;
+	}
 	return true;
 }
 

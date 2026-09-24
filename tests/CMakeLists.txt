@@ -9,6 +9,7 @@ add_executable(result_tests
     ${CMAKE_SOURCE_DIR}/src/VtkLegacyReader.cpp
     ${CMAKE_SOURCE_DIR}/src/CalculixFrdReader.cpp
     ${CMAKE_SOURCE_DIR}/src/ResultDerivedFields.cpp
+    ${CMAKE_SOURCE_DIR}/src/ResultUnits.cpp
     ${CMAKE_SOURCE_DIR}/src/ResultBoundary.cpp
     ${CMAKE_SOURCE_DIR}/src/SimulationResultDisplay.cpp
 )

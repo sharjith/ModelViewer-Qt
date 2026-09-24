@@ -10,6 +10,7 @@
 #include "ResultBoundary.h"
 #include "ResultDerivedFields.h"
 #include "ResultReader.h"
+#include "ResultUnits.h"
 #include "SimulationResultDisplay.h"
 
 #include <QByteArray>
@@ -1146,6 +1147,178 @@ namespace
 		}
 	}
 
+	// ---- Units -----------------------------------------------------------------------------------------------------
+
+	QString u16(const char16_t* text) { return QString::fromUtf16(text); }
+
+	int fieldIndexOf(const ResultDataset& ds, const QString& name)
+	{
+		for (std::size_t i = 0; i < ds.fields.size(); ++i)
+			if (ds.fields[i].name == name)
+				return static_cast<int>(i);
+		return -1;
+	}
+
+	void testUnitConversions()
+	{
+		auto conv = [](const char* kind, const QString& from, const QString& to) {
+			return unitConversion(QString::fromLatin1(kind), from, to);
+		};
+		CHECK(approx(conv("length", u16(u"mm"), u16(u"m")).apply(1500.0), 1.5));
+		CHECK(approx(conv("length", u16(u"m"), u16(u"mm")).apply(1.5), 1500.0));
+		CHECK(approx(conv("length", u16(u"cm"), u16(u"in")).apply(2.54), 1.0));
+		CHECK(approx(conv("pressure", u16(u"MPa"), u16(u"Pa")).apply(2.5), 2.5e6));
+		CHECK(approx(conv("pressure", u16(u"MPa"), u16(u"psi")).apply(1.0), 145.0377377, 1e-6));
+		CHECK(approx(conv("pressure", u16(u"psi"), u16(u"kPa")).apply(1.0), 6.894757293, 1e-6));
+		CHECK(approx(conv("density", u16(u"t/mm\u00B3"), u16(u"kg/m\u00B3")).apply(7.85e-9), 7850.0));
+
+		// temperatures are affine, not just scaled
+		const QString K = u16(u"K"), C = u16(u"\u00B0C"), F = u16(u"\u00B0F");
+		CHECK(approx(conv("temperature", C, K).apply(0.0), 273.15));
+		CHECK(approx(conv("temperature", C, F).apply(100.0), 212.0));
+		CHECK(approx(conv("temperature", K, C).apply(300.0), 26.85));
+		CHECK(approx(conv("temperature", F, C).apply(32.0), 0.0, 1e-4, 1e-9));
+		const UnitConversion there = conv("temperature", F, K), back = conv("temperature", K, F);
+		CHECK(approx(back.apply(there.apply(98.6)), 98.6));
+
+		CHECK(conv("length", u16(u"mm"), u16(u"mm")).isIdentity());
+		CHECK(!conv("nonsense", u16(u"mm"), u16(u"m")).valid);
+		CHECK(!conv("length", u16(u"furlong"), u16(u"m")).valid);
+		CHECK(!conv("length", QString(), u16(u"m")).valid);
+		CHECK(findQuantityKind(QStringLiteral("pressure")) != nullptr && findQuantityKind(QString()) == nullptr);
+		CHECK(unitSymbols(QStringLiteral("length")).contains(u16(u"mm")) && unitSymbols(QStringLiteral("nope")).isEmpty());
+	}
+
+	void testUnitGuessing()
+	{
+		CHECK(guessQuantityKind(QStringLiteral("Displacement Magnitude")) == QStringLiteral("length"));
+		CHECK(guessQuantityKind(QStringLiteral("DISP")) == QStringLiteral("length"));
+		CHECK(guessQuantityKind(QStringLiteral("STRESS von Mises")) == QStringLiteral("pressure"));
+		CHECK(guessQuantityKind(QStringLiteral("Major Principal Stress")) == QStringLiteral("pressure"));
+		CHECK(guessQuantityKind(QStringLiteral("Pressure")) == QStringLiteral("pressure"));
+		CHECK(guessQuantityKind(QStringLiteral("TOSTRAIN")) == QStringLiteral("strain"));
+		CHECK(guessQuantityKind(QStringLiteral("Temperature")) == QStringLiteral("temperature"));
+		CHECK(guessQuantityKind(QStringLiteral("scalars")).isEmpty());
+		CHECK(guessQuantityKind(QStringLiteral("mode1")).isEmpty());
+
+		// CalculiX result: the mm-N-MPa system, labelled as an unconfirmed guess; numbers untouched
+		ResultReadOutcome r = readBytes(QByteArray::fromStdString(makeFrd()), QStringLiteral("t.frd"));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		ResultDataset& ds = *r.dataset;
+		const int disp = fieldIndexOf(ds, QStringLiteral("DISP")), stress = fieldIndexOf(ds, QStringLiteral("STRESS"));
+		const int vm = fieldIndexOf(ds, QStringLiteral("STRESS von Mises"));
+		CHECK(disp >= 0 && stress >= 0 && vm >= 0);
+		const float rawDisp = ds.fields[static_cast<std::size_t>(disp)].stepData[0][3]; // node 20 D1 = -1e-3
+		assignGuessedUnits(ds);
+		CHECK(ds.fields[static_cast<std::size_t>(disp)].quantityKind == QStringLiteral("length"));
+		CHECK(ds.fields[static_cast<std::size_t>(disp)].fileUnit == u16(u"mm"));
+		CHECK(ds.fields[static_cast<std::size_t>(stress)].fileUnit == u16(u"MPa"));
+		CHECK(ds.fields[static_cast<std::size_t>(vm)].fileUnit == u16(u"MPa"));
+		CHECK(!ds.fields[static_cast<std::size_t>(disp)].unitConfirmed);
+		CHECK(ds.fields[static_cast<std::size_t>(disp)].displayUnit == ds.fields[static_cast<std::size_t>(disp)].fileUnit);
+		CHECK(ds.fields[static_cast<std::size_t>(disp)].stepData[0][3] == rawDisp); // a guess labels, never converts
+		DisplayScalar d;
+		CHECK(buildDisplayScalar(ds, disp, 0, d) && d.unit == u16(u"mm") && d.unitAssumed);
+
+		// a VTK result is guessed as SI; a temperature is never guessed
+		const QByteArray vtk =
+			"# vtk DataFile Version 3.0\nt\nASCII\nDATASET UNSTRUCTURED_GRID\nPOINTS 4 float\n0 0 0 1 0 0 0 1 0 0 0 1\n"
+			"CELLS 1 5\n4 0 1 2 3\nCELL_TYPES 1\n10\nPOINT_DATA 4\n"
+			"SCALARS von%20Mises%20Stress float\nLOOKUP_TABLE default\n1 2 3 4\n"
+			"SCALARS Temperature float\nLOOKUP_TABLE default\n20 21 22 23\n";
+		ResultReadOutcome rv = readLegacy(vtk);
+		CHECK(rv.ok());
+		if (rv.ok())
+		{
+			assignGuessedUnits(*rv.dataset);
+			CHECK(rv.dataset->fields[0].fileUnit == u16(u"Pa"));
+			CHECK(rv.dataset->fields[1].quantityKind == QStringLiteral("temperature") && rv.dataset->fields[1].fileUnit.isEmpty());
+		}
+	}
+
+	void testSetFieldUnits()
+	{
+		ResultReadOutcome r = readBytes(QByteArray::fromStdString(makeFrd()), QStringLiteral("t.frd"));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		ResultDataset& ds = *r.dataset;
+		assignGuessedUnits(ds);
+		const int stress = fieldIndexOf(ds, QStringLiteral("STRESS"));
+		const int vm = fieldIndexOf(ds, QStringLiteral("STRESS von Mises"));
+
+		// editing the SOURCE field updates its derived fields; editing a derived field updates the source
+		CHECK(setFieldUnits(ds, stress, QStringLiteral("pressure"), u16(u"MPa"), u16(u"Pa")));
+		for (const char* name : { "STRESS", "STRESS von Mises", "STRESS max principal", "STRESS max shear" })
+		{
+			const int i = fieldIndexOf(ds, QString::fromLatin1(name));
+			CHECK(i >= 0 && ds.fields[static_cast<std::size_t>(i)].displayUnit == u16(u"Pa") && ds.fields[static_cast<std::size_t>(i)].unitConfirmed);
+		}
+		DisplayScalar d;
+		CHECK(buildDisplayScalar(ds, vm, -1, d));
+		CHECK(d.unit == u16(u"Pa") && !d.unitAssumed);
+		CHECK(approx(d.nodeValues[0], 100.0e6, 1e-6)); // node 10 uniaxial 100 MPa -> 1e8 Pa
+		CHECK(approx(d.maxValue, 100.0e6, 1e-6)); // node 10 (uniaxial 100 MPa) is the largest von Mises
+
+		CHECK(setFieldUnits(ds, vm, QStringLiteral("pressure"), u16(u"MPa"), u16(u"MPa"))); // via the derived field
+		CHECK(ds.fields[static_cast<std::size_t>(stress)].displayUnit == u16(u"MPa"));
+		CHECK(buildDisplayScalar(ds, vm, -1, d) && approx(d.nodeValues[0], 100.0));
+
+		// invalid requests change nothing
+		const QString before = ds.fields[static_cast<std::size_t>(stress)].fileUnit;
+		CHECK(!setFieldUnits(ds, stress, QStringLiteral("pressure"), u16(u"furlong"), QString()));
+		CHECK(!setFieldUnits(ds, stress, QStringLiteral("nonsense"), u16(u"Pa"), QString()));
+		CHECK(!setFieldUnits(ds, 999, QStringLiteral("pressure"), u16(u"Pa"), QString()));
+		CHECK(ds.fields[static_cast<std::size_t>(stress)].fileUnit == before);
+
+		// a known quantity with no unit yet: kept, but nothing is converted or labelled
+		CHECK(setFieldUnits(ds, stress, QStringLiteral("pressure"), QString(), QString()));
+		CHECK(ds.fields[static_cast<std::size_t>(vm)].quantityKind == QStringLiteral("pressure")
+		      && ds.fields[static_cast<std::size_t>(vm)].fileUnit.isEmpty());
+		CHECK(buildDisplayScalar(ds, vm, -1, d) && d.unit.isEmpty() && approx(d.nodeValues[0], 100.0));
+
+		// "not specified" clears the units (numbers are shown as written)
+		CHECK(setFieldUnits(ds, stress, QString(), QString(), QString()));
+		CHECK(buildDisplayScalar(ds, vm, -1, d) && d.unit.isEmpty() && approx(d.nodeValues[0], 100.0));
+	}
+
+	// The same physical result read from two files in different unit systems must agree once the units are handled:
+	// the CalculiX .frd (mm, MPa) and FreeCAD's .vtu export of it (SI: m, Pa).
+	void testUnitsAcrossFiles()
+	{
+		const QString dir = QStringLiteral(MV_SIMULATION_SAMPLES_DIR);
+		const QString frdPath = dir + QStringLiteral("/FEM_box_static.frd"), vtuPath = dir + QStringLiteral("/FEM_box_static_stress.vtu");
+		if (!QFile::exists(frdPath) || !QFile::exists(vtuPath))
+		{
+			std::printf("  (skipping cross-file unit test: samples not found)\n");
+			return;
+		}
+		const LoadedSimulationResult frd = loadSimulationResult(frdPath), vtu = loadSimulationResult(vtuPath);
+		CHECK(frd.ok() && vtu.ok());
+		if (!frd.ok() || !vtu.ok())
+			return;
+
+		// loadSimulationResult() assigns the guessed units: mm/MPa for CalculiX, SI for the VTK file
+		DisplayScalar frdVm, vtuVm, frdDisp, vtuDisp;
+		CHECK(buildDisplayScalar(*frd.dataset, fieldIndexOf(*frd.dataset, QStringLiteral("STRESS von Mises")), -1, frdVm));
+		CHECK(buildDisplayScalar(*vtu.dataset, fieldIndexOf(*vtu.dataset, QStringLiteral("von Mises Stress")), -1, vtuVm));
+		CHECK(frdVm.unit == u16(u"MPa") && vtuVm.unit == u16(u"Pa") && frdVm.unitAssumed && vtuVm.unitAssumed);
+
+		// show the FRD stress in Pa: it now matches the VTU's
+		ResultDataset& frdData = *frd.dataset;
+		CHECK(setFieldUnits(frdData, fieldIndexOf(frdData, QStringLiteral("STRESS")), QStringLiteral("pressure"), u16(u"MPa"), u16(u"Pa")));
+		CHECK(buildDisplayScalar(frdData, fieldIndexOf(frdData, QStringLiteral("STRESS von Mises")), -1, frdVm));
+		CHECK(approx(frdVm.minValue, vtuVm.minValue, 1e-4) && approx(frdVm.maxValue, vtuVm.maxValue, 1e-4));
+
+		// displacement: FRD in mm shown in m == the VTU's Displacement Magnitude (m)
+		CHECK(setFieldUnits(frdData, fieldIndexOf(frdData, QStringLiteral("DISP")), QStringLiteral("length"), u16(u"mm"), u16(u"m")));
+		CHECK(buildDisplayScalar(frdData, fieldIndexOf(frdData, QStringLiteral("DISP")), -1, frdDisp));
+		CHECK(buildDisplayScalar(*vtu.dataset, fieldIndexOf(*vtu.dataset, QStringLiteral("Displacement Magnitude")), -1, vtuDisp));
+		CHECK(approx(frdDisp.maxValue, vtuDisp.maxValue, 1e-4));
+	}
+
 	void testLoadSimulationResult()
 	{
 		const QString path = tempDir().filePath(QStringLiteral("load_test.vtk"));
@@ -1371,6 +1544,10 @@ int main(int argc, char** argv)
 	testFrdSynthetic();
 	testFrdErrors();
 	testFrdRealFiles();
+	testUnitConversions();
+	testUnitGuessing();
+	testSetFieldUnits();
+	testUnitsAcrossFiles();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();

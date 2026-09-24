@@ -596,6 +596,10 @@ public slots:
 	const SimulationSession* activeSimulationSession() const;
 	// Applies an edit from the Simulation panel to the active session: recolours its mesh and updates the legend.
 	void applySimulationViewState(const SimulationViewState& state);
+	// Applies a quantity/unit edit from the Simulation panel to the active session's field (and its derived
+	// fields), then redraws. A custom colour range follows a change of display unit; a change of what the numbers
+	// ARE (quantity or file unit) returns it to the data range.
+	void applySimulationUnits(int fieldIndex, const QString& kindId, const QString& fileUnit, const QString& displayUnit);
 
 	// The Reconstruct Surface dialog's one-line bridge into the undo stack -
 	// same convention and immediate-per-result timing as commitShrinkWrap()/
