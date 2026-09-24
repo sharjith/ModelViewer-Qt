@@ -441,6 +441,7 @@ void QuickHelpDialog::setupMouseControlsTab()
 		{tr("Rotate View"), tr("Ctrl + Left Button + Drag"), tr("Enable 'Rotate View' mode from toolbar")},
 		{tr("Pan View"), tr("Ctrl + Right Button + Drag"), tr("Enable 'Pan View' mode from toolbar")},
 		{tr("Zoom View"), tr("Mouse Wheel<br/>OR<br/>Ctrl + Middle Button + Drag"), tr("Enable 'Zoom View' mode from toolbar")},
+		{tr("Scroll Object Tree"), tr("Ctrl + Mouse Wheel over the tree"), tr("Scroll bar on the tree's edge")},
 		{tr("Center Pan"), tr("Middle Button Click (release at new position)"), tr("N/A")},
 		{tr("Select Object"), tr("Left Button Click"), tr("N/A")},
 		{tr("Multi-Select"), tr("Left Button + Drag (rubber band)"), tr("Hold Ctrl while clicking")},
