@@ -865,6 +865,11 @@ MainWindow::MainWindow(QWidget* parent)
         if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("repair"));
     });
 
+	// Simulation → Open Result... - file dialog + load, same wiring shape as the Tools actions above.
+	connect(ui->actionOpenSimulationResult, &QAction::triggered, this, [this]() {
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("simulation_open"));
+    });
+
 	// Tools → Fill Holes... - opens the non-modal FillHolesDialog, same wiring shape as
 	// actionRepairMesh above.
 	connect(ui->actionFillHoles, &QAction::triggered, this, [this]() {
@@ -2489,6 +2494,7 @@ void MainWindow::updateMenus()
 	ui->actionReconstructSurface->setEnabled(hasMdiChild);
 	ui->actionRepairMesh->setEnabled(hasMdiChild);
 	ui->actionFillHoles->setEnabled(hasMdiChild);
+	ui->actionOpenSimulationResult->setEnabled(hasMdiChild);
 	ui->actionGenerateUVs->setEnabled(hasMdiChild);
 	ui->actionPurgeRedundantNodes->setEnabled(hasMdiChild);
 	{

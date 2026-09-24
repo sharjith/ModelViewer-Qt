@@ -22,11 +22,14 @@
 #include "MaterialVariantsPanel.h"
 #include "TextureDebugPanel.h"
 
+#include <QPointer>
 #include <QUndoStack>
 
 #include <functional>
 
 class QTabWidget;
+class SimulationLegendWidget;
+struct LoadedSimulationResult;
 class QToolButton;
 class QFrame;
 class QTimer;
@@ -576,6 +579,11 @@ public slots:
 	// openSubdivisionDialog() above.
 	void openReconstructSurfaceDialog();
 
+	// Simulation -> Open Result...: file dialog, off-thread read + boundary extraction, then a new undoable
+	// scene node holding the boundary surface coloured by a default field. See
+	// docs/simulation_results_design.md and src/ModelViewerSimulation.cpp.
+	void openSimulationResult();
+
 	// The Reconstruct Surface dialog's one-line bridge into the undo stack -
 	// same convention and immediate-per-result timing as commitShrinkWrap()/
 	// commitSubdivision() above, reusing the exact same ShrinkWrapCommand
@@ -701,6 +709,9 @@ protected:
 	void mouseMoveEvent(QMouseEvent* event);
 
 private:
+	// Builds the scene node/mesh/legend for a loaded simulation result (main thread; see openSimulationResult()).
+	void presentSimulationResult(const QString& path, LoadedSimulationResult& result);
+
 	// Shared implementation for mergeSelectedMeshes()/unionSelectedMeshes() -
 	// see mergeSelectedMeshes()'s doc comment for what's common between them,
 	// and combineSelectedMeshes()'s own .cpp doc comment for why combineFn
@@ -889,6 +900,8 @@ private:
 	TextureDebugPanel*     _textureDebugPanel  = nullptr;
 
 	QUndoStack* _undoStack;
+	bool _simulationLoadInFlight = false;
+	QPointer<SimulationLegendWidget> _simulationLegend; // colour-bar legend of the most recently opened simulation result
 	bool _lastCanUndo = false;
 	bool _lastCanRedo = false;
 	int _lastUndoIndex = 0;

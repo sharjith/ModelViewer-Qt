@@ -32,6 +32,7 @@
 #include "BatchRenderViewsDialog.h"
 #include "SubdivisionDialog.h"
 #include "ReconstructSurfaceDialog.h"
+#include "SimulationLegendWidget.h"
 #include "RepairMeshDialog.h"
 #include "FillHolesDialog.h"
 #include "LanguageManager.h"
@@ -1070,7 +1071,10 @@ void ModelViewer::revealNavigation()
 	// raiseViewportToolbar() at construction only established the ordering
 	// once, not permanently). Re-assert it right after every time this
 	// panel raises itself, so the toolbar always ends up back on top
-	// regardless of how often either one raises.
+	// regardless of how often either one raises. The simulation result legend needs exactly the same
+	// treatment (it sat underneath this panel and looked like it vanished on every mouse move).
+	if (_simulationLegend)
+		_simulationLegend->raise();
 	if (_viewportWidget)
 		_viewportWidget->raiseViewportToolbar();
 	if (_navigationRevealed)
@@ -7986,6 +7990,7 @@ void ModelViewer::executeToolCommand(const QString& command)
     else if (command == QLatin1String("reconstruct")) openReconstructSurfaceDialog();
     else if (command == QLatin1String("repair")) openRepairMeshDialog();
     else if (command == QLatin1String("fill")) openFillHolesDialog();
+    else if (command == QLatin1String("simulation_open")) openSimulationResult();
     else if (command == QLatin1String("uv")) openUVGenerationDialog();
     else if (command == QLatin1String("mass")) openMassPropertiesDialog();
     else if (command == QLatin1String("report")) { ReportExportDialog dialog(this, this); dialog.exec(); }

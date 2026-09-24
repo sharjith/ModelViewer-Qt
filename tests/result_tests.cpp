@@ -9,6 +9,7 @@
 
 #include "ResultBoundary.h"
 #include "ResultReader.h"
+#include "SimulationResultDisplay.h"
 
 #include <QByteArray>
 #include <QDir>
@@ -709,6 +710,128 @@ namespace
 		}
 	}
 
+	// ---- Simulation result display logic --------------------------------------------------------------
+
+	void testSimulationDisplay()
+	{
+		// Fields (in order): aaa (scalar), von Mises Stress (scalar, name percent-encoded in the legacy file),
+		// disp (vector). The default must prefer the von Mises field over the first scalar.
+		const QByteArray fixture =
+			"# vtk DataFile Version 3.0\nt\nASCII\nDATASET UNSTRUCTURED_GRID\nPOINTS 4 float\n0 0 0 1 0 0 0 1 0 0 0 1\n"
+			"CELLS 1 5\n4 0 1 2 3\nCELL_TYPES 1\n10\nPOINT_DATA 4\n"
+			"SCALARS aaa float\nLOOKUP_TABLE default\n1 2 3 4\n"
+			"SCALARS von%20Mises%20Stress float\nLOOKUP_TABLE default\n10 20 30 40\n"
+			"VECTORS disp float\n0 0 0  3 4 0  0 0 0  0 0 12\n";
+		ResultReadOutcome r = readLegacy(fixture);
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		CHECK(ds.fields.size() == 3);
+		CHECK(ds.fields[1].name == QStringLiteral("von Mises Stress"));
+
+		DisplayScalar def;
+		CHECK(chooseDefaultDisplayScalar(ds, def));
+		CHECK(def.fieldIndex == 1);
+		CHECK(def.label == QStringLiteral("von Mises Stress"));
+		CHECK(def.minValue == 10.0f && def.maxValue == 40.0f);
+
+		// Vector magnitude and single components.
+		DisplayScalar mag;
+		CHECK(buildDisplayScalar(ds, 2, -1, mag));
+		CHECK(mag.nodeValues.size() == 4);
+		CHECK(std::fabs(mag.nodeValues[1] - 5.0f) < 1e-6f && std::fabs(mag.nodeValues[3] - 12.0f) < 1e-6f);
+		CHECK(mag.minValue == 0.0f && mag.maxValue == 12.0f);
+		CHECK(mag.label.contains(QStringLiteral("magnitude")));
+		DisplayScalar comp;
+		CHECK(buildDisplayScalar(ds, 2, 1, comp));
+		CHECK(comp.nodeValues[1] == 4.0f && comp.nodeValues[3] == 0.0f);
+		CHECK(!buildDisplayScalar(ds, 2, 5, comp)); // no such component
+		CHECK(!buildDisplayScalar(ds, 7, -1, comp)); // no such field
+
+		// With only a vector field, the default falls back to its magnitude.
+		const QByteArray vectorOnly =
+			"# vtk DataFile Version 3.0\nt\nASCII\nDATASET UNSTRUCTURED_GRID\nPOINTS 4 float\n0 0 0 1 0 0 0 1 0 0 0 1\n"
+			"CELLS 1 5\n4 0 1 2 3\nCELL_TYPES 1\n10\nPOINT_DATA 4\nVECTORS disp float\n0 0 0  3 4 0  0 0 0  0 0 12\n";
+		ResultReadOutcome rv = readLegacy(vectorOnly);
+		CHECK(rv.ok());
+		if (rv.ok())
+		{
+			DisplayScalar d;
+			CHECK(chooseDefaultDisplayScalar(*rv.dataset, d));
+			CHECK(d.label.contains(QStringLiteral("magnitude")));
+		}
+
+		// No node field at all: nothing to colour by (the geometry is still displayable).
+		Mesh bare = singleTet();
+		bare.pointScalar.clear();
+		ResultReadOutcome rb = readBytes(buildVtu(bare, Enc::Ascii));
+		CHECK(rb.ok());
+		if (rb.ok())
+		{
+			DisplayScalar d;
+			CHECK(!chooseDefaultDisplayScalar(*rb.dataset, d)); // only a CELL vector field exists
+		}
+
+		// Non-finite values are excluded from the range; an all-non-finite field is rejected.
+		const QByteArray withNan =
+			"# vtk DataFile Version 3.0\nt\nASCII\nDATASET UNSTRUCTURED_GRID\nPOINTS 4 float\n0 0 0 1 0 0 0 1 0 0 0 1\n"
+			"CELLS 1 5\n4 0 1 2 3\nCELL_TYPES 1\n10\nPOINT_DATA 4\nSCALARS s float\nLOOKUP_TABLE default\n2 nan 5 3\n"
+			"SCALARS allnan float\nLOOKUP_TABLE default\nnan nan nan nan\n";
+		ResultReadOutcome rn = readLegacy(withNan);
+		CHECK(rn.ok());
+		if (rn.ok())
+		{
+			DisplayScalar d;
+			CHECK(buildDisplayScalar(*rn.dataset, 0, -1, d));
+			CHECK(d.minValue == 2.0f && d.maxValue == 5.0f);
+			CHECK(!buildDisplayScalar(*rn.dataset, 1, -1, d));
+		}
+
+		// Per-vertex values follow the boundary's vertex -> node map.
+		const ResultBoundarySurface s = extract(ds);
+		const std::vector<float> perVertex = boundaryVertexValues(s, def.nodeValues);
+		CHECK(perVertex.size() == s.vertexCount());
+		for (std::size_t v = 0; v < s.vertexCount(); ++v)
+			CHECK(perVertex[v] == def.nodeValues[s.vertexNode[v]]);
+
+		// Smooth normals: unit length and pointing away from the tetrahedron's centroid.
+		const std::vector<float> n = computeSmoothVertexNormals(s);
+		CHECK(n.size() == s.vertexCount() * 3);
+		for (std::size_t v = 0; v < s.vertexCount(); ++v)
+		{
+			const float* nv = &n[v * 3];
+			CHECK(std::fabs(std::sqrt(nv[0] * nv[0] + nv[1] * nv[1] + nv[2] * nv[2]) - 1.0f) < 1e-5f);
+			const float* p = &s.positions[v * 3];
+			const float dot = nv[0] * (p[0] - 0.25f) + nv[1] * (p[1] - 0.25f) + nv[2] * (p[2] - 0.25f);
+			CHECK(dot > 0.0f);
+		}
+	}
+
+	void testLoadSimulationResult()
+	{
+		const QString path = tempDir().filePath(QStringLiteral("load_test.vtk"));
+		QFile f(path);
+		CHECK(f.open(QIODevice::WriteOnly));
+		f.write(kTetAscii);
+		f.close();
+		const LoadedSimulationResult ok = loadSimulationResult(path);
+		CHECK(ok.ok());
+		if (ok.ok())
+		{
+			CHECK(ok.dataset->nodeCount() == 4);
+			CHECK(ok.surface.triangleCount() == 4);
+			CHECK(ok.error.isEmpty());
+		}
+		const LoadedSimulationResult missing = loadSimulationResult(tempDir().filePath(QStringLiteral("nope.vtk")));
+		CHECK(!missing.ok());
+		CHECK(!missing.error.isEmpty());
+		std::atomic<bool> cancel(true);
+		const LoadedSimulationResult cancelled = loadSimulationResult(path, &cancel);
+		CHECK(!cancelled.ok());
+		CHECK(cancelled.error == QStringLiteral("cancelled"));
+	}
+
 	void testShellAndSkippedCells()
 	{
 		Mesh m;
@@ -902,6 +1025,8 @@ int main(int argc, char** argv)
 	testLegacyPolyData();
 	testLegacyStructured();
 	testLegacyErrors();
+	testSimulationDisplay();
+	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();
 	testCancellation();
