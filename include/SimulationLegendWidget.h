@@ -22,8 +22,10 @@ class SimulationLegendWidget : public QWidget
 public:
 	explicit SimulationLegendWidget(QWidget* viewport);
 
-	// Sets the title and value range shown, builds the bar, and shows the legend.
-	void setLegend(const QString& title, float minValue, float maxValue, const QString& toolTipText);
+	// Sets the title, value range and colour scheme shown, builds the bar, and shows the legend. `colormap` is an
+	// AnalysisColormap value (0 sequential, 1 diverging); `bands` >= 2 draws the bar as that many flat bands, the
+	// same quantization the shader applies, 0 draws it smooth.
+	void setLegend(const QString& title, float minValue, float maxValue, int colormap, int bands, const QString& toolTipText);
 
 	// Called on viewport mouse events; the legend is shown only while this returns true (default: always).
 	void setAliveCheck(std::function<bool()> alive) { _alive = std::move(alive); refresh(); }

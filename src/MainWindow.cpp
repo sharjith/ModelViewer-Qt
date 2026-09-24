@@ -66,6 +66,7 @@
 #include "CamerasPanel.h"
 #include "SelectionSetsPanel.h"
 #include "SceneStatesPanel.h"
+#include "SimulationPanel.h"
 
 #if defined _WIN32 && QT_VERSION_MAJOR == 5
 #include <QWinTaskbarProgress>
@@ -244,6 +245,20 @@ MainWindow::MainWindow(QWidget* parent)
 
 		_sceneStatesPanel = new SceneStatesPanel();
 		_documentSecondaryTabWidget->addTab(_sceneStatesPanel, QIcon(":/icons/res/save_scene_state.png"), tr("States"));
+
+		// Simulation results: field/range/colormap/contour controls for the active document's result, plus an
+		// "Open Result..." button (see docs/simulation_results_design.md section 9). Its signals go to whichever
+		// document is active, like the toolbar/menu actions do.
+		_simulationPanel = new SimulationPanel();
+		_documentSecondaryTabWidget->addTab(_simulationPanel, QIcon(":/icons/res/surface_analysis.png"), tr("Simulation"));
+		connect(_simulationPanel, &SimulationPanel::openRequested, this, [this]() {
+			if (auto* child = activeMdiChild())
+				child->openSimulationResult();
+		});
+		connect(_simulationPanel, &SimulationPanel::viewStateChanged, this, [this](const SimulationViewState& state) {
+			if (auto* child = activeMdiChild())
+				child->applySimulationViewState(state);
+		});
 
 		// Auto Fit View / Selection Highlighting: moved here from the
 		// per-document nav overlay, above the Variants/Animations/Cameras
@@ -939,6 +954,7 @@ void MainWindow::retranslateUI()
 	{
 		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_selectionSetsPanel), tr("Selections"));
 		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_sceneStatesPanel), tr("States"));
+		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_simulationPanel), tr("Simulation"));
 	}
 	if (_propertiesTabWidget && _propertiesTabWidget->count() >= 2)
 	{
@@ -1097,6 +1113,12 @@ QMdiSubWindow* MainWindow::createDocumentSubWindow(ModelViewer* viewer)
 	return _mdiArea->addSubWindow(viewer);
 }
 
+void MainWindow::refreshSimulationPanel(ModelViewer* viewer)
+{
+	if (_simulationPanel)
+		_simulationPanel->setSession(viewer ? viewer->activeSimulationSession() : nullptr);
+}
+
 void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 {
 	if (!viewer)
@@ -1170,6 +1192,9 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		_camerasPanel->setEnabled(false);
 		_selectionSetsPanel->setEnabled(false);
 		_sceneStatesPanel->setEnabled(false);
+		disconnect(_simulationSessionConnection);
+		_simulationPanel->setSession(nullptr);
+		_simulationPanel->setEnabled(false);
 		_checkBoxAutoFitView->setEnabled(false);
 		_checkBoxSelectionHighlight->setEnabled(false);
 		return;
@@ -1185,6 +1210,7 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 	_camerasPanel->setEnabled(true);
 	_selectionSetsPanel->setEnabled(true);
 	_sceneStatesPanel->setEnabled(true);
+	_simulationPanel->setEnabled(true);
 	_checkBoxAutoFitView->setEnabled(true);
 	_checkBoxSelectionHighlight->setEnabled(true);
 
@@ -1246,6 +1272,17 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		[this, viewer](const QList<int>&) {
 			ui->actionSaveSelectionSet->setEnabled(viewer->hasSelection());
 			_selectionSetsPanel->syncActiveSet(viewer->getSelectedUuids());
+		});
+
+	// Simulation panel: show this document's active result now, and follow it while this document stays active
+	// (an open, a selection change and an edit all emit simulationSessionChanged()).
+	refreshSimulationPanel(viewer);
+	disconnect(_simulationSessionConnection);
+	_simulationSessionConnection = connect(viewer, &ModelViewer::simulationSessionChanged, this,
+		[this, viewer](bool activateTab) {
+			refreshSimulationPanel(viewer);
+			if (activateTab && _documentSecondaryTabWidget)
+				_documentSecondaryTabWidget->setCurrentWidget(_simulationPanel);
 		});
 
 	// Unconditional, not just on switching TO the Transformations tab - if

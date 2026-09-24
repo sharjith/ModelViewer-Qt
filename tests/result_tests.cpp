@@ -808,6 +808,73 @@ namespace
 		}
 	}
 
+	void testViewState()
+	{
+		// resolveViewRange: automatic uses the data range, custom uses the state's, degenerate ranges are widened.
+		DisplayScalar s;
+		s.minValue = 2.0f;
+		s.maxValue = 8.0f;
+		SimulationViewState st;
+		float lo = 0, hi = 0;
+		CHECK(resolveViewRange(s, st, lo, hi));
+		CHECK(lo == 2.0f && hi == 8.0f);
+
+		st.customRange = true;
+		st.rangeMin = -5.0;
+		st.rangeMax = 10.0;
+		CHECK(resolveViewRange(s, st, lo, hi));
+		CHECK(lo == -5.0f && hi == 10.0f);
+
+		st.rangeMax = st.rangeMin; // min == max
+		CHECK(resolveViewRange(s, st, lo, hi));
+		CHECK(hi > lo);
+		st.rangeMax = -20.0;       // min > max
+		CHECK(resolveViewRange(s, st, lo, hi));
+		CHECK(hi > lo);
+		st.rangeMin = std::nan("");
+		CHECK(!resolveViewRange(s, st, lo, hi));
+
+		s.minValue = s.maxValue = 5.0f; // a constant field, automatic range
+		SimulationViewState autoState;
+		CHECK(resolveViewRange(s, autoState, lo, hi));
+		CHECK(hi > lo);
+
+		// Band count: smooth (0/1) is a fine 256 levels, otherwise the chosen count.
+		SimulationViewState b;
+		CHECK(simulationShaderBands(b) == kSimulationSmoothBands);
+		b.bands = 1;
+		CHECK(simulationShaderBands(b) == kSimulationSmoothBands);
+		b.bands = 12;
+		CHECK(simulationShaderBands(b) == 12);
+
+		// defaultViewState: the von Mises scalar of a fixture, and "nothing to colour by" when there is no node field.
+		const QByteArray fixture =
+			"# vtk DataFile Version 3.0\nt\nASCII\nDATASET UNSTRUCTURED_GRID\nPOINTS 4 float\n0 0 0 1 0 0 0 1 0 0 0 1\n"
+			"CELLS 1 5\n4 0 1 2 3\nCELL_TYPES 1\n10\nPOINT_DATA 4\n"
+			"SCALARS aaa float\nLOOKUP_TABLE default\n1 2 3 4\n"
+			"SCALARS von%20Mises%20Stress float\nLOOKUP_TABLE default\n10 20 30 40\n";
+		ResultReadOutcome r = readLegacy(fixture);
+		CHECK(r.ok());
+		if (r.ok())
+		{
+			DisplayScalar scalar;
+			const SimulationViewState d = defaultViewState(*r.dataset, &scalar);
+			CHECK(d.fieldIndex == 1);
+			CHECK(!d.customRange && d.colormap == 0 && d.bands == 0);
+			CHECK(scalar.valid() && scalar.minValue == 10.0f);
+		}
+		Mesh bare = singleTet();
+		bare.pointScalar.clear();
+		ResultReadOutcome rb = readBytes(buildVtu(bare, Enc::Ascii));
+		CHECK(rb.ok());
+		if (rb.ok())
+		{
+			DisplayScalar scalar;
+			CHECK(defaultViewState(*rb.dataset, &scalar).fieldIndex == -1);
+			CHECK(!scalar.valid());
+		}
+	}
+
 	void testLoadSimulationResult()
 	{
 		const QString path = tempDir().filePath(QStringLiteral("load_test.vtk"));
@@ -1026,6 +1093,7 @@ int main(int argc, char** argv)
 	testLegacyStructured();
 	testLegacyErrors();
 	testSimulationDisplay();
+	testViewState();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();

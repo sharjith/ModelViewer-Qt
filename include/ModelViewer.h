@@ -21,6 +21,7 @@
 #include "CutCommand.h"
 #include "MaterialVariantsPanel.h"
 #include "TextureDebugPanel.h"
+#include "SimulationResultDisplay.h"
 
 #include <QPointer>
 #include <QUndoStack>
@@ -29,7 +30,6 @@
 
 class QTabWidget;
 class SimulationLegendWidget;
-struct LoadedSimulationResult;
 class QToolButton;
 class QFrame;
 class QTimer;
@@ -204,6 +204,9 @@ public:
 signals:
 	void documentModifiedChanged(bool modified);
 	void importUnitsChanged();
+	// The active simulation result (or its view state) changed - MainWindow refreshes the Simulation dock panel.
+	// `activateTab` is true when a result was just opened, so the dock switches to the Simulation tab.
+	void simulationSessionChanged(bool activateTab);
 	// Emitted from updateVisibilityUiFromState() alongside its own overlay
 	// labelMeshCount update - lets MainWindow's Document dock mirror the
 	// same count for whichever document is currently active, without
@@ -584,6 +587,12 @@ public slots:
 	// docs/simulation_results_design.md and src/ModelViewerSimulation.cpp.
 	void openSimulationResult();
 
+	// The result whose controls the Simulation panel shows: the last one selected/opened whose mesh is still
+	// displayed, or nullptr. See src/ModelViewerSimulation.cpp.
+	const SimulationSession* activeSimulationSession() const;
+	// Applies an edit from the Simulation panel to the active session: recolours its mesh and updates the legend.
+	void applySimulationViewState(const SimulationViewState& state);
+
 	// The Reconstruct Surface dialog's one-line bridge into the undo stack -
 	// same convention and immediate-per-result timing as commitShrinkWrap()/
 	// commitSubdivision() above, reusing the exact same ShrinkWrapCommand
@@ -711,6 +720,10 @@ protected:
 private:
 	// Builds the scene node/mesh/legend for a loaded simulation result (main thread; see openSimulationResult()).
 	void presentSimulationResult(const QString& path, LoadedSimulationResult& result);
+	SimulationSession* findSimulationSession(const QUuid& meshUuid);
+	SimulationSession* activeSimulationSessionMutable();
+	void connectSimulationHooks();
+	void refreshSimulationDisplay(SimulationSession& session);
 
 	// Shared implementation for mergeSelectedMeshes()/unionSelectedMeshes() -
 	// see mergeSelectedMeshes()'s doc comment for what's common between them,
@@ -901,6 +914,9 @@ private:
 
 	QUndoStack* _undoStack;
 	bool _simulationLoadInFlight = false;
+	std::vector<SimulationSession> _simulationSessions; // every result opened in this document
+	QUuid _activeSimulationMesh;                        // the session the Simulation panel currently shows
+	bool _simulationHooksConnected = false;
 	QPointer<SimulationLegendWidget> _simulationLegend; // colour-bar legend of the most recently opened simulation result
 	bool _lastCanUndo = false;
 	bool _lastCanRedo = false;

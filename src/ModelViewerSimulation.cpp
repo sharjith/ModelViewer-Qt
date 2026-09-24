@@ -1,13 +1,18 @@
-// ModelViewer's side of loading a simulation result: file dialog, off-thread read, and turning the boundary
-// surface into an undoable scene node coloured by a scalar field. Kept in its own translation unit (these are
-// ModelViewer members, declared in ModelViewer.h) so ModelViewer.cpp does not grow further.
+// ModelViewer's side of simulation results: file dialog, off-thread read, turning the boundary surface into an
+// undoable scene node, and keeping that node's colouring and legend in step with the Simulation dock panel. Kept
+// in its own translation unit (these are ModelViewer members, declared in ModelViewer.h) so ModelViewer.cpp does
+// not grow further.
+//
+// Each opened result is a SimulationSession (dataset + boundary surface + result mesh + view state). The Simulation
+// panel edits the ACTIVE session's SimulationViewState; applySimulationViewState() applies it through
+// refreshSimulationDisplay(), which is also what runs when a result is opened.
 //
 // Rendering deliberately reuses the Surface Analysis overlay's GPU path (main_scene.frag with
 // analysisOverlayBands >= 2: the interpolated normalized scalar is quantized per fragment, so colours are
 // correct on coarse meshes and contour bands fall inside triangles) instead of a new shader - see
-// docs/simulation_results_design.md section 6. Interim limits of this first viewport slice: one default
-// field, no field/range/colormap controls yet (the Simulation dock tab), no unit handling yet (the legend says
-// so), and the coloured overlay is not persisted in MVF (the portable snapshot is a later slice).
+// docs/simulation_results_design.md section 6. Interim limits: no unit handling yet (the legend says so), node
+// data only, one time step, and the coloured overlay is not persisted in MVF (the portable snapshot is a later
+// slice).
 
 #include "ModelViewer.h"
 
@@ -38,9 +43,6 @@
 
 namespace
 {
-	// 256 levels: visually continuous, while still quantized per fragment by the shared shader path.
-	constexpr int kSmoothBands = 256;
-
 	QString formatCount(std::size_t n)
 	{
 		return QLocale().toString(static_cast<qulonglong>(n));
@@ -96,8 +98,8 @@ void ModelViewer::presentSimulationResult(const QString& path, LoadedSimulationR
 			tr("Could not open '%1':\n\n%2").arg(QDir::toNativeSeparators(path), result.error));
 		return;
 	}
-	const ResultBoundarySurface& surface = result.surface;
-	if (surface.triangleCount() == 0)
+	const std::size_t triangleCount = result.surface.triangleCount();
+	if (triangleCount == 0)
 	{
 		QMessageBox::information(this, tr("Open Simulation Result"),
 			tr("'%1' was read (%2 nodes, %3 cells) but contains nothing that can be displayed yet.\n\n%4")
@@ -106,13 +108,11 @@ void ModelViewer::presentSimulationResult(const QString& path, LoadedSimulationR
 		return;
 	}
 
-	DisplayScalar scalar;
-	const bool haveScalar = chooseDefaultDisplayScalar(*result.dataset, scalar);
-
 	ViewportWidget* viewport = _viewportWidget;
 	viewport->makeCurrent();
 
 	// ---- Geometry: the boundary surface as an ordinary SceneMesh ---------------------------------------------
+	const ResultBoundarySurface& surface = result.surface;
 	const std::vector<float> normals = computeSmoothVertexNormals(surface);
 	std::vector<Vertex> vertices(surface.vertexCount());
 	for (std::size_t i = 0; i < vertices.size(); ++i)
@@ -131,24 +131,12 @@ void ModelViewer::presentSimulationResult(const QString& path, LoadedSimulationR
 	const QString baseName = QFileInfo(path).completeBaseName();
 	const QString meshName = viewport->generateUniqueMeshName(baseName);
 	// skipOptimization = true: the analysis overlay is indexed by vertex, and the mesh optimiser would reorder
-	// vertices (see SceneMesh::optimizeMesh()), so the per-vertex scalars below would land on the wrong vertices.
+	// vertices (see SceneMesh::optimizeMesh()), so the per-vertex scalars would land on the wrong vertices.
 	SceneMesh* mesh = new SceneMesh(viewport->getShader(), meshName, vertices, surface.triangles, {}, Material(), true);
 	viewport->addToDisplay(mesh);
 	const QUuid meshUuid = mesh->uuid();
 
-	// ---- Colour: scalar in R, validity in A, banded per fragment by the shared shader ------------------------
-	if (haveScalar)
-	{
-		const std::vector<float> vertexValues = boundaryVertexValues(surface, scalar.nodeValues);
-		std::vector<bool> valid(vertexValues.size());
-		for (std::size_t i = 0; i < vertexValues.size(); ++i)
-			valid[i] = std::isfinite(vertexValues[i]);
-		mesh->setAnalysisOverlayColors(
-			AnalysisColorRamp::mapToNormalizedScalarRGBA(vertexValues, valid, scalar.minValue, scalar.maxValue));
-		mesh->setAnalysisOverlayBanding(kSmoothBands, static_cast<int>(AnalysisColormap::Sequential));
-	}
-
-	// ---- Scene node + undo -----------------------------------------------------------------------------------
+	// ---- Scene node ------------------------------------------------------------------------------------------
 	const QSet<QUuid> originalSelection = getSelectedUuids();
 	SceneNode* node = new SceneNode();
 	node->nodeUuid = QUuid::createUuid();
@@ -161,34 +149,153 @@ void ModelViewer::presentSimulationResult(const QString& path, LoadedSimulationR
 	viewport->doneCurrent();
 	viewport->updateView();
 	updateDisplayList();
+
+	// ---- Session: what the Simulation panel edits ------------------------------------------------------------
+	DisplayScalar scalar;
+	SimulationSession session;
+	session.meshUuid = meshUuid;
+	session.state = defaultViewState(*result.dataset, &scalar);
+	session.dataset = result.dataset;
+	session.surface = std::make_shared<ResultBoundarySurface>(std::move(result.surface)); // `surface` is invalid from here
+	session.filePath = path;
+	session.warnings = result.warnings;
+	const int fieldIndex = session.state.fieldIndex;
+	_simulationSessions.push_back(std::move(session));
+	_activeSimulationMesh = meshUuid;
+	connectSimulationHooks();
+	refreshSimulationDisplay(_simulationSessions.back()); // colours + legend
+
 	// One undoable step, reusing the "add one node + one mesh" command Shrink Wrap/Repair Mesh use.
 	_undoStack->push(new ShrinkWrapCommand(this, viewport, node, parent, position, meshUuid, originalSelection,
 	                                       tr("Open Simulation Result")));
 	viewport->fitAll();
 
-	// ---- Legend ----------------------------------------------------------------------------------------------
-	if (haveScalar)
-	{
-		if (!_simulationLegend)
-			_simulationLegend = new SimulationLegendWidget(viewport);
-		// No units yet (design section 7): say so instead of implying a unit.
-		_simulationLegend->setLegend(tr("%1  [unit not specified]").arg(scalar.label), scalar.minValue, scalar.maxValue,
-		                             tr("%1\n%2").arg(QDir::toNativeSeparators(path), result.warnings.join(QLatin1Char('\n'))));
-		// Shown only while this result's mesh is still displayed (it disappears with Undo, returns with Redo).
-		QPointer<ViewportWidget> viewportGuard(viewport);
-		_simulationLegend->setAliveCheck([viewportGuard, meshUuid]() { return viewportGuard && viewportGuard->getMeshByUuid(meshUuid); });
-	}
-	else if (_simulationLegend)
-		_simulationLegend->setAliveCheck([]() { return false; });
-
 	QString message = tr("%1: %2 nodes, %3 cells, %4 boundary triangles").arg(
 		QFileInfo(path).fileName(), formatCount(result.dataset->nodeCount()), formatCount(result.dataset->cellCount()),
-		formatCount(surface.triangleCount()));
-	if (haveScalar)
+		formatCount(triangleCount));
+	if (fieldIndex >= 0 && scalar.valid())
 		message += tr(" - showing %1 (%2 to %3)").arg(scalar.label).arg(scalar.minValue).arg(scalar.maxValue);
 	else
 		message += tr(" - no node field to colour by");
 	if (!result.warnings.isEmpty())
 		message += QStringLiteral(" - ") + result.warnings.first();
 	MainWindow::showStatusMessage(message, 12000);
+
+	emit simulationSessionChanged(true);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Sessions
+// ---------------------------------------------------------------------------------------------------------------
+
+SimulationSession* ModelViewer::findSimulationSession(const QUuid& meshUuid)
+{
+	for (SimulationSession& s : _simulationSessions)
+		if (s.meshUuid == meshUuid)
+			return &s;
+	return nullptr;
+}
+
+SimulationSession* ModelViewer::activeSimulationSessionMutable()
+{
+	if (!_viewportWidget)
+		return nullptr;
+	// The active one, if its mesh is still displayed (Undo of the open removes it).
+	SimulationSession* active = findSimulationSession(_activeSimulationMesh);
+	if (active && _viewportWidget->getMeshByUuid(active->meshUuid))
+		return active;
+	// Otherwise the most recently opened result that is still displayed.
+	for (auto it = _simulationSessions.rbegin(); it != _simulationSessions.rend(); ++it)
+		if (_viewportWidget->getMeshByUuid(it->meshUuid))
+			return &*it;
+	return nullptr;
+}
+
+const SimulationSession* ModelViewer::activeSimulationSession() const
+{
+	return const_cast<ModelViewer*>(this)->activeSimulationSessionMutable();
+}
+
+void ModelViewer::connectSimulationHooks()
+{
+	if (_simulationHooksConnected)
+		return;
+	_simulationHooksConnected = true;
+	// Selecting a result mesh makes its session the one the panel shows.
+	connect(_viewportWidget, &ViewportWidget::selectionChanged, this, [this](const QList<int>&) {
+		const QSet<QUuid> selected = getSelectedUuids();
+		for (const SimulationSession& s : _simulationSessions)
+		{
+			if (!selected.contains(s.meshUuid) || s.meshUuid == _activeSimulationMesh)
+				continue;
+			_activeSimulationMesh = s.meshUuid;
+			if (SimulationSession* session = findSimulationSession(s.meshUuid))
+				refreshSimulationDisplay(*session);
+			emit simulationSessionChanged(false);
+			return;
+		}
+	});
+	// Undo/Redo of an open adds or removes a result mesh, which changes what the panel and legend should show.
+	connect(_undoStack, &QUndoStack::indexChanged, this, [this](int) { emit simulationSessionChanged(false); });
+}
+
+void ModelViewer::applySimulationViewState(const SimulationViewState& state)
+{
+	SimulationSession* session = activeSimulationSessionMutable();
+	if (!session)
+		return;
+	session->state = state;
+	refreshSimulationDisplay(*session);
+	emit simulationSessionChanged(false); // lets the panel show e.g. the recomputed automatic range
+}
+
+// Recolours the session's mesh and updates the legend from session.state.
+void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
+{
+	if (!_viewportWidget || !session.dataset || !session.surface)
+		return;
+	SceneMesh* mesh = _viewportWidget->getMeshByUuid(session.meshUuid);
+	if (!mesh)
+		return;
+
+	const bool isActive = session.meshUuid == _activeSimulationMesh;
+	DisplayScalar scalar;
+	float lo = 0.0f, hi = 1.0f;
+	const bool haveScalar = session.state.fieldIndex >= 0
+		&& buildDisplayScalar(*session.dataset, session.state.fieldIndex, session.state.component, scalar)
+		&& resolveViewRange(scalar, session.state, lo, hi);
+
+	if (!haveScalar)
+	{
+		mesh->clearAnalysisOverlay(); // CPU-only, no GL context needed
+		if (isActive && _simulationLegend)
+			_simulationLegend->setAliveCheck([]() { return false; });
+		_viewportWidget->update();
+		return;
+	}
+
+	const std::vector<float> vertexValues = boundaryVertexValues(*session.surface, scalar.nodeValues);
+	std::vector<bool> valid(vertexValues.size());
+	for (std::size_t i = 0; i < vertexValues.size(); ++i)
+		valid[i] = std::isfinite(vertexValues[i]);
+
+	_viewportWidget->makeCurrent();
+	mesh->setAnalysisOverlayColors(AnalysisColorRamp::mapToNormalizedScalarRGBA(vertexValues, valid, lo, hi));
+	mesh->setAnalysisOverlayBanding(simulationShaderBands(session.state), session.state.colormap);
+	_viewportWidget->doneCurrent();
+
+	if (isActive)
+	{
+		if (!_simulationLegend)
+			_simulationLegend = new SimulationLegendWidget(_viewportWidget);
+		// No units yet (design section 7): say so instead of implying a unit.
+		_simulationLegend->setLegend(tr("%1  [unit not specified]").arg(scalar.label), lo, hi, session.state.colormap,
+		                             session.state.bands,
+		                             tr("%1\n%2").arg(QDir::toNativeSeparators(session.filePath), session.warnings.join(QLatin1Char('\n'))));
+		// Shown only while this result's mesh is still displayed (it disappears with Undo, returns with Redo).
+		QPointer<ViewportWidget> viewportGuard(_viewportWidget);
+		const QUuid meshUuid = session.meshUuid;
+		_simulationLegend->setAliveCheck([viewportGuard, meshUuid]() { return viewportGuard && viewportGuard->getMeshByUuid(meshUuid); });
+	}
+	_viewportWidget->update();
 }

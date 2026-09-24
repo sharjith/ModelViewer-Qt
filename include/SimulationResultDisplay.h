@@ -10,6 +10,7 @@
 
 #include <QString>
 #include <QStringList>
+#include <QUuid>
 
 #include <atomic>
 #include <memory>
@@ -59,3 +60,44 @@ std::vector<float> boundaryVertexValues(const ResultBoundarySurface& surface, co
 // Smooth per-vertex normals for the boundary surface (area-weighted average of the adjoining triangles),
 // 3 floats per vertex, unit length (falls back to +Z for a vertex whose triangles cancel out).
 std::vector<float> computeSmoothVertexNormals(const ResultBoundarySurface& surface);
+
+// ---- View state and sessions (what the Simulation dock tab edits) -----------------------------------------------
+
+// How a result is currently shown. Owned by a SimulationSession, edited by the Simulation dock panel and applied
+// to the result mesh by ModelViewer::applySimulationViewState().
+struct SimulationViewState
+{
+	int fieldIndex = -1;      // index into ResultDataset::fields (a node field); -1 = nothing to colour by
+	int component = -1;       // -1 = magnitude of a 3-component field / the value of a scalar field
+	bool customRange = false; // false = the data range of the shown values
+	double rangeMin = 0.0;    // used when customRange
+	double rangeMax = 1.0;
+	int colormap = 0;         // AnalysisColormap: 0 sequential, 1 diverging (2, threshold, is not offered here)
+	int bands = 0;            // 0 = smooth; >= 2 = that many contour bands
+};
+
+// One loaded result inside a document: the dataset (source of truth), its boundary surface, the scene mesh that
+// displays it, and the current view state.
+struct SimulationSession
+{
+	QUuid meshUuid;
+	std::shared_ptr<ResultDataset> dataset;
+	std::shared_ptr<ResultBoundarySurface> surface;
+	QString filePath;
+	QStringList warnings;
+	SimulationViewState state;
+};
+
+// Levels the shader quantizes into: the chosen band count, or a fine 256 for "smooth".
+constexpr int kSimulationSmoothBands = 256;
+int simulationShaderBands(const SimulationViewState& state);
+
+// The value range the colormap spans: the state's custom range, or the data range of `scalar`. A degenerate
+// range (min >= max, e.g. a constant field) is widened slightly so the normalisation stays defined. Returns false
+// only if a custom range is not finite.
+bool resolveViewRange(const DisplayScalar& scalar, const SimulationViewState& state, float& lo, float& hi);
+
+// The view state a freshly opened result starts with (default field, automatic range, sequential colormap,
+// smooth). `outScalar`, when given, receives the corresponding DisplayScalar. fieldIndex stays -1 when the
+// dataset has no node field to colour by.
+SimulationViewState defaultViewState(const ResultDataset& dataset, DisplayScalar* outScalar = nullptr);

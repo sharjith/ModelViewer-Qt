@@ -170,3 +170,41 @@ std::vector<float> computeSmoothVertexNormals(const ResultBoundarySurface& surfa
 	}
 	return normals;
 }
+
+int simulationShaderBands(const SimulationViewState& state)
+{
+	return state.bands >= 2 ? state.bands : kSimulationSmoothBands;
+}
+
+bool resolveViewRange(const DisplayScalar& scalar, const SimulationViewState& state, float& lo, float& hi)
+{
+	if (state.customRange)
+	{
+		if (!std::isfinite(state.rangeMin) || !std::isfinite(state.rangeMax))
+			return false;
+		lo = static_cast<float>(state.rangeMin);
+		hi = static_cast<float>(state.rangeMax);
+	}
+	else
+	{
+		lo = scalar.minValue;
+		hi = scalar.maxValue;
+	}
+	if (!(hi > lo))
+		hi = lo + std::max(1.0e-6f, std::fabs(lo) * 1.0e-6f);
+	return true;
+}
+
+SimulationViewState defaultViewState(const ResultDataset& dataset, DisplayScalar* outScalar)
+{
+	SimulationViewState state;
+	DisplayScalar scalar;
+	if (chooseDefaultDisplayScalar(dataset, scalar))
+	{
+		state.fieldIndex = scalar.fieldIndex;
+		state.component = scalar.component;
+	}
+	if (outScalar)
+		*outScalar = std::move(scalar);
+	return state;
+}

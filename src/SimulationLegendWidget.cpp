@@ -3,6 +3,8 @@
 #include "AnalysisColorRamp.h"
 
 #include <QEvent>
+#include <algorithm>
+#include <cmath>
 #include <QFontMetrics>
 #include <QPainter>
 
@@ -49,7 +51,7 @@ SimulationLegendWidget::SimulationLegendWidget(QWidget* viewport)
 	hide();
 }
 
-void SimulationLegendWidget::setLegend(const QString& title, float minValue, float maxValue, const QString& toolTipText)
+void SimulationLegendWidget::setLegend(const QString& title, float minValue, float maxValue, int colormap, int bands, const QString& toolTipText)
 {
 	_title = title;
 	_minText = QString::number(minValue, 'g', 4);
@@ -58,10 +60,18 @@ void SimulationLegendWidget::setLegend(const QString& title, float minValue, flo
 	// The colour bar, one column per pixel, from the same colormap the shader uses.
 	QPixmap bar(kBarWidth, kBarHeight);
 	{
+		const AnalysisColormap scheme = colormap == 1 ? AnalysisColormap::Diverging : AnalysisColormap::Sequential;
 		QPainter painter(&bar);
 		for (int x = 0; x < kBarWidth; ++x)
-			painter.fillRect(x, 0, 1, kBarHeight,
-			                 AnalysisColorRamp::colorForNormalized(static_cast<float>(x) / (kBarWidth - 1), AnalysisColormap::Sequential));
+		{
+			float t = static_cast<float>(x) / (kBarWidth - 1);
+			if (bands >= 2) // same quantization as main_scene.frag: the colour at the centre of the band
+			{
+				const int band = std::min(static_cast<int>(std::floor(t * static_cast<float>(bands))), bands - 1);
+				t = (static_cast<float>(band) + 0.5f) / static_cast<float>(bands);
+			}
+			painter.fillRect(x, 0, 1, kBarHeight, AnalysisColorRamp::colorForNormalized(t, scheme));
+		}
 	}
 	_bar = bar;
 	_hasContent = true;
