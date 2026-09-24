@@ -5,16 +5,17 @@
 #include "PathUtils.h"
 #include <QCheckBox>
 #include <QKeyEvent>
-#include <QColorDialog>
 #include <QFileDialog>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QMimeData>
 #include <QPainter>
 #include <QProxyStyle>
-#include <QRadioButton>
 #include <QStyleOptionButton>
+#include <QSignalBlocker>
 #include <QUrl>
+
+#include <algorithm>
 
 // helper: simple extension check (same filters as file dialog)
 static bool isImageFileExtension(const QString& path)
@@ -182,9 +183,36 @@ ClippingPlanesEditor::ClippingPlanesEditor(ViewportWidget* parent) :
 	for (QCheckBox* box : findChildren<QCheckBox*>())
 		installOverlayEditorCheckBoxStyle(box);
 
+	// setupUi() applies the .ui file's "checked" default directly to the
+	// widget, but connectSlotsByName() (which wires up on_checkBoxCapping_toggled()
+	// etc. via Qt's auto-connect) only runs at the END of setupUi() - so a
+	// checkbox that starts checked in the .ui never actually fires its
+	// toggled() signal for that initial state, and checkBoxCapping's
+	// underlying render-side flag (_renderCtrl._cappingEnabled, read by
+	// drawSectionCapping()) stays at its own separate false default even
+	// though the checkbox itself displays checked. Force them back in sync
+	// here - trivial flag setters, safe to call before the viewport has
+	// rendered anything yet. checkBoxShowGizmo needs no equivalent fix:
+	// isGizmoVisible() reads checkBoxShowGizmo->isChecked() live on demand
+	// rather than caching a synced copy, so it can't desync this way.
+	_viewportWidget->setCappingPlanesEnabled(checkBoxCapping->isChecked());
+
 	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
 		retranslateUi(this);
 		});
+
+	// Texture picker is only relevant when the Settings-configured default
+	// mode is Textured - see this class's own header doc comment. Checked
+	// once here (mode is no longer a live in-panel toggle), not re-checked
+	// later, matching how other Settings-seeded per-document defaults
+	// (e.g. up-axis) don't retroactively update an already-open document.
+	pushButtonTexture->setVisible(_viewportWidget->clippingPlaneHatchMode() == ClippingPlaneHatchMode::TEXTURE);
+
+	// The box's six limit fields + Reset only take space while Box mode is on, so
+	// the panel is exactly as tall as before until the user opts in (it is a
+	// bottom-anchored overlay with no scrolling - see ViewportWidget's
+	// _lowerLayout).
+	widgetBoxLimits->setVisible(checkBoxBoxClip->isChecked());
 
 	// enable drag/drop on the single texture button (no header changes)
 	pushButtonTexture->setAcceptDrops(true);
@@ -206,43 +234,10 @@ void ClippingPlanesEditor::applyContrastTheme(const QColor& textColor)
 
 	const QString blackTextStyle = QStringLiteral("color: rgb(0, 0, 0);");
 	const bool lightText = textColor.lightnessF() >= 0.5;
-	const QColor indicatorFill = lightText ? QColor(24, 24, 24, 160) : QColor(255, 255, 255, 180);
-	const QString radioIndicatorStyle = QString(
-		"QRadioButton { color: rgb(%1, %2, %3); }"
-		"QRadioButton::indicator {"
-		" width: 13px;"
-		" height: 13px;"
-		" border-radius: 6.5px;"
-		" border: 1px solid rgba(%1, %2, %3, 220);"
-		" background-color: rgba(%4, %5, %6, %7);"
-		"}"
-		"QRadioButton::indicator:checked {"
-		" border: 1px solid rgba(%1, %2, %3, 220);"
-		" background-color: qradialgradient("
-		"   cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5,"
-		"   stop:0 rgb(%1, %2, %3),"
-		"   stop:0.6 rgb(%1, %2, %3),"
-		"   stop:0.65 transparent,"
-		"   stop:1 transparent);"
-		"}"
-		"QRadioButton::indicator:unchecked:hover,"
-		"QRadioButton::indicator:checked:hover {"
-		" border: 1px solid rgb(%1, %2, %3);"
-		"}")
-		.arg(textColor.red())
-		.arg(textColor.green())
-		.arg(textColor.blue())
-		.arg(indicatorFill.red())
-		.arg(indicatorFill.green())
-		.arg(indicatorFill.blue())
-		.arg(indicatorFill.alpha());
 	pushButtonResetCoeffs->setStyleSheet(blackTextStyle);
-	pushButtonDefaultValues->setStyleSheet(blackTextStyle);
 	pushButtonResetAll->setStyleSheet(blackTextStyle);
+	pushButtonBoxReset->setStyleSheet(blackTextStyle);
 	pushButtonTexture->setStyleSheet(QStringLiteral("background-color: rgba(255, 255, 255, 5%); color: rgb(0, 0, 0);"));
-	comboBoxHatchMode->setStyleSheet(blackTextStyle);
-	radioButtonProcedural->setStyleSheet(radioIndicatorStyle);
-	radioButtonTextured->setStyleSheet(radioIndicatorStyle);
 
 	for (QCheckBox* box : findChildren<QCheckBox*>())
 	{
@@ -279,6 +274,144 @@ void ClippingPlanesEditor::setCoefficientLimits(double xMin, double xMax, double
 	doubleSpinBoxZXCoeff->setSingleStep((yMax - yMin) / 50.0);
 }
 
+bool ClippingPlanesEditor::isGizmoVisible() const
+{
+	return checkBoxShowGizmo->isChecked();
+}
+
+void ClippingPlanesEditor::setXCoeffDisplay(double value)
+{
+	const QSignalBlocker blocker(doubleSpinBoxYZCoeff); // X-normal plane is named "YZ" (the plane it spans)
+	doubleSpinBoxYZCoeff->setValue(value);
+}
+
+void ClippingPlanesEditor::setYCoeffDisplay(double value)
+{
+	const QSignalBlocker blocker(doubleSpinBoxZXCoeff); // Y-normal plane is labelled "XZ"
+	doubleSpinBoxZXCoeff->setValue(value);
+}
+
+void ClippingPlanesEditor::setZCoeffDisplay(double value)
+{
+	const QSignalBlocker blocker(doubleSpinBoxXYCoeff); // Z-normal plane is named "XY"
+	doubleSpinBoxXYCoeff->setValue(value);
+}
+
+void ClippingPlanesEditor::on_checkBoxShowGizmo_toggled(bool /*checked*/)
+{
+	_viewportWidget->updatePlaneGizmos();
+	_viewportWidget->updateClipBoxGizmos();
+	_viewportWidget->update();
+}
+
+void ClippingPlanesEditor::applyPreset(bool xy, bool yz, bool zx, bool box)
+{
+	if (box)
+	{
+		// Ticking Box unticks the three planes itself (see on_checkBoxBoxClip_toggled()).
+		checkBoxBoxClip->setChecked(true);
+		return;
+	}
+
+	// Box off first, then the planes: an axis handler would also untick Box when it
+	// is newly ticked, but doing it explicitly keeps this independent of that.
+	checkBoxBoxClip->setChecked(false);
+	checkBoxXY->setChecked(xy);
+	checkBoxYZ->setChecked(yz);
+	checkBoxZX->setChecked(zx);
+}
+
+QDoubleSpinBox* ClippingPlanesEditor::boxSpin(int face) const
+{
+	switch (face)
+	{
+	case 0: return doubleSpinBoxBoxXMin;
+	case 1: return doubleSpinBoxBoxXMax;
+	case 2: return doubleSpinBoxBoxYMin;
+	case 3: return doubleSpinBoxBoxYMax;
+	case 4: return doubleSpinBoxBoxZMin;
+	default: return doubleSpinBoxBoxZMax;
+	}
+}
+
+void ClippingPlanesEditor::setBoxLimitRanges(double xMin, double xMax, double yMin, double yMax, double zMin, double zMax)
+{
+	const double lo[3] = { xMin, yMin, zMin };
+	const double hi[3] = { xMax, yMax, zMax };
+	for (int face = 0; face < 6; ++face)
+	{
+		QDoubleSpinBox* spin = boxSpin(face);
+		const int axis = face / 2;
+		// Blocked: setRange() can clamp the current value and would otherwise emit
+		// valueChanged -> setBoxClippingLimit() from what is only a range update.
+		const QSignalBlocker blocker(spin);
+		spin->setRange(lo[axis], hi[axis]);
+		spin->setSingleStep(std::max((hi[axis] - lo[axis]) / 50.0, 1.0e-3));
+		// setRange() may have clamped the displayed value (e.g. the scene moved
+		// to a distant region) while the STORED limit is unchanged, leaving field
+		// and render state out of sync. Re-show the stored limit; if it no longer
+		// fits the new range the caller (ViewportWidget::updateClippingPlane())
+		// re-seeds the box, which then updates both together.
+		spin->setValue(_viewportWidget->boxClippingLimit(face));
+	}
+}
+
+void ClippingPlanesEditor::setBoxLimitDisplay(int face, double value)
+{
+	if (face < 0 || face > 5)
+		return;
+	QDoubleSpinBox* spin = boxSpin(face);
+	const QSignalBlocker blocker(spin);
+	spin->setValue(value);
+}
+
+void ClippingPlanesEditor::setBoxLimitsDisplay(const BoundingBox& limits)
+{
+	setBoxLimitDisplay(0, limits.xMin());
+	setBoxLimitDisplay(1, limits.xMax());
+	setBoxLimitDisplay(2, limits.yMin());
+	setBoxLimitDisplay(3, limits.yMax());
+	setBoxLimitDisplay(4, limits.zMin());
+	setBoxLimitDisplay(5, limits.zMax());
+}
+
+void ClippingPlanesEditor::on_checkBoxBoxClip_toggled(bool checked)
+{
+	// Box mode and the three per-axis planes are mutually exclusive (union-notch
+	// and intersection-box semantics can't meaningfully combine). Unchecking the
+	// axis boxes lets their own toggled handlers run, so the render state follows.
+	if (checked)
+	{
+		checkBoxXY->setChecked(false);
+		checkBoxYZ->setChecked(false);
+		checkBoxZX->setChecked(false);
+	}
+	widgetBoxLimits->setVisible(checked);
+	_viewportWidget->setBoxClippingEnabled(checked);
+	_viewportWidget->updateClippingPlane();
+	_viewportWidget->update();
+}
+
+void ClippingPlanesEditor::on_checkBoxBoxKeepInside_toggled(bool checked)
+{
+	// Unchecked (default): keep the outside, cut a box-shaped hole. Checked: keep
+	// only the inside (crop to the box).
+	_viewportWidget->setBoxClippingKeepInside(checked);
+	_viewportWidget->update();
+}
+
+void ClippingPlanesEditor::on_doubleSpinBoxBoxXMin_valueChanged(double val) { _viewportWidget->setBoxClippingLimit(0, val); }
+void ClippingPlanesEditor::on_doubleSpinBoxBoxXMax_valueChanged(double val) { _viewportWidget->setBoxClippingLimit(1, val); }
+void ClippingPlanesEditor::on_doubleSpinBoxBoxYMin_valueChanged(double val) { _viewportWidget->setBoxClippingLimit(2, val); }
+void ClippingPlanesEditor::on_doubleSpinBoxBoxYMax_valueChanged(double val) { _viewportWidget->setBoxClippingLimit(3, val); }
+void ClippingPlanesEditor::on_doubleSpinBoxBoxZMin_valueChanged(double val) { _viewportWidget->setBoxClippingLimit(4, val); }
+void ClippingPlanesEditor::on_doubleSpinBoxBoxZMax_valueChanged(double val) { _viewportWidget->setBoxClippingLimit(5, val); }
+
+void ClippingPlanesEditor::on_pushButtonBoxReset_clicked()
+{
+	_viewportWidget->resetBoxClippingLimits();
+}
+
 void ClippingPlanesEditor::keyPressEvent(QKeyEvent* e)
 {
 	if (e->key() != Qt::Key_Escape)
@@ -288,20 +421,27 @@ void ClippingPlanesEditor::keyPressEvent(QKeyEvent* e)
 
 void ClippingPlanesEditor::on_checkBoxXY_toggled(bool checked)
 {
-	_viewportWidget->setXYClippingEnabled(checked);	
+	// Mutually exclusive with Box mode - see on_checkBoxBoxClip_toggled().
+	if (checked && checkBoxBoxClip->isChecked())
+		checkBoxBoxClip->setChecked(false);
+	_viewportWidget->setXYClippingEnabled(checked);
 	_viewportWidget->updateClippingPlane();
 	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxYZ_toggled(bool checked)
 {
-	_viewportWidget->setYZClippingEnabled(checked);	
+	if (checked && checkBoxBoxClip->isChecked())
+		checkBoxBoxClip->setChecked(false);
+	_viewportWidget->setYZClippingEnabled(checked);
 	_viewportWidget->updateClippingPlane();
 	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxZX_toggled(bool checked)
-{	
+{
+	if (checked && checkBoxBoxClip->isChecked())
+		checkBoxBoxClip->setChecked(false);
 	_viewportWidget->setZXClippingEnabled(checked);
 	_viewportWidget->updateClippingPlane();
 	_viewportWidget->update();
@@ -368,57 +508,6 @@ void ClippingPlanesEditor::on_pushButtonResetCoeffs_clicked()
 	doubleSpinBoxYZCoeff->setValue(0);
 }
 
-void ClippingPlanesEditor::on_radioButtonProcedural_toggled(bool checked)
-{
-	_viewportWidget->setClippingPlaneHatchMode(checked ? ClippingPlaneHatchMode::PROCEDURAL : ClippingPlaneHatchMode::TEXTURE);
-	_viewportWidget->updateClippingPlane();
-	_viewportWidget->update();
-}
-
-void ClippingPlanesEditor::on_comboBoxHatchMode_currentIndexChanged(int index)
-{
-	_viewportWidget->setClippingPlaneHatchPattern(static_cast<HatchPattern>(index));
-	_viewportWidget->updateClippingPlane();
-	_viewportWidget->update();
-}
-
-void ClippingPlanesEditor::on_spinBoxHatchTiling_valueChanged(int val)
-{
-	_viewportWidget->setHatchTiling(val);
-	_viewportWidget->updateClippingPlane();
-	_viewportWidget->update();
-}
-
-void ClippingPlanesEditor::on_doubleSpinBoxThickness_valueChanged(double val)
-{
-	_viewportWidget->setHatchLineThickness(static_cast<float>(val));
-	_viewportWidget->updateClippingPlane();
-	_viewportWidget->update();
-}
-
-void ClippingPlanesEditor::on_doubleSpinBoxIntensity_valueChanged(double val)
-{
-	_viewportWidget->setHatchIntensity(static_cast<float>(val));
-	_viewportWidget->updateClippingPlane();
-	_viewportWidget->update();
-}
-
-void ClippingPlanesEditor::on_pushButtonHatchColor_clicked()
-{
-	QColor color = QColorDialog::getColor(QColor(0,0,0), this, tr("Select Hatch Color"));
-	if (color.isValid())
-	{		
-		pushButtonHatchColor->setStyleSheet(
-			QString("background-color: %1; color: %2;")
-			.arg(color.name())
-			.arg(color.lightness() < 128 ? "#FFFFFF" : "#000000")
-		);
-		_viewportWidget->setHatchLineColor(color);
-		_viewportWidget->updateClippingPlane();
-		_viewportWidget->update();
-	}
-}
-
 void ClippingPlanesEditor::on_pushButtonTexture_clicked()
 {
 	const QString path = PathUtils::getDataDirectory() + "/";
@@ -452,11 +541,6 @@ void ClippingPlanesEditor::on_pushButtonTexture_clicked()
 	}
 }
 
-void ClippingPlanesEditor::on_pushButtonDefaultValues_clicked()
-{
-	resetProceduralTextureValues();
-}
-
 void ClippingPlanesEditor::on_pushButtonResetAll_clicked()
 {
 	// set default values
@@ -469,19 +553,24 @@ void ClippingPlanesEditor::on_pushButtonResetAll_clicked()
 	checkBoxFlipXY->setChecked(false);
 	checkBoxFlipYZ->setChecked(false);
 	checkBoxFlipZX->setChecked(false);
-	checkBoxCapping->setChecked(false);
-	radioButtonProcedural->setChecked(true);
-	resetProceduralTextureValues();
+	// Box mode: off, back to the default keep-outside (hole), and re-seeded so its
+	// next enable starts from a fresh default box (its toggled handler hides the
+	// limit fields again).
+	checkBoxBoxKeepInside->setChecked(false);
+	checkBoxBoxClip->setChecked(false);
+	_viewportWidget->resetBoxClippingLimits();
+	// Capping and Show Gizmo both default to checked now (see
+	// ClippingPlanesEditor.ui's own "checked" properties) - this button's
+	// own tooltip promises "Reset every clipping plane setting to its
+	// default", so it needs to reset TO that, not to the stale false
+	// defaults from before that change (a real bug: capping silently
+	// stayed off after a reset even though a brand new panel starts with
+	// it on).
+	checkBoxCapping->setChecked(true);
+	checkBoxShowGizmo->setChecked(true);
+	// Mode/pattern/tiling/thickness/intensity/line color are no longer
+	// per-document state (see this class's own header doc comment) - only
+	// the texture PICK itself (which file, if any) resets here.
 	pushButtonTexture->setText(tr("Select Texture"));
 	pushButtonTexture->setIcon(QIcon());
-}
-
-void ClippingPlanesEditor::resetProceduralTextureValues()
-{
-	comboBoxHatchMode->setCurrentIndex(0);
-	spinBoxHatchTiling->setValue(100);
-	doubleSpinBoxThickness->setValue(0.05);
-	doubleSpinBoxIntensity->setValue(1.0f);
-	pushButtonHatchColor->setStyleSheet("background-color: #000000; color: #FFFFFF;");
-	_viewportWidget->setHatchLineColor(QColor(0, 0, 0));
 }

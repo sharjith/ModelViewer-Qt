@@ -1305,15 +1305,7 @@ void VisualizationEnvironmentPanel::onFloorTextureClicked()
 	QString fileName = QFileDialog::getOpenFileName(this, "Choose an image for floor texture", appPath + "/textures/envmap/floor", filter);
 	if (!fileName.isEmpty())
 	{
-		QImage buf;
-		if (!buf.load(fileName))
-		{
-			// Fallback to dummy image if load fails
-			QImage dummy(128, 128, QImage::Format_ARGB32);
-			dummy.fill(1);
-			buf = dummy;
-		}
-		_viewportWidget->setFloorTexture(buf);
+		_viewportWidget->setFloorTextureFromPath(fileName);
 		_viewportWidget->updateView();
 	}
 }

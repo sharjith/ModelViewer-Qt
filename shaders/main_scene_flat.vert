@@ -22,6 +22,14 @@ layout(location = 7) in vec3 vertexTangent;
 layout(location = 8) in vec3 vertexBitangent;
 layout(location = 9) in vec4 jointIndices;
 layout(location = 10) in vec4 jointWeights;
+// Surface Analysis overlay - see main_scene.vert's own doc comment for this
+// attribute. Forwarded through VS_FLAT_GEOM/the geometry shader purely so
+// this program still LINKS against main_scene.frag's "in vec4
+// v_analysisColor" (both programs share that one fragment shader) - actual
+// meshes with an active overlay never render through this flat-shading
+// program at all (ViewportWidget.cpp excludes them), so the value reaching
+// the fragment shader here is never actually used.
+layout(location = 11) in vec4 analysisColor;
 
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
@@ -39,6 +47,10 @@ uniform int jointCount;
 uniform mat4 jointMatrices[128];
 
 uniform vec4 clipPlane;
+
+// Box clipping (4th clipping mode) - see main_scene.vert.
+uniform vec4 clipPlaneBox[6];
+uniform bool clipPlaneBoxEnabled;
 
 // All per-vertex varyings go into this single interface block.
 // The geometry shader receives them as gs_fg_in[i].* (unambiguous)
@@ -66,6 +78,7 @@ out VS_FLAT_GEOM {
     vec3 reflectionFlatNormal;  // world-space (→ v_reflectionFlatNormal)
     vec3 positionFlat;          // constant per-face position     → v_positionFlat
     vec3 positionLinear;        // for noperspective interp.      → v_positionLinear
+    vec4 analysisColor;         //                                → v_analysisColor
 } vs_fg;
 
 out VS_OUT_SHADOW {
@@ -125,6 +138,7 @@ void main()
 
     vs_fg.color         = vertexColor;
     vs_fg.rawVertexColor = vertexColor;
+    vs_fg.analysisColor = analysisColor;
     vs_fg.texCoord0     = texCoord0;
     vs_fg.texCoord1     = texCoord1;
     vs_fg.texCoord2     = texCoord2;
@@ -206,8 +220,22 @@ void main()
 
     // Clip distances for hardware clipping
     vec4 viewPos = modelViewMatrix * skinnedPosition;
-    gl_ClipDistance[0] = dot(clipPlaneX, viewPos);
-    gl_ClipDistance[1] = dot(clipPlaneY, viewPos);
-    gl_ClipDistance[2] = dot(clipPlaneZ, viewPos);
-    gl_ClipDistance[3] = dot(clipPlane,  viewPos);
+    if (clipPlaneBoxEnabled)
+    {
+        gl_ClipDistance[0] = dot(clipPlaneBox[0], viewPos);
+        gl_ClipDistance[1] = dot(clipPlaneBox[1], viewPos);
+        gl_ClipDistance[2] = dot(clipPlaneBox[2], viewPos);
+        gl_ClipDistance[3] = dot(clipPlaneBox[3], viewPos);
+        gl_ClipDistance[4] = dot(clipPlaneBox[4], viewPos);
+        gl_ClipDistance[5] = dot(clipPlaneBox[5], viewPos);
+    }
+    else
+    {
+        gl_ClipDistance[0] = dot(clipPlaneX, viewPos);
+        gl_ClipDistance[1] = dot(clipPlaneY, viewPos);
+        gl_ClipDistance[2] = dot(clipPlaneZ, viewPos);
+        gl_ClipDistance[3] = dot(clipPlane,  viewPos);
+        gl_ClipDistance[4] = 1.0;
+        gl_ClipDistance[5] = 1.0;
+    }
 }

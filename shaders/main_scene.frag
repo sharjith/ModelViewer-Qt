@@ -7,6 +7,7 @@ in vec3 v_position;
 in vec3 v_normal;
 in vec4 v_color;
 in vec4 v_rawVertexColor;
+in vec4 v_analysisColor;
 in vec2 v_texCoord0;
 in vec2 v_texCoord1;
 in vec2 v_texCoord2;
@@ -36,10 +37,62 @@ in VS_OUT_SHADOW{
 
 uniform bool hasVertexColors;
 uniform bool hasNegativeScale;
+// Surface Analysis overlay (curvature/thickness/deviation heatmaps) - a
+// dedicated, always-unlit output path, deliberately independent of
+// hasVertexColors/debugChannelOutput below (see RenderableMesh::
+// setAnalysisOverlayColors()'s doc comment for why). Checked and handled
+// once, early, near the top of main() - see that check for the full
+// reasoning.
+uniform bool analysisOverlayActive;
+// When >= 2, v_analysisColor carries a normalized scalar in R and validity
+// in A. Quantization happens here, after interpolation, so band boundaries
+// follow the scalar field instead of the source triangles.
+uniform int analysisOverlayBands;
+uniform int analysisOverlayColormap; // AnalysisColormap: 0 sequential, 1 diverging, 2 threshold
+// Zebra-stripe reflection-line overlay (Surface Analysis's Curvature panel) -
+// see RenderableMesh::setZebraStripeActive()'s doc comment. Also handled
+// early, right after analysisOverlayActive above.
+uniform bool zebraStripeActive;
+uniform float zebraStripeFrequency;
 
 uniform int primitiveMode;  // 0=POINTS, 1=LINES, 2=LINE_LOOP, 3=LINE_STRIP, 4+=TRIANGLES
 
 uniform float opacity;
+
+// PlaneGizmo multi-plane truncation (ViewportWidget::renderPlaneGizmos()) -
+// trims a clipping-plane gizmo's own quad against the OTHER currently-active
+// clip planes, so with several gizmos visible at once they read as a clean
+// trimmed box-corner instead of each extending full-size straight through
+// the others. Mirrors clipping_plane.frag's own proven-correct otherApply/
+// otherThresh/otherFlipped multi-plane cap trim test exactly (same
+// "discard unless on the REMOVED side of every other active axis" sense) -
+// gizmoClipEnabled is false for every ordinary mesh/material draw (the
+// caller resets it to false immediately after the gizmo draw calls, since
+// nothing else in this shader's normal per-mesh path ever touches it), so
+// this is a no-op for anything other than the gizmo quads themselves.
+uniform bool  gizmoClipEnabled     = false;
+uniform bool  gizmoClipApplyX      = false;
+uniform bool  gizmoClipApplyY      = false;
+uniform bool  gizmoClipApplyZ      = false;
+uniform float gizmoClipThreshX     = 0.0;
+uniform float gizmoClipThreshY     = 0.0;
+uniform float gizmoClipThreshZ     = 0.0;
+uniform bool  gizmoClipFlippedX    = false;
+uniform bool  gizmoClipFlippedY    = false;
+uniform bool  gizmoClipFlippedZ    = false;
+
+// Box clipping, keep-outside ("hole", the DEFAULT box mode): the box's interior is removed and
+// everything outside is kept. That is a UNION of six outside half-spaces, which
+// one hardware clip-distance pass cannot express and which multi-pass union would
+// double-blend / mis-sort for transparent meshes - so it is done as a single
+// fragment discard instead, world space (v_position), strictly inside the box.
+// boxDiscardEnabled is true ONLY while the hole-mode model draw loops run (set
+// and reset by ViewportWidget::setBoxDiscardEnabled()); this shader is also used
+// by the floor and the plane gizmos, which must never get a hole. Keep-inside
+// (crop) mode does not use this at all - it clips with gl_ClipDistance.
+uniform bool  boxDiscardEnabled = false;
+uniform vec3  boxDiscardMin;
+uniform vec3  boxDiscardMax;
 
 // ADS light maps
 uniform sampler2D texture_diffuse;
@@ -800,6 +853,31 @@ vec4 computeGridOverlayColor()
 	return vec4(baseColor, alpha);
 }
 
+vec3 analysisHsvToRgb(vec3 hsv)
+{
+	vec3 p = abs(fract(hsv.xxx + vec3(0.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0);
+	return hsv.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), hsv.y);
+}
+
+vec3 analysisRampColor(float t, int colormap)
+{
+	t = clamp(t, 0.0, 1.0);
+	if (colormap == 2)
+		return t < 0.5 ? vec3(214.0, 48.0, 49.0) / 255.0
+			: vec3(46.0, 160.0, 96.0) / 255.0;
+	if (colormap == 1)
+	{
+		if (t < 0.5)
+		{
+			float channel = t * 2.0;
+			return vec3(channel, channel, 1.0);
+		}
+		float channel = 1.0 - (t - 0.5) * 2.0;
+		return vec3(1.0, channel, channel);
+	}
+	return analysisHsvToRgb(vec3((1.0 - t) * (240.0 / 360.0), 1.0, 1.0));
+}
+
 // ---- void main() ------------------------------------------------------------
 
 void main()
@@ -821,6 +899,26 @@ void main()
 		discard;
 	}
 
+	// PlaneGizmo multi-plane truncation - see the uniform declarations above
+	// for the full doc comment. v_position is already world-space (used the
+	// same way a few lines below via "cameraPos - v_position"), so this can
+	// reuse it directly without any new varying.
+	if (gizmoClipEnabled)
+	{
+		if (gizmoClipApplyX && (gizmoClipFlippedX ? (v_position.x >= gizmoClipThreshX) : (v_position.x <= gizmoClipThreshX)))
+			discard;
+		if (gizmoClipApplyY && (gizmoClipFlippedY ? (v_position.y >= gizmoClipThreshY) : (v_position.y <= gizmoClipThreshY)))
+			discard;
+		if (gizmoClipApplyZ && (gizmoClipFlippedZ ? (v_position.z >= gizmoClipThreshZ) : (v_position.z <= gizmoClipThreshZ)))
+			discard;
+	}
+
+	// Box clipping, hole (keep-outside) mode - see the uniform declarations above.
+	if (boxDiscardEnabled &&
+		all(greaterThan(v_position, boxDiscardMin)) &&
+		all(lessThan(v_position, boxDiscardMax)))
+		discard;
+
 	// Early discard for reflected pass beyond fade start
 	if (isReflectedPass)
 	{
@@ -833,6 +931,59 @@ void main()
 	// fragments are written into the SSS FBO.
 	if (sssCapture && !hasVolumeScattering)
 		discard;
+
+	// Surface Analysis overlay (curvature/thickness/deviation heatmaps) -
+	// checked here, after the discard/visibility checks above (a backface
+	// or faded-out reflection fragment still shouldn't render just because
+	// analysis is active) but before any lighting computation begins, since
+	// the overlay is a flat, unlit, deliberately non-photoreal color read -
+	// there's nothing for the ADS/PBR paths below to contribute. Explicitly
+	// excluded from the SSS capture and reflected passes (this shader's
+	// other special output modes) - the overlay is a normal-color-pass-only
+	// concept, never meant to leak into either of those.
+	if (analysisOverlayActive && !sssCapture && !isReflectedPass)
+	{
+		if (analysisOverlayBands >= 2)
+		{
+			if (v_analysisColor.a < 0.5)
+				fragColor = vec4(vec3(128.0 / 255.0), 1.0);
+			else
+			{
+				float t = clamp(v_analysisColor.r, 0.0, 1.0);
+				int band = min(int(floor(t * float(analysisOverlayBands))), analysisOverlayBands - 1);
+				float bandCenter = (float(band) + 0.5) / float(analysisOverlayBands);
+				fragColor = vec4(analysisRampColor(bandCenter, analysisOverlayColormap), 1.0);
+			}
+		}
+		else
+			fragColor = vec4(v_analysisColor.rgb, 1.0);
+		return;
+	}
+
+	// Zebra-stripe reflection-line overlay - same early-exit reasoning as
+	// analysisOverlayActive above (unlit, nothing for the lighting paths
+	// below to contribute, excluded from the SSS/reflected special passes).
+	// Uses v_normal - the ordinary SMOOTHLY INTERPOLATED per-vertex normal,
+	// deliberately NOT a flat per-face one - zebra-stripe exists to reveal
+	// whether adjacent surface regions are tangent-continuous, which a flat
+	// normal would defeat by making every triangle read as its own
+	// discontinuous band regardless of the underlying surface's true
+	// smoothness.
+	if (zebraStripeActive && !sssCapture && !isReflectedPass)
+	{
+		vec3 viewDir = normalize(cameraPos - v_position);
+		vec3 N = normalize(v_normal);
+		vec3 R = reflect(-viewDir, N);
+		// Classic reflection-line technique: project the reflection vector
+		// onto a fixed world-space scan axis and repeat a black/white
+		// pattern along it - any kink or non-tangent seam in the underlying
+		// normal field visibly breaks the stripe pattern's otherwise-smooth
+		// flow across it.
+		float stripeCoord = R.y * zebraStripeFrequency;
+		float stripe = step(0.5, fract(stripeCoord));
+		fragColor = vec4(vec3(stripe), 1.0);
+		return;
+	}
 
 	// Choose rendering path - ADS vs PBR
 	if (renderingMode == 0)

@@ -78,6 +78,108 @@
     <addaction name="separator"/>
     <addaction name="actionSettings"/>
    </widget>
+   <widget class="QMenu" name="menuView">
+    <property name="title"><string>View</string></property>
+    <widget class="QMenu" name="menuViewNavigation"><property name="title"><string>Navigation</string></property>
+    <addaction name="actionViewRotate"/>
+    <addaction name="actionViewPan"/>
+    <addaction name="actionViewZoom"/>
+    </widget>
+    <widget class="QMenu" name="menuViewStandardViews"><property name="title"><string>Standard Views</string></property>
+    <addaction name="actionViewTop"/>
+    <addaction name="actionViewBottom"/>
+    <addaction name="actionViewFront"/>
+    <addaction name="actionViewRear"/>
+    <addaction name="actionViewLeft"/>
+    <addaction name="actionViewRight"/>
+    </widget>
+    <widget class="QMenu" name="menuViewAxonometricViews"><property name="title"><string>Axonometric Views</string></property>
+    <addaction name="actionViewIso"/>
+    <addaction name="actionViewDimetric"/>
+    <addaction name="actionViewTrimetric"/>
+    <addaction name="separator"/>
+    <addaction name="actionViewCornerSE"/>
+    <addaction name="actionViewCornerNE"/>
+    <addaction name="actionViewCornerNW"/>
+    <addaction name="actionViewCornerSW"/>
+    </widget>
+    <widget class="QMenu" name="menuViewCamera"><property name="title"><string>Camera</string></property>
+    <addaction name="actionViewOrbit"/>
+    <addaction name="actionViewFly"/>
+    <addaction name="actionViewFirstPerson"/>
+    <addaction name="separator"/>
+    <addaction name="actionViewZUp"/>
+    <addaction name="actionViewYUp"/>
+    </widget>
+    <widget class="QMenu" name="menuViewProjection"><property name="title"><string>Projection</string></property>
+    <addaction name="actionViewPerspective"/>
+    <addaction name="actionViewOrtho"/>
+    <addaction name="separator"/>
+    <addaction name="actionViewCavalier"/>
+    <addaction name="actionViewCabinet"/>
+    </widget>
+    <widget class="QMenu" name="menuViewDisplayMode"><property name="title"><string>Display Mode</string></property>
+    <addaction name="actionViewShaded"/>
+    <addaction name="actionViewHollow"/>
+    <addaction name="actionViewMeshEdges"/>
+    <addaction name="actionViewWireframe"/>
+    <addaction name="actionViewShadedEdges"/>
+    </widget>
+    <widget class="QMenu" name="menuViewRenderingMode"><property name="title"><string>Rendering Mode</string></property>
+    <addaction name="actionViewAds"/>
+    <addaction name="actionViewPbr"/>
+    <addaction name="actionViewRayTraced"/>
+    </widget>
+    <widget class="QMenu" name="menuViewShadingNormals"><property name="title"><string>Shading Normals</string></property>
+    <addaction name="actionViewSmooth"/>
+    <addaction name="actionViewFlat"/>
+    </widget>
+    <widget class="QMenu" name="menuViewDebugOverlays"><property name="title"><string>Debug Overlays</string></property>
+    <addaction name="actionViewDebugEnabled"/>
+    <addaction name="separator"/>
+    <addaction name="actionViewBoundingBox"/>
+    <addaction name="actionViewVertexNormals"/>
+    <addaction name="actionViewFaceNormals"/>
+    </widget>
+    <widget class="QMenu" name="menuViewPanels"><property name="title"><string>Panels</string></property></widget>
+    <addaction name="actionViewFit"/>
+    <addaction name="actionViewWindowZoom"/>
+    <addaction name="menuViewNavigation"/>
+    <addaction name="menuViewStandardViews"/>
+    <addaction name="menuViewAxonometricViews"/>
+    <addaction name="menuViewCamera"/>
+    <addaction name="menuViewProjection"/>
+    <addaction name="actionViewMulti"/>
+    <addaction name="separator"/>
+    <addaction name="menuViewDisplayMode"/>
+    <addaction name="menuViewRenderingMode"/>
+    <addaction name="menuViewShadingNormals"/>
+    <addaction name="actionViewRealistic"/>
+    <addaction name="separator"/>
+    <addaction name="actionViewClipping"/>
+    <addaction name="actionViewExploded"/>
+    <addaction name="actionViewTurntable"/>
+    <addaction name="actionViewAxis"/>
+    <addaction name="menuViewDebugOverlays"/>
+    <addaction name="separator"/>
+    <addaction name="menuViewPanels"/>
+    <addaction name="actionViewPin"/>
+   </widget>
+   <widget class="QMenu" name="menuSelection">
+    <property name="title">
+     <string>Selection</string>
+    </property>
+    <addaction name="actionViewLasso"/>
+    <addaction name="separator"/>
+    <addaction name="actionFilterByMaterial"/>
+    <addaction name="actionFilterByColor"/>
+    <addaction name="actionFilterByBoundingBox"/>
+    <addaction name="separator"/>
+    <addaction name="actionViewSwap"/>
+    <addaction name="separator"/>
+    <addaction name="actionSaveSelectionSet"/>
+    <addaction name="actionSaveSceneState"/>
+   </widget>
    <widget class="QMenu" name="menuTools">
     <property name="title">
      <string>Tools</string>
@@ -85,6 +187,9 @@
     <addaction name="actionMeasure"/>
     <addaction name="actionAnnotate"/>
     <addaction name="actionExportReport"/>
+    <addaction name="actionBatchRenderViews"/>
+    <addaction name="actionMassProperties"/>
+    <addaction name="actionSurfaceAnalysis"/>
     <addaction name="separator"/>
     <addaction name="actionShrinkWrap"/>
     <addaction name="actionSubdivideSurface"/>
@@ -92,6 +197,8 @@
     <addaction name="actionRepairMesh"/>
     <addaction name="actionFillHoles"/>
     <addaction name="actionGenerateUVs"/>
+    <addaction name="separator"/>
+    <addaction name="actionPurgeRedundantNodes"/>
    </widget>
    <widget class="QMenu" name="menuVisualization">
     <property name="title">
@@ -103,6 +210,8 @@
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
+   <addaction name="menuView"/>
+   <addaction name="menuSelection"/>
    <addaction name="menuTools"/>
    <addaction name="menuVisualization"/>
    <addaction name="menuWindows"/>
@@ -111,7 +220,8 @@
   <widget class="QStatusBar" name="statusBar"/>
   <action name="actionExit">
    <property name="icon">
-    <iconset theme="application-exit"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/exit.png</normaloff>:/icons/res/exit.png</iconset>
    </property>
    <property name="text">
     <string>Exit</string>
@@ -122,7 +232,8 @@
   </action>
   <action name="actionAbout">
    <property name="icon">
-    <iconset theme="help-about"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/about.png</normaloff>:/icons/res/about.png</iconset>
    </property>
    <property name="text">
     <string>About</string>
@@ -131,9 +242,252 @@
     <string>About the application</string>
    </property>
   </action>
+  <action name="actionViewFit">
+   <property name="text"><string>Fit All</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/fit-all.png</normaloff>:/icons/res/fit-all.png</iconset></property>
+  </action>
+  <action name="actionViewWindowZoom">
+   <property name="text"><string>Window Zoom</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/window-zoom.png</normaloff>:/icons/res/window-zoom.png</iconset></property>
+  </action>
+  <action name="actionViewMulti">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Multi-View</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/multiview.png</normaloff>:/icons/res/multiview.png</iconset></property>
+  </action>
+  <action name="actionViewRealistic">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Realistic Rendering</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/realshaded.png</normaloff>:/icons/res/realshaded.png</iconset></property>
+  </action>
+  <action name="actionViewClipping">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Clipping Planes</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/section.png</normaloff>:/icons/res/section.png</iconset></property>
+  </action>
+  <action name="actionViewExploded">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Exploded View</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/exploded_view.png</normaloff>:/icons/res/exploded_view.png</iconset></property>
+  </action>
+  <action name="actionViewTurntable">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Turntable</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/camera_orbit_anim.png</normaloff>:/icons/res/camera_orbit_anim.png</iconset></property>
+  </action>
+  <action name="actionViewAxis">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Show Axis</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/showAxis.png</normaloff>:/icons/res/showAxis.png</iconset></property>
+  </action>
+  <action name="actionViewLasso">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Lasso Select</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/lasso_select.png</normaloff>:/icons/res/lasso_select.png</iconset></property>
+  </action>
+  <action name="actionViewSwap">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Swap Visible</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/swapvisible.png</normaloff>:/icons/res/swapvisible.png</iconset></property>
+  </action>
+  <action name="actionViewPin">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Keep Toolbar Visible</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/pin.png</normaloff>:/icons/res/pin.png</iconset></property>
+  </action>
+  <action name="actionViewRotate">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Rotate</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/rotateview.png</normaloff>:/icons/res/rotateview.png</iconset></property>
+  </action>
+  <action name="actionViewPan">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Pan</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/panview.png</normaloff>:/icons/res/panview.png</iconset></property>
+  </action>
+  <action name="actionViewZoom">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Zoom</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/zoomview.png</normaloff>:/icons/res/zoomview.png</iconset></property>
+  </action>
+  <action name="actionViewTop">
+   <property name="text"><string>Top</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/top.png</normaloff>:/icons/res/top.png</iconset></property>
+  </action>
+  <action name="actionViewBottom">
+   <property name="text"><string>Bottom</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/bottom.png</normaloff>:/icons/res/bottom.png</iconset></property>
+  </action>
+  <action name="actionViewFront">
+   <property name="text"><string>Front</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/front.png</normaloff>:/icons/res/front.png</iconset></property>
+  </action>
+  <action name="actionViewRear">
+   <property name="text"><string>Rear</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/back.png</normaloff>:/icons/res/back.png</iconset></property>
+  </action>
+  <action name="actionViewLeft">
+   <property name="text"><string>Left</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/left.png</normaloff>:/icons/res/left.png</iconset></property>
+  </action>
+  <action name="actionViewRight">
+   <property name="text"><string>Right</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/right.png</normaloff>:/icons/res/right.png</iconset></property>
+  </action>
+  <action name="actionViewIso">
+    <property name="checkable"><bool>true</bool></property>
+    <property name="text"><string>Isometric</string></property>
+    <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/isometric.png</normaloff>:/icons/res/isometric.png</iconset></property>
+  </action>
+  <action name="actionViewDimetric">
+    <property name="checkable"><bool>true</bool></property>
+    <property name="text"><string>Dimetric</string></property>
+    <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/dimetric.png</normaloff>:/icons/res/dimetric.png</iconset></property>
+  </action>
+  <action name="actionViewTrimetric">
+    <property name="checkable"><bool>true</bool></property>
+    <property name="text"><string>Trimetric</string></property>
+    <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/trimetric.png</normaloff>:/icons/res/trimetric.png</iconset></property>
+  </action>
+  <action name="actionViewCornerSE">
+    <property name="checkable"><bool>true</bool></property>
+    <property name="text"><string>SE Corner</string></property>
+    <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/isometric_se.png</normaloff>:/icons/res/isometric_se.png</iconset></property>
+  </action>
+  <action name="actionViewCornerNE">
+    <property name="checkable"><bool>true</bool></property>
+    <property name="text"><string>NE Corner</string></property>
+    <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/isometric_ne.png</normaloff>:/icons/res/isometric_ne.png</iconset></property>
+  </action>
+  <action name="actionViewCornerNW">
+    <property name="checkable"><bool>true</bool></property>
+    <property name="text"><string>NW Corner</string></property>
+    <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/isometric_nw.png</normaloff>:/icons/res/isometric_nw.png</iconset></property>
+  </action>
+  <action name="actionViewCornerSW">
+    <property name="checkable"><bool>true</bool></property>
+    <property name="text"><string>SW Corner</string></property>
+    <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/isometric_sw.png</normaloff>:/icons/res/isometric_sw.png</iconset></property>
+  </action>
+  <action name="actionViewOrbit">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Orbit</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/camera_orbit.png</normaloff>:/icons/res/camera_orbit.png</iconset></property>
+  </action>
+  <action name="actionViewFly">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Fly</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/camera_fly.png</normaloff>:/icons/res/camera_fly.png</iconset></property>
+  </action>
+  <action name="actionViewFirstPerson">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>First Person</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/camera_first_person.png</normaloff>:/icons/res/camera_first_person.png</iconset></property>
+  </action>
+  <action name="actionViewZUp">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Z-Up</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/camera_z_up.png</normaloff>:/icons/res/camera_z_up.png</iconset></property>
+  </action>
+  <action name="actionViewYUp">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Y-Up</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/camera_y_up.png</normaloff>:/icons/res/camera_y_up.png</iconset></property>
+  </action>
+  <action name="actionViewPerspective">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Perspective</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/Perspective.png</normaloff>:/icons/res/Perspective.png</iconset></property>
+  </action>
+  <action name="actionViewOrtho">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Orthographic</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/Ortho.png</normaloff>:/icons/res/Ortho.png</iconset></property>
+  </action>
+  <action name="actionViewCavalier">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Cavalier</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/Cavalier.png</normaloff>:/icons/res/Cavalier.png</iconset></property>
+  </action>
+  <action name="actionViewCabinet">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Cabinet</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/Cabinet.png</normaloff>:/icons/res/Cabinet.png</iconset></property>
+  </action>
+  <action name="actionViewShaded">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Shaded</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/shaded.png</normaloff>:/icons/res/shaded.png</iconset></property>
+  </action>
+  <action name="actionViewHollow">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Hollow Mesh</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/hollow_mesh.png</normaloff>:/icons/res/hollow_mesh.png</iconset></property>
+  </action>
+  <action name="actionViewMeshEdges">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Mesh Edges</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/mesh_edges.png</normaloff>:/icons/res/mesh_edges.png</iconset></property>
+  </action>
+  <action name="actionViewWireframe">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Wireframe</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/wireframe.png</normaloff>:/icons/res/wireframe.png</iconset></property>
+  </action>
+  <action name="actionViewShadedEdges">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Shaded with Edges</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/wireshaded.png</normaloff>:/icons/res/wireshaded.png</iconset></property>
+  </action>
+  <action name="actionViewAds">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>ADS (Blinn-Phong)</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/ads_mode.png</normaloff>:/icons/res/ads_mode.png</iconset></property>
+  </action>
+  <action name="actionViewPbr">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>PBR (Metallic-Roughness)</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/pbr_mode.png</normaloff>:/icons/res/pbr_mode.png</iconset></property>
+  </action>
+  <action name="actionViewRayTraced">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Ray Traced</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/ray_tracing_mode.png</normaloff>:/icons/res/ray_tracing_mode.png</iconset></property>
+  </action>
+  <action name="actionViewSmooth">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Smooth</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/smooth_shaded.png</normaloff>:/icons/res/smooth_shaded.png</iconset></property>
+  </action>
+  <action name="actionViewFlat">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Flat</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/flat_shaded.png</normaloff>:/icons/res/flat_shaded.png</iconset></property>
+  </action>
+  <action name="actionViewDebugEnabled">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Enable Overlay</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/show_bounding_box.png</normaloff>:/icons/res/show_bounding_box.png</iconset></property>
+  </action>
+  <action name="actionViewBoundingBox">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Bounding Box</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/show_bounding_box.png</normaloff>:/icons/res/show_bounding_box.png</iconset></property>
+  </action>
+  <action name="actionViewVertexNormals">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Vertex Normals</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/showVertexNormal.png</normaloff>:/icons/res/showVertexNormal.png</iconset></property>
+  </action>
+  <action name="actionViewFaceNormals">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Face Normals</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/showFaceNormal.png</normaloff>:/icons/res/showFaceNormal.png</iconset></property>
+  </action>
   <action name="actionNew">
    <property name="icon">
-    <iconset theme="document-new"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/new.png</normaloff>:/icons/res/new.png</iconset>
    </property>
    <property name="text">
     <string>New</string>
@@ -146,6 +500,10 @@
    </property>
   </action>
   <action name="actionTile_Horizontally">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/tile_horizontal.png</normaloff>:/icons/res/tile_horizontal.png</iconset>
+   </property>
    <property name="text">
     <string>Tile Horizontally</string>
    </property>
@@ -154,6 +512,10 @@
    </property>
   </action>
   <action name="actionTile_Vertically">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/tile_vertical.png</normaloff>:/icons/res/tile_vertical.png</iconset>
+   </property>
    <property name="text">
     <string>Tile Vertically</string>
    </property>
@@ -162,6 +524,10 @@
    </property>
   </action>
   <action name="actionCascade">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/cascade.png</normaloff>:/icons/res/cascade.png</iconset>
+   </property>
    <property name="text">
     <string>Cascade</string>
    </property>
@@ -170,6 +536,10 @@
    </property>
   </action>
   <action name="actionTile">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/tile.png</normaloff>:/icons/res/tile.png</iconset>
+   </property>
    <property name="text">
     <string>Tile</string>
    </property>
@@ -179,7 +549,8 @@
   </action>
   <action name="actionClose">
    <property name="icon">
-    <iconset theme="window-close"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/window_close.png</normaloff>:/icons/res/window_close.png</iconset>
    </property>
    <property name="text">
     <string>Close</string>
@@ -190,7 +561,8 @@
   </action>
   <action name="actionClose_All">
    <property name="icon">
-    <iconset theme="window-close-all"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/window_close_all.png</normaloff>:/icons/res/window_close_all.png</iconset>
    </property>
    <property name="text">
     <string>Close All</string>
@@ -201,7 +573,8 @@
   </action>
   <action name="actionNext">
    <property name="icon">
-    <iconset theme="window-next"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/window_next.png</normaloff>:/icons/res/window_next.png</iconset>
    </property>
    <property name="text">
     <string>Next</string>
@@ -212,7 +585,8 @@
   </action>
   <action name="actionPrevious">
    <property name="icon">
-    <iconset theme="window-previous"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/window_previous.png</normaloff>:/icons/res/window_previous.png</iconset>
    </property>
    <property name="text">
     <string>Previous</string>
@@ -223,7 +597,8 @@
   </action>
   <action name="actionOpen">
    <property name="icon">
-    <iconset theme="document-open"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/fileopen.png</normaloff>:/icons/res/fileopen.png</iconset>
    </property>
    <property name="text">
     <string>Open</string>
@@ -237,7 +612,8 @@
   </action>
   <action name="actionImport">
    <property name="icon">
-    <iconset theme="document-import"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/import.png</normaloff>:/icons/res/import.png</iconset>
    </property>
    <property name="text">
     <string>Import</string>
@@ -251,7 +627,8 @@
   </action>
   <action name="actionSave">
    <property name="icon">
-    <iconset theme="document-save"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/save.png</normaloff>:/icons/res/save.png</iconset>
    </property>
    <property name="text">
     <string>Save</string>
@@ -265,7 +642,8 @@
   </action>
   <action name="actionSave_As">
    <property name="icon">
-    <iconset theme="document-save-as"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/save_as.png</normaloff>:/icons/res/save_as.png</iconset>
    </property>
    <property name="text">
     <string>Save As</string>
@@ -279,7 +657,8 @@
   </action>
   <action name="actionUndo">
    <property name="icon">
-    <iconset theme="edit-undo"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/undo.png</normaloff>:/icons/res/undo.png</iconset>
    </property>
    <property name="text">
     <string>Undo</string>
@@ -296,7 +675,8 @@
   </action>
   <action name="actionRedo">
    <property name="icon">
-    <iconset theme="edit-redo"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/redo.png</normaloff>:/icons/res/redo.png</iconset>
    </property>
    <property name="text">
     <string>Redo</string>
@@ -313,7 +693,8 @@
   </action>
   <action name="actionFileClose">
    <property name="icon">
-    <iconset theme="document-close"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/file_close.png</normaloff>:/icons/res/file_close.png</iconset>
    </property>
    <property name="text">
     <string>Close</string>
@@ -323,6 +704,10 @@
    </property>
   </action>
   <action name="actionExport">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/export.png</normaloff>:/icons/res/export.png</iconset>
+   </property>
    <property name="text">
     <string>Export</string>
    </property>
@@ -339,6 +724,10 @@
    </property>
   </action>
   <action name="actionSettings">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/settings.png</normaloff>:/icons/res/settings.png</iconset>
+   </property>
    <property name="text">
     <string>Settings</string>
    </property>
@@ -347,6 +736,10 @@
    </property>
   </action>
   <action name="actionTextureDebugger">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/texture_debugger.png</normaloff>:/icons/res/texture_debugger.png</iconset>
+   </property>
    <property name="text">
     <string>Texture Debugger</string>
    </property>
@@ -355,6 +748,10 @@
    </property>
   </action>
   <action name="actionRayTracing">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/ray_tracing.png</normaloff>:/icons/res/ray_tracing.png</iconset>
+   </property>
    <property name="text">
     <string>Ray Tracing...</string>
    </property>
@@ -363,6 +760,10 @@
    </property>
   </action>
   <action name="actionMeasure">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/measure.png</normaloff>:/icons/res/measure.png</iconset>
+   </property>
    <property name="text">
     <string>Measure...</string>
    </property>
@@ -370,7 +771,83 @@
     <string>Open the measurement tool - point, distance, and arc-radius tools</string>
    </property>
   </action>
+  <action name="actionFilterByMaterial">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/filter_by_material.png</normaloff>:/icons/res/filter_by_material.png</iconset>
+   </property>
+   <property name="text">
+    <string>Filter by Material...</string>
+   </property>
+   <property name="statusTip">
+    <string>Select every mesh in the scene that uses a chosen material</string>
+   </property>
+   <property name="toolTip">
+    <string>Select every mesh in the scene that uses a chosen material
+(import a model first)</string>
+   </property>
+  </action>
+  <action name="actionFilterByColor">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/filter_by_color.png</normaloff>:/icons/res/filter_by_color.png</iconset>
+   </property>
+   <property name="text">
+    <string>Filter by Color...</string>
+   </property>
+   <property name="statusTip">
+    <string>Select every mesh in the scene whose color matches a chosen target, within a tolerance</string>
+   </property>
+   <property name="toolTip">
+    <string>Select every mesh in the scene whose color matches a chosen target
+(import a model first)</string>
+   </property>
+  </action>
+  <action name="actionFilterByBoundingBox">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/filter_by_bounding_box.png</normaloff>:/icons/res/filter_by_bounding_box.png</iconset>
+   </property>
+   <property name="text">
+    <string>Filter by Bounding Box...</string>
+   </property>
+   <property name="statusTip">
+    <string>Select every mesh in the scene whose bounding box matches a set of world-space X/Y/Z limits</string>
+   </property>
+   <property name="toolTip">
+    <string>Select every mesh in the scene whose bounding box matches a set of world-space X/Y/Z limits
+(import a model first)</string>
+   </property>
+  </action>
+  <action name="actionSaveSelectionSet">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/save_selection_set.png</normaloff>:/icons/res/save_selection_set.png</iconset>
+   </property>
+   <property name="text">
+    <string>Save Selection Set...</string>
+   </property>
+   <property name="statusTip">
+    <string>Save the current selection under a name, for quick recall later</string>
+   </property>
+  </action>
+  <action name="actionSaveSceneState">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/save_scene_state.png</normaloff>:/icons/res/save_scene_state.png</iconset>
+   </property>
+   <property name="text">
+    <string>Save Scene State...</string>
+   </property>
+   <property name="statusTip">
+    <string>Save the current camera view, visibility, and selection together under a name, for one-click recall later</string>
+   </property>
+  </action>
   <action name="actionAnnotate">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/annotate.png</normaloff>:/icons/res/annotate.png</iconset>
+   </property>
    <property name="text">
     <string>Annotate...</string>
    </property>
@@ -379,6 +856,10 @@
    </property>
   </action>
   <action name="actionExportReport">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/export_report.png</normaloff>:/icons/res/export_report.png</iconset>
+   </property>
    <property name="text">
     <string>Export Report...</string>
    </property>
@@ -386,7 +867,47 @@
     <string>Export captured views and the measurement/annotation list as a PDF report</string>
    </property>
   </action>
+  <action name="actionBatchRenderViews">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/batch_render_views.png</normaloff>:/icons/res/batch_render_views.png</iconset>
+   </property>
+   <property name="text">
+    <string>Batch Render Views...</string>
+   </property>
+   <property name="statusTip">
+    <string>Render every captured view (or a checked subset) as a high-quality offline path-traced image, one per file</string>
+   </property>
+  </action>
+  <action name="actionMassProperties">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/mass_properties.png</normaloff>:/icons/res/mass_properties.png</iconset>
+   </property>
+   <property name="text">
+    <string>Mass Properties...</string>
+   </property>
+   <property name="statusTip">
+    <string>Volume, surface area, mass, and center of mass for the current selection</string>
+   </property>
+  </action>
+  <action name="actionSurfaceAnalysis">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/surface_analysis.png</normaloff>:/icons/res/surface_analysis.png</iconset>
+   </property>
+   <property name="text">
+    <string>Surface Analysis...</string>
+   </property>
+   <property name="statusTip">
+    <string>Curvature, wall-thickness/draft-angle, and deviation inspection, painted directly on the mesh surface</string>
+   </property>
+  </action>
   <action name="actionShrinkWrap">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/shrink_wrap.png</normaloff>:/icons/res/shrink_wrap.png</iconset>
+   </property>
    <property name="text">
     <string>Shrink Wrap...</string>
    </property>
@@ -395,6 +916,10 @@
    </property>
   </action>
   <action name="actionSubdivideSurface">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/subdivide_surface.png</normaloff>:/icons/res/subdivide_surface.png</iconset>
+   </property>
    <property name="text">
     <string>Subdivide Surface...</string>
    </property>
@@ -403,6 +928,10 @@
    </property>
   </action>
   <action name="actionReconstructSurface">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/reconstruct_surface.png</normaloff>:/icons/res/reconstruct_surface.png</iconset>
+   </property>
    <property name="text">
     <string>Reconstruct Surface...</string>
    </property>
@@ -411,6 +940,10 @@
    </property>
   </action>
   <action name="actionRepairMesh">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/repair_mesh.png</normaloff>:/icons/res/repair_mesh.png</iconset>
+   </property>
    <property name="text">
     <string>Repair Mesh...</string>
    </property>
@@ -419,6 +952,10 @@
    </property>
   </action>
   <action name="actionFillHoles">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/fill_holes.png</normaloff>:/icons/res/fill_holes.png</iconset>
+   </property>
    <property name="text">
     <string>Fill Holes...</string>
    </property>
@@ -427,11 +964,27 @@
    </property>
   </action>
   <action name="actionGenerateUVs">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/generate_uvs.png</normaloff>:/icons/res/generate_uvs.png</iconset>
+   </property>
    <property name="text">
     <string>Generate UVs...</string>
    </property>
    <property name="statusTip">
     <string>Generate UV coordinates for meshes using a chosen projection method, from a working list you build in the dialog</string>
+   </property>
+  </action>
+  <action name="actionPurgeRedundantNodes">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/ungroup_captures.png</normaloff>:/icons/res/ungroup_captures.png</iconset>
+   </property>
+   <property name="text">
+    <string>Purge Redundant Nodes</string>
+   </property>
+   <property name="statusTip">
+    <string>Collapse sub-assembly nodes that exist only to wrap a single mesh (whole scene) - the mesh is promoted into the wrapper, renamed to its own name, and the wrapper's empty child is removed</string>
    </property>
   </action>
   <action name="actionVisualizationSeparator">
@@ -440,6 +993,10 @@
    </property>
   </action>
   <action name="actionQuick_Help">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/quick_help.png</normaloff>:/icons/res/quick_help.png</iconset>
+   </property>
    <property name="text">
     <string>Quick Help</string>
    </property>
@@ -451,6 +1008,10 @@
    </property>
   </action>
   <action name="actionTutorial">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/tutorial.png</normaloff>:/icons/res/tutorial.png</iconset>
+   </property>
    <property name="text">
     <string>Tutorial</string>
    </property>
@@ -462,6 +1023,10 @@
    </property>
   </action>
   <action name="actionView_Logs">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/view_logs.png</normaloff>:/icons/res/view_logs.png</iconset>
+   </property>
    <property name="text">
     <string>View Logs</string>
    </property>
@@ -470,6 +1035,10 @@
    </property>
   </action>
   <action name="actionOpen_Logs_Folder">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/open_logs_folder.png</normaloff>:/icons/res/open_logs_folder.png</iconset>
+   </property>
    <property name="text">
     <string>Open Logs Folder</string>
    </property>
@@ -478,6 +1047,10 @@
    </property>
   </action>
   <action name="actionShow_Console">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/show_console.png</normaloff>:/icons/res/show_console.png</iconset>
+   </property>
    <property name="text">
     <string>Show Console</string>
    </property>

@@ -5,6 +5,7 @@
 #include "ModelViewerApplication.h"
 #include "ui_SettingsDialog.h"
 #include <algorithm>
+#include <QApplication>
 #include <QColorDialog>
 #include <QDir>
 #include <QMessageBox>
@@ -293,6 +294,7 @@ void SettingsDialog::applySettings()
 	settings.setValue("spinBoxUndoLimit", general_undoLimit);
     settings.setValue("checkProgressiveLoading", general_progressiveLoading);
     settings.setValue("checkAnimateProgressiveFit", general_animateProgressiveFit);
+    settings.setValue("spinBoxNavigationTreeFontSize", general_navigationTreeFontSize);
 
     // Camera tab
     settings.setValue("comboProjectionMode", camera_projectionModeIndex);
@@ -321,6 +323,7 @@ void SettingsDialog::applySettings()
     settings.setValue("vsyncCheckBox", display_vsync);
     settings.setValue("comboBoxDefaultSkyboxHDRI", display_defaultSkyboxHDRI);
     settings.setValue("comboBoxDefaultSkyboxLDRI", display_defaultSkyboxLDRI);
+    settings.setValue("doubleSpinBoxOverlayTextScale", display_overlayTextScale);
 
     // Navigation group
     settings.setValue("navigationModeComboBox", navigation_modeIndex);
@@ -336,6 +339,14 @@ void SettingsDialog::applySettings()
     settings.setValue("shadingNormalComboBox", rendering_shadingNormalIndex);
     settings.setValue("msaaComboBox", rendering_msaaIndex);
     settings.setValue("anisotropyComboBox", rendering_anisotropyIndex);
+
+    // Section Capping
+    settings.setValue("sectionCappingMode", sectionCapping_modeIndex);
+    settings.setValue("sectionCappingHatchPattern", sectionCapping_hatchPatternIndex);
+    settings.setValue("sectionCappingHatchTiling", sectionCapping_hatchTiling);
+    settings.setValue("sectionCappingHatchThickness", sectionCapping_hatchThickness);
+    settings.setValue("sectionCappingHatchIntensity", sectionCapping_hatchIntensity);
+    settings.setValue("sectionCappingHatchLineColor", sectionCapping_hatchLineColor);
 
     // Lighting
     settings.setValue("enableLightingCheckBox", lighting_enableLighting);
@@ -361,6 +372,8 @@ void SettingsDialog::applySettings()
     // Import/Export Tab - OpenCascade
     settings.setValue("linearDeflectionSpinBox", import_linearDeflection);
     settings.setValue("angularDeflectionSpinBox", import_angularDeflection);
+    settings.setValue("healUntessellatedFacesCheckBox", import_healFaces);
+    settings.setValue("keepColorGroupsSeparateCheckBox", import_keepColorGroupsSeparate);
 
     // Import/Export Tab - Assimp
     settings.setValue("assimpGenNormalsCheckBox", import_assimpGenNormals);
@@ -423,6 +436,11 @@ void SettingsDialog::setDefaultValues()
 	ui->spinBoxUndoLimit->setValue(50);           // Explicitly set
     ui->checkProgressiveLoading->setChecked(false);
     ui->checkAnimateProgressiveFit->setChecked(true);
+    // Matches whatever the app is ACTUALLY currently showing rather than a
+    // hardcoded guess - there's no prior explicit override anywhere in this
+    // codebase (SceneTreeWidget never calls setFont() today), so "the
+    // current default" is just whatever QApplication::font() resolves to.
+    ui->spinBoxNavigationTreeFontSize->setValue(QApplication::font().pointSize());
 
     // Camera tab
     ui->comboProjectionMode->setCurrentIndex(0);       // "Orthographic"
@@ -435,10 +453,14 @@ void SettingsDialog::setDefaultValues()
     ui->comboBoxBackgroundStyle->setCurrentIndex(0);   // "Gradient"
     ui->comboBoxGradientStyle->setCurrentIndex(0);     // "Vertical"
     {
-        const QColor topDefault(128, 128, 128);
+        // Must match ViewportWidget::loadBgColorSettings()'s own no-saved-value fallback
+        // exactly - that's the real default a fresh document actually renders, so this
+        // dialog's "restored" swatches need to be the same color, not an independently
+        // chosen pair that happened to drift from it.
+        const QColor topDefault = QColor::fromRgbF(0.45f, 0.45f, 0.45f, 1.0f);
         ui->pushButtonTopColor->setProperty("color", topDefault);
         ui->pushButtonTopColor->setStyleSheet(QString("background-color: %1").arg(topDefault.name()));
-        const QColor bottomDefault(64, 64, 64);
+        const QColor bottomDefault = QColor::fromRgbF(0.9f, 0.9f, 0.9f, 1.0f);
         ui->pushButtonBottomColor->setProperty("color", bottomDefault);
         ui->pushButtonBottomColor->setStyleSheet(QString("background-color: %1").arg(bottomDefault.name()));
     }
@@ -461,6 +483,7 @@ void SettingsDialog::setDefaultValues()
         ui->comboBoxDefaultSkyboxHDRI->setCurrentIndex(0);
     if (ui->comboBoxDefaultSkyboxLDRI->count() > 0)
         ui->comboBoxDefaultSkyboxLDRI->setCurrentIndex(0);
+    ui->doubleSpinBoxOverlayTextScale->setValue(1.0);
 
     // Navigation group
     ui->navigationModeComboBox->setCurrentIndex(0);          // "Orbit"
@@ -487,6 +510,20 @@ void SettingsDialog::setDefaultValues()
 	else
         ui->anisotropyComboBox->setCurrentIndex(0);              // "1x (Off)"
 
+    // Section Capping - same hardcoded defaults SceneRenderController's own
+    // member initializers used before this tab existed (PROCEDURAL,
+    // Diagonal 45, 100, 0.05, 1.0, black).
+    ui->comboBoxSectionCappingMode->setCurrentIndex(0);          // "Procedural"
+    ui->comboBoxSectionCappingHatchPattern->setCurrentIndex(0);  // "Diagonal 45"
+    ui->spinBoxSectionCappingHatchTiling->setValue(100);
+    ui->doubleSpinBoxSectionCappingHatchThickness->setValue(0.05);
+    ui->doubleSpinBoxSectionCappingHatchIntensity->setValue(1.0);
+    {
+        const QColor hatchColorDefault(0, 0, 0);
+        ui->pushButtonSectionCappingHatchColor->setProperty("color", hatchColorDefault);
+        ui->pushButtonSectionCappingHatchColor->setStyleSheet(QString("background-color: %1").arg(hatchColorDefault.name()));
+    }
+
     // Lighting
     ui->enableLightingCheckBox->setChecked(true);
     ui->enableShadowsCheckBox->setChecked(false);
@@ -510,6 +547,8 @@ void SettingsDialog::setDefaultValues()
     // OpenCascade settings
     ui->linearDeflectionSpinBox->setValue(0.1);
     ui->angularDeflectionSpinBox->setValue(0.3);
+    ui->healUntessellatedFacesCheckBox->setChecked(true);
+    ui->keepColorGroupsSeparateCheckBox->setChecked(false);
 
     // Assimp settings
     ui->assimpGenNormalsCheckBox->setChecked(true);
@@ -589,6 +628,7 @@ void SettingsDialog::syncStateFromUi()
     general_undoLimit = ui->spinBoxUndoLimit->value();
     general_progressiveLoading = ui->checkProgressiveLoading->isChecked();
     general_animateProgressiveFit = ui->checkAnimateProgressiveFit->isChecked();
+    general_navigationTreeFontSize = ui->spinBoxNavigationTreeFontSize->value();
 
     // Camera tab
     camera_projectionModeIndex = ui->comboProjectionMode->currentIndex();
@@ -620,6 +660,7 @@ void SettingsDialog::syncStateFromUi()
     display_vsync = ui->vsyncCheckBox->isChecked();
     display_defaultSkyboxHDRI = ui->comboBoxDefaultSkyboxHDRI->currentData().toString();
     display_defaultSkyboxLDRI = ui->comboBoxDefaultSkyboxLDRI->currentData().toString();
+    display_overlayTextScale = ui->doubleSpinBoxOverlayTextScale->value();
 
     // Navigation group
     navigation_modeIndex = ui->navigationModeComboBox->currentIndex();
@@ -635,6 +676,14 @@ void SettingsDialog::syncStateFromUi()
     rendering_shadingNormalIndex = ui->shadingNormalComboBox->currentIndex();
     rendering_msaaIndex = ui->msaaComboBox->currentIndex();
     rendering_anisotropyIndex = ui->anisotropyComboBox->currentIndex();
+
+    // Section Capping
+    sectionCapping_modeIndex = ui->comboBoxSectionCappingMode->currentIndex();
+    sectionCapping_hatchPatternIndex = ui->comboBoxSectionCappingHatchPattern->currentIndex();
+    sectionCapping_hatchTiling = ui->spinBoxSectionCappingHatchTiling->value();
+    sectionCapping_hatchThickness = ui->doubleSpinBoxSectionCappingHatchThickness->value();
+    sectionCapping_hatchIntensity = ui->doubleSpinBoxSectionCappingHatchIntensity->value();
+    sectionCapping_hatchLineColor = ui->pushButtonSectionCappingHatchColor->property("color").value<QColor>();
 
     // Lighting
     lighting_enableLighting = ui->enableLightingCheckBox->isChecked();
@@ -658,6 +707,8 @@ void SettingsDialog::syncStateFromUi()
     // Import/Export Tab
     import_linearDeflection = ui->linearDeflectionSpinBox->value();
     import_angularDeflection = ui->angularDeflectionSpinBox->value();
+    import_healFaces = ui->healUntessellatedFacesCheckBox->isChecked();
+    import_keepColorGroupsSeparate = ui->keepColorGroupsSeparateCheckBox->isChecked();
     import_assimpGenNormals = ui->assimpGenNormalsCheckBox->isChecked();
     import_assimpSmoothNormals = ui->assimpSmoothNormalsCheckBox->isChecked();
     import_assimpCalcTangents = ui->assimpCalcTangentsCheckBox->isChecked();
@@ -700,6 +751,13 @@ void SettingsDialog::loadSettings()
     ui->checkProgressiveLoading->setChecked(bVal);
     bVal = settings.value("checkAnimateProgressiveFit", ui->checkAnimateProgressiveFit->isChecked()).toBool();
     ui->checkAnimateProgressiveFit->setChecked(bVal);
+    // Fallback is the live QApplication font size, not ui->spinBoxNavigationTreeFontSize->value()
+    // (the .ui file's static design-time placeholder) - setDefaultValues() is only ever invoked
+    // from the "Restore Defaults" button, never at construction, so on a fresh install (no saved
+    // key yet) that placeholder would otherwise silently become the permanent default the moment
+    // the user opens Settings and clicks Apply/OK for any reason.
+    iVal = settings.value("spinBoxNavigationTreeFontSize", QApplication::font().pointSize()).toInt();
+    ui->spinBoxNavigationTreeFontSize->setValue(iVal);
     iVal = settings.value("comboProjectionMode", ui->comboProjectionMode->currentIndex()).toInt();
     ui->comboProjectionMode->setCurrentIndex(iVal);
     iVal = settings.value("comboDefaultView", ui->comboDefaultView->currentIndex()).toInt();
@@ -715,10 +773,14 @@ void SettingsDialog::loadSettings()
     iVal = settings.value("Background/GradientStyle", ui->comboBoxGradientStyle->currentIndex()).toInt();
     ui->comboBoxGradientStyle->setCurrentIndex(iVal);
     {
-        QColor topColor = settings.value("Background/TopColor", QColor(128, 128, 128)).value<QColor>();
+        // Same fallback as setDefaultValues() / ViewportWidget::loadBgColorSettings() - see
+        // that comment for why these three must stay in lockstep.
+        QColor topColor = settings.value("Background/TopColor",
+            QColor::fromRgbF(0.45f, 0.45f, 0.45f, 1.0f)).value<QColor>();
         ui->pushButtonTopColor->setProperty("color", topColor);
         ui->pushButtonTopColor->setStyleSheet(QString("background-color: %1").arg(topColor.name()));
-        QColor bottomColor = settings.value("Background/BottomColor", QColor(64, 64, 64)).value<QColor>();
+        QColor bottomColor = settings.value("Background/BottomColor",
+            QColor::fromRgbF(0.9f, 0.9f, 0.9f, 1.0f)).value<QColor>();
         ui->pushButtonBottomColor->setProperty("color", bottomColor);
         ui->pushButtonBottomColor->setStyleSheet(QString("background-color: %1").arg(bottomColor.name()));
     }
@@ -758,6 +820,10 @@ void SettingsDialog::loadSettings()
         if (ldriIdx >= 0)
             ui->comboBoxDefaultSkyboxLDRI->setCurrentIndex(ldriIdx);
     }
+    {
+        const double overlayTextScale = settings.value("doubleSpinBoxOverlayTextScale", ui->doubleSpinBoxOverlayTextScale->value()).toDouble();
+        ui->doubleSpinBoxOverlayTextScale->setValue(overlayTextScale);
+    }
     iVal = settings.value("navigationModeComboBox", ui->navigationModeComboBox->currentIndex()).toInt();
     ui->navigationModeComboBox->setCurrentIndex(iVal);
     iVal = settings.value("mouseSensitivitySlider", ui->mouseSensitivitySlider->value()).toInt();
@@ -780,6 +846,21 @@ void SettingsDialog::loadSettings()
     ui->msaaComboBox->setCurrentIndex(iVal);
     iVal = settings.value("anisotropyComboBox", ui->anisotropyComboBox->currentIndex()).toInt();
     ui->anisotropyComboBox->setCurrentIndex(iVal);
+    iVal = settings.value("sectionCappingMode", ui->comboBoxSectionCappingMode->currentIndex()).toInt();
+    ui->comboBoxSectionCappingMode->setCurrentIndex(iVal);
+    iVal = settings.value("sectionCappingHatchPattern", ui->comboBoxSectionCappingHatchPattern->currentIndex()).toInt();
+    ui->comboBoxSectionCappingHatchPattern->setCurrentIndex(iVal);
+    iVal = settings.value("sectionCappingHatchTiling", ui->spinBoxSectionCappingHatchTiling->value()).toInt();
+    ui->spinBoxSectionCappingHatchTiling->setValue(iVal);
+    {
+        const double hatchThickness = settings.value("sectionCappingHatchThickness", ui->doubleSpinBoxSectionCappingHatchThickness->value()).toDouble();
+        ui->doubleSpinBoxSectionCappingHatchThickness->setValue(hatchThickness);
+        const double hatchIntensity = settings.value("sectionCappingHatchIntensity", ui->doubleSpinBoxSectionCappingHatchIntensity->value()).toDouble();
+        ui->doubleSpinBoxSectionCappingHatchIntensity->setValue(hatchIntensity);
+        const QColor hatchColor = settings.value("sectionCappingHatchLineColor", QColor(0, 0, 0)).value<QColor>();
+        ui->pushButtonSectionCappingHatchColor->setProperty("color", hatchColor);
+        ui->pushButtonSectionCappingHatchColor->setStyleSheet(QString("background-color: %1").arg(hatchColor.name()));
+    }
     bVal = settings.value("enableLightingCheckBox", ui->enableLightingCheckBox->isChecked()).toBool();
     ui->enableLightingCheckBox->setChecked(bVal);
     bVal = settings.value("enableShadowsCheckBox", ui->enableShadowsCheckBox->isChecked()).toBool();
@@ -813,6 +894,10 @@ void SettingsDialog::loadSettings()
     ui->linearDeflectionSpinBox->setValue(dVal);
     dVal = settings.value("angularDeflectionSpinBox", ui->angularDeflectionSpinBox->value()).toDouble();
     ui->angularDeflectionSpinBox->setValue(dVal);
+    bVal = settings.value("healUntessellatedFacesCheckBox", ui->healUntessellatedFacesCheckBox->isChecked()).toBool();
+    ui->healUntessellatedFacesCheckBox->setChecked(bVal);
+    bVal = settings.value("keepColorGroupsSeparateCheckBox", ui->keepColorGroupsSeparateCheckBox->isChecked()).toBool();
+    ui->keepColorGroupsSeparateCheckBox->setChecked(bVal);
     bVal = settings.value("assimpGenNormalsCheckBox", ui->assimpGenNormalsCheckBox->isChecked()).toBool();
     ui->assimpGenNormalsCheckBox->setChecked(bVal);
     bVal = settings.value("assimpSmoothNormalsCheckBox", ui->assimpSmoothNormalsCheckBox->isChecked()).toBool();
@@ -923,7 +1008,8 @@ void SettingsDialog::restoreDefaults()
         ui->comboUVMethod, ui->spinAngleThreshold, ui->checkPreserveUVs,
         ui->checkAutoPackUVs, ui->checkRelaxUVs,
         ui->checkRememberUV, ui->buttonResetUVPrompt,
-        ui->linearDeflectionSpinBox, ui->angularDeflectionSpinBox,
+        ui->linearDeflectionSpinBox, ui->angularDeflectionSpinBox, ui->healUntessellatedFacesCheckBox,
+        ui->keepColorGroupsSeparateCheckBox,
         ui->assimpGenNormalsCheckBox, ui->assimpSmoothNormalsCheckBox,
         ui->assimpCalcTangentsCheckBox, ui->assimpOptimizeMeshCheckBox, ui->assimpRemoveDuplicatesCheckBox,
 		ui->assimpAutoOrientCheckBox,
@@ -1150,6 +1236,44 @@ void SettingsDialog::on_anisotropyComboBox_currentIndexChanged()
     rendering_anisotropyIndex = ui->anisotropyComboBox->currentIndex();
 }
 
+// Section Capping
+void SettingsDialog::on_comboBoxSectionCappingMode_currentIndexChanged()
+{
+    sectionCapping_modeIndex = ui->comboBoxSectionCappingMode->currentIndex();
+}
+
+void SettingsDialog::on_comboBoxSectionCappingHatchPattern_currentIndexChanged()
+{
+    sectionCapping_hatchPatternIndex = ui->comboBoxSectionCappingHatchPattern->currentIndex();
+}
+
+void SettingsDialog::on_spinBoxSectionCappingHatchTiling_valueChanged()
+{
+    sectionCapping_hatchTiling = ui->spinBoxSectionCappingHatchTiling->value();
+}
+
+void SettingsDialog::on_doubleSpinBoxSectionCappingHatchThickness_valueChanged()
+{
+    sectionCapping_hatchThickness = ui->doubleSpinBoxSectionCappingHatchThickness->value();
+}
+
+void SettingsDialog::on_doubleSpinBoxSectionCappingHatchIntensity_valueChanged()
+{
+    sectionCapping_hatchIntensity = ui->doubleSpinBoxSectionCappingHatchIntensity->value();
+}
+
+void SettingsDialog::on_pushButtonSectionCappingHatchColor_clicked()
+{
+    QColor current = ui->pushButtonSectionCappingHatchColor->property("color").value<QColor>();
+    QColor chosen = QColorDialog::getColor(current.isValid() ? current : QColor(0, 0, 0), this, tr("Select Hatch Line Color"));
+    if (chosen.isValid())
+    {
+        ui->pushButtonSectionCappingHatchColor->setProperty("color", chosen);
+        ui->pushButtonSectionCappingHatchColor->setStyleSheet(QString("background-color: %1").arg(chosen.name()));
+        sectionCapping_hatchLineColor = chosen;
+    }
+}
+
 // Lighting
 void SettingsDialog::on_enableLightingCheckBox_stateChanged()
 {
@@ -1239,6 +1363,16 @@ void SettingsDialog::on_angularDeflectionSpinBox_valueChanged()
     import_angularDeflection = ui->angularDeflectionSpinBox->value();
 }
 
+void SettingsDialog::on_healUntessellatedFacesCheckBox_stateChanged()
+{
+    import_healFaces = ui->healUntessellatedFacesCheckBox->isChecked();
+}
+
+void SettingsDialog::on_keepColorGroupsSeparateCheckBox_stateChanged()
+{
+    import_keepColorGroupsSeparate = ui->keepColorGroupsSeparateCheckBox->isChecked();
+}
+
 // Import/Export Tab - Assimp
 void SettingsDialog::on_assimpGenNormalsCheckBox_stateChanged()
 {
@@ -1290,9 +1424,19 @@ void SettingsDialog::on_checkAnimateProgressiveFit_stateChanged()
     general_animateProgressiveFit = ui->checkAnimateProgressiveFit->isChecked();
 }
 
+void SettingsDialog::on_spinBoxNavigationTreeFontSize_valueChanged()
+{
+    general_navigationTreeFontSize = ui->spinBoxNavigationTreeFontSize->value();
+}
+
 void SettingsDialog::on_vsyncCheckBox_stateChanged()
 {
     display_vsync = ui->vsyncCheckBox->isChecked();
+}
+
+void SettingsDialog::on_doubleSpinBoxOverlayTextScale_valueChanged()
+{
+    display_overlayTextScale = ui->doubleSpinBoxOverlayTextScale->value();
 }
 
 void SettingsDialog::on_comboBoxDefaultSkyboxHDRI_currentIndexChanged()

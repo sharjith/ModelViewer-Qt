@@ -1,4 +1,4 @@
-﻿#include "FloatingPanelDialog.h"
+#include "FloatingPanelDialog.h"
 #include "AddMeasurementCommand.h"
 #include "AddAnnotationCommand.h"
 #include "MeasurementVisibilityCommand.h"
@@ -17,6 +17,7 @@
 #include "SplitByConnectivityCommand.h"
 #include "MergeByAdjacencyCommand.h"
 #include "GroupMeshesCommand.h"
+#include "PurgeRedundantNodesCommand.h"
 #include "ShrinkWrapCommand.h"
 #include "ExplodedViewPanel.h"
 #include "PasteCommand.h"
@@ -25,6 +26,10 @@
 #include "MeasurementDialog.h"
 #include "AnnotationDialog.h"
 #include "ShrinkWrapDialog.h"
+#include "SurfaceAnalysisDialog.h"
+#include "MassPropertiesDialog.h"
+#include "ReportExportDialog.h"
+#include "BatchRenderViewsDialog.h"
 #include "SubdivisionDialog.h"
 #include "ReconstructSurfaceDialog.h"
 #include "RepairMeshDialog.h"
@@ -34,6 +39,9 @@
 #include "MaterialPreviewWidget.h"
 #include "MeshProperties.h"
 #include "ModelViewer.h"
+#include "ToolsToolbar.h"
+#include "LengthUnits.h"
+#include "ImportUnitsDialog.h"
 #include "ModelViewerApplication.h"
 #include "MvfDocument.h"
 #include "MvfFormat.h"
@@ -48,6 +56,15 @@
 #include "TransformCommand.h"
 #include "RenderableMesh.h"
 #include "VisibilityCommand.h"
+#include "MaterialGrouping.h"
+#include "MeshColorUtils.h"
+#include "FilterByMaterialDialog.h"
+#include "FilterByColorDialog.h"
+#include "FilterByBoundingBoxDialog.h"
+#include "SaveSelectionSetCommand.h"
+#include "DeleteSelectionSetCommand.h"
+#include "SaveSceneStateCommand.h"
+#include "DeleteSceneStateCommand.h"
 #include <assimp/Importer.hpp>
 #include <algorithm>
 #include <functional>
@@ -69,7 +86,11 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QPainter>
+#include <QPropertyAnimation>
+#include <QEasingCurve>
+#include <QCursor>
 #include <QProxyStyle>
+#include <QSignalBlocker>
 #include <QThread>
 #include <QTimer>
 #include <QToolButton>
@@ -83,6 +104,15 @@
 #include <QtMath>
 #include <cmath>
 #include <limits>
+
+// Width of the nav panel's narrowed/collapsed strip - just enough for
+// _navCollapseButton itself, matching its own locked 14px width plus the
+// overlay wrapper's own 6px margins (see ViewportWidget::attachOverlayPanel()).
+// Shared by updateNavigationOverlayGeometry() (the actual geometry target),
+// tryHideNavigation() (the hide animation's end value), and
+// trackPointerForNavigation() (the hover-sensitive proximity threshold) so
+// the three can't drift apart from each other.
+static constexpr int kNavigationCollapsedWidth = 26;
 
 QString ModelViewer::_lastOpenedDir;
 QString ModelViewer::_lastSelectedFilter;
@@ -200,6 +230,17 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	int maxUndo = settings.value("spinBoxUndoLimit", 50).toInt(); // Keep last 50 operations as default
 	_undoStack->setUndoLimit(maxUndo);
 
+	// Settings -> General -> Navigation Tree Font Size - seeded once here
+	// (MainWindow's SettingsDialog::settingsChanged handler re-applies this
+	// live to every already-open document's tree, same as the other
+	// per-document Settings values it pushes).
+	if (treeWidgetModel)
+	{
+		QFont treeFont = treeWidgetModel->font();
+		treeFont.setPointSize(settings.value("spinBoxNavigationTreeFontSize", treeFont.pointSize()).toInt());
+		treeWidgetModel->setFont(treeFont);
+	}
+
 	// Seed the default HDRI/LDRI skybox indices from the configured Settings presets
 	// (if any). Presets are matched by folder name rather than index, since the
 	// scanned folder list (and therefore index order) can change if presets are
@@ -266,6 +307,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	format.setRenderableType(QSurfaceFormat::OpenGL);
 	format.setSamples(samples); // Set MSAA samples
 	_viewportWidget = new ViewportWidget(this, "viewportWidget");
+    connect(_viewportWidget, &ViewportWidget::toolCommandRequested, this, &ModelViewer::executeToolCommand);
+    connect(_viewportWidget, &ViewportWidget::selectionChanged, this, &ModelViewer::updateMeshTools, Qt::QueuedConnection);
+    connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, &ModelViewer::updateMeshTools, Qt::QueuedConnection);
 	_viewportWidget->setAttribute(Qt::WA_DeleteOnClose);
 	_viewportWidget->setFormat(format);
 	_viewportWidget->setMouseTracking(true);
@@ -276,6 +320,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	connect(_viewportWidget, &ViewportWidget::singleSelectionDone, this, &ModelViewer::setListRow);
 	connect(_viewportWidget, &ViewportWidget::sweepSelectionDone, this, &ModelViewer::setListRows);
+	connect(_viewportWidget, &ViewportWidget::eyedropperMaterialSampled, this, &ModelViewer::onEyedropperMaterialSampled);
+	connect(_viewportWidget, &ViewportWidget::eyedropperStrokeFinished, this, &ModelViewer::applyEyedropperStroke);
 	connect(_viewportWidget, &ViewportWidget::zoomAndPanSet, this, [this]() {
 		if (_treeRebuildPending)
 			rebuildTreeFromCurrentState();
@@ -287,13 +333,30 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	// SceneTreeWidget::rebuild() only enqueues work and starts a batching
 	// timer (see processRebuildBatch()) - topLevelItemCount() is still 0
 	// (or stale) immediately after calling it, so the search box/label
-	// visibility toggle has to wait for the tree to actually finish
+	// enabled-state toggle has to wait for the tree to actually finish
 	// populating, not run right after rebuild() returns.
+	//
+	// setEnabled(), not setVisible(): hiding/showing this row changed how
+	// much space it occupies in modelNavigationWidget's layout, which showed
+	// up as the panel's own reveal width looking different (a visible jump)
+	// between an empty document and one with a loaded model. Staying visible
+	// but grayed out when there's nothing to search keeps the panel's layout
+	// identical either way - only its usability changes.
 	connect(treeWidgetModel, &SceneTreeWidget::rebuildComplete, this, [this]() {
 		const bool hasItems = treeWidgetModel->topLevelItemCount() > 0;
-		label_23->setVisible(hasItems);
-		searchBox->setVisible(hasItems);
+		label_23->setEnabled(hasItems);
+		searchBox->setEnabled(hasItems);
 	});
+
+	// rebuild() only enqueues work and starts a batching timer - the actual
+	// selection restore happens later, in finalizeRebuild(), entirely under
+	// blockSignals(true) (so selectionUpdated/handleTreeWidgetSelectionChanged
+	// never fire for it - only rebuildComplete() does, once signals are
+	// unblocked again). Calling updateMeshTools() synchronously right after
+	// treeWidgetModel->rebuild() returns (as rebuildTreeFromCurrentState()
+	// used to) would see the tree still empty/mid-reconstruction and disable
+	// every mesh tool regardless of the selection about to be restored.
+	connect(treeWidgetModel, &SceneTreeWidget::rebuildComplete, this, &ModelViewer::updateMeshTools);
 
 	// Exploded View Panel — created inside ViewportWidget; wire SceneGraph + selection clearing here.
 	{
@@ -316,6 +379,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		        _textureDebugPanel, &TextureDebugPanel::onTextureReadbackReady);
 		connect(_textureDebugPanel, &TextureDebugPanel::requestPBRMode,
 		        this, [this]() { onRenderingModeSelected("PBR"); });
+		// Keep the Tools-tab button highlighted while the panel is open, like the other tool dialogs.
+		_viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("texture_debug"), _textureDebugPanel);
 	}
 
 	connect(_sceneGraph, &SceneGraph::structureChanged,
@@ -331,7 +396,13 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	treeWidgetModel->installEventFilter(this);
 	treeWidgetModel->viewport()->installEventFilter(this);
 
-	treeWidgetModel->setContextMenuPolicy(Qt::CustomContextMenu);
+	// NOT setContextMenuPolicy(Qt::CustomContextMenu) here - that would silently override
+	// SceneTreeWidget's own constructor, which deliberately sets Qt::DefaultContextMenu so its
+	// contextMenuEvent() override gets a chance to hit-test each request first (forwarding a
+	// right-click on the transparent overlay background to the viewport's own context menu
+	// instead of raising the tree's - see that override's doc comment). With CustomContextMenu
+	// policy, QWidget::event() emits customContextMenuRequested() directly for EVERY right-click
+	// regardless of position, before that override - or this connection - ever runs.
 	connect(treeWidgetModel, &SceneTreeWidget::customContextMenuRequested, this, &ModelViewer::showContextMenu);
 
 	// Rename via tree widget's internal delegate handling
@@ -384,6 +455,19 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	// Connect ViewToolbar rendering mode selection
 	connect(_viewportWidget->getViewToolbar(), &ViewToolbar::renderingModeSelected,
 		this, &ModelViewer::onRenderingModeSelected);
+
+	connect(_viewportWidget->getViewToolbar(), &ViewToolbar::selectionFilterRequested,
+		this, [this](const QString& filter) {
+			_viewportWidget->setLassoToolArmed(false);
+			if (filter == QStringLiteral("material")) filterSelectionByMaterial();
+			else if (filter == QStringLiteral("color")) filterSelectionByColor();
+			else if (filter == QStringLiteral("boundingBox")) filterSelectionByBoundingBox();
+		});
+	const auto refreshSelectionFilters = [this] {
+		_viewportWidget->getViewToolbar()->setSelectionFiltersEnabled(!_viewportWidget->getMeshStore().empty());
+	};
+	connect(_sceneGraph, &SceneGraph::structureChanged, this, refreshSelectionFilters);
+	refreshSelectionFilters();
 
 	// Connect ViewToolbar navigation selection
 	connect(_viewportWidget->getViewToolbar(), &ViewToolbar::rotateViewRequested,
@@ -521,13 +605,18 @@ void ModelViewer::setListRow(int index)
 
 void ModelViewer::setListRows(QList<int> indices)
 {
-	if (indices.isEmpty())
-		return;
-
 	// Build selection set from indices
 	QSet<int> newSelection;
 	for (int index : indices)
 		newSelection.insert(index);
+
+	// An empty result is meaningful for Replace and Subtract gestures: it
+	// clears the previous selection. Avoid pushing an undo command only when
+	// the authoritative tree selection already matches the gesture result.
+	const std::vector<int> currentIds = getSelectedIDs();
+	const QSet<int> currentSelection(currentIds.cbegin(), currentIds.cend());
+	if (newSelection == currentSelection)
+		return;
 
 	// Apply selection with undo support
 	setSelectionWithUndo(newSelection);
@@ -764,39 +853,92 @@ void ModelViewer::attachNavigationOverlay()
 	treeWidgetModel->setDetachedOverlayMode(true);
 
 	// A freshly created document always starts with an empty tree (loadFile()
-	// runs after this, not before) - hidden until the SceneTreeWidget::
-	// rebuildComplete() handler below finds actual content, which is the
-	// sole source of truth for this from here on (covers loading, deleting
-	// down to nothing, etc.).
-	label_23->setVisible(false);
-	searchBox->setVisible(false);
+	// runs after this, not before) - grayed out (not hidden - see the
+	// rebuildComplete() handler below for why) until it actually finds
+	// content, which is the sole source of truth for this from here on
+	// (covers loading, deleting down to nothing, etc.).
+	label_23->setEnabled(false);
+	searchBox->setEnabled(false);
 
-	// Collapsed state is shared across documents (persisted, not per-
-	// instance) - a new document should open already collapsed if the user
-	// left it that way on another one, and that should survive a restart
-	// too, same as the other QSettings-backed UI state in this app.
+	// Pinned state is shared across documents (persisted, not per-instance) -
+	// a new document should open already pinned/unpinned to match whatever
+	// the user left it as on another one, and that should survive a restart
+	// too, same as the other QSettings-backed UI state in this app. Starts
+	// already at its resting geometry (no animation, no hide-timer flash of
+	// full width) - _navRevealAnimation/_navHideTimer are for USER-triggered
+	// reveal/hide afterward, not this initial setup.
 	{
 		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-		_navigationCollapsed = settings.value(QStringLiteral("NavigationPanelCollapsed"), false).toBool();
+		_navigationPinned = settings.value(QStringLiteral("NavigationPanelPinned"), true).toBool();
 	}
+	_navigationRevealed = _navigationPinned;
+
+	// navPinButton is a real .ui member (ModelViewer.ui's search-box row,
+	// right of searchBox) - only present/visible while modelNavigationWidget
+	// itself is, since it's part of the panel's own content, not the
+	// always-visible collapsed strip. Transparent background at every state
+	// (including checked/pinned) - the icon swap (pin.png/unpin.png, see
+	// updateNavPinButton()) is the only persistent state indicator; only
+	// hover gets a faint highlight, same treatment as _navCollapseButton.
+	navPinButton->setStyleSheet(QStringLiteral(
+		"QToolButton { background: transparent; border: none; }"
+		"QToolButton:hover { background: rgba(128,128,128,60); border: none; }"));
+	// Set checked (and icon/tooltip via updateNavPinButton()) BEFORE
+	// connecting toggled() below, so this initial sync can't recursively
+	// re-enter applyNavigationPinned() during construction.
+	navPinButton->setChecked(_navigationPinned);
+	updateNavPinButton();
+	connect(navPinButton, &QToolButton::toggled, this, [](bool pinned) {
+		ModelViewer::setNavigationPinnedPreference(pinned);
+	});
 
 	// The overlay is an absolutely-positioned floating child of
 	// _viewportWidget (see attachOverlayPanel() below), not a normal
-	// side-by-side grid column - so the collapse button has to be wrapped
+	// side-by-side grid column - so the chevron strip has to be wrapped
 	// INSIDE the same content widget that gets attached as the overlay,
 	// glued to modelNavigationWidget's own left edge, rather than living
 	// in this document's outer gridLayout (which attachOverlayPanel()
-	// reparents modelNavigationWidget away from entirely).
+	// reparents modelNavigationWidget away from entirely). Always visible
+	// regardless of reveal state - it's the hover-sensitive area
+	// trackPointerForNavigation()/eventFilter()'s Enter-Leave handling
+	// reveal/hide from, replacing the old click-to-toggle.
 	_navCollapseButton = new QToolButton();
 	_navCollapseButton->setObjectName(QStringLiteral("navCollapseButton"));
 	_navCollapseButton->setMinimumSize(14, 0);
 	_navCollapseButton->setMaximumSize(14, QWIDGETSIZE_MAX);
 	_navCollapseButton->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
 	_navCollapseButton->setAutoRaise(true);
-	_navCollapseButton->setText(_navigationCollapsed ? QStringLiteral("▶") : QStringLiteral("◀"));
-	_navCollapseButton->setToolTip(_navigationCollapsed
-		? tr("Expand the model navigation panel")
-		: tr("Collapse the model navigation panel"));
+	// Transparent at rest, a faint highlight only while actually hovered - so
+	// the strip reads as part of the translucent overlay, not opaque widget
+	// chrome sitting on top of the viewer.
+	_navCollapseButton->setStyleSheet(QStringLiteral(
+		"QToolButton { background: transparent; border: none; }"
+		"QToolButton:hover { background: rgba(128,128,128,60); border: none; }"));
+	_navCollapseButton->setText(_navigationRevealed ? QStringLiteral("◀") : QStringLiteral("▶"));
+	// Only "hover to show" is ever actually true here - hovering an already-
+	// shown panel never hides it, only moving away (when unpinned) does, so
+	// this tooltip must not claim hover does both, updated per reveal state
+	// below alongside the chevron text.
+	_navCollapseButton->setToolTip(_navigationRevealed
+		? tr("Auto-hides after a few seconds when unpinned")
+		: tr("Hover to show the navigation panel"));
+	_navCollapseButton->installEventFilter(this);
+	// Click shortcut, pinned state only - see _navCollapseButton's own doc
+	// comment. Goes through setNavigationPinnedPreference() (not a local-only
+	// applyNavigationPinned()) so it persists and syncs to every open
+	// document exactly like actually clicking navPinButton off would;
+	// collapseNavigationNow() then handles the "and hide" half immediately
+	// for this document, bypassing tryHideNavigation()'s own
+	// isNavigationInteracting() guard, which would otherwise keep it open
+	// since the cursor is necessarily still over the strip right after this
+	// click.
+	connect(_navCollapseButton, &QToolButton::clicked, this, [this]()
+	{
+		if (!_navigationPinned)
+			return;
+		ModelViewer::setNavigationPinnedPreference(false);
+		collapseNavigationNow();
+	});
 
 	// Right-edge counterpart to _navCollapseButton above - an invisible drag
 	// strip the user can pull to resize the panel, matching the established
@@ -827,31 +969,9 @@ void ModelViewer::attachNavigationOverlay()
 	navCompositeLayout->addWidget(modelNavigationWidget, 1);
 	navCompositeLayout->addWidget(_navResizeHandle);
 
-	// Apply the persisted collapsed state loaded above.
-	modelNavigationWidget->setVisible(!_navigationCollapsed);
-	_navResizeHandle->setVisible(!_navigationCollapsed);
-
-	// Whole panel (not just its contents) hides on collapse - the button
-	// stays behind (it's a sibling in navComposite, not a child of
-	// modelNavigationWidget) so it's still clickable to re-expand. The
-	// resize handle hides too - there's nothing to resize while collapsed.
-	// updateNavigationOverlayGeometry() shrinks the overlay's own width to
-	// match so the collapsed state doesn't leave 400+px of dead space.
-	// Persisted (not just applied to this document) so every other open or
-	// subsequently-opened document starts collapsed/expanded the same way.
-	connect(_navCollapseButton, &QToolButton::clicked, this, [this]() {
-		_navigationCollapsed = !_navigationCollapsed;
-		modelNavigationWidget->setVisible(!_navigationCollapsed);
-		_navResizeHandle->setVisible(!_navigationCollapsed);
-		_navCollapseButton->setText(_navigationCollapsed ? QStringLiteral("▶") : QStringLiteral("◀"));
-		_navCollapseButton->setToolTip(_navigationCollapsed
-			? tr("Expand the model navigation panel")
-			: tr("Collapse the model navigation panel"));
-		updateNavigationOverlayGeometry();
-
-		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-		settings.setValue(QStringLiteral("NavigationPanelCollapsed"), _navigationCollapsed);
-	});
+	// Apply the persisted reveal state loaded above.
+	modelNavigationWidget->setVisible(_navigationRevealed);
+	_navResizeHandle->setVisible(_navigationRevealed);
 
 	_navigationOverlay = _viewportWidget->attachOverlayPanel(
 		navComposite,
@@ -861,17 +981,65 @@ void ModelViewer::attachNavigationOverlay()
 
 	if (_navigationOverlay)
 	{
+		// Hover-reveal machinery, mirroring TabbedViewportToolbar's own
+		// _animation/_hideTimer exactly (220ms OutCubic, single-shot hide
+		// timer) - just animating geometry (width) instead of pos, since
+		// this panel resizes in place rather than sliding off-screen.
+		_navRevealAnimation = new QPropertyAnimation(_navigationOverlay, "geometry", this);
+		_navRevealAnimation->setDuration(220);
+		_navRevealAnimation->setEasingCurve(QEasingCurve::OutCubic);
+		// Connected once, here, not inside tryHideNavigation() - Qt::UniqueConnection
+		// only dedupes plain member-function-pointer connections, not lambdas, so
+		// reconnecting a lambda per hide cycle would silently accumulate duplicate
+		// handlers over the panel's lifetime. Checking _navigationRevealed here
+		// correctly no-ops when a REVEAL (not hide) animation is what just finished.
+		connect(_navRevealAnimation, &QPropertyAnimation::finished, this, [this]()
+		{
+			if (!_navigationRevealed)
+			{
+				modelNavigationWidget->setVisible(false);
+				_navResizeHandle->setVisible(false);
+			}
+		});
+		_navHideTimer = new QTimer(this);
+		_navHideTimer->setSingleShot(true);
+		_navHideTimer->setInterval(5000);
+		connect(_navHideTimer, &QTimer::timeout, this, &ModelViewer::tryHideNavigation);
+
+		// Hover-intent delay for trackPointerForNavigation()'s proximity check
+		// only - re-checks the cursor is STILL in the sensitive zone (via
+		// QCursor::pos(), same technique TabbedViewportToolbar::tryHide() uses
+		// to read current position from inside a timer callback) before
+		// actually revealing, rather than reacting to the very first frame
+		// the cursor was seen there. _navCollapseButton's own direct hover
+		// (eventFilter()'s Enter handling) stays instant - deliberately
+		// landing on the button itself isn't the "just passing through" case
+		// this guards against.
+		_navRevealDelayTimer = new QTimer(this);
+		_navRevealDelayTimer->setSingleShot(true);
+		_navRevealDelayTimer->setInterval(200);
+		connect(_navRevealDelayTimer, &QTimer::timeout, this, [this]()
+		{
+			if (!_viewportWidget)
+				return;
+			const QPoint pos = _viewportWidget->mapFromGlobal(QCursor::pos());
+			if (pos.x() <= kNavigationCollapsedWidth)
+				revealNavigation();
+		});
+		// Note: no event filter installed on _navigationOverlay itself for
+		// Enter/Leave - _navCollapseButton (above) is the actual hover-
+		// sensitive trigger. Hovering the REVEALED panel's own content
+		// (search box, tree) instead just needs isNavigationInteracting()'s
+		// underMouse() check, re-evaluated whenever _navHideTimer fires, to
+		// keep it open - no separate live tracking needed for that part.
+
 		_viewportWidget->refreshDetachedNavigationOverlayTheme();
 		updateNavigationOverlayGeometry();
 		_navigationOverlay->show();
-		// attachOverlayPanel() raises this panel above every existing sibling,
-		// including the ViewToolbar (created earlier, in ViewportWidget's own
-		// constructor) - ViewToolbar only reclaims top stacking order the next
-		// time it animates in via showAnimated(). Without this, its initial
-		// partially-visible sliver at startup renders behind the panel until
-		// the first auto-hide/reveal cycle fixes the order.
-		if (ViewToolbar* toolbar = _viewportWidget->getViewToolbar())
-			toolbar->raise();
+		// The navigation overlay and tabbed toolbar are viewport siblings.
+		// Raise the outer container so both pages and the pin remain above
+		// the overlay immediately, including when the toolbar is pinned.
+		_viewportWidget->raiseViewportToolbar();
 		QMetaObject::invokeMethod(this, [this]()
 		{
 			if (_navigationOverlay && _viewportWidget)
@@ -879,9 +1047,185 @@ void ModelViewer::attachNavigationOverlay()
 		}, Qt::QueuedConnection);
 	}
 
-	// setVisible(), not show() - must still respect a persisted collapsed
+	// setVisible(), not show() - must still respect the persisted reveal
 	// state instead of unconditionally forcing this on.
-	modelNavigationWidget->setVisible(!_navigationCollapsed);
+	modelNavigationWidget->setVisible(_navigationRevealed);
+}
+
+void ModelViewer::revealNavigation()
+{
+	if (!_navigationOverlay || !_navRevealAnimation)
+		return;
+
+	if (_navHideTimer)
+		_navHideTimer->stop();
+	if (_navRevealDelayTimer)
+		_navRevealDelayTimer->stop();
+	_navigationOverlay->raise();
+	// The nav panel is pinned by default, so this whole function (and its
+	// raise() above) runs on nearly every mouse move over the viewport via
+	// trackPointerForNavigation() - unconditionally re-raising here would
+	// permanently win the stacking order against TabbedViewportToolbar's own
+	// raise() calls (attachNavigationOverlay()'s one-time
+	// raiseViewportToolbar() at construction only established the ordering
+	// once, not permanently). Re-assert it right after every time this
+	// panel raises itself, so the toolbar always ends up back on top
+	// regardless of how often either one raises.
+	if (_viewportWidget)
+		_viewportWidget->raiseViewportToolbar();
+	if (_navigationRevealed)
+		return;
+
+	_navigationRevealed = true;
+	if (_navCollapseButton)
+	{
+		_navCollapseButton->setText(QStringLiteral("◀"));
+		_navCollapseButton->setToolTip(tr("Auto-hides after a few seconds when unpinned"));
+	}
+	// Shown immediately (not on animation finish) so content is visible AS
+	// the panel widens, matching how it visually reads as "sliding open"
+	// rather than popping in only once the animation completes.
+	modelNavigationWidget->setVisible(true);
+	_navResizeHandle->setVisible(true);
+	_navRevealAnimation->stop();
+	_navRevealAnimation->setStartValue(_navigationOverlay->geometry());
+	_navRevealAnimation->setEndValue(QRect(0, 0, _navigationOverlayWidth, _navigationOverlay->height()));
+	_navRevealAnimation->start();
+}
+
+void ModelViewer::tryHideNavigation()
+{
+	if (!_navigationOverlay || !_navRevealAnimation)
+		return;
+
+	if (_navigationPinned)
+	{
+		if (_navHideTimer)
+			_navHideTimer->stop();
+		return;
+	}
+
+	if (isNavigationInteracting())
+	{
+		if (_navHideTimer)
+			_navHideTimer->start();
+		return;
+	}
+
+	collapseNavigationNow();
+}
+
+void ModelViewer::collapseNavigationNow()
+{
+	if (!_navigationOverlay || !_navRevealAnimation || !_navigationRevealed)
+		return;
+
+	if (_navHideTimer)
+		_navHideTimer->stop();
+	if (_navRevealDelayTimer)
+		_navRevealDelayTimer->stop();
+
+	_navigationRevealed = false;
+	if (_navCollapseButton)
+	{
+		_navCollapseButton->setText(QStringLiteral("▶"));
+		_navCollapseButton->setToolTip(tr("Hover to show the navigation panel"));
+	}
+	_navRevealAnimation->stop();
+	_navRevealAnimation->setStartValue(_navigationOverlay->geometry());
+	_navRevealAnimation->setEndValue(QRect(0, 0, kNavigationCollapsedWidth, _navigationOverlay->height()));
+	// Content stays visible until the animation's finished handler (connected
+	// once, at construction - see attachNavigationOverlay()) hides it, only
+	// once fully narrowed - hiding it up front would squash/reflow the
+	// search box and tree into the shrinking width for the whole animation
+	// instead of a clean slide-closed.
+	_navRevealAnimation->start();
+}
+
+bool ModelViewer::isNavigationInteracting() const
+{
+	if (!_navigationOverlay)
+		return false;
+	if (_navigationOverlay->underMouse() || _navResizeDragActive)
+		return true;
+	QWidget* focus = QApplication::focusWidget();
+	return focus && (focus == _navigationOverlay || _navigationOverlay->isAncestorOf(focus));
+}
+
+// Local, per-instance state application only - no QSettings write, no
+// broadcast to other documents. Mirrors TabbedViewportToolbar::applyPinned()
+// exactly, including why the split exists: setNavigationPinnedPreference()
+// below calls this on EVERY open ModelViewer (this one included), so this
+// method must never itself write settings or re-iterate instances, or that
+// would recurse/duplicate the write per open document.
+void ModelViewer::applyNavigationPinned(bool pinned)
+{
+	_navigationPinned = pinned;
+	// navPinButton is a real .ui member, valid from setupUi() on - no null
+	// guard needed the way the old dynamically-constructed _navPinButton
+	// pointer required.
+	const QSignalBlocker blocker(navPinButton);
+	navPinButton->setChecked(pinned);
+	updateNavPinButton();
+	if (pinned)
+		revealNavigation();
+	else if (_navHideTimer)
+		_navHideTimer->start();
+}
+
+// The actual pin-button toggle handler (see the toggled() connection in
+// attachNavigationOverlay()) - writes the persisted preference once, then
+// applies it uniformly to every open document's nav panel, matching
+// TabbedViewportToolbar::setPinnedPreference()'s identical app-wide sync.
+void ModelViewer::setNavigationPinnedPreference(bool pinned)
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	settings.setValue(QStringLiteral("NavigationPanelPinned"), pinned);
+	for (QWidget* widget : QApplication::allWidgets())
+	{
+		if (auto* viewer = qobject_cast<ModelViewer*>(widget))
+			viewer->applyNavigationPinned(pinned);
+	}
+}
+
+void ModelViewer::updateNavPinButton()
+{
+	navPinButton->setIcon(QIcon(_navigationPinned ? QStringLiteral(":/icons/res/pin.png")
+	                                               : QStringLiteral(":/icons/res/unpin.png")));
+	const QString text = _navigationPinned
+		? tr("Allow navigation panel to hide automatically")
+		: tr("Keep navigation panel visible");
+	navPinButton->setToolTip(text);
+	navPinButton->setAccessibleName(text);
+}
+
+void ModelViewer::trackPointerForNavigation(const QPoint& viewportPos)
+{
+	if (!_navigationOverlay)
+		return;
+
+	// Pinned or already genuinely interacting with the panel: reveal
+	// instantly, same as before - only the pure proximity case below (cursor
+	// merely passing through the collapsed strip's x-range) gets debounced.
+	if (_navigationPinned || isNavigationInteracting())
+	{
+		if (_navRevealDelayTimer)
+			_navRevealDelayTimer->stop();
+		revealNavigation();
+		return;
+	}
+
+	if (viewportPos.x() <= kNavigationCollapsedWidth)
+	{
+		if (_navRevealDelayTimer && !_navRevealDelayTimer->isActive())
+			_navRevealDelayTimer->start();
+		return;
+	}
+
+	if (_navRevealDelayTimer)
+		_navRevealDelayTimer->stop();
+	if (_navHideTimer && !_navHideTimer->isActive())
+		_navHideTimer->start();
 }
 
 void ModelViewer::updateNavigationOverlayGeometry()
@@ -895,10 +1239,12 @@ void ModelViewer::updateNavigationOverlayGeometry()
 	// against the viewport's top-left edge for a seamless look.
 	const int overlayTop = 0;
 	const int overlayLeft = 0;
-	// Just enough for the collapse button itself once collapsed - matches
-	// its own locked 14px width plus the overlay wrapper's own 6px margins
-	// (see attachOverlayPanel()).
-	const int overlayCollapsedWidth = 26;
+	// A live reveal/hide animation and a direct geometry write (this
+	// function, called e.g. from viewport resizeEvent()) must never fight
+	// each other - stop it and just jump straight to whatever the current
+	// reveal state's target geometry is.
+	if (_navRevealAnimation)
+		_navRevealAnimation->stop();
 	// Full height, no bottom margin - deliberately overlaps the bottom-docked
 	// ViewToolbar's hover-reveal strip (see ViewportWidget::mouseMoveEvent())
 	// wherever the two intersect, so the toolbar won't auto-reveal while the
@@ -907,7 +1253,7 @@ void ModelViewer::updateNavigationOverlayGeometry()
 	_navigationOverlay->setGeometry(
 		overlayLeft,
 		overlayTop,
-		_navigationCollapsed ? overlayCollapsedWidth : _navigationOverlayWidth,
+		_navigationRevealed ? _navigationOverlayWidth : kNavigationCollapsedWidth,
 		std::max(120, _viewportWidget->height() - overlayTop));
 }
 
@@ -1110,6 +1456,7 @@ void ModelViewer::openMeasurementDialog(const QUuid& selectId)
 		dialog = new MeasurementDialog(this, this);
 		dialog->setAttribute(Qt::WA_DeleteOnClose);
 	}
+    _viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("measure"), dialog);
 	dialog->show();
 	dialog->raise();
 	dialog->activateWindow();
@@ -1131,6 +1478,7 @@ void ModelViewer::openAnnotationDialog(const QUuid& selectId)
 		dialog = new AnnotationDialog(this, this);
 		dialog->setAttribute(Qt::WA_DeleteOnClose);
 	}
+    _viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("annotate"), dialog);
 	dialog->show();
 	dialog->raise();
 	dialog->activateWindow();
@@ -1627,6 +1975,11 @@ bool ModelViewer::eventFilter(QObject* watched, QEvent* event)
 			{
 				_navResizeDragStartX = me->globalPosition().x();
 				_navResizeDragStartWidth = _navigationOverlayWidth;
+				// isNavigationInteracting() covers the drag for the rest of its
+				// duration - a resize-drag counts as "still using the panel"
+				// just as much as an open flyout counts for
+				// TabbedViewportToolbar::isInteracting().
+				_navResizeDragActive = true;
 				return true;
 			}
 			break;
@@ -1644,10 +1997,41 @@ bool ModelViewer::eventFilter(QObject* watched, QEvent* event)
 			break;
 
 		case QEvent::MouseButtonRelease:
+			_navResizeDragActive = false;
 			return true;
 
 		default:
 			break;
+		}
+	}
+
+	if (watched == _navCollapseButton)
+	{
+		// The always-visible left-edge strip is the actual hover-sensitive
+		// trigger now (replacing the old click-to-toggle) -
+		// trackPointerForNavigation() (called from
+		// ViewportWidget::mouseMoveEvent()) handles proximity from elsewhere
+		// in the bare viewport; this handles the cursor actually reaching the
+		// strip itself. Qt delivers Enter/Leave for the button directly (it's
+		// the topmost widget under the cursor there), never routing through
+		// ViewportWidget::mouseMoveEvent() at all - so this is the path
+		// anyone hovering the visible strip actually hits, and needs the
+		// same hover-intent delay as the proximity check, not an instant
+		// reveal, or a quick cursor pass over the strip pops the panel open
+		// exactly like the un-debounced proximity case did.
+		if (event->type() == QEvent::Enter)
+		{
+			if (_navigationPinned)
+				revealNavigation();
+			else if (_navRevealDelayTimer && !_navRevealDelayTimer->isActive())
+				_navRevealDelayTimer->start();
+		}
+		else if (event->type() == QEvent::Leave)
+		{
+			if (_navRevealDelayTimer)
+				_navRevealDelayTimer->stop();
+			if (!_navigationPinned && _navHideTimer)
+				_navHideTimer->start();
 		}
 	}
 
@@ -1818,6 +2202,25 @@ void ModelViewer::mouseMoveEvent(QMouseEvent* event)
 
 void ModelViewer::closeEvent(QCloseEvent* event)
 {
+	// The analysis dialogs run a responsive nested event loop while their
+	// background worker is active. Do not let closing this parent destroy a
+	// dialog whose member function is still on the stack; request cancellation
+	// and let the user close the document again once it has unwound.
+	if (auto* dialog = findChild<SurfaceAnalysisDialog*>(QString(), Qt::FindDirectChildrenOnly);
+		dialog && dialog->isComputationInFlight())
+	{
+		dialog->requestComputationCancel();
+		event->ignore();
+		return;
+	}
+	if (auto* dialog = findChild<MassPropertiesDialog*>(QString(), Qt::FindDirectChildrenOnly);
+		dialog && dialog->isComputationInFlight())
+	{
+		dialog->requestComputationCancel();
+		event->ignore();
+		return;
+	}
+
 	// Check for unsaved materials first
 	MaterialPropertiesPanel* materialPanel = predefinedMaterialsPanel;
 	QSet<QString> unsavedKeys = materialPanel ? materialPanel->getUnsavedMaterialKeys() : QSet<QString>();
@@ -2027,13 +2430,30 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	if (clickedAssembly)
 		treeWidgetModel->ensureAssemblySelectionAt(pos);
 
-	const bool hasMeshes = treeWidgetModel->hasMeshSelection();
+	// NOT hasMeshSelection(): on a first right-click of a previously
+	// unselected assembly, ensureAssemblySelectionAt() above selects only
+	// the assembly item itself (under blocked signals) - hasMeshSelection()
+	// only checks whether a SELECTED item is itself a leaf, so it would read
+	// false here even though the assembly has mesh descendants, hiding the
+	// entire mesh-operations section (Duplicate, Delete, ...) on that first
+	// click. selectedMeshUuids() correctly expands an assembly selection to
+	// its leaf descendants via collectLeaves(), matching what the menu
+	// actions below actually operate on (expandThen() re-expands the same
+	// way right before running).
+	const bool hasMeshes = !treeWidgetModel->selectedMeshUuids().isEmpty();
 
 	if (!hasMeshes && !clickedAssembly) return;
 
 	const SceneNode* assemblyNode = clickedAssembly
 	    ? treeWidgetModel->nodeAt(pos)
 	    : nullptr;
+
+	// A single-mesh assembly is treated as a redundant wrapper around that
+	// one mesh, not a real grouping - same rule ToolsToolbar's
+	// meshToolDisabledReasons() already uses to decide when Duplicate is
+	// available (see its own comment there).
+	const bool singleMeshAssembly = clickedAssembly && assemblyNode
+	    && _sceneGraph->collectMeshUuids(assemblyNode).size() == 1;
 
 	// Visual feedback: narrow the highlight to just the right-clicked node.
 	// Save the full selection so we can restore it if the user dismisses.
@@ -2110,7 +2530,7 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 
 		if (!parentUuid.isNull())
 		{
-			myMenu.addAction(tr("Select Parent"), this, [this, parentUuid, &actionTaken]() {
+			myMenu.addAction(QIcon(":/icons/res/select_parent.png"), tr("Select Parent"), this, [this, parentUuid, &actionTaken]() {
 				actionTaken = true;
 				treeWidgetModel->selectNodeByUuid(parentUuid);
 			});
@@ -2119,12 +2539,12 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	}
 
 	// ---- Copy / Cut --------------------------------------------------------
-	myMenu.addAction(tr("Copy"), this, [this, &actionTaken]() {
+	myMenu.addAction(QIcon(":/icons/res/copy.png"), tr("Copy"), this, [this, &actionTaken]() {
 		actionTaken = true;
 		copySelectedItems();
 	});
 
-	myMenu.addAction(tr("Cut"), this, [this, &actionTaken]() {
+	myMenu.addAction(QIcon(":/icons/res/cut.png"), tr("Cut"), this, [this, &actionTaken]() {
 		actionTaken = true;
 		cutSelectedItems();
 	});
@@ -2132,24 +2552,63 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	// ---- Paste (assembly target only, clipboard must be non-empty) ---------
 	if (clickedAssembly && assemblyNode && !s_clipboard.isEmpty())
 	{
-		myMenu.addAction(tr("Paste"), this,
+		myMenu.addAction(QIcon(":/icons/res/paste.png"), tr("Paste"), this,
 		    [this, assemblyNode, &actionTaken]() {
 		        actionTaken = true;
 		        pasteIntoSelectedNode(assemblyNode);
 		    });
 	}
 
+	// ---- Import Units (synthetic file node only) ---------------------------
+	// SceneNode::importUnit lives on the synthetic per-import file node, not
+	// on an assembly/leaf mesh within it - see LengthUnits.h's own doc
+	// comment for the resolution order this sets the first link of. Reached
+	// here (not from Mass Properties/Surface Analysis themselves) because a
+	// unit is a property of one imported FILE, not of whatever multi-mesh
+	// selection happens to be open in one of those dialogs at the time.
+	if (clickedAssembly && assemblyNode && assemblyNode->isSynthetic)
+	{
+		// Deliberately does NOT set actionTaken - this action never touches
+		// the mesh selection (unlike the expandThen()-wrapped actions below,
+		// or Select Parent above, which both deliberately establish a new
+		// real selection). Leaving actionTaken false lets the "no action
+		// taken" path at the bottom of this function restore the real
+		// pre-click selection (savedSelection), undoing
+		// highlightSingleItemAt()'s purely-visual, signal-blocked narrowing
+		// above - without this, the tree/viewport are left in that
+		// transient single-item state with no real selection underneath it,
+		// so a later empty-viewport click has nothing valid to clear.
+		myMenu.addAction(QIcon(":/icons/res/import_units.png"), tr("Import Units..."), this, [this, nodeUuid = assemblyNode->nodeUuid]() {
+			if (SceneNode* fileNode = _sceneGraph->findNodeByUuid(nodeUuid))
+				showImportUnitsDialog(fileNode);
+		});
+		myMenu.addSeparator();
+	}
+
+	// ---- Purge Redundant Nodes (any assembly node - collapses redundant single-mesh wrapper nodes within its own
+	// subtree only; see purgeRedundantAssemblyNodes()'s own doc comment). Same "does not set actionTaken" reasoning
+	// as Import Units just above - this reorganizes structure below the clicked node, not the mesh selection. ----
+	if (clickedAssembly && assemblyNode)
+	{
+		myMenu.addAction(QIcon(":/icons/res/ungroup_captures.png"), tr("Purge Redundant Nodes"), this,
+		    [this, nodeUuid = assemblyNode->nodeUuid]() {
+		        if (SceneNode* node = _sceneGraph->findNodeByUuid(nodeUuid))
+		            purgeRedundantAssemblyNodes(node);
+		    });
+		myMenu.addSeparator();
+	}
+
 	// ---- Mesh operations ---------------------------------------------------
 	if (hasMeshes)
 	{
 		myMenu.addSeparator();
-		myMenu.addAction(tr("Center Screen"),   this, expandThen([this]() { centerScreen(); }));
-		myMenu.addAction(tr("Transformations"), this, expandThen([this]() { showTransformationsPage(); }));
-		myMenu.addAction(tr("Edit Material"),   this, expandThen([this]() { editMeshMaterial(); }));
+		myMenu.addAction(QIcon(":/icons/res/center_screen.png"), tr("Center Screen"), this, expandThen([this]() { centerScreen(); }));
+		myMenu.addAction(QIcon(":/icons/res/transformations.png"), tr("Transformations"), this, expandThen([this]() { showTransformationsPage(); }));
+		myMenu.addAction(QIcon(":/icons/res/material.png"), tr("Edit Material"), this, expandThen([this]() { editMeshMaterial(); }));
 		myMenu.addSeparator();
-		myMenu.addAction(tr("Hide"),      this, expandThen([this]() { hideSelectedItems(); }));
-		myMenu.addAction(tr("Show"),      this, expandThen([this]() { showSelectedItems(); }));
-		myMenu.addAction(tr("Show Only"), this, expandThen([this]() { showOnlySelectedItems(); }));
+		myMenu.addAction(QIcon(":/icons/res/hide.png"), tr("Hide"), this, expandThen([this]() { hideSelectedItems(); }));
+		myMenu.addAction(QIcon(":/icons/res/show.png"), tr("Show"), this, expandThen([this]() { showSelectedItems(); }));
+		myMenu.addAction(QIcon(":/icons/res/show_only.png"), tr("Show Only"), this, expandThen([this]() { showOnlySelectedItems(); }));
 		myMenu.addSeparator();
 		// Duplicate is deliberately a leaf-only shortcut (see c5686ad's commit
 		// message): it clones each mesh flatly back into its own existing
@@ -2158,16 +2617,20 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		// Merge have no such concern (neither reproduces assembly structure -
 		// they just insert/combine specific meshes wherever they already
 		// live), so unlike Duplicate they're available for assembly clicks too.
-		if (!clickedAssembly)
-			myMenu.addAction(tr("Duplicate"), this, expandThen([this]() { duplicateSelectedItems(); }));
-		myMenu.addAction(tr("Split by Connectivity"), this, expandThen([this]() { splitSelectedMeshesByConnectivity(); }));
-		myMenu.addAction(tr("Merge by Adjacency"), this, expandThen([this]() { mergeSelectedMeshesByAdjacency(); }));
-		myMenu.addAction(tr("Merge Selected"), this, expandThen([this]() { mergeSelectedMeshes(); }));
-		myMenu.addAction(tr("Mesh Union"), this, expandThen([this]() { unionSelectedMeshes(); }));
-		myMenu.addAction(tr("Group"), this, expandThen([this]() { groupSelectedMeshes(); }));
-		myMenu.addAction(tr("Delete"),    this, expandThen([this]() { deleteSelectedItems(); }));
+		// A single-mesh assembly is the one exception: it's a redundant
+		// wrapper around exactly one mesh, so Duplicate sees through it the
+		// same way the ToolsToolbar's Duplicate button already does - only a
+		// genuine multi-mesh assembly still hides this entry.
+		if (!clickedAssembly || singleMeshAssembly)
+			myMenu.addAction(QIcon(":/icons/res/duplicate_meshes.png"), tr("Duplicate"), this, expandThen([this]() { duplicateSelectedItems(); }));
+		myMenu.addAction(QIcon(":/icons/res/split_by_connectivity.png"), tr("Split by Connectivity"), this, expandThen([this]() { splitSelectedMeshesByConnectivity(); }));
+		myMenu.addAction(QIcon(":/icons/res/merge_by_adjacency.png"), tr("Merge by Adjacency"), this, expandThen([this]() { mergeSelectedMeshesByAdjacency(); }));
+		myMenu.addAction(QIcon(":/icons/res/merge_selected.png"), tr("Merge Selected"), this, expandThen([this]() { mergeSelectedMeshes(); }));
+		myMenu.addAction(QIcon(":/icons/res/mesh_union.png"), tr("Mesh Union"), this, expandThen([this]() { unionSelectedMeshes(); }));
+		myMenu.addAction(QIcon(":/icons/res/group_meshes.png"), tr("Group"), this, expandThen([this]() { groupSelectedMeshes(); }));
+		myMenu.addAction(QIcon(":/icons/res/delete.png"), tr("Delete"), this, expandThen([this]() { deleteSelectedItems(); }));
 		myMenu.addSeparator();
-		myMenu.addAction(tr("Mesh Info"), this, expandThen([this]() { displaySelectedMeshInfo(); }));
+		myMenu.addAction(QIcon(":/icons/res/mesh_info.png"), tr("Mesh Info"), this, expandThen([this]() { displaySelectedMeshInfo(); }));
 	}
 
 	myMenu.exec(treeWidgetModel->mapMenuToGlobal(pos));
@@ -2870,12 +3333,12 @@ void ModelViewer::performCrossDocumentCutPaste(SceneNode* target)
 
 void ModelViewer::duplicateSelectedItems()
 {
-	if (!treeWidgetModel->hasMeshSelection())
+	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
+	if (selectedUuids.isEmpty())
 		return;
 
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
-	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
 	const QSet<QUuid> originalSelection(selectedUuids.begin(), selectedUuids.end());
 
 	QVector<DuplicateCommand::DuplicateEntry> entries;
@@ -2919,12 +3382,12 @@ void ModelViewer::duplicateSelectedItems()
 
 void ModelViewer::splitSelectedMeshesByConnectivity()
 {
-	if (!treeWidgetModel->hasMeshSelection())
+	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
+	if (selectedUuids.isEmpty())
 		return;
 
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
-	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
 	const QSet<QUuid> originalSelection(selectedUuids.begin(), selectedUuids.end());
 
 	QVector<SplitByConnectivityCommand*> commands;
@@ -3098,53 +3561,17 @@ namespace
 		return false;
 	}
 
-	// Groups `indices` (into `meshes`) by the same (sourceFile, originalMaterialIndex,
-	// primitiveMode) identity combineSelectedMeshes()/mergeSelectedMeshesByAdjacency()'s own
-	// compatibility check already use - originalMaterialIndex < 0 (untracked) never matches
-	// anything else, including another untracked mesh, same conservative default those already
-	// apply (a mesh with no reliable match becomes its own singleton group rather than being
-	// silently lumped in with other untracked meshes). Groups are returned in first-seen order -
-	// deterministic result naming/placement for the "Keep Materials Separate" choice.
-	std::vector<std::vector<int>> groupIndicesByMaterial(const QVector<SceneMesh*>& meshes,
-	                                                       const std::vector<int>& indices)
-	{
-		std::vector<std::vector<int>> groups;
-		QHash<QString, int> groupIndexByKey; // composite key -> index into groups
-
-		for (int idx : indices)
-		{
-			SceneMesh* mesh = meshes[idx];
-			const int materialIndex = mesh->getOriginalMaterialIndex();
-			if (materialIndex < 0)
-			{
-				groups.push_back({ idx });
-				continue;
-			}
-
-			const QString key = mesh->getSourceFile() + QLatin1Char('|') + QString::number(materialIndex)
-				+ QLatin1Char('|') + QString::number(static_cast<int>(mesh->getPrimitiveMode()));
-			const auto it = groupIndexByKey.constFind(key);
-			if (it == groupIndexByKey.cend())
-			{
-				groupIndexByKey.insert(key, static_cast<int>(groups.size()));
-				groups.push_back({ idx });
-			}
-			else
-			{
-				groups[it.value()].push_back(idx);
-			}
-		}
-
-		return groups;
-	}
+	// groupIndicesByMaterial() used to live here - promoted to include/MaterialGrouping.h +
+	// src/MaterialGrouping.cpp so Filter by Material and the material eyedropper can call it
+	// too, not just this file's merge/union paths.
 }
 
 void ModelViewer::mergeSelectedMeshesByAdjacency()
 {
-	if (!treeWidgetModel->hasMeshSelection())
+	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
+	if (selectedUuids.isEmpty())
 		return;
 
-	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
 	if (selectedUuids.size() < 2)
 		return;
 
@@ -3402,10 +3829,10 @@ void ModelViewer::combineSelectedMeshes(
 	const std::function<SceneMesh*(const QVector<SceneMesh*>&, const QString&, QString* outDetail)>& combineFn,
 	const QString& actionName)
 {
-	if (!treeWidgetModel->hasMeshSelection())
+	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
+	if (selectedUuids.isEmpty())
 		return;
 
-	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
 	const QSet<QUuid> originalSelection(selectedUuids.begin(), selectedUuids.end());
 
 	QVector<SceneMesh*> meshes;
@@ -3494,6 +3921,7 @@ void ModelViewer::combineSelectedMeshes(
 	QVector<MergeByAdjacencyCommand*> commands;
 	int meshesCombinedCount = 0;
 	int groupsUsedFallback = 0;
+	int groupsDeclinedByUser = 0;
 	for (const std::vector<int>& group : groupsToCombine)
 	{
 		SceneMesh* groupRefMesh = meshes[group[0]];
@@ -3505,6 +3933,16 @@ void ModelViewer::combineSelectedMeshes(
 		const QString mergedName = _viewportWidget->generateUniqueMeshName(groupRefMesh->getName() + "_Merged");
 		QString detail;
 		SceneMesh* merged = combineFn(groupMeshes, mergedName, &detail);
+		if (!merged)
+		{
+			// combineFn (currently only unionSelectedMeshes()'s) can decline to
+			// produce a result - e.g. the user was asked whether to fall back
+			// to a plain merge after a real union failed, and said no. Leave
+			// this group's meshes exactly as they were (no recycle-bin move,
+			// no command) and move on to the next group.
+			++groupsDeclinedByUser;
+			continue;
+		}
 		if (!detail.isEmpty())
 			++groupsUsedFallback;
 		_viewportWidget->addToDisplay(merged);
@@ -3562,7 +4000,15 @@ void ModelViewer::combineSelectedMeshes(
 
 	QApplication::restoreOverrideCursor();
 
-	if (commands.size() == 1 && separatedSingletonCount == 0)
+	if (commands.isEmpty() && groupsDeclinedByUser > 0)
+	{
+		// Every group was declined (the common case: a single-group union
+		// that failed, and the user said no to the plain-merge fallback) -
+		// nothing was combined at all, so neither of the two messages below
+		// (which both assume at least one result) fits.
+		MainWindow::showStatusMessage(tr("Nothing combined - union declined for %1 group(s).").arg(groupsDeclinedByUser));
+	}
+	else if (commands.size() == 1 && separatedSingletonCount == 0 && groupsDeclinedByUser == 0)
 	{
 		// Exact wording as before this change, for the common (already-compatible or
 		// merge-anyway) single-result case - no behavior/message change there.
@@ -3576,6 +4022,8 @@ void ModelViewer::combineSelectedMeshes(
 		QStringList details;
 		if (groupsUsedFallback > 0)
 			details << tr("%1 group(s) couldn't be unioned - used plain concatenation instead").arg(groupsUsedFallback);
+		if (groupsDeclinedByUser > 0)
+			details << tr("%1 group(s) left uncombined - union declined").arg(groupsDeclinedByUser);
 		if (separatedSingletonCount > 0)
 			details << tr("%1 mesh(es) left uncombined - unique material within the selection").arg(separatedSingletonCount);
 		if (!details.isEmpty())
@@ -3596,27 +4044,46 @@ void ModelViewer::mergeSelectedMeshes()
 void ModelViewer::unionSelectedMeshes()
 {
 	combineSelectedMeshes(
-		[](const QVector<SceneMesh*>& meshes, const QString& name, QString* outDetail) {
+		[this](const QVector<SceneMesh*>& meshes, const QString& name, QString* outDetail) -> SceneMesh* {
+			// allowMergeFallback=false: don't let booleanUnionMeshes() silently
+			// substitute plain concatenation for a real union - ask the user
+			// first (see this function's own doc comment history / project
+			// memory project_curvature_edge_welding_provenance_design.md's
+			// "deferred as a separate follow-up" note for why this replaced
+			// the previous silent-fallback-with-a-status-message behavior).
 			bool usedRealUnion = false;
-			SceneMesh* result = SceneMesh::booleanUnionMeshes(meshes, name, &usedRealUnion);
-			// Mesh Union's own fallback-to-concatenation behavior is
-			// intentionally silent by design (never worse than plain Merge
-			// Selected, whatever the input geometry) - but the user should
-			// still be able to tell which actually happened, rather than
-			// both paths reporting an identical "Combined" message.
-			if (outDetail && !usedRealUnion)
+			SceneMesh* result = SceneMesh::booleanUnionMeshes(meshes, name, &usedRealUnion, /*allowMergeFallback=*/false);
+			if (result)
+				return result; // real union succeeded
+
+			// Real union failed - same makeCurrent()/doneCurrent()-safe pattern as the
+			// material-compatibility prompt above: restore the override cursor before a
+			// blocking dialog, reapply it after, so a modal prompt doesn't sit under a
+			// wait cursor.
+			QApplication::restoreOverrideCursor();
+			const QMessageBox::StandardButton choice = QMessageBox::question(this, tr("Mesh Union"),
+				tr("\"%1\" and the rest of the selection couldn't be combined into a true solid union.\n\n"
+				   "Merge them as a plain combination instead (like \"Merge Selected\")? "
+				   "Choosing \"No\" leaves these meshes uncombined.").arg(meshes.first() ? meshes.first()->getName() : QString()),
+				QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+			QApplication::setOverrideCursor(Qt::WaitCursor);
+
+			if (choice != QMessageBox::Yes)
+				return nullptr; // user declined - this group is left uncombined
+
+			if (outDetail)
 				*outDetail = tr(" (geometry couldn't be unioned - used plain concatenation instead)");
-			return result;
+			return SceneMesh::mergeMeshes(meshes, name);
 		},
 		tr("Mesh Union"));
 }
 
 void ModelViewer::groupSelectedMeshes()
 {
-	if (!treeWidgetModel->hasMeshSelection())
+	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
+	if (selectedUuids.isEmpty())
 		return;
 
-	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
 	const QSet<QUuid> originalSelection(selectedUuids.begin(), selectedUuids.end());
 
 	QVector<SceneNode*> ownerNodes;
@@ -3678,6 +4145,79 @@ void ModelViewer::groupSelectedMeshes()
 	MainWindow::showStatusMessage(tr("Grouped %1 mesh(es).").arg(meshEntries.size()));
 }
 
+namespace
+{
+	// Bottom-up (children first): a node only qualifies once its own single child has already settled into a
+	// leaf with exactly one mesh - which a nested wrapper only reaches after ITS OWN children have already been
+	// promoted. Applies each qualifying promotion immediately, through the real SceneGraph API, rather than a
+	// separate dry-run scan - so by the time recursion returns to a node's parent, that node's children/meshUuids
+	// (and the SceneGraph's own UUID lookup table) already reflect the promotion, and the parent's own check
+	// sees it exactly as it will be, with no separate simulation to keep in sync.
+	void purgeNodeRecursive(SceneGraph* sceneGraph, ViewportWidget* viewport, SceneNode* node,
+		QVector<PurgeRedundantNodesCommand::PromotionEntry>& promotions)
+	{
+		const QList<SceneNode*> children = node->children; // snapshot - node->children shrinks as children settle
+		for (SceneNode* child : children)
+			purgeNodeRecursive(sceneGraph, viewport, child, promotions);
+
+		if (node->children.size() != 1 || !node->meshUuids.isEmpty())
+			return;
+
+		SceneNode* onlyChild = node->children.first();
+		if (!onlyChild->children.isEmpty() || onlyChild->meshUuids.size() != 1)
+			return;
+
+		PurgeRedundantNodesCommand::PromotionEntry entry;
+		entry.meshUuid = onlyChild->meshUuids.first();
+		entry.survivorNode = node;
+		entry.eliminatedNode = onlyChild;
+		entry.meshNameAfter = node->name;
+		if (SceneMesh* mesh = viewport->getMeshByUuid(entry.meshUuid))
+			entry.meshNameBefore = mesh->getName();
+
+		int pos = 0;
+		sceneGraph->removeMeshUuid(entry.meshUuid, pos);
+		sceneGraph->restoreMeshUuid(node, entry.meshUuid, node->meshUuids.size());
+
+		sceneGraph->removeChildNode(node, onlyChild, entry.eliminatedPosition);
+
+		if (SceneMesh* mesh = viewport->getMeshByUuid(entry.meshUuid))
+			mesh->setName(entry.meshNameAfter);
+
+		promotions.append(entry);
+	}
+}
+
+void ModelViewer::purgeRedundantAssemblyNodes(SceneNode* scanRoot)
+{
+	if (!scanRoot)
+		scanRoot = _sceneGraph->root();
+	if (!scanRoot)
+		return;
+
+	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
+	const QSet<QUuid> originalSelection(selectedUuids.begin(), selectedUuids.end());
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	QVector<PurgeRedundantNodesCommand::PromotionEntry> promotions;
+	purgeNodeRecursive(_sceneGraph, _viewportWidget, scanRoot, promotions);
+
+	if (promotions.isEmpty())
+	{
+		QApplication::restoreOverrideCursor();
+		MainWindow::showStatusMessage(tr("Nothing to purge - no redundant single-mesh sub-assembly nodes found."));
+		return;
+	}
+
+	updateDisplayList();
+	_undoStack->push(new PurgeRedundantNodesCommand(this, _viewportWidget, promotions, originalSelection));
+
+	QApplication::restoreOverrideCursor();
+
+	MainWindow::showStatusMessage(tr("Purged %1 redundant node(s).").arg(promotions.size()));
+}
+
 void ModelViewer::openShrinkWrapDialog()
 {
 	ShrinkWrapDialog* dialog = findChild<ShrinkWrapDialog*>(QString(), Qt::FindDirectChildrenOnly);
@@ -3691,6 +4231,46 @@ void ModelViewer::openShrinkWrapDialog()
 	// dialog or the menu was clicked again while it was already open with a
 	// new tree selection made since.
 	dialog->addCurrentTreeSelection();
+    _viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("shrink"), dialog);
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+}
+
+void ModelViewer::openSurfaceAnalysisDialog(const QString& mode)
+{
+	SurfaceAnalysisDialog* dialog = findChild<SurfaceAnalysisDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (dialog)
+	{
+		dialog->seedFromViewportSelection();
+	}
+	else
+	{
+		// The constructor seeds the dialog's mesh list from the current viewport selection.
+		dialog = new SurfaceAnalysisDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+    if (!mode.isEmpty()) dialog->selectMode(mode);
+    _viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("analysis"), dialog);
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+}
+
+void ModelViewer::openMassPropertiesDialog()
+{
+	MassPropertiesDialog* dialog = findChild<MassPropertiesDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (dialog)
+	{
+		dialog->seedFromViewportSelection();
+	}
+	else
+	{
+		// The constructor seeds its mesh list from the current viewport selection and computes the first report.
+		dialog = new MassPropertiesDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	_viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("mass"), dialog);
 	dialog->show();
 	dialog->raise();
 	dialog->activateWindow();
@@ -3716,6 +4296,7 @@ void ModelViewer::openSubdivisionDialog()
 	// Same seed-with-current-tree-selection convention as
 	// openShrinkWrapDialog() above.
 	dialog->addCurrentTreeSelection();
+    _viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("subdivide"), dialog);
 	dialog->show();
 	dialog->raise();
 	dialog->activateWindow();
@@ -3741,6 +4322,7 @@ void ModelViewer::openReconstructSurfaceDialog()
 	// Same seed-with-current-tree-selection convention as
 	// openShrinkWrapDialog()/openSubdivisionDialog() above.
 	dialog->addCurrentTreeSelection();
+    _viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("reconstruct"), dialog);
 	dialog->show();
 	dialog->raise();
 	dialog->activateWindow();
@@ -3766,6 +4348,7 @@ void ModelViewer::openRepairMeshDialog()
 	// Same seed-with-current-tree-selection convention as
 	// openShrinkWrapDialog()/openSubdivisionDialog() above.
 	dialog->addCurrentTreeSelection();
+    _viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("repair"), dialog);
 	dialog->show();
 	dialog->raise();
 	dialog->activateWindow();
@@ -3809,6 +4392,7 @@ void ModelViewer::openFillHolesDialog()
 	// Same seed-with-current-tree-selection convention as
 	// openRepairMeshDialog()/openShrinkWrapDialog() above.
 	dialog->addCurrentTreeSelection();
+    _viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("fill"), dialog);
 	dialog->show();
 	dialog->raise();
 	dialog->activateWindow();
@@ -3894,6 +4478,7 @@ void ModelViewer::openUVGenerationDialog()
 	// dialog or the menu was clicked again while it was already open with a
 	// new tree selection made since. Mirrors openShrinkWrapDialog() exactly.
 	dialog->addCurrentTreeSelection();
+    _viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("uv"), dialog);
 	dialog->show();
 	dialog->raise();
 	dialog->activateWindow();
@@ -4007,6 +4592,478 @@ void ModelViewer::showOnlySelectedItems()
 		_viewportWidget->swapVisible(false);
 }
 
+void ModelViewer::filterSelectionByMaterial()
+{
+	if (_viewportWidget->getMeshStore().empty())
+		return;
+
+	// Mutually exclusive with Filter by Color and Filter by Bounding Box -
+	// all three dialogs live-push their own idea of the "current filter
+	// selection" independently, so having more than one open at once means
+	// whichever one you touch last silently wins, with no indication the
+	// others' criteria are still armed. Closing it (not just hiding it)
+	// goes through its normal closeEvent()/saveSettings() and self-deletes
+	// via WA_DeleteOnClose.
+	if (auto* other = findChild<FilterByColorDialog*>(QString(), Qt::FindDirectChildrenOnly))
+		other->close();
+	if (auto* other = findChild<FilterByBoundingBoxDialog*>(QString(), Qt::FindDirectChildrenOnly))
+		other->close();
+
+	// Non-modal, per-document singleton - same findChild-reuse-or-create
+	// pattern as ModelViewer::openShrinkWrapDialog(). The dialog live-
+	// previews the selection as its material choice changes and applies
+	// Show Only/Hide directly, so there's nothing to read back here.
+	auto* dialog = findChild<FilterByMaterialDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (!dialog)
+	{
+		dialog = new FilterByMaterialDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+}
+
+void ModelViewer::filterSelectionByColor()
+{
+	std::vector<SceneMesh*> meshStore = _viewportWidget->getMeshStore();
+	if (meshStore.empty())
+		return;
+
+	// Mutually exclusive with Filter by Material and Filter by Bounding Box -
+	// see the matching comment in filterSelectionByMaterial() for why.
+	if (auto* other = findChild<FilterByMaterialDialog*>(QString(), Qt::FindDirectChildrenOnly))
+		other->close();
+	if (auto* other = findChild<FilterByBoundingBoxDialog*>(QString(), Qt::FindDirectChildrenOnly))
+		other->close();
+
+	auto* dialog = findChild<FilterByColorDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (!dialog)
+	{
+		// Seed the target color list from the DISTINCT representative
+		// colors of the current selection - real prior intent (the user
+		// already selected these meshes), so the dialog opens already
+		// live, matching every mesh close to any of them. Deduped within a
+		// small epsilon so near-identical colors (e.g. minor shading
+		// variance across a multi-mesh selection) don't spam the list with
+		// near-duplicate rows. Empty if nothing was selected - the dialog
+		// then starts with an empty list, nothing live, until the user adds
+		// a color themselves (see FilterByColorDialog.h's doc comment for
+		// why there's no arbitrary default color any more). Only done for a
+		// fresh dialog - reopening an already-open one keeps whatever color
+		// list the user already built.
+		QVector<QVector3D> selectionColors;
+		const std::vector<int> currentSelection = getSelectedIDs();
+		for (int id : currentSelection)
+		{
+			if (id >= 0 && id < static_cast<int>(meshStore.size()))
+				selectionColors.push_back(meshRepresentativeColor(meshStore[id]));
+		}
+		const QVector<QVector3D> initialColors = dedupedColors({}, selectionColors);
+
+		dialog = new FilterByColorDialog(this, initialColors, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+}
+
+void ModelViewer::filterSelectionByBoundingBox()
+{
+	std::vector<SceneMesh*> meshStore = _viewportWidget->getMeshStore();
+	if (meshStore.empty())
+		return;
+
+	// Mutually exclusive with Filter by Material and Filter by Color - see
+	// the matching comment in filterSelectionByMaterial() for why.
+	if (auto* other = findChild<FilterByMaterialDialog*>(QString(), Qt::FindDirectChildrenOnly))
+		other->close();
+	if (auto* other = findChild<FilterByColorDialog*>(QString(), Qt::FindDirectChildrenOnly))
+		other->close();
+
+	auto* dialog = findChild<FilterByBoundingBoxDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (!dialog)
+	{
+		// Seed the six limits from the current selection's combined bounds
+		// (real prior intent, same reasoning as filterSelectionByColor()'s
+		// own seeding) - or, if nothing is selected, from the whole scene's
+		// combined bounds, so the dialog never opens with a degenerate
+		// all-zero box that would silently match nothing. Only done for a
+		// fresh dialog - reopening an already-open one keeps whatever limits
+		// the user already set (re-seed via its own "Use Current Selection's
+		// Bounds" button instead).
+		const std::vector<int> currentSelection = getSelectedIDs();
+		BoundingBox initialBounds;
+		bool any = false;
+		auto includeMesh = [&](SceneMesh* mesh) {
+			if (!mesh)
+				return;
+			if (!any)
+			{
+				initialBounds = mesh->getBoundingBox();
+				any = true;
+			}
+			else
+			{
+				initialBounds.addBox(mesh->getBoundingBox());
+			}
+		};
+		if (!currentSelection.empty())
+		{
+			for (int id : currentSelection)
+				if (id >= 0 && id < static_cast<int>(meshStore.size()))
+					includeMesh(meshStore[id]);
+		}
+		else
+		{
+			for (SceneMesh* mesh : meshStore)
+				includeMesh(mesh);
+		}
+
+		dialog = new FilterByBoundingBoxDialog(this, initialBounds, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+}
+
+void ModelViewer::saveCurrentSelectionAsSet(const QString& name)
+{
+	if (!_sceneGraph || name.trimmed().isEmpty())
+		return;
+
+	std::vector<int> selectedIds = getSelectedIDs();
+	if (selectedIds.empty())
+		return;
+
+	QSet<QUuid> uuids;
+	for (int id : selectedIds)
+	{
+		QUuid uuid = _viewportWidget->getUuidByIndex(id);
+		if (!uuid.isNull())
+			uuids.insert(uuid);
+	}
+	if (uuids.isEmpty())
+		return;
+
+	SelectionSet set;
+	set.id = QUuid::createUuid();
+	set.name = name.trimmed();
+	set.meshUuids = uuids;
+
+	_undoStack->push(new SaveSelectionSetCommand(this, _viewportWidget, set));
+}
+
+void ModelViewer::recallSelectionSet(const QUuid& setId)
+{
+	if (!_sceneGraph)
+		return;
+
+	const int index = _sceneGraph->selectionSetIndexById(setId);
+	if (index < 0)
+		return;
+
+	const SelectionSet& set = _sceneGraph->selectionSets().at(index);
+
+	QSet<int> ids;
+	QSet<QUuid> resolvedUuids;
+	for (const QUuid& uuid : set.meshUuids)
+	{
+		const int meshIndex = _viewportWidget->getIndexByUuid(uuid);
+		if (meshIndex >= 0)
+		{
+			ids.insert(meshIndex);
+			resolvedUuids.insert(uuid);
+		}
+	}
+	if (ids.isEmpty())
+		return;
+
+	// Reveal any of the set's own members that are currently hidden - a
+	// saved selection is a "jump back to this" bookmark, and leaving a
+	// hidden member hidden would silently fail to select part of the set
+	// with no visual feedback (same "show, not show only" behavior as
+	// showSelectedItems() - never touches visibility of anything OUTSIDE
+	// the set). Both the reveal and the selection change land in one undo
+	// macro so a single Ctrl+Z reverses both together, same convention as
+	// Merge by Adjacency/the material-grouped Union.
+	const QSet<QUuid> currentlyVisible = getVisibleUuids();
+	const bool hasHiddenMembers = !(resolvedUuids - currentlyVisible).isEmpty();
+
+	if (hasHiddenMembers)
+	{
+		_undoStack->beginMacro(tr("Recall Selection Set"));
+		setVisibilityWithUndo(currentlyVisible | resolvedUuids, tr("Show"));
+		setSelectionWithUndo(ids);
+		_undoStack->endMacro();
+	}
+	else
+	{
+		setSelectionWithUndo(ids);
+	}
+}
+
+void ModelViewer::deleteSelectionSet(const QUuid& setId)
+{
+	if (!_sceneGraph)
+		return;
+	if (_sceneGraph->selectionSetIndexById(setId) < 0)
+		return;
+
+	_undoStack->push(new DeleteSelectionSetCommand(this, _viewportWidget, setId));
+}
+
+void ModelViewer::saveCurrentSceneState(const QString& name)
+{
+	if (!_sceneGraph || !_viewportWidget || name.trimmed().isEmpty())
+		return;
+
+	SceneState state;
+	state.id = QUuid::createUuid();
+	state.name = name.trimmed();
+	state.camera = _viewportWidget->captureCurrentCameraEntry(state.name);
+	state.visibleMeshUuids = getVisibleUuids();
+	state.selectedMeshUuids = getSelectedUuids();
+
+	// Presentation state - see SceneStateData.h for why this now mirrors the
+	// full "viewerState" document-defaults field set verbatim.
+	state.displayMode = static_cast<int>(_viewportWidget->getDisplayMode());
+	// RAY_TRACED is tracked separately from SceneRenderController's own
+	// RenderingMode (see RenderEnums.h's doc comment on RenderingMode) - the
+	// "armed" check has to come first since getRenderingMode() itself never
+	// returns RAY_TRACED.
+	state.renderingMode = _viewportWidget->isRayTracedRenderingModeArmed()
+		? QStringLiteral("RayTraced")
+		: (_viewportWidget->getRenderingMode() == RenderingMode::ADS_BLINN_PHONG
+			? QStringLiteral("ADS")
+			: QStringLiteral("PBR"));
+	state.groundMode = static_cast<int>(_viewportWidget->groundMode());
+	state.skyBoxShown = _viewportWidget->isSkyBoxShown();
+	state.skyBoxHDRIEnabled = _viewportWidget->isSkyBoxHDRIEnabled();
+	state.skyBoxFolderPath = _viewportWidget->getCurrentSkyboxFolder();
+	state.skyBoxBlurPercent = _viewportWidget->getSkyBoxBlurPercent();
+	state.skyBoxFOV = _viewportWidget->getSkyBoxFOV();
+	state.skyBoxZRotationDegrees = _viewportWidget->getSkyBoxZRotationDegrees();
+	state.floorTextureShown = _viewportWidget->isFloorTextureShown();
+	state.floorTexturePath = _viewportWidget->getFloorTexturePath();
+	state.floorTexRepeatS = _viewportWidget->getFloorTexRepeatS();
+	state.floorTexRepeatT = _viewportWidget->getFloorTexRepeatT();
+	state.floorOffsetPercent = _viewportWidget->getFloorOffsetPercent();
+	state.shadowQuality = static_cast<int>(_viewportWidget->getShadowQuality());
+	state.reflectionsEnabled = _viewportWidget->areReflectionsEnabled();
+	state.shadowsEnabled = _viewportWidget->areShadowsEnabled();
+	state.selfShadowsEnabled = _viewportWidget->areSelfShadowsEnabled();
+	state.shadowCatcherDarkness = _viewportWidget->shadowCatcherDarkness();
+	state.shadowCatcherBaseColor = _viewportWidget->shadowCatcherBaseColor();
+	state.shadowCatcherMetalness = _viewportWidget->shadowCatcherMetalness();
+	state.shadowCatcherRoughness = _viewportWidget->shadowCatcherRoughness();
+	state.environmentEnabled = _viewportWidget->isEnvironmentMapEnabled();
+	state.iblEnabled = _viewportWidget->isIBLEnabled();
+	state.envMapExposureStops = std::log2(std::max(_viewportWidget->getEnvMapExposure(), 1.0e-6f));
+	state.iblExposureStops = std::log2(std::max(_viewportWidget->getIBLExposure(), 1.0e-6f));
+	state.defaultLightsEnabled = _viewportWidget->areDefaultLightsEnabled();
+	state.punctualLightsEnabled = _viewportWidget->arePunctualLightsEnabled();
+	state.showLights = _viewportWidget->areLightsShown();
+	state.defaultLightColor = _viewportWidget->getDefaultLightColor();
+	state.defaultLightOffset = _viewportWidget->getLightOffset();
+	state.hdrToneMapping = _viewportWidget->getHdrToneMapping();
+	state.hdrToneMappingMode = static_cast<int>(_viewportWidget->getHDRToneMappingMode());
+	state.gammaCorrection = _viewportWidget->getGammaCorrection();
+	state.screenGamma = _viewportWidget->getScreenGamma();
+	state.bgTopColor = _viewportWidget->getBgTopColor();
+	state.bgBotColor = _viewportWidget->getBgBotColor();
+
+	_undoStack->push(new SaveSceneStateCommand(this, _viewportWidget, state));
+}
+
+void ModelViewer::recallSceneState(const QUuid& stateId)
+{
+	if (!_sceneGraph || !_viewportWidget)
+		return;
+
+	const int index = _sceneGraph->sceneStateIndexById(stateId);
+	if (index < 0)
+		return;
+
+	const SceneState& state = _sceneGraph->sceneStates().at(index);
+
+	// Camera restore is immediate and NOT undoable - matches this app's
+	// existing convention that no camera activation is ever on the undo
+	// stack (see activateCameraEntry()'s own doc comment). Applied here
+	// FIRST so a Ray-Traced state's requestRayTracedRenderNow() call below
+	// already sees the right pose for its first snapshot - but this is NOT
+	// the final word on camera position; see the second activateCameraEntry()
+	// call after the visibility/selection restore below for why.
+	_viewportWidget->activateCameraEntry(state.camera);
+
+	// Presentation state - also immediate/not undoable, same convention as
+	// camera above (no display/rendering-mode change anywhere in this app
+	// is on the undo stack either).
+	//
+	// Order matters a lot here, confirmed the hard way (a real, reported
+	// bug: recalling a Ray-Traced state with GroundMode::InfinitePlane
+	// showed Floor instead). setDisplayMode() unconditionally emits
+	// displayModeChanged(), which VisualizationEnvironmentPanel::
+	// onDisplayModeChanged() reacts to by re-asserting the ground-mode
+	// DEFAULT for whatever rendering mode is CURRENTLY active (Floor for
+	// realistic shading, None for ADS) - "unconditionally re-asserted on
+	// every mode switch," per that function's own doc comment. Calling
+	// setDisplayMode() AFTER onRenderingModeSelected("RayTraced") - the
+	// original order here - fired that reset a second time with nothing
+	// left to correct it back to InfinitePlane afterward, clobbering the
+	// value onRenderingModeSelected() had just correctly set via its own
+	// applyRayTracedGroundDefaultsOnce() call.
+	//
+	// Fixed by restoring in the same relative order a normal user
+	// interaction would naturally produce: display mode first (whatever
+	// stale ground-mode side effect it causes is harmless, since it's about
+	// to be overridden anyway), THEN the rendering-mode switch itself
+	// (routed through onRenderingModeSelected() rather than ViewportWidget::
+	// setRenderingMode() directly, so the toolbar's active-mode indicator
+	// stays in sync - same entry point RtRenderDialog::onRenderClicked()
+	// uses; its own internal sequence re-asserts that mode's OWN canonical
+	// ground-mode default as its last word), THEN an EXPLICIT setGroundMode()
+	// to the state's actual saved value - not just relying on the mode's
+	// default, since the user can freely override ground mode after a mode
+	// switch and it sticks (see SceneStateData.h's own doc comment) - BEFORE
+	// starting the ray-traced render itself, so its first snapshot already
+	// reflects the correct ground mode instead of needing an extra rebuild
+	// a moment later (same reasoning applyRayTracedGroundDefaultsOnce()'s
+	// own doc comment gives for its call-before-arm ordering). Skybox/
+	// background restore last, same as before - onRenderingModeSelected()
+	// also has skybox/HDRI side effects, and the state's own saved values
+	// need to win over those defaults too.
+	_viewportWidget->setDisplayMode(static_cast<DisplayMode>(state.displayMode));
+	onRenderingModeSelected(state.renderingMode);
+	_viewportWidget->setGroundMode(static_cast<GroundMode>(state.groundMode));
+
+	// Everything below is restored for the SAME reason groundMode is set
+	// explicitly above: onRenderingModeSelected()'s onDisplayModeChanged()
+	// side effect unconditionally re-asserts its own realism-driven defaults
+	// for floor/shadows/reflections/env-map/default-lights on every mode
+	// switch (see that function's own doc comment), so anything the saved
+	// state actually wants has to be applied AFTER the mode switch, as an
+	// explicit override - not before, where it would just get clobbered the
+	// same way groundMode originally was. All of it (skybox included) also
+	// runs BEFORE requestRayTracedRenderNow() at the bottom, so a Ray-Traced
+	// state's first interactive snapshot already reflects the full restored
+	// look instead of needing a second rebuild moments later.
+	_viewportWidget->showSkyBox(state.skyBoxShown);
+	_viewportWidget->setSkyBoxTextureHDRI(state.skyBoxHDRIEnabled);
+	// Which skybox/HDRI preset (or custom folder) is loaded isn't implied by
+	// the HDRI/LDRI toggle above - setSkyBoxTextureHDRI() only picks which
+	// preset SET is active, not which member of it. Restore the actual
+	// folder explicitly (see SceneStateData.h's skyBoxFolderPath doc comment
+	// for why this is a path, not an index), then resync
+	// VisualizationEnvironmentPanel's own combo/index bookkeeping to match -
+	// via syncSkyBoxSelectionSilently(), not reloadSkyBoxPresets(), since the
+	// latter would call setSkyBoxTextureFolder() again itself and reload the
+	// texture a second time for no reason.
+	if (!state.skyBoxFolderPath.isEmpty())
+	{
+		_viewportWidget->setSkyBoxTextureFolder(state.skyBoxFolderPath);
+		visualizationEnvironmentPanel->syncSkyBoxSelectionSilently();
+	}
+	_viewportWidget->setSkyBoxBlurPercent(state.skyBoxBlurPercent);
+	_viewportWidget->setSkyBoxFOV(state.skyBoxFOV);
+	// Applies to the viewport AND syncs the panel's preset combo + fine
+	// slider - see its own doc comment (same reason viewerState's load block
+	// uses this instead of a raw setSkyBoxZRotationDegrees() call).
+	visualizationEnvironmentPanel->restoreSkyBoxRotationDegrees(static_cast<float>(state.skyBoxZRotationDegrees));
+
+	_viewportWidget->showFloorTexture(state.floorTextureShown);
+	if (!state.floorTexturePath.isEmpty())
+		_viewportWidget->setFloorTextureFromPath(state.floorTexturePath);
+	_viewportWidget->setFloorTexRepeatS(state.floorTexRepeatS);
+	_viewportWidget->setFloorTexRepeatT(state.floorTexRepeatT);
+	_viewportWidget->setFloorOffsetPercent(state.floorOffsetPercent);
+	_viewportWidget->setShadowQuality(static_cast<AdaptiveShadowMapper::QualityLevel>(state.shadowQuality));
+	_viewportWidget->showReflections(state.reflectionsEnabled);
+	_viewportWidget->showShadows(state.shadowsEnabled);
+	_viewportWidget->showSelfShadows(state.selfShadowsEnabled);
+	_viewportWidget->setShadowCatcherDarkness(state.shadowCatcherDarkness);
+	_viewportWidget->setShadowCatcherBaseColor(state.shadowCatcherBaseColor);
+	_viewportWidget->setShadowCatcherMetalness(state.shadowCatcherMetalness);
+	_viewportWidget->setShadowCatcherRoughness(state.shadowCatcherRoughness);
+
+	_viewportWidget->showEnvironment(state.environmentEnabled);
+	_viewportWidget->useIBL(state.iblEnabled);
+	_viewportWidget->setEnvMapExposure(state.envMapExposureStops);
+	_viewportWidget->setIBLExposure(state.iblExposureStops);
+
+	_viewportWidget->useDefaultLights(state.defaultLightsEnabled);
+	_viewportWidget->usePunctualLights(state.punctualLightsEnabled);
+	_viewportWidget->showLights(state.showLights);
+	_viewportWidget->setDefaultLightColor(state.defaultLightColor);
+	// Applies to the viewport AND syncs the panel's X/Y/Z sliders - see
+	// viewerState's load block, which uses the same call for the same reason.
+	visualizationEnvironmentPanel->restoreDefaultLightOffset(state.defaultLightOffset);
+
+	_viewportWidget->enableHDRToneMapping(state.hdrToneMapping);
+	_viewportWidget->setHDRToneMappingMode(static_cast<HDRToneMapMode>(state.hdrToneMappingMode));
+	_viewportWidget->enableGammaCorrection(state.gammaCorrection);
+	_viewportWidget->setScreenGamma(state.screenGamma);
+
+	_viewportWidget->setBgTopColor(state.bgTopColor);
+	_viewportWidget->setBgBotColor(state.bgBotColor);
+
+	if (state.renderingMode == QStringLiteral("RayTraced"))
+		_viewportWidget->requestRayTracedRenderNow();
+
+	// Resolve stored selection UUIDs to live indices, dropping any mesh
+	// deleted since the state was saved.
+	QSet<int> selectedIds;
+	for (const QUuid& uuid : state.selectedMeshUuids)
+	{
+		const int meshIndex = _viewportWidget->getIndexByUuid(uuid);
+		if (meshIndex >= 0)
+			selectedIds.insert(meshIndex);
+	}
+
+	// Visibility + selection land in one undo macro so a single Ctrl+Z
+	// reverses both together, same beginMacro()/endMacro() shape
+	// recallSelectionSet() uses above. Sets the EXACT saved visibility set,
+	// not unioned with what's currently visible - a scene state is a full
+	// configuration snapshot, not an "also reveal these" bookmark.
+	//
+	// setVisibilityWithUndo() below rebuilds the display list, which - via
+	// ViewportWidget::setDisplayList() - can itself move the camera we just
+	// restored above: it calls fitAll() whenever Auto Fit View is on (real,
+	// reported bug: a saved zoomed/panned framing got silently replaced by a
+	// fresh fit-to-scene on recall), and unconditionally repositions a Fly/
+	// FirstPerson-mode camera via positionGameplayCameraForScene() regardless
+	// of Auto Fit. Suppressing Auto Fit for the duration (same save/disable/
+	// restore pattern already used around display-list rebuilds elsewhere in
+	// this file, e.g. handleActiveDocumentChanged()) stops the first trigger,
+	// but not the gameplay-camera one - so the camera is explicitly
+	// reactivated again below, AFTER the visibility/selection restore, as the
+	// true final step. That second call is what actually guarantees the
+	// saved framing is what's on screen when recall finishes, regardless of
+	// which (if any) of setDisplayList()'s internal repositioning paths fired.
+	const bool shouldAutoFit = _viewportWidget->autoFitViewOnUpdate();
+	_viewportWidget->setAutoFitViewOnUpdate(false);
+
+	_undoStack->beginMacro(tr("Recall Scene State"));
+	setVisibilityWithUndo(state.visibleMeshUuids, tr("Show"));
+	setSelectionWithUndo(selectedIds);
+	_undoStack->endMacro();
+
+	_viewportWidget->setAutoFitViewOnUpdate(shouldAutoFit);
+	_viewportWidget->activateCameraEntry(state.camera);
+}
+
+void ModelViewer::deleteSceneState(const QUuid& stateId)
+{
+	if (!_sceneGraph)
+		return;
+	if (_sceneGraph->sceneStateIndexById(stateId) < 0)
+		return;
+
+	_undoStack->push(new DeleteSceneStateCommand(this, _viewportWidget, stateId));
+}
+
 void ModelViewer::showAllItems()
 {
 	// Show All is one coherent action across every content type - see
@@ -4118,6 +5175,13 @@ QSet<QUuid> ModelViewer::getSelectedUuids() const
 
 void ModelViewer::displaySelectedMeshInfo()
 {
+	// Trimmed to mesh statistics only (points/triangles/memory) - a quick
+	// glance stat from the tree's context menu. Mass properties (volume,
+	// surface area, mass, center of mass, bounding box) moved to the
+	// purpose-built Tools -> Mass Properties... dialog (MassPropertiesDialog),
+	// which has room for the "N/A + reason" nuance those values need (an
+	// open mesh has no valid volume, a material with no assigned density has
+	// no valid mass, etc.) that a single QMessageBox string dump doesn't.
 	std::vector<int> selected = getSelectedIDs();
 	if (selected.size() != 0)
 	{
@@ -4125,43 +5189,19 @@ void ModelViewer::displaySelectedMeshInfo()
 		QString name;
 		size_t points = 0, triangles = 0;
 		unsigned long long rawmem = 0;
-		float surfArea = 0, volume = 0;
-		QVector3D centerOfMass;
-		float weight = 0, density = 0;
 		SceneMesh* mesh = nullptr;
-		BoundingBox bbox;
 		size_t selectionCount = selected.size();
 		if (selectionCount > 1)
 			name = QString("%1 Meshes\n").arg(selectionCount);
 		else
 			name = meshes.at(selected[0])->getName() + "\n";
-		int meshCount = 0;
 		for (int id : selected)
 		{
 			mesh = meshes.at(id);
 			points += mesh->getPoints().size() / 3;
 			triangles += mesh->getIndices().size() / 3;
 			rawmem += mesh->memorySize();
-			try
-			{
-				MeshProperties props(mesh);
-				surfArea += props.surfaceArea();
-				volume += props.volume();
-				centerOfMass += props.centerOfMass() * props.weight();
-				weight += props.weight();
-				density = props.density();
-				if (meshCount == 0)
-					bbox = props.boundingBox();
-				else
-					bbox.addBox(props.boundingBox());
-			}
-			catch (const std::exception& ex)
-			{
-				std::cout << "Exception raised in ModelViewer::displaySelectedMeshInfo, Meshproperties" << ex.what() << std::endl;
-			}
-			meshCount++;
 		}
-		centerOfMass /= weight;
 
 		QString strpoints = QString(tr("Points: %1\n")).arg(points);
 		QString strtriangles = QString(tr("Triangles: %1\n")).arg(triangles);
@@ -4187,21 +5227,9 @@ void ModelViewer::displaySelectedMeshInfo()
 			mem = rawmem / (1024 * 1024 * 1024);
 			units = "gb";
 		}
-		QString meshSize = QString(tr("Memory: %1 ")).arg(mem) + units + "\n";
-		QString meshProps;
+		QString meshSize = QString(tr("Memory: %1 ")).arg(mem) + units;
 
-		meshProps = QString(tr("Mesh Volume: %1mm^3\nSurface Area: %2mm^2\nDensity: %3kg/m^3\nWeight: %4kg\n")).arg(volume).arg(surfArea)
-			.arg(density).arg(weight);
-
-		meshProps += QString(tr("Mesh Center of Mass: X%1, Y%2, Z%3\n")).arg(centerOfMass.x()).arg(centerOfMass.y()).arg(centerOfMass.z());
-
-		meshProps += QString(tr("Bounding Limits:\n\tXMin %1  XMax %2\n\tYMin %3  YMax %4\n\tZMin %5  ZMax %6\n"))
-			.arg(bbox.xMin()).arg(bbox.xMax()).arg(bbox.yMin()).arg(bbox.yMax()).arg(bbox.zMin()).arg(bbox.zMax());
-
-		meshProps += QString(tr("Bounding Size:\n\tX %1\n\tY %2\n\tZ %3"))
-			.arg(fabs(bbox.xMax() - bbox.xMin())).arg(fabs(bbox.yMax() - bbox.yMin())).arg(fabs(bbox.zMax() - bbox.zMin()));
-
-		QString info = name + strpoints + strtriangles + meshSize + meshProps;
+		QString info = name + strpoints + strtriangles + meshSize;
 		QMessageBox::information(this, tr("Mesh Info"), info);
 	}
 }
@@ -4816,6 +5844,8 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		QJsonObject   viewerState;
 		QVector<Measurement> measurements;
 		QVector<Annotation> annotations;
+		QVector<SelectionSet> selectionSets;
+		QVector<SceneState> sceneStates;
 		bool          ok       = false;
 		bool          badMagic = false;
 	};
@@ -5080,6 +6110,143 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 
 			if (!a.id.isNull() && a.anchor.isValid())
 				result.annotations.append(a);
+		}
+
+		const QJsonArray selectionSetsArr = session[QStringLiteral("selectionSets")].toArray();
+		result.selectionSets.reserve(selectionSetsArr.size());
+		for (const QJsonValue& setVal : selectionSetsArr)
+		{
+			const QJsonObject setObj = setVal.toObject();
+
+			SelectionSet s;
+			s.id = QUuid(setObj[QStringLiteral("id")].toString());
+			s.name = setObj[QStringLiteral("name")].toString();
+			for (const QJsonValue& uv : setObj[QStringLiteral("meshUuids")].toArray())
+				s.meshUuids.insert(QUuid(uv.toString()));
+
+			if (!s.id.isNull())
+				result.selectionSets.append(s);
+		}
+
+		const QJsonArray sceneStatesArr = session[QStringLiteral("sceneStates")].toArray();
+		result.sceneStates.reserve(sceneStatesArr.size());
+		for (const QJsonValue& stateVal : sceneStatesArr)
+		{
+			const QJsonObject stateObj = stateVal.toObject();
+
+			SceneState st;
+			st.id = QUuid(stateObj[QStringLiteral("id")].toString());
+			st.name = stateObj[QStringLiteral("name")].toString();
+
+			const QJsonObject cameraObj = stateObj[QStringLiteral("camera")].toObject();
+			GltfCameraEntry& cam = st.camera;
+			cam.name = cameraObj[QStringLiteral("name")].toString();
+			cam.type = cameraObj[QStringLiteral("type")].toString() == QLatin1String("orthographic")
+				? GltfCameraType::Orthographic
+				: GltfCameraType::Perspective;
+			cam.fovYRadians = static_cast<float>(cameraObj[QStringLiteral("fovYRadians")].toDouble(cam.fovYRadians));
+			cam.zNear = static_cast<float>(cameraObj[QStringLiteral("zNear")].toDouble(cam.zNear));
+			cam.zFar = static_cast<float>(cameraObj[QStringLiteral("zFar")].toDouble(cam.zFar));
+			cam.xMag = static_cast<float>(cameraObj[QStringLiteral("xMag")].toDouble(cam.xMag));
+			cam.yMag = static_cast<float>(cameraObj[QStringLiteral("yMag")].toDouble(cam.yMag));
+			cam.worldPosition = jsonArrayToVec3(cameraObj[QStringLiteral("worldPosition")].toArray());
+			cam.worldDirection = jsonArrayToVec3(
+				cameraObj[QStringLiteral("worldDirection")].toArray(), QVector3D(0.0f, 0.0f, -1.0f));
+			cam.worldUp = jsonArrayToVec3(
+				cameraObj[QStringLiteral("worldUp")].toArray(), QVector3D(0.0f, 1.0f, 0.0f));
+			cam.needsModelTransformCompensation = false; // always false for a live-captured snapshot - see captureCurrentCameraEntry()
+			cam.needsNewNode = true; // synthetic, same as any captured view - see GltfCameraData.h
+			cam.capturedViewRange = static_cast<float>(
+				cameraObj[QStringLiteral("capturedViewRange")].toDouble(-1.0));
+
+			for (const QJsonValue& uv : stateObj[QStringLiteral("visibleMeshUuids")].toArray())
+				st.visibleMeshUuids.insert(QUuid(uv.toString()));
+			for (const QJsonValue& uv : stateObj[QStringLiteral("selectedMeshUuids")].toArray())
+				st.selectedMeshUuids.insert(QUuid(uv.toString()));
+
+			// Presentation state (see SceneStateData.h) - local jsonToColor
+			// copy since the shared one below is defined later in this same
+			// function, out of scope here (same per-block duplication
+			// convention the vec3ToJson/jsonArrayToVec3 lambdas already use
+			// throughout this function).
+			st.displayMode = stateObj[QStringLiteral("displayMode")].toInt(st.displayMode);
+			st.renderingMode = stateObj[QStringLiteral("renderingMode")].toString(st.renderingMode);
+			st.groundMode = stateObj[QStringLiteral("groundMode")].toInt(st.groundMode);
+			st.skyBoxShown = stateObj[QStringLiteral("skyBoxShown")].toBool(st.skyBoxShown);
+			st.skyBoxHDRIEnabled = stateObj[QStringLiteral("skyBoxHDRIEnabled")].toBool(st.skyBoxHDRIEnabled);
+			st.skyBoxFolderPath = stateObj[QStringLiteral("skyBoxFolderPath")].toString(st.skyBoxFolderPath);
+			st.skyBoxBlurPercent = stateObj[QStringLiteral("skyBoxBlurPercent")].toInt(st.skyBoxBlurPercent);
+			st.skyBoxFOV = stateObj[QStringLiteral("skyBoxFOV")].toDouble(st.skyBoxFOV);
+			st.skyBoxZRotationDegrees = stateObj[QStringLiteral("skyBoxZRotationDegrees")].toDouble(st.skyBoxZRotationDegrees);
+
+			st.floorTextureShown = stateObj[QStringLiteral("floorTextureShown")].toBool(st.floorTextureShown);
+			st.floorTexturePath = stateObj[QStringLiteral("floorTexturePath")].toString(st.floorTexturePath);
+			st.floorTexRepeatS = stateObj[QStringLiteral("floorTexRepeatS")].toDouble(st.floorTexRepeatS);
+			st.floorTexRepeatT = stateObj[QStringLiteral("floorTexRepeatT")].toDouble(st.floorTexRepeatT);
+			st.floorOffsetPercent = stateObj[QStringLiteral("floorOffsetPercent")].toDouble(st.floorOffsetPercent);
+			st.shadowQuality = stateObj[QStringLiteral("shadowQuality")].toInt(st.shadowQuality);
+			st.reflectionsEnabled = stateObj[QStringLiteral("reflectionsEnabled")].toBool(st.reflectionsEnabled);
+			st.shadowsEnabled = stateObj[QStringLiteral("shadowsEnabled")].toBool(st.shadowsEnabled);
+			st.selfShadowsEnabled = stateObj[QStringLiteral("selfShadowsEnabled")].toBool(st.selfShadowsEnabled);
+			st.shadowCatcherDarkness = static_cast<float>(stateObj[QStringLiteral("shadowCatcherDarkness")].toDouble(st.shadowCatcherDarkness));
+			st.shadowCatcherMetalness = static_cast<float>(stateObj[QStringLiteral("shadowCatcherMetalness")].toDouble(st.shadowCatcherMetalness));
+			st.shadowCatcherRoughness = static_cast<float>(stateObj[QStringLiteral("shadowCatcherRoughness")].toDouble(st.shadowCatcherRoughness));
+
+			st.environmentEnabled = stateObj[QStringLiteral("environmentEnabled")].toBool(st.environmentEnabled);
+			st.iblEnabled = stateObj[QStringLiteral("iblEnabled")].toBool(st.iblEnabled);
+			st.envMapExposureStops = stateObj[QStringLiteral("envMapExposureStops")].toDouble(st.envMapExposureStops);
+			st.iblExposureStops = stateObj[QStringLiteral("iblExposureStops")].toDouble(st.iblExposureStops);
+
+			st.defaultLightsEnabled = stateObj[QStringLiteral("defaultLightsEnabled")].toBool(st.defaultLightsEnabled);
+			st.punctualLightsEnabled = stateObj[QStringLiteral("punctualLightsEnabled")].toBool(st.punctualLightsEnabled);
+			st.showLights = stateObj[QStringLiteral("showLights")].toBool(st.showLights);
+
+			st.hdrToneMapping = stateObj[QStringLiteral("hdrToneMapping")].toBool(st.hdrToneMapping);
+			st.hdrToneMappingMode = stateObj[QStringLiteral("hdrToneMappingMode")].toInt(st.hdrToneMappingMode);
+			st.gammaCorrection = stateObj[QStringLiteral("gammaCorrection")].toBool(st.gammaCorrection);
+			st.screenGamma = stateObj[QStringLiteral("screenGamma")].toDouble(st.screenGamma);
+
+			auto stateJsonToColor = [](const QJsonArray& arr, const QColor& fallback) {
+				if (arr.size() < 4)
+					return fallback;
+				return QColor(arr[0].toInt(fallback.red()),
+				              arr[1].toInt(fallback.green()),
+				              arr[2].toInt(fallback.blue()),
+				              arr[3].toInt(fallback.alpha()));
+			};
+			st.bgTopColor = stateJsonToColor(stateObj[QStringLiteral("bgTopColor")].toArray(), st.bgTopColor);
+			st.bgBotColor = stateJsonToColor(stateObj[QStringLiteral("bgBotColor")].toArray(), st.bgBotColor);
+
+			const QJsonArray stateCatcherColorArr = stateObj[QStringLiteral("shadowCatcherBaseColor")].toArray();
+			if (stateCatcherColorArr.size() >= 3)
+			{
+				st.shadowCatcherBaseColor = QVector3D(
+					static_cast<float>(stateCatcherColorArr[0].toDouble()),
+					static_cast<float>(stateCatcherColorArr[1].toDouble()),
+					static_cast<float>(stateCatcherColorArr[2].toDouble()));
+			}
+
+			const QJsonArray stateLightColorArr = stateObj[QStringLiteral("defaultLightColor")].toArray();
+			if (stateLightColorArr.size() == 4)
+			{
+				st.defaultLightColor = QVector4D(
+					static_cast<float>(stateLightColorArr[0].toDouble(1.0)),
+					static_cast<float>(stateLightColorArr[1].toDouble(1.0)),
+					static_cast<float>(stateLightColorArr[2].toDouble(1.0)),
+					static_cast<float>(stateLightColorArr[3].toDouble(1.0)));
+			}
+
+			const QJsonArray stateLightOffsetArr = stateObj[QStringLiteral("defaultLightOffset")].toArray();
+			if (stateLightOffsetArr.size() == 3)
+			{
+				st.defaultLightOffset = QVector3D(
+					static_cast<float>(stateLightOffsetArr[0].toDouble(0.0)),
+					static_cast<float>(stateLightOffsetArr[1].toDouble(0.0)),
+					static_cast<float>(stateLightOffsetArr[2].toDouble(0.0)));
+			}
+
+			if (!st.id.isNull())
+				result.sceneStates.append(st);
 		}
 
 		auto jsonArrayToQuat = [](const QJsonArray& arr, const QQuaternion& fallback = QQuaternion()) {
@@ -5580,6 +6747,14 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	for (const Annotation& annotation : result.annotations)
 		_sceneGraph->addAnnotation(annotation);
 
+	// Same non-undoable reasoning as the measurements loop above.
+	for (const SelectionSet& set : result.selectionSets)
+		_sceneGraph->addSelectionSet(set);
+
+	// Same non-undoable reasoning as the measurements loop above.
+	for (const SceneState& state : result.sceneStates)
+		_sceneGraph->addSceneState(state);
+
 	for (SceneNode* fileNode : _sceneGraph->root()->children)
 	{
 		if (fileNode && fileNode->isSynthetic && !fileNode->sourceFile.isEmpty())
@@ -5626,6 +6801,11 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	if (!result.viewerState.isEmpty())
 	{
 		const QJsonObject& viewerState = result.viewerState;
+		// Older MVF files simply lack this key, correctly yielding Unknown -
+		// resolveEffectiveImportUnit() then falls through to the hardcoded
+		// Millimeter default, same as today's behavior for every such file.
+		_defaultImportUnit = lengthUnitFromString(
+			viewerState[QStringLiteral("defaultImportUnit")].toString(), LengthUnit::Unknown);
 		_viewportWidget->setCameraUpAxisZUp(
 			viewerState[QStringLiteral("cameraUpAxisZUp")].toBool(_viewportWidget->isCameraUpAxisZUp()));
 		_viewportWidget->setProjection(static_cast<ViewProjection>(
@@ -5672,6 +6852,24 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		}
 		_viewportWidget->showFloorTexture(
 			viewerState[QStringLiteral("floorTextureShown")].toBool(_viewportWidget->isFloorTextureShown()));
+		// floorTexturePath/floorTexRepeatS/T/floorOffsetPercent/shadowQuality
+		// were a genuine pre-existing gap in this block - floorTextureShown
+		// only ever persisted WHETHER a floor texture is shown, never which
+		// image file, its UV repeat, the floor's vertical offset, or the
+		// shadow quality preset, so a document reload silently lost all four
+		// even though the panel/viewport have always supported changing them.
+		const QString floorTexPath =
+			viewerState[QStringLiteral("floorTexturePath")].toString(_viewportWidget->getFloorTexturePath());
+		if (!floorTexPath.isEmpty())
+			_viewportWidget->setFloorTextureFromPath(floorTexPath);
+		_viewportWidget->setFloorTexRepeatS(
+			viewerState[QStringLiteral("floorTexRepeatS")].toDouble(static_cast<double>(_viewportWidget->getFloorTexRepeatS())));
+		_viewportWidget->setFloorTexRepeatT(
+			viewerState[QStringLiteral("floorTexRepeatT")].toDouble(static_cast<double>(_viewportWidget->getFloorTexRepeatT())));
+		_viewportWidget->setFloorOffsetPercent(
+			viewerState[QStringLiteral("floorOffsetPercent")].toDouble(static_cast<double>(_viewportWidget->getFloorOffsetPercent())));
+		_viewportWidget->setShadowQuality(static_cast<AdaptiveShadowMapper::QualityLevel>(
+			viewerState[QStringLiteral("shadowQuality")].toInt(static_cast<int>(_viewportWidget->getShadowQuality()))));
 		_viewportWidget->showReflections(
 			viewerState[QStringLiteral("reflectionsEnabled")].toBool(_viewportWidget->areReflectionsEnabled()));
 		_viewportWidget->setShadowCatcherDarkness(static_cast<float>(
@@ -5922,6 +7120,128 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 		package.document.mvfSession.insert(QStringLiteral("annotations"), annotationsJson);
 	}
 
+	// ---- Named Selection Sets ----
+	// Document-level (see SelectionSetData.h), same MVF-session-only v1
+	// scope as Measurements/Annotations above - a selection set has no
+	// glTF-native concept either.
+	if (_sceneGraph && !_sceneGraph->selectionSets().isEmpty())
+	{
+		QJsonArray setsJson;
+		for (const SelectionSet& s : _sceneGraph->selectionSets())
+		{
+			QJsonArray uuidsArr;
+			for (const QUuid& u : s.meshUuids)
+				uuidsArr.append(u.toString(QUuid::WithoutBraces));
+
+			QJsonObject setObj;
+			setObj.insert(QStringLiteral("id"), s.id.toString(QUuid::WithoutBraces));
+			setObj.insert(QStringLiteral("name"), s.name);
+			setObj.insert(QStringLiteral("meshUuids"), uuidsArr);
+			setsJson.append(setObj);
+		}
+		package.document.mvfSession.insert(QStringLiteral("selectionSets"), setsJson);
+	}
+
+	// ---- Named Scene States ----
+	// Document-level (see SceneStateData.h), same MVF-session-only v1 scope
+	// as Measurements/Annotations/Selection Sets above. A scene state's
+	// camera field is its OWN private snapshot (not one of the per-file glTF
+	// cameras cameraDataByFile collects below), so it needs its own small
+	// field-by-field encoding here rather than reusing that collection.
+	if (_sceneGraph && !_sceneGraph->sceneStates().isEmpty())
+	{
+		auto vec3ToJson = [](const QVector3D& v) {
+			return QJsonArray{ static_cast<double>(v.x()), static_cast<double>(v.y()), static_cast<double>(v.z()) };
+		};
+
+		QJsonArray statesJson;
+		for (const SceneState& s : _sceneGraph->sceneStates())
+		{
+			const GltfCameraEntry& cam = s.camera;
+			QJsonObject cameraObj;
+			cameraObj.insert(QStringLiteral("name"), cam.name);
+			cameraObj.insert(QStringLiteral("type"),
+				cam.type == GltfCameraType::Orthographic ? QStringLiteral("orthographic") : QStringLiteral("perspective"));
+			cameraObj.insert(QStringLiteral("fovYRadians"), static_cast<double>(cam.fovYRadians));
+			cameraObj.insert(QStringLiteral("zNear"), static_cast<double>(cam.zNear));
+			cameraObj.insert(QStringLiteral("zFar"), static_cast<double>(cam.zFar));
+			cameraObj.insert(QStringLiteral("xMag"), static_cast<double>(cam.xMag));
+			cameraObj.insert(QStringLiteral("yMag"), static_cast<double>(cam.yMag));
+			cameraObj.insert(QStringLiteral("worldPosition"), vec3ToJson(cam.worldPosition));
+			cameraObj.insert(QStringLiteral("worldDirection"), vec3ToJson(cam.worldDirection));
+			cameraObj.insert(QStringLiteral("worldUp"), vec3ToJson(cam.worldUp));
+			cameraObj.insert(QStringLiteral("capturedViewRange"), static_cast<double>(cam.capturedViewRange));
+
+			QJsonArray visArr;
+			for (const QUuid& u : s.visibleMeshUuids)
+				visArr.append(u.toString(QUuid::WithoutBraces));
+			QJsonArray selArr;
+			for (const QUuid& u : s.selectedMeshUuids)
+				selArr.append(u.toString(QUuid::WithoutBraces));
+
+			// Local colorToJson copy - the shared one below is defined later
+			// in this same function, out of scope here.
+			auto stateColorToJson = [](const QColor& color) {
+				return QJsonArray{ color.red(), color.green(), color.blue(), color.alpha() };
+			};
+
+			QJsonObject stateObj;
+			stateObj.insert(QStringLiteral("id"), s.id.toString(QUuid::WithoutBraces));
+			stateObj.insert(QStringLiteral("name"), s.name);
+			stateObj.insert(QStringLiteral("camera"), cameraObj);
+			stateObj.insert(QStringLiteral("visibleMeshUuids"), visArr);
+			stateObj.insert(QStringLiteral("selectedMeshUuids"), selArr);
+			// Presentation state (see SceneStateData.h).
+			stateObj.insert(QStringLiteral("displayMode"), s.displayMode);
+			stateObj.insert(QStringLiteral("renderingMode"), s.renderingMode);
+			stateObj.insert(QStringLiteral("groundMode"), s.groundMode);
+			stateObj.insert(QStringLiteral("skyBoxShown"), s.skyBoxShown);
+			stateObj.insert(QStringLiteral("skyBoxHDRIEnabled"), s.skyBoxHDRIEnabled);
+			stateObj.insert(QStringLiteral("skyBoxFolderPath"), s.skyBoxFolderPath);
+			stateObj.insert(QStringLiteral("skyBoxBlurPercent"), s.skyBoxBlurPercent);
+			stateObj.insert(QStringLiteral("skyBoxFOV"), s.skyBoxFOV);
+			stateObj.insert(QStringLiteral("skyBoxZRotationDegrees"), s.skyBoxZRotationDegrees);
+
+			stateObj.insert(QStringLiteral("floorTextureShown"), s.floorTextureShown);
+			stateObj.insert(QStringLiteral("floorTexturePath"), s.floorTexturePath);
+			stateObj.insert(QStringLiteral("floorTexRepeatS"), s.floorTexRepeatS);
+			stateObj.insert(QStringLiteral("floorTexRepeatT"), s.floorTexRepeatT);
+			stateObj.insert(QStringLiteral("floorOffsetPercent"), s.floorOffsetPercent);
+			stateObj.insert(QStringLiteral("shadowQuality"), s.shadowQuality);
+			stateObj.insert(QStringLiteral("reflectionsEnabled"), s.reflectionsEnabled);
+			stateObj.insert(QStringLiteral("shadowsEnabled"), s.shadowsEnabled);
+			stateObj.insert(QStringLiteral("selfShadowsEnabled"), s.selfShadowsEnabled);
+			stateObj.insert(QStringLiteral("shadowCatcherDarkness"), static_cast<double>(s.shadowCatcherDarkness));
+			stateObj.insert(QStringLiteral("shadowCatcherBaseColor"), QJsonArray{
+				s.shadowCatcherBaseColor.x(), s.shadowCatcherBaseColor.y(), s.shadowCatcherBaseColor.z()});
+			stateObj.insert(QStringLiteral("shadowCatcherMetalness"), static_cast<double>(s.shadowCatcherMetalness));
+			stateObj.insert(QStringLiteral("shadowCatcherRoughness"), static_cast<double>(s.shadowCatcherRoughness));
+
+			stateObj.insert(QStringLiteral("environmentEnabled"), s.environmentEnabled);
+			stateObj.insert(QStringLiteral("iblEnabled"), s.iblEnabled);
+			stateObj.insert(QStringLiteral("envMapExposureStops"), s.envMapExposureStops);
+			stateObj.insert(QStringLiteral("iblExposureStops"), s.iblExposureStops);
+
+			stateObj.insert(QStringLiteral("defaultLightsEnabled"), s.defaultLightsEnabled);
+			stateObj.insert(QStringLiteral("punctualLightsEnabled"), s.punctualLightsEnabled);
+			stateObj.insert(QStringLiteral("showLights"), s.showLights);
+			stateObj.insert(QStringLiteral("defaultLightColor"), QJsonArray{
+				s.defaultLightColor.x(), s.defaultLightColor.y(), s.defaultLightColor.z(), s.defaultLightColor.w()});
+			stateObj.insert(QStringLiteral("defaultLightOffset"), QJsonArray{
+				s.defaultLightOffset.x(), s.defaultLightOffset.y(), s.defaultLightOffset.z()});
+
+			stateObj.insert(QStringLiteral("hdrToneMapping"), s.hdrToneMapping);
+			stateObj.insert(QStringLiteral("hdrToneMappingMode"), s.hdrToneMappingMode);
+			stateObj.insert(QStringLiteral("gammaCorrection"), s.gammaCorrection);
+			stateObj.insert(QStringLiteral("screenGamma"), s.screenGamma);
+
+			stateObj.insert(QStringLiteral("bgTopColor"), stateColorToJson(s.bgTopColor));
+			stateObj.insert(QStringLiteral("bgBotColor"), stateColorToJson(s.bgBotColor));
+			statesJson.append(stateObj);
+		}
+		package.document.mvfSession.insert(QStringLiteral("sceneStates"), statesJson);
+	}
+
 	// Note: user-captured views ("Capture View" in the Cameras tab) need no
 	// separate save block - they're regular GltfCameraData under
 	// SceneGraph's synthetic capturedViewsSourceFileKey() bucket, so the
@@ -5951,6 +7271,11 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 		viewerState.insert(QStringLiteral("renderingMode"), static_cast<int>(_viewportWidget->getRenderingMode()));
 		viewerState.insert(QStringLiteral("groundMode"), static_cast<int>(_viewportWidget->groundMode()));
 		viewerState.insert(QStringLiteral("floorTextureShown"), _viewportWidget->isFloorTextureShown());
+		viewerState.insert(QStringLiteral("floorTexturePath"), _viewportWidget->getFloorTexturePath());
+		viewerState.insert(QStringLiteral("floorTexRepeatS"), _viewportWidget->getFloorTexRepeatS());
+		viewerState.insert(QStringLiteral("floorTexRepeatT"), _viewportWidget->getFloorTexRepeatT());
+		viewerState.insert(QStringLiteral("floorOffsetPercent"), _viewportWidget->getFloorOffsetPercent());
+		viewerState.insert(QStringLiteral("shadowQuality"), static_cast<int>(_viewportWidget->getShadowQuality()));
 		viewerState.insert(QStringLiteral("reflectionsEnabled"), _viewportWidget->areReflectionsEnabled());
 		viewerState.insert(QStringLiteral("shadowCatcherEnabled"), _viewportWidget->isShadowCatcherEnabled());
 		viewerState.insert(QStringLiteral("shadowCatcherDarkness"), static_cast<double>(_viewportWidget->shadowCatcherDarkness()));
@@ -5990,6 +7315,12 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 			lightOffset.x(), lightOffset.y(), lightOffset.z()});
 		viewerState.insert(QStringLiteral("bgTopColor"), colorToJson(_viewportWidget->getBgTopColor()));
 		viewerState.insert(QStringLiteral("bgBotColor"), colorToJson(_viewportWidget->getBgBotColor()));
+		// Only-write-if-non-default, same convention SceneNode::importUnit
+		// uses on the per-node side - an old MVF reader/file simply lacks
+		// this key, correctly falling through to the hardcoded Millimeter
+		// default (see resolveEffectiveImportUnit()'s own doc comment).
+		if (_defaultImportUnit != LengthUnit::Unknown)
+			viewerState.insert(QStringLiteral("defaultImportUnit"), lengthUnitToString(_defaultImportUnit));
 		package.document.mvfSession.insert(QStringLiteral("viewerState"), viewerState);
 	}
 
@@ -6282,6 +7613,46 @@ void ModelViewer::applyMeshMaterial(const QUuid& meshUuid, const Material& mater
 	QApplication::restoreOverrideCursor();
 }
 
+void ModelViewer::setEyedropperArmed(bool armed)
+{
+	_viewportWidget->setEyedropperArmed(armed);
+}
+
+void ModelViewer::onEyedropperMaterialSampled(const Material& material, const QString& sourceMeshName)
+{
+	// Unlike editMeshMaterial()'s createUnsavedMaterialFromMesh() flow, this
+	// is deliberately volatile/in-memory only - no "Mesh Materials" tree
+	// entry, no unsaved-material bookkeeping. The eyedropper is a quick
+	// sample-and-apply gesture, not an invitation to start editing/saving a
+	// library entry.
+	predefinedMaterialsPanel->bindEyedropperSample(material, sourceMeshName);
+	showPredefinedMaterialsPage();
+}
+
+void ModelViewer::applyEyedropperStroke(const QVector<QUuid>& targetUuids, const Material& material)
+{
+	if (targetUuids.isEmpty())
+		return;
+
+	// ApplyMaterialCommand already batch-applies a QVector<QUuid> in one
+	// command, so this gives one undo entry per brush stroke with no new
+	// command class needed - same as applyMeshMaterial() above.
+	_undoStack->push(new ApplyMaterialCommand(
+		this, _viewportWidget, targetUuids, material, material.name(), tr("Apply Material (Eyedropper)")));
+}
+
+void ModelViewer::replaceMaterial(const QVector<QUuid>& meshUuids, const Material& newMaterial)
+{
+	if (meshUuids.isEmpty())
+		return;
+
+	// Same ApplyMaterialCommand batching as applyEyedropperStroke() above -
+	// every listed mesh gets the new material in one undo step. Called from
+	// FilterByMaterialDialog's "Replace With..." context menu action.
+	_undoStack->push(new ApplyMaterialCommand(
+		this, _viewportWidget, meshUuids, newMaterial, newMaterial.name(), tr("Replace Material")));
+}
+
 void ModelViewer::onTexturesApplied(const Material* mat)
 {
 	Q_UNUSED(mat);
@@ -6366,12 +7737,12 @@ void ModelViewer::redo()
 		_undoStack->redo();
 }
 
-void ModelViewer::setSelectionWithUndo(const QSet<int>& newSelection)
+void ModelViewer::setSelectionWithUndo(const QSet<int>& newSelection, const void* mergeSource)
 {
 	// Create and push the undo command.
 	// Note: push() automatically calls redo() on the command.
 	const QString label = newSelection.isEmpty() ? tr("Deselect") : tr("Select");
-	_undoStack->push(new SelectionCommand(this, _viewportWidget, newSelection, label));
+	_undoStack->push(new SelectionCommand(this, _viewportWidget, newSelection, label, mergeSource));
 }
 
 void ModelViewer::setSelectionWithoutUndo(const QSet<int>& selection)
@@ -6516,6 +7887,11 @@ void ModelViewer::rebuildTreeFromCurrentState()
 	_treeRebuildPending = false;
 	treeWidgetModel->rebuild();
 	syncTreeVisibilityFromModel();
+	// updateMeshTools() deliberately NOT called here - rebuild() only starts
+	// an async batched reconstruction, so the tree/selection aren't restored
+	// yet at this point. It's connected to SceneTreeWidget::rebuildComplete
+	// instead (see the constructor), which fires once the restore genuinely
+	// finishes.
 }
 
 void ModelViewer::scheduleTreeVisibilitySync(int delayMs)
@@ -6586,4 +7962,33 @@ void ModelViewer::editMeshMaterial()
 	} else {
 		MainWindow::showStatusMessage(tr("Editing material of %1").arg(meshName));
 	}
+}
+
+void ModelViewer::showImportUnitsDialog(SceneNode* fileNode)
+{
+	if (!fileNode)
+		return;
+
+	ImportUnitsDialog dialog(this, fileNode, this);
+	dialog.exec();
+}
+
+void ModelViewer::executeToolCommand(const QString& command)
+{
+    if (executeMeshToolCommand(command)) return;
+    // Both the menu and this document's toolbar use the same entry point.
+    if (command == QLatin1String("measure")) openMeasurementDialog();
+    else if (command == QLatin1String("annotate")) openAnnotationDialog();
+    else if (command == QLatin1String("analysis")) openSurfaceAnalysisDialog();
+    else if (command == QLatin1String("curvature") || command == QLatin1String("thickness") || command == QLatin1String("deviation")) openSurfaceAnalysisDialog(command);
+    else if (command == QLatin1String("shrink")) openShrinkWrapDialog();
+    else if (command == QLatin1String("subdivide")) openSubdivisionDialog();
+    else if (command == QLatin1String("reconstruct")) openReconstructSurfaceDialog();
+    else if (command == QLatin1String("repair")) openRepairMeshDialog();
+    else if (command == QLatin1String("fill")) openFillHolesDialog();
+    else if (command == QLatin1String("uv")) openUVGenerationDialog();
+    else if (command == QLatin1String("mass")) openMassPropertiesDialog();
+    else if (command == QLatin1String("report")) { ReportExportDialog dialog(this, this); dialog.exec(); }
+    else if (command == QLatin1String("batch")) { BatchRenderViewsDialog dialog(this, this); dialog.exec(); }
+    else if (command == QLatin1String("texture_debug")) showTextureDebugPanel();
 }

@@ -41,6 +41,21 @@ uniform bool  otherFlippedX;
 uniform bool  otherFlippedY;
 uniform bool  otherFlippedZ;
 
+// Box-clip cap trim (set from C++ by drawBoxSectionCapping(), see its doc
+// comment). A box-face cap is the solid's cross-section on that face's plane
+// restricted to the face's rectangle within the box, so the quad is discarded
+// wherever it lies outside the box extents on the two axes OTHER than the face's
+// own (boxTrimAxis). Independent of - and mutually exclusive with - the
+// otherApply* per-axis trim above: the box cap path always sets
+// otherApplyX/Y/Z to false, and the per-axis cap path always sets
+// boxTrimEnabled to false, so neither rule can leak into the other's draws
+// (these uniforms persist on the program between draws).
+uniform bool  boxTrimEnabled = false;
+uniform vec3  boxTrimMin;
+uniform vec3  boxTrimMax;
+uniform float boxTrimEps;   // small world-space tolerance so adjacent faces' caps meet without a seam
+uniform int   boxTrimAxis;  // 0=X, 1=Y, 2=Z - the cap face's own axis (not trimmed)
+
 out vec4 fragColor;
 
 // ---------- helpers ----------
@@ -73,6 +88,17 @@ void main()
         discard;
     if (otherApplyZ && (otherFlippedZ ? (vWorldPos.z >= otherThreshZ) : (vWorldPos.z <= otherThreshZ)))
         discard;
+
+    // Box-clip face-rectangle trim (see the uniform declarations above).
+    if (boxTrimEnabled)
+    {
+        if (boxTrimAxis != 0 && (vWorldPos.x < boxTrimMin.x - boxTrimEps || vWorldPos.x > boxTrimMax.x + boxTrimEps))
+            discard;
+        if (boxTrimAxis != 1 && (vWorldPos.y < boxTrimMin.y - boxTrimEps || vWorldPos.y > boxTrimMax.y + boxTrimEps))
+            discard;
+        if (boxTrimAxis != 2 && (vWorldPos.z < boxTrimMin.z - boxTrimEps || vWorldPos.z > boxTrimMax.z + boxTrimEps))
+            discard;
+    }
 
     // world-space coords on plane
     vec3 rel = vWorldPos - hatchOrigin;

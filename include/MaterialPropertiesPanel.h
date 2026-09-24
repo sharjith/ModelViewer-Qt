@@ -60,6 +60,7 @@ public:
 	QVector3D getAlbedoColor() const;
 	float getMetalness() const;
 	float getRoughness() const;
+	float getDensity() const; // kg/m^3, -1 sentinel if Material::hasDensity() is false
 	float getIOR() const;
 	float getOpacity() const;
 	float getEmissiveStrength() const;
@@ -108,8 +109,26 @@ public:
 		const Material& meshMaterial);
 	void setEditingMeshUuid(const QUuid& uuid);
 
+	// Material eyedropper's sample step: loads the sampled material into the
+	// panel for preview/further tweaking, same as createUnsavedMaterialFromMesh()
+	// above but WITHOUT adding a "Mesh Materials" tree entry, marking it
+	// unsaved, or registering it for close-time cleanup - purely an
+	// in-memory, volatile preview of what was just sampled, not something
+	// meant to look like a real library item. Also clears any stale
+	// _currentMaterialKey/_currentMaterialGroup from whatever was bound
+	// before, so a subsequent manual Save treats this as a fresh material
+	// rather than silently targeting an unrelated tree entry.
+	void bindEyedropperSample(const Material& material, const QString& sourceMeshName);
+
 	// Cleanup helper for temporary mesh materials category
 	void removeEmptyMeshMaterialsCategory();
+
+	// Syncs the eyeDropper button's checked state from outside (e.g. the
+	// viewport disarming the tool itself - Escape, another tool taking
+	// over, or a completed sample+apply session) without re-emitting
+	// eyedropperArmed() - same blockSignals-around-setChecked() convention
+	// ViewToolbar's setXChecked() methods already use for this exact need.
+	void setEyedropperChecked(bool checked);
 
 signals:
 	void materialChanged(Material* material);
@@ -117,12 +136,21 @@ signals:
 	void meshMaterialApplied(const QUuid& meshUuid, const Material& material);
 	void textureSamplerChanged(Material* material, Material::TextureType type);
 	void textureCacheClearRequested();
+	// Emitted when the eyeDropper button is toggled - true arms the sample
+	// step in the viewport (ViewportWidget::setEyedropperArmed()), false
+	// disarms it entirely.
+	void eyedropperArmed(bool armed);
 
 private slots:
 	// Scalar property handlers
 	void onAlbedoColorPicked();
 	void onMetallicChanged(double value);
 	void onRoughnessChanged(double value);
+	void onDensityChanged(double value);
+	void onDensityNotApplicableToggled(bool checked);
+	void onDensityClearClicked();
+	void onShellThicknessChanged(double value);
+	void onShellThicknessClearClicked();
 	void onIORChanged(double value);
 	void onOpacityChanged(double value);
 	void onEmissiveStrengthChanged(double value);

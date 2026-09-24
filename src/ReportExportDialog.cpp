@@ -1,4 +1,5 @@
 #include "ReportExportDialog.h"
+#include "DialogLayoutHelpers.h"
 #include "ui_ReportExportDialog.h"
 
 #include "ModelViewer.h"
@@ -47,6 +48,9 @@ ReportExportDialog::ReportExportDialog(ModelViewer* modelViewer, QWidget* parent
     , ui(std::make_unique<Ui::ReportExportDialog>())
 {
     ui->setupUi(this);
+    DialogLayout::keepNaturalHeight(ui->viewsHintLabel);
+    DialogLayout::makeCentredHint(ui->noViewsLabel);
+    ui->verticalLayout->setStretchFactor(ui->noViewsLabel, 1);
 
     SceneGraph* sceneGraph = _modelViewer ? _modelViewer->sceneGraph() : nullptr;
     const QVector<GltfCameraEntry> capturedViews = sceneGraph

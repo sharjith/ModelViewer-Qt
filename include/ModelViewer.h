@@ -29,6 +29,8 @@
 class QTabWidget;
 class QToolButton;
 class QFrame;
+class QTimer;
+class QPropertyAnimation;
 
 struct UVDialogResult
 {
@@ -80,6 +82,21 @@ public:
 
 	ViewportWidget*    getViewportWidget()    const { return _viewportWidget; }
 	SceneGraph*  sceneGraph()   const { return _sceneGraph; }
+
+	// Document-level units fallback (viewerState["defaultImportUnit"] - see
+	// LengthUnits.h's resolveEffectiveImportUnit()) - used only when a mesh's
+	// owning file node can't resolve its own importUnit. Unknown means
+	// nothing has ever set this; resolution then falls through to the
+	// hardcoded Millimeter default.
+	LengthUnit defaultImportUnit() const { return _defaultImportUnit; }
+	void setDefaultImportUnit(LengthUnit unit)
+	{
+		if (_defaultImportUnit == unit)
+			return;
+		_defaultImportUnit = unit;
+		emit importUnitsChanged();
+	}
+	void notifyImportUnitsChanged() { emit importUnitsChanged(); }
 	QMap<QString, CachedMaterial>* getMaterialCache() { return &_materialCache; }
 	void registerOwnedUnsavedMaterial(const QString& materialKey) { _ownedUnsavedMaterials.insert(materialKey); }
 
@@ -165,7 +182,12 @@ public:
 	QUndoStack* getUndoStack() const { return _undoStack; }
 
 	// Selection helpers (used by SelectionCommand)
-	void setSelectionWithUndo(const QSet<int>& newSelection);
+	// mergeSource: opaque tag (e.g. a live-filter dialog's `this`) so
+	// consecutive pushes from the SAME caller collapse into one undo step
+	// via SelectionCommand::mergeWith() - see its header doc comment.
+	// Defaults to null ("never merges"), which is what every plain
+	// click/lasso/sweep selection already wants.
+	void setSelectionWithUndo(const QSet<int>& newSelection, const void* mergeSource = nullptr);
 	void setSelectionWithoutUndo(const QSet<int>& selection);
 	// Selection helpers (for DuplicateCommand)
 	void setSelectionWithoutUndo(const QSet<QUuid>& uuids);
@@ -178,6 +200,7 @@ public:
 
 signals:
 	void documentModifiedChanged(bool modified);
+	void importUnitsChanged();
 	// Emitted from updateVisibilityUiFromState() alongside its own overlay
 	// labelMeshCount update - lets MainWindow's Document dock mirror the
 	// same count for whichever document is currently active, without
@@ -192,13 +215,22 @@ public:
 	QSet<QUuid> getSelectedUuids() const;
 
 	// Attaches the navigation tree as a permanent transparent overlay on this
-	// document's own viewport - called once from the constructor; there's no
-	// docked/detached toggle anymore, only collapsed/expanded (see
-	// _navCollapseButton below). updateNavigationOverlayGeometry()
-	// repositions/resizes it on viewport resize (see resizeEvent()) and on
-	// collapse/expand.
+	// document's own viewport - called once from the constructor. Hover-reveal
+	// like TabbedViewportToolbar: pinned (default) keeps it always fully
+	// visible; unpinned narrows it to just the left-edge chevron strip after
+	// _navHideTimer's idle timeout, re-expanding on hover/proximity (see
+	// _navCollapseButton below). The separate navPinButton (.ui, in the
+	// panel's own search-box row) controls the pinned/unpinned choice itself.
+	// updateNavigationOverlayGeometry() repositions/resizes the overlay on
+	// viewport resize (see resizeEvent()) and on reveal/hide.
 	void attachNavigationOverlay();
 	void updateNavigationOverlayGeometry();
+
+	// Called from ViewportWidget::mouseMoveEvent() on every passive move (no
+	// button held), mirroring _tabbedToolbar->trackPointer() - reveals the
+	// nav panel when the pointer is near its collapsed strip (or already
+	// pinned/interacting), otherwise arms the auto-hide timer.
+	void trackPointerForNavigation(const QPoint& viewportPos);
 
 	// Applies material to meshUuid via an undo-able ApplyMaterialCommand.
 	// Extracted from what used to be an inline lambda on
@@ -206,6 +238,25 @@ public:
 	// constructed once per document rather than as a single shared instance
 	// MainWindow dispatches to whichever document is currently active.
 	void applyMeshMaterial(const QUuid& meshUuid, const Material& material);
+
+	// Forwards to _viewportWidget->setEyedropperArmed() - arms/disarms the
+	// material eyedropper/brush tool (MaterialPropertiesPanel's eyeDropper
+	// button).
+	void setEyedropperArmed(bool armed);
+	// Receives the sampled material once the eyedropper's first click hits a
+	// mesh - binds it into the shared MaterialPropertiesPanel, mirroring
+	// editMeshMaterial()'s own createUnsavedMaterialFromMesh() flow, so the
+	// panel visually reflects what was actually sampled.
+	void onEyedropperMaterialSampled(const Material& material, const QString& sourceMeshName);
+	// Receives one finished brush stroke's target UUIDs - pushes a single
+	// undoable ApplyMaterialCommand covering the whole stroke (one undo
+	// entry per gesture).
+	void applyEyedropperStroke(const QVector<QUuid>& targetUuids, const Material& material);
+	// Reassigns every listed mesh to newMaterial as one undo step - same
+	// ApplyMaterialCommand batching applyEyedropperStroke() uses above, just
+	// called from FilterByMaterialDialog's "Replace With..." instead of a
+	// viewport brush gesture.
+	void replaceMaterial(const QVector<QUuid>& meshUuids, const Material& newMaterial);
 
 	// Apply a named variant to all meshes from the given source file.
 	// variantIndex = -1 resets to the file's default material assignments.
@@ -324,6 +375,71 @@ public slots:
 	void showOnlySelectedItems();
 	void hideAllItems();
 	void hideSelectedItems();
+	// Selection -> Filter by Material...: opens (or raises) a non-modal,
+	// per-document FilterByMaterialDialog listing every current-material
+	// identity in the scene (see groupIndicesByCurrentMaterial() in
+	// MaterialGrouping.h). Scene-wide, not scoped to a prior selection. The
+	// dialog live-previews the matching mesh set as the real (undoable, via
+	// setSelectionWithUndo()) viewport selection as the chosen material
+	// changes, and its own Show Only/Hide buttons act on that live result
+	// directly - see FilterByMaterialDialog.h's doc comment for the full
+	// design.
+	void filterSelectionByMaterial();
+	// Selection -> Filter by Color...: same shape as filterSelectionByMaterial()
+	// above, but opens FilterByColorDialog - the user builds a small list of
+	// target colors there (not scoped to a prior selection, though a fresh
+	// dialog seeds that list from the current selection's own distinct
+	// colors), and matches every mesh whose representative color (material
+	// albedo, or averaged per-vertex color for Point Set Reconstruction
+	// meshes) falls within a shared tolerance of ANY of them.
+	void filterSelectionByColor();
+	// Selection -> Filter by Bounding Box...: same shape as
+	// filterSelectionByMaterial()/filterSelectionByColor() above, but opens
+	// FilterByBoundingBoxDialog - the user sets world-space X/Y/Z min/max
+	// limits (a fresh dialog seeds them from the current selection's
+	// combined bounds, or the whole scene's if nothing is selected), and
+	// matches every mesh whose world-space bounding box either fully falls
+	// within the limits or merely overlaps them, per the dialog's own
+	// containment-mode choice.
+	void filterSelectionByBoundingBox();
+	// Selection -> Save Selection Set... (also SelectionSetsPanel's own Save
+	// button): saves the current viewport selection (mesh UUIDs, not the
+	// runtime int ids - see SelectionSetData.h) under `name`, via an
+	// undoable SaveSelectionSetCommand.
+	void saveCurrentSelectionAsSet(const QString& name);
+	// SelectionSetsPanel single-click (same immediate-activation convention
+	// as CamerasPanel): replaces the viewport selection with the named
+	// set's meshes, resolving stored UUIDs back to live indices and
+	// skipping any that no longer resolve (a set may reference a
+	// since-deleted mesh). Also reveals any of the set's own members that
+	// are currently hidden (never touches visibility outside the set - not
+	// a "Show Only"), so a bookmark to a hidden mesh doesn't silently fail
+	// to select it. Undoable via setSelectionWithUndo()'s own
+	// SelectionCommand, same as any other selection change - when a reveal
+	// is also needed, both land in one undo macro so a single Ctrl+Z
+	// reverses both together.
+	void recallSelectionSet(const QUuid& setId);
+	// SelectionSetsPanel's Delete button, via an undoable
+	// DeleteSelectionSetCommand.
+	void deleteSelectionSet(const QUuid& setId);
+	// Selection -> Save Scene State... (also SceneStatesPanel's own Save
+	// button): snapshots the current camera view (captureCurrentCameraEntry()),
+	// visibility (getVisibleUuids()), and selection (getSelectedUuids())
+	// together under `name`, via an undoable SaveSceneStateCommand. Unlike
+	// saveCurrentSelectionAsSet(), an empty selection isn't skipped - it's a
+	// meaningful part of the snapshot, not "nothing to save."
+	void saveCurrentSceneState(const QString& name);
+	// SceneStatesPanel single-click: restores the named state's camera
+	// (immediate, NOT undoable - see ViewportWidget::activateCameraEntry()),
+	// then its visibility and selection EXACTLY as saved (not unioned with
+	// the current state, unlike recallSelectionSet() - a scene state is a
+	// full configuration snapshot, not an "also reveal these" bookmark),
+	// wrapped in one undo macro so a single Ctrl+Z reverses both together.
+	// Stale UUIDs (meshes deleted since the state was saved) are dropped.
+	void recallSceneState(const QUuid& stateId);
+	// SceneStatesPanel's Delete button, via an undoable
+	// DeleteSceneStateCommand.
+	void deleteSceneState(const QUuid& stateId);
 	void centerScreen();
 	void copySelectedItems();
 	void cutSelectedItems();
@@ -394,6 +510,16 @@ public slots:
 	// in a new group), unlike Merge/Split which need 2+. Undoable
 	// (GroupMeshesCommand).
 	void groupSelectedMeshes();
+
+	// Organizational "Purge": collapses a sub-assembly node that exists solely to wrap a single mesh (one child,
+	// no meshes of its own; that child has no children and exactly one mesh) - the mesh is promoted into the
+	// wrapper, renamed to the wrapper's own (usually more meaningful) name, and the child is removed. Run bottom-
+	// up over scanRoot's subtree, so a CHAIN of such wrappers collapses in one pass, not just the innermost.
+	// scanRoot itself is never eliminated (only ever a promotion target for ITS OWN children) - pass nullptr to
+	// sweep the whole scene (Tools > Purge Redundant Nodes), or a specific node (the scene tree's own context
+	// menu) to purge just that subtree. No geometry is touched; undoable (PurgeRedundantNodesCommand). Does
+	// nothing, silently, if scanRoot's subtree has nothing to collapse.
+	void purgeRedundantAssemblyNodes(SceneNode* scanRoot = nullptr);
 
 	// Shrink Wrap: opens the non-modal ShrinkWrapDialog (Tools -> Shrink
 	// Wrap...), findChild-reuse-or-create/show/raise, same pattern as
@@ -503,6 +629,23 @@ public slots:
 	// Ctrl+Z undoes an entire multi-mesh Generate click as one step.
 	void commitUVGeneration(QVector<QUndoCommand*> commands, const QString& methodName);
 
+	// Surface Analysis: opens the non-modal SurfaceAnalysisDialog (Tools ->
+	// Surface Analysis...), same findChild-reuse-or-create/show/raise
+	// pattern as openShrinkWrapDialog() above. The dialog keeps its own list of
+	// meshes (a MeshSelectionBox, like MassPropertiesDialog): seeded from the
+	// current viewport selection when it opens - or again when this is called
+	// while it is already open - and edited there, so it does not follow the
+	// viewer's live selection afterwards.
+	void openSurfaceAnalysisDialog(const QString& mode = QString());
+
+	// Mass Properties: opens the non-modal MassPropertiesDialog, reusing one that is already open (re-seeded from
+	// the current viewport selection) - same findChild-reuse-or-create/show/raise pattern as above.
+	void openMassPropertiesDialog();
+    void executeToolCommand(const QString& command);
+    void updateMeshTools();
+    QMap<QString, QString> meshToolDisabledReasons() const;
+    bool executeMeshToolCommand(const QString& command);
+
 	// Called by CutCommand and PasteCommand to manage cut-mark state.
 	// generation must match s_clipboardGeneration at the time of the call or
 	// the call is a no-op - guards against a stale command (from a document
@@ -516,6 +659,7 @@ public slots:
 	void deleteSelectedItems();
 	void displaySelectedMeshInfo();
 	void editMeshMaterial();
+	void showImportUnitsDialog(SceneNode* fileNode);
 	void showVisualizationModelPage();
 	void showEnvironmentPage();
 	void showPredefinedMaterialsPage();
@@ -632,6 +776,7 @@ private:
 private:
 	ViewportWidget*   _viewportWidget;
 	SceneGraph* _sceneGraph;
+	LengthUnit _defaultImportUnit = LengthUnit::Unknown;
 
 	Material _material;
 
@@ -670,16 +815,66 @@ private:
 	int _skyBoxHDRIIndex = 0;
 
 	QPointer<QWidget> _navigationOverlay;
-	// Chevron button glued to the overlay's own left edge (a child of the
+	// Chevron strip glued to the overlay's own left edge (a child of the
 	// composite widget passed to attachOverlayPanel(), not of gridLayout -
 	// the overlay is an absolutely-positioned floating child of
-	// _viewportWidget, not a normal side-by-side grid column, so the
-	// button has to live and move with it, not in the document's outer
-	// layout). Collapsing hides modelNavigationWidget entirely (not just
-	// its contents) and shrinks the overlay down to just this button via
-	// updateNavigationOverlayGeometry().
+	// _viewportWidget, not a normal side-by-side grid column, so it has to
+	// live and move with it, not in the document's outer layout). Always
+	// visible regardless of reveal state - it's the hover-sensitive area
+	// (see eventFilter()'s Enter/Leave handling for it, and
+	// trackPointerForNavigation()'s proximity check) that reveals/hides the
+	// panel on hover instead of the old click-to-toggle. The separate PIN
+	// button (navPinButton, a real .ui member inside modelNavigationWidget's
+	// own search-box row - only present/visible while the panel itself is
+	// revealed) controls whether it's allowed to auto-hide at all; this
+	// strip is purely the reveal/hide trigger + collapsed-state indicator.
+	// One click exception: while pinned, clicking this strip (its clicked()
+	// connection in attachNavigationOverlay()) is a shortcut for unpinning
+	// and collapsing at once, instead of unpinning via navPinButton and then
+	// waiting out the auto-hide delay. Unpinned, clicking it does nothing -
+	// hover already reveals/hides it.
 	QToolButton* _navCollapseButton = nullptr;
-	bool _navigationCollapsed = false;
+	bool _navigationPinned = true;
+	// Current visual state (true = fully open). Drives
+	// updateNavigationOverlayGeometry()'s width choice; kept in sync with
+	// _navRevealAnimation's start/end rather than driven by it directly, so
+	// a resize mid-animation can always read "what should this be right now"
+	// without inspecting animation internals.
+	bool _navigationRevealed = true;
+	QPropertyAnimation* _navRevealAnimation = nullptr;
+	QTimer* _navHideTimer = nullptr;
+	// Debounces both hover-reveal triggers - trackPointerForNavigation()'s
+	// proximity check AND _navCollapseButton's own direct Enter event (Qt
+	// delivers that one straight to the button, never through
+	// ViewportWidget::mouseMoveEvent(), so it needed the same treatment) -
+	// while pinned=false. The cursor must still be within the sensitive
+	// zone once this single-shot timer elapses before actually revealing,
+	// filtering out a cursor path that merely passed through/over that
+	// area on the way elsewhere. Reveals instantly when pinned instead, in
+	// both call sites, since there's nothing to filter for a panel that's
+	// always open anyway.
+	QTimer* _navRevealDelayTimer = nullptr;
+	void revealNavigation();
+	void tryHideNavigation();
+	// The actual collapse - animates to the narrow strip and flips
+	// _navigationRevealed unconditionally, with none of tryHideNavigation()'s
+	// own pinned/isNavigationInteracting() guards. tryHideNavigation() calls
+	// this once its guards pass; the strip's pinned-click shortcut (see
+	// _navCollapseButton's own doc comment) calls it directly, since an
+	// explicit click should collapse at once even though the cursor is
+	// necessarily still over the strip right after clicking it (which would
+	// otherwise make isNavigationInteracting() keep it open).
+	void collapseNavigationNow();
+	bool isNavigationInteracting() const;
+	// Local, per-instance apply only (button sync + reveal/hide) - see its
+	// own doc comment (.cpp) for why this must not write QSettings or
+	// broadcast to other instances itself.
+	void applyNavigationPinned(bool pinned);
+	// The actual toggle entry point: writes the persisted preference once,
+	// then calls applyNavigationPinned() on every open ModelViewer, matching
+	// TabbedViewportToolbar::setPinnedPreference()'s identical pattern.
+	static void setNavigationPinnedPreference(bool pinned);
+	void updateNavPinButton();
 	// User-draggable width, mirroring _lightTreeResizeHandle's pattern in
 	// VisualizationEnvironmentPanel (a thin QFrame line, event-filtered for
 	// mouse press/move/release) but horizontal instead of vertical - glued
@@ -689,6 +884,7 @@ private:
 	int _navigationOverlayWidth = 420;
 	qreal _navResizeDragStartX = 0.0;
 	int _navResizeDragStartWidth = 0;
+	bool _navResizeDragActive = false;
 
 	TextureDebugPanel*     _textureDebugPanel  = nullptr;
 

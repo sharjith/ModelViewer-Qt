@@ -350,6 +350,16 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 		connect(_ui->newButton, &QToolButton::clicked, this, &MaterialPropertiesPanel::onCreateNewMaterial);
 	}
 
+	// Connect Eyedropper button - a checkable toggle, unlike the other
+	// buttons in this row, since it arms/disarms a viewport tool rather than
+	// firing a one-shot action.
+	if (_ui->eyeDropper)
+	{
+		connect(_ui->eyeDropper, &QToolButton::toggled, this, [this](bool checked) {
+			emit eyedropperArmed(checked);
+			});
+	}
+
 	// Connect Save to Library button
 	if (_ui->saveButton)
 	{
@@ -389,6 +399,16 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 		connect(_ui->metalnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onMetallicChanged);
 	if (_ui->roughnessSpin)
 		connect(_ui->roughnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onRoughnessChanged);
+	if (_ui->densitySpin)
+		connect(_ui->densitySpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onDensityChanged);
+	if (_ui->densityNotApplicableCheck)
+		connect(_ui->densityNotApplicableCheck, &QCheckBox::toggled, this, &MaterialPropertiesPanel::onDensityNotApplicableToggled);
+	if (_ui->densityClearButton)
+		connect(_ui->densityClearButton, &QPushButton::clicked, this, &MaterialPropertiesPanel::onDensityClearClicked);
+	if (_ui->shellThicknessSpin)
+		connect(_ui->shellThicknessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onShellThicknessChanged);
+	if (_ui->shellThicknessClearButton)
+		connect(_ui->shellThicknessClearButton, &QPushButton::clicked, this, &MaterialPropertiesPanel::onShellThicknessClearClicked);
 	if (_ui->iorSpin)
 		connect(_ui->iorSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onIORChanged);
 	if (_ui->opacitySpin)
@@ -581,6 +601,12 @@ float MaterialPropertiesPanel::getRoughness() const
 	return _material->roughness();
 }
 
+float MaterialPropertiesPanel::getDensity() const
+{
+	if (!_material || !_material->hasDensity()) return -1.0f;
+	return _material->density();
+}
+
 float MaterialPropertiesPanel::getIOR() const
 {
 	if (!_material) return 1.5f;
@@ -715,6 +741,109 @@ void MaterialPropertiesPanel::onMetallicChanged(double value)
 	}
 }
 void MaterialPropertiesPanel::onRoughnessChanged(double value) { if (_material && !_updateInProgress) { _material->setRoughness(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+
+void MaterialPropertiesPanel::onDensityChanged(double value)
+{
+	// densitySpin's minimum (-1) IS the Unknown sentinel (shown via
+	// specialValueText "Unknown" rather than the literal number) - this
+	// maps straight through to setDensity() with no special-casing needed,
+	// since Material::density()'s own -1 sentinel convention matches
+	// exactly. No preview/GPU-relevant change results from density (it
+	// doesn't affect rendering, only the Mass Properties rollup), so this
+	// deliberately skips updatePreview()/materialChanged() - unlike every
+	// visual scalar property above - while still marking the material
+	// modified so it gets saved.
+	if (_material && !_updateInProgress)
+	{
+		_material->setDensity(static_cast<float>(value));
+		updateUnsavedMaterialInMap();
+		markMaterialAsModified();
+	}
+}
+
+void MaterialPropertiesPanel::onDensityNotApplicableToggled(bool checked)
+{
+	if (_material && !_updateInProgress)
+	{
+		_material->setDensityApplicable(!checked);
+		updateUnsavedMaterialInMap();
+		markMaterialAsModified();
+	}
+	if (_ui->densitySpin)
+	{
+		_ui->densitySpin->setEnabled(!checked);
+		// Refresh the displayed number to match what the material now
+		// reports, under the update guard so this doesn't loop back into
+		// onDensityChanged(). setDensityApplicable() deliberately retains
+		// the underlying _density value across a false->true->false round
+		// trip (see its own comment) so unchecking "Not applicable" can
+		// restore a previously-typed number - but leaving the spinbox
+		// showing stale "Unknown"/old text after that restore would mean
+		// Apply/Mass Properties silently uses a value the UI never
+		// actually displayed.
+		const bool wasUpdating = _updateInProgress;
+		_updateInProgress = true;
+		_ui->densitySpin->setValue(_material && _material->hasDensity() ? _material->density() : -1.0);
+		_updateInProgress = wasUpdating;
+	}
+	if (_ui->densityClearButton)
+		_ui->densityClearButton->setEnabled(!checked);
+	// The shell thickness is meaningless for a thin-film/decorative material too, and follows the same flag.
+	if (_ui->shellThicknessSpin)
+	{
+		_ui->shellThicknessSpin->setEnabled(!checked);
+		const bool wasUpdating = _updateInProgress;
+		_updateInProgress = true;
+		_ui->shellThicknessSpin->setValue(_material && _material->hasShellThickness() ? _material->shellThickness() : 0.0);
+		_updateInProgress = wasUpdating;
+	}
+	if (_ui->shellThicknessClearButton)
+		_ui->shellThicknessClearButton->setEnabled(!checked);
+}
+
+void MaterialPropertiesPanel::onShellThicknessChanged(double value)
+{
+	// Same shape as onDensityChanged(): the spin box's minimum (0) IS the Unknown sentinel, shown through
+	// specialValueText, and setShellThickness() maps <= 0 to "unset". Like density this doesn't affect
+	// rendering, so no preview update - only mark the material modified so it gets saved.
+	if (_material && !_updateInProgress)
+	{
+		_material->setShellThickness(static_cast<float>(value));
+		updateUnsavedMaterialInMap();
+		markMaterialAsModified();
+	}
+}
+
+void MaterialPropertiesPanel::onShellThicknessClearClicked()
+{
+	if (!_material)
+		return;
+	_material->clearShellThickness();
+	updateUnsavedMaterialInMap();
+	markMaterialAsModified();
+	if (_ui->shellThicknessSpin)
+	{
+		const bool wasUpdating = _updateInProgress;
+		_updateInProgress = true;
+		_ui->shellThicknessSpin->setValue(0.0);
+		_updateInProgress = wasUpdating;
+	}
+}
+
+void MaterialPropertiesPanel::onDensityClearClicked()
+{
+	if (!_material)
+		return;
+	_material->clearDensity();
+	updateUnsavedMaterialInMap();
+	markMaterialAsModified();
+	if (_ui->densitySpin)
+	{
+		_updateInProgress = true;
+		_ui->densitySpin->setValue(-1.0);
+		_updateInProgress = false;
+	}
+}
 void MaterialPropertiesPanel::onIORChanged(double value) { if (_material && !_updateInProgress) { _material->setIOR(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
 void MaterialPropertiesPanel::onOpacityChanged(double value) { if (_material && !_updateInProgress) { _material->setOpacity(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
 void MaterialPropertiesPanel::onEmissiveStrengthChanged(double value) { if (_material && !_updateInProgress) { _material->setEmissiveStrength(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
@@ -935,15 +1064,15 @@ void MaterialPropertiesPanel::connectTextureSignals()
 			// Channel Packing option (if gear button exists)
 			if (_textureSlots[type].gear)
 			{
-				menu.addAction(tr("Channel Packing..."), this, [this, type]() { openPackingDialogFor(type); });
+				menu.addAction(QIcon(":/icons/res/channel_packing.png"), tr("Channel Packing..."), this, [this, type]() { openPackingDialogFor(type); });
 				menu.addSeparator();
 			}
 
 			// Replace option
-			menu.addAction(tr("Replace..."), this, [this, btn]() { btn->click(); });
+			menu.addAction(QIcon(":/icons/res/fileopen.png"), tr("Replace..."), this, [this, btn]() { btn->click(); });
 
 			// Clear option
-			menu.addAction(tr("Clear"), this, [this, type]() {
+			menu.addAction(QIcon(":/icons/res/clear.png"), tr("Clear"), this, [this, type]() {
 				clearTextureMap(type);
 				applyButtonEmptyIcon(_textureSlots[type]);
 				updatePreview();
@@ -1199,6 +1328,18 @@ void MaterialPropertiesPanel::loadScalarValuesFromMaterial()
 	// Scalar numeric properties
 	if (_ui->metalnessSpin) _ui->metalnessSpin->setValue(_material->metalness());
 	if (_ui->roughnessSpin) _ui->roughnessSpin->setValue(_material->roughness());
+	// hasDensity() ? density() : -1.0 rather than density() directly - a
+	// stale internal value can survive a !isDensityApplicable() material
+	// (see Material::setDensityApplicable()'s own comment on why that's not
+	// eagerly cleared), and the spin box must always show Unknown (-1) for
+	// such a material regardless.
+	if (_ui->densitySpin) _ui->densitySpin->setValue(_material->hasDensity() ? _material->density() : -1.0);
+	if (_ui->densityNotApplicableCheck) _ui->densityNotApplicableCheck->setChecked(!_material->isDensityApplicable());
+	if (_ui->densitySpin) _ui->densitySpin->setEnabled(_material->isDensityApplicable());
+	if (_ui->densityClearButton) _ui->densityClearButton->setEnabled(_material->isDensityApplicable());
+	if (_ui->shellThicknessSpin) _ui->shellThicknessSpin->setValue(_material->hasShellThickness() ? _material->shellThickness() : 0.0);
+	if (_ui->shellThicknessSpin) _ui->shellThicknessSpin->setEnabled(_material->isDensityApplicable());
+	if (_ui->shellThicknessClearButton) _ui->shellThicknessClearButton->setEnabled(_material->isDensityApplicable());
 	if (_ui->iorSpin) _ui->iorSpin->setValue(_material->ior());
 	if (_ui->opacitySpin) _ui->opacitySpin->setValue(_material->opacity());
 	if (_ui->emissiveSpin) _ui->emissiveSpin->setValue(_material->emissiveStrength());
@@ -4254,11 +4395,11 @@ void MaterialPropertiesPanel::onContextMenu(const QPoint& pos)
 			QString materialKey = selected.first()->data(0, Qt::UserRole).toString();
 
 			// Add tree-specific menu items
-			menu.addAction(tr("Copy Name"), this, [materialName]() {
+			menu.addAction(QIcon(":/icons/res/copy.png"), tr("Copy Name"), this, [materialName]() {
 				QApplication::clipboard()->setText(materialName);
 				});
 
-			menu.addAction(tr("Copy Key"), this, [materialKey]() {
+			menu.addAction(QIcon(":/icons/res/copy.png"), tr("Copy Key"), this, [materialKey]() {
 				QApplication::clipboard()->setText(materialKey);
 				});
 
@@ -4271,14 +4412,14 @@ void MaterialPropertiesPanel::onContextMenu(const QPoint& pos)
 			// Allow rename for user materials and unsaved materials (not factory)
 			if (isUserMaterial || isUnsavedMaterial)
 			{
-				menu.addAction(tr("Rename"), this, &MaterialPropertiesPanel::onRenameMaterial);
+				menu.addAction(QIcon(":/icons/res/rename.png"), tr("Rename"), this, &MaterialPropertiesPanel::onRenameMaterial);
 				menu.addSeparator();
 			}
 
 			// Allow deletion if it's a user or unsaved material
 			if (isUserMaterial || isUnsavedMaterial)
 			{
-				menu.addAction(tr("Delete"), this, &MaterialPropertiesPanel::onDeleteMaterial);
+				menu.addAction(QIcon(":/icons/res/delete.png"), tr("Delete"), this, &MaterialPropertiesPanel::onDeleteMaterial);
 			}
 
 			menu.addSeparator();
@@ -4286,7 +4427,7 @@ void MaterialPropertiesPanel::onContextMenu(const QPoint& pos)
 	}
 
 	// Add global panel option
-	menu.addAction(tr("Clear All Textures"), this, &MaterialPropertiesPanel::onClearAllTextures);
+	menu.addAction(QIcon(":/icons/res/clear_all_maps.png"), tr("Clear All Textures"), this, &MaterialPropertiesPanel::onClearAllTextures);
 	menu.exec(mapToGlobal(pos));
 }
 
@@ -4546,9 +4687,51 @@ void MaterialPropertiesPanel::createUnsavedMaterialFromMesh(
 	qDebug() << "Mesh material created and loaded into panel";
 }
 
+void MaterialPropertiesPanel::bindEyedropperSample(const Material& material, const QString& sourceMeshName)
+{
+	Q_UNUSED(sourceMeshName);
+
+	// Clear BEFORE bindMaterial(), not after: bindMaterial() calls
+	// loadTextureImageFiles() near its end, which - whenever the bound
+	// material has at least one texture map path on disk - unconditionally
+	// calls updateUnsavedMaterialInMap() (NOT guarded by _updateInProgress
+	// at all, unlike the scalar/color/combo/checkbox loading earlier in
+	// bindMaterial()'s call chain, which IS fully guarded and so isn't the
+	// culprit despite looking like one at a glance). That write lands in
+	// _materialCacheRef[_currentMaterialKey] - clearing the key first means
+	// updateUnsavedMaterialInMap()'s own empty-key guard no-ops it, instead
+	// of silently overwriting whatever was bound before (e.g. a factory
+	// "Aluminium" preset) with the sampled material's data and marking it
+	// unsaved (confirmed real bug via direct reproduction of the call
+	// chain, not just theoretical).
+	_currentMaterialKey.clear();
+	_currentMaterialGroup.clear();
+
+	// Same panel-owned scratch Material reuse as createUnsavedMaterialFromMesh()'s
+	// own tail (lazily allocated, copied into, never replaced) - deliberately
+	// skips everything else that function does (tree entry, _unsavedMaterialKeys,
+	// _materialCacheRef, registerOwnedUnsavedMaterial): this is a volatile,
+	// in-memory-only preview of what was just sampled, not a real library item.
+	if (!_material) _material = new Material();
+	*_material = material;
+	_material->updateConsistency();
+	bindMaterial(_material);
+
+	updateRefreshButtonState();
+}
+
 void MaterialPropertiesPanel::setEditingMeshUuid(const QUuid& uuid)
 {
 	_editingMeshUuid = uuid;
+}
+
+void MaterialPropertiesPanel::setEyedropperChecked(bool checked)
+{
+	if (!_ui->eyeDropper)
+		return;
+	const bool oldState = _ui->eyeDropper->blockSignals(true);
+	_ui->eyeDropper->setChecked(checked);
+	_ui->eyeDropper->blockSignals(oldState);
 }
 
 void MaterialPropertiesPanel::removeEmptyMeshMaterialsCategory()

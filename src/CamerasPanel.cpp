@@ -1,4 +1,5 @@
 #include "CamerasPanel.h"
+#include "LanguageManager.h"
 #include "ViewportWidget.h"
 #include "SceneGraph.h"
 #include "GltfCameraData.h"
@@ -67,6 +68,7 @@ CamerasPanel::CamerasPanel(QWidget* parent)
     _captureViewButton->setToolTip(tr("Save the current viewport camera pose as a new view"));
     _deleteButton = new QPushButton(tr("Delete"), this);
     _deleteButton->setToolTip(tr("Delete the last selected camera"));
+    connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, &CamerasPanel::retranslateUI);
 
     auto* buttonRow = new QHBoxLayout();
     buttonRow->setContentsMargins(8, 0, 8, 8);
@@ -160,6 +162,15 @@ void CamerasPanel::refresh()
     }
 
     updateButtonStates();
+}
+
+void CamerasPanel::retranslateUI()
+{
+    _captureViewButton->setText(tr("Capture View..."));
+    _captureViewButton->setToolTip(tr("Save the current viewport camera pose as a new view"));
+    _deleteButton->setText(tr("Delete"));
+    _deleteButton->setToolTip(tr("Delete the last selected camera"));
+    refresh();   // "System Camera" / "Captured Views" rows are built with tr()
 }
 
 void CamerasPanel::setDetachedOverlayMode(bool enabled)
@@ -315,7 +326,7 @@ void CamerasPanel::onTreeContextMenuRequested(const QPoint& pos)
     if (item->data(0, IsSystemCamRole).toBool())
     {
         QMenu menu(this);
-        QAction* captureAction = menu.addAction(tr("Capture Camera View..."));
+        QAction* captureAction = menu.addAction(QIcon(":/icons/res/camera.png"), tr("Capture Camera View..."));
         QAction* chosen = menu.exec(_tree->viewport()->mapToGlobal(pos));
         if (chosen == captureAction)
             promptCaptureCameraView();

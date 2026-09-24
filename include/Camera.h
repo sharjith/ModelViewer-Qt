@@ -38,6 +38,7 @@
 
 #include <QMatrix4x4>
 #include <QQuaternion>
+#include <QVector2D>
 
 #include <iostream>
 
@@ -104,6 +105,17 @@ public:
 
 	void setProjectionType(ProjectionType proj);
 	ProjectionType getProjectionType() const;
+
+	// Oblique (Cavalier/Cabinet) parallel projection: the orthographic projection sheared so that depth
+	// recedes along a slanted axis. depthScale is rho (1 = Cavalier, 0.5 = Cabinet; 0 turns the shear
+	// off) and angleDegrees is the screen angle of the receding axis from screen-right. Only applies to
+	// the orthographic projection of an Orbit camera; the shear pivots on the orbit target so it stays
+	// at the centre of the view.
+	void setOblique(float depthScale, float angleDegrees);
+	bool isOblique() const { return _obliqueDepthScale > 0.0f; }
+	// Screen-space shift (view-space x, y units) of a point per unit of distance BEHIND the orbit target.
+	// Zero when not oblique; receding points shift up and to the right.
+	QVector2D getObliqueShift() const;
 
 	void resetAll(void);
 	void updateViewMatrix(void);
@@ -185,6 +197,8 @@ private:
 	ViewProjection _viewProj;
 	ProjectionType _projectionType;
 	ProjectionType _previousProjection;
+	float _obliqueDepthScale = 0.0f;   // rho; 0 = plain orthographic
+	float _obliqueAngleDegrees = 45.0f;
 
 	QMatrix4x4 _projectionMatrix;
 	QMatrix4x4 _viewMatrix;

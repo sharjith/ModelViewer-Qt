@@ -5,7 +5,7 @@
 #include "ModelViewer.h"
 #include "ViewportWidget.h"
 #include "VisualizationEnvironmentPanel.h"
-#include "RtTonemap.h"
+#include "RtImageExport.h"
 
 #include <QTimer>
 #include <QDir>
@@ -25,9 +25,6 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QPushButton>
-
-#include <ImfRgbaFile.h>
-#include <ImfArray.h>
 
 #include <algorithm>
 #include <iterator>
@@ -69,41 +66,6 @@ namespace
 
 namespace
 {
-	// Writes a linear HDR RGB buffer straight to an OpenEXR file - half-
-	// float (Imf::Rgba) storage via the RgbaOutputFile convenience API
-	// rather than the full 32-bit-float OutputFile/FrameBuffer API, since
-	// half-float is the conventional storage precision for rendered output
-	// (matches what Blender/most renderers write by default) and needs far
-	// less boilerplate. Returns false (and leaves no partial file, since
-	// OpenEXR only creates the file on first writePixels()) on any failure.
-	bool writeExrFile(const QString& path, const std::vector<glm::vec3>& linearRgb, int width, int height)
-	{
-		if (width <= 0 || height <= 0 || linearRgb.size() != static_cast<size_t>(width) * height)
-			return false;
-
-		try
-		{
-			Imf::Array2D<Imf::Rgba> pixels(height, width);
-			for (int y = 0; y < height; ++y)
-			{
-				for (int x = 0; x < width; ++x)
-				{
-					const glm::vec3& c = linearRgb[static_cast<size_t>(y) * width + x];
-					pixels[y][x] = Imf::Rgba(c.r, c.g, c.b, 1.0f);
-				}
-			}
-
-			Imf::RgbaOutputFile file(path.toUtf8().constData(), width, height, Imf::WRITE_RGBA);
-			file.setFrameBuffer(&pixels[0][0], 1, width);
-			file.writePixels(height);
-			return true;
-		}
-		catch (const std::exception&)
-		{
-			return false;
-		}
-	}
-
 	// Box-filter (area-average) downscale of a linear HDR buffer - used by
 	// the fast export path when the requested resolution is smaller than
 	// what's already converged in the live viewport (see
@@ -166,8 +128,8 @@ RtRenderDialog::RtRenderDialog(ModelViewer* modelViewer, QWidget* parent)
 			constexpr int kOptixItemIndex = 3;
 			if (QStandardItem* item = model->item(kOptixItemIndex))
 			{
-				item->setToolTip(tr("NVIDIA's own AI denoiser. Works with either render engine - falls back to "
-					"the bilateral filter if no OptiX-capable NVIDIA GPU is available."));
+				item->setToolTip(tr("NVIDIA's own AI denoiser. Works with either render engine - falls back\n"
+					"to the bilateral filter if no OptiX-capable NVIDIA GPU is available."));
 			}
 		}
 	};
@@ -678,36 +640,19 @@ void RtRenderDialog::onExportClicked()
 			return;
 		}
 
-		// The offline path never touches the GPU/live framebuffer at all,
-		// so for LDR formats the linear buffer has to be tonemapped here in
-		// plain C++ (RtTonemap.h, a direct port of ray_traced_present.frag)
-		// using the SAME live settings the on-screen viewport uses - there's
-		// no already-tonemapped framebuffer to grab like the fast path has.
-		if (exportExr)
-		{
-			saveOk = writeExrFile(path, linearRgb, targetWidth, targetHeight);
-		}
-		else
+		// The offline path never touches the GPU/live framebuffer at all, so
+		// for LDR formats RtImageExport::saveOfflineRender() tonemaps the
+		// linear buffer itself (RtTonemap.h, a direct port of
+		// ray_traced_present.frag) using the SAME live settings the
+		// on-screen viewport uses - there's no already-tonemapped
+		// framebuffer to grab like the fast path has.
 		{
 			bool hdrToneMapping = true, gammaCorrection = true;
 			float screenGamma = 2.2f, iblExposure = 1.0f;
 			int toneMapMode = 0;
 			viewport->rayTracingToneMapSettings(hdrToneMapping, gammaCorrection, screenGamma, iblExposure, toneMapMode);
-
-			QImage image(targetWidth, targetHeight, QImage::Format_RGB888);
-			for (int y = 0; y < targetHeight; ++y)
-			{
-				uchar* line = image.scanLine(y);
-				for (int x = 0; x < targetWidth; ++x)
-				{
-					const glm::vec3& c = linearRgb[static_cast<size_t>(y) * targetWidth + x];
-					const glm::vec3 mapped = RtTonemap::apply(c, hdrToneMapping, gammaCorrection, screenGamma, iblExposure, toneMapMode);
-					line[x * 3 + 0] = static_cast<uchar>(std::clamp(mapped.r, 0.0f, 1.0f) * 255.0f + 0.5f);
-					line[x * 3 + 1] = static_cast<uchar>(std::clamp(mapped.g, 0.0f, 1.0f) * 255.0f + 0.5f);
-					line[x * 3 + 2] = static_cast<uchar>(std::clamp(mapped.b, 0.0f, 1.0f) * 255.0f + 0.5f);
-				}
-			}
-			saveOk = image.save(path, ldrFormat.toUtf8().constData());
+			saveOk = RtImageExport::saveOfflineRender(linearRgb, targetWidth, targetHeight, path, selectedFilter,
+				hdrToneMapping, gammaCorrection, screenGamma, iblExposure, toneMapMode);
 		}
 	}
 	else if (exportExr)
@@ -728,16 +673,22 @@ void RtRenderDialog::onExportClicked()
 			// so a frame can genuinely not exist yet for the first instant or
 			// two after a drag/orbit starts. Without this check,
 			// downscaleLinearBuffer()'s divide-by-zero guard would silently
-			// hand back an all-zero buffer that writeExrFile() happily writes
-			// as a valid (but blank) EXR - reporting "Export Complete" for an
-			// image that isn't what the user actually sees on screen.
+			// hand back an all-zero buffer that RtImageExport::saveOfflineRender()
+			// happily writes as a valid (but blank) EXR - reporting "Export
+			// Complete" for an image that isn't what the user actually sees
+			// on screen.
 			QMessageBox::warning(this, tr("Export Failed"),
 				tr("No live ray-traced frame is available yet. Wait a moment for rendering to produce a frame, then try again."));
 			return;
 		}
 		if (liveWidth != targetWidth || liveHeight != targetHeight)
 			linearRgb = downscaleLinearBuffer(linearRgb, liveWidth, liveHeight, targetWidth, targetHeight);
-		saveOk = writeExrFile(path, linearRgb, targetWidth, targetHeight);
+		// Tonemap args are unused for an EXR filter (RtImageExport::isExrFilter()
+		// short-circuits before touching them) - passing literal defaults here
+		// rather than querying the live settings since they'd be discarded
+		// either way.
+		saveOk = RtImageExport::saveOfflineRender(linearRgb, targetWidth, targetHeight, path, selectedFilter,
+			true, true, 2.2f, 1.0f, 0);
 	}
 	else
 	{

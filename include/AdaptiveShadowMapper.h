@@ -38,6 +38,7 @@ public:
 	float calculateShadowSoftness(float boundingRadius);
 
 	void setQuality(QualityLevel quality);
+	QualityLevel quality() const { return currentQuality; }
 
 private:
 	float calculateShadowCoverage(float boundingRadius);

@@ -55,6 +55,7 @@ bool MaterialRegistry::loadFromJsonFile(const QString& path, QString* err)
     // Expect either "groups" (array of groups) or a flat "materials" map
     _groups.clear();
     _rawByKey.clear();
+    _nameByKey.clear();
 
     if (root.contains(QStringLiteral("groups")) && root.value(QStringLiteral("groups")).isArray())
     {
@@ -86,6 +87,7 @@ bool MaterialRegistry::loadFromJsonFile(const QString& path, QString* err)
                     if (!item.key.isEmpty())
                     {
                         _rawByKey.insert(item.key, item.props);
+                        _nameByKey.insert(item.key, item.name);
                     }
                 }
             }
@@ -110,6 +112,7 @@ bool MaterialRegistry::loadFromJsonFile(const QString& path, QString* err)
             }
             all.items.append(item);
             _rawByKey.insert(item.key, item.props);
+            _nameByKey.insert(item.key, item.name);
         }
         _groups.append(all);
     }
@@ -161,6 +164,12 @@ Material MaterialRegistry::materialForKey(const QString& key)
     QVariantMap props = _rawByKey.value(key);
 
     Material mat = Material::fromVariantMap(props);
+    // fromVariantMap() deliberately never reads "name" (props had it
+    // stripped above, see the populating loop's own comment) - the catalog's
+    // display name has to be stamped on explicitly here, or every material
+    // this registry hands out (and anything grouping by Material::name(),
+    // e.g. Mass Properties' per-material rollup) sees an empty name.
+    mat.setName(_nameByKey.value(key));
 
     // cache
     {

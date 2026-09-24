@@ -249,14 +249,7 @@ aiScene* XCAFSTEPProcessor::processSTEPFile(const std::string& path)
 				builder.Add(compound, shape);
 		}
 
-		IMeshTools_Parameters meshParams;
-		meshParams.Deflection             = BRepToAssimpConverter::resolveDeflectionFraction(); // user-configurable, default 5 %
-		meshParams.Angle                  = 0.3;    // angular deflection in radians
-		meshParams.Relative               = true;   // deflection is relative to each face's bbox
-		meshParams.InParallel             = true;   // use all available CPU cores
-		meshParams.AllowQualityDecrease   = true;   // avoid stalling on difficult faces
-
-		BRepMesh_IncrementalMesh(compound, meshParams);
+		BRepToAssimpConverter::preTessellate(compound); // shared by the STEP, IGES and BREP readers
 	}
 
 #ifdef __DEBUG__

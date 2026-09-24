@@ -111,6 +111,20 @@ bool BoundingBox::contains(const Point& P) const
 	return (bx && by && bz);
 }
 
+bool BoundingBox::contains(const BoundingBox& other) const
+{
+	return other.xMin() >= xMin() && other.xMax() <= xMax()
+		&& other.yMin() >= yMin() && other.yMax() <= yMax()
+		&& other.zMin() >= zMin() && other.zMax() <= zMax();
+}
+
+bool BoundingBox::intersects(const BoundingBox& other) const
+{
+	return xMin() <= other.xMax() && xMax() >= other.xMin()
+		&& yMin() <= other.yMax() && yMax() >= other.yMin()
+		&& zMin() <= other.zMax() && zMax() >= other.zMin();
+}
+
 void BoundingBox::addBox(const BoundingBox& B)
 {
 	if (B.xMax() > xMax())

@@ -11,6 +11,12 @@ layout(location = 7) in vec3 vertexTangent;
 layout(location = 8) in vec3 vertexBitangent;
 layout(location = 9) in vec4 jointIndices;
 layout(location = 10) in vec4 jointWeights;
+// Surface Analysis overlay (curvature/thickness/deviation heatmaps) - a
+// dedicated attribute, deliberately NOT sharing vertexColor's location/
+// buffer. See RenderableMesh::setAnalysisOverlayColors()'s doc comment for
+// why: vertexColor is real authored mesh data (e.g. genuine Point Set
+// Reconstruction vertex colors), and this overlay must never touch it.
+layout(location = 11) in vec4 analysisColor;
 
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
@@ -31,10 +37,17 @@ uniform mat4 jointMatrices[128];
 // user defined clip plane
 uniform vec4 clipPlane;
 
+// Box clipping (4th clipping mode): six view-space half-space planes, in the
+// order xMin, xMax, yMin, yMax, zMin, zMax. Mutually exclusive with the
+// per-axis planes above - when enabled they take over clip distance slots 0..5.
+uniform vec4 clipPlaneBox[6];
+uniform bool clipPlaneBoxEnabled;
+
 out vec3 v_position;
 out vec3 v_normal;
 out vec4 v_color;
 out vec4 v_rawVertexColor;
+out vec4 v_analysisColor;
 out vec2 v_texCoord0;
 out vec2 v_texCoord1;
 out vec2 v_texCoord2;
@@ -113,6 +126,7 @@ void main()
     }
     v_color            = vertexColor;
     v_rawVertexColor   = vertexColor;
+    v_analysisColor    = analysisColor;
     v_texCoord0 = texCoord0;
     v_texCoord1 = texCoord1;
     v_texCoord2 = texCoord2;
@@ -206,9 +220,25 @@ void main()
 
     // Assign clip distances for hardware clipping   
     vec4 viewPos = modelViewMatrix * skinnedPosition;
-    gl_ClipDistance[0] = dot(clipPlaneX, viewPos);
-    gl_ClipDistance[1] = dot(clipPlaneY, viewPos);
-    gl_ClipDistance[2] = dot(clipPlaneZ, viewPos);
-    gl_ClipDistance[3] = dot(clipPlane, viewPos);
+    // Constant indices throughout (no loop) so the implicit gl_ClipDistance
+    // size is unambiguously 6. Slots 4..5 are only enabled in box mode.
+    if (clipPlaneBoxEnabled)
+    {
+        gl_ClipDistance[0] = dot(clipPlaneBox[0], viewPos);
+        gl_ClipDistance[1] = dot(clipPlaneBox[1], viewPos);
+        gl_ClipDistance[2] = dot(clipPlaneBox[2], viewPos);
+        gl_ClipDistance[3] = dot(clipPlaneBox[3], viewPos);
+        gl_ClipDistance[4] = dot(clipPlaneBox[4], viewPos);
+        gl_ClipDistance[5] = dot(clipPlaneBox[5], viewPos);
+    }
+    else
+    {
+        gl_ClipDistance[0] = dot(clipPlaneX, viewPos);
+        gl_ClipDistance[1] = dot(clipPlaneY, viewPos);
+        gl_ClipDistance[2] = dot(clipPlaneZ, viewPos);
+        gl_ClipDistance[3] = dot(clipPlane, viewPos);
+        gl_ClipDistance[4] = 1.0;
+        gl_ClipDistance[5] = 1.0;
+    }
 
 }

@@ -1,4 +1,5 @@
 #include "AnimationsPanel.h"
+#include "LanguageManager.h"
 
 #include "ViewportWidget.h"
 #include "SceneGraph.h"
@@ -96,6 +97,7 @@ AnimationsPanel::AnimationsPanel(QWidget* parent)
 		_speedCombo->addItem(formatSpeedLabel(speed), speed);
 	_speedCombo->setCurrentIndex(_speedCombo->findData(1.0));
 	_speedCombo->setToolTip(tr("Playback speed"));
+	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, &AnimationsPanel::retranslateUI);
 
 	auto* infoRow = new QHBoxLayout();
 	infoRow->setContentsMargins(0, 0, 0, 0);
@@ -180,6 +182,17 @@ void AnimationsPanel::refresh()
 
 	restoreSelection();
 	updateControlsForSelection();
+}
+
+void AnimationsPanel::retranslateUI()
+{
+	_loopCheck->setText(tr("Loop"));
+	_speedLabel->setText(tr("Speed"));
+	_speedCombo->setToolTip(tr("Playback speed"));
+	_resetButton->setText(tr("Reset"));
+	// refresh() rebuilds the clip rows ("Clip %1") and ends in updateControlsForSelection(), which sets the
+	// Play/Pause label from the live playback state.
+	refresh();
 }
 
 void AnimationsPanel::setDetachedOverlayMode(bool enabled)
@@ -357,7 +370,7 @@ void AnimationsPanel::onTreeContextMenuRequested(const QPoint& pos)
 		return;
 
 	QMenu menu(this);
-	QAction* deleteAction = menu.addAction(isFileItem ? tr("Delete All") : tr("Delete"));
+	QAction* deleteAction = menu.addAction(QIcon(":/icons/res/delete.png"), isFileItem ? tr("Delete All") : tr("Delete"));
 	const bool playing = _viewportWidget ? _viewportWidget->isAnimationPlaying() : false;
 	deleteAction->setEnabled(!playing);
 	QAction* chosen = menu.exec(_tree->viewport()->mapToGlobal(pos));

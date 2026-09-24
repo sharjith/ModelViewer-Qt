@@ -7,7 +7,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>449</width>
+    <width>610</width>
     <height>945</height>
    </rect>
   </property>
@@ -76,14 +76,14 @@
         </property>
         <item>
          <widget class="QLineEdit" name="searchEdit">
-                    <property name="toolTip">
-           <string>Filter the material property list by name</string>
-          </property>
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
+          </property>
+          <property name="toolTip">
+           <string>Filter the material property list by name</string>
           </property>
           <property name="placeholderText">
            <string>Search materials...</string>
@@ -139,9 +139,6 @@
          </item>
          <item row="1" column="1">
           <widget class="QComboBox" name="comboShape">
-                      <property name="toolTip">
-            <string>Preview shape for the material ball</string>
-           </property>
            <property name="sizePolicy">
             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
              <horstretch>0</horstretch>
@@ -153,6 +150,9 @@
              <width>140</width>
              <height>16777215</height>
             </size>
+           </property>
+           <property name="toolTip">
+            <string>Preview shape for the material ball</string>
            </property>
            <item>
             <property name="text">
@@ -190,9 +190,6 @@
          </item>
          <item row="2" column="1">
           <widget class="QComboBox" name="comboEnv">
-                      <property name="toolTip">
-            <string>Environment lighting used for the material preview</string>
-           </property>
            <property name="sizePolicy">
             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
              <horstretch>0</horstretch>
@@ -204,6 +201,9 @@
              <width>140</width>
              <height>16777215</height>
             </size>
+           </property>
+           <property name="toolTip">
+            <string>Environment lighting used for the material preview</string>
            </property>
            <item>
             <property name="text">
@@ -236,9 +236,6 @@
          </item>
          <item row="3" column="1">
           <widget class="QComboBox" name="comboBoxTexMode">
-                      <property name="toolTip">
-            <string>Which texture slots are shown below</string>
-           </property>
            <property name="sizePolicy">
             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
              <horstretch>0</horstretch>
@@ -250,6 +247,9 @@
              <width>140</width>
              <height>16777215</height>
             </size>
+           </property>
+           <property name="toolTip">
+            <string>Which texture slots are shown below</string>
            </property>
            <item>
             <property name="text">
@@ -397,6 +397,29 @@
       <property name="bottomMargin">
        <number>2</number>
       </property>
+      <item>
+       <widget class="QToolButton" name="eyeDropper">
+        <property name="toolTip">
+         <string>Sample a mesh's material, then click or drag across other meshes to apply it</string>
+        </property>
+        <property name="text">
+         <string>Eyedropper</string>
+        </property>
+        <property name="icon">
+         <iconset resource="../ModelViewer.qrc">
+          <normaloff>:/icons/res/eye_dropper.png</normaloff>:/icons/res/eye_dropper.png</iconset>
+        </property>
+        <property name="iconSize">
+         <size>
+          <width>36</width>
+          <height>36</height>
+         </size>
+        </property>
+        <property name="checkable">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
       <item>
        <widget class="QToolButton" name="newButton">
         <property name="toolTip">
@@ -620,7 +643,7 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>425</width>
+            <width>586</width>
             <height>998</height>
            </rect>
           </property>
@@ -642,7 +665,7 @@
            </property>
            <item row="33" column="1">
             <widget class="QDoubleSpinBox" name="doubleSpinBoxSpecularFactor">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Strength of the dielectric specular reflection</string>
              </property>
              <property name="decimals">
@@ -661,7 +684,7 @@
            </item>
            <item row="36" column="1">
             <widget class="QDoubleSpinBox" name="doubleSpinBoxDiffuseTransmissionFactor">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>How much light passes through as diffuse transmission</string>
              </property>
              <property name="decimals">
@@ -680,7 +703,7 @@
            </item>
            <item row="20" column="1">
             <widget class="QDoubleSpinBox" name="iorSpin">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Index of refraction</string>
              </property>
              <property name="decimals">
@@ -702,7 +725,7 @@
            </item>
            <item row="29" column="1">
             <widget class="QCheckBox" name="twoSidedCheck">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Disable backface culling for this material</string>
              </property>
              <property name="text">
@@ -715,7 +738,7 @@
            </item>
            <item row="24" column="1">
             <widget class="QPushButton" name="btnAttenuationColor">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Absorption tint color light picks up passing through the
 volume</string>
              </property>
@@ -726,7 +749,7 @@ volume</string>
            </item>
            <item row="13" column="1">
             <widget class="QDoubleSpinBox" name="iridescenceIorSpin">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Index of refraction of the iridescent thin film</string>
              </property>
              <property name="decimals">
@@ -748,7 +771,7 @@ volume</string>
            </item>
            <item row="23" column="1">
             <widget class="QDoubleSpinBox" name="attenuationDistanceSpin">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Distance light travels through the volume before this much
 absorption</string>
              </property>
@@ -813,7 +836,7 @@ absorption</string>
            </item>
            <item row="4" column="1">
             <widget class="QPushButton" name="btnEmissiveColor">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Pick the emissive (self-lit) color</string>
              </property>
              <property name="text">
@@ -823,7 +846,7 @@ absorption</string>
            </item>
            <item row="21" column="1">
             <widget class="QDoubleSpinBox" name="transmissionSpin">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>How much light passes straight through (glass-like)</string>
              </property>
              <property name="decimals">
@@ -894,7 +917,7 @@ absorption</string>
            </item>
            <item row="25" column="1">
             <widget class="QDoubleSpinBox" name="dispersionSpin">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Strength of chromatic aberration in transmitted light</string>
              </property>
              <property name="decimals">
@@ -937,7 +960,7 @@ absorption</string>
            </item>
            <item row="34" column="1">
             <widget class="QDoubleSpinBox" name="doubleSpinBoxAnisotropyStrength">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Strength of directional (anisotropic) reflections</string>
              </property>
              <property name="decimals">
@@ -963,7 +986,7 @@ absorption</string>
            </item>
            <item row="37" column="1">
             <widget class="QPushButton" name="btnDiffTransColor">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Tint color for the diffuse transmission</string>
              </property>
              <property name="text">
@@ -980,7 +1003,7 @@ absorption</string>
            </item>
            <item row="22" column="1">
             <widget class="QDoubleSpinBox" name="thicknessSpin">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Volume thickness, for transmission/absorption calculations</string>
              </property>
              <property name="decimals">
@@ -1016,7 +1039,7 @@ absorption</string>
            </item>
            <item row="7" column="1">
             <widget class="QDoubleSpinBox" name="occlusionStrengthSpin">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Strength of the ambient occlusion map's darkening</string>
              </property>
              <property name="decimals">
@@ -1038,7 +1061,7 @@ absorption</string>
            </item>
            <item row="31" column="1">
             <widget class="QCheckBox" name="unlitCheck">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Ignore lighting; show the flat base color only</string>
              </property>
              <property name="text">
@@ -1055,7 +1078,7 @@ absorption</string>
            </item>
            <item row="2" column="1">
             <widget class="QDoubleSpinBox" name="roughnessSpin">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Surface roughness factor</string>
              </property>
              <property name="decimals">
@@ -1074,7 +1097,7 @@ absorption</string>
            </item>
            <item row="1" column="1">
             <widget class="QDoubleSpinBox" name="metalnessSpin">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Metallic factor</string>
              </property>
              <property name="decimals">
@@ -1093,7 +1116,7 @@ absorption</string>
            </item>
            <item row="27" column="1">
             <widget class="QComboBox" name="shadingCombo">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Shading model used to render this material</string>
              </property>
              <item>
@@ -1134,7 +1157,7 @@ absorption</string>
            </item>
            <item row="5" column="1">
             <widget class="QDoubleSpinBox" name="emissiveSpin">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Emissive strength multiplier</string>
              </property>
              <property name="decimals">
@@ -1156,7 +1179,7 @@ absorption</string>
            </item>
            <item row="35" column="1">
             <widget class="QDoubleSpinBox" name="doubleSpinBoxAnisotropyRotation">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Rotation angle of the anisotropic reflection direction</string>
              </property>
              <property name="decimals">
@@ -1175,7 +1198,7 @@ absorption</string>
            </item>
            <item row="8" column="1">
             <widget class="QDoubleSpinBox" name="clearcoatSpin">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Strength of the clearcoat layer</string>
              </property>
              <property name="decimals">
@@ -1197,7 +1220,7 @@ absorption</string>
            </item>
            <item row="12" column="1">
             <widget class="QDoubleSpinBox" name="iridescenceFactorSpin">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Strength of the iridescence effect</string>
              </property>
              <property name="decimals">
@@ -1233,7 +1256,7 @@ absorption</string>
            </item>
            <item row="3" column="1">
             <widget class="QDoubleSpinBox" name="opacitySpin">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Base color alpha/opacity</string>
              </property>
              <property name="decimals">
@@ -1266,9 +1289,6 @@ absorption</string>
            </item>
            <item row="0" column="1">
             <widget class="QPushButton" name="btnAlbedoColor">
-                          <property name="toolTip">
-              <string>Pick the base color</string>
-             </property>
              <property name="sizePolicy">
               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                <horstretch>0</horstretch>
@@ -1280,6 +1300,9 @@ absorption</string>
                <width>16777215</width>
                <height>16777215</height>
               </size>
+             </property>
+             <property name="toolTip">
+              <string>Pick the base color</string>
              </property>
              <property name="text">
               <string>Pick Albedo Color</string>
@@ -1295,7 +1318,7 @@ absorption</string>
            </item>
            <item row="26" column="1">
             <widget class="QDoubleSpinBox" name="alphaThresholdSpin">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Alpha cutoff below which pixels are discarded (Mask blend
 mode)</string>
              </property>
@@ -1318,7 +1341,7 @@ mode)</string>
            </item>
            <item row="28" column="1">
             <widget class="QComboBox" name="blendCombo">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>How this material's transparency is handled</string>
              </property>
              <item>
@@ -1364,7 +1387,7 @@ mode)</string>
            </item>
            <item row="9" column="1">
             <widget class="QDoubleSpinBox" name="clearcoatRoughnessSpin">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Roughness of the clearcoat layer</string>
              </property>
              <property name="decimals">
@@ -1386,7 +1409,7 @@ mode)</string>
            </item>
            <item row="15" column="1">
             <widget class="QDoubleSpinBox" name="iridescenceThicknessMaxSpin">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Maximum thin-film thickness for the iridescence effect</string>
              </property>
              <property name="suffix">
@@ -1425,7 +1448,7 @@ mode)</string>
            </item>
            <item row="32" column="1">
             <widget class="QPushButton" name="btnSpecularColor">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Tint color for the specular reflection</string>
              </property>
              <property name="text">
@@ -1435,7 +1458,7 @@ mode)</string>
            </item>
            <item row="30" column="1">
             <widget class="QCheckBox" name="wireframeCheck">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Render this material as wireframe</string>
              </property>
              <property name="text">
@@ -1452,7 +1475,7 @@ mode)</string>
            </item>
            <item row="14" column="1">
             <widget class="QDoubleSpinBox" name="iridescenceThicknessMinSpin">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Minimum thin-film thickness for the iridescence effect</string>
              </property>
              <property name="suffix">
@@ -1477,7 +1500,7 @@ mode)</string>
            </item>
            <item row="6" column="1">
             <widget class="QDoubleSpinBox" name="aoSpin">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Ambient occlusion factor</string>
              </property>
              <property name="decimals">
@@ -1499,7 +1522,7 @@ mode)</string>
            </item>
            <item row="10" column="1">
             <widget class="QPushButton" name="btnSheenColor">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Pick the sheen (fabric-like) tint color</string>
              </property>
              <property name="text">
@@ -1516,7 +1539,7 @@ mode)</string>
            </item>
            <item row="11" column="1">
             <widget class="QDoubleSpinBox" name="sheenRoughnessSpin">
-                          <property name="toolTip">
+             <property name="toolTip">
               <string>Roughness of the sheen layer</string>
              </property>
              <property name="decimals">
@@ -1572,8 +1595,8 @@ mode)</string>
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>427</width>
-            <height>2361</height>
+            <width>472</width>
+            <height>2383</height>
            </rect>
           </property>
           <layout class="QGridLayout" name="gridLayout_2">
@@ -1965,7 +1988,7 @@ for this texture</string>
                       </property>
                       <item>
                        <widget class="QLabel" name="lblAlbedoMetaUV">
-                       <property name="font">
+                        <property name="font">
                          <font>
                           <pointsize>7</pointsize>
                          </font>
@@ -1977,7 +2000,7 @@ for this texture</string>
                       </item>
                       <item>
                        <widget class="QLabel" name="lblAlbedoMetaColorSpace">
-                       <property name="font">
+                        <property name="font">
                          <font>
                           <pointsize>7</pointsize>
                          </font>
@@ -1989,7 +2012,7 @@ for this texture</string>
                       </item>
                       <item>
                        <widget class="QLabel" name="lblAlbedoMetaPacking">
-                       <property name="font">
+                        <property name="font">
                          <font>
                           <pointsize>7</pointsize>
                          </font>
@@ -2563,14 +2586,14 @@ for this texture</string>
                     </item>
                     <item>
                      <widget class="QDoubleSpinBox" name="doubleSpinBoxHeightScale">
-                                            <property name="toolTip">
-                       <string>Strength of the height/displacement map</string>
-                      </property>
                       <property name="maximumSize">
                        <size>
                         <width>50</width>
                         <height>16777215</height>
                        </size>
+                      </property>
+                      <property name="toolTip">
+                       <string>Strength of the height/displacement map</string>
                       </property>
                      </widget>
                     </item>
@@ -2926,14 +2949,14 @@ for this texture</string>
                     </item>
                     <item>
                      <widget class="QDoubleSpinBox" name="doubleSpinBoxNormalScale">
-                                            <property name="toolTip">
-                       <string>Strength of the normal map</string>
-                      </property>
                       <property name="maximumSize">
                        <size>
                         <width>50</width>
                         <height>16777215</height>
                        </size>
+                      </property>
+                      <property name="toolTip">
+                       <string>Strength of the normal map</string>
                       </property>
                      </widget>
                     </item>
@@ -3438,14 +3461,14 @@ for this texture</string>
                   </item>
                   <item>
                    <widget class="QDoubleSpinBox" name="doubleSpinBoxClearcoatNormalScale">
-                                        <property name="toolTip">
-                     <string>Strength of the clearcoat's own normal map</string>
-                    </property>
                     <property name="maximumSize">
                      <size>
                       <width>50</width>
                       <height>16777215</height>
                      </size>
+                    </property>
+                    <property name="toolTip">
+                     <string>Strength of the clearcoat's own normal map</string>
                     </property>
                    </widget>
                   </item>
@@ -5264,6 +5287,176 @@ for this texture</string>
               </item>
              </layout>
             </widget>
+           </item>
+          </layout>
+         </widget>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="physicalPropertiesTab">
+      <attribute name="title">
+       <string>Physical Properties</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayout_physicalTab">
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QScrollArea" name="scrollArea_physical">
+         <property name="widgetResizable">
+          <bool>true</bool>
+         </property>
+         <widget class="QWidget" name="scrollContents_physical">
+          <property name="geometry">
+           <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>586</width>
+            <height>200</height>
+           </rect>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_physical">
+           <property name="leftMargin">
+            <number>2</number>
+           </property>
+           <property name="topMargin">
+            <number>2</number>
+           </property>
+           <property name="rightMargin">
+            <number>2</number>
+           </property>
+           <property name="bottomMargin">
+            <number>2</number>
+           </property>
+           <property name="spacing">
+            <number>2</number>
+           </property>
+           <item row="0" column="0" colspan="2">
+            <widget class="QLabel" name="lblPhysicalPropertiesNote">
+             <property name="text">
+              <string>Bulk density feeds Tools -&gt; Mass Properties' weight calculation. Left as Unknown, this material contributes no mass rather than an assumed value. Values pre-filled from the material library are typical/nominal figures for a generic grade - actual density varies by alloy, grade, and treatment, so verify against a real spec sheet before relying on it for an engineering-critical calculation.</string>
+             </property>
+             <property name="wordWrap">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0" colspan="2">
+            <widget class="QCheckBox" name="densityNotApplicableCheck">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Check for thin-film/decorative materials (e.g. clear coat, sheen) where a bulk density is not physically meaningful&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string>Not applicable (thin-film/decorative material)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="lblDensity">
+             <property name="text">
+              <string>Density (kg/m³):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QDoubleSpinBox" name="densitySpin">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Bulk density in kg/m³ - used to compute mass from volume in the Mass Properties dialog. Library-supplied values are typical/nominal for a generic grade, not an exact spec.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="specialValueText">
+              <string>Unknown</string>
+             </property>
+             <property name="decimals">
+              <number>2</number>
+             </property>
+             <property name="minimum">
+              <double>-1.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>25000.000000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>10.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>-1.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QPushButton" name="densityClearButton">
+             <property name="toolTip">
+              <string>Reset density to Unknown</string>
+             </property>
+             <property name="text">
+              <string>Clear (set Unknown)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="lblShellThickness">
+             <property name="text">
+              <string>Shell thickness (mm):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QDoubleSpinBox" name="shellThicknessSpin">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Pseudo thickness in millimetres. Lets Mass Properties treat an open or sheet-like surface of this material (sheet metal, laminates) as area x thickness, instead of reporting it as having no volume. Closed solids ignore it and use their real volume. Leave Unknown to keep open surfaces excluded.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="specialValueText">
+              <string>Unknown</string>
+             </property>
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>0.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>10000.000000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.100000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="1">
+            <widget class="QPushButton" name="shellThicknessClearButton">
+             <property name="toolTip">
+              <string>Reset shell thickness to Unknown</string>
+             </property>
+             <property name="text">
+              <string>Clear (set Unknown)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0" colspan="2">
+            <spacer name="verticalSpacer_physical">
+             <property name="orientation">
+              <enum>Qt::Orientation::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>40</height>
+              </size>
+             </property>
+            </spacer>
            </item>
           </layout>
          </widget>

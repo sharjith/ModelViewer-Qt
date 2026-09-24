@@ -3,6 +3,8 @@
 #include "MainWindow.h"
 #include "ModelViewer.h"
 #include "ModelViewerApplication.h"
+#include "StartupSplash.h"
+#include "ViewportWidget.h"
 #include <iostream>
 #include <QApplication>
 #include <QDebug>
@@ -10,9 +12,11 @@
 #include <QFileInfo>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
+#include <QElapsedTimer>
+#include <QOpenGLWidget>
 #include <QScreen>
-#include <QSplashScreen>
 #include <QStyleFactory>
+#include <QThread>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -61,34 +65,6 @@ int main(int argc, char** argv)
 
 	ModelViewerApplication app(argc, argv);
 
-	QPixmap splashPixmap(":/icons/res/Splashscreen.png");
-	std::unique_ptr<QSplashScreen> splash;
-	auto showSplashMessage = [&](const QString& message) {
-		if (!splash) return;
-		splash->showMessage(message,
-			Qt::AlignBottom | Qt::AlignHCenter,
-			Qt::white);
-		app.processEvents();
-	};
-
-	if (!splashPixmap.isNull())
-	{
-		QScreen* primaryScreen = app.primaryScreen();
-		if (primaryScreen)
-		{
-			const QSize screenSize = primaryScreen->availableGeometry().size();
-			const int maxSplashWidth = std::min(900, static_cast<int>(screenSize.width() * 0.5));
-			if (splashPixmap.width() > maxSplashWidth)
-			{
-				splashPixmap = splashPixmap.scaledToWidth(maxSplashWidth, Qt::SmoothTransformation);
-			}
-		}
-		splash = std::make_unique<QSplashScreen>(splashPixmap);
-		splash->setWindowFlag(Qt::WindowStaysOnTopHint);
-		splash->show();
-		showSplashMessage(QObject::tr("Starting ModelViewer..."));
-	}
-
 #if QT_VERSION_MAJOR == 6
 	// Disable allocation limit for images
 	QImageReader::setAllocationLimit(0);
@@ -100,18 +76,38 @@ int main(int argc, char** argv)
 #endif
 
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-	// Set the language based on settings or system locale
+	// Set the language based on settings or system locale. Done before the splash appears: it is cheap, and it
+	// means every splash message - including the first - is shown in the user's language.
 	QString langCode = settings.value("App/Language").toString();
 	if (langCode.isEmpty())
 	{
 		langCode = QLocale::system().name(); // e.g., "en_US"
 	}
-	// Load the language settings
-	showSplashMessage(QObject::tr("Loading language..."));
 	LanguageManager::instance().loadLanguage(langCode);
 
+	// Splash: opens on the screen the main window will restore to, sharp at that screen's DPI.
+	// StartupSplash::report() (also used from MainWindow's constructor) only repaints it; the explicit
+	// processEvents() below is deliberately limited to main(), where nothing half-built can be re-entered.
+	std::unique_ptr<StartupSplash> splash;
+	const QPixmap splashArtwork(":/icons/res/Splashscreen.png");
+	if (!splashArtwork.isNull())
+	{
+		QScreen* splashScreen = StartupSplash::screenForSavedWindow(settings.value("geometry").toByteArray());
+		splash = std::make_unique<StartupSplash>(StartupSplash::prepareArtwork(splashArtwork, splashScreen), splashScreen);
+		StartupSplash::install(splash.get());
+		splash->show();
+	}
+	auto showStartupStep = [&](const QString& message, int percent) {
+		StartupSplash::report(message, percent);
+		// Everything except user input: keeps queued work (timers, posted calls) flowing while a stray click
+		// or key press can neither dismiss the splash nor reach a half-built main window.
+		if (splash)
+			app.processEvents(QEventLoop::ExcludeUserInputEvents);
+	};
+	showStartupStep(QObject::tr("Starting ModelViewer..."), 3);
+
 	// Initialize logger with optional custom max file size
-	showSplashMessage(QObject::tr("Initializing logging..."));
+	showStartupStep(QObject::tr("Initializing logging..."), 8);
 	Logger::instance().initialize(15 * 1024 * 1024);  // 15 MB per file
 
 	// Set before setConsoleEnabled() below so the panel is created with the
@@ -134,7 +130,7 @@ int main(int argc, char** argv)
 		app.installEventFilter(&tooltipSuppressor);
 	}
 
-	showSplashMessage(QObject::tr("Creating main window..."));
+	showStartupStep(QObject::tr("Creating main window..."), 12);
 	MainWindow* mw = MainWindow::mainWindow();
 	// createMdiChild() constructs the first ViewportWidget, whose
 	// RtOptixSceneTracer member runs cudaFree(0)/optixInit()/device-
@@ -144,9 +140,22 @@ int main(int argc, char** argv)
 	// noticeably longer than everything else in this startup sequence
 	// combined. A more specific message here (vs. the previous generic
 	// "Preparing workspace...") keeps the splash from looking stuck during
-	// that step.
-	showSplashMessage(QObject::tr("Preparing workspace and initializing GPU ray tracing..."));
+	// that step. Only claimed for builds that have OptiX at all, and phrased
+	// as detection: the machine may have no NVIDIA GPU or driver.
+#ifdef MODELVIEWER_HAVE_OPTIX
+	showStartupStep(QObject::tr("Preparing workspace and detecting GPU ray tracing..."), 60);
+#else
+	showStartupStep(QObject::tr("Preparing workspace..."), 60);
+#endif
 	ModelViewer* viewer = mw->createMdiChild();
+	// Watch for the viewport's first drawn frame BEFORE the window is shown (it can't paint earlier), so the
+	// splash can stay up until there is something to see instead of handing over to a blank viewport.
+	bool firstFramePainted = false;
+	QMetaObject::Connection firstFrameConnection;
+	if (splash)
+		firstFrameConnection = QObject::connect(viewer->getViewportWidget(), &QOpenGLWidget::frameSwapped,
+			[&firstFramePainted]() { firstFramePainted = true; });
+	StartupSplash::report(QObject::tr("Starting the viewport..."), 85);
 	mw->showMaximized();
 	// createMdiChild() only adds the viewer to the QMdiArea via
 	// addSubWindow() - unlike on_actionNew_triggered()'s identical setup for
@@ -164,7 +173,17 @@ int main(int argc, char** argv)
 	mw->presentDocumentFullscreen(viewer);
 	if (splash)
 	{
-		showSplashMessage(QObject::tr("Ready"));
+		// Bounded wait: if the viewport never paints (some headless/Wayland setups) the splash must not linger.
+		StartupSplash::report(QObject::tr("Starting the viewport..."), 92);
+		QElapsedTimer waited;
+		waited.start();
+		while (!firstFramePainted && waited.elapsed() < 3000)
+		{
+			app.processEvents(QEventLoop::ExcludeUserInputEvents, 25);
+			QThread::msleep(5);
+		}
+		QObject::disconnect(firstFrameConnection);
+		showStartupStep(QObject::tr("Ready"), 100);
 		splash->finish(mw);
 	}
 

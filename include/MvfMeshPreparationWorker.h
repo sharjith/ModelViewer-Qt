@@ -62,6 +62,18 @@ struct PreparedMvfMesh
 	std::vector<int> occFaceIndexPerTriangle;
 	std::vector<OccFaceAxisInfo> occFaceAxes;
 
+	// Source-mesh provenance for CurvatureAnalyzer's cross-body edge-weld
+	// advisory (see MeshImportAdaptor::sourceMeshIds()'s doc comment) - one
+	// id per SAVE-TIME vertex, in save-time order. Unlike occFaceTriangleIndices
+	// above, no position-based re-derivation is needed: it's handed to this
+	// reload's own SceneMesh constructor, which keeps it correctly aligned
+	// through that construction's own optimizeMesh() reorder like any other
+	// creation path. Empty for the vast majority of meshes.
+	std::vector<quint64> sourceMeshIds;
+
+	// SceneMesh::topologyRepaired() - Repair Mesh's intentional non-manifold vertex split marker.
+	bool topologyRepaired = false;
+
 	// Per-mesh user transform (gizmo TRS) preserved across MVF save/load.
 	QVector3D   meshTranslation  = QVector3D(0.0f, 0.0f, 0.0f);
 	QVector3D   meshRotation     = QVector3D(0.0f, 0.0f, 0.0f);

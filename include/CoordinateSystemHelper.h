@@ -18,8 +18,11 @@ void standardViewBasis(bool cameraUpAxisZUp,
                        ViewMode mode,
                        QVector3D& viewDir,
                        QVector3D& upDir,
-                       QVector3D& rightDir);
-QQuaternion standardViewRotation(bool cameraUpAxisZUp, ViewMode mode);
+                       QVector3D& rightDir,
+                       IsoCorner corner = IsoCorner::SE);
+// `corner` only affects the axonometric modes (isometric, dimetric, trimetric): it turns the view
+// in 90-degree steps about the up axis. Every other mode ignores it.
+QQuaternion standardViewRotation(bool cameraUpAxisZUp, ViewMode mode, IsoCorner corner = IsoCorner::SE);
 
 Plane::Orientation floorPlaneOrientation(bool cameraUpAxisZUp);
 QVector3D currentWorldUpVector(bool cameraUpAxisZUp);

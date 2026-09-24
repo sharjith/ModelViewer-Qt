@@ -77,7 +77,26 @@ public:
     void setZoomInLimit(float limit)                     { _zoomInLimit = limit; }
 
     ViewProjection projection() const                    { return _projection; }
-    void setProjection(ViewProjection projection)        { _projection = projection; }
+    // Any explicit projection assignment resets the oblique flavour, so a caller that restores plain
+    // ORTHOGRAPHIC/PERSPECTIVE (a glTF camera, leaving fly mode, ...) never leaves a stale shear behind.
+    // Oblique modes are applied afterwards through setObliqueMode().
+    void setProjection(ViewProjection projection)
+    {
+        _projection = projection;
+        _obliqueMode = ObliqueMode::NONE;
+        if (projection == ViewProjection::ORTHOGRAPHIC)
+            _lastParallelOblique = ObliqueMode::NONE;
+    }
+    ObliqueMode obliqueMode() const                      { return _obliqueMode; }
+    void setObliqueMode(ObliqueMode mode)
+    {
+        _obliqueMode = mode;
+        if (mode != ObliqueMode::NONE)
+            _lastParallelOblique = mode;
+    }
+    // The parallel projection (plain orthographic, Cavalier or Cabinet) used last: what a click on the
+    // projection button returns to from Perspective.
+    ObliqueMode lastParallelOblique() const              { return _lastParallelOblique; }
 
     Camera::ProjectionType previousProjection() const  { return _previousProjection; }
     void setPreviousProjection(Camera::ProjectionType projection)
@@ -87,6 +106,13 @@ public:
 
     ViewMode viewMode() const                            { return _viewMode; }
     void setViewMode(ViewMode mode)                      { _viewMode = mode; }
+    // Compass corner of the axonometric views and the last axonometric type chosen. Both persist while
+    // the view is not axonometric (a standard view, a free orbit), so choosing a corner or a type later
+    // combines it with whatever was picked last; defaults are the SE isometric.
+    IsoCorner isoCorner() const                          { return _isoCorner; }
+    void setIsoCorner(IsoCorner corner)                  { _isoCorner = corner; }
+    ViewMode lastAxonometricMode() const                 { return _lastAxonometricMode; }
+    void setLastAxonometricMode(ViewMode mode)           { _lastAxonometricMode = mode; }
 
     const QVector3D& currentTranslation() const          { return _currentTranslation; }
     void setCurrentTranslation(const QVector3D& translation)
@@ -143,10 +169,10 @@ public:
     const BoundingBox& boundingBox() const               { return _boundingBox; }
     void setBoundingBox(const BoundingBox& box)          { _boundingBox = box; }
     void expandBoundingBox(const BoundingBox& box)       { _boundingBox.addBox(box); }
-    void setBoundingBoxLimits(double xmin, double ymin, double zmin,
-                              double xmax, double ymax, double zmax)
+    void setBoundingBoxLimits(double xmin, double xmax, double ymin,
+                              double ymax, double zmin, double zmax)
     {
-        _boundingBox.setLimits(xmin, ymin, zmin, xmax, ymax, zmax);
+        _boundingBox.setLimits(xmin, xmax, ymin, ymax, zmin, zmax);
     }
 
     float visibleHighestZ() const                        { return _visibleHighestZ; }
@@ -206,6 +232,14 @@ public:
 
     bool shiftDragActive() const                         { return _shiftDragActive; }
     void setShiftDragActive(bool active)                 { _shiftDragActive = active; }
+
+    // Same press-time latch idiom as shiftDragActive() above, for the
+    // Alt+Shift Subtract-mode combo (see ViewportWidget::mouseReleaseEvent's
+    // sweep/lasso branches) - covers the case where the user releases Alt or
+    // Shift before releasing the mouse button.
+    bool altShiftDragActive() const                      { return _altShiftDragActive; }
+    void setAltShiftDragActive(bool active)               { _altShiftDragActive = active; }
+
     const QPoint& sweepStartPoint() const                { return _sweepStartPoint; }
     void setSweepStartPoint(const QPoint& point)         { _sweepStartPoint = point; }
 
@@ -392,7 +426,11 @@ private:
 
     // ---- View mode ---------------------------------------------------------
     ViewMode     _viewMode                   = ViewMode::NONE;
+    IsoCorner    _isoCorner                  = IsoCorner::SE;
+    ViewMode     _lastAxonometricMode        = ViewMode::ISOMETRIC;
     ViewProjection _projection               = ViewProjection::PERSPECTIVE;
+    ObliqueMode _obliqueMode                 = ObliqueMode::NONE;
+    ObliqueMode _lastParallelOblique         = ObliqueMode::NONE;
     Camera::ProjectionType _previousProjection = Camera::ProjectionType::PERSPECTIVE;
     bool         _multiViewActive            = false;
     int          _viewCubeHoveredRegionId    = -1;
@@ -443,6 +481,7 @@ private:
     float     _rubberBandRadius          = 0.0f;
     QVector3D _rubberBandCenter;
     bool      _shiftDragActive           = false;
+    bool      _altShiftDragActive        = false;
     QPoint    _sweepStartPoint;
 
     // ---- Transform-gizmo drag state ----------------------------------------

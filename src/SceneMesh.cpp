@@ -277,7 +277,7 @@ bool SceneMesh::_currentUniformStateHadDebugOverrides = false;
 
 /*  Functions  */
 // Constructor
-SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<Material::Texture> textures, Material material, bool skipOptimization, GLenum primitiveMode)
+SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<Material::Texture> textures, Material material, bool skipOptimization, GLenum primitiveMode, std::vector<quint64> initialSourceMeshIds)
     : RenderableMesh(shader, "SceneMesh")
     , _textures(_materialState.textures())
     , _currentMorphWeights(_animState.currentMorphWeights())
@@ -285,6 +285,13 @@ SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> 
 	_currentBlendEnabled = false;
 	_currentFrontFace = GL_CCW;
 	_importState.setSkipOptimization(skipOptimization);
+	// Stored before optimizeMesh() below runs so its vertex-fetch reorder can
+	// permute this array in lockstep with _vertices - see
+	// MeshImportAdaptor::sourceMeshIds()'s doc comment. Defensive size check:
+	// a mismatched array (a caller bug) is treated as absent rather than
+	// silently misaligned with the vertices it's supposed to tag.
+	if (!initialSourceMeshIds.empty() && initialSourceMeshIds.size() == vertices.size())
+		_importState.setSourceMeshIds(std::move(initialSourceMeshIds));
 	//setAutoIncrName(name);
 	_name = name;
 	_vertices = vertices;
@@ -326,7 +333,35 @@ SceneMesh::~SceneMesh()
 
 SceneMesh* SceneMesh::clone()
 {
-	SceneMesh* mesh = new SceneMesh(_prog, _name, _baseVertices, _indices, _textures, _material, _importState.skipOptimization(), getPrimitiveMode());
+	// _baseVertices is exactly the array passed into the new constructor
+	// below, so this mesh's OWN current sourceMeshIds() (already aligned to
+	// _baseVertices' order, same invariant clone() relies on for OCC face
+	// data) is the right "pre-optimization" SHAPE for the clone too - its own
+	// optimizeMesh() pass reorders it again in lockstep, same as any other
+	// freshly-constructed mesh. The VALUES, though, must NOT be copied
+	// verbatim: a clone is its own distinct scene entity, and reusing the
+	// parent's literal ids would make a later merge of the clone against its
+	// own parent (or against another clone of it) wrongly treat their
+	// touching vertices as "the same body" (same id => no cross-body
+	// advisory), even though they are genuinely two separate mesh objects in
+	// the scene. Each distinct id present in the parent's array is rekeyed
+	// to a fresh, globally-unique one here, preserving the INTERNAL grouping
+	// (a parent merged from N parts still clones as N distinct groups) while
+	// guaranteeing the clone's ids never collide with the parent's. Empty
+	// for the common (never-merged) case - the loop below is then a no-op.
+	std::vector<quint64> clonedSourceIds = _importState.sourceMeshIds();
+	if (!clonedSourceIds.empty())
+	{
+		std::unordered_map<quint64, quint64> idRekey;
+		for (quint64& id : clonedSourceIds)
+		{
+			auto it = idRekey.find(id);
+			if (it == idRekey.end())
+				it = idRekey.emplace(id, MeshImportAdaptor::nextSourceMeshId()).first;
+			id = it->second;
+		}
+	}
+	SceneMesh* mesh = new SceneMesh(_prog, _name, _baseVertices, _indices, _textures, _material, _importState.skipOptimization(), getPrimitiveMode(), std::move(clonedSourceIds));
 	mesh->setMorphTargets(_morphTargets, _defaultMorphWeights);
 	if (!_currentMorphWeights.isEmpty())
 		mesh->applyMorphWeights(_currentMorphWeights);
@@ -357,6 +392,7 @@ SceneMesh* SceneMesh::clone()
 	mesh->setSourceFile(getSourceFile());
 	mesh->setSourceNodeName(getSourceNodeName());
 	mesh->setSkinJoints(skinJoints());
+	mesh->setTopologyRepaired(_topologyRepaired);
 
 	// Copy material variant tables.
 	mesh->setVariantMappings(variantMappings());
@@ -457,6 +493,15 @@ SceneMesh* SceneMesh::mergeMeshes(const QVector<SceneMesh*>& meshes, const QStri
 
 	std::vector<Vertex> mergedVertices;
 	std::vector<unsigned int> mergedIndices;
+	// One entry per mergedVertices entry, tagging which INPUT it came from -
+	// see MeshImportAdaptor::sourceMeshIds()'s doc comment and project memory
+	// project_curvature_edge_welding_provenance_design.md. An input that
+	// already carries its own per-vertex ids (e.g. it's itself an earlier
+	// merge result) contributes those forward unchanged, correctly preserving
+	// finer-grained distinctions from a nested merge; an input with no ids of
+	// its own (the common case) is treated as one whole body and given ONE
+	// freshly-minted id for all of its vertices.
+	std::vector<quint64> mergedSourceIds;
 
 	for (SceneMesh* mesh : meshes)
 	{
@@ -474,10 +519,13 @@ SceneMesh* SceneMesh::mergeMeshes(const QVector<SceneMesh*>& meshes, const QStri
 		const std::vector<float>& bit = mesh->getTrsfBitangents();
 		const std::vector<Vertex> srcVertices = mesh->vertices();
 		const std::vector<unsigned int> srcIndices = mesh->indices();
+		const std::vector<quint64>& srcSourceIds = mesh->getSourceMeshIds();
+		const quint64 wholeMeshId = srcSourceIds.empty() ? MeshImportAdaptor::nextSourceMeshId() : 0;
 
 		const unsigned int vertexOffset = static_cast<unsigned int>(mergedVertices.size());
 		const size_t nVerts = srcVertices.size();
 		mergedVertices.reserve(mergedVertices.size() + nVerts);
+		mergedSourceIds.reserve(mergedSourceIds.size() + nVerts);
 
 		for (size_t i = 0; i < nVerts; ++i)
 		{
@@ -495,6 +543,7 @@ SceneMesh* SceneMesh::mergeMeshes(const QVector<SceneMesh*>& meshes, const QStri
 			if (base + 2 < bit.size())
 				v.Bitangent = glm::vec3(bit[base], bit[base + 1], bit[base + 2]);
 			mergedVertices.push_back(v);
+			mergedSourceIds.push_back(srcSourceIds.empty() ? wholeMeshId : srcSourceIds[i]);
 		}
 
 		mergedIndices.reserve(mergedIndices.size() + srcIndices.size());
@@ -505,7 +554,8 @@ SceneMesh* SceneMesh::mergeMeshes(const QVector<SceneMesh*>& meshes, const QStri
 	SceneMesh* first = meshes.first();
 	SceneMesh* mesh = new SceneMesh(first->_prog, mergedName, mergedVertices, mergedIndices,
 	                                 first->_textures, first->_material,
-	                                 first->_importState.skipOptimization(), first->getPrimitiveMode());
+	                                 first->_importState.skipOptimization(), first->getPrimitiveMode(),
+	                                 std::move(mergedSourceIds));
 
 	// Import provenance from the (already confirmed materially-compatible)
 	// first input - same set extractFragment() copies.
@@ -688,7 +738,7 @@ void logBooleanUnionMeshStats(const char* label, const Mesh& m)
 } // namespace
 
 SceneMesh* SceneMesh::booleanUnionMeshes(const QVector<SceneMesh*>& meshes, const QString& mergedName,
-                                          bool* outUsedRealUnion)
+                                          bool* outUsedRealUnion, bool allowMergeFallback)
 {
 	if (outUsedRealUnion)
 		*outUsedRealUnion = false;
@@ -699,7 +749,12 @@ SceneMesh* SceneMesh::booleanUnionMeshes(const QVector<SceneMesh*>& meshes, cons
 	// Single fallback exit point so every one of this function's several
 	// "abandon the real union, use plain concatenation instead" returns
 	// correctly reports that choice to the caller via outUsedRealUnion.
-	auto fallback = [&]() { return mergeMeshes(meshes, mergedName); };
+	// allowMergeFallback=false turns every one of those same exit points into
+	// a plain "return nullptr" instead - see this function's own header doc
+	// comment for why (ModelViewer::unionSelectedMeshes() uses this to ask
+	// the user first, rather than silently combining differently from what
+	// they asked for).
+	auto fallback = [&]() -> SceneMesh* { return allowMergeFallback ? mergeMeshes(meshes, mergedName) : nullptr; };
 
 	if (meshes.size() < 2 || !meshes[0])
 		return fallback();
@@ -1232,57 +1287,82 @@ void SceneMesh::render()
 	constexpr GLboolean prevDepthMask = GL_TRUE;
 	if (isTransparent() && needsDepthMaskOff()) glDepthMask(GL_FALSE);
 
-	_vertexArrayObject.bind();
-
-	// Adjust vertex count based on primitive mode
-	GLsizei drawCount = _nVerts;
-
-	// For point rendering, use point size
-	if (_primitiveMode == GL_POINTS)
+	// Surface Analysis overlay (draft-angle-style flat colormap) - REPLACES
+	// the normal draw entirely, not an extra pass (same surface/depth, would
+	// just z-fight; the overlay is meant to override normal appearance).
+	// This duplicates RenderableMesh::render()'s own copy of this branch
+	// because SceneMesh::render() (this function) is this app's actual
+	// per-frame draw call for every loaded mesh - every real call site in
+	// ViewportWidget.cpp holds a SceneMesh*, and this function's own
+	// declaration in SceneMesh.h hides RenderableMesh::render() via normal
+	// C++ name lookup, so the base class version (and its own flat-overlay
+	// branch) is never reached for a live SceneMesh no matter how correctly
+	// the overlay's data/attributes were uploaded and bound elsewhere.
+	if (_hasAnalysisFlatOverlay && _analysisFlatVAO.isCreated())
 	{
-		glEnable(GL_PROGRAM_POINT_SIZE);
-		glPointSize(3.0f);
-	}
-
-	// For line rendering, use line width
-	if (_primitiveMode == GL_LINES || _primitiveMode == GL_LINE_STRIP || _primitiveMode == GL_LINE_LOOP)
-	{
-		glLineWidth(1.5f);
-	}
-
-	// Draw indexed primitives when an element buffer exists, otherwise fall
-	// back to array drawing for glTF point/line primitives that omit indices.
-	if (profiling)
-		stageTimer.restart();
-	if (_indices.empty())
-	{
-		glDrawArrays(_primitiveMode, 0, drawCount);
+		if (profiling)
+			stageTimer.restart();
+		_analysisFlatVAO.bind();
+		glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(_analysisFlatVertexCount));
+		_analysisFlatVAO.release();
+		recordDrawCall(false, isTransparent());
+		if (profiling)
+			recordDrawCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
 	}
 	else
 	{
-		// Interaction-time LOD: _hasLod1 is only ever true for eligible rigid
-		// triangle meshes (see optimizeMesh()'s eligibility gate), so no extra
-		// primitive-mode check is needed here - explicit EBO rebind rather
-		// than relying on residual VAO state, since the same VAO is reused
-		// across frames for both tiers.
-		const bool drawLod1 = _hasLod1 && RenderableMesh::lodPolicyActive();
-		if (drawLod1)
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _lodIndexBuffer.bufferId());
-		else
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _indexBuffer.bufferId());
-		glDrawElements(_primitiveMode, drawLod1 ? static_cast<GLsizei>(_nVertsLod1) : drawCount, GL_UNSIGNED_INT, nullptr);
-	}
-	recordDrawCall(!_indices.empty(), isTransparent());
-	if (profiling)
-		recordDrawCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
-	
-	// Reset point size
-	if (_primitiveMode == GL_POINTS)
-	{
-		glDisable(GL_PROGRAM_POINT_SIZE);
-	}
+		_vertexArrayObject.bind();
 
-	_vertexArrayObject.release();
+		// Adjust vertex count based on primitive mode
+		GLsizei drawCount = _nVerts;
+
+		// For point rendering, use point size
+		if (_primitiveMode == GL_POINTS)
+		{
+			glEnable(GL_PROGRAM_POINT_SIZE);
+			glPointSize(3.0f);
+		}
+
+		// For line rendering, use line width
+		if (_primitiveMode == GL_LINES || _primitiveMode == GL_LINE_STRIP || _primitiveMode == GL_LINE_LOOP)
+		{
+			glLineWidth(1.5f);
+		}
+
+		// Draw indexed primitives when an element buffer exists, otherwise fall
+		// back to array drawing for glTF point/line primitives that omit indices.
+		if (profiling)
+			stageTimer.restart();
+		if (_indices.empty())
+		{
+			glDrawArrays(_primitiveMode, 0, drawCount);
+		}
+		else
+		{
+			// Interaction-time LOD: _hasLod1 is only ever true for eligible rigid
+			// triangle meshes (see optimizeMesh()'s eligibility gate), so no extra
+			// primitive-mode check is needed here - explicit EBO rebind rather
+			// than relying on residual VAO state, since the same VAO is reused
+			// across frames for both tiers.
+			const bool drawLod1 = _hasLod1 && RenderableMesh::lodPolicyActive();
+			if (drawLod1)
+				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _lodIndexBuffer.bufferId());
+			else
+				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _indexBuffer.bufferId());
+			glDrawElements(_primitiveMode, drawLod1 ? static_cast<GLsizei>(_nVertsLod1) : drawCount, GL_UNSIGNED_INT, nullptr);
+		}
+		recordDrawCall(!_indices.empty(), isTransparent());
+		if (profiling)
+			recordDrawCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
+
+		// Reset point size
+		if (_primitiveMode == GL_POINTS)
+		{
+			glDisable(GL_PROGRAM_POINT_SIZE);
+		}
+
+		_vertexArrayObject.release();
+	}
 
 	if (isTransparent()) glDepthMask(prevDepthMask); // restore immediately
 	if (profiling)
@@ -1681,6 +1761,23 @@ void SceneMesh::optimizeMesh()
 		// clone() can safely pass _baseVertices + _indices to a new constructor
 		// without index/vertex order mismatch.
 		_baseVertices = _vertices;
+
+		// Same reorder applied to source-mesh provenance (if any was passed
+		// into the constructor) - exact same `remap` permutation as _vertices
+		// above, so getSourceMeshIds()[i] stays aligned with vertices()[i]
+		// after this reorder. No orphan-slot special-casing needed: remap[]
+		// already has a valid destination for every ORIGINAL vertex index
+		// (assigned either by meshopt or the orphan-slot loop above), and
+		// _sourceMeshIds is exactly vertexCount long (constructor guarantees
+		// this or leaves it empty) - see MeshImportAdaptor::sourceMeshIds().
+		if (_importState.hasSourceMeshIds())
+		{
+			const std::vector<quint64>& srcIds = _importState.sourceMeshIds();
+			std::vector<quint64> remappedIds(vertexCount, 0);
+			for (size_t i = 0; i < vertexCount; ++i)
+				remappedIds[remap[i]] = srcIds[i];
+			_importState.setSourceMeshIds(std::move(remappedIds));
+		}
 
 		// Morph target position/normal/tangent deltas (MorphTargetData) are
 		// separate parallel arrays indexed the same way as _vertices, NOT
@@ -2654,6 +2751,10 @@ SceneMesh* SceneMesh::repairMesh(SceneMesh* mesh, const QString& newName, MeshRe
 	result->setSceneRenderTransformFast(QMatrix4x4());
 
 	result->fullUpdateRuntimeBounds();
+
+	// Repair split non-manifold vertices - mark it so strict analysis tools know those coincident
+	// vertices are intentional (see SceneMesh::topologyRepaired()).
+	result->setTopologyRepaired(report.nonManifoldVerticesFixed > 0);
 
 	return result;
 }
@@ -4057,6 +4158,40 @@ void SceneMesh::setMeshData(const std::vector<Vertex>& vertices,
 			remapDeltas(morphTarget.normalDeltas);
 			remapDeltas(morphTarget.tangentDeltas);
 		}
+	}
+
+	// Source-mesh provenance (see MeshImportAdaptor::sourceMeshIds()'s doc
+	// comment) is keyed to THIS mesh's vertex array exactly like morph target
+	// deltas above, and this function can replace that array wholesale (e.g.
+	// UVGenerator/SetMeshUVsCommand splitting vertices at a seam) - so it
+	// needs the exact same remap-or-drop treatment, not silent staleness.
+	// sourceVertexMap[i] = the OLD index the NEW vertex i came from, same
+	// convention remapDeltas() above already relies on.
+	std::vector<quint64> remappedSourceIds;
+	if (_importState.hasSourceMeshIds())
+	{
+		if (sourceVertexMap && sourceVertexMap->size() == vertices.size())
+		{
+			const std::vector<quint64>& oldIds = _importState.sourceMeshIds();
+			remappedSourceIds.resize(vertices.size(), 0);
+			for (size_t i = 0; i < sourceVertexMap->size(); ++i)
+			{
+				const unsigned int sourceIndex = (*sourceVertexMap)[i];
+				if (sourceIndex >= oldIds.size())
+				{
+					// Can't reliably remap - drop rather than risk a stale/
+					// misaligned array silently surviving.
+					remappedSourceIds.clear();
+					break;
+				}
+				remappedSourceIds[i] = oldIds[sourceIndex];
+			}
+		}
+		// No usable sourceVertexMap (null, or size doesn't match the NEW
+		// vertex count): there is no way to know which new vertex came from
+		// which old one, so the old array is simply dropped (left empty)
+		// rather than kept misaligned with the new vertices() order.
+		_importState.setSourceMeshIds(std::move(remappedSourceIds));
 	}
 
 	_vertices = vertices;

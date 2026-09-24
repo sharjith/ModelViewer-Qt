@@ -5,6 +5,7 @@
 #include "RenderableMesh.h"
 
 #include <QApplication>
+#include <QContextMenuEvent>
 #include <QElapsedTimer>
 #include <QHeaderView>
 #include <QKeyEvent>
@@ -75,7 +76,16 @@ static const TreeIcons& treeIcons()
 class PlusMinusStyle : public QProxyStyle
 {
 public:
-    using QProxyStyle::QProxyStyle;
+    // Constructed once per SceneTreeWidget instance (see the constructor's
+    // setStyle(new PlusMinusStyle(style(), this))) and never shared with any other widget, so
+    // _owner is always the one tree this style belongs to - a reliable source for
+    // "detachedOverlayMode" independent of whatever `w` a given drawPrimitive() call happens to
+    // pass in. That matters because it's not always the tree itself or its viewport(): some Qt
+    // internal calls (QTreeView::drawRow()'s separate "current row" focus-rect draw - see the
+    // PE_FrameFocusRect case below) call style()->drawPrimitive() with NO widget argument at
+    // all (defaults to nullptr), so a `w && w->property(...)` check silently never suppresses
+    // that specific call no matter what `w` would have said had it been passed.
+    explicit PlusMinusStyle(QStyle* base, QWidget* owner) : QProxyStyle(base), _owner(owner) {}
 
     void drawPrimitive(PrimitiveElement    pe,
                        const QStyleOption* opt,
@@ -111,8 +121,39 @@ public:
             p->restore();
             return;
         }
+
+        // The scrollbars are transparent hover-to-reveal strips, so the small square where the
+        // horizontal and vertical ones meet must not paint either - QAbstractScrollArea draws it
+        // with this primitive on the tree itself, and it otherwise shows as a lone box.
+        if (pe == PE_PanelScrollAreaCorner)
+            return;
+
+        const bool ownerIsDetachedOverlay =
+            _owner && _owner->property("detachedOverlayMode").toBool();
+
+        // QTreeView::drawRow() paints the branch/indentation area's background via THIS
+        // primitive directly - entirely outside the item delegate, with State_Selected still
+        // set for that first call (see its own comment: "background of the branch (in selected
+        // state...) is now delegated to the style using PE_PanelItemViewRow") - which is exactly
+        // where a lingering native selection tint kept showing up even after
+        // OverlayTreeItemDelegate::paint() was drawing its own narrower, theme-independent
+        // highlight for the item's own content column. Suppress it entirely for the overlay
+        // tree: every bit of highlighting there is now hand-drawn by the delegate on purpose,
+        // so nothing else should paint a row-level background at all.
+        if (pe == PE_PanelItemViewRow && ownerIsDetachedOverlay)
+            return;
+
+        // (The native "current item" focus rect is handled differently - not here. See
+        // OverlayTreeItemDelegate::paint()'s State_HasFocus stripping: two earlier attempts at
+        // suppressing it from this class instead, via a PE_FrameFocusRect case here, each turned
+        // out to target the wrong call site. Clearing the state flag at its source is simpler
+        // and doesn't depend on which style instance ends up handling the draw.)
+
         QProxyStyle::drawPrimitive(pe, opt, p, w);
     }
+
+private:
+    QWidget* _owner = nullptr;
 };
 
 class OverlayTreeItemDelegate : public QStyledItemDelegate
@@ -140,6 +181,53 @@ public:
             opt.palette.setColor(QPalette::WindowText, detachedTextColor);
             opt.palette.setColor(QPalette::ButtonText, detachedTextColor);
             opt.palette.setColor(QPalette::HighlightedText, detachedHighlightTextColor);
+
+            // Strip State_HasFocus here, at the SOURCE, rather than trying to suppress whatever
+            // native primitive/control ends up drawing the focus rect downstream - two attempts
+            // at the latter (checking a widget property in PlusMinusStyle::drawPrimitive(), via
+            // both the `w` parameter and a stored owner pointer) each targeted a real but
+            // ultimately wrong call site (CE_ItemViewItem's own focus frame; then a
+            // QTreeView::drawRow() code path that turned out to require allColumnsShowFocus,
+            // which is false here and never enabled anywhere in this codebase - so it was never
+            // actually firing). QCommonStyle::drawControl(CE_ItemViewItem)'s focus-rect block is
+            // gated purely on state flags IN THE OPTION ITSELF, regardless of which style
+            // instance ends up handling it - clearing the flag here means nothing downstream can
+            // draw it no matter which widget/style/proxy path Qt happens to route through.
+            opt.state &= ~QStyle::State_HasFocus;
+        }
+
+        // Draw the selected/hover background OURSELVES, sized to the item's own natural content
+        // width, then strip State_Selected/State_MouseOver before delegating the rest of the
+        // painting (icon/text/checkbox) to the native style. Three earlier attempts relying on
+        // the native/CSS-driven CE_ItemViewItem background painting (a painter clip, then
+        // shrinking opt.rect, then measuring with a state-neutral option) each fixed one
+        // mechanism but never actually got a visible highlight back - state-dependent
+        // sizeFromContents(), render-rule caching, and clip-region re-intersection inside
+        // QStyleSheetStyle all interact in ways that proved unpredictable across this app's
+        // several bundled QSS themes. Drawing a simple, theme-independent, always-correct
+        // highlight directly - matching the same adaptive-contrast approach already used below
+        // for the checkbox indicator - sidesteps all of that instead of continuing to fight it.
+        if (detachedOverlay && (opt.state & (QStyle::State_Selected | QStyle::State_MouseOver)))
+        {
+            QStyleOptionViewItem neutralOpt(opt);
+            neutralOpt.state &= ~(QStyle::State_Selected | QStyle::State_MouseOver);
+            const int naturalWidth = sizeHint(neutralOpt, index).width();
+
+            QRect highlightRect = opt.rect;
+            highlightRect.setWidth(qMin(highlightRect.width(), naturalWidth));
+            if (highlightRect.width() > 0 && highlightRect.height() > 0)
+            {
+                const bool isSelected = (opt.state & QStyle::State_Selected) != 0;
+                QColor fill = lightText ? QColor(255, 255, 255) : QColor(0, 0, 0);
+                fill.setAlpha(isSelected ? 95 : 55);
+                painter->save();
+                painter->setPen(Qt::NoPen);
+                painter->setBrush(fill);
+                painter->drawRect(highlightRect);
+                painter->restore();
+            }
+
+            opt.state &= ~(QStyle::State_Selected | QStyle::State_MouseOver);
         }
 
         if (!detachedOverlay || !(opt.features & QStyleOptionViewItem::HasCheckIndicator))
@@ -198,6 +286,39 @@ public:
     }
 };
 
+// Thin, semi-transparent, hover-to-reveal scrollbars - kept as its own string (shared by both
+// QScrollBar instances) rather than inlined per call site. Applied directly to
+// horizontalScrollBar()/verticalScrollBar() in the constructor, NOT via setStyleSheet() on the
+// tree itself - see that call site's own doc comment for why (shadows the active theme's
+// QTreeView::item:selected/:hover rules for this widget otherwise).
+// The strip is the wheel-capture hit area too (see eventFilter()), so it is wide enough to hover
+// and grab comfortably without slipping onto the tree body, where the wheel zooms the viewport.
+static constexpr int kScrollbarThickness = 14;
+
+static QString scrollbarOverlayStyleSheet()
+{
+    return QStringLiteral(
+        "QScrollBar:vertical { background: transparent; width: %1px; margin: 0px; }"
+        "QScrollBar::handle:vertical { background: rgba(128,128,128,0); border-radius: %2px; min-height: 32px; }"
+        // Lighter fill + a darker outline (not just a higher-alpha mid-gray) so the handle reads
+        // against both light and dark viewport backgrounds - a flat mid-gray fill alone stays
+        // low-contrast against a dark/near-black scene almost regardless of alpha, since it's
+        // blending toward a backdrop that's already close to its own tone.
+        "QScrollBar[hovered=\"true\"]::handle:vertical { background: rgba(200,200,200,235); border: 1px solid rgba(40,40,40,190); }"
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; background: transparent; }"
+        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }"
+        "QScrollBar:horizontal { background: transparent; height: %1px; margin: 0px; }"
+        "QScrollBar::handle:horizontal { background: rgba(128,128,128,0); border-radius: %2px; min-width: 32px; }"
+        // Same light-fill + dark-outline treatment as the vertical handle above, for the same
+        // reason - contrast against whatever's locally behind it, not just a translucent
+        // mid-gray that only reads well over a light backdrop.
+        "QScrollBar[hovered=\"true\"]::handle:horizontal { background: rgba(200,200,200,235); border: 1px solid rgba(40,40,40,190); }"
+        "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0px; background: transparent; }"
+        "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }")
+        .arg(kScrollbarThickness)
+        .arg(kScrollbarThickness / 2 - 1);
+}
+
 // ---------------------------------------------------------------------------
 // SceneTreeWidget
 // ---------------------------------------------------------------------------
@@ -218,14 +339,56 @@ SceneTreeWidget::SceneTreeWidget(QWidget* parent)
     header()->setStretchLastSection(false);
     header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     setSelectionMode(QAbstractItemView::ExtendedSelection);
-    setContextMenuPolicy(Qt::CustomContextMenu);
+    // DefaultContextMenu (not CustomContextMenu) so contextMenuEvent() below sees every
+    // request first and can hit-test it - see that override's doc comment (header) for why.
+    setContextMenuPolicy(Qt::DefaultContextMenu);
     setEditTriggers(QAbstractItemView::DoubleClicked
                   | QAbstractItemView::EditKeyPressed);
     setAnimated(true);
     setRootIsDecorated(true);
     setUniformRowHeights(true);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    setStyle(new PlusMinusStyle(style()));              
+
+    // Passive hover (mouse moved with no button held) only generates QEvent::MouseMove - and
+    // therefore only reaches mouseMoveEvent() below - when the receiving widget has mouse
+    // tracking enabled; without it, a plain hover over this tree's background never fired
+    // mouseMoveEvent() at all, silently no-op'ing its forward-to-viewport logic. This is
+    // independent of the ITEM hover highlight (QEvent::HoverMove, driven by Qt::WA_Hover, which
+    // QAbstractItemView already enables unconditionally for :hover styling) - tracking only
+    // affects plain mouse-move delivery.
+    viewport()->setMouseTracking(true);
+
+    // Thin, semi-transparent, hover-to-reveal scrollbars so a long/wide tree doesn't read as
+    // opaque widget chrome sitting on top of the viewer - the handle is invisible (alpha 0)
+    // until the mouse enters the scrollbar's own strip (full track width/height, not just the
+    // handle itself - see eventFilter()'s Enter/Leave handling below), matching the same
+    // "transparent overlay" feel the rest of the tree's background already has. Applied directly
+    // to each QScrollBar instance, NOT via setStyleSheet() on the tree itself - the latter would
+    // give this widget its own non-empty style sheet, which shadows the active theme's app-level
+    // QTreeView::item:selected/:hover rules for THIS widget (Qt merges ancestor stylesheets, but
+    // in practice a widget-level sheet reliably wins for its OWN selector resolution even for
+    // rules it doesn't repeat - confirmed by this exact regression: selection/hover fill went
+    // fully transparent the moment a tree-level stylesheet existed at all). Styling the
+    // scrollbars directly can't shadow anything - they're leaf widgets with nothing of their own
+    // competing for the same selectors.
+    horizontalScrollBar()->setStyleSheet(scrollbarOverlayStyleSheet());
+    verticalScrollBar()->setStyleSheet(scrollbarOverlayStyleSheet());
+    horizontalScrollBar()->installEventFilter(this);
+    verticalScrollBar()->installEventFilter(this);
+
+    setStyle(new PlusMinusStyle(style(), this));
+    // QWidget::style() has no parent-chain fallback (checks only its own extra->style, else
+    // QApplication::style() directly - confirmed in Qt6 source) - viewport() is a SEPARATE
+    // widget from the outer QTreeWidget the line above set this style on, so without this it
+    // silently falls back to the plain app-level style. That mattered here: item painting
+    // (QStyledItemDelegate::paint() -> style->drawControl(CE_ItemViewItem, ...)) resolves style
+    // via option.widget, which Qt sets to viewport() - so the PE_FrameFocusRect suppression
+    // above was structurally unreachable for that call despite matching PE_PanelItemViewRow's
+    // own suppression exactly, because THAT one runs via QTreeView::drawRow()'s plain style()
+    // call on the outer widget instead. style() (not a fresh PlusMinusStyle) reuses the exact
+    // object just constructed above, including the QStyleSheetStyle wrapper setStyle() may have
+    // added around it for the active app-level theme - see QWidget::setStyle()'s own handling.
+    viewport()->setStyle(style());
     setItemDelegate(new OverlayTreeItemDelegate(this));
     setProperty("detachedOverlayMode", false);
     viewport()->setProperty("detachedOverlayMode", false);
@@ -237,6 +400,13 @@ SceneTreeWidget::SceneTreeWidget(QWidget* parent)
     // --- selection changed ---------------------------------------------------
     connect(this, &QTreeWidget::itemSelectionChanged,
             this, &SceneTreeWidget::onItemSelectionChanged);
+
+    // --- explicit assembly click tracking -------------------------------------
+    // See onItemClicked()'s own doc comment for why this (not
+    // onItemSelectionChanged()'s added/removed delta) is the signal used to
+    // SET _explicitlySelectedAssemblyUuids.
+    connect(this, &QTreeWidget::itemClicked,
+            this, &SceneTreeWidget::onItemClicked);
 
     // --- rename detection via delegate close-editor --------------------------
     connect(itemDelegate(), &QAbstractItemDelegate::commitData,
@@ -366,6 +536,10 @@ void SceneTreeWidget::setSelectionByUuids(const QSet<QUuid>& uuids)
     _prevSelection.clear();
     for (QTreeWidgetItem* it : selectedItems())
         _prevSelection.insert(it);
+    // Bulk selection set by mesh identity, not a deliberate single-assembly
+    // click - any resulting assembly selection is a fresh closure, never
+    // explicit (see onItemClicked()'s own doc comment).
+    _explicitlySelectedAssemblyUuids.clear();
 
     _updatingTree = false;
 
@@ -403,6 +577,7 @@ void SceneTreeWidget::clearMeshSelection()
     _prevSelection.clear();
     for (QTreeWidgetItem* it : selectedItems())
         _prevSelection.insert(it);
+    _explicitlySelectedAssemblyUuids.clear();
 
     _updatingTree = false;
 }
@@ -638,6 +813,9 @@ void SceneTreeWidget::filterItems(const QString& filter)
     _prevSelection.clear();
     for (QTreeWidgetItem* it : selectedItems())
         _prevSelection.insert(it);
+    // A search match, not a deliberate click on this specific assembly (see
+    // onItemClicked()'s own doc comment).
+    _explicitlySelectedAssemblyUuids.clear();
 
     _updatingTree = false;
     emit selectionUpdated();
@@ -682,6 +860,13 @@ void SceneTreeWidget::ensureAssemblySelectionAt(const QPoint& localPos)
         _prevSelection.clear();
         for (QTreeWidgetItem* it : selectedItems())
             _prevSelection.insert(it);
+        // item is the exact target of the right-click that invoked this (see
+        // showContextMenu()) - as deliberate a targeting as a left-click
+        // would be, so mark it explicit the same way onItemClicked() does.
+        // clearSelection() above already invalidated any other previously-
+        // explicit assembly, so this is a full replace, not an add.
+        _explicitlySelectedAssemblyUuids.clear();
+        _explicitlySelectedAssemblyUuids.insert(item->data(0, NodeUuidRole).value<QUuid>());
 
         _updatingTree = false;
         emit selectionUpdated();
@@ -743,6 +928,13 @@ bool SceneTreeWidget::selectNodeByUuid(const QUuid& nodeUuid)
     _prevSelection.clear();
     for (QTreeWidgetItem* it : selectedItems())
         _prevSelection.insert(it);
+    // target is exactly what the caller (ModelViewer::showContextMenu()'s
+    // "Select Parent" action) asked to select, by nodeUuid - as deliberate a
+    // targeting as clicking it directly, so mark it explicit the same way
+    // onItemClicked() does. clearSelection() above already invalidated any
+    // other previously-explicit assembly, so this is a full replace.
+    _explicitlySelectedAssemblyUuids.clear();
+    _explicitlySelectedAssemblyUuids.insert(target->data(0, NodeUuidRole).value<QUuid>());
 
     _updatingTree = false;
     emit selectionUpdated();
@@ -820,6 +1012,10 @@ void SceneTreeWidget::setDetachedOverlayMode(bool enabled)
           setAttribute(Qt::WA_NoSystemBackground, true);
           viewport()->setAttribute(Qt::WA_NoSystemBackground, true);
           viewport()->setAttribute(Qt::WA_StyledBackground, false);
+          // Clearing THIS widget's own stylesheet - not the scrollbars', which keep their
+          // scrollbarOverlayStyleSheet() set directly on them in the constructor and are
+          // unaffected by anything here (see that call's own doc comment for why it's applied
+          // there and not on the tree itself).
           setStyleSheet(QString());
       }
     else
@@ -894,6 +1090,13 @@ void SceneTreeWidget::rebuild()
     clear();
     _uuidToLeaf.clear();
     _prevSelection.clear();
+    // Every QTreeWidgetItem is about to be destroyed and rebuilt - any
+    // "explicit click" provenance tracked against the old items' identities
+    // is meaningless afterward, even if the same node ends up reselected by
+    // finalizeRebuild()'s restore (which only ever re-selects individual
+    // leaf UUIDs, so a restored assembly is always a fresh CLOSURE
+    // selection, never one this rebuild can legitimately call explicit).
+    _explicitlySelectedAssemblyUuids.clear();
 
     SceneNode* root = _sceneGraph->root();
     if (!root)
@@ -995,6 +1198,33 @@ bool SceneTreeWidget::isInAncestorIndentationGutter(const QPoint& pos, QTreeWidg
     return pos.x() < contentRect.left() - indentation();
 }
 
+bool SceneTreeWidget::isPastItemContent(const QPoint& pos, QTreeWidgetItem* item) const
+{
+    if (!item)
+        return true;
+
+    const QModelIndex index = indexFromItem(item, 0);
+    const QRect contentRect = visualRect(index);
+
+    QStyleOptionViewItem opt;
+    initViewItemOption(&opt);
+    opt.rect = contentRect;
+    const int naturalWidth = itemDelegate()->sizeHint(opt, index).width();
+
+    return pos.x() > contentRect.left() + naturalWidth;
+}
+
+// Combines the three "this is the transparent overlay's empty background, not real tree
+// content" tests - no item at all, the ancestor indentation gutter, or past an item's own
+// rendered content - shared by every pass-through call site (mousePressEvent(),
+// mouseMoveEvent()'s passive-hover forward, mouseDoubleClickEvent(), contextMenuEvent()) so
+// they can't silently drift apart from each other.
+bool SceneTreeWidget::isOnOverlayBackground(const QPoint& pos) const
+{
+    QTreeWidgetItem* hitItem = itemAt(pos);
+    return !hitItem || isInAncestorIndentationGutter(pos, hitItem) || isPastItemContent(pos, hitItem);
+}
+
 void SceneTreeWidget::mousePressEvent(QMouseEvent* event)
 {
     // No item under the cursor, or the click landed in that item's ANCESTOR indentation
@@ -1005,8 +1235,7 @@ void SceneTreeWidget::mousePressEvent(QMouseEvent* event)
     // starting a rubber-band drag) and keep forwarding mouseMoveEvent()/mouseReleaseEvent()
     // below for the rest of this gesture, so a click-drag (orbit/pan) starting here reaches
     // the viewport too, not just a static click.
-    QTreeWidgetItem* hitItem = itemAt(event->pos());
-    if (!hitItem || isInAncestorIndentationGutter(event->pos(), hitItem))
+    if (isOnOverlayBackground(event->pos()))
     {
         _forwardingClickToViewport = true;
         forwardToViewport(event);
@@ -1062,7 +1291,36 @@ void SceneTreeWidget::mouseMoveEvent(QMouseEvent* event)
         return;
     }
 
+    // Passive hover (no button held) over the same overlay-background territory
+    // mousePressEvent()/mouseDoubleClickEvent()/contextMenuEvent() already treat as "the
+    // viewer showing through" - relay it too, so mesh hover-highlight preview and the
+    // viewport's own cursor updates keep working there exactly as if the tree weren't in the
+    // way, not just during an active click-drag gesture. Cheap per move: isOnOverlayBackground()
+    // is a couple of rect compares plus (only when over a real, too-short row) one delegate
+    // sizeHint() call; the actual hover work this triggers in ViewportWidget (its ray-cast/
+    // hit-test) is the SAME cost hovering bare viewport pixels already pays today, not new
+    // work - Settings > Rendering's own "Hover Highlight Mode" (Ray-cast Preview/Accurate/
+    // Disabled) already governs that cost independent of this relay.
+    if (event->buttons() == Qt::NoButton && isOnOverlayBackground(event->pos()))
+    {
+        forwardToViewport(event);
+        event->accept();
+        return;
+    }
+
     QTreeWidget::mouseMoveEvent(event);
+}
+
+void SceneTreeWidget::mouseDoubleClickEvent(QMouseEvent* event)
+{
+    if (isOnOverlayBackground(event->pos()))
+    {
+        forwardToViewport(event);
+        event->accept();
+        return;
+    }
+
+    QTreeWidget::mouseDoubleClickEvent(event);
 }
 
 void SceneTreeWidget::mouseReleaseEvent(QMouseEvent* event)
@@ -1081,6 +1339,67 @@ void SceneTreeWidget::mouseReleaseEvent(QMouseEvent* event)
 void SceneTreeWidget::wheelEvent(QWheelEvent* event)
 {
     event->ignore();
+}
+
+// See this override's doc comment in the header for why the scrollbars need their own
+// dynamic-property-driven hover state instead of a plain QSS :hover rule.
+bool SceneTreeWidget::eventFilter(QObject* watched, QEvent* event)
+{
+    if ((watched == horizontalScrollBar() || watched == verticalScrollBar()) &&
+        event->type() == QEvent::Wheel)
+    {
+        // Let the scrollbar scroll exactly as it normally would, then swallow the event even
+        // when it has nothing left to scroll: QAbstractSlider ignore()s a wheel event it can't
+        // act on (already at the min/max), which would relay it to the parent chain and end up
+        // zooming the viewport behind this overlay. A direct event() call doesn't re-enter this
+        // filter. Wheel over the tree body is untouched - wheelEvent() still ignores it on purpose.
+        watched->event(event);
+        event->accept();
+        return true;
+    }
+
+    if ((watched == horizontalScrollBar() || watched == verticalScrollBar()) &&
+        (event->type() == QEvent::Enter || event->type() == QEvent::Leave))
+    {
+        auto* bar = qobject_cast<QWidget*>(watched);
+        bar->setProperty("hovered", event->type() == QEvent::Enter);
+        // A dynamic property change alone doesn't retrigger stylesheet evaluation - the
+        // standard Qt idiom to force it is an unpolish/polish/update cycle.
+        bar->style()->unpolish(bar);
+        bar->style()->polish(bar);
+        bar->update();
+    }
+    return QTreeWidget::eventFilter(watched, event);
+}
+
+// See this override's doc comment in the header for why DefaultContextMenu policy (routing
+// every request through here first) replaces the CustomContextMenu policy the rest of the
+// tree's context menu still logically relies on (ModelViewer::showContextMenu(), wired to
+// customContextMenuRequested()) - this manually emits that same signal for on-content requests
+// so that connection keeps working exactly as before.
+void SceneTreeWidget::contextMenuEvent(QContextMenuEvent* event)
+{
+    if (isOnOverlayBackground(event->pos()))
+    {
+        if (_viewportWidget)
+        {
+            // Call ViewportWidget::showContextMenu() directly - a plain function call, not a
+            // synthesized event sendEvent()'d through QWidget's event()/policy machinery, nor a
+            // manually emitted signal relying on that same machinery on the receiving end. Both
+            // of those go through several layers of Qt event/signal dispatch that can silently
+            // swallow or misroute the request (e.g. interaction with whatever in-flight mouse
+            // gesture state a forwarded right-button press/release already left on the viewport
+            // - see mousePressEvent()'s forwarding, which runs for every button, right included).
+            // A direct call has none of that: it just builds and shows the menu.
+            const QPoint viewportPos = mapTo(_viewportWidget, event->pos());
+            _viewportWidget->showContextMenu(viewportPos);
+        }
+        event->accept();
+        return;
+    }
+
+    emit customContextMenuRequested(event->pos());
+    event->accept();
 }
 
 // ---------------------------------------------------------------------------
@@ -1211,11 +1530,48 @@ void SceneTreeWidget::onItemSelectionChanged()
 
     // Refresh prev selection snapshot AFTER propagation
     _prevSelection.clear();
+    QSet<QUuid> stillSelectedAssemblyUuids;
     for (QTreeWidgetItem* it : selectedItems())
+    {
         _prevSelection.insert(it);
+        if (!it->data(0, IsLeafRole).toBool())
+            stillSelectedAssemblyUuids.insert(it->data(0, NodeUuidRole).value<QUuid>());
+    }
+
+    // Prune any explicit flag whose node is no longer selected now that
+    // propagation (applySubtreeSelect/refreshParentSelectionUpward above)
+    // has fully settled - a parent can be auto-deselected (or selected)
+    // there as a side effect of a child's own click, entirely outside the
+    // raw added/removed delta computed before propagation ran, so pruning
+    // against that earlier delta alone would miss it.
+    for (auto it = _explicitlySelectedAssemblyUuids.begin(); it != _explicitlySelectedAssemblyUuids.end(); )
+    {
+        if (!stillSelectedAssemblyUuids.contains(*it))
+            it = _explicitlySelectedAssemblyUuids.erase(it);
+        else
+            ++it;
+    }
 
     // Now notify viewer
     emit selectionUpdated();
+}
+
+void SceneTreeWidget::onItemClicked(QTreeWidgetItem* item, int /*column*/)
+{
+    if (!item || item->data(0, IsLeafRole).toBool())
+        return;
+    // A click toggles selection, not just adds to it - Ctrl-clicking an
+    // already-selected assembly to deselect it still fires this signal, and
+    // must clear the flag rather than (re)inserting it; item->isSelected()
+    // already reflects the fully-propagated post-click state by the time
+    // this fires (itemClicked is emitted from mouseReleaseEvent, after
+    // onItemSelectionChanged()'s own press-time propagation/pruning above
+    // has already run for the same click).
+    const QUuid nodeUuid = item->data(0, NodeUuidRole).value<QUuid>();
+    if (item->isSelected())
+        _explicitlySelectedAssemblyUuids.insert(nodeUuid);
+    else
+        _explicitlySelectedAssemblyUuids.remove(nodeUuid);
 }
 
 
@@ -1979,6 +2335,15 @@ QList<const SceneNode*> SceneTreeWidget::selectedAssemblyNodes() const
         if (const SceneNode* node = _sceneGraph->findNodeByUuid(nodeUuid))
             result.append(node);
     }
+    return result;
+}
+
+QList<const SceneNode*> SceneTreeWidget::explicitlySelectedAssemblyNodes() const
+{
+    QList<const SceneNode*> result;
+    for (const SceneNode* node : selectedAssemblyNodes())
+        if (_explicitlySelectedAssemblyUuids.contains(node->nodeUuid))
+            result.append(node);
     return result;
 }
 

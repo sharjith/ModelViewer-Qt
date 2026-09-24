@@ -21,7 +21,7 @@ class QMdiSubWindow;
 // Non-modal "Generate UVs" dialog (Tools -> Generate UVs...) - mirrors
 // ShrinkWrapDialog's non-modal, per-document, findChild-reuse pattern (see
 // ModelViewer::openUVGenerationDialog()) and its working-mesh-list shape
-// (meshList/addSelectedButton/removeSelectedButton/generateButton/statusLabel,
+// (the MeshSelectionBox mesh list/generateButton/statusLabel,
 // see ShrinkWrapDialog.h's own doc comment for the reasoning) - a curated
 // list rather than reacting live to the tree's current selection, so the
 // target set survives clicking around the viewport to inspect a result and
@@ -60,11 +60,8 @@ public:
 
     QString getMethodName(UVMethod method) const;
 
-    // Adds whatever's currently selected in the tree to the working list
-    // (same logic the Add Selected button runs) - public so
-    // ModelViewer::openUVGenerationDialog() can seed the list immediately
-    // with an existing tree selection when the dialog is (re)opened. Mirrors
-    // ShrinkWrapDialog::addCurrentTreeSelection() exactly.
+    // Adds the viewer's current selection to the mesh list (the selection box) - public so
+    // ModelViewer can seed the list when the dialog is (re)opened.
     void addCurrentTreeSelection();
 
 protected:
@@ -82,8 +79,7 @@ private slots:
     void onCylAutoDetectAxisToggled(bool autoDetect);
     void onSphereAutoDetectAxisToggled(bool autoDetect);
     void onTorusAutoDetectAxisToggled(bool autoDetect);
-    void onRemoveSelectedClicked();
-    void onListSelectionChanged();
+    void onMeshListChanged();
     void onGenerateClicked();
     void onResetDefaultsClicked();
 

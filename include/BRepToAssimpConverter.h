@@ -185,6 +185,13 @@ public:
 	// per-face fallback in convertFaceGroupToMesh().
 	static Standard_Real resolveDeflectionFraction();
 
+	// Tessellates `shape` (a compound of everything to import, or a single shape) in ONE parallel BRepMesh_IncrementalMesh
+	// call, using the deflection settings above. Every reader (STEP, IGES, BREP) calls this before converting: meshing the
+	// whole shape at once discretizes every shared edge exactly once, so neighbouring faces end up with the same points on
+	// it (a part meshed face by face does not), and the later steps - reading each face's triangulation, rebuilding a
+	// face the mesher failed on from its neighbours' edge points - all rely on that.
+	static void preTessellate(const TopoDS_Shape& shape);
+
 	// Returns the angular deflection (radians) to use for STEP tessellation.
 	// Reads the "angularDeflectionSpinBox" QSettings key written by SettingsDialog.
 	static Standard_Real resolveAngularDeflection();
@@ -211,7 +218,10 @@ private:
 
 	static bool isShapeMeshable(const TopoDS_Shape& shape);
 
-	static aiMesh* convertFaceGroupToMesh(const TopTools_IndexedMapOfShape& faceGroup, int meshIndex, bool enableStatistics = false);
+	// faceColors (optional): one colour per face of faceGroup, in faceGroup order - stored as the mesh's vertex colours,
+	// so one mesh can carry a part's per-face colours.
+	static aiMesh* convertFaceGroupToMesh(const TopTools_IndexedMapOfShape& faceGroup, int meshIndex, bool enableStatistics = false,
+		const std::vector<aiColor4D>* faceColors = nullptr);
 
 	static std::vector<aiMesh*> convertFaceGroupToMeshesWithCache(
 		const TopTools_IndexedMapOfShape& faceGroup,

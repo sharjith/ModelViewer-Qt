@@ -1,7 +1,7 @@
 #include "ExplodedViewPanel.h"
 
 #include "CapturedStepsTreeWidget.h"
-#include "ExplodedViewSelectionEditor.h"
+#include "MeshSelectionEditor.h"
 #include "ViewportWidget.h"
 #include "GltfAnimationData.h"
 #include "LanguageManager.h"
@@ -1077,11 +1077,11 @@ ExplodedViewPanel::ExplodedViewPanel(ViewportWidget* parent)
             return;
         QMenu menu(this);
         applyPopupMenuStyle(menu);
-        connect(menu.addAction(tr("Edit Selection...")), &QAction::triggered, this, [this]() {
-            showExplodedViewSelectionEditor();
+        connect(menu.addAction(QIcon(":/icons/res/edit_selection.png"), tr("Edit Selection...")), &QAction::triggered, this, [this]() {
+            showMeshSelectionEditor();
         });
         menu.addSeparator();
-        connect(menu.addAction(tr("Clear Selection")), &QAction::triggered, this, [this]() {
+        connect(menu.addAction(QIcon(":/icons/res/clear.png"), tr("Clear Selection")), &QAction::triggered, this, [this]() {
             cancelPickingMode();
             clearAssemblySelection();
             {
@@ -1107,7 +1107,7 @@ ExplodedViewPanel::ExplodedViewPanel(ViewportWidget* parent)
                 return;
             QMenu menu(this);
             applyPopupMenuStyle(menu);
-            connect(menu.addAction(tr("Clear Selection")), &QAction::triggered, this, [this]() {
+            connect(menu.addAction(QIcon(":/icons/res/clear.png"), tr("Clear Selection")), &QAction::triggered, this, [this]() {
                 stopDraftPreview();
                 if (_viewportWidget && (_viewportWidget->isExplodedViewManualPlacementActive()
                     || _viewportWidget->hasExplodedViewManualPlacement()
@@ -1133,7 +1133,7 @@ ExplodedViewPanel::ExplodedViewPanel(ViewportWidget* parent)
             return;
         QMenu menu(this);
         applyPopupMenuStyle(menu);
-        connect(menu.addAction(tr("Clear Anchor")), &QAction::triggered, this, [this]() {
+        connect(menu.addAction(QIcon(":/icons/res/clear.png"), tr("Clear Anchor")), &QAction::triggered, this, [this]() {
             lineEditAnchor->clear();
             ensureActivePreset().anchorUuid = QUuid();
             markDocumentModified();
@@ -1476,7 +1476,7 @@ void ExplodedViewPanel::on_pushButtonSelectAssembly_toggled(bool checked)
             {
                 _reopenAssemblyEditDialogAfterPick = false;
                 _assemblyEditPickActive = false;
-                reopenExplodedViewSelectionEditor();
+                reopenMeshSelectionEditor();
             }
         }
     }
@@ -1796,47 +1796,49 @@ QString ExplodedViewPanel::displayLabelForMeshUuid(const QUuid& uuid) const
     return uuid.toString(QUuid::WithoutBraces);
 }
 
-void ExplodedViewPanel::showExplodedViewSelectionEditor()
+void ExplodedViewPanel::showMeshSelectionEditor()
 {
     _assemblyEditWorkingUuids = orderedAssemblyUuids();
-    reopenExplodedViewSelectionEditor();
+    reopenMeshSelectionEditor();
 }
 
-void ExplodedViewPanel::reopenExplodedViewSelectionEditor()
+void ExplodedViewPanel::reopenMeshSelectionEditor()
 {
-    if (_explodedViewSelectionEditor)
+    if (_meshSelectionEditor)
     {
-        _explodedViewSelectionEditor->raise();
-        _explodedViewSelectionEditor->activateWindow();
+        _meshSelectionEditor->raise();
+        _meshSelectionEditor->activateWindow();
         return;
     }
 
-    _explodedViewSelectionEditor = new ExplodedViewSelectionEditor(window());
-    _explodedViewSelectionEditor->setAttribute(Qt::WA_DeleteOnClose);
-    _explodedViewSelectionEditor->setModal(false);
-    _explodedViewSelectionEditor->setWindowModality(Qt::NonModal);
+    _meshSelectionEditor = new MeshSelectionEditor(window());
+    _meshSelectionEditor->setIntroText(tr("Review and refine the meshes in the current assembly."));
+    _meshSelectionEditor->setMembersText(tr("Assembly Members"));
+    _meshSelectionEditor->setAttribute(Qt::WA_DeleteOnClose);
+    _meshSelectionEditor->setModal(false);
+    _meshSelectionEditor->setWindowModality(Qt::NonModal);
 
-    QVector<ExplodedViewSelectionEditor::Entry> entries;
+    QVector<MeshSelectionEditor::Entry> entries;
     entries.reserve(_assemblyEditWorkingUuids.size());
     for (const QUuid& uuid : std::as_const(_assemblyEditWorkingUuids))
         entries.append({uuid, displayLabelForMeshUuid(uuid)});
-    _explodedViewSelectionEditor->setEntries(entries);
+    _meshSelectionEditor->setEntries(entries);
 
-    connect(_explodedViewSelectionEditor, &ExplodedViewSelectionEditor::previewEntryRequested,
+    connect(_meshSelectionEditor, &MeshSelectionEditor::previewEntryRequested,
             this, &ExplodedViewPanel::previewAssemblyEntry);
-    connect(_explodedViewSelectionEditor, &QDialog::finished,
-            this, &ExplodedViewPanel::onExplodedViewSelectionEditorFinished);
-    connect(_explodedViewSelectionEditor, &QObject::destroyed,
-            this, [this]() { _explodedViewSelectionEditor = nullptr; });
+    connect(_meshSelectionEditor, &QDialog::finished,
+            this, &ExplodedViewPanel::onMeshSelectionEditorFinished);
+    connect(_meshSelectionEditor, &QObject::destroyed,
+            this, [this]() { _meshSelectionEditor = nullptr; });
 
-    _explodedViewSelectionEditor->show();
-    _explodedViewSelectionEditor->raise();
-    _explodedViewSelectionEditor->activateWindow();
+    _meshSelectionEditor->show();
+    _meshSelectionEditor->raise();
+    _meshSelectionEditor->activateWindow();
 }
 
-void ExplodedViewPanel::onExplodedViewSelectionEditorFinished(int result)
+void ExplodedViewPanel::onMeshSelectionEditorFinished(int result)
 {
-    ExplodedViewSelectionEditor* editor = _explodedViewSelectionEditor;
+    MeshSelectionEditor* editor = _meshSelectionEditor;
     if (!editor)
     {
         clearAssemblyPreviewSelection();
@@ -1844,14 +1846,14 @@ void ExplodedViewPanel::onExplodedViewSelectionEditorFinished(int result)
         return;
     }
 
-    const QVector<ExplodedViewSelectionEditor::Entry> updatedEntries = editor->entries();
+    const QVector<MeshSelectionEditor::Entry> updatedEntries = editor->entries();
     clearAssemblyPreviewSelection();
 
     if (result == QDialog::Accepted)
     {
         QVector<QUuid> updatedUuids;
         updatedUuids.reserve(updatedEntries.size());
-        for (const ExplodedViewSelectionEditor::Entry& entry : updatedEntries)
+        for (const MeshSelectionEditor::Entry& entry : updatedEntries)
             updatedUuids.append(entry.uuid);
         applyAssemblyEntries(updatedUuids);
         emit selectionClearRequested();
@@ -1859,10 +1861,10 @@ void ExplodedViewPanel::onExplodedViewSelectionEditorFinished(int result)
         return;
     }
 
-    if (result == ExplodedViewSelectionEditor::AddMoreResult)
+    if (result == MeshSelectionEditor::AddMoreResult)
     {
         _assemblyEditWorkingUuids.clear();
-        for (const ExplodedViewSelectionEditor::Entry& entry : updatedEntries)
+        for (const MeshSelectionEditor::Entry& entry : updatedEntries)
             _assemblyEditWorkingUuids.append(entry.uuid);
 
         _reopenAssemblyEditDialogAfterPick = true;
@@ -3221,9 +3223,9 @@ void ExplodedViewPanel::on_pushButtonPresetActions_clicked()
 
     QMenu menu(this);
     applyPopupMenuStyle(menu);
-    QAction* renameAction = menu.addAction(tr("Rename Preset"));
+    QAction* renameAction = menu.addAction(QIcon(":/icons/res/rename.png"), tr("Rename Preset"));
     menu.addSeparator();
-    QAction* deleteAction = menu.addAction(tr("Delete Preset"));
+    QAction* deleteAction = menu.addAction(QIcon(":/icons/res/delete.png"), tr("Delete Preset"));
     QAction* chosenAction = menu.exec(pushButtonPresetActions
         ? pushButtonPresetActions->mapToGlobal(QPoint(0, pushButtonPresetActions->height()))
         : QCursor::pos());
@@ -4357,7 +4359,7 @@ void ExplodedViewPanel::onCapturedViewsContextMenuRequested(const QPoint& pos)
 
     QAction* groupAction = nullptr;
     if (allTopLevelLeaf)
-        groupAction = menu.addAction(tr("Group Selected"));
+        groupAction = menu.addAction(QIcon(":/icons/res/group_captures.png"), tr("Group Selected"));
 
     QAction* ungroupAction = nullptr;
     QAction* removeAction = nullptr;
@@ -4366,8 +4368,8 @@ void ExplodedViewPanel::onCapturedViewsContextMenuRequested(const QPoint& pos)
         QTreeWidgetItem* selected = selectedItems.front();
         const bool isGroup = selected && selected->data(0, Qt::UserRole + 1).toBool();
         if (isGroup)
-            ungroupAction = menu.addAction(tr("Ungroup"));
-        removeAction = menu.addAction(tr("Remove"));
+            ungroupAction = menu.addAction(QIcon(":/icons/res/ungroup_captures.png"), tr("Ungroup"));
+        removeAction = menu.addAction(QIcon(":/icons/res/delete.png"), tr("Remove"));
     }
 
     QAction* chosen = menu.exec(listWidgetCapturedViews->viewport()->mapToGlobal(pos));

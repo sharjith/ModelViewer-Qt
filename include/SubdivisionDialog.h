@@ -48,10 +48,8 @@ public:
 	explicit SubdivisionDialog(ModelViewer* modelViewer, QWidget* parent = nullptr);
 	~SubdivisionDialog();
 
-	// Adds whatever's currently selected in the tree to the working list
-	// (same logic the Add Selected button runs) - public so
-	// ModelViewer::openSubdivisionDialog() can seed the list immediately
-	// with an existing tree selection when the dialog is (re)opened.
+	// Adds the viewer's current selection to the mesh list (the selection box) - public so
+	// ModelViewer can seed the list when the dialog is (re)opened.
 	void addCurrentTreeSelection();
 
 protected:
@@ -64,9 +62,8 @@ protected:
 	void reject() override;
 
 private slots:
-	void onRemoveSelectedClicked();
+	void onMeshListChanged();
 	void onGenerateClicked();
-	void onListSelectionChanged();
 
 	// Hides/shows this dialog as its own document's MDI subwindow loses/gains focus - mirrors
 	// RtRenderDialog's identical mechanism (see the constructor's connect() for why).

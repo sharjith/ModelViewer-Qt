@@ -1,4 +1,5 @@
 #include "FillHolesDialog.h"
+#include "DialogLayoutHelpers.h"
 #include "ui_FillHolesDialog.h"
 
 #include "MeshRepair.h"
@@ -26,16 +27,6 @@
 
 namespace
 {
-	bool listContainsUuid(QListWidget* list, const QUuid& uuid)
-	{
-		for (int i = 0; i < list->count(); ++i)
-		{
-			if (list->item(i)->data(Qt::UserRole).toUuid() == uuid)
-				return true;
-		}
-		return false;
-	}
-
 	// Walks up the parent chain from a widget inside the MDI area to find the QMdiArea itself -
 	// same helper as RepairMeshDialog.cpp/ShrinkWrapDialog.cpp, redeclared locally per that
 	// convention.
@@ -80,12 +71,15 @@ FillHolesDialog::FillHolesDialog(ModelViewer* modelViewer, QWidget* parent)
 	, ui(std::make_unique<Ui::FillHolesDialog>())
 {
 	ui->setupUi(this);
+	DialogLayout::pinActionToBottom(ui->verticalLayout, ui->statusLabel, ui->generateButton, false); // the list takes the spare height
+	DialogLayout::attachEmptyHint(ui->holesList, tr("No holes detected - pick the meshes to check above."));
+	// The mesh list is the shared selection box; its label keeps this dialog's own wording.
+	ui->meshSelectionBox->setModelViewer(_modelViewer);
+	ui->meshSelectionBox->setLabelText(tr("Meshes to check for holes:"));
+	connect(ui->meshSelectionBox, &MeshSelectionBox::meshUuidsChanged, this, &FillHolesDialog::onMeshListChanged);
 	setAttribute(Qt::WA_DeleteOnClose);
 
-	connect(ui->addSelectedButton, &QPushButton::clicked, this, &FillHolesDialog::addCurrentTreeSelection);
-	connect(ui->removeSelectedButton, &QPushButton::clicked, this, &FillHolesDialog::onRemoveSelectedClicked);
 	connect(ui->generateButton, &QPushButton::clicked, this, &FillHolesDialog::onGenerateClicked);
-	connect(ui->meshList, &QListWidget::itemSelectionChanged, this, &FillHolesDialog::onListSelectionChanged);
 	connect(ui->holesList, &QListWidget::itemSelectionChanged, this, &FillHolesDialog::onHolesListSelectionChanged);
 	connect(ui->holesList, &QListWidget::itemChanged, this, &FillHolesDialog::onHolesListItemChanged);
 	connect(ui->selectAllHolesButton, &QPushButton::clicked, this, &FillHolesDialog::onSelectAllHolesClicked);
@@ -122,42 +116,16 @@ void FillHolesDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)
 	setVisible(isOwnDocumentActive);
 }
 
-void FillHolesDialog::addCurrentTreeSelection()
+void FillHolesDialog::onMeshListChanged()
 {
-	SceneTreeWidget* tree = _modelViewer->getTreeModel();
-	if (!tree || !tree->hasMeshSelection())
-		return;
-
-	ViewportWidget* viewport = _modelViewer->getViewportWidget();
-	bool added = false;
-	for (const QUuid& uuid : tree->selectedMeshUuids())
-	{
-		if (listContainsUuid(ui->meshList, uuid))
-			continue;
-		SceneMesh* mesh = viewport ? viewport->getMeshByUuid(uuid) : nullptr;
-		if (!mesh)
-			continue;
-
-		QListWidgetItem* item = new QListWidgetItem(mesh->getName(), ui->meshList);
-		item->setData(Qt::UserRole, uuid);
-		added = true;
-	}
-
-	if (added)
-		refreshHolesList();
-	updateActionButtonsEnabled();
-}
-
-void FillHolesDialog::onRemoveSelectedClicked()
-{
-	qDeleteAll(ui->meshList->selectedItems());
+	// The list of meshes changed (added, removed or cleared through the selection box).
 	refreshHolesList();
 	updateActionButtonsEnabled();
 }
 
-void FillHolesDialog::onListSelectionChanged()
+void FillHolesDialog::addCurrentTreeSelection()
 {
-	ui->removeSelectedButton->setEnabled(!ui->meshList->selectedItems().isEmpty());
+	ui->meshSelectionBox->addViewportSelection();
 }
 
 void FillHolesDialog::refreshHolesList()
@@ -175,9 +143,9 @@ void FillHolesDialog::refreshHolesList()
 		// run redundantly per row (it's called once, explicitly, at the end instead).
 		const QSignalBlocker blocker(ui->holesList);
 
-		for (int i = 0; i < ui->meshList->count(); ++i)
+		for (const QUuid& listedUuid : ui->meshSelectionBox->meshUuids())
 		{
-			const QUuid meshUuid = ui->meshList->item(i)->data(Qt::UserRole).toUuid();
+			const QUuid meshUuid = listedUuid;
 			SceneMesh* mesh = viewport->getMeshByUuid(meshUuid);
 			if (!mesh)
 				continue;

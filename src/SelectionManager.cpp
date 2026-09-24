@@ -684,7 +684,7 @@ int SelectionManager::hoverSelect(const QPoint& pixel)
     return hoveredId;
 }
 
-QList<int> SelectionManager::sweepSelect(const QPoint& p1, const QPoint& p2, bool addToSelection)
+QList<int> SelectionManager::sweepSelect(const QPoint& p1, const QPoint& p2, SelectionCombineMode mode)
 {
     const auto& ids = _viewportWidget->currentVisibleObjectIds();
     if (ids.empty())
@@ -694,7 +694,7 @@ QList<int> SelectionManager::sweepSelect(const QPoint& p1, const QPoint& p2, boo
     if (rubberRect.isNull())
         return _selectedMeshIds;
 
-    QList<int> selectedIds = addToSelection ? _selectedMeshIds : QList<int>{};
+    QList<int> selectedIds = mode == SelectionCombineMode::Replace ? QList<int>{} : _selectedMeshIds;
 
     const QRect viewport(0, 0, _viewportWidget->width(), _viewportWidget->height());
     const QMatrix4x4 projMatrix = _viewportWidget->getProjectionMatrix();
@@ -703,6 +703,18 @@ QList<int> SelectionManager::sweepSelect(const QPoint& p1, const QPoint& p2, boo
 
     QApplication::setOverrideCursor(Qt::WaitCursor);
     selectedIds.reserve(selectedIds.size() + static_cast<qsizetype>(ids.size()));
+
+    // Applies one mesh's rubber-band coverage to the working set according to
+    // `mode` - Add/Replace both grow it (Replace's seed already started
+    // empty, so its net effect from here on is identical to Add), Subtract
+    // removes instead, mirroring deselect()'s own _selectedMeshIds.removeAll()
+    // idiom above rather than inventing a new removal pattern.
+    auto applyCoverage = [&selectedIds, mode](int i) {
+        if (mode == SelectionCombineMode::Subtract)
+            selectedIds.removeAll(i);
+        else if (!selectedIds.contains(i))
+            selectedIds.push_back(i);
+    };
 
     for (int i : ids)
     {
@@ -741,8 +753,7 @@ QList<int> SelectionManager::sweepSelect(const QPoint& p1, const QPoint& p2, boo
 
         if (rubberRect.contains(projectedRect.toRect()))
         {
-            if (!selectedIds.contains(i))
-                selectedIds.push_back(i);
+            applyCoverage(i);
         }
         else if (rubberRect.intersects(projectedRect.toRect()))
         {
@@ -752,9 +763,59 @@ QList<int> SelectionManager::sweepSelect(const QPoint& p1, const QPoint& p2, boo
 
             if (projectedArea > 0 && (intersectArea / projectedArea) >= SELECTION_THRESHOLD)
             {
-                if (!selectedIds.contains(i))
-                    selectedIds.push_back(i);
+                applyCoverage(i);
             }
+        }
+    }
+
+    QApplication::restoreOverrideCursor();
+
+    _selectedMeshIds = selectedIds;
+    return _selectedMeshIds;
+}
+
+QList<int> SelectionManager::lassoSelect(const QPolygon& lassoPath, SelectionCombineMode mode)
+{
+    const auto& ids = _viewportWidget->currentVisibleObjectIds();
+    if (ids.empty())
+        return _selectedMeshIds;
+
+    if (lassoPath.size() < 3)
+        return _selectedMeshIds;
+
+    QList<int> selectedIds = mode == SelectionCombineMode::Replace ? QList<int>{} : _selectedMeshIds;
+
+    const QRect viewport(0, 0, _viewportWidget->width(), _viewportWidget->height());
+    const QMatrix4x4 projMatrix = _viewportWidget->getProjectionMatrix();
+    const QMatrix4x4 viewMatrix = _viewportWidget->getModelViewMatrix();
+
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    selectedIds.reserve(selectedIds.size() + static_cast<qsizetype>(ids.size()));
+
+    for (int i : ids)
+    {
+        SceneMesh* mesh = _meshStore.at(i).mesh;
+        if (!mesh)
+            continue;
+
+        const BoundingSphere sphere = mesh->getBoundingSphere();
+        const QVector3D center = sphere.getCenter();
+
+        const QVector4D projectedCenter = projMatrix * viewMatrix * QVector4D(center, 1.0f);
+        if (projectedCenter.w() <= 0.0f)
+            continue;
+
+        const QVector3D ndcCenter = projectedCenter.toVector3DAffine();
+        const QPointF screenCenter(
+            (ndcCenter.x() * 0.5f + 0.5f) * viewport.width(),
+            (1.0f - (ndcCenter.y() * 0.5f + 0.5f)) * viewport.height());
+
+        if (lassoPath.containsPoint(screenCenter.toPoint(), Qt::OddEvenFill))
+        {
+            if (mode == SelectionCombineMode::Subtract)
+                selectedIds.removeAll(i);
+            else if (!selectedIds.contains(i))
+                selectedIds.push_back(i);
         }
     }
 

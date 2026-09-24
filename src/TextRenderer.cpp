@@ -190,6 +190,10 @@ void TextRenderer::Load(std::string font, unsigned int fontSize)
 void TextRenderer::RenderText(std::string text, float x, float y, float scale, QVector3D color,
 	VAlignment vAlignment, HAlignment hAlignment)
 {
+	// See setGlobalScale()'s own doc comment - every caller's own `scale`
+	// is relative to this multiplier, not a replacement for it.
+	scale *= _globalScale;
+
 	// Activate corresponding updateMatrix state
 	_prog->bind();
 	_prog->setUniformValue("textColor", color);
@@ -273,6 +277,11 @@ void TextRenderer::RenderText(std::string text, float x, float y, float scale, Q
 
 float TextRenderer::textWidth(const std::string& text, float scale) const
 {
+	// Must track RenderText()'s own _globalScale multiply exactly, or a
+	// caller measuring text to lay out a frame/background around it (see
+	// this method's own header doc comment) would size that frame for the
+	// UN-scaled glyphs while RenderText() draws the scaled ones.
+	scale *= _globalScale;
 	float width = 0.0f;
 	for (char32_t cp : decodeUtf8(text))
 	{
@@ -287,6 +296,8 @@ float TextRenderer::textWidth(const std::string& text, float scale) const
 void TextRenderer::textVerticalExtentVBottom(const std::string& text, float scale,
 	float& outAscentAboveY, float& outDescentBelowY) const
 {
+	// Same reasoning as textWidth()'s own _globalScale multiply above.
+	scale *= _globalScale;
 	outAscentAboveY = 0.0f;
 	outDescentBelowY = 0.0f;
 

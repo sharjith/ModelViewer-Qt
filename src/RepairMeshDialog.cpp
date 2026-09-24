@@ -1,4 +1,5 @@
 #include "RepairMeshDialog.h"
+#include "DialogLayoutHelpers.h"
 #include "ui_RepairMeshDialog.h"
 
 #include "MeshRepair.h"
@@ -24,16 +25,6 @@
 
 namespace
 {
-	bool listContainsUuid(QListWidget* list, const QUuid& uuid)
-	{
-		for (int i = 0; i < list->count(); ++i)
-		{
-			if (list->item(i)->data(Qt::UserRole).toUuid() == uuid)
-				return true;
-		}
-		return false;
-	}
-
 	// Walks up the parent chain from a widget inside the MDI area to find the QMdiArea itself -
 	// same helper as ShrinkWrapDialog.cpp/RtRenderDialog.cpp, redeclared locally per that
 	// convention.
@@ -73,12 +64,16 @@ RepairMeshDialog::RepairMeshDialog(ModelViewer* modelViewer, QWidget* parent)
 	, ui(std::make_unique<Ui::RepairMeshDialog>())
 {
 	ui->setupUi(this);
+	// Default layout: the controls pack to the top, the status text and the Generate button sit at the bottom, and any
+	// leftover height is the gap between them - instead of being spread through the dialog.
+	DialogLayout::pinActionToBottom(ui->verticalLayout, ui->statusLabel, ui->generateButton, true);
+	// The mesh list is the shared selection box; its label keeps this dialog's own wording.
+	ui->meshSelectionBox->setModelViewer(_modelViewer);
+	ui->meshSelectionBox->setLabelText(tr("Meshes to repair:"));
+	connect(ui->meshSelectionBox, &MeshSelectionBox::meshUuidsChanged, this, &RepairMeshDialog::onMeshListChanged);
 	setAttribute(Qt::WA_DeleteOnClose);
 
-	connect(ui->addSelectedButton, &QPushButton::clicked, this, &RepairMeshDialog::addCurrentTreeSelection);
-	connect(ui->removeSelectedButton, &QPushButton::clicked, this, &RepairMeshDialog::onRemoveSelectedClicked);
 	connect(ui->generateButton, &QPushButton::clicked, this, &RepairMeshDialog::onGenerateClicked);
-	connect(ui->meshList, &QListWidget::itemSelectionChanged, this, &RepairMeshDialog::onListSelectionChanged);
 
 	if (_modelViewer->sceneGraph())
 		_nextRepairIndex = highestExistingRepairIndex(_modelViewer->sceneGraph()->root()) + 1;
@@ -109,42 +104,20 @@ void RepairMeshDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)
 	setVisible(isOwnDocumentActive);
 }
 
+void RepairMeshDialog::onMeshListChanged()
+{
+	// The list of meshes changed (added, removed or cleared through the selection box).
+	updateActionButtonsEnabled();
+}
+
 void RepairMeshDialog::addCurrentTreeSelection()
 {
-	SceneTreeWidget* tree = _modelViewer->getTreeModel();
-	if (!tree || !tree->hasMeshSelection())
-		return;
-
-	ViewportWidget* viewport = _modelViewer->getViewportWidget();
-	for (const QUuid& uuid : tree->selectedMeshUuids())
-	{
-		if (listContainsUuid(ui->meshList, uuid))
-			continue;
-		SceneMesh* mesh = viewport ? viewport->getMeshByUuid(uuid) : nullptr;
-		if (!mesh)
-			continue;
-
-		QListWidgetItem* item = new QListWidgetItem(mesh->getName(), ui->meshList);
-		item->setData(Qt::UserRole, uuid);
-	}
-
-	updateActionButtonsEnabled();
-}
-
-void RepairMeshDialog::onRemoveSelectedClicked()
-{
-	qDeleteAll(ui->meshList->selectedItems());
-	updateActionButtonsEnabled();
-}
-
-void RepairMeshDialog::onListSelectionChanged()
-{
-	ui->removeSelectedButton->setEnabled(!ui->meshList->selectedItems().isEmpty());
+	ui->meshSelectionBox->addViewportSelection();
 }
 
 void RepairMeshDialog::updateActionButtonsEnabled()
 {
-	ui->generateButton->setEnabled(ui->meshList->count() > 0);
+	ui->generateButton->setEnabled(!ui->meshSelectionBox->isEmpty());
 }
 
 void RepairMeshDialog::onGenerateClicked()
@@ -155,9 +128,9 @@ void RepairMeshDialog::onGenerateClicked()
 		return;
 
 	QVector<SceneMesh*> meshes;
-	for (int i = 0; i < ui->meshList->count(); ++i)
+	for (const QUuid& listedUuid : ui->meshSelectionBox->meshUuids())
 	{
-		SceneMesh* mesh = viewport->getMeshByUuid(ui->meshList->item(i)->data(Qt::UserRole).toUuid());
+		SceneMesh* mesh = viewport->getMeshByUuid(listedUuid);
 		if (mesh)
 			meshes.append(mesh);
 	}

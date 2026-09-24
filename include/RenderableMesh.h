@@ -482,6 +482,100 @@ public:
 	void clearDebugUniformOverride(const QString& name);
 	void clearAllDebugUniformOverrides();
 
+	// ---- Surface Analysis overlay (curvature/thickness/deviation heatmaps) ---
+	// A TRANSIENT render override, deliberately separate from the real vertex-
+	// color pipeline above (_colors/_colorBuffer/_hasVertexColors, which is
+	// authored mesh data - e.g. genuine Point Set Reconstruction colors) and
+	// from the debug-uniform-override map above (a general-purpose mechanism
+	// other, unrelated code may also use). Writing analysis results into
+	// either would violate the overlay's own contract: it never touches
+	// authored data, and clearing it is a pure "stop overriding" with nothing
+	// to restore - see SurfaceAnalysisOverlay's own doc comment for the full
+	// lifecycle rationale (why this is NOT a snapshot/restore mechanism).
+	//
+	// rgba is one RGBA quadruplet per ORIGINAL vertex (same indexing as
+	// _points/_colors) - a plain, shared-topology per-vertex layout, smoothly
+	// interpolated across each triangle by the shader like any other vertex
+	// attribute. Reused by every analysis mode that computes a genuinely
+	// per-vertex (not per-face) scalar - curvature, thickness, deviation.
+	// Mutually exclusive with setAnalysisOverlayFlatColors() below - calling
+	// this clears any active flat overlay, and vice versa; a mesh shows at
+	// most one Surface Analysis overlay, in one representation, at a time.
+	//
+	// Calling this uploads the buffer AND marks the overlay active (shown) -
+	// there is no reason to upload data nobody is about to look at.
+	// setAnalysisOverlayActive(false) is the cheap way to hide it again
+	// without discarding the uploaded data (e.g. a dialog's own "Preview"
+	// toggle); setAnalysisOverlayActive(true) re-shows it (whichever
+	// representation - per-vertex or flat-per-face - currently has data
+	// uploaded). clearAnalysisOverlay() is the definitive teardown - hides
+	// AND releases both representations' buffers, used whenever the
+	// analysis result itself is no longer valid (mesh edited, deleted, or
+	// the analysis parameters/mode changed).
+	void setAnalysisOverlayColors(const std::vector<float>& rgba);
+
+	// Flat-per-face variant (Step 4's draft-angle mode is the first
+	// consumer): a shared-vertex layout can only hold ONE color per vertex
+	// slot, but that slot is incident to multiple triangles that may each
+	// want a genuinely DIFFERENT flat value - averaging across them (what
+	// setAnalysisOverlayColors() above would do) reintroduces exactly the
+	// misleading-corner-reading problem a flat-shaded analysis exists to
+	// avoid. rgbaPerFace is one RGBA quadruplet per TRIANGLE (indices.size()/3
+	// entries, same face order as the mesh's own index buffer). Internally
+	// duplicates position/normal/color into 3 unique vertices per triangle -
+	// a small, separate, RENDER-ONLY VAO/buffer set, never written back into
+	// _points/_normals/_indices or any authored/persisted geometry - so
+	// ordinary smooth interpolation of 3 IDENTICAL corner colors naturally
+	// produces a flat look, with no shader changes needed beyond what
+	// setAnalysisOverlayColors() already established (same analysisColor
+	// attribute/v_analysisColor varying/analysisOverlayActive uniform,
+	// fed from a different, separate GPU buffer and draw call).
+	void setAnalysisOverlayFlatColors(const std::vector<float>& rgbaPerFace);
+
+	// Sub-triangle variant of the flat overlay, for an analysis that measures many points per triangle (wall
+	// thickness): triangle t is drawn as a gridN[t] x gridN[t] grid of sub-triangles (see SubTriangleGrid.h for the
+	// numbering and barycentric convention). `rgba` contains either one colour per sub-triangle, or three colours
+	// per sub-triangle (one per corner) for a continuously interpolated field. gridN/offset must have one entry per
+	// triangle of this mesh; a triangle with gridN 0 is not
+	// overdrawn. Render-only, in mesh-local coordinates, sharing the flat overlay's VAO/buffers - mutually
+	// exclusive with the other two overlay representations exactly as setAnalysisOverlayFlatColors() is.
+	void setAnalysisOverlaySubTriangleColors(
+		const std::vector<unsigned char>& gridN, const std::vector<unsigned int>& offset, const std::vector<float>& rgba);
+	// Enables true fragment-level contour bands for a scalar-encoded overlay
+	// buffer (R = normalized scalar, A = validity). Pass bands < 2 for the
+	// ordinary pre-colored RGBA path. `colormap` uses AnalysisColormap's
+	// integer values without introducing that UI-oriented dependency here.
+	void setAnalysisOverlayBanding(int bands, int colormap);
+
+	void setAnalysisOverlayActive(bool active);
+	void clearAnalysisOverlay();
+	bool hasAnalysisOverlay() const { return _hasAnalysisOverlay || _hasAnalysisFlatOverlay; }
+
+	// Zebra-stripe reflection-line overlay (Surface Analysis's "Curvature"
+	// panel, "Zebra Stripe" sub-mode - the curvature COLORMAP sub-mode is
+	// separate, not-yet-built, see Step 6 of the plan). Unlike the analysis-
+	// overlay paths above, this needs no per-vertex/per-face data at all -
+	// it's a purely procedural, view-dependent shader effect computed live
+	// from the mesh's own existing smoothly-interpolated normal
+	// (reflect(viewDir, normal) sampled against a periodic pattern - see
+	// main_scene.frag), so just a uniform toggle + frequency, no GPU buffer
+	// upload. Deliberately its own first-class uniform state, same reasoning
+	// as the analysis overlay above (never routed through the generic
+	// debug-uniform-override map).
+	void setZebraStripeActive(bool active, float frequencyStripesPerUnit = 10.0f);
+	bool isZebraStripeActive() const { return _zebraStripeActive; }
+
+	// Monotonically increasing, bumped by initBuffers()/uploadGeometry() -
+	// i.e. any time this mesh's actual geometry (not just its transform or
+	// material) changes. No equivalent counter existed anywhere else in this
+	// codebase to reuse (checked RenderableMesh.h/SceneMesh.h/
+	// MeshInstanceState.h - only a transient, already-cleared-after-use
+	// _combinedRenderTransformDirty flag, not a comparable "has this changed
+	// since I last looked" counter). Exists specifically for
+	// SurfaceAnalysisOverlay's cache-key/invalidation check - see that
+	// class's doc comment.
+	quint64 geometryRevision() const { return _geometryRevision; }
+
 protected: // methods
 	// Upload geometry from a MeshGeometry object: copies vectors into _points/_normals/etc.
 	// and calls initBuffers() to create GL buffers. Bounds are recomputed automatically.
@@ -537,6 +631,34 @@ protected:
 	QOpenGLBuffer _positionBuffer;
 	QOpenGLBuffer _normalBuffer;
 	QOpenGLBuffer _colorBuffer;
+	// Dedicated Surface Analysis overlay buffer - see setAnalysisOverlayColors()'s
+	// doc comment. NEVER aliased with _colorBuffer above.
+	QOpenGLBuffer _analysisOverlayColorBuffer;
+
+	// Flat-per-face Surface Analysis overlay - a small, entirely SEPARATE
+	// VAO/buffer set (own position/normal/color, duplicated 3 unique
+	// vertices per triangle) from _vertexArrayObject/_positionBuffer/
+	// _normalBuffer/_analysisOverlayColorBuffer above - see
+	// setAnalysisOverlayFlatColors()'s doc comment for why a shared-vertex
+	// layout can't represent this. Drawn via glDrawArrays (no index buffer -
+	// the duplicated layout has no sharing left to index), REPLACING the
+	// normal draw call for a frame where it's active, not an extra pass on
+	// top of it (same surface, same depth - drawing both would just
+	// z-fight, and the overlay is meant to override normal appearance, not
+	// layer under/over it).
+	QOpenGLVertexArrayObject _analysisFlatVAO;
+	QOpenGLBuffer _analysisFlatPositionBuffer { QOpenGLBuffer::VertexBuffer };
+	QOpenGLBuffer _analysisFlatNormalBuffer   { QOpenGLBuffer::VertexBuffer };
+	QOpenGLBuffer _analysisFlatColorBuffer    { QOpenGLBuffer::VertexBuffer };
+	unsigned int  _analysisFlatVertexCount = 0;
+	// Uploads already-expanded (3 vertices per drawn triangle) position/normal/colour arrays into the flat overlay's
+	// buffers and switches it on - the shared tail of setAnalysisOverlayFlatColors()/...SubTriangleColors().
+	void uploadAnalysisFlatBuffers(const std::vector<float>& positions, const std::vector<float>& normals, const std::vector<float>& colors);
+	bool          _hasAnalysisFlatOverlay  = false;
+
+	// See setZebraStripeActive()'s doc comment (public section).
+	bool  _zebraStripeActive = false;
+	float _zebraStripeFrequency = 10.0f;
 	QOpenGLBuffer _texCoord0Buffer;
 	QOpenGLBuffer _texCoord1Buffer;
 	QOpenGLBuffer _texCoord2Buffer;
@@ -616,6 +738,18 @@ protected:
 	std::vector<float> _jointWeights;
 
 	bool _hasVertexColors;
+
+	// See geometryRevision()'s doc comment above (public section).
+	quint64 _geometryRevision = 0;
+
+	// CPU-side cache for the Surface Analysis overlay buffer above - kept
+	// (rather than write-only to the GPU) so recreateContextBoundBufferObjects()
+	// can re-upload it after a context loss, same reason _colors is kept
+	// alongside _colorBuffer.
+	std::vector<float> _analysisOverlayColors;
+	bool _hasAnalysisOverlay = false;
+	int _analysisOverlayBands = 0;
+	int _analysisOverlayColormap = 0;
 
 	// Primitive mode from glTF (GL_POINTS=0, GL_LINES=1, GL_LINE_STRIP=3, GL_TRIANGLE_STRIP=5, GL_TRIANGLES=4)
 	GLenum _primitiveMode = GL_TRIANGLES;  // Default to triangles for backward compatibility

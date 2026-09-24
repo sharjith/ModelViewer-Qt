@@ -192,10 +192,10 @@
                </size>
               </property>
               <property name="toolTip">
-               <string>Clip the model with a plane along the ZX axes</string>
+               <string>Clip the model with a plane along the XZ axes</string>
               </property>
               <property name="text">
-               <string>ZX</string>
+               <string>XZ</string>
               </property>
               <property name="checkable">
                <bool>true</bool>
@@ -240,7 +240,7 @@
                <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
               </property>
               <property name="toolTip">
-               <string>Position of the ZX clipping plane along its normal</string>
+               <string>Position of the XZ clipping plane along its normal</string>
               </property>
               <property name="minimum">
                <double>-99999.000000000000000</double>
@@ -253,8 +253,301 @@
            </layout>
           </item>
           <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_4">
+           <layout class="QHBoxLayout" name="horizontalLayoutBox">
             <item>
+             <widget class="QCheckBox" name="checkBoxBoxClip">
+              <property name="minimumSize">
+               <size>
+                <width>32</width>
+                <height>32</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Clip the model with a box: all six planes (min and max on each axis) at once. Replaces the XY/YZ/XZ planes while on.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="text">
+               <string>Box</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="checkBoxBoxKeepInside">
+              <property name="minimumSize">
+               <size>
+                <width>32</width>
+                <height>32</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Keep only what is inside the box (crop to the box).
+Unchecked: cut a box-shaped hole and keep everything outside.</string>
+              </property>
+              <property name="text">
+               <string>Keep inside</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacerBox">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QWidget" name="widgetBoxLimits">
+            <layout class="QGridLayout" name="gridLayoutBoxLimits">
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
+             <item row="0" column="1">
+              <widget class="QLabel" name="labelBoxMin">
+               <property name="text">
+                <string>Min</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="2">
+              <widget class="QLabel" name="labelBoxMax">
+               <property name="text">
+                <string>Max</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="labelBoxX">
+               <property name="text">
+                <string>X</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QDoubleSpinBox" name="doubleSpinBoxBoxXMin">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+               </property>
+               <property name="toolTip">
+                <string>Lower X limit of the clipping box (world coordinates)</string>
+               </property>
+               <property name="keyboardTracking">
+                <bool>false</bool>
+               </property>
+               <property name="decimals">
+                <number>3</number>
+               </property>
+               <property name="minimum">
+                <double>-99999.000000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>99999.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="2">
+              <widget class="QDoubleSpinBox" name="doubleSpinBoxBoxXMax">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+               </property>
+               <property name="toolTip">
+                <string>Upper X limit of the clipping box (world coordinates)</string>
+               </property>
+               <property name="keyboardTracking">
+                <bool>false</bool>
+               </property>
+               <property name="decimals">
+                <number>3</number>
+               </property>
+               <property name="minimum">
+                <double>-99999.000000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>99999.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="labelBoxY">
+               <property name="text">
+                <string>Y</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QDoubleSpinBox" name="doubleSpinBoxBoxYMin">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+               </property>
+               <property name="toolTip">
+                <string>Lower Y limit of the clipping box (world coordinates)</string>
+               </property>
+               <property name="keyboardTracking">
+                <bool>false</bool>
+               </property>
+               <property name="decimals">
+                <number>3</number>
+               </property>
+               <property name="minimum">
+                <double>-99999.000000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>99999.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="2">
+              <widget class="QDoubleSpinBox" name="doubleSpinBoxBoxYMax">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+               </property>
+               <property name="toolTip">
+                <string>Upper Y limit of the clipping box (world coordinates)</string>
+               </property>
+               <property name="keyboardTracking">
+                <bool>false</bool>
+               </property>
+               <property name="decimals">
+                <number>3</number>
+               </property>
+               <property name="minimum">
+                <double>-99999.000000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>99999.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0">
+              <widget class="QLabel" name="labelBoxZ">
+               <property name="text">
+                <string>Z</string>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="1">
+              <widget class="QDoubleSpinBox" name="doubleSpinBoxBoxZMin">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+               </property>
+               <property name="toolTip">
+                <string>Lower Z limit of the clipping box (world coordinates)</string>
+               </property>
+               <property name="keyboardTracking">
+                <bool>false</bool>
+               </property>
+               <property name="decimals">
+                <number>3</number>
+               </property>
+               <property name="minimum">
+                <double>-99999.000000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>99999.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="2">
+              <widget class="QDoubleSpinBox" name="doubleSpinBoxBoxZMax">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+               </property>
+               <property name="toolTip">
+                <string>Upper Z limit of the clipping box (world coordinates)</string>
+               </property>
+               <property name="keyboardTracking">
+                <bool>false</bool>
+               </property>
+               <property name="decimals">
+                <number>3</number>
+               </property>
+               <property name="minimum">
+                <double>-99999.000000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>99999.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="0" colspan="3">
+              <widget class="QPushButton" name="pushButtonBoxReset">
+               <property name="toolTip">
+                <string>Reset the clipping box to half the scene size, centered on the scene center</string>
+               </property>
+               <property name="text">
+                <string>Reset Box</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <layout class="QGridLayout" name="gridLayoutOptionsRow">
+            <item row="0" column="0">
              <widget class="QCheckBox" name="checkBoxCapping">
               <property name="toolTip">
                <string>Fill the cut cross-section with a solid cap</string>
@@ -262,9 +555,12 @@
               <property name="text">
                <string>Capping</string>
               </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
              </widget>
             </item>
-            <item>
+            <item row="0" column="1">
              <widget class="QCheckBox" name="checkBoxDynamicCapping">
               <property name="toolTip">
                <string>Hide caps while orbiting/zooming, for smoother
@@ -275,7 +571,20 @@ performance, then restore them once idle</string>
               </property>
              </widget>
             </item>
-            <item>
+            <item row="1" column="0">
+             <widget class="QCheckBox" name="checkBoxShowGizmo">
+              <property name="toolTip">
+               <string>Show draggable handles in the viewport for each enabled clipping plane</string>
+              </property>
+              <property name="text">
+               <string>Show Gizmo</string>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
              <widget class="QPushButton" name="pushButtonResetCoeffs">
               <property name="toolTip">
                <string>Reset all three plane positions to zero</string>
@@ -290,242 +599,42 @@ performance, then restore them once idle</string>
          </layout>
         </item>
         <item>
-         <layout class="QHBoxLayout" name="horizontalLayout_9">
+         <layout class="QVBoxLayout" name="verticalLayout_2">
           <item>
-           <layout class="QVBoxLayout" name="verticalLayout">
-            <item>
-             <widget class="QRadioButton" name="radioButtonProcedural">
-              <property name="toolTip">
-               <string>Fill caps with a procedural hatch pattern
-instead of an image</string>
-              </property>
-              <property name="text">
-               <string>Procedural</string>
-              </property>
-              <property name="checked">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QGroupBox" name="groupBox">
-              <property name="title">
-               <string>Procedural Hatch Settings</string>
-              </property>
-              <layout class="QGridLayout" name="gridLayout_3">
-               <item row="0" column="0">
-                <layout class="QGridLayout" name="gridLayout">
-                 <item row="0" column="0" colspan="2">
-                  <widget class="QLabel" name="label_6">
-                   <property name="text">
-                    <string>Hatch Mode</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="4" column="2" colspan="2">
-                  <widget class="QPushButton" name="pushButtonHatchColor">
-                   <property name="styleSheet">
-                    <string notr="true">background-color: rgb(0, 0, 0);
-color: rgb(255, 255, 255);
-</string>
-                   </property>
-                   <property name="toolTip">
-                    <string>Pick the hatch line color</string>
-                   </property>
-                   <property name="text">
-                    <string>Select Color</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="1" column="2" colspan="2">
-                  <widget class="QSpinBox" name="spinBoxHatchTiling">
-                   <property name="toolTip">
-                    <string>How many times the hatch pattern repeats across the cap</string>
-                   </property>
-                   <property name="minimum">
-                    <number>1</number>
-                   </property>
-                   <property name="maximum">
-                    <number>500</number>
-                   </property>
-                   <property name="value">
-                    <number>100</number>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="2" column="2" colspan="2">
-                  <widget class="QDoubleSpinBox" name="doubleSpinBoxThickness">
-                   <property name="toolTip">
-                    <string>Width of the hatch lines</string>
-                   </property>
-                   <property name="decimals">
-                    <number>3</number>
-                   </property>
-                   <property name="minimum">
-                    <double>0.008000000000000</double>
-                   </property>
-                   <property name="maximum">
-                    <double>0.100000000000000</double>
-                   </property>
-                   <property name="singleStep">
-                    <double>0.001000000000000</double>
-                   </property>
-                   <property name="value">
-                    <double>0.050000000000000</double>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="3" column="2" colspan="2">
-                  <widget class="QDoubleSpinBox" name="doubleSpinBoxIntensity">
-                   <property name="toolTip">
-                    <string>Opacity of the hatch pattern over the cap</string>
-                   </property>
-                   <property name="decimals">
-                    <number>2</number>
-                   </property>
-                   <property name="maximum">
-                    <double>1.000000000000000</double>
-                   </property>
-                   <property name="singleStep">
-                    <double>0.010000000000000</double>
-                   </property>
-                   <property name="value">
-                    <double>1.000000000000000</double>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="3" column="0" colspan="2">
-                  <widget class="QLabel" name="label_5">
-                   <property name="text">
-                    <string>Hatch Intensity</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="2" column="0" colspan="2">
-                  <widget class="QLabel" name="label_4">
-                   <property name="text">
-                    <string>Hatch Thickness</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="0" column="2" colspan="2">
-                  <widget class="QComboBox" name="comboBoxHatchMode">
-                   <property name="toolTip">
-                    <string>Direction/pattern of the hatch lines</string>
-                   </property>
-                   <item>
-                    <property name="text">
-                     <string>Diagonal 45</string>
-                    </property>
-                   </item>
-                   <item>
-                    <property name="text">
-                     <string>Diagonal 135</string>
-                    </property>
-                   </item>
-                   <item>
-                    <property name="text">
-                     <string>Horizontal</string>
-                    </property>
-                   </item>
-                   <item>
-                    <property name="text">
-                     <string>Vertical</string>
-                    </property>
-                   </item>
-                   <item>
-                    <property name="text">
-                     <string>Grid</string>
-                    </property>
-                   </item>
-                   <item>
-                    <property name="text">
-                     <string>Cross Hatch</string>
-                    </property>
-                   </item>
-                  </widget>
-                 </item>
-                 <item row="1" column="0" colspan="2">
-                  <widget class="QLabel" name="label_8">
-                   <property name="text">
-                    <string>Hatch Tiling</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="4" column="0" colspan="2">
-                  <widget class="QLabel" name="label_7">
-                   <property name="text">
-                    <string>Hatch Line Color</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="5" column="0" colspan="4">
-                  <widget class="QPushButton" name="pushButtonDefaultValues">
-                   <property name="toolTip">
-                    <string>Reset the procedural hatch settings to their defaults</string>
-                   </property>
-                   <property name="text">
-                    <string>Default Values</string>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </item>
-              </layout>
-             </widget>
-            </item>
-           </layout>
+           <widget class="QPushButton" name="pushButtonTexture">
+            <property name="minimumSize">
+             <size>
+              <width>140</width>
+              <height>140</height>
+             </size>
+            </property>
+            <property name="acceptDrops">
+             <bool>true</bool>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">background-color: rgba(255, 255, 255, 5%);</string>
+            </property>
+            <property name="toolTip">
+             <string>Pick (or drag &amp; drop) an image
+to use as the cap texture</string>
+            </property>
+            <property name="text">
+             <string>Select Texture</string>
+            </property>
+           </widget>
           </item>
           <item>
-           <layout class="QVBoxLayout" name="verticalLayout_2">
-            <item>
-             <widget class="QRadioButton" name="radioButtonTextured">
-              <property name="toolTip">
-               <string>Fill caps with an image texture instead
-of a procedural hatch pattern</string>
-              </property>
-              <property name="text">
-               <string>Textured</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="pushButtonTexture">
-              <property name="minimumSize">
-               <size>
-                <width>140</width>
-                <height>140</height>
-               </size>
-              </property>
-              <property name="acceptDrops">
-               <bool>true</bool>
-              </property>
-              <property name="styleSheet">
-               <string notr="true">background-color: rgba(255, 255, 255, 5%);</string>
-              </property>
-              <property name="toolTip">
-               <string>Pick (or drag &amp; drop) an image
-to use as the cap texture</string>
-              </property>
-              <property name="text">
-               <string>Select Texture</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <spacer name="verticalSpacer">
-              <property name="orientation">
-               <enum>Qt::Orientation::Vertical</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>20</width>
-                <height>40</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-           </layout>
+           <spacer name="verticalSpacer">
+            <property name="orientation">
+             <enum>Qt::Orientation::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
           </item>
          </layout>
         </item>
@@ -558,38 +667,5 @@ to use as the cap texture</string>
   <tabstop>checkBoxFlipZX</tabstop>
  </tabstops>
  <resources/>
- <connections>
-  <connection>
-   <sender>radioButtonProcedural</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>groupBox</receiver>
-   <slot>setEnabled(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>83</x>
-     <y>209</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>91</x>
-     <y>239</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>radioButtonTextured</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>pushButtonTexture</receiver>
-   <slot>setEnabled(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>304</x>
-     <y>214</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>305</x>
-     <y>256</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
+ <connections/>
 </ui>

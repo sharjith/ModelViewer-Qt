@@ -13,7 +13,12 @@ namespace
 //   1 — initial
 //   2 — added importCorrection matrix to fileNode serialization
 //   3 — added autoOrientApplied / autoScaleApplied flags to fileNode serialization
-constexpr quint32 SCENEGRAPH_SESSION_VERSION = 3;
+//   4 — added importUnit / importUnitUserOverridden to node serialization
+//       (units policy - see LengthUnits.h). Exact-match gate below means this
+//       intentionally invalidates old (v3) *session* files only; MVF
+//       documents stay fully compatible via the JSON read path, which has no
+//       such gate and tolerates missing keys.
+constexpr quint32 SCENEGRAPH_SESSION_VERSION = 4;
 
 void writeMatrix(QDataStream& out, const aiMatrix4x4& m)
 {
@@ -254,6 +259,13 @@ void SceneGraph::rebuildFromMvf(const QJsonArray& documentNodes,
         node->autoOrientApplied = obj[QStringLiteral("autoOrientApplied")].toBool(false);
         node->autoScaleApplied  = obj[QStringLiteral("autoScaleApplied")].toBool(false);
 
+        // Older MVF files simply lack these keys, correctly yielding
+        // Unknown/false (the same fallback resolveEffectiveImportUnit() already
+        // treats as "nothing set") - no heuristic recovery needed here, unlike
+        // importCorrection above.
+        node->importUnit = lengthUnitFromString(obj[QStringLiteral("importUnit")].toString(), LengthUnit::Unknown);
+        node->importUnitUserOverridden = obj[QStringLiteral("importUnitUserOverridden")].toBool(false);
+
         const QJsonArray bindings = obj[QStringLiteral("meshBindings")].toArray();
         for (const QJsonValue& b : bindings)
         {
@@ -376,6 +388,7 @@ void SceneGraph::serialize(QDataStream& out) const
         writeMatrix(out, node->localTransform);
         writeMatrix(out, node->importCorrection);  // v2: persists autoOrient+autoScale correction
         out << node->autoOrientApplied << node->autoScaleApplied;  // v3
+        out << static_cast<int>(node->importUnit) << node->importUnitUserOverridden;  // v4
 
         out << static_cast<quint32>(node->meshUuids.size());
         for (const QUuid& uuid : node->meshUuids)
@@ -430,6 +443,10 @@ bool SceneGraph::deserialize(QDataStream& in)
             return nullptr;
         }
         in >> node->autoOrientApplied >> node->autoScaleApplied;  // v3
+
+        int importUnitInt = 0;
+        in >> importUnitInt >> node->importUnitUserOverridden;  // v4
+        node->importUnit = static_cast<LengthUnit>(importUnitInt);
 
         in >> meshCount;
         for (quint32 i = 0; i < meshCount; ++i)
@@ -932,6 +949,109 @@ int SceneGraph::measurementIndexById(const QUuid& id) const
     for (int i = 0; i < _measurements.size(); ++i)
     {
         if (_measurements.at(i).id == id)
+            return i;
+    }
+    return -1;
+}
+
+// ---------------------------------------------------------------------------
+// Named selection sets
+// ---------------------------------------------------------------------------
+
+void SceneGraph::addSelectionSet(const SelectionSet& set)
+{
+    _selectionSets.append(set);
+    emit selectionSetsChanged();
+}
+
+void SceneGraph::insertSelectionSetAt(int index, const SelectionSet& set)
+{
+    _selectionSets.insert(qBound(0, index, _selectionSets.size()), set);
+    emit selectionSetsChanged();
+}
+
+void SceneGraph::removeSelectionSetById(const QUuid& id)
+{
+    const int index = selectionSetIndexById(id);
+    if (index < 0)
+        return;
+    _selectionSets.removeAt(index);
+    emit selectionSetsChanged();
+}
+
+void SceneGraph::renameSelectionSet(const QUuid& id, const QString& newName)
+{
+    const int index = selectionSetIndexById(id);
+    if (index < 0 || _selectionSets.at(index).name == newName)
+        return;
+    _selectionSets[index].name = newName;
+    emit selectionSetsChanged();
+}
+
+void SceneGraph::clearSelectionSets()
+{
+    if (_selectionSets.isEmpty())
+        return;
+    _selectionSets.clear();
+    emit selectionSetsChanged();
+}
+
+int SceneGraph::selectionSetIndexById(const QUuid& id) const
+{
+    for (int i = 0; i < _selectionSets.size(); ++i)
+    {
+        if (_selectionSets.at(i).id == id)
+            return i;
+    }
+    return -1;
+}
+
+// ---------------------------------------------------------------------------
+// Named scene states - identical shape to the selection-set block above.
+// ---------------------------------------------------------------------------
+void SceneGraph::addSceneState(const SceneState& state)
+{
+    _sceneStates.append(state);
+    emit sceneStatesChanged();
+}
+
+void SceneGraph::insertSceneStateAt(int index, const SceneState& state)
+{
+    _sceneStates.insert(qBound(0, index, _sceneStates.size()), state);
+    emit sceneStatesChanged();
+}
+
+void SceneGraph::removeSceneStateById(const QUuid& id)
+{
+    const int index = sceneStateIndexById(id);
+    if (index < 0)
+        return;
+    _sceneStates.removeAt(index);
+    emit sceneStatesChanged();
+}
+
+void SceneGraph::renameSceneState(const QUuid& id, const QString& newName)
+{
+    const int index = sceneStateIndexById(id);
+    if (index < 0 || _sceneStates.at(index).name == newName)
+        return;
+    _sceneStates[index].name = newName;
+    emit sceneStatesChanged();
+}
+
+void SceneGraph::clearSceneStates()
+{
+    if (_sceneStates.isEmpty())
+        return;
+    _sceneStates.clear();
+    emit sceneStatesChanged();
+}
+
+int SceneGraph::sceneStateIndexById(const QUuid& id) const
+{
+    for (int i = 0; i < _sceneStates.size(); ++i)
+    {
+        if (_sceneStates.at(i).id == id)
             return i;
     }
     return -1;

@@ -4,17 +4,41 @@
         <file>res/import.png</file>
         <file>res/pancursor.png</file>
         <file>res/rotatecursor.png</file>
+        <file>res/pullcursor.png</file>
         <file>res/zoomcursor.png</file>
         <file>res/window-zoom-cursor.png</file>
         <file>res/fit-all.png</file>
         <file>res/window-zoom.png</file>
         <file>res/isometric.png</file>
+        <file>res/isometric_se.png</file>
+        <file>res/isometric_ne.png</file>
+        <file>res/isometric_nw.png</file>
+        <file>res/isometric_sw.png</file>
+        <file>res/isometric_se_de.png</file>
+        <file>res/isometric_ne_de.png</file>
+        <file>res/isometric_nw_de.png</file>
+        <file>res/isometric_sw_de.png</file>
+        <file>res/isometric_se_o.png</file>
+        <file>res/isometric_ne_o.png</file>
+        <file>res/isometric_nw_o.png</file>
+        <file>res/isometric_sw_o.png</file>
         <file>res/dimetric.png</file>
         <file>res/trimetric.png</file>
         <file>res/multiview.png</file>
         <file>res/section.png</file>
+        <file>res/clip_xy.png</file>
+        <file>res/clip_yz.png</file>
+        <file>res/clip_zx.png</file>
+        <file>res/clip_yz_zx.png</file>
+        <file>res/clip_xy_zx.png</file>
+        <file>res/clip_xy_yz.png</file>
+        <file>res/clip_xy_yz_zx.png</file>
+        <file>res/clip_box.png</file>
+        <file>res/clip_none.png</file>
         <file>res/Ortho.png</file>
         <file>res/Perspective.png</file>
+        <file>res/Cavalier.png</file>
+        <file>res/Cabinet.png</file>
         <file>res/shaded.png</file>
         <file>res/wireframe.png</file>
         <file>res/back.png</file>
@@ -96,6 +120,75 @@
         <file>res/sample-models/Camera.png</file>
         <file>res/sample-models/Skateboard-Assy.png</file>
         <file>res/sample-models/Teapot.png</file>
+        <file>res/eye_dropper.png</file>
+        <file>res/paint_brush.png</file>
+        <file>res/lasso_select.png</file>
+        <file>res/camera_orbit_anim.png</file>
+        <file>res/save_scene_state.png</file>
+        <file>res/measure.png</file>
+        <file>res/annotate.png</file>
+        <file>res/export_report.png</file>
+        <file>res/batch_render_views.png</file>
+        <file>res/mass_properties.png</file>
+        <file>res/shrink_wrap.png</file>
+        <file>res/subdivide_surface.png</file>
+        <file>res/reconstruct_surface.png</file>
+        <file>res/repair_mesh.png</file>
+        <file>res/fill_holes.png</file>
+        <file>res/generate_uvs.png</file>
+        <file>res/surface_analysis.png</file>
+        <file>res/curvature_analysis.png</file>
+        <file>res/wall_thickness.png</file>
+        <file>res/deviation_analysis.png</file>
+        <file>res/mesh_info.png</file>
+        <file>res/duplicate_meshes.png</file>
+        <file>res/group_meshes.png</file>
+        <file>res/mesh_union.png</file>
+        <file>res/merge_by_adjacency.png</file>
+        <file>res/merge_selected.png</file>
+        <file>res/split_by_connectivity.png</file>
+        <file>res/import_units.png</file>
+        <file>res/show_only.png</file>
+        <file>res/show.png</file>
+        <file>res/hide.png</file>
+        <file>res/center_screen.png</file>
+        <file>res/select_parent.png</file>
+        <file>res/paste.png</file>
+        <file>res/cut.png</file>
+        <file>res/copy.png</file>
+        <file>res/texture_debugger.png</file>
+        <file>res/ray_tracing.png</file>
+        <file>res/save_selection_set.png</file>
+        <file>res/filter_by_color.png</file>
+        <file>res/filter_by_material.png</file>
+        <file>res/filter_by_bounding_box.png</file>
+        <file>res/settings.png</file>
+        <file>res/redo.png</file>
+        <file>res/undo.png</file>
+        <file>res/center_object_list.png</file>
+        <file>res/set_as_default.png</file>
+        <file>res/capture_variant.png</file>
+        <file>res/ungroup_captures.png</file>
+        <file>res/group_captures.png</file>
+        <file>res/edit_selection.png</file>
+        <file>res/rename.png</file>
+        <file>res/channel_packing.png</file>
+        <file>res/show_console.png</file>
+        <file>res/open_logs_folder.png</file>
+        <file>res/view_logs.png</file>
+        <file>res/tutorial.png</file>
+        <file>res/quick_help.png</file>
+        <file>res/about.png</file>
+        <file>res/exit.png</file>
+        <file>res/file_close.png</file>
+        <file>res/window_close_all.png</file>
+        <file>res/window_close.png</file>
+        <file>res/window_previous.png</file>
+        <file>res/window_next.png</file>
+        <file>res/cascade.png</file>
+        <file>res/tile_vertical.png</file>
+        <file>res/tile_horizontal.png</file>
+        <file>res/tile.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>

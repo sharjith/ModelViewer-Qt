@@ -52,7 +52,13 @@ public:
 
 	/*  Functions  */
 	// Constructor
-	SceneMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Material::Texture> textures, Material material, bool skipOptimization = false, GLenum primitiveMode = GL_TRIANGLES);
+	// initialSourceMeshIds: optional, one entry per vertex (matching `vertices`),
+	// see MeshImportAdaptor::sourceMeshIds()'s doc comment. Left at its default
+	// (empty) by every call site except SceneMesh::mergeMeshes() and clone()
+	// (when cloning an already-merged mesh) - stored BEFORE optimizeMesh() runs
+	// so its vertex-fetch reorder can permute this array in lockstep with
+	// _vertices, the same way _baseVertices is kept in sync.
+	SceneMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Material::Texture> textures, Material material, bool skipOptimization = false, GLenum primitiveMode = GL_TRIANGLES, std::vector<quint64> initialSourceMeshIds = {});
 	~SceneMesh();
 	virtual SceneMesh* clone();
 	void setProg(QOpenGLShaderProgram* prog) override;
@@ -126,6 +132,44 @@ public:
 	// axes[i] describes the analytic axis for topological face i (see
 	// OccFaceAxisInfo's doc comment) - look up i via getOccTriangleFaceIndex().
 	const std::vector<OccFaceAxisInfo>& getOccFaceAxes() const { return _importState.occFaceAxes(); }
+
+	// Source-mesh provenance for CurvatureAnalyzer's cross-body edge-weld
+	// advisory - see MeshImportAdaptor::sourceMeshIds()'s doc comment. Empty
+	// for the vast majority of meshes (anything that was never combined via
+	// Merge Selected/Mesh Union's fallback); a non-empty array has one entry
+	// per CURRENT vertex (vertices()/getTrsfPoints() order).
+	const std::vector<quint64>& getSourceMeshIds() const { return _importState.sourceMeshIds(); }
+	// Restores provenance captured at MVF save time - unlike the constructor's
+	// initialSourceMeshIds parameter, this is for the ViewportWidget::
+	// uploadOneMvfMesh() reload path, which constructs the mesh with EMPTY
+	// geometry first and populates it afterward via setMeshData() (which
+	// never reorders - "no optimization", see its own doc comment), so the
+	// save-time array is still in the correct order with no remap needed.
+	// Silently ignored (left empty) if `ids` doesn't match the CURRENT
+	// vertex count - defensive, same convention as everywhere else this data
+	// is consumed.
+	void setPrecomputedSourceMeshIds(const std::vector<quint64>& ids)
+	{
+		if (ids.size() == _vertices.size())
+			_importState.setSourceMeshIds(ids);
+	}
+	// True when Repair Mesh deliberately split non-manifold vertices to make this mesh a valid polygon
+	// mesh (CGAL orient_polygon_soup()/duplicate_non_manifold_vertices()). The split leaves coincident,
+	// unconnected vertices, which are indistinguishable by position from an exporter's normal-seam
+	// duplicates - so the analysis tools (Mass Properties, Wall Thickness) only re-apply that split to
+	// their private welded copy for a mesh carrying this flag. An UNflagged mesh with a non-manifold edge
+	// is reported honestly as non-manifold. Set only by Repair Mesh; copied by clone(); persisted in MVF.
+	bool topologyRepaired() const { return _topologyRepaired; }
+	void setTopologyRepaired(bool repaired) { _topologyRepaired = repaired; }
+	// Per-vertex convenience query - 0 (the reserved "uniform/no tag"
+	// sentinel) for any mesh whose getSourceMeshIds() is empty, or for an
+	// out-of-range index.
+	quint64 getSourceMeshIdForVertex(unsigned int vertexIndex) const
+	{
+		const std::vector<quint64>& ids = _importState.sourceMeshIds();
+		return vertexIndex < ids.size() ? ids[vertexIndex] : 0;
+	}
+
 	// Returns the getOccFaceAxes() index for triangle `triangleIndex` in
 	// THIS mesh's own current triangle order, or -1 if that triangle isn't
 	// on a captured cylindrical/conical face. Lazily builds a hash-map from
@@ -258,17 +302,23 @@ public:
 	// removal, orientation) since corefinement requires watertight,
 	// self-intersection-free, consistently-oriented input. If repair or
 	// corefinement fails for ANY pair in the fold, abandons the whole
-	// attempt and falls back to mergeMeshes()'s plain concatenation - never
-	// worse than today's "Merge Selected", better whenever the geometry
-	// allows a real solid union. See the plan/[[project_cgal_capabilities_reference]]
-	// for why this is all-or-nothing rather than per-pair partial fallback.
+	// attempt - see allowMergeFallback below for what happens then. See the
+	// plan/[[project_cgal_capabilities_reference]] for why this is all-or-
+	// nothing rather than per-pair partial fallback.
 	// outUsedRealUnion, if non-null, is set to true when a real CGAL union
 	// was produced and false whenever the mergeMeshes() fallback ran instead
 	// (at any of this function's several fallback points) - lets a caller
 	// tell the user which actually happened rather than reporting a generic
 	// "merged" message regardless of which path ran.
+	// allowMergeFallback (default true, matching this function's original
+	// behavior): when the real union can't be produced, true falls back to
+	// mergeMeshes()'s plain concatenation automatically (never worse than
+	// "Merge Selected"); false returns nullptr instead of falling back
+	// silently - the caller (ModelViewer::unionSelectedMeshes()) uses this to
+	// ask the user first whether they want the plain-concatenation fallback,
+	// rather than committing to it without asking.
 	static SceneMesh* booleanUnionMeshes(const QVector<SceneMesh*>& meshes, const QString& mergedName,
-	                                      bool* outUsedRealUnion = nullptr);
+	                                      bool* outUsedRealUnion = nullptr, bool allowMergeFallback = true);
 
 	// Computes a suggested alpha/offset pair for shrinkWrapMeshes() below,
 	// from the combined world-space bounding-box diagonal of meshes (alpha
@@ -560,6 +610,7 @@ private:
 protected:
 	// ---- Import provenance + animation state (moved from RenderableMesh) --------
 	MeshImportAdaptor  _importState;
+	bool               _topologyRepaired = false; // see topologyRepaired()
 	MeshAnimationState _animState;
 
 	// ---- Interleaved CPU geometry (owned here until DeformableGeometry* composition) ---

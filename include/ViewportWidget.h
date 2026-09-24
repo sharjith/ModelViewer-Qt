@@ -5,6 +5,8 @@
 #include <functional>
 #include <memory>
 #include <utility>
+#include <QVariantMap>
+class ToolsToolbar;
 
 #include "AdaptiveShadowMapper.h"
 #include "AnimationRuntimeController.h"
@@ -18,6 +20,8 @@
 #include "SceneRenderController.h"
 #include "ViewportInteractionController.h"
 #include "Camera.h"
+#include "Material.h"
+#include "MeshSurfaceAnchor.h"
 #include "MeasurementData.h"
 #include "MeasurementController.h"
 #include "AnnotationController.h"
@@ -25,6 +29,7 @@
 #include "FillHolesController.h"
 #include "MvfMeshPreparationWorker.h"
 #include "PlaneRenderable.h"
+#include "PlaneGizmo.h"
 #include "FloorPlane.h"
 #include "SceneRuntime.h"
 #include "RenderableMesh.h"
@@ -43,10 +48,13 @@
 #include <QOpenGLWidget>
 #include <QPointer>
 #include <QRubberBand>
+#include <QPolygon>
+#include "LassoOverlayWidget.h"
 #include <QSet>
 #include <QString>
 #include <array>
 #include "ViewToolbar.h"
+#include "TabbedViewportToolbar.h"
 #include "SceneUtils.h"
 #include "PunctualLights.h"
 #include "KTX2Loader.h"
@@ -130,14 +138,33 @@ public:
 
 	void resizeView(int w, int h) { resizeGL(w, h); }
 	void setViewMode(ViewMode mode);
+	// Compass corner (SE/NE/NW/SW) the axonometric views are seen from, independent of the axonometric
+	// type. Re-applies the current axonometric view at the new corner; when the view is not axonometric
+	// (a standard view, a free orbit) it switches to the last-used axonometric type at that corner.
+	void setIsoCorner(IsoCorner corner);
+	// Pushes the axonometric type/corner/active state to the View toolbar's flyout buttons.
+	void updateViewSelectorState();
+    QVariantMap viewMenuState() const;
+    void executeViewCommand(const QString& command, bool checked);
+    void clearViewNavigation();
 	void setCameraUpAxisZUp(bool zUp, bool syncToolbar = true);
 	bool isCameraUpAxisZUp() const { return _viewCtrl.cameraUpAxisZUp(); }
 	void setProjection(ViewProjection proj);
 	ViewProjection projection() const { return _viewCtrl.projection(); }
+	// Cavalier/Cabinet flavour of the orthographic projection (NONE = plain orthographic, same as
+	// setProjection(ORTHOGRAPHIC)). Like Perspective/Orthographic it is independent of the view: it stays
+	// in effect while orbiting, panning, zooming and changing views. Refused (returns false) in
+	// Fly/First-person mode or while ray tracing is armed.
+	bool setObliqueMode(ObliqueMode mode);
+	ObliqueMode obliqueMode() const { return _viewCtrl.obliqueMode(); }
+	// The ray tracer builds its camera from a symmetric orthographic/pinhole projection and cannot
+	// render the shear, so arming it (or an offline render) drops an active oblique projection back to
+	// plain orthographic and says so in the status bar.
+	void dropObliqueForRayTracing();
 	void setCameraMode(Camera::CameraMode mode);
 	Camera::CameraMode cameraMode() const;
 
-	void setMultiView(bool active) { _viewCtrl.setMultiViewActive(active); }
+	void setMultiView(bool active) { _viewCtrl.setMultiViewActive(active); emit viewStateChanged(); }
 	void setRotationActive(bool active);
 	void setPanningActive(bool active);
 	void setZoomingActive(bool active);
@@ -154,6 +181,7 @@ public:
 	GltfCameraData cameraDataForMvfSave(const GltfCameraData& source) const;
 	void triggerShadowRecomputation();
 	void setShadowQuality(AdaptiveShadowMapper::QualityLevel quality);
+	AdaptiveShadowMapper::QualityLevel getShadowQuality() const { return shadowMapper.quality(); }
 	float calculateLightDistance();
 
 	QVector<QUuid> duplicateObjects(const std::vector<int>& ids);
@@ -180,6 +208,61 @@ public:
 	}
 
 	void updateClippingPlane();
+	// Recomputes the 3 clipping-plane gizmos' position/extent/visibility
+	// from current clip-coefficient/enabled/flip state and the scene
+	// bounding box - called from updateClippingPlane() (the same function
+	// that already recomputes the cap-fill quads from the same inputs) and
+	// directly from ClippingPlanesEditor whenever its own "Show Gizmo"
+	// checkbox toggles (no coefficient/bounds change to justify the fuller
+	// updateClippingPlane() in that case, just a visibility flip).
+	void updatePlaneGizmos();
+	// Filter by Bounding Box's 6-face gizmo - see _bboxGizmoXMin's own doc
+	// comment for the ownership/lifecycle shape. createBoundingBoxGizmos()
+	// is idempotent (safe to call every time the dialog opens, same as
+	// createCappingPlanes()'s own null-check pattern) and must be called
+	// before the getters below return non-null for the first time.
+	void createBoundingBoxGizmos();
+	// Repositions/resizes all 6 faces from the given world-space limits -
+	// each face's OTHER-two-axis extent comes from the box's OWN current
+	// size (not the scene bounds, unlike the clipping-plane gizmos), so
+	// changing any one limit can resize up to 4 of the 6 faces, not just
+	// reposition one - call this on every limit change, not just the axis
+	// that moved. No-op if createBoundingBoxGizmos() hasn't run yet.
+	void updateBoundingBoxGizmos(const BoundingBox& limits);
+	void setBoundingBoxGizmosVisible(bool visible);
+	PlaneGizmo* bboxGizmoXMin() const { return _bboxGizmoXMin; }
+	PlaneGizmo* bboxGizmoXMax() const { return _bboxGizmoXMax; }
+	PlaneGizmo* bboxGizmoYMin() const { return _bboxGizmoYMin; }
+	PlaneGizmo* bboxGizmoYMax() const { return _bboxGizmoYMax; }
+	PlaneGizmo* bboxGizmoZMin() const { return _bboxGizmoZMin; }
+	PlaneGizmo* bboxGizmoZMax() const { return _bboxGizmoZMax; }
+
+	// ---- Box clipping (4th Clipping Planes mode) --------------------------
+	// Limits are absolute world coordinates; face order everywhere is 0..5 =
+	// xMin, xMax, yMin, yMax, zMin, zMax. The Clipping Planes editor owns the
+	// enable/flip checkboxes and the six spin boxes; these are the entry points
+	// it (and the box's own gizmo drags/undo) call.
+	// Turns box mode on/off. The first enable seeds the limits (see
+	// resetBoxClippingLimits()); later enables keep whatever the user set.
+	void setBoxClippingEnabled(bool enabled);
+	// false (default): keep the outside, cut a box-shaped hole. true: keep only the inside (crop).
+	void setBoxClippingKeepInside(bool keepInside) { _renderCtrl.setBoxClippingKeepInside(keepInside); }
+	// Re-seeds the box centered on the scene bounding-box center, half the scene's
+	// size per axis (matching CAD Assistant's default), and syncs the editor's
+	// spin boxes.
+	void resetBoxClippingLimits();
+	// The single place a box face limit changes: clamps against the partner face
+	// (kMinBoxGap) and the scene-derived absolute range, applies it, syncs the
+	// editor's spin box and the gizmos. Reused by spin-box edits, gizmo drags and
+	// the drag's undo/redo so all three produce identical side effects.
+	void setBoxClippingLimit(int face, double value);
+	double boxClippingLimit(int face) const;
+	// Absolute range a box limit on `axis` (0=X,1=Y,2=Z) may take: the scene
+	// bounds plus a margin, so a face can be dragged a bit past the model.
+	void boxClippingLimitRange(int axis, double& outMin, double& outMax) const;
+	// Positions/shows the 6 box-clip gizmos from the current state (visible only
+	// while box mode is on AND the editor's "Show Gizmo" is checked).
+	void updateClipBoxGizmos();
 	void showClippingPlaneEditor(bool show);
 	void showExplodedViewPanel(bool show);
 	ExplodedViewPanel* getExplodedViewPanel() const { return _explodedViewPanel; }
@@ -190,6 +273,11 @@ public:
 	QWidget* takeOverlayPanel(QWidget* contentWidget);
 	void refreshDetachedNavigationOverlayTheme();
 	void setClippingPlaneHatchMode(ClippingPlaneHatchMode mode);
+	// Thin _renderCtrl.hatchMode() passthrough - lets ClippingPlanesEditor
+	// decide the texture picker's one-time visibility (only shown when the
+	// Settings-configured default mode is Textured) without needing its own
+	// copy of the Settings-seeded value.
+	ClippingPlaneHatchMode clippingPlaneHatchMode() const;
 	void setClippingPlaneHatchPattern(HatchPattern pattern);
 	void setHatchTiling(int tiling);
 	void setHatchLineThickness(float width);
@@ -229,13 +317,36 @@ public:
 	void setShadowCatcherRoughness(float roughness);
 	void setGroundMode(GroundMode mode);
 	GroundMode groundMode() const { return _renderCtrl.groundMode(); }
-	float getFloorOffsetPercent() const { return _renderCtrl.floorOffsetPercent(); }
+	// _renderCtrl.floorOffsetPercent() is internally a FRACTION (0-1, used
+	// directly as a multiplier against floor size in updateFloorPlane()'s
+	// geometry math), despite its own name - setFloorOffsetPercent(double)
+	// below takes a UI-scale percent (0-100) and divides by 100 before
+	// storing it there. This getter converts back to that same percent scale
+	// so it's the correct round-trip inverse of the setter, matching what
+	// its own name promises (a caller that round-trips get->set, as every
+	// current caller does - VisualizationEnvironmentPanel's document-switch
+	// UI sync, Scene State capture/recall, MVF viewerState save/load - would
+	// otherwise silently shrink the value 100x on every restore).
+	float getFloorOffsetPercent() const { return _renderCtrl.floorOffsetPercent() * 100.0f; }
+	float getFloorTexRepeatS() const { return _renderCtrl.floorTexRepeatS(); }
+	float getFloorTexRepeatT() const { return _renderCtrl.floorTexRepeatT(); }
 	bool isOpenGLInitialized() const { return _renderCtrl.isOpenGLInitialized(); }
 	void showFloor(bool show) { setGroundMode(show ? GroundMode::Floor : GroundMode::None); }
 	bool isFloorShown() { return _renderCtrl.groundMode() == GroundMode::Floor; }
 	bool isGridShown() const { return _renderCtrl.groundMode() == GroundMode::Grid; }
 	void showFloorTexture(bool show);
 	void setFloorTexture(QImage img);
+	// Which image file is loaded as the floor texture, if any - setFloorTexture()
+	// above only ever receives already-decoded pixel data, with no way to
+	// recover the source path afterward, so document/scene-state persistence
+	// had nothing to save. setFloorTextureFromPath() is the single entry
+	// point that both loads the image AND remembers the path (falling back
+	// to a dummy image on a load failure, same as
+	// VisualizationEnvironmentPanel::onFloorTextureClicked()'s own fallback)
+	// - use it from anywhere that needs the path remembered, including that
+	// same file-dialog handler.
+	QString getFloorTexturePath() const { return _floorTexturePath; }
+	void setFloorTextureFromPath(const QString& path);
 
 	std::vector<SceneMesh*> getMeshStore() const
 	{
@@ -318,6 +429,17 @@ public:
 	// return to System Camera after activating a captured view).
 	GltfCameraEntry captureCurrentCameraEntry(const QString& name) const;
 
+	// Activates a camera entry that is NOT looked up from SceneGraph's
+	// per-file bucket (e.g. a Named Scene State's own private GltfCameraEntry
+	// snapshot, SceneStateData.h). Same system-camera-save-latch + notify
+	// behavior as activateGltfCamera()'s non-animated branch; skips the
+	// SceneGraph lookup and the animation-clip re-apply branch, neither of
+	// which applies to a state's private snapshot (it's never tied to any
+	// file's animation clip). Not undoable - matches this app's existing
+	// convention that no camera activation, including activateGltfCamera()
+	// itself, is ever pushed to the undo stack.
+	void activateCameraEntry(const GltfCameraEntry& cam);
+
 	// ---- Measurement tool ----------------------------------------------------
 	// Thin forwards to _measurementController, which owns the entire
 	// Measurement toolset (state, picking, rendering, hit-testing, dragging -
@@ -374,6 +496,46 @@ public:
 	// Clears the mark list AND disarms the tool - the full "session end"
 	// teardown UVGenerationDialog::closeEvent()/reject() call.
 	void clearSeamMarks();
+
+	// ---- Lasso selection ----------------------------------------------------
+	// Freeform-polygon drag selection, armed via ViewToolbar's toggle button.
+	// Mutually exclusive with Measure/Annotate/Mark-Seams above (same
+	// cross-clearing shape those three already use with each other) - stays
+	// armed across multiple drags until toggled off again, unlike Window
+	// Zoom's one-shot gesture.
+	void setLassoToolArmed(bool armed);
+	bool lassoToolArmed() const { return _lassoToolArmed; }
+
+	// ---- Material eyedropper/brush ------------------------------------------
+	// Two-phase tool armed from MaterialPropertiesPanel's eyeDropper button:
+	// AwaitingSample (next click samples a source mesh's material) then
+	// Brushing (subsequent clicks/drags apply it to target meshes, whole-mesh
+	// at a time, batched into one undo command per stroke - see
+	// eyedropperStrokeFinished()). One pick, one stroke (which can still
+	// cover many meshes via a single continuous drag), then auto-disarms
+	// back to Idle - staying armed past a completed stroke used to silently
+	// swallow every following click as another brush action instead of
+	// falling through to normal selection (looked like a selection
+	// regression from the outside - see mouseReleaseEvent()'s
+	// setEyedropperArmed(false) call right after eyedropperStrokeFinished).
+	// Mutually exclusive with Measure/Annotate/Mark-Seams/Lasso above, same
+	// cross-clearing shape.
+	enum class EyedropperPhase { Idle, AwaitingSample, Brushing };
+	void setEyedropperArmed(bool armed);
+	bool eyedropperArmed() const { return _eyedropperPhase != EyedropperPhase::Idle; }
+
+	// ---- Color eyedropper (Filter by Color's "pick from mesh") -------------
+	// Single-phase sibling of the material eyedropper above: armed from
+	// FilterByColorDialog's own pick button, a click samples a mesh's
+	// meshRepresentativeColor() (see MeshColorUtils.h - the SAME value the
+	// dialog's own matching already compares against, so this is always an
+	// exact hit, unlike eyeballing/screen-sampling via QColorDialog) and
+	// emits colorPicked() - no "brush/apply" phase needed, this only ever
+	// reads. Stays armed across multiple clicks until toggled off, same as
+	// Lasso. Mutually exclusive with Measure/Annotate/Mark-Seams/Lasso/
+	// Eyedropper above, same cross-clearing shape.
+	void setColorPickArmed(bool armed);
+	bool colorPickArmed() const { return _colorPickArmed; }
 
 	// ---- Fill Holes dialog's detected-hole-loop overlay --------------------
 	// Thin forwards to _fillHolesController - see FillHolesController.h. No tool-armed state
@@ -455,6 +617,12 @@ public:
 	void loadBgColorSettings();
 	void loadNavigationSettings();
 	void loadRenderSettings();
+	// Settings -> Display -> Overlay Text Scale, re-read and re-applied to
+	// both TextRenderer instances - callable both at construction
+	// (initializeGL()) and live from MainWindow's SettingsDialog::
+	// settingsChanged() handler, same "load...Settings()" shape as the
+	// three siblings above.
+	void loadTextOverlaySettings();
 
 	struct CameraPose
 	{
@@ -965,7 +1133,9 @@ public:
 	bool arePunctualLightsEnabled() const { return _renderCtrl.usePunctualLights(); }
 	bool areLightsShown() const { return _renderCtrl.showLights(); }
 
+    ToolsToolbar* getToolsToolbar() const;
 	ViewToolbar* getViewToolbar() const { return _viewToolbar; }
+    void raiseViewportToolbar();
 
 	// Releases every GPU-context-bound resource's GL handles (via
 	// _gpuResourceRegistry.releaseAll() - see IGpuContextResource.h) without
@@ -1047,6 +1217,19 @@ public:
 	using RuntimeAnimationFileState  = AnimationRuntimeController::RuntimeAnimationFileState;
 
 signals:
+    void viewStateChanged();
+    void toolCommandRequested(const QString& command);
+	// Fired synchronously, on the two actual `delete meshRecord.mesh`/
+	// `delete entry.mesh` call sites (permanentlyDeleteFromBin(),
+	// clearMeshStore()) - NOT on an ordinary DeleteMeshCommand::redo(),
+	// which only moves a mesh into the recycle bin (still alive, restorable
+	// via undo). Any long-lived component that tracks raw SceneMesh*
+	// pointers across event-loop turns (e.g. a non-modal dialog's cached
+	// selection) must connect here and drop the pointer before returning -
+	// the mesh is still valid for the duration of this signal, but not
+	// after.
+	void meshAboutToBeDeleted(SceneMesh* mesh);
+
 	void windowZoomEnded();
 	void rotationsSet();
 	void zoomAndPanSet();
@@ -1087,6 +1270,41 @@ signals:
 	// reasoning as annotationToolArmedChanged() above, so UVGenerationDialog's
 	// arm button can stay in sync (e.g. Escape disarming it).
 	void seamToolArmedChanged(bool armed);
+	// Emitted whenever the armed Lasso tool state changes - including from
+	// this widget's own mutual-exclusion clearing (another tool got armed)
+	// - so ViewToolbar's toggle button (via setLassoToolChecked()) can stay
+	// in sync without being the ONLY thing that ever arms/disarms it.
+	void lassoToolArmedChanged(bool armed);
+	// Emitted the instant the eyedropper's sample click hits a mesh (phase
+	// transitions AwaitingSample -> Brushing) - ModelViewer binds `material`
+	// into MaterialPropertiesPanel, mirroring editMeshMaterial()'s existing
+	// createUnsavedMaterialFromMesh() flow, so the panel reflects what was
+	// actually sampled.
+	void eyedropperMaterialSampled(const Material& material, const QString& sourceMeshName);
+	// Emitted on mouse release ending one brush stroke, only if it actually
+	// touched at least one target mesh - ModelViewer pushes a single
+	// ApplyMaterialCommand covering the whole stroke (one undo entry per
+	// gesture, same convention as every other multi-mesh operation in this
+	// app).
+	void eyedropperStrokeFinished(const QVector<QUuid>& targetUuids, const Material& material);
+	// Emitted whenever the armed eyedropper state changes - including this
+	// widget's own mutual-exclusion clearing - so MaterialPropertiesPanel's
+	// eyeDropper button (via setEyedropperChecked()) stays in sync either way.
+	void eyedropperArmedChanged(bool armed);
+	// Emitted the instant a color-pick click hits a mesh while
+	// setColorPickArmed(true) - FilterByColorDialog connects to this
+	// directly (it owns its ModelViewer/ViewportWidget outright, unlike the
+	// shared-panel material eyedropper, so no MainWindow rebind-dispatch is
+	// needed) and appends the color to its list. Stays armed after a hit -
+	// mirrors Lasso's "stays armed across multiple drags" convention, since
+	// clicking several meshes in a row to build up a color list is exactly
+	// the expected workflow here.
+	void colorPicked(const QVector3D& color);
+	// Emitted whenever the armed color-pick state changes - including this
+	// widget's own mutual-exclusion clearing (e.g. arming Lasso while color-
+	// pick was active) - so FilterByColorDialog's own pick button stays in
+	// sync without being the only thing that ever arms/disarms it.
+	void colorPickArmedChanged(bool armed);
 	// Fires whenever the seam-mark list changes (add/remove/clear) - lets
 	// UVGenerationDialog's mark-list widget refresh without polling.
 	void seamMarksChanged();
@@ -1097,6 +1315,11 @@ signals:
 	// Emitted by requestTextureReadback() once the GL readback is complete.
 	void textureReadbackReady(QVector<TextureSlotInfo> slots, QString meshName);
 	void cameraUpAxisChanged(bool zUp);
+	// Emitted whenever turntable actually starts or stops - including when
+	// stopAnimations() stops it on manual camera interaction, not just when
+	// setTurntableEnabled() is called directly - so ViewToolbar's toggle
+	// button can stay in sync (via setTurntableChecked()) either way.
+	void turntableStateChanged(bool enabled);
 
 public slots:
 	void animateViewChange();
@@ -1104,6 +1327,9 @@ public slots:
 	void animateWindowZoom();
 	void animateCenterScreen();
 	void onInertiaTimer();
+	void onTurntableTimer();
+	void setTurntableEnabled(bool enabled);
+	bool turntableEnabled() const { return _turntableTimer && _turntableTimer->isActive(); }
 	void stopAnimations();
 	void checkAndStopTimers();
 	void fitAll();
@@ -1240,12 +1466,28 @@ public slots:
 	// Remove all extension-level debug uniform+texture overrides for meshId.
 	void clearDebugExtensionOverrides(int meshId);
 
-private slots:
+	// Builds and shows the viewport's own context menu at pos (viewport-local coordinates).
+	// Public (not just the private slot connected to this widget's own customContextMenuRequested)
+	// so SceneTreeWidget::contextMenuEvent() can call it directly for a right-click landing on
+	// its transparent overlay background - a plain function call, not another signal/event
+	// round-trip, after the signal-emission forwarding attempt proved unreliable in practice.
 	void showContextMenu(const QPoint& pos);
+
+	// Immediately drops the cached Surface Analysis hover-readout text (see
+	// updateSurfaceAnalysisHoverReadout()'s own doc comment for why this
+	// can't just wait for the next passive mouse move) - public so
+	// SurfaceAnalysisDialog can call it directly when the hover-readout
+	// toggle is turned off, "Clear Overlay" is pressed, or the dialog itself
+	// closes, instead of leaving a stale numeric label on screen indefinitely
+	// while the pointer sits still.
+	void clearSurfaceAnalysisHoverReadout();
+
+private slots:
 	void centerDisplayList();
 	void setBackgroundColor();
 	
 protected:
+    bool eventFilter(QObject* object, QEvent* event) override;
 	void initializeGL();
 	void createCappingPlanes();
 	void resizeGL(int width, int height);
@@ -1325,10 +1567,51 @@ private:
 
 	void drawMesh(QOpenGLShaderProgram* prog);
 
-	// activeClipPlaneIndex: -1 = no clipping (frustum only), 0 = YZ, 1 = ZX, 2 = XY
+	// activeClipPlaneIndex: -1 = no clipping (frustum only), 0 = YZ, 1 = ZX, 2 = XY,
+	// or one of the box-clip constants below. Box constants are deliberately >= 0
+	// (a negative value means "no clipping" to every consumer) and are dispatched
+	// BEFORE the axis-only checks in isMeshVisible()/collectVisibleMeshIdsForPass():
+	// the axis-only "invisible in all clip passes" test is vacuously true when no
+	// axis plane is enabled, which would cull the whole scene in box mode.
+	static constexpr int kCullBoxCrop = 100; // box mode, keep inside (crop): one pass, 6 clip distances
+	static constexpr int kCullBoxHole = 101; // box mode, keep outside (hole, the default): one pass, fragment discard
 	void drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex = -1);
 	void drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex = -1);
 	void drawMeshesWithClipping(QOpenGLShaderProgram* prog, bool transparentPass);
+	// One model-draw pass of the current clipping configuration: enableMask has
+	// bit i set for each GL_CLIP_DISTANCE0+i to enable during the pass, cullIndex
+	// is the activeClipPlaneIndex handed to the draw/cull functions.
+	struct ClipPass
+	{
+		unsigned int enableMask = 0;
+		int          cullIndex  = -1;
+		bool         boxDiscard = false; // flipped box mode: main_scene.frag discards fragments inside the box
+	};
+	// Sets main_scene.frag's boxDiscardEnabled on BOTH fgShader() and the flat-
+	// shading program (glProgramUniform1i, no bind needed). Owned by the model
+	// draw loops, never left on: that shader is also used by the floor and the
+	// plane gizmos, and uniforms persist, so a leftover true would punch a
+	// box-shaped hole in them. BoxDiscardGuard resets it to false when a loop
+	// exits by any path.
+	void setBoxDiscardEnabled(bool enabled);
+	struct BoxDiscardGuard
+	{
+		explicit BoxDiscardGuard(ViewportWidget* w) : _w(w) {}
+		~BoxDiscardGuard() { _w->setBoxDiscardEnabled(false); }
+		BoxDiscardGuard(const BoxDiscardGuard&) = delete;
+		BoxDiscardGuard& operator=(const BoxDiscardGuard&) = delete;
+		ViewportWidget* _w;
+	};
+	// Shared by drawMeshesWithClipping() and the SSS opaque pass so the pass
+	// structure lives in one place. Axis mode: one single-bit pass per enabled
+	// plane (the union-of-half-spaces technique - see drawMeshesWithClipping()).
+	// Box crop: ONE pass with all six clip distances (native GL AND semantics).
+	// Box hole (keep outside, the default): one pass, no clip distances - a fragment discard in
+	// main_scene.frag does the clipping (ClipPass::boxDiscard). Single-pass on
+	// purpose: a six-pass union would draw transparent fragments several times and
+	// depth-sort transparent meshes only within each pass. No clipping: one pass,
+	// no distances.
+	std::vector<ClipPass> currentClipPasses() const;
 	void drawSSSMeshesOnly(QOpenGLShaderProgram* prog, int activeClipPlaneIndex = -1);
 	void setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camera);
 
@@ -1347,6 +1630,19 @@ private:
 	                                  std::vector<int>& out) const;
 
 	void drawSectionCapping();
+	// Box-mode counterpart of drawSectionCapping()'s per-axis loop (called from it
+	// when box clipping is on): up to six stencil-fill + cap-quad sub-passes, one
+	// per box face. Each face's stencil fill uses ONLY that face's own clip
+	// distance - the same single-plane parity recipe the axis loop uses, NOT all
+	// six planes at once (that would count crossings over the whole entry->exit
+	// segment through the box and give even parity, i.e. no cap, for any solid
+	// bigger than the box). The cap quad is then trimmed to the face's rectangle
+	// in clipping_plane.frag (boxTrim*).
+	void drawBoxSectionCapping(float localCappingSceneDiag);
+	// collectCappingGroups()/computeLocalCappingSceneDiag() planeIndex values
+	// kCapPlaneBoxFaceBase + face (face 0..5 = xMin, xMax, yMin, yMax, zMin, zMax)
+	// address the six box-clip faces; 0..2 remain the axis planes.
+	static constexpr int kCapPlaneBoxFaceBase = 10;
 	// Draws exactly the given mesh ids (opaque/transparent split, no re-filtering -
 	// callers are expected to have already applied whatever culling they need).
 	// Used by drawSectionCapping() to fill the stencil for one isolated capping
@@ -1408,6 +1704,55 @@ private:
 	bool beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, const QPoint& pixel);
 	void updateTransformGizmoRotationDrag(const QPoint& pixel);
 	void finishTransformGizmoRotationDrag(bool commit);
+
+	// PlaneGizmo drag interaction (Clipping Planes / Filter by Bounding Box)
+	// - see include/PlaneGizmo.h's own doc comment for why this is a
+	// separate, independent drag session from the mesh transform gizmo's
+	// above (not reusable: that one writes into per-mesh-id transform maps,
+	// this one just reports a scalar position to a caller-supplied
+	// callback). Reuses the exact same screen-space-axis-projection formula
+	// as updateTransformGizmoTranslationDrag() above, aimed at the
+	// PlaneGizmo's own fixed axis instead of a mesh's local axis.
+	// Every PlaneGizmo currently in play - the 3 clipping-plane gizmos plus
+	// the 6 Filter by Bounding Box face gizmos (entries are null before
+	// createBoundingBoxGizmos() has ever run for this document, or always
+	// for the 3 clip ones only if that's never happened - callers already
+	// null-check/isVisible()-check each entry). Single source of truth for
+	// hitTestPlaneGizmos()/updatePlaneGizmoHover()/renderPlaneGizmos(), so
+	// both gizmo families share one hit-test/hover/render pipeline instead
+	// of duplicating it.
+	std::array<PlaneGizmo*, 15> allPlaneGizmos() const;
+	PlaneGizmo* hitTestPlaneGizmos(const QPoint& pixel); // not const - calls getCameraForPoint(), which isn't const
+	bool beginPlaneGizmoDrag(PlaneGizmo* gizmo, const QPoint& pixel);
+	void updatePlaneGizmoDrag(const QPoint& pixel);
+	void finishPlaneGizmoDrag();
+	// Mouse-move-only hover tracking (no button held) - separate from the
+	// drag path above. Ray-hit-tests every gizmo in allPlaneGizmos() and
+	// toggles setHovered() on whichever one is currently under the cursor,
+	// clearing it on whichever previously held it, so the gizmo about to be
+	// grabbed visually stands out before the user commits to a drag.
+	void updatePlaneGizmoHover(const QPoint& pixel);
+	void renderPlaneGizmos();
+	// Draws `text` at `pixel` via _axisTextRenderer, offset up-right of the
+	// cursor - shared by drawPlaneGizmoDragLabel() and
+	// drawSurfaceAnalysisHoverLabel() below, the two floating-numeric-
+	// readout call sites in this file. color defaults to white for the
+	// gizmo-drag caller (a fixed viewport background, not a variable-color
+	// heatmap); the Surface Analysis caller picks per-pixel contrast
+	// instead - see SurfaceAnalysisDialog::hoverReadoutText()'s own doc
+	// comment on why a fixed color isn't legible there.
+	void drawFloatingLabel(const QString& text, const QPoint& pixel, const QColor& color = Qt::white);
+	// Draws _planeGizmoDragLabelText at _planeGizmoDragLabelPixel - no-op
+	// when no drag is active. Called as its own step right after
+	// renderPlaneGizmos() (2D pixel-space text, not part of that function's
+	// 3D scene-shader draw calls).
+	void drawPlaneGizmoDragLabel();
+	// Mouse-move-only (no button held) readout for the Surface Analysis
+	// dialog's active heatmap - see SurfaceAnalysisDialog::hoverReadoutText()'s
+	// own doc comment. No-op (and no picking work done) unless that dialog
+	// is currently open with its own "Show Readout on Hover" toggle checked.
+	void updateSurfaceAnalysisHoverReadout(const QPoint& pixel);
+	void drawSurfaceAnalysisHoverLabel();
 	void drawLights();
 
 	void bindIBLTextures();
@@ -1501,13 +1846,19 @@ private:
 	float lowestModelZ()  { return _viewCtrl.visibleLowestZ(); }
 	bool positionGameplayCameraForScene(Camera::CameraMode mode);
 
-	QList<int> sweepSelect(const QPoint& pixel, bool addToSelection = false);  // Sweep selection using rubber band
+	QList<int> sweepSelect(const QPoint& pixel, SelectionCombineMode mode = SelectionCombineMode::Replace);  // Sweep selection using rubber band
+	QList<int> lassoSelect(SelectionCombineMode mode = SelectionCombineMode::Replace);  // Freeform selection using _lassoPoints, same shape as sweepSelect() above
 	QVector3D get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end);
 	unsigned int loadTextureFromFile(const char* path,
 		GLenum wrapS = GL_REPEAT, GLenum wrapT = GL_REPEAT,
 		GLenum minFilter = GL_LINEAR_MIPMAP_LINEAR, GLenum magFilter = GL_LINEAR,
 		bool flipY = false);
 	void setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos);
+	// The six box-clip half-space planes (order: xMin, xMax, yMin, yMax, zMin,
+	// zMax) in the same view-space form setupClippingUniforms() builds for the
+	// per-axis planes - see its doc comment. Shared by setupClippingUniforms()
+	// (main mesh shaders) and drawSectionCapping() (stencil-fill shader).
+	void buildBoxClipPlanes(const QVector3D& pos, QVector4D out[6]);
 
 	void onMeshBatchReady(const std::vector<AssImpMeshData>& batch);
 	SceneMesh* createMeshFromData(const AssImpMeshData& meshData);
@@ -1594,8 +1945,10 @@ private:
 	// rebuildClippingContext(). Avoids repeated look-ups inside tight render loops.
 	VisibilityComputationHelper::FrustumContext  _frustumCtx;
 	VisibilityComputationHelper::ClippingContext _clippingCtx;
+	VisibilityComputationHelper::BoxClippingContext _boxClipCtx;
 
 	ViewToolbar* _viewToolbar;
+    TabbedViewportToolbar* _tabbedToolbar = nullptr;
 
 	QSet<int> _keys;
 	DisplayMode _displayMode;
@@ -1616,6 +1969,78 @@ private:
 	QRubberBand* _rubberBand;
 	QRubberBand* _selectRect;
 	QTimer* _inertiaTimer        = nullptr;
+
+	// Lasso selection state. _lassoPoints accumulates screen-space points
+	// across mouseMoveEvent()s during one drag (member, not local, since it
+	// must persist between event calls) - cleared at the start of each new
+	// drag and drawn as a live overlay polyline while _lassoDragging.
+	bool _lassoToolArmed = false;
+	bool _lassoDragging = false;
+	QPolygon _lassoPoints;
+	LassoOverlayWidget* _lassoOverlay = nullptr;
+
+	// Eyedropper state - see the EyedropperPhase enum/setEyedropperArmed()
+	// doc comment above. _eyedropperMaterial is only meaningful once phase
+	// is Brushing; _eyedropperSampleMeshUuid is excluded from its own
+	// stroke's targets so a stroke never no-op-reapplies a mesh's material
+	// to itself; _eyedropperStrokeTargets accumulates across one drag,
+	// flushed (and cleared) on release.
+	EyedropperPhase _eyedropperPhase = EyedropperPhase::Idle;
+	Material _eyedropperMaterial;
+	QUuid _eyedropperSampleMeshUuid;
+	QVector<QUuid> _eyedropperStrokeTargets;
+	// Suppress the normal whole-mesh hover highlight while armed - same
+	// reasoning and save/restore shape as AnnotationController::
+	// setAnnotationToolArmed()/SeamMarkingController::setSeamToolArmed()/
+	// MeasurementController::setMeasurementTool()'s identical blocks (it's
+	// ambiguous while a click means "sample"/"brush" instead of "select").
+	HoverHighlightMode _savedHoverHighlightModeBeforeEyedropper = HoverHighlightMode::RaycastOnly;
+	// True only while a brush stroke is genuinely armed for the CURRENT
+	// press - set at the start of a fresh mousePressEvent that brushes (not
+	// during the sample press's own transition to Brushing), cleared on
+	// release. Without this, the sample press's own trailing mouseMoveEvent
+	// (near-unavoidable mouse jitter during any real click) could brush-and-
+	// apply within the very same gesture that just sampled - confirmed real
+	// bug, fix requires a genuinely new press before painting starts.
+	bool _eyedropperBrushGestureActive = false;
+	void handleEyedropperSampleClick(const QPoint& pixel);
+	void eyedropperBrushAt(const QPoint& pixel);
+
+	// Color eyedropper state - see setColorPickArmed()'s doc comment above.
+	// Single bool, no phase enum needed (there's no brush/apply step).
+	bool _colorPickArmed = false;
+	HoverHighlightMode _savedHoverHighlightModeBeforeColorPick = HoverHighlightMode::RaycastOnly;
+	void handleColorPickClick(const QPoint& pixel);
+
+	// Restores whichever cursor the CURRENTLY-armed single-click tool
+	// (material eyedropper or color eyedropper) calls for, or the arrow if
+	// neither is armed - called after any navigation interaction (Ctrl-drag
+	// rotate, pan, zoom) ends, since those set their own cursor mid-drag and
+	// previously left it stuck instead of handing the cursor back to the
+	// still-armed tool. Named generically (not restoreEyedropperCursor) now
+	// that it covers both eyedroppers.
+	void restoreArmedToolCursor();
+
+	// Scroll-wheel zoom shows the same zoom cursor a drag-zoom does, for the
+	// duration of one wheel "burst" (each wheel tick restarts a short timer);
+	// endWheelZoomCursor() hands back whatever cursor was showing before, unless
+	// something else (a drag, an armed tool) has changed it in the meantime.
+	void showWheelZoomCursor();
+	void endWheelZoomCursor();
+
+	// Continuous auto-orbit for presentation/demo purposes - same ~60fps tick
+	// shape as _inertiaTimer, but a constant velocity instead of a decaying
+	// one. Mutually exclusive with _inertiaTimer via stopAnimations() (see
+	// setTurntableEnabled()/onTurntableTimer()).
+	QTimer* _turntableTimer = nullptr;
+	float _turntableSpeedDegPerSec = 15.0f; // one full rotation per ~24s
+	// Stops _turntableTimer (and notifies via turntableStateChanged) if it's
+	// active - called from both stopAnimations() and checkAndStopTimers(),
+	// since manual mouse-drag navigation goes through the LATTER (at the
+	// very top of mousePressEvent), not stopAnimations() - stopAnimations()
+	// alone left turntable running through a plain Ctrl-drag rotate/pan/zoom
+	// (confirmed real bug).
+	void stopTurntableIfActive();
 
 	// ---- Ray-traced rendering mode -----------------------------------------
 	// _rtSession/_rtPresenter own the actual background tracing/presentation;
@@ -1954,6 +2379,9 @@ private:
 
 
 	QImage					 _floorTexImage;
+	// Source path for _floorTexImage, if it was loaded from a file via
+	// setFloorTextureFromPath() - see that function's doc comment.
+	QString                  _floorTexturePath;
 	float                    _floorSize;
 	float 					 _floorSizeFactor;
 	// _floorOffsetPercent â†’ SceneRenderController (Phase 12)
@@ -1987,6 +2415,87 @@ private:
 	PlaneRenderable* _clippingPlaneXY;
 	PlaneRenderable* _clippingPlaneYZ;
 	PlaneRenderable* _clippingPlaneZX;
+	// ONE shared unit quad (1x1, XY plane through the origin) that
+	// drawBoxSectionCapping() re-poses per box face via its render transform
+	// (translate + rotate + scale) - unlike the three per-axis cap quads above,
+	// which are each rebuilt/oversized per plane, all six box faces can share
+	// one because the fragment-shader box trim (clipping_plane.frag's boxTrim*)
+	// bounds the visible cap, not the quad's own size.
+	PlaneRenderable* _clippingPlaneBox = nullptr;
+
+	// Draggable translucent gizmo planes for Clipping Planes - see
+	// include/PlaneGizmo.h. Paired naming with _clippingPlaneXY/YZ/ZX above,
+	// but these are separate PlaneRenderable/PlaneGizmo instances (not the
+	// same objects re-tinted) - the cap-fill quads participate in the
+	// stencil-capping render pass and must stay exactly as they are; the
+	// gizmo quads are a purely additive, independent visual+hit-test layer.
+	// Constructed alongside _clippingPlaneXY/YZ/ZX; visible only while
+	// ClippingPlanesEditor's own "Show Gizmo" checkbox is checked AND that
+	// axis's clipping is enabled.
+	PlaneGizmo* _clipPlaneGizmoX = nullptr;
+	PlaneGizmo* _clipPlaneGizmoY = nullptr;
+	PlaneGizmo* _clipPlaneGizmoZ = nullptr;
+
+	// Filter by Bounding Box's 6-face gizmo - one PlaneGizmo per face
+	// (Min/Max on each axis), independently positioned/sized so together
+	// they read as a box (per the user's own explicit direction, allowed to
+	// overlap slightly at the edges rather than being a fused/watertight
+	// mesh - same reasoning as the 3 clipping-plane gizmos above, just 6
+	// instead of 3). Lazily constructed by createBoundingBoxGizmos() the
+	// first time FilterByBoundingBoxDialog opens for this document (unlike
+	// the clipping-plane gizmos, which always exist once the viewport does)
+	// so a document that never opens that dialog never pays for 6 unused
+	// PlaneRenderables. FilterByBoundingBoxDialog owns "what a drag means"
+	// via onDragged, same as the clipping-plane gizmos' owner does.
+	PlaneGizmo* _bboxGizmoXMin = nullptr;
+	PlaneGizmo* _bboxGizmoXMax = nullptr;
+	PlaneGizmo* _bboxGizmoYMin = nullptr;
+	PlaneGizmo* _bboxGizmoYMax = nullptr;
+	PlaneGizmo* _bboxGizmoZMin = nullptr;
+	PlaneGizmo* _bboxGizmoZMax = nullptr;
+
+	// Box-clip mode's OWN 6 face gizmos (Clipping Planes editor) - deliberately not
+	// shared with _bboxGizmo* above: each PlaneGizmo carries a single set of
+	// onDragStarted/onDragged/onDragFinished callbacks, so two features owning the
+	// same instances would silently overwrite each other's wiring, and the two
+	// boxes are independent state. Built eagerly in createCappingPlanes() like the
+	// 3 axis clip gizmos.
+	PlaneGizmo* _clipBoxGizmoXMin = nullptr;
+	PlaneGizmo* _clipBoxGizmoXMax = nullptr;
+	PlaneGizmo* _clipBoxGizmoYMin = nullptr;
+	PlaneGizmo* _clipBoxGizmoYMax = nullptr;
+	PlaneGizmo* _clipBoxGizmoZMin = nullptr;
+	PlaneGizmo* _clipBoxGizmoZMax = nullptr;
+	// True once the box limits have been seeded from the scene (first enable, or
+	// an explicit reset) so later enables don't overwrite the user's box.
+	bool _boxClipLimitsSeeded = false;
+
+	// Single active plane-gizmo drag session (never more than one at once,
+	// unlike the multi-mesh transform gizmo - no mesh-id-keyed map needed).
+	PlaneGizmo* _activePlaneGizmoDrag = nullptr;
+	QPoint _planeGizmoDragStartPixel;
+	float _planeGizmoDragStartPosition = 0.0f;
+
+	// Live numeric readout shown next to the cursor while a plane-gizmo drag
+	// is in progress - set every drag-move frame in updatePlaneGizmoDrag(),
+	// drawn by drawPlaneGizmoDragLabel() (gated on _activePlaneGizmoDrag !=
+	// nullptr, so no separate "valid" flag is needed).
+	QString _planeGizmoDragLabelText;
+	QPoint _planeGizmoDragLabelPixel;
+
+	// Same shape as the plane-gizmo drag label above, for Surface Analysis'
+	// mouse-hover numeric readout - set (or cleared to empty, which
+	// drawSurfaceAnalysisHoverLabel() treats as "nothing to draw") by
+	// updateSurfaceAnalysisHoverReadout() on plain mouse-move.
+	QString _surfaceAnalysisHoverText;
+	QPoint _surfaceAnalysisHoverPixel;
+	QColor _surfaceAnalysisHoverTextColor = Qt::white;
+
+	// Whichever gizmo (if any) is currently under the cursor with no button
+	// held - see updatePlaneGizmoHover()'s own doc comment. Tracked
+	// separately from _activePlaneGizmoDrag so hover can be cleared on the
+	// previously-hovered gizmo even after the pointer moves off it entirely.
+	PlaneGizmo* _hoveredPlaneGizmo = nullptr;
 
 
 	Camera* _primaryCamera;
@@ -2069,6 +2578,12 @@ private:
 	bool  _smoothNavigation     = true;
 	float _mouseSensitivity     = 1.0f; // 1.0 = default (slider 5/10)
 	float _wheelSensitivity     = 1.0f; // 1.0 = default (slider 5/10)
+	QTimer* _wheelZoomCursorTimer = nullptr;
+	// Last axonometric type/corner/active state pushed to the View toolbar (see updateViewSelectorState()).
+	int     _lastViewSelectorKey = -1;
+	QCursor _wheelZoomCursor;
+	QCursor _cursorBeforeWheelZoom;
+	bool    _hadExplicitCursorBeforeWheelZoom = false;
 
 	// Derive the user model transform for one file directly from its meshes'
 	// TRS state.  Returns true (and fills outTransform) only when every mesh

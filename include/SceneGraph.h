@@ -8,6 +8,8 @@
 #include "GltfVariantData.h"
 #include "MeasurementData.h"
 #include "AnnotationData.h"
+#include "SelectionSetData.h"
+#include "SceneStateData.h"
 
 #include <QHash>
 #include <QJsonArray>
@@ -248,6 +250,35 @@ public:
     void setAnnotationLeaderOffset(const QUuid& id, const QVector3D& leaderOffset);
 
     // -----------------------------------------------------------------------
+    // Named selection sets ("Selection -> Save Selection Set..."). Document-
+    // level, not per-file - see SelectionSetData.h. Same shape as the
+    // Measurements/Annotations API above.
+    // -----------------------------------------------------------------------
+    void addSelectionSet(const SelectionSet& set);
+    // Re-inserts at a specific position (undo of removeSelectionSetById)
+    // rather than appending, so undo/redo round-trips preserve display order
+    // - same reasoning as insertMeasurementAt()/insertAnnotationAt() above.
+    void insertSelectionSetAt(int index, const SelectionSet& set);
+    void removeSelectionSetById(const QUuid& id);
+    void renameSelectionSet(const QUuid& id, const QString& newName);
+    void clearSelectionSets();
+    const QVector<SelectionSet>& selectionSets() const { return _selectionSets; }
+    int selectionSetIndexById(const QUuid& id) const;
+
+    // -----------------------------------------------------------------------
+    // Named scene states ("Selection -> Save Scene State..."). Document-
+    // level, not per-file - see SceneStateData.h. Same API shape as the
+    // selection-set block above.
+    // -----------------------------------------------------------------------
+    void addSceneState(const SceneState& state);
+    void insertSceneStateAt(int index, const SceneState& state);
+    void removeSceneStateById(const QUuid& id);
+    void renameSceneState(const QUuid& id, const QString& newName);
+    void clearSceneStates();
+    const QVector<SceneState>& sceneStates() const { return _sceneStates; }
+    int sceneStateIndexById(const QUuid& id) const;
+
+    // -----------------------------------------------------------------------
     // Mutation  (called by undo/redo command classes)
     // -----------------------------------------------------------------------
 
@@ -320,6 +351,8 @@ signals:
     // or its text edited - NOT for a leader-offset drag (see
     // setAnnotationLeaderOffset()'s doc comment).
     void annotationsChanged();
+    void selectionSetsChanged();
+    void sceneStatesChanged();
 
     // Emitted when punctual light data is added, removed, or an individual
     // light's enabled state changes.  PunctualLightsPanel connects to this
@@ -374,4 +407,10 @@ private:
 
     // Document-level, not per-file - see AnnotationData.h.
     QVector<Annotation> _annotations;
+
+    // Document-level, not per-file - see SelectionSetData.h.
+    QVector<SelectionSet> _selectionSets;
+
+    // Document-level, not per-file - see SceneStateData.h.
+    QVector<SceneState> _sceneStates;
 };

@@ -1,4 +1,5 @@
 #include "MaterialVariantsPanel.h"
+#include "LanguageManager.h"
 #include "SceneGraph.h"
 
 #include <QFileInfo>
@@ -66,6 +67,7 @@ MaterialVariantsPanel::MaterialVariantsPanel(QWidget* parent)
     _setDefaultButton->setToolTip(tr("Make the active variant's material the file's fallback/default"));
     _deleteButton = new QPushButton(tr("Delete"), this);
     _deleteButton->setToolTip(tr("Delete the active variant"));
+    connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, &MaterialVariantsPanel::retranslateUI);
 
     auto* buttonRow = new QHBoxLayout();
     buttonRow->setContentsMargins(8, 0, 8, 8);
@@ -135,6 +137,17 @@ void MaterialVariantsPanel::refresh()
     }
 
     updateButtonStates();
+}
+
+void MaterialVariantsPanel::retranslateUI()
+{
+    _captureButton->setText(tr("Add Variant..."));
+    _captureButton->setToolTip(tr("Capture the current file's live material state as a new variant"));
+    _setDefaultButton->setText(tr("Set as Default"));
+    _setDefaultButton->setToolTip(tr("Make the active variant's material the file's fallback/default"));
+    _deleteButton->setText(tr("Delete"));
+    _deleteButton->setToolTip(tr("Delete the active variant"));
+    refresh();   // the "Default" row is built with tr()
 }
 
 void MaterialVariantsPanel::setDetachedOverlayMode(bool enabled)
@@ -297,10 +310,10 @@ void MaterialVariantsPanel::onTreeContextMenuRequested(const QPoint& pos)
         return;
 
     QMenu menu(this);
-    QAction* captureAction = isFileItem ? menu.addAction(tr("Capture Current as Variant...")) : nullptr;
-    QAction* setDefaultAction = !isFileItem ? menu.addAction(tr("Set as Default")) : nullptr;
+    QAction* captureAction = isFileItem ? menu.addAction(QIcon(":/icons/res/capture_variant.png"), tr("Capture Current as Variant...")) : nullptr;
+    QAction* setDefaultAction = !isFileItem ? menu.addAction(QIcon(":/icons/res/set_as_default.png"), tr("Set as Default")) : nullptr;
     menu.addSeparator();
-    QAction* deleteAction = menu.addAction(isFileItem ? tr("Delete All") : tr("Delete"));
+    QAction* deleteAction = menu.addAction(QIcon(":/icons/res/delete.png"), isFileItem ? tr("Delete All") : tr("Delete"));
     QAction* chosen = menu.exec(_tree->viewport()->mapToGlobal(pos));
 
     if (chosen == deleteAction)

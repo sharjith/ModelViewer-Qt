@@ -106,6 +106,10 @@ aiScene* XCAFBREPProcessor::processBREPFile(const std::string& path)
 		shapeTuples.emplace_back(shape, "BREPModel", TopLoc_Location(),
 			Quantity_Color(0.7, 0.7, 0.7, Quantity_TOC_RGB));
 
+		// Tessellate the whole shape in one parallel pass first (as the STEP and IGES readers do)
+		MainWindow::showStatusMessage(tr("Pre-tessellating geometry (parallel)..."));
+		BRepToAssimpConverter::preTessellate(shape);
+
 		// Convert to Assimp scene
 		MainWindow::showStatusMessage(tr("Converting shape to mesh..."));
 		aiScene* scene = BRepToAssimpConverter::convert(shapeTuples);

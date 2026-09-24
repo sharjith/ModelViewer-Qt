@@ -13,6 +13,7 @@
 #include <assimp/version.h>
 #include <embree4/rtcore_config.h>
 #include <Standard_Version.hxx>
+#include <CGAL/version.h>
 
 namespace
 {
@@ -109,11 +110,13 @@ QString AboutDialog::buildDetailsHtml(const QString& graphicsInfo) const
 		"<tr><td class='label'>%5</td><td>%6</td></tr>"
 		"<tr><td class='label'>%7</td><td>%8.%9.%10</td></tr>"
 		"<tr><td class='label'>%11</td><td>%12</td></tr>"
-		"<tr><td class='label'>%13</td><td>%14</td></tr>")
+		"<tr><td class='label'>%13</td><td>%14</td></tr>"
+		"<tr><td class='label'>%15</td><td>%16</td></tr>")
 		.arg(tr("App Version"), QStringLiteral(APP_VERSION_STRING))
 		.arg(tr("Qt Version"), QString::fromLatin1(qVersion()))
 		.arg(tr("OpenCASCADE"), QStringLiteral(OCC_VERSION_COMPLETE))
 		.arg(tr("Assimp")).arg(assimpMajor).arg(assimpMinor).arg(assimpPatch)
+		.arg(tr("CGAL"), QStringLiteral(CGAL_VERSION_STR))
 		.arg(tr("Embree"), QStringLiteral(RTC_VERSION_STRING))
 		.arg(tr("GPU Path Tracing"),
 #ifdef MODELVIEWER_HAVE_OPTIX

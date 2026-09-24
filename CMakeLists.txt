@@ -360,7 +360,7 @@ configure_file(
     @ONLY
 )
 
-file(GLOB sources src/*.cpp src/*.cxx src/*.c include/*.h include/*.hxx)
+file(GLOB sources CONFIGURE_DEPENDS src/*.cpp src/*.cxx src/*.c include/*.h include/*.hxx)
 file(GLOB ui_sources ui/*.ui)
 
 # Create translations directory if it doesn't exist

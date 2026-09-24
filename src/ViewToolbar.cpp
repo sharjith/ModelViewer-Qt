@@ -1,9 +1,12 @@
 
 #include "ViewToolbar.h"
+#include "IsoCornerIcons.h"
 #include "FlyOutViewButton.h"
 #include "LanguageManager.h"
 #include <QHBoxLayout>
+#include <QFrame>
 #include <QToolButton>
+#include <QStyle>
 #include <QMenu>
 #include <QAction>
 #include <QPushButton>
@@ -32,6 +35,84 @@ QString debugOverlayIconPath(DebugOverlayActions action, bool enabled)
 
     return QStringLiteral(":/icons/res/hide_bounding_box.png");
 }
+
+// Clipping Planes flyout presets, in menu order. xy/yz/zx use the panel's own
+// naming (XY = the Z-normal plane, YZ = X-normal, XZ = Y-normal; the struct/icon
+// names keep the historical "zx"). Entry 0 is "No
+// Clipping" (everything off) - the way back to the empty state from the toolbar;
+// then every one of the seven non-empty plane combinations plus Box, so any state
+// the panel can be in maps to exactly one entry.
+struct ClippingPresetInfo
+{
+    const char* icon;
+    bool xy, yz, zx, box;
+};
+constexpr ClippingPresetInfo kClippingPresets[] = {
+    { ":/icons/res/clip_none.png",     false, false, false, false },
+    { ":/icons/res/clip_xy.png",       true,  false, false, false },
+    { ":/icons/res/clip_yz.png",       false, true,  false, false },
+    { ":/icons/res/clip_zx.png",       false, false, true,  false },
+    { ":/icons/res/clip_yz_zx.png",    false, true,  true,  false },
+    { ":/icons/res/clip_xy_zx.png",    true,  false, true,  false },
+    { ":/icons/res/clip_xy_yz.png",    true,  true,  false, false },
+    { ":/icons/res/clip_xy_yz_zx.png", true,  true,  true,  false },
+    { ":/icons/res/clip_box.png",      false, false, false, true  },
+};
+constexpr int kClippingPresetCount = static_cast<int>(sizeof(kClippingPresets) / sizeof(kClippingPresets[0]));
+// Shown on the button while no plane and no box is enabled: the same block and
+// hole, uncut, with a faint dashed plane - "clipping available, nothing applied".
+constexpr const char* kGenericClippingIcon = ":/icons/res/clip_none.png";
+
+QString clippingPresetText(int index)
+{
+    switch (index)
+    {
+    case 0: return ViewToolbar::tr("No Clipping");
+    case 1: return ViewToolbar::tr("XY Plane");
+    case 2: return ViewToolbar::tr("YZ Plane");
+    case 3: return ViewToolbar::tr("XZ Plane");
+    case 4: return ViewToolbar::tr("YZ + XZ");
+    case 5: return ViewToolbar::tr("XY + XZ");
+    case 6: return ViewToolbar::tr("XY + YZ");
+    case 7: return ViewToolbar::tr("XY + YZ + XZ");
+    default: return ViewToolbar::tr("Box");
+    }
+}
+}
+
+// Flyout label of a corner; a translatable string so it can be localised.
+QString ViewToolbar::cornerActionText(IsoCorner corner)
+{
+    switch (corner)
+    {
+    case IsoCorner::NE: return tr("NE Corner");
+    case IsoCorner::NW: return tr("NW Corner");
+    case IsoCorner::SW: return tr("SW Corner");
+    default:            return tr("SE Corner");
+    }
+}
+
+// Compass abbreviation of a corner in the UI language (SO/NO/NW/SW in German, SE/NE/NO/SO in Spanish, ...);
+// what the corner button's tooltip shows.
+QString ViewToolbar::cornerActionAbbreviation(IsoCorner corner)
+{
+    switch (corner)
+    {
+    case IsoCorner::NE: return tr("NE", "compass corner abbreviation");
+    case IsoCorner::NW: return tr("NW", "compass corner abbreviation");
+    case IsoCorner::SW: return tr("SW", "compass corner abbreviation");
+    default:            return tr("SE", "compass corner abbreviation");
+    }
+}
+
+// The corner button mirrors the current corner: its icon is the flyout entry's and its tooltip names the corner.
+void ViewToolbar::updateCornerButton()
+{
+    if (QAction* cornerAction = _cornerActions.value(_currentCorner, nullptr))
+    {
+        _cornerNextAction->setIcon(cornerAction->icon());
+        _cornerNextAction->setToolTip(tr("Isometric corner %1 - click for the next corner").arg(cornerActionAbbreviation(_currentCorner)));
+    }
 }
 
 void ViewToolbar::scopeShortcutToViewport(QAction* action)
@@ -55,12 +136,12 @@ void ViewToolbar::scopeShortcutToViewport(QAction* action)
     // purposes would then be that menu, which never has focus during normal
     // 3D-viewport use, so the shortcut would just stop firing entirely
     // rather than becoming merely non-ambiguous. addAction() associates the
-    // action with parentWidget() (the actual ViewportWidget that gets focus
+    // action with _viewport (the actual ViewportWidget that gets focus
     // on click - see ViewportWidget::mousePressEvent()) directly, so
     // WidgetWithChildrenShortcut's "owner or a child of it has focus" check
     // has the right widget to check against.
     action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
-    if (QWidget* viewport = parentWidget())
+    if (QWidget* viewport = _viewport)
         viewport->addAction(action);
 }
 
@@ -72,20 +153,36 @@ void ViewToolbar::scopeButtonShortcutToViewport(QAbstractButton* button, const Q
     // above, fixed the same way the (already-confirmed-working) Home
     // shortcut is: an explicit QShortcut parented to the ViewportWidget
     // instead, with WidgetWithChildrenShortcut context.
-    QShortcut* shortcut = new QShortcut(sequence, parentWidget());
+    QShortcut* shortcut = new QShortcut(sequence, _viewport);
     shortcut->setContext(Qt::WidgetWithChildrenShortcut);
     connect(shortcut, &QShortcut::activated, button, &QAbstractButton::click);
 }
 
-ViewToolbar::ViewToolbar(QWidget* parent)
-    : QWidget(parent)
+QAction* ViewToolbar::bindButtonAction(QToolButton* button, const QString& name)
+{
+    auto* action = new QAction(button->icon(), button->toolTip(), this);
+    action->setObjectName(name);
+    action->setToolTip(button->toolTip());
+    action->setCheckable(button->isCheckable());
+    action->setChecked(button->isChecked());
+    // Do not assign a shortcut here: scopeButtonShortcutToViewport() owns
+    // the sole registration and invokes the button's default action.
+    button->setDefaultAction(action);
+    return action;
+}
+
+ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
+    : QWidget(parent ? parent : viewport)
+    , _viewport(viewport)
     , _isRepositioning(false)
     , _autoScrollTimer(nullptr)
     , _hoverDelayTimer(nullptr)
     , _autoScrollLeft(true)
 {
-    setStyleSheet("background: rgba(255, 255, 255, 100); border: 1px solid gray; border-radius: 4px;");
-    setFixedHeight(76);
+    setObjectName(QStringLiteral("standardViewportToolbar"));
+    // Scope transparency to the toolbar, so it cannot override tooltip styling.
+    setStyleSheet("QWidget#standardViewportToolbar { background: transparent; border: none; }");
+    setFixedHeight(64);
 
     QString buttonStyleSheet(
         "QToolButton {"
@@ -126,46 +223,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
         "}"
     );
 
-    QString flyoutStyleSheet(
-        "QMenu {"
-        "    background-color: rgba(255, 255, 255, 100);"
-        "    border: 1px solid gray;"
-        "    border-radius: 4px;"
-        "    padding: 2px;"
-        "    icon-size: 42px;"
-        "}"
-        "QMenu::item {"
-        "    background: transparent;"
-        "    background-color: #f0f0f0;"
-        "    border: 1px solid #c0c0c0;"
-        "    border-radius: 4px;"
-        "    padding: 5px 8px;"
-        "    margin: 3px;"
-        "    min-width: 120px;"
-        "    min-height: 30px;"
-        "    font-weight: normal;"
-        "    color: black;"
-        "}"
-        "QMenu::item:selected {"
-        "    background-color: #e0e0ff;"
-        "    border: 1px solid #a0a0ff;"
-        "    color: black;"
-        "}"
-        "QMenu::item:pressed {"
-        "    background-color: #d0d0ff;"
-        "    border: 1px solid #8080ff;"
-        "    color: black;"
-        "}"
-        "QMenu::icon {"
-        "    padding-left: 10px;"
-        "    padding-right: 8px;"
-        "}"
-        "QMenu::separator {"
-        "    height: 1px;"
-        "    background-color: #c0c0c0;"
-        "    margin: 4px 8px;"
-        "}"
-    );
+    const QString flyoutStyleSheet = FlyOutViewButton::menuStyleSheet();
 
     QString flyoutToggleButtonStyleSheet(
         "QToolButton {"
@@ -203,7 +261,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _scrollLeftBtn = new QToolButton(this);
     _scrollLeftBtn->setStyleSheet(scrollButtonStyleSheet);
     _scrollLeftBtn->setText("<");
-    _scrollLeftBtn->setFixedSize(20, 68);
+    _scrollLeftBtn->setFixedSize(20, 56);
     _scrollLeftBtn->setVisible(false);
     _scrollLeftBtn->installEventFilter(this);
     outerLayout->addWidget(_scrollLeftBtn);
@@ -215,25 +273,28 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     _scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     _scrollArea->setWidgetResizable(false);
-    _scrollArea->setFixedHeight(72);
+    _scrollArea->setFixedHeight(60);
     _scrollArea->setStyleSheet("QScrollArea { background: transparent; border: none; }");
     outerLayout->addWidget(_scrollArea, 1);
 
     // Container widget for buttons inside scroll area
     _buttonContainer = new QWidget();
-    _buttonContainer->setStyleSheet("background: transparent;");
-    _buttonContainer->setFixedHeight(72);
+    _buttonContainer->setObjectName(QStringLiteral("viewToolbarButtons"));
+    _buttonContainer->setStyleSheet("QWidget#viewToolbarButtons { background: transparent; }");
+    _buttonContainer->setFixedHeight(60);
     _mainLayout = new QHBoxLayout(_buttonContainer);
     _mainLayout->setContentsMargins(4, 4, 4, 4);
     _mainLayout->setSpacing(6);
 
     _scrollArea->setWidget(_buttonContainer);
+    _scrollArea->viewport()->setAutoFillBackground(false);
+    _buttonContainer->setAutoFillBackground(false);
 
     // Right scroll button
     _scrollRightBtn = new QToolButton(this);
     _scrollRightBtn->setStyleSheet(scrollButtonStyleSheet);
     _scrollRightBtn->setText(">");
-    _scrollRightBtn->setFixedSize(20, 68);
+    _scrollRightBtn->setFixedSize(20, 56);
     _scrollRightBtn->setVisible(false);
     _scrollRightBtn->installEventFilter(this);
     outerLayout->addWidget(_scrollRightBtn);
@@ -243,13 +304,16 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     connect(_scrollArea->horizontalScrollBar(), &QScrollBar::valueChanged,
         this, &ViewToolbar::updateScrollButtons);
 
-    // Now add all the toolbar buttons to _mainLayout
-    // (Keep all your existing button creation code here, just replace 'layout' with '_mainLayout')
+    auto separator = [this]() {
+        auto* line = new QFrame(_buttonContainer);
+        line->setFrameShape(QFrame::VLine);
+        _mainLayout->addWidget(line);
+    };
 
     // Navigation - Rotate, Pan, Zoom grouped in dropdown
     _toolButtonNavigation = new FlyOutViewButton(this);
     _toolButtonNavigation->setIcon(QIcon(":/icons/res/rotateview.png"));
-    _toolButtonNavigation->setIconSize(QSize(48, 48));
+    _toolButtonNavigation->setIconSize(QSize(40, 40));
     _toolButtonNavigation->setToolTip(tr("Navigation"));
     _toolButtonNavigation->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonNavigation->setAutoRaise(true);
@@ -314,27 +378,63 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _btnFitAll = new QToolButton(this);
     _btnFitAll->setStyleSheet(buttonStyleSheet);
     _btnFitAll->setIcon(QIcon(":/icons/res/fit-all.png"));
-    _btnFitAll->setIconSize(QSize(48, 48));
+    _btnFitAll->setIconSize(QSize(40, 40));
     _btnFitAll->setToolTip(tr("Fit All"));
     scopeButtonShortcutToViewport(_btnFitAll, QKeySequence(Qt::Key_F));
     _btnFitAll->setAutoRaise(true);
     _mainLayout->addWidget(_btnFitAll);
-    connect(_btnFitAll, &QToolButton::clicked, this, [this]() { emit fitToViewRequested(); });
+    _fitAllAction = bindButtonAction(_btnFitAll, QStringLiteral("fitAllAction"));
+    connect(_fitAllAction, &QAction::triggered, this, [this]() { emit fitToViewRequested(); });
 
     _btnWindowZoom = new QToolButton(this);
     _btnWindowZoom->setStyleSheet(buttonStyleSheet);
     _btnWindowZoom->setIcon(QIcon(":/icons/res/window-zoom.png"));
-    _btnWindowZoom->setIconSize(QSize(48, 48));
+    _btnWindowZoom->setIconSize(QSize(40, 40));
     _btnWindowZoom->setToolTip(tr("Window Zoom"));
+    _btnWindowZoom->setCheckable(true);
     scopeButtonShortcutToViewport(_btnWindowZoom, QKeySequence(Qt::ALT | Qt::Key_W));
     _btnWindowZoom->setAutoRaise(true);
     _mainLayout->addWidget(_btnWindowZoom);
-    connect(_btnWindowZoom, &QToolButton::clicked, this, [this]() { emit windowZoomRequested(); });
+    _windowZoomAction = bindButtonAction(_btnWindowZoom, QStringLiteral("windowZoomAction"));
+    connect(_windowZoomAction, &QAction::triggered, this, [this]() { emit windowZoomRequested(); });
+
+    // Lasso Select - freeform-polygon drag selection, stays armed across
+    // multiple drags (toggle) rather than Window Zoom's one-shot gesture.
+    _btnLassoSelect = new FlyOutViewButton(this);
+    _btnLassoSelect->setIcon(QIcon(":/icons/res/lasso_select.png"));
+    _btnLassoSelect->setIconSize(QSize(40, 40));
+    _btnLassoSelect->setToolTip(tr("Lasso Select"));
+    _btnLassoSelect->setCheckable(true);
+    _btnLassoSelect->setAutoRaise(true);
+    _mainLayout->addWidget(_btnLassoSelect);
+    _lassoSelectAction = bindButtonAction(_btnLassoSelect, QStringLiteral("lassoSelectAction"));
+    connect(_lassoSelectAction, &QAction::triggered, this, [this](bool checked) { emit lassoSelectToggled(checked); });
+    auto* selectionMenu = new QMenu(this);
+    selectionMenu->setStyleSheet(flyoutStyleSheet);
+    selectionMenu->addAction(_lassoSelectAction);
+    selectionMenu->addSeparator();
+    const auto addFilter = [this, selectionMenu](const char* icon, const QString& text, const QString& command) {
+        auto* action = selectionMenu->addAction(QIcon(QStringLiteral(":/icons/res/") + QLatin1String(icon)), text);
+        action->setToolTip(text);
+        connect(action, &QAction::triggered, this, [this, action, command] {
+            _btnLassoSelect->setDefaultAction(action);
+            emit selectionFilterRequested(command);
+        });
+        return action;
+    };
+    _filterByMaterialAction = addFilter("filter_by_material.png", tr("Filter by Material..."), QStringLiteral("material"));
+    _filterByColorAction = addFilter("filter_by_color.png", tr("Filter by Color..."), QStringLiteral("color"));
+    _filterByBoundingBoxAction = addFilter("filter_by_bounding_box.png", tr("Filter by Bounding Box..."), QStringLiteral("boundingBox"));
+    connect(_lassoSelectAction, &QAction::triggered, this, [this] { _btnLassoSelect->setDefaultAction(_lassoSelectAction); });
+    _btnLassoSelect->setMenu(selectionMenu);
+    _btnLassoSelect->setPopupMode(QToolButton::DelayedPopup);
+    setSelectionFiltersEnabled(false);
 
     // Camera Modes
+    separator();
     _toolButtonCameraModes = new FlyOutViewButton(this);
     _toolButtonCameraModes->setIcon(QIcon(":/icons/res/camera_orbit.png"));
-    _toolButtonCameraModes->setIconSize(QSize(48, 48));
+    _toolButtonCameraModes->setIconSize(QSize(40, 40));
     _toolButtonCameraModes->setToolTip(tr("Camera Modes"));
     _toolButtonCameraModes->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonCameraModes->setAutoRaise(true);
@@ -382,7 +482,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
     _toolButtonCameraUpAxis = new FlyOutViewButton(this);
     _toolButtonCameraUpAxis->setIcon(QIcon(":/icons/res/camera_z_up.png"));
-    _toolButtonCameraUpAxis->setIconSize(QSize(48, 48));
+    _toolButtonCameraUpAxis->setIconSize(QSize(40, 40));
     _toolButtonCameraUpAxis->setToolTip(tr("Camera Up Axis"));
     _toolButtonCameraUpAxis->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonCameraUpAxis->setAutoRaise(true);
@@ -406,10 +506,25 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _toolButtonCameraUpAxis->setMenu(cameraUpAxisMenu);
     _toolButtonCameraUpAxis->setDefaultAction(_cameraZUpAction);
 
+    // Turntable - orthogonal to Camera Modes above (auto-spins the camera
+    // while in whatever mode is active), so it's its own toggle rather than
+    // a 4th entry in camModeMenu.
+    _btnTurntable = new QToolButton(this);
+    _btnTurntable->setStyleSheet(buttonStyleSheet);
+    _btnTurntable->setIcon(QIcon(":/icons/res/camera_orbit_anim.png"));
+    _btnTurntable->setIconSize(QSize(40, 40));
+    _btnTurntable->setToolTip(tr("Turntable"));
+    _btnTurntable->setCheckable(true);
+    _btnTurntable->setAutoRaise(true);
+    _mainLayout->addWidget(_btnTurntable);
+    _turntableAction = bindButtonAction(_btnTurntable, QStringLiteral("turntableAction"));
+    connect(_turntableAction, &QAction::triggered, this, [this](bool checked) { emit turntableToggled(checked); });
+
     // Standard Views
+    separator();
     _toolButtonViews = new FlyOutViewButton(this);
     _toolButtonViews->setIcon(QIcon(":/icons/res/top.png"));
-    _toolButtonViews->setIconSize(QSize(48, 48));
+    _toolButtonViews->setIconSize(QSize(40, 40));
     _toolButtonViews->setToolTip(tr("Standard Views"));
     _toolButtonViews->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonViews->setAutoRaise(true);
@@ -491,13 +606,13 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     // Isometric Views
     _toolButtonViewModes = new FlyOutViewButton(this);
     _toolButtonViewModes->setIcon(QIcon(":/icons/res/isometric.png"));
-    _toolButtonViewModes->setIconSize(QSize(48, 48));
+    _toolButtonViewModes->setIconSize(QSize(40, 40));
     _toolButtonViewModes->setToolTip(tr("Axonometric View"));
     _toolButtonViewModes->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonViewModes->setAutoRaise(true);
 
-    // WidgetWithChildrenShortcut, targeted at `parent` (the owning
-    // ViewportWidget) rather than `this` (ViewToolbar, a CHILD of it) - see
+    // WidgetWithChildrenShortcut, targeted at `_viewport` (the owning
+    // ViewportWidget) rather than the toolbar page - see
     // the identical fix/reasoning in ModelViewer's constructor for why
     // WindowShortcut's default scope collides across documents now that
     // they're CDockWidgets rather than QMdiSubWindows. Targeting `this`
@@ -506,14 +621,18 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     // is ViewToolbar's PARENT, not one of its children - a
     // WidgetWithChildrenShortcut scoped to the toolbar would then only ever
     // fire while focus sat on one of the toolbar's own buttons.
-    QShortcut* defaultShortcut = new QShortcut(QKeySequence(Qt::Key_Home), parent);
+    QShortcut* defaultShortcut = new QShortcut(QKeySequence(Qt::Key_Home), _viewport);
     defaultShortcut->setContext(Qt::WidgetWithChildrenShortcut);
-    connect(defaultShortcut, &QShortcut::activated, _toolButtonViewModes, &QToolButton::click);
+    // Home = "go to my axonometric view": enters the last-used type and never steps to the next one
+    // (a click on the button steps, see _axoStepAction below).
+    connect(defaultShortcut, &QShortcut::activated, this, [this]() { emit axonometricSelected(QStringLiteral("Enter")); });
 
     _mainLayout->addWidget(_toolButtonViewModes);
 
     QMenu* axoMenu = new QMenu;
     axoMenu->setStyleSheet(flyoutStyleSheet);
+    // The axonometric TYPE. The compass corner it is seen from is a separate choice (the corner button
+    // right after this one), so this flyout is a plain last-used list of three.
     _isoAction = axoMenu->addAction(QIcon(":/icons/res/isometric.png"), tr("Isometric"));
     _isoAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_1));
     scopeShortcutToViewport(_isoAction);
@@ -526,7 +645,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
     connect(_isoAction, &QAction::triggered, this,
         [this]() {
-            _toolButtonViewModes->setDefaultAction(_isoAction);
+            setDefaultViewModeAction(ViewModeActions::ISOMETRIC);
             // Reset standard views to Top when switching to axonometric
             _toolButtonViews->setDefaultAction(_topViewAction);
             emit axonometricSelected("Isometric");
@@ -535,7 +654,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
     connect(_dimAction, &QAction::triggered, this,
         [this]() {
-            _toolButtonViewModes->setDefaultAction(_dimAction);
+            setDefaultViewModeAction(ViewModeActions::DIMETRIC);
             // Reset standard views to Top when switching to axonometric
             _toolButtonViews->setDefaultAction(_topViewAction);
             emit axonometricSelected("Dimetric");
@@ -544,7 +663,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
     connect(_triAction, &QAction::triggered, this,
         [this]() {
-            _toolButtonViewModes->setDefaultAction(_triAction);
+            setDefaultViewModeAction(ViewModeActions::TRIMETRIC);
             // Reset standard views to Top when switching to axonometric
             _toolButtonViews->setDefaultAction(_topViewAction);
             emit axonometricSelected("Trimetric");
@@ -555,50 +674,126 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _viewModeActions[ViewModeActions::DIMETRIC] = _dimAction;
     _viewModeActions[ViewModeActions::TRIMETRIC] = _triAction;
 
+    // The button's own (default) action: a click steps to the next type (Isometric -> Dimetric -> Trimetric)
+    // while the view is axonometric, or enters the last-used type from any other view. Its icon and tooltip
+    // always mirror the current type (see setDefaultViewModeAction()); the flyout still picks one directly.
+    _axoStepAction = new QAction(QIcon(":/icons/res/isometric.png"), tr("Isometric"), this);
+    connect(_axoStepAction, &QAction::triggered, this, [this]() { emit axonometricSelected(QStringLiteral("Step")); });
     _toolButtonViewModes->setMenu(axoMenu);
-    _toolButtonViewModes->setDefaultAction(_isoAction);
+    _toolButtonViewModes->setDefaultAction(_axoStepAction);
+    setDefaultViewModeAction(ViewModeActions::ISOMETRIC);
 
-    // Ortho/Perspective Projections
-    _projToggleButton = new QToolButton(this);
-    _projToggleButton->setStyleSheet(buttonStyleSheet);
+    // Compass corner of the axonometric views (SE / NE / NW / SW), independent of the type above.
+    // Click = step to the next corner; hold opens the flyout for a direct pick. The button's icon and
+    // tooltip always show the CURRENT corner (see setAxonometricState()), and it is highlighted while
+    // the view actually is an axonometric one.
+    _toolButtonCorner = new FlyOutViewButton(this);
+    _toolButtonCorner->setIconSize(QSize(40, 40));
+    _toolButtonCorner->setPopupMode(QToolButton::DelayedPopup);
+    _toolButtonCorner->setAutoRaise(true);
+
+    QMenu* cornerMenu = new QMenu;
+    cornerMenu->setStyleSheet(flyoutStyleSheet);
+    struct CornerEntry { IsoCorner corner; const char* code; };
+    const CornerEntry cornerEntries[] = {
+        { IsoCorner::SE, "SE" },
+        { IsoCorner::NE, "NE" },
+        { IsoCorner::NW, "NW" },
+        { IsoCorner::SW, "SW" },
+    };
+    const Qt::Key cornerShortcutKeys[] = { Qt::Key_4, Qt::Key_5, Qt::Key_6, Qt::Key_7 };   // Ctrl+4..7 pick a corner directly (Ctrl+1..3 pick the type)
+    int cornerIndex = 0;
+    for (const CornerEntry& entry : cornerEntries) {
+        QAction* action = cornerMenu->addAction(QIcon(isoCornerIconPath(entry.corner)), cornerActionText(entry.corner));
+        action->setShortcut(QKeySequence(Qt::CTRL | cornerShortcutKeys[cornerIndex++]));
+        scopeShortcutToViewport(action);
+        const QString code = QString::fromLatin1(entry.code);
+        connect(action, &QAction::triggered, this, [this, code]() { emit isoCornerSelected(code); });
+        _cornerActions[entry.corner] = action;
+    }
+    // The button's own (default) action: step to the next corner. Its look is kept in sync with the
+    // current corner by setAxonometricState().
+    _cornerNextAction = new QAction(QIcon(isoCornerIconPath(IsoCorner::SE)), tr("Next Corner"), this);
+    connect(_cornerNextAction, &QAction::triggered, this, [this]() { emit isoCornerSelected(QStringLiteral("Next")); });
+    _toolButtonCorner->setMenu(cornerMenu);
+    _toolButtonCorner->setDefaultAction(_cornerNextAction);
+    _mainLayout->addWidget(_toolButtonCorner);
+
+    // Step to the next/previous corner from the keyboard (SE -> NE -> NW -> SW -> SE). Same scoping as
+    // the Home shortcut above.
+    QShortcut* nextCornerShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Right), _viewport);
+    nextCornerShortcut->setContext(Qt::WidgetWithChildrenShortcut);
+    connect(nextCornerShortcut, &QShortcut::activated, this, [this]() { emit isoCornerSelected(QStringLiteral("Next")); });
+    QShortcut* prevCornerShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Left), _viewport);
+    prevCornerShortcut->setContext(Qt::WidgetWithChildrenShortcut);
+    connect(prevCornerShortcut, &QShortcut::activated, this, [this]() { emit isoCornerSelected(QStringLiteral("Prev")); });
+
+    // Projection flyout: Perspective, Orthographic and the oblique Cavalier/Cabinet. Clicking the button or
+    // Shift+P toggles between Perspective and the parallel projection used last (Orthographic until an
+    // oblique one has been picked), while hold opens the list to pick one explicitly. The button always
+    // shows the CURRENT projection.
+    _projToggleButton = new FlyOutViewButton(this);
     _projToggleButton->setCheckable(true);
     _projToggleButton->setChecked(false);
     _projToggleButton->setIcon(QIcon(":/icons/res/Ortho.png"));
-    _projToggleButton->setIconSize(QSize(48, 48));
+    _projToggleButton->setIconSize(QSize(40, 40));
     _projToggleButton->setToolTip(tr("Toggle Projection"));
+    _projToggleButton->setPopupMode(QToolButton::DelayedPopup);
+    _projToggleButton->setAutoRaise(true);
     scopeButtonShortcutToViewport(_projToggleButton, QKeySequence(Qt::SHIFT | Qt::Key_P));
     _mainLayout->addWidget(_projToggleButton);
 
-    connect(_projToggleButton, &QToolButton::toggled, this, [this](bool checked) {
+    _projectionAction = bindButtonAction(_projToggleButton, QStringLiteral("projectionAction"));
+    connect(_projectionAction, &QAction::triggered, this, [this](bool checked) {
         if (!checked)
         {
-            _projToggleButton->setIcon(QIcon(":/icons/res/Ortho.png"));
-            _projToggleButton->setToolTip(tr("Switch to Perspective"));
+            _projectionAction->setIcon(QIcon(":/icons/res/Ortho.png"));
+            _projectionAction->setToolTip(tr("Switch to Perspective"));
         }
         else
         {
-            _projToggleButton->setToolTip(tr("Switch to Orthographic"));
-            _projToggleButton->setIcon(QIcon(":/icons/res/Perspective.png"));
+            _projectionAction->setToolTip(tr("Switch to Orthographic"));
+            _projectionAction->setIcon(QIcon(":/icons/res/Perspective.png"));
         }
         emit projectionToggled(!checked);
         });
+
+    QMenu* projectionMenu = new QMenu;
+    projectionMenu->setStyleSheet(flyoutStyleSheet);
+    // The flyout opens upward from the button, so the everyday Perspective/Orthographic pair sits next to
+    // it and the oblique projections are set apart above a separator.
+    _cavalierAction = projectionMenu->addAction(QIcon(":/icons/res/Cavalier.png"), tr("Cavalier"));
+    _cabinetAction = projectionMenu->addAction(QIcon(":/icons/res/Cabinet.png"), tr("Cabinet"));
+    projectionMenu->addSeparator();
+    _perspectiveAction = projectionMenu->addAction(QIcon(":/icons/res/Perspective.png"), tr("Perspective"));
+    _orthographicAction = projectionMenu->addAction(QIcon(":/icons/res/Ortho.png"), tr("Orthographic"));
+    // Explicit picks go straight to the viewport by name (a click on the button only toggles); picking the
+    // projection that is already active is harmless. The Cavalier/Cabinet entries are disabled while the
+    // ray tracer is armed (see syncMenuState()).
+    connect(_perspectiveAction, &QAction::triggered, this, [this]() { emit projectionSelected(QStringLiteral("perspective")); });
+    connect(_orthographicAction, &QAction::triggered, this, [this]() { emit projectionSelected(QStringLiteral("ortho")); });
+    connect(_cavalierAction, &QAction::triggered, this, [this]() { emit projectionSelected(QStringLiteral("cavalier")); });
+    connect(_cabinetAction, &QAction::triggered, this, [this]() { emit projectionSelected(QStringLiteral("cabinet")); });
+    _projToggleButton->setMenu(projectionMenu);
 
     // Multi View
     _multiBtn = new QToolButton(this);
     _multiBtn->setStyleSheet(buttonStyleSheet);
     _multiBtn->setIcon(QIcon(":/icons/res/multiview.png"));
-    _multiBtn->setIconSize(QSize(48, 48));
+    _multiBtn->setIconSize(QSize(40, 40));
     _multiBtn->setToolTip(tr("Toggle Multi-View"));
     _multiBtn->setCheckable(true);
     _multiBtn->setAutoRaise(true);
     scopeButtonShortcutToViewport(_multiBtn, QKeySequence(Qt::CTRL | Qt::Key_M));
     _mainLayout->addWidget(_multiBtn);
-    connect(_multiBtn, &QToolButton::toggled, this, [this](bool checked) { emit multiViewToggled(checked); });
+    _multiViewAction = bindButtonAction(_multiBtn, QStringLiteral("multiViewAction"));
+    connect(_multiViewAction, &QAction::triggered, this, [this](bool checked) { emit multiViewToggled(checked); });
 
     // Display Modes
+    separator();
     _toolButtonDisplayModes = new FlyOutViewButton(this);
     _toolButtonDisplayModes->setIcon(QIcon(":/icons/res/shaded.png"));
-    _toolButtonDisplayModes->setIconSize(QSize(48, 48));
+    _toolButtonDisplayModes->setIconSize(QSize(40, 40));
     _toolButtonDisplayModes->setToolTip(tr("Display Modes"));
     _toolButtonDisplayModes->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonDisplayModes->setAutoRaise(true);
@@ -608,15 +803,15 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _realisticBtn = new QToolButton(this);
     _realisticBtn->setStyleSheet(buttonStyleSheet);
     _realisticBtn->setIcon(QIcon(":/icons/res/realshaded.png"));
-    _realisticBtn->setIconSize(QSize(48, 48));
+    _realisticBtn->setIconSize(QSize(40, 40));
     _realisticBtn->setToolTip(tr("Realistic Rendering (Shift+R)"));
     _realisticBtn->setCheckable(true);
     _realisticBtn->setAutoRaise(true);
     scopeButtonShortcutToViewport(_realisticBtn, QKeySequence(Qt::SHIFT | Qt::Key_R));
     _mainLayout->addWidget(_realisticBtn);
-    connect(_realisticBtn, &QToolButton::clicked, this,
+    _realisticAction = bindButtonAction(_realisticBtn, QStringLiteral("realisticAction"));
+    connect(_realisticAction, &QAction::triggered, this,
         [this]() { emit displayModeSelected("Realistic"); });
-    _realistic = nullptr; // no longer a menu action; _realisticBtn is the sole owner
 
     QMenu* dispModeMenu = new QMenu;
     dispModeMenu->setStyleSheet(flyoutStyleSheet);
@@ -683,7 +878,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     // Rendering Mode
     _toolButtonRenderingMode = new FlyOutViewButton(this);
     _toolButtonRenderingMode->setIcon(QIcon(":/icons/res/ads_mode.png"));
-    _toolButtonRenderingMode->setIconSize(QSize(48, 48));
+    _toolButtonRenderingMode->setIconSize(QSize(40, 40));
     _toolButtonRenderingMode->setToolTip(tr("Rendering Mode"));
     _toolButtonRenderingMode->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonRenderingMode->setAutoRaise(true);
@@ -726,7 +921,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     // Shading Normal Mode (Smooth / Flat)
     _toolButtonShadingNormal = new FlyOutViewButton(this);
     _toolButtonShadingNormal->setIcon(QIcon(":/icons/res/smooth_shaded.png"));
-    _toolButtonShadingNormal->setIconSize(QSize(48, 48));
+    _toolButtonShadingNormal->setIconSize(QSize(40, 40));
     _toolButtonShadingNormal->setToolTip(tr("Shading Normal"));
     _toolButtonShadingNormal->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonShadingNormal->setAutoRaise(true);
@@ -759,58 +954,93 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _toolButtonShadingNormal->setDefaultAction(_smoothShaded);
 
     // Section View
-    _sectionBtn = new QToolButton(this);
-    _sectionBtn->setStyleSheet(buttonStyleSheet);
-    _sectionBtn->setIcon(QIcon(":/icons/res/section.png"));
-    _sectionBtn->setIconSize(QSize(48, 48));
+    separator();
+    // A toggle button with a flyout (same shape as the Debug Overlays button
+    // below): the main click still only shows/hides the Clipping Planes panel
+    // through _sectionAction, which stays the button's default action; the
+    // flyout (press-and-hold) picks a preset combination of planes / the box.
+    // The button's icon follows the current combination by changing
+    // _sectionAction's icon (a default-action button mirrors its action), not
+    // the button's own - see setClippingState().
+    _sectionBtn = new FlyOutViewButton(this);
+    _sectionBtn->setStyleSheet(flyoutToggleButtonStyleSheet);
+    _sectionBtn->setIcon(QIcon(kGenericClippingIcon));
+    _sectionBtn->setIconSize(QSize(40, 40));
     _sectionBtn->setToolTip(tr("Clipping Planes"));
     _sectionBtn->setCheckable(true);
+    _sectionBtn->setPopupMode(QToolButton::DelayedPopup);
     _sectionBtn->setAutoRaise(true);
     _mainLayout->addWidget(_sectionBtn);
-    connect(_sectionBtn, &QToolButton::toggled, this, [this](bool checked) { emit sectionViewToggled(checked); });
+    _sectionAction = bindButtonAction(_sectionBtn, QStringLiteral("sectionAction"));
+    connect(_sectionAction, &QAction::triggered, this, [this](bool checked) { emit sectionViewToggled(checked); });
+
+    QMenu* clippingMenu = new QMenu;
+    clippingMenu->setStyleSheet(flyoutStyleSheet);
+    for (int i = 0; i < kClippingPresetCount; ++i)
+    {
+        if (i == 1)
+            clippingMenu->addSeparator(); // sets "No Clipping" apart from the combinations
+        const ClippingPresetInfo& preset = kClippingPresets[i];
+        QAction* presetAction = clippingMenu->addAction(QIcon(QString::fromLatin1(preset.icon)), clippingPresetText(i));
+        presetAction->setCheckable(true);
+        _clippingPresetActions.append(presetAction);
+        connect(presetAction, &QAction::triggered, this, [this, i]() {
+            const ClippingPresetInfo& p = kClippingPresets[i];
+            emit clippingPresetRequested(p.xy, p.yz, p.zx, p.box);
+            // Normalize the check marks/icon right away: the entry just toggled
+            // its own check state, and re-picking the current preset changes no
+            // clipping state, so nothing else would call setClippingState().
+            setClippingState(p.xy, p.yz, p.zx, p.box);
+        });
+    }
+    _sectionBtn->setMenu(clippingMenu);
 
     // Exploded View
     _explodedBtn = new QToolButton(this);
     _explodedBtn->setStyleSheet(buttonStyleSheet);
     _explodedBtn->setIcon(QIcon(":/icons/res/exploded_view.png"));
-    _explodedBtn->setIconSize(QSize(48, 48));
+    _explodedBtn->setIconSize(QSize(40, 40));
     _explodedBtn->setToolTip(tr("Exploded View"));
     _explodedBtn->setCheckable(true);
     _explodedBtn->setAutoRaise(true);
     _mainLayout->addWidget(_explodedBtn);
-    connect(_explodedBtn, &QToolButton::toggled, this, [this](bool checked) { emit explodedViewToggled(checked); });
+    _explodedAction = bindButtonAction(_explodedBtn, QStringLiteral("explodedAction"));
+    connect(_explodedAction, &QAction::triggered, this, [this](bool checked) { emit explodedViewToggled(checked); });
 
     // Swap Visible View
     _swapBtn = new QToolButton(this);
     _swapBtn->setStyleSheet(buttonStyleSheet);
     _swapBtn->setIcon(QIcon(":/icons/res/swapvisible.png"));
-    _swapBtn->setIconSize(QSize(48, 48));
+    _swapBtn->setIconSize(QSize(40, 40));
     _swapBtn->setToolTip(tr("Swap Visible"));
     _swapBtn->setCheckable(true);
     _swapBtn->setAutoRaise(true);
     _mainLayout->addWidget(_swapBtn);
-    connect(_swapBtn, &QToolButton::toggled, this, [this](bool checked) { emit swapVisibleToggled(checked); });
+    _swapVisibleAction = bindButtonAction(_swapBtn, QStringLiteral("swapVisibleAction"));
+    connect(_swapVisibleAction, &QAction::triggered, this, [this](bool checked) { emit swapVisibleToggled(checked); });
 
     // Show/Hide Axis
+    separator();
     _axisBtn = new QToolButton(this);
     _axisBtn->setStyleSheet(buttonStyleSheet);
     _axisBtn->setIcon(QIcon(":/icons/res/showAxis.png"));
-    _axisBtn->setIconSize(QSize(48, 48));
+    _axisBtn->setIconSize(QSize(40, 40));
     _axisBtn->setToolTip(tr("Show/Hide Axis"));
     _axisBtn->setCheckable(true);
     _axisBtn->setChecked(true);
     _axisBtn->setAutoRaise(true);
     _mainLayout->addWidget(_axisBtn);
-    connect(_axisBtn, &QToolButton::toggled, this, [this](bool checked) {
+    _axisAction = bindButtonAction(_axisBtn, QStringLiteral("axisAction"));
+    connect(_axisAction, &QAction::triggered, this, [this](bool checked) {
         if (checked)
         {
-            _axisBtn->setIcon(QIcon(":/icons/res/showAxis.png"));
-            _axisBtn->setToolTip(tr("Show the trihedron"));
+            _axisAction->setIcon(QIcon(":/icons/res/showAxis.png"));
+            _axisAction->setToolTip(tr("Show the trihedron"));
         }
         else
         {
-            _axisBtn->setIcon(QIcon(":/icons/res/hideAxis.png"));
-            _axisBtn->setToolTip(tr("Hide the trihedron"));
+            _axisAction->setIcon(QIcon(":/icons/res/hideAxis.png"));
+            _axisAction->setToolTip(tr("Hide the trihedron"));
         }
         emit axisDisplayToggled(checked);
         });
@@ -821,7 +1051,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _toolButtonDebugOverlays->setCheckable(true);
     _toolButtonDebugOverlays->setChecked(false);
     _toolButtonDebugOverlays->setIcon(QIcon(debugOverlayIconPath(_currentDebugOverlayAction, false)));
-    _toolButtonDebugOverlays->setIconSize(QSize(48, 48));
+    _toolButtonDebugOverlays->setIconSize(QSize(40, 40));
     _toolButtonDebugOverlays->setToolTip(tr("Debug Overlays"));
     _toolButtonDebugOverlays->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonDebugOverlays->setAutoRaise(true);
@@ -866,9 +1096,6 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     setDebugOverlayState(DebugOverlayActions::BOUNDING_BOX, false);
 
     // Toolbar animations
-    _toolbarAnimation = new QPropertyAnimation(this, "geometry", this);
-    _toolbarAnimation->setDuration(300);
-    _toolbarAnimation->setEasingCurve(QEasingCurve::OutCubic);
 
     // Auto-scroll timer
     _autoScrollTimer = new QTimer(this);
@@ -896,99 +1123,22 @@ ViewToolbar::ViewToolbar(QWidget* parent)
         });
 }
 
-void ViewToolbar::showAnimated()
+QSize ViewToolbar::sizeHint() const
 {
-	// The navigation overlay panel (see ModelViewer::attachNavigationOverlay())
-	// now stretches to the viewport's full height and is raised above sibling
-	// widgets, including this toolbar, in stacking order - without this, the
-	// revealed toolbar would render (and be clickable) behind the panel
-	// wherever the two overlap.
-	raise();
-	if (_toolbarAnimation->state() == QAbstractAnimation::Running)
-		_toolbarAnimation->stop();
-	_toolbarAnimation->setStartValue(geometry());
-	_toolbarAnimation->setEndValue(_visibleRect);
-	_toolbarAnimation->start();
+    ensurePolished();
+    return QSize(_mainLayout->sizeHint().width() + 8, 64);
 }
 
-void ViewToolbar::hideAnimated()
+void ViewToolbar::stopScrolling()
 {
-	if (_toolbarAnimation->state() == QAbstractAnimation::Running)
-		_toolbarAnimation->stop();
-	_toolbarAnimation->setStartValue(geometry());
-	_toolbarAnimation->setEndValue(_hiddenRect);
-	_toolbarAnimation->start();
+    stopAutoScroll();
+    if (_hoverDelayTimer) _hoverDelayTimer->stop();
 }
-
-void ViewToolbar::reposition(int widgetWidth, int widgetHeight)
-{
-    // Prevent recursive calls
-    if (_isRepositioning)
-        return;
-
-    _isRepositioning = true;
-
-    // Calculate maximum toolbar width
-    int maxToolbarWidth = widgetWidth - 20; // 10px margin on each side
-
-    // Calculate minimum width needed for all buttons
-    int totalButtonWidth = 0;
-    for (int i = 0; i < _mainLayout->count(); ++i)
-    {
-        QLayoutItem* item = _mainLayout->itemAt(i);
-        if (item && item->widget())
-        {
-            totalButtonWidth += item->widget()->sizeHint().width();
-        }
-    }
-
-    // Add spacing and margins
-    int buttonCount = _mainLayout->count();
-    totalButtonWidth += (buttonCount - 1) * _mainLayout->spacing();
-    totalButtonWidth += _mainLayout->contentsMargins().left() + _mainLayout->contentsMargins().right();
-
-    // Account for outer layout margins
-    int outerMargins = 4; // 2px on each side
-
-    // Determine toolbar width
-    int toolbarWidth;
-    bool needsScrolling = (totalButtonWidth + outerMargins) > maxToolbarWidth;
-
-    if (needsScrolling)
-    {
-        // Use max width when scrolling is needed
-        toolbarWidth = maxToolbarWidth;
-        _buttonContainer->setMinimumWidth(totalButtonWidth);
-        _buttonContainer->setMaximumWidth(totalButtonWidth);
-    }
-    else
-    {
-        // Use exact width when no scrolling
-        toolbarWidth = totalButtonWidth + outerMargins;
-        _buttonContainer->setMinimumWidth(totalButtonWidth);
-        _buttonContainer->setMaximumWidth(totalButtonWidth);
-    }
-
-    resize(toolbarWidth, 76);
-
-    int x = (widgetWidth - toolbarWidth) / 2;
-    int y = widgetHeight - 76 - 10;
-    move(x, y);
-
-    _visibleRect = QRect(x, y, toolbarWidth, 76);
-    _hiddenRect = _visibleRect.translated(0, 80);
-
-    // Update scroll button visibility after positioning is done
-    _isRepositioning = false;
-    checkScrollButtonsVisibility();
-}
-
-QRect ViewToolbar::visibleRect() const { return _visibleRect; }
-QRect ViewToolbar::hiddenRect() const { return _hiddenRect; }
 
 bool ViewToolbar::isFlyoutMenuVisible() const
 {
-	return (_toolButtonViewModes &&
+	return (_btnLassoSelect && _btnLassoSelect->menu() && _btnLassoSelect->menu()->isVisible()) ||
+		(_sectionBtn && _sectionBtn->menu() && _sectionBtn->menu()->isVisible()) || (_toolButtonViewModes &&
 		_toolButtonViewModes->menu() &&
 		_toolButtonViewModes->menu()->isVisible()) ||
 		(_toolButtonCameraModes &&
@@ -997,9 +1147,66 @@ bool ViewToolbar::isFlyoutMenuVisible() const
         (_toolButtonDebugOverlays &&
             _toolButtonDebugOverlays->menu() &&
             _toolButtonDebugOverlays->menu()->isVisible()) ||
+        (_toolButtonCorner && _toolButtonCorner->menu() && _toolButtonCorner->menu()->isVisible()) ||
+        (_projToggleButton && _projToggleButton->menu() && _projToggleButton->menu()->isVisible()) ||
 		(_toolButtonDisplayModes &&
 			_toolButtonDisplayModes->menu() &&
 			_toolButtonDisplayModes->menu()->isVisible());
+}
+
+
+void ViewToolbar::syncMenuState(const QVariantMap& state)
+{
+    const auto checked = [&state](const char* key) { return state.value(QLatin1String(key)).toBool(); };
+    // Command handlers use triggered(), so assigning state never dispatches a command.
+    setLassoSelectChecked(checked("lasso"));
+    _windowZoomAction->setChecked(checked("windowZoom"));
+    _turntableAction->setChecked(checked("turntable"));
+    _projectionAction->setChecked(checked("perspective"));
+    _multiViewAction->setChecked(checked("multi"));
+    _realisticAction->setChecked(checked("realistic"));
+    _sectionAction->setChecked(checked("clipping"));
+    _explodedAction->setChecked(checked("exploded"));
+    _swapVisibleAction->setChecked(checked("swap"));
+    _axisAction->setChecked(checked("axis"));
+    _rotateViewAction->setChecked(checked("rotate"));
+    _panViewAction->setChecked(checked("pan"));
+    _zoomViewAction->setChecked(checked("zoom"));
+    // The button shows the CURRENT projection; clicking it toggles to Perspective, or from Perspective back
+    // to the parallel projection used last.
+    const bool perspective = checked("perspective");
+    const char* currentIcon = perspective ? ":/icons/res/Perspective.png"
+        : checked("cavalier") ? ":/icons/res/Cavalier.png"
+        : checked("cabinet") ? ":/icons/res/Cabinet.png" : ":/icons/res/Ortho.png";
+    QString parallelName = tr("Orthographic");
+    if (checked("lastParallel.cavalier")) parallelName = tr("Cavalier");
+    else if (checked("lastParallel.cabinet")) parallelName = tr("Cabinet");
+    _projectionAction->setIcon(QIcon(currentIcon));
+    _projectionAction->setToolTip(perspective ? tr("Switch to %1").arg(parallelName) : tr("Switch to Perspective"));
+    _cavalierAction->setEnabled(state.value(QStringLiteral("available.cavalier"), true).toBool());
+    _cabinetAction->setEnabled(state.value(QStringLiteral("available.cabinet"), true).toBool());
+    _axisAction->setIcon(QIcon(checked("axis") ? ":/icons/res/showAxis.png" : ":/icons/res/hideAxis.png"));
+    _axisAction->setToolTip(checked("axis") ? tr("Hide the trihedron") : tr("Show the trihedron"));
+    if (checked("rotate")) _toolButtonNavigation->setDefaultAction(_rotateViewAction);
+    else if (checked("pan")) _toolButtonNavigation->setDefaultAction(_panViewAction);
+    else if (checked("zoom")) _toolButtonNavigation->setDefaultAction(_zoomViewAction);
+    setCameraUpAxisZUp(checked("zUp"));
+    if (checked("orbit")) _toolButtonCameraModes->setDefaultAction(_cameraModeActions.value(CameraModeActions::ORBIT));
+    if (checked("fly")) _toolButtonCameraModes->setDefaultAction(_cameraModeActions.value(CameraModeActions::FLY));
+    if (checked("firstPerson")) _toolButtonCameraModes->setDefaultAction(_cameraModeActions.value(CameraModeActions::FIRST_PERSON));
+    if (checked("shaded")) _toolButtonDisplayModes->setDefaultAction(_displayModeActions.value(DisplayModeActions::SHADED));
+    if (checked("hollow")) _toolButtonDisplayModes->setDefaultAction(_displayModeActions.value(DisplayModeActions::HOLLOW_MESH));
+    if (checked("meshEdges")) _toolButtonDisplayModes->setDefaultAction(_displayModeActions.value(DisplayModeActions::MESH_EDGES));
+    if (checked("wireframe")) _toolButtonDisplayModes->setDefaultAction(_displayModeActions.value(DisplayModeActions::WIREFRAME));
+    if (checked("shadedEdges")) _toolButtonDisplayModes->setDefaultAction(_displayModeActions.value(DisplayModeActions::SHADED_WITH_EDGES));
+    if (checked("ads")) _toolButtonRenderingMode->setDefaultAction(_renderingModeActions.value(RenderingModeActions::ADS));
+    if (checked("pbr")) _toolButtonRenderingMode->setDefaultAction(_renderingModeActions.value(RenderingModeActions::PBR));
+    if (checked("rayTraced")) _toolButtonRenderingMode->setDefaultAction(_renderingModeActions.value(RenderingModeActions::RAY_TRACED));
+    if (checked("smooth")) _toolButtonShadingNormal->setDefaultAction(_shadingNormalActions.value(ShadingNormalModeActions::SMOOTH));
+    if (checked("flat")) _toolButtonShadingNormal->setDefaultAction(_shadingNormalActions.value(ShadingNormalModeActions::FLAT));
+    setDebugOverlayState(checked("vertexNormals") ? DebugOverlayActions::VERTEX_NORMALS
+        : checked("faceNormals") ? DebugOverlayActions::FACE_NORMALS : DebugOverlayActions::BOUNDING_BOX,
+        checked("debugEnabled"));
 }
 
 void ViewToolbar::setDefaultCameraModeAction(CameraModeActions mode)
@@ -1016,8 +1223,36 @@ void ViewToolbar::setDefaultStandardViewAction(StandardViewActions view)
 
 void ViewToolbar::setDefaultViewModeAction(ViewModeActions mode)
 {
-	if (_viewModeActions.contains(mode))
-		_toolButtonViewModes->setDefaultAction(_viewModeActions[mode]);
+	// Only the button's look follows the type; its action is always "step" (see _axoStepAction).
+	QAction* typeAction = _viewModeActions.value(mode, nullptr);
+	if (!typeAction)
+		return;
+	_currentViewModeAction = mode;
+	_axoStepAction->setIcon(typeAction->icon());
+	_axoStepAction->setText(typeAction->text());
+	_axoStepAction->setToolTip(tr("%1 - click for the next axonometric type").arg(typeAction->text()));
+}
+
+void ViewToolbar::setAxonometricState(ViewMode type, IsoCorner corner, bool active)
+{
+	// The type button shows the last type chosen (icon/tooltip come from its default action)...
+	setDefaultViewModeAction(type == ViewMode::DIMETRIC ? ViewModeActions::DIMETRIC
+		: type == ViewMode::TRIMETRIC ? ViewModeActions::TRIMETRIC : ViewModeActions::ISOMETRIC);
+	// ...and the corner button shows the current corner.
+	_currentCorner = corner;
+	updateCornerButton();
+	// Both buttons are highlighted only while the view really is axonometric; a standard view or a free
+	// orbit leaves them neutral, but they keep the last type/corner so a click continues from there.
+	QToolButton* buttons[] = { _toolButtonViewModes, _toolButtonCorner };
+	for (QToolButton* button : buttons)
+	{
+		if (button->property("viewActive").toBool() == active)
+			continue;
+		button->setProperty("viewActive", active);
+		button->style()->unpolish(button);   // a dynamic-property change needs a re-polish to restyle
+		button->style()->polish(button);
+		button->update();
+	}
 }
 
 void ViewToolbar::setDefaultDisplayModeAction(DisplayModeActions mode)
@@ -1028,10 +1263,7 @@ void ViewToolbar::setDefaultDisplayModeAction(DisplayModeActions mode)
 
 void ViewToolbar::setRealisticChecked(bool checked)
 {
-	if (_realisticBtn)
-		_realisticBtn->setChecked(checked);
-	if (_realistic)
-		_realistic->setChecked(checked);
+    _realisticAction->setChecked(checked);
 }
 
 void ViewToolbar::setDefaultShadingNormalModeAction(ShadingNormalModeActions mode)
@@ -1052,6 +1284,7 @@ void ViewToolbar::setFeatureEdgeModesVisible(bool visible)
 		if (current == _wireframe || current == _shadedWithEdges)
 			_toolButtonDisplayModes->setDefaultAction(_shaded);
 	}
+    emit viewActionsChanged();
 }
 
 void ViewToolbar::setDebugOverlayModesAvailable(bool boundingBox, bool vertexNormals, bool faceNormals)
@@ -1092,8 +1325,8 @@ void ViewToolbar::setDebugOverlayModesAvailable(bool boundingBox, bool vertexNor
                              _toolButtonDebugOverlays ? _toolButtonDebugOverlays->isChecked() : false);
     }
 
-    if (parentWidget())
-        reposition(parentWidget()->width(), parentWidget()->height());
+    checkScrollButtonsVisibility();
+    updateGeometry();
 }
 
 void ViewToolbar::setDebugOverlayState(DebugOverlayActions mode, bool enabled)
@@ -1117,23 +1350,71 @@ void ViewToolbar::setDebugOverlayState(DebugOverlayActions mode, bool enabled)
 
 void ViewToolbar::setSwapVisibleChecked(bool checked)
 {
-	bool oldState = _swapBtn->blockSignals(true);
-	_swapBtn->setChecked(checked);
-	_swapBtn->blockSignals(oldState);
+    // Only triggered() dispatches commands; checked-state sync is passive.
+    _swapVisibleAction->setChecked(checked);
+}
+
+void ViewToolbar::setTurntableChecked(bool checked)
+{
+    // Only triggered() dispatches commands; checked-state sync is passive.
+    _turntableAction->setChecked(checked);
+}
+
+void ViewToolbar::setLassoSelectChecked(bool checked)
+{
+    // Only triggered() dispatches commands; checked-state sync is passive.
+    _lassoSelectAction->setChecked(checked);
+    if (checked) _btnLassoSelect->setDefaultAction(_lassoSelectAction);
+}
+
+void ViewToolbar::setSelectionFiltersEnabled(bool enabled)
+{
+    _filterByMaterialAction->setEnabled(enabled);
+    _filterByColorAction->setEnabled(enabled);
+    _filterByBoundingBoxAction->setEnabled(enabled);
+    if (!enabled) _btnLassoSelect->setDefaultAction(_lassoSelectAction);
 }
 
 void ViewToolbar::setSectionViewChecked(bool checked)
 {
-	bool oldState = _sectionBtn->blockSignals(true);
-	_sectionBtn->setChecked(checked);
-	_sectionBtn->blockSignals(oldState);
+    // Only triggered() dispatches commands; checked-state sync is passive.
+    _sectionAction->setChecked(checked);
+}
+
+void ViewToolbar::setClippingState(bool xy, bool yz, bool zx, bool box)
+{
+    if (!_sectionAction)
+        return;
+
+    int match = -1;
+    for (int i = 0; i < kClippingPresetCount; ++i)
+    {
+        const ClippingPresetInfo& p = kClippingPresets[i];
+        if (p.xy == xy && p.yz == yz && p.zx == zx && p.box == box)
+        {
+            match = i;
+            break;
+        }
+    }
+
+    // Passive: QAction::setChecked() emits toggled(), never triggered(), and only
+    // triggered() dispatches clippingPresetRequested().
+    for (int i = 0; i < _clippingPresetActions.size(); ++i)
+        _clippingPresetActions[i]->setChecked(i == match);
+
+    // The panel calls this on every clipping-plane update (including each frame of
+    // a gizmo drag), so only touch the button's icon when the combination changed.
+    if (match != _currentClippingPreset)
+    {
+        _sectionAction->setIcon(QIcon(QString::fromLatin1(match >= 0 ? kClippingPresets[match].icon : kGenericClippingIcon)));
+        _currentClippingPreset = match;
+    }
 }
 
 void ViewToolbar::setExplodedViewChecked(bool checked)
 {
-	bool oldState = _explodedBtn->blockSignals(true);
-	_explodedBtn->setChecked(checked);
-	_explodedBtn->blockSignals(oldState);
+    // Only triggered() dispatches commands; checked-state sync is passive.
+    _explodedAction->setChecked(checked);
 }
 
 void ViewToolbar::setCameraUpAxisZUp(bool zUp)
@@ -1153,35 +1434,13 @@ bool ViewToolbar::isCameraUpAxisZUp() const
 
 void ViewToolbar::paintEvent(QPaintEvent* event)
 {
-	QPainter painter(this);
-	painter.setRenderHint(QPainter::Antialiasing);
-
-	QRect r = rect();
-	QColor bg(255, 255, 255, 100);
-	QColor border(100, 100, 100, 160);
-
-	// Draw rounded rectangle background
-	painter.setBrush(bg);
-	painter.setPen(QPen(border, 1));
-	painter.drawRoundedRect(r.adjusted(0, 0, -1, -1), 4, 4);
-
-	QWidget::paintEvent(event); // Optional, not strictly needed here
+    QWidget::paintEvent(event);
 }
 
 void ViewToolbar::resizeEvent(QResizeEvent* event)
 {
     QWidget::resizeEvent(event);
-
-    if (_isRepositioning)
-        return;
-
-    // After resize, check if we need scrolling and adjust toolbar width accordingly
-    QTimer::singleShot(0, this, [this]() {
-        if (parentWidget())
-        {
-            reposition(parentWidget()->width(), parentWidget()->height());
-        }
-        });
+    QTimer::singleShot(0, this, [this]() { checkScrollButtonsVisibility(); });
 }
 
 bool ViewToolbar::eventFilter(QObject* obj, QEvent* event)
@@ -1221,9 +1480,29 @@ bool ViewToolbar::eventFilter(QObject* obj, QEvent* event)
 
 void ViewToolbar::retranslateUI()
 {
+    // Keep action text and tooltip together for these standalone controls.
+    _fitAllAction->setText(tr("Fit All"));
+    _windowZoomAction->setText(tr("Window Zoom"));
+    _lassoSelectAction->setText(tr("Lasso Select"));
+    _lassoSelectAction->setToolTip(tr("Lasso Select"));
+    _filterByMaterialAction->setText(tr("Filter by Material..."));
+    _filterByColorAction->setText(tr("Filter by Color..."));
+    _filterByBoundingBoxAction->setText(tr("Filter by Bounding Box..."));
+    for (auto* action : {_filterByMaterialAction, _filterByColorAction, _filterByBoundingBoxAction})
+        action->setToolTip(action->text());
+    _turntableAction->setText(tr("Turntable"));
+    _turntableAction->setToolTip(tr("Turntable"));
+    _projectionAction->setText(tr("Toggle Projection"));
+    _multiViewAction->setText(tr("Toggle Multi-View"));
+    _realisticAction->setText(tr("Realistic Rendering"));
+    _sectionAction->setText(tr("Clipping Planes"));
+    _explodedAction->setText(tr("Exploded View"));
+    _swapVisibleAction->setText(tr("Swap Visible"));
+    _axisAction->setText(tr("Show/Hide Axis"));
+
 	// Separate navigation buttons
-	_btnFitAll->setToolTip(tr("Fit All"));
-	_btnWindowZoom->setToolTip(tr("Window Zoom"));
+	_fitAllAction->setToolTip(tr("Fit All"));
+	_windowZoomAction->setToolTip(tr("Window Zoom"));
 
 	// Navigation dropdown
 	_toolButtonNavigation->setToolTip(tr("Navigation"));
@@ -1252,18 +1531,30 @@ void ViewToolbar::retranslateUI()
 	// Axonometric Views
 	_toolButtonViewModes->setToolTip(tr("Axonometric View"));
 	_isoAction->setText(tr("Isometric"));
+	for (auto it = _cornerActions.cbegin(); it != _cornerActions.cend(); ++it)
+	{
+		it.value()->setText(cornerActionText(it.key()));
+		it.value()->setIcon(QIcon(isoCornerIconPath(it.key())));   // the letters on the icon follow the language
+	}
+	updateCornerButton();
+	_cornerNextAction->setText(tr("Next Corner"));
+	_perspectiveAction->setText(tr("Perspective"));
+	_orthographicAction->setText(tr("Orthographic"));
+	_cavalierAction->setText(tr("Cavalier"));
+	_cabinetAction->setText(tr("Cabinet"));
 	_dimAction->setText(tr("Dimetric"));
 	_triAction->setText(tr("Trimetric"));
+	setDefaultViewModeAction(_currentViewModeAction);   // refresh the type button's translated tooltip
 
 	// Projection toggle
-	_projToggleButton->setToolTip(tr("Toggle Projection"));	
+	_projectionAction->setToolTip(tr("Toggle Projection"));
 
 	// Multi View
-	_multiBtn->setToolTip(tr("Toggle Multi-View"));
+	_multiViewAction->setToolTip(tr("Toggle Multi-View"));
 
 	// Display Modes
 	_toolButtonDisplayModes->setToolTip(tr("Display Modes"));
-	if (_realisticBtn) _realisticBtn->setToolTip(tr("Realistic Rendering (Shift+R)"));
+	if (_realisticBtn) _realisticAction->setToolTip(tr("Realistic Rendering (Shift+R)"));
 	_shaded->setText(tr("Shaded"));
 	// Shading Normal
 	_toolButtonShadingNormal->setToolTip(tr("Shading Normal"));
@@ -1289,16 +1580,18 @@ void ViewToolbar::retranslateUI()
 	_pbrAction->setText(tr("PBR (Metallic-Roughness)"));
 
 	// Section View
-	_sectionBtn->setToolTip(tr("Clipping Planes"));
+	_sectionAction->setToolTip(tr("Clipping Planes"));
+	for (int i = 0; i < _clippingPresetActions.size(); ++i)
+		_clippingPresetActions[i]->setText(clippingPresetText(i));
 
 	// Exploded View
-	_explodedBtn->setToolTip(tr("Exploded View"));
+	_explodedAction->setToolTip(tr("Exploded View"));
 
 	// Swap Visible View
-	_swapBtn->setToolTip(tr("Swap Visible"));
+	_swapVisibleAction->setToolTip(tr("Swap Visible"));
 
 	// Axis
-	_axisBtn->setToolTip(tr("Show/Hide Axis"));
+	_axisAction->setToolTip(tr("Show/Hide Axis"));
 }
 
 void ViewToolbar::updateRenderingModeButton(const QString& mode)

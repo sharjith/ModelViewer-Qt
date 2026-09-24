@@ -176,6 +176,21 @@ public:
     // Top-level only — does not deduplicate against selected ancestors.
     QList<const SceneNode*> selectedAssemblyNodes() const;
 
+    // Subset of selectedAssemblyNodes() the user actually clicked/targeted
+    // directly, excluding ones selected purely as a side effect of every one
+    // of their direct children being selected (refreshParentSelectionUpward()
+    // enforces "parent selected iff all direct children selected", so a
+    // multi-mesh assembly whose leaves were all individually selected ends
+    // up looking IDENTICAL, in the resulting tree selection, to that same
+    // assembly having been clicked directly - the two cases are only
+    // distinguishable at the moment of the interaction itself, tracked via
+    // _explicitlySelectedAssemblyUuids). Callers that need to tell "user
+    // wants to act on this assembly as a group" apart from "user selected
+    // all its meshes individually" (e.g. deciding whether Duplicate should
+    // fall back to its leaf-only flat-clone behavior) should use this
+    // instead of selectedAssemblyNodes().
+    QList<const SceneNode*> explicitlySelectedAssemblyNodes() const;
+
     // Clear the current selection and select only the item at localPos.
     // Blocks selectionUpdated so no downstream handlers fire.
     // Used by the context menu to give single-item visual feedback.
@@ -247,8 +262,10 @@ protected:
     void keyPressEvent(QKeyEvent* event) override;
     // A press with no item under the cursor - OR one that lands in a row's ANCESTOR
     // indentation gutter (the blank connector-line columns to the left of the item's own
-    // expand/collapse toggle - see isInAncestorIndentationGutter()) - is explicitly forwarded
-    // (via QCoreApplication::sendEvent, position-mapped) to _viewportWidget rather than
+    // expand/collapse toggle - see isInAncestorIndentationGutter()) - OR one that lands past
+    // an item's own rendered content on the trailing/right side (see isPastItemContent(), the
+    // symmetric case: the column is sized to the widest sibling, so a short item's row still
+    // extends well past its own text) - is explicitly forwarded
     // just ignore()'d - same overlay-passthrough rationale as wheelEvent() below (blank tree
     // background/gutter is where the 3D viewport shows through visually), but plain
     // event->ignore() does not reliably reach the viewport here: QTreeWidget/QAbstractItemView
@@ -262,14 +279,48 @@ protected:
     // same gesture (_forwardingClickToViewport) regardless of where the cursor drifts, so a
     // click-drag (orbit/pan) that starts in the gutter works too, not just a static click.
     void mousePressEvent(QMouseEvent* event) override;
+    // Also forwards passive hover (no button held) over the same background territory, not just
+    // an active click-drag gesture - see the .cpp definition for the full rationale and a
+    // performance note.
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
+    // Same background hit-test as mousePressEvent() - a double-click landing there reaches the
+    // viewport's own mouseDoubleClickEvent() instead of QAbstractItemView's default (which does
+    // effectively nothing for a click with no item hit).
+    void mouseDoubleClickEvent(QMouseEvent* event) override;
     // Ignored (not scrolled) rather than accepted - the tree lives as a
     // transparent overlay glued to the viewport (see
     // ModelViewer::attachNavigationOverlay()), and an ignored wheel event
     // propagates up to the viewport underneath instead, so scrolling over
     // the tree still zooms the 3D view like scrolling anywhere else in it.
     void wheelEvent(QWheelEvent* event) override;
+
+    // Right-click (or the Menu key / other platform trigger) landing on the same "transparent
+    // overlay background" territory mousePressEvent() forwards - no item, the ancestor gutter,
+    // or past an item's own rendered content - is forwarded to _viewportWidget's own context
+    // menu instead of raising the tree's. This can't reuse the CustomContextMenu-policy signal
+    // path the rest of the tree's context menu uses (ModelViewer::showContextMenu(), wired to
+    // customContextMenuRequested()): with that policy QWidget::event() emits the signal itself
+    // for EVERY right-click in the widget's bounds before this class ever sees it, regardless of
+    // hit-test - there's no way to conditionally suppress one particular emission. Switching to
+    // Qt::DefaultContextMenu policy instead (see constructor) routes every request through this
+    // virtual first, where a hit-test can decide: on real content, manually emit
+    // customContextMenuRequested() to keep ModelViewer::showContextMenu() working exactly as
+    // before; on background, call _viewportWidget->showContextMenu() directly (a plain function
+    // call, made public on ViewportWidget for exactly this - not a re-synthesized QContextMenuEvent
+    // sent through the event system, nor a manually emitted signal: both were tried and proved
+    // unreliable in practice, likely interacting with in-flight mouse-gesture state a forwarded
+    // right-button press/release already left on the viewport via mousePressEvent()'s forwarding).
+    void contextMenuEvent(QContextMenuEvent* event) override;
+
+    // Watches the two scrollbars (installed on them in the constructor) for Enter/Leave to
+    // drive the hover-to-reveal "hovered" dynamic property the scrollbar stylesheet keys off of
+    // - see the constructor's setStyleSheet() call for why a dynamic property + [hovered="true"]
+    // selector, not a plain QSS :hover rule (that would only trigger over the tiny handle thumb
+    // itself, not the full scrollbar strip a user should be able to hover anywhere in). Also
+    // consumes wheel events that land on either scrollbar (after letting it scroll) so they are
+    // never relayed to the viewport once the scrollbar hits an extent.
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
     // Position-mapped redelivery of `event` to _viewportWidget - see mousePressEvent()'s doc
     // comment above for why this exists instead of relying on event->ignore() propagation.
@@ -283,9 +334,35 @@ protected:
     // only genuinely decorative ancestor guide lines read as "click through to the viewport".
     bool isInAncestorIndentationGutter(const QPoint& pos, QTreeWidgetItem* item) const;
 
+    // True when `pos` falls to the RIGHT of item's own rendered content (its checkbox/icon/text,
+    // as measured by the item delegate's natural sizeHint) but still within its row. The column
+    // is sized via ResizeToContents to fit the WIDEST visible sibling, so a short item's row rect
+    // (visualRect()/itemAt() hit area) still extends well past its own text all the way to that
+    // shared column width - blank space where the transparent overlay shows the 3D viewport
+    // through, same "click through to the viewport" territory as isInAncestorIndentationGutter()
+    // covers on the left, just on the trailing side instead.
+    bool isPastItemContent(const QPoint& pos, QTreeWidgetItem* item) const;
+
+    // Combines the three checks above (no item / ancestor gutter / past item content) into the
+    // single "is pos on the transparent overlay's background" test every pass-through call site
+    // (mousePressEvent(), mouseMoveEvent()'s hover forward, mouseDoubleClickEvent(),
+    // contextMenuEvent()) shares, so they can't quietly drift apart from each other.
+    bool isOnOverlayBackground(const QPoint& pos) const;
+
 private slots:
     void onItemChanged(QTreeWidgetItem* item, int column);
     void onItemSelectionChanged();
+
+    // Marks a non-leaf item's node UUID as explicitly selected the moment
+    // the user clicks it - QTreeWidget::itemClicked fires for ANY left-
+    // click landing on an item's row regardless of whether the click
+    // actually changed Qt's selection state, unlike
+    // onItemSelectionChanged()'s added/removed delta (which misses a click
+    // on an item that was already selected, e.g. one that got auto-selected
+    // by refreshParentSelectionUpward() because all its children happened
+    // to already be selected - clicking it directly afterward is a real,
+    // deliberate targeting that delta-based tracking alone can't see).
+    void onItemClicked(QTreeWidgetItem* item, int column);
     void processRebuildBatch();
 
 private:
@@ -388,6 +465,33 @@ private:
     bool _pressExpanded = false;
     bool _pressValid = false;
     QSet<QTreeWidgetItem*> _prevSelection;
+
+    // Node UUIDs of non-leaf items the user (or a caller acting deliberately
+    // on their behalf, e.g. "Select Parent") directly targeted, as opposed
+    // to ones that became selected only because refreshParentSelectionUpward()
+    // enforces "parent selected iff all direct children selected" - see
+    // explicitlySelectedAssemblyNodes()'s own doc comment for why this
+    // distinction can't be recovered from the resulting selection state
+    // alone. Set by onItemClicked() (fires on ANY click landing on an
+    // item's row, regardless of whether the click changed Qt's selection -
+    // onItemSelectionChanged()'s added/removed delta alone would miss a
+    // click on an already-selected item) and by ensureAssemblySelectionAt()/
+    // selectNodeByUuid() for their own equally-deliberate single target
+    // (both bypass onItemClicked, going through blockSignals instead).
+    // Pruned by onItemSelectionChanged() AFTER its own propagation
+    // (applySubtreeSelect/refreshParentSelectionUpward) has fully settled -
+    // not from the raw added/removed delta computed before propagation
+    // runs, since a parent can be auto-deselected (or selected) there as a
+    // side effect of a child's own click, entirely outside that delta. Also
+    // cleared wholesale by every OTHER programmatic (non-click) selection rewrite
+    // (rebuild(), setSelectionByUuids(), clearMeshSelection(),
+    // filterItems()) - none of those represent a deliberate single-assembly
+    // click, so any assembly they leave selected is always a fresh closure
+    // selection, never explicit. Stores UUIDs rather than QTreeWidgetItem*
+    // so a stale entry left behind by a tree rebuild is simply never matched
+    // by explicitlySelectedAssemblyNodes()'s filter, never a dangling
+    // pointer.
+    QSet<QUuid> _explicitlySelectedAssemblyUuids;
 
     // Apply/clear cut-mark gray styling.  Called by markAsCut, clearCutMarks,
     // and finalizeRebuild (to re-apply marks after a tree rebuild).

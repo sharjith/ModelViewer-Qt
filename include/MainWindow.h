@@ -2,6 +2,7 @@
 
 #include <QMainWindow>
 #include <QSettings>
+#include <QMap>
 
 QT_BEGIN_NAMESPACE
 class QProgressBar;
@@ -13,6 +14,7 @@ class QLabel;
 class QMdiArea;
 class QMdiSubWindow;
 class QDockWidget;
+class QSplitter;
 
 #ifdef _WIN32
 class QWinTaskbarProgress;
@@ -32,6 +34,8 @@ class VisualizationEnvironmentPanel;
 class MaterialVariantsPanel;
 class AnimationsPanel;
 class CamerasPanel;
+class SelectionSetsPanel;
+class SceneStatesPanel;
 
 class MainWindow : public QMainWindow
 {
@@ -44,6 +48,15 @@ public:
 	void retranslateUI();
 
 	QPushButton* cancelTaskButton();
+
+	// True when `viewer` is the currently active document - a narrow public
+	// wrapper around the private _activeDocument tracker (activeMdiChild()
+	// itself stays private), for shared, MainWindow-owned panels like
+	// MaterialPropertiesPanel that need to know "is this specific document's
+	// state the one I should currently be reflecting" without a full
+	// document-switch event (e.g. ModelViewer's own eyedropperArmedChanged
+	// forwarding - see MaterialPropertiesPanel::setEyedropperChecked()).
+	bool isActiveDocument(ModelViewer* viewer) const { return viewer && viewer == _activeDocument; }
 
 	ModelViewer* createMdiChild();
 
@@ -98,6 +111,16 @@ public:
 	static void clearFileLoadCancel();
 	static bool isFileLoadCancelRequested();
 
+	// Disables the menu bar, MDI area, and dock panels for the duration of a
+	// cancellable background load (status bar/Cancel button deliberately left
+	// alone) - see ViewportWidget::loadAssImpModel()'s doc comment for why
+	// this exists: the progressive-loading yield point needs to let user-
+	// input events through so the Cancel button is actually clickable, and
+	// doing that safely means every OTHER interactive control has to be
+	// inert first (same shape as RtRenderDialog::onRenderClicked()'s
+	// pushButtonStop handling).
+	static void setLoadingUiLocked(bool locked);
+
 	static inline QString recentFilesKey() { return QStringLiteral("recentFileList"); }
 	static inline QString fileKey() { return QStringLiteral("file"); }
 	static QStringList readRecentFiles(QSettings& settings);
@@ -134,6 +157,9 @@ private slots:
 
 	bool loadFile(const QString& fileName);
 	void updateMenus();
+    void setupViewMenus();
+    void updateCornerIcons();   // View > Axonometric Views corner icons (letters follow the UI language)
+    void updateViewMenus();
 	void updateRecentFileActions();
     void removeFromRecentFiles(const QString& fileName);
 	void openRecentFile();
@@ -145,6 +171,7 @@ private slots:
 	void closeAllSubWindows();
 
 private:	
+    QMap<QString, QAction*> _viewActions;
 	void readSettings();
 	void writeSettings();
 	static bool hasRecentFiles();
@@ -165,16 +192,47 @@ private:
 	// Documents live in _mdiArea (native QMdiArea - tiling/cascading/
 	// restoring, most-recently-used Next/Previous, all built in). The
 	// tool-panel column (Document/Properties/Environment) is three plain
-	// QDockWidgets, tabified together in QMainWindow's own right-side dock
-	// area - no custom splitter needed, QMainWindow's native dock system
-	// already reserves/resizes that area and persists it via
-	// saveState()/restoreState().
+	// QDockWidgets, tabified together - but hosted in a NESTED QMainWindow
+	// (_rightPanelWindow) rather than in this outer one, specifically so the
+	// panel column as a WHOLE sits inside a real QSplitter pane
+	// (_rightPanelSplitter) alongside _mdiArea: QMainWindow's own dock-area
+	// resize has no equivalent of QSplitter::setChildrenCollapsible() (drag
+	// past a pane's minimum size and it snaps to width 0) - there is no way
+	// to make a plain top-level dock area collapse fully by dragging its
+	// separator, only ever down to its content's minimum width. Docks added
+	// to a nested QMainWindow keep every native behavior (floating,
+	// undocking, tabbing, per-dock toggleViewAction()) exactly as if they
+	// were on the outer one - QSplitter does not care what a pane contains,
+	// so the OUTER splitter's handle is what actually gets dragged, and it
+	// collapses the WHOLE nested window (all three docks) the same way
+	// _documentTabSplitter already collapses-or-not below (this one leaves
+	// setChildrenCollapsible() at its default true, deliberately, unlike
+	// that one). See the constructor for the setWindowFlags(Qt::Widget)
+	// this needs to embed properly instead of trying to be a second
+	// top-level window, and readSettings()/writeSettings() for its own
+	// saveState()/restoreState() (separate from this outer window's) plus
+	// _rightPanelSplitter's own persisted sizes.
 	QMdiArea* _mdiArea = nullptr;
+	QMainWindow* _rightPanelWindow = nullptr;
+	QSplitter* _rightPanelSplitter = nullptr;
 	QDockWidget* _propertiesDock = nullptr;
 	QDockWidget* _environmentDock = nullptr;
 	QDockWidget* _documentDock = nullptr;
 	QTabWidget* _propertiesTabWidget = nullptr;
 	QTabWidget* _documentTabWidget = nullptr;
+	// Second, independently-tabbed group stacked below _documentTabWidget in
+	// _documentTabSplitter, inside the same "Document" dock - saved
+	// configurations (Selections/States) rather than live document content
+	// (Variants/Animations/Cameras, above). See their construction site in
+	// the constructor for why this is a second QTabWidget instead of two
+	// more tabs on _documentTabWidget.
+	QTabWidget* _documentSecondaryTabWidget = nullptr;
+	// Vertical splitter holding _documentTabWidget/_documentSecondaryTabWidget
+	// - its sizes are persisted separately from QMainWindow's own dock/
+	// toolbar layout (saveState()/restoreState() only covers QDockWidget
+	// geometry, not an arbitrary child splitter's handle position), see
+	// readSettings()/writeSettings().
+	QSplitter* _documentTabSplitter = nullptr;
 	// Above _documentTabWidget's Variants/Animations/Cameras tabs - moved
 	// here from the per-document nav overlay (design change: single shared
 	// instances rebound to whichever document is active, like the other
@@ -195,6 +253,8 @@ private:
 	MaterialVariantsPanel* _materialVariantsPanel = nullptr;
 	AnimationsPanel* _animationsPanel = nullptr;
 	CamerasPanel* _camerasPanel = nullptr;
+	SelectionSetsPanel* _selectionSetsPanel = nullptr;
+	SceneStatesPanel* _sceneStatesPanel = nullptr;
 	ModelViewer* _lastBoundModelViewer = nullptr;
 	// Guards rebindSharedPanelsTo(nullptr) against running its teardown body
 	// more than once per "went from having an active document to having
@@ -212,6 +272,12 @@ private:
 	ModelViewer* _activeDocument = nullptr;
 	QMetaObject::Connection _environmentPanelDisplayModeConnection;
 	QMetaObject::Connection _materialPreviewRenderingModeConnection;
+	// Per-ViewportWidget, like the two above - reconnected to whichever
+	// document is newly active on every rebindSharedPanelsTo() so the shared
+	// MaterialPropertiesPanel's eyeDropper button reflects THAT document's
+	// eyedropper state (including external disarms - another tool taking
+	// over, etc.), not whichever document was active before.
+	QMetaObject::Connection _materialPropertiesEyedropperConnection;
 	// These five are per-document sources (a specific SceneGraph/
 	// ViewportWidget/ModelViewer), unlike the panel->viewport forwards
 	// below, which are connected once and dispatch through activeMdiChild()
@@ -221,6 +287,21 @@ private:
 	QMetaObject::Connection _variantDataChangedConnection;
 	QMetaObject::Connection _animationDataChangedConnection;
 	QMetaObject::Connection _gltfCameraDataChangedConnection;
+	QMetaObject::Connection _selectionSetsChangedConnection;
+	// Per-ViewportWidget, like _materialPropertiesEyedropperConnection above -
+	// keeps actionSaveSelectionSet's enabled state and the Selections
+	// panel's active-row highlight live as the active document's own
+	// selection changes, not just at document-lifecycle points.
+	QMetaObject::Connection _selectionSetsSyncConnection;
+	// Per-SceneGraph, mirrors _selectionSetsChangedConnection - no
+	// equivalent of _selectionSetsSyncConnection needed since SceneStatesPanel
+	// has no active-row highlight to keep live (see its own doc comment).
+	QMetaObject::Connection _sceneStatesChangedConnection;
+	// Per-SceneGraph (structureChanged fires on import/delete-all) - keeps
+	// actionFilterByMaterial/actionFilterByColor enabled only while the
+	// active document actually has meshes loaded, live, not just at
+	// document-lifecycle points.
+	QMetaObject::Connection _hasMeshesSyncConnection;
 	QMetaObject::Connection _structureChangedForVariantsConnection;
 	QMetaObject::Connection _animationStateChangedConnection;
 

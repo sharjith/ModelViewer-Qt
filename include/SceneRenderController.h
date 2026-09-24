@@ -1,5 +1,6 @@
 #pragma once
 
+#include "BoundingBox.h"
 #include "IGpuContextResource.h"
 #include "PunctualLights.h"
 #include "RenderEnums.h"
@@ -371,8 +372,14 @@ public:
 
     bool  clippingXFlipped()              const { return _clipXFlipped; }
     void  setClippingXFlipped(bool v)           { _clipXFlipped = v; }
-    bool  clippingYFlipped()              const { return _clipYFlipped; }
+    // The Y-normal plane (labelled XZ) cuts away the half facing the viewer of its standard
+    // view by default: the Top view (+Y) in a Y-up scene, the Front view (-Y) in a Z-up one, so
+    // its cut face is visible without touching Flip. clippingYFlipped() is that EFFECTIVE sense
+    // (what every draw/culling/capping consumer wants); setClippingYFlipped() stores the Flip
+    // checkbox itself, i.e. the choice relative to that default.
+    bool  clippingYFlipped()              const { return _clipYFlipped != _clipYDefaultInverted; }
     void  setClippingYFlipped(bool v)           { _clipYFlipped = v; }
+    void  setClippingYDefaultInverted(bool v)   { _clipYDefaultInverted = v; }
     bool  clippingZFlipped()              const { return _clipZFlipped; }
     void  setClippingZFlipped(bool v)           { _clipZFlipped = v; }
 
@@ -389,6 +396,28 @@ public:
     void  setClipDY(float v)                    { _clipDY = v; }
     float clipDZ()                        const { return _clipDZ; }
     void  setClipDZ(float v)                    { _clipDZ = v; }
+
+    // ---- Box clipping state (4th clipping mode) -----------------------------
+    // Mutually exclusive with the three per-axis planes above (enforced by
+    // ClippingPlanesEditor, not here). Limits are ABSOLUTE world coordinates,
+    // unlike the axis coefficients, which are relative to the scene center.
+    // Default (keepInside false): keeps the OUTSIDE of the box and cuts a box-
+    // shaped hole through the model. keepInside true: keeps only the INSIDE
+    // (crop to the box).
+    bool  boxClippingEnabled()            const { return _boxClippingEnabled; }
+    void  setBoxClippingEnabled(bool v)         { _boxClippingEnabled = v; }
+    bool  boxClippingKeepInside()         const { return _boxClippingKeepInside; }
+    void  setBoxClippingKeepInside(bool v)      { _boxClippingKeepInside = v; }
+    const BoundingBox& boxClippingLimits() const { return _boxClippingLimits; }
+    void  setBoxClippingLimits(const BoundingBox& b) { _boxClippingLimits = b; }
+
+    // True when any per-axis plane is active. Box mode is deliberately NOT
+    // included - the axis-only culling/capping code paths key off this.
+    bool  axisClippingEnabled()           const { return _clipYZEnabled || _clipZXEnabled || _clipXYEnabled; }
+    // True when ANY clipping mode (axis planes or box) is active - use this,
+    // not axisClippingEnabled(), for "is the section view on" decisions
+    // (section uniforms, capping gate, ground visibility, SSS pass, ...).
+    bool  anyClippingEnabled()            const { return axisClippingEnabled() || _boxClippingEnabled; }
 
     // ---- Render settings ---------------------------------------------------
     bool isOpenGLInitialized() const { return _openGLInitialized; }
@@ -761,6 +790,7 @@ private:
     bool  _clipXYEnabled  = false;
     bool  _clipXFlipped   = false;
     bool  _clipYFlipped   = false;
+    bool  _clipYDefaultInverted = true;   // matches the app's default Z-up camera; ViewportWidget keeps it in step
     bool  _clipZFlipped   = false;
     float _clipXCoeff     = 0.0f;
     float _clipYCoeff     = 0.0f;
@@ -768,6 +798,11 @@ private:
     float _clipDX         = 0.0f;
     float _clipDY         = 0.0f;
     float _clipDZ         = 0.0f;
+
+    // ---- Box clipping state ------------------------------------------------
+    bool        _boxClippingEnabled = false;
+    bool        _boxClippingKeepInside = false; // false = hole (keep outside), the default
+    BoundingBox _boxClippingLimits  = BoundingBox(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0);
 
     // ---- Render settings ---------------------------------------------------
     bool         _openGLInitialized                  = false;

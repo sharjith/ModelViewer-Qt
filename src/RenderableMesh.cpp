@@ -2,6 +2,7 @@
 #include "Point.h"
 #include "TriangleBaldwinWeber.h"
 #include "RenderableMesh.h"
+#include "SubTriangleGrid.h"
 #include "SceneMesh.h"
 #include "TriangleMollerTrumbore.h"
 #include "Utils.h"
@@ -451,6 +452,7 @@ _hasVertexColors(false)
 	_positionBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_normalBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_colorBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_analysisOverlayColorBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_texCoord0Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_texCoord1Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_texCoord2Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
@@ -464,6 +466,7 @@ _hasVertexColors(false)
 	_positionBuffer.create();
 	_normalBuffer.create();
 	_colorBuffer.create();
+	_analysisOverlayColorBuffer.create();
 	_texCoord0Buffer.create();
 	_texCoord1Buffer.create();
 	_texCoord2Buffer.create();
@@ -532,6 +535,23 @@ void RenderableMesh::initBuffers(
 	// Must have data for indices, points, and normals
 	if (indices == nullptr || points == nullptr || normals == nullptr)
 		return;
+
+	// See geometryRevision()'s doc comment - bumped on every real geometry
+	// upload, which is what SurfaceAnalysisOverlay's cache key is built from.
+	++_geometryRevision;
+
+	// A real geometry rebuild invalidates any Surface Analysis overlay this
+	// mesh was showing - its GPU buffers (positions in particular, for the
+	// flat/duplicated-per-face representation) were sized and populated
+	// against the PREVIOUS geometry, and would otherwise silently keep
+	// rendering that stale snapshot on top of whatever shape this mesh now
+	// has. This is the mesh defending itself rather than relying on
+	// SurfaceAnalysisOverlay's cache-key comparison being checked by some
+	// caller before every use (isValid() has no caller today - a known,
+	// separately-disclosed gap for cases THIS check doesn't cover, e.g. a
+	// deviation overlay going stale because the REFERENCE mesh moved, not
+	// the analyzed mesh's own geometry).
+	clearAnalysisOverlay();
 
 	_indices = *indices;
 	_points = *points;
@@ -793,6 +813,20 @@ void RenderableMesh::setProg(QOpenGLShaderProgram* prog)
 			_prog->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 4);
 		}
 
+		// Surface Analysis overlay - rebind whenever the program changes,
+		// same as every other per-vertex attribute above. Gated on actually
+		// having uploaded data (not on _hasAnalysisOverlay, which also
+		// reflects the separate show/hide toggle) - the attribute stays
+		// wired into the VAO even while temporarily hidden via
+		// setAnalysisOverlayActive(false), since the shader-side uniform is
+		// what actually controls whether it's used.
+		if (!_analysisOverlayColors.empty())
+		{
+			_analysisOverlayColorBuffer.bind();
+			_prog->enableAttributeArray("analysisColor");
+			_prog->setAttributeBuffer("analysisColor", GL_FLOAT, 0, 4);
+		}
+
 		// Tex coords
 		if (_texCoords.size())
 		{
@@ -844,6 +878,43 @@ void RenderableMesh::setProg(QOpenGLShaderProgram* prog)
 		}
 
 		_vertexArrayObject.release();
+
+		// Surface Analysis flat-overlay VAO - re-synced here for the same
+		// reason as every attribute above, but this one matters more: a
+		// single frame binds many DIFFERENT programs onto this same mesh in
+		// sequence (shadow map, selection highlight, face/vertex-normal
+		// visualization, the real color pass, ...), and setAnalysisOverlayFlatColors()
+		// only wires this VAO's attributes up against whichever _prog
+		// happened to be current at the moment the user clicked Apply - which
+		// is essentially arbitrary. Any of those other programs generally has
+		// no "analysisColor" attribute at all, so querying its location
+		// there returns -1 and Qt's enable/setAttributeBuffer silently no-op,
+		// permanently leaving location 11 unbound in this VAO. Re-running the
+		// same bind here, every time the bound program actually changes,
+		// guarantees that by the time the real color-pass program is current
+		// again, this VAO's attributes are wired against THAT program - not
+		// whatever program happened to be active when Apply was clicked.
+		// Skipped until the flat overlay has ever uploaded data (buffers not
+		// created yet for most meshes, which never use draft-angle mode).
+		if (_analysisFlatVAO.isCreated() && _analysisFlatPositionBuffer.isCreated())
+		{
+			_analysisFlatVAO.bind();
+
+			_analysisFlatPositionBuffer.bind();
+			_prog->enableAttributeArray("vertexPosition");
+			_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+
+			_analysisFlatNormalBuffer.bind();
+			_prog->enableAttributeArray("vertexNormal");
+			_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+
+			_analysisFlatColorBuffer.bind();
+			_prog->enableAttributeArray("analysisColor");
+			_prog->setAttributeBuffer("analysisColor", GL_FLOAT, 0, 4);
+
+			_analysisFlatVAO.release();
+		}
+
 		_vaoConfiguredProgram = prog;
 	}
 
@@ -990,6 +1061,18 @@ void RenderableMesh::setupUniforms()
 	}
 	_prog->setUniformValue("primitiveMode", modeValue);
 	_prog->setUniformValue("hasVertexColors", _hasVertexColors);
+	// Surface Analysis overlay (curvature/thickness/deviation heatmaps) -
+	// deliberately its OWN dedicated uniform/attribute, never hasVertexColors/
+	// debugChannelOutput: those are real authored vertex-color data and a
+	// general-purpose debug map respectively, and writing analysis results
+	// into either would defeat the overlay's "transient, never touches
+	// authored data, nothing to restore" contract (see RenderableMesh.h's
+	// doc comment on _analysisOverlayColorBuffer).
+	_prog->setUniformValue("analysisOverlayActive", _hasAnalysisOverlay || _hasAnalysisFlatOverlay);
+	_prog->setUniformValue("analysisOverlayBands", _analysisOverlayBands);
+	_prog->setUniformValue("analysisOverlayColormap", _analysisOverlayColormap);
+	_prog->setUniformValue("zebraStripeActive", _zebraStripeActive);
+	_prog->setUniformValue("zebraStripeFrequency", _zebraStripeFrequency);
 	_prog->setUniformValue("hasNegativeScale", hasNegativeScale());
 	_prog->setUniformValue("material.ambient", _material.ambient());
 	// For specular-glossiness materials the authoritative diffuse colour is
@@ -1640,14 +1723,29 @@ void RenderableMesh::render()
 
 	// Handle lighting normal for negative scaling
 	glFrontFace(hasNegativeScale() ? GL_CW : GL_CCW);
-	_vertexArrayObject.bind();
-	const bool drawLod1 = _hasLod1 && lodPolicyActive();
-	if (drawLod1)
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _lodIndexBuffer.bufferId());
+	if (_hasAnalysisFlatOverlay && _analysisFlatVAO.isCreated())
+	{
+		// REPLACES the normal indexed draw entirely, not an extra pass on
+		// top of it - see setAnalysisOverlayFlatColors()'s doc comment in
+		// RenderableMesh.h for why (same surface/depth as the normal draw,
+		// so both would just z-fight, and the overlay is meant to override
+		// normal appearance). No index buffer - the duplicated-per-corner
+		// layout has no vertex sharing left to index.
+		_analysisFlatVAO.bind();
+		glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(_analysisFlatVertexCount));
+		_analysisFlatVAO.release();
+	}
 	else
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _indexBuffer.bufferId());
-	glDrawElements(GL_TRIANGLES, drawLod1 ? _nVertsLod1 : _nVerts, GL_UNSIGNED_INT, 0);
-	_vertexArrayObject.release();
+	{
+		_vertexArrayObject.bind();
+		const bool drawLod1 = _hasLod1 && lodPolicyActive();
+		if (drawLod1)
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _lodIndexBuffer.bufferId());
+		else
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _indexBuffer.bufferId());
+		glDrawElements(GL_TRIANGLES, drawLod1 ? _nVertsLod1 : _nVerts, GL_UNSIGNED_INT, 0);
+		_vertexArrayObject.release();
+	}
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 	glDisable(GL_BLEND);
@@ -1754,6 +1852,14 @@ void RenderableMesh::restoreContextBoundGpuResources(QOpenGLShaderProgram* prog)
 		);
 	}
 
+	// recreateContextBoundBufferObjects() just replaced _analysisOverlayColorBuffer
+	// with a fresh, empty GL object - a real context loss is rare enough (and
+	// the overlay disposable enough - see its own lifecycle doc comment) that
+	// simply dropping any active overlay here is the right tradeoff over
+	// plumbing a re-upload path through this rarely-hit recovery code.
+	// SurfaceAnalysisOverlay can always recompute and reapply on demand.
+	clearAnalysisOverlay();
+
 	_textureBindingsDirty = true;
 	_uniformsDirty = true;
 }
@@ -1782,6 +1888,30 @@ void RenderableMesh::deleteBuffers()
 		_buffers.clear();
 	}
 
+	// Destroyed explicitly, same as _vertexArrayObject below - unlike
+	// _colorBuffer and the other per-vertex-attribute buffers above, this one
+	// is never pushed into _buffers (it's only ever allocated lazily, from
+	// setAnalysisOverlayColors(), not from initBuffers()'s own push_back
+	// list), so the loop above would otherwise silently never destroy it.
+	if (_analysisOverlayColorBuffer.isCreated())
+	{
+		_analysisOverlayColorBuffer.destroy();
+	}
+
+	// Same reasoning, for the flat-per-face overlay's own separate VAO/
+	// buffer set (see setAnalysisOverlayFlatColors()'s doc comment) - also
+	// never pushed into _buffers, and lazily created so may never have been
+	// created at all for a mesh that never used draft-angle mode (the
+	// isCreated() guards handle that).
+	if (_analysisFlatPositionBuffer.isCreated())
+		_analysisFlatPositionBuffer.destroy();
+	if (_analysisFlatNormalBuffer.isCreated())
+		_analysisFlatNormalBuffer.destroy();
+	if (_analysisFlatColorBuffer.isCreated())
+		_analysisFlatColorBuffer.destroy();
+	if (_analysisFlatVAO.isCreated())
+		_analysisFlatVAO.destroy();
+
 	if (_vertexArrayObject.isCreated())
 	{
 		_vertexArrayObject.destroy();
@@ -1794,6 +1924,21 @@ void RenderableMesh::recreateContextBoundBufferObjects()
 	_positionBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_normalBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_colorBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_analysisOverlayColorBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	// Flat-per-face overlay resources are lazily created (see
+	// setAnalysisOverlayFlatColors()'s doc comment - most meshes never use
+	// draft-angle mode) - reassigning to fresh, uncreated wrapper objects
+	// here drops any stale pre-context-loss handle without unconditionally
+	// allocating GPU resources every mesh doesn't need. clearAnalysisOverlay()
+	// (called by restoreContextBoundGpuResources() right after this runs)
+	// already resets the "has data" flags; the next real
+	// setAnalysisOverlayFlatColors() call lazily creates these again, same
+	// as for a mesh that never used the feature before.
+	_analysisFlatPositionBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_analysisFlatNormalBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_analysisFlatColorBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	if (_analysisFlatVAO.isCreated())
+		_analysisFlatVAO.destroy();
 	_texCoord0Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_texCoord1Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_texCoord2Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
@@ -1808,6 +1953,7 @@ void RenderableMesh::recreateContextBoundBufferObjects()
 	_positionBuffer.create();
 	_normalBuffer.create();
 	_colorBuffer.create();
+	_analysisOverlayColorBuffer.create();
 	_texCoord0Buffer.create();
 	_texCoord1Buffer.create();
 	_texCoord2Buffer.create();
@@ -2773,6 +2919,324 @@ void RenderableMesh::clearDebugUniformOverride(const QString& name)
 void RenderableMesh::clearAllDebugUniformOverrides()
 {
 	_debugUniformOverrides.clear();
+}
+
+void RenderableMesh::setAnalysisOverlayColors(const std::vector<float>& rgba)
+{
+	if (rgba.empty())
+	{
+		clearAnalysisOverlay();
+		return;
+	}
+
+	_analysisOverlayColors = rgba;
+
+	// DynamicDraw, not StaticDraw like _colorBuffer - this buffer is expected
+	// to be re-uploaded whenever an analysis parameter (e.g. a curvature
+	// smoothing slider) changes, unlike authored vertex colors which are set
+	// once at import/reconstruction time.
+	_analysisOverlayColorBuffer.bind();
+	_analysisOverlayColorBuffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
+	_analysisOverlayColorBuffer.allocate(_analysisOverlayColors.data(), static_cast<int>(_analysisOverlayColors.size() * sizeof(float)));
+
+	if (_prog && _vertexArrayObject.isCreated())
+	{
+		_vertexArrayObject.bind();
+		_analysisOverlayColorBuffer.bind();
+		_prog->enableAttributeArray("analysisColor");
+		_prog->setAttributeBuffer("analysisColor", GL_FLOAT, 0, 4);
+	}
+
+	// Mutually exclusive with the flat-per-face path below - see this
+	// method's doc comment in RenderableMesh.h.
+	_hasAnalysisFlatOverlay = false;
+
+	// Uploading implies showing it - see this method's doc comment in
+	// RenderableMesh.h for why there's no separate "upload but stay hidden"
+	// state.
+	_hasAnalysisOverlay = true;
+	markUniformsDirty();
+}
+
+void RenderableMesh::setAnalysisOverlayFlatColors(const std::vector<float>& rgbaPerFace)
+{
+	if (rgbaPerFace.empty() || _indices.empty() || _points.empty() || _normals.empty())
+	{
+		clearAnalysisOverlay();
+		return;
+	}
+
+	const size_t faceCount = _indices.size() / 3;
+	if (rgbaPerFace.size() != faceCount * 4)
+	{
+		// Malformed input from the caller (wrong count for this mesh's
+		// current face count) - bail out safely rather than read out of
+		// bounds below.
+		clearAnalysisOverlay();
+		return;
+	}
+
+	// Defense in depth: verify every index is actually in range BEFORE
+	// dereferencing any of them below. This mesh's own _indices should
+	// never legitimately contain an out-of-bounds entry, but a caller-side
+	// analyzer bug (or genuinely malformed imported geometry) producing one
+	// would otherwise read _points/_normals out of bounds here - the same
+	// class of bug callers like WallThicknessAnalyzer/CurvatureAnalyzer
+	// already guard against on their OWN side, but this is the one place
+	// every per-face analysis result funnels through before reaching the
+	// GPU, so it gets its own independent check too.
+	const size_t vertexCount = _points.size() / 3;
+	for (unsigned int vi : _indices)
+	{
+		if (vi >= vertexCount)
+		{
+			clearAnalysisOverlay();
+			return;
+		}
+	}
+
+	std::vector<float> dupPositions;
+	std::vector<float> dupNormals;
+	std::vector<float> dupColors;
+	dupPositions.reserve(faceCount * 3 * 3);
+	dupNormals.reserve(faceCount * 3 * 3);
+	dupColors.reserve(faceCount * 3 * 4);
+
+	for (size_t f = 0; f < faceCount; ++f)
+	{
+		const float r = rgbaPerFace[f * 4 + 0];
+		const float g = rgbaPerFace[f * 4 + 1];
+		const float b = rgbaPerFace[f * 4 + 2];
+		const float a = rgbaPerFace[f * 4 + 3];
+
+		for (int corner = 0; corner < 3; ++corner)
+		{
+			const unsigned int vi = _indices[f * 3 + corner];
+			dupPositions.push_back(_points[vi * 3 + 0]);
+			dupPositions.push_back(_points[vi * 3 + 1]);
+			dupPositions.push_back(_points[vi * 3 + 2]);
+
+			dupNormals.push_back(_normals[vi * 3 + 0]);
+			dupNormals.push_back(_normals[vi * 3 + 1]);
+			dupNormals.push_back(_normals[vi * 3 + 2]);
+
+			// Identical color for all 3 corners of this face - this, not a
+			// shader-side "flat" qualifier, is what makes the result look
+			// flat-shaded: smoothly interpolating between 3 equal values
+			// trivially reproduces that same value everywhere inside the
+			// triangle. See this method's doc comment in RenderableMesh.h.
+			dupColors.push_back(r);
+			dupColors.push_back(g);
+			dupColors.push_back(b);
+			dupColors.push_back(a);
+		}
+	}
+
+	uploadAnalysisFlatBuffers(dupPositions, dupNormals, dupColors);
+}
+
+void RenderableMesh::uploadAnalysisFlatBuffers(
+	const std::vector<float>& positions, const std::vector<float>& normals, const std::vector<float>& colors)
+{
+	_analysisFlatVertexCount = static_cast<unsigned int>(positions.size() / 3);
+
+	// Lazily created - most meshes never use draft-angle mode, so this small
+	// extra VAO/buffer set shouldn't cost anything for the common case.
+	if (!_analysisFlatVAO.isCreated())
+		_analysisFlatVAO.create();
+	if (!_analysisFlatPositionBuffer.isCreated())
+		_analysisFlatPositionBuffer.create();
+	if (!_analysisFlatNormalBuffer.isCreated())
+		_analysisFlatNormalBuffer.create();
+	if (!_analysisFlatColorBuffer.isCreated())
+		_analysisFlatColorBuffer.create();
+
+	_analysisFlatVAO.bind();
+
+	_analysisFlatPositionBuffer.bind();
+	_analysisFlatPositionBuffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
+	_analysisFlatPositionBuffer.allocate(positions.data(), static_cast<int>(positions.size() * sizeof(float)));
+	_prog->enableAttributeArray("vertexPosition");
+	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+
+	_analysisFlatNormalBuffer.bind();
+	_analysisFlatNormalBuffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
+	_analysisFlatNormalBuffer.allocate(normals.data(), static_cast<int>(normals.size() * sizeof(float)));
+	_prog->enableAttributeArray("vertexNormal");
+	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+
+	_analysisFlatColorBuffer.bind();
+	_analysisFlatColorBuffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
+	_analysisFlatColorBuffer.allocate(colors.data(), static_cast<int>(colors.size() * sizeof(float)));
+	_prog->enableAttributeArray("analysisColor");
+	_prog->setAttributeBuffer("analysisColor", GL_FLOAT, 0, 4);
+
+	_analysisFlatVAO.release();
+
+	// Mutually exclusive with the per-vertex path above - see
+	// setAnalysisOverlayFlatColors()'s doc comment in RenderableMesh.h.
+	_analysisOverlayColors.clear();
+	_hasAnalysisOverlay = false;
+
+	_hasAnalysisFlatOverlay = true;
+	markUniformsDirty();
+}
+
+void RenderableMesh::setAnalysisOverlaySubTriangleColors(
+	const std::vector<unsigned char>& gridN, const std::vector<unsigned int>& offset, const std::vector<float>& rgba)
+{
+	const size_t faceCount = _indices.size() / 3;
+	if (rgba.empty() || faceCount == 0 || _points.empty() || _normals.empty()
+		|| gridN.size() != faceCount || offset.size() != faceCount)
+	{
+		clearAnalysisOverlay();
+		return;
+	}
+	const size_t vertexCount = _points.size() / 3;
+	if (_normals.size() / 3 < vertexCount)
+	{
+		clearAnalysisOverlay();
+		return;
+	}
+
+	// Pass 1 - validate everything BEFORE reading it (same defense in depth as setAnalysisOverlayFlatColors()),
+	// and size the output: each triangle with grid resolution n contributes n*n sub-triangles; a triangle with no
+	// grid (n == 0) contributes nothing and is simply not overdrawn.
+	size_t subTriangleCount = 0;
+	size_t requiredSamples = 0;
+	for (size_t f = 0; f < faceCount; ++f)
+	{
+		for (int corner = 0; corner < 3; ++corner)
+		{
+			if (_indices[f * 3 + corner] >= vertexCount)
+			{
+				clearAnalysisOverlay();
+				return;
+			}
+		}
+		const size_t n = gridN[f];
+		if (n == 0)
+			continue;
+		requiredSamples = std::max(requiredSamples, static_cast<size_t>(offset[f]) + n * n);
+		subTriangleCount += n * n;
+	}
+	if (subTriangleCount == 0)
+	{
+		clearAnalysisOverlay();
+		return;
+	}
+	const bool colorsPerCorner = rgba.size() == requiredSamples * 3 * 4;
+	if (!colorsPerCorner && rgba.size() != requiredSamples * 4)
+	{
+		clearAnalysisOverlay();
+		return;
+	}
+
+	std::vector<float> positions;
+	std::vector<float> normals;
+	std::vector<float> colors;
+	positions.reserve(subTriangleCount * 9);
+	normals.reserve(subTriangleCount * 9);
+	colors.reserve(subTriangleCount * 12);
+
+	for (size_t f = 0; f < faceCount; ++f)
+	{
+		const int n = gridN[f];
+		if (n == 0)
+			continue;
+		const unsigned int vi[3] = { _indices[f * 3], _indices[f * 3 + 1], _indices[f * 3 + 2] };
+		const size_t firstSample = offset[f];
+
+		// Position/normal at barycentric (u, v) of this triangle: P = v0 + u (v1 - v0) + v (v2 - v0), i.e. weights
+		// (1 - u - v, u, v) on the three corners. Normals are interpolated the same way and renormalised, which for
+		// a flat CAD face (equal corner normals) is exactly that normal.
+		const auto pushVertex = [&](double u, double v)
+		{
+			const float w[3] = { static_cast<float>(1.0 - u - v), static_cast<float>(u), static_cast<float>(v) };
+			float nrm[3] = { 0, 0, 0 };
+			for (int axis = 0; axis < 3; ++axis)
+			{
+				positions.push_back(w[0] * _points[vi[0] * 3 + axis] + w[1] * _points[vi[1] * 3 + axis] + w[2] * _points[vi[2] * 3 + axis]);
+				nrm[axis] = w[0] * _normals[vi[0] * 3 + axis] + w[1] * _normals[vi[1] * 3 + axis] + w[2] * _normals[vi[2] * 3 + axis];
+			}
+			const float len = std::sqrt(nrm[0] * nrm[0] + nrm[1] * nrm[1] + nrm[2] * nrm[2]);
+			for (int axis = 0; axis < 3; ++axis)
+				normals.push_back(len > 1.0e-12f ? nrm[axis] / len : _normals[vi[0] * 3 + axis]);
+		};
+
+		SubTriangleGrid::forEach(n, [&](int sample, double u0, double v0, double u1, double v1, double u2, double v2, double, double)
+		{
+			pushVertex(u0, v0);
+			pushVertex(u1, v1);
+			pushVertex(u2, v2);
+			const size_t firstColor = colorsPerCorner
+				? (firstSample + static_cast<size_t>(sample)) * 3 * 4
+				: (firstSample + static_cast<size_t>(sample)) * 4;
+			for (int corner = 0; corner < 3; ++corner)
+			{
+				const size_t c = firstColor + (colorsPerCorner ? static_cast<size_t>(corner) * 4 : 0);
+				colors.push_back(rgba[c + 0]);
+				colors.push_back(rgba[c + 1]);
+				colors.push_back(rgba[c + 2]);
+				colors.push_back(rgba[c + 3]);
+			}
+		});
+	}
+
+	uploadAnalysisFlatBuffers(positions, normals, colors);
+}
+
+void RenderableMesh::setAnalysisOverlayBanding(int bands, int colormap)
+{
+	const int normalizedBands = bands >= 2 ? bands : 0;
+	if (_analysisOverlayBands == normalizedBands && _analysisOverlayColormap == colormap)
+		return;
+	_analysisOverlayBands = normalizedBands;
+	_analysisOverlayColormap = colormap;
+	markUniformsDirty();
+}
+
+void RenderableMesh::setAnalysisOverlayActive(bool active)
+{
+	// Only meaningful once data has actually been uploaded, for WHICHEVER
+	// representation currently has any - setting active true with nothing
+	// uploaded would show nothing anyway, but keeping the flags in sync
+	// with "is there real data" (not just "was active last requested")
+	// avoids the shader uniform ever claiming an overlay is showing when
+	// both buffers are actually empty.
+	const bool newPerVertexState = active && !_analysisOverlayColors.empty();
+	const bool newFlatState = active && _analysisFlatVertexCount > 0 && !newPerVertexState;
+	if (newPerVertexState == _hasAnalysisOverlay && newFlatState == _hasAnalysisFlatOverlay)
+		return;
+	_hasAnalysisOverlay = newPerVertexState;
+	_hasAnalysisFlatOverlay = newFlatState;
+	markUniformsDirty();
+}
+
+void RenderableMesh::clearAnalysisOverlay()
+{
+	// The definitive teardown - hides BOTH representations and drops their
+	// CPU-side data (the flat path's GPU buffers are left allocated for
+	// reuse rather than destroyed - see setAnalysisOverlayFlatColors()'s
+	// lazy-creation comment; nothing renders from them while the flag below
+	// is false regardless). Deliberately does NOT touch _colors/_colorBuffer/
+	// _hasVertexColors or any Material/rendering state - there is nothing to
+	// restore, because nothing authored was ever touched in the first place
+	// (see this function's doc comment in RenderableMesh.h).
+	_analysisOverlayColors.clear();
+	_hasAnalysisOverlay = false;
+	_analysisFlatVertexCount = 0;
+	_hasAnalysisFlatOverlay = false;
+	_analysisOverlayBands = 0;
+	_analysisOverlayColormap = 0;
+	markUniformsDirty();
+}
+
+void RenderableMesh::setZebraStripeActive(bool active, float frequencyStripesPerUnit)
+{
+	_zebraStripeActive = active;
+	_zebraStripeFrequency = frequencyStripesPerUnit;
+	markUniformsDirty();
 }
 
 void RenderableMesh::applyDebugUniformOverrides()
