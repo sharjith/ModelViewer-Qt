@@ -31,6 +31,8 @@ struct LoadedSimulationResult
 // Reads `path` (format chosen by extension) and extracts its boundary surface. Runs on a worker thread.
 LoadedSimulationResult loadSimulationResult(const QString& path, const std::atomic<bool>* cancel = nullptr);
 
+struct SimulationSession;
+
 // One scalar per dataset node, taken from a node field, ready to be shown as a colour map.
 struct DisplayScalar
 {
@@ -50,7 +52,16 @@ struct DisplayScalar
 // (when both are known; otherwise the numbers are untouched). A scalar field ignores `component`; a 3-component field
 // uses `component` (0-2) or, with -1, its Euclidean magnitude; fields with other component counts need an
 // explicit `component`. Returns false when the field is not a loaded node field or the request does not fit.
-bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int component, DisplayScalar& out);
+bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int component, DisplayScalar& out, int step = 0);
+
+// The min/max of the field's values (in its display unit) over every step that has data for it. False when no
+// step has data. `cachedAllStepsRange()` does the same through the session's cache.
+bool computeAllStepsRange(const ResultDataset& dataset, int fieldIndex, int component, float& lo, float& hi);
+bool cachedAllStepsRange(SimulationSession& session, int fieldIndex, int component, float& lo, float& hi);
+
+// Text for a step: "Mode 3 - 73971 Hz", "t = 0.5", "0.0194 Hz". Empty for an out-of-range step.
+QString stepTimeText(const ResultStep& step);
+QString stepDescription(const ResultDataset& dataset, int step);
 
 // Picks what to show when the user has not chosen yet: a scalar node field named like "von Mises" if there
 // is one, otherwise the first scalar node field, otherwise the magnitude of the first 3-component node field.
@@ -77,6 +88,21 @@ struct SimulationViewState
 	double rangeMax = 1.0;
 	int colormap = 0;         // AnalysisColormap: 0 sequential, 1 diverging (2, threshold, is not offered here)
 	int bands = 0;            // 0 = smooth; >= 2 = that many contour bands
+	int step = 0;             // the time step shown (owned by the timeline, not by the panel)
+	// Automatic range only: true = the range over ALL steps (a fixed colour scale, so animation frames stay
+	// comparable - the default), false = the range of the step shown. Ignored for a single-step result.
+	bool allStepsRange = true;
+};
+
+// Cache of the all-steps data range of one (field, component, units) so playback does not rescan every step on
+// every frame.
+struct SimulationRangeCache
+{
+	bool valid = false;
+	int fieldIndex = -1;
+	int component = -1;
+	QString kindId, fileUnit, displayUnit;
+	float lo = 0.0f, hi = 1.0f;
 };
 
 // One loaded result inside a document: the dataset (source of truth), its boundary surface, the scene mesh that
@@ -89,6 +115,7 @@ struct SimulationSession
 	QString filePath;
 	QStringList warnings;
 	SimulationViewState state;
+	SimulationRangeCache rangeCache;
 };
 
 // Levels the shader quantizes into: the chosen band count, or a fine 256 for "smooth".

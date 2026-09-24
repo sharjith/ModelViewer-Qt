@@ -149,8 +149,8 @@ void SimulationPanel::buildUi()
 	form->addRow(_unitStatusLabel);
 
 	_rangeModeCombo = new QComboBox(content);
-	_rangeModeCombo->addItem(tr("Automatic (data range)"), false);
-	_rangeModeCombo->addItem(tr("Custom"), true);
+	_rangeModeCombo->addItem(tr("Automatic (data range)"), 1);
+	_rangeModeCombo->addItem(tr("Custom"), 2);
 	form->addRow(tr("Range:"), _rangeModeCombo);
 
 	// Adaptive stepping makes the arrows and the wheel step relative to the current value, which suits ranges from
@@ -235,7 +235,8 @@ void SimulationPanel::setSession(const SimulationSession* session)
 	populateComponents(_fieldCombo->currentData().toInt(), state.component);
 	populateUnits(_fieldCombo->currentData().toInt());
 
-	_rangeModeCombo->setCurrentIndex(state.customRange ? 1 : 0);
+	_step = state.step;
+	populateRangeModes(_dataset->stepCount() > 1, state);
 	_colormapCombo->setCurrentIndex(std::max(0, _colormapCombo->findData(state.colormap)));
 	_bandsCombo->setCurrentIndex(std::max(0, _bandsCombo->findData(state.bands)));
 
@@ -337,19 +338,57 @@ void SimulationPanel::setRangeDisplay(double lo, double hi, bool custom, bool ou
 	_maxSpin->setEnabled(custom);
 }
 
+int SimulationPanel::rangeMode() const
+{
+	return _rangeModeCombo->currentData().toInt();
+}
+
+void SimulationPanel::populateRangeModes(bool multiStep, const SimulationViewState& state)
+{
+	const QSignalBlocker block(_rangeModeCombo);
+	_rangeModeCombo->clear();
+	if (multiStep)
+	{
+		// A fixed scale over all steps keeps the frames of an animation comparable, so it is the default.
+		_rangeModeCombo->addItem(tr("Automatic (all steps)"), 0);
+		_rangeModeCombo->addItem(tr("Automatic (this step)"), 1);
+	}
+	else
+		_rangeModeCombo->addItem(tr("Automatic (data range)"), 1);
+	_rangeModeCombo->addItem(tr("Custom"), 2);
+	const int wanted = state.customRange ? 2 : ((state.allStepsRange && multiStep) ? 0 : 1);
+	_rangeModeCombo->setCurrentIndex(std::max(0, _rangeModeCombo->findData(wanted)));
+}
+
+bool SimulationPanel::currentDataRange(bool allSteps, float& lo, float& hi) const
+{
+	if (!_dataset)
+		return false;
+	const int field = _fieldCombo->currentData().toInt();
+	const int component = _componentCombo->currentData().isValid() ? _componentCombo->currentData().toInt() : -1;
+	if (allSteps && _dataset->stepCount() > 1)
+		return computeAllStepsRange(*_dataset, field, component, lo, hi);
+	DisplayScalar scalar;
+	if (!buildDisplayScalar(*_dataset, field, component, scalar, _step))
+		return false;
+	lo = scalar.minValue;
+	hi = scalar.maxValue;
+	return true;
+}
+
 void SimulationPanel::refreshRangeEdits()
 {
-	const bool custom = _rangeModeCombo->currentData().toBool();
-	if (custom)
+	const int mode = rangeMode();
+	if (mode == 2)
 	{
 		_minSpin->setEnabled(true);
 		_maxSpin->setEnabled(true);
 		return; // keep whatever the user set
 	}
-	DisplayScalar scalar;
-	if (_dataset && buildDisplayScalar(*_dataset, _fieldCombo->currentData().toInt(), _componentCombo->currentData().isValid()
-	                                   ? _componentCombo->currentData().toInt() : -1, scalar))
-		setRangeDisplay(scalar.minValue, scalar.maxValue, false, false);
+	_lastAutoAllSteps = mode == 0;
+	float lo = 0.0f, hi = 0.0f;
+	if (currentDataRange(mode == 0, lo, hi))
+		setRangeDisplay(lo, hi, false, false);
 	else
 		setRangeDisplay(0.0, 0.0, false, false);
 }
@@ -361,7 +400,10 @@ SimulationViewState SimulationPanel::currentState() const
 	// isHidden(), not !isVisible(): the tab may simply not be the current one, which says nothing about the field.
 	state.component = !_componentCombo->isHidden() && _componentCombo->currentData().isValid()
 		? _componentCombo->currentData().toInt() : -1;
-	state.customRange = _rangeModeCombo->currentData().toBool();
+	const int mode = rangeMode();
+	state.customRange = mode == 2;
+	state.allStepsRange = mode == 0;
+	state.step = _step; // informational: ModelViewer keeps the timeline's own step
 	if (state.customRange)
 	{
 		state.rangeMin = _minSpin->value();
@@ -393,14 +435,12 @@ void SimulationPanel::onRangeModeChanged()
 {
 	if (_updating)
 		return;
-	const bool custom = _rangeModeCombo->currentData().toBool();
-	if (custom)
+	if (rangeMode() == 2)
 	{
-		// Start the custom range from the data range currently shown, so switching is a no-op until edited.
-		DisplayScalar scalar;
-		if (_dataset && buildDisplayScalar(*_dataset, _fieldCombo->currentData().toInt(),
-		                                   _componentCombo->currentData().isValid() ? _componentCombo->currentData().toInt() : -1, scalar))
-			setRangeDisplay(scalar.minValue, scalar.maxValue, true, true);
+		// Start the custom range from the automatic range that was showing, so switching is a no-op until edited.
+		float lo = 0.0f, hi = 0.0f;
+		if (currentDataRange(_lastAutoAllSteps, lo, hi))
+			setRangeDisplay(lo, hi, true, true);
 		else
 			setRangeDisplay(_minSpin->value(), _maxSpin->value(), true, false);
 	}

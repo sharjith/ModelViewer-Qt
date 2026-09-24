@@ -1343,6 +1343,123 @@ namespace
 		CHECK(cancelled.error == QStringLiteral("cancelled"));
 	}
 
+	// Time steps: step-aware scalars, the all-steps range and its cache, step text, and the multi-step samples.
+	void testTimeSteps()
+	{
+		ResultReadOutcome r = readBytes(QByteArray::fromStdString(makeFrd()), QStringLiteral("t.frd"));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		ResultDataset& ds = *r.dataset;
+		CHECK(ds.stepCount() == 2);
+		const int disp = fieldIndexOf(ds, QStringLiteral("DISP")), stress = fieldIndexOf(ds, QStringLiteral("STRESS"));
+		CHECK(disp >= 0 && stress >= 0);
+
+		DisplayScalar d0, d1;
+		CHECK(buildDisplayScalar(ds, disp, 0, d0, 0) && buildDisplayScalar(ds, disp, 0, d1, 1));
+		CHECK(approx(d0.maxValue, 0.0, 1e-4, 1e-12) && approx(d0.minValue, -1.0e-3));
+		CHECK(approx(d1.minValue, 1.0) && approx(d1.maxValue, 2.0));
+		DisplayScalar none;
+		CHECK(!buildDisplayScalar(ds, stress, 0, none, 1)); // STRESS has no data at the second step
+		CHECK(!buildDisplayScalar(ds, disp, 0, none, 2));   // out of range
+		CHECK(!buildDisplayScalar(ds, disp, 0, none, -1));
+
+		float lo = 0.0f, hi = 0.0f;
+		CHECK(computeAllStepsRange(ds, disp, 0, lo, hi));
+		CHECK(approx(lo, -1.0e-3) && approx(hi, 2.0));
+		CHECK(computeAllStepsRange(ds, stress, 0, lo, hi)); // only one step has stress
+		CHECK(approx(lo, -5.0) && approx(hi, 100.0)); // SXX: 100, 0, -5, 10
+
+		// the cached all-steps range is keyed by field, component and units
+		SimulationSession session;
+		session.dataset = std::move(r.dataset); // ds keeps referring to the same object
+		CHECK(cachedAllStepsRange(session, disp, 0, lo, hi) && approx(hi, 2.0));
+		CHECK(session.rangeCache.valid);
+		ds.fields[static_cast<std::size_t>(disp)].fileUnit = u16(u"mm");
+		ds.fields[static_cast<std::size_t>(disp)].displayUnit = u16(u"mm");
+		ds.fields[static_cast<std::size_t>(disp)].quantityKind = QStringLiteral("length");
+		ds.fields[static_cast<std::size_t>(disp)].displayUnit = u16(u"m");
+		CHECK(cachedAllStepsRange(session, disp, 0, lo, hi) && approx(hi, 2.0e-3)); // units changed: recomputed, converted
+		CHECK(cachedAllStepsRange(session, disp, 1, lo, hi));                        // another component: recomputed
+		CHECK(!cachedAllStepsRange(session, 999, 0, lo, hi));
+
+		// step text
+		ResultStep t;
+		t.time = 0.5;
+		CHECK(stepTimeText(t) == QStringLiteral("0.5"));
+		ds.steps[1].time = 2.0;
+		CHECK(stepDescription(ds, 1) == QStringLiteral("t = 2"));
+		ds.steps[1].label = QStringLiteral("Mode 3");
+		ds.steps[1].time = 73971.2;
+		ds.steps[1].timeUnit = QStringLiteral("Hz");
+		CHECK(stepDescription(ds, 1) == QStringLiteral("Mode 3 - 73971.2 Hz"));
+		ds.steps[1].label.clear();
+		CHECK(stepDescription(ds, 1) == QStringLiteral("73971.2 Hz"));
+		CHECK(stepDescription(ds, 7).isEmpty() && stepDescription(ds, -1).isEmpty());
+
+		// the multi-step samples
+		const QString dir = QStringLiteral(MV_SIMULATION_SAMPLES_DIR);
+		if (!QFile::exists(dir + QStringLiteral("/FEM_box_modes.frd")) || !QFile::exists(dir + QStringLiteral("/FEM_box_load_steps.frd")))
+		{
+			std::printf("  (skipping multi-step sample tests: samples not found)\n");
+			return;
+		}
+		ResultReadOutcome one = readResultFile(dir + QStringLiteral("/FEM_box_frequency.frd"));
+		CHECK(one.ok() && one.dataset->stepCount() == 1 && one.dataset->steps[0].timeUnit == QStringLiteral("Hz"));
+
+		ResultReadOutcome modes = readResultFile(dir + QStringLiteral("/FEM_box_modes.frd"));
+		CHECK(modes.ok());
+		if (modes.ok())
+		{
+			const ResultDataset& m = *modes.dataset;
+			CHECK(m.stepCount() == 6);
+			const double expected[] = { 54279.6, 54317.5, 73971.2, 128657.9, 143335.9 };
+			for (std::size_t i = 0; i < m.stepCount(); ++i)
+			{
+				CHECK(m.steps[i].label == QStringLiteral("Mode %1").arg(i + 1));
+				CHECK(m.steps[i].timeUnit == QStringLiteral("Hz"));
+				if (i > 0)
+					CHECK(m.steps[i].time >= m.steps[i - 1].time);
+				if (i < 5)
+					CHECK(approx(m.steps[i].time, expected[i], 1e-3));
+			}
+			const int md = fieldIndexOf(m, QStringLiteral("DISP"));
+			CHECK(md >= 0);
+			for (int i = 0; i < 6; ++i)
+			{
+				DisplayScalar s;
+				CHECK(buildDisplayScalar(m, md, -1, s, i) && s.maxValue > 0.0f);
+			}
+		}
+
+		ResultReadOutcome ramp = readResultFile(dir + QStringLiteral("/FEM_box_load_steps.frd"));
+		CHECK(ramp.ok());
+		if (ramp.ok())
+		{
+			const ResultDataset& m = *ramp.dataset;
+			CHECK(m.stepCount() == 4);
+			const double times[] = { 0.25, 0.5, 0.875, 1.0 };
+			for (std::size_t i = 0; i < 4 && i < m.stepCount(); ++i)
+				CHECK(approx(m.steps[i].time, times[i], 1e-4));
+			const int md = fieldIndexOf(m, QStringLiteral("DISP"));
+			CHECK(md >= 0);
+			float prev = 0.0f;
+			for (int i = 0; i < 4; ++i)
+			{
+				DisplayScalar s;
+				CHECK(buildDisplayScalar(m, md, -1, s, i));
+				CHECK(s.maxValue > prev);
+				prev = s.maxValue;
+			}
+			DisplayScalar first, last;
+			CHECK(buildDisplayScalar(m, md, -1, first, 0) && buildDisplayScalar(m, md, -1, last, 3));
+			const double ratio = first.maxValue / last.maxValue;
+			CHECK(ratio > 0.2 && ratio < 0.3);
+			float a = 0.0f, b = 0.0f;
+			CHECK(computeAllStepsRange(m, md, -1, a, b) && approx(b, last.maxValue));
+		}
+	}
+
 	void testShellAndSkippedCells()
 	{
 		Mesh m;
@@ -1548,6 +1665,7 @@ int main(int argc, char** argv)
 	testUnitGuessing();
 	testSetFieldUnits();
 	testUnitsAcrossFiles();
+	testTimeSteps();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();

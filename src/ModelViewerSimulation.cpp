@@ -25,6 +25,7 @@
 #include "ShaderProgram.h"
 #include "ShrinkWrapCommand.h"
 #include "SimulationLegendWidget.h"
+#include "SimulationTimelineWidget.h"
 #include "SimulationResultDisplay.h"
 #include "ViewportWidget.h"
 
@@ -38,6 +39,7 @@
 #include <QSet>
 #include <QSettings>
 #include <QThread>
+#include <QTimer>
 
 #include <algorithm>
 #include <cmath>
@@ -283,6 +285,8 @@ void ModelViewer::connectSimulationHooks()
 	});
 	// Undo/Redo of an open adds or removes a result mesh, which changes what the panel and legend should show.
 	connect(_undoStack, &QUndoStack::indexChanged, this, [this](int) { emit simulationSessionChanged(false); });
+	// The timeline (multi-step results) follows whichever session is active.
+	connect(this, &ModelViewer::simulationSessionChanged, this, [this](bool) { updateSimulationTimeline(); });
 }
 
 void ModelViewer::applySimulationViewState(const SimulationViewState& state)
@@ -290,7 +294,9 @@ void ModelViewer::applySimulationViewState(const SimulationViewState& state)
 	SimulationSession* session = activeSimulationSessionMutable();
 	if (!session)
 		return;
+	const int keepStep = session->state.step; // the timeline owns the step, the panel does not
 	session->state = state;
+	session->state.step = keepStep;
 	refreshSimulationDisplay(*session);
 	emit simulationSessionChanged(false); // lets the panel show e.g. the recomputed automatic range
 }
@@ -333,6 +339,118 @@ void ModelViewer::applySimulationUnits(int fieldIndex, const QString& kindId, co
 	emit simulationSessionChanged(false);
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// Time steps and playback
+// ---------------------------------------------------------------------------------------------------------------
+
+void ModelViewer::setSimulationStep(int step, bool fromPlayback)
+{
+	SimulationSession* session = activeSimulationSessionMutable();
+	if (!session || !session->dataset)
+		return;
+	const int last = static_cast<int>(session->dataset->stepCount()) - 1;
+	step = std::clamp(step, 0, std::max(0, last));
+	if (step == session->state.step)
+		return;
+	session->state.step = step;
+	refreshSimulationDisplay(*session);
+	if (_simulationTimeline)
+		_simulationTimeline->setCurrentStep(step);
+	if (!fromPlayback)
+		emit simulationSessionChanged(false); // the panel's per-step range display follows
+}
+
+void ModelViewer::setSimulationPlaying(bool playing)
+{
+	if (playing == _simulationPlaying)
+		return;
+	if (playing)
+	{
+		SimulationSession* session = activeSimulationSessionMutable();
+		if (!session || !session->dataset || session->dataset->stepCount() < 2)
+			return;
+		if (!_simulationPlayTimer)
+		{
+			_simulationPlayTimer = new QTimer(this);
+			connect(_simulationPlayTimer, &QTimer::timeout, this, &ModelViewer::advanceSimulationStep);
+		}
+		_simulationPlayingMesh = session->meshUuid;
+		_simulationPlaying = true;
+		_simulationPlayTimer->start(std::max(15, static_cast<int>(500.0 / _simulationSpeed)));
+	}
+	else
+	{
+		_simulationPlaying = false;
+		_simulationPlayingMesh = QUuid();
+		if (_simulationPlayTimer)
+			_simulationPlayTimer->stop();
+	}
+	if (_simulationTimeline)
+		_simulationTimeline->setPlaying(_simulationPlaying);
+	if (!playing)
+		emit simulationSessionChanged(false); // sync the panel now that the step is no longer moving under it
+}
+
+void ModelViewer::advanceSimulationStep()
+{
+	SimulationSession* session = activeSimulationSessionMutable();
+	if (!session || !session->dataset || session->dataset->stepCount() < 2 || session->meshUuid != _simulationPlayingMesh)
+	{
+		setSimulationPlaying(false); // the result went away or another one became active
+		return;
+	}
+	int next = session->state.step + 1;
+	if (next >= static_cast<int>(session->dataset->stepCount()))
+	{
+		if (!_simulationLoop)
+		{
+			setSimulationPlaying(false);
+			return;
+		}
+		next = 0;
+	}
+	setSimulationStep(next, true);
+}
+
+// Shows the timeline while the active result has more than one step, hides it (and stops playback) otherwise.
+void ModelViewer::updateSimulationTimeline()
+{
+	SimulationSession* session = activeSimulationSessionMutable();
+	const bool multiStep = session && session->dataset && session->dataset->stepCount() > 1;
+	if (!multiStep)
+	{
+		if (_simulationPlaying)
+			setSimulationPlaying(false);
+		if (_simulationTimeline)
+			_simulationTimeline->setAliveCheck([]() { return false; });
+		return;
+	}
+	if (session->meshUuid != _simulationPlayingMesh && _simulationPlaying)
+		setSimulationPlaying(false);
+
+	if (!_simulationTimeline)
+	{
+		_simulationTimeline = new SimulationTimelineWidget(_viewportWidget);
+		connect(_simulationTimeline, &SimulationTimelineWidget::stepRequested, this, [this](int step) { setSimulationStep(step, false); });
+		connect(_simulationTimeline, &SimulationTimelineWidget::playRequested, this, [this](bool play) { setSimulationPlaying(play); });
+		connect(_simulationTimeline, &SimulationTimelineWidget::loopChanged, this, [this](bool loop) { _simulationLoop = loop; });
+		connect(_simulationTimeline, &SimulationTimelineWidget::speedChanged, this, [this](double speed) {
+			_simulationSpeed = speed;
+			if (_simulationPlaying && _simulationPlayTimer)
+				_simulationPlayTimer->setInterval(std::max(15, static_cast<int>(500.0 / _simulationSpeed)));
+		});
+	}
+	const std::shared_ptr<ResultDataset> dataset = session->dataset;
+	_simulationTimeline->setSteps(static_cast<int>(dataset->stepCount()), [dataset](int i) { return stepDescription(*dataset, i); });
+	_simulationTimeline->setCurrentStep(session->state.step);
+	_simulationTimeline->setLoop(_simulationLoop);
+	_simulationTimeline->setSpeed(_simulationSpeed);
+	_simulationTimeline->setPlaying(_simulationPlaying);
+	QPointer<ViewportWidget> viewportGuard(_viewportWidget);
+	const QUuid meshUuid = session->meshUuid;
+	_simulationTimeline->setAliveCheck([viewportGuard, meshUuid]() { return viewportGuard && viewportGuard->getMeshByUuid(meshUuid); });
+}
+
 // Recolours the session's mesh and updates the legend from session.state.
 void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 {
@@ -343,11 +461,25 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 		return;
 
 	const bool isActive = session.meshUuid == _activeSimulationMesh;
+	const int stepCount = static_cast<int>(session.dataset->stepCount());
+	session.state.step = std::clamp(session.state.step, 0, std::max(0, stepCount - 1));
 	DisplayScalar scalar;
 	float lo = 0.0f, hi = 1.0f;
-	const bool haveScalar = session.state.fieldIndex >= 0
-		&& buildDisplayScalar(*session.dataset, session.state.fieldIndex, session.state.component, scalar)
-		&& resolveViewRange(scalar, session.state, lo, hi);
+	bool haveScalar = session.state.fieldIndex >= 0
+		&& buildDisplayScalar(*session.dataset, session.state.fieldIndex, session.state.component, scalar, session.state.step);
+	if (haveScalar)
+	{
+		// Automatic range over ALL steps (a fixed colour scale, so animation frames stay comparable), cached so
+		// playback does not rescan every step per frame; otherwise the range of the step shown / the custom one.
+		if (!session.state.customRange && session.state.allStepsRange && stepCount > 1
+		    && cachedAllStepsRange(session, session.state.fieldIndex, session.state.component, lo, hi))
+		{
+			if (!(hi > lo))
+				hi = lo + std::max(1.0e-6f, std::fabs(lo) * 1.0e-6f);
+		}
+		else
+			haveScalar = resolveViewRange(scalar, session.state, lo, hi);
+	}
 
 	if (!haveScalar)
 	{

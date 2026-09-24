@@ -31,18 +31,19 @@ LoadedSimulationResult loadSimulationResult(const QString& path, const std::atom
 	return result;
 }
 
-bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int component, DisplayScalar& out)
+bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int component, DisplayScalar& out, int step)
 {
 	out = DisplayScalar();
 	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size())
 		return false;
 	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
-	if (field.association != ResultFieldAssociation::Node || field.stepData.empty() || field.stepData[0].empty())
-		return false;
+	if (field.association != ResultFieldAssociation::Node || step < 0
+		|| static_cast<std::size_t>(step) >= field.stepData.size() || field.stepData[static_cast<std::size_t>(step)].empty())
+		return false; // not a node field, or no data for it at this step
 
 	const std::size_t nodes = dataset.nodeCount();
 	const int comps = field.components;
-	const std::vector<float>& data = field.stepData[0];
+	const std::vector<float>& data = field.stepData[static_cast<std::size_t>(step)];
 	if (comps <= 0 || data.size() != nodes * static_cast<std::size_t>(comps))
 		return false;
 
@@ -223,4 +224,64 @@ SimulationViewState defaultViewState(const ResultDataset& dataset, DisplayScalar
 	if (outScalar)
 		*outScalar = std::move(scalar);
 	return state;
+}
+
+bool computeAllStepsRange(const ResultDataset& dataset, int fieldIndex, int component, float& lo, float& hi)
+{
+	bool any = false;
+	lo = std::numeric_limits<float>::max();
+	hi = std::numeric_limits<float>::lowest();
+	for (std::size_t step = 0; step < dataset.stepCount(); ++step)
+	{
+		DisplayScalar scalar;
+		if (!buildDisplayScalar(dataset, fieldIndex, component, scalar, static_cast<int>(step)))
+			continue;
+		lo = std::min(lo, scalar.minValue);
+		hi = std::max(hi, scalar.maxValue);
+		any = true;
+	}
+	return any;
+}
+
+bool cachedAllStepsRange(SimulationSession& session, int fieldIndex, int component, float& lo, float& hi)
+{
+	if (!session.dataset || fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= session.dataset->fields.size())
+		return false;
+	const ResultField& field = session.dataset->fields[static_cast<std::size_t>(fieldIndex)];
+	SimulationRangeCache& cache = session.rangeCache;
+	const bool hit = cache.valid && cache.fieldIndex == fieldIndex && cache.component == component
+		&& cache.kindId == field.quantityKind && cache.fileUnit == field.fileUnit && cache.displayUnit == field.displayUnit;
+	if (!hit)
+	{
+		float a = 0.0f, b = 1.0f;
+		if (!computeAllStepsRange(*session.dataset, fieldIndex, component, a, b))
+		{
+			cache.valid = false;
+			return false;
+		}
+		cache = SimulationRangeCache{ true, fieldIndex, component, field.quantityKind, field.fileUnit, field.displayUnit, a, b };
+	}
+	lo = cache.lo;
+	hi = cache.hi;
+	return true;
+}
+
+QString stepTimeText(const ResultStep& step)
+{
+	QString text = QString::number(step.time, 'g', 6);
+	if (!step.timeUnit.isEmpty())
+		text += QLatin1Char(' ') + step.timeUnit;
+	return text;
+}
+
+QString stepDescription(const ResultDataset& dataset, int step)
+{
+	if (step < 0 || static_cast<std::size_t>(step) >= dataset.steps.size())
+		return QString();
+	const ResultStep& s = dataset.steps[static_cast<std::size_t>(step)];
+	if (!s.label.isEmpty())
+		return s.label + QStringLiteral(" - ") + stepTimeText(s); // "Mode 3 - 73971 Hz"
+	if (!s.timeUnit.isEmpty())
+		return stepTimeText(s);                                    // "0.0194 Hz"
+	return QStringLiteral("t = ") + stepTimeText(s);               // "t = 0.5"
 }

@@ -43,6 +43,12 @@ private:
 	void populateFields(int selectedFieldIndex);
 	void populateComponents(int fieldIndex, int selectedComponent);
 	void refreshRangeEdits();
+	// Range mode of the combo: 0 = automatic over all steps, 1 = automatic for the step shown (also the only
+	// automatic mode of a single-step result), 2 = custom.
+	int rangeMode() const;
+	void populateRangeModes(bool multiStep, const SimulationViewState& state);
+	// The data range of the current field/component: over all steps, or for the step shown.
+	bool currentDataRange(bool allSteps, float& lo, float& hi) const;
 	// Shows [lo, hi] in the two spin boxes (decimals chosen from the span); `outward` rounds lo down and hi up so a
 	// custom range prefilled from the data range never clips the data. Never emits.
 	void setRangeDisplay(double lo, double hi, bool custom, bool outward);
@@ -80,5 +86,7 @@ private:
 	QComboBox* _bandsCombo = nullptr;
 
 	std::shared_ptr<ResultDataset> _dataset;
+	int _step = 0;                // the step the session is at (for the automatic per-step range display)
+	bool _lastAutoAllSteps = true; // which automatic mode was showing, so switching to Custom starts from it
 	bool _updating = false; // true while the controls are being filled from a session (suppresses signals)
 };

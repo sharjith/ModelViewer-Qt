@@ -27,6 +27,11 @@ FEM_box_static.frd            The same static box analysis as a CalculiX result 
                               principal stresses and max shear while loading. FreeCAD's own test suite expects these
                               ranges for this file: von Mises 385.38 .. 2203.51, max principal -924.05 .. 1169.55.
 FEM_box_frequency.frd         First vibration mode of the box (CalculiX). Its "time" is the frequency (0.0194 Hz).
+FEM_box_modes.frd            The box's first six vibration modes (CalculiX, generated for these samples). Six steps
+                              labelled Mode 1..6 with their frequencies in Hz: use the timeline (top centre of the
+                              viewport) to step through or play the modes.
+FEM_box_load_steps.frd        The box under a load ramped over four increments (25%, 50%, 87.5%, 100%; geometrically
+                              nonlinear step). Play the timeline to watch the stress grow on a fixed colour scale.
 beampl.frd                    CalculiX's "beampl" example: a cantilever beam under tension with deformation
                               plasticity, 32 twenty-node hexahedra, results in the solver's units.
 
@@ -47,3 +52,7 @@ FEM_box_static.frd, FEM_box_frequency.frd
 beampl.frd
     Result file of the CalculiX example "beampl" (test objective: deformation plasticity), computed by CalculiX,
     which is licensed under GPL-2.0-or-later; the example model ships with CalculiX.
+
+FEM_box_modes.frd, FEM_box_load_steps.frd
+    Computed with CalculiX for this project on the same 10 mm box mesh (modal and ramped-load analyses); CalculiX is
+    licensed under GPL-2.0-or-later.

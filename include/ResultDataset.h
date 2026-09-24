@@ -88,7 +88,8 @@ struct ResultField
 struct ResultStep
 {
 	double time = 0.0;
-	QString label;
+	QString label;    // e.g. "Mode 3"; empty for a plain time step
+	QString timeUnit; // unit of `time` when the file says what it is (a modal step's time is a frequency: "Hz")
 };
 
 class ResultDataset

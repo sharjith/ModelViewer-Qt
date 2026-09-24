@@ -33,6 +33,7 @@
 #include "SubdivisionDialog.h"
 #include "ReconstructSurfaceDialog.h"
 #include "SimulationLegendWidget.h"
+#include "SimulationTimelineWidget.h"
 #include "RepairMeshDialog.h"
 #include "FillHolesDialog.h"
 #include "LanguageManager.h"
@@ -1075,6 +1076,8 @@ void ModelViewer::revealNavigation()
 	// treatment (it sat underneath this panel and looked like it vanished on every mouse move).
 	if (_simulationLegend)
 		_simulationLegend->raise();
+	if (_simulationTimeline && _simulationTimeline->isVisible())
+		_simulationTimeline->raise();
 	if (_viewportWidget)
 		_viewportWidget->raiseViewportToolbar();
 	if (_navigationRevealed)

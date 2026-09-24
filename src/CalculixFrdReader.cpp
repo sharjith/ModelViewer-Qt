@@ -419,7 +419,10 @@ ResultReadOutcome readCalculixFrd(const QString& path, const std::atomic<bool>* 
 		ResultStep step;
 		step.time = stepTimes[i];
 		if (stepModes[i] > 0)
+		{
 			step.label = QStringLiteral("Mode %1").arg(stepModes[i]);
+			step.timeUnit = QStringLiteral("Hz"); // a modal result's "time" is the frequency
+		}
 		dataset->steps.push_back(step);
 	}
 	for (ResultField& field : dataset->fields)

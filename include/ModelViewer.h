@@ -29,7 +29,9 @@
 #include <functional>
 
 class QTabWidget;
+class QTimer;
 class SimulationLegendWidget;
+class SimulationTimelineWidget;
 class QToolButton;
 class QFrame;
 class QTimer;
@@ -596,6 +598,10 @@ public slots:
 	const SimulationSession* activeSimulationSession() const;
 	// Applies an edit from the Simulation panel to the active session: recolours its mesh and updates the legend.
 	void applySimulationViewState(const SimulationViewState& state);
+	// Time steps of the active result: show step `step` (clamped), and start/stop the playback timer. Both are
+	// driven by the timeline overlay; `fromPlayback` skips the panel refresh that a manual step triggers.
+	void setSimulationStep(int step, bool fromPlayback = false);
+	void setSimulationPlaying(bool playing);
 	// Applies a quantity/unit edit from the Simulation panel to the active session's field (and its derived
 	// fields), then redraws. A custom colour range follows a change of display unit; a change of what the numbers
 	// ARE (quantity or file unit) returns it to the data range.
@@ -733,6 +739,8 @@ private:
 	SimulationSession* activeSimulationSessionMutable();
 	void connectSimulationHooks();
 	void refreshSimulationDisplay(SimulationSession& session);
+	void updateSimulationTimeline();
+	void advanceSimulationStep();
 
 	// Shared implementation for mergeSelectedMeshes()/unionSelectedMeshes() -
 	// see mergeSelectedMeshes()'s doc comment for what's common between them,
@@ -930,6 +938,12 @@ private:
 	std::vector<SimulationSession> _simulationSessions; // every result opened in this document
 	QUuid _activeSimulationMesh;                        // the session the Simulation panel currently shows
 	bool _simulationHooksConnected = false;
+	QPointer<SimulationTimelineWidget> _simulationTimeline; // playback controls of a multi-step result
+	QTimer* _simulationPlayTimer = nullptr;
+	bool _simulationPlaying = false;
+	bool _simulationLoop = true;
+	double _simulationSpeed = 1.0;   // 0.5 / 1 / 2 / 4; one step per 500 ms at 1x
+	QUuid _simulationPlayingMesh;    // the result the timer is playing (playback stops if another becomes active)
 	QPointer<SimulationLegendWidget> _simulationLegend; // colour-bar legend of the most recently opened simulation result
 	bool _lastCanUndo = false;
 	bool _lastCanRedo = false;
