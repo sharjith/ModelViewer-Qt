@@ -20,7 +20,7 @@ struct ResultReadOutcome
 	bool ok() const { return dataset != nullptr; }
 };
 
-// True when the file extension is one this build can read (currently .vtu).
+// True when the file extension is one this build can read (.vtu XML and legacy .vtk).
 bool isSupportedResultFile(const QString& path);
 
 // File-dialog name filters for the supported formats, e.g. "VTK Unstructured Grid (*.vtu)".

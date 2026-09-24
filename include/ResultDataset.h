@@ -8,6 +8,7 @@
 // way round. A future Simulation workbench is built on this class, not on scene meshes.
 
 #include <QString>
+#include <QStringList>
 
 #include <cstddef>
 #include <cstdint>
@@ -44,6 +45,11 @@ ResultCellType resultCellCornerType(ResultCellType type);
 
 // Maps a VTK cell-type id (vtkCellType.h) to ours; anything not yet supported is Unsupported.
 ResultCellType resultCellTypeFromVtk(int vtkCellTypeId);
+
+class ResultDataset;
+// User-facing warnings for a freshly read dataset's cell types: quadratic cells shown through their corner
+// nodes, and cells of an unsupported type that will not be displayed. Empty when there is nothing to say.
+QStringList resultCellTypeWarnings(const ResultDataset& dataset);
 
 enum class ResultFieldAssociation
 {

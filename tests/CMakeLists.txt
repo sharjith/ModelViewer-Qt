@@ -6,6 +6,7 @@ add_executable(result_tests
     ${CMAKE_SOURCE_DIR}/src/ResultDataset.cpp
     ${CMAKE_SOURCE_DIR}/src/ResultReader.cpp
     ${CMAKE_SOURCE_DIR}/src/VtkXmlReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/VtkLegacyReader.cpp
     ${CMAKE_SOURCE_DIR}/src/ResultBoundary.cpp
 )
 target_include_directories(result_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)

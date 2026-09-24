@@ -78,6 +78,24 @@ ResultCellType resultCellTypeFromVtk(int vtkCellTypeId)
 	return ResultCellType::Unsupported;
 }
 
+QStringList resultCellTypeWarnings(const ResultDataset& dataset)
+{
+	std::size_t quadratic = 0, unsupported = 0;
+	for (ResultCellType t : dataset.cellTypes)
+	{
+		if (t == ResultCellType::Unsupported)
+			++unsupported;
+		else if (resultCellIsQuadratic(t))
+			++quadratic;
+	}
+	QStringList warnings;
+	if (quadratic > 0)
+		warnings << QStringLiteral("%1 quadratic cell(s) are shown through their corner nodes only; mid-edge nodes are ignored, so curved edges are not represented yet.").arg(quadratic);
+	if (unsupported > 0)
+		warnings << QStringLiteral("%1 cell(s) of unsupported type (e.g. polyhedra, polylines, polygons with more than 4 sides) will not be displayed.").arg(unsupported);
+	return warnings;
+}
+
 const ResultField* ResultDataset::findField(const QString& name, ResultFieldAssociation association) const
 {
 	for (const ResultField& f : fields)
