@@ -182,6 +182,13 @@ void ModelViewer::presentSimulationResult(const QString& path, LoadedSimulationR
 	session.surface = std::make_shared<ResultBoundarySurface>(std::move(result.surface)); // `surface` is invalid from here
 	session.filePath = path;
 	session.warnings = result.warnings;
+	session.displacementField = findDisplacementField(*session.dataset);
+	session.modal = isModalResult(*session.dataset);
+	if (session.displacementField >= 0)
+	{
+		session.autoDeformScale = autoDeformScale(*session.dataset, *session.surface, session.displacementField);
+		session.state.deformScale = session.autoDeformScale;
+	}
 	const int fieldIndex = session.state.fieldIndex;
 	_simulationSessions.push_back(std::move(session));
 	_activeSimulationMesh = meshUuid;
@@ -463,6 +470,46 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 	const bool isActive = session.meshUuid == _activeSimulationMesh;
 	const int stepCount = static_cast<int>(session.dataset->stepCount());
 	session.state.step = std::clamp(session.state.step, 0, std::max(0, stepCount - 1));
+
+	// ---- Deformed shape: rest positions + scale * displacement(step). The vertices are only re-uploaded when the
+	// shown geometry actually changes (a recolour alone leaves them alone). Done before colouring because the
+	// re-upload rebuilds the mesh buffers; the overlay colours are applied again below.
+	{
+		const bool wantDeform = session.state.deform && session.displacementField >= 0;
+		const int wantStep = wantDeform ? session.state.step : 0;
+		const double wantScale = wantDeform ? session.state.deformScale : 1.0; // the user's factor; see effectiveScale
+		const bool changed = wantDeform
+			? (!session.deformApplied || session.deformAppliedStep != wantStep || session.deformAppliedScale != wantScale)
+			: session.deformApplied;
+		if (changed)
+		{
+			std::vector<float> positions;
+			// A modal result is shown with each mode normalised to a tenth of the model size, times the user's factor.
+			const double effectiveScale = session.modal
+				? wantScale * modalDisplayFactor(*session.dataset, *session.surface, session.displacementField, wantStep)
+				: wantScale;
+			const bool deformed = wantDeform
+				&& buildDeformedPositions(*session.dataset, *session.surface, session.displacementField, wantStep, effectiveScale, positions);
+			if (!deformed)
+				positions = session.surface->positions; // rest shape (also when this step has no displacement data)
+			const std::vector<float> normals = computeSmoothVertexNormals(positions, session.surface->triangles);
+			std::vector<Vertex> vertices = mesh->vertices();
+			if (vertices.size() * 3 == positions.size())
+			{
+				for (std::size_t i = 0; i < vertices.size(); ++i)
+				{
+					vertices[i].Position = glm::vec3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
+					vertices[i].Normal = glm::vec3(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
+				}
+				_viewportWidget->makeCurrent();
+				mesh->setMeshData(vertices, session.surface->triangles);
+				_viewportWidget->doneCurrent();
+			}
+			session.deformApplied = deformed;
+			session.deformAppliedStep = wantStep;
+			session.deformAppliedScale = wantScale;
+		}
+	}
 	DisplayScalar scalar;
 	float lo = 0.0f, hi = 1.0f;
 	bool haveScalar = session.state.fieldIndex >= 0

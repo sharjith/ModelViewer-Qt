@@ -2,7 +2,9 @@
 
 #include "ResultUnits.h"
 
+#include <QCheckBox>
 #include <QComboBox>
+#include <QHBoxLayout>
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QDoubleSpinBox>
@@ -182,6 +184,27 @@ void SimulationPanel::buildUi()
 		_bandsCombo->addItem(tr("%1 bands").arg(bands), bands);
 	form->addRow(tr("Contours:"), _bandsCombo);
 
+	// ---- Deformed shape: the displacement field times a scale factor added to the geometry.
+	_deformCheck = new QCheckBox(tr("Show deformed shape"), content);
+	form->addRow(_deformCheck);
+	_deformScaleSpin = new ScientificSpinBox(content);
+	_deformScaleSpin->setRange(1.0e-9, 1.0e12);
+	_deformScaleSpin->setDecimals(6);
+	_deformScaleSpin->setKeyboardTracking(false);
+	_deformScaleSpin->setStepType(QAbstractSpinBox::AdaptiveDecimalStepType);
+	_deformScaleSpin->setAccelerated(true);
+	_deformScaleSpin->setToolTip(tr("Factor applied to the displacements. 1 is the true deformation; results are usually "
+	                                "exaggerated so that it is visible."));
+	_deformAutoButton = new QPushButton(tr("Auto"), content);
+	_deformAutoButton->setToolTip(tr("Choose a factor that makes the largest displacement about a tenth of the model size"));
+	auto* scaleRow = new QHBoxLayout();
+	scaleRow->addWidget(_deformScaleSpin, 1);
+	scaleRow->addWidget(_deformAutoButton);
+	form->addRow(tr("Scale factor:"), scaleRow);
+	_deformInfoLabel = new QLabel(content);
+	_deformInfoLabel->setWordWrap(true);
+	form->addRow(_deformInfoLabel);
+
 	_noteLabel = new QLabel(content);
 	_noteLabel->setWordWrap(true);
 	form->addRow(_noteLabel);
@@ -211,6 +234,16 @@ void SimulationPanel::buildUi()
 	connect(_maxSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_updating) emitState(); });
 	connect(_colormapCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { if (!_updating) emitState(); });
 	connect(_bandsCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { if (!_updating) emitState(); });
+	connect(_deformCheck, &QCheckBox::toggled, this, [this](bool on) {
+		_deformScaleSpin->setEnabled(on && _deformCheck->isEnabled());
+		_deformAutoButton->setEnabled(on && _deformCheck->isEnabled());
+		if (!_updating)
+			emitState();
+	});
+	connect(_deformScaleSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_updating) emitState(); });
+	connect(_deformAutoButton, &QPushButton::clicked, this, [this]() {
+		_deformScaleSpin->setValue(_autoDeformScale); // emits through valueChanged (unless it already is that value)
+	});
 }
 
 void SimulationPanel::setSession(const SimulationSession* session)
@@ -239,6 +272,21 @@ void SimulationPanel::setSession(const SimulationSession* session)
 	populateRangeModes(_dataset->stepCount() > 1, state);
 	_colormapCombo->setCurrentIndex(std::max(0, _colormapCombo->findData(state.colormap)));
 	_bandsCombo->setCurrentIndex(std::max(0, _bandsCombo->findData(state.bands)));
+
+	const bool canDeform = session->displacementField >= 0;
+	_autoDeformScale = session->autoDeformScale;
+	_deformCheck->setEnabled(canDeform);
+	_deformCheck->setChecked(canDeform && state.deform);
+	_deformScaleSpin->setValue(std::max(1.0e-9, state.deformScale));
+	_deformScaleSpin->setEnabled(canDeform && state.deform);
+	_deformAutoButton->setEnabled(canDeform && state.deform);
+	_deformInfoLabel->setText(canDeform
+		? (session->modal
+			? tr("Displacement field: %1. Mode shapes have no physical amplitude, so each mode is drawn with its largest "
+			     "displacement at a tenth of the model size; the factor scales that (1 = a tenth).")
+			: tr("Displacement field: %1 (applied in the file's own length unit)"))
+			.arg(_dataset->fields[static_cast<std::size_t>(session->displacementField)].name)
+		: tr("This result has no displacement field, so it cannot be shown deformed."));
 
 	// Custom range: show the state's values; automatic: refreshRangeEdits() shows the data range.
 	if (state.customRange)
@@ -411,6 +459,8 @@ SimulationViewState SimulationPanel::currentState() const
 	}
 	state.colormap = _colormapCombo->currentData().toInt();
 	state.bands = _bandsCombo->currentData().toInt();
+	state.deform = _deformCheck->isChecked();
+	state.deformScale = _deformScaleSpin->value();
 	return state;
 }
 

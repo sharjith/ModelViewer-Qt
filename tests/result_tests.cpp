@@ -1460,6 +1460,104 @@ namespace
 		}
 	}
 
+	// Deformed shape: displacement field detection, deformed positions, the automatic scale, normals.
+	void testDeformation()
+	{
+		ResultReadOutcome r = readBytes(QByteArray::fromStdString(makeFrd()), QStringLiteral("t.frd"));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		const int disp = fieldIndexOf(ds, QStringLiteral("DISP"));
+		CHECK(disp >= 0 && findDisplacementField(ds) == disp);
+		CHECK(fieldIndexOf(ds, QStringLiteral("STRESS")) >= 0); // 6 components: never taken for a displacement
+
+		ResultBoundarySurface surface;
+		CHECK(extractBoundarySurface(ds, surface, nullptr, nullptr));
+		CHECK(surface.vertexCount() == 4);
+
+		auto vertexOfNode = [&](std::uint32_t node) {
+			for (std::size_t v = 0; v < surface.vertexNode.size(); ++v)
+				if (surface.vertexNode[v] == node)
+					return static_cast<int>(v);
+			return -1;
+		};
+		std::vector<float> pos;
+		CHECK(buildDeformedPositions(ds, surface, disp, 0, 100.0, pos) && pos.size() == surface.positions.size());
+		const int v20 = vertexOfNode(1), v40 = vertexOfNode(3); // nodes are stored in file order: 10, 20, 30, 40
+		CHECK(v20 >= 0 && v40 >= 0);
+		if (v20 >= 0 && v40 >= 0)
+		{
+			CHECK(approx(pos[static_cast<std::size_t>(v20) * 3], 0.9) && approx(pos[static_cast<std::size_t>(v20) * 3 + 1], 0.2)
+			      && approx(pos[static_cast<std::size_t>(v20) * 3 + 2], 0.0, 1e-4, 1e-6));
+			// node 40 has no displacement value at step 0 (NaN): it stays where it was
+			for (int k = 0; k < 3; ++k)
+				CHECK(pos[static_cast<std::size_t>(v40) * 3 + static_cast<std::size_t>(k)] == surface.positions[static_cast<std::size_t>(v40) * 3 + static_cast<std::size_t>(k)]);
+		}
+		std::vector<float> rest;
+		CHECK(buildDeformedPositions(ds, surface, disp, 0, 0.0, rest) && rest == surface.positions); // scale 0 = rest shape
+		CHECK(!buildDeformedPositions(ds, surface, disp, 5, 1.0, pos));  // no such step
+		CHECK(!buildDeformedPositions(ds, surface, 999, 0, 1.0, pos));   // no such field
+
+		CHECK(approx(maxDisplacementMagnitude(ds, disp), std::sqrt(12.0))); // node 20 at the second step: (2, 2, 2)
+		CHECK(maxDisplacementMagnitude(ds, 999) == 0.0);
+		CHECK(autoDeformScale(ds, surface, disp) == 1.0); // displacement (3.5) is already far larger than a tenth of the model
+
+		// the normals of an explicit position set match the surface form, and follow the shape
+		const std::vector<float> n1 = computeSmoothVertexNormals(surface), n2 = computeSmoothVertexNormals(surface.positions, surface.triangles);
+		CHECK(n1 == n2);
+		CHECK(computeSmoothVertexNormals(rest, surface.triangles) == n1);
+
+		// the sample box: a small displacement of a 10 mm box gets an exaggeration that is a 1/2/5 x 10^n
+		const QString dir = QStringLiteral(MV_SIMULATION_SAMPLES_DIR);
+		if (!QFile::exists(dir + QStringLiteral("/FEM_box_static.frd")))
+		{
+			std::printf("  (skipping deformation sample test: sample not found)\n");
+			return;
+		}
+		const LoadedSimulationResult box = loadSimulationResult(dir + QStringLiteral("/FEM_box_static.frd"));
+		CHECK(box.ok());
+		if (!box.ok())
+			return;
+		const int bd = findDisplacementField(*box.dataset);
+		CHECK(bd >= 0);
+		const double maxD = maxDisplacementMagnitude(*box.dataset, bd);
+		const double scale = autoDeformScale(*box.dataset, box.surface, bd);
+		CHECK(maxD > 0.0 && scale >= 1.0);
+		if (scale > 1.0)
+		{
+			const double mantissa = scale / std::pow(10.0, std::floor(std::log10(scale)));
+			CHECK(approx(mantissa, 1.0) || approx(mantissa, 2.0) || approx(mantissa, 5.0));
+			CHECK(scale * maxD <= 0.1 * std::sqrt(3.0) * 10.0 * 1.0001); // never more than a tenth of the 10 mm cube's diagonal
+		}
+		std::vector<float> deformed;
+		CHECK(buildDeformedPositions(*box.dataset, box.surface, bd, 0, scale, deformed) && deformed != box.surface.positions);
+		CHECK(!isModalResult(*box.dataset));
+
+		// modal results: mode shapes are normalised (arbitrary eigenvector amplitude), one unit = a tenth of the model
+		const LoadedSimulationResult modes = loadSimulationResult(dir + QStringLiteral("/FEM_box_modes.frd"));
+		CHECK(modes.ok());
+		if (modes.ok())
+		{
+			CHECK(isModalResult(*modes.dataset));
+			const int md = findDisplacementField(*modes.dataset);
+			CHECK(md >= 0 && autoDeformScale(*modes.dataset, modes.surface, md) == 1.0);
+			for (int step = 0; step < static_cast<int>(modes.dataset->stepCount()); ++step)
+			{
+				// after the factor every mode reaches the same peak displacement: a tenth of the 10 mm cube's diagonal
+				const double factor = modalDisplayFactor(*modes.dataset, modes.surface, md, step);
+				const ResultField& f = modes.dataset->fields[static_cast<std::size_t>(md)];
+				double peak = 0.0;
+				const std::vector<float>& data = f.stepData[static_cast<std::size_t>(step)];
+				for (std::size_t i = 0; i + 2 < data.size(); i += 3)
+					peak = std::max(peak, std::sqrt(double(data[i]) * data[i] + double(data[i + 1]) * data[i + 1] + double(data[i + 2]) * data[i + 2]));
+				CHECK(approx(peak * factor, 0.1 * std::sqrt(3.0) * 10.0, 1e-3));
+			}
+		}
+		const LoadedSimulationResult ramp = loadSimulationResult(dir + QStringLiteral("/FEM_box_load_steps.frd"));
+		CHECK(ramp.ok() && !isModalResult(*ramp.dataset)); // load increments are physical displacements
+	}
+
 	void testShellAndSkippedCells()
 	{
 		Mesh m;
@@ -1666,6 +1764,7 @@ int main(int argc, char** argv)
 	testSetFieldUnits();
 	testUnitsAcrossFiles();
 	testTimeSteps();
+	testDeformation();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();

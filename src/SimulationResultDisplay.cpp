@@ -148,14 +148,19 @@ std::vector<float> boundaryVertexValues(const ResultBoundarySurface& surface, co
 
 std::vector<float> computeSmoothVertexNormals(const ResultBoundarySurface& surface)
 {
-	const std::size_t vertexCount = surface.vertexCount();
+	return computeSmoothVertexNormals(surface.positions, surface.triangles);
+}
+
+std::vector<float> computeSmoothVertexNormals(const std::vector<float>& positions, const std::vector<std::uint32_t>& triangles)
+{
+	const std::size_t vertexCount = positions.size() / 3;
 	std::vector<double> sum(vertexCount * 3, 0.0);
-	for (std::size_t t = 0; t + 2 < surface.triangles.size(); t += 3)
+	for (std::size_t t = 0; t + 2 < triangles.size(); t += 3)
 	{
-		const std::uint32_t a = surface.triangles[t], b = surface.triangles[t + 1], c = surface.triangles[t + 2];
-		const float* pa = &surface.positions[a * 3];
-		const float* pb = &surface.positions[b * 3];
-		const float* pc = &surface.positions[c * 3];
+		const std::uint32_t a = triangles[t], b = triangles[t + 1], c = triangles[t + 2];
+		const float* pa = &positions[a * 3];
+		const float* pb = &positions[b * 3];
+		const float* pc = &positions[c * 3];
 		const double ux = pb[0] - pa[0], uy = pb[1] - pa[1], uz = pb[2] - pa[2];
 		const double vx = pc[0] - pa[0], vy = pc[1] - pa[1], vz = pc[2] - pa[2];
 		// Un-normalised cross product = area-weighted face normal.
@@ -284,4 +289,146 @@ QString stepDescription(const ResultDataset& dataset, int step)
 	if (!s.timeUnit.isEmpty())
 		return stepTimeText(s);                                    // "0.0194 Hz"
 	return QStringLiteral("t = ") + stepTimeText(s);               // "t = 0.5"
+}
+
+int findDisplacementField(const ResultDataset& dataset)
+{
+	int best = -1;
+	for (std::size_t i = 0; i < dataset.fields.size(); ++i)
+	{
+		const ResultField& f = dataset.fields[i];
+		if (f.association != ResultFieldAssociation::Node || f.components != 3 || f.stepData.empty())
+			continue;
+		const QString name = f.name.toLower();
+		if (name.contains(QStringLiteral("magnitude")))
+			continue;
+		if (name.contains(QStringLiteral("displacement")))
+			return static_cast<int>(i); // an explicit name wins outright
+		if (best < 0 && (name == QStringLiteral("disp") || name.startsWith(QStringLiteral("disp")) || name.contains(QStringLiteral("deformation"))))
+			best = static_cast<int>(i);
+	}
+	return best;
+}
+
+bool buildDeformedPositions(const ResultDataset& dataset, const ResultBoundarySurface& surface, int fieldIndex, int step,
+                            double scale, std::vector<float>& out)
+{
+	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size() || step < 0)
+		return false;
+	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
+	if (field.association != ResultFieldAssociation::Node || field.components != 3
+		|| static_cast<std::size_t>(step) >= field.stepData.size())
+		return false;
+	const std::vector<float>& data = field.stepData[static_cast<std::size_t>(step)];
+	if (data.size() < dataset.nodeCount() * 3)
+		return false;
+
+	out = surface.positions;
+	const float k = static_cast<float>(scale);
+	for (std::size_t v = 0; v < surface.vertexNode.size() && v * 3 + 2 < out.size(); ++v)
+	{
+		const std::size_t n = surface.vertexNode[v];
+		if (n * 3 + 2 >= data.size())
+			continue;
+		const float dx = data[n * 3], dy = data[n * 3 + 1], dz = data[n * 3 + 2];
+		if (!std::isfinite(dx) || !std::isfinite(dy) || !std::isfinite(dz))
+			continue; // no value at this node: it does not move
+		out[v * 3] += k * dx;
+		out[v * 3 + 1] += k * dy;
+		out[v * 3 + 2] += k * dz;
+	}
+	return true;
+}
+
+double maxDisplacementMagnitude(const ResultDataset& dataset, int fieldIndex)
+{
+	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size())
+		return 0.0;
+	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
+	if (field.components != 3)
+		return 0.0;
+	double best = 0.0;
+	for (const std::vector<float>& data : field.stepData)
+	{
+		for (std::size_t i = 0; i + 2 < data.size(); i += 3)
+		{
+			const double x = data[i], y = data[i + 1], z = data[i + 2];
+			const double m = std::sqrt(x * x + y * y + z * z);
+			if (std::isfinite(m))
+				best = std::max(best, m);
+		}
+	}
+	return best;
+}
+
+namespace
+{
+	double surfaceDiagonal(const ResultBoundarySurface& surface)
+	{
+		if (surface.positions.size() < 3)
+			return 0.0;
+		double lo[3] = { std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max() };
+		double hi[3] = { std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest() };
+		for (std::size_t i = 0; i + 2 < surface.positions.size(); i += 3)
+			for (int k = 0; k < 3; ++k)
+			{
+				lo[k] = std::min<double>(lo[k], surface.positions[i + static_cast<std::size_t>(k)]);
+				hi[k] = std::max<double>(hi[k], surface.positions[i + static_cast<std::size_t>(k)]);
+			}
+		return std::sqrt((hi[0] - lo[0]) * (hi[0] - lo[0]) + (hi[1] - lo[1]) * (hi[1] - lo[1]) + (hi[2] - lo[2]) * (hi[2] - lo[2]));
+	}
+}
+
+bool isModalResult(const ResultDataset& dataset)
+{
+	if (dataset.steps.empty())
+		return false;
+	for (const ResultStep& step : dataset.steps)
+		if (step.timeUnit != QStringLiteral("Hz"))
+			return false;
+	return true;
+}
+
+double modalDisplayFactor(const ResultDataset& dataset, const ResultBoundarySurface& surface, int fieldIndex, int step)
+{
+	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size() || step < 0)
+		return 1.0;
+	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
+	if (static_cast<std::size_t>(step) >= field.stepData.size() || field.components != 3)
+		return 1.0;
+	double maxDisp = 0.0;
+	const std::vector<float>& data = field.stepData[static_cast<std::size_t>(step)];
+	for (std::size_t i = 0; i + 2 < data.size(); i += 3)
+	{
+		const double x = data[i], y = data[i + 1], z = data[i + 2];
+		const double m = std::sqrt(x * x + y * y + z * z);
+		if (std::isfinite(m))
+			maxDisp = std::max(maxDisp, m);
+	}
+	const double diagonal = surfaceDiagonal(surface);
+	return (maxDisp > 0.0 && diagonal > 0.0) ? 0.1 * diagonal / maxDisp : 1.0;
+}
+
+double autoDeformScale(const ResultDataset& dataset, const ResultBoundarySurface& surface, int fieldIndex)
+{
+	if (isModalResult(dataset))
+		return 1.0; // one unit = the normalised amplitude
+	const double maxDisp = maxDisplacementMagnitude(dataset, fieldIndex);
+	if (!(maxDisp > 0.0) || surface.positions.size() < 3)
+		return 1.0;
+	double lo[3] = { std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max() };
+	double hi[3] = { std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest() };
+	for (std::size_t i = 0; i + 2 < surface.positions.size(); i += 3)
+		for (int k = 0; k < 3; ++k)
+		{
+			lo[k] = std::min<double>(lo[k], surface.positions[i + static_cast<std::size_t>(k)]);
+			hi[k] = std::max<double>(hi[k], surface.positions[i + static_cast<std::size_t>(k)]);
+		}
+	const double diagonal = std::sqrt((hi[0] - lo[0]) * (hi[0] - lo[0]) + (hi[1] - lo[1]) * (hi[1] - lo[1]) + (hi[2] - lo[2]) * (hi[2] - lo[2]));
+	const double raw = 0.1 * diagonal / maxDisp;
+	if (!(raw > 1.0) || !std::isfinite(raw))
+		return 1.0; // already visible at true scale
+	const double decade = std::pow(10.0, std::floor(std::log10(raw)));
+	const double mantissa = raw / decade;
+	return decade * (mantissa >= 5.0 ? 5.0 : (mantissa >= 2.0 ? 2.0 : 1.0));
 }

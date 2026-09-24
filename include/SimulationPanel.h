@@ -6,6 +6,7 @@
 
 #include <memory>
 
+class QCheckBox;
 class QComboBox;
 class QDoubleSpinBox;
 class QLabel;
@@ -84,6 +85,11 @@ private:
 	QDoubleSpinBox* _maxSpin = nullptr;
 	QComboBox* _colormapCombo = nullptr;
 	QComboBox* _bandsCombo = nullptr;
+	QCheckBox* _deformCheck = nullptr;
+	QDoubleSpinBox* _deformScaleSpin = nullptr;
+	QPushButton* _deformAutoButton = nullptr;
+	QLabel* _deformInfoLabel = nullptr;
+	double _autoDeformScale = 1.0;
 
 	std::shared_ptr<ResultDataset> _dataset;
 	int _step = 0;                // the step the session is at (for the automatic per-step range display)

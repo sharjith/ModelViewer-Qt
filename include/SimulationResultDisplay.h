@@ -72,8 +72,38 @@ bool chooseDefaultDisplayScalar(const ResultDataset& dataset, DisplayScalar& out
 std::vector<float> boundaryVertexValues(const ResultBoundarySurface& surface, const std::vector<float>& nodeValues);
 
 // Smooth per-vertex normals for the boundary surface (area-weighted average of the adjoining triangles),
-// 3 floats per vertex, unit length (falls back to +Z for a vertex whose triangles cancel out).
+// 3 floats per vertex, unit length (falls back to +Z for a vertex whose triangles cancel out). The second form
+// takes the positions explicitly (a deformed shape).
 std::vector<float> computeSmoothVertexNormals(const ResultBoundarySurface& surface);
+std::vector<float> computeSmoothVertexNormals(const std::vector<float>& positions, const std::vector<std::uint32_t>& triangles);
+
+// ---- Deformation -------------------------------------------------------------------------------------------------
+// Displacements are added to the node coordinates in the FILE's own numbers (coordinates and displacements share a
+// length unit), independent of the field's display unit.
+
+// The node field holding the displacement vector: a 3-component node field named like "displacement"/"DISP"
+// (not a derived one). -1 when there is none.
+int findDisplacementField(const ResultDataset& dataset);
+
+// surface.positions + scale * displacement(step) for every boundary vertex; a node without a value (NaN) does not
+// move. False when the field/step has no data.
+bool buildDeformedPositions(const ResultDataset& dataset, const ResultBoundarySurface& surface, int fieldIndex, int step,
+                            double scale, std::vector<float>& out);
+
+// The largest displacement magnitude over every step (file units); 0 when there is none.
+double maxDisplacementMagnitude(const ResultDataset& dataset, int fieldIndex);
+
+// A scale factor that makes the largest displacement about a tenth of the model's diagonal: 1 when the
+// displacement is already that large, otherwise rounded down to 1, 2 or 5 times a power of ten.
+double autoDeformScale(const ResultDataset& dataset, const ResultBoundarySurface& surface, int fieldIndex);
+
+// A modal result (every step is a frequency, e.g. "Mode 3 - 73971 Hz"). Its mode shapes have arbitrary amplitude
+// (mass-normalised eigenvectors, not physical displacements) and each mode has a different one, so they are
+// displayed NORMALISED: every mode's largest displacement is drawn as a tenth of the model's diagonal, times the
+// user's scale factor (1 = that tenth). autoDeformScale() is therefore 1 for a modal result.
+bool isModalResult(const ResultDataset& dataset);
+// Factor turning the displacements of `step` into that normalised amplitude (1 when the step has none).
+double modalDisplayFactor(const ResultDataset& dataset, const ResultBoundarySurface& surface, int fieldIndex, int step);
 
 // ---- View state and sessions (what the Simulation dock tab edits) -----------------------------------------------
 
@@ -92,6 +122,9 @@ struct SimulationViewState
 	// Automatic range only: true = the range over ALL steps (a fixed colour scale, so animation frames stay
 	// comparable - the default), false = the range of the step shown. Ignored for a single-step result.
 	bool allStepsRange = true;
+	// Deformed shape: the displacement field (see findDisplacementField) times `deformScale` added to the geometry.
+	bool deform = false;
+	double deformScale = 1.0;
 };
 
 // Cache of the all-steps data range of one (field, component, units) so playback does not rescan every step on
@@ -116,6 +149,13 @@ struct SimulationSession
 	QStringList warnings;
 	SimulationViewState state;
 	SimulationRangeCache rangeCache;
+	int displacementField = -1;   // findDisplacementField(), -1 = the result cannot be deformed
+	bool modal = false;           // isModalResult(): mode shapes are shown normalised, see modalDisplayFactor()
+	double autoDeformScale = 1.0; // autoDeformScale() for it
+	// What the mesh geometry currently shows, so a recolour does not re-upload the vertices.
+	bool deformApplied = false;
+	int deformAppliedStep = 0;
+	double deformAppliedScale = 1.0;
 };
 
 // Levels the shader quantizes into: the chosen band count, or a fine 256 for "smooth".
