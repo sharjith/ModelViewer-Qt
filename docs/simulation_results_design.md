@@ -58,8 +58,11 @@ New, deliberately separate pieces:
 ### 4.1 Contents
 
 - **Nodes**: positions (float, in file length unit) + original node ids.
-- **Cells**: type, connectivity, original cell ids. Supported types in order: tri3, quad4, tet4, hex8,
-  wedge6, pyramid5, then quadratic tri6, quad8, tet10, hex20, wedge15; polyhedra in the CFD phase.
+- **Cells**: type, connectivity, original cell ids. Linear types: tri3, quad4, tet4, hex8, wedge6,
+  pyramid5. Quadratic types (tri6, quad8, tet10, hex20, wedge15, pyramid13) are read from Phase 0 and
+  displayed through their **corner nodes only** (mid-edge nodes kept, ignored for display - real files
+  such as FreeCAD's default second-order meshes are all tet10); true curved tessellation is Phase 2.
+  Polyhedra arrive in the CFD phase.
 - **Fields**: name, association (node / cell), component count (1 scalar, 3 vector, 6/9 tensor),
   quantity kind, file unit, and per-step data.
 - **Steps**: ordered list of (index, time value, label). Topology is shared across steps in the first
@@ -94,7 +97,9 @@ Face-hash extraction: hash every cell face by its sorted node ids; faces occurri
 boundary faces. A 5M-tet mesh yields a boundary of a few hundred thousand triangles - that, not the
 volume, is what is rendered and orbited.
 
-- **Quadratic elements** are tessellated into linear sub-faces so curved edges display correctly.
+- **Quadratic elements**: Phase 0 uses the corner nodes (faces hash and match on corners, so
+  neighbouring cells still share faces); Phase 2 tessellates into linear sub-faces so curved edges
+  display correctly.
 - **Node data**: shared vertices, smooth interpolation.
 - **Cell data**: unshared vertices, one flat value per face (same shader path).
 - Shell/surface cells (tri/quad files, e.g. thin-walled structural models) are displayed directly.

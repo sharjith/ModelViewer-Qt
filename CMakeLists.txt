@@ -1128,3 +1128,9 @@ if(UNIX AND NOT APPLE)
 
     include(CPack)
 endif()
+
+# GUI-free unit tests (simulation result readers/boundary extraction). Off by default; see tests/CMakeLists.txt.
+option(MV_BUILD_TESTS "Build the GUI-free unit tests" OFF)
+if(MV_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
