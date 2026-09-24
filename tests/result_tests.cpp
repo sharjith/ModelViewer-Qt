@@ -8,6 +8,7 @@
 // the final check and are listed in docs/simulation_results_test_data.md.
 
 #include "ResultBoundary.h"
+#include "ResultDerivedFields.h"
 #include "ResultReader.h"
 #include "SimulationResultDisplay.h"
 
@@ -21,6 +22,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <string>
 #include <atomic>
 #include <vector>
 
@@ -875,6 +877,275 @@ namespace
 		}
 	}
 
+	// ---- CalculiX .frd ---------------------------------------------------------------------------------------------
+
+	// Fixed-width record writers, as CalculiX writes them (E12.5 fields touch each other for negative numbers).
+	std::string frdNodeLine(long id, double x, double y, double z, int idWidth = 10)
+	{
+		char b[160];
+		std::snprintf(b, sizeof b, " -1%*ld%12.5E%12.5E%12.5E\n", idWidth, id, x, y, z);
+		return b;
+	}
+
+	std::string frdValueLines(long id, const std::vector<double>& v, int idWidth = 10)
+	{
+		std::string out;
+		char b[160];
+		std::snprintf(b, sizeof b, " -1%*ld", idWidth, id);
+		out += b;
+		for (std::size_t i = 0; i < v.size(); ++i)
+		{
+			if (i > 0 && i % 6 == 0)
+			{
+				out += "\n";
+				std::snprintf(b, sizeof b, " -2%*s", idWidth, "");
+				out += b;
+			}
+			std::snprintf(b, sizeof b, "%12.5E", v[i]);
+			out += b;
+		}
+		return out + "\n";
+	}
+
+	// nodes 10,20,30,40 (non-contiguous ids), one TE4 element, two result times; node 40 is left out of DISP.
+	std::string makeFrd(int format = 1, int typeCode = 3, long elementNode4 = 40)
+	{
+		const int w = format == 0 ? 5 : 10;
+		std::string f = "    1C\n    1UUSER\n";
+		f += "    2C                             4                                     " + std::to_string(format) + "\n";
+		f += frdNodeLine(10, 0, 0, 0, w) + frdNodeLine(20, 1, 0, 0, w) + frdNodeLine(30, 0, 1, 0, w) + frdNodeLine(40, 0, 0, 1, w);
+		f += " -3\n    3C                             1                                     " + std::to_string(format) + "\n";
+		char b[160];
+		std::snprintf(b, sizeof b, " -1%*ld%5d%5d%5d\n", w, 7L, typeCode, 0, 1);
+		f += b;
+		std::snprintf(b, sizeof b, " -2%*ld%*ld%*ld%*ld\n", w, 10L, w, 20L, w, 30L, w, elementNode4);
+		f += b;
+		f += " -3\n";
+		auto header = [&](const char* time) {
+			char h[200];
+			std::snprintf(h, sizeof h, "    1PSTEP                         1           1           1\n  100CL  101 %s           4                     0    1           %d\n", time, format);
+			return std::string(h);
+		};
+		// step 1: DISP (3 stored components + a calculated "ALL"), node 40 absent
+		f += header("1.000000000");
+		f += " -4  DISP        4    1\n -5  D1          1    2    1    0\n -5  D2          1    2    2    0\n -5  D3          1    2    3    0\n"
+		     " -5  ALL         1    2    0    0    1ALL\n";
+		f += frdValueLines(10, { 0, 0, 0 }, w) + frdValueLines(20, { -1.0e-3, 2.0e-3, 0.0 }, w) + frdValueLines(30, { 0, 0, 3.0e-3 }, w) + " -3\n";
+		// step 1: STRESS, six components in one line, all four nodes
+		f += header("1.000000000");
+		f += " -4  STRESS      6    1\n -5  SXX         1    4    1    1\n -5  SYY         1    4    2    2\n -5  SZZ         1    4    3    3\n"
+		     " -5  SXY         1    4    1    2\n -5  SYZ         1    4    2    3\n -5  SZX         1    4    3    1\n";
+		f += frdValueLines(10, { 100, 0, 0, 0, 0, 0 }, w)       // uniaxial: von Mises 100, principals 100/0/0
+		   + frdValueLines(20, { 0, 0, 0, 10, 0, 0 }, w)        // pure shear: principals 10/0/-10, von Mises sqrt(300)
+		   + frdValueLines(30, { -5, -5, -5, 0, 0, 0 }, w)      // hydrostatic: von Mises 0
+		   + frdValueLines(40, { 10, 20, 30, 4, 5, 6 }, w) + " -3\n";
+		// step 2 (later time): DISP only
+		f += header("2.000000000");
+		f += " -4  DISP        4    1\n -5  D1          1    2    1    0\n -5  D2          1    2    2    0\n -5  D3          1    2    3    0\n"
+		     " -5  ALL         1    2    0    0    1ALL\n";
+		f += frdValueLines(10, { 1, 1, 1 }, w) + frdValueLines(20, { 2, 2, 2 }, w) + " -3\n 9999\n";
+		return f;
+	}
+
+	bool approx(double a, double b, double relTol = 1e-4, double absTol = 1e-9)
+	{
+		return std::fabs(a - b) <= absTol + relTol * std::fabs(b);
+	}
+
+	void testDerivedStress()
+	{
+		double e1, e2, e3;
+		symmetricPrincipalValues(100, 0, 0, 0, 0, 0, e1, e2, e3);
+		CHECK(approx(e1, 100) && approx(e2, 0, 1e-4, 1e-9) && approx(e3, 0, 1e-4, 1e-9));
+		symmetricPrincipalValues(0, 0, 0, 10, 0, 0, e1, e2, e3); // pure shear
+		CHECK(approx(e1, 10) && approx(e2, 0, 1e-4, 1e-9) && approx(e3, -10));
+		symmetricPrincipalValues(10, 20, 30, 4, 5, 6, e1, e2, e3); // general: trace and ordering
+		CHECK(e1 >= e2 && e2 >= e3);
+		CHECK(approx(e1 + e2 + e3, 60.0));
+		// invariant: sum of pairwise products = xx*yy + yy*zz + zz*xx - xy^2 - yz^2 - zx^2
+		CHECK(approx(e1 * e2 + e2 * e3 + e3 * e1, 10 * 20 + 20 * 30 + 30 * 10 - 16 - 25 - 36));
+		CHECK(approx(vonMisesStress(100, 0, 0, 0, 0, 0), 100));
+		CHECK(approx(vonMisesStress(0, 0, 0, 10, 0, 0), std::sqrt(300.0)));
+		CHECK(approx(vonMisesStress(-5, -5, -5, 0, 0, 0), 0, 1e-4, 1e-9));
+		CHECK(approx(vonMisesStress(10, 20, 30, 4, 5, 6), std::sqrt(531.0)));
+	}
+
+	void testFrdSynthetic()
+	{
+		for (int format : { 1, 0 }) // long and short ASCII
+		{
+			ResultReadOutcome r = readBytes(QByteArray::fromStdString(makeFrd(format)), QStringLiteral("t.frd"));
+			if (!r.ok())
+				std::fprintf(stderr, "  frd format %d failed: %s\n", format, qPrintable(r.error));
+			CHECK(r.ok());
+			if (!r.ok())
+				continue;
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.nodeCount() == 4 && ds.cellCount() == 1);
+			CHECK(ds.nodeIds == (std::vector<std::int64_t>{ 10, 20, 30, 40 }));
+			CHECK(ds.cellIds == (std::vector<std::int64_t>{ 7 }));
+			CHECK(ds.cellTypes[0] == ResultCellType::Tetra);
+			CHECK(ds.nodePositions[3] == 1.0f && ds.nodePositions[7] == 1.0f && ds.nodePositions[11] == 1.0f); // ids 20, 30, 40
+			CHECK(ds.steps.size() == 2);
+			CHECK(ds.steps[0].time == 1.0 && ds.steps[1].time == 2.0);
+
+			const ResultField* disp = ds.findField(QStringLiteral("DISP"), ResultFieldAssociation::Node);
+			CHECK(disp && disp->components == 3); // the calculated "ALL" is not a stored component
+			if (disp)
+			{
+				CHECK(disp->componentNames.size() == 3 && disp->componentNames[0] == QStringLiteral("D1"));
+				CHECK(disp->stepData.size() == 2);
+				// glued negative numbers ("-1.00000E-03" fills its whole field) parse correctly
+				CHECK(approx(disp->stepData[0][1 * 3 + 0], -1.0e-3) && approx(disp->stepData[0][1 * 3 + 1], 2.0e-3));
+				CHECK(std::isnan(disp->stepData[0][3 * 3]));  // node 40 is absent from the step-1 DISP block
+				CHECK(disp->stepData[1].size() == 12 && disp->stepData[1][0] == 1.0f);
+			}
+			const ResultField* stress = ds.findField(QStringLiteral("STRESS"), ResultFieldAssociation::Node);
+			CHECK(stress && stress->components == 6 && stress->componentNames.size() == 6);
+			if (stress)
+			{
+				CHECK(stress->stepData.size() == 2 && stress->stepData[1].empty()); // no STRESS at step 2
+				CHECK(stress->componentNames[3] == QStringLiteral("SXY"));
+			}
+
+			// derived fields: node 10 uniaxial, node 20 pure shear, node 30 hydrostatic, node 40 general
+			const ResultField* vm = ds.findField(QStringLiteral("STRESS von Mises"), ResultFieldAssociation::Node);
+			const ResultField* p1 = ds.findField(QStringLiteral("STRESS max principal"), ResultFieldAssociation::Node);
+			const ResultField* p3 = ds.findField(QStringLiteral("STRESS min principal"), ResultFieldAssociation::Node);
+			const ResultField* sh = ds.findField(QStringLiteral("STRESS max shear"), ResultFieldAssociation::Node);
+			CHECK(vm && p1 && p3 && sh && ds.findField(QStringLiteral("STRESS mid principal"), ResultFieldAssociation::Node));
+			if (vm && p1 && p3 && sh)
+			{
+				CHECK(approx(vm->stepData[0][0], 100) && approx(vm->stepData[0][1], std::sqrt(300.0))
+				      && approx(vm->stepData[0][2], 0, 1e-4, 1e-4) && approx(vm->stepData[0][3], std::sqrt(531.0)));
+				CHECK(approx(p1->stepData[0][0], 100) && approx(p1->stepData[0][1], 10));
+				CHECK(approx(p3->stepData[0][1], -10));
+				CHECK(approx(sh->stepData[0][1], 10) && approx(sh->stepData[0][0], 50));
+				CHECK(vm->stepData[1].empty());
+			}
+
+			const ResultBoundarySurface surface = extract(ds);
+			CHECK(surface.triangleCount() == 4);
+
+			// the default field is the derived von Mises
+			DisplayScalar scalar;
+			CHECK(chooseDefaultDisplayScalar(ds, scalar));
+			CHECK(scalar.label == QStringLiteral("STRESS von Mises"));
+		}
+	}
+
+	void testFrdErrors()
+	{
+		ResultReadOutcome rb = readBytes(QByteArray::fromStdString(makeFrd(2)), QStringLiteral("t.frd")); // format flag 2 = binary
+		CHECK(!rb.ok());
+		CHECK(rb.error.contains(QStringLiteral("Binary")));
+
+		CHECK(!readBytes(QByteArray::fromStdString(makeFrd(1, 99)), QStringLiteral("t.frd")).ok());       // unknown element type
+		CHECK(!readBytes(QByteArray::fromStdString(makeFrd(1, 3, 99)), QStringLiteral("t.frd")).ok());    // unknown node in an element
+		CHECK(!readBytes(QByteArray("    1C\n    1UUSER\n 9999\n"), QStringLiteral("t.frd")).ok());      // no node block
+		CHECK(!readBytes(QByteArray(""), QStringLiteral("t.frd")).ok());
+	}
+
+	// Real CalculiX files shipped in sample-models/Simulation, checked against the values FreeCAD's own test suite
+	// expects for box_static (FreeCAD: Mod/Fem/femtest/data/calculix/box_static_expected_values, MPa / mm).
+	struct Range { double lo, hi; };
+
+	bool rangeOf(const ResultDataset& ds, const char* field, int component, Range& out)
+	{
+		for (std::size_t i = 0; i < ds.fields.size(); ++i)
+			if (ds.fields[i].name == QLatin1String(field))
+			{
+				DisplayScalar scalar;
+				if (!buildDisplayScalar(ds, static_cast<int>(i), component, scalar))
+					return false;
+				out = { scalar.minValue, scalar.maxValue };
+				return true;
+			}
+		return false;
+	}
+
+	void checkRange(const ResultDataset& ds, const char* field, int component, double lo, double hi)
+	{
+		Range r{};
+		const bool found = rangeOf(ds, field, component, r);
+		if (!found)
+			std::fprintf(stderr, "  field %s (component %d) not found\n", field, component);
+		CHECK(found);
+		if (found)
+		{
+			if (!approx(r.lo, lo, 5e-4, 1e-6) || !approx(r.hi, hi, 5e-4, 1e-6))
+				std::fprintf(stderr, "  %s[%d]: got %g..%g, expected %g..%g\n", field, component, r.lo, r.hi, lo, hi);
+			CHECK(approx(r.lo, lo, 5e-4, 1e-6));
+			CHECK(approx(r.hi, hi, 5e-4, 1e-6));
+		}
+	}
+
+	void testFrdRealFiles()
+	{
+		const QString dir = QStringLiteral(MV_SIMULATION_SAMPLES_DIR);
+		const QString staticPath = dir + QStringLiteral("/FEM_box_static.frd");
+		if (!QFile::exists(staticPath))
+		{
+			std::printf("  (skipping real .frd tests: %s not found)\n", qPrintable(staticPath));
+			return;
+		}
+
+		ResultReadOutcome r = readResultFile(staticPath);
+		if (!r.ok())
+			std::fprintf(stderr, "  FEM_box_static.frd failed: %s\n", qPrintable(r.error));
+		CHECK(r.ok());
+		if (r.ok())
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.nodeCount() == 280 && ds.cellCount() == 129);
+			CHECK(ds.cellTypes[0] == ResultCellType::Tetra10);
+			CHECK(ds.steps.size() == 1);
+			CHECK(ds.findField(QStringLiteral("DISP"), ResultFieldAssociation::Node) != nullptr);
+			CHECK(ds.findField(QStringLiteral("STRESS"), ResultFieldAssociation::Node) != nullptr);
+			CHECK(ds.findField(QStringLiteral("TOSTRAIN"), ResultFieldAssociation::Node) != nullptr);
+			CHECK(extract(ds).triangleCount() == 96);
+
+			// FreeCAD's expected values for this exact file
+			checkRange(ds, "DISP", 0, -0.0680669, 0.00296745);   // U1
+			checkRange(ds, "DISP", 1, -0.0109484, 0.0110702);    // U2
+			checkRange(ds, "DISP", 2, -0.0643181, 0.0);          // U3
+			checkRange(ds, "DISP", -1, 0.0, 0.093738346);        // Uabs
+			checkRange(ds, "STRESS von Mises", -1, 385.3799018170, 2203.5090958167);
+			checkRange(ds, "STRESS max principal", -1, -924.0494419697, 1169.5484598644);
+			checkRange(ds, "STRESS mid principal", -1, -1260.1000473504, 346.8740040676);
+			checkRange(ds, "STRESS min principal", -1, -3276.2805106799, 3.2401143113);
+			checkRange(ds, "STRESS max shear", -1, 218.1005303160, 1176.1155343551);
+
+			DisplayScalar scalar;
+			CHECK(chooseDefaultDisplayScalar(ds, scalar) && scalar.label == QStringLiteral("STRESS von Mises"));
+		}
+
+		// Modal file: one mode; the "time" is the frequency in Hz and the step is labelled with the mode number.
+		ResultReadOutcome m = readResultFile(dir + QStringLiteral("/FEM_box_frequency.frd"));
+		CHECK(m.ok());
+		if (m.ok())
+		{
+			CHECK(m.dataset->nodeCount() == 280 && m.dataset->cellCount() == 129);
+			CHECK(m.dataset->steps.size() == 1);
+			CHECK(approx(m.dataset->steps[0].time, 1.93865e-2));
+			CHECK(m.dataset->steps[0].label == QStringLiteral("Mode 1"));
+			CHECK(m.dataset->findField(QStringLiteral("DISP"), ResultFieldAssociation::Node) != nullptr);
+		}
+
+		// beampl: 20-node hexahedra, and no element/node counts on the block header lines.
+		ResultReadOutcome b = readResultFile(dir + QStringLiteral("/beampl.frd"));
+		if (!b.ok())
+			std::fprintf(stderr, "  beampl.frd failed: %s\n", qPrintable(b.error));
+		CHECK(b.ok());
+		if (b.ok())
+		{
+			CHECK(b.dataset->nodeCount() == 261 && b.dataset->cellCount() == 32);
+			CHECK(b.dataset->cellTypes[0] == ResultCellType::Hexahedron20);
+			CHECK(b.dataset->findField(QStringLiteral("STRESS von Mises"), ResultFieldAssociation::Node) != nullptr);
+			CHECK(extract(*b.dataset).triangleCount() > 0);
+		}
+	}
+
 	void testLoadSimulationResult()
 	{
 		const QString path = tempDir().filePath(QStringLiteral("load_test.vtk"));
@@ -1096,6 +1367,10 @@ int main(int argc, char** argv)
 	testLegacyErrors();
 	testSimulationDisplay();
 	testViewState();
+	testDerivedStress();
+	testFrdSynthetic();
+	testFrdErrors();
+	testFrdRealFiles();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();

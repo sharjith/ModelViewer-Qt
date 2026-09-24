@@ -20,10 +20,10 @@ struct ResultReadOutcome
 	bool ok() const { return dataset != nullptr; }
 };
 
-// Lower-case extensions (without the dot) this build can read: currently "vtu" and "vtk".
+// Lower-case extensions (without the dot) this build can read: "vtu", "vtk" and "frd".
 QStringList supportedResultExtensions();
 
-// True when the file extension is one this build can read (.vtu XML and legacy .vtk).
+// True when the file extension is one this build can read (.vtu, .vtk, .frd).
 bool isSupportedResultFile(const QString& path);
 
 // File-dialog name filters for the supported formats, e.g. "VTK Unstructured Grid (*.vtu)".

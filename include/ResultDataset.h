@@ -64,6 +64,9 @@ struct ResultField
 	QString name;
 	ResultFieldAssociation association = ResultFieldAssociation::Node;
 	int components = 1; // 1 scalar, 3 vector, 6/9 tensor
+	// Optional names of the components when the file provides them (CalculiX: SXX, SYY, SZZ, SXY, SYZ, SZX).
+	// Empty, or exactly `components` entries.
+	std::vector<QString> componentNames;
 	// Filled by the unit handling (design section 7); empty until the user/file confirms them.
 	QString quantityKind;
 	QString fileUnit;

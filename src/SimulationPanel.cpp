@@ -88,7 +88,7 @@ void SimulationPanel::buildUi()
 	root->setContentsMargins(6, 6, 6, 6);
 
 	auto* openButton = new QPushButton(tr("Add Result..."), this);
-	openButton->setToolTip(tr("Add a simulation result (VTK .vtu / .vtk) to this document, shown as its outer surface coloured by a result field.\n"
+	openButton->setToolTip(tr("Add a simulation result (.vtu, .vtk, .frd) to this document, shown as its outer surface coloured by a result field.\n"
 	                          "To open a result in its own document, use File > Open."));
 	connect(openButton, &QPushButton::clicked, this, &SimulationPanel::openRequested);
 	root->addWidget(openButton);
@@ -100,7 +100,7 @@ void SimulationPanel::buildUi()
 	auto* emptyPage = new QWidget(_stack);
 	auto* emptyLayout = new QVBoxLayout(emptyPage);
 	auto* hint = new QLabel(
-		tr("No simulation result in this document.\n\nUse File > Open to open a .vtu or .vtk result in its own "
+		tr("No simulation result in this document.\n\nUse File > Open to open a .vtu, .vtk or .frd result in its own "
 		   "document, or \"Add Result...\" to add one to this document. A result is shown as its outer surface, "
 		   "coloured by a result field; the controls for the field, range, colormap and contours appear here."),
 		emptyPage);
@@ -284,8 +284,16 @@ void SimulationPanel::populateComponents(int fieldIndex, int selectedComponent)
 		_componentCombo->addItem(tr("Z"), 2);
 	}
 	else // tensors and other multi-component fields: no meaningful magnitude, pick a component
+	{
+		const std::vector<QString>* names = nullptr;
+		if (_dataset && fieldIndex >= 0 && static_cast<std::size_t>(fieldIndex) < _dataset->fields.size())
+			names = &_dataset->fields[static_cast<std::size_t>(fieldIndex)].componentNames;
 		for (int c = 0; c < comps; ++c)
-			_componentCombo->addItem(tr("Component %1").arg(c + 1), c);
+			_componentCombo->addItem(names && names->size() == static_cast<std::size_t>(comps)
+			                             ? (*names)[static_cast<std::size_t>(c)]
+			                             : tr("Component %1").arg(c + 1),
+			                         c);
+	}
 	const int index = _componentCombo->findData(selectedComponent);
 	_componentCombo->setCurrentIndex(index >= 0 ? index : 0);
 }

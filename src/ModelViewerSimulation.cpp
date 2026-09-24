@@ -62,7 +62,10 @@ void ModelViewer::openSimulationResult()
 	QSettings settings;
 	const QString lastDir = settings.value(QStringLiteral("simulation/lastDirectory")).toString();
 	QStringList filters = supportedResultFileFilters();
-	filters.prepend(tr("All simulation results (*.vtu *.vtk)"));
+	QString allGlobs;
+	for (const QString& extension : supportedResultExtensions())
+		allGlobs += (allGlobs.isEmpty() ? QString() : QStringLiteral(" ")) + QStringLiteral("*.") + extension;
+	filters.prepend(tr("All simulation results (%1)").arg(allGlobs));
 	const QString path = QFileDialog::getOpenFileName(this, tr("Add Simulation Result"), lastDir, filters.join(QStringLiteral(";;")));
 	if (path.isEmpty())
 		return;

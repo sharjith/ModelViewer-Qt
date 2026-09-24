@@ -7,10 +7,15 @@ add_executable(result_tests
     ${CMAKE_SOURCE_DIR}/src/ResultReader.cpp
     ${CMAKE_SOURCE_DIR}/src/VtkXmlReader.cpp
     ${CMAKE_SOURCE_DIR}/src/VtkLegacyReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/CalculixFrdReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/ResultDerivedFields.cpp
     ${CMAKE_SOURCE_DIR}/src/ResultBoundary.cpp
     ${CMAKE_SOURCE_DIR}/src/SimulationResultDisplay.cpp
 )
 target_include_directories(result_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
+# The real-file tests read the sample results shipped with the project.
+target_compile_definitions(result_tests PRIVATE
+    MV_SIMULATION_SAMPLES_DIR="${CMAKE_SOURCE_DIR}/sample-models/Simulation")
 target_link_libraries(result_tests PRIVATE Qt6::Core)
 set_target_properties(result_tests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 
