@@ -32,6 +32,10 @@ FEM_box_modes.frd            The box's first six vibration modes (CalculiX, gene
                               viewport) to step through or play the modes.
 FEM_box_load_steps.frd        The box under a load ramped over four increments (25%, 50%, 87.5%, 100%; geometrically
                               nonlinear step). Play the timeline to watch the stress grow on a fixed colour scale.
+FEM_box_thermal_transient.frd A transient heat-transfer analysis of the box (CalculiX): one face held at 100, the rest
+                              starting at 20, 20 time steps over 10 s. Field NDTEMP (temperature). The file states no
+                              temperature unit, so none is assumed: choose it in the Simulation tab (Quantity /
+                              Values are in) to see it labelled. Play the timeline to watch the heat flow in.
 beampl.frd                    CalculiX's "beampl" example: a cantilever beam under tension with deformation
                               plasticity, 32 twenty-node hexahedra, results in the solver's units.
 
@@ -53,6 +57,6 @@ beampl.frd
     Result file of the CalculiX example "beampl" (test objective: deformation plasticity), computed by CalculiX,
     which is licensed under GPL-2.0-or-later; the example model ships with CalculiX.
 
-FEM_box_modes.frd, FEM_box_load_steps.frd
+FEM_box_modes.frd, FEM_box_load_steps.frd, FEM_box_thermal_transient.frd
     Computed with CalculiX for this project on the same 10 mm box mesh (modal and ramped-load analyses); CalculiX is
     licensed under GPL-2.0-or-later.

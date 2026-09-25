@@ -1661,6 +1661,65 @@ namespace
 		CHECK(values[lo] >= scalar.minValue && values[hi] <= scalar.maxValue); // the surface never exceeds the whole-model range
 	}
 
+	// A transient thermal result: a scalar temperature field over many time steps.
+	void testThermalTransient()
+	{
+		CHECK(guessQuantityKind(QStringLiteral("NDTEMP")) == QStringLiteral("temperature"));
+		const QString path = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/FEM_box_thermal_transient.frd");
+		if (!QFile::exists(path))
+		{
+			std::printf("  (skipping thermal sample test: sample not found)\n");
+			return;
+		}
+		const LoadedSimulationResult r = loadSimulationResult(path);
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		CHECK(ds.stepCount() == 20);
+		CHECK(approx(ds.steps[0].time, 0.5) && approx(ds.steps[19].time, 10.0));
+		CHECK(!isModalResult(ds));                 // steps are times, not frequencies
+		CHECK(stepDescription(ds, 0) == QStringLiteral("t = 0.5"));
+
+		const int t = fieldIndexOf(ds, QStringLiteral("NDTEMP"));
+		CHECK(t >= 0);
+		if (t < 0)
+			return;
+		const ResultField& field = ds.fields[static_cast<std::size_t>(t)];
+		CHECK(field.components == 1 && field.quantityKind == QStringLiteral("temperature"));
+		CHECK(field.fileUnit.isEmpty()); // a temperature unit is never guessed
+		CHECK(findDisplacementField(ds) < 0); // nothing to deform
+
+		// heat flows in: the hot face stays at 100, the mean rises step by step towards it, the coldest node warms
+		double previousMean = 0.0;
+		float previousMin = 0.0f;
+		for (int step = 0; step < 20; ++step)
+		{
+			DisplayScalar s;
+			CHECK(buildDisplayScalar(ds, t, -1, s, step));
+			CHECK(approx(s.maxValue, 100.0, 1e-4));
+			double sum = 0.0;
+			for (float v : s.nodeValues)
+				sum += v;
+			const double mean = sum / static_cast<double>(s.nodeValues.size());
+			if (step > 0)
+			{
+				CHECK(mean > previousMean);
+				CHECK(s.minValue >= previousMin);
+			}
+			previousMean = mean;
+			previousMin = s.minValue;
+		}
+		DisplayScalar first, last;
+		CHECK(buildDisplayScalar(ds, t, -1, first, 0) && buildDisplayScalar(ds, t, -1, last, 19));
+		CHECK(first.minValue > 20.0f && first.minValue < 30.0f); // CalculiX: 23.39 after the first 0.5 s
+		CHECK(last.minValue > 95.0f);
+
+		// an automatic range over all steps is a fixed 23.39 .. 100 scale, so the frames are comparable
+		float lo = 0.0f, hi = 0.0f;
+		CHECK(computeAllStepsRange(ds, t, -1, lo, hi) && approx(lo, first.minValue) && approx(hi, 100.0, 1e-4));
+	}
+
 	void testShellAndSkippedCells()
 	{
 		Mesh m;
@@ -1870,6 +1929,7 @@ int main(int argc, char** argv)
 	testDeformation();
 	testProbe();
 	testExtrema();
+	testThermalTransient();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();

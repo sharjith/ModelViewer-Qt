@@ -141,7 +141,8 @@ QString guessQuantityKind(const QString& fieldName)
 		return QStringLiteral("pressure");
 	if (has("displacement") || n == QLatin1String("disp") || n.startsWith(QLatin1String("disp ")))
 		return QStringLiteral("length");
-	if (has("temperature") || n == QLatin1String("temp") || n.startsWith(QLatin1String("temp ")))
+	// "ndtemp" is CalculiX's nodal temperature block name in a .frd file
+	if (has("temperature") || n == QLatin1String("temp") || n.startsWith(QLatin1String("temp ")) || n == QLatin1String("ndtemp"))
 		return QStringLiteral("temperature");
 	if (has("velocity") || n == QLatin1String("vel") || n.startsWith(QLatin1String("vel ")))
 		return QStringLiteral("velocity");
