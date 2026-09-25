@@ -6758,9 +6758,11 @@ void ViewportWidget::renderComparePanes(QColor& topColor, QColor& botColor)
 	{
 		const ComparePane& pane = _comparePanes[i];
 		glScissor(pane.glScissor.x(), pane.glScissor.y(), pane.glScissor.width(), pane.glScissor.height());
-		glViewport(pane.glViewport.x(), pane.glViewport.y(), pane.glViewport.width(), pane.glViewport.height());
+		// gradientBackground() resets the viewport to the whole window (it is a full-screen quad), so the pane's shifted
+		// viewport is set AFTER it - set before, every pane drew the unshifted view and only the scissor told them apart.
 		gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
 			botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _renderCtrl.gradientStyle());
+		glViewport(pane.glViewport.x(), pane.glViewport.y(), pane.glViewport.width(), pane.glViewport.height());
 		const QSet<QUuid> onlyThisResult{ _compareMeshes[static_cast<int>(i)] };
 		_paneMeshFilter = &onlyThisResult;
 		render(_primaryCamera);
