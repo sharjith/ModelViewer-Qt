@@ -1482,6 +1482,20 @@ public slots:
 	// while the pointer sits still.
 	void clearSurfaceAnalysisHoverReadout();
 
+public:
+	// Text labels pinned to a vertex of a mesh (the simulation results' min/max markers): the label follows the
+	// mesh's current transformed vertex, and is hidden while that vertex faces away from the camera or the mesh
+	// is gone/hidden. Replaces the previous set; empty clears.
+	struct VertexMarker
+	{
+		QUuid meshUuid;
+		int vertex = -1;          // index into the mesh's vertices
+		QVector3D localNormal;    // the vertex normal in the mesh's own frame, to hide markers on the far side
+		QString text;
+		QColor color = Qt::white;
+	};
+	void setVertexMarkers(const QVector<VertexMarker>& markers);
+
 private slots:
 	void centerDisplayList();
 	void setBackgroundColor();
@@ -1753,6 +1767,7 @@ private:
 	// is currently open with its own "Show Readout on Hover" toggle checked.
 	void updateSurfaceAnalysisHoverReadout(const QPoint& pixel);
 	void drawSurfaceAnalysisHoverLabel();
+	void drawVertexMarkers();
 	void drawLights();
 
 	void bindIBLTextures();
@@ -2487,6 +2502,7 @@ private:
 	// mouse-hover numeric readout - set (or cleared to empty, which
 	// drawSurfaceAnalysisHoverLabel() treats as "nothing to draw") by
 	// updateSurfaceAnalysisHoverReadout() on plain mouse-move.
+	QVector<VertexMarker> _vertexMarkers;
 	QString _surfaceAnalysisHoverText;
 	QPoint _surfaceAnalysisHoverPixel;
 	QColor _surfaceAnalysisHoverTextColor = Qt::white;

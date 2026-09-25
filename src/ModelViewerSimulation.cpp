@@ -559,6 +559,8 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 	if (!haveScalar)
 	{
 		session.shownScalar = DisplayScalar();
+		if (isActive)
+			_viewportWidget->setVertexMarkers({});
 		mesh->clearAnalysisOverlay(); // CPU-only, no GL context needed
 		if (isActive && _simulationLegend)
 			_simulationLegend->setAliveCheck([]() { return false; });
@@ -590,6 +592,34 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 		QPointer<ViewportWidget> viewportGuard(_viewportWidget);
 		const QUuid meshUuid = session.meshUuid;
 		_simulationLegend->setAliveCheck([viewportGuard, meshUuid]() { return viewportGuard && viewportGuard->getMeshByUuid(meshUuid); });
+	}
+	// ---- Min/max markers of the result being shown (only the active result owns the viewport's markers).
+	if (isActive)
+	{
+		QVector<ViewportWidget::VertexMarker> markers;
+		std::size_t minVertex = 0, maxVertex = 0;
+		if (session.state.markExtrema && findScalarExtrema(vertexValues, minVertex, maxVertex))
+		{
+			const std::vector<Vertex> current = mesh->vertices(); // once, for both markers' normals
+			const auto makeMarker = [&](std::size_t vertex, const QString& name, float normalized) {
+				ViewportWidget::VertexMarker marker;
+				marker.meshUuid = session.meshUuid;
+				marker.vertex = static_cast<int>(vertex);
+				if (vertex < current.size())
+					marker.localNormal = QVector3D(current[vertex].Normal.x, current[vertex].Normal.y, current[vertex].Normal.z);
+				marker.text = QStringLiteral("%1 %2").arg(name, QLocale().toString(static_cast<double>(vertexValues[vertex]), 'g', 5));
+				if (!scalar.unit.isEmpty())
+					marker.text += QLatin1Char(' ') + scalar.unit;
+				const QColor painted = AnalysisColorRamp::colorForNormalized(normalized, static_cast<AnalysisColormap>(session.state.colormap));
+				marker.color = painted.lightness() < 128 ? QColor(Qt::white) : QColor(Qt::black);
+				return marker;
+			};
+			const auto normalize = [&](float v) { return hi > lo ? std::clamp((v - lo) / (hi - lo), 0.0f, 1.0f) : 0.0f; };
+			markers.append(makeMarker(minVertex, tr("Min"), normalize(vertexValues[minVertex])));
+			if (maxVertex != minVertex)
+				markers.append(makeMarker(maxVertex, tr("Max"), normalize(vertexValues[maxVertex])));
+		}
+		_viewportWidget->setVertexMarkers(markers);
 	}
 	session.shownLo = lo;
 	session.shownHi = hi;

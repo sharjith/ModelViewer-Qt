@@ -465,3 +465,27 @@ ProbeSample sampleSurfaceScalar(const ResultDataset& dataset, const ResultBounda
 	out.normalized = hi > lo ? std::clamp((out.value - lo) / (hi - lo), 0.0f, 1.0f) : 0.0f;
 	return out;
 }
+
+bool findScalarExtrema(const std::vector<float>& vertexValues, std::size_t& minVertex, std::size_t& maxVertex)
+{
+	bool any = false;
+	float lo = 0.0f, hi = 0.0f;
+	for (std::size_t i = 0; i < vertexValues.size(); ++i)
+	{
+		const float v = vertexValues[i];
+		if (!std::isfinite(v))
+			continue;
+		if (!any || v < lo)
+		{
+			lo = v;
+			minVertex = i;
+		}
+		if (!any || v > hi)
+		{
+			hi = v;
+			maxVertex = i;
+		}
+		any = true;
+	}
+	return any;
+}

@@ -86,6 +86,7 @@ private:
 	QComboBox* _colormapCombo = nullptr;
 	QComboBox* _bandsCombo = nullptr;
 	QCheckBox* _deformCheck = nullptr;
+	QCheckBox* _markersCheck = nullptr;
 	QDoubleSpinBox* _deformScaleSpin = nullptr;
 	QPushButton* _deformAutoButton = nullptr;
 	QLabel* _deformInfoLabel = nullptr;

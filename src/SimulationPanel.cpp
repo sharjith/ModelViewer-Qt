@@ -184,6 +184,11 @@ void SimulationPanel::buildUi()
 		_bandsCombo->addItem(tr("%1 bands").arg(bands), bands);
 	form->addRow(tr("Contours:"), _bandsCombo);
 
+	_markersCheck = new QCheckBox(tr("Mark minimum and maximum"), content);
+	_markersCheck->setToolTip(tr("Label the smallest and largest value on the visible surface. The true extreme can lie inside "
+	                             "the volume, where it cannot be shown."));
+	form->addRow(_markersCheck);
+
 	// ---- Deformed shape: the displacement field times a scale factor added to the geometry.
 	_deformCheck = new QCheckBox(tr("Show deformed shape"), content);
 	form->addRow(_deformCheck);
@@ -234,6 +239,7 @@ void SimulationPanel::buildUi()
 	connect(_maxSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_updating) emitState(); });
 	connect(_colormapCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { if (!_updating) emitState(); });
 	connect(_bandsCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { if (!_updating) emitState(); });
+	connect(_markersCheck, &QCheckBox::toggled, this, [this](bool) { if (!_updating) emitState(); });
 	connect(_deformCheck, &QCheckBox::toggled, this, [this](bool on) {
 		_deformScaleSpin->setEnabled(on && _deformCheck->isEnabled());
 		_deformAutoButton->setEnabled(on && _deformCheck->isEnabled());
@@ -272,6 +278,8 @@ void SimulationPanel::setSession(const SimulationSession* session)
 	populateRangeModes(_dataset->stepCount() > 1, state);
 	_colormapCombo->setCurrentIndex(std::max(0, _colormapCombo->findData(state.colormap)));
 	_bandsCombo->setCurrentIndex(std::max(0, _bandsCombo->findData(state.bands)));
+
+	_markersCheck->setChecked(state.markExtrema);
 
 	const bool canDeform = session->displacementField >= 0;
 	_autoDeformScale = session->autoDeformScale;
@@ -459,6 +467,7 @@ SimulationViewState SimulationPanel::currentState() const
 	}
 	state.colormap = _colormapCombo->currentData().toInt();
 	state.bands = _bandsCombo->currentData().toInt();
+	state.markExtrema = _markersCheck->isChecked();
 	state.deform = _deformCheck->isChecked();
 	state.deformScale = _deformScaleSpin->value();
 	return state;

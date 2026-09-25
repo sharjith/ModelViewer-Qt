@@ -77,6 +77,13 @@ std::vector<float> boundaryVertexValues(const ResultBoundarySurface& surface, co
 std::vector<float> computeSmoothVertexNormals(const ResultBoundarySurface& surface);
 std::vector<float> computeSmoothVertexNormals(const std::vector<float>& positions, const std::vector<std::uint32_t>& triangles);
 
+// ---- Min/max markers ---------------------------------------------------------------------------------------------
+
+// The boundary-surface vertices carrying the smallest and largest finite value of `vertexValues` (one per surface
+// vertex). Only the visible surface is searched, so this can differ from the field's overall range when the true
+// extreme lies in the interior. False when no vertex has a finite value; ties resolve to the lowest index.
+bool findScalarExtrema(const std::vector<float>& vertexValues, std::size_t& minVertex, std::size_t& maxVertex);
+
 // ---- Probe -------------------------------------------------------------------------------------------------------
 
 // The shown scalar under a point of the boundary surface (triangle + barycentric weights u, v, w of its three
@@ -141,6 +148,7 @@ struct SimulationViewState
 	// Deformed shape: the displacement field (see findDisplacementField) times `deformScale` added to the geometry.
 	bool deform = false;
 	double deformScale = 1.0;
+	bool markExtrema = false; // label the smallest and largest value on the visible surface
 };
 
 // Cache of the all-steps data range of one (field, component, units) so playback does not rescan every step on

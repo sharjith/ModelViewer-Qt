@@ -3646,6 +3646,48 @@ void ViewportWidget::drawSurfaceAnalysisHoverLabel()
 	drawFloatingLabel(_surfaceAnalysisHoverText, _surfaceAnalysisHoverPixel, _surfaceAnalysisHoverTextColor);
 }
 
+void ViewportWidget::setVertexMarkers(const QVector<VertexMarker>& markers)
+{
+	_vertexMarkers = markers;
+	update();
+}
+
+void ViewportWidget::drawVertexMarkers()
+{
+	if (_vertexMarkers.isEmpty() || !_axisTextRenderer)
+		return;
+	const QMatrix4x4 view = _viewCtrl.viewMatrix();
+	const QRect viewportRect(0, 0, width(), height());
+	for (const VertexMarker& marker : std::as_const(_vertexMarkers))
+	{
+		SceneMesh* mesh = getMeshByUuid(marker.meshUuid);
+		if (!mesh || marker.vertex < 0 || !isMeshVisible(mesh, -1))
+			continue;
+		const std::vector<float>& points = mesh->getTrsfPoints();
+		const std::size_t p = static_cast<std::size_t>(marker.vertex) * 3;
+		if (p + 2 >= points.size())
+			continue;
+		const QVector3D world(points[p], points[p + 1], points[p + 2]);
+
+		// Facing test in view space: the camera looks down -Z, so a point faces it when its normal points back
+		// toward the eye (from the point to the origin for a perspective camera).
+		const QVector3D viewPos = view.map(world);
+		const QVector3D viewNormal = view.mapVector(mesh->combinedRenderTransform().mapVector(marker.localNormal));
+		if (QVector3D::dotProduct(viewNormal, -viewPos) <= 0.0f)
+			continue;
+
+		const QVector3D projected = world.project(view, _viewCtrl.projectionMatrix(), viewportRect);
+		if (projected.z() < 0.0f || projected.z() > 1.0f)
+			continue;
+		const float x = projected.x();
+		const float y = static_cast<float>(height()) - projected.y(); // top-down pixels, as the other labels
+		const QVector3D color(static_cast<float>(marker.color.redF()), static_cast<float>(marker.color.greenF()),
+		                      static_cast<float>(marker.color.blueF()));
+		_axisTextRenderer->RenderText("+", x - 4.0f, y + 4.0f, 1, color, TextRenderer::VAlignment::VBOTTOM); // the point itself
+		_axisTextRenderer->RenderText(marker.text.toStdString(), x + 8.0f, y - 6.0f, 1, color, TextRenderer::VAlignment::VBOTTOM);
+	}
+}
+
 void ViewportWidget::clearSurfaceAnalysisHoverReadout()
 {
 	// updateSurfaceAnalysisHoverReadout() below only re-checks
@@ -6604,6 +6646,7 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	renderPlaneGizmos();
 	drawPlaneGizmoDragLabel();
 	drawSurfaceAnalysisHoverLabel();
+	drawVertexMarkers();
 	if (_measurementController)
 		_measurementController->drawMeasurementOverlay(_primaryCamera, QSize(width(), height()), _axisTextRenderer);
 	if (_annotationController)

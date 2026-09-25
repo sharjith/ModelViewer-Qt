@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <string>
 #include <atomic>
 #include <vector>
@@ -1626,6 +1627,40 @@ namespace
 		CHECK(sample(plain, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f).normalized == 0.0f);            // degenerate range does not divide by 0
 	}
 
+	// Min/max markers: which surface vertices carry the extreme values.
+	void testExtrema()
+	{
+		const float nan = std::numeric_limits<float>::quiet_NaN();
+		std::size_t lo = 99, hi = 99;
+		CHECK(findScalarExtrema({ 3.0f, -2.0f, 7.5f, 0.0f }, lo, hi) && lo == 1 && hi == 2);
+		CHECK(findScalarExtrema({ nan, 4.0f, nan, -1.0f, 9.0f }, lo, hi) && lo == 3 && hi == 4); // no value: ignored
+		CHECK(findScalarExtrema({ 5.0f, 5.0f, 5.0f }, lo, hi) && lo == 0 && hi == 0);             // ties: lowest index
+		CHECK(findScalarExtrema({ nan, 2.0f }, lo, hi) && lo == 1 && hi == 1);                    // a single finite value
+		lo = hi = 99;
+		CHECK(!findScalarExtrema({ nan, nan }, lo, hi) && lo == 99 && hi == 99);                  // nothing finite: untouched
+		CHECK(!findScalarExtrema({}, lo, hi));
+		CHECK(findScalarExtrema({ std::numeric_limits<float>::infinity(), 1.0f, -std::numeric_limits<float>::infinity() }, lo, hi)
+		      && lo == 1 && hi == 1); // infinities are not values
+
+		// on a real result: the extreme vertices carry the surface's own min and max
+		const QString dir = QStringLiteral(MV_SIMULATION_SAMPLES_DIR);
+		if (!QFile::exists(dir + QStringLiteral("/FEM_box_static.frd")))
+		{
+			std::printf("  (skipping extrema sample test: sample not found)\n");
+			return;
+		}
+		const LoadedSimulationResult box = loadSimulationResult(dir + QStringLiteral("/FEM_box_static.frd"));
+		CHECK(box.ok());
+		if (!box.ok())
+			return;
+		DisplayScalar scalar;
+		CHECK(chooseDefaultDisplayScalar(*box.dataset, scalar));
+		const std::vector<float> values = boundaryVertexValues(box.surface, scalar.nodeValues);
+		CHECK(findScalarExtrema(values, lo, hi));
+		CHECK(*std::min_element(values.begin(), values.end()) == values[lo] && *std::max_element(values.begin(), values.end()) == values[hi]);
+		CHECK(values[lo] >= scalar.minValue && values[hi] <= scalar.maxValue); // the surface never exceeds the whole-model range
+	}
+
 	void testShellAndSkippedCells()
 	{
 		Mesh m;
@@ -1834,6 +1869,7 @@ int main(int argc, char** argv)
 	testTimeSteps();
 	testDeformation();
 	testProbe();
+	testExtrema();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();
