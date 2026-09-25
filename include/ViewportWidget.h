@@ -1523,6 +1523,12 @@ protected:
 
 	void renderMultiView(QColor& topColor, QColor& botColor);
 	void renderComparePanes(QColor& topColor, QColor& botColor);
+	// Fit-to-screen in compare mode. The fit maths sizes the picture for a viewport of this size - a pane's, so a
+	// model is fitted to its pane - and the range it returns is scaled by fitRangeCorrection() because the panes are
+	// drawn with the full-window projection (whose range maps to the window's shorter side, not the pane's). Outside
+	// compare mode: the window size and 1, i.e. the fit is exactly as it always was.
+	QSize fitViewportSize() const;
+	float fitRangeCorrection() const;
 	void applyOverlayPanelStyle(QWidget* wrapper, const QString& objectName);
 	void refreshNavigationOverlayStyle();
 

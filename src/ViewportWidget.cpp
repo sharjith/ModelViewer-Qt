@@ -6818,6 +6818,27 @@ void ViewportWidget::clearCompare()
 	update();
 }
 
+QSize ViewportWidget::fitViewportSize() const
+{
+	if (_compareActive && _compareMeshes.size() >= 2)
+	{
+		const QSize pane = comparePaneRect(0).size();
+		if (pane.width() > 0 && pane.height() > 0)
+			return pane;
+	}
+	return QSize(width(), height());
+}
+
+float ViewportWidget::fitRangeCorrection() const
+{
+	if (!(_compareActive && _compareMeshes.size() >= 2))
+		return 1.0f;
+	const QSize pane = fitViewportSize();
+	const int paneMin = std::min(pane.width(), pane.height());
+	const int windowMin = std::min(width(), height());
+	return paneMin > 0 && windowMin > 0 ? static_cast<float>(windowMin) / static_cast<float>(paneMin) : 1.0f;
+}
+
 int ViewportWidget::comparePaneOfMesh(const QUuid& meshUuid) const
 {
 	return _compareActive ? static_cast<int>(_compareMeshes.indexOf(meshUuid)) : -1;
@@ -16255,7 +16276,7 @@ float ViewportWidget::computeFitViewRange(
 		? _annotationController->draggedFrameFootprints(_axisTextRenderer)
 		: QVector<AnnotationController::DraggedFrameFootprint>();
 	if (footprints.isEmpty())
-		return computeFitViewRange(baseCorners, right, up, viewDir, outCenter);
+		return computeFitViewRange(baseCorners, right, up, viewDir, outCenter) * fitRangeCorrection();
 
 	// A dragged annotation's frame is sized in constant SCREEN pixels (see
 	// AnnotationController::draggedFrameFootprints()'s doc comment), so its
@@ -16278,8 +16299,9 @@ float ViewportWidget::computeFitViewRange(
 	// setZoomAndPan()/animateViewChange()'s identical shiftFactor formula) -
 	// so the iteration below converges on the frame's TRUE world footprint,
 	// not an approximation of it.
-	const float aspect = static_cast<float>(width()) / std::max(1.0f, static_cast<float>(height()));
-	const float pixelDim = static_cast<float>(aspect >= 1.0f ? height() : width());
+	const QSize fitSize = fitViewportSize(); // a pane's size in compare mode, the window's otherwise
+	const float aspect = static_cast<float>(fitSize.width()) / std::max(1.0f, static_cast<float>(fitSize.height()));
+	const float pixelDim = static_cast<float>(aspect >= 1.0f ? fitSize.height() : fitSize.width());
 	auto worldPerPixelForViewRange = [&](float candidateViewRange) -> float
 	{
 		if (_viewCtrl.projection() == ViewProjection::ORTHOGRAPHIC)
@@ -16325,7 +16347,7 @@ float ViewportWidget::computeFitViewRange(
 
 	if (outCenter)
 		*outCenter = center;
-	return viewRange;
+	return viewRange * fitRangeCorrection();
 }
 
 float ViewportWidget::computeOrthographicFitViewRangeForViewport(
@@ -16538,7 +16560,8 @@ float ViewportWidget::computeFitViewRange(const std::vector<QVector3D>& corners,
 	const QVector3D projCenter = right * cx + up * cy + viewDir * cz;
 	if (outCenter) *outCenter = projCenter;
 
-	const float aspect = static_cast<float>(width()) / static_cast<float>(height());
+	const QSize fitSize = fitViewportSize(); // a pane's size in compare mode, the window's otherwise
+	const float aspect = static_cast<float>(fitSize.width()) / static_cast<float>(fitSize.height());
 	constexpr float margin = 1.05f;
 	float viewRange = 0.0f;
 
@@ -16550,7 +16573,7 @@ float ViewportWidget::computeFitViewRange(const std::vector<QVector3D>& corners,
 		// Using halfX = xSpan/2 (relative to the projected centre) ensures
 		// equal margins on both sides and no wasted screen space.
 		float halfRange;
-		if (width() > height())
+		if (fitSize.width() > fitSize.height())
 			halfRange = std::max(halfX / aspect, halfY);
 		else
 			halfRange = std::max(halfX, halfY * aspect);

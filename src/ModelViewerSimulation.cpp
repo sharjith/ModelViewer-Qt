@@ -739,6 +739,7 @@ void ModelViewer::startSimulationCompare(const QUuid& otherMeshUuid, bool stacke
 		_simulationLegend->setAliveCheck([]() { return false; }); // each pane has its own legend now
 	refreshSimulationDisplay(*first);
 	refreshSimulationDisplay(*second);
+	_viewportWidget->fitAll(); // fitted to a pane now, not the whole window
 	emit simulationSessionChanged(false);
 }
 
@@ -765,7 +766,10 @@ void ModelViewer::stopSimulationCompare()
 	_simulationCompareSharedRange = false;
 	_simulationCompareMeshes.clear();
 	if (_viewportWidget)
+	{
 		_viewportWidget->clearCompare();
+		_viewportWidget->fitAll(); // back to the whole window
+	}
 	for (const QPointer<SimulationLegendWidget>& legend : std::as_const(_compareLegends))
 		if (legend)
 			legend->deleteLater();
