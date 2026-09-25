@@ -1773,7 +1773,9 @@ void ViewportWidget::paintGL()
 			// against, and no PT overlay to be wiped out by there).
 			if (!_viewCtrl.multiViewActive())
 			{
-				if (_viewCtrl.showAxis() && _viewCtrl.userShowAxisOverride())
+				// Compare mode draws the centre trihedron once per pane (renderComparePanes()); drawn here it would be a
+				// single one at the middle of the window, between the panes. The corner trihedron stays single.
+				if (_viewCtrl.showAxis() && _viewCtrl.userShowAxisOverride() && !_compareActive)
 					drawAxis(_primaryCamera, axisViewOverride);
 				if (_viewCtrl.userShowCornerAxisOverride())
 					drawCornerAxis(_viewCtrl.cornerAxisPosition(), axisViewOverride);
@@ -6767,6 +6769,9 @@ void ViewportWidget::renderComparePanes(QColor& topColor, QColor& botColor)
 		_paneMeshFilter = &onlyThisResult;
 		render(_primaryCamera);
 		_paneMeshFilter = nullptr;
+		// The centre trihedron at the world origin, once per pane, inside the pane's shifted viewport and scissor.
+		if (_viewCtrl.showAxis() && _viewCtrl.userShowAxisOverride() && !_capturingCleanFrame)
+			drawAxis(_primaryCamera);
 	}
 	glDisable(GL_SCISSOR_TEST);
 	glViewport(0, 0, width(), height());
