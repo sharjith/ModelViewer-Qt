@@ -914,6 +914,12 @@ MainWindow::MainWindow(QWidget* parent)
         if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("simulation_open"));
     });
 
+	// Simulation → Compare Results... - starts compare mode (asking for the second result when there are several) or
+	// exits it; the text and enabled state follow the document in refreshSimulationPanel().
+	connect(ui->actionSimulationCompare, &QAction::triggered, this, [this]() {
+        if (auto* child = activeMdiChild()) child->toggleSimulationCompare();
+    });
+
 	// Tools → Fill Holes... - opens the non-modal FillHolesDialog, same wiring shape as
 	// actionRepairMesh above.
 	connect(ui->actionFillHoles, &QAction::triggered, this, [this]() {
@@ -1151,6 +1157,11 @@ void MainWindow::refreshSimulationPanel(ModelViewer* viewer)
 	_simulationPanel->setCompareState(viewer && viewer->simulationCompareActive(), viewer && viewer->simulationCompareStacked(),
 	                                  viewer && viewer->simulationCompareSharedRange());
 	_simulationPanel->setSession(viewer ? viewer->activeSimulationSession() : nullptr);
+
+	// The menu's Compare entry: needs a second result to start, and reads "Exit Compare" while comparing.
+	const bool comparing = viewer && viewer->simulationCompareActive();
+	ui->actionSimulationCompare->setText(comparing ? tr("Exit Compare") : tr("Compare Results..."));
+	ui->actionSimulationCompare->setEnabled(viewer && (comparing || viewer->simulationResults().size() >= 2));
 }
 
 void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
@@ -1229,6 +1240,7 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		disconnect(_simulationSessionConnection);
 		_simulationPanel->setSession(nullptr);
 		_simulationPanel->setEnabled(false);
+		ui->actionSimulationCompare->setEnabled(false);
 		_checkBoxAutoFitView->setEnabled(false);
 		_checkBoxSelectionHighlight->setEnabled(false);
 		return;

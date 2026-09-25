@@ -36,6 +36,7 @@
 #include <QApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QInputDialog>
 #include <QJsonArray>
 #include <QLabel>
 #include <QRadioButton>
@@ -737,8 +738,8 @@ void ModelViewer::startSimulationCompare(const QUuid& otherMeshUuid, bool stacke
 	_viewportWidget->setCompareResults(_simulationCompareMeshes, stacked ? CompareArrangement::Stacked : CompareArrangement::SideBySide);
 	if (_simulationLegend)
 		_simulationLegend->setAliveCheck([]() { return false; }); // each pane has its own legend now
-	refreshSimulationDisplay(*first);
-	refreshSimulationDisplay(*second);
+	syncComparePartnerStep(*first);
+	refreshComparePair();
 	_viewportWidget->fitAll(); // fitted to a pane now, not the whole window
 	emit simulationSessionChanged(false);
 }
@@ -750,11 +751,8 @@ void ModelViewer::setSimulationCompareOptions(bool stacked, bool sharedRange)
 	_simulationCompareStacked = stacked;
 	_simulationCompareSharedRange = sharedRange;
 	_viewportWidget->setCompareResults(_simulationCompareMeshes, stacked ? CompareArrangement::Stacked : CompareArrangement::SideBySide);
-	// Turning the shared range off must let each result go back to its own: refresh both (a shared refresh also
-	// refreshes the partner, and the guard keeps that from recursing).
-	for (const QUuid& id : std::as_const(_simulationCompareMeshes))
-		if (SimulationSession* session = findSimulationSession(id))
-			refreshSimulationDisplay(*session);
+	// Turning the shared range off must let each result go back to its own range.
+	refreshComparePair();
 	emit simulationSessionChanged(false);
 }
 
@@ -779,6 +777,86 @@ void ModelViewer::stopSimulationCompare()
 		if (_viewportWidget && _viewportWidget->getMeshByUuid(session.meshUuid) && session.shownScalar.valid())
 			refreshSimulationDisplay(session);
 	emit simulationSessionChanged(false);
+}
+
+void ModelViewer::syncComparePartnerStep(const SimulationSession& driver)
+{
+	if (!driver.dataset || driver.dataset->stepCount() < 1)
+		return;
+	const int driverLast = static_cast<int>(driver.dataset->stepCount()) - 1;
+	for (const QUuid& id : std::as_const(_simulationCompareMeshes))
+	{
+		if (id == driver.meshUuid)
+			continue;
+		SimulationSession* partner = findSimulationSession(id);
+		if (!partner || !partner->dataset || partner->dataset->stepCount() < 2)
+			continue; // a single-step result has nothing to follow
+		const int partnerLast = static_cast<int>(partner->dataset->stepCount()) - 1;
+		const int mapped = driverLast > 0
+			? static_cast<int>(std::lround(static_cast<double>(driver.state.step) * partnerLast / driverLast)) : 0;
+		partner->state.step = std::clamp(mapped, 0, partnerLast);
+	}
+}
+
+void ModelViewer::refreshComparePair()
+{
+	if (_simulationCompareMeshes.size() < 2)
+		return;
+	SimulationSession* a = findSimulationSession(_simulationCompareMeshes[0]);
+	SimulationSession* b = findSimulationSession(_simulationCompareMeshes[1]);
+	if (!a || !b)
+		return;
+	_refreshingComparePartner = true; // this function does the pairing itself; a refresh must not chase its partner
+	refreshSimulationDisplay(*a);
+	refreshSimulationDisplay(*b);
+	if (_simulationCompareSharedRange)
+	{
+		// The first pass gave each result its own new range; now each takes the union with the other's up-to-date one.
+		refreshSimulationDisplay(*a);
+		refreshSimulationDisplay(*b);
+	}
+	_refreshingComparePartner = false;
+}
+
+void ModelViewer::toggleSimulationCompare()
+{
+	if (_simulationCompareActive)
+	{
+		stopSimulationCompare();
+		return;
+	}
+	const SimulationSession* active = activeSimulationSession();
+	const QVector<SimulationResultItem> all = simulationResults();
+	QVector<SimulationResultItem> others;
+	QString activeName;
+	for (const SimulationResultItem& item : all)
+	{
+		if (active && item.meshUuid == active->meshUuid)
+			activeName = item.name;
+		else
+			others.append(item);
+	}
+	if (!active || others.isEmpty())
+	{
+		QMessageBox::information(this, tr("Compare Results"),
+			tr("Comparing needs two simulation results in this document. Add another with Simulation > Add Result to This "
+			   "Document, or open one with File > Open."));
+		return;
+	}
+	QUuid partner = others.first().meshUuid;
+	if (others.size() > 1)
+	{
+		QStringList names;
+		for (const SimulationResultItem& item : std::as_const(others))
+			names << item.name;
+		bool ok = false;
+		const QString chosen = QInputDialog::getItem(this, tr("Compare Results"),
+			tr("Compare \"%1\" with:").arg(activeName), names, 0, false, &ok);
+		if (!ok)
+			return;
+		partner = others[std::max(0, static_cast<int>(names.indexOf(chosen)))].meshUuid;
+	}
+	startSimulationCompare(partner, _simulationCompareStacked, _simulationCompareSharedRange);
 }
 
 // Compare mode ends by itself when either result is hidden, closed, or removed by Undo.
@@ -809,7 +887,14 @@ void ModelViewer::setSimulationStep(int step, bool fromPlayback)
 	if (step == session->state.step)
 		return;
 	session->state.step = step;
-	refreshSimulationDisplay(*session);
+	if (_simulationCompareActive && _simulationCompareMeshes.contains(session->meshUuid))
+	{
+		// Compare mode: the partner steps along with it, so both panes show the same moment.
+		syncComparePartnerStep(*session);
+		refreshComparePair();
+	}
+	else
+		refreshSimulationDisplay(*session);
 	if (_simulationTimeline)
 		_simulationTimeline->setCurrentStep(step);
 	if (!fromPlayback)
@@ -1042,7 +1127,8 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 			const QUuid paneMesh = session.meshUuid;
 			legend->setPane([paneGuard, paneMesh]() {
 				return paneGuard ? paneGuard->comparePaneRect(paneGuard->comparePaneOfMesh(paneMesh)) : QRect();
-			}, mesh->getName());
+			}, session.dataset->stepCount() > 1 ? tr("%1 - %2").arg(mesh->getName(), stepDescription(*session.dataset, session.state.step))
+			                                     : mesh->getName());
 		}
 		else
 		{

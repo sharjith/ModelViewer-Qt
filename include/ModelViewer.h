@@ -623,6 +623,8 @@ public slots:
 	void startSimulationCompare(const QUuid& otherMeshUuid, bool stacked, bool sharedRange);
 	void setSimulationCompareOptions(bool stacked, bool sharedRange);
 	void stopSimulationCompare();
+	// The menu command: exits compare mode, or starts it with the one other result (asking which when there are several).
+	void toggleSimulationCompare();
 	// Hover probe: the shown result value under the cursor, when it is over a simulation result mesh (empty text
 	// otherwise). `color` is set to a readable text colour for the paint under the cursor.
 	bool hasSimulationResults() const { return !_simulationSessions.empty(); }
@@ -772,6 +774,10 @@ private:
 	void refreshSimulationDisplay(SimulationSession& session);
 	void updateSimulationTimeline();
 	void checkSimulationCompare(); // ends compare mode when one of its results went away
+	// Recolours both compared results (twice with a shared range, so each sees the other's up-to-date own range).
+	void refreshComparePair();
+	// Moves the compared partner to the same fraction of its own steps as `driver` (identical steps when both have as many).
+	void syncComparePartnerStep(const SimulationSession& driver);
 	// Saving results into .mvf (docs/simulation_mvf_persistence_design.md, S2). The prompt runs once per session on the
 	// first save of a document that has results; the snapshots and the baked COLOR_0 are added while the package is built.
 	bool promptSimulationSaveOptions();
