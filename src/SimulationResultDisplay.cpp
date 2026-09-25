@@ -432,3 +432,36 @@ double autoDeformScale(const ResultDataset& dataset, const ResultBoundarySurface
 	const double mantissa = raw / decade;
 	return decade * (mantissa >= 5.0 ? 5.0 : (mantissa >= 2.0 ? 2.0 : 1.0));
 }
+
+ProbeSample sampleSurfaceScalar(const ResultDataset& dataset, const ResultBoundarySurface& surface, const DisplayScalar& scalar,
+                                std::size_t triangle, float u, float v, float w, float lo, float hi)
+{
+	ProbeSample out;
+	if (triangle * 3 + 2 >= surface.triangles.size())
+		return out;
+	const float weights[3] = { u, v, w };
+	std::uint32_t nodes[3];
+	float values[3];
+	int nearest = 0;
+	for (int k = 0; k < 3; ++k)
+	{
+		const std::uint32_t vertex = surface.triangles[triangle * 3 + static_cast<std::size_t>(k)];
+		if (vertex >= surface.vertexNode.size())
+			return out;
+		nodes[k] = surface.vertexNode[vertex];
+		values[k] = nodes[k] < scalar.nodeValues.size() ? scalar.nodeValues[nodes[k]] : std::numeric_limits<float>::quiet_NaN();
+		if (weights[k] > weights[nearest])
+			nearest = k;
+	}
+	out.node = nodes[nearest];
+	out.nodeId = dataset.nodeId(nodes[nearest]);
+	if (std::isfinite(values[0]) && std::isfinite(values[1]) && std::isfinite(values[2]))
+		out.value = weights[0] * values[0] + weights[1] * values[1] + weights[2] * values[2];
+	else if (std::isfinite(values[nearest]))
+		out.value = values[nearest];
+	else
+		return out;
+	out.valid = true;
+	out.normalized = hi > lo ? std::clamp((out.value - lo) / (hi - lo), 0.0f, 1.0f) : 0.0f;
+	return out;
+}

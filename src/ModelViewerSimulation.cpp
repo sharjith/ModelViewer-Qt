@@ -18,6 +18,7 @@
 
 #include "AnalysisColorRamp.h"
 #include "MainWindow.h"
+#include "MeshSurfaceAnchor.h"
 #include "MeshVertex.h"
 #include "ResultUnits.h"
 #include "SceneGraph.h"
@@ -346,6 +347,33 @@ void ModelViewer::applySimulationUnits(int fieldIndex, const QString& kindId, co
 	emit simulationSessionChanged(false);
 }
 
+// The value under the cursor for the result mesh the anchor is on: "von Mises: 1.2345e+07 MPa  (node 42)".
+QString ModelViewer::simulationProbeText(const MeshSurfaceAnchor& anchor, QColor& color) const
+{
+	if (!anchor.isValid())
+		return QString();
+	const SimulationSession* session = nullptr;
+	for (const SimulationSession& s : _simulationSessions)
+		if (s.meshUuid == anchor.meshUuid)
+			session = &s;
+	if (!session || !session->dataset || !session->surface || !session->shownScalar.valid())
+		return QString();
+	const ProbeSample sample = sampleSurfaceScalar(*session->dataset, *session->surface, session->shownScalar,
+		static_cast<std::size_t>(anchor.triangleIndex), anchor.barycentric.x(), anchor.barycentric.y(), anchor.barycentric.z(),
+		session->shownLo, session->shownHi);
+	if (!sample.valid)
+		return tr("%1: no value").arg(session->shownScalar.label);
+
+	// White or black, whichever reads against the colour the point is painted with.
+	const QColor painted = AnalysisColorRamp::colorForNormalized(sample.normalized, static_cast<AnalysisColormap>(session->state.colormap));
+	color = painted.lightness() < 128 ? Qt::white : Qt::black;
+
+	QString text = QStringLiteral("%1: %2").arg(session->shownScalar.label, QLocale().toString(static_cast<double>(sample.value), 'g', 5));
+	if (!session->shownScalar.unit.isEmpty())
+		text += QLatin1Char(' ') + session->shownScalar.unit;
+	return text + tr("  (node %1)").arg(sample.nodeId);
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Time steps and playback
 // ---------------------------------------------------------------------------------------------------------------
@@ -530,6 +558,7 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 
 	if (!haveScalar)
 	{
+		session.shownScalar = DisplayScalar();
 		mesh->clearAnalysisOverlay(); // CPU-only, no GL context needed
 		if (isActive && _simulationLegend)
 			_simulationLegend->setAliveCheck([]() { return false; });
@@ -562,5 +591,8 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 		const QUuid meshUuid = session.meshUuid;
 		_simulationLegend->setAliveCheck([viewportGuard, meshUuid]() { return viewportGuard && viewportGuard->getMeshByUuid(meshUuid); });
 	}
+	session.shownLo = lo;
+	session.shownHi = hi;
+	session.shownScalar = std::move(scalar); // last use of `scalar`: the hover probe reads it
 	_viewportWidget->update();
 }

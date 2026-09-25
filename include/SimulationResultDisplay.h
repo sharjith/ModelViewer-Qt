@@ -77,6 +77,22 @@ std::vector<float> boundaryVertexValues(const ResultBoundarySurface& surface, co
 std::vector<float> computeSmoothVertexNormals(const ResultBoundarySurface& surface);
 std::vector<float> computeSmoothVertexNormals(const std::vector<float>& positions, const std::vector<std::uint32_t>& triangles);
 
+// ---- Probe -------------------------------------------------------------------------------------------------------
+
+// The shown scalar under a point of the boundary surface (triangle + barycentric weights u, v, w of its three
+// vertices): interpolated between the vertices' node values. When a vertex has no value (NaN) the value of the
+// nearest vertex is used instead, and the sample is invalid if that has none either.
+struct ProbeSample
+{
+	bool valid = false;
+	float value = 0.0f;         // in the scalar's unit
+	std::uint32_t node = 0;     // dataset node index of the vertex nearest the point
+	std::int64_t nodeId = 0;    // its id as written in the file
+	float normalized = 0.0f;    // (value - lo) / (hi - lo) clamped to 0..1, for choosing the readout colour
+};
+ProbeSample sampleSurfaceScalar(const ResultDataset& dataset, const ResultBoundarySurface& surface, const DisplayScalar& scalar,
+                                std::size_t triangle, float u, float v, float w, float lo, float hi);
+
 // ---- Deformation -------------------------------------------------------------------------------------------------
 // Displacements are added to the node coordinates in the FILE's own numbers (coordinates and displacements share a
 // length unit), independent of the field's display unit.
@@ -149,6 +165,9 @@ struct SimulationSession
 	QStringList warnings;
 	SimulationViewState state;
 	SimulationRangeCache rangeCache;
+	// What is currently painted (the probe reads it, so a hover does not rebuild the scalar).
+	DisplayScalar shownScalar;
+	float shownLo = 0.0f, shownHi = 1.0f;
 	int displacementField = -1;   // findDisplacementField(), -1 = the result cannot be deformed
 	bool modal = false;           // isModalResult(): mode shapes are shown normalised, see modalDisplayFactor()
 	double autoDeformScale = 1.0; // autoDeformScale() for it

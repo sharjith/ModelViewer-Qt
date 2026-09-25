@@ -1558,6 +1558,74 @@ namespace
 		CHECK(ramp.ok() && !isModalResult(*ramp.dataset)); // load increments are physical displacements
 	}
 
+	// Hover probe: the shown value under a point of the surface.
+	void testProbe()
+	{
+		ResultReadOutcome r = readBytes(QByteArray::fromStdString(makeFrd()), QStringLiteral("t.frd"));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		const int disp = fieldIndexOf(ds, QStringLiteral("DISP"));
+		ResultBoundarySurface surface;
+		CHECK(extractBoundarySurface(ds, surface, nullptr, nullptr));
+		DisplayScalar scalar;
+		CHECK(buildDisplayScalar(ds, disp, 0, scalar, 0)); // DISP D1 at the first step: nodes 0..3 = 0, -1e-3, 0, (no value)
+
+		// the first triangle that has none of node index 3 (no value), and the first that has it
+		std::size_t plain = surface.triangleCount(), withGap = surface.triangleCount();
+		for (std::size_t t = 0; t < surface.triangleCount(); ++t)
+		{
+			bool hasGap = false, hasNode1 = false;
+			for (int k = 0; k < 3; ++k)
+			{
+				const std::uint32_t node = surface.vertexNode[surface.triangles[t * 3 + static_cast<std::size_t>(k)]];
+				hasGap = hasGap || node == 3;
+				hasNode1 = hasNode1 || node == 1;
+			}
+			if (!hasGap && hasNode1 && plain == surface.triangleCount())
+				plain = t;
+			if (hasGap && hasNode1 && withGap == surface.triangleCount())
+				withGap = t;
+		}
+		CHECK(plain < surface.triangleCount() && withGap < surface.triangleCount());
+		if (plain >= surface.triangleCount() || withGap >= surface.triangleCount())
+			return;
+		auto slotOfNode = [&](std::size_t t, std::uint32_t node) {
+			for (int k = 0; k < 3; ++k)
+				if (surface.vertexNode[surface.triangles[t * 3 + static_cast<std::size_t>(k)]] == node)
+					return k;
+			return -1;
+		};
+		auto sample = [&](std::size_t t, float w0, float w1, float w2, float lo, float hi) {
+			return sampleSurfaceScalar(ds, surface, scalar, t, w0, w1, w2, lo, hi);
+		};
+		auto weightsAt = [&](std::size_t t, std::uint32_t node, float wNode, float wOthers, float w[3]) {
+			for (int k = 0; k < 3; ++k)
+				w[k] = wOthers;
+			w[slotOfNode(t, node)] = wNode;
+		};
+
+		float w[3];
+		weightsAt(plain, 1, 1.0f, 0.0f, w); // exactly on node index 1 (file id 20)
+		ProbeSample a = sample(plain, w[0], w[1], w[2], -1.0e-3f, 1.0e-3f);
+		CHECK(a.valid && approx(a.value, -1.0e-3) && a.node == 1 && a.nodeId == 20 && approx(a.normalized, 0.0, 1e-4, 1e-6));
+
+		weightsAt(plain, 1, 0.5f, 0.25f, w); // interpolated: 0.5 * -1e-3 + 0.5 * (a node with 0)
+		ProbeSample b = sample(plain, w[0], w[1], w[2], -1.0e-3f, 1.0e-3f);
+		CHECK(b.valid && approx(b.value, -5.0e-4) && b.node == 1 && approx(b.normalized, 0.25, 1e-3, 1e-6));
+
+		weightsAt(withGap, 1, 0.8f, 0.1f, w); // one vertex has no value: the nearest vertex's value stands in
+		ProbeSample c = sample(withGap, w[0], w[1], w[2], -1.0e-3f, 1.0e-3f);
+		CHECK(c.valid && approx(c.value, -1.0e-3) && c.node == 1);
+
+		weightsAt(withGap, 3, 0.8f, 0.1f, w); // nearest vertex has no value at all
+		CHECK(!sample(withGap, w[0], w[1], w[2], -1.0e-3f, 1.0e-3f).valid);
+
+		CHECK(!sample(surface.triangleCount() + 3, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f).valid); // no such triangle
+		CHECK(sample(plain, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f).normalized == 0.0f);            // degenerate range does not divide by 0
+	}
+
 	void testShellAndSkippedCells()
 	{
 		Mesh m;
@@ -1765,6 +1833,7 @@ int main(int argc, char** argv)
 	testUnitsAcrossFiles();
 	testTimeSteps();
 	testDeformation();
+	testProbe();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();

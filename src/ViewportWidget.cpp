@@ -3665,7 +3665,10 @@ void ViewportWidget::updateSurfaceAnalysisHoverReadout(const QPoint& pixel)
 	SurfaceAnalysisDialog* dialog = _viewer
 		? _viewer->findChild<SurfaceAnalysisDialog*>(QString(), Qt::FindDirectChildrenOnly)
 		: nullptr;
-	if (!dialog || !dialog->hoverReadoutEnabled())
+	// Two readouts share this label: the Surface Analysis value, and (over a simulation result) the result value.
+	const bool analysisReadout = dialog && dialog->hoverReadoutEnabled();
+	const bool simulationProbe = _viewer && _viewer->hasSimulationResults();
+	if (!analysisReadout && !simulationProbe)
 	{
 		if (!_surfaceAnalysisHoverText.isEmpty())
 		{
@@ -3677,7 +3680,11 @@ void ViewportWidget::updateSurfaceAnalysisHoverReadout(const QPoint& pixel)
 
 	const MeshSurfaceAnchor anchor = _selectionManager->pickSurfaceAnchor(pixel);
 	QColor textColor = Qt::white;
-	const QString text = dialog->hoverReadoutText(anchor, textColor);
+	QString text;
+	if (analysisReadout)
+		text = dialog->hoverReadoutText(anchor, textColor);
+	if (text.isEmpty() && simulationProbe)
+		text = _viewer->simulationProbeText(anchor, textColor);
 	if (text == _surfaceAnalysisHoverText && pixel == _surfaceAnalysisHoverPixel && textColor == _surfaceAnalysisHoverTextColor)
 		return;
 	_surfaceAnalysisHoverText = text;

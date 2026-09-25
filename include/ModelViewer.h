@@ -30,6 +30,7 @@
 
 class QTabWidget;
 class QTimer;
+struct MeshSurfaceAnchor;
 class SimulationLegendWidget;
 class SimulationTimelineWidget;
 class QToolButton;
@@ -596,6 +597,10 @@ public slots:
 	// The result whose controls the Simulation panel shows: the last one selected/opened whose mesh is still
 	// displayed, or nullptr. See src/ModelViewerSimulation.cpp.
 	const SimulationSession* activeSimulationSession() const;
+	// Hover probe: the shown result value under the cursor, when it is over a simulation result mesh (empty text
+	// otherwise). `color` is set to a readable text colour for the paint under the cursor.
+	bool hasSimulationResults() const { return !_simulationSessions.empty(); }
+	QString simulationProbeText(const MeshSurfaceAnchor& anchor, QColor& color) const;
 	// Applies an edit from the Simulation panel to the active session: recolours its mesh and updates the legend.
 	void applySimulationViewState(const SimulationViewState& state);
 	// Time steps of the active result: show step `step` (clamped), and start/stop the playback timer. Both are
