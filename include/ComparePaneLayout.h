@@ -31,7 +31,7 @@ struct ComparePane
 
 // 1 to 4 panes (`count` is clamped). `gutter` pixels separate the panes; a window too small for the gutters gets
 // zero-width gutters instead of negative panes. Returns `count` panes in reading order.
-std::vector<ComparePane> computeComparePanes(int width, int height, int count, CompareArrangement arrangement, int gutter = 4);
+std::vector<ComparePane> computeComparePanes(int width, int height, int count, CompareArrangement arrangement, int gutter = 2);
 
 // Index of the pane containing `point` (widget coordinates), or -1 for a gutter or a point outside every pane.
 int comparePaneAt(const std::vector<ComparePane>& panes, const QPoint& point);
