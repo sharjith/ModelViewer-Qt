@@ -537,6 +537,91 @@ bool ModelViewer::promptSimulationSaveOptions()
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Loading from .mvf (docs/simulation_mvf_persistence_design.md, S3)
+// ---------------------------------------------------------------------------------------------------------------
+
+void ModelViewer::restoreSimulationSessions(QVector<PendingSimulationRestore>& restores)
+{
+	if (restores.isEmpty() || !_viewportWidget)
+		return;
+
+	QStringList failures;
+	for (PendingSimulationRestore& pending : restores)
+	{
+		SceneMesh* mesh = _viewportWidget->getMeshByUuid(pending.meshUuid);
+		if (!mesh)
+			continue;
+		if (!pending.decoded.dataset)
+		{
+			failures << tr("%1: %2").arg(mesh->getName(), pending.error.isEmpty() ? tr("the stored result data is unusable") : pending.error);
+			continue;
+		}
+
+		// The surface of a snapshot is the identity: vertex i is node i, triangle t is cell t.
+		auto surface = std::make_shared<ResultBoundarySurface>();
+		surface->positions = pending.decoded.restPositions;
+		surface->vertexNode.resize(surface->vertexCount());
+		for (std::size_t v = 0; v < surface->vertexNode.size(); ++v)
+			surface->vertexNode[v] = static_cast<std::uint32_t>(v);
+		const std::vector<unsigned int> indices = mesh->indices();
+		surface->triangles.assign(indices.begin(), indices.end());
+		surface->triangleCell.resize(surface->triangleCount());
+		for (std::size_t t = 0; t < surface->triangleCell.size(); ++t)
+			surface->triangleCell[t] = static_cast<std::uint32_t>(t);
+		surface->triangleFace.assign(surface->triangleCount(), ResultBoundarySurface::kNoFace);
+
+		// Back to the rest shape with plain vertex colours: the saved mesh carries the deformed pose (if deformation
+		// was on) and the baked COLOR_0 written for other viewers; the app draws the result with its own overlay.
+		{
+			const std::vector<float> normals = computeSmoothVertexNormals(*surface);
+			std::vector<Vertex> vertices = mesh->vertices();
+			if (vertices.size() * 3 == surface->positions.size())
+			{
+				for (std::size_t i = 0; i < vertices.size(); ++i)
+				{
+					vertices[i].Position = glm::vec3(surface->positions[i * 3], surface->positions[i * 3 + 1], surface->positions[i * 3 + 2]);
+					vertices[i].Normal = glm::vec3(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
+					vertices[i].Color = glm::vec4(1.0f);
+				}
+				_viewportWidget->makeCurrent();
+				mesh->setMeshData(vertices, indices);
+				_viewportWidget->doneCurrent();
+			}
+		}
+
+		SimulationSession session;
+		session.meshUuid = pending.meshUuid;
+		session.dataset = pending.decoded.dataset;
+		session.surface = surface;
+		session.filePath = pending.decoded.sourcePath;
+		session.warnings = pending.decoded.warnings;
+		session.warnings << tr("Restored from a saved snapshot of the visible surface; the original result file is not needed.");
+		session.state = pending.decoded.state;
+		if (session.state.fieldIndex < 0)
+			session.state.fieldIndex = defaultViewState(*session.dataset).fieldIndex;
+		session.displacementField = findDisplacementField(*session.dataset);
+		session.modal = isModalResult(*session.dataset);
+		session.autoDeformScale = session.displacementField >= 0 ? autoDeformScale(*session.dataset, *session.surface, session.displacementField) : 1.0;
+		if (session.displacementField < 0)
+			session.state.deform = false;
+		session.deformApplied = false; // the mesh is at its rest shape; refresh applies the saved deformation
+
+		_simulationSessions.push_back(std::move(session));
+		_activeSimulationMesh = pending.meshUuid;
+		connectSimulationHooks();
+		refreshSimulationDisplay(_simulationSessions.back());
+	}
+
+	if (!_simulationSessions.empty())
+		emit simulationSessionChanged(false); // panel, legend and timeline follow the restored result
+
+	if (!failures.isEmpty())
+		QMessageBox::warning(this, tr("Simulation Results"),
+			tr("The simulation result data could not be restored for:\n\n%1\n\nThe surface is shown with the colours it had when it was saved.")
+				.arg(failures.join(QLatin1Char('\n'))));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Time steps and playback
 // ---------------------------------------------------------------------------------------------------------------
 

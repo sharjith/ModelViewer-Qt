@@ -5865,6 +5865,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		QVector<GltfAnimationData> animationDataByFile;
 		QHash<QString, int> activeAnimationByFile;
 		QVector<GltfCameraData> cameraDataByFile;
+		QVector<PendingSimulationRestore> simulationRestores;
 		QJsonArray    explodedViews;
 		QString       activeExplodedViewId;
 		int           activeExplodedViewStepIndex = -1;
@@ -6474,6 +6475,46 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		QVector<PreparedMvfMesh> prepared =
 			MvfMeshPreparationWorker::prepare(result.document, geomChunk, imgChunk);
 
+		// Simulation result snapshots (see docs/simulation_mvf_persistence_design.md): decoded here, off the UI
+		// thread, against the prepared meshes' vertex/triangle counts, then attached to their meshes at the end.
+		for (const QJsonValue& entryValue : session[QStringLiteral("simulationResults")].toArray())
+		{
+			const QJsonObject entry = entryValue.toObject();
+			PendingSimulationRestore pending;
+			pending.meshUuid = QUuid(entry[QStringLiteral("meshUuid")].toString());
+			const PreparedMvfMesh* target = nullptr;
+			for (const PreparedMvfMesh& pm : std::as_const(prepared))
+				if (pm.uuid == pending.meshUuid)
+					target = &pm;
+			if (!target)
+				continue; // the mesh is not in the file any more
+			std::vector<QByteArray> blobs;
+			bool inRange = true;
+			for (const QJsonValue& viewIndex : entry[QStringLiteral("blobViews")].toArray())
+			{
+				const int viewNumber = viewIndex.toInt(-1);
+				const QJsonObject view = (viewNumber >= 0 && viewNumber < result.document.bufferViews.size())
+					? result.document.bufferViews.at(viewNumber).toObject() : QJsonObject();
+				const qint64 offset = static_cast<qint64>(view[QStringLiteral("byteOffset")].toDouble(-1));
+				const qint64 length = static_cast<qint64>(view[QStringLiteral("byteLength")].toDouble(-1));
+				if (offset < 0 || length < 0 || offset + length > geomChunk.size())
+				{
+					inRange = false;
+					break;
+				}
+				blobs.push_back(geomChunk.mid(offset, length));
+			}
+			if (!inRange)
+				pending.error = QStringLiteral("The stored result data lies outside the file.");
+			else
+			{
+				const std::vector<std::uint32_t> triangles(target->indices.begin(), target->indices.end());
+				decodeResultSnapshot(entry[QStringLiteral("snapshot")].toObject(), blobs, target->vertices.size(), triangles,
+				                     pending.decoded, &pending.error);
+			}
+			result.simulationRestores.append(std::move(pending));
+		}
+
 		// Extract mesh UUIDs and visibility
 		QList<QUuid> allMeshUuids;
 		for (const auto& pm : prepared)
@@ -7020,6 +7061,8 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 
 	if (!result.activeGltfCameraFile.isEmpty() && result.activeGltfCameraIndex >= 0)
 		_viewportWidget->activateGltfCamera(result.activeGltfCameraFile, result.activeGltfCameraIndex);
+
+	restoreSimulationSessions(result.simulationRestores);
 
 	MainWindow::hideProgressBar();
 	return true;

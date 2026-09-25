@@ -21,6 +21,7 @@
 #include "CutCommand.h"
 #include "MaterialVariantsPanel.h"
 #include "TextureDebugPanel.h"
+#include "ResultSnapshot.h"
 #include "SimulationResultDisplay.h"
 
 #include <QPointer>
@@ -74,6 +75,14 @@ namespace Mvf
 struct Document;
 struct MVFPackage;
 }
+
+// A simulation result read from an .mvf file, decoded on the loader thread and waiting for its mesh to exist.
+struct PendingSimulationRestore
+{
+	QUuid meshUuid;
+	DecodedSnapshot decoded; // decoded.dataset is null when `error` is set
+	QString error;
+};
 
 class ModelViewer : public QWidget, public Ui::ModelViewer
 {
@@ -748,6 +757,8 @@ private:
 	// Saving results into .mvf (docs/simulation_mvf_persistence_design.md, S2). The prompt runs once per session on the
 	// first save of a document that has results; the snapshots and the baked COLOR_0 are added while the package is built.
 	bool promptSimulationSaveOptions();
+	// Loading them back (S3): turns each decoded snapshot into a live SimulationSession on its already-uploaded mesh.
+	void restoreSimulationSessions(QVector<PendingSimulationRestore>& restores);
 	void appendSimulationSnapshots(Mvf::MVFPackage& package) const;
 	QHash<QUuid, std::vector<float>> simulationBakedColors() const;
 	void advanceSimulationStep();
