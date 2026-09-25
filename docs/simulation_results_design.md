@@ -1,6 +1,8 @@
 # Simulation Results Visualisation - Design
 
-Status: **DRAFT for review** (2026-09-24). Branch: `feature/simulation-results`. No code exists yet.
+Status: **Phases 0-1 implemented** on `feature/simulation-results` (status 2026-09-25). The sections below are the
+original design; where the implementation differs, a "Status" note says so. Persistence (section 8) was redesigned:
+see `simulation_mvf_persistence_design.md` and the MVF format spec.
 
 ModelViewer is a viewer, not a creator. This feature lets users load the *results* of FEA/CFD/thermal
 runs made elsewhere and inspect them with ModelViewer's presentation strengths (PBR/path-traced
@@ -140,6 +142,12 @@ not make.
 - Derived fields inherit the unit. Legend, probe and reports use the display unit.
 
 ## 8. Persistence (MVF / glTF)
+
+> **Status: implemented differently.** The text below is the original plan and is superseded by
+> `simulation_mvf_persistence_design.md`. Differences: time steps are stored as the app's own per-step arrays, not as glTF
+> morph targets (they would load into the app's morph machinery, which result meshes must not use); the shown colours are
+> baked into `COLOR_0` instead of a `TEXCOORD` + 1D colormap texture; the snapshot is per boundary vertex and lossless
+> compressed (byte-shuffle + zlib); the full-model range is stored; the source file is kept only as informational metadata.
 
 Two layers, in line with MVF being glTF-spec JSON + a binary chunk:
 
