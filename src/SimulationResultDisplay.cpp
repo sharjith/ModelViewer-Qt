@@ -92,6 +92,21 @@ bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int compon
 	}
 	if (lo > hi) // no finite value at all
 		return false;
+	if (!field.storedRange.empty())
+	{
+		// A stored snapshot only holds the surface vertices; its range covers the whole model, so the legend reads
+		// the same as with the full result. Widen only: the shown values always lie inside it.
+		const int selector = resultRangeSelector(comps, component);
+		const std::size_t at = (static_cast<std::size_t>(step) * static_cast<std::size_t>(resultRangeSelectorCount(comps))
+		                        + static_cast<std::size_t>(std::max(selector, 0))) * 2;
+		if (selector >= 0 && at + 1 < field.storedRange.size() && std::isfinite(field.storedRange[at]) && std::isfinite(field.storedRange[at + 1]))
+		{
+			const double a = conversion.valid ? conversion.apply(static_cast<double>(field.storedRange[at])) : field.storedRange[at];
+			const double b = conversion.valid ? conversion.apply(static_cast<double>(field.storedRange[at + 1])) : field.storedRange[at + 1];
+			lo = std::min(lo, static_cast<float>(std::min(a, b)));
+			hi = std::max(hi, static_cast<float>(std::max(a, b)));
+		}
+	}
 
 	out.fieldIndex = fieldIndex;
 	out.component = comps == 1 ? -1 : component;

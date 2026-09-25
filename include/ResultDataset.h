@@ -78,12 +78,30 @@ struct ResultField
 	// always share their source's units.
 	int derivedFromField = -1;
 	std::vector<std::vector<float>> stepData;
+	// Optional min/max over data that is NOT in stepData (a stored snapshot keeps only the boundary vertices but
+	// remembers the range of the whole model, in file units): [step][selector][lo, hi] flattened, NaN = unknown. A
+	// selector is a component (0..components-1) or, for a 3-component field, the magnitude (index 3); a scalar has
+	// one. Empty = none: the range is whatever stepData holds. Only ever WIDENS the range buildDisplayScalar reports.
+	std::vector<float> storedRange;
 
 	std::size_t tupleCount(std::size_t step = 0) const
 	{
 		return (step < stepData.size() && components > 0) ? stepData[step].size() / static_cast<std::size_t>(components) : 0;
 	}
 };
+
+// Range selectors of a field (see ResultField::storedRange).
+inline int resultRangeSelectorCount(int components) { return components == 1 ? 1 : (components == 3 ? 4 : components); }
+// The selector a request for `component` (-1 = the scalar itself, or the magnitude of a 3-component field) uses;
+// -1 when there is none (a tensor without an explicit component).
+inline int resultRangeSelector(int components, int component)
+{
+	if (components == 1)
+		return 0;
+	if (component >= 0)
+		return component < components ? component : -1;
+	return components == 3 ? 3 : -1;
+}
 
 struct ResultStep
 {

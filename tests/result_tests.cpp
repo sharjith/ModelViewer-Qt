@@ -10,6 +10,7 @@
 #include "ResultBoundary.h"
 #include "ResultDerivedFields.h"
 #include "ResultReader.h"
+#include "ResultSnapshot.h"
 #include "ResultUnits.h"
 #include "SimulationResultDisplay.h"
 
@@ -1720,6 +1721,293 @@ namespace
 		CHECK(computeAllStepsRange(ds, t, -1, lo, hi) && approx(lo, first.minValue) && approx(hi, 100.0, 1e-4));
 	}
 
+	// ---- MVF snapshot codec ----------------------------------------------------------------------------------
+
+	bool nameIn(const ResultDataset& ds, const char* name) { return fieldIndexOf(ds, QString::fromLatin1(name)) >= 0; }
+
+	// Encode -> decode with the surface as the "mesh" the reader would have.
+	bool roundTrip(const LoadedSimulationResult& r, const SimulationViewState& state, const SnapshotOptions& options,
+	               ResultSnapshot& snap, DecodedSnapshot& decoded, QString* error = nullptr)
+	{
+		if (!encodeResultSnapshot(*r.dataset, r.surface, state, options, snap, error))
+			return false;
+		return decodeResultSnapshot(snap.json, snap.blobs, r.surface.vertexCount(), r.surface.triangles, decoded, error);
+	}
+
+	void testSnapshotCodec()
+	{
+		// shuffle is its own inverse, for every element size and odd lengths
+		QByteArray bytes;
+		for (int i = 0; i < 4 * 37; ++i)
+			bytes.append(static_cast<char>((i * 31 + 7) & 0xFF));
+		CHECK(unshuffleBytes(shuffleBytes(bytes, 4), 4) == bytes);
+		QByteArray eight = bytes.left(8 * 17);
+		CHECK(unshuffleBytes(shuffleBytes(eight, 8), 8) == eight);
+		CHECK(shuffleBytes(bytes, 1) == bytes);
+
+		// step subsampling: everything when it fits, otherwise evenly spaced with the first and last kept
+		CHECK(snapshotStepIndices(0, 100).empty());
+		CHECK(snapshotStepIndices(5, 100) == std::vector<int>({ 0, 1, 2, 3, 4 }));
+		const std::vector<int> some = snapshotStepIndices(101, 5);
+		CHECK(some == std::vector<int>({ 0, 25, 50, 75, 100 }));
+		const std::vector<int> two = snapshotStepIndices(300, 2);
+		CHECK(two == std::vector<int>({ 0, 299 }));
+	}
+
+	void testSnapshotRoundTrip()
+	{
+		const QString dir = QStringLiteral(MV_SIMULATION_SAMPLES_DIR);
+		if (!QFile::exists(dir + QStringLiteral("/FEM_box_static.frd")))
+		{
+			std::printf("  (skipping snapshot sample tests: samples not found)\n");
+			return;
+		}
+		const LoadedSimulationResult box = loadSimulationResult(dir + QStringLiteral("/FEM_box_static.frd"));
+		CHECK(box.ok());
+		if (!box.ok())
+			return;
+		const ResultDataset& src = *box.dataset;
+		SimulationViewState state = defaultViewState(src);
+		state.colormap = 1;
+		state.bands = 12;
+		state.deform = true;
+		state.deformScale = 250.0;
+		state.markExtrema = true;
+
+		// ---- everything stored
+		SnapshotOptions all;
+		all.content = SnapshotOptions::Content::AllFields;
+		ResultSnapshot snap;
+		DecodedSnapshot dec;
+		QString err;
+		CHECK(roundTrip(box, state, all, snap, dec, &err));
+		if (!dec.dataset)
+		{
+			std::printf("  snapshot round trip failed: %s\n", qPrintable(err));
+			return;
+		}
+		const ResultDataset& out = *dec.dataset;
+		CHECK(out.nodeCount() == box.surface.vertexCount() && out.cellCount() == box.surface.triangleCount());
+		CHECK(out.nodePositions == box.surface.positions && dec.restPositions == box.surface.positions);
+		CHECK(out.stepCount() == src.stepCount());
+		for (std::size_t v = 0; v < out.nodeCount(); ++v)
+			if (out.nodeId(v) != src.nodeId(box.surface.vertexNode[v]))
+			{
+				CHECK(false);
+				break;
+			}
+
+		// source fields carry exactly the boundary vertex values; units travel with them
+		for (const char* name : { "DISP", "STRESS", "TOSTRAIN" })
+		{
+			const int a = fieldIndexOf(src, QString::fromLatin1(name)), b = fieldIndexOf(out, QString::fromLatin1(name));
+			CHECK(a >= 0 && b >= 0);
+			if (a < 0 || b < 0)
+				continue;
+			const ResultField& fa = src.fields[static_cast<std::size_t>(a)];
+			const ResultField& fb = out.fields[static_cast<std::size_t>(b)];
+			CHECK(fa.components == fb.components && fa.componentNames == fb.componentNames);
+			CHECK(fa.quantityKind == fb.quantityKind && fa.fileUnit == fb.fileUnit && fa.displayUnit == fb.displayUnit
+			      && fa.unitConfirmed == fb.unitConfirmed);
+			bool same = fb.stepData.size() == fa.stepData.size();
+			for (std::size_t s = 0; same && s < fa.stepData.size(); ++s)
+			{
+				const std::size_t comps = static_cast<std::size_t>(fa.components);
+				for (std::size_t v = 0; same && v < box.surface.vertexCount(); ++v)
+					for (std::size_t c = 0; same && c < comps; ++c)
+						same = fb.stepData[s][v * comps + c] == fa.stepData[s][box.surface.vertexNode[v] * comps + c];
+			}
+			CHECK(same);
+		}
+
+		// derived fields are rebuilt (never stored) and agree with the originals; the legend range is the FULL model's
+		const char* derived[] = { "STRESS von Mises", "STRESS max principal", "STRESS min principal", "STRESS max shear" };
+		for (const char* name : derived)
+		{
+			const int a = fieldIndexOf(src, QString::fromLatin1(name)), b = fieldIndexOf(out, QString::fromLatin1(name));
+			CHECK(a >= 0 && b >= 0);
+			if (a < 0 || b < 0)
+				continue;
+			CHECK(out.fields[static_cast<std::size_t>(b)].fileUnit == src.fields[static_cast<std::size_t>(a)].fileUnit);
+			DisplayScalar full, snapshot;
+			CHECK(buildDisplayScalar(src, a, -1, full) && buildDisplayScalar(out, b, -1, snapshot));
+			CHECK(snapshot.minValue == full.minValue && snapshot.maxValue == full.maxValue); // whole-model range kept
+			CHECK(snapshot.unit == full.unit && snapshot.unitAssumed == full.unitAssumed);
+			bool close = true;
+			for (std::size_t v = 0; close && v < box.surface.vertexCount(); ++v)
+				close = approx(snapshot.nodeValues[v], full.nodeValues[box.surface.vertexNode[v]], 1e-4, 1e-3);
+			CHECK(close);
+		}
+		// a component of a stored tensor and the magnitude of the displacement widen the same way
+		{
+			const int a = fieldIndexOf(src, QStringLiteral("STRESS")), b = fieldIndexOf(out, QStringLiteral("STRESS"));
+			const int da = fieldIndexOf(src, QStringLiteral("DISP")), db = fieldIndexOf(out, QStringLiteral("DISP"));
+			DisplayScalar fullC, snapC, fullM, snapM;
+			CHECK(buildDisplayScalar(src, a, 2, fullC) && buildDisplayScalar(out, b, 2, snapC));
+			CHECK(snapC.minValue == fullC.minValue && snapC.maxValue == fullC.maxValue);
+			CHECK(buildDisplayScalar(src, da, -1, fullM) && buildDisplayScalar(out, db, -1, snapM));
+			CHECK(snapM.minValue == fullM.minValue && snapM.maxValue == fullM.maxValue);
+		}
+
+		// the view comes back, its field found again by name
+		CHECK(dec.state.fieldIndex >= 0 && out.fields[static_cast<std::size_t>(dec.state.fieldIndex)].name
+		      == src.fields[static_cast<std::size_t>(state.fieldIndex)].name);
+		CHECK(dec.state.colormap == 1 && dec.state.bands == 12 && dec.state.deform && dec.state.deformScale == 250.0 && dec.state.markExtrema);
+		CHECK(out.validate().isEmpty());
+		CHECK(snap.size.rawBytes > 0 && snap.size.storedBytes <= snap.size.rawBytes && !snap.size.estimated);
+		CHECK(snap.notes.isEmpty()); // nothing was dropped
+
+		// ---- only the shown field (STRESS von Mises -> its tensor) and the displacement
+		SnapshotOptions shown;
+		shown.shownField = state.fieldIndex;
+		ResultSnapshot snap2;
+		DecodedSnapshot dec2;
+		CHECK(roundTrip(box, state, shown, snap2, dec2));
+		if (dec2.dataset)
+		{
+			CHECK(nameIn(*dec2.dataset, "DISP") && nameIn(*dec2.dataset, "STRESS") && nameIn(*dec2.dataset, "STRESS von Mises"));
+			CHECK(!nameIn(*dec2.dataset, "TOSTRAIN"));
+			CHECK(snap2.size.rawBytes < snap.size.rawBytes);
+			CHECK(dec2.state.fieldIndex >= 0);
+		}
+
+		// ---- compression is lossless and never larger than the raw data
+		SnapshotOptions raw = all;
+		raw.compress = false;
+		ResultSnapshot snapRaw;
+		DecodedSnapshot decRaw;
+		CHECK(roundTrip(box, state, raw, snapRaw, decRaw));
+		CHECK(snapRaw.size.storedBytes == snapRaw.size.rawBytes && snapRaw.size.rawBytes == snap.size.rawBytes);
+		CHECK(snap.size.storedBytes <= snapRaw.size.storedBytes); // the box surface is tiny: blobs under 512 bytes stay raw
+		if (decRaw.dataset)
+			CHECK(decRaw.dataset->fields.size() == out.fields.size());
+		CHECK(snap.size.storedBytes == [&] { std::uint64_t n = 0; for (const QByteArray& b : snap.blobs) n += static_cast<std::uint64_t>(b.size()); return n; }());
+
+		// ---- a wrong mesh, or damaged data, is refused instead of showing misaligned values
+		std::vector<std::uint32_t> fewer(box.surface.triangles.begin(), box.surface.triangles.end() - 3);
+		CHECK(!decodeResultSnapshot(snap.json, snap.blobs, box.surface.vertexCount(), fewer, dec));
+		CHECK(!decodeResultSnapshot(snap.json, snap.blobs, box.surface.vertexCount() + 1, box.surface.triangles, dec));
+		std::vector<QByteArray> damaged = snap.blobs;
+		damaged[3] = damaged[3].left(damaged[3].size() / 2);
+		QString damagedError;
+		CHECK(!decodeResultSnapshot(snap.json, damaged, box.surface.vertexCount(), box.surface.triangles, dec, &damagedError) && !damagedError.isEmpty());
+		std::vector<QByteArray> missing = snap.blobs;
+		missing.pop_back();
+		CHECK(!decodeResultSnapshot(snap.json, missing, box.surface.vertexCount(), box.surface.triangles, dec));
+		QJsonObject newer = snap.json;
+		newer.insert(QStringLiteral("version"), 99);
+		CHECK(!decodeResultSnapshot(newer, snap.blobs, box.surface.vertexCount(), box.surface.triangles, dec));
+
+		// ---- the size estimate: exact raw size, plausible stored size
+		const SnapshotSize estimate = estimateSnapshotSize(src, box.surface, all);
+		CHECK(estimate.rawBytes == snap.size.rawBytes && estimate.estimated);
+		CHECK(estimate.storedBytes > 0 && estimate.storedBytes <= estimate.rawBytes);
+	}
+
+	// Compression needs blobs big enough to be worth deflating: hexa.vtk has thousands of surface vertices and a
+	// smooth scalar. The snapshot must be lossless and clearly smaller than the raw floats.
+	void testSnapshotCompression()
+	{
+		const QString path = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/hexa.vtk");
+		if (!QFile::exists(path))
+		{
+			std::printf("  (skipping snapshot compression test: hexa.vtk not found)\n");
+			return;
+		}
+		const LoadedSimulationResult r = loadSimulationResult(path);
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const SimulationViewState state = defaultViewState(*r.dataset);
+		SnapshotOptions options;
+		options.content = SnapshotOptions::Content::AllFields;
+		ResultSnapshot packed, plain;
+		DecodedSnapshot decPacked, decPlain;
+		CHECK(roundTrip(r, state, options, packed, decPacked));
+		options.compress = false;
+		CHECK(roundTrip(r, state, options, plain, decPlain));
+		CHECK(packed.size.rawBytes == plain.size.rawBytes && plain.size.storedBytes == plain.size.rawBytes);
+		CHECK(packed.size.storedBytes < packed.size.rawBytes * 9 / 10); // at least 10% smaller
+		if (decPacked.dataset && decPlain.dataset)
+		{
+			CHECK(decPacked.dataset->nodePositions == decPlain.dataset->nodePositions);
+			bool identical = decPacked.dataset->fields.size() == decPlain.dataset->fields.size();
+			for (std::size_t f = 0; identical && f < decPacked.dataset->fields.size(); ++f)
+				identical = decPacked.dataset->fields[f].stepData == decPlain.dataset->fields[f].stepData;
+			CHECK(identical); // lossless: compressed and uncompressed decode to the same numbers
+		}
+		const SnapshotSize estimate = estimateSnapshotSize(*r.dataset, r.surface, SnapshotOptions{ SnapshotOptions::Content::AllFields, -1, 100, true });
+		CHECK(estimate.storedBytes < estimate.rawBytes);
+		const double actual = static_cast<double>(packed.size.storedBytes), guessed = static_cast<double>(estimate.storedBytes);
+		CHECK(guessed > 0.5 * actual && guessed < 2.0 * actual); // the sampled estimate is in the right range
+		std::printf("  hexa.vtk snapshot: %llu raw -> %llu stored bytes (estimate %llu)\n",
+		            static_cast<unsigned long long>(packed.size.rawBytes), static_cast<unsigned long long>(packed.size.storedBytes),
+		            static_cast<unsigned long long>(estimate.storedBytes));
+	}
+
+	void testSnapshotSteps()
+	{
+		const QString dir = QStringLiteral(MV_SIMULATION_SAMPLES_DIR);
+		if (!QFile::exists(dir + QStringLiteral("/FEM_box_thermal_transient.frd")) || !QFile::exists(dir + QStringLiteral("/FEM_box_modes.frd")))
+		{
+			std::printf("  (skipping snapshot step tests: samples not found)\n");
+			return;
+		}
+		const LoadedSimulationResult heat = loadSimulationResult(dir + QStringLiteral("/FEM_box_thermal_transient.frd"));
+		CHECK(heat.ok());
+		if (!heat.ok())
+			return;
+		SimulationViewState state = defaultViewState(*heat.dataset);
+		state.step = 17;
+		state.allStepsRange = true;
+
+		SnapshotOptions options;
+		options.content = SnapshotOptions::Content::AllFields;
+		ResultSnapshot snap;
+		DecodedSnapshot dec;
+		CHECK(roundTrip(heat, state, options, snap, dec));
+		if (!dec.dataset)
+			return;
+		CHECK(dec.dataset->stepCount() == 20 && dec.state.step == 17);
+		CHECK(approx(dec.dataset->steps[19].time, 10.0));
+		// the all-steps range is the full model's, from the stored ranges
+		float loA = 0, hiA = 0, loB = 0, hiB = 0;
+		const int ta = fieldIndexOf(*heat.dataset, QStringLiteral("NDTEMP")), tb = fieldIndexOf(*dec.dataset, QStringLiteral("NDTEMP"));
+		CHECK(computeAllStepsRange(*heat.dataset, ta, -1, loA, hiA) && computeAllStepsRange(*dec.dataset, tb, -1, loB, hiB));
+		CHECK(loA == loB && hiA == hiB);
+
+		// a step limit keeps the first and last steps, remaps the saved step and says what was dropped
+		options.maxSteps = 4;
+		ResultSnapshot few;
+		DecodedSnapshot decFew;
+		CHECK(roundTrip(heat, state, options, few, decFew));
+		if (decFew.dataset)
+		{
+			CHECK(decFew.dataset->stepCount() == 4);
+			CHECK(approx(decFew.dataset->steps[0].time, 0.5) && approx(decFew.dataset->steps[3].time, 10.0));
+			CHECK(decFew.state.step == 3); // step 17 of 20 -> the kept step nearest to it is the last one
+			CHECK(few.notes.size() == 1 && few.size.rawBytes < snap.size.rawBytes);
+		}
+
+		// modal results keep their frequencies (time units) and labels
+		const LoadedSimulationResult modes = loadSimulationResult(dir + QStringLiteral("/FEM_box_modes.frd"));
+		CHECK(modes.ok());
+		if (modes.ok())
+		{
+			SnapshotOptions shown;
+			shown.shownField = defaultViewState(*modes.dataset).fieldIndex;
+			ResultSnapshot msnap;
+			DecodedSnapshot mdec;
+			CHECK(roundTrip(modes, defaultViewState(*modes.dataset), shown, msnap, mdec));
+			if (mdec.dataset)
+			{
+				CHECK(mdec.dataset->stepCount() == 6 && isModalResult(*mdec.dataset));
+				CHECK(mdec.dataset->steps[2].label == QStringLiteral("Mode 3") && mdec.dataset->steps[2].timeUnit == QStringLiteral("Hz"));
+				CHECK(findDisplacementField(*mdec.dataset) >= 0);
+			}
+		}
+	}
+
 	void testShellAndSkippedCells()
 	{
 		Mesh m;
@@ -1930,6 +2218,10 @@ int main(int argc, char** argv)
 	testProbe();
 	testExtrema();
 	testThermalTransient();
+	testSnapshotCodec();
+	testSnapshotRoundTrip();
+	testSnapshotCompression();
+	testSnapshotSteps();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();
