@@ -29,9 +29,10 @@ struct ComparePane
 	QPoint toWindow;  // pane point + toWindow = the equivalent point of the full-window view
 };
 
-// 1 to 4 panes (`count` is clamped). `gutter` pixels separate the panes; a window too small for the gutters gets
+// 1 to 4 panes (`count` is clamped). `gutter` pixels separate the panes (0 by default: the panes touch and the
+// renderer draws a thin white line on each boundary, like the multi-view separator); a window too small for the gutters gets
 // zero-width gutters instead of negative panes. Returns `count` panes in reading order.
-std::vector<ComparePane> computeComparePanes(int width, int height, int count, CompareArrangement arrangement, int gutter = 2);
+std::vector<ComparePane> computeComparePanes(int width, int height, int count, CompareArrangement arrangement, int gutter = 0);
 
 // Index of the pane containing `point` (widget coordinates), or -1 for a gutter or a point outside every pane.
 int comparePaneAt(const std::vector<ComparePane>& panes, const QPoint& point);

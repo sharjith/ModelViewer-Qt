@@ -42,6 +42,7 @@
 #include "TextRenderer.h"
 #include "Utils.h"
 #include <algorithm>
+#include <set>
 #include <array>
 #include <cmath>
 #include <iostream>
@@ -6747,12 +6748,7 @@ void ViewportWidget::renderComparePanes(QColor& topColor, QColor& botColor)
 	if (_renderCtrl.transmissionEnabled() && sceneHasVisibleTransmissionMaterials())
 		renderToTransmissionBuffer(_primaryCamera, topColor, botColor);
 
-	// The gutters between panes stay a dark divider colour; the panes are drawn over the rest.
-	GLfloat previousClear[4];
-	glGetFloatv(GL_COLOR_CLEAR_VALUE, previousClear);
-	glClearColor(0.12f, 0.12f, 0.12f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glClearColor(previousClear[0], previousClear[1], previousClear[2], previousClear[3]);
 
 	_comparePanes = computeComparePanes(width(), height(), static_cast<int>(_compareMeshes.size()), _compareArrangement);
 	glEnable(GL_SCISSOR_TEST);
@@ -6772,6 +6768,32 @@ void ViewportWidget::renderComparePanes(QColor& topColor, QColor& botColor)
 		// The centre trihedron at the world origin, once per pane, inside the pane's shifted viewport and scissor.
 		if (_viewCtrl.showAxis() && _viewCtrl.userShowAxisOverride() && !_capturingCleanFrame)
 			drawAxis(_primaryCamera);
+	}
+	// Thin white separator on every pane boundary, the same look as the multi-view's split lines (a 1 px line, drawn
+	// as a scissored clear so it needs no shader or buffer).
+	{
+		GLfloat previousClear[4];
+		glGetFloatv(GL_COLOR_CLEAR_VALUE, previousClear);
+		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+		std::set<int> columns, rows;
+		for (const ComparePane& pane : _comparePanes)
+		{
+			if (pane.rect.x() > 0)
+				columns.insert(pane.rect.x());
+			if (pane.rect.y() > 0)
+				rows.insert(pane.rect.y());
+		}
+		for (int x : columns)
+		{
+			glScissor(x, 0, 1, height());
+			glClear(GL_COLOR_BUFFER_BIT);
+		}
+		for (int y : rows)
+		{
+			glScissor(0, height() - y, width(), 1); // GL rows count from the bottom
+			glClear(GL_COLOR_BUFFER_BIT);
+		}
+		glClearColor(previousClear[0], previousClear[1], previousClear[2], previousClear[3]);
 	}
 	glDisable(GL_SCISSOR_TEST);
 	glViewport(0, 0, width(), height());
