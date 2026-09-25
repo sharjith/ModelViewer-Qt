@@ -2362,13 +2362,19 @@ bool ModelViewer::save()
 		return saveAs();
 	}
 
+	if (!promptSimulationSaveOptions())
+		return false; // cancelled
+
 	if (saveToFile(_currentFile))
 	{
 		_documentSaved = true;
 		_nonUndoDocumentDirty = false;
 		_savedUndoIndex = _undoStack ? _undoStack->index() : 0;
 		setDocumentModified(false);
-		MainWindow::showStatusMessage(tr("File saved"), 2000);
+		if (!_simulationSaveNotes.isEmpty())
+			MainWindow::showStatusMessage(tr("File saved - %1").arg(_simulationSaveNotes.join(QLatin1Char(' '))), 8000);
+		else
+			MainWindow::showStatusMessage(tr("File saved"), 2000);
 		return true;
 	}
 	else
@@ -7042,7 +7048,9 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 	                                               _viewportWidget ? _viewportWidget->getMeshStore() : std::vector<SceneMesh*>(),
 	                                               _visibleMeshUuids,
 	                                               selectedSet,
-	                                               cameraDataByFile);
+	                                               cameraDataByFile,
+	                                               simulationBakedColors());
+	appendSimulationSnapshots(package);
 
 	if (_viewportWidget)
 	{

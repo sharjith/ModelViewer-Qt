@@ -20,6 +20,8 @@
 #include "MainWindow.h"
 #include "MeshSurfaceAnchor.h"
 #include "MeshVertex.h"
+#include "MvfSceneBuilder.h"
+#include "ResultSnapshot.h"
 #include "ResultUnits.h"
 #include "SceneGraph.h"
 #include "SceneMesh.h"
@@ -31,6 +33,12 @@
 #include "ViewportWidget.h"
 
 #include <QApplication>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QJsonArray>
+#include <QLabel>
+#include <QRadioButton>
+#include <QVBoxLayout>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -372,6 +380,160 @@ QString ModelViewer::simulationProbeText(const MeshSurfaceAnchor& anchor, QColor
 	if (!session->shownScalar.unit.isEmpty())
 		text += QLatin1Char(' ') + session->shownScalar.unit;
 	return text + tr("  (node %1)").arg(sample.nodeId);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Saving into .mvf (docs/simulation_mvf_persistence_design.md, S2)
+// ---------------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	SnapshotOptions snapshotOptionsFor(const SimulationSession& session, bool allFields)
+	{
+		SnapshotOptions options;
+		options.content = allFields ? SnapshotOptions::Content::AllFields : SnapshotOptions::Content::ShownAndDisplacement;
+		options.shownField = session.state.fieldIndex;
+		return options;
+	}
+
+	void padTo4(QByteArray& buffer)
+	{
+		while (buffer.size() % 4 != 0)
+			buffer.append(char(0));
+	}
+}
+
+// The shown colours per mesh vertex (RGBA), written as COLOR_0 so other glTF viewers show the result.
+QHash<QUuid, std::vector<float>> ModelViewer::simulationBakedColors() const
+{
+	QHash<QUuid, std::vector<float>> colors;
+	if (!_viewportWidget)
+		return colors;
+	for (const SimulationSession& session : _simulationSessions)
+	{
+		if (!session.surface || !session.shownScalar.valid() || !_viewportWidget->getMeshByUuid(session.meshUuid))
+			continue;
+		const std::vector<float> values = boundaryVertexValues(*session.surface, session.shownScalar.nodeValues);
+		const float span = session.shownHi > session.shownLo ? session.shownHi - session.shownLo : 1.0f;
+		const int bands = session.state.bands >= 2 ? session.state.bands : 0;
+		std::vector<float> rgba(values.size() * 4);
+		for (std::size_t i = 0; i < values.size(); ++i)
+		{
+			QColor color;
+			if (!std::isfinite(values[i]))
+				color = AnalysisColorRamp::invalidSampleColor();
+			else
+			{
+				float t = std::clamp((values[i] - session.shownLo) / span, 0.0f, 1.0f);
+				if (bands > 0)
+					t = std::min(1.0f, (std::floor(t * static_cast<float>(bands)) + 0.5f) / static_cast<float>(bands)); // contour band centre
+				color = AnalysisColorRamp::colorForNormalized(t, static_cast<AnalysisColormap>(session.state.colormap));
+			}
+			rgba[i * 4] = static_cast<float>(color.redF());
+			rgba[i * 4 + 1] = static_cast<float>(color.greenF());
+			rgba[i * 4 + 2] = static_cast<float>(color.blueF());
+			rgba[i * 4 + 3] = 1.0f;
+		}
+		colors.insert(session.meshUuid, std::move(rgba));
+	}
+	return colors;
+}
+
+void ModelViewer::appendSimulationSnapshots(Mvf::MVFPackage& package) const
+{
+	_simulationSaveNotes.clear();
+	if (_simulationSessions.empty() || !_viewportWidget || _simulationSaveContent == SimulationSaveContent::GeometryOnly)
+		return;
+
+	QJsonArray results;
+	for (const SimulationSession& session : _simulationSessions)
+	{
+		if (!session.dataset || !session.surface || !_viewportWidget->getMeshByUuid(session.meshUuid))
+			continue;
+		ResultSnapshot snapshot;
+		QString error;
+		if (!encodeResultSnapshot(*session.dataset, *session.surface, session.state,
+		                          snapshotOptionsFor(session, _simulationSaveContent == SimulationSaveContent::AllFields), snapshot, &error))
+		{
+			_simulationSaveNotes << tr("A simulation result was saved without its data (%1).").arg(error);
+			continue;
+		}
+		_simulationSaveNotes << snapshot.notes;
+
+		// The blobs go into the GEOM buffer, each as its own bufferView (glTF-style indirection, like the OCC edges).
+		QJsonArray views;
+		for (std::size_t i = 0; i < snapshot.blobs.size(); ++i)
+		{
+			padTo4(package.geometryChunk);
+			const qint64 offset = package.geometryChunk.size();
+			package.geometryChunk.append(snapshot.blobs[i]);
+			QJsonObject view;
+			view.insert(QStringLiteral("buffer"), 0);
+			view.insert(QStringLiteral("byteOffset"), offset);
+			view.insert(QStringLiteral("byteLength"), static_cast<qint64>(snapshot.blobs[i].size()));
+			view.insert(QStringLiteral("name"), QStringLiteral("SIM_%1_%2").arg(session.meshUuid.toString(QUuid::WithoutBraces)).arg(i));
+			views.append(package.document.bufferViews.size());
+			package.document.bufferViews.append(view);
+		}
+		QJsonObject entry;
+		entry.insert(QStringLiteral("meshUuid"), session.meshUuid.toString(QUuid::WithoutBraces));
+		entry.insert(QStringLiteral("content"), _simulationSaveContent == SimulationSaveContent::AllFields ? QStringLiteral("all") : QStringLiteral("shown"));
+		entry.insert(QStringLiteral("snapshot"), snapshot.json);
+		entry.insert(QStringLiteral("blobViews"), views);
+		results.append(entry);
+	}
+	if (!results.isEmpty())
+		package.document.mvfSession.insert(QStringLiteral("simulationResults"), results);
+}
+
+// Asks what to store, once per session, on the first save of a document that has results. False = cancelled.
+bool ModelViewer::promptSimulationSaveOptions()
+{
+	if (_simulationSavePrompted || _simulationSessions.empty() || !_viewportWidget)
+		return true;
+	std::uint64_t shown = 0, all = 0;
+	int results = 0;
+	for (const SimulationSession& session : _simulationSessions)
+	{
+		if (!session.dataset || !session.surface || !_viewportWidget->getMeshByUuid(session.meshUuid))
+			continue;
+		++results;
+		shown += estimateSnapshotSize(*session.dataset, *session.surface, snapshotOptionsFor(session, false)).storedBytes;
+		all += estimateSnapshotSize(*session.dataset, *session.surface, snapshotOptionsFor(session, true)).storedBytes;
+	}
+	if (results == 0)
+		return true;
+
+	const auto sizeText = [](std::uint64_t bytes) { return QLocale().formattedDataSize(static_cast<qint64>(bytes)); };
+	QDialog dialog(this);
+	dialog.setWindowTitle(tr("Save Simulation Results"));
+	auto* layout = new QVBoxLayout(&dialog);
+	auto* intro = new QLabel(tr("This document contains %n simulation result(s). Choose what to store in the .mvf file, so it can "
+	                            "be reopened without the original result file:", nullptr, results), &dialog);
+	intro->setWordWrap(true);
+	layout->addWidget(intro);
+	auto* shownRadio = new QRadioButton(tr("Shown field and displacement, all time steps  (about %1)  - recommended").arg(sizeText(shown)), &dialog);
+	auto* allRadio = new QRadioButton(tr("All fields, all time steps  (about %1)").arg(sizeText(all)), &dialog);
+	auto* geometryRadio = new QRadioButton(tr("Geometry only  (the surface with the colours as displayed; no result data)"), &dialog);
+	shownRadio->setChecked(true);
+	layout->addWidget(shownRadio);
+	layout->addWidget(allRadio);
+	layout->addWidget(geometryRadio);
+	auto* note = new QLabel(tr("Sizes are estimates: the data is compressed without loss. Only the visible surface is stored, not the "
+	                           "volume. At most 100 time steps are stored per result (evenly spaced). You are asked once per session."), &dialog);
+	note->setWordWrap(true);
+	layout->addWidget(note);
+	auto* buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
+	connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+	connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+	layout->addWidget(buttons);
+
+	if (dialog.exec() != QDialog::Accepted)
+		return false;
+	_simulationSaveContent = geometryRadio->isChecked() ? SimulationSaveContent::GeometryOnly
+		: (allRadio->isChecked() ? SimulationSaveContent::AllFields : SimulationSaveContent::ShownAndDisplacement);
+	_simulationSavePrompted = true;
+	return true;
 }
 
 // ---------------------------------------------------------------------------------------------------------------

@@ -745,6 +745,11 @@ private:
 	void connectSimulationHooks();
 	void refreshSimulationDisplay(SimulationSession& session);
 	void updateSimulationTimeline();
+	// Saving results into .mvf (docs/simulation_mvf_persistence_design.md, S2). The prompt runs once per session on the
+	// first save of a document that has results; the snapshots and the baked COLOR_0 are added while the package is built.
+	bool promptSimulationSaveOptions();
+	void appendSimulationSnapshots(Mvf::MVFPackage& package) const;
+	QHash<QUuid, std::vector<float>> simulationBakedColors() const;
 	void advanceSimulationStep();
 
 	// Shared implementation for mergeSelectedMeshes()/unionSelectedMeshes() -
@@ -943,6 +948,10 @@ private:
 	std::vector<SimulationSession> _simulationSessions; // every result opened in this document
 	QUuid _activeSimulationMesh;                        // the session the Simulation panel currently shows
 	bool _simulationHooksConnected = false;
+	enum class SimulationSaveContent { ShownAndDisplacement, AllFields, GeometryOnly };
+	SimulationSaveContent _simulationSaveContent = SimulationSaveContent::ShownAndDisplacement;
+	bool _simulationSavePrompted = false;
+	mutable QStringList _simulationSaveNotes; // what the last package build had to leave out (e.g. subsampled steps)
 	QPointer<SimulationTimelineWidget> _simulationTimeline; // playback controls of a multi-step result
 	QTimer* _simulationPlayTimer = nullptr;
 	bool _simulationPlaying = false;
