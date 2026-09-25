@@ -255,6 +255,18 @@ MainWindow::MainWindow(QWidget* parent)
 			if (auto* child = activeMdiChild())
 				child->openSimulationResult();
 		});
+		connect(_simulationPanel, &SimulationPanel::resultActivated, this, [this](const QUuid& uuid) {
+			if (auto* child = activeMdiChild())
+				child->activateSimulationResult(uuid);
+		});
+		connect(_simulationPanel, &SimulationPanel::resultVisibilityChanged, this, [this](const QUuid& uuid, bool visible) {
+			if (auto* child = activeMdiChild())
+				child->setSimulationResultVisible(uuid, visible);
+		});
+		connect(_simulationPanel, &SimulationPanel::resultCloseRequested, this, [this](const QUuid& uuid) {
+			if (auto* child = activeMdiChild())
+				child->closeSimulationResult(uuid);
+		});
 		connect(_simulationPanel, &SimulationPanel::viewStateChanged, this, [this](const SimulationViewState& state) {
 			if (auto* child = activeMdiChild())
 				child->applySimulationViewState(state);
@@ -1120,8 +1132,11 @@ QMdiSubWindow* MainWindow::createDocumentSubWindow(ModelViewer* viewer)
 
 void MainWindow::refreshSimulationPanel(ModelViewer* viewer)
 {
-	if (_simulationPanel)
-		_simulationPanel->setSession(viewer ? viewer->activeSimulationSession() : nullptr);
+	if (!_simulationPanel)
+		return;
+	_simulationPanel->setResults(viewer ? viewer->simulationResults() : QVector<SimulationResultItem>(),
+	                             viewer ? viewer->activeSimulationMeshUuid() : QUuid());
+	_simulationPanel->setSession(viewer ? viewer->activeSimulationSession() : nullptr);
 }
 
 void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)

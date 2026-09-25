@@ -606,6 +606,13 @@ public slots:
 	// The result whose controls the Simulation panel shows: the last one selected/opened whose mesh is still
 	// displayed, or nullptr. See src/ModelViewerSimulation.cpp.
 	const SimulationSession* activeSimulationSession() const;
+	// The results of this document that are still displayed (not deleted), in the order they were added, and which
+	// one is active. The Simulation panel lists them; these three act on one by its mesh uuid.
+	QVector<SimulationResultItem> simulationResults() const;
+	QUuid activeSimulationMeshUuid() const;
+	void activateSimulationResult(const QUuid& meshUuid);        // selects it and makes it the one the panel shows
+	void setSimulationResultVisible(const QUuid& meshUuid, bool visible); // undoable, like hiding any mesh
+	void closeSimulationResult(const QUuid& meshUuid);           // undoable delete of the result's mesh
 	// Hover probe: the shown result value under the cursor, when it is over a simulation result mesh (empty text
 	// otherwise). `color` is set to a readable text colour for the paint under the cursor.
 	bool hasSimulationResults() const { return !_simulationSessions.empty(); }

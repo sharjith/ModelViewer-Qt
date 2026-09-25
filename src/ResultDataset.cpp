@@ -18,6 +18,7 @@ int resultCellNodeCount(ResultCellType type)
 	case ResultCellType::Wedge15:    return 15;
 	case ResultCellType::Pyramid13:  return 13;
 	case ResultCellType::Unsupported: break;
+	case ResultCellType::Polyhedron: break; // any face structure, no node list
 	}
 	return 0;
 }
@@ -46,7 +47,7 @@ bool resultCellIsVolume(ResultCellType type)
 {
 	const ResultCellType t = resultCellCornerType(type);
 	return t == ResultCellType::Tetra || t == ResultCellType::Hexahedron
-		|| t == ResultCellType::Wedge || t == ResultCellType::Pyramid;
+		|| t == ResultCellType::Wedge || t == ResultCellType::Pyramid || t == ResultCellType::Polyhedron;
 }
 
 bool resultCellIsSurface(ResultCellType type)
@@ -137,6 +138,15 @@ QString ResultDataset::validate() const
 				return QStringLiteral("cell %1 references node %2 but only %3 nodes exist")
 					.arg(c).arg(cellConnectivity[k]).arg(nodes);
 	}
+
+	if (boundaryTriangles.size() % 3 != 0 || boundaryTriangleCells.size() != boundaryTriangles.size() / 3)
+		return QStringLiteral("boundary triangle arrays are inconsistent");
+	for (std::uint32_t node : boundaryTriangles)
+		if (node >= nodes)
+			return QStringLiteral("a boundary triangle references node %1 but only %2 nodes exist").arg(node).arg(nodes);
+	for (std::uint32_t cell : boundaryTriangleCells)
+		if (cell >= cells)
+			return QStringLiteral("a boundary triangle belongs to cell %1 but only %2 cells exist").arg(cell).arg(cells);
 
 	for (const ResultField& f : fields)
 	{

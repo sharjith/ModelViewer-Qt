@@ -32,10 +32,14 @@ enum class ResultCellType : std::uint8_t
 	Tetra10,
 	Hexahedron20,
 	Wedge15,
-	Pyramid13
+	Pyramid13,
+	// A cell of arbitrary shape (OpenFOAM meshes): it carries no node list here (empty connectivity), only its place
+	// in the cell numbering so cell fields line up. It is drawn through the dataset's ready-made boundary triangles
+	// (see ResultDataset::boundaryTriangles); interior polyhedra are not displayed.
+	Polyhedron
 };
 
-// Number of nodes a cell of this type must reference; 0 for Unsupported (any count accepted).
+// Number of nodes a cell of this type must reference; 0 for Unsupported and Polyhedron (any count accepted).
 int resultCellNodeCount(ResultCellType type);
 bool resultCellIsVolume(ResultCellType type);  // Tetra, Hexahedron, Wedge, Pyramid and their quadratic forms
 bool resultCellIsSurface(ResultCellType type); // Triangle, Quad and their quadratic forms
@@ -127,6 +131,12 @@ public:
 	std::vector<std::uint32_t> cellOffsets;
 	std::vector<std::uint32_t> cellConnectivity;
 	std::vector<std::int64_t> cellIds;
+
+	// Optional ready-made boundary surface, for formats that store their boundary faces explicitly (OpenFOAM: the
+	// last faces of the mesh) - no cell-face hashing is needed and the cells may be polyhedra. Triangles as node
+	// indices, outward-facing, plus the cell each belongs to. Empty = derive the boundary from the cells.
+	std::vector<std::uint32_t> boundaryTriangles;      // 3 node indices per triangle
+	std::vector<std::uint32_t> boundaryTriangleCells;  // one cell index per triangle
 
 	std::vector<ResultStep> steps;
 	std::vector<ResultField> fields;

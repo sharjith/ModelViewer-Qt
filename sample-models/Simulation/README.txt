@@ -15,6 +15,16 @@ FEM_box_static_stress.vtu     Static structural analysis of a 10 mm box (Calculi
 FEM_box_frequency_mode1.vtu   The same box, first vibration mode of a frequency analysis (CalculiX).
 hexa.vtk                      A cube of 10,648 hexahedra with a scalar field (a distance-like function): a smooth
                               test of the colormap.
+cell_data_cube.vtk            An 8 x 8 x 8 block of hexahedra with CELL data only (element-wise results): a smooth
+                              scalar 'Element_Stress' and an integer 'Element_Group' (four regions). Each cell is
+                              drawn in one flat colour - fields of this kind are marked [cells] in the Field list.
+openfoam_cavity/cavity.foam  An OpenFOAM case (open the empty cavity.foam file): a 20 x 20 x 1 hexahedral mesh of a
+                              lid-driven-cavity-like flow, written in OpenFOAM's ASCII layout (constant/polyMesh and
+                              five time directories 0 .. 2 with U, p, T and a symmetric tensor sigma). The FIELD
+                              VALUES ARE SYNTHETIC (a spin-up vortex and a warming gradient made with a script; no
+                              OpenFOAM was run), meant to exercise the reader, the cell-data display, the timeline and
+                              the units taken from the files' dimensions (T in K, U in m/s, sigma in Pa; the kinematic
+                              pressure p has no unit). All fields are cell data, shown flat; only the boundary is drawn.
 plate.vtk                     A vibrating plate: 312 quadrilaterals with several vector fields (vibration modes).
                               Pick a mode in the Field list, then a component or the magnitude.
 post.vtk                      Binary file: 8,750 tetrahedra with a Pressure field.
@@ -60,3 +70,6 @@ beampl.frd
 FEM_box_modes.frd, FEM_box_load_steps.frd, FEM_box_thermal_transient.frd
     Computed with CalculiX for this project on the same 10 mm box mesh (modal and ramped-load analyses); CalculiX is
     licensed under GPL-2.0-or-later.
+
+cell_data_cube.vtk, openfoam_cavity
+    Generated with a script for this project (no external data or licence).

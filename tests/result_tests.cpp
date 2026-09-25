@@ -17,6 +17,7 @@
 #include <QByteArray>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QTemporaryDir>
 
 #include <algorithm>
@@ -2008,6 +2009,366 @@ namespace
 		}
 	}
 
+	// Cell (element-wise) fields: constant over each cell, one value per boundary triangle, stored per triangle.
+	void testCellData()
+	{
+		const QString path = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/cell_data_cube.vtk");
+		if (!QFile::exists(path))
+		{
+			std::printf("  (skipping cell data tests: cell_data_cube.vtk not found)\n");
+			return;
+		}
+		const LoadedSimulationResult r = loadSimulationResult(path);
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		CHECK(ds.cellCount() == 512 && r.surface.triangleCount() == 768); // 6 faces x 64 quads x 2 triangles
+		const ResultField* stress = ds.findField(QStringLiteral("Element_Stress"), ResultFieldAssociation::Cell);
+		const ResultField* group = ds.findField(QStringLiteral("Element_Group"), ResultFieldAssociation::Cell);
+		CHECK(stress != nullptr && group != nullptr);
+		if (!stress || !group)
+			return;
+		const int stressIndex = static_cast<int>(stress - ds.fields.data());
+
+		// a scalar over the cells, shown as such
+		DisplayScalar scalar;
+		CHECK(buildDisplayScalar(ds, stressIndex, -1, scalar) && scalar.cellData && scalar.nodeValues.size() == 512);
+		CHECK(scalar.minValue > 15.0f && scalar.minValue < 15.1f && scalar.maxValue > 115.7f && scalar.maxValue < 115.8f);
+		// with no node field in the file, the default is the first cell scalar
+		DisplayScalar chosen;
+		CHECK(chooseDefaultDisplayScalar(ds, chosen) && chosen.cellData && chosen.fieldIndex == stressIndex);
+		CHECK(defaultViewState(ds).fieldIndex == stressIndex);
+
+		// every boundary triangle takes the value of its cell (two triangles per quad face share it)
+		const std::vector<float> faces = boundaryFaceValues(r.surface, scalar.nodeValues);
+		CHECK(faces.size() == r.surface.triangleCount());
+		bool faceOk = true;
+		for (std::size_t t = 0; t < faces.size(); ++t)
+			faceOk = faceOk && faces[t] == scalar.nodeValues[r.surface.triangleCell[t]];
+		CHECK(faceOk);
+		// the per-vertex form (baked colours) averages the triangles at a vertex, staying inside the data range
+		const std::vector<float> perVertex = surfaceVertexValues(r.surface, scalar);
+		bool vertexOk = perVertex.size() == r.surface.vertexCount();
+		for (float v : perVertex)
+			vertexOk = vertexOk && std::isfinite(v) && v >= scalar.minValue && v <= scalar.maxValue;
+		CHECK(vertexOk);
+		CHECK(boundaryFaceValues(r.surface, {}).size() == r.surface.triangleCount()); // no values: all NaN, never out of range
+
+		// the probe reports the cell's value and id, without interpolating
+		const std::size_t triangle = 100;
+		const ProbeSample sample = sampleSurfaceScalar(ds, r.surface, scalar, triangle, 0.2f, 0.3f, 0.5f, scalar.minValue, scalar.maxValue);
+		CHECK(sample.valid && sample.cell && sample.value == faces[triangle]);
+		CHECK(sample.node == r.surface.triangleCell[triangle] && sample.nodeId == ds.cellId(r.surface.triangleCell[triangle]));
+		CHECK(!sampleSurfaceScalar(ds, r.surface, scalar, r.surface.triangleCount(), 1.0f, 0.0f, 0.0f, 0.0f, 1.0f).valid);
+
+		// a saved snapshot keeps cell fields (per triangle), the full-model range, the cell ids and the view
+		SimulationViewState state = defaultViewState(ds);
+		SnapshotOptions options;
+		options.content = SnapshotOptions::Content::AllFields;
+		ResultSnapshot snap;
+		DecodedSnapshot dec;
+		QString err;
+		CHECK(encodeResultSnapshot(ds, r.surface, state, options, snap, &err));
+		CHECK(snap.json.value(QStringLiteral("version")).toInt() == 2); // cell fields need the newer layout
+		CHECK(decodeResultSnapshot(snap.json, snap.blobs, r.surface.vertexCount(), r.surface.triangles, dec, &err));
+		if (!dec.dataset)
+		{
+			std::printf("  cell snapshot failed: %s\n", qPrintable(err));
+			return;
+		}
+		const ResultDataset& out = *dec.dataset;
+		const ResultField* decoded = out.findField(QStringLiteral("Element_Stress"), ResultFieldAssociation::Cell);
+		CHECK(decoded != nullptr && out.cellCount() == r.surface.triangleCount());
+		if (!decoded)
+			return;
+		CHECK(decoded->tupleCount() == r.surface.triangleCount() && decoded->stepData[0] == faces);
+		CHECK(dec.state.fieldIndex >= 0 && out.fields[static_cast<std::size_t>(dec.state.fieldIndex)].association == ResultFieldAssociation::Cell);
+		bool idsOk = true;
+		for (std::size_t t = 0; t < r.surface.triangleCount(); ++t)
+			idsOk = idsOk && out.cellId(t) == ds.cellId(r.surface.triangleCell[t]);
+		CHECK(idsOk);
+		DisplayScalar back;
+		CHECK(buildDisplayScalar(out, static_cast<int>(decoded - out.fields.data()), -1, back) && back.cellData);
+		CHECK(back.minValue == scalar.minValue && back.maxValue == scalar.maxValue); // range of ALL 512 cells, interior included
+		// the probe on the decoded result agrees with the live one
+		const ProbeSample again = sampleSurfaceScalar(out, ResultBoundarySurface{ out.nodePositions, {}, r.surface.triangles,
+			[&] { std::vector<std::uint32_t> id(r.surface.triangleCount()); for (std::size_t i = 0; i < id.size(); ++i) id[i] = static_cast<std::uint32_t>(i); return id; }(),
+			{}, 0 }, back, triangle, 0.2f, 0.3f, 0.5f, back.minValue, back.maxValue);
+		CHECK(again.valid && again.cell && again.value == sample.value && again.nodeId == sample.nodeId);
+
+		// the size estimate counts per-triangle arrays, not per-vertex ones
+		const SnapshotSize estimate = estimateSnapshotSize(ds, r.surface, options);
+		CHECK(estimate.rawBytes == snap.size.rawBytes);
+
+		// a result with node fields only is still written in the original layout
+		const QString boxPath = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/FEM_box_static.frd");
+		if (QFile::exists(boxPath))
+		{
+			const LoadedSimulationResult box = loadSimulationResult(boxPath);
+			ResultSnapshot nodeSnap;
+			CHECK(box.ok() && encodeResultSnapshot(*box.dataset, box.surface, defaultViewState(*box.dataset), options, nodeSnap));
+			CHECK(nodeSnap.json.value(QStringLiteral("version")).toInt() == 1 && !nodeSnap.json.contains(QStringLiteral("cellIds")));
+		}
+	}
+
+	// ---- OpenFOAM case reader --------------------------------------------------------------------------------------
+
+	void writeText(const QString& path, const QByteArray& text)
+	{
+		QDir().mkpath(QFileInfo(path).absolutePath());
+		QFile file(path);
+		if (file.open(QIODevice::WriteOnly))
+			file.write(text);
+	}
+
+	QByteArray foamHeader(const char* className, const char* object, const char* format = "ascii")
+	{
+		return QByteArray("/*--------------------------------*- C++ -*----------------------------------*\\\n"
+		                  "  =========                 |\n\\*---------------------------------------------------------------------------*/\n"
+		                  "FoamFile\n{\n    version     2.0;\n    format      ")
+			+ format + QByteArray(";\n    arch        \"LSB;label=32;scalar=64\";\n    class       ") + className
+			+ QByteArray(";\n    location    \"x\";\n    object      ") + object + QByteArray(";\n}\n// * * * //\n\n");
+	}
+
+	// One cell with 7 faces: a pentagonal prism (two pentagons and five quads), all boundary faces. Nodes 0-4 are the
+	// counter-clockwise pentagon at z = 0, 5-9 the same at z = 1; the face lists are outward-facing as OpenFOAM writes them.
+	void writePrismCase(const QString& dir)
+	{
+		const QByteArray points = foamHeader("vectorField", "points")
+			+ "10\n(\n(0 0 0)\n(2 0 0)\n(3 1 0)\n(1 2 0)\n(-1 1 0)\n(0 0 1)\n(2 0 1)\n(3 1 1)\n(1 2 1)\n(-1 1 1)\n)\n";
+		const QByteArray faces = foamHeader("faceList", "faces")
+			+ "7\n(\n5(0 4 3 2 1)\n5(5 6 7 8 9)\n4(0 1 6 5)\n4(1 2 7 6)\n4(2 3 8 7)\n4(3 4 9 8)\n4(4 0 5 9)\n)\n";
+		const QByteArray owner = foamHeader("labelList", "owner") + "7\n(\n0\n0\n0\n0\n0\n0\n0\n)\n";
+		const QByteArray neighbour = foamHeader("labelList", "neighbour") + "0()\n";
+		writeText(dir + QStringLiteral("/constant/polyMesh/points"), points);
+		writeText(dir + QStringLiteral("/constant/polyMesh/faces"), faces);
+		writeText(dir + QStringLiteral("/constant/polyMesh/owner"), owner);
+		writeText(dir + QStringLiteral("/constant/polyMesh/neighbour"), neighbour);
+		writeText(dir + QStringLiteral("/case.foam"), QByteArray());
+		// two time directories: a uniform value, then a one-entry nonuniform list
+		writeText(dir + QStringLiteral("/0/p"), foamHeader("volScalarField", "p") + "dimensions [1 -1 -2 0 0 0 0];\ninternalField uniform 5;\nboundaryField\n{\n}\n");
+		writeText(dir + QStringLiteral("/1/p"), foamHeader("volScalarField", "p") + "dimensions [1 -1 -2 0 0 0 0];\ninternalField nonuniform List<scalar> 1(7);\nboundaryField\n{\n}\n");
+		writeText(dir + QStringLiteral("/0/notAField"), foamHeader("dictionary", "notAField") + "x 1;\n");
+		writeText(dir + QStringLiteral("/1/phi"), foamHeader("surfaceScalarField", "phi") + "dimensions [0 3 -1 0 0 0 0];\ninternalField uniform 0;\n");
+	}
+
+	void testOpenFoamPolyhedral()
+	{
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		const QString dir = tmp.path();
+		writePrismCase(dir);
+		const ResultReadOutcome r = readResultFile(dir + QStringLiteral("/case.foam"));
+		if (!r.ok())
+			std::printf("  OpenFOAM prism case failed: %s\n", qPrintable(r.error));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		CHECK(ds.solverName == QStringLiteral("OpenFOAM") && ds.lengthUnit == QStringLiteral("m"));
+		CHECK(ds.nodeCount() == 10 && ds.cellCount() == 1 && ds.cellTypes[0] == ResultCellType::Polyhedron);
+		CHECK(ds.validate().isEmpty());
+		CHECK(ds.stepCount() == 2 && approx(ds.steps[0].time, 0.0) && approx(ds.steps[1].time, 1.0));
+		// only the volScalarField is a field: the dictionary and the surface field are ignored
+		CHECK(ds.fields.size() == 1 && ds.fields[0].name == QStringLiteral("p") && ds.fields[0].association == ResultFieldAssociation::Cell);
+		CHECK(ds.fields[0].stepData[0] == std::vector<float>({ 5.0f }) && ds.fields[0].stepData[1] == std::vector<float>({ 7.0f }));
+		// dimensions [1 -1 -2] state a pressure in Pa
+		CHECK(ds.fields[0].quantityKind == QStringLiteral("pressure") && ds.fields[0].fileUnit == QStringLiteral("Pa") && ds.fields[0].unitConfirmed);
+
+		// the boundary: 2 pentagons (3 triangles each) + 5 quads (2 each), all outward-facing, all of cell 0
+		CHECK(ds.boundaryTriangles.size() == 16 * 3 && ds.boundaryTriangleCells.size() == 16);
+		ResultBoundarySurface surface;
+		QString error;
+		CHECK(extractBoundarySurface(ds, surface, nullptr, &error));
+		CHECK(surface.triangleCount() == 16 && surface.vertexCount() == 10);
+		double cx = 0, cy = 0, cz = 0;
+		for (std::size_t v = 0; v < 10; ++v)
+		{
+			cx += surface.positions[v * 3];
+			cy += surface.positions[v * 3 + 1];
+			cz += surface.positions[v * 3 + 2];
+		}
+		cx /= 10;
+		cy /= 10;
+		cz /= 10;
+		bool outward = true, allCellZero = true;
+		for (std::size_t t = 0; t < surface.triangleCount(); ++t)
+		{
+			const float* a = &surface.positions[surface.triangles[t * 3] * 3];
+			const float* b = &surface.positions[surface.triangles[t * 3 + 1] * 3];
+			const float* c = &surface.positions[surface.triangles[t * 3 + 2] * 3];
+			const double nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
+			const double ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+			const double nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+			const double mx = (a[0] + b[0] + c[0]) / 3 - cx, my = (a[1] + b[1] + c[1]) / 3 - cy, mz = (a[2] + b[2] + c[2]) / 3 - cz;
+			outward = outward && nx * mx + ny * my + nz * mz > 0.0;
+			allCellZero = allCellZero && surface.triangleCell[t] == 0;
+		}
+		CHECK(outward && allCellZero);
+
+		// through the application's loader, cell data is what is shown by default
+		const LoadedSimulationResult loaded = loadSimulationResult(dir + QStringLiteral("/case.foam"));
+		CHECK(loaded.ok() && loaded.surface.triangleCount() == 16);
+		if (loaded.ok())
+		{
+			DisplayScalar d;
+			CHECK(chooseDefaultDisplayScalar(*loaded.dataset, d) && d.cellData && d.unit == QStringLiteral("Pa") && !d.unitAssumed);
+		}
+	}
+
+	void testOpenFoamErrors()
+	{
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		const QString dir = tmp.path();
+
+		// not a case at all
+		writeText(dir + QStringLiteral("/a/case.foam"), QByteArray());
+		const ResultReadOutcome none = readResultFile(dir + QStringLiteral("/a/case.foam"));
+		CHECK(!none.ok() && none.error.contains(QStringLiteral("polyMesh")));
+
+		// a decomposed case says what to do
+		writeText(dir + QStringLiteral("/b/case.foam"), QByteArray());
+		QDir().mkpath(dir + QStringLiteral("/b/processor0"));
+		const ResultReadOutcome decomposed = readResultFile(dir + QStringLiteral("/b/case.foam"));
+		CHECK(!decomposed.ok() && decomposed.error.contains(QStringLiteral("reconstructPar")));
+
+		// binary files are refused with the way out, never misread
+		writePrismCase(dir + QStringLiteral("/c"));
+		writeText(dir + QStringLiteral("/c/constant/polyMesh/points"), foamHeader("vectorField", "points", "binary") + "10\n(garbage)\n");
+		const ResultReadOutcome binary = readResultFile(dir + QStringLiteral("/c/case.foam"));
+		CHECK(!binary.ok() && binary.error.contains(QStringLiteral("ASCII")) && binary.error.contains(QStringLiteral("points")));
+
+		// compressed mesh files
+		writePrismCase(dir + QStringLiteral("/d"));
+		QFile::remove(dir + QStringLiteral("/d/constant/polyMesh/faces"));
+		writeText(dir + QStringLiteral("/d/constant/polyMesh/faces.gz"), QByteArray("x"));
+		const ResultReadOutcome gz = readResultFile(dir + QStringLiteral("/d/case.foam"));
+		CHECK(!gz.ok() && gz.error.contains(QStringLiteral("compress")));
+
+		// damaged lists and inconsistent meshes
+		writePrismCase(dir + QStringLiteral("/e"));
+		writeText(dir + QStringLiteral("/e/constant/polyMesh/owner"), foamHeader("labelList", "owner") + "7\n(\n0\n0\n)\n"); // too short
+		CHECK(!readResultFile(dir + QStringLiteral("/e/case.foam")).ok());
+		writePrismCase(dir + QStringLiteral("/f"));
+		writeText(dir + QStringLiteral("/f/constant/polyMesh/faces"), foamHeader("faceList", "faces") + "1\n(\n3(0 1 99)\n)\n"); // a node that does not exist
+		writeText(dir + QStringLiteral("/f/constant/polyMesh/owner"), foamHeader("labelList", "owner") + "1\n(\n0\n)\n");
+		CHECK(!readResultFile(dir + QStringLiteral("/f/case.foam")).ok());
+
+		// a field with the wrong number of values, or in binary, is skipped with a warning; the geometry still loads
+		writePrismCase(dir + QStringLiteral("/g"));
+		writeText(dir + QStringLiteral("/g/1/p"), foamHeader("volScalarField", "p") + "dimensions [0 0 0 0 0 0 0];\ninternalField nonuniform List<scalar> 2(1 2);\n");
+		writeText(dir + QStringLiteral("/g/1/q"), foamHeader("volScalarField", "q", "binary") + "internalField nonuniform List<scalar> 1(1);\n");
+		const ResultReadOutcome skipped = readResultFile(dir + QStringLiteral("/g/case.foam"));
+		CHECK(skipped.ok());
+		if (skipped.ok())
+		{
+			CHECK(skipped.dataset->stepCount() == 1 && skipped.dataset->fields.size() == 1); // only the time-0 p survives
+			bool warned = false;
+			for (const QString& w : skipped.warnings)
+				warned = warned || w.contains(QStringLiteral("skipped"));
+			CHECK(warned);
+		}
+
+		// a case with a mesh but no fields at all still loads (uncoloured)
+		writePrismCase(dir + QStringLiteral("/h"));
+		QDir(dir + QStringLiteral("/h/0")).removeRecursively();
+		QDir(dir + QStringLiteral("/h/1")).removeRecursively();
+		const ResultReadOutcome bare = readResultFile(dir + QStringLiteral("/h/case.foam"));
+		CHECK(bare.ok() && bare.dataset->fields.empty() && bare.dataset->stepCount() == 0);
+	}
+
+	void testOpenFoamSample()
+	{
+		const QString path = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/openfoam_cavity/cavity.foam");
+		if (!QFile::exists(path))
+		{
+			std::printf("  (skipping OpenFOAM sample test: openfoam_cavity not found)\n");
+			return;
+		}
+		const LoadedSimulationResult r = loadSimulationResult(path);
+		if (!r.ok())
+			std::printf("  OpenFOAM sample failed: %s\n", qPrintable(r.error));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		CHECK(ds.cellCount() == 400 && ds.nodeCount() == 882);
+		// 20 x 20 x 1 cells: 880 boundary faces (80 side + 800 front/back) as 1760 triangles, each belonging to one of the 400 cells
+		CHECK(r.surface.triangleCount() == 1760);
+		bool cellsOk = true;
+		for (std::uint32_t cell : r.surface.triangleCell)
+			cellsOk = cellsOk && cell < 400;
+		CHECK(cellsOk);
+		CHECK(ds.stepCount() == 5 && approx(ds.steps[0].time, 0.0) && approx(ds.steps[4].time, 2.0));
+
+		const int T = fieldIndexOf(ds, QStringLiteral("T")), U = fieldIndexOf(ds, QStringLiteral("U"));
+		const int p = fieldIndexOf(ds, QStringLiteral("p")), sigma = fieldIndexOf(ds, QStringLiteral("sigma"));
+		CHECK(T >= 0 && U >= 0 && p >= 0 && sigma >= 0 && ds.fields.size() == 4);
+		if (T < 0 || U < 0 || p < 0 || sigma < 0)
+			return;
+		for (const ResultField& f : ds.fields)
+			CHECK(f.association == ResultFieldAssociation::Cell && f.stepData.size() == 5);
+
+		// units come from the file's own dimensions: K, m/s, Pa; the kinematic pressure gets none
+		const ResultField& fT = ds.fields[static_cast<std::size_t>(T)];
+		CHECK(fT.quantityKind == QStringLiteral("temperature") && fT.fileUnit == QStringLiteral("K") && fT.unitConfirmed);
+		CHECK(ds.fields[static_cast<std::size_t>(U)].quantityKind == QStringLiteral("velocity") && ds.fields[static_cast<std::size_t>(U)].fileUnit == QStringLiteral("m/s"));
+		CHECK(ds.fields[static_cast<std::size_t>(p)].fileUnit.isEmpty());
+		CHECK(ds.fields[static_cast<std::size_t>(sigma)].quantityKind == QStringLiteral("pressure") && ds.fields[static_cast<std::size_t>(sigma)].fileUnit == QStringLiteral("Pa"));
+
+		// uniform values at time 0: T = 300 everywhere, U = 0
+		bool uniformOk = true;
+		for (float v : fT.stepData[0])
+			uniformOk = uniformOk && v == 300.0f;
+		for (float v : ds.fields[static_cast<std::size_t>(U)].stepData[0])
+			uniformOk = uniformOk && v == 0.0f;
+		CHECK(uniformOk && fT.stepData[0].size() == 400 && ds.fields[static_cast<std::size_t>(U)].stepData[0].size() == 1200);
+
+		// the temperature rises with the spin-up: 300 .. about 325 at the end, monotonic in the mean
+		DisplayScalar first, last;
+		CHECK(buildDisplayScalar(ds, T, -1, first, 0) && buildDisplayScalar(ds, T, -1, last, 4));
+		CHECK(first.cellData && approx(first.maxValue, 300.0) && last.minValue > 300.0f && last.maxValue > 315.0f && last.maxValue < 330.0f);
+		CHECK(last.unit == QStringLiteral("K") && !last.unitAssumed);
+		// the velocity field is a real vortex at the end
+		DisplayScalar speed;
+		CHECK(buildDisplayScalar(ds, U, -1, speed, 4) && speed.maxValue > 0.5f);
+
+		// the symmetric tensor is reordered from XX XY XZ YY YZ ZZ = (100 10 0 200 0 300) to XX YY ZZ XY YZ ZX
+		const ResultField& fs = ds.fields[static_cast<std::size_t>(sigma)];
+		CHECK(fs.components == 6 && fs.componentNames.size() == 6 && fs.componentNames[3] == QStringLiteral("XY"));
+		const std::vector<float>& last6 = fs.stepData[4];
+		CHECK(last6.size() == 400u * 6u);
+		CHECK(last6[0] == 100.0f && last6[1] == 200.0f && last6[2] == 300.0f && last6[3] == 10.0f && last6[4] == 0.0f && last6[5] == 0.0f);
+
+		// the default is the first cell scalar (the file has cell data only); the timeline has five steps
+		DisplayScalar chosen;
+		CHECK(chooseDefaultDisplayScalar(ds, chosen) && chosen.cellData);
+
+		// it survives a save/restore like any other result: cell fields, units, steps
+		SimulationViewState state = defaultViewState(ds);
+		SnapshotOptions options;
+		options.content = SnapshotOptions::Content::AllFields;
+		ResultSnapshot snap;
+		DecodedSnapshot dec;
+		QString err;
+		CHECK(encodeResultSnapshot(ds, r.surface, state, options, snap, &err));
+		CHECK(decodeResultSnapshot(snap.json, snap.blobs, r.surface.vertexCount(), r.surface.triangles, dec, &err));
+		if (dec.dataset)
+		{
+			const int Tb = fieldIndexOf(*dec.dataset, QStringLiteral("T"));
+			CHECK(Tb >= 0 && dec.dataset->stepCount() == 5 && dec.dataset->fields.size() == 4);
+			DisplayScalar back;
+			CHECK(buildDisplayScalar(*dec.dataset, Tb, -1, back, 4) && back.cellData && back.unit == QStringLiteral("K"));
+			CHECK(back.minValue == last.minValue && back.maxValue == last.maxValue); // whole-model range, all 400 cells
+		}
+	}
+
 	void testShellAndSkippedCells()
 	{
 		Mesh m;
@@ -2222,6 +2583,10 @@ int main(int argc, char** argv)
 	testSnapshotRoundTrip();
 	testSnapshotCompression();
 	testSnapshotSteps();
+	testCellData();
+	testOpenFoamPolyhedral();
+	testOpenFoamErrors();
+	testOpenFoamSample();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();

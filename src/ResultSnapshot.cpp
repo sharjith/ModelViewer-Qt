@@ -12,7 +12,8 @@
 
 namespace
 {
-	constexpr int kFormatVersion = 1;
+	constexpr int kFormatVersion = 1;     // node fields only
+	constexpr int kFormatVersionCells = 2; // also cell fields (per-triangle arrays, "association" keys, cellIds)
 	constexpr int kMinCompressBytes = 512; // smaller blobs are not worth a deflate header
 
 	// ---- Blob codec -----------------------------------------------------------------------------------------------
@@ -94,7 +95,7 @@ namespace
 			if (index < 0 || static_cast<std::size_t>(index) >= dataset.fields.size())
 				return false;
 			const ResultField& f = dataset.fields[static_cast<std::size_t>(index)];
-			return f.association == ResultFieldAssociation::Node && f.derivedFromField < 0 && f.components > 0;
+			return f.derivedFromField < 0 && f.components > 0; // node and cell fields
 		};
 		auto add = [&](int index) {
 			if (usable(index) && std::find(chosen.begin(), chosen.end(), index) == chosen.end())
@@ -115,14 +116,32 @@ namespace
 		return chosen;
 	}
 
-	// Values of one field at one step for every surface vertex (components interleaved); empty when the step has none.
-	std::vector<float> gatherVertexValues(const ResultDataset& dataset, const ResultBoundarySurface& surface, const ResultField& field, std::size_t step)
+	bool isCellField(const ResultField& field) { return field.association == ResultFieldAssociation::Cell; }
+
+	// Values of one field at one step for every surface vertex - or, for a cell field, every surface triangle -
+	// (components interleaved); empty when the step has none.
+	std::vector<float> gatherSurfaceValues(const ResultDataset& dataset, const ResultBoundarySurface& surface, const ResultField& field, std::size_t step)
 	{
 		std::vector<float> out;
 		if (step >= field.stepData.size() || field.stepData[step].empty())
 			return out;
 		const std::vector<float>& data = field.stepData[step];
 		const std::size_t comps = static_cast<std::size_t>(field.components);
+		if (isCellField(field))
+		{
+			if (data.size() != dataset.cellCount() * comps || surface.triangleCell.size() != surface.triangleCount())
+				return out;
+			out.assign(surface.triangleCount() * comps, std::numeric_limits<float>::quiet_NaN());
+			for (std::size_t t = 0; t < surface.triangleCount(); ++t)
+			{
+				const std::size_t cell = surface.triangleCell[t];
+				if (cell >= dataset.cellCount())
+					continue;
+				for (std::size_t c = 0; c < comps; ++c)
+					out[t * comps + c] = data[cell * comps + c];
+			}
+			return out;
+		}
 		if (data.size() != dataset.nodeCount() * comps)
 			return out;
 		out.assign(surface.vertexCount() * comps, std::numeric_limits<float>::quiet_NaN());
@@ -181,7 +200,10 @@ namespace
 	{
 		QJsonObject o;
 		if (s.fieldIndex >= 0 && static_cast<std::size_t>(s.fieldIndex) < dataset.fields.size())
+		{
 			o.insert(QStringLiteral("field"), dataset.fields[static_cast<std::size_t>(s.fieldIndex)].name);
+			o.insert(QStringLiteral("fieldAssociation"), isCellField(dataset.fields[static_cast<std::size_t>(s.fieldIndex)]) ? QStringLiteral("cell") : QStringLiteral("node"));
+		}
 		o.insert(QStringLiteral("component"), s.component);
 		o.insert(QStringLiteral("customRange"), s.customRange);
 		o.insert(QStringLiteral("rangeMin"), s.rangeMin);
@@ -267,16 +289,21 @@ SnapshotSize estimateSnapshotSize(const ResultDataset& dataset, const ResultBoun
 	const std::uint64_t vertices = surface.vertexCount();
 	size.rawBytes = vertices * 3 * 4 + vertices * 8; // rest positions + node ids
 	std::vector<std::pair<int, int>> blobs;           // (field, step) that carry data
+	bool anyCell = false;
 	for (int f : fields)
 		for (int s : steps)
 		{
 			const ResultField& field = dataset.fields[static_cast<std::size_t>(f)];
 			if (static_cast<std::size_t>(s) < field.stepData.size() && !field.stepData[static_cast<std::size_t>(s)].empty())
 			{
-				size.rawBytes += vertices * static_cast<std::uint64_t>(field.components) * 4;
+				const std::uint64_t tuples = isCellField(field) ? surface.triangleCount() : vertices;
+				anyCell = anyCell || isCellField(field);
+				size.rawBytes += tuples * static_cast<std::uint64_t>(field.components) * 4;
 				blobs.emplace_back(f, s);
 			}
 		}
+	if (anyCell)
+		size.rawBytes += static_cast<std::uint64_t>(surface.triangleCount()) * 8; // cell ids
 	size.storedBytes = size.rawBytes;
 	if (!options.compress || blobs.empty())
 		return size;
@@ -287,8 +314,8 @@ SnapshotSize estimateSnapshotSize(const ResultDataset& dataset, const ResultBoun
 	for (std::size_t k = 0; k < picks; ++k)
 	{
 		const auto& pick = blobs[picks == 1 ? 0 : k * (blobs.size() - 1) / (picks - 1)];
-		std::vector<float> values = gatherVertexValues(dataset, surface, dataset.fields[static_cast<std::size_t>(pick.first)],
-		                                               static_cast<std::size_t>(pick.second));
+		std::vector<float> values = gatherSurfaceValues(dataset, surface, dataset.fields[static_cast<std::size_t>(pick.first)],
+		                                                static_cast<std::size_t>(pick.second));
 		if (values.size() > 262144)
 			values.resize(262144);
 		QJsonObject scratch;
@@ -324,8 +351,13 @@ bool encodeResultSnapshot(const ResultDataset& dataset, const ResultBoundarySurf
 		return index;
 	};
 
+	const std::vector<int> chosen = selectSourceFields(dataset, options);
+	bool hasCellField = false;
+	for (int fi : chosen)
+		hasCellField = hasCellField || isCellField(dataset.fields[static_cast<std::size_t>(fi)]);
+
 	QJsonObject root;
-	root.insert(QStringLiteral("version"), kFormatVersion);
+	root.insert(QStringLiteral("version"), hasCellField ? kFormatVersionCells : kFormatVersion);
 	root.insert(QStringLiteral("vertexCount"), static_cast<int>(surface.vertexCount()));
 	root.insert(QStringLiteral("triangleCount"), static_cast<int>(surface.triangleCount()));
 	root.insert(QStringLiteral("solver"), dataset.solverName);
@@ -338,6 +370,15 @@ bool encodeResultSnapshot(const ResultDataset& dataset, const ResultBoundarySurf
 	for (std::size_t v = 0; v < ids.size(); ++v)
 		ids[v] = dataset.nodeId(surface.vertexNode[v]);
 	root.insert(QStringLiteral("nodeIds"), addBlob(QByteArray(reinterpret_cast<const char*>(ids.data()), static_cast<qsizetype>(ids.size() * sizeof(std::int64_t))), 8));
+
+	// Ids of the cells the surface triangles belong to (only needed when a cell field is stored).
+	if (hasCellField)
+	{
+		std::vector<std::int64_t> cellIds(surface.triangleCount());
+		for (std::size_t t = 0; t < cellIds.size(); ++t)
+			cellIds[t] = t < surface.triangleCell.size() ? dataset.cellId(surface.triangleCell[t]) : static_cast<std::int64_t>(t);
+		root.insert(QStringLiteral("cellIds"), addBlob(QByteArray(reinterpret_cast<const char*>(cellIds.data()), static_cast<qsizetype>(cellIds.size() * sizeof(std::int64_t))), 8));
+	}
 
 	// Steps (possibly subsampled).
 	const std::vector<int> kept = snapshotStepIndices(static_cast<int>(dataset.stepCount()), options.maxSteps);
@@ -358,7 +399,6 @@ bool encodeResultSnapshot(const ResultDataset& dataset, const ResultBoundarySurf
 			.arg(kept.size()).arg(dataset.stepCount());
 
 	// Source fields with their per-step blobs.
-	const std::vector<int> chosen = selectSourceFields(dataset, options);
 	QJsonArray fieldsJson;
 	std::vector<bool> stored(dataset.fields.size(), false);
 	for (int fi : chosen)
@@ -367,6 +407,7 @@ bool encodeResultSnapshot(const ResultDataset& dataset, const ResultBoundarySurf
 		stored[static_cast<std::size_t>(fi)] = true;
 		QJsonObject o;
 		o.insert(QStringLiteral("name"), f.name);
+		o.insert(QStringLiteral("association"), isCellField(f) ? QStringLiteral("cell") : QStringLiteral("node"));
 		o.insert(QStringLiteral("components"), f.components);
 		QJsonArray names;
 		for (const QString& n : f.componentNames)
@@ -379,7 +420,7 @@ bool encodeResultSnapshot(const ResultDataset& dataset, const ResultBoundarySurf
 		QJsonArray stepBlobs;
 		for (int src : kept)
 		{
-			const std::vector<float> values = gatherVertexValues(dataset, surface, f, static_cast<std::size_t>(src));
+			const std::vector<float> values = gatherSurfaceValues(dataset, surface, f, static_cast<std::size_t>(src));
 			stepBlobs.append(values.empty() ? -1 : addBlob(floatsToBytes(values), 4));
 		}
 		o.insert(QStringLiteral("stepData"), stepBlobs);
@@ -409,6 +450,7 @@ bool encodeResultSnapshot(const ResultDataset& dataset, const ResultBoundarySurf
 			}
 		QJsonObject o;
 		o.insert(QStringLiteral("name"), f.name);
+		o.insert(QStringLiteral("association"), isCellField(f) ? QStringLiteral("cell") : QStringLiteral("node"));
 		o.insert(QStringLiteral("data"), data);
 		rangesJson.append(o);
 	}
@@ -435,7 +477,8 @@ bool decodeResultSnapshot(const QJsonObject& json, const std::vector<QByteArray>
 		if (error) *error = unavailable(why);
 		return false;
 	};
-	if (json.value(QStringLiteral("version")).toInt() != kFormatVersion)
+	const int version = json.value(QStringLiteral("version")).toInt();
+	if (version != kFormatVersion && version != kFormatVersionCells)
 		return fail(QStringLiteral("it was written by a newer version of ModelViewer"));
 	if (static_cast<std::size_t>(json.value(QStringLiteral("vertexCount")).toInt(-1)) != vertexCount
 		|| static_cast<std::size_t>(json.value(QStringLiteral("triangleCount")).toInt(-1)) * 3 != triangles.size())
@@ -478,6 +521,15 @@ bool decodeResultSnapshot(const QJsonObject& json, const std::vector<QByteArray>
 		std::memcpy(dataset->nodeIds.data(), raw.constData(), static_cast<std::size_t>(raw.size()));
 	}
 
+	if (json.contains(QStringLiteral("cellIds")))
+	{
+		QByteArray raw;
+		if (!blobBytes(json.value(QStringLiteral("cellIds")).toInt(-1), raw) || static_cast<std::size_t>(raw.size()) != (triangles.size() / 3) * sizeof(std::int64_t))
+			return error && !error->isEmpty() ? false : fail(QStringLiteral("the stored cell ids are missing"));
+		dataset->cellIds.resize(triangles.size() / 3);
+		std::memcpy(dataset->cellIds.data(), raw.constData(), static_cast<std::size_t>(raw.size()));
+	}
+
 	// One triangle cell per surface triangle: the boundary surface of the snapshot is the identity.
 	const std::size_t triangleCount = triangles.size() / 3;
 	dataset->cellTypes.assign(triangleCount, ResultCellType::Triangle);
@@ -501,6 +553,8 @@ bool decodeResultSnapshot(const QJsonObject& json, const std::vector<QByteArray>
 		const QJsonObject o = fv.toObject();
 		ResultField f;
 		f.name = o.value(QStringLiteral("name")).toString();
+		f.association = o.value(QStringLiteral("association")).toString() == QLatin1String("cell") ? ResultFieldAssociation::Cell
+		                                                                                           : ResultFieldAssociation::Node;
 		f.components = o.value(QStringLiteral("components")).toInt(1);
 		for (const QJsonValue& n : o.value(QStringLiteral("componentNames")).toArray())
 			f.componentNames.push_back(n.toString());
@@ -517,7 +571,8 @@ bool decodeResultSnapshot(const QJsonObject& json, const std::vector<QByteArray>
 		{
 			std::vector<float> values;
 			const int index = bv.toInt(-1);
-			if (index >= 0 && !blobFloats(index, vertexCount * static_cast<std::size_t>(f.components), values))
+			const std::size_t tuples = f.association == ResultFieldAssociation::Cell ? triangles.size() / 3 : vertexCount;
+			if (index >= 0 && !blobFloats(index, tuples * static_cast<std::size_t>(f.components), values))
 				return error && !error->isEmpty() ? false : fail(QStringLiteral("a stored field array does not match the mesh"));
 			f.stepData.push_back(std::move(values));
 		}
@@ -544,9 +599,11 @@ bool decodeResultSnapshot(const QJsonObject& json, const std::vector<QByteArray>
 	{
 		const QJsonObject o = rv.toObject();
 		const QString name = o.value(QStringLiteral("name")).toString();
+		const ResultFieldAssociation association = o.value(QStringLiteral("association")).toString() == QLatin1String("cell")
+			? ResultFieldAssociation::Cell : ResultFieldAssociation::Node;
 		for (ResultField& f : dataset->fields)
 		{
-			if (f.name != name || f.association != ResultFieldAssociation::Node)
+			if (f.name != name || f.association != association)
 				continue;
 			const QJsonArray data = o.value(QStringLiteral("data")).toArray();
 			if (static_cast<std::size_t>(data.size()) == dataset->steps.size() * static_cast<std::size_t>(resultRangeSelectorCount(f.components)) * 2)
@@ -567,9 +624,11 @@ bool decodeResultSnapshot(const QJsonObject& json, const std::vector<QByteArray>
 	const QJsonObject view = json.value(QStringLiteral("view")).toObject();
 	SimulationViewState state;
 	const QString fieldName = view.value(QStringLiteral("field")).toString();
+	const ResultFieldAssociation fieldAssociation = view.value(QStringLiteral("fieldAssociation")).toString() == QLatin1String("cell")
+		? ResultFieldAssociation::Cell : ResultFieldAssociation::Node;
 	state.fieldIndex = -1;
 	for (std::size_t i = 0; i < dataset->fields.size(); ++i)
-		if (dataset->fields[i].name == fieldName && dataset->fields[i].association == ResultFieldAssociation::Node)
+		if (dataset->fields[i].name == fieldName && dataset->fields[i].association == fieldAssociation)
 			state.fieldIndex = static_cast<int>(i);
 	if (state.fieldIndex < 0 && !fieldName.isEmpty())
 		out.warnings << QStringLiteral("The field '%1' shown when the result was saved is not stored.").arg(fieldName);

@@ -20,6 +20,7 @@
 #include "MainWindow.h"
 #include "MeshSurfaceAnchor.h"
 #include "MeshVertex.h"
+#include "DeleteMeshCommand.h"
 #include "MvfSceneBuilder.h"
 #include "ResultSnapshot.h"
 #include "ResultUnits.h"
@@ -226,7 +227,7 @@ void ModelViewer::presentSimulationResult(const QString& path, LoadedSimulationR
 	if (fieldIndex >= 0 && scalar.valid())
 		message += tr(" - showing %1 (%2 to %3)").arg(scalar.label).arg(scalar.minValue).arg(scalar.maxValue);
 	else
-		message += tr(" - no node field to colour by");
+		message += tr(" - no field to colour by");
 	if (!result.warnings.isEmpty())
 		message += QStringLiteral(" - ") + result.warnings.first();
 	MainWindow::showStatusMessage(message, 12000);
@@ -278,6 +279,88 @@ SimulationSession* ModelViewer::activeSimulationSessionMutable()
 const SimulationSession* ModelViewer::activeSimulationSession() const
 {
 	return const_cast<ModelViewer*>(this)->activeSimulationSessionMutable();
+}
+
+QVector<SimulationResultItem> ModelViewer::simulationResults() const
+{
+	QVector<SimulationResultItem> items;
+	if (!_viewportWidget)
+		return items;
+	for (const SimulationSession& s : _simulationSessions)
+	{
+		SceneMesh* mesh = _viewportWidget->getMeshByUuid(s.meshUuid);
+		if (!mesh)
+			continue; // deleted (Undo brings it back)
+		SimulationResultItem item;
+		item.meshUuid = s.meshUuid;
+		item.name = mesh->getName();
+		item.visible = _visibleMeshUuids.contains(s.meshUuid);
+		items.append(item);
+	}
+	return items;
+}
+
+QUuid ModelViewer::activeSimulationMeshUuid() const
+{
+	const SimulationSession* active = activeSimulationSession();
+	return active ? active->meshUuid : QUuid();
+}
+
+void ModelViewer::activateSimulationResult(const QUuid& meshUuid)
+{
+	SimulationSession* session = findSimulationSession(meshUuid);
+	if (!session || !_viewportWidget || !_viewportWidget->getMeshByUuid(meshUuid))
+		return;
+	setSelectionWithoutUndo({ meshUuid }); // the selection hook below normally switches the session ...
+	if (_activeSimulationMesh != meshUuid)  // ... this covers a selection that did not change anything
+	{
+		_activeSimulationMesh = meshUuid;
+		refreshSimulationDisplay(*session);
+		emit simulationSessionChanged(false);
+	}
+}
+
+void ModelViewer::setSimulationResultVisible(const QUuid& meshUuid, bool visible)
+{
+	if (!_viewportWidget || !findSimulationSession(meshUuid) || !_viewportWidget->getMeshByUuid(meshUuid))
+		return;
+	QSet<QUuid> shown = getVisibleUuids();
+	if (shown.contains(meshUuid) == visible)
+		return;
+	if (visible)
+		shown.insert(meshUuid);
+	else
+		shown.remove(meshUuid);
+	setVisibilityWithUndo(shown, visible ? tr("Show Simulation Result") : tr("Hide Simulation Result"));
+	// The legend and timeline belong to the visible active result; markers and the mesh follow the visibility.
+	if (_simulationLegend)
+		_simulationLegend->refresh();
+	if (_simulationTimeline)
+		_simulationTimeline->refresh();
+	emit simulationSessionChanged(false);
+}
+
+void ModelViewer::closeSimulationResult(const QUuid& meshUuid)
+{
+	if (!_viewportWidget || !_undoStack || !findSimulationSession(meshUuid) || !_viewportWidget->getMeshByUuid(meshUuid))
+		return;
+	// The session stays in the list (it is a few references): Undo restores the mesh and the result with it. The mesh
+	// leaving the viewport is what removes it from the panel, legend, timeline and markers.
+	_undoStack->push(new DeleteMeshCommand(this, _viewportWidget, QVector<QUuid>{ meshUuid }));
+	updateControls();
+	// Another result may now be the one to show: its legend, markers and timeline take over.
+	if (SimulationSession* next = activeSimulationSessionMutable())
+	{
+		_activeSimulationMesh = next->meshUuid;
+		refreshSimulationDisplay(*next);
+	}
+	else
+		_viewportWidget->setVertexMarkers({});
+	if (_simulationLegend)
+		_simulationLegend->refresh();
+	if (_simulationTimeline)
+		_simulationTimeline->refresh();
+	emit simulationSessionChanged(false);
 }
 
 void ModelViewer::connectSimulationHooks()
@@ -379,7 +462,7 @@ QString ModelViewer::simulationProbeText(const MeshSurfaceAnchor& anchor, QColor
 	QString text = QStringLiteral("%1: %2").arg(session->shownScalar.label, QLocale().toString(static_cast<double>(sample.value), 'g', 5));
 	if (!session->shownScalar.unit.isEmpty())
 		text += QLatin1Char(' ') + session->shownScalar.unit;
-	return text + tr("  (node %1)").arg(sample.nodeId);
+	return text + (sample.cell ? tr("  (cell %1)").arg(sample.nodeId) : tr("  (node %1)").arg(sample.nodeId));
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -413,7 +496,7 @@ QHash<QUuid, std::vector<float>> ModelViewer::simulationBakedColors() const
 	{
 		if (!session.surface || !session.shownScalar.valid() || !_viewportWidget->getMeshByUuid(session.meshUuid))
 			continue;
-		const std::vector<float> values = boundaryVertexValues(*session.surface, session.shownScalar.nodeValues);
+		const std::vector<float> values = surfaceVertexValues(*session.surface, session.shownScalar); // cell data: averaged per vertex
 		const float span = session.shownHi > session.shownLo ? session.shownHi - session.shownLo : 1.0f;
 		const int bands = session.state.bands >= 2 ? session.state.bands : 0;
 		std::vector<float> rgba(values.size() * 4);
@@ -729,8 +812,11 @@ void ModelViewer::updateSimulationTimeline()
 	_simulationTimeline->setSpeed(_simulationSpeed);
 	_simulationTimeline->setPlaying(_simulationPlaying);
 	QPointer<ViewportWidget> viewportGuard(_viewportWidget);
+	QPointer<ModelViewer> self(this);
 	const QUuid meshUuid = session->meshUuid;
-	_simulationTimeline->setAliveCheck([viewportGuard, meshUuid]() { return viewportGuard && viewportGuard->getMeshByUuid(meshUuid); });
+	_simulationTimeline->setAliveCheck([viewportGuard, self, meshUuid]() {
+		return viewportGuard && viewportGuard->getMeshByUuid(meshUuid) && self && self->_visibleMeshUuids.contains(meshUuid);
+	});
 }
 
 // Recolours the session's mesh and updates the legend from session.state.
@@ -815,13 +901,20 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 		return;
 	}
 
-	const std::vector<float> vertexValues = boundaryVertexValues(*session.surface, scalar.nodeValues);
-	std::vector<bool> valid(vertexValues.size());
-	for (std::size_t i = 0; i < vertexValues.size(); ++i)
-		valid[i] = std::isfinite(vertexValues[i]);
+	// Values on the surface: one per vertex for node data (interpolated smoothly), one per triangle for cell data
+	// (constant over the cell, so drawn flat through the per-face overlay).
+	const std::vector<float> surfaceValues = scalar.cellData ? boundaryFaceValues(*session.surface, scalar.nodeValues)
+	                                                         : boundaryVertexValues(*session.surface, scalar.nodeValues);
+	std::vector<bool> valid(surfaceValues.size());
+	for (std::size_t i = 0; i < surfaceValues.size(); ++i)
+		valid[i] = std::isfinite(surfaceValues[i]);
 
 	_viewportWidget->makeCurrent();
-	mesh->setAnalysisOverlayColors(AnalysisColorRamp::mapToNormalizedScalarRGBA(vertexValues, valid, lo, hi));
+	const std::vector<float> encoded = AnalysisColorRamp::mapToNormalizedScalarRGBA(surfaceValues, valid, lo, hi);
+	if (scalar.cellData)
+		mesh->setAnalysisOverlayFlatColors(encoded);
+	else
+		mesh->setAnalysisOverlayColors(encoded);
 	mesh->setAnalysisOverlayBanding(simulationShaderBands(session.state), session.state.colormap);
 	_viewportWidget->doneCurrent();
 
@@ -837,24 +930,29 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 		                             tr("%1\n%2").arg(QDir::toNativeSeparators(session.filePath), session.warnings.join(QLatin1Char('\n'))));
 		// Shown only while this result's mesh is still displayed (it disappears with Undo, returns with Redo).
 		QPointer<ViewportWidget> viewportGuard(_viewportWidget);
+		QPointer<ModelViewer> self(this);
 		const QUuid meshUuid = session.meshUuid;
-		_simulationLegend->setAliveCheck([viewportGuard, meshUuid]() { return viewportGuard && viewportGuard->getMeshByUuid(meshUuid); });
+		_simulationLegend->setAliveCheck([viewportGuard, self, meshUuid]() {
+			return viewportGuard && viewportGuard->getMeshByUuid(meshUuid) && self && self->_visibleMeshUuids.contains(meshUuid);
+		});
 	}
 	// ---- Min/max markers of the result being shown (only the active result owns the viewport's markers).
 	if (isActive)
 	{
 		QVector<ViewportWidget::VertexMarker> markers;
 		std::size_t minVertex = 0, maxVertex = 0;
-		if (session.state.markExtrema && findScalarExtrema(vertexValues, minVertex, maxVertex))
+		if (session.state.markExtrema && findScalarExtrema(surfaceValues, minVertex, maxVertex))
 		{
 			const std::vector<Vertex> current = mesh->vertices(); // once, for both markers' normals
-			const auto makeMarker = [&](std::size_t vertex, const QString& name, float normalized) {
+			// For cell data the extreme is a triangle: the marker goes on that triangle's first vertex.
+			const auto makeMarker = [&](std::size_t index, const QString& name, float normalized) {
+				const std::size_t vertex = scalar.cellData ? session.surface->triangles[index * 3] : index;
 				ViewportWidget::VertexMarker marker;
 				marker.meshUuid = session.meshUuid;
 				marker.vertex = static_cast<int>(vertex);
 				if (vertex < current.size())
 					marker.localNormal = QVector3D(current[vertex].Normal.x, current[vertex].Normal.y, current[vertex].Normal.z);
-				marker.text = QStringLiteral("%1 %2").arg(name, QLocale().toString(static_cast<double>(vertexValues[vertex]), 'g', 5));
+				marker.text = QStringLiteral("%1 %2").arg(name, QLocale().toString(static_cast<double>(surfaceValues[index]), 'g', 5));
 				if (!scalar.unit.isEmpty())
 					marker.text += QLatin1Char(' ') + scalar.unit;
 				const QColor painted = AnalysisColorRamp::colorForNormalized(normalized, static_cast<AnalysisColormap>(session.state.colormap));
@@ -862,9 +960,9 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 				return marker;
 			};
 			const auto normalize = [&](float v) { return hi > lo ? std::clamp((v - lo) / (hi - lo), 0.0f, 1.0f) : 0.0f; };
-			markers.append(makeMarker(minVertex, tr("Min"), normalize(vertexValues[minVertex])));
+			markers.append(makeMarker(minVertex, tr("Min"), normalize(surfaceValues[minVertex])));
 			if (maxVertex != minVertex)
-				markers.append(makeMarker(maxVertex, tr("Max"), normalize(vertexValues[maxVertex])));
+				markers.append(makeMarker(maxVertex, tr("Max"), normalize(surfaceValues[maxVertex])));
 		}
 		_viewportWidget->setVertexMarkers(markers);
 	}

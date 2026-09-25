@@ -2,11 +2,13 @@
 
 #include "SimulationResultDisplay.h"
 
+#include <QVector>
 #include <QWidget>
 
 #include <memory>
 
 class QCheckBox;
+class QToolButton;
 class QComboBox;
 class QDoubleSpinBox;
 class QLabel;
@@ -32,9 +34,14 @@ public:
 
 	// nullptr shows the empty state. Never emits viewStateChanged().
 	void setSession(const SimulationSession* session);
+	// The document's results for the selector row (call before setSession); never emits.
+	void setResults(const QVector<SimulationResultItem>& items, const QUuid& activeMeshUuid);
 
 signals:
 	void openRequested();
+	void resultActivated(const QUuid& meshUuid);
+	void resultVisibilityChanged(const QUuid& meshUuid, bool visible);
+	void resultCloseRequested(const QUuid& meshUuid);
 	void viewStateChanged(const SimulationViewState& state);
 	// The user changed the quantity or a unit of a field (empty strings = "not specified").
 	void unitsChanged(int fieldIndex, const QString& kindId, const QString& fileUnit, const QString& displayUnit);
@@ -68,6 +75,9 @@ private:
 	void onUnitEdited();
 
 	QStackedWidget* _stack = nullptr;
+	QComboBox* _resultCombo = nullptr;
+	QCheckBox* _resultVisibleCheck = nullptr;
+	QToolButton* _resultCloseButton = nullptr;
 	QLabel* _fileLabel = nullptr;
 	QLabel* _infoLabel = nullptr;
 	QLabel* _noteLabel = nullptr;

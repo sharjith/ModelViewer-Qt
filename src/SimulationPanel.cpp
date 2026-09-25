@@ -15,6 +15,7 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QStackedWidget>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -92,7 +93,7 @@ void SimulationPanel::buildUi()
 	root->setContentsMargins(6, 6, 6, 6);
 
 	auto* openButton = new QPushButton(tr("Add Result..."), this);
-	openButton->setToolTip(tr("Add a simulation result (.vtu, .vtk, .frd) to this document, shown as its outer surface coloured by a result field.\n"
+	openButton->setToolTip(tr("Add a simulation result (.vtu, .vtk, .frd, .foam) to this document, shown as its outer surface coloured by a result field.\n"
 	                          "To open a result in its own document, use File > Open."));
 	connect(openButton, &QPushButton::clicked, this, &SimulationPanel::openRequested);
 	root->addWidget(openButton);
@@ -104,7 +105,7 @@ void SimulationPanel::buildUi()
 	auto* emptyPage = new QWidget(_stack);
 	auto* emptyLayout = new QVBoxLayout(emptyPage);
 	auto* hint = new QLabel(
-		tr("No simulation result in this document.\n\nUse File > Open to open a .vtu, .vtk or .frd result in its own "
+		tr("No simulation result in this document.\n\nUse File > Open to open a .vtu, .vtk, .frd or OpenFOAM .foam result in its own "
 		   "document, or \"Add Result...\" to add one to this document. A result is shown as its outer surface, "
 		   "coloured by a result field; the controls for the field, range, colormap and contours appear here."),
 		emptyPage);
@@ -122,10 +123,24 @@ void SimulationPanel::buildUi()
 	auto* form = new QFormLayout(content);
 	form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
 
+	// ---- Which result: a document can hold several. Picking one selects its mesh; it can be hidden or closed.
+	_resultCombo = new QComboBox(content);
+	_resultCombo->setToolTip(tr("The simulation results in this document. Selecting one here selects its mesh; selecting a result "
+	                            "mesh in the scene tree switches this panel to it."));
+	_resultVisibleCheck = new QCheckBox(tr("Visible"), content);
+	_resultCloseButton = new QToolButton(content);
+	_resultCloseButton->setText(tr("Close"));
+	_resultCloseButton->setToolTip(tr("Remove this result from the document (can be undone)"));
+	auto* resultRow = new QHBoxLayout();
+	resultRow->addWidget(_resultCombo, 1);
+	resultRow->addWidget(_resultVisibleCheck);
+	resultRow->addWidget(_resultCloseButton);
+	form->addRow(tr("Result:"), resultRow);
+
 	_fileLabel = new QLabel(content);
 	_fileLabel->setWordWrap(true);
 	_fileLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
-	form->addRow(tr("Result:"), _fileLabel);
+	form->addRow(tr("File:"), _fileLabel);
 
 	_infoLabel = new QLabel(content);
 	_infoLabel->setWordWrap(true);
@@ -239,6 +254,18 @@ void SimulationPanel::buildUi()
 	connect(_maxSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_updating) emitState(); });
 	connect(_colormapCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { if (!_updating) emitState(); });
 	connect(_bandsCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { if (!_updating) emitState(); });
+	connect(_resultCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+		if (!_updating && _resultCombo->currentData().isValid())
+			emit resultActivated(_resultCombo->currentData().toUuid());
+	});
+	connect(_resultVisibleCheck, &QCheckBox::toggled, this, [this](bool on) {
+		if (!_updating && _resultCombo->currentData().isValid())
+			emit resultVisibilityChanged(_resultCombo->currentData().toUuid(), on);
+	});
+	connect(_resultCloseButton, &QToolButton::clicked, this, [this]() {
+		if (_resultCombo->currentData().isValid())
+			emit resultCloseRequested(_resultCombo->currentData().toUuid());
+	});
 	connect(_markersCheck, &QCheckBox::toggled, this, [this](bool) { if (!_updating) emitState(); });
 	connect(_deformCheck, &QCheckBox::toggled, this, [this](bool on) {
 		_deformScaleSpin->setEnabled(on && _deformCheck->isEnabled());
@@ -250,6 +277,29 @@ void SimulationPanel::buildUi()
 	connect(_deformAutoButton, &QPushButton::clicked, this, [this]() {
 		_deformScaleSpin->setValue(_autoDeformScale); // emits through valueChanged (unless it already is that value)
 	});
+}
+
+void SimulationPanel::setResults(const QVector<SimulationResultItem>& items, const QUuid& activeMeshUuid)
+{
+	const bool wasUpdating = _updating;
+	_updating = true;
+	{
+		const QSignalBlocker block(_resultCombo);
+		_resultCombo->clear();
+		int activeIndex = 0;
+		for (int i = 0; i < items.size(); ++i)
+		{
+			_resultCombo->addItem(items[i].visible ? items[i].name : tr("%1 (hidden)").arg(items[i].name), items[i].meshUuid);
+			if (items[i].meshUuid == activeMeshUuid)
+				activeIndex = i;
+		}
+		_resultCombo->setCurrentIndex(items.isEmpty() ? -1 : activeIndex);
+		const QSignalBlocker blockVisible(_resultVisibleCheck);
+		_resultVisibleCheck->setChecked(items.isEmpty() || items[activeIndex].visible);
+	}
+	_resultVisibleCheck->setEnabled(!items.isEmpty());
+	_resultCloseButton->setEnabled(!items.isEmpty());
+	_updating = wasUpdating;
 }
 
 void SimulationPanel::setSession(const SimulationSession* session)
@@ -303,12 +353,6 @@ void SimulationPanel::setSession(const SimulationSession* session)
 		refreshRangeEdits();
 
 	QStringList notes = session->warnings;
-	std::size_t cellFields = 0;
-	for (const ResultField& f : _dataset->fields)
-		if (f.association == ResultFieldAssociation::Cell)
-			++cellFields;
-	if (cellFields > 0)
-		notes << tr("%1 cell-data field(s) in the file cannot be shown yet (only node data).").arg(cellFields);
 	_noteLabel->setText(notes.join(QLatin1Char('\n')));
 	_noteLabel->setVisible(!notes.isEmpty());
 
@@ -324,14 +368,16 @@ void SimulationPanel::populateFields(int selectedFieldIndex)
 	for (std::size_t i = 0; i < _dataset->fields.size(); ++i)
 	{
 		const ResultField& f = _dataset->fields[i];
-		if (f.association != ResultFieldAssociation::Node || f.stepData.empty() || f.stepData[0].empty())
+		if (f.stepData.empty() || f.stepData[0].empty())
 			continue;
 		const QString kind = f.components == 1 ? QString() : tr(" (%1 components)").arg(f.components);
-		_fieldCombo->addItem(f.name + kind, static_cast<int>(i));
+		// A cell field is constant over each cell (element results), drawn flat rather than interpolated.
+		const QString where = f.association == ResultFieldAssociation::Cell ? tr(" [cells]") : QString();
+		_fieldCombo->addItem(f.name + kind + where, static_cast<int>(i));
 	}
 	if (_fieldCombo->count() == 0)
 	{
-		_fieldCombo->addItem(tr("(no node fields)"), -1);
+		_fieldCombo->addItem(tr("(no fields)"), -1);
 		_fieldCombo->setEnabled(false);
 		return;
 	}

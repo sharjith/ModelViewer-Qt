@@ -33,14 +33,17 @@ LoadedSimulationResult loadSimulationResult(const QString& path, const std::atom
 
 struct SimulationSession;
 
-// One scalar per dataset node, taken from a node field, ready to be shown as a colour map.
+// One scalar per dataset node - or, for a cell field (cellData), per dataset cell - ready to be shown as a colour map.
+// Node data is interpolated smoothly across the surface; cell data is constant over a cell, so every boundary triangle
+// takes the value of the cell it belongs to and is drawn flat.
 struct DisplayScalar
 {
 	int fieldIndex = -1;  // index into ResultDataset::fields
 	int component = -1;   // -1 = magnitude of a 3-component field, otherwise the component index
 	QString label;        // e.g. "von Mises Stress" or "Displacement (magnitude)"
-	std::vector<float> nodeValues; // one per dataset node, in `unit` (may contain non-finite values)
-	float minValue = 0.0f; // over the finite values of ALL nodes, in `unit`
+	std::vector<float> nodeValues; // one per dataset node (per cell when cellData), in `unit` (may contain non-finite values)
+	bool cellData = false;         // nodeValues is indexed by cell, not by node
+	float minValue = 0.0f; // over the finite values of ALL nodes (cells when cellData), in `unit`
 	float maxValue = 0.0f;
 	QString unit;              // the unit of nodeValues/minValue/maxValue (the field's display unit); empty = not specified
 	bool unitAssumed = false;  // `unit` is a guess the user has not confirmed
@@ -70,6 +73,12 @@ bool chooseDefaultDisplayScalar(const ResultDataset& dataset, DisplayScalar& out
 
 // nodeValues (one per dataset node) -> one value per boundary-surface vertex.
 std::vector<float> boundaryVertexValues(const ResultBoundarySurface& surface, const std::vector<float>& nodeValues);
+// cellValues (one per dataset cell) -> one value per boundary triangle (the value of the cell it belongs to).
+std::vector<float> boundaryFaceValues(const ResultBoundarySurface& surface, const std::vector<float>& cellValues);
+// One value per boundary vertex for either kind of scalar: the node value, or for cell data the mean of the finite
+// values of the triangles meeting at the vertex (an approximation, used where only per-vertex data can be written,
+// e.g. the colours baked into a saved file).
+std::vector<float> surfaceVertexValues(const ResultBoundarySurface& surface, const DisplayScalar& scalar);
 
 // Smooth per-vertex normals for the boundary surface (area-weighted average of the adjoining triangles),
 // 3 floats per vertex, unit length (falls back to +Z for a vertex whose triangles cancel out). The second form
@@ -93,8 +102,9 @@ struct ProbeSample
 {
 	bool valid = false;
 	float value = 0.0f;         // in the scalar's unit
-	std::uint32_t node = 0;     // dataset node index of the vertex nearest the point
-	std::int64_t nodeId = 0;    // its id as written in the file
+	bool cell = false;          // the value belongs to a whole cell (constant over it), not interpolated between nodes
+	std::uint32_t node = 0;     // dataset node index of the vertex nearest the point (the cell index when `cell`)
+	std::int64_t nodeId = 0;    // its id as written in the file (the cell's id when `cell`)
 	float normalized = 0.0f;    // (value - lo) / (hi - lo) clamped to 0..1, for choosing the readout colour
 };
 ProbeSample sampleSurfaceScalar(const ResultDataset& dataset, const ResultBoundarySurface& surface, const DisplayScalar& scalar,
@@ -160,6 +170,14 @@ struct SimulationRangeCache
 	int component = -1;
 	QString kindId, fileUnit, displayUnit;
 	float lo = 0.0f, hi = 1.0f;
+};
+
+// One entry of the Simulation panel's result list (a document can hold several results).
+struct SimulationResultItem
+{
+	QUuid meshUuid;
+	QString name;
+	bool visible = true;
 };
 
 // One loaded result inside a document: the dataset (source of truth), its boundary surface, the scene mesh that

@@ -37,11 +37,11 @@ bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int compon
 	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size())
 		return false;
 	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
-	if (field.association != ResultFieldAssociation::Node || step < 0
-		|| static_cast<std::size_t>(step) >= field.stepData.size() || field.stepData[static_cast<std::size_t>(step)].empty())
-		return false; // not a node field, or no data for it at this step
+	if (step < 0 || static_cast<std::size_t>(step) >= field.stepData.size() || field.stepData[static_cast<std::size_t>(step)].empty())
+		return false; // no data for it at this step
 
-	const std::size_t nodes = dataset.nodeCount();
+	const bool cellData = field.association == ResultFieldAssociation::Cell;
+	const std::size_t nodes = cellData ? dataset.cellCount() : dataset.nodeCount(); // "nodes" = tuples of the field
 	const int comps = field.components;
 	const std::vector<float>& data = field.stepData[static_cast<std::size_t>(step)];
 	if (comps <= 0 || data.size() != nodes * static_cast<std::size_t>(comps))
@@ -109,6 +109,7 @@ bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int compon
 	}
 
 	out.fieldIndex = fieldIndex;
+	out.cellData = cellData;
 	out.component = comps == 1 ? -1 : component;
 	out.label = label;
 	out.nodeValues = std::move(values);
@@ -124,13 +125,20 @@ bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int compon
 
 bool chooseDefaultDisplayScalar(const ResultDataset& dataset, DisplayScalar& out)
 {
-	int firstScalar = -1, firstVector = -1, vonMises = -1;
+	// Node fields come first; a result that only has cell fields (element-wise results) falls back to the first of those.
+	int firstScalar = -1, firstVector = -1, vonMises = -1, firstCellScalar = -1;
 	for (std::size_t i = 0; i < dataset.fields.size(); ++i)
 	{
 		const ResultField& f = dataset.fields[i];
-		if (f.association != ResultFieldAssociation::Node || f.stepData.empty() || f.stepData[0].empty())
+		if (f.stepData.empty() || f.stepData[0].empty())
 			continue;
 		const int index = static_cast<int>(i);
+		if (f.association == ResultFieldAssociation::Cell)
+		{
+			if (firstCellScalar < 0 && f.components == 1)
+				firstCellScalar = index;
+			continue;
+		}
 		if (f.components == 1)
 		{
 			const QString lower = f.name.toLower();
@@ -144,7 +152,7 @@ bool chooseDefaultDisplayScalar(const ResultDataset& dataset, DisplayScalar& out
 			firstVector = index;
 	}
 
-	const int candidates[] = { vonMises, firstScalar, firstVector };
+	const int candidates[] = { vonMises, firstScalar, firstVector, firstCellScalar };
 	for (int index : candidates)
 		if (index >= 0 && buildDisplayScalar(dataset, index, -1, out))
 			return true;
@@ -158,6 +166,40 @@ std::vector<float> boundaryVertexValues(const ResultBoundarySurface& surface, co
 	for (std::size_t v = 0; v < surface.vertexNode.size() && v < values.size(); ++v)
 		if (surface.vertexNode[v] < nodeValues.size())
 			values[v] = nodeValues[surface.vertexNode[v]];
+	return values;
+}
+
+std::vector<float> boundaryFaceValues(const ResultBoundarySurface& surface, const std::vector<float>& cellValues)
+{
+	std::vector<float> values(surface.triangleCount(), std::numeric_limits<float>::quiet_NaN());
+	for (std::size_t t = 0; t < surface.triangleCell.size() && t < values.size(); ++t)
+		if (surface.triangleCell[t] < cellValues.size())
+			values[t] = cellValues[surface.triangleCell[t]];
+	return values;
+}
+
+std::vector<float> surfaceVertexValues(const ResultBoundarySurface& surface, const DisplayScalar& scalar)
+{
+	if (!scalar.cellData)
+		return boundaryVertexValues(surface, scalar.nodeValues);
+	const std::vector<float> faces = boundaryFaceValues(surface, scalar.nodeValues);
+	std::vector<double> sum(surface.vertexCount(), 0.0);
+	std::vector<int> count(surface.vertexCount(), 0);
+	for (std::size_t t = 0; t < faces.size(); ++t)
+	{
+		if (!std::isfinite(faces[t]))
+			continue;
+		for (std::size_t k = 0; k < 3; ++k)
+		{
+			const std::uint32_t v = surface.triangles[t * 3 + k];
+			sum[v] += static_cast<double>(faces[t]);
+			++count[v];
+		}
+	}
+	std::vector<float> values(surface.vertexCount(), std::numeric_limits<float>::quiet_NaN());
+	for (std::size_t v = 0; v < values.size(); ++v)
+		if (count[v] > 0)
+			values[v] = static_cast<float>(sum[v] / count[v]);
 	return values;
 }
 
@@ -454,6 +496,22 @@ ProbeSample sampleSurfaceScalar(const ResultDataset& dataset, const ResultBounda
 	ProbeSample out;
 	if (triangle * 3 + 2 >= surface.triangles.size())
 		return out;
+	if (scalar.cellData)
+	{
+		// Constant over the cell: no interpolation, no nearest node.
+		if (triangle >= surface.triangleCell.size())
+			return out;
+		const std::uint32_t cell = surface.triangleCell[triangle];
+		if (cell >= scalar.nodeValues.size() || !std::isfinite(scalar.nodeValues[cell]))
+			return out;
+		out.valid = true;
+		out.cell = true;
+		out.value = scalar.nodeValues[cell];
+		out.node = cell;
+		out.nodeId = dataset.cellId(cell);
+		out.normalized = hi > lo ? std::clamp((out.value - lo) / (hi - lo), 0.0f, 1.0f) : 0.0f;
+		return out;
+	}
 	const float weights[3] = { u, v, w };
 	std::uint32_t nodes[3];
 	float values[3];

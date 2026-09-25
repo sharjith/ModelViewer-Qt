@@ -1,6 +1,7 @@
 #include "ResultReader.h"
 
 #include "CalculixFrdReader.h"
+#include "OpenFoamReader.h"
 #include "VtkLegacyReader.h"
 #include "VtkXmlReader.h"
 
@@ -8,7 +9,7 @@
 
 QStringList supportedResultExtensions()
 {
-	return { QStringLiteral("vtu"), QStringLiteral("vtk"), QStringLiteral("frd") };
+	return { QStringLiteral("vtu"), QStringLiteral("vtk"), QStringLiteral("frd"), QStringLiteral("foam") };
 }
 
 bool isSupportedResultFile(const QString& path)
@@ -19,7 +20,7 @@ bool isSupportedResultFile(const QString& path)
 QStringList supportedResultFileFilters()
 {
 	return { QStringLiteral("VTK XML Unstructured Grid (*.vtu)"), QStringLiteral("VTK Legacy (*.vtk)"),
-	         QStringLiteral("CalculiX Results (*.frd)") };
+	         QStringLiteral("CalculiX Results (*.frd)"), QStringLiteral("OpenFOAM Case (*.foam)") };
 }
 
 ResultReadOutcome readResultFile(const QString& path, const std::atomic<bool>* cancel)
@@ -31,6 +32,8 @@ ResultReadOutcome readResultFile(const QString& path, const std::atomic<bool>* c
 		return readVtkLegacy(path, cancel);
 	if (suffix == QLatin1String("frd"))
 		return readCalculixFrd(path, cancel);
+	if (suffix == QLatin1String("foam"))
+		return readOpenFoamCase(path, cancel);
 
 	ResultReadOutcome outcome;
 	outcome.error = QStringLiteral("Unsupported result file type '.%1'.").arg(suffix);

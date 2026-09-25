@@ -100,6 +100,35 @@ bool extractBoundarySurface(const ResultDataset& ds, ResultBoundarySurface& out,
 
 	const std::size_t cellCount = ds.cellCount();
 
+	// ---- A ready-made boundary (OpenFOAM): compact the nodes it uses into surface vertices ---------
+	if (!ds.boundaryTriangles.empty())
+	{
+		std::vector<std::uint32_t> nodeToVertexReady(ds.nodeCount(), std::numeric_limits<std::uint32_t>::max());
+		const float* readyPos = ds.nodePositions.data();
+		for (std::size_t t = 0; t < ds.boundaryTriangles.size() / 3; ++t)
+		{
+			if ((t & 0xFFFF) == 0 && isCancelled())
+				return fail(QStringLiteral("cancelled"));
+			for (std::size_t k = 0; k < 3; ++k)
+			{
+				const std::uint32_t node = ds.boundaryTriangles[t * 3 + k];
+				std::uint32_t& v = nodeToVertexReady[node];
+				if (v == std::numeric_limits<std::uint32_t>::max())
+				{
+					v = static_cast<std::uint32_t>(out.positions.size() / 3);
+					out.positions.push_back(readyPos[node * 3 + 0]);
+					out.positions.push_back(readyPos[node * 3 + 1]);
+					out.positions.push_back(readyPos[node * 3 + 2]);
+					out.vertexNode.push_back(node);
+				}
+				out.triangles.push_back(v);
+			}
+			out.triangleCell.push_back(ds.boundaryTriangleCells[t]);
+			out.triangleFace.push_back(ResultBoundarySurface::kNoFace);
+		}
+		return true;
+	}
+
 	// ---- Count volume faces to size the partitioning ---------------------------------------------
 	std::size_t totalFaces = 0;
 	for (std::size_t c = 0; c < cellCount; ++c)

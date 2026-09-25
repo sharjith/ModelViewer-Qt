@@ -160,8 +160,8 @@ void assignGuessedUnits(ResultDataset& dataset)
 	const bool calculix = dataset.solverName == QLatin1String("CalculiX");
 	for (ResultField& f : dataset.fields)
 	{
-		if (f.association != ResultFieldAssociation::Node || !f.fileUnit.isEmpty())
-			continue;
+		if (!f.fileUnit.isEmpty())
+			continue; // node and cell fields alike; units a file states itself (OpenFOAM dimensions) are kept
 		const QString kind = f.quantityKind.isEmpty() ? guessQuantityKind(f.name) : f.quantityKind;
 		if (kind.isEmpty())
 			continue;

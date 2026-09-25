@@ -963,7 +963,7 @@
     <string>Add Result to This Document...</string>
    </property>
    <property name="statusTip">
-    <string>Add a simulation result (.vtu, .vtk, .frd) to the current document, shown as its outer surface coloured by a result field. To open a result in its own document, use File &gt; Open.</string>
+    <string>Add a simulation result (.vtu, .vtk, .frd, .foam) to the current document, shown as its outer surface coloured by a result field. To open a result in its own document, use File &gt; Open.</string>
    </property>
   </action>
   <action name="actionFillHoles">
