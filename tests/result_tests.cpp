@@ -7,6 +7,7 @@
 // they cannot catch a shared misreading of the spec - real files (FreeCAD/CalculiX/ParaView output) are
 // the final check and are listed in docs/simulation_results_test_data.md.
 
+#include "ComparePaneLayout.h"
 #include "ResultBoundary.h"
 #include "ResultDerivedFields.h"
 #include "ResultReader.h"
@@ -2369,6 +2370,74 @@ namespace
 		}
 	}
 
+	// ---- Compare-mode pane geometry ---------------------------------------------------------------------------------
+
+	void testComparePanes()
+	{
+		// two panes side by side in 1000 x 600 with a 4 px gutter
+		std::vector<ComparePane> two = computeComparePanes(1000, 600, 2, CompareArrangement::SideBySide, 4);
+		CHECK(two.size() == 2);
+		CHECK(two[0].rect == QRect(0, 0, 498, 600) && two[1].rect == QRect(502, 0, 498, 600));
+		CHECK(two[0].glScissor == QRect(0, 0, 498, 600) && two[1].glScissor == QRect(502, 0, 498, 600));
+		// each pane is the full-size view shifted onto the pane: same viewport size, centred on the pane
+		CHECK(two[0].glViewport == QRect(-251, 0, 1000, 600) && two[1].glViewport == QRect(251, 0, 1000, 600));
+		CHECK(two[0].toWindow == QPoint(251, 0) && two[1].toWindow == QPoint(-251, 0));
+		CHECK(comparePaneAt(two, QPoint(10, 10)) == 0 && comparePaneAt(two, QPoint(600, 300)) == 1);
+		CHECK(comparePaneAt(two, QPoint(499, 100)) == -1 && comparePaneAt(two, QPoint(1000, 300)) == -1 && comparePaneAt(two, QPoint(-1, 0)) == -1);
+		CHECK(comparePaneAt(two, QPoint(497, 599)) == 0 && comparePaneAt(two, QPoint(502, 0)) == 1);
+
+		// stacked, odd height: the pane below starts after the gutter, GL's origin is at the bottom
+		std::vector<ComparePane> stacked = computeComparePanes(800, 601, 2, CompareArrangement::Stacked, 1);
+		CHECK(stacked.size() == 2 && stacked[0].rect == QRect(0, 0, 800, 300) && stacked[1].rect == QRect(0, 301, 800, 300));
+		CHECK(stacked[0].glScissor == QRect(0, 301, 800, 300) && stacked[1].glScissor == QRect(0, 0, 800, 300));
+
+		// a 2 x 2 grid in reading order
+		std::vector<ComparePane> grid = computeComparePanes(800, 600, 4, CompareArrangement::Grid, 4);
+		CHECK(grid.size() == 4 && grid[0].rect == QRect(0, 0, 398, 298) && grid[1].rect == QRect(402, 0, 398, 298)
+		      && grid[2].rect == QRect(0, 302, 398, 298) && grid[3].rect == QRect(402, 302, 398, 298));
+		CHECK(comparePaneAt(grid, QPoint(500, 400)) == 3 && comparePaneAt(grid, QPoint(400, 300)) == -1);
+		// three panes in a grid: the fourth slot stays empty; a grid of two is just a row
+		CHECK(computeComparePanes(800, 600, 3, CompareArrangement::Grid, 4).size() == 3);
+		CHECK(computeComparePanes(1000, 600, 2, CompareArrangement::Grid, 4)[1].rect == QRect(502, 0, 498, 600));
+
+		// the count is clamped, one pane is the whole window and needs no shift
+		CHECK(computeComparePanes(640, 480, 0, CompareArrangement::SideBySide).size() == 1);
+		CHECK(computeComparePanes(640, 480, 9, CompareArrangement::SideBySide).size() == 4);
+		const ComparePane whole = computeComparePanes(640, 480, 1, CompareArrangement::SideBySide)[0];
+		CHECK(whole.rect == QRect(0, 0, 640, 480) && whole.toWindow == QPoint(0, 0) && whole.glViewport == QRect(0, 0, 640, 480));
+
+		// invariants over many sizes, counts and arrangements: panes stay inside the window and never overlap, and every
+		// pane's shifted full-size view is centred on the pane (to a pixel)
+		const CompareArrangement arrangements[] = { CompareArrangement::SideBySide, CompareArrangement::Stacked, CompareArrangement::Grid };
+		bool inside = true, disjoint = true, centred = true, sized = true, scissorOk = true;
+		const int sizes[][2] = { { 1000, 600 }, { 801, 599 }, { 1920, 1080 }, { 333, 777 }, { 100, 100 }, { 9, 5 }, { 5, 5 } };
+		for (const auto& sz : sizes)
+			for (CompareArrangement arrangement : arrangements)
+				for (int count = 1; count <= 4; ++count)
+					for (int gutter : { 0, 1, 4, 11 })
+					{
+						const int w = sz[0], h = sz[1];
+						const std::vector<ComparePane> panes = computeComparePanes(w, h, count, arrangement, gutter);
+						sized = sized && static_cast<int>(panes.size()) == count;
+						for (std::size_t i = 0; i < panes.size(); ++i)
+						{
+							const ComparePane& a = panes[i];
+							inside = inside && a.rect.width() >= 0 && a.rect.height() >= 0 && a.rect.left() >= 0 && a.rect.top() >= 0
+								&& a.rect.right() < w + (a.rect.width() == 0 ? 1 : 0) && a.rect.bottom() < h + (a.rect.height() == 0 ? 1 : 0);
+							const int cx = a.rect.x() + a.rect.width() / 2, cy = a.rect.y() + a.rect.height() / 2;
+							centred = centred && std::abs(cx + a.toWindow.x() - w / 2) <= 1 && std::abs(cy + a.toWindow.y() - h / 2) <= 1
+								&& a.glViewport.width() == w && a.glViewport.height() == h
+								&& std::abs((a.glViewport.x() + w / 2) - cx) <= 1 && std::abs((a.glViewport.y() + h / 2) - (h - cy)) <= 1;
+							scissorOk = scissorOk && a.glScissor.width() == a.rect.width() && a.glScissor.height() == a.rect.height()
+								&& a.glScissor.y() == h - (a.rect.y() + a.rect.height());
+							for (std::size_t j = i + 1; j < panes.size(); ++j)
+								if (!a.rect.isEmpty() && !panes[j].rect.isEmpty())
+									disjoint = disjoint && !a.rect.intersects(panes[j].rect);
+						}
+					}
+		CHECK(sized && inside && disjoint && centred && scissorOk);
+	}
+
 	void testShellAndSkippedCells()
 	{
 		Mesh m;
@@ -2587,6 +2656,7 @@ int main(int argc, char** argv)
 	testOpenFoamPolyhedral();
 	testOpenFoamErrors();
 	testOpenFoamSample();
+	testComparePanes();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();

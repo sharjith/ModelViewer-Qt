@@ -191,3 +191,29 @@ Phases 1-2 are pure refactors and can be reviewed and tested on their own before
 3. Which tools must work in compare mode from day one (measurement? probe?) versus being disabled?
 4. Should compare also be offered for a result against a CAD reference mesh (a plain scene mesh in one pane)?
 5. Is Option B (linked windows) wanted as a stopgap while A is built?
+
+## 9. Implemented approach (2026-09-25) - supersedes sections 4-6 where they differ
+
+Decisions taken with the user: compare shows **two different results** (never the same result twice: it would need a
+hidden mesh copy and a lot of disambiguation); the existing 2x2 multi-view code is **not** reused or refactored; the
+first version is rendering + navigation + legends, with picking-based interactions off.
+
+- **Pane geometry** is a small standalone model, `ComparePaneLayout.h/.cpp` (pure QtCore, unit-tested): 1-4 panes,
+  side by side, stacked or 2x2. A pane is *not* rendered with a narrower camera. It is the ordinary full-window view
+  (same aspect ratio and projection, so every camera interaction and future picking maths stay unchanged) drawn
+  into a full-size `glViewport` shifted so the model is centred in the pane, and clipped to the pane with `glScissor`.
+  `ComparePane::toWindow` maps a point of the pane to the equivalent point of the full-window view.
+- **Rendering**: `ViewportWidget::renderComparePanes()` (next to `renderMultiView()`, chosen in `paintGL()` only while
+  compare is active). Shadow/SSS/transmission passes run once for the whole scene; each pane then draws with
+  `_paneMeshFilter` set to its own mesh, consulted in `isMeshVisible()`. With no filter (every other case) nothing
+  changes.
+- **Interactions**: orbit, pan, zoom and view changes work (one shared camera). Selection, hover highlight, the hover
+  probe and plane gizmos are disabled while compare is on. Their next step is the pane mapping above plus the mesh filter
+  in the pick pass.
+- **Legends**: one `SimulationLegendWidget` per pane (top-right of the pane, result name as a heading);
+  **same colour range** unions the two results' own ranges (only while both show the same unit).
+- **UI**: Simulation tab, "Compare with" drop-down + Compare / Exit Compare, "Stacked" and "Same colour range" checks.
+  Compare ends by itself when either result is hidden, closed or undone. Not persisted.
+- **Known limits (v1)**: fit-to-screen still fits the whole window, so a wide model can be wider than its pane (zoom
+  out); the timeline drives the active result only; measurement/annotation are not pane-aware; no Simulation-menu entry
+  yet.

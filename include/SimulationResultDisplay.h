@@ -191,6 +191,9 @@ struct SimulationSession
 	QStringList warnings;
 	SimulationViewState state;
 	SimulationRangeCache rangeCache;
+	// The colour range this result has on its own (before a shared compare range widens it).
+	float ownLo = 0.0f, ownHi = 1.0f;
+	bool ownRangeValid = false;
 	// What is currently painted (the probe reads it, so a hover does not rebuild the scalar).
 	DisplayScalar shownScalar;
 	float shownLo = 0.0f, shownHi = 1.0f;

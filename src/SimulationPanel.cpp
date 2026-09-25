@@ -137,6 +137,21 @@ void SimulationPanel::buildUi()
 	resultRow->addWidget(_resultCloseButton);
 	form->addRow(tr("Result:"), resultRow);
 
+	// ---- Compare: the active result next to another one, two panes with one camera.
+	_compareCombo = new QComboBox(content);
+	_compareCombo->setToolTip(tr("Show the selected result next to this one, in two panes that share one camera."));
+	_compareButton = new QPushButton(tr("Compare"), content);
+	auto* compareRow = new QHBoxLayout();
+	compareRow->addWidget(_compareCombo, 1);
+	compareRow->addWidget(_compareButton);
+	form->addRow(tr("Compare with:"), compareRow);
+	_compareStackedCheck = new QCheckBox(tr("Stacked (top / bottom)"), content);
+	_compareSharedCheck = new QCheckBox(tr("Same colour range for both"), content);
+	_compareSharedCheck->setToolTip(tr("Use one colour range covering both results, so equal colours mean equal values "
+	                                   "(only while both show the same unit)."));
+	form->addRow(_compareStackedCheck);
+	form->addRow(_compareSharedCheck);
+
 	_fileLabel = new QLabel(content);
 	_fileLabel->setWordWrap(true);
 	_fileLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -262,6 +277,20 @@ void SimulationPanel::buildUi()
 		if (!_updating && _resultCombo->currentData().isValid())
 			emit resultVisibilityChanged(_resultCombo->currentData().toUuid(), on);
 	});
+	connect(_compareButton, &QPushButton::clicked, this, [this]() {
+		if (_compareActive)
+			emit compareStopRequested();
+		else if (_compareCombo->currentData().isValid())
+			emit compareStartRequested(_compareCombo->currentData().toUuid(), _compareStackedCheck->isChecked(), _compareSharedCheck->isChecked());
+	});
+	connect(_compareStackedCheck, &QCheckBox::toggled, this, [this](bool) {
+		if (!_updating && _compareActive)
+			emit compareOptionsChanged(_compareStackedCheck->isChecked(), _compareSharedCheck->isChecked());
+	});
+	connect(_compareSharedCheck, &QCheckBox::toggled, this, [this](bool) {
+		if (!_updating && _compareActive)
+			emit compareOptionsChanged(_compareStackedCheck->isChecked(), _compareSharedCheck->isChecked());
+	});
 	connect(_resultCloseButton, &QToolButton::clicked, this, [this]() {
 		if (_resultCombo->currentData().isValid())
 			emit resultCloseRequested(_resultCombo->currentData().toUuid());
@@ -299,6 +328,31 @@ void SimulationPanel::setResults(const QVector<SimulationResultItem>& items, con
 	}
 	_resultVisibleCheck->setEnabled(!items.isEmpty());
 	_resultCloseButton->setEnabled(!items.isEmpty());
+
+	// The Compare choices: every other result of the document.
+	{
+		const QSignalBlocker block(_compareCombo);
+		_compareCombo->clear();
+		for (const SimulationResultItem& item : items)
+			if (item.meshUuid != activeMeshUuid)
+				_compareCombo->addItem(item.name, item.meshUuid);
+	}
+	_updating = wasUpdating;
+}
+
+void SimulationPanel::setCompareState(bool active, bool stacked, bool sharedRange)
+{
+	const bool wasUpdating = _updating;
+	_updating = true;
+	_compareActive = active;
+	_compareStackedCheck->setChecked(stacked);
+	_compareSharedCheck->setChecked(sharedRange);
+	_compareButton->setText(active ? tr("Exit Compare") : tr("Compare"));
+	// Starting needs a second result; while comparing the partner is fixed (exit first to choose another).
+	_compareCombo->setEnabled(!active && _compareCombo->count() > 0);
+	_compareButton->setEnabled(active || _compareCombo->count() > 0);
+	_compareStackedCheck->setEnabled(true);
+	_compareSharedCheck->setEnabled(true);
 	_updating = wasUpdating;
 }
 

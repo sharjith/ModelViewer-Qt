@@ -11,6 +11,7 @@ add_executable(result_tests
     ${CMAKE_SOURCE_DIR}/src/ResultDerivedFields.cpp
     ${CMAKE_SOURCE_DIR}/src/ResultUnits.cpp
     ${CMAKE_SOURCE_DIR}/src/ResultBoundary.cpp
+    ${CMAKE_SOURCE_DIR}/src/ComparePaneLayout.cpp
     ${CMAKE_SOURCE_DIR}/src/OpenFoamReader.cpp
     ${CMAKE_SOURCE_DIR}/src/ResultSnapshot.cpp
     ${CMAKE_SOURCE_DIR}/src/SimulationResultDisplay.cpp

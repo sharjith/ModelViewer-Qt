@@ -385,7 +385,10 @@ void ModelViewer::connectSimulationHooks()
 	// Undo/Redo of an open adds or removes a result mesh, which changes what the panel and legend should show.
 	connect(_undoStack, &QUndoStack::indexChanged, this, [this](int) { emit simulationSessionChanged(false); });
 	// The timeline (multi-step results) follows whichever session is active.
-	connect(this, &ModelViewer::simulationSessionChanged, this, [this](bool) { updateSimulationTimeline(); });
+	connect(this, &ModelViewer::simulationSessionChanged, this, [this](bool) {
+		checkSimulationCompare();
+		updateSimulationTimeline();
+	});
 }
 
 void ModelViewer::applySimulationViewState(const SimulationViewState& state)
@@ -705,6 +708,90 @@ void ModelViewer::restoreSimulationSessions(QVector<PendingSimulationRestore>& r
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Compare mode
+// ---------------------------------------------------------------------------------------------------------------
+
+void ModelViewer::startSimulationCompare(const QUuid& otherMeshUuid, bool stacked, bool sharedRange)
+{
+	SimulationSession* first = activeSimulationSessionMutable();
+	SimulationSession* second = findSimulationSession(otherMeshUuid);
+	if (!first || !second || first == second || !_viewportWidget || !_viewportWidget->getMeshByUuid(first->meshUuid)
+	    || !_viewportWidget->getMeshByUuid(second->meshUuid))
+		return;
+
+	// Both results must be shown for the panes to have something to draw.
+	QSet<QUuid> shown = getVisibleUuids();
+	if (!shown.contains(first->meshUuid) || !shown.contains(second->meshUuid))
+	{
+		shown.insert(first->meshUuid);
+		shown.insert(second->meshUuid);
+		setVisibilityWithoutUndo(shown);
+	}
+	if (_simulationPlaying)
+		setSimulationPlaying(false);
+
+	_simulationCompareActive = true;
+	_simulationCompareStacked = stacked;
+	_simulationCompareSharedRange = sharedRange;
+	_simulationCompareMeshes = { first->meshUuid, second->meshUuid };
+	_viewportWidget->setCompareResults(_simulationCompareMeshes, stacked ? CompareArrangement::Stacked : CompareArrangement::SideBySide);
+	if (_simulationLegend)
+		_simulationLegend->setAliveCheck([]() { return false; }); // each pane has its own legend now
+	refreshSimulationDisplay(*first);
+	refreshSimulationDisplay(*second);
+	emit simulationSessionChanged(false);
+}
+
+void ModelViewer::setSimulationCompareOptions(bool stacked, bool sharedRange)
+{
+	if (!_simulationCompareActive || !_viewportWidget)
+		return;
+	_simulationCompareStacked = stacked;
+	_simulationCompareSharedRange = sharedRange;
+	_viewportWidget->setCompareResults(_simulationCompareMeshes, stacked ? CompareArrangement::Stacked : CompareArrangement::SideBySide);
+	// Turning the shared range off must let each result go back to its own: refresh both (a shared refresh also
+	// refreshes the partner, and the guard keeps that from recursing).
+	for (const QUuid& id : std::as_const(_simulationCompareMeshes))
+		if (SimulationSession* session = findSimulationSession(id))
+			refreshSimulationDisplay(*session);
+	emit simulationSessionChanged(false);
+}
+
+void ModelViewer::stopSimulationCompare()
+{
+	if (!_simulationCompareActive)
+		return;
+	_simulationCompareActive = false;
+	_simulationCompareSharedRange = false;
+	_simulationCompareMeshes.clear();
+	if (_viewportWidget)
+		_viewportWidget->clearCompare();
+	for (const QPointer<SimulationLegendWidget>& legend : std::as_const(_compareLegends))
+		if (legend)
+			legend->deleteLater();
+	_compareLegends.clear();
+	// Every result back to its own colour range, and the single legend returns for the active one.
+	for (SimulationSession& session : _simulationSessions)
+		if (_viewportWidget && _viewportWidget->getMeshByUuid(session.meshUuid) && session.shownScalar.valid())
+			refreshSimulationDisplay(session);
+	emit simulationSessionChanged(false);
+}
+
+// Compare mode ends by itself when either result is hidden, closed, or removed by Undo.
+void ModelViewer::checkSimulationCompare()
+{
+	if (!_simulationCompareActive)
+		return;
+	for (const QUuid& id : std::as_const(_simulationCompareMeshes))
+		if (!_viewportWidget || !_viewportWidget->getMeshByUuid(id) || !_visibleMeshUuids.contains(id))
+		{
+			stopSimulationCompare();
+			MainWindow::showStatusMessage(tr("Compare ended: one of the compared results is no longer shown."), 5000);
+			return;
+		}
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Time steps and playback
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -889,8 +976,10 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 			haveScalar = resolveViewRange(scalar, session.state, lo, hi);
 	}
 
+	const bool comparing = _simulationCompareActive && _simulationCompareMeshes.contains(session.meshUuid);
 	if (!haveScalar)
 	{
+		session.ownRangeValid = false;
 		session.shownScalar = DisplayScalar();
 		if (isActive)
 			_viewportWidget->setVertexMarkers({});
@@ -899,6 +988,23 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 			_simulationLegend->setAliveCheck([]() { return false; });
 		_viewportWidget->update();
 		return;
+	}
+
+	// Compare mode with "same colour range": this result's own range widened to include its partner's, so equal colours
+	// mean equal values. Only when both show the same unit (otherwise the numbers are not comparable).
+	session.ownLo = lo;
+	session.ownHi = hi;
+	session.ownRangeValid = true;
+	SimulationSession* partner = nullptr;
+	if (comparing)
+		for (const QUuid& id : std::as_const(_simulationCompareMeshes))
+			if (id != session.meshUuid)
+				partner = findSimulationSession(id);
+	if (comparing && _simulationCompareSharedRange && partner && partner->ownRangeValid && partner->shownScalar.valid()
+	    && partner->shownScalar.unit == scalar.unit)
+	{
+		lo = std::min(lo, partner->ownLo);
+		hi = std::max(hi, partner->ownHi);
 	}
 
 	// Values on the surface: one per vertex for node data (interpolated smoothly), one per triangle for cell data
@@ -918,21 +1024,40 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 	mesh->setAnalysisOverlayBanding(simulationShaderBands(session.state), session.state.colormap);
 	_viewportWidget->doneCurrent();
 
-	if (isActive)
+	if ((isActive && !_simulationCompareActive) || comparing)
 	{
-		if (!_simulationLegend)
-			_simulationLegend = new SimulationLegendWidget(_viewportWidget);
+		// Compare mode: one legend per compared result, in its own pane; otherwise the single legend of the active one.
+		SimulationLegendWidget* legend = nullptr;
+		if (comparing)
+		{
+			QPointer<SimulationLegendWidget>& slot = _compareLegends[session.meshUuid];
+			if (!slot)
+				slot = new SimulationLegendWidget(_viewportWidget);
+			legend = slot;
+			QPointer<ViewportWidget> paneGuard(_viewportWidget);
+			const QUuid paneMesh = session.meshUuid;
+			legend->setPane([paneGuard, paneMesh]() {
+				return paneGuard ? paneGuard->comparePaneRect(paneGuard->comparePaneOfMesh(paneMesh)) : QRect();
+			}, mesh->getName());
+		}
+		else
+		{
+			if (!_simulationLegend)
+				_simulationLegend = new SimulationLegendWidget(_viewportWidget);
+			legend = _simulationLegend;
+			legend->setPane({}, QString());
+		}
 		// Unit in brackets: the display unit, flagged when it is only a guess, or an honest "not specified".
 		const QString unitText = scalar.unit.isEmpty() ? tr("unit not specified")
 			: (scalar.unitAssumed ? tr("%1, assumed").arg(scalar.unit) : scalar.unit);
-		_simulationLegend->setLegend(tr("%1  [%2]").arg(scalar.label, unitText), lo, hi, session.state.colormap,
+		legend->setLegend(tr("%1  [%2]").arg(scalar.label, unitText), lo, hi, session.state.colormap,
 		                             session.state.bands,
 		                             tr("%1\n%2").arg(QDir::toNativeSeparators(session.filePath), session.warnings.join(QLatin1Char('\n'))));
 		// Shown only while this result's mesh is still displayed (it disappears with Undo, returns with Redo).
 		QPointer<ViewportWidget> viewportGuard(_viewportWidget);
 		QPointer<ModelViewer> self(this);
 		const QUuid meshUuid = session.meshUuid;
-		_simulationLegend->setAliveCheck([viewportGuard, self, meshUuid]() {
+		legend->setAliveCheck([viewportGuard, self, meshUuid]() {
 			return viewportGuard && viewportGuard->getMeshByUuid(meshUuid) && self && self->_visibleMeshUuids.contains(meshUuid);
 		});
 	}
@@ -970,4 +1095,12 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 	session.shownHi = hi;
 	session.shownScalar = std::move(scalar); // last use of `scalar`: the hover probe reads it
 	_viewportWidget->update();
+
+	// A shared colour range depends on both results: when this one changed, its partner recolours with the new union.
+	if (comparing && _simulationCompareSharedRange && partner && !_refreshingComparePartner)
+	{
+		_refreshingComparePartner = true;
+		refreshSimulationDisplay(*partner);
+		_refreshingComparePartner = false;
+	}
 }

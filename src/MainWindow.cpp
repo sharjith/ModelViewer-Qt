@@ -263,6 +263,18 @@ MainWindow::MainWindow(QWidget* parent)
 			if (auto* child = activeMdiChild())
 				child->setSimulationResultVisible(uuid, visible);
 		});
+		connect(_simulationPanel, &SimulationPanel::compareStartRequested, this, [this](const QUuid& uuid, bool stacked, bool shared) {
+			if (auto* child = activeMdiChild())
+				child->startSimulationCompare(uuid, stacked, shared);
+		});
+		connect(_simulationPanel, &SimulationPanel::compareStopRequested, this, [this]() {
+			if (auto* child = activeMdiChild())
+				child->stopSimulationCompare();
+		});
+		connect(_simulationPanel, &SimulationPanel::compareOptionsChanged, this, [this](bool stacked, bool shared) {
+			if (auto* child = activeMdiChild())
+				child->setSimulationCompareOptions(stacked, shared);
+		});
 		connect(_simulationPanel, &SimulationPanel::resultCloseRequested, this, [this](const QUuid& uuid) {
 			if (auto* child = activeMdiChild())
 				child->closeSimulationResult(uuid);
@@ -1136,6 +1148,8 @@ void MainWindow::refreshSimulationPanel(ModelViewer* viewer)
 		return;
 	_simulationPanel->setResults(viewer ? viewer->simulationResults() : QVector<SimulationResultItem>(),
 	                             viewer ? viewer->activeSimulationMeshUuid() : QUuid());
+	_simulationPanel->setCompareState(viewer && viewer->simulationCompareActive(), viewer && viewer->simulationCompareStacked(),
+	                                  viewer && viewer->simulationCompareSharedRange());
 	_simulationPanel->setSession(viewer ? viewer->activeSimulationSession() : nullptr);
 }
 

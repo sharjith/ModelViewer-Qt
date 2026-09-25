@@ -613,6 +613,16 @@ public slots:
 	void activateSimulationResult(const QUuid& meshUuid);        // selects it and makes it the one the panel shows
 	void setSimulationResultVisible(const QUuid& meshUuid, bool visible); // undoable, like hiding any mesh
 	void closeSimulationResult(const QUuid& meshUuid);           // undoable delete of the result's mesh
+
+	// Compare mode: the active result and `otherMeshUuid` side by side (or stacked) in two panes with one shared
+	// camera, each with its own legend; optionally with one colour range for both so equal colours mean equal values
+	// (applied only while both show the same unit). It ends by itself when either result is hidden, closed or undone.
+	bool simulationCompareActive() const { return _simulationCompareActive; }
+	bool simulationCompareStacked() const { return _simulationCompareStacked; }
+	bool simulationCompareSharedRange() const { return _simulationCompareSharedRange; }
+	void startSimulationCompare(const QUuid& otherMeshUuid, bool stacked, bool sharedRange);
+	void setSimulationCompareOptions(bool stacked, bool sharedRange);
+	void stopSimulationCompare();
 	// Hover probe: the shown result value under the cursor, when it is over a simulation result mesh (empty text
 	// otherwise). `color` is set to a readable text colour for the paint under the cursor.
 	bool hasSimulationResults() const { return !_simulationSessions.empty(); }
@@ -761,6 +771,7 @@ private:
 	void connectSimulationHooks();
 	void refreshSimulationDisplay(SimulationSession& session);
 	void updateSimulationTimeline();
+	void checkSimulationCompare(); // ends compare mode when one of its results went away
 	// Saving results into .mvf (docs/simulation_mvf_persistence_design.md, S2). The prompt runs once per session on the
 	// first save of a document that has results; the snapshots and the baked COLOR_0 are added while the package is built.
 	bool promptSimulationSaveOptions();
@@ -970,6 +981,12 @@ private:
 	SimulationSaveContent _simulationSaveContent = SimulationSaveContent::ShownAndDisplacement;
 	bool _simulationSavePrompted = false;
 	mutable QStringList _simulationSaveNotes; // what the last package build had to leave out (e.g. subsampled steps)
+	bool _simulationCompareActive = false;
+	bool _simulationCompareStacked = false;
+	bool _simulationCompareSharedRange = false;
+	QVector<QUuid> _simulationCompareMeshes;
+	QHash<QUuid, QPointer<SimulationLegendWidget>> _compareLegends; // one per compared result, in its own pane
+	bool _refreshingComparePartner = false;
 	QPointer<SimulationTimelineWidget> _simulationTimeline; // playback controls of a multi-step result
 	QTimer* _simulationPlayTimer = nullptr;
 	bool _simulationPlaying = false;

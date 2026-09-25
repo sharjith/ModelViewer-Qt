@@ -1657,6 +1657,10 @@ void ViewportWidget::paintGL()
 		{
 			renderMultiView(topColor, botColor);
 		}
+		else if (_compareActive && _compareMeshes.size() >= 2)
+		{
+			renderComparePanes(topColor, botColor);
+		}
 		else
 		{
 			renderSingleView(topColor, botColor);
@@ -3679,8 +3683,20 @@ void ViewportWidget::drawVertexMarkers()
 		const QVector3D projected = world.project(view, _viewCtrl.projectionMatrix(), viewportRect);
 		if (projected.z() < 0.0f || projected.z() > 1.0f)
 			continue;
-		const float x = projected.x();
-		const float y = static_cast<float>(height()) - projected.y(); // top-down pixels, as the other labels
+		float x = projected.x();
+		float y = static_cast<float>(height()) - projected.y(); // top-down pixels, as the other labels
+		if (_compareActive)
+		{
+			// The point is in the full-window view; the pane of its result shows that view shifted by toWindow.
+			const int pane = comparePaneOfMesh(marker.meshUuid);
+			if (pane < 0 || static_cast<std::size_t>(pane) >= _comparePanes.size())
+				continue;
+			const ComparePane& target = _comparePanes[static_cast<std::size_t>(pane)];
+			x -= static_cast<float>(target.toWindow.x());
+			y -= static_cast<float>(target.toWindow.y());
+			if (!target.rect.contains(QPoint(static_cast<int>(x), static_cast<int>(y))))
+				continue;
+		}
 		const QVector3D color(static_cast<float>(marker.color.redF()), static_cast<float>(marker.color.greenF()),
 		                      static_cast<float>(marker.color.blueF()));
 		_axisTextRenderer->RenderText("+", x - 4.0f, y + 4.0f, 1, color, TextRenderer::VAlignment::VBOTTOM); // the point itself
@@ -3704,6 +3720,15 @@ void ViewportWidget::clearSurfaceAnalysisHoverReadout()
 
 void ViewportWidget::updateSurfaceAnalysisHoverReadout(const QPoint& pixel)
 {
+	if (_compareActive) // picking assumes the single full-window view; not available in compare mode yet
+	{
+		if (!_surfaceAnalysisHoverText.isEmpty())
+		{
+			_surfaceAnalysisHoverText.clear();
+			update();
+		}
+		return;
+	}
 	SurfaceAnalysisDialog* dialog = _viewer
 		? _viewer->findChild<SurfaceAnalysisDialog*>(QString(), Qt::FindDirectChildrenOnly)
 		: nullptr;
@@ -6698,6 +6723,85 @@ void ViewportWidget::applyExplodedViewTransforms(const QMap<int, TransformState>
 	update();
 }
 
+// Compare mode. Every pane is the ordinary full-window view (same camera, aspect and projection as a single view)
+// drawn into a full-size viewport shifted so the model sits in the middle of the pane, and clipped to the pane with a
+// scissor - see ComparePaneLayout.h. Each pane draws only its own result.
+void ViewportWidget::renderComparePanes(QColor& topColor, QColor& botColor)
+{
+	QMatrix4x4 projection;
+	projection.ortho(QRect(0.0f, 0.0f, static_cast<float>(width()), static_cast<float>(height())));
+	_renderCtrl.textShader()->bind();
+	_renderCtrl.textShader()->setUniformValue("projection", projection);
+	_renderCtrl.textShader()->release();
+	glViewport(0, 0, width(), height());
+	// The view-independent passes are done once for the whole scene, exactly as the single view does.
+	if (_renderCtrl.shadowsEnabled()
+		&& !(_renderCtrl.lowResEnabled() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES))
+		renderToShadowBuffer();
+
+	if (sceneHasVisibleSSSMaterials())
+		renderToSSSBuffer(_primaryCamera);
+
+	if (_renderCtrl.transmissionEnabled() && sceneHasVisibleTransmissionMaterials())
+		renderToTransmissionBuffer(_primaryCamera, topColor, botColor);
+
+	// The gutters between panes stay a dark divider colour; the panes are drawn over the rest.
+	GLfloat previousClear[4];
+	glGetFloatv(GL_COLOR_CLEAR_VALUE, previousClear);
+	glClearColor(0.12f, 0.12f, 0.12f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glClearColor(previousClear[0], previousClear[1], previousClear[2], previousClear[3]);
+
+	_comparePanes = computeComparePanes(width(), height(), static_cast<int>(_compareMeshes.size()), _compareArrangement);
+	glEnable(GL_SCISSOR_TEST);
+	for (std::size_t i = 0; i < _comparePanes.size() && i < static_cast<std::size_t>(_compareMeshes.size()); ++i)
+	{
+		const ComparePane& pane = _comparePanes[i];
+		glScissor(pane.glScissor.x(), pane.glScissor.y(), pane.glScissor.width(), pane.glScissor.height());
+		glViewport(pane.glViewport.x(), pane.glViewport.y(), pane.glViewport.width(), pane.glViewport.height());
+		gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
+			botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _renderCtrl.gradientStyle());
+		const QSet<QUuid> onlyThisResult{ _compareMeshes[static_cast<int>(i)] };
+		_paneMeshFilter = &onlyThisResult;
+		render(_primaryCamera);
+		_paneMeshFilter = nullptr;
+	}
+	glDisable(GL_SCISSOR_TEST);
+	glViewport(0, 0, width(), height());
+	drawVertexMarkers(); // in window coordinates, shifted into the pane of their result
+}
+
+void ViewportWidget::setCompareResults(const QVector<QUuid>& meshUuids, CompareArrangement arrangement)
+{
+	_compareMeshes = meshUuids;
+	_compareArrangement = arrangement;
+	_compareActive = _compareMeshes.size() >= 2;
+	_comparePanes = computeComparePanes(width(), height(), static_cast<int>(_compareMeshes.size()), arrangement);
+	update();
+}
+
+void ViewportWidget::clearCompare()
+{
+	_compareActive = false;
+	_compareMeshes.clear();
+	_comparePanes.clear();
+	_paneMeshFilter = nullptr;
+	update();
+}
+
+int ViewportWidget::comparePaneOfMesh(const QUuid& meshUuid) const
+{
+	return _compareActive ? static_cast<int>(_compareMeshes.indexOf(meshUuid)) : -1;
+}
+
+QRect ViewportWidget::comparePaneRect(int paneIndex) const
+{
+	// Always computed from the current size: the legends ask for this on a resize, before the next paint.
+	if (!_compareActive || paneIndex < 0 || paneIndex >= _compareMeshes.size())
+		return QRect();
+	return computeComparePanes(width(), height(), static_cast<int>(_compareMeshes.size()), _compareArrangement)[static_cast<std::size_t>(paneIndex)].rect;
+}
+
 void ViewportWidget::renderMultiView(QColor& topColor, QColor& botColor)
 {
 	glViewport(0, 0, width(), height());
@@ -7980,6 +8084,8 @@ bool ViewportWidget::isMeshAnimationVisible(const SceneMesh* mesh) const
 bool ViewportWidget::isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex) const
 {
 	if (!isMeshAnimationVisible(mesh)) return false;
+	// Compare mode: the pane being drawn shows only its own result.
+	if (_paneMeshFilter && !_paneMeshFilter->contains(mesh->uuid())) return false;
 
 	// 1. Frustum cull — applied in every pass, clipping or not.
 	// Skip frustum culling for any skinned mesh.
@@ -14075,7 +14181,7 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 		// stayed live there anyway - an enabled clipping/bounding-box face
 		// became an invisible region that still intercepted clicks and
 		// started drags in every sub-view (confirmed real bug).
-		if (!(e->modifiers() & Qt::ControlModifier) && !_viewCtrl.multiViewActive())
+		if (!(e->modifiers() & Qt::ControlModifier) && !_viewCtrl.multiViewActive() && !_compareActive)
 		{
 			if (PlaneGizmo* hitGizmo = hitTestPlaneGizmos(clickPoint))
 			{
@@ -14110,7 +14216,7 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 				PickingHelper::clientRectForPoint(e->pos(), width(), height(), _viewCtrl.multiViewActive()));
 		}
 
-		if (!_lassoToolArmed && !(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
+		if (!_compareActive && !_lassoToolArmed && !(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
 			&& !_viewCtrl.windowZoomActive() && !_viewCtrl.viewRotating() && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
 		{
 			// Selection
@@ -14559,7 +14665,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	// no longer does - see that guard's own comment.
 	if (e->buttons() == Qt::NoButton)
 	{
-		if (!_viewCtrl.multiViewActive())
+		if (!_viewCtrl.multiViewActive() && !_compareActive)
 			updatePlaneGizmoHover(e->pos());
 		updateSurfaceAnalysisHoverReadout(e->pos());
 	}
@@ -14850,7 +14956,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	}
 
 	// Hover highlight feedback (visual preview, independent of actual selection)
-	if (e->buttons() == Qt::NoButton && _selectionManager->getHoverMode() != HoverHighlightMode::Disabled)
+	if (e->buttons() == Qt::NoButton && !_compareActive && _selectionManager->getHoverMode() != HoverHighlightMode::Disabled)
 	{
 		if (!gizmoHovered && (!_viewCtrl.showViewCubeOverride() || !viewCubeScreenRect().contains(e->pos())))
 		{
@@ -15976,7 +16082,7 @@ unsigned int ViewportWidget::loadTextureFromFile(
 
 QList<int> ViewportWidget::sweepSelect(const QPoint& pixel, SelectionCombineMode mode)
 {
-	if (!_selectionManager || !_rubberBand || _rubberBand->geometry().isNull())
+	if (!_selectionManager || _compareActive || !_rubberBand || _rubberBand->geometry().isNull())
 		return _selectionManager ? _selectionManager->getSelectedIds() : QList<int>{};
 
 	const QList<int> selectedIds = _selectionManager->sweepSelect(_viewCtrl.leftButtonPoint(), pixel, mode);
@@ -15987,7 +16093,7 @@ QList<int> ViewportWidget::sweepSelect(const QPoint& pixel, SelectionCombineMode
 
 QList<int> ViewportWidget::lassoSelect(SelectionCombineMode mode)
 {
-	if (!_selectionManager || _lassoPoints.size() < 3)
+	if (!_selectionManager || _compareActive || _lassoPoints.size() < 3)
 		return _selectionManager ? _selectionManager->getSelectedIds() : QList<int>{};
 
 	const QList<int> selectedIds = _selectionManager->lassoSelect(_lassoPoints, mode);

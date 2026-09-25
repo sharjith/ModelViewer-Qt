@@ -36,12 +36,17 @@ public:
 	void setSession(const SimulationSession* session);
 	// The document's results for the selector row (call before setSession); never emits.
 	void setResults(const QVector<SimulationResultItem>& items, const QUuid& activeMeshUuid);
+	// Whether compare mode is on and its options; also enables the Compare controls (needs a second result).
+	void setCompareState(bool active, bool stacked, bool sharedRange);
 
 signals:
 	void openRequested();
 	void resultActivated(const QUuid& meshUuid);
 	void resultVisibilityChanged(const QUuid& meshUuid, bool visible);
 	void resultCloseRequested(const QUuid& meshUuid);
+	void compareStartRequested(const QUuid& otherMeshUuid, bool stacked, bool sharedRange);
+	void compareStopRequested();
+	void compareOptionsChanged(bool stacked, bool sharedRange);
 	void viewStateChanged(const SimulationViewState& state);
 	// The user changed the quantity or a unit of a field (empty strings = "not specified").
 	void unitsChanged(int fieldIndex, const QString& kindId, const QString& fileUnit, const QString& displayUnit);
@@ -78,6 +83,11 @@ private:
 	QComboBox* _resultCombo = nullptr;
 	QCheckBox* _resultVisibleCheck = nullptr;
 	QToolButton* _resultCloseButton = nullptr;
+	QComboBox* _compareCombo = nullptr;
+	QPushButton* _compareButton = nullptr;
+	QCheckBox* _compareStackedCheck = nullptr;
+	QCheckBox* _compareSharedCheck = nullptr;
+	bool _compareActive = false;
 	QLabel* _fileLabel = nullptr;
 	QLabel* _infoLabel = nullptr;
 	QLabel* _noteLabel = nullptr;

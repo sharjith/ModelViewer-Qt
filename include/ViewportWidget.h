@@ -21,6 +21,7 @@ class ToolsToolbar;
 #include "ViewportInteractionController.h"
 #include "Camera.h"
 #include "Material.h"
+#include "ComparePaneLayout.h"
 #include "MeshSurfaceAnchor.h"
 #include "MeasurementData.h"
 #include "MeasurementController.h"
@@ -1496,6 +1497,17 @@ public:
 	};
 	void setVertexMarkers(const QVector<VertexMarker>& markers);
 
+	// Compare mode (simulation results side by side, docs/simulation_compare_mode_design.md): the window is divided
+	// into one pane per mesh, each drawing ONLY its mesh with the shared camera - orbit, pan, zoom and fit act on all
+	// panes at once. Picking-based interactions (selection, hover highlight, the hover probe, plane gizmos) are off
+	// while it is active. `meshUuids` (2-4) are shown in reading order.
+	void setCompareResults(const QVector<QUuid>& meshUuids, CompareArrangement arrangement);
+	void clearCompare();
+	bool compareActive() const { return _compareActive; }
+	QVector<QUuid> compareMeshes() const { return _compareMeshes; }
+	int comparePaneOfMesh(const QUuid& meshUuid) const;   // -1 when the mesh is not in a pane
+	QRect comparePaneRect(int paneIndex) const;           // widget coordinates; empty when there is no such pane
+
 private slots:
 	void centerDisplayList();
 	void setBackgroundColor();
@@ -1510,6 +1522,7 @@ protected:
 	void renderSingleView(QColor& topColor, QColor& botColor);
 
 	void renderMultiView(QColor& topColor, QColor& botColor);
+	void renderComparePanes(QColor& topColor, QColor& botColor);
 	void applyOverlayPanelStyle(QWidget* wrapper, const QString& objectName);
 	void refreshNavigationOverlayStyle();
 
@@ -2503,6 +2516,13 @@ private:
 	// drawSurfaceAnalysisHoverLabel() treats as "nothing to draw") by
 	// updateSurfaceAnalysisHoverReadout() on plain mouse-move.
 	QVector<VertexMarker> _vertexMarkers;
+
+	// Compare mode state. While a pane is being drawn, `_paneMeshFilter` restricts isMeshVisible() to that pane's mesh.
+	bool _compareActive = false;
+	QVector<QUuid> _compareMeshes;
+	CompareArrangement _compareArrangement = CompareArrangement::SideBySide;
+	std::vector<ComparePane> _comparePanes;
+	const QSet<QUuid>* _paneMeshFilter = nullptr;
 	QString _surfaceAnalysisHoverText;
 	QPoint _surfaceAnalysisHoverPixel;
 	QColor _surfaceAnalysisHoverTextColor = Qt::white;

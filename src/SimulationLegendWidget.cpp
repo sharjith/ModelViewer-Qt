@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <QFontMetrics>
+#include <QFont>
 #include <QPainter>
 
 namespace
@@ -19,6 +20,8 @@ namespace
 	// Below the axis trihedron in the viewport's top-right corner; the bottom is taken by the reveal-on-hover
 	// toolbar and the view cube.
 	constexpr int kTopOffset = 64;
+	// In compare mode the pane has no trihedron in its corner.
+	constexpr int kPaneTopOffset = 12;
 	// 0 = no backing box at all (like the navigation tree overlay). Raise (up to 255) for a tinted backing.
 	constexpr int kBackgroundAlpha = 0;
 
@@ -76,14 +79,35 @@ void SimulationLegendWidget::setLegend(const QString& title, float minValue, flo
 	_bar = bar;
 	_hasContent = true;
 	setToolTip(toolTipText);
-	setFixedSize(kBarWidth + 2 * kPadding, kTitleHeight + kBarHeight + kLabelHeight + 2 * kPadding);
+	updateSize();
 	reposition();
 	refresh();
 }
 
+void SimulationLegendWidget::updateSize()
+{
+	const int heading = _heading.isEmpty() ? 0 : kTitleHeight;
+	setFixedSize(kBarWidth + 2 * kPadding, heading + kTitleHeight + kBarHeight + kLabelHeight + 2 * kPadding);
+}
+
+void SimulationLegendWidget::setPane(std::function<QRect()> pane, const QString& heading)
+{
+	_pane = std::move(pane);
+	_heading = heading;
+	updateSize();
+	reposition();
+	update();
+}
+
 void SimulationLegendWidget::reposition()
 {
-	if (QWidget* viewport = parentWidget())
+	QWidget* viewport = parentWidget();
+	if (!viewport)
+		return;
+	const QRect pane = _pane ? _pane() : QRect();
+	if (pane.isValid() && !pane.isEmpty())
+		move(pane.right() + 1 - width() - kMargin, pane.top() + kPaneTopOffset);
+	else
 		move(viewport->width() - width() - kMargin, kTopOffset);
 }
 
@@ -114,6 +138,17 @@ void SimulationLegendWidget::paintEvent(QPaintEvent*)
 
 	const int left = kPadding;
 	int y = kPadding;
+	if (!_heading.isEmpty())
+	{
+		QFont bold = painter.font();
+		bold.setBold(true);
+		painter.setFont(bold);
+		drawHaloText(painter, QRect(left, y, kBarWidth, kTitleHeight), Qt::AlignLeft | Qt::AlignVCenter,
+		             painter.fontMetrics().elidedText(_heading, Qt::ElideMiddle, kBarWidth));
+		bold.setBold(false);
+		painter.setFont(bold);
+		y += kTitleHeight;
+	}
 	drawHaloText(painter, QRect(left, y, kBarWidth, kTitleHeight), Qt::AlignLeft | Qt::AlignVCenter,
 	             painter.fontMetrics().elidedText(_title, Qt::ElideRight, kBarWidth));
 	y += kTitleHeight;
