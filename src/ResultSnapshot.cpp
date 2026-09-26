@@ -457,8 +457,8 @@ bool encodeResultSnapshot(const ResultDataset& dataset, const ResultBoundarySurf
 	root.insert(QStringLiteral("ranges"), rangesJson);
 
 	// View state; the saved step is mapped to the nearest kept one.
-	int keptStep = 0;
-	for (std::size_t k = 0; k < kept.size(); ++k)
+	int keptStep = 0; // stays 0 for a result without steps (a mesh with no fields), where kept is empty
+	for (std::size_t k = 1; k < kept.size(); ++k)
 		if (std::abs(kept[k] - state.step) < std::abs(kept[static_cast<std::size_t>(keptStep)] - state.step))
 			keptStep = static_cast<int>(k);
 	root.insert(QStringLiteral("view"), viewToJson(dataset, state, keptStep));

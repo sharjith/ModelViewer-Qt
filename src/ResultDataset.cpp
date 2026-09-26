@@ -152,6 +152,12 @@ QString ResultDataset::validate() const
 	{
 		if (f.components <= 0)
 			return QStringLiteral("field '%1' has no components").arg(f.name);
+		if (f.stepData.size() != steps.size())
+			return QStringLiteral("field '%1' has data slots for %2 step(s) but the result has %3").arg(f.name).arg(f.stepData.size()).arg(steps.size());
+		if (!f.componentNames.empty() && f.componentNames.size() != static_cast<std::size_t>(f.components))
+			return QStringLiteral("field '%1' names %2 component(s) but has %3").arg(f.name).arg(f.componentNames.size()).arg(f.components);
+		if (!f.storedRange.empty() && f.storedRange.size() != steps.size() * static_cast<std::size_t>(resultRangeSelectorCount(f.components)) * 2)
+			return QStringLiteral("field '%1' has a stored range of the wrong size").arg(f.name);
 		const std::size_t expectedTuples = f.association == ResultFieldAssociation::Node ? nodes : cells;
 		for (std::size_t s = 0; s < f.stepData.size(); ++s)
 		{

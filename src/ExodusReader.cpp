@@ -202,14 +202,6 @@ namespace
 		}
 		return specs;
 	}
-
-	// Values of one variable at one step: `tuples` doubles -> floats appended interleaved into `out` at component c.
-	void interleave(std::vector<float>& out, int components, int component, const std::vector<float>& values)
-	{
-		const std::size_t comps = static_cast<std::size_t>(components);
-		for (std::size_t t = 0; t < values.size(); ++t)
-			out[t * comps + static_cast<std::size_t>(component)] = values[t];
-	}
 }
 
 bool exodusSupported() { return true; }
@@ -349,41 +341,27 @@ ResultReadOutcome readExodus(const QString& path, const std::atomic<bool>* cance
 	// ---- Node and element variables --------------------------------------------------------------------------------
 	const float nan = std::numeric_limits<float>::quiet_NaN();
 
-	// Node variables: vals_nod_var<i> [time_step][num_nodes] (one step at a time keeps the read buffer small).
+	// Each field is built straight from the file: for every step its component variables are read into one buffer and
+	// written into the field's interleaved array, so the only copy of the data in memory is the field itself (an earlier
+	// version held every variable at every step and interleaved afterwards, doubling the peak).
+
+	// Node variables: vals_nod_var<i> [time_step][num_nodes].
 	{
 		std::size_t variableCount = 0;
 		dimensionLength(ncid, "num_nod_var", variableCount);
 		QStringList names = readNames(ncid, QStringLiteral("name_nod_var"));
 		while (static_cast<std::size_t>(names.size()) < variableCount)
 			names << QStringLiteral("nod_var%1").arg(names.size() + 1);
-		std::vector<std::vector<std::vector<float>>> data(variableCount); // [variable][step][node]
-		for (std::size_t v = 0; v < variableCount && stepCount > 0; ++v)
+		std::vector<int> varids(variableCount, -1);
+		std::vector<int> varDims(variableCount, 0);
+		for (std::size_t v = 0; v < variableCount; ++v)
+			if (variableId(ncid, QStringLiteral("vals_nod_var%1").arg(v + 1), varids[v]))
+				nc_inq_varndims(ncid, varids[v], &varDims[v]);
+		std::vector<double> buffer(numNodes);
+		for (const FieldSpec& spec : groupVariables(names))
 		{
 			if (cancelled())
 				return fail(QStringLiteral("cancelled"));
-			int varid = -1;
-			if (!variableId(ncid, QStringLiteral("vals_nod_var%1").arg(v + 1), varid))
-				continue;
-			int ndims = 0;
-			nc_inq_varndims(ncid, varid, &ndims);
-			data[v].resize(steps);
-			std::vector<double> buffer(numNodes);
-			for (std::size_t s = 0; s < steps; ++s)
-			{
-				const std::size_t start[2] = { s, 0 };
-				const std::size_t count[2] = { 1, numNodes };
-				const int status = ndims >= 2 ? nc_get_vara_double(ncid, varid, start, count, buffer.data())
-				                              : nc_get_var_double(ncid, varid, buffer.data());
-				if (status != NC_NOERR)
-				{
-					data[v].clear();
-					break;
-				}
-				data[v][s].assign(buffer.begin(), buffer.end());
-			}
-		}
-		for (const FieldSpec& spec : groupVariables(names))
-		{
 			ResultField field;
 			field.name = spec.name;
 			field.association = ResultFieldAssociation::Node;
@@ -392,21 +370,34 @@ ResultReadOutcome readExodus(const QString& path, const std::atomic<bool>* cance
 			bool any = false;
 			for (std::size_t s = 0; s < steps; ++s)
 			{
-				std::vector<float> values(numNodes * spec.variables.size(), 0.0f);
-				bool complete = true;
-				for (std::size_t c = 0; c < spec.variables.size(); ++c)
+				std::vector<float> values;
+				bool complete = stepCount > 0;
+				for (std::size_t c = 0; c < spec.variables.size() && complete; ++c)
 				{
 					const int v = spec.variables[c];
 					if (v < 0)
 						continue; // a zero component
-					if (static_cast<std::size_t>(v) >= data.size() || s >= data[static_cast<std::size_t>(v)].size())
+					if (static_cast<std::size_t>(v) >= variableCount || varids[static_cast<std::size_t>(v)] < 0)
 					{
 						complete = false;
 						break;
 					}
-					interleave(values, field.components, static_cast<int>(c), data[static_cast<std::size_t>(v)][s]);
+					if (values.empty())
+						values.assign(numNodes * spec.variables.size(), 0.0f);
+					const int varid = varids[static_cast<std::size_t>(v)];
+					const std::size_t start[2] = { s, 0 };
+					const std::size_t count[2] = { 1, numNodes };
+					const int status = varDims[static_cast<std::size_t>(v)] >= 2 ? nc_get_vara_double(ncid, varid, start, count, buffer.data())
+					                                                            : nc_get_var_double(ncid, varid, buffer.data());
+					if (status != NC_NOERR)
+					{
+						complete = false;
+						break;
+					}
+					for (std::size_t n = 0; n < numNodes; ++n)
+						values[n * spec.variables.size() + c] = static_cast<float>(buffer[n]);
 				}
-				if (complete)
+				if (complete && !values.empty())
 				{
 					field.stepData.push_back(std::move(values));
 					any = true;
@@ -427,35 +418,16 @@ ResultReadOutcome readExodus(const QString& path, const std::atomic<bool>* cance
 		while (static_cast<std::size_t>(names.size()) < variableCount)
 			names << QStringLiteral("elem_var%1").arg(names.size() + 1);
 		const std::size_t cells = dataset->cellTypes.size();
-		std::vector<std::vector<std::vector<float>>> data(variableCount); // [variable][step][cell]
-		for (std::size_t v = 0; v < variableCount && stepCount > 0; ++v)
+		// varids[variable][block]: -1 where the block does not define the variable (the truth table's false entries)
+		std::vector<std::vector<int>> varids(variableCount, std::vector<int>(blocks.size(), -1));
+		for (std::size_t v = 0; v < variableCount; ++v)
+			for (std::size_t b = 0; b < blocks.size(); ++b)
+				if (blocks[b].count > 0)
+					variableId(ncid, QStringLiteral("vals_elem_var%1eb%2").arg(v + 1).arg(b + 1), varids[v][b]);
+		for (const FieldSpec& spec : groupVariables(names))
 		{
 			if (cancelled())
 				return fail(QStringLiteral("cancelled"));
-			data[v].assign(steps, std::vector<float>(cells, nan));
-			bool found = false;
-			for (std::size_t b = 0; b < blocks.size(); ++b)
-			{
-				int varid = -1;
-				if (blocks[b].count == 0 || !variableId(ncid, QStringLiteral("vals_elem_var%1eb%2").arg(v + 1).arg(b + 1), varid))
-					continue;
-				found = true;
-				std::vector<double> buffer(blocks[b].count);
-				for (std::size_t s = 0; s < steps; ++s)
-				{
-					const std::size_t start[2] = { s, 0 };
-					const std::size_t count[2] = { 1, blocks[b].count };
-					if (nc_get_vara_double(ncid, varid, start, count, buffer.data()) != NC_NOERR)
-						continue;
-					for (std::size_t e = 0; e < blocks[b].count; ++e)
-						data[v][s][blocks[b].first + e] = static_cast<float>(buffer[e]);
-				}
-			}
-			if (!found)
-				data[v].clear();
-		}
-		for (const FieldSpec& spec : groupVariables(names))
-		{
 			ResultField field;
 			field.name = spec.name;
 			field.association = ResultFieldAssociation::Cell;
@@ -464,21 +436,45 @@ ResultReadOutcome readExodus(const QString& path, const std::atomic<bool>* cance
 			bool any = false;
 			for (std::size_t s = 0; s < steps; ++s)
 			{
-				std::vector<float> values(cells * spec.variables.size(), 0.0f);
-				bool complete = true;
-				for (std::size_t c = 0; c < spec.variables.size(); ++c)
+				std::vector<float> values;
+				bool complete = stepCount > 0;
+				for (std::size_t c = 0; c < spec.variables.size() && complete; ++c)
 				{
 					const int v = spec.variables[c];
 					if (v < 0)
 						continue;
-					if (static_cast<std::size_t>(v) >= data.size() || s >= data[static_cast<std::size_t>(v)].size())
+					if (static_cast<std::size_t>(v) >= variableCount)
 					{
 						complete = false;
 						break;
 					}
-					interleave(values, field.components, static_cast<int>(c), data[static_cast<std::size_t>(v)][s]);
+					if (values.empty())
+						values.assign(cells * spec.variables.size(), 0.0f);
+					// this component starts as "no value" everywhere and is filled block by block
+					for (std::size_t cell = 0; cell < cells; ++cell)
+						values[cell * spec.variables.size() + c] = nan;
+					bool found = false;
+					for (std::size_t b = 0; b < blocks.size(); ++b)
+					{
+						const int varid = varids[static_cast<std::size_t>(v)][b];
+						if (varid < 0)
+							continue;
+						std::vector<double> buffer(blocks[b].count);
+						const std::size_t start[2] = { s, 0 };
+						const std::size_t count[2] = { 1, blocks[b].count };
+						if (nc_get_vara_double(ncid, varid, start, count, buffer.data()) != NC_NOERR)
+							continue;
+						found = true;
+						for (std::size_t e = 0; e < blocks[b].count; ++e)
+							values[(blocks[b].first + e) * spec.variables.size() + c] = static_cast<float>(buffer[e]);
+					}
+					if (!found)
+					{
+						complete = false;
+						break;
+					}
 				}
-				if (complete)
+				if (complete && !values.empty())
 				{
 					field.stepData.push_back(std::move(values));
 					any = true;

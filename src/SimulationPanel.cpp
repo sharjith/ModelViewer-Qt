@@ -422,8 +422,8 @@ void SimulationPanel::populateFields(int selectedFieldIndex)
 	for (std::size_t i = 0; i < _dataset->fields.size(); ++i)
 	{
 		const ResultField& f = _dataset->fields[i];
-		if (f.stepData.empty() || f.stepData[0].empty())
-			continue;
+		if (!resultFieldHasData(f))
+			continue; // nothing at any step (a field can start after step 0 and is still listed)
 		const QString kind = f.components == 1 ? QString() : tr(" (%1 components)").arg(f.components);
 		// A cell field is constant over each cell (element results), drawn flat rather than interpolated.
 		const QString where = f.association == ResultFieldAssociation::Cell ? tr(" [cells]") : QString();

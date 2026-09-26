@@ -5765,7 +5765,12 @@ bool ModelViewer::loadFile(const QString& fileName)
 		// A simulation result: read off-thread and shown as a coloured surface (see openSimulationResultFile()),
 		// so this returns as soon as the read has started. A document that File > Open just created for this file
 		// is closed again if the read fails; a Shift+recent import into a document with content is not.
-		_closeOnSimulationLoadFailure = _simulationSessions.empty() && _viewportWidget->getMeshStore().empty();
+		// Only a document that is still brand new (nothing displayed, nothing edited, not modified, no load already
+		// running) may be closed again on a failed read or left unmodified after a successful one; an import into
+		// a document with unsaved changes must never touch its state.
+		if (!_simulationLoadInFlight)
+			_closeOnSimulationLoadFailure = _simulationSessions.empty() && _viewportWidget->getMeshStore().empty()
+				&& !_documentModified && _undoStack && _undoStack->count() == 0;
 		if (!openSimulationResultFile(fileName))
 		{
 			_closeOnSimulationLoadFailure = false;

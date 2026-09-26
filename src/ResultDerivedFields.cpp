@@ -41,14 +41,13 @@ double vonMisesStress(double xx, double yy, double zz, double xy, double yz, dou
 
 void addDerivedStressFields(ResultDataset& dataset)
 {
-	const std::size_t nodes = dataset.nodeCount();
 	const float nan = std::numeric_limits<float>::quiet_NaN();
 	std::vector<ResultField> added;
 
-	auto exists = [&dataset](const QString& name)
+	auto exists = [&dataset](const QString& name, ResultFieldAssociation association)
 	{
 		for (const ResultField& f : dataset.fields)
-			if (f.association == ResultFieldAssociation::Node && f.name == name)
+			if (f.association == association && f.name == name)
 				return true;
 		return false;
 	};
@@ -56,21 +55,22 @@ void addDerivedStressFields(ResultDataset& dataset)
 	for (std::size_t sourceIndex = 0; sourceIndex < dataset.fields.size(); ++sourceIndex)
 	{
 		const ResultField& source = dataset.fields[sourceIndex];
-		if (source.association != ResultFieldAssociation::Node || source.components != 6
-			|| !source.name.contains(QLatin1String("stress"), Qt::CaseInsensitive))
+		if (source.components != 6 || !source.name.contains(QLatin1String("stress"), Qt::CaseInsensitive))
 			continue;
+		// A node tensor gives node fields, a cell (element-wise) tensor gives cell fields.
+		const std::size_t tuples = source.association == ResultFieldAssociation::Node ? dataset.nodeCount() : dataset.cellCount();
 
 		const QString suffixes[5] = { QStringLiteral(" von Mises"), QStringLiteral(" max principal"),
 		                              QStringLiteral(" mid principal"), QStringLiteral(" min principal"),
 		                              QStringLiteral(" max shear") };
-		if (exists(source.name + suffixes[0]))
+		if (exists(source.name + suffixes[0], source.association))
 			continue;
 
 		ResultField out[5];
 		for (int k = 0; k < 5; ++k)
 		{
 			out[k].name = source.name + suffixes[k];
-			out[k].association = ResultFieldAssociation::Node;
+			out[k].association = source.association;
 			out[k].components = 1;
 			out[k].quantityKind = source.quantityKind;
 			out[k].fileUnit = source.fileUnit;
@@ -83,11 +83,11 @@ void addDerivedStressFields(ResultDataset& dataset)
 		for (std::size_t s = 0; s < source.stepData.size(); ++s)
 		{
 			const std::vector<float>& t = source.stepData[s];
-			if (t.size() != nodes * 6)
+			if (t.size() != tuples * 6)
 				continue; // this step has no data for the field (or it is not loaded)
 			for (int k = 0; k < 5; ++k)
-				out[k].stepData[s].assign(nodes, nan);
-			for (std::size_t n = 0; n < nodes; ++n)
+				out[k].stepData[s].assign(tuples, nan);
+			for (std::size_t n = 0; n < tuples; ++n)
 			{
 				const float* c = &t[n * 6];
 				bool finite = true;

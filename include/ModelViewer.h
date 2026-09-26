@@ -774,6 +774,8 @@ private:
 	void refreshSimulationDisplay(SimulationSession& session);
 	void updateSimulationTimeline();
 	void checkSimulationCompare(); // ends compare mode when one of its results went away
+	void pushSimulationMarkers();  // the min/max labels the viewport shows (active result's, or both compared results')
+	void startNextPendingSimulationFile(); // results queued while another was loading (a multi-file import)
 	// Recolours both compared results (twice with a shared range, so each sees the other's up-to-date own range).
 	void refreshComparePair();
 	// Moves the compared partner to the same fraction of its own steps as `driver` (identical steps when both have as many).
@@ -987,6 +989,7 @@ private:
 	SimulationSaveContent _simulationSaveContent = SimulationSaveContent::ShownAndDisplacement;
 	bool _simulationSavePrompted = false;
 	mutable QStringList _simulationSaveNotes; // what the last package build had to leave out (e.g. subsampled steps)
+	QStringList _pendingSimulationFiles;
 	bool _simulationCompareActive = false;
 	bool _simulationCompareStacked = false;
 	bool _simulationCompareSharedRange = false;

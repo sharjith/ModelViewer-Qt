@@ -109,6 +109,7 @@ bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int compon
 	}
 
 	out.fieldIndex = fieldIndex;
+	out.step = step;
 	out.cellData = cellData;
 	out.component = comps == 1 ? -1 : component;
 	out.label = label;
@@ -125,18 +126,21 @@ bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int compon
 
 bool chooseDefaultDisplayScalar(const ResultDataset& dataset, DisplayScalar& out)
 {
-	// Node fields come first; a result that only has cell fields (element-wise results) falls back to the first of those.
-	int firstScalar = -1, firstVector = -1, vonMises = -1, firstCellScalar = -1;
+	// Node fields come first; a result that only has cell fields (element-wise results) falls back to the first cell scalar,
+	// then to the first cell vector (shown as its magnitude).
+	int firstScalar = -1, firstVector = -1, vonMises = -1, firstCellScalar = -1, firstCellVector = -1;
 	for (std::size_t i = 0; i < dataset.fields.size(); ++i)
 	{
 		const ResultField& f = dataset.fields[i];
-		if (f.stepData.empty() || f.stepData[0].empty())
-			continue;
+		if (!resultFieldHasData(f))
+			continue; // (a field may start after step 0; it is still a candidate)
 		const int index = static_cast<int>(i);
 		if (f.association == ResultFieldAssociation::Cell)
 		{
 			if (firstCellScalar < 0 && f.components == 1)
 				firstCellScalar = index;
+			else if (firstCellVector < 0 && f.components == 3)
+				firstCellVector = index;
 			continue;
 		}
 		if (f.components == 1)
@@ -152,9 +156,9 @@ bool chooseDefaultDisplayScalar(const ResultDataset& dataset, DisplayScalar& out
 			firstVector = index;
 	}
 
-	const int candidates[] = { vonMises, firstScalar, firstVector, firstCellScalar };
+	const int candidates[] = { vonMises, firstScalar, firstVector, firstCellScalar, firstCellVector };
 	for (int index : candidates)
-		if (index >= 0 && buildDisplayScalar(dataset, index, -1, out))
+		if (index >= 0 && buildDisplayScalar(dataset, index, -1, out, resultFieldFirstStep(dataset.fields[static_cast<std::size_t>(index)])))
 			return true;
 	out = DisplayScalar();
 	return false;
@@ -282,6 +286,7 @@ SimulationViewState defaultViewState(const ResultDataset& dataset, DisplayScalar
 	{
 		state.fieldIndex = scalar.fieldIndex;
 		state.component = scalar.component;
+		state.step = scalar.step; // the first step the chosen field has data at (0 unless it starts later)
 	}
 	if (outScalar)
 		*outScalar = std::move(scalar);

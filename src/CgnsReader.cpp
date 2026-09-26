@@ -4,7 +4,10 @@
 
 #include <cgnslib.h>
 
+#include "ResultDerivedFields.h"
+
 #include <QFile>
+#include <QRegularExpression>
 
 #include <algorithm>
 #include <cmath>
@@ -89,9 +92,39 @@ namespace
 		std::vector<CellRecord> cells;
 	};
 
+	// Orders names the way a person reads them ("Sol2" before "Sol10"): digit runs compare as numbers.
+	bool naturalLess(const QString& a, const QString& b)
+	{
+		int i = 0, j = 0;
+		while (i < a.size() && j < b.size())
+		{
+			if (a[i].isDigit() && b[j].isDigit())
+			{
+				int ie = i, je = j;
+				while (ie < a.size() && a[ie].isDigit()) ++ie;
+				while (je < b.size() && b[je].isDigit()) ++je;
+				const QString da = a.mid(i, ie - i).remove(QRegularExpression(QStringLiteral("^0+(?=.)"))), db = b.mid(j, je - j).remove(QRegularExpression(QStringLiteral("^0+(?=.)")));
+				if (da.size() != db.size())
+					return da.size() < db.size();
+				if (da != db)
+					return da < db;
+				i = ie;
+				j = je;
+			}
+			else
+			{
+				if (a[i] != b[j])
+					return a[i] < b[j];
+				++i;
+				++j;
+			}
+		}
+		return (a.size() - i) < (b.size() - j);
+	}
+
 	struct Solution
 	{
-		int index = 0;
+		QString name;
 		bool cellCenter = false;
 		std::vector<std::pair<QString, std::vector<float>>> fields; // name -> one value per node / cell
 	};
@@ -143,6 +176,7 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 
 	std::vector<Zone> zones;
 	std::size_t structuredSkipped = 0, polyhedralSections = 0, boundarySections = 0, badSolutions = 0;
+	bool solutionsOrderedByName = false; // some zone had several solutions and no FlowSolutionPointers
 	std::vector<double> baseTimes;
 
 	// ---- Geometry: every unstructured zone of every base ------------------------------------------------------------
@@ -366,7 +400,7 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 					continue;
 				}
 				Solution solution;
-				solution.index = s;
+				solution.name = QString::fromLatin1(solutionName);
 				solution.cellCenter = cellCenter;
 				// A CellCenter array has one value per CELL of the zone (its volume elements); when the kept cells do not
 				// match that count (boundary sections mixed in, polyhedra), the solution cannot be aligned.
@@ -394,7 +428,66 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 				if (!solution.fields.empty())
 					(vertex ? zone.vertexSolutions : zone.cellSolutions).push_back(std::move(solution));
 			}
+
+			// Which solution is which time step. The zone's ZoneIterativeData/FlowSolutionPointers says so explicitly (one
+			// name per step); without it the solutions are taken in natural name order - never in whatever order the file
+			// happens to list them in.
+			std::vector<QString> pointers;
+			{
+				char zoneIterName[64] = {};
+				if (cg_ziter_read(fn, base, z, zoneIterName) == CG_OK
+				    && cg_goto(fn, base, "Zone_t", z, "ZoneIterativeData_t", 1, "end") == CG_OK)
+				{
+					int arrays = 0;
+					cg_narrays(&arrays);
+					for (int a = 1; a <= arrays; ++a)
+					{
+						char arrayName[64] = {};
+						CGNS_ENUMT(DataType_t) dataType;
+						int dataDim = 0;
+						cgsize_t dims[12] = {};
+						if (cg_array_info(a, arrayName, &dataType, &dataDim, dims) != CG_OK
+						    || QLatin1String(arrayName) != QLatin1String("FlowSolutionPointers") || dataDim != 2
+						    || dataType != CGNS_ENUMV(Character) || dims[0] < 1 || dims[1] < 1)
+							continue;
+						std::vector<char> text(static_cast<std::size_t>(dims[0] * dims[1]));
+						if (cg_array_read(a, text.data()) != CG_OK)
+							break;
+						for (cgsize_t step = 0; step < dims[1]; ++step)
+							pointers.push_back(QString::fromLatin1(&text[static_cast<std::size_t>(step * dims[0])], static_cast<qsizetype>(dims[0])).trimmed());
+						break;
+					}
+				}
+			}
+			for (std::vector<Solution>* kind : { &zone.vertexSolutions, &zone.cellSolutions })
+			{
+				std::vector<Solution> raw = std::move(*kind);
+				kind->clear();
+				if (!pointers.empty())
+				{
+					kind->assign(pointers.size(), Solution()); // a step this kind has no solution for stays empty
+					for (std::size_t step = 0; step < pointers.size(); ++step)
+						for (const Solution& candidate : raw)
+							if (candidate.name == pointers[step])
+								(*kind)[step] = candidate;
+				}
+				else
+				{
+					std::sort(raw.begin(), raw.end(), [](const Solution& x, const Solution& y) { return naturalLess(x.name, y.name); });
+					solutionsOrderedByName = solutionsOrderedByName || raw.size() > 1;
+					*kind = std::move(raw);
+				}
+			}
 			zones.push_back(std::move(zone));
+		}
+		if (!zones.empty())
+		{
+			// One base only: the length unit and the time sequence above belong to this base, and other bases may use
+			// other units or timelines, so they are not merged in (that would silently mix them).
+			if (base < baseCount)
+				outcome.warnings << QStringLiteral("The file has %1 bases; only the first one with displayable zones ('%2') was read.")
+				                        .arg(baseCount).arg(QString::fromLatin1(baseName));
+			break;
 		}
 	}
 
@@ -417,6 +510,29 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 
 	std::vector<QString> order; // field names in order of first appearance
 	std::map<QString, Accum> accum;
+	// A symmetric tensor may store its off-diagonals as XY/XZ/YZ in one zone and YX/ZX/ZY in another: a lower-triangle name
+	// whose upper-triangle twin is absent from the same solution (and whose base has an XX component, so it is a tensor)
+	// is stored under the upper-triangle name, so the zones merge into one component.
+	auto canonicalName = [](const QString& name, const std::vector<std::pair<QString, std::vector<float>>>& siblings) {
+		if (name.size() < 3)
+			return name;
+		const QString tail = name.right(2);
+		const bool lower = tail.compare(QLatin1String("YX"), Qt::CaseInsensitive) == 0 || tail.compare(QLatin1String("ZX"), Qt::CaseInsensitive) == 0
+		                   || tail.compare(QLatin1String("ZY"), Qt::CaseInsensitive) == 0;
+		if (!lower || tail[0].isUpper() != tail[1].isUpper())
+			return name;
+		const QString base = name.left(name.size() - 2);
+		const bool upper = tail[0].isUpper();
+		const QString twin = base + tail[1] + tail[0];
+		const QString diagonal = base + (upper ? QStringLiteral("XX") : QStringLiteral("xx"));
+		bool hasTwin = false, hasDiagonal = false;
+		for (const auto& sibling : siblings)
+		{
+			hasTwin = hasTwin || sibling.first == twin;
+			hasDiagonal = hasDiagonal || sibling.first == diagonal;
+		}
+		return hasTwin || !hasDiagonal ? name : twin;
+	};
 	for (const Zone& zone : zones)
 	{
 		for (int kind = 0; kind < 2; ++kind)
@@ -427,7 +543,7 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 			for (std::size_t s = 0; s < solutions.size() && s < steps; ++s)
 				for (const auto& field : solutions[s].fields)
 				{
-					const QString key = (kind == 0 ? QStringLiteral("n:") : QStringLiteral("c:")) + field.first;
+					const QString key = (kind == 0 ? QStringLiteral("n:") : QStringLiteral("c:")) + canonicalName(field.first, solutions[s].fields);
 					auto found = accum.find(key);
 					if (found == accum.end())
 					{
@@ -444,25 +560,105 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 		}
 	}
 
-	// Vector fields: <base>X, <base>Y, <base>Z (or only X and Y) of one location become one field <base>.
-	auto baseOf = [](const QString& key, QChar& axisOut) -> QString {
+	// Vector and tensor fields. CGNS has no component convention beyond the names: <base>X/<base>Y/<base>Z (VelocityX ...) are one
+	// vector, <base>XX YY ZZ XY YZ and XZ (or ZX) one symmetric tensor, all nine (XX XY XZ YX YY YZ ZX ZY ZZ) one full tensor -
+	// matched case-insensitively, within one location. A group is built only when it is complete, and every component that
+	// is not part of one stays a field of its own, so nothing is dropped. A step where only SOME of a group's components have
+	// data cannot be assembled: it is left without data and reported.
+	std::size_t incompleteGroupSteps = 0;
+	auto isAxisLetter = [](QChar ch) {
+		const QChar u = ch.toUpper();
+		return u == QLatin1Char('X') || u == QLatin1Char('Y') || u == QLatin1Char('Z');
+	};
+	// A tensor suffix is two axis letters of the SAME case (XX, xy, ZX): "VelocityX" ends in 'y' + 'X' - a vector component.
+	auto endsInAxisPair = [&](const QString& name) {
+		return name.size() >= 3 && isAxisLetter(name[name.size() - 1]) && isAxisLetter(name[name.size() - 2])
+		       && name[name.size() - 1].isUpper() == name[name.size() - 2].isUpper();
+	};
+	// The two-letter tensor suffix (upper-cased) and the base before it; empty when the name does not end in one.
+	auto tensorSplit = [&](const QString& key, QString& suffix) -> QString {
 		const QString name = key.mid(2);
-		if (name.size() < 2)
+		if (!endsInAxisPair(name))
 			return QString();
-		const QChar last = name.back();
-		if (last != QLatin1Char('X') && last != QLatin1Char('Y') && last != QLatin1Char('Z'))
+		suffix = name.right(2).toUpper();
+		return key.left(2) + name.left(name.size() - 2);
+	};
+	// The axis (upper-cased) and the base of a vector component. A name ending in an axis pair ("velocityx": 'y' + 'x') is
+	// also a possible tensor component; it is tried as a tensor first and reaches here only when no tensor was complete.
+	auto vectorSplit = [&](const QString& key, QChar& axis) -> QString {
+		const QString name = key.mid(2);
+		if (name.size() < 2 || !isAxisLetter(name.back()))
 			return QString();
-		axisOut = last;
+		axis = name.back().toUpper();
 		return key.left(2) + name.left(name.size() - 1);
 	};
-	std::map<QString, std::map<QChar, QString>> vectorGroups; // location+base -> axis -> key
+	std::map<QString, std::map<QString, QString>> tensorGroups; // location+base -> suffix -> key
+	std::map<QString, std::map<QChar, QString>> vectorGroups;   // location+base -> axis -> key
 	for (const QString& key : order)
 	{
+		QString suffix;
+		const QString tensorBase = tensorSplit(key, suffix);
+		if (!tensorBase.isEmpty())
+			tensorGroups[tensorBase][suffix] = key;
 		QChar axis;
-		const QString base = baseOf(key, axis);
-		if (!base.isEmpty())
-			vectorGroups[base][axis] = key;
+		const QString vectorBase = vectorSplit(key, axis);
+		if (!vectorBase.isEmpty())
+			vectorGroups[vectorBase][axis] = key;
 	}
+	// The keys that make up the complete tensor of a base (in the component order stored), empty when it is not complete.
+	auto tensorParts = [&](const QString& base, int& components, std::vector<QString>& componentNames) -> std::vector<QString> {
+		const auto found = tensorGroups.find(base);
+		if (found == tensorGroups.end())
+			return {};
+		const std::map<QString, QString>& g = found->second;
+		auto has = [&g](const char* suffix) { return g.count(QString::fromLatin1(suffix)) > 0; };
+		auto at = [&g](const char* suffix) { return g.at(QString::fromLatin1(suffix)); };
+		if (has("XX") && has("XY") && has("XZ") && has("YX") && has("YY") && has("YZ") && has("ZX") && has("ZY") && has("ZZ"))
+		{
+			components = 9;
+			componentNames = { QStringLiteral("XX"), QStringLiteral("XY"), QStringLiteral("XZ"), QStringLiteral("YX"), QStringLiteral("YY"),
+			                   QStringLiteral("YZ"), QStringLiteral("ZX"), QStringLiteral("ZY"), QStringLiteral("ZZ") };
+			return { at("XX"), at("XY"), at("XZ"), at("YX"), at("YY"), at("YZ"), at("ZX"), at("ZY"), at("ZZ") };
+		}
+		if (has("XX") && has("YY") && has("ZZ") && has("XY") && has("YZ") && (has("XZ") || has("ZX")))
+		{
+			components = 6; // symmetric: XX YY ZZ XY YZ ZX (XZ when both are present; the other stays a field of its own)
+			componentNames = { QStringLiteral("XX"), QStringLiteral("YY"), QStringLiteral("ZZ"), QStringLiteral("XY"), QStringLiteral("YZ"), QStringLiteral("ZX") };
+			return { at("XX"), at("YY"), at("ZZ"), at("XY"), at("YZ"), has("XZ") ? at("XZ") : at("ZX") };
+		}
+		return {};
+	};
+	// One field from component keys: every step is all-or-nothing (a 2-D vector's missing z stays zero).
+	auto assemble = [&](const std::vector<QString>& parts, int components, const QString& name, const std::vector<QString>& componentNames) {
+		ResultField field;
+		field.name = name;
+		field.association = accum[parts[0]].cell ? ResultFieldAssociation::Cell : ResultFieldAssociation::Node;
+		field.components = components;
+		field.componentNames = componentNames;
+		const std::size_t total = field.association == ResultFieldAssociation::Cell ? totalCells : totalNodes;
+		for (std::size_t s = 0; s < steps; ++s)
+		{
+			std::size_t present = 0;
+			for (const QString& part : parts)
+				present += accum[part].steps[s].empty() ? 0 : 1;
+			if (present != parts.size())
+			{
+				if (present > 0)
+					++incompleteGroupSteps;
+				field.stepData.emplace_back();
+				continue;
+			}
+			std::vector<float> values(total * static_cast<std::size_t>(components), 0.0f);
+			for (std::size_t c = 0; c < parts.size(); ++c)
+			{
+				const std::vector<float>& component = accum[parts[c]].steps[s];
+				for (std::size_t t = 0; t < component.size() && t < total; ++t)
+					values[t * static_cast<std::size_t>(components) + c] = component[t];
+			}
+			field.stepData.push_back(std::move(values));
+		}
+		return field;
+	};
 	std::vector<bool> consumed(order.size(), false);
 	auto indexOf = [&order](const QString& key) {
 		return static_cast<std::size_t>(std::find(order.begin(), order.end(), key) - order.begin());
@@ -471,64 +667,67 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 	{
 		if (consumed[i])
 			continue;
-		QChar axis;
-		const QString base = baseOf(order[i], axis);
-		std::vector<QString> parts; // keys of the components, X Y (Z)
-		if (!base.isEmpty())
-		{
-			const std::map<QChar, QString>& group = vectorGroups[base];
-			if (group.count(QLatin1Char('X')) && group.count(QLatin1Char('Y')))
-			{
-				parts = { group.at(QLatin1Char('X')), group.at(QLatin1Char('Y')) };
-				if (group.count(QLatin1Char('Z')))
-					parts.push_back(group.at(QLatin1Char('Z')));
-			}
-		}
+		const QString& key = order[i];
 		ResultField field;
-		if (parts.empty())
+		bool built = false;
+
+		QString suffix;
+		const QString tensorBase = tensorSplit(key, suffix);
+		if (!tensorBase.isEmpty())
 		{
-			field.name = order[i].mid(2);
-			field.association = accum[order[i]].cell ? ResultFieldAssociation::Cell : ResultFieldAssociation::Node;
-			field.components = 1;
-			consumed[i] = true;
-			for (std::size_t s = 0; s < steps; ++s)
-				field.stepData.push_back(accum[order[i]].steps[s]);
-		}
-		else
-		{
-			field.name = base.mid(2);
-			field.association = accum[parts[0]].cell ? ResultFieldAssociation::Cell : ResultFieldAssociation::Node;
-			field.components = 3; // a 2-D pair gets a zero z
-			for (const QString& part : parts)
-				consumed[indexOf(part)] = true;
-			const std::size_t total = field.association == ResultFieldAssociation::Cell ? totalCells : totalNodes;
-			for (std::size_t s = 0; s < steps; ++s)
+			int components = 0;
+			std::vector<QString> componentNames;
+			const std::vector<QString> parts = tensorParts(tensorBase, components, componentNames);
+			// Only a component that is part of the tensor builds it (an extra ZX next to an XZ is not: it stays a field).
+			if (!parts.empty() && std::find(parts.begin(), parts.end(), key) != parts.end())
 			{
-				bool any = false;
+				field = assemble(parts, components, tensorBase.mid(2), componentNames);
 				for (const QString& part : parts)
-					any = any || !accum[part].steps[s].empty();
-				if (!any)
-				{
-					field.stepData.emplace_back();
-					continue;
-				}
-				std::vector<float> values(total * 3, 0.0f);
-				for (std::size_t c = 0; c < parts.size(); ++c)
-				{
-					const std::vector<float>& component = accum[parts[c]].steps[s];
-					for (std::size_t t = 0; t < component.size() && t < total; ++t)
-						values[t * 3 + c] = component[t];
-				}
-				field.stepData.push_back(std::move(values));
+					consumed[indexOf(part)] = true;
+				built = true;
 			}
 		}
-		bool any = false;
-		for (const std::vector<float>& data : field.stepData)
-			any = any || !data.empty();
-		if (any)
+		if (!built)
+		{
+			QChar axis;
+			const QString vectorBase = vectorSplit(key, axis);
+			if (!vectorBase.isEmpty())
+			{
+				const std::map<QChar, QString>& g = vectorGroups[vectorBase];
+				// an axis-pair name is a vector only as a full X Y Z set (a stray XX + XY is a partial tensor, not a 2-D vector)
+				bool ambiguous = false;
+				for (const auto& member : g)
+					ambiguous = ambiguous || endsInAxisPair(member.second.mid(2));
+				bool free = true;
+				for (const auto& member : g)
+					free = free && !consumed[indexOf(member.second)];
+				if (free && g.count(QLatin1Char('X')) && g.count(QLatin1Char('Y')) && (!ambiguous || g.count(QLatin1Char('Z'))))
+				{
+					std::vector<QString> parts = { g.at(QLatin1Char('X')), g.at(QLatin1Char('Y')) };
+					if (g.count(QLatin1Char('Z')))
+						parts.push_back(g.at(QLatin1Char('Z')));
+					field = assemble(parts, 3, vectorBase.mid(2), {}); // a 2-D pair gets a zero z
+					for (const QString& part : parts)
+						consumed[indexOf(part)] = true;
+					built = true;
+				}
+			}
+		}
+		if (!built)
+		{
+			field = assemble({ key }, 1, key.mid(2), {});
+			consumed[i] = true;
+		}
+		if (resultFieldHasData(field))
 			dataset->fields.push_back(std::move(field));
 	}
+	if (incompleteGroupSteps > 0)
+		outcome.warnings << QStringLiteral("%1 vector/tensor field step(s) had only some of their components and were left without data there.")
+		                        .arg(incompleteGroupSteps);
 
+	if (solutionsOrderedByName)
+		outcome.warnings << QStringLiteral("The file has no FlowSolutionPointers, so the time steps are the solutions in natural name order "
+		                                    "(Sol1, Sol2, Sol10 ...). That is a guess: check the order if the names do not follow time.");
 	if (structuredSkipped > 0)
 		outcome.warnings << QStringLiteral("%1 structured zone(s) were skipped (only unstructured zones are supported).").arg(structuredSkipped);
 	if (polyhedralSections > 0)
@@ -536,6 +735,8 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 	if (badSolutions > 0)
 		outcome.warnings << QStringLiteral("%1 solution(s) were skipped: only Vertex and CellCenter solutions that match the displayed cells are read.").arg(badSolutions);
 	(void)boundarySections; // boundary-condition sections are left out on purpose
+
+	addDerivedStressFields(*dataset); // von Mises, principals, max shear of a "...Stress..." tensor gathered above
 
 	const QString invalid = dataset->validate();
 	if (!invalid.isEmpty())

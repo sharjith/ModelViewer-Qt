@@ -243,7 +243,9 @@ bool SimulationTimelineWidget::eventFilter(QObject* watched, QEvent* event)
 			if (mouse->button() == Qt::LeftButton)
 			{
 				_dragging = true;
-				_dragOffset = mouse->globalPosition().toPoint() - pos();
+				// Everything in the PARENT's coordinates (the position is this grip's own, mapped up), so the drag is
+				// right wherever the viewport sits on the screen or the window moves.
+				_dragOffset = _grip->mapTo(parentWidget(), mouse->position().toPoint()) - pos();
 				return true;
 			}
 			break;
@@ -251,7 +253,7 @@ bool SimulationTimelineWidget::eventFilter(QObject* watched, QEvent* event)
 			if (_dragging && parentWidget())
 			{
 				QWidget* viewport = parentWidget();
-				const QPoint target = mouse->globalPosition().toPoint() - _dragOffset;
+				const QPoint target = _grip->mapTo(viewport, mouse->position().toPoint()) - _dragOffset;
 				const int x = std::clamp(target.x(), 0, std::max(0, viewport->width() - width()));
 				const int y = std::clamp(target.y(), 0, std::max(0, viewport->height() - height()));
 				move(x, y);

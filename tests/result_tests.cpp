@@ -784,8 +784,9 @@ namespace
 		CHECK(rb.ok());
 		if (rb.ok())
 		{
+			// only a CELL vector field exists: it is the default, shown as its magnitude
 			DisplayScalar d;
-			CHECK(!chooseDefaultDisplayScalar(*rb.dataset, d)); // only a CELL vector field exists
+			CHECK(chooseDefaultDisplayScalar(*rb.dataset, d) && d.cellData && d.component == -1);
 		}
 
 		// Non-finite values are excluded from the range; an all-non-finite field is rejected.
@@ -885,8 +886,8 @@ namespace
 		if (rb.ok())
 		{
 			DisplayScalar scalar;
-			CHECK(defaultViewState(*rb.dataset, &scalar).fieldIndex == -1);
-			CHECK(!scalar.valid());
+			CHECK(defaultViewState(*rb.dataset, &scalar).fieldIndex >= 0); // the cell vector field
+			CHECK(scalar.valid() && scalar.cellData);
 		}
 	}
 
@@ -2794,6 +2795,19 @@ namespace
 				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityX", vx, &field) == CG_OK
 				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityY", vy, &field) == CG_OK
 				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityZ", vz, &field) == CG_OK;
+				// a symmetric stress tensor: uniaxial 100 (StressXX), the rest zero -> von Mises 100
+				double stressXX[12], zero[12];
+				for (int n = 0; n < 12; ++n)
+				{
+					stressXX[n] = 100.0;
+					zero[n] = 0.0;
+				}
+				ok = ok && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "StressXX", stressXX, &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "StressYY", zero, &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "StressZZ", zero, &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "StressXY", zero, &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "StressYZ", zero, &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "StressXZ", zero, &field) == CG_OK;
 				const double quality[2] = { 100.0 + s, 200.0 + s };
 				const QByteArray cellName = QByteArray("CellSolution") + QByteArray::number(s);
 				ok = ok && cg_sol_write(fn, base, zone, cellName.constData(), CGNS_ENUMV(CellCenter), &sol) == CG_OK
@@ -2910,7 +2924,19 @@ namespace
 
 			const int temperature = fieldIndexOf(ds, QStringLiteral("Temperature")), velocity = fieldIndexOf(ds, QStringLiteral("Velocity"));
 			const ResultField* quality = ds.findField(QStringLiteral("Quality"), ResultFieldAssociation::Cell);
-			CHECK(temperature >= 0 && velocity >= 0 && quality != nullptr && ds.fields.size() == 3);
+			// Temperature, Velocity (3), Quality (cell), Stress (6) and its five derived fields
+			if (ds.fields.size() != 9)
+				for (const ResultField& f : ds.fields)
+					std::printf("  CGNS field: '%s' (%s, %d comp)\n", qPrintable(f.name), f.association == ResultFieldAssociation::Cell ? "cell" : "node", f.components);
+			CHECK(temperature >= 0 && velocity >= 0 && quality != nullptr && ds.fields.size() == 9);
+			// the six StressXX ... components are ONE tensor, not a vector "StressX" plus strays
+			const int stress = fieldIndexOf(ds, QStringLiteral("Stress")), mises = fieldIndexOf(ds, QStringLiteral("Stress von Mises"));
+			CHECK(stress >= 0 && ds.fields[static_cast<std::size_t>(stress)].components == 6 && mises >= 0);
+			CHECK(fieldIndexOf(ds, QStringLiteral("StressX")) < 0 && fieldIndexOf(ds, QStringLiteral("StressXX")) < 0);
+			DisplayScalar vm;
+			CHECK(mises >= 0 && buildDisplayScalar(ds, mises, -1, vm, 2) && approx(vm.maxValue, 100.0));
+			const std::vector<float>& tensorData = ds.fields[static_cast<std::size_t>(stress)].stepData[0];
+			CHECK(tensorData.size() == 12u * 6u && tensorData[0] == 100.0f && tensorData[1] == 0.0f && tensorData[3] == 0.0f);
 			if (temperature >= 0 && velocity >= 0 && quality)
 			{
 				const ResultField& ft = ds.fields[static_cast<std::size_t>(temperature)];
@@ -2948,6 +2974,414 @@ namespace
 		std::printf("  (skipping CGNS tests: this build has no CGNS library)\n");
 		CHECK(!cgnsSupported() && cgnsExtensions().isEmpty() && !isSupportedResultFile(QStringLiteral("run.cgns")));
 		CHECK(!readResultFile(QStringLiteral("run.cgns")).ok());
+#endif
+	}
+
+	// ---- Regression tests from the code review of the branch --------------------------------------------------------
+
+	// A result without any time step (an OpenFOAM mesh with no fields) must survive a snapshot: encode and decode with an
+	// empty step list, and its saved view must not index into it.
+	void testSnapshotWithoutSteps()
+	{
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		writePrismCase(tmp.path());
+		QDir(tmp.path() + QStringLiteral("/0")).removeRecursively();
+		QDir(tmp.path() + QStringLiteral("/1")).removeRecursively();
+		const LoadedSimulationResult r = loadSimulationResult(tmp.path() + QStringLiteral("/case.foam"));
+		CHECK(r.ok() && r.dataset->stepCount() == 0 && r.dataset->fields.empty());
+		if (!r.ok())
+			return;
+		for (int policy = 0; policy < 2; ++policy)
+		{
+			SnapshotOptions options;
+			options.content = policy == 0 ? SnapshotOptions::Content::AllFields : SnapshotOptions::Content::ShownAndDisplacement;
+			options.shownField = -1;
+			SimulationViewState state = defaultViewState(*r.dataset);
+			state.step = 3; // a stale step index must not matter
+			ResultSnapshot snap;
+			DecodedSnapshot dec;
+			QString err;
+			CHECK(roundTrip(r, state, options, snap, dec, &err));
+			CHECK(dec.dataset && dec.dataset->stepCount() == 0 && dec.dataset->fields.empty() && dec.dataset->validate().isEmpty());
+			CHECK(dec.state.step == 0 && dec.state.fieldIndex == -1);
+			const SnapshotSize estimate = estimateSnapshotSize(*r.dataset, r.surface, options);
+			CHECK(estimate.rawBytes > 0 && estimate.storedBytes <= estimate.rawBytes);
+		}
+	}
+
+	// A field an analysis only writes from a later step on is a real field: it has data, it is listed, and it can be the default.
+	void testFieldsStartingAfterStepZero()
+	{
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		const QString dir = tmp.path();
+		writePrismCase(dir);
+		QFile::remove(dir + QStringLiteral("/0/p"));
+		QFile::remove(dir + QStringLiteral("/1/p"));
+		writeText(dir + QStringLiteral("/0/a"), foamHeader("volScalarField", "a") + "dimensions [0 0 0 0 0 0 0];\ninternalField uniform 1;\n");
+		writeText(dir + QStringLiteral("/1/a"), foamHeader("volScalarField", "a") + "dimensions [0 0 0 0 0 0 0];\ninternalField uniform 2;\n");
+		writeText(dir + QStringLiteral("/1/b"), foamHeader("volScalarField", "b") + "dimensions [0 0 0 0 0 0 0];\ninternalField uniform 9;\n"); // starts at step 1
+		ResultReadOutcome r = readResultFile(dir + QStringLiteral("/case.foam"));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		ResultDataset& ds = *r.dataset;
+		const int a = fieldIndexOf(ds, QStringLiteral("a")), b = fieldIndexOf(ds, QStringLiteral("b"));
+		CHECK(ds.stepCount() == 2 && a >= 0 && b >= 0);
+		if (a < 0 || b < 0)
+			return;
+		const ResultField& fb = ds.fields[static_cast<std::size_t>(b)];
+		CHECK(fb.stepData[0].empty() && !fb.stepData[1].empty());
+		CHECK(resultFieldHasData(fb) && resultFieldFirstStep(fb) == 1 && resultFieldFirstStep(ds.fields[static_cast<std::size_t>(a)]) == 0);
+		ResultField none;
+		none.stepData.assign(2, std::vector<float>());
+		CHECK(!resultFieldHasData(none) && resultFieldFirstStep(none) == -1);
+		// with no other field, the default is the late one, at the step where it has data
+		ds.fields[static_cast<std::size_t>(a)].stepData.assign(2, std::vector<float>());
+		DisplayScalar chosen;
+		CHECK(chooseDefaultDisplayScalar(ds, chosen) && chosen.fieldIndex == b && chosen.step == 1 && chosen.maxValue == 9.0f);
+		const SimulationViewState state = defaultViewState(ds);
+		CHECK(state.fieldIndex == b && state.step == 1);
+	}
+
+	// A CELL tensor named like a stress gets derived cell fields, exactly like a node tensor gets derived node fields.
+	void testDerivedStressOnCells()
+	{
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		writePrismCase(tmp.path());
+		ResultReadOutcome r = readResultFile(tmp.path() + QStringLiteral("/case.foam"));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		ResultDataset& ds = *r.dataset;
+		ResultField tensor;
+		tensor.name = QStringLiteral("elementStress");
+		tensor.association = ResultFieldAssociation::Cell;
+		tensor.components = 6;
+		tensor.stepData.assign(ds.stepCount(), std::vector<float>());
+		tensor.stepData[0] = { 100.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f }; // uniaxial 100: von Mises 100, principals 100/0/0
+		ds.fields.push_back(tensor);
+		addDerivedStressFields(ds);
+		const ResultField* mises = ds.findField(QStringLiteral("elementStress von Mises"), ResultFieldAssociation::Cell);
+		const ResultField* maxP = ds.findField(QStringLiteral("elementStress max principal"), ResultFieldAssociation::Cell);
+		CHECK(mises != nullptr && maxP != nullptr);
+		if (mises && maxP)
+		{
+			CHECK(mises->components == 1 && mises->stepData[0].size() == 1 && approx(mises->stepData[0][0], 100.0) && mises->stepData[1].empty());
+			CHECK(approx(maxP->stepData[0][0], 100.0) && mises->derivedFromField >= 0);
+		}
+		CHECK(ds.findField(QStringLiteral("elementStress von Mises"), ResultFieldAssociation::Node) == nullptr); // not a node field
+		CHECK(ds.validate().isEmpty());
+		const std::size_t before = ds.fields.size();
+		addDerivedStressFields(ds); // not added twice
+		CHECK(ds.fields.size() == before);
+	}
+
+	// validate() is the contract every consumer relies on: steps, component names and stored ranges must line up.
+	void testValidateFieldShape()
+	{
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		writePrismCase(tmp.path());
+		ResultReadOutcome r = readResultFile(tmp.path() + QStringLiteral("/case.foam"));
+		CHECK(r.ok() && !r.dataset->fields.empty());
+		if (!r.ok() || r.dataset->fields.empty())
+			return;
+		ResultDataset& ds = *r.dataset;
+		CHECK(ds.validate().isEmpty());
+		ResultField& f = ds.fields[0];
+
+		f.stepData.push_back(std::vector<float>()); // one data slot more than there are steps
+		CHECK(!ds.validate().isEmpty());
+		f.stepData.pop_back();
+		CHECK(ds.validate().isEmpty());
+
+		f.componentNames = { QStringLiteral("only one") }; // names for 1 component are fine on a scalar, 2 are not
+		CHECK(ds.validate().isEmpty());
+		f.componentNames = { QStringLiteral("a"), QStringLiteral("b") };
+		CHECK(!ds.validate().isEmpty());
+		f.componentNames.clear();
+
+		f.storedRange = { 0.0f, 1.0f }; // one step, one selector: 2 numbers per step
+		CHECK(ds.validate().isEmpty() == (ds.stepCount() == 1));
+		f.storedRange.assign(ds.stepCount() * static_cast<std::size_t>(resultRangeSelectorCount(f.components)) * 2, 0.0f);
+		CHECK(ds.validate().isEmpty());
+		f.storedRange.push_back(1.0f);
+		CHECK(!ds.validate().isEmpty());
+		f.storedRange.clear();
+		CHECK(ds.validate().isEmpty());
+	}
+
+#if MV_HAVE_CGNS
+	// Steps must follow the solutions' own ordering, not the order the file happens to list them: three Vertex solutions whose
+	// values are their number, with the step pointers naming them in step order (or, without pointers, natural name order).
+	bool writeCgnsOrderFixture(const char* path, bool pointers)
+	{
+		int fn = 0, base = 0, zone = 0, index = 0;
+		if (cg_open(path, CG_MODE_WRITE, &fn) != CG_OK)
+			return false;
+		bool ok = cg_base_write(fn, "Base", 3, 3, &base) == CG_OK;
+		const cgsize_t size[3] = { 12, 2, 0 };
+		ok = ok && cg_zone_write(fn, base, "Zone1", size, CGNS_ENUMV(Unstructured), &zone) == CG_OK;
+		double x[12], y[12], z[12];
+		for (int n = 0; n < 12; ++n)
+		{
+			x[n] = n % 3;
+			y[n] = (n / 3) % 2;
+			z[n] = n / 6;
+		}
+		const cgsize_t hexes[16] = { 1, 2, 5, 4, 7, 8, 11, 10, 2, 3, 6, 5, 8, 9, 12, 11 };
+		ok = ok && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateX", x, &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateY", y, &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateZ", z, &index) == CG_OK
+		     && cg_section_write(fn, base, zone, "Hexas", CGNS_ENUMV(HEXA_8), 1, 2, 0, hexes, &index) == CG_OK;
+		// pointers: created out of order (B, A, C) and listed in step order (A, B, C) = values 1, 2, 3.
+		// no pointers: created as Sol10, Sol2, Sol1 and expected in natural order Sol1, Sol2, Sol10 = values 1, 2, 10.
+		const char* names[3] = { pointers ? "SolB" : "Sol10", pointers ? "SolA" : "Sol2", pointers ? "SolC" : "Sol1" };
+		const double numbers[3] = { pointers ? 2.0 : 10.0, pointers ? 1.0 : 2.0, pointers ? 3.0 : 1.0 };
+		for (int s = 0; s < 3; ++s)
+		{
+			double values[12];
+			for (int n = 0; n < 12; ++n)
+				values[n] = numbers[s] * 100.0 + n;
+			int sol = 0, field = 0;
+			ok = ok && cg_sol_write(fn, base, zone, names[s], CGNS_ENUMV(Vertex), &sol) == CG_OK
+			     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Temperature", values, &field) == CG_OK;
+		}
+		if (pointers)
+		{
+			char text[32 * 3];
+			std::memset(text, ' ', sizeof text);
+			const char* order[3] = { "SolA", "SolB", "SolC" };
+			for (int step = 0; step < 3; ++step)
+				std::memcpy(text + 32 * step, order[step], 4);
+			const cgsize_t dims[2] = { 32, 3 };
+			ok = ok && cg_ziter_write(fn, base, zone, "ZoneIterativeData") == CG_OK
+			     && cg_goto(fn, base, "Zone_t", zone, "ZoneIterativeData_t", 1, "end") == CG_OK
+			     && cg_array_write("FlowSolutionPointers", CGNS_ENUMV(Character), 2, dims, text) == CG_OK;
+		}
+		return cg_close(fn) == CG_OK && ok;
+	}
+#endif
+
+#if MV_HAVE_CGNS
+	// A zone with two Vertex solutions ("S0", "S1") whose fields are the given names; the value of the k-th field is k + 1 (+ 100 in
+	// the second solution), so an assembled group can be checked component by component.
+	bool writeCgnsNamedFields(const char* path, const std::vector<std::string>& first, const std::vector<std::string>& second)
+	{
+		int fn = 0, base = 0, zone = 0, index = 0;
+		if (cg_open(path, CG_MODE_WRITE, &fn) != CG_OK)
+			return false;
+		bool ok = cg_base_write(fn, "Base", 3, 3, &base) == CG_OK;
+		const cgsize_t size[3] = { 12, 2, 0 };
+		ok = ok && cg_zone_write(fn, base, "Zone1", size, CGNS_ENUMV(Unstructured), &zone) == CG_OK;
+		double x[12], y[12], z[12];
+		for (int n = 0; n < 12; ++n)
+		{
+			x[n] = n % 3;
+			y[n] = (n / 3) % 2;
+			z[n] = n / 6;
+		}
+		const cgsize_t hexes[16] = { 1, 2, 5, 4, 7, 8, 11, 10, 2, 3, 6, 5, 8, 9, 12, 11 };
+		ok = ok && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateX", x, &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateY", y, &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateZ", z, &index) == CG_OK
+		     && cg_section_write(fn, base, zone, "Hexas", CGNS_ENUMV(HEXA_8), 1, 2, 0, hexes, &index) == CG_OK;
+		const std::vector<std::string>* solutions[2] = { &first, &second };
+		for (int s = 0; s < 2; ++s)
+		{
+			int sol = 0, field = 0;
+			ok = ok && cg_sol_write(fn, base, zone, s == 0 ? "S0" : "S1", CGNS_ENUMV(Vertex), &sol) == CG_OK;
+			for (std::size_t k = 0; k < solutions[s]->size(); ++k)
+			{
+				double values[12];
+				for (int n = 0; n < 12; ++n)
+					values[n] = static_cast<double>(k + 1) + (s == 1 ? 100.0 : 0.0);
+				ok = ok && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), (*solutions[s])[k].c_str(), values, &field) == CG_OK;
+			}
+		}
+		return cg_close(fn) == CG_OK && ok;
+	}
+#endif
+
+	void testCgnsComponentGroups()
+	{
+#if MV_HAVE_CGNS
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		auto read = [&](const char* name, const std::vector<std::string>& a, const std::vector<std::string>& b) {
+			const QString path = tmp.path() + QStringLiteral("/") + QString::fromLatin1(name);
+			const bool written = writeCgnsNamedFields(QFile::encodeName(path).constData(), a, b);
+			CHECK(written);
+			ResultReadOutcome r = readResultFile(path);
+			CHECK(r.ok());
+			return r;
+		};
+
+		// lower-case component names form a tensor too (matched case-insensitively)
+		const std::vector<std::string> lower = { "Sigmaxx", "Sigmayy", "Sigmazz", "Sigmaxy", "Sigmayz", "Sigmaxz" };
+		const ResultReadOutcome a = read("lower.cgns", lower, lower);
+		if (a.ok())
+		{
+			const int sigma = fieldIndexOf(*a.dataset, QStringLiteral("Sigma"));
+			CHECK(sigma >= 0 && a.dataset->fields.size() == 1 && a.dataset->fields[static_cast<std::size_t>(sigma)].components == 6);
+			if (sigma >= 0)
+			{
+				const std::vector<float>& d = a.dataset->fields[static_cast<std::size_t>(sigma)].stepData[0];
+				CHECK(d.size() == 12u * 6u && d[0] == 1.0f && d[1] == 2.0f && d[2] == 3.0f && d[3] == 4.0f && d[4] == 5.0f && d[5] == 6.0f);
+			}
+		}
+
+		// both XZ and ZX: the tensor takes XZ, and ZX stays a field of its own - nothing is dropped
+		const std::vector<std::string> both = { "SigmaXX", "SigmaYY", "SigmaZZ", "SigmaXY", "SigmaYZ", "SigmaXZ", "SigmaZX" };
+		const ResultReadOutcome b = read("both.cgns", both, both);
+		if (b.ok())
+		{
+			const int sigma = fieldIndexOf(*b.dataset, QStringLiteral("Sigma")), leftover = fieldIndexOf(*b.dataset, QStringLiteral("SigmaZX"));
+			CHECK(sigma >= 0 && leftover >= 0 && b.dataset->fields.size() == 2);
+			if (sigma >= 0 && leftover >= 0)
+			{
+				CHECK(b.dataset->fields[static_cast<std::size_t>(sigma)].stepData[0][5] == 6.0f);   // XZ fills the ZX slot
+				CHECK(b.dataset->fields[static_cast<std::size_t>(leftover)].stepData[0][0] == 7.0f); // the extra component is still there
+			}
+		}
+
+		// all nine components: one full (non-symmetric) tensor in the stored order
+		const std::vector<std::string> nine = { "AXX", "AXY", "AXZ", "AYX", "AYY", "AYZ", "AZX", "AZY", "AZZ" };
+		const ResultReadOutcome c = read("nine.cgns", nine, nine);
+		if (c.ok())
+		{
+			const int t = fieldIndexOf(*c.dataset, QStringLiteral("A"));
+			CHECK(t >= 0 && c.dataset->fields.size() == 1 && c.dataset->fields[static_cast<std::size_t>(t)].components == 9);
+			if (t >= 0)
+			{
+				const std::vector<float>& d = c.dataset->fields[static_cast<std::size_t>(t)].stepData[0];
+				bool inOrder = d.size() == 12u * 9u;
+				for (int k = 0; inOrder && k < 9; ++k)
+					inOrder = d[static_cast<std::size_t>(k)] == static_cast<float>(k + 1);
+				CHECK(inOrder);
+			}
+		}
+
+		// a step with only some of a tensor's components is left empty and reported, never filled with zeros or NaN
+		const std::vector<std::string> full = { "SigmaXX", "SigmaYY", "SigmaZZ", "SigmaXY", "SigmaYZ", "SigmaXZ" };
+		const std::vector<std::string> missing = { "SigmaXX", "SigmaYY", "SigmaZZ", "SigmaXY", "SigmaYZ" }; // no XZ in the second solution
+		const ResultReadOutcome d = read("partial.cgns", full, missing);
+		if (d.ok())
+		{
+			const int sigma = fieldIndexOf(*d.dataset, QStringLiteral("Sigma"));
+			CHECK(sigma >= 0 && d.dataset->stepCount() == 2);
+			if (sigma >= 0 && d.dataset->stepCount() == 2)
+			{
+				const ResultField& f = d.dataset->fields[static_cast<std::size_t>(sigma)];
+				CHECK(!f.stepData[0].empty() && f.stepData[1].empty());
+			}
+			bool warned = false;
+			for (const QString& w : d.warnings)
+				warned = warned || w.contains(QStringLiteral("some of their components"));
+			CHECK(warned);
+		}
+
+		// vectors, lower-case axes included; an X without a Y is just a scalar
+		const std::vector<std::string> vec = { "Vx", "Vy", "Vz", "Alonex" };
+		const ResultReadOutcome e = read("vec.cgns", vec, vec);
+		if (e.ok())
+		{
+			const int v = fieldIndexOf(*e.dataset, QStringLiteral("V")), lonely = fieldIndexOf(*e.dataset, QStringLiteral("Alonex"));
+			CHECK(v >= 0 && lonely >= 0 && e.dataset->fields[static_cast<std::size_t>(v)].components == 3 && e.dataset->fields.size() == 2);
+		}
+
+		// all-lower-case vector names ("velocityx" ends in an axis PAIR, 'y' + 'x') are still a vector
+		const std::vector<std::string> lowerVec = { "velocityx", "velocityy", "velocityz" };
+		const ResultReadOutcome f = read("lowervec.cgns", lowerVec, lowerVec);
+		if (f.ok())
+		{
+			const int v = fieldIndexOf(*f.dataset, QStringLiteral("velocity"));
+			CHECK(v >= 0 && f.dataset->fields.size() == 1 && f.dataset->fields[static_cast<std::size_t>(v)].components == 3);
+		}
+
+		// off-diagonals stored as XY/YZ/XZ in one solution and YX/ZY/ZX in the next still merge into one tensor over both steps
+		const std::vector<std::string> upperTri = { "SigmaXX", "SigmaYY", "SigmaZZ", "SigmaXY", "SigmaYZ", "SigmaXZ" };
+		const std::vector<std::string> lowerTri = { "SigmaXX", "SigmaYY", "SigmaZZ", "SigmaYX", "SigmaZY", "SigmaZX" };
+		const ResultReadOutcome g = read("alias.cgns", upperTri, lowerTri);
+		if (g.ok())
+		{
+			const int sigma = fieldIndexOf(*g.dataset, QStringLiteral("Sigma"));
+			CHECK(sigma >= 0 && g.dataset->fields.size() == 1 && g.dataset->stepCount() == 2);
+			if (sigma >= 0 && g.dataset->stepCount() == 2)
+			{
+				const ResultField& t = g.dataset->fields[static_cast<std::size_t>(sigma)];
+				CHECK(t.components == 6 && !t.stepData[0].empty() && !t.stepData[1].empty());
+			}
+		}
+#else
+		std::printf("  (skipping CGNS component-group tests: this build has no CGNS library)\n");
+#endif
+	}
+
+	void testCellVectorDefault()
+	{
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		writePrismCase(tmp.path());
+		QFile::remove(tmp.path() + QStringLiteral("/0/p"));
+		QFile::remove(tmp.path() + QStringLiteral("/1/p"));
+		writeText(tmp.path() + QStringLiteral("/0/U"), foamHeader("volVectorField", "U") + "dimensions [0 1 -1 0 0 0 0];\ninternalField uniform (3 4 0);\n");
+		const ResultReadOutcome r = readResultFile(tmp.path() + QStringLiteral("/case.foam"));
+		CHECK(r.ok() && r.dataset->fields.size() == 1);
+		if (!r.ok() || r.dataset->fields.empty())
+			return;
+		DisplayScalar d;
+		// a result whose only field is a cell VECTOR still starts on a field: its magnitude (5)
+		CHECK(chooseDefaultDisplayScalar(*r.dataset, d) && d.cellData && d.component == -1 && d.minValue == 5.0f && d.maxValue == 5.0f);
+		CHECK(defaultViewState(*r.dataset).fieldIndex == 0);
+	}
+
+	void testCgnsStepOrder()
+	{
+#if MV_HAVE_CGNS
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		for (int pointers = 0; pointers < 2; ++pointers)
+		{
+			const QString path = tmp.path() + (pointers ? QStringLiteral("/pointers.cgns") : QStringLiteral("/natural.cgns"));
+			CHECK(writeCgnsOrderFixture(QFile::encodeName(path).constData(), pointers != 0));
+			const ResultReadOutcome r = readResultFile(path);
+			CHECK(r.ok());
+			if (!r.ok())
+				continue;
+			const int t = fieldIndexOf(*r.dataset, QStringLiteral("Temperature"));
+			CHECK(r.dataset->stepCount() == 3 && t >= 0);
+			if (t < 0 || r.dataset->stepCount() != 3)
+				continue;
+			const ResultField& f = r.dataset->fields[static_cast<std::size_t>(t)];
+			const double expected[3] = { 100.0, pointers ? 200.0 : 200.0, pointers ? 300.0 : 1000.0 }; // node 0 of each step
+			for (std::size_t step = 0; step < 3; ++step)
+				CHECK(f.stepData[step].size() == 12 && approx(f.stepData[step][0], expected[step]));
+			// without pointers the order is a guess and the user is told; with pointers it is explicit and nothing is said
+			bool guessWarning = false;
+			for (const QString& w : r.warnings)
+				guessWarning = guessWarning || w.contains(QStringLiteral("FlowSolutionPointers"));
+			CHECK(guessWarning == (pointers == 0));
+		}
+#else
+		std::printf("  (skipping CGNS step-order tests: this build has no CGNS library)\n");
 #endif
 	}
 
@@ -3190,6 +3624,13 @@ int main(int argc, char** argv)
 	testComparePanes();
 	testExodus();
 	testCgns();
+	testSnapshotWithoutSteps();
+	testFieldsStartingAfterStepZero();
+	testDerivedStressOnCells();
+	testValidateFieldShape();
+	testCgnsStepOrder();
+	testCellVectorDefault();
+	testCgnsComponentGroups();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();

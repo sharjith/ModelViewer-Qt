@@ -40,6 +40,7 @@ struct DisplayScalar
 {
 	int fieldIndex = -1;  // index into ResultDataset::fields
 	int component = -1;   // -1 = magnitude of a 3-component field, otherwise the component index
+	int step = 0;         // the time step the values were taken at
 	QString label;        // e.g. "von Mises Stress" or "Displacement (magnitude)"
 	std::vector<float> nodeValues; // one per dataset node (per cell when cellData), in `unit` (may contain non-finite values)
 	bool cellData = false;         // nodeValues is indexed by cell, not by node
@@ -180,6 +181,15 @@ struct SimulationResultItem
 	bool visible = true;
 };
 
+// A min/max label pinned to a vertex of a result's mesh (GUI-free form; the viewport draws it).
+struct SimulationMarker
+{
+	int vertex = -1;
+	float normal[3] = { 0.0f, 0.0f, 0.0f }; // vertex normal in the mesh's frame, to hide the marker on the far side
+	QString text;
+	bool lightText = true;                  // white text (else black), chosen against the colour under it
+};
+
 // One loaded result inside a document: the dataset (source of truth), its boundary surface, the scene mesh that
 // displays it, and the current view state.
 struct SimulationSession
@@ -194,6 +204,7 @@ struct SimulationSession
 	// The colour range this result has on its own (before a shared compare range widens it).
 	float ownLo = 0.0f, ownHi = 1.0f;
 	bool ownRangeValid = false;
+	std::vector<SimulationMarker> markers; // the min/max labels of the current display (empty when they are off)
 	// What is currently painted (the probe reads it, so a hover does not rebuild the scalar).
 	DisplayScalar shownScalar;
 	float shownLo = 0.0f, shownHi = 1.0f;

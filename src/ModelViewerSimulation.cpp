@@ -63,6 +63,10 @@ namespace
 	{
 		return QLocale().toString(static_cast<qulonglong>(n));
 	}
+
+	// The status-bar progress bar is application-wide, but each document loads on its own: count the loads in flight so
+	// one document finishing does not hide the bar while another is still reading.
+	int g_simulationLoadsInFlight = 0;
 }
 
 void ModelViewer::openSimulationResult()
@@ -95,13 +99,16 @@ bool ModelViewer::openSimulationResultFile(const QString& path)
 		return false;
 	if (_simulationLoadInFlight)
 	{
-		MainWindow::showStatusMessage(tr("A simulation result is already loading."), 3000);
-		return false;
+		// A multi-file import starts several results: the rest wait their turn instead of being dropped.
+		_pendingSimulationFiles << path;
+		MainWindow::showStatusMessage(tr("%1 is queued: another simulation result is still loading.").arg(QFileInfo(path).fileName()), 4000);
+		return true;
 	}
 
 	// Read and extract off the UI thread: a production-size result must not freeze the application.
 	_simulationLoadInFlight = true;
-	MainWindow::showProgressBar(false);
+	if (++g_simulationLoadsInFlight == 1)
+		MainWindow::showProgressBar(false);
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
 	auto holder = std::make_shared<LoadedSimulationResult>();
@@ -112,14 +119,28 @@ bool ModelViewer::openSimulationResultFile(const QString& path)
 	connect(thread, &QThread::finished, thread, [self, thread, holder, path]() {
 		thread->deleteLater();
 		QApplication::restoreOverrideCursor();
-		MainWindow::hideProgressBar();
+		if (--g_simulationLoadsInFlight <= 0)
+		{
+			g_simulationLoadsInFlight = 0;
+			MainWindow::hideProgressBar();
+		}
 		if (!self)
 			return;
 		self->_simulationLoadInFlight = false;
 		self->presentSimulationResult(path, *holder);
+		if (self)
+			self->startNextPendingSimulationFile();
 	});
 	thread->start();
 	return true;
+}
+
+void ModelViewer::startNextPendingSimulationFile()
+{
+	if (_simulationLoadInFlight || _pendingSimulationFiles.isEmpty() || !_viewportWidget)
+		return;
+	const QString next = _pendingSimulationFiles.takeFirst();
+	openSimulationResultFile(next);
 }
 
 void ModelViewer::presentSimulationResult(const QString& path, LoadedSimulationResult& result)
@@ -206,13 +227,13 @@ void ModelViewer::presentSimulationResult(const QString& path, LoadedSimulationR
 	connectSimulationHooks();
 	refreshSimulationDisplay(_simulationSessions.back()); // colours + legend
 
-	if (_closeOnSimulationLoadFailure)
-	{
-		// This document was created by File > Open just for this file: like importing any other format, that is
-		// not an undoable step, and the document starts out unmodified.
-		_closeOnSimulationLoadFailure = false;
+	// A document that File > Open created just for this file (still empty and untouched, also after the read) takes it as
+	// its content, not as an undoable edit, and stays unmodified. Anything else - an import into a document with unsaved
+	// changes, or one that was edited while the read ran - must keep its state: the result is one undoable step.
+	const bool freshDocument = _closeOnSimulationLoadFailure && !_documentModified && _undoStack->count() == 0;
+	_closeOnSimulationLoadFailure = false;
+	if (freshDocument)
 		setDocumentModified(false);
-	}
 	else
 	{
 		// Added to a document that already has content: one undoable step, reusing the "add one node + one mesh"
@@ -243,8 +264,10 @@ void ModelViewer::closeEmptyResultDocument()
 	if (!_closeOnSimulationLoadFailure)
 		return;
 	_closeOnSimulationLoadFailure = false;
-	if (_simulationSessions.empty() && _viewportWidget && _viewportWidget->getMeshStore().empty())
+	if (_simulationSessions.empty() && _viewportWidget && _viewportWidget->getMeshStore().empty() && !_documentModified
+	    && _undoStack && _undoStack->count() == 0)
 	{
+		_pendingSimulationFiles.clear();
 		setDocumentModified(false); // no unsaved-changes prompt for a document that never had content
 		close();
 	}
@@ -356,7 +379,7 @@ void ModelViewer::closeSimulationResult(const QUuid& meshUuid)
 		refreshSimulationDisplay(*next);
 	}
 	else
-		_viewportWidget->setVertexMarkers({});
+		pushSimulationMarkers();
 	if (_simulationLegend)
 		_simulationLegend->refresh();
 	if (_simulationTimeline)
@@ -859,6 +882,36 @@ void ModelViewer::toggleSimulationCompare()
 	startSimulationCompare(partner, _simulationCompareStacked, _simulationCompareSharedRange);
 }
 
+// The viewport's min/max labels: the active result's, or in compare mode both compared results' (one per pane).
+void ModelViewer::pushSimulationMarkers()
+{
+	if (!_viewportWidget)
+		return;
+	QVector<QUuid> shown;
+	if (_simulationCompareActive)
+		shown = _simulationCompareMeshes;
+	else if (const SimulationSession* active = activeSimulationSession())
+		shown.append(active->meshUuid);
+	QVector<ViewportWidget::VertexMarker> markers;
+	for (const QUuid& id : std::as_const(shown))
+	{
+		const SimulationSession* session = const_cast<ModelViewer*>(this)->findSimulationSession(id);
+		if (!session)
+			continue;
+		for (const SimulationMarker& m : session->markers)
+		{
+			ViewportWidget::VertexMarker marker;
+			marker.meshUuid = id;
+			marker.vertex = m.vertex;
+			marker.localNormal = QVector3D(m.normal[0], m.normal[1], m.normal[2]);
+			marker.text = m.text;
+			marker.color = m.lightText ? QColor(Qt::white) : QColor(Qt::black);
+			markers.append(marker);
+		}
+	}
+	_viewportWidget->setVertexMarkers(markers);
+}
+
 // Compare mode ends by itself when either result is hidden, closed, or removed by Undo.
 void ModelViewer::checkSimulationCompare()
 {
@@ -1070,8 +1123,8 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 	{
 		session.ownRangeValid = false;
 		session.shownScalar = DisplayScalar();
-		if (isActive)
-			_viewportWidget->setVertexMarkers({});
+		session.markers.clear();
+		pushSimulationMarkers();
 		mesh->clearAnalysisOverlay(); // CPU-only, no GL context needed
 		if (isActive && _simulationLegend)
 			_simulationLegend->setAliveCheck([]() { return false; });
@@ -1151,10 +1204,10 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 			return viewportGuard && viewportGuard->getMeshByUuid(meshUuid) && self && self->_visibleMeshUuids.contains(meshUuid);
 		});
 	}
-	// ---- Min/max markers of the result being shown (only the active result owns the viewport's markers).
-	if (isActive)
+	// ---- Min/max markers of this result. Each result keeps its own; pushSimulationMarkers() shows the active one's, or in
+	// compare mode both compared results' (each in its own pane).
 	{
-		QVector<ViewportWidget::VertexMarker> markers;
+		std::vector<SimulationMarker> markers;
 		std::size_t minVertex = 0, maxVertex = 0;
 		if (session.state.markExtrema && findScalarExtrema(surfaceValues, minVertex, maxVertex))
 		{
@@ -1162,24 +1215,28 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 			// For cell data the extreme is a triangle: the marker goes on that triangle's first vertex.
 			const auto makeMarker = [&](std::size_t index, const QString& name, float normalized) {
 				const std::size_t vertex = scalar.cellData ? session.surface->triangles[index * 3] : index;
-				ViewportWidget::VertexMarker marker;
-				marker.meshUuid = session.meshUuid;
+				SimulationMarker marker;
 				marker.vertex = static_cast<int>(vertex);
 				if (vertex < current.size())
-					marker.localNormal = QVector3D(current[vertex].Normal.x, current[vertex].Normal.y, current[vertex].Normal.z);
+				{
+					marker.normal[0] = current[vertex].Normal.x;
+					marker.normal[1] = current[vertex].Normal.y;
+					marker.normal[2] = current[vertex].Normal.z;
+				}
 				marker.text = QStringLiteral("%1 %2").arg(name, QLocale().toString(static_cast<double>(surfaceValues[index]), 'g', 5));
 				if (!scalar.unit.isEmpty())
 					marker.text += QLatin1Char(' ') + scalar.unit;
 				const QColor painted = AnalysisColorRamp::colorForNormalized(normalized, static_cast<AnalysisColormap>(session.state.colormap));
-				marker.color = painted.lightness() < 128 ? QColor(Qt::white) : QColor(Qt::black);
+				marker.lightText = painted.lightness() < 128;
 				return marker;
 			};
 			const auto normalize = [&](float v) { return hi > lo ? std::clamp((v - lo) / (hi - lo), 0.0f, 1.0f) : 0.0f; };
-			markers.append(makeMarker(minVertex, tr("Min"), normalize(surfaceValues[minVertex])));
+			markers.push_back(makeMarker(minVertex, tr("Min"), normalize(surfaceValues[minVertex])));
 			if (maxVertex != minVertex)
-				markers.append(makeMarker(maxVertex, tr("Max"), normalize(surfaceValues[maxVertex])));
+				markers.push_back(makeMarker(maxVertex, tr("Max"), normalize(surfaceValues[maxVertex])));
 		}
-		_viewportWidget->setVertexMarkers(markers);
+		session.markers = std::move(markers);
+		pushSimulationMarkers();
 	}
 	session.shownLo = lo;
 	session.shownHi = hi;

@@ -107,6 +107,23 @@ inline int resultRangeSelector(int components, int component)
 	return components == 3 ? 3 : -1;
 }
 
+// Whether a field has data at any step, and the first step that does (-1 when none). A field can be absent at step 0 (a
+// variable an analysis only writes from a later step on) and must not be treated as missing.
+inline bool resultFieldHasData(const ResultField& field)
+{
+	for (const std::vector<float>& data : field.stepData)
+		if (!data.empty())
+			return true;
+	return false;
+}
+inline int resultFieldFirstStep(const ResultField& field)
+{
+	for (std::size_t s = 0; s < field.stepData.size(); ++s)
+		if (!field.stepData[s].empty())
+			return static_cast<int>(s);
+	return -1;
+}
+
 struct ResultStep
 {
 	double time = 0.0;
