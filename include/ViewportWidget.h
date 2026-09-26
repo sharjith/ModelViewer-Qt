@@ -30,6 +30,7 @@ class ToolsToolbar;
 #include "FillHolesController.h"
 #include "SimulationGlyphController.h"
 #include "SimulationSliceController.h"
+#include "SimulationStreamlineController.h"
 #include "MvfMeshPreparationWorker.h"
 #include "PlaneRenderable.h"
 #include "PlaneGizmo.h"
@@ -1509,6 +1510,14 @@ public:
 	// Cut surfaces of a simulation result's volume (data-coloured sections, iso-surfaces): see SimulationSliceController.h. An empty list clears them.
 	void setSimulationSlices(const QUuid& meshUuid, std::vector<SliceDisplay> slices);
 	void clearSimulationSlices(const QUuid& meshUuid);
+	// Streamlines of a simulation result's vector field: see SimulationStreamlineController.h. An empty display clears them.
+	void setSimulationStreamlines(const QUuid& meshUuid, StreamlineDisplay lines);
+	void clearSimulationStreamlines(const QUuid& meshUuid);
+	// What is displayed for a result now (empty when nothing), for saving it in a snapshot.
+	std::vector<SliceDisplay> simulationSlices(const QUuid& meshUuid) const;
+	StreamlineDisplay simulationStreamlines(const QUuid& meshUuid) const;
+	// Switches on and sets the axis-aligned Clipping Planes of `cuts` (through the Clipping Planes editor, so its controls follow), as a restored snapshot had them.
+	// Planes that are not in `cuts` are left as they are. `ClippingCut` is declared below.
 	// The axis-aligned Clipping Planes that are on (X = 0, Y = 1, Z = 2) at their world position; a simulation section follows them.
 	struct ClippingCut
 	{
@@ -1517,6 +1526,7 @@ public:
 		bool keepPositive = false; // the model is kept on the +axis side (a flipped plane), else on the -axis side
 	};
 	QVector<ClippingCut> clippingCuts() const;
+	void applyClippingCuts(const QVector<ClippingCut>& cuts);
 
 	// Compare mode (simulation results side by side, docs/simulation_compare_mode_design.md): the window is divided
 	// into one pane per mesh, each drawing ONLY its mesh with the shared camera - orbit, pan, zoom and fit act on all
@@ -2634,6 +2644,10 @@ private:
 	void drawSimulationGlyphs(Camera* camera);
 	SimulationSliceController* _simulationSliceController = nullptr;
 	void drawSimulationSlices(Camera* camera);
+	SimulationStreamlineController* _simulationStreamlineController = nullptr;
+	void drawSimulationStreamlines(Camera* camera);
+	// Iso-surfaces or streamlines of a result that is shown: the section cap would hide them, so it is not drawn.
+	bool simulationOverlaysHideCaps() const;
 
 	CubeRenderable* _lightCube;
 	SphereRenderable* _lightSphere;

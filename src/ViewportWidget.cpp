@@ -274,6 +274,8 @@ _floorPlane(nullptr),
 	_gpuResourceRegistry.add(_simulationGlyphController, GpuResourcePhase::Decorations);
 	_simulationSliceController = new SimulationSliceController(_renderCtrl, this);
 	_gpuResourceRegistry.add(_simulationSliceController, GpuResourcePhase::Decorations);
+	_simulationStreamlineController = new SimulationStreamlineController(_renderCtrl, this);
+	_gpuResourceRegistry.add(_simulationStreamlineController, GpuResourcePhase::Decorations);
 
 
 	// Setup the view toolbar
@@ -3693,6 +3695,47 @@ void ViewportWidget::clearSimulationSlices(const QUuid& meshUuid)
 	update();
 }
 
+void ViewportWidget::setSimulationStreamlines(const QUuid& meshUuid, StreamlineDisplay lines)
+{
+	_simulationStreamlineController->setLines(meshUuid, std::move(lines));
+	update();
+}
+
+void ViewportWidget::clearSimulationStreamlines(const QUuid& meshUuid)
+{
+	_simulationStreamlineController->clearLines(meshUuid);
+	update();
+}
+
+std::vector<SliceDisplay> ViewportWidget::simulationSlices(const QUuid& meshUuid) const
+{
+	return _simulationSliceController ? _simulationSliceController->slices(meshUuid) : std::vector<SliceDisplay>();
+}
+
+StreamlineDisplay ViewportWidget::simulationStreamlines(const QUuid& meshUuid) const
+{
+	return _simulationStreamlineController ? _simulationStreamlineController->lines(meshUuid) : StreamlineDisplay();
+}
+
+void ViewportWidget::applyClippingCuts(const QVector<ClippingCut>& cuts)
+{
+	if (!_clippingPlanesEditor || cuts.isEmpty())
+		return;
+	bool enabled[3] = { false, false, false }, flipped[3] = { false, false, false };
+	double coefficient[3] = { 0.0, 0.0, 0.0 };
+	const auto centre = _viewCtrl.boundingBox().center();
+	const double centres[3] = { centre.getX(), centre.getY(), centre.getZ() };
+	for (const ClippingCut& cut : cuts)
+	{
+		if (cut.axis < 0 || cut.axis > 2)
+			continue;
+		enabled[cut.axis] = true;
+		flipped[cut.axis] = cut.keepPositive;
+		coefficient[cut.axis] = cut.position - centres[cut.axis]; // a plane sits at its coefficient from the scene's centre
+	}
+	_clippingPlanesEditor->applyCuts(enabled, coefficient, flipped);
+}
+
 QVector<ViewportWidget::ClippingCut> ViewportWidget::clippingCuts() const
 {
 	// Each plane sits at its coefficient from the scene's centre (the same rule the clipping shader uses).
@@ -3712,6 +3755,26 @@ void ViewportWidget::drawSimulationSlices(Camera* camera)
 	if (!_simulationSliceController || !_simulationSliceController->hasSlices())
 		return;
 	_simulationSliceController->drawOverlay(camera, [this](const QUuid& meshUuid) -> const RenderableMesh* {
+		const SceneMesh* mesh = getMeshByUuid(meshUuid);
+		return mesh && isMeshVisible(mesh, -1) ? mesh : nullptr;
+	});
+}
+
+bool ViewportWidget::simulationOverlaysHideCaps() const
+{
+	const auto resolve = [this](const QUuid& meshUuid) -> const RenderableMesh* {
+		const SceneMesh* mesh = getMeshByUuid(meshUuid);
+		return mesh && isMeshVisible(mesh, -1) ? mesh : nullptr;
+	};
+	return (_simulationSliceController && _simulationSliceController->hasIsoSurfaces(resolve))
+		|| (_simulationStreamlineController && _simulationStreamlineController->hasLines(resolve));
+}
+
+void ViewportWidget::drawSimulationStreamlines(Camera* camera)
+{
+	if (!_simulationStreamlineController || !_simulationStreamlineController->hasLines())
+		return;
+	_simulationStreamlineController->drawOverlay(camera, [this](const QUuid& meshUuid) -> const RenderableMesh* {
 		const SceneMesh* mesh = getMeshByUuid(meshUuid);
 		return mesh && isMeshVisible(mesh, -1) ? mesh : nullptr;
 	});
@@ -6795,6 +6858,7 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	if (_fillHolesController)
 		_fillHolesController->drawOverlay(_primaryCamera);
 	drawSimulationSlices(_primaryCamera);
+	drawSimulationStreamlines(_primaryCamera);
 	drawSimulationGlyphs(_primaryCamera);
 }
 
@@ -6882,6 +6946,7 @@ void ViewportWidget::renderComparePanes(QColor& topColor, QColor& botColor)
 			*_primaryCamera = _comparePaneCameras[i];
 		render(_primaryCamera);
 		drawSimulationSlices(_primaryCamera); // this pane's result only (the filter is still set)
+		drawSimulationStreamlines(_primaryCamera);
 		drawSimulationGlyphs(_primaryCamera);
 		_paneMeshFilter = nullptr;
 	}
@@ -11410,8 +11475,8 @@ void ViewportWidget::render(Camera* camera)
 
 	// --- 2.5) Section caps (after opaque, before floor & transparents) ---
 	const bool cappedClippingActive = _renderCtrl.cappingEnabled() && _renderCtrl.anyClippingEnabled();
-	// Iso-surfaces lie inside the solid: an opaque cap at the cut would hide them, so the cut is left open while they are shown.
-	const bool isoSurfacesShown = _simulationSliceController && _simulationSliceController->hasIsoSurfaces();
+	// Iso-surfaces and streamlines lie inside the solid: an opaque cap at the cut would hide them, so the cut is left open while they are shown.
+	const bool isoSurfacesShown = simulationOverlaysHideCaps();
 	if (!interactivePtOverlayShowing &&
 		cappedClippingActive && !isoSurfacesShown &&
 		!_renderCtrl.sectionCapsSuppressedDuringInteraction())
@@ -11527,6 +11592,7 @@ void ViewportWidget::render(Camera* camera)
 	if (_viewCtrl.multiViewActive())
 	{
 		drawSimulationSlices(camera);
+		drawSimulationStreamlines(camera);
 		drawSimulationGlyphs(camera);
 	}
 	if (_renderCtrl.showLights()) drawLights();
@@ -14094,7 +14160,7 @@ void ViewportWidget::renderToTransmissionBuffer(Camera* camera, const QColor& to
 
 	// --- RENDER 3: SECTION CAPS ---
 	const bool cappedClippingActive = _renderCtrl.cappingEnabled() && _renderCtrl.anyClippingEnabled();
-	const bool isoSurfacesShown = _simulationSliceController && _simulationSliceController->hasIsoSurfaces();
+	const bool isoSurfacesShown = simulationOverlaysHideCaps();
 	if (cappedClippingActive && !isoSurfacesShown &&
 		!_renderCtrl.sectionCapsSuppressedDuringInteraction())
 	{

@@ -279,6 +279,22 @@ bool ClippingPlanesEditor::isGizmoVisible() const
 	return checkBoxShowGizmo->isChecked();
 }
 
+void ClippingPlanesEditor::applyCuts(const bool enabled[3], const double coefficient[3], const bool flipped[3])
+{
+	// The X-normal plane is the "YZ" row, the Y-normal one "XZ", the Z-normal one "XY" (see the *CoeffDisplay setters).
+	QDoubleSpinBox* spins[3] = { doubleSpinBoxYZCoeff, doubleSpinBoxZXCoeff, doubleSpinBoxXYCoeff };
+	QCheckBox* flips[3] = { checkBoxFlipYZ, checkBoxFlipZX, checkBoxFlipXY };
+	QCheckBox* planes[3] = { checkBoxYZ, checkBoxZX, checkBoxXY };
+	for (int axis = 0; axis < 3; ++axis)
+	{
+		if (!enabled[axis])
+			continue;
+		flips[axis]->setChecked(flipped[axis]);
+		spins[axis]->setValue(coefficient[axis]);
+		planes[axis]->setChecked(true);
+	}
+}
+
 void ClippingPlanesEditor::setXCoeffDisplay(double value)
 {
 	const QSignalBlocker blocker(doubleSpinBoxYZCoeff); // X-normal plane is named "YZ" (the plane it spans)

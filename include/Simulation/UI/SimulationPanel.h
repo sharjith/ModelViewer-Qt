@@ -61,6 +61,8 @@ private:
 	void populateGlyphFields(int selectedFieldIndex);
 	void populateIsoFields(int selectedFieldIndex);
 	void updateSliceEnabled();
+	void populateStreamFields(int selectedFieldIndex);
+	void updateStreamEnabled();
 	void updateGlyphEnabled();
 	void refreshRangeEdits();
 	// Range mode of the combo: 0 = automatic over all steps, 1 = automatic for the step shown (also the only
@@ -132,6 +134,11 @@ private:
 	QComboBox* _isoFieldCombo = nullptr;
 	QSpinBox* _isoLevelsSpin = nullptr;
 	QLabel* _sliceInfoLabel = nullptr;
+	QCheckBox* _streamCheck = nullptr;
+	QComboBox* _streamFieldCombo = nullptr;
+	QSpinBox* _streamSeedsSpin = nullptr;
+	QCheckBox* _streamPlaneCheck = nullptr;
+	QLabel* _streamInfoLabel = nullptr;
 
 	std::shared_ptr<ResultDataset> _dataset;
 	int _step = 0;                // the step the session is at (for the automatic per-step range display)

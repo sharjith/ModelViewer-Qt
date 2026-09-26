@@ -780,6 +780,7 @@ private:
 	// when nothing is coloured.
 	// Rebuilds (or removes) the session's cut faces (a data-coloured section on each Clipping Plane) and iso-surfaces. Cuts the undeformed mesh.
 	void updateSimulationSlices(SimulationSession& session);
+	void updateSimulationStreamlines(SimulationSession& session);
 	void updateSimulationGlyphs(SimulationSession& session, bool haveSurfaceRange, float surfaceLo, float surfaceHi);
 	void updateSimulationTimeline();
 	void checkSimulationCompare(); // ends compare mode when one of its results went away
@@ -997,6 +998,7 @@ private:
 	enum class SimulationSaveContent { ShownAndDisplacement, AllFields, GeometryOnly };
 	SimulationSaveContent _simulationSaveContent = SimulationSaveContent::ShownAndDisplacement;
 	bool _simulationSavePrompted = false;
+	bool _simulationSaveVolume = false; // also store the volume (see SnapshotOptions::includeVolume)
 	mutable QStringList _simulationSaveNotes; // what the last package build had to leave out (e.g. subsampled steps)
 	QStringList _pendingSimulationFiles;
 	bool _simulationCompareActive = false;

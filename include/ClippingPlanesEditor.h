@@ -44,6 +44,9 @@ public:
 	// feeding back into another setClippingXCoeff() call for the same
 	// value that drag already applied directly.
 	void setXCoeffDisplay(double value);
+	// Sets the flip, the coefficient and (through the checkboxes, so the normal handlers run) the enable state of the planes flagged in `enabled`, for the X, Y and Z
+	// normal planes in that order. Planes that are not flagged are left alone.
+	void applyCuts(const bool enabled[3], const double coefficient[3], const bool flipped[3]);
 	void setYCoeffDisplay(double value);
 	void setZCoeffDisplay(double value);
 

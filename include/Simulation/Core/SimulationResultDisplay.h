@@ -8,6 +8,8 @@
 #include "ResultDataset.h"
 #include "ResultReader.h"
 #include "ResultSlice.h"
+#include "ResultStreamlines.h"
+#include "SimulationOverlays.h"
 
 #include <QString>
 #include <QStringList>
@@ -188,6 +190,12 @@ struct SimulationViewState
 	bool iso = false;
 	int isoField = -1;   // a node field (a scalar, or a vector's magnitude); -1 = the shown field, if it is one
 	int isoLevels = 3;   // evenly spaced strictly inside the field's range at the shown step
+	// Streamlines (see ResultStreamlines.h): curves along a node vector field through the volume, seeded at random points of the volume or on the cut of the
+	// Clipping Planes. They follow the field of the shown step and use the undeformed mesh.
+	bool streamlines = false;
+	int streamField = -1;      // a 3-component node field; -1 = chosen automatically (chooseDefaultStreamlineField)
+	int streamSeeds = 50;      // this many seed points (a seed outside the mesh or where the field is zero gives no line)
+	bool streamOnPlane = false; // seed on the Clipping Plane cut faces instead of through the whole volume
 };
 
 // Cache of the all-steps data range of one (field, component, units) so playback does not rescan every step on
@@ -259,6 +267,15 @@ struct SimulationSession
 	std::vector<SectionCut> sectionCuts;
 	int volumeCells = -1;   // 1 when the dataset has volume cells to cut, 0 when not, -1 = not checked yet
 	QString sliceInfo;      // what the panel shows about the cut faces and iso-surfaces (empty when they are off)
+	QString streamInfo;     // what the panel shows about the streamlines (empty when they are off)
+	// A result restored from a snapshot without its volume: the cut faces, iso-surfaces and streamlines it was saved with, shown frozen in place of the live ones.
+	SnapshotOverlays bakedOverlays;
+	std::shared_ptr<CellLocator> locator; // finds the cell around a point, built on first use for the streamlines (it refers to `dataset`)
+	// The traced streamlines, kept while the field, step, seed count and seeding stay the same (a plane moved without seeding on it only re-trims them).
+	std::shared_ptr<StreamlineSet> streamlineSet;
+	QString streamlineKey;
+	QString streamlineUnit;               // the unit the lines' values are in
+	SimulationRangeCache streamRangeCache; // the all-steps range of the streamlines' field (its own, so it does not evict the arrows')
 	QString glyphInfo;             // what the panel shows about the arrows' colours (empty when they are off)
 	// What the mesh geometry currently shows, so a recolour does not re-upload the vertices.
 	bool deformApplied = false;

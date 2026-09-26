@@ -21,6 +21,7 @@ add_executable(result_tests
     ${CMAKE_SOURCE_DIR}/src/Simulation/Core/SimulationResultDisplay.cpp
     ${CMAKE_SOURCE_DIR}/src/Simulation/Core/SimulationGlyphs.cpp
     ${CMAKE_SOURCE_DIR}/src/Simulation/Core/ResultSlice.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Core/ResultStreamlines.cpp
 )
 target_include_directories(result_tests PRIVATE ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/include/Simulation/Core ${CMAKE_SOURCE_DIR}/include/Simulation/Readers ${CMAKE_SOURCE_DIR}/include/Simulation/UI)

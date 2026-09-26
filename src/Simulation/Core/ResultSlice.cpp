@@ -1,5 +1,7 @@
 #include "ResultSlice.h"
 
+#include "ResultCellFaces.h"
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -7,32 +9,7 @@
 
 namespace
 {
-	struct FaceRing
-	{
-		std::uint8_t count;
-		std::uint8_t v[4]; // local corner indices
-	};
-
-	// The node rings of the linear cells (the corner nodes come first in every cell layout, so quadratic cells use the same tables). Only the node
-	// sets and the cyclic order matter here, not the winding.
-	const FaceRing kTet[4] = { { 3, { 0, 1, 3, 0 } }, { 3, { 1, 2, 3, 0 } }, { 3, { 2, 0, 3, 0 } }, { 3, { 0, 2, 1, 0 } } };
-	const FaceRing kHex[6] = { { 4, { 0, 4, 7, 3 } }, { 4, { 1, 2, 6, 5 } }, { 4, { 0, 1, 5, 4 } }, { 4, { 3, 7, 6, 2 } }, { 4, { 0, 3, 2, 1 } }, { 4, { 4, 5, 6, 7 } } };
-	const FaceRing kWedge[5] = { { 3, { 0, 2, 1, 0 } }, { 3, { 3, 4, 5, 0 } }, { 4, { 0, 1, 4, 3 } }, { 4, { 1, 2, 5, 4 } }, { 4, { 2, 0, 3, 5 } } };
-	const FaceRing kPyramid[5] = { { 4, { 0, 3, 2, 1 } }, { 3, { 0, 1, 4, 0 } }, { 3, { 1, 2, 4, 0 } }, { 3, { 2, 3, 4, 0 } }, { 3, { 3, 0, 4, 0 } } };
-
-	int ringsFor(ResultCellType type, const FaceRing*& out)
-	{
-		switch (resultCellCornerType(type))
-		{
-		case ResultCellType::Tetra:      out = kTet;     return 4;
-		case ResultCellType::Hexahedron: out = kHex;     return 6;
-		case ResultCellType::Wedge:      out = kWedge;   return 5;
-		case ResultCellType::Pyramid:    out = kPyramid; return 5;
-		default: break;
-		}
-		out = nullptr;
-		return 0;
-	}
+	using resultcell::FaceRing;
 
 	struct Segment
 	{
@@ -116,7 +93,7 @@ bool cutVolume(const ResultDataset& ds, const std::vector<float>& distance, cons
 		else
 		{
 			const FaceRing* rings = nullptr;
-			const int count = ringsFor(type, rings);
+			const int count = resultcell::faceRingsFor(type, rings);
 			if (count == 0)
 				continue; // a surface or line cell, or an unsupported one
 			const std::uint32_t* nodes = ds.cellConnectivity.data() + ds.cellOffsets[c];

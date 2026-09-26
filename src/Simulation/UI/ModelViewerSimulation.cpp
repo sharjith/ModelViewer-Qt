@@ -37,6 +37,7 @@
 #include "ViewportWidget.h"
 
 #include <QApplication>
+#include <QCheckBox>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QInputDialog>
@@ -417,8 +418,13 @@ void ModelViewer::connectSimulationHooks()
 	// A Clipping Plane moved or switched: the cut faces follow it.
 	connect(_viewportWidget, &ViewportWidget::clippingPlanesChanged, this, [this]() {
 		for (SimulationSession& s : _simulationSessions)
-			if ((s.state.sectionFill || s.state.iso) && _viewportWidget && _viewportWidget->getMeshByUuid(s.meshUuid))
-				updateSimulationSlices(s);
+			if (_viewportWidget && _viewportWidget->getMeshByUuid(s.meshUuid))
+			{
+				if (s.state.sectionFill || s.state.iso)
+					updateSimulationSlices(s);
+				if (s.state.streamlines)
+					updateSimulationStreamlines(s); // the lines are trimmed to what the planes leave (and seeded on them when asked)
+			}
 	});
 	// Undo/Redo of an open adds or removes a result mesh, which changes what the panel and legend should show.
 	connect(_undoStack, &QUndoStack::indexChanged, this, [this](int) { emit simulationSessionChanged(false); });
@@ -529,11 +535,36 @@ QString ModelViewer::simulationProbeText(const MeshSurfaceAnchor& anchor, QColor
 
 namespace
 {
-	SnapshotOptions snapshotOptionsFor(const SimulationSession& session, bool allFields)
+	// Whether the dataset has volume cells (cut, trace-able), as opposed to a shell / surface result or a snapshot's surface-only stand-in.
+	bool datasetHasVolumeCells(const ResultDataset& dataset)
+	{
+		for (ResultCellType type : dataset.cellTypes)
+			if (resultCellIsVolume(type) || type == ResultCellType::Polyhedron)
+				return true;
+		return false;
+	}
+
+	SnapshotOptions snapshotOptionsFor(const SimulationSession& session, bool allFields, bool includeVolume = false)
 	{
 		SnapshotOptions options;
 		options.content = allFields ? SnapshotOptions::Content::AllFields : SnapshotOptions::Content::ShownAndDisplacement;
 		options.shownField = session.state.fieldIndex;
+		options.includeVolume = includeVolume && session.dataset && datasetHasVolumeCells(*session.dataset);
+		// The fields the arrows, streamlines and iso-surfaces on display follow: a restored result needs them to show those again.
+		if (session.dataset)
+		{
+			const ResultDataset& dataset = *session.dataset;
+			const SimulationViewState& state = session.state;
+			auto valid = [&](int index) { return index >= 0 && static_cast<std::size_t>(index) < dataset.fields.size(); };
+			if (state.streamlines)
+				options.extraFields.push_back(valid(state.streamField) && isStreamlineField(dataset.fields[static_cast<std::size_t>(state.streamField)])
+				                                  ? state.streamField : chooseDefaultStreamlineField(dataset));
+			if (state.glyphs)
+				options.extraFields.push_back(valid(state.glyphField) && isGlyphField(dataset.fields[static_cast<std::size_t>(state.glyphField)])
+				                                  ? state.glyphField : chooseDefaultGlyphField(dataset));
+			if (state.iso)
+				options.extraFields.push_back(state.isoField);
+		}
 		return options;
 	}
 
@@ -593,8 +624,15 @@ void ModelViewer::appendSimulationSnapshots(Mvf::MVFPackage& package) const
 			continue;
 		ResultSnapshot snapshot;
 		QString error;
+		// The cut faces, iso-surfaces and streamlines as displayed now, with the Clipping Planes they were trimmed to: a result restored without its
+		// volume shows them frozen.
+		SnapshotOverlays overlays;
+		overlays.slices = _viewportWidget->simulationSlices(session.meshUuid);
+		overlays.streamlines = _viewportWidget->simulationStreamlines(session.meshUuid);
+		for (const ViewportWidget::ClippingCut& cut : _viewportWidget->clippingCuts())
+			overlays.cuts.push_back({ cut.axis, cut.position, cut.keepPositive });
 		if (!encodeResultSnapshot(*session.dataset, *session.surface, session.state,
-		                          snapshotOptionsFor(session, _simulationSaveContent == SimulationSaveContent::AllFields), snapshot, &error))
+		                          snapshotOptionsFor(session, _simulationSaveContent == SimulationSaveContent::AllFields, _simulationSaveVolume), snapshot, &error, &overlays))
 		{
 			_simulationSaveNotes << tr("A simulation result was saved without its data (%1).").arg(error);
 			continue;
@@ -632,8 +670,9 @@ bool ModelViewer::promptSimulationSaveOptions()
 {
 	if (_simulationSavePrompted || _simulationSessions.empty() || !_viewportWidget)
 		return true;
-	std::uint64_t shown = 0, all = 0;
+	std::uint64_t shown = 0, all = 0, volumeExtra = 0;
 	int results = 0;
+	bool anyVolume = false;
 	for (const SimulationSession& session : _simulationSessions)
 	{
 		if (!session.dataset || !session.surface || !_viewportWidget->getMeshByUuid(session.meshUuid))
@@ -641,6 +680,12 @@ bool ModelViewer::promptSimulationSaveOptions()
 		++results;
 		shown += estimateSnapshotSize(*session.dataset, *session.surface, snapshotOptionsFor(session, false)).storedBytes;
 		all += estimateSnapshotSize(*session.dataset, *session.surface, snapshotOptionsFor(session, true)).storedBytes;
+		if (datasetHasVolumeCells(*session.dataset))
+		{
+			anyVolume = true;
+			volumeExtra += estimateSnapshotSize(*session.dataset, *session.surface, snapshotOptionsFor(session, false, true)).storedBytes
+				- estimateSnapshotSize(*session.dataset, *session.surface, snapshotOptionsFor(session, false)).storedBytes;
+		}
 	}
 	if (results == 0)
 		return true;
@@ -660,8 +705,20 @@ bool ModelViewer::promptSimulationSaveOptions()
 	layout->addWidget(shownRadio);
 	layout->addWidget(allRadio);
 	layout->addWidget(geometryRadio);
-	auto* note = new QLabel(tr("Sizes are estimates: the data is compressed without loss. Only the visible surface is stored, not the "
-	                           "volume. At most 100 time steps are stored per result (evenly spaced). You are asked once per session."), &dialog);
+	auto* volumeCheck = new QCheckBox(tr("Also store the volume, so sections, iso-surfaces and streamlines stay live when it is reopened  (adds about %1)")
+	                                      .arg(sizeText(volumeExtra)), &dialog);
+	volumeCheck->setToolTip(tr("Without it only the visible surface is stored. The cut faces, iso-surfaces and streamlines\n"
+	                           "on display are then kept as they are (frozen): they no longer follow a moved Clipping\n"
+	                           "Plane or another time step. With the volume they are recomputed as before, at the price of\n"
+	                           "a much larger file."));
+	volumeCheck->setEnabled(anyVolume);
+	if (!anyVolume)
+		volumeCheck->setToolTip(tr("None of the results has volume cells."));
+	layout->addWidget(volumeCheck);
+	connect(geometryRadio, &QRadioButton::toggled, volumeCheck, [volumeCheck, anyVolume](bool geometryOnly) { volumeCheck->setEnabled(anyVolume && !geometryOnly); });
+	auto* note = new QLabel(tr("Sizes are estimates: the data is compressed without loss. Unless the volume is stored, only the visible surface is "
+	                           "stored, and sections, iso-surfaces and streamlines are kept as displayed. At most 100 time steps are stored per "
+	                           "result (evenly spaced). You are asked once per session."), &dialog);
 	note->setWordWrap(true);
 	layout->addWidget(note);
 	auto* buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
@@ -673,6 +730,7 @@ bool ModelViewer::promptSimulationSaveOptions()
 		return false;
 	_simulationSaveContent = geometryRadio->isChecked() ? SimulationSaveContent::GeometryOnly
 		: (allRadio->isChecked() ? SimulationSaveContent::AllFields : SimulationSaveContent::ShownAndDisplacement);
+	_simulationSaveVolume = volumeCheck->isChecked() && volumeCheck->isEnabled();
 	_simulationSavePrompted = true;
 	return true;
 }
@@ -710,6 +768,13 @@ void ModelViewer::restoreSimulationSessions(QVector<PendingSimulationRestore>& r
 		for (std::size_t t = 0; t < surface->triangleCell.size(); ++t)
 			surface->triangleCell[t] = static_cast<std::uint32_t>(t);
 		surface->triangleFace.assign(surface->triangleCount(), ResultBoundarySurface::kNoFace);
+		if (pending.decoded.hasVolume)
+		{
+			// The volume was stored too: the dataset is the full result and the surface sits on it the way it did when it was saved.
+			surface->vertexNode = pending.decoded.vertexNode;
+			surface->triangleCell = pending.decoded.triangleCell;
+			surface->triangleFace = pending.decoded.triangleFace;
+		}
 
 		// Back to the rest shape with plain vertex colours: the saved mesh carries the deformed pose (if deformation
 		// was on) and the baked COLOR_0 written for other viewers; the app draws the result with its own overlay.
@@ -742,7 +807,19 @@ void ModelViewer::restoreSimulationSessions(QVector<PendingSimulationRestore>& r
 		session.extentsValid = surfaceExtents(*session.surface, session.extents[0], session.extents[1], session.extents[2]);
 		session.filePath = pending.decoded.sourcePath;
 		session.warnings = pending.decoded.warnings;
-		session.warnings << tr("Restored from a saved snapshot of the visible surface; the original result file is not needed.");
+		session.warnings << (pending.decoded.hasVolume
+			? tr("Restored from a saved snapshot including the volume; the original result file is not needed.")
+			: tr("Restored from a saved snapshot of the visible surface; the original result file is not needed."));
+		if (!pending.decoded.hasVolume)
+			session.bakedOverlays = pending.decoded.overlays;
+		if (!pending.decoded.overlays.cuts.empty())
+		{
+			// The Clipping Planes the cut faces and streamlines were made for: switched on again so that the model is cut open there.
+			QVector<ViewportWidget::ClippingCut> cuts;
+			for (const OverlayClipCut& cut : pending.decoded.overlays.cuts)
+				cuts.push_back({ cut.axis, cut.position, cut.keepPositive });
+			_viewportWidget->applyClippingCuts(cuts);
+		}
 		session.state = pending.decoded.state;
 		if (session.state.fieldIndex < 0)
 			session.state.fieldIndex = defaultViewState(*session.dataset).fieldIndex;
@@ -1167,6 +1244,7 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 		mesh->clearAnalysisOverlay(); // CPU-only, no GL context needed
 		updateSimulationGlyphs(session, false, 0.0f, 1.0f); // arrows do not need a scalar to colour the surface by
 		updateSimulationSlices(session);
+		updateSimulationStreamlines(session);
 		if (isActive && _simulationLegend)
 			_simulationLegend->setAliveCheck([]() { return false; });
 		_viewportWidget->update();
@@ -1284,6 +1362,7 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 	session.shownHi = hi;
 	session.shownScalar = std::move(scalar); // last use of `scalar`: the hover probe reads it
 	updateSimulationSlices(session);         // (after shownScalar: the cut is coloured by the same values and range)
+	updateSimulationStreamlines(session);    // (likewise: the lines take the legend's range when they show the same field)
 	_viewportWidget->update();
 
 	// A shared colour range depends on both results: when this one changed, its partner recolours with the new union.
@@ -1371,6 +1450,196 @@ void ModelViewer::updateSimulationGlyphs(SimulationSession& session, bool haveSu
 	_viewportWidget->setSimulationGlyphs(session.meshUuid, std::move(set));
 }
 
+// Whether the result has volume cells to cut or trace in (checked once per session).
+static bool sessionHasVolumeCells(SimulationSession& session)
+{
+	if (session.volumeCells < 0)
+	{
+		session.volumeCells = datasetHasVolumeCells(*session.dataset) ? 1 : 0;
+	}
+	return session.volumeCells == 1;
+}
+
+void ModelViewer::updateSimulationStreamlines(SimulationSession& session)
+{
+	session.streamInfo.clear();
+	if (!_viewportWidget || !session.dataset || !session.surface)
+		return;
+	const SimulationViewState& state = session.state;
+	if (!state.streamlines)
+	{
+		_viewportWidget->clearSimulationStreamlines(session.meshUuid);
+		return;
+	}
+	const ResultDataset& dataset = *session.dataset;
+	if (!sessionHasVolumeCells(session))
+	{
+		if (session.bakedOverlays.streamlines.segmentCount() > 0)
+		{
+			// A snapshot restored without its volume: the streamlines it was saved with, as they were.
+			_viewportWidget->setSimulationStreamlines(session.meshUuid, session.bakedOverlays.streamlines);
+			session.streamInfo = tr("Streamlines are shown as they were saved (frozen): this snapshot has no volume. Save with \"Also store the volume\" to keep them live.");
+			return;
+		}
+		_viewportWidget->clearSimulationStreamlines(session.meshUuid);
+		session.streamInfo = tr("This result has no volume cells (a shell or surface result, or a snapshot saved without its volume), so there is nothing to trace through.");
+		return;
+	}
+	int fieldIndex = state.streamField;
+	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size() || !isStreamlineField(dataset.fields[static_cast<std::size_t>(fieldIndex)]))
+		fieldIndex = chooseDefaultStreamlineField(dataset);
+	if (fieldIndex < 0)
+	{
+		_viewportWidget->clearSimulationStreamlines(session.meshUuid);
+		session.streamInfo = tr("Streamlines: the result has no node vector field to follow (cell fields cannot be traced).");
+		return;
+	}
+	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
+	const int step = std::clamp(state.step, 0, std::max(0, static_cast<int>(dataset.stepCount()) - 1));
+	if (static_cast<std::size_t>(step) >= field.stepData.size() || field.stepData[static_cast<std::size_t>(step)].size() != dataset.nodeCount() * 3)
+	{
+		_viewportWidget->clearSimulationStreamlines(session.meshUuid);
+		session.streamInfo = tr("No streamlines at this step: '%1' has no vector data here.").arg(field.name);
+		return;
+	}
+
+	// Seeds: random points of the volume (the same ones every time, so animation frames stay comparable), or on the cut of the Clipping Planes.
+	const QVector<ViewportWidget::ClippingCut> cuts = _viewportWidget->clippingCuts();
+	const std::size_t seedCount = static_cast<std::size_t>(std::clamp(state.streamSeeds, 1, 500));
+	QString key = QStringLiteral("%1/%2/%3/%4").arg(fieldIndex).arg(step).arg(seedCount).arg(state.streamOnPlane ? 1 : 0);
+	if (state.streamOnPlane)
+	{
+		if (cuts.isEmpty())
+		{
+			_viewportWidget->clearSimulationStreamlines(session.meshUuid);
+			session.streamInfo = tr("Streamlines: turn on a Clipping Plane (the Clipping Planes editor) to seed on it, or switch \"Seed on the Clipping Plane\" off.");
+			return;
+		}
+		for (const ViewportWidget::ClippingCut& cut : cuts)
+			key += QStringLiteral("/%1:%2").arg(cut.axis).arg(cut.position, 0, 'g', 9);
+	}
+
+	if (!session.streamlineSet || session.streamlineKey != key)
+	{
+		if (!session.locator)
+			session.locator = std::make_shared<CellLocator>(dataset);
+		if (session.locator->volumeCellCount() == 0)
+		{
+			_viewportWidget->clearSimulationStreamlines(session.meshUuid);
+			session.streamInfo = tr("This result has no volume cells to trace through.");
+			return;
+		}
+		std::vector<float> seeds;
+		if (state.streamOnPlane)
+		{
+			const std::size_t each = (seedCount + static_cast<std::size_t>(cuts.size()) - 1) / static_cast<std::size_t>(cuts.size());
+			for (const ViewportWidget::ClippingCut& cut : cuts)
+			{
+				std::shared_ptr<SliceMesh> mesh;
+				for (const SimulationSession::SectionCut& old : session.sectionCuts)
+					if (old.axis == cut.axis && old.position == cut.position)
+						mesh = old.mesh;
+				if (!mesh)
+				{
+					double point[3] = { 0, 0, 0 }, normal[3] = { 0, 0, 0 };
+					point[cut.axis] = cut.position;
+					normal[cut.axis] = 1.0;
+					mesh = std::make_shared<SliceMesh>();
+					if (!cutVolume(dataset, planeDistances(dataset, point, normal), nullptr, *mesh))
+						continue;
+				}
+				const std::vector<float> points = randomPointsOnTriangles(mesh->positions, mesh->triangles, each, 7919u + static_cast<std::uint32_t>(cut.axis));
+				seeds.insert(seeds.end(), points.begin(), points.end());
+			}
+		}
+		else
+			seeds = session.locator->randomPoints(seedCount, 12345u);
+
+		DisplayScalar speed; // the field's magnitude in its display unit: what the lines are coloured by
+		if (!buildDisplayScalar(dataset, fieldIndex, -1, speed, step))
+		{
+			_viewportWidget->clearSimulationStreamlines(session.meshUuid);
+			return;
+		}
+		auto traced = std::make_shared<StreamlineSet>();
+		if (!traceStreamlines(dataset, *session.locator, field.stepData[static_cast<std::size_t>(step)], &speed.nodeValues, seeds, StreamlineOptions(), *traced))
+		{
+			_viewportWidget->clearSimulationStreamlines(session.meshUuid);
+			return;
+		}
+		session.streamlineSet = std::move(traced);
+		session.streamlineKey = key;
+		session.streamlineUnit = speed.unit;
+	}
+	const StreamlineSet& set = *session.streamlineSet;
+	if (set.lineCount() == 0)
+	{
+		_viewportWidget->clearSimulationStreamlines(session.meshUuid);
+		session.streamInfo = tr("Streamlines of %1: none could be traced - the seeds lie outside the mesh, or the field is zero there.").arg(field.name);
+		return;
+	}
+
+	// The colour range: the legend's when the surface shows this very field, otherwise the field's own magnitude range.
+	const bool likeSurface = state.fieldIndex == fieldIndex && state.component == -1 && session.shownScalar.valid();
+	float lo = 0.0f, hi = 1.0f;
+	if (likeSurface)
+	{
+		lo = session.shownLo;
+		hi = session.shownHi;
+	}
+	else if (!(dataset.stepCount() > 1 && cachedAllStepsRange(dataset, session.streamRangeCache, fieldIndex, -1, lo, hi)) && !computeStepRange(dataset, fieldIndex, -1, step, lo, hi))
+	{
+		lo = 0.0f;
+		hi = 1.0f;
+	}
+	if (!(hi > lo))
+		hi = lo + std::max(1.0e-6f, std::fabs(lo) * 1.0e-6f);
+	const AnalysisColormap colormap = static_cast<AnalysisColormap>(state.colormap);
+
+	StreamlineDisplay display;
+	display.positions = set.points;
+	display.colors.resize(set.points.size());
+	for (std::size_t v = 0; v < set.pointCount(); ++v)
+	{
+		const QColor c = AnalysisColorRamp::colorForNormalized(std::isfinite(set.values[v]) ? std::clamp((set.values[v] - lo) / (hi - lo), 0.0f, 1.0f) : 0.0f, colormap);
+		display.colors[v * 3] = static_cast<float>(c.redF());
+		display.colors[v * 3 + 1] = static_cast<float>(c.greenF());
+		display.colors[v * 3 + 2] = static_cast<float>(c.blueF());
+	}
+	// A segment is seen where some Clipping Plane still keeps the material (the app removes only what ALL planes remove), judged at its middle.
+	auto visible = [&](std::uint32_t a, std::uint32_t b) {
+		if (cuts.isEmpty())
+			return true;
+		for (const ViewportWidget::ClippingCut& cut : cuts)
+		{
+			const double mid = 0.5 * (static_cast<double>(set.points[static_cast<std::size_t>(a) * 3 + cut.axis]) + set.points[static_cast<std::size_t>(b) * 3 + cut.axis]);
+			if (cut.keepPositive ? mid >= cut.position : mid <= cut.position)
+				return true;
+		}
+		return false;
+	};
+	for (std::size_t l = 0; l < set.lineCount(); ++l)
+		for (std::uint32_t p = set.lineOffsets[l]; p + 1 < set.lineOffsets[l + 1]; ++p)
+			if (visible(p, p + 1))
+			{
+				display.segments.push_back(p);
+				display.segments.push_back(p + 1);
+			}
+
+	session.streamInfo = tr("Streamlines of %1: %2 line(s), coloured by magnitude%3%4.")
+	                         .arg(field.name).arg(set.lineCount())
+	                         .arg(likeSurface ? tr(", as in the legend") : tr(" from %1 to %2").arg(lo, 0, 'g', 4).arg(hi, 0, 'g', 4))
+	                         .arg(!likeSurface && !session.streamlineUnit.isEmpty() ? QStringLiteral(" ") + session.streamlineUnit : QString());
+	if (cuts.isEmpty())
+		session.streamInfo += QLatin1Char('\n') + tr("They lie inside the model: cut it with a Clipping Plane to see them.");
+	if (state.deform)
+		session.streamInfo += QLatin1Char('\n') + tr("Streamlines are drawn on the undeformed mesh.");
+	if (display.segmentCount() == 0)
+		_viewportWidget->clearSimulationStreamlines(session.meshUuid);
+	else
+		_viewportWidget->setSimulationStreamlines(session.meshUuid, std::move(display));
+}
+
 void ModelViewer::updateSimulationSlices(SimulationSession& session)
 {
 	session.sliceInfo.clear();
@@ -1383,20 +1652,21 @@ void ModelViewer::updateSimulationSlices(SimulationSession& session)
 		return;
 	}
 	const ResultDataset& dataset = *session.dataset;
-	if (session.volumeCells < 0)
+	if (!sessionHasVolumeCells(session))
 	{
-		session.volumeCells = 0;
-		for (ResultCellType type : dataset.cellTypes)
-			if (resultCellIsVolume(type))
-			{
-				session.volumeCells = 1;
-				break;
-			}
-	}
-	if (session.volumeCells == 0)
-	{
+		// A snapshot restored without its volume: the cut faces and iso-surfaces it was saved with, as they were.
+		std::vector<SliceDisplay> frozen;
+		for (const SliceDisplay& slice : session.bakedOverlays.slices)
+			if (slice.lit ? state.iso : state.sectionFill)
+				frozen.push_back(slice);
+		if (!frozen.empty())
+		{
+			_viewportWidget->setSimulationSlices(session.meshUuid, std::move(frozen));
+			session.sliceInfo = tr("Cut faces and iso-surfaces are shown as they were saved (frozen): this snapshot has no volume. Save with \"Also store the volume\" to keep them live.");
+			return;
+		}
 		_viewportWidget->clearSimulationSlices(session.meshUuid);
-		session.sliceInfo = tr("This result has no volume cells (a shell or surface result, or a restored snapshot), so there is nothing to cut.");
+		session.sliceInfo = tr("This result has no volume cells (a shell or surface result, or a snapshot saved without its volume), so there is nothing to cut.");
 		return;
 	}
 

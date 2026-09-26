@@ -331,6 +331,29 @@ void SimulationPanel::buildUi()
 	_sliceInfoLabel->setWordWrap(true);
 	form->addRow(_sliceInfoLabel);
 
+	// ---- Streamlines: curves along a node vector field through the volume.
+	_streamCheck = new QCheckBox(tr("Show streamlines"), content);
+	_streamCheck->setToolTip(tr("Curves that follow a vector field (velocity ...) through the\n"
+	                            "volume, in both directions from each seed point, coloured by\n"
+	                            "the field's magnitude. They lie inside the model: cut it with\n"
+	                            "a Clipping Plane to see them. Only node fields are traced."));
+	form->addRow(_streamCheck);
+	_streamFieldCombo = new QComboBox(content);
+	form->addRow(tr("Streamline field:"), _streamFieldCombo);
+	_streamSeedsSpin = new QSpinBox(content);
+	_streamSeedsSpin->setRange(1, 500);
+	_streamSeedsSpin->setKeyboardTracking(false);
+	_streamSeedsSpin->setToolTip(tr("How many seed points. A seed outside the mesh, or where\n"
+	                                "the field is zero, gives no line."));
+	form->addRow(tr("Streamline seeds:"), _streamSeedsSpin);
+	_streamPlaneCheck = new QCheckBox(tr("Seed on the Clipping Plane"), content);
+	_streamPlaneCheck->setToolTip(tr("Start the lines on the cut of the Clipping Planes instead\n"
+	                                 "of at random points through the whole volume."));
+	form->addRow(_streamPlaneCheck);
+	_streamInfoLabel = new QLabel(content);
+	_streamInfoLabel->setWordWrap(true);
+	form->addRow(_streamInfoLabel);
+
 	_noteLabel = new QLabel(content);
 	_noteLabel->setWordWrap(true);
 	form->addRow(_noteLabel);
@@ -411,6 +434,14 @@ void SimulationPanel::buildUi()
 	});
 	connect(_isoFieldCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { if (!_updating) emitState(); });
 	connect(_isoLevelsSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int) { if (!_updating) emitState(); });
+	connect(_streamCheck, &QCheckBox::toggled, this, [this](bool) {
+		updateStreamEnabled();
+		if (!_updating)
+			emitState();
+	});
+	connect(_streamFieldCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { if (!_updating) emitState(); });
+	connect(_streamSeedsSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int) { if (!_updating) emitState(); });
+	connect(_streamPlaneCheck, &QCheckBox::toggled, this, [this](bool) { if (!_updating) emitState(); });
 	connect(_glyphCheck, &QCheckBox::toggled, this, [this](bool) {
 		updateGlyphEnabled();
 		if (!_updating)
@@ -535,6 +566,13 @@ void SimulationPanel::setSession(const SimulationSession* session)
 	_sliceInfoLabel->setText(session->sliceInfo);
 	_sliceInfoLabel->setVisible(!session->sliceInfo.isEmpty());
 	updateSliceEnabled();
+	populateStreamFields(state.streamField >= 0 ? state.streamField : chooseDefaultStreamlineField(*_dataset));
+	_streamCheck->setChecked(_streamFieldCombo->isEnabled() && state.streamlines);
+	_streamSeedsSpin->setValue(state.streamSeeds);
+	_streamPlaneCheck->setChecked(state.streamOnPlane);
+	_streamInfoLabel->setText(session->streamInfo);
+	_streamInfoLabel->setVisible(!session->streamInfo.isEmpty());
+	updateStreamEnabled();
 	populateGlyphFields(state.glyphField >= 0 ? state.glyphField : chooseDefaultGlyphField(*_dataset));
 	_glyphCheck->setChecked(_glyphFieldCombo->isEnabled() && state.glyphs);
 	_glyphScaleSpin->setValue(state.glyphScale);
@@ -595,6 +633,29 @@ void SimulationPanel::populateIsoFields(int selectedFieldIndex)
 	_isoFieldCombo->setCurrentIndex(std::max(0, _isoFieldCombo->findData(selectedFieldIndex)));
 	_isoCheck->setEnabled(any);
 	_isoFieldCombo->setEnabled(any);
+}
+
+void SimulationPanel::populateStreamFields(int selectedFieldIndex)
+{
+	_streamFieldCombo->clear();
+	if (_dataset)
+		for (std::size_t i = 0; i < _dataset->fields.size(); ++i)
+			if (isStreamlineField(_dataset->fields[i]))
+				_streamFieldCombo->addItem(_dataset->fields[i].name, static_cast<int>(i));
+	const bool any = _streamFieldCombo->count() > 0;
+	if (!any)
+		_streamFieldCombo->addItem(tr("(no node vector field)"), -1);
+	_streamFieldCombo->setCurrentIndex(std::max(0, _streamFieldCombo->findData(selectedFieldIndex)));
+	_streamCheck->setEnabled(any);
+	_streamFieldCombo->setEnabled(any);
+}
+
+void SimulationPanel::updateStreamEnabled()
+{
+	const bool on = _streamCheck->isChecked() && _streamCheck->isEnabled();
+	_streamFieldCombo->setEnabled(_streamCheck->isEnabled());
+	_streamSeedsSpin->setEnabled(on);
+	_streamPlaneCheck->setEnabled(on);
 }
 
 void SimulationPanel::updateSliceEnabled()
@@ -794,6 +855,10 @@ SimulationViewState SimulationPanel::currentState() const
 	state.iso = _isoCheck->isChecked() && _isoCheck->isEnabled();
 	state.isoField = _isoFieldCombo->currentData().isValid() ? _isoFieldCombo->currentData().toInt() : -1;
 	state.isoLevels = _isoLevelsSpin->value();
+	state.streamlines = _streamCheck->isChecked() && _streamCheck->isEnabled();
+	state.streamField = _streamFieldCombo->currentData().isValid() ? _streamFieldCombo->currentData().toInt() : -1;
+	state.streamSeeds = _streamSeedsSpin->value();
+	state.streamOnPlane = _streamPlaneCheck->isChecked();
 	state.glyphs = _glyphCheck->isChecked() && _glyphCheck->isEnabled();
 	state.glyphField = _glyphFieldCombo->currentData().isValid() ? _glyphFieldCombo->currentData().toInt() : -1;
 	state.glyphScale = _glyphScaleSpin->value();

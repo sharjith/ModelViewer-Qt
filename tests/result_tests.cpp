@@ -15,6 +15,7 @@
 #include "ResultDerivedFields.h"
 #include "ResultReader.h"
 #include "ResultSlice.h"
+#include "ResultStreamlines.h"
 #include "ResultSnapshot.h"
 #include "ResultUnits.h"
 #include "SimulationGlyphs.h"
@@ -4659,6 +4660,387 @@ namespace
 		}
 	}
 
+	// ---- Streamlines ------------------------------------------------------------------------------------------------------------
+
+	// A block of nx x ny x nz unit hexahedra: node (x, y, z) has index x + (nx + 1) * (y + (ny + 1) * z).
+	ResultDataset hexGrid(int nx, int ny, int nz)
+	{
+		ResultDataset ds;
+		for (int z = 0; z <= nz; ++z)
+			for (int y = 0; y <= ny; ++y)
+				for (int x = 0; x <= nx; ++x)
+					ds.nodePositions.insert(ds.nodePositions.end(), { static_cast<float>(x), static_cast<float>(y), static_cast<float>(z) });
+		auto p = [&](int x, int y, int z) { return static_cast<std::uint32_t>(x + (nx + 1) * (y + (ny + 1) * z)); };
+		ds.cellOffsets.push_back(0);
+		for (int z = 0; z < nz; ++z)
+			for (int y = 0; y < ny; ++y)
+				for (int x = 0; x < nx; ++x)
+				{
+					const std::uint32_t ids[8] = { p(x, y, z), p(x + 1, y, z), p(x + 1, y + 1, z), p(x, y + 1, z),
+					                               p(x, y, z + 1), p(x + 1, y, z + 1), p(x + 1, y + 1, z + 1), p(x, y + 1, z + 1) };
+					ds.cellConnectivity.insert(ds.cellConnectivity.end(), ids, ids + 8);
+					ds.cellOffsets.push_back(static_cast<std::uint32_t>(ds.cellConnectivity.size()));
+					ds.cellTypes.push_back(ResultCellType::Hexahedron);
+				}
+		return ds;
+	}
+
+	// 3 floats per node from a function of the position.
+	template <class F>
+	std::vector<float> nodeVectors(const ResultDataset& ds, F f)
+	{
+		std::vector<float> v;
+		for (std::size_t n = 0; n < ds.nodeCount(); ++n)
+		{
+			double out[3];
+			f(ds.nodePositions[n * 3], ds.nodePositions[n * 3 + 1], ds.nodePositions[n * 3 + 2], out);
+			v.insert(v.end(), { static_cast<float>(out[0]), static_cast<float>(out[1]), static_cast<float>(out[2]) });
+		}
+		return v;
+	}
+
+	void testStreamlines()
+	{
+		// a uniform flow along x through a row of four cubes: one straight line from one end to the other, valued by the scalar (x)
+		{
+			const ResultDataset row = hexRow(4);
+			const CellLocator locator(row);
+			CHECK(locator.volumeCellCount() == 4);
+			CHECK(std::fabs(locator.diagonal() - std::sqrt(4.0 * 4.0 + 2.0)) < 1e-6);
+			const std::vector<float> flow = nodeVectors(row, [](double, double, double, double* v) { v[0] = 1; v[1] = 0; v[2] = 0; });
+			std::vector<float> xs;
+			for (std::size_t n = 0; n < row.nodeCount(); ++n)
+				xs.push_back(row.nodePositions[n * 3]);
+			StreamlineSet set;
+			CHECK(traceStreamlines(row, locator, flow, &xs, { 2.0f, 0.5f, 0.5f }, StreamlineOptions(), set));
+			CHECK(set.lineCount() == 1 && set.pointCount() > 8);
+			if (set.lineCount() == 1)
+			{
+				bool straight = true, monotonic = true, valued = true;
+				for (std::size_t i = 0; i < set.pointCount(); ++i)
+				{
+					straight = straight && std::fabs(set.points[i * 3 + 1] - 0.5f) < 1e-4f && std::fabs(set.points[i * 3 + 2] - 0.5f) < 1e-4f;
+					monotonic = monotonic && (i == 0 || set.points[i * 3] > set.points[(i - 1) * 3]);
+					valued = valued && std::fabs(set.values[i] - set.points[i * 3]) < 1e-3f;
+				}
+				CHECK(straight && monotonic && valued);
+				// both ways from the seed until within a step of each end
+				CHECK(set.points.front() < 0.8f && set.points.front() >= -0.001f);
+				CHECK(set.points[(set.pointCount() - 1) * 3] > 3.2f && set.points[(set.pointCount() - 1) * 3] <= 4.001f);
+			}
+			// without a scalar the points carry the speed (1 here)
+			StreamlineSet plain;
+			CHECK(traceStreamlines(row, locator, flow, nullptr, { 2.0f, 0.5f, 0.5f }, StreamlineOptions(), plain));
+			CHECK(plain.lineCount() == 1 && std::fabs(plain.values[plain.pointCount() / 2] - 1.0f) < 1e-4f);
+		}
+
+		// a rotation about the axis through (5, 5): the field is linear, so the interpolation is exact and the line stays on its circle
+		{
+			const ResultDataset grid = hexGrid(10, 10, 1);
+			const CellLocator locator(grid);
+			CHECK(locator.volumeCellCount() == 100);
+			const std::vector<float> spin = nodeVectors(grid, [](double x, double y, double, double* v) { v[0] = -(y - 5.0); v[1] = x - 5.0; v[2] = 0; });
+			StreamlineOptions options;
+			options.maxLengthFactor = 1.0;
+			StreamlineSet set;
+			CHECK(traceStreamlines(grid, locator, spin, nullptr, { 8.0f, 5.0f, 0.5f }, options, set)); // radius 3
+			CHECK(set.lineCount() == 1 && set.pointCount() > 40);
+			bool onCircle = true, inside = true;
+			for (std::size_t i = 0; i < set.pointCount(); ++i)
+			{
+				const double x = set.points[i * 3] - 5.0, y = set.points[i * 3 + 1] - 5.0;
+				onCircle = onCircle && std::fabs(std::sqrt(x * x + y * y) - 3.0) < 0.1;
+				inside = inside && set.points[i * 3 + 2] > 0.0f && set.points[i * 3 + 2] < 1.0f;
+			}
+			CHECK(onCircle && inside);
+		}
+
+		// interpolation of a linear field is exact inside a tetrahedron and a wedge (also a pyramid: its base is split like any other face)
+		{
+			const auto field = [](double x, double y, double z, double* v) { v[0] = x + 2 * y; v[1] = 3 * z - x; v[2] = y + 1; };
+			const ResultDataset tet = oneCell(ResultCellType::Tetra, { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 });
+			const ResultDataset wedge = oneCell(ResultCellType::Wedge, { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1 });
+			const ResultDataset pyramid = oneCell(ResultCellType::Pyramid, { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0.5f, 0.5f, 1 });
+			const double at[3] = { 0.2, 0.3, 0.25 };
+			for (const ResultDataset* ds : { &tet, &wedge, &pyramid })
+			{
+				const CellLocator locator(*ds);
+				const std::vector<float> v = nodeVectors(*ds, field);
+				int hint = -1;
+				double out[3], s = 0;
+				const bool found = locator.interpolate(at, v, nullptr, hint, out, s);
+				CHECK(found);
+				if (found)
+				{
+					double expected[3];
+					field(at[0], at[1], at[2], expected);
+					CHECK(std::fabs(out[0] - expected[0]) < 1e-5 && std::fabs(out[1] - expected[1]) < 1e-5 && std::fabs(out[2] - expected[2]) < 1e-5);
+				}
+				const double outside[3] = { 3, 3, 3 };
+				CHECK(!locator.interpolate(outside, v, nullptr, hint, out, s));
+			}
+		}
+
+		// a polyhedron (one cube given by its six faces) is traced through too
+		{
+			ResultDataset cube = hexRow(1); // the nodes of the unit cube
+			cube.cellTypes = { ResultCellType::Polyhedron };
+			cube.cellConnectivity.clear();
+			cube.cellOffsets = { 0, 0 };
+			const std::uint32_t faces[6][4] = { { 0, 3, 7, 4 }, { 1, 5, 6, 2 }, { 0, 4, 5, 1 }, { 3, 2, 6, 7 }, { 0, 1, 2, 3 }, { 4, 7, 6, 5 } };
+			// hexRow(1) numbers its nodes x + 2 * (y + 2 * z); the face table above is for the hexahedron order, so map it
+			const std::uint32_t hexNode[8] = { 0, 1, 3, 2, 4, 5, 7, 6 };
+			cube.faceOffsets = { 0 };
+			for (const auto& f : faces)
+			{
+				for (std::uint32_t k : f)
+					cube.faceNodes.push_back(hexNode[k]);
+				cube.faceOffsets.push_back(static_cast<std::uint32_t>(cube.faceNodes.size()));
+				cube.cellFaces.push_back(static_cast<std::uint32_t>(cube.cellFaces.size()));
+			}
+			cube.cellFaceOffsets = { 0, 6 };
+			const CellLocator locator(cube);
+			CHECK(locator.volumeCellCount() == 1);
+			const std::vector<float> flow = nodeVectors(cube, [](double, double, double, double* v) { v[0] = 0; v[1] = 1; v[2] = 0; });
+			StreamlineSet set;
+			CHECK(traceStreamlines(cube, locator, flow, nullptr, { 0.5f, 0.5f, 0.5f }, StreamlineOptions(), set));
+			CHECK(set.lineCount() == 1);
+			if (set.lineCount() == 1)
+				CHECK(std::fabs(set.points[0] - 0.5f) < 1e-4f && set.points[1] < 0.5f && set.points[(set.pointCount() - 1) * 3 + 1] > 0.5f);
+		}
+
+		// no line: a seed outside the mesh, a zero field, a result without volume cells; a wrong vector size is an error
+		{
+			const ResultDataset row = hexRow(2);
+			const CellLocator locator(row);
+			const std::vector<float> flow = nodeVectors(row, [](double, double, double, double* v) { v[0] = 1; v[1] = 0; v[2] = 0; });
+			const std::vector<float> still = nodeVectors(row, [](double, double, double, double* v) { v[0] = 0; v[1] = 0; v[2] = 0; });
+			StreamlineSet set;
+			CHECK(traceStreamlines(row, locator, flow, nullptr, { 9.0f, 9.0f, 9.0f }, StreamlineOptions(), set) && set.lineCount() == 0);
+			CHECK(traceStreamlines(row, locator, still, nullptr, { 1.0f, 0.5f, 0.5f }, StreamlineOptions(), set) && set.lineCount() == 0);
+			CHECK(!traceStreamlines(row, locator, std::vector<float>(5, 0.0f), nullptr, { 1.0f, 0.5f, 0.5f }, StreamlineOptions(), set));
+			const ResultDataset quad = oneCell(ResultCellType::Quad, { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0 });
+			const CellLocator shell(quad);
+			CHECK(shell.volumeCellCount() == 0);
+			CHECK(traceStreamlines(quad, shell, std::vector<float>(12, 1.0f), nullptr, { 0.5f, 0.5f, 0.0f }, StreamlineOptions(), set) && set.lineCount() == 0);
+			// several seeds: only the ones inside give lines
+			CHECK(traceStreamlines(row, locator, flow, nullptr, { 1.0f, 0.5f, 0.5f, 9.0f, 9.0f, 9.0f, 1.5f, 0.2f, 0.8f }, StreamlineOptions(), set) && set.lineCount() == 2);
+			// cancellation
+			std::atomic<bool> cancel(true);
+			CHECK(!traceStreamlines(row, locator, flow, nullptr, { 1.0f, 0.5f, 0.5f }, StreamlineOptions(), set, &cancel));
+		}
+
+		// seeds: random points inside the mesh, and on a triangle set; deterministic for a seed
+		{
+			const ResultDataset row = hexRow(3);
+			const CellLocator locator(row);
+			const std::vector<float> flow = nodeVectors(row, [](double, double, double, double* v) { v[0] = 1; v[1] = 0; v[2] = 0; });
+			const std::vector<float> seeds = locator.randomPoints(40, 5u);
+			CHECK(seeds.size() == 120 && seeds == locator.randomPoints(40, 5u) && seeds != locator.randomPoints(40, 6u));
+			bool inside = true;
+			for (std::size_t i = 0; i < 40; ++i)
+			{
+				int hint = -1;
+				const double p[3] = { seeds[i * 3], seeds[i * 3 + 1], seeds[i * 3 + 2] };
+				double v[3], s = 0;
+				inside = inside && locator.interpolate(p, flow, nullptr, hint, v, s);
+			}
+			CHECK(inside);
+
+			const std::vector<float> square = { 0, 0, 2, 2, 0, 2, 2, 2, 2, 0, 2, 2 };
+			const std::vector<std::uint32_t> triangles = { 0, 1, 2, 0, 2, 3 };
+			const std::vector<float> onPlane = randomPointsOnTriangles(square, triangles, 50, 3u);
+			bool flat = onPlane.size() == 150;
+			for (std::size_t i = 0; i < onPlane.size() / 3; ++i)
+				flat = flat && std::fabs(onPlane[i * 3 + 2] - 2.0f) < 1e-6f && onPlane[i * 3] >= 0.0f && onPlane[i * 3] <= 2.0f && onPlane[i * 3 + 1] >= 0.0f && onPlane[i * 3 + 1] <= 2.0f;
+			CHECK(flat && onPlane == randomPointsOnTriangles(square, triangles, 50, 3u));
+			CHECK(randomPointsOnTriangles(square, {}, 5, 1u).empty());
+		}
+
+		// the field to follow: velocity by name, else the first 3-component node field; a cell field or a scalar is not one
+		{
+			ResultDataset ds = hexRow(1);
+			auto field = [&](const char* name, ResultFieldAssociation association, int components) {
+				ResultField f;
+				f.name = QString::fromLatin1(name);
+				f.association = association;
+				f.components = components;
+				f.stepData.push_back(std::vector<float>(static_cast<std::size_t>(components) * (association == ResultFieldAssociation::Node ? ds.nodeCount() : ds.cellCount()), 1.0f));
+				ds.fields.push_back(f);
+			};
+			CHECK(chooseDefaultStreamlineField(ds) == -1);
+			field("Pressure", ResultFieldAssociation::Node, 1);
+			field("CellVelocity", ResultFieldAssociation::Cell, 3);
+			CHECK(chooseDefaultStreamlineField(ds) == -1);
+			field("Displacement", ResultFieldAssociation::Node, 3);
+			CHECK(chooseDefaultStreamlineField(ds) == 2);
+			field("Velocity", ResultFieldAssociation::Node, 3);
+			CHECK(chooseDefaultStreamlineField(ds) == 3);
+			CHECK(isStreamlineField(ds.fields[3]) && !isStreamlineField(ds.fields[0]) && !isStreamlineField(ds.fields[1]));
+		}
+	}
+
+	// ---- Snapshots of volume results: the frozen overlays, and the opt-in volume --------------------------------------------------
+
+	void testSnapshotVolumeAndOverlays()
+	{
+		// a 2 x 2 x 2 block with a velocity (a rotation) and a temperature (x), two time steps
+		ResultDataset ds = hexGrid(2, 2, 2);
+		ds.lengthUnit = QStringLiteral("mm");
+		ds.steps = { { 0.0, QString(), QString() }, { 1.0, QString(), QString() } };
+		auto addField = [&](const char* name, int components, float scale) {
+			ResultField f;
+			f.name = QString::fromLatin1(name);
+			f.components = components;
+			for (int s = 0; s < 2; ++s)
+			{
+				std::vector<float> values;
+				for (std::size_t n = 0; n < ds.nodeCount(); ++n)
+					for (int c = 0; c < components; ++c)
+						values.push_back(scale * (1.0f + s) * (ds.nodePositions[n * 3 + (c % 3)] + 0.1f * c));
+				f.stepData.push_back(std::move(values));
+			}
+			ds.fields.push_back(std::move(f));
+		};
+		addField("Temperature", 1, 10.0f);
+		addField("Velocity", 3, 1.0f);
+		const ResultBoundarySurface surface = extract(ds);
+		SimulationViewState state = defaultViewState(ds);
+		state.sectionFill = true;
+		state.streamlines = true;
+		state.streamSeeds = 20;
+
+		// what was on display: a lit iso-surface (one triangle), a section, a streamline (two segments), and one Clipping Plane
+		SnapshotOverlays overlays;
+		SliceDisplay iso;
+		iso.lit = true;
+		iso.positions = { 0, 0, 0, 1, 0, 0, 0, 1, 0 };
+		iso.colors = { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
+		iso.triangles = { 0, 1, 2 };
+		SliceDisplay section = iso;
+		section.lit = false;
+		overlays.slices = { iso, section };
+		overlays.streamlines.positions = { 0, 0, 0, 1, 0, 0, 2, 0, 0 };
+		overlays.streamlines.colors = { 1, 1, 1, 0.5f, 0.5f, 0.5f, 0, 0, 0 };
+		overlays.streamlines.segments = { 0, 1, 1, 2 };
+		overlays.cuts.push_back({ 2, 1.0, true });
+
+		// ---- surface only (the default): the overlays come back as they were, the dataset is the surface stand-in
+		{
+			SnapshotOptions options;
+			options.content = SnapshotOptions::Content::AllFields;
+			ResultSnapshot snap;
+			QString err;
+			CHECK(encodeResultSnapshot(ds, surface, state, options, snap, &err, &overlays));
+			CHECK(!snap.json.contains(QStringLiteral("volume")) && snap.json.contains(QStringLiteral("overlays")));
+			DecodedSnapshot dec;
+			CHECK(decodeResultSnapshot(snap.json, snap.blobs, surface.vertexCount(), surface.triangles, dec, &err));
+			CHECK(!dec.hasVolume && dec.dataset && dec.dataset->cellCount() == surface.triangleCount());
+			CHECK(dec.overlays.slices.size() == 2 && dec.overlays.slices[0].lit && !dec.overlays.slices[1].lit);
+			CHECK(dec.overlays.slices[0].positions == iso.positions && dec.overlays.slices[0].colors == iso.colors && dec.overlays.slices[0].triangles == iso.triangles);
+			CHECK(dec.overlays.streamlines.positions == overlays.streamlines.positions && dec.overlays.streamlines.colors == overlays.streamlines.colors
+			      && dec.overlays.streamlines.segments == overlays.streamlines.segments);
+			CHECK(dec.overlays.cuts.size() == 1 && dec.overlays.cuts[0].axis == 2 && dec.overlays.cuts[0].position == 1.0 && dec.overlays.cuts[0].keepPositive);
+			CHECK(dec.state.sectionFill && dec.state.streamlines && dec.state.streamSeeds == 20);
+			// without overlays nothing is stored for them
+			ResultSnapshot plain;
+			CHECK(encodeResultSnapshot(ds, surface, state, options, plain, &err) && !plain.json.contains(QStringLiteral("overlays")));
+		}
+
+		// ---- with the volume: the full dataset comes back and the surface maps onto it
+		{
+			SnapshotOptions options;
+			options.content = SnapshotOptions::Content::AllFields;
+			options.includeVolume = true;
+			ResultSnapshot snap;
+			QString err;
+			CHECK(encodeResultSnapshot(ds, surface, state, options, snap, &err, &overlays));
+			CHECK(snap.json.contains(QStringLiteral("volume")));
+			SnapshotOptions surfaceOnly = options;
+			surfaceOnly.includeVolume = false;
+			CHECK(estimateSnapshotSize(ds, surface, options).rawBytes > estimateSnapshotSize(ds, surface, surfaceOnly).rawBytes);
+			DecodedSnapshot dec;
+			CHECK(decodeResultSnapshot(snap.json, snap.blobs, surface.vertexCount(), surface.triangles, dec, &err));
+			CHECK(dec.hasVolume && dec.dataset);
+			if (dec.hasVolume && dec.dataset)
+			{
+				const ResultDataset& out = *dec.dataset;
+				CHECK(out.cellCount() == 8 && out.nodeCount() == ds.nodeCount() && out.cellTypes == ds.cellTypes);
+				CHECK(out.nodePositions == ds.nodePositions && out.cellConnectivity == ds.cellConnectivity && out.cellOffsets == ds.cellOffsets);
+				CHECK(out.stepCount() == 2 && out.lengthUnit == QLatin1String("mm"));
+				CHECK(dec.vertexNode == surface.vertexNode && dec.triangleCell == surface.triangleCell && dec.triangleFace == surface.triangleFace);
+				const int temperature = fieldIndexOf(out, QStringLiteral("Temperature")), velocity = fieldIndexOf(out, QStringLiteral("Velocity"));
+				CHECK(temperature >= 0 && velocity >= 0);
+				if (temperature >= 0 && velocity >= 0)
+				{
+					CHECK(out.fields[static_cast<std::size_t>(temperature)].stepData == ds.fields[0].stepData);
+					CHECK(out.fields[static_cast<std::size_t>(velocity)].stepData == ds.fields[1].stepData);
+					CHECK(dec.state.streamlines && dec.state.sectionFill);
+				}
+				// live again: the restored result can be traced through
+				const CellLocator locator(out);
+				CHECK(locator.volumeCellCount() == 8);
+				const std::vector<float> flow = nodeVectors(out, [](double, double, double, double* v) { v[0] = 1; v[1] = 0; v[2] = 0; });
+				StreamlineSet lines;
+				CHECK(traceStreamlines(out, locator, flow, nullptr, { 1.0f, 1.0f, 1.0f }, StreamlineOptions(), lines) && lines.lineCount() == 1);
+				CHECK(dec.overlays.slices.size() == 2 && dec.overlays.cuts.size() == 1);
+			}
+
+			// a damaged volume falls back to the surface result, with a warning (the rest of the snapshot still loads)
+			QJsonObject broken = snap.json;
+			QJsonObject volume = broken.value(QStringLiteral("volume")).toObject();
+			volume.remove(QStringLiteral("cellTypes"));
+			broken.insert(QStringLiteral("volume"), volume);
+			DecodedSnapshot fallback;
+			CHECK(decodeResultSnapshot(broken, snap.blobs, surface.vertexCount(), surface.triangles, fallback, &err));
+			CHECK(!fallback.hasVolume && fallback.dataset && fallback.dataset->cellCount() == surface.triangleCount() && !fallback.warnings.isEmpty());
+			// and a mapping that points outside the volume is refused the same way
+			QJsonObject outside = snap.json;
+			QJsonObject volume2 = outside.value(QStringLiteral("volume")).toObject();
+			volume2.insert(QStringLiteral("vertexNode"), volume2.value(QStringLiteral("triangleCell"))); // the wrong array: cell indices, a different count
+			outside.insert(QStringLiteral("volume"), volume2);
+			DecodedSnapshot refused;
+			CHECK(decodeResultSnapshot(outside, snap.blobs, surface.vertexCount(), surface.triangles, refused, &err));
+			CHECK(!refused.hasVolume && refused.dataset);
+		}
+
+		// the default content stores the shown field and the displacement; the fields the streamlines / arrows / iso-surfaces follow are added on request
+		{
+			SnapshotOptions options;
+			options.content = SnapshotOptions::Content::ShownAndDisplacement;
+			options.shownField = 0; // Temperature
+			ResultSnapshot without, with;
+			QString err;
+			CHECK(encodeResultSnapshot(ds, surface, state, options, without, &err));
+			options.extraFields = { 1, 99, -1 }; // Velocity; the out-of-range ones are ignored
+			CHECK(encodeResultSnapshot(ds, surface, state, options, with, &err));
+			DecodedSnapshot a, b;
+			CHECK(decodeResultSnapshot(without.json, without.blobs, surface.vertexCount(), surface.triangles, a, &err));
+			CHECK(decodeResultSnapshot(with.json, with.blobs, surface.vertexCount(), surface.triangles, b, &err));
+			CHECK(a.dataset && b.dataset);
+			if (a.dataset && b.dataset)
+				CHECK(fieldIndexOf(*a.dataset, QStringLiteral("Velocity")) < 0 && fieldIndexOf(*b.dataset, QStringLiteral("Velocity")) >= 0
+				      && fieldIndexOf(*b.dataset, QStringLiteral("Temperature")) >= 0);
+		}
+
+		// a shell result has no volume to store: the option does nothing
+		{
+			const ResultDataset quad = oneCell(ResultCellType::Quad, { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0 });
+			ResultDataset shell = quad;
+			shell.steps = { { 0.0, QString(), QString() } };
+			const ResultBoundarySurface shellSurface = extract(shell);
+			SnapshotOptions options;
+			options.includeVolume = true;
+			ResultSnapshot snap;
+			QString err;
+			CHECK(encodeResultSnapshot(shell, shellSurface, defaultViewState(shell), options, snap, &err));
+			CHECK(!snap.json.contains(QStringLiteral("volume")));
+			DecodedSnapshot dec;
+			CHECK(decodeResultSnapshot(snap.json, snap.blobs, shellSurface.vertexCount(), shellSurface.triangles, dec, &err));
+			CHECK(dec.dataset && dec.overlays.empty());
+		}
+	}
+
 	void testCgnsComponentGroups()
 	{
 #if MV_HAVE_CGNS
@@ -5414,6 +5796,8 @@ int main(int argc, char** argv)
 	testMed();
 	testPolyhedra();
 	testSlice();
+	testStreamlines();
+	testSnapshotVolumeAndOverlays();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();

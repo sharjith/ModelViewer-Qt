@@ -15,6 +15,7 @@
 
 #include "ResultBoundary.h"
 #include "ResultDataset.h"
+#include "SimulationOverlays.h"
 #include "SimulationResultDisplay.h"
 
 #include <QByteArray>
@@ -37,6 +38,12 @@ struct SnapshotOptions
 	int shownField = -1;  // index into dataset.fields; used by ShownAndDisplacement
 	int maxSteps = 100;   // more steps than this are subsampled evenly (first and last always kept)
 	bool compress = true;
+	// Also store the volume (nodes, cells, the chosen fields at every node and cell, and how the surface maps onto them), so a restored result can be cut
+	// and traced again: sections, iso-surfaces and streamlines stay live. Without it only the surface is stored and those show frozen (see SnapshotOverlays).
+	bool includeVolume = false;
+	// Fields to store besides the shown one and the displacement (ShownAndDisplacement only): the ones the arrows, streamlines and iso-surfaces on display
+	// use, which a restored result needs to show them again. Indices into dataset.fields; out-of-range ones are ignored.
+	std::vector<int> extraFields;
 };
 
 struct SnapshotSize
@@ -62,9 +69,10 @@ struct ResultSnapshot
 // otherwise evenly spaced including the first and the last.
 std::vector<int> snapshotStepIndices(int stepCount, int maxSteps);
 
-// Encodes what is displayed. False (with `error`) when the dataset is unusable.
+// Encodes what is displayed. `overlays` (may be null) are the cut faces, iso-surfaces and streamlines on display: they are stored as they are, so a result
+// restored without its volume still shows them. False (with `error`) when the dataset is unusable.
 bool encodeResultSnapshot(const ResultDataset& dataset, const ResultBoundarySurface& surface, const SimulationViewState& state,
-                          const SnapshotOptions& options, ResultSnapshot& out, QString* error = nullptr);
+                          const SnapshotOptions& options, ResultSnapshot& out, QString* error = nullptr, const SnapshotOverlays* overlays = nullptr);
 
 struct DecodedSnapshot
 {
@@ -73,6 +81,13 @@ struct DecodedSnapshot
 	SimulationViewState state;              // the saved view (field indices re-resolved by name; -1 when gone)
 	QString sourcePath;                     // where the full result came from (informational)
 	QStringList warnings;
+	// The frozen cut faces, iso-surfaces and streamlines that were on display when it was saved (empty when there were none).
+	SnapshotOverlays overlays;
+	// Set when the volume was stored too: `dataset` is then the full result (its own nodes and cells) and these say how the mesh's surface maps onto it,
+	// the way a ResultBoundarySurface does (one node per vertex, one cell per triangle, the face marker per triangle).
+	bool hasVolume = false;
+	std::vector<std::uint32_t> vertexNode, triangleCell;
+	std::vector<std::uint8_t> triangleFace;
 };
 
 // Rebuilds the result. `vertexCount` and `triangles` describe the mesh as it is now: a different vertex or

@@ -58,9 +58,9 @@ Notes on the choices:
 
 | # | Question | Recommendation |
 |---|---|---|
-| D1 | Headers next to their sources (`src/Render/Foo.h` + `Foo.cpp`), or a mirrored `include/Render/`? | **Next to sources.** One path per file, one directory to browse; the project is an application, not an installed library, so a public `include/` tree has no consumer. `include/` then only holds what must be generated. |
+| D1 | Headers next to their sources, or a mirrored `include/`? | **DECIDED (user): keep `src/` and `include/` as top-level folders, with the same module subfolders in each** (`src/Render/Foo.cpp`, `include/Render/Foo.h`). The Simulation move follows this. |
 | D2 | Include style | **Phase 1: keep `#include "Foo.h"`** and put every module directory on the include path (one CMake loop) - zero source edits. Phase 2 (optional, scripted): qualified includes `"Render/Foo.h"` to make dependencies visible and enforceable. |
-| D3 | `.ui` files | Move next to their dialogs (uic finds them through the include/AUTOUIC search path); `ui/` disappears. |
+| D3 | `.ui` files | **DECIDED (user): keep `ui/` as a top-level folder beside `src/` and `include/`**, and group the `.ui` files in module subfolders when useful (`ui/Measurement/...`). A module's widgets and dialogs (cpp and h) live in its `UI/` subfolder under `src/` and `include/` (e.g. `src/Simulation/UI/`). |
 | D4 | Commands | Split by feature as above. |
 | D5 | Enforce the layering | Later, with CMake targets (see phase 7): a module that includes something below it fails to build. |
 | D6 | Folder name `Simulation/` and the sub-split `Readers / Core / UI` | Yes: it is also the shape for a `SimulationCore` library (Core + Readers, GUI-free) that the tests link. |
@@ -71,7 +71,7 @@ Notes on the choices:
 - **A script, not hand edits.** One `git mv` per row of the mapping file, run per phase, so the result is deterministic and reviewable; `git log --follow`
   and `git blame` keep working through renames.
 - **CMake:** the two globs (`src/*.cpp include/*.h`, `ui/*.ui`) become `GLOB_RECURSE ... CONFIGURE_DEPENDS`; the include directories are collected from
-  the source tree (every folder that has a header); `add_optix_kernel(... src/cuda/*.cu ...)` gets its new path; AUTOMOC keeps working because the
+  `include/` (every folder that has a header); `add_optix_kernel(... src/cuda/*.cu ...)` gets its new path; AUTOMOC keeps working because the
   `Q_OBJECT` headers stay in the glob. `tests/CMakeLists.txt` lists its sources explicitly and is updated per phase.
 - **Other references to fix:** `.ts` files (paths inside; `lupdate` regenerates them - the end-of-list translation step is the best moment), `docs/*.md` path mentions
   (sed), `ModelViewer.qrc`/packaging if they name source paths (they do not for `src/`).
@@ -81,7 +81,7 @@ Notes on the choices:
   3. Materials, Measurement, Analysis, MeshTools (their commands move with them).
   4. Commands, Scene, Viewport.
   5. Render, Geometry, Core, App (most-included headers last: with flat includes nothing changes for the includers, this is only for order of review).
-  6. Cleanup: `.ui` moved, `include/` removed, docs and `.ts` paths.
+  6. Cleanup: `.ui` files grouped into `ui/<Module>/` (the `ui/` glob becomes recursive), docs and `.ts` paths.
   7. Optional: CMake static libraries per module (`SimulationCore` first), then qualified includes and enforced layering.
 
 ## 5. Risks
