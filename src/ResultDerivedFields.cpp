@@ -55,7 +55,10 @@ void addDerivedStressFields(ResultDataset& dataset)
 	for (std::size_t sourceIndex = 0; sourceIndex < dataset.fields.size(); ++sourceIndex)
 	{
 		const ResultField& source = dataset.fields[sourceIndex];
-		if (source.components != 6 || !source.name.contains(QLatin1String("stress"), Qt::CaseInsensitive))
+		// "stress", or Code_Aster's SIGM_* / SIEF_* stress tensors
+		if (source.components != 6 || !(source.name.contains(QLatin1String("stress"), Qt::CaseInsensitive)
+		                                || source.name.contains(QLatin1String("sigm_"), Qt::CaseInsensitive)
+		                                || source.name.contains(QLatin1String("sief_"), Qt::CaseInsensitive)))
 			continue;
 		// A node tensor gives node fields, a cell (element-wise) tensor gives cell fields.
 		const std::size_t tuples = source.association == ResultFieldAssociation::Node ? dataset.nodeCount() : dataset.cellCount();

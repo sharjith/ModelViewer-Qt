@@ -10,6 +10,7 @@
 #include "ComparePaneLayout.h"
 #include "CgnsReader.h"
 #include "ExodusReader.h"
+#include "MedReader.h"
 #include "ResultBoundary.h"
 #include "ResultDerivedFields.h"
 #include "ResultReader.h"
@@ -3846,6 +3847,239 @@ namespace
 #endif
 	}
 
+#if MV_HAVE_HDF5
+	bool hdfIntAttribute(hid_t file, const char* path, const char* name, int value)
+	{
+		const hid_t object = H5Oopen(file, path, H5P_DEFAULT);
+		if (object < 0)
+			return false;
+		const bool ok = hdfArrayAttribute<int>(object, name, { value });
+		H5Oclose(object);
+		return ok;
+	}
+
+	bool hdfDoubleAttribute(hid_t file, const char* path, const char* name, double value)
+	{
+		const hid_t object = H5Oopen(file, path, H5P_DEFAULT);
+		if (object < 0)
+			return false;
+		const bool ok = hdfArrayAttribute<double>(object, name, { value });
+		H5Oclose(object);
+		return ok;
+	}
+
+	bool hdfTextAttribute(hid_t file, const char* path, const char* name, const char* value)
+	{
+		const hid_t object = H5Oopen(file, path, H5P_DEFAULT);
+		if (object < 0)
+			return false;
+		const bool ok = hdfStringAttribute(object, name, value);
+		H5Oclose(object);
+		return ok;
+	}
+
+	// A small MED 3 file following the layout Salome writes (component-major coordinates, connectivity and field values): two
+	// tetrahedra plus one boundary triangle (which must be left out), a scalar and a vector node field over two steps, a cell field,
+	// a cell field on 2 Gauss points, an Aster-ordered stress tensor and a node field on a profile.
+	bool writeMedFixture(const char* path, int major = 3)
+	{
+		const hid_t file = H5Fcreate(path, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+		if (file < 0)
+			return false;
+		bool ok = hdfGroup(file, "INFOS_GENERALES") && hdfIntAttribute(file, "INFOS_GENERALES", "MAJ", major) && hdfIntAttribute(file, "INFOS_GENERALES", "MIN", 2)
+		          && hdfIntAttribute(file, "INFOS_GENERALES", "REL", 1);
+		if (major < 3)
+		{
+			ok = ok && hdfGroup(file, "ENS_MAA");
+			return H5Fclose(file) >= 0 && ok;
+		}
+		const std::string mesh = "ENS_MAA/Mesh1", noStep = "/-0000000000000000001-0000000000000000001";
+		const std::string meshStep = mesh + noStep;
+		ok = ok && hdfGroup(file, mesh.c_str()) && hdfIntAttribute(file, mesh.c_str(), "ESP", 3) && hdfIntAttribute(file, mesh.c_str(), "DIM", 3)
+		     && hdfTextAttribute(file, mesh.c_str(), "UNI", "mm              mm              mm              ");
+		ok = ok && hdfGroup(file, meshStep.c_str()) && hdfIntAttribute(file, meshStep.c_str(), "NDT", -1) && hdfIntAttribute(file, meshStep.c_str(), "NOR", -1)
+		     && hdfDoubleAttribute(file, meshStep.c_str(), "PDT", 0.0);
+		const std::string coo = meshStep + "/NOE/COO", tet = meshStep + "/MAI/TE4/NOD", tri = meshStep + "/MAI/TR3/NOD";
+		ok = ok && hdfPut<double>(file, coo.c_str(), { 15 }, { 0, 1, 0, 0, 1, /* y */ 0, 0, 1, 0, 1, /* z */ 0, 0, 0, 1, 1 }) && hdfIntAttribute(file, coo.c_str(), "NBR", 5)
+		     && hdfPut<long long>(file, (meshStep + "/NOE/NUM").c_str(), { 5 }, { 10, 20, 30, 40, 50 })
+		     && hdfPut<long long>(file, tet.c_str(), { 8 }, { 1, 2, 2, 3, 3, 4, 4, 5 }) && hdfIntAttribute(file, tet.c_str(), "NBR", 2)
+		     && hdfPut<long long>(file, tri.c_str(), { 3 }, { 1, 2, 3 }) && hdfIntAttribute(file, tri.c_str(), "NBR", 1);
+
+		// A field group: mesh, components, names; then one step group per (dt, it, time).
+		auto field = [&](const std::string& name, int components, const char* names) {
+			const std::string group = "CHA/" + name;
+			return hdfGroup(file, group.c_str()) && hdfTextAttribute(file, group.c_str(), "MAI", "Mesh1") && hdfIntAttribute(file, group.c_str(), "NCO", components)
+			       && hdfTextAttribute(file, group.c_str(), "NOM", names);
+		};
+		auto stepGroup = [&](const std::string& name, const char* stepName, int dt, double time) {
+			const std::string group = "CHA/" + name + "/" + stepName;
+			return hdfGroup(file, group.c_str()) && hdfIntAttribute(file, group.c_str(), "NDT", dt) && hdfIntAttribute(file, group.c_str(), "NOR", 1)
+			       && hdfDoubleAttribute(file, group.c_str(), "PDT", time);
+		};
+		// The values of one entity type of a step: /CHA/<field>/<step>/<entity>/<profile>/CO, with NBR and NGA on the profile group.
+		auto values = [&](const std::string& name, const char* stepName, const char* entity, const char* profile, const std::vector<double>& data, int count, int gauss) {
+			const std::string group = "CHA/" + name + "/" + stepName + "/" + entity + "/" + profile;
+			return hdfPut<double>(file, (group + "/CO").c_str(), { data.size() }, data) && hdfIntAttribute(file, group.c_str(), "NBR", count)
+			       && hdfIntAttribute(file, group.c_str(), "NGA", gauss);
+		};
+		const char* s1 = "00000000000000000001-0000000000000000001";
+		const char* s2 = "00000000000000000002-0000000000000000001";
+		const char* none = "MED_NO_PROFILE_INTERNAL";
+		const std::string sixNames = "SIXX            SIYY            SIZZ            SIXY            SIXZ            SIYZ            ";
+
+		ok = ok && field("T", 1, "T               ") && stepGroup("T", s1, 1, 0.5) && stepGroup("T", s2, 2, 1.0)
+		     && values("T", s1, "NOE", none, { 1, 2, 3, 4, 5 }, 5, 1) && values("T", s2, "NOE", none, { 11, 12, 13, 14, 15 }, 5, 1);
+		ok = ok && field("U", 3, "DX              DY              DZ              ") && stepGroup("U", s1, 1, 0.5)
+		     && values("U", s1, "NOE", none, { 0, 1, 2, 3, 4, /* y */ 10, 11, 12, 13, 14, /* z */ 0, 0, 0, 0, 0 }, 5, 1);
+		ok = ok && field("Q", 1, "Q               ") && stepGroup("Q", s1, 1, 0.5) && values("Q", s1, "MAI.TE4", none, { 5, 6 }, 2, 1);
+		ok = ok && field("G", 1, "G               ") && stepGroup("G", s1, 1, 0.5) && values("G", s1, "MAI.TE4", none, { 1, 3, 10, 20 }, 2, 2); // 2 cells x 2 Gauss points
+		std::vector<double> stress;
+		for (int component = 1; component <= 6; ++component)
+			for (int node = 0; node < 5; ++node)
+				stress.push_back(component);
+		ok = ok && field("SIGM_NOEU", 6, sixNames.c_str()) && stepGroup("SIGM_NOEU", s1, 1, 0.5) && values("SIGM_NOEU", s1, "NOE", none, stress, 5, 1);
+		ok = ok && hdfPut<long long>(file, "PROFILS/PFL1/PFL", { 2 }, { 2, 4 }) && field("P", 1, "P               ") && stepGroup("P", s1, 1, 0.5)
+		     && values("P", s1, "NOE", "PFL1", { 7, 9 }, 5, 1); // NBR = the mesh's 5 nodes, as Code_Aster writes it, not the profile's 2
+		// A shell's six degrees of freedom: 3 translations then 3 rotations (values 1..6, the same at every node).
+		std::vector<double> shell;
+		for (int component = 1; component <= 6; ++component)
+			for (int node = 0; node < 5; ++node)
+				shell.push_back(component);
+		ok = ok && field("DEPL", 6, "DX              DY              DZ              DRX             DRY             DRZ             ") && stepGroup("DEPL", s1, 1, 0.5)
+		     && values("DEPL", s1, "NOE", none, shell, 5, 1);
+		return H5Fclose(file) >= 0 && ok;
+	}
+#endif
+
+	void testMed()
+	{
+#if MV_HAVE_HDF5
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		CHECK(medSupported() && !medFileFilter().isEmpty());
+		CHECK(supportedResultExtensions().contains(QStringLiteral("med")) && isSupportedResultFile(QStringLiteral("run.MED")));
+
+		// ---- a synthetic MED 3 file
+		const QString fixture = tmp.path() + QStringLiteral("/fixture.med");
+		CHECK(writeMedFixture(QFile::encodeName(fixture).constData()));
+		{
+			const ResultReadOutcome r = readResultFile(fixture);
+			if (!r.ok())
+				std::printf("  MED failed: %s\n", qPrintable(r.error));
+			CHECK(r.ok());
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				CHECK(ds.solverName == QStringLiteral("MED") && ds.nodeCount() == 5 && ds.lengthUnit == QStringLiteral("mm"));
+				CHECK(ds.cellCount() == 2 && ds.cellTypes[0] == ResultCellType::Tetra); // the boundary triangle is left out
+				CHECK(ds.cellConnectivity == std::vector<std::uint32_t>({ 0, 1, 2, 3, 1, 2, 3, 4 })); // 1-based, component-major -> 0-based per cell
+				CHECK(ds.nodeId(2) == 30);
+				CHECK(ds.stepCount() == 2 && approx(ds.steps[0].time, 0.5) && approx(ds.steps[1].time, 1.0));
+				bool warned = false;
+				for (const QString& w : r.warnings)
+					warned = warned || w.contains(QStringLiteral("lower-dimension"));
+				CHECK(warned);
+
+				const ResultField* t = ds.findField(QStringLiteral("T"), ResultFieldAssociation::Node);
+				CHECK(t && t->stepData.size() == 2 && approx(t->stepData[0][2], 3.0) && approx(t->stepData[1][4], 15.0));
+				const ResultField* u = ds.findField(QStringLiteral("U"), ResultFieldAssociation::Node);
+				CHECK(u && u->components == 3 && u->stepData[1].empty()); // the vector has no data at the second step
+				if (u && !u->stepData[0].empty())
+					CHECK(approx(u->stepData[0][2 * 3], 2.0) && approx(u->stepData[0][2 * 3 + 1], 12.0) && approx(u->stepData[0][2 * 3 + 2], 0.0, 1e-4, 1e-9));
+				const ResultField* q = ds.findField(QStringLiteral("Q"), ResultFieldAssociation::Cell);
+				CHECK(q && q->tupleCount(0) == 2 && approx(q->stepData[0][0], 5.0) && approx(q->stepData[0][1], 6.0));
+				const ResultField* g = ds.findField(QStringLiteral("G"), ResultFieldAssociation::Cell);
+				CHECK(g && approx(g->stepData[0][0], 2.0) && approx(g->stepData[0][1], 15.0)); // the mean over each cell's 2 Gauss points
+				const ResultField* sigma = ds.findField(QStringLiteral("SIGM_NOEU"), ResultFieldAssociation::Node);
+				CHECK(sigma && sigma->components == 6);
+				if (sigma && !sigma->stepData[0].empty())
+				{
+					// Aster's order SIXX SIYY SIZZ SIXY SIXZ SIYZ becomes XX YY ZZ XY YZ XZ: values 1 2 3 4 6 5
+					const float expected[6] = { 1, 2, 3, 4, 6, 5 };
+					bool inOrder = true;
+					for (int k = 0; k < 6; ++k)
+						inOrder = inOrder && approx(sigma->stepData[0][static_cast<std::size_t>(k)], expected[k]);
+					CHECK(inOrder);
+				}
+				CHECK(ds.findField(QStringLiteral("SIGM_NOEU von Mises"), ResultFieldAssociation::Node) != nullptr);
+				const ResultField* p = ds.findField(QStringLiteral("P"), ResultFieldAssociation::Node);
+				CHECK(p && approx(p->stepData[0][1], 7.0) && approx(p->stepData[0][3], 9.0) && std::isnan(p->stepData[0][0]));
+				// DX DY DZ DRX DRY DRZ: a translation vector (shown deformed) and a rotation vector
+				const ResultField* translation = ds.findField(QStringLiteral("DEPL"), ResultFieldAssociation::Node);
+				const ResultField* rotation = ds.findField(QStringLiteral("DEPL rotation"), ResultFieldAssociation::Node);
+				CHECK(translation && rotation && translation->components == 3 && rotation->components == 3);
+				if (translation && rotation && !translation->stepData[0].empty() && !rotation->stepData[0].empty())
+					CHECK(approx(translation->stepData[0][2], 3.0) && approx(rotation->stepData[0][0], 4.0) && approx(rotation->stepData[0][2], 6.0));
+				CHECK(findDisplacementField(ds) >= 0 && ds.fields[static_cast<std::size_t>(findDisplacementField(ds))].name == QStringLiteral("DEPL"));
+				CHECK(ds.validate().isEmpty() && extract(ds).triangleCount() == 6);
+			}
+		}
+
+		// ---- files that cannot be read
+		{
+			const QString old = tmp.path() + QStringLiteral("/old.med");
+			CHECK(writeMedFixture(QFile::encodeName(old).constData(), 2));
+			const ResultReadOutcome r = readResultFile(old);
+			CHECK(!r.ok() && r.error.contains(QStringLiteral("MED 2")));
+			const QString other = tmp.path() + QStringLiteral("/other.med");
+			const hid_t plainFile = H5Fcreate(QFile::encodeName(other).constData(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+			CHECK(plainFile >= 0);
+			if (plainFile >= 0)
+			{
+				H5Fclose(plainFile);
+				CHECK(!readResultFile(other).ok());
+			}
+		}
+
+		// ---- files written by Salome / MEDCoupling (the samples that ship with the project)
+		const QString dir = QStringLiteral(MV_SIMULATION_SAMPLES_DIR);
+		if (QFileInfo::exists(dir + QStringLiteral("/pointe_4fields.med")))
+		{
+			// 19 nodes; 12 tetrahedra, 2 hexahedra and 2 pyramids; node fields over three steps, cell fields at the first
+			const ResultReadOutcome r = readResultFile(dir + QStringLiteral("/pointe_4fields.med"));
+			if (!r.ok())
+				std::printf("  MED pointe_4fields failed: %s\n", qPrintable(r.error));
+			CHECK(r.ok());
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				CHECK(ds.nodeCount() == 19 && ds.cellCount() == 16 && ds.stepCount() == 3);
+				const ResultField* vector = ds.findField(QStringLiteral("fieldcelldoublevector"), ResultFieldAssociation::Cell);
+				const ResultField* node = ds.findField(QStringLiteral("fieldnodedouble"), ResultFieldAssociation::Node);
+				CHECK(vector && vector->components == 3 && node && node->stepData.size() == 3 && !node->stepData[2].empty());
+				if (vector && !vector->stepData[0].empty())
+				{
+					// cells are listed by type name: HE8 (2), PY5 (2), TE4 (12); the file stores every component's values in turn
+					CHECK(approx(vector->stepData[0][0], 6.0) && approx(vector->stepData[0][1], 1.0) && approx(vector->stepData[0][2], 1.0)); // first hexahedron
+					CHECK(approx(vector->stepData[0][4 * 3], 1.0) && approx(vector->stepData[0][4 * 3 + 1], 0.0) && approx(vector->stepData[0][4 * 3 + 2], 1.0)); // first tetrahedron
+				}
+				CHECK(ds.validate().isEmpty() && extract(ds).triangleCount() > 0);
+			}
+		}
+		if (QFileInfo::exists(dir + QStringLiteral("/fra.med")))
+		{
+			// a nodal velocity of a 1020-node mesh; its x component decreases smoothly from 0.8959
+			const ResultReadOutcome r = readResultFile(dir + QStringLiteral("/fra.med"));
+			if (!r.ok())
+				std::printf("  MED fra failed: %s\n", qPrintable(r.error));
+			CHECK(r.ok());
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				const ResultField* velocity = ds.findField(QStringLiteral("VITESSE"), ResultFieldAssociation::Node);
+				CHECK(ds.nodeCount() == 1020 && velocity && velocity->components == 3);
+				if (velocity && !velocity->stepData.empty() && !velocity->stepData[0].empty())
+					CHECK(approx(velocity->stepData[0][0], 0.895864, 1e-4, 1e-6) && approx(velocity->stepData[0][1], 0.0, 1e-4, 1e-9));
+				CHECK(ds.validate().isEmpty());
+			}
+		}
+#else
+		std::printf("  (skipping MED tests: this build has no HDF5 library)\n");
+#endif
+	}
+
 	void testCgnsComponentGroups()
 	{
 #if MV_HAVE_CGNS
@@ -4046,6 +4280,29 @@ namespace
 			allEqual = allEqual && approx(length, 0.5, 1e-4, 1e-6);
 		}
 		CHECK(allEqual);
+
+		// the component a field starts on: the first one that varies, not a constant (all-zero) first component
+		{
+			ResultField many;
+			many.name = QStringLiteral("Many");
+			many.components = 4;
+			std::vector<float> values(16, 0.0f); // 4 nodes x 4 components: 0 is all zero, 1 is constant, 2 varies, 3 varies
+			for (std::size_t node = 0; node < 4; ++node)
+			{
+				values[node * 4 + 1] = 7.0f;
+				values[node * 4 + 2] = static_cast<float>(node);
+				values[node * 4 + 3] = static_cast<float>(node) * 2.0f;
+			}
+			many.stepData = { values };
+			ds.fields.push_back(many);
+			const int manyIndex = static_cast<int>(ds.fields.size()) - 1;
+			CHECK(defaultComponentForField(ds, manyIndex) == 2);
+			ds.fields.back().stepData[0].assign(16, 1.0f); // nothing varies
+			CHECK(defaultComponentForField(ds, manyIndex) == 0);
+			CHECK(defaultComponentForField(ds, velocityIndex) == -1 && defaultComponentForField(ds, fieldIndexOf(ds, QStringLiteral("T"))) == -1);
+			CHECK(defaultComponentForField(ds, -1) == -1);
+			ds.fields.pop_back();
+		}
 
 		// nothing to draw: a scalar field, a missing step, no size
 		CHECK(!buildGlyphSet(ds, surface, fieldIndexOf(ds, QStringLiteral("T")), 0, sites, 10.0, options, 0.0f, set));
@@ -4372,6 +4629,7 @@ int main(int argc, char** argv)
 	testCgnsComponentGroups();
 	testCgnsStructured();
 	testVtkHdf();
+	testMed();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();

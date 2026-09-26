@@ -109,3 +109,16 @@ VTKHDF (.vtkhdf)
     Temperature and Velocity (3 components), cell data Quality. Values are synthetic. UnstructuredGrid (partitions, time
     steps, moving meshes), PolyData and ImageData are read; composite files (MultiBlockDataSet ...), StructuredGrid,
     RectilinearGrid and HyperTreeGrid are not supported yet. A file written by ParaView is the true check.
+
+MED (.med)
+    Needs a build with the HDF5 library; other builds do not list the extension. MED 3 and later (Salome 6+, Code_Aster, Code_Saturne)
+    is read directly on HDF5. Both files below come from the SALOME 9.16 sample set (SALOME SAMPLES/MedFiles, LGPL-2.1):
+
+    pointe_4fields.med
+        A 19-node mesh of 12 tetrahedra, 2 hexahedra and 2 pyramids ("pointe"), written with MEDCoupling: node fields (a scalar
+        over three time steps, an integer), and a scalar and a vector on the cells - a file that mixes cell types and steps.
+
+    fra.med
+        A 1020-node mesh with a nodal velocity vector (VITESSE) and a void fraction (TAUX_DE_VIDE), a real solver-style result.
+
+    Code_Aster 2.x-layout files (older than MED 3) are not read; SALOME medimport converts them.

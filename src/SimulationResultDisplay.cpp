@@ -363,6 +363,35 @@ bool cachedAllStepsRange(const ResultDataset& dataset, SimulationRangeCache& cac
 	return true;
 }
 
+int defaultComponentForField(const ResultDataset& dataset, int fieldIndex)
+{
+	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size())
+		return -1;
+	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
+	if (field.components == 1 || field.components == 3)
+		return -1;
+	const std::size_t comps = static_cast<std::size_t>(std::max(field.components, 1));
+	for (std::size_t c = 0; c < comps; ++c)
+	{
+		bool have = false;
+		float first = 0.0f;
+		for (const std::vector<float>& step : field.stepData)
+			for (std::size_t i = c; i < step.size(); i += comps)
+			{
+				if (!std::isfinite(step[i]))
+					continue;
+				if (!have)
+				{
+					have = true;
+					first = step[i];
+				}
+				else if (step[i] != first)
+					return static_cast<int>(c); // this component varies
+			}
+	}
+	return 0;
+}
+
 QString stepTimeText(const ResultStep& step)
 {
 	QString text = QString::number(step.time, 'g', 6);
@@ -396,7 +425,8 @@ int findDisplacementField(const ResultDataset& dataset)
 			continue;
 		if (name.contains(QStringLiteral("displacement")))
 			return static_cast<int>(i); // an explicit name wins outright
-		if (best < 0 && (name == QStringLiteral("disp") || name.startsWith(QStringLiteral("disp")) || name.contains(QStringLiteral("deformation"))))
+		if (best < 0 && (name == QStringLiteral("disp") || name.startsWith(QStringLiteral("disp")) || name.contains(QStringLiteral("deformation"))
+		                  || name.contains(QStringLiteral("depl")))) // Code_Aster's DEPL
 			best = static_cast<int>(i);
 	}
 	return best;

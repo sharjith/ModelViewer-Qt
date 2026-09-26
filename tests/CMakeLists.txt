@@ -16,6 +16,7 @@ add_executable(result_tests
     ${CMAKE_SOURCE_DIR}/src/ExodusReader.cpp
     ${CMAKE_SOURCE_DIR}/src/CgnsReader.cpp
     ${CMAKE_SOURCE_DIR}/src/VtkHdfReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/MedReader.cpp
     ${CMAKE_SOURCE_DIR}/src/ResultSnapshot.cpp
     ${CMAKE_SOURCE_DIR}/src/SimulationResultDisplay.cpp
     ${CMAKE_SOURCE_DIR}/src/SimulationGlyphs.cpp

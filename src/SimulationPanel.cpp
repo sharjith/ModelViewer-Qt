@@ -591,7 +591,9 @@ void SimulationPanel::populateComponents(int fieldIndex, int selectedComponent)
 			                             : tr("Component %1").arg(c + 1),
 			                         c);
 	}
-	const int index = _componentCombo->findData(selectedComponent);
+	// No component asked for: a vector starts on its magnitude, other fields on the first component that is not constant.
+	const int wanted = selectedComponent >= 0 || comps == 3 ? selectedComponent : defaultComponentForField(*_dataset, fieldIndex);
+	const int index = _componentCombo->findData(wanted);
 	_componentCombo->setCurrentIndex(index >= 0 ? index : 0);
 }
 

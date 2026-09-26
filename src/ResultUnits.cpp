@@ -137,9 +137,9 @@ QString guessQuantityKind(const QString& fieldName)
 
 	if (has("strain"))
 		return QStringLiteral("strain");
-	if (has("stress") || has("von mises") || has("principal") || has("tresca") || has("pressure"))
+	if (has("stress") || has("von mises") || has("principal") || has("tresca") || has("pressure") || has("sigm_") || has("sief_"))
 		return QStringLiteral("pressure");
-	if (has("displacement") || n == QLatin1String("disp") || n.startsWith(QLatin1String("disp ")))
+	if (has("displacement") || has("depl") || n == QLatin1String("disp") || n.startsWith(QLatin1String("disp ")))
 		return QStringLiteral("length");
 	// "ndtemp" is CalculiX's nodal temperature block name in a .frd file
 	if (has("temperature") || n == QLatin1String("temp") || n.startsWith(QLatin1String("temp ")) || n == QLatin1String("ndtemp"))

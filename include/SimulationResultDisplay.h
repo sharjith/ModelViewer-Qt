@@ -66,6 +66,11 @@ bool cachedAllStepsRange(SimulationSession& session, int fieldIndex, int compone
 // The same through a cache of the caller's (the arrows' field has its own, so it does not evict the colour range's).
 bool cachedAllStepsRange(const ResultDataset& dataset, SimulationRangeCache& cache, int fieldIndex, int component, float& lo, float& hi);
 
+// The component a field starts on when it is chosen: -1 (the value / the magnitude) for a scalar or a 3-component vector; for any
+// other component count the first component whose values are not constant (over every step) - a Code_Aster shell force field of
+// 14 components has an all-zero first component that would otherwise show as one flat colour - or 0 when none varies.
+int defaultComponentForField(const ResultDataset& dataset, int fieldIndex);
+
 // Text for a step: "Mode 3 - 73971 Hz", "t = 0.5", "0.0194 Hz". Empty for an out-of-range step.
 QString stepTimeText(const ResultStep& step);
 QString stepDescription(const ResultDataset& dataset, int step);

@@ -3,6 +3,7 @@
 #include "CalculixFrdReader.h"
 #include "CgnsReader.h"
 #include "ExodusReader.h"
+#include "MedReader.h"
 #include "OpenFoamReader.h"
 #include "VtkHdfReader.h"
 #include "VtkLegacyReader.h"
@@ -16,6 +17,7 @@ QStringList supportedResultExtensions()
 	extensions << exodusExtensions(); // empty in a build without NetCDF
 	extensions << cgnsExtensions();   // empty in a build without the CGNS library
 	extensions << vtkHdfExtensions(); // empty in a build without the HDF5 library
+	extensions << medExtensions();    // likewise
 	return extensions;
 }
 
@@ -34,6 +36,8 @@ QStringList supportedResultFileFilters()
 		filters << cgnsFileFilter();
 	if (vtkHdfSupported())
 		filters << vtkHdfFileFilter();
+	if (medSupported())
+		filters << medFileFilter();
 	return filters;
 }
 
@@ -54,6 +58,8 @@ ResultReadOutcome readResultFile(const QString& path, const std::atomic<bool>* c
 		return readCgns(path, cancel);
 	if (vtkHdfExtensions().contains(suffix))
 		return readVtkHdf(path, cancel);
+	if (medExtensions().contains(suffix))
+		return readMed(path, cancel);
 
 	ResultReadOutcome outcome;
 	outcome.error = QStringLiteral("Unsupported result file type '.%1'.").arg(suffix);

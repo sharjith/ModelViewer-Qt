@@ -21,7 +21,7 @@ struct ResultReadOutcome
 };
 
 // Lower-case extensions (without the dot) this build can read: "vtu", "vtk", "frd", "foam" (an OpenFOAM case) and,
-// when built with NetCDF, the Exodus II ones ("e", "exo", "ex2", "g") with the CGNS library, "cgns", and with the HDF5 library, "vtkhdf".
+// when built with NetCDF, the Exodus II ones ("e", "exo", "ex2", "g") with the CGNS library, "cgns", and with the HDF5 library, "vtkhdf" and "med".
 QStringList supportedResultExtensions();
 
 // True when the file extension is one this build can read (.vtu, .vtk, .frd, .foam).
