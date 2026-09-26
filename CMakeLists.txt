@@ -57,6 +57,13 @@ if(netCDF_FOUND)
 else()
     message(STATUS "NetCDF not found: Exodus II result files disabled")
 endif()
+# Optional: the CGNS library (HDF5 based) for the CGNS result reader, same arrangement as NetCDF above.
+find_package(cgns CONFIG QUIET)
+if(cgns_FOUND)
+    message(STATUS "CGNS found: CGNS result files enabled")
+else()
+    message(STATUS "CGNS not found: CGNS result files disabled")
+endif()
 
 message(STATUS "VCPKG_INSTALLED_DIR: ${VCPKG_INSTALLED_DIR}")
 
@@ -511,6 +518,10 @@ target_link_libraries(ModelViewer
 if(netCDF_FOUND)
     target_link_libraries(ModelViewer PRIVATE netCDF::netcdf)
     target_compile_definitions(ModelViewer PRIVATE MV_HAVE_NETCDF=1)
+endif()
+if(cgns_FOUND)
+    target_link_libraries(ModelViewer PRIVATE $<IF:$<TARGET_EXISTS:CGNS::cgns_shared>,CGNS::cgns_shared,CGNS::cgns_static>)
+    target_compile_definitions(ModelViewer PRIVATE MV_HAVE_CGNS=1)
 endif()
 
 # Qt6's automatic static-plugin linking (triggered by linking Qt6::Gui/Widgets

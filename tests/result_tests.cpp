@@ -8,6 +8,7 @@
 // the final check and are listed in docs/simulation_results_test_data.md.
 
 #include "ComparePaneLayout.h"
+#include "CgnsReader.h"
 #include "ExodusReader.h"
 #include "ResultBoundary.h"
 #include "ResultDerivedFields.h"
@@ -32,6 +33,9 @@
 #include <atomic>
 #if MV_HAVE_NETCDF
 #include <netcdf.h>
+#endif
+#if MV_HAVE_CGNS
+#include <cgnslib.h>
 #endif
 #include <vector>
 
@@ -2729,6 +2733,224 @@ namespace
 #endif
 	}
 
+	// ---- CGNS reader (needs the CGNS library; skipped when the build has none) ---------------------------------------
+
+#if MV_HAVE_CGNS
+	// A small CGNS file written through the CGNS API: one unstructured zone of 12 nodes (the 3 x 2 x 2 grid of the Exodus
+	// fixture) holding two HEXA_8 cells (or, `mixed`, one HEXA_8 and one TETRA_4 in a MIXED section), a QUAD_4 boundary
+	// section that must NOT become cells, three steps of Vertex solutions (Temperature, VelocityX/Y/Z) and CellCenter
+	// solutions (Quality), and BaseIterativeData/TimeValues.
+	bool writeCgnsFixture(const char* path, bool mixed, bool withSolutions)
+	{
+		int fn = 0, base = 0, zone = 0;
+		if (cg_open(path, CG_MODE_WRITE, &fn) != CG_OK)
+			return false;
+		bool ok = cg_base_write(fn, "Base", 3, 3, &base) == CG_OK;
+		const cgsize_t size[3] = { 12, 2, 0 };
+		ok = ok && cg_zone_write(fn, base, "Zone1", size, CGNS_ENUMV(Unstructured), &zone) == CG_OK;
+		double x[12], y[12], z[12];
+		for (int n = 0; n < 12; ++n)
+		{
+			x[n] = n % 3;
+			y[n] = (n / 3) % 2;
+			z[n] = n / 6;
+		}
+		int index = 0;
+		ok = ok && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateX", x, &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateY", y, &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateZ", z, &index) == CG_OK;
+		if (mixed)
+		{
+			// CGNS 4 writes MIXED sections through the polyhedral call: each element's type precedes its nodes and one offset per
+			// element (plus the end) says where it starts. (The older call is kept as a fallback for other library versions.)
+			const cgsize_t mix[14] = { CGNS_ENUMV(HEXA_8), 1, 2, 5, 4, 7, 8, 11, 10, CGNS_ENUMV(TETRA_4), 2, 3, 6, 8 };
+			const cgsize_t mixOffsets[3] = { 0, 9, 14 };
+			const bool poly = cg_poly_section_write(fn, base, zone, "Mixed", CGNS_ENUMV(MIXED), 1, 2, 0, mix, mixOffsets, &index) == CG_OK;
+			ok = ok && (poly || cg_section_write(fn, base, zone, "Mixed", CGNS_ENUMV(MIXED), 1, 2, 0, mix, &index) == CG_OK);
+		}
+		else
+		{
+			const cgsize_t hexes[16] = { 1, 2, 5, 4, 7, 8, 11, 10, 2, 3, 6, 5, 8, 9, 12, 11 };
+			const cgsize_t walls[8] = { 1, 2, 5, 4, 7, 8, 11, 10 }; // two quads: boundary elements 3 and 4, not cells
+			ok = ok && cg_section_write(fn, base, zone, "Hexas", CGNS_ENUMV(HEXA_8), 1, 2, 0, hexes, &index) == CG_OK
+			     && cg_section_write(fn, base, zone, "Walls", CGNS_ENUMV(QUAD_4), 3, 4, 0, walls, &index) == CG_OK;
+		}
+		if (withSolutions)
+		{
+			for (int s = 0; s < 3; ++s)
+			{
+				double temperature[12], vx[12], vy[12], vz[12];
+				for (int n = 0; n < 12; ++n)
+				{
+					temperature[n] = 20.0 + 10.0 * s + n;
+					vx[n] = (s + 1) * 0.1 * n;
+					vy[n] = 0.0;
+					vz[n] = (s + 1) * 0.2;
+				}
+				int sol = 0, field = 0;
+				const QByteArray vertexName = QByteArray("FlowSolution") + QByteArray::number(s);
+				ok = ok && cg_sol_write(fn, base, zone, vertexName.constData(), CGNS_ENUMV(Vertex), &sol) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Temperature", temperature, &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityX", vx, &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityY", vy, &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityZ", vz, &field) == CG_OK;
+				const double quality[2] = { 100.0 + s, 200.0 + s };
+				const QByteArray cellName = QByteArray("CellSolution") + QByteArray::number(s);
+				ok = ok && cg_sol_write(fn, base, zone, cellName.constData(), CGNS_ENUMV(CellCenter), &sol) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Quality", quality, &field) == CG_OK;
+			}
+			const double times[3] = { 0.0, 0.5, 1.0 };
+			const cgsize_t count = 3;
+			ok = ok && cg_biter_write(fn, base, "TimeIterValues", 3) == CG_OK
+			     && cg_goto(fn, base, "BaseIterativeData_t", 1, "end") == CG_OK
+			     && cg_array_write("TimeValues", CGNS_ENUMV(RealDouble), 1, &count, times) == CG_OK;
+		}
+		return cg_close(fn) == CG_OK && ok;
+	}
+
+	// A larger CGNS file for trying the reader in the application: an n x n x n block of HEXA_8 cells, five steps of a
+	// warming, accelerating cube (Temperature, Pressure and VelocityX/Y/Z at the vertices, Quality per cell).
+	// Written with `result_tests --write-cgns-sample <file.cgns>`.
+	bool writeCgnsBlockSample(const char* path, int n = 8)
+	{
+		const int side = n + 1, nodeCount = side * side * side, cells = n * n * n, steps = 5;
+		int fn = 0, base = 0, zone = 0, index = 0;
+		if (cg_open(path, CG_MODE_WRITE, &fn) != CG_OK)
+			return false;
+		bool ok = cg_base_write(fn, "Base", 3, 3, &base) == CG_OK;
+		const cgsize_t size[3] = { nodeCount, cells, 0 };
+		ok = ok && cg_zone_write(fn, base, "Block", size, CGNS_ENUMV(Unstructured), &zone) == CG_OK;
+		std::vector<double> cx(static_cast<std::size_t>(nodeCount)), cy(cx.size()), cz(cx.size());
+		auto node = [&](int i, int j, int k) { return i + side * (j + side * k); };
+		for (int k = 0; k < side; ++k)
+			for (int j = 0; j < side; ++j)
+				for (int i = 0; i < side; ++i)
+				{
+					const std::size_t id = static_cast<std::size_t>(node(i, j, k));
+					cx[id] = i;
+					cy[id] = j;
+					cz[id] = k;
+				}
+		std::vector<cgsize_t> connect;
+		for (int k = 0; k < n; ++k)
+			for (int j = 0; j < n; ++j)
+				for (int i = 0; i < n; ++i)
+					for (int c : { node(i, j, k), node(i + 1, j, k), node(i + 1, j + 1, k), node(i, j + 1, k),
+					               node(i, j, k + 1), node(i + 1, j, k + 1), node(i + 1, j + 1, k + 1), node(i, j + 1, k + 1) })
+						connect.push_back(c + 1);
+		ok = ok && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateX", cx.data(), &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateY", cy.data(), &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateZ", cz.data(), &index) == CG_OK
+		     && cg_section_write(fn, base, zone, "Elements", CGNS_ENUMV(HEXA_8), 1, cells, 0, connect.data(), &index) == CG_OK;
+		std::vector<double> times;
+		for (int s = 0; s < steps; ++s)
+		{
+			const double t = static_cast<double>(s) / (steps - 1);
+			times.push_back(t);
+			std::vector<double> temperature(cx.size()), pressure(cx.size()), vx(cx.size()), vy(cx.size()), vz(cx.size());
+			for (std::size_t id = 0; id < cx.size(); ++id)
+			{
+				const double x = cx[id] / n, y = cy[id] / n, z = cz[id] / n;
+				temperature[id] = 300.0 + 60.0 * t * x;
+				pressure[id] = 101325.0 + 500.0 * t * (1.0 - x) * (y + z);
+				vx[id] = t * 2.0 * y * (1.0 - y) * 4.0;
+				vy[id] = t * 0.5 * std::sin(3.14159265 * x);
+				vz[id] = t * 0.25 * (z - 0.5);
+			}
+			int sol = 0, field = 0;
+			const QByteArray vertexName = QByteArray("FlowSolution") + QByteArray::number(s);
+			ok = ok && cg_sol_write(fn, base, zone, vertexName.constData(), CGNS_ENUMV(Vertex), &sol) == CG_OK
+			     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Temperature", temperature.data(), &field) == CG_OK
+			     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Pressure", pressure.data(), &field) == CG_OK
+			     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityX", vx.data(), &field) == CG_OK
+			     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityY", vy.data(), &field) == CG_OK
+			     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityZ", vz.data(), &field) == CG_OK;
+			std::vector<double> quality(static_cast<std::size_t>(cells));
+			for (int e = 0; e < cells; ++e)
+				quality[static_cast<std::size_t>(e)] = 0.5 + 0.5 * std::sin(0.1 * e + 2.0 * t);
+			const QByteArray cellName = QByteArray("CellSolution") + QByteArray::number(s);
+			ok = ok && cg_sol_write(fn, base, zone, cellName.constData(), CGNS_ENUMV(CellCenter), &sol) == CG_OK
+			     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Quality", quality.data(), &field) == CG_OK;
+		}
+		const cgsize_t stepCount = steps;
+		ok = ok && cg_biter_write(fn, base, "TimeIterValues", steps) == CG_OK && cg_goto(fn, base, "BaseIterativeData_t", 1, "end") == CG_OK
+		     && cg_array_write("TimeValues", CGNS_ENUMV(RealDouble), 1, &stepCount, times.data()) == CG_OK;
+		return cg_close(fn) == CG_OK && ok;
+	}
+#endif
+
+	void testCgns()
+	{
+#if MV_HAVE_CGNS
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		CHECK(cgnsSupported() && !cgnsFileFilter().isEmpty());
+		CHECK(supportedResultExtensions().contains(QStringLiteral("cgns")) && isSupportedResultFile(QStringLiteral("run.CGNS")));
+
+		// ---- fixed-type section, boundary section, solutions with times
+		const QString path = tmp.path() + QStringLiteral("/fixture.cgns");
+		CHECK(writeCgnsFixture(QFile::encodeName(path).constData(), false, true));
+		const ResultReadOutcome r = readResultFile(path);
+		if (!r.ok())
+			std::printf("  CGNS failed: %s\n", qPrintable(r.error));
+		CHECK(r.ok());
+		if (r.ok())
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.solverName == QStringLiteral("CGNS"));
+			CHECK(ds.nodeCount() == 12 && ds.cellCount() == 2); // the two QUAD_4 boundary elements are not cells
+			CHECK(ds.cellTypes[0] == ResultCellType::Hexahedron && ds.cellTypes[1] == ResultCellType::Hexahedron);
+			const std::vector<std::uint32_t> firstHex = { 0, 1, 4, 3, 6, 7, 10, 9 };
+			CHECK(std::vector<std::uint32_t>(ds.cellConnectivity.begin(), ds.cellConnectivity.begin() + 8) == firstHex);
+			CHECK(approx(ds.nodePositions[5 * 3], 2.0) && approx(ds.nodePositions[5 * 3 + 1], 1.0) && approx(ds.nodePositions[5 * 3 + 2], 0.0, 1e-4, 1e-9));
+			CHECK(ds.stepCount() == 3 && approx(ds.steps[0].time, 0.0) && approx(ds.steps[1].time, 0.5) && approx(ds.steps[2].time, 1.0));
+			CHECK(ds.validate().isEmpty());
+
+			const int temperature = fieldIndexOf(ds, QStringLiteral("Temperature")), velocity = fieldIndexOf(ds, QStringLiteral("Velocity"));
+			const ResultField* quality = ds.findField(QStringLiteral("Quality"), ResultFieldAssociation::Cell);
+			CHECK(temperature >= 0 && velocity >= 0 && quality != nullptr && ds.fields.size() == 3);
+			if (temperature >= 0 && velocity >= 0 && quality)
+			{
+				const ResultField& ft = ds.fields[static_cast<std::size_t>(temperature)];
+				CHECK(ft.association == ResultFieldAssociation::Node && ft.components == 1 && approx(ft.stepData[1][3], 33.0) && approx(ft.stepData[2][11], 51.0));
+				// VelocityX/Y/Z became one vector field
+				const ResultField& fv = ds.fields[static_cast<std::size_t>(velocity)];
+				CHECK(fv.components == 3 && fv.association == ResultFieldAssociation::Node);
+				CHECK(approx(fv.stepData[2][5 * 3 + 0], 1.5) && approx(fv.stepData[2][5 * 3 + 1], 0.0, 1e-4, 1e-9) && approx(fv.stepData[2][5 * 3 + 2], 0.6));
+				CHECK(quality->stepData[2].size() == 2 && approx(quality->stepData[2][0], 102.0) && approx(quality->stepData[2][1], 202.0));
+			}
+			ResultBoundarySurface surface;
+			CHECK(extractBoundarySurface(ds, surface, nullptr, nullptr));
+			CHECK(surface.triangleCount() == 20); // two hexahedra sharing a face
+		}
+
+		// ---- a MIXED section keeps each element's own type
+		const QString mixedPath = tmp.path() + QStringLiteral("/mixed.cgns");
+		CHECK(writeCgnsFixture(QFile::encodeName(mixedPath).constData(), true, false));
+		const ResultReadOutcome mixed = readResultFile(mixedPath);
+		CHECK(mixed.ok());
+		if (mixed.ok())
+		{
+			const ResultDataset& ds = *mixed.dataset;
+			CHECK(ds.cellCount() == 2 && ds.cellTypes[0] == ResultCellType::Hexahedron && ds.cellTypes[1] == ResultCellType::Tetra);
+			CHECK(ds.cellOffsets[1] == 8 && ds.cellOffsets[2] == 12);
+			CHECK(ds.stepCount() == 1 && ds.fields.empty()); // a mesh without solutions loads uncoloured
+		}
+
+		// ---- problems are reported, never crashed on
+		const ResultReadOutcome missing = readResultFile(tmp.path() + QStringLiteral("/missing.cgns"));
+		CHECK(!missing.ok() && missing.error.contains(QStringLiteral("Cannot open")));
+		writeText(tmp.path() + QStringLiteral("/bad.cgns"), QByteArray("this is not a CGNS file"));
+		CHECK(!readResultFile(tmp.path() + QStringLiteral("/bad.cgns")).ok());
+#else
+		std::printf("  (skipping CGNS tests: this build has no CGNS library)\n");
+		CHECK(!cgnsSupported() && cgnsExtensions().isEmpty() && !isSupportedResultFile(QStringLiteral("run.cgns")));
+		CHECK(!readResultFile(QStringLiteral("run.cgns")).ok());
+#endif
+	}
+
 	void testShellAndSkippedCells()
 	{
 		Mesh m;
@@ -2918,6 +3140,15 @@ int main(int argc, char** argv)
 		return ok ? 0 : 1;
 	}
 #endif
+#if MV_HAVE_CGNS
+	// result_tests --write-cgns-sample <file.cgns>: writes the larger CGNS file used to try the reader in the application.
+	if (argc == 3 && std::strcmp(argv[1], "--write-cgns-sample") == 0)
+	{
+		const bool ok = writeCgnsBlockSample(argv[2]);
+		std::printf(ok ? "wrote %s\n" : "could not write %s\n", argv[2]);
+		return ok ? 0 : 1;
+	}
+#endif
 	if (argc > 1)
 		return inspectFiles(argc, argv);
 
@@ -2958,6 +3189,7 @@ int main(int argc, char** argv)
 	testOpenFoamSample();
 	testComparePanes();
 	testExodus();
+	testCgns();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();

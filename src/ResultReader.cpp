@@ -1,6 +1,7 @@
 #include "ResultReader.h"
 
 #include "CalculixFrdReader.h"
+#include "CgnsReader.h"
 #include "ExodusReader.h"
 #include "OpenFoamReader.h"
 #include "VtkLegacyReader.h"
@@ -12,6 +13,7 @@ QStringList supportedResultExtensions()
 {
 	QStringList extensions = { QStringLiteral("vtu"), QStringLiteral("vtk"), QStringLiteral("frd"), QStringLiteral("foam") };
 	extensions << exodusExtensions(); // empty in a build without NetCDF
+	extensions << cgnsExtensions();   // empty in a build without the CGNS library
 	return extensions;
 }
 
@@ -26,6 +28,8 @@ QStringList supportedResultFileFilters()
 	                        QStringLiteral("CalculiX Results (*.frd)"), QStringLiteral("OpenFOAM Case (*.foam)") };
 	if (exodusSupported())
 		filters << exodusFileFilter();
+	if (cgnsSupported())
+		filters << cgnsFileFilter();
 	return filters;
 }
 
@@ -42,6 +46,8 @@ ResultReadOutcome readResultFile(const QString& path, const std::atomic<bool>* c
 		return readOpenFoamCase(path, cancel);
 	if (exodusExtensions().contains(suffix))
 		return readExodus(path, cancel);
+	if (cgnsExtensions().contains(suffix))
+		return readCgns(path, cancel);
 
 	ResultReadOutcome outcome;
 	outcome.error = QStringLiteral("Unsupported result file type '.%1'.").arg(suffix);

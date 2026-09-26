@@ -82,3 +82,12 @@ Exodus II (.e / .exo / .ex2 / .g)
     (gathered into one vector field "disp"), temperature, a symmetric stress tensor (stress_xx ... stress_zx, gathered
     into "stress" with von Mises and principal stresses derived) and the element variable element_quality (a cell field).
     The values are synthetic; real solver output (MOOSE, Cubit, Sierra ...) is the true check.
+
+CGNS (.cgns)
+    Needs a build with the CGNS library (vcpkg port cgns); other builds do not list the extension. No CGNS file ships here;
+    write one for trying the reader with the test program:
+        result_tests.exe --write-cgns-sample block.cgns
+    An 8 x 8 x 8 block of HEXA_8 cells, five steps (BaseIterativeData/TimeValues 0 .. 1): vertex solutions Temperature,
+    Pressure and VelocityX/Y/Z (gathered into one vector field "Velocity") and a per-cell field Quality (CellCenter).
+    Values are synthetic. Only unstructured zones are read; structured zones, polyhedra and boundary-condition sections are
+    skipped.

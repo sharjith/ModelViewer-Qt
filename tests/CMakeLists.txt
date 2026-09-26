@@ -14,6 +14,7 @@ add_executable(result_tests
     ${CMAKE_SOURCE_DIR}/src/ComparePaneLayout.cpp
     ${CMAKE_SOURCE_DIR}/src/OpenFoamReader.cpp
     ${CMAKE_SOURCE_DIR}/src/ExodusReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/CgnsReader.cpp
     ${CMAKE_SOURCE_DIR}/src/ResultSnapshot.cpp
     ${CMAKE_SOURCE_DIR}/src/SimulationResultDisplay.cpp
 )
@@ -27,6 +28,12 @@ find_package(netCDF CONFIG QUIET)
 if(netCDF_FOUND)
     target_link_libraries(result_tests PRIVATE netCDF::netcdf)
     target_compile_definitions(result_tests PRIVATE MV_HAVE_NETCDF=1)
+endif()
+# CGNS likewise; without the library its reader is a stub and its tests are skipped.
+find_package(cgns CONFIG QUIET)
+if(cgns_FOUND)
+    target_link_libraries(result_tests PRIVATE $<IF:$<TARGET_EXISTS:CGNS::cgns_shared>,CGNS::cgns_shared,CGNS::cgns_static>)
+    target_compile_definitions(result_tests PRIVATE MV_HAVE_CGNS=1)
 endif()
 set_target_properties(result_tests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 
