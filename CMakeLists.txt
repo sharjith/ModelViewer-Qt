@@ -386,6 +386,10 @@ configure_file(
 )
 
 file(GLOB sources CONFIGURE_DEPENDS src/*.cpp src/*.cxx src/*.c include/*.h include/*.hxx)
+# Feature folders (see docs/source_reorg_plan.md): sources under src/<Feature>/..., headers under include/<Feature>/...
+# Headers are still included as "Foo.h": every feature subfolder is on the include path below.
+file(GLOB_RECURSE simulation_sources CONFIGURE_DEPENDS src/Simulation/*.cpp include/Simulation/*.h)
+list(APPEND sources ${simulation_sources})
 file(GLOB ui_sources ui/*.ui)
 
 # Create translations directory if it doesn't exist
@@ -478,6 +482,9 @@ target_sources(ModelViewer
 target_include_directories(ModelViewer
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/Simulation/Core
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/Simulation/Readers
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/Simulation/UI
         ${CMAKE_CURRENT_BINARY_DIR}
         ${OpenCASCADE_INCLUDE_DIR}
         ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include

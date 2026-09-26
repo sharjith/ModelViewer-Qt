@@ -3,26 +3,27 @@
 # executable instead of linking the whole application.
 add_executable(result_tests
     result_tests.cpp
-    ${CMAKE_SOURCE_DIR}/src/ResultDataset.cpp
-    ${CMAKE_SOURCE_DIR}/src/ResultReader.cpp
-    ${CMAKE_SOURCE_DIR}/src/VtkXmlReader.cpp
-    ${CMAKE_SOURCE_DIR}/src/VtkLegacyReader.cpp
-    ${CMAKE_SOURCE_DIR}/src/CalculixFrdReader.cpp
-    ${CMAKE_SOURCE_DIR}/src/ResultDerivedFields.cpp
-    ${CMAKE_SOURCE_DIR}/src/ResultUnits.cpp
-    ${CMAKE_SOURCE_DIR}/src/ResultBoundary.cpp
-    ${CMAKE_SOURCE_DIR}/src/ComparePaneLayout.cpp
-    ${CMAKE_SOURCE_DIR}/src/OpenFoamReader.cpp
-    ${CMAKE_SOURCE_DIR}/src/ExodusReader.cpp
-    ${CMAKE_SOURCE_DIR}/src/CgnsReader.cpp
-    ${CMAKE_SOURCE_DIR}/src/VtkHdfReader.cpp
-    ${CMAKE_SOURCE_DIR}/src/MedReader.cpp
-    ${CMAKE_SOURCE_DIR}/src/ResultSnapshot.cpp
-    ${CMAKE_SOURCE_DIR}/src/SimulationResultDisplay.cpp
-    ${CMAKE_SOURCE_DIR}/src/SimulationGlyphs.cpp
-    ${CMAKE_SOURCE_DIR}/src/ResultSlice.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Core/ResultDataset.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Readers/ResultReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Readers/VtkXmlReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Readers/VtkLegacyReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Readers/CalculixFrdReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Core/ResultDerivedFields.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Core/ResultUnits.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Core/ResultBoundary.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Core/ComparePaneLayout.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Readers/OpenFoamReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Readers/ExodusReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Readers/CgnsReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Readers/VtkHdfReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Readers/MedReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Core/ResultSnapshot.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Core/SimulationResultDisplay.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Core/SimulationGlyphs.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Core/ResultSlice.cpp
 )
-target_include_directories(result_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(result_tests PRIVATE ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/include/Simulation/Core ${CMAKE_SOURCE_DIR}/include/Simulation/Readers ${CMAKE_SOURCE_DIR}/include/Simulation/UI)
 # The real-file tests read the sample results shipped with the project.
 target_compile_definitions(result_tests PRIVATE
     MV_SIMULATION_SAMPLES_DIR="${CMAKE_SOURCE_DIR}/sample-models/Simulation")
