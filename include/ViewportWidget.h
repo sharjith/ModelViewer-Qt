@@ -28,6 +28,7 @@ class ToolsToolbar;
 #include "AnnotationController.h"
 #include "SeamMarkingController.h"
 #include "FillHolesController.h"
+#include "SimulationGlyphController.h"
 #include "MvfMeshPreparationWorker.h"
 #include "PlaneRenderable.h"
 #include "PlaneGizmo.h"
@@ -1497,6 +1498,11 @@ public:
 	};
 	void setVertexMarkers(const QVector<VertexMarker>& markers);
 
+	// The vector-field arrows of a simulation result (see SimulationGlyphController.h): drawn on the result's mesh, in its
+	// pane in compare mode. An empty set clears them.
+	void setSimulationGlyphs(const QUuid& meshUuid, GlyphSet glyphs);
+	void clearSimulationGlyphs(const QUuid& meshUuid);
+
 	// Compare mode (simulation results side by side, docs/simulation_compare_mode_design.md): the window is divided
 	// into one pane per mesh, each drawing ONLY its mesh with the shared camera - orbit, pan, zoom and fit act on all
 	// panes at once. Picking-based interactions (selection, hover highlight, the hover probe, plane gizmos) are off
@@ -1505,6 +1511,9 @@ public:
 	void clearCompare();
 	bool compareActive() const { return _compareActive; }
 	QVector<QUuid> compareMeshes() const { return _compareMeshes; }
+	// Every compared result has its own camera (orbit, pan and zoom act on the pane under the cursor). With `linked` on, a
+	// navigation drag or wheel turn moves all panes together instead.
+	void setCompareLinkCameras(bool linked) { _compareLinkCameras = linked; }
 	int comparePaneOfMesh(const QUuid& meshUuid) const;   // -1 when the mesh is not in a pane
 	QRect comparePaneRect(int paneIndex) const;           // widget coordinates; empty when there is no such pane
 
@@ -2528,6 +2537,37 @@ private:
 	QVector<QUuid> _compareMeshes;
 	CompareArrangement _compareArrangement = CompareArrangement::SideBySide;
 	std::vector<ComparePane> _comparePanes;
+	// ---- Compare mode: one camera per pane. A pane's camera looks at its result's centre with the shared camera's orientation
+	// turned by `rotation` (in view space, about that centre) and the shared view range divided by `zoom`; `offset` moves the
+	// look-at point (view-frame world units), which is how a pane is panned. The shared camera itself then only supplies the
+	// starting orientation (the view buttons and Fit reset every pane to it).
+	struct ComparePaneView
+	{
+		QQuaternion rotation;
+		float zoom = 0.0f;       // 0 = not fitted yet: fitted to the pane on the next frame
+		QPointF offset;          // look-at point relative to the result's centre along the pane's right / up axes
+		float pixelsPerUnit = 1.0f; // window pixels per world unit at zoom 1 (measured each frame, used by navigation)
+		QSize fittedPaneSize;    // the pane size the zoom was fitted for
+	};
+	std::vector<ComparePaneView> _comparePaneViews;
+	std::vector<Camera> _comparePaneCameras; // the camera each pane was drawn with (last frame)
+	bool _compareLinkCameras = false;
+	struct PaneNavigation
+	{
+		enum class Mode { None, Rotate, Pan, Zoom };
+		Mode mode = Mode::None;
+		int pane = -1;
+		QPoint last;
+	};
+	PaneNavigation _paneNav;
+	void updateComparePaneViews();
+	void resetComparePaneViews();
+	std::vector<QVector3D> sampleMeshPoints(const SceneMesh* mesh) const;
+	bool comparePaneNavPress(QMouseEvent* e);
+	bool comparePaneNavMove(QMouseEvent* e);
+	bool comparePaneNavRelease(QMouseEvent* e);
+	bool comparePaneNavWheel(QWheelEvent* e);
+	void navigateComparePane(int pane, PaneNavigation::Mode mode, const QPointF& delta, const QPointF& anchorInPane, double wheelFactor);
 	const QSet<QUuid>* _paneMeshFilter = nullptr;
 	QString _surfaceAnalysisHoverText;
 	QPoint _surfaceAnalysisHoverPixel;
@@ -2575,6 +2615,8 @@ private:
 	// IGpuContextResource-for-pointer-re-resolution-only reasoning as
 	// _measurementController/_annotationController/_seamMarkingController above.
 	FillHolesController* _fillHolesController = nullptr;
+	SimulationGlyphController* _simulationGlyphController = nullptr;
+	void drawSimulationGlyphs(Camera* camera);
 
 	CubeRenderable* _lightCube;
 	SphereRenderable* _lightSphere;

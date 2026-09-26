@@ -215,6 +215,15 @@ namespace
 		o.insert(QStringLiteral("deform"), s.deform);
 		o.insert(QStringLiteral("deformScale"), s.deformScale);
 		o.insert(QStringLiteral("markExtrema"), s.markExtrema);
+		o.insert(QStringLiteral("glyphs"), s.glyphs);
+		o.insert(QStringLiteral("glyphScale"), s.glyphScale);
+		o.insert(QStringLiteral("glyphCount"), s.glyphCount);
+		o.insert(QStringLiteral("glyphScaleByMagnitude"), s.glyphScaleByMagnitude);
+		if (s.glyphField >= 0 && static_cast<std::size_t>(s.glyphField) < dataset.fields.size())
+		{
+			o.insert(QStringLiteral("glyphFieldName"), dataset.fields[static_cast<std::size_t>(s.glyphField)].name);
+			o.insert(QStringLiteral("glyphFieldAssociation"), isCellField(dataset.fields[static_cast<std::size_t>(s.glyphField)]) ? QStringLiteral("cell") : QStringLiteral("node"));
+		}
 		return o;
 	}
 
@@ -643,6 +652,18 @@ bool decodeResultSnapshot(const QJsonObject& json, const std::vector<QByteArray>
 	state.deform = view.value(QStringLiteral("deform")).toBool();
 	state.deformScale = view.value(QStringLiteral("deformScale")).toDouble(1.0);
 	state.markExtrema = view.value(QStringLiteral("markExtrema")).toBool();
+	state.glyphs = view.value(QStringLiteral("glyphs")).toBool();
+	state.glyphScale = view.value(QStringLiteral("glyphScale")).toDouble(1.0);
+	state.glyphCount = view.value(QStringLiteral("glyphCount")).toInt(800);
+	state.glyphScaleByMagnitude = view.value(QStringLiteral("glyphScaleByMagnitude")).toBool(true);
+	{
+		const QString glyphName = view.value(QStringLiteral("glyphFieldName")).toString();
+		const ResultFieldAssociation glyphAssociation = view.value(QStringLiteral("glyphFieldAssociation")).toString() == QLatin1String("cell")
+			? ResultFieldAssociation::Cell : ResultFieldAssociation::Node;
+		for (std::size_t i = 0; i < dataset->fields.size() && !glyphName.isEmpty(); ++i)
+			if (dataset->fields[i].name == glyphName && dataset->fields[i].association == glyphAssociation)
+				state.glyphField = static_cast<int>(i);
+	}
 
 	out.dataset = std::move(dataset);
 	out.state = state;

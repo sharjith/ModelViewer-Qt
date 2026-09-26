@@ -15,6 +15,7 @@
 #include "ResultReader.h"
 #include "ResultSnapshot.h"
 #include "ResultUnits.h"
+#include "SimulationGlyphs.h"
 #include "SimulationResultDisplay.h"
 
 #include <QByteArray>
@@ -3331,6 +3332,93 @@ namespace
 #endif
 	}
 
+	void testGlyphs()
+	{
+		// ---- site selection: about `target` evenly spread points, ascending, never a non-finite one
+		std::vector<float> grid;
+		for (int y = 0; y < 10; ++y)
+			for (int x = 0; x < 10; ++x)
+				grid.insert(grid.end(), { static_cast<float>(x), static_cast<float>(y), 0.0f });
+		const std::vector<std::uint32_t> few = selectGlyphSites(grid, 25);
+		CHECK(few.size() >= 12 && few.size() <= 40);
+		CHECK(std::is_sorted(few.begin(), few.end()) && std::adjacent_find(few.begin(), few.end()) == few.end());
+		CHECK(selectGlyphSites(grid, 1000).size() == 100); // no more points than asked for: all of them
+		CHECK(selectGlyphSites(grid, 0).empty());
+		grid[5 * 3] = std::numeric_limits<float>::quiet_NaN();
+		const std::vector<std::uint32_t> withGap = selectGlyphSites(grid, 1000);
+		CHECK(withGap.size() == 99 && std::find(withGap.begin(), withGap.end(), 5u) == withGap.end());
+		const std::vector<float> same = { 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+		CHECK(selectGlyphSites(same, 2).size() == 1); // coincident points: one arrow
+
+		// ---- arrows of a vector field
+		ResultReadOutcome r = readBytes(buildVtu(singleTet(), Enc::Ascii));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		ResultDataset& ds = *r.dataset;
+		ResultField displacement;
+		displacement.name = QStringLiteral("Displacement");
+		displacement.components = 3;
+		displacement.stepData = { std::vector<float>(12, 1.0f) };
+		ds.fields.push_back(displacement);
+		ResultField velocity;
+		velocity.name = QStringLiteral("Velocity");
+		velocity.components = 3;
+		// node 0: 1 along x, node 1: 2 along y, node 2: zero (no arrow), node 3: 3 along x
+		velocity.stepData = { std::vector<float>{ 1, 0, 0, 0, 2, 0, 0, 0, 0, 3, 0, 0 } };
+		ds.fields.push_back(velocity);
+		const int velocityIndex = static_cast<int>(ds.fields.size()) - 1;
+		CHECK(chooseDefaultGlyphField(ds) == velocityIndex); // velocity comes before displacement
+		CHECK(isGlyphField(ds.fields[static_cast<std::size_t>(velocityIndex)]));
+
+		const ResultBoundarySurface surface = extract(ds);
+		const std::vector<std::uint32_t> sites = selectSurfaceGlyphSites(surface, false, 100);
+		CHECK(sites.size() == surface.vertexCount());
+		GlyphOptions options;
+		GlyphSet set;
+		CHECK(buildGlyphSet(ds, surface, velocityIndex, 0, sites, 10.0, options, 0.0f, set));
+		CHECK(set.count() == 3 && set.anchors.size() == 9 && set.vectors.size() == 9); // the zero vector gets no arrow
+		CHECK(approx(set.fieldMax, 3.0) && approx(set.fieldMin, 0.0));
+		bool lengthsRight = true, sawLongest = false;
+		for (std::size_t i = 0; i < set.count(); ++i)
+		{
+			const double length = std::sqrt(static_cast<double>(set.vectors[i * 3]) * set.vectors[i * 3]
+			                                + static_cast<double>(set.vectors[i * 3 + 1]) * set.vectors[i * 3 + 1]
+			                                + static_cast<double>(set.vectors[i * 3 + 2]) * set.vectors[i * 3 + 2]);
+			// the largest magnitude (3) is 5 % of the diagonal (10) = 0.5 long; the others in proportion
+			lengthsRight = lengthsRight && approx(length, 0.5 * set.values[i] / 3.0, 1e-4, 1e-6);
+			if (approx(set.values[i], 3.0))
+			{
+				sawLongest = true;
+				lengthsRight = lengthsRight && set.vectors[i * 3] > 0.0f && approx(set.vectors[i * 3 + 1], 0.0, 1e-6, 1e-9); // along +x
+			}
+		}
+		CHECK(lengthsRight && sawLongest);
+
+		// a fixed reference (the largest over all steps) shortens the arrows of a smaller step; uniform length ignores it
+		CHECK(buildGlyphSet(ds, surface, velocityIndex, 0, sites, 10.0, options, 6.0f, set));
+		double longest = 0.0;
+		for (std::size_t i = 0; i < set.count(); ++i)
+			longest = std::max(longest, static_cast<double>(std::fabs(set.vectors[i * 3])));
+		CHECK(approx(longest, 0.25, 1e-4, 1e-6)); // 3 of 6 = half of 0.5
+		options.scaleByMagnitude = false;
+		CHECK(buildGlyphSet(ds, surface, velocityIndex, 0, sites, 10.0, options, 0.0f, set));
+		bool allEqual = set.count() == 3;
+		for (std::size_t i = 0; i < set.count(); ++i)
+		{
+			const double length = std::sqrt(static_cast<double>(set.vectors[i * 3]) * set.vectors[i * 3]
+			                                + static_cast<double>(set.vectors[i * 3 + 1]) * set.vectors[i * 3 + 1]
+			                                + static_cast<double>(set.vectors[i * 3 + 2]) * set.vectors[i * 3 + 2]);
+			allEqual = allEqual && approx(length, 0.5, 1e-4, 1e-6);
+		}
+		CHECK(allEqual);
+
+		// nothing to draw: a scalar field, a missing step, no size
+		CHECK(!buildGlyphSet(ds, surface, fieldIndexOf(ds, QStringLiteral("T")), 0, sites, 10.0, options, 0.0f, set));
+		CHECK(!buildGlyphSet(ds, surface, velocityIndex, 5, sites, 10.0, options, 0.0f, set));
+		CHECK(!buildGlyphSet(ds, surface, velocityIndex, 0, sites, 0.0, options, 0.0f, set));
+	}
+
 	void testCellVectorDefault()
 	{
 		QTemporaryDir tmp;
@@ -3629,6 +3717,7 @@ int main(int argc, char** argv)
 	testDerivedStressOnCells();
 	testValidateFieldShape();
 	testCgnsStepOrder();
+	testGlyphs();
 	testCellVectorDefault();
 	testCgnsComponentGroups();
 	testLoadSimulationResult();

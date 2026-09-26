@@ -28,6 +28,7 @@
 #include "SceneMesh.h"
 #include "ShaderProgram.h"
 #include "ShrinkWrapCommand.h"
+#include "SimulationGlyphs.h"
 #include "SimulationLegendWidget.h"
 #include "SimulationTimelineWidget.h"
 #include "SimulationResultDisplay.h"
@@ -758,6 +759,7 @@ void ModelViewer::startSimulationCompare(const QUuid& otherMeshUuid, bool stacke
 	_simulationCompareStacked = stacked;
 	_simulationCompareSharedRange = sharedRange;
 	_simulationCompareMeshes = { first->meshUuid, second->meshUuid };
+	_viewportWidget->setCompareLinkCameras(QSettings().value(QStringLiteral("Simulation/compareLinkCameras"), false).toBool());
 	_viewportWidget->setCompareResults(_simulationCompareMeshes, stacked ? CompareArrangement::Stacked : CompareArrangement::SideBySide);
 	if (_simulationLegend)
 		_simulationLegend->setAliveCheck([]() { return false; }); // each pane has its own legend now
@@ -773,6 +775,7 @@ void ModelViewer::setSimulationCompareOptions(bool stacked, bool sharedRange)
 		return;
 	_simulationCompareStacked = stacked;
 	_simulationCompareSharedRange = sharedRange;
+	_viewportWidget->setCompareLinkCameras(QSettings().value(QStringLiteral("Simulation/compareLinkCameras"), false).toBool());
 	_viewportWidget->setCompareResults(_simulationCompareMeshes, stacked ? CompareArrangement::Stacked : CompareArrangement::SideBySide);
 	// Turning the shared range off must let each result go back to its own range.
 	refreshComparePair();
@@ -1126,6 +1129,7 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 		session.markers.clear();
 		pushSimulationMarkers();
 		mesh->clearAnalysisOverlay(); // CPU-only, no GL context needed
+		updateSimulationGlyphs(session, false, 0.0f, 1.0f); // arrows do not need a scalar to colour the surface by
 		if (isActive && _simulationLegend)
 			_simulationLegend->setAliveCheck([]() { return false; });
 		_viewportWidget->update();
@@ -1238,6 +1242,7 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 		session.markers = std::move(markers);
 		pushSimulationMarkers();
 	}
+	updateSimulationGlyphs(session, true, lo, hi);
 	session.shownLo = lo;
 	session.shownHi = hi;
 	session.shownScalar = std::move(scalar); // last use of `scalar`: the hover probe reads it
@@ -1250,4 +1255,80 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 		refreshSimulationDisplay(*partner);
 		_refreshingComparePartner = false;
 	}
+}
+
+void ModelViewer::updateSimulationGlyphs(SimulationSession& session, bool haveSurfaceRange, float surfaceLo, float surfaceHi)
+{
+	session.glyphInfo.clear();
+	if (!_viewportWidget || !session.dataset || !session.surface)
+		return;
+	const ResultDataset& dataset = *session.dataset;
+	const SimulationViewState& state = session.state;
+	int fieldIndex = state.glyphField;
+	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size()
+	    || !isGlyphField(dataset.fields[static_cast<std::size_t>(fieldIndex)]))
+		fieldIndex = chooseDefaultGlyphField(dataset);
+	if (!state.glyphs || fieldIndex < 0)
+	{
+		_viewportWidget->clearSimulationGlyphs(session.meshUuid);
+		return;
+	}
+	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
+	const bool cellField = field.association == ResultFieldAssociation::Cell;
+	const std::size_t wanted = static_cast<std::size_t>(std::clamp(state.glyphCount, 20, 50000));
+
+	// The sampled sites are kept between refreshes: they depend only on the field's association and the arrow count.
+	if (session.glyphSites.empty() || session.glyphSitesCell != cellField || session.glyphSitesCount != static_cast<int>(wanted))
+	{
+		session.glyphSites = selectSurfaceGlyphSites(*session.surface, cellField, wanted);
+		session.glyphSitesCell = cellField;
+		session.glyphSitesCount = static_cast<int>(wanted);
+		session.glyphSitesField = fieldIndex;
+	}
+	if (session.surfaceDiagonal < 0.0)
+		session.surfaceDiagonal = surfaceDiagonal(*session.surface);
+
+	// The largest magnitude over all steps sets the arrow length and the colour range, so animation frames stay comparable.
+	float referenceMax = 0.0f, ownLo = 0.0f, ownHi = 0.0f;
+	bool haveAllSteps = false;
+	if (dataset.stepCount() > 1 && cachedAllStepsRange(dataset, session.glyphRangeCache, fieldIndex, -1, ownLo, ownHi))
+	{
+		referenceMax = ownHi;
+		haveAllSteps = true;
+	}
+	GlyphOptions options;
+	options.target = wanted;
+	options.scale = state.glyphScale;
+	options.scaleByMagnitude = state.glyphScaleByMagnitude;
+	GlyphSet set;
+	if (!buildGlyphSet(dataset, *session.surface, fieldIndex, state.step, session.glyphSites, session.surfaceDiagonal, options, referenceMax, set))
+	{
+		_viewportWidget->clearSimulationGlyphs(session.meshUuid);
+		session.glyphInfo = tr("No arrows at this step: '%1' has no vector data here.").arg(field.name);
+		return;
+	}
+	if (!haveAllSteps)
+	{
+		ownLo = set.fieldMin;
+		ownHi = set.fieldMax;
+	}
+
+	// The arrows show the surface's own field: use its colour range, so equal colours mean equal values in the legend too.
+	const bool likeSurface = haveSurfaceRange && state.fieldIndex == fieldIndex && state.component == -1;
+	float lo = likeSurface ? surfaceLo : ownLo, hi = likeSurface ? surfaceHi : ownHi;
+	if (!(hi > lo))
+		hi = lo + std::max(1.0e-6f, std::fabs(lo) * 1.0e-6f);
+	const AnalysisColormap colormap = static_cast<AnalysisColormap>(state.colormap);
+	set.colors.reserve(set.count() * 3);
+	for (float value : set.values)
+	{
+		const QColor c = AnalysisColorRamp::colorForNormalized(std::clamp((value - lo) / (hi - lo), 0.0f, 1.0f), colormap);
+		set.colors.insert(set.colors.end(), { static_cast<float>(c.redF()), static_cast<float>(c.greenF()), static_cast<float>(c.blueF()) });
+	}
+	if (likeSurface)
+		session.glyphInfo = tr("Arrows: %1, coloured as in the legend.").arg(field.name);
+	else
+		session.glyphInfo = tr("Arrows: %1, coloured by magnitude from %2 to %3%4.")
+			.arg(field.name).arg(lo, 0, 'g', 4).arg(hi, 0, 'g', 4).arg(set.unit.isEmpty() ? QString() : QStringLiteral(" ") + set.unit);
+	_viewportWidget->setSimulationGlyphs(session.meshUuid, std::move(set));
 }

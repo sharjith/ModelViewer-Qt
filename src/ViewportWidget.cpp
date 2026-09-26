@@ -269,6 +269,10 @@ _floorPlane(nullptr),
 	_fillHolesController = new FillHolesController(_renderCtrl, this);
 	_gpuResourceRegistry.add(_fillHolesController, GpuResourcePhase::Decorations);
 
+	// Vector-field arrows of simulation results - a data cache ModelViewer pushes into.
+	_simulationGlyphController = new SimulationGlyphController(_renderCtrl, this);
+	_gpuResourceRegistry.add(_simulationGlyphController, GpuResourcePhase::Decorations);
+
 
 	// Setup the view toolbar
 	_tabbedToolbar = new TabbedViewportToolbar(this);
@@ -2322,6 +2326,7 @@ void ViewportWidget::setCameraUpAxisZUp(bool zUp, bool syncToolbar)
 
 void ViewportWidget::setViewMode(ViewMode mode)
 {
+	resetComparePaneViews();
 	// Home / standard-view / axonometric changes are camera motion, but
 	// deliberately DON'T take the interactive-GPU-PT path
 	// (cameraInteracting=false instead of true) - unlike a live mouse drag
@@ -2409,6 +2414,7 @@ void ViewportWidget::updateViewSelectorState()
 
 void ViewportWidget::fitAll()
 {
+	resetComparePaneViews(); // compare mode: every pane back to the shared orientation, fitted to its own result
 	// Fit-to-view is a camera move, not a scene mutation, but (like
 	// setViewMode() above) deliberately does NOT take the interactive-GPU-PT
 	// path - see that method's doc comment for why: this animation's
@@ -2529,6 +2535,7 @@ void ViewportWidget::fitAll()
 
 void ViewportWidget::fitAllImmediate()
 {
+	resetComparePaneViews();
 	// See fitAll()'s identical guard for the full reasoning.
 	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
 	const bool hasVisibleAnnotationContent =
@@ -3659,11 +3666,34 @@ void ViewportWidget::setVertexMarkers(const QVector<VertexMarker>& markers)
 	update();
 }
 
+void ViewportWidget::setSimulationGlyphs(const QUuid& meshUuid, GlyphSet glyphs)
+{
+	_simulationGlyphController->setGlyphs(meshUuid, std::move(glyphs));
+	update();
+}
+
+void ViewportWidget::clearSimulationGlyphs(const QUuid& meshUuid)
+{
+	_simulationGlyphController->clearGlyphs(meshUuid);
+	update();
+}
+
+void ViewportWidget::drawSimulationGlyphs(Camera* camera)
+{
+	if (!_simulationGlyphController || !_simulationGlyphController->hasGlyphs())
+		return;
+	_simulationGlyphController->drawOverlay(camera, [this](const QUuid& meshUuid) -> const RenderableMesh* {
+		const SceneMesh* mesh = getMeshByUuid(meshUuid);
+		return mesh && isMeshVisible(mesh, -1) ? mesh : nullptr; // in compare mode isMeshVisible() also applies the pane filter
+	});
+}
+
 void ViewportWidget::drawVertexMarkers()
 {
 	if (_vertexMarkers.isEmpty() || !_axisTextRenderer)
 		return;
-	const QMatrix4x4 view = _viewCtrl.viewMatrix();
+	const QMatrix4x4 sharedView = _viewCtrl.viewMatrix();
+	const QMatrix4x4 sharedProjection = _viewCtrl.projectionMatrix();
 	const QRect viewportRect(0, 0, width(), height());
 	for (const VertexMarker& marker : std::as_const(_vertexMarkers))
 	{
@@ -3676,6 +3706,18 @@ void ViewportWidget::drawVertexMarkers()
 			continue;
 		const QVector3D world(points[p], points[p + 1], points[p + 2]);
 
+		// In compare mode the result is seen through the camera of its own pane.
+		QMatrix4x4 view = sharedView, projection = sharedProjection;
+		if (_compareActive)
+		{
+			const int markerPane = comparePaneOfMesh(marker.meshUuid);
+			if (markerPane >= 0 && static_cast<std::size_t>(markerPane) < _comparePaneCameras.size())
+			{
+				view = _comparePaneCameras[static_cast<std::size_t>(markerPane)].getViewMatrix();
+				projection = _comparePaneCameras[static_cast<std::size_t>(markerPane)].getProjectionMatrix();
+			}
+		}
+
 		// Facing test in view space: the camera looks down -Z, so a point faces it when its normal points back
 		// toward the eye (from the point to the origin for a perspective camera).
 		const QVector3D viewPos = view.map(world);
@@ -3683,7 +3725,7 @@ void ViewportWidget::drawVertexMarkers()
 		if (QVector3D::dotProduct(viewNormal, -viewPos) <= 0.0f)
 			continue;
 
-		const QVector3D projected = world.project(view, _viewCtrl.projectionMatrix(), viewportRect);
+		const QVector3D projected = world.project(view, projection, viewportRect);
 		if (projected.z() < 0.0f || projected.z() > 1.0f)
 			continue;
 		float x = projected.x();
@@ -3730,13 +3772,28 @@ void ViewportWidget::updateSurfaceAnalysisHoverReadout(const QPoint& pixel)
 	{
 		QString text;
 		QColor textColor = Qt::white;
-		const std::vector<ComparePane> panes = computeComparePanes(width(), height(), static_cast<int>(_compareMeshes.size()), _compareArrangement);
+		// The panes of the last frame (they carry each pane's zoom); computed afresh before the first one is drawn.
+		const std::vector<ComparePane> panes = _comparePanes.size() == static_cast<std::size_t>(_compareMeshes.size())
+			? _comparePanes : computeComparePanes(width(), height(), static_cast<int>(_compareMeshes.size()), _compareArrangement);
 		const int pane = comparePaneAt(panes, pixel);
 		if (pane >= 0 && _viewer && _viewer->hasSimulationResults() && pane < _compareMeshes.size())
 		{
+			// The pick runs through the camera of that pane (put back right after).
+			const bool ownCamera = static_cast<std::size_t>(pane) < _comparePaneCameras.size();
+			const Camera sharedCamera = *_primaryCamera;
+			if (ownCamera)
+			{
+				*_primaryCamera = _comparePaneCameras[static_cast<std::size_t>(pane)];
+				_viewCtrl.syncMatricesFromCamera(*_primaryCamera);
+			}
 			_selectionManager->setPickOnlyMesh(_compareMeshes[pane]);
 			const MeshSurfaceAnchor anchor = _selectionManager->pickSurfaceAnchor(pixel + panes[static_cast<std::size_t>(pane)].toWindow);
 			_selectionManager->setPickOnlyMesh(QUuid());
+			if (ownCamera)
+			{
+				*_primaryCamera = sharedCamera;
+				_viewCtrl.syncMatricesFromCamera(*_primaryCamera);
+			}
 			text = _viewer->simulationProbeText(anchor, textColor);
 		}
 		if (text == _surfaceAnalysisHoverText && pixel == _surfaceAnalysisHoverPixel && textColor == _surfaceAnalysisHoverTextColor)
@@ -6698,6 +6755,7 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 		_seamMarkingController->drawSeamOverlay(_primaryCamera);
 	if (_fillHolesController)
 		_fillHolesController->drawOverlay(_primaryCamera);
+	drawSimulationGlyphs(_primaryCamera);
 }
 
 void ViewportWidget::applyExplodedViewTransforms(const QMap<int, TransformState>& transforms, bool fitView)
@@ -6766,6 +6824,8 @@ void ViewportWidget::renderComparePanes(QColor& topColor, QColor& botColor)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	_comparePanes = computeComparePanes(width(), height(), static_cast<int>(_compareMeshes.size()), _compareArrangement);
+	updateComparePaneViews();
+	const Camera sharedCamera = *_primaryCamera; // put back after the panes: each pane draws with its own camera
 	glEnable(GL_SCISSOR_TEST);
 	for (std::size_t i = 0; i < _comparePanes.size() && i < static_cast<std::size_t>(_compareMeshes.size()); ++i)
 	{
@@ -6778,11 +6838,16 @@ void ViewportWidget::renderComparePanes(QColor& topColor, QColor& botColor)
 		glViewport(pane.glViewport.x(), pane.glViewport.y(), pane.glViewport.width(), pane.glViewport.height());
 		const QSet<QUuid> onlyThisResult{ _compareMeshes[static_cast<int>(i)] };
 		_paneMeshFilter = &onlyThisResult;
+		if (i < _comparePaneCameras.size())
+			*_primaryCamera = _comparePaneCameras[i];
 		render(_primaryCamera);
+		drawSimulationGlyphs(_primaryCamera); // this pane's result only (the filter is still set)
 		_paneMeshFilter = nullptr;
-		// The centre trihedron at the world origin, once per pane, inside the pane's shifted viewport and scissor.
-		if (_viewCtrl.showAxis() && _viewCtrl.userShowAxisOverride() && !_capturingCleanFrame)
-			drawAxis(_primaryCamera);
+	}
+	if (!_comparePaneCameras.empty())
+	{
+		*_primaryCamera = sharedCamera;
+		_viewCtrl.syncMatricesFromCamera(*_primaryCamera);
 	}
 	// Thin white separator on every pane boundary, the same look as the multi-view's split lines (a 1 px line, drawn
 	// as a scissored clear so it needs no shader or buffer).
@@ -6821,8 +6886,236 @@ void ViewportWidget::setCompareResults(const QVector<QUuid>& meshUuids, CompareA
 	_compareMeshes = meshUuids;
 	_compareArrangement = arrangement;
 	_compareActive = _compareMeshes.size() >= 2;
+	resetComparePaneViews();
 	_comparePanes = computeComparePanes(width(), height(), static_cast<int>(_compareMeshes.size()), arrangement);
 	update();
+}
+
+std::vector<QVector3D> ViewportWidget::sampleMeshPoints(const SceneMesh* mesh) const
+{
+	// The same sampling collectVisibleCorners() uses: at most ~1024 vertices, evenly spaced, first and last included.
+	constexpr int kMaxSamples = 1024;
+	std::vector<QVector3D> points;
+	if (!mesh)
+		return points;
+	const std::vector<float>& pts = mesh->getTrsfPoints();
+	const QVector3D offset = mesh->explosionOffset();
+	const int count = static_cast<int>(pts.size()) / 3;
+	if (count <= 0)
+	{
+		for (const QVector3D& c : mesh->getBoundingBox().getCorners())
+			points.push_back(c + offset);
+		return points;
+	}
+	const int stride = std::max(1, count / kMaxSamples);
+	for (int j = 0; j < count; j += stride)
+		points.emplace_back(pts[j * 3] + offset.x(), pts[j * 3 + 1] + offset.y(), pts[j * 3 + 2] + offset.z());
+	points.emplace_back(pts[(count - 1) * 3] + offset.x(), pts[(count - 1) * 3 + 1] + offset.y(), pts[(count - 1) * 3 + 2] + offset.z());
+	return points;
+}
+
+// Back to the shared camera's orientation, every result fitted to its pane (done on the next frame: zoom 0 = not fitted).
+void ViewportWidget::resetComparePaneViews()
+{
+	_comparePaneViews.assign(_compareActive ? static_cast<std::size_t>(_compareMeshes.size()) : 0u, ComparePaneView());
+	_paneNav = PaneNavigation();
+}
+
+// Builds every pane's camera for this frame (see ComparePaneView) and fits the panes that have not been fitted yet. The
+// pane geometry itself stays the plain shifted full-window view (ComparePaneLayout.h): only the camera differs per pane.
+void ViewportWidget::updateComparePaneViews()
+{
+	_comparePaneCameras.clear();
+	const std::size_t count = _comparePanes.size();
+	if (count < 2 || static_cast<std::size_t>(_compareMeshes.size()) < count || _primaryCamera->getMode() != Camera::CameraMode::Orbit)
+		return;
+	if (_comparePaneViews.size() != count)
+		_comparePaneViews.assign(count, ComparePaneView());
+
+	const Camera base = *_primaryCamera;
+	const QVector3D ex = base.getRightVector().normalized();
+	const QVector3D ey = base.getUpVector().normalized();
+	const QVector3D ez = -base.getViewDir().normalized();
+	const double w = width(), h = height();
+	const QRect windowRect(0, 0, width(), height());
+
+	std::vector<Camera> cameras;
+	cameras.reserve(count);
+	for (std::size_t i = 0; i < count; ++i)
+	{
+		const std::vector<QVector3D> points = sampleMeshPoints(getMeshByUuid(_compareMeshes[static_cast<int>(i)]));
+		if (points.empty())
+			return; // a result that is gone: the shared camera draws
+		QVector3D lo = points.front(), hi = points.front();
+		for (const QVector3D& p : points)
+		{
+			lo = QVector3D(std::min(lo.x(), p.x()), std::min(lo.y(), p.y()), std::min(lo.z(), p.z()));
+			hi = QVector3D(std::max(hi.x(), p.x()), std::max(hi.y(), p.y()), std::max(hi.z(), p.z()));
+		}
+		const QVector3D pivot = (lo + hi) * 0.5f;
+
+		ComparePaneView& view = _comparePaneViews[i];
+		// The pane's axes in the world: the scene is turned by `rotation` in view space, so the camera axes turn the other way.
+		const QQuaternion inverse = view.rotation.inverted();
+		auto axisOf = [&](float ux, float uy, float uz) {
+			const QVector3D u = inverse.rotatedVector(QVector3D(ux, uy, uz));
+			return (ex * u.x() + ey * u.y() + ez * u.z()).normalized();
+		};
+		const QVector3D nx = axisOf(1, 0, 0), ny = axisOf(0, 1, 0), nz = axisOf(0, 0, 1);
+
+		// The camera at zoom 1 looking at the centre: what the fit and the pixel scale are measured on.
+		Camera camera = base;
+		camera.setView(pivot, -nz, ny, nx);
+		const QMatrix4x4 view1 = camera.getViewMatrix(), projection1 = camera.getProjectionMatrix();
+		const QVector3D origin = pivot.project(view1, projection1, windowRect);
+		const QVector3D unitX = (pivot + nx).project(view1, projection1, windowRect);
+		view.pixelsPerUnit = std::max(1.0e-6f, QVector2D(unitX.x() - origin.x(), unitX.y() - origin.y()).length());
+
+		const ComparePane& pane = _comparePanes[i];
+		if (view.zoom <= 0.0f || view.fittedPaneSize != pane.rect.size())
+		{
+			double minX = 1.0e30, maxX = -1.0e30, minY = 1.0e30, maxY = -1.0e30;
+			for (const QVector3D& p : points)
+			{
+				const QVector3D s = p.project(view1, projection1, windowRect);
+				if (!std::isfinite(s.x()) || !std::isfinite(s.y()))
+					continue;
+				minX = std::min(minX, static_cast<double>(s.x()));
+				maxX = std::max(maxX, static_cast<double>(s.x()));
+				minY = std::min(minY, h - s.y());
+				maxY = std::max(maxY, h - s.y());
+			}
+			if (maxX >= minX && maxY >= minY)
+			{
+				const double fitX = pane.rect.width() / (std::max(maxX - minX, 1.0) * 1.05);
+				const double fitY = pane.rect.height() / (std::max(maxY - minY, 1.0) * 1.05);
+				view.zoom = static_cast<float>(std::clamp(std::min(fitX, fitY), 1.0e-3, 1.0e4));
+				// Put the middle of what is seen (not just the box centre) on the pane's centre.
+				const double dx = (minX + maxX) * 0.5 - w * 0.5, dy = (minY + maxY) * 0.5 - h * 0.5;
+				view.offset = QPointF(dx / view.pixelsPerUnit, -dy / view.pixelsPerUnit);
+			}
+			else
+				view.zoom = 1.0f;
+			view.fittedPaneSize = pane.rect.size();
+		}
+
+		camera.setView(pivot + nx * static_cast<float>(view.offset.x()) + ny * static_cast<float>(view.offset.y()), -nz, ny, nx);
+		camera.setViewRange(base.getViewRange() / std::max(view.zoom, 1.0e-6f));
+		cameras.push_back(camera);
+	}
+	_comparePaneCameras = std::move(cameras);
+}
+
+// One navigation step in a pane (or in every pane when the cameras are linked). `delta` is in pixels; `anchorInPane` is the
+// cursor relative to the pane's centre (for zooming about the cursor).
+void ViewportWidget::navigateComparePane(int pane, PaneNavigation::Mode mode, const QPointF& delta, const QPointF& anchorInPane,
+                                         double wheelFactor)
+{
+	if (pane < 0 || static_cast<std::size_t>(pane) >= _comparePaneViews.size())
+		return;
+	auto step = [&](ComparePaneView& view) {
+		if (view.zoom <= 0.0f)
+			return; // not fitted yet (no frame drawn since the reset)
+		const double pixelsPerWorld = static_cast<double>(view.pixelsPerUnit) * view.zoom;
+		switch (mode)
+		{
+		case PaneNavigation::Mode::Rotate:
+		{
+			// Dragging right turns the front of the model right, dragging down turns it down.
+			const QQuaternion turnY = QQuaternion::fromAxisAndAngle(0.0f, 1.0f, 0.0f, static_cast<float>(delta.x() * 0.5));
+			const QQuaternion turnX = QQuaternion::fromAxisAndAngle(1.0f, 0.0f, 0.0f, static_cast<float>(delta.y() * 0.5));
+			view.rotation = (turnY * turnX * view.rotation).normalized();
+			break;
+		}
+		case PaneNavigation::Mode::Pan:
+			view.offset += QPointF(-delta.x() / pixelsPerWorld, delta.y() / pixelsPerWorld);
+			break;
+		case PaneNavigation::Mode::Zoom:
+		{
+			const double newZoom = std::clamp(static_cast<double>(view.zoom) * wheelFactor, 1.0e-3, 1.0e5);
+			// The point under the cursor stays under it.
+			const double shrink = 1.0 - view.zoom / newZoom;
+			view.offset += QPointF(anchorInPane.x() / pixelsPerWorld * shrink, -anchorInPane.y() / pixelsPerWorld * shrink);
+			view.zoom = static_cast<float>(newZoom);
+			break;
+		}
+		case PaneNavigation::Mode::None:
+			break;
+		}
+	};
+	if (_compareLinkCameras)
+		for (ComparePaneView& view : _comparePaneViews)
+			step(view);
+	else
+		step(_comparePaneViews[static_cast<std::size_t>(pane)]);
+	update();
+}
+
+// The pane under `point`, from the panes of the last frame.
+static int comparePaneUnder(const std::vector<ComparePane>& panes, const QPoint& point)
+{
+	return comparePaneAt(panes, point);
+}
+
+bool ViewportWidget::comparePaneNavPress(QMouseEvent* e)
+{
+	if (!_compareActive || _comparePaneCameras.empty())
+		return false;
+	const int pane = comparePaneUnder(_comparePanes, e->pos());
+	if (pane < 0)
+		return false;
+	PaneNavigation::Mode mode = PaneNavigation::Mode::None;
+	if (e->button() == Qt::MiddleButton || (e->button() == Qt::LeftButton && _viewCtrl.viewRotating()))
+		mode = PaneNavigation::Mode::Rotate;
+	else if (e->button() == Qt::RightButton || (e->button() == Qt::LeftButton && _viewCtrl.viewPanning()))
+		mode = PaneNavigation::Mode::Pan;
+	else if (e->button() == Qt::LeftButton && _viewCtrl.viewZooming())
+		mode = PaneNavigation::Mode::Zoom;
+	if (mode == PaneNavigation::Mode::None)
+		return false; // a plain left click and the like: not navigation
+	setFocus();
+	_paneNav.mode = mode;
+	_paneNav.pane = pane;
+	_paneNav.last = e->pos();
+	return true;
+}
+
+bool ViewportWidget::comparePaneNavMove(QMouseEvent* e)
+{
+	if (_paneNav.mode == PaneNavigation::Mode::None || _paneNav.pane < 0)
+		return false;
+	const QPointF delta = QPointF(e->pos() - _paneNav.last);
+	_paneNav.last = e->pos();
+	if (delta.isNull())
+		return true;
+	const ComparePane& pane = _comparePanes[static_cast<std::size_t>(_paneNav.pane)];
+	const QPointF centre(pane.rect.x() + pane.rect.width() / 2.0, pane.rect.y() + pane.rect.height() / 2.0);
+	// Zoom by dragging: down zooms out, up zooms in.
+	navigateComparePane(_paneNav.pane, _paneNav.mode, delta, QPointF(e->pos()) - centre, std::exp(-delta.y() * 0.01));
+	return true;
+}
+
+bool ViewportWidget::comparePaneNavRelease(QMouseEvent* e)
+{
+	Q_UNUSED(e);
+	if (_paneNav.mode == PaneNavigation::Mode::None)
+		return false;
+	_paneNav = PaneNavigation();
+	return true;
+}
+
+bool ViewportWidget::comparePaneNavWheel(QWheelEvent* e)
+{
+	if (!_compareActive || _comparePaneCameras.empty() || e->angleDelta().y() == 0)
+		return false;
+	const QPoint at = e->position().toPoint();
+	const int pane = comparePaneUnder(_comparePanes, at);
+	if (pane < 0)
+		return false;
+	const ComparePane& target = _comparePanes[static_cast<std::size_t>(pane)];
+	const QPointF centre(target.rect.x() + target.rect.width() / 2.0, target.rect.y() + target.rect.height() / 2.0);
+	navigateComparePane(pane, PaneNavigation::Mode::Zoom, QPointF(), QPointF(at) - centre, std::pow(1.0015, static_cast<double>(e->angleDelta().y())));
+	return true;
 }
 
 void ViewportWidget::clearCompare()
@@ -6830,6 +7123,9 @@ void ViewportWidget::clearCompare()
 	_compareActive = false;
 	_compareMeshes.clear();
 	_comparePanes.clear();
+	_comparePaneViews.clear();
+	_comparePaneCameras.clear();
+	_paneNav = PaneNavigation();
 	_paneMeshFilter = nullptr;
 	update();
 }
@@ -11185,6 +11481,8 @@ void ViewportWidget::render(Camera* camera)
 		_seamMarkingController->drawSeamOverlay(camera);
 	if (_viewCtrl.multiViewActive() && _fillHolesController)
 		_fillHolesController->drawOverlay(camera);
+	if (_viewCtrl.multiViewActive())
+		drawSimulationGlyphs(camera);
 	if (_renderCtrl.showLights()) drawLights();
 	if (profileRendering)
 		RenderableMesh::recordFrameCpuMs(static_cast<double>(frameTimer.nsecsElapsed()) / 1000000.0);
@@ -14046,6 +14344,8 @@ void ViewportWidget::hideEvent(QHideEvent* event)
 
 void ViewportWidget::mousePressEvent(QMouseEvent* e)
 {
+	if (comparePaneNavPress(e))
+		return; // compare mode: orbit / pan / zoom of the pane under the cursor
 	setFocus();
 	checkAndStopTimers();
 	// A plain click (selection, gizmo activation, view-cube click, focus
@@ -14338,6 +14638,8 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 
 void ViewportWidget::mouseReleaseEvent(QMouseEvent* e)
 {
+	if (comparePaneNavRelease(e))
+		return;
 	if ((e->button() & Qt::LeftButton) && _viewCtrl.transformGizmoTranslating())
 	{
 		finishTransformGizmoTranslationDrag(true);
@@ -14643,6 +14945,8 @@ void ViewportWidget::mouseDoubleClickEvent(QMouseEvent* e)
 
 void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 {
+	if (comparePaneNavMove(e))
+		return;
 	QPoint currentPos = e->pos();
 	qint64 currentTime = e->timestamp();
 	QPoint delta = currentPos - _viewCtrl.lastMousePos();
@@ -15080,6 +15384,8 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 
 void ViewportWidget::wheelEvent(QWheelEvent* e)
 {
+	if (comparePaneNavWheel(e))
+		return;
 	// Wheel zoom is manual camera interaction just like a mouse-drag - stop
 	// an auto-spinning turntable the same way checkAndStopTimers() does for
 	// mouse presses (confirmed real bug: wheelEvent never called it at all,

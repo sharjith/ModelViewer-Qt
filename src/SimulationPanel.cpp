@@ -1,6 +1,7 @@
 #include "SimulationPanel.h"
 
 #include "ResultUnits.h"
+#include "SimulationGlyphs.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -14,6 +15,8 @@
 #include <QSignalBlocker>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QSettings>
+#include <QSpinBox>
 #include <QStackedWidget>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -151,6 +154,12 @@ void SimulationPanel::buildUi()
 	                                   "(only while both show the same unit)."));
 	form->addRow(_compareStackedCheck);
 	form->addRow(_compareSharedCheck);
+	_compareLinkCheck = new QCheckBox(tr("Link the cameras"), content);
+	_compareLinkCheck->setToolTip(tr("Off: every pane has its own camera - orbit (middle button), pan (right button) and zoom "
+	                                 "(wheel) act on the pane under the cursor. On: they move all panes together. Fit restores each "
+	                                 "result to its own pane."));
+	_compareLinkCheck->setChecked(QSettings().value(QStringLiteral("Simulation/compareLinkCameras"), false).toBool());
+	form->addRow(_compareLinkCheck);
 
 	_fileLabel = new QLabel(content);
 	_fileLabel->setWordWrap(true);
@@ -240,6 +249,33 @@ void SimulationPanel::buildUi()
 	_deformInfoLabel->setWordWrap(true);
 	form->addRow(_deformInfoLabel);
 
+	// ---- Vector arrows: one arrow per sampled point of the surface along a 3-component field, coloured by magnitude.
+	_glyphCheck = new QCheckBox(tr("Show vector arrows"), content);
+	_glyphCheck->setToolTip(tr("Draw an arrow along a vector field (velocity, displacement ...) at sampled points of the surface, "
+	                           "coloured by the vector's magnitude."));
+	form->addRow(_glyphCheck);
+	_glyphFieldCombo = new QComboBox(content);
+	form->addRow(tr("Arrow field:"), _glyphFieldCombo);
+	_glyphScaleSpin = new QDoubleSpinBox(content);
+	_glyphScaleSpin->setRange(0.1, 20.0);
+	_glyphScaleSpin->setDecimals(2);
+	_glyphScaleSpin->setSingleStep(0.1);
+	_glyphScaleSpin->setKeyboardTracking(false);
+	_glyphScaleSpin->setToolTip(tr("Arrow size. 1 makes the largest arrow 5 % of the model size."));
+	form->addRow(tr("Arrow size:"), _glyphScaleSpin);
+	_glyphCountSpin = new QSpinBox(content);
+	_glyphCountSpin->setRange(20, 50000);
+	_glyphCountSpin->setSingleStep(100);
+	_glyphCountSpin->setKeyboardTracking(false);
+	_glyphCountSpin->setToolTip(tr("About this many arrows, spread evenly over the surface."));
+	form->addRow(tr("Arrow count:"), _glyphCountSpin);
+	_glyphMagnitudeCheck = new QCheckBox(tr("Scale arrows by magnitude"), content);
+	_glyphMagnitudeCheck->setToolTip(tr("Off: every arrow has the same length and only the colour shows the magnitude."));
+	form->addRow(_glyphMagnitudeCheck);
+	_glyphInfoLabel = new QLabel(content);
+	_glyphInfoLabel->setWordWrap(true);
+	form->addRow(_glyphInfoLabel);
+
 	_noteLabel = new QLabel(content);
 	_noteLabel->setWordWrap(true);
 	form->addRow(_noteLabel);
@@ -287,6 +323,11 @@ void SimulationPanel::buildUi()
 		if (!_updating && _compareActive)
 			emit compareOptionsChanged(_compareStackedCheck->isChecked(), _compareSharedCheck->isChecked());
 	});
+	connect(_compareLinkCheck, &QCheckBox::toggled, this, [this](bool linked) {
+		QSettings().setValue(QStringLiteral("Simulation/compareLinkCameras"), linked);
+		if (!_updating && _compareActive)
+			emit compareOptionsChanged(_compareStackedCheck->isChecked(), _compareSharedCheck->isChecked());
+	});
 	connect(_compareSharedCheck, &QCheckBox::toggled, this, [this](bool) {
 		if (!_updating && _compareActive)
 			emit compareOptionsChanged(_compareStackedCheck->isChecked(), _compareSharedCheck->isChecked());
@@ -303,6 +344,15 @@ void SimulationPanel::buildUi()
 			emitState();
 	});
 	connect(_deformScaleSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_updating) emitState(); });
+	connect(_glyphCheck, &QCheckBox::toggled, this, [this](bool) {
+		updateGlyphEnabled();
+		if (!_updating)
+			emitState();
+	});
+	connect(_glyphFieldCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { if (!_updating) emitState(); });
+	connect(_glyphScaleSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_updating) emitState(); });
+	connect(_glyphCountSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int) { if (!_updating) emitState(); });
+	connect(_glyphMagnitudeCheck, &QCheckBox::toggled, this, [this](bool) { if (!_updating) emitState(); });
 	connect(_deformAutoButton, &QPushButton::clicked, this, [this]() {
 		_deformScaleSpin->setValue(_autoDeformScale); // emits through valueChanged (unless it already is that value)
 	});
@@ -400,6 +450,15 @@ void SimulationPanel::setSession(const SimulationSession* session)
 			.arg(_dataset->fields[static_cast<std::size_t>(session->displacementField)].name)
 		: tr("This result has no displacement field, so it cannot be shown deformed."));
 
+	populateGlyphFields(state.glyphField >= 0 ? state.glyphField : chooseDefaultGlyphField(*_dataset));
+	_glyphCheck->setChecked(_glyphFieldCombo->isEnabled() && state.glyphs);
+	_glyphScaleSpin->setValue(state.glyphScale);
+	_glyphCountSpin->setValue(state.glyphCount);
+	_glyphMagnitudeCheck->setChecked(state.glyphScaleByMagnitude);
+	_glyphInfoLabel->setText(session->glyphInfo);
+	_glyphInfoLabel->setVisible(!session->glyphInfo.isEmpty());
+	updateGlyphEnabled();
+
 	// Custom range: show the state's values; automatic: refreshRangeEdits() shows the data range.
 	if (state.customRange)
 		setRangeDisplay(state.rangeMin, state.rangeMax, true, false);
@@ -412,6 +471,34 @@ void SimulationPanel::setSession(const SimulationSession* session)
 
 	_stack->setCurrentIndex(1);
 	_updating = false;
+}
+
+void SimulationPanel::populateGlyphFields(int selectedFieldIndex)
+{
+	_glyphFieldCombo->clear();
+	if (_dataset)
+		for (std::size_t i = 0; i < _dataset->fields.size(); ++i)
+		{
+			const ResultField& f = _dataset->fields[i];
+			if (!isGlyphField(f) || f.derivedFromField >= 0)
+				continue;
+			_glyphFieldCombo->addItem(f.name + (f.association == ResultFieldAssociation::Cell ? tr(" [cells]") : QString()), static_cast<int>(i));
+		}
+	const bool any = _glyphFieldCombo->count() > 0;
+	if (!any)
+		_glyphFieldCombo->addItem(tr("(no vector fields)"), -1);
+	_glyphFieldCombo->setCurrentIndex(std::max(0, _glyphFieldCombo->findData(selectedFieldIndex)));
+	_glyphCheck->setEnabled(any);
+	_glyphFieldCombo->setEnabled(any);
+}
+
+void SimulationPanel::updateGlyphEnabled()
+{
+	const bool on = _glyphCheck->isChecked() && _glyphCheck->isEnabled();
+	_glyphFieldCombo->setEnabled(_glyphCheck->isEnabled());
+	_glyphScaleSpin->setEnabled(on);
+	_glyphCountSpin->setEnabled(on);
+	_glyphMagnitudeCheck->setEnabled(on);
 }
 
 void SimulationPanel::populateFields(int selectedFieldIndex)
@@ -570,6 +657,11 @@ SimulationViewState SimulationPanel::currentState() const
 	state.markExtrema = _markersCheck->isChecked();
 	state.deform = _deformCheck->isChecked();
 	state.deformScale = _deformScaleSpin->value();
+	state.glyphs = _glyphCheck->isChecked() && _glyphCheck->isEnabled();
+	state.glyphField = _glyphFieldCombo->currentData().isValid() ? _glyphFieldCombo->currentData().toInt() : -1;
+	state.glyphScale = _glyphScaleSpin->value();
+	state.glyphCount = _glyphCountSpin->value();
+	state.glyphScaleByMagnitude = _glyphMagnitudeCheck->isChecked();
 	return state;
 }
 

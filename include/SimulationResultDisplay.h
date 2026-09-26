@@ -32,6 +32,7 @@ struct LoadedSimulationResult
 LoadedSimulationResult loadSimulationResult(const QString& path, const std::atomic<bool>* cancel = nullptr);
 
 struct SimulationSession;
+struct SimulationRangeCache;
 
 // One scalar per dataset node - or, for a cell field (cellData), per dataset cell - ready to be shown as a colour map.
 // Node data is interpolated smoothly across the surface; cell data is constant over a cell, so every boundary triangle
@@ -62,6 +63,8 @@ bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int compon
 // step has data. `cachedAllStepsRange()` does the same through the session's cache.
 bool computeAllStepsRange(const ResultDataset& dataset, int fieldIndex, int component, float& lo, float& hi);
 bool cachedAllStepsRange(SimulationSession& session, int fieldIndex, int component, float& lo, float& hi);
+// The same through a cache of the caller's (the arrows' field has its own, so it does not evict the colour range's).
+bool cachedAllStepsRange(const ResultDataset& dataset, SimulationRangeCache& cache, int fieldIndex, int component, float& lo, float& hi);
 
 // Text for a step: "Mode 3 - 73971 Hz", "t = 0.5", "0.0194 Hz". Empty for an out-of-range step.
 QString stepTimeText(const ResultStep& step);
@@ -160,6 +163,12 @@ struct SimulationViewState
 	bool deform = false;
 	double deformScale = 1.0;
 	bool markExtrema = false; // label the smallest and largest value on the visible surface
+	// Vector arrows: one arrow per sampled point of the surface along a 3-component field, coloured by its magnitude.
+	bool glyphs = false;
+	int glyphField = -1;              // index into ResultDataset::fields; -1 = chosen automatically (chooseDefaultGlyphField)
+	double glyphScale = 1.0;          // 1 = the largest arrow is 5 % of the model diagonal
+	int glyphCount = 800;             // about this many arrows
+	bool glyphScaleByMagnitude = true; // false = all arrows the same length
 };
 
 // Cache of the all-steps data range of one (field, component, units) so playback does not rescan every step on
@@ -211,6 +220,15 @@ struct SimulationSession
 	int displacementField = -1;   // findDisplacementField(), -1 = the result cannot be deformed
 	bool modal = false;           // isModalResult(): mode shapes are shown normalised, see modalDisplayFactor()
 	double autoDeformScale = 1.0; // autoDeformScale() for it
+	// Vector arrows (see SimulationGlyphs.h). The sampled sites depend only on the field's association and the arrow count,
+	// so they are kept between refreshes (a playback frame only rebuilds the vectors).
+	std::vector<std::uint32_t> glyphSites;
+	int glyphSitesField = -1;
+	int glyphSitesCount = 0;
+	bool glyphSitesCell = false;
+	double surfaceDiagonal = -1.0; // surfaceDiagonal(), computed on first use
+	SimulationRangeCache glyphRangeCache;
+	QString glyphInfo;             // what the panel shows about the arrows' colours (empty when they are off)
 	// What the mesh geometry currently shows, so a recolour does not re-upload the vertices.
 	bool deformApplied = false;
 	int deformAppliedStep = 0;

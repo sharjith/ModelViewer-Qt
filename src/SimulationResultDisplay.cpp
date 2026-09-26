@@ -312,16 +312,22 @@ bool computeAllStepsRange(const ResultDataset& dataset, int fieldIndex, int comp
 
 bool cachedAllStepsRange(SimulationSession& session, int fieldIndex, int component, float& lo, float& hi)
 {
-	if (!session.dataset || fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= session.dataset->fields.size())
+	if (!session.dataset)
 		return false;
-	const ResultField& field = session.dataset->fields[static_cast<std::size_t>(fieldIndex)];
-	SimulationRangeCache& cache = session.rangeCache;
+	return cachedAllStepsRange(*session.dataset, session.rangeCache, fieldIndex, component, lo, hi);
+}
+
+bool cachedAllStepsRange(const ResultDataset& dataset, SimulationRangeCache& cache, int fieldIndex, int component, float& lo, float& hi)
+{
+	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size())
+		return false;
+	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
 	const bool hit = cache.valid && cache.fieldIndex == fieldIndex && cache.component == component
 		&& cache.kindId == field.quantityKind && cache.fileUnit == field.fileUnit && cache.displayUnit == field.displayUnit;
 	if (!hit)
 	{
 		float a = 0.0f, b = 1.0f;
-		if (!computeAllStepsRange(*session.dataset, fieldIndex, component, a, b))
+		if (!computeAllStepsRange(dataset, fieldIndex, component, a, b))
 		{
 			cache.valid = false;
 			return false;

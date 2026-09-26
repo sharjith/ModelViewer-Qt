@@ -772,6 +772,10 @@ private:
 	SimulationSession* activeSimulationSessionMutable();
 	void connectSimulationHooks();
 	void refreshSimulationDisplay(SimulationSession& session);
+	// Rebuilds (or removes) the session's vector arrows for its current step. `surfaceLo/surfaceHi` is the colour range of the
+	// surface scalar, used when the arrows show that same field so their colours match the legend; `haveSurfaceRange` false
+	// when nothing is coloured.
+	void updateSimulationGlyphs(SimulationSession& session, bool haveSurfaceRange, float surfaceLo, float surfaceHi);
 	void updateSimulationTimeline();
 	void checkSimulationCompare(); // ends compare mode when one of its results went away
 	void pushSimulationMarkers();  // the min/max labels the viewport shows (active result's, or both compared results')

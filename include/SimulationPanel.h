@@ -11,6 +11,7 @@ class QCheckBox;
 class QToolButton;
 class QComboBox;
 class QDoubleSpinBox;
+class QSpinBox;
 class QLabel;
 class QPushButton;
 class QStackedWidget;
@@ -55,6 +56,8 @@ private:
 	void buildUi();
 	void populateFields(int selectedFieldIndex);
 	void populateComponents(int fieldIndex, int selectedComponent);
+	void populateGlyphFields(int selectedFieldIndex);
+	void updateGlyphEnabled();
 	void refreshRangeEdits();
 	// Range mode of the combo: 0 = automatic over all steps, 1 = automatic for the step shown (also the only
 	// automatic mode of a single-step result), 2 = custom.
@@ -87,6 +90,7 @@ private:
 	QPushButton* _compareButton = nullptr;
 	QCheckBox* _compareStackedCheck = nullptr;
 	QCheckBox* _compareSharedCheck = nullptr;
+	QCheckBox* _compareLinkCheck = nullptr;
 	bool _compareActive = false;
 	QLabel* _fileLabel = nullptr;
 	QLabel* _infoLabel = nullptr;
@@ -111,6 +115,12 @@ private:
 	QPushButton* _deformAutoButton = nullptr;
 	QLabel* _deformInfoLabel = nullptr;
 	double _autoDeformScale = 1.0;
+	QCheckBox* _glyphCheck = nullptr;
+	QComboBox* _glyphFieldCombo = nullptr;
+	QDoubleSpinBox* _glyphScaleSpin = nullptr;
+	QSpinBox* _glyphCountSpin = nullptr;
+	QCheckBox* _glyphMagnitudeCheck = nullptr;
+	QLabel* _glyphInfoLabel = nullptr;
 
 	std::shared_ptr<ResultDataset> _dataset;
 	int _step = 0;                // the step the session is at (for the automatic per-step range display)

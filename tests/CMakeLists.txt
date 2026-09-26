@@ -17,6 +17,7 @@ add_executable(result_tests
     ${CMAKE_SOURCE_DIR}/src/CgnsReader.cpp
     ${CMAKE_SOURCE_DIR}/src/ResultSnapshot.cpp
     ${CMAKE_SOURCE_DIR}/src/SimulationResultDisplay.cpp
+    ${CMAKE_SOURCE_DIR}/src/SimulationGlyphs.cpp
 )
 target_include_directories(result_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
 # The real-file tests read the sample results shipped with the project.
