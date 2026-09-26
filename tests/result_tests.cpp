@@ -14,6 +14,7 @@
 #include "ResultBoundary.h"
 #include "ResultDerivedFields.h"
 #include "ResultReader.h"
+#include "ResultSlice.h"
 #include "ResultSnapshot.h"
 #include "ResultUnits.h"
 #include "SimulationGlyphs.h"
@@ -4456,6 +4457,208 @@ namespace
 #endif
 	}
 
+	// ---- Cutting the volume: plane sections and iso-surfaces -----------------------------------------------------------------
+
+	// A row of `count` unit cubes along x as regular hexahedra: points (count + 1) x 2 x 2, index x + (count + 1) * (y + 2 * z).
+	ResultDataset hexRow(int count)
+	{
+		ResultDataset ds;
+		const int nx = count + 1;
+		for (int z = 0; z < 2; ++z)
+			for (int y = 0; y < 2; ++y)
+				for (int x = 0; x < nx; ++x)
+					ds.nodePositions.insert(ds.nodePositions.end(), { static_cast<float>(x), static_cast<float>(y), static_cast<float>(z) });
+		auto p = [&](int x, int y, int z) { return static_cast<std::uint32_t>(x + nx * (y + 2 * z)); };
+		ds.cellOffsets.push_back(0);
+		for (int i = 0; i < count; ++i)
+		{
+			const std::uint32_t ids[8] = { p(i, 0, 0), p(i + 1, 0, 0), p(i + 1, 1, 0), p(i, 1, 0), p(i, 0, 1), p(i + 1, 0, 1), p(i + 1, 1, 1), p(i, 1, 1) };
+			ds.cellConnectivity.insert(ds.cellConnectivity.end(), ids, ids + 8);
+			ds.cellOffsets.push_back(static_cast<std::uint32_t>(ds.cellConnectivity.size()));
+			ds.cellTypes.push_back(ResultCellType::Hexahedron);
+		}
+		return ds;
+	}
+
+	// One cell of `type` with the given points (xyz each).
+	ResultDataset oneCell(ResultCellType type, const std::vector<float>& points)
+	{
+		ResultDataset ds;
+		ds.nodePositions = points;
+		ds.cellOffsets = { 0, static_cast<std::uint32_t>(points.size() / 3) };
+		for (std::uint32_t i = 0; i < points.size() / 3; ++i)
+			ds.cellConnectivity.push_back(i);
+		ds.cellTypes = { type };
+		return ds;
+	}
+
+	double sliceArea(const SliceMesh& s)
+	{
+		double area = 0;
+		for (std::size_t t = 0; t < s.triangleCount(); ++t)
+		{
+			const float* a = &s.positions[s.triangles[t * 3] * 3];
+			const float* b = &s.positions[s.triangles[t * 3 + 1] * 3];
+			const float* c = &s.positions[s.triangles[t * 3 + 2] * 3];
+			const double ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+			const double nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+			area += 0.5 * std::sqrt(nx * nx + ny * ny + nz * nz);
+		}
+		return area;
+	}
+
+	// The cut of `ds` by the plane through `point` with `normal`; node values = the z coordinate, to check the interpolation.
+	SliceMesh planeCut(const ResultDataset& ds, const double point[3], const double normal[3], bool* ok = nullptr)
+	{
+		std::vector<float> zs(ds.nodeCount());
+		for (std::size_t i = 0; i < zs.size(); ++i)
+			zs[i] = ds.nodePositions[i * 3 + 2];
+		SliceMesh s;
+		const bool cut = cutVolume(ds, planeDistances(ds, point, normal), &zs, s);
+		if (ok)
+			*ok = cut;
+		return s;
+	}
+
+	void testSlice()
+	{
+		const double halfZ[3] = { 0, 0, 0.5 }, up[3] = { 0, 0, 1 };
+
+		// a tetrahedron cut through the middle: the triangle at height 0.5 (legs 0.5, area 1/8), values interpolated (= z = 0.5)
+		{
+			const ResultReadOutcome r = readBytes(buildVtu(singleTet(), Enc::Ascii));
+			CHECK(r.ok());
+			if (r.ok())
+			{
+				bool ok = false;
+				const SliceMesh s = planeCut(*r.dataset, halfZ, up, &ok);
+				CHECK(ok && s.triangleCount() == 1 && s.vertexCount() == 3 && s.triangleCell[0] == 0);
+				CHECK(approx(sliceArea(s), 0.125));
+				bool valuesRight = s.values.size() == 3;
+				for (float v : s.values)
+					valuesRight = valuesRight && approx(v, 0.5);
+				CHECK(valuesRight);
+				// the triangle faces the positive side (+z)
+				const float* a = &s.positions[s.triangles[0] * 3];
+				const float* b = &s.positions[s.triangles[1] * 3];
+				const float* c = &s.positions[s.triangles[2] * 3];
+				CHECK((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]) > 0.0f);
+			}
+		}
+
+		// a cube: the cut at half height is the unit square, two triangles; a plane that misses the cell cuts nothing
+		{
+			const ResultDataset cube = hexRow(1);
+			SliceMesh s = planeCut(cube, halfZ, up);
+			CHECK(s.triangleCount() == 2 && s.vertexCount() == 4 && approx(sliceArea(s), 1.0));
+			const double above[3] = { 0, 0, 2.0 };
+			CHECK(planeCut(cube, above, up).triangleCount() == 0);
+			// a tilted plane through the middle: the section of a unit cube by x + y + z = 1.5 is a regular hexagon of area 3 sqrt(3) / 4
+			const double middle[3] = { 0.5, 0.5, 0.5 }, diagonal[3] = { 1, 1, 1 };
+			s = planeCut(cube, middle, diagonal);
+			CHECK(s.triangleCount() == 4 && approx(sliceArea(s), 3.0 * std::sqrt(3.0) / 4.0, 1e-4, 1e-6));
+		}
+
+		// two cubes: the cut is one 2 x 1 rectangle, and the shared edges give shared vertices (welded, no cracks)
+		{
+			const ResultDataset row = hexRow(2);
+			const double halfY[3] = { 0, 0.5, 0 }, sideways[3] = { 0, 1, 0 };
+			const SliceMesh s = planeCut(row, halfY, sideways);
+			CHECK(s.triangleCount() == 4 && s.vertexCount() == 6 && approx(sliceArea(s), 2.0));
+			SliceMesh apart = s;
+			unweldSlice(apart);
+			CHECK(apart.vertexCount() == 12 && apart.triangleCount() == 4 && approx(sliceArea(apart), 2.0) && apart.values.size() == 12);
+		}
+
+		// an iso-surface: the field x (as node values) at 0.25 cuts the cube in a unit square; no values requested -> NaN
+		{
+			const ResultDataset cube = hexRow(1);
+			std::vector<float> distance(cube.nodeCount());
+			for (std::size_t i = 0; i < distance.size(); ++i)
+				distance[i] = cube.nodePositions[i * 3] - 0.25f;
+			SliceMesh s;
+			CHECK(cutVolume(cube, distance, nullptr, s) && s.triangleCount() == 2 && approx(sliceArea(s), 1.0) && std::isnan(s.values[0]));
+		}
+
+		// the other cell types: a pyramid (square of 1/2), a wedge (half a triangle), a polyhedron (unit square)
+		{
+			const ResultDataset pyramid = oneCell(ResultCellType::Pyramid, { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0.5f, 0.5f, 1 });
+			CHECK(approx(sliceArea(planeCut(pyramid, halfZ, up)), 0.25));
+			const ResultDataset wedge = oneCell(ResultCellType::Wedge, { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1 });
+			SliceMesh s = planeCut(wedge, halfZ, up);
+			CHECK(s.triangleCount() == 1 && approx(sliceArea(s), 0.5));
+			const double halfX[3] = { 0.5, 0, 0 }, along[3] = { 1, 0, 0 };
+			const ResultDataset poly = polyCubes(1);
+			CHECK(approx(sliceArea(planeCut(poly, halfX, along)), 1.0));
+			// a surface cell is never cut
+			const ResultDataset quad = oneCell(ResultCellType::Quad, { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0 });
+			CHECK(planeCut(quad, halfX, along).triangleCount() == 0);
+		}
+
+		// an ambiguous face (opposite corners on each side) is cut without leaving a hole: every cut edge is used by an even number of triangles
+		{
+			const ResultDataset cube = hexRow(1);
+			std::vector<float> distance(cube.nodeCount(), 1.0f);
+			distance[0] = -1.0f; // (0,0,0) and (1,1,0) negative, (1,0,0) and (0,1,0) positive: the bottom face is ambiguous
+			distance[3] = -1.0f;
+			SliceMesh s;
+			CHECK(cutVolume(cube, distance, nullptr, s) && s.triangleCount() > 0);
+			bool inRange = true;
+			for (std::uint32_t v : s.triangles)
+				inRange = inRange && v < s.vertexCount();
+			CHECK(inRange);
+		}
+
+		// recolouring a cut for another field without cutting again: values from the stored edges
+		{
+			const ResultDataset row = hexRow(2);
+			const double halfY[3] = { 0, 0.5, 0 }, sideways[3] = { 0, 1, 0 };
+			SliceMesh s = planeCut(row, halfY, sideways);
+			std::vector<float> xs(row.nodeCount());
+			for (std::size_t i = 0; i < xs.size(); ++i)
+				xs[i] = row.nodePositions[i * 3]; // the field x: on the cut it equals the vertex's own x
+			interpolateSliceValues(s, xs);
+			bool same = s.values.size() == s.vertexCount();
+			for (std::size_t v = 0; v < s.vertexCount(); ++v)
+				same = same && approx(s.values[v], s.positions[v * 3], 1e-4, 1e-6);
+			CHECK(same);
+		}
+
+		// clipping a triangle set against a plane: a triangle wholly kept, wholly dropped, and one cut in two (attributes interpolated)
+		{
+			std::vector<float> positions = { 0, 0, 0, 2, 0, 0, 0, 2, 0,   /* second triangle, far away at x >= 10 */ 10, 0, 0, 11, 0, 0, 10, 1, 0 };
+			std::vector<float> attributes = { 0, 2, 0, 5, 5, 5 };
+			std::vector<std::uint32_t> triangles = { 0, 1, 2, 3, 4, 5 }, cells = { 7, 9 };
+			const double point[3] = { 1, 0, 0 }, normal[3] = { 1, 0, 0 };
+			clipTrianglesToHalfSpace(positions, attributes, 1, triangles, cells, point, normal); // keep x >= 1
+			// the first triangle (x from 0 to 2) is cut at x = 1: a quad-shaped remainder... its corner (0,2,0) is on the dropped side
+			double area = 0;
+			for (std::size_t t = 0; t + 2 < triangles.size(); t += 3)
+			{
+				const float* a = &positions[triangles[t] * 3];
+				const float* b = &positions[triangles[t + 1] * 3];
+				const float* c = &positions[triangles[t + 2] * 3];
+				area += 0.5 * std::fabs(static_cast<double>(b[0] - a[0]) * (c[1] - a[1]) - static_cast<double>(c[0] - a[0]) * (b[1] - a[1]));
+			}
+			// the first triangle keeps x in [1, 2]: its right part, a triangle (1,0)-(2,0)-(1,1) of area 0.5; the second stays whole (area 0.5)
+			CHECK(approx(area, 1.0) && cells.size() == triangles.size() / 3 && attributes.size() == positions.size() / 3);
+			bool attributesRight = true;
+			for (std::size_t v = 0; v < positions.size() / 3; ++v)
+				if (positions[v * 3] < 5.0f) // the cut triangle: its attribute is linear, f = x (0 at (0,0) and (0,2), 2 at (2,0))
+					attributesRight = attributesRight && approx(attributes[v], positions[v * 3], 1e-3, 1e-3);
+			CHECK(attributesRight);
+		}
+
+		// bad input and cancellation
+		{
+			const ResultDataset cube = hexRow(1);
+			SliceMesh s;
+			CHECK(!cutVolume(cube, std::vector<float>(3, 0.0f), nullptr, s));
+			std::atomic<bool> cancelled{ true };
+			CHECK(!cutVolume(cube, planeDistances(cube, halfZ, up), nullptr, s, &cancelled));
+		}
+	}
+
 	void testCgnsComponentGroups()
 	{
 #if MV_HAVE_CGNS
@@ -5210,6 +5413,7 @@ int main(int argc, char** argv)
 	testVtkHdf();
 	testMed();
 	testPolyhedra();
+	testSlice();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();

@@ -7,6 +7,7 @@
 #include "ResultBoundary.h"
 #include "ResultDataset.h"
 #include "ResultReader.h"
+#include "ResultSlice.h"
 
 #include <QString>
 #include <QStringList>
@@ -181,6 +182,12 @@ struct SimulationViewState
 	double glyphScale = 1.0;          // 1 = the largest arrow is 5 % of the model diagonal
 	int glyphCount = 800;             // about this many arrows
 	bool glyphScaleByMagnitude = true; // false = all arrows the same length
+	// Cutting the volume (see ResultSlice.h): the field drawn on the cut of the Clipping Planes (X / Y / Z, as the Clipping Planes editor sets them),
+	// and iso-surfaces of a node field. Both cut the undeformed mesh.
+	bool sectionFill = false;
+	bool iso = false;
+	int isoField = -1;   // a node field (a scalar, or a vector's magnitude); -1 = the shown field, if it is one
+	int isoLevels = 3;   // evenly spaced strictly inside the field's range at the shown step
 };
 
 // Cache of the all-steps data range of one (field, component, units) so playback does not rescan every step on
@@ -242,6 +249,16 @@ struct SimulationSession
 	bool extentsValid = false;     // surfaceExtents(), computed once (the panel shows it)
 	double extents[3] = { 0.0, 0.0, 0.0 };
 	SimulationRangeCache glyphRangeCache;
+	// Cut geometry of the sections, kept while the plane stays: the cut is recoloured for a new field or step without cutting again.
+	struct SectionCut
+	{
+		int axis = 0;
+		double position = 0.0;
+		std::shared_ptr<SliceMesh> mesh;
+	};
+	std::vector<SectionCut> sectionCuts;
+	int volumeCells = -1;   // 1 when the dataset has volume cells to cut, 0 when not, -1 = not checked yet
+	QString sliceInfo;      // what the panel shows about the cut faces and iso-surfaces (empty when they are off)
 	QString glyphInfo;             // what the panel shows about the arrows' colours (empty when they are off)
 	// What the mesh geometry currently shows, so a recolour does not re-upload the vertices.
 	bool deformApplied = false;

@@ -59,6 +59,8 @@ private:
 	void populateFields(int selectedFieldIndex);
 	void populateComponents(int fieldIndex, int selectedComponent);
 	void populateGlyphFields(int selectedFieldIndex);
+	void populateIsoFields(int selectedFieldIndex);
+	void updateSliceEnabled();
 	void updateGlyphEnabled();
 	void refreshRangeEdits();
 	// Range mode of the combo: 0 = automatic over all steps, 1 = automatic for the step shown (also the only
@@ -125,6 +127,11 @@ private:
 	QSpinBox* _glyphCountSpin = nullptr;
 	QCheckBox* _glyphMagnitudeCheck = nullptr;
 	QLabel* _glyphInfoLabel = nullptr;
+	QCheckBox* _sectionCheck = nullptr;
+	QCheckBox* _isoCheck = nullptr;
+	QComboBox* _isoFieldCombo = nullptr;
+	QSpinBox* _isoLevelsSpin = nullptr;
+	QLabel* _sliceInfoLabel = nullptr;
 
 	std::shared_ptr<ResultDataset> _dataset;
 	int _step = 0;                // the step the session is at (for the automatic per-step range display)

@@ -215,6 +215,14 @@ namespace
 		o.insert(QStringLiteral("deform"), s.deform);
 		o.insert(QStringLiteral("deformScale"), s.deformScale);
 		o.insert(QStringLiteral("markExtrema"), s.markExtrema);
+		o.insert(QStringLiteral("sectionFill"), s.sectionFill);
+		o.insert(QStringLiteral("iso"), s.iso);
+		o.insert(QStringLiteral("isoLevels"), s.isoLevels);
+		if (s.isoField >= 0 && static_cast<std::size_t>(s.isoField) < dataset.fields.size())
+		{
+			o.insert(QStringLiteral("isoFieldName"), dataset.fields[static_cast<std::size_t>(s.isoField)].name);
+			o.insert(QStringLiteral("isoFieldAssociation"), isCellField(dataset.fields[static_cast<std::size_t>(s.isoField)]) ? QStringLiteral("cell") : QStringLiteral("node"));
+		}
 		o.insert(QStringLiteral("glyphs"), s.glyphs);
 		o.insert(QStringLiteral("glyphScale"), s.glyphScale);
 		o.insert(QStringLiteral("glyphCount"), s.glyphCount);
@@ -652,6 +660,17 @@ bool decodeResultSnapshot(const QJsonObject& json, const std::vector<QByteArray>
 	state.deform = view.value(QStringLiteral("deform")).toBool();
 	state.deformScale = view.value(QStringLiteral("deformScale")).toDouble(1.0);
 	state.markExtrema = view.value(QStringLiteral("markExtrema")).toBool();
+	state.sectionFill = view.value(QStringLiteral("sectionFill")).toBool();
+	state.iso = view.value(QStringLiteral("iso")).toBool();
+	state.isoLevels = view.value(QStringLiteral("isoLevels")).toInt(3);
+	{
+		const QString isoName = view.value(QStringLiteral("isoFieldName")).toString();
+		const ResultFieldAssociation isoAssociation = view.value(QStringLiteral("isoFieldAssociation")).toString() == QLatin1String("cell")
+			? ResultFieldAssociation::Cell : ResultFieldAssociation::Node;
+		for (std::size_t i = 0; i < dataset->fields.size() && !isoName.isEmpty(); ++i)
+			if (dataset->fields[i].name == isoName && dataset->fields[i].association == isoAssociation)
+				state.isoField = static_cast<int>(i);
+	}
 	state.glyphs = view.value(QStringLiteral("glyphs")).toBool();
 	state.glyphScale = view.value(QStringLiteral("glyphScale")).toDouble(1.0);
 	state.glyphCount = view.value(QStringLiteral("glyphCount")).toInt(800);

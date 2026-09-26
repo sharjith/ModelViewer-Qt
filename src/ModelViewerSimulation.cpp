@@ -30,6 +30,7 @@
 #include "ShaderProgram.h"
 #include "ShrinkWrapCommand.h"
 #include "SimulationGlyphs.h"
+#include "ResultSlice.h"
 #include "SimulationLegendWidget.h"
 #include "SimulationTimelineWidget.h"
 #include "SimulationResultDisplay.h"
@@ -56,6 +57,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <memory>
 #include <utility>
 
@@ -411,6 +413,12 @@ void ModelViewer::connectSimulationHooks()
 			emit simulationSessionChanged(false);
 			return;
 		}
+	});
+	// A Clipping Plane moved or switched: the cut faces follow it.
+	connect(_viewportWidget, &ViewportWidget::clippingPlanesChanged, this, [this]() {
+		for (SimulationSession& s : _simulationSessions)
+			if ((s.state.sectionFill || s.state.iso) && _viewportWidget && _viewportWidget->getMeshByUuid(s.meshUuid))
+				updateSimulationSlices(s);
 	});
 	// Undo/Redo of an open adds or removes a result mesh, which changes what the panel and legend should show.
 	connect(_undoStack, &QUndoStack::indexChanged, this, [this](int) { emit simulationSessionChanged(false); });
@@ -1158,6 +1166,7 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 		pushSimulationMarkers();
 		mesh->clearAnalysisOverlay(); // CPU-only, no GL context needed
 		updateSimulationGlyphs(session, false, 0.0f, 1.0f); // arrows do not need a scalar to colour the surface by
+		updateSimulationSlices(session);
 		if (isActive && _simulationLegend)
 			_simulationLegend->setAliveCheck([]() { return false; });
 		_viewportWidget->update();
@@ -1274,6 +1283,7 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 	session.shownLo = lo;
 	session.shownHi = hi;
 	session.shownScalar = std::move(scalar); // last use of `scalar`: the hover probe reads it
+	updateSimulationSlices(session);         // (after shownScalar: the cut is coloured by the same values and range)
 	_viewportWidget->update();
 
 	// A shared colour range depends on both results: when this one changed, its partner recolours with the new union.
@@ -1359,4 +1369,210 @@ void ModelViewer::updateSimulationGlyphs(SimulationSession& session, bool haveSu
 		session.glyphInfo = tr("Arrows: %1, coloured by magnitude from %2 to %3%4.")
 			.arg(field.name).arg(lo, 0, 'g', 4).arg(hi, 0, 'g', 4).arg(set.unit.isEmpty() ? QString() : QStringLiteral(" ") + set.unit);
 	_viewportWidget->setSimulationGlyphs(session.meshUuid, std::move(set));
+}
+
+void ModelViewer::updateSimulationSlices(SimulationSession& session)
+{
+	session.sliceInfo.clear();
+	if (!_viewportWidget || !session.dataset || !session.surface)
+		return;
+	const SimulationViewState& state = session.state;
+	if (!state.sectionFill && !state.iso)
+	{
+		_viewportWidget->clearSimulationSlices(session.meshUuid);
+		return;
+	}
+	const ResultDataset& dataset = *session.dataset;
+	if (session.volumeCells < 0)
+	{
+		session.volumeCells = 0;
+		for (ResultCellType type : dataset.cellTypes)
+			if (resultCellIsVolume(type))
+			{
+				session.volumeCells = 1;
+				break;
+			}
+	}
+	if (session.volumeCells == 0)
+	{
+		_viewportWidget->clearSimulationSlices(session.meshUuid);
+		session.sliceInfo = tr("This result has no volume cells (a shell or surface result, or a restored snapshot), so there is nothing to cut.");
+		return;
+	}
+
+	const AnalysisColormap colormap = static_cast<AnalysisColormap>(state.colormap);
+	auto colour = [&](float value, float lo, float hi, float out[3]) {
+		if (!std::isfinite(value))
+		{
+			out[0] = out[1] = out[2] = 0.6f; // no value here
+			return;
+		}
+		const QColor c = AnalysisColorRamp::colorForNormalized(hi > lo ? std::clamp((value - lo) / (hi - lo), 0.0f, 1.0f) : 0.0f, colormap);
+		out[0] = static_cast<float>(c.redF());
+		out[1] = static_cast<float>(c.greenF());
+		out[2] = static_cast<float>(c.blueF());
+	};
+	const QVector<ViewportWidget::ClippingCut> cuts = _viewportWidget->clippingCuts();
+	// Several planes remove only what ALL of them remove (the app's multi-plane rule, see clipping_plane.frag's otherApply*): a plane's cut
+	// face is exposed only where every OTHER plane has removed the material, so keep the REMOVED side of the others.
+	auto clipToKeptSides = [&](std::vector<float>& positions, std::vector<float>& attributes, std::vector<std::uint32_t>& triangles,
+	                           std::vector<std::uint32_t>& cells, int skipAxis) {
+		for (const ViewportWidget::ClippingCut& other : cuts)
+		{
+			if (other.axis == skipAxis)
+				continue;
+			double point[3] = { 0, 0, 0 }, normal[3] = { 0, 0, 0 };
+			point[other.axis] = other.position;
+			normal[other.axis] = other.keepPositive ? -1.0 : 1.0;
+			clipTrianglesToHalfSpace(positions, attributes, 3, triangles, cells, point, normal);
+		}
+	};
+
+	std::vector<SliceDisplay> displays;
+	QStringList info;
+
+	// ---- The field on the cut of each Clipping Plane
+	if (state.sectionFill)
+	{
+		if (cuts.isEmpty())
+			info << tr("Cut faces: turn on a Clipping Plane (the Clipping Planes editor) to cut the model.");
+		else if (!session.shownScalar.valid())
+			info << tr("Cut faces: there is no field shown to colour them with.");
+		else
+		{
+			const DisplayScalar& scalar = session.shownScalar;
+			std::vector<SimulationSession::SectionCut> kept;
+			for (const ViewportWidget::ClippingCut& cut : cuts)
+			{
+				std::shared_ptr<SliceMesh> mesh;
+				for (const SimulationSession::SectionCut& old : session.sectionCuts)
+					if (old.axis == cut.axis && old.position == cut.position)
+						mesh = old.mesh;
+				if (!mesh)
+				{
+					double point[3] = { 0, 0, 0 }, normal[3] = { 0, 0, 0 };
+					point[cut.axis] = cut.position;
+					normal[cut.axis] = 1.0;
+					mesh = std::make_shared<SliceMesh>();
+					cutVolume(dataset, planeDistances(dataset, point, normal), nullptr, *mesh);
+				}
+				kept.push_back({ cut.axis, cut.position, mesh });
+				if (mesh->triangleCount() == 0)
+					continue;
+
+				SliceMesh cutMesh = *mesh; // (a copy: the cached cut keeps its shared vertices)
+				if (!scalar.cellData)
+					interpolateSliceValues(cutMesh, scalar.nodeValues);
+				else
+				{
+					// A cell field is constant over each cell: every triangle takes its cell's value.
+					unweldSlice(cutMesh);
+					for (std::size_t t = 0; t < cutMesh.triangleCount(); ++t)
+					{
+						const std::uint32_t cell = cutMesh.triangleCell[t];
+						const float v = cell < scalar.nodeValues.size() ? scalar.nodeValues[cell] : std::numeric_limits<float>::quiet_NaN();
+						for (std::size_t k = 0; k < 3; ++k)
+							cutMesh.values[t * 3 + k] = v;
+					}
+				}
+				std::vector<float> colors(cutMesh.vertexCount() * 3);
+				for (std::size_t v = 0; v < cutMesh.vertexCount(); ++v)
+					colour(cutMesh.values[v], session.shownLo, session.shownHi, &colors[v * 3]);
+				std::vector<float> positions = std::move(cutMesh.positions);
+				std::vector<std::uint32_t> triangles = std::move(cutMesh.triangles), cells = std::move(cutMesh.triangleCell);
+				clipToKeptSides(positions, colors, triangles, cells, cut.axis);
+				SliceDisplay display;
+				display.positions = std::move(positions);
+				display.colors = std::move(colors);
+				display.triangles = std::move(triangles);
+				display.lit = false;
+				if (!display.triangles.empty())
+					displays.push_back(std::move(display));
+			}
+			session.sectionCuts = std::move(kept);
+			if (state.deform)
+				info << tr("Cut faces are drawn on the undeformed mesh.");
+		}
+	}
+
+	// ---- Iso-surfaces of a node field
+	if (state.iso)
+	{
+		int field = state.isoField;
+		if (field < 0 || static_cast<std::size_t>(field) >= dataset.fields.size() || dataset.fields[static_cast<std::size_t>(field)].association != ResultFieldAssociation::Node
+		    || (dataset.fields[static_cast<std::size_t>(field)].components != 1 && dataset.fields[static_cast<std::size_t>(field)].components != 3))
+			field = (state.fieldIndex >= 0 && static_cast<std::size_t>(state.fieldIndex) < dataset.fields.size()
+			         && dataset.fields[static_cast<std::size_t>(state.fieldIndex)].association == ResultFieldAssociation::Node
+			         && (dataset.fields[static_cast<std::size_t>(state.fieldIndex)].components == 1 || dataset.fields[static_cast<std::size_t>(state.fieldIndex)].components == 3))
+			        ? state.fieldIndex : -1;
+		DisplayScalar isoScalar;
+		if (field < 0 || !buildDisplayScalar(dataset, field, -1, isoScalar, state.step))
+			info << tr("Iso-surfaces: choose a node field (a scalar or a vector) to draw them of.");
+		else
+		{
+			const bool sameAsShown = field == state.fieldIndex && state.component == -1 && session.shownScalar.valid();
+			const float lo = sameAsShown ? session.shownLo : isoScalar.minValue, hi = sameAsShown ? session.shownHi : isoScalar.maxValue;
+			const float low = isoScalar.minValue, high = isoScalar.maxValue; // the levels lie inside what the field has at this step
+			const int levels = std::clamp(state.isoLevels, 1, 20);
+			std::size_t triangleTotal = 0;
+			for (int k = 1; k <= levels && high > low; ++k)
+			{
+				const float level = low + (high - low) * static_cast<float>(k) / static_cast<float>(levels + 1);
+				std::vector<float> distance(isoScalar.nodeValues.size());
+				for (std::size_t n = 0; n < distance.size(); ++n)
+					distance[n] = isoScalar.nodeValues[n] - level;
+				SliceMesh surface;
+				if (!cutVolume(dataset, distance, nullptr, surface) || surface.triangleCount() == 0)
+					continue;
+				std::vector<float> positions = std::move(surface.positions);
+				std::vector<std::uint32_t> triangles = std::move(surface.triangles), cells = std::move(surface.triangleCell);
+				float rgb[3];
+				colour(level, lo, hi, rgb);
+				std::vector<float> colors(positions.size());
+				for (std::size_t v = 0; v < colors.size() / 3; ++v)
+					std::copy(rgb, rgb + 3, colors.begin() + static_cast<std::ptrdiff_t>(v * 3));
+				// The surface is seen where some plane still keeps the material (removed only where ALL planes remove it): split it into
+				// disjoint pieces - kept by plane 1; removed by 1 and kept by 2; removed by 1 and 2 and kept by 3.
+				auto clipToSide = [&](std::vector<float>& p, std::vector<float>& a, std::vector<std::uint32_t>& t, std::vector<std::uint32_t>& c,
+				                      const ViewportWidget::ClippingCut& cut, bool keptSide) {
+					double point[3] = { 0, 0, 0 }, normal[3] = { 0, 0, 0 };
+					point[cut.axis] = cut.position;
+					normal[cut.axis] = (cut.keepPositive == keptSide) ? 1.0 : -1.0;
+					clipTrianglesToHalfSpace(p, a, 3, t, c, point, normal);
+				};
+				const int pieces = std::max(1, static_cast<int>(cuts.size()));
+				for (int piece = 0; piece < pieces; ++piece)
+				{
+					std::vector<float> pp = positions, pc = colors;
+					std::vector<std::uint32_t> pt = triangles, pcell = cells;
+					for (int j = 0; j < piece; ++j)
+						clipToSide(pp, pc, pt, pcell, cuts[j], false);
+					if (piece < cuts.size())
+						clipToSide(pp, pc, pt, pcell, cuts[piece], true);
+					SliceDisplay display;
+					display.positions = std::move(pp);
+					display.colors = std::move(pc);
+					display.triangles = std::move(pt);
+					display.lit = true;
+					triangleTotal += display.triangles.size() / 3;
+					if (!display.triangles.empty())
+						displays.push_back(std::move(display));
+				}
+			}
+			if (!(high > low))
+				info << tr("Iso-surfaces of %1: the field is constant (%2) at this step, so there is no surface to draw - step to a later time.")
+				            .arg(isoScalar.label).arg(low, 0, 'g', 4);
+			else
+				info << tr("Iso-surfaces of %1: %2 level(s) from %3 to %4%5 - inside the model, so cut it with a Clipping Plane to see them.")
+				            .arg(isoScalar.label).arg(levels).arg(low, 0, 'g', 4).arg(high, 0, 'g', 4)
+				            .arg(isoScalar.unit.isEmpty() ? QString() : QStringLiteral(" ") + isoScalar.unit);
+			if (state.deform)
+				info << tr("Iso-surfaces are drawn on the undeformed mesh.");
+		}
+	}
+	session.sliceInfo = info.join(QLatin1Char('\n'));
+	if (displays.empty())
+		_viewportWidget->clearSimulationSlices(session.meshUuid);
+	else
+		_viewportWidget->setSimulationSlices(session.meshUuid, std::move(displays));
 }

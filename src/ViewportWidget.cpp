@@ -272,6 +272,8 @@ _floorPlane(nullptr),
 	// Vector-field arrows of simulation results - a data cache ModelViewer pushes into.
 	_simulationGlyphController = new SimulationGlyphController(_renderCtrl, this);
 	_gpuResourceRegistry.add(_simulationGlyphController, GpuResourcePhase::Decorations);
+	_simulationSliceController = new SimulationSliceController(_renderCtrl, this);
+	_gpuResourceRegistry.add(_simulationSliceController, GpuResourcePhase::Decorations);
 
 
 	// Setup the view toolbar
@@ -3492,6 +3494,7 @@ void ViewportWidget::updateClippingPlane()
 	}
 
 	updatePlaneGizmos();
+	emit clippingPlanesChanged(); // (a simulation section follows the planes)
 	updateClipBoxGizmos();
 
 	// Keep the toolbar's Clipping Planes flyout icon in step with whichever
@@ -3676,6 +3679,42 @@ void ViewportWidget::clearSimulationGlyphs(const QUuid& meshUuid)
 {
 	_simulationGlyphController->clearGlyphs(meshUuid);
 	update();
+}
+
+void ViewportWidget::setSimulationSlices(const QUuid& meshUuid, std::vector<SliceDisplay> slices)
+{
+	_simulationSliceController->setSlices(meshUuid, std::move(slices));
+	update();
+}
+
+void ViewportWidget::clearSimulationSlices(const QUuid& meshUuid)
+{
+	_simulationSliceController->clearSlices(meshUuid);
+	update();
+}
+
+QVector<ViewportWidget::ClippingCut> ViewportWidget::clippingCuts() const
+{
+	// Each plane sits at its coefficient from the scene's centre (the same rule the clipping shader uses).
+	QVector<ClippingCut> cuts;
+	const auto centre = _viewCtrl.boundingBox().center();
+	if (_renderCtrl.yzClippingEnabled()) // the plane perpendicular to X
+		cuts.push_back({ 0, static_cast<double>(_renderCtrl.clippingXCoeff()) + centre.getX(), _renderCtrl.clippingXFlipped() });
+	if (_renderCtrl.zxClippingEnabled()) // perpendicular to Y
+		cuts.push_back({ 1, static_cast<double>(_renderCtrl.clippingYCoeff()) + centre.getY(), _renderCtrl.clippingYFlipped() });
+	if (_renderCtrl.xyClippingEnabled()) // perpendicular to Z
+		cuts.push_back({ 2, static_cast<double>(_renderCtrl.clippingZCoeff()) + centre.getZ(), _renderCtrl.clippingZFlipped() });
+	return cuts;
+}
+
+void ViewportWidget::drawSimulationSlices(Camera* camera)
+{
+	if (!_simulationSliceController || !_simulationSliceController->hasSlices())
+		return;
+	_simulationSliceController->drawOverlay(camera, [this](const QUuid& meshUuid) -> const RenderableMesh* {
+		const SceneMesh* mesh = getMeshByUuid(meshUuid);
+		return mesh && isMeshVisible(mesh, -1) ? mesh : nullptr;
+	});
 }
 
 void ViewportWidget::drawSimulationGlyphs(Camera* camera)
@@ -6755,6 +6794,7 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 		_seamMarkingController->drawSeamOverlay(_primaryCamera);
 	if (_fillHolesController)
 		_fillHolesController->drawOverlay(_primaryCamera);
+	drawSimulationSlices(_primaryCamera);
 	drawSimulationGlyphs(_primaryCamera);
 }
 
@@ -6841,7 +6881,8 @@ void ViewportWidget::renderComparePanes(QColor& topColor, QColor& botColor)
 		if (i < _comparePaneCameras.size())
 			*_primaryCamera = _comparePaneCameras[i];
 		render(_primaryCamera);
-		drawSimulationGlyphs(_primaryCamera); // this pane's result only (the filter is still set)
+		drawSimulationSlices(_primaryCamera); // this pane's result only (the filter is still set)
+		drawSimulationGlyphs(_primaryCamera);
 		_paneMeshFilter = nullptr;
 	}
 	if (!_comparePaneCameras.empty())
@@ -11369,8 +11410,10 @@ void ViewportWidget::render(Camera* camera)
 
 	// --- 2.5) Section caps (after opaque, before floor & transparents) ---
 	const bool cappedClippingActive = _renderCtrl.cappingEnabled() && _renderCtrl.anyClippingEnabled();
+	// Iso-surfaces lie inside the solid: an opaque cap at the cut would hide them, so the cut is left open while they are shown.
+	const bool isoSurfacesShown = _simulationSliceController && _simulationSliceController->hasIsoSurfaces();
 	if (!interactivePtOverlayShowing &&
-		cappedClippingActive &&
+		cappedClippingActive && !isoSurfacesShown &&
 		!_renderCtrl.sectionCapsSuppressedDuringInteraction())
 	{
 		glEnable(GL_POLYGON_OFFSET_FILL);
@@ -11482,7 +11525,10 @@ void ViewportWidget::render(Camera* camera)
 	if (_viewCtrl.multiViewActive() && _fillHolesController)
 		_fillHolesController->drawOverlay(camera);
 	if (_viewCtrl.multiViewActive())
+	{
+		drawSimulationSlices(camera);
 		drawSimulationGlyphs(camera);
+	}
 	if (_renderCtrl.showLights()) drawLights();
 	if (profileRendering)
 		RenderableMesh::recordFrameCpuMs(static_cast<double>(frameTimer.nsecsElapsed()) / 1000000.0);
@@ -14048,7 +14094,8 @@ void ViewportWidget::renderToTransmissionBuffer(Camera* camera, const QColor& to
 
 	// --- RENDER 3: SECTION CAPS ---
 	const bool cappedClippingActive = _renderCtrl.cappingEnabled() && _renderCtrl.anyClippingEnabled();
-	if (cappedClippingActive &&
+	const bool isoSurfacesShown = _simulationSliceController && _simulationSliceController->hasIsoSurfaces();
+	if (cappedClippingActive && !isoSurfacesShown &&
 		!_renderCtrl.sectionCapsSuppressedDuringInteraction())
 	{
 		glEnable(GL_POLYGON_OFFSET_FILL);

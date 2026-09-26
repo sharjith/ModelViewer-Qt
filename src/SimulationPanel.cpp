@@ -16,6 +16,8 @@
 #include <QSignalBlocker>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QPointer>
+#include <QTimer>
 #include <QSettings>
 #include <QSpinBox>
 #include <QStackedWidget>
@@ -97,7 +99,9 @@ void SimulationPanel::buildUi()
 	root->setContentsMargins(6, 6, 6, 6);
 
 	auto* openButton = new QPushButton(tr("Add Result..."), this);
-	openButton->setToolTip(tr("Add a simulation result (.vtu, .vtk, .frd, .foam) to this document, shown as its outer surface coloured by a result field.\n"
+	openButton->setToolTip(tr("Add a simulation result (.vtu, .vtk, .frd, .foam) to this\n"
+	                          "document, shown as its outer surface coloured by a result\n"
+	                          "field.\n"
 	                          "To open a result in its own document, use File > Open."));
 	connect(openButton, &QPushButton::clicked, this, &SimulationPanel::openRequested);
 	root->addWidget(openButton);
@@ -129,8 +133,9 @@ void SimulationPanel::buildUi()
 
 	// ---- Which result: a document can hold several. Picking one selects its mesh; it can be hidden or closed.
 	_resultCombo = new QComboBox(content);
-	_resultCombo->setToolTip(tr("The simulation results in this document. Selecting one here selects its mesh; selecting a result "
-	                            "mesh in the scene tree switches this panel to it."));
+	_resultCombo->setToolTip(tr("The simulation results in this document. Selecting one\n"
+	                            "here selects its mesh; selecting a result mesh in the\n"
+	                            "scene tree switches this panel to it."));
 	_resultVisibleCheck = new QCheckBox(tr("Visible"), content);
 	_resultCloseButton = new QToolButton(content);
 	_resultCloseButton->setText(tr("Close"));
@@ -143,7 +148,8 @@ void SimulationPanel::buildUi()
 
 	// ---- Compare: the active result next to another one, two panes with one camera.
 	_compareCombo = new QComboBox(content);
-	_compareCombo->setToolTip(tr("Show the selected result next to this one, in two panes that share one camera."));
+	_compareCombo->setToolTip(tr("Show the selected result next to this one, in two panes\n"
+	                             "that share one camera."));
 	_compareButton = new QPushButton(tr("Compare"), content);
 	auto* compareRow = new QHBoxLayout();
 	compareRow->addWidget(_compareCombo, 1);
@@ -151,14 +157,16 @@ void SimulationPanel::buildUi()
 	form->addRow(tr("Compare with:"), compareRow);
 	_compareStackedCheck = new QCheckBox(tr("Stacked (top / bottom)"), content);
 	_compareSharedCheck = new QCheckBox(tr("Same colour range for both"), content);
-	_compareSharedCheck->setToolTip(tr("Use one colour range covering both results, so equal colours mean equal values "
-	                                   "(only while both show the same unit)."));
+	_compareSharedCheck->setToolTip(tr("Use one colour range covering both results, so equal\n"
+	                                   "colours mean equal values (only while both show the same\n"
+	                                   "unit)."));
 	form->addRow(_compareStackedCheck);
 	form->addRow(_compareSharedCheck);
 	_compareLinkCheck = new QCheckBox(tr("Link the cameras"), content);
-	_compareLinkCheck->setToolTip(tr("Off: every pane has its own camera - orbit (middle button), pan (right button) and zoom "
-	                                 "(wheel) act on the pane under the cursor. On: they move all panes together. Fit restores each "
-	                                 "result to its own pane."));
+	_compareLinkCheck->setToolTip(tr("Off: every pane has its own camera - orbit (middle\n"
+	                                 "button), pan (right button) and zoom (wheel) act on the\n"
+	                                 "pane under the cursor. On: they move all panes together.\n"
+	                                 "Fit restores each result to its own pane."));
 	_compareLinkCheck->setChecked(QSettings().value(QStringLiteral("Simulation/compareLinkCameras"), false).toBool());
 	form->addRow(_compareLinkCheck);
 
@@ -180,8 +188,9 @@ void SimulationPanel::buildUi()
 	_lengthUnitCombo->addItem(tr("Metres (m)"), QStringLiteral("m"));
 	_lengthUnitCombo->addItem(tr("Inches (in)"), QStringLiteral("in"));
 	_lengthUnitCombo->addItem(tr("Feet (ft)"), QStringLiteral("ft"));
-	_lengthUnitCombo->setToolTip(tr("The length unit of the model's coordinates. Mass Properties and Surface Analysis use it to "
-	                                "convert to millimetres. Set from the file when it states one."));
+	_lengthUnitCombo->setToolTip(tr("The length unit of the model's coordinates. Mass\n"
+	                                "Properties and Surface Analysis use it to convert to\n"
+	                                "millimetres. Set from the file when it states one."));
 	form->addRow(tr("Model unit:"), _lengthUnitCombo);
 	_sizeLabel = new QLabel(content);
 	_sizeLabel->setWordWrap(true);
@@ -241,8 +250,9 @@ void SimulationPanel::buildUi()
 	form->addRow(tr("Contours:"), _bandsCombo);
 
 	_markersCheck = new QCheckBox(tr("Mark minimum and maximum"), content);
-	_markersCheck->setToolTip(tr("Label the smallest and largest value on the visible surface. The true extreme can lie inside "
-	                             "the volume, where it cannot be shown."));
+	_markersCheck->setToolTip(tr("Label the smallest and largest value on the visible\n"
+	                             "surface. The true extreme can lie inside the volume, where\n"
+	                             "it cannot be shown."));
 	form->addRow(_markersCheck);
 
 	// ---- Deformed shape: the displacement field times a scale factor added to the geometry.
@@ -254,10 +264,12 @@ void SimulationPanel::buildUi()
 	_deformScaleSpin->setKeyboardTracking(false);
 	_deformScaleSpin->setStepType(QAbstractSpinBox::AdaptiveDecimalStepType);
 	_deformScaleSpin->setAccelerated(true);
-	_deformScaleSpin->setToolTip(tr("Factor applied to the displacements. 1 is the true deformation; results are usually "
-	                                "exaggerated so that it is visible."));
+	_deformScaleSpin->setToolTip(tr("Factor applied to the displacements. 1 is the true\n"
+	                                "deformation; results are usually exaggerated so that it is\n"
+	                                "visible."));
 	_deformAutoButton = new QPushButton(tr("Auto"), content);
-	_deformAutoButton->setToolTip(tr("Choose a factor that makes the largest displacement about a tenth of the model size"));
+	_deformAutoButton->setToolTip(tr("Choose a factor that makes the largest displacement about\n"
+	                                 "a tenth of the model size"));
 	auto* scaleRow = new QHBoxLayout();
 	scaleRow->addWidget(_deformScaleSpin, 1);
 	scaleRow->addWidget(_deformAutoButton);
@@ -268,8 +280,9 @@ void SimulationPanel::buildUi()
 
 	// ---- Vector arrows: one arrow per sampled point of the surface along a 3-component field, coloured by magnitude.
 	_glyphCheck = new QCheckBox(tr("Show vector arrows"), content);
-	_glyphCheck->setToolTip(tr("Draw an arrow along a vector field (velocity, displacement ...) at sampled points of the surface, "
-	                           "coloured by the vector's magnitude."));
+	_glyphCheck->setToolTip(tr("Draw an arrow along a vector field (velocity, displacement\n"
+	                           "...) at sampled points of the surface, coloured by the\n"
+	                           "vector's magnitude."));
 	form->addRow(_glyphCheck);
 	_glyphFieldCombo = new QComboBox(content);
 	form->addRow(tr("Arrow field:"), _glyphFieldCombo);
@@ -287,11 +300,36 @@ void SimulationPanel::buildUi()
 	_glyphCountSpin->setToolTip(tr("About this many arrows, spread evenly over the surface."));
 	form->addRow(tr("Arrow count:"), _glyphCountSpin);
 	_glyphMagnitudeCheck = new QCheckBox(tr("Scale arrows by magnitude"), content);
-	_glyphMagnitudeCheck->setToolTip(tr("Off: every arrow has the same length and only the colour shows the magnitude."));
+	_glyphMagnitudeCheck->setToolTip(tr("Off: every arrow has the same length and only the colour\n"
+	                                    "shows the magnitude."));
 	form->addRow(_glyphMagnitudeCheck);
 	_glyphInfoLabel = new QLabel(content);
 	_glyphInfoLabel->setWordWrap(true);
 	form->addRow(_glyphInfoLabel);
+
+	// ---- Cutting the volume: the field on the cut of the Clipping Planes, and iso-surfaces of a node field.
+	_sectionCheck = new QCheckBox(tr("Colour the Clipping Plane cut with the field"), content);
+	_sectionCheck->setToolTip(tr("Switch on a Clipping Plane (the Clipping Planes editor);\n"
+	                             "the model is cut open there and the cut through the volume\n"
+	                             "is drawn coloured with the shown field. It follows the\n"
+	                             "plane as you move it. It is opaque, so switch it off to\n"
+	                             "see iso-surfaces behind it."));
+	form->addRow(_sectionCheck);
+	_isoCheck = new QCheckBox(tr("Show iso-surfaces"), content);
+	_isoCheck->setToolTip(tr("Surfaces inside the volume where a node field has a given\n"
+	                         "value, evenly spaced between its smallest and largest\n"
+	                         "value at the shown step. They lie inside the model: cut it\n"
+	                         "with a Clipping Plane to see them."));
+	form->addRow(_isoCheck);
+	_isoFieldCombo = new QComboBox(content);
+	form->addRow(tr("Iso-surface field:"), _isoFieldCombo);
+	_isoLevelsSpin = new QSpinBox(content);
+	_isoLevelsSpin->setRange(1, 20);
+	_isoLevelsSpin->setKeyboardTracking(false);
+	form->addRow(tr("Iso-surface levels:"), _isoLevelsSpin);
+	_sliceInfoLabel = new QLabel(content);
+	_sliceInfoLabel->setWordWrap(true);
+	form->addRow(_sliceInfoLabel);
 
 	_noteLabel = new QLabel(content);
 	_noteLabel->setWordWrap(true);
@@ -365,6 +403,14 @@ void SimulationPanel::buildUi()
 		if (!_updating)
 			emit lengthUnitChanged(_lengthUnitCombo->currentData().toString());
 	});
+	connect(_sectionCheck, &QCheckBox::toggled, this, [this](bool) { if (!_updating) emitState(); });
+	connect(_isoCheck, &QCheckBox::toggled, this, [this](bool) {
+		updateSliceEnabled();
+		if (!_updating)
+			emitState();
+	});
+	connect(_isoFieldCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { if (!_updating) emitState(); });
+	connect(_isoLevelsSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int) { if (!_updating) emitState(); });
 	connect(_glyphCheck, &QCheckBox::toggled, this, [this](bool) {
 		updateGlyphEnabled();
 		if (!_updating)
@@ -482,6 +528,13 @@ void SimulationPanel::setSession(const SimulationSession* session)
 			.arg(_dataset->fields[static_cast<std::size_t>(session->displacementField)].name)
 		: tr("This result has no displacement field, so it cannot be shown deformed."));
 
+	populateIsoFields(state.isoField >= 0 ? state.isoField : state.fieldIndex);
+	_sectionCheck->setChecked(state.sectionFill);
+	_isoCheck->setChecked(_isoFieldCombo->isEnabled() && state.iso);
+	_isoLevelsSpin->setValue(state.isoLevels);
+	_sliceInfoLabel->setText(session->sliceInfo);
+	_sliceInfoLabel->setVisible(!session->sliceInfo.isEmpty());
+	updateSliceEnabled();
 	populateGlyphFields(state.glyphField >= 0 ? state.glyphField : chooseDefaultGlyphField(*_dataset));
 	_glyphCheck->setChecked(_glyphFieldCombo->isEnabled() && state.glyphs);
 	_glyphScaleSpin->setValue(state.glyphScale);
@@ -501,8 +554,54 @@ void SimulationPanel::setSession(const SimulationSession* session)
 	_noteLabel->setText(notes.join(QLatin1Char('\n')));
 	_noteLabel->setVisible(!notes.isEmpty());
 
+	// Word-wrapped labels change height with their text; the scroll area's content keeps the old height until told, and the labels then
+	// overlap (each is drawn over the next one). Re-run the layout now and once the new sizes have settled.
+	if (QWidget* content = _noteLabel->parentWidget())
+	{
+		for (QLabel* label : content->findChildren<QLabel*>())
+			if (label->wordWrap())
+				label->updateGeometry();
+		if (content->layout())
+			content->layout()->invalidate();
+		QPointer<QWidget> guard(content);
+		QTimer::singleShot(0, content, [guard]() {
+			if (guard && guard->layout())
+			{
+				guard->layout()->invalidate();
+				guard->layout()->activate();
+			}
+		});
+	}
+
 	_stack->setCurrentIndex(1);
 	_updating = false;
+}
+
+void SimulationPanel::populateIsoFields(int selectedFieldIndex)
+{
+	_isoFieldCombo->clear();
+	if (_dataset)
+		for (std::size_t i = 0; i < _dataset->fields.size(); ++i)
+		{
+			const ResultField& f = _dataset->fields[i];
+			// A node field with one component or a vector (its magnitude): the value of an iso-surface must be a single number per node.
+			if (f.association != ResultFieldAssociation::Node || (f.components != 1 && f.components != 3) || !resultFieldHasData(f))
+				continue;
+			_isoFieldCombo->addItem(f.name + (f.components == 3 ? tr(" (magnitude)") : QString()), static_cast<int>(i));
+		}
+	const bool any = _isoFieldCombo->count() > 0;
+	if (!any)
+		_isoFieldCombo->addItem(tr("(no node field)"), -1);
+	_isoFieldCombo->setCurrentIndex(std::max(0, _isoFieldCombo->findData(selectedFieldIndex)));
+	_isoCheck->setEnabled(any);
+	_isoFieldCombo->setEnabled(any);
+}
+
+void SimulationPanel::updateSliceEnabled()
+{
+	const bool on = _isoCheck->isChecked() && _isoCheck->isEnabled();
+	_isoFieldCombo->setEnabled(_isoCheck->isEnabled());
+	_isoLevelsSpin->setEnabled(on);
 }
 
 void SimulationPanel::populateGlyphFields(int selectedFieldIndex)
@@ -691,6 +790,10 @@ SimulationViewState SimulationPanel::currentState() const
 	state.markExtrema = _markersCheck->isChecked();
 	state.deform = _deformCheck->isChecked();
 	state.deformScale = _deformScaleSpin->value();
+	state.sectionFill = _sectionCheck->isChecked();
+	state.iso = _isoCheck->isChecked() && _isoCheck->isEnabled();
+	state.isoField = _isoFieldCombo->currentData().isValid() ? _isoFieldCombo->currentData().toInt() : -1;
+	state.isoLevels = _isoLevelsSpin->value();
 	state.glyphs = _glyphCheck->isChecked() && _glyphCheck->isEnabled();
 	state.glyphField = _glyphFieldCombo->currentData().isValid() ? _glyphFieldCombo->currentData().toInt() : -1;
 	state.glyphScale = _glyphScaleSpin->value();

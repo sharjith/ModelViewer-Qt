@@ -29,6 +29,7 @@ class ToolsToolbar;
 #include "SeamMarkingController.h"
 #include "FillHolesController.h"
 #include "SimulationGlyphController.h"
+#include "SimulationSliceController.h"
 #include "MvfMeshPreparationWorker.h"
 #include "PlaneRenderable.h"
 #include "PlaneGizmo.h"
@@ -1220,6 +1221,8 @@ public:
 
 signals:
     void viewStateChanged();
+	// A Clipping Plane was switched, moved or flipped (every change of the Clipping Planes editor ends in updateClippingPlane()).
+	void clippingPlanesChanged();
     void toolCommandRequested(const QString& command);
 	// Fired synchronously, on the two actual `delete meshRecord.mesh`/
 	// `delete entry.mesh` call sites (permanentlyDeleteFromBin(),
@@ -1502,6 +1505,18 @@ public:
 	// pane in compare mode. An empty set clears them.
 	void setSimulationGlyphs(const QUuid& meshUuid, GlyphSet glyphs);
 	void clearSimulationGlyphs(const QUuid& meshUuid);
+
+	// Cut surfaces of a simulation result's volume (data-coloured sections, iso-surfaces): see SimulationSliceController.h. An empty list clears them.
+	void setSimulationSlices(const QUuid& meshUuid, std::vector<SliceDisplay> slices);
+	void clearSimulationSlices(const QUuid& meshUuid);
+	// The axis-aligned Clipping Planes that are on (X = 0, Y = 1, Z = 2) at their world position; a simulation section follows them.
+	struct ClippingCut
+	{
+		int axis = 0;
+		double position = 0.0;
+		bool keepPositive = false; // the model is kept on the +axis side (a flipped plane), else on the -axis side
+	};
+	QVector<ClippingCut> clippingCuts() const;
 
 	// Compare mode (simulation results side by side, docs/simulation_compare_mode_design.md): the window is divided
 	// into one pane per mesh, each drawing ONLY its mesh with the shared camera - orbit, pan, zoom and fit act on all
@@ -2617,6 +2632,8 @@ private:
 	FillHolesController* _fillHolesController = nullptr;
 	SimulationGlyphController* _simulationGlyphController = nullptr;
 	void drawSimulationGlyphs(Camera* camera);
+	SimulationSliceController* _simulationSliceController = nullptr;
+	void drawSimulationSlices(Camera* camera);
 
 	CubeRenderable* _lightCube;
 	SphereRenderable* _lightSphere;
