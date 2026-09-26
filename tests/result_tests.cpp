@@ -16,6 +16,7 @@
 #include "ResultSnapshot.h"
 #include "ResultUnits.h"
 #include "SimulationGlyphs.h"
+#include "VtkHdfReader.h"
 #include "SimulationResultDisplay.h"
 
 #include <QByteArray>
@@ -37,6 +38,9 @@
 #endif
 #if MV_HAVE_CGNS
 #include <cgnslib.h>
+#endif
+#if MV_HAVE_HDF5
+#include <hdf5.h>
 #endif
 #include <vector>
 
@@ -3411,6 +3415,437 @@ namespace
 #endif
 	}
 
+#if MV_HAVE_HDF5
+	// ---- VTKHDF fixtures, written through the HDF5 API following the VTKHDF specification -------------------------------------
+	template <typename T> hid_t hdfType();
+	template <> hid_t hdfType<float>() { return H5T_NATIVE_FLOAT; }
+	template <> hid_t hdfType<double>() { return H5T_NATIVE_DOUBLE; }
+	template <> hid_t hdfType<long long>() { return H5T_NATIVE_LLONG; }
+	template <> hid_t hdfType<int>() { return H5T_NATIVE_INT; }
+	template <> hid_t hdfType<unsigned char>() { return H5T_NATIVE_UCHAR; }
+
+	// A link-creation property list that creates the missing groups of a path ("Steps/PointDataOffsets/T").
+	hid_t hdfLinkProps()
+	{
+		const hid_t props = H5Pcreate(H5P_LINK_CREATE);
+		H5Pset_create_intermediate_group(props, 1);
+		return props;
+	}
+
+	template <typename T>
+	bool hdfPut(hid_t file, const char* path, const std::vector<hsize_t>& dims, const std::vector<T>& data)
+	{
+		const hid_t props = hdfLinkProps();
+		const hid_t space = H5Screate_simple(static_cast<int>(dims.size()), dims.data(), nullptr);
+		const hid_t dataset = H5Dcreate2(file, path, hdfType<T>(), space, props, H5P_DEFAULT, H5P_DEFAULT);
+		const bool ok = dataset >= 0 && H5Dwrite(dataset, hdfType<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, data.data()) >= 0;
+		if (dataset >= 0)
+			H5Dclose(dataset);
+		H5Sclose(space);
+		H5Pclose(props);
+		return ok;
+	}
+
+	bool hdfGroup(hid_t file, const char* path)
+	{
+		const hid_t props = hdfLinkProps();
+		const hid_t group = H5Gcreate2(file, path, props, H5P_DEFAULT, H5P_DEFAULT);
+		H5Pclose(props);
+		if (group < 0)
+			return false;
+		H5Gclose(group);
+		return true;
+	}
+
+	bool hdfStringAttribute(hid_t object, const char* name, const char* value)
+	{
+		const hid_t type = H5Tcopy(H5T_C_S1);
+		H5Tset_size(type, std::strlen(value));
+		const hid_t space = H5Screate(H5S_SCALAR);
+		const hid_t attribute = H5Acreate2(object, name, type, space, H5P_DEFAULT, H5P_DEFAULT);
+		const bool ok = attribute >= 0 && H5Awrite(attribute, type, value) >= 0;
+		if (attribute >= 0)
+			H5Aclose(attribute);
+		H5Sclose(space);
+		H5Tclose(type);
+		return ok;
+	}
+
+	template <typename T>
+	bool hdfArrayAttribute(hid_t object, const char* name, const std::vector<T>& values)
+	{
+		const hsize_t dims[1] = { values.size() };
+		const hid_t space = H5Screate_simple(1, dims, nullptr);
+		const hid_t attribute = H5Acreate2(object, name, hdfType<T>(), space, H5P_DEFAULT, H5P_DEFAULT);
+		const bool ok = attribute >= 0 && H5Awrite(attribute, hdfType<T>(), values.data()) >= 0;
+		if (attribute >= 0)
+			H5Aclose(attribute);
+		H5Sclose(space);
+		return ok;
+	}
+
+	// Creates the file and its /VTKHDF group (Type + Version); returns the group (or -1) and the file through `file`.
+	hid_t hdfCreate(const char* path, const char* type, hid_t& file)
+	{
+		file = H5Fcreate(path, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+		if (file < 0)
+			return -1;
+		const hid_t root = H5Gcreate2(file, "VTKHDF", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+		if (root >= 0 && !(hdfStringAttribute(root, "Type", type) && hdfArrayAttribute<int>(root, "Version", { 2, 0 })))
+		{
+			H5Gclose(root);
+			return -1;
+		}
+		return root;
+	}
+
+	// kind: 0 two tets, 1 the same in two partitions, 2 three time steps of static geometry, 3 a moving mesh.
+	bool writeVtkHdfUnstructured(const char* path, int kind)
+	{
+		hid_t file = -1;
+		const hid_t root = hdfCreate(path, "UnstructuredGrid", file);
+		if (root < 0)
+			return false;
+		bool ok = true;
+		const std::vector<float> tets = { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1 };
+		if (kind == 1)
+		{
+			// partition A: tet 0-1-2-3, partition B: the tet 1-2-3-4 with its own four points and LOCAL ids
+			const std::vector<float> points = { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1 };
+			ok = ok && hdfPut<float>(root, "Points", { 8, 3 }, points)
+			     && hdfPut<long long>(root, "NumberOfPoints", { 2 }, { 4, 4 }) && hdfPut<long long>(root, "NumberOfCells", { 2 }, { 1, 1 })
+			     && hdfPut<long long>(root, "NumberOfConnectivityIds", { 2 }, { 4, 4 })
+			     && hdfPut<long long>(root, "Connectivity", { 8 }, { 0, 1, 2, 3, 0, 1, 2, 3 })
+			     && hdfPut<long long>(root, "Offsets", { 4 }, { 0, 4, 0, 4 }) // one extra entry per partition
+			     && hdfPut<unsigned char>(root, "Types", { 2 }, { 10, 10 })
+			     && hdfPut<float>(root, "PointData/T", { 8 }, { 0, 1, 2, 3, 4, 5, 6, 7 });
+		}
+		else
+		{
+			const int steps = kind >= 2 ? 3 : 1;
+			std::vector<float> points = tets, temperature, quality, velocity;
+			std::vector<long long> pointDataOffsets, cellDataOffsets;
+			for (int s = 0; s < steps; ++s)
+			{
+				if (kind == 3 && s > 0)
+					for (int p = 0; p < 5; ++p)
+					{
+						points.insert(points.end(), { tets[static_cast<std::size_t>(p) * 3] + 0.1f * static_cast<float>(s), tets[static_cast<std::size_t>(p) * 3 + 1],
+						                              tets[static_cast<std::size_t>(p) * 3 + 2] });
+					}
+				pointDataOffsets.push_back(static_cast<long long>(temperature.size()));
+				cellDataOffsets.push_back(static_cast<long long>(quality.size()));
+				for (int p = 0; p < 5; ++p)
+				{
+					temperature.push_back(100.0f * static_cast<float>(s) + static_cast<float>(p));
+					velocity.insert(velocity.end(), { static_cast<float>(s), static_cast<float>(p), 0.0f });
+				}
+				for (int q = 0; q < 2; ++q)
+					quality.push_back(10.0f * static_cast<float>(s) + static_cast<float>(q));
+			}
+			ok = ok && hdfPut<float>(root, "Points", { static_cast<hsize_t>(points.size() / 3), 3 }, points)
+			     && hdfPut<long long>(root, "NumberOfPoints", { 1 }, { 5 }) && hdfPut<long long>(root, "NumberOfCells", { 1 }, { 2 })
+			     && hdfPut<long long>(root, "NumberOfConnectivityIds", { 1 }, { 8 })
+			     && hdfPut<long long>(root, "Connectivity", { 8 }, { 0, 1, 2, 3, 1, 2, 3, 4 })
+			     && hdfPut<long long>(root, "Offsets", { 3 }, { 0, 4, 8 }) && hdfPut<unsigned char>(root, "Types", { 2 }, { 10, 10 })
+			     && hdfPut<float>(root, "PointData/T", { static_cast<hsize_t>(temperature.size()) }, temperature)
+			     && hdfPut<float>(root, "PointData/U", { static_cast<hsize_t>(temperature.size()), 3 }, velocity)
+			     && hdfPut<float>(root, "CellData/Q", { static_cast<hsize_t>(quality.size()) }, quality);
+			if (kind >= 2)
+			{
+				const hid_t group = H5Gcreate2(root, "Steps", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+				ok = ok && group >= 0 && hdfArrayAttribute<int>(group, "NSteps", { 3 });
+				if (group >= 0)
+					H5Gclose(group);
+				std::vector<long long> pointOffsets = { 0, 0, 0 };
+				if (kind == 3)
+					pointOffsets = { 0, 5, 10 };
+				ok = ok && hdfPut<double>(root, "Steps/Values", { 3 }, { 0.0, 0.5, 1.0 }) && hdfPut<long long>(root, "Steps/PartOffsets", { 3 }, { 0, 0, 0 })
+				     && hdfPut<long long>(root, "Steps/NumberOfParts", { 3 }, { 1, 1, 1 }) && hdfPut<long long>(root, "Steps/PointOffsets", { 3 }, pointOffsets)
+				     && hdfPut<long long>(root, "Steps/CellOffsets", { 3, 1 }, { 0, 0, 0 })
+				     && hdfPut<long long>(root, "Steps/ConnectivityIdOffsets", { 3, 1 }, { 0, 0, 0 })
+				     && hdfPut<long long>(root, "Steps/PointDataOffsets/T", { 3 }, pointDataOffsets)
+				     && hdfPut<long long>(root, "Steps/PointDataOffsets/U", { 3 }, pointDataOffsets)
+				     && hdfPut<long long>(root, "Steps/CellDataOffsets/Q", { 3 }, cellDataOffsets);
+			}
+		}
+		H5Gclose(root);
+		return H5Fclose(file) >= 0 && ok;
+	}
+
+	// A PolyData: a line (points 0-4) and two polygons (a quad and a triangle) - the cell data lists the line first.
+	bool writeVtkHdfPolyData(const char* path)
+	{
+		hid_t file = -1;
+		const hid_t root = hdfCreate(path, "PolyData", file);
+		if (root < 0)
+			return false;
+		const bool ok = hdfPut<float>(root, "Points", { 5, 3 }, { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 2, 0.5f, 0 })
+		                && hdfPut<long long>(root, "NumberOfPoints", { 1 }, { 5 })
+		                && hdfPut<long long>(root, "Lines/NumberOfCells", { 1 }, { 1 }) && hdfPut<long long>(root, "Lines/NumberOfConnectivityIds", { 1 }, { 2 })
+		                && hdfPut<long long>(root, "Lines/Connectivity", { 2 }, { 0, 4 }) && hdfPut<long long>(root, "Lines/Offsets", { 2 }, { 0, 2 })
+		                && hdfPut<long long>(root, "Polygons/NumberOfCells", { 1 }, { 2 }) && hdfPut<long long>(root, "Polygons/NumberOfConnectivityIds", { 1 }, { 7 })
+		                && hdfPut<long long>(root, "Polygons/Connectivity", { 7 }, { 0, 1, 2, 3, 1, 4, 2 }) && hdfPut<long long>(root, "Polygons/Offsets", { 3 }, { 0, 4, 7 })
+		                && hdfPut<double>(root, "CellData/C", { 3 }, { 10.0, 20.0, 30.0 });
+		H5Gclose(root);
+		return H5Fclose(file) >= 0 && ok;
+	}
+
+	// An ImageData of 3 x 2 x 2 points (2 x 1 x 1 cells), origin (1,0,0), spacing (0.5, 1, 2); arrays are [z, y, x].
+	bool writeVtkHdfImage(const char* path)
+	{
+		hid_t file = -1;
+		const hid_t root = hdfCreate(path, "ImageData", file);
+		if (root < 0)
+			return false;
+		std::vector<float> temperature;
+		for (int i = 0; i < 12; ++i)
+			temperature.push_back(static_cast<float>(i));
+		const bool ok = hdfArrayAttribute<int>(root, "WholeExtent", { 0, 2, 0, 1, 0, 1 }) && hdfArrayAttribute<double>(root, "Origin", { 1.0, 0.0, 0.0 })
+		                && hdfArrayAttribute<double>(root, "Spacing", { 0.5, 1.0, 2.0 })
+		                && hdfArrayAttribute<double>(root, "Direction", { 1, 0, 0, 0, 1, 0, 0, 0, 1 })
+		                && hdfPut<float>(root, "PointData/T", { 2, 2, 3 }, temperature) && hdfPut<float>(root, "CellData/Q", { 1, 1, 2 }, { 5.0f, 6.0f });
+		H5Gclose(root);
+		return H5Fclose(file) >= 0 && ok;
+	}
+
+	// A larger VTKHDF file for trying the reader in the application (result_tests --write-vtkhdf-sample <file.vtkhdf>): an
+	// n x n x n block of hexahedra, five steps of a warming, accelerating cube, static geometry - the way ParaView writes a
+	// transient dataset (all steps of an array in one dataset, located by /Steps/PointDataOffsets).
+	bool writeVtkHdfBlockSample(const char* path, int n = 8)
+	{
+		hid_t file = -1;
+		const hid_t root = hdfCreate(path, "UnstructuredGrid", file);
+		if (root < 0)
+			return false;
+		const int side = n + 1, steps = 5;
+		const std::size_t pointCount = static_cast<std::size_t>(side * side * side), cells = static_cast<std::size_t>(n * n * n);
+		auto node = [&](int i, int j, int k) { return static_cast<long long>(i + side * (j + side * k)); };
+		std::vector<float> points;
+		for (int k = 0; k < side; ++k)
+			for (int j = 0; j < side; ++j)
+				for (int i = 0; i < side; ++i)
+					points.insert(points.end(), { static_cast<float>(i), static_cast<float>(j), static_cast<float>(k) });
+		std::vector<long long> connectivity, offsets = { 0 };
+		for (int k = 0; k < n; ++k)
+			for (int j = 0; j < n; ++j)
+				for (int i = 0; i < n; ++i)
+				{
+					for (long long id : { node(i, j, k), node(i + 1, j, k), node(i + 1, j + 1, k), node(i, j + 1, k), node(i, j, k + 1), node(i + 1, j, k + 1),
+					                      node(i + 1, j + 1, k + 1), node(i, j + 1, k + 1) })
+						connectivity.push_back(id);
+					offsets.push_back(static_cast<long long>(connectivity.size()));
+				}
+		std::vector<float> temperature, velocity, quality;
+		std::vector<long long> pointStarts, cellStarts;
+		std::vector<double> times;
+		for (int s = 0; s < steps; ++s)
+		{
+			const double t = static_cast<double>(s) / (steps - 1);
+			times.push_back(t);
+			pointStarts.push_back(static_cast<long long>(temperature.size()));
+			cellStarts.push_back(static_cast<long long>(quality.size()));
+			for (std::size_t p = 0; p < pointCount; ++p)
+			{
+				const double x = points[p * 3] / n, y = points[p * 3 + 1] / n, z = points[p * 3 + 2] / n;
+				temperature.push_back(static_cast<float>(300.0 + 60.0 * t * x));
+				velocity.insert(velocity.end(), { static_cast<float>(t * 8.0 * y * (1.0 - y)), static_cast<float>(t * 0.5 * std::sin(3.14159265 * x)),
+				                                  static_cast<float>(t * 0.25 * (z - 0.5)) });
+			}
+			for (std::size_t c = 0; c < cells; ++c)
+				quality.push_back(static_cast<float>(0.5 + 0.5 * std::sin(0.1 * static_cast<double>(c) + 2.0 * t)));
+		}
+		const std::vector<long long> zeros(static_cast<std::size_t>(steps), 0), ones(static_cast<std::size_t>(steps), 1);
+		bool ok = hdfPut<float>(root, "Points", { pointCount, 3 }, points) && hdfPut<long long>(root, "NumberOfPoints", { 1 }, { static_cast<long long>(pointCount) })
+		          && hdfPut<long long>(root, "NumberOfCells", { 1 }, { static_cast<long long>(cells) })
+		          && hdfPut<long long>(root, "NumberOfConnectivityIds", { 1 }, { static_cast<long long>(connectivity.size()) })
+		          && hdfPut<long long>(root, "Connectivity", { connectivity.size() }, connectivity) && hdfPut<long long>(root, "Offsets", { offsets.size() }, offsets)
+		          && hdfPut<unsigned char>(root, "Types", { cells }, std::vector<unsigned char>(cells, 12))
+		          && hdfPut<float>(root, "PointData/Temperature", { temperature.size() }, temperature)
+		          && hdfPut<float>(root, "PointData/Velocity", { pointCount * static_cast<std::size_t>(steps), 3 }, velocity)
+		          && hdfPut<float>(root, "CellData/Quality", { quality.size() }, quality);
+		const hid_t group = H5Gcreate2(root, "Steps", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+		ok = ok && group >= 0 && hdfArrayAttribute<int>(group, "NSteps", { steps });
+		if (group >= 0)
+			H5Gclose(group);
+		ok = ok && hdfPut<double>(root, "Steps/Values", { static_cast<hsize_t>(steps) }, times) && hdfPut<long long>(root, "Steps/PartOffsets", { static_cast<hsize_t>(steps) }, zeros)
+		     && hdfPut<long long>(root, "Steps/NumberOfParts", { static_cast<hsize_t>(steps) }, ones) && hdfPut<long long>(root, "Steps/PointOffsets", { static_cast<hsize_t>(steps) }, zeros)
+		     && hdfPut<long long>(root, "Steps/CellOffsets", { static_cast<hsize_t>(steps), 1 }, zeros)
+		     && hdfPut<long long>(root, "Steps/ConnectivityIdOffsets", { static_cast<hsize_t>(steps), 1 }, zeros)
+		     && hdfPut<long long>(root, "Steps/PointDataOffsets/Temperature", { static_cast<hsize_t>(steps) }, pointStarts)
+		     && hdfPut<long long>(root, "Steps/PointDataOffsets/Velocity", { static_cast<hsize_t>(steps) }, pointStarts)
+		     && hdfPut<long long>(root, "Steps/CellDataOffsets/Quality", { static_cast<hsize_t>(steps) }, cellStarts);
+		H5Gclose(root);
+		return H5Fclose(file) >= 0 && ok;
+	}
+#endif
+
+	void testVtkHdf()
+	{
+#if MV_HAVE_HDF5
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		CHECK(vtkHdfSupported() && !vtkHdfFileFilter().isEmpty());
+		CHECK(supportedResultExtensions().contains(QStringLiteral("vtkhdf")) && isSupportedResultFile(QStringLiteral("run.VTKHDF")));
+		auto write = [&](const char* name) { return tmp.path() + QStringLiteral("/") + QString::fromLatin1(name); };
+		auto read = [&](const QString& path) {
+			ResultReadOutcome r = readResultFile(path);
+			if (!r.ok())
+				std::printf("  VTKHDF failed: %s\n", qPrintable(r.error));
+			CHECK(r.ok());
+			return r;
+		};
+
+		// ---- one partition, static
+		const QString plain = write("plain.vtkhdf");
+		CHECK(writeVtkHdfUnstructured(QFile::encodeName(plain).constData(), 0));
+		{
+			const ResultReadOutcome r = read(plain);
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				CHECK(ds.solverName == QStringLiteral("VTKHDF") && ds.nodeCount() == 5 && ds.cellCount() == 2 && ds.stepCount() == 1);
+				CHECK(ds.cellTypes[0] == ResultCellType::Tetra && ds.cellConnectivity == std::vector<std::uint32_t>({ 0, 1, 2, 3, 1, 2, 3, 4 }));
+				const ResultField* t = ds.findField(QStringLiteral("T"), ResultFieldAssociation::Node);
+				const ResultField* u = ds.findField(QStringLiteral("U"), ResultFieldAssociation::Node);
+				const ResultField* q = ds.findField(QStringLiteral("Q"), ResultFieldAssociation::Cell);
+				CHECK(t && u && q && t->components == 1 && u->components == 3 && q->tupleCount(0) == 2);
+				if (t && u)
+					CHECK(approx(t->stepData[0][3], 3.0) && approx(u->stepData[0][4 * 3 + 1], 4.0));
+				CHECK(ds.validate().isEmpty() && extract(ds).triangleCount() == 6); // two tets sharing a face: 8 - 2 faces
+			}
+		}
+
+		// ---- two partitions: each has its own points and local ids, offsets restart at 0
+		const QString parts = write("parts.vtkhdf");
+		CHECK(writeVtkHdfUnstructured(QFile::encodeName(parts).constData(), 1));
+		{
+			const ResultReadOutcome r = read(parts);
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				CHECK(ds.nodeCount() == 8 && ds.cellCount() == 2);
+				CHECK(ds.cellConnectivity == std::vector<std::uint32_t>({ 0, 1, 2, 3, 4, 5, 6, 7 })); // the second partition's ids shifted by 4
+				const ResultField* t = ds.findField(QStringLiteral("T"), ResultFieldAssociation::Node);
+				CHECK(t && t->tupleCount(0) == 8 && approx(t->stepData[0][7], 7.0));
+			}
+		}
+
+		// ---- time steps of static geometry: each array's rows for a step come from Steps/PointDataOffsets
+		const QString temporal = write("temporal.vtkhdf");
+		CHECK(writeVtkHdfUnstructured(QFile::encodeName(temporal).constData(), 2));
+		{
+			const ResultReadOutcome r = read(temporal);
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				CHECK(ds.stepCount() == 3 && approx(ds.steps[1].time, 0.5) && approx(ds.steps[2].time, 1.0));
+				const ResultField* t = ds.findField(QStringLiteral("T"), ResultFieldAssociation::Node);
+				const ResultField* q = ds.findField(QStringLiteral("Q"), ResultFieldAssociation::Cell);
+				CHECK(t && q && t->stepData.size() == 3);
+				if (t && q && t->stepData.size() == 3)
+					CHECK(approx(t->stepData[0][2], 2.0) && approx(t->stepData[1][2], 102.0) && approx(t->stepData[2][4], 204.0) && approx(q->stepData[2][1], 21.0));
+				CHECK(ds.findField(QStringLiteral("Mesh displacement"), ResultFieldAssociation::Node) == nullptr); // the points do not move
+				CHECK(ds.validate().isEmpty());
+			}
+		}
+
+		// ---- a moving mesh: the first step's points plus a displacement field
+		const QString moving = write("moving.vtkhdf");
+		CHECK(writeVtkHdfUnstructured(QFile::encodeName(moving).constData(), 3));
+		{
+			const ResultReadOutcome r = read(moving);
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				const ResultField* d = ds.findField(QStringLiteral("Mesh displacement"), ResultFieldAssociation::Node);
+				CHECK(d && d->components == 3 && d->stepData.size() == 3);
+				if (d && d->stepData.size() == 3)
+					CHECK(approx(d->stepData[0][0], 0.0) && approx(d->stepData[1][0], 0.1, 1e-3, 1e-6) && approx(d->stepData[2][3 * 4], 0.2, 1e-3, 1e-6));
+				CHECK(findDisplacementField(ds) >= 0);
+			}
+		}
+
+		// ---- PolyData: the cells are listed Vertices, Lines, Polygons, Strips
+		const QString poly = write("poly.vtkhdf");
+		CHECK(writeVtkHdfPolyData(QFile::encodeName(poly).constData()));
+		{
+			const ResultReadOutcome r = read(poly);
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				CHECK(ds.nodeCount() == 5 && ds.cellCount() == 3);
+				CHECK(ds.cellTypes[0] == ResultCellType::Line && ds.cellTypes[1] == ResultCellType::Quad && ds.cellTypes[2] == ResultCellType::Triangle);
+				const ResultField* c = ds.findField(QStringLiteral("C"), ResultFieldAssociation::Cell);
+				CHECK(c && approx(c->stepData[0][0], 10.0) && approx(c->stepData[0][2], 30.0));
+			}
+		}
+
+		// ---- ImageData: points from origin and spacing, x fastest
+		const QString image = write("image.vtkhdf");
+		CHECK(writeVtkHdfImage(QFile::encodeName(image).constData()));
+		{
+			const ResultReadOutcome r = read(image);
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				CHECK(ds.nodeCount() == 12 && ds.cellCount() == 2 && ds.cellTypes[0] == ResultCellType::Hexahedron);
+				CHECK(approx(ds.nodePositions[1 * 3], 1.5) && approx(ds.nodePositions[11 * 3], 2.0) && approx(ds.nodePositions[11 * 3 + 1], 1.0)
+				      && approx(ds.nodePositions[11 * 3 + 2], 2.0));
+				const ResultField* t = ds.findField(QStringLiteral("T"), ResultFieldAssociation::Node);
+				const ResultField* q = ds.findField(QStringLiteral("Q"), ResultFieldAssociation::Cell);
+				CHECK(t && q && approx(t->stepData[0][11], 11.0) && approx(q->stepData[0][1], 6.0));
+			}
+		}
+
+		// ---- the larger sample
+		const QString sample = write("sample.vtkhdf");
+		CHECK(writeVtkHdfBlockSample(QFile::encodeName(sample).constData()));
+		{
+			const ResultReadOutcome r = read(sample);
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				CHECK(ds.nodeCount() == 729 && ds.cellCount() == 512 && ds.stepCount() == 5 && approx(ds.steps[4].time, 1.0));
+				const ResultField* v = ds.findField(QStringLiteral("Velocity"), ResultFieldAssociation::Node);
+				CHECK(v && v->components == 3 && v->stepData.size() == 5 && !v->stepData[4].empty());
+				CHECK(ds.validate().isEmpty());
+			}
+		}
+
+		// ---- files that are not readable as results
+		{
+			const QString composite = write("composite.vtkhdf");
+			hid_t file = -1;
+			const hid_t root = hdfCreate(QFile::encodeName(composite).constData(), "MultiBlockDataSet", file);
+			CHECK(root >= 0);
+			if (root >= 0)
+			{
+				H5Gclose(root);
+				H5Fclose(file);
+				const ResultReadOutcome r = readResultFile(composite);
+				CHECK(!r.ok() && r.error.contains(QStringLiteral("composite")));
+			}
+			const QString other = write("other.vtkhdf");
+			const hid_t plainFile = H5Fcreate(QFile::encodeName(other).constData(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+			CHECK(plainFile >= 0);
+			if (plainFile >= 0)
+			{
+				H5Fclose(plainFile);
+				const ResultReadOutcome r = readResultFile(other);
+				CHECK(!r.ok() && r.error.contains(QStringLiteral("not a VTKHDF")));
+			}
+			const QString junk = write("junk.vtkhdf");
+			writeText(junk, "this is not HDF5");
+			CHECK(!readResultFile(junk).ok());
+		}
+#else
+		std::printf("  (skipping VTKHDF tests: this build has no HDF5 library)\n");
+#endif
+	}
+
 	void testCgnsComponentGroups()
 	{
 #if MV_HAVE_CGNS
@@ -3877,6 +4312,15 @@ int main(int argc, char** argv)
 		return ok ? 0 : 1;
 	}
 #endif
+#if MV_HAVE_HDF5
+	// result_tests --write-vtkhdf-sample <file.vtkhdf>: a transient VTKHDF file for trying the reader in the application.
+	if (argc == 3 && std::strcmp(argv[1], "--write-vtkhdf-sample") == 0)
+	{
+		const bool ok = writeVtkHdfBlockSample(argv[2]);
+		std::printf(ok ? "wrote %s\n" : "could not write %s\n", argv[2]);
+		return ok ? 0 : 1;
+	}
+#endif
 	if (argc > 1)
 		return inspectFiles(argc, argv);
 
@@ -3927,6 +4371,7 @@ int main(int argc, char** argv)
 	testCellVectorDefault();
 	testCgnsComponentGroups();
 	testCgnsStructured();
+	testVtkHdf();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();

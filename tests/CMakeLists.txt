@@ -15,6 +15,7 @@ add_executable(result_tests
     ${CMAKE_SOURCE_DIR}/src/OpenFoamReader.cpp
     ${CMAKE_SOURCE_DIR}/src/ExodusReader.cpp
     ${CMAKE_SOURCE_DIR}/src/CgnsReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/VtkHdfReader.cpp
     ${CMAKE_SOURCE_DIR}/src/ResultSnapshot.cpp
     ${CMAKE_SOURCE_DIR}/src/SimulationResultDisplay.cpp
     ${CMAKE_SOURCE_DIR}/src/SimulationGlyphs.cpp
@@ -35,6 +36,12 @@ find_package(cgns CONFIG QUIET)
 if(cgns_FOUND)
     target_link_libraries(result_tests PRIVATE $<IF:$<TARGET_EXISTS:CGNS::cgns_shared>,CGNS::cgns_shared,CGNS::cgns_static>)
     target_compile_definitions(result_tests PRIVATE MV_HAVE_CGNS=1)
+endif()
+# VTKHDF needs the HDF5 C library; without it the reader is a stub and its tests are skipped.
+find_package(HDF5 CONFIG QUIET COMPONENTS C)
+if(HDF5_FOUND AND (TARGET hdf5::hdf5-shared OR TARGET hdf5::hdf5-static))
+    target_link_libraries(result_tests PRIVATE $<IF:$<TARGET_EXISTS:hdf5::hdf5-shared>,hdf5::hdf5-shared,hdf5::hdf5-static>)
+    target_compile_definitions(result_tests PRIVATE MV_HAVE_HDF5=1)
 endif()
 set_target_properties(result_tests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 

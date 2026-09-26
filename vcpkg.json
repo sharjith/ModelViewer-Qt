@@ -89,6 +89,7 @@
         "netcdf-4"
       ]
     },
-    "cgns"
+    "cgns",
+    "hdf5"
   ]
 }

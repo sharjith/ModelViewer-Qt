@@ -99,3 +99,13 @@ CGNS (.cgns)
 
     Values are synthetic. Unstructured and structured zones are read; polyhedra (NGON/NFACE) and boundary-condition
     sections are skipped.
+
+VTKHDF (.vtkhdf)
+    Needs a build with the HDF5 library (vcpkg port hdf5, a dependency of the NetCDF and CGNS ports); other builds do not
+    list the extension. block.vtkhdf ships here; the test program can rewrite it:
+        result_tests.exe --write-vtkhdf-sample block.vtkhdf
+    An 8 x 8 x 8 block of hexahedra (UnstructuredGrid, static geometry), five steps written the way ParaView writes a
+    transient dataset (every step of an array in one dataset, located by /VTKHDF/Steps/PointDataOffsets): point data
+    Temperature and Velocity (3 components), cell data Quality. Values are synthetic. UnstructuredGrid (partitions, time
+    steps, moving meshes), PolyData and ImageData are read; composite files (MultiBlockDataSet ...), StructuredGrid,
+    RectilinearGrid and HyperTreeGrid are not supported yet. A file written by ParaView is the true check.

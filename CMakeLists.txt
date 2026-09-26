@@ -65,6 +65,15 @@ else()
     message(STATUS "CGNS not found: CGNS result files disabled")
 endif()
 
+# Optional: the HDF5 C library for the VTKHDF result reader (it is already installed as a dependency of NetCDF and CGNS).
+find_package(HDF5 CONFIG QUIET COMPONENTS C)
+if(HDF5_FOUND AND (TARGET hdf5::hdf5-shared OR TARGET hdf5::hdf5-static))
+    message(STATUS "HDF5 found: VTKHDF result files enabled")
+else()
+    set(HDF5_FOUND FALSE)
+    message(STATUS "HDF5 not found: VTKHDF result files disabled")
+endif()
+
 message(STATUS "VCPKG_INSTALLED_DIR: ${VCPKG_INSTALLED_DIR}")
 
 if(NOT OpenCASCADE_FOUND)
@@ -522,6 +531,10 @@ endif()
 if(cgns_FOUND)
     target_link_libraries(ModelViewer PRIVATE $<IF:$<TARGET_EXISTS:CGNS::cgns_shared>,CGNS::cgns_shared,CGNS::cgns_static>)
     target_compile_definitions(ModelViewer PRIVATE MV_HAVE_CGNS=1)
+endif()
+if(HDF5_FOUND)
+    target_link_libraries(ModelViewer PRIVATE $<IF:$<TARGET_EXISTS:hdf5::hdf5-shared>,hdf5::hdf5-shared,hdf5::hdf5-static>)
+    target_compile_definitions(ModelViewer PRIVATE MV_HAVE_HDF5=1)
 endif()
 
 # Qt6's automatic static-plugin linking (triggered by linking Qt6::Gui/Widgets
