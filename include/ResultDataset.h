@@ -149,6 +149,16 @@ public:
 	std::vector<std::uint32_t> cellConnectivity;
 	std::vector<std::int64_t> cellIds;
 
+	// Explicit faces of Polyhedron cells (VTK polyhedra, CGNS NGON/NFACE ...). A face is a ring of node indices, faceNodes[faceOffsets[f] ..
+	// faceOffsets[f + 1]); faces may be shared by the two cells they separate (each lists it) or repeated per cell - the boundary extraction
+	// matches faces by their node sets. A polyhedron cell c is bounded by cellFaces[cellFaceOffsets[c] .. cellFaceOffsets[c + 1]) (face
+	// indices); cellFaceOffsets has cellCount() + 1 entries when used and a cell that is not a polyhedron has an empty range. All four are
+	// empty for a dataset without explicit faces (OpenFOAM keeps ready-made boundary triangles instead, below).
+	std::vector<std::uint32_t> faceNodes;
+	std::vector<std::uint32_t> faceOffsets;
+	std::vector<std::uint32_t> cellFaces;
+	std::vector<std::uint32_t> cellFaceOffsets;
+
 	// Optional ready-made boundary surface, for formats that store their boundary faces explicitly (OpenFOAM: the
 	// last faces of the mesh) - no cell-face hashing is needed and the cells may be polyhedra. Triangles as node
 	// indices, outward-facing, plus the cell each belongs to. Empty = derive the boundary from the cells.
@@ -160,6 +170,12 @@ public:
 
 	std::size_t nodeCount() const { return nodePositions.size() / 3; }
 	std::size_t cellCount() const { return cellTypes.size(); }
+	std::size_t faceCount() const { return faceOffsets.empty() ? 0 : faceOffsets.size() - 1; }
+	// The number of explicit faces polyhedron cell `c` has (0 when it has none listed).
+	std::size_t polyhedronFaceCount(std::size_t c) const
+	{
+		return c + 1 < cellFaceOffsets.size() ? static_cast<std::size_t>(cellFaceOffsets[c + 1] - cellFaceOffsets[c]) : 0;
+	}
 	std::size_t stepCount() const { return steps.size(); }
 
 	std::int64_t nodeId(std::size_t index) const

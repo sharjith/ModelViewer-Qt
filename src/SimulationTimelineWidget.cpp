@@ -55,6 +55,9 @@ SimulationTimelineWidget::SimulationTimelineWidget(QWidget* viewport)
 	_playButton = new QToolButton(this);
 	_playButton->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
 	_playButton->setToolTip(tr("Play"));
+	_stopButton = new QToolButton(this);
+	_stopButton->setIcon(style()->standardIcon(QStyle::SP_MediaStop));
+	_stopButton->setToolTip(tr("Stop and rewind to the first step"));
 	_nextButton = new QToolButton(this);
 	_nextButton->setIcon(style()->standardIcon(QStyle::SP_MediaSkipForward));
 	_nextButton->setToolTip(tr("Next step"));
@@ -78,6 +81,7 @@ SimulationTimelineWidget::SimulationTimelineWidget(QWidget* viewport)
 	layout->addWidget(_grip);
 	layout->addWidget(_prevButton);
 	layout->addWidget(_playButton);
+	layout->addWidget(_stopButton);
 	layout->addWidget(_nextButton);
 	layout->addWidget(_slider, 1);
 	layout->addWidget(_label);
@@ -88,6 +92,10 @@ SimulationTimelineWidget::SimulationTimelineWidget(QWidget* viewport)
 	connect(_prevButton, &QToolButton::clicked, this, [this]() { emit stepRequested(std::max(0, _slider->value() - 1)); });
 	connect(_nextButton, &QToolButton::clicked, this, [this]() { emit stepRequested(std::min(_count - 1, _slider->value() + 1)); });
 	connect(_playButton, &QToolButton::clicked, this, [this]() { emit playRequested(!_playing); });
+	connect(_stopButton, &QToolButton::clicked, this, [this]() {
+		emit playRequested(false); // stop the playback first, then go back to the start
+		emit stepRequested(0);
+	});
 	connect(_slider, &QSlider::valueChanged, this, [this](int value) {
 		updateText();
 		emit stepRequested(value);
@@ -119,6 +127,7 @@ void SimulationTimelineWidget::setSteps(int count, const std::function<QString(i
 	const QSignalBlocker block(_slider);
 	_slider->setRange(0, std::max(0, _count - 1));
 	_slider->setEnabled(_count > 1);
+	_stopButton->setEnabled(_count > 1);
 	updateText();
 	reposition();
 }

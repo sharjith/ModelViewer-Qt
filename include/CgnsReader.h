@@ -18,7 +18,8 @@
 //     base, faces of a 2-D one - from every section, fixed-type or MIXED, in element-number order. Boundary-condition
 //     sections (lower-dimension elements) are not read: they would draw the same faces twice. HEXA/PENTA/TETRA/PYRA,
 //     TRI and QUAD in their linear and quadratic forms are displayed (the 27/18/14/9-node variants through their first 20/15/13/8
-//     nodes); polyhedral (NGON_n/NFACE_n) and other element types keep their place but are not drawn.
+//     nodes); a polyhedral 3-D zone (NGON_n faces + NFACE_n polyhedra, in the CGNS 4 offset layout or the older interleaved one) is read
+//     too and its boundary faces are drawn; other element types keep their place but are not drawn.
 //   - flow solutions: a FlowSolution_t at Vertex location gives node fields, at CellCenter location cell fields (other
 //     locations are skipped). The i-th Vertex solution and the i-th CellCenter solution of a zone are one time step; the time
 //     values come from BaseIterativeData/TimeValues when present, otherwise the step index. Fields named <base>X/<base>Y/

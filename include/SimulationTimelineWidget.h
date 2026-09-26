@@ -14,7 +14,7 @@ class QSlider;
 class QToolButton;
 
 // Playback controls for a multi-step simulation result, drawn as a small overlay child of the viewport (top
-// centre): previous / play-pause / next, a step slider, the current step's description, Loop and a speed choice.
+// centre): previous / play-pause / stop (pause and rewind to the first step) / next, a step slider, the current step's description, Loop and a speed choice.
 // See docs/simulation_results_design.md section 9.
 //
 // Deviation from that design note: the note put the timeline at the viewport's BOTTOM edge, but the reveal-on-hover
@@ -60,6 +60,7 @@ private:
 
 	QToolButton* _prevButton = nullptr;
 	QToolButton* _playButton = nullptr;
+	QToolButton* _stopButton = nullptr;
 	QToolButton* _nextButton = nullptr;
 	QSlider* _slider = nullptr;
 	QLabel* _label = nullptr;

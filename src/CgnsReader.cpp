@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 #include <map>
 
@@ -84,6 +85,7 @@ namespace
 	{
 		ResultCellType type = ResultCellType::Unsupported;
 		std::vector<std::uint32_t> nodes; // zone-local, 0-based
+		std::vector<std::uint32_t> faces; // a polyhedron: its faces (indices into the dataset's face list)
 	};
 
 	struct Section
@@ -219,6 +221,7 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 	std::size_t unsupportedZones = 0, polyhedralSections = 0, boundarySections = 0, badSolutions = 0;
 	bool solutionsOrderedByName = false; // some zone had several solutions and no FlowSolutionPointers
 	std::vector<double> baseTimes;
+	std::vector<std::pair<std::size_t, std::size_t>> polyhedra; // (cell index, number of faces) of the polyhedral cells, in cell order
 
 	// ---- Geometry: every unstructured zone of every base ------------------------------------------------------------
 	for (int base = 1; base <= baseCount; ++base)
@@ -347,6 +350,69 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 			int sectionCount = 0;
 			if (!structured) // a structured zone has no element sections: its cells follow from the grid
 				cg_nsections(fn, base, z, &sectionCount);
+			// Polyhedral zones: NGON_n sections hold the faces (rings of nodes), NFACE_n sections the polyhedra (lists of face element numbers, negative
+			// when the face points inward). readPoly() gives either as `offsets` into `data`, converting the older interleaved layout.
+			auto readPoly = [&](int section, std::size_t elementCount, std::vector<cgsize_t>& data, std::vector<cgsize_t>& offsets) {
+				cgsize_t dataSize = 0;
+				if (cg_ElementDataSize(fn, base, z, section, &dataSize) != CG_OK || dataSize < 1)
+					return false;
+				data.assign(static_cast<std::size_t>(dataSize), 0);
+				offsets.assign(elementCount + 1, 0);
+				if (cg_poly_elements_read(fn, base, z, section, data.data(), offsets.data(), nullptr) == CG_OK)
+					return true;
+				std::vector<cgsize_t> raw(static_cast<std::size_t>(dataSize));
+				if (cg_elements_read(fn, base, z, section, raw.data(), nullptr) != CG_OK)
+					return false;
+				data.clear();
+				offsets.assign(1, 0);
+				std::size_t at = 0;
+				for (std::size_t e = 0; e < elementCount; ++e)
+				{
+					if (at >= raw.size() || raw[at] < 0 || at + 1 + static_cast<std::size_t>(raw[at]) > raw.size())
+						return false;
+					const std::size_t n = static_cast<std::size_t>(raw[at++]);
+					data.insert(data.end(), raw.begin() + static_cast<std::ptrdiff_t>(at), raw.begin() + static_cast<std::ptrdiff_t>(at + n));
+					at += n;
+					offsets.push_back(static_cast<cgsize_t>(data.size()));
+				}
+				return true;
+			};
+			struct FaceRange
+			{
+				cgsize_t start, end;
+				std::size_t base; // the dataset face index of the range's first face
+			};
+			std::vector<FaceRange> faceRanges;
+			if (!structured && cellDim == 3)
+				for (int s = 1; s <= sectionCount; ++s)
+				{
+					char sectionName[64] = {};
+					CGNS_ENUMT(ElementType_t) type;
+					cgsize_t start = 0, end = 0;
+					int boundary = 0, parentFlag = 0;
+					if (cg_section_read(fn, base, z, s, sectionName, &type, &start, &end, &boundary, &parentFlag) != CG_OK || end < start
+					    || type != CGNS_ENUMV(NGON_n))
+						continue;
+					std::vector<cgsize_t> data, offsets;
+					if (!readPoly(s, static_cast<std::size_t>(end - start + 1), data, offsets))
+						continue;
+					if (dataset->faceOffsets.empty())
+						dataset->faceOffsets.push_back(0);
+					const std::size_t faceBase = dataset->faceOffsets.size() - 1;
+					for (std::size_t e = 0; e + 1 < offsets.size(); ++e)
+					{
+						for (cgsize_t k = offsets[e]; k < offsets[e + 1]; ++k)
+						{
+							const cgsize_t node = data[static_cast<std::size_t>(k)];
+							if (node < 1 || static_cast<std::size_t>(node) > zone.nodeCount)
+								return fail(QStringLiteral("A face of zone '%1' references node %2 but the zone has %3 nodes.")
+								                .arg(QString::fromLatin1(zoneName)).arg(static_cast<long long>(node)).arg(zone.nodeCount));
+							dataset->faceNodes.push_back(static_cast<std::uint32_t>(zone.nodeOffset) + static_cast<std::uint32_t>(node - 1));
+						}
+						dataset->faceOffsets.push_back(static_cast<std::uint32_t>(dataset->faceNodes.size()));
+					}
+					faceRanges.push_back({ start, end, faceBase });
+				}
 			std::vector<Section> sections;
 			for (int s = 1; s <= sectionCount; ++s)
 			{
@@ -356,9 +422,44 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 				int boundary = 0, parentFlag = 0;
 				if (cg_section_read(fn, base, z, s, sectionName, &type, &start, &end, &boundary, &parentFlag) != CG_OK || end < start)
 					continue;
-				if (type == CGNS_ENUMV(NGON_n) || type == CGNS_ENUMV(NFACE_n))
+				if (type == CGNS_ENUMV(NGON_n))
 				{
-					++polyhedralSections;
+					if (cellDim != 3 || faceRanges.empty())
+						++polyhedralSections; // (the faces of a 3-D zone were read above)
+					continue;
+				}
+				if (type == CGNS_ENUMV(NFACE_n))
+				{
+					std::vector<cgsize_t> data, offsets;
+					if (cellDim != 3 || faceRanges.empty() || !readPoly(s, static_cast<std::size_t>(end - start + 1), data, offsets))
+					{
+						++polyhedralSections;
+						continue;
+					}
+					Section section;
+					section.start = start;
+					for (std::size_t e = 0; e + 1 < offsets.size(); ++e)
+					{
+						CellRecord cell;
+						cell.type = ResultCellType::Polyhedron;
+						for (cgsize_t k = offsets[e]; k < offsets[e + 1]; ++k)
+						{
+							const cgsize_t id = std::abs(data[static_cast<std::size_t>(k)]);
+							bool found = false;
+							for (const FaceRange& range : faceRanges)
+								if (id >= range.start && id <= range.end)
+								{
+									cell.faces.push_back(static_cast<std::uint32_t>(range.base + static_cast<std::size_t>(id - range.start)));
+									found = true;
+									break;
+								}
+							if (!found)
+								return fail(QStringLiteral("A polyhedron of zone '%1' references face %2, which is in no NGON_n section.")
+								                .arg(QString::fromLatin1(zoneName)).arg(static_cast<long long>(id)));
+						}
+						section.cells.push_back(std::move(cell));
+					}
+					sections.push_back(std::move(section));
 					continue;
 				}
 				if (type != CGNS_ENUMV(MIXED) && elementDimension(type) != cellDim)
@@ -441,6 +542,11 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 						dataset->cellConnectivity.push_back(static_cast<std::uint32_t>(zone.nodeOffset) + node);
 					dataset->cellTypes.push_back(cell.type);
 					dataset->cellOffsets.push_back(static_cast<std::uint32_t>(dataset->cellConnectivity.size()));
+					if (!cell.faces.empty())
+					{
+						polyhedra.emplace_back(dataset->cellTypes.size() - 1, cell.faces.size());
+						dataset->cellFaces.insert(dataset->cellFaces.end(), cell.faces.begin(), cell.faces.end());
+					}
 					++zone.cellCount;
 				}
 			if (structured)
@@ -798,10 +904,21 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 	if (unsupportedZones > 0)
 		outcome.warnings << QStringLiteral("%1 zone(s) of an unsupported type were skipped (only structured and unstructured zones of a surface or volume base are shown).").arg(unsupportedZones);
 	if (polyhedralSections > 0)
-		outcome.warnings << QStringLiteral("%1 polyhedral (NGON/NFACE) section(s) were skipped; they cannot be displayed yet.").arg(polyhedralSections);
+		outcome.warnings << QStringLiteral("%1 polyhedral (NGON/NFACE) section(s) could not be read (only NGON_n faces with NFACE_n polyhedra of a 3-D zone are).").arg(polyhedralSections);
 	if (badSolutions > 0)
 		outcome.warnings << QStringLiteral("%1 solution(s) were skipped: only Vertex and CellCenter solutions that match the displayed cells are read.").arg(badSolutions);
 	(void)boundarySections; // boundary-condition sections are left out on purpose
+
+	if (!polyhedra.empty())
+	{
+		// Every cell gets a face range (empty for a cell that is not a polyhedron); the polyhedra's faces were appended in cell order.
+		std::vector<std::uint32_t> counts(dataset->cellTypes.size(), 0);
+		for (const auto& entry : polyhedra)
+			counts[entry.first] = static_cast<std::uint32_t>(entry.second);
+		dataset->cellFaceOffsets.assign(counts.size() + 1, 0);
+		for (std::size_t c = 0; c < counts.size(); ++c)
+			dataset->cellFaceOffsets[c + 1] = dataset->cellFaceOffsets[c] + counts[c];
+	}
 
 	addDerivedStressFields(*dataset); // von Mises, principals, max shear of a "...Stress..." tensor gathered above
 

@@ -376,6 +376,7 @@ ResultReadOutcome readVtkXmlUnstructuredGrid(const QString& path, const std::ato
 	std::size_t declaredCells = 0;
 	bool havePoints = false;
 	std::vector<std::uint32_t> connectivity, offsets;
+	std::vector<std::int64_t> polyFaces, polyFaceOffsets; // <Cells> "faces" / "faceoffsets": the faces of polyhedra (cell type 42)
 	std::vector<std::uint8_t> types;
 	bool haveConnectivity = false, haveOffsets = false, haveTypes = false;
 	double timeValue = 0.0;
@@ -467,7 +468,16 @@ ResultReadOutcome readVtkXmlUnstructuredGrid(const QString& path, const std::ato
 							return fail(QStringLiteral("Reading cell types: %1").arg(err));
 						haveTypes = true;
 					}
-					// "faces"/"faceoffsets" (polyhedra) are ignored in Phase 0.
+					else if (d.name == QLatin1String("faces"))
+					{
+						if (!loadArray<std::int64_t>(d, ctx, polyFaces, err))
+							return fail(QStringLiteral("Reading polyhedron faces: %1").arg(err));
+					}
+					else if (d.name == QLatin1String("faceoffsets"))
+					{
+						if (!loadArray<std::int64_t>(d, ctx, polyFaceOffsets, err))
+							return fail(QStringLiteral("Reading polyhedron face offsets: %1").arg(err));
+					}
 				}
 				else if (section == Section::PointData || section == Section::CellData)
 				{
@@ -535,6 +545,38 @@ ResultReadOutcome readVtkXmlUnstructuredGrid(const QString& path, const std::ato
 	for (std::uint8_t t : types)
 	{
 		dataset->cellTypes.push_back(resultCellTypeFromVtk(t));
+	}
+	// Polyhedra: cell c's entry in `faces` is [number of faces, then for each face its node count and its nodes], and faceoffsets[c] is
+	// where that entry ends (-1 for a cell that is not a polyhedron).
+	if (!polyFaces.empty() && polyFaceOffsets.size() == declaredCells)
+	{
+		std::size_t pos = 0;
+		dataset->cellFaceOffsets.push_back(0);
+		dataset->faceOffsets.push_back(0);
+		for (std::size_t c = 0; c < declaredCells; ++c)
+		{
+			if (types[c] == 42 && polyFaceOffsets[c] >= 0)
+			{
+				const std::size_t end = static_cast<std::size_t>(polyFaceOffsets[c]);
+				if (end > polyFaces.size() || pos >= end)
+					return fail(QStringLiteral("The faces of polyhedron %1 are outside the faces array.").arg(c));
+				const std::int64_t faceCount = polyFaces[pos++];
+				for (std::int64_t f = 0; f < faceCount; ++f)
+				{
+					if (pos >= end)
+						return fail(QStringLiteral("The faces of polyhedron %1 end early.").arg(c));
+					const std::int64_t nodes = polyFaces[pos++];
+					if (nodes < 3 || pos + static_cast<std::size_t>(nodes) > end)
+						return fail(QStringLiteral("A face of polyhedron %1 has %2 nodes or runs past the cell's faces.").arg(c).arg(nodes));
+					for (std::int64_t k = 0; k < nodes; ++k)
+						dataset->faceNodes.push_back(static_cast<std::uint32_t>(polyFaces[pos++]));
+					dataset->cellFaces.push_back(static_cast<std::uint32_t>(dataset->faceOffsets.size() - 1));
+					dataset->faceOffsets.push_back(static_cast<std::uint32_t>(dataset->faceNodes.size()));
+				}
+				pos = end;
+			}
+			dataset->cellFaceOffsets.push_back(static_cast<std::uint32_t>(dataset->cellFaces.size()));
+		}
 	}
 	outcome.warnings << resultCellTypeWarnings(*dataset);
 

@@ -122,3 +122,8 @@ MED (.med)
         A 1020-node mesh with a nodal velocity vector (VITESSE) and a void fraction (TAUX_DE_VIDE), a real solver-style result.
 
     Code_Aster 2.x-layout files (older than MED 3) are not read; SALOME medimport converts them.
+
+polyhedra.vtu
+    Written by hand for this project (no external data or licence): three polyhedral cells (VTK cell type 42) - two unit cubes
+    that share a face, and an L-shaped prism whose caps are concave 6-gons. Point data Temperature, cell data Cell. Checks the
+    polyhedron boundary: the shared face is not drawn, and the L caps are filled as an L, not as its convex hull.

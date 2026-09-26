@@ -403,7 +403,7 @@ namespace
 						type = resultCellTypeFromVtk(static_cast<int>(group.types[group.cellCursor + i]));
 					if (!ok)
 					{
-						if (type != ResultCellType::Unsupported)
+						if (type != ResultCellType::Unsupported && type != ResultCellType::Polyhedron)
 						{
 							error = QStringLiteral("A cell references a point outside its partition.");
 							return false;
@@ -411,8 +411,8 @@ namespace
 						nodes.clear(); // a cell type that is not drawn (polyhedra store their faces differently)
 						++badCells;
 					}
-					else if (type == ResultCellType::Unsupported && !polyData)
-						nodes.clear();
+					else if ((type == ResultCellType::Unsupported || type == ResultCellType::Polyhedron) && !polyData)
+						nodes.clear(); // a polyhedron's geometry is its faces, read below
 					sink.add(type, nodes);
 				}
 				group.cellCursor += cells;
@@ -426,6 +426,99 @@ namespace
 		{
 			error = QStringLiteral("The cells read (%1) do not match the counts in the file (%2).").arg(dataset.cellTypes.size()).arg(cellsPerStep[0]);
 			return false;
+		}
+		// ---- Polyhedra (cell type 42) of the first step: FaceConnectivity / FaceOffsets are the faces and PolyhedronToFaces / PolyhedronOffsets the
+		// faces of each polyhedron, all partition-local like the cells (a partition's faces use its own points and are numbered from 0).
+		if (!polyData && std::find(dataset.cellTypes.begin(), dataset.cellTypes.end(), ResultCellType::Polyhedron) != dataset.cellTypes.end())
+		{
+			std::vector<long long> facesPerPart, faceIdsPerPart, toFaceIdsPerPart;
+			Handle faceConnectivity = openDataset(c.root, QStringLiteral("FaceConnectivity")), faceOffsets = openDataset(c.root, QStringLiteral("FaceOffsets"));
+			Handle toFaces = openDataset(c.root, QStringLiteral("PolyhedronToFaces")), polyOffsets = openDataset(c.root, QStringLiteral("PolyhedronOffsets"));
+			if (c.steps.count > 1 || !faceConnectivity.ok() || !faceOffsets.ok() || !toFaces.ok() || !polyOffsets.ok()
+			    || !readAll<long long>(c.root, QStringLiteral("NumberOfFaces"), facesPerPart)
+			    || !readAll<long long>(c.root, QStringLiteral("NumberOfFaceConnectivityIds"), faceIdsPerPart)
+			    || !readAll<long long>(c.root, QStringLiteral("NumberOfPolyhedronToFaceIds"), toFaceIdsPerPart))
+			{
+				c.outcome->warnings << QStringLiteral("The polyhedra of this file have no readable face description (or change over time), so they are not displayed.");
+			}
+			else
+			{
+				auto before = [&](const std::vector<long long>& counts) {
+					std::size_t sum = 0;
+					sumRange(counts, 0, from0, sum);
+					return static_cast<hsize_t>(sum);
+				};
+				std::size_t faces = 0, faceIds = 0, toFaceIds = 0;
+				std::vector<long long> offsetsData, connectivityData, toFacesData, polyOffsetsData;
+				const hsize_t cellsBefore = before(groupCells[0]);
+				if (!sumRange(facesPerPart, from0, parts0, faces) || !sumRange(faceIdsPerPart, from0, parts0, faceIds)
+				    || !sumRange(toFaceIdsPerPart, from0, parts0, toFaceIds)
+				    || !readRows<long long>(faceOffsets, before(facesPerPart) + from0, faces + parts0, offsetsData)
+				    || !readRows<long long>(faceConnectivity, before(faceIdsPerPart), faceIds, connectivityData)
+				    || !readRows<long long>(toFaces, before(toFaceIdsPerPart), toFaceIds, toFacesData)
+				    || !readRows<long long>(polyOffsets, cellsBefore + from0, cellsPerStep[0] + parts0, polyOffsetsData))
+				{
+					error = QStringLiteral("Cannot read the polyhedron faces of the first step.");
+					return false;
+				}
+				dataset.faceOffsets.push_back(0);
+				dataset.cellFaceOffsets.push_back(0);
+				std::size_t offsetCursor = 0, connectivityCursor = 0, toFacesCursor = 0, polyCursor = 0, cellCursor = 0, base = 0;
+				for (std::size_t p = 0; p < parts0; ++p)
+				{
+					const std::size_t nf = static_cast<std::size_t>(facesPerPart[from0 + p]), nc = static_cast<std::size_t>(groupCells[0][from0 + p]);
+					const std::size_t pointsInPart = static_cast<std::size_t>(pointsPerPart[from0 + p]);
+					const std::size_t faceBase = dataset.faceOffsets.size() - 1;
+					for (std::size_t f = 0; f < nf; ++f)
+					{
+						const long long begin = offsetsData[offsetCursor + f], end = offsetsData[offsetCursor + f + 1];
+						if (begin < 0 || end < begin || connectivityCursor + static_cast<std::size_t>(end) > connectivityData.size())
+						{
+							error = QStringLiteral("A polyhedron face is outside FaceConnectivity.");
+							return false;
+						}
+						for (long long k = begin; k < end; ++k)
+						{
+							const long long id = connectivityData[connectivityCursor + static_cast<std::size_t>(k)];
+							if (id < 0 || static_cast<std::size_t>(id) >= pointsInPart)
+							{
+								error = QStringLiteral("A polyhedron face references a point outside its partition.");
+								return false;
+							}
+							dataset.faceNodes.push_back(static_cast<std::uint32_t>(base + static_cast<std::size_t>(id)));
+						}
+						dataset.faceOffsets.push_back(static_cast<std::uint32_t>(dataset.faceNodes.size()));
+					}
+					for (std::size_t i = 0; i < nc; ++i, ++cellCursor)
+					{
+						if (dataset.cellTypes[cellCursor] == ResultCellType::Polyhedron)
+						{
+							const long long begin = polyOffsetsData[polyCursor + i], end = polyOffsetsData[polyCursor + i + 1];
+							if (begin < 0 || end < begin || toFacesCursor + static_cast<std::size_t>(end) > toFacesData.size())
+							{
+								error = QStringLiteral("A polyhedron's faces are outside PolyhedronToFaces.");
+								return false;
+							}
+							for (long long k = begin; k < end; ++k)
+							{
+								const long long face = toFacesData[toFacesCursor + static_cast<std::size_t>(k)];
+								if (face < 0 || static_cast<std::size_t>(face) >= nf)
+								{
+									error = QStringLiteral("A polyhedron references a face outside its partition.");
+									return false;
+								}
+								dataset.cellFaces.push_back(static_cast<std::uint32_t>(faceBase + static_cast<std::size_t>(face)));
+							}
+						}
+						dataset.cellFaceOffsets.push_back(static_cast<std::uint32_t>(dataset.cellFaces.size()));
+					}
+					offsetCursor += nf + 1;
+					connectivityCursor += static_cast<std::size_t>(faceIdsPerPart[from0 + p]);
+					toFacesCursor += static_cast<std::size_t>(toFaceIdsPerPart[from0 + p]);
+					polyCursor += nc + 1;
+					base += pointsInPart;
+				}
+			}
 		}
 		addSteps(c);
 

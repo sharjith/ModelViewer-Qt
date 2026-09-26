@@ -32,7 +32,8 @@ struct ResultBoundarySurface
 	std::size_t triangleCount() const { return triangles.size() / 3; }
 };
 
-// Volume cells: a face referenced by exactly one cell is a boundary face. Surface cells (triangles,
+// Volume cells: a face referenced by exactly one cell is a boundary face. Polyhedron cells use their explicit face lists (ResultDataset::faceNodes
+// ...), faces of any size matched with the faces of the other cells by their node sets and triangulated (ear clipping) when they have more than 4 nodes. Surface cells (triangles,
 // quads - e.g. thin-walled structural models) are always emitted as they are. Quads are split into two
 // triangles. Volume-face winding is normalised to point away from the owning cell's centroid.
 //

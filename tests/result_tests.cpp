@@ -4080,6 +4080,377 @@ namespace
 #endif
 	}
 
+	// ---- Polyhedral cells --------------------------------------------------------------------------------------------------
+
+	// A row of `count` unit cubes along x as Polyhedron cells: each has its own 6 quad faces (a face between two cubes is listed by both), and its
+	// node list, like a VTK polyhedron. Points are (count + 1) x 2 x 2, index x + (count + 1) * (y + 2 * z). `asHex` makes cube 0 a regular
+	// Hexahedron instead, to check that a polyhedron and a regular cell match the face they share.
+	ResultDataset polyCubes(int count, bool asHex = false)
+	{
+		ResultDataset ds;
+		const int nx = count + 1;
+		auto p = [&](int x, int y, int z) { return static_cast<std::uint32_t>(x + nx * (y + 2 * z)); };
+		for (int z = 0; z < 2; ++z)
+			for (int y = 0; y < 2; ++y)
+				for (int x = 0; x < nx; ++x)
+					ds.nodePositions.insert(ds.nodePositions.end(), { static_cast<float>(x), static_cast<float>(y), static_cast<float>(z) });
+		ds.cellOffsets.push_back(0);
+		ds.faceOffsets.push_back(0);
+		ds.cellFaceOffsets.push_back(0);
+		for (int i = 0; i < count; ++i)
+		{
+			const std::uint32_t nodes[8] = { p(i, 0, 0), p(i + 1, 0, 0), p(i + 1, 1, 0), p(i, 1, 0), p(i, 0, 1), p(i + 1, 0, 1), p(i + 1, 1, 1), p(i, 1, 1) };
+			ds.cellConnectivity.insert(ds.cellConnectivity.end(), nodes, nodes + 8);
+			ds.cellOffsets.push_back(static_cast<std::uint32_t>(ds.cellConnectivity.size()));
+			if (asHex && i == 0)
+			{
+				ds.cellTypes.push_back(ResultCellType::Hexahedron);
+				ds.cellFaceOffsets.push_back(static_cast<std::uint32_t>(ds.cellFaces.size()));
+				continue;
+			}
+			ds.cellTypes.push_back(ResultCellType::Polyhedron);
+			const std::vector<std::vector<std::uint32_t>> faces = {
+				{ p(i, 0, 0), p(i, 1, 0), p(i + 1, 1, 0), p(i + 1, 0, 0) },     // bottom
+				{ p(i, 0, 1), p(i + 1, 0, 1), p(i + 1, 1, 1), p(i, 1, 1) },     // top
+				{ p(i, 0, 0), p(i + 1, 0, 0), p(i + 1, 0, 1), p(i, 0, 1) },     // y = 0
+				{ p(i, 1, 0), p(i, 1, 1), p(i + 1, 1, 1), p(i + 1, 1, 0) },     // y = 1
+				{ p(i, 0, 0), p(i, 0, 1), p(i, 1, 1), p(i, 1, 0) },             // x = i
+				{ p(i + 1, 0, 0), p(i + 1, 1, 0), p(i + 1, 1, 1), p(i + 1, 0, 1) } }; // x = i + 1
+			for (const std::vector<std::uint32_t>& face : faces)
+			{
+				ds.cellFaces.push_back(static_cast<std::uint32_t>(ds.faceOffsets.size() - 1));
+				ds.faceNodes.insert(ds.faceNodes.end(), face.begin(), face.end());
+				ds.faceOffsets.push_back(static_cast<std::uint32_t>(ds.faceNodes.size()));
+			}
+			ds.cellFaceOffsets.push_back(static_cast<std::uint32_t>(ds.cellFaces.size()));
+		}
+		return ds;
+	}
+
+	// An L-shaped prism as ONE polyhedron: two concave 6-gon caps and six quads - a face that needs real triangulation.
+	ResultDataset polyLPrism()
+	{
+		ResultDataset ds;
+		const float outline[6][2] = { { 0, 0 }, { 2, 0 }, { 2, 1 }, { 1, 1 }, { 1, 2 }, { 0, 2 } };
+		for (int z = 0; z < 2; ++z)
+			for (const auto& xy : outline)
+				ds.nodePositions.insert(ds.nodePositions.end(), { xy[0], xy[1], static_cast<float>(z) });
+		ds.cellOffsets = { 0, 0 };
+		ds.cellTypes = { ResultCellType::Polyhedron };
+		ds.faceOffsets.push_back(0);
+		auto addFace = [&](const std::vector<std::uint32_t>& face) {
+			ds.cellFaces.push_back(static_cast<std::uint32_t>(ds.faceOffsets.size() - 1));
+			ds.faceNodes.insert(ds.faceNodes.end(), face.begin(), face.end());
+			ds.faceOffsets.push_back(static_cast<std::uint32_t>(ds.faceNodes.size()));
+		};
+		addFace({ 0, 1, 2, 3, 4, 5 });
+		addFace({ 6, 7, 8, 9, 10, 11 });
+		for (std::uint32_t i = 0; i < 6; ++i)
+			addFace({ i, (i + 1) % 6, 6 + (i + 1) % 6, 6 + i });
+		ds.cellFaceOffsets = { 0, static_cast<std::uint32_t>(ds.cellFaces.size()) };
+		return ds;
+	}
+
+	// Every boundary triangle of a polyhedral dataset faces away from the centre of its cell's faces.
+	bool polyTrianglesFaceOutward(const ResultDataset& ds, const ResultBoundarySurface& s)
+	{
+		for (std::size_t t = 0; t < s.triangleCount(); ++t)
+		{
+			const std::uint32_t cell = s.triangleCell[t];
+			double cx = 0, cy = 0, cz = 0;
+			std::size_t n = 0;
+			for (std::size_t k = ds.cellFaceOffsets[cell]; k < ds.cellFaceOffsets[cell + 1]; ++k)
+				for (std::size_t j = ds.faceOffsets[ds.cellFaces[k]]; j < ds.faceOffsets[ds.cellFaces[k] + 1]; ++j, ++n)
+				{
+					cx += ds.nodePositions[ds.faceNodes[j] * 3 + 0];
+					cy += ds.nodePositions[ds.faceNodes[j] * 3 + 1];
+					cz += ds.nodePositions[ds.faceNodes[j] * 3 + 2];
+				}
+			cx /= static_cast<double>(n);
+			cy /= static_cast<double>(n);
+			cz /= static_cast<double>(n);
+			const float* p0 = &s.positions[s.triangles[t * 3 + 0] * 3];
+			const float* p1 = &s.positions[s.triangles[t * 3 + 1] * 3];
+			const float* p2 = &s.positions[s.triangles[t * 3 + 2] * 3];
+			const double ax = p1[0] - p0[0], ay = p1[1] - p0[1], az = p1[2] - p0[2];
+			const double bx = p2[0] - p0[0], by = p2[1] - p0[1], bz = p2[2] - p0[2];
+			const double nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx;
+			const double mx = (p0[0] + p1[0] + p2[0]) / 3 - cx, my = (p0[1] + p1[1] + p2[1]) / 3 - cy, mz = (p0[2] + p1[2] + p2[2]) / 3 - cz;
+			if (nx * mx + ny * my + nz * mz <= 0.0)
+				return false;
+		}
+		return true;
+	}
+
+	// The volume a closed, outward-oriented triangle surface encloses (the sum of the signed tetrahedra to the origin): positive when every triangle
+	// faces outward, and exact for a concave solid too, unlike a test against the cell's centre.
+	double surfaceVolume(const ResultBoundarySurface& s)
+	{
+		double volume = 0;
+		for (std::size_t t = 0; t < s.triangleCount(); ++t)
+		{
+			const float* a = &s.positions[s.triangles[t * 3] * 3];
+			const float* b = &s.positions[s.triangles[t * 3 + 1] * 3];
+			const float* c = &s.positions[s.triangles[t * 3 + 2] * 3];
+			volume += (static_cast<double>(a[0]) * (static_cast<double>(b[1]) * c[2] - static_cast<double>(b[2]) * c[1])
+			           - static_cast<double>(a[1]) * (static_cast<double>(b[0]) * c[2] - static_cast<double>(b[2]) * c[0])
+			           + static_cast<double>(a[2]) * (static_cast<double>(b[0]) * c[1] - static_cast<double>(b[1]) * c[0])) / 6.0;
+		}
+		return volume;
+	}
+
+	// The total area of the boundary triangles whose vertices all have z == `z`.
+	double areaAtHeight(const ResultBoundarySurface& s, float z)
+	{
+		double area = 0;
+		for (std::size_t t = 0; t < s.triangleCount(); ++t)
+		{
+			const float* p[3] = { &s.positions[s.triangles[t * 3] * 3], &s.positions[s.triangles[t * 3 + 1] * 3], &s.positions[s.triangles[t * 3 + 2] * 3] };
+			if (p[0][2] != z || p[1][2] != z || p[2][2] != z)
+				continue;
+			area += 0.5 * std::fabs(static_cast<double>(p[1][0] - p[0][0]) * (p[2][1] - p[0][1]) - static_cast<double>(p[2][0] - p[0][0]) * (p[1][1] - p[0][1]));
+		}
+		return area;
+	}
+
+#if MV_HAVE_CGNS
+	// Two cubes as a polyhedral CGNS zone: an NGON_n section of the 11 distinct faces (the face between the cubes once), an NFACE_n section of the
+	// two polyhedra as lists of face element numbers (some negative: inward-pointing).
+	bool writeCgnsPolyhedra(const char* path)
+	{
+		int fn = 0, base = 0, zone = 0, index = 0;
+		if (cg_open(path, CG_MODE_WRITE, &fn) != CG_OK)
+			return false;
+		bool ok = cg_base_write(fn, "Base", 3, 3, &base) == CG_OK;
+		const cgsize_t size[3] = { 12, 2, 0 };
+		ok = ok && cg_zone_write(fn, base, "Cubes", size, CGNS_ENUMV(Unstructured), &zone) == CG_OK;
+		double x[12], y[12], z[12];
+		for (int k = 0; k < 2; ++k)
+			for (int j = 0; j < 2; ++j)
+				for (int i = 0; i < 3; ++i)
+				{
+					const int n = i + 3 * (j + 2 * k);
+					x[n] = i;
+					y[n] = j;
+					z[n] = k;
+				}
+		// CGNS node numbers are 1-based: p(x, y, z) = 1 + x + 3 * (y + 2 * z). Faces 1-6: cube A, 7: the shared face, 8-11: cube B's other faces.
+		auto p = [](int a, int b, int c) { return static_cast<cgsize_t>(1 + a + 3 * (b + 2 * c)); };
+		const std::vector<std::vector<cgsize_t>> faces = {
+			{ p(0, 0, 0), p(0, 1, 0), p(1, 1, 0), p(1, 0, 0) }, { p(0, 0, 1), p(1, 0, 1), p(1, 1, 1), p(0, 1, 1) }, { p(0, 0, 0), p(1, 0, 0), p(1, 0, 1), p(0, 0, 1) },
+			{ p(0, 1, 0), p(0, 1, 1), p(1, 1, 1), p(1, 1, 0) }, { p(0, 0, 0), p(0, 0, 1), p(0, 1, 1), p(0, 1, 0) },
+			{ p(1, 0, 0), p(1, 1, 0), p(1, 1, 1), p(1, 0, 1) }, // shared
+			{ p(1, 0, 0), p(2, 0, 0), p(2, 1, 0), p(1, 1, 0) }, { p(1, 0, 1), p(1, 1, 1), p(2, 1, 1), p(2, 0, 1) }, { p(1, 0, 0), p(1, 0, 1), p(2, 0, 1), p(2, 0, 0) },
+			{ p(1, 1, 0), p(2, 1, 0), p(2, 1, 1), p(1, 1, 1) }, { p(2, 0, 0), p(2, 0, 1), p(2, 1, 1), p(2, 1, 0) } };
+		std::vector<cgsize_t> faceData, faceOffsets = { 0 };
+		for (const std::vector<cgsize_t>& face : faces)
+		{
+			faceData.insert(faceData.end(), face.begin(), face.end());
+			faceOffsets.push_back(static_cast<cgsize_t>(faceData.size()));
+		}
+		// element numbers: faces 1..11; the polyhedra 12 and 13
+		const std::vector<cgsize_t> cellData = { 1, 2, 3, 4, 5, -6, 7, 8, 9, 10, 11, 6 }, cellOffsets = { 0, 6, 12 };
+		ok = ok && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateX", x, &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateY", y, &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateZ", z, &index) == CG_OK
+		     && cg_poly_section_write(fn, base, zone, "Faces", CGNS_ENUMV(NGON_n), 1, 11, 0, faceData.data(), faceOffsets.data(), &index) == CG_OK
+		     && cg_poly_section_write(fn, base, zone, "Cells", CGNS_ENUMV(NFACE_n), 12, 13, 0, cellData.data(), cellOffsets.data(), &index) == CG_OK;
+		return cg_close(fn) == CG_OK && ok;
+	}
+#endif
+
+#if MV_HAVE_HDF5
+	// The same two cubes as a VTKHDF UnstructuredGrid of two polyhedra: every polyhedron lists its own 6 faces (12 faces in all, the shared one twice).
+	bool writeVtkHdfPolyhedra(const char* path)
+	{
+		hid_t file = -1;
+		const hid_t root = hdfCreate(path, "UnstructuredGrid", file);
+		if (root < 0)
+			return false;
+		std::vector<float> points;
+		for (int k = 0; k < 2; ++k)
+			for (int j = 0; j < 2; ++j)
+				for (int i = 0; i < 3; ++i)
+					points.insert(points.end(), { static_cast<float>(i), static_cast<float>(j), static_cast<float>(k) });
+		auto p = [](int a, int b, int c) { return static_cast<long long>(a + 3 * (b + 2 * c)); };
+		std::vector<long long> connectivity, faceConnectivity, faceOffsets = { 0 }, toFaces, polyOffsets = { 0 };
+		for (int cube = 0; cube < 2; ++cube)
+		{
+			const int i = cube;
+			for (long long n : { p(i, 0, 0), p(i + 1, 0, 0), p(i + 1, 1, 0), p(i, 1, 0), p(i, 0, 1), p(i + 1, 0, 1), p(i + 1, 1, 1), p(i, 1, 1) })
+				connectivity.push_back(n);
+			const std::vector<std::vector<long long>> faces = {
+				{ p(i, 0, 0), p(i, 1, 0), p(i + 1, 1, 0), p(i + 1, 0, 0) }, { p(i, 0, 1), p(i + 1, 0, 1), p(i + 1, 1, 1), p(i, 1, 1) },
+				{ p(i, 0, 0), p(i + 1, 0, 0), p(i + 1, 0, 1), p(i, 0, 1) }, { p(i, 1, 0), p(i, 1, 1), p(i + 1, 1, 1), p(i + 1, 1, 0) },
+				{ p(i, 0, 0), p(i, 0, 1), p(i, 1, 1), p(i, 1, 0) }, { p(i + 1, 0, 0), p(i + 1, 1, 0), p(i + 1, 1, 1), p(i + 1, 0, 1) } };
+			for (const std::vector<long long>& face : faces)
+			{
+				toFaces.push_back(static_cast<long long>(faceOffsets.size() - 1));
+				faceConnectivity.insert(faceConnectivity.end(), face.begin(), face.end());
+				faceOffsets.push_back(static_cast<long long>(faceConnectivity.size()));
+			}
+			polyOffsets.push_back(static_cast<long long>(toFaces.size()));
+		}
+		const bool ok = hdfPut<float>(root, "Points", { 12, 3 }, points) && hdfPut<long long>(root, "NumberOfPoints", { 1 }, { 12 })
+		                && hdfPut<long long>(root, "NumberOfCells", { 1 }, { 2 }) && hdfPut<long long>(root, "NumberOfConnectivityIds", { 1 }, { 16 })
+		                && hdfPut<long long>(root, "Connectivity", { 16 }, connectivity) && hdfPut<long long>(root, "Offsets", { 3 }, { 0, 8, 16 })
+		                && hdfPut<unsigned char>(root, "Types", { 2 }, { 42, 42 })
+		                && hdfPut<long long>(root, "NumberOfFaces", { 1 }, { 12 }) && hdfPut<long long>(root, "NumberOfFaceConnectivityIds", { 1 }, { 48 })
+		                && hdfPut<long long>(root, "NumberOfPolyhedronToFaceIds", { 1 }, { 12 })
+		                && hdfPut<long long>(root, "FaceConnectivity", { faceConnectivity.size() }, faceConnectivity)
+		                && hdfPut<long long>(root, "FaceOffsets", { faceOffsets.size() }, faceOffsets) && hdfPut<long long>(root, "PolyhedronToFaces", { toFaces.size() }, toFaces)
+		                && hdfPut<long long>(root, "PolyhedronOffsets", { polyOffsets.size() }, polyOffsets);
+		H5Gclose(root);
+		return H5Fclose(file) >= 0 && ok;
+	}
+#endif
+
+	void testPolyhedra()
+	{
+		// ---- the boundary of polyhedral cells: faces matched by their node sets across cells, of any size
+		{
+			ResultDataset one = polyCubes(1);
+			CHECK(one.validate().isEmpty());
+			ResultBoundarySurface s = extract(one);
+			CHECK(s.triangleCount() == 12 && polyTrianglesFaceOutward(one, s)); // a cube: 6 quads
+
+			ResultDataset row = polyCubes(2);
+			CHECK(row.validate().isEmpty());
+			s = extract(row);
+			CHECK(s.triangleCount() == 20 && polyTrianglesFaceOutward(row, s)); // the face between the cubes is interior: 10 quads
+
+			// a regular hexahedron next to a polyhedron: they share a face, which must match across the two kinds
+			ResultDataset mixed = polyCubes(2, true);
+			CHECK(mixed.validate().isEmpty());
+			s = extract(mixed);
+			CHECK(s.triangleCount() == 20);
+			bool hexOutward = true;
+			for (std::size_t t = 0; t < s.triangleCount(); ++t)
+				if (mixed.cellTypes[s.triangleCell[t]] == ResultCellType::Hexahedron && s.triangleFace[t] == ResultBoundarySurface::kNoFace)
+					hexOutward = false;
+			CHECK(hexOutward);
+
+			// a concave cap: the triangulation must cover exactly the L, not its convex hull (area 3, the hull's 3.5)
+			ResultDataset prism = polyLPrism();
+			CHECK(prism.validate().isEmpty());
+			s = extract(prism);
+			CHECK(s.triangleCount() == 4 + 4 + 12);                    // two 6-gon caps of 4 triangles, six quads of 2
+			CHECK(approx(surfaceVolume(s), 3.0));                       // closed and outward everywhere (the L has area 3, height 1)
+			CHECK(approx(areaAtHeight(s, 0.0f), 3.0) && approx(areaAtHeight(s, 1.0f), 3.0));
+
+			// small partitions force the multi-pass path
+			ResultBoundarySurface partitioned;
+			CHECK(extractBoundarySurface(row, partitioned, nullptr, nullptr, 3) && partitioned.triangleCount() == 20);
+
+			// a polyhedron with no faces listed is counted as not drawn, and warned about
+			ResultDataset bare = polyCubes(1);
+			bare.faceNodes.clear();
+			bare.faceOffsets.clear();
+			bare.cellFaces.clear();
+			bare.cellFaceOffsets.clear();
+			s = extract(bare);
+			CHECK(s.triangleCount() == 0 && s.skippedCells == 1 && !resultCellTypeWarnings(bare).isEmpty());
+
+			// broken face data is rejected
+			ResultDataset broken = polyCubes(1);
+			broken.faceNodes[3] = 99;
+			CHECK(!broken.validate().isEmpty());
+			broken = polyCubes(1);
+			broken.cellFaces[2] = 40;
+			CHECK(!broken.validate().isEmpty());
+		}
+
+		// ---- a VTK XML polyhedron: cell type 42 with its faces / faceoffsets arrays
+		{
+			const QByteArray vtu =
+				"<?xml version=\"1.0\"?>\n<VTKFile type=\"UnstructuredGrid\" version=\"1.0\" byte_order=\"LittleEndian\">\n<UnstructuredGrid>\n"
+				"<Piece NumberOfPoints=\"8\" NumberOfCells=\"1\">\n"
+				"<Points><DataArray type=\"Float32\" NumberOfComponents=\"3\" format=\"ascii\">0 0 0 1 0 0 1 1 0 0 1 0 0 0 1 1 0 1 1 1 1 0 1 1</DataArray></Points>\n"
+				"<Cells>\n<DataArray type=\"Int64\" Name=\"connectivity\" format=\"ascii\">0 1 2 3 4 5 6 7</DataArray>\n"
+				"<DataArray type=\"Int64\" Name=\"offsets\" format=\"ascii\">8</DataArray>\n<DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">42</DataArray>\n"
+				"<DataArray type=\"Int64\" Name=\"faces\" format=\"ascii\">6 4 0 3 2 1 4 4 5 6 7 4 0 1 5 4 4 1 2 6 5 4 2 3 7 6 4 3 0 4 7</DataArray>\n"
+				"<DataArray type=\"Int64\" Name=\"faceoffsets\" format=\"ascii\">31</DataArray>\n</Cells>\n</Piece>\n</UnstructuredGrid>\n</VTKFile>\n";
+			const ResultReadOutcome r = readBytes(vtu, QStringLiteral("poly.vtu"));
+			if (!r.ok())
+				std::printf("  VTU polyhedron failed: %s\n", qPrintable(r.error));
+			CHECK(r.ok());
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				CHECK(ds.cellCount() == 1 && ds.cellTypes[0] == ResultCellType::Polyhedron && ds.faceCount() == 6 && ds.polyhedronFaceCount(0) == 6);
+				const ResultBoundarySurface s = extract(ds);
+				CHECK(s.triangleCount() == 12 && polyTrianglesFaceOutward(ds, s));
+				CHECK(r.warnings.isEmpty());
+			}
+		}
+
+		// ---- the hand-written sample that ships with the project: two cubes sharing a face plus an L prism
+		{
+			const QString file = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/polyhedra.vtu");
+			if (QFileInfo::exists(file))
+			{
+				const ResultReadOutcome r = readResultFile(file);
+				if (!r.ok())
+					std::printf("  polyhedra.vtu failed: %s\n", qPrintable(r.error));
+				CHECK(r.ok());
+				if (r.ok())
+				{
+					const ResultDataset& ds = *r.dataset;
+					CHECK(ds.cellCount() == 3 && ds.faceCount() == 20 && ds.nodeCount() == 24);
+					const ResultBoundarySurface s = extract(ds);
+					CHECK(s.triangleCount() == 40);            // 10 quads of the two cubes + the L prism's 20 triangles
+					CHECK(approx(surfaceVolume(s), 5.0));      // 2 + 3, closed and outward
+				}
+			}
+		}
+
+#if MV_HAVE_CGNS
+		{
+			QTemporaryDir tmp;
+			CHECK(tmp.isValid());
+			if (tmp.isValid())
+			{
+				const QString path = tmp.path() + QStringLiteral("/cubes.cgns");
+				CHECK(writeCgnsPolyhedra(QFile::encodeName(path).constData()));
+				const ResultReadOutcome r = readResultFile(path);
+				if (!r.ok())
+					std::printf("  CGNS polyhedra failed: %s\n", qPrintable(r.error));
+				CHECK(r.ok());
+				if (r.ok())
+				{
+					const ResultDataset& ds = *r.dataset;
+					CHECK(ds.nodeCount() == 12 && ds.cellCount() == 2 && ds.faceCount() == 11);
+					CHECK(ds.cellTypes[0] == ResultCellType::Polyhedron && ds.polyhedronFaceCount(0) == 6 && ds.polyhedronFaceCount(1) == 6);
+					const ResultBoundarySurface s = extract(ds);
+					CHECK(s.triangleCount() == 20 && polyTrianglesFaceOutward(ds, s)); // the shared face is listed by both cubes: interior
+				}
+			}
+		}
+#endif
+#if MV_HAVE_HDF5
+		{
+			QTemporaryDir tmp;
+			CHECK(tmp.isValid());
+			if (tmp.isValid())
+			{
+				const QString path = tmp.path() + QStringLiteral("/cubes.vtkhdf");
+				CHECK(writeVtkHdfPolyhedra(QFile::encodeName(path).constData()));
+				const ResultReadOutcome r = readResultFile(path);
+				if (!r.ok())
+					std::printf("  VTKHDF polyhedra failed: %s\n", qPrintable(r.error));
+				CHECK(r.ok());
+				if (r.ok())
+				{
+					const ResultDataset& ds = *r.dataset;
+					CHECK(ds.cellCount() == 2 && ds.faceCount() == 12 && ds.polyhedronFaceCount(1) == 6);
+					const ResultBoundarySurface s = extract(ds);
+					CHECK(s.triangleCount() == 20 && polyTrianglesFaceOutward(ds, s));
+				}
+			}
+		}
+#endif
+	}
+
 	void testCgnsComponentGroups()
 	{
 #if MV_HAVE_CGNS
@@ -4630,6 +5001,7 @@ int main(int argc, char** argv)
 	testCgnsStructured();
 	testVtkHdf();
 	testMed();
+	testPolyhedra();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();

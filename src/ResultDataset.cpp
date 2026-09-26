@@ -58,7 +58,7 @@ bool resultCellIsSurface(ResultCellType type)
 
 ResultCellType resultCellTypeFromVtk(int vtkCellTypeId)
 {
-	// vtkCellType.h ids. Polyhedra (42) and anything else not listed stay Unsupported.
+	// vtkCellType.h ids. Anything not listed stays Unsupported.
 	switch (vtkCellTypeId)
 	{
 	case 3:  return ResultCellType::Line;
@@ -74,6 +74,7 @@ ResultCellType resultCellTypeFromVtk(int vtkCellTypeId)
 	case 25: return ResultCellType::Hexahedron20;
 	case 26: return ResultCellType::Wedge15;
 	case 27: return ResultCellType::Pyramid13;
+	case 42: return ResultCellType::Polyhedron; // its faces come from the file's face arrays, when the reader reads them
 	default: break;
 	}
 	return ResultCellType::Unsupported;
@@ -89,7 +90,15 @@ QStringList resultCellTypeWarnings(const ResultDataset& dataset)
 		else if (resultCellIsQuadratic(t))
 			++quadratic;
 	}
+	// Polyhedra need their faces (OpenFOAM's are covered by ready-made boundary triangles instead).
+	std::size_t bare = 0;
+	if (dataset.boundaryTriangles.empty())
+		for (std::size_t c = 0; c < dataset.cellTypes.size(); ++c)
+			if (dataset.cellTypes[c] == ResultCellType::Polyhedron && dataset.polyhedronFaceCount(c) == 0)
+				++bare;
 	QStringList warnings;
+	if (bare > 0)
+		warnings << QStringLiteral("%1 polyhedral cell(s) have no face description in the file and will not be displayed.").arg(bare);
 	if (quadratic > 0)
 		warnings << QStringLiteral("%1 quadratic cell(s) are shown through their corner nodes only; mid-edge nodes are ignored, so curved edges are not represented yet.").arg(quadratic);
 	if (unsupported > 0)
@@ -137,6 +146,29 @@ QString ResultDataset::validate() const
 			if (cellConnectivity[k] >= nodes)
 				return QStringLiteral("cell %1 references node %2 but only %3 nodes exist")
 					.arg(c).arg(cellConnectivity[k]).arg(nodes);
+	}
+
+	if (!faceOffsets.empty() || !faceNodes.empty())
+	{
+		if (faceOffsets.empty() || faceOffsets.front() != 0 || faceOffsets.back() != faceNodes.size())
+			return QStringLiteral("face offsets do not match the face node list");
+		for (std::size_t f = 0; f + 1 < faceOffsets.size(); ++f)
+			if (faceOffsets[f + 1] < faceOffsets[f])
+				return QStringLiteral("face %1 has decreasing offsets").arg(f);
+		for (std::uint32_t node : faceNodes)
+			if (node >= nodes)
+				return QStringLiteral("a face references node %1 but only %2 nodes exist").arg(node).arg(nodes);
+	}
+	if (!cellFaceOffsets.empty() || !cellFaces.empty())
+	{
+		if (cellFaceOffsets.size() != cells + 1 || cellFaceOffsets.front() != 0 || cellFaceOffsets.back() != cellFaces.size())
+			return QStringLiteral("cell face offsets do not match the cell count or the face list");
+		for (std::size_t c = 0; c < cells; ++c)
+			if (cellFaceOffsets[c + 1] < cellFaceOffsets[c])
+				return QStringLiteral("cell %1 has decreasing face offsets").arg(c);
+		for (std::uint32_t face : cellFaces)
+			if (face >= faceCount())
+				return QStringLiteral("a cell references face %1 but only %2 faces exist").arg(face).arg(faceCount());
 	}
 
 	if (boundaryTriangles.size() % 3 != 0 || boundaryTriangleCells.size() != boundaryTriangles.size() / 3)
