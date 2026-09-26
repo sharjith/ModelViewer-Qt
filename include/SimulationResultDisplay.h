@@ -59,6 +59,10 @@ struct DisplayScalar
 // explicit `component`. Returns false when the field is not a loaded node field or the request does not fit.
 bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int component, DisplayScalar& out, int step = 0);
 
+// The min/max buildDisplayScalar would report for `step` (display unit, widened by a snapshot's stored range), scanned in place without building
+// the per-tuple values. False under the same conditions buildDisplayScalar fails.
+bool computeStepRange(const ResultDataset& dataset, int fieldIndex, int component, int step, float& lo, float& hi);
+
 // The min/max of the field's values (in its display unit) over every step that has data for it. False when no
 // step has data. `cachedAllStepsRange()` does the same through the session's cache.
 bool computeAllStepsRange(const ResultDataset& dataset, int fieldIndex, int component, float& lo, float& hi);

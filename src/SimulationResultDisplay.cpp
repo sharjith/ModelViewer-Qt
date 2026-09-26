@@ -31,6 +31,87 @@ LoadedSimulationResult loadSimulationResult(const QString& path, const std::atom
 	return result;
 }
 
+namespace
+{
+	// A snapshot only holds the surface vertices; the range of the whole model it was saved with (ResultField::storedRange) widens the range
+	// of what is left, so the legend reads the same as with the full result. Widen only: the shown values always lie inside it.
+	void widenByStoredRange(const ResultField& field, int component, int step, const UnitConversion& conversion, float& lo, float& hi)
+	{
+		if (field.storedRange.empty())
+			return;
+		const int comps = field.components;
+		const int selector = resultRangeSelector(comps, component);
+		const std::size_t at = (static_cast<std::size_t>(step) * static_cast<std::size_t>(resultRangeSelectorCount(comps))
+		                        + static_cast<std::size_t>(std::max(selector, 0))) * 2;
+		if (selector >= 0 && at + 1 < field.storedRange.size() && std::isfinite(field.storedRange[at]) && std::isfinite(field.storedRange[at + 1]))
+		{
+			const double a = conversion.valid ? conversion.apply(static_cast<double>(field.storedRange[at])) : field.storedRange[at];
+			const double b = conversion.valid ? conversion.apply(static_cast<double>(field.storedRange[at + 1])) : field.storedRange[at + 1];
+			lo = std::min(lo, static_cast<float>(std::min(a, b)));
+			hi = std::max(hi, static_cast<float>(std::max(a, b)));
+		}
+	}
+}
+
+bool computeStepRange(const ResultDataset& dataset, int fieldIndex, int component, int step, float& lo, float& hi)
+{
+	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size())
+		return false;
+	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
+	if (step < 0 || static_cast<std::size_t>(step) >= field.stepData.size() || field.stepData[static_cast<std::size_t>(step)].empty())
+		return false;
+	const std::size_t tuples = field.association == ResultFieldAssociation::Cell ? dataset.cellCount() : dataset.nodeCount();
+	const std::size_t comps = static_cast<std::size_t>(std::max(field.components, 0));
+	const std::vector<float>& data = field.stepData[static_cast<std::size_t>(step)];
+	if (comps == 0 || data.size() != tuples * comps)
+		return false;
+
+	float mn = std::numeric_limits<float>::max(), mx = std::numeric_limits<float>::lowest();
+	auto take = [&mn, &mx](float v) {
+		if (!std::isfinite(v))
+			return;
+		mn = std::min(mn, v);
+		mx = std::max(mx, v);
+	};
+	if (comps == 1)
+	{
+		for (float v : data)
+			take(v);
+	}
+	else if (component >= 0)
+	{
+		if (static_cast<std::size_t>(component) >= comps)
+			return false;
+		for (std::size_t n = static_cast<std::size_t>(component); n < data.size(); n += comps)
+			take(data[n]);
+	}
+	else if (comps == 3)
+	{
+		for (std::size_t n = 0; n < tuples; ++n)
+		{
+			const float x = data[n * 3], y = data[n * 3 + 1], z = data[n * 3 + 2];
+			take(std::sqrt(x * x + y * y + z * z));
+		}
+	}
+	else
+		return false; // a tensor needs an explicit component
+	if (mn > mx)
+		return false; // no finite value at all
+
+	// The same conversion buildDisplayScalar applies to every value - affine, so the converted range is the converted ends.
+	const UnitConversion conversion = unitConversion(field.quantityKind, field.fileUnit, field.displayUnit.isEmpty() ? field.fileUnit : field.displayUnit);
+	lo = mn;
+	hi = mx;
+	if (conversion.valid && !conversion.isIdentity())
+	{
+		const float a = static_cast<float>(conversion.apply(static_cast<double>(mn))), b = static_cast<float>(conversion.apply(static_cast<double>(mx)));
+		lo = std::min(a, b);
+		hi = std::max(a, b);
+	}
+	widenByStoredRange(field, component, step, conversion, lo, hi);
+	return true;
+}
+
 bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int component, DisplayScalar& out, int step)
 {
 	out = DisplayScalar();
@@ -48,7 +129,7 @@ bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int compon
 		return false;
 
 	QString label = field.name;
-	std::vector<float> values(nodes);
+	std::vector<float> values; // (a scalar is copied once, not allocated and then overwritten)
 	if (comps == 1)
 	{
 		values = data;
@@ -57,12 +138,14 @@ bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int compon
 	{
 		if (component >= comps)
 			return false;
+		values.resize(nodes);
 		for (std::size_t n = 0; n < nodes; ++n)
 			values[n] = data[n * static_cast<std::size_t>(comps) + static_cast<std::size_t>(component)];
 		label += QStringLiteral(" (component %1)").arg(component);
 	}
 	else if (comps == 3)
 	{
+		values.resize(nodes);
 		for (std::size_t n = 0; n < nodes; ++n)
 		{
 			const float x = data[n * 3], y = data[n * 3 + 1], z = data[n * 3 + 2];
@@ -77,14 +160,14 @@ bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int compon
 	// unit alone never changes them.
 	const UnitConversion conversion = unitConversion(field.quantityKind, field.fileUnit,
 		field.displayUnit.isEmpty() ? field.fileUnit : field.displayUnit);
-	if (conversion.valid && !conversion.isIdentity())
-		for (float& v : values)
-			v = static_cast<float>(conversion.apply(static_cast<double>(v)));
-
+	// Convert and find the range in one pass over the values.
+	const bool convert = conversion.valid && !conversion.isIdentity();
 	float lo = std::numeric_limits<float>::max();
 	float hi = std::numeric_limits<float>::lowest();
-	for (float v : values)
+	for (float& v : values)
 	{
+		if (convert)
+			v = static_cast<float>(conversion.apply(static_cast<double>(v)));
 		if (!std::isfinite(v))
 			continue;
 		lo = std::min(lo, v);
@@ -92,21 +175,7 @@ bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int compon
 	}
 	if (lo > hi) // no finite value at all
 		return false;
-	if (!field.storedRange.empty())
-	{
-		// A stored snapshot only holds the surface vertices; its range covers the whole model, so the legend reads
-		// the same as with the full result. Widen only: the shown values always lie inside it.
-		const int selector = resultRangeSelector(comps, component);
-		const std::size_t at = (static_cast<std::size_t>(step) * static_cast<std::size_t>(resultRangeSelectorCount(comps))
-		                        + static_cast<std::size_t>(std::max(selector, 0))) * 2;
-		if (selector >= 0 && at + 1 < field.storedRange.size() && std::isfinite(field.storedRange[at]) && std::isfinite(field.storedRange[at + 1]))
-		{
-			const double a = conversion.valid ? conversion.apply(static_cast<double>(field.storedRange[at])) : field.storedRange[at];
-			const double b = conversion.valid ? conversion.apply(static_cast<double>(field.storedRange[at + 1])) : field.storedRange[at + 1];
-			lo = std::min(lo, static_cast<float>(std::min(a, b)));
-			hi = std::max(hi, static_cast<float>(std::max(a, b)));
-		}
-	}
+	widenByStoredRange(field, component, step, conversion, lo, hi);
 
 	out.fieldIndex = fieldIndex;
 	out.step = step;
@@ -324,11 +393,11 @@ bool computeAllStepsRange(const ResultDataset& dataset, int fieldIndex, int comp
 	hi = std::numeric_limits<float>::lowest();
 	for (std::size_t step = 0; step < dataset.stepCount(); ++step)
 	{
-		DisplayScalar scalar;
-		if (!buildDisplayScalar(dataset, fieldIndex, component, scalar, static_cast<int>(step)))
+		float stepLo = 0.0f, stepHi = 0.0f; // scanned in place: no per-step copy of the whole field
+		if (!computeStepRange(dataset, fieldIndex, component, static_cast<int>(step), stepLo, stepHi))
 			continue;
-		lo = std::min(lo, scalar.minValue);
-		hi = std::max(hi, scalar.maxValue);
+		lo = std::min(lo, stepLo);
+		hi = std::max(hi, stepHi);
 		any = true;
 	}
 	return any;

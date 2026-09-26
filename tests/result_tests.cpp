@@ -20,6 +20,10 @@
 #include "VtkHdfReader.h"
 #include "SimulationResultDisplay.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#include <psapi.h>
+#endif
 #include <QByteArray>
 #include <QDir>
 #include <QFile>
@@ -34,6 +38,7 @@
 #include <limits>
 #include <string>
 #include <atomic>
+#include <chrono>
 #if MV_HAVE_NETCDF
 #include <netcdf.h>
 #endif
@@ -4675,6 +4680,22 @@ namespace
 			ds.fields.pop_back();
 		}
 
+		// the in-place range scan gives exactly what building the scalar does (scalar, component, magnitude)
+		for (int comp : { -1, 0, 1, 2 })
+		{
+			DisplayScalar built;
+			float lo = 0, hi = 0;
+			const bool a = buildDisplayScalar(ds, velocityIndex, comp, built, 0), b = computeStepRange(ds, velocityIndex, comp, 0, lo, hi);
+			CHECK(a == b && (!a || (approx(built.minValue, lo) && approx(built.maxValue, hi))));
+		}
+		{
+			DisplayScalar built;
+			float lo = 0, hi = 0;
+			const int t = fieldIndexOf(ds, QStringLiteral("T"));
+			CHECK(buildDisplayScalar(ds, t, -1, built, 0) && computeStepRange(ds, t, -1, 0, lo, hi) && approx(built.minValue, lo) && approx(built.maxValue, hi));
+			CHECK(!computeStepRange(ds, t, -1, 3, lo, hi) && !computeStepRange(ds, -1, -1, 0, lo, hi));
+		}
+
 		// nothing to draw: a scalar field, a missing step, no size
 		CHECK(!buildGlyphSet(ds, surface, fieldIndexOf(ds, QStringLiteral("T")), 0, sites, 10.0, options, 0.0f, set));
 		CHECK(!buildGlyphSet(ds, surface, velocityIndex, 5, sites, 10.0, options, 0.0f, set));
@@ -4850,6 +4871,188 @@ namespace
 
 // `result_tests <file.vtu> [more.vtu ...]` loads real files instead of running the synthetic tests and
 // prints what was read - the check against output from FreeCAD/ParaView/etc. that fixtures cannot give.
+// ---- Large-result benchmark (opt-in): result_tests --bench <n> <steps>   and   result_tests --time <file>... -----------------------------------
+// Nothing here runs with the normal test run. It exists to MEASURE what docs/simulation_large_results_review.md reasons about: the time of each
+// stage of opening a result and of showing one step, and the memory the result takes.
+
+static double secondsSince(const std::chrono::steady_clock::time_point& start)
+{
+	return std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+}
+
+// The process's peak working set in MB (Windows; 0 elsewhere).
+static double peakMemoryMB()
+{
+#ifdef _WIN32
+	PROCESS_MEMORY_COUNTERS counters;
+	if (GetProcessMemoryInfo(GetCurrentProcess(), &counters, sizeof(counters)))
+		return static_cast<double>(counters.PeakWorkingSetSize) / (1024.0 * 1024.0);
+#endif
+	return 0.0;
+}
+
+// The bytes the dataset's arrays hold (nodes, cells, faces and every step of every field).
+static double datasetMB(const ResultDataset& ds)
+{
+	double bytes = static_cast<double>(ds.nodePositions.size() * 4 + ds.nodeIds.size() * 8 + ds.cellConnectivity.size() * 4 + ds.cellOffsets.size() * 4
+	                                   + ds.cellTypes.size() + ds.cellIds.size() * 8 + ds.faceNodes.size() * 4 + ds.faceOffsets.size() * 4
+	                                   + ds.cellFaces.size() * 4 + ds.cellFaceOffsets.size() * 4);
+	for (const ResultField& f : ds.fields)
+		for (const std::vector<float>& step : f.stepData)
+			bytes += static_cast<double>(step.size() * 4);
+	return bytes / (1024.0 * 1024.0);
+}
+
+// The stages of opening `ds` and showing its steps, timed. `readSeconds` (< 0 when unknown) is printed with them.
+static void benchDataset(ResultDataset& ds, double readSeconds)
+{
+	std::printf("  nodes %zu, cells %zu, steps %zu, fields %zu, dataset %.1f MB, process peak so far %.0f MB\n", ds.nodeCount(), ds.cellCount(), ds.stepCount(),
+	            ds.fields.size(), datasetMB(ds), peakMemoryMB());
+	if (readSeconds >= 0)
+		std::printf("  read/build           %8.3f s\n", readSeconds);
+	auto start = std::chrono::steady_clock::now();
+	const QString invalid = ds.validate();
+	std::printf("  validate             %8.3f s %s\n", secondsSince(start), invalid.isEmpty() ? "" : qPrintable(invalid));
+	assignGuessedUnits(ds);
+
+	start = std::chrono::steady_clock::now();
+	ResultBoundarySurface surface;
+	QString error;
+	const bool boundaryOk = extractBoundarySurface(ds, surface, nullptr, &error);
+	std::printf("  boundary surface     %8.3f s   %zu triangles, %zu vertices, peak %.0f MB %s\n", secondsSince(start), surface.triangleCount(),
+	            surface.vertexCount(), peakMemoryMB(), boundaryOk ? "" : qPrintable(error));
+	if (!boundaryOk)
+		return;
+
+	// One node field (a scalar, else a vector's magnitude), and one cell field, if there are any.
+	int nodeField = -1, cellField = -1;
+	for (std::size_t i = 0; i < ds.fields.size(); ++i)
+	{
+		const ResultField& f = ds.fields[i];
+		if (!resultFieldHasData(f) || (f.components != 1 && f.components != 3))
+			continue;
+		if (f.association == ResultFieldAssociation::Node && (nodeField < 0 || f.components == 1))
+			nodeField = static_cast<int>(i);
+		if (f.association == ResultFieldAssociation::Cell && cellField < 0)
+			cellField = static_cast<int>(i);
+	}
+	for (int field : { nodeField, cellField })
+	{
+		if (field < 0)
+			continue;
+		const ResultField& f = ds.fields[static_cast<std::size_t>(field)];
+		// Showing a step: build the per-tuple scalar, then map it onto the surface (what every frame of a playback does)
+		const int frames = static_cast<int>(std::min<std::size_t>(ds.stepCount(), 5));
+		start = std::chrono::steady_clock::now();
+		int built = 0;
+		for (int s = 0; s < frames; ++s)
+		{
+			DisplayScalar scalar;
+			if (!buildDisplayScalar(ds, field, -1, scalar, s))
+				continue;
+			const std::vector<float> onSurface = scalar.cellData ? boundaryFaceValues(surface, scalar.nodeValues) : boundaryVertexValues(surface, scalar.nodeValues);
+			(void)onSurface;
+			++built;
+		}
+		std::printf("  show a step (%s '%s', %d comp)  %8.4f s per step (avg of %d)\n", f.association == ResultFieldAssociation::Node ? "node" : "cell",
+		            qPrintable(f.name), f.components, built > 0 ? secondsSince(start) / built : 0.0, built);
+		start = std::chrono::steady_clock::now();
+		float lo = 0, hi = 0;
+		const bool ranged = computeAllStepsRange(ds, field, -1, lo, hi);
+		std::printf("  range over all %zu steps of '%s'   %8.3f s  (%g .. %g)%s\n", ds.stepCount(), qPrintable(f.name), secondsSince(start), lo, hi, ranged ? "" : " none");
+	}
+
+	start = std::chrono::steady_clock::now();
+	SimulationViewState state = defaultViewState(ds);
+	SnapshotOptions options;
+	ResultSnapshot snapshot;
+	const bool encoded = encodeResultSnapshot(ds, surface, state, options, snapshot, &error);
+	std::printf("  snapshot encode      %8.3f s   raw %.1f MB -> stored %.1f MB %s\n", secondsSince(start), static_cast<double>(snapshot.size.rawBytes) / 1048576.0,
+	            static_cast<double>(snapshot.size.storedBytes) / 1048576.0, encoded ? "" : qPrintable(error));
+	std::printf("  process peak         %8.0f MB\n", peakMemoryMB());
+}
+
+// A synthetic n x n x n hexahedron block with `steps` steps of a scalar and a vector node field and a cell field.
+static int benchSynthetic(int n, int steps)
+{
+	std::printf("\nSynthetic block: %d x %d x %d hexahedra, %d steps\n", n, n, n, steps);
+	const auto start = std::chrono::steady_clock::now();
+	ResultDataset ds;
+	const int side = n + 1;
+	const std::size_t nodeCount = static_cast<std::size_t>(side) * side * side, cells = static_cast<std::size_t>(n) * n * n;
+	ds.nodePositions.reserve(nodeCount * 3);
+	for (int k = 0; k < side; ++k)
+		for (int j = 0; j < side; ++j)
+			for (int i = 0; i < side; ++i)
+				ds.nodePositions.insert(ds.nodePositions.end(), { static_cast<float>(i), static_cast<float>(j), static_cast<float>(k) });
+	auto node = [&](int i, int j, int k) { return static_cast<std::uint32_t>(i + side * (j + side * k)); };
+	ds.cellConnectivity.reserve(cells * 8);
+	ds.cellOffsets.reserve(cells + 1);
+	ds.cellOffsets.push_back(0);
+	ds.cellTypes.assign(cells, ResultCellType::Hexahedron);
+	for (int k = 0; k < n; ++k)
+		for (int j = 0; j < n; ++j)
+			for (int i = 0; i < n; ++i)
+			{
+				const std::uint32_t ids[8] = { node(i, j, k), node(i + 1, j, k), node(i + 1, j + 1, k), node(i, j + 1, k),
+				                               node(i, j, k + 1), node(i + 1, j, k + 1), node(i + 1, j + 1, k + 1), node(i, j + 1, k + 1) };
+				ds.cellConnectivity.insert(ds.cellConnectivity.end(), ids, ids + 8);
+				ds.cellOffsets.push_back(static_cast<std::uint32_t>(ds.cellConnectivity.size()));
+			}
+	for (int s = 0; s < steps; ++s)
+	{
+		ResultStep step;
+		step.time = s;
+		ds.steps.push_back(step);
+	}
+	ResultField temperature, velocity, quality;
+	temperature.name = QStringLiteral("Temperature");
+	velocity.name = QStringLiteral("Velocity");
+	velocity.components = 3;
+	quality.name = QStringLiteral("Quality");
+	quality.association = ResultFieldAssociation::Cell;
+	for (int s = 0; s < steps; ++s)
+	{
+		std::vector<float> t(nodeCount), v(nodeCount * 3), q(cells);
+		for (std::size_t p = 0; p < nodeCount; ++p)
+		{
+			t[p] = 300.0f + 0.001f * static_cast<float>(p % 1000) + static_cast<float>(s);
+			v[p * 3] = static_cast<float>(s) * 0.1f;
+			v[p * 3 + 1] = static_cast<float>(p % 97) * 0.01f;
+			v[p * 3 + 2] = 0.0f;
+		}
+		for (std::size_t c = 0; c < cells; ++c)
+			q[c] = static_cast<float>(c % 100) * 0.01f + static_cast<float>(s);
+		temperature.stepData.push_back(std::move(t));
+		velocity.stepData.push_back(std::move(v));
+		quality.stepData.push_back(std::move(q));
+	}
+	ds.fields.push_back(std::move(temperature));
+	ds.fields.push_back(std::move(velocity));
+	ds.fields.push_back(std::move(quality));
+	benchDataset(ds, secondsSince(start));
+	return 0;
+}
+
+// Real files: read each and time the same stages.
+static int benchFiles(int argc, char** argv)
+{
+	for (int i = 2; i < argc; ++i)
+	{
+		const QString path = QString::fromLocal8Bit(argv[i]);
+		std::printf("\n%s\n", qPrintable(path));
+		const auto start = std::chrono::steady_clock::now();
+		ResultReadOutcome r = readResultFile(path);
+		if (!r.ok())
+		{
+			std::printf("  FAILED: %s\n", qPrintable(r.error));
+			continue;
+		}
+		benchDataset(*r.dataset, secondsSince(start));
+	}
+	return 0;
+}
+
 static int inspectFiles(int argc, char** argv)
 {
 	int failed = 0;
@@ -4949,6 +5152,11 @@ int main(int argc, char** argv)
 		return ok ? 0 : 1;
 	}
 #endif
+	// result_tests --bench <n> <steps>: times opening and showing a synthetic n x n x n hexahedron block; --time <file>...: the same for real files.
+	if (argc == 4 && std::strcmp(argv[1], "--bench") == 0)
+		return benchSynthetic(std::atoi(argv[2]), std::atoi(argv[3]));
+	if (argc >= 3 && std::strcmp(argv[1], "--time") == 0)
+		return benchFiles(argc, argv);
 	if (argc > 1)
 		return inspectFiles(argc, argv);
 

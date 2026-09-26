@@ -891,6 +891,11 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 			field = assemble({ key }, 1, key.mid(2), {});
 			consumed[i] = true;
 		}
+		// The components this field was assembled from are no longer needed: release them now, so the accumulated copy and the field never
+		// both hold every step of a large result.
+		for (std::size_t k = 0; k < order.size(); ++k)
+			if (consumed[k])
+				std::vector<std::vector<float>>().swap(accum[order[k]].steps);
 		if (resultFieldHasData(field))
 			dataset->fields.push_back(std::move(field));
 	}

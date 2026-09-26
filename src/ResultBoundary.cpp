@@ -4,6 +4,9 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <mutex>
+#include <new>
+#include <thread>
 #include <vector>
 
 namespace
@@ -227,16 +230,18 @@ bool extractBoundarySurface(const ResultDataset& ds, ResultBoundarySurface& out,
 	const std::size_t partitions = std::max<std::size_t>(1, std::min<std::size_t>(64, totalFaces / perPartition + 1));
 
 	// ---- Find boundary volume faces: faces that occur exactly once ---------------------------------
+	// Every partition (a slice of the face hash space) is independent, so a few of them run at the same time: each worker takes the next
+	// partition, builds and sorts its records and keeps the boundary faces it found. The number of workers is small on purpose - each holds
+	// ~2M face records (~48 MB) of its own.
 	std::vector<BoundaryFace> boundaryFaces;
-	std::vector<FaceRecord> records;
-	for (std::size_t p = 0; p < partitions; ++p)
+	auto findBoundaryInPartition = [&](std::size_t p, std::vector<FaceRecord>& records, std::vector<BoundaryFace>& found) -> bool
 	{
 		records.clear();
 		records.reserve(totalFaces / partitions + 16);
 		for (std::size_t c = 0; c < cellCount; ++c)
 		{
 			if ((c & 0xFFFF) == 0 && isCancelled())
-				return fail(QStringLiteral("cancelled"));
+				return false;
 			const bool polyhedron = ds.cellTypes[c] == ResultCellType::Polyhedron;
 			const FaceTemplate* templates = nullptr;
 			const int n = polyhedron ? static_cast<int>(ds.polyhedronFaceCount(c)) : faceTemplatesFor(ds.cellTypes[c], templates);
@@ -270,12 +275,60 @@ bool extractBoundarySurface(const ResultDataset& ds, ResultBoundarySurface& out,
 			while (j < records.size() && keyEqual(records[i], records[j]))
 				++j;
 			if (j - i == 1)
-				boundaryFaces.push_back({ records[i].cell, records[i].face });
+				found.push_back({ records[i].cell, records[i].face });
 			i = j;
 		}
+		return true;
+	};
+	{
+		constexpr std::size_t kMaxWorkers = 4;
+		const std::size_t hardware = std::max<std::size_t>(1, std::thread::hardware_concurrency());
+		const std::size_t workers = std::max<std::size_t>(1, std::min({ partitions, hardware, kMaxWorkers }));
+		std::atomic<std::size_t> nextPartition{ 0 };
+		std::atomic<bool> stopped{ false }, outOfMemory{ false };
+		std::mutex mergeLock;
+		auto worker = [&]()
+		{
+			try
+			{
+				std::vector<FaceRecord> records;
+				std::vector<BoundaryFace> found;
+				for (;;)
+				{
+					const std::size_t p = nextPartition.fetch_add(1);
+					if (p >= partitions || stopped.load())
+						break;
+					if (!findBoundaryInPartition(p, records, found))
+					{
+						stopped = true;
+						break;
+					}
+				}
+				std::lock_guard<std::mutex> lock(mergeLock);
+				boundaryFaces.insert(boundaryFaces.end(), found.begin(), found.end());
+			}
+			catch (const std::bad_alloc&)
+			{
+				outOfMemory = true;
+				stopped = true;
+			}
+		};
+		if (workers == 1)
+			worker();
+		else
+		{
+			std::vector<std::thread> threads;
+			for (std::size_t i = 1; i < workers; ++i)
+				threads.emplace_back(worker);
+			worker();
+			for (std::thread& t : threads)
+				t.join();
+		}
+		if (outOfMemory)
+			return fail(QStringLiteral("Out of memory while finding the boundary faces."));
+		if (stopped)
+			return fail(QStringLiteral("cancelled"));
 	}
-	records.clear();
-	records.shrink_to_fit();
 
 	// Partitioning scrambles the order; sort for a deterministic result.
 	std::sort(boundaryFaces.begin(), boundaryFaces.end(),
