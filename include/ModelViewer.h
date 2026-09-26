@@ -781,6 +781,8 @@ private:
 	// Rebuilds (or removes) the session's cut faces (a data-coloured section on each Clipping Plane) and iso-surfaces. Cuts the undeformed mesh.
 	void updateSimulationSlices(SimulationSession& session);
 	void updateSimulationStreamlines(SimulationSession& session);
+	// After a language change: the timeline, the legend and the messages of the results are built with tr() and are made again.
+	void retranslateSimulation();
 	void updateSimulationGlyphs(SimulationSession& session, bool haveSurfaceRange, float surfaceLo, float surfaceHi);
 	void updateSimulationTimeline();
 	void checkSimulationCompare(); // ends compare mode when one of its results went away

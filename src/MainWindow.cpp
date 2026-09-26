@@ -995,6 +995,12 @@ void MainWindow::retranslateUI()
 		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_sceneStatesPanel), tr("States"));
 		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_simulationPanel), tr("Simulation"));
 	}
+	if (_simulationPanel)
+	{
+		// The Simulation panel's controls are built once with tr(): rebuild them in the new language, then show the active document's result again.
+		_simulationPanel->retranslate();
+		refreshSimulationPanel(activeMdiChild());
+	}
 	if (_propertiesTabWidget && _propertiesTabWidget->count() >= 2)
 	{
 		_propertiesTabWidget->setTabText(0, tr("Materials"));

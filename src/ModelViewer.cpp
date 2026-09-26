@@ -522,6 +522,7 @@ ModelViewer::~ModelViewer()
 void ModelViewer::retranslateUI()
 {
 	// Dynamically created	
+	retranslateSimulation();
 }
 
 void ModelViewer::close()

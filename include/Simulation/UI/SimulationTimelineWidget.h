@@ -41,6 +41,8 @@ public:
 	void setAliveCheck(std::function<bool()> alive) { _alive = std::move(alive); refresh(); }
 	void refresh();
 	void reposition();
+	// Re-applies the tooltips and labels in the current language (after a language change).
+	void retranslate();
 
 signals:
 	void stepRequested(int step);

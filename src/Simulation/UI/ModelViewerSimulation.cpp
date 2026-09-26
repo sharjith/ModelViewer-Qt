@@ -396,6 +396,18 @@ void ModelViewer::closeSimulationResult(const QUuid& meshUuid)
 	emit simulationSessionChanged(false);
 }
 
+void ModelViewer::retranslateSimulation()
+{
+	if (_simulationTimeline)
+		_simulationTimeline->retranslate();
+	// Legend title / tooltip and the info lines come from the refresh: redo it for the results of this document.
+	for (SimulationSession& session : _simulationSessions)
+		if (_viewportWidget && _viewportWidget->getMeshByUuid(session.meshUuid))
+			refreshSimulationDisplay(session);
+	if (!_simulationSessions.empty())
+		emit simulationSessionChanged(false);
+}
+
 void ModelViewer::connectSimulationHooks()
 {
 	if (_simulationHooksConnected)

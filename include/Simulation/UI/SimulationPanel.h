@@ -35,6 +35,9 @@ public:
 
 	// nullptr shows the empty state. Never emits viewStateChanged().
 	void setSession(const SimulationSession* session);
+	// The controls are created with tr(): after a language change this rebuilds them in the new language. The panel is left in its empty state - the owner
+	// feeds the current result back in (setResults / setCompareState / setSession).
+	void retranslate();
 	// The document's results for the selector row (call before setSession); never emits.
 	void setResults(const QVector<SimulationResultItem>& items, const QUuid& activeMeshUuid);
 	// Whether compare mode is on and its options; also enables the Compare controls (needs a second result).

@@ -90,6 +90,15 @@ section 8, flagged for confirmation below.
   the result session is dropped on load with a message instead of showing wrong data. A pure move/rotate/scale
   of the node is fine (the arrays are per vertex, not positional).
 
+### 6.1 Addendum: sections, iso-surfaces, streamlines and the opt-in volume
+
+The snapshot's `overlays` object (optional) keeps the cut faces and iso-surfaces (`slices`: `lit`, `positions`, `colors`, `triangles` blobs), the streamlines
+(`streamlines`: `positions`, `colors`, `segments`) and the Clipping Planes they were trimmed to (`cuts`: `axis`, `position`, `keepPositive`), as displayed. The optional
+`volume` object (written only when the user ticks "Also store the volume"; snapshot `version` 3) holds `nodePositions`, `nodeIds`, `cellTypes`, `cellOffsets`,
+`cellConnectivity`, `cellIds`, the polyhedron face arrays, the surface mapping (`vertexNode`, `triangleCell`, `triangleFace`) and `fields` at every node / cell. A reader that
+cannot use the volume falls back to the surface snapshot. Which fields are stored also includes the ones the active arrows, streamlines and iso-surfaces follow. See
+`simulation_volume_features.md`.
+
 ## 7. Load hook
 
 After meshes are uploaded and `mvfSession` is read (where `punctualLightsByFile` is restored), each

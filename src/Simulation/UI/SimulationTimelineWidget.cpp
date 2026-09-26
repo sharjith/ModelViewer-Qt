@@ -196,6 +196,18 @@ void SimulationTimelineWidget::resetPosition()
 	savePlacement();
 }
 
+void SimulationTimelineWidget::retranslate()
+{
+	_prevButton->setToolTip(tr("Previous step"));
+	_playButton->setToolTip(_playing ? tr("Pause") : tr("Play"));
+	_stopButton->setToolTip(tr("Stop and rewind to the first step"));
+	_nextButton->setToolTip(tr("Next step"));
+	_loopCheck->setText(tr("Loop"));
+	_speedCombo->setToolTip(tr("Playback speed"));
+	updateGrip();
+	updateText();
+}
+
 void SimulationTimelineWidget::updateGrip()
 {
 	_grip->setCursor(_pinned ? Qt::ArrowCursor : Qt::SizeAllCursor);

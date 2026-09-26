@@ -93,6 +93,20 @@ SimulationPanel::SimulationPanel(QWidget* parent)
 	setSession(nullptr);
 }
 
+void SimulationPanel::retranslate()
+{
+	// Every control is a child of this panel (or of its layout): drop them, build them again with the new strings, and show them (children added to a visible
+	// parent are not shown by themselves).
+	const QList<QWidget*> children = findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
+	qDeleteAll(children);
+	delete layout();
+	_dataset.reset();
+	buildUi();
+	setSession(nullptr);
+	for (QWidget* child : findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly))
+		child->show();
+}
+
 void SimulationPanel::buildUi()
 {
 	auto* root = new QVBoxLayout(this);
