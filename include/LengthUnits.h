@@ -56,6 +56,8 @@ struct ResolvedLengthUnit
 //     and not Unknown (sceneGraph->findFileNode(mesh->getSourceFile())) -
 //     the correct fit for "per-import" since one document can contain
 //     several imported files with genuinely different native units.
+//  1b. Failing that, the SceneNode that owns the mesh or the nearest ancestor with a unit set - how a simulation result's
+//     surface (which has no imported file) takes the length unit of its result file.
 //  2. viewerState["defaultImportUnit"], if present - the document-level
 //     fallback for a mesh with no recorded import (programmatically created
 //     geometry) or a file node that hasn't had its unit set.

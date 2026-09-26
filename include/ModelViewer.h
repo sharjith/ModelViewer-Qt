@@ -638,6 +638,9 @@ public slots:
 	// Applies a quantity/unit edit from the Simulation panel to the active session's field (and its derived
 	// fields), then redraws. A custom colour range follows a change of display unit; a change of what the numbers
 	// ARE (quantity or file unit) returns it to the data range.
+	// The length unit of the active result's coordinates ("" = not specified, else "mm", "cm", "m", "in", "ft"): stored on the
+	// result and on its scene node, where Mass Properties and Surface Analysis read it (LengthUnits.h).
+	void applySimulationLengthUnit(const QString& unit);
 	void applySimulationUnits(int fieldIndex, const QString& kindId, const QString& fileUnit, const QString& displayUnit);
 
 	// The Reconstruct Surface dialog's one-line bridge into the undo stack -

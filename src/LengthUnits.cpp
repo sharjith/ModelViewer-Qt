@@ -51,6 +51,11 @@ ResolvedLengthUnit resolveEffectiveImportUnit(SceneMesh* mesh, SceneGraph* scene
 			if (fileNode->importUnit != LengthUnit::Unknown)
 				return ResolvedLengthUnit{ fileNode->importUnit, true };
 		}
+		// A mesh that is not part of an imported file (a simulation result's surface) can have a unit on the node that owns
+		// it or on an ancestor: the nearest one that is set wins.
+		for (const SceneNode* node = sceneGraph->findNodeForMesh(mesh->uuid()); node; node = node->parent)
+			if (node->importUnit != LengthUnit::Unknown)
+				return ResolvedLengthUnit{ node->importUnit, true };
 	}
 
 	if (viewerState.contains(QStringLiteral("defaultImportUnit")))

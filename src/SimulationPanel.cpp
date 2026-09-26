@@ -1,5 +1,6 @@
 #include "SimulationPanel.h"
 
+#include "LengthUnits.h"
 #include "ResultUnits.h"
 #include "SimulationGlyphs.h"
 
@@ -169,6 +170,22 @@ void SimulationPanel::buildUi()
 	_infoLabel = new QLabel(content);
 	_infoLabel->setWordWrap(true);
 	form->addRow(tr("Mesh:"), _infoLabel);
+
+	// The unit the model's coordinates are written in. Result files often do not say (VTK, CalculiX, Exodus), and Mass
+	// Properties / Surface Analysis need it to report real volumes and areas.
+	_lengthUnitCombo = new QComboBox(content);
+	_lengthUnitCombo->addItem(tr("Not specified (assumed mm)"), QString());
+	_lengthUnitCombo->addItem(tr("Millimetres (mm)"), QStringLiteral("mm"));
+	_lengthUnitCombo->addItem(tr("Centimetres (cm)"), QStringLiteral("cm"));
+	_lengthUnitCombo->addItem(tr("Metres (m)"), QStringLiteral("m"));
+	_lengthUnitCombo->addItem(tr("Inches (in)"), QStringLiteral("in"));
+	_lengthUnitCombo->addItem(tr("Feet (ft)"), QStringLiteral("ft"));
+	_lengthUnitCombo->setToolTip(tr("The length unit of the model's coordinates. Mass Properties and Surface Analysis use it to "
+	                                "convert to millimetres. Set from the file when it states one."));
+	form->addRow(tr("Model unit:"), _lengthUnitCombo);
+	_sizeLabel = new QLabel(content);
+	_sizeLabel->setWordWrap(true);
+	form->addRow(tr("Model size:"), _sizeLabel);
 
 	_fieldCombo = new QComboBox(content);
 	form->addRow(tr("Field:"), _fieldCombo);
@@ -344,6 +361,10 @@ void SimulationPanel::buildUi()
 			emitState();
 	});
 	connect(_deformScaleSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_updating) emitState(); });
+	connect(_lengthUnitCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+		if (!_updating)
+			emit lengthUnitChanged(_lengthUnitCombo->currentData().toString());
+	});
 	connect(_glyphCheck, &QCheckBox::toggled, this, [this](bool) {
 		updateGlyphEnabled();
 		if (!_updating)
@@ -424,6 +445,17 @@ void SimulationPanel::setSession(const SimulationSession* session)
 	_infoLabel->setText(tr("%1 nodes, %2 cells, %3 surface triangles")
 		.arg(_dataset->nodeCount()).arg(_dataset->cellCount()).arg(session->surface ? session->surface->triangleCount() : 0));
 
+	{
+		const LengthUnit unit = lengthUnitFromString(_dataset->lengthUnit, LengthUnit::Unknown);
+		_lengthUnitCombo->setCurrentIndex(std::max(0, _lengthUnitCombo->findData(unit == LengthUnit::Unknown ? QString() : lengthUnitToString(unit))));
+		const QString unitText = unit == LengthUnit::Unknown ? tr("(unit not specified)") : lengthUnitToString(unit);
+		if (session->extentsValid)
+			_sizeLabel->setText(tr("%1 x %2 x %3 %4").arg(session->extents[0], 0, 'g', 5).arg(session->extents[1], 0, 'g', 5)
+			                        .arg(session->extents[2], 0, 'g', 5).arg(unitText));
+		else
+			_sizeLabel->clear();
+		_sizeLabel->setVisible(session->extentsValid);
+	}
 	populateFields(state.fieldIndex);
 	populateComponents(_fieldCombo->currentData().toInt(), state.component);
 	populateUnits(_fieldCombo->currentData().toInt());

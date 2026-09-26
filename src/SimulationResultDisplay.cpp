@@ -293,6 +293,30 @@ SimulationViewState defaultViewState(const ResultDataset& dataset, DisplayScalar
 	return state;
 }
 
+bool surfaceExtents(const ResultBoundarySurface& surface, double& x, double& y, double& z)
+{
+	double lo[3] = { std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max() };
+	double hi[3] = { std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest() };
+	bool any = false;
+	for (std::size_t i = 0; i + 2 < surface.positions.size(); i += 3)
+	{
+		if (!std::isfinite(surface.positions[i]) || !std::isfinite(surface.positions[i + 1]) || !std::isfinite(surface.positions[i + 2]))
+			continue;
+		any = true;
+		for (std::size_t a = 0; a < 3; ++a)
+		{
+			lo[a] = std::min(lo[a], static_cast<double>(surface.positions[i + a]));
+			hi[a] = std::max(hi[a], static_cast<double>(surface.positions[i + a]));
+		}
+	}
+	if (!any)
+		return false;
+	x = hi[0] - lo[0];
+	y = hi[1] - lo[1];
+	z = hi[2] - lo[2];
+	return true;
+}
+
 bool computeAllStepsRange(const ResultDataset& dataset, int fieldIndex, int component, float& lo, float& hi)
 {
 	bool any = false;

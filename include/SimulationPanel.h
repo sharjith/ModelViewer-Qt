@@ -50,6 +50,8 @@ signals:
 	void compareOptionsChanged(bool stacked, bool sharedRange);
 	void viewStateChanged(const SimulationViewState& state);
 	// The user changed the quantity or a unit of a field (empty strings = "not specified").
+	// The user chose the length unit of the model's coordinates ("" = not specified, else "mm", "cm", "m", "in", "ft").
+	void lengthUnitChanged(const QString& unit);
 	void unitsChanged(int fieldIndex, const QString& kindId, const QString& fileUnit, const QString& displayUnit);
 
 private:
@@ -94,6 +96,8 @@ private:
 	bool _compareActive = false;
 	QLabel* _fileLabel = nullptr;
 	QLabel* _infoLabel = nullptr;
+	QComboBox* _lengthUnitCombo = nullptr;
+	QLabel* _sizeLabel = nullptr;
 	QLabel* _noteLabel = nullptr;
 	QComboBox* _fieldCombo = nullptr;
 	QLabel* _componentLabel = nullptr;

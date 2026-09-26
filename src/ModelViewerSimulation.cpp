@@ -17,6 +17,7 @@
 #include "ModelViewer.h"
 
 #include "AnalysisColorRamp.h"
+#include "LengthUnits.h"
 #include "MainWindow.h"
 #include "MeshSurfaceAnchor.h"
 #include "MeshVertex.h"
@@ -197,6 +198,9 @@ void ModelViewer::presentSimulationResult(const QString& path, LoadedSimulationR
 	SceneNode* node = new SceneNode();
 	node->nodeUuid = QUuid::createUuid();
 	node->name = baseName;
+	// The result file's own length unit (readers that know it - OpenFOAM, CGNS - set it) becomes the node's unit, which Mass
+	// Properties and Surface Analysis read; a file that does not state one leaves it unset (the document default / mm).
+	node->importUnit = lengthUnitFromString(result.dataset->lengthUnit, LengthUnit::Unknown);
 	SceneNode* parent = _sceneGraph->root();
 	const int position = parent->children.size();
 	_sceneGraph->insertChildNode(parent, node, position);
@@ -215,6 +219,7 @@ void ModelViewer::presentSimulationResult(const QString& path, LoadedSimulationR
 	session.surface = std::make_shared<ResultBoundarySurface>(std::move(result.surface)); // `surface` is invalid from here
 	session.filePath = path;
 	session.warnings = result.warnings;
+	session.extentsValid = surfaceExtents(*session.surface, session.extents[0], session.extents[1], session.extents[2]);
 	session.displacementField = findDisplacementField(*session.dataset);
 	session.modal = isModalResult(*session.dataset);
 	if (session.displacementField >= 0)
@@ -426,6 +431,23 @@ void ModelViewer::applySimulationViewState(const SimulationViewState& state)
 	session->state.step = keepStep;
 	refreshSimulationDisplay(*session);
 	emit simulationSessionChanged(false); // lets the panel show e.g. the recomputed automatic range
+}
+
+void ModelViewer::applySimulationLengthUnit(const QString& unitText)
+{
+	SimulationSession* session = activeSimulationSessionMutable();
+	if (!session || !session->dataset)
+		return;
+	const LengthUnit unit = lengthUnitFromString(unitText, LengthUnit::Unknown);
+	session->dataset->lengthUnit = unit == LengthUnit::Unknown ? QString() : lengthUnitToString(unit);
+	if (SceneNode* node = _sceneGraph ? _sceneGraph->findNodeForMesh(session->meshUuid) : nullptr)
+	{
+		node->importUnit = unit;
+		node->importUnitUserOverridden = unit != LengthUnit::Unknown;
+	}
+	markNonUndoDocumentModified();
+	notifyImportUnitsChanged();
+	emit simulationSessionChanged(false);
 }
 
 void ModelViewer::applySimulationUnits(int fieldIndex, const QString& kindId, const QString& fileUnit, const QString& displayUnit)
@@ -700,10 +722,16 @@ void ModelViewer::restoreSimulationSessions(QVector<PendingSimulationRestore>& r
 			}
 		}
 
+		// A file saved before results carried a unit on their node: take the result's own.
+		if (SceneNode* node = _sceneGraph ? _sceneGraph->findNodeForMesh(pending.meshUuid) : nullptr)
+			if (node->importUnit == LengthUnit::Unknown && pending.decoded.dataset)
+				node->importUnit = lengthUnitFromString(pending.decoded.dataset->lengthUnit, LengthUnit::Unknown);
+
 		SimulationSession session;
 		session.meshUuid = pending.meshUuid;
 		session.dataset = pending.decoded.dataset;
 		session.surface = surface;
+		session.extentsValid = surfaceExtents(*session.surface, session.extents[0], session.extents[1], session.extents[2]);
 		session.filePath = pending.decoded.sourcePath;
 		session.warnings = pending.decoded.warnings;
 		session.warnings << tr("Restored from a saved snapshot of the visible surface; the original result file is not needed.");

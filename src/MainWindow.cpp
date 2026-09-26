@@ -283,6 +283,10 @@ MainWindow::MainWindow(QWidget* parent)
 			if (auto* child = activeMdiChild())
 				child->applySimulationViewState(state);
 		});
+		connect(_simulationPanel, &SimulationPanel::lengthUnitChanged, this, [this](const QString& unit) {
+			if (auto* child = activeMdiChild())
+				child->applySimulationLengthUnit(unit);
+		});
 		connect(_simulationPanel, &SimulationPanel::unitsChanged, this,
 			[this](int fieldIndex, const QString& kindId, const QString& fileUnit, const QString& displayUnit) {
 				if (auto* child = activeMdiChild())

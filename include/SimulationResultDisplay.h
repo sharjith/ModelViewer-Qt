@@ -84,6 +84,9 @@ std::vector<float> boundaryFaceValues(const ResultBoundarySurface& surface, cons
 // e.g. the colours baked into a saved file).
 std::vector<float> surfaceVertexValues(const ResultBoundarySurface& surface, const DisplayScalar& scalar);
 
+// Size of the boundary surface's bounding box along x, y and z, in the file's own length unit. False when it has no points.
+bool surfaceExtents(const ResultBoundarySurface& surface, double& x, double& y, double& z);
+
 // Smooth per-vertex normals for the boundary surface (area-weighted average of the adjoining triangles),
 // 3 floats per vertex, unit length (falls back to +Z for a vertex whose triangles cancel out). The second form
 // takes the positions explicitly (a deformed shape).
@@ -227,6 +230,8 @@ struct SimulationSession
 	int glyphSitesCount = 0;
 	bool glyphSitesCell = false;
 	double surfaceDiagonal = -1.0; // surfaceDiagonal(), computed on first use
+	bool extentsValid = false;     // surfaceExtents(), computed once (the panel shows it)
+	double extents[3] = { 0.0, 0.0, 0.0 };
 	SimulationRangeCache glyphRangeCache;
 	QString glyphInfo;             // what the panel shows about the arrows' colours (empty when they are off)
 	// What the mesh geometry currently shows, so a recolour does not re-upload the vertices.

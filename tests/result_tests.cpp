@@ -3372,6 +3372,9 @@ namespace
 		CHECK(isGlyphField(ds.fields[static_cast<std::size_t>(velocityIndex)]));
 
 		const ResultBoundarySurface surface = extract(ds);
+		double extentX = 0.0, extentY = 0.0, extentZ = 0.0;
+		CHECK(surfaceExtents(surface, extentX, extentY, extentZ) && approx(extentX, 1.0) && approx(extentY, 1.0) && approx(extentZ, 1.0));
+		CHECK(!surfaceExtents(ResultBoundarySurface(), extentX, extentY, extentZ));
 		const std::vector<std::uint32_t> sites = selectSurfaceGlyphSites(surface, false, 100);
 		CHECK(sites.size() == surface.vertexCount());
 		GlyphOptions options;
