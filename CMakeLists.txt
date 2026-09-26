@@ -49,6 +49,15 @@ find_package(CGAL CONFIG REQUIRED)
 # bring it in transitively.
 find_package(Eigen3 CONFIG REQUIRED)
 
+# Optional: NetCDF (with HDF5) for the Exodus II simulation-result reader. When it is not found the reader is compiled
+# as a stub and Exodus files are simply not offered (see ExodusReader.h).
+find_package(netCDF CONFIG QUIET)
+if(netCDF_FOUND)
+    message(STATUS "NetCDF found: Exodus II result files enabled")
+else()
+    message(STATUS "NetCDF not found: Exodus II result files disabled")
+endif()
+
 message(STATUS "VCPKG_INSTALLED_DIR: ${VCPKG_INSTALLED_DIR}")
 
 if(NOT OpenCASCADE_FOUND)
@@ -498,6 +507,11 @@ target_link_libraries(ModelViewer
         ${OpenCASCADE_DataExchange_LIBRARIES}
         ${OpenCASCADE_ApplicationFramework_LIBRARIES}
 )
+
+if(netCDF_FOUND)
+    target_link_libraries(ModelViewer PRIVATE netCDF::netcdf)
+    target_compile_definitions(ModelViewer PRIVATE MV_HAVE_NETCDF=1)
+endif()
 
 # Qt6's automatic static-plugin linking (triggered by linking Qt6::Gui/Widgets
 # above) only pulls in the one platform plugin qtbase was configured with as

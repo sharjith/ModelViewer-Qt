@@ -73,3 +73,12 @@ FEM_box_modes.frd, FEM_box_load_steps.frd, FEM_box_thermal_transient.frd
 
 cell_data_cube.vtk, openfoam_cavity
     Generated with a script for this project (no external data or licence).
+
+Exodus II (.e / .exo / .ex2 / .g)
+    Needs a build with NetCDF (vcpkg feature netcdf-c[netcdf-4]); other builds do not list these extensions.
+    There is no Exodus file in this folder. Write one for trying the reader with the test program:
+        result_tests.exe --write-exodus-sample block.exo
+    It is an 8 x 8 x 8 block of HEX8 elements with five time steps of a bending-and-warming cube: disp_x/y/z
+    (gathered into one vector field "disp"), temperature, a symmetric stress tensor (stress_xx ... stress_zx, gathered
+    into "stress" with von Mises and principal stresses derived) and the element variable element_quality (a cell field).
+    The values are synthetic; real solver output (MOOSE, Cubit, Sierra ...) is the true check.

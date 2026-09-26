@@ -81,6 +81,13 @@
       ]
     },
     "openimagedenoise",
-    "openexr"
+    "openexr",
+    {
+      "name": "netcdf-c",
+      "default-features": false,
+      "features": [
+        "netcdf-4"
+      ]
+    }
   ]
 }

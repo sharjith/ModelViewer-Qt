@@ -13,6 +13,7 @@ add_executable(result_tests
     ${CMAKE_SOURCE_DIR}/src/ResultBoundary.cpp
     ${CMAKE_SOURCE_DIR}/src/ComparePaneLayout.cpp
     ${CMAKE_SOURCE_DIR}/src/OpenFoamReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/ExodusReader.cpp
     ${CMAKE_SOURCE_DIR}/src/ResultSnapshot.cpp
     ${CMAKE_SOURCE_DIR}/src/SimulationResultDisplay.cpp
 )
@@ -21,6 +22,12 @@ target_include_directories(result_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_compile_definitions(result_tests PRIVATE
     MV_SIMULATION_SAMPLES_DIR="${CMAKE_SOURCE_DIR}/sample-models/Simulation")
 target_link_libraries(result_tests PRIVATE Qt6::Core)
+# Exodus II needs NetCDF; without it the reader is a stub and its tests are skipped.
+find_package(netCDF CONFIG QUIET)
+if(netCDF_FOUND)
+    target_link_libraries(result_tests PRIVATE netCDF::netcdf)
+    target_compile_definitions(result_tests PRIVATE MV_HAVE_NETCDF=1)
+endif()
 set_target_properties(result_tests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 
 enable_testing()

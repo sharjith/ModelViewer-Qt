@@ -20,7 +20,8 @@ struct ResultReadOutcome
 	bool ok() const { return dataset != nullptr; }
 };
 
-// Lower-case extensions (without the dot) this build can read: "vtu", "vtk", "frd" and "foam" (an OpenFOAM case).
+// Lower-case extensions (without the dot) this build can read: "vtu", "vtk", "frd", "foam" (an OpenFOAM case) and,
+// when built with NetCDF, the Exodus II ones ("e", "exo", "ex2", "g").
 QStringList supportedResultExtensions();
 
 // True when the file extension is one this build can read (.vtu, .vtk, .frd, .foam).

@@ -8,6 +8,7 @@
 // the final check and are listed in docs/simulation_results_test_data.md.
 
 #include "ComparePaneLayout.h"
+#include "ExodusReader.h"
 #include "ResultBoundary.h"
 #include "ResultDerivedFields.h"
 #include "ResultReader.h"
@@ -29,6 +30,9 @@
 #include <limits>
 #include <string>
 #include <atomic>
+#if MV_HAVE_NETCDF
+#include <netcdf.h>
+#endif
 #include <vector>
 
 static int g_failures = 0;
@@ -2438,6 +2442,293 @@ namespace
 		CHECK(sized && inside && disjoint && centred && scissorOk);
 	}
 
+	// ---- Exodus II reader (needs NetCDF; skipped when the build has none) ------------------------------------------
+
+#if MV_HAVE_NETCDF
+	// A small Exodus II file written through the NetCDF API: two HEX8 blocks of one element each that share a face (a
+	// 3 x 2 x 2 grid of nodes), three time steps, node variables disp_x/disp_y/disp_z and temperature (plus a symmetric
+	// stress tensor in the six stress_xx ... variables when asked) and one element variable "vm".
+	bool writeExodusFixture(const QString& path, bool netcdf4, bool withStress)
+	{
+		int ncid = -1;
+		const QByteArray native = QFile::encodeName(path);
+		if (nc_create(native.constData(), NC_CLOBBER | (netcdf4 ? NC_NETCDF4 : 0), &ncid) != NC_NOERR)
+			return false;
+		bool ok = true;
+		auto dim = [&](const char* name, std::size_t length) {
+			int id = -1;
+			ok = ok && nc_def_dim(ncid, name, length, &id) == NC_NOERR;
+			return id;
+		};
+		auto var = [&](const char* name, nc_type type, std::vector<int> dims) {
+			int id = -1;
+			ok = ok && nc_def_var(ncid, name, type, static_cast<int>(dims.size()), dims.data(), &id) == NC_NOERR;
+			return id;
+		};
+		const std::size_t nodeVars = withStress ? 10 : 4;
+		const int dLen = dim("len_string", 33), dDim = dim("num_dim", 3), dNodes = dim("num_nodes", 12), dElem = dim("num_elem", 2);
+		const int dBlocks = dim("num_el_blk", 2), dTime = dim("time_step", NC_UNLIMITED);
+		const int dNodVar = dim("num_nod_var", nodeVars), dElemVar = dim("num_elem_var", 1);
+		const int dEl1 = dim("num_el_in_blk1", 1), dNpe1 = dim("num_nod_per_el1", 8);
+		const int dEl2 = dim("num_el_in_blk2", 1), dNpe2 = dim("num_nod_per_el2", 8);
+		(void)dDim; (void)dElem; (void)dBlocks;
+		const int vx = var("coordx", NC_DOUBLE, { dNodes }), vy = var("coordy", NC_DOUBLE, { dNodes }), vz = var("coordz", NC_DOUBLE, { dNodes });
+		const int vc1 = var("connect1", NC_INT, { dEl1, dNpe1 }), vc2 = var("connect2", NC_INT, { dEl2, dNpe2 });
+		ok = ok && nc_put_att_text(ncid, vc1, "elem_type", 4, "HEX8") == NC_NOERR && nc_put_att_text(ncid, vc2, "elem_type", 4, "HEX8") == NC_NOERR;
+		const int vTime = var("time_whole", NC_DOUBLE, { dTime });
+		const int vNodNames = var("name_nod_var", NC_CHAR, { dNodVar, dLen });
+		std::vector<int> nodVarIds;
+		for (std::size_t i = 1; i <= nodeVars; ++i)
+			nodVarIds.push_back(var(QStringLiteral("vals_nod_var%1").arg(i).toLatin1().constData(), NC_DOUBLE, { dTime, dNodes }));
+		const int vElemNames = var("name_elem_var", NC_CHAR, { dElemVar, dLen });
+		const int vVm1 = var("vals_elem_var1eb1", NC_DOUBLE, { dTime, dEl1 }), vVm2 = var("vals_elem_var1eb2", NC_DOUBLE, { dTime, dEl2 });
+		ok = ok && nc_enddef(ncid) == NC_NOERR;
+
+		double coordX[12], coordY[12], coordZ[12];
+		for (int n = 0; n < 12; ++n)
+		{
+			coordX[n] = n % 3;
+			coordY[n] = (n / 3) % 2;
+			coordZ[n] = n / 6;
+		}
+		const int connect1[8] = { 1, 2, 5, 4, 7, 8, 11, 10 }, connect2[8] = { 2, 3, 6, 5, 8, 9, 12, 11 };
+		const double times[3] = { 0.0, 0.5, 1.0 };
+		const std::size_t startTime[1] = { 0 }, countTime[1] = { 3 };
+		ok = ok && nc_put_var_double(ncid, vx, coordX) == NC_NOERR && nc_put_var_double(ncid, vy, coordY) == NC_NOERR
+		     && nc_put_var_double(ncid, vz, coordZ) == NC_NOERR && nc_put_var_int(ncid, vc1, connect1) == NC_NOERR
+		     && nc_put_var_int(ncid, vc2, connect2) == NC_NOERR && nc_put_vara_double(ncid, vTime, startTime, countTime, times) == NC_NOERR;
+
+		const char* names[10] = { "disp_x", "disp_y", "disp_z", "temperature", "stress_xx", "stress_yy", "stress_zz", "stress_xy", "stress_yz", "stress_zx" };
+		std::vector<char> nameBuffer(nodeVars * 33, '\0');
+		for (std::size_t i = 0; i < nodeVars; ++i)
+			std::snprintf(&nameBuffer[i * 33], 33, "%s", names[i]);
+		ok = ok && nc_put_var_text(ncid, vNodNames, nameBuffer.data()) == NC_NOERR;
+		std::vector<char> elemName(33, '\0');
+		std::snprintf(elemName.data(), 33, "vm");
+		ok = ok && nc_put_var_text(ncid, vElemNames, elemName.data()) == NC_NOERR;
+
+		for (std::size_t s = 0; s < 3; ++s)
+		{
+			const std::size_t start[2] = { s, 0 }, count[2] = { 1, 12 };
+			for (std::size_t v = 0; v < nodeVars; ++v)
+			{
+				double values[12];
+				for (int n = 0; n < 12; ++n)
+				{
+					const double scale = static_cast<double>(s + 1);
+					switch (v)
+					{
+					case 0: values[n] = scale * 1.0e-3 * (n + 1); break;   // disp_x
+					case 1: values[n] = 0.0; break;                        // disp_y
+					case 2: values[n] = scale * 2.0e-3; break;             // disp_z
+					case 3: values[n] = 20.0 + 10.0 * static_cast<double>(s) + n; break; // temperature
+					case 4: values[n] = 100.0; break;                      // stress_xx: uniaxial, von Mises 100
+					default: values[n] = 0.0; break;
+					}
+				}
+				ok = ok && nc_put_vara_double(ncid, nodVarIds[v], start, count, values) == NC_NOERR;
+			}
+			const std::size_t startE[2] = { s, 0 }, countE[2] = { 1, 1 };
+			const double vm1 = 100.0 + static_cast<double>(s), vm2 = 200.0 + static_cast<double>(s);
+			ok = ok && nc_put_vara_double(ncid, vVm1, startE, countE, &vm1) == NC_NOERR && nc_put_vara_double(ncid, vVm2, startE, countE, &vm2) == NC_NOERR;
+		}
+		return nc_close(ncid) == NC_NOERR && ok;
+	}
+#endif
+
+#if MV_HAVE_NETCDF
+	// A larger Exodus II file for trying the reader in the application: an n x n x n block of HEX8 elements, five time
+	// steps of a bending-and-warming cube (disp_x/y/z, temperature, a symmetric stress tensor) and an element variable.
+	// Written with `result_tests --write-exodus-sample <file.exo>` (classic NetCDF, the layout most Exodus tools write).
+	bool writeExodusBlockSample(const char* path, int n = 8)
+	{
+		const int nodesPerSide = n + 1, nodeCount = nodesPerSide * nodesPerSide * nodesPerSide, elemCount = n * n * n, steps = 5;
+		const int nodeVars = 10;
+		int ncid = -1;
+		if (nc_create(path, NC_CLOBBER | NC_64BIT_OFFSET, &ncid) != NC_NOERR)
+			return false;
+		bool ok = true;
+		auto dim = [&](const char* name, std::size_t length) { int id = -1; ok = ok && nc_def_dim(ncid, name, length, &id) == NC_NOERR; return id; };
+		auto var = [&](const char* name, nc_type type, std::vector<int> dims) {
+			int id = -1;
+			ok = ok && nc_def_var(ncid, name, type, static_cast<int>(dims.size()), dims.data(), &id) == NC_NOERR;
+			return id;
+		};
+		const int dLen = dim("len_string", 33), dNodes = dim("num_nodes", static_cast<std::size_t>(nodeCount)), dTime = dim("time_step", NC_UNLIMITED);
+		dim("num_dim", 3);
+		dim("num_elem", static_cast<std::size_t>(elemCount));
+		dim("num_el_blk", 1);
+		const int dNodVar = dim("num_nod_var", nodeVars), dElemVar = dim("num_elem_var", 1);
+		const int dEl = dim("num_el_in_blk1", static_cast<std::size_t>(elemCount)), dNpe = dim("num_nod_per_el1", 8);
+		const int vx = var("coordx", NC_DOUBLE, { dNodes }), vy = var("coordy", NC_DOUBLE, { dNodes }), vz = var("coordz", NC_DOUBLE, { dNodes });
+		const int vc = var("connect1", NC_INT, { dEl, dNpe });
+		ok = ok && nc_put_att_text(ncid, vc, "elem_type", 4, "HEX8") == NC_NOERR;
+		const int vTime = var("time_whole", NC_DOUBLE, { dTime });
+		const int vNames = var("name_nod_var", NC_CHAR, { dNodVar, dLen });
+		std::vector<int> valueVars;
+		for (int i = 1; i <= nodeVars; ++i)
+			valueVars.push_back(var(QStringLiteral("vals_nod_var%1").arg(i).toLatin1().constData(), NC_DOUBLE, { dTime, dNodes }));
+		const int vElemNames = var("name_elem_var", NC_CHAR, { dElemVar, dLen });
+		const int vElemVals = var("vals_elem_var1eb1", NC_DOUBLE, { dTime, dEl });
+		ok = ok && nc_enddef(ncid) == NC_NOERR;
+
+		std::vector<double> cx(static_cast<std::size_t>(nodeCount)), cy(cx.size()), cz(cx.size());
+		auto node = [&](int i, int j, int k) { return i + nodesPerSide * (j + nodesPerSide * k); };
+		for (int k = 0; k < nodesPerSide; ++k)
+			for (int j = 0; j < nodesPerSide; ++j)
+				for (int i = 0; i < nodesPerSide; ++i)
+				{
+					const std::size_t id = static_cast<std::size_t>(node(i, j, k));
+					cx[id] = i;
+					cy[id] = j;
+					cz[id] = k;
+				}
+		std::vector<int> connect;
+		for (int k = 0; k < n; ++k)
+			for (int j = 0; j < n; ++j)
+				for (int i = 0; i < n; ++i)
+					for (int c : { node(i, j, k), node(i + 1, j, k), node(i + 1, j + 1, k), node(i, j + 1, k),
+					               node(i, j, k + 1), node(i + 1, j, k + 1), node(i + 1, j + 1, k + 1), node(i, j + 1, k + 1) })
+						connect.push_back(c + 1); // 1-based
+		ok = ok && nc_put_var_double(ncid, vx, cx.data()) == NC_NOERR && nc_put_var_double(ncid, vy, cy.data()) == NC_NOERR
+		     && nc_put_var_double(ncid, vz, cz.data()) == NC_NOERR && nc_put_var_int(ncid, vc, connect.data()) == NC_NOERR;
+
+		const char* names[10] = { "disp_x", "disp_y", "disp_z", "temperature", "stress_xx", "stress_yy", "stress_zz", "stress_xy", "stress_yz", "stress_zx" };
+		std::vector<char> nameBuffer(static_cast<std::size_t>(nodeVars) * 33, '\0');
+		for (int i = 0; i < nodeVars; ++i)
+			std::snprintf(&nameBuffer[static_cast<std::size_t>(i) * 33], 33, "%s", names[i]);
+		std::vector<char> elemName(33, '\0');
+		std::snprintf(elemName.data(), 33, "element_quality");
+		ok = ok && nc_put_var_text(ncid, vNames, nameBuffer.data()) == NC_NOERR && nc_put_var_text(ncid, vElemNames, elemName.data()) == NC_NOERR;
+
+		for (int s = 0; s < steps; ++s)
+		{
+			const double t = static_cast<double>(s) / (steps - 1), amp = t; // 0 .. 1
+			const std::size_t timeStart[1] = { static_cast<std::size_t>(s) }, one[1] = { 1 };
+			ok = ok && nc_put_vara_double(ncid, vTime, timeStart, one, &t) == NC_NOERR;
+			const std::size_t start[2] = { static_cast<std::size_t>(s), 0 }, count[2] = { 1, static_cast<std::size_t>(nodeCount) };
+			std::vector<double> values(static_cast<std::size_t>(nodeCount));
+			for (int v = 0; v < nodeVars; ++v)
+			{
+				for (std::size_t id = 0; id < values.size(); ++id)
+				{
+					const double x = cx[id] / n, y = cy[id] / n, z = cz[id] / n; // 0 .. 1
+					switch (v)
+					{
+					case 0: values[id] = -amp * 0.15 * x * (z - 0.5); break;      // disp_x: the cube bends about y ...
+					case 1: values[id] = 0.0; break;
+					case 2: values[id] = amp * 0.15 * x * x; break;              // ... its free end (x = 1) dropping most
+					case 3: values[id] = 20.0 + 80.0 * amp * x; break;           // temperature rising towards x = 1
+					case 4: values[id] = amp * 200.0 * x * (z - 0.5); break;     // stress_xx
+					case 5: values[id] = amp * 20.0 * (1.0 - x); break;          // stress_yy
+					case 6: values[id] = amp * 10.0 * y; break;                  // stress_zz
+					case 7: values[id] = amp * 30.0 * z * (1.0 - x); break;      // stress_xy
+					case 8: values[id] = amp * 15.0 * y * z; break;              // stress_yz
+					default: values[id] = amp * 25.0 * x * y; break;             // stress_zx
+					}
+				}
+				ok = ok && nc_put_vara_double(ncid, valueVars[static_cast<std::size_t>(v)], start, count, values.data()) == NC_NOERR;
+			}
+			std::vector<double> quality(static_cast<std::size_t>(elemCount));
+			for (int e = 0; e < elemCount; ++e)
+				quality[static_cast<std::size_t>(e)] = 0.5 + 0.5 * std::sin(0.1 * e + 2.0 * t);
+			const std::size_t startE[2] = { static_cast<std::size_t>(s), 0 }, countE[2] = { 1, static_cast<std::size_t>(elemCount) };
+			ok = ok && nc_put_vara_double(ncid, vElemVals, startE, countE, quality.data()) == NC_NOERR;
+		}
+		return nc_close(ncid) == NC_NOERR && ok;
+	}
+#endif
+
+	void testExodus()
+	{
+#if MV_HAVE_NETCDF
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		CHECK(exodusSupported() && !exodusFileFilter().isEmpty());
+		CHECK(supportedResultExtensions().contains(QStringLiteral("exo")) && supportedResultExtensions().contains(QStringLiteral("e")));
+		CHECK(isSupportedResultFile(QStringLiteral("run.EXO")) && isSupportedResultFile(QStringLiteral("mesh.g")));
+
+		for (int variant = 0; variant < 2; ++variant)
+		{
+			const bool netcdf4 = variant == 1, withStress = variant == 1; // classic without stress, netCDF-4/HDF5 with it
+			const QString path = tmp.path() + (netcdf4 ? QStringLiteral("/v4.exo") : QStringLiteral("/v3.exo"));
+			CHECK(writeExodusFixture(path, netcdf4, withStress));
+			const ResultReadOutcome r = readResultFile(path);
+			if (!r.ok())
+				std::printf("  Exodus %s failed: %s\n", netcdf4 ? "netCDF-4" : "classic", qPrintable(r.error));
+			CHECK(r.ok());
+			if (!r.ok())
+				continue;
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.solverName == QStringLiteral("Exodus"));
+			CHECK(ds.nodeCount() == 12 && ds.cellCount() == 2);
+			CHECK(ds.cellTypes[0] == ResultCellType::Hexahedron && ds.cellTypes[1] == ResultCellType::Hexahedron);
+			const std::vector<std::uint32_t> firstHex = { 0, 1, 4, 3, 6, 7, 10, 9 }; // Exodus is 1-based
+			CHECK(std::vector<std::uint32_t>(ds.cellConnectivity.begin(), ds.cellConnectivity.begin() + 8) == firstHex);
+			CHECK(approx(ds.nodePositions[5 * 3 + 0], 2.0) && approx(ds.nodePositions[5 * 3 + 1], 1.0) && approx(ds.nodePositions[5 * 3 + 2], 0.0, 1e-4, 1e-9));
+			CHECK(ds.stepCount() == 3 && approx(ds.steps[0].time, 0.0) && approx(ds.steps[1].time, 0.5) && approx(ds.steps[2].time, 1.0));
+			CHECK(ds.validate().isEmpty());
+
+			// disp_x/_y/_z become one vector field, temperature stays a scalar, the element variable is a cell field
+			const int disp = fieldIndexOf(ds, QStringLiteral("disp")), temperature = fieldIndexOf(ds, QStringLiteral("temperature"));
+			const ResultField* vm = ds.findField(QStringLiteral("vm"), ResultFieldAssociation::Cell);
+			CHECK(disp >= 0 && temperature >= 0 && vm != nullptr);
+			CHECK(ds.fields.size() == (withStress ? 9u : 3u)); // + the stress tensor and its five derived fields
+			if (disp >= 0 && temperature >= 0 && vm)
+			{
+				const ResultField& fd = ds.fields[static_cast<std::size_t>(disp)];
+				CHECK(fd.components == 3 && fd.association == ResultFieldAssociation::Node && fd.stepData.size() == 3);
+				CHECK(approx(fd.stepData[2][5 * 3 + 0], 0.018) && approx(fd.stepData[2][5 * 3 + 1], 0.0, 1e-4, 1e-9) && approx(fd.stepData[2][5 * 3 + 2], 0.006));
+				const ResultField& ft = ds.fields[static_cast<std::size_t>(temperature)];
+				CHECK(ft.components == 1 && approx(ft.stepData[1][3], 33.0) && approx(ft.stepData[2][11], 51.0));
+				CHECK(vm->components == 1 && vm->stepData[2].size() == 2 && approx(vm->stepData[2][0], 102.0) && approx(vm->stepData[2][1], 202.0));
+			}
+
+			// two hexahedra sharing a face: 12 faces - 2 shared = 10 boundary quads = 20 triangles
+			ResultBoundarySurface surface;
+			CHECK(extractBoundarySurface(ds, surface, nullptr, nullptr));
+			CHECK(surface.triangleCount() == 20 && surface.vertexCount() == 12);
+
+			if (withStress)
+			{
+				// the six stress components form one symmetric tensor and get the derived structural fields
+				const int stress = fieldIndexOf(ds, QStringLiteral("stress")), mises = fieldIndexOf(ds, QStringLiteral("stress von Mises"));
+				CHECK(stress >= 0 && mises >= 0 && ds.fields[static_cast<std::size_t>(stress)].components == 6);
+				const LoadedSimulationResult loaded = loadSimulationResult(path);
+				CHECK(loaded.ok());
+				if (loaded.ok())
+				{
+					DisplayScalar d;
+					CHECK(chooseDefaultDisplayScalar(*loaded.dataset, d) && d.label == QStringLiteral("stress von Mises") && approx(d.maxValue, 100.0));
+				}
+			}
+		}
+
+		// problems are reported, never crashed on
+		const ResultReadOutcome missing = readResultFile(tmp.path() + QStringLiteral("/missing.exo"));
+		CHECK(!missing.ok() && missing.error.contains(QStringLiteral("Cannot open")));
+		writeText(tmp.path() + QStringLiteral("/bad.exo"), QByteArray("this is not a NetCDF file"));
+		CHECK(!readResultFile(tmp.path() + QStringLiteral("/bad.exo")).ok());
+		{
+			int ncid = -1, dimid = -1;
+			const QByteArray plain = QFile::encodeName(tmp.path() + QStringLiteral("/plain.nc"));
+			CHECK(nc_create(plain.constData(), NC_CLOBBER, &ncid) == NC_NOERR);
+			nc_def_dim(ncid, "foo", 3, &dimid);
+			nc_enddef(ncid);
+			nc_close(ncid);
+			QFile::copy(tmp.path() + QStringLiteral("/plain.nc"), tmp.path() + QStringLiteral("/plain.exo"));
+			const ResultReadOutcome notExodus = readResultFile(tmp.path() + QStringLiteral("/plain.exo"));
+			CHECK(!notExodus.ok() && notExodus.error.contains(QStringLiteral("not an Exodus II mesh")));
+		}
+#else
+		std::printf("  (skipping Exodus tests: this build has no NetCDF)\n");
+		CHECK(!exodusSupported() && exodusExtensions().isEmpty() && !isSupportedResultFile(QStringLiteral("run.exo")));
+		CHECK(!readResultFile(QStringLiteral("run.exo")).ok());
+#endif
+	}
+
 	void testShellAndSkippedCells()
 	{
 		Mesh m;
@@ -2618,6 +2909,15 @@ static int inspectFiles(int argc, char** argv)
 
 int main(int argc, char** argv)
 {
+#if MV_HAVE_NETCDF
+	// result_tests --write-exodus-sample <file.exo>: writes the larger Exodus file used to try the reader in the application.
+	if (argc == 3 && std::strcmp(argv[1], "--write-exodus-sample") == 0)
+	{
+		const bool ok = writeExodusBlockSample(argv[2]);
+		std::printf(ok ? "wrote %s\n" : "could not write %s\n", argv[2]);
+		return ok ? 0 : 1;
+	}
+#endif
 	if (argc > 1)
 		return inspectFiles(argc, argv);
 
@@ -2657,6 +2957,7 @@ int main(int argc, char** argv)
 	testOpenFoamErrors();
 	testOpenFoamSample();
 	testComparePanes();
+	testExodus();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();

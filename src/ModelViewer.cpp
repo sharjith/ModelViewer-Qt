@@ -5379,6 +5379,13 @@ void ModelViewer::onFileImport()
 	QFileDialog fileDialog(this, tr("Import Model File"), _lastOpenedDir);
 	fileDialog.setFileMode(QFileDialog::ExistingFiles);
 	QStringList supportedExtensions = ModelViewerApplication::supportedImportExtensions();
+	// Simulation results (.vtu, .vtk, .frd, .foam, and .exo/.e/.ex2/.g when built with NetCDF) are part of "All Supported
+	// Files" and their own filter, as in File > Open. Importing one adds it to this document (loadFile() routes it).
+	QString resultGlobs;
+	for (const QString& extension : supportedResultExtensions())
+		resultGlobs += QStringLiteral(" *.") + extension;
+	supportedExtensions[0].insert(supportedExtensions[0].lastIndexOf(')'), resultGlobs);
+	supportedExtensions.append(tr("Simulation Results (%1)").arg(resultGlobs.trimmed()));
 	fileDialog.setNameFilters(supportedExtensions);
 
 	if (supportedExtensions.contains(_lastSelectedFilter))
