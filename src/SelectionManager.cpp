@@ -152,6 +152,8 @@ MeshSurfaceAnchor SelectionManager::pickSurfaceAnchor(const QPoint& pixel, int s
         SceneMesh* mesh = _meshStore.at(i).mesh;
         if (!mesh)
             continue;
+        if (!_pickOnlyMesh.isNull() && mesh->uuid() != _pickOnlyMesh)
+            continue;
         if (!mesh->getBoundingSphere().intersectsWithRay(rayPos, rayDir))
             continue;
 

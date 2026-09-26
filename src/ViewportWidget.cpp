@@ -3723,13 +3723,28 @@ void ViewportWidget::clearSurfaceAnalysisHoverReadout()
 
 void ViewportWidget::updateSurfaceAnalysisHoverReadout(const QPoint& pixel)
 {
-	if (_compareActive) // picking assumes the single full-window view; not available in compare mode yet
+	// Compare mode: the result value under the cursor in the pane it is over. A pane is the full-window view shifted by
+	// `toWindow`, so the pick runs at the equivalent window pixel, restricted to that pane's mesh. (Surface Analysis and
+	// hover highlighting stay off while comparing.)
+	if (_compareActive)
 	{
-		if (!_surfaceAnalysisHoverText.isEmpty())
+		QString text;
+		QColor textColor = Qt::white;
+		const std::vector<ComparePane> panes = computeComparePanes(width(), height(), static_cast<int>(_compareMeshes.size()), _compareArrangement);
+		const int pane = comparePaneAt(panes, pixel);
+		if (pane >= 0 && _viewer && _viewer->hasSimulationResults() && pane < _compareMeshes.size())
 		{
-			_surfaceAnalysisHoverText.clear();
-			update();
+			_selectionManager->setPickOnlyMesh(_compareMeshes[pane]);
+			const MeshSurfaceAnchor anchor = _selectionManager->pickSurfaceAnchor(pixel + panes[static_cast<std::size_t>(pane)].toWindow);
+			_selectionManager->setPickOnlyMesh(QUuid());
+			text = _viewer->simulationProbeText(anchor, textColor);
 		}
+		if (text == _surfaceAnalysisHoverText && pixel == _surfaceAnalysisHoverPixel && textColor == _surfaceAnalysisHoverTextColor)
+			return;
+		_surfaceAnalysisHoverText = text;
+		_surfaceAnalysisHoverPixel = pixel;
+		_surfaceAnalysisHoverTextColor = textColor;
+		update();
 		return;
 	}
 	SurfaceAnalysisDialog* dialog = _viewer
@@ -6798,6 +6813,7 @@ void ViewportWidget::renderComparePanes(QColor& topColor, QColor& botColor)
 	glDisable(GL_SCISSOR_TEST);
 	glViewport(0, 0, width(), height());
 	drawVertexMarkers(); // in window coordinates, shifted into the pane of their result
+	drawSurfaceAnalysisHoverLabel(); // the hover probe's value, at the cursor
 }
 
 void ViewportWidget::setCompareResults(const QVector<QUuid>& meshUuids, CompareArrangement arrangement)

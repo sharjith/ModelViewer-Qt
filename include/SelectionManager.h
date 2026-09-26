@@ -99,6 +99,9 @@ public:
     // touch selection state. Returns an anchor with triangleIndex == -1
     // (isValid() == false) if nothing was hit.
     MeshSurfaceAnchor pickSurfaceAnchor(const QPoint& pixel, int snapPixelRadius = 8);
+    // While set (a non-null uuid), pickSurfaceAnchor() only considers that mesh. Compare mode: each pane shows one
+    // result, so a hover in a pane must not hit the other result that lies behind it in the shared scene.
+    void setPickOnlyMesh(const QUuid& meshUuid) { _pickOnlyMesh = meshUuid; }
 
     // Pick the nearest CIRCULAR B-Rep edge (Edge Radius measurement tool)
     // within snapPixelRadius screen pixels of the given pixel, across all
@@ -174,6 +177,7 @@ signals:
     void selectionModeChanged(SelectionMode mode);
 
 private:
+    QUuid _pickOnlyMesh;
     // Helper methods for ray-casting
     void getRayFromPixelCoords(const QPoint& pixel, QVector3D& rayPos, QVector3D& rayDir);
     void convertClickToRay(const QPoint& pixel, const QRect& viewport,
