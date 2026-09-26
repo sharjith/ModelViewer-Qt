@@ -2894,6 +2894,81 @@ namespace
 	}
 #endif
 
+#if MV_HAVE_CGNS
+	// A multi-block structured CGNS file for trying the reader in the application: two curved blocks (quarter rings, 12 x 6 x 4
+	// cells each) that together make a half-ring duct, four steps of a swirling flow (Temperature, Pressure, VelocityX/Y/Z at
+	// the points, Quality per cell). Written with `result_tests --write-cgns-structured-sample <file.cgns>`.
+	bool writeCgnsStructuredSample(const char* path)
+	{
+		const int ni = 13, nj = 7, nk = 5, steps = 4; // points per direction
+		const double pi = 3.14159265358979323846;
+		int fn = 0, base = 0;
+		if (cg_open(path, CG_MODE_WRITE, &fn) != CG_OK)
+			return false;
+		bool ok = cg_base_write(fn, "Duct", 3, 3, &base) == CG_OK;
+		const std::size_t points = static_cast<std::size_t>(ni * nj * nk), cells = static_cast<std::size_t>((ni - 1) * (nj - 1) * (nk - 1));
+		for (int block = 0; block < 2; ++block)
+		{
+			int zone = 0, index = 0;
+			const cgsize_t size[9] = { ni, nj, nk, ni - 1, nj - 1, nk - 1, 0, 0, 0 };
+			const QByteArray zoneName = QByteArray("Block") + QByteArray::number(block + 1);
+			ok = ok && cg_zone_write(fn, base, zoneName.constData(), size, CGNS_ENUMV(Structured), &zone) == CG_OK;
+			std::vector<double> x(points), y(points), z(points), theta(points), radius(points);
+			for (int k = 0; k < nk; ++k)
+				for (int j = 0; j < nj; ++j)
+					for (int i = 0; i < ni; ++i)
+					{
+						const std::size_t id = static_cast<std::size_t>(i + ni * (j + nj * k)); // i fastest
+						theta[id] = 0.5 * pi * (block + static_cast<double>(i) / (ni - 1));
+						radius[id] = 1.0 + static_cast<double>(j) / (nj - 1);
+						x[id] = radius[id] * std::cos(theta[id]);
+						y[id] = radius[id] * std::sin(theta[id]);
+						z[id] = static_cast<double>(k) / (nk - 1);
+					}
+			ok = ok && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateX", x.data(), &index) == CG_OK
+			     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateY", y.data(), &index) == CG_OK
+			     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateZ", z.data(), &index) == CG_OK;
+			for (int s = 0; s < steps; ++s)
+			{
+				const double t = static_cast<double>(s + 1) / steps;
+				std::vector<double> temperature(points), pressure(points), vx(points), vy(points), vz(points);
+				for (std::size_t id = 0; id < points; ++id)
+				{
+					const double r = radius[id], a = theta[id];
+					const double speed = t * 12.0 * (r - 1.0) * (2.0 - r); // fastest mid-duct, zero at the walls
+					temperature[id] = 300.0 + 60.0 * t * a / pi + 20.0 * (r - 1.0);
+					pressure[id] = 101325.0 + 400.0 * t * (1.0 - a / pi);
+					vx[id] = -speed * std::sin(a);
+					vy[id] = speed * std::cos(a);
+					vz[id] = 0.3 * t * (z[id] - 0.5);
+				}
+				int sol = 0, field = 0;
+				const QByteArray vertexName = QByteArray("FlowSolution") + QByteArray::number(s);
+				ok = ok && cg_sol_write(fn, base, zone, vertexName.constData(), CGNS_ENUMV(Vertex), &sol) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Temperature", temperature.data(), &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Pressure", pressure.data(), &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityX", vx.data(), &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityY", vy.data(), &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityZ", vz.data(), &field) == CG_OK;
+				std::vector<double> quality(cells);
+				for (std::size_t c = 0; c < cells; ++c)
+					quality[c] = 0.5 + 0.5 * std::sin(0.05 * static_cast<double>(c) + 2.0 * t + block);
+				const QByteArray cellName = QByteArray("CellSolution") + QByteArray::number(s);
+				ok = ok && cg_sol_write(fn, base, zone, cellName.constData(), CGNS_ENUMV(CellCenter), &sol) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Quality", quality.data(), &field) == CG_OK;
+			}
+		}
+		std::vector<double> times;
+		for (int s = 0; s < steps; ++s)
+			times.push_back(0.5 * (s + 1));
+		const cgsize_t stepCount = steps;
+		ok = ok && cg_biter_write(fn, base, "TimeIterValues", steps) == CG_OK && cg_goto(fn, base, "BaseIterativeData_t", 1, "end") == CG_OK
+		     && cg_array_write("TimeValues", CGNS_ENUMV(RealDouble), 1, &stepCount, times.data()) == CG_OK;
+		return cg_close(fn) == CG_OK && ok;
+	}
+
+#endif
+
 	void testCgns()
 	{
 #if MV_HAVE_CGNS
@@ -3214,6 +3289,127 @@ namespace
 		return cg_close(fn) == CG_OK && ok;
 	}
 #endif
+
+#if MV_HAVE_CGNS
+	// A structured zone: 3 x 3 x 2 points (2 x 2 x 1 hexahedra) in a 3-D base, or 3 x 3 points (2 x 2 quads) in a 2-D one.
+	// Temperature at the points = the point number, Quality per cell = 100 + the cell number.
+	bool writeCgnsStructured(const char* path, bool threeD)
+	{
+		int fn = 0, base = 0, zone = 0, index = 0;
+		if (cg_open(path, CG_MODE_WRITE, &fn) != CG_OK)
+			return false;
+		bool ok = cg_base_write(fn, "Base", threeD ? 3 : 2, 3, &base) == CG_OK;
+		const int nk = threeD ? 2 : 1;
+		const cgsize_t size[9] = { 3, 3, 2, 2, 2, 1, 0, 0, 0 };
+		// 3-D: { NI, NJ, NK, cells I, J, K, 0, 0, 0 }; 2-D: { NI, NJ, cells I, J, 0, 0 }
+		const cgsize_t size2d[6] = { 3, 3, 2, 2, 0, 0 };
+		ok = ok && cg_zone_write(fn, base, "Block", threeD ? size : size2d, CGNS_ENUMV(Structured), &zone) == CG_OK;
+		std::vector<double> x, y, z, temperature;
+		for (int k = 0; k < nk; ++k)
+			for (int j = 0; j < 3; ++j)
+				for (int i = 0; i < 3; ++i)
+				{
+					x.push_back(i);
+					y.push_back(j);
+					z.push_back(k);
+					temperature.push_back(static_cast<double>(x.size() - 1));
+				}
+		std::vector<double> quality;
+		for (int c = 0; c < 4; ++c)
+			quality.push_back(100.0 + c);
+		int sol = 0, field = 0;
+		ok = ok && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateX", x.data(), &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateY", y.data(), &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateZ", z.data(), &index) == CG_OK
+		     && cg_sol_write(fn, base, zone, "Points", CGNS_ENUMV(Vertex), &sol) == CG_OK
+		     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Temperature", temperature.data(), &field) == CG_OK
+		     && cg_sol_write(fn, base, zone, "Cells", CGNS_ENUMV(CellCenter), &sol) == CG_OK
+		     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Quality", quality.data(), &field) == CG_OK;
+		return cg_close(fn) == CG_OK && ok;
+	}
+#endif
+
+	void testCgnsStructured()
+	{
+#if MV_HAVE_CGNS
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+
+		// ---- a 3-D block: hexahedra, i fastest
+		const QString path3d = tmp.path() + QStringLiteral("/block3d.cgns");
+		CHECK(writeCgnsStructured(QFile::encodeName(path3d).constData(), true));
+		const ResultReadOutcome r3 = readResultFile(path3d);
+		if (!r3.ok())
+			std::printf("  CGNS structured failed: %s\n", qPrintable(r3.error));
+		CHECK(r3.ok());
+		if (r3.ok())
+		{
+			const ResultDataset& ds = *r3.dataset;
+			CHECK(ds.nodeCount() == 18 && ds.cellCount() == 4);
+			bool allHex = true;
+			for (ResultCellType t : ds.cellTypes)
+				allHex = allHex && t == ResultCellType::Hexahedron;
+			CHECK(allHex);
+			// cell 0 sits at the origin corner; cell 1 is the next along i, cell 2 the next along j
+			const std::vector<std::uint32_t> firstHex = { 0, 1, 4, 3, 9, 10, 13, 12 };
+			CHECK(std::vector<std::uint32_t>(ds.cellConnectivity.begin(), ds.cellConnectivity.begin() + 8) == firstHex);
+			CHECK(ds.cellConnectivity[8] == 1 && ds.cellConnectivity[16] == 3);
+			const ResultField* temperature = ds.findField(QStringLiteral("Temperature"), ResultFieldAssociation::Node);
+			const ResultField* quality = ds.findField(QStringLiteral("Quality"), ResultFieldAssociation::Cell);
+			CHECK(temperature && quality && temperature->tupleCount(0) == 18 && quality->tupleCount(0) == 4);
+			if (temperature && quality)
+				CHECK(approx(temperature->stepData[0][13], 13.0) && approx(quality->stepData[0][2], 102.0));
+			CHECK(ds.validate().isEmpty());
+			// the block's outer faces: 2 x (4 + 2 + 2) quads = 32 triangles
+			const ResultBoundarySurface surface = extract(ds);
+			CHECK(surface.triangleCount() == 32);
+		}
+
+		// ---- a 2-D block: quads
+		const QString path2d = tmp.path() + QStringLiteral("/block2d.cgns");
+		CHECK(writeCgnsStructured(QFile::encodeName(path2d).constData(), false));
+		const ResultReadOutcome r2 = readResultFile(path2d);
+		if (!r2.ok())
+			std::printf("  CGNS structured 2-D failed: %s\n", qPrintable(r2.error));
+		CHECK(r2.ok());
+		if (r2.ok())
+		{
+			const ResultDataset& ds = *r2.dataset;
+			CHECK(ds.nodeCount() == 9 && ds.cellCount() == 4);
+			bool allQuad = true;
+			for (ResultCellType t : ds.cellTypes)
+				allQuad = allQuad && t == ResultCellType::Quad;
+			CHECK(allQuad);
+			const std::vector<std::uint32_t> firstQuad = { 0, 1, 4, 3 };
+			CHECK(std::vector<std::uint32_t>(ds.cellConnectivity.begin(), ds.cellConnectivity.begin() + 4) == firstQuad);
+			CHECK(ds.findField(QStringLiteral("Quality"), ResultFieldAssociation::Cell) != nullptr);
+			CHECK(ds.validate().isEmpty());
+		}
+
+		// ---- the two-block sample: zones are concatenated, every step and field comes with them
+		const QString pathDuct = tmp.path() + QStringLiteral("/duct.cgns");
+		CHECK(writeCgnsStructuredSample(QFile::encodeName(pathDuct).constData()));
+		const ResultReadOutcome rd = readResultFile(pathDuct);
+		if (!rd.ok())
+			std::printf("  CGNS duct failed: %s\n", qPrintable(rd.error));
+		CHECK(rd.ok());
+		if (rd.ok())
+		{
+			const ResultDataset& ds = *rd.dataset;
+			CHECK(ds.nodeCount() == 2u * 13u * 7u * 5u && ds.cellCount() == 2u * 12u * 6u * 4u && ds.stepCount() == 4);
+			const ResultField* velocity = ds.findField(QStringLiteral("Velocity"), ResultFieldAssociation::Node);
+			const ResultField* quality = ds.findField(QStringLiteral("Quality"), ResultFieldAssociation::Cell);
+			CHECK(velocity && velocity->components == 3 && quality && quality->tupleCount(0) == ds.cellCount());
+			CHECK(ds.validate().isEmpty());
+			const ResultBoundarySurface surface = extract(ds);
+			CHECK(surface.triangleCount() > 0);
+		}
+#else
+		std::printf("  (skipping CGNS structured tests: this build has no CGNS library)\n");
+#endif
+	}
 
 	void testCgnsComponentGroups()
 	{
@@ -3673,6 +3869,13 @@ int main(int argc, char** argv)
 		std::printf(ok ? "wrote %s\n" : "could not write %s\n", argv[2]);
 		return ok ? 0 : 1;
 	}
+	// result_tests --write-cgns-structured-sample <file.cgns>: a two-block structured duct.
+	if (argc == 3 && std::strcmp(argv[1], "--write-cgns-structured-sample") == 0)
+	{
+		const bool ok = writeCgnsStructuredSample(argv[2]);
+		std::printf(ok ? "wrote %s\n" : "could not write %s\n", argv[2]);
+		return ok ? 0 : 1;
+	}
 #endif
 	if (argc > 1)
 		return inspectFiles(argc, argv);
@@ -3723,6 +3926,7 @@ int main(int argc, char** argv)
 	testGlyphs();
 	testCellVectorDefault();
 	testCgnsComponentGroups();
+	testCgnsStructured();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();
 	testErrors();

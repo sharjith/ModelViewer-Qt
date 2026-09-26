@@ -9,7 +9,11 @@
 // ADF files), an OPTIONAL dependency exactly like NetCDF is for Exodus: without it (MV_HAVE_CGNS not defined) the format is
 // not offered and readCgns() reports that.
 //
-// Read, for every UNSTRUCTURED zone of every base (structured zones are skipped with a warning):
+// Read, for every zone of every base - unstructured or structured (user-defined zones are skipped with a warning):
+//   - a STRUCTURED zone (multi-block CFD grids) has no element sections: its cells are the hexahedra (3-D base) or quads (2-D
+//     base) between neighbouring grid points, numbered i fastest like CGNS's own coordinate and solution arrays. Adjoining
+//     blocks keep their own points, so a block interface shows as a pair of coincident faces (as it does for several
+//     unstructured zones); the block faces are the boundary the viewer draws.
 //   - the vertex coordinates (CoordinateX/Y/Z) and the elements of the highest dimension of the base - volume cells of a 3-D
 //     base, faces of a 2-D one - from every section, fixed-type or MIXED, in element-number order. Boundary-condition
 //     sections (lower-dimension elements) are not read: they would draw the same faces twice. HEXA/PENTA/TETRA/PYRA,

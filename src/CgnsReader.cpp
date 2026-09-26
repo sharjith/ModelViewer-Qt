@@ -142,6 +142,47 @@ namespace
 		bool cell = false;
 		std::vector<std::vector<float>> steps;
 	};
+
+	// The cells of a structured zone: hexahedra (3-D) or quads (2-D) between neighbouring points. `vertices` holds the point
+	// count along each index direction; points and cells are numbered i fastest, as CGNS lays out both the coordinate and the
+	// solution arrays, so cell (i, j, k) is number i + (ni - 1) * (j + (nj - 1) * k) - the same order a CellCenter solution
+	// is stored in. The winding of a left-handed grid does not matter: the boundary extractor orients faces outward itself.
+	void appendStructuredCells(ResultDataset& dataset, Zone& zone, int dimension, const cgsize_t* vertices)
+	{
+		const std::size_t ni = static_cast<std::size_t>(vertices[0]), nj = static_cast<std::size_t>(vertices[1]);
+		const std::size_t nk = dimension == 3 ? static_cast<std::size_t>(vertices[2]) : 1;
+		auto node = [&](std::size_t i, std::size_t j, std::size_t k) {
+			return static_cast<std::uint32_t>(zone.nodeOffset + i + ni * (j + nj * k));
+		};
+		const std::size_t cellsK = dimension == 3 ? nk - 1 : 1;
+		for (std::size_t k = 0; k < cellsK; ++k)
+			for (std::size_t j = 0; j + 1 < nj; ++j)
+				for (std::size_t i = 0; i + 1 < ni; ++i)
+				{
+					std::vector<std::uint32_t>& connectivity = dataset.cellConnectivity;
+					if (dimension == 3)
+					{
+						for (std::size_t dk = 0; dk < 2; ++dk) // the bottom quad, then the top one
+						{
+							connectivity.push_back(node(i, j, k + dk));
+							connectivity.push_back(node(i + 1, j, k + dk));
+							connectivity.push_back(node(i + 1, j + 1, k + dk));
+							connectivity.push_back(node(i, j + 1, k + dk));
+						}
+						dataset.cellTypes.push_back(ResultCellType::Hexahedron);
+					}
+					else
+					{
+						connectivity.push_back(node(i, j, 0));
+						connectivity.push_back(node(i + 1, j, 0));
+						connectivity.push_back(node(i + 1, j + 1, 0));
+						connectivity.push_back(node(i, j + 1, 0));
+						dataset.cellTypes.push_back(ResultCellType::Quad);
+					}
+					dataset.cellOffsets.push_back(static_cast<std::uint32_t>(connectivity.size()));
+					++zone.cellCount;
+				}
+	}
 }
 
 bool cgnsSupported() { return true; }
@@ -175,7 +216,7 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 	dataset->cellOffsets.push_back(0);
 
 	std::vector<Zone> zones;
-	std::size_t structuredSkipped = 0, polyhedralSections = 0, boundarySections = 0, badSolutions = 0;
+	std::size_t unsupportedZones = 0, polyhedralSections = 0, boundarySections = 0, badSolutions = 0;
 	bool solutionsOrderedByName = false; // some zone had several solutions and no FlowSolutionPointers
 	std::vector<double> baseTimes;
 
@@ -237,19 +278,36 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 			CGNS_ENUMT(ZoneType_t) zoneType;
 			if (cg_zone_type(fn, base, z, &zoneType) != CG_OK)
 				continue;
-			if (zoneType != CGNS_ENUMV(Unstructured))
+			const bool structured = zoneType == CGNS_ENUMV(Structured);
+			// Only surface (2-D) and volume (3-D) zones can be shown; a user-defined zone or a line zone is skipped.
+			if ((!structured && zoneType != CGNS_ENUMV(Unstructured)) || (structured && (cellDim < 2 || cellDim > 3)))
 			{
-				++structuredSkipped;
+				++unsupportedZones;
 				continue;
 			}
 			char zoneName[64] = {};
 			cgsize_t size[9] = {};
 			if (cg_zone_read(fn, base, z, zoneName, size) != CG_OK || size[0] < 1)
 				continue;
+			// Unstructured: size = { points, cells, ... }. Structured: the point count along each index direction, then the
+			// cell count along each (one direction per dimension of the base), then the boundary points.
+			std::size_t expectedNodes = static_cast<std::size_t>(size[0]), expectedCells = static_cast<std::size_t>(size[1]);
+			if (structured)
+			{
+				expectedNodes = 1;
+				expectedCells = 1;
+				for (int a = 0; a < cellDim; ++a)
+				{
+					expectedNodes *= static_cast<std::size_t>(std::max<cgsize_t>(size[a], 1));
+					expectedCells *= static_cast<std::size_t>(std::max<cgsize_t>(size[cellDim + a], 0));
+				}
+				if (expectedCells == 0)
+					continue; // a single layer of points has no cells
+			}
 			Zone zone;
 			zone.base = base;
 			zone.zone = z;
-			zone.nodeCount = static_cast<std::size_t>(size[0]);
+			zone.nodeCount = expectedNodes;
 			zone.nodeOffset = dataset->nodePositions.size() / 3;
 
 			// Coordinates.
@@ -269,8 +327,11 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 				if (axisIndex < 0 || !name.startsWith(QLatin1String("Coordinate")))
 					continue;
 				axis[axisIndex].assign(zone.nodeCount, 0.0);
-				const cgsize_t rmin = 1, rmax = static_cast<cgsize_t>(zone.nodeCount);
-				if (cg_coord_read(fn, base, z, coordName, CGNS_ENUMV(RealDouble), &rmin, &rmax, axis[axisIndex].data()) != CG_OK)
+				cgsize_t rmin[3] = { 1, 1, 1 }, rmax[3] = { static_cast<cgsize_t>(zone.nodeCount), 1, 1 };
+				if (structured)
+					for (int a = 0; a < cellDim; ++a)
+						rmax[a] = size[a];
+				if (cg_coord_read(fn, base, z, coordName, CGNS_ENUMV(RealDouble), rmin, rmax, axis[axisIndex].data()) != CG_OK)
 					axis[axisIndex].clear();
 			}
 			if (axis[0].empty() || axis[1].empty())
@@ -284,7 +345,8 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 
 			// Elements of the base's highest dimension, in element-number order.
 			int sectionCount = 0;
-			cg_nsections(fn, base, z, &sectionCount);
+			if (!structured) // a structured zone has no element sections: its cells follow from the grid
+				cg_nsections(fn, base, z, &sectionCount);
 			std::vector<Section> sections;
 			for (int s = 1; s <= sectionCount; ++s)
 			{
@@ -381,6 +443,8 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 					dataset->cellOffsets.push_back(static_cast<std::uint32_t>(dataset->cellConnectivity.size()));
 					++zone.cellCount;
 				}
+			if (structured)
+				appendStructuredCells(*dataset, zone, cellDim, size);
 			if (zone.cellCount == 0)
 				continue; // nothing displayable in this zone
 
@@ -405,7 +469,7 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 				// A CellCenter array has one value per CELL of the zone (its volume elements); when the kept cells do not
 				// match that count (boundary sections mixed in, polyhedra), the solution cannot be aligned.
 				const std::size_t tuples = vertex ? zone.nodeCount : zone.cellCount;
-				if (cellCenter && static_cast<std::size_t>(size[1]) != zone.cellCount)
+				if (cellCenter && expectedCells != zone.cellCount)
 				{
 					++badSolutions;
 					continue;
@@ -419,8 +483,11 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 					if (cg_field_info(fn, base, z, s, f, &dataType, fieldName) != CG_OK)
 						continue;
 					std::vector<double> values(tuples);
-					const cgsize_t rmin = 1, rmax = static_cast<cgsize_t>(tuples);
-					if (cg_field_read(fn, base, z, s, fieldName, CGNS_ENUMV(RealDouble), &rmin, &rmax, values.data()) != CG_OK)
+					cgsize_t rmin[3] = { 1, 1, 1 }, rmax[3] = { static_cast<cgsize_t>(tuples), 1, 1 };
+					if (structured)
+						for (int a = 0; a < cellDim; ++a)
+							rmax[a] = vertex ? size[a] : size[cellDim + a];
+					if (cg_field_read(fn, base, z, s, fieldName, CGNS_ENUMV(RealDouble), rmin, rmax, values.data()) != CG_OK)
 						continue;
 					std::vector<float> floats(values.begin(), values.end());
 					solution.fields.emplace_back(QString::fromLatin1(fieldName), std::move(floats));
@@ -492,9 +559,9 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 	}
 
 	if (zones.empty())
-		return fail(structuredSkipped > 0
-			? QStringLiteral("The CGNS file has only structured zones, which are not supported yet (unstructured zones are).")
-			: QStringLiteral("The CGNS file has no unstructured zone with displayable elements."));
+		return fail(unsupportedZones > 0
+			? QStringLiteral("The CGNS file has only zones that cannot be shown (structured and unstructured surface or volume zones are supported).")
+			: QStringLiteral("The CGNS file has no zone with displayable elements."));
 
 	// ---- Steps and fields --------------------------------------------------------------------------------------------
 	const std::size_t totalNodes = dataset->nodePositions.size() / 3, totalCells = dataset->cellTypes.size();
@@ -728,8 +795,8 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 	if (solutionsOrderedByName)
 		outcome.warnings << QStringLiteral("The file has no FlowSolutionPointers, so the time steps are the solutions in natural name order "
 		                                    "(Sol1, Sol2, Sol10 ...). That is a guess: check the order if the names do not follow time.");
-	if (structuredSkipped > 0)
-		outcome.warnings << QStringLiteral("%1 structured zone(s) were skipped (only unstructured zones are supported).").arg(structuredSkipped);
+	if (unsupportedZones > 0)
+		outcome.warnings << QStringLiteral("%1 zone(s) of an unsupported type were skipped (only structured and unstructured zones of a surface or volume base are shown).").arg(unsupportedZones);
 	if (polyhedralSections > 0)
 		outcome.warnings << QStringLiteral("%1 polyhedral (NGON/NFACE) section(s) were skipped; they cannot be displayed yet.").arg(polyhedralSections);
 	if (badSolutions > 0)
