@@ -76,7 +76,7 @@ cell_data_cube.vtk, openfoam_cavity
 
 Exodus II (.e / .exo / .ex2 / .g)
     Needs a build with NetCDF (vcpkg feature netcdf-c[netcdf-4]); other builds do not list these extensions.
-    There is no Exodus file in this folder. Write one for trying the reader with the test program:
+    block.exo ships here; the test program can rewrite it:
         result_tests.exe --write-exodus-sample block.exo
     It is an 8 x 8 x 8 block of HEX8 elements with five time steps of a bending-and-warming cube: disp_x/y/z
     (gathered into one vector field "disp"), temperature, a symmetric stress tensor (stress_xx ... stress_zx, gathered
@@ -84,10 +84,18 @@ Exodus II (.e / .exo / .ex2 / .g)
     The values are synthetic; real solver output (MOOSE, Cubit, Sierra ...) is the true check.
 
 CGNS (.cgns)
-    Needs a build with the CGNS library (vcpkg port cgns); other builds do not list the extension. No CGNS file ships here;
-    write one for trying the reader with the test program:
-        result_tests.exe --write-cgns-sample block.cgns
-    An 8 x 8 x 8 block of HEXA_8 cells, five steps (BaseIterativeData/TimeValues 0 .. 1): vertex solutions Temperature,
-    Pressure and VelocityX/Y/Z (gathered into one vector field "Velocity") and a per-cell field Quality (CellCenter).
-    Values are synthetic. Only unstructured zones are read; structured zones, polyhedra and boundary-condition sections are
-    skipped.
+    Needs a build with the CGNS library (vcpkg port cgns); other builds do not list the extension. Two files ship here, both
+    written with the test program (which can rewrite them):
+
+    block.cgns    (result_tests.exe --write-cgns-sample block.cgns)
+        An 8 x 8 x 8 block of HEXA_8 cells in one UNSTRUCTURED zone, five steps (BaseIterativeData/TimeValues 0 .. 1):
+        vertex solutions Temperature, Pressure and VelocityX/Y/Z (gathered into one vector field "Velocity") and a per-cell
+        field Quality (CellCenter).
+
+    duct.cgns     (result_tests.exe --write-cgns-structured-sample duct.cgns)
+        A half-ring duct made of two curved STRUCTURED blocks (13 x 7 x 5 points each), four steps of a swirling flow with
+        the same kind of fields. The blocks keep their own points, so their shared interface shows as a pair of coincident
+        faces inside the duct.
+
+    Values are synthetic. Unstructured and structured zones are read; polyhedra (NGON/NFACE) and boundary-condition
+    sections are skipped.
