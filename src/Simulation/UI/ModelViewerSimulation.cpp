@@ -1693,7 +1693,8 @@ void ModelViewer::updateSimulationStreamlines(SimulationSession& session)
 	if (session.surfaceDiagonal < 0.0)
 		session.surfaceDiagonal = surfaceDiagonal(*session.surface);
 	const double diagonal = session.surfaceDiagonal > 0.0 ? session.surfaceDiagonal : 1.0;
-	const double headLength = 0.025 * diagonal, spacing = 0.12 * diagonal;
+	// The head is as long as the head of a vector arrow (1.5 % of the model: an arrow of 5 % with a head of 30 %), so the two look alike.
+	const double headLength = 0.015 * diagonal, spacing = 0.12 * diagonal;
 	display.arrowLength = static_cast<float>(headLength);
 	for (std::size_t l = 0; l < set.lineCount(); ++l)
 	{
