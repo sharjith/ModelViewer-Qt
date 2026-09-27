@@ -127,3 +127,8 @@ polyhedra.vtu
     Written by hand for this project (no external data or licence): three polyhedral cells (VTK cell type 42) - two unit cubes
     that share a face, and an L-shaped prism whose caps are concave 6-gons. Point data Temperature, cell data Cell. Checks the
     polyhedron boundary: the shared face is not drawn, and the L caps are filled as an L, not as its convex hull.
+
+polyhedra_legacy.vtk
+    Written with VTK 9.3's own legacy writer (the vtkmodules bundled with FreeCAD 1.1; no external data or licence): a legacy 5.1 file
+    with a polyhedron (cell type 42, whose CELLS entry is the face stream) next to a regular hexahedron, point arrays "temperature" and
+    "velocity" (a flow along +x, so streamlines run from the polyhedron into the hexahedron). Checks the legacy polyhedron reading.

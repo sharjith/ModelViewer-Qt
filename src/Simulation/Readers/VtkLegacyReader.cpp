@@ -632,6 +632,46 @@ ResultReadOutcome readVtkLegacy(const QString& path, const std::atomic<bool>* ca
 			dataset->cellTypes.reserve(unstructuredTypes.size());
 			for (std::int32_t t : unstructuredTypes)
 				dataset->cellTypes.push_back(resultCellTypeFromVtk(t));
+
+			// Polyhedra (cell type 42): the cell's CELLS entry is its face stream - [number of faces, then for each face its node count and its
+			// nodes] - which is unpacked into the dataset's face arrays; a polyhedron carries no node list of its own.
+			if (std::find(unstructuredTypes.begin(), unstructuredTypes.end(), 42) != unstructuredTypes.end())
+			{
+				const std::vector<std::uint32_t> offsets = std::move(dataset->cellOffsets), connectivity = std::move(dataset->cellConnectivity);
+				dataset->cellOffsets.assign(1, 0);
+				dataset->cellConnectivity.clear();
+				dataset->faceOffsets.assign(1, 0);
+				dataset->cellFaceOffsets.assign(1, 0);
+				for (std::size_t c = 0; c + 1 < offsets.size(); ++c)
+				{
+					std::size_t pos = offsets[c];
+					const std::size_t end = offsets[c + 1];
+					if (unstructuredTypes[c] == 42)
+					{
+						if (pos >= end)
+							return fail(QStringLiteral("Polyhedron %1 has an empty face stream.").arg(c));
+						const std::uint32_t faceCount = connectivity[pos++];
+						for (std::uint32_t f = 0; f < faceCount; ++f)
+						{
+							if (pos >= end)
+								return fail(QStringLiteral("The faces of polyhedron %1 end early.").arg(c));
+							const std::uint32_t nodes = connectivity[pos++];
+							if (nodes < 3 || pos + nodes > end)
+								return fail(QStringLiteral("A face of polyhedron %1 has %2 nodes or runs past the cell's face stream.").arg(c).arg(nodes));
+							dataset->faceNodes.insert(dataset->faceNodes.end(), connectivity.begin() + static_cast<std::ptrdiff_t>(pos),
+							                          connectivity.begin() + static_cast<std::ptrdiff_t>(pos + nodes));
+							pos += nodes;
+							dataset->cellFaces.push_back(static_cast<std::uint32_t>(dataset->faceOffsets.size() - 1));
+							dataset->faceOffsets.push_back(static_cast<std::uint32_t>(dataset->faceNodes.size()));
+						}
+					}
+					else
+						dataset->cellConnectivity.insert(dataset->cellConnectivity.end(), connectivity.begin() + static_cast<std::ptrdiff_t>(pos),
+						                                 connectivity.begin() + static_cast<std::ptrdiff_t>(end));
+					dataset->cellOffsets.push_back(static_cast<std::uint32_t>(dataset->cellConnectivity.size()));
+					dataset->cellFaceOffsets.push_back(static_cast<std::uint32_t>(dataset->cellFaces.size()));
+				}
+			}
 		}
 		else // polydata: cells in VTK order - vertices, lines, polygons, strips
 		{

@@ -4458,6 +4458,97 @@ namespace
 #endif
 	}
 
+	// A legacy .vtk file with a polyhedron: its CELLS entry is the face stream [faces, then per face its node count and nodes].
+	void testLegacyPolyhedra()
+	{
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		// two cubes side by side: the left one a polyhedron (six quads), the right one a regular hexahedron sharing the face x = 1
+		const QByteArray text =
+			"# vtk DataFile Version 3.0\nlegacy polyhedron\nASCII\nDATASET UNSTRUCTURED_GRID\n"
+			"POINTS 12 float\n"
+			"0 0 0  1 0 0  2 0 0  0 1 0  1 1 0  2 1 0\n"
+			"0 0 1  1 0 1  2 0 1  0 1 1  1 1 1  2 1 1\n"
+			"CELLS 2 41\n"
+			"31 6  4 0 1 4 3  4 6 7 10 9  4 0 1 7 6  4 3 4 10 9  4 0 3 9 6  4 1 4 10 7\n"
+			"8 1 2 5 4 7 8 11 10\n"
+			"CELL_TYPES 2\n42\n12\n"
+			"POINT_DATA 12\nSCALARS temperature float 1\nLOOKUP_TABLE default\n"
+			"0 1 2 0 1 2 0 1 2 0 1 2\n";
+		const QString path = tmp.path() + QStringLiteral("/poly.vtk");
+		QFile f(path);
+		CHECK(f.open(QIODevice::WriteOnly));
+		f.write(text);
+		f.close();
+		const ResultReadOutcome r = readResultFile(path);
+		if (!r.ok())
+			std::printf("  legacy polyhedron failed: %s\n", qPrintable(r.error));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		CHECK(ds.cellCount() == 2 && ds.cellTypes[0] == ResultCellType::Polyhedron && ds.cellTypes[1] == ResultCellType::Hexahedron);
+		CHECK(ds.faceCount() == 6 && ds.polyhedronFaceCount(0) == 6 && ds.polyhedronFaceCount(1) == 0);
+		CHECK(ds.cellOffsets == std::vector<std::uint32_t>({ 0, 0, 8 }) && ds.cellConnectivity.size() == 8);
+		CHECK(ds.faceNodes.size() == 24 && ds.faceNodes[0] == 0 && ds.faceNodes[3] == 3);
+		const ResultBoundarySurface surface = extract(ds);
+		CHECK(surface.triangleCount() == 20); // ten quads: the face between the cubes is interior
+		// the polyhedron's faces are cut and traced like any cell's
+		const CellLocator locator(ds);
+		CHECK(locator.volumeCellCount() == 2);
+		const std::vector<float> flow(ds.nodeCount() * 3, 0.0f);
+		std::vector<float> along(flow);
+		for (std::size_t n = 0; n < ds.nodeCount(); ++n)
+			along[n * 3] = 1.0f;
+		StreamlineSet line;
+		CHECK(traceStreamlines(ds, locator, along, nullptr, { 0.5f, 0.5f, 0.5f }, StreamlineOptions(), line) && line.lineCount() == 1);
+		if (line.lineCount() == 1)
+			CHECK(line.points[(line.pointCount() - 1) * 3] > 1.5f); // runs on from the polyhedron into the hexahedron
+		// a broken face stream is an error, not a crash
+		QByteArray broken = text;
+		broken.replace("31 6  4 0 1 4 3", "31 7  4 0 1 4 3");
+		QFile g(tmp.path() + QStringLiteral("/broken.vtk"));
+		CHECK(g.open(QIODevice::WriteOnly));
+		g.write(broken);
+		g.close();
+		CHECK(!readResultFile(tmp.path() + QStringLiteral("/broken.vtk")).ok());
+
+		// the real thing: a file written by VTK's own legacy writer (version 5.1: OFFSETS / CONNECTIVITY, fields as FIELD FieldData)
+		const QString sample = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/polyhedra_legacy.vtk");
+		if (!QFile::exists(sample))
+		{
+			std::printf("  (skipping the VTK-written polyhedron sample: not found)\n");
+			return;
+		}
+		const ResultReadOutcome real = readResultFile(sample);
+		if (!real.ok())
+			std::printf("  VTK-written polyhedron failed: %s\n", qPrintable(real.error));
+		CHECK(real.ok());
+		if (!real.ok())
+			return;
+		const ResultDataset& vtkDs = *real.dataset;
+		CHECK(vtkDs.cellCount() == 2 && vtkDs.cellTypes[0] == ResultCellType::Polyhedron && vtkDs.cellTypes[1] == ResultCellType::Hexahedron);
+		CHECK(vtkDs.faceCount() == 6 && vtkDs.polyhedronFaceCount(0) == 6 && vtkDs.cellConnectivity.size() == 8);
+		CHECK(vtkDs.validate().isEmpty() && vtkDs.nodeCount() == 12);
+		CHECK(extract(vtkDs).triangleCount() == 20);
+		int velocityIndex = -1;
+		for (std::size_t i = 0; i < vtkDs.fields.size(); ++i)
+			if (vtkDs.fields[i].name == QLatin1String("velocity") && vtkDs.fields[i].components == 3)
+				velocityIndex = static_cast<int>(i);
+		CHECK(velocityIndex >= 0 && fieldIndexOf(vtkDs, QStringLiteral("temperature")) >= 0);
+		if (velocityIndex >= 0)
+		{
+			const CellLocator locator(vtkDs);
+			StreamlineSet run;
+			CHECK(traceStreamlines(vtkDs, locator, vtkDs.fields[static_cast<std::size_t>(velocityIndex)].stepData[0], nullptr, { 0.5f, 0.5f, 0.5f },
+			                       StreamlineOptions(), run) && run.lineCount() == 1);
+			if (run.lineCount() == 1)
+				CHECK(run.points[(run.pointCount() - 1) * 3] > 1.5f); // from the polyhedron on into the hexahedron
+		}
+	}
+
 	// ---- Cutting the volume: plane sections and iso-surfaces -----------------------------------------------------------------
 
 	// A row of `count` unit cubes along x as regular hexahedra: points (count + 1) x 2 x 2, index x + (count + 1) * (y + 2 * z).
@@ -5853,6 +5944,7 @@ int main(int argc, char** argv)
 	testVtkHdf();
 	testMed();
 	testPolyhedra();
+	testLegacyPolyhedra();
 	testSlice();
 	testStreamlines();
 	testDeformedOverlays();
