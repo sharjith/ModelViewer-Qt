@@ -70,3 +70,52 @@ int chooseDefaultGlyphField(const ResultDataset& dataset);
 bool buildGlyphSet(const ResultDataset& dataset, const ResultBoundarySurface& surface, int fieldIndex, int step,
                    const std::vector<std::uint32_t>& sites, double diagonal, const GlyphOptions& options,
                    float referenceMax, GlyphSet& out);
+
+// ---- Tensor glyphs (stress ellipsoids) --------------------------------------------------------------------------
+
+// The ellipsoids of one result's symmetric tensor field, ready to draw. `axes[g*9 .. g*9+8]` are ellipsoid g's three
+// semi-axis vectors (already scaled to their radius, mutually orthogonal, mesh frame): a unit sphere point p maps
+// to center + axes[0..2]*p.x + axes[3..5]*p.y + axes[6..8]*p.z. Ordered largest-magnitude eigenvalue first, so a
+// renderer that wants only the dominant axis (a simplified glyph) can use just axes[0..2].
+struct TensorGlyphSet
+{
+	std::vector<std::uint32_t> anchors; // 3 mesh-vertex indices per ellipsoid: the centre is their mean (a node glyph repeats one vertex), as GlyphSet
+	std::vector<float> axes;            // 9 floats per ellipsoid: the 3 scaled semi-axis vectors above
+	std::vector<float> values;          // von Mises equivalent of the tensor at this site, in the field's display unit
+	std::vector<float> colors;          // 3 floats per ellipsoid (r, g, b), filled by the owner from `values`
+	float fieldMin = 0.0f, fieldMax = 0.0f; // von Mises range over the whole result at this step (display unit)
+	QString unit;
+
+	std::size_t count() const { return values.size(); }
+	void clear()
+	{
+		anchors.clear();
+		axes.clear();
+		values.clear();
+		colors.clear();
+		fieldMin = fieldMax = 0.0f;
+		unit.clear();
+	}
+};
+
+// Whether a field can be drawn as tensor glyphs: 6 components (a symmetric tensor: XX YY ZZ XY YZ ZX), with data at
+// some step. Matches isStressTensor()'s naming rule (ResultDerivedFields.cpp) OR any plain 6-component field, so a
+// non-CalculiX/VTK-named symmetric tensor still qualifies.
+bool isTensorGlyphField(const ResultField& field);
+
+// The first 6-component field worth drawing as ellipsoids (node fields before cell fields). -1 when there is none.
+int chooseDefaultTensorField(const ResultDataset& dataset);
+
+// Ellipsoids of the 6-component field `fieldIndex` at `step`, at the given sites (from selectSurfaceGlyphSites for
+// the field's association). The largest semi-axis is scale * 5 % of `diagonal`, the other two scaled by their
+// eigenvalue's ratio to the largest |eigenvalue| at THIS step (raw file units - deliberately not the von Mises used
+// for colouring: the two are different quantities with different units, so mixing them either distorts the shape by
+// the display-unit conversion factor, or - for a purely hydrostatic tensor, whose von Mises is 0 everywhere while
+// its eigenvalues are not - rejects the whole field). `referenceMax` is currently unused (reserved for an all-steps
+// shape reference, so animation frames stay comparable in size the way buildGlyphSet's arrows do - not implemented
+// yet, see updateSimulationTensorGlyphs's own note). A site with no value, or a tensor with every eigenvalue ~0
+// (a real zero, not just isotropic-with-zero-von-Mises), gets no ellipsoid. `colors` is left empty. False when the
+// field/step has no data or no ellipsoid results.
+bool buildTensorGlyphSet(const ResultDataset& dataset, const ResultBoundarySurface& surface, int fieldIndex, int step,
+                         const std::vector<std::uint32_t>& sites, double diagonal, double scale, float referenceMax,
+                         TensorGlyphSet& out);

@@ -18,6 +18,7 @@
 #include "ResultStreamlines.h"
 #include "ResultSnapshot.h"
 #include "ResultUnits.h"
+#include "SimulationCharts.h"
 #include "SimulationGlyphs.h"
 #include "VtkHdfReader.h"
 #include "SimulationResultDisplay.h"
@@ -995,6 +996,34 @@ namespace
 		CHECK(approx(vonMisesStress(0, 0, 0, 10, 0, 0), std::sqrt(300.0)));
 		CHECK(approx(vonMisesStress(-5, -5, -5, 0, 0, 0), 0, 1e-4, 1e-9));
 		CHECK(approx(vonMisesStress(10, 20, 30, 4, 5, 6), std::sqrt(531.0)));
+	}
+
+	void testEigenDecomposition()
+	{
+		// A*v must equal e*v for each (eigenvalue, eigenvector) pair, and the three vectors must be an orthonormal set.
+		auto check = [&](double xx, double yy, double zz, double xy, double yz, double zx) {
+			double e[3], v[3][3];
+			symmetricEigenDecomposition(xx, yy, zz, xy, yz, zx, e, v);
+			bool ok = true;
+			for (int k = 0; k < 3; ++k)
+			{
+				const double len = std::sqrt(v[k][0] * v[k][0] + v[k][1] * v[k][1] + v[k][2] * v[k][2]);
+				ok = ok && approx(len, 1.0);
+				const double ax = xx * v[k][0] + xy * v[k][1] + zx * v[k][2];
+				const double ay = xy * v[k][0] + yy * v[k][1] + yz * v[k][2];
+				const double az = zx * v[k][0] + yz * v[k][1] + zz * v[k][2];
+				ok = ok && approx(ax, e[k] * v[k][0], 1e-4, 1e-6) && approx(ay, e[k] * v[k][1], 1e-4, 1e-6) && approx(az, e[k] * v[k][2], 1e-4, 1e-6);
+				for (int j = k + 1; j < 3; ++j)
+					ok = ok && std::fabs(v[k][0] * v[j][0] + v[k][1] * v[j][1] + v[k][2] * v[j][2]) < 1e-6;
+			}
+			return ok;
+		};
+		CHECK(check(100, 0, 0, 0, 0, 0));              // already diagonal, distinct
+		CHECK(check(5, 5, 5, 0, 0, 0));                 // isotropic: every direction an eigenvector
+		CHECK(check(5, 5, 0, 0, 0, 0));                 // a repeated pair (e1==e2) plus a distinct e3
+		CHECK(check(0, 0, 0, 10, 0, 0));                 // pure shear, off-diagonal
+		CHECK(check(10, 20, 30, 4, 5, 6));               // general, distinct
+		CHECK(check(-3, 8, 1, -2, 4, -1));               // general, mixed signs
 	}
 
 	void testFrdSynthetic()
@@ -5369,6 +5398,176 @@ namespace
 		}
 	}
 
+	// ---- XY charts: plot over line / plot over time -------------------------------------------------------------------------------
+
+	void testCharts()
+	{
+		// a linear scalar field is interpolated exactly anywhere in the mesh (not just at nodes), so a line sampled through
+		// several cells must reproduce the exact linear function at every sample point.
+		auto linearField = [](const ResultDataset& ds, double a, double b, double c, double d) {
+			std::vector<float> values(ds.nodeCount());
+			for (std::size_t n = 0; n < ds.nodeCount(); ++n)
+				values[n] = static_cast<float>(a * ds.nodePositions[n * 3] + b * ds.nodePositions[n * 3 + 1] + c * ds.nodePositions[n * 3 + 2] + d);
+			return values;
+		};
+		{
+			ResultDataset row = hexRow(4);
+			ResultField pressure;
+			pressure.name = QStringLiteral("Pressure");
+			pressure.association = ResultFieldAssociation::Node;
+			pressure.components = 1;
+			pressure.stepData.push_back(linearField(row, 2.0, -1.0, 0.5, 10.0));
+			row.fields.push_back(pressure);
+			ResultStep step0;
+			row.steps.push_back(step0);
+			const CellLocator locator(row);
+
+			// over a line straight through several cells: every sample matches the exact linear function
+			const double p0[3] = { 0.2, 0.3, 0.4 }, p1[3] = { 3.6, 0.7, 0.1 };
+			ChartSeries line;
+			CHECK(sampleFieldOverLine(row, locator, 0, -1, 0, p0, p1, 20, line));
+			CHECK(line.x.size() == 20 && line.y.size() == 20 && line.title == QStringLiteral("Pressure"));
+			CHECK(approx(line.x.front(), 0.0) && approx(line.x.back(), std::sqrt((p1[0] - p0[0]) * (p1[0] - p0[0]) + (p1[1] - p0[1]) * (p1[1] - p0[1]) + (p1[2] - p0[2]) * (p1[2] - p0[2]))));
+			bool allExact = true;
+			for (std::size_t i = 0; i < line.x.size(); ++i)
+			{
+				const double t = static_cast<double>(i) / static_cast<double>(line.x.size() - 1);
+				const double x = p0[0] + t * (p1[0] - p0[0]), y = p0[1] + t * (p1[1] - p0[1]), z = p0[2] + t * (p1[2] - p0[2]);
+				const double expected = 2.0 * x - 1.0 * y + 0.5 * z + 10.0;
+				allExact = allExact && std::fabs(line.y[i] - expected) < 1e-3;
+			}
+			CHECK(allExact);
+
+			// a line that leaves the mesh: the outside samples are NaN, not a wrong value
+			const double q0[3] = { -2.0, 0.5, 0.5 }, q1[3] = { -0.5, 0.5, 0.5 };
+			ChartSeries outside;
+			CHECK(sampleFieldOverLine(row, locator, 0, -1, 0, q0, q1, 5, outside));
+			bool allNan = true;
+			for (float v : outside.y)
+				allNan = allNan && std::isnan(v);
+			CHECK(allNan);
+
+			// too few samples, or a shell result with no volume cells: refused
+			ChartSeries tooFew;
+			CHECK(!sampleFieldOverLine(row, locator, 0, -1, 0, p0, p1, 1, tooFew));
+			const ResultDataset quad = oneCell(ResultCellType::Quad, { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0 });
+			const CellLocator shell(quad);
+			CHECK(!sampleFieldOverLine(quad, shell, 0, -1, 0, p0, p1, 5, tooFew));
+		}
+
+		// over time: a fixed point, one linear field per step (a different plane each time) - the point's value must match
+		// the exact linear function of that step, and the reused `hint` (same cell every step) must not go stale.
+		{
+			ResultDataset row = hexRow(3);
+			ResultField temperature;
+			temperature.name = QStringLiteral("Temperature");
+			temperature.association = ResultFieldAssociation::Node;
+			temperature.components = 1;
+			const int stepCount = 5;
+			for (int s = 0; s < stepCount; ++s)
+			{
+				temperature.stepData.push_back(linearField(row, static_cast<double>(s), 0.0, 0.0, 100.0));
+				ResultStep step;
+				step.time = s * 0.5;
+				row.steps.push_back(step);
+			}
+			row.fields.push_back(temperature);
+			const CellLocator locator(row);
+			const double point[3] = { 1.5, 0.5, 0.5 };
+			ChartSeries overTime;
+			CHECK(sampleFieldOverTime(row, locator, 0, -1, point, overTime));
+			CHECK(overTime.x.size() == static_cast<std::size_t>(stepCount) && overTime.y.size() == static_cast<std::size_t>(stepCount));
+			bool timesOk = true, valuesOk = true;
+			for (int s = 0; s < stepCount; ++s)
+			{
+				timesOk = timesOk && approx(overTime.x[static_cast<std::size_t>(s)], s * 0.5);
+				const double expected = static_cast<double>(s) * point[0] + 100.0;
+				valuesOk = valuesOk && std::fabs(overTime.y[static_cast<std::size_t>(s)] - expected) < 1e-3;
+			}
+			CHECK(timesOk && valuesOk);
+
+			// a point outside the mesh: every step comes back NaN, but the call still succeeds (false only means "no field")
+			ChartSeries outsideTime;
+			const double farAway[3] = { 99.0, 99.0, 99.0 };
+			CHECK(!sampleFieldOverTime(row, locator, 0, -1, farAway, outsideTime));
+
+			// an unknown field index, or a dataset with no steps at all: refused
+			ChartSeries bad;
+			CHECK(!sampleFieldOverTime(row, locator, 5, -1, point, bad));
+			ResultDataset noSteps = hexRow(1);
+			noSteps.fields.push_back(temperature);
+			const CellLocator noStepsLocator(noSteps);
+			CHECK(!sampleFieldOverTime(noSteps, noStepsLocator, 0, -1, point, bad));
+			// a shell result (no volume cells): refused, matching sampleFieldOverLine
+			const ResultDataset quad = oneCell(ResultCellType::Quad, { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0 });
+			const CellLocator shellLocator(quad);
+			CHECK(!sampleFieldOverTime(quad, shellLocator, 0, -1, point, bad));
+		}
+
+		// a lazy result: sampleFieldOverTime reads every step through ensureStepLoaded, the same as computeAllStepsRange
+		{
+			ResultDataset row = hexRow(2);
+			ResultField field;
+			field.name = QStringLiteral("Lazy");
+			field.association = ResultFieldAssociation::Node;
+			field.components = 1;
+			const int stepCount = 4;
+			field.stepData.resize(static_cast<std::size_t>(stepCount));
+			row.fields.push_back(field);
+			for (int s = 0; s < stepCount; ++s)
+				row.steps.push_back(ResultStep());
+			row.lazy = std::make_shared<LazySteps>();
+			row.lazy->maxResident = 2;
+			row.lazy->load = [&](std::size_t step, ResultDataset& d) {
+				d.fields[0].stepData[step] = linearField(d, static_cast<double>(step) + 1.0, 0.0, 0.0, 0.0);
+				return true;
+			};
+			const CellLocator locator(row);
+			const double point[3] = { 1.0, 0.5, 0.5 };
+			ChartSeries lazySeries;
+			CHECK(sampleFieldOverTime(row, locator, 0, -1, point, lazySeries));
+			bool ok = true;
+			for (int s = 0; s < stepCount; ++s)
+				ok = ok && std::fabs(lazySeries.y[static_cast<std::size_t>(s)] - static_cast<double>(s + 1) * point[0]) < 1e-3;
+			CHECK(ok);
+		}
+
+		// a field distribution histogram: a known uniform spread of node values must land in evenly-populated bins,
+		// and the edges must exactly bracket the field's own min/max.
+		{
+			ResultDataset row = hexRow(9); // 10 nodes along x, values 0..9
+			ResultField field;
+			field.name = QStringLiteral("Index");
+			field.association = ResultFieldAssociation::Node;
+			field.components = 1;
+			field.stepData.push_back(linearField(row, 1.0, 0.0, 0.0, 0.0));
+			row.fields.push_back(field);
+			row.steps.push_back(ResultStep());
+			std::vector<float> edges;
+			std::vector<std::size_t> counts;
+			QString label, unit;
+			CHECK(buildFieldHistogram(row, 0, -1, 0, 5, edges, counts, label, unit));
+			CHECK(edges.size() == 6 && counts.size() == 5 && label == QStringLiteral("Index"));
+			CHECK(approx(edges.front(), 0.0) && approx(edges.back(), 9.0));
+			std::size_t total = 0;
+			for (std::size_t c : counts)
+				total += c;
+			CHECK(total == row.nodeCount());
+
+			// a constant field, or an unknown field index: refused (nothing to show a distribution of)
+			ResultDataset constant = hexRow(2);
+			ResultField flat;
+			flat.name = QStringLiteral("Flat");
+			flat.association = ResultFieldAssociation::Node;
+			flat.components = 1;
+			flat.stepData.push_back(std::vector<float>(constant.nodeCount(), 5.0f));
+			constant.fields.push_back(flat);
+			constant.steps.push_back(ResultStep());
+			CHECK(!buildFieldHistogram(constant, 0, -1, 0, 5, edges, counts, label, unit));
+			CHECK(!buildFieldHistogram(constant, 3, -1, 0, 5, edges, counts, label, unit));
+		}
+	}
+
 	// ---- Lazy loading of time steps ----------------------------------------------------------------------------------------------
 
 	// True when every step of every field of `lazy` (loaded on demand) equals the eagerly read `eager`, and both have the same fields.
@@ -6173,6 +6372,109 @@ namespace
 		CHECK(!buildGlyphSet(ds, surface, fieldIndexOf(ds, QStringLiteral("T")), 0, sites, 10.0, options, 0.0f, set));
 		CHECK(!buildGlyphSet(ds, surface, velocityIndex, 5, sites, 10.0, options, 0.0f, set));
 		CHECK(!buildGlyphSet(ds, surface, velocityIndex, 0, sites, 0.0, options, 0.0f, set));
+
+		// ---- tensor glyphs (stress ellipsoids)
+		{
+			ResultField stress;
+			stress.name = QStringLiteral("STRESS");
+			stress.association = ResultFieldAssociation::Node;
+			stress.components = 6;
+			// node 0: uniaxial along x (100); node 1: isotropic (a sphere); node 2: zero (no ellipsoid); node 3: uniaxial along x (50)
+			stress.stepData = { std::vector<float>{ 100, 0, 0, 0, 0, 0,   5, 5, 5, 0, 0, 0,   0, 0, 0, 0, 0, 0,   50, 0, 0, 0, 0, 0 } };
+			ds.fields.push_back(stress);
+			const int stressIndex = static_cast<int>(ds.fields.size()) - 1;
+			CHECK(isTensorGlyphField(ds.fields[static_cast<std::size_t>(stressIndex)]));
+			CHECK(chooseDefaultTensorField(ds) == stressIndex); // the only 6-component field
+			CHECK(!isTensorGlyphField(ds.fields[static_cast<std::size_t>(velocityIndex)])); // a vector, not a tensor
+			ResultField strain = stress;
+			strain.name = QStringLiteral("STRAIN");
+			CHECK(!isTensorGlyphField(strain)); // six components alone do not make a von-Mises stress field
+
+			TensorGlyphSet tset;
+			CHECK(buildTensorGlyphSet(ds, surface, stressIndex, 0, sites, 10.0, 1.0, 0.0f, tset));
+			CHECK(tset.count() == 3 && tset.anchors.size() == 9 && tset.axes.size() == 27); // the zero tensor gets no ellipsoid
+			CHECK(approx(tset.fieldMax, 100.0) && approx(tset.fieldMin, 0.0, 1e-4, 1e-6)); // von Mises of isotropic stress is 0
+			auto axisLength = [](const float* a) { return std::sqrt(static_cast<double>(a[0]) * a[0] + static_cast<double>(a[1]) * a[1] + static_cast<double>(a[2]) * a[2]); };
+			bool sawUniaxial100 = false, sawIsotropic = false;
+			for (std::size_t i = 0; i < tset.count(); ++i)
+			{
+				const float* axes = &tset.axes[i * 9];
+				const double r0 = axisLength(axes), r1 = axisLength(axes + 3), r2 = axisLength(axes + 6);
+				if (approx(tset.values[i], 100.0))
+				{
+					// the dominant axis is 5 % of the diagonal (10) = 0.5; the other two eigenvalues are 0, clamped to the 4 % floor
+					sawUniaxial100 = true;
+					CHECK(approx(std::max({ r0, r1, r2 }), 0.5, 1e-4, 1e-6));
+					CHECK(approx(std::min({ r0, r1, r2 }), 0.5 * 0.04, 1e-3, 1e-6));
+				}
+				else if (approx(tset.values[i], 0.0, 1e-4, 1e-6))
+				{
+					// isotropic: von Mises is 0 (no colour signal), but all three eigenvalues are equal (5) - a sphere,
+					// clamped to the 4 % floor since |5|/100 < 0.04
+					sawIsotropic = true;
+					CHECK(approx(r0, r1, 1e-4, 1e-6) && approx(r1, r2, 1e-4, 1e-6));
+				}
+			}
+			CHECK(sawUniaxial100 && sawIsotropic);
+			// every axis triple stays orthogonal (the eigenvectors of a symmetric tensor)
+			bool orthogonal = true;
+			for (std::size_t i = 0; i < tset.count(); ++i)
+			{
+				const float* a = &tset.axes[i * 9];
+				for (int p = 0; p < 3; ++p)
+					for (int q = p + 1; q < 3; ++q)
+						orthogonal = orthogonal && std::fabs(a[p * 3] * a[q * 3] + a[p * 3 + 1] * a[q * 3 + 1] + a[p * 3 + 2] * a[q * 3 + 2]) < 1e-4;
+			}
+			CHECK(orthogonal);
+
+			// nothing to draw: a vector field, a missing step, no size
+			CHECK(!buildTensorGlyphSet(ds, surface, velocityIndex, 0, sites, 10.0, 1.0, 0.0f, tset));
+			CHECK(!buildTensorGlyphSet(ds, surface, stressIndex, 5, sites, 10.0, 1.0, 0.0f, tset));
+			CHECK(!buildTensorGlyphSet(ds, surface, stressIndex, 0, sites, 0.0, 1.0, 0.0f, tset));
+
+			// a display-unit conversion (Pa -> MPa, a factor of 1e-6) must not distort the ellipsoid shapes: the
+			// raw-vs-converted mismatch this once had made every shape ratio ~1e6 times too large, clamping every
+			// axis to full size regardless of its actual eigenvalue. (tset was left empty by the three failing
+			// calls just above - buildTensorGlyphSet's out.clear() runs even on failure - so rebuild it fresh.)
+			CHECK(buildTensorGlyphSet(ds, surface, stressIndex, 0, sites, 10.0, 1.0, 0.0f, tset));
+			ds.fields[static_cast<std::size_t>(stressIndex)].quantityKind = QStringLiteral("pressure");
+			ds.fields[static_cast<std::size_t>(stressIndex)].fileUnit = QStringLiteral("Pa");
+			ds.fields[static_cast<std::size_t>(stressIndex)].displayUnit = QStringLiteral("MPa");
+			TensorGlyphSet converted;
+			CHECK(buildTensorGlyphSet(ds, surface, stressIndex, 0, sites, 10.0, 1.0, 0.0f, converted));
+			CHECK(converted.count() == tset.count() && approx(converted.fieldMax, 100.0e-6, 1e-4, 1e-9)); // von Mises IS converted
+			for (std::size_t i = 0; i < converted.count(); ++i)
+			{
+				const float* a = &converted.axes[i * 9], *b = &tset.axes[i * 9]; // same raw shape as the unconverted set above
+				for (int c = 0; c < 9; ++c)
+					CHECK(approx(a[c], b[c], 1e-4, 1e-6));
+			}
+			ds.fields[static_cast<std::size_t>(stressIndex)].quantityKind.clear();
+			ds.fields[static_cast<std::size_t>(stressIndex)].fileUnit.clear();
+			ds.fields[static_cast<std::size_t>(stressIndex)].displayUnit.clear();
+
+			// a purely hydrostatic field (von Mises 0 everywhere, eigenvalues very much not 0) must still draw -
+			// as spheres, not be rejected because the (wrong) von-Mises-based size reference was zero.
+			ResultField hydrostatic;
+			hydrostatic.name = QStringLiteral("Hydrostatic Stress");
+			hydrostatic.association = ResultFieldAssociation::Node;
+			hydrostatic.components = 6;
+			hydrostatic.stepData = { std::vector<float>{ 20, 20, 20, 0, 0, 0,   20, 20, 20, 0, 0, 0,   20, 20, 20, 0, 0, 0,   20, 20, 20, 0, 0, 0 } };
+			ds.fields.push_back(hydrostatic);
+			const int hydrostaticIndex = static_cast<int>(ds.fields.size()) - 1;
+			TensorGlyphSet hset;
+			CHECK(buildTensorGlyphSet(ds, surface, hydrostaticIndex, 0, sites, 10.0, 1.0, 0.0f, hset));
+			CHECK(hset.count() == 4 && approx(hset.fieldMax, 0.0, 1e-4, 1e-6)); // von Mises of a pure hydrostatic state is 0
+			for (std::size_t i = 0; i < hset.count(); ++i)
+			{
+				const float* a = &hset.axes[i * 9];
+				const double r0 = std::sqrt(static_cast<double>(a[0]) * a[0] + a[1] * a[1] + a[2] * a[2]);
+				const double r1 = std::sqrt(static_cast<double>(a[3]) * a[3] + a[4] * a[4] + a[5] * a[5]);
+				const double r2 = std::sqrt(static_cast<double>(a[6]) * a[6] + a[7] * a[7] + a[8] * a[8]);
+				CHECK(approx(r0, 0.5, 1e-4, 1e-6) && approx(r1, 0.5, 1e-4, 1e-6) && approx(r2, 0.5, 1e-4, 1e-6)); // a full-size sphere
+			}
+			ds.fields.pop_back();
+		}
 	}
 
 	void testCellVectorDefault()
@@ -6687,6 +6989,7 @@ int main(int argc, char** argv)
 	testSimulationDisplay();
 	testViewState();
 	testDerivedStress();
+	testEigenDecomposition();
 	testFrdSynthetic();
 	testFrdErrors();
 	testFrdRealFiles();
@@ -6730,6 +7033,7 @@ int main(int argc, char** argv)
 	testLineTubes();
 	testSlice();
 	testStreamlines();
+	testCharts();
 	testLazySteps();
 	testDeformedOverlays();
 	testSnapshotVolumeAndOverlays();

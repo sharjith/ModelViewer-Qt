@@ -335,6 +335,20 @@ void SimulationPanel::buildUi()
 	_glyphInfoLabel->setWordWrap(true);
 	form->addRow(_glyphInfoLabel);
 
+	// ---- Tensor glyphs: one ellipsoid per sampled point along a 6-component symmetric tensor field (stress),
+	// coloured by its von Mises equivalent. The field is chosen automatically (chooseDefaultTensorField); a field
+	// combo/scale/count to match the vector arrows' controls is a follow-up once this is used on real multi-step
+	// results (see updateSimulationTensorGlyphs's own note on the all-steps range).
+	_tensorGlyphCheck = new QCheckBox(tr("Show stress ellipsoids"), content);
+	_tensorGlyphCheck->setToolTip(tr("Draw an ellipsoid at sampled points of the surface, oriented\n"
+	                                 "and shaped by the principal directions and magnitudes of a\n"
+	                                 "symmetric tensor field (stress), coloured by von Mises."));
+	form->addRow(_tensorGlyphCheck);
+	_tensorGlyphInfoLabel = new QLabel(content);
+	_tensorGlyphInfoLabel->setWordWrap(true);
+	form->addRow(_tensorGlyphInfoLabel);
+	connect(_tensorGlyphCheck, &QCheckBox::toggled, this, [this](bool) { emitState(); });
+
 	// ---- Cutting the volume: the field on the cut of the Clipping Planes, and iso-surfaces of a node field.
 	_sectionCheck = new QCheckBox(tr("Colour the Clipping Plane cut with the field"), content);
 	_sectionCheck->setToolTip(tr("Switch on a Clipping Plane (the Clipping Planes editor);\n"
@@ -388,6 +402,36 @@ void SimulationPanel::buildUi()
 	_noteLabel = new QLabel(content);
 	_noteLabel->setWordWrap(true);
 	form->addRow(_noteLabel);
+
+	// Charts: plot over time (a point's history across every step), plot over line (a spatial profile through the
+	// volume at the current step), and a field distribution histogram - see SimulationCharts.h/SimulationChartWidget.
+	auto* chartsRow = new QWidget(content);
+	// The dock can be narrow. A horizontal row allowed QPushButton below its useful text width, clipping all three
+	// captions. Stack them so each receives the full form-field width and remains readable at the minimum dock size.
+	auto* chartsLayout = new QVBoxLayout(chartsRow);
+	chartsLayout->setContentsMargins(0, 0, 0, 0);
+	_plotOverTimeButton = new QPushButton(tr("Plot Over Time..."), chartsRow);
+	_plotOverTimeButton->setToolTip(tr("Click a point on the model, then plot the current field's\n"
+	                                   "value at that point across every step."));
+	_plotOverLineButton = new QPushButton(tr("Plot Over Line..."), chartsRow);
+	_plotOverLineButton->setToolTip(tr("Click two points on the model, then plot the current field's\n"
+	                                   "value along the straight line between them, at the step shown."));
+	_histogramButton = new QPushButton(tr("Distribution..."), chartsRow);
+	_histogramButton->setToolTip(tr("A histogram of the current field's values at the step shown:\n"
+	                                "how many nodes/cells fall in each range of values."));
+	for (QPushButton* button : { _plotOverTimeButton, _plotOverLineButton, _histogramButton })
+	{
+		button->ensurePolished();
+		button->setMinimumHeight(button->sizeHint().height());
+		button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+	}
+	chartsLayout->addWidget(_plotOverTimeButton);
+	chartsLayout->addWidget(_plotOverLineButton);
+	chartsLayout->addWidget(_histogramButton);
+	form->addRow(tr("Charts:"), chartsRow);
+	connect(_plotOverTimeButton, &QPushButton::clicked, this, [this]() { emit plotOverTimeRequested(); });
+	connect(_plotOverLineButton, &QPushButton::clicked, this, [this]() { emit plotOverLineRequested(); });
+	connect(_histogramButton, &QPushButton::clicked, this, [this]() { emit histogramRequested(); });
 
 	auto* units = new QLabel(
 		tr("Result files do not store units. The unit above is a guess from the field name and the file type until "
@@ -621,6 +665,10 @@ void SimulationPanel::setSession(const SimulationSession* session)
 	_glyphInfoLabel->setText(session->glyphInfo);
 	_glyphInfoLabel->setVisible(!session->glyphInfo.isEmpty());
 	updateGlyphEnabled();
+	_tensorGlyphCheck->setEnabled(chooseDefaultTensorField(*_dataset) >= 0);
+	_tensorGlyphCheck->setChecked(_tensorGlyphCheck->isEnabled() && state.tensorGlyphs);
+	_tensorGlyphInfoLabel->setText(session->tensorGlyphInfo);
+	_tensorGlyphInfoLabel->setVisible(!session->tensorGlyphInfo.isEmpty());
 
 	// Custom range: show the state's values; automatic: refreshRangeEdits() shows the data range.
 	if (state.customRange)
@@ -922,6 +970,7 @@ SimulationViewState SimulationPanel::currentState() const
 	state.glyphField = _glyphFieldCombo->currentData().isValid() ? _glyphFieldCombo->currentData().toInt() : -1;
 	state.glyphScale = _glyphScaleSpin->value();
 	state.glyphCount = _glyphCountSpin->value();
+	state.tensorGlyphs = _tensorGlyphCheck->isChecked() && _tensorGlyphCheck->isEnabled();
 	state.glyphScaleByMagnitude = _glyphMagnitudeCheck->isChecked();
 	state.lineRadius = _lineRadiusSpin->value() / 100.0;
 	return state;

@@ -1,5 +1,6 @@
 #include "SimulationGlyphs.h"
 
+#include "ResultDerivedFields.h"
 #include "ResultUnits.h"
 #include "SimulationResultDisplay.h"
 
@@ -249,6 +250,148 @@ bool buildGlyphSet(const ResultDataset& dataset, const ResultBoundarySurface& su
 		out.anchors.insert(out.anchors.end(), { anchor[0], anchor[1], anchor[2] });
 		out.vectors.insert(out.vectors.end(), { static_cast<float>(x * factor), static_cast<float>(y * factor), static_cast<float>(z * factor) });
 		out.values.push_back(magnitude);
+	}
+	if (out.count() == 0)
+		return false;
+	return true;
+}
+
+// ---- Tensor glyphs (stress ellipsoids) --------------------------------------------------------------------------
+
+bool isTensorGlyphField(const ResultField& field)
+{
+	return isStressTensorField(field) && resultFieldHasData(field);
+}
+
+int chooseDefaultTensorField(const ResultDataset& dataset)
+{
+	for (int pass = 0; pass < 2; ++pass) // node fields first, then cell fields
+	{
+		const ResultFieldAssociation wanted = pass == 0 ? ResultFieldAssociation::Node : ResultFieldAssociation::Cell;
+		for (std::size_t i = 0; i < dataset.fields.size(); ++i)
+		{
+			const ResultField& f = dataset.fields[i];
+			if (f.association == wanted && isTensorGlyphField(f) && f.derivedFromField < 0)
+				return static_cast<int>(i);
+		}
+	}
+	return -1;
+}
+
+bool buildTensorGlyphSet(const ResultDataset& dataset, const ResultBoundarySurface& surface, int fieldIndex, int step,
+                         const std::vector<std::uint32_t>& sites, double diagonal, double scale, float referenceMax,
+                         TensorGlyphSet& out)
+{
+	out.clear();
+	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size() || step < 0)
+		return false;
+	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
+	dataset.ensureStepLoaded(static_cast<std::size_t>(step));
+	if (field.components != 6 || static_cast<std::size_t>(step) >= field.stepData.size() || field.stepData[static_cast<std::size_t>(step)].empty())
+		return false;
+	const std::vector<float>& raw = field.stepData[static_cast<std::size_t>(step)];
+	const std::size_t tuples = field.association == ResultFieldAssociation::Cell ? dataset.cellCount() : dataset.nodeCount();
+	if (raw.size() != tuples * 6)
+		return false;
+	const UnitConversion conversion = unitConversion(field.quantityKind, field.fileUnit, field.displayUnit.isEmpty() ? field.fileUnit : field.displayUnit);
+	const bool convert = conversion.valid && !conversion.isIdentity();
+	// Two independent scales: `shapeReference` (the largest |eigenvalue|, RAW file units) sizes the ellipsoids,
+	// `fieldMin`/`fieldMax` (von Mises, CONVERTED to the display unit) colours and labels them. Using the converted
+	// von Mises for the shape scale too was a real bug: a Pa -> MPa display conversion (factor 1e-6) made every
+	// eigenvalue-to-largest ratio about a million times too large, clamping every axis to full size. They also fail
+	// independently: a purely hydrostatic tensor has von Mises 0 everywhere (nothing to colour by, but its
+	// eigenvalues are very much not zero - it must still draw as a sphere), and the reverse (a field whose file/
+	// display units differ) no longer distorts the shape.
+	float fieldMin = std::numeric_limits<float>::max(), fieldMax = std::numeric_limits<float>::lowest();
+	double shapeReference = 0.0;
+	for (std::size_t n = 0; n < tuples; ++n)
+	{
+		const float* t = &raw[n * 6];
+		bool finite = true;
+		for (int k = 0; k < 6; ++k)
+			finite = finite && std::isfinite(t[k]);
+		if (!finite)
+			continue;
+		const double vm = vonMisesStress(t[0], t[1], t[2], t[3], t[4], t[5]);
+		const float value = static_cast<float>(convert ? conversion.apply(vm) : vm);
+		if (std::isfinite(value))
+		{
+			fieldMin = std::min(fieldMin, value);
+			fieldMax = std::max(fieldMax, value);
+		}
+		double e1, e2, e3;
+		symmetricPrincipalValues(t[0], t[1], t[2], t[3], t[4], t[5], e1, e2, e3);
+		shapeReference = std::max({ shapeReference, std::fabs(e1), std::fabs(e3) }); // e1 >= e2 >= e3: the extremes bound |e2| too
+	}
+	if (fieldMin > fieldMax)
+		return false; // no finite value anywhere at this step
+	out.fieldMin = fieldMin;
+	out.fieldMax = fieldMax;
+	if (!field.fileUnit.isEmpty())
+		out.unit = conversion.valid ? (field.displayUnit.isEmpty() ? field.fileUnit : field.displayUnit) : field.fileUnit;
+	const bool cellField = field.association == ResultFieldAssociation::Cell;
+	// `referenceMax` (an all-steps von Mises reference, when the caller has one - see updateSimulationTensorGlyphs)
+	// would mismatch shapeReference's raw units, so it is not used for the shape: each step sizes itself against its
+	// own largest eigenvalue, same as the "no cached all-steps range for tensors yet" note already covered.
+	(void)referenceMax;
+	const double maxRadius = std::max(scale, 0.0) * 0.05 * diagonal;
+	if (!(shapeReference > 0.0) || !(maxRadius > 0.0))
+		return false;
+
+	for (std::uint32_t site : sites)
+	{
+		std::uint32_t anchor[3];
+		std::size_t tuple;
+		if (cellField)
+		{
+			if (static_cast<std::size_t>(site) >= surface.triangleCount() || static_cast<std::size_t>(site) >= surface.triangleCell.size())
+				continue;
+			for (std::size_t k = 0; k < 3; ++k)
+				anchor[k] = surface.triangles[static_cast<std::size_t>(site) * 3 + k];
+			tuple = surface.triangleCell[site];
+		}
+		else
+		{
+			if (static_cast<std::size_t>(site) >= surface.vertexCount() || static_cast<std::size_t>(site) >= surface.vertexNode.size())
+				continue;
+			anchor[0] = anchor[1] = anchor[2] = site;
+			tuple = surface.vertexNode[site];
+		}
+		if (tuple >= tuples)
+			continue;
+		const float* t = &raw[tuple * 6];
+		bool finite = true;
+		for (int k = 0; k < 6; ++k)
+			finite = finite && std::isfinite(t[k]);
+		if (!finite)
+			continue;
+		// A literally zero tensor (every eigenvalue 0, not just an isotropic one - see below) gets no ellipsoid,
+		// same convention as a zero vector getting no arrow.
+		if (std::fabs(t[0]) < 1.0e-12f && std::fabs(t[1]) < 1.0e-12f && std::fabs(t[2]) < 1.0e-12f
+		    && std::fabs(t[3]) < 1.0e-12f && std::fabs(t[4]) < 1.0e-12f && std::fabs(t[5]) < 1.0e-12f)
+			continue;
+		double e[3], v[3][3];
+		symmetricEigenDecomposition(t[0], t[1], t[2], t[3], t[4], t[5], e, v);
+		const double vm = vonMisesStress(t[0], t[1], t[2], t[3], t[4], t[5]);
+		const float value = static_cast<float>(convert ? conversion.apply(vm) : vm);
+		if (!std::isfinite(value))
+			continue;
+		// Each semi-axis scaled by its own eigenvalue's magnitude relative to shapeReference (the largest |eigenvalue|
+		// at this step, RAW units - see above) - a sphere (three equal radii) at an isotropic point (von Mises 0,
+		// but the tensor itself is not zero - the check above only excludes THAT), a flattened disc/needle at a
+		// strongly uniaxial or biaxial one. Never shorter than a few percent of maxRadius, so a near-zero eigenvalue
+		// still shows.
+		float axesOut[9];
+		for (int k = 0; k < 3; ++k)
+		{
+			const double fraction = std::clamp(std::fabs(e[k]) / shapeReference, 0.04, 1.0);
+			const double radius = maxRadius * fraction;
+			for (int a = 0; a < 3; ++a)
+				axesOut[k * 3 + a] = static_cast<float>(v[k][a] * radius);
+		}
+		out.anchors.insert(out.anchors.end(), { anchor[0], anchor[1], anchor[2] });
+		out.axes.insert(out.axes.end(), axesOut, axesOut + 9);
+		out.values.push_back(value);
 	}
 	if (out.count() == 0)
 		return false;

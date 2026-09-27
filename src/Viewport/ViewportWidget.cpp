@@ -272,6 +272,8 @@ _floorPlane(nullptr),
 	// Vector-field arrows of simulation results - a data cache ModelViewer pushes into.
 	_simulationGlyphController = new SimulationGlyphController(_renderCtrl, this);
 	_gpuResourceRegistry.add(_simulationGlyphController, GpuResourcePhase::Decorations);
+	_simulationTensorGlyphController = new SimulationTensorGlyphController(_renderCtrl, this);
+	_gpuResourceRegistry.add(_simulationTensorGlyphController, GpuResourcePhase::Decorations);
 	_simulationSliceController = new SimulationSliceController(_renderCtrl, this);
 	_gpuResourceRegistry.add(_simulationSliceController, GpuResourcePhase::Decorations);
 	_simulationStreamlineController = new SimulationStreamlineController(_renderCtrl, this);
@@ -3693,6 +3695,18 @@ void ViewportWidget::clearSimulationGlyphs(const QUuid& meshUuid)
 	update();
 }
 
+void ViewportWidget::setSimulationTensorGlyphs(const QUuid& meshUuid, TensorGlyphSet glyphs)
+{
+	_simulationTensorGlyphController->setTensorGlyphs(meshUuid, std::move(glyphs));
+	update();
+}
+
+void ViewportWidget::clearSimulationTensorGlyphs(const QUuid& meshUuid)
+{
+	_simulationTensorGlyphController->clearTensorGlyphs(meshUuid);
+	update();
+}
+
 void ViewportWidget::setSimulationSlices(const QUuid& meshUuid, std::vector<SliceDisplay> slices)
 {
 	_simulationSliceController->setSlices(meshUuid, std::move(slices));
@@ -3810,6 +3824,16 @@ void ViewportWidget::drawSimulationGlyphs(Camera* camera)
 	_simulationGlyphController->drawOverlay(camera, [this](const QUuid& meshUuid) -> const RenderableMesh* {
 		const SceneMesh* mesh = getMeshByUuid(meshUuid);
 		return mesh && isMeshVisible(mesh, -1) ? mesh : nullptr; // in compare mode isMeshVisible() also applies the pane filter
+	});
+}
+
+void ViewportWidget::drawSimulationTensorGlyphs(Camera* camera)
+{
+	if (!_simulationTensorGlyphController || !_simulationTensorGlyphController->hasTensorGlyphs())
+		return;
+	_simulationTensorGlyphController->drawOverlay(camera, [this](const QUuid& meshUuid) -> const RenderableMesh* {
+		const SceneMesh* mesh = getMeshByUuid(meshUuid);
+		return mesh && isMeshVisible(mesh, -1) ? mesh : nullptr;
 	});
 }
 
@@ -6869,8 +6893,6 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	render(_primaryCamera);
 	drawTransformGizmo(_primaryCamera);
 	renderPlaneGizmos();
-	drawPlaneGizmoDragLabel();
-	drawSurfaceAnalysisHoverLabel();
 	drawVertexMarkers();
 	if (_measurementController)
 		_measurementController->drawMeasurementOverlay(_primaryCamera, QSize(width(), height()), _axisTextRenderer);
@@ -6883,6 +6905,11 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	drawSimulationSlices(_primaryCamera);
 	drawSimulationStreamlines(_primaryCamera);
 	drawSimulationGlyphs(_primaryCamera);
+	drawSimulationTensorGlyphs(_primaryCamera);
+	// TextRenderer intentionally disables depth testing. Keep floating text last so its state cannot change the
+	// visibility of later 3D overlays (hover text previously made hidden stress ellipsoids show through the mesh).
+	drawPlaneGizmoDragLabel();
+	drawSurfaceAnalysisHoverLabel();
 }
 
 void ViewportWidget::applyExplodedViewTransforms(const QMap<int, TransformState>& transforms, bool fitView)
@@ -6971,6 +6998,7 @@ void ViewportWidget::renderComparePanes(QColor& topColor, QColor& botColor)
 		drawSimulationSlices(_primaryCamera); // this pane's result only (the filter is still set)
 		drawSimulationStreamlines(_primaryCamera);
 		drawSimulationGlyphs(_primaryCamera);
+		drawSimulationTensorGlyphs(_primaryCamera);
 		_paneMeshFilter = nullptr;
 	}
 	if (!_comparePaneCameras.empty())
@@ -11617,6 +11645,7 @@ void ViewportWidget::render(Camera* camera)
 		drawSimulationSlices(camera);
 		drawSimulationStreamlines(camera);
 		drawSimulationGlyphs(camera);
+		drawSimulationTensorGlyphs(camera);
 	}
 	if (_renderCtrl.showLights()) drawLights();
 	if (profileRendering)
@@ -12649,6 +12678,7 @@ void ViewportWidget::setMeasurementTool(MeasurementTool tool)
 		setLassoToolArmed(false);
 		setEyedropperArmed(false);
 		setColorPickArmed(false);
+		setSimulationChartPickArmed(false);
 	}
 	_measurementController->setMeasurementTool(tool, _selectionManager);
 }
@@ -12682,6 +12712,7 @@ void ViewportWidget::setAnnotationToolArmed(bool armed)
 		setLassoToolArmed(false);
 		setEyedropperArmed(false);
 		setColorPickArmed(false);
+		setSimulationChartPickArmed(false);
 	}
 	_annotationController->setAnnotationToolArmed(armed, _selectionManager);
 }
@@ -12701,6 +12732,7 @@ void ViewportWidget::setSeamMarkingToolArmed(bool armed)
 		setLassoToolArmed(false);
 		setEyedropperArmed(false);
 		setColorPickArmed(false);
+		setSimulationChartPickArmed(false);
 	}
 	_seamMarkingController->setSeamToolArmed(armed, _selectionManager);
 }
@@ -12723,6 +12755,7 @@ void ViewportWidget::setLassoToolArmed(bool armed)
 			_seamMarkingController->setSeamToolArmed(false, _selectionManager);
 		setEyedropperArmed(false);
 		setColorPickArmed(false);
+		setSimulationChartPickArmed(false);
 	}
 	else
 	{
@@ -12754,6 +12787,7 @@ void ViewportWidget::setEyedropperArmed(bool armed)
 			_seamMarkingController->setSeamToolArmed(false, _selectionManager);
 		setLassoToolArmed(false);
 		setColorPickArmed(false);
+		setSimulationChartPickArmed(false);
 
 		if (_selectionManager)
 		{
@@ -12800,6 +12834,7 @@ void ViewportWidget::setColorPickArmed(bool armed)
 			_seamMarkingController->setSeamToolArmed(false, _selectionManager);
 		setLassoToolArmed(false);
 		setEyedropperArmed(false);
+		setSimulationChartPickArmed(false);
 
 		if (_selectionManager)
 		{
@@ -12818,6 +12853,129 @@ void ViewportWidget::setColorPickArmed(bool armed)
 
 	_colorPickArmed = armed;
 	emit colorPickArmedChanged(armed);
+}
+
+void ViewportWidget::setSimulationChartPickArmed(bool armed, int pointsNeeded, std::function<bool(const QUuid&)> meshFilter)
+{
+	if (!armed)
+	{
+		if (!_simulationChartPickArmed)
+			return;
+		_simulationChartPickedPoints.clear();
+		_simulationChartPickMeshFilter = {};
+		_simulationChartPickMeshUuid = QUuid();
+		if (_selectionManager)
+			_selectionManager->setHoverHighlightMode(_savedHoverHighlightModeBeforeChartPick);
+		setCursor(QCursor(Qt::ArrowCursor));
+		MainWindow::showStatusMessage(QString(), 1);
+		_simulationChartPickArmed = false;
+		emit simulationChartPickArmedChanged(false);
+		return;
+	}
+
+	// Entering the armed state (only once - re-arming below with new parameters while already armed does not repeat
+	// the mutual-exclusion clearing or the cursor/hover-mode save, which would otherwise save the WRONG "before"
+	// hover mode - this tool's own Disabled, not the real original).
+	if (!_simulationChartPickArmed)
+	{
+		if (_measurementController)
+			_measurementController->setMeasurementTool(MeasurementTool::None, _selectionManager);
+		if (_annotationController)
+			_annotationController->setAnnotationToolArmed(false, _selectionManager);
+		if (_seamMarkingController)
+			_seamMarkingController->setSeamToolArmed(false, _selectionManager);
+		setLassoToolArmed(false);
+		setEyedropperArmed(false);
+		setColorPickArmed(false);
+		if (_selectionManager)
+		{
+			_savedHoverHighlightModeBeforeChartPick = _selectionManager->getHoverMode();
+			_selectionManager->setHoverHighlightMode(HoverHighlightMode::Disabled);
+		}
+		setCursor(QCursor(Qt::CrossCursor));
+	}
+	// Re-arming (a caller switching targets, e.g. "plot over time" straight into "plot over line") resets these
+	// even if already armed: an old points-needed/filter/partially collected point must never leak into the new request.
+	_simulationChartPickPointsNeeded = std::max(1, pointsNeeded);
+	_simulationChartPickMeshFilter = std::move(meshFilter);
+	_simulationChartPickedPoints.clear();
+	_simulationChartPickMeshUuid = QUuid();
+	MainWindow::showStatusMessage(_simulationChartPickPointsNeeded == 1 ? tr("Click a point on the model to plot its value over time.")
+	                                                                   : tr("Click the first of two points on the model to plot the field along a line."));
+
+	const bool wasArmed = _simulationChartPickArmed;
+	_simulationChartPickArmed = true;
+	if (!wasArmed)
+		emit simulationChartPickArmedChanged(true);
+}
+
+void ViewportWidget::handleSimulationChartPickClick(const QPoint& pixel)
+{
+	if (!_selectionManager)
+		return;
+
+	MeshSurfaceAnchor anchor;
+	if (_compareActive)
+	{
+		// Each compare pane is a shifted full-window view and can own a separate camera. Use the same coordinate and
+		// camera adjustment as compare-mode hover probing; an ordinary pick at `pixel` addresses the wrong ray here.
+		const std::vector<ComparePane> panes = _comparePanes.size() == static_cast<std::size_t>(_compareMeshes.size())
+			? _comparePanes : computeComparePanes(width(), height(), static_cast<int>(_compareMeshes.size()), _compareArrangement);
+		const int pane = comparePaneAt(panes, pixel);
+		if (pane < 0 || pane >= _compareMeshes.size())
+			return;
+		const bool ownCamera = static_cast<std::size_t>(pane) < _comparePaneCameras.size();
+		const Camera savedCamera = *_primaryCamera;
+		if (ownCamera)
+		{
+			*_primaryCamera = _comparePaneCameras[static_cast<std::size_t>(pane)];
+			_viewCtrl.syncMatricesFromCamera(*_primaryCamera);
+		}
+		_selectionManager->setPickOnlyMesh(_compareMeshes[pane]);
+		anchor = _selectionManager->pickSurfaceAnchor(pixel + panes[static_cast<std::size_t>(pane)].toWindow);
+		_selectionManager->setPickOnlyMesh(QUuid());
+		if (ownCamera)
+		{
+			*_primaryCamera = savedCamera;
+			_viewCtrl.syncMatricesFromCamera(*_primaryCamera);
+		}
+	}
+	else
+		anchor = _selectionManager->pickSurfaceAnchor(pixel);
+	if (!anchor.isValid())
+		return; // missed - stay armed, let the user try again
+	if (_simulationChartPickMeshFilter && !_simulationChartPickMeshFilter(anchor.meshUuid))
+		return; // not the mesh this pick is for (a different model, or an unrelated simulation result) - stay armed
+	if (!_simulationChartPickedPoints.isEmpty() && anchor.meshUuid != _simulationChartPickMeshUuid)
+		return; // a second point landed on a different mesh than the first (the filter above would normally already
+		         // prevent this, since only one mesh can be "the active result"; guards a filter-less caller too)
+
+	// worldPosition is scene space (the mesh's full combinedRenderTransform() applied); ResultDataset/CellLocator
+	// work in that mesh's own LOCAL space instead (see ModelViewerSimulation.cpp's overlayNodePositions) - without
+	// this, a mesh with any placement in the scene (translated, rotated, scaled - i.e. almost every imported result)
+	// would be sampled at the wrong spatial location entirely, and a point on a deformed shape would not even track
+	// the same material point step to step.
+	const SceneMesh* mesh = getMeshByUuid(anchor.meshUuid);
+	if (!mesh)
+		return;
+	bool invertible = false;
+	const QMatrix4x4 local = mesh->combinedRenderTransform().inverted(&invertible);
+	if (!invertible)
+		return;
+
+	_simulationChartPickMeshUuid = anchor.meshUuid;
+	_simulationChartPickedPoints.append(local.map(anchor.worldPosition));
+	if (_simulationChartPickedPoints.size() < _simulationChartPickPointsNeeded)
+	{
+		MainWindow::showStatusMessage(tr("Click the second point to complete the line."));
+		return; // more points still needed
+	}
+	MainWindow::showStatusMessage(QString(), 1); // clear the hint (1 ms: any non-zero timeout replaces the default "stays until changed")
+
+	const QUuid meshUuid = _simulationChartPickMeshUuid;
+	const QVector<QVector3D> points = _simulationChartPickedPoints;
+	setSimulationChartPickArmed(false); // done: disarm before emitting, so a connected slot can re-arm for another pick
+	emit simulationChartPointsPicked(meshUuid, points);
 }
 
 void ViewportWidget::handleColorPickClick(const QPoint& pixel)
@@ -12841,6 +12999,15 @@ void ViewportWidget::restoreArmedToolCursor()
 	if (_colorPickArmed)
 	{
 		setCursor(makeIconCursor(":/icons/res/eye_dropper.png", 48, devicePixelRatioF(), 12, 37));
+		return;
+	}
+	if (_simulationChartPickArmed)
+	{
+		// Same bug class as the gizmo-hover/drag-end comments above: this switch did not know about chart picking at
+		// all, so any of the several call sites that "restore whichever cursor the current armed tool wants" fell
+		// through to the Idle/arrow case and silently reset the crosshair to a plain arrow after the very first
+		// click (and after any hover/drag), even though the tool was still armed and waiting for the next point.
+		setCursor(QCursor(Qt::CrossCursor));
 		return;
 	}
 
@@ -14517,6 +14684,16 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 			return;
 		}
 
+		// Simulation chart point picking armed: same nav-gate, consumes the click entirely.
+		if (_simulationChartPickArmed
+			&& !(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
+			&& !_viewCtrl.windowZoomActive() && !_viewCtrl.viewRotating()
+			&& !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
+		{
+			handleSimulationChartPickClick(clickPoint);
+			return;
+		}
+
 		// Eyedropper armed (either phase): same nav-gate as the other armed
 		// tools below - a plain click samples (AwaitingSample) or brushes
 		// (Brushing), consuming the click entirely so it never falls through
@@ -15786,6 +15963,7 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 		setEyedropperArmed(false);
 		setLassoToolArmed(false);
 		setColorPickArmed(false);
+		setSimulationChartPickArmed(false);
 		// A left-button release still arrives after cancelling an in-progress
 		// lasso. Clear the hidden rectangle too, so that release cannot fall
 		// through to sweepSelect() with geometry left by an earlier gesture.

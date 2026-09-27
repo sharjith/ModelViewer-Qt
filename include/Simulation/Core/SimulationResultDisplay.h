@@ -188,6 +188,12 @@ struct SimulationViewState
 	double glyphScale = 1.0;          // 1 = the largest arrow is 5 % of the model diagonal
 	int glyphCount = 800;             // about this many arrows
 	bool glyphScaleByMagnitude = true; // false = all arrows the same length
+	// Tensor glyphs: one ellipsoid per sampled point along a 6-component symmetric tensor field (stress), coloured
+	// by its von Mises equivalent. Same shape as the vector arrows above, see SimulationGlyphs.h/TensorGlyphSet.
+	bool tensorGlyphs = false;
+	int tensorGlyphField = -1;   // index into ResultDataset::fields; -1 = chosen automatically (chooseDefaultTensorField)
+	double tensorGlyphScale = 1.0; // 1 = the largest ellipsoid semi-axis is 5 % of the model diagonal
+	int tensorGlyphCount = 400;    // about this many ellipsoids (fewer than the arrows' default: an ellipsoid reads busier)
 	// The radius of the tubes drawn around line cells (beams, pipes), as a fraction of the model's diagonal (only for results that have line cells).
 	double lineRadius = kDefaultLineRadius;
 	// Cutting the volume (see ResultSlice.h): the field drawn on the cut of the Clipping Planes (X / Y / Z, as the Clipping Planes editor sets them),
@@ -264,6 +270,13 @@ struct SimulationSession
 	bool extentsValid = false;     // surfaceExtents(), computed once (the panel shows it)
 	double extents[3] = { 0.0, 0.0, 0.0 };
 	SimulationRangeCache glyphRangeCache;
+	// Tensor glyphs (ellipsoids): same site-caching shape as the arrows above.
+	std::vector<std::uint32_t> tensorGlyphSites;
+	int tensorGlyphSitesField = -1;
+	int tensorGlyphSitesCount = 0;
+	bool tensorGlyphSitesCell = false;
+	SimulationRangeCache tensorGlyphRangeCache;
+	QString tensorGlyphInfo; // what the panel shows about the ellipsoids' colours (empty when they are off)
 	// Cut geometry of the sections, kept while the plane stays: the cut is recoloured for a new field or step without cutting again.
 	struct SectionCut
 	{

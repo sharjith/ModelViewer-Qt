@@ -11,6 +11,18 @@ void symmetricPrincipalValues(double xx, double yy, double zz, double xy, double
 // von Mises equivalent of the same tensor.
 double vonMisesStress(double xx, double yy, double zz, double xy, double yz, double zx);
 
+// True for the six-component source fields this module recognizes as stress tensors. Tensor glyph selection uses
+// the same test so an arbitrary six-component field (for example strain) is never labelled as von Mises stress.
+bool isStressTensorField(const ResultField& field);
+
+// Eigenvalues (as symmetricPrincipalValues) AND their eigenvectors, `vectors[k]` (3 doubles, unit length)
+// belonging to `e[k]` (e[0] >= e[1] >= e[2]), mutually orthogonal (Gram-Schmidt corrects any drift when two
+// eigenvalues are equal - a whole eigenplane, so the pair returned is only ONE valid orthogonal basis of it, not a
+// canonical one). Meant for a tensor glyph's orientation (an ellipsoid, radii |e[k]|): a sign flip of any
+// eigenvector does not change the ellipsoid it draws, so none is enforced here.
+void symmetricEigenDecomposition(double xx, double yy, double zz, double xy, double yz, double zx,
+                                 double e[3], double vectors[3][3]);
+
 // For every 6-component NODE field whose name contains "stress" (case-insensitive, e.g. CalculiX's "STRESS"),
 // appends five scalar node fields, for every step that has data: "<name> von Mises", "<name> max principal",
 // "<name> mid principal", "<name> min principal" and "<name> max shear" (half the difference between the largest

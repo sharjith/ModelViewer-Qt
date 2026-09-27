@@ -372,6 +372,93 @@ bool CellLocator::evalCell(std::size_t index, const double p[3], const std::vect
 	return false;
 }
 
+bool CellLocator::evalCellStencil(std::size_t index, const double p[3], CellInterpolationStencil& out) const
+{
+	thread_local std::vector<std::uint32_t> ringNodes;
+	thread_local std::vector<std::size_t> ringStart;
+	gatherRings(_ds, _cells[index], ringNodes, ringStart);
+	if (ringNodes.empty())
+		return false;
+
+	auto position = [&](std::uint32_t node) {
+		VertexData value = {};
+		for (int k = 0; k < 3; ++k)
+			value.x[k] = coordinates()[static_cast<std::size_t>(node) * 3 + k];
+		return value;
+	};
+	VertexData centre = {};
+	for (std::uint32_t node : ringNodes)
+		addTo(centre, position(node));
+	scaleBy(centre, 1.0 / static_cast<double>(ringNodes.size()));
+
+	auto makeStencil = [&](const std::vector<std::pair<std::uint32_t, double>>& contributions) {
+		out.nodes.clear();
+		out.weights.clear();
+		for (const auto& contribution : contributions)
+		{
+			auto found = std::find(out.nodes.begin(), out.nodes.end(), contribution.first);
+			if (found == out.nodes.end())
+			{
+				out.nodes.push_back(contribution.first);
+				out.weights.push_back(contribution.second);
+			}
+			else
+				out.weights[static_cast<std::size_t>(found - out.nodes.begin())] += contribution.second;
+		}
+	};
+	auto addCentre = [&](std::vector<std::pair<std::uint32_t, double>>& contributions, double weight) {
+		const double each = weight / static_cast<double>(ringNodes.size());
+		for (std::uint32_t node : ringNodes)
+			contributions.emplace_back(node, each);
+	};
+
+	double w[4];
+	for (std::size_t r = 0; r + 1 < ringStart.size(); ++r)
+	{
+		const std::size_t begin = ringStart[r], end = ringStart[r + 1], count = end - begin;
+		if (count < 3)
+			continue;
+		if (count == 3)
+		{
+			const std::uint32_t na = ringNodes[begin], nb = ringNodes[begin + 1], nc = ringNodes[begin + 2];
+			if (barycentric(centre, position(na), position(nb), position(nc), p, w))
+			{
+				std::vector<std::pair<std::uint32_t, double>> contributions;
+				contributions.reserve(ringNodes.size() + 3);
+				addCentre(contributions, w[0]);
+				contributions.emplace_back(na, w[1]);
+				contributions.emplace_back(nb, w[2]);
+				contributions.emplace_back(nc, w[3]);
+				makeStencil(contributions);
+				return true;
+			}
+			continue;
+		}
+
+		VertexData faceCentre = {};
+		for (std::size_t i = begin; i < end; ++i)
+			addTo(faceCentre, position(ringNodes[i]));
+		scaleBy(faceCentre, 1.0 / static_cast<double>(count));
+		for (std::size_t i = begin; i < end; ++i)
+		{
+			const std::uint32_t na = ringNodes[i], nb = ringNodes[i + 1 < end ? i + 1 : begin];
+			if (!barycentric(centre, faceCentre, position(na), position(nb), p, w))
+				continue;
+			std::vector<std::pair<std::uint32_t, double>> contributions;
+			contributions.reserve(ringNodes.size() + count + 2);
+			addCentre(contributions, w[0]);
+			const double faceWeight = w[1] / static_cast<double>(count);
+			for (std::size_t faceNode = begin; faceNode < end; ++faceNode)
+				contributions.emplace_back(ringNodes[faceNode], faceWeight);
+			contributions.emplace_back(na, w[2]);
+			contributions.emplace_back(nb, w[3]);
+			makeStencil(contributions);
+			return true;
+		}
+	}
+	return false;
+}
+
 bool CellLocator::interpolate(const double p[3], const std::vector<float>& vectors, const std::vector<float>* scalar, int& hint, double vector[3], double& scalarValue) const
 {
 	if (_cells.empty() || vectors.size() != _ds.nodeCount() * 3 || (scalar && scalar->size() != _ds.nodeCount()))
@@ -396,6 +483,39 @@ bool CellLocator::interpolate(const double p[3], const std::vector<float>& vecto
 	{
 		const std::size_t i = _binCells[k];
 		if (inBox(i) && evalCell(i, p, vectors, scalar, vector, scalarValue))
+		{
+			hint = static_cast<int>(i);
+			return true;
+		}
+	}
+	return false;
+}
+
+bool CellLocator::interpolationStencil(const double p[3], int& hint, CellInterpolationStencil& out) const
+{
+	out = CellInterpolationStencil();
+	if (_cells.empty())
+		return false;
+	auto inBox = [&](std::size_t i) {
+		const float* box = &_boxes[i * 6];
+		return p[0] >= box[0] && p[0] <= box[3] && p[1] >= box[1] && p[1] <= box[4] && p[2] >= box[2] && p[2] <= box[5];
+	};
+	if (hint >= 0 && static_cast<std::size_t>(hint) < _cells.size() && inBox(static_cast<std::size_t>(hint))
+	    && evalCellStencil(static_cast<std::size_t>(hint), p, out))
+		return true;
+	int idx[3];
+	for (int k = 0; k < 3; ++k)
+	{
+		const double f = std::floor((p[k] - _origin[k]) / _binSize[k]);
+		if (!(f >= -1.0) || !(f <= _dims[k]))
+			return false;
+		idx[k] = std::clamp(static_cast<int>(f), 0, _dims[k] - 1);
+	}
+	const std::size_t bin = static_cast<std::size_t>(idx[0]) + static_cast<std::size_t>(_dims[0]) * (static_cast<std::size_t>(idx[1]) + static_cast<std::size_t>(_dims[1]) * idx[2]);
+	for (std::uint32_t k = _binStart[bin]; k < _binStart[bin + 1]; ++k)
+	{
+		const std::size_t i = _binCells[k];
+		if (inBox(i) && evalCellStencil(i, p, out))
 		{
 			hint = static_cast<int>(i);
 			return true;

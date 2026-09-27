@@ -316,6 +316,15 @@ namespace
 			o.insert(QStringLiteral("glyphFieldName"), dataset.fields[static_cast<std::size_t>(s.glyphField)].name);
 			o.insert(QStringLiteral("glyphFieldAssociation"), isCellField(dataset.fields[static_cast<std::size_t>(s.glyphField)]) ? QStringLiteral("cell") : QStringLiteral("node"));
 		}
+		o.insert(QStringLiteral("tensorGlyphs"), s.tensorGlyphs);
+		o.insert(QStringLiteral("tensorGlyphScale"), s.tensorGlyphScale);
+		o.insert(QStringLiteral("tensorGlyphCount"), s.tensorGlyphCount);
+		if (s.tensorGlyphField >= 0 && static_cast<std::size_t>(s.tensorGlyphField) < dataset.fields.size())
+		{
+			o.insert(QStringLiteral("tensorGlyphFieldName"), dataset.fields[static_cast<std::size_t>(s.tensorGlyphField)].name);
+			o.insert(QStringLiteral("tensorGlyphFieldAssociation"),
+			         isCellField(dataset.fields[static_cast<std::size_t>(s.tensorGlyphField)]) ? QStringLiteral("cell") : QStringLiteral("node"));
+		}
 		return o;
 	}
 
@@ -985,6 +994,17 @@ bool decodeResultSnapshot(const QJsonObject& json, const std::vector<QByteArray>
 		for (std::size_t i = 0; i < dataset->fields.size() && !glyphName.isEmpty(); ++i)
 			if (dataset->fields[i].name == glyphName && dataset->fields[i].association == glyphAssociation)
 				state.glyphField = static_cast<int>(i);
+	}
+	state.tensorGlyphs = view.value(QStringLiteral("tensorGlyphs")).toBool();
+	state.tensorGlyphScale = view.value(QStringLiteral("tensorGlyphScale")).toDouble(1.0);
+	state.tensorGlyphCount = view.value(QStringLiteral("tensorGlyphCount")).toInt(400);
+	{
+		const QString tensorName = view.value(QStringLiteral("tensorGlyphFieldName")).toString();
+		const ResultFieldAssociation tensorAssociation = view.value(QStringLiteral("tensorGlyphFieldAssociation")).toString() == QLatin1String("cell")
+			? ResultFieldAssociation::Cell : ResultFieldAssociation::Node;
+		for (std::size_t i = 0; i < dataset->fields.size() && !tensorName.isEmpty(); ++i)
+			if (dataset->fields[i].name == tensorName && dataset->fields[i].association == tensorAssociation)
+				state.tensorGlyphField = static_cast<int>(i);
 	}
 
 	// The frozen cut faces, iso-surfaces and streamlines (only entries that fit their own arrays are kept).

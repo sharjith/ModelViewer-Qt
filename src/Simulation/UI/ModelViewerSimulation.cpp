@@ -31,6 +31,8 @@
 #include "ShrinkWrapCommand.h"
 #include "SimulationGlyphs.h"
 #include "ResultSlice.h"
+#include "SimulationCharts.h"
+#include "SimulationChartWidget.h"
 #include "SimulationLegendWidget.h"
 #include "SimulationTimelineWidget.h"
 #include "SimulationResultDisplay.h"
@@ -462,6 +464,10 @@ void ModelViewer::connectSimulationHooks()
 					updateSimulationStreamlines(s); // the lines are trimmed to what the planes leave (and seeded on them when asked)
 			}
 	});
+	// A "plot over time"/"plot over line" pick landed: build and show the chart.
+	connect(_viewportWidget, &ViewportWidget::simulationChartPointsPicked, this, [this](const QUuid& meshUuid, const QVector<QVector3D>& points) {
+		onSimulationChartPointsPicked(meshUuid, points);
+	});
 	// Undo/Redo of an open adds or removes a result mesh, which changes what the panel and legend should show.
 	connect(_undoStack, &QUndoStack::indexChanged, this, [this](int) { emit simulationSessionChanged(false); });
 	// The timeline (multi-step results) follows whichever session is active.
@@ -598,6 +604,9 @@ namespace
 			if (state.glyphs)
 				options.extraFields.push_back(valid(state.glyphField) && isGlyphField(dataset.fields[static_cast<std::size_t>(state.glyphField)])
 				                                  ? state.glyphField : chooseDefaultGlyphField(dataset));
+			if (state.tensorGlyphs)
+				options.extraFields.push_back(valid(state.tensorGlyphField) && isTensorGlyphField(dataset.fields[static_cast<std::size_t>(state.tensorGlyphField)])
+				                                  ? state.tensorGlyphField : chooseDefaultTensorField(dataset));
 			if (state.iso)
 				options.extraFields.push_back(state.isoField);
 		}
@@ -1301,6 +1310,7 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 		pushSimulationMarkers();
 		mesh->clearAnalysisOverlay(); // CPU-only, no GL context needed
 		updateSimulationGlyphs(session, false, 0.0f, 1.0f); // arrows do not need a scalar to colour the surface by
+		updateSimulationTensorGlyphs(session, false, 0.0f, 1.0f);
 		updateSimulationSlices(session);
 		updateSimulationStreamlines(session);
 		if (isActive && _simulationLegend)
@@ -1416,6 +1426,7 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 		pushSimulationMarkers();
 	}
 	updateSimulationGlyphs(session, true, lo, hi);
+	updateSimulationTensorGlyphs(session, true, lo, hi);
 	session.shownLo = lo;
 	session.shownHi = hi;
 	session.shownScalar = std::move(scalar); // last use of `scalar`: the hover probe reads it
@@ -1507,6 +1518,72 @@ void ModelViewer::updateSimulationGlyphs(SimulationSession& session, bool haveSu
 		session.glyphInfo = tr("Arrows: %1, coloured by magnitude from %2 to %3%4.")
 			.arg(field.name).arg(lo, 0, 'g', 4).arg(hi, 0, 'g', 4).arg(set.unit.isEmpty() ? QString() : QStringLiteral(" ") + set.unit);
 	_viewportWidget->setSimulationGlyphs(session.meshUuid, std::move(set));
+}
+
+void ModelViewer::updateSimulationTensorGlyphs(SimulationSession& session, bool haveSurfaceRange, float surfaceLo, float surfaceHi)
+{
+	session.tensorGlyphInfo.clear();
+	if (!_viewportWidget || !session.dataset || !session.surface)
+		return;
+	const ResultDataset& dataset = *session.dataset;
+	const SimulationViewState& state = session.state;
+	int fieldIndex = state.tensorGlyphField;
+	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size()
+	    || !isTensorGlyphField(dataset.fields[static_cast<std::size_t>(fieldIndex)]))
+		fieldIndex = chooseDefaultTensorField(dataset);
+	if (!state.tensorGlyphs || fieldIndex < 0)
+	{
+		_viewportWidget->clearSimulationTensorGlyphs(session.meshUuid);
+		return;
+	}
+	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
+	const bool cellField = field.association == ResultFieldAssociation::Cell;
+	// A tessellated ellipsoid is much heavier than an arrow. Bound restored snapshots too: 5,000 glyphs already
+	// produce almost three million vertices and keep the overlay usable without allowing pathological VBO sizes.
+	const std::size_t wanted = static_cast<std::size_t>(std::clamp(state.tensorGlyphCount, 20, 5000));
+
+	if (session.tensorGlyphSites.empty() || session.tensorGlyphSitesCell != cellField || session.tensorGlyphSitesCount != static_cast<int>(wanted))
+	{
+		session.tensorGlyphSites = selectSurfaceGlyphSites(*session.surface, cellField, wanted);
+		session.tensorGlyphSitesCell = cellField;
+		session.tensorGlyphSitesCount = static_cast<int>(wanted);
+		session.tensorGlyphSitesField = fieldIndex;
+	}
+	if (session.surfaceDiagonal < 0.0)
+		session.surfaceDiagonal = surfaceDiagonal(*session.surface);
+
+	// Unlike the vector arrows (computeStepRange/cachedAllStepsRange support 1- and 3-component fields), there is no
+	// cached all-steps von Mises range for a 6-component tensor: buildTensorGlyphSet scans every tuple of THIS step
+	// for it regardless, so the ellipsoids' colours and sizes are stable within a step's own range rather than across
+	// the whole animation. A worthwhile follow-up once tensor glyphs are used on real multi-step results.
+	const float referenceMax = 0.0f;
+	TensorGlyphSet set;
+	if (!buildTensorGlyphSet(dataset, *session.surface, fieldIndex, state.step, session.tensorGlyphSites, session.surfaceDiagonal,
+	                        state.tensorGlyphScale, referenceMax, set))
+	{
+		_viewportWidget->clearSimulationTensorGlyphs(session.meshUuid);
+		session.tensorGlyphInfo = tr("No ellipsoids at this step: '%1' has no tensor data here.").arg(field.name);
+		return;
+	}
+	const float ownLo = set.fieldMin, ownHi = set.fieldMax;
+
+	const bool likeSurface = haveSurfaceRange && state.fieldIndex == fieldIndex && state.component == -1;
+	float lo = likeSurface ? surfaceLo : ownLo, hi = likeSurface ? surfaceHi : ownHi;
+	if (!(hi > lo))
+		hi = lo + std::max(1.0e-6f, std::fabs(lo) * 1.0e-6f);
+	const AnalysisColormap colormap = static_cast<AnalysisColormap>(state.colormap);
+	set.colors.reserve(set.count() * 3);
+	for (float value : set.values)
+	{
+		const QColor c = AnalysisColorRamp::colorForNormalized(std::clamp((value - lo) / (hi - lo), 0.0f, 1.0f), colormap);
+		set.colors.insert(set.colors.end(), { static_cast<float>(c.redF()), static_cast<float>(c.greenF()), static_cast<float>(c.blueF()) });
+	}
+	if (likeSurface)
+		session.tensorGlyphInfo = tr("Ellipsoids: %1, coloured as in the legend.").arg(field.name);
+	else
+		session.tensorGlyphInfo = tr("Ellipsoids: %1, coloured by von Mises from %2 to %3%4.")
+			.arg(field.name).arg(lo, 0, 'g', 4).arg(hi, 0, 'g', 4).arg(set.unit.isEmpty() ? QString() : QStringLiteral(" ") + set.unit);
+	_viewportWidget->setSimulationTensorGlyphs(session.meshUuid, std::move(set));
 }
 
 // Whether the result has volume cells to cut or trace in (checked once per session).
@@ -1986,4 +2063,107 @@ void ModelViewer::updateSimulationSlices(SimulationSession& session)
 		_viewportWidget->clearSimulationSlices(session.meshUuid);
 	else
 		_viewportWidget->setSimulationSlices(session.meshUuid, std::move(displays));
+}
+
+// ---- Charts: plot over time / plot over line / field distribution -----------------------------------------------
+
+void ModelViewer::requestSimulationPlotOverTime()
+{
+	if (!_viewportWidget || !findSimulationSession(_activeSimulationMesh))
+		return;
+	// Only a click that lands on the ACTIVE simulation result's own mesh is accepted: picking a different model, or
+	// another (unrelated) simulation result, would otherwise silently sample whichever session onSimulationChartPointsPicked()
+	// looks up (findSimulationSession(_activeSimulationMesh)) at a point that has nothing to do with what was clicked.
+	const QUuid activeMesh = _activeSimulationMesh;
+	_viewportWidget->setSimulationChartPickArmed(true, 1, [activeMesh](const QUuid& uuid) { return uuid == activeMesh; });
+}
+
+void ModelViewer::requestSimulationPlotOverLine()
+{
+	if (!_viewportWidget || !findSimulationSession(_activeSimulationMesh))
+		return;
+	const QUuid activeMesh = _activeSimulationMesh;
+	_viewportWidget->setSimulationChartPickArmed(true, 2, [activeMesh](const QUuid& uuid) { return uuid == activeMesh; });
+}
+
+void ModelViewer::onSimulationChartPointsPicked(const QUuid& meshUuid, const QVector<QVector3D>& points)
+{
+	SimulationSession* session = findSimulationSession(meshUuid);
+	if (!session || !session->dataset || points.isEmpty())
+		return;
+	const ResultDataset& dataset = *session->dataset;
+	const int fieldIndex = session->state.fieldIndex, component = session->state.component, step = session->state.step;
+	if (fieldIndex < 0)
+		return;
+
+	// The SAME shape-aware, cached locator streamlines/plot-over-line already use (see updateSimulationStreamlines):
+	// points arrive in this mesh's local space already (ViewportWidget::handleSimulationChartPickClick), which is
+	// exactly the space this locator (built on overlayNodePositions - the deformed shape when it is on) works in.
+	QString shapeKey;
+	const std::vector<float>* nodes = overlayNodePositions(*session, shapeKey);
+	if (!session->locator || session->locatorKey != shapeKey)
+	{
+		session->locator = std::make_shared<CellLocator>(dataset, nullptr, nodes ? *nodes : std::vector<float>());
+		session->locatorKey = shapeKey;
+	}
+	if (session->locator->volumeCellCount() == 0)
+	{
+		QMessageBox::information(this, tr("Chart"), tr("This result has no volume cells to sample through (a shell/surface result)."));
+		return;
+	}
+
+	ChartSeries series;
+	bool ok = false;
+	if (points.size() == 1)
+	{
+		const double p[3] = { points[0].x(), points[0].y(), points[0].z() };
+		// A lazy result reads every step here (sampleFieldOverTime's own doc comment) - the same busy-cursor
+		// treatment as the all-steps range scan (LazyScanCursor), since this is not threaded for the same reason.
+		const LazyScanCursor overTimeCursor(&dataset);
+		ok = sampleFieldOverTime(dataset, *session->locator, fieldIndex, component, p, series);
+	}
+	else
+	{
+		const double p0[3] = { points[0].x(), points[0].y(), points[0].z() };
+		const double p1[3] = { points[1].x(), points[1].y(), points[1].z() };
+		ok = sampleFieldOverLine(dataset, *session->locator, fieldIndex, component, step, p0, p1, 100, series);
+	}
+	if (!ok)
+	{
+		QMessageBox::information(this, tr("Chart"), tr("The current field cannot be charted this way (cell data is not supported yet, or the point/line missed the mesh entirely)."));
+		return;
+	}
+	// This slot runs synchronously off ViewportWidget's own mousePressEvent (the click that supplied the last picked
+	// point): a top-level window created and shown mid-event like that can have its first paint/activation silently
+	// deferred by Qt until the event loop is next idle, so it does not actually appear until some LATER, unrelated
+	// event (the next click) pumps the loop - looking exactly like "the dialog doesn't show until the second click".
+	// Deferring the creation itself to the next loop iteration (QTimer::singleShot(0, ...), after the click has
+	// fully finished being handled) shows it immediately instead.
+	QTimer::singleShot(0, this, [this, series]() {
+		auto* chart = new SimulationChartWidget(this);
+		chart->setSeries(series);
+		chart->show();
+		chart->raise();
+		chart->activateWindow();
+	});
+}
+
+void ModelViewer::requestSimulationHistogram()
+{
+	SimulationSession* session = findSimulationSession(_activeSimulationMesh);
+	if (!session || !session->dataset)
+		return;
+	std::vector<float> edges;
+	std::vector<std::size_t> counts;
+	QString label, unit;
+	if (!buildFieldHistogram(*session->dataset, session->state.fieldIndex, session->state.component, session->state.step, 32, edges, counts, label, unit))
+	{
+		QMessageBox::information(this, tr("Distribution"), tr("The current field has no data at this step, or is constant (nothing to show a distribution of)."));
+		return;
+	}
+	auto* chart = new SimulationChartWidget(this);
+	chart->setHistogram(tr("Distribution of %1").arg(label), label, unit, edges, counts);
+	chart->show();
+	chart->raise();
+	chart->activateWindow();
 }

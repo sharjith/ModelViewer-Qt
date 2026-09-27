@@ -56,6 +56,12 @@ signals:
 	// The user chose the length unit of the model's coordinates ("" = not specified, else "mm", "cm", "m", "in", "ft").
 	void lengthUnitChanged(const QString& unit);
 	void unitsChanged(int fieldIndex, const QString& kindId, const QString& fileUnit, const QString& displayUnit);
+	// The user asked for a chart of the current field/component: "over time" arms a 1-point pick, "over line" a
+	// 2-point pick (ModelViewer connects ViewportWidget::simulationChartPointsPicked() to build it once the click(s)
+	// land); "distribution" needs no pick at all, so ModelViewer builds the histogram directly.
+	void plotOverTimeRequested();
+	void plotOverLineRequested();
+	void histogramRequested();
 
 private:
 	void buildUi();
@@ -121,6 +127,9 @@ private:
 	QComboBox* _colormapCombo = nullptr;
 	QComboBox* _bandsCombo = nullptr;
 	QCheckBox* _deformCheck = nullptr;
+	QPushButton* _plotOverTimeButton = nullptr;
+	QPushButton* _plotOverLineButton = nullptr;
+	QPushButton* _histogramButton = nullptr;
 	QCheckBox* _markersCheck = nullptr;
 	QDoubleSpinBox* _deformScaleSpin = nullptr;
 	QPushButton* _deformAutoButton = nullptr;
@@ -134,6 +143,8 @@ private:
 	QLabel* _lineRadiusLabel = nullptr;
 	QDoubleSpinBox* _lineRadiusSpin = nullptr;
 	QLabel* _glyphInfoLabel = nullptr;
+	QCheckBox* _tensorGlyphCheck = nullptr;
+	QLabel* _tensorGlyphInfoLabel = nullptr;
 	QCheckBox* _sectionCheck = nullptr;
 	QCheckBox* _isoCheck = nullptr;
 	QComboBox* _isoFieldCombo = nullptr;

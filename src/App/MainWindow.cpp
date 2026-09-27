@@ -292,6 +292,18 @@ MainWindow::MainWindow(QWidget* parent)
 				if (auto* child = activeMdiChild())
 					child->applySimulationUnits(fieldIndex, kindId, fileUnit, displayUnit);
 			});
+		connect(_simulationPanel, &SimulationPanel::plotOverTimeRequested, this, [this]() {
+			if (auto* child = activeMdiChild())
+				child->requestSimulationPlotOverTime();
+		});
+		connect(_simulationPanel, &SimulationPanel::plotOverLineRequested, this, [this]() {
+			if (auto* child = activeMdiChild())
+				child->requestSimulationPlotOverLine();
+		});
+		connect(_simulationPanel, &SimulationPanel::histogramRequested, this, [this]() {
+			if (auto* child = activeMdiChild())
+				child->requestSimulationHistogram();
+		});
 
 		// Auto Fit View / Selection Highlighting: moved here from the
 		// per-document nav overlay, above the Variants/Animations/Cameras

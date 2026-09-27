@@ -29,6 +29,7 @@ class ToolsToolbar;
 #include "SeamMarkingController.h"
 #include "FillHolesController.h"
 #include "SimulationGlyphController.h"
+#include "SimulationTensorGlyphController.h"
 #include "SimulationSliceController.h"
 #include "SimulationStreamlineController.h"
 #include "MvfMeshPreparationWorker.h"
@@ -540,6 +541,23 @@ public:
 	// Eyedropper above, same cross-clearing shape.
 	void setColorPickArmed(bool armed);
 	bool colorPickArmed() const { return _colorPickArmed; }
+
+	// ---- Simulation chart point picking (plot over time / plot over line) --
+	// Same single-phase armed-tool shape as the colour eyedropper above: arm with the number of points the caller
+	// needs (1 for "plot over time" at a point, 2 for "plot over line" between two) and, when the caller cares which
+	// mesh (it always does today - only the active simulation result's mesh is acceptable), a filter that rejects a
+	// pick by returning false for its mesh uuid; every point of one pick is also held to the mesh the FIRST point
+	// landed on, regardless of the filter. Re-arming while already armed (e.g. switching straight from "plot over
+	// time" to "plot over line") resets the point count/filter/collected points rather than being a no-op. Each
+	// click that hits an accepted mesh maps its MeshSurfaceAnchor's world position back into that mesh's own LOCAL
+	// space (combinedRenderTransform() inverted) - the space ResultDataset/CellLocator work in - and appends it;
+	// once enough points are collected, simulationChartPointsPicked() fires with the mesh uuid and all of them (in
+	// click order, local space) and the tool disarms itself. A miss (no mesh under the cursor), a rejected mesh, or
+	// a non-invertible transform does not count as a click - stays armed, try again. Mutually exclusive with
+	// Measure/Annotate/Mark-Seams/Lasso/Eyedropper/colour-pick above (both ways: arming any of those disarms this,
+	// and vice versa) and cancelled by Escape like they are.
+	void setSimulationChartPickArmed(bool armed, int pointsNeeded = 1, std::function<bool(const QUuid&)> meshFilter = {});
+	bool simulationChartPickArmed() const { return _simulationChartPickArmed; }
 
 	// ---- Fill Holes dialog's detected-hole-loop overlay --------------------
 	// Thin forwards to _fillHolesController - see FillHolesController.h. No tool-armed state
@@ -1311,6 +1329,10 @@ signals:
 	// pick was active) - so FilterByColorDialog's own pick button stays in
 	// sync without being the only thing that ever arms/disarms it.
 	void colorPickArmedChanged(bool armed);
+	// Fires once setSimulationChartPickArmed()'s requested point count has been clicked; SimulationPanel connects
+	// to build the "plot over line"/"plot over time" chart from the world points.
+	void simulationChartPointsPicked(const QUuid& meshUuid, const QVector<QVector3D>& localPoints);
+	void simulationChartPickArmedChanged(bool armed);
 	// Fires whenever the seam-mark list changes (add/remove/clear) - lets
 	// UVGenerationDialog's mark-list widget refresh without polling.
 	void seamMarksChanged();
@@ -1506,6 +1528,11 @@ public:
 	// pane in compare mode. An empty set clears them.
 	void setSimulationGlyphs(const QUuid& meshUuid, GlyphSet glyphs);
 	void clearSimulationGlyphs(const QUuid& meshUuid);
+
+	// The tensor-field ellipsoids of a simulation result (see SimulationTensorGlyphController.h): same shape as
+	// the vector arrows above, for a symmetric tensor (stress) field instead.
+	void setSimulationTensorGlyphs(const QUuid& meshUuid, TensorGlyphSet glyphs);
+	void clearSimulationTensorGlyphs(const QUuid& meshUuid);
 
 	// Cut surfaces of a simulation result's volume (data-coloured sections, iso-surfaces): see SimulationSliceController.h. An empty list clears them.
 	void setSimulationSlices(const QUuid& meshUuid, std::vector<SliceDisplay> slices);
@@ -2083,6 +2110,15 @@ private:
 	HoverHighlightMode _savedHoverHighlightModeBeforeColorPick = HoverHighlightMode::RaycastOnly;
 	void handleColorPickClick(const QPoint& pixel);
 
+	// Simulation chart point picking - see setSimulationChartPickArmed()'s doc comment above.
+	bool _simulationChartPickArmed = false;
+	int _simulationChartPickPointsNeeded = 1;
+	std::function<bool(const QUuid&)> _simulationChartPickMeshFilter;
+	QUuid _simulationChartPickMeshUuid; // the mesh the pick's first accepted point landed on; every later point of the same pick must match it
+	QVector<QVector3D> _simulationChartPickedPoints; // local (mesh) space, not world - see the header comment above
+	HoverHighlightMode _savedHoverHighlightModeBeforeChartPick = HoverHighlightMode::RaycastOnly;
+	void handleSimulationChartPickClick(const QPoint& pixel);
+
 	// Restores whichever cursor the CURRENTLY-armed single-click tool
 	// (material eyedropper or color eyedropper) calls for, or the arrow if
 	// neither is armed - called after any navigation interaction (Ctrl-drag
@@ -2645,6 +2681,8 @@ private:
 	FillHolesController* _fillHolesController = nullptr;
 	SimulationGlyphController* _simulationGlyphController = nullptr;
 	void drawSimulationGlyphs(Camera* camera);
+	SimulationTensorGlyphController* _simulationTensorGlyphController = nullptr;
+	void drawSimulationTensorGlyphs(Camera* camera);
 	SimulationSliceController* _simulationSliceController = nullptr;
 	QHash<QUuid, QVector<float>> _simulationGizmoBounds;
 	void drawSimulationSlices(Camera* camera);

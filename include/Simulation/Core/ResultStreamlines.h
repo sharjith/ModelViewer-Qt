@@ -19,6 +19,15 @@
 #include <cstdint>
 #include <vector>
 
+// The fixed node weights used to interpolate at one point inside one indexed cell. This lets callers sample many
+// time steps at the same point without rebuilding a complete scalar array for every step.
+struct CellInterpolationStencil
+{
+	std::vector<std::uint32_t> nodes;
+	std::vector<double> weights;
+	bool empty() const { return nodes.empty(); }
+};
+
 // Finds the volume cell around a point and interpolates node values there. Built once per dataset (O(cells)) and reused for every field and time step.
 class CellLocator
 {
@@ -37,6 +46,9 @@ public:
 	// (or -1): it is tried first and updated. False when the point is in no cell or a node of its cell has no finite value.
 	bool interpolate(const double p[3], const std::vector<float>& vectors, const std::vector<float>* scalar, int& hint, double vector[3], double& scalarValue) const;
 
+	// Finds the cell containing `p` and returns the same barycentric node weights used by interpolate().
+	bool interpolationStencil(const double p[3], int& hint, CellInterpolationStencil& out) const;
+
 	// The size (bounding-box diagonal) of a cell, 0 for a cell that is not indexed.
 	double cellSize(int cell) const;
 
@@ -45,6 +57,7 @@ public:
 
 private:
 	bool evalCell(std::size_t cell, const double p[3], const std::vector<float>& vectors, const std::vector<float>* scalar, double vector[3], double& scalarValue) const;
+	bool evalCellStencil(std::size_t cell, const double p[3], CellInterpolationStencil& out) const;
 
 	const std::vector<float>& coordinates() const { return _positions.empty() ? _ds.nodePositions : _positions; }
 

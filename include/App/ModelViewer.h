@@ -631,6 +631,12 @@ public slots:
 	QString simulationProbeText(const MeshSurfaceAnchor& anchor, QColor& color) const;
 	// Applies an edit from the Simulation panel to the active session: recolours its mesh and updates the legend.
 	void applySimulationViewState(const SimulationViewState& state);
+	// Charts of the active session's current field/component (SimulationCharts.h / SimulationChartWidget). The
+	// first two arm ViewportWidget's chart point picking (1 point / 2 points) and open the chart once
+	// simulationChartPointsPicked() fires; the histogram needs no picking and opens right away.
+	void requestSimulationPlotOverTime();
+	void requestSimulationPlotOverLine();
+	void requestSimulationHistogram();
 	// Time steps of the active result: show step `step` (clamped), and start/stop the playback timer. Both are
 	// driven by the timeline overlay; `fromPlayback` skips the panel refresh that a manual step triggers.
 	void setSimulationStep(int step, bool fromPlayback = false);
@@ -770,6 +776,9 @@ protected:
 private:
 	// Builds the scene node/mesh/legend for a loaded simulation result (main thread; see openSimulationResult()).
 	void presentSimulationResult(const QString& path, LoadedSimulationResult& result);
+	// The world points a "plot over time"/"plot over line" pick collected (1 or 2, see requestSimulationPlotOverTime()
+	// /requestSimulationPlotOverLine()); opens the resulting chart. Connected once in connectSimulationHooks().
+	void onSimulationChartPointsPicked(const QUuid& meshUuid, const QVector<QVector3D>& points);
 	SimulationSession* findSimulationSession(const QUuid& meshUuid);
 	void closeEmptyResultDocument();
 	SimulationSession* activeSimulationSessionMutable();
@@ -784,6 +793,7 @@ private:
 	// After a language change: the timeline, the legend and the messages of the results are built with tr() and are made again.
 	void retranslateSimulation();
 	void updateSimulationGlyphs(SimulationSession& session, bool haveSurfaceRange, float surfaceLo, float surfaceHi);
+	void updateSimulationTensorGlyphs(SimulationSession& session, bool haveSurfaceRange, float surfaceLo, float surfaceHi);
 	void updateSimulationTimeline();
 	void checkSimulationCompare(); // ends compare mode when one of its results went away
 	void pushSimulationMarkers();  // the min/max labels the viewport shows (active result's, or both compared results')
