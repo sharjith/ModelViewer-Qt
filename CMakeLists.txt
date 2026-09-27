@@ -356,7 +356,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
 # Handle UI files manually
-file(GLOB ui_sources ui/*.ui)
+file(GLOB_RECURSE ui_sources CONFIGURE_DEPENDS ui/*.ui)
 qt6_wrap_ui(ui_wrapped ${ui_sources})
 
 # ============================================================================
@@ -389,7 +389,7 @@ configure_file(
 # depth, e.g. src/Simulation/Core/, include/Simulation/UI/). Headers are still included as "Foo.h": every directory that
 # holds at least one header is added to the include path below, so a new module needs no CMake change to compile.
 file(GLOB_RECURSE sources CONFIGURE_DEPENDS src/*.cpp src/*.cxx src/*.c include/*.h include/*.hxx)
-file(GLOB ui_sources ui/*.ui)
+file(GLOB_RECURSE ui_sources CONFIGURE_DEPENDS ui/*.ui)
 
 # Create translations directory if it doesn't exist
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/translations)
