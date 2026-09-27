@@ -132,3 +132,21 @@ polyhedra_legacy.vtk
     Written with VTK 9.3's own legacy writer (the vtkmodules bundled with FreeCAD 1.1; no external data or licence): a legacy 5.1 file
     with a polyhedron (cell type 42, whose CELLS entry is the face stream) next to a regular hexahedron, point arrays "temperature" and
     "velocity" (a flow along +x, so streamlines run from the polyhedron into the hexahedron). Checks the legacy polyhedron reading.
+
+polyhedra.exo
+    Written by this project's test tool (result_tests --write-exodus-polyhedra-sample; no external data or licence) in the layout of the Exodus II
+    specification: an NFACED element block (a cube given by its six faces: ebepecnt / facconn) and a HEX8 block that share a face, two face blocks
+    (five NSIDED faces with fbepecnt, one fixed-size QUAD face), node variables temperature and vel_x / vel_y / vel_z. NOT independently verified:
+    VTK 9.3's Exodus reader (FreeCAD 1.1) parses the file - both face blocks, the HEX8 block and the node arrays - but rejects the NFACED block's
+    element type, so the layout of that block rests on the specification and the variable names found in the exodus library.
+
+real/  (files written by other tools, to test the readers against data we did not make ourselves)
+    Downloaded 2026-09-27 from the VTK ExternalData store (www.vtk.org/files/ExternalData/SHA512/<hash>, the hashes taken from Testing/Data/*.sha512
+    of github.com/Kitware/VTK) and verified against their SHA-512 hashes. VTK test data, BSD 3-clause licence (see VTK-Data-License.txt for the notice).
+      Exodus II  test-nfaced.exo (a real NFACED polyhedron), different_topologies.ex2 (tetrahedra + hexahedra, 2 node fields),
+                 block_with_attributes.g (quads), Flow1D.e (a 1-D beam network with 51 steps and cell fields; nothing drawable)
+      CGNS       Example_mixed.cgns (hexahedra), Example_nface_n.cgns (the same mesh as NGON_n faces + NFACE_n polyhedra),
+                 Example_ngon_pe.cgns (the same mesh: NGON_n faces with ParentElements only), BoxWithFaceData.cgns (FaceCenter data:
+                 the CGNS 4.5.1 library cannot open it - "Location not yet supported" - so it is kept as a known limitation)
+      VTKHDF     polyhedron.vtkhdf, hexahedron.vtkhdf, can-vtu.vtkhdf (a real transient crash result, 4800 hexahedra, vector fields)
+    result_tests reads all of them and checks node / cell counts and boundary triangles.

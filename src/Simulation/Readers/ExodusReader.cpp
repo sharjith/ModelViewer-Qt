@@ -10,6 +10,7 @@
 #include <QRegularExpression>
 
 #include <algorithm>
+#include <unordered_map>
 #include <cmath>
 #include <limits>
 #include <map>
@@ -137,7 +138,9 @@ namespace
 			return nodesPerElement == 3 ? ResultCellType::Triangle : (nodesPerElement == 6 ? ResultCellType::Triangle6 : ResultCellType::Unsupported);
 		if (is("QUAD") || is("SHELL"))
 			return nodesPerElement == 4 ? ResultCellType::Quad : (nodesPerElement == 8 ? ResultCellType::Quad8 : ResultCellType::Unsupported);
-		return ResultCellType::Unsupported; // beams, trusses, spheres, polygons, polyhedra
+		if (is("EDGE") || is("BEAM") || is("BAR") || is("TRUSS") || is("ROD"))
+			return nodesPerElement == 2 ? ResultCellType::Line : ResultCellType::Unsupported; // drawn as a thin tube (see extractBoundarySurface)
+		return ResultCellType::Unsupported; // spheres, polygons, higher-order beams
 	}
 
 	// ---- Variables: one Exodus variable per component, gathered into vector / tensor fields ------------------------
@@ -279,13 +282,130 @@ ResultReadOutcome readExodus(const QString& path, const std::atomic<bool>* cance
 	std::vector<Block> blocks;
 	std::size_t unsupportedBlocks = 0;
 	dataset->cellOffsets.push_back(0);
+	dataset->cellFaceOffsets.push_back(0);
+
+	// Polyhedral (NFACED) element blocks list, per element, the faces that bound it; the faces themselves live in the face blocks, numbered one after the other
+	// (ids 1..n, or through face_num_map). Read only when such a block turns up: a face is a ring of nodes (fbconn), of fixed size or - NSIDED - given per face (fbepecnt).
+	bool facesLoaded = false;
+	QString faceError;
+	std::unordered_map<long long, std::uint32_t> faceIndexOfId;
+	auto loadFaces = [&]() -> bool {
+		if (facesLoaded)
+			return true;
+		std::size_t faceBlocks = 0;
+		if (!dimensionLength(ncid, "num_fa_blk", faceBlocks) || faceBlocks == 0)
+		{
+			faceError = QStringLiteral("The file has polyhedral element blocks (NFACED) but no face blocks.");
+			return false;
+		}
+		dataset->faceOffsets.push_back(0);
+		for (std::size_t f = 1; f <= faceBlocks; ++f)
+		{
+			std::size_t faces = 0, perFace = 0;
+			if (!dimensionLength(ncid, QStringLiteral("num_fa_in_blk%1").arg(f).toLatin1().constData(), faces) || faces == 0)
+				continue; // an empty face block
+			std::vector<long long> nodes, counts;
+			if (!readInt64(ncid, QStringLiteral("fbconn%1").arg(f), nodes))
+			{
+				faceError = QStringLiteral("The nodes of face block %1 cannot be read.").arg(f);
+				return false;
+			}
+			if (readInt64(ncid, QStringLiteral("fbepecnt%1").arg(f), counts))
+			{
+				if (counts.size() != faces)
+				{
+					faceError = QStringLiteral("Face block %1 has %2 faces but %3 node counts.").arg(f).arg(faces).arg(counts.size());
+					return false;
+				}
+			}
+			else
+			{
+				dimensionLength(ncid, QStringLiteral("num_nod_per_fa%1").arg(f).toLatin1().constData(), perFace);
+				if (perFace == 0 || nodes.size() != faces * perFace)
+				{
+					faceError = QStringLiteral("Face block %1 has an inconsistent node count.").arg(f);
+					return false;
+				}
+				counts.assign(faces, static_cast<long long>(perFace));
+			}
+			std::size_t pos = 0;
+			for (std::size_t i = 0; i < faces; ++i)
+			{
+				const long long n = counts[i];
+				if (n < 3 || pos + static_cast<std::size_t>(n) > nodes.size())
+				{
+					faceError = QStringLiteral("Face %1 of face block %2 has %3 nodes or runs past the block's nodes.").arg(i + 1).arg(f).arg(n);
+					return false;
+				}
+				for (long long k = 0; k < n; ++k)
+				{
+					const long long node = nodes[pos++];
+					if (node < 1 || static_cast<std::size_t>(node) > numNodes)
+					{
+						faceError = QStringLiteral("Face block %1 references node %2 but the file has %3 nodes.").arg(f).arg(node).arg(numNodes);
+						return false;
+					}
+					dataset->faceNodes.push_back(static_cast<std::uint32_t>(node - 1));
+				}
+				dataset->faceOffsets.push_back(static_cast<std::uint32_t>(dataset->faceNodes.size()));
+			}
+		}
+		std::vector<long long> ids;
+		if (readInt64(ncid, QStringLiteral("face_num_map"), ids) && ids.size() == dataset->faceOffsets.size() - 1)
+			for (std::size_t i = 0; i < ids.size(); ++i)
+				faceIndexOfId[ids[i]] = static_cast<std::uint32_t>(i);
+		facesLoaded = true;
+		return true;
+	};
+
 	for (std::size_t b = 1; b <= numBlocks; ++b)
 	{
 		if (cancelled())
 			return fail(QStringLiteral("cancelled"));
-		std::size_t inBlock = 0, perElement = 0;
-		if (!dimensionLength(ncid, QStringLiteral("num_el_in_blk%1").arg(b).toLatin1().constData(), inBlock)
-		    || !dimensionLength(ncid, QStringLiteral("num_nod_per_el%1").arg(b).toLatin1().constData(), perElement))
+		std::size_t inBlock = 0, perElement = 0, facesInBlock = 0;
+		const bool haveElements = dimensionLength(ncid, QStringLiteral("num_el_in_blk%1").arg(b).toLatin1().constData(), inBlock);
+		const bool haveNodes = haveElements && dimensionLength(ncid, QStringLiteral("num_nod_per_el%1").arg(b).toLatin1().constData(), perElement);
+		if (haveElements && !haveNodes && inBlock > 0 && dimensionLength(ncid, QStringLiteral("num_fac_per_el%1").arg(b).toLatin1().constData(), facesInBlock))
+		{
+			// A polyhedral block: ebepecnt = faces per element, facconn = the face ids of all its elements, one element after the other.
+			if (!loadFaces())
+				return fail(faceError);
+			std::vector<long long> perCell, faceIds;
+			if (!readInt64(ncid, QStringLiteral("ebepecnt%1").arg(b), perCell) || perCell.size() != inBlock
+			    || !readInt64(ncid, QStringLiteral("facconn%1").arg(b), faceIds))
+				return fail(QStringLiteral("The faces of polyhedral element block %1 cannot be read.").arg(b));
+			std::size_t total = 0;
+			for (long long n : perCell)
+				total += n > 0 ? static_cast<std::size_t>(n) : 0;
+			if (total != faceIds.size())
+				return fail(QStringLiteral("Polyhedral element block %1 lists %2 faces but its elements need %3.").arg(b).arg(faceIds.size()).arg(total));
+			blocks.push_back({ dataset->cellTypes.size(), inBlock });
+			const std::size_t faceCount = dataset->faceOffsets.size() - 1;
+			std::size_t pos = 0;
+			for (std::size_t e = 0; e < inBlock; ++e)
+			{
+				for (long long k = 0; k < perCell[e]; ++k)
+				{
+					const long long id = faceIds[pos++];
+					long long index = -1;
+					if (!faceIndexOfId.empty())
+					{
+						const auto found = faceIndexOfId.find(id);
+						index = found == faceIndexOfId.end() ? -1 : static_cast<long long>(found->second);
+					}
+					else
+						index = id - 1;
+					if (index < 0 || static_cast<std::size_t>(index) >= faceCount)
+						return fail(QStringLiteral("Polyhedral element block %1 references face %2 but the file has %3 faces.").arg(b).arg(id).arg(faceCount));
+					dataset->cellFaces.push_back(static_cast<std::uint32_t>(index));
+				}
+				dataset->cellTypes.push_back(ResultCellType::Polyhedron);
+				dataset->cellOffsets.push_back(static_cast<std::uint32_t>(dataset->cellConnectivity.size()));
+				dataset->cellFaceOffsets.push_back(static_cast<std::uint32_t>(dataset->cellFaces.size()));
+			}
+			continue;
+		}
+		if (!haveNodes)
 		{
 			// A block without elements (or without a node dimension) contributes nothing but keeps the numbering intact.
 			blocks.push_back({ dataset->cellTypes.size(), 0 });
@@ -311,8 +431,11 @@ ResultReadOutcome readExodus(const QString& path, const std::atomic<bool>* cance
 			}
 			dataset->cellTypes.push_back(type);
 			dataset->cellOffsets.push_back(static_cast<std::uint32_t>(dataset->cellConnectivity.size()));
+			dataset->cellFaceOffsets.push_back(static_cast<std::uint32_t>(dataset->cellFaces.size()));
 		}
 	}
+	if (dataset->faceOffsets.empty())
+		dataset->cellFaceOffsets.clear(); // no polyhedra: the face arrays stay empty
 	if (dataset->cellTypes.size() != numElem)
 		outcome.warnings << QStringLiteral("The blocks hold %1 elements but the file declares %2.").arg(dataset->cellTypes.size()).arg(numElem);
 	if (dataset->cellTypes.empty())
@@ -323,7 +446,7 @@ ResultReadOutcome readExodus(const QString& path, const std::atomic<bool>* cance
 			dataset->cellIds.assign(ids.begin(), ids.end());
 	}
 	if (unsupportedBlocks > 0)
-		outcome.warnings << QStringLiteral("%1 element block(s) of a type that cannot be displayed yet (beams, spheres, polygons or polyhedra) are kept in the numbering but not drawn.").arg(unsupportedBlocks);
+		outcome.warnings << QStringLiteral("%1 element block(s) of a type that cannot be displayed yet (spheres, polygons or higher-order beams) are kept in the numbering but not drawn.").arg(unsupportedBlocks);
 
 	// ---- Time steps ------------------------------------------------------------------------------------------------
 	std::size_t stepCount = 0;

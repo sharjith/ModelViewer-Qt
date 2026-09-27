@@ -22,7 +22,7 @@ struct ResultBoundarySurface
 	std::vector<std::uint32_t> triangleCell;   // dataset cell index per triangle
 	std::vector<std::uint8_t> triangleFace;    // local face within the cell; kNoFace for surface (shell) cells
 
-	// Cells that produced no geometry: Unsupported types, lines. (Volume cells fully enclosed by
+	// Cells that produced no geometry: Unsupported types, zero-length lines. (Volume cells fully enclosed by
 	// neighbours are NOT counted - they legitimately have no boundary face.)
 	std::size_t skippedCells = 0;
 
@@ -34,7 +34,9 @@ struct ResultBoundarySurface
 
 // Volume cells: a face referenced by exactly one cell is a boundary face. Polyhedron cells use their explicit face lists (ResultDataset::faceNodes
 // ...), faces of any size matched with the faces of the other cells by their node sets and triangulated (ear clipping) when they have more than 4 nodes. Surface cells (triangles,
-// quads - e.g. thin-walled structural models) are always emitted as they are. Quads are split into two
+// quads - e.g. thin-walled structural models) are always emitted as they are. Line cells (beams, pipes, trusses) are drawn as thin six-sided tubes
+// of a radius of one percent of the model's diagonal, open at the ends: each end's ring belongs to that end's node (node fields interpolate along the tube),
+// and the tube's triangles belong to the line cell (cell fields are flat along it). Quads are split into two
 // triangles. Volume-face winding is normalised to point away from the owning cell's centroid.
 //
 // Memory: faces are hashed in partitions so peak temporary memory stays bounded on very large meshes.

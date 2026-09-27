@@ -204,7 +204,14 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 	CgnsFile file;
 	const QByteArray native = QFile::encodeName(path);
 	if (cg_open(native.constData(), CG_MODE_READ, &file.id) != CG_OK)
-		return fail(QStringLiteral("Cannot open '%1' as a CGNS file: %2").arg(path, QString::fromLatin1(cg_get_error())));
+	{
+		const QString reason = QString::fromLatin1(cg_get_error());
+		if (reason.contains(QLatin1String("Location not yet supported")))
+			return fail(QStringLiteral("'%1' has solution data at a location (for example the centres of faces) that the CGNS library ModelViewer uses (version %2) cannot "
+			                           "read, and it refuses the whole file. Export the result again with the data at the vertices or at the cell centres.")
+			                .arg(path).arg(CGNS_DOTVERS, 0, 'f', 1));
+		return fail(QStringLiteral("Cannot open '%1' as a CGNS file: %2").arg(path, reason));
+	}
 	file.open = true;
 	const int fn = file.id;
 
@@ -381,6 +388,7 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 			{
 				cgsize_t start, end;
 				std::size_t base; // the dataset face index of the range's first face
+				int section;      // its NGON_n section
 			};
 			std::vector<FaceRange> faceRanges;
 			if (!structured && cellDim == 3)
@@ -411,9 +419,10 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 						}
 						dataset->faceOffsets.push_back(static_cast<std::uint32_t>(dataset->faceNodes.size()));
 					}
-					faceRanges.push_back({ start, end, faceBase });
+					faceRanges.push_back({ start, end, faceBase, s });
 				}
 			std::vector<Section> sections;
+			bool polyhedraRead = false; // an NFACE_n section gave the polyhedra
 			for (int s = 1; s <= sectionCount; ++s)
 			{
 				char sectionName[64] = {};
@@ -460,6 +469,7 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 						section.cells.push_back(std::move(cell));
 					}
 					sections.push_back(std::move(section));
+					polyhedraRead = true;
 					continue;
 				}
 				if (type != CGNS_ENUMV(MIXED) && elementDimension(type) != cellDim)
@@ -532,6 +542,46 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 				}
 				if (!section.cells.empty())
 					sections.push_back(std::move(section));
+			}
+			// Polyhedra without an NFACE_n section: each NGON_n face carries its ParentElements - the two cells it separates (0 = none) - so a cell's faces are the
+			// faces that name it. Cell element numbers follow the faces'; the cells are taken in that order.
+			if (!structured && cellDim == 3 && !faceRanges.empty() && !polyhedraRead)
+			{
+				std::map<cgsize_t, std::vector<std::uint32_t>> facesOfCell;
+				bool parentsRead = true;
+				for (const FaceRange& range : faceRanges)
+				{
+					const std::size_t faceCount = static_cast<std::size_t>(range.end - range.start + 1);
+					std::vector<cgsize_t> parents(faceCount * 2, 0); // [face][2] in file order: every face's left parent, then every face's right one
+					if (cg_parent_elements_general_read(fn, base, z, range.section, range.start, range.end,
+					                                   sizeof(cgsize_t) == 8 ? CGNS_ENUMV(LongInteger) : CGNS_ENUMV(Integer), parents.data()) != CG_OK)
+					{
+						parentsRead = false;
+						break;
+					}
+					for (std::size_t f = 0; f < faceCount; ++f)
+						for (int side = 0; side < 2; ++side)
+						{
+							const cgsize_t parent = parents[static_cast<std::size_t>(side) * faceCount + f];
+							if (parent > 0)
+								facesOfCell[parent].push_back(static_cast<std::uint32_t>(range.base + f));
+						}
+				}
+				if (parentsRead && !facesOfCell.empty())
+				{
+					Section section;
+					section.start = facesOfCell.begin()->first;
+					for (auto& entry : facesOfCell)
+					{
+						CellRecord cell;
+						cell.type = ResultCellType::Polyhedron;
+						cell.faces = std::move(entry.second);
+						section.cells.push_back(std::move(cell));
+					}
+					sections.push_back(std::move(section));
+				}
+				else
+					++polyhedralSections; // no ParentElements: the polyhedra cannot be told
 			}
 			std::sort(sections.begin(), sections.end(), [](const Section& a, const Section& b) { return a.start < b.start; });
 			zone.cellOffset = dataset->cellTypes.size();

@@ -653,8 +653,8 @@ namespace
 		CHECK(ds.cellTypes[4] == ResultCellType::Unsupported); // pentagon
 		CHECK(!r.warnings.isEmpty());
 		const ResultBoundarySurface s = extract(ds);
-		CHECK(s.triangleCount() == 3);
-		CHECK(s.skippedCells == 3);
+		CHECK(s.triangleCount() == 3 + 12); // the triangle, the quad as 2, and the 2-point line as a tube of 12 triangles
+		CHECK(s.skippedCells == 2);         // the polyline and the pentagon
 	}
 
 	void testLegacyStructured()
@@ -2657,6 +2657,164 @@ namespace
 	}
 #endif
 
+#if MV_HAVE_NETCDF
+	// An Exodus II file with a polyhedral (NFACED) element block, written through the NetCDF API in the layout of the Exodus II specification: two blocks of
+	// one element each that share a face (the 3 x 2 x 2 grid of nodes of the other fixtures) - block 1 a cube given by its six faces, block 2 a regular HEX8 -
+	// and two face blocks: block 1 five NSIDED faces (fbepecnt = nodes per face), block 2 one fixed-size QUAD face (fbconn as [faces][nodes]). The element block
+	// lists the face ids in facconn1, the faces per element in ebepecnt1. One time step, node variables temperature and vel_x / vel_y / vel_z (a flow along +x).
+	// `badFaceId` (> 0) replaces the last face id of the polyhedron, to test a reference outside the file. Written also with
+	// `result_tests --write-exodus-polyhedra-sample <file.exo>` for trying the reader in the application.
+	bool writeExodusPolyhedra(const char* path, int badFaceId = 0)
+	{
+		int ncid = -1;
+		if (nc_create(path, NC_CLOBBER, &ncid) != NC_NOERR)
+			return false;
+		bool ok = true;
+		auto dim = [&](const char* name, std::size_t length) {
+			int id = -1;
+			ok = ok && nc_def_dim(ncid, name, length, &id) == NC_NOERR;
+			return id;
+		};
+		auto var = [&](const char* name, nc_type type, std::vector<int> dims) {
+			int id = -1;
+			ok = ok && nc_def_var(ncid, name, type, static_cast<int>(dims.size()), dims.data(), &id) == NC_NOERR;
+			return id;
+		};
+		// The global attributes and block properties every Exodus II reader (the exodus library of VTK, for one) insists on.
+		const float apiVersion = 8.11f;
+		const int wordSize = 8, fileSize = 1;
+		ok = ok && nc_put_att_float(ncid, NC_GLOBAL, "api_version", NC_FLOAT, 1, &apiVersion) == NC_NOERR
+		     && nc_put_att_float(ncid, NC_GLOBAL, "version", NC_FLOAT, 1, &apiVersion) == NC_NOERR
+		     && nc_put_att_int(ncid, NC_GLOBAL, "floating_point_word_size", NC_INT, 1, &wordSize) == NC_NOERR
+		     && nc_put_att_int(ncid, NC_GLOBAL, "file_size", NC_INT, 1, &fileSize) == NC_NOERR
+		     && nc_put_att_text(ncid, NC_GLOBAL, "title", 19, "polyhedral fixture") == NC_NOERR;
+		const int dLen = dim("len_string", 33), dLenName = dim("len_name", 33), dNodes = dim("num_nodes", 12), dTime = dim("time_step", NC_UNLIMITED);
+		const int dNodVar = dim("num_nod_var", 4), dDim = dim("num_dim", 3), dBlocks = dim("num_el_blk", 2), dFaceBlocks = dim("num_fa_blk", 2);
+		dim("num_elem", 2);
+		dim("num_faces", 6);
+		const int dEl1 = dim("num_el_in_blk1", 1), dFacPerEl1 = dim("num_fac_per_el1", 6);
+		const int dEl2 = dim("num_el_in_blk2", 1), dNpe2 = dim("num_nod_per_el2", 8);
+		const int dFa1 = dim("num_fa_in_blk1", 5), dNpf1 = dim("num_nod_per_fa1", 20);
+		const int dFa2 = dim("num_fa_in_blk2", 1), dNpf2 = dim("num_nod_per_fa2", 4);
+		const int vx = var("coordx", NC_DOUBLE, { dNodes }), vy = var("coordy", NC_DOUBLE, { dNodes }), vz = var("coordz", NC_DOUBLE, { dNodes });
+		const int vEbepecnt1 = var("ebepecnt1", NC_INT, { dEl1 }), vFacconn1 = var("facconn1", NC_INT, { dFacPerEl1 });
+		const int vConnect2 = var("connect2", NC_INT, { dEl2, dNpe2 });
+		const int vFbepecnt1 = var("fbepecnt1", NC_INT, { dFa1 }), vFbconn1 = var("fbconn1", NC_INT, { dNpf1 });
+		const int vFbconn2 = var("fbconn2", NC_INT, { dFa2, dNpf2 });
+		// (Exodus writes these strings with their terminating zero: the exodus library reads them as C strings.)
+		ok = ok && nc_put_att_text(ncid, vFacconn1, "elem_type", 7, "NFACED") == NC_NOERR && nc_put_att_text(ncid, vConnect2, "elem_type", 5, "HEX8") == NC_NOERR
+		     && nc_put_att_text(ncid, vFbconn1, "elem_type", 7, "NSIDED") == NC_NOERR && nc_put_att_text(ncid, vFbconn2, "elem_type", 6, "QUAD4") == NC_NOERR
+		     && nc_put_att_text(ncid, vEbepecnt1, "elem_type", 7, "NFACED") == NC_NOERR;
+		const int vTime = var("time_whole", NC_DOUBLE, { dTime });
+		const int vNodNames = var("name_nod_var", NC_CHAR, { dNodVar, dLen });
+		std::vector<int> nodVarIds;
+		for (int i = 1; i <= 4; ++i)
+			nodVarIds.push_back(var(QStringLiteral("vals_nod_var%1").arg(i).toLatin1().constData(), NC_DOUBLE, { dTime, dNodes }));
+		const int vCoorNames = var("coor_names", NC_CHAR, { dDim, dLenName });
+		const int vEbProp = var("eb_prop1", NC_INT, { dBlocks }), vEbStatus = var("eb_status", NC_INT, { dBlocks });
+		const int vFaProp = var("fa_prop1", NC_INT, { dFaceBlocks }), vFaStatus = var("fa_status", NC_INT, { dFaceBlocks });
+		ok = ok && nc_put_att_text(ncid, vEbProp, "name", 2, "ID") == NC_NOERR && nc_put_att_text(ncid, vFaProp, "name", 2, "ID") == NC_NOERR;
+		ok = ok && nc_enddef(ncid) == NC_NOERR;
+
+		const int ids12[2] = { 1, 2 };
+		char coorNames[3 * 33] = {};
+		std::snprintf(&coorNames[0], 33, "x");
+		std::snprintf(&coorNames[33], 33, "y");
+		std::snprintf(&coorNames[66], 33, "z");
+		ok = ok && nc_put_var_int(ncid, vEbProp, ids12) == NC_NOERR && nc_put_var_int(ncid, vEbStatus, ids12) == NC_NOERR
+		     && nc_put_var_int(ncid, vFaProp, ids12) == NC_NOERR && nc_put_var_int(ncid, vFaStatus, ids12) == NC_NOERR
+		     && nc_put_var_text(ncid, vCoorNames, coorNames) == NC_NOERR;
+
+		double coordX[12], coordY[12], coordZ[12];
+		for (int n = 0; n < 12; ++n)
+		{
+			coordX[n] = n % 3;
+			coordY[n] = (n / 3) % 2;
+			coordZ[n] = n / 6;
+		}
+		// the cube x = 0..1 (nodes 1 2 4 5 7 8 10 11): faces x = 0, x = 1, y = 0, y = 1, z = 0 (block 1) and z = 1 (block 2)
+		const int ebepecnt1[1] = { 6 };
+		int facconn1[6] = { 1, 2, 3, 4, 5, 6 };
+		if (badFaceId > 0)
+			facconn1[5] = badFaceId;
+		const int connect2[8] = { 2, 3, 6, 5, 8, 9, 12, 11 };
+		const int fbepecnt1[5] = { 4, 4, 4, 4, 4 };
+		const int fbconn1[20] = { 1, 4, 10, 7, 2, 8, 11, 5, 1, 2, 8, 7, 4, 10, 11, 5, 1, 4, 5, 2 };
+		const int fbconn2[4] = { 7, 8, 11, 10 };
+		const double time0[1] = { 0.0 };
+		const std::size_t startTime[1] = { 0 }, countTime[1] = { 1 };
+		ok = ok && nc_put_var_double(ncid, vx, coordX) == NC_NOERR && nc_put_var_double(ncid, vy, coordY) == NC_NOERR && nc_put_var_double(ncid, vz, coordZ) == NC_NOERR
+		     && nc_put_var_int(ncid, vEbepecnt1, ebepecnt1) == NC_NOERR && nc_put_var_int(ncid, vFacconn1, facconn1) == NC_NOERR
+		     && nc_put_var_int(ncid, vConnect2, connect2) == NC_NOERR && nc_put_var_int(ncid, vFbepecnt1, fbepecnt1) == NC_NOERR
+		     && nc_put_var_int(ncid, vFbconn1, fbconn1) == NC_NOERR && nc_put_var_int(ncid, vFbconn2, fbconn2) == NC_NOERR
+		     && nc_put_vara_double(ncid, vTime, startTime, countTime, time0) == NC_NOERR;
+
+		const char* names[4] = { "temperature", "vel_x", "vel_y", "vel_z" };
+		std::vector<char> nameBuffer(4 * 33, '\0');
+		for (std::size_t i = 0; i < 4; ++i)
+			std::snprintf(&nameBuffer[i * 33], 33, "%s", names[i]);
+		ok = ok && nc_put_var_text(ncid, vNodNames, nameBuffer.data()) == NC_NOERR;
+		const std::size_t start[2] = { 0, 0 }, count[2] = { 1, 12 };
+		for (int v = 0; v < 4; ++v)
+		{
+			double values[12];
+			for (int n = 0; n < 12; ++n)
+			{
+				switch (v)
+				{
+				case 0: values[n] = 300.0 + 20.0 * coordX[n]; break;
+				case 1: values[n] = 1.0; break;
+				case 2: values[n] = 0.1 * (coordY[n] - 0.5); break;
+				default: values[n] = 0.0; break;
+				}
+			}
+			ok = ok && nc_put_vara_double(ncid, nodVarIds[static_cast<std::size_t>(v)], start, count, values) == NC_NOERR;
+		}
+		return nc_close(ncid) == NC_NOERR && ok;
+	}
+
+	void testExodusPolyhedra()
+	{
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		const QString path = tmp.path() + QStringLiteral("/poly.exo");
+		CHECK(writeExodusPolyhedra(QFile::encodeName(path).constData()));
+		const ResultReadOutcome r = readResultFile(path);
+		if (!r.ok())
+			std::printf("  Exodus polyhedra failed: %s\n", qPrintable(r.error));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		CHECK(ds.cellCount() == 2 && ds.cellTypes[0] == ResultCellType::Polyhedron && ds.cellTypes[1] == ResultCellType::Hexahedron);
+		CHECK(ds.faceCount() == 6 && ds.polyhedronFaceCount(0) == 6 && ds.polyhedronFaceCount(1) == 0 && ds.faceNodes.size() == 24);
+		CHECK(ds.cellConnectivity.size() == 8 && ds.cellOffsets == std::vector<std::uint32_t>({ 0, 0, 8 }));
+		CHECK(ds.faceNodes[0] == 0 && ds.faceNodes[1] == 3 && ds.faceNodes[2] == 9 && ds.faceNodes[3] == 6); // face 1, nodes 1 4 10 7 (0-based here)
+		CHECK(ds.faceNodes[20] == 6 && ds.faceNodes[23] == 9);                                              // the fixed-size QUAD face of block 2 (7 8 11 10)
+		CHECK(ds.validate().isEmpty());
+		CHECK(extract(ds).triangleCount() == 20); // ten quads: the face between the cubes is interior
+		const int vel = fieldIndexOf(ds, QStringLiteral("vel"));
+		CHECK(vel >= 0 && ds.fields[static_cast<std::size_t>(vel)].components == 3 && fieldIndexOf(ds, QStringLiteral("temperature")) >= 0);
+		if (vel >= 0)
+		{
+			const CellLocator locator(ds);
+			CHECK(locator.volumeCellCount() == 2);
+			StreamlineSet run;
+			CHECK(traceStreamlines(ds, locator, ds.fields[static_cast<std::size_t>(vel)].stepData[0], nullptr, { 0.5f, 0.5f, 0.5f }, StreamlineOptions(), run) && run.lineCount() == 1);
+			if (run.lineCount() == 1)
+				CHECK(run.points[(run.pointCount() - 1) * 3] > 1.5f); // from the polyhedron on into the hexahedron
+		}
+		// a face id the file does not have is an error, not a crash
+		const QString bad = tmp.path() + QStringLiteral("/bad.exo");
+		CHECK(writeExodusPolyhedra(QFile::encodeName(bad).constData(), 9));
+		const ResultReadOutcome badOutcome = readResultFile(bad);
+		CHECK(!badOutcome.ok() && badOutcome.error.contains(QStringLiteral("references face 9")));
+	}
+
+#endif
+
 	void testExodus()
 	{
 #if MV_HAVE_NETCDF
@@ -4549,6 +4707,148 @@ namespace
 		}
 	}
 
+	// ---- Real files written by other tools (VTK's test data, see sample-models/Simulation/README.txt) -------------------------------
+
+	std::size_t countCells(const ResultDataset& ds, ResultCellType type)
+	{
+		return static_cast<std::size_t>(std::count(ds.cellTypes.begin(), ds.cellTypes.end(), type));
+	}
+
+	// Reads `name` from the real/ samples; false (and a note) when the file is not there or cannot be read. `mustRead` false = a file known to fail is only tried.
+	bool readRealSample(const char* name, ResultReadOutcome& out)
+	{
+		const QString path = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/real/") + QString::fromLatin1(name);
+		if (!QFile::exists(path))
+		{
+			std::printf("  (skipping %s: not found)\n", name);
+			return false;
+		}
+		out = readResultFile(path);
+		if (!out.ok())
+			std::printf("  %s failed: %s\n", name, qPrintable(out.error));
+		return out.ok();
+	}
+
+	void testRealSamples()
+	{
+		ResultReadOutcome r;
+		// ---- Exodus
+#if MV_HAVE_NETCDF
+		if (readRealSample("test-nfaced.exo", r))
+		{
+			const ResultDataset& ds = *r.dataset; // an NFACED block: one polyhedron - a triangular prism: two triangles and three quads
+			CHECK(ds.nodeCount() == 6 && ds.cellCount() == 1 && ds.cellTypes[0] == ResultCellType::Polyhedron && ds.polyhedronFaceCount(0) == 5);
+			CHECK(extract(ds).triangleCount() == 8);
+		}
+		if (readRealSample("different_topologies.ex2", r))
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.nodeCount() == 3662 && ds.cellCount() == 13000 && countCells(ds, ResultCellType::Tetra) == 12000 && countCells(ds, ResultCellType::Hexahedron) == 1000);
+			CHECK(fieldIndexOf(ds, QStringLiteral("DistanceToCenter")) >= 0 && fieldIndexOf(ds, QStringLiteral("Polynomial")) >= 0);
+			CHECK(extract(ds).triangleCount() == 2400);
+		}
+		if (readRealSample("block_with_attributes.g", r))
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.nodeCount() == 126 && countCells(ds, ResultCellType::Quad) == 80 && extract(ds).triangleCount() == 160);
+		}
+		if (readRealSample("Flow1D.e", r)) // a 1-D pipe network (EDGE2 elements): drawn as thin tubes, with its fields and 51 steps
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.cellCount() == 9 && countCells(ds, ResultCellType::Line) == 9 && ds.stepCount() == 51);
+			const ResultBoundarySurface tubes = extract(ds);
+			CHECK(tubes.triangleCount() == 9 * 12 && tubes.vertexCount() == 9 * 12 && tubes.skippedCells == 0); // a thin tube around each of the nine segments
+		}
+#endif
+		// ---- CGNS
+#if MV_HAVE_CGNS
+		std::size_t polyBoundary = 0;
+		if (readRealSample("Example_mixed.cgns", r))
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.nodeCount() == 28 && countCells(ds, ResultCellType::Hexahedron) == 7 && extract(ds).triangleCount() == 60);
+		}
+		if (readRealSample("Example_nface_n.cgns", r)) // the same mesh with its polyhedra given by NFACE_n
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.nodeCount() == 28 && countCells(ds, ResultCellType::Polyhedron) == 7);
+			polyBoundary = extract(ds).triangleCount();
+			CHECK(polyBoundary == 52);
+		}
+		if (readRealSample("Example_ngon_pe.cgns", r)) // ... and given only by the faces' ParentElements: the same result
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.nodeCount() == 28 && countCells(ds, ResultCellType::Polyhedron) == 7 && extract(ds).triangleCount() == 52);
+			CHECK(polyBoundary == 0 || extract(ds).triangleCount() == polyBoundary);
+		}
+		// (BoxWithFaceData.cgns has FaceCenter data that the CGNS 4.5.1 library refuses to open: tried, no result asserted)
+		{
+			ResultReadOutcome ignored;
+			readRealSample("BoxWithFaceData.cgns", ignored);
+		}
+#endif
+		// ---- VTKHDF
+#if MV_HAVE_HDF5
+		if (readRealSample("polyhedron.vtkhdf", r))
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.cellCount() == 1 && ds.cellTypes[0] == ResultCellType::Polyhedron && ds.nodeCount() == 26 && extract(ds).triangleCount() == 48);
+		}
+		if (readRealSample("hexahedron.vtkhdf", r))
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.cellCount() == 2 && countCells(ds, ResultCellType::Hexahedron) == 1 && extract(ds).triangleCount() == 24);
+		}
+		if (readRealSample("can-vtu.vtkhdf", r))
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.nodeCount() == 6724 && countCells(ds, ResultCellType::Hexahedron) == 4800 && extract(ds).triangleCount() == 7360);
+			const int accl = fieldIndexOf(ds, QStringLiteral("ACCL"));
+			CHECK(accl >= 0 && ds.fields[static_cast<std::size_t>(accl)].components == 3);
+		}
+#endif
+	}
+
+	// Line cells (beams, pipes) are drawn as thin tubes.
+	void testLineTubes()
+	{
+		ResultDataset ds;
+		ds.nodePositions = { 0, 0, 0, 1, 0, 0, 2, 0, 0, 2, 0, 0 };
+		ds.cellTypes = { ResultCellType::Line, ResultCellType::Line, ResultCellType::Line };
+		ds.cellOffsets = { 0, 2, 4, 6 };
+		ds.cellConnectivity = { 0, 1, 1, 2, 2, 3 }; // the third has zero length
+		CHECK(ds.validate().isEmpty());
+		const ResultBoundarySurface s = extract(ds);
+		CHECK(s.vertexCount() == 24 && s.triangleCount() == 24 && s.skippedCells == 1);
+		bool ring = true, owners = true, outward = true;
+		const double radius = 0.01 * 2.0; // one percent of the diagonal (2)
+		for (std::size_t v = 0; v < s.vertexCount(); ++v)
+		{
+			const double y = s.positions[v * 3 + 1], z = s.positions[v * 3 + 2];
+			ring = ring && std::fabs(std::sqrt(y * y + z * z) - radius) < 1e-6;
+			owners = owners && s.vertexNode[v] == (v / 6 == 0 ? 0u : (v / 6 == 1 ? 1u : (v / 6 == 2 ? 1u : 2u))); // ends of cell 0, then of cell 1
+		}
+		for (std::size_t t = 0; t < s.triangleCount(); ++t)
+		{
+			owners = owners && s.triangleCell[t] == t / 12 && s.triangleFace[t] == ResultBoundarySurface::kNoFace;
+			const float* a = &s.positions[s.triangles[t * 3] * 3];
+			const float* b = &s.positions[s.triangles[t * 3 + 1] * 3];
+			const float* c = &s.positions[s.triangles[t * 3 + 2] * 3];
+			const double n[3] = { (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]), (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]),
+			                      (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]) };
+			const double cy = (a[1] + b[1] + c[1]) / 3.0, cz = (a[2] + b[2] + c[2]) / 3.0; // the tube's axis is the x axis
+			outward = outward && n[1] * cy + n[2] * cz > 0.0;
+		}
+		CHECK(ring && owners && outward);
+		// with a shell cell alongside, both are drawn
+		ds.nodePositions.insert(ds.nodePositions.end(), { 0, 1, 0, 1, 1, 0, 1, 2, 0 });
+		ds.cellTypes.push_back(ResultCellType::Triangle);
+		ds.cellConnectivity.insert(ds.cellConnectivity.end(), { 4, 5, 6 });
+		ds.cellOffsets.push_back(9);
+		const ResultBoundarySurface mixed = extract(ds);
+		CHECK(mixed.triangleCount() == 24 + 1 && mixed.skippedCells == 1);
+	}
+
 	// ---- Cutting the volume: plane sections and iso-surfaces -----------------------------------------------------------------
 
 	// A row of `count` unit cubes along x as regular hexahedra: points (count + 1) x 2 x 2, index x + (count + 1) * (y + 2 * z).
@@ -5504,8 +5804,8 @@ namespace
 			return;
 		CHECK(!r.warnings.isEmpty()); // the unsupported polyhedron
 		const ResultBoundarySurface s = extract(*r.dataset);
-		CHECK(s.triangleCount() == 3); // 1 triangle + quad as 2
-		CHECK(s.skippedCells == 2);    // the line and the unsupported cell
+		CHECK(s.triangleCount() == 3 + 12); // 1 triangle + quad as 2, and the line as a tube of 12 triangles
+		CHECK(s.skippedCells == 1);         // the unsupported cell
 		for (std::size_t t = 0; t < s.triangleCount(); ++t)
 			CHECK(s.triangleFace[t] == ResultBoundarySurface::kNoFace);
 	}
@@ -5853,6 +6153,13 @@ static int inspectFiles(int argc, char** argv)
 int main(int argc, char** argv)
 {
 #if MV_HAVE_NETCDF
+	// result_tests --write-exodus-polyhedra-sample <file.exo>: writes the small Exodus file with a polyhedral (NFACED) block used to try the reader.
+	if (argc == 3 && std::strcmp(argv[1], "--write-exodus-polyhedra-sample") == 0)
+	{
+		const bool ok = writeExodusPolyhedra(argv[2]);
+		std::printf(ok ? "wrote %s\n" : "could not write %s\n", argv[2]);
+		return ok ? 0 : 1;
+	}
 	// result_tests --write-exodus-sample <file.exo>: writes the larger Exodus file used to try the reader in the application.
 	if (argc == 3 && std::strcmp(argv[1], "--write-exodus-sample") == 0)
 	{
@@ -5894,6 +6201,9 @@ int main(int argc, char** argv)
 	if (argc > 1)
 		return inspectFiles(argc, argv);
 
+	// The real files come first: the CGNS library keeps a process-wide file type that the fixture writers of the CGNS tests leave on HDF5, after which
+	// an older ADF file no longer opens in THIS process (the application never writes CGNS files, and opens both kinds in any order).
+	testRealSamples();
 	testSingleTetAscii();
 	testEncodingsMatchAscii();
 	testInformationKeyChildren();
@@ -5931,6 +6241,9 @@ int main(int argc, char** argv)
 	testOpenFoamSample();
 	testComparePanes();
 	testExodus();
+#if MV_HAVE_NETCDF
+	testExodusPolyhedra();
+#endif
 	testCgns();
 	testSnapshotWithoutSteps();
 	testFieldsStartingAfterStepZero();
@@ -5945,6 +6258,7 @@ int main(int argc, char** argv)
 	testMed();
 	testPolyhedra();
 	testLegacyPolyhedra();
+	testLineTubes();
 	testSlice();
 	testStreamlines();
 	testDeformedOverlays();

@@ -483,10 +483,75 @@ bool extractBoundarySurface(const ResultDataset& ds, ResultBoundarySurface& out,
 			emitTriangle(fn[0], fn[2], fn[3], bf.cell, bf.face);
 	}
 
+	// ---- Line cells (beams, pipes): a thin tube around each ----------------------------------------
+	double lineRadius = -1.0; // set on the first line: 1 % of the model's diagonal
+	auto emitTube = [&](std::size_t c) -> bool {
+		constexpr int kSides = 6;
+		const std::uint32_t* nodes = ds.cellConnectivity.data() + ds.cellOffsets[c];
+		const float* P = ds.nodePositions.data();
+		if (lineRadius < 0.0)
+		{
+			double lo[3] = { P[0], P[1], P[2] }, hi[3] = { P[0], P[1], P[2] };
+			for (std::size_t i = 3; i + 2 < ds.nodePositions.size(); i += 3)
+				for (int k = 0; k < 3; ++k)
+				{
+					lo[k] = std::min<double>(lo[k], P[i + k]);
+					hi[k] = std::max<double>(hi[k], P[i + k]);
+				}
+			const double diagonal = std::sqrt((hi[0] - lo[0]) * (hi[0] - lo[0]) + (hi[1] - lo[1]) * (hi[1] - lo[1]) + (hi[2] - lo[2]) * (hi[2] - lo[2]));
+			lineRadius = std::max(1.0e-9, 0.01 * diagonal);
+		}
+		double d[3], length = 0.0;
+		for (int k = 0; k < 3; ++k)
+		{
+			d[k] = static_cast<double>(P[nodes[1] * 3 + k]) - P[nodes[0] * 3 + k];
+			length += d[k] * d[k];
+		}
+		length = std::sqrt(length);
+		if (!(length > 0.0) || !std::isfinite(length))
+			return false;
+		for (double& v : d)
+			v /= length;
+		// two directions perpendicular to the line: (u, w, d) is right-handed, so the ring runs counter-clockwise about d and the triangles below point outward
+		const double helper[3] = { std::fabs(d[0]) < 0.9 ? 1.0 : 0.0, std::fabs(d[0]) < 0.9 ? 0.0 : 1.0, 0.0 };
+		double u[3] = { d[1] * helper[2] - d[2] * helper[1], d[2] * helper[0] - d[0] * helper[2], d[0] * helper[1] - d[1] * helper[0] };
+		const double un = std::sqrt(u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+		for (double& v : u)
+			v /= un;
+		const double w[3] = { d[1] * u[2] - d[2] * u[1], d[2] * u[0] - d[0] * u[2], d[0] * u[1] - d[1] * u[0] };
+		const std::uint32_t base = static_cast<std::uint32_t>(out.positions.size() / 3);
+		for (int end = 0; end < 2; ++end)
+			for (int s = 0; s < kSides; ++s)
+			{
+				const double angle = 6.28318530717958647692 * s / kSides, ca = std::cos(angle), sa = std::sin(angle);
+				for (int k = 0; k < 3; ++k)
+					out.positions.push_back(static_cast<float>(P[nodes[end] * 3 + k] + lineRadius * (ca * u[k] + sa * w[k])));
+				out.vertexNode.push_back(nodes[end]);
+			}
+		for (int s = 0; s < kSides; ++s)
+		{
+			const std::uint32_t a0 = base + s, a1 = base + (s + 1) % kSides, b0 = base + kSides + s, b1 = base + kSides + (s + 1) % kSides;
+			for (std::uint32_t v : { a0, a1, b0, a1, b1, b0 })
+				out.triangles.push_back(v);
+			for (int t = 0; t < 2; ++t)
+			{
+				out.triangleCell.push_back(static_cast<std::uint32_t>(c));
+				out.triangleFace.push_back(ResultBoundarySurface::kNoFace);
+			}
+		}
+		return true;
+	};
+
 	// ---- Surface (shell) cells are shown as they are -----------------------------------------------
 	for (std::size_t c = 0; c < cellCount; ++c)
 	{
 		const ResultCellType type = ds.cellTypes[c];
+		if (type == ResultCellType::Line)
+		{
+			if (!emitTube(c))
+				++out.skippedCells;
+			continue;
+		}
 		if (!resultCellIsSurface(type))
 		{
 			// Not drawn: a type that is neither volume nor surface, or a polyhedron whose faces the file did not give.
