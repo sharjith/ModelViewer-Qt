@@ -1223,6 +1223,19 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 				mesh->setMeshData(vertices, session.surface->triangles);
 				_viewportWidget->doneCurrent();
 			}
+			// The Clipping Plane gizmos are sized from the scene bounds, which do not follow the deformation: give them the deformed model's bounds.
+			QVector<float> bounds;
+			if (deformed && positions.size() >= 3)
+			{
+				bounds = { positions[0], positions[1], positions[2], positions[0], positions[1], positions[2] };
+				for (std::size_t i = 3; i + 2 < positions.size(); i += 3)
+					for (int k = 0; k < 3; ++k)
+					{
+						bounds[k] = std::min(bounds[k], positions[i + k]);
+						bounds[3 + k] = std::max(bounds[3 + k], positions[i + k]);
+					}
+			}
+			_viewportWidget->setSimulationGizmoBounds(session.meshUuid, bounds);
 			session.deformApplied = deformed;
 			session.deformAppliedStep = wantStep;
 			session.deformAppliedScale = wantScale;
@@ -1472,6 +1485,34 @@ static bool sessionHasVolumeCells(SimulationSession& session)
 	return session.volumeCells == 1;
 }
 
+// The node positions the cut faces, iso-surfaces and streamlines are made on: the deformed shape while the result is shown deformed (the same displacement, step and
+// scale as the mesh), else null - the dataset's own coordinates. `key` names the shape ("rest", or step and scale), so caches made on another shape can be told.
+static const std::vector<float>* overlayNodePositions(SimulationSession& session, QString& key)
+{
+	key = QStringLiteral("rest");
+	const SimulationViewState& state = session.state;
+	if (!state.deform || session.displacementField < 0 || !session.dataset || !session.surface)
+		return nullptr;
+	const int step = std::clamp(state.step, 0, std::max(0, static_cast<int>(session.dataset->stepCount()) - 1));
+	// A modal result is shown with each mode normalised to a tenth of the model size, times the user's factor.
+	const double scale = session.modal ? state.deformScale * modalDisplayFactor(*session.dataset, *session.surface, session.displacementField, step) : state.deformScale;
+	const QString wanted = QStringLiteral("d%1/%2").arg(step).arg(scale, 0, 'g', 9);
+	if (!session.deformedNodes || session.deformedKey != wanted)
+	{
+		auto nodes = std::make_shared<std::vector<float>>();
+		if (!buildDeformedNodePositions(*session.dataset, session.displacementField, step, scale, *nodes))
+		{
+			session.deformedNodes.reset(); // no displacement at this step: the mesh is at rest, so are the overlays
+			session.deformedKey.clear();
+			return nullptr;
+		}
+		session.deformedNodes = std::move(nodes);
+		session.deformedKey = wanted;
+	}
+	key = wanted;
+	return session.deformedNodes.get();
+}
+
 void ModelViewer::updateSimulationStreamlines(SimulationSession& session)
 {
 	session.streamInfo.clear();
@@ -1518,7 +1559,9 @@ void ModelViewer::updateSimulationStreamlines(SimulationSession& session)
 	// Seeds: random points of the volume (the same ones every time, so animation frames stay comparable), or on the cut of the Clipping Planes.
 	const QVector<ViewportWidget::ClippingCut> cuts = _viewportWidget->clippingCuts();
 	const std::size_t seedCount = static_cast<std::size_t>(std::clamp(state.streamSeeds, 1, 500));
-	QString key = QStringLiteral("%1/%2/%3/%4").arg(fieldIndex).arg(step).arg(seedCount).arg(state.streamOnPlane ? 1 : 0);
+	QString shapeKey;
+	const std::vector<float>* nodes = overlayNodePositions(session, shapeKey);
+	QString key = QStringLiteral("%1/%2/%3/%4/%5").arg(fieldIndex).arg(step).arg(seedCount).arg(state.streamOnPlane ? 1 : 0).arg(shapeKey);
 	if (state.streamOnPlane)
 	{
 		if (cuts.isEmpty())
@@ -1533,8 +1576,11 @@ void ModelViewer::updateSimulationStreamlines(SimulationSession& session)
 
 	if (!session.streamlineSet || session.streamlineKey != key)
 	{
-		if (!session.locator)
-			session.locator = std::make_shared<CellLocator>(dataset);
+		if (!session.locator || session.locatorKey != shapeKey)
+		{
+			session.locator = std::make_shared<CellLocator>(dataset, nullptr, nodes ? *nodes : std::vector<float>());
+			session.locatorKey = shapeKey;
+		}
 		if (session.locator->volumeCellCount() == 0)
 		{
 			_viewportWidget->clearSimulationStreamlines(session.meshUuid);
@@ -1548,16 +1594,17 @@ void ModelViewer::updateSimulationStreamlines(SimulationSession& session)
 			for (const ViewportWidget::ClippingCut& cut : cuts)
 			{
 				std::shared_ptr<SliceMesh> mesh;
-				for (const SimulationSession::SectionCut& old : session.sectionCuts)
-					if (old.axis == cut.axis && old.position == cut.position)
-						mesh = old.mesh;
+				if (session.sectionCutsKey == shapeKey)
+					for (const SimulationSession::SectionCut& old : session.sectionCuts)
+						if (old.axis == cut.axis && old.position == cut.position)
+							mesh = old.mesh;
 				if (!mesh)
 				{
 					double point[3] = { 0, 0, 0 }, normal[3] = { 0, 0, 0 };
 					point[cut.axis] = cut.position;
 					normal[cut.axis] = 1.0;
 					mesh = std::make_shared<SliceMesh>();
-					if (!cutVolume(dataset, planeDistances(dataset, point, normal), nullptr, *mesh))
+					if (!cutVolume(dataset, planeDistances(dataset, point, normal, nodes), nullptr, *mesh, nullptr, nodes))
 						continue;
 				}
 				const std::vector<float> points = randomPointsOnTriangles(mesh->positions, mesh->triangles, each, 7919u + static_cast<std::uint32_t>(cut.axis));
@@ -1644,8 +1691,6 @@ void ModelViewer::updateSimulationStreamlines(SimulationSession& session)
 	                         .arg(!likeSurface && !session.streamlineUnit.isEmpty() ? QStringLiteral(" ") + session.streamlineUnit : QString());
 	if (cuts.isEmpty())
 		session.streamInfo += QLatin1Char('\n') + tr("They lie inside the model: cut it with a Clipping Plane to see them.");
-	if (state.deform)
-		session.streamInfo += QLatin1Char('\n') + tr("Streamlines are drawn on the undeformed mesh.");
 	if (display.segmentCount() == 0)
 		_viewportWidget->clearSimulationStreamlines(session.meshUuid);
 	else
@@ -1694,6 +1739,13 @@ void ModelViewer::updateSimulationSlices(SimulationSession& session)
 		out[1] = static_cast<float>(c.greenF());
 		out[2] = static_cast<float>(c.blueF());
 	};
+	QString shapeKey;
+	const std::vector<float>* nodes = overlayNodePositions(session, shapeKey); // the deformed shape while the result is shown deformed
+	if (session.sectionCutsKey != shapeKey)
+	{
+		session.sectionCuts.clear(); // cut on another shape
+		session.sectionCutsKey = shapeKey;
+	}
 	const QVector<ViewportWidget::ClippingCut> cuts = _viewportWidget->clippingCuts();
 	// Several planes remove only what ALL of them remove (the app's multi-plane rule, see clipping_plane.frag's otherApply*): a plane's cut
 	// face is exposed only where every OTHER plane has removed the material, so keep the REMOVED side of the others.
@@ -1736,7 +1788,7 @@ void ModelViewer::updateSimulationSlices(SimulationSession& session)
 					point[cut.axis] = cut.position;
 					normal[cut.axis] = 1.0;
 					mesh = std::make_shared<SliceMesh>();
-					cutVolume(dataset, planeDistances(dataset, point, normal), nullptr, *mesh);
+					cutVolume(dataset, planeDistances(dataset, point, normal, nodes), nullptr, *mesh, nullptr, nodes);
 				}
 				kept.push_back({ cut.axis, cut.position, mesh });
 				if (mesh->triangleCount() == 0)
@@ -1772,8 +1824,6 @@ void ModelViewer::updateSimulationSlices(SimulationSession& session)
 					displays.push_back(std::move(display));
 			}
 			session.sectionCuts = std::move(kept);
-			if (state.deform)
-				info << tr("Cut faces are drawn on the undeformed mesh.");
 		}
 	}
 
@@ -1804,7 +1854,7 @@ void ModelViewer::updateSimulationSlices(SimulationSession& session)
 				for (std::size_t n = 0; n < distance.size(); ++n)
 					distance[n] = isoScalar.nodeValues[n] - level;
 				SliceMesh surface;
-				if (!cutVolume(dataset, distance, nullptr, surface) || surface.triangleCount() == 0)
+				if (!cutVolume(dataset, distance, nullptr, surface, nullptr, nodes) || surface.triangleCount() == 0)
 					continue;
 				std::vector<float> positions = std::move(surface.positions);
 				std::vector<std::uint32_t> triangles = std::move(surface.triangles), cells = std::move(surface.triangleCell);
@@ -1848,8 +1898,6 @@ void ModelViewer::updateSimulationSlices(SimulationSession& session)
 				info << tr("Iso-surfaces of %1: %2 level(s) from %3 to %4%5 - inside the model, so cut it with a Clipping Plane to see them.")
 				            .arg(isoScalar.label).arg(levels).arg(low, 0, 'g', 4).arg(high, 0, 'g', 4)
 				            .arg(isoScalar.unit.isEmpty() ? QString() : QStringLiteral(" ") + isoScalar.unit);
-			if (state.deform)
-				info << tr("Iso-surfaces are drawn on the undeformed mesh.");
 		}
 	}
 	session.sliceInfo = info.join(QLatin1Char('\n'));

@@ -4880,6 +4880,64 @@ namespace
 		}
 	}
 
+	// ---- Cutting and tracing the deformed shape --------------------------------------------------------------------------------
+
+	void testDeformedOverlays()
+	{
+		// a unit cube stretched to twice its height by a displacement field (z -> 2 z)
+		ResultDataset cube = hexRow(1);
+		cube.steps = { { 0.0, QString(), QString() } };
+		ResultField disp;
+		disp.name = QStringLiteral("Displacement");
+		disp.components = 3;
+		std::vector<float> d;
+		for (std::size_t n = 0; n < cube.nodeCount(); ++n)
+			d.insert(d.end(), { 0.0f, 0.0f, cube.nodePositions[n * 3 + 2] });
+		disp.stepData.push_back(d);
+		cube.fields.push_back(disp);
+
+		std::vector<float> deformed;
+		CHECK(buildDeformedNodePositions(cube, 0, 0, 1.0, deformed) && deformed.size() == cube.nodePositions.size());
+		bool doubled = deformed.size() == cube.nodePositions.size();
+		for (std::size_t n = 0; doubled && n < cube.nodeCount(); ++n)
+			doubled = deformed[n * 3] == cube.nodePositions[n * 3] && deformed[n * 3 + 1] == cube.nodePositions[n * 3 + 1]
+			          && std::fabs(deformed[n * 3 + 2] - 2.0f * cube.nodePositions[n * 3 + 2]) < 1e-6f;
+		CHECK(doubled);
+		std::vector<float> half;
+		CHECK(buildDeformedNodePositions(cube, 0, 0, 0.5, half) && std::fabs(half[2 + 3 * 4] - 1.5f) < 1e-6f); // a node at z = 1 moves to 1.5
+		CHECK(!buildDeformedNodePositions(cube, 0, 3, 1.0, half) && !buildDeformedNodePositions(cube, 5, 0, 1.0, half)); // no such step / field
+
+		// a section at height 1.5: through the stretched cube, not through the rest shape
+		const double point[3] = { 0, 0, 1.5 }, up[3] = { 0, 0, 1 };
+		SliceMesh atRest, stretched;
+		CHECK(cutVolume(cube, planeDistances(cube, point, up), nullptr, atRest) && atRest.triangleCount() == 0);
+		CHECK(cutVolume(cube, planeDistances(cube, point, up, &deformed), nullptr, stretched, nullptr, &deformed));
+		CHECK(stretched.triangleCount() > 0 && std::fabs(sliceArea(stretched) - 1.0) < 1e-5);
+		bool atHeight = true;
+		for (std::size_t v = 0; v < stretched.vertexCount(); ++v)
+			atHeight = atHeight && std::fabs(stretched.positions[v * 3 + 2] - 1.5f) < 1e-5f;
+		CHECK(atHeight);
+		// a positions override of the wrong size is ignored
+		const std::vector<float> wrong(5, 0.0f);
+		SliceMesh ignored;
+		CHECK(cutVolume(cube, planeDistances(cube, point, up, &wrong), nullptr, ignored, nullptr, &wrong) && ignored.triangleCount() == 0);
+
+		// the locator finds points of the stretched cube only, and a streamline runs up through it
+		const CellLocator restLocator(cube), stretchedLocator(cube, nullptr, deformed);
+		const std::vector<float> flow = nodeVectors(cube, [](double, double, double, double* v) { v[0] = 0; v[1] = 0; v[2] = 1; });
+		const double high[3] = { 0.5, 0.5, 1.5 };
+		int hint = -1;
+		double v[3], s = 0;
+		CHECK(!restLocator.interpolate(high, flow, nullptr, hint, v, s));
+		hint = -1;
+		CHECK(stretchedLocator.interpolate(high, flow, nullptr, hint, v, s) && std::fabs(stretchedLocator.diagonal() - std::sqrt(1.0 + 1.0 + 4.0)) < 1e-5);
+		StreamlineSet line;
+		CHECK(traceStreamlines(cube, stretchedLocator, flow, nullptr, { 0.5f, 0.5f, 1.0f }, StreamlineOptions(), line) && line.lineCount() == 1);
+		if (line.lineCount() == 1)
+			CHECK(line.points[2] < 0.3f && line.points[(line.pointCount() - 1) * 3 + 2] > 1.7f && line.points[(line.pointCount() - 1) * 3 + 2] <= 2.001f);
+		CHECK(restLocator.randomPoints(5, 1u).size() == 15 && stretchedLocator.randomPoints(20, 1u).size() == 60);
+	}
+
 	// ---- Snapshots of volume results: the frozen overlays, and the opt-in volume --------------------------------------------------
 
 	void testSnapshotVolumeAndOverlays()
@@ -5797,6 +5855,7 @@ int main(int argc, char** argv)
 	testPolyhedra();
 	testSlice();
 	testStreamlines();
+	testDeformedOverlays();
 	testSnapshotVolumeAndOverlays();
 	testLoadSimulationResult();
 	testShellAndSkippedCells();

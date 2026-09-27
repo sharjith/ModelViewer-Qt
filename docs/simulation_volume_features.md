@@ -5,7 +5,7 @@ Status: **implemented** (2026-09-26), branch `feature/simulation-results`. Compa
 
 All three features work on the **volume cells** of a result (tetrahedra, hexahedra, wedges, pyramids, their quadratic forms through the corner nodes,
 and polyhedra through their explicit faces). A shell or surface result has nothing to cut or trace; the panel says so. They are overlays, not scene meshes:
-no selection, scene tree, export or path tracing, and they are drawn on the undeformed mesh. They lie *inside* the model, so they are seen through a cut:
+no selection, scene tree, export or path tracing. While the deformed shape is on they are cut and traced on the deformed mesh (see section 3). They lie *inside* the model, so they are seen through a cut:
 switch on a Clipping Plane (the section cap is left open while iso-surfaces or streamlines are shown, because an opaque cap would hide them).
 
 ## 1. The volume cutter (`ResultSlice`)
@@ -38,7 +38,7 @@ counts as positive; the rule for an ambiguous face is the same for both cells th
 
 ## 3. Limits
 
-- Cuts and lines use the undeformed mesh.
+- **Deformed shape**: while "Show deformed shape" is on, the cutter, the plane distances and the locator run on the deformed node positions (`buildDeformedNodePositions`: rest + scale x displacement of the shown step, with the modal normalisation of a modal result - the very positions the mesh has), so the cut, the iso-surfaces and the streamlines follow the shape on screen. The cuts and the locator are rebuilt when the step, the scale or the displacement change; a plane that moves only re-cuts. A step without displacement data leaves the mesh, and so the overlays, at rest. The field values (colours, vectors) are not transformed.
 - Only axis-aligned Clipping Planes (not the box mode, not custom planes).
 - The locator keeps one bounding box per volume cell (24 bytes); tracing is synchronous, so a very large result retraces visibly on each step.
 - The overlays are recomputed on every refresh that changes them; nothing is stored between sessions except through the `.mvf` snapshot (below).

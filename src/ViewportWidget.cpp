@@ -3527,9 +3527,19 @@ void ViewportWidget::updatePlaneGizmos()
 	// purpose) - comfortably bigger than the model so it's easy to grab,
 	// without being absurdly oversized.
 	constexpr float kMargin = 1.3f;
-	const float xExtent = static_cast<float>(_viewCtrl.boundingBox().getXSize()) * kMargin;
-	const float yExtent = static_cast<float>(_viewCtrl.boundingBox().getYSize()) * kMargin;
-	const float zExtent = static_cast<float>(_viewCtrl.boundingBox().getZSize()) * kMargin;
+	float xExtent = static_cast<float>(_viewCtrl.boundingBox().getXSize()) * kMargin;
+	float yExtent = static_cast<float>(_viewCtrl.boundingBox().getYSize()) * kMargin;
+	float zExtent = static_cast<float>(_viewCtrl.boundingBox().getZSize()) * kMargin;
+	// A simulation result shown deformed is not in the scene bounds (they do not follow the deformation): cover it too, about the same centre.
+	for (auto it = _simulationGizmoBounds.cbegin(); it != _simulationGizmoBounds.cend(); ++it)
+	{
+		if (!getMeshByUuid(it.key()))
+			continue;
+		const QVector<float>& b = it.value();
+		xExtent = std::max(xExtent, 2.0f * kMargin * std::max(std::fabs(b[3] - sceneCenter.x()), std::fabs(b[0] - sceneCenter.x())));
+		yExtent = std::max(yExtent, 2.0f * kMargin * std::max(std::fabs(b[4] - sceneCenter.y()), std::fabs(b[1] - sceneCenter.y())));
+		zExtent = std::max(zExtent, 2.0f * kMargin * std::max(std::fabs(b[5] - sceneCenter.z()), std::fabs(b[2] - sceneCenter.z())));
+	}
 
 	const bool gizmoOn = _clippingPlanesEditor && _clippingPlanesEditor->isGizmoVisible();
 	_clipPlaneGizmoX->setVisible(gizmoOn && yzClippingEnabled());
@@ -3698,6 +3708,19 @@ void ViewportWidget::clearSimulationSlices(const QUuid& meshUuid)
 void ViewportWidget::setSimulationStreamlines(const QUuid& meshUuid, StreamlineDisplay lines)
 {
 	_simulationStreamlineController->setLines(meshUuid, std::move(lines));
+	update();
+}
+
+void ViewportWidget::setSimulationGizmoBounds(const QUuid& meshUuid, const QVector<float>& bounds)
+{
+	if (bounds.size() == 6)
+		_simulationGizmoBounds.insert(meshUuid, bounds);
+	else
+		_simulationGizmoBounds.remove(meshUuid);
+	// The gizmos re-upload their geometry at once, which needs a current context (the caller has usually released it): bracket like the other gizmo updates.
+	makeCurrent();
+	updatePlaneGizmos();
+	doneCurrent();
 	update();
 }
 

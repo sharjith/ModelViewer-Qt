@@ -37,9 +37,10 @@ struct SliceMesh
 
 // Cuts every volume cell of `dataset` where `distance` (one value per dataset node) changes sign. `nodeValues` (one per node, may be null) are
 // interpolated to the cut vertices. Vertices are shared between triangles (welded). False when `distance` does not have one value per node,
-// or on cancellation (`cancel`, polled every few thousand cells).
+// or on cancellation (`cancel`, polled every few thousand cells). `positions` (3 floats per node, may be null) replace the dataset's node coordinates:
+// the deformed shape.
 bool cutVolume(const ResultDataset& dataset, const std::vector<float>& distance, const std::vector<float>* nodeValues, SliceMesh& out,
-               const std::atomic<bool>* cancel = nullptr);
+               const std::atomic<bool>* cancel = nullptr, const std::vector<float>* positions = nullptr);
 
 // Sets `values` of every vertex from a per-node field (one value per dataset node): the value of the edge's nodes interpolated at the vertex.
 void interpolateSliceValues(SliceMesh& mesh, const std::vector<float>& nodeValues);
@@ -51,7 +52,8 @@ void clipTrianglesToHalfSpace(std::vector<float>& positions, std::vector<float>&
                               std::vector<std::uint32_t>& triangleCell, const double point[3], const double normal[3]);
 
 // The signed distance of every node from the plane through `point` with the (unit or not) `normal`: positive on the side the normal points to.
-std::vector<float> planeDistances(const ResultDataset& dataset, const double point[3], const double normal[3]);
+// `positions` (3 floats per node, may be null) replace the dataset's node coordinates: the deformed shape.
+std::vector<float> planeDistances(const ResultDataset& dataset, const double point[3], const double normal[3], const std::vector<float>* positions = nullptr);
 
 // Gives every triangle its own three vertices (positions and values copied), for a colouring that is constant per triangle (a cell field).
 void unweldSlice(SliceMesh& mesh);

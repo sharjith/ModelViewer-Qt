@@ -531,6 +531,30 @@ bool buildDeformedPositions(const ResultDataset& dataset, const ResultBoundarySu
 	return true;
 }
 
+bool buildDeformedNodePositions(const ResultDataset& dataset, int fieldIndex, int step, double scale, std::vector<float>& out)
+{
+	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size() || step < 0)
+		return false;
+	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
+	if (field.association != ResultFieldAssociation::Node || field.components != 3 || static_cast<std::size_t>(step) >= field.stepData.size())
+		return false;
+	const std::vector<float>& data = field.stepData[static_cast<std::size_t>(step)];
+	if (data.size() < dataset.nodeCount() * 3)
+		return false;
+	out = dataset.nodePositions;
+	const float k = static_cast<float>(scale);
+	for (std::size_t i = 0; i + 2 < out.size(); i += 3)
+	{
+		const float dx = data[i], dy = data[i + 1], dz = data[i + 2];
+		if (!std::isfinite(dx) || !std::isfinite(dy) || !std::isfinite(dz))
+			continue; // no value at this node: it does not move
+		out[i] += k * dx;
+		out[i + 1] += k * dy;
+		out[i + 2] += k * dz;
+	}
+	return true;
+}
+
 double maxDisplacementMagnitude(const ResultDataset& dataset, int fieldIndex)
 {
 	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size())

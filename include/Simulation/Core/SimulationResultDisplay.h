@@ -142,6 +142,10 @@ int findDisplacementField(const ResultDataset& dataset);
 bool buildDeformedPositions(const ResultDataset& dataset, const ResultBoundarySurface& surface, int fieldIndex, int step,
                             double scale, std::vector<float>& out);
 
+// The same for every dataset NODE (not just the surface's): dataset.nodePositions + scale * displacement(step), for cutting and tracing the deformed volume.
+// A node without a value does not move. False when the field/step has no data.
+bool buildDeformedNodePositions(const ResultDataset& dataset, int fieldIndex, int step, double scale, std::vector<float>& out);
+
 // The largest displacement magnitude over every step (file units); 0 when there is none.
 double maxDisplacementMagnitude(const ResultDataset& dataset, int fieldIndex);
 
@@ -185,13 +189,13 @@ struct SimulationViewState
 	int glyphCount = 800;             // about this many arrows
 	bool glyphScaleByMagnitude = true; // false = all arrows the same length
 	// Cutting the volume (see ResultSlice.h): the field drawn on the cut of the Clipping Planes (X / Y / Z, as the Clipping Planes editor sets them),
-	// and iso-surfaces of a node field. Both cut the undeformed mesh.
+	// and iso-surfaces of a node field. Both cut the mesh as it is shown (deformed when the deformed shape is on).
 	bool sectionFill = false;
 	bool iso = false;
 	int isoField = -1;   // a node field (a scalar, or a vector's magnitude); -1 = the shown field, if it is one
 	int isoLevels = 3;   // evenly spaced strictly inside the field's range at the shown step
 	// Streamlines (see ResultStreamlines.h): curves along a node vector field through the volume, seeded at random points of the volume or on the cut of the
-	// Clipping Planes. They follow the field of the shown step and use the undeformed mesh.
+	// Clipping Planes. They follow the field of the shown step and run through the mesh as it is shown (deformed when the deformed shape is on).
 	bool streamlines = false;
 	int streamField = -1;      // a 3-component node field; -1 = chosen automatically (chooseDefaultStreamlineField)
 	int streamSeeds = 50;      // this many seed points (a seed outside the mesh or where the field is zero gives no line)
@@ -265,6 +269,11 @@ struct SimulationSession
 		std::shared_ptr<SliceMesh> mesh;
 	};
 	std::vector<SectionCut> sectionCuts;
+	QString sectionCutsKey;   // the shape (see overlayNodePositions) the cached cuts were made on
+	// The deformed node positions the cuts and streamlines are made on while the result is shown deformed (see overlayNodePositions), and the shape the locator is for.
+	std::shared_ptr<std::vector<float>> deformedNodes;
+	QString deformedKey;
+	QString locatorKey;
 	int volumeCells = -1;   // 1 when the dataset has volume cells to cut, 0 when not, -1 = not checked yet
 	QString sliceInfo;      // what the panel shows about the cut faces and iso-surfaces (empty when they are off)
 	QString streamInfo;     // what the panel shows about the streamlines (empty when they are off)

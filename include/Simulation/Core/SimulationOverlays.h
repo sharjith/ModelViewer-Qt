@@ -18,7 +18,7 @@ struct SliceDisplay
 };
 
 // The streamlines of one result, ready to draw: line segments (already trimmed to what the Clipping Planes leave visible) between vertices with a baked colour.
-// Positions are in the dataset's own coordinates (the undeformed mesh), like the cut faces.
+// Positions are in the result mesh's frame, on the shape it is shown in (deformed or not), like the cut faces.
 struct StreamlineDisplay
 {
 	std::vector<float> positions;              // xyz per vertex

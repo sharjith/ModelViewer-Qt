@@ -18,21 +18,33 @@ namespace
 	};
 }
 
-std::vector<float> planeDistances(const ResultDataset& dataset, const double point[3], const double normal[3])
+namespace
 {
+	// The coordinates to use: the override when it has one point per node, else the dataset's own.
+	const std::vector<float>& coordinates(const ResultDataset& dataset, const std::vector<float>* positions)
+	{
+		return positions && positions->size() == dataset.nodePositions.size() ? *positions : dataset.nodePositions;
+	}
+}
+
+std::vector<float> planeDistances(const ResultDataset& dataset, const double point[3], const double normal[3], const std::vector<float>* positions)
+{
+	const std::vector<float>& P = coordinates(dataset, positions);
 	const std::size_t n = dataset.nodeCount();
 	std::vector<float> distance(n);
 	for (std::size_t i = 0; i < n; ++i)
 	{
-		const double x = dataset.nodePositions[i * 3] - point[0], y = dataset.nodePositions[i * 3 + 1] - point[1], z = dataset.nodePositions[i * 3 + 2] - point[2];
+		const double x = P[i * 3] - point[0], y = P[i * 3 + 1] - point[1], z = P[i * 3 + 2] - point[2];
 		distance[i] = static_cast<float>(x * normal[0] + y * normal[1] + z * normal[2]);
 	}
 	return distance;
 }
 
-bool cutVolume(const ResultDataset& ds, const std::vector<float>& distance, const std::vector<float>* nodeValues, SliceMesh& out, const std::atomic<bool>* cancel)
+bool cutVolume(const ResultDataset& ds, const std::vector<float>& distance, const std::vector<float>* nodeValues, SliceMesh& out, const std::atomic<bool>* cancel,
+               const std::vector<float>* positions)
 {
 	out = SliceMesh();
+	const std::vector<float>& P = coordinates(ds, positions);
 	if (distance.size() != ds.nodeCount() || (nodeValues && nodeValues->size() != ds.nodeCount()))
 		return false;
 	const float nan = std::numeric_limits<float>::quiet_NaN();
@@ -51,7 +63,7 @@ bool cutVolume(const ResultDataset& ds, const std::vector<float>& distance, cons
 		const double t = da / (da - db);
 		for (std::size_t k = 0; k < 3; ++k)
 		{
-			const double pa = ds.nodePositions[static_cast<std::size_t>(a) * 3 + k], pb = ds.nodePositions[static_cast<std::size_t>(b) * 3 + k];
+			const double pa = P[static_cast<std::size_t>(a) * 3 + k], pb = P[static_cast<std::size_t>(b) * 3 + k];
 			out.positions.push_back(static_cast<float>(pa + t * (pb - pa)));
 		}
 		if (nodeValues)
@@ -153,7 +165,7 @@ bool cutVolume(const ResultDataset& ds, const std::vector<float>& distance, cons
 				double* sum = distance[node] >= 0.0f ? positive : negative;
 				(distance[node] >= 0.0f ? nPositive : nNegative) += 1;
 				for (std::size_t k = 0; k < 3; ++k)
-					sum[k] += ds.nodePositions[static_cast<std::size_t>(node) * 3 + k];
+					sum[k] += P[static_cast<std::size_t>(node) * 3 + k];
 			}
 			for (std::size_t k = 0; k < 3; ++k)
 				reference[k] = positive[k] / static_cast<double>(nPositive) - negative[k] / static_cast<double>(nNegative);

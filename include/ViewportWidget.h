@@ -1513,6 +1513,9 @@ public:
 	// Streamlines of a simulation result's vector field: see SimulationStreamlineController.h. An empty display clears them.
 	void setSimulationStreamlines(const QUuid& meshUuid, StreamlineDisplay lines);
 	void clearSimulationStreamlines(const QUuid& meshUuid);
+	// The bounds (min xyz, max xyz) of a simulation result shown deformed. The Clipping Plane gizmos are sized from the scene bounds, which do not follow a mesh
+	// that is deformed; these widen them so they still cover the deformed model. An empty list clears them.
+	void setSimulationGizmoBounds(const QUuid& meshUuid, const QVector<float>& bounds);
 	// What is displayed for a result now (empty when nothing), for saving it in a snapshot.
 	std::vector<SliceDisplay> simulationSlices(const QUuid& meshUuid) const;
 	StreamlineDisplay simulationStreamlines(const QUuid& meshUuid) const;
@@ -2643,6 +2646,7 @@ private:
 	SimulationGlyphController* _simulationGlyphController = nullptr;
 	void drawSimulationGlyphs(Camera* camera);
 	SimulationSliceController* _simulationSliceController = nullptr;
+	QHash<QUuid, QVector<float>> _simulationGizmoBounds;
 	void drawSimulationSlices(Camera* camera);
 	SimulationStreamlineController* _simulationStreamlineController = nullptr;
 	void drawSimulationStreamlines(Camera* camera);

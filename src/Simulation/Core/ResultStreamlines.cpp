@@ -101,9 +101,11 @@ namespace
 	}
 }
 
-CellLocator::CellLocator(const ResultDataset& dataset, const std::atomic<bool>* cancel)
+CellLocator::CellLocator(const ResultDataset& dataset, const std::atomic<bool>* cancel, std::vector<float> positions)
 	: _ds(dataset)
+	, _positions(positions.size() == dataset.nodePositions.size() ? std::move(positions) : std::vector<float>())
 {
+	const std::vector<float>& P = coordinates();
 	std::vector<std::uint32_t> ringNodes;
 	std::vector<std::size_t> ringStart;
 	double lo[3] = { std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max() };
@@ -127,7 +129,7 @@ CellLocator::CellLocator(const ResultDataset& dataset, const std::atomic<bool>* 
 		for (std::uint32_t node : ringNodes)
 			for (int k = 0; k < 3; ++k)
 			{
-				const float v = _ds.nodePositions[static_cast<std::size_t>(node) * 3 + k];
+				const float v = P[static_cast<std::size_t>(node) * 3 + k];
 				finite = finite && std::isfinite(v);
 				box[k] = std::min(box[k], v);
 				box[3 + k] = std::max(box[3 + k], v);
@@ -238,7 +240,7 @@ bool CellLocator::evalCell(std::size_t index, const double p[3], const std::vect
 	auto nodeData = [&](std::uint32_t n, VertexData& out) {
 		for (int k = 0; k < 3; ++k)
 		{
-			out.x[k] = _ds.nodePositions[static_cast<std::size_t>(n) * 3 + k];
+			out.x[k] = coordinates()[static_cast<std::size_t>(n) * 3 + k];
 			out.v[k] = vectors[static_cast<std::size_t>(n) * 3 + k];
 		}
 		out.s = scalar ? (*scalar)[n] : 0.0;
@@ -360,7 +362,7 @@ std::vector<float> CellLocator::randomPoints(std::size_t count, std::uint32_t se
 		double p[3] = { 0, 0, 0 };
 		for (std::size_t i = 0; i < ringNodes.size(); ++i)
 			for (int k = 0; k < 3; ++k)
-				p[k] += weight[i] / total * _ds.nodePositions[static_cast<std::size_t>(ringNodes[i]) * 3 + k];
+				p[k] += weight[i] / total * coordinates()[static_cast<std::size_t>(ringNodes[i]) * 3 + k];
 		points.insert(points.end(), { static_cast<float>(p[0]), static_cast<float>(p[1]), static_cast<float>(p[2]) });
 	}
 	return points;

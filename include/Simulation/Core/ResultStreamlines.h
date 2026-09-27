@@ -23,7 +23,8 @@
 class CellLocator
 {
 public:
-	explicit CellLocator(const ResultDataset& dataset, const std::atomic<bool>* cancel = nullptr);
+	// `positions` (3 floats per node, may be empty) replace the dataset's node coordinates: the deformed shape. The locator keeps its own copy.
+	explicit CellLocator(const ResultDataset& dataset, const std::atomic<bool>* cancel = nullptr, std::vector<float> positions = std::vector<float>());
 
 	// How many volume cells the locator indexes (0: nothing to trace in - a shell or surface result).
 	std::size_t volumeCellCount() const { return _cells.size(); }
@@ -43,7 +44,10 @@ public:
 private:
 	bool evalCell(std::size_t cell, const double p[3], const std::vector<float>& vectors, const std::vector<float>* scalar, double vector[3], double& scalarValue) const;
 
+	const std::vector<float>& coordinates() const { return _positions.empty() ? _ds.nodePositions : _positions; }
+
 	const ResultDataset& _ds;
+	std::vector<float> _positions; // the deformed shape, or empty for the dataset's own
 	std::vector<std::uint32_t> _cells; // the indexed (volume) cells
 	std::vector<float> _boxes;         // 6 floats per indexed cell: min xyz, max xyz
 	double _origin[3] = { 0, 0, 0 };
