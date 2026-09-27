@@ -67,7 +67,8 @@ bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int compon
 bool computeStepRange(const ResultDataset& dataset, int fieldIndex, int component, int step, float& lo, float& hi);
 
 // The min/max of the field's values (in its display unit) over every step that has data for it. False when no
-// step has data. `cachedAllStepsRange()` does the same through the session's cache.
+// step has data. `cachedAllStepsRange()` does the same through the session's cache. For a lazily loaded result, where every step is a read, it looks at
+// up to eight evenly spaced steps (the first and the last among them): a range that another step exceeds only clamps its colours.
 bool computeAllStepsRange(const ResultDataset& dataset, int fieldIndex, int component, float& lo, float& hi);
 bool cachedAllStepsRange(SimulationSession& session, int fieldIndex, int component, float& lo, float& hi);
 // The same through a cache of the caller's (the arrows' field has its own, so it does not evict the colour range's).
@@ -188,6 +189,8 @@ struct SimulationViewState
 	double glyphScale = 1.0;          // 1 = the largest arrow is 5 % of the model diagonal
 	int glyphCount = 800;             // about this many arrows
 	bool glyphScaleByMagnitude = true; // false = all arrows the same length
+	// The radius of the tubes drawn around line cells (beams, pipes), as a fraction of the model's diagonal (only for results that have line cells).
+	double lineRadius = kDefaultLineRadius;
 	// Cutting the volume (see ResultSlice.h): the field drawn on the cut of the Clipping Planes (X / Y / Z, as the Clipping Planes editor sets them),
 	// and iso-surfaces of a node field. Both cut the mesh as it is shown (deformed when the deformed shape is on).
 	bool sectionFill = false;
@@ -200,6 +203,7 @@ struct SimulationViewState
 	int streamField = -1;      // a 3-component node field; -1 = chosen automatically (chooseDefaultStreamlineField)
 	int streamSeeds = 50;      // this many seed points (a seed outside the mesh or where the field is zero gives no line)
 	bool streamOnPlane = false; // seed on the Clipping Plane cut faces instead of through the whole volume
+	bool streamArrows = true;   // arrowheads along the lines, showing the direction of the flow
 };
 
 // Cache of the all-steps data range of one (field, component, units) so playback does not rescan every step on
@@ -287,6 +291,7 @@ struct SimulationSession
 	SimulationRangeCache streamRangeCache; // the all-steps range of the streamlines' field (its own, so it does not evict the arrows')
 	QString glyphInfo;             // what the panel shows about the arrows' colours (empty when they are off)
 	// What the mesh geometry currently shows, so a recolour does not re-upload the vertices.
+	double lineRadiusApplied = kDefaultLineRadius; // the radius the surface's line tubes have now (see applyLineRadius)
 	bool deformApplied = false;
 	int deformAppliedStep = 0;
 	double deformAppliedScale = 1.0;

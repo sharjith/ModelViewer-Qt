@@ -26,6 +26,12 @@ struct ResultBoundarySurface
 	// neighbours are NOT counted - they legitimately have no boundary face.)
 	std::size_t skippedCells = 0;
 
+	// The tubes drawn around line cells (see below): the vertices that belong to them, the unit direction of each from its node's axis, and the model's diagonal
+	// the radius is a fraction of. applyLineRadius() re-places the vertices when the radius changes.
+	std::vector<std::uint32_t> tubeVertices;
+	std::vector<float> tubeDirections; // 3 per entry of tubeVertices
+	double tubeDiagonal = 0.0;
+
 	static constexpr std::uint8_t kNoFace = 0xFF;
 
 	std::size_t vertexCount() const { return positions.size() / 3; }
@@ -41,6 +47,13 @@ struct ResultBoundarySurface
 //
 // Memory: faces are hashed in partitions so peak temporary memory stays bounded on very large meshes.
 //
+// The radius of the tubes around line cells, as a fraction of the model's diagonal, that extractBoundarySurface() starts with.
+constexpr double kDefaultLineRadius = 0.01;
+
+// Sets the radius of the line tubes of `surface` to `fraction` of the model's diagonal, moving their vertices (positions only: the triangles stay). Nothing to
+// do when the surface has no tubes.
+void applyLineRadius(const ResultDataset& dataset, ResultBoundarySurface& surface, double fraction);
+
 // Returns false (with `error` set, if given) on cancellation or an invalid dataset. Node data only in
 // this phase: vertices are shared, so cell-data display (which needs unshared vertices) is a later phase.
 // `facesPerPartition` is the target number of faces hashed per pass (default ~2M); tests lower it to force

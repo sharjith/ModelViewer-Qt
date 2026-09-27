@@ -18,3 +18,7 @@ double vonMisesStress(double xx, double yy, double zz, double xy, double yz, dou
 // and VTK's symmetric-tensor order). A node whose components are not finite gets NaN. Fields that already exist
 // by that name are not added again. Derived fields carry the source field's (empty until confirmed) unit.
 void addDerivedStressFields(ResultDataset& dataset);
+
+// Fills the derived stress fields of step `step` from their source tensors' data at that step (for a lazily loaded result, whose derived fields are defined
+// by addDerivedStressFields() without data and computed step by step as the steps are loaded). A step whose source has no data is left empty.
+void computeDerivedStressStep(ResultDataset& dataset, std::size_t step);

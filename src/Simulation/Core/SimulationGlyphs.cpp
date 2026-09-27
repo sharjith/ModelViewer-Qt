@@ -194,6 +194,7 @@ bool buildGlyphSet(const ResultDataset& dataset, const ResultBoundarySurface& su
 	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size() || step < 0)
 		return false;
 	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
+	dataset.ensureStepLoaded(static_cast<std::size_t>(step));
 	if (field.components != 3 || static_cast<std::size_t>(step) >= field.stepData.size() || field.stepData[static_cast<std::size_t>(step)].empty())
 		return false;
 	DisplayScalar magnitudes;

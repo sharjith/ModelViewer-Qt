@@ -169,6 +169,17 @@ namespace
 	}
 }
 
+void applyLineRadius(const ResultDataset& ds, ResultBoundarySurface& surface, double fraction)
+{
+	const double radius = std::max(1.0e-9, fraction * surface.tubeDiagonal);
+	for (std::size_t i = 0; i < surface.tubeVertices.size(); ++i)
+	{
+		const std::size_t v = surface.tubeVertices[i], node = surface.vertexNode[v];
+		for (int k = 0; k < 3; ++k)
+			surface.positions[v * 3 + k] = static_cast<float>(ds.nodePositions[node * 3 + k] + radius * surface.tubeDirections[i * 3 + k]);
+	}
+}
+
 bool extractBoundarySurface(const ResultDataset& ds, ResultBoundarySurface& out,
                             const std::atomic<bool>* cancel, QString* error, std::size_t facesPerPartition)
 {
@@ -499,7 +510,8 @@ bool extractBoundarySurface(const ResultDataset& ds, ResultBoundarySurface& out,
 					hi[k] = std::max<double>(hi[k], P[i + k]);
 				}
 			const double diagonal = std::sqrt((hi[0] - lo[0]) * (hi[0] - lo[0]) + (hi[1] - lo[1]) * (hi[1] - lo[1]) + (hi[2] - lo[2]) * (hi[2] - lo[2]));
-			lineRadius = std::max(1.0e-9, 0.01 * diagonal);
+			out.tubeDiagonal = diagonal;
+			lineRadius = std::max(1.0e-9, kDefaultLineRadius * diagonal);
 		}
 		double d[3], length = 0.0;
 		for (int k = 0; k < 3; ++k)
@@ -524,8 +536,13 @@ bool extractBoundarySurface(const ResultDataset& ds, ResultBoundarySurface& out,
 			for (int s = 0; s < kSides; ++s)
 			{
 				const double angle = 6.28318530717958647692 * s / kSides, ca = std::cos(angle), sa = std::sin(angle);
+				out.tubeVertices.push_back(static_cast<std::uint32_t>(out.positions.size() / 3));
 				for (int k = 0; k < 3; ++k)
-					out.positions.push_back(static_cast<float>(P[nodes[end] * 3 + k] + lineRadius * (ca * u[k] + sa * w[k])));
+				{
+					const double direction = ca * u[k] + sa * w[k];
+					out.tubeDirections.push_back(static_cast<float>(direction));
+					out.positions.push_back(static_cast<float>(P[nodes[end] * 3 + k] + lineRadius * direction));
+				}
 				out.vertexNode.push_back(nodes[end]);
 			}
 		for (int s = 0; s < kSides; ++s)

@@ -1,5 +1,7 @@
 #include "ResultDataset.h"
 
+#include <algorithm>
+
 int resultCellNodeCount(ResultCellType type)
 {
 	switch (type)
@@ -202,4 +204,47 @@ QString ResultDataset::validate() const
 		}
 	}
 	return QString();
+}
+
+namespace
+{
+	std::size_t g_lazyThresholdBytes = static_cast<std::size_t>(256) << 20; // 256 MB
+}
+
+std::size_t resultLazyThresholdBytes() { return g_lazyThresholdBytes; }
+void setResultLazyThresholdBytes(std::size_t bytes) { g_lazyThresholdBytes = bytes; }
+
+void ResultDataset::ensureStepLoaded(std::size_t step) const
+{
+	if (!lazy || step >= steps.size())
+		return;
+	std::lock_guard<std::mutex> lock(lazy->mutex);
+	// The data of a step is cached inside the fields although the dataset is used through const references: this is a cache, not a change of the result.
+	ResultDataset& self = const_cast<ResultDataset&>(*this);
+	const std::size_t limit = std::max<std::size_t>(2, lazy->maxResident);
+	// Frees the least recently used steps until `room` are left.
+	const auto trim = [&](std::size_t room) {
+		while (lazy->resident.size() > room)
+		{
+			const std::size_t oldest = lazy->resident.back();
+			lazy->resident.pop_back();
+			for (std::size_t f = 0; f < self.fields.size(); ++f)
+			{
+				ResultField& field = self.fields[f];
+				const bool managed = lazy->managed.empty() || (f < lazy->managed.size() && lazy->managed[f]);
+				if (managed && oldest < field.stepData.size())
+					std::vector<float>().swap(field.stepData[oldest]); // free, not just clear
+			}
+		}
+	};
+	const auto found = std::find(lazy->resident.begin(), lazy->resident.end(), step);
+	if (found != lazy->resident.end())
+	{
+		lazy->resident.splice(lazy->resident.begin(), lazy->resident, found); // the most recently used now
+		trim(limit);                                                          // (the limit may have been lowered since)
+		return;
+	}
+	trim(limit - 1); // room for this one
+	if (lazy->load && lazy->load(step, self))
+		lazy->resident.push_front(step);
 }

@@ -4840,6 +4840,22 @@ namespace
 			outward = outward && n[1] * cy + n[2] * cz > 0.0;
 		}
 		CHECK(ring && owners && outward);
+		// the radius can be changed afterwards: the vertices move on their rings, the triangles stay
+		CHECK(s.tubeVertices.size() == 24 && s.tubeDirections.size() == 72 && std::fabs(s.tubeDiagonal - 2.0) < 1e-9);
+		ResultBoundarySurface thick = s;
+		applyLineRadius(ds, thick, 0.05); // 5 % of the diagonal: 0.1
+		bool thickRing = thick.triangles == s.triangles && thick.vertexNode == s.vertexNode;
+		for (std::size_t v = 0; v < thick.vertexCount(); ++v)
+		{
+			const double y = thick.positions[v * 3 + 1], z = thick.positions[v * 3 + 2];
+			thickRing = thickRing && std::fabs(std::sqrt(y * y + z * z) - 0.1) < 1e-6 && thick.positions[v * 3] == s.positions[v * 3];
+		}
+		CHECK(thickRing);
+		applyLineRadius(ds, thick, kDefaultLineRadius);
+		bool backAtStart = thick.positions.size() == s.positions.size();
+		for (std::size_t i = 0; backAtStart && i < s.positions.size(); ++i)
+			backAtStart = std::fabs(thick.positions[i] - s.positions[i]) < 1e-6f; // (the stored directions are floats)
+		CHECK(backAtStart);
 		// with a shell cell alongside, both are drawn
 		ds.nodePositions.insert(ds.nodePositions.end(), { 0, 1, 0, 1, 1, 0, 1, 2, 0 });
 		ds.cellTypes.push_back(ResultCellType::Triangle);
@@ -5271,6 +5287,180 @@ namespace
 		}
 	}
 
+	// ---- Lazy loading of time steps ----------------------------------------------------------------------------------------------
+
+	// True when every step of every field of `lazy` (loaded on demand) equals the eagerly read `eager`, and both have the same fields.
+	bool sameStepData(const ResultDataset& eager, const ResultDataset& lazy)
+	{
+		if (eager.fields.size() != lazy.fields.size() || eager.stepCount() != lazy.stepCount())
+			return false;
+		for (std::size_t s = 0; s < lazy.stepCount(); ++s)
+		{
+			lazy.ensureStepLoaded(s);
+			for (std::size_t f = 0; f < lazy.fields.size(); ++f)
+			{
+				if (eager.fields[f].name != lazy.fields[f].name || eager.fields[f].association != lazy.fields[f].association || lazy.fields[f].stepData.size() != lazy.stepCount())
+					return false;
+				if (eager.fields[f].stepData[s] != lazy.fields[f].stepData[s])
+					return false;
+			}
+		}
+		return true;
+	}
+
+	void testLazySteps()
+	{
+		struct ThresholdGuard
+		{
+			std::size_t old = resultLazyThresholdBytes();
+			~ThresholdGuard() { setResultLazyThresholdBytes(old); }
+		} guard;
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		const std::size_t never = static_cast<std::size_t>(1) << 40, always = 0;
+
+		// the bookkeeping itself, without a file: a loader that fills one field; the last three steps stay in memory
+		{
+			ResultDataset ds = hexRow(1);
+			ds.steps = { { 0.0, QString(), QString() }, { 1.0, QString(), QString() }, { 2.0, QString(), QString() }, { 3.0, QString(), QString() } };
+			ResultField f;
+			f.name = QStringLiteral("F");
+			f.components = 1;
+			f.stepData.assign(4, std::vector<float>());
+			ds.fields.push_back(f);
+			ds.lazy = std::make_shared<LazySteps>();
+			ds.lazy->maxResident = 3;
+			int loads = 0;
+			ds.lazy->load = [&loads](std::size_t step, ResultDataset& d) {
+				++loads;
+				d.fields[0].stepData[step].assign(d.nodeCount(), static_cast<float>(step));
+				return true;
+			};
+			CHECK(ds.isLazy() && ds.validate().isEmpty()); // steps without data are fine
+			ds.ensureStepLoaded(0);
+			ds.ensureStepLoaded(1);
+			ds.ensureStepLoaded(2);
+			CHECK(loads == 3 && ds.fields[0].stepData[0].size() == 8 && ds.fields[0].stepData[2][3] == 2.0f);
+			ds.ensureStepLoaded(1); // resident: no load, and now the most recently used
+			CHECK(loads == 3);
+			ds.ensureStepLoaded(3); // over the limit: the least recently used (0) goes
+			CHECK(loads == 4 && ds.fields[0].stepData[0].empty() && !ds.fields[0].stepData[1].empty() && !ds.fields[0].stepData[2].empty() && !ds.fields[0].stepData[3].empty());
+			ds.ensureStepLoaded(0); // back again: loaded anew, and 2 (now the oldest) goes
+			CHECK(loads == 5 && ds.fields[0].stepData[0].size() == 8 && ds.fields[0].stepData[2].empty());
+			ds.ensureStepLoaded(99); // out of range: nothing
+			CHECK(loads == 5);
+			// a field that is not managed keeps its data
+			ResultField kept;
+			kept.name = QStringLiteral("K");
+			kept.components = 1;
+			kept.stepData.assign(4, std::vector<float>(8, 7.0f));
+			ds.fields.push_back(kept);
+			ds.lazy->managed = { true, false };
+			ds.ensureStepLoaded(2);
+			ds.ensureStepLoaded(3);
+			CHECK(ds.fields[1].stepData[0].size() == 8 && ds.fields[1].stepData[1].size() == 8);
+		}
+
+#if MV_HAVE_NETCDF
+		for (int variant = 0; variant < 2; ++variant)
+		{
+			const bool netcdf4 = variant == 1, withStress = variant == 1;
+			const QString path = tmp.path() + QStringLiteral("/lazy%1.exo").arg(variant);
+			CHECK(writeExodusFixture(path, netcdf4, withStress));
+			setResultLazyThresholdBytes(never);
+			const ResultReadOutcome eager = readResultFile(path);
+			setResultLazyThresholdBytes(always);
+			const ResultReadOutcome lazy = readResultFile(path);
+			CHECK(eager.ok() && lazy.ok());
+			if (!eager.ok() || !lazy.ok())
+				continue;
+			CHECK(!eager.dataset->isLazy() && lazy.dataset->isLazy());
+			CHECK(lazy.dataset->fields.size() == eager.dataset->fields.size() && !lazy.dataset->fields.empty());
+			// nothing is in memory until asked for
+			bool empty = true;
+			for (const ResultField& f : lazy.dataset->fields)
+				for (const std::vector<float>& step : f.stepData)
+					empty = empty && step.empty();
+			CHECK(empty);
+			CHECK(lazy.dataset->validate().isEmpty());
+			CHECK(sameStepData(*eager.dataset, *lazy.dataset)); // every field, every step - derived stress fields included
+			// least recently used out first: with room for two steps, asking for the third drops the first
+			lazy.dataset->lazy->maxResident = 2;
+			lazy.dataset->ensureStepLoaded(0);
+			lazy.dataset->ensureStepLoaded(1);
+			lazy.dataset->ensureStepLoaded(2);
+			bool firstGone = true, lastThere = true;
+			for (const ResultField& f : lazy.dataset->fields)
+			{
+				firstGone = firstGone && f.stepData[0].empty();
+				lastThere = lastThere && !f.stepData[2].empty();
+			}
+			CHECK(firstGone && lastThere);
+			CHECK(sameStepData(*eager.dataset, *lazy.dataset)); // and everything comes back
+			// what the display code reads goes through the loader
+			DisplayScalar a, b;
+			const int temperature = fieldIndexOf(*eager.dataset, QStringLiteral("temperature"));
+			CHECK(temperature >= 0);
+			if (temperature >= 0)
+			{
+				lazy.dataset->ensureStepLoaded(0);
+				lazy.dataset->ensureStepLoaded(1);
+				CHECK(buildDisplayScalar(*eager.dataset, temperature, -1, a, 2) && buildDisplayScalar(*lazy.dataset, temperature, -1, b, 2) && a.nodeValues == b.nodeValues);
+				float lo1, hi1, lo2, hi2;
+				CHECK(computeAllStepsRange(*eager.dataset, temperature, -1, lo1, hi1) && computeAllStepsRange(*lazy.dataset, temperature, -1, lo2, hi2) && lo1 == lo2 && hi1 == hi2);
+			}
+		}
+		// the larger sample (five steps) reads lazily too
+		{
+			const QString path = tmp.path() + QStringLiteral("/one.exo");
+			CHECK(writeExodusBlockSample(QFile::encodeName(path).constData(), 2));
+			setResultLazyThresholdBytes(always);
+			const ResultReadOutcome r = readResultFile(path);
+			CHECK(r.ok() && r.dataset->isLazy());
+		}
+#endif
+
+#if MV_HAVE_HDF5
+		{
+			const QString temporal = tmp.path() + QStringLiteral("/lazy_temporal.vtkhdf");
+			CHECK(writeVtkHdfUnstructured(QFile::encodeName(temporal).constData(), 2));
+			setResultLazyThresholdBytes(never);
+			const ResultReadOutcome eager = readResultFile(temporal);
+			setResultLazyThresholdBytes(always);
+			const ResultReadOutcome lazy = readResultFile(temporal);
+			CHECK(eager.ok() && lazy.ok());
+			if (eager.ok() && lazy.ok())
+			{
+				CHECK(!eager.dataset->isLazy() && lazy.dataset->isLazy() && lazy.dataset->validate().isEmpty());
+				CHECK(sameStepData(*eager.dataset, *lazy.dataset));
+				lazy.dataset->lazy->maxResident = 2;
+				CHECK(sameStepData(*eager.dataset, *lazy.dataset)); // through the eviction as well
+			}
+			// a moving mesh: the displacement made from the moving points is not loaded step by step, it stays
+			const QString moving = tmp.path() + QStringLiteral("/lazy_moving.vtkhdf");
+			CHECK(writeVtkHdfUnstructured(QFile::encodeName(moving).constData(), 3));
+			const ResultReadOutcome lazyMoving = readResultFile(moving);
+			CHECK(lazyMoving.ok());
+			if (lazyMoving.ok())
+			{
+				const ResultDataset& ds = *lazyMoving.dataset;
+				const int displacement = fieldIndexOf(ds, QStringLiteral("Mesh displacement"));
+				CHECK(displacement >= 0);
+				if (displacement >= 0 && ds.isLazy())
+				{
+					ds.lazy->maxResident = 2;
+					for (std::size_t s = 0; s < ds.stepCount(); ++s)
+						ds.ensureStepLoaded(s);
+					for (const std::vector<float>& step : ds.fields[static_cast<std::size_t>(displacement)].stepData)
+						CHECK(!step.empty());
+				}
+			}
+		}
+#endif
+	}
+
 	// ---- Cutting and tracing the deformed shape --------------------------------------------------------------------------------
 
 	void testDeformedOverlays()
@@ -5372,6 +5562,10 @@ namespace
 		overlays.streamlines.positions = { 0, 0, 0, 1, 0, 0, 2, 0, 0 };
 		overlays.streamlines.colors = { 1, 1, 1, 0.5f, 0.5f, 0.5f, 0, 0, 0 };
 		overlays.streamlines.segments = { 0, 1, 1, 2 };
+		overlays.streamlines.arrowPositions = { 0.5f, 0, 0, 1.5f, 0, 0 };
+		overlays.streamlines.arrowDirections = { 1, 0, 0, 1, 0, 0 };
+		overlays.streamlines.arrowColors = { 1, 1, 1, 0, 0, 0 };
+		overlays.streamlines.arrowLength = 0.2f;
 		overlays.cuts.push_back({ 2, 1.0, true });
 
 		// ---- surface only (the default): the overlays come back as they were, the dataset is the surface stand-in
@@ -5389,6 +5583,8 @@ namespace
 			CHECK(dec.overlays.slices[0].positions == iso.positions && dec.overlays.slices[0].colors == iso.colors && dec.overlays.slices[0].triangles == iso.triangles);
 			CHECK(dec.overlays.streamlines.positions == overlays.streamlines.positions && dec.overlays.streamlines.colors == overlays.streamlines.colors
 			      && dec.overlays.streamlines.segments == overlays.streamlines.segments);
+			CHECK(dec.overlays.streamlines.arrowPositions == overlays.streamlines.arrowPositions && dec.overlays.streamlines.arrowDirections == overlays.streamlines.arrowDirections
+			      && dec.overlays.streamlines.arrowColors == overlays.streamlines.arrowColors && dec.overlays.streamlines.arrowLength == 0.2f && dec.overlays.streamlines.arrowCount() == 2);
 			CHECK(dec.overlays.cuts.size() == 1 && dec.overlays.cuts[0].axis == 2 && dec.overlays.cuts[0].position == 1.0 && dec.overlays.cuts[0].keepPositive);
 			CHECK(dec.state.sectionFill && dec.state.streamlines && dec.state.streamSeeds == 20);
 			// without overlays nothing is stored for them
@@ -6161,9 +6357,9 @@ int main(int argc, char** argv)
 		return ok ? 0 : 1;
 	}
 	// result_tests --write-exodus-sample <file.exo>: writes the larger Exodus file used to try the reader in the application.
-	if (argc == 3 && std::strcmp(argv[1], "--write-exodus-sample") == 0)
+	if ((argc == 3 || argc == 4) && std::strcmp(argv[1], "--write-exodus-sample") == 0)
 	{
-		const bool ok = writeExodusBlockSample(argv[2]);
+		const bool ok = writeExodusBlockSample(argv[2], argc == 4 ? std::atoi(argv[3]) : 8); // an optional block size n (n^3 elements)
 		std::printf(ok ? "wrote %s\n" : "could not write %s\n", argv[2]);
 		return ok ? 0 : 1;
 	}
@@ -6193,9 +6389,38 @@ int main(int argc, char** argv)
 		return ok ? 0 : 1;
 	}
 #endif
+	// result_tests --bench-streamlines <n> <seeds>: times the cell locator, the streamline tracing and a plane cut on a synthetic n x n x n hexahedron block
+	// with a rotating flow, to see whether they are fast enough to redo on every time step.
+	if (argc == 4 && std::strcmp(argv[1], "--bench-streamlines") == 0)
+	{
+		const int n = std::atoi(argv[2]);
+		const std::size_t seedCount = static_cast<std::size_t>(std::atoi(argv[3]));
+		auto start = std::chrono::steady_clock::now();
+		const ResultDataset grid = hexGrid(n, n, n);
+		std::printf("block %d^3: %zu cells, %zu nodes (built in %.2f s)\n", n, grid.cellCount(), grid.nodeCount(), secondsSince(start));
+		const double c = 0.5 * n;
+		const std::vector<float> spin = nodeVectors(grid, [c](double x, double y, double z, double* v) { v[0] = -(y - c); v[1] = x - c; v[2] = 0.05 * (z - c); });
+		start = std::chrono::steady_clock::now();
+		const CellLocator locator(grid);
+		std::printf("locator: %.3f s\n", secondsSince(start));
+		const std::vector<float> seeds = locator.randomPoints(seedCount, 1u);
+		start = std::chrono::steady_clock::now();
+		StreamlineSet lines;
+		traceStreamlines(grid, locator, spin, nullptr, seeds, StreamlineOptions(), lines);
+		std::printf("trace: %zu seeds -> %zu lines, %zu points in %.3f s\n", seedCount, lines.lineCount(), lines.pointCount(), secondsSince(start));
+		start = std::chrono::steady_clock::now();
+		const double point[3] = { c, c, c }, up[3] = { 0, 0, 1 };
+		SliceMesh cut;
+		cutVolume(grid, planeDistances(grid, point, up), nullptr, cut);
+		std::printf("plane cut: %zu triangles in %.3f s\n", cut.triangleCount(), secondsSince(start));
+		return 0;
+	}
 	// result_tests --bench <n> <steps>: times opening and showing a synthetic n x n x n hexahedron block; --time <file>...: the same for real files.
 	if (argc == 4 && std::strcmp(argv[1], "--bench") == 0)
 		return benchSynthetic(std::atoi(argv[2]), std::atoi(argv[3]));
+	// MV_LAZY_MB=<megabytes> sets the size above which a result is read lazily (0 = always) for --time and the inspect mode.
+	if (const char* lazyMb = std::getenv("MV_LAZY_MB"))
+		setResultLazyThresholdBytes(static_cast<std::size_t>(std::atoll(lazyMb)) << 20);
 	if (argc >= 3 && std::strcmp(argv[1], "--time") == 0)
 		return benchFiles(argc, argv);
 	if (argc > 1)
@@ -6261,6 +6486,7 @@ int main(int argc, char** argv)
 	testLineTubes();
 	testSlice();
 	testStreamlines();
+	testLazySteps();
 	testDeformedOverlays();
 	testSnapshotVolumeAndOverlays();
 	testLoadSimulationResult();

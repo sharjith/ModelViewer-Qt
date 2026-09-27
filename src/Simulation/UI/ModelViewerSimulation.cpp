@@ -1193,12 +1193,20 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 	// shown geometry actually changes (a recolour alone leaves them alone). Done before colouring because the
 	// re-upload rebuilds the mesh buffers; the overlay colours are applied again below.
 	{
+		// The tubes of line cells change their radius by moving vertices in the surface: the geometry is then uploaded again.
+		bool lineRadiusChanged = false;
+		if (!session.surface->tubeVertices.empty() && std::fabs(session.lineRadiusApplied - session.state.lineRadius) > 1.0e-9)
+		{
+			applyLineRadius(*session.dataset, *session.surface, session.state.lineRadius);
+			session.lineRadiusApplied = session.state.lineRadius;
+			lineRadiusChanged = true;
+		}
 		const bool wantDeform = session.state.deform && session.displacementField >= 0;
 		const int wantStep = wantDeform ? session.state.step : 0;
 		const double wantScale = wantDeform ? session.state.deformScale : 1.0; // the user's factor; see effectiveScale
-		const bool changed = wantDeform
+		const bool changed = lineRadiusChanged || (wantDeform
 			? (!session.deformApplied || session.deformAppliedStep != wantStep || session.deformAppliedScale != wantScale)
-			: session.deformApplied;
+			: session.deformApplied);
 		if (changed)
 		{
 			std::vector<float> positions;
@@ -1549,6 +1557,7 @@ void ModelViewer::updateSimulationStreamlines(SimulationSession& session)
 	}
 	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
 	const int step = std::clamp(state.step, 0, std::max(0, static_cast<int>(dataset.stepCount()) - 1));
+	dataset.ensureStepLoaded(static_cast<std::size_t>(step));
 	if (static_cast<std::size_t>(step) >= field.stepData.size() || field.stepData[static_cast<std::size_t>(step)].size() != dataset.nodeCount() * 3)
 	{
 		_viewportWidget->clearSimulationStreamlines(session.meshUuid);
@@ -1666,24 +1675,64 @@ void ModelViewer::updateSimulationStreamlines(SimulationSession& session)
 		display.colors[v * 3 + 2] = static_cast<float>(c.blueF());
 	}
 	// A segment is seen where some Clipping Plane still keeps the material (the app removes only what ALL planes remove), judged at its middle.
-	auto visible = [&](std::uint32_t a, std::uint32_t b) {
+	auto visibleAt = [&](const double at[3]) {
 		if (cuts.isEmpty())
 			return true;
 		for (const ViewportWidget::ClippingCut& cut : cuts)
-		{
-			const double mid = 0.5 * (static_cast<double>(set.points[static_cast<std::size_t>(a) * 3 + cut.axis]) + set.points[static_cast<std::size_t>(b) * 3 + cut.axis]);
-			if (cut.keepPositive ? mid >= cut.position : mid <= cut.position)
+			if (cut.keepPositive ? at[cut.axis] >= cut.position : at[cut.axis] <= cut.position)
 				return true;
-		}
 		return false;
 	};
+	auto visible = [&](std::uint32_t a, std::uint32_t b) {
+		double mid[3];
+		for (int k = 0; k < 3; ++k)
+			mid[k] = 0.5 * (static_cast<double>(set.points[static_cast<std::size_t>(a) * 3 + k]) + set.points[static_cast<std::size_t>(b) * 3 + k]);
+		return visibleAt(mid);
+	};
+	// Arrowheads: one every so often along each line (in the direction the points run, which is the flow's), a few at most, at least one on a line long enough.
+	if (session.surfaceDiagonal < 0.0)
+		session.surfaceDiagonal = surfaceDiagonal(*session.surface);
+	const double diagonal = session.surfaceDiagonal > 0.0 ? session.surfaceDiagonal : 1.0;
+	const double headLength = 0.025 * diagonal, spacing = 0.12 * diagonal;
+	display.arrowLength = static_cast<float>(headLength);
 	for (std::size_t l = 0; l < set.lineCount(); ++l)
+	{
+		double travelled = 0.0, nextAt = 0.5 * spacing;
+		int placed = 0;
 		for (std::uint32_t p = set.lineOffsets[l]; p + 1 < set.lineOffsets[l + 1]; ++p)
+		{
 			if (visible(p, p + 1))
 			{
 				display.segments.push_back(p);
 				display.segments.push_back(p + 1);
 			}
+			double d[3], length = 0.0;
+			for (int k = 0; k < 3; ++k)
+			{
+				d[k] = static_cast<double>(set.points[static_cast<std::size_t>(p + 1) * 3 + k]) - set.points[static_cast<std::size_t>(p) * 3 + k];
+				length += d[k] * d[k];
+			}
+			length = std::sqrt(length);
+			if (!state.streamArrows || !(length > 0.0))
+				continue;
+			travelled += length;
+			if (travelled >= nextAt && placed < 6)
+			{
+				const double middle[3] = { 0.5 * (static_cast<double>(set.points[static_cast<std::size_t>(p) * 3]) + set.points[static_cast<std::size_t>(p + 1) * 3]),
+				                           0.5 * (static_cast<double>(set.points[static_cast<std::size_t>(p) * 3 + 1]) + set.points[static_cast<std::size_t>(p + 1) * 3 + 1]),
+				                           0.5 * (static_cast<double>(set.points[static_cast<std::size_t>(p) * 3 + 2]) + set.points[static_cast<std::size_t>(p + 1) * 3 + 2]) };
+				if (visibleAt(middle))
+					for (int k = 0; k < 3; ++k)
+					{
+						display.arrowPositions.push_back(static_cast<float>(middle[k]));
+						display.arrowDirections.push_back(static_cast<float>(d[k] / length));
+						display.arrowColors.push_back(display.colors[static_cast<std::size_t>(p) * 3 + k]);
+					}
+				++placed;
+				nextAt += spacing;
+			}
+		}
+	}
 
 	session.streamInfo = tr("Streamlines of %1: %2 line(s), coloured by magnitude%3%4.")
 	                         .arg(field.name).arg(set.lineCount())

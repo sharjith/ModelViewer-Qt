@@ -39,9 +39,82 @@ double vonMisesStress(double xx, double yy, double zz, double xy, double yz, dou
 	                 + 3.0 * (xy * xy + yz * yz + zx * zx));
 }
 
-void addDerivedStressFields(ResultDataset& dataset)
+namespace
+{
+	const QString kSuffixes[5] = { QStringLiteral(" von Mises"), QStringLiteral(" max principal"), QStringLiteral(" mid principal"), QStringLiteral(" min principal"),
+	                               QStringLiteral(" max shear") };
+
+	// "stress", or Code_Aster's SIGM_* / SIEF_* stress tensors
+	bool isStressTensor(const ResultField& source)
+	{
+		return source.components == 6 && (source.name.contains(QLatin1String("stress"), Qt::CaseInsensitive) || source.name.contains(QLatin1String("sigm_"), Qt::CaseInsensitive)
+		                                  || source.name.contains(QLatin1String("sief_"), Qt::CaseInsensitive));
+	}
+
+	// The five derived fields of a source: their indices in dataset.fields, -1 where missing.
+	void derivedIndices(const ResultDataset& dataset, std::size_t sourceIndex, int out[5])
+	{
+		const ResultField& source = dataset.fields[sourceIndex];
+		for (int k = 0; k < 5; ++k)
+		{
+			out[k] = -1;
+			for (std::size_t i = 0; i < dataset.fields.size(); ++i)
+				if (dataset.fields[i].association == source.association && dataset.fields[i].name == source.name + kSuffixes[k]
+				    && dataset.fields[i].derivedFromField == static_cast<int>(sourceIndex))
+				{
+					out[k] = static_cast<int>(i);
+					break;
+				}
+		}
+	}
+}
+
+void computeDerivedStressStep(ResultDataset& dataset, std::size_t step)
 {
 	const float nan = std::numeric_limits<float>::quiet_NaN();
+	for (std::size_t sourceIndex = 0; sourceIndex < dataset.fields.size(); ++sourceIndex)
+	{
+		const ResultField& source = dataset.fields[sourceIndex];
+		if (!isStressTensor(source) || step >= source.stepData.size())
+			continue;
+		int index[5];
+		derivedIndices(dataset, sourceIndex, index);
+		if (index[0] < 0 || index[1] < 0 || index[2] < 0 || index[3] < 0 || index[4] < 0)
+			continue;
+		const std::size_t tuples = source.association == ResultFieldAssociation::Node ? dataset.nodeCount() : dataset.cellCount();
+		const std::vector<float>& t = source.stepData[step];
+		if (t.size() != tuples * 6)
+			continue; // this step has no data for the field (or it is not loaded)
+		std::vector<float>* out[5];
+		for (int k = 0; k < 5; ++k)
+		{
+			ResultField& derived = dataset.fields[static_cast<std::size_t>(index[k])];
+			if (step >= derived.stepData.size())
+				derived.stepData.resize(std::max(dataset.steps.size(), step + 1));
+			out[k] = &derived.stepData[step];
+			out[k]->assign(tuples, nan);
+		}
+		for (std::size_t n = 0; n < tuples; ++n)
+		{
+			const float* c = &t[n * 6];
+			bool finite = true;
+			for (int i = 0; i < 6; ++i)
+				finite = finite && std::isfinite(c[i]);
+			if (!finite)
+				continue;
+			double e1, e2, e3;
+			symmetricPrincipalValues(c[0], c[1], c[2], c[3], c[4], c[5], e1, e2, e3);
+			(*out[0])[n] = static_cast<float>(vonMisesStress(c[0], c[1], c[2], c[3], c[4], c[5]));
+			(*out[1])[n] = static_cast<float>(e1);
+			(*out[2])[n] = static_cast<float>(e2);
+			(*out[3])[n] = static_cast<float>(e3);
+			(*out[4])[n] = static_cast<float>(0.5 * (e1 - e3));
+		}
+	}
+}
+
+void addDerivedStressFields(ResultDataset& dataset)
+{
 	std::vector<ResultField> added;
 
 	auto exists = [&dataset](const QString& name, ResultFieldAssociation association)
@@ -52,27 +125,19 @@ void addDerivedStressFields(ResultDataset& dataset)
 		return false;
 	};
 
-	for (std::size_t sourceIndex = 0; sourceIndex < dataset.fields.size(); ++sourceIndex)
+	const std::size_t sourceCount = dataset.fields.size();
+	for (std::size_t sourceIndex = 0; sourceIndex < sourceCount; ++sourceIndex)
 	{
 		const ResultField& source = dataset.fields[sourceIndex];
-		// "stress", or Code_Aster's SIGM_* / SIEF_* stress tensors
-		if (source.components != 6 || !(source.name.contains(QLatin1String("stress"), Qt::CaseInsensitive)
-		                                || source.name.contains(QLatin1String("sigm_"), Qt::CaseInsensitive)
-		                                || source.name.contains(QLatin1String("sief_"), Qt::CaseInsensitive)))
+		if (!isStressTensor(source))
 			continue;
-		// A node tensor gives node fields, a cell (element-wise) tensor gives cell fields.
-		const std::size_t tuples = source.association == ResultFieldAssociation::Node ? dataset.nodeCount() : dataset.cellCount();
-
-		const QString suffixes[5] = { QStringLiteral(" von Mises"), QStringLiteral(" max principal"),
-		                              QStringLiteral(" mid principal"), QStringLiteral(" min principal"),
-		                              QStringLiteral(" max shear") };
-		if (exists(source.name + suffixes[0], source.association))
+		if (exists(source.name + kSuffixes[0], source.association))
 			continue;
 
 		ResultField out[5];
 		for (int k = 0; k < 5; ++k)
 		{
-			out[k].name = source.name + suffixes[k];
+			out[k].name = source.name + kSuffixes[k];
 			out[k].association = source.association;
 			out[k].components = 1;
 			out[k].quantityKind = source.quantityKind;
@@ -80,36 +145,20 @@ void addDerivedStressFields(ResultDataset& dataset)
 			out[k].displayUnit = source.displayUnit;
 			out[k].unitConfirmed = source.unitConfirmed;
 			out[k].derivedFromField = static_cast<int>(sourceIndex);
+			out[k].lazyData = source.lazyData;
 			out[k].stepData.resize(source.stepData.size());
-		}
-
-		for (std::size_t s = 0; s < source.stepData.size(); ++s)
-		{
-			const std::vector<float>& t = source.stepData[s];
-			if (t.size() != tuples * 6)
-				continue; // this step has no data for the field (or it is not loaded)
-			for (int k = 0; k < 5; ++k)
-				out[k].stepData[s].assign(tuples, nan);
-			for (std::size_t n = 0; n < tuples; ++n)
-			{
-				const float* c = &t[n * 6];
-				bool finite = true;
-				for (int i = 0; i < 6; ++i)
-					finite = finite && std::isfinite(c[i]);
-				if (!finite)
-					continue;
-				double e1, e2, e3;
-				symmetricPrincipalValues(c[0], c[1], c[2], c[3], c[4], c[5], e1, e2, e3);
-				out[0].stepData[s][n] = static_cast<float>(vonMisesStress(c[0], c[1], c[2], c[3], c[4], c[5]));
-				out[1].stepData[s][n] = static_cast<float>(e1);
-				out[2].stepData[s][n] = static_cast<float>(e2);
-				out[3].stepData[s][n] = static_cast<float>(e3);
-				out[4].stepData[s][n] = static_cast<float>(0.5 * (e1 - e3));
-			}
-		}
-		for (int k = 0; k < 5; ++k)
 			added.push_back(std::move(out[k]));
+		}
 	}
+	const std::size_t before = dataset.fields.size();
 	for (ResultField& f : added)
 		dataset.fields.push_back(std::move(f));
+	if (dataset.fields.size() == before)
+		return;
+	// The steps that have their source's data now (all of them for an eager result, none yet for a lazy one: those are computed as they are loaded).
+	std::size_t stepSlots = 0;
+	for (const ResultField& f : dataset.fields)
+		stepSlots = std::max(stepSlots, f.stepData.size());
+	for (std::size_t s = 0; s < stepSlots; ++s)
+		computeDerivedStressStep(dataset, s);
 }

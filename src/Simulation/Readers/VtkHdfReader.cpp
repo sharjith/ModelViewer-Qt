@@ -12,6 +12,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <functional>
+#include <memory>
 #include <limits>
 #include <map>
 
@@ -91,8 +93,36 @@ namespace
 		ResultReadOutcome* outcome = nullptr;
 		const std::atomic<bool>* cancel = nullptr;
 		StepTable steps;
+		// Lazy loading (see LazySteps): the arrays are then defined without data and read step by step. `lazyReaders` pairs a field's index with the reader of one step of it.
+		bool lazy = false;
+		std::vector<std::pair<std::size_t, std::function<bool(std::size_t, std::vector<float>&)>>> lazyReaders;
 		bool cancelled() const { return cancel && cancel->load(std::memory_order_acquire); }
 	};
+
+	// The size in bytes of the arrays of /VTKHDF/PointData and CellData over all steps, as floats.
+	std::size_t estimateArrayBytes(Context& c)
+	{
+		std::size_t bytes = 0;
+		for (const char* groupName : { "PointData", "CellData" })
+		{
+			if (!linkExists(c.root, QString::fromLatin1(groupName)))
+				continue;
+			Handle group = openGroup(c.root, QString::fromLatin1(groupName));
+			if (!group.ok())
+				continue;
+			for (const QString& name : childNames(group))
+			{
+				Handle array = openDataset(group, name);
+				if (!array.ok() || !datasetIsNumeric(array))
+					continue;
+				std::size_t elements = 1;
+				for (hsize_t d : datasetDims(array))
+					elements *= static_cast<std::size_t>(d);
+				bytes += elements * sizeof(float);
+			}
+		}
+		return bytes;
+	}
 
 	// The sum of counts[from .. from + n). False when the range is outside the array.
 	bool sumRange(const std::vector<long long>& counts, std::size_t from, std::size_t n, std::size_t& sum)
@@ -154,6 +184,49 @@ namespace
 			field.name = name;
 			field.association = association;
 			field.components = components == 2 ? 3 : static_cast<int>(components);
+			if (c.lazy)
+			{
+				// Defined without data: one step of it is read when it is asked for. `arrayHandle` keeps the array open (and with it the file).
+				auto arrayHandle = std::make_shared<Handle>(std::move(dataset));
+				bool anyStep = false;
+				for (std::size_t s = 0; s < c.steps.count; ++s)
+				{
+					const bool fits = s < rowsPerStep.size() && rowsPerStep[s] == expectedTuples;
+					anyStep = anyStep || fits;
+					mismatch = mismatch || !fits;
+				}
+				if (!anyStep)
+					continue;
+				const bool present = c.steps.present;
+				const bool padTo3 = components == 2;
+				c.lazyReaders.emplace_back(c.dataset->fields.size(), [arrayHandle, rowsPerStep, defaultOffsets, ownOffsets, expectedTuples, present, padTo3](std::size_t step, std::vector<float>& data) {
+					data.clear();
+					const std::size_t rows = step < rowsPerStep.size() ? rowsPerStep[step] : 0;
+					if (rows != expectedTuples)
+						return false;
+					const long long start = !present ? 0 : (step < ownOffsets.size() ? ownOffsets[step] : (step < defaultOffsets.size() ? defaultOffsets[step] : 0));
+					if (start < 0 || !readRows<float>(*arrayHandle, static_cast<hsize_t>(start), rows, data))
+					{
+						data.clear();
+						return false;
+					}
+					if (padTo3)
+					{
+						std::vector<float> padded(rows * 3, 0.0f);
+						for (std::size_t t = 0; t < rows; ++t)
+						{
+							padded[t * 3] = data[t * 2];
+							padded[t * 3 + 1] = data[t * 2 + 1];
+						}
+						data = std::move(padded);
+					}
+					return !data.empty();
+				});
+				field.stepData.assign(c.steps.count, std::vector<float>());
+				field.lazyData = true;
+				c.dataset->fields.push_back(std::move(field));
+				continue;
+			}
 			bool any = false;
 			for (std::size_t s = 0; s < c.steps.count; ++s)
 			{
@@ -523,6 +596,8 @@ namespace
 		addSteps(c);
 
 		// ---- Fields
+		// A result whose arrays would be large is read lazily: the arrays are defined here and read step by step (see LazySteps).
+		c.lazy = c.steps.present && count > 1 && estimateArrayBytes(c) > resultLazyThresholdBytes();
 		std::vector<long long> pointDefaults(count, 0), cellDefaults(count, 0);
 		for (std::size_t s = 0; s < count; ++s)
 		{
@@ -815,6 +890,31 @@ ResultReadOutcome readVtkHdf(const QString& path, const std::atomic<bool>* cance
 	const QString invalid = dataset->validate();
 	if (!invalid.isEmpty())
 		return fail(QStringLiteral("The VTKHDF file is inconsistent: %1").arg(invalid));
+	if (context.lazy && !context.lazyReaders.empty())
+	{
+		// Loader: the arrays that were left without data are read for the step asked for, then the stress fields derived from them are computed. The fields it
+		// does not manage (a displacement made from moving points) keep their data.
+		auto lazySteps = std::make_shared<LazySteps>();
+		lazySteps->managed.assign(dataset->fields.size(), false);
+		for (const auto& reader : context.lazyReaders)
+			lazySteps->managed[reader.first] = true;
+		for (std::size_t i = 0; i < dataset->fields.size(); ++i)
+			if (dataset->fields[i].derivedFromField >= 0 && static_cast<std::size_t>(dataset->fields[i].derivedFromField) < lazySteps->managed.size()
+			    && lazySteps->managed[static_cast<std::size_t>(dataset->fields[i].derivedFromField)])
+				lazySteps->managed[i] = true;
+		auto readers = std::make_shared<decltype(context.lazyReaders)>(std::move(context.lazyReaders));
+		lazySteps->load = [readers](std::size_t step, ResultDataset& ds) {
+			for (const auto& reader : *readers)
+			{
+				std::vector<float> values;
+				if (reader.first < ds.fields.size() && reader.second(step, values) && step < ds.fields[reader.first].stepData.size())
+					ds.fields[reader.first].stepData[step] = std::move(values);
+			}
+			computeDerivedStressStep(ds, step);
+			return true;
+		};
+		dataset->lazy = std::move(lazySteps);
+	}
 	outcome.dataset = std::move(dataset);
 	return outcome;
 }

@@ -313,6 +313,19 @@ void SimulationPanel::buildUi()
 	_glyphCountSpin->setKeyboardTracking(false);
 	_glyphCountSpin->setToolTip(tr("About this many arrows, spread evenly over the surface."));
 	form->addRow(tr("Arrow count:"), _glyphCountSpin);
+	// ---- Line cells (beams, pipes) are drawn as tubes: their thickness.
+	_lineRadiusLabel = new QLabel(tr("Line thickness:"), content);
+	_lineRadiusSpin = new QDoubleSpinBox(content);
+	_lineRadiusSpin->setRange(0.1, 10.0);
+	_lineRadiusSpin->setDecimals(1);
+	_lineRadiusSpin->setSingleStep(0.1);
+	_lineRadiusSpin->setSuffix(QStringLiteral(" %"));
+	_lineRadiusSpin->setKeyboardTracking(false);
+	_lineRadiusSpin->setToolTip(tr("The radius of the tubes drawn around the lines (beams, pipes)\n"
+	                               "of this result, in percent of the model size."));
+	form->addRow(_lineRadiusLabel, _lineRadiusSpin);
+	_lineRadiusLabel->hide();
+	_lineRadiusSpin->hide();
 	_glyphMagnitudeCheck = new QCheckBox(tr("Scale arrows by magnitude"), content);
 	_glyphMagnitudeCheck->setToolTip(tr("Off: every arrow has the same length and only the colour\n"
 	                                    "shows the magnitude."));
@@ -364,6 +377,9 @@ void SimulationPanel::buildUi()
 	_streamPlaneCheck->setToolTip(tr("Start the lines on the cut of the Clipping Planes instead\n"
 	                                 "of at random points through the whole volume."));
 	form->addRow(_streamPlaneCheck);
+	_streamArrowsCheck = new QCheckBox(tr("Arrowheads"), content);
+	_streamArrowsCheck->setToolTip(tr("Small cones along the lines that show the direction of the flow."));
+	form->addRow(_streamArrowsCheck);
 	_streamInfoLabel = new QLabel(content);
 	_streamInfoLabel->setWordWrap(true);
 	form->addRow(_streamInfoLabel);
@@ -456,6 +472,7 @@ void SimulationPanel::buildUi()
 	connect(_streamFieldCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { if (!_updating) emitState(); });
 	connect(_streamSeedsSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int) { if (!_updating) emitState(); });
 	connect(_streamPlaneCheck, &QCheckBox::toggled, this, [this](bool) { if (!_updating) emitState(); });
+	connect(_streamArrowsCheck, &QCheckBox::toggled, this, [this](bool) { if (!_updating) emitState(); });
 	connect(_glyphCheck, &QCheckBox::toggled, this, [this](bool) {
 		updateGlyphEnabled();
 		if (!_updating)
@@ -465,6 +482,7 @@ void SimulationPanel::buildUi()
 	connect(_glyphScaleSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_updating) emitState(); });
 	connect(_glyphCountSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int) { if (!_updating) emitState(); });
 	connect(_glyphMagnitudeCheck, &QCheckBox::toggled, this, [this](bool) { if (!_updating) emitState(); });
+	connect(_lineRadiusSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_updating) emitState(); });
 	connect(_deformAutoButton, &QPushButton::clicked, this, [this]() {
 		_deformScaleSpin->setValue(_autoDeformScale); // emits through valueChanged (unless it already is that value)
 	});
@@ -584,6 +602,7 @@ void SimulationPanel::setSession(const SimulationSession* session)
 	_streamCheck->setChecked(_streamFieldCombo->isEnabled() && state.streamlines);
 	_streamSeedsSpin->setValue(state.streamSeeds);
 	_streamPlaneCheck->setChecked(state.streamOnPlane);
+	_streamArrowsCheck->setChecked(state.streamArrows);
 	_streamInfoLabel->setText(session->streamInfo);
 	_streamInfoLabel->setVisible(!session->streamInfo.isEmpty());
 	updateStreamEnabled();
@@ -592,6 +611,12 @@ void SimulationPanel::setSession(const SimulationSession* session)
 	_glyphScaleSpin->setValue(state.glyphScale);
 	_glyphCountSpin->setValue(state.glyphCount);
 	_glyphMagnitudeCheck->setChecked(state.glyphScaleByMagnitude);
+	{
+		const bool hasTubes = session->surface && !session->surface->tubeVertices.empty(); // line cells drawn as tubes: their thickness is adjustable
+		_lineRadiusLabel->setVisible(hasTubes);
+		_lineRadiusSpin->setVisible(hasTubes);
+		_lineRadiusSpin->setValue(state.lineRadius * 100.0);
+	}
 	_glyphInfoLabel->setText(session->glyphInfo);
 	_glyphInfoLabel->setVisible(!session->glyphInfo.isEmpty());
 	updateGlyphEnabled();
@@ -603,6 +628,8 @@ void SimulationPanel::setSession(const SimulationSession* session)
 		refreshRangeEdits();
 
 	QStringList notes = session->warnings;
+	if (_dataset->fields.empty())
+		notes << tr("This result has no fields (no values to colour by): only its geometry is shown.");
 	_noteLabel->setText(notes.join(QLatin1Char('\n')));
 	_noteLabel->setVisible(!notes.isEmpty());
 
@@ -670,6 +697,7 @@ void SimulationPanel::updateStreamEnabled()
 	_streamFieldCombo->setEnabled(_streamCheck->isEnabled());
 	_streamSeedsSpin->setEnabled(on);
 	_streamPlaneCheck->setEnabled(on);
+	_streamArrowsCheck->setEnabled(on);
 }
 
 void SimulationPanel::updateSliceEnabled()
@@ -873,11 +901,13 @@ SimulationViewState SimulationPanel::currentState() const
 	state.streamField = _streamFieldCombo->currentData().isValid() ? _streamFieldCombo->currentData().toInt() : -1;
 	state.streamSeeds = _streamSeedsSpin->value();
 	state.streamOnPlane = _streamPlaneCheck->isChecked();
+	state.streamArrows = _streamArrowsCheck->isChecked();
 	state.glyphs = _glyphCheck->isChecked() && _glyphCheck->isEnabled();
 	state.glyphField = _glyphFieldCombo->currentData().isValid() ? _glyphFieldCombo->currentData().toInt() : -1;
 	state.glyphScale = _glyphScaleSpin->value();
 	state.glyphCount = _glyphCountSpin->value();
 	state.glyphScaleByMagnitude = _glyphMagnitudeCheck->isChecked();
+	state.lineRadius = _lineRadiusSpin->value() / 100.0;
 	return state;
 }
 

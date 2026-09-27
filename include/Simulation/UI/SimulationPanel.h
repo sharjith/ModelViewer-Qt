@@ -131,6 +131,8 @@ private:
 	QDoubleSpinBox* _glyphScaleSpin = nullptr;
 	QSpinBox* _glyphCountSpin = nullptr;
 	QCheckBox* _glyphMagnitudeCheck = nullptr;
+	QLabel* _lineRadiusLabel = nullptr;
+	QDoubleSpinBox* _lineRadiusSpin = nullptr;
 	QLabel* _glyphInfoLabel = nullptr;
 	QCheckBox* _sectionCheck = nullptr;
 	QCheckBox* _isoCheck = nullptr;
@@ -141,6 +143,7 @@ private:
 	QComboBox* _streamFieldCombo = nullptr;
 	QSpinBox* _streamSeedsSpin = nullptr;
 	QCheckBox* _streamPlaneCheck = nullptr;
+	QCheckBox* _streamArrowsCheck = nullptr;
 	QLabel* _streamInfoLabel = nullptr;
 
 	std::shared_ptr<ResultDataset> _dataset;

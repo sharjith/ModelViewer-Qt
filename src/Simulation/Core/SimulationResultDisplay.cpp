@@ -58,6 +58,8 @@ bool computeStepRange(const ResultDataset& dataset, int fieldIndex, int componen
 	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size())
 		return false;
 	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
+	if (step >= 0)
+		dataset.ensureStepLoaded(static_cast<std::size_t>(step)); // a lazily loaded result reads the step now
 	if (step < 0 || static_cast<std::size_t>(step) >= field.stepData.size() || field.stepData[static_cast<std::size_t>(step)].empty())
 		return false;
 	const std::size_t tuples = field.association == ResultFieldAssociation::Cell ? dataset.cellCount() : dataset.nodeCount();
@@ -118,6 +120,8 @@ bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int compon
 	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size())
 		return false;
 	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
+	if (step >= 0)
+		dataset.ensureStepLoaded(static_cast<std::size_t>(step)); // a lazily loaded result reads the step now
 	if (step < 0 || static_cast<std::size_t>(step) >= field.stepData.size() || field.stepData[static_cast<std::size_t>(step)].empty())
 		return false; // no data for it at this step
 
@@ -386,12 +390,28 @@ bool surfaceExtents(const ResultBoundarySurface& surface, double& x, double& y, 
 	return true;
 }
 
+static std::vector<std::size_t> stepsToScan(const ResultDataset& dataset)
+{
+	const std::size_t count = dataset.stepCount();
+	std::vector<std::size_t> steps;
+	constexpr std::size_t kLazySamples = 8;
+	if (!dataset.isLazy() || count <= kLazySamples)
+	{
+		for (std::size_t s = 0; s < count; ++s)
+			steps.push_back(s);
+		return steps;
+	}
+	for (std::size_t k = 0; k < kLazySamples; ++k)
+		steps.push_back(k * (count - 1) / (kLazySamples - 1));
+	return steps;
+}
+
 bool computeAllStepsRange(const ResultDataset& dataset, int fieldIndex, int component, float& lo, float& hi)
 {
 	bool any = false;
 	lo = std::numeric_limits<float>::max();
 	hi = std::numeric_limits<float>::lowest();
-	for (std::size_t step = 0; step < dataset.stepCount(); ++step)
+	for (const std::size_t step : stepsToScan(dataset))
 	{
 		float stepLo = 0.0f, stepHi = 0.0f; // scanned in place: no per-step copy of the whole field
 		if (!computeStepRange(dataset, fieldIndex, component, static_cast<int>(step), stepLo, stepHi))
@@ -440,6 +460,7 @@ int defaultComponentForField(const ResultDataset& dataset, int fieldIndex)
 	if (field.components == 1 || field.components == 3)
 		return -1;
 	const std::size_t comps = static_cast<std::size_t>(std::max(field.components, 1));
+	dataset.ensureStepLoaded(0); // (a lazily loaded result looks at the steps that are in memory: the first is enough to tell)
 	for (std::size_t c = 0; c < comps; ++c)
 	{
 		bool have = false;
@@ -507,6 +528,7 @@ bool buildDeformedPositions(const ResultDataset& dataset, const ResultBoundarySu
 	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size() || step < 0)
 		return false;
 	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
+	dataset.ensureStepLoaded(static_cast<std::size_t>(step));
 	if (field.association != ResultFieldAssociation::Node || field.components != 3
 		|| static_cast<std::size_t>(step) >= field.stepData.size())
 		return false;
@@ -536,6 +558,7 @@ bool buildDeformedNodePositions(const ResultDataset& dataset, int fieldIndex, in
 	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size() || step < 0)
 		return false;
 	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
+	dataset.ensureStepLoaded(static_cast<std::size_t>(step));
 	if (field.association != ResultFieldAssociation::Node || field.components != 3 || static_cast<std::size_t>(step) >= field.stepData.size())
 		return false;
 	const std::vector<float>& data = field.stepData[static_cast<std::size_t>(step)];
@@ -563,8 +586,12 @@ double maxDisplacementMagnitude(const ResultDataset& dataset, int fieldIndex)
 	if (field.components != 3)
 		return 0.0;
 	double best = 0.0;
-	for (const std::vector<float>& data : field.stepData)
+	for (const std::size_t step : stepsToScan(dataset))
 	{
+		dataset.ensureStepLoaded(step);
+		if (step >= field.stepData.size())
+			continue;
+		const std::vector<float>& data = field.stepData[step];
 		for (std::size_t i = 0; i + 2 < data.size(); i += 3)
 		{
 			const double x = data[i], y = data[i + 1], z = data[i + 2];
@@ -609,6 +636,7 @@ double modalDisplayFactor(const ResultDataset& dataset, const ResultBoundarySurf
 	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size() || step < 0)
 		return 1.0;
 	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
+	dataset.ensureStepLoaded(static_cast<std::size_t>(step));
 	if (static_cast<std::size_t>(step) >= field.stepData.size() || field.components != 3)
 		return 1.0;
 	double maxDisp = 0.0;

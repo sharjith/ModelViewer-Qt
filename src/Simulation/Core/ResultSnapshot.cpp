@@ -185,7 +185,11 @@ namespace
 			{
 				const ResultField& field = dataset.fields[static_cast<std::size_t>(f)];
 				if (static_cast<std::size_t>(s) < field.stepData.size())
-					bytes += field.stepData[static_cast<std::size_t>(s)].size() * 4;
+				{
+					// (a lazily loaded result has most steps out of memory: size them from the field's shape)
+					const std::size_t tuples = isCellField(field) ? dataset.cellCount() : dataset.nodeCount();
+					bytes += dataset.isLazy() ? tuples * static_cast<std::size_t>(field.components) * 4 : field.stepData[static_cast<std::size_t>(s)].size() * 4;
+				}
 			}
 		return bytes;
 	}
@@ -195,6 +199,7 @@ namespace
 	std::vector<float> gatherSurfaceValues(const ResultDataset& dataset, const ResultBoundarySurface& surface, const ResultField& field, std::size_t step)
 	{
 		std::vector<float> out;
+		dataset.ensureStepLoaded(step);
 		if (step >= field.stepData.size() || field.stepData[step].empty())
 			return out;
 		const std::vector<float>& data = field.stepData[step];
@@ -287,6 +292,7 @@ namespace
 		o.insert(QStringLiteral("deform"), s.deform);
 		o.insert(QStringLiteral("deformScale"), s.deformScale);
 		o.insert(QStringLiteral("markExtrema"), s.markExtrema);
+		o.insert(QStringLiteral("lineRadius"), s.lineRadius);
 		o.insert(QStringLiteral("sectionFill"), s.sectionFill);
 		o.insert(QStringLiteral("iso"), s.iso);
 		o.insert(QStringLiteral("isoLevels"), s.isoLevels);
@@ -298,6 +304,7 @@ namespace
 		o.insert(QStringLiteral("streamlines"), s.streamlines);
 		o.insert(QStringLiteral("streamSeeds"), s.streamSeeds);
 		o.insert(QStringLiteral("streamOnPlane"), s.streamOnPlane);
+		o.insert(QStringLiteral("streamArrows"), s.streamArrows);
 		if (s.streamField >= 0 && static_cast<std::size_t>(s.streamField) < dataset.fields.size())
 			o.insert(QStringLiteral("streamFieldName"), dataset.fields[static_cast<std::size_t>(s.streamField)].name);
 		o.insert(QStringLiteral("glyphs"), s.glyphs);
@@ -388,7 +395,7 @@ SnapshotSize estimateSnapshotSize(const ResultDataset& dataset, const ResultBoun
 		for (int s : steps)
 		{
 			const ResultField& field = dataset.fields[static_cast<std::size_t>(f)];
-			if (static_cast<std::size_t>(s) < field.stepData.size() && !field.stepData[static_cast<std::size_t>(s)].empty())
+			if (static_cast<std::size_t>(s) < field.stepData.size() && (dataset.isLazy() || !field.stepData[static_cast<std::size_t>(s)].empty()))
 			{
 				const std::uint64_t tuples = isCellField(field) ? surface.triangleCount() : vertices;
 				anyCell = anyCell || isCellField(field);
@@ -537,6 +544,7 @@ bool encodeResultSnapshot(const ResultDataset& dataset, const ResultBoundarySurf
 			for (int sel = 0; sel < selectors; ++sel)
 			{
 				float lo, hi;
+				dataset.ensureStepLoaded(static_cast<std::size_t>(src));
 				selectorRange(f, static_cast<std::size_t>(src), sel, lo, hi);
 				data.append(floatToJson(lo));
 				data.append(floatToJson(hi));
@@ -586,6 +594,7 @@ bool encodeResultSnapshot(const ResultDataset& dataset, const ResultBoundarySurf
 			for (int src : kept)
 			{
 				const std::size_t step = static_cast<std::size_t>(src);
+				dataset.ensureStepLoaded(step);
 				stepBlobs.append(step < f.stepData.size() && !f.stepData[step].empty() ? addBlob(floatsToBytes(f.stepData[step]), 4) : -1);
 			}
 			o.insert(QStringLiteral("stepData"), stepBlobs);
@@ -619,6 +628,13 @@ bool encodeResultSnapshot(const ResultDataset& dataset, const ResultBoundarySurf
 			e.insert(QStringLiteral("positions"), addBlob(floatsToBytes(overlays->streamlines.positions), 4));
 			e.insert(QStringLiteral("colors"), addBlob(floatsToBytes(overlays->streamlines.colors), 4));
 			e.insert(QStringLiteral("segments"), addBlob(u32Bytes(overlays->streamlines.segments), 4));
+			if (overlays->streamlines.arrowCount() > 0)
+			{
+				e.insert(QStringLiteral("arrowPositions"), addBlob(floatsToBytes(overlays->streamlines.arrowPositions), 4));
+				e.insert(QStringLiteral("arrowDirections"), addBlob(floatsToBytes(overlays->streamlines.arrowDirections), 4));
+				e.insert(QStringLiteral("arrowColors"), addBlob(floatsToBytes(overlays->streamlines.arrowColors), 4));
+				e.insert(QStringLiteral("arrowLength"), static_cast<double>(overlays->streamlines.arrowLength));
+			}
 			o.insert(QStringLiteral("streamlines"), e);
 		}
 		QJsonArray cuts;
@@ -921,6 +937,7 @@ bool decodeResultSnapshot(const QJsonObject& json, const std::vector<QByteArray>
 	state.deform = view.value(QStringLiteral("deform")).toBool();
 	state.deformScale = view.value(QStringLiteral("deformScale")).toDouble(1.0);
 	state.markExtrema = view.value(QStringLiteral("markExtrema")).toBool();
+	state.lineRadius = view.value(QStringLiteral("lineRadius")).toDouble(kDefaultLineRadius);
 	state.sectionFill = view.value(QStringLiteral("sectionFill")).toBool();
 	state.iso = view.value(QStringLiteral("iso")).toBool();
 	state.isoLevels = view.value(QStringLiteral("isoLevels")).toInt(3);
@@ -935,6 +952,7 @@ bool decodeResultSnapshot(const QJsonObject& json, const std::vector<QByteArray>
 	state.streamlines = view.value(QStringLiteral("streamlines")).toBool();
 	state.streamSeeds = view.value(QStringLiteral("streamSeeds")).toInt(50);
 	state.streamOnPlane = view.value(QStringLiteral("streamOnPlane")).toBool();
+	state.streamArrows = view.value(QStringLiteral("streamArrows")).toBool(true);
 	{
 		const QString streamName = view.value(QStringLiteral("streamFieldName")).toString();
 		for (std::size_t i = 0; i < dataset->fields.size() && !streamName.isEmpty(); ++i)
@@ -992,7 +1010,19 @@ bool decodeResultSnapshot(const QJsonObject& json, const std::vector<QByteArray>
 			StreamlineDisplay d;
 			if (floats(lines, "positions", d.positions) && floats(lines, "colors", d.colors) && indices(lines, "segments", d.segments) && d.positions.size() % 3 == 0
 			    && d.colors.size() == d.positions.size() && d.segments.size() % 2 == 0 && inRange(d.segments, d.positions.size() / 3))
+			{
+				if (lines.contains(QStringLiteral("arrowPositions")) && floats(lines, "arrowPositions", d.arrowPositions) && floats(lines, "arrowDirections", d.arrowDirections)
+				    && floats(lines, "arrowColors", d.arrowColors) && d.arrowPositions.size() % 3 == 0 && d.arrowDirections.size() == d.arrowPositions.size()
+				    && d.arrowColors.size() == d.arrowPositions.size())
+					d.arrowLength = static_cast<float>(lines.value(QStringLiteral("arrowLength")).toDouble());
+				else
+				{
+					d.arrowPositions.clear();
+					d.arrowDirections.clear();
+					d.arrowColors.clear();
+				}
 				out.overlays.streamlines = std::move(d);
+			}
 		}
 		for (const QJsonValue& cv : o.value(QStringLiteral("cuts")).toArray())
 		{

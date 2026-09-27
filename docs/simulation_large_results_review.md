@@ -124,3 +124,35 @@ Conclusions: the estimates for the per-frame cost (P2) and the range scan (P4) w
 worth changing now. The boundary extraction (4.6 s at 5 M cells, one time per open) is the slowest stage (P3, not urgent). **Memory is the limit**:
 the dataset grows linearly with the steps (118 MB per step here), so P1 only matters once steps x size approaches the machine's RAM.
 Decision (2026-09-26): P1 is deferred; the section / iso-surface / streamline work goes first.
+
+## 8. Lazy step loading (P1, implemented 2026-09-27)
+
+Memory was the limit, so the steps of a large result are no longer all held in memory: a reader that supports it leaves each field's `stepData` slots empty and gives
+the dataset a loader (`LazySteps`, `ResultDataset.h`); `ResultDataset::ensureStepLoaded(step)` reads a step when something asks for it and keeps the last four
+in memory, the least recently used going first (`maxResident`, at least 2).
+
+- **Which results**: **Exodus** and **VTKHDF** (unstructured grids and polydata with time steps - the arrays of `PointData` / `CellData`). A result is read lazily when its
+  step data would need more than `resultLazyThresholdBytes()` (256 MB) and it has more than one step; the tests force it with 0. Other readers (CalculiX FRD, CGNS, MED, OpenFOAM,
+  VTK XML / legacy, VTKHDF ImageData) still read everything at once. Their files are per-step sequential (FRD, OpenFOAM) or would need their file handle kept open (CGNS, MED): a next step.
+- **What asks**: everything that reads the data of a step calls `ensureStepLoaded()` first - the colour scalar, its range for a step, the deformation, the modal factor, the arrows, the
+  streamlines' vectors, and the snapshot encoder (which reads every step it keeps, so saving a lazy result reads the whole file). The derived stress fields (von Mises ...) are
+  computed for a step as it is loaded (`computeDerivedStressStep`). A field a lazy reader defined is flagged `lazyData`, so it counts as having data before any of it is in memory.
+- **Ranges over all steps** (the fixed colour scale of an animation, the arrows' reference length, the auto deformation scale) would mean reading every step: for a lazy result they look at
+  up to eight evenly spaced steps (`stepsToScan`). A value outside that range only clamps its colour.
+- **Fields that are not loaded step by step** (the displacement made from moving points in VTKHDF) are not `managed`: they keep their data.
+- **Threading**: the loader runs on the GUI thread, on demand. Playback of a lazy result therefore reads a step per frame; a step that is already resident is free.
+- **Tests**: `testLazySteps` - the bookkeeping (least recently used out, out-of-range no-op, unmanaged fields), Exodus (classic and NetCDF-4, with and without the stress tensor) and VTKHDF
+  read lazily and compared step by step, field by field with the eager read, the eviction with room for two steps, and the display code (scalar, range) on a lazy result.
+
+Measured (2026-09-27, `result_tests --write-exodus-sample big.exo 100` then `MV_LAZY_MB=<mb> result_tests --time big.exo`; 100^3 = 1 M hexahedra, 1.03 M nodes, 5 steps, 9 fields, 485 MB on disk):
+
+| | eager | lazy |
+|---|---|---|
+| dataset in memory at open | 361 MB | 47 MB |
+| read / build | 1.03 s | 0.15 s |
+| process peak | 584 MB | 323 MB |
+| show one step | 3 ms | 0.18 s (the step is read from the file) |
+| range over all 5 steps | 7 ms | 0.9 s (five reads) |
+| snapshot encode | 0.1 s | 1.9 s (every step is read) |
+
+The ranges agree to the digit. The price of lazy loading is the read of each step that is not in memory; what it buys is that memory no longer grows with the step count.

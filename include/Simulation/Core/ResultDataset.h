@@ -12,6 +12,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <list>
+#include <memory>
+#include <mutex>
 #include <vector>
 
 enum class ResultCellType : std::uint8_t
@@ -87,6 +91,8 @@ struct ResultField
 	// selector is a component (0..components-1) or, for a 3-component field, the magnitude (index 3); a scalar has
 	// one. Empty = none: the range is whatever stepData holds. Only ever WIDENS the range buildDisplayScalar reports.
 	std::vector<float> storedRange;
+	// Set by a reader that loads steps lazily (see LazySteps): the field has data at some step although none of it is in memory yet.
+	bool lazyData = false;
 
 	std::size_t tupleCount(std::size_t step = 0) const
 	{
@@ -111,6 +117,8 @@ inline int resultRangeSelector(int components, int component)
 // variable an analysis only writes from a later step on) and must not be treated as missing.
 inline bool resultFieldHasData(const ResultField& field)
 {
+	if (field.lazyData)
+		return true;
 	for (const std::vector<float>& data : field.stepData)
 		if (!data.empty())
 			return true;
@@ -118,6 +126,8 @@ inline bool resultFieldHasData(const ResultField& field)
 }
 inline int resultFieldFirstStep(const ResultField& field)
 {
+	if (field.lazyData)
+		return 0; // (which steps have data is not known until they are loaded: the first is as good as any)
 	for (std::size_t s = 0; s < field.stepData.size(); ++s)
 		if (!field.stepData[s].empty())
 			return static_cast<int>(s);
@@ -130,6 +140,29 @@ struct ResultStep
 	QString label;    // e.g. "Mode 3"; empty for a plain time step
 	QString timeUnit; // unit of `time` when the file says what it is (a modal step's time is a frequency: "Hz")
 };
+
+class ResultDataset;
+
+// Lazy loading of time steps. A result with many steps and large fields need not hold every step of every field in memory: a reader that supports it leaves the
+// steps' data empty (ResultField::stepData has its slot per step, all empty) and gives the dataset a loader; ResultDataset::ensureStepLoaded() then reads a
+// step when something asks for it and keeps the last few in memory (least recently used out first). Everything that reads a step's data calls it first.
+// Meant for the GUI thread: the data of a step must not be read while another thread may load a different one.
+struct LazySteps
+{
+	// Reads step `step` of every stored field into dataset.fields[i].stepData[step] (the derived fields of a stress tensor included); false when the step cannot
+	// be read (its data stays empty, like a step without data).
+	std::function<bool(std::size_t step, ResultDataset& dataset)> load;
+	// The fields whose steps are loaded and evicted, by index (empty = all of them). A field that is not managed keeps its data in stepData for good
+	// (a displacement computed from moving points, say).
+	std::vector<bool> managed;
+	std::size_t maxResident = 4; // steps kept in memory (at least 2: the one asked for and the one before it)
+	std::list<std::size_t> resident; // most recently used first
+	std::mutex mutex;
+};
+
+// Results whose step data would need more than this many bytes are read lazily by the readers that support it (Exodus, VTKHDF). 0 = every result (tests).
+std::size_t resultLazyThresholdBytes();
+void setResultLazyThresholdBytes(std::size_t bytes);
 
 class ResultDataset
 {
@@ -167,6 +200,12 @@ public:
 
 	std::vector<ResultStep> steps;
 	std::vector<ResultField> fields;
+
+	// Set for a lazily loaded result (see LazySteps); null when every step is in stepData.
+	std::shared_ptr<LazySteps> lazy;
+	bool isLazy() const { return lazy != nullptr; }
+	// Makes step `step` of every field resident (no-op for an eager result or a step out of range), evicting the least recently used ones beyond the limit.
+	void ensureStepLoaded(std::size_t step) const;
 
 	std::size_t nodeCount() const { return nodePositions.size() / 3; }
 	std::size_t cellCount() const { return cellTypes.size(); }

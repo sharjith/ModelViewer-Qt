@@ -3535,7 +3535,7 @@ Il modello può essere caricato parzialmente</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="973"/>
-        <location filename="../src/MainWindow.cpp" line="1167"/>
+        <location filename="../src/MainWindow.cpp" line="1173"/>
         <source>Compare Results...</source>
         <translation>Confronta risultati...</translation>
     </message>
@@ -3636,42 +3636,42 @@ Il modello può essere caricato parzialmente</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="631"/>
-        <location filename="../src/MainWindow.cpp" line="1016"/>
+        <location filename="../src/MainWindow.cpp" line="1022"/>
         <source>Recent...</source>
         <translation>Recenti...</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="645"/>
-        <location filename="../src/MainWindow.cpp" line="1024"/>
+        <location filename="../src/MainWindow.cpp" line="1030"/>
         <source>Close the active window</source>
         <translation>Chiudi la finestra attiva</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="650"/>
-        <location filename="../src/MainWindow.cpp" line="1026"/>
+        <location filename="../src/MainWindow.cpp" line="1032"/>
         <source>Close the active document</source>
         <translation>Chiudere il documento attivo</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="655"/>
-        <location filename="../src/MainWindow.cpp" line="1028"/>
+        <location filename="../src/MainWindow.cpp" line="1034"/>
         <source>Close all the windows</source>
         <translation>Chiudi tutte le finestre</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="660"/>
-        <location filename="../src/MainWindow.cpp" line="1030"/>
+        <location filename="../src/MainWindow.cpp" line="1036"/>
         <source>Move the focus to the next window</source>
         <translation>Spostare l&apos;attenzione alla finestra successiva</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="665"/>
-        <location filename="../src/MainWindow.cpp" line="1032"/>
+        <location filename="../src/MainWindow.cpp" line="1038"/>
         <source>Move the focus to the previous window</source>
         <translation>Spostare la messa a fuoco nella finestra precedente</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1020"/>
+        <location filename="../src/MainWindow.cpp" line="1026"/>
         <source>Cancel Loading</source>
         <translation>Annulla Caricamento</translation>
     </message>
@@ -3684,42 +3684,42 @@ Il modello può essere caricato parzialmente</translation>
         <translation type="vanished">Vuoi salvare?</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1945"/>
+        <location filename="../src/MainWindow.cpp" line="1951"/>
         <source>Tutorial Display Method</source>
         <translation>Metodo di Visualizzazione Tutorial</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1946"/>
+        <location filename="../src/MainWindow.cpp" line="1952"/>
         <source>How would you like to view the tutorial?</source>
         <translation>Come desideri visualizzare il tutorial?</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1947"/>
+        <location filename="../src/MainWindow.cpp" line="1953"/>
         <source>Choose between an integrated dialog or opening in your web browser.</source>
         <translation>Scegli tra una finestra di dialogo integrata o l&apos;apertura nel browser web.</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1950"/>
+        <location filename="../src/MainWindow.cpp" line="1956"/>
         <source>Dialog Window</source>
         <translation>Finestra di Dialogo</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1951"/>
+        <location filename="../src/MainWindow.cpp" line="1957"/>
         <source>Web Browser</source>
         <translation>Browser Web</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1954"/>
+        <location filename="../src/MainWindow.cpp" line="1960"/>
         <source>Remember my choice</source>
         <translation>Ricorda la mia scelta</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2002"/>
+        <location filename="../src/MainWindow.cpp" line="2008"/>
         <source>Tutorial Not Found</source>
         <translation>Tutorial Non Trovato</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2003"/>
+        <location filename="../src/MainWindow.cpp" line="2009"/>
         <source>Tutorial file not found at:
 %1
 
@@ -3730,12 +3730,12 @@ Please ensure the tutorial files are installed correctly.</source>
 Assicurati che i file del tutorial siano installati correttamente.</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2037"/>
+        <location filename="../src/MainWindow.cpp" line="2043"/>
         <source>Logs Folder Not Found</source>
         <translation>Cartella Log Non Trovata</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2038"/>
+        <location filename="../src/MainWindow.cpp" line="2044"/>
         <source>The logs folder could not be found at:
 %1
 
@@ -3800,20 +3800,20 @@ Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
     <message>
         <location filename="../src/MainWindow.cpp" line="301"/>
         <location filename="../src/MainWindow.cpp" line="302"/>
-        <location filename="../src/MainWindow.cpp" line="1005"/>
-        <location filename="../src/MainWindow.cpp" line="1006"/>
+        <location filename="../src/MainWindow.cpp" line="1011"/>
+        <location filename="../src/MainWindow.cpp" line="1012"/>
         <source>Auto Fit View On Hide/Show</source>
         <translation>Adatta vista su nascondi/mostra</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="303"/>
-        <location filename="../src/MainWindow.cpp" line="1010"/>
+        <location filename="../src/MainWindow.cpp" line="1016"/>
         <source>Selection Highlighting</source>
         <translation>Evidenziazione selezione</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="304"/>
-        <location filename="../src/MainWindow.cpp" line="1011"/>
+        <location filename="../src/MainWindow.cpp" line="1017"/>
         <source>Selection Highlighting in Viewer</source>
         <translation>Evidenziazione selezione nel visualizzatore</translation>
     </message>
@@ -3825,13 +3825,13 @@ Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="380"/>
-        <location filename="../src/MainWindow.cpp" line="1000"/>
+        <location filename="../src/MainWindow.cpp" line="1006"/>
         <source>Materials</source>
         <translation>Materiali</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="386"/>
-        <location filename="../src/MainWindow.cpp" line="1001"/>
+        <location filename="../src/MainWindow.cpp" line="1007"/>
         <source>Transformations</source>
         <translation>Trasformazioni</translation>
     </message>
@@ -3888,86 +3888,86 @@ Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
         <translation>Ripristino del layout delle finestre...</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1167"/>
+        <location filename="../src/MainWindow.cpp" line="1173"/>
         <source>Exit Compare</source>
         <translation>Esci dal confronto</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2229"/>
+        <location filename="../src/MainWindow.cpp" line="2235"/>
         <source>Error</source>
         <translation>Errore</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2229"/>
+        <location filename="../src/MainWindow.cpp" line="2235"/>
         <source>
 Unsupported file format: </source>
         <translation>
 Formato del file non supportato: </translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2273"/>
+        <location filename="../src/MainWindow.cpp" line="2279"/>
         <source>Open Model File</source>
         <translation>Aprire il File del Modello</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2283"/>
+        <location filename="../src/MainWindow.cpp" line="2289"/>
         <source>Simulation Results (%1)</source>
         <translation>Risultati di simulazione (%1)</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2631"/>
+        <location filename="../src/MainWindow.cpp" line="2637"/>
         <source>&amp;Undo %1</source>
         <translation>&amp;Annulla %1</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2633"/>
-        <location filename="../src/MainWindow.cpp" line="2645"/>
+        <location filename="../src/MainWindow.cpp" line="2639"/>
+        <location filename="../src/MainWindow.cpp" line="2651"/>
         <source>&amp;Undo</source>
         <translation>&amp;Annulla</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2636"/>
+        <location filename="../src/MainWindow.cpp" line="2642"/>
         <source>&amp;Redo %1</source>
         <translation>&amp;Ripeti %1</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2638"/>
-        <location filename="../src/MainWindow.cpp" line="2646"/>
+        <location filename="../src/MainWindow.cpp" line="2644"/>
+        <location filename="../src/MainWindow.cpp" line="2652"/>
         <source>&amp;Redo</source>
         <translation>&amp;Ripeti</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2758"/>
+        <location filename="../src/MainWindow.cpp" line="2764"/>
         <source>Confirm Exit</source>
         <translation>Conferma Uscita</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2759"/>
+        <location filename="../src/MainWindow.cpp" line="2765"/>
         <source>Are you sure you want to exit the application?</source>
         <translation>Sei sicuro di voler uscire dall&apos;applicazione?</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2814"/>
+        <location filename="../src/MainWindow.cpp" line="2820"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2816"/>
+        <location filename="../src/MainWindow.cpp" line="2822"/>
         <source>%1 -&gt; Shift-click to import into active document</source>
         <translation>%1 -&gt; Shift-clic per importare nel documento attivo</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2817"/>
+        <location filename="../src/MainWindow.cpp" line="2823"/>
         <source>Click to open • Shift-click to import into active window</source>
         <translation>Clic per aprire • Shift-clic per importare nella finestra attiva</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2848"/>
+        <location filename="../src/MainWindow.cpp" line="2854"/>
         <source>File Not Found</source>
         <translation>File Non Trovato</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2849"/>
+        <location filename="../src/MainWindow.cpp" line="2855"/>
         <source>The file &apos;%1&apos; no longer exists. Would you like to remove it from the recent files?</source>
         <translation>Il file %1 non esiste più. Vuoi rimuoverlo dai file recenti?</translation>
     </message>
@@ -6934,7 +6934,7 @@ da aggiungere dalla scena/albero</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="132"/>
-        <location filename="../src/ModelViewer.cpp" line="1204"/>
+        <location filename="../src/ModelViewer.cpp" line="1205"/>
         <source>Keep navigation panel visible</source>
         <translation>Mantieni visibile il pannello di navigazione</translation>
     </message>
@@ -7692,7 +7692,7 @@ da aggiungere dalla scena/albero</translation>
         <translation type="vanished">Incorporate le trasformazioni applicate nei vertici della mesh</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="759"/>
+        <location filename="../src/ModelViewer.cpp" line="760"/>
         <source>Reset Transform</source>
         <translation>Ripristina Trasformazione</translation>
     </message>
@@ -7725,334 +7725,334 @@ da aggiungere dalla scena/albero</translation>
         <translation type="vanished">Fotocamere</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1823"/>
+        <location filename="../src/ModelViewer.cpp" line="1824"/>
         <source>Saved %1 of %2 material(s). %3 failed to save.</source>
         <translation>Salvati %1 di %2 materiale/i. %3 non salvati.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1827"/>
+        <location filename="../src/ModelViewer.cpp" line="1828"/>
         <source>Save Materials - Partial Success</source>
         <translation>Salvataggio materiali - Successo parziale</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1832"/>
+        <location filename="../src/ModelViewer.cpp" line="1833"/>
         <source>Successfully saved %1 material(s) to library.</source>
         <translation>%1 materiale/i salvato/i correttamente nella libreria.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1833"/>
+        <location filename="../src/ModelViewer.cpp" line="1834"/>
         <source>Materials Saved</source>
         <translation>Materiali salvati</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1956"/>
+        <location filename="../src/ModelViewer.cpp" line="1957"/>
         <source>objects</source>
         <translation>oggetti</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1956"/>
+        <location filename="../src/ModelViewer.cpp" line="1957"/>
         <source>object</source>
         <translation>oggetto</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1957"/>
+        <location filename="../src/ModelViewer.cpp" line="1958"/>
         <source>Selected %1 %2</source>
         <translation>Selezione %1 %2</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1960"/>
+        <location filename="../src/ModelViewer.cpp" line="1961"/>
         <source>No selection</source>
         <translation>Nessuna selezione</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2159"/>
-        <location filename="../src/ModelViewer.cpp" line="2189"/>
-        <location filename="../src/ModelViewer.cpp" line="2382"/>
-        <location filename="../src/ModelViewer.cpp" line="5579"/>
-        <location filename="../src/ModelViewer.cpp" line="5755"/>
-        <location filename="../src/ModelViewer.cpp" line="5831"/>
-        <location filename="../src/ModelViewer.cpp" line="6702"/>
+        <location filename="../src/ModelViewer.cpp" line="2160"/>
+        <location filename="../src/ModelViewer.cpp" line="2190"/>
+        <location filename="../src/ModelViewer.cpp" line="2383"/>
+        <location filename="../src/ModelViewer.cpp" line="5580"/>
+        <location filename="../src/ModelViewer.cpp" line="5756"/>
+        <location filename="../src/ModelViewer.cpp" line="5832"/>
+        <location filename="../src/ModelViewer.cpp" line="6703"/>
         <source>Error</source>
         <translation>Errore</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2159"/>
+        <location filename="../src/ModelViewer.cpp" line="2160"/>
         <source>
 Unsupported file format: </source>
         <translation>
 Formato del file non supportato: </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2189"/>
+        <location filename="../src/ModelViewer.cpp" line="2190"/>
         <source>Failed to load model: </source>
         <translation>Non caricare il modello: </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2240"/>
+        <location filename="../src/ModelViewer.cpp" line="2241"/>
         <source>You have %1 unsaved material(s). Do you want to save them?</source>
         <translation>Hai %1 materiale/i non salvato/i. Vuoi salvarli?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2244"/>
+        <location filename="../src/ModelViewer.cpp" line="2245"/>
         <source>Unsaved Materials</source>
         <translation>Materiali non salvati</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2260"/>
+        <location filename="../src/ModelViewer.cpp" line="2261"/>
         <source>Save Failed</source>
         <translation>Salvataggio non riuscito</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2261"/>
+        <location filename="../src/ModelViewer.cpp" line="2262"/>
         <source>Failed to save some materials. Close anyway?</source>
         <translation>Impossibile salvare alcuni materiali. Chiudere comunque?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2278"/>
+        <location filename="../src/ModelViewer.cpp" line="2279"/>
         <source>Unsaved Changes</source>
         <translation>Modifiche Non Salvate</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2279"/>
+        <location filename="../src/ModelViewer.cpp" line="2280"/>
         <source>The document has unsaved changes. Do you want to save before closing?</source>
         <translation>Il documento contiene modifiche non salvate. Vuoi salvare prima di chiudere?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2375"/>
+        <location filename="../src/ModelViewer.cpp" line="2376"/>
         <source>File saved - %1</source>
         <translation>File salvato - %1</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2409"/>
+        <location filename="../src/ModelViewer.cpp" line="2410"/>
         <source>%1</source>
         <translation>%1</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2548"/>
+        <location filename="../src/ModelViewer.cpp" line="2549"/>
         <source>Select Parent</source>
         <translation>Seleziona genitore</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2596"/>
+        <location filename="../src/ModelViewer.cpp" line="2597"/>
         <source>Import Units...</source>
         <translation>Unità di importazione...</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2608"/>
+        <location filename="../src/ModelViewer.cpp" line="2609"/>
         <source>Purge Redundant Nodes</source>
         <translation>Elimina nodi ridondanti</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2622"/>
+        <location filename="../src/ModelViewer.cpp" line="2623"/>
         <source>Edit Material</source>
         <translation>Modifica materiale</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2641"/>
-        <location filename="../src/ModelViewer.cpp" line="3481"/>
-        <location filename="../src/ModelViewer.cpp" line="3492"/>
+        <location filename="../src/ModelViewer.cpp" line="2642"/>
+        <location filename="../src/ModelViewer.cpp" line="3482"/>
+        <location filename="../src/ModelViewer.cpp" line="3493"/>
         <source>Split by Connectivity</source>
         <translation>Dividi per connettività</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2642"/>
-        <location filename="../src/ModelViewer.cpp" line="3679"/>
-        <location filename="../src/ModelViewer.cpp" line="3789"/>
-        <location filename="../src/ModelViewer.cpp" line="3800"/>
-        <location filename="../src/ModelViewer.cpp" line="3806"/>
+        <location filename="../src/ModelViewer.cpp" line="2643"/>
+        <location filename="../src/ModelViewer.cpp" line="3680"/>
+        <location filename="../src/ModelViewer.cpp" line="3790"/>
+        <location filename="../src/ModelViewer.cpp" line="3801"/>
+        <location filename="../src/ModelViewer.cpp" line="3807"/>
         <source>Merge by Adjacency</source>
         <translation>Unisci per adiacenza</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2643"/>
-        <location filename="../src/ModelViewer.cpp" line="4056"/>
+        <location filename="../src/ModelViewer.cpp" line="2644"/>
+        <location filename="../src/ModelViewer.cpp" line="4057"/>
         <source>Merge Selected</source>
         <translation>Unisci selezionati</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2644"/>
-        <location filename="../src/ModelViewer.cpp" line="4079"/>
-        <location filename="../src/ModelViewer.cpp" line="4093"/>
+        <location filename="../src/ModelViewer.cpp" line="2645"/>
+        <location filename="../src/ModelViewer.cpp" line="4080"/>
+        <location filename="../src/ModelViewer.cpp" line="4094"/>
         <source>Mesh Union</source>
         <translation>Unione mesh</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2645"/>
-        <location filename="../src/ModelViewer.cpp" line="4142"/>
+        <location filename="../src/ModelViewer.cpp" line="2646"/>
+        <location filename="../src/ModelViewer.cpp" line="4143"/>
         <source>Group</source>
         <translation>Raggruppa</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3229"/>
+        <location filename="../src/ModelViewer.cpp" line="3230"/>
         <source>Paste failed: the document this was cut from has since been closed.</source>
         <translation>Incolla non riuscito: il documento da cui è stato tagliato è stato chiuso nel frattempo.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3323"/>
+        <location filename="../src/ModelViewer.cpp" line="3324"/>
         <source>Paste (moved from another document)</source>
         <translation>Incolla (spostato da un altro documento)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3327"/>
+        <location filename="../src/ModelViewer.cpp" line="3328"/>
         <source>Cut (moved to another document)</source>
         <translation>Taglia (spostato in un altro documento)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3344"/>
+        <location filename="../src/ModelViewer.cpp" line="3345"/>
         <source>Pasted group as a copy - moving a whole group into a different document isn&apos;t supported yet, so the original was left in place.</source>
         <translation>Gruppo incollato come copia - lo spostamento di un intero gruppo in un altro documento non è ancora supportato, quindi l&apos;originale è stato lasciato al suo posto.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3494"/>
+        <location filename="../src/ModelViewer.cpp" line="3495"/>
         <source>The selected mesh is already a single connected piece - nothing to split.</source>
         <translation>La mesh selezionata è già un unico pezzo connesso - niente da dividere.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3495"/>
+        <location filename="../src/ModelViewer.cpp" line="3496"/>
         <source>All %1 selected meshes are already single connected pieces - nothing to split.</source>
         <translation>Tutte le %1 mesh selezionate sono già pezzi singoli connessi - niente da dividere.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3499"/>
+        <location filename="../src/ModelViewer.cpp" line="3500"/>
         <source>Split %1 mesh(es) into %2 piece(s); %3 mesh(es) were already a single connected piece.</source>
         <translation>%1 mesh divise in %2 pezzo/i; %3 mesh erano già un unico pezzo connesso.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3504"/>
+        <location filename="../src/ModelViewer.cpp" line="3505"/>
         <source>Split %1 mesh(es) into %2 piece(s).</source>
         <translation>%1 mesh divise in %2 pezzo/i.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3681"/>
+        <location filename="../src/ModelViewer.cpp" line="3682"/>
         <source>One touching group of selected meshes has different materials.</source>
         <translation>Un gruppo a contatto di mesh selezionate ha materiali diversi.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3682"/>
+        <location filename="../src/ModelViewer.cpp" line="3683"/>
         <source>%1 touching groups of selected meshes have different materials.</source>
         <translation>%1 gruppi a contatto di mesh selezionate hanno materiali diversi.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3683"/>
+        <location filename="../src/ModelViewer.cpp" line="3684"/>
         <source>&quot;Keep Materials Separate&quot; splits each group into one merge per material instead of merging everything in it into one, using the first mesh&apos;s material.</source>
         <translation>&quot;Mantieni materiali separati&quot; divide ogni gruppo in una fusione per materiale invece di unire tutto in una sola, usando il materiale della prima mesh.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3686"/>
-        <location filename="../src/ModelViewer.cpp" line="3906"/>
+        <location filename="../src/ModelViewer.cpp" line="3687"/>
+        <location filename="../src/ModelViewer.cpp" line="3907"/>
         <source>Keep Materials Separate</source>
         <translation>Mantieni materiali separati</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3687"/>
+        <location filename="../src/ModelViewer.cpp" line="3688"/>
         <source>Merge Anyway</source>
         <translation>Unisci comunque</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3801"/>
+        <location filename="../src/ModelViewer.cpp" line="3802"/>
         <source>Found %1 touching group(s) of selected meshes with different materials, left unmerged.</source>
         <translation>Trovati %1 gruppo/i a contatto di mesh selezionate con materiali diversi, lasciati non uniti.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3807"/>
+        <location filename="../src/ModelViewer.cpp" line="3808"/>
         <source>None of the selected meshes are touching - nothing to merge.</source>
         <translation>Nessuna delle mesh selezionate è a contatto - niente da unire.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3811"/>
+        <location filename="../src/ModelViewer.cpp" line="3812"/>
         <source>Merged %1 group(s) (%2 meshes total) into %1 mesh(es).</source>
         <translation>%1 gruppo/i (%2 mesh totali) uniti in %1 mesh.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3815"/>
+        <location filename="../src/ModelViewer.cpp" line="3816"/>
         <source>%1 mixed-material group(s) used a cascaded material</source>
         <translation>%1 gruppo/i a materiale misto hanno usato un materiale a cascata</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3818"/>
+        <location filename="../src/ModelViewer.cpp" line="3819"/>
         <source>%1 mixed-material group(s) split into %2 per-material merge(s)%3</source>
         <translation>%1 gruppo/i a materiale misto suddivisi in %2 fusione/i per materiale%3</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3821"/>
+        <location filename="../src/ModelViewer.cpp" line="3822"/>
         <source> (%1 mesh(es) left unmerged - unique material within their group)</source>
         <translation> (%1 mesh lasciate non unite - materiale unico all&apos;interno del loro gruppo)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3825"/>
+        <location filename="../src/ModelViewer.cpp" line="3826"/>
         <source>%1 mixed-material group(s) left unmerged</source>
         <translation>%1 gruppo/i a materiale misto lasciati non uniti</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3827"/>
-        <location filename="../src/ModelViewer.cpp" line="4045"/>
+        <location filename="../src/ModelViewer.cpp" line="3828"/>
+        <location filename="../src/ModelViewer.cpp" line="4046"/>
         <source> (%1)</source>
         <translation> (%1)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3827"/>
-        <location filename="../src/ModelViewer.cpp" line="4045"/>
+        <location filename="../src/ModelViewer.cpp" line="3828"/>
+        <location filename="../src/ModelViewer.cpp" line="4046"/>
         <source>; </source>
         <translation>; </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3902"/>
+        <location filename="../src/ModelViewer.cpp" line="3903"/>
         <source>The selected meshes have different materials.</source>
         <translation>Le mesh selezionate hanno materiali diversi.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3903"/>
+        <location filename="../src/ModelViewer.cpp" line="3904"/>
         <source>&quot;Keep Materials Separate&quot; combines each material&apos;s own meshes into its own result instead of combining everything into one, using the first mesh&apos;s material.</source>
         <translation>&quot;Mantieni materiali separati&quot; combina le mesh proprie di ogni materiale in un proprio risultato invece di combinare tutto in uno, usando il materiale della prima mesh.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3907"/>
+        <location filename="../src/ModelViewer.cpp" line="3908"/>
         <source> Anyway</source>
         <translation> Comunque</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3926"/>
+        <location filename="../src/ModelViewer.cpp" line="3927"/>
         <source>The selected meshes have different materials - nothing merged.</source>
         <translation>Le mesh selezionate hanno materiali diversi - niente unito.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4024"/>
+        <location filename="../src/ModelViewer.cpp" line="4025"/>
         <source>Nothing combined - union declined for %1 group(s).</source>
         <translation>Nessuna combinazione: unione rifiutata per %1 gruppo/i.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4030"/>
+        <location filename="../src/ModelViewer.cpp" line="4031"/>
         <source>Combined %1 selected meshes into 1.</source>
         <translation>%1 mesh selezionate combinate in 1.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4031"/>
-        <location filename="../src/ModelViewer.cpp" line="4090"/>
+        <location filename="../src/ModelViewer.cpp" line="4032"/>
+        <location filename="../src/ModelViewer.cpp" line="4091"/>
         <source> (geometry couldn&apos;t be unioned - used plain concatenation instead)</source>
         <translation> (impossibile unire la geometria - usata invece una semplice concatenazione)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4035"/>
+        <location filename="../src/ModelViewer.cpp" line="4036"/>
         <source>Combined %1 of %2 selected mesh(es) into %3 result(s), grouped by material.</source>
         <translation>%1 di %2 mesh selezionate combinate in %3 risultato/i, raggruppati per materiale.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4039"/>
+        <location filename="../src/ModelViewer.cpp" line="4040"/>
         <source>%1 group(s) couldn&apos;t be unioned - used plain concatenation instead</source>
         <translation>%1 gruppo/i non è/sono stato possibile unire - usata invece una semplice concatenazione</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4041"/>
+        <location filename="../src/ModelViewer.cpp" line="4042"/>
         <source>%1 group(s) left uncombined - union declined</source>
         <translation>%1 gruppo/i non combinato/i: unione rifiutata</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4043"/>
+        <location filename="../src/ModelViewer.cpp" line="4044"/>
         <source>%1 mesh(es) left uncombined - unique material within the selection</source>
         <translation>%1 mesh lasciate non combinate - materiale unico all&apos;interno della selezione</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4080"/>
+        <location filename="../src/ModelViewer.cpp" line="4081"/>
         <source>&quot;%1&quot; and the rest of the selection couldn&apos;t be combined into a true solid union.
 
 Merge them as a plain combination instead (like &quot;Merge Selected&quot;)? Choosing &quot;No&quot; leaves these meshes uncombined.</source>
@@ -8061,180 +8061,180 @@ Merge them as a plain combination instead (like &quot;Merge Selected&quot;)? Cho
 Unirli come semplice combinazione (come &quot;Unisci selezione&quot;)? Scegliendo &quot;No&quot; queste mesh restano non combinate.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4160"/>
+        <location filename="../src/ModelViewer.cpp" line="4161"/>
         <source>Grouped %1 mesh(es).</source>
         <translation>%1 mesh raggruppate.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4224"/>
+        <location filename="../src/ModelViewer.cpp" line="4225"/>
         <source>Nothing to purge - no redundant single-mesh sub-assembly nodes found.</source>
         <translation>Niente da eliminare: nessun nodo di sotto-assieme ridondante con una sola mesh trovato.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4233"/>
+        <location filename="../src/ModelViewer.cpp" line="4234"/>
         <source>Purged %1 redundant node(s).</source>
         <translation>Eliminati %1 nodo/i ridondante/i.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4326"/>
+        <location filename="../src/ModelViewer.cpp" line="4327"/>
         <source>Subdivide</source>
         <translation>Suddividi</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4352"/>
+        <location filename="../src/ModelViewer.cpp" line="4353"/>
         <source>Reconstruct Surface</source>
         <translation>Ricostruisci superficie</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4384"/>
+        <location filename="../src/ModelViewer.cpp" line="4385"/>
         <source>Repair Mesh (%1)</source>
         <translation>Ripara mesh (%1)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4392"/>
+        <location filename="../src/ModelViewer.cpp" line="4393"/>
         <source>Repair Mesh</source>
         <translation>Ripara mesh</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4424"/>
+        <location filename="../src/ModelViewer.cpp" line="4425"/>
         <source>Fill Holes (%1)</source>
         <translation>Riempi fori (%1)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4432"/>
+        <location filename="../src/ModelViewer.cpp" line="4433"/>
         <source>Fill Holes</source>
         <translation>Riempi fori</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4518"/>
+        <location filename="../src/ModelViewer.cpp" line="4519"/>
         <source>Generate UVs (%1)</source>
         <translation>Genera UV (%1)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4547"/>
+        <location filename="../src/ModelViewer.cpp" line="4548"/>
         <source>Hide All Measurements</source>
         <translation>Nascondi tutte le misurazioni</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4549"/>
+        <location filename="../src/ModelViewer.cpp" line="4550"/>
         <source>Hide All Annotations</source>
         <translation>Nascondi tutte le annotazioni</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4812"/>
+        <location filename="../src/ModelViewer.cpp" line="4813"/>
         <source>Recall Selection Set</source>
         <translation>Richiama set di selezione</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5063"/>
+        <location filename="../src/ModelViewer.cpp" line="5064"/>
         <source>Recall Scene State</source>
         <translation>Richiama stato della scena</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5111"/>
+        <location filename="../src/ModelViewer.cpp" line="5112"/>
         <source>Show All Measurements</source>
         <translation>Mostra tutte le misurazioni</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5117"/>
+        <location filename="../src/ModelViewer.cpp" line="5118"/>
         <source>Show All Annotations</source>
         <translation>Mostra tutte le annotazioni</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5323"/>
+        <location filename="../src/ModelViewer.cpp" line="5324"/>
         <source>Rename &quot;%1&quot; to &quot;%2&quot;</source>
         <translation>Rinomina &quot;%1&quot; in &quot;%2&quot;</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5388"/>
+        <location filename="../src/ModelViewer.cpp" line="5389"/>
         <source>Simulation Results (%1)</source>
         <translation>Risultati di simulazione (%1)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5753"/>
+        <location filename="../src/ModelViewer.cpp" line="5754"/>
         <source>Exported %1</source>
         <translation>%1 esportato</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5845"/>
+        <location filename="../src/ModelViewer.cpp" line="5846"/>
         <source>Reading file: </source>
         <translation>Lettura file: </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="6621"/>
+        <location filename="../src/ModelViewer.cpp" line="6622"/>
         <source>Loading mesh %1 / %2</source>
         <translation>Caricamento mesh %1 / %2</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="6703"/>
+        <location filename="../src/ModelViewer.cpp" line="6704"/>
         <source>Unrecognized file format: %1</source>
         <translation>Formato file non riconosciuto: %1</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="7727"/>
+        <location filename="../src/ModelViewer.cpp" line="7728"/>
         <source>Apply Material (Eyedropper)</source>
         <translation>Applica materiale (contagocce)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="7739"/>
+        <location filename="../src/ModelViewer.cpp" line="7740"/>
         <source>Replace Material</source>
         <translation>Sostituisci materiale</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="7830"/>
+        <location filename="../src/ModelViewer.cpp" line="7831"/>
         <source>Deselect</source>
         <translation>Deseleziona</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="7830"/>
+        <location filename="../src/ModelViewer.cpp" line="7831"/>
         <source>Select</source>
         <translation>Seleziona</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="7917"/>
+        <location filename="../src/ModelViewer.cpp" line="7918"/>
         <source>No of Meshes: %1</source>
         <translation>N. di mesh: %1</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="8046"/>
+        <location filename="../src/ModelViewer.cpp" line="8047"/>
         <source>Editing material of %1 (Apply will affect all %2 selected meshes)</source>
         <translation>Modifica del materiale di %1 (Applica interesserà tutte le %2 mesh selezionate)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="8049"/>
+        <location filename="../src/ModelViewer.cpp" line="8050"/>
         <source>Editing material of %1</source>
         <translation>Modifica del materiale di %1</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2336"/>
-        <location filename="../src/ModelViewer.cpp" line="2413"/>
+        <location filename="../src/ModelViewer.cpp" line="2337"/>
+        <location filename="../src/ModelViewer.cpp" line="2414"/>
         <source>%1*</source>
         <translation>%1*</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="925"/>
-        <location filename="../src/ModelViewer.cpp" line="1090"/>
+        <location filename="../src/ModelViewer.cpp" line="926"/>
+        <location filename="../src/ModelViewer.cpp" line="1091"/>
         <source>Auto-hides after a few seconds when unpinned</source>
         <translation>Si nasconde automaticamente dopo alcuni secondi se non è bloccato</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="926"/>
-        <location filename="../src/ModelViewer.cpp" line="1139"/>
+        <location filename="../src/ModelViewer.cpp" line="927"/>
+        <location filename="../src/ModelViewer.cpp" line="1140"/>
         <source>Hover to show the navigation panel</source>
         <translation>Passa il mouse per mostrare il pannello di navigazione</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1319"/>
+        <location filename="../src/ModelViewer.cpp" line="1320"/>
         <source>Delete Variant</source>
         <translation>Elimina variante</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1328"/>
+        <location filename="../src/ModelViewer.cpp" line="1329"/>
         <source>Delete Animation</source>
         <translation>Elimina animazione</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1337"/>
+        <location filename="../src/ModelViewer.cpp" line="1338"/>
         <source>Delete Camera</source>
         <translation>Elimina fotocamera</translation>
     </message>
@@ -8243,7 +8243,7 @@ Unirli come semplice combinazione (come &quot;Unisci selezione&quot;)? Scegliend
         <translation type="vanished">Stacca dal pannello</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="710"/>
+        <location filename="../src/ModelViewer.cpp" line="711"/>
         <source>Transform Selection</source>
         <translation>Trasforma selezione</translation>
     </message>
@@ -8256,97 +8256,97 @@ Unirli come semplice combinazione (come &quot;Unisci selezione&quot;)? Scegliend
         <translation type="vanished">Comprimi il pannello di navigazione del modello</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="956"/>
+        <location filename="../src/ModelViewer.cpp" line="957"/>
         <source>Drag to resize the navigation panel</source>
         <translation>Trascina per ridimensionare il pannello di navigazione</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1203"/>
+        <location filename="../src/ModelViewer.cpp" line="1204"/>
         <source>Allow navigation panel to hide automatically</source>
         <translation>Consenti al pannello di navigazione di nascondersi automaticamente</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1386"/>
+        <location filename="../src/ModelViewer.cpp" line="1387"/>
         <source>Delete %1 Measurements</source>
         <translation>Elimina %1 misurazioni</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1422"/>
+        <location filename="../src/ModelViewer.cpp" line="1423"/>
         <source>Delete %1 Annotations</source>
         <translation>Elimina %1 annotazioni</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1540"/>
+        <location filename="../src/ModelViewer.cpp" line="1541"/>
         <source>Hide Measurement</source>
         <translation>Nascondi misurazione</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1552"/>
+        <location filename="../src/ModelViewer.cpp" line="1553"/>
         <source>Show Measurement</source>
         <translation>Mostra misurazione</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1595"/>
+        <location filename="../src/ModelViewer.cpp" line="1596"/>
         <source>Hide Annotation</source>
         <translation>Nascondi annotazione</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1607"/>
+        <location filename="../src/ModelViewer.cpp" line="1608"/>
         <source>Show Annotation</source>
         <translation>Mostra annotazione</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2377"/>
+        <location filename="../src/ModelViewer.cpp" line="2378"/>
         <source>File saved</source>
         <translation>File salvato</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2382"/>
+        <location filename="../src/ModelViewer.cpp" line="2383"/>
         <source>Failed to save file: %1</source>
         <translation>Non salvare file: %1</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2390"/>
+        <location filename="../src/ModelViewer.cpp" line="2391"/>
         <source>Model Viewer Files (*.mvf)</source>
         <translation>Modello Visualizzatore file *.(mvf)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2391"/>
+        <location filename="../src/ModelViewer.cpp" line="2392"/>
         <source>Save Model</source>
         <translation>Modello di Salvataggio</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2506"/>
+        <location filename="../src/ModelViewer.cpp" line="2507"/>
         <source>Expand/Collapse to 1st Level</source>
         <translation>Espandi/Comprimi al 1° livello</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2510"/>
+        <location filename="../src/ModelViewer.cpp" line="2511"/>
         <source>Expand All Children</source>
         <translation>Espandi tutti i figli</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2516"/>
+        <location filename="../src/ModelViewer.cpp" line="2517"/>
         <source>Collapse All Children</source>
         <translation>Comprimi tutti i figli</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2557"/>
+        <location filename="../src/ModelViewer.cpp" line="2558"/>
         <source>Copy</source>
         <translation>Copia</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2562"/>
+        <location filename="../src/ModelViewer.cpp" line="2563"/>
         <source>Cut</source>
         <translation>Taglia</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2570"/>
+        <location filename="../src/ModelViewer.cpp" line="2571"/>
         <source>Paste</source>
         <translation>Incolla</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2620"/>
+        <location filename="../src/ModelViewer.cpp" line="2621"/>
         <source>Center Screen</source>
         <translation>Schermo Centrale</translation>
     </message>
@@ -8355,44 +8355,44 @@ Unirli come semplice combinazione (come &quot;Unisci selezione&quot;)? Scegliend
         <translation type="vanished">Impostazioni di Visualizzazione</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2621"/>
+        <location filename="../src/ModelViewer.cpp" line="2622"/>
         <source>Transformations</source>
         <translation>Trasformazioni</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2624"/>
-        <location filename="../src/ModelViewer.cpp" line="4581"/>
+        <location filename="../src/ModelViewer.cpp" line="2625"/>
+        <location filename="../src/ModelViewer.cpp" line="4582"/>
         <source>Hide</source>
         <translation>Nascondi</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2625"/>
-        <location filename="../src/ModelViewer.cpp" line="4813"/>
-        <location filename="../src/ModelViewer.cpp" line="5064"/>
-        <location filename="../src/ModelViewer.cpp" line="5150"/>
+        <location filename="../src/ModelViewer.cpp" line="2626"/>
+        <location filename="../src/ModelViewer.cpp" line="4814"/>
+        <location filename="../src/ModelViewer.cpp" line="5065"/>
+        <location filename="../src/ModelViewer.cpp" line="5151"/>
         <source>Show</source>
         <translation>Mostra</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2626"/>
-        <location filename="../src/ModelViewer.cpp" line="4603"/>
+        <location filename="../src/ModelViewer.cpp" line="2627"/>
+        <location filename="../src/ModelViewer.cpp" line="4604"/>
         <source>Show Only</source>
         <translation>Mostra Solo</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2640"/>
+        <location filename="../src/ModelViewer.cpp" line="2641"/>
         <source>Duplicate</source>
         <translation>Duplicare</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2646"/>
-        <location filename="../src/ModelViewer.cpp" line="4453"/>
+        <location filename="../src/ModelViewer.cpp" line="2647"/>
+        <location filename="../src/ModelViewer.cpp" line="4454"/>
         <source>Delete</source>
         <translation>Cancella</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2648"/>
-        <location filename="../src/ModelViewer.cpp" line="5248"/>
+        <location filename="../src/ModelViewer.cpp" line="2649"/>
+        <location filename="../src/ModelViewer.cpp" line="5249"/>
         <source>Mesh Info</source>
         <translation>Informazioni su Mesh</translation>
     </message>
@@ -8417,31 +8417,31 @@ Unirli come semplice combinazione (come &quot;Unisci selezione&quot;)? Scegliend
         <translation type="vanished">Elimina la selezione?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5160"/>
+        <location filename="../src/ModelViewer.cpp" line="5161"/>
         <source>Selection Required</source>
         <translation>Selezione Richiesta</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5160"/>
+        <location filename="../src/ModelViewer.cpp" line="5161"/>
         <source>Please select an object first</source>
         <translation>Si prega di selezionare un oggetto prima</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5221"/>
+        <location filename="../src/ModelViewer.cpp" line="5222"/>
         <source>Points: %1
 </source>
         <translation>Punti: %1
 </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5222"/>
+        <location filename="../src/ModelViewer.cpp" line="5223"/>
         <source>Triangles: %1
 </source>
         <translation>Triangoli: %1
 </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5245"/>
+        <location filename="../src/ModelViewer.cpp" line="5246"/>
         <source>Memory: %1 </source>
         <translation>Memoria: %1 </translation>
     </message>
@@ -8492,48 +8492,48 @@ Do you want to proceed?</source>
 Vuoi procedere?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5379"/>
+        <location filename="../src/ModelViewer.cpp" line="5380"/>
         <source>Import Model File</source>
         <translation>Importazione del Modello di File</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5484"/>
+        <location filename="../src/ModelViewer.cpp" line="5485"/>
         <source>Select Scene to Export</source>
         <translation>Seleziona scena da esportare</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5489"/>
+        <location filename="../src/ModelViewer.cpp" line="5490"/>
         <source>Multiple scenes are loaded. Select one to export:</source>
         <translation>Sono caricate più scene. Selezionane una da esportare:</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5521"/>
+        <location filename="../src/ModelViewer.cpp" line="5522"/>
         <source>Export Model</source>
         <translation>Modello di Esportazione</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5546"/>
-        <location filename="../src/ModelViewer.cpp" line="5586"/>
+        <location filename="../src/ModelViewer.cpp" line="5547"/>
+        <location filename="../src/ModelViewer.cpp" line="5587"/>
         <source>Nothing Selected</source>
         <translation>Nulla selezionato</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5547"/>
+        <location filename="../src/ModelViewer.cpp" line="5548"/>
         <source>Select one or more meshes in the scene tree before exporting selected meshes.</source>
         <translation>Seleziona una o più mesh nell&apos;albero della scena prima di esportare le mesh selezionate.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5579"/>
+        <location filename="../src/ModelViewer.cpp" line="5580"/>
         <source>Failed to build export scene.</source>
         <translation>Impossibile costruire la scena di esportazione.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5587"/>
+        <location filename="../src/ModelViewer.cpp" line="5588"/>
         <source>None of the selected items are exportable meshes.</source>
         <translation>Nessuno degli elementi selezionati è una mesh esportabile.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5753"/>
+        <location filename="../src/ModelViewer.cpp" line="5754"/>
         <source>Information</source>
         <translation>Informazioni</translation>
     </message>
@@ -8542,17 +8542,17 @@ Vuoi procedere?</translation>
         <translation type="vanished">Esportazione</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5755"/>
+        <location filename="../src/ModelViewer.cpp" line="5756"/>
         <source>Export failed!</source>
         <translation>Esportazione fallita!</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5819"/>
+        <location filename="../src/ModelViewer.cpp" line="5820"/>
         <source>File loaded</source>
         <translation>File caricato</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5831"/>
+        <location filename="../src/ModelViewer.cpp" line="5832"/>
         <source>Failed to load model %1</source>
         <translation>Non caricate il modello %1</translation>
     </message>
@@ -8605,19 +8605,19 @@ Altre operazioni di disordine (selezione, visibilità, ecc.) continueranno a fun
 Vuoi procedere?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4454"/>
+        <location filename="../src/ModelViewer.cpp" line="4455"/>
         <source>Delete selected item(s)?</source>
         <translation>Eliminare elemento/i selezionato/i?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4536"/>
-        <location filename="../src/ModelViewer.cpp" line="4540"/>
+        <location filename="../src/ModelViewer.cpp" line="4537"/>
+        <location filename="../src/ModelViewer.cpp" line="4541"/>
         <source>Hide All</source>
         <translation>Nascondi Tutto</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5087"/>
-        <location filename="../src/ModelViewer.cpp" line="5101"/>
+        <location filename="../src/ModelViewer.cpp" line="5088"/>
+        <location filename="../src/ModelViewer.cpp" line="5102"/>
         <source>Show All</source>
         <translation>Mostra Tutto</translation>
     </message>
@@ -8735,32 +8735,32 @@ Usa Copia e Incolla per un assieme a più mesh.</translation>
         <translation>Nascondi risultato di simulazione</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="520"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="532"/>
         <source>%1: no value</source>
         <translation>%1: nessun valore</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="529"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="541"/>
         <source>  (cell %1)</source>
         <translation>  (cella %1)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="529"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="541"/>
         <source>  (node %1)</source>
         <translation>  (nodo %1)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="637"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="649"/>
         <source>A simulation result was saved without its data (%1).</source>
         <translation>Un risultato di simulazione è stato salvato senza i suoi dati (%1).</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="695"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="707"/>
         <source>Save Simulation Results</source>
         <translation>Salva risultati di simulazione</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="697"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="709"/>
         <source>This document contains %n simulation result(s). Choose what to store in the .mvf file, so it can be reopened without the original result file:</source>
         <translation>
             <numerusform>Questo documento contiene %n risultato di simulazione. Scegli cosa memorizzare nel file .mvf per poterlo riaprire senza il file di risultato originale:</numerusform>
@@ -8768,27 +8768,27 @@ Usa Copia e Incolla per un assieme a più mesh.</translation>
         </translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="701"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="713"/>
         <source>Shown field and displacement, all time steps  (about %1)  - recommended</source>
         <translation>Campo mostrato e spostamento, tutti i passi temporali  (circa %1)  - consigliato</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="702"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="714"/>
         <source>All fields, all time steps  (about %1)</source>
         <translation>Tutti i campi, tutti i passi temporali  (circa %1)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="703"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="715"/>
         <source>Geometry only  (the surface with the colours as displayed; no result data)</source>
         <translation>Solo geometria  (la superficie con i colori mostrati; nessun dato di risultato)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="708"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="720"/>
         <source>Also store the volume, so sections, iso-surfaces and streamlines stay live when it is reopened  (adds about %1)</source>
         <translation>Memorizza anche il volume, così sezioni, isosuperfici e linee di flusso restano attive alla riapertura  (aggiunge circa %1)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="710"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="722"/>
         <source>Without it only the visible surface is stored. The cut faces, iso-surfaces and streamlines
 on display are then kept as they are (frozen): they no longer follow a moved Clipping
 Plane or another time step. With the volume they are recomputed as before, at the price of
@@ -8799,42 +8799,42 @@ o un altro passo temporale. Con il volume vengono ricalcolate come prima, al pre
 di un file molto più grande.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="716"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="728"/>
         <source>None of the results has volume cells.</source>
         <translation>Nessuno dei risultati ha celle di volume.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="719"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="731"/>
         <source>Sizes are estimates: the data is compressed without loss. Unless the volume is stored, only the visible surface is stored, and sections, iso-surfaces and streamlines are kept as displayed. At most 100 time steps are stored per result (evenly spaced). You are asked once per session.</source>
         <translation>Le dimensioni sono stime: i dati sono compressi senza perdita. Se il volume non viene memorizzato, viene salvata solo la superficie visibile, e sezioni, isosuperfici e linee di flusso vengono conservate come mostrate. Per ogni risultato vengono memorizzati al massimo 100 passi temporali (equidistanti). Ti viene chiesto una volta per sessione.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="755"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="767"/>
         <source>%1: %2</source>
         <translation>%1: %2</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="755"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="767"/>
         <source>the stored result data is unusable</source>
         <translation>i dati di risultato memorizzati sono inutilizzabili</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="811"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="823"/>
         <source>Restored from a saved snapshot including the volume; the original result file is not needed.</source>
         <translation>Ripristinato da uno snapshot salvato che include il volume; il file di risultato originale non è necessario.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="812"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="824"/>
         <source>Restored from a saved snapshot of the visible surface; the original result file is not needed.</source>
         <translation>Ripristinato da uno snapshot salvato della superficie visibile; il file di risultato originale non è necessario.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="843"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="855"/>
         <source>Simulation Results</source>
         <translation>Risultati di simulazione</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="844"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="856"/>
         <source>The simulation result data could not be restored for:
 
 %1
@@ -8847,182 +8847,179 @@ The surface is shown with the colours it had when it was saved.</source>
 La superficie viene mostrata con i colori che aveva al momento del salvataggio.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="980"/>
         <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="992"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1004"/>
         <source>Compare Results</source>
         <translation>Confronta risultati</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="981"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="993"/>
         <source>Comparing needs two simulation results in this document. Add another with Simulation &gt; Add Result to This Document, or open one with File &gt; Open.</source>
         <translation>Per confrontare servono due risultati di simulazione in questo documento. Aggiungine un altro con Simulazione &gt; Aggiungi risultato a questo documento, oppure aprine uno con File &gt; Apri.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="993"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1005"/>
         <source>Compare &quot;%1&quot; with:</source>
         <translation>Confronta &quot;%1&quot; con:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1040"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1052"/>
         <source>Compare ended: one of the compared results is no longer shown.</source>
         <translation>Confronto terminato: uno dei risultati confrontati non è più mostrato.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1302"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1335"/>
         <source>%1 - %2</source>
         <translation>%1 - %2</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1313"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1346"/>
         <source>unit not specified</source>
         <translation>unità non specificata</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1314"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1347"/>
         <source>%1, assumed</source>
         <translation>%1, presunta</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1315"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1348"/>
         <source>%1  [%2]</source>
         <translation>%1  [%2]</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1317"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1350"/>
         <source>%1
 %2</source>
         <translation>%1
 %2</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1353"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1386"/>
         <source>Min</source>
         <translation>Min</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1355"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1388"/>
         <source>Max</source>
         <translation>Max</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1424"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1457"/>
         <source>No arrows at this step: &apos;%1&apos; has no vector data here.</source>
         <translation>Nessuna freccia in questo passo: &apos;%1&apos; non ha dati vettoriali qui.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1446"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1479"/>
         <source>Arrows: %1, coloured as in the legend.</source>
         <translation>Frecce: %1, colorate come nella legenda.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1448"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1481"/>
         <source>Arrows: %1, coloured by magnitude from %2 to %3%4.</source>
         <translation>Frecce: %1, colorate per intensità da %2 a %3%4.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1481"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1542"/>
         <source>Streamlines are shown as they were saved (frozen): this snapshot has no volume. Save with &quot;Also store the volume&quot; to keep them live.</source>
         <translation>Le linee di flusso sono mostrate come sono state salvate (congelate): questo snapshot non ha il volume. Salva con &quot;Memorizza anche il volume&quot; per mantenerle attive.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1485"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1546"/>
         <source>This result has no volume cells (a shell or surface result, or a snapshot saved without its volume), so there is nothing to trace through.</source>
         <translation>Questo risultato non ha celle di volume (un risultato di gusci o di superficie, o uno snapshot salvato senza volume), quindi non c&apos;è nulla da tracciare.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1494"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1555"/>
         <source>Streamlines: the result has no node vector field to follow (cell fields cannot be traced).</source>
         <translation>Linee di flusso: il risultato non ha campi vettoriali nodali da seguire (i campi di cella non possono essere tracciati).</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1502"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1564"/>
         <source>No streamlines at this step: &apos;%1&apos; has no vector data here.</source>
         <translation>Nessuna linea di flusso in questo passo: &apos;%1&apos; non ha dati vettoriali qui.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1515"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1579"/>
         <source>Streamlines: turn on a Clipping Plane (the Clipping Planes editor) to seed on it, or switch &quot;Seed on the Clipping Plane&quot; off.</source>
         <translation>Linee di flusso: attiva un piano di taglio (l&apos;editor dei piani di taglio) per partire da esso, oppure disattiva &quot;Partenza sul piano di taglio&quot;.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1529"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1596"/>
         <source>This result has no volume cells to trace through.</source>
         <translation>Questo risultato non ha celle di volume da tracciare.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1578"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1646"/>
         <source>Streamlines of %1: none could be traced - the seeds lie outside the mesh, or the field is zero there.</source>
         <translation>Linee di flusso di %1: nessuna è stata tracciata - i punti di partenza sono fuori dalla mesh, oppure il campo lì è zero.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1629"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1737"/>
         <source>Streamlines of %1: %2 line(s), coloured by magnitude%3%4.</source>
         <translation>Linee di flusso di %1: %2 linea/e, colorate per intensità%3%4.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1631"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1739"/>
         <source>, as in the legend</source>
         <translation>, come nella legenda</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1631"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1739"/>
         <source> from %1 to %2</source>
         <translation> da %1 a %2</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1634"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1742"/>
         <source>They lie inside the model: cut it with a Clipping Plane to see them.</source>
         <translation>Si trovano all&apos;interno del modello: taglialo con un piano di taglio per vederle.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1636"/>
         <source>Streamlines are drawn on the undeformed mesh.</source>
-        <translation>Le linee di flusso sono disegnate sulla mesh non deformata.</translation>
+        <translation type="vanished">Le linee di flusso sono disegnate sulla mesh non deformata.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1665"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1771"/>
         <source>Cut faces and iso-surfaces are shown as they were saved (frozen): this snapshot has no volume. Save with &quot;Also store the volume&quot; to keep them live.</source>
         <translation>Le facce di taglio e le isosuperfici sono mostrate come sono state salvate (congelate): questo snapshot non ha il volume. Salva con &quot;Memorizza anche il volume&quot; per mantenerle attive.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1669"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1775"/>
         <source>This result has no volume cells (a shell or surface result, or a snapshot saved without its volume), so there is nothing to cut.</source>
         <translation>Questo risultato non ha celle di volume (un risultato di gusci o di superficie, o uno snapshot salvato senza volume), quindi non c&apos;è nulla da tagliare.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1708"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1821"/>
         <source>Cut faces: turn on a Clipping Plane (the Clipping Planes editor) to cut the model.</source>
         <translation>Facce di taglio: attiva un piano di taglio (l&apos;editor dei piani di taglio) per tagliare il modello.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1710"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1823"/>
         <source>Cut faces: there is no field shown to colour them with.</source>
         <translation>Facce di taglio: non è mostrato alcun campo con cui colorarle.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1764"/>
         <source>Cut faces are drawn on the undeformed mesh.</source>
-        <translation>Le facce di taglio sono disegnate sulla mesh non deformata.</translation>
+        <translation type="vanished">Le facce di taglio sono disegnate sulla mesh non deformata.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1780"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1891"/>
         <source>Iso-surfaces: choose a node field (a scalar or a vector) to draw them of.</source>
         <translation>Isosuperfici: scegli un campo nodale (uno scalare o un vettore) di cui disegnarle.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1833"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1944"/>
         <source>Iso-surfaces of %1: the field is constant (%2) at this step, so there is no surface to draw - step to a later time.</source>
         <translation>Isosuperfici di %1: il campo è costante (%2) in questo passo, quindi non c&apos;è alcuna superficie da disegnare - passa a un istante successivo.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1836"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1947"/>
         <source>Iso-surfaces of %1: %2 level(s) from %3 to %4%5 - inside the model, so cut it with a Clipping Plane to see them.</source>
         <translation>Isosuperfici di %1: %2 livello/i da %3 a %4%5 - all&apos;interno del modello, quindi taglialo con un piano di taglio per vederle.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1840"/>
         <source>Iso-surfaces are drawn on the undeformed mesh.</source>
-        <translation>Le isosuperfici sono disegnate sulla mesh non deformata.</translation>
+        <translation type="vanished">Le isosuperfici sono disegnate sulla mesh non deformata.</translation>
     </message>
 </context>
 <context>
@@ -9233,14 +9230,14 @@ La superficie viene mostrata con i colori che aveva al momento del salvataggio.<
         <translation type="vanished">%1 mesh sono state bloccate - annulla trasformazione saltato</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1757"/>
-        <location filename="../src/MainWindow.cpp" line="1783"/>
-        <location filename="../src/MainWindow.cpp" line="1822"/>
+        <location filename="../src/MainWindow.cpp" line="1763"/>
+        <location filename="../src/MainWindow.cpp" line="1789"/>
+        <location filename="../src/MainWindow.cpp" line="1828"/>
         <source>Cancel Loading</source>
         <translation>Annulla caricamento</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5949"/>
+        <location filename="../src/ModelViewer.cpp" line="5950"/>
         <source>Preparing meshes: </source>
         <translation>Preparazione mesh: </translation>
     </message>
@@ -14965,12 +14962,12 @@ Il pannello mostra i binding delle texture lato GPU per la mesh selezionata.</tr
 <context>
     <name>SimulationPanel</name>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="101"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="115"/>
         <source>Add Result...</source>
         <translation>Aggiungi risultato...</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="102"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="116"/>
         <source>Add a simulation result (.vtu, .vtk, .frd, .foam) to this
 document, shown as its outer surface coloured by a result
 field.
@@ -14981,7 +14978,7 @@ campo di risultato.
 Per aprire un risultato in un documento separato, usa File &gt; Apri.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="116"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="130"/>
         <source>No simulation result in this document.
 
 Use File &gt; Open to open a .vtu, .vtk, .frd or OpenFOAM .foam result in its own document, or &quot;Add Result...&quot; to add one to this document. A result is shown as its outer surface, coloured by a result field; the controls for the field, range, colormap and contours appear here.</source>
@@ -14990,7 +14987,7 @@ Use File &gt; Open to open a .vtu, .vtk, .frd or OpenFOAM .foam result in its ow
 Usa File &gt; Apri per aprire un risultato .vtu, .vtk, .frd o OpenFOAM .foam in un documento separato, oppure &quot;Aggiungi risultato...&quot; per aggiungerne uno a questo documento. Un risultato è mostrato come superficie esterna, colorata secondo un campo di risultato; i controlli di campo, intervallo, mappa colori e contorni compaiono qui.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="136"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="150"/>
         <source>The simulation results in this document. Selecting one
 here selects its mesh; selecting a result mesh in the
 scene tree switches this panel to it.</source>
@@ -14999,55 +14996,55 @@ qui si seleziona la sua mesh; selezionando una mesh di risultato
 nell&apos;albero della scena questo pannello passa ad essa.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="139"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="153"/>
         <source>Visible</source>
         <translation>Visibile</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="141"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="155"/>
         <source>Close</source>
         <translation>Chiudi</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="142"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="156"/>
         <source>Remove this result from the document (can be undone)</source>
         <translation>Rimuovi questo risultato dal documento (può essere annullato)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="147"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="161"/>
         <source>Result:</source>
         <translation>Risultato:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="151"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="165"/>
         <source>Show the selected result next to this one, in two panes
 that share one camera.</source>
         <translation>Mostra il risultato selezionato accanto a questo, in due riquadri
 che condividono una telecamera.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="153"/>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="498"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="167"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="530"/>
         <source>Compare</source>
         <translation>Confronta</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="157"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="171"/>
         <source>Compare with:</source>
         <translation>Confronta con:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="158"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="172"/>
         <source>Stacked (top / bottom)</source>
         <translation>In colonna (sopra / sotto)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="159"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="173"/>
         <source>Same colour range for both</source>
         <translation>Stesso intervallo di colori per entrambi</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="160"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="174"/>
         <source>Use one colour range covering both results, so equal
 colours mean equal values (only while both show the same
 unit).</source>
@@ -15056,12 +15053,12 @@ uguali significano valori uguali (solo finché entrambi mostrano la
 stessa unità).</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="165"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="179"/>
         <source>Link the cameras</source>
         <translation>Collega le telecamere</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="166"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="180"/>
         <source>Off: every pane has its own camera - orbit (middle
 button), pan (right button) and zoom (wheel) act on the
 pane under the cursor. On: they move all panes together.
@@ -15072,47 +15069,47 @@ il cursore. Attivato: tutti i riquadri si muovono insieme.
 Adatta riporta ogni risultato nel proprio riquadro.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="176"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="190"/>
         <source>File:</source>
         <translation>File:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="180"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="194"/>
         <source>Mesh:</source>
         <translation>Mesh:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="185"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="199"/>
         <source>Not specified (assumed mm)</source>
         <translation>Non specificato (si assume mm)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="186"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="200"/>
         <source>Millimetres (mm)</source>
         <translation>Millimetri (mm)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="187"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="201"/>
         <source>Centimetres (cm)</source>
         <translation>Centimetri (cm)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="188"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="202"/>
         <source>Metres (m)</source>
         <translation>Metri (m)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="189"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="203"/>
         <source>Inches (in)</source>
         <translation>Pollici (in)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="190"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="204"/>
         <source>Feet (ft)</source>
         <translation>Piedi (ft)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="191"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="205"/>
         <source>The length unit of the model&apos;s coordinates. Mass
 Properties and Surface Analysis use it to convert to
 millimetres. Set from the file when it states one.</source>
@@ -15121,106 +15118,106 @@ e Analisi della superficie la usano per convertire in
 millimetri. Presa dal file quando ne indica una.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="194"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="208"/>
         <source>Model unit:</source>
         <translation>Unità del modello:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="197"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="211"/>
         <source>Model size:</source>
         <translation>Dimensione del modello:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="200"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="214"/>
         <source>Field:</source>
         <translation>Campo:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="202"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="216"/>
         <source>Component:</source>
         <translation>Componente:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="209"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="223"/>
         <source>Quantity:</source>
         <translation>Grandezza:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="211"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="225"/>
         <source>Values are in:</source>
         <translation>I valori sono in:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="213"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="227"/>
         <source>Show in:</source>
         <translation>Mostra in:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="219"/>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="794"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="233"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="836"/>
         <source>Automatic (data range)</source>
         <translation>Automatico (intervallo dei dati)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="220"/>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="795"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="234"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="837"/>
         <source>Custom</source>
         <translation>Personalizzato</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="221"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="235"/>
         <source>Range:</source>
         <translation>Intervallo:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="235"/>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="984"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="249"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1028"/>
         <source>Minimum:</source>
         <translation>Minimo:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="238"/>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="985"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="252"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1029"/>
         <source>Maximum:</source>
         <translation>Massimo:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="242"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="256"/>
         <source>Rainbow (sequential)</source>
         <translation>Arcobaleno (sequenziale)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="243"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="257"/>
         <source>Blue - white - red (diverging)</source>
         <translation>Blu - bianco - rosso (divergente)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="244"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="258"/>
         <source>Colormap:</source>
         <translation>Mappa colori:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="247"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="261"/>
         <source>Smooth</source>
         <translation>Continuo</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="249"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="263"/>
         <source>%1 bands</source>
         <translation>%1 bande</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="250"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="264"/>
         <source>Contours:</source>
         <translation>Contorni:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="252"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="266"/>
         <source>Mark minimum and maximum</source>
         <translation>Segna minimo e massimo</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="253"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="267"/>
         <source>Label the smallest and largest value on the visible
 surface. The true extreme can lie inside the volume, where
 it cannot be shown.</source>
@@ -15229,12 +15226,12 @@ visibile. Il vero estremo può trovarsi all&apos;interno del volume, dove
 non può essere mostrato.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="259"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="273"/>
         <source>Show deformed shape</source>
         <translation>Mostra forma deformata</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="267"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="281"/>
         <source>Factor applied to the displacements. 1 is the true
 deformation; results are usually exaggerated so that it is
 visible.</source>
@@ -15243,29 +15240,29 @@ vengono di solito esagerati perché sia
 visibile.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="270"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="284"/>
         <source>Auto</source>
         <translation>Auto</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="271"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="285"/>
         <source>Choose a factor that makes the largest displacement about
 a tenth of the model size</source>
         <translation>Sceglie un fattore che porta lo spostamento maggiore a circa
 un decimo della dimensione del modello</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="276"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="290"/>
         <source>Scale factor:</source>
         <translation>Fattore di scala:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="282"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="296"/>
         <source>Show vector arrows</source>
         <translation>Mostra frecce vettoriali</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="283"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="297"/>
         <source>Draw an arrow along a vector field (velocity, displacement
 ...) at sampled points of the surface, coloured by the
 vector&apos;s magnitude.</source>
@@ -15274,49 +15271,61 @@ vector&apos;s magnitude.</source>
 l&apos;intensità del vettore.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="288"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="302"/>
         <source>Arrow field:</source>
         <translation>Campo delle frecce:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="294"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="308"/>
         <source>Arrow size. 1 makes the largest arrow 5 % of the model size.</source>
         <translation>Dimensione delle frecce. Con 1 la freccia più grande è il 5 % della dimensione del modello.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="295"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="309"/>
         <source>Arrow size:</source>
         <translation>Dimensione frecce:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="300"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="314"/>
         <source>About this many arrows, spread evenly over the surface.</source>
         <translation>Circa questo numero di frecce, distribuite uniformemente sulla superficie.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="301"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="315"/>
         <source>Arrow count:</source>
         <translation>Numero di frecce:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="302"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="317"/>
+        <source>Line thickness:</source>
+        <translation>Spessore delle linee:</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="324"/>
+        <source>The radius of the tubes drawn around the lines (beams, pipes)
+of this result, in percent of the model size.</source>
+        <translation>Il raggio dei tubi disegnati attorno alle linee (travi, tubi)
+di questo risultato, in percentuale della dimensione del modello.</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="329"/>
         <source>Scale arrows by magnitude</source>
         <translation>Scala le frecce per intensità</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="303"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="330"/>
         <source>Off: every arrow has the same length and only the colour
 shows the magnitude.</source>
         <translation>Disattivato: tutte le frecce hanno la stessa lunghezza e solo il colore
 mostra l&apos;intensità.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="311"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="338"/>
         <source>Colour the Clipping Plane cut with the field</source>
         <translation>Colora il taglio del piano di taglio con il campo</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="312"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="339"/>
         <source>Switch on a Clipping Plane (the Clipping Planes editor);
 the model is cut open there and the cut through the volume
 is drawn coloured with the shown field. It follows the
@@ -15328,12 +15337,12 @@ mostrato. Segue il piano quando lo sposti. È opaco, quindi
 disattivalo per vedere le isosuperfici dietro di esso.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="318"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="345"/>
         <source>Show iso-surfaces</source>
         <translation>Mostra isosuperfici</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="319"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="346"/>
         <source>Surfaces inside the volume where a node field has a given
 value, evenly spaced between its smallest and largest
 value at the shown step. They lie inside the model: cut it
@@ -15344,22 +15353,22 @@ passo mostrato. Si trovano all&apos;interno del modello: taglialo
 con un piano di taglio per vederle.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="325"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="352"/>
         <source>Iso-surface field:</source>
         <translation>Campo delle isosuperfici:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="329"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="356"/>
         <source>Iso-surface levels:</source>
         <translation>Livelli delle isosuperfici:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="335"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="362"/>
         <source>Show streamlines</source>
         <translation>Mostra linee di flusso</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="336"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="363"/>
         <source>Curves that follow a vector field (velocity ...) through the
 volume, in both directions from each seed point, coloured by
 the field&apos;s magnitude. They lie inside the model: cut it with
@@ -15370,179 +15379,194 @@ l&apos;intensità del campo. Si trovano all&apos;interno del modello: taglialo c
 un piano di taglio per vederle. Vengono tracciati solo i campi nodali.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="342"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="369"/>
         <source>Streamline field:</source>
         <translation>Campo delle linee di flusso:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="346"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="373"/>
         <source>How many seed points. A seed outside the mesh, or where
 the field is zero, gives no line.</source>
         <translation>Quanti punti di partenza. Un punto fuori dalla mesh, o dove
 il campo è zero, non dà alcuna linea.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="348"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="375"/>
         <source>Streamline seeds:</source>
         <translation>Punti di partenza delle linee di flusso:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="349"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="376"/>
         <source>Seed on the Clipping Plane</source>
         <translation>Partenza sul piano di taglio</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="350"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="377"/>
         <source>Start the lines on the cut of the Clipping Planes instead
 of at random points through the whole volume.</source>
         <translation>Fa partire le linee dal taglio dei piani di taglio invece che
 da punti casuali in tutto il volume.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="362"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="380"/>
+        <source>Arrowheads</source>
+        <translation>Punte di freccia</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="381"/>
+        <source>Small cones along the lines that show the direction of the flow.</source>
+        <translation>Piccoli coni lungo le linee che mostrano la direzione del flusso.</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="392"/>
         <source>Result files do not store units. The unit above is a guess from the field name and the file type until you confirm it; choosing a different &quot;Show in&quot; unit converts the values and the legend.</source>
         <translation>I file di risultato non memorizzano le unità. L&apos;unità qui sopra è un&apos;ipotesi basata sul nome del campo e sul tipo di file finché non la confermi; scegliere un&apos;altra unità in &quot;Mostra in&quot; converte i valori e la legenda.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="469"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="501"/>
         <source>%1 (hidden)</source>
         <translation>%1 (nascosto)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="498"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="530"/>
         <source>Exit Compare</source>
         <translation>Esci dal confronto</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="522"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="554"/>
         <source>%1 nodes, %2 cells, %3 surface triangles</source>
         <translation>%1 nodi, %2 celle, %3 triangoli di superficie</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="528"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="560"/>
         <source>(unit not specified)</source>
         <translation>(unità non specificata)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="530"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="562"/>
         <source>%1 x %2 x %3 %4</source>
         <translation>%1 x %2 x %3 %4</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="556"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="588"/>
         <source>Displacement field: %1. Mode shapes have no physical amplitude, so each mode is drawn with its largest displacement at a tenth of the model size; the factor scales that (1 = a tenth).</source>
         <translation>Campo di spostamento: %1. Le forme modali non hanno ampiezza fisica, quindi ogni modo è disegnato con il suo spostamento maggiore a un decimo della dimensione del modello; il fattore lo scala (1 = un decimo).</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="558"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="590"/>
         <source>Displacement field: %1 (applied in the file&apos;s own length unit)</source>
         <translation>Campo di spostamento: %1 (applicato nell&apos;unità di lunghezza propria del file)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="560"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="592"/>
         <source>This result has no displacement field, so it cannot be shown deformed.</source>
         <translation>Questo risultato non ha un campo di spostamento, quindi non può essere mostrato deformato.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="628"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="632"/>
+        <source>This result has no fields (no values to colour by): only its geometry is shown.</source>
+        <translation>Questo risultato non ha campi (nessun valore con cui colorare): viene mostrata solo la sua geometria.</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="669"/>
         <source> (magnitude)</source>
         <translation> (intensità)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="632"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="673"/>
         <source>(no node field)</source>
         <translation>(nessun campo nodale)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="647"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="688"/>
         <source>(no node vector field)</source>
         <translation>(nessun campo vettoriale nodale)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="677"/>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="708"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="719"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="750"/>
         <source> [cells]</source>
         <translation> [celle]</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="681"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="723"/>
         <source>(no vector fields)</source>
         <translation>(nessun campo vettoriale)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="706"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="748"/>
         <source> (%1 components)</source>
         <translation> (%1 componenti)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="713"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="755"/>
         <source>(no fields)</source>
         <translation>(nessun campo)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="738"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="780"/>
         <source>Magnitude</source>
         <translation>Intensità</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="739"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="781"/>
         <source>X</source>
         <translation>X</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="740"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="782"/>
         <source>Y</source>
         <translation>Y</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="741"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="783"/>
         <source>Z</source>
         <translation>Z</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="751"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="793"/>
         <source>Component %1</source>
         <translation>Componente %1</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="790"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="832"/>
         <source>Automatic (all steps)</source>
         <translation>Automatico (tutti i passi)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="791"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="833"/>
         <source>Automatic (this step)</source>
         <translation>Automatico (questo passo)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="917"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="961"/>
         <source>Not specified</source>
         <translation>Non specificato</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="931"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="975"/>
         <source>Unit not specified. Choose the quantity, then the unit the values are written in.</source>
         <translation>Unità non specificata. Scegli la grandezza, poi l&apos;unità in cui sono scritti i valori.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="933"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="977"/>
         <source>Assumed from the field name and the file type. Confirm or change it.</source>
         <translation>Presunta dal nome del campo e dal tipo di file. Confermala o modificala.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="946"/>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="949"/>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="964"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="990"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="993"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1008"/>
         <source>(not specified)</source>
         <translation>(non specificata)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="984"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1028"/>
         <source>Minimum [%1]:</source>
         <translation>Minimo [%1]:</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="985"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1029"/>
         <source>Maximum [%1]:</source>
         <translation>Massimo [%1]:</translation>
     </message>
@@ -15551,37 +15575,44 @@ da punti casuali in tutto il volume.</translation>
     <name>SimulationTimelineWidget</name>
     <message>
         <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="54"/>
+        <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="201"/>
         <source>Previous step</source>
         <translation>Passo precedente</translation>
     </message>
     <message>
         <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="57"/>
         <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="146"/>
+        <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="202"/>
         <source>Play</source>
         <translation>Riproduci</translation>
     </message>
     <message>
         <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="60"/>
+        <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="203"/>
         <source>Stop and rewind to the first step</source>
         <translation>Ferma e torna al primo passo</translation>
     </message>
     <message>
         <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="63"/>
+        <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="204"/>
         <source>Next step</source>
         <translation>Passo successivo</translation>
     </message>
     <message>
         <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="73"/>
+        <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="205"/>
         <source>Loop</source>
         <translation>Ripeti</translation>
     </message>
     <message>
         <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="79"/>
+        <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="206"/>
         <source>Playback speed</source>
         <translation>Velocità di riproduzione</translation>
     </message>
     <message>
         <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="146"/>
+        <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="202"/>
         <source>Pause</source>
         <translation>Pausa</translation>
     </message>
@@ -15591,22 +15622,22 @@ da punti casuali in tutto il volume.</translation>
         <translation>Passo %1 / %2</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="203"/>
+        <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="215"/>
         <source>Unpin to move the timeline</source>
         <translation>Sblocca per spostare la linea temporale</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="203"/>
+        <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="215"/>
         <source>Drag to move the timeline (double-click to reset)</source>
         <translation>Trascina per spostare la linea temporale (doppio clic per ripristinare)</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="206"/>
+        <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="218"/>
         <source>Pinned: position locked. Click to unlock.</source>
         <translation>Bloccata: posizione fissata. Clicca per sbloccare.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="206"/>
+        <location filename="../src/Simulation/UI/SimulationTimelineWidget.cpp" line="218"/>
         <source>Pin the timeline where it is</source>
         <translation>Blocca la linea temporale dove si trova</translation>
     </message>
@@ -18596,178 +18627,178 @@ La convenzione della fotocamera attiva è stata lasciata invariata perché quest
         <translation>Premi Esc per disattivare la modalità zoom</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="4708"/>
+        <location filename="../src/ViewportWidget.cpp" line="4731"/>
         <source>Manual exploded placement active: translate or rotate the selected meshes to refine the staged pose</source>
         <translation>Posizionamento esploso manuale attivo: trasla o ruota le mesh selezionate per perfezionare la posa preparata</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="4709"/>
+        <location filename="../src/ViewportWidget.cpp" line="4732"/>
         <source>Transform gizmo active: drag the corner box handle to scale uniformly</source>
         <translation>Gizmo di trasformazione attivo: trascina la maniglia dell&apos;angolo per scalare uniformemente</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="5269"/>
+        <location filename="../src/ViewportWidget.cpp" line="5292"/>
         <source>Reading file: </source>
         <translation>Lettura file: </translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="5398"/>
+        <location filename="../src/ViewportWidget.cpp" line="5421"/>
         <source>Model loading did not finish correctly.</source>
         <translation>Il caricamento del modello non è terminato correttamente.</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="5560"/>
+        <location filename="../src/ViewportWidget.cpp" line="5583"/>
         <source>Model loading cancelled</source>
         <translation>Caricamento del modello annullato</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="5565"/>
+        <location filename="../src/ViewportWidget.cpp" line="5588"/>
         <source>Model loading cancelled after importing %1 meshes</source>
         <translation>Caricamento del modello annullato dopo l&apos;importazione di %1 mesh</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="5591"/>
+        <location filename="../src/ViewportWidget.cpp" line="5614"/>
         <source>Generating UVs for %1 meshes</source>
         <translation>Generazione UV per %1 mesh</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="5643"/>
+        <location filename="../src/ViewportWidget.cpp" line="5666"/>
         <source>Updating mesh: </source>
         <translation>Aggiornamento mesh: </translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="5674"/>
+        <location filename="../src/ViewportWidget.cpp" line="5697"/>
         <source>%1 of %2 marked seams could not be resolved.</source>
         <translation>%1 di %2 cuciture contrassegnate non è stato possibile risolvere.</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="5696"/>
+        <location filename="../src/ViewportWidget.cpp" line="5719"/>
         <source>Generating UVs... </source>
         <translation>Generazione UV... </translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="5697"/>
+        <location filename="../src/ViewportWidget.cpp" line="5720"/>
         <source>Processing node: %1/%2  Mesh: %3/%4</source>
         <translation>Elaborazione nodo: %1/%2  Mesh: %3/%4</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="5732"/>
+        <location filename="../src/ViewportWidget.cpp" line="5755"/>
         <source>Cancelling...</source>
         <translation>Annullamento...</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="5733"/>
+        <location filename="../src/ViewportWidget.cpp" line="5756"/>
         <source>Cancelling model load...</source>
         <translation>Annullamento caricamento modello...</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="5985"/>
-        <location filename="../src/ViewportWidget.cpp" line="5986"/>
-        <location filename="../src/ViewportWidget.cpp" line="5987"/>
+        <location filename="../src/ViewportWidget.cpp" line="6008"/>
+        <location filename="../src/ViewportWidget.cpp" line="6009"/>
+        <location filename="../src/ViewportWidget.cpp" line="6010"/>
         <source>Drag Clipping Plane</source>
         <translation>Trascina piano di taglio</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="6018"/>
+        <location filename="../src/ViewportWidget.cpp" line="6041"/>
         <source>Drag Clipping Box Face</source>
         <translation>Trascina faccia del box di taglio</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="9988"/>
+        <location filename="../src/ViewportWidget.cpp" line="10011"/>
         <source>Translate Exploded Placement</source>
         <translation>Trasla posizionamento esploso</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="10000"/>
+        <location filename="../src/ViewportWidget.cpp" line="10023"/>
         <source>Translate Selection</source>
         <translation>Trasla selezione</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="10249"/>
+        <location filename="../src/ViewportWidget.cpp" line="10272"/>
         <source>Scale Selection</source>
         <translation>Scala selezione</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="10517"/>
+        <location filename="../src/ViewportWidget.cpp" line="10540"/>
         <source>Rotate Exploded Placement</source>
         <translation>Ruota posizionamento esploso</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="10532"/>
+        <location filename="../src/ViewportWidget.cpp" line="10555"/>
         <source>Rotate Selection</source>
         <translation>Ruota selezione</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="11006"/>
-        <location filename="../src/ViewportWidget.cpp" line="11195"/>
+        <location filename="../src/ViewportWidget.cpp" line="11029"/>
+        <location filename="../src/ViewportWidget.cpp" line="11218"/>
         <source>Bottom</source>
         <translation>Inferiore</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="11006"/>
-        <location filename="../src/ViewportWidget.cpp" line="11195"/>
+        <location filename="../src/ViewportWidget.cpp" line="11029"/>
+        <location filename="../src/ViewportWidget.cpp" line="11218"/>
         <source>Rear</source>
         <translation>Posteriore</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="11006"/>
-        <location filename="../src/ViewportWidget.cpp" line="11195"/>
+        <location filename="../src/ViewportWidget.cpp" line="11029"/>
+        <location filename="../src/ViewportWidget.cpp" line="11218"/>
         <source>Right</source>
         <translation>Destra</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="13517"/>
+        <location filename="../src/ViewportWidget.cpp" line="13540"/>
         <source>Performance Warning!</source>
         <translation>Avviso di prestazioni!</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="13518"/>
+        <location filename="../src/ViewportWidget.cpp" line="13541"/>
         <source>The model contains more than %1 triangles and the current method of UV generation is &quot;Smart UV&quot; which is time consuming.
 Do you want to continue generating the UV?</source>
         <translation>Il modello contiene più di %1 triangoli e il metodo corrente di generazione UV è &quot;Smart UV&quot;, che richiede molto tempo.
 Vuoi continuare a generare gli UV?</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="13524"/>
+        <location filename="../src/ViewportWidget.cpp" line="13547"/>
         <source>Change Settings</source>
         <translation>Cambia impostazioni</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18817"/>
+        <location filename="../src/ViewportWidget.cpp" line="18840"/>
         <source>Center Screen</source>
         <translation>Centra schermo</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18824"/>
+        <location filename="../src/ViewportWidget.cpp" line="18847"/>
         <source>Center Object List</source>
         <translation>Centra elenco oggetti</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18791"/>
-        <location filename="../src/ViewportWidget.cpp" line="18806"/>
-        <location filename="../src/ViewportWidget.cpp" line="18828"/>
+        <location filename="../src/ViewportWidget.cpp" line="18814"/>
+        <location filename="../src/ViewportWidget.cpp" line="18829"/>
+        <location filename="../src/ViewportWidget.cpp" line="18851"/>
         <source>Show</source>
         <translation>Mostra</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18793"/>
-        <location filename="../src/ViewportWidget.cpp" line="18808"/>
-        <location filename="../src/ViewportWidget.cpp" line="18830"/>
+        <location filename="../src/ViewportWidget.cpp" line="18816"/>
+        <location filename="../src/ViewportWidget.cpp" line="18831"/>
+        <location filename="../src/ViewportWidget.cpp" line="18853"/>
         <source>Hide</source>
         <translation>Nascondi</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18832"/>
+        <location filename="../src/ViewportWidget.cpp" line="18855"/>
         <source>Show Only</source>
         <translation>Mostra solo</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18834"/>
+        <location filename="../src/ViewportWidget.cpp" line="18857"/>
         <source>Transformations</source>
         <translation>Trasformazioni</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18835"/>
+        <location filename="../src/ViewportWidget.cpp" line="18858"/>
         <source>Edit Material</source>
         <translation>Modifica materiale</translation>
     </message>
@@ -18776,114 +18807,114 @@ Vuoi continuare a generare gli UV?</translation>
         <translation type="vanished">Genera UV</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18843"/>
+        <location filename="../src/ViewportWidget.cpp" line="18866"/>
         <source>Copy</source>
         <translation>Copia</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18844"/>
+        <location filename="../src/ViewportWidget.cpp" line="18867"/>
         <source>Cut</source>
         <translation>Taglia</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18794"/>
-        <location filename="../src/ViewportWidget.cpp" line="18809"/>
-        <location filename="../src/ViewportWidget.cpp" line="18845"/>
+        <location filename="../src/ViewportWidget.cpp" line="18817"/>
+        <location filename="../src/ViewportWidget.cpp" line="18832"/>
+        <location filename="../src/ViewportWidget.cpp" line="18868"/>
         <source>Delete</source>
         <translation>Elimina</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18837"/>
+        <location filename="../src/ViewportWidget.cpp" line="18860"/>
         <source>Split by Connectivity</source>
         <translation>Dividi per connettività</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18838"/>
+        <location filename="../src/ViewportWidget.cpp" line="18861"/>
         <source>Merge by Adjacency</source>
         <translation>Unisci per adiacenza</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18839"/>
+        <location filename="../src/ViewportWidget.cpp" line="18862"/>
         <source>Merge Selected</source>
         <translation>Unisci selezionati</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18840"/>
+        <location filename="../src/ViewportWidget.cpp" line="18863"/>
         <source>Mesh Union</source>
         <translation>Unione mesh</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18841"/>
+        <location filename="../src/ViewportWidget.cpp" line="18864"/>
         <source>Group</source>
         <translation>Raggruppa</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18847"/>
+        <location filename="../src/ViewportWidget.cpp" line="18870"/>
         <source>Mesh Info</source>
         <translation>Informazioni mesh</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18854"/>
+        <location filename="../src/ViewportWidget.cpp" line="18877"/>
         <source>Fit All</source>
         <translation>Adatta tutto</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18859"/>
+        <location filename="../src/ViewportWidget.cpp" line="18882"/>
         <source>Zoom Area</source>
         <translation>Area zoom</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18873"/>
+        <location filename="../src/ViewportWidget.cpp" line="18896"/>
         <source>Select</source>
         <translation>Seleziona</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18881"/>
+        <location filename="../src/ViewportWidget.cpp" line="18904"/>
         <source>Zoom</source>
         <translation>Zoom</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18889"/>
+        <location filename="../src/ViewportWidget.cpp" line="18912"/>
         <source>Pan</source>
         <translation>Panoramica</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18897"/>
+        <location filename="../src/ViewportWidget.cpp" line="18920"/>
         <source>Rotate</source>
         <translation>Ruota</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18910"/>
+        <location filename="../src/ViewportWidget.cpp" line="18933"/>
         <source>Show All</source>
         <translation>Mostra tutto</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18917"/>
+        <location filename="../src/ViewportWidget.cpp" line="18940"/>
         <source>Hide All</source>
         <translation>Nascondi tutto</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18924"/>
+        <location filename="../src/ViewportWidget.cpp" line="18947"/>
         <source>Swap Visible</source>
         <translation>Scambia visibili</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18943"/>
+        <location filename="../src/ViewportWidget.cpp" line="18966"/>
         <source>Paste</source>
         <translation>Incolla</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18950"/>
+        <location filename="../src/ViewportWidget.cpp" line="18973"/>
         <source>Environment Settings</source>
         <translation>Impostazioni ambiente</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="18951"/>
+        <location filename="../src/ViewportWidget.cpp" line="18974"/>
         <source>Background Color</source>
         <translation>Colore di sfondo</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="19384"/>
+        <location filename="../src/ViewportWidget.cpp" line="19407"/>
         <source>Uploading mesh %1 / %2</source>
         <translation>Caricamento mesh %1 / %2</translation>
     </message>

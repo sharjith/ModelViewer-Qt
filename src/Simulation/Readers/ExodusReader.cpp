@@ -10,6 +10,8 @@
 #include <QRegularExpression>
 
 #include <algorithm>
+#include <functional>
+#include <memory>
 #include <unordered_map>
 #include <cmath>
 #include <limits>
@@ -220,15 +222,15 @@ ResultReadOutcome readExodus(const QString& path, const std::atomic<bool>* cance
 		return std::move(outcome);
 	};
 
-	NcFile file;
+	auto file = std::make_shared<NcFile>(); // shared: a lazily loaded result keeps the file open to read its steps from
 	const QByteArray native = QFile::encodeName(path);
-	const int openStatus = nc_open(native.constData(), NC_NOWRITE, &file.id);
+	const int openStatus = nc_open(native.constData(), NC_NOWRITE, &file->id);
 	if (openStatus != NC_NOERR)
 	{
-		file.id = -1;
+		file->id = -1;
 		return fail(QStringLiteral("Cannot open '%1' as an Exodus (NetCDF) file: %2").arg(path, QString::fromLatin1(nc_strerror(openStatus))));
 	}
-	const int ncid = file.id;
+	const int ncid = file->id;
 
 	std::size_t numNodes = 0, numDim = 0, numElem = 0, numBlocks = 0;
 	if (!dimensionLength(ncid, "num_nodes", numNodes) || !dimensionLength(ncid, "num_dim", numDim)
@@ -467,11 +469,19 @@ ResultReadOutcome readExodus(const QString& path, const std::atomic<bool>* cance
 	// Each field is built straight from the file: for every step its component variables are read into one buffer and
 	// written into the field's interleaved array, so the only copy of the data in memory is the field itself (an earlier
 	// version held every variable at every step and interleaved afterwards, doubling the peak).
+	// A result whose step data would be large is read lazily: the fields are defined here without data, and the readers below are kept to read
+	// one step of every field when it is asked for (see LazySteps).
+	using StepReader = std::function<bool(std::size_t step, std::vector<float>& values)>;
+	std::vector<StepReader> stepReaders; // one per source field, in the order the fields are pushed
+	std::size_t nodeVariableCount = 0, elementVariableCount = 0;
+	dimensionLength(ncid, "num_nod_var", nodeVariableCount);
+	dimensionLength(ncid, "num_elem_var", elementVariableCount);
+	const bool lazy = steps > 1 && stepCount > 1
+		&& (nodeVariableCount * numNodes + elementVariableCount * dataset->cellTypes.size()) * steps * sizeof(float) > resultLazyThresholdBytes();
 
 	// Node variables: vals_nod_var<i> [time_step][num_nodes].
 	{
-		std::size_t variableCount = 0;
-		dimensionLength(ncid, "num_nod_var", variableCount);
+		const std::size_t variableCount = nodeVariableCount;
 		QStringList names = readNames(ncid, QStringLiteral("name_nod_var"));
 		while (static_cast<std::size_t>(names.size()) < variableCount)
 			names << QStringLiteral("nod_var%1").arg(names.size() + 1);
@@ -480,7 +490,6 @@ ResultReadOutcome readExodus(const QString& path, const std::atomic<bool>* cance
 		for (std::size_t v = 0; v < variableCount; ++v)
 			if (variableId(ncid, QStringLiteral("vals_nod_var%1").arg(v + 1), varids[v]))
 				nc_inq_varndims(ncid, varids[v], &varDims[v]);
-		std::vector<double> buffer(numNodes);
 		for (const FieldSpec& spec : groupVariables(names))
 		{
 			if (cancelled())
@@ -490,10 +499,10 @@ ResultReadOutcome readExodus(const QString& path, const std::atomic<bool>* cance
 			field.association = ResultFieldAssociation::Node;
 			field.components = static_cast<int>(spec.variables.size());
 			field.componentNames = spec.componentNames;
-			bool any = false;
-			for (std::size_t s = 0; s < steps; ++s)
-			{
-				std::vector<float> values;
+			// One step of this field, or false when it has no data at that step.
+			const StepReader reader = [ncid, numNodes, spec, variableCount, varids, varDims, stepCount](std::size_t s, std::vector<float>& values) {
+				std::vector<double> buffer(numNodes);
+				values.clear();
 				bool complete = stepCount > 0;
 				for (std::size_t c = 0; c < spec.variables.size() && complete; ++c)
 				{
@@ -520,23 +529,43 @@ ResultReadOutcome readExodus(const QString& path, const std::atomic<bool>* cance
 					for (std::size_t n = 0; n < numNodes; ++n)
 						values[n * spec.variables.size() + c] = static_cast<float>(buffer[n]);
 				}
-				if (complete && !values.empty())
-				{
-					field.stepData.push_back(std::move(values));
-					any = true;
-				}
-				else
-					field.stepData.emplace_back();
+				if (!complete || values.empty())
+					values.clear();
+				return complete && !values.empty();
+			};
+			bool any = false;
+			if (lazy)
+			{
+				// Is there data at all? Every component variable must exist.
+				any = stepCount > 0;
+				for (int v : spec.variables)
+					any = any && (v < 0 || (static_cast<std::size_t>(v) < variableCount && varids[static_cast<std::size_t>(v)] >= 0));
+				field.stepData.assign(steps, std::vector<float>());
+				field.lazyData = any;
 			}
+			else
+				for (std::size_t s = 0; s < steps; ++s)
+				{
+					std::vector<float> values;
+					if (reader(s, values))
+					{
+						field.stepData.push_back(std::move(values));
+						any = true;
+					}
+					else
+						field.stepData.emplace_back();
+				}
 			if (any)
+			{
 				dataset->fields.push_back(std::move(field));
+				stepReaders.push_back(reader);
+			}
 		}
 	}
 
 	// Element variables: vals_elem_var<i>eb<j> [time_step][num_el_in_blk<j>]; blocks that do not define one are NaN.
 	{
-		std::size_t variableCount = 0;
-		dimensionLength(ncid, "num_elem_var", variableCount);
+		const std::size_t variableCount = elementVariableCount;
 		QStringList names = readNames(ncid, QStringLiteral("name_elem_var"));
 		while (static_cast<std::size_t>(names.size()) < variableCount)
 			names << QStringLiteral("elem_var%1").arg(names.size() + 1);
@@ -556,10 +585,9 @@ ResultReadOutcome readExodus(const QString& path, const std::atomic<bool>* cance
 			field.association = ResultFieldAssociation::Cell;
 			field.components = static_cast<int>(spec.variables.size());
 			field.componentNames = spec.componentNames;
-			bool any = false;
-			for (std::size_t s = 0; s < steps; ++s)
-			{
-				std::vector<float> values;
+			// One step of this field, or false when it has no data at that step.
+			const StepReader reader = [ncid, spec, variableCount, varids, blocks, cells, nan, stepCount](std::size_t s, std::vector<float>& values) {
+				values.clear();
 				bool complete = stepCount > 0;
 				for (std::size_t c = 0; c < spec.variables.size() && complete; ++c)
 				{
@@ -597,20 +625,67 @@ ResultReadOutcome readExodus(const QString& path, const std::atomic<bool>* cance
 						break;
 					}
 				}
-				if (complete && !values.empty())
+				if (!complete || values.empty())
+					values.clear();
+				return complete && !values.empty();
+			};
+			bool any = false;
+			if (lazy)
+			{
+				// Is there data at all? Every component needs a block that defines it.
+				any = stepCount > 0;
+				for (int v : spec.variables)
 				{
-					field.stepData.push_back(std::move(values));
-					any = true;
+					if (v < 0)
+						continue;
+					bool defined = static_cast<std::size_t>(v) < variableCount;
+					bool inSomeBlock = false;
+					for (std::size_t b = 0; defined && b < blocks.size(); ++b)
+						inSomeBlock = inSomeBlock || varids[static_cast<std::size_t>(v)][b] >= 0;
+					any = any && defined && inSomeBlock;
 				}
-				else
-					field.stepData.emplace_back();
+				field.stepData.assign(steps, std::vector<float>());
+				field.lazyData = any;
 			}
+			else
+				for (std::size_t s = 0; s < steps; ++s)
+				{
+					std::vector<float> values;
+					if (reader(s, values))
+					{
+						field.stepData.push_back(std::move(values));
+						any = true;
+					}
+					else
+						field.stepData.emplace_back();
+				}
 			if (any)
+			{
 				dataset->fields.push_back(std::move(field));
+				stepReaders.push_back(reader);
+			}
 		}
 	}
 
 	addDerivedStressFields(*dataset); // von Mises, principals, max shear of a "stress" tensor gathered above
+
+	if (lazy)
+	{
+		// The source fields are the first ones (the derived ones follow): a step reads each of them, then derives the stress fields of that step.
+		auto lazySteps = std::make_shared<LazySteps>();
+		auto readers = std::make_shared<std::vector<StepReader>>(std::move(stepReaders));
+		lazySteps->load = [file, readers](std::size_t step, ResultDataset& ds) {
+			for (std::size_t i = 0; i < readers->size() && i < ds.fields.size(); ++i)
+			{
+				std::vector<float> values;
+				if ((*readers)[i](step, values) && step < ds.fields[i].stepData.size())
+					ds.fields[i].stepData[step] = std::move(values);
+			}
+			computeDerivedStressStep(ds, step);
+			return true;
+		};
+		dataset->lazy = std::move(lazySteps);
+	}
 
 	const QString invalid = dataset->validate();
 	if (!invalid.isEmpty())

@@ -24,7 +24,13 @@ struct StreamlineDisplay
 	std::vector<float> positions;              // xyz per vertex
 	std::vector<float> colors;                 // rgb per vertex
 	std::vector<std::uint32_t> segments;       // 2 vertex indices per segment
+	// Arrowheads showing the direction of the flow along the lines: a small cone centred on each position, pointing along the unit direction, `arrowLength` long.
+	std::vector<float> arrowPositions;         // xyz per arrowhead
+	std::vector<float> arrowDirections;        // unit vector per arrowhead
+	std::vector<float> arrowColors;            // rgb per arrowhead
+	float arrowLength = 0.0f;
 	std::size_t segmentCount() const { return segments.size() / 2; }
+	std::size_t arrowCount() const { return arrowPositions.size() / 3; }
 };
 
 // One axis-aligned Clipping Plane as it was when the overlays were made: the plane perpendicular to `axis` (0 = X, 1 = Y, 2 = Z) at `position` (scene coordinates),
