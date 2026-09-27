@@ -3568,7 +3568,7 @@ namespace
 		if (rd.ok())
 		{
 			const ResultDataset& ds = *rd.dataset;
-			CHECK(ds.nodeCount() == 2u * 13u * 7u * 5u && ds.cellCount() == 2u * 12u * 6u * 4u && ds.stepCount() == 4);
+			CHECK(ds.nodeCount() == 2u * 13u * 7u * 5u && ds.cellCount() == 2u * 12u * 6u * 4u && ds.steps.size() == 4);
 			const ResultField* velocity = ds.findField(QStringLiteral("Velocity"), ResultFieldAssociation::Node);
 			const ResultField* quality = ds.findField(QStringLiteral("Quality"), ResultFieldAssociation::Cell);
 			CHECK(velocity && velocity->components == 3 && quality && quality->tupleCount(0) == ds.cellCount());
@@ -4865,6 +4865,73 @@ namespace
 		CHECK(mixed.triangleCount() == 24 + 1 && mixed.skippedCells == 1);
 	}
 
+	// ---- Structural analyses (CalculiX results made for this project, see the samples README) ---------------------------------
+
+	void testStructuralSamples()
+	{
+		const QString dir = QStringLiteral(MV_SIMULATION_SAMPLES_DIR);
+		auto read = [&](const char* name, ResultReadOutcome& out) {
+			const QString path = dir + QLatin1Char('/') + QString::fromLatin1(name);
+			if (!QFile::exists(path))
+			{
+				std::printf("  (skipping %s: not found)\n", name);
+				return false;
+			}
+			out = readResultFile(path);
+			CHECK(out.ok());
+			return out.ok();
+		};
+		// the smallest and the largest value of a component of a field at a step
+		auto range = [](const ResultDataset& ds, const char* name, int component, std::size_t step, double& lo, double& hi) {
+			const int index = fieldIndexOf(ds, QString::fromLatin1(name));
+			if (index < 0)
+				return false;
+			const ResultField& f = ds.fields[static_cast<std::size_t>(index)];
+			ds.ensureStepLoaded(step);
+			if (step >= f.stepData.size() || f.stepData[step].empty())
+				return false;
+			lo = 1e300;
+			hi = -1e300;
+			for (std::size_t n = 0; n + f.components <= f.stepData[step].size(); n += static_cast<std::size_t>(f.components))
+			{
+				const double v = f.stepData[step][n + static_cast<std::size_t>(component)];
+				lo = std::min(lo, v);
+				hi = std::max(hi, v);
+			}
+			return true;
+		};
+		ResultReadOutcome r;
+		double lo = 0, hi = 0;
+		if (read("ibeam_cantilever.frd", r))
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.steps.size() == 4 && ds.cellCount() > 1000 && ds.cellTypes[0] == ResultCellType::Tetra10);
+			CHECK(fieldIndexOf(ds, QStringLiteral("DISP")) >= 0 && fieldIndexOf(ds, QStringLiteral("STRESS von Mises")) >= 0);
+			// bending in the vertical plane: the tip goes down by P L^3 / (3 E I) = 2.78 mm (beam theory; shear and the fixed end add a few percent), y and x hardly move
+			CHECK(range(ds, "DISP", 2, 3, lo, hi) && lo < -2.7 && lo > -3.1);
+			double loY = 0, hiY = 0;
+			CHECK(range(ds, "DISP", 1, 3, loY, hiY) && std::max(std::fabs(loY), std::fabs(hiY)) < 0.1 * std::fabs(lo));
+			// linear elastic: half the load, half the deflection
+			double half = 0, unused = 0;
+			CHECK(range(ds, "DISP", 2, 1, half, unused) && std::fabs(half / lo - 0.5) < 0.01);
+			// the outer fibre of the flange at the fixed end: M c / I = 87.6 MPa (the peak at the restraint is higher); the von Mises peak is of that order
+			CHECK(range(ds, "STRESS von Mises", 0, 3, lo, hi) && hi > 80.0 && hi < 250.0 && lo >= 0.0);
+		}
+		if (read("ibeam_torsion.frd", r))
+		{
+			const ResultDataset& ds = *r.dataset;
+			// a torque: the flanges move in opposite directions sideways, symmetrically
+			CHECK(ds.steps.size() == 4 && range(ds, "DISP", 1, 3, lo, hi) && lo < -1.0 && hi > 1.0 && std::fabs(lo + hi) < 0.05 * hi);
+		}
+		if (read("plate_with_hole.frd", r))
+		{
+			const ResultDataset& ds = *r.dataset;
+			// the plate is pulled along x: it stretches, and the stress at the hole is a multiple of the 100 MPa pull (the concentration)
+			CHECK(ds.steps.size() == 4 && range(ds, "DISP", 0, 3, lo, hi) && hi > 0.03 && hi < 0.2);
+			CHECK(range(ds, "STRESS von Mises", 0, 3, lo, hi) && hi > 200.0);
+		}
+	}
+
 	// ---- Cutting the volume: plane sections and iso-surfaces -----------------------------------------------------------------
 
 	// A row of `count` unit cubes along x as regular hexahedra: points (count + 1) x 2 x 2, index x + (count + 1) * (y + 2 * z).
@@ -5361,6 +5428,33 @@ namespace
 			ds.ensureStepLoaded(2);
 			ds.ensureStepLoaded(3);
 			CHECK(ds.fields[1].stepData[0].size() == 8 && ds.fields[1].stepData[1].size() == 8);
+		}
+
+		// CalculiX result files (ASCII .frd): only the position of each result block is kept at first. A single-step file is read in full afterwards, as ever.
+		for (const char* name : { "FEM_box_static.frd", "FEM_box_load_steps.frd", "FEM_box_thermal_transient.frd", "FEM_box_modes.frd", "FEM_box_frequency.frd", "beampl.frd", "ibeam_cantilever.frd", "ibeam_torsion.frd", "plate_with_hole.frd" })
+		{
+			const QString frd = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QLatin1Char('/') + QString::fromLatin1(name);
+			if (!QFile::exists(frd))
+				continue;
+			setResultLazyThresholdBytes(never);
+			const ResultReadOutcome eager = readResultFile(frd);
+			setResultLazyThresholdBytes(always);
+			const ResultReadOutcome lazy = readResultFile(frd);
+			CHECK(eager.ok() && lazy.ok());
+			if (!eager.ok() || !lazy.ok())
+				continue;
+			CHECK(!eager.dataset->isLazy() && lazy.dataset->isLazy() == (lazy.dataset->stepCount() > 1) && lazy.dataset->validate().isEmpty());
+			CHECK(lazy.dataset->nodeCount() == eager.dataset->nodeCount() && lazy.dataset->cellCount() == eager.dataset->cellCount());
+			if (lazy.dataset->isLazy())
+			{
+				bool none = true;
+				for (const ResultField& f : lazy.dataset->fields)
+					for (const std::vector<float>& step : f.stepData)
+						none = none && step.empty();
+				CHECK(none && !lazy.dataset->fields.empty() && resultFieldHasData(lazy.dataset->fields[0]));
+				lazy.dataset->lazy->maxResident = 2;
+			}
+			CHECK(sameStepData(*eager.dataset, *lazy.dataset)); // every field, every step - the derived von Mises and principal stresses included
 		}
 
 		// the OpenFOAM cavity case (five time directories of ASCII cell fields): only the headers are read at first
@@ -6513,6 +6607,7 @@ int main(int argc, char** argv)
 	testMed();
 	testPolyhedra();
 	testLegacyPolyhedra();
+	testStructuralSamples();
 	testLineTubes();
 	testSlice();
 	testStreamlines();

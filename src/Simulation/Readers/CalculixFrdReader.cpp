@@ -74,19 +74,22 @@ namespace
 
 	struct LineReader
 	{
-		const QByteArray& buf;
+		const char* data;
+		qint64 size;
 		qint64 pos = 0;
+		qint64 lineStart = 0; // where the line last read begins
 		std::size_t lineNo = 0;
 
-		explicit LineReader(const QByteArray& b) : buf(b) {}
+		LineReader(const char* d, qint64 n) : data(d), size(n) {}
 
 		bool next(Ln& line)
 		{
-			if (pos >= buf.size())
+			if (pos >= size)
 				return false;
-			const char* start = buf.constData() + pos;
-			const char* nl = static_cast<const char*>(std::memchr(start, '\n', static_cast<std::size_t>(buf.size() - pos)));
-			const qint64 length = nl ? (nl - start) : (buf.size() - pos);
+			lineStart = pos;
+			const char* start = data + pos;
+			const char* nl = static_cast<const char*>(std::memchr(start, '\n', static_cast<std::size_t>(size - pos)));
+			const qint64 length = nl ? (nl - start) : (size - pos);
 			pos += length + (nl ? 1 : 0);
 			int n = static_cast<int>(length);
 			if (n > 0 && start[n - 1] == '\r')
@@ -141,6 +144,37 @@ namespace
 		return cancel && cancel->load(std::memory_order_acquire);
 	}
 
+	// The file's bytes: memory-mapped when the system allows (nothing is copied, the pages come and go with the system's cache), else read in one piece.
+	struct FrdSource
+	{
+		QFile file;
+		QByteArray fallback;
+		const char* data = nullptr;
+		qint64 size = 0;
+
+		bool open(const QString& path, QString& error)
+		{
+			file.setFileName(path);
+			if (!file.open(QIODevice::ReadOnly))
+			{
+				error = file.errorString();
+				return false;
+			}
+			size = file.size();
+			if (size <= 0)
+				return true;
+			if (const uchar* mapped = file.map(0, size))
+			{
+				data = reinterpret_cast<const char*>(mapped);
+				return true;
+			}
+			fallback = file.readAll();
+			data = fallback.constData();
+			size = fallback.size();
+			return true;
+		}
+	};
+
 	// One nodal result block, before it is filed under its step.
 	struct ResultBlock
 	{
@@ -149,6 +183,150 @@ namespace
 		QString name;
 		std::vector<QString> componentNames;
 		std::vector<float> values; // nodeCount * componentNames.size(), NaN where the node was not listed
+		qint64 offset = -1;        // where its "100C" record starts in the file
+		int idWidth = 10;          // width of the node id in its data records
+	};
+
+	// The header records of a result block: `line` is its "100C" record on entry; on return it is the first data line (or "-3" for an empty block). False with `error`.
+	bool readBlockHeader(LineReader& reader, Ln& line, ResultBlock& block, QString& error)
+	{
+		const QList<QByteArray> head = tokens(line);
+		if (head.size() < 3)
+		{
+			error = QStringLiteral("Malformed result header");
+			return false;
+		}
+		const int format = headerFormat(line);
+		if (format == 2)
+		{
+			error = QStringLiteral("Binary .frd files are not supported; write ASCII output (the default) instead.");
+			return false;
+		}
+		block.idWidth = format == 0 ? 5 : 10;
+		bool ok = false;
+		block.time = head[2].toDouble(&ok);
+		if (!ok)
+		{
+			error = QStringLiteral("Bad result time");
+			return false;
+		}
+		// " -4  NAME  ncomponents  irtype"
+		if (!reader.next(line) || !hasKey(line, "-4"))
+		{
+			error = QStringLiteral("A result block has no -4 (name) record");
+			return false;
+		}
+		const QList<QByteArray> nameRecord = tokens(line);
+		if (nameRecord.size() < 2)
+		{
+			error = QStringLiteral("Malformed result name");
+			return false;
+		}
+		block.name = QString::fromLatin1(nameRecord[1]);
+
+		// " -5  COMP  menu ictype icind1 icind2 [iexist NAME]": a fifth number marks a component the solver did
+		// not store (a calculated one such as "ALL"); only the others have values in the data lines.
+		bool eof = false;
+		while (true)
+		{
+			if (!reader.next(line))
+			{
+				eof = true;
+				break;
+			}
+			if (!hasKey(line, "-5"))
+				break;
+			const QList<QByteArray> c = tokens(line);
+			if (c.size() >= 2 && c.size() < 7)
+				block.componentNames.push_back(QString::fromLatin1(c[1]));
+		}
+		if (eof || block.componentNames.empty())
+		{
+			error = QStringLiteral("Result block '%1' has no stored components").arg(block.name);
+			return false;
+		}
+		return true;
+	}
+
+	// The data records of a result block, from `line` (the first data line, see readBlockHeader) to its "-3": the values of the block's components per node.
+	// `lookup(id, index)` turns a node id into the node's index (false: not a node of the mesh, the record is skipped). False with `error`.
+	template <class Lookup>
+	bool readBlockData(LineReader& reader, Ln& line, ResultBlock& block, std::size_t nodeCount, const Lookup& lookup, QString& error)
+	{
+		const float nan = std::numeric_limits<float>::quiet_NaN();
+		const int comps = static_cast<int>(block.componentNames.size());
+		block.values.assign(nodeCount * static_cast<std::size_t>(comps), nan);
+		bool ok = false;
+		do
+		{
+			if (hasKey(line, "-3"))
+				break;
+			if (!hasKey(line, "-1"))
+			{
+				error = QStringLiteral("Unexpected record in result block '%1'").arg(block.name);
+				return false;
+			}
+			const std::int64_t nodeId = fixedInt(line, 3, block.idWidth, ok);
+			if (!ok)
+			{
+				error = QStringLiteral("Bad node id in a result block");
+				return false;
+			}
+			std::uint32_t index = 0;
+			const bool known = lookup(nodeId, index);
+			const int firstValue = 3 + block.idWidth;
+			int have = 0;
+			Ln current = line;
+			while (true)
+			{
+				for (int k = 0; current.n >= firstValue + 12 * (k + 1) && have < comps; ++k)
+				{
+					const double v = fixedDouble(current, firstValue + 12 * k, 12, ok);
+					if (!ok)
+					{
+						error = QStringLiteral("Bad value in result block '%1'").arg(block.name);
+						return false;
+					}
+					if (known)
+						block.values[static_cast<std::size_t>(index) * static_cast<std::size_t>(comps) + static_cast<std::size_t>(have)] = static_cast<float>(v);
+					++have;
+				}
+				if (have >= comps)
+					break;
+				// More components than fit one line: continued on " -2" records.
+				if (!reader.next(current) || !hasKey(current, "-2"))
+				{
+					error = QStringLiteral("Result block '%1' has a truncated value list").arg(block.name);
+					return false;
+				}
+			}
+		} while (reader.next(line));
+		return true;
+	}
+
+	// The same walk without reading a number: to the block's "-3".
+	void skipBlockData(LineReader& reader, Ln& line)
+	{
+		do
+		{
+			if (hasKey(line, "-3"))
+				break;
+		} while (reader.next(line));
+	}
+
+	// Where the state of a lazily read file is kept (see LazySteps): the file's bytes and how to find a block's nodes.
+	struct LazyFrd
+	{
+		std::shared_ptr<FrdSource> source;
+		std::size_t nodeCount = 0;
+		bool denseIds = false;                                    // node ids are 1..n in order: no lookup table needed
+		std::unordered_map<std::int64_t, std::uint32_t> nodeIndex; // else this
+		struct Ref
+		{
+			std::size_t field;
+			qint64 offset;
+		};
+		std::vector<std::vector<Ref>> blocksOfStep;
 	};
 }
 
@@ -162,19 +340,23 @@ ResultReadOutcome readCalculixFrd(const QString& path, const std::atomic<bool>* 
 		return std::move(outcome);
 	};
 
-	QFile file(path);
-	if (!file.open(QIODevice::ReadOnly))
-		return fail(QStringLiteral("Cannot open '%1': %2").arg(path, file.errorString()));
-	const QByteArray all = file.readAll();
-	file.close();
-	if (all.isEmpty())
+	auto source = std::make_shared<FrdSource>();
+	{
+		QString openError;
+		if (!source->open(path, openError))
+			return fail(QStringLiteral("Cannot open '%1': %2").arg(path, openError));
+	}
+	if (source->size <= 0)
 		return fail(QStringLiteral("The file is empty."));
+	// A file as large as this holds more steps than it should keep in memory: its result blocks are then only indexed (where each starts), and read one step at a time
+	// when asked for (see LazySteps). The text is several times the size of the numbers in it, so the file's size is a safe stand-in for the data's.
+	const bool indexOnly = static_cast<std::size_t>(source->size) > resultLazyThresholdBytes();
 
 	auto dataset = std::make_unique<ResultDataset>();
 	dataset->sourcePath = path;
 	dataset->solverName = QStringLiteral("CalculiX");
 
-	LineReader reader(all);
+	LineReader reader(source->data, source->size);
 	Ln line;
 	std::unordered_map<std::int64_t, std::uint32_t> nodeIndex;
 	std::vector<ResultBlock> blocks;
@@ -282,84 +464,25 @@ ResultReadOutcome readCalculixFrd(const QString& path, const std::atomic<bool>* 
 		// ---- Nodal result block ---------------------------------------------------------------------------------
 		else if (hasKey(line, "100C"))
 		{
-			const QList<QByteArray> head = tokens(line);
-			if (head.size() < 3)
-				return fail(QStringLiteral("Malformed result header") + where());
-			const int format = headerFormat(line);
-			if (format == 2)
-				return fail(QStringLiteral("Binary .frd files are not supported; write ASCII output (the default) instead."));
-			const int idWidth = format == 0 ? 5 : 10;
-
 			ResultBlock block;
-			bool ok = false;
-			block.time = head[2].toDouble(&ok);
-			if (!ok)
-				return fail(QStringLiteral("Bad result time") + where());
+			block.offset = reader.lineStart;
+			QString error;
+			if (!readBlockHeader(reader, line, block, error))
+				return fail(error + where());
 			block.mode = pendingMode;
 			pendingMode = 0;
-
-			// " -4  NAME  ncomponents  irtype"
-			if (!reader.next(line) || !hasKey(line, "-4"))
-				return fail(QStringLiteral("A result block has no -4 (name) record") + where());
-			const QList<QByteArray> nameRecord = tokens(line);
-			if (nameRecord.size() < 2)
-				return fail(QStringLiteral("Malformed result name") + where());
-			block.name = QString::fromLatin1(nameRecord[1]);
-
-			// " -5  COMP  menu ictype icind1 icind2 [iexist NAME]": a fifth number marks a component the solver did
-			// not store (a calculated one such as "ALL"); only the others have values in the data lines.
-			bool eof = false;
-			while (true)
-			{
-				if (!reader.next(line))
-				{
-					eof = true;
-					break;
-				}
-				if (!hasKey(line, "-5"))
-					break;
-				const QList<QByteArray> c = tokens(line);
-				if (c.size() >= 2 && c.size() < 7)
-					block.componentNames.push_back(QString::fromLatin1(c[1]));
-			}
-			if (eof || block.componentNames.empty())
-				return fail(QStringLiteral("Result block '%1' has no stored components").arg(block.name) + where());
-			const int comps = static_cast<int>(block.componentNames.size());
-			block.values.assign(dataset->nodeCount() * static_cast<std::size_t>(comps), nan);
-
-			// `line` is the first data line (or "-3" for an empty block).
-			do
-			{
-				if (hasKey(line, "-3"))
-					break;
-				if (!hasKey(line, "-1"))
-					return fail(QStringLiteral("Unexpected record in result block '%1'").arg(block.name) + where());
-				const std::int64_t nodeId = fixedInt(line, 3, idWidth, ok);
-				if (!ok)
-					return fail(QStringLiteral("Bad node id in a result block") + where());
-				const auto it = nodeIndex.find(nodeId);
-				const int firstValue = 3 + idWidth;
-				int have = 0;
-				Ln current = line;
-				while (true)
-				{
-					for (int k = 0; current.n >= firstValue + 12 * (k + 1) && have < comps; ++k)
-					{
-						const double v = fixedDouble(current, firstValue + 12 * k, 12, ok);
-						if (!ok)
-							return fail(QStringLiteral("Bad value in result block '%1'").arg(block.name) + where());
-						if (it != nodeIndex.end())
-							block.values[static_cast<std::size_t>(it->second) * static_cast<std::size_t>(comps) + static_cast<std::size_t>(have)] = static_cast<float>(v);
-						++have;
-					}
-					if (have >= comps)
-						break;
-					// More components than fit one line: continued on " -2" records.
-					if (!reader.next(current) || !hasKey(current, "-2"))
-						return fail(QStringLiteral("Result block '%1' has a truncated value list").arg(block.name) + where());
-				}
-			} while (reader.next(line));
-
+			if (indexOnly)
+				skipBlockData(reader, line); // the values are read when the step is asked for
+			else if (!readBlockData(reader, line, block, dataset->nodeCount(),
+			                        [&nodeIndex](std::int64_t id, std::uint32_t& index) {
+				                        const auto it = nodeIndex.find(id);
+				                        if (it == nodeIndex.end())
+					                        return false;
+				                        index = it->second;
+				                        return true;
+			                        },
+			                        error))
+				return fail(error + where());
 			blocks.push_back(std::move(block));
 		}
 		// Everything else (title, user records, other "1P" records, ...) carries nothing we show.
@@ -381,6 +504,45 @@ ResultReadOutcome readCalculixFrd(const QString& path, const std::atomic<bool>* 
 		return stepTimes.size() - 1;
 	};
 
+	// Lazy only when there is more than one step to save memory on: with one, the blocks are read now.
+	bool denseIds = true;
+	for (std::size_t i = 0; i < dataset->nodeIds.size() && denseIds; ++i)
+		denseIds = dataset->nodeIds[i] == static_cast<std::int64_t>(i + 1);
+	for (const ResultBlock& b : blocks)
+		stepOf(b);
+	const bool lazy = indexOnly && stepTimes.size() > 1;
+	if (indexOnly && !lazy)
+		for (ResultBlock& b : blocks)
+		{
+			LineReader again(source->data, source->size);
+			again.pos = b.offset;
+			Ln first;
+			QString error;
+			ResultBlock reread;
+			if (!again.next(first) || !readBlockHeader(again, first, reread, error)
+			    || !readBlockData(again, first, reread, dataset->nodeCount(),
+			                      [&nodeIndex](std::int64_t id, std::uint32_t& index) {
+				                      const auto it = nodeIndex.find(id);
+				                      if (it == nodeIndex.end())
+					                      return false;
+				                      index = it->second;
+				                      return true;
+			                      },
+			                      error))
+				return fail(error);
+			b.values = std::move(reread.values);
+		}
+	auto lazyFrd = std::make_shared<LazyFrd>();
+	if (lazy)
+	{
+		lazyFrd->source = source;
+		lazyFrd->nodeCount = dataset->nodeCount();
+		lazyFrd->denseIds = denseIds;
+		if (!denseIds)
+			lazyFrd->nodeIndex = std::move(nodeIndex);
+		lazyFrd->blocksOfStep.resize(stepTimes.size());
+	}
+
 	QHash<QString, int> fieldIndex;
 	for (ResultBlock& b : blocks)
 	{
@@ -394,6 +556,7 @@ ResultReadOutcome readCalculixFrd(const QString& path, const std::atomic<bool>* 
 			field.association = ResultFieldAssociation::Node;
 			field.components = comps;
 			field.componentNames = b.componentNames;
+			field.lazyData = lazy;
 			dataset->fields.push_back(std::move(field));
 			index = static_cast<int>(dataset->fields.size()) - 1;
 			fieldIndex.insert(b.name, index);
@@ -402,6 +565,11 @@ ResultReadOutcome readCalculixFrd(const QString& path, const std::atomic<bool>* 
 		if (field.components != comps)
 		{
 			outcome.warnings << QStringLiteral("Ignored a '%1' result block with a different component count.").arg(b.name);
+			continue;
+		}
+		if (lazy)
+		{
+			lazyFrd->blocksOfStep[step].push_back({ static_cast<std::size_t>(index), b.offset });
 			continue;
 		}
 		if (field.stepData.size() <= step)
@@ -429,6 +597,50 @@ ResultReadOutcome readCalculixFrd(const QString& path, const std::atomic<bool>* 
 		field.stepData.resize(dataset->steps.size());
 
 	addDerivedStressFields(*dataset);
+
+	if (lazy)
+	{
+		// Loader: a step is its result blocks, read from where they were found; then the stress fields derived from them are computed.
+		auto lazySteps = std::make_shared<LazySteps>();
+		lazySteps->load = [lazyFrd](std::size_t step, ResultDataset& ds) {
+			if (step >= lazyFrd->blocksOfStep.size())
+				return false;
+			for (const LazyFrd::Ref& ref : lazyFrd->blocksOfStep[step])
+			{
+				LineReader again(lazyFrd->source->data, lazyFrd->source->size);
+				again.pos = ref.offset;
+				Ln first;
+				ResultBlock block;
+				QString error;
+				if (!again.next(first) || !readBlockHeader(again, first, block, error) || ref.field >= ds.fields.size()
+				    || static_cast<int>(block.componentNames.size()) != ds.fields[ref.field].components)
+					continue;
+				const bool read = lazyFrd->denseIds
+					? readBlockData(again, first, block, lazyFrd->nodeCount,
+					                [n = lazyFrd->nodeCount](std::int64_t id, std::uint32_t& index) {
+						                if (id < 1 || static_cast<std::size_t>(id) > n)
+							                return false;
+						                index = static_cast<std::uint32_t>(id - 1);
+						                return true;
+					                },
+					                error)
+					: readBlockData(again, first, block, lazyFrd->nodeCount,
+					                [lazyFrd](std::int64_t id, std::uint32_t& index) {
+						                const auto it = lazyFrd->nodeIndex.find(id);
+						                if (it == lazyFrd->nodeIndex.end())
+							                return false;
+						                index = it->second;
+						                return true;
+					                },
+					                error);
+				if (read && step < ds.fields[ref.field].stepData.size())
+					ds.fields[ref.field].stepData[step] = std::move(block.values);
+			}
+			computeDerivedStressStep(ds, step);
+			return true;
+		};
+		dataset->lazy = std::move(lazySteps);
+	}
 
 	if (dataset->cellCount() == 0)
 		outcome.warnings << QStringLiteral("The file has no element block, so there is no surface to display.");

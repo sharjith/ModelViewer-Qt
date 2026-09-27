@@ -150,3 +150,39 @@ real/  (files written by other tools, to test the readers against data we did no
                  the CGNS 4.5.1 library cannot open it - "Location not yet supported" - so it is kept as a known limitation)
       VTKHDF     polyhedron.vtkhdf, hexahedron.vtkhdf, can-vtu.vtkhdf (a real transient crash result, 4800 hexahedra, vector fields)
     result_tests reads all of them and checks node / cell counts and boundary triangles.
+
+ibeam_cantilever.frd, ibeam_torsion.frd, plate_with_hole.frd
+    Structural analyses solved with CalculiX (ccx 2.x shipped with FreeCAD 1.1) on meshes made with gmsh, by make_structural_samples.py in this folder (no external data or
+    licence; mm, N, MPa, steel E = 210000, nu = 0.3, quadratic tetrahedra C3D10). Each has four load steps (25, 50, 75, 100 % of the load), displacements DISP and stresses STRESS
+    (the viewer adds von Mises, the principal stresses and the maximum shear): switch on "Show deformed shape" and play the steps.
+      ibeam_cantilever   an I-beam (100 x 60 x 1000 mm, flanges 8, web 5) fixed at one end, 4000 N downwards at the free end: bending. The tip deflection at full load is 2.89 mm
+                         (beam theory P L^3 / 3 E I: 2.78 mm; the rest is shear and the fixed end).
+      ibeam_torsion      the same beam with a torque of 300 000 N mm at the free end (a couple of side forces on the flange tips): twist and warping of the flanges.
+      plate_with_hole    a plate (100 x 50 x 5 mm) with a hole of radius 10 mm, pulled with 100 MPa at one end: the stress concentration at the hole.
+
+Regenerating the samples (developers)
+    make_structural_samples.py  (ibeam_cantilever / ibeam_torsion / plate_with_hole .frd)
+        Prerequisites
+          - Python 3.8 or newer (standard library only, no packages to install).
+          - gmsh and CalculiX (ccx) command-line executables. FreeCAD 1.1 ships both in its bin folder, so installing FreeCAD is the easiest way.
+            Otherwise install gmsh (https://gmsh.info) and CalculiX (http://www.calculix.de) yourself.
+          - The script looks for them in BIN near the top of the file, which is set to C:\Program Files\FreeCAD 1.1\bin. Edit that line if FreeCAD is elsewhere
+            or you use standalone tools (the folder must contain gmsh(.exe) and ccx(.exe), and on Windows also the DLLs that ccx needs, which FreeCAD's bin folder has).
+        Method
+          python make_structural_samples.py <output directory> [mesh scale]
+          The mesh scale multiplies the element size: 3.5 gives the small files in this folder (about 8 700 nodes, 6 MB), 1.0 a fine mesh (about 90 000 nodes,
+          65 MB, useful to try the lazy step loading), smaller values are finer still. A run takes a few seconds at 3.5 and about a minute at 1.0.
+        What it does
+          1. gmsh meshes each geometry (OpenCASCADE boxes, unioned for the I-beam; second-order tetrahedra) and writes an Abaqus .inp mesh.
+          2. The script reads the mesh and writes one CalculiX input deck per case (material, fixed end, four *STEP blocks with 25/50/75/100 % of the load,
+             *NODE FILE U and *EL FILE S).
+          3. ccx solves each deck; the <name>.frd results are copied to the output directory (the decks and meshes stay in <output directory>/_work).
+          The script also prints the beam-theory tip deflection to compare with the result. To change a case (span, section, load, hole size) edit the
+          constants in main() and the geometry strings in the script; result_tests checks the shipped files, so keep the case names if you replace them.
+
+    make_med_sample.py  (a small .med file)
+        Prerequisites: the Python of SALOME, or a standalone MEDCoupling build in which "from MEDLoader import *" works (the pip package "medcoupling"
+        does NOT work, it is built without MED file I/O).
+        Method: python make_med_sample.py block.med
+        The file is a synthetic fixture (an n x n x n block of HEXA8 cells, five time steps) for the MED reader; a real Code_Aster or SALOME result is the true test.
+
