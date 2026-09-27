@@ -30,6 +30,7 @@
 #include "ShaderProgram.h"
 #include "ShrinkWrapCommand.h"
 #include "SimulationGlyphs.h"
+#include "SimulationVolume.h"
 #include "ResultSlice.h"
 #include "SimulationCharts.h"
 #include "SimulationChartWidget.h"
@@ -609,6 +610,9 @@ namespace
 				                                  ? state.tensorGlyphField : chooseDefaultTensorField(dataset));
 			if (state.iso)
 				options.extraFields.push_back(state.isoField);
+			if (state.volume)
+				options.extraFields.push_back(valid(state.volumeField) && isVolumeField(dataset.fields[static_cast<std::size_t>(state.volumeField)])
+				                                  ? state.volumeField : chooseDefaultVolumeField(dataset));
 		}
 		return options;
 	}
@@ -1311,6 +1315,7 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 		mesh->clearAnalysisOverlay(); // CPU-only, no GL context needed
 		updateSimulationGlyphs(session, false, 0.0f, 1.0f); // arrows do not need a scalar to colour the surface by
 		updateSimulationTensorGlyphs(session, false, 0.0f, 1.0f);
+		updateSimulationVolume(session);
 		updateSimulationSlices(session);
 		updateSimulationStreamlines(session);
 		if (isActive && _simulationLegend)
@@ -1427,6 +1432,7 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 	}
 	updateSimulationGlyphs(session, true, lo, hi);
 	updateSimulationTensorGlyphs(session, true, lo, hi);
+	updateSimulationVolume(session);
 	session.shownLo = lo;
 	session.shownHi = hi;
 	session.shownScalar = std::move(scalar); // last use of `scalar`: the hover probe reads it
@@ -1622,6 +1628,87 @@ static const std::vector<float>* overlayNodePositions(SimulationSession& session
 	}
 	key = wanted;
 	return session.deformedNodes.get();
+}
+
+void ModelViewer::updateSimulationVolume(SimulationSession& session)
+{
+	session.volumeInfo.clear();
+	if (!_viewportWidget || !session.dataset || !session.surface)
+		return;
+	const SimulationViewState& state = session.state;
+	if (!state.volume)
+	{
+		_viewportWidget->clearSimulationVolume(session.meshUuid);
+		return;
+	}
+	const ResultDataset& dataset = *session.dataset;
+	if (!sessionHasVolumeCells(session))
+	{
+		_viewportWidget->clearSimulationVolume(session.meshUuid);
+		session.volumeInfo = tr("This result has no volume cells, so there is no interior field to render.");
+		return;
+	}
+	int fieldIndex = state.volumeField;
+	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size()
+	    || !isVolumeField(dataset.fields[static_cast<std::size_t>(fieldIndex)]))
+		fieldIndex = chooseDefaultVolumeField(dataset);
+	if (fieldIndex < 0)
+	{
+		_viewportWidget->clearSimulationVolume(session.meshUuid);
+		session.volumeInfo = tr("Volume rendering needs a scalar node field or a node vector field.");
+		return;
+	}
+	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
+	const int component = field.components == 3 ? -1 : 0;
+	const int step = std::clamp(state.step, 0, std::max(0, static_cast<int>(dataset.stepCount()) - 1));
+	const int resolution = std::clamp(state.volumeResolution, 16, 256);
+	QString shapeKey;
+	const std::vector<float>* nodes = overlayNodePositions(session, shapeKey);
+	const QString key = QStringLiteral("%1/%2/%3/%4/%5/%6/%7")
+		.arg(fieldIndex).arg(component).arg(step).arg(resolution).arg(shapeKey, field.quantityKind, field.fileUnit + QLatin1Char('/') + field.displayUnit);
+
+	if (!session.volumeGrid || session.volumeGridKey != key)
+	{
+		if (!session.locator || session.locatorKey != shapeKey)
+		{
+			session.locator = std::make_shared<CellLocator>(dataset, nullptr, nodes ? *nodes : std::vector<float>());
+			session.locatorKey = shapeKey;
+		}
+		if (session.locator->volumeCellCount() == 0)
+		{
+			_viewportWidget->clearSimulationVolume(session.meshUuid);
+			session.volumeInfo = tr("This result has no convex volume cells that can be sampled safely.");
+			return;
+		}
+		QApplication::setOverrideCursor(Qt::WaitCursor);
+		auto grid = std::make_shared<VolumeGrid>();
+		const bool built = buildVolumeGrid(dataset, *session.locator, fieldIndex, component, step, resolution, *grid);
+		QApplication::restoreOverrideCursor();
+		if (!built)
+		{
+			_viewportWidget->clearSimulationVolume(session.meshUuid);
+			session.volumeGrid.reset();
+			session.volumeGridKey.clear();
+			session.volumeInfo = tr("No volume could be built for '%1' at this step.").arg(field.name);
+			return;
+		}
+		session.volumeGrid = std::move(grid);
+		session.volumeGridKey = key;
+		_viewportWidget->setSimulationVolume(session.meshUuid, *session.volumeGrid, state.colormap, state.volumeOpacity);
+	}
+	else if (!_viewportWidget->hasSimulationVolume(session.meshUuid))
+	{
+		// Turning volume mode off removes its GPU entry but intentionally keeps this CPU grid cache. Recreate the
+		// entry when the mode is enabled again; a transfer-function-only update cannot resurrect a cleared entry.
+		_viewportWidget->setSimulationVolume(session.meshUuid, *session.volumeGrid, state.colormap, state.volumeOpacity);
+	}
+	else
+		_viewportWidget->setSimulationVolumeTransferFunction(session.meshUuid, state.colormap, state.volumeOpacity);
+
+	const VolumeGrid& grid = *session.volumeGrid;
+	session.volumeInfo = tr("Volume: %1 x %2 x %3 voxels, %4 to %5%6.")
+		.arg(grid.dimX).arg(grid.dimY).arg(grid.dimZ).arg(grid.fieldMin, 0, 'g', 4).arg(grid.fieldMax, 0, 'g', 4)
+		.arg(grid.unit.isEmpty() ? QString() : QStringLiteral(" ") + grid.unit);
 }
 
 void ModelViewer::updateSimulationStreamlines(SimulationSession& session)

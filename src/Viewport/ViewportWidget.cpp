@@ -274,6 +274,8 @@ _floorPlane(nullptr),
 	_gpuResourceRegistry.add(_simulationGlyphController, GpuResourcePhase::Decorations);
 	_simulationTensorGlyphController = new SimulationTensorGlyphController(_renderCtrl, this);
 	_gpuResourceRegistry.add(_simulationTensorGlyphController, GpuResourcePhase::Decorations);
+	_simulationVolumeController = new SimulationVolumeController(_renderCtrl, this);
+	_gpuResourceRegistry.add(_simulationVolumeController, GpuResourcePhase::Decorations);
 	_simulationSliceController = new SimulationSliceController(_renderCtrl, this);
 	_gpuResourceRegistry.add(_simulationSliceController, GpuResourcePhase::Decorations);
 	_simulationStreamlineController = new SimulationStreamlineController(_renderCtrl, this);
@@ -3707,6 +3709,29 @@ void ViewportWidget::clearSimulationTensorGlyphs(const QUuid& meshUuid)
 	update();
 }
 
+void ViewportWidget::setSimulationVolume(const QUuid& meshUuid, VolumeGrid grid, int colormap, QVector<QPointF> opacity)
+{
+	_simulationVolumeController->setVolume(meshUuid, std::move(grid), colormap, std::move(opacity));
+	update();
+}
+
+void ViewportWidget::clearSimulationVolume(const QUuid& meshUuid)
+{
+	_simulationVolumeController->clearVolume(meshUuid);
+	update();
+}
+
+bool ViewportWidget::hasSimulationVolume(const QUuid& meshUuid) const
+{
+	return _simulationVolumeController && _simulationVolumeController->contains(meshUuid);
+}
+
+void ViewportWidget::setSimulationVolumeTransferFunction(const QUuid& meshUuid, int colormap, QVector<QPointF> opacity)
+{
+	_simulationVolumeController->setTransferFunction(meshUuid, colormap, std::move(opacity));
+	update();
+}
+
 void ViewportWidget::setSimulationSlices(const QUuid& meshUuid, std::vector<SliceDisplay> slices)
 {
 	_simulationSliceController->setSlices(meshUuid, std::move(slices));
@@ -3793,7 +3818,7 @@ void ViewportWidget::drawSimulationSlices(Camera* camera)
 		return;
 	_simulationSliceController->drawOverlay(camera, [this](const QUuid& meshUuid) -> const RenderableMesh* {
 		const SceneMesh* mesh = getMeshByUuid(meshUuid);
-		return mesh && isMeshVisible(mesh, -1) ? mesh : nullptr;
+		return mesh && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
 	});
 }
 
@@ -3801,10 +3826,11 @@ bool ViewportWidget::simulationOverlaysHideCaps() const
 {
 	const auto resolve = [this](const QUuid& meshUuid) -> const RenderableMesh* {
 		const SceneMesh* mesh = getMeshByUuid(meshUuid);
-		return mesh && isMeshVisible(mesh, -1) ? mesh : nullptr;
+		return mesh && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
 	};
 	return (_simulationSliceController && _simulationSliceController->hasIsoSurfaces(resolve))
-		|| (_simulationStreamlineController && _simulationStreamlineController->hasLines(resolve));
+		|| (_simulationStreamlineController && _simulationStreamlineController->hasLines(resolve))
+		|| (_simulationVolumeController && _simulationVolumeController->hasVisibleVolumes(resolve));
 }
 
 void ViewportWidget::drawSimulationStreamlines(Camera* camera)
@@ -3813,7 +3839,7 @@ void ViewportWidget::drawSimulationStreamlines(Camera* camera)
 		return;
 	_simulationStreamlineController->drawOverlay(camera, [this](const QUuid& meshUuid) -> const RenderableMesh* {
 		const SceneMesh* mesh = getMeshByUuid(meshUuid);
-		return mesh && isMeshVisible(mesh, -1) ? mesh : nullptr;
+		return mesh && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
 	});
 }
 
@@ -3823,7 +3849,7 @@ void ViewportWidget::drawSimulationGlyphs(Camera* camera)
 		return;
 	_simulationGlyphController->drawOverlay(camera, [this](const QUuid& meshUuid) -> const RenderableMesh* {
 		const SceneMesh* mesh = getMeshByUuid(meshUuid);
-		return mesh && isMeshVisible(mesh, -1) ? mesh : nullptr; // in compare mode isMeshVisible() also applies the pane filter
+		return mesh && isMeshVisible(mesh, -1, true) ? mesh : nullptr; // in compare mode isMeshVisible() also applies the pane filter
 	});
 }
 
@@ -3833,7 +3859,33 @@ void ViewportWidget::drawSimulationTensorGlyphs(Camera* camera)
 		return;
 	_simulationTensorGlyphController->drawOverlay(camera, [this](const QUuid& meshUuid) -> const RenderableMesh* {
 		const SceneMesh* mesh = getMeshByUuid(meshUuid);
-		return mesh && isMeshVisible(mesh, -1) ? mesh : nullptr;
+		return mesh && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
+	});
+}
+
+void ViewportWidget::drawSimulationVolumes(Camera* camera)
+{
+	if (!_simulationVolumeController || !_simulationVolumeController->hasVolumes())
+		return;
+	SimulationVolumeClipState clipping;
+	clipping.axisEnabled = QVector3D(_renderCtrl.yzClippingEnabled(), _renderCtrl.zxClippingEnabled(), _renderCtrl.xyClippingEnabled());
+	clipping.axisThreshold = QVector3D(_renderCtrl.clippingXCoeff() + _viewCtrl.boundingBox().center().getX(),
+	                                    _renderCtrl.clippingYCoeff() + _viewCtrl.boundingBox().center().getY(),
+	                                    _renderCtrl.clippingZCoeff() + _viewCtrl.boundingBox().center().getZ());
+	clipping.axisSign = QVector3D(_renderCtrl.clippingXFlipped() ? 1.0f : -1.0f,
+	                              _renderCtrl.clippingYFlipped() ? 1.0f : -1.0f,
+	                              _renderCtrl.clippingZFlipped() ? 1.0f : -1.0f);
+	clipping.boxEnabled = _renderCtrl.boxClippingEnabled();
+	clipping.boxKeepInside = _renderCtrl.boxClippingKeepInside();
+	if (clipping.boxEnabled)
+	{
+		const BoundingBox& box = _renderCtrl.boxClippingLimits();
+		clipping.boxMinimum = QVector3D(box.xMin(), box.yMin(), box.zMin());
+		clipping.boxMaximum = QVector3D(box.xMax(), box.yMax(), box.zMax());
+	}
+	_simulationVolumeController->drawOverlay(camera, QSize(width(), height()), clipping, [this](const QUuid& meshUuid) -> const RenderableMesh* {
+		const SceneMesh* mesh = getMeshByUuid(meshUuid);
+		return mesh && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
 	});
 }
 
@@ -3847,7 +3899,7 @@ void ViewportWidget::drawVertexMarkers()
 	for (const VertexMarker& marker : std::as_const(_vertexMarkers))
 	{
 		SceneMesh* mesh = getMeshByUuid(marker.meshUuid);
-		if (!mesh || marker.vertex < 0 || !isMeshVisible(mesh, -1))
+		if (!mesh || marker.vertex < 0 || !isMeshVisible(mesh, -1, true))
 			continue;
 		const std::vector<float>& points = mesh->getTrsfPoints();
 		const std::size_t p = static_cast<std::size_t>(marker.vertex) * 3;
@@ -6891,6 +6943,7 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
 		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _renderCtrl.gradientStyle());
 	render(_primaryCamera);
+	drawSimulationVolumes(_primaryCamera);
 	drawTransformGizmo(_primaryCamera);
 	renderPlaneGizmos();
 	drawVertexMarkers();
@@ -6995,6 +7048,7 @@ void ViewportWidget::renderComparePanes(QColor& topColor, QColor& botColor)
 		if (i < _comparePaneCameras.size())
 			*_primaryCamera = _comparePaneCameras[i];
 		render(_primaryCamera);
+		drawSimulationVolumes(_primaryCamera);
 		drawSimulationSlices(_primaryCamera); // this pane's result only (the filter is still set)
 		drawSimulationStreamlines(_primaryCamera);
 		drawSimulationGlyphs(_primaryCamera);
@@ -8600,11 +8654,14 @@ bool ViewportWidget::isMeshAnimationVisible(const SceneMesh* mesh) const
 	return !_animCtrl.animatedHiddenMeshUuids().contains(mesh->uuid());
 }
 
-bool ViewportWidget::isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex) const
+bool ViewportWidget::isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex, bool includeVolumeReplacement) const
 {
 	if (!isMeshAnimationVisible(mesh)) return false;
 	// Compare mode: the pane being drawn shows only its own result.
 	if (_paneMeshFilter && !_paneMeshFilter->contains(mesh->uuid())) return false;
+	// Direct volume rendering replaces this result's opaque boundary. Keeping that boundary in the depth buffer would
+	// stop every ray at the first surface and hide the interior that volume mode exists to reveal.
+	if (!includeVolumeReplacement && _simulationVolumeController && _simulationVolumeController->contains(mesh->uuid())) return false;
 
 	// 1. Frustum cull — applied in every pass, clipping or not.
 	// Skip frustum culling for any skinned mesh.
@@ -11642,6 +11699,7 @@ void ViewportWidget::render(Camera* camera)
 		_fillHolesController->drawOverlay(camera);
 	if (_viewCtrl.multiViewActive())
 	{
+		drawSimulationVolumes(camera);
 		drawSimulationSlices(camera);
 		drawSimulationStreamlines(camera);
 		drawSimulationGlyphs(camera);

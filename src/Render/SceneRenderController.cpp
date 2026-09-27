@@ -519,6 +519,7 @@ void SceneRenderController::initShaders(const QString& path)
     load(_equirectToCubeQuadShader, "_equirectToCubeQuadShader", path + "shaders/equirect_to_cube_quad.vert",path + "shaders/equirect_to_cube_quad.frag");
     load(_downsampleShader,         "_downsampleShader",         path + "shaders/downsample_cubemap.vert",   path + "shaders/downsample_cubemap.frag");
     load(_debugShader,              "_debugShader",              path + "shaders/debug_quad.vert",           path + "shaders/debug_quad_depth.frag");
+    load(_volumeShader,             "_volumeShader",             path + "shaders/fullscreen_triangle.vert",  path + "shaders/volume_raymarch.frag");
 }
 
 // ---------------------------------------------------------------------------

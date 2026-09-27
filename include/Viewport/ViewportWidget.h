@@ -30,6 +30,7 @@ class ToolsToolbar;
 #include "FillHolesController.h"
 #include "SimulationGlyphController.h"
 #include "SimulationTensorGlyphController.h"
+#include "SimulationVolumeController.h"
 #include "SimulationSliceController.h"
 #include "SimulationStreamlineController.h"
 #include "MvfMeshPreparationWorker.h"
@@ -1533,6 +1534,10 @@ public:
 	// the vector arrows above, for a symmetric tensor (stress) field instead.
 	void setSimulationTensorGlyphs(const QUuid& meshUuid, TensorGlyphSet glyphs);
 	void clearSimulationTensorGlyphs(const QUuid& meshUuid);
+	void setSimulationVolume(const QUuid& meshUuid, VolumeGrid grid, int colormap, QVector<QPointF> opacity);
+	void setSimulationVolumeTransferFunction(const QUuid& meshUuid, int colormap, QVector<QPointF> opacity);
+	void clearSimulationVolume(const QUuid& meshUuid);
+	bool hasSimulationVolume(const QUuid& meshUuid) const;
 
 	// Cut surfaces of a simulation result's volume (data-coloured sections, iso-surfaces): see SimulationSliceController.h. An empty list clears them.
 	void setSimulationSlices(const QUuid& meshUuid, std::vector<SliceDisplay> slices);
@@ -1718,7 +1723,7 @@ private:
 	float computeFullyVisibleMinMeshRadius() const;
 	void  updateZoomInLimit();
 	bool isMeshAnimationVisible(const SceneMesh* mesh) const;
-	bool isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex) const;
+	bool isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex, bool includeVolumeReplacement = false) const;
 	bool sceneHasVisibleTransmissionMaterials() const;
 	bool sceneHasVisibleSSSMaterials() const;
 	void collectVisibleMeshIdsForPass(int nodeIndex,
@@ -2683,6 +2688,8 @@ private:
 	void drawSimulationGlyphs(Camera* camera);
 	SimulationTensorGlyphController* _simulationTensorGlyphController = nullptr;
 	void drawSimulationTensorGlyphs(Camera* camera);
+	SimulationVolumeController* _simulationVolumeController = nullptr;
+	void drawSimulationVolumes(Camera* camera);
 	SimulationSliceController* _simulationSliceController = nullptr;
 	QHash<QUuid, QVector<float>> _simulationGizmoBounds;
 	void drawSimulationSlices(Camera* camera);

@@ -15,6 +15,7 @@ class QSpinBox;
 class QLabel;
 class QPushButton;
 class QStackedWidget;
+class SimulationTransferFunctionWidget;
 
 // The "Simulation" tab of the Document dock (bottom group, next to Selections/States) - see
 // docs/simulation_results_design.md section 9.
@@ -69,6 +70,7 @@ private:
 	void populateComponents(int fieldIndex, int selectedComponent);
 	void populateGlyphFields(int selectedFieldIndex);
 	void populateIsoFields(int selectedFieldIndex);
+	void populateVolumeFields(int selectedFieldIndex);
 	void updateSliceEnabled();
 	void populateStreamFields(int selectedFieldIndex);
 	void updateStreamEnabled();
@@ -145,6 +147,11 @@ private:
 	QLabel* _glyphInfoLabel = nullptr;
 	QCheckBox* _tensorGlyphCheck = nullptr;
 	QLabel* _tensorGlyphInfoLabel = nullptr;
+	QCheckBox* _volumeCheck = nullptr;
+	QComboBox* _volumeFieldCombo = nullptr;
+	QComboBox* _volumeResolutionCombo = nullptr;
+	SimulationTransferFunctionWidget* _volumeTransferWidget = nullptr;
+	QLabel* _volumeInfoLabel = nullptr;
 	QCheckBox* _sectionCheck = nullptr;
 	QCheckBox* _isoCheck = nullptr;
 	QComboBox* _isoFieldCombo = nullptr;

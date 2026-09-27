@@ -325,6 +325,14 @@ namespace
 			o.insert(QStringLiteral("tensorGlyphFieldAssociation"),
 			         isCellField(dataset.fields[static_cast<std::size_t>(s.tensorGlyphField)]) ? QStringLiteral("cell") : QStringLiteral("node"));
 		}
+		o.insert(QStringLiteral("volume"), s.volume);
+		o.insert(QStringLiteral("volumeResolution"), s.volumeResolution);
+		if (s.volumeField >= 0 && static_cast<std::size_t>(s.volumeField) < dataset.fields.size())
+			o.insert(QStringLiteral("volumeFieldName"), dataset.fields[static_cast<std::size_t>(s.volumeField)].name);
+		QJsonArray opacity;
+		for (const QPointF& point : s.volumeOpacity)
+			opacity.append(QJsonArray{ point.x(), point.y() });
+		o.insert(QStringLiteral("volumeOpacity"), opacity);
 		return o;
 	}
 
@@ -1005,6 +1013,24 @@ bool decodeResultSnapshot(const QJsonObject& json, const std::vector<QByteArray>
 		for (std::size_t i = 0; i < dataset->fields.size() && !tensorName.isEmpty(); ++i)
 			if (dataset->fields[i].name == tensorName && dataset->fields[i].association == tensorAssociation)
 				state.tensorGlyphField = static_cast<int>(i);
+	}
+	state.volume = view.value(QStringLiteral("volume")).toBool();
+	state.volumeResolution = std::clamp(view.value(QStringLiteral("volumeResolution")).toInt(64), 16, 256);
+	{
+		const QString volumeName = view.value(QStringLiteral("volumeFieldName")).toString();
+		for (std::size_t i = 0; i < dataset->fields.size() && !volumeName.isEmpty(); ++i)
+			if (dataset->fields[i].name == volumeName && dataset->fields[i].association == ResultFieldAssociation::Node)
+				state.volumeField = static_cast<int>(i);
+		const QJsonArray opacity = view.value(QStringLiteral("volumeOpacity")).toArray();
+		QVector<QPointF> points;
+		for (const QJsonValue& value : opacity)
+		{
+			const QJsonArray pair = value.toArray();
+			if (pair.size() == 2 && std::isfinite(pair[0].toDouble()) && std::isfinite(pair[1].toDouble()))
+				points.push_back(QPointF(std::clamp(pair[0].toDouble(), 0.0, 1.0), std::clamp(pair[1].toDouble(), 0.0, 1.0)));
+		}
+		if (points.size() >= 2)
+			state.volumeOpacity = points;
 	}
 
 	// The frozen cut faces, iso-surfaces and streamlines (only entries that fit their own arrays are kept).

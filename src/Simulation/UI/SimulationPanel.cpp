@@ -3,6 +3,8 @@
 #include "LengthUnits.h"
 #include "ResultUnits.h"
 #include "SimulationGlyphs.h"
+#include "SimulationVolume.h"
+#include "SimulationTransferFunctionWidget.h"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -349,6 +351,27 @@ void SimulationPanel::buildUi()
 	form->addRow(_tensorGlyphInfoLabel);
 	connect(_tensorGlyphCheck, &QCheckBox::toggled, this, [this](bool) { emitState(); });
 
+	// ---- Direct volume rendering: regular-grid resampling of a node scalar followed by GPU ray marching.
+	_volumeCheck = new QCheckBox(tr("Show as volume"), content);
+	_volumeCheck->setToolTip(tr("Show the field throughout the model as a translucent cloud.\n"
+	                            "The visible surface is replaced while this is enabled."));
+	form->addRow(_volumeCheck);
+	_volumeFieldCombo = new QComboBox(content);
+	form->addRow(tr("Volume field:"), _volumeFieldCombo);
+	_volumeResolutionCombo = new QComboBox(content);
+	_volumeResolutionCombo->addItem(tr("Low (32)"), 32);
+	_volumeResolutionCombo->addItem(tr("Medium (64)"), 64);
+	_volumeResolutionCombo->addItem(tr("High (96)"), 96);
+	_volumeResolutionCombo->addItem(tr("Very high (128)"), 128);
+	_volumeResolutionCombo->setToolTip(tr("Voxels along the longest model axis. Higher values show finer detail\n"
+	                                      "but take longer to rebuild when the field, step or shape changes."));
+	form->addRow(tr("Volume quality:"), _volumeResolutionCombo);
+	_volumeTransferWidget = new SimulationTransferFunctionWidget(content);
+	form->addRow(tr("Opacity:"), _volumeTransferWidget);
+	_volumeInfoLabel = new QLabel(content);
+	_volumeInfoLabel->setWordWrap(true);
+	form->addRow(_volumeInfoLabel);
+
 	// ---- Cutting the volume: the field on the cut of the Clipping Planes, and iso-surfaces of a node field.
 	_sectionCheck = new QCheckBox(tr("Colour the Clipping Plane cut with the field"), content);
 	_sectionCheck->setToolTip(tr("Switch on a Clipping Plane (the Clipping Planes editor);\n"
@@ -456,7 +479,10 @@ void SimulationPanel::buildUi()
 	connect(_displayUnitCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { onUnitEdited(); });
 	connect(_minSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_updating) emitState(); });
 	connect(_maxSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_updating) emitState(); });
-	connect(_colormapCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { if (!_updating) emitState(); });
+	connect(_colormapCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+		_volumeTransferWidget->setColormap(_colormapCombo->currentData().toInt());
+		if (!_updating) emitState();
+	});
 	connect(_bandsCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { if (!_updating) emitState(); });
 	connect(_resultCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
 		if (!_updating && _resultCombo->currentData().isValid())
@@ -528,6 +554,15 @@ void SimulationPanel::buildUi()
 	connect(_glyphCountSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int) { if (!_updating) emitState(); });
 	connect(_glyphMagnitudeCheck, &QCheckBox::toggled, this, [this](bool) { if (!_updating) emitState(); });
 	connect(_lineRadiusSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_updating) emitState(); });
+	connect(_volumeCheck, &QCheckBox::toggled, this, [this](bool on) {
+		_volumeFieldCombo->setEnabled(_volumeCheck->isEnabled() && on);
+		_volumeResolutionCombo->setEnabled(_volumeCheck->isEnabled() && on);
+		_volumeTransferWidget->setEnabled(_volumeCheck->isEnabled() && on);
+		if (!_updating) emitState();
+	});
+	connect(_volumeFieldCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { if (!_updating) emitState(); });
+	connect(_volumeResolutionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { if (!_updating) emitState(); });
+	connect(_volumeTransferWidget, &SimulationTransferFunctionWidget::pointsChanged, this, [this]() { if (!_updating) emitState(); });
 	connect(_deformAutoButton, &QPushButton::clicked, this, [this]() {
 		_deformScaleSpin->setValue(_autoDeformScale); // emits through valueChanged (unless it already is that value)
 	});
@@ -669,6 +704,16 @@ void SimulationPanel::setSession(const SimulationSession* session)
 	_tensorGlyphCheck->setChecked(_tensorGlyphCheck->isEnabled() && state.tensorGlyphs);
 	_tensorGlyphInfoLabel->setText(session->tensorGlyphInfo);
 	_tensorGlyphInfoLabel->setVisible(!session->tensorGlyphInfo.isEmpty());
+	populateVolumeFields(state.volumeField >= 0 ? state.volumeField : chooseDefaultVolumeField(*_dataset));
+	_volumeCheck->setChecked(_volumeFieldCombo->isEnabled() && state.volume);
+	_volumeFieldCombo->setEnabled(_volumeCheck->isEnabled() && state.volume);
+	_volumeResolutionCombo->setCurrentIndex(std::max(0, _volumeResolutionCombo->findData(state.volumeResolution)));
+	_volumeResolutionCombo->setEnabled(_volumeCheck->isEnabled() && state.volume);
+	_volumeTransferWidget->setPoints(state.volumeOpacity);
+	_volumeTransferWidget->setColormap(state.colormap);
+	_volumeTransferWidget->setEnabled(_volumeCheck->isEnabled() && state.volume);
+	_volumeInfoLabel->setText(session->volumeInfo);
+	_volumeInfoLabel->setVisible(!session->volumeInfo.isEmpty());
 
 	// Custom range: show the state's values; automatic: refreshRangeEdits() shows the data range.
 	if (state.customRange)
@@ -738,6 +783,34 @@ void SimulationPanel::populateStreamFields(int selectedFieldIndex)
 	_streamFieldCombo->setCurrentIndex(std::max(0, _streamFieldCombo->findData(selectedFieldIndex)));
 	_streamCheck->setEnabled(any);
 	_streamFieldCombo->setEnabled(any);
+}
+
+void SimulationPanel::populateVolumeFields(int selectedFieldIndex)
+{
+	_volumeFieldCombo->clear();
+	bool hasVolumeCells = false;
+	if (_dataset)
+	{
+		hasVolumeCells = std::any_of(_dataset->cellTypes.begin(), _dataset->cellTypes.end(), [](ResultCellType type) {
+			return resultCellIsVolume(type) || type == ResultCellType::Polyhedron;
+		});
+		for (std::size_t i = 0; i < _dataset->fields.size(); ++i)
+		{
+			const ResultField& field = _dataset->fields[i];
+			if (!isVolumeField(field))
+				continue;
+			_volumeFieldCombo->addItem(field.name + (field.components == 3 ? tr(" (magnitude)") : QString()), static_cast<int>(i));
+		}
+	}
+	const bool any = hasVolumeCells && _volumeFieldCombo->count() > 0;
+	if (!any)
+	{
+		_volumeFieldCombo->clear();
+		_volumeFieldCombo->addItem(hasVolumeCells ? tr("(no scalar node field)") : tr("(no volume cells)"), -1);
+	}
+	_volumeFieldCombo->setCurrentIndex(std::max(0, _volumeFieldCombo->findData(selectedFieldIndex)));
+	_volumeCheck->setEnabled(any);
+	_volumeFieldCombo->setEnabled(any && _volumeCheck->isChecked());
 }
 
 void SimulationPanel::updateStreamEnabled()
@@ -971,6 +1044,10 @@ SimulationViewState SimulationPanel::currentState() const
 	state.glyphScale = _glyphScaleSpin->value();
 	state.glyphCount = _glyphCountSpin->value();
 	state.tensorGlyphs = _tensorGlyphCheck->isChecked() && _tensorGlyphCheck->isEnabled();
+	state.volume = _volumeCheck->isChecked() && _volumeCheck->isEnabled();
+	state.volumeField = _volumeFieldCombo->currentData().isValid() ? _volumeFieldCombo->currentData().toInt() : -1;
+	state.volumeResolution = _volumeResolutionCombo->currentData().toInt();
+	state.volumeOpacity = _volumeTransferWidget->points();
 	state.glyphScaleByMagnitude = _glyphMagnitudeCheck->isChecked();
 	state.lineRadius = _lineRadiusSpin->value() / 100.0;
 	return state;

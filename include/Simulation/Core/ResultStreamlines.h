@@ -41,6 +41,8 @@ public:
 	std::size_t excludedConcaveCellCount() const { return _excludedConcaveCells; }
 	// Diagonal of the bounding box of the volume cells.
 	double diagonal() const { return _diagonal; }
+	// Tight axis-aligned bounds of the indexed volume cells. False when no volume cell is indexed.
+	bool bounds(double minimum[3], double maximum[3]) const;
 
 	// Interpolates a per-node vector field (`vectors`, 3 floats per node) and, when given, a per-node scalar at `p`. `hint` is the cell the last point was found in
 	// (or -1): it is tried first and updated. False when the point is in no cell or a node of its cell has no finite value.
@@ -71,6 +73,8 @@ private:
 	std::vector<std::uint32_t> _binStart; // CSR: bin b holds _binCells[_binStart[b] .. _binStart[b + 1]) (indices into _cells)
 	std::vector<std::uint32_t> _binCells;
 	double _diagonal = 0.0;
+	double _boundsMin[3] = { 0, 0, 0 };
+	double _boundsMax[3] = { 0, 0, 0 };
 	std::size_t _excludedConcaveCells = 0;
 };
 

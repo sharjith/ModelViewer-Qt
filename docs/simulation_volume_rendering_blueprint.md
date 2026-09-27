@@ -1,8 +1,8 @@
 # Simulation Direct Volume Rendering - Implementation Blueprint
 
-Status: **PROPOSAL for implementation** (2026-09-27). Nothing built yet. Branch: `feature/simulation-results` (continue directly on
-it - see [[project_simulation_viz_roadmap_next_branch]] and `docs/simulation_volume_features.md`, whose sections/iso-surfaces/
-streamlines this is the fourth sibling of). Companion docs: `docs/simulation_results_design.md`, `docs/simulation_volume_features.md`.
+Status: **IMPLEMENTED** (2026-09-27). The CPU grid builder, editable opacity transfer function, GPU ray marcher,
+depth-aware compositing, clipping integration, compare/multi-view support, persisted view state, and regression tests are in
+place. Companion docs: `docs/simulation_results_design.md`, `docs/simulation_volume_features.md`.
 
 ## 1. What this is, and isn't
 
@@ -102,22 +102,12 @@ through the volume must **stop where an opaque object (or another part of the sa
 "bleeds through" solid geometry in front of it. That needs the **scene's depth buffer as a readable texture** inside the
 ray-march shader, to bound each ray's marching distance.
 
-**This is a genuine open question, not a solved detail - investigate before writing the shader:**
-- Does `SceneRenderController`'s render target already have a depth attachment that can be bound as a `sampler2D` in a later
-  pass (an FBO with a depth-texture attachment), or does the app render straight to the default framebuffer (whose depth buffer
-  is not directly sampleable as a texture without restructuring)? Search for how the existing shadow map (`AdaptiveShadowMapper`,
-  referenced in `docs/`) reads depth as a texture - it already solves "render depth, then sample it in a later shader" once in
-  this codebase, and the volume pass can very likely reuse the same FBO/depth-texture pattern rather than inventing a new one.
-- If there is no readable depth texture available for the main pass today, the minimum viable fallback for v1 is: **draw the
-  volume only when nothing else in the scene can occlude it from the current view** (e.g. render it, accept that it currently
-  draws in front of everything, and document the limitation) OR restrict v1 to a scene with exactly one visible mesh (the
-  result itself) so occlusion by *other* geometry is moot - self-occlusion within the SAME volume is handled by the ray-march
-  itself (front-to-back compositing naturally attenuates through the volume), it is only *other, unrelated* opaque geometry in
-  front of the volume that needs the scene depth test.
-
-Resolve this with a spike/prototype before committing to the full feature - it changes where in the render pipeline this pass
-must sit (`GpuResourcePhase` timing relative to the opaque pass) and possibly requires a render-target change that other
-overlays don't need.
+**Implemented resolution:** the main pass renders to the `QOpenGLWidget` framebuffer, whose depth attachment is not directly
+sampleable. `SimulationVolumeController` therefore resolves/copies the current 24-bit depth + 8-bit stencil attachment into a
+matching single-sample depth-stencil texture through a private FBO after opaque rendering. The ray marcher samples that texture
+and truncates each ray at the first opaque depth. Matching the viewport's attachment format is required for the multisample
+depth blit. Compare panes and multi-view pass both the full framebuffer size for depth lookup and the current GL viewport for
+camera NDC reconstruction, so shifted and half-size viewports produce the same rays as their opaque pass.
 
 ## 6. Panel UI
 

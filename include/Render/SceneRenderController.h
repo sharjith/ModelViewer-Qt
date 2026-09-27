@@ -165,6 +165,7 @@ public:
     ShaderProgram* downsampleShader()       const { return _downsampleShader.get(); }
     ShaderProgram* textShader()             const { return _textShader.get(); }
     ShaderProgram* debugShader()            const { return _debugShader.get(); }
+    ShaderProgram* volumeShader()           const { return _volumeShader.get(); }
 
     // ---- IBL / environment maps --------------------------------------------
     GLuint environmentMap()           const { return _environmentMap; }
@@ -674,6 +675,7 @@ private:
     std::unique_ptr<ShaderProgram> _downsampleShader;
     std::unique_ptr<ShaderProgram> _textShader;
     std::unique_ptr<ShaderProgram> _debugShader;
+    std::unique_ptr<ShaderProgram> _volumeShader;
 
     // ---- IBL / environment maps --------------------------------------------
     unsigned int _environmentMap        = 0;

@@ -12,6 +12,8 @@
 #include "SimulationOverlays.h"
 
 #include <QString>
+#include <QPointF>
+#include <QVector>
 #include <QStringList>
 #include <QUuid>
 
@@ -35,6 +37,7 @@ struct LoadedSimulationResult
 LoadedSimulationResult loadSimulationResult(const QString& path, const std::atomic<bool>* cancel = nullptr);
 
 struct SimulationSession;
+struct VolumeGrid;
 struct SimulationRangeCache;
 
 // One scalar per dataset node - or, for a cell field (cellData), per dataset cell - ready to be shown as a colour map.
@@ -194,6 +197,11 @@ struct SimulationViewState
 	int tensorGlyphField = -1;   // index into ResultDataset::fields; -1 = chosen automatically (chooseDefaultTensorField)
 	double tensorGlyphScale = 1.0; // 1 = the largest ellipsoid semi-axis is 5 % of the model diagonal
 	int tensorGlyphCount = 400;    // about this many ellipsoids (fewer than the arrows' default: an ellipsoid reads busier)
+	// Direct volume rendering: a scalar node field resampled to a regular 3-D texture and ray-marched.
+	bool volume = false;
+	int volumeField = -1;          // scalar node field or vector magnitude; -1 = chooseDefaultVolumeField()
+	int volumeResolution = 64;     // voxels along the longest axis (other axes preserve the model aspect ratio)
+	QVector<QPointF> volumeOpacity{ QPointF(0.0, 0.0), QPointF(0.35, 0.02), QPointF(0.7, 0.08), QPointF(1.0, 0.25) };
 	// The radius of the tubes drawn around line cells (beams, pipes), as a fraction of the model's diagonal (only for results that have line cells).
 	double lineRadius = kDefaultLineRadius;
 	// Cutting the volume (see ResultSlice.h): the field drawn on the cut of the Clipping Planes (X / Y / Z, as the Clipping Planes editor sets them),
@@ -277,6 +285,9 @@ struct SimulationSession
 	bool tensorGlyphSitesCell = false;
 	SimulationRangeCache tensorGlyphRangeCache;
 	QString tensorGlyphInfo; // what the panel shows about the ellipsoids' colours (empty when they are off)
+	QString volumeInfo;
+	QString volumeGridKey; // field/component/step/shape/resolution of the grid currently sent to the viewport
+	std::shared_ptr<VolumeGrid> volumeGrid;
 	// Cut geometry of the sections, kept while the plane stays: the cut is recoloured for a new field or step without cutting again.
 	struct SectionCut
 	{

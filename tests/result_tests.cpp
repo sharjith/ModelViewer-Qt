@@ -20,6 +20,7 @@
 #include "ResultUnits.h"
 #include "SimulationCharts.h"
 #include "SimulationGlyphs.h"
+#include "SimulationVolume.h"
 #include "VtkHdfReader.h"
 #include "SimulationResultDisplay.h"
 
@@ -34,6 +35,7 @@
 #include <QTemporaryDir>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -5568,6 +5570,75 @@ namespace
 		}
 	}
 
+	void testVolumeGrid()
+	{
+		auto addLinear = [](ResultDataset& dataset) {
+			ResultField field;
+			field.name = QStringLiteral("Temperature");
+			field.association = ResultFieldAssociation::Node;
+			field.components = 1;
+			field.stepData.resize(1);
+			field.stepData[0].resize(dataset.nodeCount());
+			for (std::size_t n = 0; n < dataset.nodeCount(); ++n)
+				field.stepData[0][n] = 2.0f * dataset.nodePositions[n * 3] - dataset.nodePositions[n * 3 + 1]
+					+ 0.5f * dataset.nodePositions[n * 3 + 2] + 10.0f;
+			dataset.fields.push_back(std::move(field));
+			dataset.steps.push_back(ResultStep());
+		};
+
+		ResultDataset row = hexRow(4);
+		addLinear(row);
+		const CellLocator rowLocator(row);
+		VolumeGrid grid;
+		CHECK(buildVolumeGrid(row, rowLocator, 0, -1, 0, 32, grid));
+		// hexRow(4) is 4 x 1 x 1: proportionally that is 32 x 8 x 8, but the 16-voxel-per-axis floor (see
+		// buildVolumeGrid's own comment - a thin/elongated model must never be under-resolved on its short axes,
+		// confirmed for real on the I-beam sample: 64 x 4 x 9 at "Medium" before this floor existed) raises the
+		// short axes to 16.
+		CHECK(grid.dimX == 32 && grid.dimY == 16 && grid.dimZ == 16 && grid.values.size() == 32u * 16u * 16u);
+		CHECK(grid.label == QStringLiteral("Temperature") && chooseDefaultVolumeField(row) == 0 && isVolumeField(row.fields[0]));
+		bool exact = true;
+		for (const std::array<int, 3>& xyz : { std::array<int, 3>{ 0, 0, 0 }, { 13, 3, 6 }, { 31, 7, 7 } })
+		{
+			const double x = grid.origin[0] + (xyz[0] + 0.5) * grid.voxelSize[0];
+			const double y = grid.origin[1] + (xyz[1] + 0.5) * grid.voxelSize[1];
+			const double z = grid.origin[2] + (xyz[2] + 0.5) * grid.voxelSize[2];
+			const float value = grid.values[(static_cast<std::size_t>(xyz[2]) * grid.dimY + xyz[1]) * grid.dimX + xyz[0]];
+			exact = exact && std::fabs(value - (2.0 * x - y + 0.5 * z + 10.0)) < 1e-4;
+		}
+		CHECK(exact);
+
+		ResultDataset tetra = oneCell(ResultCellType::Tetra, { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 });
+		addLinear(tetra);
+		const CellLocator tetraLocator(tetra);
+		VolumeGrid tetraGrid;
+		CHECK(buildVolumeGrid(tetra, tetraLocator, 0, -1, 0, 16, tetraGrid));
+		CHECK(std::any_of(tetraGrid.values.begin(), tetraGrid.values.end(), [](float value) { return std::isnan(value); }));
+
+		// An I-beam-like elongated, thin cross-section (~17:1, the real ibeam_cantilever sample's own ratio) must not
+		// crush its short axes down to single digits: the observed real-world bug was 64 x 4 x 9 at "Medium" (64),
+		// too coarse to represent a thin web/flange at all. Both short axes must hit the 16-voxel floor.
+		ResultDataset beamLike = hexRow(17);
+		addLinear(beamLike);
+		const CellLocator beamLikeLocator(beamLike);
+		VolumeGrid beamGrid;
+		CHECK(buildVolumeGrid(beamLike, beamLikeLocator, 0, -1, 0, 64, beamGrid));
+		CHECK(beamGrid.dimX == 64 && beamGrid.dimY == 16 && beamGrid.dimZ == 16);
+		// A flat floor equal to the lowest tier's own resolution would sit at or above this model's natural
+		// proportional short-axis value at every quality setting, so a higher quality choice would only ever
+		// sharpen the long axis - confirmed for real on the sample I-beam ("somewhat better", not fixed, after a
+		// flat floor). The floor must scale with targetResolution: "Very high" (128, the panel's top tier) must give
+		// a visibly sharper short axis than "Medium" (64) did just above, not the same 16.
+		VolumeGrid beamGridHigh;
+		CHECK(buildVolumeGrid(beamLike, beamLikeLocator, 0, -1, 0, 128, beamGridHigh)); // 128 = the panel's own "Very high" tier
+		CHECK(beamGridHigh.dimX == 128 && beamGridHigh.dimY > beamGrid.dimY && beamGridHigh.dimZ > beamGrid.dimZ);
+
+		ResultDataset shell = oneCell(ResultCellType::Quad, { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0 });
+		addLinear(shell);
+		const CellLocator shellLocator(shell);
+		CHECK(!buildVolumeGrid(shell, shellLocator, 0, -1, 0, 32, grid));
+	}
+
 	// ---- Lazy loading of time steps ----------------------------------------------------------------------------------------------
 
 	// True when every step of every field of `lazy` (loaded on demand) equals the eagerly read `eager`, and both have the same fields.
@@ -5990,6 +6061,10 @@ namespace
 		state.sectionFill = true;
 		state.streamlines = true;
 		state.streamSeeds = 20;
+		state.volume = true;
+		state.volumeField = 1;
+		state.volumeResolution = 96;
+		state.volumeOpacity = { QPointF(0.0, 0.0), QPointF(0.4, 0.12), QPointF(1.0, 0.7) };
 
 		// what was on display: a lit iso-surface (one triangle), a section, a streamline (two segments), and one Clipping Plane
 		SnapshotOverlays overlays;
@@ -6029,6 +6104,8 @@ namespace
 			      && dec.overlays.streamlines.arrowColors == overlays.streamlines.arrowColors && dec.overlays.streamlines.arrowLength == 0.2f && dec.overlays.streamlines.arrowCount() == 2);
 			CHECK(dec.overlays.cuts.size() == 1 && dec.overlays.cuts[0].axis == 2 && dec.overlays.cuts[0].position == 1.0 && dec.overlays.cuts[0].keepPositive);
 			CHECK(dec.state.sectionFill && dec.state.streamlines && dec.state.streamSeeds == 20);
+			CHECK(dec.state.volume && dec.state.volumeField == 1 && dec.state.volumeResolution == 96
+			      && dec.state.volumeOpacity == state.volumeOpacity);
 			// without overlays nothing is stored for them
 			ResultSnapshot plain;
 			CHECK(encodeResultSnapshot(ds, surface, state, options, plain, &err) && !plain.json.contains(QStringLiteral("overlays")));
@@ -6063,6 +6140,8 @@ namespace
 					CHECK(out.fields[static_cast<std::size_t>(temperature)].stepData == ds.fields[0].stepData);
 					CHECK(out.fields[static_cast<std::size_t>(velocity)].stepData == ds.fields[1].stepData);
 					CHECK(dec.state.streamlines && dec.state.sectionFill);
+					CHECK(dec.state.volume && dec.state.volumeField == velocity && dec.state.volumeResolution == 96
+					      && dec.state.volumeOpacity == state.volumeOpacity);
 				}
 				// live again: the restored result can be traced through
 				const CellLocator locator(out);
@@ -7034,6 +7113,7 @@ int main(int argc, char** argv)
 	testSlice();
 	testStreamlines();
 	testCharts();
+	testVolumeGrid();
 	testLazySteps();
 	testDeformedOverlays();
 	testSnapshotVolumeAndOverlays();

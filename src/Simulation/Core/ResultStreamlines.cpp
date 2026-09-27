@@ -215,6 +215,11 @@ CellLocator::CellLocator(const ResultDataset& dataset, const std::atomic<bool>* 
 	}
 	if (_cells.empty())
 		return;
+	for (int k = 0; k < 3; ++k)
+	{
+		_boundsMin[k] = lo[k];
+		_boundsMax[k] = hi[k];
+	}
 
 	double extent[3];
 	double maxExtent = 0.0;
@@ -282,6 +287,18 @@ CellLocator::CellLocator(const ResultDataset& dataset, const std::atomic<bool>* 
 					}
 		}
 	}
+}
+
+bool CellLocator::bounds(double minimum[3], double maximum[3]) const
+{
+	if (_cells.empty() || !minimum || !maximum)
+		return false;
+	for (int k = 0; k < 3; ++k)
+	{
+		minimum[k] = _boundsMin[k];
+		maximum[k] = _boundsMax[k];
+	}
+	return true;
 }
 
 double CellLocator::cellSize(int cell) const

@@ -794,6 +794,7 @@ private:
 	void retranslateSimulation();
 	void updateSimulationGlyphs(SimulationSession& session, bool haveSurfaceRange, float surfaceLo, float surfaceHi);
 	void updateSimulationTensorGlyphs(SimulationSession& session, bool haveSurfaceRange, float surfaceLo, float surfaceHi);
+	void updateSimulationVolume(SimulationSession& session);
 	void updateSimulationTimeline();
 	void checkSimulationCompare(); // ends compare mode when one of its results went away
 	void pushSimulationMarkers();  // the min/max labels the viewport shows (active result's, or both compared results')
