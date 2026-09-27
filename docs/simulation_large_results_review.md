@@ -131,9 +131,11 @@ Memory was the limit, so the steps of a large result are no longer all held in m
 the dataset a loader (`LazySteps`, `ResultDataset.h`); `ResultDataset::ensureStepLoaded(step)` reads a step when something asks for it and keeps the last four
 in memory, the least recently used going first (`maxResident`, at least 2).
 
-- **Which results**: **Exodus** and **VTKHDF** (unstructured grids and polydata with time steps - the arrays of `PointData` / `CellData`). A result is read lazily when its
-  step data would need more than `resultLazyThresholdBytes()` (256 MB) and it has more than one step; the tests force it with 0. Other readers (CalculiX FRD, CGNS, MED, OpenFOAM,
-  VTK XML / legacy, VTKHDF ImageData) still read everything at once. Their files are per-step sequential (FRD, OpenFOAM) or would need their file handle kept open (CGNS, MED): a next step.
+- **Which results**: **Exodus**, **VTKHDF** (unstructured grids and polydata with time steps - the arrays of `PointData` / `CellData`) and **OpenFOAM** cases (only the headers of the field
+  files are read at open - class, format, dimensions - and one time directory's fields per step, which also makes opening a case with many big ASCII fields fast). A result is read lazily when
+  its step data would need more than `resultLazyThresholdBytes()` (256 MB) and it has more than one step; the tests force it with 0. Other readers (CalculiX FRD, CGNS, MED, VTK XML / legacy,
+  VTKHDF ImageData) still read everything at once. FRD is per-step sequential ASCII and would need an index of the step blocks; CGNS merges fields across zones and builds vectors and tensors
+  from separate arrays, so its field assembly would have to be made per step first; MED needs its file handle kept open: next steps, in that order of value.
 - **What asks**: everything that reads the data of a step calls `ensureStepLoaded()` first - the colour scalar, its range for a step, the deformation, the modal factor, the arrows, the
   streamlines' vectors, and the snapshot encoder (which reads every step it keeps, so saving a lazy result reads the whole file). The derived stress fields (von Mises ...) are
   computed for a step as it is loaded (`computeDerivedStressStep`). A field a lazy reader defined is flagged `lazyData`, so it counts as having data before any of it is in memory.

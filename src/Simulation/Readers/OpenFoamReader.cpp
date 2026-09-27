@@ -8,6 +8,7 @@
 #include <QRegularExpression>
 
 #include <algorithm>
+#include <memory>
 #include <cmath>
 #include <cstdlib>
 #include <limits>
@@ -347,6 +348,31 @@ namespace
 		return expectChar(c, ']');
 	}
 
+	// The dimensions entry of a field file whose header has been read (it comes before internalField, so the start of the file is enough).
+	void scanDimensions(Cursor& c, std::vector<int>& dims)
+	{
+		while (!c.atEnd())
+		{
+			const QByteArray word = readWord(c);
+			if (word.isEmpty())
+			{
+				if (c.atEnd())
+					break;
+				++c.p;
+				continue;
+			}
+			if (word == "internalField")
+				return;
+			if (word == "dimensions")
+			{
+				readDimensions(c, dims);
+				expectChar(c, ';');
+				continue;
+			}
+			skipEntry(c);
+		}
+	}
+
 	// Parses one field file whose header has been read; returns false with `reason` when it cannot be used.
 	bool readFieldBody(Cursor& c, int components, std::size_t cellCount, ParsedField& out, QString& reason)
 	{
@@ -580,6 +606,174 @@ ResultReadOutcome readOpenFoamCase(const QString& path, const std::atomic<bool>*
 		if (isTimeDirectoryName(name))
 			times.push_back({ name.toDouble(), name });
 	std::sort(times.begin(), times.end(), [](const TimeDir& a, const TimeDir& b) { return a.time < b.time; });
+
+	// A case whose fields would be large is read lazily: only the headers of the field files are read now (their class, format and dimensions), and one time
+	// directory's fields when that step is asked for (see LazySteps). The bodies of ASCII field files are slow to parse, so this also makes opening fast.
+	{
+		struct FieldRef
+		{
+			QString name;
+			int components = 0;
+			std::vector<int> dimensions;
+		};
+		struct StepRef
+		{
+			double time = 0.0;
+			QString dirName;
+			std::vector<FieldRef> fields;
+		};
+		std::vector<StepRef> scan;
+		std::size_t scanBytes = 0;
+		QStringList scanSkipped;
+		for (const TimeDir& timeDir : times)
+		{
+			StepRef ref;
+			ref.time = timeDir.time;
+			ref.dirName = timeDir.name;
+			const QDir dir(caseDir.filePath(timeDir.name));
+			for (const QString& fileName : fieldFileNames(dir))
+			{
+				if (cancelled())
+					return fail(QStringLiteral("cancelled"));
+				QFile file(dir.filePath(fileName));
+				if (!file.open(QIODevice::ReadOnly))
+					continue;
+				const QByteArray head = file.read(4096);
+				if (!head.contains("FoamFile") || !head.contains("class") || !head.contains("vol"))
+					continue;
+				Cursor cursor;
+				cursor.p = head.constData();
+				cursor.end = head.constData() + head.size();
+				const FoamHeader header = readHeader(cursor);
+				const int components = header.ok ? componentsForClass(header.className) : 0;
+				if (components == 0)
+					continue;
+				if (header.format.toLower() != "ascii")
+				{
+					scanSkipped << QStringLiteral("%1 (%2): not ASCII").arg(fileName, timeDir.name);
+					continue;
+				}
+				FieldRef field;
+				field.name = fileName;
+				field.components = components;
+				scanDimensions(cursor, field.dimensions);
+				scanBytes += cellCount * static_cast<std::size_t>(components) * sizeof(float);
+				ref.fields.push_back(std::move(field));
+			}
+			if (!ref.fields.empty())
+				scan.push_back(std::move(ref));
+		}
+		if (scan.size() > 1 && scanBytes > resultLazyThresholdBytes())
+		{
+			std::map<QString, std::size_t> fieldIndex;
+			for (std::size_t s = 0; s < scan.size(); ++s)
+			{
+				ResultStep step;
+				step.time = scan[s].time;
+				dataset->steps.push_back(step);
+				for (const FieldRef& ref : scan[s].fields)
+				{
+					if (fieldIndex.find(ref.name) != fieldIndex.end())
+						continue;
+					ResultField field;
+					field.name = ref.name;
+					field.association = ResultFieldAssociation::Cell;
+					field.components = ref.components;
+					if (field.components == 6)
+						field.componentNames = { QStringLiteral("XX"), QStringLiteral("YY"), QStringLiteral("ZZ"),
+						                         QStringLiteral("XY"), QStringLiteral("YZ"), QStringLiteral("ZX") };
+					else if (field.components == 9)
+						field.componentNames = { QStringLiteral("XX"), QStringLiteral("XY"), QStringLiteral("XZ"),
+						                         QStringLiteral("YX"), QStringLiteral("YY"), QStringLiteral("YZ"),
+						                         QStringLiteral("ZX"), QStringLiteral("ZY"), QStringLiteral("ZZ") };
+					QString kind;
+					if (kindFromDimensions(ref.dimensions, kind))
+					{
+						const QStringList symbols = unitSymbols(kind);
+						if (!symbols.isEmpty())
+						{
+							field.quantityKind = kind;
+							field.fileUnit = symbols.first();
+							field.displayUnit = field.fileUnit;
+							field.unitConfirmed = true;
+						}
+					}
+					field.lazyData = true;
+					fieldIndex.emplace(ref.name, dataset->fields.size());
+					dataset->fields.push_back(std::move(field));
+				}
+			}
+			for (ResultField& field : dataset->fields)
+				field.stepData.assign(scan.size(), std::vector<float>());
+			// Loader: the time directory of the step, every field file that the scan found there.
+			struct LazyFoam
+			{
+				QString caseDir;
+				std::vector<QString> dirNames;
+				std::vector<std::vector<std::pair<std::size_t, int>>> filesOfStep; // per step: (dataset field index, components) of each file
+				std::vector<QString> fieldNames;                                    // per dataset field
+				std::size_t cellCount = 0;
+			};
+			auto lazyFoam = std::make_shared<LazyFoam>();
+			lazyFoam->caseDir = caseDir.absolutePath();
+			lazyFoam->cellCount = cellCount;
+			for (const ResultField& field : dataset->fields)
+				lazyFoam->fieldNames.push_back(field.name);
+			for (const StepRef& ref : scan)
+			{
+				lazyFoam->dirNames.push_back(ref.dirName);
+				std::vector<std::pair<std::size_t, int>> files;
+				for (const FieldRef& f : ref.fields)
+					files.emplace_back(fieldIndex[f.name], f.components);
+				lazyFoam->filesOfStep.push_back(std::move(files));
+			}
+			auto lazySteps = std::make_shared<LazySteps>();
+			lazySteps->load = [lazyFoam](std::size_t step, ResultDataset& ds) {
+				if (step >= lazyFoam->dirNames.size())
+					return false;
+				const QDir dir(QDir(lazyFoam->caseDir).filePath(lazyFoam->dirNames[step]));
+				for (const auto& file : lazyFoam->filesOfStep[step])
+				{
+					if (file.first >= ds.fields.size() || ds.fields[file.first].components != file.second)
+						continue; // its type changed between time steps
+					QFile in(dir.filePath(lazyFoam->fieldNames[file.first]));
+					if (!in.open(QIODevice::ReadOnly))
+						continue;
+					const QByteArray data = in.readAll();
+					Cursor cursor;
+					cursor.p = data.constData();
+					cursor.end = data.constData() + data.size();
+					const FoamHeader header = readHeader(cursor);
+					if (!header.ok || componentsForClass(header.className) != file.second)
+						continue;
+					ParsedField parsed;
+					QString reason;
+					if (!readFieldBody(cursor, file.second, lazyFoam->cellCount, parsed, reason))
+						continue;
+					if (file.second == 6)
+						reorderSymmTensor(parsed.values);
+					if (step < ds.fields[file.first].stepData.size())
+						ds.fields[file.first].stepData[step] = std::move(parsed.values);
+				}
+				return true;
+			};
+			dataset->lazy = std::move(lazySteps);
+			const QString invalidLazy = dataset->validate();
+			if (!invalidLazy.isEmpty())
+				return fail(QStringLiteral("The OpenFOAM case is inconsistent: %1").arg(invalidLazy));
+			if (!scanSkipped.isEmpty())
+			{
+				const int shown = std::min<int>(3, static_cast<int>(scanSkipped.size()));
+				QString message = QStringLiteral("%1 field file(s) were skipped: %2").arg(scanSkipped.size()).arg(scanSkipped.mid(0, shown).join(QStringLiteral("; ")));
+				if (scanSkipped.size() > shown)
+					message += QStringLiteral("; ...");
+				outcome.warnings << message;
+			}
+			outcome.warnings << QStringLiteral("Only the boundary of the mesh is displayed; each boundary face shows the value of its cell.");
+			outcome.dataset = std::move(dataset);
+			return outcome;
+		}
+	}
 
 	struct StepFields
 	{

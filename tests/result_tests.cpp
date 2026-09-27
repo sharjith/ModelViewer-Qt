@@ -5363,6 +5363,36 @@ namespace
 			CHECK(ds.fields[1].stepData[0].size() == 8 && ds.fields[1].stepData[1].size() == 8);
 		}
 
+		// the OpenFOAM cavity case (five time directories of ASCII cell fields): only the headers are read at first
+		{
+			const QString foam = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/openfoam_cavity/cavity.foam");
+			if (QFile::exists(foam))
+			{
+				setResultLazyThresholdBytes(never);
+				const ResultReadOutcome eager = readResultFile(foam);
+				setResultLazyThresholdBytes(always);
+				const ResultReadOutcome lazy = readResultFile(foam);
+				CHECK(eager.ok() && lazy.ok());
+				if (eager.ok() && lazy.ok())
+				{
+					CHECK(!eager.dataset->isLazy() && lazy.dataset->isLazy() && lazy.dataset->validate().isEmpty());
+					CHECK(lazy.dataset->stepCount() == 5 && lazy.dataset->fields.size() == eager.dataset->fields.size() && !lazy.dataset->fields.empty());
+					bool none = true;
+					for (const ResultField& f : lazy.dataset->fields)
+						for (const std::vector<float>& step : f.stepData)
+							none = none && step.empty();
+					CHECK(none && resultFieldHasData(lazy.dataset->fields[0]));
+					// (the units come from the header's dimensions, as in the eager read)
+					bool sameUnits = true;
+					for (std::size_t f = 0; f < lazy.dataset->fields.size(); ++f)
+						sameUnits = sameUnits && lazy.dataset->fields[f].quantityKind == eager.dataset->fields[f].quantityKind && lazy.dataset->fields[f].fileUnit == eager.dataset->fields[f].fileUnit;
+					CHECK(sameUnits);
+					lazy.dataset->lazy->maxResident = 2;
+					CHECK(sameStepData(*eager.dataset, *lazy.dataset));
+				}
+			}
+		}
+
 #if MV_HAVE_NETCDF
 		for (int variant = 0; variant < 2; ++variant)
 		{
