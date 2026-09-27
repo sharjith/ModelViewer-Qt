@@ -4506,6 +4506,11 @@ namespace
 			// small partitions force the multi-pass path
 			ResultBoundarySurface partitioned;
 			CHECK(extractBoundarySurface(row, partitioned, nullptr, nullptr, 3) && partitioned.triangleCount() == 20);
+			// a tiny fastKeyingBudgetBytes forces the bounded (re-derive per partition) path instead of the single-pass one; same result either way
+			ResultBoundarySurface bounded;
+			CHECK(extractBoundarySurface(row, bounded, nullptr, nullptr, 3, 1) && bounded.triangleCount() == partitioned.triangleCount());
+			ResultBoundarySurface boundedWhole;
+			CHECK(extractBoundarySurface(row, boundedWhole, nullptr, nullptr, 2000000, 1) && boundedWhole.triangleCount() == 20);
 
 			// a polyhedron with no faces listed is counted as not drawn, and warned about
 			ResultDataset bare = polyCubes(1);

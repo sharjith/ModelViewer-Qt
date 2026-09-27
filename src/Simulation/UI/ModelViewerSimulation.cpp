@@ -72,6 +72,30 @@ namespace
 	// The status-bar progress bar is application-wide, but each document loads on its own: count the loads in flight so
 	// one document finishing does not hide the bar while another is still reading.
 	int g_simulationLoadsInFlight = 0;
+
+	// An all-steps range scan reads several steps of a lazy result from disk (bounded to 8, see stepsToScan()) - up to a
+	// couple of seconds. It is not threaded (every reader of a step's data would need to lock against the loader, see
+	// LazySteps in ResultDataset.h), so a busy cursor is shown for its duration instead: cheap, no threading risk, and the
+	// scan is already cached (SimulationRangeCache) so it only actually runs once per field / component / unit choice.
+	// Only a lazy dataset can make this slow; an eager one is already fast (measured under 100 ms at 5 M nodes) and gets
+	// no cursor.
+	struct LazyScanCursor
+	{
+		bool shown = false;
+		explicit LazyScanCursor(const ResultDataset* dataset)
+		{
+			if (dataset && dataset->isLazy())
+			{
+				QApplication::setOverrideCursor(Qt::WaitCursor);
+				shown = true;
+			}
+		}
+		~LazyScanCursor()
+		{
+			if (shown)
+				QApplication::restoreOverrideCursor();
+		}
+	};
 }
 
 void ModelViewer::openSimulationResult()
@@ -1257,6 +1281,7 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 	{
 		// Automatic range over ALL steps (a fixed colour scale, so animation frames stay comparable), cached so
 		// playback does not rescan every step per frame; otherwise the range of the step shown / the custom one.
+		const LazyScanCursor rangeCursor(session.state.customRange || !session.state.allStepsRange || stepCount <= 1 ? nullptr : session.dataset.get());
 		if (!session.state.customRange && session.state.allStepsRange && stepCount > 1
 		    && cachedAllStepsRange(session, session.state.fieldIndex, session.state.component, lo, hi))
 		{
@@ -1441,6 +1466,7 @@ void ModelViewer::updateSimulationGlyphs(SimulationSession& session, bool haveSu
 	// The largest magnitude over all steps sets the arrow length and the colour range, so animation frames stay comparable.
 	float referenceMax = 0.0f, ownLo = 0.0f, ownHi = 0.0f;
 	bool haveAllSteps = false;
+	const LazyScanCursor glyphRangeCursor(dataset.stepCount() > 1 ? &dataset : nullptr);
 	if (dataset.stepCount() > 1 && cachedAllStepsRange(dataset, session.glyphRangeCache, fieldIndex, -1, ownLo, ownHi))
 	{
 		referenceMax = ownHi;
@@ -1655,7 +1681,8 @@ void ModelViewer::updateSimulationStreamlines(SimulationSession& session)
 		lo = session.shownLo;
 		hi = session.shownHi;
 	}
-	else if (!(dataset.stepCount() > 1 && cachedAllStepsRange(dataset, session.streamRangeCache, fieldIndex, -1, lo, hi)) && !computeStepRange(dataset, fieldIndex, -1, step, lo, hi))
+	else if (const LazyScanCursor streamRangeCursor(dataset.stepCount() > 1 ? &dataset : nullptr);
+	         !(dataset.stepCount() > 1 && cachedAllStepsRange(dataset, session.streamRangeCache, fieldIndex, -1, lo, hi)) && !computeStepRange(dataset, fieldIndex, -1, step, lo, hi))
 	{
 		lo = 0.0f;
 		hi = 1.0f;

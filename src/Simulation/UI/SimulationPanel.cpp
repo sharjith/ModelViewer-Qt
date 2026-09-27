@@ -4,6 +4,7 @@
 #include "ResultUnits.h"
 #include "SimulationGlyphs.h"
 
+#include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QHBoxLayout>
@@ -846,7 +847,17 @@ bool SimulationPanel::currentDataRange(bool allSteps, float& lo, float& hi) cons
 	const int field = _fieldCombo->currentData().toInt();
 	const int component = _componentCombo->currentData().isValid() ? _componentCombo->currentData().toInt() : -1;
 	if (allSteps && _dataset->stepCount() > 1)
-		return computeAllStepsRange(*_dataset, field, component, lo, hi);
+	{
+		// A lazy result may read several steps from disk here (bounded to 8, cached afterwards): a busy cursor covers the
+		// wait instead of threading it (see the LazyScanCursor comment in ModelViewerSimulation.cpp for why).
+		const bool showCursor = _dataset->isLazy();
+		if (showCursor)
+			QApplication::setOverrideCursor(Qt::WaitCursor);
+		const bool ok = computeAllStepsRange(*_dataset, field, component, lo, hi);
+		if (showCursor)
+			QApplication::restoreOverrideCursor();
+		return ok;
+	}
 	DisplayScalar scalar;
 	if (!buildDisplayScalar(*_dataset, field, component, scalar, _step))
 		return false;

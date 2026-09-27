@@ -181,7 +181,8 @@ void applyLineRadius(const ResultDataset& ds, ResultBoundarySurface& surface, do
 }
 
 bool extractBoundarySurface(const ResultDataset& ds, ResultBoundarySurface& out,
-                            const std::atomic<bool>* cancel, QString* error, std::size_t facesPerPartition)
+                            const std::atomic<bool>* cancel, QString* error, std::size_t facesPerPartition,
+                            std::size_t fastKeyingBudgetBytes)
 {
 	out = ResultBoundarySurface();
 	auto fail = [error](const QString& message)
@@ -239,61 +240,200 @@ bool extractBoundarySurface(const ResultDataset& ds, ResultBoundarySurface& out,
 	// ~2M faces is about 64 MB of FaceRecords per pass.
 	const std::size_t perPartition = std::max<std::size_t>(1, facesPerPartition);
 	const std::size_t partitions = std::max<std::size_t>(1, std::min<std::size_t>(64, totalFaces / perPartition + 1));
+	constexpr std::size_t kMaxWorkers = 4;
+	const std::size_t hardware = std::max<std::size_t>(1, std::thread::hardware_concurrency());
+	// Keying every face once needs all of its records at once (~24 B each); below the budget that is worth it (a few times
+	// faster - see docs/simulation_large_results_review.md section 8), above it the bounded per-partition re-derive keeps this
+	// step's extra memory small on a very large mesh, at the cost of revisiting every cell once per partition.
+	const bool fastKeying = totalFaces * sizeof(FaceRecord) <= fastKeyingBudgetBytes;
 
-	// ---- Find boundary volume faces: faces that occur exactly once ---------------------------------
-	// Every partition (a slice of the face hash space) is independent, so a few of them run at the same time: each worker takes the next
-	// partition, builds and sorts its records and keeps the boundary faces it found. The number of workers is small on purpose - each holds
-	// ~2M face records (~48 MB) of its own.
 	std::vector<BoundaryFace> boundaryFaces;
-	auto findBoundaryInPartition = [&](std::size_t p, std::vector<FaceRecord>& records, std::vector<BoundaryFace>& found) -> bool
+	if (fastKeying)
 	{
-		records.clear();
-		records.reserve(totalFaces / partitions + 16);
-		for (std::size_t c = 0; c < cellCount; ++c)
+	// Every face's key is computed exactly once: each worker keys a contiguous range of cells and scatters its records into
+	// `partitions` buckets by the key's hash, then the buckets are merged and, independently per partition, sorted and reduced
+	// to the faces that occur exactly once (a few partitions at a time, as below). This trades the bounded approach's repeated
+	// re-keying (every cell visited once per partition) for holding all of a worker's own records until it finishes its range.
+	const std::size_t workers = std::max<std::size_t>(1, std::min({ cellCount > 0 ? cellCount : std::size_t(1), hardware, kMaxWorkers }));
+	// buckets[p] collects partition p's records from every worker, in worker order (their union is what a single-worker
+	// pass would have produced, just not cell-ordered - the final sort orders it anyway).
+	std::vector<std::vector<std::vector<FaceRecord>>> perWorkerBuckets(workers);
+	{
+		std::atomic<bool> stopped{ false }, outOfMemory{ false };
+		auto keyWorker = [&](std::size_t w, std::size_t first, std::size_t last)
 		{
-			if ((c & 0xFFFF) == 0 && isCancelled())
-				return false;
-			const bool polyhedron = ds.cellTypes[c] == ResultCellType::Polyhedron;
-			const FaceTemplate* templates = nullptr;
-			const int n = polyhedron ? static_cast<int>(ds.polyhedronFaceCount(c)) : faceTemplatesFor(ds.cellTypes[c], templates);
-			if (n == 0)
-				continue;
-			const std::uint32_t* nodes = polyhedron ? nullptr : ds.cellConnectivity.data() + ds.cellOffsets[c];
-			for (int f = 0; f < n; ++f)
+			try
 			{
-				FaceRecord r;
-				if (polyhedron)
+				std::vector<std::vector<FaceRecord>>& buckets = perWorkerBuckets[w];
+				buckets.assign(partitions, {});
+				for (std::size_t c = first; c < last; ++c)
 				{
-					const std::uint32_t face = ds.cellFaces[ds.cellFaceOffsets[c] + static_cast<std::size_t>(f)];
-					const std::size_t size = ds.faceOffsets[face + 1] - ds.faceOffsets[face];
-					if (size < 3)
-						continue; // not a face
-					r.key = makePolygonKey(ds.faceNodes.data() + ds.faceOffsets[face], size);
+					if ((c & 0xFFFF) == 0 && isCancelled())
+					{
+						stopped = true;
+						return;
+					}
+					const bool polyhedron = ds.cellTypes[c] == ResultCellType::Polyhedron;
+					const FaceTemplate* templates = nullptr;
+					const int n = polyhedron ? static_cast<int>(ds.polyhedronFaceCount(c)) : faceTemplatesFor(ds.cellTypes[c], templates);
+					if (n == 0)
+						continue;
+					const std::uint32_t* nodes = polyhedron ? nullptr : ds.cellConnectivity.data() + ds.cellOffsets[c];
+					for (int f = 0; f < n; ++f)
+					{
+						FaceRecord r;
+						if (polyhedron)
+						{
+							const std::uint32_t face = ds.cellFaces[ds.cellFaceOffsets[c] + static_cast<std::size_t>(f)];
+							const std::size_t size = ds.faceOffsets[face + 1] - ds.faceOffsets[face];
+							if (size < 3)
+								continue; // not a face
+							r.key = makePolygonKey(ds.faceNodes.data() + ds.faceOffsets[face], size);
+						}
+						else
+							r.key = makeKey(nodes, templates[f]);
+						r.cell = static_cast<std::uint32_t>(c);
+						r.face = static_cast<std::uint32_t>(f);
+						buckets[partitions > 1 ? hashKey(r.key) % partitions : 0].push_back(r);
+					}
 				}
-				else
-					r.key = makeKey(nodes, templates[f]);
-				if (partitions > 1 && hashKey(r.key) % partitions != p)
-					continue;
-				r.cell = static_cast<std::uint32_t>(c);
-				r.face = static_cast<std::uint32_t>(f);
-				records.push_back(r);
 			}
-		}
-		std::sort(records.begin(), records.end(), keyLess);
-		for (std::size_t i = 0; i < records.size();)
+			catch (const std::bad_alloc&)
+			{
+				outOfMemory = true;
+				stopped = true;
+			}
+		};
+		if (workers == 1)
+			keyWorker(0, 0, cellCount);
+		else
 		{
-			std::size_t j = i + 1;
-			while (j < records.size() && keyEqual(records[i], records[j]))
-				++j;
-			if (j - i == 1)
-				found.push_back({ records[i].cell, records[i].face });
-			i = j;
+			std::vector<std::thread> threads;
+			const std::size_t chunk = (cellCount + workers - 1) / workers;
+			for (std::size_t w = 0; w < workers; ++w)
+			{
+				const std::size_t first = std::min(w * chunk, cellCount), last = std::min(first + chunk, cellCount);
+				if (w + 1 == workers)
+					keyWorker(w, first, last);
+				else
+					threads.emplace_back(keyWorker, w, first, last);
+			}
+			for (std::thread& t : threads)
+				t.join();
 		}
-		return true;
-	};
+		if (outOfMemory)
+			return fail(QStringLiteral("Out of memory while finding the boundary faces."));
+		if (stopped)
+			return fail(QStringLiteral("cancelled"));
+	}
+	// Sort and reduce each partition (independent of the others) to the faces that occur exactly once, a few partitions at a
+	// time as before.
 	{
-		constexpr std::size_t kMaxWorkers = 4;
-		const std::size_t hardware = std::max<std::size_t>(1, std::thread::hardware_concurrency());
+		std::atomic<std::size_t> nextPartition{ 0 };
+		std::atomic<bool> stopped{ false };
+		std::mutex mergeLock;
+		auto reduceWorker = [&]()
+		{
+			std::vector<FaceRecord> records;
+			std::vector<BoundaryFace> found;
+			for (;;)
+			{
+				const std::size_t p = nextPartition.fetch_add(1);
+				if (p >= partitions || stopped.load())
+					break;
+				if (isCancelled())
+				{
+					stopped = true;
+					break;
+				}
+				records.clear();
+				std::size_t total = 0;
+				for (const auto& bucket : perWorkerBuckets)
+					total += bucket[p].size();
+				records.reserve(total);
+				for (auto& bucket : perWorkerBuckets)
+					records.insert(records.end(), bucket[p].begin(), bucket[p].end());
+				std::sort(records.begin(), records.end(), keyLess);
+				for (std::size_t i = 0; i < records.size();)
+				{
+					std::size_t j = i + 1;
+					while (j < records.size() && keyEqual(records[i], records[j]))
+						++j;
+					if (j - i == 1)
+						found.push_back({ records[i].cell, records[i].face });
+					i = j;
+				}
+			}
+			std::lock_guard<std::mutex> lock(mergeLock);
+			boundaryFaces.insert(boundaryFaces.end(), found.begin(), found.end());
+		};
+		const std::size_t reduceWorkers = std::max<std::size_t>(1, std::min({ partitions, hardware, kMaxWorkers }));
+		if (reduceWorkers == 1)
+			reduceWorker();
+		else
+		{
+			std::vector<std::thread> threads;
+			for (std::size_t i = 1; i < reduceWorkers; ++i)
+				threads.emplace_back(reduceWorker);
+			reduceWorker();
+			for (std::thread& t : threads)
+				t.join();
+		}
+		if (stopped)
+			return fail(QStringLiteral("cancelled"));
+	}
+	} // fastKeying
+	else
+	{
+		// Bounded memory: each partition re-derives its own faces from every cell, keeping (and discarding) only its own
+		// records, so at most `workers` partitions' worth of FaceRecords (~2M faces, ~48 MB, each) are ever resident together -
+		// the cost is revisiting every cell once per partition instead of once overall.
+		auto findBoundaryInPartition = [&](std::size_t p, std::vector<FaceRecord>& records, std::vector<BoundaryFace>& found) -> bool
+		{
+			records.clear();
+			records.reserve(totalFaces / partitions + 16);
+			for (std::size_t c = 0; c < cellCount; ++c)
+			{
+				if ((c & 0xFFFF) == 0 && isCancelled())
+					return false;
+				const bool polyhedron = ds.cellTypes[c] == ResultCellType::Polyhedron;
+				const FaceTemplate* templates = nullptr;
+				const int n = polyhedron ? static_cast<int>(ds.polyhedronFaceCount(c)) : faceTemplatesFor(ds.cellTypes[c], templates);
+				if (n == 0)
+					continue;
+				const std::uint32_t* nodes = polyhedron ? nullptr : ds.cellConnectivity.data() + ds.cellOffsets[c];
+				for (int f = 0; f < n; ++f)
+				{
+					FaceRecord r;
+					if (polyhedron)
+					{
+						const std::uint32_t face = ds.cellFaces[ds.cellFaceOffsets[c] + static_cast<std::size_t>(f)];
+						const std::size_t size = ds.faceOffsets[face + 1] - ds.faceOffsets[face];
+						if (size < 3)
+							continue; // not a face
+						r.key = makePolygonKey(ds.faceNodes.data() + ds.faceOffsets[face], size);
+					}
+					else
+						r.key = makeKey(nodes, templates[f]);
+					if (partitions > 1 && hashKey(r.key) % partitions != p)
+						continue;
+					r.cell = static_cast<std::uint32_t>(c);
+					r.face = static_cast<std::uint32_t>(f);
+					records.push_back(r);
+				}
+			}
+			std::sort(records.begin(), records.end(), keyLess);
+			for (std::size_t i = 0; i < records.size();)
+			{
+				std::size_t j = i + 1;
+				while (j < records.size() && keyEqual(records[i], records[j]))
+					++j;
+				if (j - i == 1)
+					found.push_back({ records[i].cell, records[i].face });
+				i = j;
+			}
+			return true;
+		};
 		const std::size_t workers = std::max<std::size_t>(1, std::min({ partitions, hardware, kMaxWorkers }));
 		std::atomic<std::size_t> nextPartition{ 0 };
 		std::atomic<bool> stopped{ false }, outOfMemory{ false };

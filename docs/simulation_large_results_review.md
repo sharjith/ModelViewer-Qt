@@ -64,7 +64,7 @@ Transient peaks on top of that:
 
 ## 4. Findings still open, ranked
 
-**P1 - Load steps on demand.** The only change that removes the memory ceiling. `ResultField::stepData[s]` empty already means "not loaded" and
+**P1 - Load steps on demand. Done, section 8.** The only change that removes the memory ceiling. `ResultField::stepData[s]` empty already means "not loaded" and
 `validate()` already accepts it; what is missing is a way to load it later and a budget for what stays resident:
 
 - a `IResultStepSource` (shared pointer in the dataset) with `loadStep(field, step)`; formats that can seek support it (VTKHDF, Exodus, CGNS, MED,
@@ -77,18 +77,19 @@ Transient peaks on top of that:
 
 Cost: opening does one full pass over the file for the ranges; a step change may wait for I/O. Risk: touches every reader and every consumer of `stepData`.
 
-**P2 - Build the shown scalar for the surface only.** Fill only the values the surface uses and take the range from the cache (all-steps) or from the
-per-step table of P1; then a frame costs O(surface). The hover probe and markers already sample only surface vertices. The arrow layer needs the same:
-its magnitudes are wanted only at the sampled sites.
+**P2 - Build the shown scalar for the surface only. Not done (2026-09-27): overtaken by the section/iso-surface/streamline work.** `cutVolume`, the
+iso-surface distance field and `traceStreamlines` all read `buildDisplayScalar`'s full per-node array, not just the surface's share of it - they postdate this
+review. Restricting the build to the surface would need a "does anything need the volume right now" special case for no measured benefit (section 7 already
+found a step costs 12 ms at 5 M nodes); left alone.
 
-**P3 - Cheaper boundary extraction.** Threading (done) cuts the wall time; the O(faces x partitions) work is still there. Bucketing the records by hash
-in one pass (or keying each face once into a 64-bit hash + owner, 12 B) would make it O(faces).
+**P3 - Cheaper boundary extraction. Done, section 9.** Threading (done) cuts the wall time; the O(faces x partitions) work is still there. Bucketing the records
+by hash in one pass (or keying each face once into a 64-bit hash + owner, 12 B) would make it O(faces).
 
-**P4 - Keep long scans off the UI thread.** The all-steps range, `restoreSimulationSessions` decode and a deformed-mesh rebuild block the UI. Run them
-in a worker with a progress hint; needed once steps stream (P1).
+**P4 - Keep long scans off the UI thread. Done differently, 2026-09-27 (see section 10): a busy cursor, not a worker thread.** The all-steps range,
+`restoreSimulationSessions` decode and a deformed-mesh rebuild block the UI. Run them in a worker with a progress hint; needed once steps stream (P1).
 
-**P5 - Smaller items.** MED's per-block double buffer; `SimulationSession` keeping both the `DisplayScalar` and the surface values (probe reads the
-former); glyph arrows recomputing magnitudes for the whole field per frame.
+**P5 - Smaller items. Checked 2026-09-27, section 11: one fixed, two were already non-issues.** MED's per-block double buffer; `SimulationSession` keeping both
+the `DisplayScalar` and the surface values (probe reads the former); glyph arrows recomputing magnitudes for the whole field per frame.
 
 ## 5. Recommendation
 
@@ -157,3 +158,71 @@ Measured (2026-09-27, `result_tests --write-exodus-sample big.exo 100` then `MV_
 | snapshot encode | 0.1 s | 1.9 s (every step is read) |
 
 The ranges agree to the digit. The price of lazy loading is the read of each step that is not in memory; what it buys is that memory no longer grows with the step count.
+
+## 9. Cheaper boundary extraction (P3, implemented 2026-09-27)
+
+The per-partition design (section 3.3) revisits every cell once per partition, computing and discarding most of each face's key: for `p` partitions that is `p`
+times the face-keying work a single pass would need. Every face's key is now computed exactly once when the total is small enough to hold at once: each of up to
+4 worker threads keys a contiguous range of cells and scatters its records into the partitions by the key's hash (a single pass over the cells), and only then are
+the partitions independently sorted and reduced to the faces that occur exactly once, as before. This is a genuine memory-for-time trade - holding every face's
+24-byte record at once instead of at most one partition's worth - so it only runs below `fastKeyingBudgetBytes` (200 MB of records, a few tens of millions of
+faces); above it, `extractBoundarySurface` falls back to the original bounded per-partition re-derivation, so a very large mesh's boundary extraction never costs
+more memory than before.
+
+Measured (`result_tests --bench <n> <steps>`, release build):
+
+| | 1 M cells (~150 MB of records: fast path) | 4.9 M cells (~700 MB of records: bounded path) |
+|---|---|---|
+| boundary surface, before this change | 0.49 s, 649 MB peak | 4.6 s, 1503 MB peak |
+| boundary surface, after (fast path forced would be) | 0.47 s, 725 MB peak | 2.4 s, 2052 MB peak (not used: over budget) |
+| boundary surface, after (actual path taken) | 0.47 s, 725 MB peak | 5.07 s, 1492 MB peak |
+
+At 4.9 M cells the budget correctly falls back to the bounded path, matching the original time and memory (the small differences are run-to-run noise). Forcing the
+fast path there anyway would have roughly halved the time for an extra ~550 MB of peak memory - not worth it on a branch whose priority is memory, hence the cap.
+Below the budget, the fast path is free (no measurable memory cost at 1 M cells) and becomes a real win at a few million cells, where the old design's repeated
+re-keying started to show. Tests: `extractBoundarySurface` is exercised through both paths on the same small dataset (default budget, and `fastKeyingBudgetBytes
+= 1` to force the bounded one) and produces identical triangle counts.
+
+## 10. Keep long scans off the UI thread (P4, implemented differently, 2026-09-27)
+
+Two of the three items were already resolved by other work: `restoreSimulationSessions`'s snapshot decode already runs on a `QThread` worker
+(`MvfMeshPreparationWorker`, `ModelViewer.cpp`), and the deformed-mesh rebuild (`buildDeformedNodePositions`) is the same O(nodes) cost class `buildDisplayScalar`
+was measured at in section 7 (12 ms at 5 M nodes) - not worth threading on its own.
+
+The remaining one - the all-steps range scan - is genuinely slow only on a **lazy** result: it calls `ensureStepLoaded()` for up to 8 steps (`stepsToScan`,
+section 8), each a real file read. `LazySteps` is explicitly documented for the GUI thread only: its mutex protects the eviction bookkeeping, but every place that
+reads a step's data afterwards (the renderer, probe, arrows, slices) does so without taking that lock. Backgrounding the scan would let it evict and overwrite the
+very step the GUI thread is mid-render on, an unsynchronized data race - correctly making it safe would mean adding locking to every one of those read sites, the
+same "touches every reader" risk P1 already carried, for a stall now bounded to a handful of step reads (a couple of seconds at most).
+
+Decision: a busy cursor (`Qt::WaitCursor`) instead of a worker thread. `LazyScanCursor` (`ModelViewerSimulation.cpp`) and the equivalent guard in
+`SimulationPanel::currentDataRange` show it only when the dataset `isLazy()`, for the duration of the scan; an eager result never sees it. The scan itself is
+unchanged and stays cached (`SimulationRangeCache` and the glyph/streamline equivalents), so this only shows on the first field/component/unit choice after a
+big lazy result is opened, not on every frame.
+
+## 11. P5, the smaller items (checked 2026-09-27)
+
+**MED's per-block double buffer.** Already minimal: `MedReader.cpp` reads one profile group's values into a local `std::vector<double>` (a small, transient
+buffer - one field's one entity type's one profile, not the whole field), converts them into the dataset's float arrays immediately, and lets the buffer go out
+of scope at the end of that loop iteration. There is no whole-field double copy to remove. No change.
+
+**`SimulationSession` keeping both `DisplayScalar` and the surface values.** Not actually true of the current code: `refreshSimulationDisplay` computes the
+surface-mapped values (`boundaryVertexValues` / `boundaryFaceValues`) as a local, used to colour the mesh and find the extrema markers, then discards it; only
+the full-size `DisplayScalar` (`session.shownScalar`) is kept, for the hover probe. It cannot be replaced by a surface-only array either: `updateSimulationSlices`
+reads `shownScalar.nodeValues` to colour a section cut, which needs every node's value (a cut point is generally not a mesh vertex) - the same reason P2 no
+longer applies (section 4). No change.
+
+**Glyph arrows recomputing magnitudes for the whole field per frame.** Real, fixed. `buildGlyphSet` called `buildDisplayScalar` to get a vector field's
+magnitude - building, unit-converting and storing one float per node/cell of the WHOLE field - just to read a few hundred `glyphSites` out of it. It now calls
+`computeStepRange` (an in-place scan, no allocation) for the field's min/max, and converts the magnitude only at each sampled site (from the raw vector already
+being read there for the arrow's direction). Same result (`testGlyphs` and the other glyph tests are unchanged and pass), an O(N) allocation and unit-conversion
+pass removed per glyph refresh.
+
+## 12. MED lazy step loading - deferred
+
+Not implemented (2026-09-27): the only reader P1 did not reach. `MedReader.cpp` splits one file field into several dataset fields when it is a symmetric
+tensor or a shell's DX DY DZ DRX DRY DRZ (translation + rotation), with a component-mapping table built once per field before its step loop runs. Making the
+value read lazy needs a per-step loader that shares that mapping logic exactly with the eager path - duplicating it for a background loader would risk a subtle
+divergence in exactly the case that path exists to get right. MED files in this pipeline (Salome, Code_Aster) are also usually smaller than the Exodus/CGNS
+cases that motivated P1. Left as a known gap; the file is still read eagerly, correctly, and section 1's "MED reads one value block at a time as doubles" note
+still applies (it is not a large single allocation, just not deferred to first use).

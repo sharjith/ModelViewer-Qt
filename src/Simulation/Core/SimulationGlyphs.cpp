@@ -1,5 +1,6 @@
 #include "SimulationGlyphs.h"
 
+#include "ResultUnits.h"
 #include "SimulationResultDisplay.h"
 
 #include <algorithm>
@@ -197,15 +198,21 @@ bool buildGlyphSet(const ResultDataset& dataset, const ResultBoundarySurface& su
 	dataset.ensureStepLoaded(static_cast<std::size_t>(step));
 	if (field.components != 3 || static_cast<std::size_t>(step) >= field.stepData.size() || field.stepData[static_cast<std::size_t>(step)].empty())
 		return false;
-	DisplayScalar magnitudes;
-	if (!buildDisplayScalar(dataset, fieldIndex, -1, magnitudes, step))
+	// Only a handful of sites are ever drawn, so the magnitude is converted at each of them instead of building and storing
+	// the whole field's magnitude (buildDisplayScalar) just to sample a few hundred entries out of it; the range still needs
+	// every tuple, but computeStepRange scans in place without allocating an output array.
+	float fieldMin = 0.0f, fieldMax = 0.0f;
+	if (!computeStepRange(dataset, fieldIndex, -1, step, fieldMin, fieldMax))
 		return false;
+	const UnitConversion conversion = unitConversion(field.quantityKind, field.fileUnit, field.displayUnit.isEmpty() ? field.fileUnit : field.displayUnit);
+	const bool convert = conversion.valid && !conversion.isIdentity();
 	const std::vector<float>& raw = field.stepData[static_cast<std::size_t>(step)];
-	out.fieldMin = magnitudes.minValue;
-	out.fieldMax = magnitudes.maxValue;
-	out.unit = magnitudes.unit;
+	out.fieldMin = fieldMin;
+	out.fieldMax = fieldMax;
+	if (!field.fileUnit.isEmpty())
+		out.unit = conversion.valid ? (field.displayUnit.isEmpty() ? field.fileUnit : field.displayUnit) : field.fileUnit;
 	const bool cellField = field.association == ResultFieldAssociation::Cell;
-	const float largest = referenceMax > 0.0f ? referenceMax : magnitudes.maxValue;
+	const float largest = referenceMax > 0.0f ? referenceMax : fieldMax;
 	const double fullLength = std::max(options.scale, 0.0) * 0.05 * diagonal;
 	if (!(largest > 0.0f) || !(fullLength > 0.0))
 		return false;
@@ -229,11 +236,11 @@ bool buildGlyphSet(const ResultDataset& dataset, const ResultBoundarySurface& su
 			anchor[0] = anchor[1] = anchor[2] = site;
 			tuple = surface.vertexNode[site];
 		}
-		if (tuple >= magnitudes.nodeValues.size() || tuple * 3 + 2 >= raw.size())
+		if (tuple * 3 + 2 >= raw.size())
 			continue;
-		const float magnitude = magnitudes.nodeValues[tuple];
 		const double x = raw[tuple * 3], y = raw[tuple * 3 + 1], z = raw[tuple * 3 + 2];
 		const double length = std::sqrt(x * x + y * y + z * z);
+		const float magnitude = convert ? static_cast<float>(conversion.apply(length)) : static_cast<float>(length);
 		if (!std::isfinite(magnitude) || !(magnitude > 0.0f) || !std::isfinite(length) || !(length > 0.0))
 			continue;
 		// Never shorter than a few percent of the full length, so a small vector is still a visible arrow.
