@@ -385,11 +385,10 @@ configure_file(
     @ONLY
 )
 
-file(GLOB sources CONFIGURE_DEPENDS src/*.cpp src/*.cxx src/*.c include/*.h include/*.hxx)
-# Feature folders (see docs/source_reorg_plan.md): sources under src/<Feature>/..., headers under include/<Feature>/...
-# Headers are still included as "Foo.h": every feature subfolder is on the include path below.
-file(GLOB_RECURSE simulation_sources CONFIGURE_DEPENDS src/Simulation/*.cpp include/Simulation/*.h)
-list(APPEND sources ${simulation_sources})
+# Feature folders (see docs/source_reorg_plan.md): sources under src/<Feature>/..., headers under include/<Feature>/... (any
+# depth, e.g. src/Simulation/Core/, include/Simulation/UI/). Headers are still included as "Foo.h": every directory that
+# holds at least one header is added to the include path below, so a new module needs no CMake change to compile.
+file(GLOB_RECURSE sources CONFIGURE_DEPENDS src/*.cpp src/*.cxx src/*.c include/*.h include/*.hxx)
 file(GLOB ui_sources ui/*.ui)
 
 # Create translations directory if it doesn't exist
@@ -479,12 +478,21 @@ target_sources(ModelViewer
         ${translation_resources}
 )
 
+# Every directory under include/ that holds at least one header (any depth: include/, include/Simulation/Core, a future
+# include/RayTracing/UI, ...), so headers stay included as plain "Foo.h" regardless of which module folder they live in.
+set(include_module_dirs "")
+foreach(_hdr ${sources})
+    if(_hdr MATCHES "\\.(h|hxx)$")
+        get_filename_component(_hdr_dir ${_hdr} DIRECTORY)
+        list(APPEND include_module_dirs ${_hdr_dir})
+    endif()
+endforeach()
+list(REMOVE_DUPLICATES include_module_dirs)
+
 target_include_directories(ModelViewer
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/Simulation/Core
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/Simulation/Readers
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/Simulation/UI
+        ${include_module_dirs}
         ${CMAKE_CURRENT_BINARY_DIR}
         ${OpenCASCADE_INCLUDE_DIR}
         ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include
@@ -603,6 +611,13 @@ if(MODELVIEWER_HAVE_OPTIX)
     function(add_optix_kernel KERNEL_NAME CU_FILE VARIABLE_NAME PARAMS_HEADER)
         set(ptx_file "${CMAKE_CURRENT_BINARY_DIR}/${KERNEL_NAME}.ptx")
         set(embedded_cpp "${CMAKE_CURRENT_BINARY_DIR}/${KERNEL_NAME}_ptx.cpp")
+        # CU_FILE/PARAMS_HEADER are explicit paths (feature-folder moves, see docs/source_reorg_plan.md), not part of the
+        # globbed `sources`/`include_module_dirs` used for the ModelViewer target itself, so this nvcc invocation needs
+        # every module include directory added by hand (it does not go through target_include_directories at all).
+        set(optix_module_includes "")
+        foreach(_dir ${include_module_dirs})
+            list(APPEND optix_module_includes -I "${_dir}")
+        endforeach()
 
         add_custom_command(
             OUTPUT "${ptx_file}"
@@ -623,6 +638,7 @@ if(MODELVIEWER_HAVE_OPTIX)
                 "$<$<NOT:$<PLATFORM_ID:Windows>>:-Xcompiler;-U_GNU_SOURCE;-Xcompiler;-D_DEFAULT_SOURCE>"
                 -I "${OPTIX_INCLUDE_DIR}"
                 -I "${CMAKE_CURRENT_SOURCE_DIR}/include"
+                ${optix_module_includes}
                 "${CMAKE_CURRENT_SOURCE_DIR}/${CU_FILE}"
                 -o "${ptx_file}"
             DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${CU_FILE}" "${CMAKE_CURRENT_SOURCE_DIR}/include/${PARAMS_HEADER}"
@@ -647,7 +663,7 @@ if(MODELVIEWER_HAVE_OPTIX)
         target_sources(ModelViewer PRIVATE "${embedded_cpp}")
     endfunction()
 
-    add_optix_kernel(RtOptixScene src/cuda/RtOptixScene.cu g_rtOptixScenePtx RtOptixSceneParams.h)
+    add_optix_kernel(RtOptixScene src/RayTracing/cuda/RtOptixScene.cu g_rtOptixScenePtx RayTracing/RtOptixSceneParams.h)
     # Not an OptiX pipeline kernel (no raygen/closesthit/miss, no optix.h) -
     # a plain per-vertex compute kernel (GPU skinning) that happens to reuse
     # this same PTX-compile-and-embed machinery because it's the only kernel-
@@ -655,10 +671,10 @@ if(MODELVIEWER_HAVE_OPTIX)
     # comment and RtOptixSceneTracer's Driver-API launch site for how the
     # embedded PTX below actually gets loaded/run (cuModuleLoadDataEx()/
     # cuLaunchKernel(), not optixLaunch()).
-    add_optix_kernel(RtOptixSkinning src/cuda/RtOptixSkinning.cu g_rtOptixSkinningPtx RtOptixSkinningParams.h)
+    add_optix_kernel(RtOptixSkinning src/RayTracing/cuda/RtOptixSkinning.cu g_rtOptixSkinningPtx RayTracing/RtOptixSkinningParams.h)
     # Same story as RtOptixSkinning above, for GPU morph-target blending
     # instead of skeletal skinning - see RtOptixMorph.cu's own doc comment.
-    add_optix_kernel(RtOptixMorph src/cuda/RtOptixMorph.cu g_rtOptixMorphPtx RtOptixMorphParams.h)
+    add_optix_kernel(RtOptixMorph src/RayTracing/cuda/RtOptixMorph.cu g_rtOptixMorphPtx RayTracing/RtOptixMorphParams.h)
 endif()
 
 
