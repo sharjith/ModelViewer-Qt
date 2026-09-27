@@ -208,7 +208,14 @@ QString ResultDataset::validate() const
 
 namespace
 {
-	std::size_t g_lazyThresholdBytes = static_cast<std::size_t>(256) << 20; // 256 MB
+	// 256 MB; the environment variable MODELVIEWER_LAZY_MB (a number of megabytes, 0 = every result) overrides it, so the lazy reading can be tried on smaller files
+	std::size_t defaultLazyThresholdBytes()
+	{
+		bool ok = false;
+		const qulonglong megabytes = qEnvironmentVariable("MODELVIEWER_LAZY_MB").toULongLong(&ok);
+		return ok ? static_cast<std::size_t>(megabytes) << 20 : static_cast<std::size_t>(256) << 20;
+	}
+	std::size_t g_lazyThresholdBytes = defaultLazyThresholdBytes();
 }
 
 std::size_t resultLazyThresholdBytes() { return g_lazyThresholdBytes; }

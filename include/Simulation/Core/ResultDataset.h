@@ -160,7 +160,7 @@ struct LazySteps
 	std::mutex mutex;
 };
 
-// Results whose step data would need more than this many bytes are read lazily by the readers that support it (Exodus, VTKHDF). 0 = every result (tests).
+// Results whose step data would need more than this many bytes are read lazily by the readers that support it (Exodus, VTKHDF, OpenFOAM, FRD, CGNS); MODELVIEWER_LAZY_MB overrides it. 0 = every result (tests).
 std::size_t resultLazyThresholdBytes();
 void setResultLazyThresholdBytes(std::size_t bytes);
 

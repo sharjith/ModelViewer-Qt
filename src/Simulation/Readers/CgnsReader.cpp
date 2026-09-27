@@ -14,6 +14,7 @@
 #include <cstdlib>
 #include <limits>
 #include <map>
+#include <memory>
 
 namespace
 {
@@ -128,7 +129,8 @@ namespace
 	{
 		QString name;
 		bool cellCenter = false;
-		std::vector<std::pair<QString, std::vector<float>>> fields; // name -> one value per node / cell
+		int index = 0; // the solution's number in the zone (cg_sol_info)
+		std::vector<std::pair<QString, std::vector<float>>> fields; // name -> one value per node / cell (empty until read: see readSolutionField)
 	};
 
 	struct Zone
@@ -136,13 +138,57 @@ namespace
 		int base = 0, zone = 0;
 		std::size_t nodeOffset = 0, cellOffset = 0; // where this zone's nodes and cells start in the merged mesh
 		std::size_t nodeCount = 0, cellCount = 0;   // cells actually kept (highest dimension)
+		bool structured = false;
+		int cellDim = 0;
+		cgsize_t size[9] = {}; // cg_zone_read
 		std::vector<Solution> vertexSolutions, cellSolutions;
+	};
+
+	// Where the values of one field in one step come from: a field of a solution of a zone.
+	struct Source
+	{
+		std::size_t zone = 0; // index in the zone list
+		int solution = 0;
+		QString name;
 	};
 
 	struct Accum
 	{
 		bool cell = false;
 		std::vector<std::vector<float>> steps;
+		std::vector<char> present;                    // per step: some zone has the field (steps[] holds its data only in an eager read)
+		std::vector<std::vector<Source>> sources;     // per step, for a lazy read
+	};
+
+	// One value per node (Vertex) or cell (CellCenter) of a zone; empty when the library cannot read it.
+	std::vector<float> readSolutionField(int fn, const Zone& zone, int solution, const QString& name, bool vertex)
+	{
+		const std::size_t tuples = vertex ? zone.nodeCount : zone.cellCount;
+		std::vector<double> values(tuples);
+		cgsize_t rmin[3] = { 1, 1, 1 }, rmax[3] = { static_cast<cgsize_t>(tuples), 1, 1 };
+		if (zone.structured)
+			for (int a = 0; a < zone.cellDim; ++a)
+				rmax[a] = vertex ? zone.size[a] : zone.size[zone.cellDim + a];
+		const QByteArray latin = name.toLatin1();
+		if (cg_field_read(fn, zone.base, zone.zone, solution, latin.constData(), CGNS_ENUMV(RealDouble), rmin, rmax, values.data()) != CG_OK)
+			return {};
+		return std::vector<float>(values.begin(), values.end());
+	}
+
+	// The steps' data of a lazily read result: how each dataset field is put together from the file.
+	struct LazyCgns
+	{
+		std::shared_ptr<CgnsFile> file;
+		std::vector<Zone> zones; // geometry only (solutions dropped)
+		std::size_t totalNodes = 0, totalCells = 0;
+		struct Plan
+		{
+			std::size_t fieldIndex = 0;
+			int components = 1;
+			bool cell = false;
+			std::vector<std::vector<std::vector<Source>>> steps; // [step][component] -> the zones' sources; empty step = no data
+		};
+		std::vector<Plan> plans;
 	};
 
 	// The cells of a structured zone: hexahedra (3-D) or quads (2-D) between neighbouring points. `vertices` holds the point
@@ -201,9 +247,9 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 	};
 	const float nan = std::numeric_limits<float>::quiet_NaN();
 
-	CgnsFile file;
+	auto file = std::make_shared<CgnsFile>();
 	const QByteArray native = QFile::encodeName(path);
-	if (cg_open(native.constData(), CG_MODE_READ, &file.id) != CG_OK)
+	if (cg_open(native.constData(), CG_MODE_READ, &file->id) != CG_OK)
 	{
 		const QString reason = QString::fromLatin1(cg_get_error());
 		if (reason.contains(QLatin1String("Location not yet supported")))
@@ -212,8 +258,8 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 			                .arg(path).arg(CGNS_DOTVERS, 0, 'f', 1));
 		return fail(QStringLiteral("Cannot open '%1' as a CGNS file: %2").arg(path, reason));
 	}
-	file.open = true;
-	const int fn = file.id;
+	file->open = true;
+	const int fn = file->id;
 
 	int baseCount = 0;
 	if (cg_nbases(fn, &baseCount) != CG_OK || baseCount < 1)
@@ -317,6 +363,9 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 			Zone zone;
 			zone.base = base;
 			zone.zone = z;
+			zone.structured = structured;
+			zone.cellDim = cellDim;
+			std::copy(size, size + 9, zone.size);
 			zone.nodeCount = expectedNodes;
 			zone.nodeOffset = dataset->nodePositions.size() / 3;
 
@@ -624,12 +673,12 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 				solution.cellCenter = cellCenter;
 				// A CellCenter array has one value per CELL of the zone (its volume elements); when the kept cells do not
 				// match that count (boundary sections mixed in, polyhedra), the solution cannot be aligned.
-				const std::size_t tuples = vertex ? zone.nodeCount : zone.cellCount;
 				if (cellCenter && expectedCells != zone.cellCount)
 				{
 					++badSolutions;
 					continue;
 				}
+				solution.index = s;
 				int fieldCount = 0;
 				cg_nfields(fn, base, z, s, &fieldCount);
 				for (int f = 1; f <= fieldCount; ++f)
@@ -638,15 +687,7 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 					CGNS_ENUMT(DataType_t) dataType;
 					if (cg_field_info(fn, base, z, s, f, &dataType, fieldName) != CG_OK)
 						continue;
-					std::vector<double> values(tuples);
-					cgsize_t rmin[3] = { 1, 1, 1 }, rmax[3] = { static_cast<cgsize_t>(tuples), 1, 1 };
-					if (structured)
-						for (int a = 0; a < cellDim; ++a)
-							rmax[a] = vertex ? size[a] : size[cellDim + a];
-					if (cg_field_read(fn, base, z, s, fieldName, CGNS_ENUMV(RealDouble), rmin, rmax, values.data()) != CG_OK)
-						continue;
-					std::vector<float> floats(values.begin(), values.end());
-					solution.fields.emplace_back(QString::fromLatin1(fieldName), std::move(floats));
+					solution.fields.emplace_back(QString::fromLatin1(fieldName), std::vector<float>()); // read later, once it is known whether to read lazily
 				}
 				if (!solution.fields.empty())
 					(vertex ? zone.vertexSolutions : zone.cellSolutions).push_back(std::move(solution));
@@ -731,6 +772,39 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 		dataset->steps.push_back(step);
 	}
 
+	// Lazy when the fields of all the steps would be large (see LazySteps): only the names were read so far, and a step's values are read when it is asked for.
+	std::size_t estimatedBytes = 0;
+	for (const Zone& zone : zones)
+		for (int kind = 0; kind < 2; ++kind)
+		{
+			const std::vector<Solution>& solutions = kind == 0 ? zone.vertexSolutions : zone.cellSolutions;
+			for (std::size_t s = 0; s < solutions.size() && s < steps; ++s)
+				estimatedBytes += solutions[s].fields.size() * (kind == 0 ? zone.nodeCount : zone.cellCount) * sizeof(float);
+		}
+	const bool lazy = steps > 1 && estimatedBytes > resultLazyThresholdBytes();
+	if (!lazy)
+	{
+		for (std::size_t zi = 0; zi < zones.size(); ++zi)
+		{
+			if (cancelled())
+				return fail(QStringLiteral("cancelled"));
+			Zone& zone = zones[zi];
+			for (int kind = 0; kind < 2; ++kind)
+				for (Solution& solution : kind == 0 ? zone.vertexSolutions : zone.cellSolutions)
+				{
+					std::vector<std::pair<QString, std::vector<float>>> readable;
+					for (auto& field : solution.fields)
+					{
+						std::vector<float> values = readSolutionField(fn, zone, solution.index, field.first, kind == 0);
+						if (!values.empty())
+							readable.emplace_back(field.first, std::move(values));
+					}
+					solution.fields = std::move(readable);
+				}
+		}
+	}
+	auto lazyState = std::make_shared<LazyCgns>();
+
 	std::vector<QString> order; // field names in order of first appearance
 	std::map<QString, Accum> accum;
 	// A symmetric tensor may store its off-diagonals as XY/XZ/YZ in one zone and YX/ZX/ZY in another: a lower-triangle name
@@ -756,8 +830,9 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 		}
 		return hasTwin || !hasDiagonal ? name : twin;
 	};
-	for (const Zone& zone : zones)
+	for (std::size_t zoneIndex = 0; zoneIndex < zones.size(); ++zoneIndex)
 	{
+		const Zone& zone = zones[zoneIndex];
 		for (int kind = 0; kind < 2; ++kind)
 		{
 			const std::vector<Solution>& solutions = kind == 0 ? zone.vertexSolutions : zone.cellSolutions;
@@ -773,7 +848,15 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 						found = accum.emplace(key, Accum()).first;
 						found->second.cell = kind == 1;
 						found->second.steps.assign(steps, std::vector<float>());
+						found->second.present.assign(steps, 0);
+						found->second.sources.assign(steps, std::vector<Source>());
 						order.push_back(key);
+					}
+					found->second.present[s] = 1;
+					if (lazy)
+					{
+						found->second.sources[s].push_back({ zoneIndex, solutions[s].index, field.first });
+						continue;
 					}
 					std::vector<float>& target = found->second.steps[s];
 					if (target.empty())
@@ -852,6 +935,7 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 		return {};
 	};
 	// One field from component keys: every step is all-or-nothing (a 2-D vector's missing z stays zero).
+	LazyCgns::Plan lastPlan; // the plan of the field assemble() built last (used by a lazy read)
 	auto assemble = [&](const std::vector<QString>& parts, int components, const QString& name, const std::vector<QString>& componentNames) {
 		ResultField field;
 		field.name = name;
@@ -859,16 +943,31 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 		field.components = components;
 		field.componentNames = componentNames;
 		const std::size_t total = field.association == ResultFieldAssociation::Cell ? totalCells : totalNodes;
+		LazyCgns::Plan plan;
+		plan.components = components;
+		plan.cell = field.association == ResultFieldAssociation::Cell;
+		bool anyStep = false;
 		for (std::size_t s = 0; s < steps; ++s)
 		{
 			std::size_t present = 0;
 			for (const QString& part : parts)
-				present += accum[part].steps[s].empty() ? 0 : 1;
+				present += accum[part].present[s] ? 1 : 0;
 			if (present != parts.size())
 			{
 				if (present > 0)
 					++incompleteGroupSteps;
 				field.stepData.emplace_back();
+				plan.steps.emplace_back();
+				continue;
+			}
+			if (lazy)
+			{
+				// the values are read when the step is asked for: remember where each component comes from
+				field.stepData.emplace_back();
+				anyStep = true;
+				plan.steps.emplace_back();
+				for (const QString& part : parts)
+					plan.steps.back().push_back(accum[part].sources[s]);
 				continue;
 			}
 			std::vector<float> values(total * static_cast<std::size_t>(components), 0.0f);
@@ -880,6 +979,8 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 			}
 			field.stepData.push_back(std::move(values));
 		}
+		field.lazyData = lazy && anyStep;
+		lastPlan = std::move(plan);
 		return field;
 	};
 	std::vector<bool> consumed(order.size(), false);
@@ -947,7 +1048,14 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 			if (consumed[k])
 				std::vector<std::vector<float>>().swap(accum[order[k]].steps);
 		if (resultFieldHasData(field))
+		{
+			if (lazy)
+			{
+				lastPlan.fieldIndex = dataset->fields.size();
+				lazyState->plans.push_back(std::move(lastPlan));
+			}
 			dataset->fields.push_back(std::move(field));
+		}
 	}
 	if (incompleteGroupSteps > 0)
 		outcome.warnings << QStringLiteral("%1 vector/tensor field step(s) had only some of their components and were left without data there.")
@@ -976,6 +1084,47 @@ ResultReadOutcome readCgns(const QString& path, const std::atomic<bool>* cancel)
 	}
 
 	addDerivedStressFields(*dataset); // von Mises, principals, max shear of a "...Stress..." tensor gathered above
+
+	if (lazy)
+	{
+		lazyState->file = file;
+		for (Zone& zone : zones)
+		{
+			zone.vertexSolutions.clear();
+			zone.cellSolutions.clear();
+		}
+		lazyState->zones = std::move(zones);
+		lazyState->totalNodes = totalNodes;
+		lazyState->totalCells = totalCells;
+		auto lazySteps = std::make_shared<LazySteps>();
+		lazySteps->load = [lazyState, fn, nan](std::size_t step, ResultDataset& ds) {
+			for (const LazyCgns::Plan& plan : lazyState->plans)
+			{
+				if (step >= plan.steps.size() || plan.steps[step].empty() || plan.fieldIndex >= ds.fields.size())
+					continue;
+				const std::size_t total = plan.cell ? lazyState->totalCells : lazyState->totalNodes;
+				const std::size_t components = static_cast<std::size_t>(plan.components);
+				std::vector<float> values(total * components, 0.0f);
+				for (std::size_t c = 0; c < plan.steps[step].size(); ++c)
+				{
+					std::vector<float> component(total, nan); // a zone without the field leaves NaN
+					for (const Source& source : plan.steps[step][c])
+					{
+						const Zone& zone = lazyState->zones[source.zone];
+						const std::vector<float> data = readSolutionField(fn, zone, source.solution, source.name, !plan.cell);
+						std::copy(data.begin(), data.end(), component.begin() + static_cast<std::ptrdiff_t>(plan.cell ? zone.cellOffset : zone.nodeOffset));
+					}
+					for (std::size_t t = 0; t < total; ++t)
+						values[t * components + c] = component[t];
+				}
+				if (step < ds.fields[plan.fieldIndex].stepData.size())
+					ds.fields[plan.fieldIndex].stepData[step] = std::move(values);
+			}
+			computeDerivedStressStep(ds, step);
+			return true;
+		};
+		dataset->lazy = std::move(lazySteps);
+	}
 
 	const QString invalid = dataset->validate();
 	if (!invalid.isEmpty())

@@ -5457,6 +5457,46 @@ namespace
 			CHECK(sameStepData(*eager.dataset, *lazy.dataset)); // every field, every step - the derived von Mises and principal stresses included
 		}
 
+#if MV_HAVE_CGNS
+		// CGNS: only the names of the solutions' fields are read at first; vectors, tensors (with the derived stresses) and cell data are put together per step
+		{
+			std::vector<QString> cgnsFiles = { QStringLiteral("/block.cgns"), QStringLiteral("/duct.cgns") };
+			for (QString& f : cgnsFiles)
+				f = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + f;
+			const QString fixture = tempDir().filePath(QStringLiteral("lazy_fixture.cgns"));
+			if (writeCgnsFixture(QFile::encodeName(fixture).constData(), false, true))
+				cgnsFiles.push_back(fixture);
+			const QString tensors = tempDir().filePath(QStringLiteral("lazy_tensors.cgns"));
+			const std::vector<std::string> names = { "StressXX", "StressYY", "StressZZ", "StressXY", "StressYZ", "StressXZ", "VelocityX", "VelocityY", "VelocityZ", "Temperature" };
+			if (writeCgnsNamedFields(QFile::encodeName(tensors).constData(), names, names))
+				cgnsFiles.push_back(tensors);
+			for (const QString& path : cgnsFiles)
+			{
+				if (!QFile::exists(path))
+					continue;
+				setResultLazyThresholdBytes(never);
+				const ResultReadOutcome eager = readResultFile(path);
+				setResultLazyThresholdBytes(always);
+				const ResultReadOutcome lazy = readResultFile(path);
+				CHECK(eager.ok() && lazy.ok());
+				if (!eager.ok() || !lazy.ok())
+					continue;
+				CHECK(!eager.dataset->isLazy() && lazy.dataset->isLazy() == (lazy.dataset->stepCount() > 1) && lazy.dataset->validate().isEmpty());
+				CHECK(lazy.dataset->fields.size() == eager.dataset->fields.size());
+				if (lazy.dataset->isLazy())
+				{
+					bool none = true;
+					for (const ResultField& f : lazy.dataset->fields)
+						for (const std::vector<float>& step : f.stepData)
+							none = none && step.empty();
+					CHECK(none && !lazy.dataset->fields.empty() && resultFieldHasData(lazy.dataset->fields[0]));
+					lazy.dataset->lazy->maxResident = 2;
+				}
+				CHECK(sameStepData(*eager.dataset, *lazy.dataset));
+			}
+		}
+#endif
+
 		// the OpenFOAM cavity case (five time directories of ASCII cell fields): only the headers are read at first
 		{
 			const QString foam = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/openfoam_cavity/cavity.foam");
@@ -6489,10 +6529,10 @@ int main(int argc, char** argv)
 	}
 #endif
 #if MV_HAVE_CGNS
-	// result_tests --write-cgns-sample <file.cgns>: writes the larger CGNS file used to try the reader in the application.
-	if (argc == 3 && std::strcmp(argv[1], "--write-cgns-sample") == 0)
+	// result_tests --write-cgns-sample <file.cgns> [n]: writes the larger CGNS file used to try the reader in the application (an optional block size n: n^3 cells).
+	if ((argc == 3 || argc == 4) && std::strcmp(argv[1], "--write-cgns-sample") == 0)
 	{
-		const bool ok = writeCgnsBlockSample(argv[2]);
+		const bool ok = writeCgnsBlockSample(argv[2], argc == 4 ? std::atoi(argv[3]) : 8);
 		std::printf(ok ? "wrote %s\n" : "could not write %s\n", argv[2]);
 		return ok ? 0 : 1;
 	}
