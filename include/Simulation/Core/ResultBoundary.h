@@ -58,7 +58,7 @@ void applyLineRadius(const ResultDataset& dataset, ResultBoundarySurface& surfac
 // this phase: vertices are shared, so cell-data display (which needs unshared vertices) is a later phase.
 // `facesPerPartition` is the target number of faces hashed per pass (default ~2M); tests lower it to force
 // the multi-partition path on small meshes.
-// Below `fastKeyingBudgetBytes` of face records (default ~200 MB - a few tens of millions of faces), every face is keyed
+// When the face records plus the concurrent reduction copies fit within `fastKeyingBudgetBytes` (default ~200 MB), every face is keyed
 // once and scattered into its partition in a single pass over the cells (fast, but holds all the records at once); above
 // it, each partition re-derives and filters its own faces from every cell in turn (slower - `partitions` passes over the
 // cells - but never holds more than one partition's records, bounding the extra memory this step needs). Tests lower it

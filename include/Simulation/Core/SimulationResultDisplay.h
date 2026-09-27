@@ -67,8 +67,7 @@ bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int compon
 bool computeStepRange(const ResultDataset& dataset, int fieldIndex, int component, int step, float& lo, float& hi);
 
 // The min/max of the field's values (in its display unit) over every step that has data for it. False when no
-// step has data. `cachedAllStepsRange()` does the same through the session's cache. For a lazily loaded result, where every step is a read, it looks at
-// up to eight evenly spaced steps (the first and the last among them): a range that another step exceeds only clamps its colours.
+// step has data. `cachedAllStepsRange()` does the same through the session's cache. A lazily loaded result reads every step once when the range is first requested.
 bool computeAllStepsRange(const ResultDataset& dataset, int fieldIndex, int component, float& lo, float& hi);
 bool cachedAllStepsRange(SimulationSession& session, int fieldIndex, int component, float& lo, float& hi);
 // The same through a cache of the caller's (the arrows' field has its own, so it does not evict the colour range's).

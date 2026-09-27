@@ -73,6 +73,69 @@ namespace
 
 	double dot(const double a[3], const double b[3]) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
 
+	// The centre/face-centre tetrahedralization used by the locator is valid for convex polyhedra. Reject a concave one
+	// rather than letting its artificial tetrahedra cover exterior space and trace a line through a void.
+	bool convexPolyhedron(const ResultDataset& ds, std::size_t cell, const std::vector<float>& positions,
+	                      const std::vector<std::uint32_t>& ringNodes, const std::vector<std::size_t>& ringStart)
+	{
+		if (ds.cellTypes[cell] != ResultCellType::Polyhedron)
+			return true;
+		std::vector<std::uint32_t> nodes = ringNodes;
+		std::sort(nodes.begin(), nodes.end());
+		nodes.erase(std::unique(nodes.begin(), nodes.end()), nodes.end());
+		if (nodes.size() < 4)
+			return false;
+		double centre[3] = { 0, 0, 0 }, lo[3] = { positions[nodes[0] * 3], positions[nodes[0] * 3 + 1], positions[nodes[0] * 3 + 2] };
+		double hi[3] = { lo[0], lo[1], lo[2] };
+		for (std::uint32_t node : nodes)
+			for (int k = 0; k < 3; ++k)
+			{
+				const double value = positions[static_cast<std::size_t>(node) * 3 + k];
+				centre[k] += value;
+				lo[k] = std::min(lo[k], value);
+				hi[k] = std::max(hi[k], value);
+			}
+		for (double& value : centre)
+			value /= static_cast<double>(nodes.size());
+		const double diagonal = std::sqrt((hi[0] - lo[0]) * (hi[0] - lo[0]) + (hi[1] - lo[1]) * (hi[1] - lo[1]) + (hi[2] - lo[2]) * (hi[2] - lo[2]));
+		for (std::size_t r = 0; r + 1 < ringStart.size(); ++r)
+		{
+			const std::size_t begin = ringStart[r], end = ringStart[r + 1];
+			if (end - begin < 3)
+				return false;
+			double normal[3] = { 0, 0, 0 }, faceCentre[3] = { 0, 0, 0 };
+			for (std::size_t i = begin; i < end; ++i)
+			{
+				const float* a = &positions[static_cast<std::size_t>(ringNodes[i]) * 3];
+				const float* b = &positions[static_cast<std::size_t>(ringNodes[i + 1 < end ? i + 1 : begin]) * 3];
+				normal[0] += (static_cast<double>(a[1]) - b[1]) * (static_cast<double>(a[2]) + b[2]);
+				normal[1] += (static_cast<double>(a[2]) - b[2]) * (static_cast<double>(a[0]) + b[0]);
+				normal[2] += (static_cast<double>(a[0]) - b[0]) * (static_cast<double>(a[1]) + b[1]);
+				for (int k = 0; k < 3; ++k)
+					faceCentre[k] += a[k];
+			}
+			for (double& value : faceCentre)
+				value /= static_cast<double>(end - begin);
+			const double normalLength = std::sqrt(dot(normal, normal));
+			if (!(normalLength > 0.0))
+				return false;
+			double outward[3] = { faceCentre[0] - centre[0], faceCentre[1] - centre[1], faceCentre[2] - centre[2] };
+			if (dot(normal, outward) < 0.0)
+				for (double& value : normal)
+					value = -value;
+			const double tolerance = std::max(1.0e-12, normalLength * diagonal * 1.0e-7);
+			for (std::uint32_t node : nodes)
+			{
+				const double fromFace[3] = { positions[static_cast<std::size_t>(node) * 3] - faceCentre[0],
+					positions[static_cast<std::size_t>(node) * 3 + 1] - faceCentre[1],
+					positions[static_cast<std::size_t>(node) * 3 + 2] - faceCentre[2] };
+				if (dot(normal, fromFace) > tolerance)
+					return false;
+			}
+		}
+		return true;
+	}
+
 	// Barycentric weights of p in the tetrahedron (a, b, c, d); true when p is inside (with a small tolerance) and the tetrahedron is not degenerate.
 	bool barycentric(const VertexData& a, const VertexData& b, const VertexData& c, const VertexData& d, const double p[3], double w[4])
 	{
@@ -116,6 +179,7 @@ CellLocator::CellLocator(const ResultDataset& dataset, const std::atomic<bool>* 
 		{
 			_cells.clear();
 			_boxes.clear();
+			_excludedConcaveCells = 0;
 			return;
 		}
 		if (!resultCellIsVolume(_ds.cellTypes[c]) && _ds.cellTypes[c] != ResultCellType::Polyhedron)
@@ -123,6 +187,11 @@ CellLocator::CellLocator(const ResultDataset& dataset, const std::atomic<bool>* 
 		gatherRings(_ds, c, ringNodes, ringStart);
 		if (ringNodes.empty())
 			continue;
+		if (!convexPolyhedron(_ds, c, P, ringNodes, ringStart))
+		{
+			++_excludedConcaveCells;
+			continue;
+		}
 		float box[6] = { std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max(),
 			             -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max() };
 		bool finite = true;

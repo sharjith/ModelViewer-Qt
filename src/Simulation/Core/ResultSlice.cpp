@@ -3,6 +3,7 @@
 #include "ResultCellFaces.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cmath>
 #include <limits>
 #include <unordered_map>
@@ -16,6 +17,50 @@ namespace
 		std::uint32_t a, b; // vertex indices
 		bool used = false;
 	};
+
+	// Ear-clips a planar loop wound counter-clockwise about `normal`. Unlike a fan this stays inside a concave cut polygon.
+	void triangulateLoop(const std::vector<std::uint32_t>& loop, const std::vector<float>& positions, const double normal[3],
+	                     std::vector<std::uint32_t>& triangles)
+	{
+		triangles.clear();
+		if (loop.size() < 3)
+			return;
+		auto point = [&](std::uint32_t v, int axis) { return static_cast<double>(positions[static_cast<std::size_t>(v) * 3 + axis]); };
+		auto crossDot = [&](std::uint32_t o, std::uint32_t a, std::uint32_t b) {
+			const double ax = point(a, 0) - point(o, 0), ay = point(a, 1) - point(o, 1), az = point(a, 2) - point(o, 2);
+			const double bx = point(b, 0) - point(o, 0), by = point(b, 1) - point(o, 1), bz = point(b, 2) - point(o, 2);
+			return (ay * bz - az * by) * normal[0] + (az * bx - ax * bz) * normal[1] + (ax * by - ay * bx) * normal[2];
+		};
+		std::vector<std::uint32_t> polygon = loop;
+		while (polygon.size() > 3)
+		{
+			bool clipped = false;
+			for (std::size_t i = 0; i < polygon.size() && !clipped; ++i)
+			{
+				const std::uint32_t a = polygon[(i + polygon.size() - 1) % polygon.size()];
+				const std::uint32_t b = polygon[i];
+				const std::uint32_t c = polygon[(i + 1) % polygon.size()];
+				if (crossDot(a, b, c) <= 0.0)
+					continue;
+				bool blocked = false;
+				for (std::uint32_t p : polygon)
+					if (p != a && p != b && p != c)
+						blocked = blocked || (crossDot(a, b, p) >= 0.0 && crossDot(b, c, p) >= 0.0 && crossDot(c, a, p) >= 0.0);
+				if (blocked)
+					continue;
+				triangles.insert(triangles.end(), { a, b, c });
+				polygon.erase(polygon.begin() + static_cast<std::ptrdiff_t>(i));
+				clipped = true;
+			}
+			if (!clipped)
+				break;
+		}
+		if (polygon.size() == 3)
+			triangles.insert(triangles.end(), { polygon[0], polygon[1], polygon[2] });
+		else
+			for (std::size_t i = 1; i + 1 < polygon.size(); ++i) // degenerate/self-intersecting input: preserve the old best-effort fallback
+				triangles.insert(triangles.end(), { polygon[0], polygon[i], polygon[i + 1] });
+	}
 }
 
 namespace
@@ -84,7 +129,7 @@ bool cutVolume(const ResultDataset& ds, const std::vector<float>& distance, cons
 	std::vector<std::uint32_t> ringNodes; // the rings of the cell being cut, one after the other
 	std::vector<std::size_t> ringStarts;  // ring r is ringNodes[ringStarts[r] .. ringStarts[r + 1])
 	std::vector<Segment> segments;
-	std::vector<std::uint32_t> loop;
+	std::vector<std::uint32_t> loop, loopTriangles;
 	const std::size_t cellCount = ds.cellCount();
 	for (std::size_t c = 0; c < cellCount; ++c)
 	{
@@ -200,20 +245,26 @@ bool cutVolume(const ResultDataset& ds, const std::vector<float>& distance, cons
 				loop.pop_back(); // closed
 			if (loop.size() < 3)
 				continue;
-			// Orient by the first triangle against the reference direction.
-			const float* p0 = &out.positions[loop[0] * 3];
-			const float* p1 = &out.positions[loop[1] * 3];
-			const float* p2 = &out.positions[loop[2] * 3];
-			const double ax = p1[0] - p0[0], ay = p1[1] - p0[1], az = p1[2] - p0[2];
-			const double bx = p2[0] - p0[0], by = p2[1] - p0[1], bz = p2[2] - p0[2];
-			const double normal[3] = { ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx };
-			if (normal[0] * reference[0] + normal[1] * reference[1] + normal[2] * reference[2] < 0.0)
-				std::reverse(loop.begin(), loop.end());
-			for (std::size_t i = 1; i + 1 < loop.size(); ++i)
+			// Newell's normal is stable when the first three points happen to be collinear.
+			double normal[3] = { 0, 0, 0 };
+			for (std::size_t i = 0; i < loop.size(); ++i)
 			{
-				out.triangles.insert(out.triangles.end(), { loop[0], loop[i], loop[i + 1] });
-				out.triangleCell.push_back(static_cast<std::uint32_t>(c));
+				const float* a = &out.positions[static_cast<std::size_t>(loop[i]) * 3];
+				const float* b = &out.positions[static_cast<std::size_t>(loop[(i + 1) % loop.size()]) * 3];
+				normal[0] += (static_cast<double>(a[1]) - b[1]) * (static_cast<double>(a[2]) + b[2]);
+				normal[1] += (static_cast<double>(a[2]) - b[2]) * (static_cast<double>(a[0]) + b[0]);
+				normal[2] += (static_cast<double>(a[0]) - b[0]) * (static_cast<double>(a[1]) + b[1]);
 			}
+			if (normal[0] * reference[0] + normal[1] * reference[1] + normal[2] * reference[2] < 0.0)
+			{
+				std::reverse(loop.begin(), loop.end());
+				for (double& value : normal)
+					value = -value;
+			}
+			triangulateLoop(loop, out.positions, normal, loopTriangles);
+			out.triangles.insert(out.triangles.end(), loopTriangles.begin(), loopTriangles.end());
+			for (std::size_t i = 0; i < loopTriangles.size() / 3; ++i)
+				out.triangleCell.push_back(static_cast<std::uint32_t>(c));
 		}
 	}
 	return true;

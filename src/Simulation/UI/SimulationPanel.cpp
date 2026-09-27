@@ -795,7 +795,12 @@ void SimulationPanel::populateComponents(int fieldIndex, int selectedComponent)
 			                         c);
 	}
 	// No component asked for: a vector starts on its magnitude, other fields on the first component that is not constant.
+	const bool scanningLazySteps = selectedComponent < 0 && comps != 3 && _dataset && _dataset->isLazy();
+	if (scanningLazySteps)
+		QApplication::setOverrideCursor(Qt::WaitCursor);
 	const int wanted = selectedComponent >= 0 || comps == 3 ? selectedComponent : defaultComponentForField(*_dataset, fieldIndex);
+	if (scanningLazySteps)
+		QApplication::restoreOverrideCursor();
 	const int index = _componentCombo->findData(wanted);
 	_componentCombo->setCurrentIndex(index >= 0 ? index : 0);
 }
@@ -848,7 +853,7 @@ bool SimulationPanel::currentDataRange(bool allSteps, float& lo, float& hi) cons
 	const int component = _componentCombo->currentData().isValid() ? _componentCombo->currentData().toInt() : -1;
 	if (allSteps && _dataset->stepCount() > 1)
 	{
-		// A lazy result may read several steps from disk here (bounded to 8, cached afterwards): a busy cursor covers the
+		// A lazy result reads every step from disk here (cached afterwards): a busy cursor covers the
 		// wait instead of threading it (see the LazyScanCursor comment in ModelViewerSimulation.cpp for why).
 		const bool showCursor = _dataset->isLazy();
 		if (showCursor)

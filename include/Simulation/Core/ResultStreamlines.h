@@ -6,8 +6,8 @@
 // Finding the field at a point: a uniform grid of cell bounding boxes narrows a point to a few candidate cells, and inside one the point is located in
 // a tetrahedral decomposition of the cell (cell centre, the centre of each face of more than three nodes, and the face's edges). Every face is split
 // the same way from both sides, so the interpolated field is continuous across cells, and the same rule serves tetrahedra, hexahedra, wedges,
-// pyramids (quadratic ones through their corner nodes) and polyhedra (through their explicit faces). The field is the linear (barycentric)
-// interpolation of the node values; only node fields are traced.
+// pyramids (quadratic ones through their corner nodes) and convex polyhedra (through their explicit faces). Concave polyhedra are excluded because this
+// centre-based decomposition is not valid for them. The field is the linear (barycentric) interpolation of the node values; only node fields are traced.
 //
 // Tracing: classical fourth-order Runge-Kutta in arc length (the direction of the field, unit speed) with a step of a fraction of the current cell, in both
 // directions from a seed, until the line leaves the mesh, the field vanishes, or a length / step limit is reached.
@@ -28,6 +28,8 @@ public:
 
 	// How many volume cells the locator indexes (0: nothing to trace in - a shell or surface result).
 	std::size_t volumeCellCount() const { return _cells.size(); }
+	// Concave polyhedra are deliberately excluded because the centre-based interpolation would extend outside them.
+	std::size_t excludedConcaveCellCount() const { return _excludedConcaveCells; }
 	// Diagonal of the bounding box of the volume cells.
 	double diagonal() const { return _diagonal; }
 
@@ -56,6 +58,7 @@ private:
 	std::vector<std::uint32_t> _binStart; // CSR: bin b holds _binCells[_binStart[b] .. _binStart[b + 1]) (indices into _cells)
 	std::vector<std::uint32_t> _binCells;
 	double _diagonal = 0.0;
+	std::size_t _excludedConcaveCells = 0;
 };
 
 struct StreamlineSet

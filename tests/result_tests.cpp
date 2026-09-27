@@ -5070,6 +5070,10 @@ namespace
 			const double halfX[3] = { 0.5, 0, 0 }, along[3] = { 1, 0, 0 };
 			const ResultDataset poly = polyCubes(1);
 			CHECK(approx(sliceArea(planeCut(poly, halfX, along)), 1.0));
+			// A concave polyhedron must keep the notch in its section instead of filling its convex hull.
+			const ResultDataset concave = polyLPrism();
+			const SliceMesh concaveCut = planeCut(concave, halfZ, up);
+			CHECK(concaveCut.triangleCount() == 4 && approx(sliceArea(concaveCut), 3.0));
 			// a surface cell is never cut
 			const ResultDataset quad = oneCell(ResultCellType::Quad, { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0 });
 			CHECK(planeCut(quad, halfX, along).triangleCount() == 0);
@@ -5286,6 +5290,12 @@ namespace
 			CHECK(set.lineCount() == 1);
 			if (set.lineCount() == 1)
 				CHECK(std::fabs(set.points[0] - 0.5f) < 1e-4f && set.points[1] < 0.5f && set.points[(set.pointCount() - 1) * 3 + 1] > 0.5f);
+
+			// The centre-based tetrahedralization is unsafe for a concave polyhedron: exclude it explicitly rather than
+			// accepting points in the notch or tracing through exterior space.
+			const ResultDataset concave = polyLPrism();
+			const CellLocator concaveLocator(concave);
+			CHECK(concaveLocator.volumeCellCount() == 0 && concaveLocator.excludedConcaveCellCount() == 1);
 		}
 
 		// no line: a seed outside the mesh, a zero field, a result without volume cells; a wrong vector size is an error
@@ -5433,6 +5443,70 @@ namespace
 			ds.ensureStepLoaded(2);
 			ds.ensureStepLoaded(3);
 			CHECK(ds.fields[1].stepData[0].size() == 8 && ds.fields[1].stepData[1].size() == 8);
+		}
+
+		// Exact lazy scans: an unsampled middle-step peak participates in the all-steps range, and a component that only
+		// starts varying at a later step is still the deterministic default.
+		{
+			ResultDataset ds = hexRow(1);
+			ds.steps.resize(12);
+			ResultField scalar;
+			scalar.name = QStringLiteral("Scalar");
+			scalar.components = 1;
+			scalar.stepData.resize(ds.stepCount());
+			ResultField many;
+			many.name = QStringLiteral("Many");
+			many.components = 4;
+			many.stepData.resize(ds.stepCount());
+			ds.fields = { scalar, many };
+			ds.lazy = std::make_shared<LazySteps>();
+			ds.lazy->maxResident = 2;
+			ds.lazy->load = [](std::size_t step, ResultDataset& d) {
+				d.fields[0].stepData[step].assign(d.nodeCount(), step == 5 ? 1000.0f : static_cast<float>(step));
+				std::vector<float>& values = d.fields[1].stepData[step];
+				values.assign(d.nodeCount() * 4, 0.0f);
+				for (std::size_t n = 0; n < d.nodeCount(); ++n)
+				{
+					values[n * 4] = step == 9 && n == 0 ? 2.0f : 1.0f;
+					values[n * 4 + 1] = static_cast<float>(n);
+				}
+				return true;
+			};
+			float lo = 0.0f, hi = 0.0f;
+			CHECK(computeAllStepsRange(ds, 0, -1, lo, hi) && approx(lo, 0.0) && approx(hi, 1000.0));
+			CHECK(defaultComponentForField(ds, 1) == 0);
+		}
+
+		// Snapshot encoding consumes a lazy result step by step. Loading all fields, ranges and optional volume must not
+		// restart the step sequence once per field.
+		{
+			ResultDataset ds = hexRow(1);
+			ds.steps.resize(10);
+			for (int f = 0; f < 3; ++f)
+			{
+				ResultField field;
+				field.name = QStringLiteral("F%1").arg(f);
+				field.components = 1;
+				field.stepData.resize(ds.stepCount());
+				ds.fields.push_back(std::move(field));
+			}
+			int loads = 0;
+			ds.lazy = std::make_shared<LazySteps>();
+			ds.lazy->maxResident = 2;
+			ds.lazy->load = [&loads](std::size_t step, ResultDataset& d) {
+				++loads;
+				for (std::size_t f = 0; f < d.fields.size(); ++f)
+					d.fields[f].stepData[step].assign(d.nodeCount(), static_cast<float>(100 * f + step));
+				return true;
+			};
+			SnapshotOptions options;
+			options.content = SnapshotOptions::Content::AllFields;
+			options.includeVolume = true;
+			options.compress = false;
+			ResultSnapshot snapshot;
+			QString error;
+			CHECK(encodeResultSnapshot(ds, extract(ds), SimulationViewState(), options, snapshot, &error));
+			CHECK(loads == static_cast<int>(ds.stepCount()));
 		}
 
 		// CalculiX result files (ASCII .frd): only the position of each result block is kept at first. A single-step file is read in full afterwards, as ever.

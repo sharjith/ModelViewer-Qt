@@ -390,28 +390,12 @@ bool surfaceExtents(const ResultBoundarySurface& surface, double& x, double& y, 
 	return true;
 }
 
-static std::vector<std::size_t> stepsToScan(const ResultDataset& dataset)
-{
-	const std::size_t count = dataset.stepCount();
-	std::vector<std::size_t> steps;
-	constexpr std::size_t kLazySamples = 8;
-	if (!dataset.isLazy() || count <= kLazySamples)
-	{
-		for (std::size_t s = 0; s < count; ++s)
-			steps.push_back(s);
-		return steps;
-	}
-	for (std::size_t k = 0; k < kLazySamples; ++k)
-		steps.push_back(k * (count - 1) / (kLazySamples - 1));
-	return steps;
-}
-
 bool computeAllStepsRange(const ResultDataset& dataset, int fieldIndex, int component, float& lo, float& hi)
 {
 	bool any = false;
 	lo = std::numeric_limits<float>::max();
 	hi = std::numeric_limits<float>::lowest();
-	for (const std::size_t step : stepsToScan(dataset))
+	for (std::size_t step = 0; step < dataset.stepCount(); ++step)
 	{
 		float stepLo = 0.0f, stepHi = 0.0f; // scanned in place: no per-step copy of the whole field
 		if (!computeStepRange(dataset, fieldIndex, component, static_cast<int>(step), stepLo, stepHi))
@@ -460,25 +444,35 @@ int defaultComponentForField(const ResultDataset& dataset, int fieldIndex)
 	if (field.components == 1 || field.components == 3)
 		return -1;
 	const std::size_t comps = static_cast<std::size_t>(std::max(field.components, 1));
-	dataset.ensureStepLoaded(0); // (a lazily loaded result looks at the steps that are in memory: the first is enough to tell)
-	for (std::size_t c = 0; c < comps; ++c)
+	std::vector<bool> have(comps, false), varies(comps, false);
+	std::vector<float> first(comps, 0.0f);
+	for (std::size_t s = 0; s < dataset.stepCount(); ++s)
 	{
-		bool have = false;
-		float first = 0.0f;
-		for (const std::vector<float>& step : field.stepData)
-			for (std::size_t i = c; i < step.size(); i += comps)
+		dataset.ensureStepLoaded(s);
+		if (s >= field.stepData.size())
+			continue;
+		const std::vector<float>& step = field.stepData[s];
+		for (std::size_t i = 0; i + comps <= step.size(); i += comps)
+			for (std::size_t c = 0; c < comps; ++c)
 			{
-				if (!std::isfinite(step[i]))
+				const float value = step[i + c];
+				if (!std::isfinite(value))
 					continue;
-				if (!have)
+				if (!have[c])
 				{
-					have = true;
-					first = step[i];
+					have[c] = true;
+					first[c] = value;
 				}
-				else if (step[i] != first)
-					return static_cast<int>(c); // this component varies
+				else if (value != first[c])
+					varies[c] = true;
 			}
+		// Components are preferred in index order. Once component 0 varies, no later step can change the answer.
+		if (varies[0])
+			return 0;
 	}
+	for (std::size_t c = 0; c < comps; ++c)
+		if (varies[c])
+			return static_cast<int>(c);
 	return 0;
 }
 
@@ -586,7 +580,7 @@ double maxDisplacementMagnitude(const ResultDataset& dataset, int fieldIndex)
 	if (field.components != 3)
 		return 0.0;
 	double best = 0.0;
-	for (const std::size_t step : stepsToScan(dataset))
+	for (std::size_t step = 0; step < dataset.stepCount(); ++step)
 	{
 		dataset.ensureStepLoaded(step);
 		if (step >= field.stepData.size())

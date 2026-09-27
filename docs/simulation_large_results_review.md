@@ -139,8 +139,8 @@ in memory, the least recently used going first (`maxResident`, at least 2).
 - **What asks**: everything that reads the data of a step calls `ensureStepLoaded()` first - the colour scalar, its range for a step, the deformation, the modal factor, the arrows, the
   streamlines' vectors, and the snapshot encoder (which reads every step it keeps, so saving a lazy result reads the whole file). The derived stress fields (von Mises ...) are
   computed for a step as it is loaded (`computeDerivedStressStep`). A field a lazy reader defined is flagged `lazyData`, so it counts as having data before any of it is in memory.
-- **Ranges over all steps** (the fixed colour scale of an animation, the arrows' reference length, the auto deformation scale) would mean reading every step: for a lazy result they look at
-  up to eight evenly spaced steps (`stepsToScan`). A value outside that range only clamps its colour.
+- **Ranges over all steps** (the fixed colour scale of an animation, the arrows' reference length, the auto deformation scale) read every step once and cache the exact result. This avoids
+  clipping an unsampled transient peak; a busy cursor covers the first scan of a lazy result.
 - **Fields that are not loaded step by step** (the displacement made from moving points in VTKHDF) are not `managed`: they keep their data.
 - **Threading**: the loader runs on the GUI thread, on demand. Playback of a lazy result therefore reads a step per frame; a step that is already resident is free.
 - **Tests**: `testLazySteps` - the bookkeeping (least recently used out, out-of-range no-op, unmanaged fields), Exodus (classic and NetCDF-4, with and without the stress tensor) and VTKHDF
@@ -164,24 +164,11 @@ The ranges agree to the digit. The price of lazy loading is the read of each ste
 The per-partition design (section 3.3) revisits every cell once per partition, computing and discarding most of each face's key: for `p` partitions that is `p`
 times the face-keying work a single pass would need. Every face's key is now computed exactly once when the total is small enough to hold at once: each of up to
 4 worker threads keys a contiguous range of cells and scatters its records into the partitions by the key's hash (a single pass over the cells), and only then are
-the partitions independently sorted and reduced to the faces that occur exactly once, as before. This is a genuine memory-for-time trade - holding every face's
-24-byte record at once instead of at most one partition's worth - so it only runs below `fastKeyingBudgetBytes` (200 MB of records, a few tens of millions of
-faces); above it, `extractBoundarySurface` falls back to the original bounded per-partition re-derivation, so a very large mesh's boundary extraction never costs
-more memory than before.
-
-Measured (`result_tests --bench <n> <steps>`, release build):
-
-| | 1 M cells (~150 MB of records: fast path) | 4.9 M cells (~700 MB of records: bounded path) |
-|---|---|---|
-| boundary surface, before this change | 0.49 s, 649 MB peak | 4.6 s, 1503 MB peak |
-| boundary surface, after (fast path forced would be) | 0.47 s, 725 MB peak | 2.4 s, 2052 MB peak (not used: over budget) |
-| boundary surface, after (actual path taken) | 0.47 s, 725 MB peak | 5.07 s, 1492 MB peak |
-
-At 4.9 M cells the budget correctly falls back to the bounded path, matching the original time and memory (the small differences are run-to-run noise). Forcing the
-fast path there anyway would have roughly halved the time for an extra ~550 MB of peak memory - not worth it on a branch whose priority is memory, hence the cap.
-Below the budget, the fast path is free (no measurable memory cost at 1 M cells) and becomes a real win at a few million cells, where the old design's repeated
-re-keying started to show. Tests: `extractBoundarySurface` is exercised through both paths on the same small dataset (default budget, and `fastKeyingBudgetBytes
-= 1` to force the bounded one) and produces identical triangle counts.
+the partitions independently sorted and reduced to the faces that occur exactly once, as before. This is a genuine memory-for-time trade. The fast-path budget
+counts both the permanent worker buckets and the partition copies held by concurrent reducers. If their combined face-record storage would exceed
+`fastKeyingBudgetBytes` (200 MB by default), `extractBoundarySurface` uses the bounded per-partition re-derivation. Allocation failure in either threaded phase is
+caught and reported rather than escaping a worker thread. Tests exercise both paths on the same dataset (`fastKeyingBudgetBytes = 1` forces the bounded path)
+and require identical output.
 
 ## 10. Keep long scans off the UI thread (P4, implemented differently, 2026-09-27)
 
@@ -189,11 +176,12 @@ Two of the three items were already resolved by other work: `restoreSimulationSe
 (`MvfMeshPreparationWorker`, `ModelViewer.cpp`), and the deformed-mesh rebuild (`buildDeformedNodePositions`) is the same O(nodes) cost class `buildDisplayScalar`
 was measured at in section 7 (12 ms at 5 M nodes) - not worth threading on its own.
 
-The remaining one - the all-steps range scan - is genuinely slow only on a **lazy** result: it calls `ensureStepLoaded()` for up to 8 steps (`stepsToScan`,
-section 8), each a real file read. `LazySteps` is explicitly documented for the GUI thread only: its mutex protects the eviction bookkeeping, but every place that
+The remaining one - the all-steps range scan - is genuinely slow only on a **lazy** result: it calls `ensureStepLoaded()` for every step, each a real file read,
+so the UI's "Automatic (all steps)" range is exact even when a transient peak lies between widely spaced frames. `LazySteps` is explicitly documented for the GUI
+thread only: its mutex protects the eviction bookkeeping, but every place that
 reads a step's data afterwards (the renderer, probe, arrows, slices) does so without taking that lock. Backgrounding the scan would let it evict and overwrite the
 very step the GUI thread is mid-render on, an unsynchronized data race - correctly making it safe would mean adding locking to every one of those read sites, the
-same "touches every reader" risk P1 already carried, for a stall now bounded to a handful of step reads (a couple of seconds at most).
+same "touches every reader" risk P1 already carried.
 
 Decision: a busy cursor (`Qt::WaitCursor`) instead of a worker thread. `LazyScanCursor` (`ModelViewerSimulation.cpp`) and the equivalent guard in
 `SimulationPanel::currentDataRange` show it only when the dataset `isLazy()`, for the duration of the scan; an eager result never sees it. The scan itself is

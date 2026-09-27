@@ -73,8 +73,8 @@ namespace
 	// one document finishing does not hide the bar while another is still reading.
 	int g_simulationLoadsInFlight = 0;
 
-	// An all-steps range scan reads several steps of a lazy result from disk (bounded to 8, see stepsToScan()) - up to a
-	// couple of seconds. It is not threaded (every reader of a step's data would need to lock against the loader, see
+	// An all-steps range scan reads every step of a lazy result from disk and may take a while. It is not threaded (every
+	// reader of a step's data would need to lock against the loader, see
 	// LazySteps in ResultDataset.h), so a busy cursor is shown for its duration instead: cheap, no threading risk, and the
 	// scan is already cached (SimulationRangeCache) so it only actually runs once per field / component / unit choice.
 	// Only a lazy dataset can make this slow; an eager one is already fast (measured under 100 ms at 5 M nodes) and gets
@@ -1619,7 +1619,9 @@ void ModelViewer::updateSimulationStreamlines(SimulationSession& session)
 		if (session.locator->volumeCellCount() == 0)
 		{
 			_viewportWidget->clearSimulationStreamlines(session.meshUuid);
-			session.streamInfo = tr("This result has no volume cells to trace through.");
+			session.streamInfo = session.locator->excludedConcaveCellCount() > 0
+				? tr("This result has no convex volume cells that can be traced safely.")
+				: tr("This result has no volume cells to trace through.");
 			return;
 		}
 		std::vector<float> seeds;
@@ -1768,6 +1770,8 @@ void ModelViewer::updateSimulationStreamlines(SimulationSession& session)
 	                         .arg(!likeSurface && !session.streamlineUnit.isEmpty() ? QStringLiteral(" ") + session.streamlineUnit : QString());
 	if (cuts.isEmpty())
 		session.streamInfo += QLatin1Char('\n') + tr("They lie inside the model: cut it with a Clipping Plane to see them.");
+	if (session.locator->excludedConcaveCellCount() > 0)
+		session.streamInfo += QLatin1Char('\n') + tr("%1 concave polyhedron cell(s) were excluded from tracing.").arg(session.locator->excludedConcaveCellCount());
 	if (display.segmentCount() == 0)
 		_viewportWidget->clearSimulationStreamlines(session.meshUuid);
 	else

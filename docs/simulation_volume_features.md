@@ -4,7 +4,8 @@ Status: **implemented** (2026-09-26), branch `feature/simulation-results`. Compa
 `simulation_mvf_persistence_design.md` (section 6 addendum: what a saved `.mvf` keeps of these).
 
 All three features work on the **volume cells** of a result (tetrahedra, hexahedra, wedges, pyramids, their quadratic forms through the corner nodes,
-and polyhedra through their explicit faces). A shell or surface result has nothing to cut or trace; the panel says so. They are overlays, not scene meshes:
+and polyhedra through their explicit faces). Sections and iso-surfaces support concave polyhedra. Streamlines conservatively exclude them because their
+centre-based interpolation is only valid for convex cells. A shell or surface result has nothing to cut or trace; the panel says so. They are overlays, not scene meshes:
 no selection, scene tree, export or path tracing. While the deformed shape is on they are cut and traced on the deformed mesh (see section 3). They lie *inside* the model, so they are seen through a cut:
 switch on a Clipping Plane (the section cap is left open while iso-surfaces or streamlines are shown, because an opaque cap would hide them).
 
@@ -12,7 +13,7 @@ switch on a Clipping Plane (the section cap is left open while iso-surfaces or s
 
 One engine serves plane sections and iso-surfaces: it cuts every volume cell where a per-node signed function changes sign - the distance to the plane, or
 the field minus the level. Each face is walked, the runs of negative nodes are isolated by segments between the edges they leave through, the segments of a cell
-chain into closed loops, and each loop is fan-triangulated. Vertices are welded per mesh edge (lower node first), so neighbouring cells produce the same vertex and
+chain into closed loops, and each loop is triangulated by ear clipping so a concave section does not fill its notch. Vertices are welded per mesh edge (lower node first), so neighbouring cells produce the same vertex and
 the cut is crack-free; the edge and its fraction are stored so the cut can be recoloured for another field or step without cutting again. A node exactly on the cut
 counts as positive; the rule for an ambiguous face is the same for both cells that share it.
 
@@ -27,7 +28,8 @@ counts as positive; the rule for an ambiguous face is the same for both cells th
 
 - **Locating a point**: a uniform grid of cell bounding boxes narrows a point to a few cells; inside one, the point is located in a tetrahedral decomposition of the
   cell (cell centre, the centre of every face of more than three nodes, and the face's edges; a triangular face is used as it is). Both cells that share a face split it
-  the same way, so the interpolated field is continuous. The field is the barycentric interpolation of the node values, exact for a linear field.
+  the same way, so the interpolated field is continuous. The field is the barycentric interpolation of the node values, exact for a linear field. Explicit concave
+  polyhedra are detected and excluded because that decomposition can otherwise extend through a notch or void; the panel reports the excluded count.
 - **Tracing**: fourth-order Runge-Kutta in arc length (unit speed along the field), a step of 35 % of the current cell, in both directions from a seed, until the line
   leaves the mesh, the speed falls below a millionth of the largest, or a limit is reached (2000 steps or 4 model diagonals per direction). Only node vector
   fields are traced.
@@ -55,6 +57,6 @@ counts as positive; the rule for an ambiguous face is the same for both cells th
 
 ## 5. Tests
 
-`result_tests` covers the cutter (`testSlice`), the locator and tracer (`testStreamlines`: straight flow, rotation on a circle, exact interpolation in tetrahedra,
-wedges and pyramids, polyhedra, no-line cases, seeds, field choice) and the snapshot (`testSnapshotVolumeAndOverlays`: overlays and volume round trip, fallback on a
+`result_tests` covers the cutter (`testSlice`, including a concave-polyhedron section), the locator and tracer (`testStreamlines`: straight flow, rotation on a circle,
+exact interpolation in tetrahedra, wedges and pyramids, convex polyhedra, conservative concave-polyhedron exclusion, no-line cases, seeds, field choice) and the snapshot (`testSnapshotVolumeAndOverlays`: overlays and volume round trip, fallback on a
 damaged volume, extra fields).

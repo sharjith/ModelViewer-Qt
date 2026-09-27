@@ -509,21 +509,59 @@ bool encodeResultSnapshot(const ResultDataset& dataset, const ResultBoundarySurf
 		out.notes << QStringLiteral("%1 of %2 time steps are stored (evenly spaced, first and last included).")
 			.arg(kept.size()).arg(dataset.stepCount());
 
-	// Source fields with their per-step blobs.
-	QJsonArray fieldsJson;
+	// A lazy loader reads every field of one step at once. Gather everything that needs the kept steps in step-major order,
+	// so saving F fields does not reload the same step F times through the small resident-step cache.
 	std::vector<bool> stored(dataset.fields.size(), false);
 	for (int fi : chosen)
-	{
-		const ResultField& f = dataset.fields[static_cast<std::size_t>(fi)];
 		stored[static_cast<std::size_t>(fi)] = true;
-		QJsonObject o = fieldMeta(f);
-		QJsonArray stepBlobs;
-		for (int src : kept)
+	const bool storeVolume = options.includeVolume && hasVolumeCells(dataset) && dataset.nodeCount() > 0
+		&& surface.triangleCell.size() == surface.triangleCount() && surface.triangleFace.size() == surface.triangleCount();
+	std::vector<std::size_t> rangeFields;
+	std::vector<int> rangeSelectors;
+	for (std::size_t fi = 0; fi < dataset.fields.size(); ++fi)
+	{
+		const ResultField& f = dataset.fields[fi];
+		const bool derivedOfStored = f.derivedFromField >= 0 && static_cast<std::size_t>(f.derivedFromField) < stored.size()
+			&& stored[static_cast<std::size_t>(f.derivedFromField)];
+		if (stored[fi] || derivedOfStored)
 		{
-			const std::vector<float> values = gatherSurfaceValues(dataset, surface, f, static_cast<std::size_t>(src));
-			stepBlobs.append(values.empty() ? -1 : addBlob(floatsToBytes(values), 4));
+			rangeFields.push_back(fi);
+			rangeSelectors.push_back(resultRangeSelectorCount(f.components));
 		}
-		o.insert(QStringLiteral("stepData"), stepBlobs);
+	}
+	std::vector<QJsonArray> surfaceStepBlobs(chosen.size()), volumeStepBlobs(storeVolume ? chosen.size() : 0), rangeData(rangeFields.size());
+	for (int src : kept)
+	{
+		const std::size_t step = static_cast<std::size_t>(src);
+		dataset.ensureStepLoaded(step);
+		for (std::size_t j = 0; j < chosen.size(); ++j)
+		{
+			const ResultField& f = dataset.fields[static_cast<std::size_t>(chosen[j])];
+			const std::vector<float> values = gatherSurfaceValues(dataset, surface, f, step);
+			surfaceStepBlobs[j].append(values.empty() ? -1 : addBlob(floatsToBytes(values), 4));
+			if (storeVolume)
+				volumeStepBlobs[j].append(step < f.stepData.size() && !f.stepData[step].empty() ? addBlob(floatsToBytes(f.stepData[step]), 4) : -1);
+		}
+		for (std::size_t j = 0; j < rangeFields.size(); ++j)
+		{
+			const ResultField& f = dataset.fields[rangeFields[j]];
+			for (int sel = 0; sel < rangeSelectors[j]; ++sel)
+			{
+				float lo, hi;
+				selectorRange(f, step, sel, lo, hi);
+				rangeData[j].append(floatToJson(lo));
+				rangeData[j].append(floatToJson(hi));
+			}
+		}
+	}
+
+	// Source fields with their per-step surface blobs.
+	QJsonArray fieldsJson;
+	for (std::size_t j = 0; j < chosen.size(); ++j)
+	{
+		const ResultField& f = dataset.fields[static_cast<std::size_t>(chosen[j])];
+		QJsonObject o = fieldMeta(f);
+		o.insert(QStringLiteral("stepData"), surfaceStepBlobs[j]);
 		fieldsJson.append(o);
 	}
 	root.insert(QStringLiteral("fields"), fieldsJson);
@@ -531,36 +569,20 @@ bool encodeResultSnapshot(const ResultDataset& dataset, const ResultBoundarySurf
 	// Ranges over ALL solver nodes for every stored field and every derived field built from one, so the legend and
 	// the all-steps range read the same as with the full result even though interior nodes are not stored.
 	QJsonArray rangesJson;
-	for (std::size_t fi = 0; fi < dataset.fields.size(); ++fi)
+	for (std::size_t j = 0; j < rangeFields.size(); ++j)
 	{
-		const ResultField& f = dataset.fields[fi];
-		const bool derivedOfStored = f.derivedFromField >= 0 && static_cast<std::size_t>(f.derivedFromField) < stored.size()
-			&& stored[static_cast<std::size_t>(f.derivedFromField)];
-		if (!stored[fi] && !derivedOfStored)
-			continue;
-		const int selectors = resultRangeSelectorCount(f.components);
-		QJsonArray data;
-		for (int src : kept)
-			for (int sel = 0; sel < selectors; ++sel)
-			{
-				float lo, hi;
-				dataset.ensureStepLoaded(static_cast<std::size_t>(src));
-				selectorRange(f, static_cast<std::size_t>(src), sel, lo, hi);
-				data.append(floatToJson(lo));
-				data.append(floatToJson(hi));
-			}
+		const ResultField& f = dataset.fields[rangeFields[j]];
 		QJsonObject o;
 		o.insert(QStringLiteral("name"), f.name);
 		o.insert(QStringLiteral("association"), isCellField(f) ? QStringLiteral("cell") : QStringLiteral("node"));
-		o.insert(QStringLiteral("data"), data);
+		o.insert(QStringLiteral("data"), rangeData[j]);
 		rangesJson.append(o);
 	}
 	root.insert(QStringLiteral("ranges"), rangesJson);
 
 	// The volume (opt-in): the whole dataset, so a restored result can be cut and traced again. The surface snapshot above is still stored - it is what
 	// the mesh in the file corresponds to - and the mapping says which node / cell each surface vertex / triangle is.
-	if (options.includeVolume && hasVolumeCells(dataset) && dataset.nodeCount() > 0 && surface.triangleCell.size() == surface.triangleCount()
-	    && surface.triangleFace.size() == surface.triangleCount())
+	if (storeVolume)
 	{
 		QJsonObject volume;
 		volume.insert(QStringLiteral("nodePositions"), addBlob(floatsToBytes(dataset.nodePositions), 4));
@@ -586,18 +608,11 @@ bool encodeResultSnapshot(const ResultDataset& dataset, const ResultBoundarySurf
 		const std::vector<std::uint32_t> faceMarkers(surface.triangleFace.begin(), surface.triangleFace.end()); // stored as 32-bit like the other index arrays
 		volume.insert(QStringLiteral("triangleFace"), addBlob(u32Bytes(faceMarkers), 4));
 		QJsonArray volumeFields;
-		for (int fi : chosen)
+		for (std::size_t j = 0; j < chosen.size(); ++j)
 		{
-			const ResultField& f = dataset.fields[static_cast<std::size_t>(fi)];
+			const ResultField& f = dataset.fields[static_cast<std::size_t>(chosen[j])];
 			QJsonObject o = fieldMeta(f);
-			QJsonArray stepBlobs;
-			for (int src : kept)
-			{
-				const std::size_t step = static_cast<std::size_t>(src);
-				dataset.ensureStepLoaded(step);
-				stepBlobs.append(step < f.stepData.size() && !f.stepData[step].empty() ? addBlob(floatsToBytes(f.stepData[step]), 4) : -1);
-			}
-			o.insert(QStringLiteral("stepData"), stepBlobs);
+			o.insert(QStringLiteral("stepData"), volumeStepBlobs[j]);
 			volumeFields.append(o);
 		}
 		volume.insert(QStringLiteral("fields"), volumeFields);

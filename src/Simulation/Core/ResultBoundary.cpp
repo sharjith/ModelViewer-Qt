@@ -242,10 +242,14 @@ bool extractBoundarySurface(const ResultDataset& ds, ResultBoundarySurface& out,
 	const std::size_t partitions = std::max<std::size_t>(1, std::min<std::size_t>(64, totalFaces / perPartition + 1));
 	constexpr std::size_t kMaxWorkers = 4;
 	const std::size_t hardware = std::max<std::size_t>(1, std::thread::hardware_concurrency());
-	// Keying every face once needs all of its records at once (~24 B each); below the budget that is worth it (a few times
-	// faster - see docs/simulation_large_results_review.md section 8), above it the bounded per-partition re-derive keeps this
-	// step's extra memory small on a very large mesh, at the cost of revisiting every cell once per partition.
-	const bool fastKeying = totalFaces * sizeof(FaceRecord) <= fastKeyingBudgetBytes;
+	// Keying every face once keeps all records in the worker buckets. Reduction also copies up to one partition per reducer,
+	// while those buckets are still resident, so count both allocations against the budget rather than treating the bucket
+	// storage alone as the peak.
+	const std::size_t reduceWorkersForBudget = std::max<std::size_t>(1, std::min({ partitions, hardware, kMaxWorkers }));
+	const std::size_t recordsPerPartition = partitions > 0 ? (totalFaces + partitions - 1) / partitions : totalFaces;
+	const std::size_t recordBudget = fastKeyingBudgetBytes / sizeof(FaceRecord);
+	const bool fastKeying = totalFaces <= recordBudget
+		&& recordsPerPartition <= (recordBudget - totalFaces) / reduceWorkersForBudget;
 
 	std::vector<BoundaryFace> boundaryFaces;
 	if (fastKeying)
@@ -330,42 +334,50 @@ bool extractBoundarySurface(const ResultDataset& ds, ResultBoundarySurface& out,
 	// time as before.
 	{
 		std::atomic<std::size_t> nextPartition{ 0 };
-		std::atomic<bool> stopped{ false };
+		std::atomic<bool> stopped{ false }, outOfMemory{ false };
 		std::mutex mergeLock;
 		auto reduceWorker = [&]()
 		{
-			std::vector<FaceRecord> records;
-			std::vector<BoundaryFace> found;
-			for (;;)
+			try
 			{
-				const std::size_t p = nextPartition.fetch_add(1);
-				if (p >= partitions || stopped.load())
-					break;
-				if (isCancelled())
+				std::vector<FaceRecord> records;
+				std::vector<BoundaryFace> found;
+				for (;;)
 				{
-					stopped = true;
-					break;
+					const std::size_t p = nextPartition.fetch_add(1);
+					if (p >= partitions || stopped.load())
+						break;
+					if (isCancelled())
+					{
+						stopped = true;
+						break;
+					}
+					records.clear();
+					std::size_t total = 0;
+					for (const auto& bucket : perWorkerBuckets)
+						total += bucket[p].size();
+					records.reserve(total);
+					for (auto& bucket : perWorkerBuckets)
+						records.insert(records.end(), bucket[p].begin(), bucket[p].end());
+					std::sort(records.begin(), records.end(), keyLess);
+					for (std::size_t i = 0; i < records.size();)
+					{
+						std::size_t j = i + 1;
+						while (j < records.size() && keyEqual(records[i], records[j]))
+							++j;
+						if (j - i == 1)
+							found.push_back({ records[i].cell, records[i].face });
+						i = j;
+					}
 				}
-				records.clear();
-				std::size_t total = 0;
-				for (const auto& bucket : perWorkerBuckets)
-					total += bucket[p].size();
-				records.reserve(total);
-				for (auto& bucket : perWorkerBuckets)
-					records.insert(records.end(), bucket[p].begin(), bucket[p].end());
-				std::sort(records.begin(), records.end(), keyLess);
-				for (std::size_t i = 0; i < records.size();)
-				{
-					std::size_t j = i + 1;
-					while (j < records.size() && keyEqual(records[i], records[j]))
-						++j;
-					if (j - i == 1)
-						found.push_back({ records[i].cell, records[i].face });
-					i = j;
-				}
+				std::lock_guard<std::mutex> lock(mergeLock);
+				boundaryFaces.insert(boundaryFaces.end(), found.begin(), found.end());
 			}
-			std::lock_guard<std::mutex> lock(mergeLock);
-			boundaryFaces.insert(boundaryFaces.end(), found.begin(), found.end());
+			catch (const std::bad_alloc&)
+			{
+				outOfMemory = true;
+				stopped = true;
+			}
 		};
 		const std::size_t reduceWorkers = std::max<std::size_t>(1, std::min({ partitions, hardware, kMaxWorkers }));
 		if (reduceWorkers == 1)
@@ -379,6 +391,8 @@ bool extractBoundarySurface(const ResultDataset& ds, ResultBoundarySurface& out,
 			for (std::thread& t : threads)
 				t.join();
 		}
+		if (outOfMemory)
+			return fail(QStringLiteral("Out of memory while reducing the boundary faces."));
 		if (stopped)
 			return fail(QStringLiteral("cancelled"));
 	}
