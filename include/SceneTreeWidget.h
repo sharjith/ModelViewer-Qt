@@ -292,7 +292,8 @@ protected:
     // transparent overlay glued to the viewport (see
     // ModelViewer::attachNavigationOverlay()), and an ignored wheel event
     // propagates up to the viewport underneath instead, so scrolling over
-    // the tree still zooms the 3D view like scrolling anywhere else in it.
+    // the tree still zooms the 3D view like scrolling anywhere else in it. Ctrl + wheel is the exception: it
+    // scrolls the tree (and is swallowed, never zooming).
     void wheelEvent(QWheelEvent* event) override;
 
     // Right-click (or the Menu key / other platform trigger) landing on the same "transparent

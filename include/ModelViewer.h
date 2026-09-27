@@ -21,12 +21,19 @@
 #include "CutCommand.h"
 #include "MaterialVariantsPanel.h"
 #include "TextureDebugPanel.h"
+#include "ResultSnapshot.h"
+#include "SimulationResultDisplay.h"
 
+#include <QPointer>
 #include <QUndoStack>
 
 #include <functional>
 
 class QTabWidget;
+class QTimer;
+struct MeshSurfaceAnchor;
+class SimulationLegendWidget;
+class SimulationTimelineWidget;
 class QToolButton;
 class QFrame;
 class QTimer;
@@ -68,6 +75,14 @@ namespace Mvf
 struct Document;
 struct MVFPackage;
 }
+
+// A simulation result read from an .mvf file, decoded on the loader thread and waiting for its mesh to exist.
+struct PendingSimulationRestore
+{
+	QUuid meshUuid;
+	DecodedSnapshot decoded; // decoded.dataset is null when `error` is set
+	QString error;
+};
 
 class ModelViewer : public QWidget, public Ui::ModelViewer
 {
@@ -201,6 +216,9 @@ public:
 signals:
 	void documentModifiedChanged(bool modified);
 	void importUnitsChanged();
+	// The active simulation result (or its view state) changed - MainWindow refreshes the Simulation dock panel.
+	// `activateTab` is true when a result was just opened, so the dock switches to the Simulation tab.
+	void simulationSessionChanged(bool activateTab);
 	// Emitted from updateVisibilityUiFromState() alongside its own overlay
 	// labelMeshCount update - lets MainWindow's Document dock mirror the
 	// same count for whichever document is currently active, without
@@ -576,6 +594,55 @@ public slots:
 	// openSubdivisionDialog() above.
 	void openReconstructSurfaceDialog();
 
+	// Simulation -> Open Result...: file dialog, off-thread read + boundary extraction, then a new undoable
+	// scene node holding the boundary surface coloured by a default field. See
+	// docs/simulation_results_design.md and src/ModelViewerSimulation.cpp.
+	void openSimulationResult();
+	// Starts reading and showing the result file `path` in THIS document (off-thread; the outcome is reported when
+	// the read finishes). Called by openSimulationResult() after its file dialog, and by loadFile()/drop handling
+	// when a result file is opened through File > Open or dropped. Returns false if it could not be started.
+	bool openSimulationResultFile(const QString& path);
+
+	// The result whose controls the Simulation panel shows: the last one selected/opened whose mesh is still
+	// displayed, or nullptr. See src/ModelViewerSimulation.cpp.
+	const SimulationSession* activeSimulationSession() const;
+	// The results of this document that are still displayed (not deleted), in the order they were added, and which
+	// one is active. The Simulation panel lists them; these three act on one by its mesh uuid.
+	QVector<SimulationResultItem> simulationResults() const;
+	QUuid activeSimulationMeshUuid() const;
+	void activateSimulationResult(const QUuid& meshUuid);        // selects it and makes it the one the panel shows
+	void setSimulationResultVisible(const QUuid& meshUuid, bool visible); // undoable, like hiding any mesh
+	void closeSimulationResult(const QUuid& meshUuid);           // undoable delete of the result's mesh
+
+	// Compare mode: the active result and `otherMeshUuid` side by side (or stacked) in two panes with one shared
+	// camera, each with its own legend; optionally with one colour range for both so equal colours mean equal values
+	// (applied only while both show the same unit). It ends by itself when either result is hidden, closed or undone.
+	bool simulationCompareActive() const { return _simulationCompareActive; }
+	bool simulationCompareStacked() const { return _simulationCompareStacked; }
+	bool simulationCompareSharedRange() const { return _simulationCompareSharedRange; }
+	void startSimulationCompare(const QUuid& otherMeshUuid, bool stacked, bool sharedRange);
+	void setSimulationCompareOptions(bool stacked, bool sharedRange);
+	void stopSimulationCompare();
+	// The menu command: exits compare mode, or starts it with the one other result (asking which when there are several).
+	void toggleSimulationCompare();
+	// Hover probe: the shown result value under the cursor, when it is over a simulation result mesh (empty text
+	// otherwise). `color` is set to a readable text colour for the paint under the cursor.
+	bool hasSimulationResults() const { return !_simulationSessions.empty(); }
+	QString simulationProbeText(const MeshSurfaceAnchor& anchor, QColor& color) const;
+	// Applies an edit from the Simulation panel to the active session: recolours its mesh and updates the legend.
+	void applySimulationViewState(const SimulationViewState& state);
+	// Time steps of the active result: show step `step` (clamped), and start/stop the playback timer. Both are
+	// driven by the timeline overlay; `fromPlayback` skips the panel refresh that a manual step triggers.
+	void setSimulationStep(int step, bool fromPlayback = false);
+	void setSimulationPlaying(bool playing);
+	// Applies a quantity/unit edit from the Simulation panel to the active session's field (and its derived
+	// fields), then redraws. A custom colour range follows a change of display unit; a change of what the numbers
+	// ARE (quantity or file unit) returns it to the data range.
+	// The length unit of the active result's coordinates ("" = not specified, else "mm", "cm", "m", "in", "ft"): stored on the
+	// result and on its scene node, where Mass Properties and Surface Analysis read it (LengthUnits.h).
+	void applySimulationLengthUnit(const QString& unit);
+	void applySimulationUnits(int fieldIndex, const QString& kindId, const QString& fileUnit, const QString& displayUnit);
+
 	// The Reconstruct Surface dialog's one-line bridge into the undo stack -
 	// same convention and immediate-per-result timing as commitShrinkWrap()/
 	// commitSubdivision() above, reusing the exact same ShrinkWrapCommand
@@ -701,6 +768,39 @@ protected:
 	void mouseMoveEvent(QMouseEvent* event);
 
 private:
+	// Builds the scene node/mesh/legend for a loaded simulation result (main thread; see openSimulationResult()).
+	void presentSimulationResult(const QString& path, LoadedSimulationResult& result);
+	SimulationSession* findSimulationSession(const QUuid& meshUuid);
+	void closeEmptyResultDocument();
+	SimulationSession* activeSimulationSessionMutable();
+	void connectSimulationHooks();
+	void refreshSimulationDisplay(SimulationSession& session);
+	// Rebuilds (or removes) the session's vector arrows for its current step. `surfaceLo/surfaceHi` is the colour range of the
+	// surface scalar, used when the arrows show that same field so their colours match the legend; `haveSurfaceRange` false
+	// when nothing is coloured.
+	// Rebuilds (or removes) the session's cut faces (a data-coloured section on each Clipping Plane) and iso-surfaces. Cuts the undeformed mesh.
+	void updateSimulationSlices(SimulationSession& session);
+	void updateSimulationStreamlines(SimulationSession& session);
+	// After a language change: the timeline, the legend and the messages of the results are built with tr() and are made again.
+	void retranslateSimulation();
+	void updateSimulationGlyphs(SimulationSession& session, bool haveSurfaceRange, float surfaceLo, float surfaceHi);
+	void updateSimulationTimeline();
+	void checkSimulationCompare(); // ends compare mode when one of its results went away
+	void pushSimulationMarkers();  // the min/max labels the viewport shows (active result's, or both compared results')
+	void startNextPendingSimulationFile(); // results queued while another was loading (a multi-file import)
+	// Recolours both compared results (twice with a shared range, so each sees the other's up-to-date own range).
+	void refreshComparePair();
+	// Moves the compared partner to the same fraction of its own steps as `driver` (identical steps when both have as many).
+	void syncComparePartnerStep(const SimulationSession& driver);
+	// Saving results into .mvf (docs/simulation_mvf_persistence_design.md, S2). The prompt runs once per session on the
+	// first save of a document that has results; the snapshots and the baked COLOR_0 are added while the package is built.
+	bool promptSimulationSaveOptions();
+	// Loading them back (S3): turns each decoded snapshot into a live SimulationSession on its already-uploaded mesh.
+	void restoreSimulationSessions(QVector<PendingSimulationRestore>& restores);
+	void appendSimulationSnapshots(Mvf::MVFPackage& package) const;
+	QHash<QUuid, std::vector<float>> simulationBakedColors() const;
+	void advanceSimulationStep();
+
 	// Shared implementation for mergeSelectedMeshes()/unionSelectedMeshes() -
 	// see mergeSelectedMeshes()'s doc comment for what's common between them,
 	// and combineSelectedMeshes()'s own .cpp doc comment for why combineFn
@@ -889,6 +989,33 @@ private:
 	TextureDebugPanel*     _textureDebugPanel  = nullptr;
 
 	QUndoStack* _undoStack;
+	bool _simulationLoadInFlight = false;
+	// True when this document was just created (File > Open) only to show one result file: if reading it fails,
+	// the still-empty document is closed again instead of being left blank, and a successful open leaves the
+	// document unmodified and without an undo step (like importing any other format).
+	bool _closeOnSimulationLoadFailure = false;
+	std::vector<SimulationSession> _simulationSessions; // every result opened in this document
+	QUuid _activeSimulationMesh;                        // the session the Simulation panel currently shows
+	bool _simulationHooksConnected = false;
+	enum class SimulationSaveContent { ShownAndDisplacement, AllFields, GeometryOnly };
+	SimulationSaveContent _simulationSaveContent = SimulationSaveContent::ShownAndDisplacement;
+	bool _simulationSavePrompted = false;
+	bool _simulationSaveVolume = false; // also store the volume (see SnapshotOptions::includeVolume)
+	mutable QStringList _simulationSaveNotes; // what the last package build had to leave out (e.g. subsampled steps)
+	QStringList _pendingSimulationFiles;
+	bool _simulationCompareActive = false;
+	bool _simulationCompareStacked = false;
+	bool _simulationCompareSharedRange = false;
+	QVector<QUuid> _simulationCompareMeshes;
+	QHash<QUuid, QPointer<SimulationLegendWidget>> _compareLegends; // one per compared result, in its own pane
+	bool _refreshingComparePartner = false;
+	QPointer<SimulationTimelineWidget> _simulationTimeline; // playback controls of a multi-step result
+	QTimer* _simulationPlayTimer = nullptr;
+	bool _simulationPlaying = false;
+	bool _simulationLoop = true;
+	double _simulationSpeed = 1.0;   // 0.5 / 1 / 2 / 4; one step per 500 ms at 1x
+	QUuid _simulationPlayingMesh;    // the result the timer is playing (playback stops if another becomes active)
+	QPointer<SimulationLegendWidget> _simulationLegend; // colour-bar legend of the most recently opened simulation result
 	bool _lastCanUndo = false;
 	bool _lastCanRedo = false;
 	int _lastUndoIndex = 0;

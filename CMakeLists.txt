@@ -49,6 +49,31 @@ find_package(CGAL CONFIG REQUIRED)
 # bring it in transitively.
 find_package(Eigen3 CONFIG REQUIRED)
 
+# Optional: NetCDF (with HDF5) for the Exodus II simulation-result reader. When it is not found the reader is compiled
+# as a stub and Exodus files are simply not offered (see ExodusReader.h).
+find_package(netCDF CONFIG QUIET)
+if(netCDF_FOUND)
+    message(STATUS "NetCDF found: Exodus II result files enabled")
+else()
+    message(STATUS "NetCDF not found: Exodus II result files disabled")
+endif()
+# Optional: the CGNS library (HDF5 based) for the CGNS result reader, same arrangement as NetCDF above.
+find_package(cgns CONFIG QUIET)
+if(cgns_FOUND)
+    message(STATUS "CGNS found: CGNS result files enabled")
+else()
+    message(STATUS "CGNS not found: CGNS result files disabled")
+endif()
+
+# Optional: the HDF5 C library for the VTKHDF result reader (it is already installed as a dependency of NetCDF and CGNS).
+find_package(HDF5 CONFIG QUIET COMPONENTS C)
+if(HDF5_FOUND AND (TARGET hdf5::hdf5-shared OR TARGET hdf5::hdf5-static))
+    message(STATUS "HDF5 found: VTKHDF result files enabled")
+else()
+    set(HDF5_FOUND FALSE)
+    message(STATUS "HDF5 not found: VTKHDF result files disabled")
+endif()
+
 message(STATUS "VCPKG_INSTALLED_DIR: ${VCPKG_INSTALLED_DIR}")
 
 if(NOT OpenCASCADE_FOUND)
@@ -361,6 +386,10 @@ configure_file(
 )
 
 file(GLOB sources CONFIGURE_DEPENDS src/*.cpp src/*.cxx src/*.c include/*.h include/*.hxx)
+# Feature folders (see docs/source_reorg_plan.md): sources under src/<Feature>/..., headers under include/<Feature>/...
+# Headers are still included as "Foo.h": every feature subfolder is on the include path below.
+file(GLOB_RECURSE simulation_sources CONFIGURE_DEPENDS src/Simulation/*.cpp include/Simulation/*.h)
+list(APPEND sources ${simulation_sources})
 file(GLOB ui_sources ui/*.ui)
 
 # Create translations directory if it doesn't exist
@@ -453,6 +482,9 @@ target_sources(ModelViewer
 target_include_directories(ModelViewer
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/Simulation/Core
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/Simulation/Readers
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/Simulation/UI
         ${CMAKE_CURRENT_BINARY_DIR}
         ${OpenCASCADE_INCLUDE_DIR}
         ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include
@@ -498,6 +530,19 @@ target_link_libraries(ModelViewer
         ${OpenCASCADE_DataExchange_LIBRARIES}
         ${OpenCASCADE_ApplicationFramework_LIBRARIES}
 )
+
+if(netCDF_FOUND)
+    target_link_libraries(ModelViewer PRIVATE netCDF::netcdf)
+    target_compile_definitions(ModelViewer PRIVATE MV_HAVE_NETCDF=1)
+endif()
+if(cgns_FOUND)
+    target_link_libraries(ModelViewer PRIVATE $<IF:$<TARGET_EXISTS:CGNS::cgns_shared>,CGNS::cgns_shared,CGNS::cgns_static>)
+    target_compile_definitions(ModelViewer PRIVATE MV_HAVE_CGNS=1)
+endif()
+if(HDF5_FOUND)
+    target_link_libraries(ModelViewer PRIVATE $<IF:$<TARGET_EXISTS:hdf5::hdf5-shared>,hdf5::hdf5-shared,hdf5::hdf5-static>)
+    target_compile_definitions(ModelViewer PRIVATE MV_HAVE_HDF5=1)
+endif()
 
 # Qt6's automatic static-plugin linking (triggered by linking Qt6::Gui/Widgets
 # above) only pulls in the one platform plugin qtbase was configured with as
@@ -1127,4 +1172,10 @@ if(UNIX AND NOT APPLE)
     set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
 
     include(CPack)
+endif()
+
+# GUI-free unit tests (simulation result readers/boundary extraction). Off by default; see tests/CMakeLists.txt.
+option(MV_BUILD_TESTS "Build the GUI-free unit tests" OFF)
+if(MV_BUILD_TESTS)
+    add_subdirectory(tests)
 endif()

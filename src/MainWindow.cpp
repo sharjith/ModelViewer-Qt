@@ -66,6 +66,7 @@
 #include "CamerasPanel.h"
 #include "SelectionSetsPanel.h"
 #include "SceneStatesPanel.h"
+#include "SimulationPanel.h"
 
 #if defined _WIN32 && QT_VERSION_MAJOR == 5
 #include <QWinTaskbarProgress>
@@ -244,6 +245,53 @@ MainWindow::MainWindow(QWidget* parent)
 
 		_sceneStatesPanel = new SceneStatesPanel();
 		_documentSecondaryTabWidget->addTab(_sceneStatesPanel, QIcon(":/icons/res/save_scene_state.png"), tr("States"));
+
+		// Simulation results: field/range/colormap/contour controls for the active document's result, plus an
+		// "Open Result..." button (see docs/simulation_results_design.md section 9). Its signals go to whichever
+		// document is active, like the toolbar/menu actions do.
+		_simulationPanel = new SimulationPanel();
+		_documentSecondaryTabWidget->addTab(_simulationPanel, QIcon(":/icons/res/surface_analysis.png"), tr("Simulation"));
+		connect(_simulationPanel, &SimulationPanel::openRequested, this, [this]() {
+			if (auto* child = activeMdiChild())
+				child->openSimulationResult();
+		});
+		connect(_simulationPanel, &SimulationPanel::resultActivated, this, [this](const QUuid& uuid) {
+			if (auto* child = activeMdiChild())
+				child->activateSimulationResult(uuid);
+		});
+		connect(_simulationPanel, &SimulationPanel::resultVisibilityChanged, this, [this](const QUuid& uuid, bool visible) {
+			if (auto* child = activeMdiChild())
+				child->setSimulationResultVisible(uuid, visible);
+		});
+		connect(_simulationPanel, &SimulationPanel::compareStartRequested, this, [this](const QUuid& uuid, bool stacked, bool shared) {
+			if (auto* child = activeMdiChild())
+				child->startSimulationCompare(uuid, stacked, shared);
+		});
+		connect(_simulationPanel, &SimulationPanel::compareStopRequested, this, [this]() {
+			if (auto* child = activeMdiChild())
+				child->stopSimulationCompare();
+		});
+		connect(_simulationPanel, &SimulationPanel::compareOptionsChanged, this, [this](bool stacked, bool shared) {
+			if (auto* child = activeMdiChild())
+				child->setSimulationCompareOptions(stacked, shared);
+		});
+		connect(_simulationPanel, &SimulationPanel::resultCloseRequested, this, [this](const QUuid& uuid) {
+			if (auto* child = activeMdiChild())
+				child->closeSimulationResult(uuid);
+		});
+		connect(_simulationPanel, &SimulationPanel::viewStateChanged, this, [this](const SimulationViewState& state) {
+			if (auto* child = activeMdiChild())
+				child->applySimulationViewState(state);
+		});
+		connect(_simulationPanel, &SimulationPanel::lengthUnitChanged, this, [this](const QString& unit) {
+			if (auto* child = activeMdiChild())
+				child->applySimulationLengthUnit(unit);
+		});
+		connect(_simulationPanel, &SimulationPanel::unitsChanged, this,
+			[this](int fieldIndex, const QString& kindId, const QString& fileUnit, const QString& displayUnit) {
+				if (auto* child = activeMdiChild())
+					child->applySimulationUnits(fieldIndex, kindId, fileUnit, displayUnit);
+			});
 
 		// Auto Fit View / Selection Highlighting: moved here from the
 		// per-document nav overlay, above the Variants/Animations/Cameras
@@ -865,6 +913,17 @@ MainWindow::MainWindow(QWidget* parent)
         if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("repair"));
     });
 
+	// Simulation → Open Result... - file dialog + load, same wiring shape as the Tools actions above.
+	connect(ui->actionOpenSimulationResult, &QAction::triggered, this, [this]() {
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("simulation_open"));
+    });
+
+	// Simulation → Compare Results... - starts compare mode (asking for the second result when there are several) or
+	// exits it; the text and enabled state follow the document in refreshSimulationPanel().
+	connect(ui->actionSimulationCompare, &QAction::triggered, this, [this]() {
+        if (auto* child = activeMdiChild()) child->toggleSimulationCompare();
+    });
+
 	// Tools → Fill Holes... - opens the non-modal FillHolesDialog, same wiring shape as
 	// actionRepairMesh above.
 	connect(ui->actionFillHoles, &QAction::triggered, this, [this]() {
@@ -934,6 +993,13 @@ void MainWindow::retranslateUI()
 	{
 		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_selectionSetsPanel), tr("Selections"));
 		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_sceneStatesPanel), tr("States"));
+		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_simulationPanel), tr("Simulation"));
+	}
+	if (_simulationPanel)
+	{
+		// The Simulation panel's controls are built once with tr(): rebuild them in the new language, then show the active document's result again.
+		_simulationPanel->retranslate();
+		refreshSimulationPanel(activeMdiChild());
 	}
 	if (_propertiesTabWidget && _propertiesTabWidget->count() >= 2)
 	{
@@ -1092,6 +1158,22 @@ QMdiSubWindow* MainWindow::createDocumentSubWindow(ModelViewer* viewer)
 	return _mdiArea->addSubWindow(viewer);
 }
 
+void MainWindow::refreshSimulationPanel(ModelViewer* viewer)
+{
+	if (!_simulationPanel)
+		return;
+	_simulationPanel->setResults(viewer ? viewer->simulationResults() : QVector<SimulationResultItem>(),
+	                             viewer ? viewer->activeSimulationMeshUuid() : QUuid());
+	_simulationPanel->setCompareState(viewer && viewer->simulationCompareActive(), viewer && viewer->simulationCompareStacked(),
+	                                  viewer && viewer->simulationCompareSharedRange());
+	_simulationPanel->setSession(viewer ? viewer->activeSimulationSession() : nullptr);
+
+	// The menu's Compare entry: needs a second result to start, and reads "Exit Compare" while comparing.
+	const bool comparing = viewer && viewer->simulationCompareActive();
+	ui->actionSimulationCompare->setText(comparing ? tr("Exit Compare") : tr("Compare Results..."));
+	ui->actionSimulationCompare->setEnabled(viewer && (comparing || viewer->simulationResults().size() >= 2));
+}
+
 void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 {
 	if (!viewer)
@@ -1165,6 +1247,10 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		_camerasPanel->setEnabled(false);
 		_selectionSetsPanel->setEnabled(false);
 		_sceneStatesPanel->setEnabled(false);
+		disconnect(_simulationSessionConnection);
+		_simulationPanel->setSession(nullptr);
+		_simulationPanel->setEnabled(false);
+		ui->actionSimulationCompare->setEnabled(false);
 		_checkBoxAutoFitView->setEnabled(false);
 		_checkBoxSelectionHighlight->setEnabled(false);
 		return;
@@ -1180,6 +1266,7 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 	_camerasPanel->setEnabled(true);
 	_selectionSetsPanel->setEnabled(true);
 	_sceneStatesPanel->setEnabled(true);
+	_simulationPanel->setEnabled(true);
 	_checkBoxAutoFitView->setEnabled(true);
 	_checkBoxSelectionHighlight->setEnabled(true);
 
@@ -1241,6 +1328,17 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		[this, viewer](const QList<int>&) {
 			ui->actionSaveSelectionSet->setEnabled(viewer->hasSelection());
 			_selectionSetsPanel->syncActiveSet(viewer->getSelectedUuids());
+		});
+
+	// Simulation panel: show this document's active result now, and follow it while this document stays active
+	// (an open, a selection change and an edit all emit simulationSessionChanged()).
+	refreshSimulationPanel(viewer);
+	disconnect(_simulationSessionConnection);
+	_simulationSessionConnection = connect(viewer, &ModelViewer::simulationSessionChanged, this,
+		[this, viewer](bool activateTab) {
+			refreshSimulationPanel(viewer);
+			if (activateTab && _documentSecondaryTabWidget)
+				_documentSecondaryTabWidget->setCurrentWidget(_simulationPanel);
 		});
 
 	// Unconditional, not just on switching TO the Transformations tab - if
@@ -2132,7 +2230,7 @@ void MainWindow::dropEvent(QDropEvent* event)
 		QFileInfo fi(fileName);
 		QString extn = fi.suffix();
 		if (!supportedExtensions[0].contains(extn, Qt::CaseInsensitive)
-			&& extn != "mvf")
+			&& extn != "mvf" && !isSupportedResultFile(fileName))
 		{
 			QMessageBox::critical(this, tr("Error"), url.toString() + tr("\nUnsupported file format: ") + extn);
 		}
@@ -2182,6 +2280,13 @@ void MainWindow::on_actionOpen_triggered()
 	fileDialog.setFileMode(QFileDialog::ExistingFile);	
 	QStringList supportedExtensions = ModelViewerApplication::supportedImportExtensions();
 	supportedExtensions[0].insert(supportedExtensions[0].lastIndexOf(')'), " *.mvf");
+	// Simulation results (.vtu/.vtk, ...): part of "All Supported Files" and offered as their own filter. They open
+	// in a new document like any other file (ModelViewer::loadFile() routes them).
+	QString resultGlobs;
+	for (const QString& extension : supportedResultExtensions())
+		resultGlobs += QStringLiteral(" *.") + extension;
+	supportedExtensions[0].insert(supportedExtensions[0].lastIndexOf(')'), resultGlobs);
+	supportedExtensions.append(tr("Simulation Results (%1)").arg(resultGlobs.trimmed()));
 	QStringList nativeFilter = { "ModelViewer Files (*.mvf)" };
 	supportedExtensions.append(nativeFilter);
 	fileDialog.setNameFilters(supportedExtensions);
@@ -2489,6 +2594,7 @@ void MainWindow::updateMenus()
 	ui->actionReconstructSurface->setEnabled(hasMdiChild);
 	ui->actionRepairMesh->setEnabled(hasMdiChild);
 	ui->actionFillHoles->setEnabled(hasMdiChild);
+	ui->actionOpenSimulationResult->setEnabled(hasMdiChild);
 	ui->actionGenerateUVs->setEnabled(hasMdiChild);
 	ui->actionPurgeRedundantNodes->setEnabled(hasMdiChild);
 	{

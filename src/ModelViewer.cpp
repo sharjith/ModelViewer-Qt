@@ -32,6 +32,8 @@
 #include "BatchRenderViewsDialog.h"
 #include "SubdivisionDialog.h"
 #include "ReconstructSurfaceDialog.h"
+#include "SimulationLegendWidget.h"
+#include "SimulationTimelineWidget.h"
 #include "RepairMeshDialog.h"
 #include "FillHolesDialog.h"
 #include "LanguageManager.h"
@@ -520,6 +522,7 @@ ModelViewer::~ModelViewer()
 void ModelViewer::retranslateUI()
 {
 	// Dynamically created	
+	retranslateSimulation();
 }
 
 void ModelViewer::close()
@@ -1070,7 +1073,12 @@ void ModelViewer::revealNavigation()
 	// raiseViewportToolbar() at construction only established the ordering
 	// once, not permanently). Re-assert it right after every time this
 	// panel raises itself, so the toolbar always ends up back on top
-	// regardless of how often either one raises.
+	// regardless of how often either one raises. The simulation result legend needs exactly the same
+	// treatment (it sat underneath this panel and looked like it vanished on every mouse move).
+	if (_simulationLegend)
+		_simulationLegend->raise();
+	if (_simulationTimeline && _simulationTimeline->isVisible())
+		_simulationTimeline->raise();
 	if (_viewportWidget)
 		_viewportWidget->raiseViewportToolbar();
 	if (_navigationRevealed)
@@ -2147,13 +2155,15 @@ void ModelViewer::dropEvent(QDropEvent* event)
 		QFileInfo fi(fileName);
 		QString extn = fi.suffix();
 		if (!supportedExtensions[0].contains(extn, Qt::CaseInsensitive)
-			&& extn != "mvf")
+			&& extn != "mvf" && !isSupportedResultFile(fileName))
 		{
 			QMessageBox::critical(this, tr("Error"), url.toString() + tr("\nUnsupported file format: ") + extn);
 		}
 		else
 		{
-			if (extn == "mvf")
+			if (isSupportedResultFile(fileName))
+				openSimulationResultFile(fileName); // dropped onto a document: added to it
+			else if (extn == "mvf")
 				loadFromFile(fileName);
 			else
 			{
@@ -2353,13 +2363,19 @@ bool ModelViewer::save()
 		return saveAs();
 	}
 
+	if (!promptSimulationSaveOptions())
+		return false; // cancelled
+
 	if (saveToFile(_currentFile))
 	{
 		_documentSaved = true;
 		_nonUndoDocumentDirty = false;
 		_savedUndoIndex = _undoStack ? _undoStack->index() : 0;
 		setDocumentModified(false);
-		MainWindow::showStatusMessage(tr("File saved"), 2000);
+		if (!_simulationSaveNotes.isEmpty())
+			MainWindow::showStatusMessage(tr("File saved - %1").arg(_simulationSaveNotes.join(QLatin1Char(' '))), 8000);
+		else
+			MainWindow::showStatusMessage(tr("File saved"), 2000);
 		return true;
 	}
 	else
@@ -5364,6 +5380,13 @@ void ModelViewer::onFileImport()
 	QFileDialog fileDialog(this, tr("Import Model File"), _lastOpenedDir);
 	fileDialog.setFileMode(QFileDialog::ExistingFiles);
 	QStringList supportedExtensions = ModelViewerApplication::supportedImportExtensions();
+	// Simulation results (.vtu, .vtk, .frd, .foam, and .exo/.e/.ex2/.g when built with NetCDF) are part of "All Supported
+	// Files" and their own filter, as in File > Open. Importing one adds it to this document (loadFile() routes it).
+	QString resultGlobs;
+	for (const QString& extension : supportedResultExtensions())
+		resultGlobs += QStringLiteral(" *.") + extension;
+	supportedExtensions[0].insert(supportedExtensions[0].lastIndexOf(')'), resultGlobs);
+	supportedExtensions.append(tr("Simulation Results (%1)").arg(resultGlobs.trimmed()));
 	fileDialog.setNameFilters(supportedExtensions);
 
 	if (supportedExtensions.contains(_lastSelectedFilter))
@@ -5738,6 +5761,25 @@ bool ModelViewer::loadFile(const QString& fileName)
 {
 	_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
 
+	if (isSupportedResultFile(fileName))
+	{
+		// A simulation result: read off-thread and shown as a coloured surface (see openSimulationResultFile()),
+		// so this returns as soon as the read has started. A document that File > Open just created for this file
+		// is closed again if the read fails; a Shift+recent import into a document with content is not.
+		// Only a document that is still brand new (nothing displayed, nothing edited, not modified, no load already
+		// running) may be closed again on a failed read or left unmodified after a successful one; an import into
+		// a document with unsaved changes must never touch its state.
+		if (!_simulationLoadInFlight)
+			_closeOnSimulationLoadFailure = _simulationSessions.empty() && _viewportWidget->getMeshStore().empty()
+				&& !_documentModified && _undoStack && _undoStack->count() == 0;
+		if (!openSimulationResultFile(fileName))
+		{
+			_closeOnSimulationLoadFailure = false;
+			return false;
+		}
+		return true;
+	}
+
 	QString errMsg;
 	bool success = false;
 	const QString suffix = QFileInfo(fileName).suffix().toLower();
@@ -5836,6 +5878,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		QVector<GltfAnimationData> animationDataByFile;
 		QHash<QString, int> activeAnimationByFile;
 		QVector<GltfCameraData> cameraDataByFile;
+		QVector<PendingSimulationRestore> simulationRestores;
 		QJsonArray    explodedViews;
 		QString       activeExplodedViewId;
 		int           activeExplodedViewStepIndex = -1;
@@ -6445,6 +6488,46 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		QVector<PreparedMvfMesh> prepared =
 			MvfMeshPreparationWorker::prepare(result.document, geomChunk, imgChunk);
 
+		// Simulation result snapshots (see docs/simulation_mvf_persistence_design.md): decoded here, off the UI
+		// thread, against the prepared meshes' vertex/triangle counts, then attached to their meshes at the end.
+		for (const QJsonValue& entryValue : session[QStringLiteral("simulationResults")].toArray())
+		{
+			const QJsonObject entry = entryValue.toObject();
+			PendingSimulationRestore pending;
+			pending.meshUuid = QUuid(entry[QStringLiteral("meshUuid")].toString());
+			const PreparedMvfMesh* target = nullptr;
+			for (const PreparedMvfMesh& pm : std::as_const(prepared))
+				if (pm.uuid == pending.meshUuid)
+					target = &pm;
+			if (!target)
+				continue; // the mesh is not in the file any more
+			std::vector<QByteArray> blobs;
+			bool inRange = true;
+			for (const QJsonValue& viewIndex : entry[QStringLiteral("blobViews")].toArray())
+			{
+				const int viewNumber = viewIndex.toInt(-1);
+				const QJsonObject view = (viewNumber >= 0 && viewNumber < result.document.bufferViews.size())
+					? result.document.bufferViews.at(viewNumber).toObject() : QJsonObject();
+				const qint64 offset = static_cast<qint64>(view[QStringLiteral("byteOffset")].toDouble(-1));
+				const qint64 length = static_cast<qint64>(view[QStringLiteral("byteLength")].toDouble(-1));
+				if (offset < 0 || length < 0 || offset + length > geomChunk.size())
+				{
+					inRange = false;
+					break;
+				}
+				blobs.push_back(geomChunk.mid(offset, length));
+			}
+			if (!inRange)
+				pending.error = QStringLiteral("The stored result data lies outside the file.");
+			else
+			{
+				const std::vector<std::uint32_t> triangles(target->indices.begin(), target->indices.end());
+				decodeResultSnapshot(entry[QStringLiteral("snapshot")].toObject(), blobs, target->vertices.size(), triangles,
+				                     pending.decoded, &pending.error);
+			}
+			result.simulationRestores.append(std::move(pending));
+		}
+
 		// Extract mesh UUIDs and visibility
 		QList<QUuid> allMeshUuids;
 		for (const auto& pm : prepared)
@@ -6992,6 +7075,8 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	if (!result.activeGltfCameraFile.isEmpty() && result.activeGltfCameraIndex >= 0)
 		_viewportWidget->activateGltfCamera(result.activeGltfCameraFile, result.activeGltfCameraIndex);
 
+	restoreSimulationSessions(result.simulationRestores);
+
 	MainWindow::hideProgressBar();
 	return true;
 }
@@ -7019,7 +7104,9 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 	                                               _viewportWidget ? _viewportWidget->getMeshStore() : std::vector<SceneMesh*>(),
 	                                               _visibleMeshUuids,
 	                                               selectedSet,
-	                                               cameraDataByFile);
+	                                               cameraDataByFile,
+	                                               simulationBakedColors());
+	appendSimulationSnapshots(package);
 
 	if (_viewportWidget)
 	{
@@ -7986,6 +8073,7 @@ void ModelViewer::executeToolCommand(const QString& command)
     else if (command == QLatin1String("reconstruct")) openReconstructSurfaceDialog();
     else if (command == QLatin1String("repair")) openRepairMeshDialog();
     else if (command == QLatin1String("fill")) openFillHolesDialog();
+    else if (command == QLatin1String("simulation_open")) openSimulationResult();
     else if (command == QLatin1String("uv")) openUVGenerationDialog();
     else if (command == QLatin1String("mass")) openMassPropertiesDialog();
     else if (command == QLatin1String("report")) { ReportExportDialog dialog(this, this); dialog.exec(); }

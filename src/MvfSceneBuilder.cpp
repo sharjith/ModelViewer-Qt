@@ -484,7 +484,8 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
                            const std::vector<SceneMesh*>& meshStore,
                            const QSet<QUuid>& visibleMeshUuids,
                            const QSet<QUuid>& selectedMeshUuids,
-                           const QVector<GltfCameraData>& cameraDataByFile)
+                           const QVector<GltfCameraData>& cameraDataByFile,
+                           const QHash<QUuid, std::vector<float>>& colorOverrides)
 {
     MVFPackage package;
     Document& document = package.document;
@@ -926,6 +927,13 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
                 document.accessors.append(makeAccessor(uv3View, 0, ComponentTypeFloat, vertices.size(), QStringLiteral("VEC2"),
                                                        QStringLiteral("%1_TEXCOORD_3").arg(mesh->getName())));
                 attributes.insert(QStringLiteral("TEXCOORD_3"), uv3Accessor);
+            }
+
+            if (const auto overrideIt = colorOverrides.constFind(mesh->uuid());
+                overrideIt != colorOverrides.constEnd() && overrideIt.value().size() == vertices.size() * 4)
+            {
+                colors = overrideIt.value();
+                hasColor = true;
             }
 
             if (hasColor)

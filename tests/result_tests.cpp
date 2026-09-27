@@ -1,0 +1,6744 @@
+// GUI-free tests for the simulation result reader and boundary extraction (docs/simulation_results_design.md).
+// Build with -DMV_BUILD_TESTS=ON; run the `result_tests` executable. Exit code = number of failed checks.
+//
+// Every fixture is generated in code (no binary files in the repo) in each VTK XML data encoding, so a
+// bug in header/offset/compression handling shows up as a mismatch against the same mesh written as
+// plain ASCII. NOTE: the writers here are written from the VTK format description, like the reader, so
+// they cannot catch a shared misreading of the spec - real files (FreeCAD/CalculiX/ParaView output) are
+// the final check and are listed in docs/simulation_results_test_data.md.
+
+#include "ComparePaneLayout.h"
+#include "CgnsReader.h"
+#include "ExodusReader.h"
+#include "MedReader.h"
+#include "ResultBoundary.h"
+#include "ResultDerivedFields.h"
+#include "ResultReader.h"
+#include "ResultSlice.h"
+#include "ResultStreamlines.h"
+#include "ResultSnapshot.h"
+#include "ResultUnits.h"
+#include "SimulationGlyphs.h"
+#include "VtkHdfReader.h"
+#include "SimulationResultDisplay.h"
+
+#ifdef _WIN32
+#include <windows.h>
+#include <psapi.h>
+#endif
+#include <QByteArray>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QTemporaryDir>
+
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <limits>
+#include <string>
+#include <atomic>
+#include <chrono>
+#if MV_HAVE_NETCDF
+#include <netcdf.h>
+#endif
+#if MV_HAVE_CGNS
+#include <cgnslib.h>
+#endif
+#if MV_HAVE_HDF5
+#include <hdf5.h>
+#endif
+#include <vector>
+
+static int g_failures = 0;
+static int g_checks = 0;
+
+#define CHECK(cond)                                                                        \
+	do                                                                                     \
+	{                                                                                      \
+		++g_checks;                                                                        \
+		if (!(cond))                                                                       \
+		{                                                                                  \
+			++g_failures;                                                                  \
+			std::fprintf(stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);          \
+		}                                                                                  \
+	} while (0)
+
+namespace
+{
+	enum class Enc
+	{
+		Ascii, InlineB64, InlineB64Zlib, InlineB64Header64, InlineB64BigEndian, AppendedRaw, AppendedB64, AppendedRawZlib
+	};
+
+	struct Mesh
+	{
+		std::vector<float> pts;
+		std::vector<int> conn, offs, types;
+		std::vector<double> pointScalar; // 1 per node (optional)
+		std::vector<float> cellVector;   // 3 per cell (optional)
+	};
+
+	template <class T>
+	QByteArray toBytes(const std::vector<T>& v, bool big)
+	{
+		QByteArray b;
+		for (T x : v)
+		{
+			unsigned char raw[sizeof(T)];
+			std::memcpy(raw, &x, sizeof(T));
+			if (big)
+				std::reverse(raw, raw + sizeof(T));
+			b.append(reinterpret_cast<const char*>(raw), sizeof(T));
+		}
+		return b;
+	}
+
+	QByteArray headerInt(quint64 v, int headerSize, bool big)
+	{
+		QByteArray b;
+		if (headerSize == 8)
+		{
+			unsigned char raw[8];
+			std::memcpy(raw, &v, 8);
+			if (big)
+				std::reverse(raw, raw + 8);
+			b.append(reinterpret_cast<const char*>(raw), 8);
+		}
+		else
+		{
+			quint32 v32 = static_cast<quint32>(v);
+			unsigned char raw[4];
+			std::memcpy(raw, &v32, 4);
+			if (big)
+				std::reverse(raw, raw + 4);
+			b.append(reinterpret_cast<const char*>(raw), 4);
+		}
+		return b;
+	}
+
+	// One VTK data blob (see the reader's decodeBlob() comment for the layout).
+	QByteArray encodeBlob(const QByteArray& raw, bool compressed, bool base64, int headerSize, bool big)
+	{
+		QByteArray header, data;
+		if (!compressed)
+		{
+			header = headerInt(static_cast<quint64>(raw.size()), headerSize, big);
+			data = raw;
+		}
+		else
+		{
+			const int blockSize = 32; // small, to force several blocks and a partial last block
+			std::vector<QByteArray> blocks;
+			for (int pos = 0; pos < raw.size(); pos += blockSize)
+				blocks.push_back(qCompress(raw.mid(pos, blockSize), 6).mid(4)); // drop qCompress's size prefix
+			const quint64 last = static_cast<quint64>(raw.size() % blockSize);
+			header = headerInt(blocks.size(), headerSize, big) + headerInt(blockSize, headerSize, big)
+				+ headerInt(last, headerSize, big);
+			for (const QByteArray& b : blocks)
+			{
+				header += headerInt(static_cast<quint64>(b.size()), headerSize, big);
+				data += b;
+			}
+		}
+		if (base64)
+			return header.toBase64() + data.toBase64();
+		return header + data;
+	}
+
+	QByteArray asciiText(const std::vector<double>& v)
+	{
+		QByteArray t;
+		for (double x : v)
+			t += QByteArray::number(x, 'g', 12) + ' ';
+		return t;
+	}
+
+	QByteArray buildVtu(const Mesh& m, Enc enc, const char* fileType = "UnstructuredGrid",
+	                    const char* compressorOverride = nullptr)
+	{
+		const bool big = enc == Enc::InlineB64BigEndian;
+		const bool zlib = enc == Enc::InlineB64Zlib || enc == Enc::AppendedRawZlib;
+		const int headerSize = enc == Enc::InlineB64Header64 ? 8 : 4;
+		const bool appended = enc == Enc::AppendedRaw || enc == Enc::AppendedB64 || enc == Enc::AppendedRawZlib;
+		const bool appendedB64 = enc == Enc::AppendedB64;
+
+		QByteArray appendedData;
+		auto arrayXml = [&](const char* name, const char* type, int comps, const QByteArray& raw,
+		                    const std::vector<double>& asciiValues) -> QByteArray
+		{
+			QByteArray x = QByteArray("<DataArray type=\"") + type + "\" Name=\"" + name + "\" NumberOfComponents=\""
+				+ QByteArray::number(comps) + "\" ";
+			if (enc == Enc::Ascii)
+				return x + "format=\"ascii\">" + asciiText(asciiValues) + "</DataArray>\n";
+			if (appended)
+			{
+				const QByteArray blob = encodeBlob(raw, zlib, appendedB64, headerSize, big);
+				x += "format=\"appended\" offset=\"" + QByteArray::number(appendedData.size()) + "\"/>\n";
+				appendedData += blob;
+				return x;
+			}
+			return x + "format=\"binary\">" + encodeBlob(raw, zlib, true, headerSize, big) + "</DataArray>\n";
+		};
+		auto ints = [](const std::vector<int>& v) { return std::vector<double>(v.begin(), v.end()); };
+		auto floats = [](const std::vector<float>& v) { return std::vector<double>(v.begin(), v.end()); };
+
+		std::vector<std::int64_t> conn64(m.conn.begin(), m.conn.end());
+		std::vector<std::int64_t> offs64(m.offs.begin(), m.offs.end());
+		std::vector<std::uint8_t> types8(m.types.begin(), m.types.end());
+
+		QByteArray out = "<?xml version=\"1.0\"?>\n<VTKFile type=\"";
+		out += fileType;
+		out += "\" version=\"1.0\" byte_order=\"";
+		out += big ? "BigEndian" : "LittleEndian";
+		out += "\" header_type=\"";
+		out += headerSize == 8 ? "UInt64" : "UInt32";
+		out += "\"";
+		if (compressorOverride)
+			out += QByteArray(" compressor=\"") + compressorOverride + "\"";
+		else if (zlib)
+			out += " compressor=\"vtkZLibDataCompressor\"";
+		out += ">\n<UnstructuredGrid>\n<Piece NumberOfPoints=\"" + QByteArray::number(int(m.pts.size() / 3))
+			+ "\" NumberOfCells=\"" + QByteArray::number(int(m.types.size())) + "\">\n";
+		out += "<PointData>\n";
+		if (!m.pointScalar.empty())
+			out += arrayXml("T", "Float64", 1, toBytes(m.pointScalar, big), m.pointScalar);
+		out += "</PointData>\n<CellData>\n";
+		if (!m.cellVector.empty())
+			out += arrayXml("V", "Float32", 3, toBytes(m.cellVector, big), floats(m.cellVector));
+		out += "</CellData>\n<Points>\n";
+		out += arrayXml("Points", "Float32", 3, toBytes(m.pts, big), floats(m.pts));
+		out += "</Points>\n<Cells>\n";
+		out += arrayXml("connectivity", "Int64", 1, toBytes(conn64, big), ints(m.conn));
+		out += arrayXml("offsets", "Int64", 1, toBytes(offs64, big), ints(m.offs));
+		out += arrayXml("types", "UInt8", 1, toBytes(types8, big), ints(m.types));
+		out += "</Cells>\n</Piece>\n</UnstructuredGrid>\n";
+		if (appended)
+		{
+			out += appendedB64 ? "<AppendedData encoding=\"base64\">\n_" : "<AppendedData encoding=\"raw\">\n_";
+			out += appendedData;
+			out += "\n</AppendedData>\n";
+		}
+		out += "</VTKFile>\n";
+		return out;
+	}
+
+	QTemporaryDir& tempDir()
+	{
+		static QTemporaryDir dir;
+		return dir;
+	}
+
+	ResultReadOutcome readBytes(const QByteArray& bytes, const QString& name = QStringLiteral("t.vtu"))
+	{
+		const QString path = tempDir().filePath(name);
+		QFile f(path);
+		CHECK(f.open(QIODevice::WriteOnly));
+		f.write(bytes);
+		f.close();
+		return readResultFile(path);
+	}
+
+	// ---- Meshes ------------------------------------------------------------------------------------
+
+	Mesh singleTet()
+	{
+		Mesh m;
+		m.pts = { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 };
+		m.conn = { 0, 1, 2, 3 };
+		m.offs = { 4 };
+		m.types = { 10 };
+		m.pointScalar = { 1.5, 2.5, 3.5, 4.5 };
+		m.cellVector = { 7, 8, 9 };
+		return m;
+	}
+
+	Mesh twoTets() // tets 0-1-2-3 and 1-2-3-4 share the face 1-2-3
+	{
+		Mesh m;
+		m.pts = { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1 };
+		m.conn = { 0, 1, 2, 3, 1, 2, 3, 4 };
+		m.offs = { 4, 8 };
+		m.types = { 10, 10 };
+		m.pointScalar = { 0, 1, 2, 3, 4 };
+		m.cellVector = { 1, 2, 3, 4, 5, 6 };
+		return m;
+	}
+
+	Mesh hexes(int count) // `count` unit cubes in a row along x; 4 nodes per x-plane
+	{
+		Mesh m;
+		for (int i = 0; i <= count; ++i)
+		{
+			const float x = static_cast<float>(i);
+			m.pts.insert(m.pts.end(), { x, 0, 0, x, 1, 0, x, 1, 1, x, 0, 1 });
+		}
+		for (int c = 0; c < count; ++c)
+		{
+			const int a = c * 4, b = (c + 1) * 4;
+			// "bottom" quad = plane x=c, "top" quad = plane x=c+1 (same ring order).
+			m.conn.insert(m.conn.end(), { a, a + 1, a + 2, a + 3, b, b + 1, b + 2, b + 3 });
+			m.offs.push_back((c + 1) * 8);
+			m.types.push_back(12);
+		}
+		return m;
+	}
+
+	// Every boundary triangle must face away from the cell it came from.
+	bool trianglesFaceOutward(const ResultDataset& ds, const ResultBoundarySurface& s)
+	{
+		for (std::size_t t = 0; t < s.triangleCount(); ++t)
+		{
+			if (s.triangleFace[t] == ResultBoundarySurface::kNoFace)
+				continue;
+			const std::uint32_t cell = s.triangleCell[t];
+			double cx = 0, cy = 0, cz = 0;
+			const std::size_t n = ds.cellOffsets[cell + 1] - ds.cellOffsets[cell];
+			for (std::size_t k = ds.cellOffsets[cell]; k < ds.cellOffsets[cell + 1]; ++k)
+			{
+				cx += ds.nodePositions[ds.cellConnectivity[k] * 3 + 0];
+				cy += ds.nodePositions[ds.cellConnectivity[k] * 3 + 1];
+				cz += ds.nodePositions[ds.cellConnectivity[k] * 3 + 2];
+			}
+			cx /= n; cy /= n; cz /= n;
+			const float* p0 = &s.positions[s.triangles[t * 3 + 0] * 3];
+			const float* p1 = &s.positions[s.triangles[t * 3 + 1] * 3];
+			const float* p2 = &s.positions[s.triangles[t * 3 + 2] * 3];
+			const double ax = p1[0] - p0[0], ay = p1[1] - p0[1], az = p1[2] - p0[2];
+			const double bx = p2[0] - p0[0], by = p2[1] - p0[1], bz = p2[2] - p0[2];
+			const double nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx;
+			const double mx = (p0[0] + p1[0] + p2[0]) / 3 - cx, my = (p0[1] + p1[1] + p2[1]) / 3 - cy,
+			             mz = (p0[2] + p1[2] + p2[2]) / 3 - cz;
+			if (nx * mx + ny * my + nz * mz <= 0.0)
+				return false;
+		}
+		return true;
+	}
+
+	ResultBoundarySurface extract(const ResultDataset& ds)
+	{
+		ResultBoundarySurface s;
+		QString err;
+		CHECK(extractBoundarySurface(ds, s, nullptr, &err));
+		return s;
+	}
+
+	// ---- Tests -------------------------------------------------------------------------------------
+
+	void testSingleTetAscii()
+	{
+		ResultReadOutcome r = readBytes(buildVtu(singleTet(), Enc::Ascii));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		CHECK(ds.nodeCount() == 4);
+		CHECK(ds.cellCount() == 1);
+		CHECK(ds.cellTypes[0] == ResultCellType::Tetra);
+		CHECK(ds.stepCount() == 1);
+
+		const ResultField* t = ds.findField(QStringLiteral("T"), ResultFieldAssociation::Node);
+		CHECK(t && t->components == 1 && t->tupleCount(0) == 4);
+		if (t)
+		{
+			CHECK(std::fabs(t->stepData[0][0] - 1.5f) < 1e-6f);
+			CHECK(std::fabs(t->stepData[0][3] - 4.5f) < 1e-6f);
+		}
+		const ResultField* v = ds.findField(QStringLiteral("V"), ResultFieldAssociation::Cell);
+		CHECK(v && v->components == 3 && v->tupleCount(0) == 1);
+		if (v)
+			CHECK(v->stepData[0][2] == 9.0f);
+
+		const ResultBoundarySurface s = extract(ds);
+		CHECK(s.triangleCount() == 4);
+		CHECK(s.vertexCount() == 4);
+		CHECK(trianglesFaceOutward(ds, s));
+		for (std::size_t i = 0; i < s.vertexCount(); ++i)
+			CHECK(s.vertexNode[i] < ds.nodeCount());
+	}
+
+	void testEncodingsMatchAscii()
+	{
+		const Mesh mesh = twoTets();
+		ResultReadOutcome ref = readBytes(buildVtu(mesh, Enc::Ascii));
+		CHECK(ref.ok());
+		if (!ref.ok())
+			return;
+		const Enc all[] = { Enc::InlineB64, Enc::InlineB64Zlib, Enc::InlineB64Header64, Enc::InlineB64BigEndian,
+		                    Enc::AppendedRaw, Enc::AppendedB64, Enc::AppendedRawZlib };
+		for (Enc e : all)
+		{
+			ResultReadOutcome r = readBytes(buildVtu(mesh, e));
+			if (!r.ok())
+				std::fprintf(stderr, "  encoding %d failed: %s\n", int(e), qPrintable(r.error));
+			CHECK(r.ok());
+			if (!r.ok())
+				continue;
+			CHECK(r.dataset->nodePositions == ref.dataset->nodePositions);
+			CHECK(r.dataset->cellConnectivity == ref.dataset->cellConnectivity);
+			CHECK(r.dataset->cellOffsets == ref.dataset->cellOffsets);
+			CHECK(r.dataset->cellTypes == ref.dataset->cellTypes);
+			CHECK(r.dataset->fields.size() == ref.dataset->fields.size());
+			for (std::size_t f = 0; f < std::min(r.dataset->fields.size(), ref.dataset->fields.size()); ++f)
+				CHECK(r.dataset->fields[f].stepData == ref.dataset->fields[f].stepData);
+		}
+	}
+
+	// Real VTK writers nest <InformationKey> elements inside a DataArray (found on FreeCAD/VTK output);
+	// the reader must skip them and still decode the array's own text.
+	void testInformationKeyChildren()
+	{
+		const Mesh mesh = twoTets();
+		ResultReadOutcome ref = readBytes(buildVtu(mesh, Enc::Ascii));
+		CHECK(ref.ok());
+		for (Enc e : { Enc::Ascii, Enc::InlineB64, Enc::InlineB64Zlib })
+		{
+			QByteArray xml = buildVtu(mesh, e);
+			const QByteArray child = "\n  <InformationKey name=\"L2_NORM_RANGE\" location=\"vtkDataArray\" length=\"2\">"
+				"\n    <Value index=\"0\">\n      0\n    </Value>\n    <Value index=\"1\">\n      1\n    </Value>\n  </InformationKey>\n";
+			xml.replace("</DataArray>", child + "</DataArray>");
+			ResultReadOutcome r = readBytes(xml);
+			if (!r.ok())
+				std::fprintf(stderr, "  InformationKey encoding %d failed: %s\n", int(e), qPrintable(r.error));
+			CHECK(r.ok());
+			if (r.ok() && ref.ok())
+			{
+				CHECK(r.dataset->nodePositions == ref.dataset->nodePositions);
+				CHECK(r.dataset->fields.size() == ref.dataset->fields.size());
+				for (std::size_t f = 0; f < std::min(r.dataset->fields.size(), ref.dataset->fields.size()); ++f)
+					CHECK(r.dataset->fields[f].stepData == ref.dataset->fields[f].stepData);
+			}
+		}
+	}
+
+	void testSharedFaceIsInterior()
+	{
+		ResultReadOutcome r = readBytes(buildVtu(twoTets(), Enc::Ascii));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultBoundarySurface s = extract(*r.dataset);
+		CHECK(s.triangleCount() == 6); // 2 tets x 4 faces - the shared face counted once per tet = 8 - 2
+		CHECK(trianglesFaceOutward(*r.dataset, s));
+	}
+
+	void testHexes()
+	{
+		{
+			ResultReadOutcome r = readBytes(buildVtu(hexes(1), Enc::Ascii));
+			CHECK(r.ok());
+			if (r.ok())
+			{
+				const ResultBoundarySurface s = extract(*r.dataset);
+				CHECK(s.triangleCount() == 12);
+				CHECK(s.vertexCount() == 8);
+				CHECK(trianglesFaceOutward(*r.dataset, s));
+			}
+		}
+		{
+			ResultReadOutcome r = readBytes(buildVtu(hexes(2), Enc::Ascii));
+			CHECK(r.ok());
+			if (r.ok())
+			{
+				const ResultBoundarySurface s = extract(*r.dataset);
+				CHECK(s.triangleCount() == 20); // 10 outer quads
+				CHECK(s.vertexCount() == 12);
+				CHECK(trianglesFaceOutward(*r.dataset, s));
+			}
+		}
+	}
+
+	void testWedgeAndPyramid()
+	{
+		Mesh w;
+		w.pts = { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1 };
+		w.conn = { 0, 1, 2, 3, 4, 5 };
+		w.offs = { 6 };
+		w.types = { 13 };
+		ResultReadOutcome rw = readBytes(buildVtu(w, Enc::Ascii));
+		CHECK(rw.ok());
+		if (rw.ok())
+		{
+			const ResultBoundarySurface s = extract(*rw.dataset);
+			CHECK(s.triangleCount() == 8); // 2 triangles + 3 quads (6)
+			CHECK(trianglesFaceOutward(*rw.dataset, s));
+		}
+
+		Mesh p;
+		p.pts = { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0.5f, 0.5f, 1 };
+		p.conn = { 0, 1, 2, 3, 4 };
+		p.offs = { 5 };
+		p.types = { 14 };
+		ResultReadOutcome rp = readBytes(buildVtu(p, Enc::Ascii));
+		CHECK(rp.ok());
+		if (rp.ok())
+		{
+			const ResultBoundarySurface s = extract(*rp.dataset);
+			CHECK(s.triangleCount() == 6); // 4 side triangles + base quad (2)
+			CHECK(trianglesFaceOutward(*rp.dataset, s));
+		}
+	}
+
+	void testQuadraticCells()
+	{
+		// One tet10: 4 corners, then mid-edge nodes for edges 0-1, 1-2, 2-0, 0-3, 1-3, 2-3 (VTK order).
+		Mesh m;
+		m.pts = { 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2,
+		          1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1 };
+		m.conn = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+		m.offs = { 10 };
+		m.types = { 24 };
+		ResultReadOutcome r = readBytes(buildVtu(m, Enc::Ascii));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		CHECK(r.dataset->cellTypes[0] == ResultCellType::Tetra10);
+		CHECK(!r.warnings.isEmpty()); // "shown through corner nodes only"
+		const ResultBoundarySurface s = extract(*r.dataset);
+		CHECK(s.triangleCount() == 4);
+		CHECK(s.vertexCount() == 4); // corner nodes only
+		CHECK(s.skippedCells == 0);
+		CHECK(trianglesFaceOutward(*r.dataset, s));
+		for (std::size_t i = 0; i < s.vertexCount(); ++i)
+			CHECK(s.vertexNode[i] < 4); // mid-edge nodes (4..9) never appear
+
+		// A wrong node count for a quadratic type must be rejected by validate().
+		Mesh bad = m;
+		bad.conn = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
+		bad.offs = { 9 };
+		CHECK(!readBytes(buildVtu(bad, Enc::Ascii)).ok());
+
+		// Two tet10 sharing the corner face 1-2-3 (and its mid-edge nodes 5, 8, 9): that face is interior.
+		Mesh two = m;
+		two.pts.insert(two.pts.end(), { 2, 2, 2,  2, 1, 1,  1, 2, 1,  1, 1, 2 }); // node 10 = apex, 11-13 = its mid-edge nodes
+		two.conn = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,   1, 2, 3, 10, 5, 9, 8, 11, 12, 13 };
+		two.offs = { 10, 20 };
+		two.types = { 24, 24 };
+		ResultReadOutcome r2 = readBytes(buildVtu(two, Enc::Ascii));
+		CHECK(r2.ok());
+		if (r2.ok())
+			CHECK(extract(*r2.dataset).triangleCount() == 6);
+	}
+
+	// ---- Legacy .vtk ---------------------------------------------------------------------------------
+
+	ResultReadOutcome readLegacy(const QByteArray& bytes)
+	{
+		return readBytes(bytes, QStringLiteral("t.vtk"));
+	}
+
+	template <class T>
+	QByteArray beBytes(const std::vector<T>& v)
+	{
+		QByteArray b;
+		for (T x : v)
+		{
+			unsigned char raw[sizeof(T)];
+			std::memcpy(raw, &x, sizeof(T));
+			std::reverse(raw, raw + sizeof(T)); // tests run on little-endian hosts; legacy binary is big-endian
+			b.append(reinterpret_cast<const char*>(raw), sizeof(T));
+		}
+		return b;
+	}
+
+	const char* kTetAscii =
+		"# vtk DataFile Version 3.0\nsingle tet\nASCII\nDATASET UNSTRUCTURED_GRID\n"
+		"POINTS 4 float\n0 0 0  1 0 0\n0 1 0  0 0 1\n"
+		"CELLS 1 5\n4 0 1 2 3\nCELL_TYPES 1\n10\n"
+		"CELL_DATA 1\nSCALARS cellval int 1\nLOOKUP_TABLE default\n7\n"
+		"POINT_DATA 4\nSCALARS temp float\nLOOKUP_TABLE default\n1.5 2.5 3.5 4.5\n"
+		"VECTORS disp float\n0 0 0  1 0 0  0 1 0  0 0 1\n";
+
+	void testLegacyAsciiAndBinary()
+	{
+		ResultReadOutcome a = readLegacy(QByteArray(kTetAscii));
+		if (!a.ok())
+			std::fprintf(stderr, "  legacy ascii failed: %s\n", qPrintable(a.error));
+		CHECK(a.ok());
+		if (a.ok())
+		{
+			CHECK(a.dataset->findField(QStringLiteral("disp"), ResultFieldAssociation::Node) != nullptr);
+			CHECK(a.dataset->findField(QStringLiteral("temp"), ResultFieldAssociation::Node)->stepData[0][3] == 4.5f);
+			CHECK(a.dataset->findField(QStringLiteral("cellval"), ResultFieldAssociation::Cell)->stepData[0][0] == 7.0f);
+			CHECK(a.dataset->cellCount() == 1 && a.dataset->nodeCount() == 4);
+			CHECK(extract(*a.dataset).triangleCount() == 4);
+		}
+
+		// Windows line endings.
+		QByteArray crlf = kTetAscii;
+		crlf.replace("\n", "\r\n");
+		ResultReadOutcome c = readLegacy(crlf);
+		CHECK(c.ok());
+		if (c.ok())
+			CHECK(c.dataset->nodePositions == a.dataset->nodePositions);
+
+		// The same mesh as a big-endian BINARY file.
+		QByteArray bin = "# vtk DataFile Version 3.0\nsingle tet\nBINARY\nDATASET UNSTRUCTURED_GRID\nPOINTS 4 float\n";
+		bin += beBytes(std::vector<float>{ 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 });
+		bin += "\nCELLS 1 5\n";
+		bin += beBytes(std::vector<std::int32_t>{ 4, 0, 1, 2, 3 });
+		bin += "\nCELL_TYPES 1\n";
+		bin += beBytes(std::vector<std::int32_t>{ 10 });
+		bin += "\nPOINT_DATA 4\nSCALARS temp float 1\nLOOKUP_TABLE default\n";
+		bin += beBytes(std::vector<float>{ 1.5f, 2.5f, 3.5f, 4.5f });
+		bin += "\nVECTORS disp double\n";
+		bin += beBytes(std::vector<double>{ 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 });
+		bin += "\n";
+		ResultReadOutcome b = readLegacy(bin);
+		if (!b.ok())
+			std::fprintf(stderr, "  legacy binary failed: %s\n", qPrintable(b.error));
+		CHECK(b.ok());
+		if (b.ok() && a.ok())
+		{
+			CHECK(b.dataset->nodePositions == a.dataset->nodePositions);
+			CHECK(b.dataset->cellConnectivity == a.dataset->cellConnectivity);
+			CHECK(b.dataset->findField(QStringLiteral("temp"), ResultFieldAssociation::Node)->stepData[0]
+			      == a.dataset->findField(QStringLiteral("temp"), ResultFieldAssociation::Node)->stepData[0]);
+			CHECK(b.dataset->findField(QStringLiteral("disp"), ResultFieldAssociation::Node)->stepData[0]
+			      == a.dataset->findField(QStringLiteral("disp"), ResultFieldAssociation::Node)->stepData[0]);
+		}
+
+		// Truncated binary data must fail cleanly.
+		CHECK(!readLegacy(bin.left(bin.indexOf("CELLS") + 20)).ok());
+	}
+
+	void testLegacyNewCellLayoutAndFieldData()
+	{
+		// VTK 5.x layout: OFFSETS / CONNECTIVITY, plus dataset-level and cell-level FIELD arrays.
+		const QByteArray v5 =
+			"# vtk DataFile Version 5.1\ntwo tets\nASCII\nDATASET UNSTRUCTURED_GRID\n"
+			"FIELD FieldData 1\nTIME 1 1 double\n2.5\n"
+			"POINTS 5 double\n0 0 0  1 0 0  0 1 0  0 0 1  1 1 1\n"
+			"CELLS 3 8\nOFFSETS vtktypeint64\n0 4 8\nCONNECTIVITY vtktypeint64\n0 1 2 3  1 2 3 4\n"
+			"CELL_TYPES 2\n10\n10\n"
+			"CELL_DATA 2\nFIELD attributes 2\nstress 1 2 float\n10 20\nignored 1 9 float\n1 2 3 4 5 6 7 8 9\n";
+		ResultReadOutcome r = readLegacy(v5);
+		if (!r.ok())
+			std::fprintf(stderr, "  legacy 5.x failed: %s\n", qPrintable(r.error));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		CHECK(r.dataset->cellCount() == 2 && r.dataset->nodeCount() == 5);
+		CHECK(r.dataset->steps.front().time == 2.5);
+		const ResultField* s = r.dataset->findField(QStringLiteral("stress"), ResultFieldAssociation::Cell);
+		CHECK(s && s->tupleCount(0) == 2);
+		CHECK(r.dataset->findField(QStringLiteral("ignored"), ResultFieldAssociation::Cell) == nullptr);
+		CHECK(!r.warnings.isEmpty()); // the 9-tuple metadata array
+		CHECK(extract(*r.dataset).triangleCount() == 6);
+	}
+
+	void testLegacyPolyData()
+	{
+		const QByteArray poly =
+			"# vtk DataFile Version 3.0\npoly\nASCII\nDATASET POLYDATA\n"
+			"POINTS 5 float\n0 0 0  1 0 0  1 1 0  0 1 0  0.5 1.5 0\n"
+			"LINES 2 7\n2 0 1  3 1 2 3\n"
+			"POLYGONS 3 15\n3 0 1 2  4 0 1 2 3  5 0 1 2 3 4\n"
+			"CELL_DATA 5\nSCALARS id int\nLOOKUP_TABLE default\n0 1 2 3 4\n";
+		ResultReadOutcome r = readLegacy(poly);
+		if (!r.ok())
+			std::fprintf(stderr, "  legacy polydata failed: %s\n", qPrintable(r.error));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		CHECK(ds.cellCount() == 5);
+		// VTK cell order for polydata: vertices, lines, polygons, strips.
+		CHECK(ds.cellTypes[0] == ResultCellType::Line);
+		CHECK(ds.cellTypes[1] == ResultCellType::Unsupported); // 3-point polyline
+		CHECK(ds.cellTypes[2] == ResultCellType::Triangle);
+		CHECK(ds.cellTypes[3] == ResultCellType::Quad);
+		CHECK(ds.cellTypes[4] == ResultCellType::Unsupported); // pentagon
+		CHECK(!r.warnings.isEmpty());
+		const ResultBoundarySurface s = extract(ds);
+		CHECK(s.triangleCount() == 3 + 12); // the triangle, the quad as 2, and the 2-point line as a tube of 12 triangles
+		CHECK(s.skippedCells == 2);         // the polyline and the pentagon
+	}
+
+	void testLegacyStructured()
+	{
+		// STRUCTURED_POINTS 3x3x3 -> 8 hexes; boundary = 6 faces x 4 quads = 48 triangles on 26 vertices.
+		QByteArray sp = "# vtk DataFile Version 2.0\nvol\nASCII\nDATASET STRUCTURED_POINTS\nDIMENSIONS 3 3 3\n"
+		                "ORIGIN 1 2 3\nSPACING 0.5 0.5 0.5\nPOINT_DATA 27\nSCALARS s float\nLOOKUP_TABLE default\n";
+		for (int i = 0; i < 27; ++i)
+			sp += QByteArray::number(i) + '\n';
+		ResultReadOutcome r = readLegacy(sp);
+		if (!r.ok())
+			std::fprintf(stderr, "  legacy structured points failed: %s\n", qPrintable(r.error));
+		CHECK(r.ok());
+		if (r.ok())
+		{
+			CHECK(r.dataset->nodeCount() == 27 && r.dataset->cellCount() == 8);
+			CHECK(r.dataset->nodePositions[0] == 1.0f && r.dataset->nodePositions[2] == 3.0f);
+			CHECK(r.dataset->nodePositions[3] == 1.5f); // second node is one spacing along x
+			const ResultBoundarySurface s = extract(*r.dataset);
+			CHECK(s.triangleCount() == 48);
+			CHECK(s.vertexCount() == 26);
+			CHECK(trianglesFaceOutward(*r.dataset, s));
+		}
+
+		// STRUCTURED_GRID 2x2x2 -> one hexahedron.
+		const QByteArray sg = "# vtk DataFile Version 3.0\ng\nASCII\nDATASET STRUCTURED_GRID\nDIMENSIONS 2 2 2\nPOINTS 8 float\n"
+		                      "0 0 0 1 0 0 0 1 0 1 1 0 0 0 1 1 0 1 0 1 1 1 1 1\n";
+		ResultReadOutcome g = readLegacy(sg);
+		CHECK(g.ok());
+		if (g.ok())
+		{
+			CHECK(g.dataset->cellCount() == 1 && g.dataset->cellTypes[0] == ResultCellType::Hexahedron);
+			CHECK(extract(*g.dataset).triangleCount() == 12);
+		}
+
+		// RECTILINEAR_GRID 3x2x1 -> a plane of 2 quads.
+		const QByteArray rg = "# vtk DataFile Version 3.0\nr\nASCII\nDATASET RECTILINEAR_GRID\nDIMENSIONS 3 2 1\n"
+		                      "X_COORDINATES 3 float\n0 1 3\nY_COORDINATES 2 float\n0 2\nZ_COORDINATES 1 float\n5\n";
+		ResultReadOutcome rr = readLegacy(rg);
+		CHECK(rr.ok());
+		if (rr.ok())
+		{
+			CHECK(rr.dataset->nodeCount() == 6 && rr.dataset->cellCount() == 2);
+			CHECK(rr.dataset->cellTypes[0] == ResultCellType::Quad);
+			CHECK(extract(*rr.dataset).triangleCount() == 4);
+		}
+	}
+
+	void testLegacyErrors()
+	{
+		// Attribute-only file (like VTKData's blowAttr.vtk).
+		ResultReadOutcome noDataset = readLegacy("# vtk DataFile Version 1.0\nattrs\nASCII\n\nFIELD time0 1\nt 1 2 float\n1 2\n");
+		CHECK(!noDataset.ok());
+		CHECK(noDataset.error.contains(QStringLiteral("DATASET")));
+
+		CHECK(!readLegacy("not a vtk file at all").ok());
+		CHECK(!readLegacy("# vtk DataFile Version 3.0\nx\nASCII\nDATASET FOO\n").ok());
+
+		// CELLS/CELL_TYPES disagree.
+		ResultReadOutcome mismatch = readLegacy(
+			"# vtk DataFile Version 3.0\nx\nASCII\nDATASET UNSTRUCTURED_GRID\nPOINTS 4 float\n0 0 0 1 0 0 0 1 0 0 0 1\n"
+			"CELLS 1 5\n4 0 1 2 3\nCELL_TYPES 2\n10 10\n");
+		CHECK(!mismatch.ok());
+
+		// A node index past the point count is caught by validation.
+		ResultReadOutcome badIndex = readLegacy(
+			"# vtk DataFile Version 3.0\nx\nASCII\nDATASET UNSTRUCTURED_GRID\nPOINTS 4 float\n0 0 0 1 0 0 0 1 0 0 0 1\n"
+			"CELLS 1 5\n4 0 1 2 9\nCELL_TYPES 1\n10\n");
+		CHECK(!badIndex.ok());
+		CHECK(badIndex.error.contains(QStringLiteral("references node")));
+
+		// A field whose tuple count does not match is dropped with a warning, not fatal.
+		ResultReadOutcome badField = readLegacy(
+			"# vtk DataFile Version 3.0\nx\nASCII\nDATASET UNSTRUCTURED_GRID\nPOINTS 4 float\n0 0 0 1 0 0 0 1 0 0 0 1\n"
+			"CELLS 1 5\n4 0 1 2 3\nCELL_TYPES 1\n10\nPOINT_DATA 3\nSCALARS s float\nLOOKUP_TABLE default\n1 2 3\n");
+		CHECK(badField.ok());
+		if (badField.ok())
+		{
+			CHECK(badField.dataset->fields.empty());
+			CHECK(!badField.warnings.isEmpty());
+		}
+	}
+
+	// ---- Simulation result display logic --------------------------------------------------------------
+
+	void testSimulationDisplay()
+	{
+		// Fields (in order): aaa (scalar), von Mises Stress (scalar, name percent-encoded in the legacy file),
+		// disp (vector). The default must prefer the von Mises field over the first scalar.
+		const QByteArray fixture =
+			"# vtk DataFile Version 3.0\nt\nASCII\nDATASET UNSTRUCTURED_GRID\nPOINTS 4 float\n0 0 0 1 0 0 0 1 0 0 0 1\n"
+			"CELLS 1 5\n4 0 1 2 3\nCELL_TYPES 1\n10\nPOINT_DATA 4\n"
+			"SCALARS aaa float\nLOOKUP_TABLE default\n1 2 3 4\n"
+			"SCALARS von%20Mises%20Stress float\nLOOKUP_TABLE default\n10 20 30 40\n"
+			"VECTORS disp float\n0 0 0  3 4 0  0 0 0  0 0 12\n";
+		ResultReadOutcome r = readLegacy(fixture);
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		CHECK(ds.fields.size() == 3);
+		CHECK(ds.fields[1].name == QStringLiteral("von Mises Stress"));
+
+		DisplayScalar def;
+		CHECK(chooseDefaultDisplayScalar(ds, def));
+		CHECK(def.fieldIndex == 1);
+		CHECK(def.label == QStringLiteral("von Mises Stress"));
+		CHECK(def.minValue == 10.0f && def.maxValue == 40.0f);
+
+		// Vector magnitude and single components.
+		DisplayScalar mag;
+		CHECK(buildDisplayScalar(ds, 2, -1, mag));
+		CHECK(mag.nodeValues.size() == 4);
+		CHECK(std::fabs(mag.nodeValues[1] - 5.0f) < 1e-6f && std::fabs(mag.nodeValues[3] - 12.0f) < 1e-6f);
+		CHECK(mag.minValue == 0.0f && mag.maxValue == 12.0f);
+		CHECK(mag.label.contains(QStringLiteral("magnitude")));
+		DisplayScalar comp;
+		CHECK(buildDisplayScalar(ds, 2, 1, comp));
+		CHECK(comp.nodeValues[1] == 4.0f && comp.nodeValues[3] == 0.0f);
+		CHECK(!buildDisplayScalar(ds, 2, 5, comp)); // no such component
+		CHECK(!buildDisplayScalar(ds, 7, -1, comp)); // no such field
+
+		// With only a vector field, the default falls back to its magnitude.
+		const QByteArray vectorOnly =
+			"# vtk DataFile Version 3.0\nt\nASCII\nDATASET UNSTRUCTURED_GRID\nPOINTS 4 float\n0 0 0 1 0 0 0 1 0 0 0 1\n"
+			"CELLS 1 5\n4 0 1 2 3\nCELL_TYPES 1\n10\nPOINT_DATA 4\nVECTORS disp float\n0 0 0  3 4 0  0 0 0  0 0 12\n";
+		ResultReadOutcome rv = readLegacy(vectorOnly);
+		CHECK(rv.ok());
+		if (rv.ok())
+		{
+			DisplayScalar d;
+			CHECK(chooseDefaultDisplayScalar(*rv.dataset, d));
+			CHECK(d.label.contains(QStringLiteral("magnitude")));
+		}
+
+		// No node field at all: nothing to colour by (the geometry is still displayable).
+		Mesh bare = singleTet();
+		bare.pointScalar.clear();
+		ResultReadOutcome rb = readBytes(buildVtu(bare, Enc::Ascii));
+		CHECK(rb.ok());
+		if (rb.ok())
+		{
+			// only a CELL vector field exists: it is the default, shown as its magnitude
+			DisplayScalar d;
+			CHECK(chooseDefaultDisplayScalar(*rb.dataset, d) && d.cellData && d.component == -1);
+		}
+
+		// Non-finite values are excluded from the range; an all-non-finite field is rejected.
+		const QByteArray withNan =
+			"# vtk DataFile Version 3.0\nt\nASCII\nDATASET UNSTRUCTURED_GRID\nPOINTS 4 float\n0 0 0 1 0 0 0 1 0 0 0 1\n"
+			"CELLS 1 5\n4 0 1 2 3\nCELL_TYPES 1\n10\nPOINT_DATA 4\nSCALARS s float\nLOOKUP_TABLE default\n2 nan 5 3\n"
+			"SCALARS allnan float\nLOOKUP_TABLE default\nnan nan nan nan\n";
+		ResultReadOutcome rn = readLegacy(withNan);
+		CHECK(rn.ok());
+		if (rn.ok())
+		{
+			DisplayScalar d;
+			CHECK(buildDisplayScalar(*rn.dataset, 0, -1, d));
+			CHECK(d.minValue == 2.0f && d.maxValue == 5.0f);
+			CHECK(!buildDisplayScalar(*rn.dataset, 1, -1, d));
+		}
+
+		// Per-vertex values follow the boundary's vertex -> node map.
+		const ResultBoundarySurface s = extract(ds);
+		const std::vector<float> perVertex = boundaryVertexValues(s, def.nodeValues);
+		CHECK(perVertex.size() == s.vertexCount());
+		for (std::size_t v = 0; v < s.vertexCount(); ++v)
+			CHECK(perVertex[v] == def.nodeValues[s.vertexNode[v]]);
+
+		// Smooth normals: unit length and pointing away from the tetrahedron's centroid.
+		const std::vector<float> n = computeSmoothVertexNormals(s);
+		CHECK(n.size() == s.vertexCount() * 3);
+		for (std::size_t v = 0; v < s.vertexCount(); ++v)
+		{
+			const float* nv = &n[v * 3];
+			CHECK(std::fabs(std::sqrt(nv[0] * nv[0] + nv[1] * nv[1] + nv[2] * nv[2]) - 1.0f) < 1e-5f);
+			const float* p = &s.positions[v * 3];
+			const float dot = nv[0] * (p[0] - 0.25f) + nv[1] * (p[1] - 0.25f) + nv[2] * (p[2] - 0.25f);
+			CHECK(dot > 0.0f);
+		}
+	}
+
+	void testViewState()
+	{
+		// resolveViewRange: automatic uses the data range, custom uses the state's, degenerate ranges are widened.
+		DisplayScalar s;
+		s.minValue = 2.0f;
+		s.maxValue = 8.0f;
+		SimulationViewState st;
+		float lo = 0, hi = 0;
+		CHECK(resolveViewRange(s, st, lo, hi));
+		CHECK(lo == 2.0f && hi == 8.0f);
+
+		st.customRange = true;
+		st.rangeMin = -5.0;
+		st.rangeMax = 10.0;
+		CHECK(resolveViewRange(s, st, lo, hi));
+		CHECK(lo == -5.0f && hi == 10.0f);
+
+		st.rangeMax = st.rangeMin; // min == max
+		CHECK(resolveViewRange(s, st, lo, hi));
+		CHECK(hi > lo);
+		st.rangeMax = -20.0;       // min > max
+		CHECK(resolveViewRange(s, st, lo, hi));
+		CHECK(hi > lo);
+		st.rangeMin = std::nan("");
+		CHECK(!resolveViewRange(s, st, lo, hi));
+
+		s.minValue = s.maxValue = 5.0f; // a constant field, automatic range
+		SimulationViewState autoState;
+		CHECK(resolveViewRange(s, autoState, lo, hi));
+		CHECK(hi > lo);
+
+		// Band count: smooth (0/1) is a fine 256 levels, otherwise the chosen count.
+		SimulationViewState b;
+		CHECK(simulationShaderBands(b) == kSimulationSmoothBands);
+		b.bands = 1;
+		CHECK(simulationShaderBands(b) == kSimulationSmoothBands);
+		b.bands = 12;
+		CHECK(simulationShaderBands(b) == 12);
+
+		// defaultViewState: the von Mises scalar of a fixture, and "nothing to colour by" when there is no node field.
+		const QByteArray fixture =
+			"# vtk DataFile Version 3.0\nt\nASCII\nDATASET UNSTRUCTURED_GRID\nPOINTS 4 float\n0 0 0 1 0 0 0 1 0 0 0 1\n"
+			"CELLS 1 5\n4 0 1 2 3\nCELL_TYPES 1\n10\nPOINT_DATA 4\n"
+			"SCALARS aaa float\nLOOKUP_TABLE default\n1 2 3 4\n"
+			"SCALARS von%20Mises%20Stress float\nLOOKUP_TABLE default\n10 20 30 40\n";
+		ResultReadOutcome r = readLegacy(fixture);
+		CHECK(r.ok());
+		if (r.ok())
+		{
+			DisplayScalar scalar;
+			const SimulationViewState d = defaultViewState(*r.dataset, &scalar);
+			CHECK(d.fieldIndex == 1);
+			CHECK(!d.customRange && d.colormap == 0 && d.bands == 0);
+			CHECK(scalar.valid() && scalar.minValue == 10.0f);
+		}
+		Mesh bare = singleTet();
+		bare.pointScalar.clear();
+		ResultReadOutcome rb = readBytes(buildVtu(bare, Enc::Ascii));
+		CHECK(rb.ok());
+		if (rb.ok())
+		{
+			DisplayScalar scalar;
+			CHECK(defaultViewState(*rb.dataset, &scalar).fieldIndex >= 0); // the cell vector field
+			CHECK(scalar.valid() && scalar.cellData);
+		}
+	}
+
+	// ---- CalculiX .frd ---------------------------------------------------------------------------------------------
+
+	// Fixed-width record writers, as CalculiX writes them (E12.5 fields touch each other for negative numbers).
+	std::string frdNodeLine(long id, double x, double y, double z, int idWidth = 10)
+	{
+		char b[160];
+		std::snprintf(b, sizeof b, " -1%*ld%12.5E%12.5E%12.5E\n", idWidth, id, x, y, z);
+		return b;
+	}
+
+	std::string frdValueLines(long id, const std::vector<double>& v, int idWidth = 10)
+	{
+		std::string out;
+		char b[160];
+		std::snprintf(b, sizeof b, " -1%*ld", idWidth, id);
+		out += b;
+		for (std::size_t i = 0; i < v.size(); ++i)
+		{
+			if (i > 0 && i % 6 == 0)
+			{
+				out += "\n";
+				std::snprintf(b, sizeof b, " -2%*s", idWidth, "");
+				out += b;
+			}
+			std::snprintf(b, sizeof b, "%12.5E", v[i]);
+			out += b;
+		}
+		return out + "\n";
+	}
+
+	// nodes 10,20,30,40 (non-contiguous ids), one TE4 element, two result times; node 40 is left out of DISP.
+	std::string makeFrd(int format = 1, int typeCode = 3, long elementNode4 = 40)
+	{
+		const int w = format == 0 ? 5 : 10;
+		std::string f = "    1C\n    1UUSER\n";
+		f += "    2C                             4                                     " + std::to_string(format) + "\n";
+		f += frdNodeLine(10, 0, 0, 0, w) + frdNodeLine(20, 1, 0, 0, w) + frdNodeLine(30, 0, 1, 0, w) + frdNodeLine(40, 0, 0, 1, w);
+		f += " -3\n    3C                             1                                     " + std::to_string(format) + "\n";
+		char b[160];
+		std::snprintf(b, sizeof b, " -1%*ld%5d%5d%5d\n", w, 7L, typeCode, 0, 1);
+		f += b;
+		std::snprintf(b, sizeof b, " -2%*ld%*ld%*ld%*ld\n", w, 10L, w, 20L, w, 30L, w, elementNode4);
+		f += b;
+		f += " -3\n";
+		auto header = [&](const char* time) {
+			char h[200];
+			std::snprintf(h, sizeof h, "    1PSTEP                         1           1           1\n  100CL  101 %s           4                     0    1           %d\n", time, format);
+			return std::string(h);
+		};
+		// step 1: DISP (3 stored components + a calculated "ALL"), node 40 absent
+		f += header("1.000000000");
+		f += " -4  DISP        4    1\n -5  D1          1    2    1    0\n -5  D2          1    2    2    0\n -5  D3          1    2    3    0\n"
+		     " -5  ALL         1    2    0    0    1ALL\n";
+		f += frdValueLines(10, { 0, 0, 0 }, w) + frdValueLines(20, { -1.0e-3, 2.0e-3, 0.0 }, w) + frdValueLines(30, { 0, 0, 3.0e-3 }, w) + " -3\n";
+		// step 1: STRESS, six components in one line, all four nodes
+		f += header("1.000000000");
+		f += " -4  STRESS      6    1\n -5  SXX         1    4    1    1\n -5  SYY         1    4    2    2\n -5  SZZ         1    4    3    3\n"
+		     " -5  SXY         1    4    1    2\n -5  SYZ         1    4    2    3\n -5  SZX         1    4    3    1\n";
+		f += frdValueLines(10, { 100, 0, 0, 0, 0, 0 }, w)       // uniaxial: von Mises 100, principals 100/0/0
+		   + frdValueLines(20, { 0, 0, 0, 10, 0, 0 }, w)        // pure shear: principals 10/0/-10, von Mises sqrt(300)
+		   + frdValueLines(30, { -5, -5, -5, 0, 0, 0 }, w)      // hydrostatic: von Mises 0
+		   + frdValueLines(40, { 10, 20, 30, 4, 5, 6 }, w) + " -3\n";
+		// step 2 (later time): DISP only
+		f += header("2.000000000");
+		f += " -4  DISP        4    1\n -5  D1          1    2    1    0\n -5  D2          1    2    2    0\n -5  D3          1    2    3    0\n"
+		     " -5  ALL         1    2    0    0    1ALL\n";
+		f += frdValueLines(10, { 1, 1, 1 }, w) + frdValueLines(20, { 2, 2, 2 }, w) + " -3\n 9999\n";
+		return f;
+	}
+
+	bool approx(double a, double b, double relTol = 1e-4, double absTol = 1e-9)
+	{
+		return std::fabs(a - b) <= absTol + relTol * std::fabs(b);
+	}
+
+	void testDerivedStress()
+	{
+		double e1, e2, e3;
+		symmetricPrincipalValues(100, 0, 0, 0, 0, 0, e1, e2, e3);
+		CHECK(approx(e1, 100) && approx(e2, 0, 1e-4, 1e-9) && approx(e3, 0, 1e-4, 1e-9));
+		symmetricPrincipalValues(0, 0, 0, 10, 0, 0, e1, e2, e3); // pure shear
+		CHECK(approx(e1, 10) && approx(e2, 0, 1e-4, 1e-9) && approx(e3, -10));
+		symmetricPrincipalValues(10, 20, 30, 4, 5, 6, e1, e2, e3); // general: trace and ordering
+		CHECK(e1 >= e2 && e2 >= e3);
+		CHECK(approx(e1 + e2 + e3, 60.0));
+		// invariant: sum of pairwise products = xx*yy + yy*zz + zz*xx - xy^2 - yz^2 - zx^2
+		CHECK(approx(e1 * e2 + e2 * e3 + e3 * e1, 10 * 20 + 20 * 30 + 30 * 10 - 16 - 25 - 36));
+		CHECK(approx(vonMisesStress(100, 0, 0, 0, 0, 0), 100));
+		CHECK(approx(vonMisesStress(0, 0, 0, 10, 0, 0), std::sqrt(300.0)));
+		CHECK(approx(vonMisesStress(-5, -5, -5, 0, 0, 0), 0, 1e-4, 1e-9));
+		CHECK(approx(vonMisesStress(10, 20, 30, 4, 5, 6), std::sqrt(531.0)));
+	}
+
+	void testFrdSynthetic()
+	{
+		for (int format : { 1, 0 }) // long and short ASCII
+		{
+			ResultReadOutcome r = readBytes(QByteArray::fromStdString(makeFrd(format)), QStringLiteral("t.frd"));
+			if (!r.ok())
+				std::fprintf(stderr, "  frd format %d failed: %s\n", format, qPrintable(r.error));
+			CHECK(r.ok());
+			if (!r.ok())
+				continue;
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.nodeCount() == 4 && ds.cellCount() == 1);
+			CHECK(ds.nodeIds == (std::vector<std::int64_t>{ 10, 20, 30, 40 }));
+			CHECK(ds.cellIds == (std::vector<std::int64_t>{ 7 }));
+			CHECK(ds.cellTypes[0] == ResultCellType::Tetra);
+			CHECK(ds.nodePositions[3] == 1.0f && ds.nodePositions[7] == 1.0f && ds.nodePositions[11] == 1.0f); // ids 20, 30, 40
+			CHECK(ds.steps.size() == 2);
+			CHECK(ds.steps[0].time == 1.0 && ds.steps[1].time == 2.0);
+
+			const ResultField* disp = ds.findField(QStringLiteral("DISP"), ResultFieldAssociation::Node);
+			CHECK(disp && disp->components == 3); // the calculated "ALL" is not a stored component
+			if (disp)
+			{
+				CHECK(disp->componentNames.size() == 3 && disp->componentNames[0] == QStringLiteral("D1"));
+				CHECK(disp->stepData.size() == 2);
+				// glued negative numbers ("-1.00000E-03" fills its whole field) parse correctly
+				CHECK(approx(disp->stepData[0][1 * 3 + 0], -1.0e-3) && approx(disp->stepData[0][1 * 3 + 1], 2.0e-3));
+				CHECK(std::isnan(disp->stepData[0][3 * 3]));  // node 40 is absent from the step-1 DISP block
+				CHECK(disp->stepData[1].size() == 12 && disp->stepData[1][0] == 1.0f);
+			}
+			const ResultField* stress = ds.findField(QStringLiteral("STRESS"), ResultFieldAssociation::Node);
+			CHECK(stress && stress->components == 6 && stress->componentNames.size() == 6);
+			if (stress)
+			{
+				CHECK(stress->stepData.size() == 2 && stress->stepData[1].empty()); // no STRESS at step 2
+				CHECK(stress->componentNames[3] == QStringLiteral("SXY"));
+			}
+
+			// derived fields: node 10 uniaxial, node 20 pure shear, node 30 hydrostatic, node 40 general
+			const ResultField* vm = ds.findField(QStringLiteral("STRESS von Mises"), ResultFieldAssociation::Node);
+			const ResultField* p1 = ds.findField(QStringLiteral("STRESS max principal"), ResultFieldAssociation::Node);
+			const ResultField* p3 = ds.findField(QStringLiteral("STRESS min principal"), ResultFieldAssociation::Node);
+			const ResultField* sh = ds.findField(QStringLiteral("STRESS max shear"), ResultFieldAssociation::Node);
+			CHECK(vm && p1 && p3 && sh && ds.findField(QStringLiteral("STRESS mid principal"), ResultFieldAssociation::Node));
+			if (vm && p1 && p3 && sh)
+			{
+				CHECK(approx(vm->stepData[0][0], 100) && approx(vm->stepData[0][1], std::sqrt(300.0))
+				      && approx(vm->stepData[0][2], 0, 1e-4, 1e-4) && approx(vm->stepData[0][3], std::sqrt(531.0)));
+				CHECK(approx(p1->stepData[0][0], 100) && approx(p1->stepData[0][1], 10));
+				CHECK(approx(p3->stepData[0][1], -10));
+				CHECK(approx(sh->stepData[0][1], 10) && approx(sh->stepData[0][0], 50));
+				CHECK(vm->stepData[1].empty());
+			}
+
+			const ResultBoundarySurface surface = extract(ds);
+			CHECK(surface.triangleCount() == 4);
+
+			// the default field is the derived von Mises
+			DisplayScalar scalar;
+			CHECK(chooseDefaultDisplayScalar(ds, scalar));
+			CHECK(scalar.label == QStringLiteral("STRESS von Mises"));
+		}
+	}
+
+	void testFrdErrors()
+	{
+		ResultReadOutcome rb = readBytes(QByteArray::fromStdString(makeFrd(2)), QStringLiteral("t.frd")); // format flag 2 = binary
+		CHECK(!rb.ok());
+		CHECK(rb.error.contains(QStringLiteral("Binary")));
+
+		CHECK(!readBytes(QByteArray::fromStdString(makeFrd(1, 99)), QStringLiteral("t.frd")).ok());       // unknown element type
+		CHECK(!readBytes(QByteArray::fromStdString(makeFrd(1, 3, 99)), QStringLiteral("t.frd")).ok());    // unknown node in an element
+		CHECK(!readBytes(QByteArray("    1C\n    1UUSER\n 9999\n"), QStringLiteral("t.frd")).ok());      // no node block
+		CHECK(!readBytes(QByteArray(""), QStringLiteral("t.frd")).ok());
+	}
+
+	// Real CalculiX files shipped in sample-models/Simulation, checked against the values FreeCAD's own test suite
+	// expects for box_static (FreeCAD: Mod/Fem/femtest/data/calculix/box_static_expected_values, MPa / mm).
+	struct Range { double lo, hi; };
+
+	bool rangeOf(const ResultDataset& ds, const char* field, int component, Range& out)
+	{
+		for (std::size_t i = 0; i < ds.fields.size(); ++i)
+			if (ds.fields[i].name == QLatin1String(field))
+			{
+				DisplayScalar scalar;
+				if (!buildDisplayScalar(ds, static_cast<int>(i), component, scalar))
+					return false;
+				out = { scalar.minValue, scalar.maxValue };
+				return true;
+			}
+		return false;
+	}
+
+	void checkRange(const ResultDataset& ds, const char* field, int component, double lo, double hi)
+	{
+		Range r{};
+		const bool found = rangeOf(ds, field, component, r);
+		if (!found)
+			std::fprintf(stderr, "  field %s (component %d) not found\n", field, component);
+		CHECK(found);
+		if (found)
+		{
+			if (!approx(r.lo, lo, 5e-4, 1e-6) || !approx(r.hi, hi, 5e-4, 1e-6))
+				std::fprintf(stderr, "  %s[%d]: got %g..%g, expected %g..%g\n", field, component, r.lo, r.hi, lo, hi);
+			CHECK(approx(r.lo, lo, 5e-4, 1e-6));
+			CHECK(approx(r.hi, hi, 5e-4, 1e-6));
+		}
+	}
+
+	void testFrdRealFiles()
+	{
+		const QString dir = QStringLiteral(MV_SIMULATION_SAMPLES_DIR);
+		const QString staticPath = dir + QStringLiteral("/FEM_box_static.frd");
+		if (!QFile::exists(staticPath))
+		{
+			std::printf("  (skipping real .frd tests: %s not found)\n", qPrintable(staticPath));
+			return;
+		}
+
+		ResultReadOutcome r = readResultFile(staticPath);
+		if (!r.ok())
+			std::fprintf(stderr, "  FEM_box_static.frd failed: %s\n", qPrintable(r.error));
+		CHECK(r.ok());
+		if (r.ok())
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.nodeCount() == 280 && ds.cellCount() == 129);
+			CHECK(ds.cellTypes[0] == ResultCellType::Tetra10);
+			CHECK(ds.steps.size() == 1);
+			CHECK(ds.findField(QStringLiteral("DISP"), ResultFieldAssociation::Node) != nullptr);
+			CHECK(ds.findField(QStringLiteral("STRESS"), ResultFieldAssociation::Node) != nullptr);
+			CHECK(ds.findField(QStringLiteral("TOSTRAIN"), ResultFieldAssociation::Node) != nullptr);
+			CHECK(extract(ds).triangleCount() == 96);
+
+			// FreeCAD's expected values for this exact file
+			checkRange(ds, "DISP", 0, -0.0680669, 0.00296745);   // U1
+			checkRange(ds, "DISP", 1, -0.0109484, 0.0110702);    // U2
+			checkRange(ds, "DISP", 2, -0.0643181, 0.0);          // U3
+			checkRange(ds, "DISP", -1, 0.0, 0.093738346);        // Uabs
+			checkRange(ds, "STRESS von Mises", -1, 385.3799018170, 2203.5090958167);
+			checkRange(ds, "STRESS max principal", -1, -924.0494419697, 1169.5484598644);
+			checkRange(ds, "STRESS mid principal", -1, -1260.1000473504, 346.8740040676);
+			checkRange(ds, "STRESS min principal", -1, -3276.2805106799, 3.2401143113);
+			checkRange(ds, "STRESS max shear", -1, 218.1005303160, 1176.1155343551);
+
+			DisplayScalar scalar;
+			CHECK(chooseDefaultDisplayScalar(ds, scalar) && scalar.label == QStringLiteral("STRESS von Mises"));
+		}
+
+		// Modal file: one mode; the "time" is the frequency in Hz and the step is labelled with the mode number.
+		ResultReadOutcome m = readResultFile(dir + QStringLiteral("/FEM_box_frequency.frd"));
+		CHECK(m.ok());
+		if (m.ok())
+		{
+			CHECK(m.dataset->nodeCount() == 280 && m.dataset->cellCount() == 129);
+			CHECK(m.dataset->steps.size() == 1);
+			CHECK(approx(m.dataset->steps[0].time, 1.93865e-2));
+			CHECK(m.dataset->steps[0].label == QStringLiteral("Mode 1"));
+			CHECK(m.dataset->findField(QStringLiteral("DISP"), ResultFieldAssociation::Node) != nullptr);
+		}
+
+		// beampl: 20-node hexahedra, and no element/node counts on the block header lines.
+		ResultReadOutcome b = readResultFile(dir + QStringLiteral("/beampl.frd"));
+		if (!b.ok())
+			std::fprintf(stderr, "  beampl.frd failed: %s\n", qPrintable(b.error));
+		CHECK(b.ok());
+		if (b.ok())
+		{
+			CHECK(b.dataset->nodeCount() == 261 && b.dataset->cellCount() == 32);
+			CHECK(b.dataset->cellTypes[0] == ResultCellType::Hexahedron20);
+			CHECK(b.dataset->findField(QStringLiteral("STRESS von Mises"), ResultFieldAssociation::Node) != nullptr);
+			CHECK(extract(*b.dataset).triangleCount() > 0);
+		}
+	}
+
+	// ---- Units -----------------------------------------------------------------------------------------------------
+
+	QString u16(const char16_t* text) { return QString::fromUtf16(text); }
+
+	int fieldIndexOf(const ResultDataset& ds, const QString& name)
+	{
+		for (std::size_t i = 0; i < ds.fields.size(); ++i)
+			if (ds.fields[i].name == name)
+				return static_cast<int>(i);
+		return -1;
+	}
+
+	void testUnitConversions()
+	{
+		auto conv = [](const char* kind, const QString& from, const QString& to) {
+			return unitConversion(QString::fromLatin1(kind), from, to);
+		};
+		CHECK(approx(conv("length", u16(u"mm"), u16(u"m")).apply(1500.0), 1.5));
+		CHECK(approx(conv("length", u16(u"m"), u16(u"mm")).apply(1.5), 1500.0));
+		CHECK(approx(conv("length", u16(u"cm"), u16(u"in")).apply(2.54), 1.0));
+		CHECK(approx(conv("pressure", u16(u"MPa"), u16(u"Pa")).apply(2.5), 2.5e6));
+		CHECK(approx(conv("pressure", u16(u"MPa"), u16(u"psi")).apply(1.0), 145.0377377, 1e-6));
+		CHECK(approx(conv("pressure", u16(u"psi"), u16(u"kPa")).apply(1.0), 6.894757293, 1e-6));
+		CHECK(approx(conv("density", u16(u"t/mm\u00B3"), u16(u"kg/m\u00B3")).apply(7.85e-9), 7850.0));
+
+		// temperatures are affine, not just scaled
+		const QString K = u16(u"K"), C = u16(u"\u00B0C"), F = u16(u"\u00B0F");
+		CHECK(approx(conv("temperature", C, K).apply(0.0), 273.15));
+		CHECK(approx(conv("temperature", C, F).apply(100.0), 212.0));
+		CHECK(approx(conv("temperature", K, C).apply(300.0), 26.85));
+		CHECK(approx(conv("temperature", F, C).apply(32.0), 0.0, 1e-4, 1e-9));
+		const UnitConversion there = conv("temperature", F, K), back = conv("temperature", K, F);
+		CHECK(approx(back.apply(there.apply(98.6)), 98.6));
+
+		CHECK(conv("length", u16(u"mm"), u16(u"mm")).isIdentity());
+		CHECK(!conv("nonsense", u16(u"mm"), u16(u"m")).valid);
+		CHECK(!conv("length", u16(u"furlong"), u16(u"m")).valid);
+		CHECK(!conv("length", QString(), u16(u"m")).valid);
+		CHECK(findQuantityKind(QStringLiteral("pressure")) != nullptr && findQuantityKind(QString()) == nullptr);
+		CHECK(unitSymbols(QStringLiteral("length")).contains(u16(u"mm")) && unitSymbols(QStringLiteral("nope")).isEmpty());
+	}
+
+	void testUnitGuessing()
+	{
+		CHECK(guessQuantityKind(QStringLiteral("Displacement Magnitude")) == QStringLiteral("length"));
+		CHECK(guessQuantityKind(QStringLiteral("DISP")) == QStringLiteral("length"));
+		CHECK(guessQuantityKind(QStringLiteral("STRESS von Mises")) == QStringLiteral("pressure"));
+		CHECK(guessQuantityKind(QStringLiteral("Major Principal Stress")) == QStringLiteral("pressure"));
+		CHECK(guessQuantityKind(QStringLiteral("Pressure")) == QStringLiteral("pressure"));
+		CHECK(guessQuantityKind(QStringLiteral("TOSTRAIN")) == QStringLiteral("strain"));
+		CHECK(guessQuantityKind(QStringLiteral("Temperature")) == QStringLiteral("temperature"));
+		CHECK(guessQuantityKind(QStringLiteral("scalars")).isEmpty());
+		CHECK(guessQuantityKind(QStringLiteral("mode1")).isEmpty());
+
+		// CalculiX result: the mm-N-MPa system, labelled as an unconfirmed guess; numbers untouched
+		ResultReadOutcome r = readBytes(QByteArray::fromStdString(makeFrd()), QStringLiteral("t.frd"));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		ResultDataset& ds = *r.dataset;
+		const int disp = fieldIndexOf(ds, QStringLiteral("DISP")), stress = fieldIndexOf(ds, QStringLiteral("STRESS"));
+		const int vm = fieldIndexOf(ds, QStringLiteral("STRESS von Mises"));
+		CHECK(disp >= 0 && stress >= 0 && vm >= 0);
+		const float rawDisp = ds.fields[static_cast<std::size_t>(disp)].stepData[0][3]; // node 20 D1 = -1e-3
+		assignGuessedUnits(ds);
+		CHECK(ds.fields[static_cast<std::size_t>(disp)].quantityKind == QStringLiteral("length"));
+		CHECK(ds.fields[static_cast<std::size_t>(disp)].fileUnit == u16(u"mm"));
+		CHECK(ds.fields[static_cast<std::size_t>(stress)].fileUnit == u16(u"MPa"));
+		CHECK(ds.fields[static_cast<std::size_t>(vm)].fileUnit == u16(u"MPa"));
+		CHECK(!ds.fields[static_cast<std::size_t>(disp)].unitConfirmed);
+		CHECK(ds.fields[static_cast<std::size_t>(disp)].displayUnit == ds.fields[static_cast<std::size_t>(disp)].fileUnit);
+		CHECK(ds.fields[static_cast<std::size_t>(disp)].stepData[0][3] == rawDisp); // a guess labels, never converts
+		DisplayScalar d;
+		CHECK(buildDisplayScalar(ds, disp, 0, d) && d.unit == u16(u"mm") && d.unitAssumed);
+
+		// a VTK result is guessed as SI; a temperature is never guessed
+		const QByteArray vtk =
+			"# vtk DataFile Version 3.0\nt\nASCII\nDATASET UNSTRUCTURED_GRID\nPOINTS 4 float\n0 0 0 1 0 0 0 1 0 0 0 1\n"
+			"CELLS 1 5\n4 0 1 2 3\nCELL_TYPES 1\n10\nPOINT_DATA 4\n"
+			"SCALARS von%20Mises%20Stress float\nLOOKUP_TABLE default\n1 2 3 4\n"
+			"SCALARS Temperature float\nLOOKUP_TABLE default\n20 21 22 23\n";
+		ResultReadOutcome rv = readLegacy(vtk);
+		CHECK(rv.ok());
+		if (rv.ok())
+		{
+			assignGuessedUnits(*rv.dataset);
+			CHECK(rv.dataset->fields[0].fileUnit == u16(u"Pa"));
+			CHECK(rv.dataset->fields[1].quantityKind == QStringLiteral("temperature") && rv.dataset->fields[1].fileUnit.isEmpty());
+		}
+	}
+
+	void testSetFieldUnits()
+	{
+		ResultReadOutcome r = readBytes(QByteArray::fromStdString(makeFrd()), QStringLiteral("t.frd"));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		ResultDataset& ds = *r.dataset;
+		assignGuessedUnits(ds);
+		const int stress = fieldIndexOf(ds, QStringLiteral("STRESS"));
+		const int vm = fieldIndexOf(ds, QStringLiteral("STRESS von Mises"));
+
+		// editing the SOURCE field updates its derived fields; editing a derived field updates the source
+		CHECK(setFieldUnits(ds, stress, QStringLiteral("pressure"), u16(u"MPa"), u16(u"Pa")));
+		for (const char* name : { "STRESS", "STRESS von Mises", "STRESS max principal", "STRESS max shear" })
+		{
+			const int i = fieldIndexOf(ds, QString::fromLatin1(name));
+			CHECK(i >= 0 && ds.fields[static_cast<std::size_t>(i)].displayUnit == u16(u"Pa") && ds.fields[static_cast<std::size_t>(i)].unitConfirmed);
+		}
+		DisplayScalar d;
+		CHECK(buildDisplayScalar(ds, vm, -1, d));
+		CHECK(d.unit == u16(u"Pa") && !d.unitAssumed);
+		CHECK(approx(d.nodeValues[0], 100.0e6, 1e-6)); // node 10 uniaxial 100 MPa -> 1e8 Pa
+		CHECK(approx(d.maxValue, 100.0e6, 1e-6)); // node 10 (uniaxial 100 MPa) is the largest von Mises
+
+		CHECK(setFieldUnits(ds, vm, QStringLiteral("pressure"), u16(u"MPa"), u16(u"MPa"))); // via the derived field
+		CHECK(ds.fields[static_cast<std::size_t>(stress)].displayUnit == u16(u"MPa"));
+		CHECK(buildDisplayScalar(ds, vm, -1, d) && approx(d.nodeValues[0], 100.0));
+
+		// invalid requests change nothing
+		const QString before = ds.fields[static_cast<std::size_t>(stress)].fileUnit;
+		CHECK(!setFieldUnits(ds, stress, QStringLiteral("pressure"), u16(u"furlong"), QString()));
+		CHECK(!setFieldUnits(ds, stress, QStringLiteral("nonsense"), u16(u"Pa"), QString()));
+		CHECK(!setFieldUnits(ds, 999, QStringLiteral("pressure"), u16(u"Pa"), QString()));
+		CHECK(ds.fields[static_cast<std::size_t>(stress)].fileUnit == before);
+
+		// a known quantity with no unit yet: kept, but nothing is converted or labelled
+		CHECK(setFieldUnits(ds, stress, QStringLiteral("pressure"), QString(), QString()));
+		CHECK(ds.fields[static_cast<std::size_t>(vm)].quantityKind == QStringLiteral("pressure")
+		      && ds.fields[static_cast<std::size_t>(vm)].fileUnit.isEmpty());
+		CHECK(buildDisplayScalar(ds, vm, -1, d) && d.unit.isEmpty() && approx(d.nodeValues[0], 100.0));
+
+		// "not specified" clears the units (numbers are shown as written)
+		CHECK(setFieldUnits(ds, stress, QString(), QString(), QString()));
+		CHECK(buildDisplayScalar(ds, vm, -1, d) && d.unit.isEmpty() && approx(d.nodeValues[0], 100.0));
+	}
+
+	// The same physical result read from two files in different unit systems must agree once the units are handled:
+	// the CalculiX .frd (mm, MPa) and FreeCAD's .vtu export of it (SI: m, Pa).
+	void testUnitsAcrossFiles()
+	{
+		const QString dir = QStringLiteral(MV_SIMULATION_SAMPLES_DIR);
+		const QString frdPath = dir + QStringLiteral("/FEM_box_static.frd"), vtuPath = dir + QStringLiteral("/FEM_box_static_stress.vtu");
+		if (!QFile::exists(frdPath) || !QFile::exists(vtuPath))
+		{
+			std::printf("  (skipping cross-file unit test: samples not found)\n");
+			return;
+		}
+		const LoadedSimulationResult frd = loadSimulationResult(frdPath), vtu = loadSimulationResult(vtuPath);
+		CHECK(frd.ok() && vtu.ok());
+		if (!frd.ok() || !vtu.ok())
+			return;
+
+		// loadSimulationResult() assigns the guessed units: mm/MPa for CalculiX, SI for the VTK file
+		DisplayScalar frdVm, vtuVm, frdDisp, vtuDisp;
+		CHECK(buildDisplayScalar(*frd.dataset, fieldIndexOf(*frd.dataset, QStringLiteral("STRESS von Mises")), -1, frdVm));
+		CHECK(buildDisplayScalar(*vtu.dataset, fieldIndexOf(*vtu.dataset, QStringLiteral("von Mises Stress")), -1, vtuVm));
+		CHECK(frdVm.unit == u16(u"MPa") && vtuVm.unit == u16(u"Pa") && frdVm.unitAssumed && vtuVm.unitAssumed);
+
+		// show the FRD stress in Pa: it now matches the VTU's
+		ResultDataset& frdData = *frd.dataset;
+		CHECK(setFieldUnits(frdData, fieldIndexOf(frdData, QStringLiteral("STRESS")), QStringLiteral("pressure"), u16(u"MPa"), u16(u"Pa")));
+		CHECK(buildDisplayScalar(frdData, fieldIndexOf(frdData, QStringLiteral("STRESS von Mises")), -1, frdVm));
+		CHECK(approx(frdVm.minValue, vtuVm.minValue, 1e-4) && approx(frdVm.maxValue, vtuVm.maxValue, 1e-4));
+
+		// displacement: FRD in mm shown in m == the VTU's Displacement Magnitude (m)
+		CHECK(setFieldUnits(frdData, fieldIndexOf(frdData, QStringLiteral("DISP")), QStringLiteral("length"), u16(u"mm"), u16(u"m")));
+		CHECK(buildDisplayScalar(frdData, fieldIndexOf(frdData, QStringLiteral("DISP")), -1, frdDisp));
+		CHECK(buildDisplayScalar(*vtu.dataset, fieldIndexOf(*vtu.dataset, QStringLiteral("Displacement Magnitude")), -1, vtuDisp));
+		CHECK(approx(frdDisp.maxValue, vtuDisp.maxValue, 1e-4));
+	}
+
+	void testLoadSimulationResult()
+	{
+		const QString path = tempDir().filePath(QStringLiteral("load_test.vtk"));
+		QFile f(path);
+		CHECK(f.open(QIODevice::WriteOnly));
+		f.write(kTetAscii);
+		f.close();
+		const LoadedSimulationResult ok = loadSimulationResult(path);
+		CHECK(ok.ok());
+		if (ok.ok())
+		{
+			CHECK(ok.dataset->nodeCount() == 4);
+			CHECK(ok.surface.triangleCount() == 4);
+			CHECK(ok.error.isEmpty());
+		}
+		const LoadedSimulationResult missing = loadSimulationResult(tempDir().filePath(QStringLiteral("nope.vtk")));
+		CHECK(!missing.ok());
+		CHECK(!missing.error.isEmpty());
+		std::atomic<bool> cancel(true);
+		const LoadedSimulationResult cancelled = loadSimulationResult(path, &cancel);
+		CHECK(!cancelled.ok());
+		CHECK(cancelled.error == QStringLiteral("cancelled"));
+	}
+
+	// Time steps: step-aware scalars, the all-steps range and its cache, step text, and the multi-step samples.
+	void testTimeSteps()
+	{
+		ResultReadOutcome r = readBytes(QByteArray::fromStdString(makeFrd()), QStringLiteral("t.frd"));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		ResultDataset& ds = *r.dataset;
+		CHECK(ds.stepCount() == 2);
+		const int disp = fieldIndexOf(ds, QStringLiteral("DISP")), stress = fieldIndexOf(ds, QStringLiteral("STRESS"));
+		CHECK(disp >= 0 && stress >= 0);
+
+		DisplayScalar d0, d1;
+		CHECK(buildDisplayScalar(ds, disp, 0, d0, 0) && buildDisplayScalar(ds, disp, 0, d1, 1));
+		CHECK(approx(d0.maxValue, 0.0, 1e-4, 1e-12) && approx(d0.minValue, -1.0e-3));
+		CHECK(approx(d1.minValue, 1.0) && approx(d1.maxValue, 2.0));
+		DisplayScalar none;
+		CHECK(!buildDisplayScalar(ds, stress, 0, none, 1)); // STRESS has no data at the second step
+		CHECK(!buildDisplayScalar(ds, disp, 0, none, 2));   // out of range
+		CHECK(!buildDisplayScalar(ds, disp, 0, none, -1));
+
+		float lo = 0.0f, hi = 0.0f;
+		CHECK(computeAllStepsRange(ds, disp, 0, lo, hi));
+		CHECK(approx(lo, -1.0e-3) && approx(hi, 2.0));
+		CHECK(computeAllStepsRange(ds, stress, 0, lo, hi)); // only one step has stress
+		CHECK(approx(lo, -5.0) && approx(hi, 100.0)); // SXX: 100, 0, -5, 10
+
+		// the cached all-steps range is keyed by field, component and units
+		SimulationSession session;
+		session.dataset = std::move(r.dataset); // ds keeps referring to the same object
+		CHECK(cachedAllStepsRange(session, disp, 0, lo, hi) && approx(hi, 2.0));
+		CHECK(session.rangeCache.valid);
+		ds.fields[static_cast<std::size_t>(disp)].fileUnit = u16(u"mm");
+		ds.fields[static_cast<std::size_t>(disp)].displayUnit = u16(u"mm");
+		ds.fields[static_cast<std::size_t>(disp)].quantityKind = QStringLiteral("length");
+		ds.fields[static_cast<std::size_t>(disp)].displayUnit = u16(u"m");
+		CHECK(cachedAllStepsRange(session, disp, 0, lo, hi) && approx(hi, 2.0e-3)); // units changed: recomputed, converted
+		CHECK(cachedAllStepsRange(session, disp, 1, lo, hi));                        // another component: recomputed
+		CHECK(!cachedAllStepsRange(session, 999, 0, lo, hi));
+
+		// step text
+		ResultStep t;
+		t.time = 0.5;
+		CHECK(stepTimeText(t) == QStringLiteral("0.5"));
+		ds.steps[1].time = 2.0;
+		CHECK(stepDescription(ds, 1) == QStringLiteral("t = 2"));
+		ds.steps[1].label = QStringLiteral("Mode 3");
+		ds.steps[1].time = 73971.2;
+		ds.steps[1].timeUnit = QStringLiteral("Hz");
+		CHECK(stepDescription(ds, 1) == QStringLiteral("Mode 3 - 73971.2 Hz"));
+		ds.steps[1].label.clear();
+		CHECK(stepDescription(ds, 1) == QStringLiteral("73971.2 Hz"));
+		CHECK(stepDescription(ds, 7).isEmpty() && stepDescription(ds, -1).isEmpty());
+
+		// the multi-step samples
+		const QString dir = QStringLiteral(MV_SIMULATION_SAMPLES_DIR);
+		if (!QFile::exists(dir + QStringLiteral("/FEM_box_modes.frd")) || !QFile::exists(dir + QStringLiteral("/FEM_box_load_steps.frd")))
+		{
+			std::printf("  (skipping multi-step sample tests: samples not found)\n");
+			return;
+		}
+		ResultReadOutcome one = readResultFile(dir + QStringLiteral("/FEM_box_frequency.frd"));
+		CHECK(one.ok() && one.dataset->stepCount() == 1 && one.dataset->steps[0].timeUnit == QStringLiteral("Hz"));
+
+		ResultReadOutcome modes = readResultFile(dir + QStringLiteral("/FEM_box_modes.frd"));
+		CHECK(modes.ok());
+		if (modes.ok())
+		{
+			const ResultDataset& m = *modes.dataset;
+			CHECK(m.stepCount() == 6);
+			const double expected[] = { 54279.6, 54317.5, 73971.2, 128657.9, 143335.9 };
+			for (std::size_t i = 0; i < m.stepCount(); ++i)
+			{
+				CHECK(m.steps[i].label == QStringLiteral("Mode %1").arg(i + 1));
+				CHECK(m.steps[i].timeUnit == QStringLiteral("Hz"));
+				if (i > 0)
+					CHECK(m.steps[i].time >= m.steps[i - 1].time);
+				if (i < 5)
+					CHECK(approx(m.steps[i].time, expected[i], 1e-3));
+			}
+			const int md = fieldIndexOf(m, QStringLiteral("DISP"));
+			CHECK(md >= 0);
+			for (int i = 0; i < 6; ++i)
+			{
+				DisplayScalar s;
+				CHECK(buildDisplayScalar(m, md, -1, s, i) && s.maxValue > 0.0f);
+			}
+		}
+
+		ResultReadOutcome ramp = readResultFile(dir + QStringLiteral("/FEM_box_load_steps.frd"));
+		CHECK(ramp.ok());
+		if (ramp.ok())
+		{
+			const ResultDataset& m = *ramp.dataset;
+			CHECK(m.stepCount() == 4);
+			const double times[] = { 0.25, 0.5, 0.875, 1.0 };
+			for (std::size_t i = 0; i < 4 && i < m.stepCount(); ++i)
+				CHECK(approx(m.steps[i].time, times[i], 1e-4));
+			const int md = fieldIndexOf(m, QStringLiteral("DISP"));
+			CHECK(md >= 0);
+			float prev = 0.0f;
+			for (int i = 0; i < 4; ++i)
+			{
+				DisplayScalar s;
+				CHECK(buildDisplayScalar(m, md, -1, s, i));
+				CHECK(s.maxValue > prev);
+				prev = s.maxValue;
+			}
+			DisplayScalar first, last;
+			CHECK(buildDisplayScalar(m, md, -1, first, 0) && buildDisplayScalar(m, md, -1, last, 3));
+			const double ratio = first.maxValue / last.maxValue;
+			CHECK(ratio > 0.2 && ratio < 0.3);
+			float a = 0.0f, b = 0.0f;
+			CHECK(computeAllStepsRange(m, md, -1, a, b) && approx(b, last.maxValue));
+		}
+	}
+
+	// Deformed shape: displacement field detection, deformed positions, the automatic scale, normals.
+	void testDeformation()
+	{
+		ResultReadOutcome r = readBytes(QByteArray::fromStdString(makeFrd()), QStringLiteral("t.frd"));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		const int disp = fieldIndexOf(ds, QStringLiteral("DISP"));
+		CHECK(disp >= 0 && findDisplacementField(ds) == disp);
+		CHECK(fieldIndexOf(ds, QStringLiteral("STRESS")) >= 0); // 6 components: never taken for a displacement
+
+		ResultBoundarySurface surface;
+		CHECK(extractBoundarySurface(ds, surface, nullptr, nullptr));
+		CHECK(surface.vertexCount() == 4);
+
+		auto vertexOfNode = [&](std::uint32_t node) {
+			for (std::size_t v = 0; v < surface.vertexNode.size(); ++v)
+				if (surface.vertexNode[v] == node)
+					return static_cast<int>(v);
+			return -1;
+		};
+		std::vector<float> pos;
+		CHECK(buildDeformedPositions(ds, surface, disp, 0, 100.0, pos) && pos.size() == surface.positions.size());
+		const int v20 = vertexOfNode(1), v40 = vertexOfNode(3); // nodes are stored in file order: 10, 20, 30, 40
+		CHECK(v20 >= 0 && v40 >= 0);
+		if (v20 >= 0 && v40 >= 0)
+		{
+			CHECK(approx(pos[static_cast<std::size_t>(v20) * 3], 0.9) && approx(pos[static_cast<std::size_t>(v20) * 3 + 1], 0.2)
+			      && approx(pos[static_cast<std::size_t>(v20) * 3 + 2], 0.0, 1e-4, 1e-6));
+			// node 40 has no displacement value at step 0 (NaN): it stays where it was
+			for (int k = 0; k < 3; ++k)
+				CHECK(pos[static_cast<std::size_t>(v40) * 3 + static_cast<std::size_t>(k)] == surface.positions[static_cast<std::size_t>(v40) * 3 + static_cast<std::size_t>(k)]);
+		}
+		std::vector<float> rest;
+		CHECK(buildDeformedPositions(ds, surface, disp, 0, 0.0, rest) && rest == surface.positions); // scale 0 = rest shape
+		CHECK(!buildDeformedPositions(ds, surface, disp, 5, 1.0, pos));  // no such step
+		CHECK(!buildDeformedPositions(ds, surface, 999, 0, 1.0, pos));   // no such field
+
+		CHECK(approx(maxDisplacementMagnitude(ds, disp), std::sqrt(12.0))); // node 20 at the second step: (2, 2, 2)
+		CHECK(maxDisplacementMagnitude(ds, 999) == 0.0);
+		CHECK(autoDeformScale(ds, surface, disp) == 1.0); // displacement (3.5) is already far larger than a tenth of the model
+
+		// the normals of an explicit position set match the surface form, and follow the shape
+		const std::vector<float> n1 = computeSmoothVertexNormals(surface), n2 = computeSmoothVertexNormals(surface.positions, surface.triangles);
+		CHECK(n1 == n2);
+		CHECK(computeSmoothVertexNormals(rest, surface.triangles) == n1);
+
+		// the sample box: a small displacement of a 10 mm box gets an exaggeration that is a 1/2/5 x 10^n
+		const QString dir = QStringLiteral(MV_SIMULATION_SAMPLES_DIR);
+		if (!QFile::exists(dir + QStringLiteral("/FEM_box_static.frd")))
+		{
+			std::printf("  (skipping deformation sample test: sample not found)\n");
+			return;
+		}
+		const LoadedSimulationResult box = loadSimulationResult(dir + QStringLiteral("/FEM_box_static.frd"));
+		CHECK(box.ok());
+		if (!box.ok())
+			return;
+		const int bd = findDisplacementField(*box.dataset);
+		CHECK(bd >= 0);
+		const double maxD = maxDisplacementMagnitude(*box.dataset, bd);
+		const double scale = autoDeformScale(*box.dataset, box.surface, bd);
+		CHECK(maxD > 0.0 && scale >= 1.0);
+		if (scale > 1.0)
+		{
+			const double mantissa = scale / std::pow(10.0, std::floor(std::log10(scale)));
+			CHECK(approx(mantissa, 1.0) || approx(mantissa, 2.0) || approx(mantissa, 5.0));
+			CHECK(scale * maxD <= 0.1 * std::sqrt(3.0) * 10.0 * 1.0001); // never more than a tenth of the 10 mm cube's diagonal
+		}
+		std::vector<float> deformed;
+		CHECK(buildDeformedPositions(*box.dataset, box.surface, bd, 0, scale, deformed) && deformed != box.surface.positions);
+		CHECK(!isModalResult(*box.dataset));
+
+		// modal results: mode shapes are normalised (arbitrary eigenvector amplitude), one unit = a tenth of the model
+		const LoadedSimulationResult modes = loadSimulationResult(dir + QStringLiteral("/FEM_box_modes.frd"));
+		CHECK(modes.ok());
+		if (modes.ok())
+		{
+			CHECK(isModalResult(*modes.dataset));
+			const int md = findDisplacementField(*modes.dataset);
+			CHECK(md >= 0 && autoDeformScale(*modes.dataset, modes.surface, md) == 1.0);
+			for (int step = 0; step < static_cast<int>(modes.dataset->stepCount()); ++step)
+			{
+				// after the factor every mode reaches the same peak displacement: a tenth of the 10 mm cube's diagonal
+				const double factor = modalDisplayFactor(*modes.dataset, modes.surface, md, step);
+				const ResultField& f = modes.dataset->fields[static_cast<std::size_t>(md)];
+				double peak = 0.0;
+				const std::vector<float>& data = f.stepData[static_cast<std::size_t>(step)];
+				for (std::size_t i = 0; i + 2 < data.size(); i += 3)
+					peak = std::max(peak, std::sqrt(double(data[i]) * data[i] + double(data[i + 1]) * data[i + 1] + double(data[i + 2]) * data[i + 2]));
+				CHECK(approx(peak * factor, 0.1 * std::sqrt(3.0) * 10.0, 1e-3));
+			}
+		}
+		const LoadedSimulationResult ramp = loadSimulationResult(dir + QStringLiteral("/FEM_box_load_steps.frd"));
+		CHECK(ramp.ok() && !isModalResult(*ramp.dataset)); // load increments are physical displacements
+	}
+
+	// Hover probe: the shown value under a point of the surface.
+	void testProbe()
+	{
+		ResultReadOutcome r = readBytes(QByteArray::fromStdString(makeFrd()), QStringLiteral("t.frd"));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		const int disp = fieldIndexOf(ds, QStringLiteral("DISP"));
+		ResultBoundarySurface surface;
+		CHECK(extractBoundarySurface(ds, surface, nullptr, nullptr));
+		DisplayScalar scalar;
+		CHECK(buildDisplayScalar(ds, disp, 0, scalar, 0)); // DISP D1 at the first step: nodes 0..3 = 0, -1e-3, 0, (no value)
+
+		// the first triangle that has none of node index 3 (no value), and the first that has it
+		std::size_t plain = surface.triangleCount(), withGap = surface.triangleCount();
+		for (std::size_t t = 0; t < surface.triangleCount(); ++t)
+		{
+			bool hasGap = false, hasNode1 = false;
+			for (int k = 0; k < 3; ++k)
+			{
+				const std::uint32_t node = surface.vertexNode[surface.triangles[t * 3 + static_cast<std::size_t>(k)]];
+				hasGap = hasGap || node == 3;
+				hasNode1 = hasNode1 || node == 1;
+			}
+			if (!hasGap && hasNode1 && plain == surface.triangleCount())
+				plain = t;
+			if (hasGap && hasNode1 && withGap == surface.triangleCount())
+				withGap = t;
+		}
+		CHECK(plain < surface.triangleCount() && withGap < surface.triangleCount());
+		if (plain >= surface.triangleCount() || withGap >= surface.triangleCount())
+			return;
+		auto slotOfNode = [&](std::size_t t, std::uint32_t node) {
+			for (int k = 0; k < 3; ++k)
+				if (surface.vertexNode[surface.triangles[t * 3 + static_cast<std::size_t>(k)]] == node)
+					return k;
+			return -1;
+		};
+		auto sample = [&](std::size_t t, float w0, float w1, float w2, float lo, float hi) {
+			return sampleSurfaceScalar(ds, surface, scalar, t, w0, w1, w2, lo, hi);
+		};
+		auto weightsAt = [&](std::size_t t, std::uint32_t node, float wNode, float wOthers, float w[3]) {
+			for (int k = 0; k < 3; ++k)
+				w[k] = wOthers;
+			w[slotOfNode(t, node)] = wNode;
+		};
+
+		float w[3];
+		weightsAt(plain, 1, 1.0f, 0.0f, w); // exactly on node index 1 (file id 20)
+		ProbeSample a = sample(plain, w[0], w[1], w[2], -1.0e-3f, 1.0e-3f);
+		CHECK(a.valid && approx(a.value, -1.0e-3) && a.node == 1 && a.nodeId == 20 && approx(a.normalized, 0.0, 1e-4, 1e-6));
+
+		weightsAt(plain, 1, 0.5f, 0.25f, w); // interpolated: 0.5 * -1e-3 + 0.5 * (a node with 0)
+		ProbeSample b = sample(plain, w[0], w[1], w[2], -1.0e-3f, 1.0e-3f);
+		CHECK(b.valid && approx(b.value, -5.0e-4) && b.node == 1 && approx(b.normalized, 0.25, 1e-3, 1e-6));
+
+		weightsAt(withGap, 1, 0.8f, 0.1f, w); // one vertex has no value: the nearest vertex's value stands in
+		ProbeSample c = sample(withGap, w[0], w[1], w[2], -1.0e-3f, 1.0e-3f);
+		CHECK(c.valid && approx(c.value, -1.0e-3) && c.node == 1);
+
+		weightsAt(withGap, 3, 0.8f, 0.1f, w); // nearest vertex has no value at all
+		CHECK(!sample(withGap, w[0], w[1], w[2], -1.0e-3f, 1.0e-3f).valid);
+
+		CHECK(!sample(surface.triangleCount() + 3, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f).valid); // no such triangle
+		CHECK(sample(plain, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f).normalized == 0.0f);            // degenerate range does not divide by 0
+	}
+
+	// Min/max markers: which surface vertices carry the extreme values.
+	void testExtrema()
+	{
+		const float nan = std::numeric_limits<float>::quiet_NaN();
+		std::size_t lo = 99, hi = 99;
+		CHECK(findScalarExtrema({ 3.0f, -2.0f, 7.5f, 0.0f }, lo, hi) && lo == 1 && hi == 2);
+		CHECK(findScalarExtrema({ nan, 4.0f, nan, -1.0f, 9.0f }, lo, hi) && lo == 3 && hi == 4); // no value: ignored
+		CHECK(findScalarExtrema({ 5.0f, 5.0f, 5.0f }, lo, hi) && lo == 0 && hi == 0);             // ties: lowest index
+		CHECK(findScalarExtrema({ nan, 2.0f }, lo, hi) && lo == 1 && hi == 1);                    // a single finite value
+		lo = hi = 99;
+		CHECK(!findScalarExtrema({ nan, nan }, lo, hi) && lo == 99 && hi == 99);                  // nothing finite: untouched
+		CHECK(!findScalarExtrema({}, lo, hi));
+		CHECK(findScalarExtrema({ std::numeric_limits<float>::infinity(), 1.0f, -std::numeric_limits<float>::infinity() }, lo, hi)
+		      && lo == 1 && hi == 1); // infinities are not values
+
+		// on a real result: the extreme vertices carry the surface's own min and max
+		const QString dir = QStringLiteral(MV_SIMULATION_SAMPLES_DIR);
+		if (!QFile::exists(dir + QStringLiteral("/FEM_box_static.frd")))
+		{
+			std::printf("  (skipping extrema sample test: sample not found)\n");
+			return;
+		}
+		const LoadedSimulationResult box = loadSimulationResult(dir + QStringLiteral("/FEM_box_static.frd"));
+		CHECK(box.ok());
+		if (!box.ok())
+			return;
+		DisplayScalar scalar;
+		CHECK(chooseDefaultDisplayScalar(*box.dataset, scalar));
+		const std::vector<float> values = boundaryVertexValues(box.surface, scalar.nodeValues);
+		CHECK(findScalarExtrema(values, lo, hi));
+		CHECK(*std::min_element(values.begin(), values.end()) == values[lo] && *std::max_element(values.begin(), values.end()) == values[hi]);
+		CHECK(values[lo] >= scalar.minValue && values[hi] <= scalar.maxValue); // the surface never exceeds the whole-model range
+	}
+
+	// A transient thermal result: a scalar temperature field over many time steps.
+	void testThermalTransient()
+	{
+		CHECK(guessQuantityKind(QStringLiteral("NDTEMP")) == QStringLiteral("temperature"));
+		const QString path = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/FEM_box_thermal_transient.frd");
+		if (!QFile::exists(path))
+		{
+			std::printf("  (skipping thermal sample test: sample not found)\n");
+			return;
+		}
+		const LoadedSimulationResult r = loadSimulationResult(path);
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		CHECK(ds.stepCount() == 20);
+		CHECK(approx(ds.steps[0].time, 0.5) && approx(ds.steps[19].time, 10.0));
+		CHECK(!isModalResult(ds));                 // steps are times, not frequencies
+		CHECK(stepDescription(ds, 0) == QStringLiteral("t = 0.5"));
+
+		const int t = fieldIndexOf(ds, QStringLiteral("NDTEMP"));
+		CHECK(t >= 0);
+		if (t < 0)
+			return;
+		const ResultField& field = ds.fields[static_cast<std::size_t>(t)];
+		CHECK(field.components == 1 && field.quantityKind == QStringLiteral("temperature"));
+		CHECK(field.fileUnit.isEmpty()); // a temperature unit is never guessed
+		CHECK(findDisplacementField(ds) < 0); // nothing to deform
+
+		// heat flows in: the hot face stays at 100, the mean rises step by step towards it, the coldest node warms
+		double previousMean = 0.0;
+		float previousMin = 0.0f;
+		for (int step = 0; step < 20; ++step)
+		{
+			DisplayScalar s;
+			CHECK(buildDisplayScalar(ds, t, -1, s, step));
+			CHECK(approx(s.maxValue, 100.0, 1e-4));
+			double sum = 0.0;
+			for (float v : s.nodeValues)
+				sum += v;
+			const double mean = sum / static_cast<double>(s.nodeValues.size());
+			if (step > 0)
+			{
+				CHECK(mean > previousMean);
+				CHECK(s.minValue >= previousMin);
+			}
+			previousMean = mean;
+			previousMin = s.minValue;
+		}
+		DisplayScalar first, last;
+		CHECK(buildDisplayScalar(ds, t, -1, first, 0) && buildDisplayScalar(ds, t, -1, last, 19));
+		CHECK(first.minValue > 20.0f && first.minValue < 30.0f); // CalculiX: 23.39 after the first 0.5 s
+		CHECK(last.minValue > 95.0f);
+
+		// an automatic range over all steps is a fixed 23.39 .. 100 scale, so the frames are comparable
+		float lo = 0.0f, hi = 0.0f;
+		CHECK(computeAllStepsRange(ds, t, -1, lo, hi) && approx(lo, first.minValue) && approx(hi, 100.0, 1e-4));
+	}
+
+	// ---- MVF snapshot codec ----------------------------------------------------------------------------------
+
+	bool nameIn(const ResultDataset& ds, const char* name) { return fieldIndexOf(ds, QString::fromLatin1(name)) >= 0; }
+
+	// Encode -> decode with the surface as the "mesh" the reader would have.
+	bool roundTrip(const LoadedSimulationResult& r, const SimulationViewState& state, const SnapshotOptions& options,
+	               ResultSnapshot& snap, DecodedSnapshot& decoded, QString* error = nullptr)
+	{
+		if (!encodeResultSnapshot(*r.dataset, r.surface, state, options, snap, error))
+			return false;
+		return decodeResultSnapshot(snap.json, snap.blobs, r.surface.vertexCount(), r.surface.triangles, decoded, error);
+	}
+
+	void testSnapshotCodec()
+	{
+		// shuffle is its own inverse, for every element size and odd lengths
+		QByteArray bytes;
+		for (int i = 0; i < 4 * 37; ++i)
+			bytes.append(static_cast<char>((i * 31 + 7) & 0xFF));
+		CHECK(unshuffleBytes(shuffleBytes(bytes, 4), 4) == bytes);
+		QByteArray eight = bytes.left(8 * 17);
+		CHECK(unshuffleBytes(shuffleBytes(eight, 8), 8) == eight);
+		CHECK(shuffleBytes(bytes, 1) == bytes);
+
+		// step subsampling: everything when it fits, otherwise evenly spaced with the first and last kept
+		CHECK(snapshotStepIndices(0, 100).empty());
+		CHECK(snapshotStepIndices(5, 100) == std::vector<int>({ 0, 1, 2, 3, 4 }));
+		const std::vector<int> some = snapshotStepIndices(101, 5);
+		CHECK(some == std::vector<int>({ 0, 25, 50, 75, 100 }));
+		const std::vector<int> two = snapshotStepIndices(300, 2);
+		CHECK(two == std::vector<int>({ 0, 299 }));
+	}
+
+	void testSnapshotRoundTrip()
+	{
+		const QString dir = QStringLiteral(MV_SIMULATION_SAMPLES_DIR);
+		if (!QFile::exists(dir + QStringLiteral("/FEM_box_static.frd")))
+		{
+			std::printf("  (skipping snapshot sample tests: samples not found)\n");
+			return;
+		}
+		const LoadedSimulationResult box = loadSimulationResult(dir + QStringLiteral("/FEM_box_static.frd"));
+		CHECK(box.ok());
+		if (!box.ok())
+			return;
+		const ResultDataset& src = *box.dataset;
+		SimulationViewState state = defaultViewState(src);
+		state.colormap = 1;
+		state.bands = 12;
+		state.deform = true;
+		state.deformScale = 250.0;
+		state.markExtrema = true;
+
+		// ---- everything stored
+		SnapshotOptions all;
+		all.content = SnapshotOptions::Content::AllFields;
+		ResultSnapshot snap;
+		DecodedSnapshot dec;
+		QString err;
+		CHECK(roundTrip(box, state, all, snap, dec, &err));
+		if (!dec.dataset)
+		{
+			std::printf("  snapshot round trip failed: %s\n", qPrintable(err));
+			return;
+		}
+		const ResultDataset& out = *dec.dataset;
+		CHECK(out.nodeCount() == box.surface.vertexCount() && out.cellCount() == box.surface.triangleCount());
+		CHECK(out.nodePositions == box.surface.positions && dec.restPositions == box.surface.positions);
+		CHECK(out.stepCount() == src.stepCount());
+		for (std::size_t v = 0; v < out.nodeCount(); ++v)
+			if (out.nodeId(v) != src.nodeId(box.surface.vertexNode[v]))
+			{
+				CHECK(false);
+				break;
+			}
+
+		// source fields carry exactly the boundary vertex values; units travel with them
+		for (const char* name : { "DISP", "STRESS", "TOSTRAIN" })
+		{
+			const int a = fieldIndexOf(src, QString::fromLatin1(name)), b = fieldIndexOf(out, QString::fromLatin1(name));
+			CHECK(a >= 0 && b >= 0);
+			if (a < 0 || b < 0)
+				continue;
+			const ResultField& fa = src.fields[static_cast<std::size_t>(a)];
+			const ResultField& fb = out.fields[static_cast<std::size_t>(b)];
+			CHECK(fa.components == fb.components && fa.componentNames == fb.componentNames);
+			CHECK(fa.quantityKind == fb.quantityKind && fa.fileUnit == fb.fileUnit && fa.displayUnit == fb.displayUnit
+			      && fa.unitConfirmed == fb.unitConfirmed);
+			bool same = fb.stepData.size() == fa.stepData.size();
+			for (std::size_t s = 0; same && s < fa.stepData.size(); ++s)
+			{
+				const std::size_t comps = static_cast<std::size_t>(fa.components);
+				for (std::size_t v = 0; same && v < box.surface.vertexCount(); ++v)
+					for (std::size_t c = 0; same && c < comps; ++c)
+						same = fb.stepData[s][v * comps + c] == fa.stepData[s][box.surface.vertexNode[v] * comps + c];
+			}
+			CHECK(same);
+		}
+
+		// derived fields are rebuilt (never stored) and agree with the originals; the legend range is the FULL model's
+		const char* derived[] = { "STRESS von Mises", "STRESS max principal", "STRESS min principal", "STRESS max shear" };
+		for (const char* name : derived)
+		{
+			const int a = fieldIndexOf(src, QString::fromLatin1(name)), b = fieldIndexOf(out, QString::fromLatin1(name));
+			CHECK(a >= 0 && b >= 0);
+			if (a < 0 || b < 0)
+				continue;
+			CHECK(out.fields[static_cast<std::size_t>(b)].fileUnit == src.fields[static_cast<std::size_t>(a)].fileUnit);
+			DisplayScalar full, snapshot;
+			CHECK(buildDisplayScalar(src, a, -1, full) && buildDisplayScalar(out, b, -1, snapshot));
+			CHECK(snapshot.minValue == full.minValue && snapshot.maxValue == full.maxValue); // whole-model range kept
+			CHECK(snapshot.unit == full.unit && snapshot.unitAssumed == full.unitAssumed);
+			bool close = true;
+			for (std::size_t v = 0; close && v < box.surface.vertexCount(); ++v)
+				close = approx(snapshot.nodeValues[v], full.nodeValues[box.surface.vertexNode[v]], 1e-4, 1e-3);
+			CHECK(close);
+		}
+		// a component of a stored tensor and the magnitude of the displacement widen the same way
+		{
+			const int a = fieldIndexOf(src, QStringLiteral("STRESS")), b = fieldIndexOf(out, QStringLiteral("STRESS"));
+			const int da = fieldIndexOf(src, QStringLiteral("DISP")), db = fieldIndexOf(out, QStringLiteral("DISP"));
+			DisplayScalar fullC, snapC, fullM, snapM;
+			CHECK(buildDisplayScalar(src, a, 2, fullC) && buildDisplayScalar(out, b, 2, snapC));
+			CHECK(snapC.minValue == fullC.minValue && snapC.maxValue == fullC.maxValue);
+			CHECK(buildDisplayScalar(src, da, -1, fullM) && buildDisplayScalar(out, db, -1, snapM));
+			CHECK(snapM.minValue == fullM.minValue && snapM.maxValue == fullM.maxValue);
+		}
+
+		// the view comes back, its field found again by name
+		CHECK(dec.state.fieldIndex >= 0 && out.fields[static_cast<std::size_t>(dec.state.fieldIndex)].name
+		      == src.fields[static_cast<std::size_t>(state.fieldIndex)].name);
+		CHECK(dec.state.colormap == 1 && dec.state.bands == 12 && dec.state.deform && dec.state.deformScale == 250.0 && dec.state.markExtrema);
+		CHECK(out.validate().isEmpty());
+		CHECK(snap.size.rawBytes > 0 && snap.size.storedBytes <= snap.size.rawBytes && !snap.size.estimated);
+		CHECK(snap.notes.isEmpty()); // nothing was dropped
+
+		// ---- only the shown field (STRESS von Mises -> its tensor) and the displacement
+		SnapshotOptions shown;
+		shown.shownField = state.fieldIndex;
+		ResultSnapshot snap2;
+		DecodedSnapshot dec2;
+		CHECK(roundTrip(box, state, shown, snap2, dec2));
+		if (dec2.dataset)
+		{
+			CHECK(nameIn(*dec2.dataset, "DISP") && nameIn(*dec2.dataset, "STRESS") && nameIn(*dec2.dataset, "STRESS von Mises"));
+			CHECK(!nameIn(*dec2.dataset, "TOSTRAIN"));
+			CHECK(snap2.size.rawBytes < snap.size.rawBytes);
+			CHECK(dec2.state.fieldIndex >= 0);
+		}
+
+		// ---- compression is lossless and never larger than the raw data
+		SnapshotOptions raw = all;
+		raw.compress = false;
+		ResultSnapshot snapRaw;
+		DecodedSnapshot decRaw;
+		CHECK(roundTrip(box, state, raw, snapRaw, decRaw));
+		CHECK(snapRaw.size.storedBytes == snapRaw.size.rawBytes && snapRaw.size.rawBytes == snap.size.rawBytes);
+		CHECK(snap.size.storedBytes <= snapRaw.size.storedBytes); // the box surface is tiny: blobs under 512 bytes stay raw
+		if (decRaw.dataset)
+			CHECK(decRaw.dataset->fields.size() == out.fields.size());
+		CHECK(snap.size.storedBytes == [&] { std::uint64_t n = 0; for (const QByteArray& b : snap.blobs) n += static_cast<std::uint64_t>(b.size()); return n; }());
+
+		// ---- a wrong mesh, or damaged data, is refused instead of showing misaligned values
+		std::vector<std::uint32_t> fewer(box.surface.triangles.begin(), box.surface.triangles.end() - 3);
+		CHECK(!decodeResultSnapshot(snap.json, snap.blobs, box.surface.vertexCount(), fewer, dec));
+		CHECK(!decodeResultSnapshot(snap.json, snap.blobs, box.surface.vertexCount() + 1, box.surface.triangles, dec));
+		std::vector<QByteArray> damaged = snap.blobs;
+		damaged[3] = damaged[3].left(damaged[3].size() / 2);
+		QString damagedError;
+		CHECK(!decodeResultSnapshot(snap.json, damaged, box.surface.vertexCount(), box.surface.triangles, dec, &damagedError) && !damagedError.isEmpty());
+		std::vector<QByteArray> missing = snap.blobs;
+		missing.pop_back();
+		CHECK(!decodeResultSnapshot(snap.json, missing, box.surface.vertexCount(), box.surface.triangles, dec));
+		QJsonObject newer = snap.json;
+		newer.insert(QStringLiteral("version"), 99);
+		CHECK(!decodeResultSnapshot(newer, snap.blobs, box.surface.vertexCount(), box.surface.triangles, dec));
+
+		// ---- the size estimate: exact raw size, plausible stored size
+		const SnapshotSize estimate = estimateSnapshotSize(src, box.surface, all);
+		CHECK(estimate.rawBytes == snap.size.rawBytes && estimate.estimated);
+		CHECK(estimate.storedBytes > 0 && estimate.storedBytes <= estimate.rawBytes);
+	}
+
+	// Compression needs blobs big enough to be worth deflating: hexa.vtk has thousands of surface vertices and a
+	// smooth scalar. The snapshot must be lossless and clearly smaller than the raw floats.
+	void testSnapshotCompression()
+	{
+		const QString path = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/hexa.vtk");
+		if (!QFile::exists(path))
+		{
+			std::printf("  (skipping snapshot compression test: hexa.vtk not found)\n");
+			return;
+		}
+		const LoadedSimulationResult r = loadSimulationResult(path);
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const SimulationViewState state = defaultViewState(*r.dataset);
+		SnapshotOptions options;
+		options.content = SnapshotOptions::Content::AllFields;
+		ResultSnapshot packed, plain;
+		DecodedSnapshot decPacked, decPlain;
+		CHECK(roundTrip(r, state, options, packed, decPacked));
+		options.compress = false;
+		CHECK(roundTrip(r, state, options, plain, decPlain));
+		CHECK(packed.size.rawBytes == plain.size.rawBytes && plain.size.storedBytes == plain.size.rawBytes);
+		CHECK(packed.size.storedBytes < packed.size.rawBytes * 9 / 10); // at least 10% smaller
+		if (decPacked.dataset && decPlain.dataset)
+		{
+			CHECK(decPacked.dataset->nodePositions == decPlain.dataset->nodePositions);
+			bool identical = decPacked.dataset->fields.size() == decPlain.dataset->fields.size();
+			for (std::size_t f = 0; identical && f < decPacked.dataset->fields.size(); ++f)
+				identical = decPacked.dataset->fields[f].stepData == decPlain.dataset->fields[f].stepData;
+			CHECK(identical); // lossless: compressed and uncompressed decode to the same numbers
+		}
+		const SnapshotSize estimate = estimateSnapshotSize(*r.dataset, r.surface, SnapshotOptions{ SnapshotOptions::Content::AllFields, -1, 100, true });
+		CHECK(estimate.storedBytes < estimate.rawBytes);
+		const double actual = static_cast<double>(packed.size.storedBytes), guessed = static_cast<double>(estimate.storedBytes);
+		CHECK(guessed > 0.5 * actual && guessed < 2.0 * actual); // the sampled estimate is in the right range
+		std::printf("  hexa.vtk snapshot: %llu raw -> %llu stored bytes (estimate %llu)\n",
+		            static_cast<unsigned long long>(packed.size.rawBytes), static_cast<unsigned long long>(packed.size.storedBytes),
+		            static_cast<unsigned long long>(estimate.storedBytes));
+	}
+
+	void testSnapshotSteps()
+	{
+		const QString dir = QStringLiteral(MV_SIMULATION_SAMPLES_DIR);
+		if (!QFile::exists(dir + QStringLiteral("/FEM_box_thermal_transient.frd")) || !QFile::exists(dir + QStringLiteral("/FEM_box_modes.frd")))
+		{
+			std::printf("  (skipping snapshot step tests: samples not found)\n");
+			return;
+		}
+		const LoadedSimulationResult heat = loadSimulationResult(dir + QStringLiteral("/FEM_box_thermal_transient.frd"));
+		CHECK(heat.ok());
+		if (!heat.ok())
+			return;
+		SimulationViewState state = defaultViewState(*heat.dataset);
+		state.step = 17;
+		state.allStepsRange = true;
+
+		SnapshotOptions options;
+		options.content = SnapshotOptions::Content::AllFields;
+		ResultSnapshot snap;
+		DecodedSnapshot dec;
+		CHECK(roundTrip(heat, state, options, snap, dec));
+		if (!dec.dataset)
+			return;
+		CHECK(dec.dataset->stepCount() == 20 && dec.state.step == 17);
+		CHECK(approx(dec.dataset->steps[19].time, 10.0));
+		// the all-steps range is the full model's, from the stored ranges
+		float loA = 0, hiA = 0, loB = 0, hiB = 0;
+		const int ta = fieldIndexOf(*heat.dataset, QStringLiteral("NDTEMP")), tb = fieldIndexOf(*dec.dataset, QStringLiteral("NDTEMP"));
+		CHECK(computeAllStepsRange(*heat.dataset, ta, -1, loA, hiA) && computeAllStepsRange(*dec.dataset, tb, -1, loB, hiB));
+		CHECK(loA == loB && hiA == hiB);
+
+		// a step limit keeps the first and last steps, remaps the saved step and says what was dropped
+		options.maxSteps = 4;
+		ResultSnapshot few;
+		DecodedSnapshot decFew;
+		CHECK(roundTrip(heat, state, options, few, decFew));
+		if (decFew.dataset)
+		{
+			CHECK(decFew.dataset->stepCount() == 4);
+			CHECK(approx(decFew.dataset->steps[0].time, 0.5) && approx(decFew.dataset->steps[3].time, 10.0));
+			CHECK(decFew.state.step == 3); // step 17 of 20 -> the kept step nearest to it is the last one
+			CHECK(few.notes.size() == 1 && few.size.rawBytes < snap.size.rawBytes);
+		}
+
+		// modal results keep their frequencies (time units) and labels
+		const LoadedSimulationResult modes = loadSimulationResult(dir + QStringLiteral("/FEM_box_modes.frd"));
+		CHECK(modes.ok());
+		if (modes.ok())
+		{
+			SnapshotOptions shown;
+			shown.shownField = defaultViewState(*modes.dataset).fieldIndex;
+			ResultSnapshot msnap;
+			DecodedSnapshot mdec;
+			CHECK(roundTrip(modes, defaultViewState(*modes.dataset), shown, msnap, mdec));
+			if (mdec.dataset)
+			{
+				CHECK(mdec.dataset->stepCount() == 6 && isModalResult(*mdec.dataset));
+				CHECK(mdec.dataset->steps[2].label == QStringLiteral("Mode 3") && mdec.dataset->steps[2].timeUnit == QStringLiteral("Hz"));
+				CHECK(findDisplacementField(*mdec.dataset) >= 0);
+			}
+		}
+	}
+
+	// Cell (element-wise) fields: constant over each cell, one value per boundary triangle, stored per triangle.
+	void testCellData()
+	{
+		const QString path = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/cell_data_cube.vtk");
+		if (!QFile::exists(path))
+		{
+			std::printf("  (skipping cell data tests: cell_data_cube.vtk not found)\n");
+			return;
+		}
+		const LoadedSimulationResult r = loadSimulationResult(path);
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		CHECK(ds.cellCount() == 512 && r.surface.triangleCount() == 768); // 6 faces x 64 quads x 2 triangles
+		const ResultField* stress = ds.findField(QStringLiteral("Element_Stress"), ResultFieldAssociation::Cell);
+		const ResultField* group = ds.findField(QStringLiteral("Element_Group"), ResultFieldAssociation::Cell);
+		CHECK(stress != nullptr && group != nullptr);
+		if (!stress || !group)
+			return;
+		const int stressIndex = static_cast<int>(stress - ds.fields.data());
+
+		// a scalar over the cells, shown as such
+		DisplayScalar scalar;
+		CHECK(buildDisplayScalar(ds, stressIndex, -1, scalar) && scalar.cellData && scalar.nodeValues.size() == 512);
+		CHECK(scalar.minValue > 15.0f && scalar.minValue < 15.1f && scalar.maxValue > 115.7f && scalar.maxValue < 115.8f);
+		// with no node field in the file, the default is the first cell scalar
+		DisplayScalar chosen;
+		CHECK(chooseDefaultDisplayScalar(ds, chosen) && chosen.cellData && chosen.fieldIndex == stressIndex);
+		CHECK(defaultViewState(ds).fieldIndex == stressIndex);
+
+		// every boundary triangle takes the value of its cell (two triangles per quad face share it)
+		const std::vector<float> faces = boundaryFaceValues(r.surface, scalar.nodeValues);
+		CHECK(faces.size() == r.surface.triangleCount());
+		bool faceOk = true;
+		for (std::size_t t = 0; t < faces.size(); ++t)
+			faceOk = faceOk && faces[t] == scalar.nodeValues[r.surface.triangleCell[t]];
+		CHECK(faceOk);
+		// the per-vertex form (baked colours) averages the triangles at a vertex, staying inside the data range
+		const std::vector<float> perVertex = surfaceVertexValues(r.surface, scalar);
+		bool vertexOk = perVertex.size() == r.surface.vertexCount();
+		for (float v : perVertex)
+			vertexOk = vertexOk && std::isfinite(v) && v >= scalar.minValue && v <= scalar.maxValue;
+		CHECK(vertexOk);
+		CHECK(boundaryFaceValues(r.surface, {}).size() == r.surface.triangleCount()); // no values: all NaN, never out of range
+
+		// the probe reports the cell's value and id, without interpolating
+		const std::size_t triangle = 100;
+		const ProbeSample sample = sampleSurfaceScalar(ds, r.surface, scalar, triangle, 0.2f, 0.3f, 0.5f, scalar.minValue, scalar.maxValue);
+		CHECK(sample.valid && sample.cell && sample.value == faces[triangle]);
+		CHECK(sample.node == r.surface.triangleCell[triangle] && sample.nodeId == ds.cellId(r.surface.triangleCell[triangle]));
+		CHECK(!sampleSurfaceScalar(ds, r.surface, scalar, r.surface.triangleCount(), 1.0f, 0.0f, 0.0f, 0.0f, 1.0f).valid);
+
+		// a saved snapshot keeps cell fields (per triangle), the full-model range, the cell ids and the view
+		SimulationViewState state = defaultViewState(ds);
+		SnapshotOptions options;
+		options.content = SnapshotOptions::Content::AllFields;
+		ResultSnapshot snap;
+		DecodedSnapshot dec;
+		QString err;
+		CHECK(encodeResultSnapshot(ds, r.surface, state, options, snap, &err));
+		CHECK(snap.json.value(QStringLiteral("version")).toInt() == 2); // cell fields need the newer layout
+		CHECK(decodeResultSnapshot(snap.json, snap.blobs, r.surface.vertexCount(), r.surface.triangles, dec, &err));
+		if (!dec.dataset)
+		{
+			std::printf("  cell snapshot failed: %s\n", qPrintable(err));
+			return;
+		}
+		const ResultDataset& out = *dec.dataset;
+		const ResultField* decoded = out.findField(QStringLiteral("Element_Stress"), ResultFieldAssociation::Cell);
+		CHECK(decoded != nullptr && out.cellCount() == r.surface.triangleCount());
+		if (!decoded)
+			return;
+		CHECK(decoded->tupleCount() == r.surface.triangleCount() && decoded->stepData[0] == faces);
+		CHECK(dec.state.fieldIndex >= 0 && out.fields[static_cast<std::size_t>(dec.state.fieldIndex)].association == ResultFieldAssociation::Cell);
+		bool idsOk = true;
+		for (std::size_t t = 0; t < r.surface.triangleCount(); ++t)
+			idsOk = idsOk && out.cellId(t) == ds.cellId(r.surface.triangleCell[t]);
+		CHECK(idsOk);
+		DisplayScalar back;
+		CHECK(buildDisplayScalar(out, static_cast<int>(decoded - out.fields.data()), -1, back) && back.cellData);
+		CHECK(back.minValue == scalar.minValue && back.maxValue == scalar.maxValue); // range of ALL 512 cells, interior included
+		// the probe on the decoded result agrees with the live one
+		const ProbeSample again = sampleSurfaceScalar(out, ResultBoundarySurface{ out.nodePositions, {}, r.surface.triangles,
+			[&] { std::vector<std::uint32_t> id(r.surface.triangleCount()); for (std::size_t i = 0; i < id.size(); ++i) id[i] = static_cast<std::uint32_t>(i); return id; }(),
+			{}, 0 }, back, triangle, 0.2f, 0.3f, 0.5f, back.minValue, back.maxValue);
+		CHECK(again.valid && again.cell && again.value == sample.value && again.nodeId == sample.nodeId);
+
+		// the size estimate counts per-triangle arrays, not per-vertex ones
+		const SnapshotSize estimate = estimateSnapshotSize(ds, r.surface, options);
+		CHECK(estimate.rawBytes == snap.size.rawBytes);
+
+		// a result with node fields only is still written in the original layout
+		const QString boxPath = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/FEM_box_static.frd");
+		if (QFile::exists(boxPath))
+		{
+			const LoadedSimulationResult box = loadSimulationResult(boxPath);
+			ResultSnapshot nodeSnap;
+			CHECK(box.ok() && encodeResultSnapshot(*box.dataset, box.surface, defaultViewState(*box.dataset), options, nodeSnap));
+			CHECK(nodeSnap.json.value(QStringLiteral("version")).toInt() == 1 && !nodeSnap.json.contains(QStringLiteral("cellIds")));
+		}
+	}
+
+	// ---- OpenFOAM case reader --------------------------------------------------------------------------------------
+
+	void writeText(const QString& path, const QByteArray& text)
+	{
+		QDir().mkpath(QFileInfo(path).absolutePath());
+		QFile file(path);
+		if (file.open(QIODevice::WriteOnly))
+			file.write(text);
+	}
+
+	QByteArray foamHeader(const char* className, const char* object, const char* format = "ascii")
+	{
+		return QByteArray("/*--------------------------------*- C++ -*----------------------------------*\\\n"
+		                  "  =========                 |\n\\*---------------------------------------------------------------------------*/\n"
+		                  "FoamFile\n{\n    version     2.0;\n    format      ")
+			+ format + QByteArray(";\n    arch        \"LSB;label=32;scalar=64\";\n    class       ") + className
+			+ QByteArray(";\n    location    \"x\";\n    object      ") + object + QByteArray(";\n}\n// * * * //\n\n");
+	}
+
+	// One cell with 7 faces: a pentagonal prism (two pentagons and five quads), all boundary faces. Nodes 0-4 are the
+	// counter-clockwise pentagon at z = 0, 5-9 the same at z = 1; the face lists are outward-facing as OpenFOAM writes them.
+	void writePrismCase(const QString& dir)
+	{
+		const QByteArray points = foamHeader("vectorField", "points")
+			+ "10\n(\n(0 0 0)\n(2 0 0)\n(3 1 0)\n(1 2 0)\n(-1 1 0)\n(0 0 1)\n(2 0 1)\n(3 1 1)\n(1 2 1)\n(-1 1 1)\n)\n";
+		const QByteArray faces = foamHeader("faceList", "faces")
+			+ "7\n(\n5(0 4 3 2 1)\n5(5 6 7 8 9)\n4(0 1 6 5)\n4(1 2 7 6)\n4(2 3 8 7)\n4(3 4 9 8)\n4(4 0 5 9)\n)\n";
+		const QByteArray owner = foamHeader("labelList", "owner") + "7\n(\n0\n0\n0\n0\n0\n0\n0\n)\n";
+		const QByteArray neighbour = foamHeader("labelList", "neighbour") + "0()\n";
+		writeText(dir + QStringLiteral("/constant/polyMesh/points"), points);
+		writeText(dir + QStringLiteral("/constant/polyMesh/faces"), faces);
+		writeText(dir + QStringLiteral("/constant/polyMesh/owner"), owner);
+		writeText(dir + QStringLiteral("/constant/polyMesh/neighbour"), neighbour);
+		writeText(dir + QStringLiteral("/case.foam"), QByteArray());
+		// two time directories: a uniform value, then a one-entry nonuniform list
+		writeText(dir + QStringLiteral("/0/p"), foamHeader("volScalarField", "p") + "dimensions [1 -1 -2 0 0 0 0];\ninternalField uniform 5;\nboundaryField\n{\n}\n");
+		writeText(dir + QStringLiteral("/1/p"), foamHeader("volScalarField", "p") + "dimensions [1 -1 -2 0 0 0 0];\ninternalField nonuniform List<scalar> 1(7);\nboundaryField\n{\n}\n");
+		writeText(dir + QStringLiteral("/0/notAField"), foamHeader("dictionary", "notAField") + "x 1;\n");
+		writeText(dir + QStringLiteral("/1/phi"), foamHeader("surfaceScalarField", "phi") + "dimensions [0 3 -1 0 0 0 0];\ninternalField uniform 0;\n");
+	}
+
+	void testOpenFoamPolyhedral()
+	{
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		const QString dir = tmp.path();
+		writePrismCase(dir);
+		const ResultReadOutcome r = readResultFile(dir + QStringLiteral("/case.foam"));
+		if (!r.ok())
+			std::printf("  OpenFOAM prism case failed: %s\n", qPrintable(r.error));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		CHECK(ds.solverName == QStringLiteral("OpenFOAM") && ds.lengthUnit == QStringLiteral("m"));
+		CHECK(ds.nodeCount() == 10 && ds.cellCount() == 1 && ds.cellTypes[0] == ResultCellType::Polyhedron);
+		CHECK(ds.validate().isEmpty());
+		CHECK(ds.stepCount() == 2 && approx(ds.steps[0].time, 0.0) && approx(ds.steps[1].time, 1.0));
+		// only the volScalarField is a field: the dictionary and the surface field are ignored
+		CHECK(ds.fields.size() == 1 && ds.fields[0].name == QStringLiteral("p") && ds.fields[0].association == ResultFieldAssociation::Cell);
+		CHECK(ds.fields[0].stepData[0] == std::vector<float>({ 5.0f }) && ds.fields[0].stepData[1] == std::vector<float>({ 7.0f }));
+		// dimensions [1 -1 -2] state a pressure in Pa
+		CHECK(ds.fields[0].quantityKind == QStringLiteral("pressure") && ds.fields[0].fileUnit == QStringLiteral("Pa") && ds.fields[0].unitConfirmed);
+
+		// the boundary: 2 pentagons (3 triangles each) + 5 quads (2 each), all outward-facing, all of cell 0
+		CHECK(ds.boundaryTriangles.size() == 16 * 3 && ds.boundaryTriangleCells.size() == 16);
+		ResultBoundarySurface surface;
+		QString error;
+		CHECK(extractBoundarySurface(ds, surface, nullptr, &error));
+		CHECK(surface.triangleCount() == 16 && surface.vertexCount() == 10);
+		double cx = 0, cy = 0, cz = 0;
+		for (std::size_t v = 0; v < 10; ++v)
+		{
+			cx += surface.positions[v * 3];
+			cy += surface.positions[v * 3 + 1];
+			cz += surface.positions[v * 3 + 2];
+		}
+		cx /= 10;
+		cy /= 10;
+		cz /= 10;
+		bool outward = true, allCellZero = true;
+		for (std::size_t t = 0; t < surface.triangleCount(); ++t)
+		{
+			const float* a = &surface.positions[surface.triangles[t * 3] * 3];
+			const float* b = &surface.positions[surface.triangles[t * 3 + 1] * 3];
+			const float* c = &surface.positions[surface.triangles[t * 3 + 2] * 3];
+			const double nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
+			const double ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+			const double nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+			const double mx = (a[0] + b[0] + c[0]) / 3 - cx, my = (a[1] + b[1] + c[1]) / 3 - cy, mz = (a[2] + b[2] + c[2]) / 3 - cz;
+			outward = outward && nx * mx + ny * my + nz * mz > 0.0;
+			allCellZero = allCellZero && surface.triangleCell[t] == 0;
+		}
+		CHECK(outward && allCellZero);
+
+		// through the application's loader, cell data is what is shown by default
+		const LoadedSimulationResult loaded = loadSimulationResult(dir + QStringLiteral("/case.foam"));
+		CHECK(loaded.ok() && loaded.surface.triangleCount() == 16);
+		if (loaded.ok())
+		{
+			DisplayScalar d;
+			CHECK(chooseDefaultDisplayScalar(*loaded.dataset, d) && d.cellData && d.unit == QStringLiteral("Pa") && !d.unitAssumed);
+		}
+	}
+
+	void testOpenFoamErrors()
+	{
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		const QString dir = tmp.path();
+
+		// not a case at all
+		writeText(dir + QStringLiteral("/a/case.foam"), QByteArray());
+		const ResultReadOutcome none = readResultFile(dir + QStringLiteral("/a/case.foam"));
+		CHECK(!none.ok() && none.error.contains(QStringLiteral("polyMesh")));
+
+		// a decomposed case says what to do
+		writeText(dir + QStringLiteral("/b/case.foam"), QByteArray());
+		QDir().mkpath(dir + QStringLiteral("/b/processor0"));
+		const ResultReadOutcome decomposed = readResultFile(dir + QStringLiteral("/b/case.foam"));
+		CHECK(!decomposed.ok() && decomposed.error.contains(QStringLiteral("reconstructPar")));
+
+		// binary files are refused with the way out, never misread
+		writePrismCase(dir + QStringLiteral("/c"));
+		writeText(dir + QStringLiteral("/c/constant/polyMesh/points"), foamHeader("vectorField", "points", "binary") + "10\n(garbage)\n");
+		const ResultReadOutcome binary = readResultFile(dir + QStringLiteral("/c/case.foam"));
+		CHECK(!binary.ok() && binary.error.contains(QStringLiteral("ASCII")) && binary.error.contains(QStringLiteral("points")));
+
+		// compressed mesh files
+		writePrismCase(dir + QStringLiteral("/d"));
+		QFile::remove(dir + QStringLiteral("/d/constant/polyMesh/faces"));
+		writeText(dir + QStringLiteral("/d/constant/polyMesh/faces.gz"), QByteArray("x"));
+		const ResultReadOutcome gz = readResultFile(dir + QStringLiteral("/d/case.foam"));
+		CHECK(!gz.ok() && gz.error.contains(QStringLiteral("compress")));
+
+		// damaged lists and inconsistent meshes
+		writePrismCase(dir + QStringLiteral("/e"));
+		writeText(dir + QStringLiteral("/e/constant/polyMesh/owner"), foamHeader("labelList", "owner") + "7\n(\n0\n0\n)\n"); // too short
+		CHECK(!readResultFile(dir + QStringLiteral("/e/case.foam")).ok());
+		writePrismCase(dir + QStringLiteral("/f"));
+		writeText(dir + QStringLiteral("/f/constant/polyMesh/faces"), foamHeader("faceList", "faces") + "1\n(\n3(0 1 99)\n)\n"); // a node that does not exist
+		writeText(dir + QStringLiteral("/f/constant/polyMesh/owner"), foamHeader("labelList", "owner") + "1\n(\n0\n)\n");
+		CHECK(!readResultFile(dir + QStringLiteral("/f/case.foam")).ok());
+
+		// a field with the wrong number of values, or in binary, is skipped with a warning; the geometry still loads
+		writePrismCase(dir + QStringLiteral("/g"));
+		writeText(dir + QStringLiteral("/g/1/p"), foamHeader("volScalarField", "p") + "dimensions [0 0 0 0 0 0 0];\ninternalField nonuniform List<scalar> 2(1 2);\n");
+		writeText(dir + QStringLiteral("/g/1/q"), foamHeader("volScalarField", "q", "binary") + "internalField nonuniform List<scalar> 1(1);\n");
+		const ResultReadOutcome skipped = readResultFile(dir + QStringLiteral("/g/case.foam"));
+		CHECK(skipped.ok());
+		if (skipped.ok())
+		{
+			CHECK(skipped.dataset->stepCount() == 1 && skipped.dataset->fields.size() == 1); // only the time-0 p survives
+			bool warned = false;
+			for (const QString& w : skipped.warnings)
+				warned = warned || w.contains(QStringLiteral("skipped"));
+			CHECK(warned);
+		}
+
+		// a case with a mesh but no fields at all still loads (uncoloured)
+		writePrismCase(dir + QStringLiteral("/h"));
+		QDir(dir + QStringLiteral("/h/0")).removeRecursively();
+		QDir(dir + QStringLiteral("/h/1")).removeRecursively();
+		const ResultReadOutcome bare = readResultFile(dir + QStringLiteral("/h/case.foam"));
+		CHECK(bare.ok() && bare.dataset->fields.empty() && bare.dataset->stepCount() == 0);
+	}
+
+	void testOpenFoamSample()
+	{
+		const QString path = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/openfoam_cavity/cavity.foam");
+		if (!QFile::exists(path))
+		{
+			std::printf("  (skipping OpenFOAM sample test: openfoam_cavity not found)\n");
+			return;
+		}
+		const LoadedSimulationResult r = loadSimulationResult(path);
+		if (!r.ok())
+			std::printf("  OpenFOAM sample failed: %s\n", qPrintable(r.error));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		CHECK(ds.cellCount() == 400 && ds.nodeCount() == 882);
+		// 20 x 20 x 1 cells: 880 boundary faces (80 side + 800 front/back) as 1760 triangles, each belonging to one of the 400 cells
+		CHECK(r.surface.triangleCount() == 1760);
+		bool cellsOk = true;
+		for (std::uint32_t cell : r.surface.triangleCell)
+			cellsOk = cellsOk && cell < 400;
+		CHECK(cellsOk);
+		CHECK(ds.stepCount() == 5 && approx(ds.steps[0].time, 0.0) && approx(ds.steps[4].time, 2.0));
+
+		const int T = fieldIndexOf(ds, QStringLiteral("T")), U = fieldIndexOf(ds, QStringLiteral("U"));
+		const int p = fieldIndexOf(ds, QStringLiteral("p")), sigma = fieldIndexOf(ds, QStringLiteral("sigma"));
+		CHECK(T >= 0 && U >= 0 && p >= 0 && sigma >= 0 && ds.fields.size() == 4);
+		if (T < 0 || U < 0 || p < 0 || sigma < 0)
+			return;
+		for (const ResultField& f : ds.fields)
+			CHECK(f.association == ResultFieldAssociation::Cell && f.stepData.size() == 5);
+
+		// units come from the file's own dimensions: K, m/s, Pa; the kinematic pressure gets none
+		const ResultField& fT = ds.fields[static_cast<std::size_t>(T)];
+		CHECK(fT.quantityKind == QStringLiteral("temperature") && fT.fileUnit == QStringLiteral("K") && fT.unitConfirmed);
+		CHECK(ds.fields[static_cast<std::size_t>(U)].quantityKind == QStringLiteral("velocity") && ds.fields[static_cast<std::size_t>(U)].fileUnit == QStringLiteral("m/s"));
+		CHECK(ds.fields[static_cast<std::size_t>(p)].fileUnit.isEmpty());
+		CHECK(ds.fields[static_cast<std::size_t>(sigma)].quantityKind == QStringLiteral("pressure") && ds.fields[static_cast<std::size_t>(sigma)].fileUnit == QStringLiteral("Pa"));
+
+		// uniform values at time 0: T = 300 everywhere, U = 0
+		bool uniformOk = true;
+		for (float v : fT.stepData[0])
+			uniformOk = uniformOk && v == 300.0f;
+		for (float v : ds.fields[static_cast<std::size_t>(U)].stepData[0])
+			uniformOk = uniformOk && v == 0.0f;
+		CHECK(uniformOk && fT.stepData[0].size() == 400 && ds.fields[static_cast<std::size_t>(U)].stepData[0].size() == 1200);
+
+		// the temperature rises with the spin-up: 300 .. about 325 at the end, monotonic in the mean
+		DisplayScalar first, last;
+		CHECK(buildDisplayScalar(ds, T, -1, first, 0) && buildDisplayScalar(ds, T, -1, last, 4));
+		CHECK(first.cellData && approx(first.maxValue, 300.0) && last.minValue > 300.0f && last.maxValue > 315.0f && last.maxValue < 330.0f);
+		CHECK(last.unit == QStringLiteral("K") && !last.unitAssumed);
+		// the velocity field is a real vortex at the end
+		DisplayScalar speed;
+		CHECK(buildDisplayScalar(ds, U, -1, speed, 4) && speed.maxValue > 0.5f);
+
+		// the symmetric tensor is reordered from XX XY XZ YY YZ ZZ = (100 10 0 200 0 300) to XX YY ZZ XY YZ ZX
+		const ResultField& fs = ds.fields[static_cast<std::size_t>(sigma)];
+		CHECK(fs.components == 6 && fs.componentNames.size() == 6 && fs.componentNames[3] == QStringLiteral("XY"));
+		const std::vector<float>& last6 = fs.stepData[4];
+		CHECK(last6.size() == 400u * 6u);
+		CHECK(last6[0] == 100.0f && last6[1] == 200.0f && last6[2] == 300.0f && last6[3] == 10.0f && last6[4] == 0.0f && last6[5] == 0.0f);
+
+		// the default is the first cell scalar (the file has cell data only); the timeline has five steps
+		DisplayScalar chosen;
+		CHECK(chooseDefaultDisplayScalar(ds, chosen) && chosen.cellData);
+
+		// it survives a save/restore like any other result: cell fields, units, steps
+		SimulationViewState state = defaultViewState(ds);
+		SnapshotOptions options;
+		options.content = SnapshotOptions::Content::AllFields;
+		ResultSnapshot snap;
+		DecodedSnapshot dec;
+		QString err;
+		CHECK(encodeResultSnapshot(ds, r.surface, state, options, snap, &err));
+		CHECK(decodeResultSnapshot(snap.json, snap.blobs, r.surface.vertexCount(), r.surface.triangles, dec, &err));
+		if (dec.dataset)
+		{
+			const int Tb = fieldIndexOf(*dec.dataset, QStringLiteral("T"));
+			CHECK(Tb >= 0 && dec.dataset->stepCount() == 5 && dec.dataset->fields.size() == 4);
+			DisplayScalar back;
+			CHECK(buildDisplayScalar(*dec.dataset, Tb, -1, back, 4) && back.cellData && back.unit == QStringLiteral("K"));
+			CHECK(back.minValue == last.minValue && back.maxValue == last.maxValue); // whole-model range, all 400 cells
+		}
+	}
+
+	// ---- Compare-mode pane geometry ---------------------------------------------------------------------------------
+
+	void testComparePanes()
+	{
+		// two panes side by side in 1000 x 600 with a 4 px gutter
+		std::vector<ComparePane> two = computeComparePanes(1000, 600, 2, CompareArrangement::SideBySide, 4);
+		CHECK(two.size() == 2);
+		CHECK(two[0].rect == QRect(0, 0, 498, 600) && two[1].rect == QRect(502, 0, 498, 600));
+		CHECK(two[0].glScissor == QRect(0, 0, 498, 600) && two[1].glScissor == QRect(502, 0, 498, 600));
+		// each pane is the full-size view shifted onto the pane: same viewport size, centred on the pane
+		CHECK(two[0].glViewport == QRect(-251, 0, 1000, 600) && two[1].glViewport == QRect(251, 0, 1000, 600));
+		CHECK(two[0].toWindow == QPoint(251, 0) && two[1].toWindow == QPoint(-251, 0));
+		CHECK(comparePaneAt(two, QPoint(10, 10)) == 0 && comparePaneAt(two, QPoint(600, 300)) == 1);
+		CHECK(comparePaneAt(two, QPoint(499, 100)) == -1 && comparePaneAt(two, QPoint(1000, 300)) == -1 && comparePaneAt(two, QPoint(-1, 0)) == -1);
+		CHECK(comparePaneAt(two, QPoint(497, 599)) == 0 && comparePaneAt(two, QPoint(502, 0)) == 1);
+
+		// stacked, odd height: the pane below starts after the gutter, GL's origin is at the bottom
+		std::vector<ComparePane> stacked = computeComparePanes(800, 601, 2, CompareArrangement::Stacked, 1);
+		CHECK(stacked.size() == 2 && stacked[0].rect == QRect(0, 0, 800, 300) && stacked[1].rect == QRect(0, 301, 800, 300));
+		CHECK(stacked[0].glScissor == QRect(0, 301, 800, 300) && stacked[1].glScissor == QRect(0, 0, 800, 300));
+
+		// a 2 x 2 grid in reading order
+		std::vector<ComparePane> grid = computeComparePanes(800, 600, 4, CompareArrangement::Grid, 4);
+		CHECK(grid.size() == 4 && grid[0].rect == QRect(0, 0, 398, 298) && grid[1].rect == QRect(402, 0, 398, 298)
+		      && grid[2].rect == QRect(0, 302, 398, 298) && grid[3].rect == QRect(402, 302, 398, 298));
+		CHECK(comparePaneAt(grid, QPoint(500, 400)) == 3 && comparePaneAt(grid, QPoint(400, 300)) == -1);
+		// three panes in a grid: the fourth slot stays empty; a grid of two is just a row
+		CHECK(computeComparePanes(800, 600, 3, CompareArrangement::Grid, 4).size() == 3);
+		CHECK(computeComparePanes(1000, 600, 2, CompareArrangement::Grid, 4)[1].rect == QRect(502, 0, 498, 600));
+
+		// the count is clamped, one pane is the whole window and needs no shift
+		CHECK(computeComparePanes(640, 480, 0, CompareArrangement::SideBySide).size() == 1);
+		CHECK(computeComparePanes(640, 480, 9, CompareArrangement::SideBySide).size() == 4);
+		const ComparePane whole = computeComparePanes(640, 480, 1, CompareArrangement::SideBySide)[0];
+		CHECK(whole.rect == QRect(0, 0, 640, 480) && whole.toWindow == QPoint(0, 0) && whole.glViewport == QRect(0, 0, 640, 480));
+
+		// invariants over many sizes, counts and arrangements: panes stay inside the window and never overlap, and every
+		// pane's shifted full-size view is centred on the pane (to a pixel)
+		const CompareArrangement arrangements[] = { CompareArrangement::SideBySide, CompareArrangement::Stacked, CompareArrangement::Grid };
+		bool inside = true, disjoint = true, centred = true, sized = true, scissorOk = true;
+		const int sizes[][2] = { { 1000, 600 }, { 801, 599 }, { 1920, 1080 }, { 333, 777 }, { 100, 100 }, { 9, 5 }, { 5, 5 } };
+		for (const auto& sz : sizes)
+			for (CompareArrangement arrangement : arrangements)
+				for (int count = 1; count <= 4; ++count)
+					for (int gutter : { 0, 1, 4, 11 })
+					{
+						const int w = sz[0], h = sz[1];
+						const std::vector<ComparePane> panes = computeComparePanes(w, h, count, arrangement, gutter);
+						sized = sized && static_cast<int>(panes.size()) == count;
+						for (std::size_t i = 0; i < panes.size(); ++i)
+						{
+							const ComparePane& a = panes[i];
+							inside = inside && a.rect.width() >= 0 && a.rect.height() >= 0 && a.rect.left() >= 0 && a.rect.top() >= 0
+								&& a.rect.right() < w + (a.rect.width() == 0 ? 1 : 0) && a.rect.bottom() < h + (a.rect.height() == 0 ? 1 : 0);
+							const int cx = a.rect.x() + a.rect.width() / 2, cy = a.rect.y() + a.rect.height() / 2;
+							centred = centred && std::abs(cx + a.toWindow.x() - w / 2) <= 1 && std::abs(cy + a.toWindow.y() - h / 2) <= 1
+								&& a.glViewport.width() == w && a.glViewport.height() == h
+								&& std::abs((a.glViewport.x() + w / 2) - cx) <= 1 && std::abs((a.glViewport.y() + h / 2) - (h - cy)) <= 1;
+							scissorOk = scissorOk && a.glScissor.width() == a.rect.width() && a.glScissor.height() == a.rect.height()
+								&& a.glScissor.y() == h - (a.rect.y() + a.rect.height());
+							for (std::size_t j = i + 1; j < panes.size(); ++j)
+								if (!a.rect.isEmpty() && !panes[j].rect.isEmpty())
+									disjoint = disjoint && !a.rect.intersects(panes[j].rect);
+						}
+					}
+		CHECK(sized && inside && disjoint && centred && scissorOk);
+	}
+
+	// ---- Exodus II reader (needs NetCDF; skipped when the build has none) ------------------------------------------
+
+#if MV_HAVE_NETCDF
+	// A small Exodus II file written through the NetCDF API: two HEX8 blocks of one element each that share a face (a
+	// 3 x 2 x 2 grid of nodes), three time steps, node variables disp_x/disp_y/disp_z and temperature (plus a symmetric
+	// stress tensor in the six stress_xx ... variables when asked) and one element variable "vm".
+	bool writeExodusFixture(const QString& path, bool netcdf4, bool withStress)
+	{
+		int ncid = -1;
+		const QByteArray native = QFile::encodeName(path);
+		if (nc_create(native.constData(), NC_CLOBBER | (netcdf4 ? NC_NETCDF4 : 0), &ncid) != NC_NOERR)
+			return false;
+		bool ok = true;
+		auto dim = [&](const char* name, std::size_t length) {
+			int id = -1;
+			ok = ok && nc_def_dim(ncid, name, length, &id) == NC_NOERR;
+			return id;
+		};
+		auto var = [&](const char* name, nc_type type, std::vector<int> dims) {
+			int id = -1;
+			ok = ok && nc_def_var(ncid, name, type, static_cast<int>(dims.size()), dims.data(), &id) == NC_NOERR;
+			return id;
+		};
+		const std::size_t nodeVars = withStress ? 10 : 4;
+		const int dLen = dim("len_string", 33), dDim = dim("num_dim", 3), dNodes = dim("num_nodes", 12), dElem = dim("num_elem", 2);
+		const int dBlocks = dim("num_el_blk", 2), dTime = dim("time_step", NC_UNLIMITED);
+		const int dNodVar = dim("num_nod_var", nodeVars), dElemVar = dim("num_elem_var", 1);
+		const int dEl1 = dim("num_el_in_blk1", 1), dNpe1 = dim("num_nod_per_el1", 8);
+		const int dEl2 = dim("num_el_in_blk2", 1), dNpe2 = dim("num_nod_per_el2", 8);
+		(void)dDim; (void)dElem; (void)dBlocks;
+		const int vx = var("coordx", NC_DOUBLE, { dNodes }), vy = var("coordy", NC_DOUBLE, { dNodes }), vz = var("coordz", NC_DOUBLE, { dNodes });
+		const int vc1 = var("connect1", NC_INT, { dEl1, dNpe1 }), vc2 = var("connect2", NC_INT, { dEl2, dNpe2 });
+		ok = ok && nc_put_att_text(ncid, vc1, "elem_type", 4, "HEX8") == NC_NOERR && nc_put_att_text(ncid, vc2, "elem_type", 4, "HEX8") == NC_NOERR;
+		const int vTime = var("time_whole", NC_DOUBLE, { dTime });
+		const int vNodNames = var("name_nod_var", NC_CHAR, { dNodVar, dLen });
+		std::vector<int> nodVarIds;
+		for (std::size_t i = 1; i <= nodeVars; ++i)
+			nodVarIds.push_back(var(QStringLiteral("vals_nod_var%1").arg(i).toLatin1().constData(), NC_DOUBLE, { dTime, dNodes }));
+		const int vElemNames = var("name_elem_var", NC_CHAR, { dElemVar, dLen });
+		const int vVm1 = var("vals_elem_var1eb1", NC_DOUBLE, { dTime, dEl1 }), vVm2 = var("vals_elem_var1eb2", NC_DOUBLE, { dTime, dEl2 });
+		ok = ok && nc_enddef(ncid) == NC_NOERR;
+
+		double coordX[12], coordY[12], coordZ[12];
+		for (int n = 0; n < 12; ++n)
+		{
+			coordX[n] = n % 3;
+			coordY[n] = (n / 3) % 2;
+			coordZ[n] = n / 6;
+		}
+		const int connect1[8] = { 1, 2, 5, 4, 7, 8, 11, 10 }, connect2[8] = { 2, 3, 6, 5, 8, 9, 12, 11 };
+		const double times[3] = { 0.0, 0.5, 1.0 };
+		const std::size_t startTime[1] = { 0 }, countTime[1] = { 3 };
+		ok = ok && nc_put_var_double(ncid, vx, coordX) == NC_NOERR && nc_put_var_double(ncid, vy, coordY) == NC_NOERR
+		     && nc_put_var_double(ncid, vz, coordZ) == NC_NOERR && nc_put_var_int(ncid, vc1, connect1) == NC_NOERR
+		     && nc_put_var_int(ncid, vc2, connect2) == NC_NOERR && nc_put_vara_double(ncid, vTime, startTime, countTime, times) == NC_NOERR;
+
+		const char* names[10] = { "disp_x", "disp_y", "disp_z", "temperature", "stress_xx", "stress_yy", "stress_zz", "stress_xy", "stress_yz", "stress_zx" };
+		std::vector<char> nameBuffer(nodeVars * 33, '\0');
+		for (std::size_t i = 0; i < nodeVars; ++i)
+			std::snprintf(&nameBuffer[i * 33], 33, "%s", names[i]);
+		ok = ok && nc_put_var_text(ncid, vNodNames, nameBuffer.data()) == NC_NOERR;
+		std::vector<char> elemName(33, '\0');
+		std::snprintf(elemName.data(), 33, "vm");
+		ok = ok && nc_put_var_text(ncid, vElemNames, elemName.data()) == NC_NOERR;
+
+		for (std::size_t s = 0; s < 3; ++s)
+		{
+			const std::size_t start[2] = { s, 0 }, count[2] = { 1, 12 };
+			for (std::size_t v = 0; v < nodeVars; ++v)
+			{
+				double values[12];
+				for (int n = 0; n < 12; ++n)
+				{
+					const double scale = static_cast<double>(s + 1);
+					switch (v)
+					{
+					case 0: values[n] = scale * 1.0e-3 * (n + 1); break;   // disp_x
+					case 1: values[n] = 0.0; break;                        // disp_y
+					case 2: values[n] = scale * 2.0e-3; break;             // disp_z
+					case 3: values[n] = 20.0 + 10.0 * static_cast<double>(s) + n; break; // temperature
+					case 4: values[n] = 100.0; break;                      // stress_xx: uniaxial, von Mises 100
+					default: values[n] = 0.0; break;
+					}
+				}
+				ok = ok && nc_put_vara_double(ncid, nodVarIds[v], start, count, values) == NC_NOERR;
+			}
+			const std::size_t startE[2] = { s, 0 }, countE[2] = { 1, 1 };
+			const double vm1 = 100.0 + static_cast<double>(s), vm2 = 200.0 + static_cast<double>(s);
+			ok = ok && nc_put_vara_double(ncid, vVm1, startE, countE, &vm1) == NC_NOERR && nc_put_vara_double(ncid, vVm2, startE, countE, &vm2) == NC_NOERR;
+		}
+		return nc_close(ncid) == NC_NOERR && ok;
+	}
+#endif
+
+#if MV_HAVE_NETCDF
+	// A larger Exodus II file for trying the reader in the application: an n x n x n block of HEX8 elements, five time
+	// steps of a bending-and-warming cube (disp_x/y/z, temperature, a symmetric stress tensor) and an element variable.
+	// Written with `result_tests --write-exodus-sample <file.exo>` (classic NetCDF, the layout most Exodus tools write).
+	bool writeExodusBlockSample(const char* path, int n = 8)
+	{
+		const int nodesPerSide = n + 1, nodeCount = nodesPerSide * nodesPerSide * nodesPerSide, elemCount = n * n * n, steps = 5;
+		const int nodeVars = 10;
+		int ncid = -1;
+		if (nc_create(path, NC_CLOBBER | NC_64BIT_OFFSET, &ncid) != NC_NOERR)
+			return false;
+		bool ok = true;
+		auto dim = [&](const char* name, std::size_t length) { int id = -1; ok = ok && nc_def_dim(ncid, name, length, &id) == NC_NOERR; return id; };
+		auto var = [&](const char* name, nc_type type, std::vector<int> dims) {
+			int id = -1;
+			ok = ok && nc_def_var(ncid, name, type, static_cast<int>(dims.size()), dims.data(), &id) == NC_NOERR;
+			return id;
+		};
+		const int dLen = dim("len_string", 33), dNodes = dim("num_nodes", static_cast<std::size_t>(nodeCount)), dTime = dim("time_step", NC_UNLIMITED);
+		dim("num_dim", 3);
+		dim("num_elem", static_cast<std::size_t>(elemCount));
+		dim("num_el_blk", 1);
+		const int dNodVar = dim("num_nod_var", nodeVars), dElemVar = dim("num_elem_var", 1);
+		const int dEl = dim("num_el_in_blk1", static_cast<std::size_t>(elemCount)), dNpe = dim("num_nod_per_el1", 8);
+		const int vx = var("coordx", NC_DOUBLE, { dNodes }), vy = var("coordy", NC_DOUBLE, { dNodes }), vz = var("coordz", NC_DOUBLE, { dNodes });
+		const int vc = var("connect1", NC_INT, { dEl, dNpe });
+		ok = ok && nc_put_att_text(ncid, vc, "elem_type", 4, "HEX8") == NC_NOERR;
+		const int vTime = var("time_whole", NC_DOUBLE, { dTime });
+		const int vNames = var("name_nod_var", NC_CHAR, { dNodVar, dLen });
+		std::vector<int> valueVars;
+		for (int i = 1; i <= nodeVars; ++i)
+			valueVars.push_back(var(QStringLiteral("vals_nod_var%1").arg(i).toLatin1().constData(), NC_DOUBLE, { dTime, dNodes }));
+		const int vElemNames = var("name_elem_var", NC_CHAR, { dElemVar, dLen });
+		const int vElemVals = var("vals_elem_var1eb1", NC_DOUBLE, { dTime, dEl });
+		ok = ok && nc_enddef(ncid) == NC_NOERR;
+
+		std::vector<double> cx(static_cast<std::size_t>(nodeCount)), cy(cx.size()), cz(cx.size());
+		auto node = [&](int i, int j, int k) { return i + nodesPerSide * (j + nodesPerSide * k); };
+		for (int k = 0; k < nodesPerSide; ++k)
+			for (int j = 0; j < nodesPerSide; ++j)
+				for (int i = 0; i < nodesPerSide; ++i)
+				{
+					const std::size_t id = static_cast<std::size_t>(node(i, j, k));
+					cx[id] = i;
+					cy[id] = j;
+					cz[id] = k;
+				}
+		std::vector<int> connect;
+		for (int k = 0; k < n; ++k)
+			for (int j = 0; j < n; ++j)
+				for (int i = 0; i < n; ++i)
+					for (int c : { node(i, j, k), node(i + 1, j, k), node(i + 1, j + 1, k), node(i, j + 1, k),
+					               node(i, j, k + 1), node(i + 1, j, k + 1), node(i + 1, j + 1, k + 1), node(i, j + 1, k + 1) })
+						connect.push_back(c + 1); // 1-based
+		ok = ok && nc_put_var_double(ncid, vx, cx.data()) == NC_NOERR && nc_put_var_double(ncid, vy, cy.data()) == NC_NOERR
+		     && nc_put_var_double(ncid, vz, cz.data()) == NC_NOERR && nc_put_var_int(ncid, vc, connect.data()) == NC_NOERR;
+
+		const char* names[10] = { "disp_x", "disp_y", "disp_z", "temperature", "stress_xx", "stress_yy", "stress_zz", "stress_xy", "stress_yz", "stress_zx" };
+		std::vector<char> nameBuffer(static_cast<std::size_t>(nodeVars) * 33, '\0');
+		for (int i = 0; i < nodeVars; ++i)
+			std::snprintf(&nameBuffer[static_cast<std::size_t>(i) * 33], 33, "%s", names[i]);
+		std::vector<char> elemName(33, '\0');
+		std::snprintf(elemName.data(), 33, "element_quality");
+		ok = ok && nc_put_var_text(ncid, vNames, nameBuffer.data()) == NC_NOERR && nc_put_var_text(ncid, vElemNames, elemName.data()) == NC_NOERR;
+
+		for (int s = 0; s < steps; ++s)
+		{
+			const double t = static_cast<double>(s) / (steps - 1), amp = t; // 0 .. 1
+			const std::size_t timeStart[1] = { static_cast<std::size_t>(s) }, one[1] = { 1 };
+			ok = ok && nc_put_vara_double(ncid, vTime, timeStart, one, &t) == NC_NOERR;
+			const std::size_t start[2] = { static_cast<std::size_t>(s), 0 }, count[2] = { 1, static_cast<std::size_t>(nodeCount) };
+			std::vector<double> values(static_cast<std::size_t>(nodeCount));
+			for (int v = 0; v < nodeVars; ++v)
+			{
+				for (std::size_t id = 0; id < values.size(); ++id)
+				{
+					const double x = cx[id] / n, y = cy[id] / n, z = cz[id] / n; // 0 .. 1
+					switch (v)
+					{
+					case 0: values[id] = -amp * 0.15 * x * (z - 0.5); break;      // disp_x: the cube bends about y ...
+					case 1: values[id] = 0.0; break;
+					case 2: values[id] = amp * 0.15 * x * x; break;              // ... its free end (x = 1) dropping most
+					case 3: values[id] = 20.0 + 80.0 * amp * x; break;           // temperature rising towards x = 1
+					case 4: values[id] = amp * 200.0 * x * (z - 0.5); break;     // stress_xx
+					case 5: values[id] = amp * 20.0 * (1.0 - x); break;          // stress_yy
+					case 6: values[id] = amp * 10.0 * y; break;                  // stress_zz
+					case 7: values[id] = amp * 30.0 * z * (1.0 - x); break;      // stress_xy
+					case 8: values[id] = amp * 15.0 * y * z; break;              // stress_yz
+					default: values[id] = amp * 25.0 * x * y; break;             // stress_zx
+					}
+				}
+				ok = ok && nc_put_vara_double(ncid, valueVars[static_cast<std::size_t>(v)], start, count, values.data()) == NC_NOERR;
+			}
+			std::vector<double> quality(static_cast<std::size_t>(elemCount));
+			for (int e = 0; e < elemCount; ++e)
+				quality[static_cast<std::size_t>(e)] = 0.5 + 0.5 * std::sin(0.1 * e + 2.0 * t);
+			const std::size_t startE[2] = { static_cast<std::size_t>(s), 0 }, countE[2] = { 1, static_cast<std::size_t>(elemCount) };
+			ok = ok && nc_put_vara_double(ncid, vElemVals, startE, countE, quality.data()) == NC_NOERR;
+		}
+		return nc_close(ncid) == NC_NOERR && ok;
+	}
+#endif
+
+#if MV_HAVE_NETCDF
+	// An Exodus II file with a polyhedral (NFACED) element block, written through the NetCDF API in the layout of the Exodus II specification: two blocks of
+	// one element each that share a face (the 3 x 2 x 2 grid of nodes of the other fixtures) - block 1 a cube given by its six faces, block 2 a regular HEX8 -
+	// and two face blocks: block 1 five NSIDED faces (fbepecnt = nodes per face), block 2 one fixed-size QUAD face (fbconn as [faces][nodes]). The element block
+	// lists the face ids in facconn1, the faces per element in ebepecnt1. One time step, node variables temperature and vel_x / vel_y / vel_z (a flow along +x).
+	// `badFaceId` (> 0) replaces the last face id of the polyhedron, to test a reference outside the file. Written also with
+	// `result_tests --write-exodus-polyhedra-sample <file.exo>` for trying the reader in the application.
+	bool writeExodusPolyhedra(const char* path, int badFaceId = 0)
+	{
+		int ncid = -1;
+		if (nc_create(path, NC_CLOBBER, &ncid) != NC_NOERR)
+			return false;
+		bool ok = true;
+		auto dim = [&](const char* name, std::size_t length) {
+			int id = -1;
+			ok = ok && nc_def_dim(ncid, name, length, &id) == NC_NOERR;
+			return id;
+		};
+		auto var = [&](const char* name, nc_type type, std::vector<int> dims) {
+			int id = -1;
+			ok = ok && nc_def_var(ncid, name, type, static_cast<int>(dims.size()), dims.data(), &id) == NC_NOERR;
+			return id;
+		};
+		// The global attributes and block properties every Exodus II reader (the exodus library of VTK, for one) insists on.
+		const float apiVersion = 8.11f;
+		const int wordSize = 8, fileSize = 1;
+		ok = ok && nc_put_att_float(ncid, NC_GLOBAL, "api_version", NC_FLOAT, 1, &apiVersion) == NC_NOERR
+		     && nc_put_att_float(ncid, NC_GLOBAL, "version", NC_FLOAT, 1, &apiVersion) == NC_NOERR
+		     && nc_put_att_int(ncid, NC_GLOBAL, "floating_point_word_size", NC_INT, 1, &wordSize) == NC_NOERR
+		     && nc_put_att_int(ncid, NC_GLOBAL, "file_size", NC_INT, 1, &fileSize) == NC_NOERR
+		     && nc_put_att_text(ncid, NC_GLOBAL, "title", 19, "polyhedral fixture") == NC_NOERR;
+		const int dLen = dim("len_string", 33), dLenName = dim("len_name", 33), dNodes = dim("num_nodes", 12), dTime = dim("time_step", NC_UNLIMITED);
+		const int dNodVar = dim("num_nod_var", 4), dDim = dim("num_dim", 3), dBlocks = dim("num_el_blk", 2), dFaceBlocks = dim("num_fa_blk", 2);
+		dim("num_elem", 2);
+		dim("num_faces", 6);
+		const int dEl1 = dim("num_el_in_blk1", 1), dFacPerEl1 = dim("num_fac_per_el1", 6);
+		const int dEl2 = dim("num_el_in_blk2", 1), dNpe2 = dim("num_nod_per_el2", 8);
+		const int dFa1 = dim("num_fa_in_blk1", 5), dNpf1 = dim("num_nod_per_fa1", 20);
+		const int dFa2 = dim("num_fa_in_blk2", 1), dNpf2 = dim("num_nod_per_fa2", 4);
+		const int vx = var("coordx", NC_DOUBLE, { dNodes }), vy = var("coordy", NC_DOUBLE, { dNodes }), vz = var("coordz", NC_DOUBLE, { dNodes });
+		const int vEbepecnt1 = var("ebepecnt1", NC_INT, { dEl1 }), vFacconn1 = var("facconn1", NC_INT, { dFacPerEl1 });
+		const int vConnect2 = var("connect2", NC_INT, { dEl2, dNpe2 });
+		const int vFbepecnt1 = var("fbepecnt1", NC_INT, { dFa1 }), vFbconn1 = var("fbconn1", NC_INT, { dNpf1 });
+		const int vFbconn2 = var("fbconn2", NC_INT, { dFa2, dNpf2 });
+		// (Exodus writes these strings with their terminating zero: the exodus library reads them as C strings.)
+		ok = ok && nc_put_att_text(ncid, vFacconn1, "elem_type", 7, "NFACED") == NC_NOERR && nc_put_att_text(ncid, vConnect2, "elem_type", 5, "HEX8") == NC_NOERR
+		     && nc_put_att_text(ncid, vFbconn1, "elem_type", 7, "NSIDED") == NC_NOERR && nc_put_att_text(ncid, vFbconn2, "elem_type", 6, "QUAD4") == NC_NOERR
+		     && nc_put_att_text(ncid, vEbepecnt1, "elem_type", 7, "NFACED") == NC_NOERR;
+		const int vTime = var("time_whole", NC_DOUBLE, { dTime });
+		const int vNodNames = var("name_nod_var", NC_CHAR, { dNodVar, dLen });
+		std::vector<int> nodVarIds;
+		for (int i = 1; i <= 4; ++i)
+			nodVarIds.push_back(var(QStringLiteral("vals_nod_var%1").arg(i).toLatin1().constData(), NC_DOUBLE, { dTime, dNodes }));
+		const int vCoorNames = var("coor_names", NC_CHAR, { dDim, dLenName });
+		const int vEbProp = var("eb_prop1", NC_INT, { dBlocks }), vEbStatus = var("eb_status", NC_INT, { dBlocks });
+		const int vFaProp = var("fa_prop1", NC_INT, { dFaceBlocks }), vFaStatus = var("fa_status", NC_INT, { dFaceBlocks });
+		ok = ok && nc_put_att_text(ncid, vEbProp, "name", 2, "ID") == NC_NOERR && nc_put_att_text(ncid, vFaProp, "name", 2, "ID") == NC_NOERR;
+		ok = ok && nc_enddef(ncid) == NC_NOERR;
+
+		const int ids12[2] = { 1, 2 };
+		char coorNames[3 * 33] = {};
+		std::snprintf(&coorNames[0], 33, "x");
+		std::snprintf(&coorNames[33], 33, "y");
+		std::snprintf(&coorNames[66], 33, "z");
+		ok = ok && nc_put_var_int(ncid, vEbProp, ids12) == NC_NOERR && nc_put_var_int(ncid, vEbStatus, ids12) == NC_NOERR
+		     && nc_put_var_int(ncid, vFaProp, ids12) == NC_NOERR && nc_put_var_int(ncid, vFaStatus, ids12) == NC_NOERR
+		     && nc_put_var_text(ncid, vCoorNames, coorNames) == NC_NOERR;
+
+		double coordX[12], coordY[12], coordZ[12];
+		for (int n = 0; n < 12; ++n)
+		{
+			coordX[n] = n % 3;
+			coordY[n] = (n / 3) % 2;
+			coordZ[n] = n / 6;
+		}
+		// the cube x = 0..1 (nodes 1 2 4 5 7 8 10 11): faces x = 0, x = 1, y = 0, y = 1, z = 0 (block 1) and z = 1 (block 2)
+		const int ebepecnt1[1] = { 6 };
+		int facconn1[6] = { 1, 2, 3, 4, 5, 6 };
+		if (badFaceId > 0)
+			facconn1[5] = badFaceId;
+		const int connect2[8] = { 2, 3, 6, 5, 8, 9, 12, 11 };
+		const int fbepecnt1[5] = { 4, 4, 4, 4, 4 };
+		const int fbconn1[20] = { 1, 4, 10, 7, 2, 8, 11, 5, 1, 2, 8, 7, 4, 10, 11, 5, 1, 4, 5, 2 };
+		const int fbconn2[4] = { 7, 8, 11, 10 };
+		const double time0[1] = { 0.0 };
+		const std::size_t startTime[1] = { 0 }, countTime[1] = { 1 };
+		ok = ok && nc_put_var_double(ncid, vx, coordX) == NC_NOERR && nc_put_var_double(ncid, vy, coordY) == NC_NOERR && nc_put_var_double(ncid, vz, coordZ) == NC_NOERR
+		     && nc_put_var_int(ncid, vEbepecnt1, ebepecnt1) == NC_NOERR && nc_put_var_int(ncid, vFacconn1, facconn1) == NC_NOERR
+		     && nc_put_var_int(ncid, vConnect2, connect2) == NC_NOERR && nc_put_var_int(ncid, vFbepecnt1, fbepecnt1) == NC_NOERR
+		     && nc_put_var_int(ncid, vFbconn1, fbconn1) == NC_NOERR && nc_put_var_int(ncid, vFbconn2, fbconn2) == NC_NOERR
+		     && nc_put_vara_double(ncid, vTime, startTime, countTime, time0) == NC_NOERR;
+
+		const char* names[4] = { "temperature", "vel_x", "vel_y", "vel_z" };
+		std::vector<char> nameBuffer(4 * 33, '\0');
+		for (std::size_t i = 0; i < 4; ++i)
+			std::snprintf(&nameBuffer[i * 33], 33, "%s", names[i]);
+		ok = ok && nc_put_var_text(ncid, vNodNames, nameBuffer.data()) == NC_NOERR;
+		const std::size_t start[2] = { 0, 0 }, count[2] = { 1, 12 };
+		for (int v = 0; v < 4; ++v)
+		{
+			double values[12];
+			for (int n = 0; n < 12; ++n)
+			{
+				switch (v)
+				{
+				case 0: values[n] = 300.0 + 20.0 * coordX[n]; break;
+				case 1: values[n] = 1.0; break;
+				case 2: values[n] = 0.1 * (coordY[n] - 0.5); break;
+				default: values[n] = 0.0; break;
+				}
+			}
+			ok = ok && nc_put_vara_double(ncid, nodVarIds[static_cast<std::size_t>(v)], start, count, values) == NC_NOERR;
+		}
+		return nc_close(ncid) == NC_NOERR && ok;
+	}
+
+	void testExodusPolyhedra()
+	{
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		const QString path = tmp.path() + QStringLiteral("/poly.exo");
+		CHECK(writeExodusPolyhedra(QFile::encodeName(path).constData()));
+		const ResultReadOutcome r = readResultFile(path);
+		if (!r.ok())
+			std::printf("  Exodus polyhedra failed: %s\n", qPrintable(r.error));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		CHECK(ds.cellCount() == 2 && ds.cellTypes[0] == ResultCellType::Polyhedron && ds.cellTypes[1] == ResultCellType::Hexahedron);
+		CHECK(ds.faceCount() == 6 && ds.polyhedronFaceCount(0) == 6 && ds.polyhedronFaceCount(1) == 0 && ds.faceNodes.size() == 24);
+		CHECK(ds.cellConnectivity.size() == 8 && ds.cellOffsets == std::vector<std::uint32_t>({ 0, 0, 8 }));
+		CHECK(ds.faceNodes[0] == 0 && ds.faceNodes[1] == 3 && ds.faceNodes[2] == 9 && ds.faceNodes[3] == 6); // face 1, nodes 1 4 10 7 (0-based here)
+		CHECK(ds.faceNodes[20] == 6 && ds.faceNodes[23] == 9);                                              // the fixed-size QUAD face of block 2 (7 8 11 10)
+		CHECK(ds.validate().isEmpty());
+		CHECK(extract(ds).triangleCount() == 20); // ten quads: the face between the cubes is interior
+		const int vel = fieldIndexOf(ds, QStringLiteral("vel"));
+		CHECK(vel >= 0 && ds.fields[static_cast<std::size_t>(vel)].components == 3 && fieldIndexOf(ds, QStringLiteral("temperature")) >= 0);
+		if (vel >= 0)
+		{
+			const CellLocator locator(ds);
+			CHECK(locator.volumeCellCount() == 2);
+			StreamlineSet run;
+			CHECK(traceStreamlines(ds, locator, ds.fields[static_cast<std::size_t>(vel)].stepData[0], nullptr, { 0.5f, 0.5f, 0.5f }, StreamlineOptions(), run) && run.lineCount() == 1);
+			if (run.lineCount() == 1)
+				CHECK(run.points[(run.pointCount() - 1) * 3] > 1.5f); // from the polyhedron on into the hexahedron
+		}
+		// a face id the file does not have is an error, not a crash
+		const QString bad = tmp.path() + QStringLiteral("/bad.exo");
+		CHECK(writeExodusPolyhedra(QFile::encodeName(bad).constData(), 9));
+		const ResultReadOutcome badOutcome = readResultFile(bad);
+		CHECK(!badOutcome.ok() && badOutcome.error.contains(QStringLiteral("references face 9")));
+	}
+
+#endif
+
+	void testExodus()
+	{
+#if MV_HAVE_NETCDF
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		CHECK(exodusSupported() && !exodusFileFilter().isEmpty());
+		CHECK(supportedResultExtensions().contains(QStringLiteral("exo")) && supportedResultExtensions().contains(QStringLiteral("e")));
+		CHECK(isSupportedResultFile(QStringLiteral("run.EXO")) && isSupportedResultFile(QStringLiteral("mesh.g")));
+
+		for (int variant = 0; variant < 2; ++variant)
+		{
+			const bool netcdf4 = variant == 1, withStress = variant == 1; // classic without stress, netCDF-4/HDF5 with it
+			const QString path = tmp.path() + (netcdf4 ? QStringLiteral("/v4.exo") : QStringLiteral("/v3.exo"));
+			CHECK(writeExodusFixture(path, netcdf4, withStress));
+			const ResultReadOutcome r = readResultFile(path);
+			if (!r.ok())
+				std::printf("  Exodus %s failed: %s\n", netcdf4 ? "netCDF-4" : "classic", qPrintable(r.error));
+			CHECK(r.ok());
+			if (!r.ok())
+				continue;
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.solverName == QStringLiteral("Exodus"));
+			CHECK(ds.nodeCount() == 12 && ds.cellCount() == 2);
+			CHECK(ds.cellTypes[0] == ResultCellType::Hexahedron && ds.cellTypes[1] == ResultCellType::Hexahedron);
+			const std::vector<std::uint32_t> firstHex = { 0, 1, 4, 3, 6, 7, 10, 9 }; // Exodus is 1-based
+			CHECK(std::vector<std::uint32_t>(ds.cellConnectivity.begin(), ds.cellConnectivity.begin() + 8) == firstHex);
+			CHECK(approx(ds.nodePositions[5 * 3 + 0], 2.0) && approx(ds.nodePositions[5 * 3 + 1], 1.0) && approx(ds.nodePositions[5 * 3 + 2], 0.0, 1e-4, 1e-9));
+			CHECK(ds.stepCount() == 3 && approx(ds.steps[0].time, 0.0) && approx(ds.steps[1].time, 0.5) && approx(ds.steps[2].time, 1.0));
+			CHECK(ds.validate().isEmpty());
+
+			// disp_x/_y/_z become one vector field, temperature stays a scalar, the element variable is a cell field
+			const int disp = fieldIndexOf(ds, QStringLiteral("disp")), temperature = fieldIndexOf(ds, QStringLiteral("temperature"));
+			const ResultField* vm = ds.findField(QStringLiteral("vm"), ResultFieldAssociation::Cell);
+			CHECK(disp >= 0 && temperature >= 0 && vm != nullptr);
+			CHECK(ds.fields.size() == (withStress ? 9u : 3u)); // + the stress tensor and its five derived fields
+			if (disp >= 0 && temperature >= 0 && vm)
+			{
+				const ResultField& fd = ds.fields[static_cast<std::size_t>(disp)];
+				CHECK(fd.components == 3 && fd.association == ResultFieldAssociation::Node && fd.stepData.size() == 3);
+				CHECK(approx(fd.stepData[2][5 * 3 + 0], 0.018) && approx(fd.stepData[2][5 * 3 + 1], 0.0, 1e-4, 1e-9) && approx(fd.stepData[2][5 * 3 + 2], 0.006));
+				const ResultField& ft = ds.fields[static_cast<std::size_t>(temperature)];
+				CHECK(ft.components == 1 && approx(ft.stepData[1][3], 33.0) && approx(ft.stepData[2][11], 51.0));
+				CHECK(vm->components == 1 && vm->stepData[2].size() == 2 && approx(vm->stepData[2][0], 102.0) && approx(vm->stepData[2][1], 202.0));
+			}
+
+			// two hexahedra sharing a face: 12 faces - 2 shared = 10 boundary quads = 20 triangles
+			ResultBoundarySurface surface;
+			CHECK(extractBoundarySurface(ds, surface, nullptr, nullptr));
+			CHECK(surface.triangleCount() == 20 && surface.vertexCount() == 12);
+
+			if (withStress)
+			{
+				// the six stress components form one symmetric tensor and get the derived structural fields
+				const int stress = fieldIndexOf(ds, QStringLiteral("stress")), mises = fieldIndexOf(ds, QStringLiteral("stress von Mises"));
+				CHECK(stress >= 0 && mises >= 0 && ds.fields[static_cast<std::size_t>(stress)].components == 6);
+				const LoadedSimulationResult loaded = loadSimulationResult(path);
+				CHECK(loaded.ok());
+				if (loaded.ok())
+				{
+					DisplayScalar d;
+					CHECK(chooseDefaultDisplayScalar(*loaded.dataset, d) && d.label == QStringLiteral("stress von Mises") && approx(d.maxValue, 100.0));
+				}
+			}
+		}
+
+		// problems are reported, never crashed on
+		const ResultReadOutcome missing = readResultFile(tmp.path() + QStringLiteral("/missing.exo"));
+		CHECK(!missing.ok() && missing.error.contains(QStringLiteral("Cannot open")));
+		writeText(tmp.path() + QStringLiteral("/bad.exo"), QByteArray("this is not a NetCDF file"));
+		CHECK(!readResultFile(tmp.path() + QStringLiteral("/bad.exo")).ok());
+		{
+			int ncid = -1, dimid = -1;
+			const QByteArray plain = QFile::encodeName(tmp.path() + QStringLiteral("/plain.nc"));
+			CHECK(nc_create(plain.constData(), NC_CLOBBER, &ncid) == NC_NOERR);
+			nc_def_dim(ncid, "foo", 3, &dimid);
+			nc_enddef(ncid);
+			nc_close(ncid);
+			QFile::copy(tmp.path() + QStringLiteral("/plain.nc"), tmp.path() + QStringLiteral("/plain.exo"));
+			const ResultReadOutcome notExodus = readResultFile(tmp.path() + QStringLiteral("/plain.exo"));
+			CHECK(!notExodus.ok() && notExodus.error.contains(QStringLiteral("not an Exodus II mesh")));
+		}
+#else
+		std::printf("  (skipping Exodus tests: this build has no NetCDF)\n");
+		CHECK(!exodusSupported() && exodusExtensions().isEmpty() && !isSupportedResultFile(QStringLiteral("run.exo")));
+		CHECK(!readResultFile(QStringLiteral("run.exo")).ok());
+#endif
+	}
+
+	// ---- CGNS reader (needs the CGNS library; skipped when the build has none) ---------------------------------------
+
+#if MV_HAVE_CGNS
+	// A small CGNS file written through the CGNS API: one unstructured zone of 12 nodes (the 3 x 2 x 2 grid of the Exodus
+	// fixture) holding two HEXA_8 cells (or, `mixed`, one HEXA_8 and one TETRA_4 in a MIXED section), a QUAD_4 boundary
+	// section that must NOT become cells, three steps of Vertex solutions (Temperature, VelocityX/Y/Z) and CellCenter
+	// solutions (Quality), and BaseIterativeData/TimeValues.
+	bool writeCgnsFixture(const char* path, bool mixed, bool withSolutions)
+	{
+		int fn = 0, base = 0, zone = 0;
+		if (cg_open(path, CG_MODE_WRITE, &fn) != CG_OK)
+			return false;
+		bool ok = cg_base_write(fn, "Base", 3, 3, &base) == CG_OK;
+		const cgsize_t size[3] = { 12, 2, 0 };
+		ok = ok && cg_zone_write(fn, base, "Zone1", size, CGNS_ENUMV(Unstructured), &zone) == CG_OK;
+		double x[12], y[12], z[12];
+		for (int n = 0; n < 12; ++n)
+		{
+			x[n] = n % 3;
+			y[n] = (n / 3) % 2;
+			z[n] = n / 6;
+		}
+		int index = 0;
+		ok = ok && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateX", x, &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateY", y, &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateZ", z, &index) == CG_OK;
+		if (mixed)
+		{
+			// CGNS 4 writes MIXED sections through the polyhedral call: each element's type precedes its nodes and one offset per
+			// element (plus the end) says where it starts. (The older call is kept as a fallback for other library versions.)
+			const cgsize_t mix[14] = { CGNS_ENUMV(HEXA_8), 1, 2, 5, 4, 7, 8, 11, 10, CGNS_ENUMV(TETRA_4), 2, 3, 6, 8 };
+			const cgsize_t mixOffsets[3] = { 0, 9, 14 };
+			const bool poly = cg_poly_section_write(fn, base, zone, "Mixed", CGNS_ENUMV(MIXED), 1, 2, 0, mix, mixOffsets, &index) == CG_OK;
+			ok = ok && (poly || cg_section_write(fn, base, zone, "Mixed", CGNS_ENUMV(MIXED), 1, 2, 0, mix, &index) == CG_OK);
+		}
+		else
+		{
+			const cgsize_t hexes[16] = { 1, 2, 5, 4, 7, 8, 11, 10, 2, 3, 6, 5, 8, 9, 12, 11 };
+			const cgsize_t walls[8] = { 1, 2, 5, 4, 7, 8, 11, 10 }; // two quads: boundary elements 3 and 4, not cells
+			ok = ok && cg_section_write(fn, base, zone, "Hexas", CGNS_ENUMV(HEXA_8), 1, 2, 0, hexes, &index) == CG_OK
+			     && cg_section_write(fn, base, zone, "Walls", CGNS_ENUMV(QUAD_4), 3, 4, 0, walls, &index) == CG_OK;
+		}
+		if (withSolutions)
+		{
+			for (int s = 0; s < 3; ++s)
+			{
+				double temperature[12], vx[12], vy[12], vz[12];
+				for (int n = 0; n < 12; ++n)
+				{
+					temperature[n] = 20.0 + 10.0 * s + n;
+					vx[n] = (s + 1) * 0.1 * n;
+					vy[n] = 0.0;
+					vz[n] = (s + 1) * 0.2;
+				}
+				int sol = 0, field = 0;
+				const QByteArray vertexName = QByteArray("FlowSolution") + QByteArray::number(s);
+				ok = ok && cg_sol_write(fn, base, zone, vertexName.constData(), CGNS_ENUMV(Vertex), &sol) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Temperature", temperature, &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityX", vx, &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityY", vy, &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityZ", vz, &field) == CG_OK;
+				// a symmetric stress tensor: uniaxial 100 (StressXX), the rest zero -> von Mises 100
+				double stressXX[12], zero[12];
+				for (int n = 0; n < 12; ++n)
+				{
+					stressXX[n] = 100.0;
+					zero[n] = 0.0;
+				}
+				ok = ok && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "StressXX", stressXX, &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "StressYY", zero, &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "StressZZ", zero, &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "StressXY", zero, &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "StressYZ", zero, &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "StressXZ", zero, &field) == CG_OK;
+				const double quality[2] = { 100.0 + s, 200.0 + s };
+				const QByteArray cellName = QByteArray("CellSolution") + QByteArray::number(s);
+				ok = ok && cg_sol_write(fn, base, zone, cellName.constData(), CGNS_ENUMV(CellCenter), &sol) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Quality", quality, &field) == CG_OK;
+			}
+			const double times[3] = { 0.0, 0.5, 1.0 };
+			const cgsize_t count = 3;
+			ok = ok && cg_biter_write(fn, base, "TimeIterValues", 3) == CG_OK
+			     && cg_goto(fn, base, "BaseIterativeData_t", 1, "end") == CG_OK
+			     && cg_array_write("TimeValues", CGNS_ENUMV(RealDouble), 1, &count, times) == CG_OK;
+		}
+		return cg_close(fn) == CG_OK && ok;
+	}
+
+	// A larger CGNS file for trying the reader in the application: an n x n x n block of HEXA_8 cells, five steps of a
+	// warming, accelerating cube (Temperature, Pressure and VelocityX/Y/Z at the vertices, Quality per cell).
+	// Written with `result_tests --write-cgns-sample <file.cgns>`.
+	bool writeCgnsBlockSample(const char* path, int n = 8)
+	{
+		const int side = n + 1, nodeCount = side * side * side, cells = n * n * n, steps = 5;
+		int fn = 0, base = 0, zone = 0, index = 0;
+		if (cg_open(path, CG_MODE_WRITE, &fn) != CG_OK)
+			return false;
+		bool ok = cg_base_write(fn, "Base", 3, 3, &base) == CG_OK;
+		const cgsize_t size[3] = { nodeCount, cells, 0 };
+		ok = ok && cg_zone_write(fn, base, "Block", size, CGNS_ENUMV(Unstructured), &zone) == CG_OK;
+		std::vector<double> cx(static_cast<std::size_t>(nodeCount)), cy(cx.size()), cz(cx.size());
+		auto node = [&](int i, int j, int k) { return i + side * (j + side * k); };
+		for (int k = 0; k < side; ++k)
+			for (int j = 0; j < side; ++j)
+				for (int i = 0; i < side; ++i)
+				{
+					const std::size_t id = static_cast<std::size_t>(node(i, j, k));
+					cx[id] = i;
+					cy[id] = j;
+					cz[id] = k;
+				}
+		std::vector<cgsize_t> connect;
+		for (int k = 0; k < n; ++k)
+			for (int j = 0; j < n; ++j)
+				for (int i = 0; i < n; ++i)
+					for (int c : { node(i, j, k), node(i + 1, j, k), node(i + 1, j + 1, k), node(i, j + 1, k),
+					               node(i, j, k + 1), node(i + 1, j, k + 1), node(i + 1, j + 1, k + 1), node(i, j + 1, k + 1) })
+						connect.push_back(c + 1);
+		ok = ok && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateX", cx.data(), &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateY", cy.data(), &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateZ", cz.data(), &index) == CG_OK
+		     && cg_section_write(fn, base, zone, "Elements", CGNS_ENUMV(HEXA_8), 1, cells, 0, connect.data(), &index) == CG_OK;
+		std::vector<double> times;
+		for (int s = 0; s < steps; ++s)
+		{
+			const double t = static_cast<double>(s) / (steps - 1);
+			times.push_back(t);
+			std::vector<double> temperature(cx.size()), pressure(cx.size()), vx(cx.size()), vy(cx.size()), vz(cx.size());
+			for (std::size_t id = 0; id < cx.size(); ++id)
+			{
+				const double x = cx[id] / n, y = cy[id] / n, z = cz[id] / n;
+				temperature[id] = 300.0 + 60.0 * t * x;
+				pressure[id] = 101325.0 + 500.0 * t * (1.0 - x) * (y + z);
+				vx[id] = t * 2.0 * y * (1.0 - y) * 4.0;
+				vy[id] = t * 0.5 * std::sin(3.14159265 * x);
+				vz[id] = t * 0.25 * (z - 0.5);
+			}
+			int sol = 0, field = 0;
+			const QByteArray vertexName = QByteArray("FlowSolution") + QByteArray::number(s);
+			ok = ok && cg_sol_write(fn, base, zone, vertexName.constData(), CGNS_ENUMV(Vertex), &sol) == CG_OK
+			     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Temperature", temperature.data(), &field) == CG_OK
+			     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Pressure", pressure.data(), &field) == CG_OK
+			     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityX", vx.data(), &field) == CG_OK
+			     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityY", vy.data(), &field) == CG_OK
+			     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityZ", vz.data(), &field) == CG_OK;
+			std::vector<double> quality(static_cast<std::size_t>(cells));
+			for (int e = 0; e < cells; ++e)
+				quality[static_cast<std::size_t>(e)] = 0.5 + 0.5 * std::sin(0.1 * e + 2.0 * t);
+			const QByteArray cellName = QByteArray("CellSolution") + QByteArray::number(s);
+			ok = ok && cg_sol_write(fn, base, zone, cellName.constData(), CGNS_ENUMV(CellCenter), &sol) == CG_OK
+			     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Quality", quality.data(), &field) == CG_OK;
+		}
+		const cgsize_t stepCount = steps;
+		ok = ok && cg_biter_write(fn, base, "TimeIterValues", steps) == CG_OK && cg_goto(fn, base, "BaseIterativeData_t", 1, "end") == CG_OK
+		     && cg_array_write("TimeValues", CGNS_ENUMV(RealDouble), 1, &stepCount, times.data()) == CG_OK;
+		return cg_close(fn) == CG_OK && ok;
+	}
+#endif
+
+#if MV_HAVE_CGNS
+	// A multi-block structured CGNS file for trying the reader in the application: two curved blocks (quarter rings, 12 x 6 x 4
+	// cells each) that together make a half-ring duct, four steps of a swirling flow (Temperature, Pressure, VelocityX/Y/Z at
+	// the points, Quality per cell). Written with `result_tests --write-cgns-structured-sample <file.cgns>`.
+	bool writeCgnsStructuredSample(const char* path)
+	{
+		const int ni = 13, nj = 7, nk = 5, steps = 4; // points per direction
+		const double pi = 3.14159265358979323846;
+		int fn = 0, base = 0;
+		if (cg_open(path, CG_MODE_WRITE, &fn) != CG_OK)
+			return false;
+		bool ok = cg_base_write(fn, "Duct", 3, 3, &base) == CG_OK;
+		const std::size_t points = static_cast<std::size_t>(ni * nj * nk), cells = static_cast<std::size_t>((ni - 1) * (nj - 1) * (nk - 1));
+		for (int block = 0; block < 2; ++block)
+		{
+			int zone = 0, index = 0;
+			const cgsize_t size[9] = { ni, nj, nk, ni - 1, nj - 1, nk - 1, 0, 0, 0 };
+			const QByteArray zoneName = QByteArray("Block") + QByteArray::number(block + 1);
+			ok = ok && cg_zone_write(fn, base, zoneName.constData(), size, CGNS_ENUMV(Structured), &zone) == CG_OK;
+			std::vector<double> x(points), y(points), z(points), theta(points), radius(points);
+			for (int k = 0; k < nk; ++k)
+				for (int j = 0; j < nj; ++j)
+					for (int i = 0; i < ni; ++i)
+					{
+						const std::size_t id = static_cast<std::size_t>(i + ni * (j + nj * k)); // i fastest
+						theta[id] = 0.5 * pi * (block + static_cast<double>(i) / (ni - 1));
+						radius[id] = 1.0 + static_cast<double>(j) / (nj - 1);
+						x[id] = radius[id] * std::cos(theta[id]);
+						y[id] = radius[id] * std::sin(theta[id]);
+						z[id] = static_cast<double>(k) / (nk - 1);
+					}
+			ok = ok && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateX", x.data(), &index) == CG_OK
+			     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateY", y.data(), &index) == CG_OK
+			     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateZ", z.data(), &index) == CG_OK;
+			for (int s = 0; s < steps; ++s)
+			{
+				const double t = static_cast<double>(s + 1) / steps;
+				std::vector<double> temperature(points), pressure(points), vx(points), vy(points), vz(points);
+				for (std::size_t id = 0; id < points; ++id)
+				{
+					const double r = radius[id], a = theta[id];
+					const double speed = t * 12.0 * (r - 1.0) * (2.0 - r); // fastest mid-duct, zero at the walls
+					temperature[id] = 300.0 + 60.0 * t * a / pi + 20.0 * (r - 1.0);
+					pressure[id] = 101325.0 + 400.0 * t * (1.0 - a / pi);
+					vx[id] = -speed * std::sin(a);
+					vy[id] = speed * std::cos(a);
+					vz[id] = 0.3 * t * (z[id] - 0.5);
+				}
+				int sol = 0, field = 0;
+				const QByteArray vertexName = QByteArray("FlowSolution") + QByteArray::number(s);
+				ok = ok && cg_sol_write(fn, base, zone, vertexName.constData(), CGNS_ENUMV(Vertex), &sol) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Temperature", temperature.data(), &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Pressure", pressure.data(), &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityX", vx.data(), &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityY", vy.data(), &field) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "VelocityZ", vz.data(), &field) == CG_OK;
+				std::vector<double> quality(cells);
+				for (std::size_t c = 0; c < cells; ++c)
+					quality[c] = 0.5 + 0.5 * std::sin(0.05 * static_cast<double>(c) + 2.0 * t + block);
+				const QByteArray cellName = QByteArray("CellSolution") + QByteArray::number(s);
+				ok = ok && cg_sol_write(fn, base, zone, cellName.constData(), CGNS_ENUMV(CellCenter), &sol) == CG_OK
+				     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Quality", quality.data(), &field) == CG_OK;
+			}
+		}
+		std::vector<double> times;
+		for (int s = 0; s < steps; ++s)
+			times.push_back(0.5 * (s + 1));
+		const cgsize_t stepCount = steps;
+		ok = ok && cg_biter_write(fn, base, "TimeIterValues", steps) == CG_OK && cg_goto(fn, base, "BaseIterativeData_t", 1, "end") == CG_OK
+		     && cg_array_write("TimeValues", CGNS_ENUMV(RealDouble), 1, &stepCount, times.data()) == CG_OK;
+		return cg_close(fn) == CG_OK && ok;
+	}
+
+#endif
+
+	void testCgns()
+	{
+#if MV_HAVE_CGNS
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		CHECK(cgnsSupported() && !cgnsFileFilter().isEmpty());
+		CHECK(supportedResultExtensions().contains(QStringLiteral("cgns")) && isSupportedResultFile(QStringLiteral("run.CGNS")));
+
+		// ---- fixed-type section, boundary section, solutions with times
+		const QString path = tmp.path() + QStringLiteral("/fixture.cgns");
+		CHECK(writeCgnsFixture(QFile::encodeName(path).constData(), false, true));
+		const ResultReadOutcome r = readResultFile(path);
+		if (!r.ok())
+			std::printf("  CGNS failed: %s\n", qPrintable(r.error));
+		CHECK(r.ok());
+		if (r.ok())
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.solverName == QStringLiteral("CGNS"));
+			CHECK(ds.nodeCount() == 12 && ds.cellCount() == 2); // the two QUAD_4 boundary elements are not cells
+			CHECK(ds.cellTypes[0] == ResultCellType::Hexahedron && ds.cellTypes[1] == ResultCellType::Hexahedron);
+			const std::vector<std::uint32_t> firstHex = { 0, 1, 4, 3, 6, 7, 10, 9 };
+			CHECK(std::vector<std::uint32_t>(ds.cellConnectivity.begin(), ds.cellConnectivity.begin() + 8) == firstHex);
+			CHECK(approx(ds.nodePositions[5 * 3], 2.0) && approx(ds.nodePositions[5 * 3 + 1], 1.0) && approx(ds.nodePositions[5 * 3 + 2], 0.0, 1e-4, 1e-9));
+			CHECK(ds.stepCount() == 3 && approx(ds.steps[0].time, 0.0) && approx(ds.steps[1].time, 0.5) && approx(ds.steps[2].time, 1.0));
+			CHECK(ds.validate().isEmpty());
+
+			const int temperature = fieldIndexOf(ds, QStringLiteral("Temperature")), velocity = fieldIndexOf(ds, QStringLiteral("Velocity"));
+			const ResultField* quality = ds.findField(QStringLiteral("Quality"), ResultFieldAssociation::Cell);
+			// Temperature, Velocity (3), Quality (cell), Stress (6) and its five derived fields
+			if (ds.fields.size() != 9)
+				for (const ResultField& f : ds.fields)
+					std::printf("  CGNS field: '%s' (%s, %d comp)\n", qPrintable(f.name), f.association == ResultFieldAssociation::Cell ? "cell" : "node", f.components);
+			CHECK(temperature >= 0 && velocity >= 0 && quality != nullptr && ds.fields.size() == 9);
+			// the six StressXX ... components are ONE tensor, not a vector "StressX" plus strays
+			const int stress = fieldIndexOf(ds, QStringLiteral("Stress")), mises = fieldIndexOf(ds, QStringLiteral("Stress von Mises"));
+			CHECK(stress >= 0 && ds.fields[static_cast<std::size_t>(stress)].components == 6 && mises >= 0);
+			CHECK(fieldIndexOf(ds, QStringLiteral("StressX")) < 0 && fieldIndexOf(ds, QStringLiteral("StressXX")) < 0);
+			DisplayScalar vm;
+			CHECK(mises >= 0 && buildDisplayScalar(ds, mises, -1, vm, 2) && approx(vm.maxValue, 100.0));
+			const std::vector<float>& tensorData = ds.fields[static_cast<std::size_t>(stress)].stepData[0];
+			CHECK(tensorData.size() == 12u * 6u && tensorData[0] == 100.0f && tensorData[1] == 0.0f && tensorData[3] == 0.0f);
+			if (temperature >= 0 && velocity >= 0 && quality)
+			{
+				const ResultField& ft = ds.fields[static_cast<std::size_t>(temperature)];
+				CHECK(ft.association == ResultFieldAssociation::Node && ft.components == 1 && approx(ft.stepData[1][3], 33.0) && approx(ft.stepData[2][11], 51.0));
+				// VelocityX/Y/Z became one vector field
+				const ResultField& fv = ds.fields[static_cast<std::size_t>(velocity)];
+				CHECK(fv.components == 3 && fv.association == ResultFieldAssociation::Node);
+				CHECK(approx(fv.stepData[2][5 * 3 + 0], 1.5) && approx(fv.stepData[2][5 * 3 + 1], 0.0, 1e-4, 1e-9) && approx(fv.stepData[2][5 * 3 + 2], 0.6));
+				CHECK(quality->stepData[2].size() == 2 && approx(quality->stepData[2][0], 102.0) && approx(quality->stepData[2][1], 202.0));
+			}
+			ResultBoundarySurface surface;
+			CHECK(extractBoundarySurface(ds, surface, nullptr, nullptr));
+			CHECK(surface.triangleCount() == 20); // two hexahedra sharing a face
+		}
+
+		// ---- a MIXED section keeps each element's own type
+		const QString mixedPath = tmp.path() + QStringLiteral("/mixed.cgns");
+		CHECK(writeCgnsFixture(QFile::encodeName(mixedPath).constData(), true, false));
+		const ResultReadOutcome mixed = readResultFile(mixedPath);
+		CHECK(mixed.ok());
+		if (mixed.ok())
+		{
+			const ResultDataset& ds = *mixed.dataset;
+			CHECK(ds.cellCount() == 2 && ds.cellTypes[0] == ResultCellType::Hexahedron && ds.cellTypes[1] == ResultCellType::Tetra);
+			CHECK(ds.cellOffsets[1] == 8 && ds.cellOffsets[2] == 12);
+			CHECK(ds.stepCount() == 1 && ds.fields.empty()); // a mesh without solutions loads uncoloured
+		}
+
+		// ---- problems are reported, never crashed on
+		const ResultReadOutcome missing = readResultFile(tmp.path() + QStringLiteral("/missing.cgns"));
+		CHECK(!missing.ok() && missing.error.contains(QStringLiteral("Cannot open")));
+		writeText(tmp.path() + QStringLiteral("/bad.cgns"), QByteArray("this is not a CGNS file"));
+		CHECK(!readResultFile(tmp.path() + QStringLiteral("/bad.cgns")).ok());
+#else
+		std::printf("  (skipping CGNS tests: this build has no CGNS library)\n");
+		CHECK(!cgnsSupported() && cgnsExtensions().isEmpty() && !isSupportedResultFile(QStringLiteral("run.cgns")));
+		CHECK(!readResultFile(QStringLiteral("run.cgns")).ok());
+#endif
+	}
+
+	// ---- Regression tests from the code review of the branch --------------------------------------------------------
+
+	// A result without any time step (an OpenFOAM mesh with no fields) must survive a snapshot: encode and decode with an
+	// empty step list, and its saved view must not index into it.
+	void testSnapshotWithoutSteps()
+	{
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		writePrismCase(tmp.path());
+		QDir(tmp.path() + QStringLiteral("/0")).removeRecursively();
+		QDir(tmp.path() + QStringLiteral("/1")).removeRecursively();
+		const LoadedSimulationResult r = loadSimulationResult(tmp.path() + QStringLiteral("/case.foam"));
+		CHECK(r.ok() && r.dataset->stepCount() == 0 && r.dataset->fields.empty());
+		if (!r.ok())
+			return;
+		for (int policy = 0; policy < 2; ++policy)
+		{
+			SnapshotOptions options;
+			options.content = policy == 0 ? SnapshotOptions::Content::AllFields : SnapshotOptions::Content::ShownAndDisplacement;
+			options.shownField = -1;
+			SimulationViewState state = defaultViewState(*r.dataset);
+			state.step = 3; // a stale step index must not matter
+			ResultSnapshot snap;
+			DecodedSnapshot dec;
+			QString err;
+			CHECK(roundTrip(r, state, options, snap, dec, &err));
+			CHECK(dec.dataset && dec.dataset->stepCount() == 0 && dec.dataset->fields.empty() && dec.dataset->validate().isEmpty());
+			CHECK(dec.state.step == 0 && dec.state.fieldIndex == -1);
+			const SnapshotSize estimate = estimateSnapshotSize(*r.dataset, r.surface, options);
+			CHECK(estimate.rawBytes > 0 && estimate.storedBytes <= estimate.rawBytes);
+		}
+	}
+
+	// A field an analysis only writes from a later step on is a real field: it has data, it is listed, and it can be the default.
+	void testFieldsStartingAfterStepZero()
+	{
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		const QString dir = tmp.path();
+		writePrismCase(dir);
+		QFile::remove(dir + QStringLiteral("/0/p"));
+		QFile::remove(dir + QStringLiteral("/1/p"));
+		writeText(dir + QStringLiteral("/0/a"), foamHeader("volScalarField", "a") + "dimensions [0 0 0 0 0 0 0];\ninternalField uniform 1;\n");
+		writeText(dir + QStringLiteral("/1/a"), foamHeader("volScalarField", "a") + "dimensions [0 0 0 0 0 0 0];\ninternalField uniform 2;\n");
+		writeText(dir + QStringLiteral("/1/b"), foamHeader("volScalarField", "b") + "dimensions [0 0 0 0 0 0 0];\ninternalField uniform 9;\n"); // starts at step 1
+		ResultReadOutcome r = readResultFile(dir + QStringLiteral("/case.foam"));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		ResultDataset& ds = *r.dataset;
+		const int a = fieldIndexOf(ds, QStringLiteral("a")), b = fieldIndexOf(ds, QStringLiteral("b"));
+		CHECK(ds.stepCount() == 2 && a >= 0 && b >= 0);
+		if (a < 0 || b < 0)
+			return;
+		const ResultField& fb = ds.fields[static_cast<std::size_t>(b)];
+		CHECK(fb.stepData[0].empty() && !fb.stepData[1].empty());
+		CHECK(resultFieldHasData(fb) && resultFieldFirstStep(fb) == 1 && resultFieldFirstStep(ds.fields[static_cast<std::size_t>(a)]) == 0);
+		ResultField none;
+		none.stepData.assign(2, std::vector<float>());
+		CHECK(!resultFieldHasData(none) && resultFieldFirstStep(none) == -1);
+		// with no other field, the default is the late one, at the step where it has data
+		ds.fields[static_cast<std::size_t>(a)].stepData.assign(2, std::vector<float>());
+		DisplayScalar chosen;
+		CHECK(chooseDefaultDisplayScalar(ds, chosen) && chosen.fieldIndex == b && chosen.step == 1 && chosen.maxValue == 9.0f);
+		const SimulationViewState state = defaultViewState(ds);
+		CHECK(state.fieldIndex == b && state.step == 1);
+	}
+
+	// A CELL tensor named like a stress gets derived cell fields, exactly like a node tensor gets derived node fields.
+	void testDerivedStressOnCells()
+	{
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		writePrismCase(tmp.path());
+		ResultReadOutcome r = readResultFile(tmp.path() + QStringLiteral("/case.foam"));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		ResultDataset& ds = *r.dataset;
+		ResultField tensor;
+		tensor.name = QStringLiteral("elementStress");
+		tensor.association = ResultFieldAssociation::Cell;
+		tensor.components = 6;
+		tensor.stepData.assign(ds.stepCount(), std::vector<float>());
+		tensor.stepData[0] = { 100.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f }; // uniaxial 100: von Mises 100, principals 100/0/0
+		ds.fields.push_back(tensor);
+		addDerivedStressFields(ds);
+		const ResultField* mises = ds.findField(QStringLiteral("elementStress von Mises"), ResultFieldAssociation::Cell);
+		const ResultField* maxP = ds.findField(QStringLiteral("elementStress max principal"), ResultFieldAssociation::Cell);
+		CHECK(mises != nullptr && maxP != nullptr);
+		if (mises && maxP)
+		{
+			CHECK(mises->components == 1 && mises->stepData[0].size() == 1 && approx(mises->stepData[0][0], 100.0) && mises->stepData[1].empty());
+			CHECK(approx(maxP->stepData[0][0], 100.0) && mises->derivedFromField >= 0);
+		}
+		CHECK(ds.findField(QStringLiteral("elementStress von Mises"), ResultFieldAssociation::Node) == nullptr); // not a node field
+		CHECK(ds.validate().isEmpty());
+		const std::size_t before = ds.fields.size();
+		addDerivedStressFields(ds); // not added twice
+		CHECK(ds.fields.size() == before);
+	}
+
+	// validate() is the contract every consumer relies on: steps, component names and stored ranges must line up.
+	void testValidateFieldShape()
+	{
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		writePrismCase(tmp.path());
+		ResultReadOutcome r = readResultFile(tmp.path() + QStringLiteral("/case.foam"));
+		CHECK(r.ok() && !r.dataset->fields.empty());
+		if (!r.ok() || r.dataset->fields.empty())
+			return;
+		ResultDataset& ds = *r.dataset;
+		CHECK(ds.validate().isEmpty());
+		ResultField& f = ds.fields[0];
+
+		f.stepData.push_back(std::vector<float>()); // one data slot more than there are steps
+		CHECK(!ds.validate().isEmpty());
+		f.stepData.pop_back();
+		CHECK(ds.validate().isEmpty());
+
+		f.componentNames = { QStringLiteral("only one") }; // names for 1 component are fine on a scalar, 2 are not
+		CHECK(ds.validate().isEmpty());
+		f.componentNames = { QStringLiteral("a"), QStringLiteral("b") };
+		CHECK(!ds.validate().isEmpty());
+		f.componentNames.clear();
+
+		f.storedRange = { 0.0f, 1.0f }; // one step, one selector: 2 numbers per step
+		CHECK(ds.validate().isEmpty() == (ds.stepCount() == 1));
+		f.storedRange.assign(ds.stepCount() * static_cast<std::size_t>(resultRangeSelectorCount(f.components)) * 2, 0.0f);
+		CHECK(ds.validate().isEmpty());
+		f.storedRange.push_back(1.0f);
+		CHECK(!ds.validate().isEmpty());
+		f.storedRange.clear();
+		CHECK(ds.validate().isEmpty());
+	}
+
+#if MV_HAVE_CGNS
+	// Steps must follow the solutions' own ordering, not the order the file happens to list them: three Vertex solutions whose
+	// values are their number, with the step pointers naming them in step order (or, without pointers, natural name order).
+	bool writeCgnsOrderFixture(const char* path, bool pointers)
+	{
+		int fn = 0, base = 0, zone = 0, index = 0;
+		if (cg_open(path, CG_MODE_WRITE, &fn) != CG_OK)
+			return false;
+		bool ok = cg_base_write(fn, "Base", 3, 3, &base) == CG_OK;
+		const cgsize_t size[3] = { 12, 2, 0 };
+		ok = ok && cg_zone_write(fn, base, "Zone1", size, CGNS_ENUMV(Unstructured), &zone) == CG_OK;
+		double x[12], y[12], z[12];
+		for (int n = 0; n < 12; ++n)
+		{
+			x[n] = n % 3;
+			y[n] = (n / 3) % 2;
+			z[n] = n / 6;
+		}
+		const cgsize_t hexes[16] = { 1, 2, 5, 4, 7, 8, 11, 10, 2, 3, 6, 5, 8, 9, 12, 11 };
+		ok = ok && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateX", x, &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateY", y, &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateZ", z, &index) == CG_OK
+		     && cg_section_write(fn, base, zone, "Hexas", CGNS_ENUMV(HEXA_8), 1, 2, 0, hexes, &index) == CG_OK;
+		// pointers: created out of order (B, A, C) and listed in step order (A, B, C) = values 1, 2, 3.
+		// no pointers: created as Sol10, Sol2, Sol1 and expected in natural order Sol1, Sol2, Sol10 = values 1, 2, 10.
+		const char* names[3] = { pointers ? "SolB" : "Sol10", pointers ? "SolA" : "Sol2", pointers ? "SolC" : "Sol1" };
+		const double numbers[3] = { pointers ? 2.0 : 10.0, pointers ? 1.0 : 2.0, pointers ? 3.0 : 1.0 };
+		for (int s = 0; s < 3; ++s)
+		{
+			double values[12];
+			for (int n = 0; n < 12; ++n)
+				values[n] = numbers[s] * 100.0 + n;
+			int sol = 0, field = 0;
+			ok = ok && cg_sol_write(fn, base, zone, names[s], CGNS_ENUMV(Vertex), &sol) == CG_OK
+			     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Temperature", values, &field) == CG_OK;
+		}
+		if (pointers)
+		{
+			char text[32 * 3];
+			std::memset(text, ' ', sizeof text);
+			const char* order[3] = { "SolA", "SolB", "SolC" };
+			for (int step = 0; step < 3; ++step)
+				std::memcpy(text + 32 * step, order[step], 4);
+			const cgsize_t dims[2] = { 32, 3 };
+			ok = ok && cg_ziter_write(fn, base, zone, "ZoneIterativeData") == CG_OK
+			     && cg_goto(fn, base, "Zone_t", zone, "ZoneIterativeData_t", 1, "end") == CG_OK
+			     && cg_array_write("FlowSolutionPointers", CGNS_ENUMV(Character), 2, dims, text) == CG_OK;
+		}
+		return cg_close(fn) == CG_OK && ok;
+	}
+#endif
+
+#if MV_HAVE_CGNS
+	// A zone with two Vertex solutions ("S0", "S1") whose fields are the given names; the value of the k-th field is k + 1 (+ 100 in
+	// the second solution), so an assembled group can be checked component by component.
+	bool writeCgnsNamedFields(const char* path, const std::vector<std::string>& first, const std::vector<std::string>& second)
+	{
+		int fn = 0, base = 0, zone = 0, index = 0;
+		if (cg_open(path, CG_MODE_WRITE, &fn) != CG_OK)
+			return false;
+		bool ok = cg_base_write(fn, "Base", 3, 3, &base) == CG_OK;
+		const cgsize_t size[3] = { 12, 2, 0 };
+		ok = ok && cg_zone_write(fn, base, "Zone1", size, CGNS_ENUMV(Unstructured), &zone) == CG_OK;
+		double x[12], y[12], z[12];
+		for (int n = 0; n < 12; ++n)
+		{
+			x[n] = n % 3;
+			y[n] = (n / 3) % 2;
+			z[n] = n / 6;
+		}
+		const cgsize_t hexes[16] = { 1, 2, 5, 4, 7, 8, 11, 10, 2, 3, 6, 5, 8, 9, 12, 11 };
+		ok = ok && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateX", x, &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateY", y, &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateZ", z, &index) == CG_OK
+		     && cg_section_write(fn, base, zone, "Hexas", CGNS_ENUMV(HEXA_8), 1, 2, 0, hexes, &index) == CG_OK;
+		const std::vector<std::string>* solutions[2] = { &first, &second };
+		for (int s = 0; s < 2; ++s)
+		{
+			int sol = 0, field = 0;
+			ok = ok && cg_sol_write(fn, base, zone, s == 0 ? "S0" : "S1", CGNS_ENUMV(Vertex), &sol) == CG_OK;
+			for (std::size_t k = 0; k < solutions[s]->size(); ++k)
+			{
+				double values[12];
+				for (int n = 0; n < 12; ++n)
+					values[n] = static_cast<double>(k + 1) + (s == 1 ? 100.0 : 0.0);
+				ok = ok && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), (*solutions[s])[k].c_str(), values, &field) == CG_OK;
+			}
+		}
+		return cg_close(fn) == CG_OK && ok;
+	}
+#endif
+
+#if MV_HAVE_CGNS
+	// A structured zone: 3 x 3 x 2 points (2 x 2 x 1 hexahedra) in a 3-D base, or 3 x 3 points (2 x 2 quads) in a 2-D one.
+	// Temperature at the points = the point number, Quality per cell = 100 + the cell number.
+	bool writeCgnsStructured(const char* path, bool threeD)
+	{
+		int fn = 0, base = 0, zone = 0, index = 0;
+		if (cg_open(path, CG_MODE_WRITE, &fn) != CG_OK)
+			return false;
+		bool ok = cg_base_write(fn, "Base", threeD ? 3 : 2, 3, &base) == CG_OK;
+		const int nk = threeD ? 2 : 1;
+		const cgsize_t size[9] = { 3, 3, 2, 2, 2, 1, 0, 0, 0 };
+		// 3-D: { NI, NJ, NK, cells I, J, K, 0, 0, 0 }; 2-D: { NI, NJ, cells I, J, 0, 0 }
+		const cgsize_t size2d[6] = { 3, 3, 2, 2, 0, 0 };
+		ok = ok && cg_zone_write(fn, base, "Block", threeD ? size : size2d, CGNS_ENUMV(Structured), &zone) == CG_OK;
+		std::vector<double> x, y, z, temperature;
+		for (int k = 0; k < nk; ++k)
+			for (int j = 0; j < 3; ++j)
+				for (int i = 0; i < 3; ++i)
+				{
+					x.push_back(i);
+					y.push_back(j);
+					z.push_back(k);
+					temperature.push_back(static_cast<double>(x.size() - 1));
+				}
+		std::vector<double> quality;
+		for (int c = 0; c < 4; ++c)
+			quality.push_back(100.0 + c);
+		int sol = 0, field = 0;
+		ok = ok && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateX", x.data(), &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateY", y.data(), &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateZ", z.data(), &index) == CG_OK
+		     && cg_sol_write(fn, base, zone, "Points", CGNS_ENUMV(Vertex), &sol) == CG_OK
+		     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Temperature", temperature.data(), &field) == CG_OK
+		     && cg_sol_write(fn, base, zone, "Cells", CGNS_ENUMV(CellCenter), &sol) == CG_OK
+		     && cg_field_write(fn, base, zone, sol, CGNS_ENUMV(RealDouble), "Quality", quality.data(), &field) == CG_OK;
+		return cg_close(fn) == CG_OK && ok;
+	}
+#endif
+
+	void testCgnsStructured()
+	{
+#if MV_HAVE_CGNS
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+
+		// ---- a 3-D block: hexahedra, i fastest
+		const QString path3d = tmp.path() + QStringLiteral("/block3d.cgns");
+		CHECK(writeCgnsStructured(QFile::encodeName(path3d).constData(), true));
+		const ResultReadOutcome r3 = readResultFile(path3d);
+		if (!r3.ok())
+			std::printf("  CGNS structured failed: %s\n", qPrintable(r3.error));
+		CHECK(r3.ok());
+		if (r3.ok())
+		{
+			const ResultDataset& ds = *r3.dataset;
+			CHECK(ds.nodeCount() == 18 && ds.cellCount() == 4);
+			bool allHex = true;
+			for (ResultCellType t : ds.cellTypes)
+				allHex = allHex && t == ResultCellType::Hexahedron;
+			CHECK(allHex);
+			// cell 0 sits at the origin corner; cell 1 is the next along i, cell 2 the next along j
+			const std::vector<std::uint32_t> firstHex = { 0, 1, 4, 3, 9, 10, 13, 12 };
+			CHECK(std::vector<std::uint32_t>(ds.cellConnectivity.begin(), ds.cellConnectivity.begin() + 8) == firstHex);
+			CHECK(ds.cellConnectivity[8] == 1 && ds.cellConnectivity[16] == 3);
+			const ResultField* temperature = ds.findField(QStringLiteral("Temperature"), ResultFieldAssociation::Node);
+			const ResultField* quality = ds.findField(QStringLiteral("Quality"), ResultFieldAssociation::Cell);
+			CHECK(temperature && quality && temperature->tupleCount(0) == 18 && quality->tupleCount(0) == 4);
+			if (temperature && quality)
+				CHECK(approx(temperature->stepData[0][13], 13.0) && approx(quality->stepData[0][2], 102.0));
+			CHECK(ds.validate().isEmpty());
+			// the block's outer faces: 2 x (4 + 2 + 2) quads = 32 triangles
+			const ResultBoundarySurface surface = extract(ds);
+			CHECK(surface.triangleCount() == 32);
+		}
+
+		// ---- a 2-D block: quads
+		const QString path2d = tmp.path() + QStringLiteral("/block2d.cgns");
+		CHECK(writeCgnsStructured(QFile::encodeName(path2d).constData(), false));
+		const ResultReadOutcome r2 = readResultFile(path2d);
+		if (!r2.ok())
+			std::printf("  CGNS structured 2-D failed: %s\n", qPrintable(r2.error));
+		CHECK(r2.ok());
+		if (r2.ok())
+		{
+			const ResultDataset& ds = *r2.dataset;
+			CHECK(ds.nodeCount() == 9 && ds.cellCount() == 4);
+			bool allQuad = true;
+			for (ResultCellType t : ds.cellTypes)
+				allQuad = allQuad && t == ResultCellType::Quad;
+			CHECK(allQuad);
+			const std::vector<std::uint32_t> firstQuad = { 0, 1, 4, 3 };
+			CHECK(std::vector<std::uint32_t>(ds.cellConnectivity.begin(), ds.cellConnectivity.begin() + 4) == firstQuad);
+			CHECK(ds.findField(QStringLiteral("Quality"), ResultFieldAssociation::Cell) != nullptr);
+			CHECK(ds.validate().isEmpty());
+		}
+
+		// ---- the two-block sample: zones are concatenated, every step and field comes with them
+		const QString pathDuct = tmp.path() + QStringLiteral("/duct.cgns");
+		CHECK(writeCgnsStructuredSample(QFile::encodeName(pathDuct).constData()));
+		const ResultReadOutcome rd = readResultFile(pathDuct);
+		if (!rd.ok())
+			std::printf("  CGNS duct failed: %s\n", qPrintable(rd.error));
+		CHECK(rd.ok());
+		if (rd.ok())
+		{
+			const ResultDataset& ds = *rd.dataset;
+			CHECK(ds.nodeCount() == 2u * 13u * 7u * 5u && ds.cellCount() == 2u * 12u * 6u * 4u && ds.steps.size() == 4);
+			const ResultField* velocity = ds.findField(QStringLiteral("Velocity"), ResultFieldAssociation::Node);
+			const ResultField* quality = ds.findField(QStringLiteral("Quality"), ResultFieldAssociation::Cell);
+			CHECK(velocity && velocity->components == 3 && quality && quality->tupleCount(0) == ds.cellCount());
+			CHECK(ds.validate().isEmpty());
+			const ResultBoundarySurface surface = extract(ds);
+			CHECK(surface.triangleCount() > 0);
+		}
+#else
+		std::printf("  (skipping CGNS structured tests: this build has no CGNS library)\n");
+#endif
+	}
+
+#if MV_HAVE_HDF5
+	// ---- VTKHDF fixtures, written through the HDF5 API following the VTKHDF specification -------------------------------------
+	template <typename T> hid_t hdfType();
+	template <> hid_t hdfType<float>() { return H5T_NATIVE_FLOAT; }
+	template <> hid_t hdfType<double>() { return H5T_NATIVE_DOUBLE; }
+	template <> hid_t hdfType<long long>() { return H5T_NATIVE_LLONG; }
+	template <> hid_t hdfType<int>() { return H5T_NATIVE_INT; }
+	template <> hid_t hdfType<unsigned char>() { return H5T_NATIVE_UCHAR; }
+
+	// A link-creation property list that creates the missing groups of a path ("Steps/PointDataOffsets/T").
+	hid_t hdfLinkProps()
+	{
+		const hid_t props = H5Pcreate(H5P_LINK_CREATE);
+		H5Pset_create_intermediate_group(props, 1);
+		return props;
+	}
+
+	template <typename T>
+	bool hdfPut(hid_t file, const char* path, const std::vector<hsize_t>& dims, const std::vector<T>& data)
+	{
+		const hid_t props = hdfLinkProps();
+		const hid_t space = H5Screate_simple(static_cast<int>(dims.size()), dims.data(), nullptr);
+		const hid_t dataset = H5Dcreate2(file, path, hdfType<T>(), space, props, H5P_DEFAULT, H5P_DEFAULT);
+		const bool ok = dataset >= 0 && H5Dwrite(dataset, hdfType<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, data.data()) >= 0;
+		if (dataset >= 0)
+			H5Dclose(dataset);
+		H5Sclose(space);
+		H5Pclose(props);
+		return ok;
+	}
+
+	bool hdfGroup(hid_t file, const char* path)
+	{
+		const hid_t props = hdfLinkProps();
+		const hid_t group = H5Gcreate2(file, path, props, H5P_DEFAULT, H5P_DEFAULT);
+		H5Pclose(props);
+		if (group < 0)
+			return false;
+		H5Gclose(group);
+		return true;
+	}
+
+	bool hdfStringAttribute(hid_t object, const char* name, const char* value)
+	{
+		const hid_t type = H5Tcopy(H5T_C_S1);
+		H5Tset_size(type, std::strlen(value));
+		const hid_t space = H5Screate(H5S_SCALAR);
+		const hid_t attribute = H5Acreate2(object, name, type, space, H5P_DEFAULT, H5P_DEFAULT);
+		const bool ok = attribute >= 0 && H5Awrite(attribute, type, value) >= 0;
+		if (attribute >= 0)
+			H5Aclose(attribute);
+		H5Sclose(space);
+		H5Tclose(type);
+		return ok;
+	}
+
+	template <typename T>
+	bool hdfArrayAttribute(hid_t object, const char* name, const std::vector<T>& values)
+	{
+		const hsize_t dims[1] = { values.size() };
+		const hid_t space = H5Screate_simple(1, dims, nullptr);
+		const hid_t attribute = H5Acreate2(object, name, hdfType<T>(), space, H5P_DEFAULT, H5P_DEFAULT);
+		const bool ok = attribute >= 0 && H5Awrite(attribute, hdfType<T>(), values.data()) >= 0;
+		if (attribute >= 0)
+			H5Aclose(attribute);
+		H5Sclose(space);
+		return ok;
+	}
+
+	// Creates the file and its /VTKHDF group (Type + Version); returns the group (or -1) and the file through `file`.
+	hid_t hdfCreate(const char* path, const char* type, hid_t& file)
+	{
+		file = H5Fcreate(path, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+		if (file < 0)
+			return -1;
+		const hid_t root = H5Gcreate2(file, "VTKHDF", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+		if (root >= 0 && !(hdfStringAttribute(root, "Type", type) && hdfArrayAttribute<int>(root, "Version", { 2, 0 })))
+		{
+			H5Gclose(root);
+			return -1;
+		}
+		return root;
+	}
+
+	// kind: 0 two tets, 1 the same in two partitions, 2 three time steps of static geometry, 3 a moving mesh.
+	bool writeVtkHdfUnstructured(const char* path, int kind)
+	{
+		hid_t file = -1;
+		const hid_t root = hdfCreate(path, "UnstructuredGrid", file);
+		if (root < 0)
+			return false;
+		bool ok = true;
+		const std::vector<float> tets = { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1 };
+		if (kind == 1)
+		{
+			// partition A: tet 0-1-2-3, partition B: the tet 1-2-3-4 with its own four points and LOCAL ids
+			const std::vector<float> points = { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1 };
+			ok = ok && hdfPut<float>(root, "Points", { 8, 3 }, points)
+			     && hdfPut<long long>(root, "NumberOfPoints", { 2 }, { 4, 4 }) && hdfPut<long long>(root, "NumberOfCells", { 2 }, { 1, 1 })
+			     && hdfPut<long long>(root, "NumberOfConnectivityIds", { 2 }, { 4, 4 })
+			     && hdfPut<long long>(root, "Connectivity", { 8 }, { 0, 1, 2, 3, 0, 1, 2, 3 })
+			     && hdfPut<long long>(root, "Offsets", { 4 }, { 0, 4, 0, 4 }) // one extra entry per partition
+			     && hdfPut<unsigned char>(root, "Types", { 2 }, { 10, 10 })
+			     && hdfPut<float>(root, "PointData/T", { 8 }, { 0, 1, 2, 3, 4, 5, 6, 7 });
+		}
+		else
+		{
+			const int steps = kind >= 2 ? 3 : 1;
+			std::vector<float> points = tets, temperature, quality, velocity;
+			std::vector<long long> pointDataOffsets, cellDataOffsets;
+			for (int s = 0; s < steps; ++s)
+			{
+				if (kind == 3 && s > 0)
+					for (int p = 0; p < 5; ++p)
+					{
+						points.insert(points.end(), { tets[static_cast<std::size_t>(p) * 3] + 0.1f * static_cast<float>(s), tets[static_cast<std::size_t>(p) * 3 + 1],
+						                              tets[static_cast<std::size_t>(p) * 3 + 2] });
+					}
+				pointDataOffsets.push_back(static_cast<long long>(temperature.size()));
+				cellDataOffsets.push_back(static_cast<long long>(quality.size()));
+				for (int p = 0; p < 5; ++p)
+				{
+					temperature.push_back(100.0f * static_cast<float>(s) + static_cast<float>(p));
+					velocity.insert(velocity.end(), { static_cast<float>(s), static_cast<float>(p), 0.0f });
+				}
+				for (int q = 0; q < 2; ++q)
+					quality.push_back(10.0f * static_cast<float>(s) + static_cast<float>(q));
+			}
+			ok = ok && hdfPut<float>(root, "Points", { static_cast<hsize_t>(points.size() / 3), 3 }, points)
+			     && hdfPut<long long>(root, "NumberOfPoints", { 1 }, { 5 }) && hdfPut<long long>(root, "NumberOfCells", { 1 }, { 2 })
+			     && hdfPut<long long>(root, "NumberOfConnectivityIds", { 1 }, { 8 })
+			     && hdfPut<long long>(root, "Connectivity", { 8 }, { 0, 1, 2, 3, 1, 2, 3, 4 })
+			     && hdfPut<long long>(root, "Offsets", { 3 }, { 0, 4, 8 }) && hdfPut<unsigned char>(root, "Types", { 2 }, { 10, 10 })
+			     && hdfPut<float>(root, "PointData/T", { static_cast<hsize_t>(temperature.size()) }, temperature)
+			     && hdfPut<float>(root, "PointData/U", { static_cast<hsize_t>(temperature.size()), 3 }, velocity)
+			     && hdfPut<float>(root, "CellData/Q", { static_cast<hsize_t>(quality.size()) }, quality);
+			if (kind >= 2)
+			{
+				const hid_t group = H5Gcreate2(root, "Steps", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+				ok = ok && group >= 0 && hdfArrayAttribute<int>(group, "NSteps", { 3 });
+				if (group >= 0)
+					H5Gclose(group);
+				std::vector<long long> pointOffsets = { 0, 0, 0 };
+				if (kind == 3)
+					pointOffsets = { 0, 5, 10 };
+				ok = ok && hdfPut<double>(root, "Steps/Values", { 3 }, { 0.0, 0.5, 1.0 }) && hdfPut<long long>(root, "Steps/PartOffsets", { 3 }, { 0, 0, 0 })
+				     && hdfPut<long long>(root, "Steps/NumberOfParts", { 3 }, { 1, 1, 1 }) && hdfPut<long long>(root, "Steps/PointOffsets", { 3 }, pointOffsets)
+				     && hdfPut<long long>(root, "Steps/CellOffsets", { 3, 1 }, { 0, 0, 0 })
+				     && hdfPut<long long>(root, "Steps/ConnectivityIdOffsets", { 3, 1 }, { 0, 0, 0 })
+				     && hdfPut<long long>(root, "Steps/PointDataOffsets/T", { 3 }, pointDataOffsets)
+				     && hdfPut<long long>(root, "Steps/PointDataOffsets/U", { 3 }, pointDataOffsets)
+				     && hdfPut<long long>(root, "Steps/CellDataOffsets/Q", { 3 }, cellDataOffsets);
+			}
+		}
+		H5Gclose(root);
+		return H5Fclose(file) >= 0 && ok;
+	}
+
+	// A PolyData: a line (points 0-4) and two polygons (a quad and a triangle) - the cell data lists the line first.
+	bool writeVtkHdfPolyData(const char* path)
+	{
+		hid_t file = -1;
+		const hid_t root = hdfCreate(path, "PolyData", file);
+		if (root < 0)
+			return false;
+		const bool ok = hdfPut<float>(root, "Points", { 5, 3 }, { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 2, 0.5f, 0 })
+		                && hdfPut<long long>(root, "NumberOfPoints", { 1 }, { 5 })
+		                && hdfPut<long long>(root, "Lines/NumberOfCells", { 1 }, { 1 }) && hdfPut<long long>(root, "Lines/NumberOfConnectivityIds", { 1 }, { 2 })
+		                && hdfPut<long long>(root, "Lines/Connectivity", { 2 }, { 0, 4 }) && hdfPut<long long>(root, "Lines/Offsets", { 2 }, { 0, 2 })
+		                && hdfPut<long long>(root, "Polygons/NumberOfCells", { 1 }, { 2 }) && hdfPut<long long>(root, "Polygons/NumberOfConnectivityIds", { 1 }, { 7 })
+		                && hdfPut<long long>(root, "Polygons/Connectivity", { 7 }, { 0, 1, 2, 3, 1, 4, 2 }) && hdfPut<long long>(root, "Polygons/Offsets", { 3 }, { 0, 4, 7 })
+		                && hdfPut<double>(root, "CellData/C", { 3 }, { 10.0, 20.0, 30.0 });
+		H5Gclose(root);
+		return H5Fclose(file) >= 0 && ok;
+	}
+
+	// An ImageData of 3 x 2 x 2 points (2 x 1 x 1 cells), origin (1,0,0), spacing (0.5, 1, 2); arrays are [z, y, x].
+	bool writeVtkHdfImage(const char* path)
+	{
+		hid_t file = -1;
+		const hid_t root = hdfCreate(path, "ImageData", file);
+		if (root < 0)
+			return false;
+		std::vector<float> temperature;
+		for (int i = 0; i < 12; ++i)
+			temperature.push_back(static_cast<float>(i));
+		const bool ok = hdfArrayAttribute<int>(root, "WholeExtent", { 0, 2, 0, 1, 0, 1 }) && hdfArrayAttribute<double>(root, "Origin", { 1.0, 0.0, 0.0 })
+		                && hdfArrayAttribute<double>(root, "Spacing", { 0.5, 1.0, 2.0 })
+		                && hdfArrayAttribute<double>(root, "Direction", { 1, 0, 0, 0, 1, 0, 0, 0, 1 })
+		                && hdfPut<float>(root, "PointData/T", { 2, 2, 3 }, temperature) && hdfPut<float>(root, "CellData/Q", { 1, 1, 2 }, { 5.0f, 6.0f });
+		H5Gclose(root);
+		return H5Fclose(file) >= 0 && ok;
+	}
+
+	// A larger VTKHDF file for trying the reader in the application (result_tests --write-vtkhdf-sample <file.vtkhdf>): an
+	// n x n x n block of hexahedra, five steps of a warming, accelerating cube, static geometry - the way ParaView writes a
+	// transient dataset (all steps of an array in one dataset, located by /Steps/PointDataOffsets).
+	bool writeVtkHdfBlockSample(const char* path, int n = 8)
+	{
+		hid_t file = -1;
+		const hid_t root = hdfCreate(path, "UnstructuredGrid", file);
+		if (root < 0)
+			return false;
+		const int side = n + 1, steps = 5;
+		const std::size_t pointCount = static_cast<std::size_t>(side * side * side), cells = static_cast<std::size_t>(n * n * n);
+		auto node = [&](int i, int j, int k) { return static_cast<long long>(i + side * (j + side * k)); };
+		std::vector<float> points;
+		for (int k = 0; k < side; ++k)
+			for (int j = 0; j < side; ++j)
+				for (int i = 0; i < side; ++i)
+					points.insert(points.end(), { static_cast<float>(i), static_cast<float>(j), static_cast<float>(k) });
+		std::vector<long long> connectivity, offsets = { 0 };
+		for (int k = 0; k < n; ++k)
+			for (int j = 0; j < n; ++j)
+				for (int i = 0; i < n; ++i)
+				{
+					for (long long id : { node(i, j, k), node(i + 1, j, k), node(i + 1, j + 1, k), node(i, j + 1, k), node(i, j, k + 1), node(i + 1, j, k + 1),
+					                      node(i + 1, j + 1, k + 1), node(i, j + 1, k + 1) })
+						connectivity.push_back(id);
+					offsets.push_back(static_cast<long long>(connectivity.size()));
+				}
+		std::vector<float> temperature, velocity, quality;
+		std::vector<long long> pointStarts, cellStarts;
+		std::vector<double> times;
+		for (int s = 0; s < steps; ++s)
+		{
+			const double t = static_cast<double>(s) / (steps - 1);
+			times.push_back(t);
+			pointStarts.push_back(static_cast<long long>(temperature.size()));
+			cellStarts.push_back(static_cast<long long>(quality.size()));
+			for (std::size_t p = 0; p < pointCount; ++p)
+			{
+				const double x = points[p * 3] / n, y = points[p * 3 + 1] / n, z = points[p * 3 + 2] / n;
+				temperature.push_back(static_cast<float>(300.0 + 60.0 * t * x));
+				velocity.insert(velocity.end(), { static_cast<float>(t * 8.0 * y * (1.0 - y)), static_cast<float>(t * 0.5 * std::sin(3.14159265 * x)),
+				                                  static_cast<float>(t * 0.25 * (z - 0.5)) });
+			}
+			for (std::size_t c = 0; c < cells; ++c)
+				quality.push_back(static_cast<float>(0.5 + 0.5 * std::sin(0.1 * static_cast<double>(c) + 2.0 * t)));
+		}
+		const std::vector<long long> zeros(static_cast<std::size_t>(steps), 0), ones(static_cast<std::size_t>(steps), 1);
+		bool ok = hdfPut<float>(root, "Points", { pointCount, 3 }, points) && hdfPut<long long>(root, "NumberOfPoints", { 1 }, { static_cast<long long>(pointCount) })
+		          && hdfPut<long long>(root, "NumberOfCells", { 1 }, { static_cast<long long>(cells) })
+		          && hdfPut<long long>(root, "NumberOfConnectivityIds", { 1 }, { static_cast<long long>(connectivity.size()) })
+		          && hdfPut<long long>(root, "Connectivity", { connectivity.size() }, connectivity) && hdfPut<long long>(root, "Offsets", { offsets.size() }, offsets)
+		          && hdfPut<unsigned char>(root, "Types", { cells }, std::vector<unsigned char>(cells, 12))
+		          && hdfPut<float>(root, "PointData/Temperature", { temperature.size() }, temperature)
+		          && hdfPut<float>(root, "PointData/Velocity", { pointCount * static_cast<std::size_t>(steps), 3 }, velocity)
+		          && hdfPut<float>(root, "CellData/Quality", { quality.size() }, quality);
+		const hid_t group = H5Gcreate2(root, "Steps", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+		ok = ok && group >= 0 && hdfArrayAttribute<int>(group, "NSteps", { steps });
+		if (group >= 0)
+			H5Gclose(group);
+		ok = ok && hdfPut<double>(root, "Steps/Values", { static_cast<hsize_t>(steps) }, times) && hdfPut<long long>(root, "Steps/PartOffsets", { static_cast<hsize_t>(steps) }, zeros)
+		     && hdfPut<long long>(root, "Steps/NumberOfParts", { static_cast<hsize_t>(steps) }, ones) && hdfPut<long long>(root, "Steps/PointOffsets", { static_cast<hsize_t>(steps) }, zeros)
+		     && hdfPut<long long>(root, "Steps/CellOffsets", { static_cast<hsize_t>(steps), 1 }, zeros)
+		     && hdfPut<long long>(root, "Steps/ConnectivityIdOffsets", { static_cast<hsize_t>(steps), 1 }, zeros)
+		     && hdfPut<long long>(root, "Steps/PointDataOffsets/Temperature", { static_cast<hsize_t>(steps) }, pointStarts)
+		     && hdfPut<long long>(root, "Steps/PointDataOffsets/Velocity", { static_cast<hsize_t>(steps) }, pointStarts)
+		     && hdfPut<long long>(root, "Steps/CellDataOffsets/Quality", { static_cast<hsize_t>(steps) }, cellStarts);
+		H5Gclose(root);
+		return H5Fclose(file) >= 0 && ok;
+	}
+#endif
+
+	void testVtkHdf()
+	{
+#if MV_HAVE_HDF5
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		CHECK(vtkHdfSupported() && !vtkHdfFileFilter().isEmpty());
+		CHECK(supportedResultExtensions().contains(QStringLiteral("vtkhdf")) && isSupportedResultFile(QStringLiteral("run.VTKHDF")));
+		auto write = [&](const char* name) { return tmp.path() + QStringLiteral("/") + QString::fromLatin1(name); };
+		auto read = [&](const QString& path) {
+			ResultReadOutcome r = readResultFile(path);
+			if (!r.ok())
+				std::printf("  VTKHDF failed: %s\n", qPrintable(r.error));
+			CHECK(r.ok());
+			return r;
+		};
+
+		// ---- one partition, static
+		const QString plain = write("plain.vtkhdf");
+		CHECK(writeVtkHdfUnstructured(QFile::encodeName(plain).constData(), 0));
+		{
+			const ResultReadOutcome r = read(plain);
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				CHECK(ds.solverName == QStringLiteral("VTKHDF") && ds.nodeCount() == 5 && ds.cellCount() == 2 && ds.stepCount() == 1);
+				CHECK(ds.cellTypes[0] == ResultCellType::Tetra && ds.cellConnectivity == std::vector<std::uint32_t>({ 0, 1, 2, 3, 1, 2, 3, 4 }));
+				const ResultField* t = ds.findField(QStringLiteral("T"), ResultFieldAssociation::Node);
+				const ResultField* u = ds.findField(QStringLiteral("U"), ResultFieldAssociation::Node);
+				const ResultField* q = ds.findField(QStringLiteral("Q"), ResultFieldAssociation::Cell);
+				CHECK(t && u && q && t->components == 1 && u->components == 3 && q->tupleCount(0) == 2);
+				if (t && u)
+					CHECK(approx(t->stepData[0][3], 3.0) && approx(u->stepData[0][4 * 3 + 1], 4.0));
+				CHECK(ds.validate().isEmpty() && extract(ds).triangleCount() == 6); // two tets sharing a face: 8 - 2 faces
+			}
+		}
+
+		// ---- two partitions: each has its own points and local ids, offsets restart at 0
+		const QString parts = write("parts.vtkhdf");
+		CHECK(writeVtkHdfUnstructured(QFile::encodeName(parts).constData(), 1));
+		{
+			const ResultReadOutcome r = read(parts);
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				CHECK(ds.nodeCount() == 8 && ds.cellCount() == 2);
+				CHECK(ds.cellConnectivity == std::vector<std::uint32_t>({ 0, 1, 2, 3, 4, 5, 6, 7 })); // the second partition's ids shifted by 4
+				const ResultField* t = ds.findField(QStringLiteral("T"), ResultFieldAssociation::Node);
+				CHECK(t && t->tupleCount(0) == 8 && approx(t->stepData[0][7], 7.0));
+			}
+		}
+
+		// ---- time steps of static geometry: each array's rows for a step come from Steps/PointDataOffsets
+		const QString temporal = write("temporal.vtkhdf");
+		CHECK(writeVtkHdfUnstructured(QFile::encodeName(temporal).constData(), 2));
+		{
+			const ResultReadOutcome r = read(temporal);
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				CHECK(ds.stepCount() == 3 && approx(ds.steps[1].time, 0.5) && approx(ds.steps[2].time, 1.0));
+				const ResultField* t = ds.findField(QStringLiteral("T"), ResultFieldAssociation::Node);
+				const ResultField* q = ds.findField(QStringLiteral("Q"), ResultFieldAssociation::Cell);
+				CHECK(t && q && t->stepData.size() == 3);
+				if (t && q && t->stepData.size() == 3)
+					CHECK(approx(t->stepData[0][2], 2.0) && approx(t->stepData[1][2], 102.0) && approx(t->stepData[2][4], 204.0) && approx(q->stepData[2][1], 21.0));
+				CHECK(ds.findField(QStringLiteral("Mesh displacement"), ResultFieldAssociation::Node) == nullptr); // the points do not move
+				CHECK(ds.validate().isEmpty());
+			}
+		}
+
+		// ---- a moving mesh: the first step's points plus a displacement field
+		const QString moving = write("moving.vtkhdf");
+		CHECK(writeVtkHdfUnstructured(QFile::encodeName(moving).constData(), 3));
+		{
+			const ResultReadOutcome r = read(moving);
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				const ResultField* d = ds.findField(QStringLiteral("Mesh displacement"), ResultFieldAssociation::Node);
+				CHECK(d && d->components == 3 && d->stepData.size() == 3);
+				if (d && d->stepData.size() == 3)
+					CHECK(approx(d->stepData[0][0], 0.0) && approx(d->stepData[1][0], 0.1, 1e-3, 1e-6) && approx(d->stepData[2][3 * 4], 0.2, 1e-3, 1e-6));
+				CHECK(findDisplacementField(ds) >= 0);
+			}
+		}
+
+		// ---- PolyData: the cells are listed Vertices, Lines, Polygons, Strips
+		const QString poly = write("poly.vtkhdf");
+		CHECK(writeVtkHdfPolyData(QFile::encodeName(poly).constData()));
+		{
+			const ResultReadOutcome r = read(poly);
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				CHECK(ds.nodeCount() == 5 && ds.cellCount() == 3);
+				CHECK(ds.cellTypes[0] == ResultCellType::Line && ds.cellTypes[1] == ResultCellType::Quad && ds.cellTypes[2] == ResultCellType::Triangle);
+				const ResultField* c = ds.findField(QStringLiteral("C"), ResultFieldAssociation::Cell);
+				CHECK(c && approx(c->stepData[0][0], 10.0) && approx(c->stepData[0][2], 30.0));
+			}
+		}
+
+		// ---- ImageData: points from origin and spacing, x fastest
+		const QString image = write("image.vtkhdf");
+		CHECK(writeVtkHdfImage(QFile::encodeName(image).constData()));
+		{
+			const ResultReadOutcome r = read(image);
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				CHECK(ds.nodeCount() == 12 && ds.cellCount() == 2 && ds.cellTypes[0] == ResultCellType::Hexahedron);
+				CHECK(approx(ds.nodePositions[1 * 3], 1.5) && approx(ds.nodePositions[11 * 3], 2.0) && approx(ds.nodePositions[11 * 3 + 1], 1.0)
+				      && approx(ds.nodePositions[11 * 3 + 2], 2.0));
+				const ResultField* t = ds.findField(QStringLiteral("T"), ResultFieldAssociation::Node);
+				const ResultField* q = ds.findField(QStringLiteral("Q"), ResultFieldAssociation::Cell);
+				CHECK(t && q && approx(t->stepData[0][11], 11.0) && approx(q->stepData[0][1], 6.0));
+			}
+		}
+
+		// ---- the larger sample
+		const QString sample = write("sample.vtkhdf");
+		CHECK(writeVtkHdfBlockSample(QFile::encodeName(sample).constData()));
+		{
+			const ResultReadOutcome r = read(sample);
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				CHECK(ds.nodeCount() == 729 && ds.cellCount() == 512 && ds.stepCount() == 5 && approx(ds.steps[4].time, 1.0));
+				const ResultField* v = ds.findField(QStringLiteral("Velocity"), ResultFieldAssociation::Node);
+				CHECK(v && v->components == 3 && v->stepData.size() == 5 && !v->stepData[4].empty());
+				CHECK(ds.validate().isEmpty());
+			}
+		}
+
+		// ---- files that are not readable as results
+		{
+			const QString composite = write("composite.vtkhdf");
+			hid_t file = -1;
+			const hid_t root = hdfCreate(QFile::encodeName(composite).constData(), "MultiBlockDataSet", file);
+			CHECK(root >= 0);
+			if (root >= 0)
+			{
+				H5Gclose(root);
+				H5Fclose(file);
+				const ResultReadOutcome r = readResultFile(composite);
+				CHECK(!r.ok() && r.error.contains(QStringLiteral("composite")));
+			}
+			const QString other = write("other.vtkhdf");
+			const hid_t plainFile = H5Fcreate(QFile::encodeName(other).constData(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+			CHECK(plainFile >= 0);
+			if (plainFile >= 0)
+			{
+				H5Fclose(plainFile);
+				const ResultReadOutcome r = readResultFile(other);
+				CHECK(!r.ok() && r.error.contains(QStringLiteral("not a VTKHDF")));
+			}
+			const QString junk = write("junk.vtkhdf");
+			writeText(junk, "this is not HDF5");
+			CHECK(!readResultFile(junk).ok());
+		}
+#else
+		std::printf("  (skipping VTKHDF tests: this build has no HDF5 library)\n");
+#endif
+	}
+
+#if MV_HAVE_HDF5
+	bool hdfIntAttribute(hid_t file, const char* path, const char* name, int value)
+	{
+		const hid_t object = H5Oopen(file, path, H5P_DEFAULT);
+		if (object < 0)
+			return false;
+		const bool ok = hdfArrayAttribute<int>(object, name, { value });
+		H5Oclose(object);
+		return ok;
+	}
+
+	bool hdfDoubleAttribute(hid_t file, const char* path, const char* name, double value)
+	{
+		const hid_t object = H5Oopen(file, path, H5P_DEFAULT);
+		if (object < 0)
+			return false;
+		const bool ok = hdfArrayAttribute<double>(object, name, { value });
+		H5Oclose(object);
+		return ok;
+	}
+
+	bool hdfTextAttribute(hid_t file, const char* path, const char* name, const char* value)
+	{
+		const hid_t object = H5Oopen(file, path, H5P_DEFAULT);
+		if (object < 0)
+			return false;
+		const bool ok = hdfStringAttribute(object, name, value);
+		H5Oclose(object);
+		return ok;
+	}
+
+	// A small MED 3 file following the layout Salome writes (component-major coordinates, connectivity and field values): two
+	// tetrahedra plus one boundary triangle (which must be left out), a scalar and a vector node field over two steps, a cell field,
+	// a cell field on 2 Gauss points, an Aster-ordered stress tensor and a node field on a profile.
+	bool writeMedFixture(const char* path, int major = 3)
+	{
+		const hid_t file = H5Fcreate(path, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+		if (file < 0)
+			return false;
+		bool ok = hdfGroup(file, "INFOS_GENERALES") && hdfIntAttribute(file, "INFOS_GENERALES", "MAJ", major) && hdfIntAttribute(file, "INFOS_GENERALES", "MIN", 2)
+		          && hdfIntAttribute(file, "INFOS_GENERALES", "REL", 1);
+		if (major < 3)
+		{
+			ok = ok && hdfGroup(file, "ENS_MAA");
+			return H5Fclose(file) >= 0 && ok;
+		}
+		const std::string mesh = "ENS_MAA/Mesh1", noStep = "/-0000000000000000001-0000000000000000001";
+		const std::string meshStep = mesh + noStep;
+		ok = ok && hdfGroup(file, mesh.c_str()) && hdfIntAttribute(file, mesh.c_str(), "ESP", 3) && hdfIntAttribute(file, mesh.c_str(), "DIM", 3)
+		     && hdfTextAttribute(file, mesh.c_str(), "UNI", "mm              mm              mm              ");
+		ok = ok && hdfGroup(file, meshStep.c_str()) && hdfIntAttribute(file, meshStep.c_str(), "NDT", -1) && hdfIntAttribute(file, meshStep.c_str(), "NOR", -1)
+		     && hdfDoubleAttribute(file, meshStep.c_str(), "PDT", 0.0);
+		const std::string coo = meshStep + "/NOE/COO", tet = meshStep + "/MAI/TE4/NOD", tri = meshStep + "/MAI/TR3/NOD";
+		ok = ok && hdfPut<double>(file, coo.c_str(), { 15 }, { 0, 1, 0, 0, 1, /* y */ 0, 0, 1, 0, 1, /* z */ 0, 0, 0, 1, 1 }) && hdfIntAttribute(file, coo.c_str(), "NBR", 5)
+		     && hdfPut<long long>(file, (meshStep + "/NOE/NUM").c_str(), { 5 }, { 10, 20, 30, 40, 50 })
+		     && hdfPut<long long>(file, tet.c_str(), { 8 }, { 1, 2, 2, 3, 3, 4, 4, 5 }) && hdfIntAttribute(file, tet.c_str(), "NBR", 2)
+		     && hdfPut<long long>(file, tri.c_str(), { 3 }, { 1, 2, 3 }) && hdfIntAttribute(file, tri.c_str(), "NBR", 1);
+
+		// A field group: mesh, components, names; then one step group per (dt, it, time).
+		auto field = [&](const std::string& name, int components, const char* names) {
+			const std::string group = "CHA/" + name;
+			return hdfGroup(file, group.c_str()) && hdfTextAttribute(file, group.c_str(), "MAI", "Mesh1") && hdfIntAttribute(file, group.c_str(), "NCO", components)
+			       && hdfTextAttribute(file, group.c_str(), "NOM", names);
+		};
+		auto stepGroup = [&](const std::string& name, const char* stepName, int dt, double time) {
+			const std::string group = "CHA/" + name + "/" + stepName;
+			return hdfGroup(file, group.c_str()) && hdfIntAttribute(file, group.c_str(), "NDT", dt) && hdfIntAttribute(file, group.c_str(), "NOR", 1)
+			       && hdfDoubleAttribute(file, group.c_str(), "PDT", time);
+		};
+		// The values of one entity type of a step: /CHA/<field>/<step>/<entity>/<profile>/CO, with NBR and NGA on the profile group.
+		auto values = [&](const std::string& name, const char* stepName, const char* entity, const char* profile, const std::vector<double>& data, int count, int gauss) {
+			const std::string group = "CHA/" + name + "/" + stepName + "/" + entity + "/" + profile;
+			return hdfPut<double>(file, (group + "/CO").c_str(), { data.size() }, data) && hdfIntAttribute(file, group.c_str(), "NBR", count)
+			       && hdfIntAttribute(file, group.c_str(), "NGA", gauss);
+		};
+		const char* s1 = "00000000000000000001-0000000000000000001";
+		const char* s2 = "00000000000000000002-0000000000000000001";
+		const char* none = "MED_NO_PROFILE_INTERNAL";
+		const std::string sixNames = "SIXX            SIYY            SIZZ            SIXY            SIXZ            SIYZ            ";
+
+		ok = ok && field("T", 1, "T               ") && stepGroup("T", s1, 1, 0.5) && stepGroup("T", s2, 2, 1.0)
+		     && values("T", s1, "NOE", none, { 1, 2, 3, 4, 5 }, 5, 1) && values("T", s2, "NOE", none, { 11, 12, 13, 14, 15 }, 5, 1);
+		ok = ok && field("U", 3, "DX              DY              DZ              ") && stepGroup("U", s1, 1, 0.5)
+		     && values("U", s1, "NOE", none, { 0, 1, 2, 3, 4, /* y */ 10, 11, 12, 13, 14, /* z */ 0, 0, 0, 0, 0 }, 5, 1);
+		ok = ok && field("Q", 1, "Q               ") && stepGroup("Q", s1, 1, 0.5) && values("Q", s1, "MAI.TE4", none, { 5, 6 }, 2, 1);
+		ok = ok && field("G", 1, "G               ") && stepGroup("G", s1, 1, 0.5) && values("G", s1, "MAI.TE4", none, { 1, 3, 10, 20 }, 2, 2); // 2 cells x 2 Gauss points
+		std::vector<double> stress;
+		for (int component = 1; component <= 6; ++component)
+			for (int node = 0; node < 5; ++node)
+				stress.push_back(component);
+		ok = ok && field("SIGM_NOEU", 6, sixNames.c_str()) && stepGroup("SIGM_NOEU", s1, 1, 0.5) && values("SIGM_NOEU", s1, "NOE", none, stress, 5, 1);
+		ok = ok && hdfPut<long long>(file, "PROFILS/PFL1/PFL", { 2 }, { 2, 4 }) && field("P", 1, "P               ") && stepGroup("P", s1, 1, 0.5)
+		     && values("P", s1, "NOE", "PFL1", { 7, 9 }, 5, 1); // NBR = the mesh's 5 nodes, as Code_Aster writes it, not the profile's 2
+		// A shell's six degrees of freedom: 3 translations then 3 rotations (values 1..6, the same at every node).
+		std::vector<double> shell;
+		for (int component = 1; component <= 6; ++component)
+			for (int node = 0; node < 5; ++node)
+				shell.push_back(component);
+		ok = ok && field("DEPL", 6, "DX              DY              DZ              DRX             DRY             DRZ             ") && stepGroup("DEPL", s1, 1, 0.5)
+		     && values("DEPL", s1, "NOE", none, shell, 5, 1);
+		return H5Fclose(file) >= 0 && ok;
+	}
+#endif
+
+	void testMed()
+	{
+#if MV_HAVE_HDF5
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		CHECK(medSupported() && !medFileFilter().isEmpty());
+		CHECK(supportedResultExtensions().contains(QStringLiteral("med")) && isSupportedResultFile(QStringLiteral("run.MED")));
+
+		// ---- a synthetic MED 3 file
+		const QString fixture = tmp.path() + QStringLiteral("/fixture.med");
+		CHECK(writeMedFixture(QFile::encodeName(fixture).constData()));
+		{
+			const ResultReadOutcome r = readResultFile(fixture);
+			if (!r.ok())
+				std::printf("  MED failed: %s\n", qPrintable(r.error));
+			CHECK(r.ok());
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				CHECK(ds.solverName == QStringLiteral("MED") && ds.nodeCount() == 5 && ds.lengthUnit == QStringLiteral("mm"));
+				CHECK(ds.cellCount() == 2 && ds.cellTypes[0] == ResultCellType::Tetra); // the boundary triangle is left out
+				CHECK(ds.cellConnectivity == std::vector<std::uint32_t>({ 0, 1, 2, 3, 1, 2, 3, 4 })); // 1-based, component-major -> 0-based per cell
+				CHECK(ds.nodeId(2) == 30);
+				CHECK(ds.stepCount() == 2 && approx(ds.steps[0].time, 0.5) && approx(ds.steps[1].time, 1.0));
+				bool warned = false;
+				for (const QString& w : r.warnings)
+					warned = warned || w.contains(QStringLiteral("lower-dimension"));
+				CHECK(warned);
+
+				const ResultField* t = ds.findField(QStringLiteral("T"), ResultFieldAssociation::Node);
+				CHECK(t && t->stepData.size() == 2 && approx(t->stepData[0][2], 3.0) && approx(t->stepData[1][4], 15.0));
+				const ResultField* u = ds.findField(QStringLiteral("U"), ResultFieldAssociation::Node);
+				CHECK(u && u->components == 3 && u->stepData[1].empty()); // the vector has no data at the second step
+				if (u && !u->stepData[0].empty())
+					CHECK(approx(u->stepData[0][2 * 3], 2.0) && approx(u->stepData[0][2 * 3 + 1], 12.0) && approx(u->stepData[0][2 * 3 + 2], 0.0, 1e-4, 1e-9));
+				const ResultField* q = ds.findField(QStringLiteral("Q"), ResultFieldAssociation::Cell);
+				CHECK(q && q->tupleCount(0) == 2 && approx(q->stepData[0][0], 5.0) && approx(q->stepData[0][1], 6.0));
+				const ResultField* g = ds.findField(QStringLiteral("G"), ResultFieldAssociation::Cell);
+				CHECK(g && approx(g->stepData[0][0], 2.0) && approx(g->stepData[0][1], 15.0)); // the mean over each cell's 2 Gauss points
+				const ResultField* sigma = ds.findField(QStringLiteral("SIGM_NOEU"), ResultFieldAssociation::Node);
+				CHECK(sigma && sigma->components == 6);
+				if (sigma && !sigma->stepData[0].empty())
+				{
+					// Aster's order SIXX SIYY SIZZ SIXY SIXZ SIYZ becomes XX YY ZZ XY YZ XZ: values 1 2 3 4 6 5
+					const float expected[6] = { 1, 2, 3, 4, 6, 5 };
+					bool inOrder = true;
+					for (int k = 0; k < 6; ++k)
+						inOrder = inOrder && approx(sigma->stepData[0][static_cast<std::size_t>(k)], expected[k]);
+					CHECK(inOrder);
+				}
+				CHECK(ds.findField(QStringLiteral("SIGM_NOEU von Mises"), ResultFieldAssociation::Node) != nullptr);
+				const ResultField* p = ds.findField(QStringLiteral("P"), ResultFieldAssociation::Node);
+				CHECK(p && approx(p->stepData[0][1], 7.0) && approx(p->stepData[0][3], 9.0) && std::isnan(p->stepData[0][0]));
+				// DX DY DZ DRX DRY DRZ: a translation vector (shown deformed) and a rotation vector
+				const ResultField* translation = ds.findField(QStringLiteral("DEPL"), ResultFieldAssociation::Node);
+				const ResultField* rotation = ds.findField(QStringLiteral("DEPL rotation"), ResultFieldAssociation::Node);
+				CHECK(translation && rotation && translation->components == 3 && rotation->components == 3);
+				if (translation && rotation && !translation->stepData[0].empty() && !rotation->stepData[0].empty())
+					CHECK(approx(translation->stepData[0][2], 3.0) && approx(rotation->stepData[0][0], 4.0) && approx(rotation->stepData[0][2], 6.0));
+				CHECK(findDisplacementField(ds) >= 0 && ds.fields[static_cast<std::size_t>(findDisplacementField(ds))].name == QStringLiteral("DEPL"));
+				CHECK(ds.validate().isEmpty() && extract(ds).triangleCount() == 6);
+			}
+		}
+
+		// ---- files that cannot be read
+		{
+			const QString old = tmp.path() + QStringLiteral("/old.med");
+			CHECK(writeMedFixture(QFile::encodeName(old).constData(), 2));
+			const ResultReadOutcome r = readResultFile(old);
+			CHECK(!r.ok() && r.error.contains(QStringLiteral("MED 2")));
+			const QString other = tmp.path() + QStringLiteral("/other.med");
+			const hid_t plainFile = H5Fcreate(QFile::encodeName(other).constData(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+			CHECK(plainFile >= 0);
+			if (plainFile >= 0)
+			{
+				H5Fclose(plainFile);
+				CHECK(!readResultFile(other).ok());
+			}
+		}
+
+		// ---- files written by Salome / MEDCoupling (the samples that ship with the project)
+		const QString dir = QStringLiteral(MV_SIMULATION_SAMPLES_DIR);
+		if (QFileInfo::exists(dir + QStringLiteral("/pointe_4fields.med")))
+		{
+			// 19 nodes; 12 tetrahedra, 2 hexahedra and 2 pyramids; node fields over three steps, cell fields at the first
+			const ResultReadOutcome r = readResultFile(dir + QStringLiteral("/pointe_4fields.med"));
+			if (!r.ok())
+				std::printf("  MED pointe_4fields failed: %s\n", qPrintable(r.error));
+			CHECK(r.ok());
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				CHECK(ds.nodeCount() == 19 && ds.cellCount() == 16 && ds.stepCount() == 3);
+				const ResultField* vector = ds.findField(QStringLiteral("fieldcelldoublevector"), ResultFieldAssociation::Cell);
+				const ResultField* node = ds.findField(QStringLiteral("fieldnodedouble"), ResultFieldAssociation::Node);
+				CHECK(vector && vector->components == 3 && node && node->stepData.size() == 3 && !node->stepData[2].empty());
+				if (vector && !vector->stepData[0].empty())
+				{
+					// cells are listed by type name: HE8 (2), PY5 (2), TE4 (12); the file stores every component's values in turn
+					CHECK(approx(vector->stepData[0][0], 6.0) && approx(vector->stepData[0][1], 1.0) && approx(vector->stepData[0][2], 1.0)); // first hexahedron
+					CHECK(approx(vector->stepData[0][4 * 3], 1.0) && approx(vector->stepData[0][4 * 3 + 1], 0.0) && approx(vector->stepData[0][4 * 3 + 2], 1.0)); // first tetrahedron
+				}
+				CHECK(ds.validate().isEmpty() && extract(ds).triangleCount() > 0);
+			}
+		}
+		if (QFileInfo::exists(dir + QStringLiteral("/fra.med")))
+		{
+			// a nodal velocity of a 1020-node mesh; its x component decreases smoothly from 0.8959
+			const ResultReadOutcome r = readResultFile(dir + QStringLiteral("/fra.med"));
+			if (!r.ok())
+				std::printf("  MED fra failed: %s\n", qPrintable(r.error));
+			CHECK(r.ok());
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				const ResultField* velocity = ds.findField(QStringLiteral("VITESSE"), ResultFieldAssociation::Node);
+				CHECK(ds.nodeCount() == 1020 && velocity && velocity->components == 3);
+				if (velocity && !velocity->stepData.empty() && !velocity->stepData[0].empty())
+					CHECK(approx(velocity->stepData[0][0], 0.895864, 1e-4, 1e-6) && approx(velocity->stepData[0][1], 0.0, 1e-4, 1e-9));
+				CHECK(ds.validate().isEmpty());
+			}
+		}
+#else
+		std::printf("  (skipping MED tests: this build has no HDF5 library)\n");
+#endif
+	}
+
+	// ---- Polyhedral cells --------------------------------------------------------------------------------------------------
+
+	// A row of `count` unit cubes along x as Polyhedron cells: each has its own 6 quad faces (a face between two cubes is listed by both), and its
+	// node list, like a VTK polyhedron. Points are (count + 1) x 2 x 2, index x + (count + 1) * (y + 2 * z). `asHex` makes cube 0 a regular
+	// Hexahedron instead, to check that a polyhedron and a regular cell match the face they share.
+	ResultDataset polyCubes(int count, bool asHex = false)
+	{
+		ResultDataset ds;
+		const int nx = count + 1;
+		auto p = [&](int x, int y, int z) { return static_cast<std::uint32_t>(x + nx * (y + 2 * z)); };
+		for (int z = 0; z < 2; ++z)
+			for (int y = 0; y < 2; ++y)
+				for (int x = 0; x < nx; ++x)
+					ds.nodePositions.insert(ds.nodePositions.end(), { static_cast<float>(x), static_cast<float>(y), static_cast<float>(z) });
+		ds.cellOffsets.push_back(0);
+		ds.faceOffsets.push_back(0);
+		ds.cellFaceOffsets.push_back(0);
+		for (int i = 0; i < count; ++i)
+		{
+			const std::uint32_t nodes[8] = { p(i, 0, 0), p(i + 1, 0, 0), p(i + 1, 1, 0), p(i, 1, 0), p(i, 0, 1), p(i + 1, 0, 1), p(i + 1, 1, 1), p(i, 1, 1) };
+			ds.cellConnectivity.insert(ds.cellConnectivity.end(), nodes, nodes + 8);
+			ds.cellOffsets.push_back(static_cast<std::uint32_t>(ds.cellConnectivity.size()));
+			if (asHex && i == 0)
+			{
+				ds.cellTypes.push_back(ResultCellType::Hexahedron);
+				ds.cellFaceOffsets.push_back(static_cast<std::uint32_t>(ds.cellFaces.size()));
+				continue;
+			}
+			ds.cellTypes.push_back(ResultCellType::Polyhedron);
+			const std::vector<std::vector<std::uint32_t>> faces = {
+				{ p(i, 0, 0), p(i, 1, 0), p(i + 1, 1, 0), p(i + 1, 0, 0) },     // bottom
+				{ p(i, 0, 1), p(i + 1, 0, 1), p(i + 1, 1, 1), p(i, 1, 1) },     // top
+				{ p(i, 0, 0), p(i + 1, 0, 0), p(i + 1, 0, 1), p(i, 0, 1) },     // y = 0
+				{ p(i, 1, 0), p(i, 1, 1), p(i + 1, 1, 1), p(i + 1, 1, 0) },     // y = 1
+				{ p(i, 0, 0), p(i, 0, 1), p(i, 1, 1), p(i, 1, 0) },             // x = i
+				{ p(i + 1, 0, 0), p(i + 1, 1, 0), p(i + 1, 1, 1), p(i + 1, 0, 1) } }; // x = i + 1
+			for (const std::vector<std::uint32_t>& face : faces)
+			{
+				ds.cellFaces.push_back(static_cast<std::uint32_t>(ds.faceOffsets.size() - 1));
+				ds.faceNodes.insert(ds.faceNodes.end(), face.begin(), face.end());
+				ds.faceOffsets.push_back(static_cast<std::uint32_t>(ds.faceNodes.size()));
+			}
+			ds.cellFaceOffsets.push_back(static_cast<std::uint32_t>(ds.cellFaces.size()));
+		}
+		return ds;
+	}
+
+	// An L-shaped prism as ONE polyhedron: two concave 6-gon caps and six quads - a face that needs real triangulation.
+	ResultDataset polyLPrism()
+	{
+		ResultDataset ds;
+		const float outline[6][2] = { { 0, 0 }, { 2, 0 }, { 2, 1 }, { 1, 1 }, { 1, 2 }, { 0, 2 } };
+		for (int z = 0; z < 2; ++z)
+			for (const auto& xy : outline)
+				ds.nodePositions.insert(ds.nodePositions.end(), { xy[0], xy[1], static_cast<float>(z) });
+		ds.cellOffsets = { 0, 0 };
+		ds.cellTypes = { ResultCellType::Polyhedron };
+		ds.faceOffsets.push_back(0);
+		auto addFace = [&](const std::vector<std::uint32_t>& face) {
+			ds.cellFaces.push_back(static_cast<std::uint32_t>(ds.faceOffsets.size() - 1));
+			ds.faceNodes.insert(ds.faceNodes.end(), face.begin(), face.end());
+			ds.faceOffsets.push_back(static_cast<std::uint32_t>(ds.faceNodes.size()));
+		};
+		addFace({ 0, 1, 2, 3, 4, 5 });
+		addFace({ 6, 7, 8, 9, 10, 11 });
+		for (std::uint32_t i = 0; i < 6; ++i)
+			addFace({ i, (i + 1) % 6, 6 + (i + 1) % 6, 6 + i });
+		ds.cellFaceOffsets = { 0, static_cast<std::uint32_t>(ds.cellFaces.size()) };
+		return ds;
+	}
+
+	// Every boundary triangle of a polyhedral dataset faces away from the centre of its cell's faces.
+	bool polyTrianglesFaceOutward(const ResultDataset& ds, const ResultBoundarySurface& s)
+	{
+		for (std::size_t t = 0; t < s.triangleCount(); ++t)
+		{
+			const std::uint32_t cell = s.triangleCell[t];
+			double cx = 0, cy = 0, cz = 0;
+			std::size_t n = 0;
+			for (std::size_t k = ds.cellFaceOffsets[cell]; k < ds.cellFaceOffsets[cell + 1]; ++k)
+				for (std::size_t j = ds.faceOffsets[ds.cellFaces[k]]; j < ds.faceOffsets[ds.cellFaces[k] + 1]; ++j, ++n)
+				{
+					cx += ds.nodePositions[ds.faceNodes[j] * 3 + 0];
+					cy += ds.nodePositions[ds.faceNodes[j] * 3 + 1];
+					cz += ds.nodePositions[ds.faceNodes[j] * 3 + 2];
+				}
+			cx /= static_cast<double>(n);
+			cy /= static_cast<double>(n);
+			cz /= static_cast<double>(n);
+			const float* p0 = &s.positions[s.triangles[t * 3 + 0] * 3];
+			const float* p1 = &s.positions[s.triangles[t * 3 + 1] * 3];
+			const float* p2 = &s.positions[s.triangles[t * 3 + 2] * 3];
+			const double ax = p1[0] - p0[0], ay = p1[1] - p0[1], az = p1[2] - p0[2];
+			const double bx = p2[0] - p0[0], by = p2[1] - p0[1], bz = p2[2] - p0[2];
+			const double nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx;
+			const double mx = (p0[0] + p1[0] + p2[0]) / 3 - cx, my = (p0[1] + p1[1] + p2[1]) / 3 - cy, mz = (p0[2] + p1[2] + p2[2]) / 3 - cz;
+			if (nx * mx + ny * my + nz * mz <= 0.0)
+				return false;
+		}
+		return true;
+	}
+
+	// The volume a closed, outward-oriented triangle surface encloses (the sum of the signed tetrahedra to the origin): positive when every triangle
+	// faces outward, and exact for a concave solid too, unlike a test against the cell's centre.
+	double surfaceVolume(const ResultBoundarySurface& s)
+	{
+		double volume = 0;
+		for (std::size_t t = 0; t < s.triangleCount(); ++t)
+		{
+			const float* a = &s.positions[s.triangles[t * 3] * 3];
+			const float* b = &s.positions[s.triangles[t * 3 + 1] * 3];
+			const float* c = &s.positions[s.triangles[t * 3 + 2] * 3];
+			volume += (static_cast<double>(a[0]) * (static_cast<double>(b[1]) * c[2] - static_cast<double>(b[2]) * c[1])
+			           - static_cast<double>(a[1]) * (static_cast<double>(b[0]) * c[2] - static_cast<double>(b[2]) * c[0])
+			           + static_cast<double>(a[2]) * (static_cast<double>(b[0]) * c[1] - static_cast<double>(b[1]) * c[0])) / 6.0;
+		}
+		return volume;
+	}
+
+	// The total area of the boundary triangles whose vertices all have z == `z`.
+	double areaAtHeight(const ResultBoundarySurface& s, float z)
+	{
+		double area = 0;
+		for (std::size_t t = 0; t < s.triangleCount(); ++t)
+		{
+			const float* p[3] = { &s.positions[s.triangles[t * 3] * 3], &s.positions[s.triangles[t * 3 + 1] * 3], &s.positions[s.triangles[t * 3 + 2] * 3] };
+			if (p[0][2] != z || p[1][2] != z || p[2][2] != z)
+				continue;
+			area += 0.5 * std::fabs(static_cast<double>(p[1][0] - p[0][0]) * (p[2][1] - p[0][1]) - static_cast<double>(p[2][0] - p[0][0]) * (p[1][1] - p[0][1]));
+		}
+		return area;
+	}
+
+#if MV_HAVE_CGNS
+	// Two cubes as a polyhedral CGNS zone: an NGON_n section of the 11 distinct faces (the face between the cubes once), an NFACE_n section of the
+	// two polyhedra as lists of face element numbers (some negative: inward-pointing).
+	bool writeCgnsPolyhedra(const char* path)
+	{
+		int fn = 0, base = 0, zone = 0, index = 0;
+		if (cg_open(path, CG_MODE_WRITE, &fn) != CG_OK)
+			return false;
+		bool ok = cg_base_write(fn, "Base", 3, 3, &base) == CG_OK;
+		const cgsize_t size[3] = { 12, 2, 0 };
+		ok = ok && cg_zone_write(fn, base, "Cubes", size, CGNS_ENUMV(Unstructured), &zone) == CG_OK;
+		double x[12], y[12], z[12];
+		for (int k = 0; k < 2; ++k)
+			for (int j = 0; j < 2; ++j)
+				for (int i = 0; i < 3; ++i)
+				{
+					const int n = i + 3 * (j + 2 * k);
+					x[n] = i;
+					y[n] = j;
+					z[n] = k;
+				}
+		// CGNS node numbers are 1-based: p(x, y, z) = 1 + x + 3 * (y + 2 * z). Faces 1-6: cube A, 7: the shared face, 8-11: cube B's other faces.
+		auto p = [](int a, int b, int c) { return static_cast<cgsize_t>(1 + a + 3 * (b + 2 * c)); };
+		const std::vector<std::vector<cgsize_t>> faces = {
+			{ p(0, 0, 0), p(0, 1, 0), p(1, 1, 0), p(1, 0, 0) }, { p(0, 0, 1), p(1, 0, 1), p(1, 1, 1), p(0, 1, 1) }, { p(0, 0, 0), p(1, 0, 0), p(1, 0, 1), p(0, 0, 1) },
+			{ p(0, 1, 0), p(0, 1, 1), p(1, 1, 1), p(1, 1, 0) }, { p(0, 0, 0), p(0, 0, 1), p(0, 1, 1), p(0, 1, 0) },
+			{ p(1, 0, 0), p(1, 1, 0), p(1, 1, 1), p(1, 0, 1) }, // shared
+			{ p(1, 0, 0), p(2, 0, 0), p(2, 1, 0), p(1, 1, 0) }, { p(1, 0, 1), p(1, 1, 1), p(2, 1, 1), p(2, 0, 1) }, { p(1, 0, 0), p(1, 0, 1), p(2, 0, 1), p(2, 0, 0) },
+			{ p(1, 1, 0), p(2, 1, 0), p(2, 1, 1), p(1, 1, 1) }, { p(2, 0, 0), p(2, 0, 1), p(2, 1, 1), p(2, 1, 0) } };
+		std::vector<cgsize_t> faceData, faceOffsets = { 0 };
+		for (const std::vector<cgsize_t>& face : faces)
+		{
+			faceData.insert(faceData.end(), face.begin(), face.end());
+			faceOffsets.push_back(static_cast<cgsize_t>(faceData.size()));
+		}
+		// element numbers: faces 1..11; the polyhedra 12 and 13
+		const std::vector<cgsize_t> cellData = { 1, 2, 3, 4, 5, -6, 7, 8, 9, 10, 11, 6 }, cellOffsets = { 0, 6, 12 };
+		ok = ok && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateX", x, &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateY", y, &index) == CG_OK
+		     && cg_coord_write(fn, base, zone, CGNS_ENUMV(RealDouble), "CoordinateZ", z, &index) == CG_OK
+		     && cg_poly_section_write(fn, base, zone, "Faces", CGNS_ENUMV(NGON_n), 1, 11, 0, faceData.data(), faceOffsets.data(), &index) == CG_OK
+		     && cg_poly_section_write(fn, base, zone, "Cells", CGNS_ENUMV(NFACE_n), 12, 13, 0, cellData.data(), cellOffsets.data(), &index) == CG_OK;
+		return cg_close(fn) == CG_OK && ok;
+	}
+#endif
+
+#if MV_HAVE_HDF5
+	// The same two cubes as a VTKHDF UnstructuredGrid of two polyhedra: every polyhedron lists its own 6 faces (12 faces in all, the shared one twice).
+	bool writeVtkHdfPolyhedra(const char* path)
+	{
+		hid_t file = -1;
+		const hid_t root = hdfCreate(path, "UnstructuredGrid", file);
+		if (root < 0)
+			return false;
+		std::vector<float> points;
+		for (int k = 0; k < 2; ++k)
+			for (int j = 0; j < 2; ++j)
+				for (int i = 0; i < 3; ++i)
+					points.insert(points.end(), { static_cast<float>(i), static_cast<float>(j), static_cast<float>(k) });
+		auto p = [](int a, int b, int c) { return static_cast<long long>(a + 3 * (b + 2 * c)); };
+		std::vector<long long> connectivity, faceConnectivity, faceOffsets = { 0 }, toFaces, polyOffsets = { 0 };
+		for (int cube = 0; cube < 2; ++cube)
+		{
+			const int i = cube;
+			for (long long n : { p(i, 0, 0), p(i + 1, 0, 0), p(i + 1, 1, 0), p(i, 1, 0), p(i, 0, 1), p(i + 1, 0, 1), p(i + 1, 1, 1), p(i, 1, 1) })
+				connectivity.push_back(n);
+			const std::vector<std::vector<long long>> faces = {
+				{ p(i, 0, 0), p(i, 1, 0), p(i + 1, 1, 0), p(i + 1, 0, 0) }, { p(i, 0, 1), p(i + 1, 0, 1), p(i + 1, 1, 1), p(i, 1, 1) },
+				{ p(i, 0, 0), p(i + 1, 0, 0), p(i + 1, 0, 1), p(i, 0, 1) }, { p(i, 1, 0), p(i, 1, 1), p(i + 1, 1, 1), p(i + 1, 1, 0) },
+				{ p(i, 0, 0), p(i, 0, 1), p(i, 1, 1), p(i, 1, 0) }, { p(i + 1, 0, 0), p(i + 1, 1, 0), p(i + 1, 1, 1), p(i + 1, 0, 1) } };
+			for (const std::vector<long long>& face : faces)
+			{
+				toFaces.push_back(static_cast<long long>(faceOffsets.size() - 1));
+				faceConnectivity.insert(faceConnectivity.end(), face.begin(), face.end());
+				faceOffsets.push_back(static_cast<long long>(faceConnectivity.size()));
+			}
+			polyOffsets.push_back(static_cast<long long>(toFaces.size()));
+		}
+		const bool ok = hdfPut<float>(root, "Points", { 12, 3 }, points) && hdfPut<long long>(root, "NumberOfPoints", { 1 }, { 12 })
+		                && hdfPut<long long>(root, "NumberOfCells", { 1 }, { 2 }) && hdfPut<long long>(root, "NumberOfConnectivityIds", { 1 }, { 16 })
+		                && hdfPut<long long>(root, "Connectivity", { 16 }, connectivity) && hdfPut<long long>(root, "Offsets", { 3 }, { 0, 8, 16 })
+		                && hdfPut<unsigned char>(root, "Types", { 2 }, { 42, 42 })
+		                && hdfPut<long long>(root, "NumberOfFaces", { 1 }, { 12 }) && hdfPut<long long>(root, "NumberOfFaceConnectivityIds", { 1 }, { 48 })
+		                && hdfPut<long long>(root, "NumberOfPolyhedronToFaceIds", { 1 }, { 12 })
+		                && hdfPut<long long>(root, "FaceConnectivity", { faceConnectivity.size() }, faceConnectivity)
+		                && hdfPut<long long>(root, "FaceOffsets", { faceOffsets.size() }, faceOffsets) && hdfPut<long long>(root, "PolyhedronToFaces", { toFaces.size() }, toFaces)
+		                && hdfPut<long long>(root, "PolyhedronOffsets", { polyOffsets.size() }, polyOffsets);
+		H5Gclose(root);
+		return H5Fclose(file) >= 0 && ok;
+	}
+#endif
+
+	void testPolyhedra()
+	{
+		// ---- the boundary of polyhedral cells: faces matched by their node sets across cells, of any size
+		{
+			ResultDataset one = polyCubes(1);
+			CHECK(one.validate().isEmpty());
+			ResultBoundarySurface s = extract(one);
+			CHECK(s.triangleCount() == 12 && polyTrianglesFaceOutward(one, s)); // a cube: 6 quads
+
+			ResultDataset row = polyCubes(2);
+			CHECK(row.validate().isEmpty());
+			s = extract(row);
+			CHECK(s.triangleCount() == 20 && polyTrianglesFaceOutward(row, s)); // the face between the cubes is interior: 10 quads
+
+			// a regular hexahedron next to a polyhedron: they share a face, which must match across the two kinds
+			ResultDataset mixed = polyCubes(2, true);
+			CHECK(mixed.validate().isEmpty());
+			s = extract(mixed);
+			CHECK(s.triangleCount() == 20);
+			bool hexOutward = true;
+			for (std::size_t t = 0; t < s.triangleCount(); ++t)
+				if (mixed.cellTypes[s.triangleCell[t]] == ResultCellType::Hexahedron && s.triangleFace[t] == ResultBoundarySurface::kNoFace)
+					hexOutward = false;
+			CHECK(hexOutward);
+
+			// a concave cap: the triangulation must cover exactly the L, not its convex hull (area 3, the hull's 3.5)
+			ResultDataset prism = polyLPrism();
+			CHECK(prism.validate().isEmpty());
+			s = extract(prism);
+			CHECK(s.triangleCount() == 4 + 4 + 12);                    // two 6-gon caps of 4 triangles, six quads of 2
+			CHECK(approx(surfaceVolume(s), 3.0));                       // closed and outward everywhere (the L has area 3, height 1)
+			CHECK(approx(areaAtHeight(s, 0.0f), 3.0) && approx(areaAtHeight(s, 1.0f), 3.0));
+
+			// small partitions force the multi-pass path
+			ResultBoundarySurface partitioned;
+			CHECK(extractBoundarySurface(row, partitioned, nullptr, nullptr, 3) && partitioned.triangleCount() == 20);
+			// a tiny fastKeyingBudgetBytes forces the bounded (re-derive per partition) path instead of the single-pass one; same result either way
+			ResultBoundarySurface bounded;
+			CHECK(extractBoundarySurface(row, bounded, nullptr, nullptr, 3, 1) && bounded.triangleCount() == partitioned.triangleCount());
+			ResultBoundarySurface boundedWhole;
+			CHECK(extractBoundarySurface(row, boundedWhole, nullptr, nullptr, 2000000, 1) && boundedWhole.triangleCount() == 20);
+
+			// a polyhedron with no faces listed is counted as not drawn, and warned about
+			ResultDataset bare = polyCubes(1);
+			bare.faceNodes.clear();
+			bare.faceOffsets.clear();
+			bare.cellFaces.clear();
+			bare.cellFaceOffsets.clear();
+			s = extract(bare);
+			CHECK(s.triangleCount() == 0 && s.skippedCells == 1 && !resultCellTypeWarnings(bare).isEmpty());
+
+			// broken face data is rejected
+			ResultDataset broken = polyCubes(1);
+			broken.faceNodes[3] = 99;
+			CHECK(!broken.validate().isEmpty());
+			broken = polyCubes(1);
+			broken.cellFaces[2] = 40;
+			CHECK(!broken.validate().isEmpty());
+		}
+
+		// ---- a VTK XML polyhedron: cell type 42 with its faces / faceoffsets arrays
+		{
+			const QByteArray vtu =
+				"<?xml version=\"1.0\"?>\n<VTKFile type=\"UnstructuredGrid\" version=\"1.0\" byte_order=\"LittleEndian\">\n<UnstructuredGrid>\n"
+				"<Piece NumberOfPoints=\"8\" NumberOfCells=\"1\">\n"
+				"<Points><DataArray type=\"Float32\" NumberOfComponents=\"3\" format=\"ascii\">0 0 0 1 0 0 1 1 0 0 1 0 0 0 1 1 0 1 1 1 1 0 1 1</DataArray></Points>\n"
+				"<Cells>\n<DataArray type=\"Int64\" Name=\"connectivity\" format=\"ascii\">0 1 2 3 4 5 6 7</DataArray>\n"
+				"<DataArray type=\"Int64\" Name=\"offsets\" format=\"ascii\">8</DataArray>\n<DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">42</DataArray>\n"
+				"<DataArray type=\"Int64\" Name=\"faces\" format=\"ascii\">6 4 0 3 2 1 4 4 5 6 7 4 0 1 5 4 4 1 2 6 5 4 2 3 7 6 4 3 0 4 7</DataArray>\n"
+				"<DataArray type=\"Int64\" Name=\"faceoffsets\" format=\"ascii\">31</DataArray>\n</Cells>\n</Piece>\n</UnstructuredGrid>\n</VTKFile>\n";
+			const ResultReadOutcome r = readBytes(vtu, QStringLiteral("poly.vtu"));
+			if (!r.ok())
+				std::printf("  VTU polyhedron failed: %s\n", qPrintable(r.error));
+			CHECK(r.ok());
+			if (r.ok())
+			{
+				const ResultDataset& ds = *r.dataset;
+				CHECK(ds.cellCount() == 1 && ds.cellTypes[0] == ResultCellType::Polyhedron && ds.faceCount() == 6 && ds.polyhedronFaceCount(0) == 6);
+				const ResultBoundarySurface s = extract(ds);
+				CHECK(s.triangleCount() == 12 && polyTrianglesFaceOutward(ds, s));
+				CHECK(r.warnings.isEmpty());
+			}
+		}
+
+		// ---- the hand-written sample that ships with the project: two cubes sharing a face plus an L prism
+		{
+			const QString file = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/polyhedra.vtu");
+			if (QFileInfo::exists(file))
+			{
+				const ResultReadOutcome r = readResultFile(file);
+				if (!r.ok())
+					std::printf("  polyhedra.vtu failed: %s\n", qPrintable(r.error));
+				CHECK(r.ok());
+				if (r.ok())
+				{
+					const ResultDataset& ds = *r.dataset;
+					CHECK(ds.cellCount() == 3 && ds.faceCount() == 20 && ds.nodeCount() == 24);
+					const ResultBoundarySurface s = extract(ds);
+					CHECK(s.triangleCount() == 40);            // 10 quads of the two cubes + the L prism's 20 triangles
+					CHECK(approx(surfaceVolume(s), 5.0));      // 2 + 3, closed and outward
+				}
+			}
+		}
+
+#if MV_HAVE_CGNS
+		{
+			QTemporaryDir tmp;
+			CHECK(tmp.isValid());
+			if (tmp.isValid())
+			{
+				const QString path = tmp.path() + QStringLiteral("/cubes.cgns");
+				CHECK(writeCgnsPolyhedra(QFile::encodeName(path).constData()));
+				const ResultReadOutcome r = readResultFile(path);
+				if (!r.ok())
+					std::printf("  CGNS polyhedra failed: %s\n", qPrintable(r.error));
+				CHECK(r.ok());
+				if (r.ok())
+				{
+					const ResultDataset& ds = *r.dataset;
+					CHECK(ds.nodeCount() == 12 && ds.cellCount() == 2 && ds.faceCount() == 11);
+					CHECK(ds.cellTypes[0] == ResultCellType::Polyhedron && ds.polyhedronFaceCount(0) == 6 && ds.polyhedronFaceCount(1) == 6);
+					const ResultBoundarySurface s = extract(ds);
+					CHECK(s.triangleCount() == 20 && polyTrianglesFaceOutward(ds, s)); // the shared face is listed by both cubes: interior
+				}
+			}
+		}
+#endif
+#if MV_HAVE_HDF5
+		{
+			QTemporaryDir tmp;
+			CHECK(tmp.isValid());
+			if (tmp.isValid())
+			{
+				const QString path = tmp.path() + QStringLiteral("/cubes.vtkhdf");
+				CHECK(writeVtkHdfPolyhedra(QFile::encodeName(path).constData()));
+				const ResultReadOutcome r = readResultFile(path);
+				if (!r.ok())
+					std::printf("  VTKHDF polyhedra failed: %s\n", qPrintable(r.error));
+				CHECK(r.ok());
+				if (r.ok())
+				{
+					const ResultDataset& ds = *r.dataset;
+					CHECK(ds.cellCount() == 2 && ds.faceCount() == 12 && ds.polyhedronFaceCount(1) == 6);
+					const ResultBoundarySurface s = extract(ds);
+					CHECK(s.triangleCount() == 20 && polyTrianglesFaceOutward(ds, s));
+				}
+			}
+		}
+#endif
+	}
+
+	// A legacy .vtk file with a polyhedron: its CELLS entry is the face stream [faces, then per face its node count and nodes].
+	void testLegacyPolyhedra()
+	{
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		// two cubes side by side: the left one a polyhedron (six quads), the right one a regular hexahedron sharing the face x = 1
+		const QByteArray text =
+			"# vtk DataFile Version 3.0\nlegacy polyhedron\nASCII\nDATASET UNSTRUCTURED_GRID\n"
+			"POINTS 12 float\n"
+			"0 0 0  1 0 0  2 0 0  0 1 0  1 1 0  2 1 0\n"
+			"0 0 1  1 0 1  2 0 1  0 1 1  1 1 1  2 1 1\n"
+			"CELLS 2 41\n"
+			"31 6  4 0 1 4 3  4 6 7 10 9  4 0 1 7 6  4 3 4 10 9  4 0 3 9 6  4 1 4 10 7\n"
+			"8 1 2 5 4 7 8 11 10\n"
+			"CELL_TYPES 2\n42\n12\n"
+			"POINT_DATA 12\nSCALARS temperature float 1\nLOOKUP_TABLE default\n"
+			"0 1 2 0 1 2 0 1 2 0 1 2\n";
+		const QString path = tmp.path() + QStringLiteral("/poly.vtk");
+		QFile f(path);
+		CHECK(f.open(QIODevice::WriteOnly));
+		f.write(text);
+		f.close();
+		const ResultReadOutcome r = readResultFile(path);
+		if (!r.ok())
+			std::printf("  legacy polyhedron failed: %s\n", qPrintable(r.error));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		CHECK(ds.cellCount() == 2 && ds.cellTypes[0] == ResultCellType::Polyhedron && ds.cellTypes[1] == ResultCellType::Hexahedron);
+		CHECK(ds.faceCount() == 6 && ds.polyhedronFaceCount(0) == 6 && ds.polyhedronFaceCount(1) == 0);
+		CHECK(ds.cellOffsets == std::vector<std::uint32_t>({ 0, 0, 8 }) && ds.cellConnectivity.size() == 8);
+		CHECK(ds.faceNodes.size() == 24 && ds.faceNodes[0] == 0 && ds.faceNodes[3] == 3);
+		const ResultBoundarySurface surface = extract(ds);
+		CHECK(surface.triangleCount() == 20); // ten quads: the face between the cubes is interior
+		// the polyhedron's faces are cut and traced like any cell's
+		const CellLocator locator(ds);
+		CHECK(locator.volumeCellCount() == 2);
+		const std::vector<float> flow(ds.nodeCount() * 3, 0.0f);
+		std::vector<float> along(flow);
+		for (std::size_t n = 0; n < ds.nodeCount(); ++n)
+			along[n * 3] = 1.0f;
+		StreamlineSet line;
+		CHECK(traceStreamlines(ds, locator, along, nullptr, { 0.5f, 0.5f, 0.5f }, StreamlineOptions(), line) && line.lineCount() == 1);
+		if (line.lineCount() == 1)
+			CHECK(line.points[(line.pointCount() - 1) * 3] > 1.5f); // runs on from the polyhedron into the hexahedron
+		// a broken face stream is an error, not a crash
+		QByteArray broken = text;
+		broken.replace("31 6  4 0 1 4 3", "31 7  4 0 1 4 3");
+		QFile g(tmp.path() + QStringLiteral("/broken.vtk"));
+		CHECK(g.open(QIODevice::WriteOnly));
+		g.write(broken);
+		g.close();
+		CHECK(!readResultFile(tmp.path() + QStringLiteral("/broken.vtk")).ok());
+
+		// the real thing: a file written by VTK's own legacy writer (version 5.1: OFFSETS / CONNECTIVITY, fields as FIELD FieldData)
+		const QString sample = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/polyhedra_legacy.vtk");
+		if (!QFile::exists(sample))
+		{
+			std::printf("  (skipping the VTK-written polyhedron sample: not found)\n");
+			return;
+		}
+		const ResultReadOutcome real = readResultFile(sample);
+		if (!real.ok())
+			std::printf("  VTK-written polyhedron failed: %s\n", qPrintable(real.error));
+		CHECK(real.ok());
+		if (!real.ok())
+			return;
+		const ResultDataset& vtkDs = *real.dataset;
+		CHECK(vtkDs.cellCount() == 2 && vtkDs.cellTypes[0] == ResultCellType::Polyhedron && vtkDs.cellTypes[1] == ResultCellType::Hexahedron);
+		CHECK(vtkDs.faceCount() == 6 && vtkDs.polyhedronFaceCount(0) == 6 && vtkDs.cellConnectivity.size() == 8);
+		CHECK(vtkDs.validate().isEmpty() && vtkDs.nodeCount() == 12);
+		CHECK(extract(vtkDs).triangleCount() == 20);
+		int velocityIndex = -1;
+		for (std::size_t i = 0; i < vtkDs.fields.size(); ++i)
+			if (vtkDs.fields[i].name == QLatin1String("velocity") && vtkDs.fields[i].components == 3)
+				velocityIndex = static_cast<int>(i);
+		CHECK(velocityIndex >= 0 && fieldIndexOf(vtkDs, QStringLiteral("temperature")) >= 0);
+		if (velocityIndex >= 0)
+		{
+			const CellLocator locator(vtkDs);
+			StreamlineSet run;
+			CHECK(traceStreamlines(vtkDs, locator, vtkDs.fields[static_cast<std::size_t>(velocityIndex)].stepData[0], nullptr, { 0.5f, 0.5f, 0.5f },
+			                       StreamlineOptions(), run) && run.lineCount() == 1);
+			if (run.lineCount() == 1)
+				CHECK(run.points[(run.pointCount() - 1) * 3] > 1.5f); // from the polyhedron on into the hexahedron
+		}
+	}
+
+	// ---- Real files written by other tools (VTK's test data, see sample-models/Simulation/README.txt) -------------------------------
+
+	std::size_t countCells(const ResultDataset& ds, ResultCellType type)
+	{
+		return static_cast<std::size_t>(std::count(ds.cellTypes.begin(), ds.cellTypes.end(), type));
+	}
+
+	// Reads `name` from the real/ samples; false (and a note) when the file is not there or cannot be read. `mustRead` false = a file known to fail is only tried.
+	bool readRealSample(const char* name, ResultReadOutcome& out)
+	{
+		const QString path = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/real/") + QString::fromLatin1(name);
+		if (!QFile::exists(path))
+		{
+			std::printf("  (skipping %s: not found)\n", name);
+			return false;
+		}
+		out = readResultFile(path);
+		if (!out.ok())
+			std::printf("  %s failed: %s\n", name, qPrintable(out.error));
+		return out.ok();
+	}
+
+	void testRealSamples()
+	{
+		ResultReadOutcome r;
+		// ---- Exodus
+#if MV_HAVE_NETCDF
+		if (readRealSample("test-nfaced.exo", r))
+		{
+			const ResultDataset& ds = *r.dataset; // an NFACED block: one polyhedron - a triangular prism: two triangles and three quads
+			CHECK(ds.nodeCount() == 6 && ds.cellCount() == 1 && ds.cellTypes[0] == ResultCellType::Polyhedron && ds.polyhedronFaceCount(0) == 5);
+			CHECK(extract(ds).triangleCount() == 8);
+		}
+		if (readRealSample("different_topologies.ex2", r))
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.nodeCount() == 3662 && ds.cellCount() == 13000 && countCells(ds, ResultCellType::Tetra) == 12000 && countCells(ds, ResultCellType::Hexahedron) == 1000);
+			CHECK(fieldIndexOf(ds, QStringLiteral("DistanceToCenter")) >= 0 && fieldIndexOf(ds, QStringLiteral("Polynomial")) >= 0);
+			CHECK(extract(ds).triangleCount() == 2400);
+		}
+		if (readRealSample("block_with_attributes.g", r))
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.nodeCount() == 126 && countCells(ds, ResultCellType::Quad) == 80 && extract(ds).triangleCount() == 160);
+		}
+		if (readRealSample("Flow1D.e", r)) // a 1-D pipe network (EDGE2 elements): drawn as thin tubes, with its fields and 51 steps
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.cellCount() == 9 && countCells(ds, ResultCellType::Line) == 9 && ds.stepCount() == 51);
+			const ResultBoundarySurface tubes = extract(ds);
+			CHECK(tubes.triangleCount() == 9 * 12 && tubes.vertexCount() == 9 * 12 && tubes.skippedCells == 0); // a thin tube around each of the nine segments
+		}
+#endif
+		// ---- CGNS
+#if MV_HAVE_CGNS
+		std::size_t polyBoundary = 0;
+		if (readRealSample("Example_mixed.cgns", r))
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.nodeCount() == 28 && countCells(ds, ResultCellType::Hexahedron) == 7 && extract(ds).triangleCount() == 60);
+		}
+		if (readRealSample("Example_nface_n.cgns", r)) // the same mesh with its polyhedra given by NFACE_n
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.nodeCount() == 28 && countCells(ds, ResultCellType::Polyhedron) == 7);
+			polyBoundary = extract(ds).triangleCount();
+			CHECK(polyBoundary == 52);
+		}
+		if (readRealSample("Example_ngon_pe.cgns", r)) // ... and given only by the faces' ParentElements: the same result
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.nodeCount() == 28 && countCells(ds, ResultCellType::Polyhedron) == 7 && extract(ds).triangleCount() == 52);
+			CHECK(polyBoundary == 0 || extract(ds).triangleCount() == polyBoundary);
+		}
+		// (BoxWithFaceData.cgns has FaceCenter data that the CGNS 4.5.1 library refuses to open: tried, no result asserted)
+		{
+			ResultReadOutcome ignored;
+			readRealSample("BoxWithFaceData.cgns", ignored);
+		}
+#endif
+		// ---- VTKHDF
+#if MV_HAVE_HDF5
+		if (readRealSample("polyhedron.vtkhdf", r))
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.cellCount() == 1 && ds.cellTypes[0] == ResultCellType::Polyhedron && ds.nodeCount() == 26 && extract(ds).triangleCount() == 48);
+		}
+		if (readRealSample("hexahedron.vtkhdf", r))
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.cellCount() == 2 && countCells(ds, ResultCellType::Hexahedron) == 1 && extract(ds).triangleCount() == 24);
+		}
+		if (readRealSample("can-vtu.vtkhdf", r))
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.nodeCount() == 6724 && countCells(ds, ResultCellType::Hexahedron) == 4800 && extract(ds).triangleCount() == 7360);
+			const int accl = fieldIndexOf(ds, QStringLiteral("ACCL"));
+			CHECK(accl >= 0 && ds.fields[static_cast<std::size_t>(accl)].components == 3);
+		}
+#endif
+	}
+
+	// Line cells (beams, pipes) are drawn as thin tubes.
+	void testLineTubes()
+	{
+		ResultDataset ds;
+		ds.nodePositions = { 0, 0, 0, 1, 0, 0, 2, 0, 0, 2, 0, 0 };
+		ds.cellTypes = { ResultCellType::Line, ResultCellType::Line, ResultCellType::Line };
+		ds.cellOffsets = { 0, 2, 4, 6 };
+		ds.cellConnectivity = { 0, 1, 1, 2, 2, 3 }; // the third has zero length
+		CHECK(ds.validate().isEmpty());
+		const ResultBoundarySurface s = extract(ds);
+		CHECK(s.vertexCount() == 24 && s.triangleCount() == 24 && s.skippedCells == 1);
+		bool ring = true, owners = true, outward = true;
+		const double radius = 0.01 * 2.0; // one percent of the diagonal (2)
+		for (std::size_t v = 0; v < s.vertexCount(); ++v)
+		{
+			const double y = s.positions[v * 3 + 1], z = s.positions[v * 3 + 2];
+			ring = ring && std::fabs(std::sqrt(y * y + z * z) - radius) < 1e-6;
+			owners = owners && s.vertexNode[v] == (v / 6 == 0 ? 0u : (v / 6 == 1 ? 1u : (v / 6 == 2 ? 1u : 2u))); // ends of cell 0, then of cell 1
+		}
+		for (std::size_t t = 0; t < s.triangleCount(); ++t)
+		{
+			owners = owners && s.triangleCell[t] == t / 12 && s.triangleFace[t] == ResultBoundarySurface::kNoFace;
+			const float* a = &s.positions[s.triangles[t * 3] * 3];
+			const float* b = &s.positions[s.triangles[t * 3 + 1] * 3];
+			const float* c = &s.positions[s.triangles[t * 3 + 2] * 3];
+			const double n[3] = { (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]), (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]),
+			                      (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]) };
+			const double cy = (a[1] + b[1] + c[1]) / 3.0, cz = (a[2] + b[2] + c[2]) / 3.0; // the tube's axis is the x axis
+			outward = outward && n[1] * cy + n[2] * cz > 0.0;
+		}
+		CHECK(ring && owners && outward);
+		// the radius can be changed afterwards: the vertices move on their rings, the triangles stay
+		CHECK(s.tubeVertices.size() == 24 && s.tubeDirections.size() == 72 && std::fabs(s.tubeDiagonal - 2.0) < 1e-9);
+		ResultBoundarySurface thick = s;
+		applyLineRadius(ds, thick, 0.05); // 5 % of the diagonal: 0.1
+		bool thickRing = thick.triangles == s.triangles && thick.vertexNode == s.vertexNode;
+		for (std::size_t v = 0; v < thick.vertexCount(); ++v)
+		{
+			const double y = thick.positions[v * 3 + 1], z = thick.positions[v * 3 + 2];
+			thickRing = thickRing && std::fabs(std::sqrt(y * y + z * z) - 0.1) < 1e-6 && thick.positions[v * 3] == s.positions[v * 3];
+		}
+		CHECK(thickRing);
+		applyLineRadius(ds, thick, kDefaultLineRadius);
+		bool backAtStart = thick.positions.size() == s.positions.size();
+		for (std::size_t i = 0; backAtStart && i < s.positions.size(); ++i)
+			backAtStart = std::fabs(thick.positions[i] - s.positions[i]) < 1e-6f; // (the stored directions are floats)
+		CHECK(backAtStart);
+		// with a shell cell alongside, both are drawn
+		ds.nodePositions.insert(ds.nodePositions.end(), { 0, 1, 0, 1, 1, 0, 1, 2, 0 });
+		ds.cellTypes.push_back(ResultCellType::Triangle);
+		ds.cellConnectivity.insert(ds.cellConnectivity.end(), { 4, 5, 6 });
+		ds.cellOffsets.push_back(9);
+		const ResultBoundarySurface mixed = extract(ds);
+		CHECK(mixed.triangleCount() == 24 + 1 && mixed.skippedCells == 1);
+	}
+
+	// ---- Structural analyses (CalculiX results made for this project, see the samples README) ---------------------------------
+
+	void testStructuralSamples()
+	{
+		const QString dir = QStringLiteral(MV_SIMULATION_SAMPLES_DIR);
+		auto read = [&](const char* name, ResultReadOutcome& out) {
+			const QString path = dir + QLatin1Char('/') + QString::fromLatin1(name);
+			if (!QFile::exists(path))
+			{
+				std::printf("  (skipping %s: not found)\n", name);
+				return false;
+			}
+			out = readResultFile(path);
+			CHECK(out.ok());
+			return out.ok();
+		};
+		// the smallest and the largest value of a component of a field at a step
+		auto range = [](const ResultDataset& ds, const char* name, int component, std::size_t step, double& lo, double& hi) {
+			const int index = fieldIndexOf(ds, QString::fromLatin1(name));
+			if (index < 0)
+				return false;
+			const ResultField& f = ds.fields[static_cast<std::size_t>(index)];
+			ds.ensureStepLoaded(step);
+			if (step >= f.stepData.size() || f.stepData[step].empty())
+				return false;
+			lo = 1e300;
+			hi = -1e300;
+			for (std::size_t n = 0; n + f.components <= f.stepData[step].size(); n += static_cast<std::size_t>(f.components))
+			{
+				const double v = f.stepData[step][n + static_cast<std::size_t>(component)];
+				lo = std::min(lo, v);
+				hi = std::max(hi, v);
+			}
+			return true;
+		};
+		ResultReadOutcome r;
+		double lo = 0, hi = 0;
+		if (read("ibeam_cantilever.frd", r))
+		{
+			const ResultDataset& ds = *r.dataset;
+			CHECK(ds.steps.size() == 4 && ds.cellCount() > 1000 && ds.cellTypes[0] == ResultCellType::Tetra10);
+			CHECK(fieldIndexOf(ds, QStringLiteral("DISP")) >= 0 && fieldIndexOf(ds, QStringLiteral("STRESS von Mises")) >= 0);
+			// bending in the vertical plane: the tip goes down by P L^3 / (3 E I) = 2.78 mm (beam theory; shear and the fixed end add a few percent), y and x hardly move
+			CHECK(range(ds, "DISP", 2, 3, lo, hi) && lo < -2.7 && lo > -3.1);
+			double loY = 0, hiY = 0;
+			CHECK(range(ds, "DISP", 1, 3, loY, hiY) && std::max(std::fabs(loY), std::fabs(hiY)) < 0.1 * std::fabs(lo));
+			// linear elastic: half the load, half the deflection
+			double half = 0, unused = 0;
+			CHECK(range(ds, "DISP", 2, 1, half, unused) && std::fabs(half / lo - 0.5) < 0.01);
+			// the outer fibre of the flange at the fixed end: M c / I = 87.6 MPa (the peak at the restraint is higher); the von Mises peak is of that order
+			CHECK(range(ds, "STRESS von Mises", 0, 3, lo, hi) && hi > 80.0 && hi < 250.0 && lo >= 0.0);
+		}
+		if (read("ibeam_torsion.frd", r))
+		{
+			const ResultDataset& ds = *r.dataset;
+			// a torque: the flanges move in opposite directions sideways, symmetrically
+			CHECK(ds.steps.size() == 4 && range(ds, "DISP", 1, 3, lo, hi) && lo < -1.0 && hi > 1.0 && std::fabs(lo + hi) < 0.05 * hi);
+		}
+		if (read("plate_with_hole.frd", r))
+		{
+			const ResultDataset& ds = *r.dataset;
+			// the plate is pulled along x: it stretches, and the stress at the hole is a multiple of the 100 MPa pull (the concentration)
+			CHECK(ds.steps.size() == 4 && range(ds, "DISP", 0, 3, lo, hi) && hi > 0.03 && hi < 0.2);
+			CHECK(range(ds, "STRESS von Mises", 0, 3, lo, hi) && hi > 200.0);
+		}
+	}
+
+	// ---- Cutting the volume: plane sections and iso-surfaces -----------------------------------------------------------------
+
+	// A row of `count` unit cubes along x as regular hexahedra: points (count + 1) x 2 x 2, index x + (count + 1) * (y + 2 * z).
+	ResultDataset hexRow(int count)
+	{
+		ResultDataset ds;
+		const int nx = count + 1;
+		for (int z = 0; z < 2; ++z)
+			for (int y = 0; y < 2; ++y)
+				for (int x = 0; x < nx; ++x)
+					ds.nodePositions.insert(ds.nodePositions.end(), { static_cast<float>(x), static_cast<float>(y), static_cast<float>(z) });
+		auto p = [&](int x, int y, int z) { return static_cast<std::uint32_t>(x + nx * (y + 2 * z)); };
+		ds.cellOffsets.push_back(0);
+		for (int i = 0; i < count; ++i)
+		{
+			const std::uint32_t ids[8] = { p(i, 0, 0), p(i + 1, 0, 0), p(i + 1, 1, 0), p(i, 1, 0), p(i, 0, 1), p(i + 1, 0, 1), p(i + 1, 1, 1), p(i, 1, 1) };
+			ds.cellConnectivity.insert(ds.cellConnectivity.end(), ids, ids + 8);
+			ds.cellOffsets.push_back(static_cast<std::uint32_t>(ds.cellConnectivity.size()));
+			ds.cellTypes.push_back(ResultCellType::Hexahedron);
+		}
+		return ds;
+	}
+
+	// One cell of `type` with the given points (xyz each).
+	ResultDataset oneCell(ResultCellType type, const std::vector<float>& points)
+	{
+		ResultDataset ds;
+		ds.nodePositions = points;
+		ds.cellOffsets = { 0, static_cast<std::uint32_t>(points.size() / 3) };
+		for (std::uint32_t i = 0; i < points.size() / 3; ++i)
+			ds.cellConnectivity.push_back(i);
+		ds.cellTypes = { type };
+		return ds;
+	}
+
+	double sliceArea(const SliceMesh& s)
+	{
+		double area = 0;
+		for (std::size_t t = 0; t < s.triangleCount(); ++t)
+		{
+			const float* a = &s.positions[s.triangles[t * 3] * 3];
+			const float* b = &s.positions[s.triangles[t * 3 + 1] * 3];
+			const float* c = &s.positions[s.triangles[t * 3 + 2] * 3];
+			const double ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+			const double nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+			area += 0.5 * std::sqrt(nx * nx + ny * ny + nz * nz);
+		}
+		return area;
+	}
+
+	// The cut of `ds` by the plane through `point` with `normal`; node values = the z coordinate, to check the interpolation.
+	SliceMesh planeCut(const ResultDataset& ds, const double point[3], const double normal[3], bool* ok = nullptr)
+	{
+		std::vector<float> zs(ds.nodeCount());
+		for (std::size_t i = 0; i < zs.size(); ++i)
+			zs[i] = ds.nodePositions[i * 3 + 2];
+		SliceMesh s;
+		const bool cut = cutVolume(ds, planeDistances(ds, point, normal), &zs, s);
+		if (ok)
+			*ok = cut;
+		return s;
+	}
+
+	void testSlice()
+	{
+		const double halfZ[3] = { 0, 0, 0.5 }, up[3] = { 0, 0, 1 };
+
+		// a tetrahedron cut through the middle: the triangle at height 0.5 (legs 0.5, area 1/8), values interpolated (= z = 0.5)
+		{
+			const ResultReadOutcome r = readBytes(buildVtu(singleTet(), Enc::Ascii));
+			CHECK(r.ok());
+			if (r.ok())
+			{
+				bool ok = false;
+				const SliceMesh s = planeCut(*r.dataset, halfZ, up, &ok);
+				CHECK(ok && s.triangleCount() == 1 && s.vertexCount() == 3 && s.triangleCell[0] == 0);
+				CHECK(approx(sliceArea(s), 0.125));
+				bool valuesRight = s.values.size() == 3;
+				for (float v : s.values)
+					valuesRight = valuesRight && approx(v, 0.5);
+				CHECK(valuesRight);
+				// the triangle faces the positive side (+z)
+				const float* a = &s.positions[s.triangles[0] * 3];
+				const float* b = &s.positions[s.triangles[1] * 3];
+				const float* c = &s.positions[s.triangles[2] * 3];
+				CHECK((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]) > 0.0f);
+			}
+		}
+
+		// a cube: the cut at half height is the unit square, two triangles; a plane that misses the cell cuts nothing
+		{
+			const ResultDataset cube = hexRow(1);
+			SliceMesh s = planeCut(cube, halfZ, up);
+			CHECK(s.triangleCount() == 2 && s.vertexCount() == 4 && approx(sliceArea(s), 1.0));
+			const double above[3] = { 0, 0, 2.0 };
+			CHECK(planeCut(cube, above, up).triangleCount() == 0);
+			// a tilted plane through the middle: the section of a unit cube by x + y + z = 1.5 is a regular hexagon of area 3 sqrt(3) / 4
+			const double middle[3] = { 0.5, 0.5, 0.5 }, diagonal[3] = { 1, 1, 1 };
+			s = planeCut(cube, middle, diagonal);
+			CHECK(s.triangleCount() == 4 && approx(sliceArea(s), 3.0 * std::sqrt(3.0) / 4.0, 1e-4, 1e-6));
+		}
+
+		// two cubes: the cut is one 2 x 1 rectangle, and the shared edges give shared vertices (welded, no cracks)
+		{
+			const ResultDataset row = hexRow(2);
+			const double halfY[3] = { 0, 0.5, 0 }, sideways[3] = { 0, 1, 0 };
+			const SliceMesh s = planeCut(row, halfY, sideways);
+			CHECK(s.triangleCount() == 4 && s.vertexCount() == 6 && approx(sliceArea(s), 2.0));
+			SliceMesh apart = s;
+			unweldSlice(apart);
+			CHECK(apart.vertexCount() == 12 && apart.triangleCount() == 4 && approx(sliceArea(apart), 2.0) && apart.values.size() == 12);
+		}
+
+		// an iso-surface: the field x (as node values) at 0.25 cuts the cube in a unit square; no values requested -> NaN
+		{
+			const ResultDataset cube = hexRow(1);
+			std::vector<float> distance(cube.nodeCount());
+			for (std::size_t i = 0; i < distance.size(); ++i)
+				distance[i] = cube.nodePositions[i * 3] - 0.25f;
+			SliceMesh s;
+			CHECK(cutVolume(cube, distance, nullptr, s) && s.triangleCount() == 2 && approx(sliceArea(s), 1.0) && std::isnan(s.values[0]));
+		}
+
+		// the other cell types: a pyramid (square of 1/2), a wedge (half a triangle), a polyhedron (unit square)
+		{
+			const ResultDataset pyramid = oneCell(ResultCellType::Pyramid, { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0.5f, 0.5f, 1 });
+			CHECK(approx(sliceArea(planeCut(pyramid, halfZ, up)), 0.25));
+			const ResultDataset wedge = oneCell(ResultCellType::Wedge, { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1 });
+			SliceMesh s = planeCut(wedge, halfZ, up);
+			CHECK(s.triangleCount() == 1 && approx(sliceArea(s), 0.5));
+			const double halfX[3] = { 0.5, 0, 0 }, along[3] = { 1, 0, 0 };
+			const ResultDataset poly = polyCubes(1);
+			CHECK(approx(sliceArea(planeCut(poly, halfX, along)), 1.0));
+			// A concave polyhedron must keep the notch in its section instead of filling its convex hull.
+			const ResultDataset concave = polyLPrism();
+			const SliceMesh concaveCut = planeCut(concave, halfZ, up);
+			CHECK(concaveCut.triangleCount() == 4 && approx(sliceArea(concaveCut), 3.0));
+			// a surface cell is never cut
+			const ResultDataset quad = oneCell(ResultCellType::Quad, { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0 });
+			CHECK(planeCut(quad, halfX, along).triangleCount() == 0);
+		}
+
+		// an ambiguous face (opposite corners on each side) is cut without leaving a hole: every cut edge is used by an even number of triangles
+		{
+			const ResultDataset cube = hexRow(1);
+			std::vector<float> distance(cube.nodeCount(), 1.0f);
+			distance[0] = -1.0f; // (0,0,0) and (1,1,0) negative, (1,0,0) and (0,1,0) positive: the bottom face is ambiguous
+			distance[3] = -1.0f;
+			SliceMesh s;
+			CHECK(cutVolume(cube, distance, nullptr, s) && s.triangleCount() > 0);
+			bool inRange = true;
+			for (std::uint32_t v : s.triangles)
+				inRange = inRange && v < s.vertexCount();
+			CHECK(inRange);
+		}
+
+		// recolouring a cut for another field without cutting again: values from the stored edges
+		{
+			const ResultDataset row = hexRow(2);
+			const double halfY[3] = { 0, 0.5, 0 }, sideways[3] = { 0, 1, 0 };
+			SliceMesh s = planeCut(row, halfY, sideways);
+			std::vector<float> xs(row.nodeCount());
+			for (std::size_t i = 0; i < xs.size(); ++i)
+				xs[i] = row.nodePositions[i * 3]; // the field x: on the cut it equals the vertex's own x
+			interpolateSliceValues(s, xs);
+			bool same = s.values.size() == s.vertexCount();
+			for (std::size_t v = 0; v < s.vertexCount(); ++v)
+				same = same && approx(s.values[v], s.positions[v * 3], 1e-4, 1e-6);
+			CHECK(same);
+		}
+
+		// clipping a triangle set against a plane: a triangle wholly kept, wholly dropped, and one cut in two (attributes interpolated)
+		{
+			std::vector<float> positions = { 0, 0, 0, 2, 0, 0, 0, 2, 0,   /* second triangle, far away at x >= 10 */ 10, 0, 0, 11, 0, 0, 10, 1, 0 };
+			std::vector<float> attributes = { 0, 2, 0, 5, 5, 5 };
+			std::vector<std::uint32_t> triangles = { 0, 1, 2, 3, 4, 5 }, cells = { 7, 9 };
+			const double point[3] = { 1, 0, 0 }, normal[3] = { 1, 0, 0 };
+			clipTrianglesToHalfSpace(positions, attributes, 1, triangles, cells, point, normal); // keep x >= 1
+			// the first triangle (x from 0 to 2) is cut at x = 1: a quad-shaped remainder... its corner (0,2,0) is on the dropped side
+			double area = 0;
+			for (std::size_t t = 0; t + 2 < triangles.size(); t += 3)
+			{
+				const float* a = &positions[triangles[t] * 3];
+				const float* b = &positions[triangles[t + 1] * 3];
+				const float* c = &positions[triangles[t + 2] * 3];
+				area += 0.5 * std::fabs(static_cast<double>(b[0] - a[0]) * (c[1] - a[1]) - static_cast<double>(c[0] - a[0]) * (b[1] - a[1]));
+			}
+			// the first triangle keeps x in [1, 2]: its right part, a triangle (1,0)-(2,0)-(1,1) of area 0.5; the second stays whole (area 0.5)
+			CHECK(approx(area, 1.0) && cells.size() == triangles.size() / 3 && attributes.size() == positions.size() / 3);
+			bool attributesRight = true;
+			for (std::size_t v = 0; v < positions.size() / 3; ++v)
+				if (positions[v * 3] < 5.0f) // the cut triangle: its attribute is linear, f = x (0 at (0,0) and (0,2), 2 at (2,0))
+					attributesRight = attributesRight && approx(attributes[v], positions[v * 3], 1e-3, 1e-3);
+			CHECK(attributesRight);
+		}
+
+		// bad input and cancellation
+		{
+			const ResultDataset cube = hexRow(1);
+			SliceMesh s;
+			CHECK(!cutVolume(cube, std::vector<float>(3, 0.0f), nullptr, s));
+			std::atomic<bool> cancelled{ true };
+			CHECK(!cutVolume(cube, planeDistances(cube, halfZ, up), nullptr, s, &cancelled));
+		}
+	}
+
+	// ---- Streamlines ------------------------------------------------------------------------------------------------------------
+
+	// A block of nx x ny x nz unit hexahedra: node (x, y, z) has index x + (nx + 1) * (y + (ny + 1) * z).
+	ResultDataset hexGrid(int nx, int ny, int nz)
+	{
+		ResultDataset ds;
+		for (int z = 0; z <= nz; ++z)
+			for (int y = 0; y <= ny; ++y)
+				for (int x = 0; x <= nx; ++x)
+					ds.nodePositions.insert(ds.nodePositions.end(), { static_cast<float>(x), static_cast<float>(y), static_cast<float>(z) });
+		auto p = [&](int x, int y, int z) { return static_cast<std::uint32_t>(x + (nx + 1) * (y + (ny + 1) * z)); };
+		ds.cellOffsets.push_back(0);
+		for (int z = 0; z < nz; ++z)
+			for (int y = 0; y < ny; ++y)
+				for (int x = 0; x < nx; ++x)
+				{
+					const std::uint32_t ids[8] = { p(x, y, z), p(x + 1, y, z), p(x + 1, y + 1, z), p(x, y + 1, z),
+					                               p(x, y, z + 1), p(x + 1, y, z + 1), p(x + 1, y + 1, z + 1), p(x, y + 1, z + 1) };
+					ds.cellConnectivity.insert(ds.cellConnectivity.end(), ids, ids + 8);
+					ds.cellOffsets.push_back(static_cast<std::uint32_t>(ds.cellConnectivity.size()));
+					ds.cellTypes.push_back(ResultCellType::Hexahedron);
+				}
+		return ds;
+	}
+
+	// 3 floats per node from a function of the position.
+	template <class F>
+	std::vector<float> nodeVectors(const ResultDataset& ds, F f)
+	{
+		std::vector<float> v;
+		for (std::size_t n = 0; n < ds.nodeCount(); ++n)
+		{
+			double out[3];
+			f(ds.nodePositions[n * 3], ds.nodePositions[n * 3 + 1], ds.nodePositions[n * 3 + 2], out);
+			v.insert(v.end(), { static_cast<float>(out[0]), static_cast<float>(out[1]), static_cast<float>(out[2]) });
+		}
+		return v;
+	}
+
+	void testStreamlines()
+	{
+		// a uniform flow along x through a row of four cubes: one straight line from one end to the other, valued by the scalar (x)
+		{
+			const ResultDataset row = hexRow(4);
+			const CellLocator locator(row);
+			CHECK(locator.volumeCellCount() == 4);
+			CHECK(std::fabs(locator.diagonal() - std::sqrt(4.0 * 4.0 + 2.0)) < 1e-6);
+			const std::vector<float> flow = nodeVectors(row, [](double, double, double, double* v) { v[0] = 1; v[1] = 0; v[2] = 0; });
+			std::vector<float> xs;
+			for (std::size_t n = 0; n < row.nodeCount(); ++n)
+				xs.push_back(row.nodePositions[n * 3]);
+			StreamlineSet set;
+			CHECK(traceStreamlines(row, locator, flow, &xs, { 2.0f, 0.5f, 0.5f }, StreamlineOptions(), set));
+			CHECK(set.lineCount() == 1 && set.pointCount() > 8);
+			if (set.lineCount() == 1)
+			{
+				bool straight = true, monotonic = true, valued = true;
+				for (std::size_t i = 0; i < set.pointCount(); ++i)
+				{
+					straight = straight && std::fabs(set.points[i * 3 + 1] - 0.5f) < 1e-4f && std::fabs(set.points[i * 3 + 2] - 0.5f) < 1e-4f;
+					monotonic = monotonic && (i == 0 || set.points[i * 3] > set.points[(i - 1) * 3]);
+					valued = valued && std::fabs(set.values[i] - set.points[i * 3]) < 1e-3f;
+				}
+				CHECK(straight && monotonic && valued);
+				// both ways from the seed until within a step of each end
+				CHECK(set.points.front() < 0.8f && set.points.front() >= -0.001f);
+				CHECK(set.points[(set.pointCount() - 1) * 3] > 3.2f && set.points[(set.pointCount() - 1) * 3] <= 4.001f);
+			}
+			// without a scalar the points carry the speed (1 here)
+			StreamlineSet plain;
+			CHECK(traceStreamlines(row, locator, flow, nullptr, { 2.0f, 0.5f, 0.5f }, StreamlineOptions(), plain));
+			CHECK(plain.lineCount() == 1 && std::fabs(plain.values[plain.pointCount() / 2] - 1.0f) < 1e-4f);
+		}
+
+		// a rotation about the axis through (5, 5): the field is linear, so the interpolation is exact and the line stays on its circle
+		{
+			const ResultDataset grid = hexGrid(10, 10, 1);
+			const CellLocator locator(grid);
+			CHECK(locator.volumeCellCount() == 100);
+			const std::vector<float> spin = nodeVectors(grid, [](double x, double y, double, double* v) { v[0] = -(y - 5.0); v[1] = x - 5.0; v[2] = 0; });
+			StreamlineOptions options;
+			options.maxLengthFactor = 1.0;
+			StreamlineSet set;
+			CHECK(traceStreamlines(grid, locator, spin, nullptr, { 8.0f, 5.0f, 0.5f }, options, set)); // radius 3
+			CHECK(set.lineCount() == 1 && set.pointCount() > 40);
+			bool onCircle = true, inside = true;
+			for (std::size_t i = 0; i < set.pointCount(); ++i)
+			{
+				const double x = set.points[i * 3] - 5.0, y = set.points[i * 3 + 1] - 5.0;
+				onCircle = onCircle && std::fabs(std::sqrt(x * x + y * y) - 3.0) < 0.1;
+				inside = inside && set.points[i * 3 + 2] > 0.0f && set.points[i * 3 + 2] < 1.0f;
+			}
+			CHECK(onCircle && inside);
+		}
+
+		// interpolation of a linear field is exact inside a tetrahedron and a wedge (also a pyramid: its base is split like any other face)
+		{
+			const auto field = [](double x, double y, double z, double* v) { v[0] = x + 2 * y; v[1] = 3 * z - x; v[2] = y + 1; };
+			const ResultDataset tet = oneCell(ResultCellType::Tetra, { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 });
+			const ResultDataset wedge = oneCell(ResultCellType::Wedge, { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1 });
+			const ResultDataset pyramid = oneCell(ResultCellType::Pyramid, { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0.5f, 0.5f, 1 });
+			const double at[3] = { 0.2, 0.3, 0.25 };
+			for (const ResultDataset* ds : { &tet, &wedge, &pyramid })
+			{
+				const CellLocator locator(*ds);
+				const std::vector<float> v = nodeVectors(*ds, field);
+				int hint = -1;
+				double out[3], s = 0;
+				const bool found = locator.interpolate(at, v, nullptr, hint, out, s);
+				CHECK(found);
+				if (found)
+				{
+					double expected[3];
+					field(at[0], at[1], at[2], expected);
+					CHECK(std::fabs(out[0] - expected[0]) < 1e-5 && std::fabs(out[1] - expected[1]) < 1e-5 && std::fabs(out[2] - expected[2]) < 1e-5);
+				}
+				const double outside[3] = { 3, 3, 3 };
+				CHECK(!locator.interpolate(outside, v, nullptr, hint, out, s));
+			}
+		}
+
+		// a polyhedron (one cube given by its six faces) is traced through too
+		{
+			ResultDataset cube = hexRow(1); // the nodes of the unit cube
+			cube.cellTypes = { ResultCellType::Polyhedron };
+			cube.cellConnectivity.clear();
+			cube.cellOffsets = { 0, 0 };
+			const std::uint32_t faces[6][4] = { { 0, 3, 7, 4 }, { 1, 5, 6, 2 }, { 0, 4, 5, 1 }, { 3, 2, 6, 7 }, { 0, 1, 2, 3 }, { 4, 7, 6, 5 } };
+			// hexRow(1) numbers its nodes x + 2 * (y + 2 * z); the face table above is for the hexahedron order, so map it
+			const std::uint32_t hexNode[8] = { 0, 1, 3, 2, 4, 5, 7, 6 };
+			cube.faceOffsets = { 0 };
+			for (const auto& f : faces)
+			{
+				for (std::uint32_t k : f)
+					cube.faceNodes.push_back(hexNode[k]);
+				cube.faceOffsets.push_back(static_cast<std::uint32_t>(cube.faceNodes.size()));
+				cube.cellFaces.push_back(static_cast<std::uint32_t>(cube.cellFaces.size()));
+			}
+			cube.cellFaceOffsets = { 0, 6 };
+			const CellLocator locator(cube);
+			CHECK(locator.volumeCellCount() == 1);
+			const std::vector<float> flow = nodeVectors(cube, [](double, double, double, double* v) { v[0] = 0; v[1] = 1; v[2] = 0; });
+			StreamlineSet set;
+			CHECK(traceStreamlines(cube, locator, flow, nullptr, { 0.5f, 0.5f, 0.5f }, StreamlineOptions(), set));
+			CHECK(set.lineCount() == 1);
+			if (set.lineCount() == 1)
+				CHECK(std::fabs(set.points[0] - 0.5f) < 1e-4f && set.points[1] < 0.5f && set.points[(set.pointCount() - 1) * 3 + 1] > 0.5f);
+
+			// The centre-based tetrahedralization is unsafe for a concave polyhedron: exclude it explicitly rather than
+			// accepting points in the notch or tracing through exterior space.
+			const ResultDataset concave = polyLPrism();
+			const CellLocator concaveLocator(concave);
+			CHECK(concaveLocator.volumeCellCount() == 0 && concaveLocator.excludedConcaveCellCount() == 1);
+		}
+
+		// no line: a seed outside the mesh, a zero field, a result without volume cells; a wrong vector size is an error
+		{
+			const ResultDataset row = hexRow(2);
+			const CellLocator locator(row);
+			const std::vector<float> flow = nodeVectors(row, [](double, double, double, double* v) { v[0] = 1; v[1] = 0; v[2] = 0; });
+			const std::vector<float> still = nodeVectors(row, [](double, double, double, double* v) { v[0] = 0; v[1] = 0; v[2] = 0; });
+			StreamlineSet set;
+			CHECK(traceStreamlines(row, locator, flow, nullptr, { 9.0f, 9.0f, 9.0f }, StreamlineOptions(), set) && set.lineCount() == 0);
+			CHECK(traceStreamlines(row, locator, still, nullptr, { 1.0f, 0.5f, 0.5f }, StreamlineOptions(), set) && set.lineCount() == 0);
+			CHECK(!traceStreamlines(row, locator, std::vector<float>(5, 0.0f), nullptr, { 1.0f, 0.5f, 0.5f }, StreamlineOptions(), set));
+			const ResultDataset quad = oneCell(ResultCellType::Quad, { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0 });
+			const CellLocator shell(quad);
+			CHECK(shell.volumeCellCount() == 0);
+			CHECK(traceStreamlines(quad, shell, std::vector<float>(12, 1.0f), nullptr, { 0.5f, 0.5f, 0.0f }, StreamlineOptions(), set) && set.lineCount() == 0);
+			// several seeds: only the ones inside give lines
+			CHECK(traceStreamlines(row, locator, flow, nullptr, { 1.0f, 0.5f, 0.5f, 9.0f, 9.0f, 9.0f, 1.5f, 0.2f, 0.8f }, StreamlineOptions(), set) && set.lineCount() == 2);
+			// cancellation
+			std::atomic<bool> cancel(true);
+			CHECK(!traceStreamlines(row, locator, flow, nullptr, { 1.0f, 0.5f, 0.5f }, StreamlineOptions(), set, &cancel));
+		}
+
+		// seeds: random points inside the mesh, and on a triangle set; deterministic for a seed
+		{
+			const ResultDataset row = hexRow(3);
+			const CellLocator locator(row);
+			const std::vector<float> flow = nodeVectors(row, [](double, double, double, double* v) { v[0] = 1; v[1] = 0; v[2] = 0; });
+			const std::vector<float> seeds = locator.randomPoints(40, 5u);
+			CHECK(seeds.size() == 120 && seeds == locator.randomPoints(40, 5u) && seeds != locator.randomPoints(40, 6u));
+			bool inside = true;
+			for (std::size_t i = 0; i < 40; ++i)
+			{
+				int hint = -1;
+				const double p[3] = { seeds[i * 3], seeds[i * 3 + 1], seeds[i * 3 + 2] };
+				double v[3], s = 0;
+				inside = inside && locator.interpolate(p, flow, nullptr, hint, v, s);
+			}
+			CHECK(inside);
+
+			const std::vector<float> square = { 0, 0, 2, 2, 0, 2, 2, 2, 2, 0, 2, 2 };
+			const std::vector<std::uint32_t> triangles = { 0, 1, 2, 0, 2, 3 };
+			const std::vector<float> onPlane = randomPointsOnTriangles(square, triangles, 50, 3u);
+			bool flat = onPlane.size() == 150;
+			for (std::size_t i = 0; i < onPlane.size() / 3; ++i)
+				flat = flat && std::fabs(onPlane[i * 3 + 2] - 2.0f) < 1e-6f && onPlane[i * 3] >= 0.0f && onPlane[i * 3] <= 2.0f && onPlane[i * 3 + 1] >= 0.0f && onPlane[i * 3 + 1] <= 2.0f;
+			CHECK(flat && onPlane == randomPointsOnTriangles(square, triangles, 50, 3u));
+			CHECK(randomPointsOnTriangles(square, {}, 5, 1u).empty());
+		}
+
+		// the field to follow: velocity by name, else the first 3-component node field; a cell field or a scalar is not one
+		{
+			ResultDataset ds = hexRow(1);
+			auto field = [&](const char* name, ResultFieldAssociation association, int components) {
+				ResultField f;
+				f.name = QString::fromLatin1(name);
+				f.association = association;
+				f.components = components;
+				f.stepData.push_back(std::vector<float>(static_cast<std::size_t>(components) * (association == ResultFieldAssociation::Node ? ds.nodeCount() : ds.cellCount()), 1.0f));
+				ds.fields.push_back(f);
+			};
+			CHECK(chooseDefaultStreamlineField(ds) == -1);
+			field("Pressure", ResultFieldAssociation::Node, 1);
+			field("CellVelocity", ResultFieldAssociation::Cell, 3);
+			CHECK(chooseDefaultStreamlineField(ds) == -1);
+			field("Displacement", ResultFieldAssociation::Node, 3);
+			CHECK(chooseDefaultStreamlineField(ds) == 2);
+			field("Velocity", ResultFieldAssociation::Node, 3);
+			CHECK(chooseDefaultStreamlineField(ds) == 3);
+			CHECK(isStreamlineField(ds.fields[3]) && !isStreamlineField(ds.fields[0]) && !isStreamlineField(ds.fields[1]));
+		}
+	}
+
+	// ---- Lazy loading of time steps ----------------------------------------------------------------------------------------------
+
+	// True when every step of every field of `lazy` (loaded on demand) equals the eagerly read `eager`, and both have the same fields.
+	bool sameStepData(const ResultDataset& eager, const ResultDataset& lazy)
+	{
+		if (eager.fields.size() != lazy.fields.size() || eager.stepCount() != lazy.stepCount())
+			return false;
+		for (std::size_t s = 0; s < lazy.stepCount(); ++s)
+		{
+			lazy.ensureStepLoaded(s);
+			for (std::size_t f = 0; f < lazy.fields.size(); ++f)
+			{
+				if (eager.fields[f].name != lazy.fields[f].name || eager.fields[f].association != lazy.fields[f].association || lazy.fields[f].stepData.size() != lazy.stepCount())
+					return false;
+				if (eager.fields[f].stepData[s] != lazy.fields[f].stepData[s])
+					return false;
+			}
+		}
+		return true;
+	}
+
+	void testLazySteps()
+	{
+		struct ThresholdGuard
+		{
+			std::size_t old = resultLazyThresholdBytes();
+			~ThresholdGuard() { setResultLazyThresholdBytes(old); }
+		} guard;
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		const std::size_t never = static_cast<std::size_t>(1) << 40, always = 0;
+
+		// the bookkeeping itself, without a file: a loader that fills one field; the last three steps stay in memory
+		{
+			ResultDataset ds = hexRow(1);
+			ds.steps = { { 0.0, QString(), QString() }, { 1.0, QString(), QString() }, { 2.0, QString(), QString() }, { 3.0, QString(), QString() } };
+			ResultField f;
+			f.name = QStringLiteral("F");
+			f.components = 1;
+			f.stepData.assign(4, std::vector<float>());
+			ds.fields.push_back(f);
+			ds.lazy = std::make_shared<LazySteps>();
+			ds.lazy->maxResident = 3;
+			int loads = 0;
+			ds.lazy->load = [&loads](std::size_t step, ResultDataset& d) {
+				++loads;
+				d.fields[0].stepData[step].assign(d.nodeCount(), static_cast<float>(step));
+				return true;
+			};
+			CHECK(ds.isLazy() && ds.validate().isEmpty()); // steps without data are fine
+			ds.ensureStepLoaded(0);
+			ds.ensureStepLoaded(1);
+			ds.ensureStepLoaded(2);
+			CHECK(loads == 3 && ds.fields[0].stepData[0].size() == 8 && ds.fields[0].stepData[2][3] == 2.0f);
+			ds.ensureStepLoaded(1); // resident: no load, and now the most recently used
+			CHECK(loads == 3);
+			ds.ensureStepLoaded(3); // over the limit: the least recently used (0) goes
+			CHECK(loads == 4 && ds.fields[0].stepData[0].empty() && !ds.fields[0].stepData[1].empty() && !ds.fields[0].stepData[2].empty() && !ds.fields[0].stepData[3].empty());
+			ds.ensureStepLoaded(0); // back again: loaded anew, and 2 (now the oldest) goes
+			CHECK(loads == 5 && ds.fields[0].stepData[0].size() == 8 && ds.fields[0].stepData[2].empty());
+			ds.ensureStepLoaded(99); // out of range: nothing
+			CHECK(loads == 5);
+			// a field that is not managed keeps its data
+			ResultField kept;
+			kept.name = QStringLiteral("K");
+			kept.components = 1;
+			kept.stepData.assign(4, std::vector<float>(8, 7.0f));
+			ds.fields.push_back(kept);
+			ds.lazy->managed = { true, false };
+			ds.ensureStepLoaded(2);
+			ds.ensureStepLoaded(3);
+			CHECK(ds.fields[1].stepData[0].size() == 8 && ds.fields[1].stepData[1].size() == 8);
+		}
+
+		// Exact lazy scans: an unsampled middle-step peak participates in the all-steps range, and a component that only
+		// starts varying at a later step is still the deterministic default.
+		{
+			ResultDataset ds = hexRow(1);
+			ds.steps.resize(12);
+			ResultField scalar;
+			scalar.name = QStringLiteral("Scalar");
+			scalar.components = 1;
+			scalar.stepData.resize(ds.stepCount());
+			ResultField many;
+			many.name = QStringLiteral("Many");
+			many.components = 4;
+			many.stepData.resize(ds.stepCount());
+			ds.fields = { scalar, many };
+			ds.lazy = std::make_shared<LazySteps>();
+			ds.lazy->maxResident = 2;
+			ds.lazy->load = [](std::size_t step, ResultDataset& d) {
+				d.fields[0].stepData[step].assign(d.nodeCount(), step == 5 ? 1000.0f : static_cast<float>(step));
+				std::vector<float>& values = d.fields[1].stepData[step];
+				values.assign(d.nodeCount() * 4, 0.0f);
+				for (std::size_t n = 0; n < d.nodeCount(); ++n)
+				{
+					values[n * 4] = step == 9 && n == 0 ? 2.0f : 1.0f;
+					values[n * 4 + 1] = static_cast<float>(n);
+				}
+				return true;
+			};
+			float lo = 0.0f, hi = 0.0f;
+			CHECK(computeAllStepsRange(ds, 0, -1, lo, hi) && approx(lo, 0.0) && approx(hi, 1000.0));
+			CHECK(defaultComponentForField(ds, 1) == 0);
+		}
+
+		// Snapshot encoding consumes a lazy result step by step. Loading all fields, ranges and optional volume must not
+		// restart the step sequence once per field.
+		{
+			ResultDataset ds = hexRow(1);
+			ds.steps.resize(10);
+			for (int f = 0; f < 3; ++f)
+			{
+				ResultField field;
+				field.name = QStringLiteral("F%1").arg(f);
+				field.components = 1;
+				field.stepData.resize(ds.stepCount());
+				ds.fields.push_back(std::move(field));
+			}
+			int loads = 0;
+			ds.lazy = std::make_shared<LazySteps>();
+			ds.lazy->maxResident = 2;
+			ds.lazy->load = [&loads](std::size_t step, ResultDataset& d) {
+				++loads;
+				for (std::size_t f = 0; f < d.fields.size(); ++f)
+					d.fields[f].stepData[step].assign(d.nodeCount(), static_cast<float>(100 * f + step));
+				return true;
+			};
+			SnapshotOptions options;
+			options.content = SnapshotOptions::Content::AllFields;
+			options.includeVolume = true;
+			options.compress = false;
+			ResultSnapshot snapshot;
+			QString error;
+			CHECK(encodeResultSnapshot(ds, extract(ds), SimulationViewState(), options, snapshot, &error));
+			CHECK(loads == static_cast<int>(ds.stepCount()));
+		}
+
+		// CalculiX result files (ASCII .frd): only the position of each result block is kept at first. A single-step file is read in full afterwards, as ever.
+		for (const char* name : { "FEM_box_static.frd", "FEM_box_load_steps.frd", "FEM_box_thermal_transient.frd", "FEM_box_modes.frd", "FEM_box_frequency.frd", "beampl.frd", "ibeam_cantilever.frd", "ibeam_torsion.frd", "plate_with_hole.frd" })
+		{
+			const QString frd = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QLatin1Char('/') + QString::fromLatin1(name);
+			if (!QFile::exists(frd))
+				continue;
+			setResultLazyThresholdBytes(never);
+			const ResultReadOutcome eager = readResultFile(frd);
+			setResultLazyThresholdBytes(always);
+			const ResultReadOutcome lazy = readResultFile(frd);
+			CHECK(eager.ok() && lazy.ok());
+			if (!eager.ok() || !lazy.ok())
+				continue;
+			CHECK(!eager.dataset->isLazy() && lazy.dataset->isLazy() == (lazy.dataset->stepCount() > 1) && lazy.dataset->validate().isEmpty());
+			CHECK(lazy.dataset->nodeCount() == eager.dataset->nodeCount() && lazy.dataset->cellCount() == eager.dataset->cellCount());
+			if (lazy.dataset->isLazy())
+			{
+				bool none = true;
+				for (const ResultField& f : lazy.dataset->fields)
+					for (const std::vector<float>& step : f.stepData)
+						none = none && step.empty();
+				CHECK(none && !lazy.dataset->fields.empty() && resultFieldHasData(lazy.dataset->fields[0]));
+				lazy.dataset->lazy->maxResident = 2;
+			}
+			CHECK(sameStepData(*eager.dataset, *lazy.dataset)); // every field, every step - the derived von Mises and principal stresses included
+		}
+
+#if MV_HAVE_CGNS
+		// CGNS: only the names of the solutions' fields are read at first; vectors, tensors (with the derived stresses) and cell data are put together per step
+		{
+			std::vector<QString> cgnsFiles = { QStringLiteral("/block.cgns"), QStringLiteral("/duct.cgns") };
+			for (QString& f : cgnsFiles)
+				f = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + f;
+			const QString fixture = tempDir().filePath(QStringLiteral("lazy_fixture.cgns"));
+			if (writeCgnsFixture(QFile::encodeName(fixture).constData(), false, true))
+				cgnsFiles.push_back(fixture);
+			const QString tensors = tempDir().filePath(QStringLiteral("lazy_tensors.cgns"));
+			const std::vector<std::string> names = { "StressXX", "StressYY", "StressZZ", "StressXY", "StressYZ", "StressXZ", "VelocityX", "VelocityY", "VelocityZ", "Temperature" };
+			if (writeCgnsNamedFields(QFile::encodeName(tensors).constData(), names, names))
+				cgnsFiles.push_back(tensors);
+			for (const QString& path : cgnsFiles)
+			{
+				if (!QFile::exists(path))
+					continue;
+				setResultLazyThresholdBytes(never);
+				const ResultReadOutcome eager = readResultFile(path);
+				setResultLazyThresholdBytes(always);
+				const ResultReadOutcome lazy = readResultFile(path);
+				CHECK(eager.ok() && lazy.ok());
+				if (!eager.ok() || !lazy.ok())
+					continue;
+				CHECK(!eager.dataset->isLazy() && lazy.dataset->isLazy() == (lazy.dataset->stepCount() > 1) && lazy.dataset->validate().isEmpty());
+				CHECK(lazy.dataset->fields.size() == eager.dataset->fields.size());
+				if (lazy.dataset->isLazy())
+				{
+					bool none = true;
+					for (const ResultField& f : lazy.dataset->fields)
+						for (const std::vector<float>& step : f.stepData)
+							none = none && step.empty();
+					CHECK(none && !lazy.dataset->fields.empty() && resultFieldHasData(lazy.dataset->fields[0]));
+					lazy.dataset->lazy->maxResident = 2;
+				}
+				CHECK(sameStepData(*eager.dataset, *lazy.dataset));
+			}
+		}
+#endif
+
+		// the OpenFOAM cavity case (five time directories of ASCII cell fields): only the headers are read at first
+		{
+			const QString foam = QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/openfoam_cavity/cavity.foam");
+			if (QFile::exists(foam))
+			{
+				setResultLazyThresholdBytes(never);
+				const ResultReadOutcome eager = readResultFile(foam);
+				setResultLazyThresholdBytes(always);
+				const ResultReadOutcome lazy = readResultFile(foam);
+				CHECK(eager.ok() && lazy.ok());
+				if (eager.ok() && lazy.ok())
+				{
+					CHECK(!eager.dataset->isLazy() && lazy.dataset->isLazy() && lazy.dataset->validate().isEmpty());
+					CHECK(lazy.dataset->stepCount() == 5 && lazy.dataset->fields.size() == eager.dataset->fields.size() && !lazy.dataset->fields.empty());
+					bool none = true;
+					for (const ResultField& f : lazy.dataset->fields)
+						for (const std::vector<float>& step : f.stepData)
+							none = none && step.empty();
+					CHECK(none && resultFieldHasData(lazy.dataset->fields[0]));
+					// (the units come from the header's dimensions, as in the eager read)
+					bool sameUnits = true;
+					for (std::size_t f = 0; f < lazy.dataset->fields.size(); ++f)
+						sameUnits = sameUnits && lazy.dataset->fields[f].quantityKind == eager.dataset->fields[f].quantityKind && lazy.dataset->fields[f].fileUnit == eager.dataset->fields[f].fileUnit;
+					CHECK(sameUnits);
+					lazy.dataset->lazy->maxResident = 2;
+					CHECK(sameStepData(*eager.dataset, *lazy.dataset));
+				}
+			}
+		}
+
+#if MV_HAVE_NETCDF
+		for (int variant = 0; variant < 2; ++variant)
+		{
+			const bool netcdf4 = variant == 1, withStress = variant == 1;
+			const QString path = tmp.path() + QStringLiteral("/lazy%1.exo").arg(variant);
+			CHECK(writeExodusFixture(path, netcdf4, withStress));
+			setResultLazyThresholdBytes(never);
+			const ResultReadOutcome eager = readResultFile(path);
+			setResultLazyThresholdBytes(always);
+			const ResultReadOutcome lazy = readResultFile(path);
+			CHECK(eager.ok() && lazy.ok());
+			if (!eager.ok() || !lazy.ok())
+				continue;
+			CHECK(!eager.dataset->isLazy() && lazy.dataset->isLazy());
+			CHECK(lazy.dataset->fields.size() == eager.dataset->fields.size() && !lazy.dataset->fields.empty());
+			// nothing is in memory until asked for
+			bool empty = true;
+			for (const ResultField& f : lazy.dataset->fields)
+				for (const std::vector<float>& step : f.stepData)
+					empty = empty && step.empty();
+			CHECK(empty);
+			CHECK(lazy.dataset->validate().isEmpty());
+			CHECK(sameStepData(*eager.dataset, *lazy.dataset)); // every field, every step - derived stress fields included
+			// least recently used out first: with room for two steps, asking for the third drops the first
+			lazy.dataset->lazy->maxResident = 2;
+			lazy.dataset->ensureStepLoaded(0);
+			lazy.dataset->ensureStepLoaded(1);
+			lazy.dataset->ensureStepLoaded(2);
+			bool firstGone = true, lastThere = true;
+			for (const ResultField& f : lazy.dataset->fields)
+			{
+				firstGone = firstGone && f.stepData[0].empty();
+				lastThere = lastThere && !f.stepData[2].empty();
+			}
+			CHECK(firstGone && lastThere);
+			CHECK(sameStepData(*eager.dataset, *lazy.dataset)); // and everything comes back
+			// what the display code reads goes through the loader
+			DisplayScalar a, b;
+			const int temperature = fieldIndexOf(*eager.dataset, QStringLiteral("temperature"));
+			CHECK(temperature >= 0);
+			if (temperature >= 0)
+			{
+				lazy.dataset->ensureStepLoaded(0);
+				lazy.dataset->ensureStepLoaded(1);
+				CHECK(buildDisplayScalar(*eager.dataset, temperature, -1, a, 2) && buildDisplayScalar(*lazy.dataset, temperature, -1, b, 2) && a.nodeValues == b.nodeValues);
+				float lo1, hi1, lo2, hi2;
+				CHECK(computeAllStepsRange(*eager.dataset, temperature, -1, lo1, hi1) && computeAllStepsRange(*lazy.dataset, temperature, -1, lo2, hi2) && lo1 == lo2 && hi1 == hi2);
+			}
+		}
+		// the larger sample (five steps) reads lazily too
+		{
+			const QString path = tmp.path() + QStringLiteral("/one.exo");
+			CHECK(writeExodusBlockSample(QFile::encodeName(path).constData(), 2));
+			setResultLazyThresholdBytes(always);
+			const ResultReadOutcome r = readResultFile(path);
+			CHECK(r.ok() && r.dataset->isLazy());
+		}
+#endif
+
+#if MV_HAVE_HDF5
+		{
+			const QString temporal = tmp.path() + QStringLiteral("/lazy_temporal.vtkhdf");
+			CHECK(writeVtkHdfUnstructured(QFile::encodeName(temporal).constData(), 2));
+			setResultLazyThresholdBytes(never);
+			const ResultReadOutcome eager = readResultFile(temporal);
+			setResultLazyThresholdBytes(always);
+			const ResultReadOutcome lazy = readResultFile(temporal);
+			CHECK(eager.ok() && lazy.ok());
+			if (eager.ok() && lazy.ok())
+			{
+				CHECK(!eager.dataset->isLazy() && lazy.dataset->isLazy() && lazy.dataset->validate().isEmpty());
+				CHECK(sameStepData(*eager.dataset, *lazy.dataset));
+				lazy.dataset->lazy->maxResident = 2;
+				CHECK(sameStepData(*eager.dataset, *lazy.dataset)); // through the eviction as well
+			}
+			// a moving mesh: the displacement made from the moving points is not loaded step by step, it stays
+			const QString moving = tmp.path() + QStringLiteral("/lazy_moving.vtkhdf");
+			CHECK(writeVtkHdfUnstructured(QFile::encodeName(moving).constData(), 3));
+			const ResultReadOutcome lazyMoving = readResultFile(moving);
+			CHECK(lazyMoving.ok());
+			if (lazyMoving.ok())
+			{
+				const ResultDataset& ds = *lazyMoving.dataset;
+				const int displacement = fieldIndexOf(ds, QStringLiteral("Mesh displacement"));
+				CHECK(displacement >= 0);
+				if (displacement >= 0 && ds.isLazy())
+				{
+					ds.lazy->maxResident = 2;
+					for (std::size_t s = 0; s < ds.stepCount(); ++s)
+						ds.ensureStepLoaded(s);
+					for (const std::vector<float>& step : ds.fields[static_cast<std::size_t>(displacement)].stepData)
+						CHECK(!step.empty());
+				}
+			}
+		}
+#endif
+	}
+
+	// ---- Cutting and tracing the deformed shape --------------------------------------------------------------------------------
+
+	void testDeformedOverlays()
+	{
+		// a unit cube stretched to twice its height by a displacement field (z -> 2 z)
+		ResultDataset cube = hexRow(1);
+		cube.steps = { { 0.0, QString(), QString() } };
+		ResultField disp;
+		disp.name = QStringLiteral("Displacement");
+		disp.components = 3;
+		std::vector<float> d;
+		for (std::size_t n = 0; n < cube.nodeCount(); ++n)
+			d.insert(d.end(), { 0.0f, 0.0f, cube.nodePositions[n * 3 + 2] });
+		disp.stepData.push_back(d);
+		cube.fields.push_back(disp);
+
+		std::vector<float> deformed;
+		CHECK(buildDeformedNodePositions(cube, 0, 0, 1.0, deformed) && deformed.size() == cube.nodePositions.size());
+		bool doubled = deformed.size() == cube.nodePositions.size();
+		for (std::size_t n = 0; doubled && n < cube.nodeCount(); ++n)
+			doubled = deformed[n * 3] == cube.nodePositions[n * 3] && deformed[n * 3 + 1] == cube.nodePositions[n * 3 + 1]
+			          && std::fabs(deformed[n * 3 + 2] - 2.0f * cube.nodePositions[n * 3 + 2]) < 1e-6f;
+		CHECK(doubled);
+		std::vector<float> half;
+		CHECK(buildDeformedNodePositions(cube, 0, 0, 0.5, half) && std::fabs(half[2 + 3 * 4] - 1.5f) < 1e-6f); // a node at z = 1 moves to 1.5
+		CHECK(!buildDeformedNodePositions(cube, 0, 3, 1.0, half) && !buildDeformedNodePositions(cube, 5, 0, 1.0, half)); // no such step / field
+
+		// a section at height 1.5: through the stretched cube, not through the rest shape
+		const double point[3] = { 0, 0, 1.5 }, up[3] = { 0, 0, 1 };
+		SliceMesh atRest, stretched;
+		CHECK(cutVolume(cube, planeDistances(cube, point, up), nullptr, atRest) && atRest.triangleCount() == 0);
+		CHECK(cutVolume(cube, planeDistances(cube, point, up, &deformed), nullptr, stretched, nullptr, &deformed));
+		CHECK(stretched.triangleCount() > 0 && std::fabs(sliceArea(stretched) - 1.0) < 1e-5);
+		bool atHeight = true;
+		for (std::size_t v = 0; v < stretched.vertexCount(); ++v)
+			atHeight = atHeight && std::fabs(stretched.positions[v * 3 + 2] - 1.5f) < 1e-5f;
+		CHECK(atHeight);
+		// a positions override of the wrong size is ignored
+		const std::vector<float> wrong(5, 0.0f);
+		SliceMesh ignored;
+		CHECK(cutVolume(cube, planeDistances(cube, point, up, &wrong), nullptr, ignored, nullptr, &wrong) && ignored.triangleCount() == 0);
+
+		// the locator finds points of the stretched cube only, and a streamline runs up through it
+		const CellLocator restLocator(cube), stretchedLocator(cube, nullptr, deformed);
+		const std::vector<float> flow = nodeVectors(cube, [](double, double, double, double* v) { v[0] = 0; v[1] = 0; v[2] = 1; });
+		const double high[3] = { 0.5, 0.5, 1.5 };
+		int hint = -1;
+		double v[3], s = 0;
+		CHECK(!restLocator.interpolate(high, flow, nullptr, hint, v, s));
+		hint = -1;
+		CHECK(stretchedLocator.interpolate(high, flow, nullptr, hint, v, s) && std::fabs(stretchedLocator.diagonal() - std::sqrt(1.0 + 1.0 + 4.0)) < 1e-5);
+		StreamlineSet line;
+		CHECK(traceStreamlines(cube, stretchedLocator, flow, nullptr, { 0.5f, 0.5f, 1.0f }, StreamlineOptions(), line) && line.lineCount() == 1);
+		if (line.lineCount() == 1)
+			CHECK(line.points[2] < 0.3f && line.points[(line.pointCount() - 1) * 3 + 2] > 1.7f && line.points[(line.pointCount() - 1) * 3 + 2] <= 2.001f);
+		CHECK(restLocator.randomPoints(5, 1u).size() == 15 && stretchedLocator.randomPoints(20, 1u).size() == 60);
+	}
+
+	// ---- Snapshots of volume results: the frozen overlays, and the opt-in volume --------------------------------------------------
+
+	void testSnapshotVolumeAndOverlays()
+	{
+		// a 2 x 2 x 2 block with a velocity (a rotation) and a temperature (x), two time steps
+		ResultDataset ds = hexGrid(2, 2, 2);
+		ds.lengthUnit = QStringLiteral("mm");
+		ds.steps = { { 0.0, QString(), QString() }, { 1.0, QString(), QString() } };
+		auto addField = [&](const char* name, int components, float scale) {
+			ResultField f;
+			f.name = QString::fromLatin1(name);
+			f.components = components;
+			for (int s = 0; s < 2; ++s)
+			{
+				std::vector<float> values;
+				for (std::size_t n = 0; n < ds.nodeCount(); ++n)
+					for (int c = 0; c < components; ++c)
+						values.push_back(scale * (1.0f + s) * (ds.nodePositions[n * 3 + (c % 3)] + 0.1f * c));
+				f.stepData.push_back(std::move(values));
+			}
+			ds.fields.push_back(std::move(f));
+		};
+		addField("Temperature", 1, 10.0f);
+		addField("Velocity", 3, 1.0f);
+		const ResultBoundarySurface surface = extract(ds);
+		SimulationViewState state = defaultViewState(ds);
+		state.sectionFill = true;
+		state.streamlines = true;
+		state.streamSeeds = 20;
+
+		// what was on display: a lit iso-surface (one triangle), a section, a streamline (two segments), and one Clipping Plane
+		SnapshotOverlays overlays;
+		SliceDisplay iso;
+		iso.lit = true;
+		iso.positions = { 0, 0, 0, 1, 0, 0, 0, 1, 0 };
+		iso.colors = { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
+		iso.triangles = { 0, 1, 2 };
+		SliceDisplay section = iso;
+		section.lit = false;
+		overlays.slices = { iso, section };
+		overlays.streamlines.positions = { 0, 0, 0, 1, 0, 0, 2, 0, 0 };
+		overlays.streamlines.colors = { 1, 1, 1, 0.5f, 0.5f, 0.5f, 0, 0, 0 };
+		overlays.streamlines.segments = { 0, 1, 1, 2 };
+		overlays.streamlines.arrowPositions = { 0.5f, 0, 0, 1.5f, 0, 0 };
+		overlays.streamlines.arrowDirections = { 1, 0, 0, 1, 0, 0 };
+		overlays.streamlines.arrowColors = { 1, 1, 1, 0, 0, 0 };
+		overlays.streamlines.arrowLength = 0.2f;
+		overlays.cuts.push_back({ 2, 1.0, true });
+
+		// ---- surface only (the default): the overlays come back as they were, the dataset is the surface stand-in
+		{
+			SnapshotOptions options;
+			options.content = SnapshotOptions::Content::AllFields;
+			ResultSnapshot snap;
+			QString err;
+			CHECK(encodeResultSnapshot(ds, surface, state, options, snap, &err, &overlays));
+			CHECK(!snap.json.contains(QStringLiteral("volume")) && snap.json.contains(QStringLiteral("overlays")));
+			DecodedSnapshot dec;
+			CHECK(decodeResultSnapshot(snap.json, snap.blobs, surface.vertexCount(), surface.triangles, dec, &err));
+			CHECK(!dec.hasVolume && dec.dataset && dec.dataset->cellCount() == surface.triangleCount());
+			CHECK(dec.overlays.slices.size() == 2 && dec.overlays.slices[0].lit && !dec.overlays.slices[1].lit);
+			CHECK(dec.overlays.slices[0].positions == iso.positions && dec.overlays.slices[0].colors == iso.colors && dec.overlays.slices[0].triangles == iso.triangles);
+			CHECK(dec.overlays.streamlines.positions == overlays.streamlines.positions && dec.overlays.streamlines.colors == overlays.streamlines.colors
+			      && dec.overlays.streamlines.segments == overlays.streamlines.segments);
+			CHECK(dec.overlays.streamlines.arrowPositions == overlays.streamlines.arrowPositions && dec.overlays.streamlines.arrowDirections == overlays.streamlines.arrowDirections
+			      && dec.overlays.streamlines.arrowColors == overlays.streamlines.arrowColors && dec.overlays.streamlines.arrowLength == 0.2f && dec.overlays.streamlines.arrowCount() == 2);
+			CHECK(dec.overlays.cuts.size() == 1 && dec.overlays.cuts[0].axis == 2 && dec.overlays.cuts[0].position == 1.0 && dec.overlays.cuts[0].keepPositive);
+			CHECK(dec.state.sectionFill && dec.state.streamlines && dec.state.streamSeeds == 20);
+			// without overlays nothing is stored for them
+			ResultSnapshot plain;
+			CHECK(encodeResultSnapshot(ds, surface, state, options, plain, &err) && !plain.json.contains(QStringLiteral("overlays")));
+		}
+
+		// ---- with the volume: the full dataset comes back and the surface maps onto it
+		{
+			SnapshotOptions options;
+			options.content = SnapshotOptions::Content::AllFields;
+			options.includeVolume = true;
+			ResultSnapshot snap;
+			QString err;
+			CHECK(encodeResultSnapshot(ds, surface, state, options, snap, &err, &overlays));
+			CHECK(snap.json.contains(QStringLiteral("volume")));
+			SnapshotOptions surfaceOnly = options;
+			surfaceOnly.includeVolume = false;
+			CHECK(estimateSnapshotSize(ds, surface, options).rawBytes > estimateSnapshotSize(ds, surface, surfaceOnly).rawBytes);
+			DecodedSnapshot dec;
+			CHECK(decodeResultSnapshot(snap.json, snap.blobs, surface.vertexCount(), surface.triangles, dec, &err));
+			CHECK(dec.hasVolume && dec.dataset);
+			if (dec.hasVolume && dec.dataset)
+			{
+				const ResultDataset& out = *dec.dataset;
+				CHECK(out.cellCount() == 8 && out.nodeCount() == ds.nodeCount() && out.cellTypes == ds.cellTypes);
+				CHECK(out.nodePositions == ds.nodePositions && out.cellConnectivity == ds.cellConnectivity && out.cellOffsets == ds.cellOffsets);
+				CHECK(out.stepCount() == 2 && out.lengthUnit == QLatin1String("mm"));
+				CHECK(dec.vertexNode == surface.vertexNode && dec.triangleCell == surface.triangleCell && dec.triangleFace == surface.triangleFace);
+				const int temperature = fieldIndexOf(out, QStringLiteral("Temperature")), velocity = fieldIndexOf(out, QStringLiteral("Velocity"));
+				CHECK(temperature >= 0 && velocity >= 0);
+				if (temperature >= 0 && velocity >= 0)
+				{
+					CHECK(out.fields[static_cast<std::size_t>(temperature)].stepData == ds.fields[0].stepData);
+					CHECK(out.fields[static_cast<std::size_t>(velocity)].stepData == ds.fields[1].stepData);
+					CHECK(dec.state.streamlines && dec.state.sectionFill);
+				}
+				// live again: the restored result can be traced through
+				const CellLocator locator(out);
+				CHECK(locator.volumeCellCount() == 8);
+				const std::vector<float> flow = nodeVectors(out, [](double, double, double, double* v) { v[0] = 1; v[1] = 0; v[2] = 0; });
+				StreamlineSet lines;
+				CHECK(traceStreamlines(out, locator, flow, nullptr, { 1.0f, 1.0f, 1.0f }, StreamlineOptions(), lines) && lines.lineCount() == 1);
+				CHECK(dec.overlays.slices.size() == 2 && dec.overlays.cuts.size() == 1);
+			}
+
+			// a damaged volume falls back to the surface result, with a warning (the rest of the snapshot still loads)
+			QJsonObject broken = snap.json;
+			QJsonObject volume = broken.value(QStringLiteral("volume")).toObject();
+			volume.remove(QStringLiteral("cellTypes"));
+			broken.insert(QStringLiteral("volume"), volume);
+			DecodedSnapshot fallback;
+			CHECK(decodeResultSnapshot(broken, snap.blobs, surface.vertexCount(), surface.triangles, fallback, &err));
+			CHECK(!fallback.hasVolume && fallback.dataset && fallback.dataset->cellCount() == surface.triangleCount() && !fallback.warnings.isEmpty());
+			// and a mapping that points outside the volume is refused the same way
+			QJsonObject outside = snap.json;
+			QJsonObject volume2 = outside.value(QStringLiteral("volume")).toObject();
+			volume2.insert(QStringLiteral("vertexNode"), volume2.value(QStringLiteral("triangleCell"))); // the wrong array: cell indices, a different count
+			outside.insert(QStringLiteral("volume"), volume2);
+			DecodedSnapshot refused;
+			CHECK(decodeResultSnapshot(outside, snap.blobs, surface.vertexCount(), surface.triangles, refused, &err));
+			CHECK(!refused.hasVolume && refused.dataset);
+		}
+
+		// the default content stores the shown field and the displacement; the fields the streamlines / arrows / iso-surfaces follow are added on request
+		{
+			SnapshotOptions options;
+			options.content = SnapshotOptions::Content::ShownAndDisplacement;
+			options.shownField = 0; // Temperature
+			ResultSnapshot without, with;
+			QString err;
+			CHECK(encodeResultSnapshot(ds, surface, state, options, without, &err));
+			options.extraFields = { 1, 99, -1 }; // Velocity; the out-of-range ones are ignored
+			CHECK(encodeResultSnapshot(ds, surface, state, options, with, &err));
+			DecodedSnapshot a, b;
+			CHECK(decodeResultSnapshot(without.json, without.blobs, surface.vertexCount(), surface.triangles, a, &err));
+			CHECK(decodeResultSnapshot(with.json, with.blobs, surface.vertexCount(), surface.triangles, b, &err));
+			CHECK(a.dataset && b.dataset);
+			if (a.dataset && b.dataset)
+				CHECK(fieldIndexOf(*a.dataset, QStringLiteral("Velocity")) < 0 && fieldIndexOf(*b.dataset, QStringLiteral("Velocity")) >= 0
+				      && fieldIndexOf(*b.dataset, QStringLiteral("Temperature")) >= 0);
+		}
+
+		// a shell result has no volume to store: the option does nothing
+		{
+			const ResultDataset quad = oneCell(ResultCellType::Quad, { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0 });
+			ResultDataset shell = quad;
+			shell.steps = { { 0.0, QString(), QString() } };
+			const ResultBoundarySurface shellSurface = extract(shell);
+			SnapshotOptions options;
+			options.includeVolume = true;
+			ResultSnapshot snap;
+			QString err;
+			CHECK(encodeResultSnapshot(shell, shellSurface, defaultViewState(shell), options, snap, &err));
+			CHECK(!snap.json.contains(QStringLiteral("volume")));
+			DecodedSnapshot dec;
+			CHECK(decodeResultSnapshot(snap.json, snap.blobs, shellSurface.vertexCount(), shellSurface.triangles, dec, &err));
+			CHECK(dec.dataset && dec.overlays.empty());
+		}
+	}
+
+	void testCgnsComponentGroups()
+	{
+#if MV_HAVE_CGNS
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		auto read = [&](const char* name, const std::vector<std::string>& a, const std::vector<std::string>& b) {
+			const QString path = tmp.path() + QStringLiteral("/") + QString::fromLatin1(name);
+			const bool written = writeCgnsNamedFields(QFile::encodeName(path).constData(), a, b);
+			CHECK(written);
+			ResultReadOutcome r = readResultFile(path);
+			CHECK(r.ok());
+			return r;
+		};
+
+		// lower-case component names form a tensor too (matched case-insensitively)
+		const std::vector<std::string> lower = { "Sigmaxx", "Sigmayy", "Sigmazz", "Sigmaxy", "Sigmayz", "Sigmaxz" };
+		const ResultReadOutcome a = read("lower.cgns", lower, lower);
+		if (a.ok())
+		{
+			const int sigma = fieldIndexOf(*a.dataset, QStringLiteral("Sigma"));
+			CHECK(sigma >= 0 && a.dataset->fields.size() == 1 && a.dataset->fields[static_cast<std::size_t>(sigma)].components == 6);
+			if (sigma >= 0)
+			{
+				const std::vector<float>& d = a.dataset->fields[static_cast<std::size_t>(sigma)].stepData[0];
+				CHECK(d.size() == 12u * 6u && d[0] == 1.0f && d[1] == 2.0f && d[2] == 3.0f && d[3] == 4.0f && d[4] == 5.0f && d[5] == 6.0f);
+			}
+		}
+
+		// both XZ and ZX: the tensor takes XZ, and ZX stays a field of its own - nothing is dropped
+		const std::vector<std::string> both = { "SigmaXX", "SigmaYY", "SigmaZZ", "SigmaXY", "SigmaYZ", "SigmaXZ", "SigmaZX" };
+		const ResultReadOutcome b = read("both.cgns", both, both);
+		if (b.ok())
+		{
+			const int sigma = fieldIndexOf(*b.dataset, QStringLiteral("Sigma")), leftover = fieldIndexOf(*b.dataset, QStringLiteral("SigmaZX"));
+			CHECK(sigma >= 0 && leftover >= 0 && b.dataset->fields.size() == 2);
+			if (sigma >= 0 && leftover >= 0)
+			{
+				CHECK(b.dataset->fields[static_cast<std::size_t>(sigma)].stepData[0][5] == 6.0f);   // XZ fills the ZX slot
+				CHECK(b.dataset->fields[static_cast<std::size_t>(leftover)].stepData[0][0] == 7.0f); // the extra component is still there
+			}
+		}
+
+		// all nine components: one full (non-symmetric) tensor in the stored order
+		const std::vector<std::string> nine = { "AXX", "AXY", "AXZ", "AYX", "AYY", "AYZ", "AZX", "AZY", "AZZ" };
+		const ResultReadOutcome c = read("nine.cgns", nine, nine);
+		if (c.ok())
+		{
+			const int t = fieldIndexOf(*c.dataset, QStringLiteral("A"));
+			CHECK(t >= 0 && c.dataset->fields.size() == 1 && c.dataset->fields[static_cast<std::size_t>(t)].components == 9);
+			if (t >= 0)
+			{
+				const std::vector<float>& d = c.dataset->fields[static_cast<std::size_t>(t)].stepData[0];
+				bool inOrder = d.size() == 12u * 9u;
+				for (int k = 0; inOrder && k < 9; ++k)
+					inOrder = d[static_cast<std::size_t>(k)] == static_cast<float>(k + 1);
+				CHECK(inOrder);
+			}
+		}
+
+		// a step with only some of a tensor's components is left empty and reported, never filled with zeros or NaN
+		const std::vector<std::string> full = { "SigmaXX", "SigmaYY", "SigmaZZ", "SigmaXY", "SigmaYZ", "SigmaXZ" };
+		const std::vector<std::string> missing = { "SigmaXX", "SigmaYY", "SigmaZZ", "SigmaXY", "SigmaYZ" }; // no XZ in the second solution
+		const ResultReadOutcome d = read("partial.cgns", full, missing);
+		if (d.ok())
+		{
+			const int sigma = fieldIndexOf(*d.dataset, QStringLiteral("Sigma"));
+			CHECK(sigma >= 0 && d.dataset->stepCount() == 2);
+			if (sigma >= 0 && d.dataset->stepCount() == 2)
+			{
+				const ResultField& f = d.dataset->fields[static_cast<std::size_t>(sigma)];
+				CHECK(!f.stepData[0].empty() && f.stepData[1].empty());
+			}
+			bool warned = false;
+			for (const QString& w : d.warnings)
+				warned = warned || w.contains(QStringLiteral("some of their components"));
+			CHECK(warned);
+		}
+
+		// vectors, lower-case axes included; an X without a Y is just a scalar
+		const std::vector<std::string> vec = { "Vx", "Vy", "Vz", "Alonex" };
+		const ResultReadOutcome e = read("vec.cgns", vec, vec);
+		if (e.ok())
+		{
+			const int v = fieldIndexOf(*e.dataset, QStringLiteral("V")), lonely = fieldIndexOf(*e.dataset, QStringLiteral("Alonex"));
+			CHECK(v >= 0 && lonely >= 0 && e.dataset->fields[static_cast<std::size_t>(v)].components == 3 && e.dataset->fields.size() == 2);
+		}
+
+		// all-lower-case vector names ("velocityx" ends in an axis PAIR, 'y' + 'x') are still a vector
+		const std::vector<std::string> lowerVec = { "velocityx", "velocityy", "velocityz" };
+		const ResultReadOutcome f = read("lowervec.cgns", lowerVec, lowerVec);
+		if (f.ok())
+		{
+			const int v = fieldIndexOf(*f.dataset, QStringLiteral("velocity"));
+			CHECK(v >= 0 && f.dataset->fields.size() == 1 && f.dataset->fields[static_cast<std::size_t>(v)].components == 3);
+		}
+
+		// off-diagonals stored as XY/YZ/XZ in one solution and YX/ZY/ZX in the next still merge into one tensor over both steps
+		const std::vector<std::string> upperTri = { "SigmaXX", "SigmaYY", "SigmaZZ", "SigmaXY", "SigmaYZ", "SigmaXZ" };
+		const std::vector<std::string> lowerTri = { "SigmaXX", "SigmaYY", "SigmaZZ", "SigmaYX", "SigmaZY", "SigmaZX" };
+		const ResultReadOutcome g = read("alias.cgns", upperTri, lowerTri);
+		if (g.ok())
+		{
+			const int sigma = fieldIndexOf(*g.dataset, QStringLiteral("Sigma"));
+			CHECK(sigma >= 0 && g.dataset->fields.size() == 1 && g.dataset->stepCount() == 2);
+			if (sigma >= 0 && g.dataset->stepCount() == 2)
+			{
+				const ResultField& t = g.dataset->fields[static_cast<std::size_t>(sigma)];
+				CHECK(t.components == 6 && !t.stepData[0].empty() && !t.stepData[1].empty());
+			}
+		}
+#else
+		std::printf("  (skipping CGNS component-group tests: this build has no CGNS library)\n");
+#endif
+	}
+
+	void testGlyphs()
+	{
+		// ---- site selection: about `target` evenly spread points, ascending, never a non-finite one
+		std::vector<float> grid;
+		for (int y = 0; y < 10; ++y)
+			for (int x = 0; x < 10; ++x)
+				grid.insert(grid.end(), { static_cast<float>(x), static_cast<float>(y), 0.0f });
+		const std::vector<std::uint32_t> few = selectGlyphSites(grid, 25);
+		CHECK(few.size() >= 12 && few.size() <= 40);
+		CHECK(std::is_sorted(few.begin(), few.end()) && std::adjacent_find(few.begin(), few.end()) == few.end());
+		CHECK(selectGlyphSites(grid, 1000).size() == 100); // no more points than asked for: all of them
+		CHECK(selectGlyphSites(grid, 0).empty());
+		grid[5 * 3] = std::numeric_limits<float>::quiet_NaN();
+		const std::vector<std::uint32_t> withGap = selectGlyphSites(grid, 1000);
+		CHECK(withGap.size() == 99 && std::find(withGap.begin(), withGap.end(), 5u) == withGap.end());
+		const std::vector<float> same = { 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+		CHECK(selectGlyphSites(same, 2).size() == 1); // coincident points: one arrow
+
+		// ---- arrows of a vector field
+		ResultReadOutcome r = readBytes(buildVtu(singleTet(), Enc::Ascii));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		ResultDataset& ds = *r.dataset;
+		ResultField displacement;
+		displacement.name = QStringLiteral("Displacement");
+		displacement.components = 3;
+		displacement.stepData = { std::vector<float>(12, 1.0f) };
+		ds.fields.push_back(displacement);
+		ResultField velocity;
+		velocity.name = QStringLiteral("Velocity");
+		velocity.components = 3;
+		// node 0: 1 along x, node 1: 2 along y, node 2: zero (no arrow), node 3: 3 along x
+		velocity.stepData = { std::vector<float>{ 1, 0, 0, 0, 2, 0, 0, 0, 0, 3, 0, 0 } };
+		ds.fields.push_back(velocity);
+		const int velocityIndex = static_cast<int>(ds.fields.size()) - 1;
+		CHECK(chooseDefaultGlyphField(ds) == velocityIndex); // velocity comes before displacement
+		CHECK(isGlyphField(ds.fields[static_cast<std::size_t>(velocityIndex)]));
+
+		const ResultBoundarySurface surface = extract(ds);
+		double extentX = 0.0, extentY = 0.0, extentZ = 0.0;
+		CHECK(surfaceExtents(surface, extentX, extentY, extentZ) && approx(extentX, 1.0) && approx(extentY, 1.0) && approx(extentZ, 1.0));
+		CHECK(!surfaceExtents(ResultBoundarySurface(), extentX, extentY, extentZ));
+		const std::vector<std::uint32_t> sites = selectSurfaceGlyphSites(surface, false, 100);
+		CHECK(sites.size() == surface.vertexCount());
+		GlyphOptions options;
+		GlyphSet set;
+		CHECK(buildGlyphSet(ds, surface, velocityIndex, 0, sites, 10.0, options, 0.0f, set));
+		CHECK(set.count() == 3 && set.anchors.size() == 9 && set.vectors.size() == 9); // the zero vector gets no arrow
+		CHECK(approx(set.fieldMax, 3.0) && approx(set.fieldMin, 0.0));
+		bool lengthsRight = true, sawLongest = false;
+		for (std::size_t i = 0; i < set.count(); ++i)
+		{
+			const double length = std::sqrt(static_cast<double>(set.vectors[i * 3]) * set.vectors[i * 3]
+			                                + static_cast<double>(set.vectors[i * 3 + 1]) * set.vectors[i * 3 + 1]
+			                                + static_cast<double>(set.vectors[i * 3 + 2]) * set.vectors[i * 3 + 2]);
+			// the largest magnitude (3) is 5 % of the diagonal (10) = 0.5 long; the others in proportion
+			lengthsRight = lengthsRight && approx(length, 0.5 * set.values[i] / 3.0, 1e-4, 1e-6);
+			if (approx(set.values[i], 3.0))
+			{
+				sawLongest = true;
+				lengthsRight = lengthsRight && set.vectors[i * 3] > 0.0f && approx(set.vectors[i * 3 + 1], 0.0, 1e-6, 1e-9); // along +x
+			}
+		}
+		CHECK(lengthsRight && sawLongest);
+
+		// a fixed reference (the largest over all steps) shortens the arrows of a smaller step; uniform length ignores it
+		CHECK(buildGlyphSet(ds, surface, velocityIndex, 0, sites, 10.0, options, 6.0f, set));
+		double longest = 0.0;
+		for (std::size_t i = 0; i < set.count(); ++i)
+			longest = std::max(longest, static_cast<double>(std::fabs(set.vectors[i * 3])));
+		CHECK(approx(longest, 0.25, 1e-4, 1e-6)); // 3 of 6 = half of 0.5
+		options.scaleByMagnitude = false;
+		CHECK(buildGlyphSet(ds, surface, velocityIndex, 0, sites, 10.0, options, 0.0f, set));
+		bool allEqual = set.count() == 3;
+		for (std::size_t i = 0; i < set.count(); ++i)
+		{
+			const double length = std::sqrt(static_cast<double>(set.vectors[i * 3]) * set.vectors[i * 3]
+			                                + static_cast<double>(set.vectors[i * 3 + 1]) * set.vectors[i * 3 + 1]
+			                                + static_cast<double>(set.vectors[i * 3 + 2]) * set.vectors[i * 3 + 2]);
+			allEqual = allEqual && approx(length, 0.5, 1e-4, 1e-6);
+		}
+		CHECK(allEqual);
+
+		// the component a field starts on: the first one that varies, not a constant (all-zero) first component
+		{
+			ResultField many;
+			many.name = QStringLiteral("Many");
+			many.components = 4;
+			std::vector<float> values(16, 0.0f); // 4 nodes x 4 components: 0 is all zero, 1 is constant, 2 varies, 3 varies
+			for (std::size_t node = 0; node < 4; ++node)
+			{
+				values[node * 4 + 1] = 7.0f;
+				values[node * 4 + 2] = static_cast<float>(node);
+				values[node * 4 + 3] = static_cast<float>(node) * 2.0f;
+			}
+			many.stepData = { values };
+			ds.fields.push_back(many);
+			const int manyIndex = static_cast<int>(ds.fields.size()) - 1;
+			CHECK(defaultComponentForField(ds, manyIndex) == 2);
+			ds.fields.back().stepData[0].assign(16, 1.0f); // nothing varies
+			CHECK(defaultComponentForField(ds, manyIndex) == 0);
+			CHECK(defaultComponentForField(ds, velocityIndex) == -1 && defaultComponentForField(ds, fieldIndexOf(ds, QStringLiteral("T"))) == -1);
+			CHECK(defaultComponentForField(ds, -1) == -1);
+			ds.fields.pop_back();
+		}
+
+		// the in-place range scan gives exactly what building the scalar does (scalar, component, magnitude)
+		for (int comp : { -1, 0, 1, 2 })
+		{
+			DisplayScalar built;
+			float lo = 0, hi = 0;
+			const bool a = buildDisplayScalar(ds, velocityIndex, comp, built, 0), b = computeStepRange(ds, velocityIndex, comp, 0, lo, hi);
+			CHECK(a == b && (!a || (approx(built.minValue, lo) && approx(built.maxValue, hi))));
+		}
+		{
+			DisplayScalar built;
+			float lo = 0, hi = 0;
+			const int t = fieldIndexOf(ds, QStringLiteral("T"));
+			CHECK(buildDisplayScalar(ds, t, -1, built, 0) && computeStepRange(ds, t, -1, 0, lo, hi) && approx(built.minValue, lo) && approx(built.maxValue, hi));
+			CHECK(!computeStepRange(ds, t, -1, 3, lo, hi) && !computeStepRange(ds, -1, -1, 0, lo, hi));
+		}
+
+		// nothing to draw: a scalar field, a missing step, no size
+		CHECK(!buildGlyphSet(ds, surface, fieldIndexOf(ds, QStringLiteral("T")), 0, sites, 10.0, options, 0.0f, set));
+		CHECK(!buildGlyphSet(ds, surface, velocityIndex, 5, sites, 10.0, options, 0.0f, set));
+		CHECK(!buildGlyphSet(ds, surface, velocityIndex, 0, sites, 0.0, options, 0.0f, set));
+	}
+
+	void testCellVectorDefault()
+	{
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		writePrismCase(tmp.path());
+		QFile::remove(tmp.path() + QStringLiteral("/0/p"));
+		QFile::remove(tmp.path() + QStringLiteral("/1/p"));
+		writeText(tmp.path() + QStringLiteral("/0/U"), foamHeader("volVectorField", "U") + "dimensions [0 1 -1 0 0 0 0];\ninternalField uniform (3 4 0);\n");
+		const ResultReadOutcome r = readResultFile(tmp.path() + QStringLiteral("/case.foam"));
+		CHECK(r.ok() && r.dataset->fields.size() == 1);
+		if (!r.ok() || r.dataset->fields.empty())
+			return;
+		DisplayScalar d;
+		// a result whose only field is a cell VECTOR still starts on a field: its magnitude (5)
+		CHECK(chooseDefaultDisplayScalar(*r.dataset, d) && d.cellData && d.component == -1 && d.minValue == 5.0f && d.maxValue == 5.0f);
+		CHECK(defaultViewState(*r.dataset).fieldIndex == 0);
+	}
+
+	void testCgnsStepOrder()
+	{
+#if MV_HAVE_CGNS
+		QTemporaryDir tmp;
+		CHECK(tmp.isValid());
+		if (!tmp.isValid())
+			return;
+		for (int pointers = 0; pointers < 2; ++pointers)
+		{
+			const QString path = tmp.path() + (pointers ? QStringLiteral("/pointers.cgns") : QStringLiteral("/natural.cgns"));
+			CHECK(writeCgnsOrderFixture(QFile::encodeName(path).constData(), pointers != 0));
+			const ResultReadOutcome r = readResultFile(path);
+			CHECK(r.ok());
+			if (!r.ok())
+				continue;
+			const int t = fieldIndexOf(*r.dataset, QStringLiteral("Temperature"));
+			CHECK(r.dataset->stepCount() == 3 && t >= 0);
+			if (t < 0 || r.dataset->stepCount() != 3)
+				continue;
+			const ResultField& f = r.dataset->fields[static_cast<std::size_t>(t)];
+			const double expected[3] = { 100.0, pointers ? 200.0 : 200.0, pointers ? 300.0 : 1000.0 }; // node 0 of each step
+			for (std::size_t step = 0; step < 3; ++step)
+				CHECK(f.stepData[step].size() == 12 && approx(f.stepData[step][0], expected[step]));
+			// without pointers the order is a guess and the user is told; with pointers it is explicit and nothing is said
+			bool guessWarning = false;
+			for (const QString& w : r.warnings)
+				guessWarning = guessWarning || w.contains(QStringLiteral("FlowSolutionPointers"));
+			CHECK(guessWarning == (pointers == 0));
+		}
+#else
+		std::printf("  (skipping CGNS step-order tests: this build has no CGNS library)\n");
+#endif
+	}
+
+	void testShellAndSkippedCells()
+	{
+		Mesh m;
+		m.pts = { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 2, 0, 0 };
+		// triangle, quad, line, and a polyhedron (type 42, unsupported in Phase 0) with 9 arbitrary nodes.
+		m.conn = { 0, 1, 2, 0, 1, 2, 3, 0, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4 };
+		m.offs = { 3, 7, 9, 19 };
+		m.types = { 5, 9, 3, 42 };
+		ResultReadOutcome r = readBytes(buildVtu(m, Enc::Ascii));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		CHECK(!r.warnings.isEmpty()); // the unsupported polyhedron
+		const ResultBoundarySurface s = extract(*r.dataset);
+		CHECK(s.triangleCount() == 3 + 12); // 1 triangle + quad as 2, and the line as a tube of 12 triangles
+		CHECK(s.skippedCells == 1);         // the unsupported cell
+		for (std::size_t t = 0; t < s.triangleCount(); ++t)
+			CHECK(s.triangleFace[t] == ResultBoundarySurface::kNoFace);
+	}
+
+	void testErrors()
+	{
+		CHECK(!readResultFile(tempDir().filePath(QStringLiteral("missing.vtu"))).ok());
+		CHECK(!readResultFile(QStringLiteral("x.unknown")).ok());
+		CHECK(!isSupportedResultFile(QStringLiteral("x.stl")));
+		CHECK(isSupportedResultFile(QStringLiteral("a/b/C.VTU")));
+		CHECK(supportedResultExtensions().contains(QStringLiteral("vtu")) && supportedResultExtensions().contains(QStringLiteral("vtk")));
+		CHECK(isSupportedResultFile(QStringLiteral("model.vtk")) && !isSupportedResultFile(QStringLiteral("model.stl")));
+
+		ResultReadOutcome poly = readBytes(buildVtu(singleTet(), Enc::Ascii, "PolyData"));
+		CHECK(!poly.ok());
+
+		ResultReadOutcome lz4 = readBytes(buildVtu(singleTet(), Enc::Ascii, "UnstructuredGrid", "vtkLZ4DataCompressor"));
+		CHECK(!lz4.ok());
+		CHECK(lz4.error.contains(QStringLiteral("compressor")));
+
+		Mesh bad = singleTet();
+		bad.conn = { 0, 1, 2, 9 }; // node 9 does not exist
+		ResultReadOutcome r = readBytes(buildVtu(bad, Enc::Ascii));
+		CHECK(!r.ok());
+		CHECK(r.error.contains(QStringLiteral("references node")));
+
+		ResultReadOutcome garbage = readBytes(QByteArray("this is not xml"));
+		CHECK(!garbage.ok());
+	}
+
+	void testCancellation()
+	{
+		const QString path = tempDir().filePath(QStringLiteral("c.vtu"));
+		QFile f(path);
+		CHECK(f.open(QIODevice::WriteOnly));
+		f.write(buildVtu(singleTet(), Enc::Ascii));
+		f.close();
+		std::atomic<bool> cancel(true);
+		ResultReadOutcome r = readResultFile(path, &cancel);
+		CHECK(!r.ok());
+		CHECK(r.error == QStringLiteral("cancelled"));
+
+		ResultReadOutcome ok = readResultFile(path);
+		CHECK(ok.ok());
+		if (ok.ok())
+		{
+			ResultBoundarySurface s;
+			QString err;
+			CHECK(!extractBoundarySurface(*ok.dataset, s, &cancel, &err));
+			CHECK(err == QStringLiteral("cancelled"));
+		}
+	}
+
+	void testLargeMeshPartitioning()
+	{
+		// An n x n x n hex block: the boundary is 6*n*n quads = 12*n*n triangles, and the unique boundary
+		// vertices are all nodes except the (n-1)^3 fully interior ones.
+		const int n = 30;
+		Mesh m;
+		auto node = [n](int i, int j, int k) { return i + (n + 1) * (j + (n + 1) * k); };
+		for (int k = 0; k <= n; ++k)
+			for (int j = 0; j <= n; ++j)
+				for (int i = 0; i <= n; ++i)
+					m.pts.insert(m.pts.end(), { float(i), float(j), float(k) });
+		for (int k = 0; k < n; ++k)
+			for (int j = 0; j < n; ++j)
+				for (int i = 0; i < n; ++i)
+				{
+					m.conn.insert(m.conn.end(),
+						{ node(i, j, k), node(i + 1, j, k), node(i + 1, j + 1, k), node(i, j + 1, k),
+						  node(i, j, k + 1), node(i + 1, j, k + 1), node(i + 1, j + 1, k + 1), node(i, j + 1, k + 1) });
+					m.offs.push_back(static_cast<int>(m.conn.size()));
+					m.types.push_back(12);
+				}
+		ResultReadOutcome r = readBytes(buildVtu(m, Enc::InlineB64Zlib), QStringLiteral("big.vtu"));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const std::size_t expectedTriangles = 12u * n * n;
+		const std::size_t expectedVertices = (n + 1u) * (n + 1u) * (n + 1u) - (n - 1u) * (n - 1u) * (n - 1u);
+
+		// Default (single partition) and a tiny partition size that forces the multi-pass hashing
+		// (162,000 faces / 500 => clamped to 64 partitions) must give identical results.
+		const ResultBoundarySurface single = extract(*r.dataset);
+		ResultBoundarySurface multi;
+		QString err;
+		CHECK(extractBoundarySurface(*r.dataset, multi, nullptr, &err, 500));
+		CHECK(single.triangleCount() == expectedTriangles);
+		CHECK(single.vertexCount() == expectedVertices);
+		CHECK(multi.triangles == single.triangles);
+		CHECK(multi.positions == single.positions);
+		CHECK(multi.triangleCell == single.triangleCell);
+		CHECK(multi.triangleFace == single.triangleFace);
+		CHECK(trianglesFaceOutward(*r.dataset, multi));
+	}
+}
+
+// `result_tests <file.vtu> [more.vtu ...]` loads real files instead of running the synthetic tests and
+// prints what was read - the check against output from FreeCAD/ParaView/etc. that fixtures cannot give.
+// ---- Large-result benchmark (opt-in): result_tests --bench <n> <steps>   and   result_tests --time <file>... -----------------------------------
+// Nothing here runs with the normal test run. It exists to MEASURE what docs/simulation_large_results_review.md reasons about: the time of each
+// stage of opening a result and of showing one step, and the memory the result takes.
+
+static double secondsSince(const std::chrono::steady_clock::time_point& start)
+{
+	return std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+}
+
+// The process's peak working set in MB (Windows; 0 elsewhere).
+static double peakMemoryMB()
+{
+#ifdef _WIN32
+	PROCESS_MEMORY_COUNTERS counters;
+	if (GetProcessMemoryInfo(GetCurrentProcess(), &counters, sizeof(counters)))
+		return static_cast<double>(counters.PeakWorkingSetSize) / (1024.0 * 1024.0);
+#endif
+	return 0.0;
+}
+
+// The bytes the dataset's arrays hold (nodes, cells, faces and every step of every field).
+static double datasetMB(const ResultDataset& ds)
+{
+	double bytes = static_cast<double>(ds.nodePositions.size() * 4 + ds.nodeIds.size() * 8 + ds.cellConnectivity.size() * 4 + ds.cellOffsets.size() * 4
+	                                   + ds.cellTypes.size() + ds.cellIds.size() * 8 + ds.faceNodes.size() * 4 + ds.faceOffsets.size() * 4
+	                                   + ds.cellFaces.size() * 4 + ds.cellFaceOffsets.size() * 4);
+	for (const ResultField& f : ds.fields)
+		for (const std::vector<float>& step : f.stepData)
+			bytes += static_cast<double>(step.size() * 4);
+	return bytes / (1024.0 * 1024.0);
+}
+
+// The stages of opening `ds` and showing its steps, timed. `readSeconds` (< 0 when unknown) is printed with them.
+static void benchDataset(ResultDataset& ds, double readSeconds)
+{
+	std::printf("  nodes %zu, cells %zu, steps %zu, fields %zu, dataset %.1f MB, process peak so far %.0f MB\n", ds.nodeCount(), ds.cellCount(), ds.stepCount(),
+	            ds.fields.size(), datasetMB(ds), peakMemoryMB());
+	if (readSeconds >= 0)
+		std::printf("  read/build           %8.3f s\n", readSeconds);
+	auto start = std::chrono::steady_clock::now();
+	const QString invalid = ds.validate();
+	std::printf("  validate             %8.3f s %s\n", secondsSince(start), invalid.isEmpty() ? "" : qPrintable(invalid));
+	assignGuessedUnits(ds);
+
+	start = std::chrono::steady_clock::now();
+	ResultBoundarySurface surface;
+	QString error;
+	const bool boundaryOk = extractBoundarySurface(ds, surface, nullptr, &error);
+	std::printf("  boundary surface     %8.3f s   %zu triangles, %zu vertices, peak %.0f MB %s\n", secondsSince(start), surface.triangleCount(),
+	            surface.vertexCount(), peakMemoryMB(), boundaryOk ? "" : qPrintable(error));
+	if (!boundaryOk)
+		return;
+
+	// One node field (a scalar, else a vector's magnitude), and one cell field, if there are any.
+	int nodeField = -1, cellField = -1;
+	for (std::size_t i = 0; i < ds.fields.size(); ++i)
+	{
+		const ResultField& f = ds.fields[i];
+		if (!resultFieldHasData(f) || (f.components != 1 && f.components != 3))
+			continue;
+		if (f.association == ResultFieldAssociation::Node && (nodeField < 0 || f.components == 1))
+			nodeField = static_cast<int>(i);
+		if (f.association == ResultFieldAssociation::Cell && cellField < 0)
+			cellField = static_cast<int>(i);
+	}
+	for (int field : { nodeField, cellField })
+	{
+		if (field < 0)
+			continue;
+		const ResultField& f = ds.fields[static_cast<std::size_t>(field)];
+		// Showing a step: build the per-tuple scalar, then map it onto the surface (what every frame of a playback does)
+		const int frames = static_cast<int>(std::min<std::size_t>(ds.stepCount(), 5));
+		start = std::chrono::steady_clock::now();
+		int built = 0;
+		for (int s = 0; s < frames; ++s)
+		{
+			DisplayScalar scalar;
+			if (!buildDisplayScalar(ds, field, -1, scalar, s))
+				continue;
+			const std::vector<float> onSurface = scalar.cellData ? boundaryFaceValues(surface, scalar.nodeValues) : boundaryVertexValues(surface, scalar.nodeValues);
+			(void)onSurface;
+			++built;
+		}
+		std::printf("  show a step (%s '%s', %d comp)  %8.4f s per step (avg of %d)\n", f.association == ResultFieldAssociation::Node ? "node" : "cell",
+		            qPrintable(f.name), f.components, built > 0 ? secondsSince(start) / built : 0.0, built);
+		start = std::chrono::steady_clock::now();
+		float lo = 0, hi = 0;
+		const bool ranged = computeAllStepsRange(ds, field, -1, lo, hi);
+		std::printf("  range over all %zu steps of '%s'   %8.3f s  (%g .. %g)%s\n", ds.stepCount(), qPrintable(f.name), secondsSince(start), lo, hi, ranged ? "" : " none");
+	}
+
+	start = std::chrono::steady_clock::now();
+	SimulationViewState state = defaultViewState(ds);
+	SnapshotOptions options;
+	ResultSnapshot snapshot;
+	const bool encoded = encodeResultSnapshot(ds, surface, state, options, snapshot, &error);
+	std::printf("  snapshot encode      %8.3f s   raw %.1f MB -> stored %.1f MB %s\n", secondsSince(start), static_cast<double>(snapshot.size.rawBytes) / 1048576.0,
+	            static_cast<double>(snapshot.size.storedBytes) / 1048576.0, encoded ? "" : qPrintable(error));
+	std::printf("  process peak         %8.0f MB\n", peakMemoryMB());
+}
+
+// A synthetic n x n x n hexahedron block with `steps` steps of a scalar and a vector node field and a cell field.
+static int benchSynthetic(int n, int steps)
+{
+	std::printf("\nSynthetic block: %d x %d x %d hexahedra, %d steps\n", n, n, n, steps);
+	const auto start = std::chrono::steady_clock::now();
+	ResultDataset ds;
+	const int side = n + 1;
+	const std::size_t nodeCount = static_cast<std::size_t>(side) * side * side, cells = static_cast<std::size_t>(n) * n * n;
+	ds.nodePositions.reserve(nodeCount * 3);
+	for (int k = 0; k < side; ++k)
+		for (int j = 0; j < side; ++j)
+			for (int i = 0; i < side; ++i)
+				ds.nodePositions.insert(ds.nodePositions.end(), { static_cast<float>(i), static_cast<float>(j), static_cast<float>(k) });
+	auto node = [&](int i, int j, int k) { return static_cast<std::uint32_t>(i + side * (j + side * k)); };
+	ds.cellConnectivity.reserve(cells * 8);
+	ds.cellOffsets.reserve(cells + 1);
+	ds.cellOffsets.push_back(0);
+	ds.cellTypes.assign(cells, ResultCellType::Hexahedron);
+	for (int k = 0; k < n; ++k)
+		for (int j = 0; j < n; ++j)
+			for (int i = 0; i < n; ++i)
+			{
+				const std::uint32_t ids[8] = { node(i, j, k), node(i + 1, j, k), node(i + 1, j + 1, k), node(i, j + 1, k),
+				                               node(i, j, k + 1), node(i + 1, j, k + 1), node(i + 1, j + 1, k + 1), node(i, j + 1, k + 1) };
+				ds.cellConnectivity.insert(ds.cellConnectivity.end(), ids, ids + 8);
+				ds.cellOffsets.push_back(static_cast<std::uint32_t>(ds.cellConnectivity.size()));
+			}
+	for (int s = 0; s < steps; ++s)
+	{
+		ResultStep step;
+		step.time = s;
+		ds.steps.push_back(step);
+	}
+	ResultField temperature, velocity, quality;
+	temperature.name = QStringLiteral("Temperature");
+	velocity.name = QStringLiteral("Velocity");
+	velocity.components = 3;
+	quality.name = QStringLiteral("Quality");
+	quality.association = ResultFieldAssociation::Cell;
+	for (int s = 0; s < steps; ++s)
+	{
+		std::vector<float> t(nodeCount), v(nodeCount * 3), q(cells);
+		for (std::size_t p = 0; p < nodeCount; ++p)
+		{
+			t[p] = 300.0f + 0.001f * static_cast<float>(p % 1000) + static_cast<float>(s);
+			v[p * 3] = static_cast<float>(s) * 0.1f;
+			v[p * 3 + 1] = static_cast<float>(p % 97) * 0.01f;
+			v[p * 3 + 2] = 0.0f;
+		}
+		for (std::size_t c = 0; c < cells; ++c)
+			q[c] = static_cast<float>(c % 100) * 0.01f + static_cast<float>(s);
+		temperature.stepData.push_back(std::move(t));
+		velocity.stepData.push_back(std::move(v));
+		quality.stepData.push_back(std::move(q));
+	}
+	ds.fields.push_back(std::move(temperature));
+	ds.fields.push_back(std::move(velocity));
+	ds.fields.push_back(std::move(quality));
+	benchDataset(ds, secondsSince(start));
+	return 0;
+}
+
+// Real files: read each and time the same stages.
+static int benchFiles(int argc, char** argv)
+{
+	for (int i = 2; i < argc; ++i)
+	{
+		const QString path = QString::fromLocal8Bit(argv[i]);
+		std::printf("\n%s\n", qPrintable(path));
+		const auto start = std::chrono::steady_clock::now();
+		ResultReadOutcome r = readResultFile(path);
+		if (!r.ok())
+		{
+			std::printf("  FAILED: %s\n", qPrintable(r.error));
+			continue;
+		}
+		benchDataset(*r.dataset, secondsSince(start));
+	}
+	return 0;
+}
+
+static int inspectFiles(int argc, char** argv)
+{
+	int failed = 0;
+	for (int i = 1; i < argc; ++i)
+	{
+		const QString path = QString::fromLocal8Bit(argv[i]);
+		std::printf("\n%s\n", qPrintable(path));
+		ResultReadOutcome r = readResultFile(path);
+		for (const QString& w : r.warnings)
+			std::printf("  warning: %s\n", qPrintable(w));
+		if (!r.ok())
+		{
+			std::printf("  FAILED: %s\n", qPrintable(r.error));
+			++failed;
+			continue;
+		}
+		const ResultDataset& ds = *r.dataset;
+		std::size_t byType[16] = {};
+		for (ResultCellType t : ds.cellTypes)
+			++byType[static_cast<int>(t)];
+		std::printf("  nodes: %zu   cells: %zu   steps: %zu (time %g)\n", ds.nodeCount(), ds.cellCount(), ds.stepCount(),
+			ds.steps.empty() ? 0.0 : ds.steps.front().time);
+		std::printf("  cell types: unsupported %zu, line %zu, tri %zu, quad %zu, tet %zu, hex %zu, wedge %zu, pyramid %zu\n",
+			byType[0], byType[1], byType[2], byType[3], byType[4], byType[5], byType[6], byType[7]);
+		std::printf("  quadratic: tri6 %zu, quad8 %zu, tet10 %zu, hex20 %zu, wedge15 %zu, pyramid13 %zu\n",
+			byType[8], byType[9], byType[10], byType[11], byType[12], byType[13]);
+		if (ds.nodeCount() > 0)
+		{
+			float lo[3] = { ds.nodePositions[0], ds.nodePositions[1], ds.nodePositions[2] }, hi[3] = { lo[0], lo[1], lo[2] };
+			for (std::size_t n = 1; n < ds.nodeCount(); ++n)
+				for (int k = 0; k < 3; ++k)
+				{
+					lo[k] = std::min(lo[k], ds.nodePositions[n * 3 + k]);
+					hi[k] = std::max(hi[k], ds.nodePositions[n * 3 + k]);
+				}
+			std::printf("  bounds: (%g, %g, %g) .. (%g, %g, %g)\n", lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]);
+		}
+		for (const ResultField& f : ds.fields)
+		{
+			const std::vector<float>* v = f.stepData.empty() ? nullptr : &f.stepData.front();
+			float mn = 0, mx = 0;
+			if (v && !v->empty())
+			{
+				mn = *std::min_element(v->begin(), v->end());
+				mx = *std::max_element(v->begin(), v->end());
+			}
+			std::printf("  %s field '%s': %d comp, %zu tuples, values %g .. %g\n",
+				f.association == ResultFieldAssociation::Node ? "node" : "cell", qPrintable(f.name), f.components,
+				f.tupleCount(0), mn, mx);
+		}
+		ResultBoundarySurface s;
+		QString err;
+		if (extractBoundarySurface(ds, s, nullptr, &err))
+			std::printf("  boundary: %zu triangles, %zu vertices, %zu skipped cells\n", s.triangleCount(), s.vertexCount(), s.skippedCells);
+		else
+		{
+			std::printf("  boundary FAILED: %s\n", qPrintable(err));
+			++failed;
+		}
+	}
+	return failed;
+}
+
+int main(int argc, char** argv)
+{
+#if MV_HAVE_NETCDF
+	// result_tests --write-exodus-polyhedra-sample <file.exo>: writes the small Exodus file with a polyhedral (NFACED) block used to try the reader.
+	if (argc == 3 && std::strcmp(argv[1], "--write-exodus-polyhedra-sample") == 0)
+	{
+		const bool ok = writeExodusPolyhedra(argv[2]);
+		std::printf(ok ? "wrote %s\n" : "could not write %s\n", argv[2]);
+		return ok ? 0 : 1;
+	}
+	// result_tests --write-exodus-sample <file.exo>: writes the larger Exodus file used to try the reader in the application.
+	if ((argc == 3 || argc == 4) && std::strcmp(argv[1], "--write-exodus-sample") == 0)
+	{
+		const bool ok = writeExodusBlockSample(argv[2], argc == 4 ? std::atoi(argv[3]) : 8); // an optional block size n (n^3 elements)
+		std::printf(ok ? "wrote %s\n" : "could not write %s\n", argv[2]);
+		return ok ? 0 : 1;
+	}
+#endif
+#if MV_HAVE_CGNS
+	// result_tests --write-cgns-sample <file.cgns> [n]: writes the larger CGNS file used to try the reader in the application (an optional block size n: n^3 cells).
+	if ((argc == 3 || argc == 4) && std::strcmp(argv[1], "--write-cgns-sample") == 0)
+	{
+		const bool ok = writeCgnsBlockSample(argv[2], argc == 4 ? std::atoi(argv[3]) : 8);
+		std::printf(ok ? "wrote %s\n" : "could not write %s\n", argv[2]);
+		return ok ? 0 : 1;
+	}
+	// result_tests --write-cgns-structured-sample <file.cgns>: a two-block structured duct.
+	if (argc == 3 && std::strcmp(argv[1], "--write-cgns-structured-sample") == 0)
+	{
+		const bool ok = writeCgnsStructuredSample(argv[2]);
+		std::printf(ok ? "wrote %s\n" : "could not write %s\n", argv[2]);
+		return ok ? 0 : 1;
+	}
+#endif
+#if MV_HAVE_HDF5
+	// result_tests --write-vtkhdf-sample <file.vtkhdf>: a transient VTKHDF file for trying the reader in the application.
+	if (argc == 3 && std::strcmp(argv[1], "--write-vtkhdf-sample") == 0)
+	{
+		const bool ok = writeVtkHdfBlockSample(argv[2]);
+		std::printf(ok ? "wrote %s\n" : "could not write %s\n", argv[2]);
+		return ok ? 0 : 1;
+	}
+#endif
+	// result_tests --bench-streamlines <n> <seeds>: times the cell locator, the streamline tracing and a plane cut on a synthetic n x n x n hexahedron block
+	// with a rotating flow, to see whether they are fast enough to redo on every time step.
+	if (argc == 4 && std::strcmp(argv[1], "--bench-streamlines") == 0)
+	{
+		const int n = std::atoi(argv[2]);
+		const std::size_t seedCount = static_cast<std::size_t>(std::atoi(argv[3]));
+		auto start = std::chrono::steady_clock::now();
+		const ResultDataset grid = hexGrid(n, n, n);
+		std::printf("block %d^3: %zu cells, %zu nodes (built in %.2f s)\n", n, grid.cellCount(), grid.nodeCount(), secondsSince(start));
+		const double c = 0.5 * n;
+		const std::vector<float> spin = nodeVectors(grid, [c](double x, double y, double z, double* v) { v[0] = -(y - c); v[1] = x - c; v[2] = 0.05 * (z - c); });
+		start = std::chrono::steady_clock::now();
+		const CellLocator locator(grid);
+		std::printf("locator: %.3f s\n", secondsSince(start));
+		const std::vector<float> seeds = locator.randomPoints(seedCount, 1u);
+		start = std::chrono::steady_clock::now();
+		StreamlineSet lines;
+		traceStreamlines(grid, locator, spin, nullptr, seeds, StreamlineOptions(), lines);
+		std::printf("trace: %zu seeds -> %zu lines, %zu points in %.3f s\n", seedCount, lines.lineCount(), lines.pointCount(), secondsSince(start));
+		start = std::chrono::steady_clock::now();
+		const double point[3] = { c, c, c }, up[3] = { 0, 0, 1 };
+		SliceMesh cut;
+		cutVolume(grid, planeDistances(grid, point, up), nullptr, cut);
+		std::printf("plane cut: %zu triangles in %.3f s\n", cut.triangleCount(), secondsSince(start));
+		return 0;
+	}
+	// result_tests --bench <n> <steps>: times opening and showing a synthetic n x n x n hexahedron block; --time <file>...: the same for real files.
+	if (argc == 4 && std::strcmp(argv[1], "--bench") == 0)
+		return benchSynthetic(std::atoi(argv[2]), std::atoi(argv[3]));
+	// MV_LAZY_MB=<megabytes> sets the size above which a result is read lazily (0 = always) for --time and the inspect mode.
+	if (const char* lazyMb = std::getenv("MV_LAZY_MB"))
+		setResultLazyThresholdBytes(static_cast<std::size_t>(std::atoll(lazyMb)) << 20);
+	if (argc >= 3 && std::strcmp(argv[1], "--time") == 0)
+		return benchFiles(argc, argv);
+	if (argc > 1)
+		return inspectFiles(argc, argv);
+
+	// The real files come first: the CGNS library keeps a process-wide file type that the fixture writers of the CGNS tests leave on HDF5, after which
+	// an older ADF file no longer opens in THIS process (the application never writes CGNS files, and opens both kinds in any order).
+	testRealSamples();
+	testSingleTetAscii();
+	testEncodingsMatchAscii();
+	testInformationKeyChildren();
+	testSharedFaceIsInterior();
+	testHexes();
+	testWedgeAndPyramid();
+	testQuadraticCells();
+	testLegacyAsciiAndBinary();
+	testLegacyNewCellLayoutAndFieldData();
+	testLegacyPolyData();
+	testLegacyStructured();
+	testLegacyErrors();
+	testSimulationDisplay();
+	testViewState();
+	testDerivedStress();
+	testFrdSynthetic();
+	testFrdErrors();
+	testFrdRealFiles();
+	testUnitConversions();
+	testUnitGuessing();
+	testSetFieldUnits();
+	testUnitsAcrossFiles();
+	testTimeSteps();
+	testDeformation();
+	testProbe();
+	testExtrema();
+	testThermalTransient();
+	testSnapshotCodec();
+	testSnapshotRoundTrip();
+	testSnapshotCompression();
+	testSnapshotSteps();
+	testCellData();
+	testOpenFoamPolyhedral();
+	testOpenFoamErrors();
+	testOpenFoamSample();
+	testComparePanes();
+	testExodus();
+#if MV_HAVE_NETCDF
+	testExodusPolyhedra();
+#endif
+	testCgns();
+	testSnapshotWithoutSteps();
+	testFieldsStartingAfterStepZero();
+	testDerivedStressOnCells();
+	testValidateFieldShape();
+	testCgnsStepOrder();
+	testGlyphs();
+	testCellVectorDefault();
+	testCgnsComponentGroups();
+	testCgnsStructured();
+	testVtkHdf();
+	testMed();
+	testPolyhedra();
+	testLegacyPolyhedra();
+	testStructuralSamples();
+	testLineTubes();
+	testSlice();
+	testStreamlines();
+	testLazySteps();
+	testDeformedOverlays();
+	testSnapshotVolumeAndOverlays();
+	testLoadSimulationResult();
+	testShellAndSkippedCells();
+	testErrors();
+	testCancellation();
+	testLargeMeshPartitioning();
+
+	std::printf("%d checks, %d failed\n", g_checks, g_failures);
+	return g_failures;
+}

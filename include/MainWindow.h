@@ -36,6 +36,7 @@ class AnimationsPanel;
 class CamerasPanel;
 class SelectionSetsPanel;
 class SceneStatesPanel;
+class SimulationPanel;
 
 class MainWindow : public QMainWindow
 {
@@ -255,6 +256,11 @@ private:
 	CamerasPanel* _camerasPanel = nullptr;
 	SelectionSetsPanel* _selectionSetsPanel = nullptr;
 	SceneStatesPanel* _sceneStatesPanel = nullptr;
+	// Third tab of the bottom document-dock group (with Selections/States). Shared like the other panels; fed the
+	// active document's active simulation result through refreshSimulationPanel().
+	SimulationPanel* _simulationPanel = nullptr;
+	QMetaObject::Connection _simulationSessionConnection;
+	void refreshSimulationPanel(ModelViewer* viewer);
 	ModelViewer* _lastBoundModelViewer = nullptr;
 	// Guards rebindSharedPanelsTo(nullptr) against running its teardown body
 	// more than once per "went from having an active document to having

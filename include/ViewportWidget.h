@@ -21,12 +21,16 @@ class ToolsToolbar;
 #include "ViewportInteractionController.h"
 #include "Camera.h"
 #include "Material.h"
+#include "ComparePaneLayout.h"
 #include "MeshSurfaceAnchor.h"
 #include "MeasurementData.h"
 #include "MeasurementController.h"
 #include "AnnotationController.h"
 #include "SeamMarkingController.h"
 #include "FillHolesController.h"
+#include "SimulationGlyphController.h"
+#include "SimulationSliceController.h"
+#include "SimulationStreamlineController.h"
 #include "MvfMeshPreparationWorker.h"
 #include "PlaneRenderable.h"
 #include "PlaneGizmo.h"
@@ -1218,6 +1222,8 @@ public:
 
 signals:
     void viewStateChanged();
+	// A Clipping Plane was switched, moved or flipped (every change of the Clipping Planes editor ends in updateClippingPlane()).
+	void clippingPlanesChanged();
     void toolCommandRequested(const QString& command);
 	// Fired synchronously, on the two actual `delete meshRecord.mesh`/
 	// `delete entry.mesh` call sites (permanentlyDeleteFromBin(),
@@ -1482,6 +1488,63 @@ public slots:
 	// while the pointer sits still.
 	void clearSurfaceAnalysisHoverReadout();
 
+public:
+	// Text labels pinned to a vertex of a mesh (the simulation results' min/max markers): the label follows the
+	// mesh's current transformed vertex, and is hidden while that vertex faces away from the camera or the mesh
+	// is gone/hidden. Replaces the previous set; empty clears.
+	struct VertexMarker
+	{
+		QUuid meshUuid;
+		int vertex = -1;          // index into the mesh's vertices
+		QVector3D localNormal;    // the vertex normal in the mesh's own frame, to hide markers on the far side
+		QString text;
+		QColor color = Qt::white;
+	};
+	void setVertexMarkers(const QVector<VertexMarker>& markers);
+
+	// The vector-field arrows of a simulation result (see SimulationGlyphController.h): drawn on the result's mesh, in its
+	// pane in compare mode. An empty set clears them.
+	void setSimulationGlyphs(const QUuid& meshUuid, GlyphSet glyphs);
+	void clearSimulationGlyphs(const QUuid& meshUuid);
+
+	// Cut surfaces of a simulation result's volume (data-coloured sections, iso-surfaces): see SimulationSliceController.h. An empty list clears them.
+	void setSimulationSlices(const QUuid& meshUuid, std::vector<SliceDisplay> slices);
+	void clearSimulationSlices(const QUuid& meshUuid);
+	// Streamlines of a simulation result's vector field: see SimulationStreamlineController.h. An empty display clears them.
+	void setSimulationStreamlines(const QUuid& meshUuid, StreamlineDisplay lines);
+	void clearSimulationStreamlines(const QUuid& meshUuid);
+	// The bounds (min xyz, max xyz) of a simulation result shown deformed. The Clipping Plane gizmos are sized from the scene bounds, which do not follow a mesh
+	// that is deformed; these widen them so they still cover the deformed model. An empty list clears them.
+	void setSimulationGizmoBounds(const QUuid& meshUuid, const QVector<float>& bounds);
+	// What is displayed for a result now (empty when nothing), for saving it in a snapshot.
+	std::vector<SliceDisplay> simulationSlices(const QUuid& meshUuid) const;
+	StreamlineDisplay simulationStreamlines(const QUuid& meshUuid) const;
+	// Switches on and sets the axis-aligned Clipping Planes of `cuts` (through the Clipping Planes editor, so its controls follow), as a restored snapshot had them.
+	// Planes that are not in `cuts` are left as they are. `ClippingCut` is declared below.
+	// The axis-aligned Clipping Planes that are on (X = 0, Y = 1, Z = 2) at their world position; a simulation section follows them.
+	struct ClippingCut
+	{
+		int axis = 0;
+		double position = 0.0;
+		bool keepPositive = false; // the model is kept on the +axis side (a flipped plane), else on the -axis side
+	};
+	QVector<ClippingCut> clippingCuts() const;
+	void applyClippingCuts(const QVector<ClippingCut>& cuts);
+
+	// Compare mode (simulation results side by side, docs/simulation_compare_mode_design.md): the window is divided
+	// into one pane per mesh, each drawing ONLY its mesh with the shared camera - orbit, pan, zoom and fit act on all
+	// panes at once. Picking-based interactions (selection, hover highlight, the hover probe, plane gizmos) are off
+	// while it is active. `meshUuids` (2-4) are shown in reading order.
+	void setCompareResults(const QVector<QUuid>& meshUuids, CompareArrangement arrangement);
+	void clearCompare();
+	bool compareActive() const { return _compareActive; }
+	QVector<QUuid> compareMeshes() const { return _compareMeshes; }
+	// Every compared result has its own camera (orbit, pan and zoom act on the pane under the cursor). With `linked` on, a
+	// navigation drag or wheel turn moves all panes together instead.
+	void setCompareLinkCameras(bool linked) { _compareLinkCameras = linked; }
+	int comparePaneOfMesh(const QUuid& meshUuid) const;   // -1 when the mesh is not in a pane
+	QRect comparePaneRect(int paneIndex) const;           // widget coordinates; empty when there is no such pane
+
 private slots:
 	void centerDisplayList();
 	void setBackgroundColor();
@@ -1496,6 +1559,13 @@ protected:
 	void renderSingleView(QColor& topColor, QColor& botColor);
 
 	void renderMultiView(QColor& topColor, QColor& botColor);
+	void renderComparePanes(QColor& topColor, QColor& botColor);
+	// Fit-to-screen in compare mode. The fit maths sizes the picture for a viewport of this size - a pane's, so a
+	// model is fitted to its pane - and the range it returns is scaled by fitRangeCorrection() because the panes are
+	// drawn with the full-window projection (whose range maps to the window's shorter side, not the pane's). Outside
+	// compare mode: the window size and 1, i.e. the fit is exactly as it always was.
+	QSize fitViewportSize() const;
+	float fitRangeCorrection() const;
 	void applyOverlayPanelStyle(QWidget* wrapper, const QString& objectName);
 	void refreshNavigationOverlayStyle();
 
@@ -1753,6 +1823,7 @@ private:
 	// is currently open with its own "Show Readout on Hover" toggle checked.
 	void updateSurfaceAnalysisHoverReadout(const QPoint& pixel);
 	void drawSurfaceAnalysisHoverLabel();
+	void drawVertexMarkers();
 	void drawLights();
 
 	void bindIBLTextures();
@@ -2487,6 +2558,45 @@ private:
 	// mouse-hover numeric readout - set (or cleared to empty, which
 	// drawSurfaceAnalysisHoverLabel() treats as "nothing to draw") by
 	// updateSurfaceAnalysisHoverReadout() on plain mouse-move.
+	QVector<VertexMarker> _vertexMarkers;
+
+	// Compare mode state. While a pane is being drawn, `_paneMeshFilter` restricts isMeshVisible() to that pane's mesh.
+	bool _compareActive = false;
+	QVector<QUuid> _compareMeshes;
+	CompareArrangement _compareArrangement = CompareArrangement::SideBySide;
+	std::vector<ComparePane> _comparePanes;
+	// ---- Compare mode: one camera per pane. A pane's camera looks at its result's centre with the shared camera's orientation
+	// turned by `rotation` (in view space, about that centre) and the shared view range divided by `zoom`; `offset` moves the
+	// look-at point (view-frame world units), which is how a pane is panned. The shared camera itself then only supplies the
+	// starting orientation (the view buttons and Fit reset every pane to it).
+	struct ComparePaneView
+	{
+		QQuaternion rotation;
+		float zoom = 0.0f;       // 0 = not fitted yet: fitted to the pane on the next frame
+		QPointF offset;          // look-at point relative to the result's centre along the pane's right / up axes
+		float pixelsPerUnit = 1.0f; // window pixels per world unit at zoom 1 (measured each frame, used by navigation)
+		QSize fittedPaneSize;    // the pane size the zoom was fitted for
+	};
+	std::vector<ComparePaneView> _comparePaneViews;
+	std::vector<Camera> _comparePaneCameras; // the camera each pane was drawn with (last frame)
+	bool _compareLinkCameras = false;
+	struct PaneNavigation
+	{
+		enum class Mode { None, Rotate, Pan, Zoom };
+		Mode mode = Mode::None;
+		int pane = -1;
+		QPoint last;
+	};
+	PaneNavigation _paneNav;
+	void updateComparePaneViews();
+	void resetComparePaneViews();
+	std::vector<QVector3D> sampleMeshPoints(const SceneMesh* mesh) const;
+	bool comparePaneNavPress(QMouseEvent* e);
+	bool comparePaneNavMove(QMouseEvent* e);
+	bool comparePaneNavRelease(QMouseEvent* e);
+	bool comparePaneNavWheel(QWheelEvent* e);
+	void navigateComparePane(int pane, PaneNavigation::Mode mode, const QPointF& delta, const QPointF& anchorInPane, double wheelFactor);
+	const QSet<QUuid>* _paneMeshFilter = nullptr;
 	QString _surfaceAnalysisHoverText;
 	QPoint _surfaceAnalysisHoverPixel;
 	QColor _surfaceAnalysisHoverTextColor = Qt::white;
@@ -2533,6 +2643,15 @@ private:
 	// IGpuContextResource-for-pointer-re-resolution-only reasoning as
 	// _measurementController/_annotationController/_seamMarkingController above.
 	FillHolesController* _fillHolesController = nullptr;
+	SimulationGlyphController* _simulationGlyphController = nullptr;
+	void drawSimulationGlyphs(Camera* camera);
+	SimulationSliceController* _simulationSliceController = nullptr;
+	QHash<QUuid, QVector<float>> _simulationGizmoBounds;
+	void drawSimulationSlices(Camera* camera);
+	SimulationStreamlineController* _simulationStreamlineController = nullptr;
+	void drawSimulationStreamlines(Camera* camera);
+	// Iso-surfaces or streamlines of a result that is shown: the section cap would hide them, so it is not drawn.
+	bool simulationOverlaysHideCaps() const;
 
 	CubeRenderable* _lightCube;
 	SphereRenderable* _lightSphere;

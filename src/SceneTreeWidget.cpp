@@ -5,6 +5,7 @@
 #include "RenderableMesh.h"
 
 #include <QApplication>
+#include <QCoreApplication>
 #include <QContextMenuEvent>
 #include <QElapsedTimer>
 #include <QHeaderView>
@@ -1338,6 +1339,24 @@ void SceneTreeWidget::mouseReleaseEvent(QMouseEvent* event)
 
 void SceneTreeWidget::wheelEvent(QWheelEvent* event)
 {
+    // Ctrl + wheel over the tree body scrolls the tree. A plain wheel is ignored on purpose (it propagates to the
+    // viewport behind this overlay and zooms the 3D view - see the header comment), so scrolling the tree needs
+    // its own gesture.
+    if (event->modifiers() & Qt::ControlModifier)
+    {
+        // Hand a copy WITHOUT the Ctrl modifier to the scrollbar: QAbstractSlider turns Ctrl (and Shift) into
+        // "scroll one whole PAGE per notch", far too coarse for a tree. Delivering it through sendEvent() also
+        // runs this class's scrollbar eventFilter(), which swallows the event even at the top/bottom limit so
+        // it can never leak on to the viewport as a zoom.
+        const QPoint delta = event->angleDelta();
+        QScrollBar* bar = (delta.y() != 0 || delta.x() == 0) ? verticalScrollBar() : horizontalScrollBar();
+        QWheelEvent plain(event->position(), event->globalPosition(), event->pixelDelta(), event->angleDelta(),
+                          event->buttons(), event->modifiers() & ~Qt::ControlModifier, event->phase(),
+                          event->inverted(), event->source());
+        QCoreApplication::sendEvent(bar, &plain);
+        event->accept();
+        return;
+    }
     event->ignore();
 }
 
