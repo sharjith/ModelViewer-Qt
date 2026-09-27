@@ -58,8 +58,9 @@ above since nothing in the gallery singles it out as commonly needed).
 
 **A plot's content is scene content in an ordinary ModelViewer document - NOT a new document type or a new top-level
 concept.** The same way a simulation result or an imported CAD file becomes scene nodes in whatever document is open,
-"Add 3D Plot..." (a new menu action, `on_action...` alongside `on_actionNew_triggered()`/`openSimulationResult()`-style
-entry points) builds one or more scene nodes from the plot data and adds them to the active document. This is a real
+"Add 3D Plot..." (a new action in the Visualization menu, `on_action...` alongside `on_actionNew_triggered()`/
+`openSimulationResult()`-style entry points - see section 4) builds one or more scene nodes from the plot data and
+adds them to the active document. This is a real
 simplification versus treating a plot as its own document type - reuses the entire existing save/undo/scene-tree/
 material infrastructure for free, and matches the precedent both CAD import and simulation results already set.
 
@@ -96,8 +97,10 @@ Existing renderers, reused per table in section 2, PLUS one new Plot3DAxisContro
   check `TextRenderer`/`AxisTextRenderer` before writing a new one).
 - `include/Plot3D/UI/Plot3DPanel.h` + `.cpp` - mirrors `SimulationPanel`'s shape: primitive-type choice, data-source
   choice (import/paste/function), axis options, per-primitive styling (colour ramp, wireframe on/off, etc.).
-- A "Add 3D Plot..." menu entry + `ModelViewer` methods, mirroring `openSimulationResult()`'s shape but building scene
-  nodes directly rather than a `SimulationSession`.
+- An "Add 3D Plot..." action in the existing **Visualization** menu (`ui/App/MainWindow.ui`'s `menuVisualization` -
+  currently Ray Tracing, Texture Debugger; decided 2026-09-27 over a new top-level menu, since Simulation's own menu
+  was reserved for that one distinct capability) + `ModelViewer` methods, mirroring `openSimulationResult()`'s shape
+  but building scene nodes directly rather than a `SimulationSession`.
 
 ## 5. Reuse checklist (the main point of this design - most of the hard parts already exist)
 
