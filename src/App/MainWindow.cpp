@@ -60,6 +60,7 @@
 #include "MaterialPropertiesPanel.h"
 #include "ObjectTransformPanel.h"
 #include "VisualizationEnvironmentPanel.h"
+#include "Plot3DPanel.h"
 #include "MaterialPreviewWidget.h"
 #include "MaterialVariantsPanel.h"
 #include "AnimationsPanel.h"
@@ -810,6 +811,21 @@ MainWindow::MainWindow(QWidget* parent)
 		RtRenderDialog* dialog = new RtRenderDialog(child, child);
 		dialog->setAttribute(Qt::WA_DeleteOnClose);
 		dialog->show();
+		});
+
+	connect(ui->actionAdd3DPlot, &QAction::triggered, this, [this]() {
+		ModelViewer* child = activeMdiChild();
+		if (!child)
+			return;
+		if (Plot3DPanel* existing = child->findChild<Plot3DPanel*>(QString(), Qt::FindDirectChildrenOnly))
+		{
+			existing->show();
+			existing->raise();
+			existing->activateWindow();
+			return;
+		}
+		auto* panel = new Plot3DPanel(child, child);
+		panel->show();
 		});
 
 	// Tools → Measure... - opens the non-modal Measurement dialog (combo box
@@ -2575,6 +2591,7 @@ void MainWindow::updateMenus()
 	// permanent, non-debug entry; only the Texture Debugger action (and
 	// its separator) stay gated behind the Settings debug flag.
 	ui->actionRayTracing->setEnabled(hasMdiChild);
+	ui->actionAdd3DPlot->setEnabled(hasMdiChild);
 	ui->actionMeasure->setEnabled(hasMdiChild);
 	// Also requires at least one mesh loaded (short-circuits before
 	// dereferencing activeMdiChild() when hasMdiChild is false) - both

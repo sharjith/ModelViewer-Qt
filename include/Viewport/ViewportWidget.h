@@ -4,6 +4,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <QVariantMap>
 class ToolsToolbar;
@@ -33,6 +34,7 @@ class ToolsToolbar;
 #include "SimulationVolumeController.h"
 #include "SimulationSliceController.h"
 #include "SimulationStreamlineController.h"
+#include "Plot3DAxisController.h"
 #include "MvfMeshPreparationWorker.h"
 #include "PlaneRenderable.h"
 #include "PlaneGizmo.h"
@@ -1548,6 +1550,14 @@ public:
 	// The bounds (min xyz, max xyz) of a simulation result shown deformed. The Clipping Plane gizmos are sized from the scene bounds, which do not follow a mesh
 	// that is deformed; these widen them so they still cover the deformed model. An empty list clears them.
 	void setSimulationGizmoBounds(const QUuid& meshUuid, const QVector<float>& bounds);
+
+	// The 3D Plot (Plot3D module) axis box overlay: a labelled axis box with tick marks and optional reference
+	// planes, built by Plot3DAxisController::buildLayout() from a plot's own axis config and data bounds - NOT tied
+	// to any mesh (a plot may have no scene mesh yet while its data source is only being previewed). Only one
+	// layout is shown at a time; clearing it (or destroying the panel/plot that set it) removes the overlay.
+	void setPlot3DAxisLayout(const Plot3DAxisLayout& layout);
+	void clearPlot3DAxisLayout();
+
 	// What is displayed for a result now (empty when nothing), for saving it in a snapshot.
 	std::vector<SliceDisplay> simulationSlices(const QUuid& meshUuid) const;
 	StreamlineDisplay simulationStreamlines(const QUuid& meshUuid) const;
@@ -1786,6 +1796,11 @@ private:
 	void drawFaceNormals();
 	void drawBoundingBoxOverlay();
 	void drawDebugOverlay(Camera* camera);
+	// The 3D Plot axis box/ticks/reference-planes overlay (Plot3D module) - a
+	// screen-space-labelled line overlay in the same style as
+	// drawBoundingBoxOverlay(), driven by whatever layout setPlot3DAxisLayout()
+	// last handed it rather than scene bounds. No-op when no layout is set.
+	void drawPlot3DAxisOverlay(Camera* camera);
 	void drawAxis(Camera* camera, const QMatrix4x4* overrideViewMatrix = nullptr);
 	void drawCornerAxis(CornerAxisPosition position, const QMatrix4x4* overrideRotationMatrix = nullptr);
 	void drawTransformGizmo(Camera* camera);
@@ -2063,6 +2078,7 @@ private:
 	// _floorTexRepeatS/T â†’ SceneRenderController (Phase 12)
 	TextRenderer* _textRenderer;
 	TextRenderer* _axisTextRenderer;
+	std::optional<Plot3DAxisLayout> _plot3DAxisLayout;
 	QString _labelTop, _labelFront, _labelLeft, _labelIsometric, _labelDimetric, _labelTrimetric;
 	QString _labelAxisX, _labelAxisY, _labelAxisZ;
 	QString _modelName;

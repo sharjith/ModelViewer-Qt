@@ -53,3 +53,16 @@ set_target_properties(result_tests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUI
 
 enable_testing()
 add_test(NAME result_tests COMMAND result_tests)
+
+# General-purpose 3-D plotting is deliberately independent of Simulation/ResultDataset. Keep its core parser/model
+# in a small target so regressions are quick to run and cannot acquire an accidental GUI dependency.
+add_executable(plot3d_tests
+    plot3d_tests.cpp
+    ${CMAKE_SOURCE_DIR}/src/Plot3D/Core/Plot3DData.cpp
+    ${CMAKE_SOURCE_DIR}/src/Plot3D/Core/Plot3DMeshBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/Plot3D/UI/Plot3DAxisController.cpp
+)
+target_include_directories(plot3d_tests PRIVATE ${CMAKE_SOURCE_DIR}/include/Plot3D/Core ${CMAKE_SOURCE_DIR}/include/Plot3D/UI)
+target_link_libraries(plot3d_tests PRIVATE Qt6::Core Qt6::Gui)
+set_target_properties(plot3d_tests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+add_test(NAME plot3d_tests COMMAND plot3d_tests)

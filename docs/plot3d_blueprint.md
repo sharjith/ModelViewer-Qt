@@ -1,6 +1,7 @@
 # General-Purpose 3D Data Plotting - Implementation Blueprint
 
-Status: **PROPOSAL for implementation** (2026-09-27). Nothing built yet. Branch: `feature/3d-data-plotting` (off `dev`, a
+Status: **IN PROGRESS** (2026-09-27). Phase 1's source decision and Phase 2's Core data/CSV layer are complete on
+`feature/3d-data-plotting` (off `dev`, a
 NEW branch - this is deliberately NOT simulation-results work, see [[project_general_3d_data_plotting_idea]]: no
 `ResultDataset`, no steps, no probe - it plots arbitrary data, not a solver result). Companion: matplotlib's `mplot3d`
 gallery (https://matplotlib.org/stable/gallery/mplot3d/index.html), whose ~47 examples this blueprint deliberately does
@@ -19,10 +20,9 @@ this idea was first raised.
   content lives in one ModelViewer document, the same way one simulation result or one imported CAD file does. Multiple
   plots side by side, if ever wanted, is a compare-mode-style feature to consider much later, not v1.
 - Function entry (`Z = f(X,Y)`) needs an expression evaluator; **none exists in this codebase today** (checked: no
-  parser/evaluator class anywhere). Decide at the start of implementation whether to (a) vendor a small header-only
-  expression library (e.g. exprtk, muparser - check licence compatibility first) or (b) ship v1 with CSV/typed-point
-  import only and defer function entry to a follow-up. Do not build a hand-rolled parser without raising this choice
-  first - it is a real scope decision, not a detail.
+  parser/evaluator class anywhere). Decision for v1: ship CSV-file and pasted tabular input only, and defer function
+  entry to a follow-up. Do not build a hand-rolled parser; a future function-entry phase must first select and licence-
+  review a suitable evaluator.
 
 ## 2. The 8 primitives + 3 axis features (deduplicating matplotlib's ~47 examples)
 
@@ -65,7 +65,7 @@ simplification versus treating a plot as its own document type - reuses the enti
 material infrastructure for free, and matches the precedent both CAD import and simulation results already set.
 
 ```
-Data source (CSV file / typed points / function-on-a-grid, once an evaluator choice is made - section 1)
+Data source (CSV file / pasted tabular points; function-on-a-grid is deferred - section 1)
         |
         v
 Plot3DDataset (GUI-free, Core) - one struct per primitive kind (SurfaceData, LineData, ScatterData, BarData, VoxelData,
@@ -97,10 +97,11 @@ Existing renderers, reused per table in section 2, PLUS one new Plot3DAxisContro
   check `TextRenderer`/`AxisTextRenderer` before writing a new one).
 - `include/Plot3D/UI/Plot3DPanel.h` + `.cpp` - mirrors `SimulationPanel`'s shape: primitive-type choice, data-source
   choice (import/paste/function), axis options, per-primitive styling (colour ramp, wireframe on/off, etc.).
-- An "Add 3D Plot..." action in the existing **Visualization** menu (`ui/App/MainWindow.ui`'s `menuVisualization` -
-  currently Ray Tracing, Texture Debugger; decided 2026-09-27 over a new top-level menu, since Simulation's own menu
-  was reserved for that one distinct capability) + `ModelViewer` methods, mirroring `openSimulationResult()`'s shape
-  but building scene nodes directly rather than a `SimulationSession`.
+- An "Add 3D Plot..." action in the existing **Visualization** menu (`ui/App/MainWindow.ui`'s `menuVisualization`),
+  immediately after Ray Tracing and before the existing debug-only separator/Texture Debugger entry. This menu was
+  chosen on 2026-09-27 over a new top-level menu, since Simulation's own menu was reserved for that one distinct
+  capability. Add `ModelViewer` methods mirroring `openSimulationResult()`'s shape, but build scene nodes directly
+  rather than a `SimulationSession`.
 
 ## 5. Reuse checklist (the main point of this design - most of the hard parts already exist)
 
@@ -120,21 +121,48 @@ Existing renderers, reused per table in section 2, PLUS one new Plot3DAxisContro
   session concept (see section 3).
 
 **What is genuinely new, not a reuse:** the CSV/data-import parsing itself, the per-primitive `Plot3DData` structs,
-the axis box + tick/label rendering (`Plot3DAxisController`), the panel, and (pending section 1's decision) a function
-evaluator.
+the axis box + tick/label rendering (`Plot3DAxisController`) and the panel. A function evaluator is deferred beyond v1.
 
 ## 6. Suggested implementation order (one phase per commit, build+test between each - the same mechanics that worked
 for both the folder restructuring and the simulation charts/volume-rendering work)
 
-1. Resolve section 1's expression-evaluator decision (or explicitly defer function entry, ship CSV/typed-point import
-   only for v1) before writing any other code - it affects the `Plot3DData` import surface.
-2. `Plot3D/Core/Plot3DData.h/.cpp` (data structs + CSV import) + tests. No GL yet.
-3. `Plot3DAxisController` (the one new GL piece) - verify visually with a hardcoded test range before wiring real
-   data, the same way the volume blueprint suggested for its ray-march shader.
-4. Surface + Wireframe (they share a mesh builder, differing only in a render-mode flag) - the highest-value, most
-   demanded primitive, and the one that exercises the axis controller end-to-end first.
+1. **Complete:** defer function entry and ship CSV/pasted-tabular import for v1.
+2. **Complete:** `Plot3D/Core/Plot3DData.h/.cpp` (data structs + CSV import) + tests. No GL yet.
+3. **Complete (2026-09-27):** `Plot3DAxisController`'s layout math (tick generation, log/symlog transforms, the axis
+   box + reference-plane layout - tested in `testAxes()`), PLUS its actual GL rendering: `ViewportWidget::
+   drawPlot3DAxisOverlay()` (a `SceneRenderController`-owned line-overlay VAO/VBO, same pattern as
+   `drawBoundingBoxOverlay()`, drawing `axisLines`/`tickLines`/`referencePlanes` and projected screen-space tick/
+   axis labels via the existing `_axisTextRenderer`), driven by `setPlot3DAxisLayout()`/`clearPlot3DAxisLayout()`.
+   `Plot3DPanel` gained a "Preview Axis Box" button that builds a hardcoded fixed-range layout and pushes it to the
+   viewport - exactly the "verify visually with a hardcoded test range before wiring real data" step this line used
+   to call for. Reference planes are drawn as an outline for now (no fill/blend yet - a filled, translucent quad can
+   follow once a primitive actually needs the visual weight). **Awaiting the user's own build+visual check before
+   this is called done** - not yet exercised against a real plot dataset since none of primitives 4-9 exist yet.
+4. **Complete, awaiting the user's build+visual check (2026-09-27):** Surface + Wireframe. `Plot3D/Core/
+   Plot3DMeshBuilder.h/.cpp` builds a triangulated mesh from Surface data - v1 requires a COMPLETE regular X/Y grid
+   (nx*ny samples forming a full rectangle, any row order); scattered/unstructured Surface data needing a Delaunay
+   triangulation is reported as an error rather than guessed at, and can be added later without changing this
+   builder's contract. `Plot3DPanel` gained a primitive combo + X/Y/Z/colour-value column-mapping combos and a
+   "Build Plot" button: it parses the CSV, builds the mesh, adds it as an ordinary `SceneMesh`/`SceneNode` to the
+   active document (the same direct-insertion pattern `ModelViewer::presentSimulationResult()` uses, no undo command -
+   matches the precedent section 3 cites), colours it by value via `setAnalysisOverlayColors()` (same mechanism a
+   simulation result's field colouring uses), and points the axis-box overlay at the plot's own data bounds instead
+   of the fixed preview range. Wireframe needed NO new code at all - it is the existing per-mesh wireframe display
+   mode applied to this same mesh, exactly as this table row always said it would be.
 5. Contour (reusing `ResultSlice`) once Surface exists to contour.
-6. Scatter/Stem and Line/Curve (both simple, independent of Surface).
+6. **Complete, awaiting the user's build+visual check (2026-09-28):** Scatter/Stem and Line/Curve. A first version
+   built these as SOLID tube/octahedron geometry (reusing Surface's `SceneMesh`/`setAnalysisOverlayColors()` path
+   directly) - the user tried it and found the size both too large AND, more fundamentally, wrong in kind: real 3D
+   geometry inevitably looks bigger on screen as the camera zooms in, whereas matplotlib's own scatter/line markers
+   are flat, constant-pixel-size regardless of 3D zoom. Rebuilt on the user's own suggested reuse: "Use Line and
+   Point primitives instead, like they are read from glTF currently" - `Plot3DMeshBuilder`'s Line/Scatter builders
+   are now just flat, unindexed vertex lists, and `Plot3DPanel::buildPlot()` constructs the `SceneMesh` with
+   `GL_LINE_STRIP`/`GL_POINTS` as its primitive mode - the exact same native-primitive path `SceneMesh::draw()`
+   already uses for glTF point-cloud/line-set import, which draws at a fixed PIXEL size via `glPointSize()`/
+   `glLineWidth()` rather than real 3D geometry, so it is inherently zoom-invariant with no new rendering code at
+   all. Stem (a Scatter option: a line down to a base plane) is not yet wired into `Plot3DPanel` - it needs a
+   "base Z" UI control this increment didn't add. `Plot3DPanel::buildPlot()` now dispatches on the chosen primitive
+   to the right builder; Bar/Voxel/Quiver are still reported as "not implemented yet".
 7. Quiver (reusing `SimulationGlyphController` directly - should be the fastest of all, given zero new rendering code).
 8. Bar/histogram.
 9. Voxel/volumetric (reusing `SimulationVolumeController` directly).

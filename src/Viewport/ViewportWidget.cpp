@@ -9609,6 +9609,87 @@ void ViewportWidget::drawBoundingBoxOverlay()
     }
 }
 
+void ViewportWidget::setPlot3DAxisLayout(const Plot3DAxisLayout& layout)
+{
+    _plot3DAxisLayout = layout;
+    update();
+}
+
+void ViewportWidget::clearPlot3DAxisLayout()
+{
+    if (!_plot3DAxisLayout.has_value())
+        return;
+    _plot3DAxisLayout.reset();
+    update();
+}
+
+void ViewportWidget::drawPlot3DAxisOverlay(Camera* camera)
+{
+    if (!camera || !_plot3DAxisLayout.has_value() || !_renderCtrl.axisShader())
+        return;
+
+    const Plot3DAxisLayout& layout = *_plot3DAxisLayout;
+    const QVector3D axisColor(0.85f, 0.85f, 0.85f);
+    const QVector3D tickColor(0.6f, 0.6f, 0.6f);
+
+    std::vector<float> vertices;
+    vertices.reserve((layout.axisLines.size() + layout.tickLines.size()) * 12);
+    auto appendSegment = [&vertices](const Plot3DLineSegment& segment, const QVector3D& color) {
+        vertices.insert(vertices.end(), { segment.first.x(), segment.first.y(), segment.first.z(), color.x(), color.y(), color.z() });
+        vertices.insert(vertices.end(), { segment.second.x(), segment.second.y(), segment.second.z(), color.x(), color.y(), color.z() });
+        };
+    for (const Plot3DLineSegment& segment : layout.axisLines)
+        appendSegment(segment, axisColor);
+    for (const Plot3DLineSegment& segment : layout.tickLines)
+        appendSegment(segment, tickColor);
+    // Reference planes are drawn as a faint quad outline rather than a filled, blended quad for this first pass -
+    // matplotlib's own default look is a light grey fill, but an outline needs no new blend state/shader and is
+    // already enough to read as "the floor plane" against the axis box. A filled version can follow later.
+    const QVector3D planeColor(0.4f, 0.4f, 0.4f);
+    for (const Plot3DReferencePlane& plane : layout.referencePlanes)
+    {
+        for (int i = 0; i < 4; ++i)
+            appendSegment(Plot3DLineSegment{ plane.corners[i], plane.corners[(i + 1) % 4] }, planeColor);
+    }
+
+    if (!vertices.empty())
+    {
+        _renderCtrl.initPlot3DAxisOverlayGeometry(vertices);
+        glBindVertexArray(_renderCtrl.plot3DAxisOverlayVAO());
+        glBindBuffer(GL_ARRAY_BUFFER, _renderCtrl.plot3DAxisOverlayVBO());
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(0));
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(3 * sizeof(float)));
+
+        _renderCtrl.axisShader()->bind();
+        _renderCtrl.axisShader()->setUniformValue("modelViewMatrix", _viewCtrl.viewMatrix());
+        _renderCtrl.axisShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
+        _renderCtrl.axisShader()->setUniformValue("renderCone", false);
+        glLineWidth(1.5f);
+        glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(vertices.size() / 6));
+        glLineWidth(1.0f);
+        _renderCtrl.axisShader()->release();
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
+
+    // Tick and axis-name labels, screen-space via the same projected-text technique drawBoundingBoxOverlay() uses.
+    if (_axisTextRenderer)
+    {
+        const QRect viewportRect(0, 0, width(), height());
+        for (const Plot3DAxisLabel& label : layout.labels)
+        {
+            const QVector3D projected = label.position.project(
+                _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(), viewportRect);
+            const float y = static_cast<float>(height()) - projected.y();
+            _axisTextRenderer->RenderText(label.text.toStdString(), projected.x(), y, 1,
+                QVector3D(0.9f, 0.9f, 0.9f), TextRenderer::VAlignment::VBOTTOM, TextRenderer::HAlignment::HCENTER);
+        }
+    }
+}
+
 void ViewportWidget::drawDebugOverlay(Camera* camera)
 {
     if (!camera || !_renderCtrl.debugOverlayEnabled())
@@ -11678,6 +11759,7 @@ void ViewportWidget::render(Camera* camera)
 
 	// --- 5) Overlays ---
     drawDebugOverlay(camera);
+    drawPlot3DAxisOverlay(camera);
 	// Single-view mode draws this AFTER the ray-traced overlay instead (see
 	// paintGL()'s post-overlay block) so it isn't wiped out by PT's force-
 	// opaque composite - drawing it here too would just double-draw it

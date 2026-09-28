@@ -213,6 +213,7 @@
      <string>Visualization</string>
     </property>
     <addaction name="actionRayTracing"/>
+    <addaction name="actionAdd3DPlot"/>
     <addaction name="actionVisualizationSeparator"/>
     <addaction name="actionTextureDebugger"/>
    </widget>
@@ -766,6 +767,14 @@
    </property>
    <property name="statusTip">
     <string>Open ray tracing settings and start a render</string>
+   </property>
+  </action>
+  <action name="actionAdd3DPlot">
+   <property name="text">
+    <string>Add 3D Plot...</string>
+   </property>
+   <property name="statusTip">
+    <string>Import or paste tabular data for a 3D plot</string>
    </property>
   </action>
   <action name="actionMeasure">

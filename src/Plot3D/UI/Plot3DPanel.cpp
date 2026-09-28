@@ -1,0 +1,410 @@
+#include "Plot3DPanel.h"
+
+#include "Plot3DData.h"
+#include "Plot3DAxisController.h"
+#include "Plot3DMeshBuilder.h"
+#include "AnalysisColorRamp.h"
+#include "Material.h"
+#include "MeshVertex.h"
+#include "ModelViewer.h"
+#include "PathUtils.h"
+#include "SceneGraph.h"
+#include "SceneMesh.h"
+#include "ViewportWidget.h"
+
+#include <QUuid>
+
+#include <QApplication>
+#include <QCheckBox>
+#include <QClipboard>
+#include <QCloseEvent>
+#include <QComboBox>
+#include <QDialogButtonBox>
+#include <QFile>
+#include <QFileDialog>
+#include <QFormLayout>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QMessageBox>
+#include <QPlainTextEdit>
+#include <QPushButton>
+#include <QTableWidget>
+#include <QVBoxLayout>
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include <variant>
+
+Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
+	: QDialog(parent)
+	, _modelViewer(modelViewer)
+{
+	setAttribute(Qt::WA_DeleteOnClose);
+	setWindowTitle(tr("Add 3D Plot"));
+	resize(760, 560);
+
+	auto* layout = new QVBoxLayout(this);
+	auto* sourceButtons = new QHBoxLayout();
+	auto* openButton = new QPushButton(tr("Open CSV..."), this);
+	auto* pasteButton = new QPushButton(tr("Paste"), this);
+	auto* parseButton = new QPushButton(tr("Refresh Preview"), this);
+	sourceButtons->addWidget(openButton);
+	sourceButtons->addWidget(pasteButton);
+	sourceButtons->addStretch();
+	sourceButtons->addWidget(parseButton);
+	layout->addLayout(sourceButtons);
+
+	auto* options = new QFormLayout();
+	_delimiter = new QComboBox(this);
+	_delimiter->addItem(tr("Comma"), QStringLiteral(","));
+	_delimiter->addItem(tr("Semicolon"), QStringLiteral(";"));
+	_delimiter->addItem(tr("Tab"), QStringLiteral("\t"));
+	_header = new QCheckBox(tr("First row contains column names"), this);
+	_header->setChecked(true);
+	options->addRow(tr("Delimiter:"), _delimiter);
+	options->addRow(QString(), _header);
+	layout->addLayout(options);
+
+	_source = new QPlainTextEdit(this);
+	_source->setPlaceholderText(tr("Paste comma-separated X, Y, Z data here, or open a CSV file."));
+	_source->setMinimumHeight(120);
+	layout->addWidget(_source);
+
+	_preview = new QTableWidget(this);
+	_preview->setEditTriggers(QAbstractItemView::NoEditTriggers);
+	_preview->setSelectionBehavior(QAbstractItemView::SelectRows);
+	_preview->setAlternatingRowColors(true);
+	layout->addWidget(_preview, 1);
+
+	_status = new QLabel(tr("Open or paste tabular data to preview it."), this);
+	_status->setWordWrap(true);
+	layout->addWidget(_status);
+
+	// Primitive + column mapping. Only Surface actually builds anything yet (see buildPlot()) - the others are
+	// listed so the mapping UI's shape doesn't need to change as docs/plot3d_blueprint.md's remaining phases land.
+	auto* mapping = new QFormLayout();
+	_primitive = new QComboBox(this);
+	_primitive->addItem(tr("Surface"), QVariant::fromValue(static_cast<int>(Plot3DPrimitive::Surface)));
+	_primitive->addItem(tr("Line / Curve"), QVariant::fromValue(static_cast<int>(Plot3DPrimitive::Line)));
+	_primitive->addItem(tr("Scatter"), QVariant::fromValue(static_cast<int>(Plot3DPrimitive::Scatter)));
+	_primitive->addItem(tr("Bar / Histogram"), QVariant::fromValue(static_cast<int>(Plot3DPrimitive::Bar)));
+	_primitive->addItem(tr("Voxel / Volumetric"), QVariant::fromValue(static_cast<int>(Plot3DPrimitive::Voxel)));
+	_primitive->addItem(tr("Quiver (vector field)"), QVariant::fromValue(static_cast<int>(Plot3DPrimitive::Quiver)));
+	mapping->addRow(tr("Primitive:"), _primitive);
+
+	auto* columnsRow = new QHBoxLayout();
+	_columnX = new QComboBox(this);
+	_columnY = new QComboBox(this);
+	_columnZ = new QComboBox(this);
+	_columnValue = new QComboBox(this);
+	for (QComboBox* combo : { _columnX, _columnY, _columnZ, _columnValue })
+		combo->setMinimumWidth(90);
+	columnsRow->addWidget(new QLabel(tr("X:"), this)); columnsRow->addWidget(_columnX);
+	columnsRow->addWidget(new QLabel(tr("Y:"), this)); columnsRow->addWidget(_columnY);
+	columnsRow->addWidget(new QLabel(tr("Z:"), this)); columnsRow->addWidget(_columnZ);
+	columnsRow->addWidget(new QLabel(tr("Colour value:"), this)); columnsRow->addWidget(_columnValue);
+	columnsRow->addStretch();
+	mapping->addRow(tr("Columns:"), columnsRow);
+	layout->addLayout(mapping);
+
+	auto* previewRow = new QHBoxLayout();
+	_previewAxisButton = new QPushButton(tr("Preview Axis Box"), this);
+	_previewAxisButton->setToolTip(tr("Shows a labelled 3D axis box in the viewport with a fixed test range - lets\n"
+		"you check the axis rendering itself before any plot primitive exists."));
+	_previewAxisButton->setEnabled(_modelViewer && _modelViewer->getViewportWidget());
+	_buildButton = new QPushButton(tr("Build Plot"), this);
+	_buildButton->setEnabled(false); // enabled once refreshPreview() has a non-empty table
+	previewRow->addWidget(_previewAxisButton);
+	previewRow->addWidget(_buildButton);
+	previewRow->addStretch();
+	auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
+	previewRow->addWidget(buttons);
+	layout->addLayout(previewRow);
+
+	connect(openButton, &QPushButton::clicked, this, &Plot3DPanel::loadCsvFile);
+	connect(pasteButton, &QPushButton::clicked, this, &Plot3DPanel::pasteData);
+	connect(parseButton, &QPushButton::clicked, this, &Plot3DPanel::refreshPreview);
+	connect(_delimiter, &QComboBox::currentIndexChanged, this, &Plot3DPanel::refreshPreview);
+	connect(_header, &QCheckBox::toggled, this, &Plot3DPanel::refreshPreview);
+	connect(_previewAxisButton, &QPushButton::clicked, this, &Plot3DPanel::previewAxisBox);
+	connect(_buildButton, &QPushButton::clicked, this, &Plot3DPanel::buildPlot);
+	connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::close);
+
+	refreshColumnCombos(); // seeds the column combos with their placeholder/default state before any data is loaded
+}
+
+void Plot3DPanel::previewAxisBox()
+{
+	if (!_modelViewer || !_modelViewer->getViewportWidget())
+		return;
+
+	std::array<Plot3DAxisConfig, 3> axes{
+		Plot3DAxisConfig{ QStringLiteral("X") },
+		Plot3DAxisConfig{ QStringLiteral("Y") },
+		Plot3DAxisConfig{ QStringLiteral("Z") }
+	};
+	const double lo[3] = { -5.0, -5.0, -2.0 };
+	const double hi[3] = { 5.0, 5.0, 2.0 };
+
+	Plot3DAxisController controller;
+	Plot3DAxisLayout layoutResult;
+	QString error;
+	if (!controller.buildLayout(axes, lo, hi, layoutResult, &error))
+	{
+		QMessageBox::warning(this, tr("Preview Axis Box"), error);
+		return;
+	}
+	_modelViewer->getViewportWidget()->setPlot3DAxisLayout(layoutResult);
+}
+
+void Plot3DPanel::closeEvent(QCloseEvent* event)
+{
+	if (_modelViewer && _modelViewer->getViewportWidget())
+		_modelViewer->getViewportWidget()->clearPlot3DAxisLayout();
+	QDialog::closeEvent(event);
+}
+
+void Plot3DPanel::loadCsvFile()
+{
+	// Defaults to the bundled sample data the same way the main Open dialog defaults to sample-models
+	// (MainWindow::on_actionOpen_triggered()) - a convenience for trying the feature, not a remembered
+	// "last used" directory (Plot3D data is typically a one-off CSV from wherever the user's data lives).
+	const QString sampleDir = PathUtils::getDataDirectory() + QStringLiteral("/sample-models/Plot3D");
+	const QString path = QFileDialog::getOpenFileName(this, tr("Open 3D Plot Data"), sampleDir,
+		tr("Delimited text (*.csv *.tsv *.txt);;All files (*.*)"));
+	if (path.isEmpty())
+		return;
+	QFile file(path);
+	if (!file.open(QIODevice::ReadOnly))
+	{
+		QMessageBox::warning(this, tr("Open 3D Plot Data"), tr("The selected file could not be opened."));
+		return;
+	}
+	_source->setPlainText(QString::fromUtf8(file.readAll()));
+	if (path.endsWith(QStringLiteral(".tsv"), Qt::CaseInsensitive))
+		_delimiter->setCurrentIndex(2);
+	refreshPreview();
+}
+
+void Plot3DPanel::pasteData()
+{
+	_source->setPlainText(QApplication::clipboard()->text());
+	refreshPreview();
+}
+
+void Plot3DPanel::refreshPreview()
+{
+	_preview->clear();
+	_preview->setRowCount(0);
+	_preview->setColumnCount(0);
+	_table = Plot3DCsvTable();
+	_buildButton->setEnabled(false);
+	if (_source->toPlainText().trimmed().isEmpty())
+	{
+		_status->setText(tr("Open or paste tabular data to preview it."));
+		refreshColumnCombos();
+		return;
+	}
+
+	Plot3DCsvOptions options;
+	options.delimiter = _delimiter->currentData().toString().front();
+	options.firstRowIsHeader = _header->isChecked();
+	Plot3DCsvTable table;
+	QString error;
+	if (!parsePlot3DCsv(_source->toPlainText(), options, table, &error))
+	{
+		_status->setText(error);
+		_status->setStyleSheet(QStringLiteral("color: #d9534f;"));
+		refreshColumnCombos();
+		return;
+	}
+
+	const int shownRows = std::min<int>(static_cast<int>(table.rows.size()), 200);
+	_preview->setColumnCount(table.columnCount());
+	_preview->setHorizontalHeaderLabels(table.headers);
+	_preview->setRowCount(shownRows);
+	for (int row = 0; row < shownRows; ++row)
+		for (int column = 0; column < table.columnCount(); ++column)
+			_preview->setItem(row, column, new QTableWidgetItem(table.rows[static_cast<std::size_t>(row)][column]));
+	_preview->resizeColumnsToContents();
+	_status->setStyleSheet(QString());
+	_status->setText(tr("%1 rows and %2 columns loaded%3.")
+		.arg(table.rows.size()).arg(table.columnCount())
+		.arg(table.rows.size() > static_cast<std::size_t>(shownRows) ? tr("; showing the first 200 rows") : QString()));
+
+	_table = std::move(table);
+	_buildButton->setEnabled(!_table.empty());
+	refreshColumnCombos();
+}
+
+void Plot3DPanel::refreshColumnCombos()
+{
+	auto populate = [this](QComboBox* combo, bool withNone, int defaultColumn) {
+		const int previousData = combo->currentData().isValid() ? combo->currentData().toInt() : defaultColumn;
+		combo->blockSignals(true);
+		combo->clear();
+		if (withNone)
+			combo->addItem(tr("(none - use Z)"), -1);
+		for (int i = 0; i < _table.columnCount(); ++i)
+			combo->addItem(_table.headers.value(i, tr("Column %1").arg(i + 1)), i);
+		if (combo->count() > 0)
+		{
+			const int restoreIndex = combo->findData(previousData);
+			combo->setCurrentIndex(restoreIndex >= 0 ? restoreIndex : (withNone ? 0 : std::min(defaultColumn, combo->count() - 1)));
+		}
+		combo->blockSignals(false);
+		};
+	populate(_columnX, false, 0);
+	populate(_columnY, false, 1);
+	populate(_columnZ, false, 2);
+	populate(_columnValue, true, -1);
+}
+
+void Plot3DPanel::buildPlot()
+{
+	if (_table.empty())
+	{
+		QMessageBox::warning(this, tr("Build Plot"), tr("Open or paste tabular data and click Refresh Preview first."));
+		return;
+	}
+	if (!_modelViewer || !_modelViewer->getViewportWidget() || !_modelViewer->sceneGraph())
+		return;
+
+	const Plot3DPrimitive primitive = static_cast<Plot3DPrimitive>(_primitive->currentData().toInt());
+	if (primitive != Plot3DPrimitive::Surface && primitive != Plot3DPrimitive::Line && primitive != Plot3DPrimitive::Scatter)
+	{
+		QMessageBox::information(this, tr("Build Plot"),
+			tr("%1 is not implemented yet - only Surface, Line and Scatter can be built into the scene so far.").arg(_primitive->currentText()));
+		return;
+	}
+
+	Plot3DColumnMapping columnMapping;
+	columnMapping.x = _columnX->currentData().toInt();
+	columnMapping.y = _columnY->currentData().toInt();
+	columnMapping.z = _columnZ->currentData().toInt();
+	columnMapping.value = _columnValue->currentData().toInt(); // -1 == none; buildPlot3DDataset() then falls back to Z
+
+	Plot3DDataset dataset;
+	QString error;
+	if (!buildPlot3DDataset(_table, primitive, columnMapping, dataset, &error))
+	{
+		QMessageBox::warning(this, tr("Build Plot"), error);
+		return;
+	}
+
+	Plot3DMeshData meshData;
+	bool built = false;
+	switch (primitive)
+	{
+	case Plot3DPrimitive::Surface:
+		built = buildPlot3DSurfaceMesh(std::get<Plot3DSurfaceData>(dataset.content), meshData, &error);
+		break;
+	case Plot3DPrimitive::Line:
+		built = buildPlot3DLineMesh(std::get<Plot3DLineData>(dataset.content), meshData, &error);
+		break;
+	case Plot3DPrimitive::Scatter:
+		built = buildPlot3DScatterMesh(std::get<Plot3DScatterData>(dataset.content), meshData, &error);
+		break;
+	default:
+		break; // unreachable - excluded by the primitive check above
+	}
+	if (!built)
+	{
+		QMessageBox::warning(this, tr("Build Plot"), error);
+		return;
+	}
+
+	ViewportWidget* viewport = _modelViewer->getViewportWidget();
+	viewport->makeCurrent();
+
+	// Colour-by-value is applied afterwards via setAnalysisOverlayColors(), the same mechanism a simulation
+	// result's field colouring uses (ModelViewer::presentSimulationResult()) - the mesh's own vertex colour stays
+	// plain white so the overlay is the only thing tinting it.
+	std::vector<Vertex> vertices(meshData.vertexCount());
+	for (std::size_t i = 0; i < vertices.size(); ++i)
+	{
+		Vertex v{};
+		v.Color = glm::vec4(1.0f);
+		v.Position = glm::vec3(meshData.positions[i * 3], meshData.positions[i * 3 + 1], meshData.positions[i * 3 + 2]);
+		v.Normal = glm::vec3(meshData.normals[i * 3], meshData.normals[i * 3 + 1], meshData.normals[i * 3 + 2]);
+		v.Tangent = glm::vec3(0.0f);
+		v.Bitangent = glm::vec3(0.0f);
+		for (glm::vec2& uv : v.TexCoords)
+			uv = glm::vec2(0.0f);
+		vertices[i] = v;
+	}
+
+	const QString baseName = viewport->generateUniqueMeshName(tr("Plot3D %1").arg(plot3DPrimitiveName(primitive)));
+	// Line/Scatter draw as native GL_LINE_STRIP/GL_POINTS (meshData.indices is empty for them - see
+	// Plot3DMeshBuilder.h) - the same primitive-mode path glTF line/point-cloud import already uses, which is
+	// rendered at a fixed PIXEL size regardless of camera zoom (SceneMesh::draw()), unlike real 3D geometry.
+	GLenum primitiveMode = GL_TRIANGLES;
+	if (primitive == Plot3DPrimitive::Line)
+		primitiveMode = GL_LINE_STRIP;
+	else if (primitive == Plot3DPrimitive::Scatter)
+		primitiveMode = GL_POINTS;
+	// skipOptimization = true: setAnalysisOverlayColors() below is indexed by vertex, and the mesh optimiser would
+	// reorder vertices (see SceneMesh::optimizeMesh()) - same reasoning presentSimulationResult() documents.
+	SceneMesh* mesh = new SceneMesh(viewport->getShader(), baseName, vertices, meshData.indices, {}, Material(), true, primitiveMode);
+	viewport->addToDisplay(mesh);
+	const QUuid meshUuid = mesh->uuid();
+
+	SceneNode* node = new SceneNode();
+	node->nodeUuid = QUuid::createUuid();
+	node->name = baseName;
+	SceneNode* parent = _modelViewer->sceneGraph()->root();
+	const int position = parent->children.size();
+	_modelViewer->sceneGraph()->insertChildNode(parent, node, position);
+	_modelViewer->sceneGraph()->restoreMeshUuid(node, meshUuid, 0);
+
+	// Colour by value, unless every sample's value is NaN (a plain uniform-Z surface with no separate colour data).
+	std::vector<float> values(meshData.vertexCount());
+	std::vector<bool> valid(meshData.vertexCount());
+	float lo = std::numeric_limits<float>::max(), hi = std::numeric_limits<float>::lowest();
+	bool anyValid = false;
+	for (std::size_t i = 0; i < meshData.vertexCount(); ++i)
+	{
+		const bool ok = std::isfinite(meshData.values[i]);
+		valid[i] = ok;
+		values[i] = ok ? static_cast<float>(meshData.values[i]) : 0.0f;
+		if (ok)
+		{
+			lo = std::min(lo, values[i]);
+			hi = std::max(hi, values[i]);
+			anyValid = true;
+		}
+	}
+	if (anyValid)
+	{
+		if (hi <= lo)
+			hi = lo + 1.0f; // a perfectly flat field still needs a non-degenerate range for the colour ramp
+		// mapToRGBA() (not mapToNormalizedScalarRGBA()) is the one that produces FINAL, already-ramped colours -
+		// setAnalysisOverlayBanding(0, ...) below is main_scene.frag's "bands < 2" continuous path, which just
+		// displays v_analysisColor.rgb verbatim with no further ramp/HSV mapping applied. The other encoding
+		// (raw normalized t in R, used with a real band count) is only for the per-pixel discrete-band path -
+		// mixing the two, as an earlier version of this code did, renders as a bare red channel (t in R, nothing
+		// in G/B), which reads as a black-to-red gradient instead of the intended blue-to-red ramp.
+		const std::vector<float> encoded = AnalysisColorRamp::mapToRGBA(values, valid, lo, hi, AnalysisColormap::Sequential);
+		mesh->setAnalysisOverlayColors(encoded);
+		mesh->setAnalysisOverlayBanding(0, static_cast<int>(AnalysisColormap::Sequential));
+	}
+
+	viewport->doneCurrent();
+	viewport->updateView();
+	_modelViewer->updateDisplayList();
+
+	// Point the axis-box overlay at the plot's own data bounds instead of previewAxisBox()'s fixed test range.
+	double dataLo[3], dataHi[3];
+	if (plot3DDataBounds(dataset, dataLo, dataHi))
+	{
+		Plot3DAxisController controller;
+		Plot3DAxisLayout axisLayout;
+		QString axisError;
+		if (controller.buildLayout(dataset.axes, dataLo, dataHi, axisLayout, &axisError))
+			viewport->setPlot3DAxisLayout(axisLayout);
+	}
+
+	_status->setStyleSheet(QString());
+	_status->setText(tr("Built '%1' (%2 points).").arg(baseName).arg(meshData.vertexCount()));
+}
