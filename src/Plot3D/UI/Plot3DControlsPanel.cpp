@@ -12,6 +12,8 @@
 #include <QSignalBlocker>
 #include <QVBoxLayout>
 
+#include <array>
+
 Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	: QWidget(parent)
 {
@@ -98,7 +100,12 @@ void Plot3DControlsPanel::refreshState()
 	_plotSelector->setCurrentIndex(activeIndex);
 	const Plot3DSession* session = activeIndex >= 0 ? &sessions[activeIndex] : nullptr;
 	const bool available = session != nullptr;
-	for (QWidget* control : { static_cast<QWidget*>(_plotSelector), _showPlotCheck, _showAxesCheck, _colormap, _bands, _automaticRange, _rangeMinimum, _rangeMaximum }) control->setEnabled(available);
+	// Keep the type explicit: MSVC cannot deduce a mixed derived-QWidget pointer
+	// initializer list here under /permissive-.
+	const std::array<QWidget*, 8> controls{ _plotSelector, _showPlotCheck, _showAxesCheck, _colormap,
+		_bands, _automaticRange, _rangeMinimum, _rangeMaximum };
+	for (QWidget* control : controls)
+		control->setEnabled(available);
 	if (!available) { _axisStatus->setText(tr("No 3D plots are available in this document.")); return; }
 	_showPlotCheck->setChecked(session->visible); _showAxesCheck->setChecked(session->axesVisible);
 	const bool supportsMeshColourControls = session->primitive != Plot3DPrimitive::Quiver;
