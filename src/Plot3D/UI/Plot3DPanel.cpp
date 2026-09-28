@@ -416,6 +416,12 @@ void Plot3DPanel::buildPlot()
 	viewport->doneCurrent();
 	viewport->updateView();
 	_modelViewer->updateDisplayList();
+	// A plot added to a document which already contains CAD geometry would
+	// otherwise retain that document's prior camera framing.  In particular,
+	// the negative half of a signed bar plot can sit outside the view and look
+	// missing.  Match simulation-result insertion: fit the updated scene once
+	// the new mesh participates in its bounds.
+	viewport->fitAll();
 
 	// Register the generated mesh with the document-owned session model.  That
 	// keeps its axes and colour range adjustable from the persistent 3D Plot
@@ -562,6 +568,7 @@ void Plot3DPanel::buildQuiverPlot(const Plot3DDataset& dataset, const QString& b
 	viewport->doneCurrent();
 	viewport->updateView();
 	_modelViewer->updateDisplayList();
+	viewport->fitAll();
 
 	double dataLo[3], dataHi[3];
 	if (plot3DDataBounds(dataset, dataLo, dataHi))
