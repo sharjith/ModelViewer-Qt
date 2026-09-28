@@ -141,7 +141,9 @@ bool parsePlot3DCsv(const QString& text, const Plot3DCsvOptions& options, Plot3D
 bool buildPlot3DDataset(const Plot3DCsvTable& table, Plot3DPrimitive primitive, const Plot3DColumnMapping& mapping,
 	Plot3DDataset& out, QString* error = nullptr, const Plot3DBuildOptions& options = Plot3DBuildOptions());
 
-// Bounds of the actual rendered extent (quiver endpoints, complete bars and unit voxels included). False when empty.
+// Bounds of the plotted mesh extent (complete bars and unit voxels included). Quiver arrows are camera-stable
+// overlays, so their raw vector magnitudes do not expand the coordinate box; its sites define the plot extent.
+// False when empty.
 bool plot3DDataBounds(const Plot3DDataset& dataset, double minimum[3], double maximum[3]);
 
 QString plot3DPrimitiveName(Plot3DPrimitive primitive);

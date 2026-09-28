@@ -275,6 +275,17 @@ void TextRenderer::RenderText(std::string text, float x, float y, float scale, Q
 	glDisable(GL_BLEND);
 }
 
+void TextRenderer::RenderHaloText(std::string text, float x, float y, float scale, QVector3D color,
+	VAlignment vAlignment, HAlignment hAlignment)
+{
+	const QVector3D halo(0.0f, 0.0f, 0.0f);
+	for (int dx = -1; dx <= 1; ++dx)
+		for (int dy = -1; dy <= 1; ++dy)
+			if (dx != 0 || dy != 0)
+				RenderText(text, x + static_cast<float>(dx), y + static_cast<float>(dy), scale, halo, vAlignment, hAlignment);
+	RenderText(text, x, y, scale, color, vAlignment, hAlignment);
+}
+
 float TextRenderer::textWidth(const std::string& text, float scale) const
 {
 	// Must track RenderText()'s own _globalScale multiply exactly, or a

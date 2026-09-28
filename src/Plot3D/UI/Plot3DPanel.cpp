@@ -182,6 +182,7 @@ void Plot3DPanel::pasteData()
 
 void Plot3DPanel::refreshPreview()
 {
+	const QStringList previousHeaders = _table.headers;
 	_preview->clear();
 	_preview->setRowCount(0);
 	_preview->setColumnCount(0);
@@ -220,23 +221,42 @@ void Plot3DPanel::refreshPreview()
 		.arg(table.rows.size()).arg(table.columnCount())
 		.arg(table.rows.size() > static_cast<std::size_t>(shownRows) ? tr("; showing the first 200 rows") : QString()));
 
+	const bool schemaChanged = previousHeaders != table.headers;
 	_table = std::move(table);
 	_buildButton->setEnabled(!_table.empty());
-	refreshColumnCombos();
+	refreshColumnCombos(schemaChanged);
 }
 
-void Plot3DPanel::refreshColumnCombos()
+void Plot3DPanel::refreshColumnCombos(bool resetForNewSchema)
 {
-	auto populate = [this](QComboBox* combo, bool withNone, int defaultColumn) {
+	auto headerIndex = [this](const QStringList& aliases) {
+		for (int column = 0; column < _table.headers.size(); ++column)
+			for (const QString& alias : aliases)
+				if (_table.headers[column].compare(alias, Qt::CaseInsensitive) == 0)
+					return column;
+		return -1;
+	};
+	auto populate = [this, &headerIndex, resetForNewSchema](QComboBox* combo, bool withNone, int defaultColumn,
+		const QStringList& aliases) {
 		// Do not preserve the initial placeholder selection.  Before the first successful
 		// parse, an optional combo contains only "(none)" (-1); preserving that value
 		// after columns arrive leaves a required role such as Y unset even though the
 		// control subsequently displays ordinary column choices.  Once a real column was
 		// available, preserve the user's mapping across later refreshes as intended.
 		const bool previouslyHadColumns = combo->findData(0) >= 0;
-		const int previousData = previouslyHadColumns && combo->currentData().isValid()
+		int previousData = previouslyHadColumns && combo->currentData().isValid()
 			? combo->currentData().toInt()
 			: defaultColumn;
+		if (resetForNewSchema)
+		{
+			const int namedColumn = headerIndex(aliases);
+			if (namedColumn >= 0)
+				previousData = namedColumn;
+			else if (withNone && defaultColumn < 0)
+				previousData = -1;
+			else
+				previousData = defaultColumn;
+		}
 		combo->blockSignals(true);
 		combo->clear();
 		if (withNone)
@@ -255,16 +275,16 @@ void Plot3DPanel::refreshColumnCombos()
 		}
 		combo->blockSignals(false);
 		};
-	populate(_columnX, false, 0);
-	populate(_columnY, true, 1); // Bar/Histogram may select None for a one-dimensional plot; other builders reject it
-	populate(_columnZ, false, 2);
-	populate(_columnValue, true, -1);
-	populate(_columnU, false, 3);
-	populate(_columnV, false, 4);
-	populate(_columnW, false, 5);
-	populate(_columnBase, true, -1);
-	populate(_columnWidth, true, -1);
-	populate(_columnDepth, true, -1);
+	populate(_columnX, false, 0, { QStringLiteral("x"), QStringLiteral("i") });
+	populate(_columnY, true, 1, { QStringLiteral("y"), QStringLiteral("j") }); // Bar/Histogram may select None for a one-dimensional plot; other builders reject it
+	populate(_columnZ, false, 2, { QStringLiteral("z"), QStringLiteral("height"), QStringLiteral("k") });
+	populate(_columnValue, true, -1, { QStringLiteral("value"), QStringLiteral("colour"), QStringLiteral("color"), QStringLiteral("occupancy") });
+	populate(_columnU, false, 3, { QStringLiteral("u") });
+	populate(_columnV, false, 4, { QStringLiteral("v") });
+	populate(_columnW, false, 5, { QStringLiteral("w") });
+	populate(_columnBase, true, -1, { QStringLiteral("base") });
+	populate(_columnWidth, true, -1, { QStringLiteral("width") });
+	populate(_columnDepth, true, -1, { QStringLiteral("depth") });
 }
 
 void Plot3DPanel::buildPlot()

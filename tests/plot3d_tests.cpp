@@ -48,7 +48,7 @@ namespace
 		CHECK(quiver.arrows.size() == 2 && quiver.arrows[0].vector.z == -1.0);
 		double lo[3], hi[3];
 		CHECK(plot3DDataBounds(dataset, lo, hi));
-		CHECK(lo[0] == 0.0 && lo[1] == 1.0 && lo[2] == 1.0 && hi[0] == 3.0 && hi[1] == 6.0 && hi[2] == 5.0);
+		CHECK(lo[0] == 0.0 && lo[1] == 1.0 && lo[2] == 2.0 && hi[0] == 3.0 && hi[1] == 4.0 && hi[2] == 5.0);
 
 		CHECK(parsePlot3DCsv(QStringLiteral("x,y,height,base,width,depth\n1,2,4,-1,2,6"), {}, table, &error));
 		mapping = Plot3DColumnMapping(); mapping.base = 3; mapping.width = 4; mapping.depth = 5;
@@ -219,7 +219,7 @@ namespace
 		Plot3DAxisLayout layout;
 		QString error;
 		CHECK(controller.buildLayout(axes, lo, hi, layout, &error));
-		CHECK(error.isEmpty() && layout.axisLines.size() == 3 && layout.referencePlanes.size() == 1);
+		CHECK(error.isEmpty() && layout.axisLines.size() == 12 && layout.referencePlanes.size() == 1);
 		CHECK(layout.labels.size() == layout.ticks[0].size() + layout.ticks[1].size() + layout.ticks[2].size() + 3);
 		const double flatLo[3] = { 2.0, 10.0, -5.0 }, flatHi[3] = { 2.0, 20.0, 5.0 };
 		CHECK(controller.buildLayout(axes, flatLo, flatHi, layout, &error) && layout.maximum[0] > layout.minimum[0]);

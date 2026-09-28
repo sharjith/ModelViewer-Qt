@@ -3661,7 +3661,7 @@ void ViewportWidget::drawFloatingLabel(const QString& text, const QPoint& pixel,
 	// above-right - confirmed by pixel-measuring a screen recording, not
 	// guessed). +8 right, -8 up (smaller y) - close to the tip without
 	// sitting on top of the cursor glyph itself.
-	_axisTextRenderer->RenderText(text.toStdString(),
+	_axisTextRenderer->RenderHaloText(text.toStdString(),
 		static_cast<float>(pixel.x()) + 8.0f, static_cast<float>(pixel.y()) - 8.0f, 1,
 		QVector3D(static_cast<float>(color.redF()), static_cast<float>(color.greenF()), static_cast<float>(color.blueF())),
 		TextRenderer::VAlignment::VBOTTOM);
@@ -3945,8 +3945,8 @@ void ViewportWidget::drawVertexMarkers()
 		}
 		const QVector3D color(static_cast<float>(marker.color.redF()), static_cast<float>(marker.color.greenF()),
 		                      static_cast<float>(marker.color.blueF()));
-		_axisTextRenderer->RenderText("+", x - 4.0f, y + 4.0f, 1, color, TextRenderer::VAlignment::VBOTTOM); // the point itself
-		_axisTextRenderer->RenderText(marker.text.toStdString(), x + 8.0f, y - 6.0f, 1, color, TextRenderer::VAlignment::VBOTTOM);
+		_axisTextRenderer->RenderHaloText("+", x - 4.0f, y + 4.0f, 1, color, TextRenderer::VAlignment::VBOTTOM); // the point itself
+		_axisTextRenderer->RenderHaloText(marker.text.toStdString(), x + 8.0f, y - 6.0f, 1, color, TextRenderer::VAlignment::VBOTTOM);
 	}
 }
 
@@ -7407,21 +7407,21 @@ void ViewportWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	configureOrthoSubviewCamera(
 		ViewMode::TOP, multiViewCorners, width() / 2, height() / 2, sharedMultiViewCenter, sharedMultiViewRange);
 	render(_orthoViewsCamera);
-	_textRenderer->RenderText(_labelTop.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+	_textRenderer->RenderHaloText(_labelTop.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
 	// Front View
 	glViewport(0, height() / 2, width() / 2, height() / 2);
 	configureOrthoSubviewCamera(
 		ViewMode::FRONT, multiViewCorners, width() / 2, height() / 2, sharedMultiViewCenter, sharedMultiViewRange);
 	render(_orthoViewsCamera);
-	_textRenderer->RenderText(_labelFront.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+	_textRenderer->RenderHaloText(_labelFront.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
 	// Left View
 	glViewport(width() / 2, height() / 2, width() / 2, height() / 2);
 	configureOrthoSubviewCamera(
 		ViewMode::LEFT, multiViewCorners, width() / 2, height() / 2, sharedMultiViewCenter, sharedMultiViewRange);
 	render(_orthoViewsCamera);
-	_textRenderer->RenderText(_labelLeft.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+	_textRenderer->RenderHaloText(_labelLeft.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
 	// Render isometric view with primary camera
 	// Isometric View
@@ -7447,7 +7447,7 @@ void ViewportWidget::renderMultiView(QColor& topColor, QColor& botColor)
 		default: break;
 		}
 	}
-	_textRenderer->RenderText(viewLabel.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+	_textRenderer->RenderHaloText(viewLabel.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
 	// draw screen partitioning lines
 	splitScreen();
@@ -9612,7 +9612,7 @@ void ViewportWidget::drawBoundingBoxOverlay()
             const QVector3D projected = label.worldPos.project(
                 _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(), viewportRect);
             const float y = static_cast<float>(height()) - projected.y();
-            _axisTextRenderer->RenderText(label.text.toStdString(), projected.x(), y, 1,
+            _axisTextRenderer->RenderHaloText(label.text.toStdString(), projected.x(), y, 1,
                 QVector3D(1.0f, 1.0f, 1.0f), TextRenderer::VAlignment::VBOTTOM);
         }
     }
@@ -9652,28 +9652,24 @@ void ViewportWidget::drawPlot3DAxisOverlay(Camera* camera)
         return;
 
     const Plot3DAxisLayout& layout = *_plot3DAxisLayout;
-    const QVector3D axisColor(0.85f, 0.85f, 0.85f);
-    const QVector3D tickColor(0.6f, 0.6f, 0.6f);
-
     std::vector<float> vertices;
     vertices.reserve((layout.axisLines.size() + layout.tickLines.size()) * 12);
     auto appendSegment = [&vertices](const Plot3DLineSegment& segment, const QVector3D& color) {
         vertices.insert(vertices.end(), { segment.first.x(), segment.first.y(), segment.first.z(), color.x(), color.y(), color.z() });
         vertices.insert(vertices.end(), { segment.second.x(), segment.second.y(), segment.second.z(), color.x(), color.y(), color.z() });
         };
-    for (const Plot3DLineSegment& segment : layout.axisLines)
-        appendSegment(segment, axisColor);
-    for (const Plot3DLineSegment& segment : layout.tickLines)
-        appendSegment(segment, tickColor);
-    // Reference planes are drawn as a faint quad outline rather than a filled, blended quad for this first pass -
-    // matplotlib's own default look is a light grey fill, but an outline needs no new blend state/shader and is
-    // already enough to read as "the floor plane" against the axis box. A filled version can follow later.
-    const QVector3D planeColor(0.4f, 0.4f, 0.4f);
+    // Draw optional reference-plane outlines first, so the RGB box remains
+    // crisp where its edges coincide with a plane boundary.
+    const QVector3D planeColor(0.25f, 0.40f, 0.54f);
     for (const Plot3DReferencePlane& plane : layout.referencePlanes)
     {
         for (int i = 0; i < 4; ++i)
             appendSegment(Plot3DLineSegment{ plane.corners[i], plane.corners[(i + 1) % 4] }, planeColor);
     }
+    for (const Plot3DLineSegment& segment : layout.axisLines)
+        appendSegment(segment, segment.color);
+    for (const Plot3DLineSegment& segment : layout.tickLines)
+        appendSegment(segment, segment.color);
 
     if (!vertices.empty())
     {
@@ -9707,8 +9703,8 @@ void ViewportWidget::drawPlot3DAxisOverlay(Camera* camera)
             const QVector3D projected = label.position.project(
                 _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(), viewportRect);
             const float y = static_cast<float>(height()) - projected.y();
-            _axisTextRenderer->RenderText(label.text.toStdString(), projected.x(), y, 1,
-                QVector3D(0.9f, 0.9f, 0.9f), TextRenderer::VAlignment::VBOTTOM, TextRenderer::HAlignment::HCENTER);
+            _axisTextRenderer->RenderHaloText(label.text.toStdString(), projected.x(), y, 1,
+                label.color, TextRenderer::VAlignment::VBOTTOM, TextRenderer::HAlignment::HCENTER);
         }
     }
 }
@@ -9753,15 +9749,15 @@ void ViewportWidget::drawAxis(Camera* camera, const QMatrix4x4* overrideViewMatr
 	// Labels
 	QVector3D xAxis(axisViewRange / size, 0, 0);
 	xAxis = xAxis.project(modelViewMat, _viewCtrl.projectionMatrix(), QRect(0, 0, width(), height()));
-	_axisTextRenderer->RenderText(_labelAxisX.toStdString(), xAxis.x(), height() - xAxis.y(), 1, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	_axisTextRenderer->RenderHaloText(_labelAxisX.toStdString(), xAxis.x(), height() - xAxis.y(), 1, QVector3D(1.0f, 0.2f, 0.2f), TextRenderer::VAlignment::VBOTTOM);
 
 	QVector3D yAxis(0, axisViewRange / size, 0);
 	yAxis = yAxis.project(modelViewMat, _viewCtrl.projectionMatrix(), QRect(0, 0, width(), height()));
-	_axisTextRenderer->RenderText(_labelAxisY.toStdString(), yAxis.x(), height() - yAxis.y(), 1, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	_axisTextRenderer->RenderHaloText(_labelAxisY.toStdString(), yAxis.x(), height() - yAxis.y(), 1, QVector3D(0.2f, 1.0f, 0.3f), TextRenderer::VAlignment::VBOTTOM);
 
 	QVector3D zAxis(0, 0, axisViewRange / size);
 	zAxis = zAxis.project(modelViewMat, _viewCtrl.projectionMatrix(), QRect(0, 0, width(), height()));
-	_axisTextRenderer->RenderText(_labelAxisZ.toStdString(), zAxis.x(), height() - zAxis.y(), 1, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	_axisTextRenderer->RenderHaloText(_labelAxisZ.toStdString(), zAxis.x(), height() - zAxis.y(), 1, QVector3D(0.3f, 0.55f, 1.0f), TextRenderer::VAlignment::VBOTTOM);
 
 	// Axes Lines
 	_renderCtrl.initAxisGeometry(axisViewRange / size);
@@ -10834,15 +10830,15 @@ void ViewportWidget::drawCornerAxis(CornerAxisPosition position, const QMatrix4x
 	// Labels
 	QVector3D xAxis(axisLength, 0, 0);
 	xAxis = xAxis.project(mat, axisProjection, QRect(0, 0, axisSize, axisSize));
-	_axisTextRenderer->RenderText(_labelAxisX.toStdString(), xAxis.x(), axisSize - xAxis.y(), labelScale, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	_axisTextRenderer->RenderHaloText(_labelAxisX.toStdString(), xAxis.x(), axisSize - xAxis.y(), labelScale, QVector3D(1.0f, 0.2f, 0.2f), TextRenderer::VAlignment::VBOTTOM);
 
 	QVector3D yAxis(0, axisLength, 0);
 	yAxis = yAxis.project(mat, axisProjection, QRect(0, 0, axisSize, axisSize));
-	_axisTextRenderer->RenderText(_labelAxisY.toStdString(), yAxis.x(), axisSize - yAxis.y(), labelScale, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	_axisTextRenderer->RenderHaloText(_labelAxisY.toStdString(), yAxis.x(), axisSize - yAxis.y(), labelScale, QVector3D(0.2f, 1.0f, 0.3f), TextRenderer::VAlignment::VBOTTOM);
 
 	QVector3D zAxis(0, 0, axisLength);
 	zAxis = zAxis.project(mat, axisProjection, QRect(0, 0, axisSize, axisSize));
-	_axisTextRenderer->RenderText(_labelAxisZ.toStdString(), zAxis.x(), axisSize - zAxis.y(), labelScale, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	_axisTextRenderer->RenderHaloText(_labelAxisZ.toStdString(), zAxis.x(), axisSize - zAxis.y(), labelScale, QVector3D(0.3f, 0.55f, 1.0f), TextRenderer::VAlignment::VBOTTOM);
 
 	// Axes
 	if (!_renderCtrl.axisVAO().isCreated())

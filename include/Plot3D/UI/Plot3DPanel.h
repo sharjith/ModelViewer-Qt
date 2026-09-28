@@ -24,9 +24,10 @@ private:
 	void loadCsvFile();
 	void pasteData();
 	void refreshPreview();
-	// Repopulates the column-role combos from _table's headers, keeping each combo's current selection if the
-	// column count/name is still valid (so re-parsing after a delimiter change doesn't reset the user's mapping).
-	void refreshColumnCombos();
+	// Repopulates the column-role combos from _table's headers. A new schema
+	// resets roles by their semantic header names (x/y/z/u/v/w/base/etc.);
+	// re-parsing the same schema retains deliberate user selections.
+	void refreshColumnCombos(bool resetForNewSchema = false);
 	// Reads the primitive + column mapping, builds a Plot3DDataset then a mesh, adds it to the active document's
 	// scene, and gives the viewport an axis-box layout derived from the built data's own bounds.
 	void buildPlot();

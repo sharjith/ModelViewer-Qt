@@ -214,7 +214,13 @@ void SimulationGlyphController::drawOverlay(Camera* camera, const MeshResolver& 
 
 	// Both sides of the cone are drawn (its cap faces the other way): back-face culling is off for this pass only.
 	const GLboolean cullWasEnabled = glIsEnabled(GL_CULL_FACE);
+	const GLboolean depthWasEnabled = glIsEnabled(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);
+	// Axis labels, hover readouts and other text overlays deliberately leave
+	// depth testing disabled.  Glyphs are real 3D geometry: without restoring
+	// it here, a quiver added after a histogram (or simulation arrows after a
+	// readout) draws through every earlier plot instead of being occluded by it.
+	glEnable(GL_DEPTH_TEST);
 
 	_renderCtrl.axisShader()->bind();
 	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", view);
@@ -229,6 +235,8 @@ void SimulationGlyphController::drawOverlay(Camera* camera, const MeshResolver& 
 
 	if (cullWasEnabled)
 		glEnable(GL_CULL_FACE);
+	if (!depthWasEnabled)
+		glDisable(GL_DEPTH_TEST);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
 }

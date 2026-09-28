@@ -20,9 +20,11 @@ this idea was first raised.
   content lives in one ModelViewer document, the same way one simulation result or one imported CAD file does. Multiple
   plots side by side, if ever wanted, is a compare-mode-style feature to consider much later, not v1.
 - Function entry (`Z = f(X,Y)`) needs an expression evaluator; **none exists in this codebase today** (checked: no
-  parser/evaluator class anywhere). Decision for v1: ship CSV-file and pasted tabular input only, and defer function
-  entry to a follow-up. Do not build a hand-rolled parser; a future function-entry phase must first select and licence-
-  review a suitable evaluator.
+  parser/evaluator class anywhere). CSV-file and pasted tabular input ship first, but formula plotting is an important
+  planned follow-up: select and licence-review a suitable evaluator rather than build one by hand, then pair it with a
+  curated preset library for known analytical and statistical surfaces (for example plane, saddle, Gaussian,
+  Gaussian-mixture, sinc/ripple, Mexican hat, and bivariate-normal density). Presets must expose named parameters,
+  show the formula before building, and generate ordinary Plot3D surface data so they share all normal plot controls.
 
 ## 2. The 8 primitives + 3 axis features (deduplicating matplotlib's ~47 examples)
 
@@ -185,10 +187,22 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
    non-positive dimensions and is covered by GUI-free tests for positive/negative geometry, normals and invalid
    widths.
 9. Voxel/volumetric (reusing `SimulationVolumeController` directly).
-10. **In progress (2026-09-28):** `Plot3DPanel` + the "Add 3D Plot..." menu entry wire creation together. A
-    persistent **3D Plot** document tab now sits beside Simulation and owns the first lasting display control:
-    showing/hiding the data-derived axis box after the import dialog closes. The early fixed-range Preview Axis Box
-    button and dialog-close axis teardown were removed. The panel is deliberately separate from the roomy import
-    dialog and is rebound to the active document like SimulationPanel. Per-plot selection and styling (range,
-    colormap, bands, axis labels/scales/ticks, primitive-specific sizes) still require the planned document-owned
-    Plot3D session model.
+10. **Complete (2026-09-28):** the persistent **3D Plot** document tab sits beside Simulation and is rebound to
+    the active ModelViewer like SimulationPanel. It provides per-plot selection, axis-box visibility, colormap,
+    colour range/bands, and labels/scales/ranges/ticks for all axes. The early fixed-range Preview Axis Box button
+    and dialog-close axis teardown were removed. Multi-plot axes use the bounds of every currently visible plot,
+    while the active plot owns the axis presentation settings.
+11. **Next:** Contour / iso-lines for Surface, reusing the existing scalar-field cutter. Support surface-following
+    contours first, then optionally projected contours on the XY reference plane.
+12. **Next:** Voxel / volumetric occupancy plots, reusing the simulation volume renderer with an occupancy transfer
+    function.
+13. **Next:** Stem plots (Scatter with a selectable base Z), then optional error bars and fill-to-plane for Line /
+    Scatter where the data supports them.
+14. **Next:** scattered/unstructured Surface input through Delaunay triangulation, while keeping the existing complete
+    regular-grid path as the simple deterministic default.
+15. **Important follow-up:** formula entry and its preset library, as described in section 1. This starts only after
+    choosing and licence-reviewing the expression evaluator.
+16. **Presentation and editing follow-up:** plot-specific line/marker/bar/quiver styling; an in-viewport colour legend;
+    filled translucent reference planes or grid; and re-edit/rebuild from retained source data and column mapping.
+17. **Last:** MVF persistence for Plot3DSession metadata. Do this after the primitive and controls model stabilises so
+    the saved schema is written once; the generated mesh itself already follows ordinary scene persistence.

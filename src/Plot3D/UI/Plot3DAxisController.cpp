@@ -34,6 +34,17 @@ namespace
 	}
 
 	QVector3D point(double x, double y, double z) { return QVector3D(float(x), float(y), float(z)); }
+
+	// Additive primary colours make each edge's orientation apparent: an X/Y
+	// edge is yellow, X/Z is magenta, and Y/Z is cyan.  The pale far corner
+	// is the combination of all three directions.
+	const QVector3D xAxisColor(0.96f, 0.18f, 0.20f);
+	const QVector3D yAxisColor(0.18f, 0.84f, 0.30f);
+	const QVector3D zAxisColor(0.20f, 0.45f, 1.00f);
+	const QVector3D xyAxisColor(0.95f, 0.86f, 0.18f);
+	const QVector3D xzAxisColor(0.94f, 0.32f, 0.92f);
+	const QVector3D yzAxisColor(0.18f, 0.88f, 0.94f);
+	const QVector3D xyzAxisColor(0.92f, 0.94f, 0.98f);
 }
 
 double plot3DTransformAxisValue(double value, const Plot3DAxisConfig& config, bool* valid)
@@ -122,11 +133,27 @@ bool Plot3DAxisController::buildLayout(const std::array<Plot3DAxisConfig, 3>& ax
 	}
 
 	const double x0=layout.minimum[0], x1=layout.maximum[0], y0=layout.minimum[1], y1=layout.maximum[1], z0=layout.minimum[2], z1=layout.maximum[2];
-	layout.axisLines = { {point(x0,y0,z0),point(x1,y0,z0)}, {point(x0,y0,z0),point(x0,y1,z0)}, {point(x0,y0,z0),point(x0,y0,z1)} };
+	// Complete bounding box.  The three edges at the minimum corner retain
+	// the conventional X=red, Y=green and Z=blue colouring; parallel edges
+	// blend the colours of the non-minimum coordinates they share.
+	layout.axisLines = {
+		{ point(x0,y0,z0), point(x1,y0,z0), xAxisColor },
+		{ point(x0,y1,z0), point(x1,y1,z0), xyAxisColor },
+		{ point(x0,y0,z1), point(x1,y0,z1), xzAxisColor },
+		{ point(x0,y1,z1), point(x1,y1,z1), xyzAxisColor },
+		{ point(x0,y0,z0), point(x0,y1,z0), yAxisColor },
+		{ point(x1,y0,z0), point(x1,y1,z0), xyAxisColor },
+		{ point(x0,y0,z1), point(x0,y1,z1), yzAxisColor },
+		{ point(x1,y0,z1), point(x1,y1,z1), xyzAxisColor },
+		{ point(x0,y0,z0), point(x0,y0,z1), zAxisColor },
+		{ point(x1,y0,z0), point(x1,y0,z1), xzAxisColor },
+		{ point(x0,y1,z0), point(x0,y1,z1), yzAxisColor },
+		{ point(x1,y1,z0), point(x1,y1,z1), xyzAxisColor },
+	};
 	const double tickSize = 0.015 * std::max({x1-x0, y1-y0, z1-z0});
-	for (const auto& tick : layout.ticks[0]) layout.tickLines.push_back({point(tick.transformedValue,y0,z0),point(tick.transformedValue,y0-tickSize,z0)});
-	for (const auto& tick : layout.ticks[1]) layout.tickLines.push_back({point(x0,tick.transformedValue,z0),point(x0-tickSize,tick.transformedValue,z0)});
-	for (const auto& tick : layout.ticks[2]) layout.tickLines.push_back({point(x0,y0,tick.transformedValue),point(x0-tickSize,y0,tick.transformedValue)});
+	for (const auto& tick : layout.ticks[0]) layout.tickLines.push_back({point(tick.transformedValue,y0,z0),point(tick.transformedValue,y0-tickSize,z0), xAxisColor});
+	for (const auto& tick : layout.ticks[1]) layout.tickLines.push_back({point(x0,tick.transformedValue,z0),point(x0-tickSize,tick.transformedValue,z0), yAxisColor});
+	for (const auto& tick : layout.ticks[2]) layout.tickLines.push_back({point(x0,y0,tick.transformedValue),point(x0-tickSize,y0,tick.transformedValue), zAxisColor});
 	for (int axis=0; axis<3; ++axis)
 		for (const auto& tick : layout.ticks[axis])
 		{
@@ -134,9 +161,9 @@ bool Plot3DAxisController::buildLayout(const std::array<Plot3DAxisConfig, 3>& ax
 			if(axis==0) p.setX(float(tick.transformedValue)); else if(axis==1) p.setY(float(tick.transformedValue)); else p.setZ(float(tick.transformedValue));
 			layout.labels.push_back({tick.label, p});
 		}
-	layout.labels.push_back({axes[0].label, point(x1,y0,z0)});
-	layout.labels.push_back({axes[1].label, point(x0,y1,z0)});
-	layout.labels.push_back({axes[2].label, point(x0,y0,z1)});
+	layout.labels.push_back({axes[0].label, point(x1,y0,z0), xAxisColor});
+	layout.labels.push_back({axes[1].label, point(x0,y1,z0), yAxisColor});
+	layout.labels.push_back({axes[2].label, point(x0,y0,z1), zAxisColor});
 	if (_referencePlanes[0]) layout.referencePlanes.push_back({{point(x0,y0,z0),point(x1,y0,z0),point(x1,y1,z0),point(x0,y1,z0)}});
 	if (_referencePlanes[1]) layout.referencePlanes.push_back({{point(x0,y0,z0),point(x1,y0,z0),point(x1,y0,z1),point(x0,y0,z1)}});
 	if (_referencePlanes[2]) layout.referencePlanes.push_back({{point(x0,y0,z0),point(x0,y1,z0),point(x0,y1,z1),point(x0,y0,z1)}});

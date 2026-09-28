@@ -38,7 +38,6 @@ private:
 	QMetaObject::Connection _stateConnection;
 	QPushButton* _addPlotButton = nullptr;
 	QComboBox* _plotSelector = nullptr;
-	QCheckBox* _showPlotCheck = nullptr;
 	QCheckBox* _showAxesCheck = nullptr;
 	QComboBox* _colormap = nullptr;
 	QComboBox* _bands = nullptr;

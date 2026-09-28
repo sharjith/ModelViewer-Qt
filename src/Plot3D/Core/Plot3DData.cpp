@@ -338,10 +338,7 @@ bool plot3DDataBounds(const Plot3DDataset& dataset, double minimum[3], double ma
 			}
 		else
 			for (const Plot3DQuiver& arrow : data.arrows)
-			{
 				includePoint(arrow.position, minimum, maximum, any);
-				includePoint({ arrow.position.x + arrow.vector.x, arrow.position.y + arrow.vector.y, arrow.position.z + arrow.vector.z }, minimum, maximum, any);
-			}
 	}, dataset.content);
 	return any;
 }

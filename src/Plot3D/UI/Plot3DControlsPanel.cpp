@@ -44,8 +44,6 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	_plotSelector = new QComboBox(this);
 	layout->addWidget(new QLabel(tr("Active plot:"), this));
 	layout->addWidget(_plotSelector);
-	_showPlotCheck = new QCheckBox(tr("Show plot"), this);
-	layout->addWidget(_showPlotCheck);
 	_showAxesCheck = new QCheckBox(tr("Show axes box"), this);
 	_showAxesCheck->setToolTip(tr("Show or hide the active plot's axes without discarding its axis layout."));
 	layout->addWidget(_showAxesCheck);
@@ -106,7 +104,6 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 
 	connect(_addPlotButton, &QPushButton::clicked, this, &Plot3DControlsPanel::addPlotRequested);
 	connect(_plotSelector, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) { if (_viewer) _viewer->activatePlot3DSession(_plotSelector->currentData().toUuid()); });
-	connect(_showPlotCheck, &QCheckBox::toggled, this, [this](bool visible) { if (_viewer) _viewer->setPlot3DSessionVisible(_plotSelector->currentData().toUuid(), visible); });
 	connect(_showAxesCheck, &QCheckBox::toggled, this, [this](bool visible) { if (_viewer) _viewer->setPlot3DSessionAxesVisible(_plotSelector->currentData().toUuid(), visible); });
 	connect(_colormap, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DControlsPanel::applyColourState);
 	connect(_bands, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DControlsPanel::applyColourState);
@@ -141,7 +138,7 @@ void Plot3DControlsPanel::refreshState()
 {
 	const QVector<Plot3DSession> sessions = _viewer ? _viewer->plot3DSessions() : QVector<Plot3DSession>();
 	const QUuid active = _viewer ? _viewer->activePlot3DMeshUuid() : QUuid();
-	const QSignalBlocker selectorBlock(_plotSelector), visibleBlock(_showPlotCheck), axesBlock(_showAxesCheck), mapBlock(_colormap), bandsBlock(_bands), autoBlock(_automaticRange), minBlock(_rangeMinimum), maxBlock(_rangeMaximum);
+	const QSignalBlocker selectorBlock(_plotSelector), axesBlock(_showAxesCheck), mapBlock(_colormap), bandsBlock(_bands), autoBlock(_automaticRange), minBlock(_rangeMinimum), maxBlock(_rangeMaximum);
 	std::array<QSignalBlocker, 18> axisBlockers{
 		QSignalBlocker(_axisLabels[0]), QSignalBlocker(_axisScales[0]), QSignalBlocker(_axisAutomatic[0]), QSignalBlocker(_axisMinimum[0]), QSignalBlocker(_axisMaximum[0]), QSignalBlocker(_axisTicks[0]),
 		QSignalBlocker(_axisLabels[1]), QSignalBlocker(_axisScales[1]), QSignalBlocker(_axisAutomatic[1]), QSignalBlocker(_axisMinimum[1]), QSignalBlocker(_axisMaximum[1]), QSignalBlocker(_axisTicks[1]),
@@ -155,7 +152,7 @@ void Plot3DControlsPanel::refreshState()
 	const bool available = session != nullptr;
 	// Keep the type explicit: MSVC cannot deduce a mixed derived-QWidget pointer
 	// initializer list here under /permissive-.
-	const std::array<QWidget*, 8> controls{ _plotSelector, _showPlotCheck, _showAxesCheck, _colormap,
+	const std::array<QWidget*, 7> controls{ _plotSelector, _showAxesCheck, _colormap,
 		_bands, _automaticRange, _rangeMinimum, _rangeMaximum };
 	for (QWidget* control : controls)
 		control->setEnabled(available);
@@ -170,7 +167,7 @@ void Plot3DControlsPanel::refreshState()
 		_axisStatus->setText(tr("No 3D plots are available in this document."));
 		return;
 	}
-	_showPlotCheck->setChecked(session->visible); _showAxesCheck->setChecked(session->axesVisible);
+	_showAxesCheck->setChecked(session->axesVisible);
 	const bool supportsMeshColourControls = session->primitive != Plot3DPrimitive::Quiver;
 	_colormap->setEnabled(supportsMeshColourControls); _bands->setEnabled(supportsMeshColourControls);
 	_automaticRange->setEnabled(supportsMeshColourControls);
@@ -186,7 +183,7 @@ void Plot3DControlsPanel::refreshState()
 		_axisLabels[i]->setEnabled(true); _axisScales[i]->setEnabled(true); _axisAutomatic[i]->setEnabled(true); _axisTicks[i]->setEnabled(true);
 		_axisMinimum[i]->setEnabled(!axis.automaticRange); _axisMaximum[i]->setEnabled(!axis.automaticRange);
 	}
-	_axisStatus->setText(tr("%1: %2").arg(plot3DPrimitiveName(session->primitive), session->visible ? tr("visible") : tr("hidden")));
+	_axisStatus->setText(tr("%1. Use the scene tree checkbox to show or hide this plot.").arg(plot3DPrimitiveName(session->primitive)));
 }
 
 void Plot3DControlsPanel::applyColourState()

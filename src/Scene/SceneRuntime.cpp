@@ -286,6 +286,11 @@ bool SceneRuntime::clearMeshStore()
 
 bool SceneRuntime::setDisplayList(const std::vector<int>& ids)
 {
+	// This is an explicit document visibility state, not a request to mutate
+	// the currently swapped view.  Normalize it into the primary list so later
+	// imports and visibility snapshots cannot reinterpret the same ids through
+	// a stale swap flag.
+	const bool wasSwapped = _visibleSwapped;
 	_displayedObjectsIds = ids;
 	++_runtimeVisibilityMaskRevision;
 
@@ -300,9 +305,7 @@ bool SceneRuntime::setDisplayList(const std::vector<int>& ids)
 		_displayedObjectsIds.begin(), _displayedObjectsIds.end(),
 		std::back_inserter(_hiddenObjectsIds));
 
-	const bool wasSwapped = _visibleSwapped;
-	if (_hiddenObjectsIds.empty())
-		_visibleSwapped = false;
+	_visibleSwapped = false;
 
 	return wasSwapped && !_visibleSwapped;
 }

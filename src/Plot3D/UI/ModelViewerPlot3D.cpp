@@ -17,8 +17,34 @@ Plot3DSession* sessionFor(QVector<Plot3DSession>& sessions, const QUuid& uuid)
 	return nullptr;
 }
 
-void applyAxes(ViewportWidget* viewport, const Plot3DSession* session)
+bool visiblePlotBounds(const ModelViewer* viewer, std::array<double, 3>& minimum, std::array<double, 3>& maximum)
 {
+	if (!viewer)
+		return false;
+	bool haveVisiblePlot = false;
+	for (const Plot3DSession& candidate : viewer->plot3DSessions())
+	{
+		if (!candidate.visible)
+			continue;
+		if (!haveVisiblePlot)
+		{
+			minimum = candidate.dataMinimum;
+			maximum = candidate.dataMaximum;
+			haveVisiblePlot = true;
+			continue;
+		}
+		for (int axis = 0; axis < 3; ++axis)
+		{
+			minimum[axis] = std::min(minimum[axis], candidate.dataMinimum[axis]);
+			maximum[axis] = std::max(maximum[axis], candidate.dataMaximum[axis]);
+		}
+	}
+	return haveVisiblePlot;
+}
+
+void applyAxes(ModelViewer* viewer, const Plot3DSession* session)
+{
+	ViewportWidget* viewport = viewer ? viewer->getViewportWidget() : nullptr;
 	if (!viewport || !session)
 		return;
 	if (!session->axesVisible)
@@ -26,11 +52,23 @@ void applyAxes(ViewportWidget* viewport, const Plot3DSession* session)
 		viewport->setPlot3DAxisVisible(false);
 		return;
 	}
+	// One axis box represents the current Plot3D coordinate system.  It must
+	// enclose every visible plot, not merely whichever plot is selected for
+	// editing.  The active plot still owns the axis configuration below.
+	std::array<double, 3> minimum{};
+	std::array<double, 3> maximum{};
+	if (!visiblePlotBounds(viewer, minimum, maximum))
+	{
+		viewport->setPlot3DAxisVisible(false);
+		return;
+	}
 	Plot3DAxisController controller;
 	Plot3DAxisLayout layout;
 	QString error;
-	if (controller.buildLayout(session->axes, session->dataMinimum.data(), session->dataMaximum.data(), layout, &error))
+	if (controller.buildLayout(session->axes, minimum.data(), maximum.data(), layout, &error))
 		viewport->setPlot3DAxisLayout(layout);
+	else
+		viewport->setPlot3DAxisVisible(false);
 }
 }
 
@@ -62,31 +100,9 @@ void ModelViewer::activatePlot3DSession(const QUuid& meshUuid)
 	if (!session)
 		return;
 	_activePlot3DMesh = meshUuid;
-	applyAxes(_viewportWidget, session);
+	applyAxes(this, session);
 	if (_viewportWidget)
 		_viewportWidget->updateView();
-	emit plot3DSessionsChanged(false);
-}
-
-void ModelViewer::setPlot3DSessionVisible(const QUuid& meshUuid, bool visible)
-{
-	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
-	if (!session || getVisibleUuids().contains(meshUuid) == visible)
-		return;
-	session->visible = visible;
-	QSet<QUuid> shown = getVisibleUuids();
-	if (visible) shown.insert(meshUuid); else shown.remove(meshUuid);
-	setVisibilityWithoutUndo(shown);
-	// The axis box is presentation belonging to the plot rather than scene
-	// geometry.  Do not leave it floating after its active plot is hidden;
-	// showing the plot restores the user's independent axes preference.
-	if (meshUuid == _activePlot3DMesh)
-	{
-		if (visible)
-			applyAxes(_viewportWidget, session);
-		else if (_viewportWidget)
-			_viewportWidget->setPlot3DAxisVisible(false);
-	}
 	emit plot3DSessionsChanged(false);
 }
 
@@ -119,7 +135,7 @@ void ModelViewer::setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visibl
 		return;
 	session->axesVisible = visible;
 	if (meshUuid == _activePlot3DMesh)
-		applyAxes(_viewportWidget, session);
+		applyAxes(this, session);
 	emit plot3DSessionsChanged(false);
 }
 
@@ -134,10 +150,20 @@ void ModelViewer::applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<
 	Plot3DAxisController controller;
 	Plot3DAxisLayout layout;
 	QString error;
-	if (!controller.buildLayout(axes, session->dataMinimum.data(), session->dataMaximum.data(), layout, &error))
+	std::array<double, 3> minimum{};
+	std::array<double, 3> maximum{};
+	if (!visiblePlotBounds(this, minimum, maximum)
+		|| !controller.buildLayout(axes, minimum.data(), maximum.data(), layout, &error))
 		return;
 	session->axes = axes;
 	if (meshUuid == _activePlot3DMesh)
-		_viewportWidget->setPlot3DAxisLayout(layout);
+		applyAxes(this, session);
 	emit plot3DSessionsChanged(false);
+}
+
+void ModelViewer::refreshPlot3DAxes()
+{
+	Plot3DSession* session = sessionFor(_plot3DSessions, _activePlot3DMesh);
+	if (session)
+		applyAxes(this, session);
 }

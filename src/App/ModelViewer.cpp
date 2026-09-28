@@ -5303,6 +5303,9 @@ void ModelViewer::handleTreeWidgetVisibilityChanged()
 {
 	_visibleMeshUuids = treeWidgetModel->getVisibleUuids();
 	applyVisibleMeshState(false);
+	// Scene-tree checkboxes bypass setVisibilityWithoutUndo(), so they must
+	// explicitly refresh Plot3D's shared axis extent as well.
+	refreshPlot3DAxes();
 }
 
 void ModelViewer::handleTreeWidgetSelectionChanged()
@@ -7893,12 +7896,17 @@ void ModelViewer::setVisibilityWithoutUndo(const QSet<QUuid>& visibleUuids)
 	changedUuids.unite(visibleUuids - _visibleMeshUuids);
 	_visibleMeshUuids = visibleUuids;
 	applyVisibleMeshState(true, true, changedUuids);
+	refreshPlot3DAxes();
 }
 
 QSet<QUuid> ModelViewer::collectVisibleUuidsFromDisplayList() const
 {
 	QSet<QUuid> visibleUuids;
-	for (int id : _viewportWidget->getDisplayedObjectsIds())
+	// `displayedObjectsIds()` is the raw primary list.  The View toolbar can
+	// temporarily swap it with the hidden list, so it is not necessarily what
+	// is on screen.  Every document-level visibility snapshot must use the
+	// runtime's resolved list or an import/update can resurrect hidden plots.
+	for (int id : _viewportWidget->currentVisibleObjectIds())
 	{
 		QUuid uuid = _viewportWidget->getUuidByIndex(id);
 		if (!uuid.isNull())

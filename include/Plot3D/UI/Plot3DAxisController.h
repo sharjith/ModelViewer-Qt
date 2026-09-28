@@ -18,12 +18,14 @@ struct Plot3DLineSegment
 {
 	QVector3D first;
 	QVector3D second;
+	QVector3D color{ 0.7f, 0.7f, 0.7f };
 };
 
 struct Plot3DAxisLabel
 {
 	QString text;
 	QVector3D position;
+	QVector3D color{ 0.95f, 0.97f, 0.99f };
 };
 
 struct Plot3DReferencePlane
