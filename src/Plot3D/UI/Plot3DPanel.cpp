@@ -417,15 +417,27 @@ void Plot3DPanel::buildPlot()
 	viewport->updateView();
 	_modelViewer->updateDisplayList();
 
-	// Point the axis-box overlay at the plot's own data bounds.
+	// Register the generated mesh with the document-owned session model.  That
+	// keeps its axes and colour range adjustable from the persistent 3D Plot
+	// tab after this import dialog is closed.
 	double dataLo[3], dataHi[3];
 	if (plot3DDataBounds(dataset, dataLo, dataHi))
 	{
-		Plot3DAxisController controller;
-		Plot3DAxisLayout axisLayout;
-		QString axisError;
-		if (controller.buildLayout(dataset.axes, dataLo, dataHi, axisLayout, &axisError))
-			viewport->setPlot3DAxisLayout(axisLayout);
+		Plot3DSession session;
+		session.meshUuid = meshUuid;
+		session.name = baseName;
+		session.primitive = primitive;
+		session.axes = dataset.axes;
+		std::copy(dataLo, dataLo + 3, session.dataMinimum.begin());
+		std::copy(dataHi, dataHi + 3, session.dataMaximum.begin());
+		session.values = std::move(values);
+		session.valid = std::move(valid);
+		session.dataMinimumValue = anyValid ? lo : 0.0f;
+		session.dataMaximumValue = anyValid ? hi : 1.0f;
+		session.colourMinimum = session.dataMinimumValue;
+		session.colourMaximum = session.dataMaximumValue;
+		session.colormap = static_cast<int>(AnalysisColormap::Sequential);
+		_modelViewer->addPlot3DSession(std::move(session));
 	}
 
 	_status->setStyleSheet(QString());
@@ -554,11 +566,21 @@ void Plot3DPanel::buildQuiverPlot(const Plot3DDataset& dataset, const QString& b
 	double dataLo[3], dataHi[3];
 	if (plot3DDataBounds(dataset, dataLo, dataHi))
 	{
-		Plot3DAxisController controller;
-		Plot3DAxisLayout axisLayout;
-		QString axisError;
-		if (controller.buildLayout(dataset.axes, dataLo, dataHi, axisLayout, &axisError))
-			viewport->setPlot3DAxisLayout(axisLayout);
+		Plot3DSession session;
+		session.meshUuid = meshUuid;
+		session.name = baseName;
+		session.primitive = Plot3DPrimitive::Quiver;
+		session.axes = dataset.axes;
+		std::copy(dataLo, dataLo + 3, session.dataMinimum.begin());
+		std::copy(dataHi, dataHi + 3, session.dataMaximum.begin());
+		session.values = std::move(siteValues);
+		session.valid = std::move(siteValid);
+		session.dataMinimumValue = lo;
+		session.dataMaximumValue = hi;
+		session.colourMinimum = lo;
+		session.colourMaximum = hi;
+		session.colormap = static_cast<int>(AnalysisColormap::Sequential);
+		_modelViewer->addPlot3DSession(std::move(session));
 	}
 
 	_status->setStyleSheet(QString());

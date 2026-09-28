@@ -5,6 +5,8 @@
 #include <QWidget>
 
 class QCheckBox;
+class QComboBox;
+class QDoubleSpinBox;
 class QLabel;
 class QPushButton;
 class ModelViewer;
@@ -24,11 +26,19 @@ signals:
 	void addPlotRequested();
 
 private:
-	void refreshAxisState();
+	void refreshState();
+	void applyColourState();
 
 	QPointer<ModelViewer> _viewer;
-	QMetaObject::Connection _axisStateConnection;
+	QMetaObject::Connection _stateConnection;
 	QPushButton* _addPlotButton = nullptr;
+	QComboBox* _plotSelector = nullptr;
+	QCheckBox* _showPlotCheck = nullptr;
 	QCheckBox* _showAxesCheck = nullptr;
+	QComboBox* _colormap = nullptr;
+	QComboBox* _bands = nullptr;
+	QCheckBox* _automaticRange = nullptr;
+	QDoubleSpinBox* _rangeMinimum = nullptr;
+	QDoubleSpinBox* _rangeMaximum = nullptr;
 	QLabel* _axisStatus = nullptr;
 };

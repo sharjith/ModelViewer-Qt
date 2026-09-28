@@ -23,6 +23,7 @@
 #include "TextureDebugPanel.h"
 #include "ResultSnapshot.h"
 #include "SimulationResultDisplay.h"
+#include "Plot3DSession.h"
 
 #include <QPointer>
 #include <QUndoStack>
@@ -219,6 +220,9 @@ signals:
 	// The active simulation result (or its view state) changed - MainWindow refreshes the Simulation dock panel.
 	// `activateTab` is true when a result was just opened, so the dock switches to the Simulation tab.
 	void simulationSessionChanged(bool activateTab);
+	// The document-owned Plot3D session list or active plot changed.  `activateTab`
+	// is true only when a newly built plot should bring the persistent plot tab forward.
+	void plot3DSessionsChanged(bool activateTab);
 	// Emitted from updateVisibilityUiFromState() alongside its own overlay
 	// labelMeshCount update - lets MainWindow's Document dock mirror the
 	// same count for whichever document is currently active, without
@@ -614,6 +618,16 @@ public slots:
 	void setSimulationResultVisible(const QUuid& meshUuid, bool visible); // undoable, like hiding any mesh
 	void closeSimulationResult(const QUuid& meshUuid);           // undoable delete of the result's mesh
 
+	// Plot3D session controls.  Plot meshes remain normal scene meshes; these methods
+	// own only the presentation state that the persistent 3D Plot tab needs.
+	QVector<Plot3DSession> plot3DSessions() const;
+	QUuid activePlot3DMeshUuid() const;
+	void addPlot3DSession(Plot3DSession session);
+	void activatePlot3DSession(const QUuid& meshUuid);
+	void setPlot3DSessionVisible(const QUuid& meshUuid, bool visible);
+	void applyPlot3DColourState(const QUuid& meshUuid, float minimum, float maximum, int colormap, int bands);
+	void setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visible);
+
 	// Compare mode: the active result and `otherMeshUuid` side by side (or stacked) in two panes with one shared
 	// camera, each with its own legend; optionally with one colour range for both so equal colours mean equal values
 	// (applied only while both show the same unit). It ends by itself when either result is hidden, closed or undone.
@@ -1006,6 +1020,8 @@ private:
 	// document unmodified and without an undo step (like importing any other format).
 	bool _closeOnSimulationLoadFailure = false;
 	std::vector<SimulationSession> _simulationSessions; // every result opened in this document
+	QVector<Plot3DSession> _plot3DSessions;
+	QUuid _activePlot3DMesh;
 	QUuid _activeSimulationMesh;                        // the session the Simulation panel currently shows
 	bool _simulationHooksConnected = false;
 	enum class SimulationSaveContent { ShownAndDisplacement, AllFields, GeometryOnly };
