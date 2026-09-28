@@ -1256,6 +1256,9 @@ signals:
 	// the mesh is still valid for the duration of this signal, but not
 	// after.
 	void meshAboutToBeDeleted(SceneMesh* mesh);
+	// Availability/visibility of the persistent Plot3D axis overlay changed. The shared 3D Plot panel uses this to
+	// follow the active document and changes made by a newly-built plot.
+	void plot3DAxisStateChanged(bool available, bool visible);
 
 	void windowZoomEnded();
 	void rotationsSet();
@@ -1554,9 +1557,13 @@ public:
 	// The 3D Plot (Plot3D module) axis box overlay: a labelled axis box with tick marks and optional reference
 	// planes, built by Plot3DAxisController::buildLayout() from a plot's own axis config and data bounds - NOT tied
 	// to any mesh (a plot may have no scene mesh yet while its data source is only being previewed). Only one
-	// layout is shown at a time; clearing it (or destroying the panel/plot that set it) removes the overlay.
+	// layout is shown at a time. Visibility can be toggled without discarding the layout, so a persistent Plot3D
+	// panel can hide/show it after the import dialog has gone away.
 	void setPlot3DAxisLayout(const Plot3DAxisLayout& layout);
 	void clearPlot3DAxisLayout();
+	void setPlot3DAxisVisible(bool visible);
+	bool hasPlot3DAxisLayout() const { return _plot3DAxisLayout.has_value(); }
+	bool plot3DAxisVisible() const { return _plot3DAxisVisible && _plot3DAxisLayout.has_value(); }
 
 	// What is displayed for a result now (empty when nothing), for saving it in a snapshot.
 	std::vector<SliceDisplay> simulationSlices(const QUuid& meshUuid) const;
@@ -2079,6 +2086,7 @@ private:
 	TextRenderer* _textRenderer;
 	TextRenderer* _axisTextRenderer;
 	std::optional<Plot3DAxisLayout> _plot3DAxisLayout;
+	bool _plot3DAxisVisible = false;
 	QString _labelTop, _labelFront, _labelLeft, _labelIsometric, _labelDimetric, _labelTrimetric;
 	QString _labelAxisX, _labelAxisY, _labelAxisZ;
 	QString _modelName;

@@ -115,7 +115,8 @@ struct Plot3DCsvTable
 };
 
 // Column indices used to turn a table into one primitive. x/y/z are positions for Surface/Line/Scatter/Quiver,
-// bar x/y/height for Bar, and integer grid indices for Voxel. Optional columns use -1.
+// bar x/y/height for Bar (Y may be -1 for a one-dimensional histogram), and integer grid indices for Voxel.
+// Optional columns use -1.
 struct Plot3DColumnMapping
 {
 	int x = 0, y = 1, z = 2;

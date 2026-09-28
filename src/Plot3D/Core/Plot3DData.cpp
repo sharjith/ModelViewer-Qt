@@ -256,7 +256,7 @@ bool buildPlot3DDataset(const Plot3DCsvTable& table, Plot3DPrimitive primitive, 
 		{
 			Plot3DBar bar;
 			if (!numberAt(table, row, mapping.x, QStringLiteral("X"), bar.x, error)
-			    || !numberAt(table, row, mapping.y, QStringLiteral("Y"), bar.y, error)
+			    || !optionalNumberAt(table, row, mapping.y, QStringLiteral("Y"), 0.0, bar.y, error)
 			    || !numberAt(table, row, mapping.z, QStringLiteral("height"), bar.height, error)
 			    || !optionalNumberAt(table, row, mapping.base, QStringLiteral("base"), 0.0, bar.base, error)
 			    || !optionalNumberAt(table, row, mapping.width, QStringLiteral("width"), options.defaultBarWidth, bar.width, error)

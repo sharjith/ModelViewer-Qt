@@ -37,6 +37,7 @@ class CamerasPanel;
 class SelectionSetsPanel;
 class SceneStatesPanel;
 class SimulationPanel;
+class Plot3DControlsPanel;
 
 class MainWindow : public QMainWindow
 {
@@ -261,6 +262,10 @@ private:
 	SimulationPanel* _simulationPanel = nullptr;
 	QMetaObject::Connection _simulationSessionConnection;
 	void refreshSimulationPanel(ModelViewer* viewer);
+	// Persistent manager beside Simulation; the separate import dialog is opened from both this panel and the
+	// Tools action through showAdd3DPlotDialog().
+	Plot3DControlsPanel* _plot3DControlsPanel = nullptr;
+	void showAdd3DPlotDialog();
 	ModelViewer* _lastBoundModelViewer = nullptr;
 	// Guards rebindSharedPanelsTo(nullptr) against running its teardown body
 	// more than once per "went from having an active document to having

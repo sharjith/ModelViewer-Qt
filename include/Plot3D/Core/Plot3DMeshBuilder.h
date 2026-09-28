@@ -18,7 +18,7 @@ struct Plot3DMeshData
 	std::vector<float> normals;        // x,y,z per vertex, parallel to positions (see buildPlot3DLineMesh()/
 	                                    // buildPlot3DScatterMesh()'s doc comments: unused placeholder for those two)
 	std::vector<double> values;        // one scalar per vertex, parallel to positions - for colour-by-value
-	std::vector<unsigned int> indices; // triangle list for Surface; deliberately EMPTY for Line/Scatter, whose
+	std::vector<unsigned int> indices; // triangle list for Surface/Bar; deliberately EMPTY for Line/Scatter, whose
 	                                    // vertices are drawn in order via glDrawArrays with a GL_LINE_STRIP/
 	                                    // GL_POINTS primitive mode instead - see buildPlot3DLineMesh()'s doc comment
 
@@ -44,6 +44,11 @@ bool buildPlot3DLineMesh(const Plot3DLineData& data, Plot3DMeshData& out, QStrin
 // Builds a flat, unordered vertex list (no triangles) for Scatter data - the caller draws it as GL_POINTS, for the
 // same constant-screen-size reason buildPlot3DLineMesh() above documents.
 bool buildPlot3DScatterMesh(const Plot3DScatterData& data, Plot3DMeshData& out, QString* error = nullptr);
+
+// Builds one closed, flat-shaded cuboid per bar. Vertices are intentionally duplicated per face so every face has
+// the correct hard normal; the bar's scalar value is repeated for all 24 vertices so colour-by-value stays uniform.
+// Positive and negative heights are both supported, extending from `base` in the appropriate Z direction.
+bool buildPlot3DBarMesh(const Plot3DBarData& data, Plot3DMeshData& out, QString* error = nullptr);
 
 // Builds a flat, unordered vertex list (no triangles, drawn as GL_POINTS) of Quiver's own arrow BASE positions -
 // the "site" a Plot3D UI-layer caller anchors a GlyphSet's arrows to (see docs/plot3d_blueprint.md section 5:

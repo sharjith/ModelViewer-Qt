@@ -6,6 +6,8 @@
 #include "SimulationVolume.h"
 #include "SimulationTransferFunctionWidget.h"
 
+#include <QAbstractButton>
+#include <QAbstractSpinBox>
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
@@ -147,6 +149,14 @@ void SimulationPanel::buildUi()
 	auto* content = new QWidget(scroll);
 	auto* form = new QFormLayout(content);
 	form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+	// This panel can be docked very narrowly and is also used with themes/translations whose controls have larger
+	// size hints. Never let the scroll area's resizable widget squeeze the form below its real minimum: once the
+	// minimum is reached, scrolling is preferable to controls sharing or painting over the same space.
+	form->setRowWrapPolicy(QFormLayout::WrapLongRows);
+	form->setSizeConstraint(QLayout::SetMinimumSize);
+	form->setHorizontalSpacing(std::max(8, form->horizontalSpacing()));
+	form->setVerticalSpacing(std::max(6, form->verticalSpacing()));
+	content->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Minimum);
 
 	// ---- Which result: a document can hold several. Picking one selects its mesh; it can be hidden or closed.
 	_resultCombo = new QComboBox(content);
@@ -461,6 +471,24 @@ void SimulationPanel::buildUi()
 		   "you confirm it; choosing a different \"Show in\" unit converts the values and the legend."), content);
 	units->setWordWrap(true);
 	form->addRow(units);
+
+	// A layout may legally shrink controls below sizeHint() unless their minimum says otherwise. That can clip or
+	// overlap text after a theme/font/DPI change, particularly in compound form rows. Polish first so stylesheet
+	// metrics are included, then make the resulting height a hard floor. Width remains flexible and is handled by
+	// the form's wrapping plus the scroll area's horizontal scrollbar.
+	auto preserveControlHeight = [](QWidget* control) {
+		control->ensurePolished();
+		control->setMinimumHeight(std::max(control->minimumHeight(), control->sizeHint().height()));
+		QSizePolicy policy = control->sizePolicy();
+		policy.setVerticalPolicy(QSizePolicy::Fixed);
+		control->setSizePolicy(policy);
+	};
+	for (QAbstractButton* button : findChildren<QAbstractButton*>())
+		preserveControlHeight(button);
+	for (QComboBox* combo : findChildren<QComboBox*>())
+		preserveControlHeight(combo);
+	for (QAbstractSpinBox* spin : findChildren<QAbstractSpinBox*>())
+		preserveControlHeight(spin);
 
 	scroll->setWidget(content);
 	_stack->addWidget(scroll);

@@ -56,6 +56,9 @@ namespace
 		const Plot3DBar& bar = std::get<Plot3DBarData>(dataset.content).bars[0];
 		CHECK(bar.base == -1.0 && bar.height == 4.0 && bar.width == 2.0 && bar.depth == 6.0);
 		CHECK(plot3DDataBounds(dataset, lo, hi) && lo[0] == 0.0 && hi[0] == 2.0 && lo[1] == -1.0 && hi[1] == 5.0 && lo[2] == -1.0 && hi[2] == 3.0);
+		mapping.y = -1;
+		CHECK(buildPlot3DDataset(table, Plot3DPrimitive::Bar, mapping, dataset, &error)
+		      && std::get<Plot3DBarData>(dataset.content).bars[0].y == 0.0);
 
 		CHECK(parsePlot3DCsv(QStringLiteral("i,j,k,occupied\n0,1,2,0.75\n3,4,5,1"), {}, table, &error));
 		mapping = Plot3DColumnMapping(); mapping.value = 3;
@@ -165,6 +168,29 @@ namespace
 		CHECK(!buildPlot3DQuiverSiteMesh(emptyQuiver, quiverMesh, &error) && !error.isEmpty());
 	}
 
+	void testBarMesh()
+	{
+		Plot3DBarData bars;
+		bars.bars.push_back({ 1.0, 2.0, -1.0, 4.0, 2.0, 6.0, 9.0 });
+		bars.bars.push_back({ -2.0, 0.0, 3.0, -5.0, 1.0, 2.0, -7.0 });
+		Plot3DMeshData mesh;
+		QString error;
+		CHECK(buildPlot3DBarMesh(bars, mesh, &error));
+		CHECK(error.isEmpty() && mesh.vertexCount() == 48 && mesh.indices.size() == 72);
+		CHECK(mesh.positions[0] == 0.0f && mesh.positions[1] == -1.0f && mesh.positions[2] == -1.0f);
+		CHECK(mesh.values[0] == 9.0 && mesh.values[23] == 9.0 && mesh.values[24] == -7.0);
+		bool allNormalsUnit = true;
+		for (std::size_t i = 0; i < mesh.vertexCount(); ++i)
+		{
+			const float nx=mesh.normals[i*3], ny=mesh.normals[i*3+1], nz=mesh.normals[i*3+2];
+			allNormalsUnit = allNormalsUnit && std::abs(nx*nx + ny*ny + nz*nz - 1.0f) < 1.0e-6f;
+		}
+		CHECK(allNormalsUnit);
+		Plot3DBarData bad;
+		bad.bars.push_back({0,0,0,1,0,1,1});
+		CHECK(!buildPlot3DBarMesh(bad, mesh, &error) && !error.isEmpty() && mesh.empty());
+	}
+
 	void testAxes()
 	{
 		Plot3DAxisConfig linear;
@@ -210,6 +236,7 @@ int main()
 	testDatasets();
 	testSurfaceMesh();
 	testLineAndScatterMesh();
+	testBarMesh();
 	testAxes();
 	std::printf("%d checks, %d failed\n", checks, failures);
 	return failures;

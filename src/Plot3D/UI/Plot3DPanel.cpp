@@ -18,7 +18,6 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QClipboard>
-#include <QCloseEvent>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFile>
@@ -82,8 +81,8 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	_status->setWordWrap(true);
 	layout->addWidget(_status);
 
-	// Primitive + column mapping. Only Surface actually builds anything yet (see buildPlot()) - the others are
-	// listed so the mapping UI's shape doesn't need to change as docs/plot3d_blueprint.md's remaining phases land.
+	// Primitive + column mapping. Roles that apply only to one primitive remain in this static form so switching
+	// primitive never destroys a mapping the user has already chosen.
 	auto* mapping = new QFormLayout();
 	_primitive = new QComboBox(this);
 	_primitive->addItem(tr("Surface"), QVariant::fromValue(static_cast<int>(Plot3DPrimitive::Surface)));
@@ -121,63 +120,36 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	vectorColumnsRow->addWidget(new QLabel(tr("W:"), this)); vectorColumnsRow->addWidget(_columnW);
 	vectorColumnsRow->addStretch();
 	mapping->addRow(tr("Vector (Quiver):"), vectorColumnsRow);
+	auto* barColumnsRow = new QHBoxLayout();
+	_columnBase = new QComboBox(this);
+	_columnWidth = new QComboBox(this);
+	_columnDepth = new QComboBox(this);
+	for (QComboBox* combo : { _columnBase, _columnWidth, _columnDepth }) combo->setMinimumWidth(90);
+	barColumnsRow->addWidget(new QLabel(tr("Base:"), this)); barColumnsRow->addWidget(_columnBase);
+	barColumnsRow->addWidget(new QLabel(tr("Width:"), this)); barColumnsRow->addWidget(_columnWidth);
+	barColumnsRow->addWidget(new QLabel(tr("Depth:"), this)); barColumnsRow->addWidget(_columnDepth);
+	barColumnsRow->addStretch();
+	mapping->addRow(tr("Bar options:"), barColumnsRow);
 	layout->addLayout(mapping);
 
-	auto* previewRow = new QHBoxLayout();
-	_previewAxisButton = new QPushButton(tr("Preview Axis Box"), this);
-	_previewAxisButton->setToolTip(tr("Shows a labelled 3D axis box in the viewport with a fixed test range - lets\n"
-		"you check the axis rendering itself before any plot primitive exists."));
-	_previewAxisButton->setEnabled(_modelViewer && _modelViewer->getViewportWidget());
 	_buildButton = new QPushButton(tr("Build Plot"), this);
 	_buildButton->setEnabled(false); // enabled once refreshPreview() has a non-empty table
-	previewRow->addWidget(_previewAxisButton);
-	previewRow->addWidget(_buildButton);
-	previewRow->addStretch();
+	auto* buttonRow = new QHBoxLayout();
+	buttonRow->addWidget(_buildButton);
+	buttonRow->addStretch();
 	auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
-	previewRow->addWidget(buttons);
-	layout->addLayout(previewRow);
+	buttonRow->addWidget(buttons);
+	layout->addLayout(buttonRow);
 
 	connect(openButton, &QPushButton::clicked, this, &Plot3DPanel::loadCsvFile);
 	connect(pasteButton, &QPushButton::clicked, this, &Plot3DPanel::pasteData);
 	connect(parseButton, &QPushButton::clicked, this, &Plot3DPanel::refreshPreview);
 	connect(_delimiter, &QComboBox::currentIndexChanged, this, &Plot3DPanel::refreshPreview);
 	connect(_header, &QCheckBox::toggled, this, &Plot3DPanel::refreshPreview);
-	connect(_previewAxisButton, &QPushButton::clicked, this, &Plot3DPanel::previewAxisBox);
 	connect(_buildButton, &QPushButton::clicked, this, &Plot3DPanel::buildPlot);
 	connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::close);
 
 	refreshColumnCombos(); // seeds the column combos with their placeholder/default state before any data is loaded
-}
-
-void Plot3DPanel::previewAxisBox()
-{
-	if (!_modelViewer || !_modelViewer->getViewportWidget())
-		return;
-
-	std::array<Plot3DAxisConfig, 3> axes{
-		Plot3DAxisConfig{ QStringLiteral("X") },
-		Plot3DAxisConfig{ QStringLiteral("Y") },
-		Plot3DAxisConfig{ QStringLiteral("Z") }
-	};
-	const double lo[3] = { -5.0, -5.0, -2.0 };
-	const double hi[3] = { 5.0, 5.0, 2.0 };
-
-	Plot3DAxisController controller;
-	Plot3DAxisLayout layoutResult;
-	QString error;
-	if (!controller.buildLayout(axes, lo, hi, layoutResult, &error))
-	{
-		QMessageBox::warning(this, tr("Preview Axis Box"), error);
-		return;
-	}
-	_modelViewer->getViewportWidget()->setPlot3DAxisLayout(layoutResult);
-}
-
-void Plot3DPanel::closeEvent(QCloseEvent* event)
-{
-	if (_modelViewer && _modelViewer->getViewportWidget())
-		_modelViewer->getViewportWidget()->clearPlot3DAxisLayout();
-	QDialog::closeEvent(event);
 }
 
 void Plot3DPanel::loadCsvFile()
@@ -260,23 +232,31 @@ void Plot3DPanel::refreshColumnCombos()
 		combo->blockSignals(true);
 		combo->clear();
 		if (withNone)
-			combo->addItem(tr("(none - use Z)"), -1);
+			combo->addItem(tr("(none)"), -1);
 		for (int i = 0; i < _table.columnCount(); ++i)
 			combo->addItem(_table.headers.value(i, tr("Column %1").arg(i + 1)), i);
 		if (combo->count() > 0)
 		{
 			const int restoreIndex = combo->findData(previousData);
-			combo->setCurrentIndex(restoreIndex >= 0 ? restoreIndex : (withNone ? 0 : std::min(defaultColumn, combo->count() - 1)));
+			int fallback = 0;
+			if (!withNone)
+				fallback = std::min(defaultColumn, combo->count() - 1);
+			else if (defaultColumn >= 0)
+				fallback = std::min(defaultColumn + 1, combo->count() - 1); // +1 for the leading "None" entry
+			combo->setCurrentIndex(restoreIndex >= 0 ? restoreIndex : fallback);
 		}
 		combo->blockSignals(false);
 		};
 	populate(_columnX, false, 0);
-	populate(_columnY, false, 1);
+	populate(_columnY, true, 1); // Bar/Histogram may select None for a one-dimensional plot; other builders reject it
 	populate(_columnZ, false, 2);
 	populate(_columnValue, true, -1);
 	populate(_columnU, false, 3);
 	populate(_columnV, false, 4);
 	populate(_columnW, false, 5);
+	populate(_columnBase, true, -1);
+	populate(_columnWidth, true, -1);
+	populate(_columnDepth, true, -1);
 }
 
 void Plot3DPanel::buildPlot()
@@ -291,10 +271,11 @@ void Plot3DPanel::buildPlot()
 
 	const Plot3DPrimitive primitive = static_cast<Plot3DPrimitive>(_primitive->currentData().toInt());
 	if (primitive != Plot3DPrimitive::Surface && primitive != Plot3DPrimitive::Line
-		&& primitive != Plot3DPrimitive::Scatter && primitive != Plot3DPrimitive::Quiver)
+		&& primitive != Plot3DPrimitive::Scatter && primitive != Plot3DPrimitive::Bar
+		&& primitive != Plot3DPrimitive::Quiver)
 	{
 		QMessageBox::information(this, tr("Build Plot"),
-			tr("%1 is not implemented yet - only Surface, Line, Scatter and Quiver can be built into the scene so far.").arg(_primitive->currentText()));
+			tr("%1 is not implemented yet - Surface, Line, Scatter, Bar and Quiver are available.").arg(_primitive->currentText()));
 		return;
 	}
 
@@ -306,6 +287,9 @@ void Plot3DPanel::buildPlot()
 	columnMapping.u = _columnU->currentData().toInt();
 	columnMapping.v = _columnV->currentData().toInt();
 	columnMapping.w = _columnW->currentData().toInt();
+	columnMapping.base = _columnBase->currentData().toInt();
+	columnMapping.width = _columnWidth->currentData().toInt();
+	columnMapping.depth = _columnDepth->currentData().toInt();
 
 	Plot3DDataset dataset;
 	QString error;
@@ -334,6 +318,9 @@ void Plot3DPanel::buildPlot()
 		break;
 	case Plot3DPrimitive::Scatter:
 		built = buildPlot3DScatterMesh(std::get<Plot3DScatterData>(dataset.content), meshData, &error);
+		break;
+	case Plot3DPrimitive::Bar:
+		built = buildPlot3DBarMesh(std::get<Plot3DBarData>(dataset.content), meshData, &error);
 		break;
 	default:
 		break; // unreachable - excluded by the primitive check above
@@ -422,7 +409,7 @@ void Plot3DPanel::buildPlot()
 	viewport->updateView();
 	_modelViewer->updateDisplayList();
 
-	// Point the axis-box overlay at the plot's own data bounds instead of previewAxisBox()'s fixed test range.
+	// Point the axis-box overlay at the plot's own data bounds.
 	double dataLo[3], dataHi[3];
 	if (plot3DDataBounds(dataset, dataLo, dataHi))
 	{
@@ -434,7 +421,10 @@ void Plot3DPanel::buildPlot()
 	}
 
 	_status->setStyleSheet(QString());
-	_status->setText(tr("Built '%1' (%2 points).").arg(baseName).arg(meshData.vertexCount()));
+	if (primitive == Plot3DPrimitive::Bar)
+		_status->setText(tr("Built '%1' (%2 bars).").arg(baseName).arg(std::get<Plot3DBarData>(dataset.content).bars.size()));
+	else
+		_status->setText(tr("Built '%1' (%2 points).").arg(baseName).arg(meshData.vertexCount()));
 }
 
 void Plot3DPanel::buildQuiverPlot(const Plot3DDataset& dataset, const QString& baseName)

@@ -231,6 +231,56 @@ bool buildPlot3DScatterMesh(const Plot3DScatterData& data, Plot3DMeshData& out, 
 	return true;
 }
 
+bool buildPlot3DBarMesh(const Plot3DBarData& data, Plot3DMeshData& out, QString* error)
+{
+	out = Plot3DMeshData();
+	if (data.bars.empty())
+	{
+		if (error) *error = QObject::tr("Bar data has no bars.");
+		return false;
+	}
+	out.positions.reserve(data.bars.size() * 24 * 3);
+	out.normals.reserve(data.bars.size() * 24 * 3);
+	out.values.reserve(data.bars.size() * 24);
+	out.indices.reserve(data.bars.size() * 36);
+
+	auto addFace = [&out](const Vec3f& a, const Vec3f& b, const Vec3f& c, const Vec3f& d,
+		const Vec3f& normal, double value) {
+		const unsigned int first = static_cast<unsigned int>(out.vertexCount());
+		for (const Vec3f& p : { a, b, c, d })
+		{
+			out.positions.insert(out.positions.end(), { p.x, p.y, p.z });
+			out.normals.insert(out.normals.end(), { normal.x, normal.y, normal.z });
+			out.values.push_back(value);
+		}
+		out.indices.insert(out.indices.end(), { first, first + 1, first + 2, first, first + 2, first + 3 });
+		};
+
+	for (std::size_t i = 0; i < data.bars.size(); ++i)
+	{
+		const Plot3DBar& bar = data.bars[i];
+		if (!(bar.width > 0.0) || !(bar.depth > 0.0) || !std::isfinite(bar.x) || !std::isfinite(bar.y)
+			|| !std::isfinite(bar.base) || !std::isfinite(bar.height) || !std::isfinite(bar.width) || !std::isfinite(bar.depth))
+		{
+			if (error) *error = QObject::tr("Bar %1 has invalid geometry.").arg(i + 1);
+			out = Plot3DMeshData();
+			return false;
+		}
+		const float x0 = static_cast<float>(bar.x - bar.width * 0.5), x1 = static_cast<float>(bar.x + bar.width * 0.5);
+		const float y0 = static_cast<float>(bar.y - bar.depth * 0.5), y1 = static_cast<float>(bar.y + bar.depth * 0.5);
+		const float z0 = static_cast<float>(std::min(bar.base, bar.base + bar.height));
+		const float z1 = static_cast<float>(std::max(bar.base, bar.base + bar.height));
+		const double value = std::isfinite(bar.value) ? bar.value : bar.height;
+		addFace({x0,y0,z0},{x0,y1,z0},{x1,y1,z0},{x1,y0,z0},{0,0,-1},value);
+		addFace({x0,y0,z1},{x1,y0,z1},{x1,y1,z1},{x0,y1,z1},{0,0, 1},value);
+		addFace({x0,y0,z0},{x0,y0,z1},{x0,y1,z1},{x0,y1,z0},{-1,0,0},value);
+		addFace({x1,y0,z0},{x1,y1,z0},{x1,y1,z1},{x1,y0,z1},{ 1,0,0},value);
+		addFace({x0,y0,z0},{x1,y0,z0},{x1,y0,z1},{x0,y0,z1},{0,-1,0},value);
+		addFace({x0,y1,z0},{x0,y1,z1},{x1,y1,z1},{x1,y1,z0},{0, 1,0},value);
+	}
+	return true;
+}
+
 bool buildPlot3DQuiverSiteMesh(const Plot3DQuiverData& data, Plot3DMeshData& out, QString* error)
 {
 	out = Plot3DMeshData();

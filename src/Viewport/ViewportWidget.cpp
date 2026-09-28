@@ -9612,6 +9612,8 @@ void ViewportWidget::drawBoundingBoxOverlay()
 void ViewportWidget::setPlot3DAxisLayout(const Plot3DAxisLayout& layout)
 {
     _plot3DAxisLayout = layout;
+	_plot3DAxisVisible = true;
+	emit plot3DAxisStateChanged(true, true);
     update();
 }
 
@@ -9620,12 +9622,24 @@ void ViewportWidget::clearPlot3DAxisLayout()
     if (!_plot3DAxisLayout.has_value())
         return;
     _plot3DAxisLayout.reset();
+	_plot3DAxisVisible = false;
+	emit plot3DAxisStateChanged(false, false);
     update();
+}
+
+void ViewportWidget::setPlot3DAxisVisible(bool visible)
+{
+	const bool next = visible && _plot3DAxisLayout.has_value();
+	if (_plot3DAxisVisible == next)
+		return;
+	_plot3DAxisVisible = next;
+	emit plot3DAxisStateChanged(_plot3DAxisLayout.has_value(), _plot3DAxisVisible);
+	update();
 }
 
 void ViewportWidget::drawPlot3DAxisOverlay(Camera* camera)
 {
-    if (!camera || !_plot3DAxisLayout.has_value() || !_renderCtrl.axisShader())
+    if (!camera || !_plot3DAxisVisible || !_plot3DAxisLayout.has_value() || !_renderCtrl.axisShader())
         return;
 
     const Plot3DAxisLayout& layout = *_plot3DAxisLayout;

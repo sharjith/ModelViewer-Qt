@@ -61,6 +61,7 @@
 #include "ObjectTransformPanel.h"
 #include "VisualizationEnvironmentPanel.h"
 #include "Plot3DPanel.h"
+#include "Plot3DControlsPanel.h"
 #include "MaterialPreviewWidget.h"
 #include "MaterialVariantsPanel.h"
 #include "AnimationsPanel.h"
@@ -305,6 +306,13 @@ MainWindow::MainWindow(QWidget* parent)
 			if (auto* child = activeMdiChild())
 				child->requestSimulationHistogram();
 		});
+
+		// Persistent controls for plots after the roomy import dialog has closed. This shared panel is rebound to
+		// the active document in rebindSharedPanelsTo(), matching the Simulation tab immediately beside it.
+		_plot3DControlsPanel = new Plot3DControlsPanel();
+		_documentSecondaryTabWidget->addTab(_plot3DControlsPanel, QIcon(":/icons/res/showAxis.png"), tr("3D Plot"));
+		connect(_plot3DControlsPanel, &Plot3DControlsPanel::addPlotRequested,
+			this, &MainWindow::showAdd3DPlotDialog);
 
 		// Auto Fit View / Selection Highlighting: moved here from the
 		// per-document nav overlay, above the Variants/Animations/Cameras
@@ -814,18 +822,7 @@ MainWindow::MainWindow(QWidget* parent)
 		});
 
 	connect(ui->actionAdd3DPlot, &QAction::triggered, this, [this]() {
-		ModelViewer* child = activeMdiChild();
-		if (!child)
-			return;
-		if (Plot3DPanel* existing = child->findChild<Plot3DPanel*>(QString(), Qt::FindDirectChildrenOnly))
-		{
-			existing->show();
-			existing->raise();
-			existing->activateWindow();
-			return;
-		}
-		auto* panel = new Plot3DPanel(child, child);
-		panel->show();
+		showAdd3DPlotDialog();
 		});
 
 	// Tools → Measure... - opens the non-modal Measurement dialog (combo box
@@ -1022,6 +1019,7 @@ void MainWindow::retranslateUI()
 		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_selectionSetsPanel), tr("Selections"));
 		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_sceneStatesPanel), tr("States"));
 		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_simulationPanel), tr("Simulation"));
+		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_plot3DControlsPanel), tr("3D Plot"));
 	}
 	if (_simulationPanel)
 	{
@@ -1029,6 +1027,8 @@ void MainWindow::retranslateUI()
 		_simulationPanel->retranslate();
 		refreshSimulationPanel(activeMdiChild());
 	}
+	if (_plot3DControlsPanel)
+		_plot3DControlsPanel->retranslate();
 	if (_propertiesTabWidget && _propertiesTabWidget->count() >= 2)
 	{
 		_propertiesTabWidget->setTabText(0, tr("Materials"));
@@ -1202,6 +1202,24 @@ void MainWindow::refreshSimulationPanel(ModelViewer* viewer)
 	ui->actionSimulationCompare->setEnabled(viewer && (comparing || viewer->simulationResults().size() >= 2));
 }
 
+void MainWindow::showAdd3DPlotDialog()
+{
+	ModelViewer* child = activeMdiChild();
+	if (!child)
+		return;
+	if (_documentSecondaryTabWidget && _plot3DControlsPanel)
+		_documentSecondaryTabWidget->setCurrentWidget(_plot3DControlsPanel);
+	if (Plot3DPanel* existing = child->findChild<Plot3DPanel*>(QString(), Qt::FindDirectChildrenOnly))
+	{
+		existing->show();
+		existing->raise();
+		existing->activateWindow();
+		return;
+	}
+	auto* panel = new Plot3DPanel(child, child);
+	panel->show();
+}
+
 void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 {
 	if (!viewer)
@@ -1245,6 +1263,8 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		_camerasPanel->setViewportWidget(nullptr);
 		_selectionSetsPanel->setSceneGraph(nullptr);
 		_sceneStatesPanel->setSceneGraph(nullptr);
+		if (_plot3DControlsPanel)
+			_plot3DControlsPanel->setModelViewer(nullptr);
 
 		_materialVariantsPanel->refresh();
 		_animationsPanel->refresh();
@@ -1361,6 +1381,8 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 	// Simulation panel: show this document's active result now, and follow it while this document stays active
 	// (an open, a selection change and an edit all emit simulationSessionChanged()).
 	refreshSimulationPanel(viewer);
+	if (_plot3DControlsPanel)
+		_plot3DControlsPanel->setModelViewer(viewer);
 	disconnect(_simulationSessionConnection);
 	_simulationSessionConnection = connect(viewer, &ModelViewer::simulationSessionChanged, this,
 		[this, viewer](bool activateTab) {

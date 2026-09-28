@@ -133,11 +133,10 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
    drawPlot3DAxisOverlay()` (a `SceneRenderController`-owned line-overlay VAO/VBO, same pattern as
    `drawBoundingBoxOverlay()`, drawing `axisLines`/`tickLines`/`referencePlanes` and projected screen-space tick/
    axis labels via the existing `_axisTextRenderer`), driven by `setPlot3DAxisLayout()`/`clearPlot3DAxisLayout()`.
-   `Plot3DPanel` gained a "Preview Axis Box" button that builds a hardcoded fixed-range layout and pushes it to the
-   viewport - exactly the "verify visually with a hardcoded test range before wiring real data" step this line used
-   to call for. Reference planes are drawn as an outline for now (no fill/blend yet - a filled, translucent quad can
-   follow once a primitive actually needs the visual weight). **Awaiting the user's own build+visual check before
-   this is called done** - not yet exercised against a real plot dataset since none of primitives 4-9 exist yet.
+   A temporary "Preview Axis Box" button originally pushed a hardcoded range for early rendering verification. It
+   was removed once real plot builders supplied data-derived bounds; closing the import dialog now leaves the built
+   plot's axes intact for the persistent 3D Plot controls to own. Reference planes are drawn as an outline for now
+   (no fill/blend yet - a filled, translucent quad can follow when a primitive needs the visual weight).
 4. **Complete, awaiting the user's build+visual check (2026-09-27):** Surface + Wireframe. `Plot3D/Core/
    Plot3DMeshBuilder.h/.cpp` builds a triangulated mesh from Surface data - v1 requires a COMPLETE regular X/Y grid
    (nx*ny samples forming a full rectangle, any row order); scattered/unstructured Surface data needing a Delaunay
@@ -162,7 +161,7 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
    `glLineWidth()` rather than real 3D geometry, so it is inherently zoom-invariant with no new rendering code at
    all. Stem (a Scatter option: a line down to a base plane) is not yet wired into `Plot3DPanel` - it needs a
    "base Z" UI control this increment didn't add. `Plot3DPanel::buildPlot()` now dispatches on the chosen primitive
-   to the right builder; Bar/Voxel are still reported as "not implemented yet".
+   to the right builder; Voxel is still reported as "not implemented yet".
 7. **Complete, awaiting the user's build+visual check (2026-09-28):** Quiver, exactly as predicted - reusing
    `SimulationGlyphController`/`GlyphSet` directly needed no new rendering code. `Plot3DMeshBuilder` gained
    `buildPlot3DQuiverSiteMesh()` (Core, GUI-free - just the arrow base positions as a flat point list, same shape as
@@ -178,7 +177,18 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
    `buildGlyphSet()` already sizes real simulation vector-field arrows: the largest magnitude becomes a fixed
    fraction (6%) of the data's own bounding-box diagonal, every other arrow scaled down from that by its magnitude
    ratio - so arrow (and head) size is always proportionate to the plot, not to the CSV's arbitrary vector units.
-8. Bar/histogram.
+8. **Complete, awaiting the user's build+visual check (2026-09-28):** Bar/histogram. `Plot3DMeshBuilder` now
+   creates one closed, flat-shaded cuboid per input row, with per-face vertices for hard edges and the row's scalar
+   value repeated across the whole bar for uniform colour mapping. Both positive and negative heights extend from
+   the selected base. The panel provides optional Base/Width/Depth column mappings with 0/0.8/0.8 defaults, and Y
+   may be left unset for a one-dimensional histogram (all bars then use Y=0). The builder rejects non-finite or
+   non-positive dimensions and is covered by GUI-free tests for positive/negative geometry, normals and invalid
+   widths.
 9. Voxel/volumetric (reusing `SimulationVolumeController` directly).
-10. `Plot3DPanel` + the "Add 3D Plot..." menu entry, wiring all of the above together; polish (log-scale axes,
-    reference planes, styling options) last.
+10. **In progress (2026-09-28):** `Plot3DPanel` + the "Add 3D Plot..." menu entry wire creation together. A
+    persistent **3D Plot** document tab now sits beside Simulation and owns the first lasting display control:
+    showing/hiding the data-derived axis box after the import dialog closes. The early fixed-range Preview Axis Box
+    button and dialog-close axis teardown were removed. The panel is deliberately separate from the roomy import
+    dialog and is rebound to the active document like SimulationPanel. Per-plot selection and styling (range,
+    colormap, bands, axis labels/scales/ticks, primitive-specific sizes) still require the planned document-owned
+    Plot3D session model.
