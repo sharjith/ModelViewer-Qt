@@ -3818,7 +3818,7 @@ void ViewportWidget::drawSimulationSlices(Camera* camera)
 		return;
 	_simulationSliceController->drawOverlay(camera, [this](const QUuid& meshUuid) -> const RenderableMesh* {
 		const SceneMesh* mesh = getMeshByUuid(meshUuid);
-		return mesh && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
+		return mesh && isMeshDisplayed(meshUuid) && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
 	});
 }
 
@@ -3826,7 +3826,7 @@ bool ViewportWidget::simulationOverlaysHideCaps() const
 {
 	const auto resolve = [this](const QUuid& meshUuid) -> const RenderableMesh* {
 		const SceneMesh* mesh = getMeshByUuid(meshUuid);
-		return mesh && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
+		return mesh && isMeshDisplayed(meshUuid) && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
 	};
 	return (_simulationSliceController && _simulationSliceController->hasIsoSurfaces(resolve))
 		|| (_simulationStreamlineController && _simulationStreamlineController->hasLines(resolve))
@@ -3839,7 +3839,7 @@ void ViewportWidget::drawSimulationStreamlines(Camera* camera)
 		return;
 	_simulationStreamlineController->drawOverlay(camera, [this](const QUuid& meshUuid) -> const RenderableMesh* {
 		const SceneMesh* mesh = getMeshByUuid(meshUuid);
-		return mesh && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
+		return mesh && isMeshDisplayed(meshUuid) && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
 	});
 }
 
@@ -3849,7 +3849,7 @@ void ViewportWidget::drawSimulationGlyphs(Camera* camera)
 		return;
 	_simulationGlyphController->drawOverlay(camera, [this](const QUuid& meshUuid) -> const RenderableMesh* {
 		const SceneMesh* mesh = getMeshByUuid(meshUuid);
-		return mesh && isMeshVisible(mesh, -1, true) ? mesh : nullptr; // in compare mode isMeshVisible() also applies the pane filter
+		return mesh && isMeshDisplayed(meshUuid) && isMeshVisible(mesh, -1, true) ? mesh : nullptr; // in compare mode isMeshVisible() also applies the pane filter
 	});
 }
 
@@ -3859,7 +3859,7 @@ void ViewportWidget::drawSimulationTensorGlyphs(Camera* camera)
 		return;
 	_simulationTensorGlyphController->drawOverlay(camera, [this](const QUuid& meshUuid) -> const RenderableMesh* {
 		const SceneMesh* mesh = getMeshByUuid(meshUuid);
-		return mesh && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
+		return mesh && isMeshDisplayed(meshUuid) && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
 	});
 }
 
@@ -3885,7 +3885,7 @@ void ViewportWidget::drawSimulationVolumes(Camera* camera)
 	}
 	_simulationVolumeController->drawOverlay(camera, QSize(width(), height()), clipping, [this](const QUuid& meshUuid) -> const RenderableMesh* {
 		const SceneMesh* mesh = getMeshByUuid(meshUuid);
-		return mesh && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
+		return mesh && isMeshDisplayed(meshUuid) && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
 	});
 }
 
@@ -3899,7 +3899,7 @@ void ViewportWidget::drawVertexMarkers()
 	for (const VertexMarker& marker : std::as_const(_vertexMarkers))
 	{
 		SceneMesh* mesh = getMeshByUuid(marker.meshUuid);
-		if (!mesh || marker.vertex < 0 || !isMeshVisible(mesh, -1, true))
+		if (!mesh || marker.vertex < 0 || !isMeshDisplayed(marker.meshUuid) || !isMeshVisible(mesh, -1, true))
 			continue;
 		const std::vector<float>& points = mesh->getTrsfPoints();
 		const std::size_t p = static_cast<std::size_t>(marker.vertex) * 3;
@@ -8652,6 +8652,15 @@ bool ViewportWidget::isMeshAnimationVisible(const SceneMesh* mesh) const
 	if (mesh->getSourceFile() != _animCtrl.animatedMeshVisibilitySourceFile())
 		return true;
 	return !_animCtrl.animatedHiddenMeshUuids().contains(mesh->uuid());
+}
+
+bool ViewportWidget::isMeshDisplayed(const QUuid& meshUuid) const
+{
+	const int index = getIndexByUuid(meshUuid);
+	if (index < 0)
+		return false; // recycle-bin meshes deliberately have no live display index
+	const std::vector<int>& displayed = _sceneRuntime.currentVisibleObjectIds();
+	return std::find(displayed.begin(), displayed.end(), index) != displayed.end();
 }
 
 bool ViewportWidget::isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex, bool includeVolumeReplacement) const

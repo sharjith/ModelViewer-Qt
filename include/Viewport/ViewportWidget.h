@@ -1740,6 +1740,7 @@ private:
 	float computeFullyVisibleMinMeshRadius() const;
 	void  updateZoomInLimit();
 	bool isMeshAnimationVisible(const SceneMesh* mesh) const;
+	bool isMeshDisplayed(const QUuid& meshUuid) const;
 	bool isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex, bool includeVolumeReplacement = false) const;
 	bool sceneHasVisibleTransmissionMaterials() const;
 	bool sceneHasVisibleSSSMaterials() const;

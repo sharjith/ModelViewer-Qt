@@ -34,7 +34,17 @@ void applyAxes(ViewportWidget* viewport, const Plot3DSession* session)
 }
 }
 
-QVector<Plot3DSession> ModelViewer::plot3DSessions() const { return _plot3DSessions; }
+QVector<Plot3DSession> ModelViewer::plot3DSessions() const
+{
+	// Scene-tree visibility, undo/redo and the plot panel all use the same
+	// authoritative set.  Return a presentation snapshot so the panel cannot
+	// display a stale checkbox after visibility changed outside the panel.
+	QVector<Plot3DSession> sessions = _plot3DSessions;
+	const QSet<QUuid> shown = getVisibleUuids();
+	for (Plot3DSession& session : sessions)
+		session.visible = shown.contains(session.meshUuid);
+	return sessions;
+}
 QUuid ModelViewer::activePlot3DMeshUuid() const { return _activePlot3DMesh; }
 
 void ModelViewer::addPlot3DSession(Plot3DSession session)
@@ -61,7 +71,7 @@ void ModelViewer::activatePlot3DSession(const QUuid& meshUuid)
 void ModelViewer::setPlot3DSessionVisible(const QUuid& meshUuid, bool visible)
 {
 	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
-	if (!session || session->visible == visible)
+	if (!session || getVisibleUuids().contains(meshUuid) == visible)
 		return;
 	session->visible = visible;
 	QSet<QUuid> shown = getVisibleUuids();

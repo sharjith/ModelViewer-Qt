@@ -324,6 +324,35 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(_viewportWidget, &ViewportWidget::sweepSelectionDone, this, &ModelViewer::setListRows);
 	connect(_viewportWidget, &ViewportWidget::eyedropperMaterialSampled, this, &ModelViewer::onEyedropperMaterialSampled);
 	connect(_viewportWidget, &ViewportWidget::eyedropperStrokeFinished, this, &ModelViewer::applyEyedropperStroke);
+	connect(_viewportWidget, &ViewportWidget::meshAboutToBeDeleted, this, [this](SceneMesh* mesh) {
+		if (!mesh)
+			return;
+		const QUuid uuid = mesh->uuid();
+		// Controllers own GPU-side overlays keyed by mesh UUID.  A mesh can be
+		// in the recycle bin while Undo is possible, so draw-time visibility is
+		// handled in ViewportWidget; this final-destruction hook releases the
+		// retained controller data once the mesh cannot return.
+		_viewportWidget->clearSimulationGlyphs(uuid);
+		_viewportWidget->clearSimulationTensorGlyphs(uuid);
+		_viewportWidget->clearSimulationVolume(uuid);
+		_viewportWidget->clearSimulationSlices(uuid);
+		_viewportWidget->clearSimulationStreamlines(uuid);
+		for (auto it = _plot3DSessions.begin(); it != _plot3DSessions.end(); ++it)
+		{
+			if (it->meshUuid != uuid)
+				continue;
+			const bool wasActive = _activePlot3DMesh == uuid;
+			_plot3DSessions.erase(it);
+			if (wasActive)
+			{
+				_activePlot3DMesh = _plot3DSessions.isEmpty() ? QUuid() : _plot3DSessions.front().meshUuid;
+				if (_activePlot3DMesh.isNull()) _viewportWidget->clearPlot3DAxisLayout();
+				else activatePlot3DSession(_activePlot3DMesh);
+			}
+			emit plot3DSessionsChanged(false);
+			break;
+		}
+	});
 	connect(_viewportWidget, &ViewportWidget::zoomAndPanSet, this, [this]() {
 		if (_treeRebuildPending)
 			rebuildTreeFromCurrentState();
