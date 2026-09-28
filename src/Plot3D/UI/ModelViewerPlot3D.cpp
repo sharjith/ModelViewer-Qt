@@ -102,3 +102,22 @@ void ModelViewer::setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visibl
 		applyAxes(_viewportWidget, session);
 	emit plot3DSessionsChanged(false);
 }
+
+void ModelViewer::applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<Plot3DAxisConfig, 3>& axes)
+{
+	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
+	if (!session)
+		return;
+	// Validate before committing the edit.  In particular, a Log10 axis with
+	// non-positive bounds has no drawable layout; retaining that invalid state
+	// would make the panel say it applied settings that the viewport cannot show.
+	Plot3DAxisController controller;
+	Plot3DAxisLayout layout;
+	QString error;
+	if (!controller.buildLayout(axes, session->dataMinimum.data(), session->dataMaximum.data(), layout, &error))
+		return;
+	session->axes = axes;
+	if (meshUuid == _activePlot3DMesh)
+		_viewportWidget->setPlot3DAxisLayout(layout);
+	emit plot3DSessionsChanged(false);
+}

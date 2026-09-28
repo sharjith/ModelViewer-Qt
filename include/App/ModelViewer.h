@@ -627,6 +627,7 @@ public slots:
 	void setPlot3DSessionVisible(const QUuid& meshUuid, bool visible);
 	void applyPlot3DColourState(const QUuid& meshUuid, float minimum, float maximum, int colormap, int bands);
 	void setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visible);
+	void applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<Plot3DAxisConfig, 3>& axes);
 
 	// Compare mode: the active result and `otherMeshUuid` side by side (or stacked) in two panes with one shared
 	// camera, each with its own legend; optionally with one colour range for both so equal colours mean equal values

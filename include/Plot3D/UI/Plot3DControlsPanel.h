@@ -4,9 +4,13 @@
 #include <QPointer>
 #include <QWidget>
 
+#include <array>
+
 class QCheckBox;
 class QComboBox;
 class QDoubleSpinBox;
+class QLineEdit;
+class QSpinBox;
 class QLabel;
 class QPushButton;
 class ModelViewer;
@@ -28,6 +32,7 @@ signals:
 private:
 	void refreshState();
 	void applyColourState();
+	void applyAxisState();
 
 	QPointer<ModelViewer> _viewer;
 	QMetaObject::Connection _stateConnection;
@@ -40,5 +45,11 @@ private:
 	QCheckBox* _automaticRange = nullptr;
 	QDoubleSpinBox* _rangeMinimum = nullptr;
 	QDoubleSpinBox* _rangeMaximum = nullptr;
+	std::array<QLineEdit*, 3> _axisLabels{};
+	std::array<QComboBox*, 3> _axisScales{};
+	std::array<QCheckBox*, 3> _axisAutomatic{};
+	std::array<QDoubleSpinBox*, 3> _axisMinimum{};
+	std::array<QDoubleSpinBox*, 3> _axisMaximum{};
+	std::array<QSpinBox*, 3> _axisTicks{};
 	QLabel* _axisStatus = nullptr;
 };
