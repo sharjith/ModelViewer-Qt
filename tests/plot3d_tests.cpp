@@ -151,6 +151,18 @@ namespace
 
 		Plot3DScatterData empty;
 		CHECK(!buildPlot3DScatterMesh(empty, scatterMesh, &error) && !error.isEmpty());
+
+		Plot3DQuiverData quiver;
+		quiver.arrows.push_back(Plot3DQuiver{ { 1, 2, 3 }, { 0, 0, 1 }, 9.0 });
+		quiver.arrows.push_back(Plot3DQuiver{ { 4, 5, 6 }, { 1, 0, 0 }, 3.0 });
+		Plot3DMeshData quiverMesh;
+		CHECK(buildPlot3DQuiverSiteMesh(quiver, quiverMesh, &error));
+		CHECK(quiverMesh.vertexCount() == 2 && quiverMesh.indices.empty());
+		CHECK(quiverMesh.positions[0] == 1.0f && quiverMesh.positions[3] == 4.0f);
+		CHECK(quiverMesh.values[0] == 9.0 && quiverMesh.values[1] == 3.0);
+
+		Plot3DQuiverData emptyQuiver;
+		CHECK(!buildPlot3DQuiverSiteMesh(emptyQuiver, quiverMesh, &error) && !error.isEmpty());
 	}
 
 	void testAxes()

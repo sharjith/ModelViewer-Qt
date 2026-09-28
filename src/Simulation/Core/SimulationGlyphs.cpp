@@ -214,9 +214,11 @@ bool buildGlyphSet(const ResultDataset& dataset, const ResultBoundarySurface& su
 		out.unit = conversion.valid ? (field.displayUnit.isEmpty() ? field.fileUnit : field.displayUnit) : field.fileUnit;
 	const bool cellField = field.association == ResultFieldAssociation::Cell;
 	const float largest = referenceMax > 0.0f ? referenceMax : fieldMax;
-	const double fullLength = std::max(options.scale, 0.0) * 0.05 * diagonal;
+	const double referenceLength = 0.05 * diagonal;
+	const double fullLength = std::max(options.scale, 0.0) * referenceLength;
 	if (!(largest > 0.0f) || !(fullLength > 0.0))
 		return false;
+	out.referenceLength = static_cast<float>(referenceLength);
 
 	for (std::uint32_t site : sites)
 	{

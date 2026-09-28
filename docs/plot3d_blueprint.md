@@ -162,8 +162,22 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
    `glLineWidth()` rather than real 3D geometry, so it is inherently zoom-invariant with no new rendering code at
    all. Stem (a Scatter option: a line down to a base plane) is not yet wired into `Plot3DPanel` - it needs a
    "base Z" UI control this increment didn't add. `Plot3DPanel::buildPlot()` now dispatches on the chosen primitive
-   to the right builder; Bar/Voxel/Quiver are still reported as "not implemented yet".
-7. Quiver (reusing `SimulationGlyphController` directly - should be the fastest of all, given zero new rendering code).
+   to the right builder; Bar/Voxel are still reported as "not implemented yet".
+7. **Complete, awaiting the user's build+visual check (2026-09-28):** Quiver, exactly as predicted - reusing
+   `SimulationGlyphController`/`GlyphSet` directly needed no new rendering code. `Plot3DMeshBuilder` gained
+   `buildPlot3DQuiverSiteMesh()` (Core, GUI-free - just the arrow base positions as a flat point list, same shape as
+   Scatter). `Plot3DPanel::buildQuiverPlot()` (UI layer, where the Simulation-module dependency belongs - Core stays
+   simulation-free) builds a small `GL_POINTS` anchor `SceneMesh` from that, then a `GlyphSet` whose `anchors` index
+   into it (one arrow per site, all 3 anchor slots the same vertex - `GlyphSet`'s own "a node arrow repeats one
+   vertex" convention), coloured by magnitude with the same `AnalysisColorRamp` ramp the site markers use.
+   `Plot3DPanel` gained U/V/W column-mapping combos (always visible, like "Colour value" is, rather than only shown
+   for Quiver). First version used the CSV's own U/V/W values as the arrow length directly (matplotlib's default
+   quiver behaviour) - the user found this made the cone heads (`SimulationGlyphController` sizes them as a
+   fraction of each arrow's own shaft length) dominate the plot, since a CSV's raw vector units have no reason to
+   already be a sensible arrow length for that data's own grid spacing. Fixed to size arrows the same way
+   `buildGlyphSet()` already sizes real simulation vector-field arrows: the largest magnitude becomes a fixed
+   fraction (6%) of the data's own bounding-box diagonal, every other arrow scaled down from that by its magnitude
+   ratio - so arrow (and head) size is always proportionate to the plot, not to the CSV's arbitrary vector units.
 8. Bar/histogram.
 9. Voxel/volumetric (reusing `SimulationVolumeController` directly).
 10. `Plot3DPanel` + the "Add 3D Plot..." menu entry, wiring all of the above together; polish (log-scale axes,

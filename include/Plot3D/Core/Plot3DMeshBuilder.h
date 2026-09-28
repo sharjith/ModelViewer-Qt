@@ -44,3 +44,11 @@ bool buildPlot3DLineMesh(const Plot3DLineData& data, Plot3DMeshData& out, QStrin
 // Builds a flat, unordered vertex list (no triangles) for Scatter data - the caller draws it as GL_POINTS, for the
 // same constant-screen-size reason buildPlot3DLineMesh() above documents.
 bool buildPlot3DScatterMesh(const Plot3DScatterData& data, Plot3DMeshData& out, QString* error = nullptr);
+
+// Builds a flat, unordered vertex list (no triangles, drawn as GL_POINTS) of Quiver's own arrow BASE positions -
+// the "site" a Plot3D UI-layer caller anchors a GlyphSet's arrows to (see docs/plot3d_blueprint.md section 5:
+// Quiver reuses SimulationGlyphController directly). Deliberately does not build the arrows themselves: GlyphSet
+// and the glyph controller live in the Simulation module, which this Core file must not depend on (see this
+// header's own top comment) - only Plot3DPanel (UI layer, which already depends on Simulation/Viewport headers)
+// builds the actual GlyphSet, anchored to the SceneMesh this function's output becomes.
+bool buildPlot3DQuiverSiteMesh(const Plot3DQuiverData& data, Plot3DMeshData& out, QString* error = nullptr);

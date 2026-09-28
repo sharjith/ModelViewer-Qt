@@ -80,6 +80,21 @@ void SimulationGlyphController::drawOverlay(Camera* camera, const MeshResolver& 
 	std::vector<float> lines, triangles; // 6 floats per vertex: position, colour
 	const float twoPi = 6.28318530718f;
 
+	// A whole arrow (shaft + head) is rescaled every frame to a size derived from ITS OWN base point's distance
+	// to the camera, not from its baked-in vector length directly - mirrors MeasurementController's coneScaleAt()
+	// (itself mirroring TransformGizmo::computeWorldScale()): same ortho-vs-perspective split, same "react to this
+	// point's own depth, not one scene-wide zoom value" reasoning, so a dimension/gizmo/arrow near the camera and
+	// one far from it both read as the same on-screen size. Without this, an arrow is real 3D geometry with a
+	// fixed WORLD length, so it inevitably grows on screen as the camera moves closer - true for any baked-length
+	// vector regardless of how that length was chosen (a user found this made both Plot3D's quiver arrows AND
+	// ordinary simulation vector-field arrows grow distractingly while orbiting/zooming).
+	auto arrowScaleAt = [camera](const QVector3D& worldPos) -> float {
+		if (camera->getProjectionType() == Camera::ProjectionType::ORTHOGRAPHIC)
+			return std::max(camera->getViewRange(), 0.0001f) * 0.06f;
+		const float distance = (camera->getRenderPosition() - worldPos).length();
+		return std::max(distance * 0.06f, 0.0001f);
+		};
+
 	for (const auto& entry : _sets)
 	{
 		const RenderableMesh* mesh = resolve(entry.first);
@@ -88,8 +103,46 @@ void SimulationGlyphController::drawOverlay(Camera* camera, const MeshResolver& 
 		const std::vector<float>& points = mesh->getTrsfPoints();
 		const QMatrix4x4 frame = mesh->combinedRenderTransform();
 		const GlyphSet& set = entry.second;
-		for (std::size_t i = 0; i < set.count(); ++i)
+
+		const std::size_t count = std::min({ set.count(), set.anchors.size() / 3, set.vectors.size() / 3 });
+		if (count == 0)
+			continue;
+
+		// referenceLength is deliberately independent of both the user Arrow size and the current step's largest
+		// magnitude. Dividing by it therefore retains both controls. Falling back to this set's largest vector keeps
+		// manually-created/legacy sets safe, although every current producer supplies an explicit reference.
+		float referenceLength = set.referenceLength;
+		if (!(referenceLength > 0.0f) || !std::isfinite(referenceLength))
 		{
+			referenceLength = 0.0f;
+			for (std::size_t i = 0; i < count; ++i)
+			{
+				const QVector3D local(set.vectors[i * 3], set.vectors[i * 3 + 1], set.vectors[i * 3 + 2]);
+				if (std::isfinite(local.length())) referenceLength = std::max(referenceLength, local.length());
+			}
+		}
+		if (!(referenceLength > 0.0f))
+			continue;
+
+		std::vector<QVector3D> transformedVectors(count);
+		std::vector<float> lengthRatios(count, 0.0f);
+		for (std::size_t i = 0; i < count; ++i)
+		{
+			const QVector3D local(set.vectors[i * 3], set.vectors[i * 3 + 1], set.vectors[i * 3 + 2]);
+			const float localLength = local.length();
+			const QVector3D world = frame.mapVector(local);
+			const float worldLength = world.length();
+			if (localLength > 0.0f && std::isfinite(localLength) && worldLength > 0.0f && std::isfinite(worldLength))
+			{
+				transformedVectors[i] = world;
+				lengthRatios[i] = localLength / referenceLength;
+			}
+		}
+
+		for (std::size_t i = 0; i < count; ++i)
+		{
+			if (!(lengthRatios[i] > 0.0f))
+				continue;
 			QVector3D base;
 			bool ok = true;
 			for (std::size_t k = 0; k < 3 && ok; ++k)
@@ -103,11 +156,10 @@ void SimulationGlyphController::drawOverlay(Camera* camera, const MeshResolver& 
 				continue;
 			base /= 3.0f;
 
-			const QVector3D arrow = frame.mapVector(QVector3D(set.vectors[i * 3], set.vectors[i * 3 + 1], set.vectors[i * 3 + 2]));
-			const float length = arrow.length();
-			if (!(length > 0.0f) || !std::isfinite(length))
-				continue;
-			const QVector3D dir = arrow / length;
+			const float rawLength = transformedVectors[i].length();
+			const QVector3D dir = transformedVectors[i] / rawLength;
+			const float length = arrowScaleAt(base) * lengthRatios[i];
+			const QVector3D arrow = dir * length;
 			const QVector3D color = i * 3 + 2 < set.colors.size()
 				? QVector3D(set.colors[i * 3], set.colors[i * 3 + 1], set.colors[i * 3 + 2])
 				: QVector3D(1.0f, 1.0f, 1.0f);

@@ -230,3 +230,24 @@ bool buildPlot3DScatterMesh(const Plot3DScatterData& data, Plot3DMeshData& out, 
 	appendFlatPointList(out, data.samples);
 	return true;
 }
+
+bool buildPlot3DQuiverSiteMesh(const Plot3DQuiverData& data, Plot3DMeshData& out, QString* error)
+{
+	out = Plot3DMeshData();
+	if (data.arrows.empty())
+	{
+		if (error)
+			*error = QObject::tr("Quiver data has no points.");
+		return false;
+	}
+	out.positions.reserve(data.arrows.size() * 3);
+	out.normals.reserve(data.arrows.size() * 3);
+	out.values.reserve(data.arrows.size());
+	for (const Plot3DQuiver& arrow : data.arrows)
+	{
+		out.positions.insert(out.positions.end(), { static_cast<float>(arrow.position.x), static_cast<float>(arrow.position.y), static_cast<float>(arrow.position.z) });
+		out.normals.insert(out.normals.end(), { 0.0f, 0.0f, 1.0f }); // unused for GL_POINTS - see buildPlot3DLineMesh()'s doc comment
+		out.values.push_back(arrow.value);
+	}
+	return true;
+}

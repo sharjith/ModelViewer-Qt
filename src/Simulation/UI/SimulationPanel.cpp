@@ -308,7 +308,7 @@ void SimulationPanel::buildUi()
 	_glyphScaleSpin->setDecimals(2);
 	_glyphScaleSpin->setSingleStep(0.1);
 	_glyphScaleSpin->setKeyboardTracking(false);
-	_glyphScaleSpin->setToolTip(tr("Arrow size. 1 makes the largest arrow 5 % of the model size."));
+	_glyphScaleSpin->setToolTip(tr("Relative arrow size on screen. Arrows remain stable while zooming."));
 	form->addRow(tr("Arrow size:"), _glyphScaleSpin);
 	_glyphCountSpin = new QSpinBox(content);
 	_glyphCountSpin->setRange(20, 50000);

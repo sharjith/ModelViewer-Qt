@@ -10,6 +10,7 @@
 #include "PathUtils.h"
 #include "SceneGraph.h"
 #include "SceneMesh.h"
+#include "SimulationGlyphs.h"
 #include "ViewportWidget.h"
 
 #include <QUuid>
@@ -106,6 +107,20 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	columnsRow->addWidget(new QLabel(tr("Colour value:"), this)); columnsRow->addWidget(_columnValue);
 	columnsRow->addStretch();
 	mapping->addRow(tr("Columns:"), columnsRow);
+
+	// U/V/W are only meaningful for Quiver, but always shown (rather than dynamically hidden per primitive) for
+	// the same reason "Colour value" always shows even though only some primitives use it - a simpler, static form.
+	auto* vectorColumnsRow = new QHBoxLayout();
+	_columnU = new QComboBox(this);
+	_columnV = new QComboBox(this);
+	_columnW = new QComboBox(this);
+	for (QComboBox* combo : { _columnU, _columnV, _columnW })
+		combo->setMinimumWidth(90);
+	vectorColumnsRow->addWidget(new QLabel(tr("U:"), this)); vectorColumnsRow->addWidget(_columnU);
+	vectorColumnsRow->addWidget(new QLabel(tr("V:"), this)); vectorColumnsRow->addWidget(_columnV);
+	vectorColumnsRow->addWidget(new QLabel(tr("W:"), this)); vectorColumnsRow->addWidget(_columnW);
+	vectorColumnsRow->addStretch();
+	mapping->addRow(tr("Vector (Quiver):"), vectorColumnsRow);
 	layout->addLayout(mapping);
 
 	auto* previewRow = new QHBoxLayout();
@@ -259,6 +274,9 @@ void Plot3DPanel::refreshColumnCombos()
 	populate(_columnY, false, 1);
 	populate(_columnZ, false, 2);
 	populate(_columnValue, true, -1);
+	populate(_columnU, false, 3);
+	populate(_columnV, false, 4);
+	populate(_columnW, false, 5);
 }
 
 void Plot3DPanel::buildPlot()
@@ -272,10 +290,11 @@ void Plot3DPanel::buildPlot()
 		return;
 
 	const Plot3DPrimitive primitive = static_cast<Plot3DPrimitive>(_primitive->currentData().toInt());
-	if (primitive != Plot3DPrimitive::Surface && primitive != Plot3DPrimitive::Line && primitive != Plot3DPrimitive::Scatter)
+	if (primitive != Plot3DPrimitive::Surface && primitive != Plot3DPrimitive::Line
+		&& primitive != Plot3DPrimitive::Scatter && primitive != Plot3DPrimitive::Quiver)
 	{
 		QMessageBox::information(this, tr("Build Plot"),
-			tr("%1 is not implemented yet - only Surface, Line and Scatter can be built into the scene so far.").arg(_primitive->currentText()));
+			tr("%1 is not implemented yet - only Surface, Line, Scatter and Quiver can be built into the scene so far.").arg(_primitive->currentText()));
 		return;
 	}
 
@@ -284,12 +303,22 @@ void Plot3DPanel::buildPlot()
 	columnMapping.y = _columnY->currentData().toInt();
 	columnMapping.z = _columnZ->currentData().toInt();
 	columnMapping.value = _columnValue->currentData().toInt(); // -1 == none; buildPlot3DDataset() then falls back to Z
+	columnMapping.u = _columnU->currentData().toInt();
+	columnMapping.v = _columnV->currentData().toInt();
+	columnMapping.w = _columnW->currentData().toInt();
 
 	Plot3DDataset dataset;
 	QString error;
 	if (!buildPlot3DDataset(_table, primitive, columnMapping, dataset, &error))
 	{
 		QMessageBox::warning(this, tr("Build Plot"), error);
+		return;
+	}
+
+	const QString baseName = _modelViewer->getViewportWidget()->generateUniqueMeshName(tr("Plot3D %1").arg(plot3DPrimitiveName(primitive)));
+	if (primitive == Plot3DPrimitive::Quiver)
+	{
+		buildQuiverPlot(dataset, baseName);
 		return;
 	}
 
@@ -335,7 +364,6 @@ void Plot3DPanel::buildPlot()
 		vertices[i] = v;
 	}
 
-	const QString baseName = viewport->generateUniqueMeshName(tr("Plot3D %1").arg(plot3DPrimitiveName(primitive)));
 	// Line/Scatter draw as native GL_LINE_STRIP/GL_POINTS (meshData.indices is empty for them - see
 	// Plot3DMeshBuilder.h) - the same primitive-mode path glTF line/point-cloud import already uses, which is
 	// rendered at a fixed PIXEL size regardless of camera zoom (SceneMesh::draw()), unlike real 3D geometry.
@@ -407,4 +435,134 @@ void Plot3DPanel::buildPlot()
 
 	_status->setStyleSheet(QString());
 	_status->setText(tr("Built '%1' (%2 points).").arg(baseName).arg(meshData.vertexCount()));
+}
+
+void Plot3DPanel::buildQuiverPlot(const Plot3DDataset& dataset, const QString& baseName)
+{
+	const Plot3DQuiverData& quiver = std::get<Plot3DQuiverData>(dataset.content);
+
+	Plot3DMeshData siteMesh;
+	QString error;
+	if (!buildPlot3DQuiverSiteMesh(quiver, siteMesh, &error))
+	{
+		QMessageBox::warning(this, tr("Build Plot"), error);
+		return;
+	}
+
+	ViewportWidget* viewport = _modelViewer->getViewportWidget();
+	viewport->makeCurrent();
+
+	// The arrow sites, drawn as a small GL_POINTS SceneMesh (same constant-screen-size reasoning as Scatter) -
+	// GlyphSet's anchors below are mesh-vertex indices, so the arrows are anchored to and follow THIS mesh.
+	std::vector<Vertex> vertices(siteMesh.vertexCount());
+	for (std::size_t i = 0; i < vertices.size(); ++i)
+	{
+		Vertex v{};
+		v.Color = glm::vec4(1.0f);
+		v.Position = glm::vec3(siteMesh.positions[i * 3], siteMesh.positions[i * 3 + 1], siteMesh.positions[i * 3 + 2]);
+		v.Normal = glm::vec3(0.0f, 0.0f, 1.0f);
+		v.Tangent = glm::vec3(0.0f);
+		v.Bitangent = glm::vec3(0.0f);
+		for (glm::vec2& uv : v.TexCoords)
+			uv = glm::vec2(0.0f);
+		vertices[i] = v;
+	}
+	SceneMesh* mesh = new SceneMesh(viewport->getShader(), baseName, vertices, siteMesh.indices, {}, Material(), true, GL_POINTS);
+	viewport->addToDisplay(mesh);
+	const QUuid meshUuid = mesh->uuid();
+
+	SceneNode* node = new SceneNode();
+	node->nodeUuid = QUuid::createUuid();
+	node->name = baseName;
+	SceneNode* parent = _modelViewer->sceneGraph()->root();
+	const int position = parent->children.size();
+	_modelViewer->sceneGraph()->insertChildNode(parent, node, position);
+	_modelViewer->sceneGraph()->restoreMeshUuid(node, meshUuid, 0);
+
+	// Colour the site markers themselves by magnitude too, same mapToRGBA() path as the other primitives.
+	std::vector<float> siteValues(siteMesh.vertexCount());
+	std::vector<bool> siteValid(siteMesh.vertexCount());
+	float lo = std::numeric_limits<float>::max(), hi = std::numeric_limits<float>::lowest();
+	for (std::size_t i = 0; i < siteMesh.vertexCount(); ++i)
+	{
+		const bool ok = std::isfinite(siteMesh.values[i]);
+		siteValid[i] = ok;
+		siteValues[i] = ok ? static_cast<float>(siteMesh.values[i]) : 0.0f;
+		if (ok) { lo = std::min(lo, siteValues[i]); hi = std::max(hi, siteValues[i]); }
+	}
+	if (hi <= lo)
+		hi = lo + 1.0f;
+	mesh->setAnalysisOverlayColors(AnalysisColorRamp::mapToRGBA(siteValues, siteValid, lo, hi, AnalysisColormap::Sequential));
+	mesh->setAnalysisOverlayBanding(0, static_cast<int>(AnalysisColormap::Sequential));
+
+	// GlyphSet: one arrow per site, anchored to the mesh vertex just built for it (all 3 anchor slots the same
+	// index - "a node arrow repeats one vertex", GlyphSet's own convention). An earlier version used the CSV's own
+	// vector magnitudes as the arrow length directly (matplotlib's own default quiver behaviour); the user found
+	// this made the cone heads (SimulationGlyphController sizes them as a FRACTION of each arrow's own shaft
+	// length, so a long shaft means a long, wide head too) dominate the plot, since a Plot3D CSV's raw vector units
+	// have no reason to already be "reasonable arrow length" for this data's own grid spacing. Fixed the same way
+	// buildGlyphSet() sizes simulation vector-field arrows: the LARGEST magnitude becomes a fixed fraction of the
+	// data's own bounding-box diagonal, every other arrow scaled down from that by its magnitude ratio - so arrow
+	// (and head) size is always proportionate to the plot regardless of the CSV's own vector units.
+	double diagonalLo[3], diagonalHi[3];
+	double diagonal = 1.0;
+	if (plot3DDataBounds(dataset, diagonalLo, diagonalHi))
+	{
+		const double dx = diagonalHi[0] - diagonalLo[0], dy = diagonalHi[1] - diagonalLo[1], dz = diagonalHi[2] - diagonalLo[2];
+		const double computed = std::sqrt(dx * dx + dy * dy + dz * dz);
+		if (computed > 1.0e-9)
+			diagonal = computed;
+	}
+	const float maxArrowLength = static_cast<float>(diagonal * 0.06); // matches buildGlyphSet()'s own "5% of diagonal" order of magnitude
+
+	GlyphSet glyphs;
+	glyphs.anchors.reserve(quiver.arrows.size() * 3);
+	glyphs.vectors.reserve(quiver.arrows.size() * 3);
+	glyphs.values.reserve(quiver.arrows.size());
+	glyphs.colors.reserve(quiver.arrows.size() * 3);
+	float magnitudeLo = std::numeric_limits<float>::max(), magnitudeHi = std::numeric_limits<float>::lowest();
+	std::vector<float> magnitudes(quiver.arrows.size());
+	for (std::size_t i = 0; i < quiver.arrows.size(); ++i)
+	{
+		const Plot3DQuiver& arrow = quiver.arrows[i];
+		const float mx = static_cast<float>(arrow.vector.x), my = static_cast<float>(arrow.vector.y), mz = static_cast<float>(arrow.vector.z);
+		magnitudes[i] = std::sqrt(mx * mx + my * my + mz * mz);
+		magnitudeLo = std::min(magnitudeLo, magnitudes[i]);
+		magnitudeHi = std::max(magnitudeHi, magnitudes[i]);
+	}
+	if (magnitudeHi <= magnitudeLo)
+		magnitudeHi = magnitudeLo + 1.0f;
+	for (std::size_t i = 0; i < quiver.arrows.size(); ++i)
+	{
+		const Plot3DQuiver& arrow = quiver.arrows[i];
+		glyphs.anchors.insert(glyphs.anchors.end(), { static_cast<std::uint32_t>(i), static_cast<std::uint32_t>(i), static_cast<std::uint32_t>(i) });
+		const float rawLength = magnitudes[i];
+		const float scale = rawLength > 1.0e-9f ? (maxArrowLength * (magnitudes[i] / magnitudeHi)) / rawLength : 0.0f;
+		glyphs.vectors.insert(glyphs.vectors.end(), {
+			static_cast<float>(arrow.vector.x) * scale, static_cast<float>(arrow.vector.y) * scale, static_cast<float>(arrow.vector.z) * scale });
+		glyphs.values.push_back(magnitudes[i]);
+		const QColor c = AnalysisColorRamp::colorForNormalized((magnitudes[i] - magnitudeLo) / (magnitudeHi - magnitudeLo), AnalysisColormap::Sequential);
+		glyphs.colors.insert(glyphs.colors.end(), { static_cast<float>(c.redF()), static_cast<float>(c.greenF()), static_cast<float>(c.blueF()) });
+	}
+	glyphs.fieldMin = magnitudeLo;
+	glyphs.fieldMax = magnitudeHi;
+	glyphs.referenceLength = maxArrowLength;
+	viewport->setSimulationGlyphs(meshUuid, std::move(glyphs));
+
+	viewport->doneCurrent();
+	viewport->updateView();
+	_modelViewer->updateDisplayList();
+
+	double dataLo[3], dataHi[3];
+	if (plot3DDataBounds(dataset, dataLo, dataHi))
+	{
+		Plot3DAxisController controller;
+		Plot3DAxisLayout axisLayout;
+		QString axisError;
+		if (controller.buildLayout(dataset.axes, dataLo, dataHi, axisLayout, &axisError))
+			viewport->setPlot3DAxisLayout(axisLayout);
+	}
+
+	_status->setStyleSheet(QString());
+	_status->setText(tr("Built '%1' (%2 arrows).").arg(baseName).arg(quiver.arrows.size()));
 }

@@ -42,6 +42,10 @@ private:
 	// scene, and points the axis-box preview at the built data's own bounds instead of previewAxisBox()'s fixed
 	// test range.
 	void buildPlot();
+	// Quiver's own path out of buildPlot(): unlike Surface/Line/Scatter, arrows are not a mesh Plot3D owns - they
+	// reuse SimulationGlyphController directly (see docs/plot3d_blueprint.md section 5), anchored to a small
+	// GL_POINTS SceneMesh built at the arrow base positions.
+	void buildQuiverPlot(const Plot3DDataset& dataset, const QString& baseName);
 
 	ModelViewer* _modelViewer = nullptr;
 	QComboBox* _delimiter = nullptr;
@@ -56,6 +60,9 @@ private:
 	QComboBox* _columnY = nullptr;
 	QComboBox* _columnZ = nullptr;
 	QComboBox* _columnValue = nullptr; // optional; first entry means "none - use Z"
+	QComboBox* _columnU = nullptr; // Quiver only: vector component columns
+	QComboBox* _columnV = nullptr;
+	QComboBox* _columnW = nullptr;
 	QPushButton* _buildButton = nullptr;
 
 	Plot3DCsvTable _table; // last successfully parsed table, kept for buildPlot() (refreshPreview() only shows it)
