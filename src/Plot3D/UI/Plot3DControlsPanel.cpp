@@ -7,11 +7,13 @@
 #include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
+#include <QFrame>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QVBoxLayout>
@@ -21,7 +23,18 @@
 Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	: QWidget(parent)
 {
-	auto* layout = new QVBoxLayout(this);
+	// The document dock is intentionally resizable.  Keep this panel's wide
+	// axis rows inside a scroll area so their layout never raises the dock's
+	// minimum width or blocks the splitter from being dragged narrower.
+	auto* outerLayout = new QVBoxLayout(this);
+	outerLayout->setContentsMargins(0, 0, 0, 0);
+	auto* scroll = new QScrollArea(this);
+	scroll->setWidgetResizable(true);
+	scroll->setFrameShape(QFrame::NoFrame);
+	scroll->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Expanding);
+	auto* content = new QWidget(scroll);
+	content->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+	auto* layout = new QVBoxLayout(content);
 	layout->setContentsMargins(6, 6, 6, 6);
 
 	_addPlotButton = new QPushButton(tr("Add 3D Plot..."), this);
@@ -88,6 +101,8 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	_axisStatus->setWordWrap(true);
 	layout->addWidget(_axisStatus);
 	layout->addStretch(1);
+	scroll->setWidget(content);
+	outerLayout->addWidget(scroll);
 
 	connect(_addPlotButton, &QPushButton::clicked, this, &Plot3DControlsPanel::addPlotRequested);
 	connect(_plotSelector, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) { if (_viewer) _viewer->activatePlot3DSession(_plotSelector->currentData().toUuid()); });

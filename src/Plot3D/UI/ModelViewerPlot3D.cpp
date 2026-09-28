@@ -67,6 +67,16 @@ void ModelViewer::setPlot3DSessionVisible(const QUuid& meshUuid, bool visible)
 	QSet<QUuid> shown = getVisibleUuids();
 	if (visible) shown.insert(meshUuid); else shown.remove(meshUuid);
 	setVisibilityWithoutUndo(shown);
+	// The axis box is presentation belonging to the plot rather than scene
+	// geometry.  Do not leave it floating after its active plot is hidden;
+	// showing the plot restores the user's independent axes preference.
+	if (meshUuid == _activePlot3DMesh)
+	{
+		if (visible)
+			applyAxes(_viewportWidget, session);
+		else if (_viewportWidget)
+			_viewportWidget->setPlot3DAxisVisible(false);
+	}
 	emit plot3DSessionsChanged(false);
 }
 
