@@ -228,7 +228,15 @@ void Plot3DPanel::refreshPreview()
 void Plot3DPanel::refreshColumnCombos()
 {
 	auto populate = [this](QComboBox* combo, bool withNone, int defaultColumn) {
-		const int previousData = combo->currentData().isValid() ? combo->currentData().toInt() : defaultColumn;
+		// Do not preserve the initial placeholder selection.  Before the first successful
+		// parse, an optional combo contains only "(none)" (-1); preserving that value
+		// after columns arrive leaves a required role such as Y unset even though the
+		// control subsequently displays ordinary column choices.  Once a real column was
+		// available, preserve the user's mapping across later refreshes as intended.
+		const bool previouslyHadColumns = combo->findData(0) >= 0;
+		const int previousData = previouslyHadColumns && combo->currentData().isValid()
+			? combo->currentData().toInt()
+			: defaultColumn;
 		combo->blockSignals(true);
 		combo->clear();
 		if (withNone)
