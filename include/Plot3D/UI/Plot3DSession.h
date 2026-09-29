@@ -26,6 +26,8 @@ struct Plot3DSession
 	float colourMaximum = 1.0f;
 	int colormap = 0;
 	int bands = 0;
+	Plot3DSurfaceData contourSource;
+	int contourLevels = 10;
 	bool visible = true;
 	bool axesVisible = true;
 };

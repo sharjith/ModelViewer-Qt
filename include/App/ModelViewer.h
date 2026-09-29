@@ -628,6 +628,7 @@ public slots:
 	// retaining the active session's labels/scale/custom-range choices.
 	void refreshPlot3DAxes();
 	void applyPlot3DColourState(const QUuid& meshUuid, float minimum, float maximum, int colormap, int bands);
+	void setPlot3DContourLevels(const QUuid& meshUuid, int levels);
 	void setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visible);
 	void applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<Plot3DAxisConfig, 3>& axes);
 

@@ -42,6 +42,7 @@ private:
 	QComboBox* _colormap = nullptr;
 	QComboBox* _bands = nullptr;
 	QCheckBox* _automaticRange = nullptr;
+	QSpinBox* _contourLevels = nullptr;
 	QDoubleSpinBox* _rangeMinimum = nullptr;
 	QDoubleSpinBox* _rangeMaximum = nullptr;
 	std::array<QLineEdit*, 3> _axisLabels{};

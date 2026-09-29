@@ -324,6 +324,11 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(_viewportWidget, &ViewportWidget::sweepSelectionDone, this, &ModelViewer::setListRows);
 	connect(_viewportWidget, &ViewportWidget::eyedropperMaterialSampled, this, &ModelViewer::onEyedropperMaterialSampled);
 	connect(_viewportWidget, &ViewportWidget::eyedropperStrokeFinished, this, &ModelViewer::applyEyedropperStroke);
+	connect(_viewportWidget, &ViewportWidget::meshRecycleStateChanged, this, [this](const QUuid&, bool) {
+		refreshPlot3DAxes();
+		emit plot3DSessionsChanged(false);
+		emit simulationSessionChanged(false);
+	});
 	connect(_viewportWidget, &ViewportWidget::meshAboutToBeDeleted, this, [this](SceneMesh* mesh) {
 		if (!mesh)
 			return;
@@ -424,6 +429,10 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	        this, &ModelViewer::validateCameraData);
 	connect(_sceneGraph, &SceneGraph::structureChanged,
 	        this, &ModelViewer::validateLightData);
+	connect(_sceneGraph, &SceneGraph::structureChanged, this, [this]() {
+		refreshPlot3DAxes();
+		emit plot3DSessionsChanged(false);
+	});
 	treeWidgetModel->installEventFilter(this);
 	treeWidgetModel->viewport()->installEventFilter(this);
 

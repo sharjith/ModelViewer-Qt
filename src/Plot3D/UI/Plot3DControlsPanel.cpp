@@ -56,11 +56,13 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	_bands->addItem(tr("Smooth"), 0);
 	for (int bands : { 4, 6, 8, 10, 12 }) _bands->addItem(tr("%1 bands").arg(bands), bands);
 	_automaticRange = new QCheckBox(tr("Automatic colour range"), this);
+	_contourLevels = new QSpinBox(this); _contourLevels->setRange(1, 40);
 	_rangeMinimum = new QDoubleSpinBox(this); _rangeMinimum->setRange(-1.0e12, 1.0e12); _rangeMinimum->setDecimals(6);
 	_rangeMaximum = new QDoubleSpinBox(this); _rangeMaximum->setRange(-1.0e12, 1.0e12); _rangeMaximum->setDecimals(6);
 	appearance->addRow(tr("Colour map:"), _colormap);
 	appearance->addRow(tr("Colour bands:"), _bands);
 	appearance->addRow(QString(), _automaticRange);
+	appearance->addRow(tr("Contour levels:"), _contourLevels);
 	appearance->addRow(tr("Minimum:"), _rangeMinimum);
 	appearance->addRow(tr("Maximum:"), _rangeMaximum);
 	layout->addLayout(appearance);
@@ -108,6 +110,7 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	connect(_colormap, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DControlsPanel::applyColourState);
 	connect(_bands, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DControlsPanel::applyColourState);
 	connect(_automaticRange, &QCheckBox::toggled, this, [this](bool) { applyColourState(); refreshState(); });
+	connect(_contourLevels, qOverload<int>(&QSpinBox::valueChanged), this, [this](int levels) { if (_viewer && _plotSelector->currentIndex() >= 0) _viewer->setPlot3DContourLevels(_plotSelector->currentData().toUuid(), levels); });
 	connect(_rangeMinimum, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_automaticRange->isChecked()) applyColourState(); });
 	connect(_rangeMaximum, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_automaticRange->isChecked()) applyColourState(); });
 	setModelViewer(nullptr);
@@ -138,7 +141,7 @@ void Plot3DControlsPanel::refreshState()
 {
 	const QVector<Plot3DSession> sessions = _viewer ? _viewer->plot3DSessions() : QVector<Plot3DSession>();
 	const QUuid active = _viewer ? _viewer->activePlot3DMeshUuid() : QUuid();
-	const QSignalBlocker selectorBlock(_plotSelector), axesBlock(_showAxesCheck), mapBlock(_colormap), bandsBlock(_bands), autoBlock(_automaticRange), minBlock(_rangeMinimum), maxBlock(_rangeMaximum);
+	const QSignalBlocker selectorBlock(_plotSelector), axesBlock(_showAxesCheck), mapBlock(_colormap), bandsBlock(_bands), autoBlock(_automaticRange), contourBlock(_contourLevels), minBlock(_rangeMinimum), maxBlock(_rangeMaximum);
 	std::array<QSignalBlocker, 18> axisBlockers{
 		QSignalBlocker(_axisLabels[0]), QSignalBlocker(_axisScales[0]), QSignalBlocker(_axisAutomatic[0]), QSignalBlocker(_axisMinimum[0]), QSignalBlocker(_axisMaximum[0]), QSignalBlocker(_axisTicks[0]),
 		QSignalBlocker(_axisLabels[1]), QSignalBlocker(_axisScales[1]), QSignalBlocker(_axisAutomatic[1]), QSignalBlocker(_axisMinimum[1]), QSignalBlocker(_axisMaximum[1]), QSignalBlocker(_axisTicks[1]),
@@ -152,8 +155,8 @@ void Plot3DControlsPanel::refreshState()
 	const bool available = session != nullptr;
 	// Keep the type explicit: MSVC cannot deduce a mixed derived-QWidget pointer
 	// initializer list here under /permissive-.
-	const std::array<QWidget*, 7> controls{ _plotSelector, _showAxesCheck, _colormap,
-		_bands, _automaticRange, _rangeMinimum, _rangeMaximum };
+	const std::array<QWidget*, 8> controls{ _plotSelector, _showAxesCheck, _colormap,
+		_bands, _automaticRange, _contourLevels, _rangeMinimum, _rangeMaximum };
 	for (QWidget* control : controls)
 		control->setEnabled(available);
 	if (!available)
@@ -168,6 +171,9 @@ void Plot3DControlsPanel::refreshState()
 		return;
 	}
 	_showAxesCheck->setChecked(session->axesVisible);
+	_contourLevels->setVisible(session->primitive == Plot3DPrimitive::Contour);
+	_contourLevels->setEnabled(session->primitive == Plot3DPrimitive::Contour);
+	_contourLevels->setValue(session->contourLevels);
 	const bool supportsMeshColourControls = session->primitive != Plot3DPrimitive::Quiver;
 	_colormap->setEnabled(supportsMeshColourControls); _bands->setEnabled(supportsMeshColourControls);
 	_automaticRange->setEnabled(supportsMeshColourControls);

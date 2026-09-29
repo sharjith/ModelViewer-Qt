@@ -112,6 +112,14 @@ namespace
 		}
 		CHECK(foundCenter);
 
+		// Ten intermediate levels across this sloped grid each cut its triangles into
+		// independent line pairs. The output is unindexed for GL_LINES.
+		Plot3DMeshData contour;
+		CHECK(buildPlot3DContourMesh(grid, contour, 10, &error));
+		CHECK(!contour.empty() && contour.indices.empty() && contour.vertexCount() % 2 == 0);
+		for (std::size_t v = 0; v < contour.vertexCount(); ++v)
+			CHECK(contour.positions[v * 3 + 2] > 0.0f && contour.positions[v * 3 + 2] < 12.0f);
+
 		// An incomplete grid (one corner missing) must be rejected, not silently triangulated wrong.
 		Plot3DSurfaceData incomplete = grid;
 		incomplete.samples.pop_back();

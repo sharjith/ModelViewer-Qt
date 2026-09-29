@@ -2,6 +2,7 @@
 
 #include "AnalysisColorRamp.h"
 #include "Plot3DAxisController.h"
+#include "Plot3DMeshBuilder.h"
 #include "SceneMesh.h"
 #include "ViewportWidget.h"
 
@@ -77,19 +78,36 @@ QVector<Plot3DSession> ModelViewer::plot3DSessions() const
 	// Scene-tree visibility, undo/redo and the plot panel all use the same
 	// authoritative set.  Return a presentation snapshot so the panel cannot
 	// display a stale checkbox after visibility changed outside the panel.
-	QVector<Plot3DSession> sessions = _plot3DSessions;
+	QVector<Plot3DSession> sessions;
 	const QSet<QUuid> shown = getVisibleUuids();
-	for (Plot3DSession& session : sessions)
+	for (const Plot3DSession& stored : _plot3DSessions)
+	{
+		// Delete is undoable: its mesh stays in the recycle bin, but must not
+		// remain selectable as an active plot until Undo restores it.
+		if (!_viewportWidget || _viewportWidget->getIndexByUuid(stored.meshUuid) < 0)
+			continue;
+		Plot3DSession session = stored;
 		session.visible = shown.contains(session.meshUuid);
+		sessions.push_back(std::move(session));
+	}
 	return sessions;
 }
-QUuid ModelViewer::activePlot3DMeshUuid() const { return _activePlot3DMesh; }
+QUuid ModelViewer::activePlot3DMeshUuid() const
+{
+	if (_viewportWidget && _viewportWidget->getIndexByUuid(_activePlot3DMesh) >= 0)
+		return _activePlot3DMesh;
+	for (const Plot3DSession& session : _plot3DSessions)
+		if (_viewportWidget && _viewportWidget->getIndexByUuid(session.meshUuid) >= 0)
+			return session.meshUuid;
+	return {};
+}
 
 void ModelViewer::addPlot3DSession(Plot3DSession session)
 {
 	if (session.meshUuid.isNull())
 		return;
 	_plot3DSessions.push_back(std::move(session));
+	markNonUndoDocumentModified();
 	activatePlot3DSession(_plot3DSessions.back().meshUuid);
 	emit plot3DSessionsChanged(true);
 }
@@ -124,6 +142,41 @@ void ModelViewer::applyPlot3DColourState(const QUuid& meshUuid, float minimum, f
 		: AnalysisColorRamp::mapToRGBA(session->values, session->valid, minimum, maximum, ramp);
 	mesh->setAnalysisOverlayColors(encoded);
 	mesh->setAnalysisOverlayBanding(bands, colormap);
+	_viewportWidget->updateView();
+	emit plot3DSessionsChanged(false);
+}
+
+void ModelViewer::setPlot3DContourLevels(const QUuid& meshUuid, int levels)
+{
+	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
+	SceneMesh* mesh = _viewportWidget ? _viewportWidget->getMeshByUuid(meshUuid) : nullptr;
+	if (!session || !mesh || session->primitive != Plot3DPrimitive::Contour || levels == session->contourLevels)
+		return;
+
+	Plot3DMeshData data;
+	QString error;
+	if (!buildPlot3DContourMesh(session->contourSource, data, levels, &error))
+		return;
+	std::vector<Vertex> vertices(data.vertexCount());
+	std::vector<float> values(data.vertexCount());
+	std::vector<bool> valid(data.vertexCount(), true);
+	for (std::size_t i = 0; i < data.vertexCount(); ++i)
+	{
+		Vertex& vertex = vertices[i];
+		vertex.Color = glm::vec4(1.0f);
+		vertex.Position = glm::vec3(data.positions[i * 3], data.positions[i * 3 + 1], data.positions[i * 3 + 2]);
+		vertex.Normal = glm::vec3(0.0f, 0.0f, 1.0f);
+		vertex.Tangent = glm::vec3(0.0f); vertex.Bitangent = glm::vec3(0.0f);
+		for (glm::vec2& uv : vertex.TexCoords) uv = glm::vec2(0.0f);
+		values[i] = static_cast<float>(data.values[i]);
+	}
+	_viewportWidget->makeCurrent();
+	mesh->setMeshData(vertices, {});
+	session->contourLevels = levels;
+	session->values = std::move(values);
+	session->valid = std::move(valid);
+	applyPlot3DColourState(meshUuid, session->colourMinimum, session->colourMaximum, session->colormap, session->bands);
+	_viewportWidget->doneCurrent();
 	_viewportWidget->updateView();
 	emit plot3DSessionsChanged(false);
 }
@@ -163,7 +216,10 @@ void ModelViewer::applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<
 
 void ModelViewer::refreshPlot3DAxes()
 {
-	Plot3DSession* session = sessionFor(_plot3DSessions, _activePlot3DMesh);
+	const QUuid active = activePlot3DMeshUuid();
+	Plot3DSession* session = sessionFor(_plot3DSessions, active);
 	if (session)
 		applyAxes(this, session);
+	else if (_viewportWidget)
+		_viewportWidget->clearPlot3DAxisLayout();
 }

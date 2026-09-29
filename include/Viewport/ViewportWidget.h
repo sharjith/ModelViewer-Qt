@@ -1256,6 +1256,7 @@ signals:
 	// the mesh is still valid for the duration of this signal, but not
 	// after.
 	void meshAboutToBeDeleted(SceneMesh* mesh);
+	void meshRecycleStateChanged(const QUuid& uuid, bool inRecycleBin);
 	// Availability/visibility of the persistent Plot3D axis overlay changed. The shared 3D Plot panel uses this to
 	// follow the active document and changes made by a newly-built plot.
 	void plot3DAxisStateChanged(bool available, bool visible);

@@ -16,6 +16,7 @@
 enum class Plot3DPrimitive
 {
 	Surface,
+	Contour,
 	Line,
 	Scatter,
 	Bar,

@@ -179,6 +179,68 @@ bool buildPlot3DSurfaceMesh(const Plot3DSurfaceData& data, Plot3DMeshData& out, 
 	return true;
 }
 
+bool buildPlot3DContourMesh(const Plot3DSurfaceData& data, Plot3DMeshData& out, int levelCount, QString* error)
+{
+	out = Plot3DMeshData();
+	if (levelCount < 1)
+	{
+		if (error) *error = QObject::tr("Contour needs at least one level.");
+		return false;
+	}
+
+	Plot3DMeshData surface;
+	if (!buildPlot3DSurfaceMesh(data, surface, error))
+		return false;
+	float low = std::numeric_limits<float>::max(), high = std::numeric_limits<float>::lowest();
+	for (std::size_t v = 0; v < surface.vertexCount(); ++v)
+	{
+		low = std::min(low, surface.positions[v * 3 + 2]);
+		high = std::max(high, surface.positions[v * 3 + 2]);
+	}
+	if (!(high > low))
+	{
+		if (error) *error = QObject::tr("Contour needs a Surface with a non-zero Z range.");
+		return false;
+	}
+
+	auto appendPoint = [&out, &surface](unsigned int a, unsigned int b, float level) {
+		const float za = surface.positions[static_cast<std::size_t>(a) * 3 + 2];
+		const float zb = surface.positions[static_cast<std::size_t>(b) * 3 + 2];
+		const float t = (level - za) / (zb - za);
+		for (int axis = 0; axis < 3; ++axis)
+		{
+			const float pa = surface.positions[static_cast<std::size_t>(a) * 3 + axis];
+			const float pb = surface.positions[static_cast<std::size_t>(b) * 3 + axis];
+			out.positions.push_back(pa + t * (pb - pa));
+			out.normals.push_back(0.0f);
+		}
+		out.normals[out.normals.size() - 1] = 1.0f;
+		out.values.push_back(level);
+	};
+	for (int i = 1; i <= levelCount; ++i)
+	{
+		const float level = low + (high - low) * static_cast<float>(i) / static_cast<float>(levelCount + 1);
+		for (std::size_t t = 0; t + 2 < surface.indices.size(); t += 3)
+		{
+			const unsigned int tri[3] = { surface.indices[t], surface.indices[t + 1], surface.indices[t + 2] };
+			unsigned int edgeA[2], edgeB[2]; int crossings = 0;
+			for (int e = 0; e < 3; ++e)
+			{
+				const unsigned int a = tri[e], b = tri[(e + 1) % 3];
+				const float da = surface.positions[static_cast<std::size_t>(a) * 3 + 2] - level;
+				const float db = surface.positions[static_cast<std::size_t>(b) * 3 + 2] - level;
+				if ((da < 0.0f && db > 0.0f) || (da > 0.0f && db < 0.0f))
+				{
+					if (crossings < 2) { edgeA[crossings] = a; edgeB[crossings] = b; }
+					++crossings;
+				}
+			}
+			if (crossings == 2) { appendPoint(edgeA[0], edgeB[0], level); appendPoint(edgeA[1], edgeB[1], level); }
+		}
+	}
+	return !out.empty();
+}
+
 namespace
 {
 	// Shared by Line/Scatter below: both are just a flat, unindexed vertex list drawn via glDrawArrays with a

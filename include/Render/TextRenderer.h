@@ -44,7 +44,7 @@ public:
 	void RenderText(std::string text, float x, float y, float scale, QVector3D color = QVector3D(1.0f, 1.0f, 1.0f),
 		VAlignment vAlignment = VAlignment::VTOP, HAlignment _hAlignment = HAlignment::HLEFT);
 	// Legend-style text contrast for viewport overlays: draw an eight-neighbour
-	// dark halo, then the foreground glyphs.  Callers opt in so ordinary UI
+	// contrasting halo, then the foreground glyphs.  Callers opt in so ordinary UI
 	// text keeps its existing appearance.
 	void RenderHaloText(std::string text, float x, float y, float scale, QVector3D color = QVector3D(1.0f, 1.0f, 1.0f),
 		VAlignment vAlignment = VAlignment::VTOP, HAlignment hAlignment = HAlignment::HLEFT);

@@ -1056,6 +1056,7 @@ void ViewportWidget::moveToRecycleBin(const QUuid& uuid, int originalIndex)
 		return;
 	}
 	qDebug() << "Moved mesh to recycle bin, uuid:" << uuid;
+	emit meshRecycleStateChanged(uuid, true);
 }
 
 bool ViewportWidget::restoreFromRecycleBin(const QUuid& uuid)
@@ -1066,6 +1067,7 @@ bool ViewportWidget::restoreFromRecycleBin(const QUuid& uuid)
 		return false;
 	}
 	qDebug() << "Restored mesh from recycle bin, uuid:" << uuid;
+	emit meshRecycleStateChanged(uuid, false);
 	return true;
 }
 

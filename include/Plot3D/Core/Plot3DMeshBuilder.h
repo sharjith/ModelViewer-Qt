@@ -33,6 +33,10 @@ struct Plot3DMeshData
 // they are re-sorted internally by their distinct x/y coordinate.
 bool buildPlot3DSurfaceMesh(const Plot3DSurfaceData& data, Plot3DMeshData& out, QString* error = nullptr);
 
+// Builds surface-following iso-lines of Z from a complete regular Surface grid. Each level is emitted as
+// independent GL_LINES vertices so the caller can use the same fixed-pixel-width path as Line plots.
+bool buildPlot3DContourMesh(const Plot3DSurfaceData& data, Plot3DMeshData& out, int levelCount = 10, QString* error = nullptr);
+
 // Builds a flat, ORDERED vertex list (no triangles) for Line data - the caller draws it as a GL_LINE_STRIP, the
 // same native-primitive path glTF line-set import already uses (SceneMesh::draw()'s GL_POINTS/GL_LINE_STRIP
 // branch), which renders at a fixed PIXEL line width via glLineWidth() rather than real 3D geometry. That is

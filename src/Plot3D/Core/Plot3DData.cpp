@@ -232,6 +232,7 @@ bool buildPlot3DDataset(const Plot3DCsvTable& table, Plot3DPrimitive primitive, 
 	switch (primitive)
 	{
 	case Plot3DPrimitive::Surface:
+	case Plot3DPrimitive::Contour:
 	case Plot3DPrimitive::Line:
 	case Plot3DPrimitive::Scatter:
 	{
@@ -243,7 +244,7 @@ bool buildPlot3DDataset(const Plot3DCsvTable& table, Plot3DPrimitive primitive, 
 			if (!sampleAt(row, sample)) return false;
 			samples.push_back(sample);
 		}
-		if (primitive == Plot3DPrimitive::Surface) out.content = Plot3DSurfaceData{ std::move(samples) };
+		if (primitive == Plot3DPrimitive::Surface || primitive == Plot3DPrimitive::Contour) out.content = Plot3DSurfaceData{ std::move(samples) };
 		else if (primitive == Plot3DPrimitive::Line) out.content = Plot3DLineData{ std::move(samples) };
 		else out.content = Plot3DScatterData{ std::move(samples) };
 		break;
@@ -348,6 +349,7 @@ QString plot3DPrimitiveName(Plot3DPrimitive primitive)
 	switch (primitive)
 	{
 	case Plot3DPrimitive::Surface: return QStringLiteral("Surface");
+	case Plot3DPrimitive::Contour: return QStringLiteral("Contour");
 	case Plot3DPrimitive::Line: return QStringLiteral("Line");
 	case Plot3DPrimitive::Scatter: return QStringLiteral("Scatter");
 	case Plot3DPrimitive::Bar: return QStringLiteral("Bar");

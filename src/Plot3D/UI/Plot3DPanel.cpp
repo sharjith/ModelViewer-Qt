@@ -86,6 +86,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	auto* mapping = new QFormLayout();
 	_primitive = new QComboBox(this);
 	_primitive->addItem(tr("Surface"), QVariant::fromValue(static_cast<int>(Plot3DPrimitive::Surface)));
+	_primitive->addItem(tr("Contour (surface iso-lines)"), QVariant::fromValue(static_cast<int>(Plot3DPrimitive::Contour)));
 	_primitive->addItem(tr("Line / Curve"), QVariant::fromValue(static_cast<int>(Plot3DPrimitive::Line)));
 	_primitive->addItem(tr("Scatter"), QVariant::fromValue(static_cast<int>(Plot3DPrimitive::Scatter)));
 	_primitive->addItem(tr("Bar / Histogram"), QVariant::fromValue(static_cast<int>(Plot3DPrimitive::Bar)));
@@ -298,12 +299,12 @@ void Plot3DPanel::buildPlot()
 		return;
 
 	const Plot3DPrimitive primitive = static_cast<Plot3DPrimitive>(_primitive->currentData().toInt());
-	if (primitive != Plot3DPrimitive::Surface && primitive != Plot3DPrimitive::Line
+	if (primitive != Plot3DPrimitive::Surface && primitive != Plot3DPrimitive::Contour && primitive != Plot3DPrimitive::Line
 		&& primitive != Plot3DPrimitive::Scatter && primitive != Plot3DPrimitive::Bar
 		&& primitive != Plot3DPrimitive::Quiver)
 	{
 		QMessageBox::information(this, tr("Build Plot"),
-			tr("%1 is not implemented yet - Surface, Line, Scatter, Bar and Quiver are available.").arg(_primitive->currentText()));
+			tr("%1 is not implemented yet - Surface, Contour, Line, Scatter, Bar and Quiver are available.").arg(_primitive->currentText()));
 		return;
 	}
 
@@ -340,6 +341,9 @@ void Plot3DPanel::buildPlot()
 	{
 	case Plot3DPrimitive::Surface:
 		built = buildPlot3DSurfaceMesh(std::get<Plot3DSurfaceData>(dataset.content), meshData, &error);
+		break;
+	case Plot3DPrimitive::Contour:
+		built = buildPlot3DContourMesh(std::get<Plot3DSurfaceData>(dataset.content), meshData, 10, &error);
 		break;
 	case Plot3DPrimitive::Line:
 		built = buildPlot3DLineMesh(std::get<Plot3DLineData>(dataset.content), meshData, &error);
@@ -385,6 +389,8 @@ void Plot3DPanel::buildPlot()
 	GLenum primitiveMode = GL_TRIANGLES;
 	if (primitive == Plot3DPrimitive::Line)
 		primitiveMode = GL_LINE_STRIP;
+	else if (primitive == Plot3DPrimitive::Contour)
+		primitiveMode = GL_LINES;
 	else if (primitive == Plot3DPrimitive::Scatter)
 		primitiveMode = GL_POINTS;
 	// skipOptimization = true: setAnalysisOverlayColors() below is indexed by vertex, and the mesh optimiser would
@@ -463,6 +469,8 @@ void Plot3DPanel::buildPlot()
 		session.colourMinimum = session.dataMinimumValue;
 		session.colourMaximum = session.dataMaximumValue;
 		session.colormap = static_cast<int>(AnalysisColormap::Sequential);
+		if (primitive == Plot3DPrimitive::Contour)
+			session.contourSource = std::get<Plot3DSurfaceData>(dataset.content);
 		_modelViewer->addPlot3DSession(std::move(session));
 	}
 

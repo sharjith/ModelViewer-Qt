@@ -263,13 +263,12 @@ void ModelViewer::presentSimulationResult(const QString& path, LoadedSimulationR
 	connectSimulationHooks();
 	refreshSimulationDisplay(_simulationSessions.back()); // colours + legend
 
-	// A document that File > Open created just for this file (still empty and untouched, also after the read) takes it as
-	// its content, not as an undoable edit, and stays unmodified. Anything else - an import into a document with unsaved
-	// changes, or one that was edited while the read ran - must keep its state: the result is one undoable step.
+	// A fresh document has no undo command to represent this imported result, but it still
+	// contains new scene data and must prompt for an MVF save like a generated Plot3D plot.
 	const bool freshDocument = _closeOnSimulationLoadFailure && !_documentModified && _undoStack->count() == 0;
 	_closeOnSimulationLoadFailure = false;
 	if (freshDocument)
-		setDocumentModified(false);
+		markNonUndoDocumentModified();
 	else
 	{
 		// Added to a document that already has content: one undoable step, reusing the "add one node + one mesh"
@@ -327,11 +326,11 @@ SimulationSession* ModelViewer::activeSimulationSessionMutable()
 		return nullptr;
 	// The active one, if its mesh is still displayed (Undo of the open removes it).
 	SimulationSession* active = findSimulationSession(_activeSimulationMesh);
-	if (active && _viewportWidget->getMeshByUuid(active->meshUuid))
+	if (active && _viewportWidget->getIndexByUuid(active->meshUuid) >= 0)
 		return active;
 	// Otherwise the most recently opened result that is still displayed.
 	for (auto it = _simulationSessions.rbegin(); it != _simulationSessions.rend(); ++it)
-		if (_viewportWidget->getMeshByUuid(it->meshUuid))
+		if (_viewportWidget->getIndexByUuid(it->meshUuid) >= 0)
 			return &*it;
 	return nullptr;
 }
@@ -348,7 +347,7 @@ QVector<SimulationResultItem> ModelViewer::simulationResults() const
 		return items;
 	for (const SimulationSession& s : _simulationSessions)
 	{
-		SceneMesh* mesh = _viewportWidget->getMeshByUuid(s.meshUuid);
+		SceneMesh* mesh = _viewportWidget->getIndexByUuid(s.meshUuid) >= 0 ? _viewportWidget->getMeshByUuid(s.meshUuid) : nullptr;
 		if (!mesh)
 			continue; // deleted (Undo brings it back)
 		SimulationResultItem item;
