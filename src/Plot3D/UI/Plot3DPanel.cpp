@@ -220,6 +220,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	_sourceMode->addItem(tr("Parametric curve"), 3);
 	_sourceMode->addItem(tr("Formula vector field"), 4);
 	_sourceMode->addItem(tr("Implicit surface"), 5);
+	_sourceMode->addItem(tr("Formula streamlines"), 6);
 	layout->addWidget(_sourceMode);
 	_tableSourceWidget = new QWidget(this);
 	auto* tableSourceLayout = new QVBoxLayout(_tableSourceWidget);
@@ -394,7 +395,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 
 	connect(openButton, &QPushButton::clicked, this, &Plot3DPanel::loadCsvFile);
 	connect(pasteButton, &QPushButton::clicked, this, &Plot3DPanel::pasteData);
-	connect(parseButton, &QPushButton::clicked, this, [this] { const int sourceMode = _sourceMode->currentData().toInt(); if (sourceMode == 5) refreshImplicitPreview(); else if (sourceMode == 4) refreshFormulaVectorPreview(); else if (sourceMode == 3) refreshParametricCurvePreview(); else if (sourceMode == 2) refreshParametricPreview(); else if (sourceMode == 1) refreshFormulaPreview(); else refreshPreview(); });
+	connect(parseButton, &QPushButton::clicked, this, [this] { const int sourceMode = _sourceMode->currentData().toInt(); if (sourceMode == 5) refreshImplicitPreview(); else if (sourceMode == 4 || sourceMode == 6) refreshFormulaVectorPreview(); else if (sourceMode == 3) refreshParametricCurvePreview(); else if (sourceMode == 2) refreshParametricPreview(); else if (sourceMode == 1) refreshFormulaPreview(); else refreshPreview(); });
 	connect(_delimiter, &QComboBox::currentIndexChanged, this, &Plot3DPanel::refreshPreview);
 	connect(_header, &QCheckBox::toggled, this, &Plot3DPanel::refreshPreview);
 	connect(_sourceMode, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::updateSourceMode);
@@ -437,6 +438,17 @@ void Plot3DPanel::previewPlot()
 		return;
 
 	const int sourceMode = _sourceMode->currentData().toInt();
+	if (sourceMode == 6)
+	{
+		QHash<QString, double> parameters; for (auto it = _formulaParameterEditors.cbegin(); it != _formulaParameterEditors.cend(); ++it) parameters.insert(it.key(), it.value()->value());
+		Plot3DMeshData mesh; QString error;
+		if (!buildPlot3DFormulaStreamlines(_parametricX->text(), _parametricY->text(), _parametricZ->text(), _formulaXMinimum->value(), _formulaXMaximum->value(), _formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), parameters, mesh, &error)) { QMessageBox::warning(this, tr("Preview Plot"), error); return; }
+		double minimum[3] = { std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max() }, maximum[3] = { std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest() };
+		for (std::size_t i = 0; i < mesh.vertexCount(); ++i) for (int axis = 0; axis < 3; ++axis) { minimum[axis] = std::min(minimum[axis], static_cast<double>(mesh.positions[i * 3 + axis])); maximum[axis] = std::max(maximum[axis], static_cast<double>(mesh.positions[i * 3 + axis])); }
+		const std::array<Plot3DAxisConfig, 3> axes = { Plot3DAxisConfig{ QStringLiteral("X") }, Plot3DAxisConfig{ QStringLiteral("Y") }, Plot3DAxisConfig{ QStringLiteral("Z") } };
+		if (!showPlot3DPreview(_modelViewer, mesh, GL_LINES, axes, minimum, maximum, _formulaTitle->text().trimmed())) QMessageBox::warning(this, tr("Preview Plot"), tr("The streamline preview could not be created."));
+		return;
+	}
 	if (sourceMode == 5)
 	{
 		QHash<QString, double> parameters;
@@ -645,7 +657,8 @@ void Plot3DPanel::updateSourceMode()
 	const bool generated = sourceMode != 0;
 	const bool parametricSurface = sourceMode == 2;
 	const bool parametricCurve = sourceMode == 3;
-	const bool vectorField = sourceMode == 4;
+	const bool vectorField = sourceMode == 4 || sourceMode == 6;
+	const bool streamlines = sourceMode == 6;
 	const bool implicitSurface = sourceMode == 5;
 	const bool parametric = parametricSurface || parametricCurve;
 	auto setVisible = [](QLabel* label, QWidget* field, bool visible)
@@ -656,7 +669,7 @@ void Plot3DPanel::updateSourceMode()
 	_tableSourceWidget->setVisible(!generated);
 	_mappingWidget->setVisible(!generated);
 	_formulaGroup->setVisible(generated);
-	_formulaGroup->setTitle(implicitSurface ? tr("Implicit surface") : (vectorField ? tr("Formula vector field") : (parametricCurve ? tr("Parametric curve") : (parametricSurface ? tr("Parametric surface") : tr("Formula surface")))));
+	_formulaGroup->setTitle(implicitSurface ? tr("Implicit surface") : (streamlines ? tr("Formula streamlines") : (vectorField ? tr("Formula vector field") : (parametricCurve ? tr("Parametric curve") : (parametricSurface ? tr("Parametric surface") : tr("Formula surface"))))));
 	_delimiter->setEnabled(!generated);
 	_header->setEnabled(!generated);
 	_source->setEnabled(!generated);
@@ -683,7 +696,7 @@ void Plot3DPanel::updateSourceMode()
 	{
 		// Formula fields can also make contours. Parametric coordinates have a
 		// single unambiguous output: a triangle surface or an ordered line.
-		const Plot3DPrimitive expected = vectorField ? Plot3DPrimitive::Quiver : (parametricCurve ? Plot3DPrimitive::Line : Plot3DPrimitive::Surface);
+		const Plot3DPrimitive expected = streamlines ? Plot3DPrimitive::Line : (vectorField ? Plot3DPrimitive::Quiver : (parametricCurve ? Plot3DPrimitive::Line : Plot3DPrimitive::Surface));
 		if (parametric || vectorField || implicitSurface || (static_cast<Plot3DPrimitive>(_primitive->currentData().toInt()) != Plot3DPrimitive::Surface
 			&& static_cast<Plot3DPrimitive>(_primitive->currentData().toInt()) != Plot3DPrimitive::Contour))
 			_primitive->setCurrentIndex(_primitive->findData(static_cast<int>(expected)));
@@ -773,7 +786,7 @@ void Plot3DPanel::applyFormulaVectorPreset()
 	while (QLayoutItem* item = _formulaParameters->takeAt(0)) { delete item->widget(); delete item; }
 	_formulaParameterEditors.clear();
 	for (const Plot3DFormulaParameter& parameter : preset.parameters) { auto* editor = new QDoubleSpinBox(_formulaGroup); editor->setRange(parameter.minimum, parameter.maximum); editor->setDecimals(6); editor->setValue(parameter.value); _formulaParameters->addRow(parameter.name + QStringLiteral(":"), editor); _formulaParameterEditors.insert(parameter.name.toLower(), editor); }
-	if (_sourceMode->currentData().toInt() == 4) refreshFormulaVectorPreview();
+	if (_sourceMode->currentData().toInt() == 4 || _sourceMode->currentData().toInt() == 6) refreshFormulaVectorPreview();
 }
 
 void Plot3DPanel::applyImplicitPreset()
@@ -828,7 +841,7 @@ void Plot3DPanel::refreshFormulaVectorPreview()
 	QHash<QString, double> parameters; for (auto it = _formulaParameterEditors.cbegin(); it != _formulaParameterEditors.cend(); ++it) parameters.insert(it.key(), it.value()->value());
 	Plot3DQuiverData vectors; QString error;
 	if (!buildPlot3DFormulaVectorField(_parametricX->text(), _parametricY->text(), _parametricZ->text(), _formulaXMinimum->value(), _formulaXMaximum->value(), _formulaXSamples->value(), _formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), parameters, vectors, &error)) { _status->setText(error); _status->setStyleSheet(QStringLiteral("color: #d9534f;")); _buildButton->setEnabled(false); return; }
-	_status->setStyleSheet(QString()); _status->setText(tr("Formula vector field evaluated on a %1 x %2 grid (%3 arrows).").arg(_formulaXSamples->value()).arg(_formulaYSamples->value()).arg(vectors.arrows.size())); _buildButton->setEnabled(true);
+	_status->setStyleSheet(QString()); _status->setText(_sourceMode->currentData().toInt() == 6 ? tr("Formula streamlines will use %1 seeds.").arg(_formulaYSamples->value()) : tr("Formula vector field evaluated on a %1 x %2 grid (%3 arrows).").arg(_formulaXSamples->value()).arg(_formulaYSamples->value()).arg(vectors.arrows.size())); _buildButton->setEnabled(true);
 }
 
 void Plot3DPanel::refreshImplicitPreview()
@@ -958,9 +971,13 @@ void Plot3DPanel::buildParametricCurvePlot()
 	Plot3DLineData curve;
 	Plot3DMeshData data;
 	QString error;
-	if (!buildPlot3DParametricCurve(_parametricX->text(), _parametricY->text(), _parametricZ->text(),
-		_formulaXMinimum->value(), _formulaXMaximum->value(), _formulaXSamples->value(), parameters, curve, &error)
-		|| !buildPlot3DLineMesh(curve, data, &error))
+	const bool streamlines = _sourceMode->currentData().toInt() == 6;
+	const bool built = streamlines
+		? buildPlot3DFormulaStreamlines(_parametricX->text(), _parametricY->text(), _parametricZ->text(), _formulaXMinimum->value(), _formulaXMaximum->value(), _formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), parameters, data, &error)
+		: (buildPlot3DParametricCurve(_parametricX->text(), _parametricY->text(), _parametricZ->text(),
+			_formulaXMinimum->value(), _formulaXMaximum->value(), _formulaXSamples->value(), parameters, curve, &error)
+			&& buildPlot3DLineMesh(curve, data, &error));
+	if (!built)
 	{
 		QMessageBox::warning(this, tr("Build Plot"), error);
 		return;
@@ -997,7 +1014,7 @@ void Plot3DPanel::buildParametricCurvePlot()
 	if (valueMaximum <= valueMinimum) valueMaximum = valueMinimum + 1.0f;
 
 	viewport->makeCurrent();
-	SceneMesh* mesh = new SceneMesh(viewport->getShader(), baseName, vertices, {}, {}, Material(), true, GL_LINE_STRIP);
+	SceneMesh* mesh = new SceneMesh(viewport->getShader(), baseName, vertices, {}, {}, Material(), true, streamlines ? GL_LINES : GL_LINE_STRIP);
 	viewport->addToDisplay(mesh);
 	mesh->setAnalysisOverlayColors(AnalysisColorRamp::mapToRGBA(values, valid, valueMinimum, valueMaximum, AnalysisColormap::Sequential));
 	mesh->setAnalysisOverlayBanding(0, static_cast<int>(AnalysisColormap::Sequential));
@@ -1204,6 +1221,11 @@ void Plot3DPanel::buildPlot()
 	if (_sourceMode->currentData().toInt() == 5)
 	{
 		buildParametricPlot();
+		return;
+	}
+	if (_sourceMode->currentData().toInt() == 6)
+	{
+		buildParametricCurvePlot();
 		return;
 	}
 	if (_sourceMode->currentData().toInt() == 4)

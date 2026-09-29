@@ -164,6 +164,41 @@ bool buildPlot3DFormulaVectorField(const QString& ue,const QString& ve,const QSt
 	return true;
 }
 
+bool buildPlot3DFormulaStreamlines(const QString& ue, const QString& ve, const QString& we,
+	double x0, double x1, double y0, double y1, int seedCount, const QHash<QString, double>& parameters, Plot3DMeshData& out, QString* error)
+{
+	out = Plot3DMeshData();
+	if (seedCount < 2 || seedCount > 128 || !(x1 > x0) || !(y1 > y0)) { if (error) *error = QStringLiteral("Streamline ranges must increase and the seed count must be 2 to 128."); return false; }
+	const double step = std::min(x1 - x0, y1 - y0) / 120.0;
+	for (int seed = 0; seed < seedCount; ++seed)
+	{
+		const Plot3DPoint seedPoint{ (x0 + x1) * 0.5, y0 + (y1 - y0) * seed / (seedCount - 1), 0.0 };
+		// Centred seeds let a closed field complete a full orbit without drawing
+		// the same path twice in opposite directions.
+		for (const double direction : { 1.0 })
+		{
+			Plot3DPoint point = seedPoint;
+			for (int iteration = 0; iteration < 480; ++iteration)
+			{
+				double u, v, w; QString local;
+				if (!evaluatePlot3DFormula3D(ue, point.x, point.y, point.z, parameters, u, &local)
+					|| !evaluatePlot3DFormula3D(ve, point.x, point.y, point.z, parameters, v, &local)
+					|| !evaluatePlot3DFormula3D(we, point.x, point.y, point.z, parameters, w, &local)) { if (error) *error = local; out = Plot3DMeshData(); return false; }
+				const double magnitude = std::sqrt(u*u + v*v + w*w);
+				if (magnitude < 1.0e-12) break;
+				const Plot3DPoint next{ point.x + direction * step * u / magnitude, point.y + direction * step * v / magnitude, point.z + direction * step * w / magnitude };
+				if (next.x < x0 || next.x > x1 || next.y < y0 || next.y > y1) break;
+				const double seedDistance = std::sqrt((next.x - seedPoint.x) * (next.x - seedPoint.x) + (next.y - seedPoint.y) * (next.y - seedPoint.y) + (next.z - seedPoint.z) * (next.z - seedPoint.z));
+				if (iteration > 16 && seedDistance < step * 1.5) break;
+				for (const Plot3DPoint& p : { point, next }) { out.positions.insert(out.positions.end(), { float(p.x), float(p.y), float(p.z) }); out.normals.insert(out.normals.end(), { 0.0f, 0.0f, 1.0f }); out.values.push_back(magnitude); }
+				point = next;
+			}
+		}
+	}
+	if (out.empty()) { if (error) *error = QStringLiteral("No streamline segments were generated in the selected domain."); return false; }
+	return true;
+}
+
 bool buildPlot3DImplicitSurface(const QString& expression,
 	double xMinimum, double xMaximum, int xSamples, double yMinimum, double yMaximum, int ySamples,
 	double zMinimum, double zMaximum, int zSamples, const QHash<QString, double>& parameters,

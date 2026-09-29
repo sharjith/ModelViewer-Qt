@@ -94,6 +94,9 @@ bool buildPlot3DParametricCurve(const QString& xExpression, const QString& yExpr
 bool buildPlot3DFormulaVectorField(const QString& uExpression, const QString& vExpression, const QString& wExpression,
 	double xMinimum, double xMaximum, int xSamples, double yMinimum, double yMaximum, int ySamples,
 	const QHash<QString, double>& parameters, Plot3DQuiverData& out, QString* error = nullptr);
+bool buildPlot3DFormulaStreamlines(const QString& uExpression, const QString& vExpression, const QString& wExpression,
+	double xMinimum, double xMaximum, double yMinimum, double yMaximum, int seedCount,
+	const QHash<QString, double>& parameters, Plot3DMeshData& out, QString* error = nullptr);
 bool buildPlot3DImplicitSurface(const QString& expression,
 	double xMinimum, double xMaximum, int xSamples, double yMinimum, double yMaximum, int ySamples,
 	double zMinimum, double zMaximum, int zSamples, const QHash<QString, double>& parameters,
