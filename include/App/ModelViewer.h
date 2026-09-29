@@ -627,6 +627,7 @@ public slots:
 	// Rebuilds the shared axis box from every visible Plot3D session while
 	// retaining the active session's labels/scale/custom-range choices.
 	void refreshPlot3DAxes();
+	void refreshPlot3DLegend();
 	void applyPlot3DColourState(const QUuid& meshUuid, float minimum, float maximum, int colormap, int bands);
 	void setPlot3DContourLevels(const QUuid& meshUuid, int levels);
 	void setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visible);
@@ -1033,6 +1034,7 @@ private:
 	QVector<Plot3DSession> _plot3DSessions;
 	QUuid _activePlot3DMesh;
 	QVector<QUuid> _plot3DPreviewMeshes;
+	QPointer<SimulationLegendWidget> _plot3DLegend; // colour legend of the active visible scalar Plot3D session
 	QUuid _activeSimulationMesh;                        // the session the Simulation panel currently shows
 	bool _simulationHooksConnected = false;
 	enum class SimulationSaveContent { ShownAndDisplacement, AllFields, GeometryOnly };

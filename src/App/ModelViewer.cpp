@@ -1126,6 +1126,8 @@ void ModelViewer::revealNavigation()
 	// treatment (it sat underneath this panel and looked like it vanished on every mouse move).
 	if (_simulationLegend)
 		_simulationLegend->raise();
+	if (_plot3DLegend)
+		_plot3DLegend->raise();
 	if (_simulationTimeline && _simulationTimeline->isVisible())
 		_simulationTimeline->raise();
 	if (_viewportWidget)

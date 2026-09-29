@@ -41,6 +41,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <utility>
 #include <variant>
 
 namespace
@@ -218,6 +219,83 @@ bool showPlot3DQuiverPreview(ModelViewer* viewer, const Plot3DDataset& dataset, 
 	mesh->setAnalysisOverlayBanding(0, static_cast<int>(AnalysisColormap::Sequential));
 	const QUuid meshUuid = mesh->uuid();
 	viewport->setSimulationGlyphs(meshUuid, quiverGlyphs(quiver, dataset));
+	viewport->doneCurrent();
+	viewer->setPlot3DPreview({ meshUuid }, layout);
+	return true;
+}
+
+std::vector<Vertex> voxelProxyVertices(const Plot3DVoxelGrid& grid)
+{
+	std::vector<Vertex> vertices(8);
+	const float minimum[3] = { grid.origin[0], grid.origin[1], grid.origin[2] };
+	const float maximum[3] = { grid.origin[0] + grid.dimX, grid.origin[1] + grid.dimY, grid.origin[2] + grid.dimZ };
+	for (int corner = 0; corner < 8; ++corner)
+	{
+		Vertex& vertex = vertices[static_cast<std::size_t>(corner)];
+		vertex.Color = glm::vec4(1.0f);
+		vertex.Position = glm::vec3((corner & 1) ? maximum[0] : minimum[0],
+			(corner & 2) ? maximum[1] : minimum[1], (corner & 4) ? maximum[2] : minimum[2]);
+		vertex.Normal = glm::vec3(0.0f, 0.0f, 1.0f);
+		vertex.Tangent = glm::vec3(0.0f);
+		vertex.Bitangent = glm::vec3(0.0f);
+		for (glm::vec2& uv : vertex.TexCoords)
+			uv = glm::vec2(0.0f);
+	}
+	return vertices;
+}
+
+VolumeGrid voxelVolume(Plot3DVoxelGrid&& grid)
+{
+	VolumeGrid volume;
+	volume.values = std::move(grid.values);
+	volume.dimX = grid.dimX;
+	volume.dimY = grid.dimY;
+	volume.dimZ = grid.dimZ;
+	for (int axis = 0; axis < 3; ++axis)
+	{
+		volume.origin[axis] = grid.origin[axis];
+		volume.voxelSize[axis] = 1.0f;
+	}
+	volume.fieldMin = 0.0f;
+	volume.fieldMax = 1.0f;
+	volume.label = QObject::tr("Occupancy");
+	return volume;
+}
+
+QVector<QPointF> voxelOpacity()
+{
+	// Zero is empty, while nonzero occupancy stays visible with an opacity that rises with the supplied value. A hard
+	// 0.5 cutoff makes a deliberately soft-edged input such as voxel_sphere.csv look much smaller than its own grid.
+	return { QPointF(0.0, 0.0), QPointF(0.149, 0.0), QPointF(0.15, 0.12), QPointF(0.5, 0.58), QPointF(1.0, 0.85) };
+}
+
+bool showPlot3DVoxelPreview(ModelViewer* viewer, const Plot3DDataset& dataset, const QString& title, QString* error)
+{
+	ViewportWidget* viewport = viewer ? viewer->getViewportWidget() : nullptr;
+	if (!viewport || !std::holds_alternative<Plot3DVoxelData>(dataset.content))
+		return false;
+
+	Plot3DVoxelGrid grid;
+	if (!buildPlot3DVoxelGrid(std::get<Plot3DVoxelData>(dataset.content), grid, error))
+		return false;
+	double minimum[3], maximum[3];
+	if (!plot3DDataBounds(dataset, minimum, maximum))
+	{
+		if (error)
+			*error = QObject::tr("The voxel plot has no valid preview bounds.");
+		return false;
+	}
+	Plot3DAxisController controller;
+	Plot3DAxisLayout layout;
+	if (!controller.buildLayout(dataset.axes, minimum, maximum, layout, error, title))
+		return false;
+
+	std::vector<Vertex> vertices = voxelProxyVertices(grid);
+	viewport->makeCurrent();
+	SceneMesh* mesh = new SceneMesh(viewport->getShader(), QStringLiteral("Plot3D Preview"), vertices, {}, {}, Material(), true, GL_POINTS);
+	viewport->addToDisplay(mesh);
+	const QUuid meshUuid = mesh->uuid();
+	viewport->setSimulationVolume(meshUuid, voxelVolume(std::move(grid)), static_cast<int>(AnalysisColormap::Sequential), voxelOpacity());
 	viewport->doneCurrent();
 	viewer->setPlot3DPreview({ meshUuid }, layout);
 	return true;
@@ -600,12 +678,6 @@ void Plot3DPanel::previewPlot()
 	}
 
 	const Plot3DPrimitive primitive = static_cast<Plot3DPrimitive>(_primitive->currentData().toInt());
-	if (primitive == Plot3DPrimitive::Quiver || primitive == Plot3DPrimitive::Voxel)
-	{
-		QMessageBox::information(this, tr("Preview Plot"),
-			tr("Interactive preview for %1 will be added with its renderer-specific preview path.").arg(plot3DPrimitiveName(primitive)));
-		return;
-	}
 	Plot3DColumnMapping mapping;
 	mapping.x = _columnX->currentData().toInt();
 	mapping.y = _columnY->currentData().toInt();
@@ -623,6 +695,18 @@ void Plot3DPanel::previewPlot()
 	if (!buildPlot3DDataset(_table, primitive, mapping, dataset, &error))
 	{
 		QMessageBox::warning(this, tr("Preview Plot"), error);
+		return;
+	}
+	if (primitive == Plot3DPrimitive::Quiver)
+	{
+		if (!showPlot3DQuiverPreview(_modelViewer, dataset, QString()))
+			QMessageBox::warning(this, tr("Preview Plot"), tr("The quiver preview could not be created."));
+		return;
+	}
+	if (primitive == Plot3DPrimitive::Voxel)
+	{
+		if (!showPlot3DVoxelPreview(_modelViewer, dataset, QString(), &error))
+			QMessageBox::warning(this, tr("Preview Plot"), error.isEmpty() ? tr("The voxel preview could not be created.") : error);
 		return;
 	}
 
@@ -1724,19 +1808,7 @@ void Plot3DPanel::buildVoxelPlot(const Plot3DDataset& dataset, const QString& ba
 	// visibility, transforms, deletion and undo. Its normal rendering pass suppresses meshes with a registered
 	// volume, therefore these eight bounds vertices are only the proxy's transform and fit-all extent, never visible
 	// point markers.
-	std::vector<Vertex> vertices(8);
-	const float minimum[3] = { plotGrid.origin[0], plotGrid.origin[1], plotGrid.origin[2] };
-	const float maximum[3] = { plotGrid.origin[0] + plotGrid.dimX, plotGrid.origin[1] + plotGrid.dimY, plotGrid.origin[2] + plotGrid.dimZ };
-	for (int corner = 0; corner < 8; ++corner)
-	{
-		Vertex& vertex = vertices[static_cast<std::size_t>(corner)];
-		vertex.Color = glm::vec4(1.0f);
-		vertex.Position = glm::vec3((corner & 1) ? maximum[0] : minimum[0],
-			(corner & 2) ? maximum[1] : minimum[1], (corner & 4) ? maximum[2] : minimum[2]);
-		vertex.Normal = glm::vec3(0.0f, 0.0f, 1.0f);
-		vertex.Tangent = glm::vec3(0.0f); vertex.Bitangent = glm::vec3(0.0f);
-		for (glm::vec2& uv : vertex.TexCoords) uv = glm::vec2(0.0f);
-	}
+	std::vector<Vertex> vertices = voxelProxyVertices(plotGrid);
 
 	ViewportWidget* viewport = _modelViewer->getViewportWidget();
 	viewport->makeCurrent();
@@ -1750,16 +1822,7 @@ void Plot3DPanel::buildVoxelPlot(const Plot3DDataset& dataset, const QString& ba
 	_modelViewer->sceneGraph()->insertChildNode(parent, node, parent->children.size());
 	_modelViewer->sceneGraph()->restoreMeshUuid(node, meshUuid, 0);
 
-	VolumeGrid volume;
-	volume.values = std::move(plotGrid.values);
-	volume.dimX = plotGrid.dimX; volume.dimY = plotGrid.dimY; volume.dimZ = plotGrid.dimZ;
-	for (int axis = 0; axis < 3; ++axis) { volume.origin[axis] = plotGrid.origin[axis]; volume.voxelSize[axis] = 1.0f; }
-	volume.fieldMin = 0.0f; volume.fieldMax = 1.0f;
-	volume.label = tr("Occupancy");
-	// Zero is empty, while nonzero occupancy stays visible with an opacity that rises with the supplied value. A hard
-	// 0.5 cutoff made a deliberately soft-edged input such as voxel_sphere.csv look much smaller than its own grid.
-	const QVector<QPointF> opacity{ QPointF(0.0, 0.0), QPointF(0.149, 0.0), QPointF(0.15, 0.12), QPointF(0.5, 0.58), QPointF(1.0, 0.85) };
-	viewport->setSimulationVolume(meshUuid, std::move(volume), static_cast<int>(AnalysisColormap::Sequential), opacity);
+	viewport->setSimulationVolume(meshUuid, voxelVolume(std::move(plotGrid)), static_cast<int>(AnalysisColormap::Sequential), voxelOpacity());
 	viewport->doneCurrent();
 	viewport->updateView();
 	_modelViewer->updateDisplayList();

@@ -216,14 +216,18 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     spherical harmonic. Generated data bypasses the CSV mapping UI and is added as an ordinary persistent Plot3D
     surface with its own axis box, colour controls and scene-tree node.
 15. **Implemented, awaiting the user's build+visual check (2026-09-29):** main-viewer Plot3D preview. The Add 3D
-    Plot dialog can render one transient mesh-based plot directly in the viewport before Build Plot commits it. The
-    preview uses a short-lived render-only scene node, with no session, undo entry, save data, document-modified
-    state or navigation-tree row. It
-    replaces the preceding preview, supplies its own temporary axes box, and is cleared on dialog close or before
-    the committed plot is created. Surface, contour, line, scatter/stem, bar, formula and parametric surface use
-    the common mesh preview path; renderer-specific Quiver and Voxel previews remain a follow-up.
-16. **Presentation and editing follow-up:** plot-specific line/marker/bar/quiver styling; an in-viewport colour legend;
-    filled translucent reference planes or grid; and re-edit/rebuild from retained source data and column mapping.
+    Plot dialog can render a transient plot directly in the viewport before Build Plot commits it. The preview uses
+    a short-lived render-only scene node, with no session, undo entry, save data, document-modified state or
+    navigation-tree row. It replaces the preceding preview, supplies its own temporary axes box, and is cleared on
+    dialog close or before the committed plot is created. Surface, contour, line, scatter/stem, bar, formula and
+    parametric surface use the common mesh preview path. CSV Quiver uses the same glyph renderer and normalized
+    arrow sizing as its committed plot, while CSV Voxel uses the same volume renderer, transfer function and bounds
+    proxy as its committed plot.
+16. **Partly implemented (2026-09-29):** presentation and editing. The active visible scalar plot now gets an
+    outlined in-viewport colour legend driven by the same range, map and banding as the plot. It uses a separate
+    overlay from Simulation and stacks below the Simulation legend when both are visible. Remaining work is
+    plot-specific line/marker/bar/quiver styling, filled translucent reference planes, and re-edit/rebuild from
+    retained source data and column mapping.
 17. **Implemented, awaiting the user's build+visual check (2026-09-29):** ordered parametric curves. The formula
     source selector now includes a one-parameter curve mode that builds an ordinary `GL_LINE_STRIP`, with Helix,
     Lissajous, Trefoil Knot, Viviani Curve and Damped Spiral presets. Curves use the same main-view preview and

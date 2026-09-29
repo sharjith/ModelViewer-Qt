@@ -33,6 +33,13 @@ quiver_vortex.csv         Quiver (vector field). A 7 x 7 x 3 grid (147 rows: x, 
                           rotation about the Z axis (u = -y, v = x) plus a small constant upward w - value is the local
                           speed. Arrows should visibly curl around the Z axis and lengthen with distance from it.
 
+Renderer preview checks
+-----------------------
+Open quiver_vortex.csv, select Quiver, map X/Y/Z and U/V/W to their matching columns, and click Preview. The
+temporary arrows should match the size and colour behaviour of Build Plot. Open voxel_sphere.csv, select Voxel,
+map X/Y/Z to i/j/k and Colour value to occupancy, and click Preview. The temporary volume should match Build Plot.
+For both files, Clear Preview and closing the dialog must remove the plot and restore the previous axes box.
+
 Generated examples
 ------------------
 Formula surface and Parametric surface do not require a CSV file. In Add 3D Plot, choose either source type from the

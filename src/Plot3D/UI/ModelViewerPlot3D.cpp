@@ -6,10 +6,12 @@
 #include "SceneGraph.h"
 #include "SceneMesh.h"
 #include "SceneNode.h"
+#include "SimulationLegendWidget.h"
 #include "ViewportWidget.h"
 
 #include <algorithm>
 #include <QPointF>
+#include <QPointer>
 
 namespace
 {
@@ -124,6 +126,7 @@ void ModelViewer::activatePlot3DSession(const QUuid& meshUuid)
 		return;
 	_activePlot3DMesh = meshUuid;
 	applyAxes(this, session);
+	refreshPlot3DLegend();
 	if (_viewportWidget)
 		_viewportWidget->updateView();
 	emit plot3DSessionsChanged(false);
@@ -147,6 +150,8 @@ void ModelViewer::applyPlot3DColourState(const QUuid& meshUuid, float minimum, f
 		// their supplied occupancy; only the selected colour map is editable here.
 		const QVector<QPointF> opacity{ QPointF(0.0, 0.0), QPointF(0.149, 0.0), QPointF(0.15, 0.12), QPointF(0.5, 0.58), QPointF(1.0, 0.85) };
 		_viewportWidget->setSimulationVolumeTransferFunction(meshUuid, colormap, opacity);
+		markNonUndoDocumentModified();
+		refreshPlot3DLegend();
 		emit plot3DSessionsChanged(false);
 		return;
 	}
@@ -169,6 +174,8 @@ void ModelViewer::applyPlot3DColourState(const QUuid& meshUuid, float minimum, f
 			_viewportWidget->doneCurrent();
 		}
 		_viewportWidget->updateView();
+		markNonUndoDocumentModified();
+		refreshPlot3DLegend();
 		emit plot3DSessionsChanged(false);
 		return;
 	}
@@ -189,6 +196,8 @@ void ModelViewer::applyPlot3DColourState(const QUuid& meshUuid, float minimum, f
 		}
 	}
 	_viewportWidget->updateView();
+	markNonUndoDocumentModified();
+	refreshPlot3DLegend();
 	emit plot3DSessionsChanged(false);
 }
 
@@ -230,11 +239,12 @@ void ModelViewer::setPlot3DContourLevels(const QUuid& meshUuid, int levels)
 void ModelViewer::setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visible)
 {
 	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
-	if (!session)
+	if (!session || session->axesVisible == visible)
 		return;
 	session->axesVisible = visible;
 	if (meshUuid == _activePlot3DMesh)
 		applyAxes(this, session);
+	markNonUndoDocumentModified();
 	emit plot3DSessionsChanged(false);
 }
 
@@ -257,6 +267,7 @@ void ModelViewer::applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<
 	session->axes = axes;
 	if (meshUuid == _activePlot3DMesh)
 		applyAxes(this, session);
+	markNonUndoDocumentModified();
 	emit plot3DSessionsChanged(false);
 }
 
@@ -347,4 +358,44 @@ void ModelViewer::refreshPlot3DAxes()
 		applyAxes(this, session);
 	else if (_viewportWidget)
 		_viewportWidget->clearPlot3DAxisLayout();
+	refreshPlot3DLegend();
+}
+
+void ModelViewer::refreshPlot3DLegend()
+{
+	if (!_viewportWidget)
+		return;
+	Plot3DSession* session = sessionFor(_plot3DSessions, activePlot3DMeshUuid());
+	const QSet<QUuid> shown = getVisibleUuids();
+	// Quiver currently colours arrows by their vector magnitude rather than the optional CSV value column. Keep its
+	// legend hidden until its editable colour state is backed by that same magnitude data.
+	if (!session || !shown.contains(session->meshUuid) || session->primitive == Plot3DPrimitive::Quiver)
+	{
+		if (_plot3DLegend)
+			_plot3DLegend->setAliveCheck([]() { return false; });
+		return;
+	}
+	if (!_plot3DLegend)
+		_plot3DLegend = new SimulationLegendWidget(_viewportWidget);
+
+	QPointer<ModelViewer> self(this);
+	QPointer<ViewportWidget> viewport(_viewportWidget);
+	_plot3DLegend->setPane([self, viewport]() {
+		if (!self || !viewport || !self->_simulationLegend || !self->_simulationLegend->isVisible())
+			return QRect();
+		// When a simulation and Plot3D result are both visible, stack their legends instead of painting them on top
+		// of one another. The plot legend returns to the normal top-right slot when the simulation legend is absent.
+		return QRect(0, 132, viewport->width(), std::max(1, viewport->height() - 132));
+	}, QString());
+	const QUuid meshUuid = session->meshUuid;
+	_plot3DLegend->setAliveCheck([self, meshUuid]() {
+		if (!self || self->activePlot3DMeshUuid() != meshUuid)
+			return false;
+		return self->getVisibleUuids().contains(meshUuid);
+	});
+	const QString label = session->primitive == Plot3DPrimitive::Voxel
+		? tr("%1 - Occupancy").arg(session->name)
+		: tr("%1 - Value").arg(session->name);
+	_plot3DLegend->setLegend(label, session->colourMinimum, session->colourMaximum, session->colormap,
+		session->bands, tr("Colour range for the active 3D plot."));
 }
