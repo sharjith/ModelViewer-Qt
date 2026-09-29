@@ -95,6 +95,21 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	titleRow->addWidget(new QLabel(tr("Title:"), axesGroup));
 	titleRow->addWidget(_plotTitle, 1);
 	axesLayout->addLayout(titleRow);
+	auto* referencePlaneRow = new QHBoxLayout();
+	referencePlaneRow->addWidget(new QLabel(tr("Planes:"), axesGroup));
+	for (int i = 0; i < 3; ++i)
+	{
+		_referencePlanes[i] = new QCheckBox(i == 0 ? tr("XY") : (i == 1 ? tr("XZ") : tr("YZ")), axesGroup);
+		referencePlaneRow->addWidget(_referencePlanes[i]);
+	}
+	referencePlaneRow->addStretch(1);
+	referencePlaneRow->addWidget(new QLabel(tr("Opacity:"), axesGroup));
+	_referencePlaneOpacity = new QSpinBox(axesGroup);
+	_referencePlaneOpacity->setRange(0, 35);
+	_referencePlaneOpacity->setSuffix(tr(" %"));
+	_referencePlaneOpacity->setToolTip(tr("Opacity of the selected reference planes."));
+	referencePlaneRow->addWidget(_referencePlaneOpacity);
+	axesLayout->addLayout(referencePlaneRow);
 	for (int i = 0; i < 3; ++i)
 	{
 		auto* row = new QHBoxLayout();
@@ -141,6 +156,9 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	connect(_arrowScale, qOverload<double>(&QDoubleSpinBox::valueChanged), this, &Plot3DControlsPanel::applyAppearanceState);
 	connect(_barWidthScale, qOverload<double>(&QDoubleSpinBox::valueChanged), this, &Plot3DControlsPanel::applyBarAppearanceState);
 	connect(_barDepthScale, qOverload<double>(&QDoubleSpinBox::valueChanged), this, &Plot3DControlsPanel::applyBarAppearanceState);
+	for (QCheckBox* plane : _referencePlanes)
+		connect(plane, &QCheckBox::toggled, this, &Plot3DControlsPanel::applyReferencePlaneState);
+	connect(_referencePlaneOpacity, qOverload<int>(&QSpinBox::valueChanged), this, &Plot3DControlsPanel::applyReferencePlaneState);
 	connect(_plotTitle, &QLineEdit::editingFinished, this, [this] {
 		if (_viewer && _plotSelector->currentIndex() >= 0)
 			_viewer->setPlot3DAxisTitle(_plotSelector->currentData().toUuid(), _plotTitle->text());
@@ -178,6 +196,8 @@ void Plot3DControlsPanel::refreshState()
 	const QVector<Plot3DSession> sessions = _viewer ? _viewer->plot3DSessions() : QVector<Plot3DSession>();
 	const QUuid active = _viewer ? _viewer->activePlot3DMeshUuid() : QUuid();
 	const QSignalBlocker selectorBlock(_plotSelector), axesBlock(_showAxesCheck), titleBlock(_plotTitle), mapBlock(_colormap), bandsBlock(_bands), autoBlock(_automaticRange), contourBlock(_contourLevels), minBlock(_rangeMinimum), maxBlock(_rangeMaximum), lineBlock(_lineWidth), markerBlock(_markerSize), arrowBlock(_arrowScale), barWidthBlock(_barWidthScale), barDepthBlock(_barDepthScale);
+	const std::array<QSignalBlocker, 4> referencePlaneBlockers{ QSignalBlocker(_referencePlanes[0]),
+		QSignalBlocker(_referencePlanes[1]), QSignalBlocker(_referencePlanes[2]), QSignalBlocker(_referencePlaneOpacity) };
 	std::array<QSignalBlocker, 18> axisBlockers{
 		QSignalBlocker(_axisLabels[0]), QSignalBlocker(_axisScales[0]), QSignalBlocker(_axisAutomatic[0]), QSignalBlocker(_axisMinimum[0]), QSignalBlocker(_axisMaximum[0]), QSignalBlocker(_axisTicks[0]),
 		QSignalBlocker(_axisLabels[1]), QSignalBlocker(_axisScales[1]), QSignalBlocker(_axisAutomatic[1]), QSignalBlocker(_axisMinimum[1]), QSignalBlocker(_axisMaximum[1]), QSignalBlocker(_axisTicks[1]),
@@ -202,6 +222,8 @@ void Plot3DControlsPanel::refreshState()
 		_contourLevels->setVisible(false);
 		_barWidthScaleLabel->setVisible(false); _barWidthScale->setVisible(false);
 		_barDepthScaleLabel->setVisible(false); _barDepthScale->setVisible(false);
+		for (QCheckBox* plane : _referencePlanes) plane->setEnabled(false);
+		_referencePlaneOpacity->setEnabled(false);
 		for (int i = 0; i < 3; ++i)
 		{
 			const std::array<QWidget*, 6> axisControls{ _axisLabels[i], _axisScales[i], _axisAutomatic[i], _axisMinimum[i], _axisMaximum[i], _axisTicks[i] };
@@ -212,6 +234,13 @@ void Plot3DControlsPanel::refreshState()
 		return;
 	}
 	_showAxesCheck->setChecked(session->axesVisible);
+	for (int i = 0; i < 3; ++i)
+	{
+		_referencePlanes[i]->setChecked(session->referencePlanes[i]);
+		_referencePlanes[i]->setEnabled(true);
+	}
+	_referencePlaneOpacity->setValue(qRound(session->referencePlaneOpacity * 100.0f));
+	_referencePlaneOpacity->setEnabled(true);
 	_plotTitle->setText(session->title);
 	const bool isContour = session->primitive == Plot3DPrimitive::Contour;
 	_contourLevelsLabel->setVisible(isContour);
@@ -276,6 +305,16 @@ void Plot3DControlsPanel::applyBarAppearanceState()
 		return;
 	_viewer->applyPlot3DBarAppearance(_plotSelector->currentData().toUuid(),
 		static_cast<float>(_barWidthScale->value()), static_cast<float>(_barDepthScale->value()));
+}
+
+void Plot3DControlsPanel::applyReferencePlaneState()
+{
+	if (!_viewer || _plotSelector->currentIndex() < 0)
+		return;
+	const std::array<bool, 3> visible{ _referencePlanes[0]->isChecked(), _referencePlanes[1]->isChecked(),
+		_referencePlanes[2]->isChecked() };
+	_viewer->applyPlot3DReferencePlanes(_plotSelector->currentData().toUuid(), visible,
+		static_cast<float>(_referencePlaneOpacity->value()) / 100.0f);
 }
 
 void Plot3DControlsPanel::applyAxisState()

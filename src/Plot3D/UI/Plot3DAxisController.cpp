@@ -96,6 +96,11 @@ void Plot3DAxisController::setReferencePlanesVisible(bool xy, bool xz, bool yz)
 	_referencePlanes = { xy, xz, yz };
 }
 
+void Plot3DAxisController::setReferencePlaneOpacity(float opacity)
+{
+	_referencePlaneOpacity = std::clamp(opacity, 0.0f, 0.35f);
+}
+
 bool Plot3DAxisController::buildLayout(const std::array<Plot3DAxisConfig, 3>& axes, const double dataMinimum[3],
 	const double dataMaximum[3], Plot3DAxisLayout& layout, QString* error, const QString& title) const
 {
@@ -182,8 +187,9 @@ bool Plot3DAxisController::buildLayout(const std::array<Plot3DAxisConfig, 3>& ax
 		{ axes[2].label, point(x0,y0,z0), point(x0,y0,z1), zAxisColor },
 	};
 	layout.title = title.trimmed();
-	if (_referencePlanes[0]) layout.referencePlanes.push_back({{point(x0,y0,z0),point(x1,y0,z0),point(x1,y1,z0),point(x0,y1,z0)}});
-	if (_referencePlanes[1]) layout.referencePlanes.push_back({{point(x0,y0,z0),point(x1,y0,z0),point(x1,y0,z1),point(x0,y0,z1)}});
-	if (_referencePlanes[2]) layout.referencePlanes.push_back({{point(x0,y0,z0),point(x0,y1,z0),point(x0,y1,z1),point(x0,y0,z1)}});
+	layout.referencePlaneOpacity = _referencePlaneOpacity;
+	if (_referencePlanes[0]) layout.referencePlanes.push_back({{point(x0,y0,z0),point(x1,y0,z0),point(x1,y1,z0),point(x0,y1,z0)}, xyAxisColor});
+	if (_referencePlanes[1]) layout.referencePlanes.push_back({{point(x0,y0,z0),point(x1,y0,z0),point(x1,y0,z1),point(x0,y0,z1)}, xzAxisColor});
+	if (_referencePlanes[2]) layout.referencePlanes.push_back({{point(x0,y0,z0),point(x0,y1,z0),point(x0,y1,z1),point(x0,y0,z1)}, yzAxisColor});
 	return true;
 }

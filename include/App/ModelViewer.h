@@ -633,6 +633,7 @@ public slots:
 	void applyPlot3DBarAppearance(const QUuid& meshUuid, float widthScale, float depthScale);
 	void setPlot3DContourLevels(const QUuid& meshUuid, int levels);
 	void setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visible);
+	void applyPlot3DReferencePlanes(const QUuid& meshUuid, const std::array<bool, 3>& visible, float opacity);
 	void applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<Plot3DAxisConfig, 3>& axes);
 	void setPlot3DAxisTitle(const QUuid& meshUuid, const QString& title);
 	// A Plot3D creation dialog can display one temporary plot directly in the

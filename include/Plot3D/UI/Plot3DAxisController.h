@@ -39,6 +39,7 @@ struct Plot3DAxisTitle
 struct Plot3DReferencePlane
 {
 	std::array<QVector3D, 4> corners;
+	QVector3D color{ 0.35f, 0.45f, 0.55f };
 };
 
 struct Plot3DAxisLayout
@@ -54,6 +55,7 @@ struct Plot3DAxisLayout
 	std::vector<Plot3DAxisLabel> labels;
 	std::vector<Plot3DAxisTitle> axisTitles;
 	std::vector<Plot3DReferencePlane> referencePlanes;
+	float referencePlaneOpacity = 0.08f;
 	QString title;
 };
 
@@ -66,10 +68,12 @@ class Plot3DAxisController
 {
 public:
 	void setReferencePlanesVisible(bool xy, bool xz, bool yz);
+	void setReferencePlaneOpacity(float opacity);
 	bool buildLayout(const std::array<Plot3DAxisConfig, 3>& axes, const double dataMinimum[3],
 		const double dataMaximum[3], Plot3DAxisLayout& layout, QString* error = nullptr,
 		const QString& title = {}) const;
 
 private:
 	std::array<bool, 3> _referencePlanes{ true, false, false }; // XY, XZ, YZ
+	float _referencePlaneOpacity = 0.08f;
 };

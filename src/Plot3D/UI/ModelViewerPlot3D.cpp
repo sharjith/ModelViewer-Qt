@@ -69,6 +69,8 @@ void applyAxes(ModelViewer* viewer, const Plot3DSession* session)
 		return;
 	}
 	Plot3DAxisController controller;
+	controller.setReferencePlanesVisible(session->referencePlanes[0], session->referencePlanes[1], session->referencePlanes[2]);
+	controller.setReferencePlaneOpacity(session->referencePlaneOpacity);
 	Plot3DAxisLayout layout;
 	QString error;
 	if (controller.buildLayout(session->axes, minimum.data(), maximum.data(), layout, &error, session->title))
@@ -346,6 +348,22 @@ void ModelViewer::setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visibl
 	if (!session || session->axesVisible == visible)
 		return;
 	session->axesVisible = visible;
+	if (meshUuid == _activePlot3DMesh)
+		applyAxes(this, session);
+	markNonUndoDocumentModified();
+	emit plot3DSessionsChanged(false);
+}
+
+void ModelViewer::applyPlot3DReferencePlanes(const QUuid& meshUuid, const std::array<bool, 3>& visible, float opacity)
+{
+	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
+	if (!session)
+		return;
+	opacity = std::clamp(opacity, 0.0f, 0.35f);
+	if (session->referencePlanes == visible && session->referencePlaneOpacity == opacity)
+		return;
+	session->referencePlanes = visible;
+	session->referencePlaneOpacity = opacity;
 	if (meshUuid == _activePlot3DMesh)
 		applyAxes(this, session);
 	markNonUndoDocumentModified();

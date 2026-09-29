@@ -297,12 +297,17 @@ namespace
 		QString error;
 		CHECK(controller.buildLayout(axes, lo, hi, layout, &error, QStringLiteral("Axis layout test")));
 		CHECK(error.isEmpty() && layout.axisLines.size() == 12 && layout.referencePlanes.size() == 1);
+		CHECK(std::abs(layout.referencePlaneOpacity - 0.08f) < 1.0e-6f);
 		CHECK(layout.labels.size() == layout.ticks[0].size() + layout.ticks[1].size() + layout.ticks[2].size()
 			&& layout.axisTitles.size() == 3);
 		CHECK(layout.gridLines.size() == 2 * (layout.ticks[0].size() + layout.ticks[1].size() + layout.ticks[2].size())
 			&& layout.title == QStringLiteral("Axis layout test"));
 		const double flatLo[3] = { 2.0, 10.0, -5.0 }, flatHi[3] = { 2.0, 20.0, 5.0 };
 		CHECK(controller.buildLayout(axes, flatLo, flatHi, layout, &error) && layout.maximum[0] > layout.minimum[0]);
+		controller.setReferencePlanesVisible(true, true, true);
+		controller.setReferencePlaneOpacity(0.2f);
+		CHECK(controller.buildLayout(axes, lo, hi, layout, &error) && layout.referencePlanes.size() == 3
+			&& std::abs(layout.referencePlaneOpacity - 0.2f) < 1.0e-6f);
 
 		axes[0] = log;
 		const double badLo[3] = { 0.0, 10.0, -5.0 };

@@ -49,4 +49,6 @@ struct Plot3DSession
 	int contourLevels = 10;
 	bool visible = true;
 	bool axesVisible = true;
+	std::array<bool, 3> referencePlanes{ true, false, false }; // XY, XZ, YZ
+	float referencePlaneOpacity = 0.08f;
 };

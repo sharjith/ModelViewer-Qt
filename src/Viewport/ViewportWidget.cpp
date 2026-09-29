@@ -9668,6 +9668,66 @@ void ViewportWidget::drawPlot3DAxisOverlay(Camera* camera)
         return;
 
     const Plot3DAxisLayout& layout = *_plot3DAxisLayout;
+
+	// Reference planes are translucent geometry, not screen overlays. Keep depth testing active so plot data in
+	// front remains unobscured, but do not write plane depth or the subsequently drawn grid/box would be clipped.
+	if (!layout.referencePlanes.empty() && layout.referencePlaneOpacity > 0.0f)
+	{
+		std::vector<float> planeVertices;
+		planeVertices.reserve(layout.referencePlanes.size() * 6 * 6);
+		for (const Plot3DReferencePlane& plane : layout.referencePlanes)
+		{
+			for (int corner : { 0, 1, 2, 0, 2, 3 })
+			{
+				const QVector3D& point = plane.corners[corner];
+				planeVertices.insert(planeVertices.end(), { point.x(), point.y(), point.z(),
+					plane.color.x(), plane.color.y(), plane.color.z() });
+			}
+		}
+
+		_renderCtrl.initPlot3DAxisOverlayGeometry(planeVertices);
+		glBindVertexArray(_renderCtrl.plot3DAxisOverlayVAO());
+		glBindBuffer(GL_ARRAY_BUFFER, _renderCtrl.plot3DAxisOverlayVBO());
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(0));
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(3 * sizeof(float)));
+
+		GLboolean depthWriteWasEnabled = GL_TRUE;
+		glGetBooleanv(GL_DEPTH_WRITEMASK, &depthWriteWasEnabled);
+		const GLboolean blendWasEnabled = glIsEnabled(GL_BLEND);
+		const GLboolean cullWasEnabled = glIsEnabled(GL_CULL_FACE);
+		const GLboolean depthTestWasEnabled = glIsEnabled(GL_DEPTH_TEST);
+		GLint blendSourceRgb = GL_ONE, blendDestinationRgb = GL_ZERO;
+		GLint blendSourceAlpha = GL_ONE, blendDestinationAlpha = GL_ZERO;
+		glGetIntegerv(GL_BLEND_SRC_RGB, &blendSourceRgb);
+		glGetIntegerv(GL_BLEND_DST_RGB, &blendDestinationRgb);
+		glGetIntegerv(GL_BLEND_SRC_ALPHA, &blendSourceAlpha);
+		glGetIntegerv(GL_BLEND_DST_ALPHA, &blendDestinationAlpha);
+
+		glEnable(GL_BLEND);
+		glEnable(GL_DEPTH_TEST);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glDepthMask(GL_FALSE);
+		glDisable(GL_CULL_FACE); // all three planes remain visible from either side
+		_renderCtrl.axisShader()->bind();
+		_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", _viewCtrl.viewMatrix());
+		_renderCtrl.axisShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
+		_renderCtrl.axisShader()->setUniformValue("renderCone", false);
+		_renderCtrl.axisShader()->setUniformValue("opacity", layout.referencePlaneOpacity);
+		glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(planeVertices.size() / 6));
+		_renderCtrl.axisShader()->setUniformValue("opacity", 1.0f);
+		_renderCtrl.axisShader()->release();
+
+		glDepthMask(depthWriteWasEnabled);
+		if (depthTestWasEnabled) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+		if (cullWasEnabled) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
+		glBlendFuncSeparate(blendSourceRgb, blendDestinationRgb, blendSourceAlpha, blendDestinationAlpha);
+		if (blendWasEnabled) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindVertexArray(0);
+	}
+
     std::vector<float> vertices;
     vertices.reserve((layout.axisLines.size() + layout.tickLines.size() + layout.gridLines.size()) * 12);
     auto appendSegment = [&vertices](const Plot3DLineSegment& segment, const QVector3D& color) {
@@ -9703,6 +9763,7 @@ void ViewportWidget::drawPlot3DAxisOverlay(Camera* camera)
         _renderCtrl.axisShader()->setUniformValue("modelViewMatrix", _viewCtrl.viewMatrix());
         _renderCtrl.axisShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
         _renderCtrl.axisShader()->setUniformValue("renderCone", false);
+		_renderCtrl.axisShader()->setUniformValue("opacity", 1.0f);
         glLineWidth(1.5f);
         glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(vertices.size() / 6));
         glLineWidth(1.0f);

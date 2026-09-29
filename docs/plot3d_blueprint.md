@@ -229,8 +229,9 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     exposes zoom-stable line width, scatter marker size and Quiver arrow-size controls, plus live Bar width/depth
     footprint scales that preserve each imported bar's centre, base, height and value. Quiver colour range, map,
     bands and legend are based on the vector magnitude actually drawn, independent of the optional CSV value
-    column. Remaining work is filled translucent reference planes and re-edit/rebuild from
-    retained source data and column mapping.
+    column. XY, XZ and YZ reference planes can now be independently enabled and rendered as faint translucent,
+    orientation-coloured fills with adjustable opacity. Remaining work is re-edit/rebuild from retained source data
+    and column mapping.
 17. **Implemented, awaiting the user's build+visual check (2026-09-29):** ordered parametric curves. The formula
     source selector now includes a one-parameter curve mode that builds an ordinary `GL_LINE_STRIP`, with Helix,
     Lissajous, Trefoil Knot, Viviani Curve and Damped Spiral presets. Curves use the same main-view preview and
