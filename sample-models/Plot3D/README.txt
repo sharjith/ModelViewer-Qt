@@ -65,3 +65,11 @@ scatter_error_bars.csv: Select Scatter, enable Show error bars (±Z), and choose
 Filled scatter-to-plane: open scatter_clusters.csv, select Scatter, map Colour value to "value", enable
 Fill to Base Z, and choose a base such as -3. Preview and Build should show translucent blue/green/red ribbons;
 the axes box must include the selected base.
+
+Edit/rebuild check
+------------------
+Build any CSV-backed plot, select it in Active plot, and click Edit Plot. The dialog should restore the original
+CSV text, delimiter, header option, primitive and every column mapping. Change one or more numeric rows or mappings
+and click Rebuild Plot. The existing tree row must update in place without creating another entry. Its title,
+visibility, axes settings, colour map/range/bands, reference planes and line/marker/arrow or bar sizing must remain
+unchanged. Repeat with quiver_vortex.csv and voxel_sphere.csv to check the reused glyph and volume renderers.

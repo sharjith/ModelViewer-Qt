@@ -313,6 +313,18 @@ MainWindow::MainWindow(QWidget* parent)
 		_documentSecondaryTabWidget->addTab(_plot3DControlsPanel, QIcon(":/icons/res/plot3d.png"), tr("3D Plot"));
 		connect(_plot3DControlsPanel, &Plot3DControlsPanel::addPlotRequested,
 			this, &MainWindow::showAdd3DPlotDialog);
+		connect(_plot3DControlsPanel, &Plot3DControlsPanel::editPlotRequested, this, [this](const QUuid& meshUuid) {
+			ModelViewer* child = activeMdiChild();
+			if (!child)
+				return;
+			Plot3DPanel* panel = child->findChild<Plot3DPanel*>(QString(), Qt::FindDirectChildrenOnly);
+			if (!panel)
+				panel = new Plot3DPanel(child, child);
+			panel->loadPlotForEditing(meshUuid);
+			panel->show();
+			panel->raise();
+			panel->activateWindow();
+		});
 
 		// Auto Fit View / Selection Highlighting: moved here from the
 		// per-document nav overlay, above the Variants/Animations/Cameras

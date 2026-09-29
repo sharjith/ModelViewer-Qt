@@ -42,6 +42,10 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	_addPlotButton->setIcon(QIcon(QStringLiteral(":/icons/res/plot3d.png")));
 	_addPlotButton->setToolTip(tr("Import CSV or pasted tabular data and build a new 3D plot."));
 	layout->addWidget(_addPlotButton);
+	_editPlotButton = new QPushButton(tr("Edit Plot..."), this);
+	_editPlotButton->setIcon(QIcon(QStringLiteral(":/icons/res/plot3d.png")));
+	_editPlotButton->setToolTip(tr("Reopen the active CSV plot's source data and column mapping."));
+	layout->addWidget(_editPlotButton);
 
 	_plotSelector = new QComboBox(this);
 	layout->addWidget(new QLabel(tr("Active plot:"), this));
@@ -143,6 +147,10 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	outerLayout->addWidget(scroll);
 
 	connect(_addPlotButton, &QPushButton::clicked, this, &Plot3DControlsPanel::addPlotRequested);
+	connect(_editPlotButton, &QPushButton::clicked, this, [this] {
+		if (_plotSelector->currentIndex() >= 0)
+			emit editPlotRequested(_plotSelector->currentData().toUuid());
+	});
 	connect(_plotSelector, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) { if (_viewer) _viewer->activatePlot3DSession(_plotSelector->currentData().toUuid()); });
 	connect(_showAxesCheck, &QCheckBox::toggled, this, [this](bool visible) { if (_viewer) _viewer->setPlot3DSessionAxesVisible(_plotSelector->currentData().toUuid(), visible); });
 	connect(_colormap, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DControlsPanel::applyColourState);
@@ -170,6 +178,8 @@ void Plot3DControlsPanel::retranslate()
 {
 	_addPlotButton->setText(tr("Add 3D Plot..."));
 	_addPlotButton->setToolTip(tr("Import CSV or pasted tabular data and build a new 3D plot."));
+	_editPlotButton->setText(tr("Edit Plot..."));
+	_editPlotButton->setToolTip(tr("Reopen the active CSV plot's source data and column mapping."));
 	_showAxesCheck->setText(tr("Show axes box"));
 	_showAxesCheck->setToolTip(tr("Show or hide the active plot's axes without discarding its axis layout."));
 	_barWidthScaleLabel->setText(tr("Bar width:"));
@@ -203,12 +213,14 @@ void Plot3DControlsPanel::refreshState()
 		QSignalBlocker(_axisLabels[1]), QSignalBlocker(_axisScales[1]), QSignalBlocker(_axisAutomatic[1]), QSignalBlocker(_axisMinimum[1]), QSignalBlocker(_axisMaximum[1]), QSignalBlocker(_axisTicks[1]),
 		QSignalBlocker(_axisLabels[2]), QSignalBlocker(_axisScales[2]), QSignalBlocker(_axisAutomatic[2]), QSignalBlocker(_axisMinimum[2]), QSignalBlocker(_axisMaximum[2]), QSignalBlocker(_axisTicks[2]) };
 	_addPlotButton->setEnabled(_viewer);
+	_editPlotButton->setEnabled(false);
 	_plotSelector->clear();
 	for (const Plot3DSession& session : sessions) _plotSelector->addItem(session.name, session.meshUuid);
 	const int activeIndex = _plotSelector->findData(active);
 	_plotSelector->setCurrentIndex(activeIndex);
 	const Plot3DSession* session = activeIndex >= 0 ? &sessions[activeIndex] : nullptr;
 	const bool available = session != nullptr;
+	_editPlotButton->setEnabled(available && session->editableCsv);
 	// Keep the type explicit: MSVC cannot deduce a mixed derived-QWidget pointer
 	// initializer list here under /permissive-.
 	const std::array<QWidget*, 14> controls{ _plotSelector, _showAxesCheck, _plotTitle, _colormap,

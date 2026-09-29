@@ -543,6 +543,61 @@ Plot3DPanel::~Plot3DPanel()
 	clearPreview();
 }
 
+void Plot3DPanel::loadPlotForEditing(const QUuid& meshUuid)
+{
+	if (!_modelViewer)
+		return;
+	const QVector<Plot3DSession> sessions = _modelViewer->plot3DSessions();
+	const auto it = std::find_if(sessions.cbegin(), sessions.cend(), [&meshUuid](const Plot3DSession& session) {
+		return session.meshUuid == meshUuid;
+	});
+	if (it == sessions.cend() || !it->editableCsv)
+		return;
+
+	clearPreview();
+	_editingMeshUuid = meshUuid;
+	setWindowTitle(tr("Edit 3D Plot - %1").arg(it->name));
+	_buildButton->setText(tr("Rebuild Plot"));
+	_sourceMode->setCurrentIndex(_sourceMode->findData(0));
+	_sourceMode->setEnabled(false);
+	_primitive->setCurrentIndex(_primitive->findData(static_cast<int>(it->primitive)));
+	_primitive->setEnabled(false);
+	{
+		const QSignalBlocker delimiterBlock(_delimiter), headerBlock(_header), sourceBlock(_source);
+		_delimiter->setCurrentIndex(_delimiter->findData(QString(it->csvOptions.delimiter)));
+		_header->setChecked(it->csvOptions.firstRowIsHeader);
+		_source->setPlainText(it->csvSource);
+	}
+	updateSourceMode();
+	refreshPreview();
+	auto restoreColumn = [](QComboBox* combo, int column) {
+		const int index = combo->findData(column);
+		if (index >= 0)
+			combo->setCurrentIndex(index);
+	};
+	restoreColumn(_columnX, it->columnMapping.x);
+	restoreColumn(_columnY, it->columnMapping.y);
+	restoreColumn(_columnZ, it->columnMapping.z);
+	restoreColumn(_columnValue, it->columnMapping.value);
+	restoreColumn(_columnU, it->columnMapping.u);
+	restoreColumn(_columnV, it->columnMapping.v);
+	restoreColumn(_columnW, it->columnMapping.w);
+	restoreColumn(_columnBase, it->columnMapping.base);
+	restoreColumn(_columnWidth, it->columnMapping.width);
+	restoreColumn(_columnDepth, it->columnMapping.depth);
+	restoreColumn(_columnError, it->columnMapping.error);
+	_stemBaseZ->setValue(it->scatterBaseZ);
+	_stemEnabled->setChecked(it->isStem);
+	_errorBarsEnabled->setChecked(it->isErrorBars);
+	_scatterFillEnabled->setChecked(it->isFilledScatter);
+	// Rebuild keeps the renderer family stable. Data and role mappings remain fully editable, while changing a
+	// point plot into stems/ribbons (or changing primitive) is still done by creating a new plot.
+	_stemEnabled->setEnabled(false);
+	_errorBarsEnabled->setEnabled(false);
+	_scatterFillEnabled->setEnabled(false);
+	_status->setText(tr("Editing '%1'. Rebuild updates the existing tree entry and keeps its presentation settings.").arg(it->name));
+}
+
 void Plot3DPanel::clearPreview()
 {
 	if (_modelViewer)
@@ -1439,6 +1494,17 @@ void Plot3DPanel::buildPlot()
 	const bool drawStems = primitive == Plot3DPrimitive::Scatter && _stemEnabled->isChecked();
 	const bool drawErrorBars = primitive == Plot3DPrimitive::Scatter && _errorBarsEnabled->isChecked();
 	const bool drawScatterFill = primitive == Plot3DPrimitive::Scatter && _scatterFillEnabled->isChecked();
+	if (!_editingMeshUuid.isNull())
+	{
+		if (rebuildExistingPlot(dataset, columnMapping))
+		{
+			_status->setStyleSheet(QString());
+			_status->setText(tr("Rebuilt the existing plot."));
+			_editingMeshUuid = QUuid();
+			close();
+		}
+		return;
+	}
 	QString plotTypeName = drawScatterFill ? tr("Filled Scatter")
 		: (drawStems ? tr("Stem") : (drawErrorBars ? tr("Error Bars") : plot3DPrimitiveName(primitive)));
 	if (_sourceMode->currentData().toInt() == 1)
@@ -1451,12 +1517,12 @@ void Plot3DPanel::buildPlot()
 	const QString baseName = _modelViewer->getViewportWidget()->generateUniqueMeshName(tr("Plot3D %1").arg(plotTypeName));
 	if (primitive == Plot3DPrimitive::Quiver)
 	{
-		buildQuiverPlot(dataset, baseName);
+		buildQuiverPlot(dataset, baseName, columnMapping);
 		return;
 	}
 	if (primitive == Plot3DPrimitive::Voxel)
 	{
-		buildVoxelPlot(dataset, baseName);
+		buildVoxelPlot(dataset, baseName, columnMapping);
 		return;
 	}
 
@@ -1687,7 +1753,17 @@ void Plot3DPanel::buildPlot()
 		session.colourMaximum = session.dataMaximumValue;
 		session.colormap = static_cast<int>(AnalysisColormap::Sequential);
 		session.isStem = drawStems;
+		session.isErrorBars = drawErrorBars;
 		session.isFilledScatter = drawScatterFill;
+		session.scatterBaseZ = _stemBaseZ->value();
+		if (_sourceMode->currentData().toInt() == 0)
+		{
+			session.editableCsv = true;
+			session.csvSource = _source->toPlainText();
+			session.csvOptions.delimiter = _delimiter->currentData().toString().front();
+			session.csvOptions.firstRowIsHeader = _header->isChecked();
+			session.columnMapping = columnMapping;
+		}
 		if (primitive == Plot3DPrimitive::Bar)
 			session.barSource = std::get<Plot3DBarData>(dataset.content);
 		if (primitive == Plot3DPrimitive::Contour)
@@ -1706,7 +1782,174 @@ void Plot3DPanel::buildPlot()
 		_status->setText(tr("Built '%1' (%2 points).").arg(baseName).arg(meshData.vertexCount()));
 }
 
-void Plot3DPanel::buildQuiverPlot(const Plot3DDataset& dataset, const QString& baseName)
+bool Plot3DPanel::rebuildExistingPlot(const Plot3DDataset& dataset, const Plot3DColumnMapping& mapping)
+{
+	if (!_modelViewer || !_modelViewer->getViewportWidget())
+		return false;
+	const QVector<Plot3DSession> sessions = _modelViewer->plot3DSessions();
+	const auto found = std::find_if(sessions.cbegin(), sessions.cend(), [this](const Plot3DSession& session) {
+		return session.meshUuid == _editingMeshUuid;
+	});
+	if (found == sessions.cend() || found->primitive != dataset.primitive)
+	{
+		QMessageBox::warning(this, tr("Rebuild Plot"), tr("The plot is no longer available or its primitive changed."));
+		return false;
+	}
+
+	Plot3DSession updated = *found;
+	ViewportWidget* viewport = _modelViewer->getViewportWidget();
+	SceneMesh* mesh = viewport->getMeshByUuid(updated.meshUuid);
+	if (!mesh)
+		return false;
+
+	auto verticesFrom = [](const Plot3DMeshData& data) {
+		std::vector<Vertex> vertices(data.vertexCount());
+		for (std::size_t i = 0; i < data.vertexCount(); ++i)
+		{
+			Vertex& vertex = vertices[i];
+			vertex.Color = glm::vec4(1.0f);
+			vertex.Position = glm::vec3(data.positions[i * 3], data.positions[i * 3 + 1], data.positions[i * 3 + 2]);
+			vertex.Normal = glm::vec3(data.normals[i * 3], data.normals[i * 3 + 1], data.normals[i * 3 + 2]);
+			vertex.Tangent = glm::vec3(0.0f); vertex.Bitangent = glm::vec3(0.0f);
+			for (glm::vec2& uv : vertex.TexCoords) uv = glm::vec2(0.0f);
+		}
+		return vertices;
+	};
+	auto copyValues = [](const Plot3DMeshData& data, std::vector<float>& values, std::vector<bool>& valid) {
+		values.resize(data.vertexCount()); valid.resize(data.vertexCount());
+		for (std::size_t i = 0; i < data.vertexCount(); ++i)
+		{
+			valid[i] = std::isfinite(data.values[i]);
+			values[i] = valid[i] ? static_cast<float>(data.values[i]) : 0.0f;
+		}
+	};
+
+	Plot3DDataset boundsDataset = dataset;
+	QString error;
+	float newValueMinimum = std::numeric_limits<float>::max();
+	float newValueMaximum = std::numeric_limits<float>::lowest();
+	bool haveValues = false;
+	viewport->makeCurrent();
+	if (dataset.primitive == Plot3DPrimitive::Quiver)
+	{
+		const Plot3DQuiverData& quiver = std::get<Plot3DQuiverData>(dataset.content);
+		Plot3DMeshData sites;
+		if (!buildPlot3DQuiverSiteMesh(quiver, sites, &error))
+		{
+			viewport->doneCurrent(); QMessageBox::warning(this, tr("Rebuild Plot"), error); return false;
+		}
+		mesh->setPrimitiveMode(GL_POINTS);
+		mesh->setMeshData(verticesFrom(sites), sites.indices);
+		GlyphSet glyphs = quiverGlyphs(quiver, dataset);
+		updated.values = glyphs.values;
+		updated.valid.assign(updated.values.size(), true);
+		newValueMinimum = glyphs.fieldMin; newValueMaximum = glyphs.fieldMax; haveValues = true;
+		viewport->setSimulationGlyphs(updated.meshUuid, std::move(glyphs));
+		// Replacing a GlyphSet resets its controller-owned display scale. Restore the session setting just as the
+		// mesh-owned line and marker sizes remain intact when setMeshData() replaces ordinary plot geometry.
+		viewport->setSimulationGlyphScale(updated.meshUuid, updated.arrowScale);
+	}
+	else if (dataset.primitive == Plot3DPrimitive::Voxel)
+	{
+		Plot3DVoxelGrid grid;
+		if (!buildPlot3DVoxelGrid(std::get<Plot3DVoxelData>(dataset.content), grid, &error))
+		{
+			viewport->doneCurrent(); QMessageBox::warning(this, tr("Rebuild Plot"), error); return false;
+		}
+		mesh->setPrimitiveMode(GL_POINTS);
+		mesh->setMeshData(voxelProxyVertices(grid), {});
+		viewport->setSimulationVolume(updated.meshUuid, voxelVolume(std::move(grid)), updated.colormap, voxelOpacity());
+		updated.values.clear(); updated.valid.clear();
+		newValueMinimum = 0.0f; newValueMaximum = 1.0f; haveValues = true;
+	}
+	else
+	{
+		Plot3DMeshData data;
+		GLenum mode = GL_TRIANGLES;
+		bool built = false;
+		switch (dataset.primitive)
+		{
+		case Plot3DPrimitive::Surface:
+			built = buildPlot3DSurfaceMesh(std::get<Plot3DSurfaceData>(dataset.content), data, &error); break;
+		case Plot3DPrimitive::Contour:
+			built = buildPlot3DContourMesh(std::get<Plot3DSurfaceData>(dataset.content), data, updated.contourLevels, &error); mode = GL_LINES; break;
+		case Plot3DPrimitive::Line:
+			built = buildPlot3DLineMesh(std::get<Plot3DLineData>(dataset.content), data, &error); mode = GL_LINE_STRIP; break;
+		case Plot3DPrimitive::Scatter:
+			built = updated.isFilledScatter
+				? buildPlot3DScatterFillMesh(std::get<Plot3DScatterData>(dataset.content), updated.scatterBaseZ, data, &error)
+				: (updated.isErrorBars ? buildPlot3DErrorBarMesh(std::get<Plot3DScatterData>(dataset.content), data, &error)
+					: (updated.isStem ? buildPlot3DStemMesh(std::get<Plot3DScatterData>(dataset.content), updated.scatterBaseZ, data, &error)
+						: buildPlot3DScatterMesh(std::get<Plot3DScatterData>(dataset.content), data, &error)));
+			mode = (updated.isStem || updated.isErrorBars) ? GL_LINES : (updated.isFilledScatter ? GL_TRIANGLES : GL_POINTS);
+			break;
+		case Plot3DPrimitive::Bar:
+		{
+			Plot3DBarData bars = std::get<Plot3DBarData>(dataset.content);
+			for (Plot3DBar& bar : bars.bars) { bar.width *= updated.barWidthScale; bar.depth *= updated.barDepthScale; }
+			boundsDataset.content = bars;
+			built = buildPlot3DBarMesh(bars, data, &error);
+			break;
+		}
+		default: break;
+		}
+		if (!built)
+		{
+			viewport->doneCurrent(); QMessageBox::warning(this, tr("Rebuild Plot"), error); return false;
+		}
+		mesh->setPrimitiveMode(mode);
+		mesh->setMeshData(verticesFrom(data), data.indices);
+		copyValues(data, updated.values, updated.valid);
+		for (std::size_t i = 0; i < updated.values.size(); ++i)
+			if (updated.valid[i]) { newValueMinimum = std::min(newValueMinimum, updated.values[i]); newValueMaximum = std::max(newValueMaximum, updated.values[i]); haveValues = true; }
+		if (!updated.markerMeshUuid.isNull())
+		{
+			SceneMesh* marker = viewport->getMeshByUuid(updated.markerMeshUuid);
+			Plot3DMeshData markerData;
+			if (marker && buildPlot3DScatterMesh(std::get<Plot3DScatterData>(dataset.content), markerData, &error))
+			{
+				marker->setPrimitiveMode(GL_POINTS);
+				marker->setMeshData(verticesFrom(markerData), {});
+				copyValues(markerData, updated.markerValues, updated.markerValid);
+			}
+		}
+		if (dataset.primitive == Plot3DPrimitive::Contour)
+			updated.contourSource = std::get<Plot3DSurfaceData>(dataset.content);
+		if (dataset.primitive == Plot3DPrimitive::Bar)
+			updated.barSource = std::get<Plot3DBarData>(dataset.content);
+	}
+	viewport->doneCurrent();
+
+	double minimum[3]{}, maximum[3]{};
+	if (!plot3DDataBounds(boundsDataset, minimum, maximum))
+		return false;
+	if (dataset.primitive == Plot3DPrimitive::Scatter && (updated.isStem || updated.isFilledScatter))
+	{
+		minimum[2] = std::min(minimum[2], updated.scatterBaseZ);
+		maximum[2] = std::max(maximum[2], updated.scatterBaseZ);
+	}
+	std::copy(minimum, minimum + 3, updated.dataMinimum.begin());
+	std::copy(maximum, maximum + 3, updated.dataMaximum.begin());
+	const bool automaticColourRange = updated.colourMinimum == updated.dataMinimumValue
+		&& updated.colourMaximum == updated.dataMaximumValue;
+	if (haveValues)
+	{
+		if (newValueMaximum <= newValueMinimum) newValueMaximum = newValueMinimum + 1.0f;
+		updated.dataMinimumValue = newValueMinimum; updated.dataMaximumValue = newValueMaximum;
+		if (automaticColourRange) { updated.colourMinimum = newValueMinimum; updated.colourMaximum = newValueMaximum; }
+	}
+	updated.csvSource = _source->toPlainText();
+	updated.csvOptions.delimiter = _delimiter->currentData().toString().front();
+	updated.csvOptions.firstRowIsHeader = _header->isChecked();
+	updated.columnMapping = mapping;
+	updated.editableCsv = true;
+	_modelViewer->updatePlot3DSession(std::move(updated));
+	viewport->updateView();
+	_modelViewer->updateDisplayList();
+	return true;
+}
+
+void Plot3DPanel::buildQuiverPlot(const Plot3DDataset& dataset, const QString& baseName, const Plot3DColumnMapping& mapping)
 {
 	const Plot3DQuiverData& quiver = std::get<Plot3DQuiverData>(dataset.content);
 
@@ -1784,6 +2027,12 @@ void Plot3DPanel::buildQuiverPlot(const Plot3DDataset& dataset, const QString& b
 		session.colourMinimum = lo;
 		session.colourMaximum = hi;
 		session.colormap = static_cast<int>(AnalysisColormap::Sequential);
+		if (_sourceMode->currentData().toInt() == 0)
+		{
+			session.editableCsv = true; session.csvSource = _source->toPlainText();
+			session.csvOptions.delimiter = _delimiter->currentData().toString().front();
+			session.csvOptions.firstRowIsHeader = _header->isChecked(); session.columnMapping = mapping;
+		}
 		_modelViewer->addPlot3DSession(std::move(session));
 	}
 
@@ -1791,7 +2040,7 @@ void Plot3DPanel::buildQuiverPlot(const Plot3DDataset& dataset, const QString& b
 	_status->setText(tr("Built '%1' (%2 arrows).").arg(baseName).arg(quiver.arrows.size()));
 }
 
-void Plot3DPanel::buildVoxelPlot(const Plot3DDataset& dataset, const QString& baseName)
+void Plot3DPanel::buildVoxelPlot(const Plot3DDataset& dataset, const QString& baseName, const Plot3DColumnMapping& mapping)
 {
 	Plot3DVoxelGrid plotGrid;
 	QString error;
@@ -1838,6 +2087,12 @@ void Plot3DPanel::buildVoxelPlot(const Plot3DDataset& dataset, const QString& ba
 		session.dataMinimumValue = 0.0f; session.dataMaximumValue = 1.0f;
 		session.colourMinimum = 0.0f; session.colourMaximum = 1.0f;
 		session.colormap = static_cast<int>(AnalysisColormap::Sequential);
+		if (_sourceMode->currentData().toInt() == 0)
+		{
+			session.editableCsv = true; session.csvSource = _source->toPlainText();
+			session.csvOptions.delimiter = _delimiter->currentData().toString().front();
+			session.csvOptions.firstRowIsHeader = _header->isChecked(); session.columnMapping = mapping;
+		}
 		_modelViewer->addPlot3DSession(std::move(session));
 	}
 	_status->setStyleSheet(QString());

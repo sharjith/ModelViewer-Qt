@@ -2,6 +2,7 @@
 
 #include <QMetaObject>
 #include <QPointer>
+#include <QUuid>
 #include <QWidget>
 
 #include <array>
@@ -28,6 +29,7 @@ public:
 
 signals:
 	void addPlotRequested();
+	void editPlotRequested(const QUuid& meshUuid);
 
 private:
 	void refreshState();
@@ -40,6 +42,7 @@ private:
 	QPointer<ModelViewer> _viewer;
 	QMetaObject::Connection _stateConnection;
 	QPushButton* _addPlotButton = nullptr;
+	QPushButton* _editPlotButton = nullptr;
 	QComboBox* _plotSelector = nullptr;
 	QCheckBox* _showAxesCheck = nullptr;
 	QLineEdit* _plotTitle = nullptr;

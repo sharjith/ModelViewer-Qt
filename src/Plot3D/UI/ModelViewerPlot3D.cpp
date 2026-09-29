@@ -121,6 +121,17 @@ void ModelViewer::addPlot3DSession(Plot3DSession session)
 	emit plot3DSessionsChanged(true);
 }
 
+void ModelViewer::updatePlot3DSession(Plot3DSession session)
+{
+	Plot3DSession* stored = sessionFor(_plot3DSessions, session.meshUuid);
+	if (!stored)
+		return;
+	*stored = std::move(session);
+	applyAxes(this, stored);
+	applyPlot3DColourState(stored->meshUuid, stored->colourMinimum, stored->colourMaximum,
+		stored->colormap, stored->bands);
+}
+
 void ModelViewer::activatePlot3DSession(const QUuid& meshUuid)
 {
 	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);

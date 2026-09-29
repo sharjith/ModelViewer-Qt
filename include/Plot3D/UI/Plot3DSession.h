@@ -39,10 +39,17 @@ struct Plot3DSession
 	float barWidthScale = 1.0f;
 	float barDepthScale = 1.0f;
 	bool isStem = false;
+	bool isErrorBars = false;
 	// Filled scatter ribbons use authored vertex colours because the analysis-overlay shader path does not retain
 	// its colour ramp when the underlying material is alpha blended. This flag lets the persistent colour controls
 	// update those vertex colours while preserving the transparent material.
 	bool isFilledScatter = false;
+	double scatterBaseZ = 0.0;
+	// CSV-backed plots retain their source and role mapping for the in-place Edit Plot workflow.
+	bool editableCsv = false;
+	QString csvSource;
+	Plot3DCsvOptions csvOptions;
+	Plot3DColumnMapping columnMapping;
 	// Bar source geometry is retained so footprint styling can rebuild the mesh without reopening the import dialog.
 	Plot3DBarData barSource;
 	Plot3DSurfaceData contourSource;

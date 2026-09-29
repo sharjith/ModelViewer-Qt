@@ -4,6 +4,7 @@
 #include "Plot3DFormula.h"
 
 #include <QDialog>
+#include <QUuid>
 
 class QCheckBox;
 class QComboBox;
@@ -26,6 +27,7 @@ public:
 	// modelViewer receives the constructed plot and its data-derived axis layout. Null is tolerated defensively.
 	explicit Plot3DPanel(ModelViewer* modelViewer, QWidget* parent = nullptr);
 	~Plot3DPanel() override;
+	void loadPlotForEditing(const QUuid& meshUuid);
 
 private:
 	void loadCsvFile();
@@ -55,13 +57,14 @@ private:
 	// Reads the primitive + column mapping, builds a Plot3DDataset then a mesh, adds it to the active document's
 	// scene, and gives the viewport an axis-box layout derived from the built data's own bounds.
 	void buildPlot();
+	bool rebuildExistingPlot(const Plot3DDataset& dataset, const Plot3DColumnMapping& mapping);
 	// Quiver's own path out of buildPlot(): unlike Surface/Line/Scatter, arrows are not a mesh Plot3D owns - they
 	// reuse SimulationGlyphController directly (see docs/plot3d_blueprint.md section 5), anchored to a small
 	// GL_POINTS SceneMesh built at the arrow base positions.
-	void buildQuiverPlot(const Plot3DDataset& dataset, const QString& baseName);
+	void buildQuiverPlot(const Plot3DDataset& dataset, const QString& baseName, const Plot3DColumnMapping& mapping = {});
 	// Voxel plots reuse the volume ray-marcher. The scene mesh is an otherwise-hidden transform/visibility proxy
 	// spanning the grid, while the occupancy field itself lives in the renderer's 3-D texture.
-	void buildVoxelPlot(const Plot3DDataset& dataset, const QString& baseName);
+	void buildVoxelPlot(const Plot3DDataset& dataset, const QString& baseName, const Plot3DColumnMapping& mapping = {});
 
 	ModelViewer* _modelViewer = nullptr;
 	QComboBox* _delimiter = nullptr;
@@ -133,4 +136,5 @@ private:
 	QVector<Plot3DImplicitPreset> _implicitPresets;
 
 	Plot3DCsvTable _table; // last successfully parsed table, kept for buildPlot() (refreshPreview() only shows it)
+	QUuid _editingMeshUuid;
 };

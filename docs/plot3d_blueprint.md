@@ -223,15 +223,17 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     parametric surface use the common mesh preview path. CSV Quiver uses the same glyph renderer and normalized
     arrow sizing as its committed plot, while CSV Voxel uses the same volume renderer, transfer function and bounds
     proxy as its committed plot.
-16. **Partly implemented (2026-09-29):** presentation and editing. The active visible scalar plot now gets an
+16. **Implemented, awaiting the user's build+visual check (2026-09-29):** presentation and editing. The active visible scalar plot now gets an
     outlined in-viewport colour legend driven by the same range, map and banding as the plot. It uses a separate
     overlay from Simulation and stacks below the Simulation legend when both are visible. The persistent panel also
     exposes zoom-stable line width, scatter marker size and Quiver arrow-size controls, plus live Bar width/depth
     footprint scales that preserve each imported bar's centre, base, height and value. Quiver colour range, map,
     bands and legend are based on the vector magnitude actually drawn, independent of the optional CSV value
     column. XY, XZ and YZ reference planes can now be independently enabled and rendered as faint translucent,
-    orientation-coloured fills with adjustable opacity. Remaining work is re-edit/rebuild from retained source data
-    and column mapping.
+    orientation-coloured fills with adjustable opacity. CSV-backed plots retain their source text, delimiter,
+    header choice and complete role mapping. Edit Plot restores those inputs and rebuilds the same mesh/session in
+    place, preserving its UUID, tree entry, visibility and presentation controls across Surface, Contour, Line,
+    Scatter variants, Bar, Quiver and Voxel.
 17. **Implemented, awaiting the user's build+visual check (2026-09-29):** ordered parametric curves. The formula
     source selector now includes a one-parameter curve mode that builds an ordinary `GL_LINE_STRIP`, with Helix,
     Lissajous, Trefoil Knot, Viviani Curve and Damped Spiral presets. Curves use the same main-view preview and

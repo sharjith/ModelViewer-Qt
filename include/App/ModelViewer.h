@@ -623,6 +623,7 @@ public slots:
 	QVector<Plot3DSession> plot3DSessions() const;
 	QUuid activePlot3DMeshUuid() const;
 	void addPlot3DSession(Plot3DSession session);
+	void updatePlot3DSession(Plot3DSession session);
 	void activatePlot3DSession(const QUuid& meshUuid);
 	// Rebuilds the shared axis box from every visible Plot3D session while
 	// retaining the active session's labels/scale/custom-range choices.
