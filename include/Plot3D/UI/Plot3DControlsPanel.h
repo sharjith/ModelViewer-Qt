@@ -32,6 +32,7 @@ signals:
 private:
 	void refreshState();
 	void applyColourState();
+	void applyAppearanceState();
 	void applyAxisState();
 
 	QPointer<ModelViewer> _viewer;
@@ -47,6 +48,9 @@ private:
 	QSpinBox* _contourLevels = nullptr;
 	QDoubleSpinBox* _rangeMinimum = nullptr;
 	QDoubleSpinBox* _rangeMaximum = nullptr;
+	QDoubleSpinBox* _lineWidth = nullptr;
+	QDoubleSpinBox* _markerSize = nullptr;
+	QDoubleSpinBox* _arrowScale = nullptr;
 	std::array<QLineEdit*, 3> _axisLabels{};
 	std::array<QComboBox*, 3> _axisScales{};
 	std::array<QCheckBox*, 3> _axisAutomatic{};

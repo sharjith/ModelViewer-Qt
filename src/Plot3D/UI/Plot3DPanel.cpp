@@ -1744,26 +1744,19 @@ void Plot3DPanel::buildQuiverPlot(const Plot3DDataset& dataset, const QString& b
 	_modelViewer->sceneGraph()->insertChildNode(parent, node, position);
 	_modelViewer->sceneGraph()->restoreMeshUuid(node, meshUuid, 0);
 
-	// Colour the site markers themselves by magnitude too, same mapToRGBA() path as the other primitives.
-	std::vector<float> siteValues(siteMesh.vertexCount());
-	std::vector<bool> siteValid(siteMesh.vertexCount());
-	float lo = std::numeric_limits<float>::max(), hi = std::numeric_limits<float>::lowest();
-	for (std::size_t i = 0; i < siteMesh.vertexCount(); ++i)
-	{
-		const bool ok = std::isfinite(siteMesh.values[i]);
-		siteValid[i] = ok;
-		siteValues[i] = ok ? static_cast<float>(siteMesh.values[i]) : 0.0f;
-		if (ok) { lo = std::min(lo, siteValues[i]); hi = std::max(hi, siteValues[i]); }
-	}
-	if (hi <= lo)
-		hi = lo + 1.0f;
+	// One glyph construction path supplies both the rendered arrows and the persistent magnitude colour state.
+	// This keeps the legend and later colour edits honest even when the CSV's optional value column is unrelated.
+	GlyphSet glyphSet = quiverGlyphs(quiver, dataset);
+	std::vector<float> siteValues = glyphSet.values;
+	std::vector<bool> siteValid(siteValues.size(), true);
+	const float lo = glyphSet.fieldMin;
+	const float hi = glyphSet.fieldMax;
 	mesh->setAnalysisOverlayColors(AnalysisColorRamp::mapToRGBA(siteValues, siteValid, lo, hi, AnalysisColormap::Sequential));
 	mesh->setAnalysisOverlayBanding(0, static_cast<int>(AnalysisColormap::Sequential));
 
-	// Use one glyph construction path for both permanent and temporary plots.
-	// It normalizes arrows to the data bounds, so raw vector units never make
-	// a preview visually disagree with the committed plot.
-	viewport->setSimulationGlyphs(meshUuid, quiverGlyphs(quiver, dataset));
+	// It normalizes arrows to the data bounds, so raw vector units never make a preview visually disagree with the
+	// committed plot.
+	viewport->setSimulationGlyphs(meshUuid, std::move(glyphSet));
 
 	viewport->doneCurrent();
 	viewport->updateView();

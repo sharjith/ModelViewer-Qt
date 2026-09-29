@@ -25,6 +25,7 @@ struct GlyphSet
 	// length by this value, preserving the user size multiplier and all-step magnitude reference while replacing
 	// only the absolute world-space size with a camera-distance-derived size.
 	float referenceLength = 0.0f;
+	float displayScale = 1.0f;             // presentation-only multiplier applied after camera-stable sizing
 	float fieldMin = 0.0f, fieldMax = 0.0f; // range of the field's magnitude over the whole result at this step (display unit)
 	QString unit;                           // that display unit (empty = not specified)
 
@@ -36,6 +37,7 @@ struct GlyphSet
 		values.clear();
 		colors.clear();
 		referenceLength = 0.0f;
+		displayScale = 1.0f;
 		fieldMin = fieldMax = 0.0f;
 		unit.clear();
 	}

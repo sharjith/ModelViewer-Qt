@@ -225,8 +225,10 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     proxy as its committed plot.
 16. **Partly implemented (2026-09-29):** presentation and editing. The active visible scalar plot now gets an
     outlined in-viewport colour legend driven by the same range, map and banding as the plot. It uses a separate
-    overlay from Simulation and stacks below the Simulation legend when both are visible. Remaining work is
-    plot-specific line/marker/bar/quiver styling, filled translucent reference planes, and re-edit/rebuild from
+    overlay from Simulation and stacks below the Simulation legend when both are visible. The persistent panel also
+    exposes zoom-stable line width, scatter marker size and Quiver arrow-size controls. Quiver colour range, map,
+    bands and legend are based on the vector magnitude actually drawn, independent of the optional CSV value
+    column. Remaining work is bar-specific styling, filled translucent reference planes, and re-edit/rebuild from
     retained source data and column mapping.
 17. **Implemented, awaiting the user's build+visual check (2026-09-29):** ordered parametric curves. The formula
     source selector now includes a one-parameter curve mode that builds an ordinary `GL_LINE_STRIP`, with Helix,

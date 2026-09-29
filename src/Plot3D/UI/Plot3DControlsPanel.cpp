@@ -60,12 +60,18 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	_contourLevelsLabel = new QLabel(tr("Contour levels:"), this);
 	_rangeMinimum = new QDoubleSpinBox(this); _rangeMinimum->setRange(-1.0e12, 1.0e12); _rangeMinimum->setDecimals(6);
 	_rangeMaximum = new QDoubleSpinBox(this); _rangeMaximum->setRange(-1.0e12, 1.0e12); _rangeMaximum->setDecimals(6);
+	_lineWidth = new QDoubleSpinBox(this); _lineWidth->setRange(0.5, 10.0); _lineWidth->setSingleStep(0.25); _lineWidth->setDecimals(2); _lineWidth->setSuffix(tr(" px"));
+	_markerSize = new QDoubleSpinBox(this); _markerSize->setRange(1.0, 20.0); _markerSize->setSingleStep(0.5); _markerSize->setDecimals(1); _markerSize->setSuffix(tr(" px"));
+	_arrowScale = new QDoubleSpinBox(this); _arrowScale->setRange(0.25, 4.0); _arrowScale->setSingleStep(0.1); _arrowScale->setDecimals(2); _arrowScale->setSuffix(QStringLiteral("x"));
 	appearance->addRow(tr("Colour map:"), _colormap);
 	appearance->addRow(tr("Colour bands:"), _bands);
 	appearance->addRow(QString(), _automaticRange);
 	appearance->addRow(_contourLevelsLabel, _contourLevels);
 	appearance->addRow(tr("Minimum:"), _rangeMinimum);
 	appearance->addRow(tr("Maximum:"), _rangeMaximum);
+	appearance->addRow(tr("Line width:"), _lineWidth);
+	appearance->addRow(tr("Marker size:"), _markerSize);
+	appearance->addRow(tr("Arrow size:"), _arrowScale);
 	layout->addLayout(appearance);
 
 	// Axes are deliberately edited here, rather than in the transient import
@@ -120,6 +126,9 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	connect(_contourLevels, qOverload<int>(&QSpinBox::valueChanged), this, [this](int levels) { if (_viewer && _plotSelector->currentIndex() >= 0) _viewer->setPlot3DContourLevels(_plotSelector->currentData().toUuid(), levels); });
 	connect(_rangeMinimum, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_automaticRange->isChecked()) applyColourState(); });
 	connect(_rangeMaximum, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_automaticRange->isChecked()) applyColourState(); });
+	connect(_lineWidth, qOverload<double>(&QDoubleSpinBox::valueChanged), this, &Plot3DControlsPanel::applyAppearanceState);
+	connect(_markerSize, qOverload<double>(&QDoubleSpinBox::valueChanged), this, &Plot3DControlsPanel::applyAppearanceState);
+	connect(_arrowScale, qOverload<double>(&QDoubleSpinBox::valueChanged), this, &Plot3DControlsPanel::applyAppearanceState);
 	connect(_plotTitle, &QLineEdit::editingFinished, this, [this] {
 		if (_viewer && _plotSelector->currentIndex() >= 0)
 			_viewer->setPlot3DAxisTitle(_plotSelector->currentData().toUuid(), _plotTitle->text());
@@ -152,7 +161,7 @@ void Plot3DControlsPanel::refreshState()
 {
 	const QVector<Plot3DSession> sessions = _viewer ? _viewer->plot3DSessions() : QVector<Plot3DSession>();
 	const QUuid active = _viewer ? _viewer->activePlot3DMeshUuid() : QUuid();
-	const QSignalBlocker selectorBlock(_plotSelector), axesBlock(_showAxesCheck), titleBlock(_plotTitle), mapBlock(_colormap), bandsBlock(_bands), autoBlock(_automaticRange), contourBlock(_contourLevels), minBlock(_rangeMinimum), maxBlock(_rangeMaximum);
+	const QSignalBlocker selectorBlock(_plotSelector), axesBlock(_showAxesCheck), titleBlock(_plotTitle), mapBlock(_colormap), bandsBlock(_bands), autoBlock(_automaticRange), contourBlock(_contourLevels), minBlock(_rangeMinimum), maxBlock(_rangeMaximum), lineBlock(_lineWidth), markerBlock(_markerSize), arrowBlock(_arrowScale);
 	std::array<QSignalBlocker, 18> axisBlockers{
 		QSignalBlocker(_axisLabels[0]), QSignalBlocker(_axisScales[0]), QSignalBlocker(_axisAutomatic[0]), QSignalBlocker(_axisMinimum[0]), QSignalBlocker(_axisMaximum[0]), QSignalBlocker(_axisTicks[0]),
 		QSignalBlocker(_axisLabels[1]), QSignalBlocker(_axisScales[1]), QSignalBlocker(_axisAutomatic[1]), QSignalBlocker(_axisMinimum[1]), QSignalBlocker(_axisMaximum[1]), QSignalBlocker(_axisTicks[1]),
@@ -166,8 +175,8 @@ void Plot3DControlsPanel::refreshState()
 	const bool available = session != nullptr;
 	// Keep the type explicit: MSVC cannot deduce a mixed derived-QWidget pointer
 	// initializer list here under /permissive-.
-	const std::array<QWidget*, 9> controls{ _plotSelector, _showAxesCheck, _plotTitle, _colormap,
-		_bands, _automaticRange, _contourLevels, _rangeMinimum, _rangeMaximum };
+	const std::array<QWidget*, 12> controls{ _plotSelector, _showAxesCheck, _plotTitle, _colormap,
+		_bands, _automaticRange, _contourLevels, _rangeMinimum, _rangeMaximum, _lineWidth, _markerSize, _arrowScale };
 	for (QWidget* control : controls)
 		control->setEnabled(available);
 	if (!available)
@@ -190,7 +199,7 @@ void Plot3DControlsPanel::refreshState()
 	_contourLevels->setVisible(isContour);
 	_contourLevels->setEnabled(isContour);
 	_contourLevels->setValue(session->contourLevels);
-	const bool supportsColourControls = session->primitive != Plot3DPrimitive::Quiver;
+	const bool supportsColourControls = true;
 	const bool supportsColourRange = supportsColourControls && session->primitive != Plot3DPrimitive::Voxel;
 	_colormap->setEnabled(supportsColourControls); _bands->setEnabled(supportsColourRange);
 	_automaticRange->setEnabled(supportsColourRange);
@@ -198,6 +207,14 @@ void Plot3DControlsPanel::refreshState()
 	_automaticRange->setChecked(session->colourMinimum == session->dataMinimumValue && session->colourMaximum == session->dataMaximumValue);
 	_rangeMinimum->setValue(session->colourMinimum); _rangeMaximum->setValue(session->colourMaximum);
 	_rangeMinimum->setEnabled(supportsColourRange && !_automaticRange->isChecked()); _rangeMaximum->setEnabled(supportsColourRange && !_automaticRange->isChecked());
+	_lineWidth->setValue(session->lineWidth);
+	_markerSize->setValue(session->markerSize);
+	_arrowScale->setValue(session->arrowScale);
+	const bool linePlot = session->primitive == Plot3DPrimitive::Line || session->primitive == Plot3DPrimitive::Contour
+		|| (session->primitive == Plot3DPrimitive::Scatter && !session->markerMeshUuid.isNull());
+	_lineWidth->setEnabled(linePlot);
+	_markerSize->setEnabled(session->primitive == Plot3DPrimitive::Scatter && !session->isFilledScatter);
+	_arrowScale->setEnabled(session->primitive == Plot3DPrimitive::Quiver);
 	for (int i = 0; i < 3; ++i)
 	{
 		const Plot3DAxisConfig& axis = session->axes[i];
@@ -219,6 +236,14 @@ void Plot3DControlsPanel::applyColourState()
 	const float minimum = _automaticRange->isChecked() ? session.dataMinimumValue : static_cast<float>(_rangeMinimum->value());
 	const float maximum = _automaticRange->isChecked() ? session.dataMaximumValue : static_cast<float>(_rangeMaximum->value());
 	_viewer->applyPlot3DColourState(session.meshUuid, minimum, maximum, _colormap->currentData().toInt(), _bands->currentData().toInt());
+}
+
+void Plot3DControlsPanel::applyAppearanceState()
+{
+	if (!_viewer || _plotSelector->currentIndex() < 0)
+		return;
+	_viewer->applyPlot3DAppearance(_plotSelector->currentData().toUuid(), static_cast<float>(_lineWidth->value()),
+		static_cast<float>(_markerSize->value()), static_cast<float>(_arrowScale->value()));
 }
 
 void Plot3DControlsPanel::applyAxisState()

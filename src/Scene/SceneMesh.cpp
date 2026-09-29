@@ -362,6 +362,8 @@ SceneMesh* SceneMesh::clone()
 		}
 	}
 	SceneMesh* mesh = new SceneMesh(_prog, _name, _baseVertices, _indices, _textures, _material, _importState.skipOptimization(), getPrimitiveMode(), std::move(clonedSourceIds));
+	mesh->setPrimitivePointSize(primitivePointSize());
+	mesh->setPrimitiveLineWidth(primitiveLineWidth());
 	mesh->setMorphTargets(_morphTargets, _defaultMorphWeights);
 	if (!_currentMorphWeights.isEmpty())
 		mesh->applyMorphWeights(_currentMorphWeights);
@@ -1319,14 +1321,16 @@ void SceneMesh::render()
 		// For point rendering, use point size
 		if (_primitiveMode == GL_POINTS)
 		{
-			glEnable(GL_PROGRAM_POINT_SIZE);
-			glPointSize(3.0f);
+			// The main scene vertex shader does not write gl_PointSize, so fixed-function point sizing must remain
+			// active. Enabling GL_PROGRAM_POINT_SIZE here would make the requested per-mesh size undefined/ignored.
+			glDisable(GL_PROGRAM_POINT_SIZE);
+			glPointSize(_primitivePointSize);
 		}
 
 		// For line rendering, use line width
 		if (_primitiveMode == GL_LINES || _primitiveMode == GL_LINE_STRIP || _primitiveMode == GL_LINE_LOOP)
 		{
-			glLineWidth(1.5f);
+			glLineWidth(_primitiveLineWidth);
 		}
 
 		// Draw indexed primitives when an element buffer exists, otherwise fall
@@ -1354,12 +1358,10 @@ void SceneMesh::render()
 		recordDrawCall(!_indices.empty(), isTransparent());
 		if (profiling)
 			recordDrawCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
-
-		// Reset point size
 		if (_primitiveMode == GL_POINTS)
-		{
-			glDisable(GL_PROGRAM_POINT_SIZE);
-		}
+			glPointSize(1.0f);
+		if (_primitiveMode == GL_LINES || _primitiveMode == GL_LINE_STRIP || _primitiveMode == GL_LINE_LOOP)
+			glLineWidth(1.0f);
 
 		_vertexArrayObject.release();
 	}

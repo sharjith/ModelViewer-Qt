@@ -33,6 +33,9 @@ struct Plot3DSession
 	float colourMaximum = 1.0f;
 	int colormap = 0;
 	int bands = 0;
+	float lineWidth = 1.5f;
+	float markerSize = 3.0f;
+	float arrowScale = 1.0f;
 	bool isStem = false;
 	// Filled scatter ribbons use authored vertex colours because the analysis-overlay shader path does not retain
 	// its colour ramp when the underlying material is alpha blended. This flag lets the persistent colour controls

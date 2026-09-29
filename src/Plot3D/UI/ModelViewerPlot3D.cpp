@@ -144,6 +144,22 @@ void ModelViewer::applyPlot3DColourState(const QUuid& meshUuid, float minimum, f
 	session->colourMaximum = maximum;
 	session->colormap = colormap;
 	session->bands = bands;
+	if (session->primitive == Plot3DPrimitive::Quiver)
+	{
+		const std::vector<float> rgba = AnalysisColorRamp::mapToRGBA(
+			session->values, session->valid, minimum, maximum, static_cast<AnalysisColormap>(colormap), bands);
+		mesh->setAnalysisOverlayColors(rgba);
+		mesh->setAnalysisOverlayBanding(0, colormap);
+		std::vector<float> rgb;
+		rgb.reserve(session->values.size() * 3);
+		for (std::size_t i = 0; i + 3 < rgba.size(); i += 4)
+			rgb.insert(rgb.end(), { rgba[i], rgba[i + 1], rgba[i + 2] });
+		_viewportWidget->setSimulationGlyphColors(meshUuid, std::move(rgb), minimum, maximum);
+		markNonUndoDocumentModified();
+		refreshPlot3DLegend();
+		emit plot3DSessionsChanged(false);
+		return;
+	}
 	if (session->primitive == Plot3DPrimitive::Voxel)
 	{
 		// Voxel occupancy is already normalized to [0, 1]. Zero stays transparent and nonzero cells fade in with
@@ -198,6 +214,31 @@ void ModelViewer::applyPlot3DColourState(const QUuid& meshUuid, float minimum, f
 	_viewportWidget->updateView();
 	markNonUndoDocumentModified();
 	refreshPlot3DLegend();
+	emit plot3DSessionsChanged(false);
+}
+
+void ModelViewer::applyPlot3DAppearance(const QUuid& meshUuid, float lineWidth, float markerSize, float arrowScale)
+{
+	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
+	SceneMesh* mesh = _viewportWidget ? _viewportWidget->getMeshByUuid(meshUuid) : nullptr;
+	if (!session || !mesh || !_viewportWidget)
+		return;
+	lineWidth = std::clamp(lineWidth, 0.5f, 10.0f);
+	markerSize = std::clamp(markerSize, 1.0f, 20.0f);
+	arrowScale = std::clamp(arrowScale, 0.25f, 4.0f);
+	if (session->lineWidth == lineWidth && session->markerSize == markerSize && session->arrowScale == arrowScale)
+		return;
+	session->lineWidth = lineWidth;
+	session->markerSize = markerSize;
+	session->arrowScale = arrowScale;
+	mesh->setPrimitiveLineWidth(lineWidth);
+	mesh->setPrimitivePointSize(markerSize);
+	if (!session->markerMeshUuid.isNull())
+		if (SceneMesh* markerMesh = _viewportWidget->getMeshByUuid(session->markerMeshUuid))
+			markerMesh->setPrimitivePointSize(markerSize);
+	_viewportWidget->setSimulationGlyphScale(meshUuid, arrowScale);
+	_viewportWidget->updateView();
+	markNonUndoDocumentModified();
 	emit plot3DSessionsChanged(false);
 }
 
@@ -367,9 +408,7 @@ void ModelViewer::refreshPlot3DLegend()
 		return;
 	Plot3DSession* session = sessionFor(_plot3DSessions, activePlot3DMeshUuid());
 	const QSet<QUuid> shown = getVisibleUuids();
-	// Quiver currently colours arrows by their vector magnitude rather than the optional CSV value column. Keep its
-	// legend hidden until its editable colour state is backed by that same magnitude data.
-	if (!session || !shown.contains(session->meshUuid) || session->primitive == Plot3DPrimitive::Quiver)
+	if (!session || !shown.contains(session->meshUuid))
 	{
 		if (_plot3DLegend)
 			_plot3DLegend->setAliveCheck([]() { return false; });
@@ -395,7 +434,9 @@ void ModelViewer::refreshPlot3DLegend()
 	});
 	const QString label = session->primitive == Plot3DPrimitive::Voxel
 		? tr("%1 - Occupancy").arg(session->name)
-		: tr("%1 - Value").arg(session->name);
+		: (session->primitive == Plot3DPrimitive::Quiver
+			? tr("%1 - Vector magnitude").arg(session->name)
+			: tr("%1 - Value").arg(session->name));
 	_plot3DLegend->setLegend(label, session->colourMinimum, session->colourMaximum, session->colormap,
 		session->bands, tr("Colour range for the active 3D plot."));
 }

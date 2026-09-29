@@ -111,6 +111,10 @@ public:
 	{
 		return _primitiveMode;
 	}
+	void setPrimitivePointSize(float size) { _primitivePointSize = size > 0.0f ? size : 1.0f; }
+	float primitivePointSize() const { return _primitivePointSize; }
+	void setPrimitiveLineWidth(float width) { _primitiveLineWidth = width > 0.0f ? width : 1.0f; }
+	float primitiveLineWidth() const { return _primitiveLineWidth; }
 
 	virtual void render();
 	virtual void renderShadow(); // Lightweight render for shadow mapping
@@ -753,6 +757,8 @@ protected:
 
 	// Primitive mode from glTF (GL_POINTS=0, GL_LINES=1, GL_LINE_STRIP=3, GL_TRIANGLE_STRIP=5, GL_TRIANGLES=4)
 	GLenum _primitiveMode = GL_TRIANGLES;  // Default to triangles for backward compatibility
+	float _primitivePointSize = 3.0f;
+	float _primitiveLineWidth = 1.5f;
 
 	unsigned long long _memorySize;
 };

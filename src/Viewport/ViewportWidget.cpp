@@ -3695,6 +3695,18 @@ void ViewportWidget::setSimulationGlyphs(const QUuid& meshUuid, GlyphSet glyphs)
 	update();
 }
 
+void ViewportWidget::setSimulationGlyphScale(const QUuid& meshUuid, float scale)
+{
+	_simulationGlyphController->setGlyphScale(meshUuid, scale);
+	update();
+}
+
+void ViewportWidget::setSimulationGlyphColors(const QUuid& meshUuid, std::vector<float> colors, float fieldMinimum, float fieldMaximum)
+{
+	_simulationGlyphController->setGlyphColors(meshUuid, std::move(colors), fieldMinimum, fieldMaximum);
+	update();
+}
+
 void ViewportWidget::clearSimulationGlyphs(const QUuid& meshUuid)
 {
 	_simulationGlyphController->clearGlyphs(meshUuid);

@@ -39,6 +39,9 @@ Open quiver_vortex.csv, select Quiver, map X/Y/Z and U/V/W to their matching col
 temporary arrows should match the size and colour behaviour of Build Plot. Open voxel_sphere.csv, select Voxel,
 map X/Y/Z to i/j/k and Colour value to occupancy, and click Preview. The temporary volume should match Build Plot.
 For both files, Clear Preview and closing the dialog must remove the plot and restore the previous axes box.
+After building quiver_vortex.csv, change Arrow size, Colour map, Colour bands and the manual colour range in the
+3D Plot panel. Arrow length should change without camera-dependent growth, while arrow colours and the
+"Vector magnitude" legend remain synchronized. Line plots expose Line width; Scatter and Stem expose Marker size.
 
 Generated examples
 ------------------

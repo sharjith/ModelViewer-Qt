@@ -1534,6 +1534,8 @@ public:
 	// The vector-field arrows of a simulation result (see SimulationGlyphController.h): drawn on the result's mesh, in its
 	// pane in compare mode. An empty set clears them.
 	void setSimulationGlyphs(const QUuid& meshUuid, GlyphSet glyphs);
+	void setSimulationGlyphScale(const QUuid& meshUuid, float scale);
+	void setSimulationGlyphColors(const QUuid& meshUuid, std::vector<float> colors, float fieldMinimum, float fieldMaximum);
 	void clearSimulationGlyphs(const QUuid& meshUuid);
 
 	// The tensor-field ellipsoids of a simulation result (see SimulationTensorGlyphController.h): same shape as

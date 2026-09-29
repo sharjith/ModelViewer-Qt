@@ -32,6 +32,8 @@ public:
 	void restoreGpuResources() override;
 
 	void setGlyphs(const QUuid& meshUuid, GlyphSet glyphs);
+	void setGlyphScale(const QUuid& meshUuid, float scale);
+	void setGlyphColors(const QUuid& meshUuid, std::vector<float> colors, float fieldMinimum, float fieldMaximum);
 	void clearGlyphs(const QUuid& meshUuid);
 	bool hasGlyphs() const { return !_sets.empty(); }
 

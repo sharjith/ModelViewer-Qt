@@ -66,6 +66,23 @@ void SimulationGlyphController::setGlyphs(const QUuid& meshUuid, GlyphSet glyphs
 		_sets[meshUuid] = std::move(glyphs);
 }
 
+void SimulationGlyphController::setGlyphScale(const QUuid& meshUuid, float scale)
+{
+	auto it = _sets.find(meshUuid);
+	if (it != _sets.end())
+		it->second.displayScale = std::clamp(scale, 0.1f, 10.0f);
+}
+
+void SimulationGlyphController::setGlyphColors(const QUuid& meshUuid, std::vector<float> colors, float fieldMinimum, float fieldMaximum)
+{
+	auto it = _sets.find(meshUuid);
+	if (it == _sets.end() || colors.size() != it->second.count() * 3)
+		return;
+	it->second.colors = std::move(colors);
+	it->second.fieldMin = fieldMinimum;
+	it->second.fieldMax = fieldMaximum;
+}
+
 void SimulationGlyphController::clearGlyphs(const QUuid& meshUuid)
 {
 	_sets.erase(meshUuid);
@@ -158,7 +175,7 @@ void SimulationGlyphController::drawOverlay(Camera* camera, const MeshResolver& 
 
 			const float rawLength = transformedVectors[i].length();
 			const QVector3D dir = transformedVectors[i] / rawLength;
-			const float length = arrowScaleAt(base) * lengthRatios[i];
+			const float length = arrowScaleAt(base) * lengthRatios[i] * std::clamp(set.displayScale, 0.1f, 10.0f);
 			const QVector3D arrow = dir * length;
 			const QVector3D color = i * 3 + 2 < set.colors.size()
 				? QVector3D(set.colors[i * 3], set.colors[i * 3 + 1], set.colors[i * 3 + 2])
