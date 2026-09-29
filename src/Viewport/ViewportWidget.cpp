@@ -48,6 +48,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <string>
 #include <QCryptographicHash>
 #include <QOpenGLContext>
 #include <QDateTime>
@@ -58,6 +59,7 @@
 #include <QStyleFactory>
 #include <QThread>
 #include <QTreeView>
+#include <QVector2D>
 #include <QDebug>
 #include "AnimationUtils.h"
 #include "MeshMathUtils.h"
@@ -9655,7 +9657,7 @@ void ViewportWidget::drawPlot3DAxisOverlay(Camera* camera)
 
     const Plot3DAxisLayout& layout = *_plot3DAxisLayout;
     std::vector<float> vertices;
-    vertices.reserve((layout.axisLines.size() + layout.tickLines.size()) * 12);
+    vertices.reserve((layout.axisLines.size() + layout.tickLines.size() + layout.gridLines.size()) * 12);
     auto appendSegment = [&vertices](const Plot3DLineSegment& segment, const QVector3D& color) {
         vertices.insert(vertices.end(), { segment.first.x(), segment.first.y(), segment.first.z(), color.x(), color.y(), color.z() });
         vertices.insert(vertices.end(), { segment.second.x(), segment.second.y(), segment.second.z(), color.x(), color.y(), color.z() });
@@ -9668,6 +9670,8 @@ void ViewportWidget::drawPlot3DAxisOverlay(Camera* camera)
         for (int i = 0; i < 4; ++i)
             appendSegment(Plot3DLineSegment{ plane.corners[i], plane.corners[(i + 1) % 4] }, planeColor);
     }
+	for (const Plot3DLineSegment& segment : layout.gridLines)
+		appendSegment(segment, segment.color);
     for (const Plot3DLineSegment& segment : layout.axisLines)
         appendSegment(segment, segment.color);
     for (const Plot3DLineSegment& segment : layout.tickLines)
@@ -9700,14 +9704,59 @@ void ViewportWidget::drawPlot3DAxisOverlay(Camera* camera)
     if (_axisTextRenderer)
     {
         const QRect viewportRect(0, 0, width(), height());
+		auto projectToTextSpace = [this, &viewportRect](const QVector3D& world) {
+			const QVector3D projected = world.project(_viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(), viewportRect);
+			return QVector2D(projected.x(), static_cast<float>(height()) - projected.y());
+		};
         for (const Plot3DAxisLabel& label : layout.labels)
         {
             const QVector3D projected = label.position.project(
                 _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(), viewportRect);
             const float y = static_cast<float>(height()) - projected.y();
-            _axisTextRenderer->RenderHaloText(label.text.toStdString(), projected.x(), y, 1,
-                label.color, TextRenderer::VAlignment::VBOTTOM, TextRenderer::HAlignment::HCENTER);
+			// TextRenderer's HCENTER means "centre in the whole viewport", not
+			// "centre around this x coordinate".  These labels have individual
+			// projected anchors, so centre them explicitly and retain HLEFT.
+			const std::string text = label.text.toStdString();
+			const float x = projected.x() - _axisTextRenderer->textWidth(text) * 0.5f;
+			_axisTextRenderer->RenderHaloText(text, x, y, 1,
+				label.color, TextRenderer::VAlignment::VBOTTOM, TextRenderer::HAlignment::HLEFT);
         }
+		const QVector2D boxCentre = projectToTextSpace(QVector3D(
+			static_cast<float>((layout.minimum[0] + layout.maximum[0]) * 0.5),
+			static_cast<float>((layout.minimum[1] + layout.maximum[1]) * 0.5),
+			static_cast<float>((layout.minimum[2] + layout.maximum[2]) * 0.5)));
+		for (const Plot3DAxisTitle& title : layout.axisTitles)
+		{
+			if (title.text.trimmed().isEmpty())
+				continue;
+			const QVector2D first = projectToTextSpace(title.first);
+			const QVector2D second = projectToTextSpace(title.second);
+			QVector2D direction = second - first;
+			if (direction.lengthSquared() < 1.0f)
+				continue;
+			direction.normalize();
+			// Keep the reading direction left-to-right even when the camera makes
+			// the world-space positive axis point toward the screen's left.
+			if (direction.x() < 0.0f)
+				direction = -direction;
+			QVector2D normal(-direction.y(), direction.x());
+			const QVector2D midpoint = (first + second) * 0.5f;
+			if (QVector2D::dotProduct(normal, midpoint - boxCentre) < 0.0f)
+				normal = -normal;
+			const QVector2D centre = midpoint + normal * 26.0f;
+			const std::string text = title.text.toStdString();
+			const QVector2D start(centre.x() - _axisTextRenderer->textWidth(text, 1.1f) * 0.5f, centre.y());
+			_axisTextRenderer->RenderHaloText(text, start.x(), start.y(), 1.1f,
+				title.color, TextRenderer::VAlignment::VCENTER, TextRenderer::HAlignment::HLEFT);
+		}
+		if (!layout.title.isEmpty())
+		{
+			const std::string title = layout.title.toStdString();
+			const float x = width() * 0.5f - _axisTextRenderer->textWidth(title, 1.25f) * 0.5f;
+			_axisTextRenderer->RenderHaloText(title, x, 24.0f, 1.25f,
+				QVector3D(0.96f, 0.97f, 0.99f), TextRenderer::VAlignment::VTOP,
+				TextRenderer::HAlignment::HLEFT);
+		}
     }
 }
 

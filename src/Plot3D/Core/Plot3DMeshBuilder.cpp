@@ -1,10 +1,17 @@
 #include "Plot3DMeshBuilder.h"
 
+#include <CGAL/Delaunay_triangulation_2.h>
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
+#include <CGAL/Triangulation_data_structure_2.h>
+#include <CGAL/Triangulation_face_base_2.h>
+#include <CGAL/Triangulation_vertex_base_with_info_2.h>
+
 #include <QObject>
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <set>
 
 namespace
 {
@@ -19,6 +26,92 @@ namespace
 		Vec3f operator-(const Vec3f& o) const { return { x - o.x, y - o.y, z - o.z }; }
 		Vec3f cross(const Vec3f& o) const { return { y * o.z - z * o.y, z * o.x - x * o.z, x * o.y - y * o.x }; }
 	};
+
+	bool buildUnstructuredSurfaceMesh(const Plot3DSurfaceData& data, Plot3DMeshData& out, QString* error)
+	{
+		out = Plot3DMeshData();
+		const std::vector<Plot3DSample>& samples = data.samples;
+		if (samples.size() < 3)
+		{
+			if (error) *error = QObject::tr("Surface needs at least three non-collinear points; got %1.").arg(samples.size());
+			return false;
+		}
+
+		using Kernel = CGAL::Exact_predicates_inexact_constructions_kernel;
+		using VertexBase = CGAL::Triangulation_vertex_base_with_info_2<std::size_t, Kernel>;
+		using FaceBase = CGAL::Triangulation_face_base_2<Kernel>;
+		using TriangulationData = CGAL::Triangulation_data_structure_2<VertexBase, FaceBase>;
+		using Delaunay = CGAL::Delaunay_triangulation_2<Kernel, TriangulationData>;
+		using Point = Kernel::Point_2;
+		Delaunay triangulation;
+		std::set<std::pair<double, double>> occupiedPositions;
+		for (std::size_t i = 0; i < samples.size(); ++i)
+		{
+			const auto key = std::make_pair(samples[i].position.x, samples[i].position.y);
+			if (!occupiedPositions.insert(key).second)
+			{
+				if (error) *error = QObject::tr("Surface data has more than one point at (x=%1, y=%2).").arg(key.first).arg(key.second);
+				return false;
+			}
+			triangulation.insert(Point(key.first, key.second))->info() = i;
+		}
+		// CGAL's triangulation API does not expose a number_of_finite_faces()
+		// query on every supported version.  Count the iterator range once so
+		// both the degeneracy check and the allocation below are portable.
+		std::size_t finiteFaceCount = 0;
+		for (auto face = triangulation.finite_faces_begin(); face != triangulation.finite_faces_end(); ++face)
+			++finiteFaceCount;
+		if (finiteFaceCount == 0)
+		{
+			if (error) *error = QObject::tr("Surface points are collinear and cannot form triangles.");
+			return false;
+		}
+
+		out.positions.resize(samples.size() * 3);
+		out.normals.assign(samples.size() * 3, 0.0f);
+		out.values.resize(samples.size());
+		for (std::size_t i = 0; i < samples.size(); ++i)
+		{
+			out.positions[i * 3] = static_cast<float>(samples[i].position.x);
+			out.positions[i * 3 + 1] = static_cast<float>(samples[i].position.y);
+			out.positions[i * 3 + 2] = static_cast<float>(samples[i].position.z);
+			out.values[i] = samples[i].value;
+		}
+		out.indices.reserve(finiteFaceCount * 3);
+		for (auto face = triangulation.finite_faces_begin(); face != triangulation.finite_faces_end(); ++face)
+			out.indices.insert(out.indices.end(), { static_cast<unsigned int>(face->vertex(0)->info()),
+				static_cast<unsigned int>(face->vertex(1)->info()), static_cast<unsigned int>(face->vertex(2)->info()) });
+
+		auto position = [&out](std::size_t vertex) {
+			return Vec3f{ out.positions[vertex * 3], out.positions[vertex * 3 + 1], out.positions[vertex * 3 + 2] };
+		};
+		for (std::size_t triangle = 0; triangle < out.indices.size(); triangle += 3)
+		{
+			const unsigned int a = out.indices[triangle], b = out.indices[triangle + 1], c = out.indices[triangle + 2];
+			const Vec3f normal = (position(b) - position(a)).cross(position(c) - position(a));
+			for (unsigned int vertex : { a, b, c })
+			{
+				out.normals[vertex * 3] += normal.x;
+				out.normals[vertex * 3 + 1] += normal.y;
+				out.normals[vertex * 3 + 2] += normal.z;
+			}
+		}
+		for (std::size_t vertex = 0; vertex < samples.size(); ++vertex)
+		{
+			Vec3f normal{ out.normals[vertex * 3], out.normals[vertex * 3 + 1], out.normals[vertex * 3 + 2] };
+			const float squaredLength = normal.x * normal.x + normal.y * normal.y + normal.z * normal.z;
+			if (squaredLength > 1.0e-12f)
+			{
+				const float inverseLength = 1.0f / std::sqrt(squaredLength);
+				normal = { normal.x * inverseLength, normal.y * inverseLength, normal.z * inverseLength };
+			}
+			else normal = { 0.0f, 0.0f, 1.0f };
+			out.normals[vertex * 3] = normal.x;
+			out.normals[vertex * 3 + 1] = normal.y;
+			out.normals[vertex * 3 + 2] = normal.z;
+		}
+		return true;
+	}
 }
 
 namespace
@@ -55,10 +148,10 @@ bool buildPlot3DSurfaceMesh(const Plot3DSurfaceData& data, Plot3DMeshData& out, 
 {
 	out = Plot3DMeshData();
 	const std::vector<Plot3DSample>& samples = data.samples;
-	if (samples.size() < 4)
+	if (samples.size() < 3)
 	{
 		if (error)
-			*error = QObject::tr("Surface needs at least a 2 x 2 grid (4 points); got %1.").arg(samples.size());
+			*error = QObject::tr("Surface needs at least three non-collinear points; got %1.").arg(samples.size());
 		return false;
 	}
 
@@ -82,20 +175,10 @@ bool buildPlot3DSurfaceMesh(const Plot3DSurfaceData& data, Plot3DMeshData& out, 
 	const std::vector<double> gridY = distinctSortedValues(ys, yTolerance, iyOfSample);
 	const std::size_t nx = gridX.size(), ny = gridY.size();
 
-	if (nx < 2 || ny < 2)
-	{
-		if (error)
-			*error = QObject::tr("Surface data does not form a grid with at least 2 distinct X and Y values (found %1 x %2).").arg(nx).arg(ny);
-		return false;
-	}
-	if (nx * ny != samples.size())
-	{
-		if (error)
-			*error = QObject::tr("Surface data must be a COMPLETE regular grid: found %1 distinct X and %2 distinct Y values "
-				"(%3 grid points) but %4 rows. Scattered/unstructured surface data is not supported yet.")
-				.arg(nx).arg(ny).arg(nx * ny).arg(samples.size());
-		return false;
-	}
+	// A complete regular grid keeps the older deterministic connectivity/order. Every other non-degenerate sample
+	// set is an unstructured surface and is triangulated in its X/Y plane below via CGAL's Delaunay implementation.
+	if (nx < 2 || ny < 2 || nx * ny != samples.size())
+		return buildUnstructuredSurfaceMesh(data, out, error);
 
 	// Map each sample onto its (ix, iy) grid cell, detecting duplicate/missing cells along the way.
 	std::vector<int> cellSampleIndex(nx * ny, -1);
@@ -293,6 +376,35 @@ bool buildPlot3DScatterMesh(const Plot3DScatterData& data, Plot3DMeshData& out, 
 	return true;
 }
 
+bool buildPlot3DStemMesh(const Plot3DScatterData& data, double baseZ, Plot3DMeshData& out, QString* error)
+{
+	out = Plot3DMeshData();
+	if (data.samples.empty())
+	{
+		if (error) *error = QObject::tr("Stem plot data has no points.");
+		return false;
+	}
+	if (!std::isfinite(baseZ))
+	{
+		if (error) *error = QObject::tr("Stem base Z must be finite.");
+		return false;
+	}
+	out.positions.reserve(data.samples.size() * 6);
+	out.normals.reserve(data.samples.size() * 6);
+	out.values.reserve(data.samples.size() * 2);
+	for (const Plot3DSample& sample : data.samples)
+	{
+		// GL_LINES consumes pairs, so every stem is independent and the CSV row order remains irrelevant.
+		for (double z : { baseZ, sample.position.z })
+		{
+			out.positions.insert(out.positions.end(), { static_cast<float>(sample.position.x), static_cast<float>(sample.position.y), static_cast<float>(z) });
+			out.normals.insert(out.normals.end(), { 0.0f, 0.0f, 1.0f });
+			out.values.push_back(sample.value);
+		}
+	}
+	return true;
+}
+
 bool buildPlot3DBarMesh(const Plot3DBarData& data, Plot3DMeshData& out, QString* error)
 {
 	out = Plot3DMeshData();
@@ -339,6 +451,60 @@ bool buildPlot3DBarMesh(const Plot3DBarData& data, Plot3DMeshData& out, QString*
 		addFace({x1,y0,z0},{x1,y1,z0},{x1,y1,z1},{x1,y0,z1},{ 1,0,0},value);
 		addFace({x0,y0,z0},{x1,y0,z0},{x1,y0,z1},{x0,y0,z1},{0,-1,0},value);
 		addFace({x0,y1,z0},{x0,y1,z1},{x1,y1,z1},{x1,y1,z0},{0, 1,0},value);
+	}
+	return true;
+}
+
+bool buildPlot3DVoxelGrid(const Plot3DVoxelData& data, Plot3DVoxelGrid& out, QString* error)
+{
+	out = Plot3DVoxelGrid();
+	if (data.voxels.empty())
+	{
+		if (error) *error = QObject::tr("Voxel data has no occupied cells.");
+		return false;
+	}
+	int minimum[3] = { std::numeric_limits<int>::max(), std::numeric_limits<int>::max(), std::numeric_limits<int>::max() };
+	int maximum[3] = { std::numeric_limits<int>::lowest(), std::numeric_limits<int>::lowest(), std::numeric_limits<int>::lowest() };
+	for (std::size_t row = 0; row < data.voxels.size(); ++row)
+	{
+		const Plot3DVoxel& voxel = data.voxels[row];
+		if (voxel.x < 0 || voxel.y < 0 || voxel.z < 0 || !std::isfinite(voxel.occupancy)
+			|| voxel.occupancy < 0.0 || voxel.occupancy > 1.0)
+		{
+			if (error) *error = QObject::tr("Voxel %1 has invalid indices or occupancy.").arg(row + 1);
+			return false;
+		}
+		const int coordinate[3] = { voxel.x, voxel.y, voxel.z };
+		for (int axis = 0; axis < 3; ++axis)
+		{
+			minimum[axis] = std::min(minimum[axis], coordinate[axis]);
+			maximum[axis] = std::max(maximum[axis], coordinate[axis]);
+		}
+	}
+	const long long dimension64[3] = { static_cast<long long>(maximum[0]) - minimum[0] + 1,
+		static_cast<long long>(maximum[1]) - minimum[1] + 1, static_cast<long long>(maximum[2]) - minimum[2] + 1 };
+	if (dimension64[0] > 256 || dimension64[1] > 256 || dimension64[2] > 256)
+	{
+		if (error) *error = QObject::tr("Voxel grid is %1 x %2 x %3. Each dimension must be at most 256 cells.")
+			.arg(dimension64[0]).arg(dimension64[1]).arg(dimension64[2]);
+		return false;
+	}
+	const int dimensions[3] = { static_cast<int>(dimension64[0]), static_cast<int>(dimension64[1]), static_cast<int>(dimension64[2]) };
+	out.dimX = dimensions[0]; out.dimY = dimensions[1]; out.dimZ = dimensions[2];
+	for (int axis = 0; axis < 3; ++axis) out.origin[axis] = static_cast<float>(minimum[axis]);
+	out.values.assign(out.voxelCount(), std::numeric_limits<float>::quiet_NaN());
+	for (std::size_t row = 0; row < data.voxels.size(); ++row)
+	{
+		const Plot3DVoxel& voxel = data.voxels[row];
+		const int x = voxel.x - minimum[0], y = voxel.y - minimum[1], z = voxel.z - minimum[2];
+		const std::size_t index = (static_cast<std::size_t>(z) * out.dimY + static_cast<std::size_t>(y)) * out.dimX + static_cast<std::size_t>(x);
+		if (std::isfinite(out.values[index]))
+		{
+			if (error) *error = QObject::tr("Voxel data has more than one value at (%1, %2, %3).").arg(voxel.x).arg(voxel.y).arg(voxel.z);
+			out = Plot3DVoxelGrid();
+			return false;
+		}
+		out.values[index] = static_cast<float>(voxel.occupancy);
 	}
 	return true;
 }

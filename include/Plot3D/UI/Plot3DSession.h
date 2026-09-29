@@ -13,19 +13,27 @@
 struct Plot3DSession
 {
 	QUuid meshUuid;
+	// Stem plots own a companion GL_POINTS mesh for their constant-pixel endpoint markers. It shares the node and
+	// visibility lifecycle of meshUuid but needs its own per-vertex colour data when the colour controls change.
+	QUuid markerMeshUuid;
 	QString name;
+	// Screen-space heading above the shared Plot3D coordinate box.
+	QString title;
 	Plot3DPrimitive primitive = Plot3DPrimitive::Surface;
 	std::array<Plot3DAxisConfig, 3> axes;
 	std::array<double, 3> dataMinimum{};
 	std::array<double, 3> dataMaximum{};
 	std::vector<float> values;
 	std::vector<bool> valid;
+	std::vector<float> markerValues;
+	std::vector<bool> markerValid;
 	float dataMinimumValue = 0.0f;
 	float dataMaximumValue = 1.0f;
 	float colourMinimum = 0.0f;
 	float colourMaximum = 1.0f;
 	int colormap = 0;
 	int bands = 0;
+	bool isStem = false;
 	Plot3DSurfaceData contourSource;
 	int contourLevels = 10;
 	bool visible = true;

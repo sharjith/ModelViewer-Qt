@@ -39,9 +39,11 @@ private:
 	QPushButton* _addPlotButton = nullptr;
 	QComboBox* _plotSelector = nullptr;
 	QCheckBox* _showAxesCheck = nullptr;
+	QLineEdit* _plotTitle = nullptr;
 	QComboBox* _colormap = nullptr;
 	QComboBox* _bands = nullptr;
 	QCheckBox* _automaticRange = nullptr;
+	QLabel* _contourLevelsLabel = nullptr;
 	QSpinBox* _contourLevels = nullptr;
 	QDoubleSpinBox* _rangeMinimum = nullptr;
 	QDoubleSpinBox* _rangeMaximum = nullptr;

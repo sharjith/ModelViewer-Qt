@@ -3,10 +3,13 @@
 #include "AnalysisColorRamp.h"
 #include "Plot3DAxisController.h"
 #include "Plot3DMeshBuilder.h"
+#include "SceneGraph.h"
 #include "SceneMesh.h"
+#include "SceneNode.h"
 #include "ViewportWidget.h"
 
 #include <algorithm>
+#include <QPointF>
 
 namespace
 {
@@ -66,7 +69,7 @@ void applyAxes(ModelViewer* viewer, const Plot3DSession* session)
 	Plot3DAxisController controller;
 	Plot3DAxisLayout layout;
 	QString error;
-	if (controller.buildLayout(session->axes, minimum.data(), maximum.data(), layout, &error))
+	if (controller.buildLayout(session->axes, minimum.data(), maximum.data(), layout, &error, session->title))
 		viewport->setPlot3DAxisLayout(layout);
 	else
 		viewport->setPlot3DAxisVisible(false);
@@ -106,6 +109,8 @@ void ModelViewer::addPlot3DSession(Plot3DSession session)
 {
 	if (session.meshUuid.isNull())
 		return;
+	if (session.title.trimmed().isEmpty())
+		session.title = session.name;
 	_plot3DSessions.push_back(std::move(session));
 	markNonUndoDocumentModified();
 	activatePlot3DSession(_plot3DSessions.back().meshUuid);
@@ -128,7 +133,7 @@ void ModelViewer::applyPlot3DColourState(const QUuid& meshUuid, float minimum, f
 {
 	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
 	SceneMesh* mesh = _viewportWidget ? _viewportWidget->getMeshByUuid(meshUuid) : nullptr;
-	if (!session || !mesh || session->values.empty())
+	if (!session || !mesh)
 		return;
 	if (maximum <= minimum)
 		maximum = minimum + 1.0f;
@@ -136,12 +141,34 @@ void ModelViewer::applyPlot3DColourState(const QUuid& meshUuid, float minimum, f
 	session->colourMaximum = maximum;
 	session->colormap = colormap;
 	session->bands = bands;
+	if (session->primitive == Plot3DPrimitive::Voxel)
+	{
+		// Voxel occupancy is already normalized to [0, 1]. Zero stays transparent and nonzero cells fade in with
+		// their supplied occupancy; only the selected colour map is editable here.
+		const QVector<QPointF> opacity{ QPointF(0.0, 0.0), QPointF(0.149, 0.0), QPointF(0.15, 0.12), QPointF(0.5, 0.58), QPointF(1.0, 0.85) };
+		_viewportWidget->setSimulationVolumeTransferFunction(meshUuid, colormap, opacity);
+		emit plot3DSessionsChanged(false);
+		return;
+	}
+	if (session->values.empty())
+		return;
 	const AnalysisColormap ramp = static_cast<AnalysisColormap>(colormap);
 	const std::vector<float> encoded = bands >= 2
 		? AnalysisColorRamp::mapToNormalizedScalarRGBA(session->values, session->valid, minimum, maximum)
 		: AnalysisColorRamp::mapToRGBA(session->values, session->valid, minimum, maximum, ramp);
 	mesh->setAnalysisOverlayColors(encoded);
 	mesh->setAnalysisOverlayBanding(bands, colormap);
+	if (!session->markerMeshUuid.isNull() && !session->markerValues.empty())
+	{
+		if (SceneMesh* markerMesh = _viewportWidget->getMeshByUuid(session->markerMeshUuid))
+		{
+			const std::vector<float> markerEncoded = bands >= 2
+				? AnalysisColorRamp::mapToNormalizedScalarRGBA(session->markerValues, session->markerValid, minimum, maximum)
+				: AnalysisColorRamp::mapToRGBA(session->markerValues, session->markerValid, minimum, maximum, ramp);
+			markerMesh->setAnalysisOverlayColors(markerEncoded);
+			markerMesh->setAnalysisOverlayBanding(bands, colormap);
+		}
+	}
 	_viewportWidget->updateView();
 	emit plot3DSessionsChanged(false);
 }
@@ -206,12 +233,91 @@ void ModelViewer::applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<
 	std::array<double, 3> minimum{};
 	std::array<double, 3> maximum{};
 	if (!visiblePlotBounds(this, minimum, maximum)
-		|| !controller.buildLayout(axes, minimum.data(), maximum.data(), layout, &error))
+		|| !controller.buildLayout(axes, minimum.data(), maximum.data(), layout, &error, session->title))
 		return;
 	session->axes = axes;
 	if (meshUuid == _activePlot3DMesh)
 		applyAxes(this, session);
 	emit plot3DSessionsChanged(false);
+}
+
+void ModelViewer::setPlot3DAxisTitle(const QUuid& meshUuid, const QString& title)
+{
+	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
+	if (!session || session->title == title.trimmed())
+		return;
+	session->title = title.trimmed();
+	if (meshUuid == _activePlot3DMesh)
+		applyAxes(this, session);
+	markNonUndoDocumentModified();
+	emit plot3DSessionsChanged(false);
+}
+
+void ModelViewer::setPlot3DPreview(const QVector<QUuid>& meshUuids, const Plot3DAxisLayout& axes)
+{
+	clearPlot3DPreview();
+	if (!_viewportWidget || !_sceneGraph || meshUuids.isEmpty())
+		return;
+
+	// Normal viewport passes cull via SceneRuntime's scene-node hierarchy,
+	// rather than drawing every raw mesh-store entry. The preview therefore
+	// needs a temporary owner node to reach those passes. It is never added to
+	// the navigation tree or given a Plot3D session, undo record, or save entry.
+	SceneNode* previewNode = new SceneNode();
+	previewNode->nodeUuid = QUuid::createUuid();
+	previewNode->name = tr("Plot3D Preview");
+	for (const QUuid& meshUuid : meshUuids)
+		_sceneGraph->restoreMeshUuid(previewNode, meshUuid, previewNode->meshUuids.size());
+	_sceneGraph->insertChildNode(_sceneGraph->root(), previewNode, _sceneGraph->root()->children.size());
+
+	_plot3DPreviewMeshes = meshUuids;
+	for (const QUuid& meshUuid : _plot3DPreviewMeshes)
+		_visibleMeshUuids.insert(meshUuid);
+	// Deliberately avoid updateDisplayList(): it rebuilds the navigation tree
+	// and would turn this transient object into apparent document content.
+	_viewportWidget->setDisplayList(visibleIndicesFromState());
+	_viewportWidget->setPlot3DAxisLayout(axes);
+	_viewportWidget->updateView();
+}
+
+void ModelViewer::clearPlot3DPreview()
+{
+	if (!_viewportWidget)
+	{
+		_plot3DPreviewMeshes.clear();
+		return;
+	}
+	for (const QUuid& meshUuid : _plot3DPreviewMeshes)
+	{
+		if (_sceneGraph)
+		{
+			// Preview owner nodes contain only preview meshes. Detach their node
+			// before deleting the proxy, so the graph never retains a dead UUID.
+			if (SceneNode* node = _sceneGraph->findNodeForMesh(meshUuid))
+			{
+				if (SceneNode* parent = node->parent)
+				{
+					int position = -1;
+					_sceneGraph->removeChildNode(parent, node, position);
+					SceneGraph::deleteDetachedSubtree(node);
+				}
+			}
+		}
+		// A preview may later be a glyph or volume plot as well as an ordinary
+		// mesh. Clearing every optional renderer attachment is harmless when it
+		// was never installed and prevents an overlay outliving its proxy mesh.
+		_viewportWidget->clearSimulationGlyphs(meshUuid);
+		_viewportWidget->clearSimulationTensorGlyphs(meshUuid);
+		_viewportWidget->clearSimulationVolume(meshUuid);
+		_visibleMeshUuids.remove(meshUuid);
+		const int index = _viewportWidget->getIndexByUuid(meshUuid);
+		if (index >= 0)
+			_viewportWidget->removeFromDisplay(index);
+	}
+	_plot3DPreviewMeshes.clear();
+	_viewportWidget->setDisplayList(visibleIndicesFromState());
+	refreshPlot3DAxes(); // restore the active committed plot's shared axes, if any
+	_viewportWidget->updateView();
 }
 
 void ModelViewer::refreshPlot3DAxes()

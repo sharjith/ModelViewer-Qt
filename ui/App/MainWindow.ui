@@ -214,6 +214,7 @@
     </property>
     <addaction name="actionRayTracing"/>
     <addaction name="actionAdd3DPlot"/>
+    <addaction name="menuSimulation"/>
     <addaction name="actionVisualizationSeparator"/>
     <addaction name="actionTextureDebugger"/>
    </widget>
@@ -222,7 +223,6 @@
    <addaction name="menuView"/>
    <addaction name="menuSelection"/>
    <addaction name="menuTools"/>
-   <addaction name="menuSimulation"/>
    <addaction name="menuVisualization"/>
    <addaction name="menuWindows"/>
    <addaction name="menuHelp"/>
@@ -771,10 +771,10 @@
   </action>
   <action name="actionAdd3DPlot">
    <property name="text">
-    <string>Add 3D Plot...</string>
+    <string>Plot 3D...</string>
    </property>
    <property name="statusTip">
-    <string>Import or paste tabular data for a 3D plot</string>
+    <string>Create a 3D plot from tabular data, formulas, or parametric expressions</string>
    </property>
   </action>
   <action name="actionMeasure">

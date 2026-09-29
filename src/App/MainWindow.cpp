@@ -938,12 +938,12 @@ MainWindow::MainWindow(QWidget* parent)
         if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("repair"));
     });
 
-	// Simulation → Open Result... - file dialog + load, same wiring shape as the Tools actions above.
+	// Visualization → Simulation → Open Result... - file dialog + load, same wiring shape as the Tools actions above.
 	connect(ui->actionOpenSimulationResult, &QAction::triggered, this, [this]() {
         if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("simulation_open"));
     });
 
-	// Simulation → Compare Results... - starts compare mode (asking for the second result when there are several) or
+	// Visualization → Simulation → Compare Results... - starts compare mode (asking for the second result when there are several) or
 	// exits it; the text and enabled state follow the document in refreshSimulationPanel().
 	connect(ui->actionSimulationCompare, &QAction::triggered, this, [this]() {
         if (auto* child = activeMdiChild()) child->toggleSimulationCompare();

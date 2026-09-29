@@ -218,6 +218,16 @@ bool buildPlot3DDataset(const Plot3DCsvTable& table, Plot3DPrimitive primitive, 
 		return fail(error, QStringLiteral("Bar width and depth must be positive."));
 	out.primitive = primitive;
 	out.name = plot3DPrimitiveName(primitive);
+	// Carry the chosen source-column names into the persistent axis controls.
+	// The user can still rename them there (for example, adding units), but a
+	// CSV headed "Age,Weight,Probability" should not begin life as X/Y/Z.
+	auto axisLabel = [&table](int column, const QString& fallback) {
+		return column >= 0 && column < table.headers.size() && !table.headers[column].trimmed().isEmpty()
+			? table.headers[column].trimmed() : fallback;
+	};
+	out.axes[0].label = axisLabel(mapping.x, QStringLiteral("X"));
+	out.axes[1].label = axisLabel(mapping.y, QStringLiteral("Y"));
+	out.axes[2].label = axisLabel(mapping.z, QStringLiteral("Z"));
 
 	auto pointAt = [&](std::size_t row, Plot3DPoint& point) {
 		return numberAt(table, row, mapping.x, QStringLiteral("X"), point.x, error)

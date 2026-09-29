@@ -26,11 +26,23 @@ struct Plot3DMeshData
 	bool empty() const { return vertexCount() == 0; }
 };
 
-// Builds a triangulated mesh from Surface data. Only a COMPLETE regular X/Y grid is supported for v1 - the samples
-// must resolve to exactly nx * ny distinct (x, y) pairs (nx, ny >= 2) forming a full rectangle; scattered/
-// unstructured point data (which would need a Delaunay triangulation - see the blueprint's Surface row) is reported
-// as an error rather than silently guessed at. Grid rows/columns need not be in any particular order in the input -
-// they are re-sorted internally by their distinct x/y coordinate.
+// A sparse CSV occupancy set expanded into the dense, axis-aligned grid consumed by the volume renderer.  Empty
+// cells remain NaN so they are transparent; explicitly supplied zero-valued voxels are retained as valid samples.
+// Coordinates are integer cell indices and each cell has a unit extent.
+struct Plot3DVoxelGrid
+{
+	std::vector<float> values;
+	int dimX = 0, dimY = 0, dimZ = 0;
+	float origin[3] = { 0.0f, 0.0f, 0.0f };
+
+	std::size_t voxelCount() const { return static_cast<std::size_t>(dimX) * dimY * dimZ; }
+	bool empty() const { return dimX <= 0 || dimY <= 0 || dimZ <= 0 || values.size() != voxelCount(); }
+};
+
+// Builds a triangulated mesh from Surface data. Complete regular X/Y grids retain deterministic two-triangle cells;
+// any other non-collinear X/Y sample set is triangulated through CGAL Delaunay. Grid rows/columns need not be in any
+// particular order in the input - they are re-sorted internally by their distinct x/y coordinate. Duplicate X/Y
+// positions and collinear inputs are rejected rather than guessed at.
 bool buildPlot3DSurfaceMesh(const Plot3DSurfaceData& data, Plot3DMeshData& out, QString* error = nullptr);
 
 // Builds surface-following iso-lines of Z from a complete regular Surface grid. Each level is emitted as
@@ -49,10 +61,19 @@ bool buildPlot3DLineMesh(const Plot3DLineData& data, Plot3DMeshData& out, QStrin
 // same constant-screen-size reason buildPlot3DLineMesh() above documents.
 bool buildPlot3DScatterMesh(const Plot3DScatterData& data, Plot3DMeshData& out, QString* error = nullptr);
 
+// Builds one independent GL_LINES segment per Scatter sample from its Z position to `baseZ`. Values are duplicated
+// at both endpoints so each stem receives one uniform colour from the normal Plot3D overlay path.
+bool buildPlot3DStemMesh(const Plot3DScatterData& data, double baseZ, Plot3DMeshData& out, QString* error = nullptr);
+
 // Builds one closed, flat-shaded cuboid per bar. Vertices are intentionally duplicated per face so every face has
 // the correct hard normal; the bar's scalar value is repeated for all 24 vertices so colour-by-value stays uniform.
 // Positive and negative heights are both supported, extending from `base` in the appropriate Z direction.
 bool buildPlot3DBarMesh(const Plot3DBarData& data, Plot3DMeshData& out, QString* error = nullptr);
+
+// Builds the regular occupancy grid for a Voxel plot.  The imported indices may start at any non-negative value;
+// their minimum becomes the grid origin. Duplicate cells and dimensions above 256 are rejected rather than
+// allocating an accidental, impractically large sparse volume.
+bool buildPlot3DVoxelGrid(const Plot3DVoxelData& data, Plot3DVoxelGrid& out, QString* error = nullptr);
 
 // Builds a flat, unordered vertex list (no triangles, drawn as GL_POINTS) of Quiver's own arrow BASE positions -
 // the "site" a Plot3D UI-layer caller anchors a GlyphSet's arrows to (see docs/plot3d_blueprint.md section 5:

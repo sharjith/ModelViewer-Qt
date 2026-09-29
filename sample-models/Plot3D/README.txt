@@ -7,6 +7,9 @@ surface_ripple.csv       Surface. A 21 x 21 regular grid (441 rows) of x, y, z =
                           origin) - a ripple radiating out from the centre, peaking at 1.0 at the origin. Good for
                           checking the colour ramp, the mesh triangulation of a grid, and (once contours exist) iso-
                           lines of a smooth, radially symmetric field.
+surface_scattered.csv    Surface. Fourteen irregular X/Y samples with a gently sloped height field. It deliberately
+                          does not form a complete grid, so it checks the Delaunay triangulation path for
+                          unstructured Surface input.
 line_helix.csv            Line / curve. 200 points of a helix (matplotlib's own "Parametric curve" example): x = cos t,
                           y = sin t, z rising linearly with t over 2 full turns. Tests an ORDERED point sequence (unlike
                           the other files, row order matters here) and colouring by z along the curve.
@@ -29,6 +32,17 @@ voxel_sphere.csv          Voxel / volumetric. A sphere of occupied voxels carved
 quiver_vortex.csv         Quiver (vector field). A 7 x 7 x 3 grid (147 rows: x, y, z, u, v, w, value) of a rigid-body
                           rotation about the Z axis (u = -y, v = x) plus a small constant upward w - value is the local
                           speed. Arrows should visibly curl around the Z axis and lengthen with distance from it.
+
+Generated examples
+------------------
+Formula surface and Parametric surface do not require a CSV file. In Add 3D Plot, choose either source type from the
+top selector. Formula surface offers Plane, Saddle, Paraboloid, Cone, Gaussian, Sinc Ripple, Wave, Mexican Hat,
+Bivariate Normal, Logistic Regression and Rosenbrock presets.
+Parametric surface offers Torus, Ellipsoid, Mobius Strip, Klein Bottle, Superellipsoid, Helicoid, Catenoid, Enneper
+Surface and Spherical Harmonic. Use Refresh Preview after changing an expression or parameter, then Build Plot. The
+generated plot receives the same scene-tree visibility control and persistent 3D Plot tab controls as CSV plots.
+Parametric curve offers Helix, Lissajous, Trefoil Knot, Viviani Curve and Damped Spiral. Its single parameter is
+named t; use Preview to inspect the generated constant-screen-width line before building it.
 
 Column mapping notes (Plot3DColumnMapping): every file's columns are laid out in a sensible left-to-right order for
 its primitive, but the mapping is index-based and configurable in the import panel. These files' exact column order

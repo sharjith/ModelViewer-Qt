@@ -59,10 +59,11 @@ add_test(NAME result_tests COMMAND result_tests)
 add_executable(plot3d_tests
     plot3d_tests.cpp
     ${CMAKE_SOURCE_DIR}/src/Plot3D/Core/Plot3DData.cpp
+	${CMAKE_SOURCE_DIR}/src/Plot3D/Core/Plot3DFormula.cpp
     ${CMAKE_SOURCE_DIR}/src/Plot3D/Core/Plot3DMeshBuilder.cpp
     ${CMAKE_SOURCE_DIR}/src/Plot3D/UI/Plot3DAxisController.cpp
 )
 target_include_directories(plot3d_tests PRIVATE ${CMAKE_SOURCE_DIR}/include/Plot3D/Core ${CMAKE_SOURCE_DIR}/include/Plot3D/UI)
-target_link_libraries(plot3d_tests PRIVATE Qt6::Core Qt6::Gui)
+target_link_libraries(plot3d_tests PRIVATE Qt6::Core Qt6::Gui CGAL::CGAL)
 set_target_properties(plot3d_tests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 add_test(NAME plot3d_tests COMMAND plot3d_tests)

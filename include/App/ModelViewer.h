@@ -631,6 +631,12 @@ public slots:
 	void setPlot3DContourLevels(const QUuid& meshUuid, int levels);
 	void setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visible);
 	void applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<Plot3DAxisConfig, 3>& axes);
+	void setPlot3DAxisTitle(const QUuid& meshUuid, const QString& title);
+	// A Plot3D creation dialog can display one temporary plot directly in the
+	// viewport before committing it. Preview meshes deliberately have no scene
+	// node, session, undo record, or persistence entry.
+	void setPlot3DPreview(const QVector<QUuid>& meshUuids, const Plot3DAxisLayout& axes);
+	void clearPlot3DPreview();
 
 	// Compare mode: the active result and `otherMeshUuid` side by side (or stacked) in two panes with one shared
 	// camera, each with its own legend; optionally with one colour range for both so equal colours mean equal values
@@ -1026,6 +1032,7 @@ private:
 	std::vector<SimulationSession> _simulationSessions; // every result opened in this document
 	QVector<Plot3DSession> _plot3DSessions;
 	QUuid _activePlot3DMesh;
+	QVector<QUuid> _plot3DPreviewMeshes;
 	QUuid _activeSimulationMesh;                        // the session the Simulation panel currently shows
 	bool _simulationHooksConnected = false;
 	enum class SimulationSaveContent { ShownAndDisplacement, AllFields, GeometryOnly };

@@ -28,6 +28,14 @@ struct Plot3DAxisLabel
 	QVector3D color{ 0.95f, 0.97f, 0.99f };
 };
 
+struct Plot3DAxisTitle
+{
+	QString text;
+	QVector3D first;
+	QVector3D second;
+	QVector3D color{ 0.95f, 0.97f, 0.99f };
+};
+
 struct Plot3DReferencePlane
 {
 	std::array<QVector3D, 4> corners;
@@ -40,8 +48,13 @@ struct Plot3DAxisLayout
 	std::array<std::vector<Plot3DAxisTick>, 3> ticks;
 	std::vector<Plot3DLineSegment> axisLines;
 	std::vector<Plot3DLineSegment> tickLines;
+	// Low-contrast guides on the three planes meeting at the minimum corner.
+	// Kept separate so the coloured box edges remain visually dominant.
+	std::vector<Plot3DLineSegment> gridLines;
 	std::vector<Plot3DAxisLabel> labels;
+	std::vector<Plot3DAxisTitle> axisTitles;
 	std::vector<Plot3DReferencePlane> referencePlanes;
+	QString title;
 };
 
 double plot3DTransformAxisValue(double value, const Plot3DAxisConfig& config, bool* valid = nullptr);
@@ -54,7 +67,8 @@ class Plot3DAxisController
 public:
 	void setReferencePlanesVisible(bool xy, bool xz, bool yz);
 	bool buildLayout(const std::array<Plot3DAxisConfig, 3>& axes, const double dataMinimum[3],
-		const double dataMaximum[3], Plot3DAxisLayout& layout, QString* error = nullptr) const;
+		const double dataMaximum[3], Plot3DAxisLayout& layout, QString* error = nullptr,
+		const QString& title = {}) const;
 
 private:
 	std::array<bool, 3> _referencePlanes{ true, false, false }; // XY, XZ, YZ

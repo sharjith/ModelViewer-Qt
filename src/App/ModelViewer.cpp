@@ -324,10 +324,21 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(_viewportWidget, &ViewportWidget::sweepSelectionDone, this, &ModelViewer::setListRows);
 	connect(_viewportWidget, &ViewportWidget::eyedropperMaterialSampled, this, &ModelViewer::onEyedropperMaterialSampled);
 	connect(_viewportWidget, &ViewportWidget::eyedropperStrokeFinished, this, &ModelViewer::applyEyedropperStroke);
-	connect(_viewportWidget, &ViewportWidget::meshRecycleStateChanged, this, [this](const QUuid&, bool) {
-		refreshPlot3DAxes();
-		emit plot3DSessionsChanged(false);
-		emit simulationSessionChanged(false);
+	connect(_viewportWidget, &ViewportWidget::meshRecycleStateChanged, this, [this](const QUuid&, bool inRecycleBin) {
+		auto refreshPlotAndSimulationPanels = [this]() {
+			refreshPlot3DAxes();
+			emit plot3DSessionsChanged(false);
+			emit simulationSessionChanged(false);
+		};
+		if (inRecycleBin)
+		{
+			refreshPlotAndSimulationPanels();
+			return;
+		}
+		// DeleteMeshCommand restores the runtime mesh first, then restores its UUID into SceneGraph. Refreshing
+		// synchronously here sees the mesh but still sees its old visibility snapshot, hides the shared Plot3D axes,
+		// and leaves them hidden until the user toggles the checkbox. Run after the complete undo transaction instead.
+		QTimer::singleShot(0, this, refreshPlotAndSimulationPanels);
 	});
 	connect(_viewportWidget, &ViewportWidget::meshAboutToBeDeleted, this, [this](SceneMesh* mesh) {
 		if (!mesh)

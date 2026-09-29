@@ -40,7 +40,7 @@ existing orbit camera and orthographic/perspective toggle). Build these, not 47 
 | **Line / curve** | an ordered list of (x,y,z), optionally with a fill-to-plane or per-point error bars | New: a polyline renderer (see the line-cell tube renderer in `ResultBoundary.cpp` for a "thick line" precedent, or a plain `GL_LINE_STRIP` for thin ones) |
 | **Scatter / stem** | an unordered list of (x,y,z), each optionally with a line down to a base plane | New: a point-cloud renderer (mirrors `SimulationGlyphs`' site-sampling shape, without the field-driven arrow direction) |
 | **Bar / histogram** | a 2-D grid of bar heights (bar chart), or binned counts (3-D histogram of 2-D data) | Trivial: one `Cube`-like box mesh instance per bar, existing primitive geometry |
-| **Voxel / volumetric (occupancy)** | a 3-D boolean/occupancy grid, optionally with per-voxel RGB | **`SimulationVolumeController`'s ray-march** (`docs/simulation_volume_rendering_blueprint.md`), occupancy as the field, a step transfer function (opaque above 0.5, transparent below) instead of the simulation's continuous opacity curve |
+| **Voxel / volumetric (occupancy)** | a 3-D boolean/occupancy grid, optionally with per-voxel RGB | **`SimulationVolumeController`'s ray-march** (`docs/simulation_volume_rendering_blueprint.md`), occupancy as the field, with zero transparent and nonzero values fading in by occupancy |
 | **Quiver (vector field)** | points + a 3-vector at each | **`SimulationGlyphs`/`SimulationGlyphController`'s arrow renderer**, directly - the site is the point, the vector is given rather than sampled from a field |
 
 Axis/viewer features (not separate plot types, but real, needed by every primitive above):
@@ -186,23 +186,52 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
    may be left unset for a one-dimensional histogram (all bars then use Y=0). The builder rejects non-finite or
    non-positive dimensions and is covered by GUI-free tests for positive/negative geometry, normals and invalid
    widths.
-9. Voxel/volumetric (reusing `SimulationVolumeController` directly).
+9. **Implemented, awaiting the user's build+visual check (2026-09-29):** Voxel / volumetric occupancy. Sparse
+   CSV `i,j,k,occupancy` cells are expanded into a bounded dense grid (missing cells are transparent), then drawn
+   by the existing `SimulationVolumeController` through a volume-only SceneMesh proxy. The proxy preserves ordinary
+   scene-tree visibility, transforms, deletion and undo while its point geometry is suppressed by the renderer in
+   favour of the ray-marched volume. Zero occupancy is transparent and nonzero cells fade in with their supplied value; colour-map
+   selection remains available from the persistent 3D Plot tab, while mesh-only colour range/banding controls are
+   disabled. Each dimension is capped at 256 cells to prevent accidental sparse-grid allocations.
 10. **Complete (2026-09-28):** the persistent **3D Plot** document tab sits beside Simulation and is rebound to
     the active ModelViewer like SimulationPanel. It provides per-plot selection, axis-box visibility, colormap,
     colour range/bands, and labels/scales/ranges/ticks for all axes. The early fixed-range Preview Axis Box button
     and dialog-close axis teardown were removed. Multi-plot axes use the bounds of every currently visible plot,
     while the active plot owns the axis presentation settings.
-11. **Next:** Contour / iso-lines for Surface, reusing the existing scalar-field cutter. Support surface-following
-    contours first, then optionally projected contours on the XY reference plane.
-12. **Next:** Voxel / volumetric occupancy plots, reusing the simulation volume renderer with an occupancy transfer
-    function.
-13. **Next:** Stem plots (Scatter with a selectable base Z), then optional error bars and fill-to-plane for Line /
-    Scatter where the data supports them.
-14. **Next:** scattered/unstructured Surface input through Delaunay triangulation, while keeping the existing complete
-    regular-grid path as the simple deterministic default.
-15. **Important follow-up:** formula entry and its preset library, as described in section 1. This starts only after
-    choosing and licence-reviewing the expression evaluator.
+11. **Complete (2026-09-29):** Contour / iso-lines for Surface. Surface-following contours are live-adjustable
+    from the 3D Plot tab. Projected contours on the XY reference plane remain an optional future display mode.
+12. **Implemented, awaiting the user's build+visual check (2026-09-29):** Stem plots. Scatter's import form has a
+    **Draw stems to Base Z** option; it creates independent, fixed-pixel-width GL line segments from every sample to
+    the selected base plus matching constant-pixel endpoint markers. The normal scene node, colour map and
+    combined-axis handling are retained, and the base is included in the Z-axis extent. Error bars and fill-to-plane
+    remain later options.
+13. **Implemented, awaiting the user's build+visual check (2026-09-29):** scattered/unstructured Surface input.
+    Complete grids retain their deterministic cell connectivity. Every other non-collinear X/Y set is triangulated
+    by CGAL Delaunay; duplicate X/Y positions and collinear sets remain explicit errors. `surface_scattered.csv`
+    exercises this path.
+14. **Implemented, awaiting the user's build+visual check (2026-09-29):** Formula surfaces and parametric surfaces.
+    The self-contained expression evaluator supports arithmetic, powers, parentheses, `x`/`y` and `u`/`v`, named
+    parameters, `pi`/`e`, and common trigonometric, hyperbolic and scalar functions. Formula presets cover plane,
+    saddle, paraboloid, cone, Gaussian, sinc ripple, standing wave, Mexican hat, bivariate normal, logistic and
+    Rosenbrock fields. Parametric presets cover torus,
+    ellipsoid, Möbius strip, Klein bottle, superellipsoid, helicoid, catenoid, Enneper surface and a tunable
+    spherical harmonic. Generated data bypasses the CSV mapping UI and is added as an ordinary persistent Plot3D
+    surface with its own axis box, colour controls and scene-tree node.
+15. **Implemented, awaiting the user's build+visual check (2026-09-29):** main-viewer Plot3D preview. The Add 3D
+    Plot dialog can render one transient mesh-based plot directly in the viewport before Build Plot commits it. The
+    preview uses a short-lived render-only scene node, with no session, undo entry, save data, document-modified
+    state or navigation-tree row. It
+    replaces the preceding preview, supplies its own temporary axes box, and is cleared on dialog close or before
+    the committed plot is created. Surface, contour, line, scatter/stem, bar, formula and parametric surface use
+    the common mesh preview path; renderer-specific Quiver and Voxel previews remain a follow-up.
 16. **Presentation and editing follow-up:** plot-specific line/marker/bar/quiver styling; an in-viewport colour legend;
     filled translucent reference planes or grid; and re-edit/rebuild from retained source data and column mapping.
-17. **Last:** MVF persistence for Plot3DSession metadata. Do this after the primitive and controls model stabilises so
+17. **Implemented, awaiting the user's build+visual check (2026-09-29):** ordered parametric curves. The formula
+    source selector now includes a one-parameter curve mode that builds an ordinary `GL_LINE_STRIP`, with Helix,
+    Lissajous, Trefoil Knot, Viviani Curve and Damped Spiral presets. Curves use the same main-view preview and
+    persistent axes/colour controls as CSV lines, while preserving fixed-pixel line width under zoom.
+18. **Later plot families:** formula-driven vector fields, implicit surfaces (marching cubes), streamlines/pathlines,
+    error bars and filled scatter-to-plane variants. These need dedicated data and rendering models instead of being
+    forced through the surface importer.
+19. **Last:** MVF persistence for Plot3DSession metadata. Do this after the primitive and controls model stabilises so
     the saved schema is written once; the generated mesh itself already follows ordinary scene persistence.

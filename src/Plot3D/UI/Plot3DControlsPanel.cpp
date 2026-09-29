@@ -57,12 +57,13 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	for (int bands : { 4, 6, 8, 10, 12 }) _bands->addItem(tr("%1 bands").arg(bands), bands);
 	_automaticRange = new QCheckBox(tr("Automatic colour range"), this);
 	_contourLevels = new QSpinBox(this); _contourLevels->setRange(1, 40);
+	_contourLevelsLabel = new QLabel(tr("Contour levels:"), this);
 	_rangeMinimum = new QDoubleSpinBox(this); _rangeMinimum->setRange(-1.0e12, 1.0e12); _rangeMinimum->setDecimals(6);
 	_rangeMaximum = new QDoubleSpinBox(this); _rangeMaximum->setRange(-1.0e12, 1.0e12); _rangeMaximum->setDecimals(6);
 	appearance->addRow(tr("Colour map:"), _colormap);
 	appearance->addRow(tr("Colour bands:"), _bands);
 	appearance->addRow(QString(), _automaticRange);
-	appearance->addRow(tr("Contour levels:"), _contourLevels);
+	appearance->addRow(_contourLevelsLabel, _contourLevels);
 	appearance->addRow(tr("Minimum:"), _rangeMinimum);
 	appearance->addRow(tr("Maximum:"), _rangeMaximum);
 	layout->addLayout(appearance);
@@ -72,6 +73,12 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	// comparing a generated plot with the rest of the document.
 	auto* axesGroup = new QGroupBox(tr("Axes"), this);
 	auto* axesLayout = new QVBoxLayout(axesGroup);
+	auto* titleRow = new QHBoxLayout();
+	_plotTitle = new QLineEdit(axesGroup);
+	_plotTitle->setPlaceholderText(tr("Plot title"));
+	titleRow->addWidget(new QLabel(tr("Title:"), axesGroup));
+	titleRow->addWidget(_plotTitle, 1);
+	axesLayout->addLayout(titleRow);
 	for (int i = 0; i < 3; ++i)
 	{
 		auto* row = new QHBoxLayout();
@@ -113,6 +120,10 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	connect(_contourLevels, qOverload<int>(&QSpinBox::valueChanged), this, [this](int levels) { if (_viewer && _plotSelector->currentIndex() >= 0) _viewer->setPlot3DContourLevels(_plotSelector->currentData().toUuid(), levels); });
 	connect(_rangeMinimum, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_automaticRange->isChecked()) applyColourState(); });
 	connect(_rangeMaximum, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_automaticRange->isChecked()) applyColourState(); });
+	connect(_plotTitle, &QLineEdit::editingFinished, this, [this] {
+		if (_viewer && _plotSelector->currentIndex() >= 0)
+			_viewer->setPlot3DAxisTitle(_plotSelector->currentData().toUuid(), _plotTitle->text());
+	});
 	setModelViewer(nullptr);
 }
 
@@ -141,7 +152,7 @@ void Plot3DControlsPanel::refreshState()
 {
 	const QVector<Plot3DSession> sessions = _viewer ? _viewer->plot3DSessions() : QVector<Plot3DSession>();
 	const QUuid active = _viewer ? _viewer->activePlot3DMeshUuid() : QUuid();
-	const QSignalBlocker selectorBlock(_plotSelector), axesBlock(_showAxesCheck), mapBlock(_colormap), bandsBlock(_bands), autoBlock(_automaticRange), contourBlock(_contourLevels), minBlock(_rangeMinimum), maxBlock(_rangeMaximum);
+	const QSignalBlocker selectorBlock(_plotSelector), axesBlock(_showAxesCheck), titleBlock(_plotTitle), mapBlock(_colormap), bandsBlock(_bands), autoBlock(_automaticRange), contourBlock(_contourLevels), minBlock(_rangeMinimum), maxBlock(_rangeMaximum);
 	std::array<QSignalBlocker, 18> axisBlockers{
 		QSignalBlocker(_axisLabels[0]), QSignalBlocker(_axisScales[0]), QSignalBlocker(_axisAutomatic[0]), QSignalBlocker(_axisMinimum[0]), QSignalBlocker(_axisMaximum[0]), QSignalBlocker(_axisTicks[0]),
 		QSignalBlocker(_axisLabels[1]), QSignalBlocker(_axisScales[1]), QSignalBlocker(_axisAutomatic[1]), QSignalBlocker(_axisMinimum[1]), QSignalBlocker(_axisMaximum[1]), QSignalBlocker(_axisTicks[1]),
@@ -155,12 +166,14 @@ void Plot3DControlsPanel::refreshState()
 	const bool available = session != nullptr;
 	// Keep the type explicit: MSVC cannot deduce a mixed derived-QWidget pointer
 	// initializer list here under /permissive-.
-	const std::array<QWidget*, 8> controls{ _plotSelector, _showAxesCheck, _colormap,
+	const std::array<QWidget*, 9> controls{ _plotSelector, _showAxesCheck, _plotTitle, _colormap,
 		_bands, _automaticRange, _contourLevels, _rangeMinimum, _rangeMaximum };
 	for (QWidget* control : controls)
 		control->setEnabled(available);
 	if (!available)
 	{
+		_contourLevelsLabel->setVisible(false);
+		_contourLevels->setVisible(false);
 		for (int i = 0; i < 3; ++i)
 		{
 			const std::array<QWidget*, 6> axisControls{ _axisLabels[i], _axisScales[i], _axisAutomatic[i], _axisMinimum[i], _axisMaximum[i], _axisTicks[i] };
@@ -171,16 +184,20 @@ void Plot3DControlsPanel::refreshState()
 		return;
 	}
 	_showAxesCheck->setChecked(session->axesVisible);
-	_contourLevels->setVisible(session->primitive == Plot3DPrimitive::Contour);
-	_contourLevels->setEnabled(session->primitive == Plot3DPrimitive::Contour);
+	_plotTitle->setText(session->title);
+	const bool isContour = session->primitive == Plot3DPrimitive::Contour;
+	_contourLevelsLabel->setVisible(isContour);
+	_contourLevels->setVisible(isContour);
+	_contourLevels->setEnabled(isContour);
 	_contourLevels->setValue(session->contourLevels);
-	const bool supportsMeshColourControls = session->primitive != Plot3DPrimitive::Quiver;
-	_colormap->setEnabled(supportsMeshColourControls); _bands->setEnabled(supportsMeshColourControls);
-	_automaticRange->setEnabled(supportsMeshColourControls);
+	const bool supportsColourControls = session->primitive != Plot3DPrimitive::Quiver;
+	const bool supportsColourRange = supportsColourControls && session->primitive != Plot3DPrimitive::Voxel;
+	_colormap->setEnabled(supportsColourControls); _bands->setEnabled(supportsColourRange);
+	_automaticRange->setEnabled(supportsColourRange);
 	_colormap->setCurrentIndex(_colormap->findData(session->colormap)); _bands->setCurrentIndex(_bands->findData(session->bands));
 	_automaticRange->setChecked(session->colourMinimum == session->dataMinimumValue && session->colourMaximum == session->dataMaximumValue);
 	_rangeMinimum->setValue(session->colourMinimum); _rangeMaximum->setValue(session->colourMaximum);
-	_rangeMinimum->setEnabled(supportsMeshColourControls && !_automaticRange->isChecked()); _rangeMaximum->setEnabled(supportsMeshColourControls && !_automaticRange->isChecked());
+	_rangeMinimum->setEnabled(supportsColourRange && !_automaticRange->isChecked()); _rangeMaximum->setEnabled(supportsColourRange && !_automaticRange->isChecked());
 	for (int i = 0; i < 3; ++i)
 	{
 		const Plot3DAxisConfig& axis = session->axes[i];
@@ -189,7 +206,8 @@ void Plot3DControlsPanel::refreshState()
 		_axisLabels[i]->setEnabled(true); _axisScales[i]->setEnabled(true); _axisAutomatic[i]->setEnabled(true); _axisTicks[i]->setEnabled(true);
 		_axisMinimum[i]->setEnabled(!axis.automaticRange); _axisMaximum[i]->setEnabled(!axis.automaticRange);
 	}
-	_axisStatus->setText(tr("%1. Use the scene tree checkbox to show or hide this plot.").arg(plot3DPrimitiveName(session->primitive)));
+	_axisStatus->setText(tr("%1. Use the scene tree checkbox to show or hide this plot.")
+		.arg(session->isStem ? tr("Stem") : plot3DPrimitiveName(session->primitive)));
 }
 
 void Plot3DControlsPanel::applyColourState()

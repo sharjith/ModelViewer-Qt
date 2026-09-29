@@ -1,4 +1,5 @@
 #include "Plot3DData.h"
+#include "Plot3DFormula.h"
 #include "Plot3DAxisController.h"
 #include "Plot3DMeshBuilder.h"
 
@@ -120,17 +121,39 @@ namespace
 		for (std::size_t v = 0; v < contour.vertexCount(); ++v)
 			CHECK(contour.positions[v * 3 + 2] > 0.0f && contour.positions[v * 3 + 2] < 12.0f);
 
-		// An incomplete grid (one corner missing) must be rejected, not silently triangulated wrong.
+		// An incomplete grid is now a valid unstructured surface: Delaunay
+		// triangulation uses the supplied points without inventing the missing
+		// corner.
 		Plot3DSurfaceData incomplete = grid;
 		incomplete.samples.pop_back();
 		Plot3DMeshData badMesh;
-		CHECK(!buildPlot3DSurfaceMesh(incomplete, badMesh, &error) && !error.isEmpty());
+		CHECK(buildPlot3DSurfaceMesh(incomplete, badMesh, &error)
+			&& badMesh.vertexCount() == incomplete.samples.size() && !badMesh.indices.empty());
 
 		// Too few points entirely.
 		Plot3DSurfaceData tiny;
 		tiny.samples.push_back(Plot3DSample{ { 0, 0, 0 }, 0.0 });
 		tiny.samples.push_back(Plot3DSample{ { 1, 0, 0 }, 1.0 });
 		CHECK(!buildPlot3DSurfaceMesh(tiny, badMesh, &error) && !error.isEmpty());
+
+		// Five non-grid points use the Delaunay fallback. Their order is deliberately irregular and no 3 x 3 grid
+		// can be inferred, but they still form a legitimate surface in the X/Y plane.
+		Plot3DSurfaceData scattered;
+		scattered.samples = { { { 0, 0, 0 }, 0.0 }, { { 2, 0, 0 }, 1.0 }, { { 0, 2, 0 }, 2.0 },
+			{ { 2, 2, 1 }, 3.0 }, { { 0.7, 1.1, 0.4 }, 4.0 } };
+		CHECK(buildPlot3DSurfaceMesh(scattered, mesh, &error));
+		CHECK(mesh.vertexCount() == scattered.samples.size() && mesh.indices.size() >= 9 && mesh.indices.size() % 3 == 0);
+		bool upwardNormals = true;
+		for (std::size_t vertex = 0; vertex < mesh.vertexCount(); ++vertex)
+			upwardNormals = upwardNormals && mesh.normals[vertex * 3 + 2] > 0.0f;
+		CHECK(upwardNormals);
+
+		Plot3DSurfaceData duplicate = scattered;
+		duplicate.samples.push_back(scattered.samples.front());
+		CHECK(!buildPlot3DSurfaceMesh(duplicate, badMesh, &error) && error.contains(QStringLiteral("more than one")));
+		Plot3DSurfaceData collinear;
+		collinear.samples = { { { 0, 0, 0 }, 0.0 }, { { 1, 1, 1 }, 1.0 }, { { 2, 2, 2 }, 2.0 } };
+		CHECK(!buildPlot3DSurfaceMesh(collinear, badMesh, &error) && error.contains(QStringLiteral("collinear")));
 	}
 
 	void testLineAndScatterMesh()
@@ -159,6 +182,13 @@ namespace
 		CHECK(buildPlot3DScatterMesh(scatter, scatterMesh, &error));
 		CHECK(scatterMesh.vertexCount() == 2 && scatterMesh.indices.empty());
 		CHECK(scatterMesh.values[0] == 2.0 && scatterMesh.values[1] == 4.0);
+
+		Plot3DMeshData stemMesh;
+		CHECK(buildPlot3DStemMesh(scatter, -3.0, stemMesh, &error));
+		CHECK(stemMesh.vertexCount() == 4 && stemMesh.indices.empty());
+		CHECK(stemMesh.positions[2] == -3.0f && stemMesh.positions[5] == 0.0f);
+		CHECK(stemMesh.positions[8] == -3.0f && stemMesh.positions[11] == 0.0f);
+		CHECK(stemMesh.values[0] == 2.0 && stemMesh.values[1] == 2.0 && stemMesh.values[2] == 4.0 && stemMesh.values[3] == 4.0);
 
 		Plot3DScatterData empty;
 		CHECK(!buildPlot3DScatterMesh(empty, scatterMesh, &error) && !error.isEmpty());
@@ -199,6 +229,25 @@ namespace
 		CHECK(!buildPlot3DBarMesh(bad, mesh, &error) && !error.isEmpty() && mesh.empty());
 	}
 
+	void testVoxelGrid()
+	{
+		Plot3DVoxelData voxels;
+		voxels.voxels.push_back({ 4, 2, 7, 1.0 });
+		voxels.voxels.push_back({ 6, 3, 8, 0.25 });
+		Plot3DVoxelGrid grid;
+		QString error;
+		CHECK(buildPlot3DVoxelGrid(voxels, grid, &error));
+		CHECK(grid.dimX == 3 && grid.dimY == 2 && grid.dimZ == 2);
+		CHECK(grid.origin[0] == 4.0f && grid.origin[1] == 2.0f && grid.origin[2] == 7.0f);
+		CHECK(grid.values.size() == 12);
+		CHECK(grid.values[0] == 1.0f); // (4,2,7), the minimum corner
+		CHECK(std::isnan(grid.values[1])); // sparse cells retain transparent NaN values
+		CHECK(grid.values[11] == 0.25f); // (6,3,8), the maximum corner
+
+		voxels.voxels.push_back({ 4, 2, 7, 0.5 });
+		CHECK(!buildPlot3DVoxelGrid(voxels, grid, &error) && error.contains(QStringLiteral("more than one")));
+	}
+
 	void testAxes()
 	{
 		Plot3DAxisConfig linear;
@@ -226,15 +275,53 @@ namespace
 		const double lo[3] = { 0.0, 10.0, -5.0 }, hi[3] = { 4.0, 20.0, 5.0 };
 		Plot3DAxisLayout layout;
 		QString error;
-		CHECK(controller.buildLayout(axes, lo, hi, layout, &error));
+		CHECK(controller.buildLayout(axes, lo, hi, layout, &error, QStringLiteral("Axis layout test")));
 		CHECK(error.isEmpty() && layout.axisLines.size() == 12 && layout.referencePlanes.size() == 1);
-		CHECK(layout.labels.size() == layout.ticks[0].size() + layout.ticks[1].size() + layout.ticks[2].size() + 3);
+		CHECK(layout.labels.size() == layout.ticks[0].size() + layout.ticks[1].size() + layout.ticks[2].size()
+			&& layout.axisTitles.size() == 3);
+		CHECK(layout.gridLines.size() == 2 * (layout.ticks[0].size() + layout.ticks[1].size() + layout.ticks[2].size())
+			&& layout.title == QStringLiteral("Axis layout test"));
 		const double flatLo[3] = { 2.0, 10.0, -5.0 }, flatHi[3] = { 2.0, 20.0, 5.0 };
 		CHECK(controller.buildLayout(axes, flatLo, flatHi, layout, &error) && layout.maximum[0] > layout.minimum[0]);
 
 		axes[0] = log;
 		const double badLo[3] = { 0.0, 10.0, -5.0 };
 		CHECK(!controller.buildLayout(axes, badLo, hi, layout, &error) && !error.isEmpty());
+	}
+
+	void testFormula()
+	{
+		double value = 0.0;
+		QString error;
+		QHash<QString, double> parameters;
+		parameters.insert(QStringLiteral("a"), 4.0);
+		CHECK(evaluatePlot3DFormula(QStringLiteral("a*x + y^2"), 2.0, 3.0, parameters, value, &error)
+			&& std::abs(value - 17.0) < 1.0e-12);
+		Plot3DSurfaceData surface;
+		CHECK(buildPlot3DFormulaSurface(QStringLiteral("sin(x)*cos(y)"), -1.0, 1.0, 5, -2.0, 2.0, 4, {}, surface, &error)
+			&& surface.samples.size() == 20);
+		CHECK(!evaluatePlot3DFormula(QStringLiteral("unknown + x"), 0.0, 0.0, {}, value, &error) && error.contains(QStringLiteral("Unknown")));
+		CHECK(evaluatePlot3DFormula(QStringLiteral("sign(-2) + cosh(0) + asin(0)"), 0.0, 0.0, {}, value, &error)
+			&& std::abs(value) < 1.0e-12);
+
+		Plot3DMeshData parametric;
+		parameters.clear();
+		parameters.insert(QStringLiteral("r"), 3.0);
+		parameters.insert(QStringLiteral("a"), 1.0);
+		CHECK(buildPlot3DParametricSurface(QStringLiteral("(r+a*cos(v))*cos(u)"),
+			QStringLiteral("(r+a*cos(v))*sin(u)"), QStringLiteral("a*sin(v)"),
+			0.0, 6.283185307179586, 11, 0.0, 6.283185307179586, 7, parameters, parametric, &error)
+			&& parametric.vertexCount() == 77 && parametric.indices.size() == 360 && parametric.normals.size() == 231);
+		CHECK(!buildPlot3DParametricSurface(QStringLiteral("u"), QStringLiteral("v"), QStringLiteral("missing"),
+			0.0, 1.0, 2, 0.0, 1.0, 2, {}, parametric, &error) && error.contains(QStringLiteral("Unknown")));
+
+		Plot3DLineData curve;
+		CHECK(buildPlot3DParametricCurve(QStringLiteral("r*cos(t)"), QStringLiteral("r*sin(t)"), QStringLiteral("t"),
+			0.0, 6.283185307179586, 17, parameters, curve, &error)
+			&& curve.samples.size() == 17 && std::abs(curve.samples.front().position.x - 3.0) < 1.0e-12
+			&& std::abs(curve.samples.back().position.z - 6.283185307179586) < 1.0e-12);
+		CHECK(!buildPlot3DParametricCurve(QStringLiteral("t"), QStringLiteral("0"), QStringLiteral("missing"),
+			0.0, 1.0, 2, {}, curve, &error) && error.contains(QStringLiteral("Unknown")));
 	}
 }
 
@@ -245,7 +332,9 @@ int main()
 	testSurfaceMesh();
 	testLineAndScatterMesh();
 	testBarMesh();
+	testVoxelGrid();
 	testAxes();
+	testFormula();
 	std::printf("%d checks, %d failed\n", checks, failures);
 	return failures;
 }

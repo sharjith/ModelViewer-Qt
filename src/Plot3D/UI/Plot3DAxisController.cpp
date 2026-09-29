@@ -97,7 +97,7 @@ void Plot3DAxisController::setReferencePlanesVisible(bool xy, bool xz, bool yz)
 }
 
 bool Plot3DAxisController::buildLayout(const std::array<Plot3DAxisConfig, 3>& axes, const double dataMinimum[3],
-	const double dataMaximum[3], Plot3DAxisLayout& layout, QString* error) const
+	const double dataMaximum[3], Plot3DAxisLayout& layout, QString* error, const QString& title) const
 {
 	layout = Plot3DAxisLayout();
 	if (error) error->clear();
@@ -154,6 +154,18 @@ bool Plot3DAxisController::buildLayout(const std::array<Plot3DAxisConfig, 3>& ax
 	for (const auto& tick : layout.ticks[0]) layout.tickLines.push_back({point(tick.transformedValue,y0,z0),point(tick.transformedValue,y0-tickSize,z0), xAxisColor});
 	for (const auto& tick : layout.ticks[1]) layout.tickLines.push_back({point(x0,tick.transformedValue,z0),point(x0-tickSize,tick.transformedValue,z0), yAxisColor});
 	for (const auto& tick : layout.ticks[2]) layout.tickLines.push_back({point(x0,y0,tick.transformedValue),point(x0-tickSize,y0,tick.transformedValue), zAxisColor});
+	// A restrained three-plane grid gives depth and scale without competing
+	// with the data.  Every guide comes from an existing major tick, so its
+	// spacing stays consistent with linear, log and symmetric-log axes.
+	const QVector3D gridColor(0.49f, 0.53f, 0.57f);
+	// XY floor: lines parallel to Y for X ticks, and parallel to X for Y ticks.
+	for (const auto& tick : layout.ticks[0]) layout.gridLines.push_back({ point(tick.transformedValue, y0, z0), point(tick.transformedValue, y1, z0), gridColor });
+	for (const auto& tick : layout.ticks[1]) layout.gridLines.push_back({ point(x0, tick.transformedValue, z0), point(x1, tick.transformedValue, z0), gridColor });
+	// XZ back wall and YZ side wall complete the depth cues.
+	for (const auto& tick : layout.ticks[0]) layout.gridLines.push_back({ point(tick.transformedValue, y0, z0), point(tick.transformedValue, y0, z1), gridColor });
+	for (const auto& tick : layout.ticks[2]) layout.gridLines.push_back({ point(x0, y0, tick.transformedValue), point(x1, y0, tick.transformedValue), gridColor });
+	for (const auto& tick : layout.ticks[1]) layout.gridLines.push_back({ point(x0, tick.transformedValue, z0), point(x0, tick.transformedValue, z1), gridColor });
+	for (const auto& tick : layout.ticks[2]) layout.gridLines.push_back({ point(x0, y0, tick.transformedValue), point(x0, y1, tick.transformedValue), gridColor });
 	for (int axis=0; axis<3; ++axis)
 		for (const auto& tick : layout.ticks[axis])
 		{
@@ -161,9 +173,15 @@ bool Plot3DAxisController::buildLayout(const std::array<Plot3DAxisConfig, 3>& ax
 			if(axis==0) p.setX(float(tick.transformedValue)); else if(axis==1) p.setY(float(tick.transformedValue)); else p.setZ(float(tick.transformedValue));
 			layout.labels.push_back({tick.label, p});
 		}
-	layout.labels.push_back({axes[0].label, point(x1,y0,z0), xAxisColor});
-	layout.labels.push_back({axes[1].label, point(x0,y1,z0), yAxisColor});
-	layout.labels.push_back({axes[2].label, point(x0,y0,z1), zAxisColor});
+	// Axis titles follow their projected axis line in the renderer. This gives
+	// descriptive labels the familiar chart treatment instead of placing a
+	// horizontal word at an endpoint.
+	layout.axisTitles = {
+		{ axes[0].label, point(x0,y0,z0), point(x1,y0,z0), xAxisColor },
+		{ axes[1].label, point(x0,y0,z0), point(x0,y1,z0), yAxisColor },
+		{ axes[2].label, point(x0,y0,z0), point(x0,y0,z1), zAxisColor },
+	};
+	layout.title = title.trimmed();
 	if (_referencePlanes[0]) layout.referencePlanes.push_back({{point(x0,y0,z0),point(x1,y0,z0),point(x1,y1,z0),point(x0,y1,z0)}});
 	if (_referencePlanes[1]) layout.referencePlanes.push_back({{point(x0,y0,z0),point(x1,y0,z0),point(x1,y0,z1),point(x0,y0,z1)}});
 	if (_referencePlanes[2]) layout.referencePlanes.push_back({{point(x0,y0,z0),point(x0,y1,z0),point(x0,y1,z1),point(x0,y0,z1)}});
