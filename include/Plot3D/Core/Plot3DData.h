@@ -56,7 +56,7 @@ struct Plot3DSample
 
 struct Plot3DSurfaceData { std::vector<Plot3DSample> samples; };
 struct Plot3DLineData { std::vector<Plot3DSample> samples; };
-struct Plot3DScatterData { std::vector<Plot3DSample> samples; };
+struct Plot3DScatterData { std::vector<Plot3DSample> samples; std::vector<double> errors; };
 
 struct Plot3DBar
 {
@@ -123,6 +123,7 @@ struct Plot3DColumnMapping
 	int x = 0, y = 1, z = 2;
 	int value = -1;
 	int u = 3, v = 4, w = 5; // Quiver vector
+	int error = -1;           // Scatter symmetric vertical error
 	int base = -1;            // Bar base (default 0)
 	int width = -1, depth = -1; // Bar footprint (defaults below)
 };

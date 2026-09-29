@@ -370,12 +370,16 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	mapping->addRow(tr("Bar options:"), barColumnsRow);
 	auto* scatterOptionsRow = new QHBoxLayout();
 	_stemEnabled = new QCheckBox(tr("Draw stems to Base Z:"), this);
+	_errorBarsEnabled = new QCheckBox(tr("Show error bars (±Z):"), this);
+	_columnError = new QComboBox(this);
 	_stemBaseZ = new QDoubleSpinBox(this);
 	_stemBaseZ->setRange(-1.0e12, 1.0e12);
 	_stemBaseZ->setDecimals(6);
 	_stemBaseZ->setValue(0.0);
 	scatterOptionsRow->addWidget(_stemEnabled);
 	scatterOptionsRow->addWidget(_stemBaseZ);
+	scatterOptionsRow->addWidget(_errorBarsEnabled);
+	scatterOptionsRow->addWidget(_columnError);
 	scatterOptionsRow->addStretch();
 	mapping->addRow(tr("Scatter options:"), scatterOptionsRow);
 	layout->addWidget(_mappingWidget);
@@ -406,6 +410,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	connect(_implicitPreset, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::applyImplicitPreset);
 	connect(_primitive, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::updateScatterOptions);
 	connect(_stemEnabled, &QCheckBox::toggled, this, &Plot3DPanel::updateScatterOptions);
+	connect(_errorBarsEnabled, &QCheckBox::toggled, this, &Plot3DPanel::updateScatterOptions);
 	connect(previewButton, &QPushButton::clicked, this, &Plot3DPanel::previewPlot);
 	connect(clearPreviewButton, &QPushButton::clicked, this, &Plot3DPanel::clearPreview);
 	connect(_buildButton, &QPushButton::clicked, this, &Plot3DPanel::buildPlot);
@@ -580,6 +585,7 @@ void Plot3DPanel::previewPlot()
 	mapping.base = _columnBase->currentData().toInt();
 	mapping.width = _columnWidth->currentData().toInt();
 	mapping.depth = _columnDepth->currentData().toInt();
+	mapping.error = _errorBarsEnabled->isChecked() ? _columnError->currentData().toInt() : -1;
 	Plot3DDataset dataset;
 	QString error;
 	if (!buildPlot3DDataset(_table, primitive, mapping, dataset, &error))
@@ -605,7 +611,12 @@ void Plot3DPanel::previewPlot()
 		mode = GL_LINE_STRIP;
 		break;
 	case Plot3DPrimitive::Scatter:
-		if (_stemEnabled->isChecked())
+		if (_errorBarsEnabled->isChecked())
+		{
+			built = buildPlot3DErrorBarMesh(std::get<Plot3DScatterData>(dataset.content), mesh, &error);
+			mode = GL_LINES;
+		}
+		else if (_stemEnabled->isChecked())
 		{
 			built = buildPlot3DStemMesh(std::get<Plot3DScatterData>(dataset.content), _stemBaseZ->value(), mesh, &error);
 			mode = GL_LINES;
@@ -639,6 +650,12 @@ void Plot3DPanel::previewPlot()
 		minimum[2] = std::min(minimum[2], _stemBaseZ->value());
 		maximum[2] = std::max(maximum[2], _stemBaseZ->value());
 	}
+	if (primitive == Plot3DPrimitive::Scatter && _errorBarsEnabled->isChecked())
+	{
+		const Plot3DScatterData& scatter = std::get<Plot3DScatterData>(dataset.content);
+		for (std::size_t i = 0; i < scatter.samples.size() && i < scatter.errors.size(); ++i)
+			if (std::isfinite(scatter.errors[i])) { minimum[2] = std::min(minimum[2], scatter.samples[i].position.z - scatter.errors[i]); maximum[2] = std::max(maximum[2], scatter.samples[i].position.z + scatter.errors[i]); }
+	}
 	const QString title = sourceMode == 1 ? _formulaTitle->text().trimmed() : QString();
 	if (!showPlot3DPreview(_modelViewer, mesh, mode, dataset.axes, minimum, maximum, title))
 		QMessageBox::warning(this, tr("Preview Plot"), tr("The plot preview could not be created."));
@@ -649,6 +666,8 @@ void Plot3DPanel::updateScatterOptions()
 	const bool scatter = _primitive && static_cast<Plot3DPrimitive>(_primitive->currentData().toInt()) == Plot3DPrimitive::Scatter;
 	_stemEnabled->setEnabled(scatter);
 	_stemBaseZ->setEnabled(scatter && _stemEnabled->isChecked());
+	_errorBarsEnabled->setEnabled(scatter);
+	_columnError->setEnabled(scatter && _errorBarsEnabled->isChecked());
 }
 
 void Plot3DPanel::updateSourceMode()
@@ -1214,6 +1233,7 @@ void Plot3DPanel::refreshColumnCombos(bool resetForNewSchema)
 	populate(_columnBase, true, -1, { QStringLiteral("base") });
 	populate(_columnWidth, true, -1, { QStringLiteral("width") });
 	populate(_columnDepth, true, -1, { QStringLiteral("depth") });
+	populate(_columnError, true, -1, { QStringLiteral("error"), QStringLiteral("errorz"), QStringLiteral("uncertainty"), QStringLiteral("stddev") });
 }
 
 void Plot3DPanel::buildPlot()
@@ -1273,6 +1293,7 @@ void Plot3DPanel::buildPlot()
 	columnMapping.base = _columnBase->currentData().toInt();
 	columnMapping.width = _columnWidth->currentData().toInt();
 	columnMapping.depth = _columnDepth->currentData().toInt();
+	columnMapping.error = _errorBarsEnabled->isChecked() ? _columnError->currentData().toInt() : -1;
 
 	Plot3DDataset dataset;
 	QString error;
@@ -1286,6 +1307,7 @@ void Plot3DPanel::buildPlot()
 	clearPreview();
 
 	const bool drawStems = primitive == Plot3DPrimitive::Scatter && _stemEnabled->isChecked();
+	const bool drawErrorBars = primitive == Plot3DPrimitive::Scatter && _errorBarsEnabled->isChecked();
 	QString plotTypeName = drawStems ? tr("Stem") : plot3DPrimitiveName(primitive);
 	if (_sourceMode->currentData().toInt() == 1)
 	{
@@ -1320,9 +1342,9 @@ void Plot3DPanel::buildPlot()
 		built = buildPlot3DLineMesh(std::get<Plot3DLineData>(dataset.content), meshData, &error);
 		break;
 	case Plot3DPrimitive::Scatter:
-		built = drawStems
+		built = drawErrorBars ? buildPlot3DErrorBarMesh(std::get<Plot3DScatterData>(dataset.content), meshData, &error) : (drawStems
 			? buildPlot3DStemMesh(std::get<Plot3DScatterData>(dataset.content), _stemBaseZ->value(), meshData, &error)
-			: buildPlot3DScatterMesh(std::get<Plot3DScatterData>(dataset.content), meshData, &error);
+			: buildPlot3DScatterMesh(std::get<Plot3DScatterData>(dataset.content), meshData, &error));
 		break;
 	case Plot3DPrimitive::Bar:
 		built = buildPlot3DBarMesh(std::get<Plot3DBarData>(dataset.content), meshData, &error);
@@ -1364,9 +1386,9 @@ void Plot3DPanel::buildPlot()
 		primitiveMode = GL_LINE_STRIP;
 	else if (primitive == Plot3DPrimitive::Contour)
 		primitiveMode = GL_LINES;
-	else if (primitive == Plot3DPrimitive::Scatter && !drawStems)
+	else if (primitive == Plot3DPrimitive::Scatter && !drawStems && !drawErrorBars)
 		primitiveMode = GL_POINTS;
-	else if (drawStems)
+	else if (drawStems || drawErrorBars)
 		primitiveMode = GL_LINES;
 	// skipOptimization = true: setAnalysisOverlayColors() below is indexed by vertex, and the mesh optimiser would
 	// reorder vertices (see SceneMesh::optimizeMesh()) - same reasoning presentSimulationResult() documents.

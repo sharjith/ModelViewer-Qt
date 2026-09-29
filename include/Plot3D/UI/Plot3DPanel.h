@@ -84,7 +84,9 @@ private:
 	QComboBox* _columnBase = nullptr;  // Bar only; optional, defaults to 0
 	QComboBox* _columnWidth = nullptr; // Bar only; optional, defaults to 0.8
 	QComboBox* _columnDepth = nullptr;
+	QComboBox* _columnError = nullptr;
 	QCheckBox* _stemEnabled = nullptr;
+	QCheckBox* _errorBarsEnabled = nullptr;
 	QDoubleSpinBox* _stemBaseZ = nullptr;
 	QPushButton* _buildButton = nullptr;
 	QGroupBox* _formulaGroup = nullptr;

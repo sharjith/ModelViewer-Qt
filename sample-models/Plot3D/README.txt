@@ -49,3 +49,5 @@ its primitive, but the mapping is index-based and configurable in the import pan
 is therefore a convenience, not a hard requirement. If Bar's optional Base, Width and Depth mappings are "(none)",
 the importer uses 0, 0.8 and 0.8 respectively. If Colour value is "(none)", height supplies the colour value. Bar's
 Y mapping may also be "(none)" for a one-dimensional histogram; the importer then places every bar at Y=0.
+
+scatter_error_bars.csv: Select Scatter, enable Show error bars (±Z), and choose the error column.

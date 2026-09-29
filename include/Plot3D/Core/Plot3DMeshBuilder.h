@@ -64,6 +64,7 @@ bool buildPlot3DScatterMesh(const Plot3DScatterData& data, Plot3DMeshData& out, 
 // Builds one independent GL_LINES segment per Scatter sample from its Z position to `baseZ`. Values are duplicated
 // at both endpoints so each stem receives one uniform colour from the normal Plot3D overlay path.
 bool buildPlot3DStemMesh(const Plot3DScatterData& data, double baseZ, Plot3DMeshData& out, QString* error = nullptr);
+bool buildPlot3DErrorBarMesh(const Plot3DScatterData& data, Plot3DMeshData& out, QString* error = nullptr);
 
 // Builds one closed, flat-shaded cuboid per bar. Vertices are intentionally duplicated per face so every face has
 // the correct hard normal; the bar's scalar value is repeated for all 24 vertices so colour-by-value stays uniform.

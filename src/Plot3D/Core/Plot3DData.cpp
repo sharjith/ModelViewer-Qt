@@ -256,7 +256,19 @@ bool buildPlot3DDataset(const Plot3DCsvTable& table, Plot3DPrimitive primitive, 
 		}
 		if (primitive == Plot3DPrimitive::Surface || primitive == Plot3DPrimitive::Contour) out.content = Plot3DSurfaceData{ std::move(samples) };
 		else if (primitive == Plot3DPrimitive::Line) out.content = Plot3DLineData{ std::move(samples) };
-		else out.content = Plot3DScatterData{ std::move(samples) };
+		else
+		{
+			Plot3DScatterData scatter{ std::move(samples) };
+			scatter.errors.reserve(table.rows.size());
+			for (std::size_t row = 0; row < table.rows.size(); ++row)
+			{
+				double value = std::numeric_limits<double>::quiet_NaN();
+				if (mapping.error >= 0 && !numberAt(table, row, mapping.error, QStringLiteral("error"), value, error)) return false;
+				if (std::isfinite(value) && value < 0.0) return fail(error, QStringLiteral("Row %1 has a negative error.").arg(row + 1));
+				scatter.errors.push_back(value);
+			}
+			out.content = std::move(scatter);
+		}
 		break;
 	}
 	case Plot3DPrimitive::Bar:
@@ -333,8 +345,18 @@ bool plot3DDataBounds(const Plot3DDataset& dataset, double minimum[3], double ma
 	bool any = false;
 	std::visit([&](const auto& data) {
 		using T = std::decay_t<decltype(data)>;
-		if constexpr (std::is_same_v<T, Plot3DSurfaceData> || std::is_same_v<T, Plot3DLineData> || std::is_same_v<T, Plot3DScatterData>)
+		if constexpr (std::is_same_v<T, Plot3DSurfaceData> || std::is_same_v<T, Plot3DLineData>)
 			for (const Plot3DSample& sample : data.samples) includePoint(sample.position, minimum, maximum, any);
+		else if constexpr (std::is_same_v<T, Plot3DScatterData>)
+			for (std::size_t i = 0; i < data.samples.size(); ++i)
+			{
+				includePoint(data.samples[i].position, minimum, maximum, any);
+				if (i < data.errors.size() && std::isfinite(data.errors[i]))
+				{
+					includePoint({ data.samples[i].position.x, data.samples[i].position.y, data.samples[i].position.z - data.errors[i] }, minimum, maximum, any);
+					includePoint({ data.samples[i].position.x, data.samples[i].position.y, data.samples[i].position.z + data.errors[i] }, minimum, maximum, any);
+				}
+			}
 		else if constexpr (std::is_same_v<T, Plot3DBarData>)
 			for (const Plot3DBar& bar : data.bars)
 			{

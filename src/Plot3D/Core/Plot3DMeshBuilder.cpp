@@ -405,6 +405,28 @@ bool buildPlot3DStemMesh(const Plot3DScatterData& data, double baseZ, Plot3DMesh
 	return true;
 }
 
+bool buildPlot3DErrorBarMesh(const Plot3DScatterData& data, Plot3DMeshData& out, QString* error)
+{
+	out = Plot3DMeshData();
+	if (data.samples.empty() || data.errors.size() != data.samples.size()) { if (error) *error = QObject::tr("Error-bar data is incomplete."); return false; }
+	double xmin = data.samples.front().position.x, xmax = xmin;
+	for (const Plot3DSample& sample : data.samples) { xmin = std::min(xmin, sample.position.x); xmax = std::max(xmax, sample.position.x); }
+	const double cap = std::max((xmax - xmin) * 0.015, 1.0e-6);
+	for (std::size_t i = 0; i < data.samples.size(); ++i)
+	{
+		const Plot3DSample& sample = data.samples[i]; const double uncertainty = data.errors[i];
+		if (!std::isfinite(uncertainty)) continue;
+		if (uncertainty < 0.0) { if (error) *error = QObject::tr("Error values must be non-negative."); out = Plot3DMeshData(); return false; }
+		const double low = sample.position.z - uncertainty, high = sample.position.z + uncertainty;
+		// Besides the endpoint caps, give the measured Z value a centre tick. Native
+		// GL_POINTS are intentionally tiny in this renderer, so a geometric tick is
+		// the reliable visible marker at every zoom level.
+		const Plot3DPoint ends[] = { {sample.position.x,sample.position.y,low}, {sample.position.x,sample.position.y,high}, {sample.position.x-cap,sample.position.y,low}, {sample.position.x+cap,sample.position.y,low}, {sample.position.x-cap,sample.position.y,high}, {sample.position.x+cap,sample.position.y,high}, {sample.position.x-cap,sample.position.y,sample.position.z}, {sample.position.x+cap,sample.position.y,sample.position.z} };
+		for (const Plot3DPoint& point : ends) { out.positions.insert(out.positions.end(), {float(point.x),float(point.y),float(point.z)}); out.normals.insert(out.normals.end(), {0,0,1}); out.values.push_back(sample.value); }
+	}
+	return !out.empty();
+}
+
 bool buildPlot3DBarMesh(const Plot3DBarData& data, Plot3DMeshData& out, QString* error)
 {
 	out = Plot3DMeshData();
