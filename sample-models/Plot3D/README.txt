@@ -51,3 +51,7 @@ the importer uses 0, 0.8 and 0.8 respectively. If Colour value is "(none)", heig
 Y mapping may also be "(none)" for a one-dimensional histogram; the importer then places every bar at Y=0.
 
 scatter_error_bars.csv: Select Scatter, enable Show error bars (±Z), and choose the error column.
+
+Filled scatter-to-plane: open scatter_clusters.csv, select Scatter, map Colour value to "value", enable
+Fill to Base Z, and choose a base such as -3. Preview and Build should show translucent blue/green/red ribbons;
+the axes box must include the selected base.

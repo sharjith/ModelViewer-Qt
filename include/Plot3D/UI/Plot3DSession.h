@@ -34,6 +34,10 @@ struct Plot3DSession
 	int colormap = 0;
 	int bands = 0;
 	bool isStem = false;
+	// Filled scatter ribbons use authored vertex colours because the analysis-overlay shader path does not retain
+	// its colour ramp when the underlying material is alpha blended. This flag lets the persistent colour controls
+	// update those vertex colours while preserving the transparent material.
+	bool isFilledScatter = false;
 	Plot3DSurfaceData contourSource;
 	int contourLevels = 10;
 	bool visible = true;

@@ -66,6 +66,11 @@ bool buildPlot3DScatterMesh(const Plot3DScatterData& data, Plot3DMeshData& out, 
 bool buildPlot3DStemMesh(const Plot3DScatterData& data, double baseZ, Plot3DMeshData& out, QString* error = nullptr);
 bool buildPlot3DErrorBarMesh(const Plot3DScatterData& data, Plot3DMeshData& out, QString* error = nullptr);
 
+// Builds one narrow vertical quad per Scatter sample, extending from `baseZ` to the sample. The caller renders
+// these triangles with a transparent material; the scalar value is repeated at all four vertices so each ribbon
+// retains one colour from the selected colour map.
+bool buildPlot3DScatterFillMesh(const Plot3DScatterData& data, double baseZ, Plot3DMeshData& out, QString* error = nullptr);
+
 // Builds one closed, flat-shaded cuboid per bar. Vertices are intentionally duplicated per face so every face has
 // the correct hard normal; the bar's scalar value is repeated for all 24 vertices so colour-by-value stays uniform.
 // Positive and negative heights are both supported, extending from `base` in the appropriate Z direction.

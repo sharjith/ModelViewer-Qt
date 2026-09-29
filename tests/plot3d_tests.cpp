@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <variant>
 
 namespace
@@ -189,6 +190,25 @@ namespace
 		CHECK(stemMesh.positions[2] == -3.0f && stemMesh.positions[5] == 0.0f);
 		CHECK(stemMesh.positions[8] == -3.0f && stemMesh.positions[11] == 0.0f);
 		CHECK(stemMesh.values[0] == 2.0 && stemMesh.values[1] == 2.0 && stemMesh.values[2] == 4.0 && stemMesh.values[3] == 4.0);
+
+		Plot3DMeshData fillMesh;
+		CHECK(buildPlot3DScatterFillMesh(scatter, -3.0, fillMesh, &error));
+		CHECK(fillMesh.vertexCount() == 8 && fillMesh.indices.size() == 12);
+		CHECK(fillMesh.positions[2] == -3.0f && fillMesh.positions[8] == 0.0f);
+		CHECK(fillMesh.values[0] == 2.0 && fillMesh.values[4] == 4.0);
+		CHECK(!buildPlot3DScatterFillMesh(scatter, std::numeric_limits<double>::quiet_NaN(), fillMesh, &error) && !error.isEmpty());
+		Plot3DScatterData signedFill;
+		signedFill.samples.push_back(Plot3DSample{ { 0, 0, 1 }, 1.0 });
+		signedFill.samples.push_back(Plot3DSample{ { 1, 0, -1 }, 2.0 });
+		CHECK(buildPlot3DScatterFillMesh(signedFill, 0.0, fillMesh, &error));
+		for (std::size_t first : { std::size_t(0), std::size_t(4) })
+		{
+			const float ax = fillMesh.positions[(first + 1) * 3] - fillMesh.positions[first * 3];
+			const float az = fillMesh.positions[(first + 1) * 3 + 2] - fillMesh.positions[first * 3 + 2];
+			const float bx = fillMesh.positions[(first + 2) * 3] - fillMesh.positions[first * 3];
+			const float bz = fillMesh.positions[(first + 2) * 3 + 2] - fillMesh.positions[first * 3 + 2];
+			CHECK(az * bx - ax * bz > 0.0f); // geometric normal points +Y above and below the base
+		}
 
 		Plot3DScatterData empty;
 		CHECK(!buildPlot3DScatterMesh(empty, scatterMesh, &error) && !error.isEmpty());

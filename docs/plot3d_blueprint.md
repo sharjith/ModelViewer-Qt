@@ -161,9 +161,8 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
    `GL_LINE_STRIP`/`GL_POINTS` as its primitive mode - the exact same native-primitive path `SceneMesh::draw()`
    already uses for glTF point-cloud/line-set import, which draws at a fixed PIXEL size via `glPointSize()`/
    `glLineWidth()` rather than real 3D geometry, so it is inherently zoom-invariant with no new rendering code at
-   all. Stem (a Scatter option: a line down to a base plane) is not yet wired into `Plot3DPanel` - it needs a
-   "base Z" UI control this increment didn't add. `Plot3DPanel::buildPlot()` now dispatches on the chosen primitive
-   to the right builder; Voxel is still reported as "not implemented yet".
+   all. Stem was subsequently added as a Scatter option with a configurable base Z. `Plot3DPanel::buildPlot()`
+   dispatches on the chosen primitive to the right builder.
 7. **Complete, awaiting the user's build+visual check (2026-09-28):** Quiver, exactly as predicted - reusing
    `SimulationGlyphController`/`GlyphSet` directly needed no new rendering code. `Plot3DMeshBuilder` gained
    `buildPlot3DQuiverSiteMesh()` (Core, GUI-free - just the arrow base positions as a flat point list, same shape as
@@ -200,11 +199,10 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     while the active plot owns the axis presentation settings.
 11. **Complete (2026-09-29):** Contour / iso-lines for Surface. Surface-following contours are live-adjustable
     from the 3D Plot tab. Projected contours on the XY reference plane remain an optional future display mode.
-12. **Implemented, awaiting the user's build+visual check (2026-09-29):** Stem plots. Scatter's import form has a
+12. **Complete (2026-09-29):** Stem plots. Scatter's import form has a
     **Draw stems to Base Z** option; it creates independent, fixed-pixel-width GL line segments from every sample to
     the selected base plus matching constant-pixel endpoint markers. The normal scene node, colour map and
-    combined-axis handling are retained, and the base is included in the Z-axis extent. Error bars and fill-to-plane
-    remain later options.
+    combined-axis handling are retained, and the base is included in the Z-axis extent.
 13. **Implemented, awaiting the user's build+visual check (2026-09-29):** scattered/unstructured Surface input.
     Complete grids retain their deterministic cell connectivity. Every other non-collinear X/Y set is triangulated
     by CGAL Delaunay; duplicate X/Y positions and collinear sets remain explicit errors. `surface_scattered.csv`
@@ -238,7 +236,16 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     `f(x,y,z)` is sampled over a bounded 3-D grid and its zero crossing is tessellated into a normal scene mesh;
     the initial preset collection includes Sphere, Torus, Gyroid and Wave Interference. Preview and Build use the
     ordinary Surface pipeline, while the grid is capped at 64 samples per axis to prevent runaway geometry.
-20. **Later plot families:** streamlines/pathlines, error bars and filled scatter-to-plane variants. These need
-    dedicated data and rendering models instead of being forced through the surface importer.
-21. **Last:** MVF persistence for Plot3DSession metadata. Do this after the primitive and controls model stabilises so
+20. **Complete (2026-09-29):** formula streamlines. Vector expressions are integrated from a configurable seed set
+    and rendered as coloured line segments through the common preview and persistent Plot3D paths.
+21. **Complete (2026-09-29):** scatter error bars. A mapped error column produces fixed-pixel-width capped Z error
+    bars, with its full range included in the combined axes box.
+22. **Implemented, awaiting the user's build+visual check (2026-09-29):** filled scatter-to-plane. Scatter samples
+    can be drawn as translucent, colour-mapped ribbons down to the selected Base Z. Preview, Build, and the
+    persistent colour controls update baked per-vertex colormap RGB while a neutral, unlit alpha-blended material
+    retains transparency without scene lighting darkening the data colours. Stem, error-bar and filled modes are
+    mutually exclusive.
+23. **Later plot family:** time-dependent pathlines. This needs a time-varying vector-field data model rather than
+    being forced through the static CSV/formula streamline importer.
+24. **Last:** MVF persistence for Plot3DSession metadata. Do this after the primitive and controls model stabilises so
     the saved schema is written once; the generated mesh itself already follows ordinary scene persistence.

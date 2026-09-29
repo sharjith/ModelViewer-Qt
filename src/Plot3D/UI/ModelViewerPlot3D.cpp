@@ -153,6 +153,25 @@ void ModelViewer::applyPlot3DColourState(const QUuid& meshUuid, float minimum, f
 	if (session->values.empty())
 		return;
 	const AnalysisColormap ramp = static_cast<AnalysisColormap>(colormap);
+	if (session->isFilledScatter)
+	{
+		// Transparent filled ribbons cannot use the analysis-overlay colour path: the transparent render pass loses
+		// that overlay's RGB. Recolour their authored vertex data instead and retain the mesh's alpha-blended material.
+		const std::vector<float> encoded = AnalysisColorRamp::mapToRGBA(
+			session->values, session->valid, minimum, maximum, ramp, bands);
+		std::vector<Vertex> vertices = mesh->vertices();
+		if (encoded.size() == vertices.size() * 4)
+		{
+			for (std::size_t i = 0; i < vertices.size(); ++i)
+				vertices[i].Color = glm::vec4(encoded[i * 4], encoded[i * 4 + 1], encoded[i * 4 + 2], 1.0f);
+			_viewportWidget->makeCurrent();
+			mesh->setMeshData(vertices, mesh->indices());
+			_viewportWidget->doneCurrent();
+		}
+		_viewportWidget->updateView();
+		emit plot3DSessionsChanged(false);
+		return;
+	}
 	const std::vector<float> encoded = bands >= 2
 		? AnalysisColorRamp::mapToNormalizedScalarRGBA(session->values, session->valid, minimum, maximum)
 		: AnalysisColorRamp::mapToRGBA(session->values, session->valid, minimum, maximum, ramp);

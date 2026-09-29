@@ -46,7 +46,8 @@
 namespace
 {
 bool showPlot3DPreview(ModelViewer* viewer, const Plot3DMeshData& data, GLenum primitiveMode,
-	const std::array<Plot3DAxisConfig, 3>& axes, const double minimum[3], const double maximum[3], const QString& title)
+	const std::array<Plot3DAxisConfig, 3>& axes, const double minimum[3], const double maximum[3], const QString& title,
+	float opacity = 1.0f)
 {
 	ViewportWidget* viewport = viewer ? viewer->getViewportWidget() : nullptr;
 	if (!viewport || data.empty())
@@ -78,6 +79,13 @@ bool showPlot3DPreview(ModelViewer* viewer, const Plot3DMeshData& data, GLenum p
 	}
 	if (valueMaximum <= valueMinimum)
 		valueMaximum = valueMinimum + 1.0f;
+	if (opacity < 1.0f)
+	{
+		const std::vector<float> colours = AnalysisColorRamp::mapToRGBA(
+			values, valid, valueMinimum, valueMaximum, AnalysisColormap::Sequential);
+		for (std::size_t i = 0; i < vertices.size(); ++i)
+			vertices[i].Color = glm::vec4(colours[i * 4], colours[i * 4 + 1], colours[i * 4 + 2], 1.0f);
+	}
 
 	Plot3DAxisController controller;
 	Plot3DAxisLayout layout;
@@ -86,10 +94,22 @@ bool showPlot3DPreview(ModelViewer* viewer, const Plot3DMeshData& data, GLenum p
 		return false;
 
 	viewport->makeCurrent();
-	SceneMesh* mesh = new SceneMesh(viewport->getShader(), QStringLiteral("Plot3D Preview"), vertices, data.indices, {}, Material(), true, primitiveMode);
+	Material previewMaterial;
+	if (opacity < 1.0f)
+	{
+		// The colour map is baked into Vertex::Color above. A neutral, unlit material preserves that data RGB across
+		// the whole viewport while its common alpha makes the ribbons transparent in the normal scene blend pass.
+		previewMaterial = Material(QVector3D(1.0f, 1.0f, 1.0f), 0.0f, 0.65f, opacity);
+		previewMaterial.setBlendMode(Material::BlendMode::Alpha);
+		previewMaterial.setUnlit(true);
+	}
+	SceneMesh* mesh = new SceneMesh(viewport->getShader(), QStringLiteral("Plot3D Preview"), vertices, data.indices, {}, previewMaterial, true, primitiveMode);
 	viewport->addToDisplay(mesh);
-	mesh->setAnalysisOverlayColors(AnalysisColorRamp::mapToRGBA(values, valid, valueMinimum, valueMaximum, AnalysisColormap::Sequential));
-	mesh->setAnalysisOverlayBanding(0, static_cast<int>(AnalysisColormap::Sequential));
+	if (opacity >= 1.0f)
+	{
+		mesh->setAnalysisOverlayColors(AnalysisColorRamp::mapToRGBA(values, valid, valueMinimum, valueMaximum, AnalysisColormap::Sequential));
+		mesh->setAnalysisOverlayBanding(0, static_cast<int>(AnalysisColormap::Sequential));
+	}
 	const QUuid meshUuid = mesh->uuid();
 	viewport->doneCurrent();
 	viewer->setPlot3DPreview({ meshUuid }, layout);
@@ -371,6 +391,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	auto* scatterOptionsRow = new QHBoxLayout();
 	_stemEnabled = new QCheckBox(tr("Draw stems to Base Z:"), this);
 	_errorBarsEnabled = new QCheckBox(tr("Show error bars (±Z):"), this);
+	_scatterFillEnabled = new QCheckBox(tr("Fill to Base Z:"), this);
 	_columnError = new QComboBox(this);
 	_stemBaseZ = new QDoubleSpinBox(this);
 	_stemBaseZ->setRange(-1.0e12, 1.0e12);
@@ -380,6 +401,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	scatterOptionsRow->addWidget(_stemBaseZ);
 	scatterOptionsRow->addWidget(_errorBarsEnabled);
 	scatterOptionsRow->addWidget(_columnError);
+	scatterOptionsRow->addWidget(_scatterFillEnabled);
 	scatterOptionsRow->addStretch();
 	mapping->addRow(tr("Scatter options:"), scatterOptionsRow);
 	layout->addWidget(_mappingWidget);
@@ -411,6 +433,16 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	connect(_primitive, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::updateScatterOptions);
 	connect(_stemEnabled, &QCheckBox::toggled, this, &Plot3DPanel::updateScatterOptions);
 	connect(_errorBarsEnabled, &QCheckBox::toggled, this, &Plot3DPanel::updateScatterOptions);
+	connect(_scatterFillEnabled, &QCheckBox::toggled, this, &Plot3DPanel::updateScatterOptions);
+	connect(_stemEnabled, &QCheckBox::toggled, this, [this](bool checked) {
+		if (checked) { _errorBarsEnabled->setChecked(false); _scatterFillEnabled->setChecked(false); }
+	});
+	connect(_errorBarsEnabled, &QCheckBox::toggled, this, [this](bool checked) {
+		if (checked) { _stemEnabled->setChecked(false); _scatterFillEnabled->setChecked(false); }
+	});
+	connect(_scatterFillEnabled, &QCheckBox::toggled, this, [this](bool checked) {
+		if (checked) { _stemEnabled->setChecked(false); _errorBarsEnabled->setChecked(false); }
+	});
 	connect(previewButton, &QPushButton::clicked, this, &Plot3DPanel::previewPlot);
 	connect(clearPreviewButton, &QPushButton::clicked, this, &Plot3DPanel::clearPreview);
 	connect(_buildButton, &QPushButton::clicked, this, &Plot3DPanel::buildPlot);
@@ -585,7 +617,7 @@ void Plot3DPanel::previewPlot()
 	mapping.base = _columnBase->currentData().toInt();
 	mapping.width = _columnWidth->currentData().toInt();
 	mapping.depth = _columnDepth->currentData().toInt();
-	mapping.error = _errorBarsEnabled->isChecked() ? _columnError->currentData().toInt() : -1;
+	mapping.error = _columnError->currentData().toInt();
 	Plot3DDataset dataset;
 	QString error;
 	if (!buildPlot3DDataset(_table, primitive, mapping, dataset, &error))
@@ -611,7 +643,12 @@ void Plot3DPanel::previewPlot()
 		mode = GL_LINE_STRIP;
 		break;
 	case Plot3DPrimitive::Scatter:
-		if (_errorBarsEnabled->isChecked())
+		if (_scatterFillEnabled->isChecked())
+		{
+			built = buildPlot3DScatterFillMesh(std::get<Plot3DScatterData>(dataset.content), _stemBaseZ->value(), mesh, &error);
+			mode = GL_TRIANGLES;
+		}
+		else if (_errorBarsEnabled->isChecked())
 		{
 			built = buildPlot3DErrorBarMesh(std::get<Plot3DScatterData>(dataset.content), mesh, &error);
 			mode = GL_LINES;
@@ -650,6 +687,11 @@ void Plot3DPanel::previewPlot()
 		minimum[2] = std::min(minimum[2], _stemBaseZ->value());
 		maximum[2] = std::max(maximum[2], _stemBaseZ->value());
 	}
+	if (primitive == Plot3DPrimitive::Scatter && _scatterFillEnabled->isChecked())
+	{
+		minimum[2] = std::min(minimum[2], _stemBaseZ->value());
+		maximum[2] = std::max(maximum[2], _stemBaseZ->value());
+	}
 	if (primitive == Plot3DPrimitive::Scatter && _errorBarsEnabled->isChecked())
 	{
 		const Plot3DScatterData& scatter = std::get<Plot3DScatterData>(dataset.content);
@@ -657,7 +699,8 @@ void Plot3DPanel::previewPlot()
 			if (std::isfinite(scatter.errors[i])) { minimum[2] = std::min(minimum[2], scatter.samples[i].position.z - scatter.errors[i]); maximum[2] = std::max(maximum[2], scatter.samples[i].position.z + scatter.errors[i]); }
 	}
 	const QString title = sourceMode == 1 ? _formulaTitle->text().trimmed() : QString();
-	if (!showPlot3DPreview(_modelViewer, mesh, mode, dataset.axes, minimum, maximum, title))
+	const bool filledScatter = primitive == Plot3DPrimitive::Scatter && _scatterFillEnabled->isChecked();
+	if (!showPlot3DPreview(_modelViewer, mesh, mode, dataset.axes, minimum, maximum, title, filledScatter ? 0.35f : 1.0f))
 		QMessageBox::warning(this, tr("Preview Plot"), tr("The plot preview could not be created."));
 }
 
@@ -665,9 +708,10 @@ void Plot3DPanel::updateScatterOptions()
 {
 	const bool scatter = _primitive && static_cast<Plot3DPrimitive>(_primitive->currentData().toInt()) == Plot3DPrimitive::Scatter;
 	_stemEnabled->setEnabled(scatter);
-	_stemBaseZ->setEnabled(scatter && _stemEnabled->isChecked());
+	_stemBaseZ->setEnabled(scatter && (_stemEnabled->isChecked() || _scatterFillEnabled->isChecked()));
 	_errorBarsEnabled->setEnabled(scatter);
 	_columnError->setEnabled(scatter && _errorBarsEnabled->isChecked());
+	_scatterFillEnabled->setEnabled(scatter);
 }
 
 void Plot3DPanel::updateSourceMode()
@@ -1293,7 +1337,7 @@ void Plot3DPanel::buildPlot()
 	columnMapping.base = _columnBase->currentData().toInt();
 	columnMapping.width = _columnWidth->currentData().toInt();
 	columnMapping.depth = _columnDepth->currentData().toInt();
-	columnMapping.error = _errorBarsEnabled->isChecked() ? _columnError->currentData().toInt() : -1;
+	columnMapping.error = _columnError->currentData().toInt();
 
 	Plot3DDataset dataset;
 	QString error;
@@ -1308,7 +1352,9 @@ void Plot3DPanel::buildPlot()
 
 	const bool drawStems = primitive == Plot3DPrimitive::Scatter && _stemEnabled->isChecked();
 	const bool drawErrorBars = primitive == Plot3DPrimitive::Scatter && _errorBarsEnabled->isChecked();
-	QString plotTypeName = drawStems ? tr("Stem") : plot3DPrimitiveName(primitive);
+	const bool drawScatterFill = primitive == Plot3DPrimitive::Scatter && _scatterFillEnabled->isChecked();
+	QString plotTypeName = drawScatterFill ? tr("Filled Scatter")
+		: (drawStems ? tr("Stem") : (drawErrorBars ? tr("Error Bars") : plot3DPrimitiveName(primitive)));
 	if (_sourceMode->currentData().toInt() == 1)
 	{
 		const QString formulaTitle = _formulaTitle->text().trimmed();
@@ -1342,9 +1388,11 @@ void Plot3DPanel::buildPlot()
 		built = buildPlot3DLineMesh(std::get<Plot3DLineData>(dataset.content), meshData, &error);
 		break;
 	case Plot3DPrimitive::Scatter:
-		built = drawErrorBars ? buildPlot3DErrorBarMesh(std::get<Plot3DScatterData>(dataset.content), meshData, &error) : (drawStems
+		built = drawScatterFill
+			? buildPlot3DScatterFillMesh(std::get<Plot3DScatterData>(dataset.content), _stemBaseZ->value(), meshData, &error)
+			: (drawErrorBars ? buildPlot3DErrorBarMesh(std::get<Plot3DScatterData>(dataset.content), meshData, &error) : (drawStems
 			? buildPlot3DStemMesh(std::get<Plot3DScatterData>(dataset.content), _stemBaseZ->value(), meshData, &error)
-			: buildPlot3DScatterMesh(std::get<Plot3DScatterData>(dataset.content), meshData, &error));
+			: buildPlot3DScatterMesh(std::get<Plot3DScatterData>(dataset.content), meshData, &error)));
 		break;
 	case Plot3DPrimitive::Bar:
 		built = buildPlot3DBarMesh(std::get<Plot3DBarData>(dataset.content), meshData, &error);
@@ -1361,9 +1409,9 @@ void Plot3DPanel::buildPlot()
 	ViewportWidget* viewport = _modelViewer->getViewportWidget();
 	viewport->makeCurrent();
 
-	// Colour-by-value is applied afterwards via setAnalysisOverlayColors(), the same mechanism a simulation
-	// result's field colouring uses (ModelViewer::presentSimulationResult()) - the mesh's own vertex colour stays
-	// plain white so the overlay is the only thing tinting it.
+	// Opaque plots receive their colour-by-value overlay after construction. Filled scatter ribbons need material
+	// alpha blending, so their mapped RGB is baked into Vertex::Color instead; combining the analysis overlay with
+	// a transparent material loses the ramp in the main scene shader.
 	std::vector<Vertex> vertices(meshData.vertexCount());
 	for (std::size_t i = 0; i < vertices.size(); ++i)
 	{
@@ -1377,6 +1425,29 @@ void Plot3DPanel::buildPlot()
 			uv = glm::vec2(0.0f);
 		vertices[i] = v;
 	}
+	if (drawScatterFill)
+	{
+		std::vector<float> fillValues(meshData.vertexCount());
+		std::vector<bool> fillValid(meshData.vertexCount());
+		float fillMinimum = std::numeric_limits<float>::max();
+		float fillMaximum = std::numeric_limits<float>::lowest();
+		for (std::size_t i = 0; i < meshData.vertexCount(); ++i)
+		{
+			fillValid[i] = std::isfinite(meshData.values[i]);
+			fillValues[i] = fillValid[i] ? static_cast<float>(meshData.values[i]) : 0.0f;
+			if (fillValid[i])
+			{
+				fillMinimum = std::min(fillMinimum, fillValues[i]);
+				fillMaximum = std::max(fillMaximum, fillValues[i]);
+			}
+		}
+		if (fillMaximum <= fillMinimum)
+			fillMaximum = fillMinimum + 1.0f;
+		const std::vector<float> colours = AnalysisColorRamp::mapToRGBA(
+			fillValues, fillValid, fillMinimum, fillMaximum, AnalysisColormap::Sequential);
+		for (std::size_t i = 0; i < vertices.size(); ++i)
+			vertices[i].Color = glm::vec4(colours[i * 4], colours[i * 4 + 1], colours[i * 4 + 2], 1.0f);
+	}
 
 	// Line/Scatter draw as native GL_LINE_STRIP/GL_POINTS (meshData.indices is empty for them - see
 	// Plot3DMeshBuilder.h) - the same primitive-mode path glTF line/point-cloud import already uses, which is
@@ -1386,20 +1457,28 @@ void Plot3DPanel::buildPlot()
 		primitiveMode = GL_LINE_STRIP;
 	else if (primitive == Plot3DPrimitive::Contour)
 		primitiveMode = GL_LINES;
-	else if (primitive == Plot3DPrimitive::Scatter && !drawStems && !drawErrorBars)
+	else if (primitive == Plot3DPrimitive::Scatter && !drawStems && !drawErrorBars && !drawScatterFill)
 		primitiveMode = GL_POINTS;
 	else if (drawStems || drawErrorBars)
 		primitiveMode = GL_LINES;
-	// skipOptimization = true: setAnalysisOverlayColors() below is indexed by vertex, and the mesh optimiser would
-	// reorder vertices (see SceneMesh::optimizeMesh()) - same reasoning presentSimulationResult() documents.
-	SceneMesh* mesh = new SceneMesh(viewport->getShader(), baseName, vertices, meshData.indices, {}, Material(), true, primitiveMode);
+	// skipOptimization = true: both setAnalysisOverlayColors() below and the filled scatter's baked vertex colours
+	// are indexed by vertex. The mesh optimiser would reorder vertices (see SceneMesh::optimizeMesh()).
+	Material plotMaterial = drawScatterFill
+		? Material(QVector3D(1.0f, 1.0f, 1.0f), 0.0f, 0.65f, 0.35f)
+		: Material();
+	if (drawScatterFill)
+	{
+		plotMaterial.setBlendMode(Material::BlendMode::Alpha);
+		plotMaterial.setUnlit(true);
+	}
+	SceneMesh* mesh = new SceneMesh(viewport->getShader(), baseName, vertices, meshData.indices, {}, plotMaterial, true, primitiveMode);
 	viewport->addToDisplay(mesh);
 	const QUuid meshUuid = mesh->uuid();
 	SceneMesh* markerMesh = nullptr;
 	QUuid markerMeshUuid;
 	std::vector<float> markerValues;
 	std::vector<bool> markerValid;
-	if (drawStems)
+	if (drawStems || drawErrorBars)
 	{
 		// GL_LINES cannot draw endpoint dots. Keep a companion native-points mesh in the same scene node so stems
 		// retain their thin, zoom-invariant lines while their sample locations remain immediately readable.
@@ -1456,7 +1535,7 @@ void Plot3DPanel::buildPlot()
 			anyValid = true;
 		}
 	}
-	if (anyValid)
+	if (anyValid && !drawScatterFill)
 	{
 		if (hi <= lo)
 			hi = lo + 1.0f; // a perfectly flat field still needs a non-degenerate range for the colour ramp
@@ -1492,6 +1571,11 @@ void Plot3DPanel::buildPlot()
 	double dataLo[3], dataHi[3];
 	if (plot3DDataBounds(dataset, dataLo, dataHi))
 	{
+		if (drawScatterFill)
+		{
+			dataLo[2] = std::min(dataLo[2], _stemBaseZ->value());
+			dataHi[2] = std::max(dataHi[2], _stemBaseZ->value());
+		}
 		if (drawStems)
 		{
 			dataLo[2] = std::min(dataLo[2], _stemBaseZ->value());
@@ -1517,6 +1601,7 @@ void Plot3DPanel::buildPlot()
 		session.colourMaximum = session.dataMaximumValue;
 		session.colormap = static_cast<int>(AnalysisColormap::Sequential);
 		session.isStem = drawStems;
+		session.isFilledScatter = drawScatterFill;
 		if (primitive == Plot3DPrimitive::Contour)
 			session.contourSource = std::get<Plot3DSurfaceData>(dataset.content);
 		_modelViewer->addPlot3DSession(std::move(session));
@@ -1527,6 +1612,8 @@ void Plot3DPanel::buildPlot()
 		_status->setText(tr("Built '%1' (%2 bars).").arg(baseName).arg(std::get<Plot3DBarData>(dataset.content).bars.size()));
 	else if (drawStems)
 		_status->setText(tr("Built '%1' (%2 stems).").arg(baseName).arg(std::get<Plot3DScatterData>(dataset.content).samples.size()));
+	else if (drawScatterFill)
+		_status->setText(tr("Built '%1' (%2 filled ribbons).").arg(baseName).arg(std::get<Plot3DScatterData>(dataset.content).samples.size()));
 	else
 		_status->setText(tr("Built '%1' (%2 points).").arg(baseName).arg(meshData.vertexCount()));
 }

@@ -9,6 +9,7 @@
 #include <QObject>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <set>
@@ -425,6 +426,57 @@ bool buildPlot3DErrorBarMesh(const Plot3DScatterData& data, Plot3DMeshData& out,
 		for (const Plot3DPoint& point : ends) { out.positions.insert(out.positions.end(), {float(point.x),float(point.y),float(point.z)}); out.normals.insert(out.normals.end(), {0,0,1}); out.values.push_back(sample.value); }
 	}
 	return !out.empty();
+}
+
+bool buildPlot3DScatterFillMesh(const Plot3DScatterData& data, double baseZ, Plot3DMeshData& out, QString* error)
+{
+	out = Plot3DMeshData();
+	if (data.samples.empty())
+	{
+		if (error) *error = QObject::tr("Filled scatter data has no points.");
+		return false;
+	}
+	if (!std::isfinite(baseZ))
+	{
+		if (error) *error = QObject::tr("Filled scatter base Z must be finite.");
+		return false;
+	}
+
+	double minimumX = data.samples.front().position.x;
+	double maximumX = minimumX;
+	for (const Plot3DSample& sample : data.samples)
+	{
+		minimumX = std::min(minimumX, sample.position.x);
+		maximumX = std::max(maximumX, sample.position.x);
+	}
+	const double halfWidth = std::max((maximumX - minimumX) * 0.0125, 1.0e-6);
+	out.positions.reserve(data.samples.size() * 12);
+	out.normals.reserve(data.samples.size() * 12);
+	out.values.reserve(data.samples.size() * 4);
+	out.indices.reserve(data.samples.size() * 6);
+	for (const Plot3DSample& sample : data.samples)
+	{
+		const Plot3DPoint leftBase{ sample.position.x - halfWidth, sample.position.y, baseZ };
+		const Plot3DPoint rightBase{ sample.position.x + halfWidth, sample.position.y, baseZ };
+		const Plot3DPoint leftSample{ sample.position.x - halfWidth, sample.position.y, sample.position.z };
+		const Plot3DPoint rightSample{ sample.position.x + halfWidth, sample.position.y, sample.position.z };
+		// Keep every quad counter-clockwise when viewed from +Y. Without this sign-aware ordering, ribbons above the
+		// base had -Y geometric winding but +Y vertex normals, while ribbons below the base had +Y for both. The
+		// renderer consequently treated the positive-Z cluster as back-facing and reduced its green ramp to black.
+		const std::array<Plot3DPoint, 4> points = sample.position.z >= baseZ
+			? std::array<Plot3DPoint, 4>{ leftBase, leftSample, rightSample, rightBase }
+			: std::array<Plot3DPoint, 4>{ leftBase, rightBase, rightSample, leftSample };
+		const unsigned int first = static_cast<unsigned int>(out.vertexCount());
+		for (const Plot3DPoint& point : points)
+		{
+			out.positions.insert(out.positions.end(), {
+				static_cast<float>(point.x), static_cast<float>(point.y), static_cast<float>(point.z) });
+			out.normals.insert(out.normals.end(), { 0.0f, 1.0f, 0.0f });
+			out.values.push_back(sample.value);
+		}
+		out.indices.insert(out.indices.end(), { first, first + 1, first + 2, first, first + 2, first + 3 });
+	}
+	return true;
 }
 
 bool buildPlot3DBarMesh(const Plot3DBarData& data, Plot3DMeshData& out, QString* error)

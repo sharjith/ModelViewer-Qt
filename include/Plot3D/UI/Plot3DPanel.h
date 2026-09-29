@@ -87,6 +87,7 @@ private:
 	QComboBox* _columnError = nullptr;
 	QCheckBox* _stemEnabled = nullptr;
 	QCheckBox* _errorBarsEnabled = nullptr;
+	QCheckBox* _scatterFillEnabled = nullptr;
 	QDoubleSpinBox* _stemBaseZ = nullptr;
 	QPushButton* _buildButton = nullptr;
 	QGroupBox* _formulaGroup = nullptr;
