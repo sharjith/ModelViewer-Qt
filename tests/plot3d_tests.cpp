@@ -303,6 +303,8 @@ namespace
 		CHECK(!evaluatePlot3DFormula(QStringLiteral("unknown + x"), 0.0, 0.0, {}, value, &error) && error.contains(QStringLiteral("Unknown")));
 		CHECK(evaluatePlot3DFormula(QStringLiteral("sign(-2) + cosh(0) + asin(0)"), 0.0, 0.0, {}, value, &error)
 			&& std::abs(value) < 1.0e-12);
+		CHECK(evaluatePlot3DFormula3D(QStringLiteral("x+y+z"), 1.0, 2.0, 3.0, {}, value, &error)
+			&& std::abs(value - 6.0) < 1.0e-12);
 
 		Plot3DMeshData parametric;
 		parameters.clear();
@@ -322,6 +324,23 @@ namespace
 			&& std::abs(curve.samples.back().position.z - 6.283185307179586) < 1.0e-12);
 		CHECK(!buildPlot3DParametricCurve(QStringLiteral("t"), QStringLiteral("0"), QStringLiteral("missing"),
 			0.0, 1.0, 2, {}, curve, &error) && error.contains(QStringLiteral("Unknown")));
+
+		Plot3DQuiverData field;
+		CHECK(buildPlot3DFormulaVectorField(QStringLiteral("-y"), QStringLiteral("x"), QStringLiteral("0"),
+			-1.0, 1.0, 3, -2.0, 2.0, 5, {}, field, &error)
+			&& field.arrows.size() == 15 && field.arrows.front().position.x == -1.0
+			&& field.arrows.front().vector.x == 2.0);
+		CHECK(!buildPlot3DFormulaVectorField(QStringLiteral("unknown"), QStringLiteral("0"), QStringLiteral("0"),
+			0.0, 1.0, 2, 0.0, 1.0, 2, {}, field, &error) && error.contains(QStringLiteral("Unknown")));
+
+		Plot3DMeshData implicit;
+		parameters.clear();
+		parameters.insert(QStringLiteral("r"), 1.0);
+		CHECK(buildPlot3DImplicitSurface(QStringLiteral("x^2+y^2+z^2-r^2"),
+			-1.5, 1.5, 13, -1.5, 1.5, 13, -1.5, 1.5, 13, parameters, implicit, &error)
+			&& !implicit.empty() && implicit.indices.size() % 3 == 0 && implicit.normals.size() == implicit.positions.size());
+		CHECK(!buildPlot3DImplicitSurface(QStringLiteral("x^2+y^2+z^2+1"),
+			-1.0, 1.0, 3, -1.0, 1.0, 3, -1.0, 1.0, 3, {}, implicit, &error) && error.contains(QStringLiteral("does not cross")));
 	}
 }
 

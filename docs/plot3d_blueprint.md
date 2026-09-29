@@ -230,8 +230,15 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     source selector now includes a one-parameter curve mode that builds an ordinary `GL_LINE_STRIP`, with Helix,
     Lissajous, Trefoil Knot, Viviani Curve and Damped Spiral presets. Curves use the same main-view preview and
     persistent axes/colour controls as CSV lines, while preserving fixed-pixel line width under zoom.
-18. **Later plot families:** formula-driven vector fields, implicit surfaces (marching cubes), streamlines/pathlines,
-    error bars and filled scatter-to-plane variants. These need dedicated data and rendering models instead of being
-    forced through the surface importer.
-19. **Last:** MVF persistence for Plot3DSession metadata. Do this after the primitive and controls model stabilises so
+18. **Implemented, awaiting the user's build+visual check (2026-09-29):** formula-driven planar vector fields.
+    The formula selector supplies Vortex, Radial, Saddle and Helical presets, evaluates u/v/w over a configurable
+    X/Y grid, hands the resulting arrows to the existing Quiver renderer, and uses that same glyph path for the
+    temporary main-view preview.
+19. **Implemented, awaiting the user's build+visual check (2026-09-29):** implicit surfaces. A scalar expression
+    `f(x,y,z)` is sampled over a bounded 3-D grid and its zero crossing is tessellated into a normal scene mesh;
+    the initial preset collection includes Sphere, Torus, Gyroid and Wave Interference. Preview and Build use the
+    ordinary Surface pipeline, while the grid is capped at 64 samples per axis to prevent runaway geometry.
+20. **Later plot families:** streamlines/pathlines, error bars and filled scatter-to-plane variants. These need
+    dedicated data and rendering models instead of being forced through the surface importer.
+21. **Last:** MVF persistence for Plot3DSession metadata. Do this after the primitive and controls model stabilises so
     the saved schema is written once; the generated mesh itself already follows ordinary scene persistence.

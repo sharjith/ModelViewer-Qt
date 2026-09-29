@@ -95,6 +95,113 @@ bool showPlot3DPreview(ModelViewer* viewer, const Plot3DMeshData& data, GLenum p
 	viewer->setPlot3DPreview({ meshUuid }, layout);
 	return true;
 }
+
+std::vector<Vertex> quiverSiteVertices(const Plot3DMeshData& siteMesh)
+{
+	std::vector<Vertex> vertices(siteMesh.vertexCount());
+	for (std::size_t i = 0; i < vertices.size(); ++i)
+	{
+		Vertex& vertex = vertices[i];
+		vertex.Color = glm::vec4(1.0f);
+		vertex.Position = glm::vec3(siteMesh.positions[i * 3], siteMesh.positions[i * 3 + 1], siteMesh.positions[i * 3 + 2]);
+		vertex.Normal = glm::vec3(0.0f, 0.0f, 1.0f);
+		vertex.Tangent = glm::vec3(0.0f);
+		vertex.Bitangent = glm::vec3(0.0f);
+		for (glm::vec2& uv : vertex.TexCoords)
+			uv = glm::vec2(0.0f);
+	}
+	return vertices;
+}
+
+GlyphSet quiverGlyphs(const Plot3DQuiverData& quiver, const Plot3DDataset& dataset)
+{
+	double minimum[3], maximum[3];
+	double diagonal = 1.0;
+	if (plot3DDataBounds(dataset, minimum, maximum))
+	{
+		const double dx = maximum[0] - minimum[0], dy = maximum[1] - minimum[1], dz = maximum[2] - minimum[2];
+		const double computed = std::sqrt(dx * dx + dy * dy + dz * dz);
+		if (computed > 1.0e-9)
+			diagonal = computed;
+	}
+	const float maxArrowLength = static_cast<float>(diagonal * 0.06);
+
+	GlyphSet glyphs;
+	glyphs.anchors.reserve(quiver.arrows.size() * 3);
+	glyphs.vectors.reserve(quiver.arrows.size() * 3);
+	glyphs.values.reserve(quiver.arrows.size());
+	glyphs.colors.reserve(quiver.arrows.size() * 3);
+	std::vector<float> magnitudes(quiver.arrows.size());
+	float magnitudeMinimum = std::numeric_limits<float>::max();
+	float magnitudeMaximum = std::numeric_limits<float>::lowest();
+	for (std::size_t i = 0; i < quiver.arrows.size(); ++i)
+	{
+		const Plot3DPoint& vector = quiver.arrows[i].vector;
+		magnitudes[i] = std::sqrt(static_cast<float>(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z));
+		magnitudeMinimum = std::min(magnitudeMinimum, magnitudes[i]);
+		magnitudeMaximum = std::max(magnitudeMaximum, magnitudes[i]);
+	}
+	if (magnitudeMaximum <= magnitudeMinimum)
+		magnitudeMaximum = magnitudeMinimum + 1.0f;
+	for (std::size_t i = 0; i < quiver.arrows.size(); ++i)
+	{
+		const Plot3DQuiver& arrow = quiver.arrows[i];
+		glyphs.anchors.insert(glyphs.anchors.end(), { static_cast<std::uint32_t>(i), static_cast<std::uint32_t>(i), static_cast<std::uint32_t>(i) });
+		const float rawLength = magnitudes[i];
+		const float scale = rawLength > 1.0e-9f ? (maxArrowLength * (rawLength / magnitudeMaximum)) / rawLength : 0.0f;
+		glyphs.vectors.insert(glyphs.vectors.end(), {
+			static_cast<float>(arrow.vector.x) * scale, static_cast<float>(arrow.vector.y) * scale, static_cast<float>(arrow.vector.z) * scale });
+		glyphs.values.push_back(rawLength);
+		const QColor color = AnalysisColorRamp::colorForNormalized((rawLength - magnitudeMinimum) / (magnitudeMaximum - magnitudeMinimum), AnalysisColormap::Sequential);
+		glyphs.colors.insert(glyphs.colors.end(), { static_cast<float>(color.redF()), static_cast<float>(color.greenF()), static_cast<float>(color.blueF()) });
+	}
+	glyphs.fieldMin = magnitudeMinimum;
+	glyphs.fieldMax = magnitudeMaximum;
+	glyphs.referenceLength = maxArrowLength;
+	return glyphs;
+}
+
+bool showPlot3DQuiverPreview(ModelViewer* viewer, const Plot3DDataset& dataset, const QString& title)
+{
+	ViewportWidget* viewport = viewer ? viewer->getViewportWidget() : nullptr;
+	if (!viewport || !std::holds_alternative<Plot3DQuiverData>(dataset.content))
+		return false;
+	const Plot3DQuiverData& quiver = std::get<Plot3DQuiverData>(dataset.content);
+	Plot3DMeshData siteMesh;
+	QString error;
+	if (!buildPlot3DQuiverSiteMesh(quiver, siteMesh, &error))
+		return false;
+	double minimum[3], maximum[3];
+	if (!plot3DDataBounds(dataset, minimum, maximum))
+		return false;
+	Plot3DAxisController controller;
+	Plot3DAxisLayout layout;
+	if (!controller.buildLayout(dataset.axes, minimum, maximum, layout, &error, title))
+		return false;
+
+	std::vector<float> values(siteMesh.vertexCount());
+	std::vector<bool> valid(siteMesh.vertexCount());
+	float valueMinimum = std::numeric_limits<float>::max(), valueMaximum = std::numeric_limits<float>::lowest();
+	for (std::size_t i = 0; i < siteMesh.vertexCount(); ++i)
+	{
+		valid[i] = std::isfinite(siteMesh.values[i]);
+		values[i] = valid[i] ? static_cast<float>(siteMesh.values[i]) : 0.0f;
+		if (valid[i]) { valueMinimum = std::min(valueMinimum, values[i]); valueMaximum = std::max(valueMaximum, values[i]); }
+	}
+	if (valueMaximum <= valueMinimum)
+		valueMaximum = valueMinimum + 1.0f;
+
+	viewport->makeCurrent();
+	SceneMesh* mesh = new SceneMesh(viewport->getShader(), QStringLiteral("Plot3D Preview"), quiverSiteVertices(siteMesh), siteMesh.indices, {}, Material(), true, GL_POINTS);
+	viewport->addToDisplay(mesh);
+	mesh->setAnalysisOverlayColors(AnalysisColorRamp::mapToRGBA(values, valid, valueMinimum, valueMaximum, AnalysisColormap::Sequential));
+	mesh->setAnalysisOverlayBanding(0, static_cast<int>(AnalysisColormap::Sequential));
+	const QUuid meshUuid = mesh->uuid();
+	viewport->setSimulationGlyphs(meshUuid, quiverGlyphs(quiver, dataset));
+	viewport->doneCurrent();
+	viewer->setPlot3DPreview({ meshUuid }, layout);
+	return true;
+}
 }
 
 Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
@@ -111,6 +218,8 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	_sourceMode->addItem(tr("Formula surface"), 1);
 	_sourceMode->addItem(tr("Parametric surface"), 2);
 	_sourceMode->addItem(tr("Parametric curve"), 3);
+	_sourceMode->addItem(tr("Formula vector field"), 4);
+	_sourceMode->addItem(tr("Implicit surface"), 5);
 	layout->addWidget(_sourceMode);
 	_tableSourceWidget = new QWidget(this);
 	auto* tableSourceLayout = new QVBoxLayout(_tableSourceWidget);
@@ -163,27 +272,39 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	_parametricCurvePreset = new QComboBox(_formulaGroup);
 	_parametricCurvePresets = plot3DParametricCurvePresets();
 	for (const Plot3DParametricCurvePreset& preset : _parametricCurvePresets) _parametricCurvePreset->addItem(preset.name);
+	_formulaVectorPreset = new QComboBox(_formulaGroup);
+	_formulaVectorPresets = plot3DFormulaVectorPresets();
+	for (const Plot3DFormulaVectorPreset& preset : _formulaVectorPresets) _formulaVectorPreset->addItem(preset.name);
+	_implicitPreset = new QComboBox(_formulaGroup);
+	_implicitPresets = plot3DImplicitPresets();
+	for (const Plot3DImplicitPreset& preset : _implicitPresets) _implicitPreset->addItem(preset.name);
 	_formulaTitle = new QLineEdit(_formulaGroup);
 	_formulaExpression = new QLineEdit(_formulaGroup);
 	_parametricX = new QLineEdit(_formulaGroup); _parametricY = new QLineEdit(_formulaGroup); _parametricZ = new QLineEdit(_formulaGroup);
 	_formulaXMinimum = new QDoubleSpinBox(_formulaGroup); _formulaXMaximum = new QDoubleSpinBox(_formulaGroup);
 	_formulaYMinimum = new QDoubleSpinBox(_formulaGroup); _formulaYMaximum = new QDoubleSpinBox(_formulaGroup);
-	_formulaXSamples = new QSpinBox(_formulaGroup); _formulaYSamples = new QSpinBox(_formulaGroup);
-	for (QDoubleSpinBox* spin : { _formulaXMinimum, _formulaXMaximum, _formulaYMinimum, _formulaYMaximum }) { spin->setRange(-1.0e6, 1.0e6); spin->setDecimals(6); }
-	for (QSpinBox* spin : { _formulaXSamples, _formulaYSamples }) spin->setRange(2, 8192);
+	_formulaZMinimum = new QDoubleSpinBox(_formulaGroup); _formulaZMaximum = new QDoubleSpinBox(_formulaGroup);
+	_formulaXSamples = new QSpinBox(_formulaGroup); _formulaYSamples = new QSpinBox(_formulaGroup); _formulaZSamples = new QSpinBox(_formulaGroup);
+	for (QDoubleSpinBox* spin : { _formulaXMinimum, _formulaXMaximum, _formulaYMinimum, _formulaYMaximum, _formulaZMinimum, _formulaZMaximum }) { spin->setRange(-1.0e6, 1.0e6); spin->setDecimals(6); }
+	for (QSpinBox* spin : { _formulaXSamples, _formulaYSamples, _formulaZSamples }) spin->setRange(2, 8192);
 	_formulaPresetLabel = new QLabel(tr("Preset:"), _formulaGroup);
 	_parametricPresetLabel = new QLabel(tr("Parametric preset:"), _formulaGroup);
 	_parametricCurvePresetLabel = new QLabel(tr("Curve preset:"), _formulaGroup);
+	_formulaVectorPresetLabel = new QLabel(tr("Vector preset:"), _formulaGroup);
+	_implicitPresetLabel = new QLabel(tr("Implicit preset:"), _formulaGroup);
 	_formulaExpressionLabel = new QLabel(tr("z ="), _formulaGroup);
 	_parametricXLabel = new QLabel(tr("x(u,v) ="), _formulaGroup);
 	_parametricYLabel = new QLabel(tr("y(u,v) ="), _formulaGroup);
 	_parametricZLabel = new QLabel(tr("z(u,v) ="), _formulaGroup);
 	_formulaXRangeLabel = new QLabel(tr("X range / samples:"), _formulaGroup);
 	_formulaYRangeLabel = new QLabel(tr("Y range / samples:"), _formulaGroup);
+	_formulaZRangeLabel = new QLabel(tr("Z range / samples:"), _formulaGroup);
 	_formulaParametersLabel = new QLabel(tr("Parameters:"), _formulaGroup);
 	_formulaLayout->addRow(_formulaPresetLabel, _formulaPreset);
 	_formulaLayout->addRow(_parametricPresetLabel, _parametricPreset);
 	_formulaLayout->addRow(_parametricCurvePresetLabel, _parametricCurvePreset);
+	_formulaLayout->addRow(_formulaVectorPresetLabel, _formulaVectorPreset);
+	_formulaLayout->addRow(_implicitPresetLabel, _implicitPreset);
 	_formulaLayout->addRow(tr("Title:"), _formulaTitle);
 	_formulaLayout->addRow(_formulaExpressionLabel, _formulaExpression);
 	_formulaLayout->addRow(_parametricXLabel, _parametricX);
@@ -191,6 +312,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	_formulaLayout->addRow(_parametricZLabel, _parametricZ);
 	auto* xRange = new QHBoxLayout(); xRange->addWidget(_formulaXMinimum); xRange->addWidget(_formulaXMaximum); xRange->addWidget(_formulaXSamples); _formulaLayout->addRow(_formulaXRangeLabel, xRange);
 	auto* yRange = new QHBoxLayout(); yRange->addWidget(_formulaYMinimum); yRange->addWidget(_formulaYMaximum); yRange->addWidget(_formulaYSamples); _formulaLayout->addRow(_formulaYRangeLabel, yRange);
+	auto* zRange = new QHBoxLayout(); zRange->addWidget(_formulaZMinimum); zRange->addWidget(_formulaZMaximum); zRange->addWidget(_formulaZSamples); _formulaLayout->addRow(_formulaZRangeLabel, zRange);
 	_formulaParameters = new QFormLayout(); _formulaLayout->addRow(_formulaParametersLabel, _formulaParameters);
 	layout->addWidget(_formulaGroup);
 
@@ -272,13 +394,15 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 
 	connect(openButton, &QPushButton::clicked, this, &Plot3DPanel::loadCsvFile);
 	connect(pasteButton, &QPushButton::clicked, this, &Plot3DPanel::pasteData);
-	connect(parseButton, &QPushButton::clicked, this, [this] { const int sourceMode = _sourceMode->currentData().toInt(); if (sourceMode == 3) refreshParametricCurvePreview(); else if (sourceMode == 2) refreshParametricPreview(); else if (sourceMode == 1) refreshFormulaPreview(); else refreshPreview(); });
+	connect(parseButton, &QPushButton::clicked, this, [this] { const int sourceMode = _sourceMode->currentData().toInt(); if (sourceMode == 5) refreshImplicitPreview(); else if (sourceMode == 4) refreshFormulaVectorPreview(); else if (sourceMode == 3) refreshParametricCurvePreview(); else if (sourceMode == 2) refreshParametricPreview(); else if (sourceMode == 1) refreshFormulaPreview(); else refreshPreview(); });
 	connect(_delimiter, &QComboBox::currentIndexChanged, this, &Plot3DPanel::refreshPreview);
 	connect(_header, &QCheckBox::toggled, this, &Plot3DPanel::refreshPreview);
 	connect(_sourceMode, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::updateSourceMode);
 	connect(_formulaPreset, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::applyFormulaPreset);
 	connect(_parametricPreset, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::applyParametricPreset);
 	connect(_parametricCurvePreset, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::applyParametricCurvePreset);
+	connect(_formulaVectorPreset, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::applyFormulaVectorPreset);
+	connect(_implicitPreset, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::applyImplicitPreset);
 	connect(_primitive, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::updateScatterOptions);
 	connect(_stemEnabled, &QCheckBox::toggled, this, &Plot3DPanel::updateScatterOptions);
 	connect(previewButton, &QPushButton::clicked, this, &Plot3DPanel::previewPlot);
@@ -290,6 +414,8 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	applyFormulaPreset();
 	applyParametricPreset();
 	applyParametricCurvePreset();
+	applyFormulaVectorPreset();
+	applyImplicitPreset();
 	updateSourceMode();
 	updateScatterOptions();
 }
@@ -311,6 +437,54 @@ void Plot3DPanel::previewPlot()
 		return;
 
 	const int sourceMode = _sourceMode->currentData().toInt();
+	if (sourceMode == 5)
+	{
+		QHash<QString, double> parameters;
+		for (auto it = _formulaParameterEditors.cbegin(); it != _formulaParameterEditors.cend(); ++it)
+			parameters.insert(it.key(), it.value()->value());
+		Plot3DMeshData mesh;
+		QString error;
+		if (!buildPlot3DImplicitSurface(_formulaExpression->text(), _formulaXMinimum->value(), _formulaXMaximum->value(), _formulaXSamples->value(),
+			_formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), _formulaZMinimum->value(), _formulaZMaximum->value(), _formulaZSamples->value(), parameters, mesh, &error))
+		{
+			QMessageBox::warning(this, tr("Preview Plot"), error);
+			return;
+		}
+		double minimum[3] = { std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max() };
+		double maximum[3] = { std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest() };
+		for (std::size_t i = 0; i < mesh.vertexCount(); ++i)
+			for (int axis = 0; axis < 3; ++axis)
+			{
+				minimum[axis] = std::min(minimum[axis], static_cast<double>(mesh.positions[i * 3 + axis]));
+				maximum[axis] = std::max(maximum[axis], static_cast<double>(mesh.positions[i * 3 + axis]));
+			}
+		const std::array<Plot3DAxisConfig, 3> axes = { Plot3DAxisConfig{ QStringLiteral("X") }, Plot3DAxisConfig{ QStringLiteral("Y") }, Plot3DAxisConfig{ QStringLiteral("Z") } };
+		if (!showPlot3DPreview(_modelViewer, mesh, GL_TRIANGLES, axes, minimum, maximum, _formulaTitle->text().trimmed()))
+			QMessageBox::warning(this, tr("Preview Plot"), tr("The implicit-surface preview could not be created."));
+		return;
+	}
+	if (sourceMode == 4)
+	{
+		QHash<QString, double> parameters;
+		for (auto it = _formulaParameterEditors.cbegin(); it != _formulaParameterEditors.cend(); ++it)
+			parameters.insert(it.key(), it.value()->value());
+		Plot3DQuiverData vectors;
+		QString error;
+		if (!buildPlot3DFormulaVectorField(_parametricX->text(), _parametricY->text(), _parametricZ->text(),
+			_formulaXMinimum->value(), _formulaXMaximum->value(), _formulaXSamples->value(),
+			_formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), parameters, vectors, &error))
+		{
+			QMessageBox::warning(this, tr("Preview Plot"), error);
+			return;
+		}
+		Plot3DDataset dataset;
+		dataset.primitive = Plot3DPrimitive::Quiver;
+		dataset.axes = { Plot3DAxisConfig{ QStringLiteral("X") }, Plot3DAxisConfig{ QStringLiteral("Y") }, Plot3DAxisConfig{ QStringLiteral("Z") } };
+		dataset.content = std::move(vectors);
+		if (!showPlot3DQuiverPreview(_modelViewer, dataset, _formulaTitle->text().trimmed()))
+			QMessageBox::warning(this, tr("Preview Plot"), tr("The formula-vector-field preview could not be created."));
+		return;
+	}
 	if (sourceMode == 3)
 	{
 		QHash<QString, double> parameters;
@@ -471,6 +645,8 @@ void Plot3DPanel::updateSourceMode()
 	const bool generated = sourceMode != 0;
 	const bool parametricSurface = sourceMode == 2;
 	const bool parametricCurve = sourceMode == 3;
+	const bool vectorField = sourceMode == 4;
+	const bool implicitSurface = sourceMode == 5;
 	const bool parametric = parametricSurface || parametricCurve;
 	auto setVisible = [](QLabel* label, QWidget* field, bool visible)
 	{
@@ -480,31 +656,35 @@ void Plot3DPanel::updateSourceMode()
 	_tableSourceWidget->setVisible(!generated);
 	_mappingWidget->setVisible(!generated);
 	_formulaGroup->setVisible(generated);
-	_formulaGroup->setTitle(parametricCurve ? tr("Parametric curve") : (parametricSurface ? tr("Parametric surface") : tr("Formula surface")));
+	_formulaGroup->setTitle(implicitSurface ? tr("Implicit surface") : (vectorField ? tr("Formula vector field") : (parametricCurve ? tr("Parametric curve") : (parametricSurface ? tr("Parametric surface") : tr("Formula surface")))));
 	_delimiter->setEnabled(!generated);
 	_header->setEnabled(!generated);
 	_source->setEnabled(!generated);
-	setVisible(_formulaPresetLabel, _formulaPreset, !parametric);
+	setVisible(_formulaPresetLabel, _formulaPreset, !parametric && !vectorField && !implicitSurface);
 	setVisible(_parametricPresetLabel, _parametricPreset, parametricSurface);
 	setVisible(_parametricCurvePresetLabel, _parametricCurvePreset, parametricCurve);
-	setVisible(_formulaExpressionLabel, _formulaExpression, !parametric);
-	setVisible(_parametricXLabel, _parametricX, parametric);
-	setVisible(_parametricYLabel, _parametricY, parametric);
-	setVisible(_parametricZLabel, _parametricZ, parametric);
+	setVisible(_formulaVectorPresetLabel, _formulaVectorPreset, vectorField);
+	setVisible(_implicitPresetLabel, _implicitPreset, implicitSurface);
+	setVisible(_formulaExpressionLabel, _formulaExpression, !parametric && !vectorField);
+	setVisible(_parametricXLabel, _parametricX, parametric || vectorField);
+	setVisible(_parametricYLabel, _parametricY, parametric || vectorField);
+	setVisible(_parametricZLabel, _parametricZ, parametric || vectorField);
 	_formulaXRangeLabel->setText(parametricCurve ? tr("T range / samples:") : (parametricSurface ? tr("U range / samples:") : tr("X range / samples:")));
 	_formulaYRangeLabel->setText(parametricSurface ? tr("V range / samples:") : tr("Y range / samples:"));
 	_formulaLayout->setRowVisible(_formulaYRangeLabel, !parametricCurve);
-	_formulaXSamples->setMaximum(parametricCurve ? 8192 : 512);
-	_formulaYSamples->setMaximum(512);
-	_parametricXLabel->setText(parametricCurve ? tr("x(t) =") : tr("x(u,v) ="));
-	_parametricYLabel->setText(parametricCurve ? tr("y(t) =") : tr("y(u,v) ="));
-	_parametricZLabel->setText(parametricCurve ? tr("z(t) =") : tr("z(u,v) ="));
+	_formulaLayout->setRowVisible(_formulaZRangeLabel, implicitSurface);
+	_formulaXSamples->setMaximum(parametricCurve ? 8192 : ((vectorField || implicitSurface) ? (implicitSurface ? 64 : 128) : 512));
+	_formulaYSamples->setMaximum((vectorField || implicitSurface) ? (implicitSurface ? 64 : 128) : 512);
+	_formulaZSamples->setMaximum(implicitSurface ? 64 : 8192);
+	_parametricXLabel->setText(vectorField ? tr("u(x,y) =") : (parametricCurve ? tr("x(t) =") : tr("x(u,v) =")));
+	_parametricYLabel->setText(vectorField ? tr("v(x,y) =") : (parametricCurve ? tr("y(t) =") : tr("y(u,v) =")));
+	_parametricZLabel->setText(vectorField ? tr("w(x,y) =") : (parametricCurve ? tr("z(t) =") : tr("z(u,v) =")));
 	if (generated)
 	{
 		// Formula fields can also make contours. Parametric coordinates have a
 		// single unambiguous output: a triangle surface or an ordered line.
-		const Plot3DPrimitive expected = parametricCurve ? Plot3DPrimitive::Line : Plot3DPrimitive::Surface;
-		if (parametric || (static_cast<Plot3DPrimitive>(_primitive->currentData().toInt()) != Plot3DPrimitive::Surface
+		const Plot3DPrimitive expected = vectorField ? Plot3DPrimitive::Quiver : (parametricCurve ? Plot3DPrimitive::Line : Plot3DPrimitive::Surface);
+		if (parametric || vectorField || implicitSurface || (static_cast<Plot3DPrimitive>(_primitive->currentData().toInt()) != Plot3DPrimitive::Surface
 			&& static_cast<Plot3DPrimitive>(_primitive->currentData().toInt()) != Plot3DPrimitive::Contour))
 			_primitive->setCurrentIndex(_primitive->findData(static_cast<int>(expected)));
 		// Formula and parametric presets have separate expression, title and
@@ -514,6 +694,10 @@ void Plot3DPanel::updateSourceMode()
 			applyParametricPreset();
 		else if (parametricCurve)
 			applyParametricCurvePreset();
+		else if (vectorField)
+			applyFormulaVectorPreset();
+		else if (implicitSurface)
+			applyImplicitPreset();
 		else
 			applyFormulaPreset();
 	}
@@ -577,6 +761,43 @@ void Plot3DPanel::applyParametricCurvePreset()
 	if (_sourceMode->currentData().toInt() == 3) refreshParametricCurvePreview();
 }
 
+void Plot3DPanel::applyFormulaVectorPreset()
+{
+	const int index = _formulaVectorPreset->currentIndex();
+	if (index < 0 || index >= _formulaVectorPresets.size()) return;
+	const Plot3DFormulaVectorPreset& preset = _formulaVectorPresets[index];
+	_parametricX->setText(preset.uExpression); _parametricY->setText(preset.vExpression); _parametricZ->setText(preset.wExpression);
+	_formulaTitle->setText(preset.title);
+	_formulaXMinimum->setValue(preset.xMinimum); _formulaXMaximum->setValue(preset.xMaximum); _formulaXSamples->setValue(preset.xSamples);
+	_formulaYMinimum->setValue(preset.yMinimum); _formulaYMaximum->setValue(preset.yMaximum); _formulaYSamples->setValue(preset.ySamples);
+	while (QLayoutItem* item = _formulaParameters->takeAt(0)) { delete item->widget(); delete item; }
+	_formulaParameterEditors.clear();
+	for (const Plot3DFormulaParameter& parameter : preset.parameters) { auto* editor = new QDoubleSpinBox(_formulaGroup); editor->setRange(parameter.minimum, parameter.maximum); editor->setDecimals(6); editor->setValue(parameter.value); _formulaParameters->addRow(parameter.name + QStringLiteral(":"), editor); _formulaParameterEditors.insert(parameter.name.toLower(), editor); }
+	if (_sourceMode->currentData().toInt() == 4) refreshFormulaVectorPreview();
+}
+
+void Plot3DPanel::applyImplicitPreset()
+{
+	const int index = _implicitPreset->currentIndex();
+	if (index < 0 || index >= _implicitPresets.size()) return;
+	const Plot3DImplicitPreset& preset = _implicitPresets[index];
+	_formulaTitle->setText(preset.title);
+	_formulaExpression->setText(preset.expression);
+	_formulaXMinimum->setValue(preset.xMinimum); _formulaXMaximum->setValue(preset.xMaximum); _formulaXSamples->setValue(preset.xSamples);
+	_formulaYMinimum->setValue(preset.yMinimum); _formulaYMaximum->setValue(preset.yMaximum); _formulaYSamples->setValue(preset.ySamples);
+	_formulaZMinimum->setValue(preset.zMinimum); _formulaZMaximum->setValue(preset.zMaximum); _formulaZSamples->setValue(preset.zSamples);
+	while (QLayoutItem* item = _formulaParameters->takeAt(0)) { delete item->widget(); delete item; }
+	_formulaParameterEditors.clear();
+	for (const Plot3DFormulaParameter& parameter : preset.parameters)
+	{
+		auto* editor = new QDoubleSpinBox(_formulaGroup);
+		editor->setRange(parameter.minimum, parameter.maximum); editor->setDecimals(6); editor->setValue(parameter.value);
+		_formulaParameters->addRow(parameter.name + QStringLiteral(":"), editor);
+		_formulaParameterEditors.insert(parameter.name.toLower(), editor);
+	}
+	if (_sourceMode->currentData().toInt() == 5) refreshImplicitPreview();
+}
+
 void Plot3DPanel::refreshParametricPreview()
 {
 	QHash<QString, double> parameters; for (auto it = _formulaParameterEditors.cbegin(); it != _formulaParameterEditors.cend(); ++it) parameters.insert(it.key(), it.value()->value());
@@ -602,6 +823,30 @@ void Plot3DPanel::refreshParametricCurvePreview()
 	_buildButton->setEnabled(true);
 }
 
+void Plot3DPanel::refreshFormulaVectorPreview()
+{
+	QHash<QString, double> parameters; for (auto it = _formulaParameterEditors.cbegin(); it != _formulaParameterEditors.cend(); ++it) parameters.insert(it.key(), it.value()->value());
+	Plot3DQuiverData vectors; QString error;
+	if (!buildPlot3DFormulaVectorField(_parametricX->text(), _parametricY->text(), _parametricZ->text(), _formulaXMinimum->value(), _formulaXMaximum->value(), _formulaXSamples->value(), _formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), parameters, vectors, &error)) { _status->setText(error); _status->setStyleSheet(QStringLiteral("color: #d9534f;")); _buildButton->setEnabled(false); return; }
+	_status->setStyleSheet(QString()); _status->setText(tr("Formula vector field evaluated on a %1 x %2 grid (%3 arrows).").arg(_formulaXSamples->value()).arg(_formulaYSamples->value()).arg(vectors.arrows.size())); _buildButton->setEnabled(true);
+}
+
+void Plot3DPanel::refreshImplicitPreview()
+{
+	QHash<QString, double> parameters;
+	for (auto it = _formulaParameterEditors.cbegin(); it != _formulaParameterEditors.cend(); ++it) parameters.insert(it.key(), it.value()->value());
+	Plot3DMeshData mesh;
+	QString error;
+	if (!buildPlot3DImplicitSurface(_formulaExpression->text(), _formulaXMinimum->value(), _formulaXMaximum->value(), _formulaXSamples->value(),
+		_formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), _formulaZMinimum->value(), _formulaZMaximum->value(), _formulaZSamples->value(), parameters, mesh, &error))
+	{
+		_status->setText(error); _status->setStyleSheet(QStringLiteral("color: #d9534f;")); _buildButton->setEnabled(false); return;
+	}
+	_status->setStyleSheet(QString());
+	_status->setText(tr("Implicit surface evaluated on a %1 x %2 x %3 grid (%4 triangles).").arg(_formulaXSamples->value()).arg(_formulaYSamples->value()).arg(_formulaZSamples->value()).arg(mesh.indices.size() / 3));
+	_buildButton->setEnabled(true);
+}
+
 void Plot3DPanel::buildParametricPlot()
 {
 	if (!_modelViewer || !_modelViewer->getViewportWidget() || !_modelViewer->sceneGraph())
@@ -613,9 +858,14 @@ void Plot3DPanel::buildParametricPlot()
 
 	Plot3DMeshData data;
 	QString error;
-	if (!buildPlot3DParametricSurface(_parametricX->text(), _parametricY->text(), _parametricZ->text(),
-		_formulaXMinimum->value(), _formulaXMaximum->value(), _formulaXSamples->value(),
-		_formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), parameters, data, &error))
+	const bool implicitSurface = _sourceMode->currentData().toInt() == 5;
+	const bool built = implicitSurface
+		? buildPlot3DImplicitSurface(_formulaExpression->text(), _formulaXMinimum->value(), _formulaXMaximum->value(), _formulaXSamples->value(),
+			_formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), _formulaZMinimum->value(), _formulaZMaximum->value(), _formulaZSamples->value(), parameters, data, &error)
+		: buildPlot3DParametricSurface(_parametricX->text(), _parametricY->text(), _parametricZ->text(),
+			_formulaXMinimum->value(), _formulaXMaximum->value(), _formulaXSamples->value(),
+			_formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), parameters, data, &error);
+	if (!built)
 	{
 		QMessageBox::warning(this, tr("Build Plot"), error);
 		return;
@@ -625,7 +875,7 @@ void Plot3DPanel::buildParametricPlot()
 	ViewportWidget* viewport = _modelViewer->getViewportWidget();
 	const QString title = _formulaTitle->text().trimmed();
 	const QString baseName = viewport->generateUniqueMeshName(
-		tr("Plot3D %1").arg(title.isEmpty() ? tr("Parametric") : title));
+		tr("Plot3D %1").arg(title.isEmpty() ? (implicitSurface ? tr("Implicit Surface") : tr("Parametric")) : title));
 	std::vector<Vertex> vertices(data.vertexCount());
 	std::vector<float> values(data.vertexCount());
 	std::vector<bool> valid(data.vertexCount(), true);
@@ -772,6 +1022,24 @@ void Plot3DPanel::buildParametricCurvePlot()
 	_modelViewer->addPlot3DSession(std::move(session));
 	_status->setStyleSheet(QString());
 	_status->setText(tr("Built '%1' (%2 points).").arg(baseName).arg(data.vertexCount()));
+}
+
+void Plot3DPanel::buildFormulaVectorPlot()
+{
+	if (!_modelViewer || !_modelViewer->getViewportWidget() || !_modelViewer->sceneGraph()) return;
+	QHash<QString, double> parameters; for (auto it = _formulaParameterEditors.cbegin(); it != _formulaParameterEditors.cend(); ++it) parameters.insert(it.key(), it.value()->value());
+	Plot3DQuiverData vectors; QString error;
+	if (!buildPlot3DFormulaVectorField(_parametricX->text(), _parametricY->text(), _parametricZ->text(), _formulaXMinimum->value(), _formulaXMaximum->value(), _formulaXSamples->value(), _formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), parameters, vectors, &error)) { QMessageBox::warning(this, tr("Build Plot"), error); return; }
+	clearPreview();
+	Plot3DDataset dataset;
+	dataset.name = _formulaTitle->text().trimmed();
+	dataset.primitive = Plot3DPrimitive::Quiver;
+	dataset.content = std::move(vectors);
+	const QString title = _formulaTitle->text().trimmed();
+	const QString baseName = _modelViewer->getViewportWidget()->generateUniqueMeshName(tr("Plot3D %1").arg(title.isEmpty() ? tr("Vector Field") : title));
+	buildQuiverPlot(dataset, baseName);
+	if (!title.isEmpty() && !_modelViewer->activePlot3DMeshUuid().isNull())
+		_modelViewer->setPlot3DAxisTitle(_modelViewer->activePlot3DMeshUuid(), title);
 }
 void Plot3DPanel::refreshFormulaPreview()
 {
@@ -933,6 +1201,16 @@ void Plot3DPanel::refreshColumnCombos(bool resetForNewSchema)
 
 void Plot3DPanel::buildPlot()
 {
+	if (_sourceMode->currentData().toInt() == 5)
+	{
+		buildParametricPlot();
+		return;
+	}
+	if (_sourceMode->currentData().toInt() == 4)
+	{
+		buildFormulaVectorPlot();
+		return;
+	}
 	if (_sourceMode->currentData().toInt() == 3)
 	{
 		buildParametricCurvePlot();
@@ -1267,59 +1545,10 @@ void Plot3DPanel::buildQuiverPlot(const Plot3DDataset& dataset, const QString& b
 	mesh->setAnalysisOverlayColors(AnalysisColorRamp::mapToRGBA(siteValues, siteValid, lo, hi, AnalysisColormap::Sequential));
 	mesh->setAnalysisOverlayBanding(0, static_cast<int>(AnalysisColormap::Sequential));
 
-	// GlyphSet: one arrow per site, anchored to the mesh vertex just built for it (all 3 anchor slots the same
-	// index - "a node arrow repeats one vertex", GlyphSet's own convention). An earlier version used the CSV's own
-	// vector magnitudes as the arrow length directly (matplotlib's own default quiver behaviour); the user found
-	// this made the cone heads (SimulationGlyphController sizes them as a FRACTION of each arrow's own shaft
-	// length, so a long shaft means a long, wide head too) dominate the plot, since a Plot3D CSV's raw vector units
-	// have no reason to already be "reasonable arrow length" for this data's own grid spacing. Fixed the same way
-	// buildGlyphSet() sizes simulation vector-field arrows: the LARGEST magnitude becomes a fixed fraction of the
-	// data's own bounding-box diagonal, every other arrow scaled down from that by its magnitude ratio - so arrow
-	// (and head) size is always proportionate to the plot regardless of the CSV's own vector units.
-	double diagonalLo[3], diagonalHi[3];
-	double diagonal = 1.0;
-	if (plot3DDataBounds(dataset, diagonalLo, diagonalHi))
-	{
-		const double dx = diagonalHi[0] - diagonalLo[0], dy = diagonalHi[1] - diagonalLo[1], dz = diagonalHi[2] - diagonalLo[2];
-		const double computed = std::sqrt(dx * dx + dy * dy + dz * dz);
-		if (computed > 1.0e-9)
-			diagonal = computed;
-	}
-	const float maxArrowLength = static_cast<float>(diagonal * 0.06); // matches buildGlyphSet()'s own "5% of diagonal" order of magnitude
-
-	GlyphSet glyphs;
-	glyphs.anchors.reserve(quiver.arrows.size() * 3);
-	glyphs.vectors.reserve(quiver.arrows.size() * 3);
-	glyphs.values.reserve(quiver.arrows.size());
-	glyphs.colors.reserve(quiver.arrows.size() * 3);
-	float magnitudeLo = std::numeric_limits<float>::max(), magnitudeHi = std::numeric_limits<float>::lowest();
-	std::vector<float> magnitudes(quiver.arrows.size());
-	for (std::size_t i = 0; i < quiver.arrows.size(); ++i)
-	{
-		const Plot3DQuiver& arrow = quiver.arrows[i];
-		const float mx = static_cast<float>(arrow.vector.x), my = static_cast<float>(arrow.vector.y), mz = static_cast<float>(arrow.vector.z);
-		magnitudes[i] = std::sqrt(mx * mx + my * my + mz * mz);
-		magnitudeLo = std::min(magnitudeLo, magnitudes[i]);
-		magnitudeHi = std::max(magnitudeHi, magnitudes[i]);
-	}
-	if (magnitudeHi <= magnitudeLo)
-		magnitudeHi = magnitudeLo + 1.0f;
-	for (std::size_t i = 0; i < quiver.arrows.size(); ++i)
-	{
-		const Plot3DQuiver& arrow = quiver.arrows[i];
-		glyphs.anchors.insert(glyphs.anchors.end(), { static_cast<std::uint32_t>(i), static_cast<std::uint32_t>(i), static_cast<std::uint32_t>(i) });
-		const float rawLength = magnitudes[i];
-		const float scale = rawLength > 1.0e-9f ? (maxArrowLength * (magnitudes[i] / magnitudeHi)) / rawLength : 0.0f;
-		glyphs.vectors.insert(glyphs.vectors.end(), {
-			static_cast<float>(arrow.vector.x) * scale, static_cast<float>(arrow.vector.y) * scale, static_cast<float>(arrow.vector.z) * scale });
-		glyphs.values.push_back(magnitudes[i]);
-		const QColor c = AnalysisColorRamp::colorForNormalized((magnitudes[i] - magnitudeLo) / (magnitudeHi - magnitudeLo), AnalysisColormap::Sequential);
-		glyphs.colors.insert(glyphs.colors.end(), { static_cast<float>(c.redF()), static_cast<float>(c.greenF()), static_cast<float>(c.blueF()) });
-	}
-	glyphs.fieldMin = magnitudeLo;
-	glyphs.fieldMax = magnitudeHi;
-	glyphs.referenceLength = maxArrowLength;
-	viewport->setSimulationGlyphs(meshUuid, std::move(glyphs));
+	// Use one glyph construction path for both permanent and temporary plots.
+	// It normalizes arrows to the data bounds, so raw vector units never make
+	// a preview visually disagree with the committed plot.
+	viewport->setSimulationGlyphs(meshUuid, quiverGlyphs(quiver, dataset));
 
 	viewport->doneCurrent();
 	viewport->updateView();

@@ -2,14 +2,15 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 namespace
 {
 class Parser
 {
 public:
-	Parser(const QString& expression, double x, double y, const QHash<QString, double>& parameters)
-		: _text(expression), _x(x), _y(y), _parameters(parameters) {}
+	Parser(const QString& expression, double x, double y, double z, const QHash<QString, double>& parameters)
+		: _text(expression), _x(x), _y(y), _z(z), _parameters(parameters) {}
 	bool parse(double& result, QString& error)
 	{
 		_skip(); result = _expression(error); _skip();
@@ -34,12 +35,12 @@ private:
 			while (_pos < _text.size() && (_text[_pos].isLetterOrNumber() || _text[_pos] == '_')) ++_pos;
 			const QString name = _text.mid(start, _pos-start).toLower();
 			if (_take('(')) { double a=_expression(e); double b=0; bool two=false; if(e.isEmpty() && _take(',')) { b=_expression(e); two=true; } if(e.isEmpty() && !_take(')')) e=QStringLiteral("Missing closing parenthesis after %1.").arg(name); if(!e.isEmpty()) return 0; if(name=="sin")return std::sin(a); if(name=="cos")return std::cos(a); if(name=="tan")return std::tan(a); if(name=="asin")return std::asin(a); if(name=="acos")return std::acos(a); if(name=="atan")return std::atan(a); if(name=="sinh")return std::sinh(a); if(name=="cosh")return std::cosh(a); if(name=="tanh")return std::tanh(a); if(name=="exp")return std::exp(a); if(name=="log")return a>0?std::log(a):(e=QStringLiteral("log requires a positive value."),0); if(name=="sqrt")return a>=0?std::sqrt(a):(e=QStringLiteral("sqrt requires a non-negative value."),0); if(name=="abs")return std::abs(a); if(name=="sign")return a<0?-1.0:(a>0?1.0:0.0); if(name=="pow"&&two)return std::pow(a,b); if(name=="min"&&two)return std::min(a,b); if(name=="max"&&two)return std::max(a,b); e=QStringLiteral("Unknown function or wrong argument count: %1.").arg(name); return 0; }
-			if(name=="x"||name=="u"||name=="t")return _x; if(name=="y"||name=="v")return _y; if(name=="pi")return 3.14159265358979323846; if(name=="e")return 2.71828182845904523536;
+			if(name=="x"||name=="u"||name=="t")return _x; if(name=="y"||name=="v")return _y; if(name=="z")return _z; if(name=="pi")return 3.14159265358979323846; if(name=="e")return 2.71828182845904523536;
 			if (_parameters.contains(name)) return _parameters.value(name); e=QStringLiteral("Unknown variable: %1.").arg(name); return 0;
 		}
 		e = QStringLiteral("Expected a number, variable, or expression."); return 0;
 	}
-	const QString& _text; int _pos=0; double _x, _y; const QHash<QString,double>& _parameters;
+	const QString& _text; int _pos=0; double _x, _y, _z; const QHash<QString,double>& _parameters;
 };
 }
 
@@ -88,8 +89,30 @@ QVector<Plot3DParametricCurvePreset> plot3DParametricCurvePresets()
 		{QStringLiteral("Damped Spiral"),QStringLiteral("Damped Spiral"),QStringLiteral("r*exp(-d*t)*cos(w*t)"),QStringLiteral("r*exp(-d*t)*sin(w*t)"),QStringLiteral("pitch*t"),0,6*tau,481,{p("r",3.0),p("d",0.08),p("w",1.0),p("pitch",0.08)}},
 	};
 }
+QVector<Plot3DFormulaVectorPreset> plot3DFormulaVectorPresets()
+{
+	auto p=[](const char* name,double value){return Plot3DFormulaParameter{QString::fromLatin1(name),value};};
+	return {
+		{QStringLiteral("Vortex"),QStringLiteral("Planar Vortex"),QStringLiteral("-s*y"),QStringLiteral("s*x"),QStringLiteral("0"),-4,4,-4,4,17,17,{p("s",1.0)}},
+		{QStringLiteral("Radial"),QStringLiteral("Radial Field"),QStringLiteral("s*x"),QStringLiteral("s*y"),QStringLiteral("0"),-4,4,-4,4,17,17,{p("s",1.0)}},
+		{QStringLiteral("Saddle"),QStringLiteral("Saddle Field"),QStringLiteral("s*x"),QStringLiteral("-s*y"),QStringLiteral("0"),-4,4,-4,4,17,17,{p("s",1.0)}},
+		{QStringLiteral("Helical"),QStringLiteral("Helical Field"),QStringLiteral("-s*y"),QStringLiteral("s*x"),QStringLiteral("rise"),-4,4,-4,4,17,17,{p("s",1.0),p("rise",0.75)}},
+	};
+}
+QVector<Plot3DImplicitPreset> plot3DImplicitPresets()
+{
+	auto p=[](const char* name,double value){return Plot3DFormulaParameter{QString::fromLatin1(name),value};};
+	return {
+		{QStringLiteral("Sphere"),QStringLiteral("Implicit Sphere"),QStringLiteral("x^2+y^2+z^2-r^2"),-3,3,-3,3,-3,3,41,41,41,{p("r",2.0)}},
+		{QStringLiteral("Torus"),QStringLiteral("Implicit Torus"),QStringLiteral("(sqrt(x^2+y^2)-r)^2+z^2-a^2"),-4,4,-4,4,-2,2,49,49,33,{p("r",2.3),p("a",0.8)}},
+		{QStringLiteral("Gyroid"),QStringLiteral("Gyroid Surface"),QStringLiteral("sin(x)*cos(y)+sin(y)*cos(z)+sin(z)*cos(x)-level"),-3.141592653589793,3.141592653589793,-3.141592653589793,3.141592653589793,-3.141592653589793,3.141592653589793,49,49,49,{p("level",0.0)}},
+		{QStringLiteral("Wave Interference"),QStringLiteral("Wave Interference Isosurface"),QStringLiteral("sin(k*x)+sin(k*y)+sin(k*z)-level"),-3.141592653589793,3.141592653589793,-3.141592653589793,3.141592653589793,-3.141592653589793,3.141592653589793,49,49,49,{p("k",1.0),p("level",0.0)}},
+	};
+}
 bool evaluatePlot3DFormula(const QString& expression,double x,double y,const QHash<QString,double>& parameters,double& result,QString* error)
-{ QString local; Parser parser(expression,x,y,parameters); const bool ok=parser.parse(result,local); if(error)*error=local; return ok; }
+{ return evaluatePlot3DFormula3D(expression, x, y, 0.0, parameters, result, error); }
+bool evaluatePlot3DFormula3D(const QString& expression,double x,double y,double z,const QHash<QString,double>& parameters,double& result,QString* error)
+{ QString local; Parser parser(expression,x,y,z,parameters); const bool ok=parser.parse(result,local); if(error)*error=local; return ok; }
 bool buildPlot3DFormulaSurface(const QString& expression,double x0,double x1,int nx,double y0,double y1,int ny,const QHash<QString,double>& parameters,Plot3DSurfaceData& out,QString* error)
 {
 	out.samples.clear(); if(nx<2||ny<2||nx>512||ny>512||!(x1>x0)||!(y1>y0)){if(error)*error=QStringLiteral("Formula ranges must increase and each resolution must be 2 to 512.");return false;}
@@ -124,6 +147,134 @@ bool buildPlot3DParametricCurve(const QString& xe,const QString& ye,const QStrin
 			return false;
 		}
 		out.samples.push_back({{x,y,z},z});
+	}
+	return true;
+}
+bool buildPlot3DFormulaVectorField(const QString& ue,const QString& ve,const QString& we,double x0,double x1,int nx,double y0,double y1,int ny,const QHash<QString,double>& parameters,Plot3DQuiverData& out,QString* error)
+{
+	out.arrows.clear();
+	if(nx<2||ny<2||nx>128||ny>128||!(x1>x0)||!(y1>y0)) { if(error)*error=QStringLiteral("Vector-field ranges must increase and each resolution must be 2 to 128."); return false; }
+	out.arrows.reserve(static_cast<size_t>(nx)*ny);
+	for(int iy=0;iy<ny;++iy) for(int ix=0;ix<nx;++ix)
+	{
+		const double x=x0+(x1-x0)*ix/(nx-1), y=y0+(y1-y0)*iy/(ny-1); double u,v,w; QString e;
+		if(!evaluatePlot3DFormula(ue,x,y,parameters,u,&e)||!evaluatePlot3DFormula(ve,x,y,parameters,v,&e)||!evaluatePlot3DFormula(we,x,y,parameters,w,&e)) { if(error)*error=QStringLiteral("At x=%1, y=%2: %3").arg(x).arg(y).arg(e); out.arrows.clear(); return false; }
+		out.arrows.push_back({{x,y,0.0},{u,v,w},std::sqrt(u*u+v*v+w*w)});
+	}
+	return true;
+}
+
+bool buildPlot3DImplicitSurface(const QString& expression,
+	double xMinimum, double xMaximum, int xSamples, double yMinimum, double yMaximum, int ySamples,
+	double zMinimum, double zMaximum, int zSamples, const QHash<QString, double>& parameters,
+	Plot3DMeshData& out, QString* error)
+{
+	out = Plot3DMeshData();
+	if (xSamples < 2 || ySamples < 2 || zSamples < 2 || xSamples > 64 || ySamples > 64 || zSamples > 64
+		|| !(xMaximum > xMinimum) || !(yMaximum > yMinimum) || !(zMaximum > zMinimum))
+	{
+		if (error) *error = QStringLiteral("Implicit-surface ranges must increase and each resolution must be 2 to 64.");
+		return false;
+	}
+	const double dx = (xMaximum - xMinimum) / (xSamples - 1);
+	const double dy = (yMaximum - yMinimum) / (ySamples - 1);
+	const double dz = (zMaximum - zMinimum) / (zSamples - 1);
+	struct Sample { Plot3DPoint position; double value = 0.0; };
+	std::vector<Sample> samples(static_cast<size_t>(xSamples) * ySamples * zSamples);
+	auto index = [=](int x, int y, int z) { return (static_cast<size_t>(z) * ySamples + y) * xSamples + x; };
+	for (int z = 0; z < zSamples; ++z)
+		for (int y = 0; y < ySamples; ++y)
+			for (int x = 0; x < xSamples; ++x)
+			{
+				Sample& sample = samples[index(x, y, z)];
+				sample.position = { xMinimum + dx * x, yMinimum + dy * y, zMinimum + dz * z };
+				QString local;
+				if (!evaluatePlot3DFormula3D(expression, sample.position.x, sample.position.y, sample.position.z, parameters, sample.value, &local))
+				{
+					if (error) *error = QStringLiteral("At x=%1, y=%2, z=%3: %4").arg(sample.position.x).arg(sample.position.y).arg(sample.position.z).arg(local);
+					out = Plot3DMeshData();
+					return false;
+				}
+			}
+
+	auto interpolate = [](const Sample& first, const Sample& second)
+	{
+		const double denominator = first.value - second.value;
+		const double t = std::abs(denominator) > 1.0e-15 ? std::clamp(first.value / denominator, 0.0, 1.0) : 0.5;
+		return Plot3DPoint{ first.position.x + (second.position.x - first.position.x) * t,
+			first.position.y + (second.position.y - first.position.y) * t,
+			first.position.z + (second.position.z - first.position.z) * t };
+	};
+	auto addTriangle = [&](Plot3DPoint first, Plot3DPoint second, Plot3DPoint third)
+	{
+		const double abx = second.x - first.x, aby = second.y - first.y, abz = second.z - first.z;
+		const double acx = third.x - first.x, acy = third.y - first.y, acz = third.z - first.z;
+		double nx = aby * acz - abz * acy, ny = abz * acx - abx * acz, nz = abx * acy - aby * acx;
+		const double length = std::sqrt(nx * nx + ny * ny + nz * nz);
+		if (length < 1.0e-15) return;
+		// The tetrahedra do not provide one global winding convention. Orient every
+		// face against the scalar-field gradient so lighting and back-face culling
+		// stay coherent across cube boundaries.
+		const Plot3DPoint center{ (first.x + second.x + third.x) / 3.0, (first.y + second.y + third.y) / 3.0, (first.z + second.z + third.z) / 3.0 };
+		auto valueAt = [&](double x, double y, double z, double& value) { return evaluatePlot3DFormula3D(expression, x, y, z, parameters, value, nullptr); };
+		double xp, xm, yp, ym, zp, zm;
+		if (valueAt(center.x + dx * 0.25, center.y, center.z, xp) && valueAt(center.x - dx * 0.25, center.y, center.z, xm)
+			&& valueAt(center.x, center.y + dy * 0.25, center.z, yp) && valueAt(center.x, center.y - dy * 0.25, center.z, ym)
+			&& valueAt(center.x, center.y, center.z + dz * 0.25, zp) && valueAt(center.x, center.y, center.z - dz * 0.25, zm))
+		{
+			const double gx = xp - xm, gy = yp - ym, gz = zp - zm;
+			if (nx * gx + ny * gy + nz * gz < 0.0)
+			{
+				std::swap(second, third);
+				nx = -nx; ny = -ny; nz = -nz;
+			}
+		}
+		const std::uint32_t firstIndex = static_cast<std::uint32_t>(out.vertexCount());
+		for (const Plot3DPoint& point : { first, second, third })
+		{
+			out.positions.insert(out.positions.end(), { static_cast<float>(point.x), static_cast<float>(point.y), static_cast<float>(point.z) });
+			out.normals.insert(out.normals.end(), { static_cast<float>(nx / length), static_cast<float>(ny / length), static_cast<float>(nz / length) });
+			out.values.push_back(static_cast<float>(point.z));
+		}
+		out.indices.insert(out.indices.end(), { firstIndex, firstIndex + 1, firstIndex + 2 });
+	};
+	auto polygoniseTetrahedron = [&](const Sample* tetra)
+	{
+		int inside[4], outside[4], insideCount = 0, outsideCount = 0;
+		for (int i = 0; i < 4; ++i)
+			(tetra[i].value <= 0.0 ? inside[insideCount++] : outside[outsideCount++]) = i;
+		if (insideCount == 0 || insideCount == 4) return;
+		if (insideCount == 1 || insideCount == 3)
+		{
+			const int pivot = insideCount == 1 ? inside[0] : outside[0];
+			const int* others = insideCount == 1 ? outside : inside;
+			addTriangle(interpolate(tetra[pivot], tetra[others[0]]), interpolate(tetra[pivot], tetra[others[1]]), interpolate(tetra[pivot], tetra[others[2]]));
+			return;
+		}
+		const Plot3DPoint a = interpolate(tetra[inside[0]], tetra[outside[0]]);
+		const Plot3DPoint b = interpolate(tetra[inside[0]], tetra[outside[1]]);
+		const Plot3DPoint c = interpolate(tetra[inside[1]], tetra[outside[0]]);
+		const Plot3DPoint d = interpolate(tetra[inside[1]], tetra[outside[1]]);
+		addTriangle(a, b, c);
+		addTriangle(c, b, d);
+	};
+	constexpr int cubeTetrahedra[6][4] = { { 0, 5, 1, 6 }, { 0, 1, 2, 6 }, { 0, 2, 3, 6 }, { 0, 3, 7, 6 }, { 0, 7, 4, 6 }, { 0, 4, 5, 6 } };
+	for (int z = 0; z + 1 < zSamples; ++z)
+		for (int y = 0; y + 1 < ySamples; ++y)
+			for (int x = 0; x + 1 < xSamples; ++x)
+			{
+				const Sample cube[8] = { samples[index(x,y,z)], samples[index(x+1,y,z)], samples[index(x+1,y+1,z)], samples[index(x,y+1,z)],
+					samples[index(x,y,z+1)], samples[index(x+1,y,z+1)], samples[index(x+1,y+1,z+1)], samples[index(x,y+1,z+1)] };
+				for (const auto& tetrahedron : cubeTetrahedra)
+				{
+					const Sample tetra[4] = { cube[tetrahedron[0]], cube[tetrahedron[1]], cube[tetrahedron[2]], cube[tetrahedron[3]] };
+					polygoniseTetrahedron(tetra);
+				}
+			}
+	if (out.empty())
+	{
+		if (error) *error = QStringLiteral("The implicit field does not cross zero inside the selected ranges.");
+		return false;
 	}
 	return true;
 }

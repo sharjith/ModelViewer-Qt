@@ -34,14 +34,19 @@ private:
 	void refreshFormulaPreview();
 	void refreshParametricPreview();
 	void refreshParametricCurvePreview();
+	void refreshFormulaVectorPreview();
+	void refreshImplicitPreview();
 	void previewPlot();
 	void clearPreview();
 	void updateSourceMode();
 	void applyFormulaPreset();
 	void applyParametricPreset();
 	void applyParametricCurvePreset();
+	void applyFormulaVectorPreset();
+	void applyImplicitPreset();
 	void buildParametricPlot();
 	void buildParametricCurvePlot();
+	void buildFormulaVectorPlot();
 	// Repopulates the column-role combos from _table's headers. A new schema
 	// resets roles by their semantic header names (x/y/z/u/v/w/base/etc.);
 	// re-parsing the same schema retains deliberate user selections.
@@ -86,6 +91,8 @@ private:
 	QComboBox* _formulaPreset = nullptr;
 	QComboBox* _parametricPreset = nullptr;
 	QComboBox* _parametricCurvePreset = nullptr;
+	QComboBox* _formulaVectorPreset = nullptr;
+	QComboBox* _implicitPreset = nullptr;
 	QLineEdit* _formulaTitle = nullptr;
 	QLineEdit* _formulaExpression = nullptr;
 	QLineEdit* _parametricX = nullptr;
@@ -95,24 +102,32 @@ private:
 	QDoubleSpinBox* _formulaXMaximum = nullptr;
 	QDoubleSpinBox* _formulaYMinimum = nullptr;
 	QDoubleSpinBox* _formulaYMaximum = nullptr;
+	QDoubleSpinBox* _formulaZMinimum = nullptr;
+	QDoubleSpinBox* _formulaZMaximum = nullptr;
 	QSpinBox* _formulaXSamples = nullptr;
 	QSpinBox* _formulaYSamples = nullptr;
+	QSpinBox* _formulaZSamples = nullptr;
 	QFormLayout* _formulaLayout = nullptr;
 	QLabel* _formulaPresetLabel = nullptr;
 	QLabel* _parametricPresetLabel = nullptr;
 	QLabel* _parametricCurvePresetLabel = nullptr;
+	QLabel* _formulaVectorPresetLabel = nullptr;
+	QLabel* _implicitPresetLabel = nullptr;
 	QLabel* _formulaExpressionLabel = nullptr;
 	QLabel* _parametricXLabel = nullptr;
 	QLabel* _parametricYLabel = nullptr;
 	QLabel* _parametricZLabel = nullptr;
 	QLabel* _formulaXRangeLabel = nullptr;
 	QLabel* _formulaYRangeLabel = nullptr;
+	QLabel* _formulaZRangeLabel = nullptr;
 	QLabel* _formulaParametersLabel = nullptr;
 	QFormLayout* _formulaParameters = nullptr;
 	QHash<QString, QDoubleSpinBox*> _formulaParameterEditors;
 	QVector<Plot3DFormulaPreset> _formulaPresets;
 	QVector<Plot3DParametricPreset> _parametricPresets;
 	QVector<Plot3DParametricCurvePreset> _parametricCurvePresets;
+	QVector<Plot3DFormulaVectorPreset> _formulaVectorPresets;
+	QVector<Plot3DImplicitPreset> _implicitPresets;
 
 	Plot3DCsvTable _table; // last successfully parsed table, kept for buildPlot() (refreshPreview() only shows it)
 };

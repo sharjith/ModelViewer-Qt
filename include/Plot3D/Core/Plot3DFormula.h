@@ -50,10 +50,37 @@ struct Plot3DParametricCurvePreset
 	QVector<Plot3DFormulaParameter> parameters;
 };
 
+struct Plot3DFormulaVectorPreset
+{
+	QString name;
+	QString title;
+	QString uExpression, vExpression, wExpression;
+	double xMinimum = -4.0, xMaximum = 4.0;
+	double yMinimum = -4.0, yMaximum = 4.0;
+	int xSamples = 17, ySamples = 17;
+	QVector<Plot3DFormulaParameter> parameters;
+};
+
+struct Plot3DImplicitPreset
+{
+	QString name;
+	QString title;
+	QString expression;
+	double xMinimum = -3.0, xMaximum = 3.0;
+	double yMinimum = -3.0, yMaximum = 3.0;
+	double zMinimum = -3.0, zMaximum = 3.0;
+	int xSamples = 41, ySamples = 41, zSamples = 41;
+	QVector<Plot3DFormulaParameter> parameters;
+};
+
 QVector<Plot3DFormulaPreset> plot3DFormulaPresets();
 QVector<Plot3DParametricPreset> plot3DParametricPresets();
 QVector<Plot3DParametricCurvePreset> plot3DParametricCurvePresets();
+QVector<Plot3DFormulaVectorPreset> plot3DFormulaVectorPresets();
+QVector<Plot3DImplicitPreset> plot3DImplicitPresets();
 bool evaluatePlot3DFormula(const QString& expression, double x, double y,
+	const QHash<QString, double>& parameters, double& result, QString* error = nullptr);
+bool evaluatePlot3DFormula3D(const QString& expression, double x, double y, double z,
 	const QHash<QString, double>& parameters, double& result, QString* error = nullptr);
 bool buildPlot3DFormulaSurface(const QString& expression, double xMinimum, double xMaximum, int xSamples,
 	double yMinimum, double yMaximum, int ySamples, const QHash<QString, double>& parameters,
@@ -64,3 +91,10 @@ bool buildPlot3DParametricSurface(const QString& xExpression, const QString& yEx
 bool buildPlot3DParametricCurve(const QString& xExpression, const QString& yExpression, const QString& zExpression,
 	double tMinimum, double tMaximum, int samples, const QHash<QString, double>& parameters,
 	Plot3DLineData& out, QString* error = nullptr);
+bool buildPlot3DFormulaVectorField(const QString& uExpression, const QString& vExpression, const QString& wExpression,
+	double xMinimum, double xMaximum, int xSamples, double yMinimum, double yMaximum, int ySamples,
+	const QHash<QString, double>& parameters, Plot3DQuiverData& out, QString* error = nullptr);
+bool buildPlot3DImplicitSurface(const QString& expression,
+	double xMinimum, double xMaximum, int xSamples, double yMinimum, double yMaximum, int ySamples,
+	double zMinimum, double zMaximum, int zSamples, const QHash<QString, double>& parameters,
+	Plot3DMeshData& out, QString* error = nullptr);
