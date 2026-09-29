@@ -10,6 +10,7 @@
 #include <QFrame>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
@@ -38,6 +39,7 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	layout->setContentsMargins(6, 6, 6, 6);
 
 	_addPlotButton = new QPushButton(tr("Add 3D Plot..."), this);
+	_addPlotButton->setIcon(QIcon(QStringLiteral(":/icons/res/plot3d.png")));
 	_addPlotButton->setToolTip(tr("Import CSV or pasted tabular data and build a new 3D plot."));
 	layout->addWidget(_addPlotButton);
 

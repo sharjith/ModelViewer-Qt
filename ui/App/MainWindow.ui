@@ -201,6 +201,10 @@
     <addaction name="actionPurgeRedundantNodes"/>
    </widget>
    <widget class="QMenu" name="menuSimulation">
+     <property name="icon">
+      <iconset resource="../ModelViewer.qrc">
+       <normaloff>:/icons/res/surface_analysis.png</normaloff>:/icons/res/surface_analysis.png</iconset>
+     </property>
     <property name="title">
      <string>Simulation</string>
     </property>
@@ -770,6 +774,10 @@
    </property>
   </action>
   <action name="actionAdd3DPlot">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/plot3d.png</normaloff>:/icons/res/plot3d.png</iconset>
+   </property>
    <property name="text">
     <string>Plot 3D...</string>
    </property>

@@ -310,7 +310,7 @@ MainWindow::MainWindow(QWidget* parent)
 		// Persistent controls for plots after the roomy import dialog has closed. This shared panel is rebound to
 		// the active document in rebindSharedPanelsTo(), matching the Simulation tab immediately beside it.
 		_plot3DControlsPanel = new Plot3DControlsPanel();
-		_documentSecondaryTabWidget->addTab(_plot3DControlsPanel, QIcon(":/icons/res/showAxis.png"), tr("3D Plot"));
+		_documentSecondaryTabWidget->addTab(_plot3DControlsPanel, QIcon(":/icons/res/plot3d.png"), tr("3D Plot"));
 		connect(_plot3DControlsPanel, &Plot3DControlsPanel::addPlotRequested,
 			this, &MainWindow::showAdd3DPlotDialog);
 

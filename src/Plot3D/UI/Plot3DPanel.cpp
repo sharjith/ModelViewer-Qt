@@ -28,6 +28,7 @@
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -308,6 +309,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 {
 	setAttribute(Qt::WA_DeleteOnClose);
 	setWindowTitle(tr("Add 3D Plot"));
+	setWindowIcon(QIcon(QStringLiteral(":/icons/res/plot3d.png")));
 	resize(760, 560);
 
 	auto* layout = new QVBoxLayout(this);
