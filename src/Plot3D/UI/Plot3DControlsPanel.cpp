@@ -65,6 +65,12 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	_lineWidth = new QDoubleSpinBox(this); _lineWidth->setRange(0.5, 10.0); _lineWidth->setSingleStep(0.25); _lineWidth->setDecimals(2); _lineWidth->setSuffix(tr(" px"));
 	_markerSize = new QDoubleSpinBox(this); _markerSize->setRange(1.0, 20.0); _markerSize->setSingleStep(0.5); _markerSize->setDecimals(1); _markerSize->setSuffix(tr(" px"));
 	_arrowScale = new QDoubleSpinBox(this); _arrowScale->setRange(0.25, 4.0); _arrowScale->setSingleStep(0.1); _arrowScale->setDecimals(2); _arrowScale->setSuffix(QStringLiteral("x"));
+	_barWidthScale = new QDoubleSpinBox(this); _barWidthScale->setRange(0.1, 3.0); _barWidthScale->setSingleStep(0.05); _barWidthScale->setDecimals(2); _barWidthScale->setSuffix(QStringLiteral("x"));
+	_barDepthScale = new QDoubleSpinBox(this); _barDepthScale->setRange(0.1, 3.0); _barDepthScale->setSingleStep(0.05); _barDepthScale->setDecimals(2); _barDepthScale->setSuffix(QStringLiteral("x"));
+	_barWidthScale->setToolTip(tr("Scale every bar's imported width while keeping its centre fixed."));
+	_barDepthScale->setToolTip(tr("Scale every bar's imported depth while keeping its centre fixed."));
+	_barWidthScaleLabel = new QLabel(tr("Bar width:"), this);
+	_barDepthScaleLabel = new QLabel(tr("Bar depth:"), this);
 	appearance->addRow(tr("Colour map:"), _colormap);
 	appearance->addRow(tr("Colour bands:"), _bands);
 	appearance->addRow(QString(), _automaticRange);
@@ -74,6 +80,8 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	appearance->addRow(tr("Line width:"), _lineWidth);
 	appearance->addRow(tr("Marker size:"), _markerSize);
 	appearance->addRow(tr("Arrow size:"), _arrowScale);
+	appearance->addRow(_barWidthScaleLabel, _barWidthScale);
+	appearance->addRow(_barDepthScaleLabel, _barDepthScale);
 	layout->addLayout(appearance);
 
 	// Axes are deliberately edited here, rather than in the transient import
@@ -131,6 +139,8 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	connect(_lineWidth, qOverload<double>(&QDoubleSpinBox::valueChanged), this, &Plot3DControlsPanel::applyAppearanceState);
 	connect(_markerSize, qOverload<double>(&QDoubleSpinBox::valueChanged), this, &Plot3DControlsPanel::applyAppearanceState);
 	connect(_arrowScale, qOverload<double>(&QDoubleSpinBox::valueChanged), this, &Plot3DControlsPanel::applyAppearanceState);
+	connect(_barWidthScale, qOverload<double>(&QDoubleSpinBox::valueChanged), this, &Plot3DControlsPanel::applyBarAppearanceState);
+	connect(_barDepthScale, qOverload<double>(&QDoubleSpinBox::valueChanged), this, &Plot3DControlsPanel::applyBarAppearanceState);
 	connect(_plotTitle, &QLineEdit::editingFinished, this, [this] {
 		if (_viewer && _plotSelector->currentIndex() >= 0)
 			_viewer->setPlot3DAxisTitle(_plotSelector->currentData().toUuid(), _plotTitle->text());
@@ -144,6 +154,10 @@ void Plot3DControlsPanel::retranslate()
 	_addPlotButton->setToolTip(tr("Import CSV or pasted tabular data and build a new 3D plot."));
 	_showAxesCheck->setText(tr("Show axes box"));
 	_showAxesCheck->setToolTip(tr("Show or hide the active plot's axes without discarding its axis layout."));
+	_barWidthScaleLabel->setText(tr("Bar width:"));
+	_barDepthScaleLabel->setText(tr("Bar depth:"));
+	_barWidthScale->setToolTip(tr("Scale every bar's imported width while keeping its centre fixed."));
+	_barDepthScale->setToolTip(tr("Scale every bar's imported depth while keeping its centre fixed."));
 	refreshState();
 }
 
@@ -163,7 +177,7 @@ void Plot3DControlsPanel::refreshState()
 {
 	const QVector<Plot3DSession> sessions = _viewer ? _viewer->plot3DSessions() : QVector<Plot3DSession>();
 	const QUuid active = _viewer ? _viewer->activePlot3DMeshUuid() : QUuid();
-	const QSignalBlocker selectorBlock(_plotSelector), axesBlock(_showAxesCheck), titleBlock(_plotTitle), mapBlock(_colormap), bandsBlock(_bands), autoBlock(_automaticRange), contourBlock(_contourLevels), minBlock(_rangeMinimum), maxBlock(_rangeMaximum), lineBlock(_lineWidth), markerBlock(_markerSize), arrowBlock(_arrowScale);
+	const QSignalBlocker selectorBlock(_plotSelector), axesBlock(_showAxesCheck), titleBlock(_plotTitle), mapBlock(_colormap), bandsBlock(_bands), autoBlock(_automaticRange), contourBlock(_contourLevels), minBlock(_rangeMinimum), maxBlock(_rangeMaximum), lineBlock(_lineWidth), markerBlock(_markerSize), arrowBlock(_arrowScale), barWidthBlock(_barWidthScale), barDepthBlock(_barDepthScale);
 	std::array<QSignalBlocker, 18> axisBlockers{
 		QSignalBlocker(_axisLabels[0]), QSignalBlocker(_axisScales[0]), QSignalBlocker(_axisAutomatic[0]), QSignalBlocker(_axisMinimum[0]), QSignalBlocker(_axisMaximum[0]), QSignalBlocker(_axisTicks[0]),
 		QSignalBlocker(_axisLabels[1]), QSignalBlocker(_axisScales[1]), QSignalBlocker(_axisAutomatic[1]), QSignalBlocker(_axisMinimum[1]), QSignalBlocker(_axisMaximum[1]), QSignalBlocker(_axisTicks[1]),
@@ -177,14 +191,17 @@ void Plot3DControlsPanel::refreshState()
 	const bool available = session != nullptr;
 	// Keep the type explicit: MSVC cannot deduce a mixed derived-QWidget pointer
 	// initializer list here under /permissive-.
-	const std::array<QWidget*, 12> controls{ _plotSelector, _showAxesCheck, _plotTitle, _colormap,
-		_bands, _automaticRange, _contourLevels, _rangeMinimum, _rangeMaximum, _lineWidth, _markerSize, _arrowScale };
+	const std::array<QWidget*, 14> controls{ _plotSelector, _showAxesCheck, _plotTitle, _colormap,
+		_bands, _automaticRange, _contourLevels, _rangeMinimum, _rangeMaximum, _lineWidth, _markerSize, _arrowScale,
+		_barWidthScale, _barDepthScale };
 	for (QWidget* control : controls)
 		control->setEnabled(available);
 	if (!available)
 	{
 		_contourLevelsLabel->setVisible(false);
 		_contourLevels->setVisible(false);
+		_barWidthScaleLabel->setVisible(false); _barWidthScale->setVisible(false);
+		_barDepthScaleLabel->setVisible(false); _barDepthScale->setVisible(false);
 		for (int i = 0; i < 3; ++i)
 		{
 			const std::array<QWidget*, 6> axisControls{ _axisLabels[i], _axisScales[i], _axisAutomatic[i], _axisMinimum[i], _axisMaximum[i], _axisTicks[i] };
@@ -212,11 +229,16 @@ void Plot3DControlsPanel::refreshState()
 	_lineWidth->setValue(session->lineWidth);
 	_markerSize->setValue(session->markerSize);
 	_arrowScale->setValue(session->arrowScale);
+	_barWidthScale->setValue(session->barWidthScale);
+	_barDepthScale->setValue(session->barDepthScale);
 	const bool linePlot = session->primitive == Plot3DPrimitive::Line || session->primitive == Plot3DPrimitive::Contour
 		|| (session->primitive == Plot3DPrimitive::Scatter && !session->markerMeshUuid.isNull());
 	_lineWidth->setEnabled(linePlot);
 	_markerSize->setEnabled(session->primitive == Plot3DPrimitive::Scatter && !session->isFilledScatter);
 	_arrowScale->setEnabled(session->primitive == Plot3DPrimitive::Quiver);
+	const bool barPlot = session->primitive == Plot3DPrimitive::Bar;
+	_barWidthScaleLabel->setVisible(barPlot); _barWidthScale->setVisible(barPlot); _barWidthScale->setEnabled(barPlot);
+	_barDepthScaleLabel->setVisible(barPlot); _barDepthScale->setVisible(barPlot); _barDepthScale->setEnabled(barPlot);
 	for (int i = 0; i < 3; ++i)
 	{
 		const Plot3DAxisConfig& axis = session->axes[i];
@@ -246,6 +268,14 @@ void Plot3DControlsPanel::applyAppearanceState()
 		return;
 	_viewer->applyPlot3DAppearance(_plotSelector->currentData().toUuid(), static_cast<float>(_lineWidth->value()),
 		static_cast<float>(_markerSize->value()), static_cast<float>(_arrowScale->value()));
+}
+
+void Plot3DControlsPanel::applyBarAppearanceState()
+{
+	if (!_viewer || _plotSelector->currentIndex() < 0)
+		return;
+	_viewer->applyPlot3DBarAppearance(_plotSelector->currentData().toUuid(),
+		static_cast<float>(_barWidthScale->value()), static_cast<float>(_barDepthScale->value()));
 }
 
 void Plot3DControlsPanel::applyAxisState()

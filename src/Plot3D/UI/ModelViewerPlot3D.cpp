@@ -242,6 +242,69 @@ void ModelViewer::applyPlot3DAppearance(const QUuid& meshUuid, float lineWidth, 
 	emit plot3DSessionsChanged(false);
 }
 
+void ModelViewer::applyPlot3DBarAppearance(const QUuid& meshUuid, float widthScale, float depthScale)
+{
+	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
+	SceneMesh* mesh = _viewportWidget ? _viewportWidget->getMeshByUuid(meshUuid) : nullptr;
+	if (!session || !mesh || !_viewportWidget || session->primitive != Plot3DPrimitive::Bar || session->barSource.bars.empty())
+		return;
+
+	widthScale = std::clamp(widthScale, 0.1f, 3.0f);
+	depthScale = std::clamp(depthScale, 0.1f, 3.0f);
+	if (session->barWidthScale == widthScale && session->barDepthScale == depthScale)
+		return;
+
+	Plot3DBarData styled = session->barSource;
+	for (Plot3DBar& bar : styled.bars)
+	{
+		bar.width *= widthScale;
+		bar.depth *= depthScale;
+	}
+	Plot3DMeshData data;
+	QString error;
+	if (!buildPlot3DBarMesh(styled, data, &error))
+		return;
+
+	std::vector<Vertex> vertices(data.vertexCount());
+	std::vector<float> values(data.vertexCount());
+	std::vector<bool> valid(data.vertexCount(), true);
+	for (std::size_t i = 0; i < data.vertexCount(); ++i)
+	{
+		Vertex& vertex = vertices[i];
+		vertex.Color = glm::vec4(1.0f);
+		vertex.Position = glm::vec3(data.positions[i * 3], data.positions[i * 3 + 1], data.positions[i * 3 + 2]);
+		vertex.Normal = glm::vec3(data.normals[i * 3], data.normals[i * 3 + 1], data.normals[i * 3 + 2]);
+		vertex.Tangent = glm::vec3(0.0f);
+		vertex.Bitangent = glm::vec3(0.0f);
+		for (glm::vec2& uv : vertex.TexCoords)
+			uv = glm::vec2(0.0f);
+		values[i] = static_cast<float>(data.values[i]);
+	}
+
+	_viewportWidget->makeCurrent();
+	mesh->setMeshData(vertices, data.indices);
+	_viewportWidget->doneCurrent();
+	session->barWidthScale = widthScale;
+	session->barDepthScale = depthScale;
+	session->values = std::move(values);
+	session->valid = std::move(valid);
+
+	Plot3DDataset boundsDataset;
+	boundsDataset.primitive = Plot3DPrimitive::Bar;
+	boundsDataset.content = std::move(styled);
+	double minimum[3]{}, maximum[3]{};
+	if (plot3DDataBounds(boundsDataset, minimum, maximum))
+	{
+		std::copy(minimum, minimum + 3, session->dataMinimum.begin());
+		std::copy(maximum, maximum + 3, session->dataMaximum.begin());
+	}
+	if (meshUuid == _activePlot3DMesh)
+		applyAxes(this, session);
+
+	// Rebuilding uploads fresh vertices, so restore the active colour mapping to the new vertex buffer.
+	applyPlot3DColourState(meshUuid, session->colourMinimum, session->colourMaximum, session->colormap, session->bands);
+}
+
 void ModelViewer::setPlot3DContourLevels(const QUuid& meshUuid, int levels)
 {
 	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);

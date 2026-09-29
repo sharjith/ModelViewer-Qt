@@ -33,6 +33,7 @@ private:
 	void refreshState();
 	void applyColourState();
 	void applyAppearanceState();
+	void applyBarAppearanceState();
 	void applyAxisState();
 
 	QPointer<ModelViewer> _viewer;
@@ -51,6 +52,10 @@ private:
 	QDoubleSpinBox* _lineWidth = nullptr;
 	QDoubleSpinBox* _markerSize = nullptr;
 	QDoubleSpinBox* _arrowScale = nullptr;
+	QLabel* _barWidthScaleLabel = nullptr;
+	QDoubleSpinBox* _barWidthScale = nullptr;
+	QLabel* _barDepthScaleLabel = nullptr;
+	QDoubleSpinBox* _barDepthScale = nullptr;
 	std::array<QLineEdit*, 3> _axisLabels{};
 	std::array<QComboBox*, 3> _axisScales{};
 	std::array<QCheckBox*, 3> _axisAutomatic{};

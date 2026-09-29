@@ -630,6 +630,7 @@ public slots:
 	void refreshPlot3DLegend();
 	void applyPlot3DColourState(const QUuid& meshUuid, float minimum, float maximum, int colormap, int bands);
 	void applyPlot3DAppearance(const QUuid& meshUuid, float lineWidth, float markerSize, float arrowScale);
+	void applyPlot3DBarAppearance(const QUuid& meshUuid, float widthScale, float depthScale);
 	void setPlot3DContourLevels(const QUuid& meshUuid, int levels);
 	void setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visible);
 	void applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<Plot3DAxisConfig, 3>& axes);

@@ -1688,6 +1688,8 @@ void Plot3DPanel::buildPlot()
 		session.colormap = static_cast<int>(AnalysisColormap::Sequential);
 		session.isStem = drawStems;
 		session.isFilledScatter = drawScatterFill;
+		if (primitive == Plot3DPrimitive::Bar)
+			session.barSource = std::get<Plot3DBarData>(dataset.content);
 		if (primitive == Plot3DPrimitive::Contour)
 			session.contourSource = std::get<Plot3DSurfaceData>(dataset.content);
 		_modelViewer->addPlot3DSession(std::move(session));

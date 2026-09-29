@@ -36,11 +36,15 @@ struct Plot3DSession
 	float lineWidth = 1.5f;
 	float markerSize = 3.0f;
 	float arrowScale = 1.0f;
+	float barWidthScale = 1.0f;
+	float barDepthScale = 1.0f;
 	bool isStem = false;
 	// Filled scatter ribbons use authored vertex colours because the analysis-overlay shader path does not retain
 	// its colour ramp when the underlying material is alpha blended. This flag lets the persistent colour controls
 	// update those vertex colours while preserving the transparent material.
 	bool isFilledScatter = false;
+	// Bar source geometry is retained so footprint styling can rebuild the mesh without reopening the import dialog.
+	Plot3DBarData barSource;
 	Plot3DSurfaceData contourSource;
 	int contourLevels = 10;
 	bool visible = true;
