@@ -1546,6 +1546,10 @@ public:
 	void setSimulationVolumeTransferFunction(const QUuid& meshUuid, int colormap, QVector<QPointF> opacity);
 	void clearSimulationVolume(const QUuid& meshUuid);
 	bool hasSimulationVolume(const QUuid& meshUuid) const;
+	// What the arrow / volume controllers currently hold for a mesh (null when none). Plot3D saves its Quiver and Voxel
+	// plots from these, since neither renderer's data lives in the plot's mesh.
+	const GlyphSet* simulationGlyphSet(const QUuid& meshUuid) const;
+	const VolumeGrid* simulationVolumeGrid(const QUuid& meshUuid) const;
 
 	// Cut surfaces of a simulation result's volume (data-coloured sections, iso-surfaces): see SimulationSliceController.h. An empty list clears them.
 	void setSimulationSlices(const QUuid& meshUuid, std::vector<SliceDisplay> slices);

@@ -2,6 +2,7 @@
 #include "Plot3DFormula.h"
 #include "Plot3DAxisController.h"
 #include "Plot3DMeshBuilder.h"
+#include "Plot3DSessionIO.h"
 
 #include <cmath>
 #include <cstdio>
@@ -191,6 +192,19 @@ namespace
 		CHECK(stemMesh.positions[8] == -3.0f && stemMesh.positions[11] == 0.0f);
 		CHECK(stemMesh.values[0] == 2.0 && stemMesh.values[1] == 2.0 && stemMesh.values[2] == 4.0 && stemMesh.values[3] == 4.0);
 
+		scatter.errors = { 0.5, 1.25 };
+		Plot3DMeshData errorBarMesh;
+		CHECK(buildPlot3DErrorBarMesh(scatter, errorBarMesh, &error));
+		CHECK(errorBarMesh.vertexCount() == 16 && errorBarMesh.indices.empty());
+		CHECK(errorBarMesh.positions[2] == -0.5f && errorBarMesh.positions[5] == 0.5f);
+		CHECK(errorBarMesh.values.front() == 2.0 && errorBarMesh.values.back() == 4.0);
+		Plot3DScatterData incompleteErrors = scatter;
+		incompleteErrors.errors.pop_back();
+		CHECK(!buildPlot3DErrorBarMesh(incompleteErrors, errorBarMesh, &error) && !error.isEmpty());
+		Plot3DScatterData negativeError = scatter;
+		negativeError.errors[0] = -0.5;
+		CHECK(!buildPlot3DErrorBarMesh(negativeError, errorBarMesh, &error) && !error.isEmpty() && errorBarMesh.empty());
+
 		Plot3DMeshData fillMesh;
 		CHECK(buildPlot3DScatterFillMesh(scatter, -3.0, fillMesh, &error));
 		CHECK(fillMesh.vertexCount() == 8 && fillMesh.indices.size() == 12);
@@ -314,6 +328,136 @@ namespace
 		CHECK(!controller.buildLayout(axes, badLo, hi, layout, &error) && !error.isEmpty());
 	}
 
+	void testSessionRoundTrip()
+	{
+		// A fully-populated session: every scalar control, a Bar source and Contour source (the two table-shaped
+		// blobs), CSV edit state, and per-vertex colour data with a deliberately invalid entry.
+		Plot3DSession session;
+		session.meshUuid = QUuid::createUuid();
+		session.markerMeshUuid = QUuid::createUuid();
+		session.name = QStringLiteral("Plot3D Scatter");
+		session.title = QStringLiteral("Cluster étude");
+		session.primitive = Plot3DPrimitive::Scatter;
+		session.axes[0].label = QStringLiteral("Time (s)");
+		session.axes[1].scale = Plot3DAxisScale::Log10;
+		session.axes[2].scale = Plot3DAxisScale::SymLog;
+		session.axes[2].symlogLinearThreshold = 2.5;
+		session.axes[2].automaticRange = false;
+		session.axes[2].minimum = -4.0;
+		session.axes[2].maximum = 9.0;
+		session.axes[2].targetTicks = 8;
+		session.dataMinimum = { -1.0, 0.5, -2.0 };
+		session.dataMaximum = { 3.0, 7.5, 6.0 };
+		session.values = { 0.25f, 0.5f, 0.75f, 0.0f };
+		session.valid = { true, true, true, false };
+		session.markerValues = { 1.0f, 2.0f };
+		session.markerValid = { true, false };
+		session.dataMinimumValue = 0.25f; session.dataMaximumValue = 0.75f;
+		session.colourMinimum = 0.1f; session.colourMaximum = 0.9f;
+		session.colormap = 1; session.bands = 6;
+		session.lineWidth = 2.5f; session.markerSize = 7.0f; session.arrowScale = 1.5f;
+		session.barWidthScale = 0.5f; session.barDepthScale = 2.0f;
+		session.isStem = true; session.isErrorBars = false; session.isFilledScatter = true;
+		session.scatterBaseZ = -3.5;
+		session.contourLevels = 14;
+		session.axesVisible = false;
+		session.referencePlanes = { false, true, true };
+		session.referencePlaneOpacity = 0.4f;
+		session.editableCsv = true;
+		session.csvSource = QStringLiteral("x;y;z\n1;2;3\n\"quoted;cell\";5;6\n");
+		session.csvOptions.delimiter = QLatin1Char(';');
+		session.csvOptions.firstRowIsHeader = false;
+		session.columnMapping.x = 2; session.columnMapping.value = 4; session.columnMapping.error = 5;
+		session.columnMapping.base = 1; session.columnMapping.width = 7; session.columnMapping.depth = 8;
+		Plot3DBar bar; bar.x = 1; bar.y = 2; bar.base = -1; bar.height = 4; bar.width = 0.6; bar.depth = 0.9; bar.value = 3.5;
+		session.barSource.bars = { bar, bar };
+		session.barSource.bars[1].x = 9.0;
+		session.contourSource.samples.push_back(Plot3DSample{ { 1, 2, 3 }, 4.0 });
+		session.contourSource.samples.push_back(Plot3DSample{ { 5, 6, 7 }, 8.0 });
+
+		Plot3DRendererPayload payload;
+		payload.hasGlyphs = true;
+		payload.glyphVectors = { 1, 0, 0, 0, 2, 0 };
+		payload.glyphValues = { 1.0f, 2.0f };
+		payload.glyphReferenceLength = 0.75f; payload.glyphFieldMinimum = 1.0f; payload.glyphFieldMaximum = 2.0f;
+		payload.hasVolume = true;
+		payload.volumeDimensions[0] = 2; payload.volumeDimensions[1] = 2; payload.volumeDimensions[2] = 1;
+		payload.volumeValues = { 0.0f, 0.5f, 1.0f, 0.25f };
+		payload.volumeOrigin[0] = 3.0f; payload.volumeVoxelSize[2] = 2.0f;
+		payload.volumeFieldMinimum = 0.0f; payload.volumeFieldMaximum = 1.0f;
+		payload.volumeLabel = QStringLiteral("Occupancy");
+
+		std::vector<QByteArray> blobs;
+		const QJsonObject json = plot3DSessionToJson(session, payload, blobs);
+		CHECK(!blobs.empty());
+
+		Plot3DSession restored;
+		Plot3DRendererPayload restoredPayload;
+		QString error;
+		CHECK(plot3DSessionFromJson(json, blobs, restored, restoredPayload, &error) && error.isEmpty());
+		CHECK(restored.meshUuid == session.meshUuid && restored.markerMeshUuid == session.markerMeshUuid);
+		CHECK(restored.name == session.name && restored.title == session.title && restored.primitive == session.primitive);
+		CHECK(restored.axes[0].label == session.axes[0].label && restored.axes[1].scale == Plot3DAxisScale::Log10);
+		CHECK(restored.axes[2].scale == Plot3DAxisScale::SymLog && restored.axes[2].symlogLinearThreshold == 2.5);
+		CHECK(!restored.axes[2].automaticRange && restored.axes[2].minimum == -4.0 && restored.axes[2].maximum == 9.0
+			&& restored.axes[2].targetTicks == 8);
+		CHECK(restored.dataMinimum == session.dataMinimum && restored.dataMaximum == session.dataMaximum);
+		CHECK(restored.values == session.values && restored.valid == session.valid);
+		CHECK(restored.markerValues == session.markerValues && restored.markerValid == session.markerValid);
+		CHECK(restored.colourMinimum == 0.1f && restored.colourMaximum == 0.9f && restored.colormap == 1 && restored.bands == 6);
+		CHECK(restored.lineWidth == 2.5f && restored.markerSize == 7.0f && restored.arrowScale == 1.5f);
+		CHECK(restored.barWidthScale == 0.5f && restored.barDepthScale == 2.0f);
+		CHECK(restored.isStem && !restored.isErrorBars && restored.isFilledScatter && restored.scatterBaseZ == -3.5);
+		CHECK(restored.contourLevels == 14 && !restored.axesVisible && restored.referencePlaneOpacity == 0.4f);
+		CHECK(restored.referencePlanes == session.referencePlanes);
+		CHECK(restored.editableCsv && restored.csvSource == session.csvSource);
+		CHECK(restored.csvOptions.delimiter == QLatin1Char(';') && !restored.csvOptions.firstRowIsHeader);
+		CHECK(restored.columnMapping.x == 2 && restored.columnMapping.value == 4 && restored.columnMapping.error == 5
+			&& restored.columnMapping.base == 1 && restored.columnMapping.width == 7 && restored.columnMapping.depth == 8);
+		CHECK(restored.barSource.bars.size() == 2 && restored.barSource.bars[1].x == 9.0
+			&& restored.barSource.bars[0].width == 0.6 && restored.barSource.bars[0].depth == 0.9
+			&& restored.barSource.bars[0].base == -1.0 && restored.barSource.bars[0].value == 3.5);
+		CHECK(restored.contourSource.samples.size() == 2 && restored.contourSource.samples[1].position.z == 7.0
+			&& restored.contourSource.samples[1].value == 8.0);
+		CHECK(restoredPayload.hasGlyphs && restoredPayload.glyphVectors == payload.glyphVectors
+			&& restoredPayload.glyphValues == payload.glyphValues && restoredPayload.glyphReferenceLength == 0.75f
+			&& restoredPayload.glyphFieldMinimum == 1.0f && restoredPayload.glyphFieldMaximum == 2.0f);
+		CHECK(restoredPayload.hasVolume && restoredPayload.volumeValues == payload.volumeValues
+			&& restoredPayload.volumeDimensions[0] == 2 && restoredPayload.volumeDimensions[2] == 1
+			&& restoredPayload.volumeOrigin[0] == 3.0f && restoredPayload.volumeVoxelSize[2] == 2.0f
+			&& restoredPayload.volumeLabel == QStringLiteral("Occupancy"));
+
+		// A plot with neither renderer payload must not invent one.
+		Plot3DSession plain = session;
+		plain.editableCsv = false; plain.csvSource.clear();
+		plain.barSource.bars.clear(); plain.contourSource.samples.clear();
+		std::vector<QByteArray> plainBlobs;
+		const QJsonObject plainJson = plot3DSessionToJson(plain, Plot3DRendererPayload(), plainBlobs);
+		Plot3DSession plainBack; Plot3DRendererPayload plainPayload;
+		CHECK(plot3DSessionFromJson(plainJson, plainBlobs, plainBack, plainPayload, &error));
+		CHECK(!plainPayload.hasGlyphs && !plainPayload.hasVolume && !plainBack.editableCsv);
+		CHECK(plainBack.barSource.bars.empty() && plainBack.contourSource.samples.empty());
+
+		// Damaged input is rejected rather than half-restored: a missing blob, a corrupt blob, an unknown plot
+		// type, a missing identity, and inconsistent array sizes.
+		Plot3DSession bad; Plot3DRendererPayload badPayload;
+		CHECK(!plot3DSessionFromJson(json, std::vector<QByteArray>(), bad, badPayload, &error) && !error.isEmpty());
+		std::vector<QByteArray> corrupt = blobs;
+		for (QByteArray& blob : corrupt)
+			blob = QByteArray("not a compressed blob");
+		error.clear();
+		CHECK(!plot3DSessionFromJson(json, corrupt, bad, badPayload, &error) && !error.isEmpty());
+		QJsonObject unknown = json; unknown.insert(QStringLiteral("primitive"), 99);
+		CHECK(!plot3DSessionFromJson(unknown, blobs, bad, badPayload, &error));
+		QJsonObject anonymous = json; anonymous.insert(QStringLiteral("meshUuid"), QString());
+		CHECK(!plot3DSessionFromJson(anonymous, blobs, bad, badPayload, &error));
+		Plot3DRendererPayload mismatched = payload;
+		mismatched.volumeDimensions[0] = 5; // 5*2*1 != 4 stored values
+		std::vector<QByteArray> mismatchedBlobs;
+		const QJsonObject mismatchedJson = plot3DSessionToJson(session, mismatched, mismatchedBlobs);
+		CHECK(!plot3DSessionFromJson(mismatchedJson, mismatchedBlobs, bad, badPayload, &error) && !error.isEmpty());
+	}
+
 	void testFormula()
 	{
 		double value = 0.0;
@@ -358,6 +502,20 @@ namespace
 		CHECK(!buildPlot3DFormulaVectorField(QStringLiteral("unknown"), QStringLiteral("0"), QStringLiteral("0"),
 			0.0, 1.0, 2, 0.0, 1.0, 2, {}, field, &error) && error.contains(QStringLiteral("Unknown")));
 
+		Plot3DMeshData streamlines;
+		CHECK(buildPlot3DFormulaStreamlines(QStringLiteral("1"), QStringLiteral("0"), QStringLiteral("0"),
+			-1.0, 1.0, -1.0, 1.0, 5, {}, streamlines, &error));
+		CHECK(!streamlines.empty() && streamlines.indices.empty() && streamlines.vertexCount() % 2 == 0
+			&& streamlines.normals.size() == streamlines.positions.size());
+		bool unitMagnitude = true;
+		for (double magnitude : streamlines.values)
+			unitMagnitude = unitMagnitude && std::abs(magnitude - 1.0) < 1.0e-12;
+		CHECK(unitMagnitude);
+		CHECK(!buildPlot3DFormulaStreamlines(QStringLiteral("1"), QStringLiteral("0"), QStringLiteral("0"),
+			1.0, -1.0, -1.0, 1.0, 5, {}, streamlines, &error) && !error.isEmpty());
+		CHECK(!buildPlot3DFormulaStreamlines(QStringLiteral("unknown"), QStringLiteral("0"), QStringLiteral("0"),
+			-1.0, 1.0, -1.0, 1.0, 5, {}, streamlines, &error) && error.contains(QStringLiteral("Unknown")));
+
 		Plot3DMeshData implicit;
 		parameters.clear();
 		parameters.insert(QStringLiteral("r"), 1.0);
@@ -379,6 +537,7 @@ int main()
 	testVoxelGrid();
 	testAxes();
 	testFormula();
+	testSessionRoundTrip();
 	std::printf("%d checks, %d failed\n", checks, failures);
 	return failures;
 }

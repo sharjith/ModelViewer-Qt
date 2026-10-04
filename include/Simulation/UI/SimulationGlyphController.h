@@ -36,6 +36,13 @@ public:
 	void setGlyphColors(const QUuid& meshUuid, std::vector<float> colors, float fieldMinimum, float fieldMaximum);
 	void clearGlyphs(const QUuid& meshUuid);
 	bool hasGlyphs() const { return !_sets.empty(); }
+	// The set currently held for a mesh (null when none) - read by Plot3D when it saves a Quiver plot, whose arrows live here
+	// rather than in any mesh.
+	const GlyphSet* glyphs(const QUuid& meshUuid) const
+	{
+		const auto it = _sets.find(meshUuid);
+		return it == _sets.end() ? nullptr : &it->second;
+	}
 
 	// The mesh a result's arrows are drawn on, or null when it is gone or must not be drawn now.
 	using MeshResolver = std::function<const RenderableMesh*(const QUuid&)>;

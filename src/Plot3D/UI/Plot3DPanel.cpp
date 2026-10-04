@@ -3,6 +3,7 @@
 #include "Plot3DData.h"
 #include "Plot3DAxisController.h"
 #include "Plot3DMeshBuilder.h"
+#include "Plot3DVoxelStyle.h"
 #include "Plot3DFormula.h"
 #include "AnalysisColorRamp.h"
 #include "Material.h"
@@ -265,9 +266,7 @@ VolumeGrid voxelVolume(Plot3DVoxelGrid&& grid)
 
 QVector<QPointF> voxelOpacity()
 {
-	// Zero is empty, while nonzero occupancy stays visible with an opacity that rises with the supplied value. A hard
-	// 0.5 cutoff makes a deliberately soft-edged input such as voxel_sphere.csv look much smaller than its own grid.
-	return { QPointF(0.0, 0.0), QPointF(0.149, 0.0), QPointF(0.15, 0.12), QPointF(0.5, 0.58), QPointF(1.0, 0.85) };
+	return plot3DVoxelOpacity();
 }
 
 bool showPlot3DVoxelPreview(ModelViewer* viewer, const Plot3DDataset& dataset, const QString& title, QString* error)

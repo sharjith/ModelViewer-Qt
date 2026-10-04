@@ -5933,6 +5933,8 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		QHash<QString, int> activeAnimationByFile;
 		QVector<GltfCameraData> cameraDataByFile;
 		QVector<PendingSimulationRestore> simulationRestores;
+		QVector<PendingPlot3DRestore> plot3DRestores;
+		QUuid plot3DActiveMesh;
 		QJsonArray    explodedViews;
 		QString       activeExplodedViewId;
 		int           activeExplodedViewStepIndex = -1;
@@ -6582,6 +6584,39 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			result.simulationRestores.append(std::move(pending));
 		}
 
+		// 3D Plot sessions (src/Plot3D/UI/ModelViewerPlot3DPersistence.cpp): each plot's JSON plus its compressed blobs, read
+		// here off the UI thread; attached to its already-uploaded mesh at the end, like the simulation results above. A
+		// plot whose data is damaged is dropped (its mesh still loads as ordinary scene content) rather than half-restored.
+		for (const QJsonValue& entryValue : session[QStringLiteral("plot3dPlots")].toArray())
+		{
+			const QJsonObject entry = entryValue.toObject();
+			std::vector<QByteArray> blobs;
+			bool inRange = true;
+			for (const QJsonValue& viewIndex : entry[QStringLiteral("blobViews")].toArray())
+			{
+				const int viewNumber = viewIndex.toInt(-1);
+				const QJsonObject view = (viewNumber >= 0 && viewNumber < result.document.bufferViews.size())
+					? result.document.bufferViews.at(viewNumber).toObject() : QJsonObject();
+				const qint64 offset = static_cast<qint64>(view[QStringLiteral("byteOffset")].toDouble(-1));
+				const qint64 length = static_cast<qint64>(view[QStringLiteral("byteLength")].toDouble(-1));
+				if (offset < 0 || length < 0 || offset + length > geomChunk.size())
+				{
+					inRange = false;
+					break;
+				}
+				blobs.push_back(geomChunk.mid(offset, length));
+			}
+			PendingPlot3DRestore pending;
+			QString plotError;
+			if (!inRange || !plot3DSessionFromJson(entry, blobs, pending.session, pending.payload, &plotError))
+			{
+				qWarning() << "3D Plot session not restored:" << (inRange ? plotError : QStringLiteral("its data lies outside the file."));
+				continue;
+			}
+			result.plot3DRestores.append(std::move(pending));
+		}
+		result.plot3DActiveMesh = QUuid(session[QStringLiteral("plot3dActiveMesh")].toString());
+
 		// Extract mesh UUIDs and visibility
 		QList<QUuid> allMeshUuids;
 		for (const auto& pm : prepared)
@@ -7130,6 +7165,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		_viewportWidget->activateGltfCamera(result.activeGltfCameraFile, result.activeGltfCameraIndex);
 
 	restoreSimulationSessions(result.simulationRestores);
+	restorePlot3DSessions(result.plot3DRestores, result.plot3DActiveMesh);
 
 	MainWindow::hideProgressBar();
 	return true;
@@ -7161,6 +7197,7 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 	                                               cameraDataByFile,
 	                                               simulationBakedColors());
 	appendSimulationSnapshots(package);
+	appendPlot3DSessions(package);
 
 	if (_viewportWidget)
 	{

@@ -3742,6 +3742,16 @@ bool ViewportWidget::hasSimulationVolume(const QUuid& meshUuid) const
 	return _simulationVolumeController && _simulationVolumeController->contains(meshUuid);
 }
 
+const GlyphSet* ViewportWidget::simulationGlyphSet(const QUuid& meshUuid) const
+{
+	return _simulationGlyphController ? _simulationGlyphController->glyphs(meshUuid) : nullptr;
+}
+
+const VolumeGrid* ViewportWidget::simulationVolumeGrid(const QUuid& meshUuid) const
+{
+	return _simulationVolumeController ? _simulationVolumeController->grid(meshUuid) : nullptr;
+}
+
 void ViewportWidget::setSimulationVolumeTransferFunction(const QUuid& meshUuid, int colormap, QVector<QPointF> opacity)
 {
 	_simulationVolumeController->setTransferFunction(meshUuid, colormap, std::move(opacity));

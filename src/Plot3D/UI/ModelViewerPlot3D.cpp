@@ -3,6 +3,7 @@
 #include "AnalysisColorRamp.h"
 #include "Plot3DAxisController.h"
 #include "Plot3DMeshBuilder.h"
+#include "Plot3DVoxelStyle.h"
 #include "SceneGraph.h"
 #include "SceneMesh.h"
 #include "SceneNode.h"
@@ -177,8 +178,7 @@ void ModelViewer::applyPlot3DColourState(const QUuid& meshUuid, float minimum, f
 	{
 		// Voxel occupancy is already normalized to [0, 1]. Zero stays transparent and nonzero cells fade in with
 		// their supplied occupancy; only the selected colour map is editable here.
-		const QVector<QPointF> opacity{ QPointF(0.0, 0.0), QPointF(0.149, 0.0), QPointF(0.15, 0.12), QPointF(0.5, 0.58), QPointF(1.0, 0.85) };
-		_viewportWidget->setSimulationVolumeTransferFunction(meshUuid, colormap, opacity);
+		_viewportWidget->setSimulationVolumeTransferFunction(meshUuid, colormap, plot3DVoxelOpacity());
 		markNonUndoDocumentModified();
 		refreshPlot3DLegend();
 		emit plot3DSessionsChanged(false);

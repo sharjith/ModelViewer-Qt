@@ -24,6 +24,7 @@
 #include "ResultSnapshot.h"
 #include "SimulationResultDisplay.h"
 #include "Plot3DSession.h"
+#include "Plot3DSessionIO.h"
 
 #include <QPointer>
 #include <QUndoStack>
@@ -83,6 +84,14 @@ struct PendingSimulationRestore
 	QUuid meshUuid;
 	DecodedSnapshot decoded; // decoded.dataset is null when `error` is set
 	QString error;
+};
+
+// A 3D Plot read from an .mvf file, decoded on the loader thread and waiting for its mesh to exist (see
+// ModelViewer::restorePlot3DSessions()).
+struct PendingPlot3DRestore
+{
+	Plot3DSession session;
+	Plot3DRendererPayload payload; // the Quiver arrows / Voxel grid, which live in viewport controllers rather than the mesh
 };
 
 class ModelViewer : public QWidget, public Ui::ModelViewer
@@ -838,6 +847,11 @@ private:
 	// Loading them back (S3): turns each decoded snapshot into a live SimulationSession on its already-uploaded mesh.
 	void restoreSimulationSessions(QVector<PendingSimulationRestore>& restores);
 	void appendSimulationSnapshots(Mvf::MVFPackage& package) const;
+	// Saving / loading 3D Plot sessions into .mvf (src/Plot3D/UI/ModelViewerPlot3DPersistence.cpp). The plot MESHES already
+	// persist as ordinary scene content; these add the session (axes, colour and appearance controls) and the Quiver /
+	// Voxel renderer data that no mesh holds. Colours are re-derived on load through applyPlot3DColourState().
+	void appendPlot3DSessions(Mvf::MVFPackage& package) const;
+	void restorePlot3DSessions(QVector<PendingPlot3DRestore>& restores, const QUuid& activeMesh);
 	QHash<QUuid, std::vector<float>> simulationBakedColors() const;
 	void advanceSimulationStep();
 

@@ -61,6 +61,7 @@ add_executable(plot3d_tests
     ${CMAKE_SOURCE_DIR}/src/Plot3D/Core/Plot3DData.cpp
 	${CMAKE_SOURCE_DIR}/src/Plot3D/Core/Plot3DFormula.cpp
     ${CMAKE_SOURCE_DIR}/src/Plot3D/Core/Plot3DMeshBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/Plot3D/Core/Plot3DSessionIO.cpp
     ${CMAKE_SOURCE_DIR}/src/Plot3D/UI/Plot3DAxisController.cpp
 )
 target_include_directories(plot3d_tests PRIVATE ${CMAKE_SOURCE_DIR}/include/Plot3D/Core ${CMAKE_SOURCE_DIR}/include/Plot3D/UI)

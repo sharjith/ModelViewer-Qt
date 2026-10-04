@@ -1,6 +1,7 @@
 # General-Purpose 3D Data Plotting - Implementation Blueprint
 
-Status: **IN PROGRESS** (2026-09-27). Phase 1's source decision and Phase 2's Core data/CSV layer are complete on
+Status: **PLANNED PLOT3D SCOPE COMPLETE; PERSISTENCE IMPLEMENTED, AWAITING A BUILD + SAVE/REOPEN CHECK** (updated 2026-10-04). The planned plot families,
+generated-data sources, preview and presentation/editing controls are complete on
 `feature/3d-data-plotting` (off `dev`, a
 NEW branch - this is deliberately NOT simulation-results work, see [[project_general_3d_data_plotting_idea]]: no
 `ResultDataset`, no steps, no probe - it plots arbitrary data, not a solver result). Companion: matplotlib's `mplot3d`
@@ -19,12 +20,9 @@ this idea was first raised.
 - No subplot/multi-figure layout (matplotlib's "3D plots as subplots", "2D and 3D Axes in same figure") - one plot's
   content lives in one ModelViewer document, the same way one simulation result or one imported CAD file does. Multiple
   plots side by side, if ever wanted, is a compare-mode-style feature to consider much later, not v1.
-- Function entry (`Z = f(X,Y)`) needs an expression evaluator; **none exists in this codebase today** (checked: no
-  parser/evaluator class anywhere). CSV-file and pasted tabular input ship first, but formula plotting is an important
-  planned follow-up: select and licence-review a suitable evaluator rather than build one by hand, then pair it with a
-  curated preset library for known analytical and statistical surfaces (for example plane, saddle, Gaussian,
-  Gaussian-mixture, sinc/ripple, Mexican hat, and bivariate-normal density). Presets must expose named parameters,
-  show the formula before building, and generate ordinary Plot3D surface data so they share all normal plot controls.
+- Formula entry is implemented by the self-contained `Plot3DFormula` evaluator and preset library. Generated
+  surfaces, parametric surfaces/curves, vector fields, implicit surfaces and streamlines feed the same Plot3D
+  geometry, preview and presentation paths as imported data.
 
 ## 2. The 8 primitives + 3 axis features (deduplicating matplotlib's ~47 examples)
 
@@ -51,10 +49,9 @@ Axis/viewer features (not separate plot types, but real, needed by every primiti
 - **A labelled 3-D axis box with tick marks and numbers** - genuinely new (checked: the existing orientation trihedron
   widget is a small corner gizmo, not a full labelled axis box with ticks) - see section 4.
 
-Explicitly deferred/merged into the above rather than built separately: 3D errorbars (a Line/Scatter option), fill-
-between/fill-under (a Line option), text annotations (adapt the existing CAD Annotation system rather than building a
-new one), 2D images in 3D (a textured flat polygon - a Polygon-primitive variant, itself lower priority than the 8
-above since nothing in the gallery singles it out as commonly needed).
+Implemented as Scatter variants rather than separate primitives: symmetric Z error bars and translucent fill to a
+base plane. Still deferred: general line fill-between/fill-under, text annotations (adapt the existing CAD Annotation
+system), and 2D images in 3D (a textured flat polygon).
 
 ## 3. Architecture
 
@@ -67,7 +64,7 @@ simplification versus treating a plot as its own document type - reuses the enti
 material infrastructure for free, and matches the precedent both CAD import and simulation results already set.
 
 ```
-Data source (CSV file / pasted tabular points; function-on-a-grid is deferred - section 1)
+Data source (CSV/pasted tabular points, formulas, parametric definitions, vector fields, implicit fields, streamlines)
         |
         v
 Plot3DDataset (GUI-free, Core) - one struct per primitive kind (SurfaceData, LineData, ScatterData, BarData, VoxelData,
@@ -110,25 +107,24 @@ Existing renderers, reused per table in section 2, PLUS one new Plot3DAxisContro
 - `AnalysisColorRamp` - colour-by-value for Surface/Bar.
 - `SimulationGlyphs.h`'s `GlyphSet` + `SimulationGlyphController` - Quiver directly, Scatter/Stem with a trivial
   variant (no direction vector needed for plain scatter, a short vertical vector for a stem).
-- `ResultSlice.h`'s cutter - Contour (Z as the field instead of a simulation scalar - the SAME "cut where a per-node
-  signed function changes sign" algorithm, so this is a genuine near-zero-cost reuse, not just architecturally
-  similar).
+- Surface triangle-edge interpolation - Contour treats Z as the scalar field and emits independent `GL_LINES`
+  segments at each requested level.
 - `SimulationVolume.h`'s `VolumeGrid` + `SimulationVolumeController` + `volume_raymarch.frag` - Voxel/volumetric,
   wholesale (an occupancy grid instead of a resampled field, a step-function transfer function instead of a curve).
 - `SimulationChartWidget.cpp`'s `niceStep()` - tick-interval computation for the new axis box.
 - The existing `Cube`/box primitive geometry (`Geometry/` module) - Bar/histogram.
 - The existing mesh/material/render pipeline (`MeshGeometry`/`RenderableMesh`/`SceneMesh`) - Surface/Wireframe/Polygon,
   the same way every other mesh in the app is drawn; no new rendering path needed for these three at all.
-- The scene-node/undo/save infrastructure - a plot is a scene node like any other; do not build a parallel document/
-  session concept (see section 3).
+- The scene-node/undo infrastructure - a plot mesh is ordinary scene content. `Plot3DSession` retains renderer and
+  editing metadata, which is now saved into the .mvf (item 24).
 
-**What is genuinely new, not a reuse:** the CSV/data-import parsing itself, the per-primitive `Plot3DData` structs,
-the axis box + tick/label rendering (`Plot3DAxisController`) and the panel. A function evaluator is deferred beyond v1.
+**What is genuinely new, not a reuse:** CSV/data-import parsing, the per-primitive `Plot3DData` structs, the formula
+evaluator and presets, the axis box + tick/label/reference-plane rendering (`Plot3DAxisController`), and the panel.
 
 ## 6. Suggested implementation order (one phase per commit, build+test between each - the same mechanics that worked
 for both the folder restructuring and the simulation charts/volume-rendering work)
 
-1. **Complete:** defer function entry and ship CSV/pasted-tabular import for v1.
+1. **Complete:** CSV/pasted-tabular import plus formula and generated-data entry.
 2. **Complete:** `Plot3D/Core/Plot3DData.h/.cpp` (data structs + CSV import) + tests. No GL yet.
 3. **Complete (2026-09-27):** `Plot3DAxisController`'s layout math (tick generation, log/symlog transforms, the axis
    box + reference-plane layout - tested in `testAxes()`), PLUS its actual GL rendering: `ViewportWidget::
@@ -137,21 +133,20 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
    axis labels via the existing `_axisTextRenderer`), driven by `setPlot3DAxisLayout()`/`clearPlot3DAxisLayout()`.
    A temporary "Preview Axis Box" button originally pushed a hardcoded range for early rendering verification. It
    was removed once real plot builders supplied data-derived bounds; closing the import dialog now leaves the built
-   plot's axes intact for the persistent 3D Plot controls to own. Reference planes are drawn as an outline for now
-   (no fill/blend yet - a filled, translucent quad can follow when a primitive needs the visual weight).
-4. **Complete, awaiting the user's build+visual check (2026-09-27):** Surface + Wireframe. `Plot3D/Core/
-   Plot3DMeshBuilder.h/.cpp` builds a triangulated mesh from Surface data - v1 requires a COMPLETE regular X/Y grid
-   (nx*ny samples forming a full rectangle, any row order); scattered/unstructured Surface data needing a Delaunay
-   triangulation is reported as an error rather than guessed at, and can be added later without changing this
-   builder's contract. `Plot3DPanel` gained a primitive combo + X/Y/Z/colour-value column-mapping combos and a
+   plot's axes intact for the persistent 3D Plot controls to own. XY/XZ/YZ reference planes can now be filled with
+   independently selectable translucent orientation colours.
+4. **Complete (user build/visual checks passed):** Surface + Wireframe. `Plot3D/Core/Plot3DMeshBuilder.h/.cpp`
+   preserves deterministic connectivity for complete regular X/Y grids and uses CGAL Delaunay triangulation for
+   other non-collinear X/Y sample sets. Duplicate positions and collinear input are explicit errors.
+   `Plot3DPanel` provides primitive + X/Y/Z/colour-value column mappings and a
    "Build Plot" button: it parses the CSV, builds the mesh, adds it as an ordinary `SceneMesh`/`SceneNode` to the
    active document (the same direct-insertion pattern `ModelViewer::presentSimulationResult()` uses, no undo command -
    matches the precedent section 3 cites), colours it by value via `setAnalysisOverlayColors()` (same mechanism a
    simulation result's field colouring uses), and points the axis-box overlay at the plot's own data bounds instead
    of the fixed preview range. Wireframe needed NO new code at all - it is the existing per-mesh wireframe display
    mode applied to this same mesh, exactly as this table row always said it would be.
-5. Contour (reusing `ResultSlice`) once Surface exists to contour.
-6. **Complete, awaiting the user's build+visual check (2026-09-28):** Scatter/Stem and Line/Curve. A first version
+5. **Complete:** adjustable surface-following Contour iso-lines; see item 11 for the final control path.
+6. **Complete (user build/visual checks passed):** Scatter/Stem and Line/Curve. A first version
    built these as SOLID tube/octahedron geometry (reusing Surface's `SceneMesh`/`setAnalysisOverlayColors()` path
    directly) - the user tried it and found the size both too large AND, more fundamentally, wrong in kind: real 3D
    geometry inevitably looks bigger on screen as the camera zooms in, whereas matplotlib's own scatter/line markers
@@ -163,7 +158,7 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
    `glLineWidth()` rather than real 3D geometry, so it is inherently zoom-invariant with no new rendering code at
    all. Stem was subsequently added as a Scatter option with a configurable base Z. `Plot3DPanel::buildPlot()`
    dispatches on the chosen primitive to the right builder.
-7. **Complete, awaiting the user's build+visual check (2026-09-28):** Quiver, exactly as predicted - reusing
+7. **Complete (user build/visual checks passed):** Quiver, exactly as predicted - reusing
    `SimulationGlyphController`/`GlyphSet` directly needed no new rendering code. `Plot3DMeshBuilder` gained
    `buildPlot3DQuiverSiteMesh()` (Core, GUI-free - just the arrow base positions as a flat point list, same shape as
    Scatter). `Plot3DPanel::buildQuiverPlot()` (UI layer, where the Simulation-module dependency belongs - Core stays
@@ -178,14 +173,14 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
    `buildGlyphSet()` already sizes real simulation vector-field arrows: the largest magnitude becomes a fixed
    fraction (6%) of the data's own bounding-box diagonal, every other arrow scaled down from that by its magnitude
    ratio - so arrow (and head) size is always proportionate to the plot, not to the CSV's arbitrary vector units.
-8. **Complete, awaiting the user's build+visual check (2026-09-28):** Bar/histogram. `Plot3DMeshBuilder` now
+8. **Complete (user build/visual checks passed):** Bar/histogram. `Plot3DMeshBuilder` now
    creates one closed, flat-shaded cuboid per input row, with per-face vertices for hard edges and the row's scalar
    value repeated across the whole bar for uniform colour mapping. Both positive and negative heights extend from
    the selected base. The panel provides optional Base/Width/Depth column mappings with 0/0.8/0.8 defaults, and Y
    may be left unset for a one-dimensional histogram (all bars then use Y=0). The builder rejects non-finite or
    non-positive dimensions and is covered by GUI-free tests for positive/negative geometry, normals and invalid
    widths.
-9. **Implemented, awaiting the user's build+visual check (2026-09-29):** Voxel / volumetric occupancy. Sparse
+9. **Complete (user build/visual checks passed):** Voxel / volumetric occupancy. Sparse
    CSV `i,j,k,occupancy` cells are expanded into a bounded dense grid (missing cells are transparent), then drawn
    by the existing `SimulationVolumeController` through a volume-only SceneMesh proxy. The proxy preserves ordinary
    scene-tree visibility, transforms, deletion and undo while its point geometry is suppressed by the renderer in
@@ -203,11 +198,11 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     **Draw stems to Base Z** option; it creates independent, fixed-pixel-width GL line segments from every sample to
     the selected base plus matching constant-pixel endpoint markers. The normal scene node, colour map and
     combined-axis handling are retained, and the base is included in the Z-axis extent.
-13. **Implemented, awaiting the user's build+visual check (2026-09-29):** scattered/unstructured Surface input.
+13. **Complete (user build/tests passed):** scattered/unstructured Surface input.
     Complete grids retain their deterministic cell connectivity. Every other non-collinear X/Y set is triangulated
     by CGAL Delaunay; duplicate X/Y positions and collinear sets remain explicit errors. `surface_scattered.csv`
     exercises this path.
-14. **Implemented, awaiting the user's build+visual check (2026-09-29):** Formula surfaces and parametric surfaces.
+14. **Complete (user build/visual checks passed):** Formula surfaces and parametric surfaces.
     The self-contained expression evaluator supports arithmetic, powers, parentheses, `x`/`y` and `u`/`v`, named
     parameters, `pi`/`e`, and common trigonometric, hyperbolic and scalar functions. Formula presets cover plane,
     saddle, paraboloid, cone, Gaussian, sinc ripple, standing wave, Mexican hat, bivariate normal, logistic and
@@ -215,7 +210,7 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     ellipsoid, Möbius strip, Klein bottle, superellipsoid, helicoid, catenoid, Enneper surface and a tunable
     spherical harmonic. Generated data bypasses the CSV mapping UI and is added as an ordinary persistent Plot3D
     surface with its own axis box, colour controls and scene-tree node.
-15. **Implemented, awaiting the user's build+visual check (2026-09-29):** main-viewer Plot3D preview. The Add 3D
+15. **Complete (user build/visual checks passed):** main-viewer Plot3D preview. The Add 3D
     Plot dialog can render a transient plot directly in the viewport before Build Plot commits it. The preview uses
     a short-lived render-only scene node, with no session, undo entry, save data, document-modified state or
     navigation-tree row. It replaces the preceding preview, supplies its own temporary axes box, and is cleared on
@@ -223,7 +218,7 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     parametric surface use the common mesh preview path. CSV Quiver uses the same glyph renderer and normalized
     arrow sizing as its committed plot, while CSV Voxel uses the same volume renderer, transfer function and bounds
     proxy as its committed plot.
-16. **Implemented, awaiting the user's build+visual check (2026-09-29):** presentation and editing. The active visible scalar plot now gets an
+16. **Complete (user build/visual checks passed):** presentation and editing. The active visible scalar plot now gets an
     outlined in-viewport colour legend driven by the same range, map and banding as the plot. It uses a separate
     overlay from Simulation and stacks below the Simulation legend when both are visible. The persistent panel also
     exposes zoom-stable line width, scatter marker size and Quiver arrow-size controls, plus live Bar width/depth
@@ -234,15 +229,15 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     header choice and complete role mapping. Edit Plot restores those inputs and rebuilds the same mesh/session in
     place, preserving its UUID, tree entry, visibility and presentation controls across Surface, Contour, Line,
     Scatter variants, Bar, Quiver and Voxel.
-17. **Implemented, awaiting the user's build+visual check (2026-09-29):** ordered parametric curves. The formula
+17. **Complete (user build/visual checks passed):** ordered parametric curves. The formula
     source selector now includes a one-parameter curve mode that builds an ordinary `GL_LINE_STRIP`, with Helix,
     Lissajous, Trefoil Knot, Viviani Curve and Damped Spiral presets. Curves use the same main-view preview and
     persistent axes/colour controls as CSV lines, while preserving fixed-pixel line width under zoom.
-18. **Implemented, awaiting the user's build+visual check (2026-09-29):** formula-driven planar vector fields.
+18. **Complete (user build/visual checks passed):** formula-driven planar vector fields.
     The formula selector supplies Vortex, Radial, Saddle and Helical presets, evaluates u/v/w over a configurable
     X/Y grid, hands the resulting arrows to the existing Quiver renderer, and uses that same glyph path for the
     temporary main-view preview.
-19. **Implemented, awaiting the user's build+visual check (2026-09-29):** implicit surfaces. A scalar expression
+19. **Complete (user build/tests passed):** implicit surfaces. A scalar expression
     `f(x,y,z)` is sampled over a bounded 3-D grid and its zero crossing is tessellated into a normal scene mesh;
     the initial preset collection includes Sphere, Torus, Gyroid and Wave Interference. Preview and Build use the
     ordinary Surface pipeline, while the grid is capped at 64 samples per axis to prevent runaway geometry.
@@ -250,12 +245,26 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     and rendered as coloured line segments through the common preview and persistent Plot3D paths.
 21. **Complete (2026-09-29):** scatter error bars. A mapped error column produces fixed-pixel-width capped Z error
     bars, with its full range included in the combined axes box.
-22. **Implemented, awaiting the user's build+visual check (2026-09-29):** filled scatter-to-plane. Scatter samples
+22. **Complete (user build/visual checks passed):** filled scatter-to-plane. Scatter samples
     can be drawn as translucent, colour-mapped ribbons down to the selected Base Z. Preview, Build, and the
     persistent colour controls update baked per-vertex colormap RGB while a neutral, unlit alpha-blended material
     retains transparency without scene lighting darkening the data colours. Stem, error-bar and filled modes are
     mutually exclusive.
 23. **Later plot family:** time-dependent pathlines. This needs a time-varying vector-field data model rather than
     being forced through the static CSV/formula streamline importer.
-24. **Last:** MVF persistence for Plot3DSession metadata. Do this after the primitive and controls model stabilises so
-    the saved schema is written once; the generated mesh itself already follows ordinary scene persistence.
+24. **Implemented, awaiting the user's build + save/reopen check (2026-10-04):** MVF persistence. A first save/reopen
+    test showed two separate problems. (a) A genuine MVF loader bug, not Plot3D-specific: `MvfMeshPreparationWorker`
+    dropped every mesh with an empty index list, so any unindexed POINTS/LINES/LINE_STRIP mesh (Quiver's anchor
+    points, Voxel's proxy, Line, Scatter, glTF point clouds) was written correctly and then silently vanished on
+    load, leaving an empty scene reported as a bare "Failed to load model". The loader now accepts empty indices for
+    point and line modes (triangle meshes still need them). (b) Everything around the meshes was never saved:
+    `Plot3DSessionIO` (Core, QtCore-only, round-trip tested) serialises each `Plot3DSession` to JSON plus compressed
+    blobs in the GEOM chunk - the same layout Simulation snapshots use - and `ModelViewer::appendPlot3DSessions()` /
+    `restorePlot3DSessions()` (`ModelViewerPlot3DPersistence.cpp`) store and restore them. Quiver arrows and Voxel
+    grids live in viewport controllers rather than any mesh, so they are read back out of
+    `SimulationGlyphController::glyphs()` / `SimulationVolumeController::grid()` (new read accessors) instead of being
+    duplicated in the session. On load the session is put back, then colours, glyph colours, volume transfer
+    function, per-mesh line/point sizes and the axes box are re-derived through `applyPlot3DColourState()` and
+    `activatePlot3DSession()` - the same paths a user edit takes - and the document's modified flags are restored so a
+    freshly opened file is not dirty. The voxel opacity curve is now one shared `plot3DVoxelOpacity()`. Not yet
+    verified: that a filled scatter's alpha-blended unlit material itself survives the mesh round trip.
