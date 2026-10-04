@@ -2215,7 +2215,13 @@ void ModelViewer::dropEvent(QDropEvent* event)
 			if (isSupportedResultFile(fileName))
 				openSimulationResultFile(fileName); // dropped onto a document: added to it
 			else if (extn == "mvf")
-				loadFromFile(fileName);
+			{
+				// An .mvf is a whole session, not content to add: loading it here would clear this document's meshes and
+				// every plot/simulation session on it - silently, with no unsaved-changes prompt. Open it as its own
+				// document exactly like File > Open and a drop on the main window do (MainWindow::openFile() also
+				// re-activates it if that file is already open).
+				MainWindow::mainWindow()->openFile(fileName);
+			}
 			else
 			{
 				UVMethod method;
@@ -5840,6 +5846,12 @@ bool ModelViewer::loadFile(const QString& fileName)
 	const bool isNativeSession = (suffix == "mvf");
 	if (isNativeSession)
 	{
+		// An .mvf is a whole session, not content to add: loading it clears every mesh and every plot / simulation
+		// session on the document it is loaded into, with no unsaved-changes prompt. So it is only ever loaded into an
+		// EMPTY document (the fresh one MainWindow::loadFile() creates for File > Open); anywhere else - Shift+click on
+		// a recent file ("import into active document"), or any future caller - it opens as its own document instead.
+		if (_viewportWidget && !_viewportWidget->getMeshStore().empty())
+			return MainWindow::mainWindow()->openFile(fileName); // nothing is loaded into THIS document
 		// Load native ModelViewer session file
 		success = loadFromFile(fileName);
 	}
