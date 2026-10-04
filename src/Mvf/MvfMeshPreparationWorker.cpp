@@ -374,8 +374,19 @@ QVector<PreparedMvfMesh> MvfMeshPreparationWorker::prepare(const Mvf::Document& 
 		const std::vector<unsigned int> indices = readUIntStream(
 			geometryChunk, document.accessors, document.bufferViews,
 			prim[QStringLiteral("indices")].toInt(-1));
+		// A triangle mesh with no index data is unusable here, but point and line primitives are legitimately
+		// unindexed: SceneMesh draws them with glDrawArrays when its index list is empty (glTF point clouds / line
+		// sets and Plot3D's Line/Scatter/Quiver sites are exactly that) and the writer saves them with a
+		// zero-length index accessor. Dropping them here meant such a mesh was saved fine and then silently
+		// vanished on load - leaving an empty scene, which ModelViewer reports as a bare "Failed to load model".
 		if (indices.empty())
-			continue;
+		{
+			const int primitiveMode = prim[QStringLiteral("mode")].toInt(GL_TRIANGLES);
+			const bool unindexedAllowed = primitiveMode == GL_POINTS || primitiveMode == GL_LINES
+				|| primitiveMode == GL_LINE_LOOP || primitiveMode == GL_LINE_STRIP;
+			if (!unindexedAllowed)
+				continue;
+		}
 
 		const std::vector<float> normals  = readFloatStream(geometryChunk, document.accessors,
 			document.bufferViews, attribs[QStringLiteral("NORMAL")].toInt(-1));
