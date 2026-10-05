@@ -1,7 +1,7 @@
 # General-Purpose 3D Data Plotting - Implementation Blueprint
 
-Status: **PLANNED PLOT3D SCOPE COMPLETE; PERSISTENCE IMPLEMENTED, AWAITING A BUILD + SAVE/REOPEN CHECK** (updated 2026-10-04). The planned plot families,
-generated-data sources, preview and presentation/editing controls are complete on
+Status: **COMPLETE; READY TO MERGE TO `dev` (known follow-ups in section 7)** (updated 2026-10-05). The planned plot families,
+generated-data sources, preview, presentation/editing controls, MVF persistence and localisation (de/es/fr/it) are complete on
 `feature/3d-data-plotting` (off `dev`, a
 NEW branch - this is deliberately NOT simulation-results work, see [[project_general_3d_data_plotting_idea]]: no
 `ResultDataset`, no steps, no probe - it plots arbitrary data, not a solver result). Companion: matplotlib's `mplot3d`
@@ -252,19 +252,68 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     mutually exclusive.
 23. **Later plot family:** time-dependent pathlines. This needs a time-varying vector-field data model rather than
     being forced through the static CSV/formula streamline importer.
-24. **Implemented, awaiting the user's build + save/reopen check (2026-10-04):** MVF persistence. A first save/reopen
-    test showed two separate problems. (a) A genuine MVF loader bug, not Plot3D-specific: `MvfMeshPreparationWorker`
-    dropped every mesh with an empty index list, so any unindexed POINTS/LINES/LINE_STRIP mesh (Quiver's anchor
-    points, Voxel's proxy, Line, Scatter, glTF point clouds) was written correctly and then silently vanished on
-    load, leaving an empty scene reported as a bare "Failed to load model". The loader now accepts empty indices for
-    point and line modes (triangle meshes still need them). (b) Everything around the meshes was never saved:
-    `Plot3DSessionIO` (Core, QtCore-only, round-trip tested) serialises each `Plot3DSession` to JSON plus compressed
-    blobs in the GEOM chunk - the same layout Simulation snapshots use - and `ModelViewer::appendPlot3DSessions()` /
-    `restorePlot3DSessions()` (`ModelViewerPlot3DPersistence.cpp`) store and restore them. Quiver arrows and Voxel
-    grids live in viewport controllers rather than any mesh, so they are read back out of
-    `SimulationGlyphController::glyphs()` / `SimulationVolumeController::grid()` (new read accessors) instead of being
-    duplicated in the session. On load the session is put back, then colours, glyph colours, volume transfer
-    function, per-mesh line/point sizes and the axes box are re-derived through `applyPlot3DColourState()` and
-    `activatePlot3DSession()` - the same paths a user edit takes - and the document's modified flags are restored so a
-    freshly opened file is not dirty. The voxel opacity curve is now one shared `plot3DVoxelOpacity()`. Not yet
-    verified: that a filled scatter's alpha-blended unlit material itself survives the mesh round trip.
+24. **Complete (user-verified 2026-10-05):** MVF persistence. A first save/reopen test showed two separate problems.
+    (a) A genuine MVF loader bug, not Plot3D-specific: `MvfMeshPreparationWorker` dropped every mesh with an empty index
+    list, so any unindexed POINTS/LINES/LINE_STRIP mesh (Quiver's anchor points, Voxel's proxy, Line, Scatter, glTF point
+    clouds) was written correctly and then silently vanished on load, leaving an empty scene reported as a bare "Failed
+    to load model". The loader now accepts an unindexed point/line mesh only when the file names no index accessor or
+    names one with an explicit zero count; a missing, negative, out-of-range or damaged non-empty accessor is damage.
+    Triangle meshes still need indices. (b) Everything around the meshes was never saved: `Plot3DSessionIO` (Core,
+    QtCore-only, round-trip tested) serialises each `Plot3DSession` to JSON plus compressed blobs in the GEOM chunk -
+    the same layout Simulation snapshots use - and `ModelViewer::appendPlot3DSessions()` / `restorePlot3DSessions()`
+    (`ModelViewerPlot3DPersistence.cpp`) store and restore them. Quiver arrows and Voxel grids live in viewport
+    controllers rather than any mesh, so they are read back out of `SimulationGlyphController::glyphs()` /
+    `SimulationVolumeController::grid()` (new read accessors) instead of being duplicated in the session. On load the
+    session is put back, then colours, glyph colours, volume transfer function, per-mesh line/point sizes and the axes
+    box are re-derived through `applyPlot3DColourState()` and `activatePlot3DSession()` - the same paths a user edit
+    takes - and the document's modified flags are restored so a freshly opened file is not dirty. A Quiver or Voxel
+    session is mandatory-payload: saving skips one whose arrows / volume are unavailable (and says so in the save
+    notes shown after Save and Save As), and the reader rejects one without them. Restored per-vertex arrays are
+    checked against the restored mesh's vertex count. `buffers[0].byteLength` is rewritten after all blobs are
+    appended. Verified by the user: Quiver and filled scatter reopen correctly, including the alpha-blended unlit
+    material of a filled scatter. Not covered by an automated end-to-end test (see section 7).
+25. **Complete (user-verified 2026-10-05):** never load an `.mvf` over existing content. An `.mvf` is a whole session;
+    loading one clears every mesh and every plot / simulation session of the document it is loaded into. Dropping an
+    `.mvf` onto an open document and Shift+click on a Recent Files entry both did exactly that, without an
+    unsaved-changes prompt. Both now open the file as its own document, via a guard at the single choke point
+    (`ModelViewer::loadFile`) that treats a document as having content if it has meshes, unsaved changes, undo
+    history or plot / simulation sessions (with a recursion backstop).
+26. **Complete (user-verified 2026-10-05):** localisation. All Plot3D UI text is translated for de/es/fr/it (0 unfinished
+    entries). Two causes of untranslated combos were fixed: the formula / parametric / curve / vector / implicit
+    preset names and titles were plain literals that never went through `tr()` (now `QCoreApplication::translate`
+    under `Plot3DPresets`, and `Plot3DPrimitive` for the primitive names), and the persistent 3D Plot tab set its
+    combo items, labels and suffixes once in its constructor (all of it now lives in one `applyTexts()`, shared by the
+    constructor and `retranslate()`, so the tab follows a language switch live). The in-viewer colour legend is
+    refreshed on a language change like Simulation's. Still English-only by design for now: the formula parser /
+    builder error messages in `Plot3DFormula.cpp` and the Core builders, which several tests match as text.
+27. **Complete (2026-10-05; floor and titles user-verified, arrow sizing covered by `result_tests` only):** other shared-code fixes found while testing this branch, none Plot3D-specific:
+    the floor taking on a result's overlay colours (the analysis and zebra overlay early exits in `main_scene.frag`
+    now exclude `floorRendering`); document tab titles being overwritten by uic's `retranslateUi()` on a language
+    switch (a document now stores its session number and derives its title - file name, or `tr("Session %1")` - so a
+    named document keeps its name and a numbered session translates live); and arrows staying a constant size on
+    screen while zooming - `SimulationGlyphController` sizes each arrow from its own base point's camera distance
+    (the technique `TransformGizmo::computeWorldScale()` and `MeasurementController::coneScaleAt()` use), which applies
+    to Simulation vector arrows as well as Quiver plots.
+
+## 7. Known gaps and follow-ups (outside the original completion target)
+
+Ordered roughly by value. None blocks the merge.
+
+1. **Colours are lost in external exports and in path-traced renders.** Plot colours are a transient analysis overlay, not
+   authored vertex data. MVF save already has a hook that bakes per-vertex RGBA into `COLOR_0` for Simulation results
+   (`simulationBakedColors()`); Plot3D can use it, so the saved file, glTF / GLB / OBJ exports and the path tracer all
+   see the plot colours. Controller-only content (Quiver arrows, Voxel volumes) has no mesh to bake into and is simply
+   absent from exports.
+2. **Path tracer.** `RtSceneBuilder` skips every non-triangle mesh, so points, lines, Quiver and Voxel plots are absent
+   from path-traced renders (no crash). Surface and Bar render, but uncoloured until item 1 lands.
+3. **Axes in compare / multi-view.** The axes box and legend have not been checked there.
+4. **Tests.** There is no end-to-end save-and-reopen test (it needs the app and a GL context). A headless test of the
+   MVF loader's unindexed-mesh rule is feasible and covers the bug that shipped.
+5. **`Plot3DPanel.cpp` is about 2,100 lines** (CSV, formula, parametric, implicit and streamline import, preview, and
+   every primitive's build path). A pure refactor into per-source units would reduce the risk of the next regression.
+6. **Tensor glyphs.** Arrows are now zoom-stable; Simulation's tensor ellipsoids still scale with world size. Streamline
+   thickness is already a fixed pixel width.
+7. **Formula error messages** are still untranslated English literals (see item 26).
+8. **Deferred plot features:** time-dependent pathlines (needs a time-varying vector-field data model), projected contours
+   on the XY reference plane, general line fill-between / fill-under, text annotations (adapt the CAD Annotation
+   system) and 2D images in 3D.
