@@ -8,12 +8,18 @@
 #include <QOpenGLShaderProgram>
 #include <QVector3D>
 
+#include <algorithm>
 #include <cmath>
 
 namespace
 {
 	constexpr int kRings = 8;    // latitude divisions (poles included)
 	constexpr int kSegments = 12; // longitude divisions
+	constexpr int kVerticesPerGlyph = kRings * kSegments * 2 * 3; // two triangles per quad
+
+	// Distance from the camera to a result's glyphs, in units of that result's glyph-box diameter, at which the
+	// glyphs are drawn at their authored size (about where Fit to Screen puts the camera).
+	constexpr float kReferenceDistanceFactor = 2.0f;
 
 	void pushVertex(std::vector<float>& out, const QVector3D& p, const QVector3D& color)
 	{
@@ -128,12 +134,17 @@ void SimulationTensorGlyphController::drawOverlay(Camera* camera, const MeshReso
 	if (rebuild)
 	{
 		_cachedTriangles.clear();
+		_cachedGlyphs.clear();
+		_cachedExtents.clear();
 		// Each glyph has kRings*kSegments quads, two triangles per quad, three vertices per triangle and six floats
 		// per vertex. Reserving once avoids the repeated reallocations the old per-frame builder incurred.
 		_cachedTriangles.reserve(glyphCount * kRings * kSegments * 2u * 3u * 6u);
-		for (const auto& resolvedEntry : resolved)
+		for (std::size_t setIndex = 0; setIndex < resolved.size(); ++setIndex)
 		{
+			const auto& resolvedEntry = resolved[setIndex];
 			const auto& entry = *resolvedEntry.first;
+			QVector3D boxMin, boxMax;
+			bool anyGlyph = false;
 			const RenderableMesh* mesh = resolvedEntry.second;
 			const std::vector<float>& points = mesh->getTrsfPoints();
 			const QMatrix4x4 frame = mesh->combinedRenderTransform();
@@ -160,6 +171,12 @@ void SimulationTensorGlyphController::drawOverlay(Camera* camera, const MeshReso
 			const QVector3D a2 = frame.mapVector(QVector3D(set.axes[i * 9 + 6], set.axes[i * 9 + 7], set.axes[i * 9 + 8]));
 			if (!(a0.lengthSquared() > 0.0f) || !(a1.lengthSquared() > 0.0f) || !(a2.lengthSquared() > 0.0f))
 				continue;
+			_cachedGlyphs.push_back({ center, setIndex });
+			if (!anyGlyph)
+				boxMin = boxMax = center;
+			anyGlyph = true;
+			boxMin = QVector3D(std::min(boxMin.x(), center.x()), std::min(boxMin.y(), center.y()), std::min(boxMin.z(), center.z()));
+			boxMax = QVector3D(std::max(boxMax.x(), center.x()), std::max(boxMax.y(), center.y()), std::max(boxMax.z(), center.z()));
 			const QVector3D color = i * 3 + 2 < set.colors.size()
 				? QVector3D(set.colors[i * 3], set.colors[i * 3 + 1], set.colors[i * 3 + 2])
 				: QVector3D(1.0f, 1.0f, 1.0f);
@@ -196,6 +213,7 @@ void SimulationTensorGlyphController::drawOverlay(Camera* camera, const MeshReso
 					pushVertex(_cachedTriangles, p01, c01);
 				}
 			}
+			_cachedExtents.push_back({ anyGlyph ? (boxMin + boxMax) * 0.5f : QVector3D(), anyGlyph ? (boxMax - boxMin).length() : 0.0f });
 		}
 		_cachedMeshes = std::move(keys);
 		_cacheValid = true;
@@ -203,8 +221,6 @@ void SimulationTensorGlyphController::drawOverlay(Camera* camera, const MeshReso
 	}
 	if (_cachedTriangles.empty())
 		return;
-
-	const GLsizei triangleVertices = static_cast<GLsizei>(_cachedTriangles.size() / 6);
 
 	if (_vao == 0)
 		glGenVertexArrays(1, &_vao);
@@ -236,7 +252,34 @@ void SimulationTensorGlyphController::drawOverlay(Camera* camera, const MeshReso
 	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", view);
 	_renderCtrl.axisShader()->setUniformValue("projectionMatrix", camera->getProjectionMatrix());
 	_renderCtrl.axisShader()->setUniformValue("renderCone", false);
-	glDrawArrays(GL_TRIANGLES, 0, triangleVertices);
+
+	// Zoom-stable size: the ellipsoids are cached at their authored model size, then each one is scaled about its own
+	// centre by one factor per result - the camera's distance to that result over a reference distance - so they keep
+	// about the same size on screen while zooming instead of growing like geometry. (Arrows scale per point,
+	// SimulationGlyphController::drawOverlay(); one factor per result keeps a deeper glyph smaller than a nearer one
+	// here, and needs no re-tessellation.) The relative size and shape between glyphs, which carry the data, are untouched.
+	std::vector<float> setScale(_cachedExtents.size(), 1.0f);
+	for (std::size_t i = 0; i < _cachedExtents.size(); ++i)
+	{
+		const float diameter = _cachedExtents[i].diameter;
+		if (!(diameter > 1.0e-6f))
+			continue;
+		const float reference = camera->getProjectionType() == Camera::ProjectionType::ORTHOGRAPHIC
+			? std::max(camera->getViewRange(), 0.0001f) / diameter
+			: (camera->getRenderPosition() - _cachedExtents[i].centre).length() / (diameter * kReferenceDistanceFactor);
+		if (std::isfinite(reference) && reference > 0.0f)
+			setScale[i] = reference;
+	}
+	for (std::size_t g = 0; g < _cachedGlyphs.size(); ++g)
+	{
+		const GlyphRange& glyph = _cachedGlyphs[g];
+		QMatrix4x4 modelView = view;
+		modelView.translate(glyph.centre);
+		modelView.scale(setScale[glyph.setIndex]);
+		modelView.translate(-glyph.centre);
+		_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", modelView);
+		glDrawArrays(GL_TRIANGLES, static_cast<GLint>(g) * kVerticesPerGlyph, kVerticesPerGlyph);
+	}
 	_renderCtrl.axisShader()->release();
 
 	if (cullWasEnabled)

@@ -146,6 +146,7 @@ private:
 	QDoubleSpinBox* _lineRadiusSpin = nullptr;
 	QLabel* _glyphInfoLabel = nullptr;
 	QCheckBox* _tensorGlyphCheck = nullptr;
+	QDoubleSpinBox* _tensorGlyphScaleSpin = nullptr;
 	QLabel* _tensorGlyphInfoLabel = nullptr;
 	QCheckBox* _volumeCheck = nullptr;
 	QComboBox* _volumeFieldCombo = nullptr;

@@ -356,10 +356,22 @@ void SimulationPanel::buildUi()
 	                                 "and shaped by the principal directions and magnitudes of a\n"
 	                                 "symmetric tensor field (stress), coloured by von Mises."));
 	form->addRow(_tensorGlyphCheck);
+	_tensorGlyphScaleSpin = new QDoubleSpinBox(content);
+	_tensorGlyphScaleSpin->setRange(0.1, 20.0);
+	_tensorGlyphScaleSpin->setDecimals(2);
+	_tensorGlyphScaleSpin->setSingleStep(0.1);
+	_tensorGlyphScaleSpin->setKeyboardTracking(false);
+	_tensorGlyphScaleSpin->setToolTip(tr("Relative ellipsoid size on screen. Ellipsoids remain stable while zooming."));
+	form->addRow(tr("Ellipsoid size:"), _tensorGlyphScaleSpin);
 	_tensorGlyphInfoLabel = new QLabel(content);
 	_tensorGlyphInfoLabel->setWordWrap(true);
 	form->addRow(_tensorGlyphInfoLabel);
-	connect(_tensorGlyphCheck, &QCheckBox::toggled, this, [this](bool) { emitState(); });
+	connect(_tensorGlyphCheck, &QCheckBox::toggled, this, [this](bool on) {
+		_tensorGlyphScaleSpin->setEnabled(on && _tensorGlyphCheck->isEnabled());
+		if (!_updating)
+			emitState();
+	});
+	connect(_tensorGlyphScaleSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_updating) emitState(); });
 
 	// ---- Direct volume rendering: regular-grid resampling of a node scalar followed by GPU ray marching.
 	_volumeCheck = new QCheckBox(tr("Show as volume"), content);
@@ -730,6 +742,8 @@ void SimulationPanel::setSession(const SimulationSession* session)
 	updateGlyphEnabled();
 	_tensorGlyphCheck->setEnabled(chooseDefaultTensorField(*_dataset) >= 0);
 	_tensorGlyphCheck->setChecked(_tensorGlyphCheck->isEnabled() && state.tensorGlyphs);
+	_tensorGlyphScaleSpin->setValue(state.tensorGlyphScale);
+	_tensorGlyphScaleSpin->setEnabled(_tensorGlyphCheck->isChecked());
 	_tensorGlyphInfoLabel->setText(session->tensorGlyphInfo);
 	_tensorGlyphInfoLabel->setVisible(!session->tensorGlyphInfo.isEmpty());
 	populateVolumeFields(state.volumeField >= 0 ? state.volumeField : chooseDefaultVolumeField(*_dataset));
@@ -1072,6 +1086,7 @@ SimulationViewState SimulationPanel::currentState() const
 	state.glyphScale = _glyphScaleSpin->value();
 	state.glyphCount = _glyphCountSpin->value();
 	state.tensorGlyphs = _tensorGlyphCheck->isChecked() && _tensorGlyphCheck->isEnabled();
+	state.tensorGlyphScale = _tensorGlyphScaleSpin->value();
 	state.volume = _volumeCheck->isChecked() && _volumeCheck->isEnabled();
 	state.volumeField = _volumeFieldCombo->currentData().isValid() ? _volumeFieldCombo->currentData().toInt() : -1;
 	state.volumeResolution = _volumeResolutionCombo->currentData().toInt();
