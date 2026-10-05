@@ -316,8 +316,11 @@ Ordered roughly by value. None blocks the merge.
    save-and-reopen test (it needs the app and a GL context).
 5. **`Plot3DPanel.cpp` is about 2,100 lines** (CSV, formula, parametric, implicit and streamline import, preview, and
    every primitive's build path). A pure refactor into per-source units would reduce the risk of the next regression.
-6. **Tensor glyphs.** Arrows are now zoom-stable; Simulation's tensor ellipsoids still scale with world size. Streamline
-   thickness is already a fixed pixel width.
+6. **Tensor glyphs.** Arrows are zoom-stable per point. Simulation's tensor ellipsoids are now zoom-stable per result
+   (user-verified 2026-10-05): they stay cached at their authored model size and each is scaled about its own centre by
+   one factor per frame - the camera's distance to the result's glyph box over a reference distance - so no
+   re-tessellation is needed, relative size and shape between glyphs are unchanged, and nearer glyphs still look larger
+   than farther ones. The Simulation tab has an Ellipsoid size spin box (the existing `tensorGlyphScale`). Streamline thickness is already a fixed pixel width.
 7. **Formula error messages** are still untranslated English literals (see item 26).
 8. **Deferred plot features:** time-dependent pathlines (needs a time-varying vector-field data model), projected contours
    on the XY reference plane, general line fill-between / fill-under, text annotations (adapt the CAD Annotation
