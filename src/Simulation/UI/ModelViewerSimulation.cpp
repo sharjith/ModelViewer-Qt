@@ -426,6 +426,8 @@ void ModelViewer::retranslateSimulation()
 {
 	if (_simulationTimeline)
 		_simulationTimeline->retranslate();
+	if (_pathlineTimeline)
+		_pathlineTimeline->retranslate();
 	// Legend title / tooltip and the info lines come from the refresh: redo it for the results of this document.
 	for (SimulationSession& session : _simulationSessions)
 		if (_viewportWidget && _viewportWidget->getMeshByUuid(session.meshUuid))

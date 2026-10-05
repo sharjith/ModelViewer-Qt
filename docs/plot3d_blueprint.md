@@ -329,8 +329,12 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     (`tracePlot3DPathlines`, now shared): seeds along Y at the middle of X, in the middle z plane. Incomplete / repeated /
     non-numeric tables are rejected with a message naming the row or the rows needed. The plot keeps its table and column
     mapping (`Plot3DColumnMapping::time`) in the session, so Edit Plot reopens it. Samples: `pathlines_double_gyre.csv`,
-    `pathlines_rising_vortex_3d.csv`. The legend of both pathline sources reads "Time". Possible follow-up: animate the
-    pathlines (a second `SimulationTimelineWidget`, a draw-range limit on the time-ordered segments, moving head markers).
+    `pathlines_rising_vortex_3d.csv`. The legend of both pathline sources reads "Time". 33. **Complete (user-verified 2026-10-05):** pathline animation. An "Animate pathlines (timeline)" checkbox on a
+    pathline plot shows a second instance of `SimulationTimelineWidget` and reveals the trails up to the current moment with a
+    coloured dot at each trail's head. The trails are one `glMultiDrawArrays` range per trail (`RenderableMesh::setDrawRanges`,
+    cleared by `setMeshData`), computed by the unit-tested `plot3DPathlineTrails` / `plot3DElapsedSegments`; the heads are a
+    transient viewport point overlay (`ViewportWidget::setPlot3DPointOverlay`), so nothing animated is scene content, saved,
+    exported or path traced. 200 frames; Play restarts from the end; a rebuild (Edit Plot) while animating is followed.
 
 ## 7. Known gaps and follow-ups (outside the original completion target)
 

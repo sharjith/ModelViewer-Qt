@@ -356,6 +356,7 @@ bool ModelViewer::replacePlot3DMesh(const QUuid& meshUuid, const Plot3DMeshData&
 		session->colourMaximum = valueMaximum;
 	}
 	refreshPlot3DContourOverlay(meshUuid); // a Surface's contour lines are cut from this mesh
+	refreshPlot3DPathlineAnimation(meshUuid); // a playing pathline plot follows its new trails
 	applyPlot3DColourState(meshUuid, session->colourMinimum, session->colourMaximum, session->colormap, session->bands);
 	refreshPlot3DAxes();
 	_viewportWidget->updateView();

@@ -23,6 +23,7 @@
 #include "TextureDebugPanel.h"
 #include "ResultSnapshot.h"
 #include "SimulationResultDisplay.h"
+#include "Plot3DPathlines.h"
 #include "Plot3DSession.h"
 #include "Plot3DSessionIO.h"
 
@@ -41,6 +42,20 @@ class QToolButton;
 class QFrame;
 class QTimer;
 class QPropertyAnimation;
+
+// Playback state of an animated pathline plot (see ModelViewer::setPlot3DPathlineAnimation). The plot's mesh is a list of
+// GL_LINES segment pairs; each trail is a contiguous run of segments with rising times, so showing the trails up to a moment is
+// one draw range per trail.
+struct Plot3DPathlineAnimation
+{
+	QUuid mesh;                     // null = nothing is animated
+	double timeMinimum = 0.0, timeMaximum = 1.0;
+	int frames = 200;
+	int frame = 0;
+	std::vector<Plot3DPathlineTrail> trails;
+	std::vector<float> positions;   // x, y, z per vertex of the plot's mesh
+	std::vector<float> times;       // the time at each vertex (the plot's values)
+};
 
 struct UVDialogResult
 {
@@ -661,6 +676,10 @@ public slots:
 	void setPlot3DContourOverlay(const QUuid& meshUuid, int mode, int levels);
 	// Hover section curves for a Surface plot (a viewing aid, off by default and not saved with the file).
 	void setPlot3DSectionProbe(const QUuid& meshUuid, bool enabled);
+	// Pathline plots can be played back over time: a timeline (the Simulation one's widget) reveals the trails up to the
+	// current moment, with a moving head on each. A viewing aid: off by default, not saved with the file.
+	void setPlot3DPathlineAnimation(const QUuid& meshUuid, bool enabled);
+	void refreshPlot3DPathlineAnimation(const QUuid& meshUuid); // after the plot's mesh was replaced
 	void refreshPlot3DContourOverlay(const QUuid& meshUuid);
 	void setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visible);
 	void applyPlot3DReferencePlanes(const QUuid& meshUuid, const std::array<bool, 3>& visible, float opacity);
@@ -877,6 +896,13 @@ private:
 	// viewers and the path tracer see the plot colours. Quiver / Voxel arrows and volumes live in controllers and are not baked.
 	QHash<QUuid, std::vector<float>> plot3DBakedColors() const;
 	void advanceSimulationStep();
+	bool buildPathlineAnimationState(const Plot3DSession& session, SceneMesh& mesh);
+	void applyPathlineFrame();
+	void setPathlineFrame(int frame, bool fromPlayback);
+	void setPathlinePlaying(bool playing);
+	void advancePathlineFrame();
+	void updatePathlineTimeline();
+	void endPathlineAnimation(bool touchMesh = true);
 
 	// Shared implementation for mergeSelectedMeshes()/unionSelectedMeshes() -
 	// see mergeSelectedMeshes()'s doc comment for what's common between them,
@@ -1093,6 +1119,12 @@ private:
 	bool _refreshingComparePartner = false;
 	QPointer<SimulationTimelineWidget> _simulationTimeline; // playback controls of a multi-step result
 	QTimer* _simulationPlayTimer = nullptr;
+	Plot3DPathlineAnimation _pathlineAnimation;
+	QPointer<SimulationTimelineWidget> _pathlineTimeline; // playback controls of the animated pathline plot
+	QTimer* _pathlineTimer = nullptr;
+	bool _pathlinePlaying = false;
+	bool _pathlineLoop = true;
+	double _pathlineSpeed = 1.0;
 	bool _simulationPlaying = false;
 	bool _simulationLoop = true;
 	double _simulationSpeed = 1.0;   // 0.5 / 1 / 2 / 4; one step per 500 ms at 1x

@@ -1577,6 +1577,10 @@ public:
 	// Hover probe for Plot3D surfaces: while the cursor is over an enabled plot's surface, the curves where the X, Y and Z
 	// planes through the hovered point cut that surface are drawn, with the point's coordinates. Off by default.
 	void setPlot3DSectionProbeEnabled(const QUuid& meshUuid, bool enabled);
+	// Points drawn over a Plot3D mesh in its own coordinates (position(3) + colour(3) per point, `size` pixels): the moving
+	// heads of an animated pathline plot. Not scene content - not saved, exported, picked or path traced.
+	void setPlot3DPointOverlay(const QUuid& meshUuid, std::vector<float> positionsAndColours, float size);
+	void clearPlot3DPointOverlay(const QUuid& meshUuid);
 	bool plot3DSectionProbeEnabled(const QUuid& meshUuid) const { return _sectionProbeMeshes.contains(meshUuid); }
 	bool hasPlot3DAxisLayout() const { return _plot3DAxisLayout.has_value(); }
 	bool plot3DAxisVisible() const { return _plot3DAxisVisible && _plot3DAxisLayout.has_value(); }
@@ -1826,6 +1830,7 @@ private:
 	// last handed it rather than scene bounds. No-op when no layout is set.
 	void drawPlot3DAxisOverlay(Camera* camera);
 	void drawPlot3DSectionProbe(Camera* camera);
+	void drawPlot3DPointOverlays(Camera* camera);
 	void updatePlot3DSectionProbe(const QPoint& pixel);
 	void clearPlot3DSectionProbe();
 	void drawAxis(Camera* camera, const QMatrix4x4* overrideViewMatrix = nullptr);
@@ -2110,6 +2115,8 @@ private:
 	// Hover section probe (see setPlot3DSectionProbeEnabled()). The per-mesh cache holds a compact copy of the positions
 	// and triangles because SceneMesh::vertices() copies the whole vertex array, far too heavy per mouse move.
 	struct SectionProbeCache { std::vector<float> positions; std::vector<unsigned int> indices; std::vector<int> neighbours; quint64 revision = ~0ull; };
+	struct Plot3DPointOverlay { std::vector<float> data; float size = 6.0f; };
+	QHash<QUuid, Plot3DPointOverlay> _plot3DPointOverlays;
 	QSet<QUuid> _sectionProbeMeshes;
 	QHash<QUuid, SectionProbeCache> _sectionProbeCaches;
 	QUuid _sectionProbeMesh;            // the mesh the curves below belong to (null = nothing drawn)

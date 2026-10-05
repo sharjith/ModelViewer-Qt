@@ -61,3 +61,18 @@ private:
 // Loads the table as a Plot3DTimeSeriesField and traces its pathlines (seeds along Y at the middle of X, in the middle z plane).
 bool buildPlot3DTimeSeriesPathlines(const Plot3DCsvTable& table, const Plot3DTimeSeriesColumns& columns, int seedCount, int steps,
 	Plot3DMeshData& out, QString* error = nullptr);
+
+// ---- playback helpers for a pathline mesh (GL_LINES segment pairs, each vertex valued by its time) ----------------------------
+struct Plot3DPathlineTrail
+{
+	int firstVertex = 0; // first vertex of the trail's first segment
+	int segments = 0;
+};
+
+// Splits a pathline mesh into trails: a trail is a run of segments whose start times rise; a new one begins where the start time
+// falls back (or repeats), as the tracer does for each seed. vertexTimes holds one time per vertex (two per segment).
+std::vector<Plot3DPathlineTrail> plot3DPathlineTrails(const std::vector<float>& vertexTimes);
+
+// How many of the trail's leading segments have fully elapsed at time `now` (end time <= now); end times rise, so this is a
+// binary search.
+int plot3DElapsedSegments(const std::vector<float>& vertexTimes, const Plot3DPathlineTrail& trail, double now);

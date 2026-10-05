@@ -212,3 +212,35 @@ bool buildPlot3DTimeSeriesPathlines(const Plot3DCsvTable& table, const Plot3DTim
 	const Plot3DUnsteadyField sampler = [&field](const Plot3DVec3& p, double t, Plot3DVec3& v, QString*) { return field.sample(p, t, v); };
 	return tracePlot3DPathlines(sampler, field.domain(), seedCount, field.timeMinimum(), field.timeMaximum(), steps, out, error);
 }
+
+std::vector<Plot3DPathlineTrail> plot3DPathlineTrails(const std::vector<float>& vertexTimes)
+{
+	std::vector<Plot3DPathlineTrail> trails;
+	const std::size_t segments = vertexTimes.size() / 2;
+	for (std::size_t k = 0; k < segments; ++k)
+	{
+		if (k == 0 || vertexTimes[2 * k] <= vertexTimes[2 * (k - 1)])
+		{
+			Plot3DPathlineTrail trail;
+			trail.firstVertex = static_cast<int>(2 * k);
+			trails.push_back(trail);
+		}
+		++trails.back().segments;
+	}
+	return trails;
+}
+
+int plot3DElapsedSegments(const std::vector<float>& vertexTimes, const Plot3DPathlineTrail& trail, double now)
+{
+	const int base = trail.firstVertex / 2;
+	int lo = 0, hi = trail.segments;
+	while (lo < hi)
+	{
+		const int mid = (lo + hi) / 2;
+		if (static_cast<double>(vertexTimes[static_cast<std::size_t>(2 * (base + mid) + 1)]) <= now + 1.0e-9)
+			lo = mid + 1;
+		else
+			hi = mid;
+	}
+	return lo;
+}

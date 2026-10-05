@@ -9773,6 +9773,54 @@ void ViewportWidget::updatePlot3DSectionProbe(const QPoint& pixel)
 	update();
 }
 
+void ViewportWidget::setPlot3DPointOverlay(const QUuid& meshUuid, std::vector<float> positionsAndColours, float size)
+{
+	if (positionsAndColours.empty())
+		_plot3DPointOverlays.remove(meshUuid);
+	else
+		_plot3DPointOverlays.insert(meshUuid, Plot3DPointOverlay{ std::move(positionsAndColours), size });
+	update();
+}
+
+void ViewportWidget::clearPlot3DPointOverlay(const QUuid& meshUuid)
+{
+	if (_plot3DPointOverlays.remove(meshUuid) > 0)
+		update();
+}
+
+void ViewportWidget::drawPlot3DPointOverlays(Camera* camera)
+{
+	if (!camera || _plot3DPointOverlays.isEmpty() || !_renderCtrl.axisShader())
+		return;
+	for (auto it = _plot3DPointOverlays.cbegin(); it != _plot3DPointOverlays.cend(); ++it)
+	{
+		SceneMesh* mesh = getMeshByUuid(it.key());
+		if (!mesh || !isMeshDisplayed(it.key()) || it.value().data.empty())
+			continue;
+		_renderCtrl.initPlot3DAxisOverlayGeometry(it.value().data);
+		glBindVertexArray(_renderCtrl.plot3DAxisOverlayVAO());
+		glBindBuffer(GL_ARRAY_BUFFER, _renderCtrl.plot3DAxisOverlayVBO());
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(0));
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(3 * sizeof(float)));
+
+		_renderCtrl.axisShader()->bind();
+		_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", _viewCtrl.viewMatrix() * mesh->combinedRenderTransform());
+		_renderCtrl.axisShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
+		_renderCtrl.axisShader()->setUniformValue("renderCone", false);
+		_renderCtrl.axisShader()->setUniformValue("opacity", 1.0f);
+		// Fixed-function point sizing (the shader writes no gl_PointSize), like SceneMesh's native point meshes.
+		glDisable(GL_PROGRAM_POINT_SIZE);
+		glPointSize(it.value().size);
+		glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(it.value().data.size() / 6));
+		glPointSize(1.0f);
+		_renderCtrl.axisShader()->release();
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindVertexArray(0);
+	}
+}
+
 void ViewportWidget::drawPlot3DSectionProbe(Camera* camera)
 {
 	if (!camera || _sectionProbeMesh.isNull() || _sectionProbeLines.empty() || !_renderCtrl.axisShader()
@@ -12052,6 +12100,7 @@ void ViewportWidget::render(Camera* camera)
     drawDebugOverlay(camera);
     drawPlot3DAxisOverlay(camera);
     drawPlot3DSectionProbe(camera);
+    drawPlot3DPointOverlays(camera);
 	// Single-view mode draws this AFTER the ray-traced overlay instead (see
 	// paintGL()'s post-overlay block) so it isn't wiped out by PT's force-
 	// opaque composite - drawing it here too would just double-draw it

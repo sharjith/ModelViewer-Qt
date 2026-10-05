@@ -1339,7 +1339,10 @@ void SceneMesh::render()
 			stageTimer.restart();
 		if (_indices.empty())
 		{
-			glDrawArrays(_primitiveMode, 0, drawCount);
+			if (!_drawRangesActive)
+				glDrawArrays(_primitiveMode, 0, drawCount);
+			else if (!_drawFirsts.empty())
+				glMultiDrawArrays(_primitiveMode, _drawFirsts.data(), _drawCounts.data(), static_cast<GLsizei>(_drawFirsts.size()));
 		}
 		else
 		{
@@ -4127,6 +4130,7 @@ void SceneMesh::setMeshData(const std::vector<Vertex>& vertices,
 	const std::vector<unsigned int>& indices,
 	const std::vector<unsigned int>* sourceVertexMap)
 {
+	clearDrawRanges(); // the vertex layout is about to change
 	QVector<MorphTargetData> remappedMorphTargets;
 	if (!_morphTargets.isEmpty() &&
 		sourceVertexMap &&

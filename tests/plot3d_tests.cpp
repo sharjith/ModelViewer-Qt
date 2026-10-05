@@ -691,6 +691,32 @@ namespace
 		CHECK(std::abs(firstTime) < 1.0e-9 && std::abs(lastTime - 3.0) < 1.0e-9);
 		CHECK(std::abs(rotation.positions[0]) < 1.0e-6f && std::abs(rotation.positions[1] + 2.0f) < 1.0e-6f); // first vertex is the first seed
 
+		// Playback helpers: the rotation trails split back into one trail per seed that moved, every trail starts at the first time, the
+		// segment counts add up, and the number of elapsed segments grows with time from none to all.
+		{
+			std::vector<float> vertexTimes(rotation.values.begin(), rotation.values.end());
+			const std::vector<Plot3DPathlineTrail> trails = plot3DPathlineTrails(vertexTimes);
+			CHECK(trails.size() >= 2 && trails.size() <= 5);
+			int segmentTotal = 0;
+			for (const Plot3DPathlineTrail& trail : trails)
+			{
+				segmentTotal += trail.segments;
+				CHECK(trail.segments > 0 && vertexTimes[static_cast<std::size_t>(trail.firstVertex)] == 0.0f);
+				CHECK(plot3DElapsedSegments(vertexTimes, trail, -1.0) == 0 && plot3DElapsedSegments(vertexTimes, trail, 0.0) == 0);
+				CHECK(plot3DElapsedSegments(vertexTimes, trail, 1.0e9) == trail.segments);
+				int previous = 0;
+				for (double now = 0.0; now <= 3.0; now += 0.25)
+				{
+					const int elapsed = plot3DElapsedSegments(vertexTimes, trail, now);
+					CHECK(elapsed >= previous && elapsed <= trail.segments);
+					previous = elapsed;
+				}
+				CHECK(plot3DElapsedSegments(vertexTimes, trail, 1.5) > 0); // 150 of 300 steps, so about half the trail
+			}
+			CHECK(segmentTotal == static_cast<int>(rotation.vertexCount() / 2));
+			CHECK(plot3DPathlineTrails({}).empty());
+		}
+
 		// A field that depends on time only: u = t, so x(t) = x0 + t^2 / 2 exactly (RK4 integrates a quadratic exactly).
 		Plot3DMeshData accelerating;
 		CHECK(buildPlot3DFormulaPathlines(QStringLiteral("t"), QStringLiteral("0"), QStringLiteral("0"),

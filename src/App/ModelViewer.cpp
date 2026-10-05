@@ -360,6 +360,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		_viewportWidget->clearSimulationSlices(uuid);
 		_viewportWidget->clearSimulationStreamlines(uuid);
 		_viewportWidget->setPlot3DSectionProbeEnabled(uuid, false);
+		if (_pathlineAnimation.mesh == uuid)
+			endPathlineAnimation(false); // the mesh is going away: nothing on it to restore
 		for (auto it = _plot3DSessions.begin(); it != _plot3DSessions.end(); ++it)
 		{
 			if (it->meshUuid != uuid)
@@ -1142,6 +1144,8 @@ void ModelViewer::revealNavigation()
 		_simulationLegend->raise();
 	if (_plot3DLegend)
 		_plot3DLegend->raise();
+	if (_pathlineTimeline && _pathlineTimeline->isVisible())
+		_pathlineTimeline->raise();
 	if (_simulationTimeline && _simulationTimeline->isVisible())
 		_simulationTimeline->raise();
 	if (_viewportWidget)

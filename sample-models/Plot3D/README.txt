@@ -117,6 +117,21 @@ a number to text and it must name the row; clear the Z column choice for the 3-D
 (its z values then repeat nodes). Then Edit Plot: the table, the column choices and the seed / step counts must come back, and
 Rebuild Plot must update the existing plot in place.
 
+Animating pathlines
+-------------------
+Any pathline plot (Formula pathlines or CSV time series) can be played back over time. Select it in Active plot and tick "Animate
+pathlines (timeline)" in the 3D Plot tab. A timeline appears at the top of the viewport (the Simulation timeline's controls: previous /
+play-pause / stop / next, a slider, the current time "t = ...", Loop and a speed choice). The trails are drawn only up to the current
+time, with a dot at the head of each, coloured by the current time. Switching it on shows the whole plot until you press Play; from the
+end, Play starts over. Untick the box and the full trails come back and the timeline goes away.
+
+Checks: animate the Pulsating Vortex preset and watch the dots circle faster and slower as the rotation pulses (the colour bands along
+a ring are the time); animate the Double Gyre CSV and watch the particles swirl; drag the slider back and forth (the trails shrink and
+grow, the dots follow); set Loop off and let it stop at the end; try the 0.5x to 4x speeds. A trail that left the range before the
+current time simply stops growing and loses its dot. Edit Plot and Rebuild while animating: the animation must continue on the new
+trails. Hide the plot in the scene tree: the timeline must disappear and playback pause. The animation is a viewing aid: it is not
+saved with the file and the dots are not exported or path traced.
+
 Editing generated plots
 -----------------------
 Plots from the formula sources (Formula surface, Parametric surface and curve, Formula vector field, Implicit surface, Formula

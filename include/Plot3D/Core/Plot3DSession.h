@@ -84,6 +84,8 @@ struct Plot3DSession
 	// settings are saved; the per-vertex colour values below are re-derived on load.
 	// Hover section curves for this plot (a transient viewing aid: not saved with the file).
 	bool sectionProbe = false;
+	// A pathline plot's trails are being played back over time (transient, not saved with the file).
+	bool pathlineAnimation = false;
 	int contourOverlayMode = 0;
 	int contourOverlayLevels = 10;
 	QUuid contourOverlayMeshUuid;

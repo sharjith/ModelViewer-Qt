@@ -66,6 +66,7 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	_contourProjected = new QCheckBox(this);
 	_contourOverlayLabel = new QLabel(this);
 	_sectionProbe = new QCheckBox(this);
+	_pathlineAnimation = new QCheckBox(this);
 	_contourOverlay = new QComboBox(this);
 	for (int mode : { 0, 1, 2 }) _contourOverlay->addItem(QString(), mode);
 	_rangeMinimum = new QDoubleSpinBox(this); _rangeMinimum->setRange(-1.0e12, 1.0e12); _rangeMinimum->setDecimals(6);
@@ -89,6 +90,7 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	appearance->addRow(QString(), _automaticRange);
 	appearance->addRow(_contourOverlayLabel, _contourOverlay);
 	appearance->addRow(QString(), _sectionProbe);
+	appearance->addRow(QString(), _pathlineAnimation);
 	appearance->addRow(_contourLevelsLabel, _contourLevels);
 	appearance->addRow(QString(), _contourProjected);
 	appearance->addRow(_minimumLabel, _rangeMinimum);
@@ -181,6 +183,7 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 		_viewer->setPlot3DContourLevels(uuid, levels); // a Contour plot (ignored for any other)
 		_viewer->setPlot3DContourOverlay(uuid, _contourOverlay->currentData().toInt(), levels); // a Surface's overlay (ignored for any other)
 	});
+	connect(_pathlineAnimation, &QCheckBox::toggled, this, [this](bool enabled) { if (_viewer && _plotSelector->currentIndex() >= 0) _viewer->setPlot3DPathlineAnimation(_plotSelector->currentData().toUuid(), enabled); });
 	connect(_sectionProbe, &QCheckBox::toggled, this, [this](bool enabled) { if (_viewer && _plotSelector->currentIndex() >= 0) _viewer->setPlot3DSectionProbe(_plotSelector->currentData().toUuid(), enabled); });
 	connect(_contourOverlay, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
 		if (!_viewer || _plotSelector->currentIndex() < 0)
@@ -238,6 +241,9 @@ void Plot3DControlsPanel::applyTexts()
 	_contourOverlay->setItemText(2, tr("On the base plane"));
 	_contourOverlayLabel->setText(tr("Contour lines:"));
 	_sectionProbe->setText(tr("Show section curves on hover"));
+	_pathlineAnimation->setText(tr("Animate pathlines (timeline)"));
+	_pathlineAnimation->setToolTip(tr("Show a timeline over the viewport. The trails are drawn up to the current time, with\n"
+	                                  "a moving dot at the head of each; press Play (or drag the slider) to watch the particles move."));
 	_sectionProbe->setToolTip(tr("While the cursor is over this surface, draw the curves where the X, Y and Z planes\n"
 	                             "through the hovered point cut it (red, green and blue like the axes), with the point's\n"
 	                             "coordinates. The blue curve is the contour line through that point."));
@@ -291,7 +297,7 @@ void Plot3DControlsPanel::refreshState()
 {
 	const QVector<Plot3DSession> sessions = _viewer ? _viewer->plot3DSessions() : QVector<Plot3DSession>();
 	const QUuid active = _viewer ? _viewer->activePlot3DMeshUuid() : QUuid();
-	const QSignalBlocker selectorBlock(_plotSelector), axesBlock(_showAxesCheck), titleBlock(_plotTitle), mapBlock(_colormap), bandsBlock(_bands), autoBlock(_automaticRange), contourBlock(_contourLevels), projectedBlock(_contourProjected), overlayBlock(_contourOverlay), probeBlock(_sectionProbe), minBlock(_rangeMinimum), maxBlock(_rangeMaximum), lineBlock(_lineWidth), markerBlock(_markerSize), arrowBlock(_arrowScale), barWidthBlock(_barWidthScale), barDepthBlock(_barDepthScale);
+	const QSignalBlocker selectorBlock(_plotSelector), axesBlock(_showAxesCheck), titleBlock(_plotTitle), mapBlock(_colormap), bandsBlock(_bands), autoBlock(_automaticRange), contourBlock(_contourLevels), projectedBlock(_contourProjected), overlayBlock(_contourOverlay), probeBlock(_sectionProbe), animationBlock(_pathlineAnimation), minBlock(_rangeMinimum), maxBlock(_rangeMaximum), lineBlock(_lineWidth), markerBlock(_markerSize), arrowBlock(_arrowScale), barWidthBlock(_barWidthScale), barDepthBlock(_barDepthScale);
 	const std::array<QSignalBlocker, 4> referencePlaneBlockers{ QSignalBlocker(_referencePlanes[0]),
 		QSignalBlocker(_referencePlanes[1]), QSignalBlocker(_referencePlanes[2]), QSignalBlocker(_referencePlaneOpacity) };
 	std::array<QSignalBlocker, 18> axisBlockers{
@@ -322,6 +328,7 @@ void Plot3DControlsPanel::refreshState()
 		_contourOverlayLabel->setVisible(false);
 		_contourOverlay->setVisible(false);
 		_sectionProbe->setVisible(false);
+		_pathlineAnimation->setVisible(false);
 		_barWidthScaleLabel->setVisible(false); _barWidthScale->setVisible(false);
 		_barDepthScaleLabel->setVisible(false); _barDepthScale->setVisible(false);
 		for (QCheckBox* plane : _referencePlanes) plane->setEnabled(false);
@@ -347,6 +354,10 @@ void Plot3DControlsPanel::refreshState()
 	const bool isContour = session->primitive == Plot3DPrimitive::Contour;
 	const bool isSurface = session->primitive == Plot3DPrimitive::Surface;
 	const bool showLevels = isContour || (isSurface && session->contourOverlayMode != 0);
+	const bool isPathline = session->generated.valid && (session->generated.sourceMode == 7 || session->generated.sourceMode == 8);
+	_pathlineAnimation->setVisible(isPathline);
+	_pathlineAnimation->setEnabled(isPathline);
+	_pathlineAnimation->setChecked(session->pathlineAnimation);
 	_sectionProbe->setVisible(isSurface);
 	_sectionProbe->setEnabled(isSurface);
 	_sectionProbe->setChecked(session->sectionProbe);
