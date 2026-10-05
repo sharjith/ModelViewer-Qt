@@ -18,6 +18,7 @@
 #include "SimulationVolume.h"
 #include "ViewportWidget.h"
 
+#include <QDebug>
 #include <QJsonArray>
 
 #include <algorithm>
@@ -74,6 +75,17 @@ void ModelViewer::appendPlot3DSessions(Mvf::MVFPackage& package) const
 			}
 		}
 
+		// A Quiver or Voxel plot IS its renderer data; its mesh is only the anchor / bounds proxy. A session saved without
+		// it would reopen "successfully" as an empty plot, so skip it (the mesh still saves as scene content) and say so.
+		if ((session.primitive == Plot3DPrimitive::Quiver && !payload.hasGlyphs)
+			|| (session.primitive == Plot3DPrimitive::Voxel && !payload.hasVolume))
+		{
+			qWarning() << "3D Plot session not saved: no renderer data for" << session.name;
+			_simulationSaveNotes << tr("The 3D plot '%1' was saved without its editable plot data because its renderer data was unavailable.")
+				.arg(session.name);
+			continue;
+		}
+
 		std::vector<QByteArray> blobs;
 		QJsonObject entry = plot3DSessionToJson(session, payload, blobs);
 
@@ -119,6 +131,20 @@ void ModelViewer::restorePlot3DSessions(QVector<PendingPlot3DRestore>& restores,
 		SceneMesh* mesh = _viewportWidget->getMeshByUuid(session.meshUuid);
 		if (!mesh)
 			continue; // the plot's mesh is not in the file any more; there is nothing to attach the session to
+
+		// Every per-vertex array is uploaded to the GPU as an attribute of this mesh, so a count that disagrees with the
+		// restored mesh (a damaged or hand-edited file) would hand the driver an undersized buffer. Drop the session
+		// instead; the mesh itself still stands as ordinary scene content.
+		const std::size_t vertexCount = mesh->vertices().size();
+		const SceneMesh* stemMarkerMesh = session.markerMeshUuid.isNull() ? nullptr : _viewportWidget->getMeshByUuid(session.markerMeshUuid);
+		const bool colourMismatch = (!session.values.empty() && session.values.size() != vertexCount)
+			|| (!session.markerValues.empty() && (!stemMarkerMesh || session.markerValues.size() != stemMarkerMesh->vertices().size()))
+			|| (pending.payload.hasGlyphs && pending.payload.glyphValues.size() != vertexCount);
+		if (colourMismatch)
+		{
+			qWarning() << "3D Plot session not restored: its colour data does not match its mesh -" << session.name;
+			continue;
+		}
 
 		// Renderer data that lives outside the mesh.
 		const Plot3DRendererPayload& payload = pending.payload;

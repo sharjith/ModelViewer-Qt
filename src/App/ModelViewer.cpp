@@ -5850,8 +5850,21 @@ bool ModelViewer::loadFile(const QString& fileName)
 		// session on the document it is loaded into, with no unsaved-changes prompt. So it is only ever loaded into an
 		// EMPTY document (the fresh one MainWindow::loadFile() creates for File > Open); anywhere else - Shift+click on
 		// a recent file ("import into active document"), or any future caller - it opens as its own document instead.
-		if (_viewportWidget && !_viewportWidget->getMeshStore().empty())
-			return MainWindow::mainWindow()->openFile(fileName); // nothing is loaded into THIS document
+		// "Has content" is more than meshes: a document whose meshes were all deleted can still hold unsaved changes, an
+		// undo history, measurements or plot / simulation sessions, and the load below clears all of it (including the
+		// undo stack). The same freshness test the simulation-result path above uses.
+		const bool hasContent = (_viewportWidget && !_viewportWidget->getMeshStore().empty()) || _documentModified
+			|| (_undoStack && _undoStack->count() > 0) || !_simulationSessions.empty() || !_plot3DSessions.isEmpty();
+		// Backstop: the document openFile() creates is fresh by construction, but if it ever were not, redirecting again
+		// would recurse forever - so while a redirect is in flight, load into the document in hand.
+		static bool redirectingToNewDocument = false;
+		if (hasContent && !redirectingToNewDocument)
+		{
+			redirectingToNewDocument = true;
+			const bool opened = MainWindow::mainWindow()->openFile(fileName); // nothing is loaded into THIS document
+			redirectingToNewDocument = false;
+			return opened;
+		}
 		// Load native ModelViewer session file
 		success = loadFromFile(fileName);
 	}
@@ -7210,6 +7223,15 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 	                                               simulationBakedColors());
 	appendSimulationSnapshots(package);
 	appendPlot3DSessions(package);
+	// Simulation snapshots and Plot3D sessions append their blobs to the GEOM chunk AFTER Mvf::buildMVFPackage() recorded
+	// buffers[0].byteLength, so bring it back in line with the chunk actually written. (Readers use each bufferView's own
+	// offset/length and the physical chunk, but the saved metadata should not contradict the file.)
+	if (!package.document.buffers.isEmpty())
+	{
+		QJsonObject geometryBuffer = package.document.buffers.at(0).toObject();
+		geometryBuffer.insert(QStringLiteral("byteLength"), package.geometryChunk.size());
+		package.document.buffers.replace(0, geometryBuffer);
+	}
 
 	if (_viewportWidget)
 	{

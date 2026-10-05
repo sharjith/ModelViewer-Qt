@@ -456,6 +456,36 @@ namespace
 		std::vector<QByteArray> mismatchedBlobs;
 		const QJsonObject mismatchedJson = plot3DSessionToJson(session, mismatched, mismatchedBlobs);
 		CHECK(!plot3DSessionFromJson(mismatchedJson, mismatchedBlobs, bad, badPayload, &error) && !error.isEmpty());
+
+		// A Quiver or Voxel plot IS its renderer data (the mesh is only an anchor / bounds proxy), so a session for one
+		// that carries no arrows / volume must be rejected rather than reopen as a successfully empty plot.
+		Plot3DSession quiver = plain;
+		quiver.primitive = Plot3DPrimitive::Quiver;
+		std::vector<QByteArray> quiverBlobs;
+		const QJsonObject quiverNoGlyphs = plot3DSessionToJson(quiver, Plot3DRendererPayload(), quiverBlobs);
+		error.clear();
+		CHECK(!plot3DSessionFromJson(quiverNoGlyphs, quiverBlobs, bad, badPayload, &error) && !error.isEmpty());
+		Plot3DRendererPayload arrowsOnly;
+		arrowsOnly.hasGlyphs = true;
+		arrowsOnly.glyphVectors = { 0, 0, 1 };
+		arrowsOnly.glyphValues = { 1.0f };
+		quiverBlobs.clear();
+		const QJsonObject quiverWithGlyphs = plot3DSessionToJson(quiver, arrowsOnly, quiverBlobs);
+		CHECK(plot3DSessionFromJson(quiverWithGlyphs, quiverBlobs, bad, badPayload, &error) && badPayload.hasGlyphs);
+
+		Plot3DSession voxel = plain;
+		voxel.primitive = Plot3DPrimitive::Voxel;
+		std::vector<QByteArray> voxelBlobs;
+		const QJsonObject voxelNoVolume = plot3DSessionToJson(voxel, Plot3DRendererPayload(), voxelBlobs);
+		error.clear();
+		CHECK(!plot3DSessionFromJson(voxelNoVolume, voxelBlobs, bad, badPayload, &error) && !error.isEmpty());
+		Plot3DRendererPayload volumeOnly;
+		volumeOnly.hasVolume = true;
+		volumeOnly.volumeDimensions[0] = 1; volumeOnly.volumeDimensions[1] = 1; volumeOnly.volumeDimensions[2] = 2;
+		volumeOnly.volumeValues = { 0.5f, 1.0f };
+		voxelBlobs.clear();
+		const QJsonObject voxelWithVolume = plot3DSessionToJson(voxel, volumeOnly, voxelBlobs);
+		CHECK(plot3DSessionFromJson(voxelWithVolume, voxelBlobs, bad, badPayload, &error) && badPayload.hasVolume);
 	}
 
 	void testFormula()

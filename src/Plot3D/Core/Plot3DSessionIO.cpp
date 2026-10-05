@@ -406,5 +406,11 @@ bool plot3DSessionFromJson(const QJsonObject& json, const std::vector<QByteArray
 		if (expected <= 0 || static_cast<long long>(payload.volumeValues.size()) != expected)
 			return fail(QObject::tr("The stored 3D Plot volume is inconsistent."));
 	}
+	// A Quiver or Voxel plot is its renderer data (its mesh is only the anchor / bounds proxy), so a session for one without
+	// it would reopen as an empty plot.
+	if (session.primitive == Plot3DPrimitive::Quiver && !payload.hasGlyphs)
+		return fail(QObject::tr("A stored arrow plot has no arrow data."));
+	if (session.primitive == Plot3DPrimitive::Voxel && !payload.hasVolume)
+		return fail(QObject::tr("A stored voxel plot has no volume data."));
 	return true;
 }

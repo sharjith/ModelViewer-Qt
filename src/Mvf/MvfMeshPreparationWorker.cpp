@@ -382,9 +382,19 @@ QVector<PreparedMvfMesh> MvfMeshPreparationWorker::prepare(const Mvf::Document& 
 		if (indices.empty())
 		{
 			const int primitiveMode = prim[QStringLiteral("mode")].toInt(GL_TRIANGLES);
-			const bool unindexedAllowed = primitiveMode == GL_POINTS || primitiveMode == GL_LINES
+			const bool pointOrLine = primitiveMode == GL_POINTS || primitiveMode == GL_LINES
 				|| primitiveMode == GL_LINE_LOOP || primitiveMode == GL_LINE_STRIP;
-			if (!unindexedAllowed)
+			// readUIntStream() returns empty for a zero-element accessor but ALSO for a missing, out-of-range or damaged
+			// one, so emptiness alone cannot say "this primitive is unindexed". It is only when the file either names no
+			// index accessor at all (plain glTF unindexed geometry) or names one that explicitly holds zero elements (what
+			// our writer emits). A non-empty accessor that failed to read is damage, and drawing it as an unindexed line
+			// or point set would silently show garbage.
+			const bool indexAccessorOmitted = !prim.contains(QStringLiteral("indices"));
+			const int indexAccessor = prim[QStringLiteral("indices")].toInt(-1);
+			const bool explicitlyUnindexed = indexAccessorOmitted
+				|| (indexAccessor >= 0 && indexAccessor < document.accessors.size()
+					&& document.accessors[indexAccessor].toObject()[QStringLiteral("count")].toInt(-1) == 0);
+			if (!pointOrLine || !explicitlyUnindexed)
 				continue;
 		}
 
