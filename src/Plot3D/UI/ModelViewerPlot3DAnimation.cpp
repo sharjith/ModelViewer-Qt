@@ -54,7 +54,9 @@ void ModelViewer::setPlot3DPathlineAnimation(const QUuid& meshUuid, bool enabled
 	if (!buildPathlineAnimationState(*session, *mesh))
 		return;
 	session->pathlineAnimation = true;
-	updatePathlineTimeline();
+	_playbackPathline = true; // switching the animation on selects it in the playback bar
+	_playbackMesh = meshUuid;
+	updateSimulationTimeline();
 	applyPathlineFrame();
 	emit plot3DSessionsChanged(false);
 }
@@ -74,7 +76,7 @@ void ModelViewer::refreshPlot3DPathlineAnimation(const QUuid& meshUuid)
 		return;
 	}
 	_pathlineAnimation.frame = static_cast<int>(std::lround(ratio * (_pathlineAnimation.frames - 1)));
-	updatePathlineTimeline();
+	updateSimulationTimeline();
 	applyPathlineFrame();
 }
 
@@ -166,8 +168,8 @@ void ModelViewer::setPathlineFrame(int frame, bool fromPlayback)
 		return;
 	_pathlineAnimation.frame = std::clamp(frame, 0, _pathlineAnimation.frames - 1);
 	applyPathlineFrame();
-	if (_pathlineTimeline)
-		_pathlineTimeline->setCurrentStep(_pathlineAnimation.frame);
+	if (_simulationTimeline && _playbackPathline && _playbackMesh == _pathlineAnimation.mesh)
+		_simulationTimeline->setCurrentStep(_pathlineAnimation.frame);
 	(void)fromPlayback;
 }
 
@@ -195,8 +197,8 @@ void ModelViewer::setPathlinePlaying(bool playing)
 		if (_pathlineTimer)
 			_pathlineTimer->stop();
 	}
-	if (_pathlineTimeline)
-		_pathlineTimeline->setPlaying(_pathlinePlaying);
+	if (_simulationTimeline && _playbackPathline)
+		_simulationTimeline->setPlaying(_pathlinePlaying);
 }
 
 void ModelViewer::advancePathlineFrame()
@@ -219,40 +221,26 @@ void ModelViewer::advancePathlineFrame()
 	setPathlineFrame(next, true);
 }
 
-void ModelViewer::updatePathlineTimeline()
+// Binds the shared playback bar to the animated pathline plot (called by updateSimulationTimeline() when it is the selected item).
+void ModelViewer::bindPlaybackToPathline()
 {
-	if (_pathlineAnimation.mesh.isNull() || !_viewportWidget)
-	{
-		if (_pathlineTimeline)
-			_pathlineTimeline->setAliveCheck([]() { return false; });
+	if (!_simulationTimeline || _pathlineAnimation.mesh.isNull() || !_viewportWidget)
 		return;
-	}
-	if (!_pathlineTimeline)
-	{
-		_pathlineTimeline = new SimulationTimelineWidget(_viewportWidget);
-		connect(_pathlineTimeline, &SimulationTimelineWidget::stepRequested, this, [this](int frame) { setPathlineFrame(frame, false); });
-		connect(_pathlineTimeline, &SimulationTimelineWidget::playRequested, this, [this](bool play) { setPathlinePlaying(play); });
-		connect(_pathlineTimeline, &SimulationTimelineWidget::loopChanged, this, [this](bool loop) { _pathlineLoop = loop; });
-		connect(_pathlineTimeline, &SimulationTimelineWidget::speedChanged, this, [this](double speed) {
-			_pathlineSpeed = speed;
-			if (_pathlinePlaying && _pathlineTimer)
-				_pathlineTimer->setInterval(std::max(15, static_cast<int>(40.0 / _pathlineSpeed)));
-		});
-	}
 	const double t0 = _pathlineAnimation.timeMinimum, t1 = _pathlineAnimation.timeMaximum;
 	const int frames = _pathlineAnimation.frames;
-	_pathlineTimeline->setSteps(frames, [t0, t1, frames](int i) {
+	_simulationTimeline->setSteps(frames, [t0, t1, frames](int i) {
 		return tr("t = %1").arg(t0 + (t1 - t0) * i / std::max(1, frames - 1), 0, 'g', 5);
 	});
-	_pathlineTimeline->setCurrentStep(_pathlineAnimation.frame);
-	_pathlineTimeline->setLoop(_pathlineLoop);
-	_pathlineTimeline->setSpeed(_pathlineSpeed);
-	_pathlineTimeline->setPlaying(_pathlinePlaying);
+	_simulationTimeline->setCurrentStep(_pathlineAnimation.frame);
+	_simulationTimeline->setLoop(_pathlineLoop);
+	_simulationTimeline->setSpeed(_pathlineSpeed);
+	_simulationTimeline->setPlaying(_pathlinePlaying);
 	QPointer<ViewportWidget> viewport(_viewportWidget);
 	QPointer<ModelViewer> self(this);
 	const QUuid meshUuid = _pathlineAnimation.mesh;
-	_pathlineTimeline->setAliveCheck([viewport, self, meshUuid]() {
-		return viewport && viewport->getMeshByUuid(meshUuid) && self && self->_visibleMeshUuids.contains(meshUuid) && self->_pathlineAnimation.mesh == meshUuid;
+	_simulationTimeline->setAliveCheck([viewport, self, meshUuid]() {
+		return viewport && viewport->getMeshByUuid(meshUuid) && self && self->_visibleMeshUuids.contains(meshUuid)
+			&& self->_pathlineAnimation.mesh == meshUuid && self->_playbackPathline && self->_playbackMesh == meshUuid;
 	});
 }
 
@@ -270,6 +258,10 @@ void ModelViewer::endPathlineAnimation(bool touchMesh)
 		_viewportWidget->updateView();
 	}
 	_pathlineAnimation = Plot3DPathlineAnimation();
-	if (_pathlineTimeline)
-		_pathlineTimeline->setAliveCheck([]() { return false; });
+	if (_playbackPathline && _playbackMesh == meshUuid)
+	{
+		_playbackPathline = false; // the bar falls back to a Simulation result, or hides
+		_playbackMesh = QUuid();
+	}
+	updateSimulationTimeline();
 }

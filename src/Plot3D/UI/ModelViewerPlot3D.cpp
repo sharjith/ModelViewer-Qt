@@ -811,26 +811,26 @@ void ModelViewer::refreshPlot3DLegend()
 
 	QPointer<ModelViewer> self(this);
 	QPointer<ViewportWidget> viewport(_viewportWidget);
+	// The heading names the plot; with a Simulation legend showing too, the two stack (this one below the other's real bottom edge,
+	// not a fixed offset) so they never paint over one another. The plot legend returns to the normal top-right slot without it.
 	_plot3DLegend->setPane([self, viewport]() {
 		if (!self || !viewport || !self->_simulationLegend || !self->_simulationLegend->isVisible())
 			return QRect();
-		// When a simulation and Plot3D result are both visible, stack their legends instead of painting them on top
-		// of one another. The plot legend returns to the normal top-right slot when the simulation legend is absent.
-		return QRect(0, 132, viewport->width(), std::max(1, viewport->height() - 132));
-	}, QString());
+		const int top = self->_simulationLegend->geometry().bottom() + 8;
+		return QRect(0, top, viewport->width(), std::max(1, viewport->height() - top));
+	}, session->name);
 	const QUuid meshUuid = session->meshUuid;
 	_plot3DLegend->setAliveCheck([self, meshUuid]() {
 		if (!self || self->activePlot3DMeshUuid() != meshUuid)
 			return false;
 		return self->getVisibleUuids().contains(meshUuid);
 	});
+	// The title says what the colours mean; the plot's name is the heading above it.
 	const QString label = session->primitive == Plot3DPrimitive::Voxel
-		? tr("%1 - Occupancy").arg(session->name)
+		? tr("Occupancy")
 		: (session->generated.valid && (session->generated.sourceMode == 7 || session->generated.sourceMode == 8))
-			? tr("%1 - Time").arg(session->name)
-		: (session->primitive == Plot3DPrimitive::Quiver
-			? tr("%1 - Vector magnitude").arg(session->name)
-			: tr("%1 - Value").arg(session->name));
+			? tr("Time")
+			: (session->primitive == Plot3DPrimitive::Quiver ? tr("Vector magnitude") : tr("Value"));
 	_plot3DLegend->setLegend(label, session->colourMinimum, session->colourMaximum, session->colormap,
 		session->bands, tr("Colour range for the active 3D plot."));
 }

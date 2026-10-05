@@ -1143,9 +1143,10 @@ void ModelViewer::revealNavigation()
 	if (_simulationLegend)
 		_simulationLegend->raise();
 	if (_plot3DLegend)
+	{
+		_plot3DLegend->reposition(); // keep it below the Simulation legend's current bottom edge
 		_plot3DLegend->raise();
-	if (_pathlineTimeline && _pathlineTimeline->isVisible())
-		_pathlineTimeline->raise();
+	}
 	if (_simulationTimeline && _simulationTimeline->isVisible())
 		_simulationTimeline->raise();
 	if (_viewportWidget)

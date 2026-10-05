@@ -125,6 +125,14 @@ play-pause / stop / next, a slider, the current time "t = ...", Loop and a speed
 time, with a dot at the head of each, coloured by the current time. Switching it on shows the whole plot until you press Play; from the
 end, Play starts over. Untick the box and the full trails come back and the timeline goes away.
 
+One playback bar for everything: the timeline plays whichever item is selected in the combo at its left, which lists every
+multi-step Simulation result ("Simulation: <name>") and the animated pathline plot ("Pathlines: <name>"). With only one playable
+item the combo is hidden. The bar follows what you are working on (choosing a result in the Simulation tab selects it; ticking
+"Animate pathlines" selects that plot) and you can switch with the combo; changing the selected item pauses the one that was playing.
+When a Simulation legend and a plot legend are both showing they stack in one column, each headed with its owner's name.
+To test the combination, open a multi-step simulation result (for example sample-models/Simulation/FEM_box_modes.frd, six modes) in
+the same document as a pathline plot, animate the plot, and switch between the two in the combo.
+
 Checks: animate the Pulsating Vortex preset and watch the dots circle faster and slower as the rotation pulses (the colour bands along
 a ring are the time); animate the Double Gyre CSV and watch the particles swirl; drag the slider back and forth (the trails shrink and
 grow, the dots follow); set Loop off and let it stop at the end; try the 0.5x to 4x speeds. A trail that left the range before the

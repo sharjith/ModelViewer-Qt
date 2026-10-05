@@ -57,6 +57,14 @@ struct Plot3DPathlineAnimation
 	std::vector<float> times;       // the time at each vertex (the plot's values)
 };
 
+// One thing the shared playback bar (the timeline) can play: a multi-step Simulation result or the animated pathline plot.
+struct PlaybackItem
+{
+	bool pathline = false;
+	QUuid mesh;
+	QString name;
+};
+
 struct UVDialogResult
 {
 	UVMethod method = UVMethod::None;
@@ -901,7 +909,8 @@ private:
 	void setPathlineFrame(int frame, bool fromPlayback);
 	void setPathlinePlaying(bool playing);
 	void advancePathlineFrame();
-	void updatePathlineTimeline();
+	void bindPlaybackToPathline();
+	QVector<PlaybackItem> playbackItems() const;
 	void endPathlineAnimation(bool touchMesh = true);
 
 	// Shared implementation for mergeSelectedMeshes()/unionSelectedMeshes() -
@@ -1120,7 +1129,12 @@ private:
 	QPointer<SimulationTimelineWidget> _simulationTimeline; // playback controls of a multi-step result
 	QTimer* _simulationPlayTimer = nullptr;
 	Plot3DPathlineAnimation _pathlineAnimation;
-	QPointer<SimulationTimelineWidget> _pathlineTimeline; // playback controls of the animated pathline plot
+	// The one playback bar plays whichever item is selected (see updateSimulationTimeline()).
+	bool _playbackPathline = false;     // the selected item is the pathline plot (else a Simulation result)
+	QUuid _playbackMesh;                // ... and its mesh
+	QUuid _playbackSeenActiveSim;       // the active result last time: the selection follows when it changes
+	bool _playbackBoundPathline = false; // what the controls are currently bound to (playback pauses when that changes)
+	QUuid _playbackBoundMesh;
 	QTimer* _pathlineTimer = nullptr;
 	bool _pathlinePlaying = false;
 	bool _pathlineLoop = true;

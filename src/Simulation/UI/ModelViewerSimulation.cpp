@@ -426,8 +426,6 @@ void ModelViewer::retranslateSimulation()
 {
 	if (_simulationTimeline)
 		_simulationTimeline->retranslate();
-	if (_pathlineTimeline)
-		_pathlineTimeline->retranslate();
 	// Legend title / tooltip and the info lines come from the refresh: redo it for the results of this document.
 	for (SimulationSession& session : _simulationSessions)
 		if (_viewportWidget && _viewportWidget->getMeshByUuid(session.meshUuid))
@@ -1114,7 +1112,7 @@ void ModelViewer::setSimulationStep(int step, bool fromPlayback)
 	}
 	else
 		refreshSimulationDisplay(*session);
-	if (_simulationTimeline)
+	if (_simulationTimeline && !_playbackPathline && _playbackMesh == session->meshUuid)
 		_simulationTimeline->setCurrentStep(step);
 	if (!fromPlayback)
 		emit simulationSessionChanged(false); // the panel's per-step range display follows
@@ -1145,7 +1143,7 @@ void ModelViewer::setSimulationPlaying(bool playing)
 		if (_simulationPlayTimer)
 			_simulationPlayTimer->stop();
 	}
-	if (_simulationTimeline)
+	if (_simulationTimeline && !_playbackPathline)
 		_simulationTimeline->setPlaying(_simulationPlaying);
 	if (!playing)
 		emit simulationSessionChanged(false); // sync the panel now that the step is no longer moving under it
@@ -1172,46 +1170,142 @@ void ModelViewer::advanceSimulationStep()
 	setSimulationStep(next, true);
 }
 
-// Shows the timeline while the active result has more than one step, hides it (and stops playback) otherwise.
+// The playable things in the document: every displayed Simulation result with more than one step, and the pathline plot being
+// animated. The shared playback bar plays whichever is selected.
+QVector<PlaybackItem> ModelViewer::playbackItems() const
+{
+	QVector<PlaybackItem> items;
+	if (!_viewportWidget)
+		return items;
+	for (const SimulationSession& session : _simulationSessions)
+	{
+		if (!session.dataset || session.dataset->stepCount() < 2 || _viewportWidget->getIndexByUuid(session.meshUuid) < 0)
+			continue;
+		const SceneMesh* mesh = _viewportWidget->getMeshByUuid(session.meshUuid);
+		items.push_back({ false, session.meshUuid, tr("Simulation: %1").arg(mesh ? mesh->getName() : QString()) });
+	}
+	if (!_pathlineAnimation.mesh.isNull() && _viewportWidget->getIndexByUuid(_pathlineAnimation.mesh) >= 0)
+	{
+		const SceneMesh* mesh = _viewportWidget->getMeshByUuid(_pathlineAnimation.mesh);
+		items.push_back({ true, _pathlineAnimation.mesh, tr("Pathlines: %1").arg(mesh ? mesh->getName() : QString()) });
+	}
+	return items;
+}
+
+// Shows the playback bar while something can be played, bound to the selected item. The selection follows the active result
+// when that changes (and a plot whose animation was just switched on selects itself); the combo in the bar overrides it. Pausing
+// whatever was playing when the selection changes keeps a hidden item from animating unseen.
 void ModelViewer::updateSimulationTimeline()
 {
-	SimulationSession* session = activeSimulationSessionMutable();
-	const bool multiStep = session && session->dataset && session->dataset->stepCount() > 1;
-	if (!multiStep)
+	const QVector<PlaybackItem> items = playbackItems();
+	if (items.isEmpty())
 	{
 		if (_simulationPlaying)
 			setSimulationPlaying(false);
+		if (_pathlinePlaying)
+			setPathlinePlaying(false);
 		if (_simulationTimeline)
+		{
+			_simulationTimeline->setItems({}, -1);
 			_simulationTimeline->setAliveCheck([]() { return false; });
+		}
 		return;
 	}
-	if (session->meshUuid != _simulationPlayingMesh && _simulationPlaying)
-		setSimulationPlaying(false);
+
+	SimulationSession* active = activeSimulationSessionMutable();
+	if (active && active->meshUuid != _playbackSeenActiveSim)
+	{
+		_playbackSeenActiveSim = active->meshUuid;
+		for (const PlaybackItem& item : items)
+			if (!item.pathline && item.mesh == active->meshUuid)
+			{
+				_playbackPathline = false;
+				_playbackMesh = item.mesh;
+			}
+	}
+	int index = -1;
+	for (int i = 0; i < items.size(); ++i)
+		if (items[i].pathline == _playbackPathline && items[i].mesh == _playbackMesh)
+			index = i;
+	if (index < 0)
+	{
+		index = 0; // the active result if it can be played, otherwise the first item
+		for (int i = 0; i < items.size(); ++i)
+			if (active && !items[i].pathline && items[i].mesh == active->meshUuid)
+				index = i;
+		_playbackPathline = items[index].pathline;
+		_playbackMesh = items[index].mesh;
+	}
+	if (_playbackBoundPathline != _playbackPathline || _playbackBoundMesh != _playbackMesh)
+	{
+		if (_simulationPlaying)
+			setSimulationPlaying(false);
+		if (_pathlinePlaying)
+			setPathlinePlaying(false);
+		_playbackBoundPathline = _playbackPathline;
+		_playbackBoundMesh = _playbackMesh;
+	}
 
 	if (!_simulationTimeline)
 	{
 		_simulationTimeline = new SimulationTimelineWidget(_viewportWidget);
-		connect(_simulationTimeline, &SimulationTimelineWidget::stepRequested, this, [this](int step) { setSimulationStep(step, false); });
-		connect(_simulationTimeline, &SimulationTimelineWidget::playRequested, this, [this](bool play) { setSimulationPlaying(play); });
-		connect(_simulationTimeline, &SimulationTimelineWidget::loopChanged, this, [this](bool loop) { _simulationLoop = loop; });
+		connect(_simulationTimeline, &SimulationTimelineWidget::stepRequested, this, [this](int step) {
+			if (_playbackPathline) setPathlineFrame(step, false); else setSimulationStep(step, false);
+		});
+		connect(_simulationTimeline, &SimulationTimelineWidget::playRequested, this, [this](bool play) {
+			if (_playbackPathline) setPathlinePlaying(play); else setSimulationPlaying(play);
+		});
+		connect(_simulationTimeline, &SimulationTimelineWidget::loopChanged, this, [this](bool loop) {
+			(_playbackPathline ? _pathlineLoop : _simulationLoop) = loop;
+		});
 		connect(_simulationTimeline, &SimulationTimelineWidget::speedChanged, this, [this](double speed) {
-			_simulationSpeed = speed;
-			if (_simulationPlaying && _simulationPlayTimer)
-				_simulationPlayTimer->setInterval(std::max(15, static_cast<int>(500.0 / _simulationSpeed)));
+			if (_playbackPathline)
+			{
+				_pathlineSpeed = speed;
+				if (_pathlinePlaying && _pathlineTimer)
+					_pathlineTimer->setInterval(std::max(15, static_cast<int>(40.0 / _pathlineSpeed)));
+			}
+			else
+			{
+				_simulationSpeed = speed;
+				if (_simulationPlaying && _simulationPlayTimer)
+					_simulationPlayTimer->setInterval(std::max(15, static_cast<int>(500.0 / _simulationSpeed)));
+			}
+		});
+		connect(_simulationTimeline, &SimulationTimelineWidget::itemRequested, this, [this](int row) {
+			const QVector<PlaybackItem> now = playbackItems();
+			if (row < 0 || row >= now.size())
+				return;
+			_playbackPathline = now[row].pathline;
+			_playbackMesh = now[row].mesh;
+			if (!_playbackPathline)
+				activateSimulationResult(_playbackMesh); // the step functions act on the active result
+			updateSimulationTimeline();
 		});
 	}
-	const std::shared_ptr<ResultDataset> dataset = session->dataset;
-	_simulationTimeline->setSteps(static_cast<int>(dataset->stepCount()), [dataset](int i) { return stepDescription(*dataset, i); });
-	_simulationTimeline->setCurrentStep(session->state.step);
-	_simulationTimeline->setLoop(_simulationLoop);
-	_simulationTimeline->setSpeed(_simulationSpeed);
-	_simulationTimeline->setPlaying(_simulationPlaying);
-	QPointer<ViewportWidget> viewportGuard(_viewportWidget);
-	QPointer<ModelViewer> self(this);
-	const QUuid meshUuid = session->meshUuid;
-	_simulationTimeline->setAliveCheck([viewportGuard, self, meshUuid]() {
-		return viewportGuard && viewportGuard->getMeshByUuid(meshUuid) && self && self->_visibleMeshUuids.contains(meshUuid);
-	});
+
+	if (_playbackPathline)
+		bindPlaybackToPathline();
+	else if (SimulationSession* session = findSimulationSession(_playbackMesh); session && session->dataset)
+	{
+		const std::shared_ptr<ResultDataset> dataset = session->dataset;
+		_simulationTimeline->setSteps(static_cast<int>(dataset->stepCount()), [dataset](int i) { return stepDescription(*dataset, i); });
+		_simulationTimeline->setCurrentStep(session->state.step);
+		_simulationTimeline->setLoop(_simulationLoop);
+		_simulationTimeline->setSpeed(_simulationSpeed);
+		_simulationTimeline->setPlaying(_simulationPlaying && _simulationPlayingMesh == session->meshUuid);
+		QPointer<ViewportWidget> viewportGuard(_viewportWidget);
+		QPointer<ModelViewer> self(this);
+		const QUuid meshUuid = session->meshUuid;
+		_simulationTimeline->setAliveCheck([viewportGuard, self, meshUuid]() {
+			return viewportGuard && viewportGuard->getMeshByUuid(meshUuid) && self && self->_visibleMeshUuids.contains(meshUuid)
+				&& !self->_playbackPathline && self->_playbackMesh == meshUuid;
+		});
+	}
+	QStringList names;
+	for (const PlaybackItem& item : items)
+		names << item.name;
+	_simulationTimeline->setItems(names, index);
 }
 
 // Recolours the session's mesh and updates the legend from session.state.
@@ -1381,7 +1475,7 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 			if (!_simulationLegend)
 				_simulationLegend = new SimulationLegendWidget(_viewportWidget);
 			legend = _simulationLegend;
-			legend->setPane({}, QString());
+			legend->setPane({}, mesh->getName()); // the result's name heads the legend (it may share the column with a plot's)
 		}
 		// Unit in brackets: the display unit, flagged when it is only a guess, or an honest "not specified".
 		const QString unitText = scalar.unit.isEmpty() ? tr("unit not specified")
@@ -1389,6 +1483,8 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 		legend->setLegend(tr("%1  [%2]").arg(scalar.label, unitText), lo, hi, session.state.colormap,
 		                             session.state.bands,
 		                             tr("%1\n%2").arg(QDir::toNativeSeparators(session.filePath), session.warnings.join(QLatin1Char('\n'))));
+		if (_plot3DLegend)
+			_plot3DLegend->reposition(); // a plot legend stacks below this one's real bottom edge
 		// Shown only while this result's mesh is still displayed (it disappears with Undo, returns with Redo).
 		QPointer<ViewportWidget> viewportGuard(_viewportWidget);
 		QPointer<ModelViewer> self(this);

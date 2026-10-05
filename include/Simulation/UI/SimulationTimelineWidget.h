@@ -36,6 +36,9 @@ public:
 	void setPlaying(bool playing);
 	void setLoop(bool loop);
 	void setSpeed(double speed); // 0.5, 1, 2 or 4
+	// What the timeline plays: the names offered in a combo at its left, and which one is selected. The combo is shown only when
+	// there are at least two items to choose between. Does not emit itemRequested().
+	void setItems(const QStringList& names, int current);
 
 	// The timeline is shown only while this returns true (default: never, until set).
 	void setAliveCheck(std::function<bool()> alive) { _alive = std::move(alive); refresh(); }
@@ -49,6 +52,7 @@ signals:
 	void playRequested(bool play);
 	void loopChanged(bool loop);
 	void speedChanged(double speed);
+	void itemRequested(int index); // the user picked another item in the combo
 
 protected:
 	bool eventFilter(QObject* watched, QEvent* event) override;
@@ -70,6 +74,7 @@ private:
 	QLabel* _grip = nullptr;         // drag handle (left edge); double-click resets the position
 	QToolButton* _pinButton = nullptr; // pinned = position locked
 	QComboBox* _speedCombo = nullptr;
+	QComboBox* _itemCombo = nullptr; // which result / plot is played (hidden with fewer than two)
 
 	QStringList _texts;
 	int _count = 0;

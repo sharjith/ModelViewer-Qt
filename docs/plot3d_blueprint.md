@@ -335,6 +335,13 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     cleared by `setMeshData`), computed by the unit-tested `plot3DPathlineTrails` / `plot3DElapsedSegments`; the heads are a
     transient viewport point overlay (`ViewportWidget::setPlot3DPointOverlay`), so nothing animated is scene content, saved,
     exported or path traced. 200 frames; Play restarts from the end; a rebuild (Edit Plot) while animating is followed.
+34. **Complete (user-verified 2026-10-05):** one shared playback bar and stacked legends. The Simulation timeline
+    widget is now the only playback bar: an item combo at its left (hidden unless two or more items are playable) selects what it
+    plays - a multi-step Simulation result or the animated pathline plot (`PlaybackItem`, `ModelViewer::playbackItems()` /
+    `updateSimulationTimeline()`). The selection follows the active result and a plot whose animation was just switched on;
+    changing it pauses playback. Legends: the Plot3D legend stacks below the Simulation legend's real bottom edge (no fixed
+    offset) and each carries its owner's name as a heading above a title that says what the colours mean (Value, Time,
+    Occupancy, Vector magnitude).
 
 ## 7. Known gaps and follow-ups (outside the original completion target)
 
