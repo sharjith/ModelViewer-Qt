@@ -550,7 +550,11 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	updateControls();
 
 	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
+		// uic's retranslateUi() also re-applies the .ui file's own windowTitle ("Session 1", in the new language), which
+		// would overwrite this document's real title with a wrong one. Derive the title again instead: the file name for a
+		// document that has one, otherwise "Session N" with this document's own number in the new language.
 		retranslateUi(this);
+		refreshDocumentTitle();
 		retranslateUI();  // if needed
 		});
 }
@@ -572,6 +576,9 @@ void ModelViewer::retranslateUI()
 {
 	// Dynamically created	
 	retranslateSimulation();
+	// The in-viewer colour legend of the active 3D plot ("<plot> - Value", its tooltip) is built from tr() when it is refreshed,
+	// so it has to be refreshed again for the new language, exactly as the Simulation legend is just above.
+	refreshPlot3DLegend();
 }
 
 void ModelViewer::close()
@@ -2387,15 +2394,28 @@ void ModelViewer::setDocumentModified(bool modified)
 {
 	const bool changed = (_documentModified != modified);
 	_documentModified = modified;
-	const QString baseTitle = _currentFile.isEmpty()
-		? windowTitle().remove(QLatin1Char('*'))
-		: QFileInfo(_currentFile).fileName();
-	if (modified)
-		setWindowTitle(tr("%1*").arg(baseTitle));
-	else
-		setWindowTitle(baseTitle);
+	refreshDocumentTitle();
 	if (changed)
 		emit documentModifiedChanged(_documentModified);
+}
+
+QString ModelViewer::documentBaseTitle() const
+{
+	return _currentFile.isEmpty()
+		? tr("Session %1").arg(_sessionNumber)
+		: QFileInfo(_currentFile).fileName();
+}
+
+void ModelViewer::refreshDocumentTitle()
+{
+	const QString baseTitle = documentBaseTitle();
+	setWindowTitle(_documentModified ? tr("%1*").arg(baseTitle) : baseTitle);
+}
+
+void ModelViewer::setSessionNumber(int number)
+{
+	_sessionNumber = number;
+	refreshDocumentTitle();
 }
 
 void ModelViewer::markNonUndoDocumentModified()

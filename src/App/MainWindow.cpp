@@ -2308,7 +2308,7 @@ void MainWindow::on_actionNew_triggered()
 {
 	ModelViewer* viewer = new ModelViewer(nullptr);
 	viewer->setAttribute(Qt::WA_DeleteOnClose);
-	viewer->setWindowTitle(QString("Session %1").arg(++_viewerCount));
+	viewer->setSessionNumber(++_viewerCount);
 	QMdiSubWindow* subWindow = createDocumentSubWindow(viewer);
 	qDebug() << "MainWindow: created document via New -"
 	         << "viewer=" << (void*)viewer << "subWindow=" << (void*)subWindow

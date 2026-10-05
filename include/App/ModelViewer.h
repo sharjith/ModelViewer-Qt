@@ -170,6 +170,11 @@ public:
 
 	bool documentModified() const { return _documentModified; }
 	void setDocumentModified(bool modified = true);
+	// A document with no file yet is a numbered session ("Session 2"). The number is stored, and the title derived from it,
+	// so the title follows a language switch; a document with a file is titled by the file name instead.
+	void setSessionNumber(int number);
+	QString documentBaseTitle() const;
+	void refreshDocumentTitle();
 	void markNonUndoDocumentModified();
 
 	bool save();
@@ -958,6 +963,7 @@ private:
 	bool _textureDirOpenedFirstTime;
 	bool _documentSaved;
 	bool _documentModified;
+	int _sessionNumber = 1; // matches the "Session 1" title the .ui gives the startup document
 
 	bool _progressiveLoadingEnabled = false;
 	bool _animateProgressiveFitEnabled = true;
