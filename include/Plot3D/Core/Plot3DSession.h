@@ -14,7 +14,7 @@
 // The definition a generated plot (Formula surface, Parametric surface / curve, Formula vector field, Implicit surface, Formula
 // streamlines, Formula pathlines) was built from, so it can be edited and rebuilt in place like a CSV plot. sourceMode is the
 // creation dialog's source (1 formula surface, 2 parametric surface, 3 parametric curve, 4 vector field, 5 implicit surface,
-// 6 streamlines, 7 pathlines); the expression and range fields are used the way that source's dialog uses them.
+// 6 streamlines, 7 pathlines, 8 CSV time series); the expression and range fields are used the way that source's dialog uses them.
 struct Plot3DGeneratedSpec
 {
 	bool valid = false;

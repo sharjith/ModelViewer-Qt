@@ -1,5 +1,6 @@
 #include <QCoreApplication>
 #include "Plot3DFormula.h"
+#include "Plot3DPathlines.h"
 
 #include <algorithm>
 #include <cmath>
@@ -236,60 +237,21 @@ bool buildPlot3DFormulaPathlines(const QString& ue, const QString& ve, const QSt
 	double x0, double x1, double y0, double y1, int seedCount, double t0, double t1, int steps,
 	const QHash<QString, double>& parameters, Plot3DMeshData& out, QString* error)
 {
-	out = Plot3DMeshData();
-	if (seedCount < 2 || seedCount > 128 || !(x1 > x0) || !(y1 > y0) || !(t1 > t0) || steps < 2 || steps > 2000)
-	{
-		if (error) *error = QStringLiteral("Pathline ranges (X, Y and time) must increase, with 2 to 128 seeds and 2 to 2000 time steps.");
-		return false;
-	}
-	const double dt = (t1 - t0) / steps;
-	struct Vec { double x, y, z; };
-	// The field at a position and time; false (with the message) when an expression fails.
-	auto field = [&](const Vec& p, double t, Vec& v) {
+	// The field at a position and time; fails (with the message, tagged with the time) when an expression cannot be evaluated.
+	const Plot3DUnsteadyField field = [&](const Plot3DVec3& p, double t, Plot3DVec3& v, QString* message) {
 		QString local;
 		if (!evaluatePlot3DFormula4D(ue, p.x, p.y, p.z, t, parameters, v.x, &local)
 			|| !evaluatePlot3DFormula4D(ve, p.x, p.y, p.z, t, parameters, v.y, &local)
 			|| !evaluatePlot3DFormula4D(we, p.x, p.y, p.z, t, parameters, v.z, &local))
 		{
-			if (error) *error = QStringLiteral("At t=%1: %2").arg(t).arg(local);
+			if (message) *message = QStringLiteral("At t=%1: %2").arg(t).arg(local);
 			return false;
 		}
 		return true;
 	};
-	auto advance = [](const Vec& p, const Vec& k, double h) { return Vec{ p.x + h * k.x, p.y + h * k.y, p.z + h * k.z }; };
-	for (int seed = 0; seed < seedCount; ++seed)
-	{
-		Vec p{ (x0 + x1) * 0.5, y0 + (y1 - y0) * seed / (seedCount - 1), 0.0 };
-		for (int step = 0; step < steps; ++step)
-		{
-			const double t = t0 + dt * step;
-			Vec k1, k2, k3, k4;
-			if (!field(p, t, k1) || !field(advance(p, k1, dt * 0.5), t + dt * 0.5, k2)
-				|| !field(advance(p, k2, dt * 0.5), t + dt * 0.5, k3) || !field(advance(p, k3, dt), t + dt, k4))
-			{
-				out = Plot3DMeshData();
-				return false;
-			}
-			const Vec next{ p.x + dt / 6.0 * (k1.x + 2.0 * k2.x + 2.0 * k3.x + k4.x),
-			                p.y + dt / 6.0 * (k1.y + 2.0 * k2.y + 2.0 * k3.y + k4.y),
-			                p.z + dt / 6.0 * (k1.z + 2.0 * k2.z + 2.0 * k3.z + k4.z) };
-			if (!std::isfinite(next.x) || !std::isfinite(next.y) || !std::isfinite(next.z)
-				|| next.x < x0 || next.x > x1 || next.y < y0 || next.y > y1)
-				break; // left the domain: the trail ends where it left
-			if (std::abs(next.x - p.x) + std::abs(next.y - p.y) + std::abs(next.z - p.z) < 1.0e-12)
-			{
-				p = next; // a stationary particle draws no segment
-				continue;
-			}
-			out.positions.insert(out.positions.end(), { float(p.x), float(p.y), float(p.z), float(next.x), float(next.y), float(next.z) });
-			out.normals.insert(out.normals.end(), { 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f });
-			out.values.push_back(t);
-			out.values.push_back(t + dt);
-			p = next;
-		}
-	}
-	if (out.empty()) { if (error) *error = QStringLiteral("No pathline segments were generated in the selected domain."); return false; }
-	return true;
+	Plot3DPathlineDomain domain;
+	domain.xMinimum = x0; domain.xMaximum = x1; domain.yMinimum = y0; domain.yMaximum = y1;
+	return tracePlot3DPathlines(field, domain, seedCount, t0, t1, steps, out, error);
 }
 
 bool buildPlot3DImplicitSurface(const QString& expression,

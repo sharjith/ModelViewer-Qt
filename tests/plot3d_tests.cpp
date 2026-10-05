@@ -2,6 +2,7 @@
 #include "Plot3DFormula.h"
 #include "Plot3DAxisController.h"
 #include "Plot3DMeshBuilder.h"
+#include "Plot3DPathlines.h"
 #include "Plot3DSection.h"
 #include "Plot3DSessionIO.h"
 
@@ -728,6 +729,82 @@ namespace
 			CHECK(!presetTrails.empty());
 		}
 		CHECK(plot3DPathlinePresets().size() >= 4);
+
+		// ---- CSV time-series pathlines: a vector field sampled on a regular (t, x, y) grid ----------------------------------------------
+		{
+			// u = t on a 5 x 3 x 5 grid (x 0..4, y 0..2, t 0..4): linear in t, so the time interpolation is exact and x(t) = 2 + t^2 / 2.
+			QString csv = QStringLiteral("t,x,y,u,v,w\n");
+			for (int t = 0; t <= 4; ++t)
+				for (int x = 0; x <= 4; ++x)
+					for (int y = 0; y <= 2; ++y)
+						csv += QStringLiteral("%1,%2,%3,%1,0,0\n").arg(t).arg(x).arg(y);
+			Plot3DCsvTable table;
+			CHECK(parsePlot3DCsv(csv, {}, table, &error));
+			Plot3DTimeSeriesColumns columns;
+			columns.time = 0; columns.x = 1; columns.y = 2; columns.u = 3; columns.v = 4; columns.w = 5; // z left out: a planar field
+			Plot3DMeshData trails;
+			CHECK(buildPlot3DTimeSeriesPathlines(table, columns, 3, 40, trails, &error));
+			CHECK(!trails.empty() && trails.indices.empty() && trails.vertexCount() % 2 == 0 && trails.values.size() == trails.vertexCount());
+			bool reachedEnd = false;
+			for (std::size_t v = 0; v < trails.vertexCount(); ++v)
+				if (std::abs(trails.values[v] - 4.0) < 1.0e-9)
+				{
+					reachedEnd = true; // x(4) = 2 + 8 = 10 would leave the grid (x <= 4), so no trail survives to t = 4 ...
+					CHECK(trails.positions[v * 3] <= 4.0f + 1.0e-6f);
+				}
+			CHECK(!reachedEnd);
+			// ... but x(2) = 2 + 2 = 4 does: the trail's last vertex is at about t = 2, x = 4 (time varies along it and is exact).
+			double lastTime = 0.0; float lastX = 0.0f;
+			for (std::size_t v = 0; v < trails.vertexCount(); ++v)
+				if (trails.values[v] > lastTime) { lastTime = trails.values[v]; lastX = trails.positions[v * 3]; }
+			CHECK(std::abs(lastX - (2.0f + static_cast<float>(lastTime * lastTime / 2.0))) < 1.0e-3f);
+
+			// The field object itself: exact on the nodes, linear between them, clamped outside, planar z is 0.
+			Plot3DTimeSeriesField field;
+			CHECK(field.load(table, columns, &error) && field.timeSteps() == 5 && field.nodeCount() == 75);
+			Plot3DVec3 velocity;
+			CHECK(field.sample({ 1.0, 1.0, 0.0 }, 3.0, velocity) && std::abs(velocity.x - 3.0) < 1.0e-12 && velocity.y == 0.0);
+			CHECK(field.sample({ 1.5, 0.5, 0.0 }, 2.5, velocity) && std::abs(velocity.x - 2.5) < 1.0e-12);
+			CHECK(field.sample({ 99.0, -9.0, 0.0 }, 99.0, velocity) && std::abs(velocity.x - 4.0) < 1.0e-12);
+
+			// A 3-D table (z column) is a plain extension: u = z here, so the field is the z coordinate.
+			QString csv3d = QStringLiteral("time,px,py,pz,ux,uy,uz\n");
+			for (int t = 0; t <= 1; ++t)
+				for (int z = 0; z <= 2; ++z)
+					for (int x = 0; x <= 2; ++x)
+						for (int y = 0; y <= 1; ++y)
+							csv3d += QStringLiteral("%1,%2,%3,%4,%4,0,0\n").arg(t).arg(x).arg(y).arg(z);
+			Plot3DCsvTable table3d;
+			CHECK(parsePlot3DCsv(csv3d, {}, table3d, &error));
+			Plot3DTimeSeriesColumns columns3d{ 0, 1, 2, 3, 4, 5, 6 };
+			Plot3DTimeSeriesField field3d;
+			CHECK(field3d.load(table3d, columns3d, &error));
+			CHECK(field3d.sample({ 1.0, 0.5, 1.5 }, 0.5, velocity) && std::abs(velocity.x - 1.5) < 1.0e-12);
+			Plot3DMeshData trails3d;
+			CHECK(buildPlot3DTimeSeriesPathlines(table3d, columns3d, 2, 20, trails3d, &error));
+
+			// Rows in a shuffled order give the same field.
+			Plot3DCsvTable shuffled = table;
+			std::reverse(shuffled.rows.begin(), shuffled.rows.end());
+			Plot3DTimeSeriesField shuffledField;
+			CHECK(shuffledField.load(shuffled, columns, &error) && shuffledField.sample({ 1.5, 0.5, 0.0 }, 2.5, velocity) && std::abs(velocity.x - 2.5) < 1.0e-12);
+
+			// Bad input is rejected with a message.
+			Plot3DCsvTable incomplete = table;
+			incomplete.rows.pop_back();
+			CHECK(!buildPlot3DTimeSeriesPathlines(incomplete, columns, 3, 40, trails, &error) && error.contains(QStringLiteral("complete")));
+			Plot3DCsvTable repeated = table;
+			repeated.rows.back() = repeated.rows.front();
+			CHECK(!buildPlot3DTimeSeriesPathlines(repeated, columns, 3, 40, trails, &error) && !error.isEmpty());
+			Plot3DCsvTable notNumeric = table;
+			notNumeric.rows[7][3] = QStringLiteral("abc");
+			CHECK(!buildPlot3DTimeSeriesPathlines(notNumeric, columns, 3, 40, trails, &error) && error.contains(QStringLiteral("Row 8")));
+			Plot3DTimeSeriesColumns missing = columns;
+			missing.w = -1;
+			CHECK(!buildPlot3DTimeSeriesPathlines(table, missing, 3, 40, trails, &error) && !error.isEmpty());
+			CHECK(!buildPlot3DTimeSeriesPathlines(table, columns, 1, 40, trails, &error)); // too few seeds
+			CHECK(!buildPlot3DTimeSeriesPathlines(Plot3DCsvTable(), columns, 3, 40, trails, &error));
+		}
 
 		Plot3DMeshData implicit;
 		parameters.clear();

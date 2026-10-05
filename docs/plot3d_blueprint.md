@@ -323,6 +323,14 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     keeping UUID, scene node, visibility, axes and colour settings. Also fixed: "Automatic colour range" could never be
     unticked (it was derived from range == data range; now the stored `automaticColourRange`), and the Add / Edit 3D Plot
     dialog remembers its position and size.
+32. **Complete (user-verified 2026-10-05):** CSV time-series pathlines. A "CSV time series (pathlines)" source reads
+    a table of `t, x, y, [z], u, v, w` on a complete regular grid (any row order; planar when Z is left out), interpolates it
+    linearly in space and time (`Plot3DTimeSeriesField`) and traces pathlines with the same RK4 tracer as the formula source
+    (`tracePlot3DPathlines`, now shared): seeds along Y at the middle of X, in the middle z plane. Incomplete / repeated /
+    non-numeric tables are rejected with a message naming the row or the rows needed. The plot keeps its table and column
+    mapping (`Plot3DColumnMapping::time`) in the session, so Edit Plot reopens it. Samples: `pathlines_double_gyre.csv`,
+    `pathlines_rising_vortex_3d.csv`. The legend of both pathline sources reads "Time". Possible follow-up: animate the
+    pathlines (a second `SimulationTimelineWidget`, a draw-range limit on the time-ordered segments, moving head markers).
 
 ## 7. Known gaps and follow-ups (outside the original completion target)
 
@@ -351,5 +359,5 @@ Ordered roughly by value. None blocks the merge.
    re-tessellation is needed, relative size and shape between glyphs are unchanged, and nearer glyphs still look larger
    than farther ones. The Simulation tab has an Ellipsoid size spin box (the existing `tensorGlyphScale`). Streamline thickness is already a fixed pixel width.
 7. **Formula error messages** are still untranslated English literals (see item 26).
-8. **Deferred plot features:** time-dependent pathlines from CSV time-series data, general line fill-between / fill-under, text annotations (adapt the CAD Annotation
+8. **Deferred plot features:** general line fill-between / fill-under, text annotations (adapt the CAD Annotation
    system) and 2D images in 3D.

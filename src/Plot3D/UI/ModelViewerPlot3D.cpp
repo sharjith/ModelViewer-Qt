@@ -293,6 +293,18 @@ void ModelViewer::setPlot3DGeneratedSpec(const QUuid& meshUuid, const Plot3DGene
 	}
 }
 
+void ModelViewer::setPlot3DTimeSeriesSource(const QUuid& meshUuid, const QString& csvText, const Plot3DCsvOptions& options, const Plot3DColumnMapping& mapping)
+{
+	if (Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid))
+	{
+		session->editableCsv = true;
+		session->csvSource = csvText;
+		session->csvOptions = options;
+		session->columnMapping = mapping;
+		markNonUndoDocumentModified();
+	}
+}
+
 bool ModelViewer::replacePlot3DMesh(const QUuid& meshUuid, const Plot3DMeshData& data, unsigned int primitiveMode)
 {
 	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
@@ -813,7 +825,7 @@ void ModelViewer::refreshPlot3DLegend()
 	});
 	const QString label = session->primitive == Plot3DPrimitive::Voxel
 		? tr("%1 - Occupancy").arg(session->name)
-		: (session->generated.valid && session->generated.sourceMode == 7)
+		: (session->generated.valid && (session->generated.sourceMode == 7 || session->generated.sourceMode == 8))
 			? tr("%1 - Time").arg(session->name)
 		: (session->primitive == Plot3DPrimitive::Quiver
 			? tr("%1 - Vector magnitude").arg(session->name)

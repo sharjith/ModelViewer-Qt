@@ -94,6 +94,29 @@ the axes; the blue one is the contour line through the point) with the point's c
 the point is drawn, so a saddle shows one branch, not both. surface_ripple.csv is a good test (circular Z curve, straight-ish
 X / Y sections); it works in the single view only.
 
+CSV time series (pathlines)
+---------------------------
+pathlines_double_gyre.csv         A time-dependent planar vector field sampled on a complete regular grid (945 rows: t, x, y, u, v,
+                                   w) - Shadden's double gyre on x 0..2 (9 samples), y 0..1 (5 samples), t 0..20 s (21 samples,
+                                   one per second; the cells' dividing line oscillates with a period of 10 s). Row order does not
+                                   matter. No z column: a planar field (w is 0).
+pathlines_rising_vortex_3d.csv    A 3-D field (4,212 rows: time, x, y, z, u, v, w) on a 13 x 4 x 9 x 9 grid: a rotation about the
+                                   Z axis whose rate pulses in time, with a vertical velocity that oscillates, so the pathlines
+                                   climb as they circle. Has a z column; its column names differ from the first file's
+                                   (time, x, y, z, u, v, w), which the importer also recognises.
+
+Open Add 3D Plot, choose Data source "CSV time series (pathlines)", then Open CSV... (or Paste). The Time, X, Y, Z (optional),
+U, V and W column choices are guessed from the header names (t / time, x / px, u / ux / vx, ...) and can be changed; the status line
+then reports either "N rows form a complete grid. Pathlines from S seeds (M segments), coloured by time." or why the table cannot
+be used. Seeds are released along Y at the middle of the X range (in the middle z plane for a 3-D table) and traced with RK4 over
+"time steps" equal steps from the first to the last time in the table; the field is interpolated linearly in space and time. A
+trail ends where its particle leaves the grid. Checks: Preview and Build the double gyre and compare with the Double Gyre formula
+preset (the trails should look alike); build pathlines_rising_vortex_3d.csv and look for climbing spirals; delete one line of a
+copy of the file and the status must say the table is not a complete regular grid (it names how many rows are needed); change
+a number to text and it must name the row; clear the Z column choice for the 3-D file and the grid must be rejected as incomplete
+(its z values then repeat nodes). Then Edit Plot: the table, the column choices and the seed / step counts must come back, and
+Rebuild Plot must update the existing plot in place.
+
 Editing generated plots
 -----------------------
 Plots from the formula sources (Formula surface, Parametric surface and curve, Formula vector field, Implicit surface, Formula

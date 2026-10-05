@@ -649,6 +649,8 @@ public slots:
 	// Generated plots: record the definition Edit Plot reopens, and rebuild the plot's own mesh in place (same mesh, scene node,
 	// visibility, axes and colour settings) from freshly generated geometry.
 	void setPlot3DGeneratedSpec(const QUuid& meshUuid, const Plot3DGeneratedSpec& spec);
+	// A CSV time-series plot (pathlines) keeps its table and column mapping so Edit Plot can reopen it.
+	void setPlot3DTimeSeriesSource(const QUuid& meshUuid, const QString& csvText, const Plot3DCsvOptions& options, const Plot3DColumnMapping& mapping);
 	bool replacePlot3DMesh(const QUuid& meshUuid, const Plot3DMeshData& data, unsigned int primitiveMode);
 	void applyPlot3DAppearance(const QUuid& meshUuid, float lineWidth, float markerSize, float arrowScale);
 	void applyPlot3DBarAppearance(const QUuid& meshUuid, float widthScale, float depthScale);

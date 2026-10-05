@@ -2,6 +2,7 @@
 
 #include "Plot3DData.h"
 #include "Plot3DFormula.h"
+#include "Plot3DPathlines.h"
 #include "Plot3DSession.h"
 
 #include <QDialog>
@@ -41,6 +42,10 @@ private:
 	void refreshParametricCurvePreview();
 	void refreshFormulaVectorPreview();
 	void refreshPathlinePreview();
+	void refreshTimeSeriesColumns();
+	void refreshTimeSeriesPreview();
+	Plot3DTimeSeriesColumns timeSeriesColumns() const;
+	void loadTimeSeriesForEditing(const Plot3DSession& session);
 	void refreshImplicitPreview();
 	void previewPlot();
 	void clearPreview();
@@ -108,6 +113,11 @@ private:
 	QComboBox* _formulaPreset = nullptr;
 	QComboBox* _formulaPlotType = nullptr;
 	QWidget* _contourOverlayRow = nullptr;
+	// CSV time series (pathlines): which columns hold time, position and velocity, and how many seeds / time steps to trace.
+	QWidget* _timeSeriesWidget = nullptr;
+	QComboBox* _tsTime = nullptr; QComboBox* _tsX = nullptr; QComboBox* _tsY = nullptr; QComboBox* _tsZ = nullptr;
+	QComboBox* _tsU = nullptr; QComboBox* _tsV = nullptr; QComboBox* _tsW = nullptr;
+	QSpinBox* _tsSeeds = nullptr; QSpinBox* _tsSteps = nullptr;
 	QComboBox* _contourOverlayMode = nullptr;
 	QLabel* _formulaPlotTypeLabel = nullptr;
 	QComboBox* _parametricPreset = nullptr;

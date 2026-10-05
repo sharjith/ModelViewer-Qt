@@ -19,6 +19,7 @@
 #include <QUuid>
 
 #include <QApplication>
+#include <QCoreApplication>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
@@ -329,6 +330,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	_sourceMode->addItem(tr("Implicit surface"), 5);
 	_sourceMode->addItem(tr("Formula streamlines"), 6);
 	_sourceMode->addItem(tr("Formula pathlines (time-dependent)"), 7);
+	_sourceMode->addItem(tr("CSV time series (pathlines)"), 8);
 	// Labelled so it is clear the first combo chooses where the plot's data comes from (a file, or a formula / definition).
 	auto* sourceRow = new QHBoxLayout();
 	sourceRow->addWidget(new QLabel(tr("Data source:"), this));
@@ -510,6 +512,47 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	mapping->addRow(tr("Scatter options:"), scatterOptionsRow);
 	layout->addWidget(_mappingWidget);
 
+	// CSV time series: a vector field on a complete regular (t, x, y[, z]) grid, one row per node. Its own column choices (the
+	// generic mapping above is hidden for it).
+	_timeSeriesWidget = new QWidget(this);
+	{
+		auto* timeSeries = new QFormLayout(_timeSeriesWidget);
+		timeSeries->setContentsMargins(0, 0, 0, 0);
+		_tsTime = new QComboBox(_timeSeriesWidget); _tsX = new QComboBox(_timeSeriesWidget); _tsY = new QComboBox(_timeSeriesWidget);
+		_tsZ = new QComboBox(_timeSeriesWidget); _tsU = new QComboBox(_timeSeriesWidget); _tsV = new QComboBox(_timeSeriesWidget);
+		_tsW = new QComboBox(_timeSeriesWidget);
+		for (QComboBox* combo : { _tsTime, _tsX, _tsY, _tsZ, _tsU, _tsV, _tsW })
+			combo->setMinimumWidth(110);
+		auto* positionRow = new QHBoxLayout();
+		positionRow->addWidget(new QLabel(tr("X:"), this)); positionRow->addWidget(_tsX);
+		positionRow->addWidget(new QLabel(tr("Y:"), this)); positionRow->addWidget(_tsY);
+		positionRow->addWidget(new QLabel(tr("Z:"), this)); positionRow->addWidget(_tsZ);
+		positionRow->addStretch();
+		auto* velocityRow = new QHBoxLayout();
+		velocityRow->addWidget(new QLabel(tr("U:"), this)); velocityRow->addWidget(_tsU);
+		velocityRow->addWidget(new QLabel(tr("V:"), this)); velocityRow->addWidget(_tsV);
+		velocityRow->addWidget(new QLabel(tr("W:"), this)); velocityRow->addWidget(_tsW);
+		velocityRow->addStretch();
+		timeSeries->addRow(tr("Time column:"), _tsTime);
+		timeSeries->addRow(tr("Position columns:"), positionRow);
+		timeSeries->addRow(tr("Velocity columns:"), velocityRow);
+		_tsSeeds = new QSpinBox(_timeSeriesWidget); _tsSeeds->setRange(2, 128); _tsSeeds->setValue(12);
+		_tsSteps = new QSpinBox(_timeSeriesWidget); _tsSteps->setRange(2, 2000); _tsSteps->setValue(400);
+		auto* traceRow = new QHBoxLayout();
+		traceRow->addWidget(_tsSeeds); traceRow->addWidget(new QLabel(tr("seeds"), this));
+		traceRow->addWidget(_tsSteps); traceRow->addWidget(new QLabel(tr("time steps"), this));
+		traceRow->addStretch();
+		timeSeries->addRow(tr("Pathlines:"), traceRow);
+		auto* hint = new QLabel(tr("One row per grid node of a complete regular grid in time, X and Y (and Z). Seeds are released along Y at the middle of the X range."), _timeSeriesWidget);
+		hint->setWordWrap(true);
+		timeSeries->addRow(hint);
+		for (QComboBox* combo : { _tsTime, _tsX, _tsY, _tsZ, _tsU, _tsV, _tsW })
+			connect(combo, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::refreshTimeSeriesPreview);
+		connect(_tsSeeds, qOverload<int>(&QSpinBox::valueChanged), this, &Plot3DPanel::refreshTimeSeriesPreview);
+		connect(_tsSteps, qOverload<int>(&QSpinBox::valueChanged), this, &Plot3DPanel::refreshTimeSeriesPreview);
+	}
+	layout->addWidget(_timeSeriesWidget);
+
 	// Every Surface-type plot (CSV, formula, parametric, implicit) can be built together with a contour overlay; the same
 	// setting stays adjustable afterwards in the 3D Plot tab (which is the only place to change it for a reopened file).
 	_contourOverlayRow = new QWidget(this);
@@ -603,6 +646,11 @@ void Plot3DPanel::loadPlotForEditing(const QUuid& meshUuid)
 	const auto it = std::find_if(sessions.cbegin(), sessions.cend(), [&meshUuid](const Plot3DSession& session) {
 		return session.meshUuid == meshUuid;
 	});
+	if (it != sessions.cend() && it->generated.valid && it->generated.sourceMode == 8)
+	{
+		loadTimeSeriesForEditing(*it);
+		return;
+	}
 	if (it != sessions.cend() && it->generated.valid && !it->editableCsv)
 	{
 		loadGeneratedPlotForEditing(*it);
@@ -668,6 +716,17 @@ void Plot3DPanel::previewPlot()
 		return;
 
 	const int sourceMode = _sourceMode->currentData().toInt();
+	if (sourceMode == 8)
+	{
+		Plot3DMeshData mesh; QString error;
+		if (_table.empty()) { QMessageBox::warning(this, tr("Preview Plot"), tr("Open or paste tabular data first.")); return; }
+		if (!buildPlot3DTimeSeriesPathlines(_table, timeSeriesColumns(), _tsSeeds->value(), _tsSteps->value(), mesh, &error)) { QMessageBox::warning(this, tr("Preview Plot"), error); return; }
+		double minimum[3] = { std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max() }, maximum[3] = { std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest() };
+		for (std::size_t i = 0; i < mesh.vertexCount(); ++i) for (int axis = 0; axis < 3; ++axis) { minimum[axis] = std::min(minimum[axis], static_cast<double>(mesh.positions[i * 3 + axis])); maximum[axis] = std::max(maximum[axis], static_cast<double>(mesh.positions[i * 3 + axis])); }
+		const std::array<Plot3DAxisConfig, 3> axes = { Plot3DAxisConfig{ QStringLiteral("X") }, Plot3DAxisConfig{ QStringLiteral("Y") }, Plot3DAxisConfig{ QStringLiteral("Z") } };
+		if (!showPlot3DPreview(_modelViewer, mesh, GL_LINES, axes, minimum, maximum, QString())) QMessageBox::warning(this, tr("Preview Plot"), tr("The pathline preview could not be created."));
+		return;
+	}
 	if (sourceMode == 7)
 	{
 		QHash<QString, double> parameters; for (auto it = _formulaParameterEditors.cbegin(); it != _formulaParameterEditors.cend(); ++it) parameters.insert(it.key(), it.value()->value());
@@ -940,7 +999,8 @@ void Plot3DPanel::updateContourOverlayRow()
 void Plot3DPanel::updateSourceMode()
 {
 	const int sourceMode = _sourceMode->currentData().toInt();
-	const bool generated = sourceMode != 0;
+	const bool timeSeries = sourceMode == 8; // a table source with its own column choices
+	const bool generated = sourceMode != 0 && !timeSeries;
 	const bool parametricSurface = sourceMode == 2;
 	const bool parametricCurve = sourceMode == 3;
 	const bool pathlines = sourceMode == 7;
@@ -954,7 +1014,8 @@ void Plot3DPanel::updateSourceMode()
 		field->setVisible(visible);
 	};
 	_tableSourceWidget->setVisible(!generated);
-	_mappingWidget->setVisible(!generated);
+	_mappingWidget->setVisible(!generated && !timeSeries);
+	_timeSeriesWidget->setVisible(timeSeries);
 	_formulaGroup->setVisible(generated);
 	_formulaGroup->setTitle(implicitSurface ? tr("Implicit surface") : (pathlines ? tr("Formula pathlines") : streamlines ? tr("Formula streamlines") : (vectorField ? tr("Formula vector field") : (parametricCurve ? tr("Parametric curve") : (parametricSurface ? tr("Parametric surface") : tr("Formula surface"))))));
 	_delimiter->setEnabled(!generated);
@@ -1299,9 +1360,12 @@ void Plot3DPanel::buildParametricCurvePlot()
 	Plot3DLineData curve;
 	Plot3DMeshData data;
 	QString error;
-	const bool pathlines = _sourceMode->currentData().toInt() == 7;
+	const bool timeSeries = _sourceMode->currentData().toInt() == 8;
+	const bool pathlines = _sourceMode->currentData().toInt() == 7 || timeSeries;
 	const bool streamlines = _sourceMode->currentData().toInt() == 6 || pathlines;
-	const bool built = pathlines
+	const bool built = timeSeries
+		? buildPlot3DTimeSeriesPathlines(_table, timeSeriesColumns(), _tsSeeds->value(), _tsSteps->value(), data, &error)
+		: pathlines
 		? buildPlot3DFormulaPathlines(_parametricX->text(), _parametricY->text(), _parametricZ->text(), _formulaXMinimum->value(), _formulaXMaximum->value(), _formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), _formulaZMinimum->value(), _formulaZMaximum->value(), _formulaZSamples->value(), parameters, data, &error)
 		: streamlines
 		? buildPlot3DFormulaStreamlines(_parametricX->text(), _parametricY->text(), _parametricZ->text(), _formulaXMinimum->value(), _formulaXMaximum->value(), _formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), parameters, data, &error)
@@ -1316,7 +1380,7 @@ void Plot3DPanel::buildParametricCurvePlot()
 	clearPreview();
 
 	ViewportWidget* viewport = _modelViewer->getViewportWidget();
-	const QString title = _formulaTitle->text().trimmed();
+	const QString title = timeSeries ? QString() : _formulaTitle->text().trimmed();
 	const QString baseName = viewport->generateUniqueMeshName(
 		tr("Plot3D %1").arg(title.isEmpty() ? (pathlines ? tr("Pathlines") : tr("Parametric Curve")) : title));
 	std::vector<Vertex> vertices(data.vertexCount());
@@ -1361,6 +1425,17 @@ void Plot3DPanel::buildParametricCurvePlot()
 
 	Plot3DSession session;
 	session.meshUuid = meshUuid; session.name = baseName; session.title = title; session.primitive = Plot3DPrimitive::Line;
+	if (timeSeries)
+	{
+		// The table travels with the plot so Edit Plot can reopen it.
+		session.editableCsv = true;
+		session.csvSource = _source->toPlainText();
+		session.csvOptions.delimiter = _delimiter->currentData().toString().front();
+		session.csvOptions.firstRowIsHeader = _header->isChecked();
+		const Plot3DTimeSeriesColumns columns = timeSeriesColumns();
+		session.columnMapping.time = columns.time; session.columnMapping.x = columns.x; session.columnMapping.y = columns.y;
+		session.columnMapping.z = columns.z; session.columnMapping.u = columns.u; session.columnMapping.v = columns.v; session.columnMapping.w = columns.w;
+	}
 	session.axes = { Plot3DAxisConfig{ QStringLiteral("X") }, Plot3DAxisConfig{ QStringLiteral("Y") }, Plot3DAxisConfig{ QStringLiteral("Z") } };
 	for (int axis = 0; axis < 3; ++axis) { session.dataMinimum[axis] = dataMinimum[axis]; session.dataMaximum[axis] = dataMaximum[axis]; }
 	session.values = std::move(values); session.valid = std::move(valid);
@@ -1485,6 +1560,12 @@ void Plot3DPanel::refreshPreview()
 	_table = std::move(table);
 	_buildButton->setEnabled(!_table.empty());
 	refreshColumnCombos(schemaChanged);
+	if (_sourceMode->currentData().toInt() == 8)
+	{
+		if (schemaChanged || _tsTime->count() <= 1)
+			refreshTimeSeriesColumns();
+		refreshTimeSeriesPreview();
+	}
 }
 
 void Plot3DPanel::refreshColumnCombos(bool resetForNewSchema)
@@ -1562,6 +1643,99 @@ QComboBox* Plot3DPanel::presetComboForMode(int sourceMode) const
 	}
 }
 
+Plot3DTimeSeriesColumns Plot3DPanel::timeSeriesColumns() const
+{
+	Plot3DTimeSeriesColumns columns;
+	// An empty combo (no table loaded yet) has no data; that must read as "not chosen", not as column 0.
+	auto column = [](const QComboBox* combo) { return combo->currentData().isValid() ? combo->currentData().toInt() : -1; };
+	columns.time = column(_tsTime); columns.x = column(_tsX); columns.y = column(_tsY); columns.z = column(_tsZ);
+	columns.u = column(_tsU); columns.v = column(_tsV); columns.w = column(_tsW);
+	return columns;
+}
+
+void Plot3DPanel::refreshTimeSeriesColumns()
+{
+	// Offer the table's headers in every column combo and, for a new table, pick the likely column by its name. The Z combo
+	// also offers "(none)" for a planar field.
+	const QStringList& headers = _table.headers;
+	auto fill = [&headers](QComboBox* combo, const QStringList& names, bool optional) {
+		const QSignalBlocker block(combo);
+		const int previous = combo->currentData().isValid() ? combo->currentData().toInt() : -1;
+		combo->clear();
+		combo->addItem(optional ? QCoreApplication::translate("Plot3DPanel", "(none)") : QCoreApplication::translate("Plot3DPanel", "(choose a column)"), -1);
+		int guess = -1;
+		for (int c = 0; c < headers.size(); ++c)
+		{
+			combo->addItem(headers[c], c);
+			if (guess < 0 && names.contains(headers[c].trimmed().toLower()))
+				guess = c;
+		}
+		const int keep = previous >= 0 && previous < headers.size() ? previous : guess;
+		combo->setCurrentIndex(keep >= 0 ? combo->findData(keep) : 0);
+	};
+	fill(_tsTime, { QStringLiteral("t"), QStringLiteral("time") }, false);
+	fill(_tsX, { QStringLiteral("x"), QStringLiteral("px"), QStringLiteral("pos_x") }, false);
+	fill(_tsY, { QStringLiteral("y"), QStringLiteral("py"), QStringLiteral("pos_y") }, false);
+	fill(_tsZ, { QStringLiteral("z"), QStringLiteral("pz"), QStringLiteral("pos_z") }, true);
+	fill(_tsU, { QStringLiteral("u"), QStringLiteral("ux"), QStringLiteral("vx"), QStringLiteral("vel_x") }, false);
+	fill(_tsV, { QStringLiteral("v"), QStringLiteral("uy"), QStringLiteral("vy"), QStringLiteral("vel_y") }, false);
+	fill(_tsW, { QStringLiteral("w"), QStringLiteral("uz"), QStringLiteral("vz"), QStringLiteral("vel_z") }, false);
+}
+
+void Plot3DPanel::refreshTimeSeriesPreview()
+{
+	if (_sourceMode->currentData().toInt() != 8)
+		return;
+	_buildButton->setEnabled(false);
+	if (_table.empty())
+		return; // refreshPreview() already said so
+	Plot3DMeshData trails;
+	QString error;
+	if (!buildPlot3DTimeSeriesPathlines(_table, timeSeriesColumns(), _tsSeeds->value(), _tsSteps->value(), trails, &error))
+	{
+		_status->setText(error); _status->setStyleSheet(QStringLiteral("color: #d9534f;"));
+		return;
+	}
+	_status->setStyleSheet(QString());
+	_status->setText(tr("%1 rows form a complete grid. Pathlines from %2 seeds (%3 segments), coloured by time.")
+		.arg(_table.rows.size()).arg(_tsSeeds->value()).arg(trails.vertexCount() / 2));
+	_buildButton->setEnabled(true);
+}
+
+void Plot3DPanel::loadTimeSeriesForEditing(const Plot3DSession& session)
+{
+	clearPreview();
+	_editingMeshUuid = session.meshUuid;
+	setWindowTitle(tr("Edit 3D Plot - %1").arg(session.name));
+	_buildButton->setText(tr("Rebuild Plot"));
+	_sourceMode->setCurrentIndex(_sourceMode->findData(8));
+	_sourceMode->setEnabled(false);
+	{
+		const QSignalBlocker delimiterBlock(_delimiter), headerBlock(_header), sourceBlock(_source);
+		_delimiter->setCurrentIndex(_delimiter->findData(QString(session.csvOptions.delimiter)));
+		_header->setChecked(session.csvOptions.firstRowIsHeader);
+		_source->setPlainText(session.csvSource);
+	}
+	updateSourceMode();
+	refreshPreview(); // parses the table and fills the column combos (with their guesses)
+	auto restore = [](QComboBox* combo, int column) {
+		const QSignalBlocker block(combo);
+		const int index = combo->findData(column);
+		if (index >= 0)
+			combo->setCurrentIndex(index);
+	};
+	restore(_tsTime, session.columnMapping.time); restore(_tsX, session.columnMapping.x); restore(_tsY, session.columnMapping.y);
+	restore(_tsZ, session.columnMapping.z); restore(_tsU, session.columnMapping.u); restore(_tsV, session.columnMapping.v);
+	restore(_tsW, session.columnMapping.w);
+	{
+		const QSignalBlocker seedsBlock(_tsSeeds), stepsBlock(_tsSteps);
+		_tsSeeds->setValue(session.generated.ySamples);
+		_tsSteps->setValue(session.generated.zSamples);
+	}
+	refreshTimeSeriesPreview();
+	_status->setText(tr("Editing '%1'. Rebuild updates the existing tree entry and keeps its presentation settings.").arg(session.name));
+}
+
 Plot3DGeneratedSpec Plot3DPanel::currentGeneratedSpec() const
 {
 	Plot3DGeneratedSpec spec;
@@ -1576,6 +1750,12 @@ Plot3DGeneratedSpec Plot3DPanel::currentGeneratedSpec() const
 	spec.yMinimum = _formulaYMinimum->value(); spec.yMaximum = _formulaYMaximum->value();
 	spec.zMinimum = _formulaZMinimum->value(); spec.zMaximum = _formulaZMaximum->value();
 	spec.xSamples = _formulaXSamples->value(); spec.ySamples = _formulaYSamples->value(); spec.zSamples = _formulaZSamples->value();
+	if (spec.sourceMode == 8) // a time series keeps its seed and step counts here (its table and columns live in the session's CSV fields)
+	{
+		spec.title.clear(); // the formula title field is hidden for it and holds the last preset's title
+		spec.ySamples = _tsSeeds->value();
+		spec.zSamples = _tsSteps->value();
+	}
 	// In the order the dialog lists them (the editor map is unordered).
 	for (int row = 0; row < _formulaParameters->rowCount(); ++row)
 	{
@@ -1722,6 +1902,11 @@ void Plot3DPanel::rebuildGeneratedPlot()
 			ok = buildPlot3DFormulaStreamlines(_parametricX->text(), _parametricY->text(), _parametricZ->text(), _formulaXMinimum->value(), _formulaXMaximum->value(),
 				_formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), parameters, mesh, &error);
 		}
+		else if (mode == 8)
+		{
+			primitiveMode = GL_LINES;
+			ok = buildPlot3DTimeSeriesPathlines(_table, timeSeriesColumns(), _tsSeeds->value(), _tsSteps->value(), mesh, &error);
+		}
 		else if (mode == 7)
 		{
 			primitiveMode = GL_LINES;
@@ -1742,6 +1927,16 @@ void Plot3DPanel::rebuildGeneratedPlot()
 		return;
 
 	_modelViewer->setPlot3DGeneratedSpec(_editingMeshUuid, currentGeneratedSpec());
+	if (mode == 8)
+	{
+		Plot3DCsvOptions options;
+		options.delimiter = _delimiter->currentData().toString().front();
+		options.firstRowIsHeader = _header->isChecked();
+		Plot3DColumnMapping mapping;
+		const Plot3DTimeSeriesColumns columns = timeSeriesColumns();
+		mapping.time = columns.time; mapping.x = columns.x; mapping.y = columns.y; mapping.z = columns.z; mapping.u = columns.u; mapping.v = columns.v; mapping.w = columns.w;
+		_modelViewer->setPlot3DTimeSeriesSource(_editingMeshUuid, _source->toPlainText(), options, mapping);
+	}
 	_status->setStyleSheet(QString());
 	_status->setText(tr("Rebuilt the existing plot."));
 	_editingMeshUuid = QUuid();
@@ -1770,7 +1965,7 @@ void Plot3DPanel::buildPlotImpl()
 		buildParametricPlot();
 		return;
 	}
-	if (_sourceMode->currentData().toInt() == 6 || _sourceMode->currentData().toInt() == 7)
+	if (_sourceMode->currentData().toInt() == 6 || _sourceMode->currentData().toInt() == 7 || _sourceMode->currentData().toInt() == 8)
 	{
 		buildParametricCurvePlot();
 		return;

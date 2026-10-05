@@ -126,6 +126,7 @@ struct Plot3DColumnMapping
 	int error = -1;           // Scatter symmetric vertical error
 	int base = -1;            // Bar base (default 0)
 	int width = -1, depth = -1; // Bar footprint (defaults below)
+	int time = -1;            // CSV time series (pathlines): the time column (x / y / z / u / v / w above are its position and velocity)
 };
 
 struct Plot3DBuildOptions

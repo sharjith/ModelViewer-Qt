@@ -123,6 +123,7 @@ namespace
 		json.insert(QStringLiteral("error"), m.error);
 		json.insert(QStringLiteral("base"), m.base);
 		json.insert(QStringLiteral("width"), m.width); json.insert(QStringLiteral("depth"), m.depth);
+		json.insert(QStringLiteral("time"), m.time);
 		return json;
 	}
 
@@ -137,6 +138,7 @@ namespace
 		m.error = json.value(QStringLiteral("error")).toInt(m.error);
 		m.base = json.value(QStringLiteral("base")).toInt(m.base);
 		m.width = json.value(QStringLiteral("width")).toInt(m.width); m.depth = json.value(QStringLiteral("depth")).toInt(m.depth);
+		m.time = json.value(QStringLiteral("time")).toInt(m.time);
 		return m;
 	}
 
@@ -363,7 +365,7 @@ bool plot3DSessionFromJson(const QJsonObject& json, const std::vector<QByteArray
 		for (const QJsonValue& entry : spec.value(QStringLiteral("parameters")).toArray())
 			g.parameters.emplace_back(entry.toObject().value(QStringLiteral("name")).toString(), entry.toObject().value(QStringLiteral("value")).toDouble());
 		// A source this build does not know (a newer file) cannot be edited; leave the plot as ordinary content.
-		if (g.sourceMode < 1 || g.sourceMode > 7)
+		if (g.sourceMode < 1 || g.sourceMode > 8)
 			g = Plot3DGeneratedSpec();
 	}
 	session.contourOverlayMode = std::clamp(json.value(QStringLiteral("contourOverlayMode")).toInt(0), 0, 2);
