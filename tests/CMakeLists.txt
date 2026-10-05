@@ -68,3 +68,10 @@ target_include_directories(plot3d_tests PRIVATE ${CMAKE_SOURCE_DIR}/include/Plot
 target_link_libraries(plot3d_tests PRIVATE Qt6::Core Qt6::Gui CGAL::CGAL)
 set_target_properties(plot3d_tests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 add_test(NAME plot3d_tests COMMAND plot3d_tests)
+
+# MVF loader rules that need no GL context (header-only, QtCore only).
+add_executable(mvf_tests mvf_tests.cpp)
+target_include_directories(mvf_tests PRIVATE ${CMAKE_SOURCE_DIR}/include/Mvf)
+target_link_libraries(mvf_tests PRIVATE Qt6::Core)
+set_target_properties(mvf_tests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+add_test(NAME mvf_tests COMMAND mvf_tests)

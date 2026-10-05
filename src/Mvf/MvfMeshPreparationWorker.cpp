@@ -1,3 +1,4 @@
+#include "MvfIndexRule.h"
 #include "MvfMeshPreparationWorker.h"
 
 #include "TangentGenerator.h"
@@ -374,29 +375,11 @@ QVector<PreparedMvfMesh> MvfMeshPreparationWorker::prepare(const Mvf::Document& 
 		const std::vector<unsigned int> indices = readUIntStream(
 			geometryChunk, document.accessors, document.bufferViews,
 			prim[QStringLiteral("indices")].toInt(-1));
-		// A triangle mesh with no index data is unusable here, but point and line primitives are legitimately
-		// unindexed: SceneMesh draws them with glDrawArrays when its index list is empty (glTF point clouds / line
-		// sets and Plot3D's Line/Scatter/Quiver sites are exactly that) and the writer saves them with a
-		// zero-length index accessor. Dropping them here meant such a mesh was saved fine and then silently
-		// vanished on load - leaving an empty scene, which ModelViewer reports as a bare "Failed to load model".
-		if (indices.empty())
-		{
-			const int primitiveMode = prim[QStringLiteral("mode")].toInt(GL_TRIANGLES);
-			const bool pointOrLine = primitiveMode == GL_POINTS || primitiveMode == GL_LINES
-				|| primitiveMode == GL_LINE_LOOP || primitiveMode == GL_LINE_STRIP;
-			// readUIntStream() returns empty for a zero-element accessor but ALSO for a missing, out-of-range or damaged
-			// one, so emptiness alone cannot say "this primitive is unindexed". It is only when the file either names no
-			// index accessor at all (plain glTF unindexed geometry) or names one that explicitly holds zero elements (what
-			// our writer emits). A non-empty accessor that failed to read is damage, and drawing it as an unindexed line
-			// or point set would silently show garbage.
-			const bool indexAccessorOmitted = !prim.contains(QStringLiteral("indices"));
-			const int indexAccessor = prim[QStringLiteral("indices")].toInt(-1);
-			const bool explicitlyUnindexed = indexAccessorOmitted
-				|| (indexAccessor >= 0 && indexAccessor < document.accessors.size()
-					&& document.accessors[indexAccessor].toObject()[QStringLiteral("count")].toInt(-1) == 0);
-			if (!pointOrLine || !explicitlyUnindexed)
-				continue;
-		}
+		// A triangle mesh with no index data is unusable here, but point and line primitives are legitimately unindexed
+		// (see Mvf::primitiveMayBeUnindexed). Dropping them meant such a mesh was saved fine and then silently vanished on
+		// load - leaving an empty scene, which ModelViewer reports as a bare "Failed to load model".
+		if (indices.empty() && !Mvf::primitiveMayBeUnindexed(prim, document.accessors))
+			continue;
 
 		const std::vector<float> normals  = readFloatStream(geometryChunk, document.accessors,
 			document.bufferViews, attribs[QStringLiteral("NORMAL")].toInt(-1));
