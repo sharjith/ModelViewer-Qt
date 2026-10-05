@@ -59,6 +59,8 @@ struct Plot3DSession
 	// A Surface-type plot (Surface, parametric, implicit) can carry a companion mesh of Z iso-lines: 0 = none, 1 = lying on
 	// the surface, 2 = flattened onto the base plane. The lines are rebuilt from the plot's own mesh, so only these
 	// settings are saved; the per-vertex colour values below are re-derived on load.
+	// Hover section curves for this plot (a transient viewing aid: not saved with the file).
+	bool sectionProbe = false;
 	int contourOverlayMode = 0;
 	int contourOverlayLevels = 10;
 	QUuid contourOverlayMeshUuid;

@@ -651,6 +651,8 @@ public slots:
 	// Surface-type plots can carry a companion mesh of Z iso-lines (mode 0 none, 1 on the surface, 2 on the base plane).
 	// refresh rebuilds it from the plot's current mesh (after the plot itself was rebuilt or restored).
 	void setPlot3DContourOverlay(const QUuid& meshUuid, int mode, int levels);
+	// Hover section curves for a Surface plot (a viewing aid, off by default and not saved with the file).
+	void setPlot3DSectionProbe(const QUuid& meshUuid, bool enabled);
 	void refreshPlot3DContourOverlay(const QUuid& meshUuid);
 	void setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visible);
 	void applyPlot3DReferencePlanes(const QUuid& meshUuid, const std::array<bool, 3>& visible, float opacity);

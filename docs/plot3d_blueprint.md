@@ -302,6 +302,14 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     plot's own triangle mesh (`buildPlot3DContourLines`), so only the mode, level count and companion mesh UUID are saved
     and the lines are rebuilt on load. Like other point / line meshes they are skipped by glTF / OBJ export and the path
     tracer.
+29. **Complete (user-verified 2026-10-05):** hover section curves. A Surface-type plot has a "Show section curves on hover"
+    checkbox (off by default, not saved with the file). While the cursor is over the surface, the curves where the X, Y and
+    Z planes through the hovered point cut it are drawn - red, green and blue like the axes, always on top - with the
+    point's coordinates. Only the connected curve through the hovered triangle is shown (not a saddle's second hyperbola
+    branch or a torus's other rings): `plot3DSectionCurveThrough` follows the cut across triangle neighbours
+    (`plot3DTriangleNeighbours`, built once per cached mesh). Single view only. The on-surface contour overlay carries a
+    second copy lowered by the same amount as the lift so it reads from both faces of the surface. The plot dialog's first
+    combo is labelled "Data source:".
 
 ## 7. Known gaps and follow-ups (outside the original completion target)
 

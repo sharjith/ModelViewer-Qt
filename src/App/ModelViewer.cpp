@@ -359,6 +359,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		_viewportWidget->clearSimulationVolume(uuid);
 		_viewportWidget->clearSimulationSlices(uuid);
 		_viewportWidget->clearSimulationStreamlines(uuid);
+		_viewportWidget->setPlot3DSectionProbeEnabled(uuid, false);
 		for (auto it = _plot3DSessions.begin(); it != _plot3DSessions.end(); ++it)
 		{
 			if (it->meshUuid != uuid)

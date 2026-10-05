@@ -2,6 +2,7 @@
 #include "Plot3DFormula.h"
 #include "Plot3DAxisController.h"
 #include "Plot3DMeshBuilder.h"
+#include "Plot3DSection.h"
 #include "Plot3DSessionIO.h"
 
 #include <algorithm>
@@ -159,6 +160,71 @@ namespace
 		}
 		std::vector<float> wrongSize(3, 1.0f);
 		CHECK(!buildPlot3DContourLines(surfaceMesh.positions, surfaceMesh.indices, &wrongSize, fromMesh, 10, &error));
+
+		// Section curves (the hover probe): the X / Y / Z planes through a point cut the surface into segments that all lie
+		// on the plane, and a plane through grid vertices still yields a consistent curve.
+		for (int axis = 0; axis < 3; ++axis)
+		{
+			const float value = axis == 2 ? 5.0f : 0.9f; // an interior plane, off the vertices for X / Y
+			std::vector<float> segments;
+			const std::size_t count = plot3DSectionSegments(surfaceMesh.positions, surfaceMesh.indices, axis, value, segments);
+			CHECK(count > 0 && segments.size() == count * 6);
+			for (std::size_t i = 0; i < segments.size(); i += 3)
+				CHECK(std::abs(segments[i + static_cast<std::size_t>(axis)] - value) < 1.0e-4f);
+		}
+		{
+			std::vector<float> onVertices;
+			const std::size_t throughVertices = plot3DSectionSegments(surfaceMesh.positions, surfaceMesh.indices, 0, 1.0f, onVertices);
+			CHECK(throughVertices > 0);
+			for (std::size_t i = 0; i < onVertices.size(); i += 3)
+				CHECK(std::abs(onVertices[i] - 1.0f) < 1.0e-4f);
+		}
+		{
+			std::vector<float> none;
+			CHECK(plot3DSectionSegments(surfaceMesh.positions, surfaceMesh.indices, 0, 1000.0f, none) == 0 && none.empty());
+			CHECK(plot3DSectionSegments(surfaceMesh.positions, surfaceMesh.indices, 3, 0.0f, none) == 0); // not an axis
+		}
+
+		// The connected curve through one triangle: on a single-branch cut it is the whole cut, and on a mesh whose cut has two
+		// separate branches it keeps only the branch through the start triangle (a saddle's second hyperbola branch).
+		{
+			const std::vector<int> neighbours = plot3DTriangleNeighbours(surfaceMesh.indices);
+			CHECK(neighbours.size() == surfaceMesh.indices.size());
+			std::vector<float> all, connected;
+			const std::size_t allCount = plot3DSectionSegments(surfaceMesh.positions, surfaceMesh.indices, 2, 5.0f, all);
+			// Any triangle that is cut by the plane works as the start; find one from the full cut.
+			int startTriangle = -1;
+			for (std::size_t t = 0; t * 3 < surfaceMesh.indices.size() && startTriangle < 0; ++t)
+			{
+				bool low = false, high = false;
+				for (int c = 0; c < 3; ++c)
+				{
+					const float z = surfaceMesh.positions[static_cast<std::size_t>(surfaceMesh.indices[t * 3 + static_cast<std::size_t>(c)]) * 3 + 2];
+					(z >= 5.0f ? high : low) = true;
+				}
+				if (low && high)
+					startTriangle = static_cast<int>(t);
+			}
+			CHECK(startTriangle >= 0);
+			CHECK(plot3DSectionCurveThrough(surfaceMesh.positions, surfaceMesh.indices, neighbours, startTriangle, 2, 5.0f, connected) == allCount);
+			CHECK(plot3DSectionCurveThrough(surfaceMesh.positions, surfaceMesh.indices, neighbours, 9999, 2, 5.0f, connected) == 0);
+
+			// Two separate strips of triangles, each cut by the plane x = 0.5: starting in one gives only its own segments.
+			const std::vector<float> strips = {
+				0, 0, 0,  1, 0, 0,  0, 1, 0,  1, 1, 0,      // strip A (x from 0 to 1) at y 0..1
+				0, 5, 0,  1, 5, 0,  0, 6, 0,  1, 6, 0 };    // strip B, far away in y
+			const std::vector<unsigned int> stripIndices = { 0, 1, 2, 1, 3, 2,  4, 5, 6, 5, 7, 6 };
+			const std::vector<int> stripNeighbours = plot3DTriangleNeighbours(stripIndices);
+			std::vector<float> both, onlyA, onlyB;
+			const std::size_t bothCount = plot3DSectionSegments(strips, stripIndices, 0, 0.5f, both);
+			const std::size_t aCount = plot3DSectionCurveThrough(strips, stripIndices, stripNeighbours, 0, 0, 0.5f, onlyA);
+			const std::size_t bCount = plot3DSectionCurveThrough(strips, stripIndices, stripNeighbours, 2, 0, 0.5f, onlyB);
+			CHECK(bothCount == 4 && aCount == 2 && bCount == 2);
+			for (std::size_t i = 1; i < onlyA.size(); i += 3)
+				CHECK(onlyA[i] <= 1.0f + 1.0e-5f);
+			for (std::size_t i = 1; i < onlyB.size(); i += 3)
+				CHECK(onlyB[i] >= 5.0f - 1.0e-5f);
+		}
 
 		// An incomplete grid is now a valid unstructured surface: Delaunay
 		// triangulation uses the supplied points without inventing the missing

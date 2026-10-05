@@ -16,6 +16,7 @@
 #include "MeasurementOffsetVectorCommand.h"
 #include "MeshColorUtils.h"
 #include "ViewportWidget.h"
+#include "Plot3DSection.h"
 #include "IconCursor.h"
 #include "PickingHelper.h"
 #include "RtSceneBuilder.h"
@@ -9672,6 +9673,143 @@ void ViewportWidget::setPlot3DAxisVisible(bool visible)
 	update();
 }
 
+void ViewportWidget::setPlot3DSectionProbeEnabled(const QUuid& meshUuid, bool enabled)
+{
+	if (enabled)
+		_sectionProbeMeshes.insert(meshUuid);
+	else
+	{
+		_sectionProbeMeshes.remove(meshUuid);
+		_sectionProbeCaches.remove(meshUuid);
+		if (_sectionProbeMesh == meshUuid)
+			clearPlot3DSectionProbe();
+	}
+	update();
+}
+
+void ViewportWidget::clearPlot3DSectionProbe()
+{
+	if (_sectionProbeMesh.isNull() && _sectionProbeLines.empty())
+		return;
+	_sectionProbeMesh = QUuid();
+	_sectionProbeLines.clear();
+	_sectionProbeText.clear();
+	update();
+}
+
+void ViewportWidget::updatePlot3DSectionProbe(const QPoint& pixel)
+{
+	// Single view only: the label and the pick assume the one full-window viewport.
+	if (_sectionProbeMeshes.isEmpty() || _viewCtrl.multiViewActive() || _compareActive)
+	{
+		clearPlot3DSectionProbe();
+		return;
+	}
+	const MeshSurfaceAnchor anchor = _selectionManager->pickSurfaceAnchor(pixel);
+	SceneMesh* mesh = anchor.isValid() && _sectionProbeMeshes.contains(anchor.meshUuid) ? getMeshByUuid(anchor.meshUuid) : nullptr;
+	if (!mesh)
+	{
+		clearPlot3DSectionProbe();
+		return;
+	}
+
+	SectionProbeCache& cache = _sectionProbeCaches[anchor.meshUuid];
+	if (cache.revision != mesh->geometryRevision())
+	{
+		const std::vector<Vertex> vertices = mesh->vertices();
+		cache.positions.resize(vertices.size() * 3);
+		for (std::size_t i = 0; i < vertices.size(); ++i)
+		{
+			cache.positions[i * 3] = vertices[i].Position.x;
+			cache.positions[i * 3 + 1] = vertices[i].Position.y;
+			cache.positions[i * 3 + 2] = vertices[i].Position.z;
+		}
+		cache.indices = mesh->indices();
+		cache.neighbours = plot3DTriangleNeighbours(cache.indices);
+		cache.revision = mesh->geometryRevision();
+	}
+	const std::size_t first = static_cast<std::size_t>(anchor.triangleIndex) * 3;
+	if (first + 2 >= cache.indices.size())
+	{
+		clearPlot3DSectionProbe();
+		return;
+	}
+	// The hovered point in the plot's own coordinates: the pick's barycentric weights over that triangle's vertices.
+	QVector3D point;
+	for (int c = 0; c < 3; ++c)
+	{
+		const std::size_t v = static_cast<std::size_t>(cache.indices[first + static_cast<std::size_t>(c)]) * 3;
+		if (v + 2 >= cache.positions.size())
+		{
+			clearPlot3DSectionProbe();
+			return;
+		}
+		const float weight = c == 0 ? anchor.barycentric.x() : (c == 1 ? anchor.barycentric.y() : anchor.barycentric.z());
+		point += QVector3D(cache.positions[v], cache.positions[v + 1], cache.positions[v + 2]) * weight;
+	}
+
+	if (anchor.meshUuid == _sectionProbeMesh && (point - _sectionProbePoint).lengthSquared() < 1.0e-12f && pixel == _sectionProbePixel)
+		return;
+	_sectionProbeMesh = anchor.meshUuid;
+	_sectionProbePoint = point;
+	_sectionProbePixel = pixel;
+	_sectionProbeText = QStringLiteral("X %1   Y %2   Z %3")
+		.arg(static_cast<double>(point.x()), 0, 'g', 5).arg(static_cast<double>(point.y()), 0, 'g', 5).arg(static_cast<double>(point.z()), 0, 'g', 5);
+
+	// One curve per axis, in that axis's own colour (the same red / green / blue as the axis labels).
+	_sectionProbeLines.clear();
+	const float colours[3][3] = { { 1.0f, 0.25f, 0.25f }, { 0.25f, 1.0f, 0.35f }, { 0.35f, 0.6f, 1.0f } };
+	for (int axis = 0; axis < 3; ++axis)
+	{
+		std::vector<float> segments;
+		// Only the connected curve through the hovered triangle, not the other branches / loops of the same cut.
+		plot3DSectionCurveThrough(cache.positions, cache.indices, cache.neighbours, anchor.triangleIndex, axis, point[axis], segments);
+		for (std::size_t i = 0; i + 2 < segments.size(); i += 3)
+		{
+			_sectionProbeLines.insert(_sectionProbeLines.end(), { segments[i], segments[i + 1], segments[i + 2] });
+			_sectionProbeLines.insert(_sectionProbeLines.end(), { colours[axis][0], colours[axis][1], colours[axis][2] });
+		}
+	}
+	update();
+}
+
+void ViewportWidget::drawPlot3DSectionProbe(Camera* camera)
+{
+	if (!camera || _sectionProbeMesh.isNull() || _sectionProbeLines.empty() || !_renderCtrl.axisShader()
+		|| _viewCtrl.multiViewActive() || _compareActive)
+		return;
+	SceneMesh* mesh = getMeshByUuid(_sectionProbeMesh);
+	if (!mesh)
+		return;
+
+	_renderCtrl.initPlot3DAxisOverlayGeometry(_sectionProbeLines);
+	glBindVertexArray(_renderCtrl.plot3DAxisOverlayVAO());
+	glBindBuffer(GL_ARRAY_BUFFER, _renderCtrl.plot3DAxisOverlayVBO());
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(0));
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(3 * sizeof(float)));
+
+	// A probe overlay: always on top, so the curves are readable even where they lie on (or behind) the surface itself.
+	const GLboolean depthWasEnabled = glIsEnabled(GL_DEPTH_TEST);
+	glDisable(GL_DEPTH_TEST);
+	_renderCtrl.axisShader()->bind();
+	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", _viewCtrl.viewMatrix() * mesh->combinedRenderTransform());
+	_renderCtrl.axisShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
+	_renderCtrl.axisShader()->setUniformValue("renderCone", false);
+	_renderCtrl.axisShader()->setUniformValue("opacity", 1.0f);
+	glLineWidth(2.5f);
+	glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(_sectionProbeLines.size() / 6));
+	glLineWidth(1.0f);
+	_renderCtrl.axisShader()->release();
+	if (depthWasEnabled)
+		glEnable(GL_DEPTH_TEST);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+
+	drawFloatingLabel(_sectionProbeText, _sectionProbePixel, QColor(Qt::white));
+}
+
 void ViewportWidget::drawPlot3DAxisOverlay(Camera* camera)
 {
     if (!camera || !_plot3DAxisVisible || !_plot3DAxisLayout.has_value() || !_renderCtrl.axisShader())
@@ -11913,6 +12051,7 @@ void ViewportWidget::render(Camera* camera)
 	// --- 5) Overlays ---
     drawDebugOverlay(camera);
     drawPlot3DAxisOverlay(camera);
+    drawPlot3DSectionProbe(camera);
 	// Single-view mode draws this AFTER the ray-traced overlay instead (see
 	// paintGL()'s post-overlay block) so it isn't wiped out by PT's force-
 	// opaque composite - drawing it here too would just double-draw it
@@ -15644,6 +15783,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		if (!_viewCtrl.multiViewActive() && !_compareActive)
 			updatePlaneGizmoHover(e->pos());
 		updateSurfaceAnalysisHoverReadout(e->pos());
+		updatePlot3DSectionProbe(e->pos());
 	}
 
 	if (e->buttons() == Qt::LeftButton && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())

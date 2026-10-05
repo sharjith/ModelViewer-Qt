@@ -59,6 +59,7 @@ private:
 	QCheckBox* _contourProjected = nullptr;
 	QLabel* _contourOverlayLabel = nullptr;
 	QComboBox* _contourOverlay = nullptr;
+	QCheckBox* _sectionProbe = nullptr;
 	QDoubleSpinBox* _rangeMinimum = nullptr;
 	QDoubleSpinBox* _rangeMaximum = nullptr;
 	QDoubleSpinBox* _lineWidth = nullptr;

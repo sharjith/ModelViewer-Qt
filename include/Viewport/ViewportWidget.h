@@ -1574,6 +1574,10 @@ public:
 	void setPlot3DAxisLayout(const Plot3DAxisLayout& layout);
 	void clearPlot3DAxisLayout();
 	void setPlot3DAxisVisible(bool visible);
+	// Hover probe for Plot3D surfaces: while the cursor is over an enabled plot's surface, the curves where the X, Y and Z
+	// planes through the hovered point cut that surface are drawn, with the point's coordinates. Off by default.
+	void setPlot3DSectionProbeEnabled(const QUuid& meshUuid, bool enabled);
+	bool plot3DSectionProbeEnabled(const QUuid& meshUuid) const { return _sectionProbeMeshes.contains(meshUuid); }
 	bool hasPlot3DAxisLayout() const { return _plot3DAxisLayout.has_value(); }
 	bool plot3DAxisVisible() const { return _plot3DAxisVisible && _plot3DAxisLayout.has_value(); }
 
@@ -1821,6 +1825,9 @@ private:
 	// drawBoundingBoxOverlay(), driven by whatever layout setPlot3DAxisLayout()
 	// last handed it rather than scene bounds. No-op when no layout is set.
 	void drawPlot3DAxisOverlay(Camera* camera);
+	void drawPlot3DSectionProbe(Camera* camera);
+	void updatePlot3DSectionProbe(const QPoint& pixel);
+	void clearPlot3DSectionProbe();
 	void drawAxis(Camera* camera, const QMatrix4x4* overrideViewMatrix = nullptr);
 	void drawCornerAxis(CornerAxisPosition position, const QMatrix4x4* overrideRotationMatrix = nullptr);
 	void drawTransformGizmo(Camera* camera);
@@ -2100,6 +2107,16 @@ private:
 	TextRenderer* _axisTextRenderer;
 	std::optional<Plot3DAxisLayout> _plot3DAxisLayout;
 	bool _plot3DAxisVisible = false;
+	// Hover section probe (see setPlot3DSectionProbeEnabled()). The per-mesh cache holds a compact copy of the positions
+	// and triangles because SceneMesh::vertices() copies the whole vertex array, far too heavy per mouse move.
+	struct SectionProbeCache { std::vector<float> positions; std::vector<unsigned int> indices; std::vector<int> neighbours; quint64 revision = ~0ull; };
+	QSet<QUuid> _sectionProbeMeshes;
+	QHash<QUuid, SectionProbeCache> _sectionProbeCaches;
+	QUuid _sectionProbeMesh;            // the mesh the curves below belong to (null = nothing drawn)
+	QVector3D _sectionProbePoint;       // hovered point in the mesh's own coordinates
+	std::vector<float> _sectionProbeLines; // pos(3) + colour(3) per vertex, mesh coordinates
+	QString _sectionProbeText;
+	QPoint _sectionProbePixel;
 	QString _labelTop, _labelFront, _labelLeft, _labelIsometric, _labelDimetric, _labelTrimetric;
 	QString _labelAxisX, _labelAxisY, _labelAxisZ;
 	QString _modelName;

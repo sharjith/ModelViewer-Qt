@@ -320,7 +320,11 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	_sourceMode->addItem(tr("Formula vector field"), 4);
 	_sourceMode->addItem(tr("Implicit surface"), 5);
 	_sourceMode->addItem(tr("Formula streamlines"), 6);
-	layout->addWidget(_sourceMode);
+	// Labelled so it is clear the first combo chooses where the plot's data comes from (a file, or a formula / definition).
+	auto* sourceRow = new QHBoxLayout();
+	sourceRow->addWidget(new QLabel(tr("Data source:"), this));
+	sourceRow->addWidget(_sourceMode, 1);
+	layout->addLayout(sourceRow);
 	_tableSourceWidget = new QWidget(this);
 	auto* tableSourceLayout = new QVBoxLayout(_tableSourceWidget);
 	tableSourceLayout->setContentsMargins(0, 0, 0, 0);

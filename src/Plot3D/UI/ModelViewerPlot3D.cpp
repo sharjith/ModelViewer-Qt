@@ -463,8 +463,21 @@ void ModelViewer::refreshPlot3DContourOverlay(const QUuid& meshUuid)
 		// Lines lying ON the surface would z-fight with it; lift them a hair along Z (0.3 % of the surface's height).
 		const float lift = session->contourOverlayMode == 1 && highZ > lowZ ? (highZ - lowZ) * 0.003f : 0.0f;
 		const std::vector<float>* values = session->values.size() == surfaceVertices.size() ? &session->values : nullptr;
-		haveLines = buildPlot3DContourLines(positions, surface->indices(), values, lines, session->contourOverlayLevels, nullptr,
+		const std::vector<unsigned int> surfaceIndices = surface->indices();
+		haveLines = buildPlot3DContourLines(positions, surfaceIndices, values, lines, session->contourOverlayLevels, nullptr,
 			session->contourOverlayMode == 2, lift);
+		if (haveLines && lift > 0.0f)
+		{
+			// The lifted copy is hidden by the surface when it is seen from below. A second copy lowered by the same amount sits
+			// just outside the underside, so the lines read from either face (the hidden copy is simply behind the surface).
+			Plot3DMeshData lower;
+			if (buildPlot3DContourLines(positions, surfaceIndices, values, lower, session->contourOverlayLevels, nullptr, false, -lift))
+			{
+				lines.positions.insert(lines.positions.end(), lower.positions.begin(), lower.positions.end());
+				lines.normals.insert(lines.normals.end(), lower.normals.begin(), lower.normals.end());
+				lines.values.insert(lines.values.end(), lower.values.begin(), lower.values.end());
+			}
+		}
 	}
 
 	if (!haveLines)
@@ -540,6 +553,16 @@ void ModelViewer::refreshPlot3DContourOverlay(const QUuid& meshUuid)
 	if (created)
 		updateDisplayList();
 	_viewportWidget->updateView();
+}
+
+void ModelViewer::setPlot3DSectionProbe(const QUuid& meshUuid, bool enabled)
+{
+	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
+	if (!session || !_viewportWidget || session->primitive != Plot3DPrimitive::Surface || session->sectionProbe == enabled)
+		return;
+	session->sectionProbe = enabled;
+	_viewportWidget->setPlot3DSectionProbeEnabled(meshUuid, enabled);
+	emit plot3DSessionsChanged(false);
 }
 
 void ModelViewer::setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visible)
