@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "ApplyMaterialCommand.h"
 #include "ModelViewer.h"
 #include "ViewportWidget.h"
@@ -29,7 +30,7 @@ ApplyMaterialCommand::ApplyMaterialCommand(ModelViewer* viewer,
     // Update command text with material name if provided
     if (!_materialName.isEmpty())
     {
-        setText(QString("Set Material: %1").arg(_materialName));
+        setText(QCoreApplication::translate("ApplyMaterialCommand", "Set Material: %1").arg(_materialName));
     }
 }
 

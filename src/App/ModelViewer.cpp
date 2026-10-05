@@ -274,7 +274,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		this, [this](bool canUndo) {
 			if (_lastCanUndo && !canUndo)  // Transition: true -> false
 			{
-				MainWindow::showStatusMessage("Nothing to undo", 2000);
+				MainWindow::showStatusMessage(tr("Nothing to undo"), 2000);
 			}
 			_lastCanUndo = canUndo;
 		});
@@ -284,7 +284,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		this, [this](bool canRedo) {
 			if (_lastCanRedo && !canRedo)  // Transition: true -> false
 			{
-				MainWindow::showStatusMessage("Nothing to redo", 2000);
+				MainWindow::showStatusMessage(tr("Nothing to redo"), 2000);
 			}
 			_lastCanRedo = canRedo;
 		});

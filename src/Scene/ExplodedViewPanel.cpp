@@ -4197,15 +4197,11 @@ void ExplodedViewPanel::updateCapturedViewsList()
         item->setData(0, Qt::UserRole, step.id);
         item->setData(0, Qt::UserRole + 1, step.isGroup);
         const QVector<CapturedTransformTrack> tracks = step.isGroup ? resolvedTracksForStep(step) : step.tracks;
+        // Qt plural forms (%n), not "mesh" + an English "es" suffix: other languages inflect differently.
         item->setToolTip(0, step.isGroup
-            ? tr("%1 capture%2, %3 mesh%4")
-                .arg(step.children.size())
-                .arg(step.children.size() == 1 ? QString() : QStringLiteral("s"))
-                .arg(tracks.size())
-                .arg(tracks.size() == 1 ? QString() : QStringLiteral("es"))
-            : QStringLiteral("%1 mesh%2")
-                .arg(tracks.size())
-                .arg(tracks.size() == 1 ? QString() : QStringLiteral("es")));
+            ? tr("%n capture(s)", nullptr, static_cast<int>(step.children.size())) + QStringLiteral(", ")
+                + tr("%n mesh(es)", nullptr, static_cast<int>(tracks.size()))
+            : tr("%n mesh(es)", nullptr, static_cast<int>(tracks.size())));
         Qt::ItemFlags flags = item->flags() | Qt::ItemIsEditable;
         flags &= ~Qt::ItemIsDragEnabled;
         flags &= ~Qt::ItemIsDropEnabled;

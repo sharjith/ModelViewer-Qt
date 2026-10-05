@@ -158,6 +158,13 @@ void SettingsDialog::retranslateUI()
         ui->buttonBox->button(QDialogButtonBox::Apply)->setText(QCoreApplication::translate("SettingsDialog", "Apply"));
     if (ui->buttonBox->button(QDialogButtonBox::RestoreDefaults))
         ui->buttonBox->button(QDialogButtonBox::RestoreDefaults)->setText(QCoreApplication::translate("SettingsDialog", "Defaults"));
+    // The MSAA / anisotropy combos are filled at run time (the entries depend on the GPU), so uic's retranslateUi() does not
+    // know them. Their first entry is the only translatable one ("2x", "4x" ... are the same in every language); only the
+    // text is replaced, so the stored selection and item data are untouched.
+    if (ui->msaaComboBox->count() > 0)
+        ui->msaaComboBox->setItemText(0, tr("None"));
+    if (ui->anisotropyComboBox->count() > 0)
+        ui->anisotropyComboBox->setItemText(0, tr("1x (None)"));
     updateSettingsHint();
 
     ui->buttonBox->updateGeometry();
@@ -187,7 +194,7 @@ void SettingsDialog::setMaxMSAASamples(int maxSamples)
 {
     bool oldState = ui->msaaComboBox->blockSignals(true);
     ui->msaaComboBox->clear();
-    ui->msaaComboBox->addItem("None", 0);
+    ui->msaaComboBox->addItem(tr("None"), 0);
     if (maxSamples >= 2) ui->msaaComboBox->addItem("2x", 2);
     if (maxSamples >= 4) ui->msaaComboBox->addItem("4x", 4);
     if (maxSamples >= 8) ui->msaaComboBox->addItem("8x", 8);
@@ -204,7 +211,7 @@ void SettingsDialog::setMaxAnisotropy(int maxAnisotropy)
 {
     bool oldState = ui->anisotropyComboBox->blockSignals(true);
     ui->anisotropyComboBox->clear();
-    ui->anisotropyComboBox->addItem("1x (None)", 1.0f);
+    ui->anisotropyComboBox->addItem(tr("1x (None)"), 1.0f);
     if (maxAnisotropy >= 2) ui->anisotropyComboBox->addItem("2x", 2.0f);
     if (maxAnisotropy >= 4) ui->anisotropyComboBox->addItem("4x", 4.0f);
     if (maxAnisotropy >= 8) ui->anisotropyComboBox->addItem("8x", 8.0f);

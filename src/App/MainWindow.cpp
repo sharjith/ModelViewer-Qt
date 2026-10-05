@@ -989,7 +989,7 @@ MainWindow::MainWindow(QWidget* parent)
 
 	setAttribute(Qt::WA_DeleteOnClose);
 
-	_cancelTaskButton = new QPushButton("Cancel Loading", ui->statusBar);
+	_cancelTaskButton = new QPushButton(tr("Cancel Loading"), ui->statusBar);
 	ui->statusBar->addPermanentWidget(_cancelTaskButton);
 	connect(_cancelTaskButton, SIGNAL(clicked()), this, SLOT(cancelFileLoading()));
 	_cancelTaskButton->hide();
@@ -1014,6 +1014,8 @@ void MainWindow::retranslateUI()
 
 	// Right-hand docks: titles, tab labels and the shared document check boxes are all created once with tr(),
 	// so they have to be re-applied here (the panels inside retranslate themselves).
+	if (_cancelTaskButton)
+		_cancelTaskButton->setText(tr("Cancel Loading"));
 	if (_documentDock)
 		_documentDock->setWindowTitle(tr("Document"));
 	if (_propertiesDock)
