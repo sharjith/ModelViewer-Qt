@@ -21,6 +21,11 @@ struct GlyphSet
 	std::vector<float> vectors;         // 3 floats per arrow: base -> tip, mesh frame, length included
 	std::vector<float> values;          // magnitude per arrow, in the field's display unit
 	std::vector<float> colors;          // 3 floats per arrow (r, g, b), filled by the owner from `values`
+	// Mesh-frame length represented by a screen-size ratio of 1. The renderer divides each vector's mesh-frame
+	// length by this value, preserving the user size multiplier and all-step magnitude reference while replacing
+	// only the absolute world-space size with a camera-distance-derived size.
+	float referenceLength = 0.0f;
+	float displayScale = 1.0f;             // presentation-only multiplier applied after camera-stable sizing
 	float fieldMin = 0.0f, fieldMax = 0.0f; // range of the field's magnitude over the whole result at this step (display unit)
 	QString unit;                           // that display unit (empty = not specified)
 
@@ -31,6 +36,8 @@ struct GlyphSet
 		vectors.clear();
 		values.clear();
 		colors.clear();
+		referenceLength = 0.0f;
+		displayScale = 1.0f;
 		fieldMin = fieldMax = 0.0f;
 		unit.clear();
 	}
@@ -39,7 +46,7 @@ struct GlyphSet
 struct GlyphOptions
 {
 	std::size_t target = 800;      // about this many arrows
-	double scale = 1.0;            // 1 = an arrow of the largest magnitude is 5 % of the model diagonal long
+	double scale = 1.0;            // relative on-screen arrow size; 1 is the camera-stable default
 	bool scaleByMagnitude = true;  // false: every arrow has the full length
 };
 
@@ -63,10 +70,10 @@ bool isGlyphField(const ResultField& field);
 int chooseDefaultGlyphField(const ResultDataset& dataset);
 
 // Arrows of field `fieldIndex` at `step` at the given sites (from selectSurfaceGlyphSites for the field's association).
-// Arrow length is scale * 5 % of `diagonal`, times magnitude / referenceMax when scaling by magnitude (referenceMax, in
-// the display unit, is normally the largest magnitude over all steps so animation frames stay comparable; <= 0 = the
-// largest magnitude of this step). A site with no value, a non-finite or a zero vector gets no arrow. `colors` is left
-// empty. False when the field/step has no data or no arrow results.
+// The vectors retain a mesh-relative reference length of 5 % of `diagonal`; the renderer converts that reference to a
+// camera-stable on-screen size. `scale` remains the user's size multiplier, followed by magnitude/referenceMax when
+// scaling by magnitude (referenceMax normally spans all steps so animation frames stay comparable). A site with no
+// value, a non-finite or a zero vector gets no arrow. `colors` is left empty. False on invalid/empty input.
 bool buildGlyphSet(const ResultDataset& dataset, const ResultBoundarySurface& surface, int fieldIndex, int step,
                    const std::vector<std::uint32_t>& sites, double diagonal, const GlyphOptions& options,
                    float referenceMax, GlyphSet& out);

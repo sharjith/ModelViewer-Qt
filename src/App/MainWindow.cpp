@@ -60,6 +60,8 @@
 #include "MaterialPropertiesPanel.h"
 #include "ObjectTransformPanel.h"
 #include "VisualizationEnvironmentPanel.h"
+#include "Plot3DPanel.h"
+#include "Plot3DControlsPanel.h"
 #include "MaterialPreviewWidget.h"
 #include "MaterialVariantsPanel.h"
 #include "AnimationsPanel.h"
@@ -303,6 +305,25 @@ MainWindow::MainWindow(QWidget* parent)
 		connect(_simulationPanel, &SimulationPanel::histogramRequested, this, [this]() {
 			if (auto* child = activeMdiChild())
 				child->requestSimulationHistogram();
+		});
+
+		// Persistent controls for plots after the roomy import dialog has closed. This shared panel is rebound to
+		// the active document in rebindSharedPanelsTo(), matching the Simulation tab immediately beside it.
+		_plot3DControlsPanel = new Plot3DControlsPanel();
+		_documentSecondaryTabWidget->addTab(_plot3DControlsPanel, QIcon(":/icons/res/plot3d.png"), tr("3D Plot"));
+		connect(_plot3DControlsPanel, &Plot3DControlsPanel::addPlotRequested,
+			this, &MainWindow::showAdd3DPlotDialog);
+		connect(_plot3DControlsPanel, &Plot3DControlsPanel::editPlotRequested, this, [this](const QUuid& meshUuid) {
+			ModelViewer* child = activeMdiChild();
+			if (!child)
+				return;
+			Plot3DPanel* panel = child->findChild<Plot3DPanel*>(QString(), Qt::FindDirectChildrenOnly);
+			if (!panel)
+				panel = new Plot3DPanel(child, child);
+			panel->loadPlotForEditing(meshUuid);
+			panel->show();
+			panel->raise();
+			panel->activateWindow();
 		});
 
 		// Auto Fit View / Selection Highlighting: moved here from the
@@ -812,6 +833,10 @@ MainWindow::MainWindow(QWidget* parent)
 		dialog->show();
 		});
 
+	connect(ui->actionAdd3DPlot, &QAction::triggered, this, [this]() {
+		showAdd3DPlotDialog();
+		});
+
 	// Tools → Measure... - opens the non-modal Measurement dialog (combo box
 	// covering every MeasurementTool - Point, Distance, and the arc-radius
 	// tools, with room for Face/Edge/Edge-radius tools later - see
@@ -925,12 +950,12 @@ MainWindow::MainWindow(QWidget* parent)
         if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("repair"));
     });
 
-	// Simulation → Open Result... - file dialog + load, same wiring shape as the Tools actions above.
+	// Visualization → Simulation → Open Result... - file dialog + load, same wiring shape as the Tools actions above.
 	connect(ui->actionOpenSimulationResult, &QAction::triggered, this, [this]() {
         if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("simulation_open"));
     });
 
-	// Simulation → Compare Results... - starts compare mode (asking for the second result when there are several) or
+	// Visualization → Simulation → Compare Results... - starts compare mode (asking for the second result when there are several) or
 	// exits it; the text and enabled state follow the document in refreshSimulationPanel().
 	connect(ui->actionSimulationCompare, &QAction::triggered, this, [this]() {
         if (auto* child = activeMdiChild()) child->toggleSimulationCompare();
@@ -964,7 +989,7 @@ MainWindow::MainWindow(QWidget* parent)
 
 	setAttribute(Qt::WA_DeleteOnClose);
 
-	_cancelTaskButton = new QPushButton("Cancel Loading", ui->statusBar);
+	_cancelTaskButton = new QPushButton(tr("Cancel Loading"), ui->statusBar);
 	ui->statusBar->addPermanentWidget(_cancelTaskButton);
 	connect(_cancelTaskButton, SIGNAL(clicked()), this, SLOT(cancelFileLoading()));
 	_cancelTaskButton->hide();
@@ -989,6 +1014,8 @@ void MainWindow::retranslateUI()
 
 	// Right-hand docks: titles, tab labels and the shared document check boxes are all created once with tr(),
 	// so they have to be re-applied here (the panels inside retranslate themselves).
+	if (_cancelTaskButton)
+		_cancelTaskButton->setText(tr("Cancel Loading"));
 	if (_documentDock)
 		_documentDock->setWindowTitle(tr("Document"));
 	if (_propertiesDock)
@@ -1006,6 +1033,7 @@ void MainWindow::retranslateUI()
 		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_selectionSetsPanel), tr("Selections"));
 		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_sceneStatesPanel), tr("States"));
 		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_simulationPanel), tr("Simulation"));
+		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_plot3DControlsPanel), tr("3D Plot"));
 	}
 	if (_simulationPanel)
 	{
@@ -1013,6 +1041,8 @@ void MainWindow::retranslateUI()
 		_simulationPanel->retranslate();
 		refreshSimulationPanel(activeMdiChild());
 	}
+	if (_plot3DControlsPanel)
+		_plot3DControlsPanel->retranslate();
 	if (_propertiesTabWidget && _propertiesTabWidget->count() >= 2)
 	{
 		_propertiesTabWidget->setTabText(0, tr("Materials"));
@@ -1186,6 +1216,24 @@ void MainWindow::refreshSimulationPanel(ModelViewer* viewer)
 	ui->actionSimulationCompare->setEnabled(viewer && (comparing || viewer->simulationResults().size() >= 2));
 }
 
+void MainWindow::showAdd3DPlotDialog()
+{
+	ModelViewer* child = activeMdiChild();
+	if (!child)
+		return;
+	if (_documentSecondaryTabWidget && _plot3DControlsPanel)
+		_documentSecondaryTabWidget->setCurrentWidget(_plot3DControlsPanel);
+	if (Plot3DPanel* existing = child->findChild<Plot3DPanel*>(QString(), Qt::FindDirectChildrenOnly))
+	{
+		existing->show();
+		existing->raise();
+		existing->activateWindow();
+		return;
+	}
+	auto* panel = new Plot3DPanel(child, child);
+	panel->show();
+}
+
 void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 {
 	if (!viewer)
@@ -1229,6 +1277,8 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		_camerasPanel->setViewportWidget(nullptr);
 		_selectionSetsPanel->setSceneGraph(nullptr);
 		_sceneStatesPanel->setSceneGraph(nullptr);
+		if (_plot3DControlsPanel)
+			_plot3DControlsPanel->setModelViewer(nullptr);
 
 		_materialVariantsPanel->refresh();
 		_animationsPanel->refresh();
@@ -1345,6 +1395,8 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 	// Simulation panel: show this document's active result now, and follow it while this document stays active
 	// (an open, a selection change and an edit all emit simulationSessionChanged()).
 	refreshSimulationPanel(viewer);
+	if (_plot3DControlsPanel)
+		_plot3DControlsPanel->setModelViewer(viewer);
 	disconnect(_simulationSessionConnection);
 	_simulationSessionConnection = connect(viewer, &ModelViewer::simulationSessionChanged, this,
 		[this, viewer](bool activateTab) {
@@ -2258,7 +2310,7 @@ void MainWindow::on_actionNew_triggered()
 {
 	ModelViewer* viewer = new ModelViewer(nullptr);
 	viewer->setAttribute(Qt::WA_DeleteOnClose);
-	viewer->setWindowTitle(QString("Session %1").arg(++_viewerCount));
+	viewer->setSessionNumber(++_viewerCount);
 	QMdiSubWindow* subWindow = createDocumentSubWindow(viewer);
 	qDebug() << "MainWindow: created document via New -"
 	         << "viewer=" << (void*)viewer << "subWindow=" << (void*)subWindow
@@ -2575,6 +2627,7 @@ void MainWindow::updateMenus()
 	// permanent, non-debug entry; only the Texture Debugger action (and
 	// its separator) stay gated behind the Settings debug flag.
 	ui->actionRayTracing->setEnabled(hasMdiChild);
+	ui->actionAdd3DPlot->setEnabled(hasMdiChild);
 	ui->actionMeasure->setEnabled(hasMdiChild);
 	// Also requires at least one mesh loaded (short-circuits before
 	// dereferencing activeMdiChild() when hasMdiChild is false) - both

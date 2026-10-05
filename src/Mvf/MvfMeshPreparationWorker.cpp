@@ -1,3 +1,4 @@
+#include "MvfIndexRule.h"
 #include "MvfMeshPreparationWorker.h"
 
 #include "TangentGenerator.h"
@@ -374,7 +375,10 @@ QVector<PreparedMvfMesh> MvfMeshPreparationWorker::prepare(const Mvf::Document& 
 		const std::vector<unsigned int> indices = readUIntStream(
 			geometryChunk, document.accessors, document.bufferViews,
 			prim[QStringLiteral("indices")].toInt(-1));
-		if (indices.empty())
+		// A triangle mesh with no index data is unusable here, but point and line primitives are legitimately unindexed
+		// (see Mvf::primitiveMayBeUnindexed). Dropping them meant such a mesh was saved fine and then silently vanished on
+		// load - leaving an empty scene, which ModelViewer reports as a bare "Failed to load model".
+		if (indices.empty() && !Mvf::primitiveMayBeUnindexed(prim, document.accessors))
 			continue;
 
 		const std::vector<float> normals  = readFloatStream(geometryChunk, document.accessors,

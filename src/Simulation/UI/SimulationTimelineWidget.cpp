@@ -18,7 +18,7 @@
 
 namespace
 {
-	constexpr int kMaxWidth = 640;
+	constexpr int kMaxWidth = 760;
 	constexpr int kMargin = 12;
 	constexpr int kTopOffset = 12;
 	constexpr int kLabelWidth = 190;
@@ -78,7 +78,13 @@ SimulationTimelineWidget::SimulationTimelineWidget(QWidget* viewport)
 	_speedCombo->setCurrentIndex(1);
 	_speedCombo->setToolTip(tr("Playback speed"));
 
+	_itemCombo = new QComboBox(this);
+	_itemCombo->setMaximumWidth(200);
+	_itemCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+	_itemCombo->setToolTip(tr("Choose what the timeline plays"));
+	_itemCombo->hide();
 	layout->addWidget(_grip);
+	layout->addWidget(_itemCombo);
 	layout->addWidget(_prevButton);
 	layout->addWidget(_playButton);
 	layout->addWidget(_stopButton);
@@ -101,6 +107,7 @@ SimulationTimelineWidget::SimulationTimelineWidget(QWidget* viewport)
 		emit stepRequested(value);
 	});
 	connect(_loopCheck, &QCheckBox::toggled, this, &SimulationTimelineWidget::loopChanged);
+	connect(_itemCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) { emit itemRequested(index); });
 	connect(_speedCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
 		emit speedChanged(_speedCombo->currentData().toDouble());
 	});
@@ -129,6 +136,18 @@ void SimulationTimelineWidget::setSteps(int count, const std::function<QString(i
 	_slider->setEnabled(_count > 1);
 	_stopButton->setEnabled(_count > 1);
 	updateText();
+	reposition();
+}
+
+void SimulationTimelineWidget::setItems(const QStringList& names, int current)
+{
+	{
+		const QSignalBlocker block(_itemCombo);
+		_itemCombo->clear();
+		_itemCombo->addItems(names);
+		_itemCombo->setCurrentIndex(names.isEmpty() ? -1 : std::clamp(current, 0, static_cast<int>(names.size()) - 1));
+	}
+	_itemCombo->setVisible(names.size() >= 2); // a single playable item needs no chooser
 	reposition();
 }
 
@@ -204,6 +223,7 @@ void SimulationTimelineWidget::retranslate()
 	_nextButton->setToolTip(tr("Next step"));
 	_loopCheck->setText(tr("Loop"));
 	_speedCombo->setToolTip(tr("Playback speed"));
+	_itemCombo->setToolTip(tr("Choose what the timeline plays"));
 	updateGrip();
 	updateText();
 }

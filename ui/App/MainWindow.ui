@@ -201,6 +201,10 @@
     <addaction name="actionPurgeRedundantNodes"/>
    </widget>
    <widget class="QMenu" name="menuSimulation">
+     <property name="icon">
+      <iconset resource="../ModelViewer.qrc">
+       <normaloff>:/icons/res/surface_analysis.png</normaloff>:/icons/res/surface_analysis.png</iconset>
+     </property>
     <property name="title">
      <string>Simulation</string>
     </property>
@@ -213,6 +217,8 @@
      <string>Visualization</string>
     </property>
     <addaction name="actionRayTracing"/>
+    <addaction name="actionAdd3DPlot"/>
+    <addaction name="menuSimulation"/>
     <addaction name="actionVisualizationSeparator"/>
     <addaction name="actionTextureDebugger"/>
    </widget>
@@ -221,7 +227,6 @@
    <addaction name="menuView"/>
    <addaction name="menuSelection"/>
    <addaction name="menuTools"/>
-   <addaction name="menuSimulation"/>
    <addaction name="menuVisualization"/>
    <addaction name="menuWindows"/>
    <addaction name="menuHelp"/>
@@ -766,6 +771,18 @@
    </property>
    <property name="statusTip">
     <string>Open ray tracing settings and start a render</string>
+   </property>
+  </action>
+  <action name="actionAdd3DPlot">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/plot3d.png</normaloff>:/icons/res/plot3d.png</iconset>
+   </property>
+   <property name="text">
+    <string>Plot 3D...</string>
+   </property>
+   <property name="statusTip">
+    <string>Create a 3D plot from tabular data, formulas, or parametric expressions</string>
    </property>
   </action>
   <action name="actionMeasure">

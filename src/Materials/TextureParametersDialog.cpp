@@ -52,7 +52,7 @@ void TextureParametersDialog::setTextureType(const QString& textureType)
         displayName[0] = displayName[0].toUpper();
     }
     
-    setWindowTitle(displayName + " Texture Parameters");
+    setWindowTitle(tr("%1 Texture Parameters").arg(displayName));
 }
 
 // ============================================================================

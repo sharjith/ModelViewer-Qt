@@ -23,6 +23,9 @@
 #include "TextureDebugPanel.h"
 #include "ResultSnapshot.h"
 #include "SimulationResultDisplay.h"
+#include "Plot3DPathlines.h"
+#include "Plot3DSession.h"
+#include "Plot3DSessionIO.h"
 
 #include <QPointer>
 #include <QUndoStack>
@@ -32,12 +35,35 @@
 class QTabWidget;
 class QTimer;
 struct MeshSurfaceAnchor;
+struct Plot3DMeshData;
 class SimulationLegendWidget;
 class SimulationTimelineWidget;
 class QToolButton;
 class QFrame;
 class QTimer;
 class QPropertyAnimation;
+
+// Playback state of an animated pathline plot (see ModelViewer::setPlot3DPathlineAnimation). The plot's mesh is a list of
+// GL_LINES segment pairs; each trail is a contiguous run of segments with rising times, so showing the trails up to a moment is
+// one draw range per trail.
+struct Plot3DPathlineAnimation
+{
+	QUuid mesh;                     // null = nothing is animated
+	double timeMinimum = 0.0, timeMaximum = 1.0;
+	int frames = 200;
+	int frame = 0;
+	std::vector<Plot3DPathlineTrail> trails;
+	std::vector<float> positions;   // x, y, z per vertex of the plot's mesh
+	std::vector<float> times;       // the time at each vertex (the plot's values)
+};
+
+// One thing the shared playback bar (the timeline) can play: a multi-step Simulation result or the animated pathline plot.
+struct PlaybackItem
+{
+	bool pathline = false;
+	QUuid mesh;
+	QString name;
+};
 
 struct UVDialogResult
 {
@@ -82,6 +108,14 @@ struct PendingSimulationRestore
 	QUuid meshUuid;
 	DecodedSnapshot decoded; // decoded.dataset is null when `error` is set
 	QString error;
+};
+
+// A 3D Plot read from an .mvf file, decoded on the loader thread and waiting for its mesh to exist (see
+// ModelViewer::restorePlot3DSessions()).
+struct PendingPlot3DRestore
+{
+	Plot3DSession session;
+	Plot3DRendererPayload payload; // the Quiver arrows / Voxel grid, which live in viewport controllers rather than the mesh
 };
 
 class ModelViewer : public QWidget, public Ui::ModelViewer
@@ -160,6 +194,11 @@ public:
 
 	bool documentModified() const { return _documentModified; }
 	void setDocumentModified(bool modified = true);
+	// A document with no file yet is a numbered session ("Session 2"). The number is stored, and the title derived from it,
+	// so the title follows a language switch; a document with a file is titled by the file name instead.
+	void setSessionNumber(int number);
+	QString documentBaseTitle() const;
+	void refreshDocumentTitle();
 	void markNonUndoDocumentModified();
 
 	bool save();
@@ -219,6 +258,9 @@ signals:
 	// The active simulation result (or its view state) changed - MainWindow refreshes the Simulation dock panel.
 	// `activateTab` is true when a result was just opened, so the dock switches to the Simulation tab.
 	void simulationSessionChanged(bool activateTab);
+	// The document-owned Plot3D session list or active plot changed.  `activateTab`
+	// is true only when a newly built plot should bring the persistent plot tab forward.
+	void plot3DSessionsChanged(bool activateTab);
 	// Emitted from updateVisibilityUiFromState() alongside its own overlay
 	// labelMeshCount update - lets MainWindow's Document dock mirror the
 	// same count for whichever document is currently active, without
@@ -614,6 +656,49 @@ public slots:
 	void setSimulationResultVisible(const QUuid& meshUuid, bool visible); // undoable, like hiding any mesh
 	void closeSimulationResult(const QUuid& meshUuid);           // undoable delete of the result's mesh
 
+	// Plot3D session controls.  Plot meshes remain normal scene meshes; these methods
+	// own only the presentation state that the persistent 3D Plot tab needs.
+	QVector<Plot3DSession> plot3DSessions() const;
+	QUuid activePlot3DMeshUuid() const;
+	void addPlot3DSession(Plot3DSession session);
+	void updatePlot3DSession(Plot3DSession session);
+	void activatePlot3DSession(const QUuid& meshUuid);
+	// Rebuilds the shared axis box from every visible Plot3D session while
+	// retaining the active session's labels/scale/custom-range choices.
+	void refreshPlot3DAxes();
+	void refreshPlot3DLegend();
+	void applyPlot3DColourState(const QUuid& meshUuid, float minimum, float maximum, int colormap, int bands);
+	void setPlot3DAutomaticColourRange(const QUuid& meshUuid, bool automatic);
+	// Generated plots: record the definition Edit Plot reopens, and rebuild the plot's own mesh in place (same mesh, scene node,
+	// visibility, axes and colour settings) from freshly generated geometry.
+	void setPlot3DGeneratedSpec(const QUuid& meshUuid, const Plot3DGeneratedSpec& spec);
+	// A CSV time-series plot (pathlines) keeps its table and column mapping so Edit Plot can reopen it.
+	void setPlot3DTimeSeriesSource(const QUuid& meshUuid, const QString& csvText, const Plot3DCsvOptions& options, const Plot3DColumnMapping& mapping);
+	bool replacePlot3DMesh(const QUuid& meshUuid, const Plot3DMeshData& data, unsigned int primitiveMode);
+	void applyPlot3DAppearance(const QUuid& meshUuid, float lineWidth, float markerSize, float arrowScale);
+	void applyPlot3DBarAppearance(const QUuid& meshUuid, float widthScale, float depthScale);
+	void setPlot3DContourLevels(const QUuid& meshUuid, int levels);
+	void setPlot3DContourProjected(const QUuid& meshUuid, bool projected);
+	// Surface-type plots can carry a companion mesh of Z iso-lines (mode 0 none, 1 on the surface, 2 on the base plane).
+	// refresh rebuilds it from the plot's current mesh (after the plot itself was rebuilt or restored).
+	void setPlot3DContourOverlay(const QUuid& meshUuid, int mode, int levels);
+	// Hover section curves for a Surface plot (a viewing aid, off by default and not saved with the file).
+	void setPlot3DSectionProbe(const QUuid& meshUuid, bool enabled);
+	// Pathline plots can be played back over time: a timeline (the Simulation one's widget) reveals the trails up to the
+	// current moment, with a moving head on each. A viewing aid: off by default, not saved with the file.
+	void setPlot3DPathlineAnimation(const QUuid& meshUuid, bool enabled);
+	void refreshPlot3DPathlineAnimation(const QUuid& meshUuid); // after the plot's mesh was replaced
+	void refreshPlot3DContourOverlay(const QUuid& meshUuid);
+	void setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visible);
+	void applyPlot3DReferencePlanes(const QUuid& meshUuid, const std::array<bool, 3>& visible, float opacity);
+	void applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<Plot3DAxisConfig, 3>& axes);
+	void setPlot3DAxisTitle(const QUuid& meshUuid, const QString& title);
+	// A Plot3D creation dialog can display one temporary plot directly in the
+	// viewport before committing it. Preview meshes deliberately have no scene
+	// node, session, undo record, or persistence entry.
+	void setPlot3DPreview(const QVector<QUuid>& meshUuids, const Plot3DAxisLayout& axes);
+	void clearPlot3DPreview();
+
 	// Compare mode: the active result and `otherMeshUuid` side by side (or stacked) in two panes with one shared
 	// camera, each with its own legend; optionally with one colour range for both so equal colours mean equal values
 	// (applied only while both show the same unit). It ends by itself when either result is hidden, closed or undone.
@@ -809,8 +894,24 @@ private:
 	// Loading them back (S3): turns each decoded snapshot into a live SimulationSession on its already-uploaded mesh.
 	void restoreSimulationSessions(QVector<PendingSimulationRestore>& restores);
 	void appendSimulationSnapshots(Mvf::MVFPackage& package) const;
+	// Saving / loading 3D Plot sessions into .mvf (src/Plot3D/UI/ModelViewerPlot3DPersistence.cpp). The plot MESHES already
+	// persist as ordinary scene content; these add the session (axes, colour and appearance controls) and the Quiver /
+	// Voxel renderer data that no mesh holds. Colours are re-derived on load through applyPlot3DColourState().
+	void appendPlot3DSessions(Mvf::MVFPackage& package) const;
+	void restorePlot3DSessions(QVector<PendingPlot3DRestore>& restores, const QUuid& activeMesh);
 	QHash<QUuid, std::vector<float>> simulationBakedColors() const;
+	// The shown colour of every vertex of each coloured 3D Plot mesh (RGBA), written as COLOR_0 on save so other glTF
+	// viewers and the path tracer see the plot colours. Quiver / Voxel arrows and volumes live in controllers and are not baked.
+	QHash<QUuid, std::vector<float>> plot3DBakedColors() const;
 	void advanceSimulationStep();
+	bool buildPathlineAnimationState(const Plot3DSession& session, SceneMesh& mesh);
+	void applyPathlineFrame();
+	void setPathlineFrame(int frame, bool fromPlayback);
+	void setPathlinePlaying(bool playing);
+	void advancePathlineFrame();
+	void bindPlaybackToPathline();
+	QVector<PlaybackItem> playbackItems() const;
+	void endPathlineAnimation(bool touchMesh = true);
 
 	// Shared implementation for mergeSelectedMeshes()/unionSelectedMeshes() -
 	// see mergeSelectedMeshes()'s doc comment for what's common between them,
@@ -915,6 +1016,7 @@ private:
 	bool _textureDirOpenedFirstTime;
 	bool _documentSaved;
 	bool _documentModified;
+	int _sessionNumber = 1; // matches the "Session 1" title the .ui gives the startup document
 
 	bool _progressiveLoadingEnabled = false;
 	bool _animateProgressiveFitEnabled = true;
@@ -1006,6 +1108,10 @@ private:
 	// document unmodified and without an undo step (like importing any other format).
 	bool _closeOnSimulationLoadFailure = false;
 	std::vector<SimulationSession> _simulationSessions; // every result opened in this document
+	QVector<Plot3DSession> _plot3DSessions;
+	QUuid _activePlot3DMesh;
+	QVector<QUuid> _plot3DPreviewMeshes;
+	QPointer<SimulationLegendWidget> _plot3DLegend; // colour legend of the active visible scalar Plot3D session
 	QUuid _activeSimulationMesh;                        // the session the Simulation panel currently shows
 	bool _simulationHooksConnected = false;
 	enum class SimulationSaveContent { ShownAndDisplacement, AllFields, GeometryOnly };
@@ -1022,6 +1128,17 @@ private:
 	bool _refreshingComparePartner = false;
 	QPointer<SimulationTimelineWidget> _simulationTimeline; // playback controls of a multi-step result
 	QTimer* _simulationPlayTimer = nullptr;
+	Plot3DPathlineAnimation _pathlineAnimation;
+	// The one playback bar plays whichever item is selected (see updateSimulationTimeline()).
+	bool _playbackPathline = false;     // the selected item is the pathline plot (else a Simulation result)
+	QUuid _playbackMesh;                // ... and its mesh
+	QUuid _playbackSeenActiveSim;       // the active result last time: the selection follows when it changes
+	bool _playbackBoundPathline = false; // what the controls are currently bound to (playback pauses when that changes)
+	QUuid _playbackBoundMesh;
+	QTimer* _pathlineTimer = nullptr;
+	bool _pathlinePlaying = false;
+	bool _pathlineLoop = true;
+	double _pathlineSpeed = 1.0;
 	bool _simulationPlaying = false;
 	bool _simulationLoop = true;
 	double _simulationSpeed = 1.0;   // 0.5 / 1 / 2 / 4; one step per 500 ms at 1x

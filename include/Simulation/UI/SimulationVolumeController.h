@@ -44,6 +44,12 @@ public:
 	// Retired textures count as pending work so the next paint can delete them while the GL context is current.
 	bool hasVolumes() const { return !_entries.empty() || !_retiredTextures.empty(); }
 	bool contains(const QUuid& meshUuid) const { return _entries.find(meshUuid) != _entries.end(); }
+	// The grid currently held for a mesh (null when none) - read by Plot3D when it saves a Voxel plot.
+	const VolumeGrid* grid(const QUuid& meshUuid) const
+	{
+		const auto it = _entries.find(meshUuid);
+		return it == _entries.end() ? nullptr : &it->second.grid;
+	}
 
 	using MeshResolver = std::function<const RenderableMesh*(const QUuid&)>;
 	bool hasVisibleVolumes(const MeshResolver& resolve) const;

@@ -321,8 +321,8 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 	// Connect cache clearing button with confirmation dialog
 	connect(_ui->toolButtonClearTextureCache, &QPushButton::clicked, this, [this] {
 		clearAllTexturesMaps();
-		QMessageBox::information(nullptr, "Texture Cache Cleared",
-			"The texture cache has been cleared.");
+		QMessageBox::information(nullptr, tr("Texture Cache Cleared"),
+			tr("The texture cache has been cleared."));
 		});
 
 	// Connect Apply button
@@ -1583,8 +1583,8 @@ void MaterialPropertiesPanel::onTransformButtonClicked(Material::TextureType typ
 	// Check if texture has been loaded
 	if (tex.path == "")
 	{
-		QMessageBox::warning(this, "No Texture",
-			"Please load a texture first before editing its transform and sampler parameters.");
+		QMessageBox::warning(this, tr("No Texture"),
+			tr("Please load a texture first before editing its transform and sampler parameters."));
 		return;
 	}
 
@@ -4544,7 +4544,7 @@ void MaterialPropertiesPanel::onSearchTextChanged(const QString& text)
 	else if (matchCount == 0)
 	{
 		_ui->searchEdit->setStyleSheet("QLineEdit { border: 1px solid #e53935; }");
-		_ui->searchEdit->setToolTip("No matches");
+		_ui->searchEdit->setToolTip(tr("No matches"));
 	}
 	else
 	{

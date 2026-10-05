@@ -137,6 +137,7 @@
         <file>res/fill_holes.png</file>
         <file>res/generate_uvs.png</file>
         <file>res/surface_analysis.png</file>
+        <file>res/plot3d.png</file>
         <file>res/curvature_analysis.png</file>
         <file>res/wall_thickness.png</file>
         <file>res/deviation_analysis.png</file>

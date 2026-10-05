@@ -16,6 +16,7 @@
 #include "MeasurementOffsetVectorCommand.h"
 #include "MeshColorUtils.h"
 #include "ViewportWidget.h"
+#include "Plot3DSection.h"
 #include "IconCursor.h"
 #include "PickingHelper.h"
 #include "RtSceneBuilder.h"
@@ -48,6 +49,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <string>
 #include <QCryptographicHash>
 #include <QOpenGLContext>
 #include <QDateTime>
@@ -58,6 +60,7 @@
 #include <QStyleFactory>
 #include <QThread>
 #include <QTreeView>
+#include <QVector2D>
 #include <QDebug>
 #include "AnimationUtils.h"
 #include "MeshMathUtils.h"
@@ -1056,6 +1059,7 @@ void ViewportWidget::moveToRecycleBin(const QUuid& uuid, int originalIndex)
 		return;
 	}
 	qDebug() << "Moved mesh to recycle bin, uuid:" << uuid;
+	emit meshRecycleStateChanged(uuid, true);
 }
 
 bool ViewportWidget::restoreFromRecycleBin(const QUuid& uuid)
@@ -1066,6 +1070,7 @@ bool ViewportWidget::restoreFromRecycleBin(const QUuid& uuid)
 		return false;
 	}
 	qDebug() << "Restored mesh from recycle bin, uuid:" << uuid;
+	emit meshRecycleStateChanged(uuid, false);
 	return true;
 }
 
@@ -3661,7 +3666,7 @@ void ViewportWidget::drawFloatingLabel(const QString& text, const QPoint& pixel,
 	// above-right - confirmed by pixel-measuring a screen recording, not
 	// guessed). +8 right, -8 up (smaller y) - close to the tip without
 	// sitting on top of the cursor glyph itself.
-	_axisTextRenderer->RenderText(text.toStdString(),
+	_axisTextRenderer->RenderHaloText(text.toStdString(),
 		static_cast<float>(pixel.x()) + 8.0f, static_cast<float>(pixel.y()) - 8.0f, 1,
 		QVector3D(static_cast<float>(color.redF()), static_cast<float>(color.greenF()), static_cast<float>(color.blueF())),
 		TextRenderer::VAlignment::VBOTTOM);
@@ -3688,6 +3693,18 @@ void ViewportWidget::setVertexMarkers(const QVector<VertexMarker>& markers)
 void ViewportWidget::setSimulationGlyphs(const QUuid& meshUuid, GlyphSet glyphs)
 {
 	_simulationGlyphController->setGlyphs(meshUuid, std::move(glyphs));
+	update();
+}
+
+void ViewportWidget::setSimulationGlyphScale(const QUuid& meshUuid, float scale)
+{
+	_simulationGlyphController->setGlyphScale(meshUuid, scale);
+	update();
+}
+
+void ViewportWidget::setSimulationGlyphColors(const QUuid& meshUuid, std::vector<float> colors, float fieldMinimum, float fieldMaximum)
+{
+	_simulationGlyphController->setGlyphColors(meshUuid, std::move(colors), fieldMinimum, fieldMaximum);
 	update();
 }
 
@@ -3724,6 +3741,16 @@ void ViewportWidget::clearSimulationVolume(const QUuid& meshUuid)
 bool ViewportWidget::hasSimulationVolume(const QUuid& meshUuid) const
 {
 	return _simulationVolumeController && _simulationVolumeController->contains(meshUuid);
+}
+
+const GlyphSet* ViewportWidget::simulationGlyphSet(const QUuid& meshUuid) const
+{
+	return _simulationGlyphController ? _simulationGlyphController->glyphs(meshUuid) : nullptr;
+}
+
+const VolumeGrid* ViewportWidget::simulationVolumeGrid(const QUuid& meshUuid) const
+{
+	return _simulationVolumeController ? _simulationVolumeController->grid(meshUuid) : nullptr;
 }
 
 void ViewportWidget::setSimulationVolumeTransferFunction(const QUuid& meshUuid, int colormap, QVector<QPointF> opacity)
@@ -3818,7 +3845,7 @@ void ViewportWidget::drawSimulationSlices(Camera* camera)
 		return;
 	_simulationSliceController->drawOverlay(camera, [this](const QUuid& meshUuid) -> const RenderableMesh* {
 		const SceneMesh* mesh = getMeshByUuid(meshUuid);
-		return mesh && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
+		return mesh && isMeshDisplayed(meshUuid) && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
 	});
 }
 
@@ -3826,7 +3853,7 @@ bool ViewportWidget::simulationOverlaysHideCaps() const
 {
 	const auto resolve = [this](const QUuid& meshUuid) -> const RenderableMesh* {
 		const SceneMesh* mesh = getMeshByUuid(meshUuid);
-		return mesh && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
+		return mesh && isMeshDisplayed(meshUuid) && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
 	};
 	return (_simulationSliceController && _simulationSliceController->hasIsoSurfaces(resolve))
 		|| (_simulationStreamlineController && _simulationStreamlineController->hasLines(resolve))
@@ -3839,7 +3866,7 @@ void ViewportWidget::drawSimulationStreamlines(Camera* camera)
 		return;
 	_simulationStreamlineController->drawOverlay(camera, [this](const QUuid& meshUuid) -> const RenderableMesh* {
 		const SceneMesh* mesh = getMeshByUuid(meshUuid);
-		return mesh && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
+		return mesh && isMeshDisplayed(meshUuid) && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
 	});
 }
 
@@ -3849,7 +3876,7 @@ void ViewportWidget::drawSimulationGlyphs(Camera* camera)
 		return;
 	_simulationGlyphController->drawOverlay(camera, [this](const QUuid& meshUuid) -> const RenderableMesh* {
 		const SceneMesh* mesh = getMeshByUuid(meshUuid);
-		return mesh && isMeshVisible(mesh, -1, true) ? mesh : nullptr; // in compare mode isMeshVisible() also applies the pane filter
+		return mesh && isMeshDisplayed(meshUuid) && isMeshVisible(mesh, -1, true) ? mesh : nullptr; // in compare mode isMeshVisible() also applies the pane filter
 	});
 }
 
@@ -3859,7 +3886,7 @@ void ViewportWidget::drawSimulationTensorGlyphs(Camera* camera)
 		return;
 	_simulationTensorGlyphController->drawOverlay(camera, [this](const QUuid& meshUuid) -> const RenderableMesh* {
 		const SceneMesh* mesh = getMeshByUuid(meshUuid);
-		return mesh && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
+		return mesh && isMeshDisplayed(meshUuid) && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
 	});
 }
 
@@ -3885,7 +3912,7 @@ void ViewportWidget::drawSimulationVolumes(Camera* camera)
 	}
 	_simulationVolumeController->drawOverlay(camera, QSize(width(), height()), clipping, [this](const QUuid& meshUuid) -> const RenderableMesh* {
 		const SceneMesh* mesh = getMeshByUuid(meshUuid);
-		return mesh && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
+		return mesh && isMeshDisplayed(meshUuid) && isMeshVisible(mesh, -1, true) ? mesh : nullptr;
 	});
 }
 
@@ -3899,7 +3926,7 @@ void ViewportWidget::drawVertexMarkers()
 	for (const VertexMarker& marker : std::as_const(_vertexMarkers))
 	{
 		SceneMesh* mesh = getMeshByUuid(marker.meshUuid);
-		if (!mesh || marker.vertex < 0 || !isMeshVisible(mesh, -1, true))
+		if (!mesh || marker.vertex < 0 || !isMeshDisplayed(marker.meshUuid) || !isMeshVisible(mesh, -1, true))
 			continue;
 		const std::vector<float>& points = mesh->getTrsfPoints();
 		const std::size_t p = static_cast<std::size_t>(marker.vertex) * 3;
@@ -3945,8 +3972,8 @@ void ViewportWidget::drawVertexMarkers()
 		}
 		const QVector3D color(static_cast<float>(marker.color.redF()), static_cast<float>(marker.color.greenF()),
 		                      static_cast<float>(marker.color.blueF()));
-		_axisTextRenderer->RenderText("+", x - 4.0f, y + 4.0f, 1, color, TextRenderer::VAlignment::VBOTTOM); // the point itself
-		_axisTextRenderer->RenderText(marker.text.toStdString(), x + 8.0f, y - 6.0f, 1, color, TextRenderer::VAlignment::VBOTTOM);
+		_axisTextRenderer->RenderHaloText("+", x - 4.0f, y + 4.0f, 1, color, TextRenderer::VAlignment::VBOTTOM); // the point itself
+		_axisTextRenderer->RenderHaloText(marker.text.toStdString(), x + 8.0f, y - 6.0f, 1, color, TextRenderer::VAlignment::VBOTTOM);
 	}
 }
 
@@ -7407,21 +7434,21 @@ void ViewportWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	configureOrthoSubviewCamera(
 		ViewMode::TOP, multiViewCorners, width() / 2, height() / 2, sharedMultiViewCenter, sharedMultiViewRange);
 	render(_orthoViewsCamera);
-	_textRenderer->RenderText(_labelTop.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+	_textRenderer->RenderHaloText(_labelTop.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
 	// Front View
 	glViewport(0, height() / 2, width() / 2, height() / 2);
 	configureOrthoSubviewCamera(
 		ViewMode::FRONT, multiViewCorners, width() / 2, height() / 2, sharedMultiViewCenter, sharedMultiViewRange);
 	render(_orthoViewsCamera);
-	_textRenderer->RenderText(_labelFront.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+	_textRenderer->RenderHaloText(_labelFront.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
 	// Left View
 	glViewport(width() / 2, height() / 2, width() / 2, height() / 2);
 	configureOrthoSubviewCamera(
 		ViewMode::LEFT, multiViewCorners, width() / 2, height() / 2, sharedMultiViewCenter, sharedMultiViewRange);
 	render(_orthoViewsCamera);
-	_textRenderer->RenderText(_labelLeft.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+	_textRenderer->RenderHaloText(_labelLeft.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
 	// Render isometric view with primary camera
 	// Isometric View
@@ -7447,7 +7474,7 @@ void ViewportWidget::renderMultiView(QColor& topColor, QColor& botColor)
 		default: break;
 		}
 	}
-	_textRenderer->RenderText(viewLabel.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+	_textRenderer->RenderHaloText(viewLabel.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
 	// draw screen partitioning lines
 	splitScreen();
@@ -8654,6 +8681,15 @@ bool ViewportWidget::isMeshAnimationVisible(const SceneMesh* mesh) const
 	return !_animCtrl.animatedHiddenMeshUuids().contains(mesh->uuid());
 }
 
+bool ViewportWidget::isMeshDisplayed(const QUuid& meshUuid) const
+{
+	const int index = getIndexByUuid(meshUuid);
+	if (index < 0)
+		return false; // recycle-bin meshes deliberately have no live display index
+	const std::vector<int>& displayed = _sceneRuntime.currentVisibleObjectIds();
+	return std::find(displayed.begin(), displayed.end(), index) != displayed.end();
+}
+
 bool ViewportWidget::isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex, bool includeVolumeReplacement) const
 {
 	if (!isMeshAnimationVisible(mesh)) return false;
@@ -9603,9 +9639,393 @@ void ViewportWidget::drawBoundingBoxOverlay()
             const QVector3D projected = label.worldPos.project(
                 _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(), viewportRect);
             const float y = static_cast<float>(height()) - projected.y();
-            _axisTextRenderer->RenderText(label.text.toStdString(), projected.x(), y, 1,
+            _axisTextRenderer->RenderHaloText(label.text.toStdString(), projected.x(), y, 1,
                 QVector3D(1.0f, 1.0f, 1.0f), TextRenderer::VAlignment::VBOTTOM);
         }
+    }
+}
+
+void ViewportWidget::setPlot3DAxisLayout(const Plot3DAxisLayout& layout)
+{
+    _plot3DAxisLayout = layout;
+	_plot3DAxisVisible = true;
+	emit plot3DAxisStateChanged(true, true);
+    update();
+}
+
+void ViewportWidget::clearPlot3DAxisLayout()
+{
+    if (!_plot3DAxisLayout.has_value())
+        return;
+    _plot3DAxisLayout.reset();
+	_plot3DAxisVisible = false;
+	emit plot3DAxisStateChanged(false, false);
+    update();
+}
+
+void ViewportWidget::setPlot3DAxisVisible(bool visible)
+{
+	const bool next = visible && _plot3DAxisLayout.has_value();
+	if (_plot3DAxisVisible == next)
+		return;
+	_plot3DAxisVisible = next;
+	emit plot3DAxisStateChanged(_plot3DAxisLayout.has_value(), _plot3DAxisVisible);
+	update();
+}
+
+void ViewportWidget::setPlot3DSectionProbeEnabled(const QUuid& meshUuid, bool enabled)
+{
+	if (enabled)
+		_sectionProbeMeshes.insert(meshUuid);
+	else
+	{
+		_sectionProbeMeshes.remove(meshUuid);
+		_sectionProbeCaches.remove(meshUuid);
+		if (_sectionProbeMesh == meshUuid)
+			clearPlot3DSectionProbe();
+	}
+	update();
+}
+
+void ViewportWidget::clearPlot3DSectionProbe()
+{
+	if (_sectionProbeMesh.isNull() && _sectionProbeLines.empty())
+		return;
+	_sectionProbeMesh = QUuid();
+	_sectionProbeLines.clear();
+	_sectionProbeText.clear();
+	update();
+}
+
+void ViewportWidget::updatePlot3DSectionProbe(const QPoint& pixel)
+{
+	// Single view only: the label and the pick assume the one full-window viewport.
+	if (_sectionProbeMeshes.isEmpty() || _viewCtrl.multiViewActive() || _compareActive)
+	{
+		clearPlot3DSectionProbe();
+		return;
+	}
+	const MeshSurfaceAnchor anchor = _selectionManager->pickSurfaceAnchor(pixel);
+	SceneMesh* mesh = anchor.isValid() && _sectionProbeMeshes.contains(anchor.meshUuid) ? getMeshByUuid(anchor.meshUuid) : nullptr;
+	if (!mesh)
+	{
+		clearPlot3DSectionProbe();
+		return;
+	}
+
+	SectionProbeCache& cache = _sectionProbeCaches[anchor.meshUuid];
+	if (cache.revision != mesh->geometryRevision())
+	{
+		const std::vector<Vertex> vertices = mesh->vertices();
+		cache.positions.resize(vertices.size() * 3);
+		for (std::size_t i = 0; i < vertices.size(); ++i)
+		{
+			cache.positions[i * 3] = vertices[i].Position.x;
+			cache.positions[i * 3 + 1] = vertices[i].Position.y;
+			cache.positions[i * 3 + 2] = vertices[i].Position.z;
+		}
+		cache.indices = mesh->indices();
+		cache.neighbours = plot3DTriangleNeighbours(cache.indices);
+		cache.revision = mesh->geometryRevision();
+	}
+	const std::size_t first = static_cast<std::size_t>(anchor.triangleIndex) * 3;
+	if (first + 2 >= cache.indices.size())
+	{
+		clearPlot3DSectionProbe();
+		return;
+	}
+	// The hovered point in the plot's own coordinates: the pick's barycentric weights over that triangle's vertices.
+	QVector3D point;
+	for (int c = 0; c < 3; ++c)
+	{
+		const std::size_t v = static_cast<std::size_t>(cache.indices[first + static_cast<std::size_t>(c)]) * 3;
+		if (v + 2 >= cache.positions.size())
+		{
+			clearPlot3DSectionProbe();
+			return;
+		}
+		const float weight = c == 0 ? anchor.barycentric.x() : (c == 1 ? anchor.barycentric.y() : anchor.barycentric.z());
+		point += QVector3D(cache.positions[v], cache.positions[v + 1], cache.positions[v + 2]) * weight;
+	}
+
+	if (anchor.meshUuid == _sectionProbeMesh && (point - _sectionProbePoint).lengthSquared() < 1.0e-12f && pixel == _sectionProbePixel)
+		return;
+	_sectionProbeMesh = anchor.meshUuid;
+	_sectionProbePoint = point;
+	_sectionProbePixel = pixel;
+	_sectionProbeText = QStringLiteral("X %1   Y %2   Z %3")
+		.arg(static_cast<double>(point.x()), 0, 'g', 5).arg(static_cast<double>(point.y()), 0, 'g', 5).arg(static_cast<double>(point.z()), 0, 'g', 5);
+
+	// One curve per axis, in that axis's own colour (the same red / green / blue as the axis labels).
+	_sectionProbeLines.clear();
+	const float colours[3][3] = { { 1.0f, 0.25f, 0.25f }, { 0.25f, 1.0f, 0.35f }, { 0.35f, 0.6f, 1.0f } };
+	for (int axis = 0; axis < 3; ++axis)
+	{
+		std::vector<float> segments;
+		// Only the connected curve through the hovered triangle, not the other branches / loops of the same cut.
+		plot3DSectionCurveThrough(cache.positions, cache.indices, cache.neighbours, anchor.triangleIndex, axis, point[axis], segments);
+		for (std::size_t i = 0; i + 2 < segments.size(); i += 3)
+		{
+			_sectionProbeLines.insert(_sectionProbeLines.end(), { segments[i], segments[i + 1], segments[i + 2] });
+			_sectionProbeLines.insert(_sectionProbeLines.end(), { colours[axis][0], colours[axis][1], colours[axis][2] });
+		}
+	}
+	update();
+}
+
+void ViewportWidget::setPlot3DPointOverlay(const QUuid& meshUuid, std::vector<float> positionsAndColours, float size)
+{
+	if (positionsAndColours.empty())
+		_plot3DPointOverlays.remove(meshUuid);
+	else
+		_plot3DPointOverlays.insert(meshUuid, Plot3DPointOverlay{ std::move(positionsAndColours), size });
+	update();
+}
+
+void ViewportWidget::clearPlot3DPointOverlay(const QUuid& meshUuid)
+{
+	if (_plot3DPointOverlays.remove(meshUuid) > 0)
+		update();
+}
+
+void ViewportWidget::drawPlot3DPointOverlays(Camera* camera)
+{
+	if (!camera || _plot3DPointOverlays.isEmpty() || !_renderCtrl.axisShader())
+		return;
+	for (auto it = _plot3DPointOverlays.cbegin(); it != _plot3DPointOverlays.cend(); ++it)
+	{
+		SceneMesh* mesh = getMeshByUuid(it.key());
+		if (!mesh || !isMeshDisplayed(it.key()) || it.value().data.empty())
+			continue;
+		_renderCtrl.initPlot3DAxisOverlayGeometry(it.value().data);
+		glBindVertexArray(_renderCtrl.plot3DAxisOverlayVAO());
+		glBindBuffer(GL_ARRAY_BUFFER, _renderCtrl.plot3DAxisOverlayVBO());
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(0));
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(3 * sizeof(float)));
+
+		_renderCtrl.axisShader()->bind();
+		_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", _viewCtrl.viewMatrix() * mesh->combinedRenderTransform());
+		_renderCtrl.axisShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
+		_renderCtrl.axisShader()->setUniformValue("renderCone", false);
+		_renderCtrl.axisShader()->setUniformValue("opacity", 1.0f);
+		// Fixed-function point sizing (the shader writes no gl_PointSize), like SceneMesh's native point meshes.
+		glDisable(GL_PROGRAM_POINT_SIZE);
+		glPointSize(it.value().size);
+		glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(it.value().data.size() / 6));
+		glPointSize(1.0f);
+		_renderCtrl.axisShader()->release();
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindVertexArray(0);
+	}
+}
+
+void ViewportWidget::drawPlot3DSectionProbe(Camera* camera)
+{
+	if (!camera || _sectionProbeMesh.isNull() || _sectionProbeLines.empty() || !_renderCtrl.axisShader()
+		|| _viewCtrl.multiViewActive() || _compareActive)
+		return;
+	SceneMesh* mesh = getMeshByUuid(_sectionProbeMesh);
+	if (!mesh)
+		return;
+
+	_renderCtrl.initPlot3DAxisOverlayGeometry(_sectionProbeLines);
+	glBindVertexArray(_renderCtrl.plot3DAxisOverlayVAO());
+	glBindBuffer(GL_ARRAY_BUFFER, _renderCtrl.plot3DAxisOverlayVBO());
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(0));
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(3 * sizeof(float)));
+
+	// A probe overlay: always on top, so the curves are readable even where they lie on (or behind) the surface itself.
+	const GLboolean depthWasEnabled = glIsEnabled(GL_DEPTH_TEST);
+	glDisable(GL_DEPTH_TEST);
+	_renderCtrl.axisShader()->bind();
+	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", _viewCtrl.viewMatrix() * mesh->combinedRenderTransform());
+	_renderCtrl.axisShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
+	_renderCtrl.axisShader()->setUniformValue("renderCone", false);
+	_renderCtrl.axisShader()->setUniformValue("opacity", 1.0f);
+	glLineWidth(2.5f);
+	glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(_sectionProbeLines.size() / 6));
+	glLineWidth(1.0f);
+	_renderCtrl.axisShader()->release();
+	if (depthWasEnabled)
+		glEnable(GL_DEPTH_TEST);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+
+	drawFloatingLabel(_sectionProbeText, _sectionProbePixel, QColor(Qt::white));
+}
+
+void ViewportWidget::drawPlot3DAxisOverlay(Camera* camera)
+{
+    if (!camera || !_plot3DAxisVisible || !_plot3DAxisLayout.has_value() || !_renderCtrl.axisShader())
+        return;
+
+    const Plot3DAxisLayout& layout = *_plot3DAxisLayout;
+
+	// Reference planes are translucent geometry, not screen overlays. Keep depth testing active so plot data in
+	// front remains unobscured, but do not write plane depth or the subsequently drawn grid/box would be clipped.
+	if (!layout.referencePlanes.empty() && layout.referencePlaneOpacity > 0.0f)
+	{
+		std::vector<float> planeVertices;
+		planeVertices.reserve(layout.referencePlanes.size() * 6 * 6);
+		for (const Plot3DReferencePlane& plane : layout.referencePlanes)
+		{
+			for (int corner : { 0, 1, 2, 0, 2, 3 })
+			{
+				const QVector3D& point = plane.corners[corner];
+				planeVertices.insert(planeVertices.end(), { point.x(), point.y(), point.z(),
+					plane.color.x(), plane.color.y(), plane.color.z() });
+			}
+		}
+
+		_renderCtrl.initPlot3DAxisOverlayGeometry(planeVertices);
+		glBindVertexArray(_renderCtrl.plot3DAxisOverlayVAO());
+		glBindBuffer(GL_ARRAY_BUFFER, _renderCtrl.plot3DAxisOverlayVBO());
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(0));
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(3 * sizeof(float)));
+
+		GLboolean depthWriteWasEnabled = GL_TRUE;
+		glGetBooleanv(GL_DEPTH_WRITEMASK, &depthWriteWasEnabled);
+		const GLboolean blendWasEnabled = glIsEnabled(GL_BLEND);
+		const GLboolean cullWasEnabled = glIsEnabled(GL_CULL_FACE);
+		const GLboolean depthTestWasEnabled = glIsEnabled(GL_DEPTH_TEST);
+		GLint blendSourceRgb = GL_ONE, blendDestinationRgb = GL_ZERO;
+		GLint blendSourceAlpha = GL_ONE, blendDestinationAlpha = GL_ZERO;
+		glGetIntegerv(GL_BLEND_SRC_RGB, &blendSourceRgb);
+		glGetIntegerv(GL_BLEND_DST_RGB, &blendDestinationRgb);
+		glGetIntegerv(GL_BLEND_SRC_ALPHA, &blendSourceAlpha);
+		glGetIntegerv(GL_BLEND_DST_ALPHA, &blendDestinationAlpha);
+
+		glEnable(GL_BLEND);
+		glEnable(GL_DEPTH_TEST);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glDepthMask(GL_FALSE);
+		glDisable(GL_CULL_FACE); // all three planes remain visible from either side
+		_renderCtrl.axisShader()->bind();
+		_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", _viewCtrl.viewMatrix());
+		_renderCtrl.axisShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
+		_renderCtrl.axisShader()->setUniformValue("renderCone", false);
+		_renderCtrl.axisShader()->setUniformValue("opacity", layout.referencePlaneOpacity);
+		glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(planeVertices.size() / 6));
+		_renderCtrl.axisShader()->setUniformValue("opacity", 1.0f);
+		_renderCtrl.axisShader()->release();
+
+		glDepthMask(depthWriteWasEnabled);
+		if (depthTestWasEnabled) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+		if (cullWasEnabled) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
+		glBlendFuncSeparate(blendSourceRgb, blendDestinationRgb, blendSourceAlpha, blendDestinationAlpha);
+		if (blendWasEnabled) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindVertexArray(0);
+	}
+
+    std::vector<float> vertices;
+    vertices.reserve((layout.axisLines.size() + layout.tickLines.size() + layout.gridLines.size()) * 12);
+    auto appendSegment = [&vertices](const Plot3DLineSegment& segment, const QVector3D& color) {
+        vertices.insert(vertices.end(), { segment.first.x(), segment.first.y(), segment.first.z(), color.x(), color.y(), color.z() });
+        vertices.insert(vertices.end(), { segment.second.x(), segment.second.y(), segment.second.z(), color.x(), color.y(), color.z() });
+        };
+    // Draw optional reference-plane outlines first, so the RGB box remains
+    // crisp where its edges coincide with a plane boundary.
+    const QVector3D planeColor(0.25f, 0.40f, 0.54f);
+    for (const Plot3DReferencePlane& plane : layout.referencePlanes)
+    {
+        for (int i = 0; i < 4; ++i)
+            appendSegment(Plot3DLineSegment{ plane.corners[i], plane.corners[(i + 1) % 4] }, planeColor);
+    }
+	for (const Plot3DLineSegment& segment : layout.gridLines)
+		appendSegment(segment, segment.color);
+    for (const Plot3DLineSegment& segment : layout.axisLines)
+        appendSegment(segment, segment.color);
+    for (const Plot3DLineSegment& segment : layout.tickLines)
+        appendSegment(segment, segment.color);
+
+    if (!vertices.empty())
+    {
+        _renderCtrl.initPlot3DAxisOverlayGeometry(vertices);
+        glBindVertexArray(_renderCtrl.plot3DAxisOverlayVAO());
+        glBindBuffer(GL_ARRAY_BUFFER, _renderCtrl.plot3DAxisOverlayVBO());
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(0));
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(3 * sizeof(float)));
+
+        _renderCtrl.axisShader()->bind();
+        _renderCtrl.axisShader()->setUniformValue("modelViewMatrix", _viewCtrl.viewMatrix());
+        _renderCtrl.axisShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
+        _renderCtrl.axisShader()->setUniformValue("renderCone", false);
+		_renderCtrl.axisShader()->setUniformValue("opacity", 1.0f);
+        glLineWidth(1.5f);
+        glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(vertices.size() / 6));
+        glLineWidth(1.0f);
+        _renderCtrl.axisShader()->release();
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
+
+    // Tick and axis-name labels, screen-space via the same projected-text technique drawBoundingBoxOverlay() uses.
+    if (_axisTextRenderer)
+    {
+        const QRect viewportRect(0, 0, width(), height());
+		auto projectToTextSpace = [this, &viewportRect](const QVector3D& world) {
+			const QVector3D projected = world.project(_viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(), viewportRect);
+			return QVector2D(projected.x(), static_cast<float>(height()) - projected.y());
+		};
+        for (const Plot3DAxisLabel& label : layout.labels)
+        {
+            const QVector3D projected = label.position.project(
+                _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(), viewportRect);
+            const float y = static_cast<float>(height()) - projected.y();
+			// TextRenderer's HCENTER means "centre in the whole viewport", not
+			// "centre around this x coordinate".  These labels have individual
+			// projected anchors, so centre them explicitly and retain HLEFT.
+			const std::string text = label.text.toStdString();
+			const float x = projected.x() - _axisTextRenderer->textWidth(text) * 0.5f;
+			_axisTextRenderer->RenderHaloText(text, x, y, 1,
+				label.color, TextRenderer::VAlignment::VBOTTOM, TextRenderer::HAlignment::HLEFT);
+        }
+		const QVector2D boxCentre = projectToTextSpace(QVector3D(
+			static_cast<float>((layout.minimum[0] + layout.maximum[0]) * 0.5),
+			static_cast<float>((layout.minimum[1] + layout.maximum[1]) * 0.5),
+			static_cast<float>((layout.minimum[2] + layout.maximum[2]) * 0.5)));
+		for (const Plot3DAxisTitle& title : layout.axisTitles)
+		{
+			if (title.text.trimmed().isEmpty())
+				continue;
+			const QVector2D first = projectToTextSpace(title.first);
+			const QVector2D second = projectToTextSpace(title.second);
+			QVector2D direction = second - first;
+			if (direction.lengthSquared() < 1.0f)
+				continue;
+			direction.normalize();
+			// Keep the reading direction left-to-right even when the camera makes
+			// the world-space positive axis point toward the screen's left.
+			if (direction.x() < 0.0f)
+				direction = -direction;
+			QVector2D normal(-direction.y(), direction.x());
+			const QVector2D midpoint = (first + second) * 0.5f;
+			if (QVector2D::dotProduct(normal, midpoint - boxCentre) < 0.0f)
+				normal = -normal;
+			const QVector2D centre = midpoint + normal * 26.0f;
+			const std::string text = title.text.toStdString();
+			const QVector2D start(centre.x() - _axisTextRenderer->textWidth(text, 1.1f) * 0.5f, centre.y());
+			_axisTextRenderer->RenderHaloText(text, start.x(), start.y(), 1.1f,
+				title.color, TextRenderer::VAlignment::VCENTER, TextRenderer::HAlignment::HLEFT);
+		}
+		if (!layout.title.isEmpty())
+		{
+			const std::string title = layout.title.toStdString();
+			const float x = width() * 0.5f - _axisTextRenderer->textWidth(title, 1.25f) * 0.5f;
+			_axisTextRenderer->RenderHaloText(title, x, 24.0f, 1.25f,
+				QVector3D(0.96f, 0.97f, 0.99f), TextRenderer::VAlignment::VTOP,
+				TextRenderer::HAlignment::HLEFT);
+		}
     }
 }
 
@@ -9649,15 +10069,15 @@ void ViewportWidget::drawAxis(Camera* camera, const QMatrix4x4* overrideViewMatr
 	// Labels
 	QVector3D xAxis(axisViewRange / size, 0, 0);
 	xAxis = xAxis.project(modelViewMat, _viewCtrl.projectionMatrix(), QRect(0, 0, width(), height()));
-	_axisTextRenderer->RenderText(_labelAxisX.toStdString(), xAxis.x(), height() - xAxis.y(), 1, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	_axisTextRenderer->RenderHaloText(_labelAxisX.toStdString(), xAxis.x(), height() - xAxis.y(), 1, QVector3D(1.0f, 0.2f, 0.2f), TextRenderer::VAlignment::VBOTTOM);
 
 	QVector3D yAxis(0, axisViewRange / size, 0);
 	yAxis = yAxis.project(modelViewMat, _viewCtrl.projectionMatrix(), QRect(0, 0, width(), height()));
-	_axisTextRenderer->RenderText(_labelAxisY.toStdString(), yAxis.x(), height() - yAxis.y(), 1, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	_axisTextRenderer->RenderHaloText(_labelAxisY.toStdString(), yAxis.x(), height() - yAxis.y(), 1, QVector3D(0.2f, 1.0f, 0.3f), TextRenderer::VAlignment::VBOTTOM);
 
 	QVector3D zAxis(0, 0, axisViewRange / size);
 	zAxis = zAxis.project(modelViewMat, _viewCtrl.projectionMatrix(), QRect(0, 0, width(), height()));
-	_axisTextRenderer->RenderText(_labelAxisZ.toStdString(), zAxis.x(), height() - zAxis.y(), 1, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	_axisTextRenderer->RenderHaloText(_labelAxisZ.toStdString(), zAxis.x(), height() - zAxis.y(), 1, QVector3D(0.3f, 0.55f, 1.0f), TextRenderer::VAlignment::VBOTTOM);
 
 	// Axes Lines
 	_renderCtrl.initAxisGeometry(axisViewRange / size);
@@ -10730,15 +11150,15 @@ void ViewportWidget::drawCornerAxis(CornerAxisPosition position, const QMatrix4x
 	// Labels
 	QVector3D xAxis(axisLength, 0, 0);
 	xAxis = xAxis.project(mat, axisProjection, QRect(0, 0, axisSize, axisSize));
-	_axisTextRenderer->RenderText(_labelAxisX.toStdString(), xAxis.x(), axisSize - xAxis.y(), labelScale, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	_axisTextRenderer->RenderHaloText(_labelAxisX.toStdString(), xAxis.x(), axisSize - xAxis.y(), labelScale, QVector3D(1.0f, 0.2f, 0.2f), TextRenderer::VAlignment::VBOTTOM);
 
 	QVector3D yAxis(0, axisLength, 0);
 	yAxis = yAxis.project(mat, axisProjection, QRect(0, 0, axisSize, axisSize));
-	_axisTextRenderer->RenderText(_labelAxisY.toStdString(), yAxis.x(), axisSize - yAxis.y(), labelScale, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	_axisTextRenderer->RenderHaloText(_labelAxisY.toStdString(), yAxis.x(), axisSize - yAxis.y(), labelScale, QVector3D(0.2f, 1.0f, 0.3f), TextRenderer::VAlignment::VBOTTOM);
 
 	QVector3D zAxis(0, 0, axisLength);
 	zAxis = zAxis.project(mat, axisProjection, QRect(0, 0, axisSize, axisSize));
-	_axisTextRenderer->RenderText(_labelAxisZ.toStdString(), zAxis.x(), axisSize - zAxis.y(), labelScale, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	_axisTextRenderer->RenderHaloText(_labelAxisZ.toStdString(), zAxis.x(), axisSize - zAxis.y(), labelScale, QVector3D(0.3f, 0.55f, 1.0f), TextRenderer::VAlignment::VBOTTOM);
 
 	// Axes
 	if (!_renderCtrl.axisVAO().isCreated())
@@ -11678,6 +12098,9 @@ void ViewportWidget::render(Camera* camera)
 
 	// --- 5) Overlays ---
     drawDebugOverlay(camera);
+    drawPlot3DAxisOverlay(camera);
+    drawPlot3DSectionProbe(camera);
+    drawPlot3DPointOverlays(camera);
 	// Single-view mode draws this AFTER the ray-traced overlay instead (see
 	// paintGL()'s post-overlay block) so it isn't wiped out by PT's force-
 	// opaque composite - drawing it here too would just double-draw it
@@ -15409,6 +15832,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		if (!_viewCtrl.multiViewActive() && !_compareActive)
 			updatePlaneGizmoHover(e->pos());
 		updateSurfaceAnalysisHoverReadout(e->pos());
+		updatePlot3DSectionProbe(e->pos());
 	}
 
 	if (e->buttons() == Qt::LeftButton && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
@@ -17904,10 +18328,11 @@ std::shared_ptr<const RtSceneSnapshot> ViewportWidget::buildRayTracedSnapshot(in
 	// makes the render frame correctly to the requested WxH instead of
 	// stretching/squishing the same framing the live viewport uses.
 	const float aspectRatio = height > 0 ? static_cast<float>(width) / static_cast<float>(height) : 1.0f;
+	const QHash<QUuid, std::vector<float>> colorOverrides = _pathTracerColorProvider ? _pathTracerColorProvider() : QHash<QUuid, std::vector<float>>();
 	auto snapshot = RtSceneBuilder::build(
 		_sceneRuntime, *_primaryCamera, aspectRatio,
 		lights, _rayTracedSceneRevision, &environment, &floorParams,
-		_renderCtrl.shadowsEnabled(), _renderCtrl.selfShadowsEnabled());
+		_renderCtrl.shadowsEnabled(), _renderCtrl.selfShadowsEnabled(), &colorOverrides);
 
 	// Cache which side of the floor's plane the camera was on for THIS
 	// build - see _rtLastBuildCameraAboveFloor's own doc comment for why

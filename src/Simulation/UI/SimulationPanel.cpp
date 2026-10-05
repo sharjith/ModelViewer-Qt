@@ -6,6 +6,8 @@
 #include "SimulationVolume.h"
 #include "SimulationTransferFunctionWidget.h"
 
+#include <QAbstractButton>
+#include <QAbstractSpinBox>
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
@@ -147,6 +149,14 @@ void SimulationPanel::buildUi()
 	auto* content = new QWidget(scroll);
 	auto* form = new QFormLayout(content);
 	form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+	// This panel can be docked very narrowly and is also used with themes/translations whose controls have larger
+	// size hints. Never let the scroll area's resizable widget squeeze the form below its real minimum: once the
+	// minimum is reached, scrolling is preferable to controls sharing or painting over the same space.
+	form->setRowWrapPolicy(QFormLayout::WrapLongRows);
+	form->setSizeConstraint(QLayout::SetMinimumSize);
+	form->setHorizontalSpacing(std::max(8, form->horizontalSpacing()));
+	form->setVerticalSpacing(std::max(6, form->verticalSpacing()));
+	content->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Minimum);
 
 	// ---- Which result: a document can hold several. Picking one selects its mesh; it can be hidden or closed.
 	_resultCombo = new QComboBox(content);
@@ -308,7 +318,7 @@ void SimulationPanel::buildUi()
 	_glyphScaleSpin->setDecimals(2);
 	_glyphScaleSpin->setSingleStep(0.1);
 	_glyphScaleSpin->setKeyboardTracking(false);
-	_glyphScaleSpin->setToolTip(tr("Arrow size. 1 makes the largest arrow 5 % of the model size."));
+	_glyphScaleSpin->setToolTip(tr("Relative arrow size on screen. Arrows remain stable while zooming."));
 	form->addRow(tr("Arrow size:"), _glyphScaleSpin);
 	_glyphCountSpin = new QSpinBox(content);
 	_glyphCountSpin->setRange(20, 50000);
@@ -346,10 +356,22 @@ void SimulationPanel::buildUi()
 	                                 "and shaped by the principal directions and magnitudes of a\n"
 	                                 "symmetric tensor field (stress), coloured by von Mises."));
 	form->addRow(_tensorGlyphCheck);
+	_tensorGlyphScaleSpin = new QDoubleSpinBox(content);
+	_tensorGlyphScaleSpin->setRange(0.1, 20.0);
+	_tensorGlyphScaleSpin->setDecimals(2);
+	_tensorGlyphScaleSpin->setSingleStep(0.1);
+	_tensorGlyphScaleSpin->setKeyboardTracking(false);
+	_tensorGlyphScaleSpin->setToolTip(tr("Relative ellipsoid size on screen. Ellipsoids remain stable while zooming."));
+	form->addRow(tr("Ellipsoid size:"), _tensorGlyphScaleSpin);
 	_tensorGlyphInfoLabel = new QLabel(content);
 	_tensorGlyphInfoLabel->setWordWrap(true);
 	form->addRow(_tensorGlyphInfoLabel);
-	connect(_tensorGlyphCheck, &QCheckBox::toggled, this, [this](bool) { emitState(); });
+	connect(_tensorGlyphCheck, &QCheckBox::toggled, this, [this](bool on) {
+		_tensorGlyphScaleSpin->setEnabled(on && _tensorGlyphCheck->isEnabled());
+		if (!_updating)
+			emitState();
+	});
+	connect(_tensorGlyphScaleSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_updating) emitState(); });
 
 	// ---- Direct volume rendering: regular-grid resampling of a node scalar followed by GPU ray marching.
 	_volumeCheck = new QCheckBox(tr("Show as volume"), content);
@@ -461,6 +483,24 @@ void SimulationPanel::buildUi()
 		   "you confirm it; choosing a different \"Show in\" unit converts the values and the legend."), content);
 	units->setWordWrap(true);
 	form->addRow(units);
+
+	// A layout may legally shrink controls below sizeHint() unless their minimum says otherwise. That can clip or
+	// overlap text after a theme/font/DPI change, particularly in compound form rows. Polish first so stylesheet
+	// metrics are included, then make the resulting height a hard floor. Width remains flexible and is handled by
+	// the form's wrapping plus the scroll area's horizontal scrollbar.
+	auto preserveControlHeight = [](QWidget* control) {
+		control->ensurePolished();
+		control->setMinimumHeight(std::max(control->minimumHeight(), control->sizeHint().height()));
+		QSizePolicy policy = control->sizePolicy();
+		policy.setVerticalPolicy(QSizePolicy::Fixed);
+		control->setSizePolicy(policy);
+	};
+	for (QAbstractButton* button : findChildren<QAbstractButton*>())
+		preserveControlHeight(button);
+	for (QComboBox* combo : findChildren<QComboBox*>())
+		preserveControlHeight(combo);
+	for (QAbstractSpinBox* spin : findChildren<QAbstractSpinBox*>())
+		preserveControlHeight(spin);
 
 	scroll->setWidget(content);
 	_stack->addWidget(scroll);
@@ -702,6 +742,8 @@ void SimulationPanel::setSession(const SimulationSession* session)
 	updateGlyphEnabled();
 	_tensorGlyphCheck->setEnabled(chooseDefaultTensorField(*_dataset) >= 0);
 	_tensorGlyphCheck->setChecked(_tensorGlyphCheck->isEnabled() && state.tensorGlyphs);
+	_tensorGlyphScaleSpin->setValue(state.tensorGlyphScale);
+	_tensorGlyphScaleSpin->setEnabled(_tensorGlyphCheck->isChecked());
 	_tensorGlyphInfoLabel->setText(session->tensorGlyphInfo);
 	_tensorGlyphInfoLabel->setVisible(!session->tensorGlyphInfo.isEmpty());
 	populateVolumeFields(state.volumeField >= 0 ? state.volumeField : chooseDefaultVolumeField(*_dataset));
@@ -1044,6 +1086,7 @@ SimulationViewState SimulationPanel::currentState() const
 	state.glyphScale = _glyphScaleSpin->value();
 	state.glyphCount = _glyphCountSpin->value();
 	state.tensorGlyphs = _tensorGlyphCheck->isChecked() && _tensorGlyphCheck->isEnabled();
+	state.tensorGlyphScale = _tensorGlyphScaleSpin->value();
 	state.volume = _volumeCheck->isChecked() && _volumeCheck->isEnabled();
 	state.volumeField = _volumeFieldCombo->currentData().isValid() ? _volumeFieldCombo->currentData().toInt() : -1;
 	state.volumeResolution = _volumeResolutionCombo->currentData().toInt();

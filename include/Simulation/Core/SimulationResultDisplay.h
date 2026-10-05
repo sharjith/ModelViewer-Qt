@@ -188,7 +188,7 @@ struct SimulationViewState
 	// Vector arrows: one arrow per sampled point of the surface along a 3-component field, coloured by its magnitude.
 	bool glyphs = false;
 	int glyphField = -1;              // index into ResultDataset::fields; -1 = chosen automatically (chooseDefaultGlyphField)
-	double glyphScale = 1.0;          // 1 = the largest arrow is 5 % of the model diagonal
+	double glyphScale = 1.0;          // relative on-screen arrow size; 1 is the camera-stable default
 	int glyphCount = 800;             // about this many arrows
 	bool glyphScaleByMagnitude = true; // false = all arrows the same length
 	// Tensor glyphs: one ellipsoid per sampled point along a 6-component symmetric tensor field (stress), coloured

@@ -274,7 +274,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		this, [this](bool canUndo) {
 			if (_lastCanUndo && !canUndo)  // Transition: true -> false
 			{
-				MainWindow::showStatusMessage("Nothing to undo", 2000);
+				MainWindow::showStatusMessage(tr("Nothing to undo"), 2000);
 			}
 			_lastCanUndo = canUndo;
 		});
@@ -284,7 +284,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		this, [this](bool canRedo) {
 			if (_lastCanRedo && !canRedo)  // Transition: true -> false
 			{
-				MainWindow::showStatusMessage("Nothing to redo", 2000);
+				MainWindow::showStatusMessage(tr("Nothing to redo"), 2000);
 			}
 			_lastCanRedo = canRedo;
 		});
@@ -309,6 +309,12 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	format.setRenderableType(QSurfaceFormat::OpenGL);
 	format.setSamples(samples); // Set MSAA samples
 	_viewportWidget = new ViewportWidget(this, "viewportWidget");
+	// Plot3D / Simulation colours are display overlays, not vertex data; the path tracer asks for them when it builds a scene.
+	_viewportWidget->setPathTracerColorProvider([this]() {
+		QHash<QUuid, std::vector<float>> colors = simulationBakedColors();
+		colors.insert(plot3DBakedColors());
+		return colors;
+	});
     connect(_viewportWidget, &ViewportWidget::toolCommandRequested, this, &ModelViewer::executeToolCommand);
     connect(_viewportWidget, &ViewportWidget::selectionChanged, this, &ModelViewer::updateMeshTools, Qt::QueuedConnection);
     connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, &ModelViewer::updateMeshTools, Qt::QueuedConnection);
@@ -324,6 +330,54 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(_viewportWidget, &ViewportWidget::sweepSelectionDone, this, &ModelViewer::setListRows);
 	connect(_viewportWidget, &ViewportWidget::eyedropperMaterialSampled, this, &ModelViewer::onEyedropperMaterialSampled);
 	connect(_viewportWidget, &ViewportWidget::eyedropperStrokeFinished, this, &ModelViewer::applyEyedropperStroke);
+	connect(_viewportWidget, &ViewportWidget::meshRecycleStateChanged, this, [this](const QUuid&, bool inRecycleBin) {
+		auto refreshPlotAndSimulationPanels = [this]() {
+			refreshPlot3DAxes();
+			emit plot3DSessionsChanged(false);
+			emit simulationSessionChanged(false);
+		};
+		if (inRecycleBin)
+		{
+			refreshPlotAndSimulationPanels();
+			return;
+		}
+		// DeleteMeshCommand restores the runtime mesh first, then restores its UUID into SceneGraph. Refreshing
+		// synchronously here sees the mesh but still sees its old visibility snapshot, hides the shared Plot3D axes,
+		// and leaves them hidden until the user toggles the checkbox. Run after the complete undo transaction instead.
+		QTimer::singleShot(0, this, refreshPlotAndSimulationPanels);
+	});
+	connect(_viewportWidget, &ViewportWidget::meshAboutToBeDeleted, this, [this](SceneMesh* mesh) {
+		if (!mesh)
+			return;
+		const QUuid uuid = mesh->uuid();
+		// Controllers own GPU-side overlays keyed by mesh UUID.  A mesh can be
+		// in the recycle bin while Undo is possible, so draw-time visibility is
+		// handled in ViewportWidget; this final-destruction hook releases the
+		// retained controller data once the mesh cannot return.
+		_viewportWidget->clearSimulationGlyphs(uuid);
+		_viewportWidget->clearSimulationTensorGlyphs(uuid);
+		_viewportWidget->clearSimulationVolume(uuid);
+		_viewportWidget->clearSimulationSlices(uuid);
+		_viewportWidget->clearSimulationStreamlines(uuid);
+		_viewportWidget->setPlot3DSectionProbeEnabled(uuid, false);
+		if (_pathlineAnimation.mesh == uuid)
+			endPathlineAnimation(false); // the mesh is going away: nothing on it to restore
+		for (auto it = _plot3DSessions.begin(); it != _plot3DSessions.end(); ++it)
+		{
+			if (it->meshUuid != uuid)
+				continue;
+			const bool wasActive = _activePlot3DMesh == uuid;
+			_plot3DSessions.erase(it);
+			if (wasActive)
+			{
+				_activePlot3DMesh = _plot3DSessions.isEmpty() ? QUuid() : _plot3DSessions.front().meshUuid;
+				if (_activePlot3DMesh.isNull()) _viewportWidget->clearPlot3DAxisLayout();
+				else activatePlot3DSession(_activePlot3DMesh);
+			}
+			emit plot3DSessionsChanged(false);
+			break;
+		}
+	});
 	connect(_viewportWidget, &ViewportWidget::zoomAndPanSet, this, [this]() {
 		if (_treeRebuildPending)
 			rebuildTreeFromCurrentState();
@@ -395,6 +449,10 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	        this, &ModelViewer::validateCameraData);
 	connect(_sceneGraph, &SceneGraph::structureChanged,
 	        this, &ModelViewer::validateLightData);
+	connect(_sceneGraph, &SceneGraph::structureChanged, this, [this]() {
+		refreshPlot3DAxes();
+		emit plot3DSessionsChanged(false);
+	});
 	treeWidgetModel->installEventFilter(this);
 	treeWidgetModel->viewport()->installEventFilter(this);
 
@@ -501,7 +559,11 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	updateControls();
 
 	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
+		// uic's retranslateUi() also re-applies the .ui file's own windowTitle ("Session 1", in the new language), which
+		// would overwrite this document's real title with a wrong one. Derive the title again instead: the file name for a
+		// document that has one, otherwise "Session N" with this document's own number in the new language.
 		retranslateUi(this);
+		refreshDocumentTitle();
 		retranslateUI();  // if needed
 		});
 }
@@ -523,6 +585,9 @@ void ModelViewer::retranslateUI()
 {
 	// Dynamically created	
 	retranslateSimulation();
+	// The in-viewer colour legend of the active 3D plot ("<plot> - Value", its tooltip) is built from tr() when it is refreshed,
+	// so it has to be refreshed again for the new language, exactly as the Simulation legend is just above.
+	refreshPlot3DLegend();
 }
 
 void ModelViewer::close()
@@ -1077,6 +1142,11 @@ void ModelViewer::revealNavigation()
 	// treatment (it sat underneath this panel and looked like it vanished on every mouse move).
 	if (_simulationLegend)
 		_simulationLegend->raise();
+	if (_plot3DLegend)
+	{
+		_plot3DLegend->reposition(); // keep it below the Simulation legend's current bottom edge
+		_plot3DLegend->raise();
+	}
 	if (_simulationTimeline && _simulationTimeline->isVisible())
 		_simulationTimeline->raise();
 	if (_viewportWidget)
@@ -2164,7 +2234,13 @@ void ModelViewer::dropEvent(QDropEvent* event)
 			if (isSupportedResultFile(fileName))
 				openSimulationResultFile(fileName); // dropped onto a document: added to it
 			else if (extn == "mvf")
-				loadFromFile(fileName);
+			{
+				// An .mvf is a whole session, not content to add: loading it here would clear this document's meshes and
+				// every plot/simulation session on it - silently, with no unsaved-changes prompt. Open it as its own
+				// document exactly like File > Open and a drop on the main window do (MainWindow::openFile() also
+				// re-activates it if that file is already open).
+				MainWindow::mainWindow()->openFile(fileName);
+			}
 			else
 			{
 				UVMethod method;
@@ -2330,15 +2406,28 @@ void ModelViewer::setDocumentModified(bool modified)
 {
 	const bool changed = (_documentModified != modified);
 	_documentModified = modified;
-	const QString baseTitle = _currentFile.isEmpty()
-		? windowTitle().remove(QLatin1Char('*'))
-		: QFileInfo(_currentFile).fileName();
-	if (modified)
-		setWindowTitle(tr("%1*").arg(baseTitle));
-	else
-		setWindowTitle(baseTitle);
+	refreshDocumentTitle();
 	if (changed)
 		emit documentModifiedChanged(_documentModified);
+}
+
+QString ModelViewer::documentBaseTitle() const
+{
+	return _currentFile.isEmpty()
+		? tr("Session %1").arg(_sessionNumber)
+		: QFileInfo(_currentFile).fileName();
+}
+
+void ModelViewer::refreshDocumentTitle()
+{
+	const QString baseTitle = documentBaseTitle();
+	setWindowTitle(_documentModified ? tr("%1*").arg(baseTitle) : baseTitle);
+}
+
+void ModelViewer::setSessionNumber(int number)
+{
+	_sessionNumber = number;
+	refreshDocumentTitle();
 }
 
 void ModelViewer::markNonUndoDocumentModified()
@@ -5274,6 +5363,9 @@ void ModelViewer::handleTreeWidgetVisibilityChanged()
 {
 	_visibleMeshUuids = treeWidgetModel->getVisibleUuids();
 	applyVisibleMeshState(false);
+	// Scene-tree checkboxes bypass setVisibilityWithoutUndo(), so they must
+	// explicitly refresh Plot3D's shared axis extent as well.
+	refreshPlot3DAxes();
 }
 
 void ModelViewer::handleTreeWidgetSelectionChanged()
@@ -5572,8 +5664,11 @@ void ModelViewer::onFileExport()
 	const bool flattenTransforms = (exportExt == "obj" || exportExt == "ply" || exportExt == "stl");
 
 	QMap<QString, unsigned int> animMatRemap; // "origMatIdx@sourceFile" → export material index
+	// Colours the viewer draws as an overlay (Plot3D, Simulation results) are not in the vertices; bake them for the file.
+	QHash<QUuid, std::vector<float>> bakedColors = simulationBakedColors();
+	bakedColors.insert(plot3DBakedColors());
 	aiScene* copyScene = SceneGraphExporter::buildExportScene(
-		_sceneGraph, resolver, flattenTransforms, allowedSourceFiles, &animMatRemap);
+		_sceneGraph, resolver, flattenTransforms, allowedSourceFiles, &animMatRemap, &bakedColors);
 
 	if (!copyScene)
 	{
@@ -5786,6 +5881,25 @@ bool ModelViewer::loadFile(const QString& fileName)
 	const bool isNativeSession = (suffix == "mvf");
 	if (isNativeSession)
 	{
+		// An .mvf is a whole session, not content to add: loading it clears every mesh and every plot / simulation
+		// session on the document it is loaded into, with no unsaved-changes prompt. So it is only ever loaded into an
+		// EMPTY document (the fresh one MainWindow::loadFile() creates for File > Open); anywhere else - Shift+click on
+		// a recent file ("import into active document"), or any future caller - it opens as its own document instead.
+		// "Has content" is more than meshes: a document whose meshes were all deleted can still hold unsaved changes, an
+		// undo history, measurements or plot / simulation sessions, and the load below clears all of it (including the
+		// undo stack). The same freshness test the simulation-result path above uses.
+		const bool hasContent = (_viewportWidget && !_viewportWidget->getMeshStore().empty()) || _documentModified
+			|| (_undoStack && _undoStack->count() > 0) || !_simulationSessions.empty() || !_plot3DSessions.isEmpty();
+		// Backstop: the document openFile() creates is fresh by construction, but if it ever were not, redirecting again
+		// would recurse forever - so while a redirect is in flight, load into the document in hand.
+		static bool redirectingToNewDocument = false;
+		if (hasContent && !redirectingToNewDocument)
+		{
+			redirectingToNewDocument = true;
+			const bool opened = MainWindow::mainWindow()->openFile(fileName); // nothing is loaded into THIS document
+			redirectingToNewDocument = false;
+			return opened;
+		}
 		// Load native ModelViewer session file
 		success = loadFromFile(fileName);
 	}
@@ -5879,6 +5993,8 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		QHash<QString, int> activeAnimationByFile;
 		QVector<GltfCameraData> cameraDataByFile;
 		QVector<PendingSimulationRestore> simulationRestores;
+		QVector<PendingPlot3DRestore> plot3DRestores;
+		QUuid plot3DActiveMesh;
 		QJsonArray    explodedViews;
 		QString       activeExplodedViewId;
 		int           activeExplodedViewStepIndex = -1;
@@ -6528,6 +6644,39 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			result.simulationRestores.append(std::move(pending));
 		}
 
+		// 3D Plot sessions (src/Plot3D/UI/ModelViewerPlot3DPersistence.cpp): each plot's JSON plus its compressed blobs, read
+		// here off the UI thread; attached to its already-uploaded mesh at the end, like the simulation results above. A
+		// plot whose data is damaged is dropped (its mesh still loads as ordinary scene content) rather than half-restored.
+		for (const QJsonValue& entryValue : session[QStringLiteral("plot3dPlots")].toArray())
+		{
+			const QJsonObject entry = entryValue.toObject();
+			std::vector<QByteArray> blobs;
+			bool inRange = true;
+			for (const QJsonValue& viewIndex : entry[QStringLiteral("blobViews")].toArray())
+			{
+				const int viewNumber = viewIndex.toInt(-1);
+				const QJsonObject view = (viewNumber >= 0 && viewNumber < result.document.bufferViews.size())
+					? result.document.bufferViews.at(viewNumber).toObject() : QJsonObject();
+				const qint64 offset = static_cast<qint64>(view[QStringLiteral("byteOffset")].toDouble(-1));
+				const qint64 length = static_cast<qint64>(view[QStringLiteral("byteLength")].toDouble(-1));
+				if (offset < 0 || length < 0 || offset + length > geomChunk.size())
+				{
+					inRange = false;
+					break;
+				}
+				blobs.push_back(geomChunk.mid(offset, length));
+			}
+			PendingPlot3DRestore pending;
+			QString plotError;
+			if (!inRange || !plot3DSessionFromJson(entry, blobs, pending.session, pending.payload, &plotError))
+			{
+				qWarning() << "3D Plot session not restored:" << (inRange ? plotError : QStringLiteral("its data lies outside the file."));
+				continue;
+			}
+			result.plot3DRestores.append(std::move(pending));
+		}
+		result.plot3DActiveMesh = QUuid(session[QStringLiteral("plot3dActiveMesh")].toString());
+
 		// Extract mesh UUIDs and visibility
 		QList<QUuid> allMeshUuids;
 		for (const auto& pm : prepared)
@@ -7076,6 +7225,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		_viewportWidget->activateGltfCamera(result.activeGltfCameraFile, result.activeGltfCameraIndex);
 
 	restoreSimulationSessions(result.simulationRestores);
+	restorePlot3DSessions(result.plot3DRestores, result.plot3DActiveMesh);
 
 	MainWindow::hideProgressBar();
 	return true;
@@ -7107,6 +7257,16 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 	                                               cameraDataByFile,
 	                                               simulationBakedColors());
 	appendSimulationSnapshots(package);
+	appendPlot3DSessions(package);
+	// Simulation snapshots and Plot3D sessions append their blobs to the GEOM chunk AFTER Mvf::buildMVFPackage() recorded
+	// buffers[0].byteLength, so bring it back in line with the chunk actually written. (Readers use each bufferView's own
+	// offset/length and the physical chunk, but the saved metadata should not contradict the file.)
+	if (!package.document.buffers.isEmpty())
+	{
+		QJsonObject geometryBuffer = package.document.buffers.at(0).toObject();
+		geometryBuffer.insert(QStringLiteral("byteLength"), package.geometryChunk.size());
+		package.document.buffers.replace(0, geometryBuffer);
+	}
 
 	if (_viewportWidget)
 	{
@@ -7864,12 +8024,17 @@ void ModelViewer::setVisibilityWithoutUndo(const QSet<QUuid>& visibleUuids)
 	changedUuids.unite(visibleUuids - _visibleMeshUuids);
 	_visibleMeshUuids = visibleUuids;
 	applyVisibleMeshState(true, true, changedUuids);
+	refreshPlot3DAxes();
 }
 
 QSet<QUuid> ModelViewer::collectVisibleUuidsFromDisplayList() const
 {
 	QSet<QUuid> visibleUuids;
-	for (int id : _viewportWidget->getDisplayedObjectsIds())
+	// `displayedObjectsIds()` is the raw primary list.  The View toolbar can
+	// temporarily swap it with the hidden list, so it is not necessarily what
+	// is on screen.  Every document-level visibility snapshot must use the
+	// runtime's resolved list or an import/update can resurrect hidden plots.
+	for (int id : _viewportWidget->currentVisibleObjectIds())
 	{
 		QUuid uuid = _viewportWidget->getUuidByIndex(id);
 		if (!uuid.isNull())

@@ -6373,7 +6373,21 @@ namespace
 		GlyphSet set;
 		CHECK(buildGlyphSet(ds, surface, velocityIndex, 0, sites, 10.0, options, 0.0f, set));
 		CHECK(set.count() == 3 && set.anchors.size() == 9 && set.vectors.size() == 9); // the zero vector gets no arrow
+		CHECK(approx(set.referenceLength, 0.5)); // 5% of the 10-unit surface diagonal; independent of user size
 		CHECK(approx(set.fieldMax, 3.0) && approx(set.fieldMin, 0.0));
+		{
+			GlyphOptions larger = options;
+			larger.scale = 2.0;
+			GlyphSet largerSet;
+			CHECK(buildGlyphSet(ds, surface, velocityIndex, 0, sites, 10.0, larger, 0.0f, largerSet));
+			CHECK(approx(largerSet.referenceLength, set.referenceLength));
+			double longest = 0.0;
+			for (std::size_t i = 0; i < largerSet.count(); ++i)
+				longest = std::max(longest, std::sqrt(static_cast<double>(largerSet.vectors[i * 3]) * largerSet.vectors[i * 3]
+					+ static_cast<double>(largerSet.vectors[i * 3 + 1]) * largerSet.vectors[i * 3 + 1]
+					+ static_cast<double>(largerSet.vectors[i * 3 + 2]) * largerSet.vectors[i * 3 + 2]));
+			CHECK(approx(longest / largerSet.referenceLength, 2.0)); // user size survives renderer normalization
+		}
 		bool lengthsRight = true, sawLongest = false;
 		for (std::size_t i = 0; i < set.count(); ++i)
 		{

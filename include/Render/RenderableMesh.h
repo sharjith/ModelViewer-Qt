@@ -111,6 +111,16 @@ public:
 	{
 		return _primitiveMode;
 	}
+	void setPrimitivePointSize(float size) { _primitivePointSize = size > 0.0f ? size : 1.0f; }
+	float primitivePointSize() const { return _primitivePointSize; }
+	void setPrimitiveLineWidth(float width) { _primitiveLineWidth = width > 0.0f ? width : 1.0f; }
+	float primitiveLineWidth() const { return _primitiveLineWidth; }
+	// Draw only these [first, first + count) vertex ranges of an UNINDEXED line / point mesh (glMultiDrawArrays); used to
+	// reveal a pathline plot's trails up to a moment in time. Empty ranges draw nothing; clearDrawRanges() draws it all.
+	// setMeshData() clears them (the vertex layout changed).
+	void setDrawRanges(std::vector<int> firsts, std::vector<int> counts) { _drawFirsts = std::move(firsts); _drawCounts = std::move(counts); _drawRangesActive = true; }
+	void clearDrawRanges() { _drawFirsts.clear(); _drawCounts.clear(); _drawRangesActive = false; }
+	bool hasDrawRanges() const { return _drawRangesActive; }
 
 	virtual void render();
 	virtual void renderShadow(); // Lightweight render for shadow mapping
@@ -670,6 +680,8 @@ protected:
 	QOpenGLBuffer _coordBuf;
 
 	unsigned int               _nVerts = 0;
+	std::vector<int>           _drawFirsts, _drawCounts; // see setDrawRanges()
+	bool                       _drawRangesActive = false;
 	QOpenGLVertexArrayObject   _vertexArrayObject;
 	std::vector<QOpenGLBuffer> _buffers;
 
@@ -753,6 +765,8 @@ protected:
 
 	// Primitive mode from glTF (GL_POINTS=0, GL_LINES=1, GL_LINE_STRIP=3, GL_TRIANGLE_STRIP=5, GL_TRIANGLES=4)
 	GLenum _primitiveMode = GL_TRIANGLES;  // Default to triangles for backward compatibility
+	float _primitivePointSize = 3.0f;
+	float _primitiveLineWidth = 1.5f;
 
 	unsigned long long _memorySize;
 };

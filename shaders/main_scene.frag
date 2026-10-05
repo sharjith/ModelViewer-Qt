@@ -940,8 +940,13 @@ void main()
 	// there's nothing for the ADS/PBR paths below to contribute. Explicitly
 	// excluded from the SSS capture and reflected passes (this shader's
 	// other special output modes) - the overlay is a normal-color-pass-only
-	// concept, never meant to leak into either of those.
-	if (analysisOverlayActive && !sssCapture && !isReflectedPass)
+	// concept, never meant to leak into either of those. The floor is excluded
+	// for the same reason: analysisOverlayActive is a program-wide uniform that
+	// each mesh sets from its own state (and skips re-uploading when unchanged),
+	// so the floor's visible pass can inherit "true" from the last simulation /
+	// analysis mesh drawn before it - and would then output that overlay's ramp
+	// colour instead of floor shading (the floor taking on the result's colours).
+	if (analysisOverlayActive && !sssCapture && !isReflectedPass && !floorRendering)
 	{
 		if (analysisOverlayBands >= 2)
 		{
@@ -969,7 +974,7 @@ void main()
 	// normal would defeat by making every triangle read as its own
 	// discontinuous band regardless of the underlying surface's true
 	// smoothness.
-	if (zebraStripeActive && !sssCapture && !isReflectedPass)
+	if (zebraStripeActive && !sssCapture && !isReflectedPass && !floorRendering) // floor: see analysisOverlayActive above
 	{
 		vec3 viewDir = normalize(cameraPos - v_position);
 		vec3 N = normalize(v_normal);

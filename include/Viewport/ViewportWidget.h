@@ -4,7 +4,10 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <utility>
+#include <QHash>
+#include <QUuid>
 #include <QVariantMap>
 class ToolsToolbar;
 
@@ -33,6 +36,7 @@ class ToolsToolbar;
 #include "SimulationVolumeController.h"
 #include "SimulationSliceController.h"
 #include "SimulationStreamlineController.h"
+#include "Plot3DAxisController.h"
 #include "MvfMeshPreparationWorker.h"
 #include "PlaneRenderable.h"
 #include "PlaneGizmo.h"
@@ -716,6 +720,9 @@ public:
 	// scene-mutation-specific needs to happen here
 	// beyond the revision bump.
 	void notifyRayTracedSceneMutated();
+	// Supplies per-mesh RGBA (4 floats per vertex) that the path tracer uses in place of the meshes' own vertex colours,
+	// for colours drawn as a display overlay (Plot3D, Simulation results). Evaluated each time a path-traced scene is built.
+	void setPathTracerColorProvider(std::function<QHash<QUuid, std::vector<float>>()> provider) { _pathTracerColorProvider = std::move(provider); }
 	// Animation playback/scrubbing is also a scene mutation, but for the GPU
 	// backend we want to drive the live interactive PT path with those new
 	// revisions instead of unconditionally dropping to raster/PBR. Falls back
@@ -1254,6 +1261,10 @@ signals:
 	// the mesh is still valid for the duration of this signal, but not
 	// after.
 	void meshAboutToBeDeleted(SceneMesh* mesh);
+	void meshRecycleStateChanged(const QUuid& uuid, bool inRecycleBin);
+	// Availability/visibility of the persistent Plot3D axis overlay changed. The shared 3D Plot panel uses this to
+	// follow the active document and changes made by a newly-built plot.
+	void plot3DAxisStateChanged(bool available, bool visible);
 
 	void windowZoomEnded();
 	void rotationsSet();
@@ -1528,6 +1539,8 @@ public:
 	// The vector-field arrows of a simulation result (see SimulationGlyphController.h): drawn on the result's mesh, in its
 	// pane in compare mode. An empty set clears them.
 	void setSimulationGlyphs(const QUuid& meshUuid, GlyphSet glyphs);
+	void setSimulationGlyphScale(const QUuid& meshUuid, float scale);
+	void setSimulationGlyphColors(const QUuid& meshUuid, std::vector<float> colors, float fieldMinimum, float fieldMaximum);
 	void clearSimulationGlyphs(const QUuid& meshUuid);
 
 	// The tensor-field ellipsoids of a simulation result (see SimulationTensorGlyphController.h): same shape as
@@ -1538,6 +1551,10 @@ public:
 	void setSimulationVolumeTransferFunction(const QUuid& meshUuid, int colormap, QVector<QPointF> opacity);
 	void clearSimulationVolume(const QUuid& meshUuid);
 	bool hasSimulationVolume(const QUuid& meshUuid) const;
+	// What the arrow / volume controllers currently hold for a mesh (null when none). Plot3D saves its Quiver and Voxel
+	// plots from these, since neither renderer's data lives in the plot's mesh.
+	const GlyphSet* simulationGlyphSet(const QUuid& meshUuid) const;
+	const VolumeGrid* simulationVolumeGrid(const QUuid& meshUuid) const;
 
 	// Cut surfaces of a simulation result's volume (data-coloured sections, iso-surfaces): see SimulationSliceController.h. An empty list clears them.
 	void setSimulationSlices(const QUuid& meshUuid, std::vector<SliceDisplay> slices);
@@ -1548,6 +1565,26 @@ public:
 	// The bounds (min xyz, max xyz) of a simulation result shown deformed. The Clipping Plane gizmos are sized from the scene bounds, which do not follow a mesh
 	// that is deformed; these widen them so they still cover the deformed model. An empty list clears them.
 	void setSimulationGizmoBounds(const QUuid& meshUuid, const QVector<float>& bounds);
+
+	// The 3D Plot (Plot3D module) axis box overlay: a labelled axis box with tick marks and optional reference
+	// planes, built by Plot3DAxisController::buildLayout() from a plot's own axis config and data bounds - NOT tied
+	// to any mesh (a plot may have no scene mesh yet while its data source is only being previewed). Only one
+	// layout is shown at a time. Visibility can be toggled without discarding the layout, so a persistent Plot3D
+	// panel can hide/show it after the import dialog has gone away.
+	void setPlot3DAxisLayout(const Plot3DAxisLayout& layout);
+	void clearPlot3DAxisLayout();
+	void setPlot3DAxisVisible(bool visible);
+	// Hover probe for Plot3D surfaces: while the cursor is over an enabled plot's surface, the curves where the X, Y and Z
+	// planes through the hovered point cut that surface are drawn, with the point's coordinates. Off by default.
+	void setPlot3DSectionProbeEnabled(const QUuid& meshUuid, bool enabled);
+	// Points drawn over a Plot3D mesh in its own coordinates (position(3) + colour(3) per point, `size` pixels): the moving
+	// heads of an animated pathline plot. Not scene content - not saved, exported, picked or path traced.
+	void setPlot3DPointOverlay(const QUuid& meshUuid, std::vector<float> positionsAndColours, float size);
+	void clearPlot3DPointOverlay(const QUuid& meshUuid);
+	bool plot3DSectionProbeEnabled(const QUuid& meshUuid) const { return _sectionProbeMeshes.contains(meshUuid); }
+	bool hasPlot3DAxisLayout() const { return _plot3DAxisLayout.has_value(); }
+	bool plot3DAxisVisible() const { return _plot3DAxisVisible && _plot3DAxisLayout.has_value(); }
+
 	// What is displayed for a result now (empty when nothing), for saving it in a snapshot.
 	std::vector<SliceDisplay> simulationSlices(const QUuid& meshUuid) const;
 	StreamlineDisplay simulationStreamlines(const QUuid& meshUuid) const;
@@ -1723,6 +1760,7 @@ private:
 	float computeFullyVisibleMinMeshRadius() const;
 	void  updateZoomInLimit();
 	bool isMeshAnimationVisible(const SceneMesh* mesh) const;
+	bool isMeshDisplayed(const QUuid& meshUuid) const;
 	bool isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex, bool includeVolumeReplacement = false) const;
 	bool sceneHasVisibleTransmissionMaterials() const;
 	bool sceneHasVisibleSSSMaterials() const;
@@ -1786,6 +1824,15 @@ private:
 	void drawFaceNormals();
 	void drawBoundingBoxOverlay();
 	void drawDebugOverlay(Camera* camera);
+	// The 3D Plot axis box/ticks/reference-planes overlay (Plot3D module) - a
+	// screen-space-labelled line overlay in the same style as
+	// drawBoundingBoxOverlay(), driven by whatever layout setPlot3DAxisLayout()
+	// last handed it rather than scene bounds. No-op when no layout is set.
+	void drawPlot3DAxisOverlay(Camera* camera);
+	void drawPlot3DSectionProbe(Camera* camera);
+	void drawPlot3DPointOverlays(Camera* camera);
+	void updatePlot3DSectionProbe(const QPoint& pixel);
+	void clearPlot3DSectionProbe();
 	void drawAxis(Camera* camera, const QMatrix4x4* overrideViewMatrix = nullptr);
 	void drawCornerAxis(CornerAxisPosition position, const QMatrix4x4* overrideRotationMatrix = nullptr);
 	void drawTransformGizmo(Camera* camera);
@@ -2063,6 +2110,20 @@ private:
 	// _floorTexRepeatS/T â†’ SceneRenderController (Phase 12)
 	TextRenderer* _textRenderer;
 	TextRenderer* _axisTextRenderer;
+	std::optional<Plot3DAxisLayout> _plot3DAxisLayout;
+	bool _plot3DAxisVisible = false;
+	// Hover section probe (see setPlot3DSectionProbeEnabled()). The per-mesh cache holds a compact copy of the positions
+	// and triangles because SceneMesh::vertices() copies the whole vertex array, far too heavy per mouse move.
+	struct SectionProbeCache { std::vector<float> positions; std::vector<unsigned int> indices; std::vector<int> neighbours; quint64 revision = ~0ull; };
+	struct Plot3DPointOverlay { std::vector<float> data; float size = 6.0f; };
+	QHash<QUuid, Plot3DPointOverlay> _plot3DPointOverlays;
+	QSet<QUuid> _sectionProbeMeshes;
+	QHash<QUuid, SectionProbeCache> _sectionProbeCaches;
+	QUuid _sectionProbeMesh;            // the mesh the curves below belong to (null = nothing drawn)
+	QVector3D _sectionProbePoint;       // hovered point in the mesh's own coordinates
+	std::vector<float> _sectionProbeLines; // pos(3) + colour(3) per vertex, mesh coordinates
+	QString _sectionProbeText;
+	QPoint _sectionProbePixel;
 	QString _labelTop, _labelFront, _labelLeft, _labelIsometric, _labelDimetric, _labelTrimetric;
 	QString _labelAxisX, _labelAxisY, _labelAxisZ;
 	QString _modelName;
@@ -2184,6 +2245,7 @@ private:
 	// can't be parented into Qt's object tree the way the two timers are.
 	RtInteractionController* _rtInteractionCtrl = nullptr;
 	uint64_t _rayTracedSceneRevision = 1;
+	std::function<QHash<QUuid, std::vector<float>>()> _pathTracerColorProvider;
 	int      _rayTracedFramebufferWidth = 0;
 	int      _rayTracedFramebufferHeight = 0;
 	bool     _preservePtPresenterOnNextStart = false;

@@ -10,7 +10,7 @@
 UVPromptDialog::UVPromptDialog(QWidget* parent)
     : QDialog(parent)
 {
-    setWindowTitle("UV Auto Generation Options");    
+    setWindowTitle(tr("UV Auto Generation Options"));    
     setWindowIcon(QIcon(":/icons/res/logo.png"));
     setModal(true);
 
@@ -24,9 +24,9 @@ UVPromptDialog::UVPromptDialog(QWidget* parent)
     layout->addWidget(iconLabel);
 
     QLabel* label = new QLabel(
-        QString("<b>Note:</b> Auto generation of UVs may take longer to load the model depending on the size and complexity."
-			"<br>Click Ok only if you need to apply textures, or choose Cancel<br>"
-			"<b>Tip:</b> If the model has more than 3000 triangles, consider using the Hybrid method for faster UV generation.</b><br><br>"
+        tr("<b>Note:</b> Auto generation of UVs may take longer to load the model depending on the size and complexity."
+            "<br>Click Ok only if you need to apply textures, or choose Cancel<br>"
+            "<b>Tip:</b> If the model has more than 3000 triangles, consider using the Hybrid method for faster UV generation.</b><br><br>"
             "Choose a UV generation method:"));
     label->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     label->setWordWrap(true);
@@ -34,31 +34,31 @@ UVPromptDialog::UVPromptDialog(QWidget* parent)
     label->setMaximumWidth(700);
     layout->addWidget(label);
 
-    QGroupBox* uvMethodGroup = new QGroupBox("UV Generation Methods");
+    QGroupBox* uvMethodGroup = new QGroupBox(tr("UV Generation Methods"));
     QVBoxLayout* radiolayout = new QVBoxLayout(uvMethodGroup);
         
-    _planarButton = new QRadioButton("Planar (Fast, Good for flat surfaces)");
+    _planarButton = new QRadioButton(tr("Planar (Fast, Good for flat surfaces)"));
     _planarButton->setToolTip(
-        "Uses planar shape detection.\nFast, but less accurate.");
-    _cylindricalButton = new QRadioButton("Cylindrical (Fast, only cylinders)");
+        tr("Uses planar shape detection.\nFast, but less accurate."));
+    _cylindricalButton = new QRadioButton(tr("Cylindrical (Fast, only cylinders)"));
     _cylindricalButton->setToolTip(
-        "Uses cylindrical shape detection.\nFast, but less accurate.");
-    _sphericalButton = new QRadioButton("Spherical (Fast, only spheres)");
+        tr("Uses cylindrical shape detection.\nFast, but less accurate."));
+    _sphericalButton = new QRadioButton(tr("Spherical (Fast, only spheres)"));
     _sphericalButton->setToolTip(
-        "Uses spherical shape detection.\nFast, but less accurate.");
-    _angleBasedButton = new QRadioButton("Angle Based (Fast, detects geometry crudely)");
+        tr("Uses spherical shape detection.\nFast, but less accurate."));
+    _angleBasedButton = new QRadioButton(tr("Angle Based (Fast, detects geometry crudely)"));
     _angleBasedButton->setToolTip(
-        "Uses basic shape detection based on angular deflection\n(planar, cylindrical, spherical).\nFast, but less accurate.");
-    _hybridButton = new QRadioButton("Hybrid (Fast)");
+        tr("Uses basic shape detection based on angular deflection\n(planar, cylindrical, spherical).\nFast, but less accurate."));
+    _hybridButton = new QRadioButton(tr("Hybrid (Fast)"));
     _hybridButton->setToolTip(
-        "Uses basic shape detection (planar, cylindrical, spherical).\nFast, but less accurate.");
-    _smartButton = new QRadioButton("Smart (Accurate)");
+        tr("Uses basic shape detection (planar, cylindrical, spherical).\nFast, but less accurate."));
+    _smartButton = new QRadioButton(tr("Smart (Accurate)"));
     _smartButton->setToolTip(
-        "Performs angle-based segmentation and PCA projection.\nMore accurate, seam/connectivity-based unwrapping.");
-    _smartProjectButton = new QRadioButton("Smart Project (Blender-style)");
+        tr("Performs angle-based segmentation and PCA projection.\nMore accurate, seam/connectivity-based unwrapping."));
+    _smartProjectButton = new QRadioButton(tr("Smart Project (Blender-style)"));
     _smartProjectButton->setToolTip(
-        "Ports Blender's Smart UV Project: clusters faces by normal similarity\n"
-        "(independent of mesh connectivity) and projects each cluster.\nGood for hard-surface/mechanical models.");
+        tr("Ports Blender's Smart UV Project: clusters faces by normal similarity\n"
+           "(independent of mesh connectivity) and projects each cluster.\nGood for hard-surface/mechanical models."));
 
     _buttonGroup = new QButtonGroup(this);
     _buttonGroup->addButton(_planarButton, Planar);
@@ -81,12 +81,12 @@ UVPromptDialog::UVPromptDialog(QWidget* parent)
 
     _smartButton->setChecked(true);
 
-    _rememberChoice = new QCheckBox("Remember Choice");
+    _rememberChoice = new QCheckBox(tr("Remember Choice"));
     layout->addWidget(_rememberChoice);
 
     QHBoxLayout* buttonsLayout = new QHBoxLayout;
-    _okButton = new QPushButton("Generate");
-    _cancelButton = new QPushButton("Don't");
+    _okButton = new QPushButton(tr("Generate"));
+    _cancelButton = new QPushButton(tr("Don't"));
     buttonsLayout->addStretch();
     buttonsLayout->addWidget(_okButton);
     buttonsLayout->addWidget(_cancelButton);

@@ -3,7 +3,10 @@
 #include "LanguageManager.h"
 #include "ViewportWidget.h"
 #include "PathUtils.h"
+#include "OverlayTextStyle.h"
 #include <QCheckBox>
+#include <QGroupBox>
+#include <QLabel>
 #include <QKeyEvent>
 #include <QFileDialog>
 #include <QDragEnterEvent>
@@ -109,10 +112,10 @@ private:
 	ViewportWidget* _viewportWidget = nullptr;
 };
 
-class OverlayEditorCheckBoxStyle : public QProxyStyle
+class OverlayEditorCheckBoxStyle : public OutlinedOverlayTextStyle
 {
 public:
-	using QProxyStyle::QProxyStyle;
+	using OutlinedOverlayTextStyle::OutlinedOverlayTextStyle;
 
 	void drawPrimitive(PrimitiveElement pe,
 		const QStyleOption* opt,
@@ -171,7 +174,7 @@ void installOverlayEditorCheckBoxStyle(QCheckBox* box)
 		return;
 
 	box->setProperty("overlayIndicatorLightText", false);
-	box->setStyle(new OverlayEditorCheckBoxStyle(box->style()));
+	box->setStyle(new OverlayEditorCheckBoxStyle());
 }
 
 
@@ -180,6 +183,10 @@ ClippingPlanesEditor::ClippingPlanesEditor(ViewportWidget* parent) :
 	_viewportWidget(parent)
 {
 	setupUi(this);
+	for (QLabel* label : findChildren<QLabel*>())
+		installOutlinedOverlayTextStyle(label);
+	for (QGroupBox* group : findChildren<QGroupBox*>())
+		installOutlinedOverlayTextStyle(group);
 	for (QCheckBox* box : findChildren<QCheckBox*>())
 		installOverlayEditorCheckBoxStyle(box);
 
@@ -232,12 +239,18 @@ void ClippingPlanesEditor::applyContrastTheme(const QColor& textColor)
 		.arg(textColor.blue());
 	setStyleSheet(editorStyle);
 
-	const QString blackTextStyle = QStringLiteral("color: rgb(0, 0, 0);");
 	const bool lightText = textColor.lightnessF() >= 0.5;
-	pushButtonResetCoeffs->setStyleSheet(blackTextStyle);
-	pushButtonResetAll->setStyleSheet(blackTextStyle);
-	pushButtonBoxReset->setStyleSheet(blackTextStyle);
-	pushButtonTexture->setStyleSheet(QStringLiteral("background-color: rgba(255, 255, 255, 5%); color: rgb(0, 0, 0);"));
+	const QColor fieldText = lightText ? QColor(255, 255, 255) : QColor(0, 0, 0);
+	const QColor fieldBackground = lightText ? QColor(24, 24, 24, 210) : QColor(255, 255, 255, 215);
+	const QColor fieldBorder = lightText ? QColor(255, 255, 255, 90) : QColor(0, 0, 0, 70);
+	const QString fieldStyle = QString("background-color: rgba(%1, %2, %3, %4); color: rgb(%5, %6, %7); border: 1px solid rgba(%8, %9, %10, %11); border-radius: 3px;")
+		.arg(fieldBackground.red()).arg(fieldBackground.green()).arg(fieldBackground.blue()).arg(fieldBackground.alpha())
+		.arg(fieldText.red()).arg(fieldText.green()).arg(fieldText.blue())
+		.arg(fieldBorder.red()).arg(fieldBorder.green()).arg(fieldBorder.blue()).arg(fieldBorder.alpha());
+	pushButtonResetCoeffs->setStyleSheet(fieldStyle);
+	pushButtonResetAll->setStyleSheet(fieldStyle);
+	pushButtonBoxReset->setStyleSheet(fieldStyle);
+	pushButtonTexture->setStyleSheet(fieldStyle);
 
 	for (QCheckBox* box : findChildren<QCheckBox*>())
 	{

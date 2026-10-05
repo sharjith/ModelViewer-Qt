@@ -183,6 +183,15 @@ void SceneRenderController::releaseGpuResources()
         _fillHolesOverlayVBO = 0;
     }
 
+    // Plot3D axis-box overlay
+    if (_plot3DAxisOverlayVAO != 0)
+    {
+        glDeleteBuffers(1, &_plot3DAxisOverlayVBO);
+        glDeleteVertexArrays(1, &_plot3DAxisOverlayVAO);
+        _plot3DAxisOverlayVAO = 0;
+        _plot3DAxisOverlayVBO = 0;
+    }
+
     if (!shareContexts && _punctualLights)
         _punctualLights->cleanup();
 
@@ -347,6 +356,21 @@ void SceneRenderController::initFillHolesOverlayGeometry(const std::vector<float
 
     glBindVertexArray(_fillHolesOverlayVAO);
     glBindBuffer(GL_ARRAY_BUFFER, _fillHolesOverlayVBO);
+    glBufferData(GL_ARRAY_BUFFER,
+                 static_cast<GLsizeiptr>(vertices.size() * sizeof(float)),
+                 vertices.data(),
+                 GL_DYNAMIC_DRAW);
+}
+
+void SceneRenderController::initPlot3DAxisOverlayGeometry(const std::vector<float>& vertices)
+{
+    if (_plot3DAxisOverlayVAO == 0)
+        glGenVertexArrays(1, &_plot3DAxisOverlayVAO);
+    if (_plot3DAxisOverlayVBO == 0)
+        glGenBuffers(1, &_plot3DAxisOverlayVBO);
+
+    glBindVertexArray(_plot3DAxisOverlayVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, _plot3DAxisOverlayVBO);
     glBufferData(GL_ARRAY_BUFFER,
                  static_cast<GLsizeiptr>(vertices.size() * sizeof(float)),
                  vertices.data(),

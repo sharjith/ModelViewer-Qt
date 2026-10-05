@@ -4967,7 +4967,7 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 			for (int i = 0; i < textLines.size(); ++i)
 			{
 				const float y = baseY - lineHeight * static_cast<float>(textLines.size() - 1 - i);
-				axisTextRenderer->RenderText(textLines[i].toStdString(),
+				axisTextRenderer->RenderHaloText(textLines[i].toStdString(),
 					projected.x(), y, 1,
 					QVector3D(1.0f, 1.0f, 1.0f), TextRenderer::VAlignment::VBOTTOM);
 			}

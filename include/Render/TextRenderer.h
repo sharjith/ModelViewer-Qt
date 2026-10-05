@@ -43,6 +43,11 @@ public:
 	// drawMeasurementOverlay()'s label loop for the pattern).
 	void RenderText(std::string text, float x, float y, float scale, QVector3D color = QVector3D(1.0f, 1.0f, 1.0f),
 		VAlignment vAlignment = VAlignment::VTOP, HAlignment _hAlignment = HAlignment::HLEFT);
+	// Legend-style text contrast for viewport overlays: draw an eight-neighbour
+	// contrasting halo, then the foreground glyphs.  Callers opt in so ordinary UI
+	// text keeps its existing appearance.
+	void RenderHaloText(std::string text, float x, float y, float scale, QVector3D color = QVector3D(1.0f, 1.0f, 1.0f),
+		VAlignment vAlignment = VAlignment::VTOP, HAlignment hAlignment = HAlignment::HLEFT);
 	// Pixel width a single-line RenderText() call would occupy - the exact
 	// per-glyph advance sum RenderText() itself accumulates while drawing
 	// (not the rougher 'H'-glyph-times-count estimate RenderText() uses

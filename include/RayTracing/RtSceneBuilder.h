@@ -6,7 +6,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include <QHash>
 #include <QString>
+#include <QUuid>
 #include <QVector3D>
 
 #include "BoundingBox.h"
@@ -147,7 +149,10 @@ public:
 		const RtEnvironment* environment = nullptr,
 		const RtFloorParams* floor = nullptr,
 		bool shadowsEnabled = true,
-		bool selfShadowsEnabled = true);
+		bool selfShadowsEnabled = true,
+		// Per-mesh RGBA (4 floats per vertex) standing in for the mesh's own vertex colours: colours the viewer draws
+		// as a display overlay (Plot3D, Simulation results) are not stored in the vertices.
+		const QHash<QUuid, std::vector<float>>* colorOverrides = nullptr);
 
 private:
 	// Identifies a fully-resolved RtTextureSample (source pixels + every
@@ -206,7 +211,7 @@ private:
 	// builds is never at risk of serving a stale cached copy.
 	using TextureDedupCache = std::unordered_map<TextureDedupKey, std::shared_ptr<RtTextureSample>, TextureDedupKeyHash>;
 
-	static RtMeshGeometry convertGeometry(const SceneMesh* mesh);
+	static RtMeshGeometry convertGeometry(const SceneMesh* mesh, const std::vector<float>* colorOverride = nullptr);
 
 	// Floor's RenderableMesh has no SceneMesh/Assimp material behind it (it's
 	// a procedural Plane with a plain Material set directly via

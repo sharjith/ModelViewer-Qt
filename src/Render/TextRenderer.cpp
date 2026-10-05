@@ -275,6 +275,22 @@ void TextRenderer::RenderText(std::string text, float x, float y, float scale, Q
 	glDisable(GL_BLEND);
 }
 
+void TextRenderer::RenderHaloText(std::string text, float x, float y, float scale, QVector3D color,
+	VAlignment vAlignment, HAlignment hAlignment)
+{
+	// Use the inverse contrast for dark foregrounds. A black halo around black
+	// glyphs adds coverage to the glyph itself and makes hover readouts appear bold.
+	const float luminance = color.x() * 0.2126f + color.y() * 0.7152f + color.z() * 0.0722f;
+	const QVector3D halo = luminance < 0.5f
+		? QVector3D(1.0f, 1.0f, 1.0f)
+		: QVector3D(0.0f, 0.0f, 0.0f);
+	for (int dx = -1; dx <= 1; ++dx)
+		for (int dy = -1; dy <= 1; ++dy)
+			if (dx != 0 || dy != 0)
+				RenderText(text, x + static_cast<float>(dx), y + static_cast<float>(dy), scale, halo, vAlignment, hAlignment);
+	RenderText(text, x, y, scale, color, vAlignment, hAlignment);
+}
+
 float TextRenderer::textWidth(const std::string& text, float scale) const
 {
 	// Must track RenderText()'s own _globalScale multiply exactly, or a

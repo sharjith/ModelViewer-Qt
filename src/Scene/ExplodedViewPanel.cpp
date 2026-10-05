@@ -9,9 +9,14 @@
 #include "SceneGraph.h"
 #include "SceneNode.h"
 #include "SelectionManager.h"
+#include "OverlayTextStyle.h"
 #include "RenderableMesh.h"
 
 #include <QAbstractItemModel>
+#include <QCheckBox>
+#include <QGroupBox>
+#include <QLabel>
+#include <QRadioButton>
 #include <QInputDialog>
 #include <QItemSelectionModel>
 #include <QJsonArray>
@@ -1018,6 +1023,14 @@ ExplodedViewPanel::ExplodedViewPanel(ViewportWidget* parent)
     , _viewportWidget(parent)
 {
     setupUi(this);
+    for (QLabel* label : findChildren<QLabel*>())
+        installOutlinedOverlayTextStyle(label);
+    for (QGroupBox* group : findChildren<QGroupBox*>())
+        installOutlinedOverlayTextStyle(group);
+    for (QCheckBox* box : findChildren<QCheckBox*>())
+        installOutlinedOverlayTextStyle(box);
+    for (QRadioButton* button : findChildren<QRadioButton*>())
+        installOutlinedOverlayTextStyle(button);
 
     // Without this, switching languages live in Settings left every string
     // in this panel showing whatever language was active when the app
@@ -1291,9 +1304,22 @@ void ExplodedViewPanel::applyContrastTheme(const QColor& textColor)
         .arg(textColor.blue());
     setStyleSheet(panelStyle);
 
-    const QString blackTextStyle = QStringLiteral("color: rgb(0, 0, 0);");
-    const QString translucentInputStyle = QStringLiteral("background-color: rgba(255, 255, 255, 10%); color: rgb(0, 0, 0);");
-    const QString translucentFrameStyle = QStringLiteral("background-color: rgba(255, 255, 255, 5%); color: rgb(0, 0, 0);");
+    const bool lightText = textColor.lightnessF() >= 0.5;
+    const QColor fieldText = lightText ? QColor(255, 255, 255) : QColor(0, 0, 0);
+    const QColor fieldBackground = lightText ? QColor(24, 24, 24, 210) : QColor(255, 255, 255, 215);
+    const QColor fieldBorder = lightText ? QColor(255, 255, 255, 90) : QColor(0, 0, 0, 70);
+    const QString translucentInputStyle = QString(
+        "background-color: rgba(%1, %2, %3, %4); color: rgb(%5, %6, %7); "
+        "border: 1px solid rgba(%8, %9, %10, %11); border-radius: 3px;")
+        .arg(fieldBackground.red()).arg(fieldBackground.green()).arg(fieldBackground.blue()).arg(fieldBackground.alpha())
+        .arg(fieldText.red()).arg(fieldText.green()).arg(fieldText.blue())
+        .arg(fieldBorder.red()).arg(fieldBorder.green()).arg(fieldBorder.blue()).arg(fieldBorder.alpha());
+    const QString translucentFrameStyle = QString(
+        "background-color: rgba(%1, %2, %3, %4); color: rgb(%5, %6, %7); "
+        "border: 1px solid rgba(%8, %9, %10, %11); border-radius: 3px;")
+        .arg(fieldBackground.red()).arg(fieldBackground.green()).arg(fieldBackground.blue()).arg(115)
+        .arg(fieldText.red()).arg(fieldText.green()).arg(fieldText.blue())
+        .arg(fieldBorder.red()).arg(fieldBorder.green()).arg(fieldBorder.blue()).arg(fieldBorder.alpha());
     const QString radioIndicatorStyle = QString(
         "QRadioButton { color: rgb(%1, %2, %3); }"
         "QRadioButton::indicator {"
@@ -1365,8 +1391,8 @@ void ExplodedViewPanel::applyContrastTheme(const QColor& textColor)
 
     if (radioButtonModeAuto) radioButtonModeAuto->setStyleSheet(radioIndicatorStyle);
     if (radioButtonModeManual) radioButtonModeManual->setStyleSheet(radioIndicatorStyle);
-    if (checkBoxLoopBack) checkBoxLoopBack->setStyleSheet(blackTextStyle);
-    if (checkBoxPreviewLoop) checkBoxPreviewLoop->setStyleSheet(blackTextStyle);
+    if (checkBoxLoopBack) checkBoxLoopBack->setStyleSheet(QString());
+    if (checkBoxPreviewLoop) checkBoxPreviewLoop->setStyleSheet(QString());
 }
 
 void ExplodedViewPanel::applyBackgroundTheme(const QColor& topColor, const QColor& bottomColor)
@@ -4171,15 +4197,11 @@ void ExplodedViewPanel::updateCapturedViewsList()
         item->setData(0, Qt::UserRole, step.id);
         item->setData(0, Qt::UserRole + 1, step.isGroup);
         const QVector<CapturedTransformTrack> tracks = step.isGroup ? resolvedTracksForStep(step) : step.tracks;
+        // Qt plural forms (%n), not "mesh" + an English "es" suffix: other languages inflect differently.
         item->setToolTip(0, step.isGroup
-            ? tr("%1 capture%2, %3 mesh%4")
-                .arg(step.children.size())
-                .arg(step.children.size() == 1 ? QString() : QStringLiteral("s"))
-                .arg(tracks.size())
-                .arg(tracks.size() == 1 ? QString() : QStringLiteral("es"))
-            : QStringLiteral("%1 mesh%2")
-                .arg(tracks.size())
-                .arg(tracks.size() == 1 ? QString() : QStringLiteral("es")));
+            ? tr("%n capture(s)", nullptr, static_cast<int>(step.children.size())) + QStringLiteral(", ")
+                + tr("%n mesh(es)", nullptr, static_cast<int>(tracks.size()))
+            : tr("%n mesh(es)", nullptr, static_cast<int>(tracks.size())));
         Qt::ItemFlags flags = item->flags() | Qt::ItemIsEditable;
         flags &= ~Qt::ItemIsDragEnabled;
         flags &= ~Qt::ItemIsDropEnabled;

@@ -45,11 +45,26 @@ private:
 		QMatrix4x4 transform;
 	};
 
+	// One tessellated ellipsoid in _cachedTriangles (kVerticesPerGlyph vertices each, in order) and the set it belongs to.
+	struct GlyphRange
+	{
+		QVector3D centre;
+		std::size_t setIndex = 0;
+	};
+	// Where one result's glyphs sit: the box of its glyph centres, used to size the glyphs against the camera distance.
+	struct SetExtent
+	{
+		QVector3D centre;
+		float diameter = 0.0f;
+	};
+
 	bool _glFunctionsInitialized = false;
 	SceneRenderController& _renderCtrl;
 	std::map<QUuid, TensorGlyphSet> _sets;
 	std::vector<MeshCacheKey> _cachedMeshes;
 	std::vector<float> _cachedTriangles;
+	std::vector<GlyphRange> _cachedGlyphs;
+	std::vector<SetExtent> _cachedExtents;
 	bool _cacheValid = false;
 	bool _bufferDirty = true;
 	unsigned int _vao = 0;

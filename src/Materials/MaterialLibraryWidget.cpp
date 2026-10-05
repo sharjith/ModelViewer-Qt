@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "MaterialLibraryWidget.h"
 #include "MaterialRegistry.h"
 #include <QTreeWidgetItem>
@@ -638,8 +639,8 @@ bool MaterialLibraryWidget::saveUserMaterialToUserLocation(const QString& groupL
 		{
 			QMessageBox::StandardButton reply =
 				QMessageBox::question(parent,
-					QStringLiteral("Overwrite Material?"),
-					QStringLiteral("A material with this key already exists. Overwrite it?"),
+					QCoreApplication::translate("MaterialLibraryWidget", "Overwrite Material?"),
+					QCoreApplication::translate("MaterialLibraryWidget", "A material with this key already exists. Overwrite it?"),
 					QMessageBox::Yes | QMessageBox::No,
 					QMessageBox::No);
 			if (reply != QMessageBox::Yes)
@@ -787,8 +788,8 @@ bool MaterialLibraryWidget::removeUserMaterialFromUserLocation(const QString& gr
 	{
 		QMessageBox::StandardButton reply =
 			QMessageBox::question(parent,
-				QStringLiteral("Remove Material?"),
-				QStringLiteral("Are you sure you want to remove this material from your library?"),
+				QCoreApplication::translate("MaterialLibraryWidget", "Remove Material?"),
+				QCoreApplication::translate("MaterialLibraryWidget", "Are you sure you want to remove this material from your library?"),
 				QMessageBox::Yes | QMessageBox::No,
 				QMessageBox::No);
 		if (reply != QMessageBox::Yes)
@@ -897,8 +898,8 @@ bool MaterialLibraryWidget::saveAllUserMaterials(const QString& filePath,
 		{
 			QMessageBox::StandardButton reply =
 				QMessageBox::question(parent,
-					QStringLiteral("Overwrite File?"),
-					QStringLiteral("The target file already exists. Overwrite it?"),
+					QCoreApplication::translate("MaterialLibraryWidget", "Overwrite File?"),
+					QCoreApplication::translate("MaterialLibraryWidget", "The target file already exists. Overwrite it?"),
 					QMessageBox::Yes | QMessageBox::No,
 					QMessageBox::No);
 			if (reply != QMessageBox::Yes)
