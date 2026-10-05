@@ -34,6 +34,7 @@
 class QTabWidget;
 class QTimer;
 struct MeshSurfaceAnchor;
+struct Plot3DMeshData;
 class SimulationLegendWidget;
 class SimulationTimelineWidget;
 class QToolButton;
@@ -644,6 +645,11 @@ public slots:
 	void refreshPlot3DAxes();
 	void refreshPlot3DLegend();
 	void applyPlot3DColourState(const QUuid& meshUuid, float minimum, float maximum, int colormap, int bands);
+	void setPlot3DAutomaticColourRange(const QUuid& meshUuid, bool automatic);
+	// Generated plots: record the definition Edit Plot reopens, and rebuild the plot's own mesh in place (same mesh, scene node,
+	// visibility, axes and colour settings) from freshly generated geometry.
+	void setPlot3DGeneratedSpec(const QUuid& meshUuid, const Plot3DGeneratedSpec& spec);
+	bool replacePlot3DMesh(const QUuid& meshUuid, const Plot3DMeshData& data, unsigned int primitiveMode);
 	void applyPlot3DAppearance(const QUuid& meshUuid, float lineWidth, float markerSize, float arrowScale);
 	void applyPlot3DBarAppearance(const QUuid& meshUuid, float widthScale, float depthScale);
 	void setPlot3DContourLevels(const QUuid& meshUuid, int levels);

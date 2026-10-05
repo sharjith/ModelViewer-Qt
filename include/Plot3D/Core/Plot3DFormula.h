@@ -61,6 +61,21 @@ struct Plot3DFormulaVectorPreset
 	QVector<Plot3DFormulaParameter> parameters;
 };
 
+// Time-dependent vector field (u, v, w may use x, y, z AND t) whose pathlines - the trajectories of particles released
+// at t = tMinimum and carried by the changing field - are traced from a column of seeds.
+struct Plot3DPathlinePreset
+{
+	QString name;
+	QString title;
+	QString uExpression, vExpression, wExpression;
+	double xMinimum = -4.0, xMaximum = 4.0;
+	double yMinimum = -4.0, yMaximum = 4.0;
+	int seeds = 12;
+	double tMinimum = 0.0, tMaximum = 10.0;
+	int steps = 200;
+	QVector<Plot3DFormulaParameter> parameters;
+};
+
 struct Plot3DImplicitPreset
 {
 	QString name;
@@ -78,6 +93,7 @@ QVector<Plot3DParametricPreset> plot3DParametricPresets();
 QVector<Plot3DParametricCurvePreset> plot3DParametricCurvePresets();
 QVector<Plot3DFormulaVectorPreset> plot3DFormulaVectorPresets();
 QVector<Plot3DImplicitPreset> plot3DImplicitPresets();
+QVector<Plot3DPathlinePreset> plot3DPathlinePresets();
 bool evaluatePlot3DFormula(const QString& expression, double x, double y,
 	const QHash<QString, double>& parameters, double& result, QString* error = nullptr);
 bool evaluatePlot3DFormula3D(const QString& expression, double x, double y, double z,
@@ -94,6 +110,18 @@ bool buildPlot3DParametricCurve(const QString& xExpression, const QString& yExpr
 bool buildPlot3DFormulaVectorField(const QString& uExpression, const QString& vExpression, const QString& wExpression,
 	double xMinimum, double xMaximum, int xSamples, double yMinimum, double yMaximum, int ySamples,
 	const QHash<QString, double>& parameters, Plot3DQuiverData& out, QString* error = nullptr);
+// Like evaluatePlot3DFormula3D() but with a time: here `t` is the time argument (not an alias of x, as it is in the other
+// evaluators), so a field can vary in time. x, y and z keep their meaning; u and v stay aliases of x and y.
+bool evaluatePlot3DFormula4D(const QString& expression, double x, double y, double z, double t,
+	const QHash<QString, double>& parameters, double& result, QString* error = nullptr);
+// Pathlines of the time-dependent field (u, v, w)(x, y, z, t): particles released at t = tMinimum from `seedCount` seeds
+// spread along Y at the middle of the X range (z = 0) are advanced with classical RK4 through `steps` equal time steps up to
+// tMaximum, stopping early when one leaves the x / y domain or the field vanishes. Output is GL_LINES-style vertex pairs
+// (like the streamlines) whose value is the time at that vertex, so the trails colour by time.
+bool buildPlot3DFormulaPathlines(const QString& uExpression, const QString& vExpression, const QString& wExpression,
+	double xMinimum, double xMaximum, double yMinimum, double yMaximum, int seedCount,
+	double tMinimum, double tMaximum, int steps, const QHash<QString, double>& parameters,
+	Plot3DMeshData& out, QString* error = nullptr);
 bool buildPlot3DFormulaStreamlines(const QString& uExpression, const QString& vExpression, const QString& wExpression,
 	double xMinimum, double xMaximum, double yMinimum, double yMaximum, int seedCount,
 	const QHash<QString, double>& parameters, Plot3DMeshData& out, QString* error = nullptr);

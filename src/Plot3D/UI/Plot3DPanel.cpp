@@ -36,6 +36,7 @@
 #include <QPlainTextEdit>
 #include <QPointF>
 #include <QPushButton>
+#include <QSettings>
 #include <QTableWidget>
 #include <QSpinBox>
 #include <QVBoxLayout>
@@ -310,6 +311,13 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	setWindowTitle(tr("Add 3D Plot"));
 	setWindowIcon(QIcon(QStringLiteral(":/icons/res/plot3d.png")));
 	resize(760, 560);
+	// Position and size are remembered between uses (one saved geometry shared by Add and Edit).
+	{
+		QSettings settings;
+		const QByteArray geometry = settings.value(QStringLiteral("plot3dPanel/geometry")).toByteArray();
+		if (!geometry.isEmpty())
+			restoreGeometry(geometry);
+	}
 
 	auto* layout = new QVBoxLayout(this);
 	_sourceMode = new QComboBox(this);
@@ -320,6 +328,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	_sourceMode->addItem(tr("Formula vector field"), 4);
 	_sourceMode->addItem(tr("Implicit surface"), 5);
 	_sourceMode->addItem(tr("Formula streamlines"), 6);
+	_sourceMode->addItem(tr("Formula pathlines (time-dependent)"), 7);
 	// Labelled so it is clear the first combo chooses where the plot's data comes from (a file, or a formula / definition).
 	auto* sourceRow = new QHBoxLayout();
 	sourceRow->addWidget(new QLabel(tr("Data source:"), this));
@@ -382,6 +391,9 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	_implicitPreset = new QComboBox(_formulaGroup);
 	_implicitPresets = plot3DImplicitPresets();
 	for (const Plot3DImplicitPreset& preset : _implicitPresets) _implicitPreset->addItem(preset.name);
+	_pathlinePreset = new QComboBox(_formulaGroup);
+	_pathlinePresets = plot3DPathlinePresets();
+	for (const Plot3DPathlinePreset& preset : _pathlinePresets) _pathlinePreset->addItem(preset.name);
 	_formulaTitle = new QLineEdit(_formulaGroup);
 	_formulaExpression = new QLineEdit(_formulaGroup);
 	_parametricX = new QLineEdit(_formulaGroup); _parametricY = new QLineEdit(_formulaGroup); _parametricZ = new QLineEdit(_formulaGroup);
@@ -396,6 +408,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	_parametricCurvePresetLabel = new QLabel(tr("Curve preset:"), _formulaGroup);
 	_formulaVectorPresetLabel = new QLabel(tr("Vector preset:"), _formulaGroup);
 	_implicitPresetLabel = new QLabel(tr("Implicit preset:"), _formulaGroup);
+	_pathlinePresetLabel = new QLabel(tr("Pathline preset:"), _formulaGroup);
 	_formulaExpressionLabel = new QLabel(tr("z ="), _formulaGroup);
 	_parametricXLabel = new QLabel(tr("x(u,v) ="), _formulaGroup);
 	_parametricYLabel = new QLabel(tr("y(u,v) ="), _formulaGroup);
@@ -409,6 +422,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	_formulaLayout->addRow(_parametricCurvePresetLabel, _parametricCurvePreset);
 	_formulaLayout->addRow(_formulaVectorPresetLabel, _formulaVectorPreset);
 	_formulaLayout->addRow(_implicitPresetLabel, _implicitPreset);
+	_formulaLayout->addRow(_pathlinePresetLabel, _pathlinePreset);
 	// The Primitive combo below belongs to the table (CSV) mapping and is hidden for generated sources, so a formula
 	// surface chooses between its two meaningful plot types here and drives that same combo.
 	_formulaPlotTypeLabel = new QLabel(tr("Plot type:"), _formulaGroup);
@@ -523,7 +537,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 
 	connect(openButton, &QPushButton::clicked, this, &Plot3DPanel::loadCsvFile);
 	connect(pasteButton, &QPushButton::clicked, this, &Plot3DPanel::pasteData);
-	connect(parseButton, &QPushButton::clicked, this, [this] { const int sourceMode = _sourceMode->currentData().toInt(); if (sourceMode == 5) refreshImplicitPreview(); else if (sourceMode == 4 || sourceMode == 6) refreshFormulaVectorPreview(); else if (sourceMode == 3) refreshParametricCurvePreview(); else if (sourceMode == 2) refreshParametricPreview(); else if (sourceMode == 1) refreshFormulaPreview(); else refreshPreview(); });
+	connect(parseButton, &QPushButton::clicked, this, [this] { const int sourceMode = _sourceMode->currentData().toInt(); if (sourceMode == 7) refreshPathlinePreview(); else if (sourceMode == 5) refreshImplicitPreview(); else if (sourceMode == 4 || sourceMode == 6) refreshFormulaVectorPreview(); else if (sourceMode == 3) refreshParametricCurvePreview(); else if (sourceMode == 2) refreshParametricPreview(); else if (sourceMode == 1) refreshFormulaPreview(); else refreshPreview(); });
 	connect(_delimiter, &QComboBox::currentIndexChanged, this, &Plot3DPanel::refreshPreview);
 	connect(_header, &QCheckBox::toggled, this, &Plot3DPanel::refreshPreview);
 	connect(_sourceMode, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::updateSourceMode);
@@ -537,6 +551,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	connect(_parametricCurvePreset, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::applyParametricCurvePreset);
 	connect(_formulaVectorPreset, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::applyFormulaVectorPreset);
 	connect(_implicitPreset, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::applyImplicitPreset);
+	connect(_pathlinePreset, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::applyPathlinePreset);
 	connect(_primitive, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::updateScatterOptions);
 	connect(_primitive, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::updateContourOverlayRow);
 	connect(_stemEnabled, &QCheckBox::toggled, this, &Plot3DPanel::updateScatterOptions);
@@ -562,9 +577,17 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	applyParametricCurvePreset();
 	applyFormulaVectorPreset();
 	applyImplicitPreset();
+	applyPathlinePreset();
 	updateSourceMode();
 	updateScatterOptions();
 	updateContourOverlayRow();
+}
+
+void Plot3DPanel::done(int result)
+{
+	QSettings settings;
+	settings.setValue(QStringLiteral("plot3dPanel/geometry"), saveGeometry());
+	QDialog::done(result);
 }
 
 Plot3DPanel::~Plot3DPanel()
@@ -580,6 +603,11 @@ void Plot3DPanel::loadPlotForEditing(const QUuid& meshUuid)
 	const auto it = std::find_if(sessions.cbegin(), sessions.cend(), [&meshUuid](const Plot3DSession& session) {
 		return session.meshUuid == meshUuid;
 	});
+	if (it != sessions.cend() && it->generated.valid && !it->editableCsv)
+	{
+		loadGeneratedPlotForEditing(*it);
+		return;
+	}
 	if (it == sessions.cend() || !it->editableCsv)
 		return;
 
@@ -640,6 +668,17 @@ void Plot3DPanel::previewPlot()
 		return;
 
 	const int sourceMode = _sourceMode->currentData().toInt();
+	if (sourceMode == 7)
+	{
+		QHash<QString, double> parameters; for (auto it = _formulaParameterEditors.cbegin(); it != _formulaParameterEditors.cend(); ++it) parameters.insert(it.key(), it.value()->value());
+		Plot3DMeshData mesh; QString error;
+		if (!buildPlot3DFormulaPathlines(_parametricX->text(), _parametricY->text(), _parametricZ->text(), _formulaXMinimum->value(), _formulaXMaximum->value(), _formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), _formulaZMinimum->value(), _formulaZMaximum->value(), _formulaZSamples->value(), parameters, mesh, &error)) { QMessageBox::warning(this, tr("Preview Plot"), error); return; }
+		double minimum[3] = { std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max() }, maximum[3] = { std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest() };
+		for (std::size_t i = 0; i < mesh.vertexCount(); ++i) for (int axis = 0; axis < 3; ++axis) { minimum[axis] = std::min(minimum[axis], static_cast<double>(mesh.positions[i * 3 + axis])); maximum[axis] = std::max(maximum[axis], static_cast<double>(mesh.positions[i * 3 + axis])); }
+		const std::array<Plot3DAxisConfig, 3> axes = { Plot3DAxisConfig{ QStringLiteral("X") }, Plot3DAxisConfig{ QStringLiteral("Y") }, Plot3DAxisConfig{ QStringLiteral("Z") } };
+		if (!showPlot3DPreview(_modelViewer, mesh, GL_LINES, axes, minimum, maximum, _formulaTitle->text().trimmed())) QMessageBox::warning(this, tr("Preview Plot"), tr("The pathline preview could not be created."));
+		return;
+	}
 	if (sourceMode == 6)
 	{
 		QHash<QString, double> parameters; for (auto it = _formulaParameterEditors.cbegin(); it != _formulaParameterEditors.cend(); ++it) parameters.insert(it.key(), it.value()->value());
@@ -904,8 +943,9 @@ void Plot3DPanel::updateSourceMode()
 	const bool generated = sourceMode != 0;
 	const bool parametricSurface = sourceMode == 2;
 	const bool parametricCurve = sourceMode == 3;
-	const bool vectorField = sourceMode == 4 || sourceMode == 6;
-	const bool streamlines = sourceMode == 6;
+	const bool pathlines = sourceMode == 7;
+	const bool vectorField = sourceMode == 4 || sourceMode == 6 || pathlines;
+	const bool streamlines = sourceMode == 6 || pathlines;
 	const bool implicitSurface = sourceMode == 5;
 	const bool parametric = parametricSurface || parametricCurve;
 	auto setVisible = [](QLabel* label, QWidget* field, bool visible)
@@ -916,7 +956,7 @@ void Plot3DPanel::updateSourceMode()
 	_tableSourceWidget->setVisible(!generated);
 	_mappingWidget->setVisible(!generated);
 	_formulaGroup->setVisible(generated);
-	_formulaGroup->setTitle(implicitSurface ? tr("Implicit surface") : (streamlines ? tr("Formula streamlines") : (vectorField ? tr("Formula vector field") : (parametricCurve ? tr("Parametric curve") : (parametricSurface ? tr("Parametric surface") : tr("Formula surface"))))));
+	_formulaGroup->setTitle(implicitSurface ? tr("Implicit surface") : (pathlines ? tr("Formula pathlines") : streamlines ? tr("Formula streamlines") : (vectorField ? tr("Formula vector field") : (parametricCurve ? tr("Parametric curve") : (parametricSurface ? tr("Parametric surface") : tr("Formula surface"))))));
 	_delimiter->setEnabled(!generated);
 	_header->setEnabled(!generated);
 	_source->setEnabled(!generated);
@@ -924,7 +964,8 @@ void Plot3DPanel::updateSourceMode()
 	setVisible(_formulaPlotTypeLabel, _formulaPlotType, sourceMode == 1);
 	setVisible(_parametricPresetLabel, _parametricPreset, parametricSurface);
 	setVisible(_parametricCurvePresetLabel, _parametricCurvePreset, parametricCurve);
-	setVisible(_formulaVectorPresetLabel, _formulaVectorPreset, vectorField);
+	setVisible(_formulaVectorPresetLabel, _formulaVectorPreset, vectorField && !pathlines);
+	setVisible(_pathlinePresetLabel, _pathlinePreset, pathlines);
 	setVisible(_implicitPresetLabel, _implicitPreset, implicitSurface);
 	setVisible(_formulaExpressionLabel, _formulaExpression, !parametric && !vectorField);
 	setVisible(_parametricXLabel, _parametricX, parametric || vectorField);
@@ -933,13 +974,14 @@ void Plot3DPanel::updateSourceMode()
 	_formulaXRangeLabel->setText(parametricCurve ? tr("T range / samples:") : (parametricSurface ? tr("U range / samples:") : tr("X range / samples:")));
 	_formulaYRangeLabel->setText(parametricSurface ? tr("V range / samples:") : tr("Y range / samples:"));
 	_formulaLayout->setRowVisible(_formulaYRangeLabel, !parametricCurve);
-	_formulaLayout->setRowVisible(_formulaZRangeLabel, implicitSurface);
+	_formulaLayout->setRowVisible(_formulaZRangeLabel, implicitSurface || pathlines);
+	_formulaZRangeLabel->setText(pathlines ? tr("T range / steps:") : tr("Z range / samples:"));
 	_formulaXSamples->setMaximum(parametricCurve ? 8192 : ((vectorField || implicitSurface) ? (implicitSurface ? 64 : 128) : 512));
 	_formulaYSamples->setMaximum((vectorField || implicitSurface) ? (implicitSurface ? 64 : 128) : 512);
-	_formulaZSamples->setMaximum(implicitSurface ? 64 : 8192);
-	_parametricXLabel->setText(vectorField ? tr("u(x,y) =") : (parametricCurve ? tr("x(t) =") : tr("x(u,v) =")));
-	_parametricYLabel->setText(vectorField ? tr("v(x,y) =") : (parametricCurve ? tr("y(t) =") : tr("y(u,v) =")));
-	_parametricZLabel->setText(vectorField ? tr("w(x,y) =") : (parametricCurve ? tr("z(t) =") : tr("z(u,v) =")));
+	_formulaZSamples->setMaximum(implicitSurface ? 64 : (pathlines ? 2000 : 8192));
+	_parametricXLabel->setText(pathlines ? tr("u(x,y,z,t) =") : vectorField ? tr("u(x,y) =") : (parametricCurve ? tr("x(t) =") : tr("x(u,v) =")));
+	_parametricYLabel->setText(pathlines ? tr("v(x,y,z,t) =") : vectorField ? tr("v(x,y) =") : (parametricCurve ? tr("y(t) =") : tr("y(u,v) =")));
+	_parametricZLabel->setText(pathlines ? tr("w(x,y,z,t) =") : vectorField ? tr("w(x,y) =") : (parametricCurve ? tr("z(t) =") : tr("z(u,v) =")));
 	if (generated)
 	{
 		// Formula fields can also make contours. Parametric coordinates have a
@@ -961,6 +1003,8 @@ void Plot3DPanel::updateSourceMode()
 			applyParametricPreset();
 		else if (parametricCurve)
 			applyParametricCurvePreset();
+		else if (pathlines)
+			applyPathlinePreset();
 		else if (vectorField)
 			applyFormulaVectorPreset();
 		else if (implicitSurface)
@@ -1088,6 +1132,33 @@ void Plot3DPanel::refreshParametricCurvePreview()
 	}
 	_status->setStyleSheet(QString());
 	_status->setText(tr("Parametric curve evaluated at %1 points.").arg(curve.samples.size()));
+	_buildButton->setEnabled(true);
+}
+
+void Plot3DPanel::applyPathlinePreset()
+{
+	const int index = _pathlinePreset->currentIndex();
+	if (index < 0 || index >= _pathlinePresets.size()) return;
+	const Plot3DPathlinePreset& preset = _pathlinePresets[index];
+	_parametricX->setText(preset.uExpression); _parametricY->setText(preset.vExpression); _parametricZ->setText(preset.wExpression);
+	_formulaTitle->setText(preset.title);
+	_formulaXMinimum->setValue(preset.xMinimum); _formulaXMaximum->setValue(preset.xMaximum);
+	_formulaYMinimum->setValue(preset.yMinimum); _formulaYMaximum->setValue(preset.yMaximum); _formulaYSamples->setValue(preset.seeds);
+	_formulaZMinimum->setValue(preset.tMinimum); _formulaZMaximum->setValue(preset.tMaximum); _formulaZSamples->setValue(preset.steps);
+	while (QLayoutItem* item = _formulaParameters->takeAt(0)) { delete item->widget(); delete item; }
+	_formulaParameterEditors.clear();
+	for (const Plot3DFormulaParameter& parameter : preset.parameters) { auto* editor = new QDoubleSpinBox(_formulaGroup); editor->setRange(parameter.minimum, parameter.maximum); editor->setDecimals(6); editor->setValue(parameter.value); _formulaParameters->addRow(parameter.name + QStringLiteral(":"), editor); _formulaParameterEditors.insert(parameter.name.toLower(), editor); }
+	if (_sourceMode->currentData().toInt() == 7) refreshPathlinePreview();
+}
+
+void Plot3DPanel::refreshPathlinePreview()
+{
+	QHash<QString, double> parameters; for (auto it = _formulaParameterEditors.cbegin(); it != _formulaParameterEditors.cend(); ++it) parameters.insert(it.key(), it.value()->value());
+	Plot3DMeshData pathlines; QString error;
+	if (!buildPlot3DFormulaPathlines(_parametricX->text(), _parametricY->text(), _parametricZ->text(), _formulaXMinimum->value(), _formulaXMaximum->value(), _formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), _formulaZMinimum->value(), _formulaZMaximum->value(), _formulaZSamples->value(), parameters, pathlines, &error))
+	{ _status->setText(error); _status->setStyleSheet(QStringLiteral("color: #d9534f;")); _buildButton->setEnabled(false); return; }
+	_status->setStyleSheet(QString());
+	_status->setText(tr("Pathlines from %1 seeds over t = %2 to %3 (%4 segments), coloured by time.").arg(_formulaYSamples->value()).arg(_formulaZMinimum->value()).arg(_formulaZMaximum->value()).arg(pathlines.vertexCount() / 2));
 	_buildButton->setEnabled(true);
 }
 
@@ -1228,8 +1299,11 @@ void Plot3DPanel::buildParametricCurvePlot()
 	Plot3DLineData curve;
 	Plot3DMeshData data;
 	QString error;
-	const bool streamlines = _sourceMode->currentData().toInt() == 6;
-	const bool built = streamlines
+	const bool pathlines = _sourceMode->currentData().toInt() == 7;
+	const bool streamlines = _sourceMode->currentData().toInt() == 6 || pathlines;
+	const bool built = pathlines
+		? buildPlot3DFormulaPathlines(_parametricX->text(), _parametricY->text(), _parametricZ->text(), _formulaXMinimum->value(), _formulaXMaximum->value(), _formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), _formulaZMinimum->value(), _formulaZMaximum->value(), _formulaZSamples->value(), parameters, data, &error)
+		: streamlines
 		? buildPlot3DFormulaStreamlines(_parametricX->text(), _parametricY->text(), _parametricZ->text(), _formulaXMinimum->value(), _formulaXMaximum->value(), _formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), parameters, data, &error)
 		: (buildPlot3DParametricCurve(_parametricX->text(), _parametricY->text(), _parametricZ->text(),
 			_formulaXMinimum->value(), _formulaXMaximum->value(), _formulaXSamples->value(), parameters, curve, &error)
@@ -1244,7 +1318,7 @@ void Plot3DPanel::buildParametricCurvePlot()
 	ViewportWidget* viewport = _modelViewer->getViewportWidget();
 	const QString title = _formulaTitle->text().trimmed();
 	const QString baseName = viewport->generateUniqueMeshName(
-		tr("Plot3D %1").arg(title.isEmpty() ? tr("Parametric Curve") : title));
+		tr("Plot3D %1").arg(title.isEmpty() ? (pathlines ? tr("Pathlines") : tr("Parametric Curve")) : title));
 	std::vector<Vertex> vertices(data.vertexCount());
 	std::vector<float> values(data.vertexCount());
 	std::vector<bool> valid(data.vertexCount(), true);
@@ -1474,14 +1548,229 @@ void Plot3DPanel::refreshColumnCombos(bool resetForNewSchema)
 	populate(_columnError, true, -1, { QStringLiteral("error"), QStringLiteral("errorz"), QStringLiteral("uncertainty"), QStringLiteral("stddev") });
 }
 
+QComboBox* Plot3DPanel::presetComboForMode(int sourceMode) const
+{
+	switch (sourceMode)
+	{
+	case 1: return _formulaPreset;
+	case 2: return _parametricPreset;
+	case 3: return _parametricCurvePreset;
+	case 4: case 6: return _formulaVectorPreset;
+	case 5: return _implicitPreset;
+	case 7: return _pathlinePreset;
+	default: return nullptr;
+	}
+}
+
+Plot3DGeneratedSpec Plot3DPanel::currentGeneratedSpec() const
+{
+	Plot3DGeneratedSpec spec;
+	spec.valid = true;
+	spec.sourceMode = _sourceMode->currentData().toInt();
+	if (const QComboBox* preset = presetComboForMode(spec.sourceMode))
+		spec.presetIndex = preset->currentIndex();
+	spec.title = _formulaTitle->text().trimmed();
+	spec.expression = _formulaExpression->text();
+	spec.xExpression = _parametricX->text(); spec.yExpression = _parametricY->text(); spec.zExpression = _parametricZ->text();
+	spec.xMinimum = _formulaXMinimum->value(); spec.xMaximum = _formulaXMaximum->value();
+	spec.yMinimum = _formulaYMinimum->value(); spec.yMaximum = _formulaYMaximum->value();
+	spec.zMinimum = _formulaZMinimum->value(); spec.zMaximum = _formulaZMaximum->value();
+	spec.xSamples = _formulaXSamples->value(); spec.ySamples = _formulaYSamples->value(); spec.zSamples = _formulaZSamples->value();
+	// In the order the dialog lists them (the editor map is unordered).
+	for (int row = 0; row < _formulaParameters->rowCount(); ++row)
+	{
+		const QLayoutItem* label = _formulaParameters->itemAt(row, QFormLayout::LabelRole);
+		const QLayoutItem* field = _formulaParameters->itemAt(row, QFormLayout::FieldRole);
+		const auto* name = label ? qobject_cast<QLabel*>(label->widget()) : nullptr;
+		const auto* editor = field ? qobject_cast<QDoubleSpinBox*>(field->widget()) : nullptr;
+		if (name && editor)
+		{
+			QString text = name->text();
+			if (text.endsWith(QLatin1Char(':')))
+				text.chop(1);
+			spec.parameters.emplace_back(text, editor->value());
+		}
+	}
+	return spec;
+}
+
+void Plot3DPanel::loadGeneratedPlotForEditing(const Plot3DSession& session)
+{
+	const Plot3DGeneratedSpec& spec = session.generated;
+	clearPreview();
+	_editingMeshUuid = session.meshUuid;
+	setWindowTitle(tr("Edit 3D Plot - %1").arg(session.name));
+	_buildButton->setText(tr("Rebuild Plot"));
+	// Choosing the source runs updateSourceMode(), which applies that source's preset; the saved definition is put back after it.
+	_sourceMode->setCurrentIndex(_sourceMode->findData(spec.sourceMode));
+	_sourceMode->setEnabled(false);
+	_primitive->setCurrentIndex(_primitive->findData(static_cast<int>(session.primitive)));
+	_primitive->setEnabled(false);
+	_formulaPlotType->setEnabled(false); // a rebuild keeps the plot's type; changing it means building a new plot
+	updateSourceMode();
+	// Show the preset the plot was started from. Blocked: selecting it must not reapply that preset over the saved definition.
+	if (QComboBox* preset = presetComboForMode(spec.sourceMode))
+	{
+		if (spec.presetIndex >= 0 && spec.presetIndex < preset->count())
+		{
+			const QSignalBlocker presetBlock(preset);
+			preset->setCurrentIndex(spec.presetIndex);
+		}
+		// Locked while editing: picking another preset would overwrite the definition being edited. Change the expressions,
+		// ranges and parameters directly instead, or build a new plot from the other preset.
+		preset->setEnabled(false);
+	}
+	_parametricX->setText(spec.xExpression); _parametricY->setText(spec.yExpression); _parametricZ->setText(spec.zExpression);
+	_formulaExpression->setText(spec.expression);
+	_formulaTitle->setText(spec.title);
+	_formulaXMinimum->setValue(spec.xMinimum); _formulaXMaximum->setValue(spec.xMaximum); _formulaXSamples->setValue(spec.xSamples);
+	_formulaYMinimum->setValue(spec.yMinimum); _formulaYMaximum->setValue(spec.yMaximum); _formulaYSamples->setValue(spec.ySamples);
+	_formulaZMinimum->setValue(spec.zMinimum); _formulaZMaximum->setValue(spec.zMaximum); _formulaZSamples->setValue(spec.zSamples);
+	while (QLayoutItem* item = _formulaParameters->takeAt(0)) { delete item->widget(); delete item; }
+	_formulaParameterEditors.clear();
+	for (const auto& parameter : spec.parameters)
+	{
+		auto* editor = new QDoubleSpinBox(_formulaGroup);
+		editor->setRange(-1.0e6, 1.0e6);
+		editor->setDecimals(6);
+		editor->setValue(parameter.second);
+		_formulaParameters->addRow(parameter.first + QStringLiteral(":"), editor);
+		_formulaParameterEditors.insert(parameter.first.toLower(), editor);
+	}
+	// The matching preview refresh validates the restored definition and enables Rebuild.
+	switch (spec.sourceMode)
+	{
+	case 1: refreshFormulaPreview(); break;
+	case 2: refreshParametricPreview(); break;
+	case 3: refreshParametricCurvePreview(); break;
+	case 4: case 6: refreshFormulaVectorPreview(); break;
+	case 5: refreshImplicitPreview(); break;
+	case 7: refreshPathlinePreview(); break;
+	default: break;
+	}
+	_status->setText(tr("Editing '%1'. Rebuild updates the existing tree entry and keeps its presentation settings.").arg(session.name));
+}
+
+void Plot3DPanel::rebuildGeneratedPlot()
+{
+	if (!_modelViewer || !_modelViewer->getViewportWidget())
+		return;
+	const QVector<Plot3DSession> sessions = _modelViewer->plot3DSessions();
+	const auto found = std::find_if(sessions.cbegin(), sessions.cend(), [this](const Plot3DSession& session) { return session.meshUuid == _editingMeshUuid; });
+	if (found == sessions.cend())
+	{
+		QMessageBox::warning(this, tr("Rebuild Plot"), tr("The plot is no longer available."));
+		return;
+	}
+
+	const int mode = _sourceMode->currentData().toInt();
+	QHash<QString, double> parameters;
+	for (auto it = _formulaParameterEditors.cbegin(); it != _formulaParameterEditors.cend(); ++it)
+		parameters.insert(it.key(), it.value()->value());
+	QString error;
+	bool ok = false;
+
+	if (mode == 1 || mode == 3 || mode == 4)
+	{
+		// Sources whose data is a dataset go through the same in-place rebuild a CSV plot uses.
+		Plot3DDataset dataset;
+		dataset.primitive = found->primitive;
+		if (mode == 1)
+		{
+			Plot3DSurfaceData surface;
+			ok = buildPlot3DFormulaSurface(_formulaExpression->text(), _formulaXMinimum->value(), _formulaXMaximum->value(), _formulaXSamples->value(),
+				_formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), parameters, surface, &error);
+			dataset.content = std::move(surface);
+		}
+		else if (mode == 3)
+		{
+			Plot3DLineData curve;
+			ok = buildPlot3DParametricCurve(_parametricX->text(), _parametricY->text(), _parametricZ->text(), _formulaXMinimum->value(),
+				_formulaXMaximum->value(), _formulaXSamples->value(), parameters, curve, &error);
+			dataset.content = std::move(curve);
+		}
+		else
+		{
+			Plot3DQuiverData vectors;
+			ok = buildPlot3DFormulaVectorField(_parametricX->text(), _parametricY->text(), _parametricZ->text(), _formulaXMinimum->value(),
+				_formulaXMaximum->value(), _formulaXSamples->value(), _formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(),
+				parameters, vectors, &error);
+			dataset.content = std::move(vectors);
+		}
+		if (!ok)
+		{
+			QMessageBox::warning(this, tr("Rebuild Plot"), error);
+			return;
+		}
+		ok = rebuildExistingPlot(dataset, Plot3DColumnMapping());
+	}
+	else
+	{
+		// Sources that produce a mesh directly (surfaces from parametric / implicit definitions, streamlines, pathlines).
+		Plot3DMeshData mesh;
+		unsigned int primitiveMode = GL_TRIANGLES;
+		if (mode == 2)
+			ok = buildPlot3DParametricSurface(_parametricX->text(), _parametricY->text(), _parametricZ->text(), _formulaXMinimum->value(), _formulaXMaximum->value(),
+				_formulaXSamples->value(), _formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), parameters, mesh, &error);
+		else if (mode == 5)
+			ok = buildPlot3DImplicitSurface(_formulaExpression->text(), _formulaXMinimum->value(), _formulaXMaximum->value(), _formulaXSamples->value(),
+				_formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), _formulaZMinimum->value(), _formulaZMaximum->value(),
+				_formulaZSamples->value(), parameters, mesh, &error);
+		else if (mode == 6)
+		{
+			primitiveMode = GL_LINES;
+			ok = buildPlot3DFormulaStreamlines(_parametricX->text(), _parametricY->text(), _parametricZ->text(), _formulaXMinimum->value(), _formulaXMaximum->value(),
+				_formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), parameters, mesh, &error);
+		}
+		else if (mode == 7)
+		{
+			primitiveMode = GL_LINES;
+			ok = buildPlot3DFormulaPathlines(_parametricX->text(), _parametricY->text(), _parametricZ->text(), _formulaXMinimum->value(), _formulaXMaximum->value(),
+				_formulaYMinimum->value(), _formulaYMaximum->value(), _formulaYSamples->value(), _formulaZMinimum->value(), _formulaZMaximum->value(),
+				_formulaZSamples->value(), parameters, mesh, &error);
+		}
+		if (!ok)
+		{
+			QMessageBox::warning(this, tr("Rebuild Plot"), error);
+			return;
+		}
+		ok = _modelViewer->replacePlot3DMesh(_editingMeshUuid, mesh, primitiveMode);
+		if (!ok)
+			QMessageBox::warning(this, tr("Rebuild Plot"), tr("The plot could not be rebuilt."));
+	}
+	if (!ok)
+		return;
+
+	_modelViewer->setPlot3DGeneratedSpec(_editingMeshUuid, currentGeneratedSpec());
+	_status->setStyleSheet(QString());
+	_status->setText(tr("Rebuilt the existing plot."));
+	_editingMeshUuid = QUuid();
+	close();
+}
+
 void Plot3DPanel::buildPlot()
+{
+	const int mode = _sourceMode->currentData().toInt();
+	if (!_editingMeshUuid.isNull() && mode != 0)
+	{
+		rebuildGeneratedPlot();
+		return;
+	}
+	const int before = _modelViewer ? _modelViewer->plot3DSessions().size() : 0;
+	buildPlotImpl();
+	// A plot from a generated source remembers its definition so Edit Plot can reopen it. The new plot is the active one.
+	if (mode != 0 && _modelViewer && _modelViewer->plot3DSessions().size() > before)
+		_modelViewer->setPlot3DGeneratedSpec(_modelViewer->activePlot3DMeshUuid(), currentGeneratedSpec());
+}
+
+void Plot3DPanel::buildPlotImpl()
 {
 	if (_sourceMode->currentData().toInt() == 5)
 	{
 		buildParametricPlot();
 		return;
 	}
-	if (_sourceMode->currentData().toInt() == 6)
+	if (_sourceMode->currentData().toInt() == 6 || _sourceMode->currentData().toInt() == 7)
 	{
 		buildParametricCurvePlot();
 		return;
@@ -1985,19 +2274,20 @@ bool Plot3DPanel::rebuildExistingPlot(const Plot3DDataset& dataset, const Plot3D
 	}
 	std::copy(minimum, minimum + 3, updated.dataMinimum.begin());
 	std::copy(maximum, maximum + 3, updated.dataMaximum.begin());
-	const bool automaticColourRange = updated.colourMinimum == updated.dataMinimumValue
-		&& updated.colourMaximum == updated.dataMaximumValue;
+	const bool automaticColourRange = updated.automaticColourRange;
 	if (haveValues)
 	{
 		if (newValueMaximum <= newValueMinimum) newValueMaximum = newValueMinimum + 1.0f;
 		updated.dataMinimumValue = newValueMinimum; updated.dataMaximumValue = newValueMaximum;
 		if (automaticColourRange) { updated.colourMinimum = newValueMinimum; updated.colourMaximum = newValueMaximum; }
 	}
-	updated.csvSource = _source->toPlainText();
-	updated.csvOptions.delimiter = _delimiter->currentData().toString().front();
-	updated.csvOptions.firstRowIsHeader = _header->isChecked();
-	updated.columnMapping = mapping;
-	updated.editableCsv = true;
+	if (updated.editableCsv) // a generated plot has no table to keep
+	{
+		updated.csvSource = _source->toPlainText();
+		updated.csvOptions.delimiter = _delimiter->currentData().toString().front();
+		updated.csvOptions.firstRowIsHeader = _header->isChecked();
+		updated.columnMapping = mapping;
+	}
 	const QUuid rebuiltMesh = updated.meshUuid;
 	_modelViewer->updatePlot3DSession(std::move(updated));
 	_modelViewer->refreshPlot3DContourOverlay(rebuiltMesh); // the surface changed, so its iso-lines must follow

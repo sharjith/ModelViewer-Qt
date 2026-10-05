@@ -168,7 +168,12 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	connect(_showAxesCheck, &QCheckBox::toggled, this, [this](bool visible) { if (_viewer) _viewer->setPlot3DSessionAxesVisible(_plotSelector->currentData().toUuid(), visible); });
 	connect(_colormap, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DControlsPanel::applyColourState);
 	connect(_bands, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DControlsPanel::applyColourState);
-	connect(_automaticRange, &QCheckBox::toggled, this, [this](bool) { applyColourState(); refreshState(); });
+	connect(_automaticRange, &QCheckBox::toggled, this, [this](bool automatic) {
+		if (_viewer && _plotSelector->currentIndex() >= 0)
+			_viewer->setPlot3DAutomaticColourRange(_plotSelector->currentData().toUuid(), automatic);
+		applyColourState();
+		refreshState();
+	});
 	connect(_contourLevels, qOverload<int>(&QSpinBox::valueChanged), this, [this](int levels) {
 		if (!_viewer || _plotSelector->currentIndex() < 0)
 			return;
@@ -301,7 +306,7 @@ void Plot3DControlsPanel::refreshState()
 	_plotSelector->setCurrentIndex(activeIndex);
 	const Plot3DSession* session = activeIndex >= 0 ? &sessions[activeIndex] : nullptr;
 	const bool available = session != nullptr;
-	_editPlotButton->setEnabled(available && session->editableCsv);
+	_editPlotButton->setEnabled(available && (session->editableCsv || session->generated.valid));
 	// Keep the type explicit: MSVC cannot deduce a mixed derived-QWidget pointer
 	// initializer list here under /permissive-.
 	const std::array<QWidget*, 14> controls{ _plotSelector, _showAxesCheck, _plotTitle, _colormap,
@@ -361,7 +366,7 @@ void Plot3DControlsPanel::refreshState()
 	_colormap->setEnabled(supportsColourControls); _bands->setEnabled(supportsColourRange);
 	_automaticRange->setEnabled(supportsColourRange);
 	_colormap->setCurrentIndex(_colormap->findData(session->colormap)); _bands->setCurrentIndex(_bands->findData(session->bands));
-	_automaticRange->setChecked(session->colourMinimum == session->dataMinimumValue && session->colourMaximum == session->dataMaximumValue);
+	_automaticRange->setChecked(session->automaticColourRange);
 	_rangeMinimum->setValue(session->colourMinimum); _rangeMaximum->setValue(session->colourMaximum);
 	_rangeMinimum->setEnabled(supportsColourRange && !_automaticRange->isChecked()); _rangeMaximum->setEnabled(supportsColourRange && !_automaticRange->isChecked());
 	_lineWidth->setValue(session->lineWidth);

@@ -464,6 +464,14 @@ namespace
 		session.scatterBaseZ = -3.5;
 		session.contourLevels = 14;
 		session.contourProjected = true;
+		session.generated.valid = true; session.generated.sourceMode = 7; session.generated.title = QStringLiteral("Wave"); session.generated.presetIndex = 2;
+		session.generated.expression = QStringLiteral("a*x"); session.generated.xExpression = QStringLiteral("-y*(1+a*sin(t))");
+		session.generated.yExpression = QStringLiteral("x"); session.generated.zExpression = QStringLiteral("0");
+		session.generated.xMinimum = -4.5; session.generated.xMaximum = 4.5; session.generated.yMinimum = -2; session.generated.yMaximum = 2;
+		session.generated.zMinimum = 0; session.generated.zMaximum = 12; session.generated.xSamples = 33; session.generated.ySamples = 9;
+		session.generated.zSamples = 240;
+		session.generated.parameters = { { QStringLiteral("s"), 0.6 }, { QStringLiteral("a"), 0.8 } };
+		session.automaticColourRange = false;
 		session.contourOverlayMode = 2; session.contourOverlayLevels = 7;
 		session.contourOverlayMeshUuid = QUuid::createUuid();
 		session.axesVisible = false;
@@ -514,7 +522,10 @@ namespace
 		CHECK(restored.lineWidth == 2.5f && restored.markerSize == 7.0f && restored.arrowScale == 1.5f);
 		CHECK(restored.barWidthScale == 0.5f && restored.barDepthScale == 2.0f);
 		CHECK(restored.isStem && !restored.isErrorBars && restored.isFilledScatter && restored.scatterBaseZ == -3.5);
-		CHECK(restored.contourLevels == 14 && restored.contourProjected && restored.contourOverlayMode == 2 && restored.contourOverlayLevels == 7
+		CHECK(restored.contourLevels == 14 && restored.contourProjected && restored.generated.valid && restored.generated.sourceMode == 7 && restored.generated.presetIndex == 2
+		      && restored.generated.title == QLatin1String("Wave") && restored.generated.xExpression == session.generated.xExpression
+		      && restored.generated.xMinimum == -4.5 && restored.generated.zSamples == 240 && restored.generated.parameters == session.generated.parameters
+		      && !restored.automaticColourRange && restored.contourOverlayMode == 2 && restored.contourOverlayLevels == 7
 		      && restored.contourOverlayMeshUuid == session.contourOverlayMeshUuid && !restored.axesVisible && restored.referencePlaneOpacity == 0.4f);
 		CHECK(restored.referencePlanes == session.referencePlanes);
 		CHECK(restored.editableCsv && restored.csvSource == session.csvSource);
@@ -652,6 +663,71 @@ namespace
 			1.0, -1.0, -1.0, 1.0, 5, {}, streamlines, &error) && !error.isEmpty());
 		CHECK(!buildPlot3DFormulaStreamlines(QStringLiteral("unknown"), QStringLiteral("0"), QStringLiteral("0"),
 			-1.0, 1.0, -1.0, 1.0, 5, {}, streamlines, &error) && error.contains(QStringLiteral("Unknown")));
+
+		// ---- pathlines: particles carried through a time-dependent field --------------------------------------------------------
+		// `t` is the time in the 4-D evaluator but still an alias of x in the 3-D one (parametric curves rely on that).
+		double timeValue = 0.0;
+		CHECK(evaluatePlot3DFormula4D(QStringLiteral("t + 10*x"), 2.0, 0.0, 0.0, 5.0, {}, timeValue, &error) && timeValue == 25.0);
+		CHECK(evaluatePlot3DFormula3D(QStringLiteral("t"), 2.0, 0.0, 0.0, {}, timeValue, &error) && timeValue == 2.0);
+
+		// Steady rigid rotation (u = -y, v = x) seeded at y = -2, -1, 0, 1, 2 along x = 0: an RK4 pathline keeps its radius, so every
+		// vertex lies on a circle of radius 0, 1 or 2 (the seed at the origin is stationary and draws nothing), and the vertex values
+		// are the times, rising from tMinimum.
+		Plot3DMeshData rotation;
+		CHECK(buildPlot3DFormulaPathlines(QStringLiteral("-y"), QStringLiteral("x"), QStringLiteral("0"),
+			-3.0, 3.0, -2.0, 2.0, 5, 0.0, 3.0, 300, {}, rotation, &error));
+		CHECK(!rotation.empty() && rotation.indices.empty() && rotation.vertexCount() % 2 == 0
+			&& rotation.normals.size() == rotation.positions.size() && rotation.values.size() == rotation.vertexCount());
+		double firstTime = 1.0e9, lastTime = -1.0e9;
+		for (std::size_t v = 0; v < rotation.vertexCount(); ++v)
+		{
+			firstTime = std::min(firstTime, rotation.values[v]);
+			lastTime = std::max(lastTime, rotation.values[v]);
+			const double x = rotation.positions[v * 3], y = rotation.positions[v * 3 + 1];
+			const double radius = std::sqrt(x * x + y * y);
+			CHECK(std::abs(radius - std::round(radius)) < 1.0e-3);
+		}
+		CHECK(std::abs(firstTime) < 1.0e-9 && std::abs(lastTime - 3.0) < 1.0e-9);
+		CHECK(std::abs(rotation.positions[0]) < 1.0e-6f && std::abs(rotation.positions[1] + 2.0f) < 1.0e-6f); // first vertex is the first seed
+
+		// A field that depends on time only: u = t, so x(t) = x0 + t^2 / 2 exactly (RK4 integrates a quadratic exactly).
+		Plot3DMeshData accelerating;
+		CHECK(buildPlot3DFormulaPathlines(QStringLiteral("t"), QStringLiteral("0"), QStringLiteral("0"),
+			-1.0, 5.0, -1.0, 1.0, 2, 0.0, 2.0, 20, {}, accelerating, &error));
+		bool foundEnd = false;
+		for (std::size_t v = 0; v < accelerating.vertexCount(); ++v)
+			if (std::abs(accelerating.values[v] - 2.0) < 1.0e-9 && std::abs(accelerating.positions[v * 3 + 1] + 1.0f) < 1.0e-6f)
+			{
+				foundEnd = true; // the seed at y = -1 (x0 = 2) after t = 2
+				CHECK(std::abs(accelerating.positions[v * 3] - (2.0f + 2.0f)) < 1.0e-4f);
+			}
+		CHECK(foundEnd);
+
+		// A trail ends where its particle leaves the x / y domain, and bad input is rejected with a message.
+		Plot3DMeshData leaving;
+		CHECK(buildPlot3DFormulaPathlines(QStringLiteral("1"), QStringLiteral("0"), QStringLiteral("0"),
+			-1.0, 1.0, -1.0, 1.0, 2, 0.0, 10.0, 100, {}, leaving, &error));
+		for (std::size_t v = 0; v < leaving.vertexCount(); ++v)
+			CHECK(leaving.positions[v * 3] <= 1.0f + 1.0e-6f); // x never goes past the right edge
+		CHECK(!buildPlot3DFormulaPathlines(QStringLiteral("1"), QStringLiteral("0"), QStringLiteral("0"),
+			-1.0, 1.0, -1.0, 1.0, 2, 5.0, 5.0, 100, {}, leaving, &error) && !error.isEmpty()); // empty time range
+		CHECK(!buildPlot3DFormulaPathlines(QStringLiteral("1"), QStringLiteral("0"), QStringLiteral("0"),
+			-1.0, 1.0, -1.0, 1.0, 1, 0.0, 1.0, 100, {}, leaving, &error)); // too few seeds
+		CHECK(!buildPlot3DFormulaPathlines(QStringLiteral("nosuch"), QStringLiteral("0"), QStringLiteral("0"),
+			-1.0, 1.0, -1.0, 1.0, 2, 0.0, 1.0, 10, {}, leaving, &error) && error.contains(QStringLiteral("Unknown")));
+
+		// Every shipped pathline preset must evaluate and produce trails with its own defaults.
+		for (const Plot3DPathlinePreset& preset : plot3DPathlinePresets())
+		{
+			QHash<QString, double> presetParameters;
+			for (const Plot3DFormulaParameter& parameter : preset.parameters)
+				presetParameters.insert(parameter.name.toLower(), parameter.value);
+			Plot3DMeshData presetTrails;
+			CHECK(buildPlot3DFormulaPathlines(preset.uExpression, preset.vExpression, preset.wExpression, preset.xMinimum, preset.xMaximum,
+				preset.yMinimum, preset.yMaximum, preset.seeds, preset.tMinimum, preset.tMaximum, preset.steps, presetParameters, presetTrails, &error));
+			CHECK(!presetTrails.empty());
+		}
+		CHECK(plot3DPathlinePresets().size() >= 4);
 
 		Plot3DMeshData implicit;
 		parameters.clear();

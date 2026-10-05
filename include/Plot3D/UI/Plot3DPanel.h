@@ -2,6 +2,7 @@
 
 #include "Plot3DData.h"
 #include "Plot3DFormula.h"
+#include "Plot3DSession.h"
 
 #include <QDialog>
 #include <QUuid>
@@ -27,6 +28,8 @@ public:
 	// modelViewer receives the constructed plot and its data-derived axis layout. Null is tolerated defensively.
 	explicit Plot3DPanel(ModelViewer* modelViewer, QWidget* parent = nullptr);
 	~Plot3DPanel() override;
+	// Closing (the X button, Close, or a rebuild finishing) remembers the dialog's position and size.
+	void done(int result) override;
 	void loadPlotForEditing(const QUuid& meshUuid);
 
 private:
@@ -37,6 +40,7 @@ private:
 	void refreshParametricPreview();
 	void refreshParametricCurvePreview();
 	void refreshFormulaVectorPreview();
+	void refreshPathlinePreview();
 	void refreshImplicitPreview();
 	void previewPlot();
 	void clearPreview();
@@ -45,6 +49,7 @@ private:
 	void applyParametricPreset();
 	void applyParametricCurvePreset();
 	void applyFormulaVectorPreset();
+	void applyPathlinePreset();
 	void applyImplicitPreset();
 	void buildParametricPlot();
 	void buildParametricCurvePlot();
@@ -58,6 +63,11 @@ private:
 	// Reads the primitive + column mapping, builds a Plot3DDataset then a mesh, adds it to the active document's
 	// scene, and gives the viewport an axis-box layout derived from the built data's own bounds.
 	void buildPlot();
+	void buildPlotImpl();
+	Plot3DGeneratedSpec currentGeneratedSpec() const;
+	QComboBox* presetComboForMode(int sourceMode) const;
+	void loadGeneratedPlotForEditing(const Plot3DSession& session);
+	void rebuildGeneratedPlot();
 	bool rebuildExistingPlot(const Plot3DDataset& dataset, const Plot3DColumnMapping& mapping);
 	// Quiver's own path out of buildPlot(): unlike Surface/Line/Scatter, arrows are not a mesh Plot3D owns - they
 	// reuse SimulationGlyphController directly (see docs/plot3d_blueprint.md section 5), anchored to a small
@@ -104,6 +114,7 @@ private:
 	QComboBox* _parametricCurvePreset = nullptr;
 	QComboBox* _formulaVectorPreset = nullptr;
 	QComboBox* _implicitPreset = nullptr;
+	QComboBox* _pathlinePreset = nullptr;
 	QLineEdit* _formulaTitle = nullptr;
 	QLineEdit* _formulaExpression = nullptr;
 	QLineEdit* _parametricX = nullptr;
@@ -124,6 +135,7 @@ private:
 	QLabel* _parametricCurvePresetLabel = nullptr;
 	QLabel* _formulaVectorPresetLabel = nullptr;
 	QLabel* _implicitPresetLabel = nullptr;
+	QLabel* _pathlinePresetLabel = nullptr;
 	QLabel* _formulaExpressionLabel = nullptr;
 	QLabel* _parametricXLabel = nullptr;
 	QLabel* _parametricYLabel = nullptr;
@@ -139,6 +151,7 @@ private:
 	QVector<Plot3DParametricCurvePreset> _parametricCurvePresets;
 	QVector<Plot3DFormulaVectorPreset> _formulaVectorPresets;
 	QVector<Plot3DImplicitPreset> _implicitPresets;
+	QVector<Plot3DPathlinePreset> _pathlinePresets;
 
 	Plot3DCsvTable _table; // last successfully parsed table, kept for buildPlot() (refreshPreview() only shows it)
 	QUuid _editingMeshUuid;

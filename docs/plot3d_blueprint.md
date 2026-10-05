@@ -310,6 +310,19 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     (`plot3DTriangleNeighbours`, built once per cached mesh). Single view only. The on-surface contour overlay carries a
     second copy lowered by the same amount as the lift so it reads from both faces of the surface. The plot dialog's first
     combo is labelled "Data source:".
+30. **Complete (user-verified 2026-10-05):** formula pathlines. A "Formula pathlines (time-dependent)" source whose u, v, w
+    are expressions in x, y, z and t (`evaluatePlot3DFormula4D`: here `t` is the time; the 3-D evaluator keeps `t` as an
+    alias of x for parametric curves). `buildPlot3DFormulaPathlines` releases particles at the start time from a column of
+    seeds and advances them with RK4 over equal time steps, ending a trail where it leaves the x / y range; output is
+    GL_LINES vertex pairs valued by time, so trails colour by time (the legend reads "Time"). Four presets: Pulsating
+    Vortex, Double Gyre, Travelling Wave, Oscillating Updraft. A CSV time-series source is still to come.
+31. **Complete (user-verified 2026-10-05):** Edit Plot for generated plots. Every generated plot stores a
+    `Plot3DGeneratedSpec` (source, expressions, ranges, samples, time range, parameters, the preset it started from) in its
+    session and in the .mvf; Edit Plot reopens the dialog on it (source, plot type and preset locked) and Rebuild replaces the
+    plot in place - dataset sources through `rebuildExistingPlot`, mesh sources through `ModelViewer::replacePlot3DMesh` -
+    keeping UUID, scene node, visibility, axes and colour settings. Also fixed: "Automatic colour range" could never be
+    unticked (it was derived from range == data range; now the stored `automaticColourRange`), and the Add / Edit 3D Plot
+    dialog remembers its position and size.
 
 ## 7. Known gaps and follow-ups (outside the original completion target)
 
@@ -338,5 +351,5 @@ Ordered roughly by value. None blocks the merge.
    re-tessellation is needed, relative size and shape between glyphs are unchanged, and nearer glyphs still look larger
    than farther ones. The Simulation tab has an Ellipsoid size spin box (the existing `tensorGlyphScale`). Streamline thickness is already a fixed pixel width.
 7. **Formula error messages** are still untranslated English literals (see item 26).
-8. **Deferred plot features:** time-dependent pathlines (needs a time-varying vector-field data model), general line fill-between / fill-under, text annotations (adapt the CAD Annotation
+8. **Deferred plot features:** time-dependent pathlines from CSV time-series data, general line fill-between / fill-under, text annotations (adapt the CAD Annotation
    system) and 2D images in 3D.

@@ -166,6 +166,7 @@ QJsonObject plot3DSessionToJson(const Plot3DSession& session, const Plot3DRender
 
 	json.insert(QStringLiteral("dataMinimumValue"), static_cast<double>(session.dataMinimumValue));
 	json.insert(QStringLiteral("dataMaximumValue"), static_cast<double>(session.dataMaximumValue));
+	json.insert(QStringLiteral("automaticColourRange"), session.automaticColourRange);
 	json.insert(QStringLiteral("colourMinimum"), static_cast<double>(session.colourMinimum));
 	json.insert(QStringLiteral("colourMaximum"), static_cast<double>(session.colourMaximum));
 	json.insert(QStringLiteral("colormap"), session.colormap);
@@ -183,6 +184,33 @@ QJsonObject plot3DSessionToJson(const Plot3DSession& session, const Plot3DRender
 	json.insert(QStringLiteral("scatterBaseZ"), session.scatterBaseZ);
 	json.insert(QStringLiteral("contourLevels"), session.contourLevels);
 	json.insert(QStringLiteral("contourProjected"), session.contourProjected);
+	if (session.generated.valid)
+	{
+		const Plot3DGeneratedSpec& g = session.generated;
+		QJsonObject spec;
+		spec.insert(QStringLiteral("sourceMode"), g.sourceMode);
+		spec.insert(QStringLiteral("presetIndex"), g.presetIndex);
+		spec.insert(QStringLiteral("title"), g.title);
+		spec.insert(QStringLiteral("expression"), g.expression);
+		spec.insert(QStringLiteral("xExpression"), g.xExpression);
+		spec.insert(QStringLiteral("yExpression"), g.yExpression);
+		spec.insert(QStringLiteral("zExpression"), g.zExpression);
+		spec.insert(QStringLiteral("xMinimum"), g.xMinimum); spec.insert(QStringLiteral("xMaximum"), g.xMaximum);
+		spec.insert(QStringLiteral("yMinimum"), g.yMinimum); spec.insert(QStringLiteral("yMaximum"), g.yMaximum);
+		spec.insert(QStringLiteral("zMinimum"), g.zMinimum); spec.insert(QStringLiteral("zMaximum"), g.zMaximum);
+		spec.insert(QStringLiteral("xSamples"), g.xSamples); spec.insert(QStringLiteral("ySamples"), g.ySamples);
+		spec.insert(QStringLiteral("zSamples"), g.zSamples);
+		QJsonArray parameters;
+		for (const auto& parameter : g.parameters)
+		{
+			QJsonObject entry;
+			entry.insert(QStringLiteral("name"), parameter.first);
+			entry.insert(QStringLiteral("value"), parameter.second);
+			parameters.append(entry);
+		}
+		spec.insert(QStringLiteral("parameters"), parameters);
+		json.insert(QStringLiteral("generated"), spec);
+	}
 	json.insert(QStringLiteral("contourOverlayMode"), session.contourOverlayMode);
 	json.insert(QStringLiteral("contourOverlayLevels"), session.contourOverlayLevels);
 	json.insert(QStringLiteral("contourOverlayMeshUuid"), session.contourOverlayMeshUuid.isNull()
@@ -297,6 +325,9 @@ bool plot3DSessionFromJson(const QJsonObject& json, const std::vector<QByteArray
 	session.dataMaximumValue = static_cast<float>(json.value(QStringLiteral("dataMaximumValue")).toDouble(1.0));
 	session.colourMinimum = static_cast<float>(json.value(QStringLiteral("colourMinimum")).toDouble(session.dataMinimumValue));
 	session.colourMaximum = static_cast<float>(json.value(QStringLiteral("colourMaximum")).toDouble(session.dataMaximumValue));
+	// Files from before the flag existed: automatic when the saved range equals the data range.
+	session.automaticColourRange = json.value(QStringLiteral("automaticColourRange")).toBool(
+		session.colourMinimum == session.dataMinimumValue && session.colourMaximum == session.dataMaximumValue);
 	session.colormap = json.value(QStringLiteral("colormap")).toInt(0);
 	session.bands = json.value(QStringLiteral("bands")).toInt(0);
 
@@ -312,6 +343,29 @@ bool plot3DSessionFromJson(const QJsonObject& json, const std::vector<QByteArray
 	session.scatterBaseZ = json.value(QStringLiteral("scatterBaseZ")).toDouble(0.0);
 	session.contourLevels = json.value(QStringLiteral("contourLevels")).toInt(session.contourLevels);
 	session.contourProjected = json.value(QStringLiteral("contourProjected")).toBool(false);
+	if (json.value(QStringLiteral("generated")).isObject())
+	{
+		const QJsonObject spec = json.value(QStringLiteral("generated")).toObject();
+		Plot3DGeneratedSpec& g = session.generated;
+		g.valid = true;
+		g.sourceMode = spec.value(QStringLiteral("sourceMode")).toInt(0);
+		g.presetIndex = spec.value(QStringLiteral("presetIndex")).toInt(-1);
+		g.title = spec.value(QStringLiteral("title")).toString();
+		g.expression = spec.value(QStringLiteral("expression")).toString();
+		g.xExpression = spec.value(QStringLiteral("xExpression")).toString();
+		g.yExpression = spec.value(QStringLiteral("yExpression")).toString();
+		g.zExpression = spec.value(QStringLiteral("zExpression")).toString();
+		g.xMinimum = spec.value(QStringLiteral("xMinimum")).toDouble(); g.xMaximum = spec.value(QStringLiteral("xMaximum")).toDouble(1.0);
+		g.yMinimum = spec.value(QStringLiteral("yMinimum")).toDouble(); g.yMaximum = spec.value(QStringLiteral("yMaximum")).toDouble(1.0);
+		g.zMinimum = spec.value(QStringLiteral("zMinimum")).toDouble(); g.zMaximum = spec.value(QStringLiteral("zMaximum")).toDouble(1.0);
+		g.xSamples = spec.value(QStringLiteral("xSamples")).toInt(2); g.ySamples = spec.value(QStringLiteral("ySamples")).toInt(2);
+		g.zSamples = spec.value(QStringLiteral("zSamples")).toInt(2);
+		for (const QJsonValue& entry : spec.value(QStringLiteral("parameters")).toArray())
+			g.parameters.emplace_back(entry.toObject().value(QStringLiteral("name")).toString(), entry.toObject().value(QStringLiteral("value")).toDouble());
+		// A source this build does not know (a newer file) cannot be edited; leave the plot as ordinary content.
+		if (g.sourceMode < 1 || g.sourceMode > 7)
+			g = Plot3DGeneratedSpec();
+	}
 	session.contourOverlayMode = std::clamp(json.value(QStringLiteral("contourOverlayMode")).toInt(0), 0, 2);
 	session.contourOverlayLevels = std::clamp(json.value(QStringLiteral("contourOverlayLevels")).toInt(10), 1, 40);
 	session.contourOverlayMeshUuid = QUuid(json.value(QStringLiteral("contourOverlayMeshUuid")).toString());

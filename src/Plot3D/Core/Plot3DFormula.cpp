@@ -12,6 +12,9 @@ class Parser
 public:
 	Parser(const QString& expression, double x, double y, double z, const QHash<QString, double>& parameters)
 		: _text(expression), _x(x), _y(y), _z(z), _parameters(parameters) {}
+	// With a time, `t` means the time instead of being an alias of x.
+	Parser(const QString& expression, double x, double y, double z, double time, const QHash<QString, double>& parameters)
+		: _text(expression), _x(x), _y(y), _z(z), _time(time), _hasTime(true), _parameters(parameters) {}
 	bool parse(double& result, QString& error)
 	{
 		_skip(); result = _expression(error); _skip();
@@ -36,12 +39,12 @@ private:
 			while (_pos < _text.size() && (_text[_pos].isLetterOrNumber() || _text[_pos] == '_')) ++_pos;
 			const QString name = _text.mid(start, _pos-start).toLower();
 			if (_take('(')) { double a=_expression(e); double b=0; bool two=false; if(e.isEmpty() && _take(',')) { b=_expression(e); two=true; } if(e.isEmpty() && !_take(')')) e=QStringLiteral("Missing closing parenthesis after %1.").arg(name); if(!e.isEmpty()) return 0; if(name=="sin")return std::sin(a); if(name=="cos")return std::cos(a); if(name=="tan")return std::tan(a); if(name=="asin")return std::asin(a); if(name=="acos")return std::acos(a); if(name=="atan")return std::atan(a); if(name=="sinh")return std::sinh(a); if(name=="cosh")return std::cosh(a); if(name=="tanh")return std::tanh(a); if(name=="exp")return std::exp(a); if(name=="log")return a>0?std::log(a):(e=QStringLiteral("log requires a positive value."),0); if(name=="sqrt")return a>=0?std::sqrt(a):(e=QStringLiteral("sqrt requires a non-negative value."),0); if(name=="abs")return std::abs(a); if(name=="sign")return a<0?-1.0:(a>0?1.0:0.0); if(name=="pow"&&two)return std::pow(a,b); if(name=="min"&&two)return std::min(a,b); if(name=="max"&&two)return std::max(a,b); e=QStringLiteral("Unknown function or wrong argument count: %1.").arg(name); return 0; }
-			if(name=="x"||name=="u"||name=="t")return _x; if(name=="y"||name=="v")return _y; if(name=="z")return _z; if(name=="pi")return 3.14159265358979323846; if(name=="e")return 2.71828182845904523536;
+			if(_hasTime&&name=="t")return _time; if(name=="x"||name=="u"||name=="t")return _x; if(name=="y"||name=="v")return _y; if(name=="z")return _z; if(name=="pi")return 3.14159265358979323846; if(name=="e")return 2.71828182845904523536;
 			if (_parameters.contains(name)) return _parameters.value(name); e=QStringLiteral("Unknown variable: %1.").arg(name); return 0;
 		}
 		e = QStringLiteral("Expected a number, variable, or expression."); return 0;
 	}
-	const QString& _text; int _pos=0; double _x, _y, _z; const QHash<QString,double>& _parameters;
+	const QString& _text; int _pos=0; double _x, _y, _z; double _time = 0.0; bool _hasTime = false; const QHash<QString,double>& _parameters;
 };
 }
 
@@ -100,6 +103,33 @@ QVector<Plot3DFormulaVectorPreset> plot3DFormulaVectorPresets()
 		{QCoreApplication::translate("Plot3DPresets", "Helical"), QCoreApplication::translate("Plot3DPresets", "Helical Field"),QStringLiteral("-s*y"),QStringLiteral("s*x"),QStringLiteral("rise"),-4,4,-4,4,17,17,{p("s",1.0),p("rise",0.75)}},
 	};
 }
+QVector<Plot3DPathlinePreset> plot3DPathlinePresets()
+{
+	auto p=[](const char* name,double value){return Plot3DFormulaParameter{QString::fromLatin1(name),value};};
+	const double tau=6.283185307179586;
+	return {
+		// Rigid rotation whose rate pulses in time: particles keep circling but speed up and slow down, so the colour (time) bands
+		// along each ring bunch up and spread out.
+		{QCoreApplication::translate("Plot3DPresets", "Pulsating Vortex"), QCoreApplication::translate("Plot3DPresets", "Pulsating Vortex Pathlines"),
+			QStringLiteral("-s*y*(1+a*sin(w*t))"),QStringLiteral("s*x*(1+a*sin(w*t))"),QStringLiteral("0"),
+			-4,4,-4,4,10,0,12,240,{p("s",0.6),p("a",0.8),p("w",1.5)}},
+		// Shadden's double gyre: two counter-rotating cells whose dividing line oscillates, the textbook unsteady flow where
+		// pathlines and streamlines differ. Runs over x 0..2, y 0..1.
+		{QCoreApplication::translate("Plot3DPresets", "Double Gyre"), QCoreApplication::translate("Plot3DPresets", "Double Gyre Pathlines"),
+			QStringLiteral("-pi*a*sin(pi*(eps*sin(om*t)*x^2+(1-2*eps*sin(om*t))*x))*cos(pi*y)"),
+			QStringLiteral("pi*a*cos(pi*(eps*sin(om*t)*x^2+(1-2*eps*sin(om*t))*x))*sin(pi*y)*(2*eps*sin(om*t)*x+1-2*eps*sin(om*t))"),QStringLiteral("0"),
+			0,2,0,1,12,0,30,600,{p("a",0.1),p("eps",0.25),p("om",0.6283185307179586)}},
+		// A steady stream deflected by a wave travelling in x: particles drift sideways in a pattern that depends on when they
+		// pass each crest.
+		{QCoreApplication::translate("Plot3DPresets", "Travelling Wave"), QCoreApplication::translate("Plot3DPresets", "Travelling Wave Pathlines"),
+			QStringLiteral("u0"),QStringLiteral("a*sin(k*x-w*t)"),QStringLiteral("0"),
+			-4,4,-3,3,12,0,12,240,{p("u0",0.6),p("a",0.5),p("k",1.5),p("w",1.0)}},
+		// A vortex with a vertical velocity that oscillates in time: the rings climb and sink, drawing helical trails in Z.
+		{QCoreApplication::translate("Plot3DPresets", "Oscillating Updraft"), QCoreApplication::translate("Plot3DPresets", "Oscillating Updraft Pathlines"),
+			QStringLiteral("-s*y"),QStringLiteral("s*x"),QStringLiteral("r*sin(w*t)"),
+			-3,3,-3,3,8,0,tau*2,320,{p("s",0.5),p("r",0.6),p("w",0.8)}},
+	};
+}
 QVector<Plot3DImplicitPreset> plot3DImplicitPresets()
 {
 	auto p=[](const char* name,double value){return Plot3DFormulaParameter{QString::fromLatin1(name),value};};
@@ -112,6 +142,8 @@ QVector<Plot3DImplicitPreset> plot3DImplicitPresets()
 }
 bool evaluatePlot3DFormula(const QString& expression,double x,double y,const QHash<QString,double>& parameters,double& result,QString* error)
 { return evaluatePlot3DFormula3D(expression, x, y, 0.0, parameters, result, error); }
+bool evaluatePlot3DFormula4D(const QString& expression,double x,double y,double z,double t,const QHash<QString,double>& parameters,double& result,QString* error)
+{ QString local; Parser parser(expression,x,y,z,t,parameters); const bool ok=parser.parse(result,local); if(error)*error=local; return ok; }
 bool evaluatePlot3DFormula3D(const QString& expression,double x,double y,double z,const QHash<QString,double>& parameters,double& result,QString* error)
 { QString local; Parser parser(expression,x,y,z,parameters); const bool ok=parser.parse(result,local); if(error)*error=local; return ok; }
 bool buildPlot3DFormulaSurface(const QString& expression,double x0,double x1,int nx,double y0,double y1,int ny,const QHash<QString,double>& parameters,Plot3DSurfaceData& out,QString* error)
@@ -197,6 +229,66 @@ bool buildPlot3DFormulaStreamlines(const QString& ue, const QString& ve, const Q
 		}
 	}
 	if (out.empty()) { if (error) *error = QStringLiteral("No streamline segments were generated in the selected domain."); return false; }
+	return true;
+}
+
+bool buildPlot3DFormulaPathlines(const QString& ue, const QString& ve, const QString& we,
+	double x0, double x1, double y0, double y1, int seedCount, double t0, double t1, int steps,
+	const QHash<QString, double>& parameters, Plot3DMeshData& out, QString* error)
+{
+	out = Plot3DMeshData();
+	if (seedCount < 2 || seedCount > 128 || !(x1 > x0) || !(y1 > y0) || !(t1 > t0) || steps < 2 || steps > 2000)
+	{
+		if (error) *error = QStringLiteral("Pathline ranges (X, Y and time) must increase, with 2 to 128 seeds and 2 to 2000 time steps.");
+		return false;
+	}
+	const double dt = (t1 - t0) / steps;
+	struct Vec { double x, y, z; };
+	// The field at a position and time; false (with the message) when an expression fails.
+	auto field = [&](const Vec& p, double t, Vec& v) {
+		QString local;
+		if (!evaluatePlot3DFormula4D(ue, p.x, p.y, p.z, t, parameters, v.x, &local)
+			|| !evaluatePlot3DFormula4D(ve, p.x, p.y, p.z, t, parameters, v.y, &local)
+			|| !evaluatePlot3DFormula4D(we, p.x, p.y, p.z, t, parameters, v.z, &local))
+		{
+			if (error) *error = QStringLiteral("At t=%1: %2").arg(t).arg(local);
+			return false;
+		}
+		return true;
+	};
+	auto advance = [](const Vec& p, const Vec& k, double h) { return Vec{ p.x + h * k.x, p.y + h * k.y, p.z + h * k.z }; };
+	for (int seed = 0; seed < seedCount; ++seed)
+	{
+		Vec p{ (x0 + x1) * 0.5, y0 + (y1 - y0) * seed / (seedCount - 1), 0.0 };
+		for (int step = 0; step < steps; ++step)
+		{
+			const double t = t0 + dt * step;
+			Vec k1, k2, k3, k4;
+			if (!field(p, t, k1) || !field(advance(p, k1, dt * 0.5), t + dt * 0.5, k2)
+				|| !field(advance(p, k2, dt * 0.5), t + dt * 0.5, k3) || !field(advance(p, k3, dt), t + dt, k4))
+			{
+				out = Plot3DMeshData();
+				return false;
+			}
+			const Vec next{ p.x + dt / 6.0 * (k1.x + 2.0 * k2.x + 2.0 * k3.x + k4.x),
+			                p.y + dt / 6.0 * (k1.y + 2.0 * k2.y + 2.0 * k3.y + k4.y),
+			                p.z + dt / 6.0 * (k1.z + 2.0 * k2.z + 2.0 * k3.z + k4.z) };
+			if (!std::isfinite(next.x) || !std::isfinite(next.y) || !std::isfinite(next.z)
+				|| next.x < x0 || next.x > x1 || next.y < y0 || next.y > y1)
+				break; // left the domain: the trail ends where it left
+			if (std::abs(next.x - p.x) + std::abs(next.y - p.y) + std::abs(next.z - p.z) < 1.0e-12)
+			{
+				p = next; // a stationary particle draws no segment
+				continue;
+			}
+			out.positions.insert(out.positions.end(), { float(p.x), float(p.y), float(p.z), float(next.x), float(next.y), float(next.z) });
+			out.normals.insert(out.normals.end(), { 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f });
+			out.values.push_back(t);
+			out.values.push_back(t + dt);
+			p = next;
+		}
+	}
+	if (out.empty()) { if (error) *error = QStringLiteral("No pathline segments were generated in the selected domain."); return false; }
 	return true;
 }
 

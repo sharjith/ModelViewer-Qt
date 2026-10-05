@@ -277,6 +277,81 @@ QHash<QUuid, std::vector<float>> ModelViewer::plot3DBakedColors() const
 	return colors;
 }
 
+void ModelViewer::setPlot3DAutomaticColourRange(const QUuid& meshUuid, bool automatic)
+{
+	if (Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid))
+		session->automaticColourRange = automatic;
+}
+
+void ModelViewer::setPlot3DGeneratedSpec(const QUuid& meshUuid, const Plot3DGeneratedSpec& spec)
+{
+	if (Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid))
+	{
+		session->generated = spec;
+		markNonUndoDocumentModified();
+		emit plot3DSessionsChanged(false);
+	}
+}
+
+bool ModelViewer::replacePlot3DMesh(const QUuid& meshUuid, const Plot3DMeshData& data, unsigned int primitiveMode)
+{
+	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
+	SceneMesh* mesh = _viewportWidget ? _viewportWidget->getMeshByUuid(meshUuid) : nullptr;
+	if (!session || !mesh || data.empty())
+		return false;
+
+	std::vector<Vertex> vertices(data.vertexCount());
+	std::vector<float> values(data.vertexCount());
+	std::vector<bool> valid(data.vertexCount(), true);
+	float valueMinimum = std::numeric_limits<float>::max(), valueMaximum = std::numeric_limits<float>::lowest();
+	std::array<double, 3> boundsMinimum{ std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max() };
+	std::array<double, 3> boundsMaximum{ std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest() };
+	const bool haveNormals = data.normals.size() == data.positions.size();
+	for (std::size_t i = 0; i < vertices.size(); ++i)
+	{
+		Vertex& vertex = vertices[i];
+		vertex.Color = glm::vec4(1.0f);
+		vertex.Position = glm::vec3(data.positions[i * 3], data.positions[i * 3 + 1], data.positions[i * 3 + 2]);
+		vertex.Normal = haveNormals ? glm::vec3(data.normals[i * 3], data.normals[i * 3 + 1], data.normals[i * 3 + 2]) : glm::vec3(0.0f, 0.0f, 1.0f);
+		vertex.Tangent = glm::vec3(0.0f); vertex.Bitangent = glm::vec3(0.0f);
+		for (glm::vec2& uv : vertex.TexCoords) uv = glm::vec2(0.0f);
+		values[i] = static_cast<float>(data.values[i]);
+		valueMinimum = std::min(valueMinimum, values[i]);
+		valueMaximum = std::max(valueMaximum, values[i]);
+		for (int axis = 0; axis < 3; ++axis)
+		{
+			boundsMinimum[static_cast<std::size_t>(axis)] = std::min(boundsMinimum[static_cast<std::size_t>(axis)], static_cast<double>(data.positions[i * 3 + static_cast<std::size_t>(axis)]));
+			boundsMaximum[static_cast<std::size_t>(axis)] = std::max(boundsMaximum[static_cast<std::size_t>(axis)], static_cast<double>(data.positions[i * 3 + static_cast<std::size_t>(axis)]));
+		}
+	}
+	if (valueMaximum <= valueMinimum)
+		valueMaximum = valueMinimum + 1.0f;
+
+	_viewportWidget->makeCurrent();
+	mesh->setPrimitiveMode(primitiveMode);
+	mesh->setMeshData(vertices, data.indices);
+	_viewportWidget->doneCurrent();
+
+	session->values = std::move(values);
+	session->valid = std::move(valid);
+	session->dataMinimum = boundsMinimum;
+	session->dataMaximum = boundsMaximum;
+	session->dataMinimumValue = valueMinimum;
+	session->dataMaximumValue = valueMaximum;
+	if (session->automaticColourRange)
+	{
+		session->colourMinimum = valueMinimum;
+		session->colourMaximum = valueMaximum;
+	}
+	refreshPlot3DContourOverlay(meshUuid); // a Surface's contour lines are cut from this mesh
+	applyPlot3DColourState(meshUuid, session->colourMinimum, session->colourMaximum, session->colormap, session->bands);
+	refreshPlot3DAxes();
+	_viewportWidget->updateView();
+	markNonUndoDocumentModified();
+	emit plot3DSessionsChanged(false);
+	return true;
+}
+
 void ModelViewer::applyPlot3DAppearance(const QUuid& meshUuid, float lineWidth, float markerSize, float arrowScale)
 {
 	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
@@ -738,6 +813,8 @@ void ModelViewer::refreshPlot3DLegend()
 	});
 	const QString label = session->primitive == Plot3DPrimitive::Voxel
 		? tr("%1 - Occupancy").arg(session->name)
+		: (session->generated.valid && session->generated.sourceMode == 7)
+			? tr("%1 - Time").arg(session->name)
 		: (session->primitive == Plot3DPrimitive::Quiver
 			? tr("%1 - Vector magnitude").arg(session->name)
 			: tr("%1 - Value").arg(session->name));

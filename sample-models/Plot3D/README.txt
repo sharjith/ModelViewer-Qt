@@ -54,6 +54,58 @@ generated plot receives the same scene-tree visibility control and persistent 3D
 Parametric curve offers Helix, Lissajous, Trefoil Knot, Viviani Curve and Damped Spiral. Its single parameter is
 named t; use Preview to inspect the generated constant-screen-width line before building it.
 
+Formula pathlines (time-dependent)
+----------------------------------
+Choose "Formula pathlines (time-dependent)" in Data source. u, v and w are expressions in x, y, z and t, where t is the TIME
+(unlike Formula streamlines, whose field is steady, and unlike Parametric curve, where t is the curve parameter). Particles are
+released at the start time from "Y range / samples" seeds spread along Y at the middle of the X range (z = 0) and carried through
+the changing field with a 4th-order Runge-Kutta integration over the "T range / steps" time interval. A trail ends where its
+particle leaves the X / Y range. The trails are native lines, coloured by TIME (the legend runs from the start to the end time),
+and take the usual colour map, bands, range and line-width controls, save into .mvf and bake their colours into glTF / OBJ export
+like any other line plot. Presets (no file is needed; Preview and Build Plot as for the other formula sources):
+
+  Pulsating Vortex     A rigid rotation whose rate pulses in time. Expect concentric rings that run a little over one turn;
+                       the colour (time) bands along each ring bunch up where the particle slows and stretch where it speeds
+                       up. The outermost ring touches the X / Y range edge, so it may end early there.
+  Double Gyre          Shadden's classic unsteady flow on x 0..2, y 0..1: two counter-rotating cells whose dividing line
+                       oscillates. Trails wind around the two cells and are carried back and forth across the middle by the
+                       oscillation, so neighbouring trails fold and stretch (the point of pathlines in an unsteady field).
+  Travelling Wave      A steady stream (u0) deflected sideways by a wave travelling in x. Trails drift forward and wiggle in Y
+                       with a phase that depends on when each particle passed a crest.
+  Oscillating Updraft  A vortex with a vertical velocity that oscillates in time. The rings climb and sink, so the trails draw
+                       helices in Z (the Z axis range grows to cover them).
+
+Checks: pick a preset and look at the status line under Refresh Preview ("Pathlines from N seeds over t = ... (M segments),
+coloured by time"); change a parameter (for example Pulsating Vortex "a" to 0 for a steady rotation, where the colour bands
+become evenly spaced) and Refresh Preview again; set the time range so the end is before the start and the Build button must
+disable with a message; enter an unknown name in u(x,y,z,t) and the status must name it. After building, the colour legend
+should run from the start to the end time, and the 3D Plot tab should offer the line-width and colour controls.
+
+Surface extras
+--------------
+Contour lines: any Surface plot (CSV surface such as surface_ripple.csv, Formula surface, Parametric surface, Implicit
+surface) can carry iso-lines of Z. Choose "Contour lines" in the creation dialog or later in the 3D Plot tab: "On the surface"
+draws dark lines on the surface (visible from both faces), "On the base plane" draws colour-mapped lines flattened onto the
+floor of the axes box, and the "Contour levels" box sets how many. The separate "Contour" plot type (CSV or Formula surface)
+shows only the lines and can also be flattened with "Project contours onto the base plane".
+Section curves on hover: for a Surface plot, tick "Show section curves on hover" in the 3D Plot tab. Moving the cursor over the
+surface draws, through the hovered point, the curve where each of the X, Y and Z planes cuts the surface (red, green, blue like
+the axes; the blue one is the contour line through the point) with the point's coordinates. Only the connected curve through
+the point is drawn, so a saddle shows one branch, not both. surface_ripple.csv is a good test (circular Z curve, straight-ish
+X / Y sections); it works in the single view only.
+
+Editing generated plots
+-----------------------
+Plots from the formula sources (Formula surface, Parametric surface and curve, Formula vector field, Implicit surface, Formula
+streamlines and Formula pathlines) remember the definition they were built from, so Edit Plot works on them like on a CSV plot.
+Build any of them (for example the Double Gyre pathlines or the Torus), select it in Active plot and click Edit Plot: the dialog
+reopens on the same source with the expressions, ranges, sample counts, time range and parameter values restored. Change one (for
+example the Double Gyre's "eps", or the Torus's "r") and click Rebuild Plot. The existing tree entry must update in place - no new
+entry - and its title, visibility, axes settings, colour map / range / bands, reference planes, contour lines and line width must
+stay as they were (with "Automatic colour range" on, the colour range follows the new data). Save as .mvf and reopen: Edit Plot
+must still be available. The source (and, for a Formula surface, the Surface / Contour type) cannot be changed in an edit; build a
+new plot for that.
+
 Column mapping notes (Plot3DColumnMapping): every file's columns are laid out in a sensible left-to-right order for
 its primitive, but the mapping is index-based and configurable in the import panel. These files' exact column order
 is therefore a convenience, not a hard requirement. If Bar's optional Base, Width and Depth mappings are "(none)",

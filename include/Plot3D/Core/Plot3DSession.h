@@ -5,14 +5,34 @@
 #include <QUuid>
 
 #include <array>
+#include <utility>
 #include <vector>
 
 // Document-owned state for one generated Plot3D mesh.  The imported SceneMesh remains
 // ordinary scene content; this record retains only the non-geometry controls required
 // to revisit its axes and colour presentation after the import dialog has closed.
+// The definition a generated plot (Formula surface, Parametric surface / curve, Formula vector field, Implicit surface, Formula
+// streamlines, Formula pathlines) was built from, so it can be edited and rebuilt in place like a CSV plot. sourceMode is the
+// creation dialog's source (1 formula surface, 2 parametric surface, 3 parametric curve, 4 vector field, 5 implicit surface,
+// 6 streamlines, 7 pathlines); the expression and range fields are used the way that source's dialog uses them.
+struct Plot3DGeneratedSpec
+{
+	bool valid = false;
+	int sourceMode = 0;
+	int presetIndex = -1;                              // which entry of that source's preset combo it was started from (-1 = unknown)
+	QString title;
+	QString expression;                                // z = ... (formula surface, implicit surface)
+	QString xExpression, yExpression, zExpression;     // x/y/z(u,v), x/y/z(t) or u/v/w
+	double xMinimum = 0.0, xMaximum = 1.0, yMinimum = 0.0, yMaximum = 1.0, zMinimum = 0.0, zMaximum = 1.0;
+	int xSamples = 2, ySamples = 2, zSamples = 2;
+	std::vector<std::pair<QString, double>> parameters; // in the order the dialog lists them
+};
+
 struct Plot3DSession
 {
 	QUuid meshUuid;
+	// Set for a plot built from a formula / definition (not a CSV table): what Edit Plot reopens and rebuilds.
+	Plot3DGeneratedSpec generated;
 	// Stem plots own a companion GL_POINTS mesh for their constant-pixel endpoint markers. It shares the node and
 	// visibility lifecycle of meshUuid but needs its own per-vertex colour data when the colour controls change.
 	QUuid markerMeshUuid;
@@ -29,6 +49,9 @@ struct Plot3DSession
 	std::vector<bool> markerValid;
 	float dataMinimumValue = 0.0f;
 	float dataMaximumValue = 1.0f;
+	// Whether the colour range follows the data range. Stored, not derived from colourMinimum == dataMinimumValue: a manual
+	// range that happens to equal the data range would otherwise read as automatic again and the box could never be cleared.
+	bool automaticColourRange = true;
 	float colourMinimum = 0.0f;
 	float colourMaximum = 1.0f;
 	int colormap = 0;
