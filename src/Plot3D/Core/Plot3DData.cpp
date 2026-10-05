@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Plot3DData.h"
 
 #include <QLocale>
@@ -380,13 +381,13 @@ QString plot3DPrimitiveName(Plot3DPrimitive primitive)
 {
 	switch (primitive)
 	{
-	case Plot3DPrimitive::Surface: return QStringLiteral("Surface");
-	case Plot3DPrimitive::Contour: return QStringLiteral("Contour");
-	case Plot3DPrimitive::Line: return QStringLiteral("Line");
-	case Plot3DPrimitive::Scatter: return QStringLiteral("Scatter");
-	case Plot3DPrimitive::Bar: return QStringLiteral("Bar");
-	case Plot3DPrimitive::Voxel: return QStringLiteral("Voxel");
-	case Plot3DPrimitive::Quiver: return QStringLiteral("Quiver");
+	case Plot3DPrimitive::Surface: return QCoreApplication::translate("Plot3DPrimitive", "Surface");
+	case Plot3DPrimitive::Contour: return QCoreApplication::translate("Plot3DPrimitive", "Contour");
+	case Plot3DPrimitive::Line: return QCoreApplication::translate("Plot3DPrimitive", "Line");
+	case Plot3DPrimitive::Scatter: return QCoreApplication::translate("Plot3DPrimitive", "Scatter");
+	case Plot3DPrimitive::Bar: return QCoreApplication::translate("Plot3DPrimitive", "Bar");
+	case Plot3DPrimitive::Voxel: return QCoreApplication::translate("Plot3DPrimitive", "Voxel");
+	case Plot3DPrimitive::Quiver: return QCoreApplication::translate("Plot3DPrimitive", "Quiver");
 	}
 	return QString();
 }

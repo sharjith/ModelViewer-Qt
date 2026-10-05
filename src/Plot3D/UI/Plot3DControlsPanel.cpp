@@ -38,52 +38,56 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	auto* layout = new QVBoxLayout(content);
 	layout->setContentsMargins(6, 6, 6, 6);
 
-	_addPlotButton = new QPushButton(tr("Add 3D Plot..."), this);
+	// No text is given to any widget below: applyTexts() assigns every user-visible string (see its declaration).
+	_addPlotButton = new QPushButton(this);
 	_addPlotButton->setIcon(QIcon(QStringLiteral(":/icons/res/plot3d.png")));
-	_addPlotButton->setToolTip(tr("Import CSV or pasted tabular data and build a new 3D plot."));
 	layout->addWidget(_addPlotButton);
-	_editPlotButton = new QPushButton(tr("Edit Plot..."), this);
+	_editPlotButton = new QPushButton(this);
 	_editPlotButton->setIcon(QIcon(QStringLiteral(":/icons/res/plot3d.png")));
-	_editPlotButton->setToolTip(tr("Reopen the active CSV plot's source data and column mapping."));
 	layout->addWidget(_editPlotButton);
 
 	_plotSelector = new QComboBox(this);
-	layout->addWidget(new QLabel(tr("Active plot:"), this));
+	_activePlotLabel = new QLabel(this);
+	layout->addWidget(_activePlotLabel);
 	layout->addWidget(_plotSelector);
-	_showAxesCheck = new QCheckBox(tr("Show axes box"), this);
-	_showAxesCheck->setToolTip(tr("Show or hide the active plot's axes without discarding its axis layout."));
+	_showAxesCheck = new QCheckBox(this);
 	layout->addWidget(_showAxesCheck);
 
 	auto* appearance = new QFormLayout();
 	_colormap = new QComboBox(this);
-	_colormap->addItem(tr("Sequential"), 0);
-	_colormap->addItem(tr("Diverging"), 1);
+	_colormap->addItem(QString(), 0);
+	_colormap->addItem(QString(), 1);
 	_bands = new QComboBox(this);
-	_bands->addItem(tr("Smooth"), 0);
-	for (int bands : { 4, 6, 8, 10, 12 }) _bands->addItem(tr("%1 bands").arg(bands), bands);
-	_automaticRange = new QCheckBox(tr("Automatic colour range"), this);
+	_bands->addItem(QString(), 0);
+	for (int bands : { 4, 6, 8, 10, 12 }) _bands->addItem(QString(), bands);
+	_automaticRange = new QCheckBox(this);
 	_contourLevels = new QSpinBox(this); _contourLevels->setRange(1, 40);
-	_contourLevelsLabel = new QLabel(tr("Contour levels:"), this);
+	_contourLevelsLabel = new QLabel(this);
 	_rangeMinimum = new QDoubleSpinBox(this); _rangeMinimum->setRange(-1.0e12, 1.0e12); _rangeMinimum->setDecimals(6);
 	_rangeMaximum = new QDoubleSpinBox(this); _rangeMaximum->setRange(-1.0e12, 1.0e12); _rangeMaximum->setDecimals(6);
-	_lineWidth = new QDoubleSpinBox(this); _lineWidth->setRange(0.5, 10.0); _lineWidth->setSingleStep(0.25); _lineWidth->setDecimals(2); _lineWidth->setSuffix(tr(" px"));
-	_markerSize = new QDoubleSpinBox(this); _markerSize->setRange(1.0, 20.0); _markerSize->setSingleStep(0.5); _markerSize->setDecimals(1); _markerSize->setSuffix(tr(" px"));
+	_lineWidth = new QDoubleSpinBox(this); _lineWidth->setRange(0.5, 10.0); _lineWidth->setSingleStep(0.25); _lineWidth->setDecimals(2);
+	_markerSize = new QDoubleSpinBox(this); _markerSize->setRange(1.0, 20.0); _markerSize->setSingleStep(0.5); _markerSize->setDecimals(1);
 	_arrowScale = new QDoubleSpinBox(this); _arrowScale->setRange(0.25, 4.0); _arrowScale->setSingleStep(0.1); _arrowScale->setDecimals(2); _arrowScale->setSuffix(QStringLiteral("x"));
 	_barWidthScale = new QDoubleSpinBox(this); _barWidthScale->setRange(0.1, 3.0); _barWidthScale->setSingleStep(0.05); _barWidthScale->setDecimals(2); _barWidthScale->setSuffix(QStringLiteral("x"));
 	_barDepthScale = new QDoubleSpinBox(this); _barDepthScale->setRange(0.1, 3.0); _barDepthScale->setSingleStep(0.05); _barDepthScale->setDecimals(2); _barDepthScale->setSuffix(QStringLiteral("x"));
-	_barWidthScale->setToolTip(tr("Scale every bar's imported width while keeping its centre fixed."));
-	_barDepthScale->setToolTip(tr("Scale every bar's imported depth while keeping its centre fixed."));
-	_barWidthScaleLabel = new QLabel(tr("Bar width:"), this);
-	_barDepthScaleLabel = new QLabel(tr("Bar depth:"), this);
-	appearance->addRow(tr("Colour map:"), _colormap);
-	appearance->addRow(tr("Colour bands:"), _bands);
+	_barWidthScaleLabel = new QLabel(this);
+	_barDepthScaleLabel = new QLabel(this);
+	_colormapLabel = new QLabel(this);
+	_bandsLabel = new QLabel(this);
+	_minimumLabel = new QLabel(this);
+	_maximumLabel = new QLabel(this);
+	_lineWidthLabel = new QLabel(this);
+	_markerSizeLabel = new QLabel(this);
+	_arrowScaleLabel = new QLabel(this);
+	appearance->addRow(_colormapLabel, _colormap);
+	appearance->addRow(_bandsLabel, _bands);
 	appearance->addRow(QString(), _automaticRange);
 	appearance->addRow(_contourLevelsLabel, _contourLevels);
-	appearance->addRow(tr("Minimum:"), _rangeMinimum);
-	appearance->addRow(tr("Maximum:"), _rangeMaximum);
-	appearance->addRow(tr("Line width:"), _lineWidth);
-	appearance->addRow(tr("Marker size:"), _markerSize);
-	appearance->addRow(tr("Arrow size:"), _arrowScale);
+	appearance->addRow(_minimumLabel, _rangeMinimum);
+	appearance->addRow(_maximumLabel, _rangeMaximum);
+	appearance->addRow(_lineWidthLabel, _lineWidth);
+	appearance->addRow(_markerSizeLabel, _markerSize);
+	appearance->addRow(_arrowScaleLabel, _arrowScale);
 	appearance->addRow(_barWidthScaleLabel, _barWidthScale);
 	appearance->addRow(_barDepthScaleLabel, _barDepthScale);
 	layout->addLayout(appearance);
@@ -91,27 +95,28 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	// Axes are deliberately edited here, rather than in the transient import
 	// dialog, because users commonly need to revisit labels/ranges after
 	// comparing a generated plot with the rest of the document.
-	auto* axesGroup = new QGroupBox(tr("Axes"), this);
+	_axesGroup = new QGroupBox(this);
+	auto* axesGroup = _axesGroup;
 	auto* axesLayout = new QVBoxLayout(axesGroup);
 	auto* titleRow = new QHBoxLayout();
 	_plotTitle = new QLineEdit(axesGroup);
-	_plotTitle->setPlaceholderText(tr("Plot title"));
-	titleRow->addWidget(new QLabel(tr("Title:"), axesGroup));
+	_titleLabel = new QLabel(axesGroup);
+	titleRow->addWidget(_titleLabel);
 	titleRow->addWidget(_plotTitle, 1);
 	axesLayout->addLayout(titleRow);
 	auto* referencePlaneRow = new QHBoxLayout();
-	referencePlaneRow->addWidget(new QLabel(tr("Planes:"), axesGroup));
+	_planesLabel = new QLabel(axesGroup);
+	referencePlaneRow->addWidget(_planesLabel);
 	for (int i = 0; i < 3; ++i)
 	{
-		_referencePlanes[i] = new QCheckBox(i == 0 ? tr("XY") : (i == 1 ? tr("XZ") : tr("YZ")), axesGroup);
+		_referencePlanes[i] = new QCheckBox(axesGroup);
 		referencePlaneRow->addWidget(_referencePlanes[i]);
 	}
 	referencePlaneRow->addStretch(1);
-	referencePlaneRow->addWidget(new QLabel(tr("Opacity:"), axesGroup));
+	_opacityLabel = new QLabel(axesGroup);
+	referencePlaneRow->addWidget(_opacityLabel);
 	_referencePlaneOpacity = new QSpinBox(axesGroup);
 	_referencePlaneOpacity->setRange(0, 35);
-	_referencePlaneOpacity->setSuffix(tr(" %"));
-	_referencePlaneOpacity->setToolTip(tr("Opacity of the selected reference planes."));
 	referencePlaneRow->addWidget(_referencePlaneOpacity);
 	axesLayout->addLayout(referencePlaneRow);
 	for (int i = 0; i < 3; ++i)
@@ -119,10 +124,10 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 		auto* row = new QHBoxLayout();
 		_axisLabels[i] = new QLineEdit(axesGroup);
 		_axisScales[i] = new QComboBox(axesGroup);
-		_axisScales[i]->addItem(tr("Linear"), static_cast<int>(Plot3DAxisScale::Linear));
-		_axisScales[i]->addItem(tr("Log 10"), static_cast<int>(Plot3DAxisScale::Log10));
-		_axisScales[i]->addItem(tr("SymLog"), static_cast<int>(Plot3DAxisScale::SymLog));
-		_axisAutomatic[i] = new QCheckBox(tr("Auto"), axesGroup);
+		_axisScales[i]->addItem(QString(), static_cast<int>(Plot3DAxisScale::Linear));
+		_axisScales[i]->addItem(QString(), static_cast<int>(Plot3DAxisScale::Log10));
+		_axisScales[i]->addItem(QString(), static_cast<int>(Plot3DAxisScale::SymLog));
+		_axisAutomatic[i] = new QCheckBox(axesGroup);
 		_axisMinimum[i] = new QDoubleSpinBox(axesGroup); _axisMinimum[i]->setRange(-1.0e12, 1.0e12); _axisMinimum[i]->setDecimals(6);
 		_axisMaximum[i] = new QDoubleSpinBox(axesGroup); _axisMaximum[i]->setRange(-1.0e12, 1.0e12); _axisMaximum[i]->setDecimals(6);
 		_axisTicks[i] = new QSpinBox(axesGroup); _axisTicks[i]->setRange(2, 20);
@@ -171,21 +176,66 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 		if (_viewer && _plotSelector->currentIndex() >= 0)
 			_viewer->setPlot3DAxisTitle(_plotSelector->currentData().toUuid(), _plotTitle->text());
 	});
+	applyTexts();
 	setModelViewer(nullptr);
 }
 
-void Plot3DControlsPanel::retranslate()
+void Plot3DControlsPanel::applyTexts()
 {
 	_addPlotButton->setText(tr("Add 3D Plot..."));
 	_addPlotButton->setToolTip(tr("Import CSV or pasted tabular data and build a new 3D plot."));
 	_editPlotButton->setText(tr("Edit Plot..."));
 	_editPlotButton->setToolTip(tr("Reopen the active CSV plot's source data and column mapping."));
+	_activePlotLabel->setText(tr("Active plot:"));
 	_showAxesCheck->setText(tr("Show axes box"));
 	_showAxesCheck->setToolTip(tr("Show or hide the active plot's axes without discarding its axis layout."));
+
+	// Combo items: replace the text only. setItemText() neither changes the selection nor emits currentIndexChanged, so a
+	// language change cannot be mistaken for the user picking a different colour map / band count / axis scale.
+	_colormap->setItemText(0, tr("Sequential"));
+	_colormap->setItemText(1, tr("Diverging"));
+	for (int i = 0; i < _bands->count(); ++i)
+		_bands->setItemText(i, i == 0 ? tr("Smooth") : tr("%1 bands").arg(_bands->itemData(i).toInt()));
+	for (QComboBox* scale : _axisScales)
+	{
+		scale->setItemText(0, tr("Linear"));
+		scale->setItemText(1, tr("Log 10"));
+		scale->setItemText(2, tr("SymLog"));
+	}
+
+	_colormapLabel->setText(tr("Colour map:"));
+	_bandsLabel->setText(tr("Colour bands:"));
+	_automaticRange->setText(tr("Automatic colour range"));
+	_contourLevelsLabel->setText(tr("Contour levels:"));
+	_minimumLabel->setText(tr("Minimum:"));
+	_maximumLabel->setText(tr("Maximum:"));
+	_lineWidthLabel->setText(tr("Line width:"));
+	_markerSizeLabel->setText(tr("Marker size:"));
+	_arrowScaleLabel->setText(tr("Arrow size:"));
+	_lineWidth->setSuffix(tr(" px"));
+	_markerSize->setSuffix(tr(" px"));
 	_barWidthScaleLabel->setText(tr("Bar width:"));
 	_barDepthScaleLabel->setText(tr("Bar depth:"));
 	_barWidthScale->setToolTip(tr("Scale every bar's imported width while keeping its centre fixed."));
 	_barDepthScale->setToolTip(tr("Scale every bar's imported depth while keeping its centre fixed."));
+
+	_axesGroup->setTitle(tr("Axes"));
+	_plotTitle->setPlaceholderText(tr("Plot title"));
+	_titleLabel->setText(tr("Title:"));
+	_planesLabel->setText(tr("Planes:"));
+	_referencePlanes[0]->setText(tr("XY"));
+	_referencePlanes[1]->setText(tr("XZ"));
+	_referencePlanes[2]->setText(tr("YZ"));
+	_opacityLabel->setText(tr("Opacity:"));
+	_referencePlaneOpacity->setSuffix(tr(" %"));
+	_referencePlaneOpacity->setToolTip(tr("Opacity of the selected reference planes."));
+	for (QCheckBox* automatic : _axisAutomatic)
+		automatic->setText(tr("Auto"));
+}
+
+void Plot3DControlsPanel::retranslate()
+{
+	applyTexts();
 	refreshState();
 }
 

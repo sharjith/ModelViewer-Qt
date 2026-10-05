@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Plot3DFormula.h"
 
 #include <algorithm>
@@ -48,17 +49,17 @@ QVector<Plot3DFormulaPreset> plot3DFormulaPresets()
 {
 	auto parameter = [](const char* name, double value) { return Plot3DFormulaParameter{ QString::fromLatin1(name), value }; };
 	return {
-		{ QStringLiteral("Plane"), QStringLiteral("Plane"), QStringLiteral("a*x + b*y + c"), -5,5,-5,5,61,61, {parameter("a",0.2),parameter("b",0.15),parameter("c",0.0)} },
-		{ QStringLiteral("Saddle"), QStringLiteral("Saddle Surface"), QStringLiteral("a*(x^2 - y^2)"), -4,4,-4,4,81,81, {parameter("a",0.2)} },
-		{ QStringLiteral("Paraboloid"), QStringLiteral("Elliptic Paraboloid"), QStringLiteral("a*(x^2+y^2)"), -4,4,-4,4,81,81, {parameter("a",0.15)} },
-		{ QStringLiteral("Cone"), QStringLiteral("Circular Cone"), QStringLiteral("a*sqrt(x^2+y^2)"), -5,5,-5,5,81,81, {parameter("a",0.4)} },
-		{ QStringLiteral("Gaussian"), QStringLiteral("Gaussian Surface"), QStringLiteral("a*exp(-((x-x0)^2+(y-y0)^2)/(2*s^2))"), -5,5,-5,5,81,81, {parameter("a",1.0),parameter("x0",0.0),parameter("y0",0.0),parameter("s",1.5)} },
-		{ QStringLiteral("Sinc Ripple"), QStringLiteral("Sinc Ripple"), QStringLiteral("sin(sqrt(x^2+y^2))/(sqrt(x^2+y^2)+0.000001)"), -10,10,-10,10,101,101, {} },
-		{ QStringLiteral("Wave"), QStringLiteral("Standing Wave"), QStringLiteral("a*sin(kx*x)*cos(ky*y)"), -6,6,-6,6,101,101, {parameter("a",1.0),parameter("kx",1.0),parameter("ky",1.0)} },
-		{ QStringLiteral("Mexican Hat"), QStringLiteral("Mexican Hat"), QStringLiteral("a*(1-(x^2+y^2)/s^2)*exp(-(x^2+y^2)/(2*s^2))"), -5,5,-5,5,81,81, {parameter("a",1.0),parameter("s",1.5)} },
-		{ QStringLiteral("Bivariate Normal"), QStringLiteral("Bivariate Normal Density"), QStringLiteral("a*exp(-0.5*((x/sx)^2+(y/sy)^2))"), -5,5,-5,5,81,81, {parameter("a",1.0),parameter("sx",1.2),parameter("sy",2.0)} },
-		{ QStringLiteral("Logistic Regression"), QStringLiteral("Logistic Response Surface"), QStringLiteral("1/(1+exp(-(b0+bx*x+by*y)))"), -5,5,-5,5,81,81, {parameter("b0",0.0),parameter("bx",0.8),parameter("by",1.1)} },
-		{ QStringLiteral("Rosenbrock"), QStringLiteral("Rosenbrock Function"), QStringLiteral("a*(y-x^2)^2+(b-x)^2"), -2,2,-1,3,101,101, {parameter("a",20.0),parameter("b",1.0)} },
+		{ QCoreApplication::translate("Plot3DPresets", "Plane"), QCoreApplication::translate("Plot3DPresets", "Plane"), QStringLiteral("a*x + b*y + c"), -5,5,-5,5,61,61, {parameter("a",0.2),parameter("b",0.15),parameter("c",0.0)} },
+		{ QCoreApplication::translate("Plot3DPresets", "Saddle"), QCoreApplication::translate("Plot3DPresets", "Saddle Surface"), QStringLiteral("a*(x^2 - y^2)"), -4,4,-4,4,81,81, {parameter("a",0.2)} },
+		{ QCoreApplication::translate("Plot3DPresets", "Paraboloid"), QCoreApplication::translate("Plot3DPresets", "Elliptic Paraboloid"), QStringLiteral("a*(x^2+y^2)"), -4,4,-4,4,81,81, {parameter("a",0.15)} },
+		{ QCoreApplication::translate("Plot3DPresets", "Cone"), QCoreApplication::translate("Plot3DPresets", "Circular Cone"), QStringLiteral("a*sqrt(x^2+y^2)"), -5,5,-5,5,81,81, {parameter("a",0.4)} },
+		{ QCoreApplication::translate("Plot3DPresets", "Gaussian"), QCoreApplication::translate("Plot3DPresets", "Gaussian Surface"), QStringLiteral("a*exp(-((x-x0)^2+(y-y0)^2)/(2*s^2))"), -5,5,-5,5,81,81, {parameter("a",1.0),parameter("x0",0.0),parameter("y0",0.0),parameter("s",1.5)} },
+		{ QCoreApplication::translate("Plot3DPresets", "Sinc Ripple"), QCoreApplication::translate("Plot3DPresets", "Sinc Ripple"), QStringLiteral("sin(sqrt(x^2+y^2))/(sqrt(x^2+y^2)+0.000001)"), -10,10,-10,10,101,101, {} },
+		{ QCoreApplication::translate("Plot3DPresets", "Wave"), QCoreApplication::translate("Plot3DPresets", "Standing Wave"), QStringLiteral("a*sin(kx*x)*cos(ky*y)"), -6,6,-6,6,101,101, {parameter("a",1.0),parameter("kx",1.0),parameter("ky",1.0)} },
+		{ QCoreApplication::translate("Plot3DPresets", "Mexican Hat"), QCoreApplication::translate("Plot3DPresets", "Mexican Hat"), QStringLiteral("a*(1-(x^2+y^2)/s^2)*exp(-(x^2+y^2)/(2*s^2))"), -5,5,-5,5,81,81, {parameter("a",1.0),parameter("s",1.5)} },
+		{ QCoreApplication::translate("Plot3DPresets", "Bivariate Normal"), QCoreApplication::translate("Plot3DPresets", "Bivariate Normal Density"), QStringLiteral("a*exp(-0.5*((x/sx)^2+(y/sy)^2))"), -5,5,-5,5,81,81, {parameter("a",1.0),parameter("sx",1.2),parameter("sy",2.0)} },
+		{ QCoreApplication::translate("Plot3DPresets", "Logistic Regression"), QCoreApplication::translate("Plot3DPresets", "Logistic Response Surface"), QStringLiteral("1/(1+exp(-(b0+bx*x+by*y)))"), -5,5,-5,5,81,81, {parameter("b0",0.0),parameter("bx",0.8),parameter("by",1.1)} },
+		{ QCoreApplication::translate("Plot3DPresets", "Rosenbrock"), QCoreApplication::translate("Plot3DPresets", "Rosenbrock Function"), QStringLiteral("a*(y-x^2)^2+(b-x)^2"), -2,2,-1,3,101,101, {parameter("a",20.0),parameter("b",1.0)} },
 	};
 }
 QVector<Plot3DParametricPreset> plot3DParametricPresets()
@@ -66,15 +67,15 @@ QVector<Plot3DParametricPreset> plot3DParametricPresets()
 	auto p=[](const char* name,double value){return Plot3DFormulaParameter{QString::fromLatin1(name),value};};
 	const double tau=6.283185307179586;
 	return {
-		{QStringLiteral("Torus"),QStringLiteral("Torus"),QStringLiteral("(r+a*cos(v))*cos(u)"),QStringLiteral("(r+a*cos(v))*sin(u)"),QStringLiteral("a*sin(v)"),0,tau,0,tau,81,49,{p("r",3.0),p("a",1.0)}},
-		{QStringLiteral("Ellipsoid"),QStringLiteral("Ellipsoid"),QStringLiteral("a*sin(v)*cos(u)"),QStringLiteral("b*sin(v)*sin(u)"),QStringLiteral("c*cos(v)"),0,tau,0,3.141592653589793,81,49,{p("a",3.0),p("b",2.0),p("c",1.25)}},
-		{QStringLiteral("Mobius Strip"),QStringLiteral("Mobius Strip"),QStringLiteral("(r+v*cos(u/2))*cos(u)"),QStringLiteral("(r+v*cos(u/2))*sin(u)"),QStringLiteral("v*sin(u/2)"),0,tau,-1.0,1.0,101,31,{p("r",2.5)}},
-		{QStringLiteral("Klein Bottle"),QStringLiteral("Klein Bottle"),QStringLiteral("(6*cos(u)*(1+sin(u))+4*(1-cos(u)/2)*cos(u)*cos(v))/6"),QStringLiteral("4*(1-cos(u)/2)*sin(v)/6"),QStringLiteral("(16*sin(u)+4*(1-cos(u)/2)*sin(u)*cos(v))/6"),0,tau,0,tau,101,61,{}},
-		{QStringLiteral("Superellipsoid"),QStringLiteral("Superellipsoid"),QStringLiteral("a*sign(cos(v))*abs(cos(v))^e1*sign(cos(u))*abs(cos(u))^e2"),QStringLiteral("a*sign(cos(v))*abs(cos(v))^e1*sign(sin(u))*abs(sin(u))^e2"),QStringLiteral("a*sign(sin(v))*abs(sin(v))^e1"),0,tau,-1.5707963267948966,1.5707963267948966,81,49,{p("a",2.0),p("e1",0.5),p("e2",0.5)}},
-		{QStringLiteral("Helicoid"),QStringLiteral("Helicoid"),QStringLiteral("v*cos(u)"),QStringLiteral("v*sin(u)"),QStringLiteral("p*u"),-tau,tau,-2.0,2.0,101,41,{p("p",0.18)}},
-		{QStringLiteral("Catenoid"),QStringLiteral("Catenoid"),QStringLiteral("a*cosh(v/a)*cos(u)"),QStringLiteral("a*cosh(v/a)*sin(u)"),QStringLiteral("v"),0,tau,-2.0,2.0,101,49,{p("a",0.8)}},
-		{QStringLiteral("Enneper Surface"),QStringLiteral("Enneper Surface"),QStringLiteral("u-u^3/3+u*v^2"),QStringLiteral("v-v^3/3+v*u^2"),QStringLiteral("u^2-v^2"),-2.0,2.0,-2.0,2.0,81,81,{}},
-		{QStringLiteral("Spherical Harmonic"),QStringLiteral("Spherical Harmonic"),QStringLiteral("(r+a*sin(m*v)*cos(n*u))*sin(v)*cos(u)"),QStringLiteral("(r+a*sin(m*v)*cos(n*u))*sin(v)*sin(u)"),QStringLiteral("(r+a*sin(m*v)*cos(n*u))*cos(v)"),0,tau,0,3.141592653589793,101,61,{p("r",2.0),p("a",0.35),p("m",4.0),p("n",3.0)}},
+		{QCoreApplication::translate("Plot3DPresets", "Torus"), QCoreApplication::translate("Plot3DPresets", "Torus"),QStringLiteral("(r+a*cos(v))*cos(u)"),QStringLiteral("(r+a*cos(v))*sin(u)"),QStringLiteral("a*sin(v)"),0,tau,0,tau,81,49,{p("r",3.0),p("a",1.0)}},
+		{QCoreApplication::translate("Plot3DPresets", "Ellipsoid"), QCoreApplication::translate("Plot3DPresets", "Ellipsoid"),QStringLiteral("a*sin(v)*cos(u)"),QStringLiteral("b*sin(v)*sin(u)"),QStringLiteral("c*cos(v)"),0,tau,0,3.141592653589793,81,49,{p("a",3.0),p("b",2.0),p("c",1.25)}},
+		{QCoreApplication::translate("Plot3DPresets", "Mobius Strip"), QCoreApplication::translate("Plot3DPresets", "Mobius Strip"),QStringLiteral("(r+v*cos(u/2))*cos(u)"),QStringLiteral("(r+v*cos(u/2))*sin(u)"),QStringLiteral("v*sin(u/2)"),0,tau,-1.0,1.0,101,31,{p("r",2.5)}},
+		{QCoreApplication::translate("Plot3DPresets", "Klein Bottle"), QCoreApplication::translate("Plot3DPresets", "Klein Bottle"),QStringLiteral("(6*cos(u)*(1+sin(u))+4*(1-cos(u)/2)*cos(u)*cos(v))/6"),QStringLiteral("4*(1-cos(u)/2)*sin(v)/6"),QStringLiteral("(16*sin(u)+4*(1-cos(u)/2)*sin(u)*cos(v))/6"),0,tau,0,tau,101,61,{}},
+		{QCoreApplication::translate("Plot3DPresets", "Superellipsoid"), QCoreApplication::translate("Plot3DPresets", "Superellipsoid"),QStringLiteral("a*sign(cos(v))*abs(cos(v))^e1*sign(cos(u))*abs(cos(u))^e2"),QStringLiteral("a*sign(cos(v))*abs(cos(v))^e1*sign(sin(u))*abs(sin(u))^e2"),QStringLiteral("a*sign(sin(v))*abs(sin(v))^e1"),0,tau,-1.5707963267948966,1.5707963267948966,81,49,{p("a",2.0),p("e1",0.5),p("e2",0.5)}},
+		{QCoreApplication::translate("Plot3DPresets", "Helicoid"), QCoreApplication::translate("Plot3DPresets", "Helicoid"),QStringLiteral("v*cos(u)"),QStringLiteral("v*sin(u)"),QStringLiteral("p*u"),-tau,tau,-2.0,2.0,101,41,{p("p",0.18)}},
+		{QCoreApplication::translate("Plot3DPresets", "Catenoid"), QCoreApplication::translate("Plot3DPresets", "Catenoid"),QStringLiteral("a*cosh(v/a)*cos(u)"),QStringLiteral("a*cosh(v/a)*sin(u)"),QStringLiteral("v"),0,tau,-2.0,2.0,101,49,{p("a",0.8)}},
+		{QCoreApplication::translate("Plot3DPresets", "Enneper Surface"), QCoreApplication::translate("Plot3DPresets", "Enneper Surface"),QStringLiteral("u-u^3/3+u*v^2"),QStringLiteral("v-v^3/3+v*u^2"),QStringLiteral("u^2-v^2"),-2.0,2.0,-2.0,2.0,81,81,{}},
+		{QCoreApplication::translate("Plot3DPresets", "Spherical Harmonic"), QCoreApplication::translate("Plot3DPresets", "Spherical Harmonic"),QStringLiteral("(r+a*sin(m*v)*cos(n*u))*sin(v)*cos(u)"),QStringLiteral("(r+a*sin(m*v)*cos(n*u))*sin(v)*sin(u)"),QStringLiteral("(r+a*sin(m*v)*cos(n*u))*cos(v)"),0,tau,0,3.141592653589793,101,61,{p("r",2.0),p("a",0.35),p("m",4.0),p("n",3.0)}},
 	};
 }
 QVector<Plot3DParametricCurvePreset> plot3DParametricCurvePresets()
@@ -82,31 +83,31 @@ QVector<Plot3DParametricCurvePreset> plot3DParametricCurvePresets()
 	auto p=[](const char* name,double value){return Plot3DFormulaParameter{QString::fromLatin1(name),value};};
 	const double tau=6.283185307179586;
 	return {
-		{QStringLiteral("Helix"),QStringLiteral("Helix"),QStringLiteral("r*cos(t)"),QStringLiteral("r*sin(t)"),QStringLiteral("pitch*t/(2*pi)"),0,4*tau,321,{p("r",2.0),p("pitch",1.0)}},
-		{QStringLiteral("Lissajous"),QStringLiteral("Lissajous Curve"),QStringLiteral("a*sin(p*t+d)"),QStringLiteral("b*sin(q*t)"),QStringLiteral("c*sin(r*t)"),0,tau,401,{p("a",2.5),p("b",2.0),p("c",1.5),p("p",3.0),p("q",4.0),p("r",5.0),p("d",0.5)}},
-		{QStringLiteral("Trefoil Knot"),QStringLiteral("Trefoil Knot"),QStringLiteral("(r+a*cos(3*t))*cos(2*t)"),QStringLiteral("(r+a*cos(3*t))*sin(2*t)"),QStringLiteral("a*sin(3*t)"),0,tau,401,{p("r",2.0),p("a",0.8)}},
-		{QStringLiteral("Viviani Curve"),QStringLiteral("Viviani Curve"),QStringLiteral("a*(1+cos(t))"),QStringLiteral("a*sin(t)"),QStringLiteral("2*a*sin(t/2)"),0,2*tau,361,{p("a",1.5)}},
-		{QStringLiteral("Damped Spiral"),QStringLiteral("Damped Spiral"),QStringLiteral("r*exp(-d*t)*cos(w*t)"),QStringLiteral("r*exp(-d*t)*sin(w*t)"),QStringLiteral("pitch*t"),0,6*tau,481,{p("r",3.0),p("d",0.08),p("w",1.0),p("pitch",0.08)}},
+		{QCoreApplication::translate("Plot3DPresets", "Helix"), QCoreApplication::translate("Plot3DPresets", "Helix"),QStringLiteral("r*cos(t)"),QStringLiteral("r*sin(t)"),QStringLiteral("pitch*t/(2*pi)"),0,4*tau,321,{p("r",2.0),p("pitch",1.0)}},
+		{QCoreApplication::translate("Plot3DPresets", "Lissajous"), QCoreApplication::translate("Plot3DPresets", "Lissajous Curve"),QStringLiteral("a*sin(p*t+d)"),QStringLiteral("b*sin(q*t)"),QStringLiteral("c*sin(r*t)"),0,tau,401,{p("a",2.5),p("b",2.0),p("c",1.5),p("p",3.0),p("q",4.0),p("r",5.0),p("d",0.5)}},
+		{QCoreApplication::translate("Plot3DPresets", "Trefoil Knot"), QCoreApplication::translate("Plot3DPresets", "Trefoil Knot"),QStringLiteral("(r+a*cos(3*t))*cos(2*t)"),QStringLiteral("(r+a*cos(3*t))*sin(2*t)"),QStringLiteral("a*sin(3*t)"),0,tau,401,{p("r",2.0),p("a",0.8)}},
+		{QCoreApplication::translate("Plot3DPresets", "Viviani Curve"), QCoreApplication::translate("Plot3DPresets", "Viviani Curve"),QStringLiteral("a*(1+cos(t))"),QStringLiteral("a*sin(t)"),QStringLiteral("2*a*sin(t/2)"),0,2*tau,361,{p("a",1.5)}},
+		{QCoreApplication::translate("Plot3DPresets", "Damped Spiral"), QCoreApplication::translate("Plot3DPresets", "Damped Spiral"),QStringLiteral("r*exp(-d*t)*cos(w*t)"),QStringLiteral("r*exp(-d*t)*sin(w*t)"),QStringLiteral("pitch*t"),0,6*tau,481,{p("r",3.0),p("d",0.08),p("w",1.0),p("pitch",0.08)}},
 	};
 }
 QVector<Plot3DFormulaVectorPreset> plot3DFormulaVectorPresets()
 {
 	auto p=[](const char* name,double value){return Plot3DFormulaParameter{QString::fromLatin1(name),value};};
 	return {
-		{QStringLiteral("Vortex"),QStringLiteral("Planar Vortex"),QStringLiteral("-s*y"),QStringLiteral("s*x"),QStringLiteral("0"),-4,4,-4,4,17,17,{p("s",1.0)}},
-		{QStringLiteral("Radial"),QStringLiteral("Radial Field"),QStringLiteral("s*x"),QStringLiteral("s*y"),QStringLiteral("0"),-4,4,-4,4,17,17,{p("s",1.0)}},
-		{QStringLiteral("Saddle"),QStringLiteral("Saddle Field"),QStringLiteral("s*x"),QStringLiteral("-s*y"),QStringLiteral("0"),-4,4,-4,4,17,17,{p("s",1.0)}},
-		{QStringLiteral("Helical"),QStringLiteral("Helical Field"),QStringLiteral("-s*y"),QStringLiteral("s*x"),QStringLiteral("rise"),-4,4,-4,4,17,17,{p("s",1.0),p("rise",0.75)}},
+		{QCoreApplication::translate("Plot3DPresets", "Vortex"), QCoreApplication::translate("Plot3DPresets", "Planar Vortex"),QStringLiteral("-s*y"),QStringLiteral("s*x"),QStringLiteral("0"),-4,4,-4,4,17,17,{p("s",1.0)}},
+		{QCoreApplication::translate("Plot3DPresets", "Radial"), QCoreApplication::translate("Plot3DPresets", "Radial Field"),QStringLiteral("s*x"),QStringLiteral("s*y"),QStringLiteral("0"),-4,4,-4,4,17,17,{p("s",1.0)}},
+		{QCoreApplication::translate("Plot3DPresets", "Saddle"), QCoreApplication::translate("Plot3DPresets", "Saddle Field"),QStringLiteral("s*x"),QStringLiteral("-s*y"),QStringLiteral("0"),-4,4,-4,4,17,17,{p("s",1.0)}},
+		{QCoreApplication::translate("Plot3DPresets", "Helical"), QCoreApplication::translate("Plot3DPresets", "Helical Field"),QStringLiteral("-s*y"),QStringLiteral("s*x"),QStringLiteral("rise"),-4,4,-4,4,17,17,{p("s",1.0),p("rise",0.75)}},
 	};
 }
 QVector<Plot3DImplicitPreset> plot3DImplicitPresets()
 {
 	auto p=[](const char* name,double value){return Plot3DFormulaParameter{QString::fromLatin1(name),value};};
 	return {
-		{QStringLiteral("Sphere"),QStringLiteral("Implicit Sphere"),QStringLiteral("x^2+y^2+z^2-r^2"),-3,3,-3,3,-3,3,41,41,41,{p("r",2.0)}},
-		{QStringLiteral("Torus"),QStringLiteral("Implicit Torus"),QStringLiteral("(sqrt(x^2+y^2)-r)^2+z^2-a^2"),-4,4,-4,4,-2,2,49,49,33,{p("r",2.3),p("a",0.8)}},
-		{QStringLiteral("Gyroid"),QStringLiteral("Gyroid Surface"),QStringLiteral("sin(x)*cos(y)+sin(y)*cos(z)+sin(z)*cos(x)-level"),-3.141592653589793,3.141592653589793,-3.141592653589793,3.141592653589793,-3.141592653589793,3.141592653589793,49,49,49,{p("level",0.0)}},
-		{QStringLiteral("Wave Interference"),QStringLiteral("Wave Interference Isosurface"),QStringLiteral("sin(k*x)+sin(k*y)+sin(k*z)-level"),-3.141592653589793,3.141592653589793,-3.141592653589793,3.141592653589793,-3.141592653589793,3.141592653589793,49,49,49,{p("k",1.0),p("level",0.0)}},
+		{QCoreApplication::translate("Plot3DPresets", "Sphere"), QCoreApplication::translate("Plot3DPresets", "Implicit Sphere"),QStringLiteral("x^2+y^2+z^2-r^2"),-3,3,-3,3,-3,3,41,41,41,{p("r",2.0)}},
+		{QCoreApplication::translate("Plot3DPresets", "Torus"), QCoreApplication::translate("Plot3DPresets", "Implicit Torus"),QStringLiteral("(sqrt(x^2+y^2)-r)^2+z^2-a^2"),-4,4,-4,4,-2,2,49,49,33,{p("r",2.3),p("a",0.8)}},
+		{QCoreApplication::translate("Plot3DPresets", "Gyroid"), QCoreApplication::translate("Plot3DPresets", "Gyroid Surface"),QStringLiteral("sin(x)*cos(y)+sin(y)*cos(z)+sin(z)*cos(x)-level"),-3.141592653589793,3.141592653589793,-3.141592653589793,3.141592653589793,-3.141592653589793,3.141592653589793,49,49,49,{p("level",0.0)}},
+		{QCoreApplication::translate("Plot3DPresets", "Wave Interference"), QCoreApplication::translate("Plot3DPresets", "Wave Interference Isosurface"),QStringLiteral("sin(k*x)+sin(k*y)+sin(k*z)-level"),-3.141592653589793,3.141592653589793,-3.141592653589793,3.141592653589793,-3.141592653589793,3.141592653589793,49,49,49,{p("k",1.0),p("level",0.0)}},
 	};
 }
 bool evaluatePlot3DFormula(const QString& expression,double x,double y,const QHash<QString,double>& parameters,double& result,QString* error)

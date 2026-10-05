@@ -10,6 +10,7 @@
 class QCheckBox;
 class QComboBox;
 class QDoubleSpinBox;
+class QGroupBox;
 class QLineEdit;
 class QSpinBox;
 class QLabel;
@@ -32,6 +33,10 @@ signals:
 	void editPlotRequested(const QUuid& meshUuid);
 
 private:
+	// Every user-visible string of this panel - labels, group title, tooltips, suffixes AND the items of its combo boxes - is
+	// assigned here and nowhere else, so the constructor and retranslate() cannot drift apart. Combo items keep their data and
+	// the current selection; only their text is replaced.
+	void applyTexts();
 	void refreshState();
 	void applyColourState();
 	void applyAppearanceState();
@@ -69,4 +74,18 @@ private:
 	std::array<QDoubleSpinBox*, 3> _axisMaximum{};
 	std::array<QSpinBox*, 3> _axisTicks{};
 	QLabel* _axisStatus = nullptr;
+
+	// Labels that carry text applyTexts() must be able to reach again.
+	QLabel* _activePlotLabel = nullptr;
+	QLabel* _colormapLabel = nullptr;
+	QLabel* _bandsLabel = nullptr;
+	QLabel* _minimumLabel = nullptr;
+	QLabel* _maximumLabel = nullptr;
+	QLabel* _lineWidthLabel = nullptr;
+	QLabel* _markerSizeLabel = nullptr;
+	QLabel* _arrowScaleLabel = nullptr;
+	QLabel* _titleLabel = nullptr;
+	QLabel* _planesLabel = nullptr;
+	QLabel* _opacityLabel = nullptr;
+	QGroupBox* _axesGroup = nullptr;
 };
