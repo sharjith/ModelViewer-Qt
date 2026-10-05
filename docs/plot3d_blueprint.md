@@ -310,9 +310,10 @@ Ordered roughly by value. None blocks the merge.
    Unindexed point / line plots are still skipped by the exporter (no index buffer) and by the path tracer.
 2. **Path tracer.** `RtSceneBuilder` skips every non-triangle mesh, so points, lines, Quiver and Voxel plots are absent
    from path-traced renders (no crash). Surface and Bar render coloured through item 1.
-3. **Axes in compare / multi-view.** The axes box and legend have not been checked there.
-4. **Tests.** There is no end-to-end save-and-reopen test (it needs the app and a GL context). A headless test of the
-   MVF loader's unindexed-mesh rule is feasible and covers the bug that shipped.
+3. **Axes in compare / multi-view.** Multi-view shows the axes box correctly (user-verified 2026-10-05). Compare mode is a
+   Simulation feature: a Plot3D plot cannot be placed in a pane, so there is nothing to fix for Plot3D itself.
+4. **Tests.** The MVF loader's unindexed-mesh rule is now covered headlessly (`mvf_tests`). There is still no end-to-end
+   save-and-reopen test (it needs the app and a GL context).
 5. **`Plot3DPanel.cpp` is about 2,100 lines** (CSV, formula, parametric, implicit and streamline import, preview, and
    every primitive's build path). A pure refactor into per-source units would reduce the risk of the next regression.
 6. **Tensor glyphs.** Arrows are now zoom-stable; Simulation's tensor ellipsoids still scale with world size. Streamline
