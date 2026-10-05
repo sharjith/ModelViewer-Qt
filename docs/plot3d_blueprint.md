@@ -299,13 +299,17 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
 
 Ordered roughly by value. None blocks the merge.
 
-1. **Colours are lost in external exports and in path-traced renders.** Plot colours are a transient analysis overlay, not
-   authored vertex data. MVF save already has a hook that bakes per-vertex RGBA into `COLOR_0` for Simulation results
-   (`simulationBakedColors()`); Plot3D can use it, so the saved file, glTF / GLB / OBJ exports and the path tracer all
-   see the plot colours. Controller-only content (Quiver arrows, Voxel volumes) has no mesh to bake into and is simply
-   absent from exports.
+1. **Colours in external exports and path-traced renders.** Plot colours are a transient analysis overlay, not authored
+   vertex data (and an `.mvf` is the app's own session file, so baking into it would help no other viewer). *Done,
+   awaiting a build + check:* `ModelViewer::plot3DBakedColors()` computes each coloured plot mesh's shown colours
+   (stem markers included), and together with `simulationBakedColors()` they are (a) written as `COLOR_0` by glTF / GLB /
+   OBJ export (`SceneGraphExporter::buildExportScene(..., colorOverrides)`) and (b) used by the path tracer in place of
+   the vertex colours (`RtSceneBuilder::build(..., colorOverrides)`, supplied through
+   `ViewportWidget::setPathTracerColorProvider`; a colour edit bumps the path-traced scene revision). Filled scatter
+   already carries authored vertex colours; Quiver arrows and Voxel volumes live in controllers and are not baked.
+   Unindexed point / line plots are still skipped by the exporter (no index buffer) and by the path tracer.
 2. **Path tracer.** `RtSceneBuilder` skips every non-triangle mesh, so points, lines, Quiver and Voxel plots are absent
-   from path-traced renders (no crash). Surface and Bar render, but uncoloured until item 1 lands.
+   from path-traced renders (no crash). Surface and Bar render coloured through item 1.
 3. **Axes in compare / multi-view.** The axes box and legend have not been checked there.
 4. **Tests.** There is no end-to-end save-and-reopen test (it needs the app and a GL context). A headless test of the
    MVF loader's unindexed-mesh rule is feasible and covers the bug that shipped.

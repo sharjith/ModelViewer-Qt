@@ -112,7 +112,7 @@ namespace
 	}
 }
 
-RtMeshGeometry RtSceneBuilder::convertGeometry(const SceneMesh* mesh)
+RtMeshGeometry RtSceneBuilder::convertGeometry(const SceneMesh* mesh, const std::vector<float>* colorOverride)
 {
 	RtMeshGeometry geom;
 
@@ -122,7 +122,8 @@ RtMeshGeometry RtSceneBuilder::convertGeometry(const SceneMesh* mesh)
 	// rather than assuming absent color reads as white) - only copy it
 	// through when the mesh actually has one; otherwise RtVertex's (1,1,1,1)
 	// default is the correct identity value.
-	const bool hasVertexColors = mesh->hasVertexColors();
+	const bool hasColorOverride = colorOverride && colorOverride->size() == verts.size() * 4;
+	const bool hasVertexColors = hasColorOverride || mesh->hasVertexColors();
 
 	// KHR_mesh_skinning (bone/joint skinning) - mesh->vertices() only ever
 	// carries the BIND-POSE position/normal/tangent/bitangent (morph targets
@@ -240,7 +241,12 @@ RtMeshGeometry RtSceneBuilder::convertGeometry(const SceneMesh* mesh)
 		rv.bitangent = v.Bitangent;
 		for (int uvSet = 0; uvSet < 4; ++uvSet)
 			rv.texCoords[uvSet] = v.TexCoords[uvSet];
-		if (hasVertexColors)
+		if (hasColorOverride)
+		{
+			const float* rgba = colorOverride->data() + geom.vertices.size() * 4;
+			rv.color = glm::vec4(rgba[0], rgba[1], rgba[2], rgba[3]);
+		}
+		else if (hasVertexColors)
 			rv.color = v.Color;
 
 		if (geom.hasSkinningData)
@@ -897,7 +903,8 @@ std::shared_ptr<RtSceneSnapshot> RtSceneBuilder::build(
 	const RtEnvironment* environment,
 	const RtFloorParams* floor,
 	bool shadowsEnabled,
-	bool selfShadowsEnabled)
+	bool selfShadowsEnabled,
+	const QHash<QUuid, std::vector<float>>* colorOverrides)
 {
 	auto snapshot = std::make_shared<RtSceneSnapshot>();
 	snapshot->revisionId = revisionId;
@@ -936,7 +943,8 @@ std::shared_ptr<RtSceneSnapshot> RtSceneBuilder::build(
 
 		const uint32_t index = static_cast<uint32_t>(snapshot->meshes.size());
 
-		RtMeshGeometry geometry = convertGeometry(mesh);
+		const auto overrideIt = colorOverrides ? colorOverrides->constFind(mesh->uuid()) : QHash<QUuid, std::vector<float>>::const_iterator();
+		RtMeshGeometry geometry = convertGeometry(mesh, colorOverrides && overrideIt != colorOverrides->constEnd() ? &overrideIt.value() : nullptr);
 		// mesh->uuid() (Drawable::uuid(), same stable QUuid SceneMeshRecord
 		// carries alongside this same pointer in _meshStore) - NOT `id`
 		// itself. `id` is a positional index into _meshStore

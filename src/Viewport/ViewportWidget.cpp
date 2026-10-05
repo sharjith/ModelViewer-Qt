@@ -18139,10 +18139,11 @@ std::shared_ptr<const RtSceneSnapshot> ViewportWidget::buildRayTracedSnapshot(in
 	// makes the render frame correctly to the requested WxH instead of
 	// stretching/squishing the same framing the live viewport uses.
 	const float aspectRatio = height > 0 ? static_cast<float>(width) / static_cast<float>(height) : 1.0f;
+	const QHash<QUuid, std::vector<float>> colorOverrides = _pathTracerColorProvider ? _pathTracerColorProvider() : QHash<QUuid, std::vector<float>>();
 	auto snapshot = RtSceneBuilder::build(
 		_sceneRuntime, *_primaryCamera, aspectRatio,
 		lights, _rayTracedSceneRevision, &environment, &floorParams,
-		_renderCtrl.shadowsEnabled(), _renderCtrl.selfShadowsEnabled());
+		_renderCtrl.shadowsEnabled(), _renderCtrl.selfShadowsEnabled(), &colorOverrides);
 
 	// Cache which side of the floor's plane the camera was on for THIS
 	// build - see _rtLastBuildCameraAboveFloor's own doc comment for why

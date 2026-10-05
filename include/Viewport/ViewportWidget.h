@@ -6,6 +6,8 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <QHash>
+#include <QUuid>
 #include <QVariantMap>
 class ToolsToolbar;
 
@@ -718,6 +720,9 @@ public:
 	// scene-mutation-specific needs to happen here
 	// beyond the revision bump.
 	void notifyRayTracedSceneMutated();
+	// Supplies per-mesh RGBA (4 floats per vertex) that the path tracer uses in place of the meshes' own vertex colours,
+	// for colours drawn as a display overlay (Plot3D, Simulation results). Evaluated each time a path-traced scene is built.
+	void setPathTracerColorProvider(std::function<QHash<QUuid, std::vector<float>>()> provider) { _pathTracerColorProvider = std::move(provider); }
 	// Animation playback/scrubbing is also a scene mutation, but for the GPU
 	// backend we want to drive the live interactive PT path with those new
 	// revisions instead of unconditionally dropping to raster/PBR. Falls back
@@ -2216,6 +2221,7 @@ private:
 	// can't be parented into Qt's object tree the way the two timers are.
 	RtInteractionController* _rtInteractionCtrl = nullptr;
 	uint64_t _rayTracedSceneRevision = 1;
+	std::function<QHash<QUuid, std::vector<float>>()> _pathTracerColorProvider;
 	int      _rayTracedFramebufferWidth = 0;
 	int      _rayTracedFramebufferHeight = 0;
 	bool     _preservePtPresenterOnNextStart = false;

@@ -858,6 +858,9 @@ private:
 	void appendPlot3DSessions(Mvf::MVFPackage& package) const;
 	void restorePlot3DSessions(QVector<PendingPlot3DRestore>& restores, const QUuid& activeMesh);
 	QHash<QUuid, std::vector<float>> simulationBakedColors() const;
+	// The shown colour of every vertex of each coloured 3D Plot mesh (RGBA), written as COLOR_0 on save so other glTF
+	// viewers and the path tracer see the plot colours. Quiver / Voxel arrows and volumes live in controllers and are not baked.
+	QHash<QUuid, std::vector<float>> plot3DBakedColors() const;
 	void advanceSimulationStep();
 
 	// Shared implementation for mergeSelectedMeshes()/unionSelectedMeshes() -

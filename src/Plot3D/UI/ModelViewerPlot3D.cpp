@@ -152,6 +152,12 @@ void ModelViewer::applyPlot3DColourState(const QUuid& meshUuid, float minimum, f
 	SceneMesh* mesh = _viewportWidget ? _viewportWidget->getMeshByUuid(meshUuid) : nullptr;
 	if (!session || !mesh)
 		return;
+	// The path tracer reads the shown colours through plot3DBakedColors(), so a colour edit must rebuild its scene.
+	struct PathTracerRefresh
+	{
+		ViewportWidget* viewport;
+		~PathTracerRefresh() { viewport->notifyRayTracedSceneMutated(); }
+	} pathTracerRefresh{ _viewportWidget };
 	if (maximum <= minimum)
 		maximum = minimum + 1.0f;
 	session->colourMinimum = minimum;
@@ -228,6 +234,34 @@ void ModelViewer::applyPlot3DColourState(const QUuid& meshUuid, float minimum, f
 	markNonUndoDocumentModified();
 	refreshPlot3DLegend();
 	emit plot3DSessionsChanged(false);
+}
+
+QHash<QUuid, std::vector<float>> ModelViewer::plot3DBakedColors() const
+{
+	QHash<QUuid, std::vector<float>> colors;
+	if (!_viewportWidget)
+		return colors;
+	for (const Plot3DSession& session : _plot3DSessions)
+	{
+		// Voxel has no coloured mesh; a filled scatter already carries its colours as authored vertex data.
+		if (session.primitive == Plot3DPrimitive::Voxel || session.isFilledScatter || session.values.empty())
+			continue;
+		const float minimum = session.colourMinimum;
+		const float maximum = session.colourMaximum > minimum ? session.colourMaximum : minimum + 1.0f;
+		const AnalysisColormap ramp = static_cast<AnalysisColormap>(session.colormap);
+		const auto bake = [&](const QUuid& meshUuid, const std::vector<float>& values, const std::vector<bool>& valid)
+		{
+			const SceneMesh* mesh = meshUuid.isNull() || values.empty() ? nullptr : _viewportWidget->getMeshByUuid(meshUuid);
+			if (!mesh)
+				return;
+			std::vector<float> rgba = AnalysisColorRamp::mapToRGBA(values, valid, minimum, maximum, ramp, session.bands);
+			if (rgba.size() == mesh->vertices().size() * 4)
+				colors.insert(meshUuid, std::move(rgba));
+		};
+		bake(session.meshUuid, session.values, session.valid);
+		bake(session.markerMeshUuid, session.markerValues, session.markerValid);
+	}
+	return colors;
 }
 
 void ModelViewer::applyPlot3DAppearance(const QUuid& meshUuid, float lineWidth, float markerSize, float arrowScale)

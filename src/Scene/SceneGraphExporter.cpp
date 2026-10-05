@@ -30,6 +30,13 @@
 
 namespace
 {
+    // The colour overrides of the export in progress (set by buildExportScene()'s scope guard), read by the per-mesh builder.
+    const QHash<QUuid, std::vector<float>>*& activeColorOverrides()
+    {
+        static thread_local const QHash<QUuid, std::vector<float>>* overrides = nullptr;
+        return overrides;
+    }
+
     struct ExportNodeTrs
     {
         aiVector3D translation = aiVector3D(0.0f, 0.0f, 0.0f);
@@ -568,10 +575,17 @@ aiScene* SceneGraphExporter::buildExportScene(
     const MeshResolver& resolveMesh,
     bool flattenTransforms,
     const QStringList& allowedSourceFiles,
-    QMap<QString, unsigned int>* outAnimMatRemap)
+    QMap<QString, unsigned int>* outAnimMatRemap,
+    const QHash<QUuid, std::vector<float>>* colorOverrides)
 {
     if (!sceneGraph)
         return nullptr;
+
+    struct ColorOverrideScope
+    {
+        explicit ColorOverrideScope(const QHash<QUuid, std::vector<float>>* overrides) { activeColorOverrides() = overrides; }
+        ~ColorOverrideScope() { activeColorOverrides() = nullptr; }
+    } colorOverrideScope(colorOverrides);
 
     SceneNode* graphRoot = sceneGraph->root();
     if (!graphRoot)
@@ -1603,9 +1617,22 @@ aiMesh* SceneGraphExporter::buildMeshFromSceneMesh(const SceneMesh* mesh, unsign
     }
 
     // --- Vertex Colors ---
+    const std::vector<float>* overrideColors = nullptr;
+    if (const auto* overrides = activeColorOverrides())
+    {
+        const auto it = overrides->constFind(mesh->uuid());
+        if (it != overrides->constEnd() && it.value().size() == verts.size() * 4)
+            overrideColors = &it.value();
+    }
     out->mColors[0] = new aiColor4D[out->mNumVertices];
     for (unsigned int i = 0; i < out->mNumVertices; ++i)
     {
+        if (overrideColors)
+        {
+            const float* rgba = overrideColors->data() + i * 4;
+            out->mColors[0][i] = aiColor4D(rgba[0], rgba[1], rgba[2], rgba[3]);
+            continue;
+        }
         const Vertex& v = verts[i];
         out->mColors[0][i] = aiColor4D(v.Color.r, v.Color.g, v.Color.b, v.Color.a);
     }

@@ -49,7 +49,11 @@ public:
         const MeshResolver& resolveMesh,
         bool flattenTransforms = false,
         const QStringList& allowedSourceFiles = QStringList(),
-        QMap<QString, unsigned int>* outAnimMatRemap = nullptr);
+        QMap<QString, unsigned int>* outAnimMatRemap = nullptr,
+        // colorOverrides: optional per-mesh RGBA (4 floats per vertex) written as COLOR_0 instead of the mesh's own
+        // vertex colours. Used for colours the viewer draws as a display overlay (Plot3D, Simulation results),
+        // which are not stored in the vertices.
+        const QHash<QUuid, std::vector<float>>* colorOverrides = nullptr);
 
 private:
     static aiNode* buildNodeRecursive(

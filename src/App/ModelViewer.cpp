@@ -309,6 +309,12 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	format.setRenderableType(QSurfaceFormat::OpenGL);
 	format.setSamples(samples); // Set MSAA samples
 	_viewportWidget = new ViewportWidget(this, "viewportWidget");
+	// Plot3D / Simulation colours are display overlays, not vertex data; the path tracer asks for them when it builds a scene.
+	_viewportWidget->setPathTracerColorProvider([this]() {
+		QHash<QUuid, std::vector<float>> colors = simulationBakedColors();
+		colors.insert(plot3DBakedColors());
+		return colors;
+	});
     connect(_viewportWidget, &ViewportWidget::toolCommandRequested, this, &ModelViewer::executeToolCommand);
     connect(_viewportWidget, &ViewportWidget::selectionChanged, this, &ModelViewer::updateMeshTools, Qt::QueuedConnection);
     connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, &ModelViewer::updateMeshTools, Qt::QueuedConnection);
@@ -5652,8 +5658,11 @@ void ModelViewer::onFileExport()
 	const bool flattenTransforms = (exportExt == "obj" || exportExt == "ply" || exportExt == "stl");
 
 	QMap<QString, unsigned int> animMatRemap; // "origMatIdx@sourceFile" → export material index
+	// Colours the viewer draws as an overlay (Plot3D, Simulation results) are not in the vertices; bake them for the file.
+	QHash<QUuid, std::vector<float>> bakedColors = simulationBakedColors();
+	bakedColors.insert(plot3DBakedColors());
 	aiScene* copyScene = SceneGraphExporter::buildExportScene(
-		_sceneGraph, resolver, flattenTransforms, allowedSourceFiles, &animMatRemap);
+		_sceneGraph, resolver, flattenTransforms, allowedSourceFiles, &animMatRemap, &bakedColors);
 
 	if (!copyScene)
 	{
