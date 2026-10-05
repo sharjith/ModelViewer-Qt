@@ -1,8 +1,10 @@
 # General-Purpose 3D Data Plotting - Implementation Blueprint
 
-Status: **COMPLETE; READY TO MERGE TO `dev` (known follow-ups in section 7)** (updated 2026-10-05). The planned plot families,
-generated-data sources, preview, presentation/editing controls, MVF persistence and localisation (de/es/fr/it) are complete on
-`feature/3d-data-plotting` (off `dev`, a
+Status: **COMPLETE; READY TO MERGE TO `dev` (remaining follow-ups in section 7)** (updated 2026-10-05). The planned plot families,
+generated-data sources (formulas, parametric / implicit definitions, vector fields, streamlines, time-dependent pathlines from
+formulas and from CSV time series), preview, presentation / editing controls (including Edit Plot for generated plots, contour
+overlays, hover section curves and pathline animation on a shared playback bar), MVF persistence, export / path-tracer colours and
+localisation (de/es/fr/it) are complete and user-verified on `feature/3d-data-plotting` (off `dev`, a
 NEW branch - this is deliberately NOT simulation-results work, see [[project_general_3d_data_plotting_idea]]: no
 `ResultDataset`, no steps, no probe - it plots arbitrary data, not a solver result). Companion: matplotlib's `mplot3d`
 gallery (https://matplotlib.org/stable/gallery/mplot3d/index.html), whose ~47 examples this blueprint deliberately does
@@ -284,8 +286,8 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     under `Plot3DPresets`, and `Plot3DPrimitive` for the primitive names), and the persistent 3D Plot tab set its
     combo items, labels and suffixes once in its constructor (all of it now lives in one `applyTexts()`, shared by the
     constructor and `retranslate()`, so the tab follows a language switch live). The in-viewer colour legend is
-    refreshed on a language change like Simulation's. Still English-only by design for now: the formula parser /
-    builder error messages in `Plot3DFormula.cpp` and the Core builders, which several tests match as text.
+    refreshed on a language change like Simulation's. Still English-only: the formula parser's own error messages in
+    `Plot3DFormula.cpp` (the newer Core builders - contours, pathlines, the CSV time series - report through `tr()`).
 27. **Complete (2026-10-05; floor and titles user-verified, arrow sizing covered by `result_tests` only):** other shared-code fixes found while testing this branch, none Plot3D-specific:
     the floor taking on a result's overlay colours (the analysis and zebra overlay early exits in `main_scene.frag`
     now exclude `floorRendering`); document tab titles being overwritten by uic's `retranslateUi()` on a language
@@ -343,32 +345,26 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     offset) and each carries its owner's name as a heading above a title that says what the colours mean (Value, Time,
     Occupancy, Vector magnitude).
 
-## 7. Known gaps and follow-ups (outside the original completion target)
+## 7. Remaining follow-ups (none blocks the merge)
 
-Ordered roughly by value. None blocks the merge.
+Ordered roughly by value. Everything from the earlier gap list that was worth doing before the merge is done (see items 24-34).
 
-1. **Colours in external exports and path-traced renders.** Plot colours are a transient analysis overlay, not authored
-   vertex data (and an `.mvf` is the app's own session file, so baking into it would help no other viewer). *Done,
-   awaiting a build + check:* `ModelViewer::plot3DBakedColors()` computes each coloured plot mesh's shown colours
-   (stem markers included), and together with `simulationBakedColors()` they are (a) written as `COLOR_0` by glTF / GLB /
-   OBJ export (`SceneGraphExporter::buildExportScene(..., colorOverrides)`) and (b) used by the path tracer in place of
-   the vertex colours (`RtSceneBuilder::build(..., colorOverrides)`, supplied through
-   `ViewportWidget::setPathTracerColorProvider`; a colour edit bumps the path-traced scene revision). Filled scatter
-   already carries authored vertex colours; Quiver arrows and Voxel volumes live in controllers and are not baked.
-   Unindexed point / line plots are still skipped by the exporter (no index buffer) and by the path tracer.
-2. **Path tracer.** `RtSceneBuilder` skips every non-triangle mesh, so points, lines, Quiver and Voxel plots are absent
-   from path-traced renders (no crash). Surface and Bar render coloured through item 1.
-3. **Axes in compare / multi-view.** Multi-view shows the axes box correctly (user-verified 2026-10-05). Compare mode is a
-   Simulation feature: a Plot3D plot cannot be placed in a pane, so there is nothing to fix for Plot3D itself.
-4. **Tests.** The MVF loader's unindexed-mesh rule is now covered headlessly (`mvf_tests`). There is still no end-to-end
-   save-and-reopen test (it needs the app and a GL context).
-5. **`Plot3DPanel.cpp` is about 2,100 lines** (CSV, formula, parametric, implicit and streamline import, preview, and
-   every primitive's build path). A pure refactor into per-source units would reduce the risk of the next regression.
-6. **Tensor glyphs.** Arrows are zoom-stable per point. Simulation's tensor ellipsoids are now zoom-stable per result
-   (user-verified 2026-10-05): they stay cached at their authored model size and each is scaled about its own centre by
-   one factor per frame - the camera's distance to the result's glyph box over a reference distance - so no
-   re-tessellation is needed, relative size and shape between glyphs are unchanged, and nearer glyphs still look larger
-   than farther ones. The Simulation tab has an Ellipsoid size spin box (the existing `tensorGlyphScale`). Streamline thickness is already a fixed pixel width.
-7. **Formula error messages** are still untranslated English literals (see item 26).
-8. **Deferred plot features:** general line fill-between / fill-under, text annotations (adapt the CAD Annotation
-   system) and 2D images in 3D.
+1. **`Plot3DPanel.cpp` is about 2,600 lines** (CSV, formula, parametric, implicit, streamline, pathline and time-series
+   import, preview, and every primitive's build path). Plan, as its own branch off `dev`: not a physical split but an
+   architectural one - a small "source" abstraction (each data source owns its controls and presets and turns them into a
+   dataset / mesh or a message, replacing the integer `sourceMode` switch repeated through `previewPlot()`, `buildPlot()`,
+   `updateSourceMode()` and the preset handlers), and one plot-assembly step shared by Preview and Build (dataset or mesh ->
+   mesh + session + axes layout, including the stem / error-bar / filled-scatter variants), so a new source or primitive is
+   added in one place. Needs a full manual pass over every source and primitive, since there are no UI tests.
+2. **Unindexed point / line plots in exports and path-traced renders.** Line, Scatter, Quiver, Voxel and the pathline trails
+   are native point / line meshes with no index buffer: `SceneGraphExporter` skips them and `RtSceneBuilder` only traces
+   triangle meshes, so they are absent from glTF / OBJ export and path-traced renders (no crash). Surface and Bar plots
+   export and render, coloured through `plot3DBakedColors()`.
+3. **No end-to-end save-and-reopen test** (it needs the app and a GL context). The headless tests cover the pieces:
+   `plot3d_tests` (data, builders, session IO, section curves, pathlines, time-series fields, playback helpers) and `mvf_tests`
+   (the loader's unindexed-mesh rule).
+4. **Synchronised playback.** The shared playback bar plays one item at a time (a Simulation result or an animated pathline
+   plot); playing both under one clock would need a mapping between result steps and pathline time.
+5. **Formula parser error messages** are English literals (item 26).
+6. **Deferred plot features:** general line fill-between / fill-under, text annotations (adapt the CAD Annotation system) and
+   2D images in 3D.
