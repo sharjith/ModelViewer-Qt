@@ -1,6 +1,7 @@
 #include "Plot3DSessionIO.h"
 
 #include <QJsonArray>
+#include <algorithm>
 #include <QObject>
 
 #include <cstring>
@@ -181,6 +182,11 @@ QJsonObject plot3DSessionToJson(const Plot3DSession& session, const Plot3DRender
 	json.insert(QStringLiteral("isFilledScatter"), session.isFilledScatter);
 	json.insert(QStringLiteral("scatterBaseZ"), session.scatterBaseZ);
 	json.insert(QStringLiteral("contourLevels"), session.contourLevels);
+	json.insert(QStringLiteral("contourProjected"), session.contourProjected);
+	json.insert(QStringLiteral("contourOverlayMode"), session.contourOverlayMode);
+	json.insert(QStringLiteral("contourOverlayLevels"), session.contourOverlayLevels);
+	json.insert(QStringLiteral("contourOverlayMeshUuid"), session.contourOverlayMeshUuid.isNull()
+		? QString() : session.contourOverlayMeshUuid.toString(QUuid::WithoutBraces));
 
 	json.insert(QStringLiteral("axesVisible"), session.axesVisible);
 	QJsonArray planes;
@@ -305,6 +311,10 @@ bool plot3DSessionFromJson(const QJsonObject& json, const std::vector<QByteArray
 	session.isFilledScatter = json.value(QStringLiteral("isFilledScatter")).toBool(false);
 	session.scatterBaseZ = json.value(QStringLiteral("scatterBaseZ")).toDouble(0.0);
 	session.contourLevels = json.value(QStringLiteral("contourLevels")).toInt(session.contourLevels);
+	session.contourProjected = json.value(QStringLiteral("contourProjected")).toBool(false);
+	session.contourOverlayMode = std::clamp(json.value(QStringLiteral("contourOverlayMode")).toInt(0), 0, 2);
+	session.contourOverlayLevels = std::clamp(json.value(QStringLiteral("contourOverlayLevels")).toInt(10), 1, 40);
+	session.contourOverlayMeshUuid = QUuid(json.value(QStringLiteral("contourOverlayMeshUuid")).toString());
 
 	session.axesVisible = json.value(QStringLiteral("axesVisible")).toBool(true);
 	const QJsonArray planes = json.value(QStringLiteral("referencePlanes")).toArray();

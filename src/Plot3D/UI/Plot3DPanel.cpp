@@ -405,6 +405,13 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	_formulaLayout->addRow(_parametricCurvePresetLabel, _parametricCurvePreset);
 	_formulaLayout->addRow(_formulaVectorPresetLabel, _formulaVectorPreset);
 	_formulaLayout->addRow(_implicitPresetLabel, _implicitPreset);
+	// The Primitive combo below belongs to the table (CSV) mapping and is hidden for generated sources, so a formula
+	// surface chooses between its two meaningful plot types here and drives that same combo.
+	_formulaPlotTypeLabel = new QLabel(tr("Plot type:"), _formulaGroup);
+	_formulaPlotType = new QComboBox(_formulaGroup);
+	_formulaPlotType->addItem(tr("Surface"), static_cast<int>(Plot3DPrimitive::Surface));
+	_formulaPlotType->addItem(tr("Contour (surface iso-lines)"), static_cast<int>(Plot3DPrimitive::Contour));
+	_formulaLayout->addRow(_formulaPlotTypeLabel, _formulaPlotType);
 	_formulaLayout->addRow(tr("Title:"), _formulaTitle);
 	_formulaLayout->addRow(_formulaExpressionLabel, _formulaExpression);
 	_formulaLayout->addRow(_parametricXLabel, _parametricX);
@@ -485,6 +492,18 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	mapping->addRow(tr("Scatter options:"), scatterOptionsRow);
 	layout->addWidget(_mappingWidget);
 
+	// Every Surface-type plot (CSV, formula, parametric, implicit) can be built together with a contour overlay; the same
+	// setting stays adjustable afterwards in the 3D Plot tab (which is the only place to change it for a reopened file).
+	_contourOverlayRow = new QWidget(this);
+	auto* contourOverlayLayout = new QFormLayout(_contourOverlayRow);
+	contourOverlayLayout->setContentsMargins(0, 0, 0, 0);
+	_contourOverlayMode = new QComboBox(_contourOverlayRow);
+	_contourOverlayMode->addItem(tr("None"), 0);
+	_contourOverlayMode->addItem(tr("On the surface"), 1);
+	_contourOverlayMode->addItem(tr("On the base plane"), 2);
+	contourOverlayLayout->addRow(tr("Contour lines:"), _contourOverlayMode);
+	layout->addWidget(_contourOverlayRow);
+
 	_buildButton = new QPushButton(tr("Build Plot"), this);
 	_buildButton->setEnabled(false); // enabled once refreshPreview() has a non-empty table
 	auto* previewButton = new QPushButton(tr("Preview"), this);
@@ -505,11 +524,17 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	connect(_header, &QCheckBox::toggled, this, &Plot3DPanel::refreshPreview);
 	connect(_sourceMode, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::updateSourceMode);
 	connect(_formulaPreset, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::applyFormulaPreset);
+	connect(_formulaPlotType, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
+		_primitive->setCurrentIndex(_primitive->findData(_formulaPlotType->currentData().toInt()));
+		if (_sourceMode->currentData().toInt() == 1)
+			refreshFormulaPreview();
+	});
 	connect(_parametricPreset, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::applyParametricPreset);
 	connect(_parametricCurvePreset, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::applyParametricCurvePreset);
 	connect(_formulaVectorPreset, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::applyFormulaVectorPreset);
 	connect(_implicitPreset, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::applyImplicitPreset);
 	connect(_primitive, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::updateScatterOptions);
+	connect(_primitive, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::updateContourOverlayRow);
 	connect(_stemEnabled, &QCheckBox::toggled, this, &Plot3DPanel::updateScatterOptions);
 	connect(_errorBarsEnabled, &QCheckBox::toggled, this, &Plot3DPanel::updateScatterOptions);
 	connect(_scatterFillEnabled, &QCheckBox::toggled, this, &Plot3DPanel::updateScatterOptions);
@@ -535,6 +560,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	applyImplicitPreset();
 	updateSourceMode();
 	updateScatterOptions();
+	updateContourOverlayRow();
 }
 
 Plot3DPanel::~Plot3DPanel()
@@ -555,6 +581,7 @@ void Plot3DPanel::loadPlotForEditing(const QUuid& meshUuid)
 
 	clearPreview();
 	_editingMeshUuid = meshUuid;
+	updateContourOverlayRow(); // an existing plot's contour lines are changed in the 3D Plot tab, not here
 	setWindowTitle(tr("Edit 3D Plot - %1").arg(it->name));
 	_buildButton->setText(tr("Rebuild Plot"));
 	_sourceMode->setCurrentIndex(_sourceMode->findData(0));
@@ -854,6 +881,19 @@ void Plot3DPanel::updateScatterOptions()
 	_scatterFillEnabled->setEnabled(scatter);
 }
 
+void Plot3DPanel::updateContourOverlayRow()
+{
+	if (!_contourOverlayRow || !_sourceMode || !_primitive)
+		return;
+	// Offered whenever the plot about to be built is a Surface: parametric (2) and implicit (5) surfaces always are; a CSV or
+	// formula (0 / 1) plot is when its primitive is Surface (a Contour plot has its own contour controls).
+	const int sourceMode = _sourceMode->currentData().toInt();
+	const bool tableOrFormula = sourceMode == 0 || sourceMode == 1;
+	const bool surface = sourceMode == 2 || sourceMode == 5
+		|| (tableOrFormula && static_cast<Plot3DPrimitive>(_primitive->currentData().toInt()) == Plot3DPrimitive::Surface);
+	_contourOverlayRow->setVisible(surface && _editingMeshUuid.isNull());
+}
+
 void Plot3DPanel::updateSourceMode()
 {
 	const int sourceMode = _sourceMode->currentData().toInt();
@@ -877,6 +917,7 @@ void Plot3DPanel::updateSourceMode()
 	_header->setEnabled(!generated);
 	_source->setEnabled(!generated);
 	setVisible(_formulaPresetLabel, _formulaPreset, !parametric && !vectorField && !implicitSurface);
+	setVisible(_formulaPlotTypeLabel, _formulaPlotType, sourceMode == 1);
 	setVisible(_parametricPresetLabel, _parametricPreset, parametricSurface);
 	setVisible(_parametricCurvePresetLabel, _parametricCurvePreset, parametricCurve);
 	setVisible(_formulaVectorPresetLabel, _formulaVectorPreset, vectorField);
@@ -903,6 +944,12 @@ void Plot3DPanel::updateSourceMode()
 		if (parametric || vectorField || implicitSurface || (static_cast<Plot3DPrimitive>(_primitive->currentData().toInt()) != Plot3DPrimitive::Surface
 			&& static_cast<Plot3DPrimitive>(_primitive->currentData().toInt()) != Plot3DPrimitive::Contour))
 			_primitive->setCurrentIndex(_primitive->findData(static_cast<int>(expected)));
+		{
+			// Keep the formula surface's own Plot type in step with the primitive (Surface unless it is a Contour).
+			const QSignalBlocker plotTypeBlock(_formulaPlotType);
+			_formulaPlotType->setCurrentIndex(_formulaPlotType->findData(_primitive->currentData().toInt() == static_cast<int>(Plot3DPrimitive::Contour)
+				? static_cast<int>(Plot3DPrimitive::Contour) : static_cast<int>(Plot3DPrimitive::Surface)));
+		}
 		// Formula and parametric presets have separate expression, title and
 		// parameter sets. Reapply the selected preset when returning to its
 		// source type so the visible controls never inherit the other mode.
@@ -919,6 +966,7 @@ void Plot3DPanel::updateSourceMode()
 	}
 	else
 		refreshPreview();
+	updateContourOverlayRow();
 }
 
 void Plot3DPanel::applyFormulaPreset()
@@ -1158,6 +1206,8 @@ void Plot3DPanel::buildParametricPlot()
 	session.colourMaximum = valueMaximum;
 	session.colormap = static_cast<int>(AnalysisColormap::Sequential);
 	_modelViewer->addPlot3DSession(std::move(session));
+	if (const int overlayMode = _contourOverlayMode->currentData().toInt(); overlayMode != 0)
+		_modelViewer->setPlot3DContourOverlay(meshUuid, overlayMode, 10);
 
 	_status->setStyleSheet(QString());
 	_status->setText(tr("Built '%1' (%2 vertices).").arg(baseName).arg(data.vertexCount()));
@@ -1768,6 +1818,8 @@ void Plot3DPanel::buildPlot()
 		if (primitive == Plot3DPrimitive::Contour)
 			session.contourSource = std::get<Plot3DSurfaceData>(dataset.content);
 		_modelViewer->addPlot3DSession(std::move(session));
+		if (const int overlayMode = _contourOverlayMode->currentData().toInt(); overlayMode != 0 && primitive == Plot3DPrimitive::Surface)
+			_modelViewer->setPlot3DContourOverlay(meshUuid, overlayMode, 10);
 	}
 
 	_status->setStyleSheet(QString());
@@ -1871,7 +1923,7 @@ bool Plot3DPanel::rebuildExistingPlot(const Plot3DDataset& dataset, const Plot3D
 		case Plot3DPrimitive::Surface:
 			built = buildPlot3DSurfaceMesh(std::get<Plot3DSurfaceData>(dataset.content), data, &error); break;
 		case Plot3DPrimitive::Contour:
-			built = buildPlot3DContourMesh(std::get<Plot3DSurfaceData>(dataset.content), data, updated.contourLevels, &error); mode = GL_LINES; break;
+			built = buildPlot3DContourMesh(std::get<Plot3DSurfaceData>(dataset.content), data, updated.contourLevels, &error, updated.contourProjected); mode = GL_LINES; break;
 		case Plot3DPrimitive::Line:
 			built = buildPlot3DLineMesh(std::get<Plot3DLineData>(dataset.content), data, &error); mode = GL_LINE_STRIP; break;
 		case Plot3DPrimitive::Scatter:
@@ -1942,7 +1994,9 @@ bool Plot3DPanel::rebuildExistingPlot(const Plot3DDataset& dataset, const Plot3D
 	updated.csvOptions.firstRowIsHeader = _header->isChecked();
 	updated.columnMapping = mapping;
 	updated.editableCsv = true;
+	const QUuid rebuiltMesh = updated.meshUuid;
 	_modelViewer->updatePlot3DSession(std::move(updated));
+	_modelViewer->refreshPlot3DContourOverlay(rebuiltMesh); // the surface changed, so its iso-lines must follow
 	viewport->updateView();
 	_modelViewer->updateDisplayList();
 	return true;

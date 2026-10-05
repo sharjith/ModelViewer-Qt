@@ -54,6 +54,16 @@ struct Plot3DSession
 	Plot3DBarData barSource;
 	Plot3DSurfaceData contourSource;
 	int contourLevels = 10;
+	// Contour iso-lines flattened onto the plane at the surface's minimum Z (the axes box floor) instead of at their elevation.
+	bool contourProjected = false;
+	// A Surface-type plot (Surface, parametric, implicit) can carry a companion mesh of Z iso-lines: 0 = none, 1 = lying on
+	// the surface, 2 = flattened onto the base plane. The lines are rebuilt from the plot's own mesh, so only these
+	// settings are saved; the per-vertex colour values below are re-derived on load.
+	int contourOverlayMode = 0;
+	int contourOverlayLevels = 10;
+	QUuid contourOverlayMeshUuid;
+	std::vector<float> overlayValues;
+	std::vector<bool> overlayValid;
 	bool visible = true;
 	bool axesVisible = true;
 	std::array<bool, 3> referencePlanes{ true, false, false }; // XY, XZ, YZ

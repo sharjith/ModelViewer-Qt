@@ -263,7 +263,8 @@ bool buildPlot3DSurfaceMesh(const Plot3DSurfaceData& data, Plot3DMeshData& out, 
 	return true;
 }
 
-bool buildPlot3DContourMesh(const Plot3DSurfaceData& data, Plot3DMeshData& out, int levelCount, QString* error)
+bool buildPlot3DContourLines(const std::vector<float>& positions, const std::vector<unsigned int>& indices,
+	const std::vector<float>* vertexValues, Plot3DMeshData& out, int levelCount, QString* error, bool projectToBase, float lift)
 {
 	out = Plot3DMeshData();
 	if (levelCount < 1)
@@ -271,15 +272,17 @@ bool buildPlot3DContourMesh(const Plot3DSurfaceData& data, Plot3DMeshData& out, 
 		if (error) *error = QObject::tr("Contour needs at least one level.");
 		return false;
 	}
-
-	Plot3DMeshData surface;
-	if (!buildPlot3DSurfaceMesh(data, surface, error))
-		return false;
-	float low = std::numeric_limits<float>::max(), high = std::numeric_limits<float>::lowest();
-	for (std::size_t v = 0; v < surface.vertexCount(); ++v)
+	const std::size_t vertexCount = positions.size() / 3;
+	if (vertexCount == 0 || indices.size() < 3 || (vertexValues && vertexValues->size() != vertexCount))
 	{
-		low = std::min(low, surface.positions[v * 3 + 2]);
-		high = std::max(high, surface.positions[v * 3 + 2]);
+		if (error) *error = QObject::tr("Contour needs a triangle surface.");
+		return false;
+	}
+	float low = std::numeric_limits<float>::max(), high = std::numeric_limits<float>::lowest();
+	for (std::size_t v = 0; v < vertexCount; ++v)
+	{
+		low = std::min(low, positions[v * 3 + 2]);
+		high = std::max(high, positions[v * 3 + 2]);
 	}
 	if (!(high > low))
 	{
@@ -287,32 +290,38 @@ bool buildPlot3DContourMesh(const Plot3DSurfaceData& data, Plot3DMeshData& out, 
 		return false;
 	}
 
-	auto appendPoint = [&out, &surface](unsigned int a, unsigned int b, float level) {
-		const float za = surface.positions[static_cast<std::size_t>(a) * 3 + 2];
-		const float zb = surface.positions[static_cast<std::size_t>(b) * 3 + 2];
+	// Each crossing is interpolated along its edge. The vertex value is the surface's own value there when the caller
+	// supplies one (so lines match the colours beneath them), otherwise the contour level.
+	auto appendPoint = [&](unsigned int a, unsigned int b, float level) {
+		const float za = positions[static_cast<std::size_t>(a) * 3 + 2];
+		const float zb = positions[static_cast<std::size_t>(b) * 3 + 2];
 		const float t = (level - za) / (zb - za);
 		for (int axis = 0; axis < 3; ++axis)
 		{
-			const float pa = surface.positions[static_cast<std::size_t>(a) * 3 + axis];
-			const float pb = surface.positions[static_cast<std::size_t>(b) * 3 + axis];
-			out.positions.push_back(pa + t * (pb - pa));
-			out.normals.push_back(0.0f);
+			const float pa = positions[static_cast<std::size_t>(a) * 3 + axis];
+			const float pb = positions[static_cast<std::size_t>(b) * 3 + axis];
+			float coordinate = pa + t * (pb - pa);
+			if (axis == 2)
+				coordinate = projectToBase ? low : coordinate + lift;
+			out.positions.push_back(coordinate);
+			out.normals.push_back(axis == 2 ? 1.0f : 0.0f);
 		}
-		out.normals[out.normals.size() - 1] = 1.0f;
-		out.values.push_back(level);
+		out.values.push_back(vertexValues
+			? static_cast<double>((*vertexValues)[a] + t * ((*vertexValues)[b] - (*vertexValues)[a]))
+			: static_cast<double>(level));
 	};
 	for (int i = 1; i <= levelCount; ++i)
 	{
 		const float level = low + (high - low) * static_cast<float>(i) / static_cast<float>(levelCount + 1);
-		for (std::size_t t = 0; t + 2 < surface.indices.size(); t += 3)
+		for (std::size_t t = 0; t + 2 < indices.size(); t += 3)
 		{
-			const unsigned int tri[3] = { surface.indices[t], surface.indices[t + 1], surface.indices[t + 2] };
+			const unsigned int tri[3] = { indices[t], indices[t + 1], indices[t + 2] };
 			unsigned int edgeA[2], edgeB[2]; int crossings = 0;
 			for (int e = 0; e < 3; ++e)
 			{
 				const unsigned int a = tri[e], b = tri[(e + 1) % 3];
-				const float da = surface.positions[static_cast<std::size_t>(a) * 3 + 2] - level;
-				const float db = surface.positions[static_cast<std::size_t>(b) * 3 + 2] - level;
+				const float da = positions[static_cast<std::size_t>(a) * 3 + 2] - level;
+				const float db = positions[static_cast<std::size_t>(b) * 3 + 2] - level;
 				if ((da < 0.0f && db > 0.0f) || (da > 0.0f && db < 0.0f))
 				{
 					if (crossings < 2) { edgeA[crossings] = a; edgeB[crossings] = b; }
@@ -323,6 +332,20 @@ bool buildPlot3DContourMesh(const Plot3DSurfaceData& data, Plot3DMeshData& out, 
 		}
 	}
 	return !out.empty();
+}
+
+bool buildPlot3DContourMesh(const Plot3DSurfaceData& data, Plot3DMeshData& out, int levelCount, QString* error, bool projectToBase)
+{
+	out = Plot3DMeshData();
+	if (levelCount < 1)
+	{
+		if (error) *error = QObject::tr("Contour needs at least one level.");
+		return false;
+	}
+	Plot3DMeshData surface;
+	if (!buildPlot3DSurfaceMesh(data, surface, error))
+		return false;
+	return buildPlot3DContourLines(surface.positions, surface.indices, nullptr, out, levelCount, error, projectToBase, 0.0f);
 }
 
 namespace

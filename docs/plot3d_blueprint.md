@@ -294,6 +294,14 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
     screen while zooming - `SimulationGlyphController` sizes each arrow from its own base point's camera distance
     (the technique `TransformGizmo::computeWorldScale()` and `MeasurementController::coneScaleAt()` use), which applies
     to Simulation vector arrows as well as Quiver plots.
+28. **Complete (user-verified 2026-10-05):** contour overlays and projected contours. A Contour plot can be flattened onto
+    the base plane (`contourProjected`; the formula source gets a Plot type combo, since the Primitive combo is hidden for
+    generated sources). Any Surface-type plot (CSV, formula, parametric, implicit) can also carry a companion mesh of Z
+    iso-lines - None / On the surface (fixed dark colour, lifted 0.3 % to avoid z-fighting) / On the base plane
+    (colour-mapped like the plot) - set in the creation dialog and changeable in the 3D Plot tab. The lines are cut from the
+    plot's own triangle mesh (`buildPlot3DContourLines`), so only the mode, level count and companion mesh UUID are saved
+    and the lines are rebuilt on load. Like other point / line meshes they are skipped by glTF / OBJ export and the path
+    tracer.
 
 ## 7. Known gaps and follow-ups (outside the original completion target)
 
@@ -322,6 +330,5 @@ Ordered roughly by value. None blocks the merge.
    re-tessellation is needed, relative size and shape between glyphs are unchanged, and nearer glyphs still look larger
    than farther ones. The Simulation tab has an Ellipsoid size spin box (the existing `tensorGlyphScale`). Streamline thickness is already a fixed pixel width.
 7. **Formula error messages** are still untranslated English literals (see item 26).
-8. **Deferred plot features:** time-dependent pathlines (needs a time-varying vector-field data model), projected contours
-   on the XY reference plane, general line fill-between / fill-under, text annotations (adapt the CAD Annotation
+8. **Deferred plot features:** time-dependent pathlines (needs a time-varying vector-field data model), general line fill-between / fill-under, text annotations (adapt the CAD Annotation
    system) and 2D images in 3D.

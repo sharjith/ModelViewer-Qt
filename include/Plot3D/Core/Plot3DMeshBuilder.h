@@ -47,7 +47,19 @@ bool buildPlot3DSurfaceMesh(const Plot3DSurfaceData& data, Plot3DMeshData& out, 
 
 // Builds surface-following iso-lines of Z from a complete regular Surface grid. Each level is emitted as
 // independent GL_LINES vertices so the caller can use the same fixed-pixel-width path as Line plots.
-bool buildPlot3DContourMesh(const Plot3DSurfaceData& data, Plot3DMeshData& out, int levelCount = 10, QString* error = nullptr);
+// projectToBase flattens every iso-line onto the plane at the surface's minimum Z (the floor of the plot's axes box)
+// instead of leaving each at its own elevation; the vertex values keep the level so the colours are unchanged.
+bool buildPlot3DContourMesh(const Plot3DSurfaceData& data, Plot3DMeshData& out, int levelCount = 10, QString* error = nullptr,
+	bool projectToBase = false);
+
+// The same iso-lines of Z for ANY triangle mesh (positions x,y,z per vertex + a triangle index list), so a Surface,
+// parametric or implicit plot can carry a contour overlay. vertexValues (one per vertex, optional) is interpolated onto
+// the lines so they take the colours of the surface beneath; without it each vertex value is its contour level.
+// lift raises the lines along Z (to keep an on-surface overlay clear of the surface it lies on); it is ignored when
+// projectToBase flattens the lines to the mesh's minimum Z.
+bool buildPlot3DContourLines(const std::vector<float>& positions, const std::vector<unsigned int>& indices,
+	const std::vector<float>* vertexValues, Plot3DMeshData& out, int levelCount = 10, QString* error = nullptr,
+	bool projectToBase = false, float lift = 0.0f);
 
 // Builds a flat, ORDERED vertex list (no triangles) for Line data - the caller draws it as a GL_LINE_STRIP, the
 // same native-primitive path glTF line-set import already uses (SceneMesh::draw()'s GL_POINTS/GL_LINE_STRIP

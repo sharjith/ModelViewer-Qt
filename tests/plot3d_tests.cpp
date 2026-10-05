@@ -4,6 +4,7 @@
 #include "Plot3DMeshBuilder.h"
 #include "Plot3DSessionIO.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <limits>
@@ -122,6 +123,42 @@ namespace
 		CHECK(!contour.empty() && contour.indices.empty() && contour.vertexCount() % 2 == 0);
 		for (std::size_t v = 0; v < contour.vertexCount(); ++v)
 			CHECK(contour.positions[v * 3 + 2] > 0.0f && contour.positions[v * 3 + 2] < 12.0f);
+
+		// Projected onto the base plane: the same iso-lines (same count, same X/Y, same level values) all flattened to the
+		// surface's minimum Z.
+		Plot3DMeshData projected;
+		CHECK(buildPlot3DContourMesh(grid, projected, 10, &error, true));
+		CHECK(projected.vertexCount() == contour.vertexCount() && projected.values == contour.values);
+		float surfaceLow = std::numeric_limits<float>::max();
+		for (const Plot3DSample& sample : grid.samples)
+			surfaceLow = std::min(surfaceLow, static_cast<float>(sample.position.z));
+		for (std::size_t v = 0; v < projected.vertexCount(); ++v)
+		{
+			CHECK(projected.positions[v * 3 + 2] == surfaceLow);
+			CHECK(projected.positions[v * 3] == contour.positions[v * 3] && projected.positions[v * 3 + 1] == contour.positions[v * 3 + 1]);
+		}
+
+		// The same iso-lines straight from a triangle mesh (what a Surface plot's contour overlay uses): identical geometry, a
+		// supplied per-vertex value is interpolated onto the lines, and lift raises only the Z of lines that are not projected.
+		Plot3DMeshData surfaceMesh;
+		CHECK(buildPlot3DSurfaceMesh(grid, surfaceMesh, &error));
+		std::vector<float> vertexValues(surfaceMesh.vertexCount());
+		for (std::size_t v = 0; v < vertexValues.size(); ++v)
+			vertexValues[v] = 100.0f + surfaceMesh.positions[v * 3 + 2];
+		Plot3DMeshData fromMesh, lifted, projectedLifted;
+		CHECK(buildPlot3DContourLines(surfaceMesh.positions, surfaceMesh.indices, &vertexValues, fromMesh, 10, &error));
+		CHECK(fromMesh.vertexCount() == contour.vertexCount() && fromMesh.positions == contour.positions);
+		for (std::size_t v = 0; v < fromMesh.vertexCount(); ++v)
+			CHECK(std::abs(fromMesh.values[v] - (100.0 + contour.values[v])) < 1.0e-3);
+		CHECK(buildPlot3DContourLines(surfaceMesh.positions, surfaceMesh.indices, nullptr, lifted, 10, &error, false, 0.25f));
+		CHECK(buildPlot3DContourLines(surfaceMesh.positions, surfaceMesh.indices, nullptr, projectedLifted, 10, &error, true, 0.25f));
+		for (std::size_t v = 0; v < lifted.vertexCount(); ++v)
+		{
+			CHECK(std::abs(lifted.positions[v * 3 + 2] - (contour.positions[v * 3 + 2] + 0.25f)) < 1.0e-5f);
+			CHECK(projectedLifted.positions[v * 3 + 2] == surfaceLow);
+		}
+		std::vector<float> wrongSize(3, 1.0f);
+		CHECK(!buildPlot3DContourLines(surfaceMesh.positions, surfaceMesh.indices, &wrongSize, fromMesh, 10, &error));
 
 		// An incomplete grid is now a valid unstructured surface: Delaunay
 		// triangulation uses the supplied points without inventing the missing
@@ -360,6 +397,9 @@ namespace
 		session.isStem = true; session.isErrorBars = false; session.isFilledScatter = true;
 		session.scatterBaseZ = -3.5;
 		session.contourLevels = 14;
+		session.contourProjected = true;
+		session.contourOverlayMode = 2; session.contourOverlayLevels = 7;
+		session.contourOverlayMeshUuid = QUuid::createUuid();
 		session.axesVisible = false;
 		session.referencePlanes = { false, true, true };
 		session.referencePlaneOpacity = 0.4f;
@@ -408,7 +448,8 @@ namespace
 		CHECK(restored.lineWidth == 2.5f && restored.markerSize == 7.0f && restored.arrowScale == 1.5f);
 		CHECK(restored.barWidthScale == 0.5f && restored.barDepthScale == 2.0f);
 		CHECK(restored.isStem && !restored.isErrorBars && restored.isFilledScatter && restored.scatterBaseZ == -3.5);
-		CHECK(restored.contourLevels == 14 && !restored.axesVisible && restored.referencePlaneOpacity == 0.4f);
+		CHECK(restored.contourLevels == 14 && restored.contourProjected && restored.contourOverlayMode == 2 && restored.contourOverlayLevels == 7
+		      && restored.contourOverlayMeshUuid == session.contourOverlayMeshUuid && !restored.axesVisible && restored.referencePlaneOpacity == 0.4f);
 		CHECK(restored.referencePlanes == session.referencePlanes);
 		CHECK(restored.editableCsv && restored.csvSource == session.csvSource);
 		CHECK(restored.csvOptions.delimiter == QLatin1Char(';') && !restored.csvOptions.firstRowIsHeader);

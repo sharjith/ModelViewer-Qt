@@ -185,8 +185,19 @@ void ModelViewer::restorePlot3DSessions(QVector<PendingPlot3DRestore>& restores,
 				_viewportWidget->setSimulationVolume(session.meshUuid, std::move(grid), session.colormap, plot3DVoxelOpacity());
 		}
 
+		// A contour overlay is a companion mesh stored with the plot. Without it in the file the setting means nothing.
+		if (session.contourOverlayMode != 0 && (session.contourOverlayMeshUuid.isNull()
+			|| !_viewportWidget->getMeshByUuid(session.contourOverlayMeshUuid)))
+		{
+			session.contourOverlayMode = 0;
+			session.contourOverlayMeshUuid = QUuid();
+		}
+
 		// Per-mesh appearance (a native line/point's pixel size is a property of the mesh, not stored with it).
 		mesh->setPrimitiveLineWidth(session.lineWidth);
+		if (!session.contourOverlayMeshUuid.isNull())
+			if (SceneMesh* overlayMesh = _viewportWidget->getMeshByUuid(session.contourOverlayMeshUuid))
+				overlayMesh->setPrimitiveLineWidth(session.lineWidth);
 		mesh->setPrimitivePointSize(session.markerSize);
 		if (!session.markerMeshUuid.isNull())
 			if (SceneMesh* markerMesh = _viewportWidget->getMeshByUuid(session.markerMeshUuid))
@@ -210,6 +221,10 @@ void ModelViewer::restorePlot3DSessions(QVector<PendingPlot3DRestore>& restores,
 				stored = &candidate;
 		if (!stored)
 			continue;
+		// The overlay's lines are re-derived from the restored surface (its colour values are not saved). This runs before
+		// the context is made current below because the rebuild manages the context itself.
+		if (stored->contourOverlayMode != 0)
+			refreshPlot3DContourOverlay(meshUuid);
 		// Copied: applyPlot3DColourState() writes the same values back into the stored session.
 		const float minimum = stored->colourMinimum, maximum = stored->colourMaximum;
 		const int colormap = stored->colormap, bands = stored->bands;

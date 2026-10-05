@@ -11,6 +11,8 @@
 #include "ViewportWidget.h"
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 #include <QPointF>
 #include <QPointer>
 
@@ -230,6 +232,16 @@ void ModelViewer::applyPlot3DColourState(const QUuid& meshUuid, float minimum, f
 			markerMesh->setAnalysisOverlayBanding(bands, colormap);
 		}
 	}
+	if (!session->contourOverlayMeshUuid.isNull() && !session->overlayValues.empty())
+	{
+		if (SceneMesh* overlayMesh = _viewportWidget->getMeshByUuid(session->contourOverlayMeshUuid))
+		{
+			overlayMesh->setAnalysisOverlayColors(bands >= 2
+				? AnalysisColorRamp::mapToNormalizedScalarRGBA(session->overlayValues, session->overlayValid, minimum, maximum)
+				: AnalysisColorRamp::mapToRGBA(session->overlayValues, session->overlayValid, minimum, maximum, ramp));
+			overlayMesh->setAnalysisOverlayBanding(bands, colormap);
+		}
+	}
 	_viewportWidget->updateView();
 	markNonUndoDocumentModified();
 	refreshPlot3DLegend();
@@ -260,6 +272,7 @@ QHash<QUuid, std::vector<float>> ModelViewer::plot3DBakedColors() const
 		};
 		bake(session.meshUuid, session.values, session.valid);
 		bake(session.markerMeshUuid, session.markerValues, session.markerValid);
+		bake(session.contourOverlayMeshUuid, session.overlayValues, session.overlayValid);
 	}
 	return colors;
 }
@@ -283,6 +296,9 @@ void ModelViewer::applyPlot3DAppearance(const QUuid& meshUuid, float lineWidth, 
 	if (!session->markerMeshUuid.isNull())
 		if (SceneMesh* markerMesh = _viewportWidget->getMeshByUuid(session->markerMeshUuid))
 			markerMesh->setPrimitivePointSize(markerSize);
+	if (!session->contourOverlayMeshUuid.isNull())
+		if (SceneMesh* overlayMesh = _viewportWidget->getMeshByUuid(session->contourOverlayMeshUuid))
+			overlayMesh->setPrimitiveLineWidth(lineWidth);
 	_viewportWidget->setSimulationGlyphScale(meshUuid, arrowScale);
 	_viewportWidget->updateView();
 	markNonUndoDocumentModified();
@@ -352,39 +368,178 @@ void ModelViewer::applyPlot3DBarAppearance(const QUuid& meshUuid, float widthSca
 	applyPlot3DColourState(meshUuid, session->colourMinimum, session->colourMaximum, session->colormap, session->bands);
 }
 
+namespace
+{
+	// Rebuilds a Contour plot's iso-lines for new level and projection settings and restores its colour mapping.
+	void rebuildPlot3DContour(ModelViewer* viewer, ViewportWidget* viewport, Plot3DSession& session, SceneMesh* mesh, int levels, bool projected)
+	{
+		Plot3DMeshData data;
+		QString error;
+		if (!buildPlot3DContourMesh(session.contourSource, data, levels, &error, projected))
+			return;
+		std::vector<Vertex> vertices(data.vertexCount());
+		std::vector<float> values(data.vertexCount());
+		std::vector<bool> valid(data.vertexCount(), true);
+		for (std::size_t i = 0; i < data.vertexCount(); ++i)
+		{
+			Vertex& vertex = vertices[i];
+			vertex.Color = glm::vec4(1.0f);
+			vertex.Position = glm::vec3(data.positions[i * 3], data.positions[i * 3 + 1], data.positions[i * 3 + 2]);
+			vertex.Normal = glm::vec3(0.0f, 0.0f, 1.0f);
+			vertex.Tangent = glm::vec3(0.0f); vertex.Bitangent = glm::vec3(0.0f);
+			for (glm::vec2& uv : vertex.TexCoords) uv = glm::vec2(0.0f);
+			values[i] = static_cast<float>(data.values[i]);
+		}
+		viewport->makeCurrent();
+		mesh->setMeshData(vertices, {});
+		session.contourLevels = levels;
+		session.contourProjected = projected;
+		session.values = std::move(values);
+		session.valid = std::move(valid);
+		viewer->applyPlot3DColourState(session.meshUuid, session.colourMinimum, session.colourMaximum, session.colormap, session.bands);
+		viewport->doneCurrent();
+		viewport->updateView();
+		emit viewer->plot3DSessionsChanged(false);
+	}
+}
+
 void ModelViewer::setPlot3DContourLevels(const QUuid& meshUuid, int levels)
 {
 	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
 	SceneMesh* mesh = _viewportWidget ? _viewportWidget->getMeshByUuid(meshUuid) : nullptr;
 	if (!session || !mesh || session->primitive != Plot3DPrimitive::Contour || levels == session->contourLevels)
 		return;
+	rebuildPlot3DContour(this, _viewportWidget, *session, mesh, levels, session->contourProjected);
+}
 
-	Plot3DMeshData data;
-	QString error;
-	if (!buildPlot3DContourMesh(session->contourSource, data, levels, &error))
+void ModelViewer::setPlot3DContourProjected(const QUuid& meshUuid, bool projected)
+{
+	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
+	SceneMesh* mesh = _viewportWidget ? _viewportWidget->getMeshByUuid(meshUuid) : nullptr;
+	if (!session || !mesh || session->primitive != Plot3DPrimitive::Contour || projected == session->contourProjected)
 		return;
-	std::vector<Vertex> vertices(data.vertexCount());
-	std::vector<float> values(data.vertexCount());
-	std::vector<bool> valid(data.vertexCount(), true);
-	for (std::size_t i = 0; i < data.vertexCount(); ++i)
+	rebuildPlot3DContour(this, _viewportWidget, *session, mesh, session->contourLevels, projected);
+}
+
+void ModelViewer::setPlot3DContourOverlay(const QUuid& meshUuid, int mode, int levels)
+{
+	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
+	if (!session || !_viewportWidget || session->primitive != Plot3DPrimitive::Surface)
+		return;
+	mode = std::clamp(mode, 0, 2);
+	levels = std::clamp(levels, 1, 40);
+	if (mode == session->contourOverlayMode && levels == session->contourOverlayLevels)
+		return;
+	session->contourOverlayMode = mode;
+	session->contourOverlayLevels = levels;
+	refreshPlot3DContourOverlay(meshUuid);
+	markNonUndoDocumentModified();
+	emit plot3DSessionsChanged(false);
+}
+
+void ModelViewer::refreshPlot3DContourOverlay(const QUuid& meshUuid)
+{
+	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
+	SceneMesh* surface = _viewportWidget ? _viewportWidget->getMeshByUuid(meshUuid) : nullptr;
+	if (!session || !surface || session->primitive != Plot3DPrimitive::Surface)
+		return;
+	SceneMesh* overlay = session->contourOverlayMeshUuid.isNull() ? nullptr : _viewportWidget->getMeshByUuid(session->contourOverlayMeshUuid);
+
+	Plot3DMeshData lines;
+	bool haveLines = false;
+	if (session->contourOverlayMode != 0)
+	{
+		const std::vector<Vertex> surfaceVertices = surface->vertices();
+		std::vector<float> positions(surfaceVertices.size() * 3);
+		float lowZ = std::numeric_limits<float>::max(), highZ = std::numeric_limits<float>::lowest();
+		for (std::size_t i = 0; i < surfaceVertices.size(); ++i)
+		{
+			positions[i * 3] = surfaceVertices[i].Position.x;
+			positions[i * 3 + 1] = surfaceVertices[i].Position.y;
+			positions[i * 3 + 2] = surfaceVertices[i].Position.z;
+			lowZ = std::min(lowZ, positions[i * 3 + 2]);
+			highZ = std::max(highZ, positions[i * 3 + 2]);
+		}
+		// Lines lying ON the surface would z-fight with it; lift them a hair along Z (0.3 % of the surface's height).
+		const float lift = session->contourOverlayMode == 1 && highZ > lowZ ? (highZ - lowZ) * 0.003f : 0.0f;
+		const std::vector<float>* values = session->values.size() == surfaceVertices.size() ? &session->values : nullptr;
+		haveLines = buildPlot3DContourLines(positions, surface->indices(), values, lines, session->contourOverlayLevels, nullptr,
+			session->contourOverlayMode == 2, lift);
+	}
+
+	if (!haveLines)
+	{
+		// Off, or a surface with no iso-lines to show (a flat one): no companion mesh.
+		session->overlayValues.clear();
+		session->overlayValid.clear();
+		if (overlay)
+		{
+			int position = 0;
+			_sceneGraph->removeMeshUuid(session->contourOverlayMeshUuid, position);
+			const int index = _viewportWidget->getIndexByUuid(session->contourOverlayMeshUuid);
+			session->contourOverlayMeshUuid = QUuid();
+			if (index >= 0)
+				_viewportWidget->removeFromDisplay(index);
+			updateDisplayList();
+			_viewportWidget->updateView();
+		}
+		return;
+	}
+
+	// Lines lying on the surface are drawn in a fixed dark colour: coloured by the surface's own value they would match the
+	// very colour beneath them and vanish. Lines on the base plane keep the colour map.
+	const bool onSurface = session->contourOverlayMode == 1;
+	std::vector<Vertex> vertices(lines.vertexCount());
+	std::vector<float> values(lines.vertexCount());
+	std::vector<bool> valid(lines.vertexCount());
+	for (std::size_t i = 0; i < vertices.size(); ++i)
 	{
 		Vertex& vertex = vertices[i];
-		vertex.Color = glm::vec4(1.0f);
-		vertex.Position = glm::vec3(data.positions[i * 3], data.positions[i * 3 + 1], data.positions[i * 3 + 2]);
+		vertex.Color = onSurface ? glm::vec4(0.06f, 0.06f, 0.06f, 1.0f) : glm::vec4(1.0f);
+		vertex.Position = glm::vec3(lines.positions[i * 3], lines.positions[i * 3 + 1], lines.positions[i * 3 + 2]);
 		vertex.Normal = glm::vec3(0.0f, 0.0f, 1.0f);
 		vertex.Tangent = glm::vec3(0.0f); vertex.Bitangent = glm::vec3(0.0f);
 		for (glm::vec2& uv : vertex.TexCoords) uv = glm::vec2(0.0f);
-		values[i] = static_cast<float>(data.values[i]);
+		valid[i] = std::isfinite(lines.values[i]);
+		values[i] = valid[i] ? static_cast<float>(lines.values[i]) : 0.0f;
 	}
 	_viewportWidget->makeCurrent();
-	mesh->setMeshData(vertices, {});
-	session->contourLevels = levels;
-	session->values = std::move(values);
-	session->valid = std::move(valid);
+	bool created = false;
+	if (overlay)
+	{
+		overlay->setMeshData(vertices, {});
+	}
+	else if (SceneNode* node = _sceneGraph->findNodeForMesh(meshUuid))
+	{
+		// skipOptimization = true: the colour overlay below is indexed by vertex (see Plot3DPanel::buildPlot()).
+		overlay = new SceneMesh(_viewportWidget->getShader(), surface->getName() + tr(" Contours"), vertices, {}, {}, Material(), true, GL_LINES);
+		_viewportWidget->addToDisplay(overlay);
+		session->contourOverlayMeshUuid = overlay->uuid();
+		_sceneGraph->restoreMeshUuid(node, session->contourOverlayMeshUuid, node->meshUuids.size());
+		created = true;
+	}
+	if (!overlay)
+	{
+		_viewportWidget->doneCurrent();
+		return;
+	}
+	overlay->setPrimitiveLineWidth(session->lineWidth);
+	if (onSurface)
+	{
+		overlay->clearAnalysisOverlay(); // a previous base-plane colouring must not override the dark lines
+		session->overlayValues.clear();
+		session->overlayValid.clear();
+	}
+	else
+	{
+		session->overlayValues = std::move(values);
+		session->overlayValid = std::move(valid);
+	}
 	applyPlot3DColourState(meshUuid, session->colourMinimum, session->colourMaximum, session->colormap, session->bands);
 	_viewportWidget->doneCurrent();
+	if (created)
+		updateDisplayList();
 	_viewportWidget->updateView();
-	emit plot3DSessionsChanged(false);
 }
 
 void ModelViewer::setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visible)

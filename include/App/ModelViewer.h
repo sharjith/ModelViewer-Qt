@@ -647,6 +647,11 @@ public slots:
 	void applyPlot3DAppearance(const QUuid& meshUuid, float lineWidth, float markerSize, float arrowScale);
 	void applyPlot3DBarAppearance(const QUuid& meshUuid, float widthScale, float depthScale);
 	void setPlot3DContourLevels(const QUuid& meshUuid, int levels);
+	void setPlot3DContourProjected(const QUuid& meshUuid, bool projected);
+	// Surface-type plots can carry a companion mesh of Z iso-lines (mode 0 none, 1 on the surface, 2 on the base plane).
+	// refresh rebuilds it from the plot's current mesh (after the plot itself was rebuilt or restored).
+	void setPlot3DContourOverlay(const QUuid& meshUuid, int mode, int levels);
+	void refreshPlot3DContourOverlay(const QUuid& meshUuid);
 	void setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visible);
 	void applyPlot3DReferencePlanes(const QUuid& meshUuid, const std::array<bool, 3>& visible, float opacity);
 	void applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<Plot3DAxisConfig, 3>& axes);

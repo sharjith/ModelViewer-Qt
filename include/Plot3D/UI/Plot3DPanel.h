@@ -54,6 +54,7 @@ private:
 	// re-parsing the same schema retains deliberate user selections.
 	void refreshColumnCombos(bool resetForNewSchema = false);
 	void updateScatterOptions();
+	void updateContourOverlayRow();
 	// Reads the primitive + column mapping, builds a Plot3DDataset then a mesh, adds it to the active document's
 	// scene, and gives the viewport an axis-box layout derived from the built data's own bounds.
 	void buildPlot();
@@ -95,6 +96,10 @@ private:
 	QPushButton* _buildButton = nullptr;
 	QGroupBox* _formulaGroup = nullptr;
 	QComboBox* _formulaPreset = nullptr;
+	QComboBox* _formulaPlotType = nullptr;
+	QWidget* _contourOverlayRow = nullptr;
+	QComboBox* _contourOverlayMode = nullptr;
+	QLabel* _formulaPlotTypeLabel = nullptr;
 	QComboBox* _parametricPreset = nullptr;
 	QComboBox* _parametricCurvePreset = nullptr;
 	QComboBox* _formulaVectorPreset = nullptr;

@@ -63,6 +63,10 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	_automaticRange = new QCheckBox(this);
 	_contourLevels = new QSpinBox(this); _contourLevels->setRange(1, 40);
 	_contourLevelsLabel = new QLabel(this);
+	_contourProjected = new QCheckBox(this);
+	_contourOverlayLabel = new QLabel(this);
+	_contourOverlay = new QComboBox(this);
+	for (int mode : { 0, 1, 2 }) _contourOverlay->addItem(QString(), mode);
 	_rangeMinimum = new QDoubleSpinBox(this); _rangeMinimum->setRange(-1.0e12, 1.0e12); _rangeMinimum->setDecimals(6);
 	_rangeMaximum = new QDoubleSpinBox(this); _rangeMaximum->setRange(-1.0e12, 1.0e12); _rangeMaximum->setDecimals(6);
 	_lineWidth = new QDoubleSpinBox(this); _lineWidth->setRange(0.5, 10.0); _lineWidth->setSingleStep(0.25); _lineWidth->setDecimals(2);
@@ -82,7 +86,9 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	appearance->addRow(_colormapLabel, _colormap);
 	appearance->addRow(_bandsLabel, _bands);
 	appearance->addRow(QString(), _automaticRange);
+	appearance->addRow(_contourOverlayLabel, _contourOverlay);
 	appearance->addRow(_contourLevelsLabel, _contourLevels);
+	appearance->addRow(QString(), _contourProjected);
 	appearance->addRow(_minimumLabel, _rangeMinimum);
 	appearance->addRow(_maximumLabel, _rangeMaximum);
 	appearance->addRow(_lineWidthLabel, _lineWidth);
@@ -161,7 +167,20 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	connect(_colormap, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DControlsPanel::applyColourState);
 	connect(_bands, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DControlsPanel::applyColourState);
 	connect(_automaticRange, &QCheckBox::toggled, this, [this](bool) { applyColourState(); refreshState(); });
-	connect(_contourLevels, qOverload<int>(&QSpinBox::valueChanged), this, [this](int levels) { if (_viewer && _plotSelector->currentIndex() >= 0) _viewer->setPlot3DContourLevels(_plotSelector->currentData().toUuid(), levels); });
+	connect(_contourLevels, qOverload<int>(&QSpinBox::valueChanged), this, [this](int levels) {
+		if (!_viewer || _plotSelector->currentIndex() < 0)
+			return;
+		const QUuid uuid = _plotSelector->currentData().toUuid();
+		_viewer->setPlot3DContourLevels(uuid, levels); // a Contour plot (ignored for any other)
+		_viewer->setPlot3DContourOverlay(uuid, _contourOverlay->currentData().toInt(), levels); // a Surface's overlay (ignored for any other)
+	});
+	connect(_contourOverlay, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
+		if (!_viewer || _plotSelector->currentIndex() < 0)
+			return;
+		_viewer->setPlot3DContourOverlay(_plotSelector->currentData().toUuid(), _contourOverlay->currentData().toInt(), _contourLevels->value());
+		refreshState();
+	});
+	connect(_contourProjected, &QCheckBox::toggled, this, [this](bool projected) { if (_viewer && _plotSelector->currentIndex() >= 0) _viewer->setPlot3DContourProjected(_plotSelector->currentData().toUuid(), projected); });
 	connect(_rangeMinimum, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_automaticRange->isChecked()) applyColourState(); });
 	connect(_rangeMaximum, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_automaticRange->isChecked()) applyColourState(); });
 	connect(_lineWidth, qOverload<double>(&QDoubleSpinBox::valueChanged), this, &Plot3DControlsPanel::applyAppearanceState);
@@ -206,7 +225,12 @@ void Plot3DControlsPanel::applyTexts()
 	_colormapLabel->setText(tr("Colour map:"));
 	_bandsLabel->setText(tr("Colour bands:"));
 	_automaticRange->setText(tr("Automatic colour range"));
+	_contourOverlay->setItemText(0, tr("None"));
+	_contourOverlay->setItemText(1, tr("On the surface"));
+	_contourOverlay->setItemText(2, tr("On the base plane"));
+	_contourOverlayLabel->setText(tr("Contour lines:"));
 	_contourLevelsLabel->setText(tr("Contour levels:"));
+	_contourProjected->setText(tr("Project contours onto the base plane"));
 	_minimumLabel->setText(tr("Minimum:"));
 	_maximumLabel->setText(tr("Maximum:"));
 	_lineWidthLabel->setText(tr("Line width:"));
@@ -255,7 +279,7 @@ void Plot3DControlsPanel::refreshState()
 {
 	const QVector<Plot3DSession> sessions = _viewer ? _viewer->plot3DSessions() : QVector<Plot3DSession>();
 	const QUuid active = _viewer ? _viewer->activePlot3DMeshUuid() : QUuid();
-	const QSignalBlocker selectorBlock(_plotSelector), axesBlock(_showAxesCheck), titleBlock(_plotTitle), mapBlock(_colormap), bandsBlock(_bands), autoBlock(_automaticRange), contourBlock(_contourLevels), minBlock(_rangeMinimum), maxBlock(_rangeMaximum), lineBlock(_lineWidth), markerBlock(_markerSize), arrowBlock(_arrowScale), barWidthBlock(_barWidthScale), barDepthBlock(_barDepthScale);
+	const QSignalBlocker selectorBlock(_plotSelector), axesBlock(_showAxesCheck), titleBlock(_plotTitle), mapBlock(_colormap), bandsBlock(_bands), autoBlock(_automaticRange), contourBlock(_contourLevels), projectedBlock(_contourProjected), overlayBlock(_contourOverlay), minBlock(_rangeMinimum), maxBlock(_rangeMaximum), lineBlock(_lineWidth), markerBlock(_markerSize), arrowBlock(_arrowScale), barWidthBlock(_barWidthScale), barDepthBlock(_barDepthScale);
 	const std::array<QSignalBlocker, 4> referencePlaneBlockers{ QSignalBlocker(_referencePlanes[0]),
 		QSignalBlocker(_referencePlanes[1]), QSignalBlocker(_referencePlanes[2]), QSignalBlocker(_referencePlaneOpacity) };
 	std::array<QSignalBlocker, 18> axisBlockers{
@@ -282,6 +306,9 @@ void Plot3DControlsPanel::refreshState()
 	{
 		_contourLevelsLabel->setVisible(false);
 		_contourLevels->setVisible(false);
+		_contourProjected->setVisible(false);
+		_contourOverlayLabel->setVisible(false);
+		_contourOverlay->setVisible(false);
 		_barWidthScaleLabel->setVisible(false); _barWidthScale->setVisible(false);
 		_barDepthScaleLabel->setVisible(false); _barDepthScale->setVisible(false);
 		for (QCheckBox* plane : _referencePlanes) plane->setEnabled(false);
@@ -305,10 +332,19 @@ void Plot3DControlsPanel::refreshState()
 	_referencePlaneOpacity->setEnabled(true);
 	_plotTitle->setText(session->title);
 	const bool isContour = session->primitive == Plot3DPrimitive::Contour;
-	_contourLevelsLabel->setVisible(isContour);
-	_contourLevels->setVisible(isContour);
-	_contourLevels->setEnabled(isContour);
-	_contourLevels->setValue(session->contourLevels);
+	const bool isSurface = session->primitive == Plot3DPrimitive::Surface;
+	const bool showLevels = isContour || (isSurface && session->contourOverlayMode != 0);
+	_contourOverlayLabel->setVisible(isSurface);
+	_contourOverlay->setVisible(isSurface);
+	_contourOverlay->setEnabled(isSurface);
+	_contourOverlay->setCurrentIndex(_contourOverlay->findData(session->contourOverlayMode));
+	_contourLevelsLabel->setVisible(showLevels);
+	_contourLevels->setVisible(showLevels);
+	_contourLevels->setEnabled(showLevels);
+	_contourLevels->setValue(isContour ? session->contourLevels : session->contourOverlayLevels);
+	_contourProjected->setVisible(isContour);
+	_contourProjected->setEnabled(isContour);
+	_contourProjected->setChecked(session->contourProjected);
 	const bool supportsColourControls = true;
 	const bool supportsColourRange = supportsColourControls && session->primitive != Plot3DPrimitive::Voxel;
 	_colormap->setEnabled(supportsColourControls); _bands->setEnabled(supportsColourRange);
@@ -323,6 +359,7 @@ void Plot3DControlsPanel::refreshState()
 	_barWidthScale->setValue(session->barWidthScale);
 	_barDepthScale->setValue(session->barDepthScale);
 	const bool linePlot = session->primitive == Plot3DPrimitive::Line || session->primitive == Plot3DPrimitive::Contour
+		|| (session->primitive == Plot3DPrimitive::Surface && session->contourOverlayMode != 0)
 		|| (session->primitive == Plot3DPrimitive::Scatter && !session->markerMeshUuid.isNull());
 	_lineWidth->setEnabled(linePlot);
 	_markerSize->setEnabled(session->primitive == Plot3DPrimitive::Scatter && !session->isFilledScatter);
