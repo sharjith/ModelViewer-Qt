@@ -110,6 +110,8 @@ private:
 	QComboBox* _columnWidth = nullptr; // Bar only; optional, defaults to 0.8
 	QComboBox* _columnDepth = nullptr;
 	QComboBox* _columnError = nullptr;
+	QComboBox* _columnFillTo = nullptr; // Line fill: the second curve's Z column (none = the base plane)
+	QLabel* _fillToLabel = nullptr;
 	QCheckBox* _stemEnabled = nullptr;
 	QCheckBox* _errorBarsEnabled = nullptr;
 	QCheckBox* _scatterFillEnabled = nullptr;

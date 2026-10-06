@@ -168,6 +168,12 @@ Fill under a line: open line_helix.csv, select Line / Curve and tick "Fill to Ba
 curtain from the helix down to the base plane, coloured along the line. Edit Plot, change the base (for example to 2) and Rebuild:
 the curtain must follow the new base, flipping to hang from the line where it lies below it.
 
+Fill between two curves: open line_band.csv (columns x, y, z, z2, value), select Line / Curve, map Colour value to "value", tick
+"Fill to Base Z" and choose "z2" in "or between the line and column". Preview and Build show a translucent band between the z curve and
+the z2 curve, coloured by the band width; the curves cross twice, where the band pinches to a line. The axes box must include both
+curves, and the Base Z box is unused while a column is chosen. With the column set to (none) the same file fills down to the base
+plane again. Edit Plot, change the column or a z2 value and Rebuild: the band must follow.
+
 Text notes: select a plot, then in the 3D Plot tab's "Text notes" group click Add note and edit its X / Y / Z / Text cells. The note is
 drawn in the axes box at that data point and follows the plot's visibility; save and reopen to check it persists.
 

@@ -9914,7 +9914,7 @@ Sono disegnate nel riquadro degli assi, quindi seguono la visibilità e gli assi
     </message>
     <message>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="105"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="491"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="498"/>
         <source>Open or paste tabular data to preview it.</source>
         <translation>Apri o incolla dati tabulari per visualizzarne l&apos;anteprima.</translation>
     </message>
@@ -10112,19 +10112,19 @@ Sono disegnate nel riquadro degli assi, quindi seguono la visibilità e gli assi
     </message>
     <message>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="211"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="271"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="276"/>
         <source>X:</source>
         <translation>X:</translation>
     </message>
     <message>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="212"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="272"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="277"/>
         <source>Y:</source>
         <translation>Y:</translation>
     </message>
     <message>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="213"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="273"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="278"/>
         <source>Z:</source>
         <translation>Z:</translation>
     </message>
@@ -10140,19 +10140,19 @@ Sono disegnate nel riquadro degli assi, quindi seguono la visibilità e gli assi
     </message>
     <message>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="226"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="276"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="281"/>
         <source>U:</source>
         <translation>U:</translation>
     </message>
     <message>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="227"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="277"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="282"/>
         <source>V:</source>
         <translation>V:</translation>
     </message>
     <message>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="228"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="278"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="283"/>
         <source>W:</source>
         <translation>W:</translation>
     </message>
@@ -10197,7 +10197,19 @@ Sono disegnate nel riquadro degli assi, quindi seguono la visibilità e gli assi
         <translation>Riempi fino alla Z di base:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="256"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="247"/>
+        <source>Fill a line down to the base plane, or - choosing a column - between the line and a second curve whose
+Z values are in that column (same X and Y).</source>
+        <translation>Riempie una linea fino al piano base oppure, scegliendo una colonna, tra la linea e una seconda curva
+i cui valori Z sono in quella colonna (stessi X e Y).</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="248"/>
+        <source>or between the line and column:</source>
+        <translation>oppure tra la linea e la colonna:</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="261"/>
         <source>Scatter / line options:</source>
         <translation>Opzioni di dispersione / linea:</translation>
     </message>
@@ -10206,87 +10218,87 @@ Sono disegnate nel riquadro degli assi, quindi seguono la visibilità e gli assi
         <translation type="vanished">Opzioni di dispersione:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="280"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="285"/>
         <source>Time column:</source>
         <translation>Colonna del tempo:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="281"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="286"/>
         <source>Position columns:</source>
         <translation>Colonne di posizione:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="282"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="287"/>
         <source>Velocity columns:</source>
         <translation>Colonne di velocità:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="286"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="291"/>
         <source>seeds</source>
         <translation>punti di partenza</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="287"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="292"/>
         <source>time steps</source>
         <translation>passi di tempo</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="289"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="294"/>
         <source>Pathlines:</source>
         <translation>Linee di percorso:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="290"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="295"/>
         <source>One row per grid node of a complete regular grid in time, X and Y (and Z). Seeds are released along Y at the middle of the X range.</source>
         <translation>Una riga per ogni nodo di una griglia regolare completa in tempo, X e Y (e Z). I punti di partenza sono posti lungo Y a metà dell&apos;intervallo di X.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="306"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="311"/>
         <source>None</source>
         <translation>Nessuno</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="307"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="312"/>
         <source>On the surface</source>
         <translation>Sulla superficie</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="308"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="313"/>
         <source>On the base plane</source>
         <translation>Sul piano di base</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="309"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="314"/>
         <source>Contour lines:</source>
         <translation>Linee di contorno:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="312"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="317"/>
         <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="112"/>
         <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="135"/>
         <source>Build Plot</source>
         <translation>Crea grafico</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="314"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="319"/>
         <source>Preview</source>
         <translation>Anteprima</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="315"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="320"/>
         <source>Clear Preview</source>
         <translation>Cancella anteprima</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="411"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="656"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="417"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="665"/>
         <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="179"/>
         <source>Edit 3D Plot - %1</source>
         <translation>Modifica grafico 3D - %1</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="412"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="657"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="418"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="666"/>
         <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="149"/>
         <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="163"/>
         <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="180"/>
@@ -10294,8 +10306,8 @@ Sono disegnate nel riquadro degli assi, quindi seguono la visibilità e gli assi
         <translation>Ricrea grafico</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="450"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="683"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="457"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="692"/>
         <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="202"/>
         <source>Editing &apos;%1&apos;. Rebuild updates the existing tree entry and keeps its presentation settings.</source>
         <translation>Modifica di &apos;%1&apos;. Ricreando si aggiorna la voce esistente nell&apos;albero e si mantengono le sue impostazioni di presentazione.</translation>
@@ -10549,44 +10561,44 @@ Sono disegnate nel riquadro degli assi, quindi seguono la visibilità e gli assi
         <translation>Formula valutata su una griglia di %1 x %2 (%3 punti). </translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="459"/>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="466"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="473"/>
         <source>Open 3D Plot Data</source>
         <translation>Apri dati del grafico 3D</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="460"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="467"/>
         <source>Delimited text (*.csv *.tsv *.txt);;All files (*.*)</source>
         <translation>Testo delimitato (*.csv *.tsv *.txt);;Tutti i file (*.*)</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="466"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="473"/>
         <source>The selected file could not be opened.</source>
         <translation>Impossibile aprire il file selezionato.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="518"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="525"/>
         <source>%1 rows and %2 columns loaded%3.</source>
         <translation>Caricate %1 righe e %2 colonne%3.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="520"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="527"/>
         <source>; showing the first 200 rows</source>
         <translation>; vengono mostrate le prime 200 righe</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="567"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="632"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="574"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="641"/>
         <source>(none)</source>
         <translation>(nessuno)</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="569"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="576"/>
         <source>Column %1</source>
         <translation>Colonna %1</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="632"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="641"/>
         <source>(choose a column)</source>
         <translation>(scegli una colonna)</translation>
     </message>
@@ -10983,37 +10995,37 @@ Sono disegnate nel riquadro degli assi, quindi seguono la visibilità e gli assi
 <context>
     <name>Plot3DPrimitive</name>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DData.cpp" line="384"/>
+        <location filename="../src/Plot3D/Core/Plot3DData.cpp" line="398"/>
         <source>Surface</source>
         <translation>Superficie</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DData.cpp" line="385"/>
+        <location filename="../src/Plot3D/Core/Plot3DData.cpp" line="399"/>
         <source>Contour</source>
         <translation>Contorno</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DData.cpp" line="386"/>
+        <location filename="../src/Plot3D/Core/Plot3DData.cpp" line="400"/>
         <source>Line</source>
         <translation>Linea</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DData.cpp" line="387"/>
+        <location filename="../src/Plot3D/Core/Plot3DData.cpp" line="401"/>
         <source>Scatter</source>
         <translation>Dispersione</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DData.cpp" line="388"/>
+        <location filename="../src/Plot3D/Core/Plot3DData.cpp" line="402"/>
         <source>Bar</source>
         <translation>Barre</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DData.cpp" line="389"/>
+        <location filename="../src/Plot3D/Core/Plot3DData.cpp" line="403"/>
         <source>Voxel</source>
         <translation>Voxel</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DData.cpp" line="390"/>
+        <location filename="../src/Plot3D/Core/Plot3DData.cpp" line="404"/>
         <source>Quiver</source>
         <translation>Frecce</translation>
     </message>
@@ -11411,37 +11423,37 @@ Sono disegnate nel riquadro degli assi, quindi seguono la visibilità e gli assi
         <translation>La Z di base di una linea riempita deve essere finita.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DMeshBuilder.cpp" line="579"/>
+        <location filename="../src/Plot3D/Core/Plot3DMeshBuilder.cpp" line="582"/>
         <source>Bar data has no bars.</source>
         <translation>I dati delle barre non contengono barre.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DMeshBuilder.cpp" line="605"/>
+        <location filename="../src/Plot3D/Core/Plot3DMeshBuilder.cpp" line="608"/>
         <source>Bar %1 has invalid geometry.</source>
         <translation>La barra %1 ha una geometria non valida.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DMeshBuilder.cpp" line="629"/>
+        <location filename="../src/Plot3D/Core/Plot3DMeshBuilder.cpp" line="632"/>
         <source>Voxel data has no occupied cells.</source>
         <translation>I dati dei voxel non contengono celle occupate.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DMeshBuilder.cpp" line="640"/>
+        <location filename="../src/Plot3D/Core/Plot3DMeshBuilder.cpp" line="643"/>
         <source>Voxel %1 has invalid indices or occupancy.</source>
         <translation>Il voxel %1 ha indici o occupazione non validi.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DMeshBuilder.cpp" line="654"/>
+        <location filename="../src/Plot3D/Core/Plot3DMeshBuilder.cpp" line="657"/>
         <source>Voxel grid is %1 x %2 x %3. Each dimension must be at most 256 cells.</source>
         <translation>La griglia di voxel è %1 x %2 x %3. Ogni dimensione deve avere al massimo 256 celle.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DMeshBuilder.cpp" line="669"/>
+        <location filename="../src/Plot3D/Core/Plot3DMeshBuilder.cpp" line="672"/>
         <source>Voxel data has more than one value at (%1, %2, %3).</source>
         <translation>I dati dei voxel contengono più di un valore in (%1, %2, %3).</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DMeshBuilder.cpp" line="684"/>
+        <location filename="../src/Plot3D/Core/Plot3DMeshBuilder.cpp" line="687"/>
         <source>Quiver data has no points.</source>
         <translation>I dati delle frecce non contengono punti.</translation>
     </message>
@@ -11461,58 +11473,58 @@ Sono disegnate nel riquadro degli assi, quindi seguono la visibilità e gli assi
     </message>
     <message>
         <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="83"/>
-        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="428"/>
+        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="430"/>
         <source>The stored 3D Plot data &apos;%1&apos; is missing or damaged.</source>
         <translation>I dati del grafico 3D memorizzati &apos;%1&apos; mancano o sono danneggiati.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="322"/>
+        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="324"/>
         <source>A stored 3D Plot has no mesh identity.</source>
         <translation>Un grafico 3D memorizzato non ha un identificativo di mesh.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="328"/>
+        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="330"/>
         <source>A stored 3D Plot has an unknown plot type.</source>
         <translation>Un grafico 3D memorizzato ha un tipo di grafico sconosciuto.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="337"/>
+        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="339"/>
         <source>A stored 3D Plot has no data extent.</source>
         <translation>Un grafico 3D memorizzato non ha un&apos;estensione dei dati.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="444"/>
+        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="446"/>
         <source>The stored 3D Plot colour data is inconsistent.</source>
         <translation>I dati di colore memorizzati del grafico 3D sono incoerenti.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="450"/>
+        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="452"/>
         <source>The stored 3D Plot bar data is inconsistent.</source>
         <translation>I dati delle barre memorizzati del grafico 3D sono incoerenti.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="461"/>
+        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="463"/>
         <source>The stored 3D Plot contour data is inconsistent.</source>
         <translation>I dati di contorno memorizzati del grafico 3D sono incoerenti.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="481"/>
+        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="483"/>
         <source>The stored 3D Plot arrow data is inconsistent.</source>
         <translation>I dati delle frecce memorizzati del grafico 3D sono incoerenti.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="490"/>
-        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="505"/>
+        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="492"/>
+        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="507"/>
         <source>The stored 3D Plot volume is inconsistent.</source>
         <translation>Il volume memorizzato del grafico 3D è incoerente.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="510"/>
+        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="512"/>
         <source>A stored arrow plot has no arrow data.</source>
         <translation>Un grafico a frecce memorizzato non ha dati delle frecce.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="512"/>
+        <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="514"/>
         <source>A stored voxel plot has no volume data.</source>
         <translation>Un grafico di voxel memorizzato non ha dati di volume.</translation>
     </message>

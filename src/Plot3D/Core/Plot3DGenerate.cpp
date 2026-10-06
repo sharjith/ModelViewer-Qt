@@ -264,8 +264,23 @@ bool plot3DDatasetBounds(const Plot3DDataset& dataset, const Plot3DMeshOptions& 
 		return false;
 	if ((dataset.primitive == Plot3DPrimitive::Scatter && (options.stems || options.filled)) || (dataset.primitive == Plot3DPrimitive::Line && options.filled))
 	{
-		minimum[2] = std::min(minimum[2], options.baseZ);
-		maximum[2] = std::max(maximum[2], options.baseZ);
+		// A line filled to a second curve reaches that curve's Z; otherwise the ribbon reaches the base plane.
+		const Plot3DLineData* line = dataset.primitive == Plot3DPrimitive::Line && std::holds_alternative<Plot3DLineData>(dataset.content)
+			? &std::get<Plot3DLineData>(dataset.content) : nullptr;
+		if (line && !line->fillTo.empty() && line->fillTo.size() == line->samples.size())
+		{
+			for (double z : line->fillTo)
+				if (std::isfinite(z))
+				{
+					minimum[2] = std::min(minimum[2], z);
+					maximum[2] = std::max(maximum[2], z);
+				}
+		}
+		else
+		{
+			minimum[2] = std::min(minimum[2], options.baseZ);
+			maximum[2] = std::max(maximum[2], options.baseZ);
+		}
 	}
 	return true;
 }

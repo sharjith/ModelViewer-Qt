@@ -243,6 +243,9 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	_errorBarsEnabled = new QCheckBox(tr("Show error bars (±Z):"), this);
 	_scatterFillEnabled = new QCheckBox(tr("Fill to Base Z:"), this);
 	_columnError = new QComboBox(this);
+	_columnFillTo = new QComboBox(this);
+	_columnFillTo->setToolTip(tr("Fill a line down to the base plane, or - choosing a column - between the line and a second curve whose\nZ values are in that column (same X and Y)."));
+	_fillToLabel = new QLabel(tr("or between the line and column:"), this);
 	_stemBaseZ = new QDoubleSpinBox(this);
 	_stemBaseZ->setRange(-1.0e12, 1.0e12);
 	_stemBaseZ->setDecimals(6);
@@ -252,6 +255,8 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	scatterOptionsRow->addWidget(_errorBarsEnabled);
 	scatterOptionsRow->addWidget(_columnError);
 	scatterOptionsRow->addWidget(_scatterFillEnabled);
+	scatterOptionsRow->addWidget(_fillToLabel);
+	scatterOptionsRow->addWidget(_columnFillTo);
 	scatterOptionsRow->addStretch();
 	mapping->addRow(tr("Scatter / line options:"), scatterOptionsRow);
 	layout->addWidget(_mappingWidget);
@@ -352,6 +357,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	connect(_stemEnabled, &QCheckBox::toggled, this, &Plot3DPanel::updateScatterOptions);
 	connect(_errorBarsEnabled, &QCheckBox::toggled, this, &Plot3DPanel::updateScatterOptions);
 	connect(_scatterFillEnabled, &QCheckBox::toggled, this, &Plot3DPanel::updateScatterOptions);
+	connect(_columnFillTo, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::updateScatterOptions);
 	connect(_stemEnabled, &QCheckBox::toggled, this, [this](bool checked) {
 		if (checked) { _errorBarsEnabled->setChecked(false); _scatterFillEnabled->setChecked(false); }
 	});
@@ -438,6 +444,7 @@ void Plot3DPanel::loadCsvPlotForEditing(const Plot3DSession& session)
 	restoreColumn(_columnWidth, session.columnMapping.width);
 	restoreColumn(_columnDepth, session.columnMapping.depth);
 	restoreColumn(_columnError, session.columnMapping.error);
+	restoreColumn(_columnFillTo, session.columnMapping.fillTo);
 	_stemBaseZ->setValue(session.scatterBaseZ);
 	_stemEnabled->setChecked(session.isStem);
 	_errorBarsEnabled->setChecked(session.isErrorBars);
@@ -589,6 +596,7 @@ void Plot3DPanel::refreshColumnCombos(bool resetForNewSchema)
 	populate(_columnBase, true, -1, { QStringLiteral("base") });
 	populate(_columnWidth, true, -1, { QStringLiteral("width") });
 	populate(_columnDepth, true, -1, { QStringLiteral("depth") });
+	populate(_columnFillTo, true, -1, { QStringLiteral("z2"), QStringLiteral("fillto"), QStringLiteral("lower"), QStringLiteral("zlow") });
 	populate(_columnError, true, -1, { QStringLiteral("error"), QStringLiteral("errorz"), QStringLiteral("uncertainty"), QStringLiteral("stddev") });
 }
 
@@ -606,6 +614,7 @@ Plot3DColumnMapping Plot3DPanel::columnMapping() const
 	mapping.width = _columnWidth->currentData().toInt();
 	mapping.depth = _columnDepth->currentData().toInt();
 	mapping.error = _columnError->currentData().toInt();
+	mapping.fillTo = _columnFillTo->currentData().toInt();
 	return mapping;
 }
 
@@ -692,6 +701,11 @@ void Plot3DPanel::updateScatterOptions()
 	_errorBarsEnabled->setEnabled(scatter);
 	_columnError->setEnabled(scatter && _errorBarsEnabled->isChecked());
 	_scatterFillEnabled->setEnabled(scatter || line); // a filled line is a ribbon down to the base plane, like a filled scatter
+	// ... or, with a column chosen, the band between the line and a second curve (then the base plane is not used)
+	_columnFillTo->setEnabled(line && _scatterFillEnabled->isChecked());
+	_fillToLabel->setEnabled(line && _scatterFillEnabled->isChecked());
+	_stemBaseZ->setEnabled((scatter && _stemEnabled->isChecked()) || ((scatter || line) && _scatterFillEnabled->isChecked()
+		&& !(line && _columnFillTo->currentData().toInt() >= 0)));
 }
 
 void Plot3DPanel::updateContourOverlayRow()
