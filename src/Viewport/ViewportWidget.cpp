@@ -9784,7 +9784,7 @@ void ViewportWidget::setPlot3DPointOverlay(const QUuid& meshUuid, std::vector<fl
 
 void ViewportWidget::clearPlot3DPointOverlay(const QUuid& meshUuid)
 {
-	if (_plot3DPointOverlays.remove(meshUuid) > 0)
+	if (_plot3DPointOverlays.remove(meshUuid))
 		update();
 }
 
