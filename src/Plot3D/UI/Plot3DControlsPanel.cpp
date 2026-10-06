@@ -18,12 +18,62 @@
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QHeaderView>
+#include <QKeyEvent>
+#include <QPlainTextEdit>
+#include <QStyledItemDelegate>
 #include <QSpinBox>
 #include <QTableWidget>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
+
+namespace
+{
+	// The text cell of a note: a small multi-line editor. Enter adds a line; Ctrl+Enter, or clicking away, finishes the edit.
+	class NoteTextDelegate : public QStyledItemDelegate
+	{
+	public:
+		using QStyledItemDelegate::QStyledItemDelegate;
+
+		QWidget* createEditor(QWidget* parent, const QStyleOptionViewItem&, const QModelIndex&) const override
+		{
+			auto* editor = new QPlainTextEdit(parent);
+			editor->setFrameShape(QFrame::NoFrame);
+			return editor;
+		}
+		void setEditorData(QWidget* editor, const QModelIndex& index) const override
+		{
+			static_cast<QPlainTextEdit*>(editor)->setPlainText(index.data(Qt::EditRole).toString());
+		}
+		void setModelData(QWidget* editor, QAbstractItemModel* model, const QModelIndex& index) const override
+		{
+			model->setData(index, static_cast<QPlainTextEdit*>(editor)->toPlainText(), Qt::EditRole);
+		}
+		void updateEditorGeometry(QWidget* editor, const QStyleOptionViewItem& option, const QModelIndex&) const override
+		{
+			QRect rect = option.rect;
+			rect.setHeight(std::max(rect.height(), 72)); // room for a few lines while editing
+			editor->setGeometry(rect);
+		}
+		bool eventFilter(QObject* object, QEvent* event) override
+		{
+			if (event->type() == QEvent::KeyPress)
+			{
+				const auto* key = static_cast<QKeyEvent*>(event);
+				if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && (key->modifiers() & Qt::ControlModifier))
+				{
+					auto* editor = qobject_cast<QWidget*>(object);
+					emit commitData(editor);
+					emit closeEditor(editor);
+					return true;
+				}
+			}
+			return QStyledItemDelegate::eventFilter(object, event);
+		}
+	};
+}
 
 Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	: QWidget(parent)
@@ -167,6 +217,8 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	_notesTable->setSelectionMode(QAbstractItemView::SingleSelection);
 	_notesTable->horizontalHeader()->setStretchLastSection(true);
 	_notesTable->verticalHeader()->setVisible(false);
+	_notesTable->setItemDelegateForColumn(3, new NoteTextDelegate(_notesTable));
+	_notesTable->setWordWrap(true);
 	notesLayout->addWidget(_notesTable);
 	auto* notesButtons = new QHBoxLayout();
 	_addNoteButton = new QPushButton(_notesGroup);
@@ -178,7 +230,11 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	layout->addWidget(_notesGroup);
 	connect(_addNoteButton, &QPushButton::clicked, this, &Plot3DControlsPanel::addTextLabel);
 	connect(_removeNoteButton, &QPushButton::clicked, this, &Plot3DControlsPanel::removeTextLabel);
-	connect(_notesTable, &QTableWidget::itemChanged, this, [this](QTableWidgetItem*) { applyTextLabels(); });
+	connect(_notesTable, &QTableWidget::itemChanged, this, [this](QTableWidgetItem* item) {
+		applyTextLabels();
+		if (item)
+			_notesTable->resizeRowToContents(item->row()); // a multi-line note grows its row
+	});
 
 	_axisStatus = new QLabel(this);
 	_axisStatus->setWordWrap(true);
@@ -302,7 +358,8 @@ void Plot3DControlsPanel::applyTexts()
 	_notesGroup->setTitle(tr("Text notes"));
 	_notesTable->setHorizontalHeaderLabels({ tr("X"), tr("Y"), tr("Z"), tr("Text") });
 	_notesTable->setToolTip(tr("Notes placed at a point of the plot, in its own data coordinates. Edit a cell to change it.\n"
-	                           "They are drawn in the axes box, so they follow the plot's visibility and its axes."));
+	                           "Enter adds a line to the text; Ctrl+Enter or clicking away finishes. They are drawn in the axes box,\n"
+	                           "so they follow the plot's visibility and its axes."));
 	_addNoteButton->setText(tr("Add note"));
 	_addNoteButton->setToolTip(tr("Add a note at the centre of the plot's data."));
 	_removeNoteButton->setText(tr("Remove note"));
@@ -372,6 +429,7 @@ void Plot3DControlsPanel::refreshState()
 			_notesTable->setItem(row, 2, new QTableWidgetItem(QString::number(note.z, 'g', 10)));
 			_notesTable->setItem(row, 3, new QTableWidgetItem(note.text));
 		}
+		_notesTable->resizeRowsToContents();
 	}
 	if (!available)
 	{

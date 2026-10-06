@@ -9985,10 +9985,16 @@ void ViewportWidget::drawPlot3DAxisOverlay(Camera* camera)
 			// TextRenderer's HCENTER means "centre in the whole viewport", not
 			// "centre around this x coordinate".  These labels have individual
 			// projected anchors, so centre them explicitly and retain HLEFT.
-			const std::string text = label.text.toStdString();
-			const float x = projected.x() - _axisTextRenderer->textWidth(text) * 0.5f;
-			_axisTextRenderer->RenderHaloText(text, x, y, 1,
-				label.color, TextRenderer::VAlignment::VBOTTOM, TextRenderer::HAlignment::HLEFT);
+			// TextRenderer draws one line: a multi-line note (tick labels never have a line break) is split and stacked downward from
+			// its anchor, each line centred.
+			const QStringList lines = label.text.split(QLatin1Char('\n'));
+			for (int line = 0; line < lines.size(); ++line)
+			{
+				const std::string text = lines[line].toStdString();
+				const float x = projected.x() - _axisTextRenderer->textWidth(text) * 0.5f;
+				_axisTextRenderer->RenderHaloText(text, x, y + static_cast<float>(line) * static_cast<float>(_axisTextRenderer->fontSize()), 1,
+					label.color, TextRenderer::VAlignment::VBOTTOM, TextRenderer::HAlignment::HLEFT);
+			}
         }
 		const QVector2D boxCentre = projectToTextSpace(QVector3D(
 			static_cast<float>((layout.minimum[0] + layout.maximum[0]) * 0.5),

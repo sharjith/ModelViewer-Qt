@@ -9466,145 +9466,145 @@ La superficie viene mostrata con i colori che aveva al momento del salvataggio.<
 <context>
     <name>Plot3DControlsPanel</name>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="241"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="297"/>
         <source>Add 3D Plot...</source>
         <translation>Aggiungi grafico 3D...</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="242"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="298"/>
         <source>Import CSV or pasted tabular data and build a new 3D plot.</source>
         <translation>Importa dati tabulari CSV o incollati e crea un nuovo grafico 3D.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="243"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="299"/>
         <source>Edit Plot...</source>
         <translation>Modifica grafico...</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="244"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="300"/>
         <source>Reopen the active CSV plot&apos;s source data and column mapping.</source>
         <translation>Riapre i dati di origine e l&apos;associazione delle colonne del grafico CSV attivo.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="245"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="301"/>
         <source>Active plot:</source>
         <translation>Grafico attivo:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="246"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="302"/>
         <source>Show axes box</source>
         <translation>Mostra box degli assi</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="247"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="303"/>
         <source>Show or hide the active plot&apos;s axes without discarding its axis layout.</source>
         <translation>Mostra o nasconde gli assi del grafico attivo senza scartarne la disposizione.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="251"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="307"/>
         <source>Sequential</source>
         <translation>Sequenziale</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="252"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="308"/>
         <source>Diverging</source>
         <translation>Divergente</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="254"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="310"/>
         <source>Smooth</source>
         <translation>Continuo</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="254"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="310"/>
         <source>%1 bands</source>
         <translation>%1 bande</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="264"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="320"/>
         <source>Automatic colour range</source>
         <translation>Intervallo di colori automatico</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="276"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="332"/>
         <source>Contour levels:</source>
         <translation>Livelli di contorno:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="283"/>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="284"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="339"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="340"/>
         <source> px</source>
         <translation> px</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="287"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="343"/>
         <source>Scale every bar&apos;s imported width while keeping its centre fixed.</source>
         <translation>Scala la larghezza importata di ogni barra mantenendone fisso il centro.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="288"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="344"/>
         <source>Scale every bar&apos;s imported depth while keeping its centre fixed.</source>
         <translation>Scala la profondità importata di ogni barra mantenendone fisso il centro.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="285"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="341"/>
         <source>Bar width:</source>
         <translation>Larghezza barre:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="286"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="342"/>
         <source>Bar depth:</source>
         <translation>Profondità barre:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="262"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="318"/>
         <source>Colour map:</source>
         <translation>Mappa colori:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="263"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="319"/>
         <source>Colour bands:</source>
         <translation>Bande di colore:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="265"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="321"/>
         <source>None</source>
         <translation>Nessuno</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="266"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="322"/>
         <source>On the surface</source>
         <translation>Sulla superficie</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="267"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="323"/>
         <source>On the base plane</source>
         <translation>Sul piano di base</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="268"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="324"/>
         <source>Contour lines:</source>
         <translation>Linee di contorno:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="269"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="325"/>
         <source>Show section curves on hover</source>
         <translation>Mostra le curve di sezione al passaggio del mouse</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="270"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="326"/>
         <source>Animate pathlines (timeline)</source>
         <translation>Anima le linee di percorso (linea temporale)</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="271"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="327"/>
         <source>Show a timeline over the viewport. The trails are drawn up to the current time, with
 a moving dot at the head of each; press Play (or drag the slider) to watch the particles move.</source>
         <translation>Mostra una linea temporale sulla vista. Le linee di percorso vengono tracciate fino al tempo corrente,
 con un punto mobile in testa a ciascuna; premi Riproduci (o trascina il cursore) per vedere muoversi le particelle.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="273"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="329"/>
         <source>While the cursor is over this surface, draw the curves where the X, Y and Z planes
 through the hovered point cut it (red, green and blue like the axes), with the point&apos;s
 coordinates. The blue curve is the contour line through that point.</source>
@@ -9613,194 +9613,202 @@ X, Y e Z passanti per il punto sotto il cursore la intersecano (rosso, verde e b
 assi), con le coordinate del punto. La curva blu è la linea di contorno passante per quel punto.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="277"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="333"/>
         <source>Project contours onto the base plane</source>
         <translation>Proietta i contorni sul piano di base</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="278"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="334"/>
         <source>Minimum:</source>
         <translation>Minimo:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="279"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="335"/>
         <source>Maximum:</source>
         <translation>Massimo:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="280"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="336"/>
         <source>Line width:</source>
         <translation>Spessore linea:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="281"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="337"/>
         <source>Marker size:</source>
         <translation>Dimensione marcatore:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="282"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="338"/>
         <source>Arrow size:</source>
         <translation>Dimensione frecce:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="290"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="346"/>
         <source>Axes</source>
         <translation>Assi</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="291"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="347"/>
         <source>Plot title</source>
         <translation>Titolo del grafico</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="292"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="348"/>
         <source>Title:</source>
         <translation>Titolo:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="293"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="349"/>
         <source>Planes:</source>
         <translation>Piani:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="294"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="350"/>
         <source>XY</source>
         <translation>XY</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="295"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="351"/>
         <source>XZ</source>
         <translation>XZ</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="296"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="352"/>
         <source>YZ</source>
         <translation>YZ</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="297"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="353"/>
         <source>Opacity:</source>
         <translation>Opacità:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="298"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="354"/>
         <source> %</source>
         <translation> %</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="299"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="355"/>
         <source>Opacity of the selected reference planes.</source>
         <translation>Opacità dei piani di riferimento selezionati.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="463"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="360"/>
+        <source>Notes placed at a point of the plot, in its own data coordinates. Edit a cell to change it.
+Enter adds a line to the text; Ctrl+Enter or clicking away finishes. They are drawn in the axes box,
+so they follow the plot&apos;s visibility and its axes.</source>
+        <translation>Note collocate in un punto del grafico, nelle sue coordinate dati. Modifica una cella per cambiarla.
+Invio aggiunge una riga al testo; Ctrl+Invio o un clic altrove termina la modifica. Sono disegnate nel riquadro degli assi,
+quindi seguono la visibilità e gli assi del grafico.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="521"/>
         <source>Filled Line</source>
         <translation>Linea riempita</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="510"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="568"/>
         <source>Note</source>
         <translation>Nota</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="595"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="653"/>
         <source>Axis scale</source>
         <translation>Scala dell&apos;asse</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="595"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="653"/>
         <source>These axis settings were not applied: the range is not valid for the selected scale (a Log 10 axis needs a range above zero).</source>
         <translation>Queste impostazioni dell&apos;asse non sono state applicate: l&apos;intervallo non è valido per la scala selezionata (un asse Log 10 richiede un intervallo maggiore di zero).</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="257"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="313"/>
         <source>Linear</source>
         <translation>Lineare</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="258"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="314"/>
         <source>Log 10</source>
         <translation>Log 10</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="259"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="315"/>
         <source>SymLog</source>
         <translation>SymLog</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="301"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="357"/>
         <source>Auto</source>
         <translation>Auto</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="302"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="358"/>
         <source>Text notes</source>
         <translation>Note di testo</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="303"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="359"/>
         <source>X</source>
         <translation>X</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="303"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="359"/>
         <source>Y</source>
         <translation>Y</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="303"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="359"/>
         <source>Z</source>
         <translation>Z</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="303"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="359"/>
         <source>Text</source>
         <translation>Testo</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="304"/>
         <source>Notes placed at a point of the plot, in its own data coordinates. Edit a cell to change it.
 They are drawn in the axes box, so they follow the plot&apos;s visibility and its axes.</source>
-        <translation>Note collocate in un punto del grafico, nelle sue coordinate dati. Modifica una cella per cambiarla.
+        <translation type="vanished">Note collocate in un punto del grafico, nelle sue coordinate dati. Modifica una cella per cambiarla.
 Sono disegnate nel riquadro degli assi, quindi seguono la visibilità e gli assi del grafico.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="306"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="363"/>
         <source>Add note</source>
         <translation>Aggiungi nota</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="307"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="364"/>
         <source>Add a note at the centre of the plot&apos;s data.</source>
         <translation>Aggiungi una nota al centro dei dati del grafico.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="308"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="365"/>
         <source>Remove note</source>
         <translation>Rimuovi nota</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="395"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="453"/>
         <source>No 3D plots are available in this document.</source>
         <translation>Nessun grafico 3D disponibile in questo documento.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="459"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="517"/>
         <source>Quiver and voxel plots are always drawn on linear axes.</source>
         <translation>I grafici a frecce e a voxel sono sempre disegnati su assi lineari.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="462"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="520"/>
         <source>%1. Use the scene tree checkbox to show or hide this plot.</source>
         <translation>%1. Usa la casella nell&apos;albero della scena per mostrare o nascondere questo grafico.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="463"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="521"/>
         <source>Filled Scatter</source>
         <translation>Dispersione riempita</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="463"/>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="521"/>
         <source>Stem</source>
         <translation>Steli</translation>
     </message>
@@ -10332,26 +10340,26 @@ Sono disegnate nel riquadro degli assi, quindi seguono la visibilità e gli assi
         <translation>Apri o incolla prima dei dati tabulari e fai clic su Aggiorna anteprima.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="633"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="670"/>
         <source>The quiver preview could not be created.</source>
         <translation>Non è stato possibile creare l&apos;anteprima delle frecce.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="643"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="680"/>
         <source>The voxel preview could not be created.</source>
         <translation>Non è stato possibile creare l&apos;anteprima dei voxel.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="655"/>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="669"/>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="698"/>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="707"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="692"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="706"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="735"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="744"/>
         <source>The plot has no valid preview bounds.</source>
         <translation>Il grafico non ha limiti di anteprima validi.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="661"/>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="674"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="698"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="711"/>
         <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="95"/>
         <source>The plot preview could not be created.</source>
         <translation>Non è stato possibile creare l&apos;anteprima del grafico.</translation>
@@ -10510,7 +10518,7 @@ Sono disegnate nel riquadro degli assi, quindi seguono la visibilità e gli assi
         <translation>Parametrico</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="539"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="576"/>
         <source>Built &apos;%1&apos; (%2 vertices).</source>
         <translation>Creato &apos;%1&apos; (%2 vertici).</translation>
     </message>
@@ -10526,7 +10534,7 @@ Sono disegnate nel riquadro degli assi, quindi seguono la visibilità e gli assi
         <translation>Linee di percorso</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="541"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="578"/>
         <source>Built &apos;%1&apos; (%2 points).</source>
         <translation>Creato &apos;%1&apos; (%2 punti).</translation>
     </message>
@@ -10592,7 +10600,7 @@ Sono disegnate nel riquadro degli assi, quindi seguono la visibilità e gli assi
         <translation type="vanished">Il grafico non è più disponibile.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="732"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="769"/>
         <source>The plot could not be rebuilt.</source>
         <translation>Impossibile ricostruire il grafico.</translation>
     </message>
@@ -10641,47 +10649,48 @@ Sono disegnate nel riquadro degli assi, quindi seguono la visibilità e gli assi
         <translation>Immagine</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="488"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="525"/>
         <source> Markers</source>
         <translation> Marcatori</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="531"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="568"/>
         <source>Built &apos;%1&apos; (%2 bars).</source>
         <translation>Creato &apos;%1&apos; (%2 barre).</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="533"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="570"/>
         <source>Built &apos;%1&apos; (%2 stems).</source>
         <translation>Creato &apos;%1&apos; (%2 steli).</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="535"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="572"/>
         <source>Built &apos;%1&apos; (%2 filled segments).</source>
         <translation>«%1» creato (%2 segmenti riempiti).</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="537"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="574"/>
         <source>Built &apos;%1&apos; (%2 filled ribbons).</source>
         <translation>Creato &apos;%1&apos; (%2 nastri riempiti).</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="723"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="760"/>
         <source>The plot is no longer available or its primitive changed.</source>
         <translation>Il grafico non è più disponibile oppure il suo tipo è cambiato.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="379"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="416"/>
         <source>Built &apos;%1&apos; (%2 arrows).</source>
         <translation>Creato &apos;%1&apos; (%2 frecce).</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="53"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="83"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="102"/>
         <source>The image could not be read.</source>
         <translation>Impossibile leggere l&apos;immagine.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="416"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="453"/>
         <source>Built &apos;%1&apos; (%2 supplied voxels, %3 x %4 x %5 grid).</source>
         <translation>Creato &apos;%1&apos; (%2 voxel forniti, griglia %3 x %4 x %5).</translation>
     </message>
@@ -11437,12 +11446,12 @@ Sono disegnate nel riquadro degli assi, quindi seguono la visibilità e gli assi
         <translation>I dati delle frecce non contengono punti.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="162"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="199"/>
         <source>Occupancy</source>
         <translation>Occupazione</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="263"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="300"/>
         <source>The voxel plot has no valid preview bounds.</source>
         <translation>Il grafico di voxel non ha limiti di anteprima validi.</translation>
     </message>
@@ -21218,116 +21227,116 @@ La convenzione della fotocamera attiva è stata lasciata invariata perché quest
         <translation>Trascina faccia del box di taglio</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="10516"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="10522"/>
         <source>Translate Exploded Placement</source>
         <translation>Trasla posizionamento esploso</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="10528"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="10534"/>
         <source>Translate Selection</source>
         <translation>Trasla selezione</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="10777"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="10783"/>
         <source>Scale Selection</source>
         <translation>Scala selezione</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="11045"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="11051"/>
         <source>Rotate Exploded Placement</source>
         <translation>Ruota posizionamento esploso</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="11060"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="11066"/>
         <source>Rotate Selection</source>
         <translation>Ruota selezione</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="11534"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="11723"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="11540"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="11729"/>
         <source>Bottom</source>
         <translation>Inferiore</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="11534"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="11723"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="11540"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="11729"/>
         <source>Rear</source>
         <translation>Posteriore</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="11534"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="11723"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="11540"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="11729"/>
         <source>Right</source>
         <translation>Destra</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="13384"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="13390"/>
         <source>Click a point on the model to plot its value over time.</source>
         <translation>Fai clic su un punto del modello per rappresentarne il valore nel tempo.</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="13385"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="13391"/>
         <source>Click the first of two points on the model to plot the field along a line.</source>
         <translation>Fai clic sul primo di due punti del modello per rappresentare il campo lungo una linea.</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="13451"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="13457"/>
         <source>Click the second point to complete the line.</source>
         <translation>Fai clic sul secondo punto per completare la linea.</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="14188"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="14194"/>
         <source>Performance Warning!</source>
         <translation>Avviso di prestazioni!</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="14189"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="14195"/>
         <source>The model contains more than %1 triangles and the current method of UV generation is &quot;Smart UV&quot; which is time consuming.
 Do you want to continue generating the UV?</source>
         <translation>Il modello contiene più di %1 triangoli e il metodo corrente di generazione UV è &quot;Smart UV&quot;, che richiede molto tempo.
 Vuoi continuare a generare gli UV?</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="14195"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="14201"/>
         <source>Change Settings</source>
         <translation>Cambia impostazioni</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19501"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19507"/>
         <source>Center Screen</source>
         <translation>Centra schermo</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19508"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19514"/>
         <source>Center Object List</source>
         <translation>Centra elenco oggetti</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19475"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19490"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19512"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19481"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19496"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19518"/>
         <source>Show</source>
         <translation>Mostra</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19477"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19492"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19514"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19483"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19498"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19520"/>
         <source>Hide</source>
         <translation>Nascondi</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19516"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19522"/>
         <source>Show Only</source>
         <translation>Mostra solo</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19518"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19524"/>
         <source>Transformations</source>
         <translation>Trasformazioni</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19519"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19525"/>
         <source>Edit Material</source>
         <translation>Modifica materiale</translation>
     </message>
@@ -21336,114 +21345,114 @@ Vuoi continuare a generare gli UV?</translation>
         <translation type="vanished">Genera UV</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19527"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19533"/>
         <source>Copy</source>
         <translation>Copia</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19528"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19534"/>
         <source>Cut</source>
         <translation>Taglia</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19478"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19493"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19529"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19484"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19499"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19535"/>
         <source>Delete</source>
         <translation>Elimina</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19521"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19527"/>
         <source>Split by Connectivity</source>
         <translation>Dividi per connettività</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19522"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19528"/>
         <source>Merge by Adjacency</source>
         <translation>Unisci per adiacenza</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19523"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19529"/>
         <source>Merge Selected</source>
         <translation>Unisci selezionati</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19524"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19530"/>
         <source>Mesh Union</source>
         <translation>Unione mesh</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19525"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19531"/>
         <source>Group</source>
         <translation>Raggruppa</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19531"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19537"/>
         <source>Mesh Info</source>
         <translation>Informazioni mesh</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19538"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19544"/>
         <source>Fit All</source>
         <translation>Adatta tutto</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19543"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19549"/>
         <source>Zoom Area</source>
         <translation>Area zoom</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19557"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19563"/>
         <source>Select</source>
         <translation>Seleziona</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19565"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19571"/>
         <source>Zoom</source>
         <translation>Zoom</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19573"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19579"/>
         <source>Pan</source>
         <translation>Panoramica</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19581"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19587"/>
         <source>Rotate</source>
         <translation>Ruota</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19594"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19600"/>
         <source>Show All</source>
         <translation>Mostra tutto</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19601"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19607"/>
         <source>Hide All</source>
         <translation>Nascondi tutto</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19608"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19614"/>
         <source>Swap Visible</source>
         <translation>Scambia visibili</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19627"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19633"/>
         <source>Paste</source>
         <translation>Incolla</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19634"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19640"/>
         <source>Environment Settings</source>
         <translation>Impostazioni ambiente</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="19635"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="19641"/>
         <source>Background Color</source>
         <translation>Colore di sfondo</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="20068"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="20074"/>
         <source>Uploading mesh %1 / %2</source>
         <translation>Caricamento mesh %1 / %2</translation>
     </message>
