@@ -7300,37 +7300,37 @@ The surface is shown with the colours it had when it was saved.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="616"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="570"/>
         <source> Contours</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="731"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="685"/>
         <source>Plot3D Preview</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="830"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="784"/>
         <source>Occupancy</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="832"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="786"/>
         <source>Time</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="833"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="787"/>
         <source>Vector magnitude</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="833"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="787"/>
         <source>Value</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="835"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="789"/>
         <source>Colour range for the active 3D plot.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -7788,808 +7788,745 @@ coordinates. The blue curve is the contour line through that point.</source>
 <context>
     <name>Plot3DPanel</name>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="312"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="40"/>
         <source>Add 3D Plot</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="325"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="54"/>
         <source>CSV file or pasted data</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="326"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="379"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1020"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="55"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="108"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="48"/>
         <source>Formula surface</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="327"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1020"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="56"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="51"/>
         <source>Parametric surface</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="328"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1020"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="57"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="54"/>
         <source>Parametric curve</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="329"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1020"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="58"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="57"/>
         <source>Formula vector field</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="330"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1020"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="59"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="60"/>
         <source>Implicit surface</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="331"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1020"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="60"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="63"/>
         <source>Formula streamlines</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="343"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="72"/>
         <source>Open CSV...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="344"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="73"/>
         <source>Paste</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="345"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="74"/>
         <source>Refresh Preview</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="354"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="83"/>
         <source>Comma</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="355"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="84"/>
         <source>Semicolon</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="356"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="85"/>
         <source>Tab</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="357"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="86"/>
         <source>First row contains column names</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="359"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="88"/>
         <source>Delimiter:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="364"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="93"/>
         <source>Paste comma-separated X, Y, Z data here, or open a CSV file.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="374"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1528"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="103"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="462"/>
         <source>Open or paste tabular data to preview it.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="408"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="135"/>
         <source>Preset:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="409"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="136"/>
         <source>Parametric preset:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="410"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="137"/>
         <source>Curve preset:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="411"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="138"/>
         <source>Vector preset:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="412"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="139"/>
         <source>Implicit preset:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="414"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="141"/>
         <source>z =</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="415"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1043"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="142"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="53"/>
         <source>x(u,v) =</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="416"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1044"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="143"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="53"/>
         <source>y(u,v) =</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="417"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1045"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="144"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="53"/>
         <source>z(u,v) =</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="418"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1035"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="145"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="49"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="58"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="61"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="64"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="67"/>
         <source>X range / samples:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="419"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1036"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="146"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="49"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="55"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="58"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="61"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="64"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="67"/>
         <source>Y range / samples:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="420"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1039"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="147"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="49"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="52"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="55"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="58"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="61"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="64"/>
         <source>Z range / samples:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="421"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="148"/>
         <source>Parameters:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="435"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="162"/>
         <source>Title:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="432"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="451"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="159"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="178"/>
         <source>Surface</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="332"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="61"/>
         <source>Formula pathlines (time-dependent)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="333"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="62"/>
         <source>CSV time series (pathlines)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="336"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="65"/>
         <source>Data source:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="413"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="140"/>
         <source>Pathline preset:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="430"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="157"/>
         <source>Plot type:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="433"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="452"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="160"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="179"/>
         <source>Contour (surface iso-lines)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="453"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="180"/>
         <source>Line / Curve</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="454"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="181"/>
         <source>Scatter</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="455"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="182"/>
         <source>Bar / Histogram</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="456"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="183"/>
         <source>Voxel / Volumetric</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="457"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="184"/>
         <source>Quiver (vector field)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="458"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="185"/>
         <source>Primitive:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="467"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="527"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="194"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="254"/>
         <source>X:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="468"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="528"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="195"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="255"/>
         <source>Y:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="469"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="529"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="196"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="256"/>
         <source>Z:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="470"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="197"/>
         <source>Colour value:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="472"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="199"/>
         <source>Columns:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="482"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="532"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="209"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="259"/>
         <source>U:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="483"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="533"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="210"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="260"/>
         <source>V:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="484"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="534"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="211"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="261"/>
         <source>W:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="486"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="213"/>
         <source>Vector (Quiver):</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="492"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="219"/>
         <source>Base:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="493"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="220"/>
         <source>Width:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="494"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="221"/>
         <source>Depth:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="496"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="223"/>
         <source>Bar options:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="498"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="225"/>
         <source>Draw stems to Base Z:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="499"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="226"/>
         <source>Show error bars (±Z):</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="500"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="227"/>
         <source>Fill to Base Z:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="512"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="239"/>
         <source>Scatter options:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="536"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="263"/>
         <source>Time column:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="537"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="264"/>
         <source>Position columns:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="538"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="265"/>
         <source>Velocity columns:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="542"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="269"/>
         <source>seeds</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="543"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="270"/>
         <source>time steps</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="545"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="272"/>
         <source>Pathlines:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="546"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="273"/>
         <source>One row per grid node of a complete regular grid in time, X and Y (and Z). Seeds are released along Y at the middle of the X range.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="562"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="289"/>
         <source>None</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="563"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="290"/>
         <source>On the surface</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="564"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="291"/>
         <source>On the base plane</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="565"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="292"/>
         <source>Contour lines:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="568"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1270"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1377"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1455"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1994"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2000"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2024"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2094"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2178"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2502"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2591"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="295"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="110"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="133"/>
         <source>Build Plot</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="570"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="297"/>
         <source>Preview</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="571"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="298"/>
         <source>Clear Preview</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="665"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1709"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1782"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="382"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="627"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="176"/>
         <source>Edit 3D Plot - %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="666"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1710"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1783"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1842"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1882"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1919"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1924"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2334"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2378"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2396"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2437"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="383"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="628"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="147"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="160"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="177"/>
         <source>Rebuild Plot</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="704"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1736"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1831"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="421"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="654"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="199"/>
         <source>Editing &apos;%1&apos;. Rebuild updates the existing tree entry and keeps its presentation settings.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="722"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="723"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="727"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="734"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="738"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="745"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="749"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="762"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="775"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="789"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="797"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="812"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="824"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="838"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="851"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="861"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="882"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="888"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="894"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="944"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="951"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="973"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="89"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="93"/>
         <source>Preview Plot</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="722"/>
-        <source>Open or paste tabular data first.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="727"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="738"/>
-        <source>The pathline preview could not be created.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="749"/>
-        <source>The streamline preview could not be created.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="775"/>
-        <source>The implicit-surface preview could not be created.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="797"/>
-        <source>The formula-vector-field preview could not be created.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="824"/>
-        <source>The parametric-curve preview could not be created.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="851"/>
-        <source>The parametric preview could not be created.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="861"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2000"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="280"/>
         <source>Open or paste tabular data and click Refresh Preview first.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="888"/>
-        <source>The quiver preview could not be created.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="894"/>
-        <source>The voxel preview could not be created.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="951"/>
-        <source>The plot has no valid preview bounds.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="973"/>
-        <source>The plot preview could not be created.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1020"/>
-        <source>Formula pathlines</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1035"/>
-        <source>T range / samples:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1035"/>
-        <source>U range / samples:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1036"/>
-        <source>V range / samples:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1039"/>
-        <source>T range / steps:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1043"/>
-        <source>u(x,y) =</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1043"/>
-        <source>x(t) =</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1043"/>
-        <source>u(x,y,z,t) =</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1044"/>
-        <source>v(x,y) =</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1044"/>
-        <source>y(t) =</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1044"/>
-        <source>v(x,y,z,t) =</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1045"/>
-        <source>w(x,y) =</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1045"/>
-        <source>z(t) =</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1045"/>
-        <source>w(x,y,z,t) =</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1179"/>
-        <source>Parametric surface evaluated on a %1 x %2 grid (%3 points).</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1195"/>
-        <source>Parametric curve evaluated at %1 points.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1222"/>
-        <source>Pathlines from %1 seeds over t = %2 to %3 (%4 segments), coloured by time.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1231"/>
-        <source>Formula streamlines will use %1 seeds.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1231"/>
-        <source>Formula vector field evaluated on a %1 x %2 grid (%3 arrows).</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1246"/>
-        <source>Implicit surface evaluated on a %1 x %2 x %3 grid (%4 triangles).</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1278"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1385"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1462"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2054"/>
-        <source>Plot3D %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1278"/>
-        <source>Implicit Surface</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1278"/>
-        <source>Parametric</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1349"/>
-        <source>Built &apos;%1&apos; (%2 vertices).</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1385"/>
-        <source>Parametric Curve</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1385"/>
-        <source>Pathlines</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1447"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2321"/>
-        <source>Built &apos;%1&apos; (%2 points).</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1462"/>
-        <source>Vector Field</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1486"/>
-        <source>Formula evaluated on a %1 x %2 grid (%3 points). </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1496"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1503"/>
-        <source>Open 3D Plot Data</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1497"/>
-        <source>Delimited text (*.csv *.tsv *.txt);;All files (*.*)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1503"/>
-        <source>The selected file could not be opened.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1555"/>
-        <source>%1 rows and %2 columns loaded%3.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1557"/>
-        <source>; showing the first 200 rows</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1604"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1665"/>
-        <source>(none)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1606"/>
-        <source>Column %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1665"/>
-        <source>(choose a column)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1700"/>
-        <source>%1 rows form a complete grid. Pathlines from %2 seeds (%3 segments), coloured by time.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1842"/>
-        <source>The plot is no longer available.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1924"/>
-        <source>The plot could not be rebuilt.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1994"/>
-        <source>Formula source currently supports Surface and Contour plots.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1941"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2039"/>
-        <source>Rebuilt the existing plot.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2045"/>
-        <source>Filled Scatter</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2046"/>
-        <source>Stem</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2046"/>
-        <source>Error Bars</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2050"/>
-        <source>Formula</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2052"/>
-        <source> Contour</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2195"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="441"/>
         <source> Markers</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2315"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="556"/>
+        <source>The quiver preview could not be created.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="566"/>
+        <source>The voxel preview could not be created.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="578"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="592"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="621"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="630"/>
+        <source>The plot has no valid preview bounds.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="584"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="597"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="93"/>
+        <source>The plot preview could not be created.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="66"/>
+        <source>Formula pathlines</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="55"/>
+        <source>T range / samples:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="52"/>
+        <source>U range / samples:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="52"/>
+        <source>V range / samples:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="67"/>
+        <source>T range / steps:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="59"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="65"/>
+        <source>u(x,y) =</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="56"/>
+        <source>x(t) =</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="68"/>
+        <source>u(x,y,z,t) =</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="59"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="65"/>
+        <source>v(x,y) =</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="56"/>
+        <source>y(t) =</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="68"/>
+        <source>v(x,y,z,t) =</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="59"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="65"/>
+        <source>w(x,y) =</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="56"/>
+        <source>z(t) =</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="68"/>
+        <source>w(x,y,z,t) =</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="350"/>
+        <source>Parametric surface evaluated on a %1 x %2 grid (%3 points).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="353"/>
+        <source>Parametric curve evaluated at %1 points.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="367"/>
+        <source>Pathlines from %1 seeds over t = %2 to %3 (%4 segments), coloured by time.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="364"/>
+        <source>Formula streamlines will use %1 seeds.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="356"/>
+        <source>Formula vector field evaluated on a %1 x %2 grid (%3 arrows).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="360"/>
+        <source>Implicit surface evaluated on a %1 x %2 x %3 grid (%4 triangles).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="75"/>
+        <source>Plot3D %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="67"/>
+        <source>Implicit Surface</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="66"/>
+        <source>Parametric</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="490"/>
+        <source>Built &apos;%1&apos; (%2 vertices).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="73"/>
+        <source>Parametric Curve</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="69"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="70"/>
+        <source>Pathlines</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="492"/>
+        <source>Built &apos;%1&apos; (%2 points).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="68"/>
+        <source>Vector Field</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="320"/>
+        <source>Formula evaluated on a %1 x %2 grid (%3 points). </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="430"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="437"/>
+        <source>Open 3D Plot Data</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="431"/>
+        <source>Delimited text (*.csv *.tsv *.txt);;All files (*.*)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="437"/>
+        <source>The selected file could not be opened.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="489"/>
+        <source>%1 rows and %2 columns loaded%3.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="491"/>
+        <source>; showing the first 200 rows</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="538"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="603"/>
+        <source>(none)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="540"/>
+        <source>Column %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="603"/>
+        <source>(choose a column)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="371"/>
+        <source>%1 rows form a complete grid. Pathlines from %2 seeds (%3 segments), coloured by time.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="654"/>
+        <source>The plot could not be rebuilt.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="166"/>
+        <source>Rebuilt the existing plot.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="57"/>
+        <source>Filled Scatter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="58"/>
+        <source>Stem</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="58"/>
+        <source>Error Bars</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="62"/>
+        <source>Formula</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="64"/>
+        <source> Contour</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="484"/>
         <source>Built &apos;%1&apos; (%2 bars).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2317"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="486"/>
         <source>Built &apos;%1&apos; (%2 stems).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2319"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="488"/>
         <source>Built &apos;%1&apos; (%2 filled ribbons).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2334"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="645"/>
         <source>The plot is no longer available or its primitive changed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2582"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="343"/>
         <source>Built &apos;%1&apos; (%2 arrows).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2641"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="380"/>
         <source>Built &apos;%1&apos; (%2 supplied voxels, %3 x %4 x %5 grid).</source>
         <translation type="unfinished"></translation>
     </message>
@@ -9303,12 +9240,12 @@ coordinates. The blue curve is the contour line through that point.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="265"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="133"/>
         <source>Occupancy</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="287"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="227"/>
         <source>The voxel plot has no valid preview bounds.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -9447,6 +9384,17 @@ coordinates. The blue curve is the contour line through that point.</source>
     <message>
         <location filename="../src/Plot3D/Core/Plot3DPathlines.cpp" line="160"/>
         <source>Row %1 repeats a grid node (t = %2, x = %3, y = %4).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DGenerate.cpp" line="63"/>
+        <location filename="../src/Plot3D/Core/Plot3DGenerate.cpp" line="141"/>
+        <source>This data source cannot be generated from a definition.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DGenerate.cpp" line="132"/>
+        <source>Open or paste tabular data first.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
