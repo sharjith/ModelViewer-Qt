@@ -329,6 +329,19 @@ namespace
 			CHECK(az * bx - ax * bz > 0.0f); // geometric normal points +Y above and below the base
 		}
 
+		Plot3DLineData fillLine;
+		fillLine.samples.push_back(Plot3DSample{ { 0, 0, 1 }, 1.0 });
+		fillLine.samples.push_back(Plot3DSample{ { 1, 0, 2 }, 2.0 });
+		fillLine.samples.push_back(Plot3DSample{ { 2, 1, 3 }, 3.0 });
+		Plot3DMeshData lineFill;
+		CHECK(buildPlot3DLineFillMesh(fillLine, -1.0, lineFill, &error));
+		CHECK(lineFill.vertexCount() == 6 && lineFill.indices.size() == 24); // 2 segments x 2 windings x 2 triangles
+		CHECK(lineFill.positions[2] == 1.0f && lineFill.positions[5] == -1.0f && lineFill.values[0] == 1.0 && lineFill.values[1] == 1.0);
+		Plot3DLineData onePoint;
+		onePoint.samples.push_back(Plot3DSample{ { 0, 0, 0 }, 0.0 });
+		CHECK(!buildPlot3DLineFillMesh(onePoint, 0.0, lineFill, &error) && !error.isEmpty());
+		CHECK(!buildPlot3DLineFillMesh(fillLine, std::numeric_limits<double>::quiet_NaN(), lineFill, &error));
+
 		Plot3DScatterData empty;
 		CHECK(!buildPlot3DScatterMesh(empty, scatterMesh, &error) && !error.isEmpty());
 

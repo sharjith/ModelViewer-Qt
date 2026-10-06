@@ -83,6 +83,10 @@ bool buildPlot3DErrorBarMesh(const Plot3DScatterData& data, Plot3DMeshData& out,
 // retains one colour from the selected colour map.
 bool buildPlot3DScatterFillMesh(const Plot3DScatterData& data, double baseZ, Plot3DMeshData& out, QString* error = nullptr);
 
+// Builds a continuous ribbon from a Line's polyline down (or up) to `baseZ`: one quad per segment, drawn from both sides, with the
+// segment's end-point values on the vertices so the colour map follows the line. Rendered like the filled scatter (transparent).
+bool buildPlot3DLineFillMesh(const Plot3DLineData& data, double baseZ, Plot3DMeshData& out, QString* error = nullptr);
+
 // Builds one closed, flat-shaded cuboid per bar. Vertices are intentionally duplicated per face so every face has
 // the correct hard normal; the bar's scalar value is repeated for all 24 vertices so colour-by-value stays uniform.
 // Positive and negative heights are both supported, extending from `base` in the appropriate Z direction.

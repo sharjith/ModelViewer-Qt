@@ -537,6 +537,40 @@ bool buildPlot3DScatterFillMesh(const Plot3DScatterData& data, double baseZ, Plo
 	return true;
 }
 
+bool buildPlot3DLineFillMesh(const Plot3DLineData& data, double baseZ, Plot3DMeshData& out, QString* error)
+{
+	out = Plot3DMeshData();
+	if (data.samples.size() < 2)
+	{
+		if (error) *error = QObject::tr("A filled line needs at least two points.");
+		return false;
+	}
+	if (!std::isfinite(baseZ))
+	{
+		if (error) *error = QObject::tr("Filled line base Z must be finite.");
+		return false;
+	}
+	out.positions.reserve(data.samples.size() * 6);
+	out.normals.reserve(data.samples.size() * 6);
+	out.values.reserve(data.samples.size() * 2);
+	// Two vertices per sample (on the line and on the base plane); each segment is a quad between neighbouring samples, drawn with
+	// both windings so the ribbon is visible from either side whatever the render pass culls.
+	for (const Plot3DSample& sample : data.samples)
+	{
+		out.positions.insert(out.positions.end(), { static_cast<float>(sample.position.x), static_cast<float>(sample.position.y), static_cast<float>(sample.position.z) });
+		out.positions.insert(out.positions.end(), { static_cast<float>(sample.position.x), static_cast<float>(sample.position.y), static_cast<float>(baseZ) });
+		out.normals.insert(out.normals.end(), { 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f });
+		out.values.push_back(sample.value);
+		out.values.push_back(sample.value);
+	}
+	for (unsigned int i = 0; i + 1 < static_cast<unsigned int>(data.samples.size()); ++i)
+	{
+		const unsigned int a = i * 2, b = a + 1, c = a + 2, d = a + 3; // a/c on the line, b/d on the base
+		out.indices.insert(out.indices.end(), { a, b, d, a, d, c, a, d, b, a, c, d });
+	}
+	return true;
+}
+
 bool buildPlot3DBarMesh(const Plot3DBarData& data, Plot3DMeshData& out, QString* error)
 {
 	out = Plot3DMeshData();

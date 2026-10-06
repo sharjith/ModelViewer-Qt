@@ -236,7 +236,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	scatterOptionsRow->addWidget(_columnError);
 	scatterOptionsRow->addWidget(_scatterFillEnabled);
 	scatterOptionsRow->addStretch();
-	mapping->addRow(tr("Scatter options:"), scatterOptionsRow);
+	mapping->addRow(tr("Scatter / line options:"), scatterOptionsRow);
 	layout->addWidget(_mappingWidget);
 
 	// CSV time series: a vector field on a complete regular (t, x, y[, z]) grid, one row per node. Its own column choices (the
@@ -658,10 +658,11 @@ void Plot3DPanel::updateScatterOptions()
 {
 	const bool scatter = _primitive && static_cast<Plot3DPrimitive>(_primitive->currentData().toInt()) == Plot3DPrimitive::Scatter;
 	_stemEnabled->setEnabled(scatter);
-	_stemBaseZ->setEnabled(scatter && (_stemEnabled->isChecked() || _scatterFillEnabled->isChecked()));
+	const bool line = _primitive && static_cast<Plot3DPrimitive>(_primitive->currentData().toInt()) == Plot3DPrimitive::Line;
+	_stemBaseZ->setEnabled((scatter && _stemEnabled->isChecked()) || ((scatter || line) && _scatterFillEnabled->isChecked()));
 	_errorBarsEnabled->setEnabled(scatter);
 	_columnError->setEnabled(scatter && _errorBarsEnabled->isChecked());
-	_scatterFillEnabled->setEnabled(scatter);
+	_scatterFillEnabled->setEnabled(scatter || line); // a filled line is a ribbon down to the base plane, like a filled scatter
 }
 
 void Plot3DPanel::updateContourOverlayRow()

@@ -403,7 +403,7 @@ void Plot3DControlsPanel::refreshState()
 		_axisMinimum[i]->setEnabled(!axis.automaticRange); _axisMaximum[i]->setEnabled(!axis.automaticRange);
 	}
 	_axisStatus->setText(tr("%1. Use the scene tree checkbox to show or hide this plot.")
-		.arg(session->isFilledScatter ? tr("Filled Scatter") : (session->isStem ? tr("Stem") : plot3DPrimitiveName(session->primitive))));
+		.arg(session->isFilledScatter ? (session->primitive == Plot3DPrimitive::Line ? tr("Filled Line") : tr("Filled Scatter")) : (session->isStem ? tr("Stem") : plot3DPrimitiveName(session->primitive))));
 }
 
 void Plot3DControlsPanel::applyColourState()

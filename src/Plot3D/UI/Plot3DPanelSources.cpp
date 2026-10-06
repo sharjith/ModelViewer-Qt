@@ -263,7 +263,9 @@ Plot3DMeshOptions Plot3DPanel::currentMeshOptions() const
 	Plot3DMeshOptions options;
 	options.stems = _stemEnabled->isChecked();
 	options.errorBars = _errorBarsEnabled->isChecked();
-	options.filled = _scatterFillEnabled->isChecked();
+	// The fill / stem / error-bar controls belong to the table source; a generated curve keeps its plain line.
+	const bool table = currentSource() == Plot3DSourceKind::Csv;
+	options.filled = table && _scatterFillEnabled->isChecked();
 	options.baseZ = _stemBaseZ->value();
 	return options;
 }

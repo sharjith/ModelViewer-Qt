@@ -55,7 +55,8 @@ QString Plot3DPanel::suggestedPlotName(const Plot3DGenerated& generated, const P
 	{
 		const bool scatter = generated.primitive == Plot3DPrimitive::Scatter;
 		type = scatter && options.filled ? tr("Filled Scatter")
-			: (scatter && options.stems ? tr("Stem") : (scatter && options.errorBars ? tr("Error Bars") : plot3DPrimitiveName(generated.primitive)));
+			: (generated.primitive == Plot3DPrimitive::Line && options.filled ? tr("Filled Line")
+			: (scatter && options.stems ? tr("Stem") : (scatter && options.errorBars ? tr("Error Bars") : plot3DPrimitiveName(generated.primitive))));
 		break;
 	}
 	case Plot3DSourceKind::FormulaSurface:
@@ -155,7 +156,8 @@ void Plot3DPanel::rebuildCurrent()
 		binding = csvBinding();
 		csv = &binding;
 	}
-	if (!plot3DRebuild(_modelViewer, _editingMeshUuid, generated, csv, &error))
+	const double baseZ = _stemBaseZ->value();
+	if (!plot3DRebuild(_modelViewer, _editingMeshUuid, generated, csv, &error, kind == Plot3DSourceKind::Csv ? &baseZ : nullptr))
 	{
 		QMessageBox::warning(this, tr("Rebuild Plot"), error);
 		return;

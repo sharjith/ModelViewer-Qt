@@ -393,7 +393,7 @@ namespace
 		const bool isScatter = primitive == Plot3DPrimitive::Scatter;
 		const bool drawStems = isScatter && meshOptions.stems;
 		const bool drawErrorBars = isScatter && meshOptions.errorBars;
-		const bool drawScatterFill = isScatter && meshOptions.filled;
+		const bool drawScatterFill = (isScatter || primitive == Plot3DPrimitive::Line) && meshOptions.filled; // transparent ribbons: filled scatter or filled line
 
 		ViewportWidget* viewport = viewer->getViewportWidget();
 		viewport->makeCurrent();
@@ -484,6 +484,8 @@ namespace
 				*status = QCoreApplication::translate("Plot3DPanel", "Built '%1' (%2 bars).").arg(options.baseName).arg(std::get<Plot3DBarData>(dataset->content).bars.size());
 			else if (drawStems && dataset)
 				*status = QCoreApplication::translate("Plot3DPanel", "Built '%1' (%2 stems).").arg(options.baseName).arg(std::get<Plot3DScatterData>(dataset->content).samples.size());
+			else if (drawScatterFill && dataset && std::holds_alternative<Plot3DLineData>(dataset->content))
+				*status = QCoreApplication::translate("Plot3DPanel", "Built '%1' (%2 filled segments).").arg(options.baseName).arg(std::get<Plot3DLineData>(dataset->content).samples.size() - 1);
 			else if (drawScatterFill && dataset)
 				*status = QCoreApplication::translate("Plot3DPanel", "Built '%1' (%2 filled ribbons).").arg(options.baseName).arg(std::get<Plot3DScatterData>(dataset->content).samples.size());
 			else if (!dataset && primitiveMode == Plot3DGl::kTriangles)
@@ -578,7 +580,7 @@ bool plot3DShowPreview(ModelViewer* viewer, const Plot3DGenerated& generated, co
 			setError(error, QCoreApplication::translate("Plot3DPanel", "The plot has no valid preview bounds."));
 			return false;
 		}
-		const bool filledScatter = generated.primitive == Plot3DPrimitive::Scatter && options.filled;
+		const bool filledScatter = (generated.primitive == Plot3DPrimitive::Scatter || generated.primitive == Plot3DPrimitive::Line) && options.filled;
 		if (!showMeshPreview(viewer, mesh, mode, generated.dataset.axes, minimum, maximum, title, filledScatter ? 0.35f : 1.0f))
 		{
 			setError(error, QCoreApplication::translate("Plot3DPanel", "The plot preview could not be created."));
@@ -634,7 +636,8 @@ QUuid plot3DCommit(ModelViewer* viewer, const Plot3DGenerated& generated, const 
 	return commitMeshPlot(viewer, generated, mesh, mode, dataLo, dataHi, options, status, error);
 }
 
-bool plot3DRebuild(ModelViewer* viewer, const QUuid& meshUuid, const Plot3DGenerated& generated, const Plot3DCsvBinding* csv, QString* error)
+bool plot3DRebuild(ModelViewer* viewer, const QUuid& meshUuid, const Plot3DGenerated& generated, const Plot3DCsvBinding* csv, QString* error,
+	const double* baseZ)
 {
 	if (!viewer || !viewer->getViewportWidget())
 		return false;
@@ -674,6 +677,8 @@ bool plot3DRebuild(ModelViewer* viewer, const QUuid& meshUuid, const Plot3DGener
 	options.stems = updated.isStem;
 	options.errorBars = updated.isErrorBars;
 	options.filled = updated.isFilledScatter;
+	if (baseZ)
+		updated.scatterBaseZ = *baseZ; // the dialog's Base Z (stems, filled scatter / line) is editable; the rest stays as presented
 	options.baseZ = updated.scatterBaseZ;
 	options.barWidthScale = updated.barWidthScale;
 	options.barDepthScale = updated.barDepthScale;

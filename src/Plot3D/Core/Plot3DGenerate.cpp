@@ -157,8 +157,15 @@ bool plot3DMeshForDataset(const Plot3DDataset& dataset, const Plot3DMeshOptions&
 		return std::holds_alternative<Plot3DSurfaceData>(dataset.content)
 			&& buildPlot3DContourMesh(std::get<Plot3DSurfaceData>(dataset.content), out, options.contourLevels, error, options.contourProjected);
 	case Plot3DPrimitive::Line:
+		if (!std::holds_alternative<Plot3DLineData>(dataset.content))
+			return false;
+		if (options.filled)
+		{
+			primitiveMode = Plot3DGl::kTriangles;
+			return buildPlot3DLineFillMesh(std::get<Plot3DLineData>(dataset.content), options.baseZ, out, error);
+		}
 		primitiveMode = Plot3DGl::kLineStrip;
-		return std::holds_alternative<Plot3DLineData>(dataset.content) && buildPlot3DLineMesh(std::get<Plot3DLineData>(dataset.content), out, error);
+		return buildPlot3DLineMesh(std::get<Plot3DLineData>(dataset.content), out, error);
 	case Plot3DPrimitive::Scatter:
 	{
 		if (!std::holds_alternative<Plot3DScatterData>(dataset.content))
@@ -215,7 +222,7 @@ bool plot3DDatasetBounds(const Plot3DDataset& dataset, const Plot3DMeshOptions& 
 	}
 	if (!plot3DDataBounds(scaled, minimum, maximum))
 		return false;
-	if (dataset.primitive == Plot3DPrimitive::Scatter && (options.stems || options.filled))
+	if ((dataset.primitive == Plot3DPrimitive::Scatter && (options.stems || options.filled)) || (dataset.primitive == Plot3DPrimitive::Line && options.filled))
 	{
 		minimum[2] = std::min(minimum[2], options.baseZ);
 		maximum[2] = std::max(maximum[2], options.baseZ);

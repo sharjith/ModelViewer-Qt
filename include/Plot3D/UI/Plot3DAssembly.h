@@ -58,6 +58,7 @@ QUuid plot3DCommit(ModelViewer* viewer, const Plot3DGenerated& generated, const 
 	QString* error);
 
 // Replaces an existing plot's geometry in place with freshly generated data, keeping its mesh, scene node, visibility, axes and
-// presentation settings. The generated primitive must match the plot's. `csv` replaces a CSV-backed plot's stored table.
+// presentation settings. The generated primitive must match the plot's. `csv` replaces a CSV-backed plot's stored table; `baseZ`,
+// when given, replaces the plot's stem / fill base plane.
 bool plot3DRebuild(ModelViewer* viewer, const QUuid& meshUuid, const Plot3DGenerated& generated, const Plot3DCsvBinding* csv,
-	QString* error);
+	QString* error, const double* baseZ = nullptr);
