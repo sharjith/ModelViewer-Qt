@@ -19,6 +19,7 @@
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 
+#include <numeric>
 #include <QDebug>
 #include <QHash>
 #include <QMatrix4x4>
@@ -1549,7 +1550,14 @@ aiMesh* SceneGraphExporter::buildMeshFromSceneMesh(const SceneMesh* mesh, unsign
         return nullptr;
 
     const std::vector<Vertex> verts = assimpMesh->vertices();
-    const std::vector<unsigned int> indices = assimpMesh->indices();
+    std::vector<unsigned int> indices = assimpMesh->indices();
+
+    // Point and line meshes (plots, pathlines) are drawn unindexed: the vertex order is the primitive order.
+    if (indices.empty() && !verts.empty())
+    {
+        indices.resize(verts.size());
+        std::iota(indices.begin(), indices.end(), 0u);
+    }
 
     if (verts.empty() || indices.empty())
         return nullptr;

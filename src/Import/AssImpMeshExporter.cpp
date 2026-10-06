@@ -4,6 +4,7 @@
 #include "Material.h"
 #include "GltfPostProcessor.h"
 
+#include <numeric>
 #include <QDebug>
 #include <QDir>
 #include <QFile>
@@ -410,6 +411,13 @@ aiReturn AssImpMeshExporter::exportMeshes(
                 .arg(mesh->getName()));
             // Could implement fallback here if needed
             continue;
+        }
+
+        // Point and line meshes (plots, pathlines) are drawn unindexed: the vertex order is the primitive order.
+        if (indices.empty() && !vertices.empty())
+        {
+            indices.resize(vertices.size());
+            std::iota(indices.begin(), indices.end(), 0u);
         }
 
         if (vertices.empty() || indices.empty())
