@@ -7393,7 +7393,7 @@ beim Ausblenden/Einblenden</translation>
         <translation type="vanished">Glanz</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="833"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="787"/>
         <source>Value</source>
         <translation>Wert</translation>
     </message>
@@ -9224,27 +9224,27 @@ Die Oberfläche wird mit den Farben angezeigt, die sie beim Speichern hatte.</tr
         <translation type="vanished">Die Isoflächen werden auf dem unverformten Netz gezeichnet.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="616"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="570"/>
         <source> Contours</source>
         <translation> Konturen</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="731"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="685"/>
         <source>Plot3D Preview</source>
         <translation>Plot3D-Vorschau</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="830"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="784"/>
         <source>Occupancy</source>
         <translation>Belegung</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="832"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="786"/>
         <source>Time</source>
         <translation>Zeit</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="833"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="787"/>
         <source>Vector magnitude</source>
         <translation>Vektorbetrag</translation>
     </message>
@@ -9265,7 +9265,7 @@ Die Oberfläche wird mit den Farben angezeigt, die sie beim Speichern hatte.</tr
         <translation type="vanished">%1 - Wert</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="835"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="789"/>
         <source>Colour range for the active 3D plot.</source>
         <translation>Farbbereich des aktiven 3D-Diagramms.</translation>
     </message>
@@ -9735,808 +9735,781 @@ ist die Höhenlinie durch diesen Punkt.</translation>
 <context>
     <name>Plot3DPanel</name>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="312"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="40"/>
         <source>Add 3D Plot</source>
         <translation>3D-Diagramm hinzufügen</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="325"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="54"/>
         <source>CSV file or pasted data</source>
         <translation>CSV-Datei oder eingefügte Daten</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="326"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="379"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1020"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="55"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="108"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="48"/>
         <source>Formula surface</source>
         <translation>Formelfläche</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="327"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1020"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="56"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="51"/>
         <source>Parametric surface</source>
         <translation>Parametrische Fläche</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="328"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1020"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="57"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="54"/>
         <source>Parametric curve</source>
         <translation>Parametrische Kurve</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="329"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1020"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="58"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="57"/>
         <source>Formula vector field</source>
         <translation>Formel-Vektorfeld</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="330"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1020"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="59"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="60"/>
         <source>Implicit surface</source>
         <translation>Implizite Fläche</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="331"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1020"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="60"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="63"/>
         <source>Formula streamlines</source>
         <translation>Formel-Stromlinien</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="343"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="72"/>
         <source>Open CSV...</source>
         <translation>CSV öffnen...</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="344"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="73"/>
         <source>Paste</source>
         <translation>Einfügen</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="345"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="74"/>
         <source>Refresh Preview</source>
         <translation>Vorschau aktualisieren</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="354"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="83"/>
         <source>Comma</source>
         <translation>Komma</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="355"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="84"/>
         <source>Semicolon</source>
         <translation>Semikolon</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="356"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="85"/>
         <source>Tab</source>
         <translation>Tabulator</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="357"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="86"/>
         <source>First row contains column names</source>
         <translation>Erste Zeile enthält Spaltennamen</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="359"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="88"/>
         <source>Delimiter:</source>
         <translation>Trennzeichen:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="364"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="93"/>
         <source>Paste comma-separated X, Y, Z data here, or open a CSV file.</source>
         <translation>Kommagetrennte X-, Y-, Z-Daten hier einfügen oder eine CSV-Datei öffnen.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="374"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1528"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="103"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="462"/>
         <source>Open or paste tabular data to preview it.</source>
         <translation>Tabellendaten öffnen oder einfügen, um eine Vorschau zu sehen.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="408"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="135"/>
         <source>Preset:</source>
         <translation>Voreinstellung:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="409"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="136"/>
         <source>Parametric preset:</source>
         <translation>Parametrische Voreinstellung:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="410"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="137"/>
         <source>Curve preset:</source>
         <translation>Kurvenvoreinstellung:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="411"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="138"/>
         <source>Vector preset:</source>
         <translation>Vektorvoreinstellung:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="412"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="139"/>
         <source>Implicit preset:</source>
         <translation>Implizite Voreinstellung:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="414"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="141"/>
         <source>z =</source>
         <translation>z =</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="415"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1043"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="142"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="53"/>
         <source>x(u,v) =</source>
         <translation>x(u,v) =</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="416"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1044"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="143"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="53"/>
         <source>y(u,v) =</source>
         <translation>y(u,v) =</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="417"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1045"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="144"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="53"/>
         <source>z(u,v) =</source>
         <translation>z(u,v) =</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="418"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1035"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="145"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="49"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="58"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="61"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="64"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="67"/>
         <source>X range / samples:</source>
         <translation>X-Bereich / Samples:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="419"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1036"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="146"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="49"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="55"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="58"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="61"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="64"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="67"/>
         <source>Y range / samples:</source>
         <translation>Y-Bereich / Samples:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="420"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1039"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="147"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="49"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="52"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="55"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="58"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="61"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="64"/>
         <source>Z range / samples:</source>
         <translation>Z-Bereich / Samples:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="421"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="148"/>
         <source>Parameters:</source>
         <translation>Parameter:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="435"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="162"/>
         <source>Title:</source>
         <translation>Titel:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="432"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="451"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="159"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="178"/>
         <source>Surface</source>
         <translation>Fläche</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="332"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="61"/>
         <source>Formula pathlines (time-dependent)</source>
         <translation>Formel-Bahnlinien (zeitabhängig)</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="333"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="62"/>
         <source>CSV time series (pathlines)</source>
         <translation>CSV-Zeitreihe (Bahnlinien)</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="336"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="65"/>
         <source>Data source:</source>
         <translation>Datenquelle:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="413"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="140"/>
         <source>Pathline preset:</source>
         <translation>Bahnlinien-Voreinstellung:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="430"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="157"/>
         <source>Plot type:</source>
         <translation>Diagrammtyp:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="433"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="452"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="160"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="179"/>
         <source>Contour (surface iso-lines)</source>
         <translation>Kontur (Isolinien der Fläche)</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="453"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="180"/>
         <source>Line / Curve</source>
         <translation>Linie / Kurve</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="454"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="181"/>
         <source>Scatter</source>
         <translation>Streudiagramm</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="455"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="182"/>
         <source>Bar / Histogram</source>
         <translation>Balken / Histogramm</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="456"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="183"/>
         <source>Voxel / Volumetric</source>
         <translation>Voxel / Volumetrisch</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="457"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="184"/>
         <source>Quiver (vector field)</source>
         <translation>Pfeile (Vektorfeld)</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="458"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="185"/>
         <source>Primitive:</source>
         <translation>Diagrammtyp:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="467"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="527"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="194"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="254"/>
         <source>X:</source>
         <translation>X:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="468"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="528"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="195"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="255"/>
         <source>Y:</source>
         <translation>Y:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="469"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="529"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="196"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="256"/>
         <source>Z:</source>
         <translation>Z:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="470"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="197"/>
         <source>Colour value:</source>
         <translation>Farbwert:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="472"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="199"/>
         <source>Columns:</source>
         <translation>Spalten:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="482"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="532"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="209"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="259"/>
         <source>U:</source>
         <translation>U:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="483"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="533"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="210"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="260"/>
         <source>V:</source>
         <translation>V:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="484"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="534"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="211"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="261"/>
         <source>W:</source>
         <translation>W:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="486"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="213"/>
         <source>Vector (Quiver):</source>
         <translation>Vektor (Pfeile):</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="492"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="219"/>
         <source>Base:</source>
         <translation>Basis:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="493"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="220"/>
         <source>Width:</source>
         <translation>Breite:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="494"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="221"/>
         <source>Depth:</source>
         <translation>Tiefe:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="496"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="223"/>
         <source>Bar options:</source>
         <translation>Balkenoptionen:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="498"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="225"/>
         <source>Draw stems to Base Z:</source>
         <translation>Stiele bis Basis-Z zeichnen:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="499"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="226"/>
         <source>Show error bars (±Z):</source>
         <translation>Fehlerbalken anzeigen (±Z):</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="500"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="227"/>
         <source>Fill to Base Z:</source>
         <translation>Bis Basis-Z füllen:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="512"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="239"/>
         <source>Scatter options:</source>
         <translation>Streudiagramm-Optionen:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="536"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="263"/>
         <source>Time column:</source>
         <translation>Zeitspalte:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="537"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="264"/>
         <source>Position columns:</source>
         <translation>Positionsspalten:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="538"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="265"/>
         <source>Velocity columns:</source>
         <translation>Geschwindigkeitsspalten:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="542"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="269"/>
         <source>seeds</source>
         <translation>Startpunkte</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="543"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="270"/>
         <source>time steps</source>
         <translation>Zeitschritte</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="545"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="272"/>
         <source>Pathlines:</source>
         <translation>Bahnlinien:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="546"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="273"/>
         <source>One row per grid node of a complete regular grid in time, X and Y (and Z). Seeds are released along Y at the middle of the X range.</source>
         <translation>Eine Zeile pro Gitterknoten eines vollständigen regulären Gitters in Zeit, X und Y (und Z). Die Startpunkte werden entlang Y in der Mitte des X-Bereichs gesetzt.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="562"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="289"/>
         <source>None</source>
         <translation>Keine</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="563"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="290"/>
         <source>On the surface</source>
         <translation>Auf der Fläche</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="564"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="291"/>
         <source>On the base plane</source>
         <translation>Auf der Basisebene</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="565"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="292"/>
         <source>Contour lines:</source>
         <translation>Konturlinien:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="568"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1270"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1377"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1455"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1994"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2000"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2024"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2094"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2178"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2502"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2591"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="295"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="110"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="133"/>
         <source>Build Plot</source>
         <translation>Diagramm erstellen</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="570"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="297"/>
         <source>Preview</source>
         <translation>Vorschau</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="571"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="298"/>
         <source>Clear Preview</source>
         <translation>Vorschau löschen</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="665"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1709"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1782"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="382"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="627"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="176"/>
         <source>Edit 3D Plot - %1</source>
         <translation>3D-Diagramm bearbeiten - %1</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="666"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1710"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1783"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1842"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1882"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1919"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1924"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2334"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2378"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2396"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2437"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="383"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="628"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="147"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="160"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="177"/>
         <source>Rebuild Plot</source>
         <translation>Diagramm neu erstellen</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="704"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1736"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1831"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="421"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="654"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="199"/>
         <source>Editing &apos;%1&apos;. Rebuild updates the existing tree entry and keeps its presentation settings.</source>
         <translation>&apos;%1&apos; wird bearbeitet. Beim Neuerstellen wird der vorhandene Baumeintrag aktualisiert und seine Darstellungseinstellungen bleiben erhalten.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="722"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="723"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="727"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="734"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="738"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="745"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="749"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="762"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="775"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="789"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="797"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="812"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="824"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="838"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="851"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="861"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="882"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="888"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="894"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="944"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="951"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="973"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="89"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="93"/>
         <source>Preview Plot</source>
         <translation>Diagramm-Vorschau</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="722"/>
         <source>Open or paste tabular data first.</source>
-        <translation>Öffnen Sie zuerst tabellarische Daten oder fügen Sie sie ein.</translation>
+        <translation type="vanished">Öffnen Sie zuerst tabellarische Daten oder fügen Sie sie ein.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="727"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="738"/>
         <source>The pathline preview could not be created.</source>
-        <translation>Die Bahnlinien-Vorschau konnte nicht erstellt werden.</translation>
+        <translation type="vanished">Die Bahnlinien-Vorschau konnte nicht erstellt werden.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="749"/>
         <source>The streamline preview could not be created.</source>
-        <translation>Die Stromlinien-Vorschau konnte nicht erstellt werden.</translation>
+        <translation type="vanished">Die Stromlinien-Vorschau konnte nicht erstellt werden.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="775"/>
         <source>The implicit-surface preview could not be created.</source>
-        <translation>Die Vorschau der impliziten Fläche konnte nicht erstellt werden.</translation>
+        <translation type="vanished">Die Vorschau der impliziten Fläche konnte nicht erstellt werden.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="797"/>
         <source>The formula-vector-field preview could not be created.</source>
-        <translation>Die Vorschau des Formel-Vektorfelds konnte nicht erstellt werden.</translation>
+        <translation type="vanished">Die Vorschau des Formel-Vektorfelds konnte nicht erstellt werden.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="824"/>
         <source>The parametric-curve preview could not be created.</source>
-        <translation>Die Vorschau der parametrischen Kurve konnte nicht erstellt werden.</translation>
+        <translation type="vanished">Die Vorschau der parametrischen Kurve konnte nicht erstellt werden.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="851"/>
         <source>The parametric preview could not be created.</source>
-        <translation>Die parametrische Vorschau konnte nicht erstellt werden.</translation>
+        <translation type="vanished">Die parametrische Vorschau konnte nicht erstellt werden.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="861"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2000"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="280"/>
         <source>Open or paste tabular data and click Refresh Preview first.</source>
         <translation>Zuerst Tabellendaten öffnen oder einfügen und auf „Vorschau aktualisieren“ klicken.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="888"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="556"/>
         <source>The quiver preview could not be created.</source>
         <translation>Die Pfeil-Vorschau konnte nicht erstellt werden.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="894"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="566"/>
         <source>The voxel preview could not be created.</source>
         <translation>Die Voxel-Vorschau konnte nicht erstellt werden.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="951"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="578"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="592"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="621"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="630"/>
         <source>The plot has no valid preview bounds.</source>
         <translation>Das Diagramm hat keine gültigen Vorschaugrenzen.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="973"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="584"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="597"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="93"/>
         <source>The plot preview could not be created.</source>
         <translation>Die Diagramm-Vorschau konnte nicht erstellt werden.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1020"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="66"/>
         <source>Formula pathlines</source>
         <translation>Formel-Bahnlinien</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1035"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="55"/>
         <source>T range / samples:</source>
         <translation>T-Bereich / Samples:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1035"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="52"/>
         <source>U range / samples:</source>
         <translation>U-Bereich / Samples:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1036"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="52"/>
         <source>V range / samples:</source>
         <translation>V-Bereich / Samples:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1039"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="67"/>
         <source>T range / steps:</source>
         <translation>T-Bereich / Schritte:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1043"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="59"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="65"/>
         <source>u(x,y) =</source>
         <translation>u(x,y) =</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1043"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="56"/>
         <source>x(t) =</source>
         <translation>x(t) =</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1043"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="68"/>
         <source>u(x,y,z,t) =</source>
         <translation>u(x,y,z,t) =</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1044"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="59"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="65"/>
         <source>v(x,y) =</source>
         <translation>v(x,y) =</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1044"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="56"/>
         <source>y(t) =</source>
         <translation>y(t) =</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1044"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="68"/>
         <source>v(x,y,z,t) =</source>
         <translation>v(x,y,z,t) =</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1045"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="59"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="65"/>
         <source>w(x,y) =</source>
         <translation>w(x,y) =</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1045"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="56"/>
         <source>z(t) =</source>
         <translation>z(t) =</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1045"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="68"/>
         <source>w(x,y,z,t) =</source>
         <translation>w(x,y,z,t) =</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1179"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="350"/>
         <source>Parametric surface evaluated on a %1 x %2 grid (%3 points).</source>
         <translation>Parametrische Fläche auf einem %1 x %2 Raster ausgewertet (%3 Punkte).</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1195"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="353"/>
         <source>Parametric curve evaluated at %1 points.</source>
         <translation>Parametrische Kurve an %1 Punkten ausgewertet.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1222"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="367"/>
         <source>Pathlines from %1 seeds over t = %2 to %3 (%4 segments), coloured by time.</source>
         <translation>Bahnlinien von %1 Startpunkten für t = %2 bis %3 (%4 Segmente), nach Zeit eingefärbt.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1231"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="364"/>
         <source>Formula streamlines will use %1 seeds.</source>
         <translation>Die Formel-Stromlinien verwenden %1 Startpunkte.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1231"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="356"/>
         <source>Formula vector field evaluated on a %1 x %2 grid (%3 arrows).</source>
         <translation>Formel-Vektorfeld auf einem %1 x %2 Raster ausgewertet (%3 Pfeile).</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1246"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="360"/>
         <source>Implicit surface evaluated on a %1 x %2 x %3 grid (%4 triangles).</source>
         <translation>Implizite Fläche auf einem %1 x %2 x %3 Raster ausgewertet (%4 Dreiecke).</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1278"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1385"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1462"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2054"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="75"/>
         <source>Plot3D %1</source>
         <translation>Plot3D %1</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1278"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="67"/>
         <source>Implicit Surface</source>
         <translation>Implizite Fläche</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1278"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="66"/>
         <source>Parametric</source>
         <translation>Parametrisch</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1349"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="490"/>
         <source>Built &apos;%1&apos; (%2 vertices).</source>
         <translation>&apos;%1&apos; erstellt (%2 Eckpunkte).</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1385"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="73"/>
         <source>Parametric Curve</source>
         <translation>Parametrische Kurve</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1385"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="69"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="70"/>
         <source>Pathlines</source>
         <translation>Bahnlinien</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1447"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2321"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="492"/>
         <source>Built &apos;%1&apos; (%2 points).</source>
         <translation>&apos;%1&apos; erstellt (%2 Punkte).</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1462"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="68"/>
         <source>Vector Field</source>
         <translation>Vektorfeld</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1486"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="320"/>
         <source>Formula evaluated on a %1 x %2 grid (%3 points). </source>
         <translation>Formel auf einem %1 x %2 Raster ausgewertet (%3 Punkte). </translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1496"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1503"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="430"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="437"/>
         <source>Open 3D Plot Data</source>
         <translation>3D-Diagrammdaten öffnen</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1497"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="431"/>
         <source>Delimited text (*.csv *.tsv *.txt);;All files (*.*)</source>
         <translation>Getrennter Text (*.csv *.tsv *.txt);;Alle Dateien (*.*)</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1503"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="437"/>
         <source>The selected file could not be opened.</source>
         <translation>Die ausgewählte Datei konnte nicht geöffnet werden.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1555"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="489"/>
         <source>%1 rows and %2 columns loaded%3.</source>
         <translation>%1 Zeilen und %2 Spalten geladen%3.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1557"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="491"/>
         <source>; showing the first 200 rows</source>
         <translation>; die ersten 200 Zeilen werden angezeigt</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1604"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1665"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="538"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="603"/>
         <source>(none)</source>
         <translation>(keine)</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1606"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="540"/>
         <source>Column %1</source>
         <translation>Spalte %1</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1665"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="603"/>
         <source>(choose a column)</source>
         <translation>(Spalte wählen)</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1700"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelSources.cpp" line="371"/>
         <source>%1 rows form a complete grid. Pathlines from %2 seeds (%3 segments), coloured by time.</source>
         <translation>%1 Zeilen bilden ein vollständiges Gitter. Bahnlinien von %2 Startpunkten (%3 Segmente), nach Zeit eingefärbt.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1842"/>
         <source>The plot is no longer available.</source>
-        <translation>Das Diagramm ist nicht mehr verfügbar.</translation>
+        <translation type="vanished">Das Diagramm ist nicht mehr verfügbar.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1924"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="654"/>
         <source>The plot could not be rebuilt.</source>
         <translation>Das Diagramm konnte nicht neu erstellt werden.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1994"/>
         <source>Formula source currently supports Surface and Contour plots.</source>
-        <translation>Die Formelquelle unterstützt derzeit Flächen- und Konturdiagramme.</translation>
+        <translation type="vanished">Die Formelquelle unterstützt derzeit Flächen- und Konturdiagramme.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1941"/>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2039"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="166"/>
         <source>Rebuilt the existing plot.</source>
         <translation>Das vorhandene Diagramm wurde neu erstellt.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2045"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="57"/>
         <source>Filled Scatter</source>
         <translation>Gefülltes Streudiagramm</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2046"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="58"/>
         <source>Stem</source>
         <translation>Stiele</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2046"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="58"/>
         <source>Error Bars</source>
         <translation>Fehlerbalken</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2050"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="62"/>
         <source>Formula</source>
         <translation>Formel</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2052"/>
+        <location filename="../src/Plot3D/UI/Plot3DPanelBuild.cpp" line="64"/>
         <source> Contour</source>
         <translation> Kontur</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2195"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="441"/>
         <source> Markers</source>
         <translation> Marker</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2315"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="484"/>
         <source>Built &apos;%1&apos; (%2 bars).</source>
         <translation>&apos;%1&apos; erstellt (%2 Balken).</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2317"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="486"/>
         <source>Built &apos;%1&apos; (%2 stems).</source>
         <translation>&apos;%1&apos; erstellt (%2 Stiele).</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2319"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="488"/>
         <source>Built &apos;%1&apos; (%2 filled ribbons).</source>
         <translation>&apos;%1&apos; erstellt (%2 gefüllte Bänder).</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2334"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="645"/>
         <source>The plot is no longer available or its primitive changed.</source>
         <translation>Das Diagramm ist nicht mehr verfügbar, oder sein Diagrammtyp hat sich geändert.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2582"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="343"/>
         <source>Built &apos;%1&apos; (%2 arrows).</source>
         <translation>&apos;%1&apos; erstellt (%2 Pfeile).</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="2641"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="380"/>
         <source>Built &apos;%1&apos; (%2 supplied voxels, %3 x %4 x %5 grid).</source>
         <translation>&apos;%1&apos; erstellt (%2 angegebene Voxel, %3 x %4 x %5 Raster).</translation>
     </message>
@@ -11282,14 +11255,18 @@ ist die Höhenlinie durch diesen Punkt.</translation>
         <translation>Die Pfeildaten enthalten keine Punkte.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="265"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="133"/>
         <source>Occupancy</source>
         <translation>Belegung</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="287"/>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="227"/>
         <source>The voxel plot has no valid preview bounds.</source>
         <translation>Das Voxeldiagramm hat keine gültigen Vorschaugrenzen.</translation>
+    </message>
+    <message>
+        <source> Markers</source>
+        <translation type="obsolete"> Marker</translation>
     </message>
     <message>
         <location filename="../src/Plot3D/Core/Plot3DSessionIO.cpp" line="82"/>
@@ -11427,6 +11404,17 @@ ist die Höhenlinie durch diesen Punkt.</translation>
         <location filename="../src/Plot3D/Core/Plot3DPathlines.cpp" line="160"/>
         <source>Row %1 repeats a grid node (t = %2, x = %3, y = %4).</source>
         <translation>Zeile %1 wiederholt einen Gitterknoten (t = %2, x = %3, y = %4).</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DGenerate.cpp" line="63"/>
+        <location filename="../src/Plot3D/Core/Plot3DGenerate.cpp" line="141"/>
+        <source>This data source cannot be generated from a definition.</source>
+        <translation>Diese Datenquelle kann nicht aus einer Definition erzeugt werden.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DGenerate.cpp" line="132"/>
+        <source>Open or paste tabular data first.</source>
+        <translation>Öffnen Sie zuerst tabellarische Daten oder fügen Sie sie ein.</translation>
     </message>
 </context>
 <context>

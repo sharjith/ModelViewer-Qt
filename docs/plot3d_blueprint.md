@@ -347,6 +347,13 @@ for both the folder restructuring and the simulation charts/volume-rendering wor
 
 ## 7. Remaining follow-ups (none blocks the merge)
 
+**Branch plan (decided 2026-10-05):** three branches, one at a time, each merged into `dev` (`--no-ff`, branch kept) before the
+next is started - parallel branches would conflict in the `.ts` catalogs, which every `lupdate` rewrites.
+1. `refactor/plot3d-panel-sources` - item 1 below. 2. `feature/points-lines-export` - the glTF / OBJ half of item 2.
+3. `feature/plot3d-extras` - the deferred plot features of item 6 as separate commits on top of the refactor.
+**Parked (do not start unless asked):** path-traced points and lines (the other half of item 2; GPU / OptiX work with its own
+risk, its own branch when it is wanted) and synchronised playback (item 4; needs a decision on the time mapping first).
+
 Ordered roughly by value. Everything from the earlier gap list that was worth doing before the merge is done (see items 24-34).
 
 1. **`Plot3DPanel.cpp` is about 2,600 lines** (CSV, formula, parametric, implicit, streamline, pathline and time-series

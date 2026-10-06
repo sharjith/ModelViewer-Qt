@@ -1,6 +1,7 @@
 #include "Plot3DData.h"
 #include "Plot3DFormula.h"
 #include "Plot3DAxisController.h"
+#include "Plot3DGenerate.h"
 #include "Plot3DMeshBuilder.h"
 #include "Plot3DPathlines.h"
 #include "Plot3DSection.h"
@@ -432,6 +433,179 @@ namespace
 		CHECK(!controller.buildLayout(axes, badLo, hi, layout, &error) && !error.isEmpty());
 	}
 
+	// generatePlot3D(): every source builds through its spec, matching what the direct builders produce; the shipped presets all
+	// convert to specs that generate; dataset helpers (mesh, bounds) and the source-kind helpers behave.
+	void testGenerate()
+	{
+		QString error;
+
+		// Source kinds: the persisted numbers, the classification helpers.
+		Plot3DSourceKind kind = Plot3DSourceKind::Csv;
+		CHECK(plot3DSourceFromInt(7, kind) && kind == Plot3DSourceKind::FormulaPathlines && plot3DSourceInt(kind) == 7);
+		CHECK(!plot3DSourceFromInt(9, kind) && !plot3DSourceFromInt(-1, kind));
+		CHECK(plot3DSourceIsGenerated(Plot3DSourceKind::ImplicitSurface) && !plot3DSourceIsGenerated(Plot3DSourceKind::Csv)
+		      && !plot3DSourceIsGenerated(Plot3DSourceKind::CsvTimeSeries));
+		CHECK(plot3DSourceIsPathline(Plot3DSourceKind::FormulaPathlines) && plot3DSourceIsPathline(Plot3DSourceKind::CsvTimeSeries)
+		      && !plot3DSourceIsPathline(Plot3DSourceKind::FormulaStreamlines));
+		CHECK(plot3DSourcePrimitive(Plot3DSourceKind::FormulaVectorField) == Plot3DPrimitive::Quiver
+		      && plot3DSourcePrimitive(Plot3DSourceKind::ParametricCurve) == Plot3DPrimitive::Line
+		      && plot3DSourcePrimitive(Plot3DSourceKind::ImplicitSurface) == Plot3DPrimitive::Surface);
+
+		// Every preset of every generated source converts to a spec that generates (and the entries mirror the preset lists).
+		CHECK(plot3DPresetEntries(Plot3DSourceKind::FormulaSurface).size() == plot3DFormulaPresets().size());
+		CHECK(plot3DPresetEntries(Plot3DSourceKind::ParametricSurface).size() == plot3DParametricPresets().size());
+		CHECK(plot3DPresetEntries(Plot3DSourceKind::ParametricCurve).size() == plot3DParametricCurvePresets().size());
+		CHECK(plot3DPresetEntries(Plot3DSourceKind::FormulaVectorField).size() == plot3DFormulaVectorPresets().size());
+		CHECK(plot3DPresetEntries(Plot3DSourceKind::FormulaStreamlines).size() == plot3DFormulaVectorPresets().size());
+		CHECK(plot3DPresetEntries(Plot3DSourceKind::ImplicitSurface).size() == plot3DImplicitPresets().size());
+		CHECK(plot3DPresetEntries(Plot3DSourceKind::FormulaPathlines).size() == plot3DPathlinePresets().size());
+		CHECK(plot3DPresetEntries(Plot3DSourceKind::Csv).isEmpty() && plot3DPresetEntries(Plot3DSourceKind::CsvTimeSeries).isEmpty());
+		for (Plot3DSourceKind source : { Plot3DSourceKind::FormulaSurface, Plot3DSourceKind::ParametricSurface, Plot3DSourceKind::ParametricCurve,
+			Plot3DSourceKind::FormulaVectorField, Plot3DSourceKind::FormulaStreamlines, Plot3DSourceKind::ImplicitSurface, Plot3DSourceKind::FormulaPathlines })
+		{
+			const QVector<Plot3DPresetEntry> entries = plot3DPresetEntries(source);
+			CHECK(!entries.isEmpty());
+			for (int i = 0; i < entries.size(); ++i)
+			{
+				const Plot3DPresetEntry& entry = entries[i];
+				CHECK(!entry.name.isEmpty() && entry.spec.valid && entry.spec.sourceMode == plot3DSourceInt(source) && entry.spec.presetIndex == i);
+				Plot3DGenerated generated;
+				const bool ok = generatePlot3D(entry.spec, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error);
+				CHECK(ok);
+				if (!ok)
+					std::fprintf(stderr, "  preset %d of source %d failed: %s\n", i, plot3DSourceInt(source), qPrintable(error));
+				CHECK(generated.primitive == plot3DSourcePrimitive(source));
+				CHECK(generated.hasDataset ? !generated.dataset.empty() : !generated.mesh.empty());
+			}
+		}
+
+		// Parity with the direct builders (the Saddle formula surface, the Torus, the Double Gyre pathlines).
+		{
+			const Plot3DPresetEntry saddle = plot3DPresetEntries(Plot3DSourceKind::FormulaSurface)[1];
+			Plot3DGenerated generated;
+			CHECK(generatePlot3D(saddle.spec, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error));
+			Plot3DSurfaceData direct;
+			QHash<QString, double> parameters;
+			for (const auto& parameter : saddle.spec.parameters) parameters.insert(parameter.first.toLower(), parameter.second);
+			CHECK(buildPlot3DFormulaSurface(saddle.spec.expression, saddle.spec.xMinimum, saddle.spec.xMaximum, saddle.spec.xSamples,
+				saddle.spec.yMinimum, saddle.spec.yMaximum, saddle.spec.ySamples, parameters, direct, &error));
+			CHECK(generated.hasDataset && std::get<Plot3DSurfaceData>(generated.dataset.content).samples.size() == direct.samples.size());
+			// as a Contour it carries the contour primitive and meshes to GL_LINES
+			CHECK(generatePlot3D(saddle.spec, Plot3DPrimitive::Contour, nullptr, nullptr, generated, &error)
+			      && generated.primitive == Plot3DPrimitive::Contour && generated.dataset.primitive == Plot3DPrimitive::Contour);
+			Plot3DMeshOptions options;
+			Plot3DMeshData mesh;
+			unsigned int mode = 0;
+			CHECK(plot3DMeshForDataset(generated.dataset, options, mesh, mode, &error) && mode == Plot3DGl::kLines && !mesh.empty());
+			options.contourProjected = true;
+			Plot3DMeshData flat;
+			CHECK(plot3DMeshForDataset(generated.dataset, options, flat, mode, &error) && flat.vertexCount() == mesh.vertexCount());
+
+			const Plot3DPresetEntry torus = plot3DPresetEntries(Plot3DSourceKind::ParametricSurface)[0];
+			CHECK(generatePlot3D(torus.spec, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error));
+			Plot3DMeshData directTorus;
+			parameters.clear();
+			for (const auto& parameter : torus.spec.parameters) parameters.insert(parameter.first.toLower(), parameter.second);
+			CHECK(buildPlot3DParametricSurface(torus.spec.xExpression, torus.spec.yExpression, torus.spec.zExpression, torus.spec.xMinimum,
+				torus.spec.xMaximum, torus.spec.xSamples, torus.spec.yMinimum, torus.spec.yMaximum, torus.spec.ySamples, parameters, directTorus, &error));
+			CHECK(!generated.hasDataset && generated.primitiveMode == Plot3DGl::kTriangles && generated.mesh.positions == directTorus.positions
+			      && generated.mesh.indices == directTorus.indices);
+
+			const Plot3DPresetEntry gyre = plot3DPresetEntries(Plot3DSourceKind::FormulaPathlines)[1];
+			CHECK(generatePlot3D(gyre.spec, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error));
+			Plot3DMeshData directGyre;
+			parameters.clear();
+			for (const auto& parameter : gyre.spec.parameters) parameters.insert(parameter.first.toLower(), parameter.second);
+			CHECK(buildPlot3DFormulaPathlines(gyre.spec.xExpression, gyre.spec.yExpression, gyre.spec.zExpression, gyre.spec.xMinimum, gyre.spec.xMaximum,
+				gyre.spec.yMinimum, gyre.spec.yMaximum, gyre.spec.ySamples, gyre.spec.zMinimum, gyre.spec.zMaximum, gyre.spec.zSamples, parameters, directGyre, &error));
+			CHECK(generated.primitiveMode == Plot3DGl::kLines && generated.mesh.positions == directGyre.positions && generated.mesh.values == directGyre.values);
+		}
+
+		// The CSV time series needs its table; the CSV source is not generated.
+		{
+			Plot3DGeneratedSpec spec;
+			spec.valid = true;
+			spec.sourceMode = plot3DSourceInt(Plot3DSourceKind::CsvTimeSeries);
+			spec.ySamples = 3; spec.zSamples = 40;
+			Plot3DGenerated generated;
+			CHECK(!generatePlot3D(spec, Plot3DPrimitive::Line, nullptr, nullptr, generated, &error) && !error.isEmpty());
+
+			QString csv = QStringLiteral("t,x,y,u,v,w\n");
+			for (int t = 0; t <= 4; ++t)
+				for (int x = 0; x <= 4; ++x)
+					for (int y = 0; y <= 2; ++y)
+						csv += QStringLiteral("%1,%2,%3,%1,0,0\n").arg(t).arg(x).arg(y);
+			Plot3DCsvTable table;
+			CHECK(parsePlot3DCsv(csv, {}, table, &error));
+			Plot3DTimeSeriesColumns columns;
+			columns.time = 0; columns.x = 1; columns.y = 2; columns.u = 3; columns.v = 4; columns.w = 5;
+			CHECK(generatePlot3D(spec, Plot3DPrimitive::Line, &table, &columns, generated, &error)
+			      && generated.primitiveMode == Plot3DGl::kLines && !generated.mesh.empty());
+
+			spec.sourceMode = plot3DSourceInt(Plot3DSourceKind::Csv);
+			CHECK(!generatePlot3D(spec, Plot3DPrimitive::Surface, &table, &columns, generated, &error));
+			spec.sourceMode = 99;
+			CHECK(!generatePlot3D(spec, Plot3DPrimitive::Surface, &table, &columns, generated, &error));
+		}
+
+		// A broken definition reports its message; the mesh bounds helper agrees with the vertices.
+		{
+			Plot3DGeneratedSpec spec = plot3DPresetEntries(Plot3DSourceKind::FormulaSurface)[0].spec;
+			spec.expression = QStringLiteral("nosuch*x");
+			Plot3DGenerated generated;
+			CHECK(!generatePlot3D(spec, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error) && error.contains(QStringLiteral("Unknown")));
+
+			Plot3DMeshData mesh;
+			mesh.positions = { 0, 0, 0, 2, -1, 5 };
+			mesh.normals = { 0, 0, 1, 0, 0, 1 };
+			mesh.values = { 0.0, 1.0 };
+			double minimum[3], maximum[3];
+			CHECK(plot3DMeshBounds(mesh, minimum, maximum) && minimum[0] == 0.0 && maximum[0] == 2.0 && minimum[1] == -1.0 && maximum[2] == 5.0);
+			CHECK(!plot3DMeshBounds(Plot3DMeshData(), minimum, maximum));
+		}
+
+		// Dataset helpers: scatter variants pick their mesh and widen the bounds to the base plane; bars scale; renderer plots have no mesh.
+		{
+			Plot3DScatterData scatter;
+			scatter.samples = { { { 0.0, 0.0, 1.0 }, 1.0 }, { { 1.0, 1.0, 2.0 }, 2.0 } };
+			Plot3DDataset dataset;
+			dataset.primitive = Plot3DPrimitive::Scatter;
+			dataset.content = scatter;
+			Plot3DMeshOptions options;
+			Plot3DMeshData mesh;
+			unsigned int mode = 99;
+			CHECK(plot3DMeshForDataset(dataset, options, mesh, mode, &error) && mode == Plot3DGl::kPoints);
+			options.stems = true; options.baseZ = -3.0;
+			CHECK(plot3DMeshForDataset(dataset, options, mesh, mode, &error) && mode == Plot3DGl::kLines);
+			double minimum[3], maximum[3];
+			CHECK(plot3DDatasetBounds(dataset, options, minimum, maximum) && minimum[2] == -3.0 && maximum[2] == 2.0);
+			options.stems = false; options.filled = true;
+			CHECK(plot3DMeshForDataset(dataset, options, mesh, mode, &error) && mode == Plot3DGl::kTriangles);
+			options.filled = false;
+			CHECK(plot3DDatasetBounds(dataset, options, minimum, maximum) && minimum[2] == 1.0); // no base plane without stems / fill
+
+			Plot3DBarData bars;
+			bars.bars.push_back({ 0.0, 0.0, 0.0, 2.0, 1.0, 1.0, 2.0 });
+			Plot3DDataset barDataset;
+			barDataset.primitive = Plot3DPrimitive::Bar;
+			barDataset.content = bars;
+			Plot3DMeshOptions barOptions;
+			barOptions.barWidthScale = 2.0;
+			CHECK(plot3DDatasetBounds(barDataset, barOptions, minimum, maximum) && minimum[0] == -1.0 && maximum[0] == 1.0); // 1.0 wide, scaled 2x
+			CHECK(plot3DMeshForDataset(barDataset, barOptions, mesh, mode, &error) && mode == Plot3DGl::kTriangles);
+
+			Plot3DDataset quiver;
+			quiver.primitive = Plot3DPrimitive::Quiver;
+			quiver.content = Plot3DQuiverData();
+			CHECK(!plot3DMeshForDataset(quiver, Plot3DMeshOptions(), mesh, mode, &error));
+			// a primitive with the wrong data is rejected, not read as garbage
+			Plot3DDataset mismatched;
+			mismatched.primitive = Plot3DPrimitive::Surface;
+			mismatched.content = Plot3DLineData();
+			CHECK(!plot3DMeshForDataset(mismatched, Plot3DMeshOptions(), mesh, mode, &error));
+		}
+	}
+
 	void testSessionRoundTrip()
 	{
 		// A fully-populated session: every scalar control, a Bar source and Contour source (the two table-shaped
@@ -854,6 +1028,7 @@ int main()
 	testAxes();
 	testFormula();
 	testSessionRoundTrip();
+	testGenerate();
 	std::printf("%d checks, %d failed\n", checks, failures);
 	return failures;
 }
