@@ -25,7 +25,8 @@ enum class Plot3DSourceKind
 	ImplicitSurface = 5,
 	FormulaStreamlines = 6,
 	FormulaPathlines = 7,
-	CsvTimeSeries = 8
+	CsvTimeSeries = 8,
+	ImageSurface = 9 // a picture on a flat plane (a textured quad)
 };
 
 inline int plot3DSourceInt(Plot3DSourceKind kind) { return static_cast<int>(kind); }
@@ -55,9 +56,10 @@ struct Plot3DGenerated
 	Plot3DDataset dataset;
 	Plot3DMeshData mesh;
 	unsigned int primitiveMode = Plot3DGl::kTriangles;
+	QString imagePath; // an image plane: the picture its mesh (which carries UVs) is textured with
 };
 
-// Builds the plot a generated spec describes (sources 1..8). A formula surface takes `formulaPrimitive` (Surface or Contour); the
+// Builds the plot a generated spec describes (sources 1..9). A formula surface takes `formulaPrimitive` (Surface or Contour); the
 // others have one fixed primitive. The CSV time series needs the table and its column choices; the other sources ignore them.
 // False (with a message) when the definition cannot be evaluated or is out of range.
 bool generatePlot3D(const Plot3DGeneratedSpec& spec, Plot3DPrimitive formulaPrimitive, const Plot3DCsvTable* table,

@@ -461,7 +461,7 @@ namespace
 		// Source kinds: the persisted numbers, the classification helpers.
 		Plot3DSourceKind kind = Plot3DSourceKind::Csv;
 		CHECK(plot3DSourceFromInt(7, kind) && kind == Plot3DSourceKind::FormulaPathlines && plot3DSourceInt(kind) == 7);
-		CHECK(!plot3DSourceFromInt(9, kind) && !plot3DSourceFromInt(-1, kind));
+		CHECK(plot3DSourceFromInt(9, kind) && kind == Plot3DSourceKind::ImageSurface && !plot3DSourceFromInt(10, kind) && !plot3DSourceFromInt(-1, kind));
 		CHECK(plot3DSourceIsGenerated(Plot3DSourceKind::ImplicitSurface) && !plot3DSourceIsGenerated(Plot3DSourceKind::Csv)
 		      && !plot3DSourceIsGenerated(Plot3DSourceKind::CsvTimeSeries));
 		CHECK(plot3DSourceIsPathline(Plot3DSourceKind::FormulaPathlines) && plot3DSourceIsPathline(Plot3DSourceKind::CsvTimeSeries)
@@ -469,6 +469,31 @@ namespace
 		CHECK(plot3DSourcePrimitive(Plot3DSourceKind::FormulaVectorField) == Plot3DPrimitive::Quiver
 		      && plot3DSourcePrimitive(Plot3DSourceKind::ParametricCurve) == Plot3DPrimitive::Line
 		      && plot3DSourcePrimitive(Plot3DSourceKind::ImplicitSurface) == Plot3DPrimitive::Surface);
+
+		// An image plane: a textured quad (4 vertices with UVs, one winding), placed by the plane and the ranges.
+		{
+			Plot3DGeneratedSpec image;
+			image.valid = true;
+			image.sourceMode = 9;
+			image.imagePath = QString::fromUtf8(__FILE__); // any existing file stands in for a picture: the Core only checks it exists
+			image.xMinimum = 1.0; image.xMaximum = 3.0; image.yMinimum = 10.0; image.yMaximum = 14.0; image.zMinimum = -2.0; image.zMaximum = 5.0;
+			Plot3DGenerated generated;
+			CHECK(generatePlot3D(image, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error));
+			CHECK(!generated.hasDataset && generated.imagePath == image.imagePath && generated.mesh.vertexCount() == 4
+			      && generated.mesh.uvs.size() == 8 && generated.mesh.indices.size() == 6 && generated.primitiveMode == Plot3DGl::kTriangles);
+			CHECK(generated.mesh.positions[2] == -2.0f && generated.mesh.positions[3] == 3.0f && generated.mesh.positions[4] == 10.0f); // XY: at the Z minimum
+			image.imagePlane = 1; // XZ: x by z, at the Y minimum
+			CHECK(generatePlot3D(image, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error));
+			CHECK(generated.mesh.positions[1] == 10.0f && generated.mesh.positions[2] == -2.0f && generated.mesh.positions[8] == 5.0f);
+			image.imagePlane = 2; // YZ: y by z, at the X minimum
+			CHECK(generatePlot3D(image, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error));
+			CHECK(generated.mesh.positions[0] == 1.0f && generated.mesh.positions[1] == 10.0f && generated.mesh.positions[7] == 14.0f);
+			image.imagePath = QStringLiteral("no/such/picture.png");
+			CHECK(!generatePlot3D(image, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error) && !error.isEmpty());
+			image.imagePath = QString::fromUtf8(__FILE__);
+			image.yMaximum = image.yMinimum;
+			CHECK(!generatePlot3D(image, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error) && !error.isEmpty());
+		}
 
 		// Every preset of every generated source converts to a spec that generates (and the entries mirror the preset lists).
 		CHECK(plot3DPresetEntries(Plot3DSourceKind::FormulaSurface).size() == plot3DFormulaPresets().size());

@@ -18,6 +18,7 @@ struct Plot3DMeshData
 	std::vector<float> normals;        // x,y,z per vertex, parallel to positions (see buildPlot3DLineMesh()/
 	                                    // buildPlot3DScatterMesh()'s doc comments: unused placeholder for those two)
 	std::vector<double> values;        // one scalar per vertex, parallel to positions - for colour-by-value
+	std::vector<float> uvs;            // optional: u,v per vertex (an image plane); empty for every other plot
 	std::vector<unsigned int> indices; // triangle list for Surface/Bar; deliberately EMPTY for Line/Scatter, whose
 	                                    // vertices are drawn in order via glDrawArrays with a GL_LINE_STRIP/
 	                                    // GL_POINTS primitive mode instead - see buildPlot3DLineMesh()'s doc comment

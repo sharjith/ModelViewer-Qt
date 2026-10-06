@@ -5,11 +5,15 @@
 #include "Plot3DPanel.h"
 
 #include "Plot3DGenerate.h"
+#include "PathUtils.h"
 
 #include <QCheckBox>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDoubleSpinBox>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QImageReader>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QLabel>
@@ -63,6 +67,9 @@ namespace
 		{ Plot3DSourceKind::FormulaStreamlines, QT_TRANSLATE_NOOP("Plot3DPanel", "Formula streamlines"), false, false, true, true, false,
 			QT_TRANSLATE_NOOP("Plot3DPanel", "X range / samples:"), QT_TRANSLATE_NOOP("Plot3DPanel", "Y range / samples:"), QT_TRANSLATE_NOOP("Plot3DPanel", "Z range / samples:"),
 			128, 128, 8192, { QT_TRANSLATE_NOOP("Plot3DPanel", "u(x,y) ="), QT_TRANSLATE_NOOP("Plot3DPanel", "v(x,y) ="), QT_TRANSLATE_NOOP("Plot3DPanel", "w(x,y) =") }, Plot3DPrimitive::Line },
+		{ Plot3DSourceKind::ImageSurface, QT_TRANSLATE_NOOP("Plot3DPanel", "Image plane"), false, false, false, true, true,
+			QT_TRANSLATE_NOOP("Plot3DPanel", "X range:"), QT_TRANSLATE_NOOP("Plot3DPanel", "Y range:"), QT_TRANSLATE_NOOP("Plot3DPanel", "Z range:"),
+			1000, 1000, 1000, { "", "", "" }, Plot3DPrimitive::Surface },
 		{ Plot3DSourceKind::FormulaPathlines, QT_TRANSLATE_NOOP("Plot3DPanel", "Formula pathlines"), false, false, true, true, true,
 			QT_TRANSLATE_NOOP("Plot3DPanel", "X range / samples:"), QT_TRANSLATE_NOOP("Plot3DPanel", "Y range / samples:"), QT_TRANSLATE_NOOP("Plot3DPanel", "T range / steps:"),
 			128, 128, 2000, { QT_TRANSLATE_NOOP("Plot3DPanel", "u(x,y,z,t) ="), QT_TRANSLATE_NOOP("Plot3DPanel", "v(x,y,z,t) ="), QT_TRANSLATE_NOOP("Plot3DPanel", "w(x,y,z,t) =") }, Plot3DPrimitive::Line },
@@ -135,8 +142,21 @@ void Plot3DPanel::updateSourceMode()
 		_formulaXRangeLabel->setText(translated(ui->xRangeLabel));
 		_formulaYRangeLabel->setText(translated(ui->yRangeLabel));
 		_formulaZRangeLabel->setText(translated(ui->zRangeLabel));
+		const bool image = kind == Plot3DSourceKind::ImageSurface;
+		_formulaLayout->setRowVisible(_imageFileLabel, image);
+		_formulaLayout->setRowVisible(_imagePlaneLabel, image);
 		_formulaLayout->setRowVisible(_formulaYRangeLabel, ui->yRange);
 		_formulaLayout->setRowVisible(_formulaZRangeLabel, ui->zRange);
+		for (QWidget* samples : { static_cast<QWidget*>(_formulaXSamples), static_cast<QWidget*>(_formulaYSamples), static_cast<QWidget*>(_formulaZSamples) })
+			samples->setVisible(!image); // a picture has no sample grid (after the row visibility above, which shows every widget of a row)
+		if (image && (!(_formulaXMaximum->value() > _formulaXMinimum->value()) || !(_formulaYMaximum->value() > _formulaYMinimum->value())
+			|| !(_formulaZMaximum->value() > _formulaZMinimum->value())))
+		{
+			// No presets here: start from a rectangle that is visible, so Preview works straight away.
+			_formulaXMinimum->setValue(-3.0); _formulaXMaximum->setValue(3.0);
+			_formulaYMinimum->setValue(-2.0); _formulaYMaximum->setValue(2.0);
+			_formulaZMinimum->setValue(0.0); _formulaZMaximum->setValue(2.0);
+		}
 		_formulaXSamples->setMaximum(ui->maxX);
 		_formulaYSamples->setMaximum(ui->maxY);
 		_formulaZSamples->setMaximum(ui->maxZ);
@@ -157,7 +177,10 @@ void Plot3DPanel::updateSourceMode()
 				? static_cast<int>(Plot3DPrimitive::Contour) : static_cast<int>(Plot3DPrimitive::Surface)));
 		}
 		// Reapply the selected preset when returning to a source so the visible controls never inherit another source's definition.
-		applyPreset();
+		if (presetCombo(kind))
+			applyPreset();
+		else
+			refreshSourcePreview(); // a source without presets (the image plane) keeps its fields as they are
 	}
 	else
 		refreshPreview();
@@ -194,6 +217,55 @@ void Plot3DPanel::applySpec(const Plot3DGeneratedSpec& spec)
 	_formulaYMinimum->setValue(spec.yMinimum); _formulaYMaximum->setValue(spec.yMaximum); _formulaYSamples->setValue(spec.ySamples);
 	_formulaZMinimum->setValue(spec.zMinimum); _formulaZMaximum->setValue(spec.zMaximum); _formulaZSamples->setValue(spec.zSamples);
 	setParameterEditors(spec.parameters);
+	if (currentSource() == Plot3DSourceKind::ImageSurface)
+	{
+		_imageFile->setText(spec.imagePath);
+		_imagePlane->setCurrentIndex(std::max(0, _imagePlane->findData(spec.imagePlane)));
+	}
+}
+
+void Plot3DPanel::browseImage()
+{
+	// Where the last picture came from, else the sample pictures (as the CSV chooser starts in the sample data).
+	const QString start = _imageFile->text().trimmed().isEmpty()
+		? PathUtils::getDataDirectory() + QStringLiteral("/sample-models/Plot3D")
+		: QFileInfo(_imageFile->text().trimmed()).absolutePath();
+	const QString path = QFileDialog::getOpenFileName(this, tr("Open Image"), start,
+		tr("Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp *.gif);;All files (*)"));
+	if (path.isEmpty())
+		return;
+	_imageFile->setText(path);
+	if (_editingMeshUuid.isNull())
+		fitImageRanges();
+	refreshGeneratedStatus();
+}
+
+void Plot3DPanel::fitImageRanges()
+{
+	const QString path = _imageFile->text().trimmed();
+	if (path.isEmpty() || currentSource() != Plot3DSourceKind::ImageSurface)
+		return;
+	const QSize size = QImageReader(path).size();
+	if (!size.isValid() || size.width() <= 0 || size.height() <= 0)
+		return;
+	// The plane's horizontal (u) and vertical (v) ranges; the third range keeps its value (the plane sits at its minimum).
+	const int plane = _imagePlane->currentData().toInt();
+	QDoubleSpinBox* uMin = plane == 2 ? _formulaYMinimum : _formulaXMinimum;
+	QDoubleSpinBox* uMax = plane == 2 ? _formulaYMaximum : _formulaXMaximum;
+	QDoubleSpinBox* vMin = plane == 0 ? _formulaYMinimum : _formulaZMinimum;
+	QDoubleSpinBox* vMax = plane == 0 ? _formulaYMaximum : _formulaZMaximum;
+	// Keep the scale the user already has (the longer side of the current rectangle) and each range's centre; match the picture's shape.
+	double longSide = std::max(uMax->value() - uMin->value(), vMax->value() - vMin->value());
+	if (!(longSide > 0.0))
+		longSide = 6.0;
+	const double width = size.width(), height = size.height();
+	const double uLength = width >= height ? longSide : longSide * width / height;
+	const double vLength = width >= height ? longSide * height / width : longSide;
+	const double uCentre = (uMin->value() + uMax->value()) * 0.5, vCentre = (vMin->value() + vMax->value()) * 0.5;
+	const QSignalBlocker block1(uMin), block2(uMax), block3(vMin), block4(vMax);
+	uMin->setValue(uCentre - uLength * 0.5); uMax->setValue(uCentre + uLength * 0.5);
+	vMin->setValue(vCentre - vLength * 0.5); vMax->setValue(vCentre + vLength * 0.5);
+	_imageFile->setProperty("fittedPath", path);
 }
 
 void Plot3DPanel::applyPreset()
@@ -223,6 +295,8 @@ Plot3DGeneratedSpec Plot3DPanel::currentGeneratedSpec() const
 	if (const QComboBox* preset = presetCombo(kind))
 		spec.presetIndex = preset->currentIndex();
 	spec.title = _formulaTitle->text().trimmed();
+	spec.imagePath = _imageFile->text().trimmed();
+	spec.imagePlane = _imagePlane->currentData().toInt();
 	spec.expression = _formulaExpression->text();
 	spec.xExpression = _parametricX->text(); spec.yExpression = _parametricY->text(); spec.zExpression = _parametricZ->text();
 	spec.xMinimum = _formulaXMinimum->value(); spec.xMaximum = _formulaXMaximum->value();
@@ -372,6 +446,9 @@ void Plot3DPanel::refreshGeneratedStatus()
 	case Plot3DSourceKind::CsvTimeSeries:
 		text = tr("%1 rows form a complete grid. Pathlines from %2 seeds (%3 segments), coloured by time.").arg(_table.rows.size()).arg(_tsSeeds->value())
 			.arg(generated.mesh.vertexCount() / 2);
+		break;
+	case Plot3DSourceKind::ImageSurface:
+		text = tr("The image is ready to place. Preview shows its rectangle; Build adds the picture.");
 		break;
 	default:
 		break;

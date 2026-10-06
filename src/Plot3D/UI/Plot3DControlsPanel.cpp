@@ -405,7 +405,8 @@ void Plot3DControlsPanel::refreshState()
 	_referencePlaneOpacity->setEnabled(true);
 	_plotTitle->setText(session->title);
 	const bool isContour = session->primitive == Plot3DPrimitive::Contour;
-	const bool isSurface = session->primitive == Plot3DPrimitive::Surface;
+	const bool isImage = session->generated.valid && session->generated.sourceMode == 9; // a picture on a plane: its pixels are its colour
+	const bool isSurface = session->primitive == Plot3DPrimitive::Surface && !isImage;
 	const bool showLevels = isContour || (isSurface && session->contourOverlayMode != 0);
 	const bool isPathline = session->generated.valid && (session->generated.sourceMode == 7 || session->generated.sourceMode == 8);
 	_pathlineAnimation->setVisible(isPathline);
@@ -425,7 +426,7 @@ void Plot3DControlsPanel::refreshState()
 	_contourProjected->setVisible(isContour);
 	_contourProjected->setEnabled(isContour);
 	_contourProjected->setChecked(session->contourProjected);
-	const bool supportsColourControls = true;
+	const bool supportsColourControls = !isImage;
 	const bool supportsColourRange = supportsColourControls && session->primitive != Plot3DPrimitive::Voxel;
 	_colormap->setEnabled(supportsColourControls); _bands->setEnabled(supportsColourRange);
 	_automaticRange->setEnabled(supportsColourRange);

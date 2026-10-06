@@ -192,6 +192,11 @@ QJsonObject plot3DSessionToJson(const Plot3DSession& session, const Plot3DRender
 		const Plot3DGeneratedSpec& g = session.generated;
 		QJsonObject spec;
 		spec.insert(QStringLiteral("sourceMode"), g.sourceMode);
+		if (g.sourceMode == 9)
+		{
+			spec.insert(QStringLiteral("imagePath"), g.imagePath);
+			spec.insert(QStringLiteral("imagePlane"), g.imagePlane);
+		}
 		spec.insert(QStringLiteral("presetIndex"), g.presetIndex);
 		spec.insert(QStringLiteral("title"), g.title);
 		spec.insert(QStringLiteral("expression"), g.expression);
@@ -364,6 +369,8 @@ bool plot3DSessionFromJson(const QJsonObject& json, const std::vector<QByteArray
 		Plot3DGeneratedSpec& g = session.generated;
 		g.valid = true;
 		g.sourceMode = spec.value(QStringLiteral("sourceMode")).toInt(0);
+		g.imagePath = spec.value(QStringLiteral("imagePath")).toString();
+		g.imagePlane = std::clamp(spec.value(QStringLiteral("imagePlane")).toInt(0), 0, 2);
 		g.presetIndex = spec.value(QStringLiteral("presetIndex")).toInt(-1);
 		g.title = spec.value(QStringLiteral("title")).toString();
 		g.expression = spec.value(QStringLiteral("expression")).toString();
@@ -378,7 +385,7 @@ bool plot3DSessionFromJson(const QJsonObject& json, const std::vector<QByteArray
 		for (const QJsonValue& entry : spec.value(QStringLiteral("parameters")).toArray())
 			g.parameters.emplace_back(entry.toObject().value(QStringLiteral("name")).toString(), entry.toObject().value(QStringLiteral("value")).toDouble());
 		// A source this build does not know (a newer file) cannot be edited; leave the plot as ordinary content.
-		if (g.sourceMode < 1 || g.sourceMode > 8)
+		if (g.sourceMode < 1 || g.sourceMode > 9)
 			g = Plot3DGeneratedSpec();
 	}
 	session.contourOverlayMode = std::clamp(json.value(QStringLiteral("contourOverlayMode")).toInt(0), 0, 2);

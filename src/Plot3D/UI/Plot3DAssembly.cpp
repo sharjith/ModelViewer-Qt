@@ -13,6 +13,10 @@
 #include "ViewportWidget.h"
 
 #include <QCoreApplication>
+#include <QOpenGLContext>
+#include <QOpenGLFunctions>
+#include <QImage>
+#include <QImageReader>
 #include <QPointF>
 
 #include <algorithm>
@@ -39,6 +43,68 @@ namespace
 		// normalized t in R) is only for the per-pixel discrete-band path - mixing them renders as a bare red channel.
 		mesh->setAnalysisOverlayColors(AnalysisColorRamp::mapToRGBA(values, valid, lo, hi, AnalysisColormap::Sequential));
 		mesh->setAnalysisOverlayBanding(0, static_cast<int>(AnalysisColormap::Sequential));
+	}
+
+	// ---- An image plane's material: unlit, the picture as its colour (alpha-blended when the picture has an alpha channel) ------
+	// The GL context must be current: the picture is uploaded here.
+	// A texture of this plot's own. The viewport's shared texture cache hands one GL id to every mesh that uses a file, but a mesh deletes
+	// its textures when it is destroyed (a cleared Preview, a deleted plot), which leaves the cache pointing at a dead id: the next plot
+	// of the same picture would come out black. Uploaded the way the viewport loads textures (not flipped, mipmapped), clamped at the edges.
+	GLuint uploadPrivateTexture(const QString& path)
+	{
+		QImageReader reader(path);
+		reader.setAutoTransform(true);
+		QImage image = reader.read();
+		QOpenGLContext* context = QOpenGLContext::currentContext();
+		if (image.isNull() || !context)
+			return 0;
+		image = image.convertToFormat(QImage::Format_RGBA8888);
+		QOpenGLFunctions* gl = context->functions();
+		GLuint id = 0;
+		gl->glGenTextures(1, &id);
+		gl->glBindTexture(GL_TEXTURE_2D, id);
+		gl->glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+		gl->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, image.width(), image.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, image.constBits());
+		gl->glGenerateMipmap(GL_TEXTURE_2D);
+		gl->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+		gl->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		gl->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		gl->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		gl->glBindTexture(GL_TEXTURE_2D, 0);
+		return id;
+	}
+
+	bool imageMaterial(ViewportWidget* viewport, const QString& path, Material& out, QString* error)
+	{
+		Q_UNUSED(viewport); // the context just has to be current (the callers made it so)
+		QImageReader reader(path);
+		if (!reader.canRead())
+		{
+			setError(error, QCoreApplication::translate("Plot3DPanel", "The image could not be read."));
+			return false;
+		}
+		const bool hasAlpha = QImage::toPixelFormat(reader.imageFormat()).alphaUsage() == QPixelFormat::UsesAlpha;
+		Material material(QVector3D(1.0f, 1.0f, 1.0f), 0.0f, 1.0f, 1.0f);
+		material.setUnlit(true);
+		Material::Texture texture;
+		texture.type = "albedo";
+		texture.path = path.toStdString();
+		texture.hasAlpha = hasAlpha;
+		texture.wrapS = GL_CLAMP_TO_EDGE;
+		texture.wrapT = GL_CLAMP_TO_EDGE;
+		material.setTexture(Material::TextureType::Albedo, texture);
+		material.setAlbedoMap(path);
+		if (hasAlpha)
+			material.setBlendMode(Material::BlendMode::Alpha);
+		const GLuint textureId = uploadPrivateTexture(path);
+		if (textureId == 0)
+		{
+			setError(error, QCoreApplication::translate("Plot3DPanel", "The image could not be read."));
+			return false;
+		}
+		material.setAlbedoTextureId(static_cast<int>(textureId)); // the path stays on the material, so a saved document reloads it
+		out = material;
+		return true;
 	}
 
 	// ---- Quiver: one point mesh of arrow sites plus a glyph set owned by the viewport --------------------------------------------
@@ -141,7 +207,8 @@ namespace
 
 	// ---- previews ------------------------------------------------------------------------------------------------------------------------
 	bool showMeshPreview(ModelViewer* viewer, const Plot3DMeshData& data, unsigned int primitiveMode,
-		const std::array<Plot3DAxisConfig, 3>& axes, const double minimum[3], const double maximum[3], const QString& title, float opacity)
+		const std::array<Plot3DAxisConfig, 3>& axes, const double minimum[3], const double maximum[3], const QString& title, float opacity,
+		const QString& imagePath = QString())
 	{
 		ViewportWidget* viewport = viewer ? viewer->getViewportWidget() : nullptr;
 		if (!viewport || data.empty())
@@ -172,9 +239,15 @@ namespace
 			previewMaterial.setBlendMode(Material::BlendMode::Alpha);
 			previewMaterial.setUnlit(true);
 		}
+		const bool isImage = !imagePath.isEmpty() && imageMaterial(viewport, imagePath, previewMaterial, nullptr); // the picture itself, as Build shows it
 		SceneMesh* mesh = new SceneMesh(viewport->getShader(), QStringLiteral("Plot3D Preview"), upload.vertices, data.indices, {}, previewMaterial, true, primitiveMode);
+		if (isImage)
+		{
+			mesh->setMaterial(previewMaterial);
+			mesh->setTextureMaps(previewMaterial);
+		}
 		viewport->addToDisplay(mesh);
-		if (opacity >= 1.0f)
+		if (opacity >= 1.0f && !isImage) // a picture has no colour values to ramp
 			applySequentialColours(mesh, upload.values, upload.valid, upload.valueMinimum, upload.valueMaximum);
 		const QUuid meshUuid = mesh->uuid();
 		viewport->doneCurrent();
@@ -408,6 +481,12 @@ namespace
 				upload.vertices[i].Color = glm::vec4(colours[i * 4], colours[i * 4 + 1], colours[i * 4 + 2], 1.0f);
 		}
 		Material plotMaterial = drawScatterFill ? Material(QVector3D(1.0f, 1.0f, 1.0f), 0.0f, 0.65f, 0.35f) : Material();
+		const bool isImage = !generated.imagePath.isEmpty();
+		if (isImage && !imageMaterial(viewport, generated.imagePath, plotMaterial, error))
+		{
+			viewport->doneCurrent();
+			return QUuid();
+		}
 		if (drawScatterFill)
 		{
 			plotMaterial.setBlendMode(Material::BlendMode::Alpha);
@@ -418,6 +497,11 @@ namespace
 		// skipOptimization = true: both setAnalysisOverlayColors() and the filled scatter's baked colours are indexed by vertex; the
 		// mesh optimiser would reorder vertices (see SceneMesh::optimizeMesh()).
 		SceneMesh* mesh = new SceneMesh(viewport->getShader(), options.baseName, upload.vertices, meshData.indices, {}, plotMaterial, true, primitiveMode);
+		if (isImage)
+		{
+			mesh->setMaterial(plotMaterial);
+			mesh->setTextureMaps(plotMaterial);
+		}
 		viewport->addToDisplay(mesh);
 		const QUuid meshUuid = mesh->uuid();
 
@@ -547,6 +631,8 @@ Plot3DMeshUpload plot3DPrepareUpload(const Plot3DMeshData& data, bool dataNormal
 		vertex.Bitangent = glm::vec3(0.0f);
 		for (glm::vec2& uv : vertex.TexCoords)
 			uv = glm::vec2(0.0f);
+		if (data.uvs.size() == count * 2)
+			vertex.TexCoords[0] = glm::vec2(data.uvs[i * 2], data.uvs[i * 2 + 1]);
 		const bool finite = std::isfinite(data.values[i]);
 		upload.valid[i] = finite;
 		upload.values[i] = finite ? static_cast<float>(data.values[i]) : 0.0f;
@@ -620,7 +706,7 @@ bool plot3DShowPreview(ModelViewer* viewer, const Plot3DGenerated& generated, co
 		setError(error, QCoreApplication::translate("Plot3DPanel", "The plot has no valid preview bounds."));
 		return false;
 	}
-	if (!showMeshPreview(viewer, generated.mesh, generated.primitiveMode, kDefaultAxes, minimum, maximum, title, 1.0f))
+	if (!showMeshPreview(viewer, generated.mesh, generated.primitiveMode, kDefaultAxes, minimum, maximum, title, 1.0f, generated.imagePath))
 	{
 		setError(error, QCoreApplication::translate("Plot3DPanel", "The plot preview could not be created."));
 		return false;
@@ -682,6 +768,26 @@ bool plot3DRebuild(ModelViewer* viewer, const QUuid& meshUuid, const Plot3DGener
 		{
 			setError(error, QCoreApplication::translate("Plot3DPanel", "The plot could not be rebuilt."));
 			return false;
+		}
+		if (!generated.imagePath.isEmpty())
+		{
+			ViewportWidget* viewport = viewer->getViewportWidget();
+			SceneMesh* imageMesh = viewport->getMeshByUuid(meshUuid);
+			Material material;
+			viewport->makeCurrent();
+			const bool ok = imageMesh && imageMaterial(viewport, generated.imagePath, material, error);
+			if (ok)
+			{
+				const GLuint replaced = static_cast<GLuint>(imageMesh->getMaterial().albedoTextureId());
+				imageMesh->setMaterial(material);
+				imageMesh->setTextureMaps(material);
+				if (replaced != 0 && QOpenGLContext::currentContext())
+					QOpenGLContext::currentContext()->functions()->glDeleteTextures(1, &replaced); // the previous picture's own texture
+			}
+			viewport->doneCurrent();
+			if (!ok)
+				return false;
+			viewport->updateView();
 		}
 		if (csv && found->generated.valid && found->generated.sourceMode == plot3DSourceInt(Plot3DSourceKind::CsvTimeSeries))
 			viewer->setPlot3DTimeSeriesSource(meshUuid, csv->text, csv->options, csv->mapping); // the table travels with the plot

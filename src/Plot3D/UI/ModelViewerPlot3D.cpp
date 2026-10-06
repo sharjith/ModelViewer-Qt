@@ -27,6 +27,12 @@ Plot3DSession* sessionFor(QVector<Plot3DSession>& sessions, const QUuid& uuid)
 	return nullptr;
 }
 
+// An image plane: a textured quad whose pixels are its colour, so no colour ramp, overlay or legend applies to it.
+bool isImagePlot(const Plot3DSession& session)
+{
+	return session.generated.valid && session.generated.sourceMode == 9;
+}
+
 // The axes a mesh built straight from data is in (every scale Linear).
 const std::array<Plot3DAxisConfig, 3> kRawAxes{};
 
@@ -191,7 +197,7 @@ void ModelViewer::applyPlot3DColourState(const QUuid& meshUuid, float minimum, f
 {
 	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
 	SceneMesh* mesh = _viewportWidget ? _viewportWidget->getMeshByUuid(meshUuid) : nullptr;
-	if (!session || !mesh)
+	if (!session || !mesh || isImagePlot(*session))
 		return;
 	// The path tracer reads the shown colours through plot3DBakedColors(), so a colour edit must rebuild its scene.
 	struct PathTracerRefresh
@@ -295,7 +301,7 @@ QHash<QUuid, std::vector<float>> ModelViewer::plot3DBakedColors() const
 	for (const Plot3DSession& session : _plot3DSessions)
 	{
 		// Voxel has no coloured mesh; a filled scatter already carries its colours as authored vertex data.
-		if (session.primitive == Plot3DPrimitive::Voxel || session.isFilledScatter || session.values.empty())
+		if (session.primitive == Plot3DPrimitive::Voxel || session.isFilledScatter || session.values.empty() || isImagePlot(session))
 			continue;
 		const float minimum = session.colourMinimum;
 		const float maximum = session.colourMaximum > minimum ? session.colourMaximum : minimum + 1.0f;
@@ -832,7 +838,7 @@ void ModelViewer::refreshPlot3DLegend()
 		return;
 	Plot3DSession* session = sessionFor(_plot3DSessions, activePlot3DMeshUuid());
 	const QSet<QUuid> shown = getVisibleUuids();
-	if (!session || !shown.contains(session->meshUuid))
+	if (!session || isImagePlot(*session) || !shown.contains(session->meshUuid))
 	{
 		if (_plot3DLegend)
 			_plot3DLegend->setAliveCheck([]() { return false; });

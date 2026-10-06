@@ -67,6 +67,7 @@ QString Plot3DPanel::suggestedPlotName(const Plot3DGenerated& generated, const P
 	case Plot3DSourceKind::ParametricSurface: type = title.isEmpty() ? tr("Parametric") : title; break;
 	case Plot3DSourceKind::ImplicitSurface: type = title.isEmpty() ? tr("Implicit Surface") : title; break;
 	case Plot3DSourceKind::FormulaVectorField: type = title.isEmpty() ? tr("Vector Field") : title; break;
+	case Plot3DSourceKind::ImageSurface: type = title.isEmpty() ? tr("Image") : title; break;
 	case Plot3DSourceKind::FormulaPathlines: type = title.isEmpty() ? tr("Pathlines") : title; break;
 	case Plot3DSourceKind::CsvTimeSeries: type = tr("Pathlines"); break;
 	case Plot3DSourceKind::ParametricCurve:
