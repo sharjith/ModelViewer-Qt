@@ -550,15 +550,18 @@ bool buildPlot3DLineFillMesh(const Plot3DLineData& data, double baseZ, Plot3DMes
 		if (error) *error = QObject::tr("Filled line base Z must be finite.");
 		return false;
 	}
+	const bool between = data.fillTo.size() == data.samples.size(); // a second curve: fill between the two, not down to the base plane
 	out.positions.reserve(data.samples.size() * 6);
 	out.normals.reserve(data.samples.size() * 6);
 	out.values.reserve(data.samples.size() * 2);
-	// Two vertices per sample (on the line and on the base plane); each segment is a quad between neighbouring samples, drawn with
+	// Two vertices per sample (on the line and on the base plane, or on the second curve); each segment is a quad between neighbouring samples, drawn with
 	// both windings so the ribbon is visible from either side whatever the render pass culls.
-	for (const Plot3DSample& sample : data.samples)
+	for (std::size_t i = 0; i < data.samples.size(); ++i)
 	{
+		const Plot3DSample& sample = data.samples[i];
+		const double otherZ = between && std::isfinite(data.fillTo[i]) ? data.fillTo[i] : baseZ;
 		out.positions.insert(out.positions.end(), { static_cast<float>(sample.position.x), static_cast<float>(sample.position.y), static_cast<float>(sample.position.z) });
-		out.positions.insert(out.positions.end(), { static_cast<float>(sample.position.x), static_cast<float>(sample.position.y), static_cast<float>(baseZ) });
+		out.positions.insert(out.positions.end(), { static_cast<float>(sample.position.x), static_cast<float>(sample.position.y), static_cast<float>(otherZ) });
 		out.normals.insert(out.normals.end(), { 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f });
 		out.values.push_back(sample.value);
 		out.values.push_back(sample.value);

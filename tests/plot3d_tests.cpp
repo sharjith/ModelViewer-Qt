@@ -337,6 +337,33 @@ namespace
 		CHECK(buildPlot3DLineFillMesh(fillLine, -1.0, lineFill, &error));
 		CHECK(lineFill.vertexCount() == 6 && lineFill.indices.size() == 24); // 2 segments x 2 windings x 2 triangles
 		CHECK(lineFill.positions[2] == 1.0f && lineFill.positions[5] == -1.0f && lineFill.values[0] == 1.0 && lineFill.values[1] == 1.0);
+		// A second curve: the ribbon runs between the line and that curve, and the box includes it.
+		Plot3DLineData band = fillLine;
+		band.fillTo = { 5.0, 6.0, std::numeric_limits<double>::quiet_NaN() }; // a NaN falls back to the base plane
+		Plot3DMeshData bandMesh;
+		CHECK(buildPlot3DLineFillMesh(band, -1.0, bandMesh, &error));
+		CHECK(bandMesh.positions[2] == 1.0f && bandMesh.positions[5] == 5.0f && bandMesh.positions[8] == 2.0f && bandMesh.positions[11] == 6.0f
+			&& bandMesh.positions[17] == -1.0f);
+		Plot3DDataset bandData;
+		bandData.primitive = Plot3DPrimitive::Line;
+		bandData.content = band;
+		Plot3DMeshOptions bandOptions;
+		bandOptions.filled = true;
+		bandOptions.baseZ = -1.0;
+		double bandLo[3], bandHi[3];
+		CHECK(plot3DDatasetBounds(bandData, bandOptions, bandLo, bandHi));
+		CHECK(bandLo[2] == 1.0 && bandHi[2] == 6.0); // the second curve, not the base plane (-1), widens the box
+		Plot3DCsvTable bandTable;
+		CHECK(parsePlot3DCsv(QStringLiteral("x,y,z,z2\n0,0,1,4\n1,0,2,5\n2,0,3,7\n"), {}, bandTable, &error));
+		Plot3DColumnMapping bandMapping;
+		bandMapping.fillTo = 3;
+		Plot3DDataset fromTable;
+		CHECK(buildPlot3DDataset(bandTable, Plot3DPrimitive::Line, bandMapping, fromTable, &error));
+		CHECK(std::get<Plot3DLineData>(fromTable.content).fillTo == std::vector<double>({ 4.0, 5.0, 7.0 }));
+		bandMapping.fillTo = -1;
+		CHECK(buildPlot3DDataset(bandTable, Plot3DPrimitive::Line, bandMapping, fromTable, &error));
+		CHECK(std::get<Plot3DLineData>(fromTable.content).fillTo.empty());
+
 		Plot3DLineData onePoint;
 		onePoint.samples.push_back(Plot3DSample{ { 0, 0, 0 }, 0.0 });
 		CHECK(!buildPlot3DLineFillMesh(onePoint, 0.0, lineFill, &error) && !error.isEmpty());

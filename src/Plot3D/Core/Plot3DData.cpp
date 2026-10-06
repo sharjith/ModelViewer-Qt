@@ -256,7 +256,21 @@ bool buildPlot3DDataset(const Plot3DCsvTable& table, Plot3DPrimitive primitive, 
 			samples.push_back(sample);
 		}
 		if (primitive == Plot3DPrimitive::Surface || primitive == Plot3DPrimitive::Contour) out.content = Plot3DSurfaceData{ std::move(samples) };
-		else if (primitive == Plot3DPrimitive::Line) out.content = Plot3DLineData{ std::move(samples) };
+		else if (primitive == Plot3DPrimitive::Line)
+		{
+			Plot3DLineData line{ std::move(samples), {} };
+			if (mapping.fillTo >= 0)
+			{
+				line.fillTo.reserve(table.rows.size());
+				for (std::size_t row = 0; row < table.rows.size(); ++row)
+				{
+					double value = 0.0;
+					if (!numberAt(table, row, mapping.fillTo, QStringLiteral("second curve Z"), value, error)) return false;
+					line.fillTo.push_back(value);
+				}
+			}
+			out.content = std::move(line);
+		}
 		else
 		{
 			Plot3DScatterData scatter{ std::move(samples) };

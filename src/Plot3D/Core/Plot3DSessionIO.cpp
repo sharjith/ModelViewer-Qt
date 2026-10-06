@@ -122,6 +122,7 @@ namespace
 		json.insert(QStringLiteral("value"), m.value);
 		json.insert(QStringLiteral("u"), m.u); json.insert(QStringLiteral("v"), m.v); json.insert(QStringLiteral("w"), m.w);
 		json.insert(QStringLiteral("error"), m.error);
+		json.insert(QStringLiteral("fillTo"), m.fillTo);
 		json.insert(QStringLiteral("base"), m.base);
 		json.insert(QStringLiteral("width"), m.width); json.insert(QStringLiteral("depth"), m.depth);
 		json.insert(QStringLiteral("time"), m.time);
@@ -137,6 +138,7 @@ namespace
 		m.u = json.value(QStringLiteral("u")).toInt(m.u); m.v = json.value(QStringLiteral("v")).toInt(m.v);
 		m.w = json.value(QStringLiteral("w")).toInt(m.w);
 		m.error = json.value(QStringLiteral("error")).toInt(m.error);
+		m.fillTo = json.value(QStringLiteral("fillTo")).toInt(m.fillTo);
 		m.base = json.value(QStringLiteral("base")).toInt(m.base);
 		m.width = json.value(QStringLiteral("width")).toInt(m.width); m.depth = json.value(QStringLiteral("depth")).toInt(m.depth);
 		m.time = json.value(QStringLiteral("time")).toInt(m.time);

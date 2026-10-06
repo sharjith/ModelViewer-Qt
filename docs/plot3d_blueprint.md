@@ -53,7 +53,7 @@ Axis/viewer features (not separate plot types, but real, needed by every primiti
 
 Implemented as Scatter variants rather than separate primitives: symmetric Z error bars and translucent fill to a
 base plane. Since added (branch `feature/plot3d-extras`): a Line can be filled to the base plane the same way; text notes at
-data coordinates; and an image on a plane (a textured quad, source 9). Still deferred: fill *between* two curves.
+data coordinates; and an image on a plane (a textured quad, source 9). Fill between two curves is done too (below).
 
 ## 3. Architecture
 
@@ -373,7 +373,7 @@ Ordered roughly by value. Everything from the earlier gap list that was worth do
 4. **Synchronised playback.** The shared playback bar plays one item at a time (a Simulation result or an animated pathline
    plot); playing both under one clock would need a mapping between result steps and pathline time.
 5. **Formula parser error messages** are English literals (item 26).
-6. **Deferred plot features:** fill between two curves (fill under a line to the base plane is done).
+6. **Deferred plot features:** none (fill under a line, fill between two curves, text notes and image planes are done).
 
 ### Branch `feature/plot3d-extras` (merged to `dev` after the refactor and the point / line export)
 
@@ -394,3 +394,10 @@ Ordered roughly by value. Everything from the earlier gap list that was worth do
   plot of the picture came out black. Image plots take no colour ramp, overlay or legend (their pixels are their colour; the
   analysis overlay would paint them black / grey), and are skipped by the baked-colour export. One winding only: two coplanar
   copies fight for the depth test and the back-facing one is shaded as a dark back face in the Blinn-Phong mode.
+
+### Fill between two curves (branch `feature/plot3d-fill-between`)
+
+A CSV Line plot can fill between the line and a second curve instead of down to the base plane: `Plot3DColumnMapping::fillTo` names the
+second curve's Z column (same X / Y), kept per point in `Plot3DLineData::fillTo`; `buildPlot3DLineFillMesh` runs the ribbon between the
+two (a NaN falls back to the base plane for that point) and the axes box includes the second curve instead of the base plane. The
+column is saved with the column mapping. Sample: `line_band.csv`.
