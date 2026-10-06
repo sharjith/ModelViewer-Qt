@@ -1,6 +1,7 @@
 #include "Plot3DSessionIO.h"
 
 #include <QJsonArray>
+#include <cmath>
 #include <algorithm>
 #include <QObject>
 
@@ -218,6 +219,18 @@ QJsonObject plot3DSessionToJson(const Plot3DSession& session, const Plot3DRender
 	json.insert(QStringLiteral("contourOverlayMeshUuid"), session.contourOverlayMeshUuid.isNull()
 		? QString() : session.contourOverlayMeshUuid.toString(QUuid::WithoutBraces));
 
+	if (!session.textLabels.empty())
+	{
+		QJsonArray labels;
+		for (const Plot3DTextLabel& label : session.textLabels)
+		{
+			QJsonObject entry;
+			entry.insert(QStringLiteral("text"), label.text);
+			entry.insert(QStringLiteral("position"), QJsonArray{ label.x, label.y, label.z });
+			labels.append(entry);
+		}
+		json.insert(QStringLiteral("textLabels"), labels);
+	}
 	json.insert(QStringLiteral("axesVisible"), session.axesVisible);
 	QJsonArray planes;
 	for (bool plane : session.referencePlanes)
@@ -372,6 +385,18 @@ bool plot3DSessionFromJson(const QJsonObject& json, const std::vector<QByteArray
 	session.contourOverlayLevels = std::clamp(json.value(QStringLiteral("contourOverlayLevels")).toInt(10), 1, 40);
 	session.contourOverlayMeshUuid = QUuid(json.value(QStringLiteral("contourOverlayMeshUuid")).toString());
 
+	for (const QJsonValue& value : json.value(QStringLiteral("textLabels")).toArray())
+	{
+		const QJsonObject entry = value.toObject();
+		const QJsonArray position = entry.value(QStringLiteral("position")).toArray();
+		if (position.size() != 3)
+			continue;
+		Plot3DTextLabel label;
+		label.text = entry.value(QStringLiteral("text")).toString();
+		label.x = position.at(0).toDouble(); label.y = position.at(1).toDouble(); label.z = position.at(2).toDouble();
+		if (std::isfinite(label.x) && std::isfinite(label.y) && std::isfinite(label.z))
+			session.textLabels.push_back(std::move(label));
+	}
 	session.axesVisible = json.value(QStringLiteral("axesVisible")).toBool(true);
 	const QJsonArray planes = json.value(QStringLiteral("referencePlanes")).toArray();
 	for (int plane = 0; plane < 3 && plane < planes.size(); ++plane)

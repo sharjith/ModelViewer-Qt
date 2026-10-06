@@ -422,6 +422,12 @@ namespace
 		const double transformed = plot3DTransformAxisValue(-18.0, symlog, &valid);
 		CHECK(valid && std::abs(plot3DInverseAxisValue(transformed, symlog) + 18.0) < 1.0e-10);
 
+		Plot3DAxisConfig logAxis = linear;
+		logAxis.scale = Plot3DAxisScale::Log10;
+		CHECK(plot3DSameAxisScale(linear, linear) && !plot3DSameAxisScale(linear, logAxis));
+		CHECK(plot3DAxisScaleSlope(123.0, linear) == 1.0);
+		CHECK(std::abs(plot3DAxisScaleSlope(100.0, logAxis) - 1.0 / (100.0 * std::log(10.0))) < 1.0e-7);
+		CHECK(plot3DAxisScaleSlope(-5.0, logAxis) == 1.0); // not placeable: neutral
 		Plot3DAxisController controller;
 		std::array<Plot3DAxisConfig, 3> axes{ linear, linear, linear };
 		const double lo[3] = { 0.0, 10.0, -5.0 }, hi[3] = { 4.0, 20.0, 5.0 };
@@ -665,6 +671,8 @@ namespace
 		session.axesVisible = false;
 		session.referencePlanes = { false, true, true };
 		session.referencePlaneOpacity = 0.4f;
+		session.textLabels.push_back(Plot3DTextLabel{ QStringLiteral("peak"), 1.5, -2.0, 3.25 });
+		session.textLabels.push_back(Plot3DTextLabel{ QStringLiteral("second"), 0.0, 0.0, 0.0 });
 		session.editableCsv = true;
 		session.csvSource = QStringLiteral("x;y;z\n1;2;3\n\"quoted;cell\";5;6\n");
 		session.csvOptions.delimiter = QLatin1Char(';');
@@ -715,6 +723,8 @@ namespace
 		      && restored.generated.xMinimum == -4.5 && restored.generated.zSamples == 240 && restored.generated.parameters == session.generated.parameters
 		      && !restored.automaticColourRange && restored.contourOverlayMode == 2 && restored.contourOverlayLevels == 7
 		      && restored.contourOverlayMeshUuid == session.contourOverlayMeshUuid && !restored.axesVisible && restored.referencePlaneOpacity == 0.4f);
+		CHECK(restored.textLabels.size() == 2 && restored.textLabels[0].text == QStringLiteral("peak") && restored.textLabels[0].x == 1.5
+			&& restored.textLabels[0].y == -2.0 && restored.textLabels[0].z == 3.25 && restored.textLabels[1].text == QStringLiteral("second"));
 		CHECK(restored.referencePlanes == session.referencePlanes);
 		CHECK(restored.editableCsv && restored.csvSource == session.csvSource);
 		CHECK(restored.csvOptions.delimiter == QLatin1Char(';') && !restored.csvOptions.firstRowIsHeader);

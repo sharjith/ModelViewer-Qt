@@ -73,6 +73,24 @@ double plot3DInverseAxisValue(double value, const Plot3DAxisConfig& config)
 	return value;
 }
 
+bool plot3DSameAxisScale(const Plot3DAxisConfig& a, const Plot3DAxisConfig& b)
+{
+	return a.scale == b.scale && (a.scale != Plot3DAxisScale::SymLog || a.symlogLinearThreshold == b.symlogLinearThreshold);
+}
+
+double plot3DAxisScaleSlope(double value, const Plot3DAxisConfig& config)
+{
+	if (config.scale == Plot3DAxisScale::Linear)
+		return 1.0;
+	const double h = std::max(std::abs(value) * 1.0e-4, 1.0e-9);
+	bool lowOk = false, highOk = false;
+	const double low = plot3DTransformAxisValue(value - h, config, &lowOk);
+	const double high = plot3DTransformAxisValue(value + h, config, &highOk);
+	if (!lowOk || !highOk || !(high > low))
+		return 1.0;
+	return (high - low) / (2.0 * h);
+}
+
 std::vector<Plot3DAxisTick> plot3DGenerateAxisTicks(double minimum, double maximum, const Plot3DAxisConfig& config)
 {
 	std::vector<Plot3DAxisTick> ticks;

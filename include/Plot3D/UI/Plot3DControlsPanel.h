@@ -13,6 +13,7 @@ class QDoubleSpinBox;
 class QGroupBox;
 class QLineEdit;
 class QSpinBox;
+class QTableWidget;
 class QLabel;
 class QPushButton;
 class ModelViewer;
@@ -43,6 +44,9 @@ private:
 	void applyBarAppearanceState();
 	void applyReferencePlaneState();
 	void applyAxisState();
+	void applyTextLabels(); // the notes table -> the active plot
+	void addTextLabel();
+	void removeTextLabel();
 
 	QPointer<ModelViewer> _viewer;
 	QMetaObject::Connection _stateConnection;
@@ -79,6 +83,11 @@ private:
 	std::array<QDoubleSpinBox*, 3> _axisMaximum{};
 	std::array<QSpinBox*, 3> _axisTicks{};
 	QLabel* _axisStatus = nullptr;
+	QGroupBox* _notesGroup = nullptr;
+	QTableWidget* _notesTable = nullptr;
+	QPushButton* _addNoteButton = nullptr;
+	QPushButton* _removeNoteButton = nullptr;
+	bool _applyingNotes = false; // the table is the source of the change in flight: refreshState() must not rebuild it
 
 	// Labels that carry text applyTexts() must be able to reach again.
 	QLabel* _activePlotLabel = nullptr;

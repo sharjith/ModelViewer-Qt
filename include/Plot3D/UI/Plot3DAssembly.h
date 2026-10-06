@@ -31,6 +31,12 @@ struct Plot3DMeshUpload
 // dataNormals = false gives every vertex an up (+Z) normal (point and line meshes carry placeholders).
 Plot3DMeshUpload plot3DPrepareUpload(const Plot3DMeshData& data, bool dataNormals = true);
 
+// Moves a plot mesh's vertices from the space drawn with axis scales `from` to the one drawn with `to` (each coordinate is taken
+// back to the data value through `from`'s inverse, then through `to`'s scale), and corrects the normals for the stretching.
+// A mesh built from raw data passes default (Linear) axes as `from`. A coordinate the new scale cannot place (a Log 10 value at
+// or below zero) is left where it is.
+void plot3DRescaleVertices(std::vector<Vertex>& vertices, const std::array<Plot3DAxisConfig, 3>& from, const std::array<Plot3DAxisConfig, 3>& to);
+
 // A CSV-backed plot's table, stored with the plot so Edit Plot can reopen it.
 struct Plot3DCsvBinding
 {

@@ -691,8 +691,11 @@ public slots:
 	void refreshPlot3DContourOverlay(const QUuid& meshUuid);
 	void setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visible);
 	void applyPlot3DReferencePlanes(const QUuid& meshUuid, const std::array<bool, 3>& visible, float opacity);
-	void applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<Plot3DAxisConfig, 3>& axes);
+	// False when the settings cannot be drawn (e.g. a Log 10 axis over a range that reaches zero); nothing is changed then.
+	bool applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<Plot3DAxisConfig, 3>& axes);
 	void setPlot3DAxisTitle(const QUuid& meshUuid, const QString& title);
+	// Text notes at data coordinates, drawn in the axes box while the plot is visible (not undoable; saved with the plot).
+	void setPlot3DTextLabels(const QUuid& meshUuid, const std::vector<Plot3DTextLabel>& labels);
 	// A Plot3D creation dialog can display one temporary plot directly in the
 	// viewport before committing it. Preview meshes deliberately have no scene
 	// node, session, undo record, or persistence entry.

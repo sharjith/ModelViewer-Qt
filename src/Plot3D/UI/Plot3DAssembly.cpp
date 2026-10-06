@@ -497,6 +497,32 @@ namespace
 	}
 }
 
+void plot3DRescaleVertices(std::vector<Vertex>& vertices, const std::array<Plot3DAxisConfig, 3>& from, const std::array<Plot3DAxisConfig, 3>& to)
+{
+	if (plot3DSameAxisScale(from[0], to[0]) && plot3DSameAxisScale(from[1], to[1]) && plot3DSameAxisScale(from[2], to[2]))
+		return;
+	for (Vertex& vertex : vertices)
+	{
+		double stretch[3] = { 1.0, 1.0, 1.0 }; // to's slope over from's slope, per axis
+		for (int axis = 0; axis < 3; ++axis)
+		{
+			const double data = plot3DInverseAxisValue(vertex.Position[axis], from[axis]);
+			bool ok = false;
+			const double placed = plot3DTransformAxisValue(data, to[axis], &ok);
+			if (!ok || !std::isfinite(placed))
+				continue;
+			vertex.Position[axis] = static_cast<float>(placed);
+			stretch[axis] = plot3DAxisScaleSlope(data, to[axis]) / plot3DAxisScaleSlope(data, from[axis]);
+		}
+		// A normal is a covector: it scales by the inverse of the stretch.
+		const glm::vec3 normal(vertex.Normal.x / static_cast<float>(stretch[0]), vertex.Normal.y / static_cast<float>(stretch[1]),
+			vertex.Normal.z / static_cast<float>(stretch[2]));
+		const float length = glm::length(normal);
+		if (length > 1.0e-12f && std::isfinite(length))
+			vertex.Normal = normal / length;
+	}
+}
+
 Plot3DMeshUpload plot3DPrepareUpload(const Plot3DMeshData& data, bool dataNormals)
 {
 	Plot3DMeshUpload upload;
@@ -737,7 +763,9 @@ bool plot3DRebuild(ModelViewer* viewer, const QUuid& meshUuid, const Plot3DGener
 			return false;
 		}
 		mesh->setPrimitiveMode(mode);
-		mesh->setMeshData(plot3DPrepareUpload(data).vertices, data.indices);
+		Plot3DMeshUpload rebuilt = plot3DPrepareUpload(data);
+		plot3DRescaleVertices(rebuilt.vertices, std::array<Plot3DAxisConfig, 3>{}, updated.axes); // the plot may already be on a log / symlog axis
+		mesh->setMeshData(rebuilt.vertices, data.indices);
 		copyValues(data, updated.values, updated.valid);
 		for (std::size_t i = 0; i < updated.values.size(); ++i)
 			if (updated.valid[i])
@@ -753,7 +781,9 @@ bool plot3DRebuild(ModelViewer* viewer, const QUuid& meshUuid, const Plot3DGener
 			if (marker && buildPlot3DScatterMesh(std::get<Plot3DScatterData>(dataset.content), markerData, error))
 			{
 				marker->setPrimitiveMode(GL_POINTS);
-				marker->setMeshData(plot3DPrepareUpload(markerData).vertices, {});
+				Plot3DMeshUpload markerRebuilt = plot3DPrepareUpload(markerData);
+				plot3DRescaleVertices(markerRebuilt.vertices, std::array<Plot3DAxisConfig, 3>{}, updated.axes);
+				marker->setMeshData(markerRebuilt.vertices, {});
 				copyValues(markerData, updated.markerValues, updated.markerValid);
 			}
 		}
