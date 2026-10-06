@@ -1,6 +1,7 @@
 #include "ModelViewer.h"
 
 #include "AnalysisColorRamp.h"
+#include "Plot3DAssembly.h"
 #include "Plot3DAxisController.h"
 #include "Plot3DMeshBuilder.h"
 #include "Plot3DVoxelStyle.h"
@@ -312,48 +313,23 @@ bool ModelViewer::replacePlot3DMesh(const QUuid& meshUuid, const Plot3DMeshData&
 	if (!session || !mesh || data.empty())
 		return false;
 
-	std::vector<Vertex> vertices(data.vertexCount());
-	std::vector<float> values(data.vertexCount());
-	std::vector<bool> valid(data.vertexCount(), true);
-	float valueMinimum = std::numeric_limits<float>::max(), valueMaximum = std::numeric_limits<float>::lowest();
-	std::array<double, 3> boundsMinimum{ std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max() };
-	std::array<double, 3> boundsMaximum{ std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest() };
-	const bool haveNormals = data.normals.size() == data.positions.size();
-	for (std::size_t i = 0; i < vertices.size(); ++i)
-	{
-		Vertex& vertex = vertices[i];
-		vertex.Color = glm::vec4(1.0f);
-		vertex.Position = glm::vec3(data.positions[i * 3], data.positions[i * 3 + 1], data.positions[i * 3 + 2]);
-		vertex.Normal = haveNormals ? glm::vec3(data.normals[i * 3], data.normals[i * 3 + 1], data.normals[i * 3 + 2]) : glm::vec3(0.0f, 0.0f, 1.0f);
-		vertex.Tangent = glm::vec3(0.0f); vertex.Bitangent = glm::vec3(0.0f);
-		for (glm::vec2& uv : vertex.TexCoords) uv = glm::vec2(0.0f);
-		values[i] = static_cast<float>(data.values[i]);
-		valueMinimum = std::min(valueMinimum, values[i]);
-		valueMaximum = std::max(valueMaximum, values[i]);
-		for (int axis = 0; axis < 3; ++axis)
-		{
-			boundsMinimum[static_cast<std::size_t>(axis)] = std::min(boundsMinimum[static_cast<std::size_t>(axis)], static_cast<double>(data.positions[i * 3 + static_cast<std::size_t>(axis)]));
-			boundsMaximum[static_cast<std::size_t>(axis)] = std::max(boundsMaximum[static_cast<std::size_t>(axis)], static_cast<double>(data.positions[i * 3 + static_cast<std::size_t>(axis)]));
-		}
-	}
-	if (valueMaximum <= valueMinimum)
-		valueMaximum = valueMinimum + 1.0f;
+	Plot3DMeshUpload upload = plot3DPrepareUpload(data); // vertices, per-vertex colour values and the bounds, as the commit step builds them
 
 	_viewportWidget->makeCurrent();
 	mesh->setPrimitiveMode(primitiveMode);
-	mesh->setMeshData(vertices, data.indices);
+	mesh->setMeshData(upload.vertices, data.indices);
 	_viewportWidget->doneCurrent();
 
-	session->values = std::move(values);
-	session->valid = std::move(valid);
-	session->dataMinimum = boundsMinimum;
-	session->dataMaximum = boundsMaximum;
-	session->dataMinimumValue = valueMinimum;
-	session->dataMaximumValue = valueMaximum;
+	session->values = std::move(upload.values);
+	session->valid = std::move(upload.valid);
+	session->dataMinimum = upload.boundsMinimum;
+	session->dataMaximum = upload.boundsMaximum;
+	session->dataMinimumValue = upload.valueMinimum;
+	session->dataMaximumValue = upload.valueMaximum;
 	if (session->automaticColourRange)
 	{
-		session->colourMinimum = valueMinimum;
-		session->colourMaximum = valueMaximum;
+		session->colourMinimum = upload.valueMinimum;
+		session->colourMaximum = upload.valueMaximum;
 	}
 	refreshPlot3DContourOverlay(meshUuid); // a Surface's contour lines are cut from this mesh
 	refreshPlot3DPathlineAnimation(meshUuid); // a playing pathline plot follows its new trails
@@ -465,25 +441,13 @@ namespace
 		QString error;
 		if (!buildPlot3DContourMesh(session.contourSource, data, levels, &error, projected))
 			return;
-		std::vector<Vertex> vertices(data.vertexCount());
-		std::vector<float> values(data.vertexCount());
-		std::vector<bool> valid(data.vertexCount(), true);
-		for (std::size_t i = 0; i < data.vertexCount(); ++i)
-		{
-			Vertex& vertex = vertices[i];
-			vertex.Color = glm::vec4(1.0f);
-			vertex.Position = glm::vec3(data.positions[i * 3], data.positions[i * 3 + 1], data.positions[i * 3 + 2]);
-			vertex.Normal = glm::vec3(0.0f, 0.0f, 1.0f);
-			vertex.Tangent = glm::vec3(0.0f); vertex.Bitangent = glm::vec3(0.0f);
-			for (glm::vec2& uv : vertex.TexCoords) uv = glm::vec2(0.0f);
-			values[i] = static_cast<float>(data.values[i]);
-		}
+		Plot3DMeshUpload upload = plot3DPrepareUpload(data, false);
 		viewport->makeCurrent();
-		mesh->setMeshData(vertices, {});
+		mesh->setMeshData(upload.vertices, {});
 		session.contourLevels = levels;
 		session.contourProjected = projected;
-		session.values = std::move(values);
-		session.valid = std::move(valid);
+		session.values = std::move(upload.values);
+		session.valid = std::move(upload.valid);
 		viewer->applyPlot3DColourState(session.meshUuid, session.colourMinimum, session.colourMaximum, session.colormap, session.bands);
 		viewport->doneCurrent();
 		viewport->updateView();
@@ -590,30 +554,20 @@ void ModelViewer::refreshPlot3DContourOverlay(const QUuid& meshUuid)
 	// Lines lying on the surface are drawn in a fixed dark colour: coloured by the surface's own value they would match the
 	// very colour beneath them and vanish. Lines on the base plane keep the colour map.
 	const bool onSurface = session->contourOverlayMode == 1;
-	std::vector<Vertex> vertices(lines.vertexCount());
-	std::vector<float> values(lines.vertexCount());
-	std::vector<bool> valid(lines.vertexCount());
-	for (std::size_t i = 0; i < vertices.size(); ++i)
-	{
-		Vertex& vertex = vertices[i];
-		vertex.Color = onSurface ? glm::vec4(0.06f, 0.06f, 0.06f, 1.0f) : glm::vec4(1.0f);
-		vertex.Position = glm::vec3(lines.positions[i * 3], lines.positions[i * 3 + 1], lines.positions[i * 3 + 2]);
-		vertex.Normal = glm::vec3(0.0f, 0.0f, 1.0f);
-		vertex.Tangent = glm::vec3(0.0f); vertex.Bitangent = glm::vec3(0.0f);
-		for (glm::vec2& uv : vertex.TexCoords) uv = glm::vec2(0.0f);
-		valid[i] = std::isfinite(lines.values[i]);
-		values[i] = valid[i] ? static_cast<float>(lines.values[i]) : 0.0f;
-	}
+	Plot3DMeshUpload upload = plot3DPrepareUpload(lines, false);
+	if (onSurface)
+		for (Vertex& vertex : upload.vertices)
+			vertex.Color = glm::vec4(0.06f, 0.06f, 0.06f, 1.0f);
 	_viewportWidget->makeCurrent();
 	bool created = false;
 	if (overlay)
 	{
-		overlay->setMeshData(vertices, {});
+		overlay->setMeshData(upload.vertices, {});
 	}
 	else if (SceneNode* node = _sceneGraph->findNodeForMesh(meshUuid))
 	{
 		// skipOptimization = true: the colour overlay below is indexed by vertex (see Plot3DPanel::buildPlot()).
-		overlay = new SceneMesh(_viewportWidget->getShader(), surface->getName() + tr(" Contours"), vertices, {}, {}, Material(), true, GL_LINES);
+		overlay = new SceneMesh(_viewportWidget->getShader(), surface->getName() + tr(" Contours"), upload.vertices, {}, {}, Material(), true, GL_LINES);
 		_viewportWidget->addToDisplay(overlay);
 		session->contourOverlayMeshUuid = overlay->uuid();
 		_sceneGraph->restoreMeshUuid(node, session->contourOverlayMeshUuid, node->meshUuids.size());
@@ -633,8 +587,8 @@ void ModelViewer::refreshPlot3DContourOverlay(const QUuid& meshUuid)
 	}
 	else
 	{
-		session->overlayValues = std::move(values);
-		session->overlayValid = std::move(valid);
+		session->overlayValues = std::move(upload.values);
+		session->overlayValid = std::move(upload.valid);
 	}
 	applyPlot3DColourState(meshUuid, session->colourMinimum, session->colourMaximum, session->colormap, session->bands);
 	_viewportWidget->doneCurrent();
