@@ -13,6 +13,7 @@
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDialogButtonBox>
+#include <QImageReader>
 #include <QDoubleSpinBox>
 #include <QFile>
 #include <QFileDialog>
@@ -60,6 +61,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	addSource(tr("Formula streamlines"), Plot3DSourceKind::FormulaStreamlines);
 	addSource(tr("Formula pathlines (time-dependent)"), Plot3DSourceKind::FormulaPathlines);
 	addSource(tr("CSV time series (pathlines)"), Plot3DSourceKind::CsvTimeSeries);
+	addSource(tr("Image on a plane"), Plot3DSourceKind::ImageSurface);
 	// Labelled so it is clear the first combo chooses where the plot's data comes from (a file, or a formula / definition).
 	auto* sourceRow = new QHBoxLayout();
 	sourceRow->addWidget(new QLabel(tr("Data source:"), this));
@@ -167,6 +169,21 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	auto* xRange = new QHBoxLayout(); xRange->addWidget(_formulaXMinimum); xRange->addWidget(_formulaXMaximum); xRange->addWidget(_formulaXSamples); _formulaLayout->addRow(_formulaXRangeLabel, xRange);
 	auto* yRange = new QHBoxLayout(); yRange->addWidget(_formulaYMinimum); yRange->addWidget(_formulaYMaximum); yRange->addWidget(_formulaYSamples); _formulaLayout->addRow(_formulaYRangeLabel, yRange);
 	auto* zRange = new QHBoxLayout(); zRange->addWidget(_formulaZMinimum); zRange->addWidget(_formulaZMaximum); zRange->addWidget(_formulaZSamples); _formulaLayout->addRow(_formulaZRangeLabel, zRange);
+	// Image plane: the picture and which plane it lies in (its two ranges are the plane's; the third range's minimum is its position).
+	_imageFileLabel = new QLabel(tr("Image file:"), _formulaGroup);
+	_imageFile = new QLineEdit(_formulaGroup);
+	_imageBrowse = new QPushButton(tr("Browse..."), _formulaGroup);
+	auto* imageRow = new QHBoxLayout();
+	imageRow->addWidget(_imageFile, 1);
+	imageRow->addWidget(_imageBrowse);
+	_formulaLayout->addRow(_imageFileLabel, imageRow);
+	_imagePlaneLabel = new QLabel(tr("Plane:"), _formulaGroup);
+	_imagePlane = new QComboBox(_formulaGroup);
+	_imagePlane->addItem(tr("XY (flat, at the Z minimum)"), 0);
+	_imagePlane->addItem(tr("XZ (upright, at the Y minimum)"), 1);
+	_imagePlane->addItem(tr("YZ (upright, at the X minimum)"), 2);
+	_imagePlane->setToolTip(tr("The picture fills the two ranges of the chosen plane; the third range's minimum is where the plane sits."));
+	_formulaLayout->addRow(_imagePlaneLabel, _imagePlane);
 	_formulaParameters = new QFormLayout(); _formulaLayout->addRow(_formulaParametersLabel, _formulaParameters);
 	layout->addWidget(_formulaGroup);
 
@@ -236,7 +253,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	scatterOptionsRow->addWidget(_columnError);
 	scatterOptionsRow->addWidget(_scatterFillEnabled);
 	scatterOptionsRow->addStretch();
-	mapping->addRow(tr("Scatter options:"), scatterOptionsRow);
+	mapping->addRow(tr("Scatter / line options:"), scatterOptionsRow);
 	layout->addWidget(_mappingWidget);
 
 	// CSV time series: a vector field on a complete regular (t, x, y[, z]) grid, one row per node. Its own column choices (the
@@ -308,6 +325,18 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	connect(openButton, &QPushButton::clicked, this, &Plot3DPanel::loadCsvFile);
 	connect(pasteButton, &QPushButton::clicked, this, &Plot3DPanel::pasteData);
 	connect(parseButton, &QPushButton::clicked, this, &Plot3DPanel::refreshSourcePreview);
+	connect(_imageBrowse, &QPushButton::clicked, this, &Plot3DPanel::browseImage);
+	connect(_imageFile, &QLineEdit::editingFinished, this, [this] {
+		// Only when the file changed: tabbing through the field must not undo ranges the user has set by hand.
+		if (_editingMeshUuid.isNull() && _imageFile->text().trimmed() != _imageFile->property("fittedPath").toString())
+			fitImageRanges();
+		refreshGeneratedStatus();
+	});
+	connect(_imagePlane, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
+		if (_editingMeshUuid.isNull())
+			fitImageRanges(); // editing keeps the saved ranges
+		refreshGeneratedStatus();
+	});
 	connect(_delimiter, &QComboBox::currentIndexChanged, this, &Plot3DPanel::refreshPreview);
 	connect(_header, &QCheckBox::toggled, this, &Plot3DPanel::refreshPreview);
 	connect(_sourceMode, qOverload<int>(&QComboBox::currentIndexChanged), this, &Plot3DPanel::updateSourceMode);
@@ -658,10 +687,11 @@ void Plot3DPanel::updateScatterOptions()
 {
 	const bool scatter = _primitive && static_cast<Plot3DPrimitive>(_primitive->currentData().toInt()) == Plot3DPrimitive::Scatter;
 	_stemEnabled->setEnabled(scatter);
-	_stemBaseZ->setEnabled(scatter && (_stemEnabled->isChecked() || _scatterFillEnabled->isChecked()));
+	const bool line = _primitive && static_cast<Plot3DPrimitive>(_primitive->currentData().toInt()) == Plot3DPrimitive::Line;
+	_stemBaseZ->setEnabled((scatter && _stemEnabled->isChecked()) || ((scatter || line) && _scatterFillEnabled->isChecked()));
 	_errorBarsEnabled->setEnabled(scatter);
 	_columnError->setEnabled(scatter && _errorBarsEnabled->isChecked());
-	_scatterFillEnabled->setEnabled(scatter);
+	_scatterFillEnabled->setEnabled(scatter || line); // a filled line is a ribbon down to the base plane, like a filled scatter
 }
 
 void Plot3DPanel::updateContourOverlayRow()

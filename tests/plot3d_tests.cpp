@@ -329,6 +329,19 @@ namespace
 			CHECK(az * bx - ax * bz > 0.0f); // geometric normal points +Y above and below the base
 		}
 
+		Plot3DLineData fillLine;
+		fillLine.samples.push_back(Plot3DSample{ { 0, 0, 1 }, 1.0 });
+		fillLine.samples.push_back(Plot3DSample{ { 1, 0, 2 }, 2.0 });
+		fillLine.samples.push_back(Plot3DSample{ { 2, 1, 3 }, 3.0 });
+		Plot3DMeshData lineFill;
+		CHECK(buildPlot3DLineFillMesh(fillLine, -1.0, lineFill, &error));
+		CHECK(lineFill.vertexCount() == 6 && lineFill.indices.size() == 24); // 2 segments x 2 windings x 2 triangles
+		CHECK(lineFill.positions[2] == 1.0f && lineFill.positions[5] == -1.0f && lineFill.values[0] == 1.0 && lineFill.values[1] == 1.0);
+		Plot3DLineData onePoint;
+		onePoint.samples.push_back(Plot3DSample{ { 0, 0, 0 }, 0.0 });
+		CHECK(!buildPlot3DLineFillMesh(onePoint, 0.0, lineFill, &error) && !error.isEmpty());
+		CHECK(!buildPlot3DLineFillMesh(fillLine, std::numeric_limits<double>::quiet_NaN(), lineFill, &error));
+
 		Plot3DScatterData empty;
 		CHECK(!buildPlot3DScatterMesh(empty, scatterMesh, &error) && !error.isEmpty());
 
@@ -409,6 +422,12 @@ namespace
 		const double transformed = plot3DTransformAxisValue(-18.0, symlog, &valid);
 		CHECK(valid && std::abs(plot3DInverseAxisValue(transformed, symlog) + 18.0) < 1.0e-10);
 
+		Plot3DAxisConfig logAxis = linear;
+		logAxis.scale = Plot3DAxisScale::Log10;
+		CHECK(plot3DSameAxisScale(linear, linear) && !plot3DSameAxisScale(linear, logAxis));
+		CHECK(plot3DAxisScaleSlope(123.0, linear) == 1.0);
+		CHECK(std::abs(plot3DAxisScaleSlope(100.0, logAxis) - 1.0 / (100.0 * std::log(10.0))) < 1.0e-7);
+		CHECK(plot3DAxisScaleSlope(-5.0, logAxis) == 1.0); // not placeable: neutral
 		Plot3DAxisController controller;
 		std::array<Plot3DAxisConfig, 3> axes{ linear, linear, linear };
 		const double lo[3] = { 0.0, 10.0, -5.0 }, hi[3] = { 4.0, 20.0, 5.0 };
@@ -442,7 +461,7 @@ namespace
 		// Source kinds: the persisted numbers, the classification helpers.
 		Plot3DSourceKind kind = Plot3DSourceKind::Csv;
 		CHECK(plot3DSourceFromInt(7, kind) && kind == Plot3DSourceKind::FormulaPathlines && plot3DSourceInt(kind) == 7);
-		CHECK(!plot3DSourceFromInt(9, kind) && !plot3DSourceFromInt(-1, kind));
+		CHECK(plot3DSourceFromInt(9, kind) && kind == Plot3DSourceKind::ImageSurface && !plot3DSourceFromInt(10, kind) && !plot3DSourceFromInt(-1, kind));
 		CHECK(plot3DSourceIsGenerated(Plot3DSourceKind::ImplicitSurface) && !plot3DSourceIsGenerated(Plot3DSourceKind::Csv)
 		      && !plot3DSourceIsGenerated(Plot3DSourceKind::CsvTimeSeries));
 		CHECK(plot3DSourceIsPathline(Plot3DSourceKind::FormulaPathlines) && plot3DSourceIsPathline(Plot3DSourceKind::CsvTimeSeries)
@@ -450,6 +469,31 @@ namespace
 		CHECK(plot3DSourcePrimitive(Plot3DSourceKind::FormulaVectorField) == Plot3DPrimitive::Quiver
 		      && plot3DSourcePrimitive(Plot3DSourceKind::ParametricCurve) == Plot3DPrimitive::Line
 		      && plot3DSourcePrimitive(Plot3DSourceKind::ImplicitSurface) == Plot3DPrimitive::Surface);
+
+		// An image plane: a textured quad (4 vertices with UVs, one winding), placed by the plane and the ranges.
+		{
+			Plot3DGeneratedSpec image;
+			image.valid = true;
+			image.sourceMode = 9;
+			image.imagePath = QString::fromUtf8(__FILE__); // any existing file stands in for a picture: the Core only checks it exists
+			image.xMinimum = 1.0; image.xMaximum = 3.0; image.yMinimum = 10.0; image.yMaximum = 14.0; image.zMinimum = -2.0; image.zMaximum = 5.0;
+			Plot3DGenerated generated;
+			CHECK(generatePlot3D(image, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error));
+			CHECK(!generated.hasDataset && generated.imagePath == image.imagePath && generated.mesh.vertexCount() == 4
+			      && generated.mesh.uvs.size() == 8 && generated.mesh.indices.size() == 6 && generated.primitiveMode == Plot3DGl::kTriangles);
+			CHECK(generated.mesh.positions[2] == -2.0f && generated.mesh.positions[3] == 3.0f && generated.mesh.positions[4] == 10.0f); // XY: at the Z minimum
+			image.imagePlane = 1; // XZ: x by z, at the Y minimum
+			CHECK(generatePlot3D(image, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error));
+			CHECK(generated.mesh.positions[1] == 10.0f && generated.mesh.positions[2] == -2.0f && generated.mesh.positions[8] == 5.0f);
+			image.imagePlane = 2; // YZ: y by z, at the X minimum
+			CHECK(generatePlot3D(image, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error));
+			CHECK(generated.mesh.positions[0] == 1.0f && generated.mesh.positions[1] == 10.0f && generated.mesh.positions[7] == 14.0f);
+			image.imagePath = QStringLiteral("no/such/picture.png");
+			CHECK(!generatePlot3D(image, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error) && !error.isEmpty());
+			image.imagePath = QString::fromUtf8(__FILE__);
+			image.yMaximum = image.yMinimum;
+			CHECK(!generatePlot3D(image, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error) && !error.isEmpty());
+		}
 
 		// Every preset of every generated source converts to a spec that generates (and the entries mirror the preset lists).
 		CHECK(plot3DPresetEntries(Plot3DSourceKind::FormulaSurface).size() == plot3DFormulaPresets().size());
@@ -652,6 +696,8 @@ namespace
 		session.axesVisible = false;
 		session.referencePlanes = { false, true, true };
 		session.referencePlaneOpacity = 0.4f;
+		session.textLabels.push_back(Plot3DTextLabel{ QStringLiteral("peak"), 1.5, -2.0, 3.25 });
+		session.textLabels.push_back(Plot3DTextLabel{ QStringLiteral("second"), 0.0, 0.0, 0.0 });
 		session.editableCsv = true;
 		session.csvSource = QStringLiteral("x;y;z\n1;2;3\n\"quoted;cell\";5;6\n");
 		session.csvOptions.delimiter = QLatin1Char(';');
@@ -702,6 +748,8 @@ namespace
 		      && restored.generated.xMinimum == -4.5 && restored.generated.zSamples == 240 && restored.generated.parameters == session.generated.parameters
 		      && !restored.automaticColourRange && restored.contourOverlayMode == 2 && restored.contourOverlayLevels == 7
 		      && restored.contourOverlayMeshUuid == session.contourOverlayMeshUuid && !restored.axesVisible && restored.referencePlaneOpacity == 0.4f);
+		CHECK(restored.textLabels.size() == 2 && restored.textLabels[0].text == QStringLiteral("peak") && restored.textLabels[0].x == 1.5
+			&& restored.textLabels[0].y == -2.0 && restored.textLabels[0].z == 3.25 && restored.textLabels[1].text == QStringLiteral("second"));
 		CHECK(restored.referencePlanes == session.referencePlanes);
 		CHECK(restored.editableCsv && restored.csvSource == session.csvSource);
 		CHECK(restored.csvOptions.delimiter == QLatin1Char(';') && !restored.csvOptions.firstRowIsHeader);

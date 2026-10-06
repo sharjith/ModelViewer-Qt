@@ -52,8 +52,8 @@ Axis/viewer features (not separate plot types, but real, needed by every primiti
   widget is a small corner gizmo, not a full labelled axis box with ticks) - see section 4.
 
 Implemented as Scatter variants rather than separate primitives: symmetric Z error bars and translucent fill to a
-base plane. Still deferred: general line fill-between/fill-under, text annotations (adapt the existing CAD Annotation
-system), and 2D images in 3D (a textured flat polygon).
+base plane. Since added (branch `feature/plot3d-extras`): a Line can be filled to the base plane the same way; text notes at
+data coordinates; and an image on a plane (a textured quad, source 9). Still deferred: fill *between* two curves.
 
 ## 3. Architecture
 
@@ -373,5 +373,24 @@ Ordered roughly by value. Everything from the earlier gap list that was worth do
 4. **Synchronised playback.** The shared playback bar plays one item at a time (a Simulation result or an animated pathline
    plot); playing both under one clock would need a mapping between result steps and pathline time.
 5. **Formula parser error messages** are English literals (item 26).
-6. **Deferred plot features:** general line fill-between / fill-under, text annotations (adapt the CAD Annotation system) and
-   2D images in 3D.
+6. **Deferred plot features:** fill between two curves (fill under a line to the base plane is done).
+
+### Branch `feature/plot3d-extras` (merged to `dev` after the refactor and the point / line export)
+
+- **Fill under a line:** a CSV Line plot can be filled to Base Z (`buildPlot3DLineFillMesh`): a translucent ribbon, coloured along the
+  line, drawn like the filled scatter. Edit Plot > Rebuild now honours a changed Base Z (stems and fills).
+- **Text notes:** `Plot3DSession::textLabels` (text + data x/y/z), edited in a table in the 3D Plot tab, drawn in the axes box through
+  the axes' scales (so a log axis places them), saved in the session JSON. They follow the plot's visibility and the axes box.
+- **Axis scales:** Log 10 / SymLog now move the plot's meshes (`plot3DRescaleVertices`: the old scale's inverse, then the new scale,
+  with the normals corrected for the stretch) instead of only relabelling the box; every rebuild path rescales to the plot's current
+  axes. Saved meshes already hold the transformed positions, so nothing extra is stored. Quiver and voxel plots stay Linear (their
+  renderers cannot follow a vertex transform). A scale the range cannot show (Log 10 over a range reaching zero) is refused with a
+  message. Limit: each plot is scaled by its own axes, but the box follows the active plot's, so plots with different scales disagree.
+- **Image on a plane (source 9, `Plot3DSourceKind::ImageSurface`):** a textured quad (4 vertices with UVs, one winding) placed by a
+  plane (XY / XZ / YZ), the plane's two ranges and the third range's minimum; the dialog fits the ranges to the picture's aspect
+  ratio. Built as a Surface mesh source: `Plot3DMeshData::uvs` and `Plot3DGenerated::imagePath` carry the picture; the spec saves
+  the path and plane. Each image plot uploads its **own** GL texture: the viewport's shared texture cache returns the same id to every
+  mesh using a file, but a mesh deletes its textures on destruction, so a cleared Preview left a dead id in the cache and the next
+  plot of the picture came out black. Image plots take no colour ramp, overlay or legend (their pixels are their colour; the
+  analysis overlay would paint them black / grey), and are skipped by the baked-colour export. One winding only: two coplanar
+  copies fight for the depth test and the back-facing one is shaded as a dark back face in the Blinn-Phong mode.

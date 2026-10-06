@@ -13,13 +13,17 @@
 #include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSignalBlocker>
+#include <QHeaderView>
 #include <QSpinBox>
+#include <QTableWidget>
 #include <QVBoxLayout>
 
 #include <array>
+#include <cmath>
 
 Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	: QWidget(parent)
@@ -154,6 +158,28 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	}
 	layout->addWidget(axesGroup);
 
+	// Text notes at data coordinates: a small table (X, Y, Z, text) edited in place.
+	_notesGroup = new QGroupBox(this);
+	auto* notesLayout = new QVBoxLayout(_notesGroup);
+	_notesTable = new QTableWidget(0, 4, _notesGroup);
+	_notesTable->setMinimumHeight(110);
+	_notesTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+	_notesTable->setSelectionMode(QAbstractItemView::SingleSelection);
+	_notesTable->horizontalHeader()->setStretchLastSection(true);
+	_notesTable->verticalHeader()->setVisible(false);
+	notesLayout->addWidget(_notesTable);
+	auto* notesButtons = new QHBoxLayout();
+	_addNoteButton = new QPushButton(_notesGroup);
+	_removeNoteButton = new QPushButton(_notesGroup);
+	notesButtons->addWidget(_addNoteButton);
+	notesButtons->addWidget(_removeNoteButton);
+	notesButtons->addStretch(1);
+	notesLayout->addLayout(notesButtons);
+	layout->addWidget(_notesGroup);
+	connect(_addNoteButton, &QPushButton::clicked, this, &Plot3DControlsPanel::addTextLabel);
+	connect(_removeNoteButton, &QPushButton::clicked, this, &Plot3DControlsPanel::removeTextLabel);
+	connect(_notesTable, &QTableWidget::itemChanged, this, [this](QTableWidgetItem*) { applyTextLabels(); });
+
 	_axisStatus = new QLabel(this);
 	_axisStatus->setWordWrap(true);
 	layout->addWidget(_axisStatus);
@@ -273,6 +299,13 @@ void Plot3DControlsPanel::applyTexts()
 	_referencePlaneOpacity->setToolTip(tr("Opacity of the selected reference planes."));
 	for (QCheckBox* automatic : _axisAutomatic)
 		automatic->setText(tr("Auto"));
+	_notesGroup->setTitle(tr("Text notes"));
+	_notesTable->setHorizontalHeaderLabels({ tr("X"), tr("Y"), tr("Z"), tr("Text") });
+	_notesTable->setToolTip(tr("Notes placed at a point of the plot, in its own data coordinates. Edit a cell to change it.\n"
+	                           "They are drawn in the axes box, so they follow the plot's visibility and its axes."));
+	_addNoteButton->setText(tr("Add note"));
+	_addNoteButton->setToolTip(tr("Add a note at the centre of the plot's data."));
+	_removeNoteButton->setText(tr("Remove note"));
 }
 
 void Plot3DControlsPanel::retranslate()
@@ -306,6 +339,12 @@ void Plot3DControlsPanel::refreshState()
 		QSignalBlocker(_axisLabels[2]), QSignalBlocker(_axisScales[2]), QSignalBlocker(_axisAutomatic[2]), QSignalBlocker(_axisMinimum[2]), QSignalBlocker(_axisMaximum[2]), QSignalBlocker(_axisTicks[2]) };
 	_addPlotButton->setEnabled(_viewer);
 	_editPlotButton->setEnabled(false);
+	const bool rebuildNotes = !_applyingNotes;
+	if (rebuildNotes)
+	{
+		const QSignalBlocker clearBlock(_notesTable);
+		_notesTable->setRowCount(0);
+	}
 	_plotSelector->clear();
 	for (const Plot3DSession& session : sessions) _plotSelector->addItem(session.name, session.meshUuid);
 	const int activeIndex = _plotSelector->findData(active);
@@ -320,6 +359,20 @@ void Plot3DControlsPanel::refreshState()
 		_barWidthScale, _barDepthScale };
 	for (QWidget* control : controls)
 		control->setEnabled(available);
+	_notesGroup->setEnabled(available);
+	if (available && rebuildNotes)
+	{
+		const QSignalBlocker notesBlock(_notesTable);
+		_notesTable->setRowCount(static_cast<int>(session->textLabels.size()));
+		for (int row = 0; row < _notesTable->rowCount(); ++row)
+		{
+			const Plot3DTextLabel& note = session->textLabels[static_cast<std::size_t>(row)];
+			_notesTable->setItem(row, 0, new QTableWidgetItem(QString::number(note.x, 'g', 10)));
+			_notesTable->setItem(row, 1, new QTableWidgetItem(QString::number(note.y, 'g', 10)));
+			_notesTable->setItem(row, 2, new QTableWidgetItem(QString::number(note.z, 'g', 10)));
+			_notesTable->setItem(row, 3, new QTableWidgetItem(note.text));
+		}
+	}
 	if (!available)
 	{
 		_contourLevelsLabel->setVisible(false);
@@ -352,7 +405,8 @@ void Plot3DControlsPanel::refreshState()
 	_referencePlaneOpacity->setEnabled(true);
 	_plotTitle->setText(session->title);
 	const bool isContour = session->primitive == Plot3DPrimitive::Contour;
-	const bool isSurface = session->primitive == Plot3DPrimitive::Surface;
+	const bool isImage = session->generated.valid && session->generated.sourceMode == 9; // a picture on a plane: its pixels are its colour
+	const bool isSurface = session->primitive == Plot3DPrimitive::Surface && !isImage;
 	const bool showLevels = isContour || (isSurface && session->contourOverlayMode != 0);
 	const bool isPathline = session->generated.valid && (session->generated.sourceMode == 7 || session->generated.sourceMode == 8);
 	_pathlineAnimation->setVisible(isPathline);
@@ -372,7 +426,7 @@ void Plot3DControlsPanel::refreshState()
 	_contourProjected->setVisible(isContour);
 	_contourProjected->setEnabled(isContour);
 	_contourProjected->setChecked(session->contourProjected);
-	const bool supportsColourControls = true;
+	const bool supportsColourControls = !isImage;
 	const bool supportsColourRange = supportsColourControls && session->primitive != Plot3DPrimitive::Voxel;
 	_colormap->setEnabled(supportsColourControls); _bands->setEnabled(supportsColourRange);
 	_automaticRange->setEnabled(supportsColourRange);
@@ -399,11 +453,85 @@ void Plot3DControlsPanel::refreshState()
 		const Plot3DAxisConfig& axis = session->axes[i];
 		_axisLabels[i]->setText(axis.label); _axisScales[i]->setCurrentIndex(_axisScales[i]->findData(static_cast<int>(axis.scale)));
 		_axisAutomatic[i]->setChecked(axis.automaticRange); _axisMinimum[i]->setValue(axis.minimum); _axisMaximum[i]->setValue(axis.maximum); _axisTicks[i]->setValue(axis.targetTicks);
-		_axisLabels[i]->setEnabled(true); _axisScales[i]->setEnabled(true); _axisAutomatic[i]->setEnabled(true); _axisTicks[i]->setEnabled(true);
+		// Arrows and voxels are drawn by their own renderers, which cannot follow a logarithmic scale: those plots stay Linear.
+		const bool scalable = session->primitive != Plot3DPrimitive::Quiver && session->primitive != Plot3DPrimitive::Voxel;
+		_axisLabels[i]->setEnabled(true); _axisScales[i]->setEnabled(scalable); _axisAutomatic[i]->setEnabled(true); _axisTicks[i]->setEnabled(true);
+		_axisScales[i]->setToolTip(scalable ? QString() : tr("Quiver and voxel plots are always drawn on linear axes."));
 		_axisMinimum[i]->setEnabled(!axis.automaticRange); _axisMaximum[i]->setEnabled(!axis.automaticRange);
 	}
 	_axisStatus->setText(tr("%1. Use the scene tree checkbox to show or hide this plot.")
-		.arg(session->isFilledScatter ? tr("Filled Scatter") : (session->isStem ? tr("Stem") : plot3DPrimitiveName(session->primitive))));
+		.arg(session->isFilledScatter ? (session->primitive == Plot3DPrimitive::Line ? tr("Filled Line") : tr("Filled Scatter")) : (session->isStem ? tr("Stem") : plot3DPrimitiveName(session->primitive))));
+}
+
+void Plot3DControlsPanel::applyTextLabels()
+{
+	if (!_viewer || _plotSelector->currentIndex() < 0 || _applyingNotes)
+		return;
+	std::vector<Plot3DTextLabel> labels;
+	bool valid = true;
+	for (int row = 0; row < _notesTable->rowCount(); ++row)
+	{
+		Plot3DTextLabel note;
+		double* coordinates[3] = { &note.x, &note.y, &note.z };
+		for (int column = 0; column < 3; ++column)
+		{
+			const QTableWidgetItem* item = _notesTable->item(row, column);
+			bool ok = false;
+			const double value = item ? item->text().toDouble(&ok) : 0.0;
+			if (!ok || !std::isfinite(value))
+				valid = false;
+			*coordinates[column] = ok ? value : 0.0;
+		}
+		const QTableWidgetItem* text = _notesTable->item(row, 3);
+		note.text = text ? text->text() : QString();
+		labels.push_back(std::move(note));
+	}
+	if (!valid) // a cell that is not a number: put the plot's own values back
+	{
+		refreshState();
+		return;
+	}
+	_applyingNotes = true;
+	_viewer->setPlot3DTextLabels(_plotSelector->currentData().toUuid(), labels);
+	_applyingNotes = false;
+}
+
+void Plot3DControlsPanel::addTextLabel()
+{
+	if (!_viewer || _plotSelector->currentIndex() < 0)
+		return;
+	const QUuid uuid = _plotSelector->currentData().toUuid();
+	for (const Plot3DSession& session : _viewer->plot3DSessions())
+	{
+		if (session.meshUuid != uuid)
+			continue;
+		std::vector<Plot3DTextLabel> labels = session.textLabels;
+		Plot3DTextLabel note;
+		note.text = tr("Note");
+		note.x = (session.dataMinimum[0] + session.dataMaximum[0]) * 0.5;
+		note.y = (session.dataMinimum[1] + session.dataMaximum[1]) * 0.5;
+		note.z = (session.dataMinimum[2] + session.dataMaximum[2]) * 0.5;
+		labels.push_back(std::move(note));
+		_viewer->setPlot3DTextLabels(uuid, labels); // rebuilds the table through plot3DSessionsChanged
+		return;
+	}
+}
+
+void Plot3DControlsPanel::removeTextLabel()
+{
+	const int row = _notesTable->currentRow();
+	if (!_viewer || _plotSelector->currentIndex() < 0 || row < 0)
+		return;
+	const QUuid uuid = _plotSelector->currentData().toUuid();
+	for (const Plot3DSession& session : _viewer->plot3DSessions())
+	{
+		if (session.meshUuid != uuid || row >= static_cast<int>(session.textLabels.size()))
+			continue;
+		std::vector<Plot3DTextLabel> labels = session.textLabels;
+		labels.erase(labels.begin() + row);
+		_viewer->setPlot3DTextLabels(uuid, labels);
+		return;
+	}
 }
 
 void Plot3DControlsPanel::applyColourState()
@@ -460,5 +588,10 @@ void Plot3DControlsPanel::applyAxisState()
 		axes[i].minimum = _axisMinimum[i]->value(); axes[i].maximum = _axisMaximum[i]->value();
 		axes[i].targetTicks = _axisTicks[i]->value();
 	}
-	_viewer->applyPlot3DAxisConfig(sessions[index].meshUuid, axes);
+	if (!_viewer->applyPlot3DAxisConfig(sessions[index].meshUuid, axes))
+	{
+		// Put the controls back to the plot's own settings, and say why nothing changed.
+		refreshState();
+		QMessageBox::warning(this, tr("Axis scale"), tr("These axis settings were not applied: the range is not valid for the selected scale (a Log 10 axis needs a range above zero)."));
+	}
 }

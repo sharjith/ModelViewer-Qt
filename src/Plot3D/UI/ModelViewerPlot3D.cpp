@@ -27,6 +27,27 @@ Plot3DSession* sessionFor(QVector<Plot3DSession>& sessions, const QUuid& uuid)
 	return nullptr;
 }
 
+// An image plane: a textured quad whose pixels are its colour, so no colour ramp, overlay or legend applies to it.
+bool isImagePlot(const Plot3DSession& session)
+{
+	return session.generated.valid && session.generated.sourceMode == 9;
+}
+
+// The axes a mesh built straight from data is in (every scale Linear).
+const std::array<Plot3DAxisConfig, 3> kRawAxes{};
+
+// Re-lays one plot mesh out from the axis scales it is currently drawn with to new ones (its colours and indices are kept).
+void rescaleMesh(ViewportWidget* viewport, SceneMesh* mesh, const std::array<Plot3DAxisConfig, 3>& from, const std::array<Plot3DAxisConfig, 3>& to)
+{
+	if (!viewport || !mesh)
+		return;
+	std::vector<Vertex> vertices = mesh->vertices();
+	plot3DRescaleVertices(vertices, from, to);
+	viewport->makeCurrent();
+	mesh->setMeshData(vertices, mesh->indices());
+	viewport->doneCurrent();
+}
+
 bool visiblePlotBounds(const ModelViewer* viewer, std::array<double, 3>& minimum, std::array<double, 3>& maximum)
 {
 	if (!viewer)
@@ -78,7 +99,30 @@ void applyAxes(ModelViewer* viewer, const Plot3DSession* session)
 	Plot3DAxisLayout layout;
 	QString error;
 	if (controller.buildLayout(session->axes, minimum.data(), maximum.data(), layout, &error, session->title))
+	{
+		// Every visible plot's text notes, placed through the shared axes' scales (a note a log axis cannot place is skipped).
+		for (const Plot3DSession& plot : viewer->plot3DSessions())
+		{
+			if (!plot.visible)
+				continue;
+			for (const Plot3DTextLabel& note : plot.textLabels)
+			{
+				const double data[3] = { note.x, note.y, note.z };
+				QVector3D position;
+				bool placeable = !note.text.trimmed().isEmpty();
+				for (int axis = 0; axis < 3 && placeable; ++axis)
+				{
+					bool ok = false;
+					const double transformed = plot3DTransformAxisValue(data[axis], session->axes[axis], &ok);
+					placeable = ok;
+					position[axis] = static_cast<float>(transformed);
+				}
+				if (placeable)
+					layout.labels.push_back({ note.text, position, QVector3D(1.0f, 0.88f, 0.35f) });
+			}
+		}
 		viewport->setPlot3DAxisLayout(layout);
+	}
 	else
 		viewport->setPlot3DAxisVisible(false);
 }
@@ -153,7 +197,7 @@ void ModelViewer::applyPlot3DColourState(const QUuid& meshUuid, float minimum, f
 {
 	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
 	SceneMesh* mesh = _viewportWidget ? _viewportWidget->getMeshByUuid(meshUuid) : nullptr;
-	if (!session || !mesh)
+	if (!session || !mesh || isImagePlot(*session))
 		return;
 	// The path tracer reads the shown colours through plot3DBakedColors(), so a colour edit must rebuild its scene.
 	struct PathTracerRefresh
@@ -257,7 +301,7 @@ QHash<QUuid, std::vector<float>> ModelViewer::plot3DBakedColors() const
 	for (const Plot3DSession& session : _plot3DSessions)
 	{
 		// Voxel has no coloured mesh; a filled scatter already carries its colours as authored vertex data.
-		if (session.primitive == Plot3DPrimitive::Voxel || session.isFilledScatter || session.values.empty())
+		if (session.primitive == Plot3DPrimitive::Voxel || session.isFilledScatter || session.values.empty() || isImagePlot(session))
 			continue;
 		const float minimum = session.colourMinimum;
 		const float maximum = session.colourMaximum > minimum ? session.colourMaximum : minimum + 1.0f;
@@ -314,6 +358,7 @@ bool ModelViewer::replacePlot3DMesh(const QUuid& meshUuid, const Plot3DMeshData&
 		return false;
 
 	Plot3DMeshUpload upload = plot3DPrepareUpload(data); // vertices, per-vertex colour values and the bounds, as the commit step builds them
+	plot3DRescaleVertices(upload.vertices, kRawAxes, session->axes); // the plot may already be on a log / symlog axis
 
 	_viewportWidget->makeCurrent();
 	mesh->setPrimitiveMode(primitiveMode);
@@ -408,6 +453,7 @@ void ModelViewer::applyPlot3DBarAppearance(const QUuid& meshUuid, float widthSca
 		values[i] = static_cast<float>(data.values[i]);
 	}
 
+	plot3DRescaleVertices(vertices, kRawAxes, session->axes);
 	_viewportWidget->makeCurrent();
 	mesh->setMeshData(vertices, data.indices);
 	_viewportWidget->doneCurrent();
@@ -442,6 +488,7 @@ namespace
 		if (!buildPlot3DContourMesh(session.contourSource, data, levels, &error, projected))
 			return;
 		Plot3DMeshUpload upload = plot3DPrepareUpload(data, false);
+		plot3DRescaleVertices(upload.vertices, kRawAxes, session.axes);
 		viewport->makeCurrent();
 		mesh->setMeshData(upload.vertices, {});
 		session.contourLevels = levels;
@@ -635,11 +682,11 @@ void ModelViewer::applyPlot3DReferencePlanes(const QUuid& meshUuid, const std::a
 	emit plot3DSessionsChanged(false);
 }
 
-void ModelViewer::applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<Plot3DAxisConfig, 3>& axes)
+bool ModelViewer::applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<Plot3DAxisConfig, 3>& axes)
 {
 	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
 	if (!session)
-		return;
+		return false;
 	// Validate before committing the edit.  In particular, a Log10 axis with
 	// non-positive bounds has no drawable layout; retaining that invalid state
 	// would make the panel say it applied settings that the viewport cannot show.
@@ -650,10 +697,47 @@ void ModelViewer::applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<
 	std::array<double, 3> maximum{};
 	if (!visiblePlotBounds(this, minimum, maximum)
 		|| !controller.buildLayout(axes, minimum.data(), maximum.data(), layout, &error, session->title))
-		return;
+		return false;
+	// The geometry follows the scale: every mesh of the plot is moved from the old axes' space to the new one.
+	const std::array<Plot3DAxisConfig, 3> previousAxes = session->axes;
 	session->axes = axes;
+	if (_viewportWidget)
+	{
+		bool moved = false;
+		for (const QUuid& uuid : { session->meshUuid, session->markerMeshUuid, session->contourOverlayMeshUuid })
+		{
+			if (uuid.isNull())
+				continue;
+			SceneMesh* mesh = _viewportWidget->getMeshByUuid(uuid);
+			if (!mesh)
+				continue;
+			rescaleMesh(_viewportWidget, mesh, previousAxes, axes);
+			moved = true;
+		}
+		if (moved)
+		{
+			applyPlot3DColourState(meshUuid, session->colourMinimum, session->colourMaximum, session->colormap, session->bands);
+			if (session->pathlineAnimation)
+				refreshPlot3DPathlineAnimation(meshUuid); // the vertex layout was replaced, so the playback ranges are rebuilt
+			_viewportWidget->updateView();
+		}
+	}
 	if (meshUuid == _activePlot3DMesh)
 		applyAxes(this, session);
+	markNonUndoDocumentModified();
+	emit plot3DSessionsChanged(false);
+	return true;
+}
+
+void ModelViewer::setPlot3DTextLabels(const QUuid& meshUuid, const std::vector<Plot3DTextLabel>& labels)
+{
+	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
+	if (!session)
+		return;
+	session->textLabels = labels;
+	// The labels of every visible plot share the active plot's axes box, so that one is re-laid out whichever plot changed.
+	if (Plot3DSession* active = sessionFor(_plot3DSessions, _activePlot3DMesh))
+		applyAxes(this, active);
 	markNonUndoDocumentModified();
 	emit plot3DSessionsChanged(false);
 }
@@ -754,7 +838,7 @@ void ModelViewer::refreshPlot3DLegend()
 		return;
 	Plot3DSession* session = sessionFor(_plot3DSessions, activePlot3DMeshUuid());
 	const QSet<QUuid> shown = getVisibleUuids();
-	if (!session || !shown.contains(session->meshUuid))
+	if (!session || isImagePlot(*session) || !shown.contains(session->meshUuid))
 	{
 		if (_plot3DLegend)
 			_plot3DLegend->setAliveCheck([]() { return false; });

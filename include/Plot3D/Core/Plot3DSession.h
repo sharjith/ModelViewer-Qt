@@ -26,6 +26,18 @@ struct Plot3DGeneratedSpec
 	double xMinimum = 0.0, xMaximum = 1.0, yMinimum = 0.0, yMaximum = 1.0, zMinimum = 0.0, zMaximum = 1.0;
 	int xSamples = 2, ySamples = 2, zSamples = 2;
 	std::vector<std::pair<QString, double>> parameters; // in the order the dialog lists them
+	// Image plane (source 9): the picture, and which plane it lies in (0 = XY, 1 = XZ, 2 = YZ). The plane's two ranges are the
+	// x / y / z ranges above; the third range's minimum is where the plane sits.
+	QString imagePath;
+	int imagePlane = 0;
+};
+
+// A text note placed at a point in the plot's own data coordinates (not on a mesh surface, so it works for points, lines and
+// quivers too). Drawn in the axes box through the same projected-text path as the tick labels.
+struct Plot3DTextLabel
+{
+	QString text;
+	double x = 0.0, y = 0.0, z = 0.0;
 };
 
 struct Plot3DSession
@@ -91,6 +103,7 @@ struct Plot3DSession
 	QUuid contourOverlayMeshUuid;
 	std::vector<float> overlayValues;
 	std::vector<bool> overlayValid;
+	std::vector<Plot3DTextLabel> textLabels;
 	bool visible = true;
 	bool axesVisible = true;
 	std::array<bool, 3> referencePlanes{ true, false, false }; // XY, XZ, YZ

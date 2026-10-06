@@ -66,6 +66,8 @@ private:
 	void updateSourceMode();                       // shows the controls the selected source uses (see its table of descriptors)
 	QComboBox* presetCombo(Plot3DSourceKind kind) const;
 	void applyPreset();                            // the selected source's preset -> the widgets
+	void browseImage();                            // the image plane's file chooser
+	void fitImageRanges();                         // the plane's two ranges -> the picture's aspect ratio
 	void applySpec(const Plot3DGeneratedSpec& spec); // a definition -> the widgets (presets and Edit Plot both use it)
 	Plot3DGeneratedSpec currentGeneratedSpec() const; // the widgets -> a definition
 	void setParameterEditors(const std::vector<std::pair<QString, double>>& parameters);
@@ -161,6 +163,11 @@ private:
 	QLabel* _formulaYRangeLabel = nullptr;
 	QLabel* _formulaZRangeLabel = nullptr;
 	QLabel* _formulaParametersLabel = nullptr;
+	QLabel* _imageFileLabel = nullptr;
+	QLineEdit* _imageFile = nullptr;
+	QPushButton* _imageBrowse = nullptr;
+	QLabel* _imagePlaneLabel = nullptr;
+	QComboBox* _imagePlane = nullptr;
 	QFormLayout* _formulaParameters = nullptr;
 	QHash<QString, QDoubleSpinBox*> _formulaParameterEditors;
 	QHash<const QComboBox*, QVector<Plot3DPresetEntry>> _presetEntries; // each preset combo's presets, as definitions

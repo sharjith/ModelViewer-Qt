@@ -1,6 +1,7 @@
 #include "Plot3DSessionIO.h"
 
 #include <QJsonArray>
+#include <cmath>
 #include <algorithm>
 #include <QObject>
 
@@ -191,6 +192,11 @@ QJsonObject plot3DSessionToJson(const Plot3DSession& session, const Plot3DRender
 		const Plot3DGeneratedSpec& g = session.generated;
 		QJsonObject spec;
 		spec.insert(QStringLiteral("sourceMode"), g.sourceMode);
+		if (g.sourceMode == 9)
+		{
+			spec.insert(QStringLiteral("imagePath"), g.imagePath);
+			spec.insert(QStringLiteral("imagePlane"), g.imagePlane);
+		}
 		spec.insert(QStringLiteral("presetIndex"), g.presetIndex);
 		spec.insert(QStringLiteral("title"), g.title);
 		spec.insert(QStringLiteral("expression"), g.expression);
@@ -218,6 +224,18 @@ QJsonObject plot3DSessionToJson(const Plot3DSession& session, const Plot3DRender
 	json.insert(QStringLiteral("contourOverlayMeshUuid"), session.contourOverlayMeshUuid.isNull()
 		? QString() : session.contourOverlayMeshUuid.toString(QUuid::WithoutBraces));
 
+	if (!session.textLabels.empty())
+	{
+		QJsonArray labels;
+		for (const Plot3DTextLabel& label : session.textLabels)
+		{
+			QJsonObject entry;
+			entry.insert(QStringLiteral("text"), label.text);
+			entry.insert(QStringLiteral("position"), QJsonArray{ label.x, label.y, label.z });
+			labels.append(entry);
+		}
+		json.insert(QStringLiteral("textLabels"), labels);
+	}
 	json.insert(QStringLiteral("axesVisible"), session.axesVisible);
 	QJsonArray planes;
 	for (bool plane : session.referencePlanes)
@@ -351,6 +369,8 @@ bool plot3DSessionFromJson(const QJsonObject& json, const std::vector<QByteArray
 		Plot3DGeneratedSpec& g = session.generated;
 		g.valid = true;
 		g.sourceMode = spec.value(QStringLiteral("sourceMode")).toInt(0);
+		g.imagePath = spec.value(QStringLiteral("imagePath")).toString();
+		g.imagePlane = std::clamp(spec.value(QStringLiteral("imagePlane")).toInt(0), 0, 2);
 		g.presetIndex = spec.value(QStringLiteral("presetIndex")).toInt(-1);
 		g.title = spec.value(QStringLiteral("title")).toString();
 		g.expression = spec.value(QStringLiteral("expression")).toString();
@@ -365,13 +385,25 @@ bool plot3DSessionFromJson(const QJsonObject& json, const std::vector<QByteArray
 		for (const QJsonValue& entry : spec.value(QStringLiteral("parameters")).toArray())
 			g.parameters.emplace_back(entry.toObject().value(QStringLiteral("name")).toString(), entry.toObject().value(QStringLiteral("value")).toDouble());
 		// A source this build does not know (a newer file) cannot be edited; leave the plot as ordinary content.
-		if (g.sourceMode < 1 || g.sourceMode > 8)
+		if (g.sourceMode < 1 || g.sourceMode > 9)
 			g = Plot3DGeneratedSpec();
 	}
 	session.contourOverlayMode = std::clamp(json.value(QStringLiteral("contourOverlayMode")).toInt(0), 0, 2);
 	session.contourOverlayLevels = std::clamp(json.value(QStringLiteral("contourOverlayLevels")).toInt(10), 1, 40);
 	session.contourOverlayMeshUuid = QUuid(json.value(QStringLiteral("contourOverlayMeshUuid")).toString());
 
+	for (const QJsonValue& value : json.value(QStringLiteral("textLabels")).toArray())
+	{
+		const QJsonObject entry = value.toObject();
+		const QJsonArray position = entry.value(QStringLiteral("position")).toArray();
+		if (position.size() != 3)
+			continue;
+		Plot3DTextLabel label;
+		label.text = entry.value(QStringLiteral("text")).toString();
+		label.x = position.at(0).toDouble(); label.y = position.at(1).toDouble(); label.z = position.at(2).toDouble();
+		if (std::isfinite(label.x) && std::isfinite(label.y) && std::isfinite(label.z))
+			session.textLabels.push_back(std::move(label));
+	}
 	session.axesVisible = json.value(QStringLiteral("axesVisible")).toBool(true);
 	const QJsonArray planes = json.value(QStringLiteral("referencePlanes")).toArray();
 	for (int plane = 0; plane < 3 && plane < planes.size(); ++plane)

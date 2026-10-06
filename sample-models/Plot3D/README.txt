@@ -164,6 +164,21 @@ Filled scatter-to-plane: open scatter_clusters.csv, select Scatter, map Colour v
 Fill to Base Z, and choose a base such as -3. Preview and Build should show translucent blue/green/red ribbons;
 the axes box must include the selected base.
 
+Fill under a line: open line_helix.csv, select Line / Curve and tick "Fill to Base Z" (base 0). Preview and Build show a translucent
+curtain from the helix down to the base plane, coloured along the line. Edit Plot, change the base (for example to 2) and Rebuild:
+the curtain must follow the new base, flipping to hang from the line where it lies below it.
+
+Text notes: select a plot, then in the 3D Plot tab's "Text notes" group click Add note and edit its X / Y / Z / Text cells. The note is
+drawn in the axes box at that data point and follows the plot's visibility; save and reopen to check it persists.
+
+Axis scales: set an axis to SymLog (any data) or Log 10 (a range above zero, for example scatter_error_bars.csv's Z). The plot is
+re-laid out on the new scale and the box keeps its size; Linear restores it. Log 10 over a range reaching zero is refused with a message.
+
+Image on a plane: choose Data source "Image on a plane", pick image_gradient.png and choose the XY plane; the ranges start at X -3..3, Y -2..2, Z 0..2
+(the plane sits at the Z minimum, here 0). The picture appears on that rectangle with its "L" mark in the top-left corner (viewed from above).
+The ranges adapt to the picture's shape when you pick it or change the plane (image_gradient.png is 320 x 200). Try the XZ and YZ planes, then Edit Plot (change the plane or the ranges) and Rebuild; export to GLB to check the texture comes with it.
+
+
 Edit/rebuild check
 ------------------
 Build any CSV-backed plot, select it in Active plot, and click Edit Plot. The dialog should restore the original

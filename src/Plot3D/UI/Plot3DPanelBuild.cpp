@@ -55,7 +55,8 @@ QString Plot3DPanel::suggestedPlotName(const Plot3DGenerated& generated, const P
 	{
 		const bool scatter = generated.primitive == Plot3DPrimitive::Scatter;
 		type = scatter && options.filled ? tr("Filled Scatter")
-			: (scatter && options.stems ? tr("Stem") : (scatter && options.errorBars ? tr("Error Bars") : plot3DPrimitiveName(generated.primitive)));
+			: (generated.primitive == Plot3DPrimitive::Line && options.filled ? tr("Filled Line")
+			: (scatter && options.stems ? tr("Stem") : (scatter && options.errorBars ? tr("Error Bars") : plot3DPrimitiveName(generated.primitive))));
 		break;
 	}
 	case Plot3DSourceKind::FormulaSurface:
@@ -66,6 +67,7 @@ QString Plot3DPanel::suggestedPlotName(const Plot3DGenerated& generated, const P
 	case Plot3DSourceKind::ParametricSurface: type = title.isEmpty() ? tr("Parametric") : title; break;
 	case Plot3DSourceKind::ImplicitSurface: type = title.isEmpty() ? tr("Implicit Surface") : title; break;
 	case Plot3DSourceKind::FormulaVectorField: type = title.isEmpty() ? tr("Vector Field") : title; break;
+	case Plot3DSourceKind::ImageSurface: type = title.isEmpty() ? tr("Image") : title; break;
 	case Plot3DSourceKind::FormulaPathlines: type = title.isEmpty() ? tr("Pathlines") : title; break;
 	case Plot3DSourceKind::CsvTimeSeries: type = tr("Pathlines"); break;
 	case Plot3DSourceKind::ParametricCurve:
@@ -155,7 +157,8 @@ void Plot3DPanel::rebuildCurrent()
 		binding = csvBinding();
 		csv = &binding;
 	}
-	if (!plot3DRebuild(_modelViewer, _editingMeshUuid, generated, csv, &error))
+	const double baseZ = _stemBaseZ->value();
+	if (!plot3DRebuild(_modelViewer, _editingMeshUuid, generated, csv, &error, kind == Plot3DSourceKind::Csv ? &baseZ : nullptr))
 	{
 		QMessageBox::warning(this, tr("Rebuild Plot"), error);
 		return;

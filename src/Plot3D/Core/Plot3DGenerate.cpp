@@ -1,5 +1,6 @@
 #include "Plot3DGenerate.h"
 
+#include <QFileInfo>
 #include <QHash>
 #include <QObject>
 
@@ -10,7 +11,7 @@
 
 bool plot3DSourceFromInt(int value, Plot3DSourceKind& kind)
 {
-	if (value < 0 || value > 8)
+	if (value < 0 || value > 9)
 		return false;
 	kind = static_cast<Plot3DSourceKind>(value);
 	return true;
@@ -126,6 +127,45 @@ bool generatePlot3D(const Plot3DGeneratedSpec& spec, Plot3DPrimitive formulaPrim
 		out.primitiveMode = Plot3DGl::kLines;
 		return buildPlot3DFormulaPathlines(spec.xExpression, spec.yExpression, spec.zExpression, spec.xMinimum, spec.xMaximum, spec.yMinimum,
 			spec.yMaximum, spec.ySamples, spec.zMinimum, spec.zMaximum, spec.zSamples, parameters, out.mesh, error);
+	case Plot3DSourceKind::ImageSurface:
+	{
+		if (spec.imagePath.trimmed().isEmpty() || !QFileInfo::exists(spec.imagePath))
+		{
+			if (error) *error = QObject::tr("Choose an image file.");
+			return false;
+		}
+		// The plane's two ranges, and where it sits along its normal.
+		const int plane = std::clamp(spec.imagePlane, 0, 2);
+		const double uLo = plane == 2 ? spec.yMinimum : spec.xMinimum, uHi = plane == 2 ? spec.yMaximum : spec.xMaximum;
+		const double vLo = plane == 0 ? spec.yMinimum : spec.zMinimum, vHi = plane == 0 ? spec.yMaximum : spec.zMaximum;
+		const double offset = plane == 0 ? spec.zMinimum : (plane == 1 ? spec.yMinimum : spec.xMinimum);
+		if (!(uHi > uLo) || !(vHi > vLo) || !std::isfinite(uLo) || !std::isfinite(uHi) || !std::isfinite(vLo) || !std::isfinite(vHi) || !std::isfinite(offset))
+		{
+			if (error) *error = QObject::tr("The image's ranges must have a maximum above the minimum.");
+			return false;
+		}
+		const double corners[4][2] = { { uLo, vLo }, { uHi, vLo }, { uHi, vHi }, { uLo, vHi } };
+		const float uvs[4][2] = { { 0.0f, 1.0f }, { 1.0f, 1.0f }, { 1.0f, 0.0f }, { 0.0f, 0.0f } }; // the picture's top edge is the larger v
+		const float normal[3] = { plane == 2 ? 1.0f : 0.0f, plane == 1 ? -1.0f : 0.0f, plane == 0 ? 1.0f : 0.0f };
+		Plot3DMeshData quad;
+		for (int i = 0; i < 4; ++i)
+		{
+			const double u = corners[i][0], v = corners[i][1];
+			const double xyz[3] = { plane == 2 ? offset : u, plane == 0 ? v : (plane == 1 ? offset : u), plane == 0 ? offset : v };
+			quad.positions.insert(quad.positions.end(), { static_cast<float>(xyz[0]), static_cast<float>(xyz[1]), static_cast<float>(xyz[2]) });
+			quad.normals.insert(quad.normals.end(), { normal[0], normal[1], normal[2] });
+			quad.values.push_back(std::numeric_limits<double>::quiet_NaN()); // no colour value: the picture is the colour
+			quad.uvs.insert(quad.uvs.end(), { uvs[i][0], uvs[i][1] });
+		}
+		// One winding only: two coplanar copies fight for the depth test and the back-facing one is shaded dark. The picture faces
+		// +Z (XY), -Y (XZ) or +X (YZ); from the other side it reads mirrored.
+		quad.indices = { 0, 1, 2, 0, 2, 3 };
+		out.primitive = Plot3DPrimitive::Surface;
+		out.primitiveMode = Plot3DGl::kTriangles;
+		out.mesh = std::move(quad);
+		out.imagePath = spec.imagePath;
+		return true;
+	}
 	case Plot3DSourceKind::CsvTimeSeries:
 		if (!table || !columns)
 		{
@@ -157,8 +197,15 @@ bool plot3DMeshForDataset(const Plot3DDataset& dataset, const Plot3DMeshOptions&
 		return std::holds_alternative<Plot3DSurfaceData>(dataset.content)
 			&& buildPlot3DContourMesh(std::get<Plot3DSurfaceData>(dataset.content), out, options.contourLevels, error, options.contourProjected);
 	case Plot3DPrimitive::Line:
+		if (!std::holds_alternative<Plot3DLineData>(dataset.content))
+			return false;
+		if (options.filled)
+		{
+			primitiveMode = Plot3DGl::kTriangles;
+			return buildPlot3DLineFillMesh(std::get<Plot3DLineData>(dataset.content), options.baseZ, out, error);
+		}
 		primitiveMode = Plot3DGl::kLineStrip;
-		return std::holds_alternative<Plot3DLineData>(dataset.content) && buildPlot3DLineMesh(std::get<Plot3DLineData>(dataset.content), out, error);
+		return buildPlot3DLineMesh(std::get<Plot3DLineData>(dataset.content), out, error);
 	case Plot3DPrimitive::Scatter:
 	{
 		if (!std::holds_alternative<Plot3DScatterData>(dataset.content))
@@ -215,7 +262,7 @@ bool plot3DDatasetBounds(const Plot3DDataset& dataset, const Plot3DMeshOptions& 
 	}
 	if (!plot3DDataBounds(scaled, minimum, maximum))
 		return false;
-	if (dataset.primitive == Plot3DPrimitive::Scatter && (options.stems || options.filled))
+	if ((dataset.primitive == Plot3DPrimitive::Scatter && (options.stems || options.filled)) || (dataset.primitive == Plot3DPrimitive::Line && options.filled))
 	{
 		minimum[2] = std::min(minimum[2], options.baseZ);
 		maximum[2] = std::max(maximum[2], options.baseZ);

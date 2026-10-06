@@ -18,6 +18,7 @@ struct Plot3DMeshData
 	std::vector<float> normals;        // x,y,z per vertex, parallel to positions (see buildPlot3DLineMesh()/
 	                                    // buildPlot3DScatterMesh()'s doc comments: unused placeholder for those two)
 	std::vector<double> values;        // one scalar per vertex, parallel to positions - for colour-by-value
+	std::vector<float> uvs;            // optional: u,v per vertex (an image plane); empty for every other plot
 	std::vector<unsigned int> indices; // triangle list for Surface/Bar; deliberately EMPTY for Line/Scatter, whose
 	                                    // vertices are drawn in order via glDrawArrays with a GL_LINE_STRIP/
 	                                    // GL_POINTS primitive mode instead - see buildPlot3DLineMesh()'s doc comment
@@ -82,6 +83,10 @@ bool buildPlot3DErrorBarMesh(const Plot3DScatterData& data, Plot3DMeshData& out,
 // these triangles with a transparent material; the scalar value is repeated at all four vertices so each ribbon
 // retains one colour from the selected colour map.
 bool buildPlot3DScatterFillMesh(const Plot3DScatterData& data, double baseZ, Plot3DMeshData& out, QString* error = nullptr);
+
+// Builds a continuous ribbon from a Line's polyline down (or up) to `baseZ`: one quad per segment, drawn from both sides, with the
+// segment's end-point values on the vertices so the colour map follows the line. Rendered like the filled scatter (transparent).
+bool buildPlot3DLineFillMesh(const Plot3DLineData& data, double baseZ, Plot3DMeshData& out, QString* error = nullptr);
 
 // Builds one closed, flat-shaded cuboid per bar. Vertices are intentionally duplicated per face so every face has
 // the correct hard normal; the bar's scalar value is repeated for all 24 vertices so colour-by-value stays uniform.

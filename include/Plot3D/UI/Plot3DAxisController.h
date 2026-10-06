@@ -64,6 +64,11 @@ double plot3DInverseAxisValue(double value, const Plot3DAxisConfig& config);
 std::vector<Plot3DAxisTick> plot3DGenerateAxisTicks(double minimum, double maximum,
 	const Plot3DAxisConfig& config);
 
+// True when two configs draw an axis the same way (same scale, and the same linear threshold for SymLog).
+bool plot3DSameAxisScale(const Plot3DAxisConfig& a, const Plot3DAxisConfig& b);
+// d(transformed)/d(value) at `value`: how much the scale stretches that axis there (1 for Linear).
+double plot3DAxisScaleSlope(double value, const Plot3DAxisConfig& config);
+
 class Plot3DAxisController
 {
 public:
