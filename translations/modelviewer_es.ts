@@ -7393,7 +7393,7 @@ Vistaal Ocultar/Mostrar</translation>
         <translation type="vanished">Brillo</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="980"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="1001"/>
         <source>Value</source>
         <translation>Valor</translation>
     </message>
@@ -9274,48 +9274,73 @@ La superficie se muestra con los colores que tenía al guardarla.</translation>
         <translation type="vanished">Las isosuperficies se dibujan sobre la malla sin deformar.</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="599"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="600"/>
         <source> Contours</source>
         <translation> Contornos</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="806"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="732"/>
+        <source>Edit Plot Notes</source>
+        <translation>Editar notas del gráfico</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="827"/>
         <source>New Note</source>
         <translation>Nueva nota</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="806"/>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="833"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="827"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="854"/>
         <source>Note text:</source>
         <translation>Texto de la nota:</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="806"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="827"/>
         <source>Note</source>
         <translation>Nota</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="833"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="837"/>
+        <source>Add Plot Note</source>
+        <translation>Añadir nota al gráfico</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="847"/>
+        <source>Move Plot Note</source>
+        <translation>Mover nota del gráfico</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="854"/>
         <source>Edit Note</source>
         <translation>Editar nota</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="877"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="862"/>
+        <source>Edit Plot Note</source>
+        <translation>Editar nota del gráfico</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="870"/>
+        <source>Delete Plot Note</source>
+        <translation>Eliminar nota del gráfico</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="898"/>
         <source>Plot3D Preview</source>
         <translation>Vista previa de Plot3D</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="977"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="998"/>
         <source>Occupancy</source>
         <translation>Ocupación</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="979"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="1000"/>
         <source>Time</source>
         <translation>Tiempo</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="980"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="1001"/>
         <source>Vector magnitude</source>
         <translation>Magnitud del vector</translation>
     </message>
@@ -9336,7 +9361,7 @@ La superficie se muestra con los colores que tenía al guardarla.</translation>
         <translation type="vanished">%1 - Valor</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="982"/>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="1003"/>
         <source>Colour range for the active 3D plot.</source>
         <translation>Rango de color del gráfico 3D activo.</translation>
     </message>
@@ -9798,9 +9823,24 @@ haga doble clic para editar su texto y clic derecho para eliminarla.</translatio
         <translation>Línea rellena</translation>
     </message>
     <message>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="559"/>
+        <source>Edit Plot Notes</source>
+        <translation>Editar notas del gráfico</translation>
+    </message>
+    <message>
         <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="580"/>
         <source>Note</source>
         <translation>Nota</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="585"/>
+        <source>Add Plot Note</source>
+        <translation>Añadir nota al gráfico</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="602"/>
+        <source>Delete Plot Note</source>
+        <translation>Eliminar nota del gráfico</translation>
     </message>
     <message>
         <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="665"/>
