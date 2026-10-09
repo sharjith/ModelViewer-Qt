@@ -412,6 +412,5 @@ The 3D Plot tab's **Place note** arms a click tool: a click snaps to the nearest
 closest point on each segment for line plots and pathlines), else to the surface point under the cursor, and asks for the note's text
 (multi-line). The note is stored in the plot's data coordinates (the inverse of the axis scales). Notes are drawn on their own
 (`ViewportWidget::drawPlot3DNotes`), so they stay when the axes box is hidden; each follows its own plot's axis scales and visibility. In the
-view a note can be dragged (it slides in the view plane), edited by double-click and deleted from the right-click menu. Not undoable (like the
-other Plot3D settings). The viewport's note signals are connected where the viewport is set up (not in the Simulation hooks, which only run once a
+view a note can be dragged (it slides in the view plane), edited by double-click and deleted from the right-click menu. Undoable (`Plot3DNotesCommand`: the plot's notes before / after; one step per placement, drag, edit, delete or table edit). The viewport's note signals are connected where the viewport is set up (not in the Simulation hooks, which only run once a
 result is opened).
