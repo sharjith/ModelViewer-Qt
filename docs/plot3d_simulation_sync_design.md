@@ -30,6 +30,6 @@ before the code, because the first idea ("match both by progress, 0-100 %") turn
    data, an FRF) are added from a CSV with the chart's right-click menu. Samples: `thermal_probe_test.csv`, `FEM_box_modes_frf.csv`.
 3. **Plot panes in the split view** (only where a 3D plot really needs it): generalise Compare's panes to hold a Plot3D plot (its axes box,
    legend, notes and pathline heads drawn inside the pane, its own camera).
-4. **Probe to history**: right-click a node on a result to put its value over all steps into the chart / a plot.
+4. **Probe to history** (done, small): the existing point-history chart is the probe. Added: right-click a point on a result > "Plot Over Time Here", and the chart's "Add a point from the model" to compare several points on one chart.
 
 Stages 2-4 were re-scoped after finding the existing chart widget; they are revisited when stage 1 is in.

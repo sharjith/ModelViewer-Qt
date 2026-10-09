@@ -56,6 +56,10 @@ result's current step. Clicking or dragging in the chart moves the result to the
 drive each other. Right-click the chart > "Add curve from CSV..." draws another curve on the same axes (test data, a response
 curve) with a legend; "Remove added curves" clears them. The CSV needs two columns, x then y; a header row names the curve.
 
+Quicker probing: right-click a point on a result and choose "Plot Over Time Here" - the chart opens in one step, with no need to arm the
+Plot Over Time button first (not available in Compare mode). To compare several points, right-click the chart > "Add a point from the model",
+then click another point on the same result: its history joins the chart as another curve, named by its position, with a legend.
+
 thermal_probe_test.csv        Synthetic "thermocouple" readings (time, temperature_measured) for the middle of the box's far face
                               (the face at x = 10, opposite the face held at 100) in FEM_box_thermal_transient.frd, time 0.5 .. 10 s:
                               the simulated history of that point plus a little noise and a small offset. Try: open the .frd,

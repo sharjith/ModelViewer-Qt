@@ -13396,6 +13396,17 @@ void ViewportWidget::setSimulationChartPickArmed(bool armed, int pointsNeeded, s
 		emit simulationChartPickArmedChanged(true);
 }
 
+void ViewportWidget::plotOverTimeAt(const QPoint& pixel)
+{
+	// The armed click path with nothing armed: one point, no mesh filter (the caller already checked it is a result). It emits
+	// simulationChartPointsPicked() on a hit; a miss leaves nothing behind.
+	_simulationChartPickPointsNeeded = 1;
+	_simulationChartPickedPoints.clear();
+	_simulationChartPickMeshFilter = {};
+	handleSimulationChartPickClick(pixel);
+	_simulationChartPickedPoints.clear();
+}
+
 void ViewportWidget::handleSimulationChartPickClick(const QPoint& pixel)
 {
 	if (!_selectionManager)
@@ -19460,6 +19471,18 @@ void ViewportWidget::showContextMenu(const QPoint& pos)
 		// Create menu and insert some actions
 		QMenu contextMenu;
 		SceneTreeWidget* treeWidgetModel = _viewer->getTreeModel();
+
+		// Over a Simulation result: its point history in one step (the same chart as Plot Over Time, without arming the tool first). Not in
+		// Compare mode, whose panes need their own picking.
+		if (_selectionManager && !_compareActive)
+		{
+			const MeshSurfaceAnchor probe = _selectionManager->pickSurfaceAnchor(pos);
+			if (probe.isValid() && _viewer->isSimulationResultMesh(probe.meshUuid))
+			{
+				contextMenu.addAction(tr("Plot Over Time Here"), this, [this, pos]() { plotOverTimeAt(pos); });
+				contextMenu.addSeparator();
+			}
+		}
 
 		// Measurement/Annotation get their own dedicated menu, checked
 		// before mesh selection - unlike the mesh branch below (which only
