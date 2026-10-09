@@ -514,7 +514,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	// Connect ViewToolbar rendering mode selection
 	connect(_viewportWidget->getViewToolbar(), &ViewToolbar::renderingModeSelected,
-		this, &ModelViewer::onRenderingModeSelected);
+		this, &ModelViewer::requestRenderingMode);
 
 	connect(_viewportWidget->getViewToolbar(), &ViewToolbar::selectionFilterRequested,
 		this, [this](const QString& filter) {
@@ -7720,6 +7720,34 @@ void ModelViewer::switchToRealisticRendering()
 void ModelViewer::onDisplayModeChanged(int mode)
 {
 	visualizationEnvironmentPanel->onDisplayModeChanged(mode);
+}
+
+// PBR and path tracing exist to show MODELS realistically (reflections, shadows, glass). A Simulation result or a 3D plot is drawn with flat,
+// unlit colours in every mode - the colour map is what carries the data - so those modes change nothing about how it reads and only cost
+// rendering time (and, for path tracing, noise and waiting). Say so in the status bar, without interrupting, when the user picks one of them
+// in a document that has such data.
+void ModelViewer::requestRenderingMode(const QString& mode)
+{
+	const bool realistic = mode == QLatin1String("PBR") || mode == QLatin1String("RayTraced");
+	const bool hasAnalysisData = hasSimulationResults() || !_plot3DSessions.isEmpty();
+	// Only when the mode actually changes: choosing PBR while already in PBR (or path tracing while it is armed) is not a switch.
+	const bool changing = _viewportWidget
+		&& (mode == QLatin1String("RayTraced") ? !_viewportWidget->isRayTracedRenderingModeArmed()
+		                                        : (_viewportWidget->isRayTracedRenderingModeArmed()
+		                                           || _viewportWidget->getRenderingMode() != RenderingMode::PHYSICALLY_BASED_RENDERING));
+	onRenderingModeSelected(mode);
+	if (realistic && hasAnalysisData && changing)
+	{
+		// The status bar holds one clipped line, so it gets the short version and a balloon above it the explanation.
+		MainWindow::showStatusMessage(tr("This rendering mode adds little for Simulation results and 3D plots."), 15000);
+		MainWindow::showStatusBalloon(mode == QLatin1String("RayTraced")
+			? tr("Path tracing is meant for realistic images of models: reflections, shadows and glass. The colours of a Simulation result or a 3D plot "
+			     "are drawn flat in every mode, so it does not change how they read - it only takes longer, and the image has to converge before it "
+			     "is clean.\n\nStandard shading suits results and plots better.")
+			: tr("Physically based rendering is meant for realistic views of models: reflections, shadows and glass. The colours of a Simulation "
+			     "result or a 3D plot are drawn flat in every mode, so it does not change how they read - it only costs rendering time.\n\n"
+			     "Standard shading suits results and plots better."));
+	}
 }
 
 void ModelViewer::onRenderingModeSelected(const QString& mode)

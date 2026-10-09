@@ -833,6 +833,11 @@ public slots:
 	void onDisplayModeChanged(int mode);
 	void onTextureCacheCleared();
 	void onRenderingModeSelected(const QString& mode);
+	// What the user's own choices of a rendering mode (the toolbar, the shortcuts, the view commands, the Render dialog) go through: the same as
+	// onRenderingModeSelected(), followed by a status-bar notice when the document holds Simulation results or 3D plots and the mode is PBR or
+	// path tracing, which add little for them. Programmatic changes (restoring a saved view) call
+	// onRenderingModeSelected() directly and never show it.
+	void requestRenderingMode(const QString& mode);
 	void onCustomMaterialApplied(const Material& mat);
 
 private slots:

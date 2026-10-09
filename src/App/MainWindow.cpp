@@ -16,6 +16,7 @@
 
 #include "ModelViewerApplication.h"
 #include "MainWindow.h"
+#include "StatusBalloon.h"
 #include "AboutDialog.h"
 #include "QuickHelpDialog.h"
 #include "TutorialDialog.h"
@@ -761,15 +762,15 @@ MainWindow::MainWindow(QWidget* parent)
 		});
 	connect(new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A), this), &QShortcut::activated, this, [this]() {
 		if (ModelViewer* child = activeMdiChild())
-			child->onRenderingModeSelected("ADS");
+			child->requestRenderingMode("ADS");
 		});
 	connect(new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P), this), &QShortcut::activated, this, [this]() {
 		if (ModelViewer* child = activeMdiChild())
-			child->onRenderingModeSelected("PBR");
+			child->requestRenderingMode("PBR");
 		});
 	connect(new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_R), this), &QShortcut::activated, this, [this]() {
 		if (ModelViewer* child = activeMdiChild())
-			child->onRenderingModeSelected("RayTraced");
+			child->requestRenderingMode("RayTraced");
 		});
 
 	// Connect undo/redo actions
@@ -1802,6 +1803,20 @@ void MainWindow::showStatusMessage(const QString& message, int timeout)
 	}
 	_mainWindow->statusBar()->showMessage(message, timeout);
 	_mainWindow->statusBar()->update();
+}
+
+void MainWindow::showStatusBalloon(const QString& message, int timeout)
+{
+	if (!_mainWindow)
+		return;
+	if (QThread::currentThread() != _mainWindow->thread())
+	{
+		QMetaObject::invokeMethod(_mainWindow, [message, timeout]() { MainWindow::showStatusBalloon(message, timeout); }, Qt::QueuedConnection);
+		return;
+	}
+	if (!_mainWindow->_statusBalloon)
+		_mainWindow->_statusBalloon = new StatusBalloon(_mainWindow);
+	_mainWindow->_statusBalloon->showText(message, timeout);
 }
 
 void MainWindow::showProgressBar(const bool showCancelButton)

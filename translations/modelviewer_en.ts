@@ -2289,8 +2289,8 @@ Then remove the ones you don&apos;t want with each row&apos;s × button.</source
     </message>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="209"/>
-        <location filename="../src/App/MainWindow.cpp" line="255"/>
-        <location filename="../src/App/MainWindow.cpp" line="1035"/>
+        <location filename="../src/App/MainWindow.cpp" line="256"/>
+        <location filename="../src/App/MainWindow.cpp" line="1036"/>
         <source>Simulation</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3000,7 +3000,7 @@ Then remove the ones you don&apos;t want with each row&apos;s × button.</source
     </message>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="990"/>
-        <location filename="../src/App/MainWindow.cpp" line="1215"/>
+        <location filename="../src/App/MainWindow.cpp" line="1216"/>
         <source>Compare Results...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3100,82 +3100,82 @@ Then remove the ones you don&apos;t want with each row&apos;s × button.</source
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="219"/>
-        <location filename="../src/App/MainWindow.cpp" line="1027"/>
+        <location filename="../src/App/MainWindow.cpp" line="220"/>
+        <location filename="../src/App/MainWindow.cpp" line="1028"/>
         <source>Variants</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="222"/>
-        <location filename="../src/App/MainWindow.cpp" line="1028"/>
+        <location filename="../src/App/MainWindow.cpp" line="223"/>
+        <location filename="../src/App/MainWindow.cpp" line="1029"/>
         <source>Animations</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="225"/>
-        <location filename="../src/App/MainWindow.cpp" line="1029"/>
+        <location filename="../src/App/MainWindow.cpp" line="226"/>
+        <location filename="../src/App/MainWindow.cpp" line="1030"/>
         <source>Cameras</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="246"/>
-        <location filename="../src/App/MainWindow.cpp" line="1033"/>
+        <location filename="../src/App/MainWindow.cpp" line="247"/>
+        <location filename="../src/App/MainWindow.cpp" line="1034"/>
         <source>Selections</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="249"/>
-        <location filename="../src/App/MainWindow.cpp" line="1034"/>
+        <location filename="../src/App/MainWindow.cpp" line="250"/>
+        <location filename="../src/App/MainWindow.cpp" line="1035"/>
         <source>States</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="334"/>
         <location filename="../src/App/MainWindow.cpp" line="335"/>
-        <location filename="../src/App/MainWindow.cpp" line="1053"/>
-        <location filename="../src/App/MainWindow.cpp" line="1054"/>
-        <source>Auto Fit View On Hide/Show</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <location filename="../src/App/MainWindow.cpp" line="336"/>
-        <location filename="../src/App/MainWindow.cpp" line="1058"/>
-        <source>Selection Highlighting</source>
+        <location filename="../src/App/MainWindow.cpp" line="1054"/>
+        <location filename="../src/App/MainWindow.cpp" line="1055"/>
+        <source>Auto Fit View On Hide/Show</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/App/MainWindow.cpp" line="337"/>
         <location filename="../src/App/MainWindow.cpp" line="1059"/>
+        <source>Selection Highlighting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/MainWindow.cpp" line="338"/>
+        <location filename="../src/App/MainWindow.cpp" line="1060"/>
         <source>Selection Highlighting in Viewer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="387"/>
-        <location filename="../src/App/MainWindow.cpp" line="1020"/>
+        <location filename="../src/App/MainWindow.cpp" line="388"/>
+        <location filename="../src/App/MainWindow.cpp" line="1021"/>
         <source>Document</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="413"/>
-        <location filename="../src/App/MainWindow.cpp" line="1048"/>
+        <location filename="../src/App/MainWindow.cpp" line="414"/>
+        <location filename="../src/App/MainWindow.cpp" line="1049"/>
         <source>Materials</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="419"/>
-        <location filename="../src/App/MainWindow.cpp" line="1049"/>
+        <location filename="../src/App/MainWindow.cpp" line="420"/>
+        <location filename="../src/App/MainWindow.cpp" line="1050"/>
         <source>Transformations</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="423"/>
-        <location filename="../src/App/MainWindow.cpp" line="1022"/>
+        <location filename="../src/App/MainWindow.cpp" line="424"/>
+        <location filename="../src/App/MainWindow.cpp" line="1023"/>
         <source>Properties</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="436"/>
-        <location filename="../src/App/MainWindow.cpp" line="1024"/>
+        <location filename="../src/App/MainWindow.cpp" line="437"/>
+        <location filename="../src/App/MainWindow.cpp" line="1025"/>
         <source>Environment</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3185,131 +3185,131 @@ Then remove the ones you don&apos;t want with each row&apos;s × button.</source
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="120"/>
+        <location filename="../src/App/MainWindow.cpp" line="121"/>
         <source>Applying theme...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="144"/>
+        <location filename="../src/App/MainWindow.cpp" line="145"/>
         <source>Creating panels and docks...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="313"/>
-        <location filename="../src/App/MainWindow.cpp" line="1036"/>
+        <location filename="../src/App/MainWindow.cpp" line="314"/>
+        <location filename="../src/App/MainWindow.cpp" line="1037"/>
         <source>3D Plot</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="664"/>
-        <location filename="../src/App/MainWindow.cpp" line="1064"/>
+        <location filename="../src/App/MainWindow.cpp" line="665"/>
+        <location filename="../src/App/MainWindow.cpp" line="1065"/>
         <source>Recent...</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="678"/>
-        <location filename="../src/App/MainWindow.cpp" line="1072"/>
+        <location filename="../src/App/MainWindow.cpp" line="679"/>
+        <location filename="../src/App/MainWindow.cpp" line="1073"/>
         <source>Close the active window</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="683"/>
-        <location filename="../src/App/MainWindow.cpp" line="1074"/>
+        <location filename="../src/App/MainWindow.cpp" line="684"/>
+        <location filename="../src/App/MainWindow.cpp" line="1075"/>
         <source>Close the active document</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="688"/>
-        <location filename="../src/App/MainWindow.cpp" line="1076"/>
+        <location filename="../src/App/MainWindow.cpp" line="689"/>
+        <location filename="../src/App/MainWindow.cpp" line="1077"/>
         <source>Close all the windows</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="693"/>
-        <location filename="../src/App/MainWindow.cpp" line="1078"/>
+        <location filename="../src/App/MainWindow.cpp" line="694"/>
+        <location filename="../src/App/MainWindow.cpp" line="1079"/>
         <source>Move the focus to the next window</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="698"/>
-        <location filename="../src/App/MainWindow.cpp" line="1080"/>
+        <location filename="../src/App/MainWindow.cpp" line="699"/>
+        <location filename="../src/App/MainWindow.cpp" line="1081"/>
         <source>Move the focus to the previous window</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="874"/>
+        <location filename="../src/App/MainWindow.cpp" line="875"/>
         <source>Save Selection Set</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="875"/>
+        <location filename="../src/App/MainWindow.cpp" line="876"/>
         <source>Name for this selection:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="889"/>
+        <location filename="../src/App/MainWindow.cpp" line="890"/>
         <source>Save Scene State</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="890"/>
+        <location filename="../src/App/MainWindow.cpp" line="891"/>
         <source>Name for this state:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="987"/>
+        <location filename="../src/App/MainWindow.cpp" line="988"/>
         <source>Restoring window layout...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="992"/>
-        <location filename="../src/App/MainWindow.cpp" line="1018"/>
-        <location filename="../src/App/MainWindow.cpp" line="1068"/>
+        <location filename="../src/App/MainWindow.cpp" line="993"/>
+        <location filename="../src/App/MainWindow.cpp" line="1019"/>
+        <location filename="../src/App/MainWindow.cpp" line="1069"/>
         <source>Cancel Loading</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="1215"/>
+        <location filename="../src/App/MainWindow.cpp" line="1216"/>
         <source>Exit Compare</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2015"/>
+        <location filename="../src/App/MainWindow.cpp" line="2030"/>
         <source>Tutorial Display Method</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2016"/>
+        <location filename="../src/App/MainWindow.cpp" line="2031"/>
         <source>How would you like to view the tutorial?</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2017"/>
+        <location filename="../src/App/MainWindow.cpp" line="2032"/>
         <source>Choose between an integrated dialog or opening in your web browser.</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2020"/>
+        <location filename="../src/App/MainWindow.cpp" line="2035"/>
         <source>Dialog Window</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2021"/>
+        <location filename="../src/App/MainWindow.cpp" line="2036"/>
         <source>Web Browser</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2024"/>
+        <location filename="../src/App/MainWindow.cpp" line="2039"/>
         <source>Remember my choice</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2072"/>
+        <location filename="../src/App/MainWindow.cpp" line="2087"/>
         <source>Tutorial Not Found</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2073"/>
+        <location filename="../src/App/MainWindow.cpp" line="2088"/>
         <source>Tutorial file not found at:
 %1
 
@@ -3317,12 +3317,12 @@ Please ensure the tutorial files are installed correctly.</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2107"/>
+        <location filename="../src/App/MainWindow.cpp" line="2122"/>
         <source>Logs Folder Not Found</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2108"/>
+        <location filename="../src/App/MainWindow.cpp" line="2123"/>
         <source>The logs folder could not be found at:
 %1
 
@@ -3330,80 +3330,80 @@ Please ensure the application has permission to create and access the logs direc
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2299"/>
+        <location filename="../src/App/MainWindow.cpp" line="2314"/>
         <source>Error</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2299"/>
+        <location filename="../src/App/MainWindow.cpp" line="2314"/>
         <source>
 Unsupported file format: </source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2343"/>
+        <location filename="../src/App/MainWindow.cpp" line="2358"/>
         <source>Open Model File</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2353"/>
+        <location filename="../src/App/MainWindow.cpp" line="2368"/>
         <source>Simulation Results (%1)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2702"/>
+        <location filename="../src/App/MainWindow.cpp" line="2717"/>
         <source>&amp;Undo %1</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2704"/>
-        <location filename="../src/App/MainWindow.cpp" line="2716"/>
+        <location filename="../src/App/MainWindow.cpp" line="2719"/>
+        <location filename="../src/App/MainWindow.cpp" line="2731"/>
         <source>&amp;Undo</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2707"/>
+        <location filename="../src/App/MainWindow.cpp" line="2722"/>
         <source>&amp;Redo %1</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2709"/>
-        <location filename="../src/App/MainWindow.cpp" line="2717"/>
+        <location filename="../src/App/MainWindow.cpp" line="2724"/>
+        <location filename="../src/App/MainWindow.cpp" line="2732"/>
         <source>&amp;Redo</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2829"/>
+        <location filename="../src/App/MainWindow.cpp" line="2844"/>
         <source>Confirm Exit</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2830"/>
+        <location filename="../src/App/MainWindow.cpp" line="2845"/>
         <source>Are you sure you want to exit the application?</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2885"/>
+        <location filename="../src/App/MainWindow.cpp" line="2900"/>
         <source>&amp;%1 %2</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2887"/>
+        <location filename="../src/App/MainWindow.cpp" line="2902"/>
         <source>%1 -&gt; Shift-click to import into active document</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2888"/>
+        <location filename="../src/App/MainWindow.cpp" line="2903"/>
         <source>Click to open • Shift-click to import into active window</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2919"/>
+        <location filename="../src/App/MainWindow.cpp" line="2934"/>
         <source>File Not Found</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2920"/>
+        <location filename="../src/App/MainWindow.cpp" line="2935"/>
         <source>The file &apos;%1&apos; no longer exists. Would you like to remove it from the recent files?</source>
         <translation></translation>
     </message>
@@ -6616,37 +6616,56 @@ Merge them as a plain combination instead (like &quot;Merge Selected&quot;)? Cho
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/ModelViewer.cpp" line="7888"/>
+        <location filename="../src/App/ModelViewer.cpp" line="7742"/>
+        <source>This rendering mode adds little for Simulation results and 3D plots.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/ModelViewer.cpp" line="7744"/>
+        <source>Path tracing is meant for realistic images of models: reflections, shadows and glass. The colours of a Simulation result or a 3D plot are drawn flat in every mode, so it does not change how they read - it only takes longer, and the image has to converge before it is clean.
+
+Standard shading suits results and plots better.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/ModelViewer.cpp" line="7747"/>
+        <source>Physically based rendering is meant for realistic views of models: reflections, shadows and glass. The colours of a Simulation result or a 3D plot are drawn flat in every mode, so it does not change how they read - it only costs rendering time.
+
+Standard shading suits results and plots better.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/ModelViewer.cpp" line="7916"/>
         <source>Apply Material (Eyedropper)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/ModelViewer.cpp" line="7900"/>
+        <location filename="../src/App/ModelViewer.cpp" line="7928"/>
         <source>Replace Material</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/ModelViewer.cpp" line="7991"/>
+        <location filename="../src/App/ModelViewer.cpp" line="8019"/>
         <source>Deselect</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/ModelViewer.cpp" line="7991"/>
+        <location filename="../src/App/ModelViewer.cpp" line="8019"/>
         <source>Select</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/ModelViewer.cpp" line="8083"/>
+        <location filename="../src/App/ModelViewer.cpp" line="8111"/>
         <source>No of Meshes: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/ModelViewer.cpp" line="8212"/>
+        <location filename="../src/App/ModelViewer.cpp" line="8240"/>
         <source>Editing material of %1 (Apply will affect all %2 selected meshes)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/ModelViewer.cpp" line="8215"/>
+        <location filename="../src/App/ModelViewer.cpp" line="8243"/>
         <source>Editing material of %1</source>
         <translation type="unfinished"></translation>
     </message>
@@ -9061,9 +9080,9 @@ Z values are in that column (same X and Y).</source>
 <context>
     <name>QObject</name>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="1827"/>
-        <location filename="../src/App/MainWindow.cpp" line="1853"/>
-        <location filename="../src/App/MainWindow.cpp" line="1892"/>
+        <location filename="../src/App/MainWindow.cpp" line="1842"/>
+        <location filename="../src/App/MainWindow.cpp" line="1868"/>
+        <location filename="../src/App/MainWindow.cpp" line="1907"/>
         <source>Cancel Loading</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14809,12 +14828,12 @@ The panel shows GPU-side texture bindings for the selected mesh.</source>
 <context>
     <name>SimulationPanel</name>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="120"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="152"/>
         <source>Add Result...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="121"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="153"/>
         <source>Add a simulation result (.vtu, .vtk, .frd, .foam) to this
 document, shown as its outer surface coloured by a result
 field.
@@ -14822,80 +14841,80 @@ To open a result in its own document, use File &gt; Open.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="135"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="167"/>
         <source>No simulation result in this document.
 
 Use File &gt; Open to open a .vtu, .vtk, .frd or OpenFOAM .foam result in its own document, or &quot;Add Result...&quot; to add one to this document. A result is shown as its outer surface, coloured by a result field; the controls for the field, range, colormap and contours appear here.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="163"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="195"/>
         <source>The simulation results in this document. Selecting one
 here selects its mesh; selecting a result mesh in the
 scene tree switches this panel to it.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="166"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="198"/>
         <source>Visible</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="168"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="200"/>
         <source>Close</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="169"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="201"/>
         <source>Remove this result from the document (can be undone)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="174"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="206"/>
         <source>Result:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="178"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="210"/>
         <source>Show the selected result next to this one, in two panes
 that share one camera.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="180"/>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="650"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="212"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="670"/>
         <source>Compare</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="184"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="216"/>
         <source>Compare with:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="185"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="217"/>
         <source>Stacked (top / bottom)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="186"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="218"/>
         <source>Same colour range for both</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="187"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="219"/>
         <source>Use one colour range covering both results, so equal
 colours mean equal values (only while both show the same
 unit).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="192"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="224"/>
         <source>Link the cameras</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="193"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="225"/>
         <source>Off: every pane has its own camera - orbit (middle
 button), pan (right button) and zoom (wheel) act on the
 pane under the cursor. On: they move all panes together.
@@ -14903,326 +14922,326 @@ Fit restores each result to its own pane.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="203"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="235"/>
         <source>File:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="207"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="239"/>
         <source>Mesh:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="212"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="244"/>
         <source>Not specified (assumed mm)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="213"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="245"/>
         <source>Millimetres (mm)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="214"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="246"/>
         <source>Centimetres (cm)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="215"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="247"/>
         <source>Metres (m)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="216"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="248"/>
         <source>Inches (in)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="217"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="249"/>
         <source>Feet (ft)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="218"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="250"/>
         <source>The length unit of the model&apos;s coordinates. Mass
 Properties and Surface Analysis use it to convert to
 millimetres. Set from the file when it states one.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="221"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="253"/>
         <source>Model unit:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="224"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="256"/>
         <source>Model size:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="227"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="259"/>
         <source>Field:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="229"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="261"/>
         <source>Component:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="236"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="268"/>
         <source>Quantity:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="238"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="270"/>
         <source>Values are in:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="240"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="272"/>
         <source>Show in:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="246"/>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1005"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="278"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1025"/>
         <source>Automatic (data range)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="247"/>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1006"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="279"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1026"/>
         <source>Custom</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="248"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="280"/>
         <source>Range:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="262"/>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1213"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="294"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1233"/>
         <source>Minimum:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="265"/>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1214"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="297"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1234"/>
         <source>Maximum:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="269"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="301"/>
         <source>Rainbow (sequential)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="270"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="302"/>
         <source>Blue - white - red (diverging)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="271"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="303"/>
         <source>Colormap:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="274"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="306"/>
         <source>Smooth</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="276"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="308"/>
         <source>%1 bands</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="277"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="309"/>
         <source>Contours:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="279"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="311"/>
         <source>Mark minimum and maximum</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="280"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="312"/>
         <source>Label the smallest and largest value on the visible
 surface. The true extreme can lie inside the volume, where
 it cannot be shown.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="286"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="318"/>
         <source>Show deformed shape</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="294"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="326"/>
         <source>Factor applied to the displacements. 1 is the true
 deformation; results are usually exaggerated so that it is
 visible.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="297"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="329"/>
         <source>Auto</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="298"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="330"/>
         <source>Choose a factor that makes the largest displacement about
 a tenth of the model size</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="303"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="335"/>
         <source>Scale factor:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="309"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="341"/>
         <source>Show vector arrows</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="310"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="342"/>
         <source>Draw an arrow along a vector field (velocity, displacement
 ...) at sampled points of the surface, coloured by the
 vector&apos;s magnitude.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="315"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="347"/>
         <source>Arrow field:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="321"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="353"/>
         <source>Relative arrow size on screen. Arrows remain stable while zooming.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="322"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="354"/>
         <source>Arrow size:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="327"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="359"/>
         <source>About this many arrows, spread evenly over the surface.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="328"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="360"/>
         <source>Arrow count:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="330"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="362"/>
         <source>Line thickness:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="337"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="369"/>
         <source>The radius of the tubes drawn around the lines (beams, pipes)
 of this result, in percent of the model size.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="342"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="374"/>
         <source>Scale arrows by magnitude</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="343"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="375"/>
         <source>Off: every arrow has the same length and only the colour
 shows the magnitude.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="354"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="386"/>
         <source>Show stress ellipsoids</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="355"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="387"/>
         <source>Draw an ellipsoid at sampled points of the surface, oriented
 and shaped by the principal directions and magnitudes of a
 symmetric tensor field (stress), coloured by von Mises.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="364"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="396"/>
         <source>Relative ellipsoid size on screen. Ellipsoids remain stable while zooming.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="365"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="397"/>
         <source>Ellipsoid size:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="377"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="409"/>
         <source>Show as volume</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="378"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="410"/>
         <source>Show the field throughout the model as a translucent cloud.
 The visible surface is replaced while this is enabled.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="382"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="414"/>
         <source>Volume field:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="384"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="416"/>
         <source>Low (32)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="385"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="417"/>
         <source>Medium (64)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="386"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="418"/>
         <source>High (96)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="387"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="419"/>
         <source>Very high (128)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="388"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="420"/>
         <source>Voxels along the longest model axis. Higher values show finer detail
 but take longer to rebuild when the field, step or shape changes.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="390"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="422"/>
         <source>Volume quality:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="392"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="424"/>
         <source>Opacity:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="398"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="430"/>
         <source>Colour the Clipping Plane cut with the field</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="399"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="431"/>
         <source>Switch on a Clipping Plane (the Clipping Planes editor);
 the model is cut open there and the cut through the volume
 is drawn coloured with the shown field. It follows the
@@ -15231,12 +15250,12 @@ see iso-surfaces behind it.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="405"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="437"/>
         <source>Show iso-surfaces</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="406"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="438"/>
         <source>Surfaces inside the volume where a node field has a given
 value, evenly spaced between its smallest and largest
 value at the shown step. They lie inside the model: cut it
@@ -15244,22 +15263,22 @@ with a Clipping Plane to see them.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="412"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="444"/>
         <source>Iso-surface field:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="416"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="448"/>
         <source>Iso-surface levels:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="422"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="454"/>
         <source>Show streamlines</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="423"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="455"/>
         <source>Curves that follow a vector field (velocity ...) through the
 volume, in both directions from each seed point, coloured by
 the field&apos;s magnitude. They lie inside the model: cut it with
@@ -15267,241 +15286,241 @@ a Clipping Plane to see them. Only node fields are traced.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="429"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="461"/>
         <source>Streamline field:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="433"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="465"/>
         <source>How many seed points. A seed outside the mesh, or where
 the field is zero, gives no line.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="435"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="467"/>
         <source>Streamline seeds:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="436"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="468"/>
         <source>Seed on the Clipping Plane</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="437"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="469"/>
         <source>Start the lines on the cut of the Clipping Planes instead
 of at random points through the whole volume.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="440"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="472"/>
         <source>Arrowheads</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="441"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="473"/>
         <source>Small cones along the lines that show the direction of the flow.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="458"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="490"/>
         <source>Plot Over Time...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="459"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="491"/>
         <source>Click a point on the model, then plot the current field&apos;s
 value at that point across every step.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="461"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="493"/>
         <source>Plot Over Line...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="462"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="494"/>
         <source>Click two points on the model, then plot the current field&apos;s
 value along the straight line between them, at the step shown.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="464"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="496"/>
         <source>Distribution...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="465"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="497"/>
         <source>A histogram of the current field&apos;s values at the step shown:
 how many nodes/cells fall in each range of values.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="476"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="508"/>
         <source>Charts:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="482"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="514"/>
         <source>Result files do not store units. The unit above is a guess from the field name and the file type until you confirm it; choosing a different &quot;Show in&quot; unit converts the values and the legend.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="621"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="641"/>
         <source>%1 (hidden)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="650"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="670"/>
         <source>Exit Compare</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="674"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="694"/>
         <source>%1 nodes, %2 cells, %3 surface triangles</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="680"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="700"/>
         <source>(unit not specified)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="682"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="702"/>
         <source>%1 x %2 x %3 %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="708"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="728"/>
         <source>Displacement field: %1. Mode shapes have no physical amplitude, so each mode is drawn with its largest displacement at a tenth of the model size; the factor scales that (1 = a tenth).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="710"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="730"/>
         <source>Displacement field: %1 (applied in the file&apos;s own length unit)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="712"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="732"/>
         <source>This result has no displacement field, so it cannot be shown deformed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="768"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="788"/>
         <source>This result has no fields (no values to colour by): only its geometry is shown.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="805"/>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="844"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="825"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="864"/>
         <source> (magnitude)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="809"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="829"/>
         <source>(no node field)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="824"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="844"/>
         <source>(no node vector field)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="851"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="871"/>
         <source>(no scalar node field)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="851"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="871"/>
         <source>(no volume cells)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="883"/>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="914"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="903"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="934"/>
         <source> [cells]</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="887"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="907"/>
         <source>(no vector fields)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="912"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="932"/>
         <source> (%1 components)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="919"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="939"/>
         <source>(no fields)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="944"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="964"/>
         <source>Magnitude</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="945"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="965"/>
         <source>X</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="946"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="966"/>
         <source>Y</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="947"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="967"/>
         <source>Z</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="957"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="977"/>
         <source>Component %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1001"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1021"/>
         <source>Automatic (all steps)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1002"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1022"/>
         <source>Automatic (this step)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1146"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1166"/>
         <source>Not specified</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1160"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1180"/>
         <source>Unit not specified. Choose the quantity, then the unit the values are written in.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1162"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1182"/>
         <source>Assumed from the field name and the file type. Confirm or change it.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1175"/>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1178"/>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1193"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1195"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1198"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1213"/>
         <source>(not specified)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1213"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1233"/>
         <source>Minimum [%1]:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1214"/>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="1234"/>
         <source>Maximum [%1]:</source>
         <translation type="unfinished"></translation>
     </message>
@@ -15586,7 +15605,7 @@ how many nodes/cells fall in each range of values.</source>
 <context>
     <name>SimulationTransferFunctionWidget</name>
     <message>
-        <location filename="../src/Simulation/UI/SimulationTransferFunctionWidget.cpp" line="18"/>
+        <location filename="../src/Simulation/UI/SimulationTransferFunctionWidget.cpp" line="19"/>
         <source>Opacity from low values (left) to high values (right).
 Drag a point; double-click to add; right-click an interior point to remove.</source>
         <translation type="unfinished"></translation>

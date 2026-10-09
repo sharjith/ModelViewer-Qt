@@ -15,6 +15,7 @@ class QMdiArea;
 class QMdiSubWindow;
 class QDockWidget;
 class QSplitter;
+class StatusBalloon;
 
 #ifdef _WIN32
 class QWinTaskbarProgress;
@@ -102,6 +103,8 @@ public:
 	bool openFile(const QString& fileName);
 
 	static void showStatusMessage(const QString& message, int timeout = 0);
+	// A longer explanation as a small wrapped pop-up above the status bar (click it to dismiss; it hides itself after `timeout` ms).
+	static void showStatusBalloon(const QString& message, int timeout = 12000);
 	static void showProgressBar(const bool showCancelButton = true);
 	static void showIndeterminateProgressBar();
 	static void resetProgressBar();
@@ -351,6 +354,7 @@ private:
 
 	static int _viewerCount;
 	static MainWindow* _mainWindow;
+	StatusBalloon* _statusBalloon = nullptr;
 	static bool _fileLoadCancelRequested;
 
 	static QuickHelpDialog* _helpDialog;

@@ -406,7 +406,7 @@ void RtRenderDialog::onRenderClicked()
 	// uses (see ModelViewer::onRenderingModeSelected()) rather than calling
 	// ViewportWidget's arm methods directly, so the toolbar's active-mode
 	// indicator stays in sync with this dialog's Render/Stop state.
-	_modelViewer->onRenderingModeSelected("RayTraced");
+	_modelViewer->requestRenderingMode("RayTraced");
 
 	if (ViewportWidget* viewport = _modelViewer->getViewportWidget())
 		viewport->requestRayTracedRenderNow(); // start immediately, don't wait for the idle-settle countdown - also (re)starts ViewportWidget's own elapsed-time clock
