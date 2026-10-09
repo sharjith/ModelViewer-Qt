@@ -14,11 +14,14 @@ public:
 	QVector<QPointF> points() const { return _points; }
 	void setPoints(QVector<QPointF> points);
 	void setColormap(int colormap);
+	QSize sizeHint() const override;
+	QSize minimumSizeHint() const override;
 
 signals:
 	void pointsChanged();
 
 protected:
+	void changeEvent(QEvent* event) override;
 	void paintEvent(QPaintEvent*) override;
 	void mousePressEvent(QMouseEvent* event) override;
 	void mouseMoveEvent(QMouseEvent* event) override;
@@ -27,6 +30,8 @@ protected:
 
 private:
 	QRectF plotRect() const;
+	int preferredHeight() const;
+	void applyHeight();
 	QPointF toWidget(const QPointF& point) const;
 	QPointF fromWidget(const QPointF& point) const;
 	int pointAt(const QPointF& position) const;
