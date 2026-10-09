@@ -180,9 +180,9 @@ void ViewportWidget::executeViewCommand(const QString& command, bool checked)
     else if (command == "meshEdges") setDisplayMode(DisplayMode::MESH_EDGES);
     else if (command == "wireframe") setDisplayMode(DisplayMode::WIREFRAME);
     else if (command == "shadedEdges") setDisplayMode(DisplayMode::SHADED_WITH_EDGES);
-    else if (command == "ads") _viewer->onRenderingModeSelected(QStringLiteral("ADS"));
-    else if (command == "pbr") _viewer->onRenderingModeSelected(QStringLiteral("PBR"));
-    else if (command == "rayTraced") _viewer->onRenderingModeSelected(QStringLiteral("RayTraced"));
+    else if (command == "ads") _viewer->requestRenderingMode(QStringLiteral("ADS"));
+    else if (command == "pbr") _viewer->requestRenderingMode(QStringLiteral("PBR"));
+    else if (command == "rayTraced") _viewer->requestRenderingMode(QStringLiteral("RayTraced"));
     else if (command == "smooth" || command == "flat") setShadingNormalMode(command == "flat" ? ShadingNormalMode::FLAT : ShadingNormalMode::SMOOTH);
     else if (command == "realistic") setRealismEnabled(checked);
     else if (command == "clipping") showClippingPlaneEditor(checked);
