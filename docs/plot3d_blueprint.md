@@ -370,8 +370,7 @@ Ordered roughly by value. Everything from the earlier gap list that was worth do
 3. **No end-to-end save-and-reopen test** (it needs the app and a GL context). The headless tests cover the pieces:
    `plot3d_tests` (data, builders, session IO, section curves, pathlines, time-series fields, playback helpers) and `mvf_tests`
    (the loader's unindexed-mesh rule).
-4. **Synchronised playback.** The shared playback bar plays one item at a time (a Simulation result or an animated pathline
-   plot); playing both under one clock would need a mapping between result steps and pathline time.
+4. **Synchronised playback:** stage 1 done ("All together" on one clock, by time or by progress; see docs/plot3d_simulation_sync_design.md). Cursor / seek on the charts, plot panes in the split view and probe-to-history are the later stages.
 5. **Formula parser error messages** are English literals (item 26).
 6. **Deferred plot features:** none (fill under a line, fill between two curves, text notes and image planes are done).
 
@@ -401,3 +400,8 @@ A CSV Line plot can fill between the line and a second curve instead of down to 
 second curve's Z column (same X / Y), kept per point in `Plot3DLineData::fillTo`; `buildPlot3DLineFillMesh` runs the ribbon between the
 two (a NaN falls back to the base plane for that point) and the axes box includes the second curve instead of the base plane. The
 column is saved with the column mapping. Sample: `line_band.csv`.
+
+### Flat-axis padding
+
+A flat axis (all values equal) used to get a fixed padding of at least 1.0 unit, which turned a 0.1 m wide plane into a needle-tall axes box.
+It is now 10 % of the largest extent among the other (linear) axes, with the fixed amount only when every axis is flat.

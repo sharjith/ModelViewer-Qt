@@ -110,14 +110,19 @@ bool ModelViewer::buildPathlineAnimationState(const Plot3DSession& session, Scen
 
 void ModelViewer::applyPathlineFrame()
 {
+	const Plot3DPathlineAnimation& a = _pathlineAnimation;
+	const double fraction = a.frames > 1 ? static_cast<double>(a.frame) / (a.frames - 1) : 1.0;
+	applyPathlineTime(a.timeMinimum + (a.timeMaximum - a.timeMinimum) * fraction);
+}
+
+void ModelViewer::applyPathlineTime(double now)
+{
 	Plot3DPathlineAnimation& a = _pathlineAnimation;
 	SceneMesh* mesh = _viewportWidget && !a.mesh.isNull() ? _viewportWidget->getMeshByUuid(a.mesh) : nullptr;
 	Plot3DSession* session = findPlotSession(_plot3DSessions, a.mesh);
 	if (!mesh || !session)
 		return;
 
-	const double fraction = a.frames > 1 ? static_cast<double>(a.frame) / (a.frames - 1) : 1.0;
-	const double now = a.timeMinimum + (a.timeMaximum - a.timeMinimum) * fraction;
 	constexpr double eps = 1.0e-9;
 
 	std::vector<int> firsts, counts;
@@ -162,10 +167,25 @@ void ModelViewer::applyPathlineFrame()
 	_viewportWidget->updateView();
 }
 
+int ModelViewer::playbackFrame() const
+{
+	return _playbackTogether ? _togetherFrame : _pathlineAnimation.frame;
+}
+
+int ModelViewer::playbackFrames() const
+{
+	return _playbackTogether ? _togetherClock.frames : _pathlineAnimation.frames;
+}
+
 void ModelViewer::setPathlineFrame(int frame, bool fromPlayback)
 {
 	if (_pathlineAnimation.mesh.isNull())
 		return;
+	if (_playbackPathline && _playbackTogether)
+	{
+		setTogetherFrame(frame); // the bar shows the shared clock, not the pathlines' own frames
+		return;
+	}
 	_pathlineAnimation.frame = std::clamp(frame, 0, _pathlineAnimation.frames - 1);
 	applyPathlineFrame();
 	if (_simulationTimeline && _playbackPathline && _playbackMesh == _pathlineAnimation.mesh)
@@ -181,7 +201,7 @@ void ModelViewer::setPathlinePlaying(bool playing)
 	{
 		if (_pathlineAnimation.mesh.isNull())
 			return;
-		if (_pathlineAnimation.frame >= _pathlineAnimation.frames - 1)
+		if (playbackFrame() >= playbackFrames() - 1)
 			setPathlineFrame(0, true); // from the end, Play starts over
 		if (!_pathlineTimer)
 		{
@@ -208,8 +228,8 @@ void ModelViewer::advancePathlineFrame()
 		setPathlinePlaying(false); // the plot went away or is hidden
 		return;
 	}
-	int next = _pathlineAnimation.frame + 1;
-	if (next >= _pathlineAnimation.frames)
+	int next = playbackFrame() + 1;
+	if (next >= playbackFrames())
 	{
 		if (!_pathlineLoop)
 		{
@@ -261,6 +281,7 @@ void ModelViewer::endPathlineAnimation(bool touchMesh)
 	if (_playbackPathline && _playbackMesh == meshUuid)
 	{
 		_playbackPathline = false; // the bar falls back to a Simulation result, or hides
+		_playbackTogether = false;
 		_playbackMesh = QUuid();
 	}
 	updateSimulationTimeline();

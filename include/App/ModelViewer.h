@@ -22,6 +22,7 @@
 #include "MaterialVariantsPanel.h"
 #include "TextureDebugPanel.h"
 #include "ResultSnapshot.h"
+#include "PlaybackClock.h"
 #include "SimulationResultDisplay.h"
 #include "Plot3DPathlines.h"
 #include "Plot3DSession.h"
@@ -63,6 +64,8 @@ struct PlaybackItem
 	bool pathline = false;
 	QUuid mesh;
 	QString name;
+	// "All together": a Simulation result and the animated pathline plot (mesh) play on one clock (see PlaybackClock.h).
+	bool together = false;
 };
 
 struct UVDialogResult
@@ -913,6 +916,13 @@ private:
 	void setPathlinePlaying(bool playing);
 	void advancePathlineFrame();
 	void bindPlaybackToPathline();
+	void bindPlaybackTogether();
+	QUuid pickTogetherResult() const;   // the result that plays along with the pathlines (the active one if it can be played)
+	void setTogetherFrame(int frame);
+	void applyTogetherFrame();
+	void applyPathlineTime(double now);  // draws the pathlines up to a time
+	int playbackFrame() const;           // the position / length of whichever clock the bar shows for the pathline item
+	int playbackFrames() const;
 	QVector<PlaybackItem> playbackItems() const;
 	void endPathlineAnimation(bool touchMesh = true);
 
@@ -1134,9 +1144,15 @@ private:
 	Plot3DPathlineAnimation _pathlineAnimation;
 	// The one playback bar plays whichever item is selected (see updateSimulationTimeline()).
 	bool _playbackPathline = false;     // the selected item is the pathline plot (else a Simulation result)
+	bool _playbackTogether = false;     // ... played together with a result (then _playbackPathline is true as well)
+	QUuid _playbackTogetherResult;      // the result that plays along with the pathlines in that mode
+	PlaybackClock _togetherClock;       // how the two are matched, and the bar's frames
+	std::vector<double> _togetherStepTimes; // the result's step times, for the clock
+	int _togetherFrame = 0;
 	QUuid _playbackMesh;                // ... and its mesh
 	QUuid _playbackSeenActiveSim;       // the active result last time: the selection follows when it changes
 	bool _playbackBoundPathline = false; // what the controls are currently bound to (playback pauses when that changes)
+	bool _playbackBoundTogether = false;
 	QUuid _playbackBoundMesh;
 	QTimer* _pathlineTimer = nullptr;
 	bool _pathlinePlaying = false;

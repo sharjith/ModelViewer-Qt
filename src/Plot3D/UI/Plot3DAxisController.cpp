@@ -124,6 +124,16 @@ bool Plot3DAxisController::buildLayout(const std::array<Plot3DAxisConfig, 3>& ax
 {
 	layout = Plot3DAxisLayout();
 	if (error) error->clear();
+	// The largest extent among the axes that have one: a flat axis is padded relative to it, so a plane of small data (a 0.1 m wide plot) does
+	// not get a box a unit tall.
+	double largestExtent = 0.0;
+	for (int axis = 0; axis < 3; ++axis)
+	{
+		const double lo = axes[axis].automaticRange ? dataMinimum[axis] : axes[axis].minimum;
+		const double hi = axes[axis].automaticRange ? dataMaximum[axis] : axes[axis].maximum;
+		if (std::isfinite(lo) && std::isfinite(hi) && hi > lo && axes[axis].scale == Plot3DAxisScale::Linear)
+			largestExtent = std::max(largestExtent, hi - lo);
+	}
 	for (int axis = 0; axis < 3; ++axis)
 	{
 		double lo = axes[axis].automaticRange ? dataMinimum[axis] : axes[axis].minimum;
@@ -139,7 +149,9 @@ bool Plot3DAxisController::buildLayout(const std::array<Plot3DAxisConfig, 3>& ax
 			}
 			else
 			{
-				const double padding = std::max(1.0, std::abs(lo) * 0.05);
+				// A flat axis gets depth in proportion to the others (10 % of the largest extent); only when every axis is flat is a
+				// fixed amount used.
+				const double padding = largestExtent > 0.0 ? largestExtent * 0.1 : std::max(1.0, std::abs(lo) * 0.05);
 				lo -= padding;
 				hi += padding;
 			}

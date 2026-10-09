@@ -469,6 +469,12 @@ namespace
 			&& layout.title == QStringLiteral("Axis layout test"));
 		const double flatLo[3] = { 2.0, 10.0, -5.0 }, flatHi[3] = { 2.0, 20.0, 5.0 };
 		CHECK(controller.buildLayout(axes, flatLo, flatHi, layout, &error) && layout.maximum[0] > layout.minimum[0]);
+		// A flat axis is padded in proportion to the data (10 % of the largest extent), not by a fixed unit: a 0.1 m wide plane stays a thin box.
+		const double smallLo[3] = { 0.0, 0.0, 0.0105 }, smallHi[3] = { 0.1, 0.1, 0.0105 };
+		CHECK(controller.buildLayout(axes, smallLo, smallHi, layout, &error));
+		CHECK(std::abs((layout.maximum[2] - layout.minimum[2]) - 0.02) < 1.0e-9 && std::abs(layout.minimum[2] - 0.0005) < 1.0e-9);
+		const double allFlat[3] = { 3.0, 3.0, 3.0 };
+		CHECK(controller.buildLayout(axes, allFlat, allFlat, layout, &error) && std::abs((layout.maximum[0] - layout.minimum[0]) - 2.0) < 1.0e-9);
 		controller.setReferencePlanesVisible(true, true, true);
 		controller.setReferencePlaneOpacity(0.2f);
 		CHECK(controller.buildLayout(axes, lo, hi, layout, &error) && layout.referencePlanes.size() == 3
