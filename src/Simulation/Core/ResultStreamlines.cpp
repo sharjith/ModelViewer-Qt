@@ -137,7 +137,7 @@ namespace
 	}
 
 	// Barycentric weights of p in the tetrahedron (a, b, c, d); true when p is inside (with a small tolerance) and the tetrahedron is not degenerate.
-	bool barycentric(const VertexData& a, const VertexData& b, const VertexData& c, const VertexData& d, const double p[3], double w[4])
+	bool barycentric(const VertexData& a, const VertexData& b, const VertexData& c, const VertexData& d, const double p[3], double w[4], double slack = 0.0)
 	{
 		double e1[3], e2[3], e3[3], r[3];
 		for (int k = 0; k < 3; ++k)
@@ -159,7 +159,7 @@ namespace
 		w[2] = dot(e1, cr3) / det;
 		w[3] = dot(e1, c2r) / det;
 		w[0] = 1.0 - w[1] - w[2] - w[3];
-		const double tolerance = -1e-7;
+		const double tolerance = -std::max(1e-7, slack);
 		return w[0] >= tolerance && w[1] >= tolerance && w[2] >= tolerance && w[3] >= tolerance;
 	}
 }
@@ -357,7 +357,7 @@ bool CellLocator::evalCell(std::size_t index, const double p[3], const std::vect
 			nodeData(ringNodes[begin], a);
 			nodeData(ringNodes[begin + 1], b);
 			nodeData(ringNodes[begin + 2], c);
-			if (barycentric(centre, a, b, c, p, w))
+			if (barycentric(centre, a, b, c, p, w, _slack))
 			{
 				for (int k = 0; k < 3; ++k)
 					vector[k] = w[0] * centre.v[k] + w[1] * a.v[k] + w[2] * b.v[k] + w[3] * c.v[k];
@@ -377,7 +377,7 @@ bool CellLocator::evalCell(std::size_t index, const double p[3], const std::vect
 		{
 			nodeData(ringNodes[i], a);
 			nodeData(ringNodes[i + 1 < end ? i + 1 : begin], b);
-			if (barycentric(centre, faceCentre, a, b, p, w))
+			if (barycentric(centre, faceCentre, a, b, p, w, _slack))
 			{
 				for (int k = 0; k < 3; ++k)
 					vector[k] = w[0] * centre.v[k] + w[1] * faceCentre.v[k] + w[2] * a.v[k] + w[3] * b.v[k];
@@ -438,7 +438,7 @@ bool CellLocator::evalCellStencil(std::size_t index, const double p[3], CellInte
 		if (count == 3)
 		{
 			const std::uint32_t na = ringNodes[begin], nb = ringNodes[begin + 1], nc = ringNodes[begin + 2];
-			if (barycentric(centre, position(na), position(nb), position(nc), p, w))
+			if (barycentric(centre, position(na), position(nb), position(nc), p, w, _slack))
 			{
 				std::vector<std::pair<std::uint32_t, double>> contributions;
 				contributions.reserve(ringNodes.size() + 3);
@@ -459,7 +459,7 @@ bool CellLocator::evalCellStencil(std::size_t index, const double p[3], CellInte
 		for (std::size_t i = begin; i < end; ++i)
 		{
 			const std::uint32_t na = ringNodes[i], nb = ringNodes[i + 1 < end ? i + 1 : begin];
-			if (!barycentric(centre, faceCentre, position(na), position(nb), p, w))
+			if (!barycentric(centre, faceCentre, position(na), position(nb), p, w, _slack))
 				continue;
 			std::vector<std::pair<std::uint32_t, double>> contributions;
 			contributions.reserve(ringNodes.size() + count + 2);
@@ -482,7 +482,8 @@ bool CellLocator::interpolate(const double p[3], const std::vector<float>& vecto
 		return false;
 	auto inBox = [&](std::size_t i) {
 		const float* box = &_boxes[i * 6];
-		return p[0] >= box[0] && p[0] <= box[3] && p[1] >= box[1] && p[1] <= box[4] && p[2] >= box[2] && p[2] <= box[5];
+		const double pad[3] = { _slack * (box[3] - box[0]), _slack * (box[4] - box[1]), _slack * (box[5] - box[2]) };
+		return p[0] >= box[0] - pad[0] && p[0] <= box[3] + pad[0] && p[1] >= box[1] - pad[1] && p[1] <= box[4] + pad[1] && p[2] >= box[2] - pad[2] && p[2] <= box[5] + pad[2];
 	};
 	if (hint >= 0 && static_cast<std::size_t>(hint) < _cells.size() && inBox(static_cast<std::size_t>(hint))
 	    && evalCell(static_cast<std::size_t>(hint), p, vectors, scalar, vector, scalarValue))
@@ -515,7 +516,8 @@ bool CellLocator::interpolationStencil(const double p[3], int& hint, CellInterpo
 		return false;
 	auto inBox = [&](std::size_t i) {
 		const float* box = &_boxes[i * 6];
-		return p[0] >= box[0] && p[0] <= box[3] && p[1] >= box[1] && p[1] <= box[4] && p[2] >= box[2] && p[2] <= box[5];
+		const double pad[3] = { _slack * (box[3] - box[0]), _slack * (box[4] - box[1]), _slack * (box[5] - box[2]) };
+		return p[0] >= box[0] - pad[0] && p[0] <= box[3] + pad[0] && p[1] >= box[1] - pad[1] && p[1] <= box[4] + pad[1] && p[2] >= box[2] - pad[2] && p[2] <= box[5] + pad[2];
 	};
 	if (hint >= 0 && static_cast<std::size_t>(hint) < _cells.size() && inBox(static_cast<std::size_t>(hint))
 	    && evalCellStencil(static_cast<std::size_t>(hint), p, out))

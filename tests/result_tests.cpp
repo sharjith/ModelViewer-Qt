@@ -20,6 +20,7 @@
 #include "ResultSnapshot.h"
 #include "ResultUnits.h"
 #include "SimulationCharts.h"
+#include "SimulationSurfaceLocator.h"
 #include "SimulationGlyphs.h"
 #include "SimulationVolume.h"
 #include "VtkHdfReader.h"
@@ -5401,6 +5402,122 @@ namespace
 		}
 	}
 
+	// ---- XY charts on a shell / surface result (no volume cells) ---------------------------------------------------------------------
+
+	void testSurfaceCharts()
+	{
+		// A 2 x 2 grid of quads over [0,2] x [0,2] at z = 0 (9 nodes), a Temperature field that is linear in x and y and scales with the step.
+		ResultDataset shell;
+		for (int y = 0; y < 3; ++y)
+			for (int x = 0; x < 3; ++x)
+				shell.nodePositions.insert(shell.nodePositions.end(), { static_cast<float>(x), static_cast<float>(y), 0.0f });
+		shell.cellOffsets.push_back(0);
+		for (int y = 0; y < 2; ++y)
+			for (int x = 0; x < 2; ++x)
+			{
+				const std::uint32_t ids[4] = { static_cast<std::uint32_t>(y * 3 + x), static_cast<std::uint32_t>(y * 3 + x + 1),
+					static_cast<std::uint32_t>((y + 1) * 3 + x + 1), static_cast<std::uint32_t>((y + 1) * 3 + x) };
+				shell.cellConnectivity.insert(shell.cellConnectivity.end(), ids, ids + 4);
+				shell.cellOffsets.push_back(static_cast<std::uint32_t>(shell.cellConnectivity.size()));
+				shell.cellTypes.push_back(ResultCellType::Quad);
+			}
+		ResultField temperature;
+		temperature.name = QStringLiteral("Temperature");
+		temperature.association = ResultFieldAssociation::Node;
+		temperature.components = 1;
+		for (int s = 0; s < 3; ++s)
+		{
+			std::vector<float> values(shell.nodeCount());
+			for (std::size_t n = 0; n < shell.nodeCount(); ++n)
+				values[n] = static_cast<float>((s + 1) * (2.0 * shell.nodePositions[n * 3] + shell.nodePositions[n * 3 + 1]) + 10.0 * s);
+			temperature.stepData.push_back(std::move(values));
+			ResultStep step;
+			step.time = 0.5 * s;
+			shell.steps.push_back(step);
+		}
+		shell.fields.push_back(temperature);
+
+		const SurfaceLocator locator(shell);
+		CHECK(locator.triangleCount() == 8 && locator.diagonal() > 2.8 && locator.diagonal() < 2.9);
+		// a shell result has no volume cells for the CellLocator: that is exactly why the surface locator exists
+		const CellLocator volumeLocator(shell);
+		CHECK(volumeLocator.volumeCellCount() == 0);
+
+		// the closest point and its weights: an interior point reproduces the linear field exactly (barycentric on a planar triangle)
+		{
+			const double p[3] = { 0.7, 1.3, 0.0 };
+			CellInterpolationStencil stencil;
+			double distance = -1.0;
+			CHECK(locator.nearestStencil(p, 0.0, stencil, &distance) && stencil.nodes.size() == 3 && approx(distance, 0.0, 1.0e-6, 1.0e-9));
+			double weightSum = 0.0;
+			for (double w : stencil.weights)
+				weightSum += w;
+			CHECK(approx(weightSum, 1.0));
+		}
+
+		// over time at a point on the surface, one value per step, matching the exact field
+		{
+			const double point[3] = { 0.7, 1.3, 0.0 };
+			ChartSeries history;
+			CHECK(sampleFieldOverTime(shell, locator, 0, -1, point, history));
+			CHECK(history.x.size() == 3 && history.title == QStringLiteral("Temperature"));
+			bool exact = true;
+			for (int s = 0; s < 3; ++s)
+				exact = exact && std::fabs(history.y[static_cast<std::size_t>(s)] - ((s + 1) * (2.0 * 0.7 + 1.3) + 10.0 * s)) < 1.0e-3;
+			CHECK(exact);
+			// a point just above the surface (within the tolerance) reads the surface under it; far above does not
+			const double above[3] = { 0.7, 1.3, 0.02 };
+			ChartSeries justAbove;
+			CHECK(sampleFieldOverTime(shell, locator, 0, -1, above, justAbove) && std::fabs(justAbove.y[0] - history.y[0]) < 1.0e-3);
+			const double farAbove[3] = { 0.7, 1.3, 1.5 };
+			ChartSeries tooFar;
+			CHECK(!sampleFieldOverTime(shell, locator, 0, -1, farAbove, tooFar));
+			// ... and a point beyond the edge reads the edge (the closest surface point), as long as it is near
+			const double edge[3] = { 2.03, 1.0, 0.0 };
+			ChartSeries onEdge;
+			CHECK(sampleFieldOverTime(shell, locator, 0, -1, edge, onEdge) && std::fabs(onEdge.y[0] - (2.0 * 2.0 + 1.0)) < 1.0e-3);
+		}
+
+		// over a line: a chord across the grid reproduces the field; the part past the edge is NaN
+		{
+			const double p0[3] = { 0.2, 0.3, 0.0 }, p1[3] = { 1.8, 1.7, 0.0 };
+			ChartSeries line;
+			CHECK(sampleFieldOverLine(shell, locator, 0, -1, 0, p0, p1, 17, line));
+			bool exact = line.x.size() == 17;
+			for (std::size_t i = 0; exact && i < line.x.size(); ++i)
+			{
+				const double t = static_cast<double>(i) / 16.0;
+				const double x = p0[0] + t * (p1[0] - p0[0]), y = p0[1] + t * (p1[1] - p0[1]);
+				exact = std::fabs(line.y[i] - (2.0 * x + y)) < 1.0e-3;
+			}
+			CHECK(exact);
+			const double q0[3] = { 1.0, 1.0, 0.0 }, q1[3] = { 4.0, 1.0, 0.0 };
+			ChartSeries leaving;
+			CHECK(sampleFieldOverLine(shell, locator, 0, -1, 0, q0, q1, 7, leaving));
+			CHECK(!std::isnan(leaving.y.front()) && std::isnan(leaving.y.back()));
+			ChartSeries tooFew;
+			CHECK(!sampleFieldOverLine(shell, locator, 0, -1, 0, p0, p1, 1, tooFew));
+		}
+
+		// a quadratic cell is read through its corner nodes; a volume mesh has no surface triangles; the deformed shape moves the surface
+		{
+			const ResultDataset triangle6 = oneCell(ResultCellType::Triangle6, { 0, 0, 0, 2, 0, 0, 0, 2, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0 });
+			const SurfaceLocator quadratic(triangle6);
+			CHECK(quadratic.triangleCount() == 1);
+			const ResultDataset row = hexRow(2);
+			CHECK(SurfaceLocator(row).triangleCount() == 0);
+			std::vector<float> lifted = shell.nodePositions;
+			for (std::size_t n = 0; n < shell.nodeCount(); ++n)
+				lifted[n * 3 + 2] += 10.0f;
+			const SurfaceLocator deformed(shell, lifted);
+			CellInterpolationStencil stencil;
+			const double at[3] = { 1.0, 1.0, 10.0 }, original[3] = { 1.0, 1.0, 0.0 };
+			CHECK(deformed.nearestStencil(at, 0.1, stencil) && !deformed.nearestStencil(original, 0.1, stencil));
+			CellInterpolationStencil none;
+			CHECK(!SurfaceLocator(row).nearestStencil(at, 0.0, none));
+		}
+	}
+
 	// ---- XY charts: plot over line / plot over time -------------------------------------------------------------------------------
 
 	void testCharts()
@@ -7190,6 +7307,7 @@ int main(int argc, char** argv)
 	testSlice();
 	testStreamlines();
 	testCharts();
+	testSurfaceCharts();
 	testVolumeGrid();
 	testLazySteps();
 	testDeformedOverlays();

@@ -9191,8 +9191,8 @@ Die Oberfläche wird mit den Farben angezeigt, die sie beim Speichern hatte.</tr
     </message>
     <message>
         <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2456"/>
-        <source>This result has no volume cells to sample through (a shell/surface result).</source>
-        <translation>Dieses Ergebnis hat keine Volumenzellen zum Abtasten (ein Schalen-/Flächenergebnis).</translation>
+        <source>This result has no surface or volume cells to sample through.</source>
+        <translation>Dieses Ergebnis hat keine Oberflächen- oder Volumenzellen zum Abtasten.</translation>
     </message>
     <message>
         <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2478"/>

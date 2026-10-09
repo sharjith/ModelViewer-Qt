@@ -72,6 +72,19 @@ FEM_box_modes_frf.csv         A synthetic frequency-response curve (frequency_Hz
                               each mode), add this curve, and click on a peak: the result jumps to that mode.
 
 
+Shell (surface-only) results and the charts
+-------------------------------------------
+A result with only triangles / quads (no volume cells) is charted on the closest point of its surface: Plot Over Time reads the clicked
+point of the shell; Plot Over Line projects each sample of the chord onto the surface (a gap in the curve where the chord leaves it - only possible on a curved shell,
+since a click always lands on the surface; the unit test covers it).
+
+shell_plate_transient.frd     A 2 x 1 flat plate of 20 x 10 four-node shell quads (231 nodes, no volume cells), 10 time steps over 5 s, field
+                              NDTEMP: heat flowing in from the left edge (synthetic, made with a script, not a solver run). Try: open it,
+                              Plot Over Time on a point near the middle (the history rises as the heat arrives), Plot Over Line from the
+                              left edge to the right edge at step 10, then play the timeline with the chart open (the cursor follows).
+plate.vtk                     Also surface-only (312 quads, several vector fields, one step): Plot Over Line works on it.
+
+
 Sources and licences
 --------------------
 hexa.vtk, plate.vtk, post.vtk, tetraMesh.vtk, uGridEx.vtk

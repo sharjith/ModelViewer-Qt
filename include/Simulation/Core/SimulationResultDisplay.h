@@ -10,6 +10,7 @@
 #include "ResultSlice.h"
 #include "ResultStreamlines.h"
 #include "SimulationOverlays.h"
+#include "SimulationSurfaceLocator.h"
 
 #include <QString>
 #include <QPointF>
@@ -307,6 +308,9 @@ struct SimulationSession
 	// A result restored from a snapshot without its volume: the cut faces, iso-surfaces and streamlines it was saved with, shown frozen in place of the live ones.
 	SnapshotOverlays bakedOverlays;
 	std::shared_ptr<CellLocator> locator; // finds the cell around a point, built on first use for the streamlines (it refers to `dataset`)
+	// The same for a shell / surface result (no volume cells): the closest point of the surface, used by the point-history and over-line charts.
+	std::shared_ptr<SurfaceLocator> surfaceLocator;
+	QString surfaceLocatorKey;
 	// The traced streamlines, kept while the field, step, seed count and seeding stay the same (a plane moved without seeding on it only re-trims them).
 	std::shared_ptr<StreamlineSet> streamlineSet;
 	QString streamlineKey;
