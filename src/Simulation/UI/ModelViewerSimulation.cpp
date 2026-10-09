@@ -464,7 +464,6 @@ void ModelViewer::connectSimulationHooks()
 					updateSimulationStreamlines(s); // the lines are trimmed to what the planes leave (and seeded on them when asked)
 			}
 	});
-	connectPlot3DViewportSignals(); // Plot3D text notes: placed / moved / edit / delete
 	// A "plot over time"/"plot over line" pick landed: build and show the chart.
 	connect(_viewportWidget, &ViewportWidget::simulationChartPointsPicked, this, [this](const QUuid& meshUuid, const QVector<QVector3D>& points) {
 		onSimulationChartPointsPicked(meshUuid, points);

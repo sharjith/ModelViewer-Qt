@@ -794,8 +794,9 @@ void ModelViewer::startPlot3DNotePlacement()
 
 void ModelViewer::connectPlot3DViewportSignals()
 {
-	if (!_viewportWidget)
+	if (!_viewportWidget || _plot3DViewportSignalsConnected)
 		return;
+	_plot3DViewportSignalsConnected = true;
 	// A click placed a note: ask for its text, then store its position in the plot's data coordinates (the inverse of the axis scales).
 	connect(_viewportWidget, &ViewportWidget::plot3DNotePlaced, this, [this](const QUuid& plot, const QVector3D& local) {
 		Plot3DSession* session = sessionFor(_plot3DSessions, plot);

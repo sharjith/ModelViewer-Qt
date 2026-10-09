@@ -707,7 +707,7 @@ public slots:
 	void startPlot3DNotePlacement();
 	QUuid plot3DOwnerOfMesh(const QUuid& meshUuid) const;      // the plot a mesh (its own, or a marker / contour companion) belongs to, or null
 	QVector<QUuid> plot3DVisibleMeshes() const;                // the meshes of the visible plots, companions included
-	void connectPlot3DViewportSignals();                       // the viewport's note signals (placed, moved, edit, delete)
+	void connectPlot3DViewportSignals();                       // the viewport's note signals (placed, moved, edit, delete); safe to call twice
 	// A Plot3D creation dialog can display one temporary plot directly in the
 	// viewport before committing it. Preview meshes deliberately have no scene
 	// node, session, undo record, or persistence entry.
@@ -1173,6 +1173,7 @@ private:
 		QUuid mesh;
 	};
 	QVector<SimulationChartLink> _simulationChartLinks;
+	bool _plot3DViewportSignalsConnected = false;
 	QPointer<SimulationChartWidget> _chartPickTarget; // a chart waiting for another point: the next one picked is added to it
 	QUuid _chartPickTargetMesh;
 	QUuid _playbackMesh;                // ... and its mesh

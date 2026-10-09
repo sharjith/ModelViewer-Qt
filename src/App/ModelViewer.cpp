@@ -512,6 +512,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	tabWidgetVizAttribs = MainWindow::mainWindow()->propertiesTabWidget();
 	visualizationEnvironmentPanel = MainWindow::mainWindow()->visualizationEnvironmentPanel();
 
+	connectPlot3DViewportSignals(); // Plot3D text notes: placed / moved / edit / delete (any document, with or without a Simulation result)
+
 	// Connect ViewToolbar rendering mode selection
 	connect(_viewportWidget->getViewToolbar(), &ViewToolbar::renderingModeSelected,
 		this, &ModelViewer::requestRenderingMode);
