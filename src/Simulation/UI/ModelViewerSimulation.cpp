@@ -67,6 +67,14 @@
 
 namespace
 {
+	// The size-weighted cell -> node averager of a result (SimulationCellAveraging.h), built on first use and kept: it depends on the geometry only.
+	const CellToNodeAverager* cellAveragerFor(SimulationSession& session)
+	{
+		if (!session.cellAverager && session.dataset)
+			session.cellAverager = std::make_shared<CellToNodeAverager>(*session.dataset);
+		return session.cellAverager.get();
+	}
+
 	QString formatCount(std::size_t n)
 	{
 		return QLocale().toString(static_cast<qulonglong>(n));
@@ -1544,7 +1552,8 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 	DisplayScalar scalar;
 	float lo = 0.0f, hi = 1.0f;
 	bool haveScalar = session.state.fieldIndex >= 0
-		&& buildDisplayScalar(*session.dataset, session.state.fieldIndex, session.state.component, scalar, session.state.step);
+		&& buildDisplayScalar(*session.dataset, session.state.fieldIndex, session.state.component, scalar, session.state.step,
+		                      session.state.averageCellData ? cellAveragerFor(session) : nullptr);
 	if (haveScalar)
 	{
 		// Automatic range over ALL steps (a fixed colour scale, so animation frames stay comparable), cached so
@@ -2333,15 +2342,15 @@ void ModelViewer::updateSimulationSlices(SimulationSession& session)
 	if (state.iso)
 	{
 		int field = state.isoField;
-		if (field < 0 || static_cast<std::size_t>(field) >= dataset.fields.size() || dataset.fields[static_cast<std::size_t>(field)].association != ResultFieldAssociation::Node
+		if (field < 0 || static_cast<std::size_t>(field) >= dataset.fields.size()
 		    || (dataset.fields[static_cast<std::size_t>(field)].components != 1 && dataset.fields[static_cast<std::size_t>(field)].components != 3))
 			field = (state.fieldIndex >= 0 && static_cast<std::size_t>(state.fieldIndex) < dataset.fields.size()
-			         && dataset.fields[static_cast<std::size_t>(state.fieldIndex)].association == ResultFieldAssociation::Node
 			         && (dataset.fields[static_cast<std::size_t>(state.fieldIndex)].components == 1 || dataset.fields[static_cast<std::size_t>(state.fieldIndex)].components == 3))
 			        ? state.fieldIndex : -1;
 		DisplayScalar isoScalar;
-		if (field < 0 || !buildDisplayScalar(dataset, field, -1, isoScalar, state.step))
-			info << tr("Iso-surfaces: choose a node field (a scalar or a vector) to draw them of.");
+		// A cell field is averaged onto the nodes: an iso-surface needs one value per node.
+		if (field < 0 || !buildDisplayScalar(dataset, field, -1, isoScalar, state.step, cellAveragerFor(session)) || isoScalar.cellData)
+			info << tr("Iso-surfaces: choose a field (a scalar or a vector) to draw them of.");
 		else
 		{
 			const bool sameAsShown = field == state.fieldIndex && state.component == -1 && session.shownScalar.valid();
@@ -2506,7 +2515,7 @@ void ModelViewer::onSimulationChartPointsPicked(const QUuid& meshUuid, const QVe
 	}
 	if (!ok)
 	{
-		QMessageBox::information(this, tr("Chart"), tr("The current field cannot be charted this way (cell data is not supported yet, or the point/line missed the mesh entirely)."));
+		QMessageBox::information(this, tr("Chart"), tr("The current field cannot be charted this way (it has no data at this step, or the point/line missed the mesh entirely)."));
 		return;
 	}
 	if (points.size() == 1 && _chartPickTarget && _chartPickTargetMesh == meshUuid)

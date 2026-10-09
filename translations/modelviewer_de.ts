@@ -9196,8 +9196,8 @@ Die Oberfläche wird mit den Farben angezeigt, die sie beim Speichern hatte.</tr
     </message>
     <message>
         <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2478"/>
-        <source>The current field cannot be charted this way (cell data is not supported yet, or the point/line missed the mesh entirely).</source>
-        <translation>Das aktuelle Feld lässt sich so nicht darstellen (Zelldaten werden noch nicht unterstützt, oder der Punkt bzw. die Linie hat das Mesh komplett verfehlt).</translation>
+        <source>The current field cannot be charted this way (it has no data at this step, or the point/line missed the mesh entirely).</source>
+        <translation>Das aktuelle Feld lässt sich so nicht darstellen (es hat in diesem Schritt keine Daten, oder der Punkt bzw. die Linie hat das Mesh komplett verfehlt).</translation>
     </message>
     <message>
         <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2484"/>
@@ -9254,8 +9254,8 @@ Die Oberfläche wird mit den Farben angezeigt, die sie beim Speichern hatte.</tr
     </message>
     <message>
         <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2344"/>
-        <source>Iso-surfaces: choose a node field (a scalar or a vector) to draw them of.</source>
-        <translation>Isoflächen: Wählen Sie ein Knotenfeld (Skalar oder Vektor), von dem sie gezeichnet werden sollen.</translation>
+        <source>Iso-surfaces: choose a field (a scalar or a vector) to draw them of.</source>
+        <translation>Isoflächen: Wählen Sie ein Feld (Skalar oder Vektor), von dem sie gezeichnet werden sollen.</translation>
     </message>
     <message>
         <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2397"/>
@@ -17655,6 +17655,22 @@ Millimeter. Wird aus der Datei übernommen, wenn diese sie angibt.</translation>
         <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="311"/>
         <source>Mark minimum and maximum</source>
         <translation>Minimum und Maximum markieren</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="320"/>
+        <source>Average cell data to nodes</source>
+        <translation>Zelldaten auf Knoten mitteln</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="320"/>
+        <source>A cell (element) field has one value per cell and is drawn flat.
+Averaging it onto the nodes (weighted by cell size) draws it smooth.
+Charts, volume rendering and iso-surfaces always use the averaged
+values. Only applies to a cell field.</source>
+        <translation>Ein Zellfeld (Elementfeld) hat einen Wert pro Zelle und wird flach gezeichnet.
+Mitteln auf die Knoten (nach Zellgröße gewichtet) zeichnet es glatt.
+Diagramme, Volumendarstellung und Isoflächen verwenden immer die
+gemittelten Werte. Gilt nur für ein Zellfeld.</translation>
     </message>
     <message>
         <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="312"/>

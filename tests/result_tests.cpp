@@ -20,6 +20,7 @@
 #include "ResultSnapshot.h"
 #include "ResultUnits.h"
 #include "SimulationCharts.h"
+#include "SimulationCellAveraging.h"
 #include "SimulationSurfaceLocator.h"
 #include "SimulationGlyphs.h"
 #include "SimulationVolume.h"
@@ -5402,6 +5403,79 @@ namespace
 		}
 	}
 
+	// ---- Cell (element) data averaged onto the nodes -----------------------------------------------------------------------------
+
+	void testCellAveraging()
+	{
+		// Cell sizes: a unit cube, a unit-leg tetrahedron, a triangle and a line.
+		CHECK(approx(CellToNodeAverager::cellMeasure(hexRow(1), 0), 1.0));
+		CHECK(approx(CellToNodeAverager::cellMeasure(oneCell(ResultCellType::Tetra, { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 }), 0), 1.0 / 6.0, 1.0e-6, 1.0e-9));
+		CHECK(approx(CellToNodeAverager::cellMeasure(oneCell(ResultCellType::Triangle, { 0, 0, 0, 2, 0, 0, 0, 2, 0 }), 0), 2.0));
+		CHECK(approx(CellToNodeAverager::cellMeasure(oneCell(ResultCellType::Line, { 0, 0, 0, 0, 3, 4 }), 0), 5.0));
+		CHECK(CellToNodeAverager::cellMeasure(hexRow(1), 7) == 0.0); // no such cell
+
+		// Two cubes side by side, the second one stretched to 3 long: the shared nodes (x = 1) weigh the cells by their volume, 1 : 3.
+		ResultDataset row = hexRow(2);
+		for (std::size_t n = 0; n < row.nodeCount(); ++n)
+			if (row.nodePositions[n * 3] > 1.5f)
+				row.nodePositions[n * 3] = 4.0f;
+		const CellToNodeAverager averager(row);
+		CHECK(!averager.empty());
+		std::vector<float> nodeValues;
+		averager.average({ 10.0f, 20.0f }, nodeValues);
+		CHECK(nodeValues.size() == row.nodeCount());
+		bool ends = true, middle = true;
+		for (std::size_t n = 0; n < row.nodeCount(); ++n)
+		{
+			const float x = row.nodePositions[n * 3];
+			if (x < 0.5f)
+				ends = ends && approx(nodeValues[n], 10.0);
+			else if (x > 3.5f)
+				ends = ends && approx(nodeValues[n], 20.0);
+			else
+				middle = middle && approx(nodeValues[n], 17.5); // (1 * 10 + 3 * 20) / 4
+		}
+		CHECK(ends && middle);
+		CHECK(approx(averager.valueAt(1, { 10.0f, 20.0f }), 17.5)); // one node on its own gives the same
+		// A cell with no finite value does not count: the shared nodes then take the other cell's value; a node of that cell alone has none.
+		averager.average({ std::numeric_limits<float>::quiet_NaN(), 20.0f }, nodeValues);
+		CHECK(approx(nodeValues[1], 20.0) && std::isnan(nodeValues[0]));
+		// A node no cell touches has no value; a wrong-sized input does not read out of range.
+		ResultDataset loose = hexRow(1);
+		loose.nodePositions.insert(loose.nodePositions.end(), { 9.0f, 9.0f, 9.0f });
+		const CellToNodeAverager looseAverager(loose);
+		CHECK(std::isnan(looseAverager.valueAt(static_cast<std::uint32_t>(loose.nodeCount() - 1), { 1.0f })) && std::isnan(looseAverager.valueAt(500, { 1.0f })));
+		CHECK(CellToNodeAverager(ResultDataset()).empty());
+
+		// buildDisplayScalar: stored (one value per cell, flat) or averaged (one per node, smooth); the unit conversion still applies.
+		ResultDataset ds = hexRow(2);
+		ResultField stress;
+		stress.name = QStringLiteral("Stress");
+		stress.association = ResultFieldAssociation::Cell;
+		stress.components = 1;
+		stress.stepData.push_back({ 10.0f, 20.0f });
+		stress.stepData.push_back({ 5.0f, 15.0f });
+		ds.fields.push_back(stress);
+		ResultStep step;
+		ds.steps.assign(2, step);
+		ds.steps[1].time = 1.0f;
+		DisplayScalar stored, smooth;
+		const CellToNodeAverager dsAverager(ds);
+		CHECK(buildDisplayScalar(ds, 0, -1, stored, 0) && stored.cellData && stored.nodeValues.size() == 2);
+		CHECK(buildDisplayScalar(ds, 0, -1, smooth, 0, &dsAverager) && !smooth.cellData && smooth.nodeValues.size() == ds.nodeCount());
+		CHECK(approx(smooth.nodeValues[1], 15.0) && approx(smooth.minValue, 10.0) && approx(smooth.maxValue, 20.0)); // equal cubes: the plain mean in the middle
+
+		// The charts read a cell field through the averaged nodes: a point inside the first cube, step by step (a uniform field per step is exact).
+		ds.fields[0].stepData = { { 5.0f, 5.0f }, { 10.0f, 10.0f } };
+		const CellLocator locator(ds);
+		const double inside[3] = { 0.5, 0.5, 0.5 };
+		ChartSeries history;
+		CHECK(sampleFieldOverTime(ds, locator, 0, -1, inside, history) && history.y.size() == 2 && approx(history.y[0], 5.0) && approx(history.y[1], 10.0));
+		const double p0[3] = { 0.1, 0.5, 0.5 }, p1[3] = { 1.9, 0.5, 0.5 };
+		ChartSeries line;
+		CHECK(sampleFieldOverLine(ds, locator, 0, -1, 1, p0, p1, 9, line) && line.y.size() == 9 && approx(line.y.front(), 10.0) && approx(line.y.back(), 10.0));
+	}
+
 	// ---- XY charts on a shell / surface result (no volume cells) ---------------------------------------------------------------------
 
 	void testSurfaceCharts()
@@ -7308,6 +7382,7 @@ int main(int argc, char** argv)
 	testStreamlines();
 	testCharts();
 	testSurfaceCharts();
+	testCellAveraging();
 	testVolumeGrid();
 	testLazySteps();
 	testDeformedOverlays();

@@ -143,6 +143,7 @@ private:
 	QPushButton* _plotOverLineButton = nullptr;
 	QPushButton* _histogramButton = nullptr;
 	QCheckBox* _markersCheck = nullptr;
+	QCheckBox* _averageCellsCheck = nullptr; // a cell field: draw it averaged onto the nodes (smooth) instead of flat
 	QDoubleSpinBox* _deformScaleSpin = nullptr;
 	QPushButton* _deformAutoButton = nullptr;
 	QLabel* _deformInfoLabel = nullptr;

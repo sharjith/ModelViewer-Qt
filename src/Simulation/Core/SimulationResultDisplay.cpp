@@ -114,7 +114,7 @@ bool computeStepRange(const ResultDataset& dataset, int fieldIndex, int componen
 	return true;
 }
 
-bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int component, DisplayScalar& out, int step)
+bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int component, DisplayScalar& out, int step, const CellToNodeAverager* averager)
 {
 	out = DisplayScalar();
 	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size())
@@ -125,8 +125,8 @@ bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int compon
 	if (step < 0 || static_cast<std::size_t>(step) >= field.stepData.size() || field.stepData[static_cast<std::size_t>(step)].empty())
 		return false; // no data for it at this step
 
-	const bool cellData = field.association == ResultFieldAssociation::Cell;
-	const std::size_t nodes = cellData ? dataset.cellCount() : dataset.nodeCount(); // "nodes" = tuples of the field
+	bool cellData = field.association == ResultFieldAssociation::Cell;
+	std::size_t nodes = cellData ? dataset.cellCount() : dataset.nodeCount(); // "nodes" = tuples of the field
 	const int comps = field.components;
 	const std::vector<float>& data = field.stepData[static_cast<std::size_t>(step)];
 	if (comps <= 0 || data.size() != nodes * static_cast<std::size_t>(comps))
@@ -159,6 +159,17 @@ bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int compon
 	}
 	else
 		return false; // a 6/9-component tensor needs an explicit component
+
+	if (cellData && averager)
+	{
+		// Averaged onto the nodes (before the unit conversion, which is affine and keeps NaN as NaN).
+		std::vector<float> averaged;
+		averager->average(values, averaged);
+		values = std::move(averaged);
+		cellData = false;
+		nodes = dataset.nodeCount();
+		label += QStringLiteral(" (averaged to nodes)");
+	}
 
 	// Numbers are converted only when the file unit and a different display unit are both known: a guessed file
 	// unit alone never changes them.

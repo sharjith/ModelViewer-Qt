@@ -10,6 +10,7 @@
 #include "ResultSlice.h"
 #include "ResultStreamlines.h"
 #include "SimulationOverlays.h"
+#include "SimulationCellAveraging.h"
 #include "SimulationSurfaceLocator.h"
 
 #include <QString>
@@ -64,7 +65,9 @@ struct DisplayScalar
 // (when both are known; otherwise the numbers are untouched). A scalar field ignores `component`; a 3-component field
 // uses `component` (0-2) or, with -1, its Euclidean magnitude; fields with other component counts need an
 // explicit `component`. Returns false when the field is not a loaded node field or the request does not fit.
-bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int component, DisplayScalar& out, int step = 0);
+// With `averager`, a CELL field is returned as a NODE scalar (cellData false): each node takes the size-weighted average of the cells around it
+// (SimulationCellAveraging.h), so everything that interpolates - the smooth colour map, charts, volume rendering, iso-surfaces - can use it.
+bool buildDisplayScalar(const ResultDataset& dataset, int fieldIndex, int component, DisplayScalar& out, int step = 0, const CellToNodeAverager* averager = nullptr);
 
 // The min/max buildDisplayScalar would report for `step` (display unit, widened by a snapshot's stored range), scanned in place without building
 // the per-tuple values. False under the same conditions buildDisplayScalar fails.
@@ -182,6 +185,9 @@ struct SimulationViewState
 	// Automatic range only: true = the range over ALL steps (a fixed colour scale, so animation frames stay
 	// comparable - the default), false = the range of the step shown. Ignored for a single-step result.
 	bool allStepsRange = true;
+	// A cell field is shown as stored (flat colour per cell, false) or averaged onto the nodes and shown smooth (true). The charts, volume rendering and
+	// iso-surfaces always use the averaged values, whatever this says.
+	bool averageCellData = false;
 	// Deformed shape: the displacement field (see findDisplacementField) times `deformScale` added to the geometry.
 	bool deform = false;
 	double deformScale = 1.0;
@@ -310,6 +316,7 @@ struct SimulationSession
 	std::shared_ptr<CellLocator> locator; // finds the cell around a point, built on first use for the streamlines (it refers to `dataset`)
 	// The same for a shell / surface result (no volume cells): the closest point of the surface, used by the point-history and over-line charts.
 	std::shared_ptr<SurfaceLocator> surfaceLocator;
+	std::shared_ptr<CellToNodeAverager> cellAverager; // built on first use for a cell field (it depends on the geometry only)
 	QString surfaceLocatorKey;
 	// The traced streamlines, kept while the field, step, seed count and seeding stay the same (a plane moved without seeding on it only re-trims them).
 	std::shared_ptr<StreamlineSet> streamlineSet;

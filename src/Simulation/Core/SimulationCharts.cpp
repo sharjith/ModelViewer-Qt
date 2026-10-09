@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <memory>
 
 namespace
 {
@@ -30,6 +31,20 @@ namespace
 	}
 }
 
+namespace
+{
+	// The scalar a chart samples: a cell field is averaged onto the nodes first (the charts interpolate node values).
+	bool buildChartScalar(const ResultDataset& dataset, int fieldIndex, int component, int step, DisplayScalar& scalar)
+	{
+		const bool cellField = fieldIndex >= 0 && static_cast<std::size_t>(fieldIndex) < dataset.fields.size()
+		                       && dataset.fields[static_cast<std::size_t>(fieldIndex)].association == ResultFieldAssociation::Cell;
+		if (!cellField)
+			return buildDisplayScalar(dataset, fieldIndex, component, scalar, step) && !scalar.cellData;
+		const CellToNodeAverager averager(dataset);
+		return buildDisplayScalar(dataset, fieldIndex, component, scalar, step, &averager) && !scalar.cellData;
+	}
+}
+
 bool sampleFieldOverLine(const ResultDataset& dataset, const CellLocator& locator, int fieldIndex, int component, int step,
                          const double p0[3], const double p1[3], std::size_t sampleCount, ChartSeries& out)
 {
@@ -37,8 +52,8 @@ bool sampleFieldOverLine(const ResultDataset& dataset, const CellLocator& locato
 	if (sampleCount < 2 || locator.volumeCellCount() == 0)
 		return false;
 	DisplayScalar scalar;
-	if (!buildDisplayScalar(dataset, fieldIndex, component, scalar, step) || scalar.cellData)
-		return false; // cell (element) data is not interpolated by CellLocator: not supported yet
+	if (!buildChartScalar(dataset, fieldIndex, component, step, scalar))
+		return false;
 
 	const double dx = p1[0] - p0[0], dy = p1[1] - p0[1], dz = p1[2] - p0[2];
 	const double length = std::sqrt(dx * dx + dy * dy + dz * dz);
@@ -104,8 +119,12 @@ namespace
 	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size() || dataset.stepCount() == 0 || stencil.empty())
 		return false;
 	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
-	if (field.association != ResultFieldAssociation::Node || field.components <= 0)
+	if (field.components <= 0)
 		return false;
+	// A cell field is read through the size-weighted average of the cells around each node of the stencil.
+	const bool cellField = field.association == ResultFieldAssociation::Cell;
+	const std::unique_ptr<CellToNodeAverager> averager = cellField ? std::make_unique<CellToNodeAverager>(dataset) : nullptr;
+	const std::size_t tuples = cellField ? dataset.cellCount() : dataset.nodeCount();
 	const bool magnitude = component < 0 && field.components == 3;
 	if (field.components != 1 && !magnitude && (component < 0 || component >= field.components))
 		return false;
@@ -133,15 +152,32 @@ namespace
 		if (s >= field.stepData.size())
 			continue;
 		const std::vector<float>& data = field.stepData[s];
-		if (data.size() != dataset.nodeCount() * static_cast<std::size_t>(field.components))
+		if (data.size() != tuples * static_cast<std::size_t>(field.components))
 			continue; // no data at this step (a field may start later): leave it NaN
+		std::vector<float> cellValues; // the chosen component (or magnitude) of every cell, for a cell field
+		if (cellField)
+		{
+			cellValues.resize(tuples);
+			const std::size_t comps = static_cast<std::size_t>(field.components);
+			for (std::size_t c = 0; c < tuples; ++c)
+			{
+				if (comps == 1)
+					cellValues[c] = data[c];
+				else if (magnitude)
+					cellValues[c] = std::sqrt(data[c * 3] * data[c * 3] + data[c * 3 + 1] * data[c * 3 + 1] + data[c * 3 + 2] * data[c * 3 + 2]);
+				else
+					cellValues[c] = data[c * comps + static_cast<std::size_t>(component)];
+			}
+		}
 		double sampled = 0.0;
 		bool finite = true;
 		for (std::size_t i = 0; i < stencil.nodes.size(); ++i)
 		{
 			const std::size_t base = static_cast<std::size_t>(stencil.nodes[i]) * static_cast<std::size_t>(field.components);
 			double value = 0.0;
-			if (field.components == 1)
+			if (cellField)
+				value = averager->valueAt(stencil.nodes[i], cellValues);
+			else if (field.components == 1)
 				value = data[base];
 			else if (magnitude)
 			{
@@ -201,8 +237,8 @@ bool sampleFieldOverLine(const ResultDataset& dataset, const SurfaceLocator& loc
 	if (sampleCount < 2 || locator.triangleCount() == 0)
 		return false;
 	DisplayScalar scalar;
-	if (!buildDisplayScalar(dataset, fieldIndex, component, scalar, step) || scalar.cellData)
-		return false; // cell data is not interpolated: not supported yet
+	if (!buildChartScalar(dataset, fieldIndex, component, step, scalar))
+		return false;
 	const double dx = p1[0] - p0[0], dy = p1[1] - p0[1], dz = p1[2] - p0[2];
 	const double length = std::sqrt(dx * dx + dy * dy + dz * dz);
 	const double tolerance = std::max(0.0, maxDistanceFraction) * locator.diagonal();

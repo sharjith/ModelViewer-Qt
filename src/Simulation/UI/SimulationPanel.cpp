@@ -314,6 +314,13 @@ void SimulationPanel::buildUi()
 	                             "it cannot be shown."));
 	form->addRow(_markersCheck);
 
+	_averageCellsCheck = new QCheckBox(tr("Average cell data to nodes"), content);
+	_averageCellsCheck->setToolTip(tr("A cell (element) field has one value per cell and is drawn flat.\n"
+	                                  "Averaging it onto the nodes (weighted by cell size) draws it smooth.\n"
+	                                  "Charts, volume rendering and iso-surfaces always use the averaged\n"
+	                                  "values. Only applies to a cell field."));
+	form->addRow(_averageCellsCheck);
+
 	// ---- Deformed shape: the displacement field times a scale factor added to the geometry.
 	_deformCheck = new QCheckBox(tr("Show deformed shape"), content);
 	form->addRow(_deformCheck);
@@ -576,6 +583,7 @@ void SimulationPanel::buildUi()
 			emit resultCloseRequested(_resultCombo->currentData().toUuid());
 	});
 	connect(_markersCheck, &QCheckBox::toggled, this, [this](bool) { if (!_updating) emitState(); });
+	connect(_averageCellsCheck, &QCheckBox::toggled, this, [this](bool) { if (!_updating) emitState(); });
 	connect(_deformCheck, &QCheckBox::toggled, this, [this](bool on) {
 		_deformScaleSpin->setEnabled(on && _deformCheck->isEnabled());
 		_deformAutoButton->setEnabled(on && _deformCheck->isEnabled());
@@ -715,6 +723,7 @@ void SimulationPanel::setSession(const SimulationSession* session)
 	_bandsCombo->setCurrentIndex(std::max(0, _bandsCombo->findData(state.bands)));
 
 	_markersCheck->setChecked(state.markExtrema);
+	_averageCellsCheck->setChecked(state.averageCellData);
 
 	const bool canDeform = session->displacementField >= 0;
 	_autoDeformScale = session->autoDeformScale;
@@ -819,10 +828,11 @@ void SimulationPanel::populateIsoFields(int selectedFieldIndex)
 		for (std::size_t i = 0; i < _dataset->fields.size(); ++i)
 		{
 			const ResultField& f = _dataset->fields[i];
-			// A node field with one component or a vector (its magnitude): the value of an iso-surface must be a single number per node.
-			if (f.association != ResultFieldAssociation::Node || (f.components != 1 && f.components != 3) || !resultFieldHasData(f))
+			// A field with one component or a vector (its magnitude): the value of an iso-surface must be a single number per node (a cell field is averaged onto the nodes).
+			if ((f.components != 1 && f.components != 3) || !resultFieldHasData(f))
 				continue;
-			_isoFieldCombo->addItem(f.name + (f.components == 3 ? tr(" (magnitude)") : QString()), static_cast<int>(i));
+			_isoFieldCombo->addItem(f.name + (f.components == 3 ? tr(" (magnitude)") : QString())
+			                            + (f.association == ResultFieldAssociation::Cell ? tr(" [cells]") : QString()), static_cast<int>(i));
 		}
 	const bool any = _isoFieldCombo->count() > 0;
 	if (!any)
@@ -861,7 +871,8 @@ void SimulationPanel::populateVolumeFields(int selectedFieldIndex)
 			const ResultField& field = _dataset->fields[i];
 			if (!isVolumeField(field))
 				continue;
-			_volumeFieldCombo->addItem(field.name + (field.components == 3 ? tr(" (magnitude)") : QString()), static_cast<int>(i));
+			_volumeFieldCombo->addItem(field.name + (field.components == 3 ? tr(" (magnitude)") : QString())
+			                               + (field.association == ResultFieldAssociation::Cell ? tr(" [cells]") : QString()), static_cast<int>(i));
 		}
 	}
 	const bool any = hasVolumeCells && _volumeFieldCombo->count() > 0;
@@ -948,8 +959,13 @@ void SimulationPanel::populateComponents(int fieldIndex, int selectedComponent)
 {
 	_componentCombo->clear();
 	int comps = 1;
+	bool cellField = false;
 	if (_dataset && fieldIndex >= 0 && static_cast<std::size_t>(fieldIndex) < _dataset->fields.size())
+	{
 		comps = _dataset->fields[static_cast<std::size_t>(fieldIndex)].components;
+		cellField = _dataset->fields[static_cast<std::size_t>(fieldIndex)].association == ResultFieldAssociation::Cell;
+	}
+	_averageCellsCheck->setEnabled(cellField); // only a cell field has anything to average
 
 	if (comps == 1)
 	{
@@ -1090,6 +1106,7 @@ SimulationViewState SimulationPanel::currentState() const
 	state.colormap = _colormapCombo->currentData().toInt();
 	state.bands = _bandsCombo->currentData().toInt();
 	state.markExtrema = _markersCheck->isChecked();
+	state.averageCellData = _averageCellsCheck->isChecked();
 	state.deform = _deformCheck->isChecked();
 	state.deformScale = _deformScaleSpin->value();
 	state.sectionFill = _sectionCheck->isChecked();

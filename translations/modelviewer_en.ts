@@ -7289,7 +7289,7 @@ The surface is shown with the colours it had when it was saved.</source>
     </message>
     <message>
         <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2344"/>
-        <source>Iso-surfaces: choose a node field (a scalar or a vector) to draw them of.</source>
+        <source>Iso-surfaces: choose a field (a scalar or a vector) to draw them of.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -7315,7 +7315,7 @@ The surface is shown with the colours it had when it was saved.</source>
     </message>
     <message>
         <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2478"/>
-        <source>The current field cannot be charted this way (cell data is not supported yet, or the point/line missed the mesh entirely).</source>
+        <source>The current field cannot be charted this way (it has no data at this step, or the point/line missed the mesh entirely).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -15137,6 +15137,19 @@ millimetres. Set from the file when it states one.</source>
     <message>
         <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="311"/>
         <source>Mark minimum and maximum</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="320"/>
+        <source>Average cell data to nodes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="320"/>
+        <source>A cell (element) field has one value per cell and is drawn flat.
+Averaging it onto the nodes (weighted by cell size) draws it smooth.
+Charts, volume rendering and iso-surfaces always use the averaged
+values. Only applies to a cell field.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
