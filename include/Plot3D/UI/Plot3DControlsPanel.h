@@ -45,7 +45,8 @@ private:
 	void applyReferencePlaneState();
 	void applyAxisState();
 	void applyTextLabels(); // the notes table -> the active plot
-	void addTextLabel();
+	void addTextLabel();      // at the centre of the plot's data (coordinates can then be typed)
+	void placeTextLabel();    // arms the click tool: click a point on a plot
 	void removeTextLabel();
 
 	QPointer<ModelViewer> _viewer;
@@ -86,6 +87,7 @@ private:
 	QGroupBox* _notesGroup = nullptr;
 	QTableWidget* _notesTable = nullptr;
 	QPushButton* _addNoteButton = nullptr;
+	QPushButton* _placeNoteButton = nullptr;
 	QPushButton* _removeNoteButton = nullptr;
 	bool _applyingNotes = false; // the table is the source of the change in flight: refreshState() must not rebuild it
 

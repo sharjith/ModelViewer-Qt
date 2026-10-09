@@ -405,3 +405,13 @@ column is saved with the column mapping. Sample: `line_band.csv`.
 
 A flat axis (all values equal) used to get a fixed padding of at least 1.0 unit, which turned a 0.1 m wide plane into a needle-tall axes box.
 It is now 10 % of the largest extent among the other (linear) axes, with the fixed amount only when every axis is flat.
+
+### Click-to-place text notes (branch `feature/plot3d-note-placement`)
+
+The 3D Plot tab's **Place note** arms a click tool: a click snaps to the nearest data point of a visible plot within 14 px (vertices, and the
+closest point on each segment for line plots and pathlines), else to the surface point under the cursor, and asks for the note's text
+(multi-line). The note is stored in the plot's data coordinates (the inverse of the axis scales). Notes are drawn on their own
+(`ViewportWidget::drawPlot3DNotes`), so they stay when the axes box is hidden; each follows its own plot's axis scales and visibility. In the
+view a note can be dragged (it slides in the view plane), edited by double-click and deleted from the right-click menu. Not undoable (like the
+other Plot3D settings). The viewport's note signals are connected where the viewport is set up (not in the Simulation hooks, which only run once a
+result is opened).

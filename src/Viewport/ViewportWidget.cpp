@@ -9663,6 +9663,156 @@ void ViewportWidget::clearPlot3DAxisLayout()
     update();
 }
 
+void ViewportWidget::setPlot3DNotes(const QVector<Plot3DNote>& notes)
+{
+	_plot3DNotes = notes;
+	_plot3DNoteRects.clear();
+	if (_plot3DNoteDrag >= static_cast<int>(_plot3DNotes.size()))
+		_plot3DNoteDrag = -1;
+	update();
+}
+
+int ViewportWidget::plot3DNoteAt(const QPoint& pixel) const
+{
+	// Last drawn on top: search from the end. A note off screen has an empty rectangle.
+	for (int i = std::min<int>(_plot3DNoteRects.size(), _plot3DNotes.size()) - 1; i >= 0; --i)
+		if (!_plot3DNoteRects[i].isEmpty() && _plot3DNoteRects[i].contains(QPointF(pixel)))
+			return i;
+	return -1;
+}
+
+void ViewportWidget::setPlot3DNotePlacementArmed(bool armed)
+{
+	if (_plot3DNotePlaceArmed == armed)
+		return;
+	if (armed)
+	{
+		// Mutual exclusivity with the other click tools, as they do among themselves.
+		if (_measurementController)
+			_measurementController->setMeasurementTool(MeasurementTool::None, _selectionManager);
+		if (_annotationController)
+			_annotationController->setAnnotationToolArmed(false, _selectionManager);
+		setLassoToolArmed(false);
+		setEyedropperArmed(false);
+		setColorPickArmed(false);
+		setSimulationChartPickArmed(false);
+		setCursor(QCursor(Qt::CrossCursor));
+		MainWindow::showStatusMessage(tr("Click a point on a plot to place the note (Esc cancels)."));
+	}
+	else
+	{
+		setCursor(QCursor(Qt::ArrowCursor));
+		MainWindow::showStatusMessage(QString(), 1);
+	}
+	_plot3DNotePlaceArmed = armed;
+	emit plot3DNotePlacementChanged(armed);
+}
+
+// The point a note-placement click means: the nearest data point of a visible plot (vertices, and the segments between them for line plots)
+// within a few pixels, so notes can sit on points, lines and pathlines; otherwise the surface point under the cursor. The result is in the
+// plot mesh's local space (the space its axes are drawn in).
+void ViewportWidget::handlePlot3DNotePlaceClick(const QPoint& pixel)
+{
+	if (!_viewer)
+		return;
+	const QRect viewportRect(0, 0, width(), height());
+	const QMatrix4x4 view = _viewCtrl.viewMatrix(), projection = _viewCtrl.projectionMatrix();
+	const QPointF click(pixel);
+	constexpr double kSnapPixels = 14.0;
+	double bestSquared = kSnapPixels * kSnapPixels;
+	QUuid bestMesh;
+	QVector3D bestLocal;
+	for (const QUuid& meshUuid : _viewer->plot3DVisibleMeshes())
+	{
+		const SceneMesh* mesh = getMeshByUuid(meshUuid);
+		if (!mesh)
+			continue;
+		const QMatrix4x4 model = mesh->combinedRenderTransform();
+		const std::vector<Vertex> vertices = mesh->vertices();
+		const std::vector<unsigned int> indices = mesh->indices();
+		auto screenOf = [&](unsigned int i, QPointF& screen) {
+			const glm::vec3& p = vertices[i].Position;
+			const QVector3D projected = model.map(QVector3D(p.x, p.y, p.z)).project(view, projection, viewportRect);
+			if (projected.z() < 0.0f || projected.z() > 1.0f)
+				return false;
+			screen = QPointF(projected.x(), height() - projected.y());
+			return true;
+		};
+		auto localOf = [&](unsigned int i) { const glm::vec3& p = vertices[i].Position; return QVector3D(p.x, p.y, p.z); };
+		// Points: every vertex. Lines: also the closest point of each segment.
+		const unsigned int mode = mesh->getPrimitiveMode();
+		const bool lines = mode == GL_LINES || mode == GL_LINE_STRIP;
+		const std::size_t count = indices.empty() ? vertices.size() : indices.size();
+		auto vertexAt = [&](std::size_t k) { return indices.empty() ? static_cast<unsigned int>(k) : indices[k]; };
+		for (std::size_t k = 0; k < count; ++k)
+		{
+			const unsigned int a = vertexAt(k);
+			if (a >= vertices.size())
+				continue;
+			QPointF sa;
+			if (!screenOf(a, sa))
+				continue;
+			const double dv = QPointF(sa - click).x() * QPointF(sa - click).x() + QPointF(sa - click).y() * QPointF(sa - click).y();
+			if (dv < bestSquared)
+			{
+				bestSquared = dv;
+				bestMesh = meshUuid;
+				bestLocal = localOf(a);
+			}
+			if (!lines)
+				continue;
+			// The segment starting here: GL_LINES pairs (even k), GL_LINE_STRIP consecutive vertices.
+			if ((mode == GL_LINES && (k % 2) != 0) || k + 1 >= count)
+				continue;
+			const unsigned int b = vertexAt(k + 1);
+			QPointF sb;
+			if (b >= vertices.size() || !screenOf(b, sb))
+				continue;
+			const QPointF ab = sb - sa;
+			const double lengthSquared = ab.x() * ab.x() + ab.y() * ab.y();
+			if (lengthSquared < 1.0e-9)
+				continue;
+			const QPointF ac = click - sa;
+			const double t = std::clamp((ac.x() * ab.x() + ac.y() * ab.y()) / lengthSquared, 0.0, 1.0);
+			const QPointF nearest = sa + ab * t;
+			const QPointF d = nearest - click;
+			const double ds = d.x() * d.x() + d.y() * d.y();
+			if (ds < bestSquared)
+			{
+				bestSquared = ds;
+				bestMesh = meshUuid;
+				bestLocal = localOf(a) * static_cast<float>(1.0 - t) + localOf(b) * static_cast<float>(t);
+			}
+		}
+	}
+	if (bestMesh.isNull() && _selectionManager)
+	{
+		// Not near a data point: the surface under the cursor, if it belongs to a plot.
+		const MeshSurfaceAnchor anchor = _selectionManager->pickSurfaceAnchor(pixel);
+		if (anchor.isValid() && !_viewer->plot3DOwnerOfMesh(anchor.meshUuid).isNull())
+		{
+			if (const SceneMesh* mesh = getMeshByUuid(anchor.meshUuid))
+			{
+				bool invertible = false;
+				const QMatrix4x4 inverse = mesh->combinedRenderTransform().inverted(&invertible);
+				if (invertible)
+				{
+					bestMesh = anchor.meshUuid;
+					bestLocal = inverse.map(anchor.worldPosition);
+				}
+			}
+		}
+	}
+	if (bestMesh.isNull())
+	{
+		MainWindow::showStatusMessage(tr("No plot there - click on a plot to place the note (Esc cancels)."), 4000);
+		return; // stay armed
+	}
+	const QUuid plot = _viewer->plot3DOwnerOfMesh(bestMesh);
+	setPlot3DNotePlacementArmed(false);
+	emit plot3DNotePlaced(plot, bestLocal);
+}
+
 void ViewportWidget::setPlot3DAxisVisible(bool visible)
 {
 	const bool next = visible && _plot3DAxisLayout.has_value();
@@ -10033,6 +10183,39 @@ void ViewportWidget::drawPlot3DAxisOverlay(Camera* camera)
 				TextRenderer::HAlignment::HLEFT);
 		}
     }
+}
+
+// The text notes, centred on their anchors (a note's lines stack downward from it), in the same halo text as the axis labels. Drawn on their
+// own, so they stay when the axes box is hidden; where each landed is kept for hit-testing.
+void ViewportWidget::drawPlot3DNotes()
+{
+	_plot3DNoteRects.clear();
+	if (!_axisTextRenderer || _plot3DNotes.isEmpty())
+		return;
+	const QRect viewportRect(0, 0, width(), height());
+	const float lineHeight = static_cast<float>(_axisTextRenderer->fontSize());
+	for (const Plot3DNote& note : std::as_const(_plot3DNotes))
+	{
+		const QVector3D projected = note.position.project(_viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(), viewportRect);
+		if (projected.z() < 0.0f || projected.z() > 1.0f || note.text.trimmed().isEmpty())
+		{
+			_plot3DNoteRects.push_back(QRectF()); // behind the camera, or nothing to show
+			continue;
+		}
+		const float y = static_cast<float>(height()) - projected.y();
+		const QStringList lines = note.text.split(QLatin1Char('\n'));
+		float widest = 0.0f;
+		for (int line = 0; line < lines.size(); ++line)
+		{
+			const std::string text = lines[line].toStdString();
+			const float width = _axisTextRenderer->textWidth(text);
+			widest = std::max(widest, width);
+			_axisTextRenderer->RenderHaloText(text, projected.x() - width * 0.5f, y + static_cast<float>(line) * lineHeight, 1,
+				note.color, TextRenderer::VAlignment::VBOTTOM, TextRenderer::HAlignment::HLEFT);
+		}
+		_plot3DNoteRects.push_back(QRectF(projected.x() - widest * 0.5f - 4.0f, y - lineHeight - 2.0f, widest + 8.0f,
+			lineHeight * static_cast<float>(lines.size()) + 6.0f));
+	}
 }
 
 void ViewportWidget::drawDebugOverlay(Camera* camera)
@@ -12105,6 +12288,7 @@ void ViewportWidget::render(Camera* camera)
 	// --- 5) Overlays ---
     drawDebugOverlay(camera);
     drawPlot3DAxisOverlay(camera);
+    drawPlot3DNotes();
     drawPlot3DSectionProbe(camera);
     drawPlot3DPointOverlays(camera);
 	// Single-view mode draws this AFTER the ray-traced overlay instead (see
@@ -13497,6 +13681,11 @@ void ViewportWidget::restoreArmedToolCursor()
 	if (_colorPickArmed)
 	{
 		setCursor(makeIconCursor(":/icons/res/eye_dropper.png", 48, devicePixelRatioF(), 12, 37));
+		return;
+	}
+	if (_plot3DNotePlaceArmed)
+	{
+		setCursor(QCursor(Qt::CrossCursor));
 		return;
 	}
 	if (_simulationChartPickArmed)
@@ -15182,6 +15371,33 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 			return;
 		}
 
+		// Plot3D note placement armed: same nav-gate, consumes the click entirely.
+		if (_plot3DNotePlaceArmed
+			&& !(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
+			&& !_viewCtrl.windowZoomActive() && !_viewCtrl.viewRotating()
+			&& !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
+		{
+			handlePlot3DNotePlaceClick(clickPoint);
+			return;
+		}
+
+		// Pressing a Plot3D note (no tool armed) starts dragging it; it slides in the plane of the view.
+		if (!_plot3DNotePlaceArmed && !_plot3DNotes.isEmpty() && !_compareActive
+			&& _measurementController->measurementTool() == MeasurementTool::None && !_annotationController->annotationToolArmed()
+			&& !_simulationChartPickArmed && _eyedropperPhase == EyedropperPhase::Idle && !_colorPickArmed
+			&& !(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
+			&& !_viewCtrl.windowZoomActive() && !_viewCtrl.viewRotating() && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
+		{
+			const int hit = plot3DNoteAt(clickPoint);
+			if (hit >= 0)
+			{
+				_plot3DNoteDrag = hit;
+				_plot3DNoteDragMoved = false;
+				_plot3DNoteDragDepth = _plot3DNotes[hit].position.project(_viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(), QRect(0, 0, width(), height())).z();
+				return;
+			}
+		}
+
 		// Simulation chart point picking armed: same nav-gate, consumes the click entirely.
 		if (_simulationChartPickArmed
 			&& !(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
@@ -15451,6 +15667,15 @@ void ViewportWidget::mouseReleaseEvent(QMouseEvent* e)
 {
 	if (comparePaneNavRelease(e))
 		return;
+	if ((e->button() & Qt::LeftButton) && _plot3DNoteDrag >= 0)
+	{
+		const int index = _plot3DNoteDrag;
+		_plot3DNoteDrag = -1;
+		if (_plot3DNoteDragMoved && index < _plot3DNotes.size())
+			emit plot3DNoteMoved(_plot3DNotes[index].plot, _plot3DNotes[index].index, _plot3DNotes[index].position);
+		update();
+		return;
+	}
 	if ((e->button() & Qt::LeftButton) && _viewCtrl.transformGizmoTranslating())
 	{
 		finishTransformGizmoTranslationDrag(true);
@@ -15733,6 +15958,15 @@ void ViewportWidget::mouseDoubleClickEvent(QMouseEvent* e)
 		return;
 
 	const QPoint clickPoint(e->position().x(), e->position().y());
+	if (!_plot3DNotePlaceArmed && !_plot3DNotes.isEmpty())
+	{
+		const int hit = plot3DNoteAt(clickPoint);
+		if (hit >= 0)
+		{
+			emit plot3DNoteEditRequested(_plot3DNotes[hit].plot, _plot3DNotes[hit].index);
+			return;
+		}
+	}
 
 	// Same "what's under the cursor" priority as mousePressEvent()'s own
 	// "no tool armed" hit-test chain: dimension line -> measurement marker
@@ -15758,6 +15992,15 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 {
 	if (comparePaneNavMove(e))
 		return;
+	if (_plot3DNoteDrag >= 0 && (e->buttons() & Qt::LeftButton) && _plot3DNoteDrag < _plot3DNotes.size())
+	{
+		// The note follows the cursor at its own depth.
+		const QVector3D window(static_cast<float>(e->position().x()), static_cast<float>(height()) - static_cast<float>(e->position().y()), _plot3DNoteDragDepth);
+		_plot3DNotes[_plot3DNoteDrag].position = window.unproject(_viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(), QRect(0, 0, width(), height()));
+		_plot3DNoteDragMoved = true;
+		update();
+		return;
+	}
 	QPoint currentPos = e->pos();
 	qint64 currentTime = e->timestamp();
 	QPoint delta = currentPos - _viewCtrl.lastMousePos();
@@ -16355,6 +16598,11 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 
 	const auto key = event->key();
 
+	if (key == Qt::Key_Escape && _plot3DNotePlaceArmed)
+	{
+		setPlot3DNotePlacementArmed(false);
+		return;
+	}
 	if (key == Qt::Key_Escape && _measurementController->measurementTool() != MeasurementTool::None)
 	{
 		setMeasurementTool(MeasurementTool::None);
@@ -19471,6 +19719,17 @@ void ViewportWidget::showContextMenu(const QPoint& pos)
 		// Create menu and insert some actions
 		QMenu contextMenu;
 		SceneTreeWidget* treeWidgetModel = _viewer->getTreeModel();
+
+		// Over a Plot3D note: edit or delete it.
+		const int noteHit = _compareActive ? -1 : plot3DNoteAt(pos);
+		if (noteHit >= 0)
+		{
+			const QUuid notePlot = _plot3DNotes[noteHit].plot;
+			const int noteIndex = _plot3DNotes[noteHit].index;
+			contextMenu.addAction(tr("Edit Note..."), this, [this, notePlot, noteIndex]() { emit plot3DNoteEditRequested(notePlot, noteIndex); });
+			contextMenu.addAction(QIcon(":/icons/res/delete.png"), tr("Delete Note"), this, [this, notePlot, noteIndex]() { emit plot3DNoteDeleteRequested(notePlot, noteIndex); });
+			contextMenu.addSeparator();
+		}
 
 		// Over a Simulation result: its point history in one step (the same chart as Plot Over Time, without arming the tool first). Not in
 		// Compare mode, whose panes need their own picking.

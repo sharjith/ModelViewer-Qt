@@ -221,13 +221,16 @@ Plot3DControlsPanel::Plot3DControlsPanel(QWidget* parent)
 	_notesTable->setWordWrap(true);
 	notesLayout->addWidget(_notesTable);
 	auto* notesButtons = new QHBoxLayout();
+	_placeNoteButton = new QPushButton(_notesGroup);
 	_addNoteButton = new QPushButton(_notesGroup);
 	_removeNoteButton = new QPushButton(_notesGroup);
+	notesButtons->addWidget(_placeNoteButton);
 	notesButtons->addWidget(_addNoteButton);
 	notesButtons->addWidget(_removeNoteButton);
 	notesButtons->addStretch(1);
 	notesLayout->addLayout(notesButtons);
 	layout->addWidget(_notesGroup);
+	connect(_placeNoteButton, &QPushButton::clicked, this, &Plot3DControlsPanel::placeTextLabel);
 	connect(_addNoteButton, &QPushButton::clicked, this, &Plot3DControlsPanel::addTextLabel);
 	connect(_removeNoteButton, &QPushButton::clicked, this, &Plot3DControlsPanel::removeTextLabel);
 	connect(_notesTable, &QTableWidget::itemChanged, this, [this](QTableWidgetItem* item) {
@@ -360,8 +363,11 @@ void Plot3DControlsPanel::applyTexts()
 	_notesTable->setToolTip(tr("Notes placed at a point of the plot, in its own data coordinates. Edit a cell to change it.\n"
 	                           "Enter adds a line to the text; Ctrl+Enter or clicking away finishes. They are drawn in the axes box,\n"
 	                           "so they follow the plot's visibility and its axes."));
-	_addNoteButton->setText(tr("Add note"));
-	_addNoteButton->setToolTip(tr("Add a note at the centre of the plot's data."));
+	_placeNoteButton->setText(tr("Place note"));
+	_placeNoteButton->setToolTip(tr("Click a point on a plot to put a note there. It snaps to the nearest data point (or the surface). Drag a note to move it,\n"
+	                                "double-click to edit its text, right-click for Delete."));
+	_addNoteButton->setText(tr("Add at centre"));
+	_addNoteButton->setToolTip(tr("Add a note at the centre of the plot's data; type its coordinates in the table."));
 	_removeNoteButton->setText(tr("Remove note"));
 }
 
@@ -552,6 +558,12 @@ void Plot3DControlsPanel::applyTextLabels()
 	_applyingNotes = true;
 	_viewer->setPlot3DTextLabels(_plotSelector->currentData().toUuid(), labels);
 	_applyingNotes = false;
+}
+
+void Plot3DControlsPanel::placeTextLabel()
+{
+	if (_viewer && _plotSelector->currentIndex() >= 0)
+		_viewer->startPlot3DNotePlacement();
 }
 
 void Plot3DControlsPanel::addTextLabel()

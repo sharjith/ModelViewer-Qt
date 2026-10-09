@@ -1267,6 +1267,13 @@ signals:
 	// Availability/visibility of the persistent Plot3D axis overlay changed. The shared 3D Plot panel uses this to
 	// follow the active document and changes made by a newly-built plot.
 	void plot3DAxisStateChanged(bool available, bool visible);
+	// Plot3D text notes: the placement tool was armed / disarmed; a click placed one (at a position in the plot's own, scaled space); one was
+	// dragged to a new position; or the user asked to edit / delete one (double-click, right-click).
+	void plot3DNotePlacementChanged(bool armed);
+	void plot3DNotePlaced(const QUuid& plot, const QVector3D& localPosition);
+	void plot3DNoteMoved(const QUuid& plot, int index, const QVector3D& localPosition);
+	void plot3DNoteEditRequested(const QUuid& plot, int index);
+	void plot3DNoteDeleteRequested(const QUuid& plot, int index);
 
 	void windowZoomEnded();
 	void rotationsSet();
@@ -1576,6 +1583,22 @@ public:
 	void setPlot3DAxisLayout(const Plot3DAxisLayout& layout);
 	void clearPlot3DAxisLayout();
 	void setPlot3DAxisVisible(bool visible);
+
+	// Plot3D text notes: screen-space labels at positions in the plots' own (scaled) space, drawn whether or not the axes box is shown. Each
+	// belongs to a plot and is that plot's `index`-th note. They can be placed (armed tool: a click on a plot snaps to its nearest data point or
+	// surface point), dragged, edited by double-click and deleted from the right-click menu.
+	struct Plot3DNote
+	{
+		QUuid plot;
+		int index = 0;
+		QString text;
+		QVector3D position;
+		QVector3D color{ 1.0f, 0.88f, 0.35f };
+	};
+	void setPlot3DNotes(const QVector<Plot3DNote>& notes);
+	void setPlot3DNotePlacementArmed(bool armed);
+	bool plot3DNotePlacementArmed() const { return _plot3DNotePlaceArmed; }
+	int plot3DNoteAt(const QPoint& pixel) const; // index into the notes last set, or -1
 	// Hover probe for Plot3D surfaces: while the cursor is over an enabled plot's surface, the curves where the X, Y and Z
 	// planes through the hovered point cut that surface are drawn, with the point's coordinates. Off by default.
 	void setPlot3DSectionProbeEnabled(const QUuid& meshUuid, bool enabled);
@@ -2113,6 +2136,14 @@ private:
 	TextRenderer* _textRenderer;
 	TextRenderer* _axisTextRenderer;
 	std::optional<Plot3DAxisLayout> _plot3DAxisLayout;
+	QVector<Plot3DNote> _plot3DNotes;
+	QVector<QRectF> _plot3DNoteRects; // where each note was drawn last frame (widget coordinates), for hit-testing
+	bool _plot3DNotePlaceArmed = false;
+	int _plot3DNoteDrag = -1;         // the note being dragged, or -1
+	float _plot3DNoteDragDepth = 0.0f; // its window depth, kept while it is dragged (it slides in the view plane)
+	bool _plot3DNoteDragMoved = false;
+	void drawPlot3DNotes();
+	void handlePlot3DNotePlaceClick(const QPoint& pixel);
 	bool _plot3DAxisVisible = false;
 	// Hover section probe (see setPlot3DSectionProbeEnabled()). The per-mesh cache holds a compact copy of the positions
 	// and triangles because SceneMesh::vertices() copies the whole vertex array, far too heavy per mouse move.
