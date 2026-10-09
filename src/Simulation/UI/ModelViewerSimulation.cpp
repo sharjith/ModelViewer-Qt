@@ -1170,6 +1170,14 @@ void ModelViewer::advanceSimulationStep()
 	setSimulationStep(next, true);
 }
 
+bool ModelViewer::isSimulationResultMesh(const QUuid& meshUuid) const
+{
+	for (const SimulationSession& session : _simulationSessions)
+		if (session.meshUuid == meshUuid && session.dataset && session.surface)
+			return true;
+	return false;
+}
+
 // The cursor of every chart opened for this result sits at the current step's time (or frequency).
 void ModelViewer::updateSimulationChartCursors(const SimulationSession& session)
 {
@@ -2411,6 +2419,7 @@ void ModelViewer::requestSimulationPlotOverTime()
 	// another (unrelated) simulation result, would otherwise silently sample whichever session onSimulationChartPointsPicked()
 	// looks up (findSimulationSession(_activeSimulationMesh)) at a point that has nothing to do with what was clicked.
 	const QUuid activeMesh = _activeSimulationMesh;
+	_chartPickTarget = nullptr; // a fresh Plot Over Time opens its own chart
 	_viewportWidget->setSimulationChartPickArmed(true, 1, [activeMesh](const QUuid& uuid) { return uuid == activeMesh; });
 }
 
@@ -2469,6 +2478,16 @@ void ModelViewer::onSimulationChartPointsPicked(const QUuid& meshUuid, const QVe
 		QMessageBox::information(this, tr("Chart"), tr("The current field cannot be charted this way (cell data is not supported yet, or the point/line missed the mesh entirely)."));
 		return;
 	}
+	if (points.size() == 1 && _chartPickTarget && _chartPickTargetMesh == meshUuid)
+	{
+		// A point added from the chart's own menu: its history joins that chart as another curve, named by where it was taken.
+		series.title = tr("%1 at (%2, %3, %4)").arg(series.title).arg(points[0].x(), 0, 'g', 4).arg(points[0].y(), 0, 'g', 4).arg(points[0].z(), 0, 'g', 4);
+		_chartPickTarget->addCurve(series);
+		_chartPickTarget->raise();
+		_chartPickTarget->activateWindow();
+		_chartPickTarget = nullptr;
+		return;
+	}
 	// This slot runs synchronously off ViewportWidget's own mousePressEvent (the click that supplied the last picked
 	// point): a top-level window created and shown mid-event like that can have its first paint/activation silently
 	// deferred by Qt until the event loop is next idle, so it does not actually appear until some LATER, unrelated
@@ -2485,6 +2504,14 @@ void ModelViewer::onSimulationChartPointsPicked(const QUuid& meshUuid, const QVe
 			chart->setSeekable(true);
 			_simulationChartLinks.push_back({ chart, chartMesh });
 			connect(chart, &SimulationChartWidget::seekRequested, this, [this, chartMesh](double x) { seekSimulationFromChart(chartMesh, x); });
+			connect(chart, &SimulationChartWidget::addPointRequested, this, [this, chart, chartMesh]() {
+				if (!_viewportWidget)
+					return;
+				_chartPickTarget = chart;
+				_chartPickTargetMesh = chartMesh;
+				_viewportWidget->setSimulationChartPickArmed(true, 1, [chartMesh](const QUuid& uuid) { return uuid == chartMesh; });
+				MainWindow::showStatusMessage(tr("Click a point on the result to add its history to the chart."));
+			});
 			if (const SimulationSession* linked = findSimulationSession(chartMesh))
 				updateSimulationChartCursors(*linked);
 		}

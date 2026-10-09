@@ -391,11 +391,16 @@ void SimulationChartWidget::contextMenuEvent(QContextMenuEvent* event)
 	if (_histogram)
 		return;
 	QMenu menu(this);
+	QAction* addPoint = nullptr;
+	if (_seekable) // a point-history chart: more points of the same result can be added to compare them
+		addPoint = menu.addAction(tr("Add a point from the model"));
 	QAction* add = menu.addAction(tr("Add curve from CSV..."));
 	QAction* clear = menu.addAction(tr("Remove added curves"));
 	clear->setEnabled(!_extraCurves.empty());
 	QAction* chosen = menu.exec(event->globalPos());
-	if (chosen == clear)
+	if (chosen && chosen == addPoint)
+		emit addPointRequested();
+	else if (chosen == clear)
 		clearCurves();
 	else if (chosen == add)
 	{

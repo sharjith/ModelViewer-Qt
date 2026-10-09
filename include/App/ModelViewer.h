@@ -720,6 +720,7 @@ public slots:
 	// Hover probe: the shown result value under the cursor, when it is over a simulation result mesh (empty text
 	// otherwise). `color` is set to a readable text colour for the paint under the cursor.
 	bool hasSimulationResults() const { return !_simulationSessions.empty(); }
+	bool isSimulationResultMesh(const QUuid& meshUuid) const; // the mesh is a Simulation result of this document
 	QString simulationProbeText(const MeshSurfaceAnchor& anchor, QColor& color) const;
 	// Applies an edit from the Simulation panel to the active session: recolours its mesh and updates the legend.
 	void applySimulationViewState(const SimulationViewState& state);
@@ -1159,6 +1160,8 @@ private:
 		QUuid mesh;
 	};
 	QVector<SimulationChartLink> _simulationChartLinks;
+	QPointer<SimulationChartWidget> _chartPickTarget; // a chart waiting for another point: the next one picked is added to it
+	QUuid _chartPickTargetMesh;
 	QUuid _playbackMesh;                // ... and its mesh
 	QUuid _playbackSeenActiveSim;       // the active result last time: the selection follows when it changes
 	bool _playbackBoundPathline = false; // what the controls are currently bound to (playback pauses when that changes)

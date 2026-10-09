@@ -39,6 +39,7 @@ public:
 
 signals:
 	void seekRequested(double x);
+	void addPointRequested(); // right-click > "Add a point from the model": the owner arms a pick and adds that point's history here
 
 protected:
 	void paintEvent(QPaintEvent* event) override;

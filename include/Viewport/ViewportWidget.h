@@ -562,6 +562,8 @@ public:
 	// Measure/Annotate/Mark-Seams/Lasso/Eyedropper/colour-pick above (both ways: arming any of those disarms this,
 	// and vice versa) and cancelled by Escape like they are.
 	void setSimulationChartPickArmed(bool armed, int pointsNeeded = 1, std::function<bool(const QUuid&)> meshFilter = {});
+	// One-shot, no arming: the point history of whatever result lies under `pixel` (the right-click menu's "Plot Over Time Here").
+	void plotOverTimeAt(const QPoint& pixel);
 	bool simulationChartPickArmed() const { return _simulationChartPickArmed; }
 
 	// ---- Fill Holes dialog's detected-hole-loop overlay --------------------
