@@ -877,6 +877,34 @@ RtCamera RtSceneBuilder::buildCamera(const Camera& camera, float aspectRatio)
 	rtCamera.up          = toGlm(camera.getUpVector());
 	rtCamera.aspectRatio = aspectRatio;
 
+	// The tracer takes forward / right / up as an ORTHONORMAL basis, but the camera's own vectors need not be one: a preset view stores its
+	// direction raw (the isometric one is (-1, 1, -1) with up (-1, 1, 0) - neither unit length nor perpendicular). The raster view does not
+	// care (lookAt() normalises and re-derives the basis), but an orthographic ray from the raw vectors scales and shears the whole image: the
+	// model looked squashed until the first orbit gave the camera a clean basis. Rebuild it here the way lookAt() does: forward from the view
+	// direction, right from forward x up, up from right x forward.
+	{
+		glm::vec3 f = rtCamera.forward;
+		if (glm::dot(f, f) > 1.0e-12f)
+		{
+			f = glm::normalize(f);
+			glm::vec3 upHint = rtCamera.up;
+			// A hint parallel to the view direction (or missing) cannot define the basis: take the world axis least aligned with it.
+			if (glm::dot(upHint, upHint) < 1.0e-12f || glm::length(glm::cross(f, upHint)) < 1.0e-6f * glm::length(upHint))
+			{
+				const glm::vec3 axis = std::abs(f.z) < 0.9f ? glm::vec3(0.0f, 0.0f, 1.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
+				upHint = axis;
+			}
+			glm::vec3 r = glm::cross(f, upHint);
+			if (glm::dot(r, r) > 1.0e-12f)
+			{
+				r = glm::normalize(r); // the same handedness lookAt() gives the raster view
+				rtCamera.forward = f;
+				rtCamera.right = r;
+				rtCamera.up = glm::normalize(glm::cross(r, f));
+			}
+		}
+	}
+
 	// Read the vertical scale factor straight out of the projection matrix
 	// (element [1][1] of both a standard OpenGL perspective matrix - where it
 	// equals 1/tan(fovY/2) - and a symmetric ortho matrix - where it equals
