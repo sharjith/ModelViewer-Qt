@@ -1,5 +1,6 @@
 #include "VtkLegacyReader.h"
 
+#include "ResultDerivedFields.h"
 #include "VtkDataTypes.h"
 
 #include <QByteArray>
@@ -719,6 +720,7 @@ ResultReadOutcome readVtkLegacy(const QString& path, const std::atomic<bool>* ca
 	ResultStep step;
 	step.time = timeValue;
 	dataset->steps.push_back(step);
+	addDerivedStressFields(*dataset); // von Mises, principals, max shear of a "stress" tensor (a result with only the tensor would open uncoloured)
 
 	outcome.warnings << resultCellTypeWarnings(*dataset);
 

@@ -105,9 +105,9 @@ struct TensorGlyphSet
 	}
 };
 
-// Whether a field can be drawn as tensor glyphs: 6 components (a symmetric tensor: XX YY ZZ XY YZ ZX), with data at
-// some step. Matches isStressTensor()'s naming rule (ResultDerivedFields.cpp) OR any plain 6-component field, so a
-// non-CalculiX/VTK-named symmetric tensor still qualifies.
+// Whether a field can be drawn as tensor glyphs: a symmetric stress tensor (6 components: XX YY ZZ XY YZ ZX) with data at
+// some step. Uses isStressTensorField()'s naming rule (ResultDerivedFields.cpp): six components alone do not make a
+// von-Mises stress, so a strain or an unnamed tensor is not offered.
 bool isTensorGlyphField(const ResultField& field);
 
 // The first 6-component field worth drawing as ellipsoids (node fields before cell fields). -1 when there is none.

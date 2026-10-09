@@ -79,6 +79,8 @@ private:
 	void populateFields(int selectedFieldIndex);
 	void populateComponents(int fieldIndex, int selectedComponent);
 	void populateGlyphFields(int selectedFieldIndex);
+	void populateTensorGlyphFields(int selectedFieldIndex);
+	void updateTensorGlyphEnabled();
 	void populateIsoFields(int selectedFieldIndex);
 	void populateVolumeFields(int selectedFieldIndex);
 	void updateSliceEnabled();
@@ -157,6 +159,8 @@ private:
 	QDoubleSpinBox* _lineRadiusSpin = nullptr;
 	QLabel* _glyphInfoLabel = nullptr;
 	QCheckBox* _tensorGlyphCheck = nullptr;
+	QComboBox* _tensorGlyphFieldCombo = nullptr;
+	QSpinBox* _tensorGlyphCountSpin = nullptr;
 	QDoubleSpinBox* _tensorGlyphScaleSpin = nullptr;
 	QLabel* _tensorGlyphInfoLabel = nullptr;
 	QCheckBox* _volumeCheck = nullptr;

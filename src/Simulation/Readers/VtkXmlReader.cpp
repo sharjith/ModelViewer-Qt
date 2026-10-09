@@ -1,5 +1,6 @@
 #include "VtkXmlReader.h"
 
+#include "ResultDerivedFields.h"
 #include "VtkDataTypes.h"
 
 #include <QByteArray>
@@ -583,6 +584,7 @@ ResultReadOutcome readVtkXmlUnstructuredGrid(const QString& path, const std::ato
 	ResultStep step;
 	step.time = timeValue;
 	dataset->steps.push_back(step);
+	addDerivedStressFields(*dataset); // von Mises, principals, max shear of a "stress" tensor (a result with only the tensor would open uncoloured)
 
 	const QString problem = dataset->validate();
 	if (!problem.isEmpty())
