@@ -55,6 +55,17 @@ bool buildFieldHistogram(const ResultDataset& dataset, int fieldIndex, int compo
 // than two usable rows remain. Meant for test data or a frequency-response curve drawn over a result's own chart.
 bool parseChartCurveCsv(const QString& text, const QString& fallbackTitle, ChartSeries& out, QString* error = nullptr);
 
+// The data of a chart as CSV text (comma separated, '.' decimals, a header row, one row per sample, a sample with no value left blank). One pair of
+// columns (x, y) per curve, side by side; a shorter curve leaves its cells blank. The first pair reads back with parseChartCurveCsv().
+QString chartToCsv(const ChartSeries& main, const std::vector<ChartSeries>& extras);
+
+// A curve belongs on a SECOND (right-hand) y axis when its unit is known and differs from the main curve's (a temperature drawn with a stress); a curve
+// whose unit is unknown (a CSV) shares the main axis.
+bool chartNeedsSecondaryAxis(const ChartSeries& main, const ChartSeries& curve);
+
+// Zooms the range [lo, hi] by `factor` (< 1 zooms in) keeping the point at `anchor` (0 = lo, 1 = hi) where it is.
+void chartZoomRange(double lo, double hi, double anchor, double factor, double& newLo, double& newHi);
+
 // The same two charts for a SHELL / SURFACE result (triangles and quads, no volume cells): a point is read on the closest point of the surface
 // (SurfaceLocator) instead of inside a cell. The over-line chart samples the straight chord between the two picked points and projects each sample onto
 // the surface; a sample farther than `maxDistanceFraction` of the surface's diagonal from it (the chord left a curved shell) is NaN, so a gap shows where

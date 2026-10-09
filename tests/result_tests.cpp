@@ -5403,6 +5403,58 @@ namespace
 		}
 	}
 
+	// ---- Chart extras: CSV export, second axis rule, zoom --------------------------------------------------------------------------
+
+	void testChartExtras()
+	{
+		ChartSeries stress;
+		stress.title = QStringLiteral("Stress");
+		stress.xLabel = QStringLiteral("Time");
+		stress.xUnit = QStringLiteral("s");
+		stress.yLabel = QStringLiteral("Stress");
+		stress.yUnit = QStringLiteral("MPa");
+		stress.x = { 0.0, 1.0, 2.0 };
+		stress.y = { 10.0f, std::numeric_limits<float>::quiet_NaN(), 30.5f };
+		ChartSeries temperature = stress;
+		temperature.title = QStringLiteral("Temperature");
+		temperature.yLabel = QStringLiteral("Temperature");
+		temperature.yUnit = QStringLiteral("K");
+		temperature.x = { 0.0, 1.0 };
+		temperature.y = { 300.0f, 310.0f };
+
+		// One curve: a header and one row per sample, the NaN left blank; it reads back as the same curve minus the gap.
+		const QString one = chartToCsv(stress, {});
+		const QStringList lines = one.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+		CHECK(lines.size() == 4 && lines[0] == QStringLiteral("Time (s),Stress (MPa)") && lines[1] == QStringLiteral("0,10") && lines[2] == QStringLiteral("1,"));
+		ChartSeries back;
+		CHECK(parseChartCurveCsv(one, QStringLiteral("x"), back) && back.x.size() == 2 && approx(back.y[1], 30.5));
+		// ... with its names and units: "Name (unit)" in a header cell is split, so a curve exported from a chart comes back in the same unit.
+		CHECK(back.title == QStringLiteral("Stress") && back.yUnit == QStringLiteral("MPa") && back.xLabel == QStringLiteral("Time") && back.xUnit == QStringLiteral("s"));
+		// Two curves: side by side, the shorter one's missing row blank.
+		const QStringList two = chartToCsv(stress, { temperature }).split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+		CHECK(two.size() == 4 && two[0] == QStringLiteral("Time (s),Stress (MPa),Time (s),Temperature (K)") && two[1] == QStringLiteral("0,10,0,300")
+			&& two[3] == QStringLiteral("2,30.5,,"));
+
+		// A second axis only for a known, different unit.
+		ChartSeries unknown = temperature;
+		unknown.yUnit.clear();
+		ChartSeries sameLower = stress;
+		sameLower.yUnit = QStringLiteral("mpa");
+		CHECK(chartNeedsSecondaryAxis(stress, temperature) && !chartNeedsSecondaryAxis(stress, unknown) && !chartNeedsSecondaryAxis(stress, sameLower)
+			&& !chartNeedsSecondaryAxis(unknown, stress));
+
+		// Zoom keeps the anchor in place: in around the middle, around the low end, and out again.
+		double lo = 0, hi = 0;
+		chartZoomRange(0.0, 10.0, 0.5, 0.5, lo, hi);
+		CHECK(approx(lo, 2.5) && approx(hi, 7.5));
+		chartZoomRange(0.0, 10.0, 0.0, 0.5, lo, hi);
+		CHECK(approx(lo, 0.0) && approx(hi, 5.0));
+		chartZoomRange(2.5, 7.5, 0.5, 2.0, lo, hi);
+		CHECK(approx(lo, 0.0) && approx(hi, 10.0));
+		chartZoomRange(0.0, 10.0, 0.8, 0.25, lo, hi); // the point at 80 % (8) stays at 80 % of the new span
+		CHECK(approx(lo + 0.8 * (hi - lo), 8.0) && approx(hi - lo, 2.5));
+	}
+
 	// ---- Cell (element) data averaged onto the nodes -----------------------------------------------------------------------------
 
 	void testCellAveraging()
@@ -7383,6 +7435,7 @@ int main(int argc, char** argv)
 	testCharts();
 	testSurfaceCharts();
 	testCellAveraging();
+	testChartExtras();
 	testVolumeGrid();
 	testLazySteps();
 	testDeformedOverlays();
