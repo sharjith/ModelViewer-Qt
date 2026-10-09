@@ -85,6 +85,15 @@ shell_plate_transient.frd     A 2 x 1 flat plate of 20 x 10 four-node shell quad
 plate.vtk                     Also surface-only (312 quads, several vector fields, one step): Plot Over Line works on it.
 
 
+Working with a chart
+--------------------
+In any chart window: the mouse wheel zooms around the pointer (Shift = x only, Ctrl = y only), dragging with the middle button pans, a
+double-click or right-click > Reset zoom shows everything again. Right-click > Save image / Export data (CSV) writes the chart as PNG or
+as a CSV (one x, y pair of columns per curve). A curve added from a CSV whose header names its unit as "Name (unit)" (as the export writes it) and
+whose unit differs from the main curve's (a temperature next to a stress) is drawn against a second y axis on the right; a curve with no
+unit in its header shares the main axis.
+
+
 Sources and licences
 --------------------
 hexa.vtk, plate.vtk, post.vtk, tetraMesh.vtk, uGridEx.vtk

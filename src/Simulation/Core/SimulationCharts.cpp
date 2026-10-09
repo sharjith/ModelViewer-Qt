@@ -275,6 +275,57 @@ bool sampleFieldOverLine(const ResultDataset& dataset, const SurfaceLocator& loc
 	return any;
 }
 
+QString chartToCsv(const ChartSeries& main, const std::vector<ChartSeries>& extras)
+{
+	std::vector<const ChartSeries*> curves = { &main };
+	for (const ChartSeries& extra : extras)
+		curves.push_back(&extra);
+	auto labelled = [](const QString& label, const QString& unit) {
+		QString text = unit.isEmpty() ? label : label + QStringLiteral(" (") + unit + QLatin1Char(')');
+		if (text.contains(QLatin1Char(',')) || text.contains(QLatin1Char('"')))
+			text = QLatin1Char('"') + text.replace(QLatin1Char('"'), QStringLiteral("\"\"")) + QLatin1Char('"');
+		return text;
+	};
+	QStringList lines;
+	QStringList header;
+	std::size_t rows = 0;
+	for (const ChartSeries* curve : curves)
+	{
+		header << labelled(curve->xLabel, curve->xUnit) << labelled(curve->title.isEmpty() ? curve->yLabel : curve->title, curve->yUnit);
+		rows = std::max(rows, curve->x.size());
+	}
+	lines << header.join(QLatin1Char(','));
+	for (std::size_t r = 0; r < rows; ++r)
+	{
+		QStringList cells;
+		for (const ChartSeries* curve : curves)
+		{
+			if (r < curve->x.size() && r < curve->y.size())
+			{
+				cells << QString::number(curve->x[r], 'g', 9);
+				cells << (std::isfinite(curve->y[r]) ? QString::number(static_cast<double>(curve->y[r]), 'g', 9) : QString());
+			}
+			else
+				cells << QString() << QString();
+		}
+		lines << cells.join(QLatin1Char(','));
+	}
+	return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
+}
+
+bool chartNeedsSecondaryAxis(const ChartSeries& main, const ChartSeries& curve)
+{
+	return !main.yUnit.isEmpty() && !curve.yUnit.isEmpty() && main.yUnit.compare(curve.yUnit, Qt::CaseInsensitive) != 0;
+}
+
+void chartZoomRange(double lo, double hi, double anchor, double factor, double& newLo, double& newHi)
+{
+	anchor = std::clamp(anchor, 0.0, 1.0);
+	const double span = hi - lo, anchorValue = lo + anchor * span, newSpan = span * factor;
+	newLo = anchorValue - anchor * newSpan;
+	newHi = newLo + newSpan;
+}
+
 bool parseChartCurveCsv(const QString& text, const QString& fallbackTitle, ChartSeries& out, QString* error)
 {
 	out = ChartSeries();
@@ -319,6 +370,21 @@ bool parseChartCurveCsv(const QString& text, const QString& fallbackTitle, Chart
 		return false;
 	}
 	std::stable_sort(points.begin(), points.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+	// A header cell written as "Name (unit)" gives the curve that unit - what makes a curve in another unit land on the chart's second axis.
+	auto splitUnit = [](QString& name, QString& unit) {
+		name = name.trimmed();
+		if (name.endsWith(QLatin1Char(')')))
+		{
+			const int open = name.lastIndexOf(QLatin1Char('('));
+			if (open > 0)
+			{
+				unit = name.mid(open + 1, name.size() - open - 2).trimmed();
+				name = name.left(open).trimmed();
+			}
+		}
+	};
+	splitUnit(xName, out.xUnit);
+	splitUnit(yName, out.yUnit);
 	out.title = yName.isEmpty() ? fallbackTitle : yName;
 	out.xLabel = xName.isEmpty() ? QObject::tr("x") : xName;
 	out.yLabel = yName.isEmpty() ? QObject::tr("y") : yName;
