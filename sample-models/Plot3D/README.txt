@@ -185,6 +185,18 @@ Image on a plane: choose Data source "Image on a plane", pick image_gradient.png
 The ranges adapt to the picture's shape when you pick it or change the plane (image_gradient.png is 320 x 200). Try the XZ and YZ planes, then Edit Plot (change the plane or the ranges) and Rebuild; export to GLB to check the texture comes with it.
 
 
+Pathlines played together with a Simulation result (pathlines_openfoam_cavity.csv): the CSV is the cell-centre velocity of the
+OpenFOAM cavity sample (sample-models/Simulation/openfoam_cavity, times 0, 0.5, 1, 1.5, 2 s) on a plane just above its top face,
+so the two share coordinates and real time.
+  1. File > Open the empty cavity.foam (the result opens coloured by a field; pick U magnitude in the Simulation tab).
+  2. 3D Plot tab > Add 3D Plot: source "CSV time series (pathlines)", load pathlines_openfoam_cavity.csv, map Time = t,
+     X = x, Y = y, Z = z, U = u, V = v, W = w, Build Plot. Hide the plot's axes box if it clutters the view.
+  3. In the 3D Plot tab tick "Animate pathlines (timeline)". The playback bar's combo now offers the result, the pathlines and
+     "All together". Pick "All together" and press Play: the trails grow while the field steps through 0 .. 2 s. The bar reads
+     "t = 1 - step 3 of 5": both follow real time (the result holds each step until the next one's time).
+  A modal result (FEM_box_modes.frd, steps in Hz) cannot share a time axis with pathlines: "All together" then says "(by progress)".
+
+
 Edit/rebuild check
 ------------------
 Build any CSV-backed plot, select it in Active plot, and click Edit Plot. The dialog should restore the original

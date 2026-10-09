@@ -8,6 +8,7 @@
 // the final check and are listed in docs/simulation_results_test_data.md.
 
 #include "ComparePaneLayout.h"
+#include "PlaybackClock.h"
 #include "CgnsReader.h"
 #include "ExodusReader.h"
 #include "MedReader.h"
@@ -6984,6 +6985,40 @@ static int inspectFiles(int argc, char** argv)
 	return failed;
 }
 
+// One playback clock for a result and an animated pathline plot: by time when both are in plain time, by progress otherwise.
+static void testPlaybackClock()
+{
+	// A transient result 0, 0.5, ... 2 s and pathlines over 0..1.5 s: the bar spans 0..2 s and both follow real time.
+	const std::vector<double> steps = { 0.0, 0.5, 1.0, 1.5, 2.0 };
+	PlaybackClock clock;
+	CHECK(buildPlaybackClock(steps, true, 0.0, 1.5, 201, clock));
+	CHECK(clock.byTime && clock.t0 == 0.0 && clock.t1 == 2.0 && clock.frames == 201);
+	CHECK(playbackTime(clock, 0) == 0.0 && playbackTime(clock, 200) == 2.0 && std::abs(playbackTime(clock, 100) - 1.0) < 1.0e-12);
+	CHECK(playbackResultStep(clock, steps, 100) == 2);          // exactly at its own time the step is shown
+	CHECK(playbackResultStep(clock, steps, 99) == 1);           // just before: still the previous one
+	CHECK(playbackResultStep(clock, steps, 0) == 0 && playbackResultStep(clock, steps, 200) == 4);
+	CHECK(std::abs(playbackPathlineTime(clock, 0.0, 1.5, 100) - 1.0) < 1.0e-12);   // real time, not 50 % of the pathlines' range
+	CHECK(playbackPathlineTime(clock, 0.0, 1.5, 200) == 1.5);   // past its end the pathlines hold their last frame
+
+	// Offset ranges: the bar spans the union, each item holds its end frames outside its own range.
+	CHECK(buildPlaybackClock({ 1.0, 2.0, 3.0 }, true, 0.5, 2.5, 101, clock));
+	CHECK(clock.byTime && clock.t0 == 0.5 && clock.t1 == 3.0);
+	CHECK(playbackResultStep(clock, { 1.0, 2.0, 3.0 }, 0) == 0);                 // before its first step: the first
+	CHECK(playbackPathlineTime(clock, 0.5, 2.5, 100) == 2.5);
+
+	// Not plain time (a modal result in Hz), step times that go backwards, or a single step: matched by progress.
+	CHECK(buildPlaybackClock(steps, false, 0.0, 1.5, 101, clock) && !clock.byTime && clock.t0 == 0.0 && clock.t1 == 1.0);
+	CHECK(playbackResultStep(clock, steps, 50) == 2 && playbackResultStep(clock, steps, 100) == 4);
+	CHECK(std::abs(playbackPathlineTime(clock, 0.0, 1.5, 50) - 0.75) < 1.0e-12);
+	CHECK(buildPlaybackClock({ 0.0, 2.0, 1.0 }, true, 0.0, 1.0, 101, clock) && !clock.byTime);
+	CHECK(buildPlaybackClock({ 0.5 }, true, 0.0, 1.0, 101, clock) && !clock.byTime);
+	CHECK(playbackResultStep(clock, {}, 10) == 0);
+
+	// Degenerate pathline range or too few frames: no clock.
+	CHECK(!buildPlaybackClock(steps, true, 1.0, 1.0, 101, clock));
+	CHECK(!buildPlaybackClock(steps, true, 0.0, 1.0, 1, clock));
+}
+
 int main(int argc, char** argv)
 {
 #if MV_HAVE_NETCDF
@@ -7067,6 +7102,7 @@ int main(int argc, char** argv)
 	// The real files come first: the CGNS library keeps a process-wide file type that the fixture writers of the CGNS tests leave on HDF5, after which
 	// an older ADF file no longer opens in THIS process (the application never writes CGNS files, and opens both kinds in any order).
 	testRealSamples();
+	testPlaybackClock();
 	testSingleTetAscii();
 	testEncodingsMatchAscii();
 	testInformationKeyChildren();

@@ -12,6 +12,7 @@ add_executable(result_tests
     ${CMAKE_SOURCE_DIR}/src/Simulation/Core/ResultUnits.cpp
     ${CMAKE_SOURCE_DIR}/src/Simulation/Core/ResultBoundary.cpp
     ${CMAKE_SOURCE_DIR}/src/Simulation/Core/ComparePaneLayout.cpp
+    ${CMAKE_SOURCE_DIR}/src/Simulation/Core/PlaybackClock.cpp
     ${CMAKE_SOURCE_DIR}/src/Simulation/Readers/OpenFoamReader.cpp
     ${CMAKE_SOURCE_DIR}/src/Simulation/Readers/ExodusReader.cpp
     ${CMAKE_SOURCE_DIR}/src/Simulation/Readers/CgnsReader.cpp

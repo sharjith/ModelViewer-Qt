@@ -1170,6 +1170,98 @@ void ModelViewer::advanceSimulationStep()
 	setSimulationStep(next, true);
 }
 
+// "All together": the result that plays along with the animated pathlines - the active result if it can be played, else the first one.
+QUuid ModelViewer::pickTogetherResult() const
+{
+	if (!_viewportWidget)
+		return QUuid();
+	QUuid first;
+	for (const SimulationSession& session : _simulationSessions)
+	{
+		if (!session.dataset || session.dataset->stepCount() < 2 || _viewportWidget->getIndexByUuid(session.meshUuid) < 0)
+			continue;
+		if (session.meshUuid == _activeSimulationMesh)
+			return session.meshUuid;
+		if (first.isNull())
+			first = session.meshUuid;
+	}
+	return first;
+}
+
+// Moves the shared clock: the pathlines are drawn up to the clock's time and the result shows its step for it (see PlaybackClock.h).
+void ModelViewer::setTogetherFrame(int frame)
+{
+	_togetherFrame = std::clamp(frame, 0, std::max(0, _togetherClock.frames - 1));
+	applyTogetherFrame();
+	if (_simulationTimeline && _playbackPathline && _playbackTogether)
+		_simulationTimeline->setCurrentStep(_togetherFrame);
+}
+
+void ModelViewer::applyTogetherFrame()
+{
+	if (_pathlineAnimation.mesh.isNull())
+		return;
+	const double t0 = _pathlineAnimation.timeMinimum, t1 = _pathlineAnimation.timeMaximum;
+	const double now = playbackPathlineTime(_togetherClock, t0, t1, _togetherFrame);
+	// Keep the pathlines' own frame in step, so switching back to them from the combo continues where they are.
+	_pathlineAnimation.frame = std::clamp(static_cast<int>(std::lround((now - t0) / (t1 - t0) * (_pathlineAnimation.frames - 1))), 0, _pathlineAnimation.frames - 1);
+	applyPathlineTime(now);
+
+	SimulationSession* session = findSimulationSession(_playbackTogetherResult);
+	if (!session || !session->dataset)
+		return;
+	const int step = playbackResultStep(_togetherClock, _togetherStepTimes, _togetherFrame);
+	if (step != session->state.step)
+	{
+		session->state.step = step;
+		refreshSimulationDisplay(*session);
+	}
+}
+
+// Binds the playback bar to the shared clock ("All together").
+void ModelViewer::bindPlaybackTogether()
+{
+	SimulationSession* session = findSimulationSession(_playbackTogetherResult);
+	if (!_simulationTimeline || _pathlineAnimation.mesh.isNull() || !session || !session->dataset || !_viewportWidget)
+		return;
+	const std::shared_ptr<ResultDataset> dataset = session->dataset;
+	std::vector<double> times;
+	bool plainTime = true;
+	for (const ResultStep& step : dataset->steps)
+	{
+		times.push_back(step.time);
+		if (!step.label.isEmpty() || (!step.timeUnit.isEmpty() && step.timeUnit != QLatin1String("s")))
+			plainTime = false; // a labelled step ("Mode 3") or a frequency is not a time
+	}
+	PlaybackClock clock;
+	if (!buildPlaybackClock(times, plainTime, _pathlineAnimation.timeMinimum, _pathlineAnimation.timeMaximum, 200, clock))
+		return;
+	_togetherClock = clock;
+	_togetherStepTimes = times;
+	_togetherFrame = std::clamp(_togetherFrame, 0, clock.frames - 1);
+	_simulationTimeline->setSteps(clock.frames, [dataset, clock, times](int i) {
+		const int step = playbackResultStep(clock, times, i);
+		if (clock.byTime)
+			return tr("t = %1 - step %2 of %3").arg(playbackTime(clock, i), 0, 'g', 5).arg(step + 1).arg(times.size());
+		return tr("%1% (by progress) - %2").arg(std::lround(playbackFraction(clock, i) * 100.0)).arg(stepDescription(*dataset, step));
+	});
+	_simulationTimeline->setCurrentStep(_togetherFrame);
+	_simulationTimeline->setLoop(_pathlineLoop);
+	_simulationTimeline->setSpeed(_pathlineSpeed);
+	_simulationTimeline->setPlaying(_pathlinePlaying);
+	applyTogetherFrame(); // selecting it puts both items at the clock's position
+	QPointer<ViewportWidget> viewport(_viewportWidget);
+	QPointer<ModelViewer> self(this);
+	const QUuid pathlineMesh = _pathlineAnimation.mesh;
+	const QUuid resultMesh = _playbackTogetherResult;
+	_simulationTimeline->setAliveCheck([viewport, self, pathlineMesh, resultMesh]() {
+		return viewport && self && viewport->getMeshByUuid(pathlineMesh) && viewport->getMeshByUuid(resultMesh)
+			&& self->_visibleMeshUuids.contains(pathlineMesh) && self->_visibleMeshUuids.contains(resultMesh)
+			&& self->_pathlineAnimation.mesh == pathlineMesh && self->_playbackPathline && self->_playbackTogether
+			&& self->_playbackMesh == pathlineMesh;
+	});
+}
+
 // The playable things in the document: every displayed Simulation result with more than one step, and the pathline plot being
 // animated. The shared playback bar plays whichever is selected.
 QVector<PlaybackItem> ModelViewer::playbackItems() const
@@ -1182,12 +1274,15 @@ QVector<PlaybackItem> ModelViewer::playbackItems() const
 		if (!session.dataset || session.dataset->stepCount() < 2 || _viewportWidget->getIndexByUuid(session.meshUuid) < 0)
 			continue;
 		const SceneMesh* mesh = _viewportWidget->getMeshByUuid(session.meshUuid);
-		items.push_back({ false, session.meshUuid, tr("Simulation: %1").arg(mesh ? mesh->getName() : QString()) });
+		items.push_back({ false, session.meshUuid, tr("Simulation: %1").arg(mesh ? mesh->getName() : QString()), false });
 	}
 	if (!_pathlineAnimation.mesh.isNull() && _viewportWidget->getIndexByUuid(_pathlineAnimation.mesh) >= 0)
 	{
 		const SceneMesh* mesh = _viewportWidget->getMeshByUuid(_pathlineAnimation.mesh);
-		items.push_back({ true, _pathlineAnimation.mesh, tr("Pathlines: %1").arg(mesh ? mesh->getName() : QString()) });
+		items.push_back({ true, _pathlineAnimation.mesh, tr("Pathlines: %1").arg(mesh ? mesh->getName() : QString()), false });
+		// A result and the animated pathlines can also play on one clock.
+		if (!pickTogetherResult().isNull())
+			items.push_back({ true, _pathlineAnimation.mesh, tr("All together"), true });
 	}
 	return items;
 }
@@ -1216,6 +1311,7 @@ void ModelViewer::updateSimulationTimeline()
 	if (active && active->meshUuid != _playbackSeenActiveSim)
 	{
 		_playbackSeenActiveSim = active->meshUuid;
+		if (!_playbackTogether) // playing together keeps the selection
 		for (const PlaybackItem& item : items)
 			if (!item.pathline && item.mesh == active->meshUuid)
 			{
@@ -1225,7 +1321,7 @@ void ModelViewer::updateSimulationTimeline()
 	}
 	int index = -1;
 	for (int i = 0; i < items.size(); ++i)
-		if (items[i].pathline == _playbackPathline && items[i].mesh == _playbackMesh)
+		if (items[i].pathline == _playbackPathline && items[i].mesh == _playbackMesh && items[i].together == _playbackTogether)
 			index = i;
 	if (index < 0)
 	{
@@ -1235,8 +1331,9 @@ void ModelViewer::updateSimulationTimeline()
 				index = i;
 		_playbackPathline = items[index].pathline;
 		_playbackMesh = items[index].mesh;
+		_playbackTogether = items[index].together;
 	}
-	if (_playbackBoundPathline != _playbackPathline || _playbackBoundMesh != _playbackMesh)
+	if (_playbackBoundPathline != _playbackPathline || _playbackBoundMesh != _playbackMesh || _playbackBoundTogether != _playbackTogether)
 	{
 		if (_simulationPlaying)
 			setSimulationPlaying(false);
@@ -1244,6 +1341,9 @@ void ModelViewer::updateSimulationTimeline()
 			setPathlinePlaying(false);
 		_playbackBoundPathline = _playbackPathline;
 		_playbackBoundMesh = _playbackMesh;
+		_playbackBoundTogether = _playbackTogether;
+		if (_playbackTogether)
+			_playbackTogetherResult = pickTogetherResult();
 	}
 
 	if (!_simulationTimeline)
@@ -1278,13 +1378,16 @@ void ModelViewer::updateSimulationTimeline()
 				return;
 			_playbackPathline = now[row].pathline;
 			_playbackMesh = now[row].mesh;
+			_playbackTogether = now[row].together;
 			if (!_playbackPathline)
 				activateSimulationResult(_playbackMesh); // the step functions act on the active result
 			updateSimulationTimeline();
 		});
 	}
 
-	if (_playbackPathline)
+	if (_playbackPathline && _playbackTogether)
+		bindPlaybackTogether();
+	else if (_playbackPathline)
 		bindPlaybackToPathline();
 	else if (SimulationSession* session = findSimulationSession(_playbackMesh); session && session->dataset)
 	{
