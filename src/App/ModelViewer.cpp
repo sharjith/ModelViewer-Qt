@@ -94,6 +94,7 @@
 #include <QProxyStyle>
 #include <QSignalBlocker>
 #include <QThread>
+#include <QDebug>
 #include <QTimer>
 #include <QToolButton>
 #include <QToolTip>
