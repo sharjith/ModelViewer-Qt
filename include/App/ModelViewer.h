@@ -699,7 +699,10 @@ public slots:
 	bool applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<Plot3DAxisConfig, 3>& axes);
 	void setPlot3DAxisTitle(const QUuid& meshUuid, const QString& title);
 	// Text notes at data coordinates, drawn in the axes box while the plot is visible (not undoable; saved with the plot).
-	void setPlot3DTextLabels(const QUuid& meshUuid, const std::vector<Plot3DTextLabel>& labels);
+	// Undoable (one step per change, named `undoText`); a change that leaves the notes as they were pushes nothing.
+	void setPlot3DTextLabels(const QUuid& meshUuid, const std::vector<Plot3DTextLabel>& labels, const QString& undoText = QString());
+	// The change itself, with no undo record: what the undo command calls.
+	void applyPlot3DTextLabels(const QUuid& meshUuid, const std::vector<Plot3DTextLabel>& labels);
 	// The notes of every visible plot -> the viewport, each placed through its own plot's axis scales (the way its geometry is). Called whenever
 	// a plot, its axes or its visibility change.
 	void refreshPlot3DNotes();

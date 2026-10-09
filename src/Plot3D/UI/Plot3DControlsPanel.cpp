@@ -556,7 +556,7 @@ void Plot3DControlsPanel::applyTextLabels()
 		return;
 	}
 	_applyingNotes = true;
-	_viewer->setPlot3DTextLabels(_plotSelector->currentData().toUuid(), labels);
+	_viewer->setPlot3DTextLabels(_plotSelector->currentData().toUuid(), labels, tr("Edit Plot Notes"));
 	_applyingNotes = false;
 }
 
@@ -582,7 +582,7 @@ void Plot3DControlsPanel::addTextLabel()
 		note.y = (session.dataMinimum[1] + session.dataMaximum[1]) * 0.5;
 		note.z = (session.dataMinimum[2] + session.dataMaximum[2]) * 0.5;
 		labels.push_back(std::move(note));
-		_viewer->setPlot3DTextLabels(uuid, labels); // rebuilds the table through plot3DSessionsChanged
+		_viewer->setPlot3DTextLabels(uuid, labels, tr("Add Plot Note")); // rebuilds the table through plot3DSessionsChanged
 		return;
 	}
 }
@@ -599,7 +599,7 @@ void Plot3DControlsPanel::removeTextLabel()
 			continue;
 		std::vector<Plot3DTextLabel> labels = session.textLabels;
 		labels.erase(labels.begin() + row);
-		_viewer->setPlot3DTextLabels(uuid, labels);
+		_viewer->setPlot3DTextLabels(uuid, labels, tr("Delete Plot Note"));
 		return;
 	}
 }

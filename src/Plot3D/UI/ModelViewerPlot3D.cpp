@@ -3,6 +3,7 @@
 #include "AnalysisColorRamp.h"
 #include "Plot3DAssembly.h"
 #include "Plot3DAxisController.h"
+#include "Plot3DNotesCommand.h"
 #include "Plot3DMeshBuilder.h"
 #include "Plot3DVoxelStyle.h"
 #include "SceneGraph.h"
@@ -711,7 +712,27 @@ bool ModelViewer::applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<
 	return true;
 }
 
-void ModelViewer::setPlot3DTextLabels(const QUuid& meshUuid, const std::vector<Plot3DTextLabel>& labels)
+void ModelViewer::setPlot3DTextLabels(const QUuid& meshUuid, const std::vector<Plot3DTextLabel>& labels, const QString& undoText)
+{
+	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
+	if (!session)
+		return;
+	const std::vector<Plot3DTextLabel>& current = session->textLabels;
+	bool same = current.size() == labels.size();
+	for (std::size_t i = 0; same && i < labels.size(); ++i)
+		same = current[i].text == labels[i].text && current[i].x == labels[i].x && current[i].y == labels[i].y && current[i].z == labels[i].z;
+	if (same)
+		return;
+	if (!_undoStack)
+	{
+		applyPlot3DTextLabels(meshUuid, labels);
+		return;
+	}
+	// push() runs redo(), which applies the change.
+	_undoStack->push(new Plot3DNotesCommand(this, _viewportWidget, meshUuid, current, labels, undoText.isEmpty() ? tr("Edit Plot Notes") : undoText));
+}
+
+void ModelViewer::applyPlot3DTextLabels(const QUuid& meshUuid, const std::vector<Plot3DTextLabel>& labels)
 {
 	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
 	if (!session)
@@ -813,7 +834,7 @@ void ModelViewer::connectPlot3DViewportSignals()
 		note.z = plot3DInverseAxisValue(local.z(), session->axes[2]);
 		std::vector<Plot3DTextLabel> labels = session->textLabels;
 		labels.push_back(std::move(note));
-		setPlot3DTextLabels(plot, labels);
+		setPlot3DTextLabels(plot, labels, tr("Add Plot Note"));
 	});
 	connect(_viewportWidget, &ViewportWidget::plot3DNoteMoved, this, [this](const QUuid& plot, int index, const QVector3D& local) {
 		Plot3DSession* session = sessionFor(_plot3DSessions, plot);
@@ -823,7 +844,7 @@ void ModelViewer::connectPlot3DViewportSignals()
 		labels[static_cast<std::size_t>(index)].x = plot3DInverseAxisValue(local.x(), session->axes[0]);
 		labels[static_cast<std::size_t>(index)].y = plot3DInverseAxisValue(local.y(), session->axes[1]);
 		labels[static_cast<std::size_t>(index)].z = plot3DInverseAxisValue(local.z(), session->axes[2]);
-		setPlot3DTextLabels(plot, labels);
+		setPlot3DTextLabels(plot, labels, tr("Move Plot Note"));
 	});
 	connect(_viewportWidget, &ViewportWidget::plot3DNoteEditRequested, this, [this](const QUuid& plot, int index) {
 		Plot3DSession* session = sessionFor(_plot3DSessions, plot);
@@ -838,7 +859,7 @@ void ModelViewer::connectPlot3DViewportSignals()
 			labels.erase(labels.begin() + index); // emptying a note removes it
 		else
 			labels[static_cast<std::size_t>(index)].text = text;
-		setPlot3DTextLabels(plot, labels);
+		setPlot3DTextLabels(plot, labels, tr("Edit Plot Note"));
 	});
 	connect(_viewportWidget, &ViewportWidget::plot3DNoteDeleteRequested, this, [this](const QUuid& plot, int index) {
 		Plot3DSession* session = sessionFor(_plot3DSessions, plot);
@@ -846,7 +867,7 @@ void ModelViewer::connectPlot3DViewportSignals()
 			return;
 		std::vector<Plot3DTextLabel> labels = session->textLabels;
 		labels.erase(labels.begin() + index);
-		setPlot3DTextLabels(plot, labels);
+		setPlot3DTextLabels(plot, labels, tr("Delete Plot Note"));
 	});
 }
 
