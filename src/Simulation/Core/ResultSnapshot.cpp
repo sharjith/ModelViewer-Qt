@@ -289,6 +289,7 @@ namespace
 		o.insert(QStringLiteral("bands"), s.bands);
 		o.insert(QStringLiteral("step"), keptStep);
 		o.insert(QStringLiteral("allStepsRange"), s.allStepsRange);
+		o.insert(QStringLiteral("averageCellData"), s.averageCellData);
 		o.insert(QStringLiteral("deform"), s.deform);
 		o.insert(QStringLiteral("deformScale"), s.deformScale);
 		o.insert(QStringLiteral("markExtrema"), s.markExtrema);
@@ -966,6 +967,7 @@ bool decodeResultSnapshot(const QJsonObject& json, const std::vector<QByteArray>
 	state.bands = view.value(QStringLiteral("bands")).toInt();
 	state.step = std::clamp(view.value(QStringLiteral("step")).toInt(), 0, std::max(0, static_cast<int>(dataset->steps.size()) - 1));
 	state.allStepsRange = view.value(QStringLiteral("allStepsRange")).toBool(true);
+	state.averageCellData = view.value(QStringLiteral("averageCellData")).toBool(false);
 	state.deform = view.value(QStringLiteral("deform")).toBool();
 	state.deformScale = view.value(QStringLiteral("deformScale")).toDouble(1.0);
 	state.markExtrema = view.value(QStringLiteral("markExtrema")).toBool();

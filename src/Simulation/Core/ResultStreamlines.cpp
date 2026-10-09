@@ -389,6 +389,11 @@ bool CellLocator::evalCell(std::size_t index, const double p[3], const std::vect
 	return false;
 }
 
+void resultCellFaceRings(const ResultDataset& dataset, std::size_t c, std::vector<std::uint32_t>& ringNodes, std::vector<std::size_t>& ringStart)
+{
+	gatherRings(dataset, c, ringNodes, ringStart);
+}
+
 bool CellLocator::evalCellStencil(std::size_t index, const double p[3], CellInterpolationStencil& out) const
 {
 	thread_local std::vector<std::uint32_t> ringNodes;

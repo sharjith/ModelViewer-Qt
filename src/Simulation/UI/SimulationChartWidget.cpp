@@ -199,6 +199,19 @@ void SimulationChartWidget::paintEvent(QPaintEvent*)
 	}
 	else
 	{
+		// A sample with no finite neighbour has no line to show it (a single-step result gives one sample): a dot instead.
+		auto drawIsolatedSamples = [](QPainter& p, const ChartSeries& s, const auto& xOf, const auto& yOf, const QColor& colour) {
+			p.save();
+			p.setPen(Qt::NoPen);
+			p.setBrush(colour);
+			for (std::size_t i = 0; i < s.x.size() && i < s.y.size(); ++i)
+			{
+				const bool before = i > 0 && std::isfinite(s.y[i - 1]), after = i + 1 < s.y.size() && std::isfinite(s.y[i + 1]);
+				if (std::isfinite(s.y[i]) && !before && !after)
+					p.drawEllipse(QPointF(xOf(s.x[i]), yOf(static_cast<double>(s.y[i]))), 4.0, 4.0);
+			}
+			p.restore();
+		};
 		// The polyline, broken at a NaN (the sample left the mesh) instead of joining across the gap.
 		painter.setPen(QPen(QColor(70, 130, 200), 2));
 		QPainterPath path;
@@ -220,6 +233,7 @@ void SimulationChartWidget::paintEvent(QPaintEvent*)
 				path.lineTo(p);
 		}
 		painter.drawPath(path);
+		drawIsolatedSamples(painter, _series, toX, toY, QColor(70, 130, 200));
 
 		// The added curves, each in its own colour, and a legend once there is more than one curve.
 		static const QColor kExtraColours[] = { QColor(230, 140, 40), QColor(60, 160, 90), QColor(150, 90, 180), QColor(200, 60, 60) };
@@ -246,6 +260,7 @@ void SimulationChartWidget::paintEvent(QPaintEvent*)
 					extraPath.lineTo(p);
 			}
 			painter.drawPath(extraPath);
+			drawIsolatedSamples(painter, extra, toX, toY, kExtraColours[c % 4]);
 		}
 		if (!_extraCurves.empty())
 		{

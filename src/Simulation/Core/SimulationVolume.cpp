@@ -6,19 +6,22 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <memory>
 
 bool isVolumeField(const ResultField& field)
 {
-	return field.association == ResultFieldAssociation::Node && (field.components == 1 || field.components == 3)
-		&& resultFieldHasData(field);
+	// A cell field qualifies too: it is averaged onto the nodes first (SimulationCellAveraging.h).
+	return (field.components == 1 || field.components == 3) && resultFieldHasData(field);
 }
 
 int chooseDefaultVolumeField(const ResultDataset& dataset)
 {
-	for (int components : { 1, 3 })
-		for (std::size_t i = 0; i < dataset.fields.size(); ++i)
-			if (dataset.fields[i].components == components && isVolumeField(dataset.fields[i]))
-				return static_cast<int>(i);
+	// A node field first (nothing to average), then a cell field.
+	for (ResultFieldAssociation association : { ResultFieldAssociation::Node, ResultFieldAssociation::Cell })
+		for (int components : { 1, 3 })
+			for (std::size_t i = 0; i < dataset.fields.size(); ++i)
+				if (dataset.fields[i].association == association && dataset.fields[i].components == components && isVolumeField(dataset.fields[i]))
+					return static_cast<int>(i);
 	return -1;
 }
 
@@ -29,7 +32,13 @@ bool buildVolumeGrid(const ResultDataset& dataset, const CellLocator& locator, i
 	if (locator.volumeCellCount() == 0)
 		return false;
 	DisplayScalar scalar;
-	if (!buildDisplayScalar(dataset, fieldIndex, component, scalar, step) || scalar.cellData)
+	// A cell field is averaged onto the nodes first (the grid is resampled from node values).
+	const bool cellField = fieldIndex >= 0 && static_cast<std::size_t>(fieldIndex) < dataset.fields.size()
+	                       && dataset.fields[static_cast<std::size_t>(fieldIndex)].association == ResultFieldAssociation::Cell;
+	std::unique_ptr<CellToNodeAverager> averager;
+	if (cellField)
+		averager = std::make_unique<CellToNodeAverager>(dataset);
+	if (!buildDisplayScalar(dataset, fieldIndex, component, scalar, step, averager.get()) || scalar.cellData)
 		return false;
 
 	double lo[3], hi[3];

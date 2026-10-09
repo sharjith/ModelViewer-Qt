@@ -29,6 +29,9 @@ struct CellInterpolationStencil
 };
 
 // Finds the volume cell around a point and interpolates node values there. Built once per dataset (O(cells)) and reused for every field and time step.
+// The faces of cell `c` as rings of dataset node indices (ring r = ringNodes[ringStart[r] .. ringStart[r + 1])); empty for a cell that has none.
+void resultCellFaceRings(const ResultDataset& dataset, std::size_t c, std::vector<std::uint32_t>& ringNodes, std::vector<std::size_t>& ringStart);
+
 class CellLocator
 {
 public:
