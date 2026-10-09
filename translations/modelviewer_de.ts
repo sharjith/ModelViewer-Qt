@@ -17342,6 +17342,61 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
 <context>
     <name>SimulationChartWidget</name>
     <message>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="400"/>
+        <source>Reset zoom</source>
+        <translation>Zoom zurücksetzen</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="400"/>
+        <source>Mouse wheel zooms (Shift: x only, Ctrl: y only), middle-button drag pans, double-click resets.</source>
+        <translation>Das Mausrad zoomt (Umschalt: nur x, Strg: nur y), Ziehen mit der mittleren Taste verschiebt, Doppelklick setzt zurück.</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="400"/>
+        <source>Save image...</source>
+        <translation>Bild speichern...</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="400"/>
+        <source>Export data (CSV)...</source>
+        <translation>Daten exportieren (CSV)...</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="400"/>
+        <source>Save Chart Image</source>
+        <translation>Diagrammbild speichern</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="400"/>
+        <source>PNG image (*.png)</source>
+        <translation>PNG-Bild (*.png)</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="400"/>
+        <source>The image could not be saved.</source>
+        <translation>Das Bild konnte nicht gespeichert werden.</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="400"/>
+        <source>Export Chart Data</source>
+        <translation>Diagrammdaten exportieren</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="400"/>
+        <source>CSV files (*.csv)</source>
+        <translation>CSV-Dateien (*.csv)</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="400"/>
+        <source>The file could not be written.</source>
+        <translation>Die Datei konnte nicht geschrieben werden.</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="400"/>
+        <source>%1 (right axis)</source>
+        <translation>%1 (rechte Achse)</translation>
+    </message>
+    <message>
         <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="64"/>
         <source>Chart</source>
         <translation>Diagramm</translation>
