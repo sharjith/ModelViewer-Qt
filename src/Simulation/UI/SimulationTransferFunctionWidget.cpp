@@ -2,6 +2,7 @@
 
 #include "AnalysisColorRamp.h"
 
+#include <QEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -13,10 +14,41 @@ SimulationTransferFunctionWidget::SimulationTransferFunctionWidget(QWidget* pare
 	: QWidget(parent)
 	, _points{ QPointF(0.0, 0.0), QPointF(0.35, 0.02), QPointF(0.7, 0.08), QPointF(1.0, 0.25) }
 {
-	setMinimumHeight(92);
 	setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+	applyHeight();
 	setToolTip(tr("Opacity from low values (left) to high values (right).\n"
 	              "Drag a point; double-click to add; right-click an interior point to remove."));
+}
+
+// The height is stated outright (it used to rely on a bare minimum height and a widget with no size hint) and follows the font, so the row
+// the form lays out for it is always as tall as what is painted, whatever the system's font or scaling - the rows below can never start
+// inside it.
+int SimulationTransferFunctionWidget::preferredHeight() const
+{
+	return std::max(96, fontMetrics().height() * 7);
+}
+
+void SimulationTransferFunctionWidget::applyHeight()
+{
+	setFixedHeight(preferredHeight());
+	updateGeometry();
+}
+
+QSize SimulationTransferFunctionWidget::sizeHint() const
+{
+	return QSize(240, preferredHeight());
+}
+
+QSize SimulationTransferFunctionWidget::minimumSizeHint() const
+{
+	return QSize(120, preferredHeight());
+}
+
+void SimulationTransferFunctionWidget::changeEvent(QEvent* event)
+{
+	QWidget::changeEvent(event);
+	if (event->type() == QEvent::FontChange || event->type() == QEvent::StyleChange)
+		applyHeight();
 }
 
 void SimulationTransferFunctionWidget::setPoints(QVector<QPointF> points)

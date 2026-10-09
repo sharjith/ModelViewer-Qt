@@ -98,6 +98,38 @@ SimulationPanel::SimulationPanel(QWidget* parent)
 	setSession(nullptr);
 }
 
+void SimulationPanel::fitControlHeights()
+{
+	// The floor is recomputed from scratch each time: a stale floor from the font before the theme was applied would be too low, one from
+	// a larger font too high.
+	auto preserveControlHeight = [](QWidget* control) {
+		control->setMinimumHeight(0);
+		control->ensurePolished();
+		control->setMinimumHeight(control->sizeHint().height());
+		QSizePolicy policy = control->sizePolicy();
+		policy.setVerticalPolicy(QSizePolicy::Fixed);
+		control->setSizePolicy(policy);
+		control->updateGeometry();
+	};
+	for (QAbstractButton* button : findChildren<QAbstractButton*>())
+		preserveControlHeight(button);
+	for (QComboBox* combo : findChildren<QComboBox*>())
+		preserveControlHeight(combo);
+	for (QAbstractSpinBox* spin : findChildren<QAbstractSpinBox*>())
+		preserveControlHeight(spin);
+}
+
+void SimulationPanel::changeEvent(QEvent* event)
+{
+	QWidget::changeEvent(event);
+	if (event->type() == QEvent::FontChange || event->type() == QEvent::StyleChange || event->type() == QEvent::ScreenChangeInternal)
+	{
+		fitControlHeights();
+		if (layout())
+			layout()->invalidate();
+	}
+}
+
 void SimulationPanel::retranslate()
 {
 	// Every control is a child of this panel (or of its layout): drop them, build them again with the new strings, and show them (children added to a visible
@@ -488,19 +520,7 @@ void SimulationPanel::buildUi()
 	// overlap text after a theme/font/DPI change, particularly in compound form rows. Polish first so stylesheet
 	// metrics are included, then make the resulting height a hard floor. Width remains flexible and is handled by
 	// the form's wrapping plus the scroll area's horizontal scrollbar.
-	auto preserveControlHeight = [](QWidget* control) {
-		control->ensurePolished();
-		control->setMinimumHeight(std::max(control->minimumHeight(), control->sizeHint().height()));
-		QSizePolicy policy = control->sizePolicy();
-		policy.setVerticalPolicy(QSizePolicy::Fixed);
-		control->setSizePolicy(policy);
-	};
-	for (QAbstractButton* button : findChildren<QAbstractButton*>())
-		preserveControlHeight(button);
-	for (QComboBox* combo : findChildren<QComboBox*>())
-		preserveControlHeight(combo);
-	for (QAbstractSpinBox* spin : findChildren<QAbstractSpinBox*>())
-		preserveControlHeight(spin);
+	fitControlHeights();
 
 	scroll->setWidget(content);
 	_stack->addWidget(scroll);
