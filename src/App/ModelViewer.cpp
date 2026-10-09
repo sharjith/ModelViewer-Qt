@@ -7752,6 +7752,26 @@ void ModelViewer::requestRenderingMode(const QString& mode)
 
 void ModelViewer::onRenderingModeSelected(const QString& mode)
 {
+	// TEMPORARY diagnostics (RTSWITCH): where does the camera change when the mode is switched? Remove once found.
+	auto logPose = [this](const char* step) {
+		if (!_viewportWidget)
+			return;
+		const ViewportWidget::CameraPose pose = _viewportWidget->saveCameraPose();
+		qWarning().noquote() << "RTSWITCH" << step << "pos" << pose.position << "dir" << pose.viewDir << "up" << pose.upVector << "range" << pose.viewRange
+			<< "size" << _viewportWidget->width() << "x" << _viewportWidget->height();
+	};
+	logPose("begin");
+	struct EndLogger
+	{
+		std::function<void(const char*)> log;
+		~EndLogger() { log("end"); }
+	} endLogger{ logPose };
+	if (_viewportWidget)
+	{
+		// ... and again once the event loop has run, to catch a change made later (a deferred fit, a resize).
+		QTimer::singleShot(0, this, [logPose]() { logPose("after event loop"); });
+		QTimer::singleShot(800, this, [logPose]() { logPose("after 800 ms"); });
+	}
 	if (mode == "ADS")
 	{
 		_viewportWidget->disarmRayTracedRenderingMode();
@@ -7786,9 +7806,13 @@ void ModelViewer::onRenderingModeSelected(const QString& mode)
 		// progressively-converging ray-traced image once the camera settles
 		// - see ViewportWidget::armRayTracedRenderingMode().
 		_viewportWidget->setRenderingMode(RenderingMode::PHYSICALLY_BASED_RENDERING);
+		logPose("RT: setRenderingMode");
 		visualizationEnvironmentPanel->setPBRLightingMode(true);
+		logPose("RT: setPBRLightingMode");
 		_viewportWidget->setSkyBoxTextureHDRI(true);
+		logPose("RT: setSkyBoxTextureHDRI");
 		switchToRealisticRendering();
+		logPose("RT: switchToRealisticRendering");
 
 		// Mirrors onDisplayModeChanged()'s own mode-defining default (Floor +
 		// default lights on, unconditionally re-asserted on every switch into
@@ -7811,8 +7835,10 @@ void ModelViewer::onRenderingModeSelected(const QString& mode)
 		// re-evaluates it once armRayTracedRenderingMode() below has actually
 		// run.
 		visualizationEnvironmentPanel->applyRayTracedGroundDefaultsOnce();
+		logPose("RT: ground defaults");
 
 		_viewportWidget->armRayTracedRenderingMode();
+		logPose("RT: armed");
 	}
 	// Update toolbar button to reflect the new rendering mode
 	_viewportWidget->getViewToolbar()->updateRenderingModeButton(mode);
