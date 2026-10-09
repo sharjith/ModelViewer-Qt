@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <QInputDialog>
 #include <QPointF>
 #include <QPointer>
 
@@ -75,6 +76,8 @@ bool visiblePlotBounds(const ModelViewer* viewer, std::array<double, 3>& minimum
 
 void applyAxes(ModelViewer* viewer, const Plot3DSession* session)
 {
+	if (viewer)
+		viewer->refreshPlot3DNotes(); // the notes do not depend on the axes box being shown
 	ViewportWidget* viewport = viewer ? viewer->getViewportWidget() : nullptr;
 	if (!viewport || !session)
 		return;
@@ -100,27 +103,6 @@ void applyAxes(ModelViewer* viewer, const Plot3DSession* session)
 	QString error;
 	if (controller.buildLayout(session->axes, minimum.data(), maximum.data(), layout, &error, session->title))
 	{
-		// Every visible plot's text notes, placed through the shared axes' scales (a note a log axis cannot place is skipped).
-		for (const Plot3DSession& plot : viewer->plot3DSessions())
-		{
-			if (!plot.visible)
-				continue;
-			for (const Plot3DTextLabel& note : plot.textLabels)
-			{
-				const double data[3] = { note.x, note.y, note.z };
-				QVector3D position;
-				bool placeable = !note.text.trimmed().isEmpty();
-				for (int axis = 0; axis < 3 && placeable; ++axis)
-				{
-					bool ok = false;
-					const double transformed = plot3DTransformAxisValue(data[axis], session->axes[axis], &ok);
-					placeable = ok;
-					position[axis] = static_cast<float>(transformed);
-				}
-				if (placeable)
-					layout.labels.push_back({ note.text, position, QVector3D(1.0f, 0.88f, 0.35f) });
-			}
-		}
 		viewport->setPlot3DAxisLayout(layout);
 	}
 	else
@@ -735,11 +717,136 @@ void ModelViewer::setPlot3DTextLabels(const QUuid& meshUuid, const std::vector<P
 	if (!session)
 		return;
 	session->textLabels = labels;
-	// The labels of every visible plot share the active plot's axes box, so that one is re-laid out whichever plot changed.
-	if (Plot3DSession* active = sessionFor(_plot3DSessions, _activePlot3DMesh))
-		applyAxes(this, active);
+	refreshPlot3DNotes(); // the notes are drawn on their own, whether or not the axes box is shown
 	markNonUndoDocumentModified();
 	emit plot3DSessionsChanged(false);
+}
+
+// ---- text notes ----------------------------------------------------------------------------------------------------------------------
+
+void ModelViewer::refreshPlot3DNotes()
+{
+	if (!_viewportWidget)
+		return;
+	QVector<ViewportWidget::Plot3DNote> notes;
+	for (const Plot3DSession& plot : plot3DSessions())
+	{
+		if (!plot.visible)
+			continue;
+		for (std::size_t i = 0; i < plot.textLabels.size(); ++i)
+		{
+			const Plot3DTextLabel& note = plot.textLabels[i];
+			if (note.text.trimmed().isEmpty())
+				continue;
+			// Through the plot's own axis scales, the way its geometry is placed (a note a log axis cannot place is skipped).
+			const double data[3] = { note.x, note.y, note.z };
+			QVector3D position;
+			bool placeable = true;
+			for (int axis = 0; axis < 3 && placeable; ++axis)
+			{
+				bool ok = false;
+				const double transformed = plot3DTransformAxisValue(data[axis], plot.axes[axis], &ok);
+				placeable = ok;
+				position[axis] = static_cast<float>(transformed);
+			}
+			if (!placeable)
+				continue;
+			ViewportWidget::Plot3DNote entry;
+			entry.plot = plot.meshUuid;
+			entry.index = static_cast<int>(i);
+			entry.text = note.text;
+			entry.position = position;
+			notes.push_back(entry);
+		}
+	}
+	_viewportWidget->setPlot3DNotes(notes);
+}
+
+QUuid ModelViewer::plot3DOwnerOfMesh(const QUuid& meshUuid) const
+{
+	for (const Plot3DSession& session : _plot3DSessions)
+		if (session.meshUuid == meshUuid || session.markerMeshUuid == meshUuid || session.contourOverlayMeshUuid == meshUuid)
+			return session.meshUuid;
+	return QUuid();
+}
+
+QVector<QUuid> ModelViewer::plot3DVisibleMeshes() const
+{
+	QVector<QUuid> meshes;
+	for (const Plot3DSession& plot : plot3DSessions())
+	{
+		if (!plot.visible || plot.primitive == Plot3DPrimitive::Voxel)
+			continue;
+		meshes.push_back(plot.meshUuid);
+		if (!plot.markerMeshUuid.isNull())
+			meshes.push_back(plot.markerMeshUuid);
+		if (!plot.contourOverlayMeshUuid.isNull())
+			meshes.push_back(plot.contourOverlayMeshUuid);
+	}
+	return meshes;
+}
+
+void ModelViewer::startPlot3DNotePlacement()
+{
+	if (_viewportWidget)
+		_viewportWidget->setPlot3DNotePlacementArmed(true);
+}
+
+void ModelViewer::connectPlot3DViewportSignals()
+{
+	if (!_viewportWidget)
+		return;
+	// A click placed a note: ask for its text, then store its position in the plot's data coordinates (the inverse of the axis scales).
+	connect(_viewportWidget, &ViewportWidget::plot3DNotePlaced, this, [this](const QUuid& plot, const QVector3D& local) {
+		Plot3DSession* session = sessionFor(_plot3DSessions, plot);
+		if (!session)
+			return;
+		bool accepted = false;
+		const QString text = QInputDialog::getMultiLineText(this, tr("New Note"), tr("Note text:"), tr("Note"), &accepted);
+		if (!accepted || text.trimmed().isEmpty())
+			return;
+		Plot3DTextLabel note;
+		note.text = text;
+		note.x = plot3DInverseAxisValue(local.x(), session->axes[0]);
+		note.y = plot3DInverseAxisValue(local.y(), session->axes[1]);
+		note.z = plot3DInverseAxisValue(local.z(), session->axes[2]);
+		std::vector<Plot3DTextLabel> labels = session->textLabels;
+		labels.push_back(std::move(note));
+		setPlot3DTextLabels(plot, labels);
+	});
+	connect(_viewportWidget, &ViewportWidget::plot3DNoteMoved, this, [this](const QUuid& plot, int index, const QVector3D& local) {
+		Plot3DSession* session = sessionFor(_plot3DSessions, plot);
+		if (!session || index < 0 || index >= static_cast<int>(session->textLabels.size()))
+			return;
+		std::vector<Plot3DTextLabel> labels = session->textLabels;
+		labels[static_cast<std::size_t>(index)].x = plot3DInverseAxisValue(local.x(), session->axes[0]);
+		labels[static_cast<std::size_t>(index)].y = plot3DInverseAxisValue(local.y(), session->axes[1]);
+		labels[static_cast<std::size_t>(index)].z = plot3DInverseAxisValue(local.z(), session->axes[2]);
+		setPlot3DTextLabels(plot, labels);
+	});
+	connect(_viewportWidget, &ViewportWidget::plot3DNoteEditRequested, this, [this](const QUuid& plot, int index) {
+		Plot3DSession* session = sessionFor(_plot3DSessions, plot);
+		if (!session || index < 0 || index >= static_cast<int>(session->textLabels.size()))
+			return;
+		bool accepted = false;
+		const QString text = QInputDialog::getMultiLineText(this, tr("Edit Note"), tr("Note text:"), session->textLabels[static_cast<std::size_t>(index)].text, &accepted);
+		if (!accepted)
+			return;
+		std::vector<Plot3DTextLabel> labels = session->textLabels;
+		if (text.trimmed().isEmpty())
+			labels.erase(labels.begin() + index); // emptying a note removes it
+		else
+			labels[static_cast<std::size_t>(index)].text = text;
+		setPlot3DTextLabels(plot, labels);
+	});
+	connect(_viewportWidget, &ViewportWidget::plot3DNoteDeleteRequested, this, [this](const QUuid& plot, int index) {
+		Plot3DSession* session = sessionFor(_plot3DSessions, plot);
+		if (!session || index < 0 || index >= static_cast<int>(session->textLabels.size()))
+			return;
+		std::vector<Plot3DTextLabel> labels = session->textLabels;
+		labels.erase(labels.begin() + index);
+		setPlot3DTextLabels(plot, labels);
+	});
 }
 
 void ModelViewer::setPlot3DAxisTitle(const QUuid& meshUuid, const QString& title)
@@ -823,6 +930,7 @@ void ModelViewer::clearPlot3DPreview()
 
 void ModelViewer::refreshPlot3DAxes()
 {
+	refreshPlot3DNotes();
 	const QUuid active = activePlot3DMeshUuid();
 	Plot3DSession* session = sessionFor(_plot3DSessions, active);
 	if (session)
