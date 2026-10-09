@@ -49,6 +49,25 @@ FEM_box_thermal_transient.frd A transient heat-transfer analysis of the box (Cal
 beampl.frd                    CalculiX's "beampl" example: a cantilever beam under tension with deformation
                               plasticity, 32 twenty-node hexahedra, results in the solver's units.
 
+Charts driven by the playback bar
+---------------------------------
+A "plot over time" chart (Simulation tab > Plot over time, then click a point on the result) now shows an orange CURSOR at the
+result's current step. Clicking or dragging in the chart moves the result to the nearest step, so the chart and the playback bar
+drive each other. Right-click the chart > "Add curve from CSV..." draws another curve on the same axes (test data, a response
+curve) with a legend; "Remove added curves" clears them. The CSV needs two columns, x then y; a header row names the curve.
+
+thermal_probe_test.csv        Synthetic "thermocouple" readings (time, temperature_measured) for the middle of the box's far face
+                              (the face at x = 10, opposite the face held at 100) in FEM_box_thermal_transient.frd, time 0.5 .. 10 s:
+                              the simulated history of that point plus a little noise and a small offset. Try: open the .frd,
+                              Plot over time, click near the middle of the far face (rotate to see it), right-click the chart >
+                              Add curve from CSV, pick this file, then Play: the cursor travels along both curves; click the chart
+                              to jump in time. Your clicked point is not exactly the sample's, so the curves are close, not identical.
+FEM_box_modes_frf.csv         A synthetic frequency-response curve (frequency_Hz, amplitude) with peaks at the six mode frequencies of
+                              FEM_box_modes.frd (54280, 54317, 73971, 128658, 143336, 143478 Hz; the close pairs merge into one
+                              peak). Try: open FEM_box_modes.frd, Plot over time on any point (its x axis is the frequency of
+                              each mode), add this curve, and click on a peak: the result jumps to that mode.
+
+
 Sources and licences
 --------------------
 hexa.vtk, plate.vtk, post.vtk, tetraMesh.vtk, uGridEx.vtk

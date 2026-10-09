@@ -8978,215 +8978,215 @@ La surface est affichée avec les couleurs qu&apos;elle avait lors de l&apos;enr
         <translation>Comparaison terminée : l&apos;un des résultats comparés n&apos;est plus affiché.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1245"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1293"/>
         <source>t = %1 - step %2 of %3</source>
         <translation>t = %1 - étape %2 sur %3</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1246"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1294"/>
         <source>%1% (by progress) - %2</source>
         <translation>%1 % (selon la progression) - %2</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1277"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1325"/>
         <source>Simulation: %1</source>
         <translation>Simulation : %1</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1282"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1330"/>
         <source>Pathlines: %1</source>
         <translation>Trajectoires : %1</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1285"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1333"/>
         <source>All together</source>
         <translation>Tout ensemble</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1573"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1622"/>
         <source>%1 - %2</source>
         <translation>%1 - %2</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1584"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1633"/>
         <source>unit not specified</source>
         <translation>unité non spécifiée</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1585"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1634"/>
         <source>%1, assumed</source>
         <translation>%1, supposée</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1586"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1635"/>
         <source>%1  [%2]</source>
         <translation>%1  [%2]</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1588"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1637"/>
         <source>%1
 %2</source>
         <translation>%1
 %2</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1626"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1675"/>
         <source>Min</source>
         <translation>Min</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1628"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1677"/>
         <source>Max</source>
         <translation>Max</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1700"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1749"/>
         <source>No arrows at this step: &apos;%1&apos; has no vector data here.</source>
         <translation>Pas de flèches à ce pas : &apos;%1&apos; n&apos;a pas de données vectorielles ici.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1722"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1771"/>
         <source>Arrows: %1, coloured as in the legend.</source>
         <translation>Flèches : %1, colorées comme dans la légende.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1724"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1773"/>
         <source>Arrows: %1, coloured by magnitude from %2 to %3%4.</source>
         <translation>Flèches : %1, colorées selon la magnitude de %2 à %3%4.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1771"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1820"/>
         <source>No ellipsoids at this step: &apos;%1&apos; has no tensor data here.</source>
         <translation>Aucun ellipsoïde à cette étape : &apos;%1&apos; n&apos;a pas de données de tenseur ici.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1788"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1837"/>
         <source>Ellipsoids: %1, coloured as in the legend.</source>
         <translation>Ellipsoïdes : %1, colorés comme dans la légende.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1790"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1839"/>
         <source>Ellipsoids: %1, coloured by von Mises from %2 to %3%4.</source>
         <translation>Ellipsoïdes : %1, colorés selon von Mises de %2 à %3%4.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1848"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1897"/>
         <source>This result has no volume cells, so there is no interior field to render.</source>
         <translation>Ce résultat n&apos;a pas de cellules volumiques ; il n&apos;y a donc aucun champ intérieur à afficher.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1858"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1907"/>
         <source>Volume rendering needs a scalar node field or a node vector field.</source>
         <translation>Le rendu volumique nécessite un champ scalaire aux nœuds ou un champ vectoriel aux nœuds.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1880"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1929"/>
         <source>This result has no convex volume cells that can be sampled safely.</source>
         <translation>Ce résultat n&apos;a pas de cellules volumiques convexes pouvant être échantillonnées en toute sécurité.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1892"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1941"/>
         <source>No volume could be built for &apos;%1&apos; at this step.</source>
         <translation>Aucun volume n&apos;a pu être construit pour &apos;%1&apos; à cette étape.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1909"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1958"/>
         <source>Volume: %1 x %2 x %3 voxels, %4 to %5%6.</source>
         <translation>Volume : %1 x %2 x %3 voxels, %4 à %5%6.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1932"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1981"/>
         <source>Streamlines are shown as they were saved (frozen): this snapshot has no volume. Save with &quot;Also store the volume&quot; to keep them live.</source>
         <translation>Les lignes de courant sont affichées telles qu&apos;enregistrées (figées) : cet instantané n&apos;a pas de volume. Enregistrez avec « Enregistrer aussi le volume » pour les garder actives.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1936"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1985"/>
         <source>This result has no volume cells (a shell or surface result, or a snapshot saved without its volume), so there is nothing to trace through.</source>
         <translation>Ce résultat n&apos;a pas de cellules volumiques (un résultat de coque ou de surface, ou un instantané enregistré sans son volume), il n&apos;y a donc rien à tracer.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1945"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1994"/>
         <source>Streamlines: the result has no node vector field to follow (cell fields cannot be traced).</source>
         <translation>Lignes de courant : le résultat n&apos;a pas de champ vectoriel aux nœuds à suivre (les champs aux cellules ne peuvent pas être tracés).</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1954"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2003"/>
         <source>No streamlines at this step: &apos;%1&apos; has no vector data here.</source>
         <translation>Pas de lignes de courant à ce pas : &apos;%1&apos; n&apos;a pas de données vectorielles ici.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1969"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2018"/>
         <source>Streamlines: turn on a Clipping Plane (the Clipping Planes editor) to seed on it, or switch &quot;Seed on the Clipping Plane&quot; off.</source>
         <translation>Lignes de courant : activez un plan de coupe (l&apos;éditeur de plans de coupe) pour y placer les points de départ, ou désactivez « Départ sur le plan de coupe ».</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1987"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2036"/>
         <source>This result has no convex volume cells that can be traced safely.</source>
         <translation>Ce résultat n&apos;a pas de cellules volumiques convexes pouvant être tracées en toute sécurité.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="1988"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2037"/>
         <source>This result has no volume cells to trace through.</source>
         <translation>Ce résultat n&apos;a pas de cellules volumiques à parcourir.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2038"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2087"/>
         <source>Streamlines of %1: none could be traced - the seeds lie outside the mesh, or the field is zero there.</source>
         <translation>Lignes de courant de %1 : aucune n&apos;a pu être tracée - les points de départ sont hors du maillage, ou le champ y est nul.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2131"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2180"/>
         <source>Streamlines of %1: %2 line(s), coloured by magnitude%3%4.</source>
         <translation>Lignes de courant de %1 : %2 ligne(s), colorées selon la magnitude%3%4.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2133"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2182"/>
         <source>, as in the legend</source>
         <translation>, comme dans la légende</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2133"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2182"/>
         <source> from %1 to %2</source>
         <translation> de %1 à %2</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2136"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2185"/>
         <source>They lie inside the model: cut it with a Clipping Plane to see them.</source>
         <translation>Elles se trouvent à l&apos;intérieur du modèle : coupez-le avec un plan de coupe pour les voir.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2138"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2187"/>
         <source>%1 concave polyhedron cell(s) were excluded from tracing.</source>
         <translation>%1 cellule(s) polyédrique(s) concave(s) ont été exclue(s) du tracé.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2398"/>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2420"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2447"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2469"/>
         <source>Chart</source>
         <translation>Graphique</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2398"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2447"/>
         <source>This result has no volume cells to sample through (a shell/surface result).</source>
         <translation>Ce résultat n&apos;a pas de cellules volumiques à échantillonner (résultat de coque/surface).</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2420"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2469"/>
         <source>The current field cannot be charted this way (cell data is not supported yet, or the point/line missed the mesh entirely).</source>
         <translation>Le champ actuel ne peut pas être tracé de cette façon (les données par cellule ne sont pas encore prises en charge, ou le point/la ligne a complètement manqué le maillage).</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2448"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2507"/>
         <source>Distribution</source>
         <translation>Distribution</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2448"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2507"/>
         <source>The current field has no data at this step, or is constant (nothing to show a distribution of).</source>
         <translation>Le champ actuel n&apos;a pas de données à cette étape ou est constant (aucune distribution à afficher).</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2452"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2511"/>
         <source>Distribution of %1</source>
         <translation>Distribution de %1</translation>
     </message>
@@ -9195,22 +9195,22 @@ La surface est affichée avec les couleurs qu&apos;elle avait lors de l&apos;enr
         <translation type="vanished">Les lignes de courant sont dessinées sur le maillage non déformé.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2167"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2216"/>
         <source>Cut faces and iso-surfaces are shown as they were saved (frozen): this snapshot has no volume. Save with &quot;Also store the volume&quot; to keep them live.</source>
         <translation>Les faces de coupe et les isosurfaces sont affichées telles qu&apos;enregistrées (figées) : cet instantané n&apos;a pas de volume. Enregistrez avec « Enregistrer aussi le volume » pour les garder actives.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2171"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2220"/>
         <source>This result has no volume cells (a shell or surface result, or a snapshot saved without its volume), so there is nothing to cut.</source>
         <translation>Ce résultat n&apos;a pas de cellules volumiques (un résultat de coque ou de surface, ou un instantané enregistré sans son volume), il n&apos;y a donc rien à couper.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2217"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2266"/>
         <source>Cut faces: turn on a Clipping Plane (the Clipping Planes editor) to cut the model.</source>
         <translation>Faces de coupe : activez un plan de coupe (l&apos;éditeur de plans de coupe) pour couper le modèle.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2219"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2268"/>
         <source>Cut faces: there is no field shown to colour them with.</source>
         <translation>Faces de coupe : aucun champ affiché pour les colorer.</translation>
     </message>
@@ -9219,17 +9219,17 @@ La surface est affichée avec les couleurs qu&apos;elle avait lors de l&apos;enr
         <translation type="vanished">Les faces de coupe sont dessinées sur le maillage non déformé.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2287"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2336"/>
         <source>Iso-surfaces: choose a node field (a scalar or a vector) to draw them of.</source>
         <translation>Isosurfaces : choisissez un champ aux nœuds (scalaire ou vecteur) dont les tracer.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2340"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2389"/>
         <source>Iso-surfaces of %1: the field is constant (%2) at this step, so there is no surface to draw - step to a later time.</source>
         <translation>Isosurfaces de %1 : le champ est constant (%2) à ce pas, il n&apos;y a donc aucune surface à dessiner - passez à un temps ultérieur.</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2343"/>
+        <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2392"/>
         <source>Iso-surfaces of %1: %2 level(s) from %3 to %4%5 - inside the model, so cut it with a Clipping Plane to see them.</source>
         <translation>Isosurfaces de %1 : %2 niveau(x) de %3 à %4%5 - à l&apos;intérieur du modèle, coupez-le donc avec un plan de coupe pour les voir.</translation>
     </message>
@@ -11640,6 +11640,26 @@ dont les valeurs Z sont dans cette colonne (mêmes X et Y).</translation>
         <location filename="../src/Plot3D/Core/Plot3DGenerate.cpp" line="172"/>
         <source>Open or paste tabular data first.</source>
         <translation>Ouvrez ou collez d&apos;abord des données tabulaires.</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/Core/SimulationCharts.cpp" line="182"/>
+        <source>The file is empty.</source>
+        <translation>Le fichier est vide.</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/Core/SimulationCharts.cpp" line="216"/>
+        <source>The file needs at least two rows of numbers (x, y).</source>
+        <translation>Le fichier doit contenir au moins deux lignes de nombres (x, y).</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/Core/SimulationCharts.cpp" line="221"/>
+        <source>x</source>
+        <translation>x</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/Core/SimulationCharts.cpp" line="222"/>
+        <source>y</source>
+        <translation>y</translation>
     </message>
 </context>
 <context>
@@ -17205,29 +17225,56 @@ Le panneau affiche les liaisons de texture côté GPU pour le maillage sélectio
 <context>
     <name>SimulationChartWidget</name>
     <message>
-        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="54"/>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="64"/>
         <source>Chart</source>
         <translation>Graphique</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="68"/>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="78"/>
         <source>Distribution</source>
         <translation>Distribution</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="91"/>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="101"/>
         <source>No data</source>
         <translation>Aucune donnée</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="117"/>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="138"/>
         <source>The sampled line/point had no data</source>
         <translation>La ligne/le point échantillonné ne contenait aucune donnée</translation>
     </message>
     <message>
-        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="159"/>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="180"/>
         <source>Count</source>
         <translation>Nombre</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="394"/>
+        <source>Add curve from CSV...</source>
+        <translation>Ajouter une courbe depuis un CSV...</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="395"/>
+        <source>Remove added curves</source>
+        <translation>Supprimer les courbes ajoutées</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="402"/>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="409"/>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="416"/>
+        <source>Add Curve</source>
+        <translation>Ajouter une courbe</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="403"/>
+        <source>CSV files (*.csv *.txt);;All files (*)</source>
+        <translation>Fichiers CSV (*.csv *.txt);;Tous les fichiers (*)</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationChartWidget.cpp" line="409"/>
+        <source>The file could not be opened.</source>
+        <translation>Le fichier n&apos;a pas pu être ouvert.</translation>
     </message>
 </context>
 <context>

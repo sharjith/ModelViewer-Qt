@@ -1170,6 +1170,54 @@ void ModelViewer::advanceSimulationStep()
 	setSimulationStep(next, true);
 }
 
+// The cursor of every chart opened for this result sits at the current step's time (or frequency).
+void ModelViewer::updateSimulationChartCursors(const SimulationSession& session)
+{
+	if (_simulationChartLinks.isEmpty() || !session.dataset || session.dataset->steps.empty())
+		return;
+	const std::size_t step = static_cast<std::size_t>(std::clamp(session.state.step, 0, static_cast<int>(session.dataset->steps.size()) - 1));
+	const double x = session.dataset->steps[step].time;
+	for (int i = _simulationChartLinks.size() - 1; i >= 0; --i)
+	{
+		if (!_simulationChartLinks[i].chart)
+			_simulationChartLinks.removeAt(i); // the chart window was closed
+		else if (_simulationChartLinks[i].mesh == session.meshUuid)
+			_simulationChartLinks[i].chart->setCursorX(x);
+	}
+}
+
+// A chart's click or drag: the step nearest to x on its time / frequency axis. While the result plays "All together" the shared clock moves
+// instead (the pathlines follow), otherwise the result steps by itself.
+void ModelViewer::seekSimulationFromChart(const QUuid& meshUuid, double x)
+{
+	SimulationSession* session = findSimulationSession(meshUuid);
+	if (!session || !session->dataset || session->dataset->steps.empty())
+		return;
+	const std::vector<ResultStep>& steps = session->dataset->steps;
+	int best = 0;
+	double bestDistance = std::numeric_limits<double>::max();
+	for (std::size_t i = 0; i < steps.size(); ++i)
+		if (std::abs(steps[i].time - x) < bestDistance)
+		{
+			bestDistance = std::abs(steps[i].time - x);
+			best = static_cast<int>(i);
+		}
+	if (_playbackTogether && _playbackTogetherResult == meshUuid && !_pathlineAnimation.mesh.isNull())
+	{
+		setTogetherFrame(playbackFrameForStep(_togetherClock, _togetherStepTimes, best));
+		return;
+	}
+	if (session->state.step == best)
+		return;
+	if (meshUuid == _activeSimulationMesh)
+		setSimulationStep(best, false); // also moves the playback bar
+	else
+	{
+		session->state.step = best;
+		refreshSimulationDisplay(*session);
+	}
+}
+
 // "All together": the result that plays along with the animated pathlines - the active result if it can be played, else the first one.
 QUuid ModelViewer::pickTogetherResult() const
 {
@@ -1423,6 +1471,7 @@ void ModelViewer::refreshSimulationDisplay(SimulationSession& session)
 	const bool isActive = session.meshUuid == _activeSimulationMesh;
 	const int stepCount = static_cast<int>(session.dataset->stepCount());
 	session.state.step = std::clamp(session.state.step, 0, std::max(0, stepCount - 1));
+	updateSimulationChartCursors(session);
 
 	// ---- Deformed shape: rest positions + scale * displacement(step). The vertices are only re-uploaded when the
 	// shown geometry actually changes (a recolour alone leaves them alone). Done before colouring because the
@@ -2426,9 +2475,19 @@ void ModelViewer::onSimulationChartPointsPicked(const QUuid& meshUuid, const QVe
 	// event (the next click) pumps the loop - looking exactly like "the dialog doesn't show until the second click".
 	// Deferring the creation itself to the next loop iteration (QTimer::singleShot(0, ...), after the click has
 	// fully finished being handled) shows it immediately instead.
-	QTimer::singleShot(0, this, [this, series]() {
+	const bool overTime = points.size() == 1; // a point's history: its x axis is the result's time / frequency, so it can show and drive the step
+	const QUuid chartMesh = meshUuid;
+	QTimer::singleShot(0, this, [this, series, overTime, chartMesh]() {
 		auto* chart = new SimulationChartWidget(this);
 		chart->setSeries(series);
+		if (overTime)
+		{
+			chart->setSeekable(true);
+			_simulationChartLinks.push_back({ chart, chartMesh });
+			connect(chart, &SimulationChartWidget::seekRequested, this, [this, chartMesh](double x) { seekSimulationFromChart(chartMesh, x); });
+			if (const SimulationSession* linked = findSimulationSession(chartMesh))
+				updateSimulationChartCursors(*linked);
+		}
 		chart->show();
 		chart->raise();
 		chart->activateWindow();

@@ -61,3 +61,18 @@ int playbackResultStep(const PlaybackClock& clock, const std::vector<double>& st
 	const int step = static_cast<int>(after - stepTimes.begin()) - 1;
 	return std::clamp(step, 0, last);
 }
+
+int playbackFrameForStep(const PlaybackClock& clock, const std::vector<double>& stepTimes, int step)
+{
+	if (stepTimes.empty() || clock.frames < 2)
+		return 0;
+	const int last = static_cast<int>(stepTimes.size()) - 1;
+	step = std::clamp(step, 0, last);
+	const int top = clock.frames - 1;
+	if (!clock.byTime)
+		return std::clamp(static_cast<int>(std::ceil(static_cast<double>(step) / std::max(1, last) * top - 1.0e-9)), 0, top);
+	if (!(clock.t1 > clock.t0))
+		return 0;
+	const double fraction = (stepTimes[static_cast<std::size_t>(step)] - clock.t0) / (clock.t1 - clock.t0);
+	return std::clamp(static_cast<int>(std::ceil(fraction * top - 1.0e-9)), 0, top); // ceil: the frame must not land just before the step's time
+}

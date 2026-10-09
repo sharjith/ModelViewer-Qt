@@ -25,8 +25,9 @@ before the code, because the first idea ("match both by progress, 0-100 %") turn
 1. **Clock + overlay** (`PlaybackClock`): one bar for a result and an animated pathline plot, matched by time (union of the two ranges,
    an item holds its first/last frame outside its own range; the result shows its last step at or before the clock time) or by progress.
    The combo's "All together" entry selects it. Sample: `pathlines_openfoam_cavity.csv` with the OpenFOAM cavity result.
-2. **Time cursor + seek on the charts**: the chart of a point's history (and a modal result's frequency axis) shows a cursor at the current
-   clock value and clicking / dragging it moves the clock; extra curves (test data, an FRF) can be added from a CSV.
+2. **Time cursor + seek on the charts** (done): the "plot over time" chart of a point's history (x = the result's time, or the mode's frequency)
+   shows a cursor at the current step; clicking or dragging moves the result (the shared clock while playing "All together"). Extra curves (test
+   data, an FRF) are added from a CSV with the chart's right-click menu. Samples: `thermal_probe_test.csv`, `FEM_box_modes_frf.csv`.
 3. **Plot panes in the split view** (only where a 3D plot really needs it): generalise Compare's panes to hold a Plot3D plot (its axes box,
    legend, notes and pathline heads drawn inside the pane, its own camera).
 4. **Probe to history**: right-click a node on a result to put its value over all steps into the chart / a plot.

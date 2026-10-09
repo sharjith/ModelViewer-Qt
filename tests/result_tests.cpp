@@ -7017,6 +7017,32 @@ static void testPlaybackClock()
 	// Degenerate pathline range or too few frames: no clock.
 	CHECK(!buildPlaybackClock(steps, true, 1.0, 1.0, 101, clock));
 	CHECK(!buildPlaybackClock(steps, true, 0.0, 1.0, 1, clock));
+
+	// Seeking from a chart: the first frame that shows a step, and the step that frame then shows.
+	CHECK(buildPlaybackClock(steps, true, 0.0, 1.5, 201, clock));
+	for (int step = 0; step < 5; ++step)
+		CHECK(playbackResultStep(clock, steps, playbackFrameForStep(clock, steps, step)) == step);
+	CHECK(playbackFrameForStep(clock, steps, 0) == 0 && playbackFrameForStep(clock, steps, 4) == 200 && playbackFrameForStep(clock, steps, 2) == 100);
+	CHECK(buildPlaybackClock(steps, false, 0.0, 1.5, 101, clock));
+	for (int step = 0; step < 5; ++step)
+		CHECK(playbackResultStep(clock, steps, playbackFrameForStep(clock, steps, step)) == step);
+	CHECK(playbackFrameForStep(clock, {}, 3) == 0);
+}
+
+// An extra chart curve from CSV text: delimiter detection, header naming, skipped bad rows, sorting.
+static void testChartCurveCsv()
+{
+	ChartSeries curve;
+	QString error;
+	CHECK(parseChartCurveCsv(QStringLiteral("time,temperature_measured\n0.5,30.2\n1.0,43.5\n1.5,53.7\n"), QStringLiteral("fallback"), curve, &error));
+	CHECK(curve.x.size() == 3 && curve.x[0] == 0.5 && curve.x[2] == 1.5 && std::abs(curve.y[1] - 43.5f) < 1.0e-4f);
+	CHECK(curve.xLabel == QLatin1String("time") && curve.yLabel == QLatin1String("temperature_measured") && curve.title == QLatin1String("temperature_measured"));
+	// No header: the fallback title; semicolons; CRLF; an unsorted file is sorted by x; a row that is not numbers is skipped.
+	CHECK(parseChartCurveCsv(QStringLiteral("3;30\r\n1;10\r\nx;y\r\n2;20\r\n"), QStringLiteral("fallback"), curve, &error));
+	CHECK(curve.x == std::vector<double>({ 1.0, 2.0, 3.0 }) && curve.y[0] == 10.0f && curve.y[2] == 30.0f && curve.title == QLatin1String("fallback"));
+	CHECK(parseChartCurveCsv(QStringLiteral("a\tb\tc\n1\t2\t99\n2\t4\t99\n"), QStringLiteral("t"), curve, &error) && curve.x.size() == 2 && curve.y[1] == 4.0f); // tabs; a third column is ignored
+	CHECK(!parseChartCurveCsv(QStringLiteral("x,y\n1,2\n"), QStringLiteral("t"), curve, &error) && !error.isEmpty()); // one row is not a curve
+	CHECK(!parseChartCurveCsv(QString(), QStringLiteral("t"), curve, &error));
 }
 
 int main(int argc, char** argv)
@@ -7103,6 +7129,7 @@ int main(int argc, char** argv)
 	// an older ADF file no longer opens in THIS process (the application never writes CGNS files, and opens both kinds in any order).
 	testRealSamples();
 	testPlaybackClock();
+	testChartCurveCsv();
 	testSingleTetAscii();
 	testEncodingsMatchAscii();
 	testInformationKeyChildren();
