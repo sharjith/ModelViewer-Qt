@@ -12,6 +12,7 @@
 
 #include "ResultDataset.h"
 #include "ResultStreamlines.h"
+#include "SimulationSurfaceLocator.h"
 
 #include <QString>
 
@@ -53,6 +54,15 @@ bool buildFieldHistogram(const ResultDataset& dataset, int fieldIndex, int compo
 // (otherwise `fallbackTitle` is used). Rows that are not numeric are skipped; the points are sorted by x. False, with a message, when fewer
 // than two usable rows remain. Meant for test data or a frequency-response curve drawn over a result's own chart.
 bool parseChartCurveCsv(const QString& text, const QString& fallbackTitle, ChartSeries& out, QString* error = nullptr);
+
+// The same two charts for a SHELL / SURFACE result (triangles and quads, no volume cells): a point is read on the closest point of the surface
+// (SurfaceLocator) instead of inside a cell. The over-line chart samples the straight chord between the two picked points and projects each sample onto
+// the surface; a sample farther than `maxDistanceFraction` of the surface's diagonal from it (the chord left a curved shell) is NaN, so a gap shows where
+// the line really left the surface. Node fields only, like the volume versions.
+bool sampleFieldOverLine(const ResultDataset& dataset, const SurfaceLocator& locator, int fieldIndex, int component, int step,
+                         const double p0[3], const double p1[3], std::size_t sampleCount, ChartSeries& out, double maxDistanceFraction = 0.02);
+bool sampleFieldOverTime(const ResultDataset& dataset, const SurfaceLocator& locator, int fieldIndex, int component, const double point[3], ChartSeries& out,
+                         double maxDistanceFraction = 0.02);
 
 // Samples `fieldIndex` (component `component`) at the fixed point `point`, once per step of the dataset (a lazy
 // result reads every step - see ResultDataset::ensureStepLoaded - so this can be slow; show a busy cursor around

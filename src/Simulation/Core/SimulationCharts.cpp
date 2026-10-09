@@ -95,23 +95,19 @@ bool buildFieldHistogram(const ResultDataset& dataset, int fieldIndex, int compo
 	return true;
 }
 
-bool sampleFieldOverTime(const ResultDataset& dataset, const CellLocator& locator, int fieldIndex, int component, const double point[3], ChartSeries& out)
+namespace
 {
+	// A point's history across every step, from the node weights found at the point (by either locator).
+	bool sampleOverTimeAtStencil(const ResultDataset& dataset, const CellInterpolationStencil& stencil, int fieldIndex, int component, ChartSeries& out)
+	{
 	out = ChartSeries();
-	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size() || dataset.stepCount() == 0)
-		return false;
-	if (locator.volumeCellCount() == 0)
+	if (fieldIndex < 0 || static_cast<std::size_t>(fieldIndex) >= dataset.fields.size() || dataset.stepCount() == 0 || stencil.empty())
 		return false;
 	const ResultField& field = dataset.fields[static_cast<std::size_t>(fieldIndex)];
 	if (field.association != ResultFieldAssociation::Node || field.components <= 0)
 		return false;
 	const bool magnitude = component < 0 && field.components == 3;
 	if (field.components != 1 && !magnitude && (component < 0 || component >= field.components))
-		return false;
-
-	int hint = -1;
-	CellInterpolationStencil stencil;
-	if (!locator.interpolationStencil(point, hint, stencil))
 		return false;
 
 	out.title = field.name;
@@ -169,6 +165,76 @@ bool sampleFieldOverTime(const ResultDataset& dataset, const CellLocator& locato
 		}
 		if (finite && std::isfinite(out.y[s]))
 			any = true;
+	}
+	return any;
+	}
+}
+
+bool sampleFieldOverTime(const ResultDataset& dataset, const CellLocator& locator, int fieldIndex, int component, const double point[3], ChartSeries& out)
+{
+	out = ChartSeries();
+	if (locator.volumeCellCount() == 0)
+		return false;
+	int hint = -1;
+	CellInterpolationStencil stencil;
+	if (!locator.interpolationStencil(point, hint, stencil))
+		return false;
+	return sampleOverTimeAtStencil(dataset, stencil, fieldIndex, component, out);
+}
+
+bool sampleFieldOverTime(const ResultDataset& dataset, const SurfaceLocator& locator, int fieldIndex, int component, const double point[3], ChartSeries& out,
+                         double maxDistanceFraction)
+{
+	out = ChartSeries();
+	if (locator.triangleCount() == 0)
+		return false;
+	CellInterpolationStencil stencil;
+	if (!locator.nearestStencil(point, std::max(0.0, maxDistanceFraction) * locator.diagonal(), stencil))
+		return false;
+	return sampleOverTimeAtStencil(dataset, stencil, fieldIndex, component, out);
+}
+
+bool sampleFieldOverLine(const ResultDataset& dataset, const SurfaceLocator& locator, int fieldIndex, int component, int step,
+                         const double p0[3], const double p1[3], std::size_t sampleCount, ChartSeries& out, double maxDistanceFraction)
+{
+	out = ChartSeries();
+	if (sampleCount < 2 || locator.triangleCount() == 0)
+		return false;
+	DisplayScalar scalar;
+	if (!buildDisplayScalar(dataset, fieldIndex, component, scalar, step) || scalar.cellData)
+		return false; // cell data is not interpolated: not supported yet
+	const double dx = p1[0] - p0[0], dy = p1[1] - p0[1], dz = p1[2] - p0[2];
+	const double length = std::sqrt(dx * dx + dy * dy + dz * dz);
+	const double tolerance = std::max(0.0, maxDistanceFraction) * locator.diagonal();
+	out.title = scalar.label;
+	out.xLabel = QStringLiteral("Distance");
+	out.xUnit = dataset.lengthUnit;
+	out.yLabel = scalar.label;
+	out.yUnit = scalar.unit;
+	out.x.resize(sampleCount);
+	out.y.assign(sampleCount, std::numeric_limits<float>::quiet_NaN());
+	bool any = false;
+	for (std::size_t i = 0; i < sampleCount; ++i)
+	{
+		const double t = static_cast<double>(i) / static_cast<double>(sampleCount - 1);
+		const double p[3] = { p0[0] + t * dx, p0[1] + t * dy, p0[2] + t * dz };
+		out.x[i] = t * length;
+		CellInterpolationStencil stencil;
+		if (!locator.nearestStencil(p, tolerance, stencil))
+			continue; // off the surface here: a gap
+		double value = 0.0;
+		bool finite = true;
+		for (std::size_t k = 0; k < stencil.nodes.size(); ++k)
+		{
+			const float nodeValue = scalar.nodeValues[stencil.nodes[k]];
+			finite = finite && std::isfinite(nodeValue);
+			value += stencil.weights[k] * nodeValue;
+		}
+		if (finite)
+		{
+			out.y[i] = static_cast<float>(value);
+			any = true;
+		}
 	}
 	return any;
 }

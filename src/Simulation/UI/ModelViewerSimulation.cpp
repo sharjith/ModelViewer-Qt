@@ -2451,10 +2451,20 @@ void ModelViewer::onSimulationChartPointsPicked(const QUuid& meshUuid, const QVe
 		session->locator = std::make_shared<CellLocator>(dataset, nullptr, nodes ? *nodes : std::vector<float>());
 		session->locatorKey = shapeKey;
 	}
-	if (session->locator->volumeCellCount() == 0)
+	// A shell / surface result has no volume cells: the charts then read the closest point of its surface instead.
+	const bool onSurface = session->locator->volumeCellCount() == 0;
+	if (onSurface)
 	{
-		QMessageBox::information(this, tr("Chart"), tr("This result has no volume cells to sample through (a shell/surface result)."));
-		return;
+		if (!session->surfaceLocator || session->surfaceLocatorKey != shapeKey)
+		{
+			session->surfaceLocator = std::make_shared<SurfaceLocator>(dataset, nodes ? *nodes : std::vector<float>());
+			session->surfaceLocatorKey = shapeKey;
+		}
+		if (session->surfaceLocator->triangleCount() == 0)
+		{
+			QMessageBox::information(this, tr("Chart"), tr("This result has no surface or volume cells to sample through."));
+			return;
+		}
 	}
 
 	ChartSeries series;
@@ -2465,13 +2475,34 @@ void ModelViewer::onSimulationChartPointsPicked(const QUuid& meshUuid, const QVe
 		// A lazy result reads every step here (sampleFieldOverTime's own doc comment) - the same busy-cursor
 		// treatment as the all-steps range scan (LazyScanCursor), since this is not threaded for the same reason.
 		const LazyScanCursor overTimeCursor(&dataset);
-		ok = sampleFieldOverTime(dataset, *session->locator, fieldIndex, component, p, series);
+		ok = onSurface ? sampleFieldOverTime(dataset, *session->surfaceLocator, fieldIndex, component, p, series)
+		               : sampleFieldOverTime(dataset, *session->locator, fieldIndex, component, p, series);
 	}
 	else
 	{
 		const double p0[3] = { points[0].x(), points[0].y(), points[0].z() };
 		const double p1[3] = { points[1].x(), points[1].y(), points[1].z() };
-		ok = sampleFieldOverLine(dataset, *session->locator, fieldIndex, component, step, p0, p1, 100, series);
+		ok = onSurface ? sampleFieldOverLine(dataset, *session->surfaceLocator, fieldIndex, component, step, p0, p1, 100, series)
+		               : sampleFieldOverLine(dataset, *session->locator, fieldIndex, component, step, p0, p1, 100, series);
+	}
+	if (!ok && !onSurface)
+	{
+		// A point picked ON the boundary of a volume mesh can land a hair outside every cell by float round-off (the displayed surface and the cells
+		// agree only to that), so look again with a small slack - 0.1 % of a cell - before giving up.
+		session->locator->setBoundarySlack(1.0e-3);
+		if (points.size() == 1)
+		{
+			const double p[3] = { points[0].x(), points[0].y(), points[0].z() };
+			const LazyScanCursor overTimeCursor(&dataset);
+			ok = sampleFieldOverTime(dataset, *session->locator, fieldIndex, component, p, series);
+		}
+		else
+		{
+			const double p0[3] = { points[0].x(), points[0].y(), points[0].z() };
+			const double p1[3] = { points[1].x(), points[1].y(), points[1].z() };
+			ok = sampleFieldOverLine(dataset, *session->locator, fieldIndex, component, step, p0, p1, 100, series);
+		}
+		session->locator->setBoundarySlack(0.0);
 	}
 	if (!ok)
 	{

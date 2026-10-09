@@ -51,6 +51,10 @@ public:
 	// Finds the cell containing `p` and returns the same barycentric node weights used by interpolate().
 	bool interpolationStencil(const double p[3], int& hint, CellInterpolationStencil& out) const;
 
+	// How far outside a cell (as a fraction of its size) a point is still taken as inside it. 0 (the default) keeps only the round-off tolerance; a point
+	// picked ON the displayed boundary surface can land a hair outside every cell by float round-off, so the charts retry with a small slack.
+	void setBoundarySlack(double fraction) { _slack = fraction > 0.0 ? fraction : 0.0; }
+
 	// The size (bounding-box diagonal) of a cell, 0 for a cell that is not indexed.
 	double cellSize(int cell) const;
 
@@ -66,6 +70,7 @@ private:
 	const ResultDataset& _ds;
 	std::vector<float> _positions; // the deformed shape, or empty for the dataset's own
 	std::vector<std::uint32_t> _cells; // the indexed (volume) cells
+	double _slack = 0.0;
 	std::vector<float> _boxes;         // 6 floats per indexed cell: min xyz, max xyz
 	double _origin[3] = { 0, 0, 0 };
 	double _binSize[3] = { 1, 1, 1 };
