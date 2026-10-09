@@ -363,10 +363,10 @@ Ordered roughly by value. Everything from the earlier gap list that was worth do
    `updateSourceMode()` and the preset handlers), and one plot-assembly step shared by Preview and Build (dataset or mesh ->
    mesh + session + axes layout, including the stem / error-bar / filled-scatter variants), so a new source or primitive is
    added in one place. Needs a full manual pass over every source and primitive, since there are no UI tests.
-2. **Unindexed point / line plots in exports and path-traced renders.** Line, Scatter, Quiver, Voxel and the pathline trails
-   are native point / line meshes with no index buffer: `SceneGraphExporter` skips them and `RtSceneBuilder` only traces
-   triangle meshes, so they are absent from glTF / OBJ export and path-traced renders (no crash). Surface and Bar plots
-   export and render, coloured through `plot3DBakedColors()`.
+2. **Path tracing (decided: out of scope).** Path tracing is for realistic rendering of models; Simulation results and Plot3D plots are
+   analysis views and are deliberately not developed for it (no path-traced points / lines / pathlines, no emissive-colour rule, no
+   per-step render sequences). Unindexed point / line plots *are* exported to glTF / GLB / OBJ (the exporters generate sequential indices);
+   `RtSceneBuilder` still skips every non-triangle mesh, so such plots are absent from path-traced renders.
 3. **No end-to-end save-and-reopen test** (it needs the app and a GL context). The headless tests cover the pieces:
    `plot3d_tests` (data, builders, session IO, section curves, pathlines, time-series fields, playback helpers) and `mvf_tests`
    (the loader's unindexed-mesh rule).
