@@ -9190,8 +9190,8 @@ La surface est affichée avec les couleurs qu&apos;elle avait lors de l&apos;enr
     </message>
     <message>
         <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2456"/>
-        <source>This result has no volume cells to sample through (a shell/surface result).</source>
-        <translation>Ce résultat n&apos;a pas de cellules volumiques à échantillonner (résultat de coque/surface).</translation>
+        <source>This result has no surface or volume cells to sample through.</source>
+        <translation>Ce résultat n&apos;a ni cellules de surface ni cellules de volume à échantillonner.</translation>
     </message>
     <message>
         <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2478"/>

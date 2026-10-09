@@ -7310,7 +7310,7 @@ The surface is shown with the colours it had when it was saved.</source>
     </message>
     <message>
         <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2456"/>
-        <source>This result has no volume cells to sample through (a shell/surface result).</source>
+        <source>This result has no surface or volume cells to sample through.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

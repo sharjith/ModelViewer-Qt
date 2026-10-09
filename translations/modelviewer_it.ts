@@ -9193,8 +9193,8 @@ La superficie viene mostrata con i colori che aveva al momento del salvataggio.<
     </message>
     <message>
         <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2456"/>
-        <source>This result has no volume cells to sample through (a shell/surface result).</source>
-        <translation>Questo risultato non ha celle di volume da campionare (è un risultato di guscio/superficie).</translation>
+        <source>This result has no surface or volume cells to sample through.</source>
+        <translation>Questo risultato non ha celle di superficie o di volume da campionare.</translation>
     </message>
     <message>
         <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2478"/>
