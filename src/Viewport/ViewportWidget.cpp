@@ -1638,17 +1638,6 @@ void ViewportWidget::paintGL()
 			}
 			if (presented)
 			{
-				// TEMPORARY diagnostics (RTCAM): the first few presented frames - the camera they were rendered with vs the live camera.
-				static int s_rtCamLogged = 0;
-				if (s_rtCamLogged < 12 && _primaryCamera)
-				{
-					++s_rtCamLogged;
-					const QVector3D live = _primaryCamera->getViewDir();
-					qWarning().noquote() << "RTCAM frame" << s_rtCamLogged << "gen" << deviceGeneration << "frame" << frameWidth << "x" << frameHeight << "widget" << width() << "x" << height()
-						<< "| frame cam pos" << frameCamera.position.x << frameCamera.position.y << frameCamera.position.z << "fwd" << frameCamera.forward.x << frameCamera.forward.y << frameCamera.forward.z
-						<< "up" << frameCamera.up.x << frameCamera.up.y << frameCamera.up.z << "ortho" << frameCamera.orthographic << "halfH" << frameCamera.orthoHalfHeight << "aspect" << frameCamera.aspectRatio
-						<< "| live dir" << live.x() << live.y() << live.z();
-				}
 				_lastConsumedRtInteractiveRendererGeneration = deviceGeneration;
 				_rtInteractivePreviewCamera = frameCamera;
 				_rtInteractivePreviewCameraValid = true;
@@ -18767,9 +18756,6 @@ void ViewportWidget::startInteractiveRayTracedGpuSession(bool forceSceneRefresh)
 
 	const float aspectRatio = fbHeight > 0 ? static_cast<float>(fbWidth) / static_cast<float>(fbHeight) : 1.0f;
 	const RtCamera camera = RtSceneBuilder::buildCamera(*_primaryCamera, aspectRatio);
-	qWarning().noquote() << "RTCAM slow path updateCamera: fb" << fbWidth << "x" << fbHeight << "renderer" << _rtInteractiveRenderer.width() << "x" << _rtInteractiveRenderer.height()
-		<< "pos" << camera.position.x << camera.position.y << camera.position.z << "fwd" << camera.forward.x << camera.forward.y << camera.forward.z
-		<< "up" << camera.up.x << camera.up.y << camera.up.z << "ortho" << camera.orthographic << "halfH" << camera.orthoHalfHeight << "aspect" << camera.aspectRatio; // TEMPORARY (RTCAM)
 	_rtInteractiveRenderer.updateCamera(camera);
 
 	_rayTracedInteractiveActive = true;
