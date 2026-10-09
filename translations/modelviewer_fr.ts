@@ -17856,6 +17856,33 @@ champ tensoriel symétrique (contrainte), coloré selon von Mises.</translation>
         <translation>Taille des ellipsoïdes :</translation>
     </message>
     <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>Tensor field:</source>
+        <translation>Champ tensoriel :</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>The symmetric tensor field (stress) the ellipsoids show.</source>
+        <translation>Le champ tensoriel symétrique (contrainte) que montrent les ellipsoïdes.</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>Ellipsoid count:</source>
+        <translation>Nombre d&apos;ellipsoïdes :</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>About this many ellipsoids, spread evenly over the surface.
+An ellipsoid is heavier to draw than an arrow, so the most is 5000.</source>
+        <translation>Environ ce nombre d&apos;ellipsoïdes, répartis uniformément sur la surface.
+Un ellipsoïde est plus lourd à dessiner qu&apos;une flèche, le maximum est donc de 5000.</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>(no tensor fields)</source>
+        <translation>(aucun champ tensoriel)</translation>
+    </message>
+    <message>
         <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="409"/>
         <source>Show as volume</source>
         <translation>Afficher en volume</translation>

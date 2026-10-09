@@ -17859,6 +17859,33 @@ campo tensorial simétrico (tensión), coloreado según von Mises.</translation>
         <translation>Tamaño de los elipsoides:</translation>
     </message>
     <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>Tensor field:</source>
+        <translation>Campo tensorial:</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>The symmetric tensor field (stress) the ellipsoids show.</source>
+        <translation>El campo tensorial simétrico (tensión) que muestran los elipsoides.</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>Ellipsoid count:</source>
+        <translation>Número de elipsoides:</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>About this many ellipsoids, spread evenly over the surface.
+An ellipsoid is heavier to draw than an arrow, so the most is 5000.</source>
+        <translation>Aproximadamente esta cantidad de elipsoides, repartidos uniformemente por la superficie.
+Un elipsoide es más costoso de dibujar que una flecha, por eso el máximo es 5000.</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>(no tensor fields)</source>
+        <translation>(sin campos tensoriales)</translation>
+    </message>
+    <message>
         <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="409"/>
         <source>Show as volume</source>
         <translation>Mostrar como volumen</translation>

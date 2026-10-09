@@ -15324,6 +15324,32 @@ symmetric tensor field (stress), coloured by von Mises.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>Tensor field:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>The symmetric tensor field (stress) the ellipsoids show.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>Ellipsoid count:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>About this many ellipsoids, spread evenly over the surface.
+An ellipsoid is heavier to draw than an arrow, so the most is 5000.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>(no tensor fields)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="409"/>
         <source>Show as volume</source>
         <translation type="unfinished"></translation>

@@ -5403,6 +5403,44 @@ namespace
 		}
 	}
 
+	// ---- The stress_states.vtu sample: three stress tensor fields, so the ellipsoids' Tensor field list has a real choice -------------------
+
+	void testStressStatesSample()
+	{
+		const LoadedSimulationResult r = loadSimulationResult(QStringLiteral(MV_SIMULATION_SAMPLES_DIR) + QStringLiteral("/stress_states.vtu"));
+		CHECK(r.ok());
+		if (!r.ok())
+			return;
+		const ResultDataset& ds = *r.dataset;
+		CHECK(ds.cellCount() == 192 && ds.nodeCount() == 325);
+		std::vector<std::pair<QString, ResultFieldAssociation>> offered; // what the panel's Tensor field combo lists: the file's own tensors, not the derived scalars
+		for (const ResultField& f : ds.fields)
+			if (isTensorGlyphField(f) && f.derivedFromField < 0)
+				offered.emplace_back(f.name, f.association);
+		CHECK(offered.size() == 3);
+		if (offered.size() == 3)
+		{
+			CHECK(offered[0].first == QStringLiteral("Stress_bending") && offered[0].second == ResultFieldAssociation::Node);
+			CHECK(offered[1].first == QStringLiteral("Stress_torsion") && offered[1].second == ResultFieldAssociation::Node);
+			CHECK(offered[2].first == QStringLiteral("Stress_element") && offered[2].second == ResultFieldAssociation::Cell);
+		}
+		// the file holds only tensors; the reader derives the scalars (von Mises ...) so the result opens coloured, by the first node tensor's von Mises
+		DisplayScalar initial;
+		CHECK(chooseDefaultDisplayScalar(ds, initial) && !initial.cellData && initial.label == QStringLiteral("Stress_bending von Mises") && initial.maxValue > 0.0f);
+		const int chosen = chooseDefaultTensorField(ds); // a node field before a cell field, the first of those
+		CHECK(chosen >= 0 && ds.fields[static_cast<std::size_t>(chosen)].name == QStringLiteral("Stress_bending"));
+		// each of the three draws ellipsoids on the boundary surface
+		for (const ResultField& f : ds.fields)
+		{
+			if (!isTensorGlyphField(f) || f.derivedFromField >= 0)
+				continue;
+			const int index = static_cast<int>(&f - ds.fields.data());
+			const std::vector<std::uint32_t> sites = selectSurfaceGlyphSites(r.surface, f.association == ResultFieldAssociation::Cell, 50);
+			TensorGlyphSet set;
+			CHECK(!sites.empty() && buildTensorGlyphSet(ds, r.surface, index, 0, sites, 100.0, 1.0, 0.0f, set) && set.count() > 0);
+		}
+	}
+
 	// ---- Chart extras: CSV export, second axis rule, zoom --------------------------------------------------------------------------
 
 	void testChartExtras()
@@ -7435,6 +7473,7 @@ int main(int argc, char** argv)
 	testCharts();
 	testSurfaceCharts();
 	testCellAveraging();
+	testStressStatesSample();
 	testChartExtras();
 	testVolumeGrid();
 	testLazySteps();

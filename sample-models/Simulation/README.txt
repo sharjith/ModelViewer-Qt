@@ -13,11 +13,16 @@ FEM_box_static_stress.vtu     Static structural analysis of a 10 mm box (Calculi
                               tetrahedra. Node fields: Displacement (vector), Displacement Magnitude, von Mises,
                               Tresca and the three principal stresses. Opens coloured by von Mises stress.
 FEM_box_frequency_mode1.vtu   The same box, first vibration mode of a frequency analysis (CalculiX).
+stress_states.vtu             A synthetic block with three stress tensor fields (two node, one cell) for the stress ellipsoids' Tensor field choice; see
+                              "Stress ellipsoids" below. Written by make_stress_states_sample.py.
 hexa.vtk                      A cube of 10,648 hexahedra with a scalar field (a distance-like function): a smooth
                               test of the colormap.
 cell_data_cube.vtk            An 8 x 8 x 8 block of hexahedra with CELL data only (element-wise results): a smooth
                               scalar 'Element_Stress' and an integer 'Element_Group' (four regions). Each cell is
                               drawn in one flat colour - fields of this kind are marked [cells] in the Field list.
+                              Tick "Average cell data to nodes" (Simulation tab, enabled for a cell field) to draw it smooth: each node takes
+                              the cell-size-weighted average of the cells around it. Plot over time / line, volume rendering and iso-surfaces
+                              also work on a cell field and always use these averaged values (a single-step result shows its history as one dot).
 openfoam_cavity/cavity.foam  An OpenFOAM case (open the empty cavity.foam file): a 20 x 20 x 1 hexahedral mesh of a
                               lid-driven-cavity-like flow, written in OpenFOAM's ASCII layout (constant/polyMesh and
                               five time directories 0 .. 2 with U, p, T and a symmetric tensor sigma). The FIELD
@@ -92,6 +97,37 @@ double-click or right-click > Reset zoom shows everything again. Right-click > S
 as a CSV (one x, y pair of columns per curve). A curve added from a CSV whose header names its unit as "Name (unit)" (as the export writes it) and
 whose unit differs from the main curve's (a temperature next to a stress) is drawn against a second y axis on the right; a curve with no
 unit in its header shares the main axis.
+
+
+Stress ellipsoids (tensor glyphs)
+---------------------------------
+Simulation tab > "Show stress ellipsoids" draws an ellipsoid at sampled points of the surface for a symmetric tensor field (a 6-component field such as
+STRESS: XX YY ZZ XY YZ ZX). Each ellipsoid's three axes are the tensor's principal directions, and their lengths follow the principal values: the
+longest axis is always the same size on screen, the other two are shorter in proportion to their value, so the SHAPE shows how directional the tensor is
+(a needle = one dominant principal stress, a ball = nearly equal in all directions) and the COLOUR (von Mises, with the result's colour map and range)
+shows how large it is. Controls: Tensor field (every stress tensor field of the result - a 6-component field whose name contains "stress", "sigm_" or
+"sief_"; "[cells]" marks element data), Ellipsoid size (relative, stays the same when you zoom) and Ellipsoid count (about this many, spread evenly over
+the surface, 20 .. 5000). The choices are saved with the session (.mvf). The derived scalars (von Mises, principal stresses) are not tensors and are not listed.
+
+Where to try it (all open with File > Open; turn on "Show stress ellipsoids", the field is chosen for you). Almost every result has just ONE stress
+tensor, so its Tensor field list has a single entry - stress_states.vtu is the file made to have three:
+  stress_states.vtu       A synthetic 120 x 40 x 40 block with three stress tensors: Stress_bending (node: needles along the block, strongest at the root's top
+                          and bottom faces, zero at the free end), Stress_torsion (node: pure shear, so tilted flat discs, strongest at the outer corners) and
+                          Stress_element (CELL, marked [cells]: a two-way pull, flattened ellipsoids at the cell centres). Switch the Tensor field between the
+                          three and watch the glyphs change shape, tilt and colour; the default is Stress_bending (node fields come before cell fields).
+                          The values come from closed-form formulas (make_stress_states_sample.py in this folder), not from a solver.
+  plate_with_hole.frd     The best first test. A plate pulled in one direction with a hole in it: far from the hole the ellipsoids should be needles
+                          lying along the pull, and around the hole they should change shape and colour sharply - the stress concentration at the sides
+                          of the hole (about three times the far-field stress) shows as the hottest colours. Use Ellipsoid count 1500 or more, rotate
+                          to look at the plate face-on, then play the four load steps. Combine with "Show deformed shape".
+  ibeam_cantilever.frd    Bending: the ellipsoids in the top and bottom flanges are needles along the beam (tension on one side, compression on the
+                          other - both are drawn, the colour does not tell them apart), and in the web they tilt where shear takes over. Turn the
+                          count up to 2000+ and look at the web from the side.
+  ibeam_torsion.frd       The same beam twisted: the flanges' ellipsoids tilt and lengthen as the twist builds up over the steps.
+  FEM_box_static.frd      The simplest case, one step: a small box, a few hundred nodes. Good for checking that field, size and count do something.
+What to check: switching the Tensor field in stress_states.vtu changes the glyphs; the count changes how many there are; the size changes all of them
+together; saving the session as .mvf and reopening restores field, size and count. (A tensor named otherwise - the OpenFOAM cavity's "sigma", a strain
+tensor - is not offered: six components alone do not make a stress.)
 
 
 Sources and licences
@@ -224,6 +260,10 @@ Regenerating the samples (developers)
           3. ccx solves each deck; the <name>.frd results are copied to the output directory (the decks and meshes stay in <output directory>/_work).
           The script also prints the beam-theory tip deflection to compare with the result. To change a case (span, section, load, hole size) edit the
           constants in main() and the geometry strings in the script; result_tests checks the shipped files, so keep the case names if you replace them.
+
+    make_stress_states_sample.py  (stress_states.vtu)
+        Python 3.8+, standard library only: python make_stress_states_sample.py [output.vtu]. Writes the ASCII .vtu; edit the stress formulas at the top of
+        main() to change the states (the file name and the three field names are checked by result_tests, so keep them).
 
     make_med_sample.py  (a small .med file)
         Prerequisites: the Python of SALOME, or a standalone MEDCoupling build in which "from MEDLoader import *" works (the pip package "medcoupling"

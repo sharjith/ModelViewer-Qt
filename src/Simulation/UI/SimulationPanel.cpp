@@ -387,14 +387,16 @@ void SimulationPanel::buildUi()
 	form->addRow(_glyphInfoLabel);
 
 	// ---- Tensor glyphs: one ellipsoid per sampled point along a 6-component symmetric tensor field (stress),
-	// coloured by its von Mises equivalent. The field is chosen automatically (chooseDefaultTensorField); a field
-	// combo/scale/count to match the vector arrows' controls is a follow-up once this is used on real multi-step
-	// results (see updateSimulationTensorGlyphs's own note on the all-steps range).
+	// coloured by its von Mises equivalent. Field, size and count are chosen here like the vector arrows' (the field
+	// defaults to chooseDefaultTensorField).
 	_tensorGlyphCheck = new QCheckBox(tr("Show stress ellipsoids"), content);
 	_tensorGlyphCheck->setToolTip(tr("Draw an ellipsoid at sampled points of the surface, oriented\n"
 	                                 "and shaped by the principal directions and magnitudes of a\n"
 	                                 "symmetric tensor field (stress), coloured by von Mises."));
 	form->addRow(_tensorGlyphCheck);
+	_tensorGlyphFieldCombo = new QComboBox(content);
+	_tensorGlyphFieldCombo->setToolTip(tr("The symmetric tensor field (stress) the ellipsoids show."));
+	form->addRow(tr("Tensor field:"), _tensorGlyphFieldCombo);
 	_tensorGlyphScaleSpin = new QDoubleSpinBox(content);
 	_tensorGlyphScaleSpin->setRange(0.1, 20.0);
 	_tensorGlyphScaleSpin->setDecimals(2);
@@ -402,14 +404,23 @@ void SimulationPanel::buildUi()
 	_tensorGlyphScaleSpin->setKeyboardTracking(false);
 	_tensorGlyphScaleSpin->setToolTip(tr("Relative ellipsoid size on screen. Ellipsoids remain stable while zooming."));
 	form->addRow(tr("Ellipsoid size:"), _tensorGlyphScaleSpin);
+	_tensorGlyphCountSpin = new QSpinBox(content);
+	_tensorGlyphCountSpin->setRange(20, 5000);
+	_tensorGlyphCountSpin->setSingleStep(50);
+	_tensorGlyphCountSpin->setKeyboardTracking(false);
+	_tensorGlyphCountSpin->setToolTip(tr("About this many ellipsoids, spread evenly over the surface.\n"
+	                                     "An ellipsoid is heavier to draw than an arrow, so the most is 5000."));
+	form->addRow(tr("Ellipsoid count:"), _tensorGlyphCountSpin);
 	_tensorGlyphInfoLabel = new QLabel(content);
 	_tensorGlyphInfoLabel->setWordWrap(true);
 	form->addRow(_tensorGlyphInfoLabel);
-	connect(_tensorGlyphCheck, &QCheckBox::toggled, this, [this](bool on) {
-		_tensorGlyphScaleSpin->setEnabled(on && _tensorGlyphCheck->isEnabled());
+	connect(_tensorGlyphCheck, &QCheckBox::toggled, this, [this](bool) {
+		updateTensorGlyphEnabled();
 		if (!_updating)
 			emitState();
 	});
+	connect(_tensorGlyphFieldCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) { if (!_updating) emitState(); });
+	connect(_tensorGlyphCountSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int) { if (!_updating) emitState(); });
 	connect(_tensorGlyphScaleSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double) { if (!_updating) emitState(); });
 
 	// ---- Direct volume rendering: regular-grid resampling of a node scalar followed by GPU ray marching.
@@ -769,10 +780,11 @@ void SimulationPanel::setSession(const SimulationSession* session)
 	_glyphInfoLabel->setText(session->glyphInfo);
 	_glyphInfoLabel->setVisible(!session->glyphInfo.isEmpty());
 	updateGlyphEnabled();
-	_tensorGlyphCheck->setEnabled(chooseDefaultTensorField(*_dataset) >= 0);
+	populateTensorGlyphFields(state.tensorGlyphField >= 0 ? state.tensorGlyphField : chooseDefaultTensorField(*_dataset));
 	_tensorGlyphCheck->setChecked(_tensorGlyphCheck->isEnabled() && state.tensorGlyphs);
 	_tensorGlyphScaleSpin->setValue(state.tensorGlyphScale);
-	_tensorGlyphScaleSpin->setEnabled(_tensorGlyphCheck->isChecked());
+	_tensorGlyphCountSpin->setValue(state.tensorGlyphCount);
+	updateTensorGlyphEnabled();
 	_tensorGlyphInfoLabel->setText(session->tensorGlyphInfo);
 	_tensorGlyphInfoLabel->setVisible(!session->tensorGlyphInfo.isEmpty());
 	populateVolumeFields(state.volumeField >= 0 ? state.volumeField : chooseDefaultVolumeField(*_dataset));
@@ -919,6 +931,32 @@ void SimulationPanel::populateGlyphFields(int selectedFieldIndex)
 	_glyphFieldCombo->setCurrentIndex(std::max(0, _glyphFieldCombo->findData(selectedFieldIndex)));
 	_glyphCheck->setEnabled(any);
 	_glyphFieldCombo->setEnabled(any);
+}
+
+void SimulationPanel::populateTensorGlyphFields(int selectedFieldIndex)
+{
+	_tensorGlyphFieldCombo->clear();
+	if (_dataset)
+		for (std::size_t i = 0; i < _dataset->fields.size(); ++i)
+		{
+			const ResultField& f = _dataset->fields[i];
+			if (!isTensorGlyphField(f) || f.derivedFromField >= 0)
+				continue;
+			_tensorGlyphFieldCombo->addItem(f.name + (f.association == ResultFieldAssociation::Cell ? tr(" [cells]") : QString()), static_cast<int>(i));
+		}
+	const bool any = _tensorGlyphFieldCombo->count() > 0;
+	if (!any)
+		_tensorGlyphFieldCombo->addItem(tr("(no tensor fields)"), -1);
+	_tensorGlyphFieldCombo->setCurrentIndex(std::max(0, _tensorGlyphFieldCombo->findData(selectedFieldIndex)));
+	_tensorGlyphCheck->setEnabled(any);
+}
+
+void SimulationPanel::updateTensorGlyphEnabled()
+{
+	const bool on = _tensorGlyphCheck->isChecked() && _tensorGlyphCheck->isEnabled();
+	_tensorGlyphFieldCombo->setEnabled(_tensorGlyphCheck->isEnabled());
+	_tensorGlyphScaleSpin->setEnabled(on);
+	_tensorGlyphCountSpin->setEnabled(on);
 }
 
 void SimulationPanel::updateGlyphEnabled()
@@ -1124,6 +1162,8 @@ SimulationViewState SimulationPanel::currentState() const
 	state.glyphCount = _glyphCountSpin->value();
 	state.tensorGlyphs = _tensorGlyphCheck->isChecked() && _tensorGlyphCheck->isEnabled();
 	state.tensorGlyphScale = _tensorGlyphScaleSpin->value();
+	state.tensorGlyphField = _tensorGlyphFieldCombo->currentData().isValid() ? _tensorGlyphFieldCombo->currentData().toInt() : -1;
+	state.tensorGlyphCount = _tensorGlyphCountSpin->value();
 	state.volume = _volumeCheck->isChecked() && _volumeCheck->isEnabled();
 	state.volumeField = _volumeFieldCombo->currentData().isValid() ? _volumeFieldCombo->currentData().toInt() : -1;
 	state.volumeResolution = _volumeResolutionCombo->currentData().toInt();

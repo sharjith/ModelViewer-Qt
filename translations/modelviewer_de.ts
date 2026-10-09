@@ -17859,6 +17859,33 @@ eines symmetrischen Tensorfelds (Spannung) bestimmt wird, eingefärbt nach von M
         <translation>Ellipsoidgröße:</translation>
     </message>
     <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>Tensor field:</source>
+        <translation>Tensorfeld:</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>The symmetric tensor field (stress) the ellipsoids show.</source>
+        <translation>Das symmetrische Tensorfeld (Spannung), das die Ellipsoide zeigen.</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>Ellipsoid count:</source>
+        <translation>Anzahl der Ellipsoide:</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>About this many ellipsoids, spread evenly over the surface.
+An ellipsoid is heavier to draw than an arrow, so the most is 5000.</source>
+        <translation>Etwa so viele Ellipsoide, gleichmäßig über die Oberfläche verteilt.
+Ein Ellipsoid ist aufwendiger zu zeichnen als ein Pfeil, daher sind höchstens 5000 möglich.</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="400"/>
+        <source>(no tensor fields)</source>
+        <translation>(keine Tensorfelder)</translation>
+    </message>
+    <message>
         <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="409"/>
         <source>Show as volume</source>
         <translation>Als Volumen anzeigen</translation>
