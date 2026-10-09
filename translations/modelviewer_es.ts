@@ -9198,8 +9198,8 @@ La superficie se muestra con los colores que tenía al guardarla.</translation>
     </message>
     <message>
         <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2478"/>
-        <source>The current field cannot be charted this way (cell data is not supported yet, or the point/line missed the mesh entirely).</source>
-        <translation>El campo actual no se puede graficar de esta forma (los datos de celda aún no son compatibles, o el punto/la línea no alcanzó la malla).</translation>
+        <source>The current field cannot be charted this way (it has no data at this step, or the point/line missed the mesh entirely).</source>
+        <translation>El campo actual no se puede graficar así (no tiene datos en este paso, o el punto/la línea no alcanzó la malla).</translation>
     </message>
     <message>
         <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2484"/>
@@ -9256,8 +9256,8 @@ La superficie se muestra con los colores que tenía al guardarla.</translation>
     </message>
     <message>
         <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2344"/>
-        <source>Iso-surfaces: choose a node field (a scalar or a vector) to draw them of.</source>
-        <translation>Isosuperficies: elija un campo de nodos (un escalar o un vector) del que dibujarlas.</translation>
+        <source>Iso-surfaces: choose a field (a scalar or a vector) to draw them of.</source>
+        <translation>Isosuperficies: elija un campo (un escalar o un vector) del que dibujarlas.</translation>
     </message>
     <message>
         <location filename="../src/Simulation/UI/ModelViewerSimulation.cpp" line="2397"/>
@@ -17655,6 +17655,22 @@ milímetros. Se toma del archivo cuando este la indica.</translation>
         <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="311"/>
         <source>Mark minimum and maximum</source>
         <translation>Marcar mínimo y máximo</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="320"/>
+        <source>Average cell data to nodes</source>
+        <translation>Promediar datos de celda en los nodos</translation>
+    </message>
+    <message>
+        <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="320"/>
+        <source>A cell (element) field has one value per cell and is drawn flat.
+Averaging it onto the nodes (weighted by cell size) draws it smooth.
+Charts, volume rendering and iso-surfaces always use the averaged
+values. Only applies to a cell field.</source>
+        <translation>Un campo de celdas (elementos) tiene un valor por celda y se dibuja plano.
+Promediarlo en los nodos (ponderado por el tamaño de la celda) lo dibuja suave.
+Los gráficos, el renderizado de volumen y las isosuperficies siempre usan
+los valores promediados. Solo se aplica a un campo de celdas.</translation>
     </message>
     <message>
         <location filename="../src/Simulation/UI/SimulationPanel.cpp" line="312"/>
