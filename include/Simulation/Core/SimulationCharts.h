@@ -48,6 +48,12 @@ bool sampleFieldOverLine(const ResultDataset& dataset, const CellLocator& locato
 bool buildFieldHistogram(const ResultDataset& dataset, int fieldIndex, int component, int step, int binCount,
                          std::vector<float>& edges, std::vector<std::size_t>& counts, QString& label, QString& unit);
 
+// Reads an extra curve for a chart from CSV text: two or more columns, the first is x, the second y (a third and later are ignored). The
+// delimiter (comma, semicolon or tab) is detected; a first row whose cells are not numbers is a header and names the axes and the curve
+// (otherwise `fallbackTitle` is used). Rows that are not numeric are skipped; the points are sorted by x. False, with a message, when fewer
+// than two usable rows remain. Meant for test data or a frequency-response curve drawn over a result's own chart.
+bool parseChartCurveCsv(const QString& text, const QString& fallbackTitle, ChartSeries& out, QString* error = nullptr);
+
 // Samples `fieldIndex` (component `component`) at the fixed point `point`, once per step of the dataset (a lazy
 // result reads every step - see ResultDataset::ensureStepLoaded - so this can be slow; show a busy cursor around
 // it). `x` is each step's time (or mode/frequency label's numeric value, i.e. ResultStep::time). False for the same

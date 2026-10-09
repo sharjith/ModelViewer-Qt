@@ -1,5 +1,15 @@
 #include "SimulationChartWidget.h"
 
+#include "PathUtils.h"
+
+#include <QAction>
+#include <QContextMenuEvent>
+#include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QMenu>
+#include <QMessageBox>
+
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -112,6 +122,17 @@ void SimulationChartWidget::paintEvent(QPaintEvent*)
 				yMin = std::min(yMin, static_cast<double>(v));
 				yMax = std::max(yMax, static_cast<double>(v));
 			}
+		for (const ChartSeries& extra : _extraCurves) // the axes span every curve
+		{
+			xMin = std::min(xMin, extra.x.front());
+			xMax = std::max(xMax, extra.x.back());
+			for (float v : extra.y)
+				if (std::isfinite(v))
+				{
+					yMin = std::min(yMin, static_cast<double>(v));
+					yMax = std::max(yMax, static_cast<double>(v));
+				}
+		}
 		if (yMin > yMax) // every sample is NaN (the line never touched the mesh)
 		{
 			painter.drawText(plot, Qt::AlignCenter, tr("The sampled line/point had no data"));
@@ -199,6 +220,60 @@ void SimulationChartWidget::paintEvent(QPaintEvent*)
 				path.lineTo(p);
 		}
 		painter.drawPath(path);
+
+		// The added curves, each in its own colour, and a legend once there is more than one curve.
+		static const QColor kExtraColours[] = { QColor(230, 140, 40), QColor(60, 160, 90), QColor(150, 90, 180), QColor(200, 60, 60) };
+		for (std::size_t c = 0; c < _extraCurves.size(); ++c)
+		{
+			const ChartSeries& extra = _extraCurves[c];
+			painter.setPen(QPen(kExtraColours[c % 4], 2));
+			QPainterPath extraPath;
+			bool extraOpen = false;
+			for (std::size_t i = 0; i < extra.x.size(); ++i)
+			{
+				if (!std::isfinite(extra.y[i]))
+				{
+					extraOpen = false;
+					continue;
+				}
+				const QPointF p(toX(extra.x[i]), toY(static_cast<double>(extra.y[i])));
+				if (!extraOpen)
+				{
+					extraPath.moveTo(p);
+					extraOpen = true;
+				}
+				else
+					extraPath.lineTo(p);
+			}
+			painter.drawPath(extraPath);
+		}
+		if (!_extraCurves.empty())
+		{
+			double legendY = plot.top() + 6.0;
+			auto legendEntry = [&](const QColor& colour, const QString& title) {
+				painter.setPen(QPen(colour, 2));
+				painter.drawLine(QPointF(plot.right() - 150, legendY + 6), QPointF(plot.right() - 130, legendY + 6));
+				painter.setPen(axisColor);
+				painter.drawText(QRectF(plot.right() - 126, legendY - 2, 124, 16), Qt::AlignLeft | Qt::AlignVCenter,
+					painter.fontMetrics().elidedText(title, Qt::ElideRight, 120));
+				legendY += 16.0;
+			};
+			legendEntry(QColor(70, 130, 200), _series.title);
+			for (std::size_t c = 0; c < _extraCurves.size(); ++c)
+				legendEntry(kExtraColours[c % 4], _extraCurves[c].title);
+		}
+	}
+
+	// The cursor: where the result being shown is on this axis (the current time step), drawn over the curves.
+	if (!_histogram && _hasCursor && _cursorX >= xMin && _cursorX <= xMax)
+	{
+		const double cx = toX(_cursorX);
+		painter.setPen(QPen(QColor(230, 120, 20), 2));
+		painter.drawLine(QPointF(cx, plot.top()), QPointF(cx, plot.bottom()));
+		painter.setBrush(QColor(230, 120, 20));
+		const QPointF top(cx, plot.top());
+		const QPointF triangle[3] = { top, QPointF(cx - 5, plot.top() - 8), QPointF(cx + 5, plot.top() - 8) };
+		painter.drawPolygon(triangle, 3);
 	}
 
 	// Hover crosshair + readout.
@@ -235,6 +310,8 @@ void SimulationChartWidget::mouseMoveEvent(QMouseEvent* event)
 {
 	const QRectF plot = plotRect();
 	const QPointF pos = event->position();
+	if ((event->buttons() & Qt::LeftButton) && plot.contains(pos))
+		seekTo(pos); // dragging scrubs the cursor
 	if (!plot.contains(pos))
 	{
 		if (_hoverIndex != -1)
@@ -253,6 +330,93 @@ void SimulationChartWidget::mouseMoveEvent(QMouseEvent* event)
 	{
 		_hoverIndex = index;
 		update();
+	}
+}
+
+void SimulationChartWidget::addCurve(const ChartSeries& series)
+{
+	if (series.empty())
+		return;
+	_extraCurves.push_back(series);
+	update();
+}
+
+void SimulationChartWidget::clearCurves()
+{
+	_extraCurves.clear();
+	update();
+}
+
+void SimulationChartWidget::setCursorX(double x)
+{
+	if (_hasCursor && _cursorX == x)
+		return;
+	_hasCursor = true;
+	_cursorX = x;
+	update();
+}
+
+void SimulationChartWidget::clearCursor()
+{
+	_hasCursor = false;
+	update();
+}
+
+// The x value under a point of the plot area, for seeking (the same mapping paintEvent() draws with: every curve's span).
+void SimulationChartWidget::seekTo(const QPointF& pos)
+{
+	if (!_seekable || _histogram || _series.empty())
+		return;
+	const QRectF plot = plotRect();
+	double xMin = _series.x.front(), xMax = _series.x.back();
+	for (const ChartSeries& extra : _extraCurves)
+	{
+		xMin = std::min(xMin, extra.x.front());
+		xMax = std::max(xMax, extra.x.back());
+	}
+	if (!(xMax > xMin))
+		return;
+	const double fraction = std::clamp((pos.x() - plot.left()) / std::max(1.0, plot.width()), 0.0, 1.0);
+	emit seekRequested(xMin + fraction * (xMax - xMin));
+}
+
+void SimulationChartWidget::mousePressEvent(QMouseEvent* event)
+{
+	if (event->button() == Qt::LeftButton && plotRect().contains(event->position()))
+		seekTo(event->position());
+}
+
+void SimulationChartWidget::contextMenuEvent(QContextMenuEvent* event)
+{
+	if (_histogram)
+		return;
+	QMenu menu(this);
+	QAction* add = menu.addAction(tr("Add curve from CSV..."));
+	QAction* clear = menu.addAction(tr("Remove added curves"));
+	clear->setEnabled(!_extraCurves.empty());
+	QAction* chosen = menu.exec(event->globalPos());
+	if (chosen == clear)
+		clearCurves();
+	else if (chosen == add)
+	{
+		const QString path = QFileDialog::getOpenFileName(this, tr("Add Curve"), PathUtils::getDataDirectory() + QStringLiteral("/sample-models/Simulation"),
+			tr("CSV files (*.csv *.txt);;All files (*)"));
+		if (path.isEmpty())
+			return;
+		QFile file(path);
+		if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+		{
+			QMessageBox::warning(this, tr("Add Curve"), tr("The file could not be opened."));
+			return;
+		}
+		ChartSeries curve;
+		QString error;
+		if (!parseChartCurveCsv(QString::fromUtf8(file.readAll()), QFileInfo(path).completeBaseName(), curve, &error))
+		{
+			QMessageBox::warning(this, tr("Add Curve"), error);
+			return;
+		}
+		addCurve(curve);
 	}
 }
 

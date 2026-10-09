@@ -34,3 +34,7 @@ double playbackPathlineTime(const PlaybackClock& clock, double pathT0, double pa
 // The result's step at `frame`: by time its last step at or before the clock time (the first step before any), by progress the step at
 // the same fraction of its steps. 0 when there are no steps.
 int playbackResultStep(const PlaybackClock& clock, const std::vector<double>& stepTimes, int frame);
+
+// The inverse, for seeking from a chart: the first frame at which the result shows `step` (by time the first frame whose clock time is at or
+// after the step's time; by progress the frame at the step's fraction). Clamped to the bar.
+int playbackFrameForStep(const PlaybackClock& clock, const std::vector<double>& stepTimes, int step);

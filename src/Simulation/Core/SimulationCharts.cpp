@@ -3,6 +3,9 @@
 #include "SimulationResultDisplay.h"
 #include "ResultUnits.h"
 
+#include <QObject>
+#include <QStringList>
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -168,4 +171,61 @@ bool sampleFieldOverTime(const ResultDataset& dataset, const CellLocator& locato
 			any = true;
 	}
 	return any;
+}
+
+bool parseChartCurveCsv(const QString& text, const QString& fallbackTitle, ChartSeries& out, QString* error)
+{
+	out = ChartSeries();
+	const QStringList lines = text.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+	if (lines.isEmpty())
+	{
+		if (error) *error = QObject::tr("The file is empty.");
+		return false;
+	}
+	// The delimiter: whichever of tab, semicolon or comma the first line has (comma by default).
+	QChar delimiter = QLatin1Char(',');
+	for (QChar candidate : { QLatin1Char('\t'), QLatin1Char(';'), QLatin1Char(',') })
+		if (lines.first().contains(candidate))
+		{
+			delimiter = candidate;
+			break;
+		}
+	auto number = [](const QString& cell, double& value) {
+		bool ok = false;
+		value = cell.trimmed().toDouble(&ok);
+		return ok && std::isfinite(value);
+	};
+	std::vector<std::pair<double, double>> points;
+	QString xName, yName;
+	for (int i = 0; i < lines.size(); ++i)
+	{
+		const QStringList cells = lines[i].trimmed().split(delimiter);
+		if (cells.size() < 2)
+			continue;
+		double x = 0.0, y = 0.0;
+		if (number(cells[0], x) && number(cells[1], y))
+			points.emplace_back(x, y);
+		else if (i == 0) // a header row names the axes
+		{
+			xName = cells[0].trimmed();
+			yName = cells[1].trimmed();
+		}
+	}
+	if (points.size() < 2)
+	{
+		if (error) *error = QObject::tr("The file needs at least two rows of numbers (x, y).");
+		return false;
+	}
+	std::stable_sort(points.begin(), points.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+	out.title = yName.isEmpty() ? fallbackTitle : yName;
+	out.xLabel = xName.isEmpty() ? QObject::tr("x") : xName;
+	out.yLabel = yName.isEmpty() ? QObject::tr("y") : yName;
+	out.x.reserve(points.size());
+	out.y.reserve(points.size());
+	for (const auto& point : points)
+	{
+		out.x.push_back(point.first);
+		out.y.push_back(static_cast<float>(point.second));
+	}
+	return true;
 }

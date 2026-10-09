@@ -39,6 +39,7 @@ struct MeshSurfaceAnchor;
 struct Plot3DMeshData;
 class SimulationLegendWidget;
 class SimulationTimelineWidget;
+class SimulationChartWidget;
 class QToolButton;
 class QFrame;
 class QTimer;
@@ -917,6 +918,8 @@ private:
 	void advancePathlineFrame();
 	void bindPlaybackToPathline();
 	void bindPlaybackTogether();
+	void updateSimulationChartCursors(const SimulationSession& session); // puts the linked charts' cursors at the session's step
+	void seekSimulationFromChart(const QUuid& meshUuid, double x);        // a chart asked for the step at x (its time / frequency axis)
 	QUuid pickTogetherResult() const;   // the result that plays along with the pathlines (the active one if it can be played)
 	void setTogetherFrame(int frame);
 	void applyTogetherFrame();
@@ -1149,6 +1152,13 @@ private:
 	PlaybackClock _togetherClock;       // how the two are matched, and the bar's frames
 	std::vector<double> _togetherStepTimes; // the result's step times, for the clock
 	int _togetherFrame = 0;
+	// The "plot over time" charts opened for a result: each shows a cursor at the result's current step and can drive it (a click or drag).
+	struct SimulationChartLink
+	{
+		QPointer<SimulationChartWidget> chart;
+		QUuid mesh;
+	};
+	QVector<SimulationChartLink> _simulationChartLinks;
 	QUuid _playbackMesh;                // ... and its mesh
 	QUuid _playbackSeenActiveSim;       // the active result last time: the selection follows when it changes
 	bool _playbackBoundPathline = false; // what the controls are currently bound to (playback pauses when that changes)
