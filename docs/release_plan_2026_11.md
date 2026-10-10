@@ -11,7 +11,7 @@ The last release is `Release-2026.7.0` (published 2026-07-05, Windows installer 
 | Version | **2026.11.0** (decided; the project's year.month.patch scheme: 2026.7.0 was July) |
 | Where the number lives | `CMakeLists.txt` lines 367-369 (`APP_VERSION_MAJOR/MINOR/PATCH`; feeds `config.h`, the About dialog and CPack). `vcpkg.json` still says `1.0.0` (a manifest label only; can follow). |
 | Tag / release | tag `Release-2026.11.0`; `master` brought up to date from `dev` first (master is still at the 2026.7.0 site overhaul) |
-| Artifacts | Windows installer (.exe) and a Linux **.deb** built in WSL (replacing the AppImage, as planned in the release pipeline notes), both uploaded with `gh release create` from local builds (CI is not part of the release path) |
+| Artifacts | Windows installer (.exe, Inno Setup: `packaging/windows/mvinstaller.iss`) and a Linux **.deb** built in WSL (replacing the AppImage, as planned in the release pipeline notes), both uploaded with `gh release create` from local builds (CI is not part of the release path) |
 
 ## 2. What is new since 2026.7.0 (the feature inventory)
 
@@ -34,7 +34,7 @@ This is the list every document below is written from. It is drawn from the bran
 
 **D. Measurement and annotation.** Measurement tools (19, including geodesic distance, cylindrical diameter, edge radius/concentricity), annotations, reports and export.
 
-**E. Rendering and path tracing.** CPU and GPU (OptiX) path tracer improvements, OIDN denoising, environment importance sampling, interactive accumulation, shadow-catcher ground, camera basis fix for results in ray-traced mode.
+**E. Ray Tracing (the application's name for the former Path Tracing).** A CPU (Embree 4) and a GPU (OptiX) engine with a settings dialog, material extensions, denoising, shadow-catcher floor and offline export - about 66 of the 518 commits; OIDN denoising, environment importance sampling, interactive accumulation, shadow-catcher ground, camera basis fix for results in ray-traced mode.
 
 **F. Application and interface.** MDI unified panels, tabbed Standard/Tools toolbar, dialogs moved to `.ui` files with remembered geometry, theme fixes, German / Spanish / French / Italian translations kept at 0 unfinished, status balloon.
 
@@ -119,10 +119,10 @@ Order: finish W1-W8 on branches, merge to `dev` → merge `dev` to `master` → 
 
 ## 5. Decisions (made 2026-10-10)
 
-1. **Version / date:** **2026.11.0**, a **fixed release date in November 2026** (the exact day to be entered here once the user gives it; the steps in section 4 are scheduled backwards from it).
+1. **Version / date:** **2026.11.0**, the **release day is flexible**: it is decided by completeness (when the workstreams below are done and the quality gate passes), targeting November 2026.
 2. **"What's new" dialog after an update:** **yes** (shown once after an update, linking to the new tutorial lessons).
 3. **Tutorials:** **translated** (de, es, fr, it) together with the UI.
-4. **Splash:** the assistant produces a draft that updates the artwork to represent the new features; the user approves it.
+4. **Splash:** done and approved: a fourth feature line ("Simulation results · 3D plots") added, the second line reads "PBR & GPU ray tracing" (the application's own name for it). On branch `release/splash-2026.11`.
 5. **Tutorial scope:** **all of lessons 19-28.**
 6. **Website:** a **full refresh with new screenshots.**
 7. **Linux:** **`.deb` only**, no AppImage.
@@ -131,5 +131,5 @@ Order: finish W1-W8 on branches, merge to `dev` → merge `dev` to `master` → 
 Consequences added to the workstreams: W3 gains the What's-new dialog (a new `WhatsNewDialog`, a "last shown version" setting, a Help-menu entry to reopen it); W4 grows the translation of ten more lessons into four languages (and of the existing 18 only if they are not already); a new **W10** writes the PDF guide (source kept in the repository as Markdown/HTML, the PDF built from it; screenshots shared with the lessons); W2 needs a full screenshot set for the site.
 
 ## 6. Open items
-- The exact release day (November 2026).
+- The release day: flexible, to be chosen when the quality gate is close.
 - Whether the existing lessons 1-18 are already translated or English-only: to be checked when W4 starts (the plan assumes the new lessons are translated; the old ones follow if they are not).
