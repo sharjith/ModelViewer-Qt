@@ -2,6 +2,8 @@
 
 #include <QFileInfo>
 #include <QHash>
+#include <QImage>
+#include <QImageReader>
 #include <QObject>
 
 #include <algorithm>
@@ -90,7 +92,7 @@ bool generatePlot3D(const Plot3DGeneratedSpec& spec, Plot3DPrimitive formulaPrim
 	{
 		Plot3DLineData curve;
 		if (!buildPlot3DParametricCurve(spec.xExpression, spec.yExpression, spec.zExpression, spec.xMinimum, spec.xMaximum, spec.xSamples,
-			parameters, curve, error))
+			parameters, curve, error, spec.fillExpression))
 			return false;
 		out.primitive = Plot3DPrimitive::Line;
 		out.hasDataset = true;
@@ -157,13 +159,36 @@ bool generatePlot3D(const Plot3DGeneratedSpec& spec, Plot3DPrimitive formulaPrim
 			quad.values.push_back(std::numeric_limits<double>::quiet_NaN()); // no colour value: the picture is the colour
 			quad.uvs.insert(quad.uvs.end(), { uvs[i][0], uvs[i][1] });
 		}
-		// One winding only: two coplanar copies fight for the depth test and the back-facing one is shaded dark. The picture faces
-		// +Z (XY), -Y (XZ) or +X (YZ); from the other side it reads mirrored.
+		// The picture faces +Z (XY), -Y (XZ) or +X (YZ); from the other side it reads mirrored. Two coplanar copies fight for the depth test, so
+		// "readable from behind" adds a SECOND quad, a hair behind the first: its own winding and normal face the back, and its U runs the other
+		// way so the picture reads correctly there. Both sides are drawn, so a see-through picture (an alpha channel, or an opacity below 100 %)
+		// would show the other copy through itself: it keeps the single, mirrored back.
 		quad.indices = { 0, 1, 2, 0, 2, 3 };
+		bool hasAlpha = false;
+		{
+			QImageReader reader(spec.imagePath);
+			hasAlpha = QImage::toPixelFormat(reader.imageFormat()).alphaUsage() == QPixelFormat::UsesAlpha;
+		}
+		if (spec.imageBackReadable && spec.imageOpacity >= 0.999 && !hasAlpha)
+		{
+			const double longSide = std::max(uHi - uLo, vHi - vLo);
+			const float gap = static_cast<float>(longSide * 1.0e-3);
+			const unsigned int first = static_cast<unsigned int>(quad.vertexCount());
+			for (int i = 0; i < 4; ++i)
+			{
+				const std::size_t k = static_cast<std::size_t>(i) * 3;
+				quad.positions.insert(quad.positions.end(), { quad.positions[k] - normal[0] * gap, quad.positions[k + 1] - normal[1] * gap, quad.positions[k + 2] - normal[2] * gap });
+				quad.normals.insert(quad.normals.end(), { -normal[0], -normal[1], -normal[2] });
+				quad.values.push_back(std::numeric_limits<double>::quiet_NaN());
+				quad.uvs.insert(quad.uvs.end(), { 1.0f - uvs[i][0], uvs[i][1] });
+			}
+			quad.indices.insert(quad.indices.end(), { first, first + 2, first + 1, first, first + 3, first + 2 });
+		}
 		out.primitive = Plot3DPrimitive::Surface;
 		out.primitiveMode = Plot3DGl::kTriangles;
 		out.mesh = std::move(quad);
 		out.imagePath = spec.imagePath;
+		out.imageOpacity = std::clamp(spec.imageOpacity, 0.0, 1.0);
 		return true;
 	}
 	case Plot3DSourceKind::CsvTimeSeries:
@@ -264,12 +289,22 @@ bool plot3DDatasetBounds(const Plot3DDataset& dataset, const Plot3DMeshOptions& 
 		return false;
 	if ((dataset.primitive == Plot3DPrimitive::Scatter && (options.stems || options.filled)) || (dataset.primitive == Plot3DPrimitive::Line && options.filled))
 	{
-		// A line filled to a second curve reaches that curve's Z; otherwise the ribbon reaches the base plane.
-		const Plot3DLineData* line = dataset.primitive == Plot3DPrimitive::Line && std::holds_alternative<Plot3DLineData>(dataset.content)
-			? &std::get<Plot3DLineData>(dataset.content) : nullptr;
-		if (line && !line->fillTo.empty() && line->fillTo.size() == line->samples.size())
+		// A line or scatter filled to a second curve reaches that curve's Z; otherwise the ribbon reaches the base plane.
+		const std::vector<double>* fillTo = nullptr;
+		std::size_t count = 0;
+		if (const Plot3DLineData* line = dataset.primitive == Plot3DPrimitive::Line ? std::get_if<Plot3DLineData>(&dataset.content) : nullptr)
 		{
-			for (double z : line->fillTo)
+			fillTo = &line->fillTo;
+			count = line->samples.size();
+		}
+		else if (const Plot3DScatterData* scatter = dataset.primitive == Plot3DPrimitive::Scatter ? std::get_if<Plot3DScatterData>(&dataset.content) : nullptr)
+		{
+			fillTo = &scatter->fillTo;
+			count = scatter->samples.size();
+		}
+		if (options.filled && fillTo && !fillTo->empty() && fillTo->size() == count)
+		{
+			for (double z : *fillTo)
 				if (std::isfinite(z))
 				{
 					minimum[2] = std::min(minimum[2], z);

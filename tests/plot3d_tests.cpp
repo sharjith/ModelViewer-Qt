@@ -7,6 +7,9 @@
 #include "Plot3DSection.h"
 #include "Plot3DSessionIO.h"
 
+#include <QImage>
+#include <QTemporaryDir>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -364,6 +367,38 @@ namespace
 		CHECK(buildPlot3DDataset(bandTable, Plot3DPrimitive::Line, bandMapping, fromTable, &error));
 		CHECK(std::get<Plot3DLineData>(fromTable.content).fillTo.empty());
 
+		// A scatter takes the second column too: ribbons between the points and the second set, the box includes it, a NaN falls back to the base plane.
+		Plot3DScatterData scatterBand;
+		scatterBand.samples = { Plot3DSample{ { 0, 0, 1 }, 1.0 }, Plot3DSample{ { 1, 0, 2 }, 2.0 }, Plot3DSample{ { 2, 0, 3 }, 3.0 } };
+		scatterBand.fillTo = { 5.0, 6.0, std::numeric_limits<double>::quiet_NaN() };
+		Plot3DMeshData scatterBandMesh;
+		CHECK(buildPlot3DScatterFillMesh(scatterBand, -1.0, scatterBandMesh, &error) && scatterBandMesh.vertexCount() == 12);
+		bool lowZs = true; // each ribbon's lower pair of corners sits at the second set's Z (5, 6) or at the base (-1) for the NaN one
+		const double expectedLow[3] = { 5.0, 6.0, -1.0 };
+		for (int ribbon = 0; ribbon < 3; ++ribbon)
+		{
+			double lo = 1.0e9;
+			for (int corner = 0; corner < 4; ++corner)
+				lo = std::min(lo, static_cast<double>(scatterBandMesh.positions[static_cast<std::size_t>(ribbon * 4 + corner) * 3 + 2]));
+			lowZs = lowZs && lo <= expectedLow[ribbon] + 1.0e-6 && (ribbon == 2 ? lo == -1.0 : lo == std::min(expectedLow[ribbon], static_cast<double>(1 + ribbon)));
+		}
+		CHECK(lowZs);
+		Plot3DDataset scatterBandData;
+		scatterBandData.primitive = Plot3DPrimitive::Scatter;
+		scatterBandData.content = scatterBand;
+		Plot3DMeshOptions scatterBandOptions;
+		scatterBandOptions.filled = true;
+		scatterBandOptions.baseZ = -1.0;
+		double sbLo[3], sbHi[3];
+		CHECK(plot3DDatasetBounds(scatterBandData, scatterBandOptions, sbLo, sbHi) && sbLo[2] == 1.0 && sbHi[2] == 6.0);
+		Plot3DDataset scatterFromTable;
+		bandMapping.fillTo = 3;
+		CHECK(buildPlot3DDataset(bandTable, Plot3DPrimitive::Scatter, bandMapping, scatterFromTable, &error));
+		CHECK(std::get<Plot3DScatterData>(scatterFromTable.content).fillTo == std::vector<double>({ 4.0, 5.0, 7.0 }));
+		bandMapping.fillTo = -1;
+		CHECK(buildPlot3DDataset(bandTable, Plot3DPrimitive::Scatter, bandMapping, scatterFromTable, &error));
+		CHECK(std::get<Plot3DScatterData>(scatterFromTable.content).fillTo.empty());
+
 		Plot3DLineData onePoint;
 		onePoint.samples.push_back(Plot3DSample{ { 0, 0, 0 }, 0.0 });
 		CHECK(!buildPlot3DLineFillMesh(onePoint, 0.0, lineFill, &error) && !error.isEmpty());
@@ -526,6 +561,44 @@ namespace
 			image.imagePath = QString::fromUtf8(__FILE__);
 			image.yMaximum = image.yMinimum;
 			CHECK(!generatePlot3D(image, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error) && !error.isEmpty());
+		}
+
+		// "Readable from behind": a second quad a hair behind the first, facing the other way, its U mirrored - for an opaque picture only.
+		{
+			QTemporaryDir dir;
+			CHECK(dir.isValid());
+			QImage opaque(4, 2, QImage::Format_RGB32);
+			opaque.fill(Qt::red);
+			QImage see(4, 2, QImage::Format_ARGB32);
+			see.fill(QColor(0, 0, 255, 128));
+			const QString opaquePath = dir.filePath(QStringLiteral("opaque.png")), seePath = dir.filePath(QStringLiteral("see.png"));
+			CHECK(opaque.save(opaquePath) && see.save(seePath));
+			Plot3DGeneratedSpec image;
+			image.valid = true;
+			image.sourceMode = 9;
+			image.imagePath = opaquePath;
+			image.xMinimum = 0.0; image.xMaximum = 4.0; image.yMinimum = 0.0; image.yMaximum = 2.0; image.zMinimum = 1.0; image.zMaximum = 2.0;
+			Plot3DGenerated generated;
+			CHECK(generatePlot3D(image, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error));
+			CHECK(generated.mesh.vertexCount() == 4 && generated.mesh.indices.size() == 6 && generated.imageOpacity == 1.0); // off by default: one mirrored back
+			image.imageBackReadable = true;
+			CHECK(generatePlot3D(image, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error));
+			CHECK(generated.mesh.vertexCount() == 8 && generated.mesh.indices.size() == 12 && generated.mesh.uvs.size() == 16 && generated.mesh.normals.size() == 24);
+			if (generated.mesh.vertexCount() == 8)
+			{
+				CHECK(generated.mesh.normals[2] == 1.0f && generated.mesh.normals[14] == -1.0f); // XY plane: the front faces +Z, the back -Z
+				CHECK(generated.mesh.positions[2] == 1.0f && generated.mesh.positions[14] < 1.0f && generated.mesh.positions[14] > 0.99f); // a hair behind (below) the front
+				CHECK(generated.mesh.uvs[8] == 1.0f - generated.mesh.uvs[0] && generated.mesh.uvs[9] == generated.mesh.uvs[1]); // U mirrored, V the same
+				CHECK(generated.mesh.indices[6] == 4 && generated.mesh.indices[7] == 6 && generated.mesh.indices[8] == 5); // reversed winding
+			}
+			image.imageOpacity = 0.5; // see-through: both sides would show through each other, so the back stays mirrored
+			CHECK(generatePlot3D(image, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error) && generated.mesh.vertexCount() == 4 && generated.imageOpacity == 0.5);
+			image.imageOpacity = 1.0;
+			image.imagePath = seePath; // a picture with transparent areas: the same
+			CHECK(generatePlot3D(image, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error) && generated.mesh.vertexCount() == 4 && generated.mesh.indices.size() == 6);
+			image.imageOpacity = 7.0; // out of range is clamped
+			image.imagePath = opaquePath;
+			CHECK(generatePlot3D(image, Plot3DPrimitive::Surface, nullptr, nullptr, generated, &error) && generated.imageOpacity == 1.0);
 		}
 
 		// Every preset of every generated source converts to a spec that generates (and the entries mirror the preset lists).
@@ -722,6 +795,8 @@ namespace
 		session.generated.xMinimum = -4.5; session.generated.xMaximum = 4.5; session.generated.yMinimum = -2; session.generated.yMaximum = 2;
 		session.generated.zMinimum = 0; session.generated.zMaximum = 12; session.generated.xSamples = 33; session.generated.ySamples = 9;
 		session.generated.zSamples = 240;
+		session.generated.fillExpression = QStringLiteral("sin(t)");
+		session.generated.imageOpacity = 0.4; session.generated.imageBackReadable = true; // only written for an image plane (source 9): checked below
 		session.generated.parameters = { { QStringLiteral("s"), 0.6 }, { QStringLiteral("a"), 0.8 } };
 		session.automaticColourRange = false;
 		session.contourOverlayMode = 2; session.contourOverlayLevels = 7;
@@ -776,6 +851,19 @@ namespace
 		CHECK(restored.lineWidth == 2.5f && restored.markerSize == 7.0f && restored.arrowScale == 1.5f);
 		CHECK(restored.barWidthScale == 0.5f && restored.barDepthScale == 2.0f);
 		CHECK(restored.isStem && !restored.isErrorBars && restored.isFilledScatter && restored.scatterBaseZ == -3.5);
+		CHECK(restored.generated.fillExpression == QStringLiteral("sin(t)") && restored.generated.imageOpacity == 1.0 && !restored.generated.imageBackReadable);
+		{
+			// an image plane keeps its opacity and back side; an older file without them reads as opaque with a mirrored back
+			Plot3DSession picture = session;
+			picture.generated.sourceMode = 9;
+			std::vector<QByteArray> pictureBlobs;
+			const QJsonObject pictureJson = plot3DSessionToJson(picture, payload, pictureBlobs);
+			Plot3DSession pictureBack;
+			Plot3DRendererPayload pictureBackPayload;
+			QString pictureError;
+			CHECK(plot3DSessionFromJson(pictureJson, pictureBlobs, pictureBack, pictureBackPayload, &pictureError));
+			CHECK(pictureBack.generated.imageOpacity == 0.4 && pictureBack.generated.imageBackReadable);
+		}
 		CHECK(restored.contourLevels == 14 && restored.contourProjected && restored.generated.valid && restored.generated.sourceMode == 7 && restored.generated.presetIndex == 2
 		      && restored.generated.title == QLatin1String("Wave") && restored.generated.xExpression == session.generated.xExpression
 		      && restored.generated.xMinimum == -4.5 && restored.generated.zSamples == 240 && restored.generated.parameters == session.generated.parameters
@@ -897,6 +985,12 @@ namespace
 			&& std::abs(curve.samples.back().position.z - 6.283185307179586) < 1.0e-12);
 		CHECK(!buildPlot3DParametricCurve(QStringLiteral("t"), QStringLiteral("0"), QStringLiteral("missing"),
 			0.0, 1.0, 2, {}, curve, &error) && error.contains(QStringLiteral("Unknown")));
+		// A second z(t) over the same x(t), y(t): one fill-to value per sample; an empty expression leaves none; a bad one fails with its t.
+		CHECK(buildPlot3DParametricCurve(QStringLiteral("t"), QStringLiteral("0"), QStringLiteral("t"), 0.0, 4.0, 5, {}, curve, &error, QStringLiteral("t*t"))
+			&& curve.fillTo.size() == 5 && curve.fillTo[0] == 0.0 && curve.fillTo[3] == 9.0 && curve.fillTo[4] == 16.0);
+		CHECK(buildPlot3DParametricCurve(QStringLiteral("t"), QStringLiteral("0"), QStringLiteral("t"), 0.0, 4.0, 5, {}, curve, &error, QStringLiteral("  ")) && curve.fillTo.empty());
+		CHECK(!buildPlot3DParametricCurve(QStringLiteral("t"), QStringLiteral("0"), QStringLiteral("t"), 0.0, 4.0, 5, {}, curve, &error, QStringLiteral("nope(t)"))
+			&& !error.isEmpty() && curve.fillTo.empty() && curve.samples.empty());
 
 		Plot3DQuiverData field;
 		CHECK(buildPlot3DFormulaVectorField(QStringLiteral("-y"), QStringLiteral("x"), QStringLiteral("0"),

@@ -19,31 +19,31 @@ public:
 	bool parse(double& result, QString& error)
 	{
 		_skip(); result = _expression(error); _skip();
-		if (error.isEmpty() && _pos != _text.size()) error = QStringLiteral("Unexpected character '%1'.").arg(_text[_pos]);
-		if (error.isEmpty() && !std::isfinite(result)) error = QStringLiteral("The expression produced a non-finite value.");
+		if (error.isEmpty() && _pos != _text.size()) error = QObject::tr("Unexpected character '%1'.").arg(_text[_pos]);
+		if (error.isEmpty() && !std::isfinite(result)) error = QObject::tr("The expression produced a non-finite value.");
 		return error.isEmpty();
 	}
 private:
 	void _skip() { while (_pos < _text.size() && _text[_pos].isSpace()) ++_pos; }
 	bool _take(QChar ch) { _skip(); if (_pos < _text.size() && _text[_pos] == ch) { ++_pos; return true; } return false; }
 	double _expression(QString& e) { double v = _term(e); while (e.isEmpty()) { if (_take('+')) v += _term(e); else if (_take('-')) v -= _term(e); else break; } return v; }
-	double _term(QString& e) { double v = _power(e); while (e.isEmpty()) { if (_take('*')) v *= _power(e); else if (_take('/')) { double d = _power(e); if (d == 0.0) { e = QStringLiteral("Division by zero."); return 0.0; } v /= d; } else break; } return v; }
+	double _term(QString& e) { double v = _power(e); while (e.isEmpty()) { if (_take('*')) v *= _power(e); else if (_take('/')) { double d = _power(e); if (d == 0.0) { e = QObject::tr("Division by zero."); return 0.0; } v /= d; } else break; } return v; }
 	double _power(QString& e) { double v = _unary(e); if (e.isEmpty() && _take('^')) v = std::pow(v, _power(e)); return v; }
 	double _unary(QString& e) { if (_take('+')) return _unary(e); if (_take('-')) return -_unary(e); return _primary(e); }
 	double _primary(QString& e)
 	{
-		_skip(); if (_take('(')) { double v = _expression(e); if (e.isEmpty() && !_take(')')) e = QStringLiteral("Missing closing parenthesis."); return v; }
+		_skip(); if (_take('(')) { double v = _expression(e); if (e.isEmpty() && !_take(')')) e = QObject::tr("Missing closing parenthesis."); return v; }
 		const int start = _pos;
-		if (_pos < _text.size() && (_text[_pos].isDigit() || _text[_pos] == '.')) { while (_pos < _text.size() && (_text[_pos].isDigit() || _text[_pos] == '.' || _text[_pos].toLower() == 'e' || _text[_pos] == '+' || _text[_pos] == '-')) { if ((_text[_pos] == '+' || _text[_pos] == '-') && _pos > start && _text[_pos - 1].toLower() != 'e') break; ++_pos; } bool ok=false; double v=_text.mid(start,_pos-start).toDouble(&ok); if(!ok) e=QStringLiteral("Invalid number."); return v; }
+		if (_pos < _text.size() && (_text[_pos].isDigit() || _text[_pos] == '.')) { while (_pos < _text.size() && (_text[_pos].isDigit() || _text[_pos] == '.' || _text[_pos].toLower() == 'e' || _text[_pos] == '+' || _text[_pos] == '-')) { if ((_text[_pos] == '+' || _text[_pos] == '-') && _pos > start && _text[_pos - 1].toLower() != 'e') break; ++_pos; } bool ok=false; double v=_text.mid(start,_pos-start).toDouble(&ok); if(!ok) e=QObject::tr("Invalid number."); return v; }
 		if (_pos < _text.size() && (_text[_pos].isLetter() || _text[_pos] == '_'))
 		{
 			while (_pos < _text.size() && (_text[_pos].isLetterOrNumber() || _text[_pos] == '_')) ++_pos;
 			const QString name = _text.mid(start, _pos-start).toLower();
-			if (_take('(')) { double a=_expression(e); double b=0; bool two=false; if(e.isEmpty() && _take(',')) { b=_expression(e); two=true; } if(e.isEmpty() && !_take(')')) e=QStringLiteral("Missing closing parenthesis after %1.").arg(name); if(!e.isEmpty()) return 0; if(name=="sin")return std::sin(a); if(name=="cos")return std::cos(a); if(name=="tan")return std::tan(a); if(name=="asin")return std::asin(a); if(name=="acos")return std::acos(a); if(name=="atan")return std::atan(a); if(name=="sinh")return std::sinh(a); if(name=="cosh")return std::cosh(a); if(name=="tanh")return std::tanh(a); if(name=="exp")return std::exp(a); if(name=="log")return a>0?std::log(a):(e=QStringLiteral("log requires a positive value."),0); if(name=="sqrt")return a>=0?std::sqrt(a):(e=QStringLiteral("sqrt requires a non-negative value."),0); if(name=="abs")return std::abs(a); if(name=="sign")return a<0?-1.0:(a>0?1.0:0.0); if(name=="pow"&&two)return std::pow(a,b); if(name=="min"&&two)return std::min(a,b); if(name=="max"&&two)return std::max(a,b); e=QStringLiteral("Unknown function or wrong argument count: %1.").arg(name); return 0; }
+			if (_take('(')) { double a=_expression(e); double b=0; bool two=false; if(e.isEmpty() && _take(',')) { b=_expression(e); two=true; } if(e.isEmpty() && !_take(')')) e=QObject::tr("Missing closing parenthesis after %1.").arg(name); if(!e.isEmpty()) return 0; if(name=="sin")return std::sin(a); if(name=="cos")return std::cos(a); if(name=="tan")return std::tan(a); if(name=="asin")return std::asin(a); if(name=="acos")return std::acos(a); if(name=="atan")return std::atan(a); if(name=="sinh")return std::sinh(a); if(name=="cosh")return std::cosh(a); if(name=="tanh")return std::tanh(a); if(name=="exp")return std::exp(a); if(name=="log")return a>0?std::log(a):(e=QStringLiteral("log requires a positive value."),0); if(name=="sqrt")return a>=0?std::sqrt(a):(e=QStringLiteral("sqrt requires a non-negative value."),0); if(name=="abs")return std::abs(a); if(name=="sign")return a<0?-1.0:(a>0?1.0:0.0); if(name=="pow"&&two)return std::pow(a,b); if(name=="min"&&two)return std::min(a,b); if(name=="max"&&two)return std::max(a,b); e=QObject::tr("Unknown function or wrong argument count: %1.").arg(name); return 0; }
 			if(_hasTime&&name=="t")return _time; if(name=="x"||name=="u"||name=="t")return _x; if(name=="y"||name=="v")return _y; if(name=="z")return _z; if(name=="pi")return 3.14159265358979323846; if(name=="e")return 2.71828182845904523536;
-			if (_parameters.contains(name)) return _parameters.value(name); e=QStringLiteral("Unknown variable: %1.").arg(name); return 0;
+			if (_parameters.contains(name)) return _parameters.value(name); e=QObject::tr("Unknown variable: %1.").arg(name); return 0;
 		}
-		e = QStringLiteral("Expected a number, variable, or expression."); return 0;
+		e = QObject::tr("Expected a number, variable, or expression."); return 0;
 	}
 	const QString& _text; int _pos=0; double _x, _y, _z; double _time = 0.0; bool _hasTime = false; const QHash<QString,double>& _parameters;
 };
@@ -149,24 +149,26 @@ bool evaluatePlot3DFormula3D(const QString& expression,double x,double y,double 
 { QString local; Parser parser(expression,x,y,z,parameters); const bool ok=parser.parse(result,local); if(error)*error=local; return ok; }
 bool buildPlot3DFormulaSurface(const QString& expression,double x0,double x1,int nx,double y0,double y1,int ny,const QHash<QString,double>& parameters,Plot3DSurfaceData& out,QString* error)
 {
-	out.samples.clear(); if(nx<2||ny<2||nx>512||ny>512||!(x1>x0)||!(y1>y0)){if(error)*error=QStringLiteral("Formula ranges must increase and each resolution must be 2 to 512.");return false;}
-	out.samples.reserve(static_cast<size_t>(nx)*ny); for(int iy=0;iy<ny;++iy) for(int ix=0;ix<nx;++ix){ double x=x0+(x1-x0)*ix/(nx-1),y=y0+(y1-y0)*iy/(ny-1),z; QString local; if(!evaluatePlot3DFormula(expression,x,y,parameters,z,&local)){if(error)*error=QStringLiteral("At x=%1, y=%2: %3").arg(x).arg(y).arg(local);out.samples.clear();return false;} out.samples.push_back({{x,y,z},z});} return true;
+	out.samples.clear(); if(nx<2||ny<2||nx>512||ny>512||!(x1>x0)||!(y1>y0)){if(error)*error=QObject::tr("Formula ranges must increase and each resolution must be 2 to 512.");return false;}
+	out.samples.reserve(static_cast<size_t>(nx)*ny); for(int iy=0;iy<ny;++iy) for(int ix=0;ix<nx;++ix){ double x=x0+(x1-x0)*ix/(nx-1),y=y0+(y1-y0)*iy/(ny-1),z; QString local; if(!evaluatePlot3DFormula(expression,x,y,parameters,z,&local)){if(error)*error=QObject::tr("At x=%1, y=%2: %3").arg(x).arg(y).arg(local);out.samples.clear();return false;} out.samples.push_back({{x,y,z},z});} return true;
 }
 bool buildPlot3DParametricSurface(const QString& xe,const QString& ye,const QString& ze,double u0,double u1,int nu,double v0,double v1,int nv,const QHash<QString,double>& parameters,Plot3DMeshData& out,QString* error)
 {
-	out=Plot3DMeshData(); if(nu<2||nv<2||nu>512||nv>512||!(u1>u0)||!(v1>v0)){if(error)*error=QStringLiteral("Parametric ranges must increase and each resolution must be 2 to 512.");return false;}
+	out=Plot3DMeshData(); if(nu<2||nv<2||nu>512||nv>512||!(u1>u0)||!(v1>v0)){if(error)*error=QObject::tr("Parametric ranges must increase and each resolution must be 2 to 512.");return false;}
 	const size_t count=static_cast<size_t>(nu)*nv; out.positions.resize(count*3); out.normals.assign(count*3,0.0f); out.values.resize(count);
-	for(int i=0;i<nu;++i) for(int j=0;j<nv;++j){const double u=u0+(u1-u0)*i/(nu-1),v=v0+(v1-v0)*j/(nv-1);double x,y,z;QString e;if(!evaluatePlot3DFormula(xe,u,v,parameters,x,&e)||!evaluatePlot3DFormula(ye,u,v,parameters,y,&e)||!evaluatePlot3DFormula(ze,u,v,parameters,z,&e)){if(error)*error=QStringLiteral("At u=%1, v=%2: %3").arg(u).arg(v).arg(e);out=Plot3DMeshData();return false;}const size_t k=(static_cast<size_t>(i)*nv+j)*3;out.positions[k]=float(x);out.positions[k+1]=float(y);out.positions[k+2]=float(z);out.values[static_cast<size_t>(i)*nv+j]=z;}
+	for(int i=0;i<nu;++i) for(int j=0;j<nv;++j){const double u=u0+(u1-u0)*i/(nu-1),v=v0+(v1-v0)*j/(nv-1);double x,y,z;QString e;if(!evaluatePlot3DFormula(xe,u,v,parameters,x,&e)||!evaluatePlot3DFormula(ye,u,v,parameters,y,&e)||!evaluatePlot3DFormula(ze,u,v,parameters,z,&e)){if(error)*error=QObject::tr("At u=%1, v=%2: %3").arg(u).arg(v).arg(e);out=Plot3DMeshData();return false;}const size_t k=(static_cast<size_t>(i)*nv+j)*3;out.positions[k]=float(x);out.positions[k+1]=float(y);out.positions[k+2]=float(z);out.values[static_cast<size_t>(i)*nv+j]=z;}
 	for(int i=0;i+1<nu;++i)for(int j=0;j+1<nv;++j){const unsigned int a=i*nv+j,b=a+1,c=(i+1)*nv+j,d=c+1;out.indices.insert(out.indices.end(),{a,c,b,b,c,d});}
 	for(size_t k=0;k<out.indices.size();k+=3){const unsigned int a=out.indices[k],b=out.indices[k+1],c=out.indices[k+2];const float ax=out.positions[a*3],ay=out.positions[a*3+1],az=out.positions[a*3+2],bx=out.positions[b*3]-ax,by=out.positions[b*3+1]-ay,bz=out.positions[b*3+2]-az,cx=out.positions[c*3]-ax,cy=out.positions[c*3+1]-ay,cz=out.positions[c*3+2]-az;const float nx=by*cz-bz*cy,ny=bz*cx-bx*cz,nz=bx*cy-by*cx;for(unsigned int q:{a,b,c}){out.normals[q*3]+=nx;out.normals[q*3+1]+=ny;out.normals[q*3+2]+=nz;}}
 	for(size_t i=0;i<count;++i){float& x=out.normals[i*3];float& y=out.normals[i*3+1];float& z=out.normals[i*3+2];const float l=std::sqrt(x*x+y*y+z*z);if(l>1e-12f){x/=l;y/=l;z/=l;}else z=1.0f;}return true;
 }
-bool buildPlot3DParametricCurve(const QString& xe,const QString& ye,const QString& ze,double t0,double t1,int count,const QHash<QString,double>& parameters,Plot3DLineData& out,QString* error)
+bool buildPlot3DParametricCurve(const QString& xe,const QString& ye,const QString& ze,double t0,double t1,int count,const QHash<QString,double>& parameters,Plot3DLineData& out,QString* error,const QString& fillExpression)
 {
 	out.samples.clear();
+	out.fillTo.clear();
+	const bool between=!fillExpression.trimmed().isEmpty();
 	if(count<2||count>8192||!(t1>t0))
 	{
-		if(error)*error=QStringLiteral("The parameter range must increase and the sample count must be 2 to 8192.");
+		if(error)*error=QObject::tr("The parameter range must increase and the sample count must be 2 to 8192.");
 		return false;
 	}
 	out.samples.reserve(static_cast<size_t>(count));
@@ -176,9 +178,21 @@ bool buildPlot3DParametricCurve(const QString& xe,const QString& ye,const QStrin
 		double x,y,z; QString e;
 		if(!evaluatePlot3DFormula(xe,t,0.0,parameters,x,&e)||!evaluatePlot3DFormula(ye,t,0.0,parameters,y,&e)||!evaluatePlot3DFormula(ze,t,0.0,parameters,z,&e))
 		{
-			if(error)*error=QStringLiteral("At t=%1: %2").arg(t).arg(e);
+			if(error)*error=QObject::tr("At t=%1: %2").arg(t).arg(e);
 			out.samples.clear();
 			return false;
+		}
+		if(between)
+		{
+			double z2;
+			if(!evaluatePlot3DFormula(fillExpression,t,0.0,parameters,z2,&e))
+			{
+				if(error)*error=QObject::tr("At t=%1: %2").arg(t).arg(e);
+				out.samples.clear();
+				out.fillTo.clear();
+				return false;
+			}
+			out.fillTo.push_back(z2);
 		}
 		out.samples.push_back({{x,y,z},z});
 	}
@@ -187,12 +201,12 @@ bool buildPlot3DParametricCurve(const QString& xe,const QString& ye,const QStrin
 bool buildPlot3DFormulaVectorField(const QString& ue,const QString& ve,const QString& we,double x0,double x1,int nx,double y0,double y1,int ny,const QHash<QString,double>& parameters,Plot3DQuiverData& out,QString* error)
 {
 	out.arrows.clear();
-	if(nx<2||ny<2||nx>128||ny>128||!(x1>x0)||!(y1>y0)) { if(error)*error=QStringLiteral("Vector-field ranges must increase and each resolution must be 2 to 128."); return false; }
+	if(nx<2||ny<2||nx>128||ny>128||!(x1>x0)||!(y1>y0)) { if(error)*error=QObject::tr("Vector-field ranges must increase and each resolution must be 2 to 128."); return false; }
 	out.arrows.reserve(static_cast<size_t>(nx)*ny);
 	for(int iy=0;iy<ny;++iy) for(int ix=0;ix<nx;++ix)
 	{
 		const double x=x0+(x1-x0)*ix/(nx-1), y=y0+(y1-y0)*iy/(ny-1); double u,v,w; QString e;
-		if(!evaluatePlot3DFormula(ue,x,y,parameters,u,&e)||!evaluatePlot3DFormula(ve,x,y,parameters,v,&e)||!evaluatePlot3DFormula(we,x,y,parameters,w,&e)) { if(error)*error=QStringLiteral("At x=%1, y=%2: %3").arg(x).arg(y).arg(e); out.arrows.clear(); return false; }
+		if(!evaluatePlot3DFormula(ue,x,y,parameters,u,&e)||!evaluatePlot3DFormula(ve,x,y,parameters,v,&e)||!evaluatePlot3DFormula(we,x,y,parameters,w,&e)) { if(error)*error=QObject::tr("At x=%1, y=%2: %3").arg(x).arg(y).arg(e); out.arrows.clear(); return false; }
 		out.arrows.push_back({{x,y,0.0},{u,v,w},std::sqrt(u*u+v*v+w*w)});
 	}
 	return true;
@@ -202,7 +216,7 @@ bool buildPlot3DFormulaStreamlines(const QString& ue, const QString& ve, const Q
 	double x0, double x1, double y0, double y1, int seedCount, const QHash<QString, double>& parameters, Plot3DMeshData& out, QString* error)
 {
 	out = Plot3DMeshData();
-	if (seedCount < 2 || seedCount > 128 || !(x1 > x0) || !(y1 > y0)) { if (error) *error = QStringLiteral("Streamline ranges must increase and the seed count must be 2 to 128."); return false; }
+	if (seedCount < 2 || seedCount > 128 || !(x1 > x0) || !(y1 > y0)) { if (error) *error = QObject::tr("Streamline ranges must increase and the seed count must be 2 to 128."); return false; }
 	const double step = std::min(x1 - x0, y1 - y0) / 120.0;
 	for (int seed = 0; seed < seedCount; ++seed)
 	{
@@ -229,7 +243,7 @@ bool buildPlot3DFormulaStreamlines(const QString& ue, const QString& ve, const Q
 			}
 		}
 	}
-	if (out.empty()) { if (error) *error = QStringLiteral("No streamline segments were generated in the selected domain."); return false; }
+	if (out.empty()) { if (error) *error = QObject::tr("No streamline segments were generated in the selected domain."); return false; }
 	return true;
 }
 
@@ -244,7 +258,7 @@ bool buildPlot3DFormulaPathlines(const QString& ue, const QString& ve, const QSt
 			|| !evaluatePlot3DFormula4D(ve, p.x, p.y, p.z, t, parameters, v.y, &local)
 			|| !evaluatePlot3DFormula4D(we, p.x, p.y, p.z, t, parameters, v.z, &local))
 		{
-			if (message) *message = QStringLiteral("At t=%1: %2").arg(t).arg(local);
+			if (message) *message = QObject::tr("At t=%1: %2").arg(t).arg(local);
 			return false;
 		}
 		return true;
@@ -263,7 +277,7 @@ bool buildPlot3DImplicitSurface(const QString& expression,
 	if (xSamples < 2 || ySamples < 2 || zSamples < 2 || xSamples > 64 || ySamples > 64 || zSamples > 64
 		|| !(xMaximum > xMinimum) || !(yMaximum > yMinimum) || !(zMaximum > zMinimum))
 	{
-		if (error) *error = QStringLiteral("Implicit-surface ranges must increase and each resolution must be 2 to 64.");
+		if (error) *error = QObject::tr("Implicit-surface ranges must increase and each resolution must be 2 to 64.");
 		return false;
 	}
 	const double dx = (xMaximum - xMinimum) / (xSamples - 1);
@@ -281,7 +295,7 @@ bool buildPlot3DImplicitSurface(const QString& expression,
 				QString local;
 				if (!evaluatePlot3DFormula3D(expression, sample.position.x, sample.position.y, sample.position.z, parameters, sample.value, &local))
 				{
-					if (error) *error = QStringLiteral("At x=%1, y=%2, z=%3: %4").arg(sample.position.x).arg(sample.position.y).arg(sample.position.z).arg(local);
+					if (error) *error = QObject::tr("At x=%1, y=%2, z=%3: %4").arg(sample.position.x).arg(sample.position.y).arg(sample.position.z).arg(local);
 					out = Plot3DMeshData();
 					return false;
 				}
@@ -363,7 +377,7 @@ bool buildPlot3DImplicitSurface(const QString& expression,
 			}
 	if (out.empty())
 	{
-		if (error) *error = QStringLiteral("The implicit field does not cross zero inside the selected ranges.");
+		if (error) *error = QObject::tr("The implicit field does not cross zero inside the selected ranges.");
 		return false;
 	}
 	return true;

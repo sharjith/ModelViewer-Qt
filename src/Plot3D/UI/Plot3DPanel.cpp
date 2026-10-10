@@ -184,6 +184,40 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	_imagePlane->addItem(tr("YZ (upright, at the X minimum)"), 2);
 	_imagePlane->setToolTip(tr("The picture fills the two ranges of the chosen plane; the third range's minimum is where the plane sits."));
 	_formulaLayout->addRow(_imagePlaneLabel, _imagePlane);
+	_imageOpacityLabel = new QLabel(tr("Opacity:"), _formulaGroup);
+	_imageOpacity = new QSpinBox(_formulaGroup);
+	_imageOpacity->setRange(0, 100);
+	_imageOpacity->setValue(100);
+	_imageOpacity->setSuffix(QStringLiteral(" %"));
+	_imageOpacity->setKeyboardTracking(false);
+	_imageOpacity->setToolTip(tr("How opaque the picture is drawn: 100 % shows it as it is, less lets what is behind it show through."));
+	_formulaLayout->addRow(_imageOpacityLabel, _imageOpacity);
+	_imageBackReadable = new QCheckBox(tr("Readable from behind"), _formulaGroup);
+	_imageBackReadable->setToolTip(tr("The back of the plane shows the picture the right way round instead of mirrored.\n"
+	                                  "Only for an opaque picture: with a transparent area or an opacity below 100 % both sides\n"
+	                                  "would show through each other, so the back stays mirrored."));
+	_formulaLayout->addRow(_imageBackReadable);
+	// Parametric curve: filled down to a base plane, or between the curve and a second curve (a second z(t) over the same x(t), y(t)).
+	_curveFillLabel = new QLabel(tr("Fill:"), _formulaGroup);
+	_curveFillCheck = new QCheckBox(tr("Fill the curve down to Base Z:"), _formulaGroup);
+	_curveFillBaseZ = new QDoubleSpinBox(_formulaGroup);
+	_curveFillBaseZ->setRange(-1.0e12, 1.0e12);
+	_curveFillBaseZ->setDecimals(6);
+	_curveFillBaseZ->setValue(0.0);
+	auto* curveFillRow = new QHBoxLayout();
+	curveFillRow->addWidget(_curveFillCheck);
+	curveFillRow->addWidget(_curveFillBaseZ, 1);
+	_formulaLayout->addRow(_curveFillLabel, curveFillRow);
+	_curveFillExpressionLabel = new QLabel(tr("or up to z2(t) ="), _formulaGroup);
+	_curveFillExpression = new QLineEdit(_formulaGroup);
+	_curveFillExpression->setPlaceholderText(tr("a second curve, e.g. 0 or sin(t)"));
+	_curveFillExpression->setToolTip(tr("Fill between the curve and a second curve with the same x(t), y(t) and this z(t).\nLeave empty to fill down to Base Z."));
+	_formulaLayout->addRow(_curveFillExpressionLabel, _curveFillExpression);
+	connect(_curveFillCheck, &QCheckBox::toggled, this, &Plot3DPanel::updateCurveFillEnabled);
+	connect(_curveFillExpression, &QLineEdit::textChanged, this, &Plot3DPanel::updateCurveFillEnabled);
+	connect(_imageOpacity, qOverload<int>(&QSpinBox::valueChanged), this, &Plot3DPanel::updateImageOptionsEnabled);
+	updateCurveFillEnabled();
+	updateImageOptionsEnabled();
 	_formulaParameters = new QFormLayout(); _formulaLayout->addRow(_formulaParametersLabel, _formulaParameters);
 	layout->addWidget(_formulaGroup);
 
@@ -244,8 +278,8 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	_scatterFillEnabled = new QCheckBox(tr("Fill to Base Z:"), this);
 	_columnError = new QComboBox(this);
 	_columnFillTo = new QComboBox(this);
-	_columnFillTo->setToolTip(tr("Fill a line down to the base plane, or - choosing a column - between the line and a second curve whose\nZ values are in that column (same X and Y)."));
-	_fillToLabel = new QLabel(tr("or between the line and column:"), this);
+	_columnFillTo->setToolTip(tr("Fill a line or scatter down to the base plane, or - choosing a column - between it and a second curve (or set of\npoints) whose Z values are in that column (same X and Y)."));
+	_fillToLabel = new QLabel(tr("or between the plot and column:"), this);
 	_stemBaseZ = new QDoubleSpinBox(this);
 	_stemBaseZ->setRange(-1.0e12, 1.0e12);
 	_stemBaseZ->setDecimals(6);
@@ -692,6 +726,19 @@ void Plot3DPanel::loadTimeSeriesForEditing(const Plot3DSession& session)
 	_status->setText(tr("Editing '%1'. Rebuild updates the existing tree entry and keeps its presentation settings.").arg(session.name));
 }
 
+void Plot3DPanel::updateCurveFillEnabled()
+{
+	const bool on = _curveFillCheck->isChecked();
+	_curveFillExpression->setEnabled(on);
+	_curveFillExpressionLabel->setEnabled(on);
+	_curveFillBaseZ->setEnabled(on && _curveFillExpression->text().trimmed().isEmpty()); // between two curves the base plane is not used
+}
+
+void Plot3DPanel::updateImageOptionsEnabled()
+{
+	_imageBackReadable->setEnabled(_imageOpacity->value() >= 100); // see its tooltip: a see-through picture keeps a mirrored back
+}
+
 void Plot3DPanel::updateScatterOptions()
 {
 	const bool scatter = _primitive && static_cast<Plot3DPrimitive>(_primitive->currentData().toInt()) == Plot3DPrimitive::Scatter;
@@ -702,10 +749,10 @@ void Plot3DPanel::updateScatterOptions()
 	_columnError->setEnabled(scatter && _errorBarsEnabled->isChecked());
 	_scatterFillEnabled->setEnabled(scatter || line); // a filled line is a ribbon down to the base plane, like a filled scatter
 	// ... or, with a column chosen, the band between the line and a second curve (then the base plane is not used)
-	_columnFillTo->setEnabled(line && _scatterFillEnabled->isChecked());
-	_fillToLabel->setEnabled(line && _scatterFillEnabled->isChecked());
+	_columnFillTo->setEnabled((line || scatter) && _scatterFillEnabled->isChecked());
+	_fillToLabel->setEnabled((line || scatter) && _scatterFillEnabled->isChecked());
 	_stemBaseZ->setEnabled((scatter && _stemEnabled->isChecked()) || ((scatter || line) && _scatterFillEnabled->isChecked()
-		&& !(line && _columnFillTo->currentData().toInt() >= 0)));
+		&& _columnFillTo->currentData().toInt() < 0));
 }
 
 void Plot3DPanel::updateContourOverlayRow()

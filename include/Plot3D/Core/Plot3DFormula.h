@@ -104,9 +104,10 @@ bool buildPlot3DFormulaSurface(const QString& expression, double xMinimum, doubl
 bool buildPlot3DParametricSurface(const QString& xExpression, const QString& yExpression, const QString& zExpression,
 	double uMinimum, double uMaximum, int uSamples, double vMinimum, double vMaximum, int vSamples,
 	const QHash<QString, double>& parameters, Plot3DMeshData& out, QString* error = nullptr);
+// A non-empty `fillExpression` is the Z of a second curve over the same x(t), y(t) (Plot3DLineData::fillTo), for a fill between the two.
 bool buildPlot3DParametricCurve(const QString& xExpression, const QString& yExpression, const QString& zExpression,
 	double tMinimum, double tMaximum, int samples, const QHash<QString, double>& parameters,
-	Plot3DLineData& out, QString* error = nullptr);
+	Plot3DLineData& out, QString* error = nullptr, const QString& fillExpression = QString());
 bool buildPlot3DFormulaVectorField(const QString& uExpression, const QString& vExpression, const QString& wExpression,
 	double xMinimum, double xMaximum, int xSamples, double yMinimum, double yMaximum, int ySamples,
 	const QHash<QString, double>& parameters, Plot3DQuiverData& out, QString* error = nullptr);

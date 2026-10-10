@@ -74,7 +74,7 @@ namespace
 		return id;
 	}
 
-	bool imageMaterial(ViewportWidget* viewport, const QString& path, Material& out, QString* error)
+	bool imageMaterial(ViewportWidget* viewport, const QString& path, Material& out, QString* error, double opacity = 1.0)
 	{
 		Q_UNUSED(viewport); // the context just has to be current (the callers made it so)
 		QImageReader reader(path);
@@ -84,7 +84,8 @@ namespace
 			return false;
 		}
 		const bool hasAlpha = QImage::toPixelFormat(reader.imageFormat()).alphaUsage() == QPixelFormat::UsesAlpha;
-		Material material(QVector3D(1.0f, 1.0f, 1.0f), 0.0f, 1.0f, 1.0f);
+		opacity = std::clamp(opacity, 0.0, 1.0);
+		Material material(QVector3D(1.0f, 1.0f, 1.0f), 0.0f, 1.0f, static_cast<float>(opacity)); // the opacity multiplies the picture's own alpha
 		material.setUnlit(true);
 		Material::Texture texture;
 		texture.type = "albedo";
@@ -94,7 +95,7 @@ namespace
 		texture.wrapT = GL_CLAMP_TO_EDGE;
 		material.setTexture(Material::TextureType::Albedo, texture);
 		material.setAlbedoMap(path);
-		if (hasAlpha)
+		if (hasAlpha || opacity < 0.999)
 			material.setBlendMode(Material::BlendMode::Alpha);
 		const GLuint textureId = uploadPrivateTexture(path);
 		if (textureId == 0)
@@ -208,7 +209,7 @@ namespace
 	// ---- previews ------------------------------------------------------------------------------------------------------------------------
 	bool showMeshPreview(ModelViewer* viewer, const Plot3DMeshData& data, unsigned int primitiveMode,
 		const std::array<Plot3DAxisConfig, 3>& axes, const double minimum[3], const double maximum[3], const QString& title, float opacity,
-		const QString& imagePath = QString())
+		const QString& imagePath = QString(), double imageOpacity = 1.0)
 	{
 		ViewportWidget* viewport = viewer ? viewer->getViewportWidget() : nullptr;
 		if (!viewport || data.empty())
@@ -239,7 +240,7 @@ namespace
 			previewMaterial.setBlendMode(Material::BlendMode::Alpha);
 			previewMaterial.setUnlit(true);
 		}
-		const bool isImage = !imagePath.isEmpty() && imageMaterial(viewport, imagePath, previewMaterial, nullptr); // the picture itself, as Build shows it
+		const bool isImage = !imagePath.isEmpty() && imageMaterial(viewport, imagePath, previewMaterial, nullptr, imageOpacity); // the picture itself, as Build shows it
 		SceneMesh* mesh = new SceneMesh(viewport->getShader(), QStringLiteral("Plot3D Preview"), upload.vertices, data.indices, {}, previewMaterial, true, primitiveMode);
 		if (isImage)
 		{
@@ -482,7 +483,7 @@ namespace
 		}
 		Material plotMaterial = drawScatterFill ? Material(QVector3D(1.0f, 1.0f, 1.0f), 0.0f, 0.65f, 0.35f) : Material();
 		const bool isImage = !generated.imagePath.isEmpty();
-		if (isImage && !imageMaterial(viewport, generated.imagePath, plotMaterial, error))
+		if (isImage && !imageMaterial(viewport, generated.imagePath, plotMaterial, error, generated.imageOpacity))
 		{
 			viewport->doneCurrent();
 			return QUuid();
@@ -706,7 +707,7 @@ bool plot3DShowPreview(ModelViewer* viewer, const Plot3DGenerated& generated, co
 		setError(error, QCoreApplication::translate("Plot3DPanel", "The plot has no valid preview bounds."));
 		return false;
 	}
-	if (!showMeshPreview(viewer, generated.mesh, generated.primitiveMode, kDefaultAxes, minimum, maximum, title, 1.0f, generated.imagePath))
+	if (!showMeshPreview(viewer, generated.mesh, generated.primitiveMode, kDefaultAxes, minimum, maximum, title, 1.0f, generated.imagePath, generated.imageOpacity))
 	{
 		setError(error, QCoreApplication::translate("Plot3DPanel", "The plot preview could not be created."));
 		return false;
@@ -775,7 +776,7 @@ bool plot3DRebuild(ModelViewer* viewer, const QUuid& meshUuid, const Plot3DGener
 			SceneMesh* imageMesh = viewport->getMeshByUuid(meshUuid);
 			Material material;
 			viewport->makeCurrent();
-			const bool ok = imageMesh && imageMaterial(viewport, generated.imagePath, material, error);
+			const bool ok = imageMesh && imageMaterial(viewport, generated.imagePath, material, error, generated.imageOpacity);
 			if (ok)
 			{
 				const GLuint replaced = static_cast<GLuint>(imageMesh->getMaterial().albedoTextureId());

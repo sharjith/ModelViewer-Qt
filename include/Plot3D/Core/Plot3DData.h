@@ -58,7 +58,8 @@ struct Plot3DSurfaceData { std::vector<Plot3DSample> samples; };
 // fillTo: optional, parallel to samples - the Z of a second curve over the same X / Y, for a fill BETWEEN the two curves (empty = fill to
 // the base plane, or no fill).
 struct Plot3DLineData { std::vector<Plot3DSample> samples; std::vector<double> fillTo; };
-struct Plot3DScatterData { std::vector<Plot3DSample> samples; std::vector<double> errors; };
+// fillTo: as for a line - the Z of a second set of points over the same X / Y, for ribbons BETWEEN the two sets (empty = ribbons down to the base plane).
+struct Plot3DScatterData { std::vector<Plot3DSample> samples; std::vector<double> errors; std::vector<double> fillTo; };
 
 struct Plot3DBar
 {
@@ -126,7 +127,7 @@ struct Plot3DColumnMapping
 	int value = -1;
 	int u = 3, v = 4, w = 5; // Quiver vector
 	int error = -1;           // Scatter symmetric vertical error
-	int fillTo = -1;          // Line fill: the second curve's Z column (none = fill to the base plane)
+	int fillTo = -1;          // Line / scatter fill: the second curve's Z column (none = fill to the base plane)
 	int base = -1;            // Bar base (default 0)
 	int width = -1, depth = -1; // Bar footprint (defaults below)
 	int time = -1;            // CSV time series (pathlines): the time column (x / y / z / u / v / w above are its position and velocity)

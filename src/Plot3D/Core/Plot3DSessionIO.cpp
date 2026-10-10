@@ -198,7 +198,11 @@ QJsonObject plot3DSessionToJson(const Plot3DSession& session, const Plot3DRender
 		{
 			spec.insert(QStringLiteral("imagePath"), g.imagePath);
 			spec.insert(QStringLiteral("imagePlane"), g.imagePlane);
+			spec.insert(QStringLiteral("imageOpacity"), g.imageOpacity);
+			spec.insert(QStringLiteral("imageBackReadable"), g.imageBackReadable);
 		}
+		if (!g.fillExpression.isEmpty())
+			spec.insert(QStringLiteral("fillExpression"), g.fillExpression);
 		spec.insert(QStringLiteral("presetIndex"), g.presetIndex);
 		spec.insert(QStringLiteral("title"), g.title);
 		spec.insert(QStringLiteral("expression"), g.expression);
@@ -373,6 +377,9 @@ bool plot3DSessionFromJson(const QJsonObject& json, const std::vector<QByteArray
 		g.sourceMode = spec.value(QStringLiteral("sourceMode")).toInt(0);
 		g.imagePath = spec.value(QStringLiteral("imagePath")).toString();
 		g.imagePlane = std::clamp(spec.value(QStringLiteral("imagePlane")).toInt(0), 0, 2);
+		g.imageOpacity = std::clamp(spec.value(QStringLiteral("imageOpacity")).toDouble(1.0), 0.0, 1.0);
+		g.imageBackReadable = spec.value(QStringLiteral("imageBackReadable")).toBool(false);
+		g.fillExpression = spec.value(QStringLiteral("fillExpression")).toString();
 		g.presetIndex = spec.value(QStringLiteral("presetIndex")).toInt(-1);
 		g.title = spec.value(QStringLiteral("title")).toString();
 		g.expression = spec.value(QStringLiteral("expression")).toString();
