@@ -73,6 +73,95 @@ double plot3DInverseAxisValue(double value, const Plot3DAxisConfig& config)
 	return value;
 }
 
+bool plot3DAxesFitBounds(const std::array<Plot3DAxisConfig, 3>& axes, const std::array<double, 3>& minimum, const std::array<double, 3>& maximum, int* badAxis)
+{
+	for (int axis = 0; axis < 3; ++axis)
+	{
+		const Plot3DAxisConfig& config = axes[static_cast<std::size_t>(axis)];
+		const double lo = minimum[static_cast<std::size_t>(axis)], hi = maximum[static_cast<std::size_t>(axis)];
+		bool ok = std::isfinite(lo) && std::isfinite(hi);
+		if (ok && config.scale == Plot3DAxisScale::Log10)
+			ok = lo > 0.0;
+		else if (ok && config.scale == Plot3DAxisScale::SymLog)
+			ok = config.symlogLinearThreshold > 0.0 && std::isfinite(config.symlogLinearThreshold);
+		if (!ok)
+		{
+			if (badAxis)
+				*badAxis = axis;
+			return false;
+		}
+	}
+	return true;
+}
+
+void plot3DStretchVectors(std::vector<float>& vectors, const std::vector<float>& sitePositions, const std::array<Plot3DAxisConfig, 3>& from,
+	const std::array<Plot3DAxisConfig, 3>& to)
+{
+	const std::size_t count = std::min(vectors.size(), sitePositions.size()) / 3;
+	for (std::size_t i = 0; i < count; ++i)
+	{
+		double stretch[3] = { 1.0, 1.0, 1.0 };
+		for (std::size_t axis = 0; axis < 3; ++axis)
+		{
+			const double data = plot3DInverseAxisValue(static_cast<double>(sitePositions[i * 3 + axis]), from[axis]);
+			const double ratio = plot3DAxisScaleSlope(data, to[axis]) / plot3DAxisScaleSlope(data, from[axis]);
+			if (std::isfinite(ratio) && ratio > 0.0)
+				stretch[axis] = ratio;
+		}
+		const double original[3] = { vectors[i * 3], vectors[i * 3 + 1], vectors[i * 3 + 2] };
+		const double moved[3] = { original[0] * stretch[0], original[1] * stretch[1], original[2] * stretch[2] };
+		const double length = std::sqrt(original[0] * original[0] + original[1] * original[1] + original[2] * original[2]);
+		const double movedLength = std::sqrt(moved[0] * moved[0] + moved[1] * moved[1] + moved[2] * moved[2]);
+		if (!(movedLength > 1.0e-30) || !std::isfinite(movedLength) || !(length > 0.0))
+			continue;
+		const double scale = length / movedLength;
+		for (std::size_t axis = 0; axis < 3; ++axis)
+			vectors[i * 3 + axis] = static_cast<float>(moved[axis] * scale);
+	}
+}
+
+bool plot3DResampleVoxels(const std::vector<float>& values, const int dim[3], const double origin[3], const std::array<Plot3DAxisConfig, 3>& axes,
+	Plot3DResampledVoxels& out)
+{
+	out = Plot3DResampledVoxels();
+	if (dim[0] <= 0 || dim[1] <= 0 || dim[2] <= 0 || values.size() != static_cast<std::size_t>(dim[0]) * static_cast<std::size_t>(dim[1]) * static_cast<std::size_t>(dim[2]))
+		return false;
+	std::vector<int> source[3]; // per axis: the data cell under each output cell's centre (-1 = none)
+	for (std::size_t axis = 0; axis < 3; ++axis)
+	{
+		bool lowOk = false, highOk = false;
+		const double low = plot3DTransformAxisValue(origin[axis], axes[axis], &lowOk);
+		const double high = plot3DTransformAxisValue(origin[axis] + dim[axis], axes[axis], &highOk);
+		if (!lowOk || !highOk || !(high > low))
+			return false;
+		const bool scaled = axes[axis].scale != Plot3DAxisScale::Linear;
+		const int count = scaled ? std::clamp(dim[axis] * 2, dim[axis], std::max(dim[axis], 256)) : dim[axis];
+		out.dim[axis] = count;
+		out.minimum[axis] = low;
+		out.size[axis] = (high - low) / count;
+		source[axis].assign(static_cast<std::size_t>(count), -1);
+		for (int cell = 0; cell < count; ++cell)
+		{
+			const double centre = low + (cell + 0.5) * out.size[axis];
+			const double data = plot3DInverseAxisValue(centre, axes[axis]);
+			const double index = std::floor(data - origin[axis]);
+			if (std::isfinite(index) && index >= 0.0 && index < dim[axis])
+				source[axis][static_cast<std::size_t>(cell)] = static_cast<int>(index);
+		}
+	}
+	out.values.assign(static_cast<std::size_t>(out.dim[0]) * static_cast<std::size_t>(out.dim[1]) * static_cast<std::size_t>(out.dim[2]), std::numeric_limits<float>::quiet_NaN());
+	std::size_t at = 0;
+	for (int k = 0; k < out.dim[2]; ++k)
+		for (int j = 0; j < out.dim[1]; ++j)
+			for (int i = 0; i < out.dim[0]; ++i, ++at)
+			{
+				const int si = source[0][static_cast<std::size_t>(i)], sj = source[1][static_cast<std::size_t>(j)], sk = source[2][static_cast<std::size_t>(k)];
+				if (si >= 0 && sj >= 0 && sk >= 0)
+					out.values[at] = values[(static_cast<std::size_t>(sk) * static_cast<std::size_t>(dim[1]) + static_cast<std::size_t>(sj)) * static_cast<std::size_t>(dim[0]) + static_cast<std::size_t>(si)];
+			}
+	return true;
+}
+
 bool plot3DSameAxisScale(const Plot3DAxisConfig& a, const Plot3DAxisConfig& b)
 {
 	return a.scale == b.scale && (a.scale != Plot3DAxisScale::SymLog || a.symlogLinearThreshold == b.symlogLinearThreshold);

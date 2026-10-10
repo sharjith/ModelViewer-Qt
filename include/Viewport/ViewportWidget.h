@@ -1602,6 +1602,8 @@ public:
 	// Hover probe for Plot3D surfaces: while the cursor is over an enabled plot's surface, the curves where the X, Y and Z
 	// planes through the hovered point cut that surface are drawn, with the point's coordinates. Off by default.
 	void setPlot3DSectionProbeEnabled(const QUuid& meshUuid, bool enabled);
+	// The axes the plot is drawn with: the probe's readout then shows the DATA value at the hovered point (the mesh holds scaled coordinates on a log / symlog axis).
+	void setPlot3DSectionProbeAxes(const QUuid& meshUuid, const std::array<Plot3DAxisConfig, 3>& axes);
 	// Points drawn over a Plot3D mesh in its own coordinates (position(3) + colour(3) per point, `size` pixels): the moving
 	// heads of an animated pathline plot. Not scene content - not saved, exported, picked or path traced.
 	void setPlot3DPointOverlay(const QUuid& meshUuid, std::vector<float> positionsAndColours, float size);
@@ -2151,6 +2153,7 @@ private:
 	struct Plot3DPointOverlay { std::vector<float> data; float size = 6.0f; };
 	QHash<QUuid, Plot3DPointOverlay> _plot3DPointOverlays;
 	QSet<QUuid> _sectionProbeMeshes;
+	QHash<QUuid, std::array<Plot3DAxisConfig, 3>> _sectionProbeAxes;
 	QHash<QUuid, SectionProbeCache> _sectionProbeCaches;
 	QUuid _sectionProbeMesh;            // the mesh the curves below belong to (null = nothing drawn)
 	QVector3D _sectionProbePoint;       // hovered point in the mesh's own coordinates

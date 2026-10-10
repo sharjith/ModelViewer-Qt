@@ -235,7 +235,10 @@ void ModelViewer::restorePlot3DSessions(QVector<PendingPlot3DRestore>& restores,
 
 	_activePlot3DMesh = restored.contains(activeMesh) ? activeMesh : (restored.isEmpty() ? QUuid() : restored.front());
 	if (!_activePlot3DMesh.isNull())
+	{
+		unifyPlot3DAxes(_activePlot3DMesh); // a file saved with different axes per plot (older versions) opens on the active plot's, shared
 		activatePlot3DSession(_activePlot3DMesh); // axes box, legend and the 3D Plot tab
+	}
 	_viewportWidget->updateView();
 
 	_documentSaved = savedFlag;

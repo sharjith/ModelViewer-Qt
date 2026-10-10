@@ -490,6 +490,87 @@ namespace
 		CHECK(plot3DAxisScaleSlope(123.0, linear) == 1.0);
 		CHECK(std::abs(plot3DAxisScaleSlope(100.0, logAxis) - 1.0 / (100.0 * std::log(10.0))) < 1.0e-7);
 		CHECK(plot3DAxisScaleSlope(-5.0, logAxis) == 1.0); // not placeable: neutral
+		{
+			// Shared axes: can these axes place a plot's data? Log 10 needs a positive minimum; SymLog a positive threshold; non-finite bounds never fit.
+			std::array<Plot3DAxisConfig, 3> shared{ linear, linear, linear };
+			const std::array<double, 3> dataLo{ 0.0, 1.0, -3.0 }, dataHi{ 4.0, 9.0, 3.0 };
+			int bad = -1;
+			CHECK(plot3DAxesFitBounds(shared, dataLo, dataHi, &bad)); // all Linear: anything fits
+			shared[1] = logAxis;
+			CHECK(plot3DAxesFitBounds(shared, dataLo, dataHi, &bad)); // Y from 1: fits
+			shared[0] = logAxis;
+			CHECK(!plot3DAxesFitBounds(shared, dataLo, dataHi, &bad) && bad == 0); // X reaches 0: the first axis that cannot
+			shared[0] = linear;
+			shared[2] = logAxis;
+			CHECK(!plot3DAxesFitBounds(shared, dataLo, dataHi, &bad) && bad == 2); // Z reaches below zero
+			shared[2] = symlog;
+			CHECK(plot3DAxesFitBounds(shared, dataLo, dataHi)); // SymLog places any sign
+			Plot3DAxisConfig badSymlog = symlog;
+			badSymlog.symlogLinearThreshold = 0.0;
+			shared[2] = badSymlog;
+			CHECK(!plot3DAxesFitBounds(shared, dataLo, dataHi, &bad) && bad == 2);
+			// Quiver arrows carried to another scale keep their length and are re-aimed by the local stretch of the scale at their site.
+			{
+				std::array<Plot3DAxisConfig, 3> lin{ linear, linear, linear }, logX{ logAxis, linear, linear };
+				std::vector<float> vectors{ 1.0f, 0.0f, 0.0f,   1.0f, 1.0f, 0.0f,   0.0f, 3.0f, 4.0f };
+				const std::vector<float> sites{ 100.0f, 0.0f, 0.0f,   100.0f, 0.0f, 0.0f,   100.0f, 0.0f, 0.0f };
+				plot3DStretchVectors(vectors, sites, lin, logX);
+				auto length = [&vectors](std::size_t i) { return std::sqrt(vectors[i * 3] * vectors[i * 3] + vectors[i * 3 + 1] * vectors[i * 3 + 1] + vectors[i * 3 + 2] * vectors[i * 3 + 2]); };
+				CHECK(std::abs(length(0) - 1.0f) < 1.0e-5f && std::abs(length(1) - std::sqrt(2.0f)) < 1.0e-5f && std::abs(length(2) - 5.0f) < 1.0e-5f); // lengths kept
+				CHECK(vectors[0] > 0.999f && std::abs(vectors[1]) < 1.0e-6f); // along x stays along x
+				CHECK(vectors[4] > 10.0f * vectors[3] && vectors[3] > 0.0f);   // (1,1,0): x is squeezed by the log (slope 1/(100 ln 10) = 0.0043), y is not: mostly y
+				CHECK(std::abs(vectors[6]) < 1.0e-6f && std::abs(vectors[7] - 3.0f) < 1.0e-5f && std::abs(vectors[8] - 4.0f) < 1.0e-5f); // no x part: unchanged
+				std::vector<float> same{ 1.0f, 2.0f, 3.0f };
+				plot3DStretchVectors(same, { 5.0f, 5.0f, 5.0f }, lin, lin);
+				CHECK(same[0] == 1.0f && same[1] == 2.0f && same[2] == 3.0f); // same axes: untouched
+				std::vector<float> nowhere{ 1.0f, 1.0f, 0.0f };
+				plot3DStretchVectors(nowhere, { -5.0f, 0.0f, 0.0f }, lin, logX); // a site that cannot be placed on the log axis: neutral stretch
+				CHECK(std::abs(nowhere[0] - std::sqrt(0.5f) * std::sqrt(2.0f)) < 1.0e-5f);
+			}
+			// A voxel grid on a non-linear axis is resampled onto a grid regular in the scaled space (nearest data cell under each output cell's centre).
+			{
+				const int dim[3] = { 4, 2, 1 };
+				const double origin[3] = { 0.0, 0.0, 0.0 };
+				const std::vector<float> cells{ 1.0f, 2.0f, 3.0f, 4.0f,   5.0f, std::numeric_limits<float>::quiet_NaN(), 7.0f, 8.0f }; // x fastest
+				Plot3DResampledVoxels same;
+				std::array<Plot3DAxisConfig, 3> lin{ linear, linear, linear };
+				CHECK(plot3DResampleVoxels(cells, dim, origin, lin, same) && same.dim[0] == 4 && same.dim[1] == 2 && same.dim[2] == 1 && same.values.size() == 8);
+				CHECK(same.minimum[0] == 0.0 && same.size[0] == 1.0 && same.values[0] == 1.0f && same.values[3] == 4.0f && std::isnan(same.values[5]) && same.values[7] == 8.0f); // Linear: copied
+				Plot3DAxisConfig sym = linear;
+				sym.scale = Plot3DAxisScale::SymLog;
+				sym.symlogLinearThreshold = 1.0;
+				std::array<Plot3DAxisConfig, 3> symX{ sym, linear, linear };
+				Plot3DResampledVoxels sx;
+				CHECK(plot3DResampleVoxels(cells, dim, origin, symX, sx) && sx.dim[0] == 8 && sx.dim[1] == 2 && sx.dim[2] == 1); // the scaled axis gets twice the cells, the others none more
+				const double top = plot3DTransformAxisValue(4.0, sym);
+				CHECK(sx.minimum[0] == 0.0 && std::abs(sx.size[0] * 8 - top) < 1.0e-9); // spans T(0) .. T(4)
+				// the data cell under each output centre rises monotonically from 0 to 3, every data cell is reached, and the empty cell stays empty
+				bool monotonic = true, reached[4] = { false, false, false, false };
+				float last = 0.0f;
+				for (int i = 0; i < 8; ++i)
+				{
+					const float v = sx.values[static_cast<std::size_t>(i)]; // row y = 0: values 1..4
+					monotonic = monotonic && v >= last;
+					last = v;
+					reached[static_cast<int>(v) - 1] = true;
+				}
+				CHECK(monotonic && reached[0] && reached[1] && reached[2] && reached[3]);
+				bool emptyStays = false;
+				for (int i = 0; i < 8; ++i)
+					emptyStays = emptyStays || std::isnan(sx.values[static_cast<std::size_t>(8 + i)]); // row y = 1 holds a NaN cell (x index 1)
+				CHECK(emptyStays);
+				std::array<Plot3DAxisConfig, 3> logX{ logAxis, linear, linear };
+				Plot3DResampledVoxels bad;
+				CHECK(!plot3DResampleVoxels(cells, dim, origin, logX, bad)); // a grid reaching 0 cannot be on a Log 10 axis
+				const double shifted[3] = { 1.0, 0.0, 0.0 };
+				CHECK(plot3DResampleVoxels(cells, dim, shifted, logX, bad) && bad.dim[0] == 8); // from 1 it can
+				const int wrong[3] = { 3, 2, 1 };
+				CHECK(!plot3DResampleVoxels(cells, wrong, origin, lin, bad)); // the size must match
+			}
+			shared[2] = linear;
+			const std::array<double, 3> nan3{ 0.0, std::numeric_limits<double>::quiet_NaN(), 0.0 };
+			CHECK(!plot3DAxesFitBounds(shared, nan3, dataHi, &bad) && bad == 1);
+		}
 		Plot3DAxisController controller;
 		std::array<Plot3DAxisConfig, 3> axes{ linear, linear, linear };
 		const double lo[3] = { 0.0, 10.0, -5.0 }, hi[3] = { 4.0, 20.0, 5.0 };

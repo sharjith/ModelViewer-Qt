@@ -37,6 +37,11 @@ Plot3DMeshUpload plot3DPrepareUpload(const Plot3DMeshData& data, bool dataNormal
 // or below zero) is left where it is.
 void plot3DRescaleVertices(std::vector<Vertex>& vertices, const std::array<Plot3DAxisConfig, 3>& from, const std::array<Plot3DAxisConfig, 3>& to);
 
+// A voxel plot's volume and proxy bounds as they are drawn with `axes`: rebuilt from the plot's own table (so repeated scale changes never degrade it)
+// and, on a non-linear axis, resampled onto a grid regular in the scaled space. False when the table cannot be read or the extent cannot be placed.
+struct VolumeGrid;
+bool plot3DVoxelVolumeForSession(const Plot3DSession& session, const std::array<Plot3DAxisConfig, 3>& axes, VolumeGrid& volume, std::vector<Vertex>& proxy);
+
 // A CSV-backed plot's table, stored with the plot so Edit Plot can reopen it.
 struct Plot3DCsvBinding
 {

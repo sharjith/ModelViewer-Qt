@@ -194,6 +194,25 @@ drawn in the axes box at that data point and follows the plot's visibility; save
 Axis scales: set an axis to SymLog (any data) or Log 10 (a range above zero, for example scatter_error_bars.csv's Z). The plot is
 re-laid out on the new scale and the box keeps its size; Linear restores it. Log 10 over a range reaching zero is refused with a message.
 
+Shared axes: every plot in the document is drawn with the SAME axes (scales, ranges, labels). Build scatter_error_bars.csv (Scatter) and then line_growth.csv
+(Line / Curve; z = 10^(x/2), 1 to 100, and positive throughout): in the 3D Plot tab set the Z axis to Log 10 - BOTH plots are re-laid out on the log scale
+together (the line becomes straight, the scatter moves with it), whichever plot is selected. Switch the selected plot in the plot list: the axes shown
+are the same. A plot built later joins the axes the box already has. Build line_helix.csv (its z reaches 0) while Z is Log 10: the status line says the Z
+axis was returned to Linear (a Log 10 axis cannot show it) and every plot goes back with it. Trying to set Z to Log 10 with line_helix.csv or
+scatter_clusters.csv among the plots is refused with a message naming the reason. Save and reopen: the plots come back on the same shared axes (a file
+saved by an older version with different axes per plot opens on the selected plot's axes, shared).
+
+Quiver on a non-linear axis: build quiver_vortex.csv (Vector (Quiver) U, V, W) and set the X axis to SymLog (its values are negative and positive, which only
+SymLog can show). The arrow sites move with the scale and each ARROW IS RE-AIMED by the local stretch of the scale at its site: an arrow near x = 0 (where
+SymLog stretches most) keeps its direction, and an arrow far out on x (where the scale is compressed) turns towards the unstretched Y direction - the arrows still
+point along the same data direction as seen on the scaled axes. Every arrow keeps its length (it carries the magnitude) and its colour. Back to Linear
+restores the original directions.
+
+Voxels and the hover readout on a non-linear axis: build voxel_sphere.csv and set the X axis to SymLog (voxel indices start at 0, which a Log 10 axis cannot show). The
+volume is resampled onto a grid regular in the scaled space, so the sphere looks stretched near 0 and squeezed further out, and its box matches the axes; setting
+Linear again restores the sphere exactly (the grid is rebuilt from the plot's own table each time). On a Surface plot (surface_ripple.csv) tick "Show section curves on
+hover" and set the Z axis to SymLog: the X / Y / Z values shown at the cursor are the plot's DATA values, not positions on the scaled axes.
+
 Image on a plane: choose Data source "Image on a plane", pick image_gradient.png and choose the XY plane; the ranges start at X -3..3, Y -2..2, Z 0..2
 (the plane sits at the Z minimum, here 0). The picture appears on that rectangle with its "L" mark in the top-left corner (viewed from above).
 The ranges adapt to the picture's shape when you pick it or change the plane (image_gradient.png is 320 x 200). Try the XZ and YZ planes, then Edit Plot (change the plane or the ranges) and Rebuild; export to GLB to check the texture comes with it.

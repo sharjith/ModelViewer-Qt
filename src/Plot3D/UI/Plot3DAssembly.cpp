@@ -163,11 +163,9 @@ namespace
 	}
 
 	// ---- Voxel: a volume grid owned by the viewport, attached to a small proxy point mesh -------------------------------------------
-	std::vector<Vertex> voxelProxyVertices(const Plot3DVoxelGrid& grid)
+	std::vector<Vertex> voxelProxyBox(const float minimum[3], const float maximum[3])
 	{
 		std::vector<Vertex> vertices(8);
-		const float minimum[3] = { grid.origin[0], grid.origin[1], grid.origin[2] };
-		const float maximum[3] = { grid.origin[0] + grid.dimX, grid.origin[1] + grid.dimY, grid.origin[2] + grid.dimZ };
 		for (int corner = 0; corner < 8; ++corner)
 		{
 			Vertex& vertex = vertices[static_cast<std::size_t>(corner)];
@@ -181,6 +179,13 @@ namespace
 				uv = glm::vec2(0.0f);
 		}
 		return vertices;
+	}
+
+	std::vector<Vertex> voxelProxyVertices(const Plot3DVoxelGrid& grid)
+	{
+		const float minimum[3] = { grid.origin[0], grid.origin[1], grid.origin[2] };
+		const float maximum[3] = { grid.origin[0] + grid.dimX, grid.origin[1] + grid.dimY, grid.origin[2] + grid.dimZ };
+		return voxelProxyBox(minimum, maximum);
 	}
 
 	VolumeGrid voxelVolume(Plot3DVoxelGrid&& grid)
@@ -204,6 +209,41 @@ namespace
 	QVector<QPointF> voxelOpacity()
 	{
 		return plot3DVoxelOpacity();
+	}
+
+	// The volume and proxy of a voxel grid drawn with `axes`: the grid itself when every axis is Linear, else resampled onto a regular grid of the scaled space.
+	bool voxelOnAxes(Plot3DVoxelGrid&& grid, const std::array<Plot3DAxisConfig, 3>& axes, VolumeGrid& volume, std::vector<Vertex>& proxy)
+	{
+		const bool linear = axes[0].scale == Plot3DAxisScale::Linear && axes[1].scale == Plot3DAxisScale::Linear && axes[2].scale == Plot3DAxisScale::Linear;
+		if (linear)
+		{
+			proxy = voxelProxyVertices(grid);
+			volume = voxelVolume(std::move(grid));
+			return true;
+		}
+		const int dim[3] = { grid.dimX, grid.dimY, grid.dimZ };
+		const double origin[3] = { grid.origin[0], grid.origin[1], grid.origin[2] };
+		Plot3DResampledVoxels resampled;
+		if (!plot3DResampleVoxels(grid.values, dim, origin, axes, resampled))
+			return false;
+		volume = VolumeGrid();
+		volume.values = std::move(resampled.values);
+		volume.dimX = resampled.dim[0];
+		volume.dimY = resampled.dim[1];
+		volume.dimZ = resampled.dim[2];
+		float minimum[3], maximum[3];
+		for (int axis = 0; axis < 3; ++axis)
+		{
+			volume.origin[axis] = static_cast<float>(resampled.minimum[axis]);
+			volume.voxelSize[axis] = static_cast<float>(resampled.size[axis]);
+			minimum[axis] = static_cast<float>(resampled.minimum[axis]);
+			maximum[axis] = static_cast<float>(resampled.minimum[axis] + resampled.size[axis] * resampled.dim[axis]);
+		}
+		volume.fieldMin = 0.0f;
+		volume.fieldMax = 1.0f;
+		volume.label = QObject::tr("Occupancy");
+		proxy = voxelProxyBox(minimum, maximum);
+		return true;
 	}
 
 	// ---- previews ------------------------------------------------------------------------------------------------------------------------
@@ -582,6 +622,19 @@ namespace
 	}
 }
 
+bool plot3DVoxelVolumeForSession(const Plot3DSession& session, const std::array<Plot3DAxisConfig, 3>& axes, VolumeGrid& volume, std::vector<Vertex>& proxy)
+{
+	if (!session.editableCsv)
+		return false;
+	Plot3DCsvTable table;
+	Plot3DDataset dataset;
+	Plot3DVoxelGrid grid;
+	if (!parsePlot3DCsv(session.csvSource, session.csvOptions, table) || !buildPlot3DDataset(table, Plot3DPrimitive::Voxel, session.columnMapping, dataset)
+		|| !std::holds_alternative<Plot3DVoxelData>(dataset.content) || !buildPlot3DVoxelGrid(std::get<Plot3DVoxelData>(dataset.content), grid))
+		return false;
+	return voxelOnAxes(std::move(grid), axes, volume, proxy);
+}
+
 void plot3DRescaleVertices(std::vector<Vertex>& vertices, const std::array<Plot3DAxisConfig, 3>& from, const std::array<Plot3DAxisConfig, 3>& to)
 {
 	if (plot3DSameAxisScale(from[0], to[0]) && plot3DSameAxisScale(from[1], to[1]) && plot3DSameAxisScale(from[2], to[2]))
@@ -836,8 +889,18 @@ bool plot3DRebuild(ModelViewer* viewer, const QUuid& meshUuid, const Plot3DGener
 			return false;
 		}
 		mesh->setPrimitiveMode(GL_POINTS);
-		mesh->setMeshData(upSiteVertices(sites), sites.indices);
+		std::vector<Vertex> siteVertices = upSiteVertices(sites);
 		GlyphSet glyphs = quiverGlyphs(quiver, dataset);
+		{
+			// The plot may already be on a non-linear axis: the sites move with the scale and each arrow is re-aimed by its stretch.
+			std::vector<float> positions(glyphs.anchors.size());
+			for (std::size_t i = 0; i + 2 < glyphs.anchors.size(); i += 3)
+				for (int axis = 0; axis < 3; ++axis)
+					positions[i + static_cast<std::size_t>(axis)] = glyphs.anchors[i] < siteVertices.size() ? siteVertices[glyphs.anchors[i]].Position[axis] : 0.0f;
+			plot3DStretchVectors(glyphs.vectors, positions, std::array<Plot3DAxisConfig, 3>{}, updated.axes);
+			plot3DRescaleVertices(siteVertices, std::array<Plot3DAxisConfig, 3>{}, updated.axes);
+		}
+		mesh->setMeshData(siteVertices, sites.indices);
 		updated.values = glyphs.values;
 		updated.valid.assign(updated.values.size(), true);
 		newValueMinimum = glyphs.fieldMin; newValueMaximum = glyphs.fieldMax; haveValues = true;
@@ -855,8 +918,16 @@ bool plot3DRebuild(ModelViewer* viewer, const QUuid& meshUuid, const Plot3DGener
 			return false;
 		}
 		mesh->setPrimitiveMode(GL_POINTS);
-		mesh->setMeshData(voxelProxyVertices(grid), {});
-		viewport->setSimulationVolume(updated.meshUuid, voxelVolume(std::move(grid)), updated.colormap, voxelOpacity());
+		VolumeGrid volume;
+		std::vector<Vertex> proxy;
+		if (!voxelOnAxes(std::move(grid), updated.axes, volume, proxy)) // the plot may already be on a symlog axis: drawn resampled
+		{
+			setError(error, QCoreApplication::translate("Plot3DPanel", "The voxel grid cannot be placed on the current axes."));
+			viewport->doneCurrent();
+			return false;
+		}
+		mesh->setMeshData(proxy, {});
+		viewport->setSimulationVolume(updated.meshUuid, std::move(volume), updated.colormap, voxelOpacity());
 		updated.values.clear(); updated.valid.clear();
 		newValueMinimum = 0.0f; newValueMaximum = 1.0f; haveValues = true;
 	}
