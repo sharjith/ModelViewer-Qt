@@ -2858,8 +2858,8 @@ Il modello può essere caricato parzialmente</translation>
         <location filename="../ui/App/MainWindow.ui" line="209"/>
         <location filename="../src/App/MainWindow.cpp" line="256"/>
         <location filename="../src/App/MainWindow.cpp" line="1036"/>
-        <source>Simulation</source>
-        <translation>Simulazione</translation>
+        <source>Simulation Results</source>
+        <translation>Risultati di simulazione</translation>
     </message>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="217"/>
@@ -12169,8 +12169,18 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
     <name>QuickHelpDialog</name>
     <message>
         <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
-        <source>Simulation</source>
-        <translation>Simulazione</translation>
+        <source>&lt;p&gt;ModelViewer displays the results your solver has written; it does not run simulations.&lt;/p&gt;&lt;p&gt;Use &lt;b&gt;File &amp;gt; Import&lt;/b&gt; to open a result in its own document, or &lt;b&gt;Visualization &amp;gt; Simulation Results &amp;gt; Add Result to This Document...&lt;/b&gt; to add one to the current document. Formats: VTK (.vtk, .vtu), CalculiX .frd, Exodus II, CGNS, MED, OpenFOAM (open the .foam file) and VTKHDF. The result is drawn as the model&apos;s outer surface, coloured by a field; the &lt;b&gt;Simulation Results&lt;/b&gt; tab (bottom-left dock) controls how.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;ModelViewer mostra i risultati scritti dal solutore; non esegue simulazioni.&lt;/p&gt;&lt;p&gt;Usa &lt;b&gt;File &amp;gt; Importazioni&lt;/b&gt; per aprire un risultato nel suo documento, oppure &lt;b&gt;Visualizzazione &amp;gt; Risultati di simulazione &amp;gt; Aggiungi risultato a questo documento...&lt;/b&gt; per aggiungerne uno al documento corrente. Formati: VTK (.vtk, .vtu), CalculiX .frd, Exodus II, CGNS, MED, OpenFOAM (apri il file .foam) e VTKHDF. Il risultato è disegnato come superficie esterna del modello, colorata secondo un campo; la scheda &lt;b&gt;Risultati di simulazione&lt;/b&gt; (dock in basso a sinistra) ne controlla l&apos;aspetto.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>The Simulation Results tab</source>
+        <translation>La scheda Risultati di simulazione</translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>&lt;p&gt;&lt;b&gt;Compare&lt;/b&gt; (or &lt;b&gt;Visualization &amp;gt; Simulation Results &amp;gt; Compare Results...&lt;/b&gt;) shows two results side by side or stacked; &lt;b&gt;Same colour range for both&lt;/b&gt; makes equal colours mean equal values and &lt;b&gt;Link the cameras&lt;/b&gt; keeps both views in step. A result is stored inside a &lt;b&gt;.mvf&lt;/b&gt; session together with its view settings, sections, iso-surfaces and streamlines. Results are not drawn by the ray tracer; PBR and ray-tracing modes add little for them.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;b&gt;Confronta&lt;/b&gt; (oppure &lt;b&gt;Visualizzazione &amp;gt; Risultati di simulazione &amp;gt; Confronta risultati...&lt;/b&gt;) mostra due risultati affiancati o sovrapposti; &lt;b&gt;Stesso intervallo di colori per entrambi&lt;/b&gt; fa sì che colori uguali significhino valori uguali e &lt;b&gt;Collega le telecamere&lt;/b&gt; mantiene sincronizzate le due viste. Un risultato è salvato in una sessione &lt;b&gt;.mvf&lt;/b&gt; insieme alle impostazioni di vista, sezioni, isosuperfici e linee di flusso. I risultati non sono disegnati dal ray tracer; le modalità PBR e ray tracing aggiungono poco per essi.&lt;/p&gt;</translation>
     </message>
     <message>
         <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
@@ -23026,13 +23036,13 @@ Sono sempre disponibili in Aiuto &gt; Novità.</translation>
     </message>
     <message>
         <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
-        <source>Open FEM and CFD results (VTK, CalculiX, Exodus, CGNS, MED, OpenFOAM, VTKHDF), colour them by any field, play the time steps, probe, cut and chart them, and compare two results side by side.</source>
-        <translation>Apri risultati FEM e CFD (VTK, CalculiX, Exodus, CGNS, MED, OpenFOAM, VTKHDF), colorali per qualsiasi campo, riproduci i passi temporali, sondali, tagliali e tracciali in grafici, e confronta due risultati affiancati.</translation>
+        <source>Open FEM and CFD results (VTK, CalculiX, Exodus, CGNS, MED, OpenFOAM, VTKHDF), colour them by any field, play the time steps, probe, cut and chart them, and compare two results side by side. ModelViewer displays the results your solver has written; it does not run simulations.</source>
+        <translation>Apri risultati FEM e CFD (VTK, CalculiX, Exodus, CGNS, MED, OpenFOAM, VTKHDF), colorali per qualsiasi campo, riproduci i passi temporali, sondali, tagliali e tracciali in grafici, e confronta due risultati affiancati. ModelViewer mostra i risultati scritti dal solutore; non esegue simulazioni.</translation>
     </message>
     <message>
         <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
-        <source>File &gt; Import, Visualization &gt; Simulation, and the Simulation tab</source>
-        <translation>File &gt; Importazioni, Visualizzazione &gt; Simulazione e la scheda Simulazione</translation>
+        <source>File &gt; Import, Visualization &gt; Simulation Results, and the Simulation Results tab</source>
+        <translation>File &gt; Importazioni, Visualizzazione &gt; Risultati di simulazione e la scheda Risultati di simulazione</translation>
     </message>
     <message>
         <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
