@@ -57,6 +57,7 @@ struct Plot3DGenerated
 	Plot3DMeshData mesh;
 	unsigned int primitiveMode = Plot3DGl::kTriangles;
 	QString imagePath; // an image plane: the picture its mesh (which carries UVs) is textured with
+	double imageOpacity = 1.0; // ... and how opaque it is drawn
 };
 
 // Builds the plot a generated spec describes (sources 1..9). A formula surface takes `formulaPrimitive` (Surface or Contour); the

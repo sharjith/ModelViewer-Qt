@@ -30,6 +30,11 @@ struct Plot3DGeneratedSpec
 	// x / y / z ranges above; the third range's minimum is where the plane sits.
 	QString imagePath;
 	int imagePlane = 0;
+	double imageOpacity = 1.0;       // 0 .. 1: how opaque the picture is drawn (1 = as the picture's own alpha says)
+	bool imageBackReadable = false;  // the back of the plane shows the picture the right way round instead of mirrored
+	// Parametric curve (source 3) filled BETWEEN itself and a second curve: z2(t) over the same x(t), y(t). Empty = none (a fill, when on, goes
+	// down to the base plane).
+	QString fillExpression;
 };
 
 // A text note placed at a point in the plot's own data coordinates (not on a mesh surface, so it works for points, lines and

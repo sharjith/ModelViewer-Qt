@@ -174,6 +174,20 @@ the z2 curve, coloured by the band width; the curves cross twice, where the band
 curves, and the Base Z box is unused while a column is chosen. With the column set to (none) the same file fills down to the base
 plane again. Edit Plot, change the column or a z2 value and Rebuild: the band must follow.
 
+Fill between two sets of points (scatter): open scatter_band.csv (columns x, y, z, z2, value), select Scatter, map Colour value to "value", tick
+"Fill to Base Z" and choose "z2" in "or between the plot and column". Preview and Build show a ribbon at each point running from the z value down (or
+up) to its z2 value instead of the base plane; the box includes both. With the column set to (none) the ribbons reach the base plane again.
+
+Fill under or between a generated curve: choose Data source "Parametric curve" and the Helix preset, tick "Fill the curve down to Base Z" (try 0): a
+translucent ribbon runs from the helix down to that plane. Type a second z(t) in "or up to z2(t) =" (for example 2 + sin(t)) and the ribbon runs
+between the helix and that second curve instead (the same x(t), y(t); Base Z is unused). Build, then Edit Plot: the second z(t) and Base Z can be
+changed and Rebuild follows; whether the plot is filled at all was decided when it was built.
+
+Image opacity and the back side (image on a plane, above): the Opacity box (default 100 %) lets what is behind the picture show through; image_gradient_alpha.png
+is a picture whose own transparency (it fades towards the corners) combines with it. Viewed from behind the plane a picture reads mirrored; tick
+"Readable from behind" (image_gradient.png, whose "L" mark shows it) and the back shows it the right way round. The box is only available for an opaque
+picture at 100 % opacity - with a transparent area or a lower opacity both sides would show through each other, so the back stays mirrored.
+
 Text notes: select a plot, then in the 3D Plot tab's "Text notes" group click Add note and edit its X / Y / Z / Text cells. The note is
 drawn in the axes box at that data point and follows the plot's visibility; save and reopen to check it persists.
 

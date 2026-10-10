@@ -508,20 +508,23 @@ bool buildPlot3DScatterFillMesh(const Plot3DScatterData& data, double baseZ, Plo
 		maximumX = std::max(maximumX, sample.position.x);
 	}
 	const double halfWidth = std::max((maximumX - minimumX) * 0.0125, 1.0e-6);
+	const bool between = data.fillTo.size() == data.samples.size(); // a second set of points: ribbons between the two, not down to the base plane
 	out.positions.reserve(data.samples.size() * 12);
 	out.normals.reserve(data.samples.size() * 12);
 	out.values.reserve(data.samples.size() * 4);
 	out.indices.reserve(data.samples.size() * 6);
-	for (const Plot3DSample& sample : data.samples)
+	for (std::size_t i = 0; i < data.samples.size(); ++i)
 	{
-		const Plot3DPoint leftBase{ sample.position.x - halfWidth, sample.position.y, baseZ };
-		const Plot3DPoint rightBase{ sample.position.x + halfWidth, sample.position.y, baseZ };
+		const Plot3DSample& sample = data.samples[i];
+		const double lowZ = between && std::isfinite(data.fillTo[i]) ? data.fillTo[i] : baseZ;
+		const Plot3DPoint leftBase{ sample.position.x - halfWidth, sample.position.y, lowZ };
+		const Plot3DPoint rightBase{ sample.position.x + halfWidth, sample.position.y, lowZ };
 		const Plot3DPoint leftSample{ sample.position.x - halfWidth, sample.position.y, sample.position.z };
 		const Plot3DPoint rightSample{ sample.position.x + halfWidth, sample.position.y, sample.position.z };
 		// Keep every quad counter-clockwise when viewed from +Y. Without this sign-aware ordering, ribbons above the
 		// base had -Y geometric winding but +Y vertex normals, while ribbons below the base had +Y for both. The
 		// renderer consequently treated the positive-Z cluster as back-facing and reduced its green ramp to black.
-		const std::array<Plot3DPoint, 4> points = sample.position.z >= baseZ
+		const std::array<Plot3DPoint, 4> points = sample.position.z >= lowZ
 			? std::array<Plot3DPoint, 4>{ leftBase, leftSample, rightSample, rightBase }
 			: std::array<Plot3DPoint, 4>{ leftBase, rightBase, rightSample, leftSample };
 		const unsigned int first = static_cast<unsigned int>(out.vertexCount());

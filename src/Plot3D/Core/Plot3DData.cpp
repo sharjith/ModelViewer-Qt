@@ -85,7 +85,7 @@ namespace
 				}
 				if (ch.isSpace())
 					continue;
-				return fail(error, QStringLiteral("Unexpected text after a closing quote on line %1.").arg(physicalLine));
+				return fail(error, QObject::tr("Unexpected text after a closing quote on line %1.").arg(physicalLine));
 			}
 
 			if (ch == QLatin1Char('"') && field.trimmed().isEmpty())
@@ -106,7 +106,7 @@ namespace
 				field += ch;
 		}
 		if (quoted)
-			return fail(error, QStringLiteral("Unterminated quoted field at the end of the input."));
+			return fail(error, QObject::tr("Unterminated quoted field at the end of the input."));
 		if (!field.isEmpty() || !row.isEmpty() || closedQuote || fieldWasQuoted)
 			finishRow();
 		return true;
@@ -117,11 +117,11 @@ namespace
 	bool numberAt(const Plot3DCsvTable& table, std::size_t row, int column, const QString& role, double& value, QString* error)
 	{
 		if (!columnValid(table, column))
-			return fail(error, QStringLiteral("The %1 column is not selected or is outside the table.").arg(role));
+			return fail(error, QObject::tr("The %1 column is not selected or is outside the table.").arg(role));
 		bool ok = false;
 		value = QLocale::c().toDouble(table.rows[row][column].trimmed(), &ok);
 		if (!ok || !std::isfinite(value))
-			return fail(error, QStringLiteral("Row %1 has an invalid %2 value in column '%3'.")
+			return fail(error, QObject::tr("Row %1 has an invalid %2 value in column '%3'.")
 				.arg(row + 1).arg(role, table.headers[column]));
 		return true;
 	}
@@ -170,12 +170,12 @@ bool parsePlot3DCsv(const QString& text, const Plot3DCsvOptions& options, Plot3D
 	if (error) error->clear();
 	if (options.delimiter.isNull() || options.delimiter == QLatin1Char('"') || options.delimiter == QLatin1Char('\r')
 	    || options.delimiter == QLatin1Char('\n'))
-		return fail(error, QStringLiteral("Choose a valid one-character delimiter."));
+		return fail(error, QObject::tr("Choose a valid one-character delimiter."));
 	std::vector<QStringList> records;
 	if (!parseRecords(text, options.delimiter, records, error))
 		return false;
 	if (records.empty())
-		return fail(error, QStringLiteral("The table is empty."));
+		return fail(error, QObject::tr("The table is empty."));
 
 	std::size_t firstData = 0;
 	if (options.firstRowIsHeader)
@@ -186,25 +186,25 @@ bool parsePlot3DCsv(const QString& text, const Plot3DCsvOptions& options, Plot3D
 	else
 	{
 		for (int column = 0; column < records.front().size(); ++column)
-			out.headers.push_back(QStringLiteral("Column %1").arg(column + 1));
+			out.headers.push_back(QObject::tr("Column %1").arg(column + 1));
 	}
 	if (out.headers.isEmpty())
-		return fail(error, QStringLiteral("The table has no columns."));
+		return fail(error, QObject::tr("The table has no columns."));
 	for (int column = 0; column < out.headers.size(); ++column)
 	{
 		out.headers[column] = out.headers[column].trimmed();
 		if (out.headers[column].isEmpty())
-			out.headers[column] = QStringLiteral("Column %1").arg(column + 1);
+			out.headers[column] = QObject::tr("Column %1").arg(column + 1);
 	}
 	for (std::size_t row = firstData; row < records.size(); ++row)
 	{
 		if (records[row].size() != out.headers.size())
-			return fail(error, QStringLiteral("Row %1 has %2 columns; expected %3.")
+			return fail(error, QObject::tr("Row %1 has %2 columns; expected %3.")
 				.arg(row + 1).arg(records[row].size()).arg(out.headers.size()));
 		out.rows.push_back(std::move(records[row]));
 	}
 	if (out.rows.empty())
-		return fail(error, QStringLiteral("The table has column names but no data rows."));
+		return fail(error, QObject::tr("The table has column names but no data rows."));
 	return true;
 }
 
@@ -214,9 +214,9 @@ bool buildPlot3DDataset(const Plot3DCsvTable& table, Plot3DPrimitive primitive, 
 	out = Plot3DDataset();
 	if (error) error->clear();
 	if (table.empty() || table.columnCount() == 0)
-		return fail(error, QStringLiteral("The table has no data."));
+		return fail(error, QObject::tr("The table has no data."));
 	if (!(options.defaultBarWidth > 0.0) || !(options.defaultBarDepth > 0.0))
-		return fail(error, QStringLiteral("Bar width and depth must be positive."));
+		return fail(error, QObject::tr("Bar width and depth must be positive."));
 	out.primitive = primitive;
 	out.name = plot3DPrimitiveName(primitive);
 	// Carry the chosen source-column names into the persistent axis controls.
@@ -279,8 +279,18 @@ bool buildPlot3DDataset(const Plot3DCsvTable& table, Plot3DPrimitive primitive, 
 			{
 				double value = std::numeric_limits<double>::quiet_NaN();
 				if (mapping.error >= 0 && !numberAt(table, row, mapping.error, QStringLiteral("error"), value, error)) return false;
-				if (std::isfinite(value) && value < 0.0) return fail(error, QStringLiteral("Row %1 has a negative error.").arg(row + 1));
+				if (std::isfinite(value) && value < 0.0) return fail(error, QObject::tr("Row %1 has a negative error.").arg(row + 1));
 				scatter.errors.push_back(value);
+			}
+			if (mapping.fillTo >= 0)
+			{
+				scatter.fillTo.reserve(table.rows.size());
+				for (std::size_t row = 0; row < table.rows.size(); ++row)
+				{
+					double value = 0.0;
+					if (!numberAt(table, row, mapping.fillTo, QStringLiteral("second curve Z"), value, error)) return false;
+					scatter.fillTo.push_back(value);
+				}
 			}
 			out.content = std::move(scatter);
 		}
@@ -302,7 +312,7 @@ bool buildPlot3DDataset(const Plot3DCsvTable& table, Plot3DPrimitive primitive, 
 			    || !optionalNumberAt(table, row, mapping.value, QStringLiteral("value"), bar.height, bar.value, error))
 				return false;
 			if (!(bar.width > 0.0) || !(bar.depth > 0.0))
-				return fail(error, QStringLiteral("Row %1 has a non-positive bar width or depth.").arg(row + 1));
+				return fail(error, QObject::tr("Row %1 has a non-positive bar width or depth.").arg(row + 1));
 			data.bars.push_back(bar);
 		}
 		out.content = std::move(data);
@@ -315,16 +325,16 @@ bool buildPlot3DDataset(const Plot3DCsvTable& table, Plot3DPrimitive primitive, 
 		for (std::size_t row = 0; row < table.rows.size(); ++row)
 		{
 			double xyz[3], occupancy = 1.0;
-			if (!numberAt(table, row, mapping.x, QStringLiteral("X index"), xyz[0], error)
-			    || !numberAt(table, row, mapping.y, QStringLiteral("Y index"), xyz[1], error)
-			    || !numberAt(table, row, mapping.z, QStringLiteral("Z index"), xyz[2], error)
+			if (!numberAt(table, row, mapping.x, QObject::tr("X index"), xyz[0], error)
+			    || !numberAt(table, row, mapping.y, QObject::tr("Y index"), xyz[1], error)
+			    || !numberAt(table, row, mapping.z, QObject::tr("Z index"), xyz[2], error)
 			    || !optionalNumberAt(table, row, mapping.value, QStringLiteral("occupancy"), 1.0, occupancy, error))
 				return false;
 			for (double coordinate : xyz)
 				if (coordinate < 0.0 || coordinate > static_cast<double>(std::numeric_limits<int>::max()) || std::floor(coordinate) != coordinate)
-					return fail(error, QStringLiteral("Row %1 has a voxel index that is not a non-negative integer.").arg(row + 1));
+					return fail(error, QObject::tr("Row %1 has a voxel index that is not a non-negative integer.").arg(row + 1));
 			if (occupancy < 0.0 || occupancy > 1.0)
-				return fail(error, QStringLiteral("Row %1 has an occupancy outside the 0 to 1 range.").arg(row + 1));
+				return fail(error, QObject::tr("Row %1 has an occupancy outside the 0 to 1 range.").arg(row + 1));
 			data.voxels.push_back({ static_cast<int>(xyz[0]), static_cast<int>(xyz[1]), static_cast<int>(xyz[2]), occupancy });
 		}
 		out.content = std::move(data);

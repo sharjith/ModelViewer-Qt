@@ -145,6 +145,11 @@ void Plot3DPanel::updateSourceMode()
 		const bool image = kind == Plot3DSourceKind::ImageSurface;
 		_formulaLayout->setRowVisible(_imageFileLabel, image);
 		_formulaLayout->setRowVisible(_imagePlaneLabel, image);
+		_formulaLayout->setRowVisible(_imageOpacityLabel, image);
+		_formulaLayout->setRowVisible(_imageBackReadable, image);
+		const bool curve = kind == Plot3DSourceKind::ParametricCurve;
+		_formulaLayout->setRowVisible(_curveFillLabel, curve);
+		_formulaLayout->setRowVisible(_curveFillExpressionLabel, curve);
 		_formulaLayout->setRowVisible(_formulaYRangeLabel, ui->yRange);
 		_formulaLayout->setRowVisible(_formulaZRangeLabel, ui->zRange);
 		for (QWidget* samples : { static_cast<QWidget*>(_formulaXSamples), static_cast<QWidget*>(_formulaYSamples), static_cast<QWidget*>(_formulaZSamples) })
@@ -221,7 +226,10 @@ void Plot3DPanel::applySpec(const Plot3DGeneratedSpec& spec)
 	{
 		_imageFile->setText(spec.imagePath);
 		_imagePlane->setCurrentIndex(std::max(0, _imagePlane->findData(spec.imagePlane)));
+		_imageOpacity->setValue(static_cast<int>(std::lround(std::clamp(spec.imageOpacity, 0.0, 1.0) * 100.0)));
+		_imageBackReadable->setChecked(spec.imageBackReadable);
 	}
+	_curveFillExpression->setText(spec.fillExpression);
 }
 
 void Plot3DPanel::browseImage()
@@ -297,6 +305,10 @@ Plot3DGeneratedSpec Plot3DPanel::currentGeneratedSpec() const
 	spec.title = _formulaTitle->text().trimmed();
 	spec.imagePath = _imageFile->text().trimmed();
 	spec.imagePlane = _imagePlane->currentData().toInt();
+	spec.imageOpacity = _imageOpacity->value() / 100.0;
+	spec.imageBackReadable = _imageBackReadable->isChecked();
+	if (kind == Plot3DSourceKind::ParametricCurve && _curveFillCheck->isChecked())
+		spec.fillExpression = _curveFillExpression->text().trimmed();
 	spec.expression = _formulaExpression->text();
 	spec.xExpression = _parametricX->text(); spec.yExpression = _parametricY->text(); spec.zExpression = _parametricZ->text();
 	spec.xMinimum = _formulaXMinimum->value(); spec.xMaximum = _formulaXMaximum->value();
@@ -338,9 +350,11 @@ Plot3DMeshOptions Plot3DPanel::currentMeshOptions() const
 	options.stems = _stemEnabled->isChecked();
 	options.errorBars = _errorBarsEnabled->isChecked();
 	// The fill / stem / error-bar controls belong to the table source; a generated curve keeps its plain line.
-	const bool table = currentSource() == Plot3DSourceKind::Csv;
-	options.filled = table && _scatterFillEnabled->isChecked();
-	options.baseZ = _stemBaseZ->value();
+	const Plot3DSourceKind kind = currentSource();
+	const bool table = kind == Plot3DSourceKind::Csv;
+	const bool curve = kind == Plot3DSourceKind::ParametricCurve; // ... except that it can be filled, down to a base plane or to a second curve
+	options.filled = (table && _scatterFillEnabled->isChecked()) || (curve && _curveFillCheck->isChecked());
+	options.baseZ = curve ? _curveFillBaseZ->value() : _stemBaseZ->value();
 	return options;
 }
 

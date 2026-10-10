@@ -157,8 +157,9 @@ void Plot3DPanel::rebuildCurrent()
 		binding = csvBinding();
 		csv = &binding;
 	}
-	const double baseZ = _stemBaseZ->value();
-	if (!plot3DRebuild(_modelViewer, _editingMeshUuid, generated, csv, &error, kind == Plot3DSourceKind::Csv ? &baseZ : nullptr))
+	const bool curve = kind == Plot3DSourceKind::ParametricCurve;
+	const double baseZ = curve ? _curveFillBaseZ->value() : _stemBaseZ->value();
+	if (!plot3DRebuild(_modelViewer, _editingMeshUuid, generated, csv, &error, (kind == Plot3DSourceKind::Csv || (curve && _curveFillCheck->isChecked())) ? &baseZ : nullptr))
 	{
 		QMessageBox::warning(this, tr("Rebuild Plot"), error);
 		return;
@@ -198,6 +199,13 @@ void Plot3DPanel::loadGeneratedPlotForEditing(const Plot3DSession& session)
 		preset->setEnabled(false);
 	}
 	applySpec(spec);
+	// A curve's fill (down to a base plane or to a second curve) stays what it was built as; its Base Z and second z(t) can be edited.
+	if (spec.sourceMode == plot3DSourceInt(Plot3DSourceKind::ParametricCurve))
+	{
+		_curveFillCheck->setChecked(session.isFilledScatter);
+		_curveFillBaseZ->setValue(session.scatterBaseZ);
+		_curveFillCheck->setEnabled(false);
+	}
 	refreshSourcePreview(); // validates the restored definition and enables Rebuild
 	_status->setText(tr("Editing '%1'. Rebuild updates the existing tree entry and keeps its presentation settings.").arg(session.name));
 }

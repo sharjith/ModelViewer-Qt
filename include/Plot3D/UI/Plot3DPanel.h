@@ -57,6 +57,8 @@ private:
 	void refreshTimeSeriesColumns();
 	Plot3DTimeSeriesColumns timeSeriesColumns() const;
 	void updateScatterOptions();
+	void updateCurveFillEnabled();
+	void updateImageOptionsEnabled();
 	void updateContourOverlayRow();
 	void loadCsvPlotForEditing(const Plot3DSession& session);
 	void loadTimeSeriesForEditing(const Plot3DSession& session);
@@ -170,6 +172,15 @@ private:
 	QPushButton* _imageBrowse = nullptr;
 	QLabel* _imagePlaneLabel = nullptr;
 	QComboBox* _imagePlane = nullptr;
+	QLabel* _imageOpacityLabel = nullptr;
+	QSpinBox* _imageOpacity = nullptr;      // percent
+	QCheckBox* _imageBackReadable = nullptr; // the back of the plane shows the picture the right way round
+	// Parametric curve: a fill down to the base plane, or between the curve and a second z(t).
+	QLabel* _curveFillLabel = nullptr;
+	QCheckBox* _curveFillCheck = nullptr;
+	QDoubleSpinBox* _curveFillBaseZ = nullptr;
+	QLabel* _curveFillExpressionLabel = nullptr;
+	QLineEdit* _curveFillExpression = nullptr;
 	QFormLayout* _formulaParameters = nullptr;
 	QHash<QString, QDoubleSpinBox*> _formulaParameterEditors;
 	QHash<const QComboBox*, QVector<Plot3DPresetEntry>> _presetEntries; // each preset combo's presets, as definitions
