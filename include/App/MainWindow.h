@@ -140,6 +140,7 @@ protected:
 
 protected slots:
 	void on_actionExit_triggered(bool checked = false);
+	void on_actionWhatsNew_triggered();
 	void on_actionQuick_Help_triggered();
 	void on_actionTutorial_triggered();
 	void on_actionView_Logs_triggered();
@@ -358,4 +359,6 @@ private:
 	static bool _fileLoadCancelRequested;
 
 	static QuickHelpDialog* _helpDialog;
+	static class WhatsNewDialog* _whatsNewDialog;
+	void showWhatsNew(bool automatic); // automatic: opened by the once-per-version startup rule
 };
