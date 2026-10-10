@@ -10322,11 +10322,6 @@ Punktmenge) füllen, deren Z-Werte in dieser Spalte stehen (gleiches X und Y).</
         <translation>Pfeile (Vektorfeld)</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="202"/>
-        <source>Primitive:</source>
-        <translation>Diagrammtyp:</translation>
-    </message>
-    <message>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="211"/>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="276"/>
         <source>X:</source>

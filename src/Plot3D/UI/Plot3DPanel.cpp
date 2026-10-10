@@ -233,7 +233,7 @@ Plot3DPanel::Plot3DPanel(ModelViewer* modelViewer, QWidget* parent)
 	_primitive->addItem(tr("Bar / Histogram"), QVariant::fromValue(static_cast<int>(Plot3DPrimitive::Bar)));
 	_primitive->addItem(tr("Voxel / Volumetric"), QVariant::fromValue(static_cast<int>(Plot3DPrimitive::Voxel)));
 	_primitive->addItem(tr("Quiver (vector field)"), QVariant::fromValue(static_cast<int>(Plot3DPrimitive::Quiver)));
-	mapping->addRow(tr("Primitive:"), _primitive);
+	mapping->addRow(tr("Plot type:"), _primitive);
 
 	auto* columnsRow = new QHBoxLayout();
 	_columnX = new QComboBox(this);

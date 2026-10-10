@@ -10323,11 +10323,6 @@ insieme di punti) i cui valori Z sono in quella colonna (stessi X e Y).</transla
         <translation>Frecce (campo vettoriale)</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="202"/>
-        <source>Primitive:</source>
-        <translation>Tipo di grafico:</translation>
-    </message>
-    <message>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="211"/>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="276"/>
         <source>X:</source>

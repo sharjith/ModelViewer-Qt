@@ -8350,11 +8350,6 @@ points) whose Z values are in that column (same X and Y).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="202"/>
-        <source>Primitive:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="211"/>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="276"/>
         <source>X:</source>

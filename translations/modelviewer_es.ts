@@ -10323,11 +10323,6 @@ puntos) cuyos valores Z están en esa columna (mismos X e Y).</translation>
         <translation>Flechas (campo vectorial)</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="202"/>
-        <source>Primitive:</source>
-        <translation>Tipo de gráfico:</translation>
-    </message>
-    <message>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="211"/>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="276"/>
         <source>X:</source>

@@ -10320,11 +10320,6 @@ un second ensemble de points) dont les valeurs Z sont dans cette colonne (mêmes
         <translation>Flèches (champ vectoriel)</translation>
     </message>
     <message>
-        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="202"/>
-        <source>Primitive:</source>
-        <translation>Type de graphique :</translation>
-    </message>
-    <message>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="211"/>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="276"/>
         <source>X:</source>
