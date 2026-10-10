@@ -255,7 +255,7 @@ MainWindow::MainWindow(QWidget* parent)
 		// "Open Result..." button (see docs/simulation_results_design.md section 9). Its signals go to whichever
 		// document is active, like the toolbar/menu actions do.
 		_simulationPanel = new SimulationPanel();
-		_documentSecondaryTabWidget->addTab(_simulationPanel, QIcon(":/icons/res/surface_analysis.png"), tr("Simulation"));
+		_documentSecondaryTabWidget->addTab(_simulationPanel, QIcon(":/icons/res/surface_analysis.png"), tr("Simulation Results"));
 		connect(_simulationPanel, &SimulationPanel::openRequested, this, [this]() {
 			if (auto* child = activeMdiChild())
 				child->openSimulationResult();
@@ -1035,7 +1035,7 @@ void MainWindow::retranslateUI()
 	{
 		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_selectionSetsPanel), tr("Selections"));
 		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_sceneStatesPanel), tr("States"));
-		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_simulationPanel), tr("Simulation"));
+		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_simulationPanel), tr("Simulation Results"));
 		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_plot3DControlsPanel), tr("3D Plot"));
 	}
 	if (_simulationPanel)

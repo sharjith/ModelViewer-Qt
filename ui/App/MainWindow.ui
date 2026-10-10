@@ -207,7 +207,7 @@
        <normaloff>:/icons/res/surface_analysis.png</normaloff>:/icons/res/surface_analysis.png</iconset>
      </property>
     <property name="title">
-     <string>Simulation</string>
+     <string>Simulation Results</string>
     </property>
     <addaction name="actionOpenSimulationResult"/>
     <addaction name="separator"/>

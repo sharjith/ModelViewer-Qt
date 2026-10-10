@@ -2301,7 +2301,7 @@ Then remove the ones you don&apos;t want with each row&apos;s × button.</source
         <location filename="../ui/App/MainWindow.ui" line="209"/>
         <location filename="../src/App/MainWindow.cpp" line="256"/>
         <location filename="../src/App/MainWindow.cpp" line="1036"/>
-        <source>Simulation</source>
+        <source>Simulation Results</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -10119,7 +10119,17 @@ Z values are in that column (same X and Y).</source>
     <name>QuickHelpDialog</name>
     <message>
         <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
-        <source>Simulation</source>
+        <source>&lt;p&gt;ModelViewer displays the results your solver has written; it does not run simulations.&lt;/p&gt;&lt;p&gt;Use &lt;b&gt;File &amp;gt; Import&lt;/b&gt; to open a result in its own document, or &lt;b&gt;Visualization &amp;gt; Simulation Results &amp;gt; Add Result to This Document...&lt;/b&gt; to add one to the current document. Formats: VTK (.vtk, .vtu), CalculiX .frd, Exodus II, CGNS, MED, OpenFOAM (open the .foam file) and VTKHDF. The result is drawn as the model&apos;s outer surface, coloured by a field; the &lt;b&gt;Simulation Results&lt;/b&gt; tab (bottom-left dock) controls how.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>The Simulation Results tab</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>&lt;p&gt;&lt;b&gt;Compare&lt;/b&gt; (or &lt;b&gt;Visualization &amp;gt; Simulation Results &amp;gt; Compare Results...&lt;/b&gt;) shows two results side by side or stacked; &lt;b&gt;Same colour range for both&lt;/b&gt; makes equal colours mean equal values and &lt;b&gt;Link the cameras&lt;/b&gt; keeps both views in step. A result is stored inside a &lt;b&gt;.mvf&lt;/b&gt; session together with its view settings, sections, iso-surfaces and streamlines. Results are not drawn by the ray tracer; PBR and ray-tracing modes add little for them.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -19865,12 +19875,12 @@ It is always available under Help &gt; What&apos;s New.</source>
     </message>
     <message>
         <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
-        <source>Open FEM and CFD results (VTK, CalculiX, Exodus, CGNS, MED, OpenFOAM, VTKHDF), colour them by any field, play the time steps, probe, cut and chart them, and compare two results side by side.</source>
+        <source>Open FEM and CFD results (VTK, CalculiX, Exodus, CGNS, MED, OpenFOAM, VTKHDF), colour them by any field, play the time steps, probe, cut and chart them, and compare two results side by side. ModelViewer displays the results your solver has written; it does not run simulations.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
-        <source>File &gt; Import, Visualization &gt; Simulation, and the Simulation tab</source>
+        <source>File &gt; Import, Visualization &gt; Simulation Results, and the Simulation Results tab</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
