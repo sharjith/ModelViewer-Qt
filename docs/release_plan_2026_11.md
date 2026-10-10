@@ -1,6 +1,6 @@
-# Release plan: ModelViewer 2026.10.0
+# Release plan: ModelViewer 2026.11.0
 
-Status: **plan, for discussion** (2026-10-10). Nothing in the product changes by writing this plan.
+Status: **agreed, in progress** (decisions recorded in section 5; written 2026-10-10). Nothing in the product changes by writing this plan.
 
 The last release is `Release-2026.7.0` (published 2026-07-05, Windows installer + Linux AppImage). Since then `dev` has gained about **519 commits**, most of them one large new area (Simulation results and 3D data plotting) plus mesh-editing, measurement and viewport work. This plan covers everything a proper release needs besides the code: release notes, help, tutorials, the website, the splash image, packaging, quality checks and publishing.
 
@@ -8,9 +8,9 @@ The last release is `Release-2026.7.0` (published 2026-07-05, Windows installer 
 
 | Item | Proposal |
 |---|---|
-| Version | **2026.10.0** (the project's year.month.patch scheme: 2026.7.0 was July) |
+| Version | **2026.11.0** (decided; the project's year.month.patch scheme: 2026.7.0 was July) |
 | Where the number lives | `CMakeLists.txt` lines 367-369 (`APP_VERSION_MAJOR/MINOR/PATCH`; feeds `config.h`, the About dialog and CPack). `vcpkg.json` still says `1.0.0` (a manifest label only; can follow). |
-| Tag / release | tag `Release-2026.10.0`; `master` brought up to date from `dev` first (master is still at the 2026.7.0 site overhaul) |
+| Tag / release | tag `Release-2026.11.0`; `master` brought up to date from `dev` first (master is still at the 2026.7.0 site overhaul) |
 | Artifacts | Windows installer (.exe) and a Linux **.deb** built in WSL (replacing the AppImage, as planned in the release pipeline notes), both uploaded with `gh release create` from local builds (CI is not part of the release path) |
 
 ## 2. What is new since 2026.7.0 (the feature inventory)
@@ -45,7 +45,7 @@ This is the list every document below is written from. It is drawn from the bran
 Each is its own branch, written by the assistant and checked by the user, like the rest of the work. "Build lock" applies: the assistant never builds or runs; the user builds, runs and captures screenshots.
 
 ### W1. Release notes and CHANGELOG
-- A `## [2026.10.0]` entry in `CHANGELOG.md` in the same style as 2026.7.0 (New Features / Improvements & Fixes / Known limitations), grouped by the themes above; internal refactors summarised.
+- A `## [2026.11.0]` entry in `CHANGELOG.md` in the same style as 2026.7.0 (New Features / Improvements & Fixes / Known limitations), grouped by the themes above; internal refactors summarised.
 - The GitHub release body: a shorter "highlights" version with screenshots and the download list.
 - Source: the inventory in section 2, reconciled with the git history.
 
@@ -103,7 +103,7 @@ Proposal: keep the artwork and add a fourth line in the same style as the other 
 7. The UI-test idea stays parked; this checklist is its manual stand-in.
 
 ### W9. Publishing
-Order: finish W1-W8 on branches, merge to `dev` → merge `dev` to `master` → tag `Release-2026.10.0` → local builds of both artifacts → `gh release create` with the notes and files → refresh the GitHub Pages site → announce. Merged branches are kept (as agreed).
+Order: finish W1-W8 on branches, merge to `dev` → merge `dev` to `master` → tag `Release-2026.11.0` → local builds of both artifacts → `gh release create` with the notes and files → refresh the GitHub Pages site → announce. Merged branches are kept (as agreed).
 
 ## 4. Order and effort
 
@@ -117,13 +117,19 @@ Order: finish W1-W8 on branches, merge to `dev` → merge `dev` to `master` → 
 | 6 | W6 translation pass, W7 packaging, W8 quality gate | last, on the release candidate |
 | 7 | W9 publish | |
 
-## 5. Decisions needed
+## 5. Decisions (made 2026-10-10)
 
-1. **Version number and name:** 2026.10.0, or another? Release date target?
-2. **"What's new" dialog** after the update: yes / no.
-3. **Tutorial lessons:** English only (as now), or translated with the UI? (Translating ten HTML lessons four times is substantial.)
-4. **Splash:** add a fourth feature line (draft by the assistant for approval), or have the artwork redone by hand? Anything else on it to change?
-5. **Scope of the tutorial set:** all of lessons 19-28, or Simulation + 3D plotting first (19-25) and the rest later?
-6. **Website:** full refresh with new screenshots, or only the version, downloads and a short "what's new" section?
-7. **Linux:** .deb only, as planned, or also keep an AppImage?
-8. **A long-form guide** (a PDF like the ray-tracing How-To) for Simulation / 3D plotting, or are the lessons enough?
+1. **Version / date:** **2026.11.0**, a **fixed release date in November 2026** (the exact day to be entered here once the user gives it; the steps in section 4 are scheduled backwards from it).
+2. **"What's new" dialog after an update:** **yes** (shown once after an update, linking to the new tutorial lessons).
+3. **Tutorials:** **translated** (de, es, fr, it) together with the UI.
+4. **Splash:** the assistant produces a draft that updates the artwork to represent the new features; the user approves it.
+5. **Tutorial scope:** **all of lessons 19-28.**
+6. **Website:** a **full refresh with new screenshots.**
+7. **Linux:** **`.deb` only**, no AppImage.
+8. **A long-form PDF guide** (like the ray-tracing How-To) for Simulation and 3D plotting: **yes.**
+
+Consequences added to the workstreams: W3 gains the What's-new dialog (a new `WhatsNewDialog`, a "last shown version" setting, a Help-menu entry to reopen it); W4 grows the translation of ten more lessons into four languages (and of the existing 18 only if they are not already); a new **W10** writes the PDF guide (source kept in the repository as Markdown/HTML, the PDF built from it; screenshots shared with the lessons); W2 needs a full screenshot set for the site.
+
+## 6. Open items
+- The exact release day (November 2026).
+- Whether the existing lessons 1-18 are already translated or English-only: to be checked when W4 starts (the plan assumes the new lessons are translated; the old ones follow if they are not).
