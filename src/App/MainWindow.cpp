@@ -2010,7 +2010,7 @@ void MainWindow::showWhatsNew(bool automatic)
 	{
 		_whatsNewDialog = new WhatsNewDialog(this);
 		_whatsNewDialog->setAttribute(Qt::WA_DeleteOnClose);
-		connect(_whatsNewDialog, &WhatsNewDialog::openTutorialRequested, this, &MainWindow::on_actionTutorial_triggered);
+		connect(_whatsNewDialog, &WhatsNewDialog::openTutorialRequested, this, &MainWindow::showTutorial);
 		connect(_whatsNewDialog, &WhatsNewDialog::openQuickHelpRequested, this, &MainWindow::on_actionQuick_Help_triggered);
 		connect(_whatsNewDialog, &QObject::destroyed, []() { _whatsNewDialog = nullptr; });
 	}
@@ -2041,6 +2041,11 @@ void MainWindow::on_actionQuick_Help_triggered()
 }
 
 void MainWindow::on_actionTutorial_triggered()
+{
+	showTutorial(0);
+}
+
+void MainWindow::showTutorial(int lesson)
 {
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 
@@ -2096,10 +2101,18 @@ void MainWindow::on_actionTutorial_triggered()
 		TutorialDialog* tutorial = new TutorialDialog(this);
 		tutorial->setAttribute(Qt::WA_DeleteOnClose);
 		tutorial->show();
+		if (lesson > 0)
+			tutorial->showLesson(lesson);
 	}
 	else if (tutorialMode == "browser")
 	{
-		QString tutorialPath = PathUtils::getDataDirectory() + "/data/tutorials/index.html";
+		// The page of the UI language when it exists, else the English one.
+		const QString tutorialDir = PathUtils::getDataDirectory() + "/data/tutorials";
+		const QString fileName = lesson > 0 ? QString("lesson%1.html").arg(lesson, 2, 10, QChar('0')) : QStringLiteral("index.html");
+		const QString language = LanguageManager::instance().currentLanguage().section(QLatin1Char('_'), 0, 0).toLower();
+		QString tutorialPath = tutorialDir + "/" + fileName;
+		if (!language.isEmpty() && language != QLatin1String("en") && QFile::exists(tutorialDir + "/" + language + "/" + fileName))
+			tutorialPath = tutorialDir + "/" + language + "/" + fileName;
 		QFile tutorialFile(tutorialPath);
 
 		if (tutorialFile.exists())

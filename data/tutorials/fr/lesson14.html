@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leçon 14 : Conseils et flux de travail - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutoriel</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Premiers pas</a>
+            <a href="lesson02.html">2. Ouvrir des modèles</a>
+            <a href="lesson03.html">3. Navigation de base</a>
+            <a href="lesson04.html">4. Sélectionner des objets</a>
+            <a href="lesson05.html">5. Modes d'affichage</a>
+            <a href="lesson06.html">6. Modes de caméra</a>
+            <a href="lesson07.html">7. Modes d'affichage des objets</a>
+            <a href="lesson08.html">8. Manipuler des objets</a>
+            <a href="lesson09.html">9. Matériaux et textures</a>
+            <a href="lesson10.html">10. Éclairage et environnement</a>
+            <a href="lesson11.html">11. Travailler avec la visibilité</a>
+            <a href="lesson12.html">12. Fonctions avancées</a>
+            <a href="lesson13.html">13. Optimisation des performances</a>
+            <a href="lesson14.html" class='active'>14. Conseils et flux de travail</a>
+            <a href="lesson15.html">15. Vues éclatées</a>
+            <a href="lesson16.html">16. Animation de morph targets</a>
+            <a href="lesson17.html">17. Édition de la transformation des nœuds</a>
+            <a href="lesson18.html">18. Rendu des arêtes et du fil de fer</a>
+            <a href="lesson19.html">19. Résultats de simulation</a>
+            <a href="lesson20.html">20. Regarder à l'intérieur d'un résultat</a>
+            <a href="lesson21.html">21. Graphiques et sondes</a>
+            <a href="lesson22.html">22. Comparer des résultats, données de cellule et de coque</a>
+            <a href="lesson23.html">23. Graphiques 3D à partir de données CSV</a>
+            <a href="lesson24.html">24. Graphiques 3D à partir de formules, remplissages, images et notes</a>
+            <a href="lesson25.html">25. Graphiques et résultats lus ensemble</a>
+            <a href="lesson26.html">26. Outils de maillage</a>
+            <a href="lesson27.html">27. Mesurer, annoter et rapporter</a>
+            <a href="lesson28.html">28. Analyse, sélection et scènes</a>
+            <a href="lesson29.html">29. Lancer de rayons en pratique</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Leçon 14 sur 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 48.28%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Leçon 14 : Conseils et flux de travail</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Cette dernière leçon présente des conseils utiles, des raccourcis et des flux de travail professionnels qui vous rendront plus productif dans ModelViewer.</p>
+
+        <h2>Conseils de navigation</h2>
+        <ul>
+            <li><b>Perdu dans l'espace ?</b> Appuyez sur <kbd>F</kbd> pour ajuster instantanément tous les objets à la vue.</li>
+            <li><b>Déplacement rapide vers un point :</b> cliquez avec le bouton central (sans glisser) pour recentrer la vue sur un point précis.</li>
+            <li><b>Zoom vers la souris :</b> le zoom à la molette se concentre sur la position actuelle du curseur.</li>
+            <li><b>Inertie douce :</b> les gestes rapides de la souris créent un mouvement inertiel fluide pour un visionnage agréable.</li>
+            <li><b>Arrêter le mouvement :</b> cliquez sur n'importe quel bouton de la souris pour arrêter instantanément le mouvement inertiel.</li>
+        </ul>
+
+        <h2>Astuces de sélection</h2>
+        <ul>
+            <li><b>Désélection rapide :</b> appuyez sur <kbd>Échap</kbd> pour effacer toutes les sélections en cours.</li>
+            <li><b>Rechercher des objets :</b> utilisez la zone de recherche au-dessus de l'arbre du modèle pour filtrer les éléments par nom ; elle correspond aussi aux noms des assemblages et des nœuds racines, pas seulement aux maillages feuilles.</li>
+            <li><b>Centrer sur la sélection :</b> clic droit → « Centrer l'écran » pour cadrer uniquement les objets sélectionnés.</li>
+            <li><b>Faire défiler jusqu'à la sélection :</b> clic droit → « Centrer la liste d'objets » pour faire défiler automatiquement l'arbre jusqu'à l'élément sélectionné.</li>
+        </ul>
+
+        <h2>Flux de travail de visibilité</h2>
+        <ul>
+            <li><b>Focalisation rapide :</b> sélectionnez des pièces et appuyez sur <kbd>Maj+Espace</kbd> pour les isoler immédiatement.</li>
+            <li><b>Comparer des variantes :</b> masquez une conception, travaillez sur une autre, puis utilisez <kbd>Alt+S</kbd> pour inverser la visibilité et comparer les deux.</li>
+            <li><b>Révélation progressive :</b> masquez tous les objets, puis affichez les groupes un par un pour comprendre peu à peu les assemblages complexes.</li>
+        </ul>
+
+        <h2>Conseils de caméra et de vue</h2>
+        <ul>
+            <li><b>Changement rapide de caméra :</b> appuyez sur <kbd>1</kbd>, <kbd>2</kbd> ou <kbd>3</kbd> pour changer instantanément de mode de caméra.</li>
+            <li><b>Vues standard :</b> utilisez les boutons de la barre d'outils pour des vues instantanées Haut, Avant ou Gauche.</li>
+            <li><b>Vue de présentation :</b> combinez la vue isométrique, la projection en perspective et le mode réaliste.</li>
+            <li><b>Vue technique :</b> utilisez la vue de face, la projection orthographique et le mode ombré.</li>
+            <li><b>Vue d'analyse :</b> utilisez le mode Fil de fer ou Ombré avec fil de fer pour inspecter la topologie du maillage.</li>
+        </ul>
+
+        <h2>Flux de travail des matériaux</h2>
+        <ol>
+            <li>Commencez par des couleurs de base en <b>mode Ombré</b>.</li>
+            <li>Passez en <b>mode réaliste</b> pour voir le rendu PBR.</li>
+            <li>Ajustez les valeurs de <b>métallique et de rugosité</b> pour définir les types de surface.</li>
+            <li>Ajoutez des <b>textures</b> (albédo, normales, rugosité) pour le détail.</li>
+            <li>Activez l'<b>IBL</b> (éclairage basé sur l'image) pour l'éclairage d'environnement final.</li>
+            <li>Affinez l'<b>exposition et le mappage tonal</b> pour l'aspect final.</li>
+        </ol>
+
+        <h2>Efficacité au clavier</h2>
+        <p>Maîtrisez ces raccourcis pour une vitesse maximale :</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Tâche</th>
+                    <th>Raccourci</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Tout ajuster</td><td><kbd>F</kbd></td></tr>
+                <tr><td>Masquer la sélection</td><td><kbd>Espace</kbd></td></tr>
+                <tr><td>Afficher seulement</td><td><kbd>Maj+Espace</kbd></td></tr>
+                <tr><td>Inverser les visibles</td><td><kbd>Alt+S</kbd></td></tr>
+                <tr><td>Supprimer</td><td><kbd>Suppr</kbd></td></tr>
+                <tr><td>Tout désélectionner</td><td><kbd>Esc</kbd></td></tr>
+                <tr><td>Importer</td><td><kbd>Ctrl+I</kbd></td></tr>
+                <tr><td>Exporter</td><td><kbd>Ctrl+E</kbd></td></tr>
+                <tr><td>Modes de caméra</td><td><kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd></td></tr>
+            </tbody>
+        </table>
+
+        <h2>Flux de travail professionnels</h2>
+        <h3>Inspection d'assemblages mécaniques</h3>
+        <ol>
+            <li>Ouvrez l'assemblage en <b>mode multi-vues</b>.</li>
+            <li>Utilisez des <b>plans de coupe</b> pour voir les composants internes.</li>
+            <li>Activez <b>Ombré avec fil de fer</b> pour voir clairement les limites des pièces.</li>
+            <li>Utilisez <b>« Afficher seulement »</b> pour isoler des sous-systèmes précis en vue de leur étude.</li>
+        </ol>
+
+        <h3>Visite architecturale</h3>
+        <ol>
+            <li>Passez en <b>mode caméra à la première personne</b> (<kbd>3</kbd>).</li>
+            <li>Activez l'<b>IBL</b> avec un environnement HDRI architectural.</li>
+            <li>Activez le <b>plan de sol</b> et les <b>ombres</b>.</li>
+            <li>Utilisez les touches <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> pour parcourir naturellement les espaces.</li>
+        </ol>
+
+        <h3>Rendu de produit</h3>
+        <ol>
+            <li>Utilisez le <b>mode d'affichage réaliste</b>.</li>
+            <li>Réglez soigneusement les propriétés du <b>matériau PBR</b>.</li>
+            <li>Activez l'<b>IBL</b> avec une carte HDRI d'éclairage de studio.</li>
+            <li>Ajustez l'<b>exposition</b> pour obtenir la bonne luminosité.</li>
+            <li>Utilisez le <b>plan de sol</b> avec les reflets activés.</li>
+            <li>Cadrez la prise de vue avec la <b>projection en perspective</b>.</li>
+        </ol>
+
+        <h2>Dépannages rapides</h2>
+        <ul>
+            <li><b>Écran noir :</b> vérifiez si l'objet figure dans l'arbre du modèle ; il peut avoir besoin d'éclairage ou être positionné loin de la caméra.</li>
+            <li><b>Textures qui clignotent :</b> vérifiez si des UV existent ; sinon, essayez « Générer les UV ».</li>
+            <li><b>Ombrage étrange :</b> activez « Afficher les normales » pour diagnostiquer des faces inversées ou des problèmes de normales.</li>
+            <li><b>Sélection impossible :</b> appuyez sur <kbd>Échap</kbd> pour annuler tout mode d'affichage spécial actif.</li>
+            <li><b>Le modèle a disparu :</b> appuyez sur <kbd>F</kbd> pour réajuster tous les objets à la vue.</li>
+            <li><b>Performances lentes :</b> passez en mode Ombré et masquez les objets inutilisés.</li>
+        </ul>
+
+        <h2>Personnalisation</h2>
+        <ul>
+            <li><b>Couleur d'arrière-plan :</b> clic droit → « Couleur d'arrière-plan » pour définir une couleur personnalisée de la vue.</li>
+            <li><b>Thème :</b> allez dans Modifier → Paramètres pour basculer entre les thèmes Clair, Sombre ou Système.</li>
+            <li><b>Langue :</b> Modifier → Paramètres pour changer la langue de l'interface.</li>
+            <li><b>Qualité ou performances :</b> utilisez Modifier → Paramètres pour régler le MSAA et le filtrage anisotrope.</li>
+        </ul>
+
+        <h2>Organisation des fichiers</h2>
+        <ul>
+            <li>Utilisez le menu <b>Récents</b> (Fichier → Récents) pour accéder rapidement à votre travail.</li>
+            <li>Enregistrez les sessions de travail en fichiers <b>.mvf</b> pour conserver les positions de caméra, la visibilité et les réglages.</li>
+            <li>Conservez les <b>fichiers de texture</b> dans le même dossier que vos modèles pour que les chemins soient trouvés automatiquement.</li>
+            <li>Utilisez des <b>noms descriptifs</b> dans l'arbre du modèle (double-clic pour renommer).</li>
+        </ul>
+
+        <h2>En savoir plus</h2>
+        <ul>
+            <li><b>Menu Aide :</b> appuyez sur <kbd>F1</kbd> ou allez dans Aide → Aide rapide pour une référence instantanée.</li>
+            <li><b>Expérimentez :</b> essayez toutes les fonctions avec différents modèles de test pour voir comment elles se comportent.</li>
+            <li><b>Paramètres :</b> explorez Modifier → Paramètres pour des options cachées supplémentaires.</li>
+            <li><b>Menus contextuels :</b> faites un clic droit partout pour découvrir des options contextuelles.</li>
+        </ul>
+
+        <h2>Pour conclure</h2>
+        <p>ModelViewer est un outil puissant doté de nombreuses fonctions. La clé de la maîtrise est la pratique :</p>
+        <ul>
+            <li>Commencez par la navigation et la sélection de base.</li>
+            <li>Explorez progressivement les modes d'affichage et de caméra.</li>
+            <li>Apprenez la gestion de la visibilité pour les scènes complexes.</li>
+            <li>Expérimentez avec les matériaux et l'éclairage.</li>
+            <li>Découvrez vos propres flux de travail.</li>
+        </ul>
+        <p><b>Vous avez terminé le tutoriel de base !</b> Vous avez maintenant les connaissances pour utiliser ModelViewer efficacement au quotidien. Les leçons restantes présentent des fonctions plus avancées et spécialisées.</p>
+
+        <div class="lesson-navigation">
+            <a href='lesson13.html' class='nav-button'>← Leçon précédente</a>
+            <a href="index.html" class="back-to-index">↑ Retour à l'index</a>
+            <a href='lesson15.html' class='nav-button'>Leçon suivante →</a>
+        </div>
+    </div>
+</body>
+</html>

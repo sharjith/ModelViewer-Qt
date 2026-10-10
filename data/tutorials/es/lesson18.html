@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lección 18: Renderizado de bordes y malla de alambre - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primeros pasos</a>
+            <a href="lesson02.html">2. Abrir modelos</a>
+            <a href="lesson03.html">3. Navegación básica</a>
+            <a href="lesson04.html">4. Seleccionar objetos</a>
+            <a href="lesson05.html">5. Modos de vista</a>
+            <a href="lesson06.html">6. Modos de cámara</a>
+            <a href="lesson07.html">7. Modos de visualización</a>
+            <a href="lesson08.html">8. Manipular objetos</a>
+            <a href="lesson09.html">9. Materiales y texturas</a>
+            <a href="lesson10.html">10. Iluminación y entorno</a>
+            <a href="lesson11.html">11. Trabajar con la visibilidad</a>
+            <a href="lesson12.html">12. Funciones avanzadas</a>
+            <a href="lesson13.html">13. Optimización del rendimiento</a>
+            <a href="lesson14.html">14. Consejos y flujos de trabajo</a>
+            <a href="lesson15.html">15. Vistas explosionadas</a>
+            <a href="lesson16.html">16. Animación de morph targets</a>
+            <a href="lesson17.html">17. Edición de la transformación de nodos</a>
+            <a href="lesson18.html" class='active'>18. Renderizado de bordes y malla de alambre</a>
+            <a href="lesson19.html">19. Resultados de simulación</a>
+            <a href="lesson20.html">20. Mirar dentro de un resultado</a>
+            <a href="lesson21.html">21. Gráficos y sondeo</a>
+            <a href="lesson22.html">22. Comparar resultados, datos de celda y de lámina</a>
+            <a href="lesson23.html">23. Gráficos 3D a partir de datos CSV</a>
+            <a href="lesson24.html">24. Gráficos 3D a partir de fórmulas, rellenos, imágenes y notas</a>
+            <a href="lesson25.html">25. Gráficos y resultados reproducidos juntos</a>
+            <a href="lesson26.html">26. Herramientas de malla</a>
+            <a href="lesson27.html">27. Medir, anotar e informar</a>
+            <a href="lesson28.html">28. Análisis, selección y escenas</a>
+            <a href="lesson29.html">29. Trazado de rayos en la práctica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lección 18 de 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 62.07%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lección 18: Renderizado de bordes y malla de alambre</h1>
+        </div>
+
+        <h2>Introducción</h2>
+        <p>Para formatos CAD como STEP, IGES y BREP, ModelViewer puede extraer y renderizar aristas B-Rep (representación de contorno) reales, las curvas nítidas y precisas que definen las caras de un sólido, por separado de la malla triangulada usada para el sombreado. Esto da líneas de arista nítidas que se mantienen exactas independientemente de la densidad de teselación de la malla.</p>
+
+        <h2>Modos de visualización con aristas</h2>
+        <p>Tres modos de visualización muestran aristas (se establecen desde la barra de herramientas o el menú de modos de visualización, véase la lección 7):</p>
+        <ul>
+            <li><b>Malla de alambre:</b> muestra solo las aristas características reales (aristas de pliegue/contorno, o aristas B-Rep en formatos CAD), con las caras sin sombrear.</li>
+            <li><b>Aristas de malla:</b> muestra caras sombreadas con normalidad con <i>todas</i> las aristas de los triángulos superpuestas, revelando toda la densidad de teselación subyacente.</li>
+            <li><b>Sombreado con aristas:</b> muestra caras sombreadas/iluminadas con normalidad con solo las aristas características reales superpuestas: un aspecto más limpio que Aristas de malla, ya que omite las densas líneas por triángulo.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_18_wireframe_mode.png" alt="Un modelo STEP en modo de malla de alambre con líneas de aristas B-Rep limpias y sin relleno" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Captura: tutorial_18_wireframe_mode.png (700x450)</div>
+            <span class="screenshot-caption">Un modelo STEP en modo de malla de alambre con líneas de aristas B-Rep limpias y sin relleno</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_18_mesh_edges_mode.png" alt="El mismo modelo en modo Aristas de malla, con caras sombreadas y todas las aristas de los triángulos" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Captura: tutorial_18_mesh_edges_mode.png (700x450)</div>
+            <span class="screenshot-caption">El mismo modelo en modo Aristas de malla, con caras sombreadas y todas las aristas de los triángulos</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_18_shaded_with_edges_mode.png" alt="El mismo modelo en modo Sombreado con aristas, que combina el sombreado y aristas características limpias" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Captura: tutorial_18_shaded_with_edges_mode.png (700x450)</div>
+            <span class="screenshot-caption">El mismo modelo en modo Sombreado con aristas, que combina el sombreado y aristas características limpias</span>
+        </div>
+
+        <div class="note note-info">
+            La extracción real de aristas B-Rep solo está disponible para formatos CAD (STEP, IGES, BREP) que contienen datos de representación de contorno. Los formatos solo de malla, como OBJ, STL y glTF, recurren en su lugar a aristas de silueta en los límites de los triángulos.
+        </div>
+
+        <h2>Controlar la calidad de teselación</h2>
+        <p>La precisión de aristas y caras en las importaciones CAD se controla con dos ajustes de desviación en <b>Editar → Ajustes → Importación/Exportación</b>:</p>
+        <div class="step">
+            <div class="step-title">Desviación lineal</div>
+            <div class="step-content">Controla la distancia máxima permitida entre la malla teselada y la superficie CAD real. Los valores más bajos producen una geometría más suave y precisa a costa de más triángulos.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Desviación angular</div>
+            <div class="step-content">Controla el ángulo máximo permitido entre facetas de teselación adyacentes. Los valores más bajos conservan mejor las superficies curvas.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_18_deflection_settings.png" alt="Diálogo de ajustes con los controles de desviación lineal y angular" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:400px;">Captura: tutorial_18_deflection_settings.png (500x400)</div>
+            <span class="screenshot-caption">Diálogo de ajustes con los controles de desviación lineal y angular</span>
+        </div>
+
+        <div class="note note-warning">
+            Los valores de desviación muy bajos producen mallas mucho más densas y una carga/renderizado más lentos para ensamblajes CAD complejos: equilibre la precisión visual con el rendimiento (véase la lección 13).
+        </div>
+
+        <h2>Guardar los datos de aristas</h2>
+        <p>Las aristas B-Rep extraídas se almacenan en caché con la malla una vez calculadas y se conservan al guardar en un archivo de sesión <b>.mvf</b>, de modo que al volver a cargar una sesión guardada no hace falta extraer de nuevo las aristas del archivo CAD original.</p>
+
+        <p>Con esto termina el tutorial básico. Las lecciones 19 a 29 continúan con las novedades de 2026.11: resultados de simulación, gráficos de datos 3D, herramientas de malla, medición y anotación, análisis y trazado de rayos en la práctica.</p>
+
+        <div class="lesson-navigation">
+            <a href='lesson17.html' class='nav-button'>← Lección anterior</a>
+            <a href="index.html" class="back-to-index">↑ Volver al índice</a>
+            <a href='lesson19.html' class='nav-button'>Siguiente lección →</a>
+        </div>
+    </div>
+</body>
+</html>

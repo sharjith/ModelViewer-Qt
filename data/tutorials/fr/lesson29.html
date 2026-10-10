@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leçon 29 : Lancer de rayons en pratique - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutoriel</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Premiers pas</a>
+            <a href="lesson02.html">2. Ouvrir des modèles</a>
+            <a href="lesson03.html">3. Navigation de base</a>
+            <a href="lesson04.html">4. Sélectionner des objets</a>
+            <a href="lesson05.html">5. Modes d'affichage</a>
+            <a href="lesson06.html">6. Modes de caméra</a>
+            <a href="lesson07.html">7. Modes d'affichage des objets</a>
+            <a href="lesson08.html">8. Manipuler des objets</a>
+            <a href="lesson09.html">9. Matériaux et textures</a>
+            <a href="lesson10.html">10. Éclairage et environnement</a>
+            <a href="lesson11.html">11. Travailler avec la visibilité</a>
+            <a href="lesson12.html">12. Fonctions avancées</a>
+            <a href="lesson13.html">13. Optimisation des performances</a>
+            <a href="lesson14.html">14. Conseils et flux de travail</a>
+            <a href="lesson15.html">15. Vues éclatées</a>
+            <a href="lesson16.html">16. Animation de morph targets</a>
+            <a href="lesson17.html">17. Édition de la transformation des nœuds</a>
+            <a href="lesson18.html">18. Rendu des arêtes et du fil de fer</a>
+            <a href="lesson19.html">19. Résultats de simulation</a>
+            <a href="lesson20.html">20. Regarder à l'intérieur d'un résultat</a>
+            <a href="lesson21.html">21. Graphiques et sondes</a>
+            <a href="lesson22.html">22. Comparer des résultats, données de cellule et de coque</a>
+            <a href="lesson23.html">23. Graphiques 3D à partir de données CSV</a>
+            <a href="lesson24.html">24. Graphiques 3D à partir de formules, remplissages, images et notes</a>
+            <a href="lesson25.html">25. Graphiques et résultats lus ensemble</a>
+            <a href="lesson26.html">26. Outils de maillage</a>
+            <a href="lesson27.html">27. Mesurer, annoter et rapporter</a>
+            <a href="lesson28.html">28. Analyse, sélection et scènes</a>
+            <a href="lesson29.html" class='active'>29. Lancer de rayons en pratique</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Leçon 29 sur 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 100%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Leçon 29 : Lancer de rayons en pratique</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Le lancer de rayons suit la lumière dans la scène pour produire des reflets, des ombres douces, du verre et un éclairage réaliste que la vue en temps réel ne peut qu'approcher. ModelViewer dispose de deux moteurs de lancer de rayons et utilise les mêmes matériaux et le même environnement que ceux que vous avez déjà réglés. Cette leçon vous mène d'une vue calculée en direct à une image haute résolution sur disque et à un lot de vues rendues d'un coup.</p>
+        <div class="note note-info">
+            Deux moteurs : le moteur <b>CPU</b> (Embree) fonctionne partout ; le moteur <b>GPU</b> (NVIDIA OptiX) nécessite une carte graphique NVIDIA et une version avec OptiX. <b>Aide → À propos</b> indique si le moteur GPU est activé dans votre version. Les résultats de simulation et les graphiques 3D ne sont pas dessinés par le lanceur de rayons.
+        </div>
+        <h2>Une vue calculée en direct</h2>
+        <div class="step">
+            <div class="step-title">Étape 1 : Préparer une scène</div>
+            <div class="step-content">Ouvrez un modèle aux matériaux intéressants (le Futuristic Transport Shuttle ou la théière) et réglez son environnement et ses lumières comme dans la leçon 10.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Changer le mode de rendu</div>
+            <div class="step-content">Choisissez <b>Affichage → Mode de rendu → Tracé par rayons</b>. La vue commence à calculer progressivement : l'image est d'abord bruitée et se stabilise à mesure que les échantillons s'accumulent, puis un débruiteur la nettoie. Déplacez la caméra et elle redémarre.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Comparer avec le PBR</div>
+            <div class="step-content">Basculez entre <b>PBR (Metallic-Roughness)</b> et <b>Tracé par rayons</b>. Les matériaux, l'éclairage de l'environnement et le sol récepteur d'ombres suivent la vue raster ; vous voyez donc la même scène, avec cette fois de vrais reflets et de vraies ombres.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_29_pbr_vs_ray_traced.png" alt="tutorial_29_pbr_vs_ray_traced.png" title="Capture: Futuristic Transport Shuttle (or the Tea-Pot on a reflective floor) with the same camera in PBR and, after a few seconds of accumulation, in Ray Traced mode; join the two captures side by side." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Futuristic Transport Shuttle (or the Tea-Pot on a reflective floor) with the same camera in PBR and, after a few seconds of accumulation, in Ray Traced mode; join the two captures side by side." style="display:none; width:700px; height:350px;">Capture d&#x27;écran: tutorial_29_pbr_vs_ray_traced.png (700x350)</div>
+            <span class="screenshot-caption">La même scène en PBR (à gauche) et en lancer de rayons (à droite)</span>
+        </div>
+
+        <h2>La boîte de dialogue Lancer de rayons</h2>
+        <p><b>Visualisation → Lancer de rayons...</b> ouvre les réglages et le rendu hors ligne. Elle comporte trois onglets.</p>
+        <table>
+            <thead><tr><th>Onglet</th><th>Contenu</th></tr></thead>
+            <tbody>
+            <tr><td>De base</td><td><b>Moteur de rendu</b> (<i>Auto</i> préfère OptiX lorsqu'il est disponible, <i>Embree (CPU)</i> ou <i>OptiX (GPU)</i>), <b>Échantillons max.</b> par pixel, <b>Rebonds max.</b> de lumière par chemin, <b>Activer le débruiteur</b> et son <b>Moteur du débruiteur</b> (Auto, OIDN sur CPU, OIDN sur GPU/CUDA ou OptiX), ainsi que le <b>Préréglage d'export</b> et la <b>Résolution d'export</b> avec <b>Ajuster à la vue</b>.</td></tr>
+            <tr><td>Avancé</td><td><b>Seuil d'écrêtage des fireflies</b> (limite les échantillons lumineux isolés), <b>Rebonds de transmission max.</b> pour le verre, <b>Profondeur de départ de la roulette russe</b>, <b>Impacts max. des rayons d'ombre</b> (CPU seulement), <b>Rebonds de diffusion volumique max.</b>, <b>Échantillonnage par importance de l'environnement</b> et les interrupteurs <b>Ombres</b> et <b>Auto-ombres</b>.</td></tr>
+            <tr><td>Diagnostics</td><td>Informations en lecture seule sur le moteur de rendu et le GPU, le parcours et le débruiteur utilisés, la résolution, le nombre de triangles, les temps de construction des structures d'accélération, les échantillons par seconde, les MRays par seconde et le temps de rendu.</td></tr>
+            </tbody>
+        </table>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_29_dialog_basic.png" alt="tutorial_29_dialog_basic.png" title="Capture: Visualization &gt; Ray Tracing..., Basic tab; capture the whole dialog including Render, Stop and Export Image... at the bottom." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Visualization &gt; Ray Tracing..., Basic tab; capture the whole dialog including Render, Stop and Export Image... at the bottom." style="display:none; width:560px; height:450px;">Capture d&#x27;écran: tutorial_29_dialog_basic.png (560x520)</div>
+            <span class="screenshot-caption">L&#x27;onglet De base de la boîte de dialogue Lancer de rayons</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_29_dialog_diagnostics.png" alt="tutorial_29_dialog_diagnostics.png" title="Capture: Start a render, switch to the Diagnostics tab and capture it with renderer, GPU, samples/sec and MRays/sec filled in." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Start a render, switch to the Diagnostics tab and capture it with renderer, GPU, samples/sec and MRays/sec filled in." style="display:none; width:560px; height:450px;">Capture d&#x27;écran: tutorial_29_dialog_diagnostics.png (560x480)</div>
+            <span class="screenshot-caption">L&#x27;onglet Diagnostics pendant un rendu</span>
+        </div>
+
+        <div class="note note-tip">
+            Pour un aperçu plus rapide, diminuez <b>Échantillons max.</b> et <b>Rebonds max.</b> ; pour une image finale propre, augmentez <b>Échantillons max.</b>, gardez le débruiteur activé et laissez activé l'<b>Échantillonnage par importance de l'environnement</b> pour réduire le bruit des ciels lumineux. Survolez un réglage pour une courte explication.
+        </div>
+        <h2>Rendre et exporter une image</h2>
+        <div class="step">
+            <div class="step-title">Étape 1 : Choisir la taille</div>
+            <div class="step-content">Choisissez un <b>Préréglage d'export</b> ou saisissez une largeur et une hauteur sous <b>Résolution d'export</b>, ou cliquez sur <b>Ajuster à la vue</b>. Une résolution supérieure à celle de la vue déclenche un rendu hors ligne, qui peut prendre un moment et peut être annulé avec le bouton qui remplace <b>Arrêter</b>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Rendre</div>
+            <div class="step-content">Cliquez sur <b>Rendre</b>. La ligne d'état et la progression indiquent où en est le calcul ; <b>Arrêter</b> le termine plus tôt.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Enregistrer l'image</div>
+            <div class="step-content">Cliquez sur <b>Exporter l'image...</b> et choisissez PNG, JPEG, BMP, TIFF ou OpenEXR. OpenEXR conserve toute la plage dynamique, ce que vous voulez pour une retouche ultérieure.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_29_rendered_image.png" alt="tutorial_29_rendered_image.png" title="Capture: Render the shuttle at 3840 x 2160 (Basic tab, denoiser on), Export Image... as PNG, and place that PNG here (a downscaled copy is fine)." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Render the shuttle at 3840 x 2160 (Basic tab, denoiser on), Export Image... as PNG, and place that PNG here (a downscaled copy is fine)." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_29_rendered_image.png (700x450)</div>
+            <span class="screenshot-caption">Une image haute résolution terminée du modèle, calculée par lancer de rayons</span>
+        </div>
+
+        <div class="note note-warning">
+            Avec une caméra orthographique et un matériau de verre à paroi mince, chaque pixel échantillonne la même direction de l'environnement ; ce verre est donc rendu à plat. C'est normal, pas un bogue : passez à une projection en perspective (leçon 6) pour un verre réaliste. La boîte de dialogue affiche un avertissement lorsqu'elle détecte cette combinaison.
+        </div>
+        <h2>Rendu par lots des vues</h2>
+        <p><b>Outils → Rendu par lots des vues...</b> rend avec le lanceur de rayons, en une seule exécution, les vues de caméra capturées dans le panneau Caméras vers un dossier : cochez les vues, choisissez le format (PNG, JPEG, BMP, TIFF ou OpenEXR) et la résolution, choisissez le dossier et lancez. Combinez-le avec les états de scène (leçon 28) pour produire tout un jeu d'images de présentation (vue d'ensemble, coupe, détails) sans toucher de nouveau au modèle.</p>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_29_batch_render.png" alt="tutorial_29_batch_render.png" title="Capture: Capture three views in the Cameras panel, then Tools &gt; Batch Render Views...; capture the dialog with the three views ticked, the format and resolution set and a folder chosen." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Capture three views in the Cameras panel, then Tools &gt; Batch Render Views...; capture the dialog with the three views ticked, the format and resolution set and a folder chosen." style="display:none; width:600px; height:450px;">Capture d&#x27;écran: tutorial_29_batch_render.png (600x480)</div>
+            <span class="screenshot-caption">La boîte de dialogue Rendu par lots des vues avec trois vues capturées cochées</span>
+        </div>
+
+        <div class="note note-info">
+            Souvenez-vous des limites des leçons précédentes : les résultats de simulation et les graphiques 3D sont dessinés de la même façon à plat dans tous les modes. Utilisez le lancer de rayons pour les modèles, assemblages et images de présentation, et la vue normale pour les vues scientifiques.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson28.html' class='nav-button'>← Leçon précédente</a>
+            <a href="index.html" class="back-to-index">↑ Retour à l'index</a>
+            <span class='nav-button disabled'>Tutoriel terminé ✔</span>
+        </div>
+    </div>
+</body>
+</html>

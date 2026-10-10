@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lektion 1: Erste Schritte - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Anleitung</a></h1>
+        <nav>
+            <a href="lesson01.html" class='active'>1. Erste Schritte</a>
+            <a href="lesson02.html">2. Modelle öffnen</a>
+            <a href="lesson03.html">3. Grundlegende Navigation</a>
+            <a href="lesson04.html">4. Objekte auswählen</a>
+            <a href="lesson05.html">5. Ansichtsmodi</a>
+            <a href="lesson06.html">6. Kameramodi</a>
+            <a href="lesson07.html">7. Anzeigemodi</a>
+            <a href="lesson08.html">8. Objekte manipulieren</a>
+            <a href="lesson09.html">9. Materialien und Texturen</a>
+            <a href="lesson10.html">10. Beleuchtung und Umgebung</a>
+            <a href="lesson11.html">11. Arbeiten mit Sichtbarkeit</a>
+            <a href="lesson12.html">12. Erweiterte Funktionen</a>
+            <a href="lesson13.html">13. Leistungsoptimierung</a>
+            <a href="lesson14.html">14. Tipps und Workflows</a>
+            <a href="lesson15.html">15. Explosionsansichten</a>
+            <a href="lesson16.html">16. Morph-Target-Animation</a>
+            <a href="lesson17.html">17. Knotentransformation bearbeiten</a>
+            <a href="lesson18.html">18. Kanten- und Drahtgitter-Rendering</a>
+            <a href="lesson19.html">19. Simulationsergebnisse</a>
+            <a href="lesson20.html">20. Ins Innere eines Ergebnisses schauen</a>
+            <a href="lesson21.html">21. Diagramme und Sonden</a>
+            <a href="lesson22.html">22. Ergebnisse vergleichen, Zell- und Schalendaten</a>
+            <a href="lesson23.html">23. 3D-Diagramme aus CSV-Daten</a>
+            <a href="lesson24.html">24. 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</a>
+            <a href="lesson25.html">25. Diagramme und Ergebnisse gemeinsam abspielen</a>
+            <a href="lesson26.html">26. Mesh-Werkzeuge</a>
+            <a href="lesson27.html">27. Messen, Kommentieren und Berichten</a>
+            <a href="lesson28.html">28. Analyse, Auswahl und Szenen</a>
+            <a href="lesson29.html">29. Raytracing in der Praxis</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lektion 1 von 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 3.45%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lektion 1: Erste Schritte</h1>
+        </div>
+
+        <h2>Willkommen bei ModelViewer!</h2>
+        <p>ModelViewer ist eine leistungsstarke 3D-Modell-Visualisierungsanwendung, die verschiedene Dateiformate unterstützt, darunter OBJ, STL, glTF, FBX sowie CAD-Formate wie STEP, IGES und BREP.</p>
+        <p>Diese Anleitung führt Sie durch alle Funktionen und hilft Ihnen, die Anwendung sicher zu beherrschen.</p>
+
+        
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_01_main_window.png" alt="Das ModelViewer-Hauptfenster mit 3D-Ansichtsfenster, Modellbaum und Bedienfeldern" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:800px; height:500px;">Screenshot: tutorial_01_main_window.png</div>
+            <span class="screenshot-caption">Das ModelViewer-Hauptfenster mit 3D-Ansichtsfenster, Modellbaum und Bedienfeldern</span>
+        </div>
+
+        <h2>Überblick über die Oberfläche</h2>
+        <p>Die Oberfläche von ModelViewer besteht aus mehreren wichtigen Bereichen:</p>
+
+        <div class="step">
+            <div class="step-title">Schritt 1: Hauptansichtsfenster</div>
+            <div class="step-content">Der große zentrale Bereich, in dem Ihre 3D-Modelle angezeigt und bearbeitet werden. Dies ist Ihr primärer Arbeitsbereich.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Schritt 2: Modellbaum-Bereich (rechts)</div>
+            <div class="step-content">Zeigt jedes Objekt Ihrer Szene als hierarchischen Baum an, der die Baugruppenstruktur des Modells widerspiegelt - keine flache Liste. Die Auswahl eines Baugruppenknotens wählt alle seine untergeordneten Teile aus, und die Kontrollkästchen haben drei Zustände: Das Aktivieren/Deaktivieren einer Baugruppe überträgt die Sichtbarkeit auf alle ihre Teile, während eine teilweise sichtbare Baugruppe einen Strich zeigt. Mit einem Rechtsklick öffnen Sie das Kontextmenü, u. a. mit Auf-/Zuklappen (erste Ebene, alle Unterelemente oder alles zuklappen), Umbenennen (Doppelklick, rückgängig machbar) und Sichtbarkeitsaktionen.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Schritt 3: Eigenschaften-Bereich (rechts)</div>
+            <div class="step-content">Unterhalb des Modellbaums mit Registerkarten für Materialien, Texturen, Transformationen und Umgebungseinstellungen.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Schritt 4: Ansichtssymbolleiste (unten)</div>
+            <div class="step-content">Sich automatisch ausblendende Symbolleiste am unteren Rand des Ansichtsfensters mit schnellem Zugriff auf Ansichtssteuerung, Kameramodi und Anzeigeeinstellungen.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Schritt 5: Menüleiste (oben)</div>
+            <div class="step-content">Standard-Menüleiste mit den Menüs Datei, Bearbeiten, Werkzeuge, Fenster und Hilfe für den Zugriff auf alle Funktionen der Anwendung.</div>
+        </div>
+
+        <div class="note note-tip">
+            Die meisten Seitenbereiche - der Modellbaum, die Objekttransformationen, die vordefinierten Materialien und die Visualisierungsumgebung - lassen sich in eigene schwebende Fenster lösen. Suchen Sie das Lösen-Symbol in der Kopfzeile jedes Bereichs.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_01_interface_labeled.png" alt="Beschriftete Oberflächenbereiche: Ansichtsfenster, Modellbaum, Eigenschaften, Symbolleiste, Menüleiste" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:800px; height:500px;">Screenshot: tutorial_01_interface_labeled.png (800x500)</div>
+            <span class="screenshot-caption">Beschriftete Oberflächenbereiche: Ansichtsfenster, Modellbaum, Eigenschaften, Symbolleiste, Menüleiste</span>
+        </div>
+
+        <div class="note note-tip">
+            Die Ansichtssymbolleiste blendet sich nach 2 Sekunden automatisch aus. Bewegen Sie die Maus an den unteren Rand des Ansichtsfensters, um sie wieder einzublenden.
+        </div>
+
+        <h2>Was Sie lernen werden</h2>
+        <p>In dieser Anleitung lernen Sie:</p>
+        <ul>
+            <li>3D-Modelle öffnen und importieren</li>
+            <li>Im 3D-Ansichtsfenster mit Maus und Tastatur navigieren</li>
+            <li>Objekte auswählen und bearbeiten</li>
+            <li>Verschiedene Kamera- und Anzeigemodi verwenden</li>
+            <li>Materialien und Texturen anwenden</li>
+            <li>Beleuchtung und Umgebung konfigurieren</li>
+            <li>Mit Sichtbarkeit und Organisation arbeiten</li>
+            <li>Erweiterte Funktionen wie Schnittebenen nutzen</li>
+            <li>Die Leistung bei großen Modellen optimieren</li>
+        </ul>
+
+        <div class="note note-info">
+            Sie können über die Liste links zwischen den Lektionen wechseln oder die Schaltflächen Zurück/Weiter unten verwenden. Springen Sie gern zu jeder Lektion, die Sie interessiert!
+        </div>
+
+        <div class="lesson-navigation">
+            <span class='nav-button disabled'>← Vorherige Lektion</span>
+            <a href="index.html" class="back-to-index">↑ Zurück zur Übersicht</a>
+            <a href='lesson02.html' class='nav-button'>Nächste Lektion →</a>
+        </div>
+    </div>
+</body>
+</html>

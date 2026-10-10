@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 20: Looking Inside a Result - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials &amp; Textures</a>
+            <a href="lesson10.html">10. Lighting &amp; Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips &amp; Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge &amp; Wireframe Rendering</a>
+            <a href="lesson19.html">19. Simulation Results</a>
+            <a href="lesson20.html" class='active'>20. Looking Inside a Result</a>
+            <a href="lesson21.html">21. Charts and Probing</a>
+            <a href="lesson22.html">22. Comparing Results, Cell and Shell Data</a>
+            <a href="lesson23.html">23. 3D Plots from CSV Data</a>
+            <a href="lesson24.html">24. 3D Plots from Formulas, Fills, Images and Notes</a>
+            <a href="lesson25.html">25. Plots and Results Played Together</a>
+            <a href="lesson26.html">26. Mesh Tools</a>
+            <a href="lesson27.html">27. Measure, Annotate and Report</a>
+            <a href="lesson28.html">28. Analysis, Selection and Scenes</a>
+            <a href="lesson29.html">29. Ray Tracing in Practice</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 20 of 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 68.97%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 20: Looking Inside a Result</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>A result is drawn as its outer surface, but the interesting values are often inside. This lesson shows five ways to look in: cutting the result with a section, extracting iso-surfaces, tracing streamlines through a flow, rendering a field as a volume, and drawing vectors and stress tensors as glyphs.</p>
+        <div class="note note-info">
+            You will need these samples from <code>sample-models/Simulation</code>: <code>FEM_box_static_stress.vtu</code> (sections), <code>block.cgns</code> (iso-surfaces and volume; <code>block.exo</code> and <code>block.vtkhdf</code> hold the same data), <code>duct.cgns</code> (streamlines), <code>plate_with_hole.frd</code> and <code>stress_states.vtu</code> (stress ellipsoids).
+        </div>
+        <h2>Sections</h2>
+        <p>The Clipping Planes you know from Lesson 12 cut a result just like any other model, and the cut can show the field's values instead of an empty hollow.</p>
+        <div class="step">
+            <div class="step-title">Step 1: Open the box and a clipping plane</div>
+            <div class="step-content">Open <code>FEM_box_static_stress.vtu</code>, click <b>Section View</b> in the View toolbar and enable one plane.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Colour the cut</div>
+            <div class="step-content">In the Simulation Results tab tick <b>Colour the Clipping Plane cut with the field</b>. The cut face now shows the stress inside the box.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Move the plane</div>
+            <div class="step-content">Change the plane's coefficient to slide the cut through the box and watch the values change.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_20_coloured_section.png" alt="tutorial_20_coloured_section.png" title="Capture: Open FEM_box_static_stress.vtu, enable one clipping plane (Section View), tick &quot;Colour the Clipping Plane cut with the field&quot;, move the plane to about the middle and rotate so the cut face is visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open FEM_box_static_stress.vtu, enable one clipping plane (Section View), tick &quot;Colour the Clipping Plane cut with the field&quot;, move the plane to about the middle and rotate so the cut face is visible." style="display:none; width:700px; height:450px;">Screenshot: tutorial_20_coloured_section.png (700x450)</div>
+            <span class="screenshot-caption">A box cut by a clipping plane, the cut face coloured by stress</span>
+        </div>
+
+        <h2>Iso-surfaces</h2>
+        <p>An iso-surface is the surface where a field has one constant value - a shell of equal temperature, say. It makes the inside of a volume visible without cutting it.</p>
+        <div class="step">
+            <div class="step-title">Step 1: Open a volume result</div>
+            <div class="step-content">Open <code>block.cgns</code>, a block of hexahedra with a temperature field over five steps.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Switch iso-surfaces on</div>
+            <div class="step-content">Tick <b>Show iso-surfaces</b>, choose the <b>Iso-surface field</b> (Temperature) and the number of <b>Iso-surface levels</b>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Combine it with a section</div>
+            <div class="step-content">Turn on a clipping plane as well: the nested shells are cut open and you see how the field is layered inside.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_20_iso_surfaces.png" alt="tutorial_20_iso_surfaces.png" title="Capture: Open block.cgns, Field = Temperature, tick Show iso-surfaces with about 5 levels, and one clipping plane so the nested shells are visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open block.cgns, Field = Temperature, tick Show iso-surfaces with about 5 levels, and one clipping plane so the nested shells are visible." style="display:none; width:700px; height:450px;">Screenshot: tutorial_20_iso_surfaces.png (700x450)</div>
+            <span class="screenshot-caption">Iso-surfaces of the temperature field inside the block</span>
+        </div>
+
+        <h2>Streamlines</h2>
+        <p>Streamlines follow a velocity field: each line is the path a weightless particle would take if the flow were frozen at the current step.</p>
+        <div class="step">
+            <div class="step-title">Step 1: Open the duct</div>
+            <div class="step-content">Open <code>duct.cgns</code>: a half-ring duct with a swirling flow over four steps.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Show streamlines</div>
+            <div class="step-content">Tick <b>Show streamlines</b>, choose the <b>Streamline field</b> (Velocity) and set the number of <b>Streamline seeds</b>. <b>Arrowheads</b> adds small cones that show the direction, and <b>Line thickness</b> sets the width.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Seed on a plane</div>
+            <div class="step-content">Enable a clipping plane and tick <b>Seed on the Clipping Plane</b>: the lines start from the cut, which shows exactly where the flow goes from that cross-section.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_20_streamlines.png" alt="tutorial_20_streamlines.png" title="Capture: Open duct.cgns, tick Show streamlines (Velocity, about 60 seeds, Arrowheads on); rotate to see the half-ring shape of the duct." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open duct.cgns, tick Show streamlines (Velocity, about 60 seeds, Arrowheads on); rotate to see the half-ring shape of the duct." style="display:none; width:700px; height:450px;">Screenshot: tutorial_20_streamlines.png (700x450)</div>
+            <span class="screenshot-caption">Streamlines swirling through the duct, with arrowheads</span>
+        </div>
+
+        <h2>Volume Rendering</h2>
+        <p><b>Show as volume</b> renders a field as a semi-transparent cloud instead of a surface. Choose the <b>Volume field</b>, a <b>Volume quality</b> (Low 32 up to Very high 128) and shape the opacity curve so that only the range of values you care about is visible.</p>
+        <div class="step">
+            <div class="step-title">Step 1: Use the block again</div>
+            <div class="step-content">With <code>block.cgns</code> open, switch off the iso-surfaces and tick <b>Show as volume</b> with Temperature as the volume field.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Shape the opacity</div>
+            <div class="step-content">Edit the opacity curve: drag a point, double-click to add one, right-click an inner point to remove it. Raise the curve for the hot values and lower it for the cold ones to see only the hot core.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Step through time</div>
+            <div class="step-content">Press play on the timeline: the cloud follows the five steps of the result.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_20_volume_rendering.png" alt="tutorial_20_volume_rendering.png" title="Capture: Open block.cgns, tick Show as volume (Temperature, Medium or High quality), and include the opacity curve widget in the Simulation Results tab in the shot (crop window + dock together)." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open block.cgns, tick Show as volume (Temperature, Medium or High quality), and include the opacity curve widget in the Simulation Results tab in the shot (crop window + dock together)." style="display:none; width:700px; height:450px;">Screenshot: tutorial_20_volume_rendering.png (700x450)</div>
+            <span class="screenshot-caption">The temperature field of the block rendered as a volume</span>
+        </div>
+
+        <h2>Vector Arrows</h2>
+        <p><b>Show vector arrows</b> draws an arrow for a vector field at sampled points of the surface. Choose the <b>Arrow field</b>, the <b>Arrow size</b> (stable while you zoom) and the <b>Arrow count</b>. With <b>Scale arrows by magnitude</b> off, every arrow has the same length and only its colour shows the magnitude.</p>
+        <h2>Stress Ellipsoids</h2>
+        <p>For a symmetric stress tensor, <b>Show stress ellipsoids</b> draws an ellipsoid at sampled points. Its three axes point along the principal directions and their lengths follow the principal values; the longest axis is always the same size on screen, so the <i>shape</i> shows how the stress is distributed and the colour shows how large it is.</p>
+        <div class="step">
+            <div class="step-title">Step 1: Start with the plate</div>
+            <div class="step-content">Open <code>plate_with_hole.frd</code>, tick <b>Show stress ellipsoids</b> and set <b>Ellipsoid count</b> to 1500 or more. Far from the hole the ellipsoids are needles lying along the pull; around the hole they change shape and colour sharply.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Choose between tensors</div>
+            <div class="step-content">Open <code>stress_states.vtu</code>, which has three stress tensors, and switch the <b>Tensor field</b>: needles for bending, tilted discs for torsion, flattened ellipsoids for the element-wise tensor.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_20_stress_ellipsoids.png" alt="tutorial_20_stress_ellipsoids.png" title="Capture: Open plate_with_hole.frd, Show stress ellipsoids with count 2000, last load step, view the plate face-on, zoomed so the hole fills about a third of the viewport." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open plate_with_hole.frd, Show stress ellipsoids with count 2000, last load step, view the plate face-on, zoomed so the hole fills about a third of the viewport." style="display:none; width:700px; height:450px;">Screenshot: tutorial_20_stress_ellipsoids.png (700x450)</div>
+            <span class="screenshot-caption">Stress ellipsoids around the hole of the plate</span>
+        </div>
+
+        <div class="note note-tip">
+            Vector arrows, stress ellipsoids and the deformed shape can be on at the same time; switch off what you are not using to keep the picture readable.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson19.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson21.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

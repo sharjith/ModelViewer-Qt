@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lezione 6: Modalità fotocamera - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primi passi</a>
+            <a href="lesson02.html">2. Aprire i modelli</a>
+            <a href="lesson03.html">3. Navigazione di base</a>
+            <a href="lesson04.html">4. Selezionare gli oggetti</a>
+            <a href="lesson05.html">5. Modalità di visualizzazione</a>
+            <a href="lesson06.html" class='active'>6. Modalità fotocamera</a>
+            <a href="lesson07.html">7. Modalità di display</a>
+            <a href="lesson08.html">8. Manipolare gli oggetti</a>
+            <a href="lesson09.html">9. Materiali e texture</a>
+            <a href="lesson10.html">10. Illuminazione e ambiente</a>
+            <a href="lesson11.html">11. Lavorare con la visibilità</a>
+            <a href="lesson12.html">12. Funzioni avanzate</a>
+            <a href="lesson13.html">13. Ottimizzazione delle prestazioni</a>
+            <a href="lesson14.html">14. Suggerimenti e flussi di lavoro</a>
+            <a href="lesson15.html">15. Viste esplose</a>
+            <a href="lesson16.html">16. Animazione dei morph target</a>
+            <a href="lesson17.html">17. Modifica della trasformazione dei nodi</a>
+            <a href="lesson18.html">18. Rendering di bordi e wireframe</a>
+            <a href="lesson19.html">19. Risultati di simulazione</a>
+            <a href="lesson20.html">20. Guardare dentro un risultato</a>
+            <a href="lesson21.html">21. Grafici e sonde</a>
+            <a href="lesson22.html">22. Confrontare risultati, dati di cella e di guscio</a>
+            <a href="lesson23.html">23. Grafici 3D da dati CSV</a>
+            <a href="lesson24.html">24. Grafici 3D da formule, riempimenti, immagini e note</a>
+            <a href="lesson25.html">25. Grafici e risultati riprodotti insieme</a>
+            <a href="lesson26.html">26. Strumenti per mesh</a>
+            <a href="lesson27.html">27. Misurare, annotare e riferire</a>
+            <a href="lesson28.html">28. Analisi, selezione e scene</a>
+            <a href="lesson29.html">29. Ray tracing in pratica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lezione 6 di 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 20.69%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lezione 6: Modalità fotocamera</h1>
+        </div>
+
+        <h2>Introduzione</h2>
+        <p>Le modalità fotocamera cambiano il modo in cui ti muovi nello spazio 3D. ModelViewer offre tre modalità fotocamera distinte, ciascuna pensata per uno scopo diverso.</p>
+
+        <h2>Cambiare modalità fotocamera</h2>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Con la tastiera</div>
+            <div class="step-content">Premi <kbd>1</kbd> per Orbita, <kbd>2</kbd> per Volo o <kbd>3</kbd> per la modalità In prima persona.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Con la barra degli strumenti</div>
+            <div class="step-content">Fai clic sul pulsante «Modalità fotocamera» nella barra degli strumenti della vista e scegli dal menu.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_06_camera_menu.png" alt="Menu a discesa delle modalità fotocamera con le opzioni Orbita, Volo e In prima persona" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Schermata: tutorial_06_camera_menu.png</div>
+            <span class="screenshot-caption">Menu a discesa delle modalità fotocamera con le opzioni Orbita, Volo e In prima persona</span>
+        </div>
+
+        <div class="note note-info">
+            L'icona del pulsante della barra degli strumenti si aggiorna per mostrare quale modalità fotocamera è attiva.
+        </div>
+
+        <h2>Modalità Orbita (tasto: 1)</h2>
+        <p><b>Ideale per:</b> esaminare oggetti, lavoro CAD, ispezione generale dei modelli.</p>
+        <div class="step">
+            <div class="step-title">Comandi del mouse</div>
+            <div class="step-content">
+                • <b>Trascinare con il pulsante centrale:</b> ruotare attorno al modello<br/> • <b>Trascinare con il pulsante destro:</b> spostare la vista<br/> • <b>Rotellina del mouse:</b> ingrandire/ridurre
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Comandi della tastiera</div>
+            <div class="step-content">
+                • <kbd>W/S</kbd>: spostare su/giù<br/> • <kbd>A/D</kbd>: spostare a sinistra/destra<br/> • <kbd>X/Z</kbd>: ingrandire/ridurre<br/> • <kbd>I/K</kbd>: beccheggio (su/giù)<br/> • <kbd>J/L</kbd>: imbardata (sinistra/destra)<br/> • <kbd>M/N</kbd>: rollio
+            </div>
+        </div>
+        
+        <h2>Modalità Volo (tasto: 2)</h2>
+        <p><b>Ideale per:</b> esplorare scene grandi, visite architettoniche, navigazione su terreni.</p>
+        <div class="step">
+            <div class="step-title">Comandi della tastiera</div>
+            <div class="step-content">
+                • <kbd>W/S</kbd>: avanzare/indietreggiare<br/> • <kbd>A/D</kbd>: spostarsi lateralmente a sinistra/destra<br/> • <kbd>Q/E</kbd>: scendere/salire (altitudine)
+            </div>
+        </div>
+
+        <h2>Modalità In prima persona (tasto: 3)</h2>
+        <p><b>Ideale per:</b> navigazione a livello del suolo, simulazioni di camminata, interni architettonici.</p>
+
+        <div class="step">
+            <div class="step-title">Comandi della tastiera</div>
+            <div class="step-content">
+                • <kbd>W/S</kbd>: avanzare/indietreggiare<br/> • <kbd>A/D</kbd>: spostarsi lateralmente a sinistra/destra<br/> • <kbd>Q/E</kbd>: scendere/salire (altitudine)
+            </div>
+        </div>
+
+        <h2>Tabella di confronto</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Caratteristica</th>
+                    <th>Orbita</th>
+                    <th>Volo</th>
+                    <th>In prima persona</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Ideale per</td><td>Ispezione di oggetti</td><td>Esplorazione di scene</td><td>Navigazione a livello del suolo</td></tr>
+                <tr><td>Centrato sul modello</td><td>Sì</td><td>No</td><td>No</td></tr>
+                <tr><td>Movimento verticale</td><td>Solo spostamento</td><td>Tasti Q/E</td><td>Nessuno</td></tr>
+                <tr><td>Limite di beccheggio</td><td>Nessun limite</td><td>±89°</td><td>±60°</td></tr>
+            </tbody>
+        </table>
+
+        <div class="lesson-navigation">
+            <a href='lesson05.html' class='nav-button'>← Lezione precedente</a>
+            <a href="index.html" class="back-to-index">↑ Torna all'indice</a>
+            <a href='lesson07.html' class='nav-button'>Lezione successiva →</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lección 6: Modos de cámara - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primeros pasos</a>
+            <a href="lesson02.html">2. Abrir modelos</a>
+            <a href="lesson03.html">3. Navegación básica</a>
+            <a href="lesson04.html">4. Seleccionar objetos</a>
+            <a href="lesson05.html">5. Modos de vista</a>
+            <a href="lesson06.html" class='active'>6. Modos de cámara</a>
+            <a href="lesson07.html">7. Modos de visualización</a>
+            <a href="lesson08.html">8. Manipular objetos</a>
+            <a href="lesson09.html">9. Materiales y texturas</a>
+            <a href="lesson10.html">10. Iluminación y entorno</a>
+            <a href="lesson11.html">11. Trabajar con la visibilidad</a>
+            <a href="lesson12.html">12. Funciones avanzadas</a>
+            <a href="lesson13.html">13. Optimización del rendimiento</a>
+            <a href="lesson14.html">14. Consejos y flujos de trabajo</a>
+            <a href="lesson15.html">15. Vistas explosionadas</a>
+            <a href="lesson16.html">16. Animación de morph targets</a>
+            <a href="lesson17.html">17. Edición de la transformación de nodos</a>
+            <a href="lesson18.html">18. Renderizado de bordes y malla de alambre</a>
+            <a href="lesson19.html">19. Resultados de simulación</a>
+            <a href="lesson20.html">20. Mirar dentro de un resultado</a>
+            <a href="lesson21.html">21. Gráficos y sondeo</a>
+            <a href="lesson22.html">22. Comparar resultados, datos de celda y de lámina</a>
+            <a href="lesson23.html">23. Gráficos 3D a partir de datos CSV</a>
+            <a href="lesson24.html">24. Gráficos 3D a partir de fórmulas, rellenos, imágenes y notas</a>
+            <a href="lesson25.html">25. Gráficos y resultados reproducidos juntos</a>
+            <a href="lesson26.html">26. Herramientas de malla</a>
+            <a href="lesson27.html">27. Medir, anotar e informar</a>
+            <a href="lesson28.html">28. Análisis, selección y escenas</a>
+            <a href="lesson29.html">29. Trazado de rayos en la práctica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lección 6 de 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 20.69%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lección 6: Modos de cámara</h1>
+        </div>
+
+        <h2>Introducción</h2>
+        <p>Los modos de cámara cambian la forma de moverse por el espacio 3D. ModelViewer ofrece tres modos de cámara distintos, cada uno pensado para un fin diferente.</p>
+
+        <h2>Cambiar de modo de cámara</h2>
+        <div class="step">
+            <div class="step-title">Paso 1: Con el teclado</div>
+            <div class="step-content">Pulse <kbd>1</kbd> para Órbita, <kbd>2</kbd> para Vuelo o <kbd>3</kbd> para el modo en Primera persona.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Con la barra de herramientas</div>
+            <div class="step-content">Haga clic en el botón «Modos de cámara» de la barra de herramientas de vista y elija en el menú.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_06_camera_menu.png" alt="Menú desplegable de modos de cámara con las opciones Órbita, Vuelo y Primera persona" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Captura: tutorial_06_camera_menu.png</div>
+            <span class="screenshot-caption">Menú desplegable de modos de cámara con las opciones Órbita, Vuelo y Primera persona</span>
+        </div>
+
+        <div class="note note-info">
+            El icono del botón de la barra de herramientas se actualiza para mostrar qué modo de cámara está activo.
+        </div>
+
+        <h2>Modo Órbita (tecla: 1)</h2>
+        <p><b>Ideal para:</b> examinar objetos, trabajo CAD, inspección general de modelos.</p>
+        <div class="step">
+            <div class="step-title">Controles del ratón</div>
+            <div class="step-content">
+                • <b>Arrastrar con el botón central:</b> girar alrededor del modelo<br/> • <b>Arrastrar con el botón derecho:</b> desplazar la vista<br/> • <b>Rueda del ratón:</b> acercar/alejar
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Controles del teclado</div>
+            <div class="step-content">
+                • <kbd>W/S</kbd>: desplazar arriba/abajo<br/> • <kbd>A/D</kbd>: desplazar a izquierda/derecha<br/> • <kbd>X/Z</kbd>: acercar/alejar<br/> • <kbd>I/K</kbd>: girar cabeceo (arriba/abajo)<br/> • <kbd>J/L</kbd>: girar guiñada (izquierda/derecha)<br/> • <kbd>M/N</kbd>: girar alabeo
+            </div>
+        </div>
+        
+        <h2>Modo Vuelo (tecla: 2)</h2>
+        <p><b>Ideal para:</b> explorar escenas grandes, recorridos arquitectónicos, navegación por terrenos.</p>
+        <div class="step">
+            <div class="step-title">Controles del teclado</div>
+            <div class="step-content">
+                • <kbd>W/S</kbd>: avanzar/retroceder<br/> • <kbd>A/D</kbd>: desplazarse lateralmente a izquierda/derecha<br/> • <kbd>Q/E</kbd>: bajar/subir (altitud)
+            </div>
+        </div>
+
+        <h2>Modo Primera persona (tecla: 3)</h2>
+        <p><b>Ideal para:</b> navegación a nivel del suelo, simulaciones de paseo, interiores arquitectónicos.</p>
+
+        <div class="step">
+            <div class="step-title">Controles del teclado</div>
+            <div class="step-content">
+                • <kbd>W/S</kbd>: avanzar/retroceder<br/> • <kbd>A/D</kbd>: desplazarse lateralmente a izquierda/derecha<br/> • <kbd>Q/E</kbd>: bajar/subir (altitud)
+            </div>
+        </div>
+
+        <h2>Tabla comparativa</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Característica</th>
+                    <th>Órbita</th>
+                    <th>Vuelo</th>
+                    <th>Primera persona</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Ideal para</td><td>Inspección de objetos</td><td>Exploración de escenas</td><td>Navegación a nivel del suelo</td></tr>
+                <tr><td>Centrado en el modelo</td><td>Sí</td><td>No</td><td>No</td></tr>
+                <tr><td>Movimiento vertical</td><td>Solo desplazamiento</td><td>Teclas Q/E</td><td>Ninguno</td></tr>
+                <tr><td>Límite de cabeceo</td><td>Sin límite</td><td>±89°</td><td>±60°</td></tr>
+            </tbody>
+        </table>
+
+        <div class="lesson-navigation">
+            <a href='lesson05.html' class='nav-button'>← Lección anterior</a>
+            <a href="index.html" class="back-to-index">↑ Volver al índice</a>
+            <a href='lesson07.html' class='nav-button'>Siguiente lección →</a>
+        </div>
+    </div>
+</body>
+</html>

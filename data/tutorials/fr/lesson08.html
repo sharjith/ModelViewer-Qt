@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leçon 8 : Manipuler des objets - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutoriel</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Premiers pas</a>
+            <a href="lesson02.html">2. Ouvrir des modèles</a>
+            <a href="lesson03.html">3. Navigation de base</a>
+            <a href="lesson04.html">4. Sélectionner des objets</a>
+            <a href="lesson05.html">5. Modes d'affichage</a>
+            <a href="lesson06.html">6. Modes de caméra</a>
+            <a href="lesson07.html">7. Modes d'affichage des objets</a>
+            <a href="lesson08.html" class='active'>8. Manipuler des objets</a>
+            <a href="lesson09.html">9. Matériaux et textures</a>
+            <a href="lesson10.html">10. Éclairage et environnement</a>
+            <a href="lesson11.html">11. Travailler avec la visibilité</a>
+            <a href="lesson12.html">12. Fonctions avancées</a>
+            <a href="lesson13.html">13. Optimisation des performances</a>
+            <a href="lesson14.html">14. Conseils et flux de travail</a>
+            <a href="lesson15.html">15. Vues éclatées</a>
+            <a href="lesson16.html">16. Animation de morph targets</a>
+            <a href="lesson17.html">17. Édition de la transformation des nœuds</a>
+            <a href="lesson18.html">18. Rendu des arêtes et du fil de fer</a>
+            <a href="lesson19.html">19. Résultats de simulation</a>
+            <a href="lesson20.html">20. Regarder à l'intérieur d'un résultat</a>
+            <a href="lesson21.html">21. Graphiques et sondes</a>
+            <a href="lesson22.html">22. Comparer des résultats, données de cellule et de coque</a>
+            <a href="lesson23.html">23. Graphiques 3D à partir de données CSV</a>
+            <a href="lesson24.html">24. Graphiques 3D à partir de formules, remplissages, images et notes</a>
+            <a href="lesson25.html">25. Graphiques et résultats lus ensemble</a>
+            <a href="lesson26.html">26. Outils de maillage</a>
+            <a href="lesson27.html">27. Mesurer, annoter et rapporter</a>
+            <a href="lesson28.html">28. Analyse, sélection et scènes</a>
+            <a href="lesson29.html">29. Lancer de rayons en pratique</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Leçon 8 sur 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 27.59%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Leçon 8 : Manipuler des objets</h1>
+        </div>
+
+        <h2>Accéder aux transformations</h2>
+        <p>Sélectionnez un objet, puis utilisez le panneau Transformations à droite pour saisir des valeurs numériques exactes, ou faites un clic droit sur la sélection pour la même option.</p>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_08_transform_panel.png" alt="Le panneau de transformation avec les champs de translation, rotation et échelle et les boutons Appliquer et Réinitialiser" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_08_transform_panel.png</div>
+        </div>
+
+        <div class="note note-info">
+            Vous préférez travailler visuellement plutôt que de saisir des nombres ? La leçon 17 présente le <b>gizmo de transformation</b> interactif à l'écran, qui modifie la même transformation sous-jacente en faisant glisser des poignées directement dans la vue.
+        </div>
+
+        <h2>Translation, rotation et mise à l'échelle</h2>
+        <div class="step">
+            <div class="step-title">Translation</div>
+            <div class="step-content">Déplacez la sélection le long de X, Y ou Z en saisissant des valeurs DX, DY, DZ.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_08_translate.png" alt="Position de l&#x27;objet avant et après la translation" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_08_translate.png</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Rotation</div>
+            <div class="step-content">Saisissez des valeurs RX, RY, RZ (en degrés) pour pivoter autour de chaque axe.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_08_rotate.png" alt="Objet avant et après la rotation" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_08_rotate.png</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Mise à l'échelle</div>
+            <div class="step-content">Saisissez des valeurs SX, SY, SZ par axe. Les facteurs >1 agrandissent ; <1 réduisent. Réglez les trois sur la même valeur pour une mise à l'échelle uniforme.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_08_scale.png" alt="Objet avec différents facteurs d&#x27;échelle" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_08_scale.png</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Appliquer / Réinitialiser</div>
+            <div class="step-content">Cliquez sur « Appliquer les transformations » pour valider les valeurs saisies, ou sur « Réinitialiser les transformations » pour remettre les champs à zéro/identité. L'application est entièrement annulable (Modifier → Annuler).</div>
+        </div>
+
+        <h2>Dupliquer</h2>
+        <p>Créez des copies par clic droit → Dupliquer. Utilisez les transformations pour séparer la copie de l'original.</p>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_08_duplicate.png" alt="Objet original et son duplicata positionnés à proximité" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_08_duplicate.png</div>
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson07.html' class='nav-button'>← Leçon précédente</a>
+            <a href="index.html" class="back-to-index">↑ Retour à l'index</a>
+            <a href='lesson09.html' class='nav-button'>Leçon suivante →</a>
+        </div>
+    </div>
+</body>
+</html>

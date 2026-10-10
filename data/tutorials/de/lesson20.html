@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lektion 20: Ins Innere eines Ergebnisses schauen - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Anleitung</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Erste Schritte</a>
+            <a href="lesson02.html">2. Modelle öffnen</a>
+            <a href="lesson03.html">3. Grundlegende Navigation</a>
+            <a href="lesson04.html">4. Objekte auswählen</a>
+            <a href="lesson05.html">5. Ansichtsmodi</a>
+            <a href="lesson06.html">6. Kameramodi</a>
+            <a href="lesson07.html">7. Anzeigemodi</a>
+            <a href="lesson08.html">8. Objekte manipulieren</a>
+            <a href="lesson09.html">9. Materialien und Texturen</a>
+            <a href="lesson10.html">10. Beleuchtung und Umgebung</a>
+            <a href="lesson11.html">11. Arbeiten mit Sichtbarkeit</a>
+            <a href="lesson12.html">12. Erweiterte Funktionen</a>
+            <a href="lesson13.html">13. Leistungsoptimierung</a>
+            <a href="lesson14.html">14. Tipps und Workflows</a>
+            <a href="lesson15.html">15. Explosionsansichten</a>
+            <a href="lesson16.html">16. Morph-Target-Animation</a>
+            <a href="lesson17.html">17. Knotentransformation bearbeiten</a>
+            <a href="lesson18.html">18. Kanten- und Drahtgitter-Rendering</a>
+            <a href="lesson19.html">19. Simulationsergebnisse</a>
+            <a href="lesson20.html" class='active'>20. Ins Innere eines Ergebnisses schauen</a>
+            <a href="lesson21.html">21. Diagramme und Sonden</a>
+            <a href="lesson22.html">22. Ergebnisse vergleichen, Zell- und Schalendaten</a>
+            <a href="lesson23.html">23. 3D-Diagramme aus CSV-Daten</a>
+            <a href="lesson24.html">24. 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</a>
+            <a href="lesson25.html">25. Diagramme und Ergebnisse gemeinsam abspielen</a>
+            <a href="lesson26.html">26. Mesh-Werkzeuge</a>
+            <a href="lesson27.html">27. Messen, Kommentieren und Berichten</a>
+            <a href="lesson28.html">28. Analyse, Auswahl und Szenen</a>
+            <a href="lesson29.html">29. Raytracing in der Praxis</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lektion 20 von 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 68.97%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lektion 20: Ins Innere eines Ergebnisses schauen</h1>
+        </div>
+
+        <h2>Einführung</h2>
+        <p>Ein Ergebnis wird als Außenfläche gezeichnet, aber die interessanten Werte liegen oft im Inneren. Diese Lektion zeigt fünf Wege hinein: das Ergebnis mit einem Schnitt aufschneiden, Isoflächen extrahieren, Stromlinien durch eine Strömung verfolgen, ein Feld als Volumen darstellen sowie Vektoren und Spannungstensoren als Glyphen zeichnen.</p>
+        <div class="note note-info">
+            Sie benötigen diese Beispiele aus <code>sample-models/Simulation</code>: <code>FEM_box_static_stress.vtu</code> (Schnitte), <code>block.cgns</code> (Isoflächen und Volumen; <code>block.exo</code> und <code>block.vtkhdf</code> enthalten dieselben Daten), <code>duct.cgns</code> (Stromlinien), <code>plate_with_hole.frd</code> und <code>stress_states.vtu</code> (Spannungsellipsoide).
+        </div>
+        <h2>Schnitte</h2>
+        <p>Die Schnittebenen aus Lektion 12 schneiden ein Ergebnis wie jedes andere Modell, und die Schnittfläche kann die Werte des Feldes zeigen statt einer leeren Höhlung.</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Würfel und eine Schnittebene öffnen</div>
+            <div class="step-content">Öffnen Sie <code>FEM_box_static_stress.vtu</code>, klicken Sie in der Ansichtssymbolleiste auf <b>Schnittansicht</b> und aktivieren Sie eine Ebene.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Den Schnitt einfärben</div>
+            <div class="step-content">Aktivieren Sie in der Registerkarte „Simulationsergebnisse“ <b>Schnitt der Schnittebene mit dem Feld einfärben</b>. Die Schnittfläche zeigt nun die Spannung im Inneren des Würfels.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Die Ebene verschieben</div>
+            <div class="step-content">Ändern Sie den Koeffizienten der Ebene, um den Schnitt durch den Würfel zu schieben und die Werte sich ändern zu sehen.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_20_coloured_section.png" alt="tutorial_20_coloured_section.png" title="Capture: Open FEM_box_static_stress.vtu, enable one clipping plane (Section View), tick &quot;Colour the Clipping Plane cut with the field&quot;, move the plane to about the middle and rotate so the cut face is visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open FEM_box_static_stress.vtu, enable one clipping plane (Section View), tick &quot;Colour the Clipping Plane cut with the field&quot;, move the plane to about the middle and rotate so the cut face is visible." style="display:none; width:700px; height:450px;">Screenshot: tutorial_20_coloured_section.png (700x450)</div>
+            <span class="screenshot-caption">Ein von einer Schnittebene geschnittener Würfel, die Schnittfläche nach Spannung eingefärbt</span>
+        </div>
+
+        <h2>Isoflächen</h2>
+        <p>Eine Isofläche ist die Fläche, auf der ein Feld einen konstanten Wert hat - etwa eine Hülle gleicher Temperatur. Sie macht das Innere eines Volumens sichtbar, ohne es zu schneiden.</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Ein Volumenergebnis öffnen</div>
+            <div class="step-content">Öffnen Sie <code>block.cgns</code>, einen Block aus Hexaedern mit einem Temperaturfeld über fünf Schritte.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Isoflächen einschalten</div>
+            <div class="step-content">Aktivieren Sie <b>Isoflächen anzeigen</b>, wählen Sie das <b>Feld der Isoflächen</b> (Temperature) und die Anzahl der <b>Stufen der Isoflächen</b>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Mit einem Schnitt kombinieren</div>
+            <div class="step-content">Schalten Sie zusätzlich eine Schnittebene ein: Die ineinanderliegenden Hüllen werden aufgeschnitten, und Sie sehen, wie das Feld im Inneren geschichtet ist.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_20_iso_surfaces.png" alt="tutorial_20_iso_surfaces.png" title="Capture: Open block.cgns, Field = Temperature, tick Show iso-surfaces with about 5 levels, and one clipping plane so the nested shells are visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open block.cgns, Field = Temperature, tick Show iso-surfaces with about 5 levels, and one clipping plane so the nested shells are visible." style="display:none; width:700px; height:450px;">Screenshot: tutorial_20_iso_surfaces.png (700x450)</div>
+            <span class="screenshot-caption">Isoflächen des Temperaturfeldes im Block</span>
+        </div>
+
+        <h2>Stromlinien</h2>
+        <p>Stromlinien folgen einem Geschwindigkeitsfeld: Jede Linie ist der Weg, den ein masseloses Teilchen nähme, wenn die Strömung beim aktuellen Schritt eingefroren wäre.</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Den Kanal öffnen</div>
+            <div class="step-content">Öffnen Sie <code>duct.cgns</code>: ein halbringförmiger Kanal mit einer Drallströmung über vier Schritte.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Stromlinien anzeigen</div>
+            <div class="step-content">Aktivieren Sie <b>Stromlinien anzeigen</b>, wählen Sie das <b>Feld der Stromlinien</b> (Velocity) und legen Sie die Anzahl der <b>Startpunkte der Stromlinien</b> fest. <b>Pfeilspitzen</b> fügt kleine Kegel hinzu, die die Richtung zeigen, und <b>Liniendicke</b> legt die Breite fest.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Auf einer Ebene starten</div>
+            <div class="step-content">Aktivieren Sie eine Schnittebene und <b>Auf der Schnittebene starten</b>: Die Linien beginnen am Schnitt und zeigen genau, wohin die Strömung von diesem Querschnitt aus geht.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_20_streamlines.png" alt="tutorial_20_streamlines.png" title="Capture: Open duct.cgns, tick Show streamlines (Velocity, about 60 seeds, Arrowheads on); rotate to see the half-ring shape of the duct." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open duct.cgns, tick Show streamlines (Velocity, about 60 seeds, Arrowheads on); rotate to see the half-ring shape of the duct." style="display:none; width:700px; height:450px;">Screenshot: tutorial_20_streamlines.png (700x450)</div>
+            <span class="screenshot-caption">Stromlinien, die durch den Kanal wirbeln, mit Pfeilspitzen</span>
+        </div>
+
+        <h2>Volumendarstellung</h2>
+        <p><b>Als Volumen anzeigen</b> stellt ein Feld als halbtransparente Wolke statt als Fläche dar. Wählen Sie das <b>Volumenfeld</b>, eine <b>Volumenqualität</b> (Niedrig 32 bis Sehr hoch 128) und formen Sie die Deckkraftkurve so, dass nur der Wertebereich sichtbar ist, der Sie interessiert.</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Den Block erneut verwenden</div>
+            <div class="step-content">Schalten Sie bei geöffnetem <code>block.cgns</code> die Isoflächen aus und aktivieren Sie <b>Als Volumen anzeigen</b> mit Temperature als Volumenfeld.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Die Deckkraft formen</div>
+            <div class="step-content">Bearbeiten Sie die Deckkraftkurve: Ziehen Sie einen Punkt, fügen Sie per Doppelklick einen hinzu, entfernen Sie einen inneren Punkt per Rechtsklick. Erhöhen Sie die Kurve für die heißen Werte und senken Sie sie für die kalten, um nur den heißen Kern zu sehen.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Durch die Zeit gehen</div>
+            <div class="step-content">Drücken Sie auf der Zeitleiste Wiedergabe: Die Wolke folgt den fünf Schritten des Ergebnisses.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_20_volume_rendering.png" alt="tutorial_20_volume_rendering.png" title="Capture: Open block.cgns, tick Show as volume (Temperature, Medium or High quality), and include the opacity curve widget in the Simulation Results tab in the shot (crop window + dock together)." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open block.cgns, tick Show as volume (Temperature, Medium or High quality), and include the opacity curve widget in the Simulation Results tab in the shot (crop window + dock together)." style="display:none; width:700px; height:450px;">Screenshot: tutorial_20_volume_rendering.png (700x450)</div>
+            <span class="screenshot-caption">Das Temperaturfeld des Blocks als Volumen dargestellt</span>
+        </div>
+
+        <h2>Vektorpfeile</h2>
+        <p><b>Vektorpfeile anzeigen</b> zeichnet für ein Vektorfeld an abgetasteten Punkten der Fläche je einen Pfeil. Wählen Sie das <b>Pfeilfeld</b>, die <b>Pfeilgröße</b> (stabil beim Zoomen) und die <b>Pfeilanzahl</b>. Ist <b>Pfeile nach Betrag skalieren</b> aus, haben alle Pfeile dieselbe Länge, und nur die Farbe zeigt den Betrag.</p>
+        <h2>Spannungsellipsoide</h2>
+        <p>Für einen symmetrischen Spannungstensor zeichnet <b>Spannungsellipsoide anzeigen</b> an abgetasteten Punkten je ein Ellipsoid. Seine drei Achsen zeigen in die Hauptrichtungen, ihre Längen folgen den Hauptwerten; die längste Achse ist auf dem Bildschirm immer gleich groß, sodass die <i>Form</i> zeigt, wie die Spannung verteilt ist, und die Farbe, wie groß sie ist.</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Mit der Platte beginnen</div>
+            <div class="step-content">Öffnen Sie <code>plate_with_hole.frd</code>, aktivieren Sie <b>Spannungsellipsoide anzeigen</b> und setzen Sie die <b>Anzahl der Ellipsoide</b> auf 1500 oder mehr. Weit vom Loch entfernt sind die Ellipsoide Nadeln entlang des Zugs; um das Loch ändern sie Form und Farbe stark.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Zwischen Tensoren wählen</div>
+            <div class="step-content">Öffnen Sie <code>stress_states.vtu</code> mit drei Spannungstensoren und wechseln Sie das <b>Tensorfeld</b>: Nadeln für Biegung, geneigte Scheiben für Torsion, abgeflachte Ellipsoide für den elementweisen Tensor.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_20_stress_ellipsoids.png" alt="tutorial_20_stress_ellipsoids.png" title="Capture: Open plate_with_hole.frd, Show stress ellipsoids with count 2000, last load step, view the plate face-on, zoomed so the hole fills about a third of the viewport." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open plate_with_hole.frd, Show stress ellipsoids with count 2000, last load step, view the plate face-on, zoomed so the hole fills about a third of the viewport." style="display:none; width:700px; height:450px;">Screenshot: tutorial_20_stress_ellipsoids.png (700x450)</div>
+            <span class="screenshot-caption">Spannungsellipsoide um das Loch der Platte</span>
+        </div>
+
+        <div class="note note-tip">
+            Vektorpfeile, Spannungsellipsoide und die verformte Form können gleichzeitig aktiv sein; schalten Sie aus, was Sie nicht brauchen, damit das Bild lesbar bleibt.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson19.html' class='nav-button'>← Vorherige Lektion</a>
+            <a href="index.html" class="back-to-index">↑ Zurück zur Übersicht</a>
+            <a href='lesson21.html' class='nav-button'>Nächste Lektion →</a>
+        </div>
+    </div>
+</body>
+</html>

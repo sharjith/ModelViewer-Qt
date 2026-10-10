@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 24: 3D Plots from Formulas, Fills, Images and Notes - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials &amp; Textures</a>
+            <a href="lesson10.html">10. Lighting &amp; Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips &amp; Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge &amp; Wireframe Rendering</a>
+            <a href="lesson19.html">19. Simulation Results</a>
+            <a href="lesson20.html">20. Looking Inside a Result</a>
+            <a href="lesson21.html">21. Charts and Probing</a>
+            <a href="lesson22.html">22. Comparing Results, Cell and Shell Data</a>
+            <a href="lesson23.html">23. 3D Plots from CSV Data</a>
+            <a href="lesson24.html" class='active'>24. 3D Plots from Formulas, Fills, Images and Notes</a>
+            <a href="lesson25.html">25. Plots and Results Played Together</a>
+            <a href="lesson26.html">26. Mesh Tools</a>
+            <a href="lesson27.html">27. Measure, Annotate and Report</a>
+            <a href="lesson28.html">28. Analysis, Selection and Scenes</a>
+            <a href="lesson29.html">29. Ray Tracing in Practice</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 24 of 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 82.76%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 24: 3D Plots from Formulas, Fills, Images and Notes</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>You do not need a file to make a plot. A formula can generate a surface, a curve, a vector field or the flow of a particle; fills turn lines and points into ribbons and curtains; an image can stand on a plane; text notes label what matters; and all the plots in a document share one set of axes, which can be logarithmic.</p>
+        <h2>Formula Surfaces</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Choose a formula source</div>
+            <div class="step-content">In the Add 3D Plot dialog set <b>Data source</b> to <i>Formula surface</i>. <b>Preset</b> offers Plane, Saddle, Paraboloid, Cone, Gaussian, Sinc Ripple, Wave, Mexican Hat, Bivariate Normal, Logistic Regression and Rosenbrock; the <b>z =</b> box holds the expression in x and y, and the ranges and sample counts set the grid.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Preview and build</div>
+            <div class="step-content">Click <b>Refresh Preview</b> after changing an expression or a parameter, then <b>Build Plot</b>. If the expression is wrong, for example an unknown variable, the status line names the problem and Build stays disabled.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_24_formula_surface.png" alt="tutorial_24_formula_surface.png" title="Capture: Add 3D Plot &gt; Formula surface &gt; Preset Mexican Hat; Refresh Preview; capture the dialog and the preview in the viewport." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Add 3D Plot &gt; Formula surface &gt; Preset Mexican Hat; Refresh Preview; capture the dialog and the preview in the viewport." style="display:none; width:700px; height:450px;">Screenshot: tutorial_24_formula_surface.png (700x450)</div>
+            <span class="screenshot-caption">The Mexican Hat formula surface, with the dialog and the status line</span>
+        </div>
+
+        <p>The same dialog also has <b>Parametric surface</b> (Torus, Ellipsoid, Mobius Strip, Klein Bottle, Superellipsoid, Helicoid, Catenoid, Enneper Surface, Spherical Harmonic), <b>Parametric curve</b> (Helix, Lissajous, Trefoil Knot, Viviani Curve, Damped Spiral; the parameter is called <i>t</i>), <b>Implicit surface</b> and <b>Formula vector field</b>.</p>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_24_parametric_surfaces.png" alt="tutorial_24_parametric_surfaces.png" title="Capture: Build Parametric surface presets Torus and Klein Bottle separately (two captures joined side by side), isometric view, axes box on." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build Parametric surface presets Torus and Klein Bottle separately (two captures joined side by side), isometric view, axes box on." style="display:none; width:700px; height:350px;">Screenshot: tutorial_24_parametric_surfaces.png (700x350)</div>
+            <span class="screenshot-caption">A torus and a Klein bottle built from parametric presets</span>
+        </div>
+
+        <h2>Editing a Generated Plot</h2>
+        <p>Plots from formulas remember the definition they were built from. Select one in <b>Active plot</b>, click <b>Edit Plot...</b>, change an expression, a range or a parameter, and click <b>Rebuild Plot</b>: the existing plot updates in place and keeps its title, visibility, colours and axes settings. The source type cannot be changed in an edit - build a new plot for that.</p>
+        <h2>Fills: Ribbons and Curtains</h2>
+        <p>A line or a scatter plot can be filled to a base plane or between two curves. Fills are translucent and coloured like the plot.</p>
+        <table>
+            <thead><tr><th>Goal</th><th>How</th></tr></thead>
+            <tbody>
+            <tr><td>A curtain under a line</td><td><code>line_helix.csv</code> as <b>Line / Curve</b>, tick <b>Fill to Base Z</b> with base 0.</td></tr>
+            <tr><td>A band between two curves</td><td><code>line_band.csv</code> as <b>Line / Curve</b>, Colour value = value, tick the fill and choose <i>z2</i> in <b>or between the line and column</b>.</td></tr>
+            <tr><td>Ribbons from scatter points</td><td><code>scatter_clusters.csv</code> as <b>Scatter</b>, tick <b>Fill to Base Z</b> with a base such as -3; or <code>scatter_band.csv</code> with <i>z2</i> for ribbons between two sets of points.</td></tr>
+            <tr><td>Fill a generated curve</td><td><b>Parametric curve</b> with the Helix preset: tick <b>Fill the curve down to Base Z</b>, or type a second <i>z2(t)</i> such as 2 + sin(t) to fill between the two curves.</td></tr>
+            </tbody>
+        </table>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_24_fill_between_curves.png" alt="tutorial_24_fill_between_curves.png" title="Capture: Build line_band.csv as Line / Curve with the fill between the line and column z2 (Colour value = value); isometric view so both crossings are visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build line_band.csv as Line / Curve with the fill between the line and column z2 (Colour value = value); isometric view so both crossings are visible." style="display:none; width:700px; height:450px;">Screenshot: tutorial_24_fill_between_curves.png (700x450)</div>
+            <span class="screenshot-caption">A translucent band between two crossing curves, pinching to a line where they cross</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_24_fill_curtain.png" alt="tutorial_24_fill_curtain.png" title="Capture: Build line_helix.csv as Line / Curve with Fill to Base Z = 0." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build line_helix.csv as Line / Curve with Fill to Base Z = 0." style="display:none; width:700px; height:400px;">Screenshot: tutorial_24_fill_curtain.png (700x400)</div>
+            <span class="screenshot-caption">The helix with a curtain down to the base plane</span>
+        </div>
+
+        <h2>Images on a Plane</h2>
+        <p>An image can stand on one of the plot planes - a site map under a surface, a scan beside a model. Set <b>Data source</b> to <i>Image on a plane</i>, pick an image file, choose the plane (XY flat at the Z minimum, XZ or YZ upright) and set the ranges; they adapt to the picture's shape when you pick it. <b>Opacity</b> lets what is behind show through. Seen from behind a picture reads mirrored - for an opaque picture, tick <b>Readable from behind</b>.</p>
+        <div class="note note-info">
+            Try <code>image_gradient.png</code> (320 x 200, with an "L" mark in one corner - it shows whether the picture is mirrored) and <code>image_gradient_alpha.png</code>, whose own transparency combines with the opacity setting. Readable from behind is only available for an opaque picture at 100 % opacity.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_24_image_plane.png" alt="tutorial_24_image_plane.png" title="Capture: Build surface_ripple.csv, then Image on a plane with image_gradient.png on the XZ plane (shared axes); capture so the &quot;L&quot; mark is visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build surface_ripple.csv, then Image on a plane with image_gradient.png on the XZ plane (shared axes); capture so the &quot;L&quot; mark is visible." style="display:none; width:700px; height:450px;">Screenshot: tutorial_24_image_plane.png (700x450)</div>
+            <span class="screenshot-caption">An image standing on a plane next to a surface plot</span>
+        </div>
+
+        <h2>Text Notes</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Place a note</div>
+            <div class="step-content">Select a plot, open the <b>Text notes</b> group in the 3D Plot tab and click <b>Place note</b>, then click a point on the plot - or use <b>Add at centre</b>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Edit and move it</div>
+            <div class="step-content">Drag a note to move it, double-click to edit its text and right-click to delete it. Everything can be undone.</div>
+        </div>
+        <p>Notes are drawn at their data point inside the axes box, follow the plot's visibility and are saved with the session.</p>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_24_text_notes.png" alt="tutorial_24_text_notes.png" title="Capture: Ripple surface with a note &quot;Peak = 1.0&quot; placed on the central peak; capture the note and the 3D Plot tab Text notes group together." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Ripple surface with a note &quot;Peak = 1.0&quot; placed on the central peak; capture the note and the 3D Plot tab Text notes group together." style="display:none; width:700px; height:450px;">Screenshot: tutorial_24_text_notes.png (700x450)</div>
+            <span class="screenshot-caption">A note on the peak of a surface</span>
+        </div>
+
+        <h2>Shared Axes and Non-Linear Scales</h2>
+        <p>All plots in a document are drawn on <b>one set of axes</b>. Under <b>Axes</b> in the 3D Plot tab you set each axis' label, <b>Axis scale</b> (<i>Linear</i>, <i>Log 10</i> or <i>SymLog</i>), range and tick count. Changing a scale re-lays out every plot together: lines, scatter, surfaces, bars, arrows and voxel grids all follow it.</p>
+        <div class="step">
+            <div class="step-title">Step 1: Build two plots</div>
+            <div class="step-content">Build <code>scatter_error_bars.csv</code> as a Scatter plot, then <code>line_growth.csv</code> as a Line / Curve (z = 10^(x/2), from 1 to 100).</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Set Z to Log 10</div>
+            <div class="step-content">In <b>Axes</b> set the Z <b>Axis scale</b> to <i>Log 10</i>. Both plots re-lay out together: the exponential line becomes straight and the scatter moves with it.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Meet the limit</div>
+            <div class="step-content">A Log 10 axis needs the data of <i>every</i> plot to be above zero. Building <code>line_helix.csv</code>, which reaches 0, while Z is Log 10 returns Z to Linear with a status message; trying to set Log 10 with such a plot present is refused with a message naming the reason. <i>SymLog</i> handles any data, including negative values.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_24_log_axis_shared.png" alt="tutorial_24_log_axis_shared.png" title="Capture: scatter_error_bars.csv and line_growth.csv built, Z axis scale = Log 10; capture the scene with the Axes group of the 3D Plot tab visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: scatter_error_bars.csv and line_growth.csv built, Z axis scale = Log 10; capture the scene with the Axes group of the 3D Plot tab visible." style="display:none; width:700px; height:450px;">Screenshot: tutorial_24_log_axis_shared.png (700x450)</div>
+            <span class="screenshot-caption">A scatter plot and an exponential line sharing a logarithmic Z axis</span>
+        </div>
+
+        <div class="note note-tip">
+            Vector arrows are re-aimed by the local stretch of the scale at their site and keep their length and colour; voxel grids are resampled; the hover readout of a surface still shows the plot's data values, not positions on the scaled axes. Switching back to Linear restores everything.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson23.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson25.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

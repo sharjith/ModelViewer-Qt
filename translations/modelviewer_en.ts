@@ -17483,6 +17483,61 @@ Switch to PBR now?</source>
 <context>
     <name>TutorialDialog</name>
     <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>19. Simulation Results</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>20. Looking Inside a Result</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>21. Charts and Probing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>22. Comparing Results, Cell and Shell Data</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>23. 3D Plots from CSV Data</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>24. 3D Plots from Formulas, Fills, Images and Notes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>25. Plots and Results Played Together</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>26. Mesh Tools</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>27. Measure, Annotate and Report</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>28. Analysis, Selection and Scenes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>29. Ray Tracing in Practice</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../src/App/TutorialDialog.cpp" line="50"/>
         <source>ModelViewer Tutorial</source>
         <translation></translation>
@@ -19812,6 +19867,11 @@ instead of a plain color</source>
 </context>
 <context>
     <name>WhatsNewDialog</name>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Tutorial: lesson %1</source>
+        <translation type="unfinished"></translation>
+    </message>
     <message>
         <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
         <source>What&apos;s New</source>

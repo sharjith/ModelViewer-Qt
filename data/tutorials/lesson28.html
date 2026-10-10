@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 28: Analysis, Selection and Scenes - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials &amp; Textures</a>
+            <a href="lesson10.html">10. Lighting &amp; Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips &amp; Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge &amp; Wireframe Rendering</a>
+            <a href="lesson19.html">19. Simulation Results</a>
+            <a href="lesson20.html">20. Looking Inside a Result</a>
+            <a href="lesson21.html">21. Charts and Probing</a>
+            <a href="lesson22.html">22. Comparing Results, Cell and Shell Data</a>
+            <a href="lesson23.html">23. 3D Plots from CSV Data</a>
+            <a href="lesson24.html">24. 3D Plots from Formulas, Fills, Images and Notes</a>
+            <a href="lesson25.html">25. Plots and Results Played Together</a>
+            <a href="lesson26.html">26. Mesh Tools</a>
+            <a href="lesson27.html">27. Measure, Annotate and Report</a>
+            <a href="lesson28.html" class='active'>28. Analysis, Selection and Scenes</a>
+            <a href="lesson29.html">29. Ray Tracing in Practice</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 28 of 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 96.55%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 28: Analysis, Selection and Scenes</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>This lesson covers the tools that help you check a design and work through a large model: colouring surfaces to find problems, reading mass properties, selecting parts by what they are rather than where they are, and saving the state of a scene so you can return to it in one click.</p>
+        <h2>Surface Analysis</h2>
+        <p><b>Tools → Surface Analysis...</b> colours the selected meshes by a quality measure. Pick an analysis, read the colours against the legend and use <b>Show Readout on Hover</b> to print the value under the cursor. <b>Clear Overlay</b> removes every analysis colour.</p>
+        <table>
+            <thead><tr><th>Analysis</th><th>What it shows</th></tr></thead>
+            <tbody>
+            <tr><td>Draft Angle</td><td>The angle of every face against a chosen pull direction - can the part be released from a mould?</td></tr>
+            <tr><td>Zebra Stripe</td><td>Reflected stripes: kinks in the stripes reveal where surfaces meet with less than smooth continuity.</td></tr>
+            <tr><td>Mean Curvature</td><td>How strongly and in which sense the surface curves at each point.</td></tr>
+            <tr><td>Wall-Thickness</td><td>The thickness of the walls, with an option to highlight walls thinner than a limit. Methods: <i>Inscribed sphere</i>, <i>Local thickness (rays)</i> and <i>Normal ray (fast)</i>.</td></tr>
+            <tr><td>Deviation</td><td>How far a mesh is from a reference mesh - for comparing a scan with its CAD model.</td></tr>
+            </tbody>
+        </table>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_28_wall_thickness.png" alt="tutorial_28_wall_thickness.png" title="Capture: Open &quot;MBB Gehause Rohteil.step&quot;, Tools &gt; Surface Analysis..., Wall-Thickness with a limit that highlights the thin walls; capture the dialog and the coloured part." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open &quot;MBB Gehause Rohteil.step&quot;, Tools &gt; Surface Analysis..., Wall-Thickness with a limit that highlights the thin walls; capture the dialog and the coloured part." style="display:none; width:700px; height:450px;">Screenshot: tutorial_28_wall_thickness.png (700x450)</div>
+            <span class="screenshot-caption">Wall thickness of a housing coloured on the surface, with thin walls highlighted</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_28_zebra_and_draft.png" alt="tutorial_28_zebra_and_draft.png" title="Capture: One part (for example bottle.step) with Zebra Stripe, then Clear Overlay and Draft Angle with a vertical pull direction; join the two captures side by side." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: One part (for example bottle.step) with Zebra Stripe, then Clear Overlay and Draft Angle with a vertical pull direction; join the two captures side by side." style="display:none; width:700px; height:350px;">Screenshot: tutorial_28_zebra_and_draft.png (700x350)</div>
+            <span class="screenshot-caption">Zebra stripes (left) and a draft-angle analysis (right) on the same part</span>
+        </div>
+
+        <div class="note note-tip">
+            Analysis colours replace the usual material look until you click <b>Clear Overlay</b>. If a surface looks oddly coloured later, that is the first thing to check.
+        </div>
+        <h2>Mass Properties</h2>
+        <p><b>Tools → Mass Properties...</b> lists the volume, mass and centre of gravity of every mesh and of every material. The density comes from the material's <b>Physical Properties</b> tab, so set it there first. The table can be searched and sorted; the row menu has <b>Show Only</b>, and selecting a row selects that mesh in the viewer. Open (shell) surfaces use a shell thickness instead of a volume.</p>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_28_mass_properties.png" alt="tutorial_28_mass_properties.png" title="Capture: Open the Skate-Board assembly, give two materials a density (Physical Properties), Tools &gt; Mass Properties...; select a row and capture the table with the mesh highlighted." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open the Skate-Board assembly, give two materials a density (Physical Properties), Tools &gt; Mass Properties...; select a row and capture the table with the mesh highlighted." style="display:none; width:700px; height:450px;">Screenshot: tutorial_28_mass_properties.png (700x450)</div>
+            <span class="screenshot-caption">The Mass Properties table for an assembly, with a row selected and its mesh highlighted</span>
+        </div>
+
+        <h2>Selecting by What Parts Are</h2>
+        <p>The <b>Selection</b> menu has tools for large assemblies, where clicking one part at a time is slow:</p>
+        <ul>
+            <li><b>Lasso</b> selects everything inside a freehand outline.</li>
+            <li><b>Filter by Material</b> and <b>Filter by Color</b> select every mesh that uses a material or a colour.</li>
+            <li><b>Filter by Bounding Box</b> shows a draggable box gizmo and selects the parts inside it.</li>
+            <li><b>Named selection sets</b> save a selection under a name so you can recall it later.</li>
+            <li>The <b>Material Eyedropper / Brush</b> picks the material of one mesh and paints it onto others.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_28_filter_by_material.png" alt="tutorial_28_filter_by_material.png" title="Capture: Open the Forklift or Skate-Board assembly, Selection &gt; Filter by Material, choose one material; capture the viewport with the matching parts highlighted." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open the Forklift or Skate-Board assembly, Selection &gt; Filter by Material, choose one material; capture the viewport with the matching parts highlighted." style="display:none; width:700px; height:450px;">Screenshot: tutorial_28_filter_by_material.png (700x450)</div>
+            <span class="screenshot-caption">Every mesh using one material selected at once with Filter by Material</span>
+        </div>
+
+        <h2>Scene States</h2>
+        <p>A scene state stores a named snapshot of the scene: the camera, which meshes are visible, the selection and the presentation settings. Choose <b>Selection → Save Scene State...</b> and give it a name; the <b>States</b> panel in the document dock lists every state and recalls it in one click. Use them for the views you return to - an overview, a cutaway, a detail with parts hidden.</p>
+        <div class="step">
+            <div class="step-title">Step 1: Set up a view</div>
+            <div class="step-content">Hide the parts you do not want, select the ones you want to emphasise and position the camera.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Save it</div>
+            <div class="step-content">Choose <b>Selection → Save Scene State...</b>, type a name such as <i>Gearbox only</i> and confirm. Make a second state from a different view.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Recall it</div>
+            <div class="step-content">Click a state in the <b>States</b> panel: the camera, visibility, selection and presentation return in one step.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_28_states_panel.png" alt="tutorial_28_states_panel.png" title="Capture: After saving two scene states, capture the States panel in the document dock (crop the dock) with both entries listed." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: After saving two scene states, capture the States panel in the document dock (crop the dock) with both entries listed." style="display:none; width:420px; height:360px;">Screenshot: tutorial_28_states_panel.png (420x360)</div>
+            <span class="screenshot-caption">The States panel with two saved scene states</span>
+        </div>
+
+
+        <div class="lesson-navigation">
+            <a href='lesson27.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson29.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

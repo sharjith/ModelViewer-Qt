@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lektion 14: Tipps und Workflows - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Anleitung</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Erste Schritte</a>
+            <a href="lesson02.html">2. Modelle öffnen</a>
+            <a href="lesson03.html">3. Grundlegende Navigation</a>
+            <a href="lesson04.html">4. Objekte auswählen</a>
+            <a href="lesson05.html">5. Ansichtsmodi</a>
+            <a href="lesson06.html">6. Kameramodi</a>
+            <a href="lesson07.html">7. Anzeigemodi</a>
+            <a href="lesson08.html">8. Objekte manipulieren</a>
+            <a href="lesson09.html">9. Materialien und Texturen</a>
+            <a href="lesson10.html">10. Beleuchtung und Umgebung</a>
+            <a href="lesson11.html">11. Arbeiten mit Sichtbarkeit</a>
+            <a href="lesson12.html">12. Erweiterte Funktionen</a>
+            <a href="lesson13.html">13. Leistungsoptimierung</a>
+            <a href="lesson14.html" class='active'>14. Tipps und Workflows</a>
+            <a href="lesson15.html">15. Explosionsansichten</a>
+            <a href="lesson16.html">16. Morph-Target-Animation</a>
+            <a href="lesson17.html">17. Knotentransformation bearbeiten</a>
+            <a href="lesson18.html">18. Kanten- und Drahtgitter-Rendering</a>
+            <a href="lesson19.html">19. Simulationsergebnisse</a>
+            <a href="lesson20.html">20. Ins Innere eines Ergebnisses schauen</a>
+            <a href="lesson21.html">21. Diagramme und Sonden</a>
+            <a href="lesson22.html">22. Ergebnisse vergleichen, Zell- und Schalendaten</a>
+            <a href="lesson23.html">23. 3D-Diagramme aus CSV-Daten</a>
+            <a href="lesson24.html">24. 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</a>
+            <a href="lesson25.html">25. Diagramme und Ergebnisse gemeinsam abspielen</a>
+            <a href="lesson26.html">26. Mesh-Werkzeuge</a>
+            <a href="lesson27.html">27. Messen, Kommentieren und Berichten</a>
+            <a href="lesson28.html">28. Analyse, Auswahl und Szenen</a>
+            <a href="lesson29.html">29. Raytracing in der Praxis</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lektion 14 von 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 48.28%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lektion 14: Tipps und Workflows</h1>
+        </div>
+
+        <h2>Einführung</h2>
+        <p>Diese letzte Lektion behandelt nützliche Tipps, Tastenkürzel und professionelle Arbeitsabläufe, die Sie in ModelViewer produktiver machen.</p>
+
+        <h2>Navigationstipps</h2>
+        <ul>
+            <li><b>Verloren im Raum?</b> Drücken Sie <kbd>F</kbd>, um sofort alle Objekte in die Ansicht einzupassen.</li>
+            <li><b>Schnell zu einem Punkt verschieben:</b> Klicken Sie mit der mittleren Maustaste (nicht ziehen), um die Ansicht auf einen bestimmten Punkt zu zentrieren.</li>
+            <li><b>Zoom zur Maus:</b> Der Mausrad-Zoom konzentriert sich auf Ihre aktuelle Cursorposition.</li>
+            <li><b>Sanfte Trägheit:</b> Schnelle Mausgesten erzeugen eine sanfte Trägheitsbewegung für flüssiges Betrachten.</li>
+            <li><b>Bewegung stoppen:</b> Klicken Sie eine beliebige Maustaste, um die Trägheitsbewegung sofort zu stoppen.</li>
+        </ul>
+
+        <h2>Auswahltricks</h2>
+        <ul>
+            <li><b>Schnell abwählen:</b> Drücken Sie <kbd>Esc</kbd>, um alle aktuellen Auswahlen aufzuheben.</li>
+            <li><b>Objekte suchen:</b> Verwenden Sie das Suchfeld über dem Modellbaum, um Einträge nach Namen zu filtern - es berücksichtigt auch Namen von Baugruppen und Wurzelknoten, nicht nur von Blatt-Meshes.</li>
+            <li><b>Auf die Auswahl zentrieren:</b> Rechtsklick → „Bildschirm zentrieren“, um nur die ausgewählten Objekte einzurahmen.</li>
+            <li><b>Zur Auswahl scrollen:</b> Rechtsklick → „Objektliste zentrieren“, um den Baum automatisch zu Ihrem ausgewählten Eintrag zu scrollen.</li>
+        </ul>
+
+        <h2>Sichtbarkeits-Arbeitsabläufe</h2>
+        <ul>
+            <li><b>Schneller Fokus:</b> Wählen Sie Teile aus und drücken Sie <kbd>Umschalt+Leertaste</kbd>, um sie sofort zu isolieren.</li>
+            <li><b>Varianten vergleichen:</b> Blenden Sie einen Entwurf aus, arbeiten Sie an einem anderen und tauschen Sie dann mit <kbd>Alt+S</kbd> die Sichtbarkeit, um beide zu vergleichen.</li>
+            <li><b>Schrittweises Aufdecken:</b> Blenden Sie alle Objekte aus und zeigen Sie dann Gruppen nacheinander an, um komplexe Baugruppen Schritt für Schritt zu verstehen.</li>
+        </ul>
+
+        <h2>Kamera- und Ansichtstipps</h2>
+        <ul>
+            <li><b>Schneller Kamerawechsel:</b> Drücken Sie <kbd>1</kbd>, <kbd>2</kbd> oder <kbd>3</kbd>, um sofort die Kameramodi zu wechseln.</li>
+            <li><b>Standardansichten:</b> Verwenden Sie die Symbolleistenschaltflächen für sofortige Ansichten Oben, Vorne oder Links.</li>
+            <li><b>Präsentationsansicht:</b> Kombinieren Sie isometrische Ansicht, perspektivische Projektion und realistischen Modus.</li>
+            <li><b>Technische Ansicht:</b> Verwenden Sie die Vorderansicht, orthografische Projektion und den Modus Schattiert.</li>
+            <li><b>Analyseansicht:</b> Verwenden Sie den Modus Drahtgitter oder Schattiert mit Drahtgitter, um die Mesh-Topologie zu untersuchen.</li>
+        </ul>
+
+        <h2>Material-Arbeitsablauf</h2>
+        <ol>
+            <li>Beginnen Sie mit einfachen Farben im <b>Schattiert-Modus</b>.</li>
+            <li>Wechseln Sie in den <b>realistischen Modus</b>, um das PBR-Rendering zu sehen.</li>
+            <li>Passen Sie die Werte für <b>Metallisch und Rauheit</b> an, um Oberflächentypen zu definieren.</li>
+            <li>Fügen Sie <b>Texturen</b> (Albedo, Normalen, Rauheit) für Details hinzu.</li>
+            <li>Aktivieren Sie <b>IBL</b> (bildbasierte Beleuchtung) für die finale Umgebungsbeleuchtung.</li>
+            <li>Feinabstimmung von <b>Belichtung und Tonemapping</b> für den finalen Look.</li>
+        </ol>
+
+        <h2>Tastatureffizienz</h2>
+        <p>Beherrschen Sie diese Tastenkürzel für maximale Geschwindigkeit:</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Aufgabe</th>
+                    <th>Tastenkürzel</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Alle einpassen</td><td><kbd>F</kbd></td></tr>
+                <tr><td>Auswahl ausblenden</td><td><kbd>Leertaste</kbd></td></tr>
+                <tr><td>Nur anzeigen</td><td><kbd>Umschalt+Leertaste</kbd></td></tr>
+                <tr><td>Sichtbare vertauschen</td><td><kbd>Alt+S</kbd></td></tr>
+                <tr><td>Löschen</td><td><kbd>Entf</kbd></td></tr>
+                <tr><td>Alle abwählen</td><td><kbd>Esc</kbd></td></tr>
+                <tr><td>Importieren</td><td><kbd>Strg+I</kbd></td></tr>
+                <tr><td>Exportieren</td><td><kbd>Strg+E</kbd></td></tr>
+                <tr><td>Kameramodi</td><td><kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd></td></tr>
+            </tbody>
+        </table>
+
+        <h2>Profi-Arbeitsabläufe</h2>
+        <h3>Prüfung mechanischer Baugruppen</h3>
+        <ol>
+            <li>Öffnen Sie die Baugruppe im <b>Mehrfachansichtsmodus</b>.</li>
+            <li>Verwenden Sie <b>Schnittebenen</b>, um innere Komponenten zu sehen.</li>
+            <li>Aktivieren Sie <b>Schattiert mit Drahtgitter</b>, um klare Teilegrenzen zu sehen.</li>
+            <li>Verwenden Sie <b>„Nur anzeigen“</b>, um bestimmte Teilsysteme zur Untersuchung zu isolieren.</li>
+        </ol>
+
+        <h3>Architektonischer Rundgang</h3>
+        <ol>
+            <li>Wechseln Sie in den <b>Ego-Perspektive-Kameramodus</b> (<kbd>3</kbd>).</li>
+            <li>Aktivieren Sie <b>IBL</b> mit einer architektonischen HDRI-Umgebung.</li>
+            <li>Schalten Sie <b>Bodenebene</b> und <b>Schatten</b> ein.</li>
+            <li>Gehen Sie mit den Tasten <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ganz natürlich durch die Räume.</li>
+        </ol>
+
+        <h3>Produktrendering</h3>
+        <ol>
+            <li>Verwenden Sie den <b>realistischen Anzeigemodus</b>.</li>
+            <li>Stimmen Sie die <b>PBR-Material</b>-Eigenschaften sorgfältig ab.</li>
+            <li>Aktivieren Sie <b>IBL</b> mit einer Studiobeleuchtungs-HDRI-Karte.</li>
+            <li>Passen Sie die <b>Belichtung</b> für die richtige Helligkeit an.</li>
+            <li>Verwenden Sie die <b>Bodenebene</b> mit aktivierten Spiegelungen.</li>
+            <li>Rahmen Sie die Aufnahme mit der <b>perspektivischen Projektion</b>.</li>
+        </ol>
+
+        <h2>Schnelle Lösungen bei Problemen</h2>
+        <ul>
+            <li><b>Schwarzer Bildschirm:</b> Prüfen Sie, ob das Objekt im Modellbaum aufgeführt ist; es braucht eventuell Beleuchtung oder liegt weit von der Kamera entfernt.</li>
+            <li><b>Flackernde Texturen:</b> Prüfen Sie, ob UVs vorhanden sind; falls nicht, probieren Sie „UVs erzeugen“.</li>
+            <li><b>Seltsame Schattierung:</b> Aktivieren Sie „Normalen anzeigen“, um umgekehrte Flächen oder Normalenprobleme zu diagnostizieren.</li>
+            <li><b>Auswahl nicht möglich:</b> Drücken Sie <kbd>Esc</kbd>, um jeden aktiven speziellen Ansichtsmodus abzubrechen.</li>
+            <li><b>Modell verschwunden:</b> Drücken Sie <kbd>F</kbd>, um alle Objekte wieder in die Ansicht einzupassen.</li>
+            <li><b>Langsame Leistung:</b> Wechseln Sie in den Modus Schattiert und blenden Sie nicht benötigte Objekte aus.</li>
+        </ul>
+
+        <h2>Anpassung</h2>
+        <ul>
+            <li><b>Hintergrundfarbe:</b> Rechtsklick → „Hintergrundfarbe“, um eine eigene Farbe für das Ansichtsfenster festzulegen.</li>
+            <li><b>Design:</b> Wechseln Sie unter Bearbeiten → Einstellungen zwischen hellem, dunklem oder System-Design.</li>
+            <li><b>Sprache:</b> Bearbeiten → Einstellungen, um die Oberflächensprache zu ändern.</li>
+            <li><b>Qualität gegen Leistung:</b> Verwenden Sie Bearbeiten → Einstellungen, um MSAA und anisotrope Filterung anzupassen.</li>
+        </ul>
+
+        <h2>Dateiorganisation</h2>
+        <ul>
+            <li>Verwenden Sie das Menü <b>Zuletzt verwendet</b> (Datei → Zuletzt verwendet) für schnellen Zugriff auf Ihre Arbeit.</li>
+            <li>Speichern Sie Arbeitssitzungen als <b>.mvf</b>-Dateien, um Kamerapositionen, Sichtbarkeit und Einstellungen zu bewahren.</li>
+            <li>Legen Sie <b>Texturdateien</b> im selben Ordner wie Ihre Modelle ab, damit Pfade automatisch gefunden werden.</li>
+            <li>Verwenden Sie <b>aussagekräftige Namen</b> im Modellbaum (Doppelklick zum Umbenennen).</li>
+        </ul>
+
+        <h2>Mehr lernen</h2>
+        <ul>
+            <li><b>Hilfemenü:</b> Drücken Sie <kbd>F1</kbd> oder gehen Sie zu Hilfe → Quick Help für eine sofortige Referenz.</li>
+            <li><b>Experimentieren:</b> Probieren Sie alle Funktionen mit verschiedenen Testmodellen aus, um zu sehen, wie sie sich verhalten.</li>
+            <li><b>Einstellungen:</b> Entdecken Sie Bearbeiten → Einstellungen für weitere versteckte Optionen.</li>
+            <li><b>Kontextmenüs:</b> Klicken Sie überall mit rechts, um kontextabhängige Optionen zu entdecken.</li>
+        </ul>
+
+        <h2>Abschließende Gedanken</h2>
+        <p>ModelViewer ist ein leistungsstarkes Werkzeug mit vielen Funktionen. Der Schlüssel zur Meisterschaft ist Übung:</p>
+        <ul>
+            <li>Beginnen Sie mit grundlegender Navigation und Auswahl.</li>
+            <li>Erkunden Sie nach und nach Anzeigemodi und Kameramodi.</li>
+            <li>Lernen Sie die Sichtbarkeitsverwaltung für komplexe Szenen.</li>
+            <li>Experimentieren Sie mit Materialien und Beleuchtung.</li>
+            <li>Entdecken Sie Ihre eigenen Arbeitsabläufe.</li>
+        </ul>
+        <p><b>Sie haben die Kernanleitung abgeschlossen!</b> Sie verfügen jetzt über das Wissen, ModelViewer im Alltag effektiv zu nutzen. Die übrigen Lektionen behandeln fortgeschrittenere, spezialisierte Funktionen.</p>
+
+        <div class="lesson-navigation">
+            <a href='lesson13.html' class='nav-button'>← Vorherige Lektion</a>
+            <a href="index.html" class="back-to-index">↑ Zurück zur Übersicht</a>
+            <a href='lesson15.html' class='nav-button'>Nächste Lektion →</a>
+        </div>
+    </div>
+</body>
+</html>

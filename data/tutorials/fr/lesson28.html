@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leçon 28 : Analyse, sélection et scènes - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutoriel</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Premiers pas</a>
+            <a href="lesson02.html">2. Ouvrir des modèles</a>
+            <a href="lesson03.html">3. Navigation de base</a>
+            <a href="lesson04.html">4. Sélectionner des objets</a>
+            <a href="lesson05.html">5. Modes d'affichage</a>
+            <a href="lesson06.html">6. Modes de caméra</a>
+            <a href="lesson07.html">7. Modes d'affichage des objets</a>
+            <a href="lesson08.html">8. Manipuler des objets</a>
+            <a href="lesson09.html">9. Matériaux et textures</a>
+            <a href="lesson10.html">10. Éclairage et environnement</a>
+            <a href="lesson11.html">11. Travailler avec la visibilité</a>
+            <a href="lesson12.html">12. Fonctions avancées</a>
+            <a href="lesson13.html">13. Optimisation des performances</a>
+            <a href="lesson14.html">14. Conseils et flux de travail</a>
+            <a href="lesson15.html">15. Vues éclatées</a>
+            <a href="lesson16.html">16. Animation de morph targets</a>
+            <a href="lesson17.html">17. Édition de la transformation des nœuds</a>
+            <a href="lesson18.html">18. Rendu des arêtes et du fil de fer</a>
+            <a href="lesson19.html">19. Résultats de simulation</a>
+            <a href="lesson20.html">20. Regarder à l'intérieur d'un résultat</a>
+            <a href="lesson21.html">21. Graphiques et sondes</a>
+            <a href="lesson22.html">22. Comparer des résultats, données de cellule et de coque</a>
+            <a href="lesson23.html">23. Graphiques 3D à partir de données CSV</a>
+            <a href="lesson24.html">24. Graphiques 3D à partir de formules, remplissages, images et notes</a>
+            <a href="lesson25.html">25. Graphiques et résultats lus ensemble</a>
+            <a href="lesson26.html">26. Outils de maillage</a>
+            <a href="lesson27.html">27. Mesurer, annoter et rapporter</a>
+            <a href="lesson28.html" class='active'>28. Analyse, sélection et scènes</a>
+            <a href="lesson29.html">29. Lancer de rayons en pratique</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Leçon 28 sur 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 96.55%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Leçon 28 : Analyse, sélection et scènes</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Cette leçon présente les outils qui aident à contrôler une conception et à travailler sur un gros modèle : colorer les surfaces pour repérer des problèmes, lire les propriétés de masse, sélectionner des pièces selon ce qu'elles sont plutôt que là où elles se trouvent, et enregistrer l'état d'une scène pour y revenir en un clic.</p>
+        <h2>Analyse de surface</h2>
+        <p><b>Outils → Analyse de surface...</b> colore les maillages sélectionnés selon une mesure de qualité. Choisissez une analyse, lisez les couleurs avec la légende et utilisez <b>Afficher la valeur au survol</b> pour imprimer la valeur sous le curseur. <b>Effacer la superposition</b> supprime toutes les couleurs d'analyse.</p>
+        <table>
+            <thead><tr><th>Analyse</th><th>Ce qu'elle montre</th></tr></thead>
+            <tbody>
+            <tr><td>Angle de dépouille</td><td>L'angle de chaque face par rapport à une direction de démoulage choisie : la pièce peut-elle être démoulée ?</td></tr>
+            <tr><td>Zébrure</td><td>Bandes réfléchies : les cassures dans les bandes révèlent où des surfaces se raccordent sans continuité lisse.</td></tr>
+            <tr><td>Courbure moyenne</td><td>À quel point et dans quel sens la surface se courbe en chaque point.</td></tr>
+            <tr><td>Épaisseur de paroi</td><td>L'épaisseur des parois, avec une option pour surligner les parois plus minces qu'une limite. Méthodes : <i>Sphère inscrite</i>, <i>Épaisseur locale (rayons)</i> et <i>Rayon normal (rapide)</i>.</td></tr>
+            <tr><td>Écart</td><td>À quelle distance un maillage se trouve d'un maillage de référence : pour comparer un scan à son modèle CAO.</td></tr>
+            </tbody>
+        </table>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_28_wall_thickness.png" alt="tutorial_28_wall_thickness.png" title="Capture: Open &quot;MBB Gehause Rohteil.step&quot;, Tools &gt; Surface Analysis..., Wall-Thickness with a limit that highlights the thin walls; capture the dialog and the coloured part." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open &quot;MBB Gehause Rohteil.step&quot;, Tools &gt; Surface Analysis..., Wall-Thickness with a limit that highlights the thin walls; capture the dialog and the coloured part." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_28_wall_thickness.png (700x450)</div>
+            <span class="screenshot-caption">Épaisseur de paroi d&#x27;un boîtier colorée sur la surface, parois minces surlignées</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_28_zebra_and_draft.png" alt="tutorial_28_zebra_and_draft.png" title="Capture: One part (for example bottle.step) with Zebra Stripe, then Clear Overlay and Draft Angle with a vertical pull direction; join the two captures side by side." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: One part (for example bottle.step) with Zebra Stripe, then Clear Overlay and Draft Angle with a vertical pull direction; join the two captures side by side." style="display:none; width:700px; height:350px;">Capture d&#x27;écran: tutorial_28_zebra_and_draft.png (700x350)</div>
+            <span class="screenshot-caption">Zébrure (à gauche) et analyse d&#x27;angle de dépouille (à droite) sur la même pièce</span>
+        </div>
+
+        <div class="note note-tip">
+            Les couleurs d'analyse remplacent l'aspect habituel du matériau jusqu'à ce que vous cliquiez sur <b>Effacer la superposition</b>. Si une surface paraît bizarrement colorée plus tard, c'est la première chose à vérifier.
+        </div>
+        <h2>Propriétés de masse</h2>
+        <p><b>Outils → Propriétés de masse...</b> liste le volume, la masse et le centre de gravité de chaque maillage et de chaque matériau. La densité provient de l'onglet <b>Propriétés physiques</b> du matériau ; réglez-la donc d'abord à cet endroit. Le tableau peut être recherché et trié ; le menu de ligne propose <b>Afficher seulement</b>, et sélectionner une ligne sélectionne ce maillage dans la visionneuse. Les surfaces ouvertes (coques) utilisent une épaisseur de coque au lieu d'un volume.</p>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_28_mass_properties.png" alt="tutorial_28_mass_properties.png" title="Capture: Open the Skate-Board assembly, give two materials a density (Physical Properties), Tools &gt; Mass Properties...; select a row and capture the table with the mesh highlighted." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open the Skate-Board assembly, give two materials a density (Physical Properties), Tools &gt; Mass Properties...; select a row and capture the table with the mesh highlighted." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_28_mass_properties.png (700x450)</div>
+            <span class="screenshot-caption">Le tableau des propriétés de masse d&#x27;un assemblage, avec une ligne sélectionnée et son maillage surligné</span>
+        </div>
+
+        <h2>Sélectionner selon ce que sont les pièces</h2>
+        <p>Le menu <b>Sélection</b> propose des outils pour les grands assemblages, où cliquer sur une pièce à la fois est lent :</p>
+        <ul>
+            <li><b>Lasso</b> sélectionne tout ce qui se trouve dans un contour à main levée.</li>
+            <li><b>Filtrer par matériau</b> et <b>Filtrer par couleur</b> sélectionnent tous les maillages qui utilisent un matériau ou une couleur.</li>
+            <li><b>Filtrer par boîte englobante</b> affiche un gizmo de boîte déplaçable et sélectionne les pièces qui s'y trouvent.</li>
+            <li>Les <b>jeux de sélection nommés</b> enregistrent une sélection sous un nom pour la rappeler plus tard.</li>
+            <li>La <b>pipette / le pinceau de matériau</b> prélève le matériau d'un maillage et l'applique à d'autres.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_28_filter_by_material.png" alt="tutorial_28_filter_by_material.png" title="Capture: Open the Forklift or Skate-Board assembly, Selection &gt; Filter by Material, choose one material; capture the viewport with the matching parts highlighted." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open the Forklift or Skate-Board assembly, Selection &gt; Filter by Material, choose one material; capture the viewport with the matching parts highlighted." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_28_filter_by_material.png (700x450)</div>
+            <span class="screenshot-caption">Tous les maillages utilisant un matériau sélectionnés d&#x27;un coup avec Filtrer par matériau</span>
+        </div>
+
+        <h2>États de scène</h2>
+        <p>Un état de scène enregistre un instantané nommé de la scène : la caméra, quels maillages sont visibles, la sélection et les réglages de présentation. Choisissez <b>Sélection → Enregistrer l'état de la scène...</b> et donnez-lui un nom ; le panneau <b>États</b> du dock du document liste chaque état et le rappelle en un clic. Utilisez-les pour les vues auxquelles vous revenez : une vue d'ensemble, une coupe, un détail avec des pièces masquées.</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Préparer une vue</div>
+            <div class="step-content">Masquez les pièces dont vous ne voulez pas, sélectionnez celles à mettre en valeur et positionnez la caméra.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : L'enregistrer</div>
+            <div class="step-content">Choisissez <b>Sélection → Enregistrer l'état de la scène...</b>, saisissez un nom tel que <i>Boîte de vitesses seule</i> et confirmez. Créez un deuxième état à partir d'une autre vue.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : La rappeler</div>
+            <div class="step-content">Cliquez sur un état dans le panneau <b>États</b> : la caméra, la visibilité, la sélection et la présentation reviennent en une étape.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_28_states_panel.png" alt="tutorial_28_states_panel.png" title="Capture: After saving two scene states, capture the States panel in the document dock (crop the dock) with both entries listed." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: After saving two scene states, capture the States panel in the document dock (crop the dock) with both entries listed." style="display:none; width:420px; height:360px;">Capture d&#x27;écran: tutorial_28_states_panel.png (420x360)</div>
+            <span class="screenshot-caption">Le panneau États avec deux états de scène enregistrés</span>
+        </div>
+
+
+        <div class="lesson-navigation">
+            <a href='lesson27.html' class='nav-button'>← Leçon précédente</a>
+            <a href="index.html" class="back-to-index">↑ Retour à l'index</a>
+            <a href='lesson29.html' class='nav-button'>Leçon suivante →</a>
+        </div>
+    </div>
+</body>
+</html>

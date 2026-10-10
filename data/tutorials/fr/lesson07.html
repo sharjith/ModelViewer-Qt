@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leçon 7 : Modes d'affichage des objets - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutoriel</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Premiers pas</a>
+            <a href="lesson02.html">2. Ouvrir des modèles</a>
+            <a href="lesson03.html">3. Navigation de base</a>
+            <a href="lesson04.html">4. Sélectionner des objets</a>
+            <a href="lesson05.html">5. Modes d'affichage</a>
+            <a href="lesson06.html">6. Modes de caméra</a>
+            <a href="lesson07.html" class='active'>7. Modes d'affichage des objets</a>
+            <a href="lesson08.html">8. Manipuler des objets</a>
+            <a href="lesson09.html">9. Matériaux et textures</a>
+            <a href="lesson10.html">10. Éclairage et environnement</a>
+            <a href="lesson11.html">11. Travailler avec la visibilité</a>
+            <a href="lesson12.html">12. Fonctions avancées</a>
+            <a href="lesson13.html">13. Optimisation des performances</a>
+            <a href="lesson14.html">14. Conseils et flux de travail</a>
+            <a href="lesson15.html">15. Vues éclatées</a>
+            <a href="lesson16.html">16. Animation de morph targets</a>
+            <a href="lesson17.html">17. Édition de la transformation des nœuds</a>
+            <a href="lesson18.html">18. Rendu des arêtes et du fil de fer</a>
+            <a href="lesson19.html">19. Résultats de simulation</a>
+            <a href="lesson20.html">20. Regarder à l'intérieur d'un résultat</a>
+            <a href="lesson21.html">21. Graphiques et sondes</a>
+            <a href="lesson22.html">22. Comparer des résultats, données de cellule et de coque</a>
+            <a href="lesson23.html">23. Graphiques 3D à partir de données CSV</a>
+            <a href="lesson24.html">24. Graphiques 3D à partir de formules, remplissages, images et notes</a>
+            <a href="lesson25.html">25. Graphiques et résultats lus ensemble</a>
+            <a href="lesson26.html">26. Outils de maillage</a>
+            <a href="lesson27.html">27. Mesurer, annoter et rapporter</a>
+            <a href="lesson28.html">28. Analyse, sélection et scènes</a>
+            <a href="lesson29.html">29. Lancer de rayons en pratique</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Leçon 7 sur 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 24.14%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Leçon 7 : Modes d'affichage des objets</h1>
+        </div>
+
+        <h2>Accéder aux modes d'affichage</h2>
+        <div class="step">
+            <div class="step-title">Étape 1 : Cliquer sur le bouton d'affichage</div>
+            <div class="step-content">Trouvez le bouton « Modes d'affichage » de la barre d'outils d'affichage et choisissez votre mode.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_07_display_menu.png" alt="Menu déroulant des modes d&#x27;affichage avec les quatre options" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_07_display_menu.png</div>
+            <span class="screenshot-caption">Menu déroulant des modes d'affichage avec les quatre options</span>
+        </div>
+
+        <h2>Mode réaliste</h2>
+        <p>Le mode de rendu complet incluant les matériaux PBR, les ombres, les reflets et le mappage tonal HDR.</p>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_07_realistic_mode.png" alt="Modèle rendu en mode réaliste montrant les matériaux PBR, les ombres et les reflets" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_07_realistic_mode.png</div>
+        </div>
+
+        <h2>Mode ombré</h2>
+        <p>Surfaces de couleur unie avec un éclairage ADS de base. Idéal pour la modélisation et la vérification de la forme de la géométrie.</p>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_07_shaded_mode.png" alt="Le même modèle en mode ombré avec un éclairage simple et des couleurs unies" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_07_shaded_mode.png</div>
+        </div>
+
+        <h2>Mode fil de fer</h2>
+        <p>Affiche uniquement les arêtes des polygones. Excellent pour inspecter la topologie et la continuité des arêtes.</p>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_07_wireframe_mode.png" alt="Modèle en mode fil de fer montrant toutes les arêtes sous forme de lignes" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_07_wireframe_mode.png</div>
+        </div>
+
+        <h2>Mode ombré avec fil de fer</h2>
+        <p>Combine des surfaces ombrées avec une superposition en fil de fer. Idéal pour le travail de modélisation actif.</p>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_07_wireshaded_mode.png" alt="Modèle en mode ombré avec fil de fer montrant surfaces et arêtes" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_07_wireshaded_mode.png</div>
+        </div>
+
+        <h2>Comparaison</h2>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_07_all_modes.png" alt="Quatre panneaux montrant le même modèle dans les quatre modes d&#x27;affichage" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_07_all_modes.png</div>
+            <span class="screenshot-caption">Comparaison des modes réaliste, ombré, fil de fer et ombré avec fil de fer</span>
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson06.html' class='nav-button'>← Leçon précédente</a>
+            <a href="index.html" class="back-to-index">↑ Retour à l'index</a>
+            <a href='lesson08.html' class='nav-button'>Leçon suivante →</a>
+        </div>
+    </div>
+</body>
+</html>

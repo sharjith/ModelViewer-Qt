@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leçon 15 : Vues éclatées - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutoriel</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Premiers pas</a>
+            <a href="lesson02.html">2. Ouvrir des modèles</a>
+            <a href="lesson03.html">3. Navigation de base</a>
+            <a href="lesson04.html">4. Sélectionner des objets</a>
+            <a href="lesson05.html">5. Modes d'affichage</a>
+            <a href="lesson06.html">6. Modes de caméra</a>
+            <a href="lesson07.html">7. Modes d'affichage des objets</a>
+            <a href="lesson08.html">8. Manipuler des objets</a>
+            <a href="lesson09.html">9. Matériaux et textures</a>
+            <a href="lesson10.html">10. Éclairage et environnement</a>
+            <a href="lesson11.html">11. Travailler avec la visibilité</a>
+            <a href="lesson12.html">12. Fonctions avancées</a>
+            <a href="lesson13.html">13. Optimisation des performances</a>
+            <a href="lesson14.html">14. Conseils et flux de travail</a>
+            <a href="lesson15.html" class='active'>15. Vues éclatées</a>
+            <a href="lesson16.html">16. Animation de morph targets</a>
+            <a href="lesson17.html">17. Édition de la transformation des nœuds</a>
+            <a href="lesson18.html">18. Rendu des arêtes et du fil de fer</a>
+            <a href="lesson19.html">19. Résultats de simulation</a>
+            <a href="lesson20.html">20. Regarder à l'intérieur d'un résultat</a>
+            <a href="lesson21.html">21. Graphiques et sondes</a>
+            <a href="lesson22.html">22. Comparer des résultats, données de cellule et de coque</a>
+            <a href="lesson23.html">23. Graphiques 3D à partir de données CSV</a>
+            <a href="lesson24.html">24. Graphiques 3D à partir de formules, remplissages, images et notes</a>
+            <a href="lesson25.html">25. Graphiques et résultats lus ensemble</a>
+            <a href="lesson26.html">26. Outils de maillage</a>
+            <a href="lesson27.html">27. Mesurer, annoter et rapporter</a>
+            <a href="lesson28.html">28. Analyse, sélection et scènes</a>
+            <a href="lesson29.html">29. Lancer de rayons en pratique</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Leçon 15 sur 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 51.72%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Leçon 15 : Vues éclatées</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Les vues éclatées écartent les pièces d'un assemblage le long d'un axe ou radialement à partir d'un point central, afin que vous voyiez comment les composants sont liés sans rien couper ni masquer. C'est une vue échelonnée et non destructive : la géométrie réelle et les transformations de votre modèle ne sont jamais modifiées définitivement.</p>
+
+        <h2>Ouvrir le panneau Vue éclatée</h2>
+        <div class="step">
+            <div class="step-title">Étape 1 : Ouvrir le panneau</div>
+            <div class="step-content">Ouvrez le panneau Vue éclatée depuis les panneaux de droite.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_panel_overview.png" alt="Le panneau Vue éclatée avec les commandes d&#x27;assemblage, d&#x27;ancrage, de mode et de distance" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:500px;">Capture d'écran: tutorial_15_panel_overview.png (700x500)</div>
+            <span class="screenshot-caption">Le panneau Vue éclatée avec les commandes d'assemblage, d'ancrage, de mode et de distance</span>
+        </div>
+
+        <h2>Configurer un éclatement</h2>
+        <div class="step">
+            <div class="step-title">Étape 1 : Sélectionner l'assemblage</div>
+            <div class="step-content">Utilisez « Sélectionner l'assemblage » pour choisir quel groupe d'objets sera éclaté.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Sélectionner l'ancrage</div>
+            <div class="step-content">L'ancrage est la pièce qui reste fixe pendant que tout le reste s'en éloigne. Utilisez « Sélectionner l'ancrage » pour le choisir.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Choisir le mode d'éclatement</div>
+            <div class="step-content">
+                • <b>Auto (radial) :</b> les pièces s'éloignent automatiquement du centre de l'assemblage<br/> • <b>Axe X / Axe Y / Axe Z :</b> les pièces se déplacent le long d'un seul axe du monde<br/> • <b>Vecteur personnalisé :</b> définissez votre propre direction avec les champs de vecteur X, Y, Z
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 4 : Stratégie automatique</div>
+            <div class="step-content">En mode Auto, choisissez « Selon l'assemblage » (respecte le regroupement des sous-assemblages) ou « Classique » (traite chaque pièce indépendamment).</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_mode_selection.png" alt="Liste déroulante du mode d&#x27;éclatement avec les options Auto, Axe et Vecteur personnalisé" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:350px;">Capture d'écran: tutorial_15_mode_selection.png (500x350)</div>
+            <span class="screenshot-caption">Liste déroulante du mode d'éclatement avec les options Auto, Axe et Vecteur personnalisé</span>
+        </div>
+
+        <h2>Contrôler la distance d'éclatement</h2>
+        <div class="step">
+            <div class="step-title">Étape 1 : Curseur de distance</div>
+            <div class="step-content">Faites glisser le curseur d'éclatement pour contrôler l'écartement des pièces, indiqué en pourcentage.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_distance_slider.png" alt="Assemblage à 0 %, 50 % et 100 % de distance d&#x27;éclatement" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:400px;">Capture d'écran: tutorial_15_distance_slider.png (700x400)</div>
+            <span class="screenshot-caption">Assemblage à 0 %, 50 % et 100 % de distance d'éclatement</span>
+        </div>
+
+        <div class="note note-tip">
+            Commencez avec un faible pourcentage de distance et augmentez-le progressivement : il est ainsi plus facile de suivre quelle pièce est allée où.
+        </div>
+
+        <h2>Placement manuel</h2>
+        <p>Pour les assemblages qui nécessitent une disposition réalisée à la main plutôt qu'un éclatement automatique uniforme :</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Démarrer le placement manuel</div>
+            <div class="step-content">Sélectionnez les pièces que vous voulez repositionner, puis cliquez sur « Démarrer le placement manuel ».</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Repositionner avec le gizmo de transformation</div>
+            <div class="step-content">Le gizmo de transformation à l'écran apparaît sur votre sélection. Faites glisser ses poignées pour déplacer ou pivoter les pièces vers leur pose éclatée échelonnée ; cela ne touche pas à la transformation réelle du modèle.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Terminer ou effacer</div>
+            <div class="step-content">Cliquez sur « Terminer le placement manuel » pour conserver la pose échelonnée, ou sur « Effacer le placement manuel » pour l'abandonner et recommencer.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_manual_placement.png" alt="Mode de placement manuel avec le gizmo de transformation actif sur une pièce sélectionnée" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Capture d'écran: tutorial_15_manual_placement.png (700x450)</div>
+            <span class="screenshot-caption">Mode de placement manuel avec le gizmo de transformation actif sur une pièce sélectionnée</span>
+        </div>
+
+        <h2>Capture d'étapes et préréglages</h2>
+        <div class="step">
+            <div class="step-title">Étape 1 : Capturer</div>
+            <div class="step-content">Cliquez sur « Capturer » pour enregistrer la pose éclatée actuelle comme une étape de la séquence. Construisez plusieurs étapes pour créer une révélation échelonnée en plusieurs parties.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Réorganiser les étapes</div>
+            <div class="step-content">Utilisez les flèches haut/bas à côté de la liste des étapes capturées pour modifier l'ordre de lecture.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Préréglages</div>
+            <div class="step-content">Enregistrez une configuration éclatée complète comme préréglage nommé pour passer instantanément d'une disposition éclatée à une autre.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_captured_steps.png" alt="Liste des étapes d&#x27;éclatement capturées avec commandes de réorganisation" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:400px;">Capture d'écran: tutorial_15_captured_steps.png (500x400)</div>
+            <span class="screenshot-caption">Liste des étapes d'éclatement capturées avec commandes de réorganisation</span>
+        </div>
+
+        <h2>Animer l'éclatement</h2>
+        <div class="step">
+            <div class="step-title">Étape 1 : Mode d'animation</div>
+            <div class="step-content">
+                • <b>Animation unique (parallèle) :</b> toutes les étapes capturées s'animent en même temps<br/> • <b>Animation unique (séquentielle) :</b> les étapes se déroulent l'une après l'autre<br/> • <b>Animations séparées :</b> chaque étape devient son propre clip d'animation indépendant
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Retour en boucle</div>
+            <div class="step-content">Activez « Retour en boucle » pour que l'animation ramène l'assemblage à sa position d'origine non éclatée à la fin.</div>
+        </div>
+
+        <div class="note note-info">
+            Les configurations de vue éclatée, y compris les préréglages et les étapes capturées, sont enregistrées dans votre fichier de session <b>.mvf</b>.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson14.html' class='nav-button'>← Leçon précédente</a>
+            <a href="index.html" class="back-to-index">↑ Retour à l'index</a>
+            <a href='lesson16.html' class='nav-button'>Leçon suivante →</a>
+        </div>
+    </div>
+</body>
+</html>

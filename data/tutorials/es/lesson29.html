@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lección 29: Trazado de rayos en la práctica - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primeros pasos</a>
+            <a href="lesson02.html">2. Abrir modelos</a>
+            <a href="lesson03.html">3. Navegación básica</a>
+            <a href="lesson04.html">4. Seleccionar objetos</a>
+            <a href="lesson05.html">5. Modos de vista</a>
+            <a href="lesson06.html">6. Modos de cámara</a>
+            <a href="lesson07.html">7. Modos de visualización</a>
+            <a href="lesson08.html">8. Manipular objetos</a>
+            <a href="lesson09.html">9. Materiales y texturas</a>
+            <a href="lesson10.html">10. Iluminación y entorno</a>
+            <a href="lesson11.html">11. Trabajar con la visibilidad</a>
+            <a href="lesson12.html">12. Funciones avanzadas</a>
+            <a href="lesson13.html">13. Optimización del rendimiento</a>
+            <a href="lesson14.html">14. Consejos y flujos de trabajo</a>
+            <a href="lesson15.html">15. Vistas explosionadas</a>
+            <a href="lesson16.html">16. Animación de morph targets</a>
+            <a href="lesson17.html">17. Edición de la transformación de nodos</a>
+            <a href="lesson18.html">18. Renderizado de bordes y malla de alambre</a>
+            <a href="lesson19.html">19. Resultados de simulación</a>
+            <a href="lesson20.html">20. Mirar dentro de un resultado</a>
+            <a href="lesson21.html">21. Gráficos y sondeo</a>
+            <a href="lesson22.html">22. Comparar resultados, datos de celda y de lámina</a>
+            <a href="lesson23.html">23. Gráficos 3D a partir de datos CSV</a>
+            <a href="lesson24.html">24. Gráficos 3D a partir de fórmulas, rellenos, imágenes y notas</a>
+            <a href="lesson25.html">25. Gráficos y resultados reproducidos juntos</a>
+            <a href="lesson26.html">26. Herramientas de malla</a>
+            <a href="lesson27.html">27. Medir, anotar e informar</a>
+            <a href="lesson28.html">28. Análisis, selección y escenas</a>
+            <a href="lesson29.html" class='active'>29. Trazado de rayos en la práctica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lección 29 de 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 100%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lección 29: Trazado de rayos en la práctica</h1>
+        </div>
+
+        <h2>Introducción</h2>
+        <p>El trazado de rayos sigue la luz a través de la escena para producir reflejos, sombras suaves, vidrio e iluminación realista que el visor en tiempo real solo puede aproximar. ModelViewer tiene dos motores de trazado de rayos y usa los mismos materiales y entorno que ya configuró. Esta lección le lleva de una vista trazada en vivo a una imagen de alta resolución en disco y a un lote de vistas renderizadas de una vez.</p>
+        <div class="note note-info">
+            Dos motores: el motor de <b>CPU</b> (Embree) funciona en todas partes; el motor de <b>GPU</b> (NVIDIA OptiX) necesita una tarjeta gráfica NVIDIA y una compilación con OptiX. <b>Ayuda → Acerca de</b> le indica si el motor de GPU está activado en su compilación. El trazador de rayos no dibuja los resultados de simulación ni los gráficos 3D.
+        </div>
+        <h2>Una vista trazada en vivo</h2>
+        <div class="step">
+            <div class="step-title">Paso 1: Preparar una escena</div>
+            <div class="step-content">Abra un modelo con materiales interesantes (el Futuristic Transport Shuttle o la tetera) y configure su entorno y luces como en la lección 10.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Cambiar el modo de renderizado</div>
+            <div class="step-content">Elija <b>Ver → Modo de renderizado → Trazado por rayos</b>. La vista empieza a renderizar de forma progresiva: la imagen es ruidosa al principio y se asienta a medida que se acumulan muestras, y luego un eliminador de ruido la limpia. Mueva la cámara y se reinicia.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Comparar con PBR</div>
+            <div class="step-content">Alterne entre <b>PBR (Metallic-Roughness)</b> y <b>Trazado por rayos</b>. Los materiales, la iluminación del entorno y el suelo receptor de sombras siguen al visor de rasterización, así que ve la misma escena, ahora con reflejos y sombras reales.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_29_pbr_vs_ray_traced.png" alt="tutorial_29_pbr_vs_ray_traced.png" title="Capture: Futuristic Transport Shuttle (or the Tea-Pot on a reflective floor) with the same camera in PBR and, after a few seconds of accumulation, in Ray Traced mode; join the two captures side by side." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Futuristic Transport Shuttle (or the Tea-Pot on a reflective floor) with the same camera in PBR and, after a few seconds of accumulation, in Ray Traced mode; join the two captures side by side." style="display:none; width:700px; height:350px;">Captura: tutorial_29_pbr_vs_ray_traced.png (700x350)</div>
+            <span class="screenshot-caption">La misma escena en PBR (izquierda) y con trazado de rayos (derecha)</span>
+        </div>
+
+        <h2>El diálogo de trazado de rayos</h2>
+        <p><b>Visualización → Trazado de rayos...</b> abre los ajustes y el renderizado sin conexión. Tiene tres pestañas.</p>
+        <table>
+            <thead><tr><th>Pestaña</th><th>Contenido</th></tr></thead>
+            <tbody>
+            <tr><td>Básico</td><td><b>Motor de render</b> (<i>Auto</i> prefiere OptiX cuando está disponible, <i>Embree (CPU)</i> u <i>OptiX (GPU)</i>), <b>Muestras máx.</b> por píxel, <b>Rebotes máx.</b> de luz por trayectoria, <b>Activar eliminador de ruido</b> y su <b>Motor del eliminador</b> (Auto, OIDN en CPU, OIDN en GPU/CUDA u OptiX), y el <b>Preajuste de exportación</b> y la <b>Resolución de exportación</b> con <b>Ajustar a la vista</b>.</td></tr>
+            <tr><td>Avanzado</td><td><b>Umbral de límite de fireflies</b> (limita muestras brillantes aisladas), <b>Rebotes máx. de transmisión</b> para vidrio, <b>Profundidad inicial de la ruleta rusa</b>, <b>Impactos máx. de rayos de sombra</b> (solo CPU), <b>Rebotes máx. de dispersión volumétrica</b>, <b>Muestreo por importancia del entorno</b> y los interruptores <b>Sombras</b> y <b>Autosombras</b>.</td></tr>
+            <tr><td>Diagnóstico</td><td>Información de solo lectura sobre el renderizador y la GPU, el recorrido y el eliminador de ruido en uso, la resolución, el número de triángulos, los tiempos de construcción de las estructuras de aceleración, las muestras por segundo, los MRays por segundo y el tiempo de render.</td></tr>
+            </tbody>
+        </table>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_29_dialog_basic.png" alt="tutorial_29_dialog_basic.png" title="Capture: Visualization &gt; Ray Tracing..., Basic tab; capture the whole dialog including Render, Stop and Export Image... at the bottom." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Visualization &gt; Ray Tracing..., Basic tab; capture the whole dialog including Render, Stop and Export Image... at the bottom." style="display:none; width:560px; height:450px;">Captura: tutorial_29_dialog_basic.png (560x520)</div>
+            <span class="screenshot-caption">La pestaña Básico del diálogo de trazado de rayos</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_29_dialog_diagnostics.png" alt="tutorial_29_dialog_diagnostics.png" title="Capture: Start a render, switch to the Diagnostics tab and capture it with renderer, GPU, samples/sec and MRays/sec filled in." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Start a render, switch to the Diagnostics tab and capture it with renderer, GPU, samples/sec and MRays/sec filled in." style="display:none; width:560px; height:450px;">Captura: tutorial_29_dialog_diagnostics.png (560x480)</div>
+            <span class="screenshot-caption">La pestaña Diagnóstico mientras se ejecuta un renderizado</span>
+        </div>
+
+        <div class="note note-tip">
+            Para una vista previa más rápida baje <b>Muestras máx.</b> y <b>Rebotes máx.</b>; para una imagen final limpia suba <b>Muestras máx.</b>, deje activado el eliminador de ruido y deje activado el <b>Muestreo por importancia del entorno</b> para reducir el ruido de los cielos brillantes. Pase el cursor sobre un ajuste para ver una breve explicación.
+        </div>
+        <h2>Renderizar y exportar una imagen</h2>
+        <div class="step">
+            <div class="step-title">Paso 1: Elegir el tamaño</div>
+            <div class="step-content">Elija un <b>Preajuste de exportación</b> o escriba un ancho y un alto en <b>Resolución de exportación</b>, o haga clic en <b>Ajustar a la vista</b>. Una resolución mayor que la vista activa un renderizado sin conexión, que puede tardar un rato y se puede cancelar con el botón que sustituye a <b>Detener</b>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Renderizar</div>
+            <div class="step-content">Haga clic en <b>Renderizar</b>. La línea de estado y el progreso muestran cuánto falta; <b>Detener</b> lo termina antes.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Guardar la imagen</div>
+            <div class="step-content">Haga clic en <b>Exportar imagen...</b> y elija PNG, JPEG, BMP, TIFF u OpenEXR. OpenEXR conserva todo el rango dinámico, que es lo que necesita para seguir editando.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_29_rendered_image.png" alt="tutorial_29_rendered_image.png" title="Capture: Render the shuttle at 3840 x 2160 (Basic tab, denoiser on), Export Image... as PNG, and place that PNG here (a downscaled copy is fine)." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Render the shuttle at 3840 x 2160 (Basic tab, denoiser on), Export Image... as PNG, and place that PNG here (a downscaled copy is fine)." style="display:none; width:700px; height:450px;">Captura: tutorial_29_rendered_image.png (700x450)</div>
+            <span class="screenshot-caption">Una imagen terminada de alta resolución del modelo trazada con rayos</span>
+        </div>
+
+        <div class="note note-warning">
+            Con una cámara ortográfica y un material de vidrio de pared delgada, cada píxel muestrea la misma dirección del entorno, por lo que ese vidrio se renderiza plano. Es lo esperado, no un error: cambie a una proyección en perspectiva (lección 6) para un vidrio realista. El diálogo muestra una advertencia cuando detecta esta combinación.
+        </div>
+        <h2>Renderizar vistas por lotes</h2>
+        <p><b>Herramientas → Renderizar vistas por lotes...</b> renderiza con el trazador de rayos, de una sola vez, las vistas de cámara que capturó en el panel Cámaras a una carpeta: marque las vistas, elija el formato (PNG, JPEG, BMP, TIFF u OpenEXR) y la resolución, elija la carpeta e inicie. Combínelo con los estados de escena (lección 28) para producir un conjunto completo de imágenes de presentación (vista general, corte, detalles) sin volver a tocar el modelo.</p>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_29_batch_render.png" alt="tutorial_29_batch_render.png" title="Capture: Capture three views in the Cameras panel, then Tools &gt; Batch Render Views...; capture the dialog with the three views ticked, the format and resolution set and a folder chosen." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Capture three views in the Cameras panel, then Tools &gt; Batch Render Views...; capture the dialog with the three views ticked, the format and resolution set and a folder chosen." style="display:none; width:600px; height:450px;">Captura: tutorial_29_batch_render.png (600x480)</div>
+            <span class="screenshot-caption">El diálogo Renderizar vistas por lotes con tres vistas capturadas marcadas</span>
+        </div>
+
+        <div class="note note-info">
+            Recuerde los límites de lecciones anteriores: los resultados de simulación y los gráficos 3D se dibujan igual de planos en todos los modos. Use el trazado de rayos para modelos, ensamblajes e imágenes de presentación, y el visor normal para las vistas científicas.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson28.html' class='nav-button'>← Lección anterior</a>
+            <a href="index.html" class="back-to-index">↑ Volver al índice</a>
+            <span class='nav-button disabled'>Tutorial completado ✔</span>
+        </div>
+    </div>
+</body>
+</html>

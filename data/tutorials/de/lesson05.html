@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lektion 5: Ansichtsmodi - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Anleitung</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Erste Schritte</a>
+            <a href="lesson02.html">2. Modelle öffnen</a>
+            <a href="lesson03.html">3. Grundlegende Navigation</a>
+            <a href="lesson04.html">4. Objekte auswählen</a>
+            <a href="lesson05.html" class='active'>5. Ansichtsmodi</a>
+            <a href="lesson06.html">6. Kameramodi</a>
+            <a href="lesson07.html">7. Anzeigemodi</a>
+            <a href="lesson08.html">8. Objekte manipulieren</a>
+            <a href="lesson09.html">9. Materialien und Texturen</a>
+            <a href="lesson10.html">10. Beleuchtung und Umgebung</a>
+            <a href="lesson11.html">11. Arbeiten mit Sichtbarkeit</a>
+            <a href="lesson12.html">12. Erweiterte Funktionen</a>
+            <a href="lesson13.html">13. Leistungsoptimierung</a>
+            <a href="lesson14.html">14. Tipps und Workflows</a>
+            <a href="lesson15.html">15. Explosionsansichten</a>
+            <a href="lesson16.html">16. Morph-Target-Animation</a>
+            <a href="lesson17.html">17. Knotentransformation bearbeiten</a>
+            <a href="lesson18.html">18. Kanten- und Drahtgitter-Rendering</a>
+            <a href="lesson19.html">19. Simulationsergebnisse</a>
+            <a href="lesson20.html">20. Ins Innere eines Ergebnisses schauen</a>
+            <a href="lesson21.html">21. Diagramme und Sonden</a>
+            <a href="lesson22.html">22. Ergebnisse vergleichen, Zell- und Schalendaten</a>
+            <a href="lesson23.html">23. 3D-Diagramme aus CSV-Daten</a>
+            <a href="lesson24.html">24. 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</a>
+            <a href="lesson25.html">25. Diagramme und Ergebnisse gemeinsam abspielen</a>
+            <a href="lesson26.html">26. Mesh-Werkzeuge</a>
+            <a href="lesson27.html">27. Messen, Kommentieren und Berichten</a>
+            <a href="lesson28.html">28. Analyse, Auswahl und Szenen</a>
+            <a href="lesson29.html">29. Raytracing in der Praxis</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lektion 5 von 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 17.24%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lektion 5: Ansichtsmodi</h1>
+        </div>
+
+        <h2>Einführung</h2>
+        <p>Ansichtsmodi ermöglichen es Ihnen, Ihre Kamera schnell auf Standardpositionen auszurichten - ideal für technische Zeichnungen, Präsentationen oder das Untersuchen von Modellen aus bestimmten Winkeln.</p>
+
+        <h2>Auf Ansichtsmodi zugreifen</h2>
+        <p>Ansichtsmodi stehen in der Ansichtssymbolleiste zur Verfügung:</p>
+
+        <div class="step">
+            <div class="step-title">Schritt 1: Die Symbolleiste einblenden</div>
+            <div class="step-content">Bewegen Sie die Maus an den unteren Rand des Ansichtsfensters, um die Symbolleiste einzublenden.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Schritt 2: Die Ansichtsschaltflächen finden</div>
+            <div class="step-content">Suchen Sie die Schaltflächen „Oben“, „Vorne“, „Links“ usw. sowie die Dropdown-Schaltfläche „Axonometrische Ansicht“.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_toolbar_views.png" alt="Ansichtssymbolleiste mit hervorgehobenen Schaltflächen für orthografische und axonometrische Ansichten" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_05_toolbar_views.png</div>
+            <span class="screenshot-caption">Ansichtssymbolleiste mit hervorgehobenen Schaltflächen für orthografische und axonometrische Ansichten</span>
+        </div>
+
+        <h2>Orthografische Ansichten</h2>
+        <p>Sechs orthografische Standardansichten:</p>
+
+        <div class="step">
+            <div class="step-title">Schritt 1: Draufsicht</div>
+            <div class="step-content">Klicken Sie auf „Oben“, um das Modell direkt von oben zu betrachten (entlang der Z-Achse nach unten).</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_top_view.png" alt="Modell in der Draufsicht" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_05_top_view.png</div>
+			<span class="screenshot-caption">Draufsicht</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Schritt 2: Vorderansicht</div>
+            <div class="step-content">Klicken Sie auf „Vorne“, um von vorn zu betrachten (entlang der Y-Achse).</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_front_view.png" alt="Modell in der Vorderansicht" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_05_front_view.png</div>
+			<span class="screenshot-caption">Vorderansicht</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Schritt 3: Ansicht von links</div>
+            <div class="step-content">Klicken Sie auf „Links“, um von der linken Seite zu betrachten (entlang der X-Achse).</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Schritt 4: Weitere Ansichten</div>
+            <div class="step-content">Ebenfalls verfügbar: die Ansichten „Unten“, „Hinten“ und „Rechts“ für vollständige Abdeckung.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_six_views.png" alt="Raster mit allen sechs orthografischen Ansichten" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_05_six_views.png</div>
+            <span class="screenshot-caption">Raster mit allen sechs orthografischen Ansichten<br>Oben, Vorne, Links<br>Unten, Hinten, Rechts</span>
+        </div>
+
+        <div class="note note-info">
+            Orthografische Ansichten sind besonders nützlich für technische Zeichnungen und Messungen, da sie echte Abmessungen ohne perspektivische Verzerrung zeigen.
+        </div>
+
+        <h2>Axonometrische Ansichten</h2>
+        <p>Dreidimensionale Standardansichten:</p>
+
+        <div class="step">
+            <div class="step-title">Schritt 1: Isometrische Ansicht</div>
+            <div class="step-content">Klicken Sie auf die Schaltfläche „Axonometrisch“ und wählen Sie „Isometrisch“. Das zeigt das Modell mit gleichen Winkeln (120°) zwischen allen drei Achsen.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_isometric.png" alt="Modell in isometrischer Ansicht mit gleichen Achsenwinkeln" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_05_isometric.png</div>
+			<span class="screenshot-caption">Isometrische Projektion</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Schritt 2: Dimetrische Ansicht</div>
+            <div class="step-content">Wählen Sie „Dimetrisch“ für eine Ansicht, in der zwei Achsen gleich verkürzt sind.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_dimetric.png" alt="Modell in dimetrischer Ansicht" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_05_dimetric.png</div>
+			<span class="screenshot-caption">Dimetrische Projektion</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Schritt 3: Trimetrische Ansicht</div>
+            <div class="step-content">Wählen Sie „Trimetrisch“ für eine Ansicht, in der alle drei Achsen unterschiedlich verkürzt sind.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_trimetric.png" alt="Modell in trimetrischer Ansicht" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_05_trimetric.png</div>
+			<span class="screenshot-caption">Trimetrische Projektion</span>
+        </div>
+
+        <div class="note note-tip">
+            Axonometrische Ansichten eignen sich hervorragend für technische Illustrationen und Konstruktionszeichnungen, da sie die 3D-Struktur zeigen und dabei parallele Linien beibehalten.
+        </div>
+
+        <h2>Projektion umschalten</h2>
+        <p>Zwischen orthografischer und perspektivischer Projektion wechseln:</p>
+
+        <div class="step">
+            <div class="step-title">Schritt 1: Die Umschaltfläche finden</div>
+            <div class="step-content">Suchen Sie in der Symbolleiste die Schaltfläche zum Umschalten der Projektion (zeigt ein Kamerasymbol).</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Schritt 2: Orthografisch und Perspektivisch</div>
+            <div class="step-content">
+                <b>Orthografisch:</b> Parallele Linien bleiben parallel, kein Fluchtpunkt. Objekte erscheinen unabhängig vom Abstand gleich groß.<br/> <b>Perspektivisch:</b> Realistische Ansicht mit Fluchtpunkten. Entfernte Objekte erscheinen kleiner.
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_ortho_vs_persp.png" alt="Vergleich nebeneinander: orthografische (links) und perspektivische (rechts) Projektion" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_05_ortho_vs_persp.png</div>
+            <span class="screenshot-caption">Vergleich nebeneinander: orthografische (links) und perspektivische (rechts) Projektion</span>
+        </div>
+
+        <div class="note note-tip">
+            Verwenden Sie Orthografisch für technische Arbeiten und Messungen, Perspektivisch für realistische Präsentationen und Visualisierung.
+        </div>
+
+        <h2>Mehrfachansichtsmodus</h2>
+        <p>Mehrere Ansichten gleichzeitig sehen:</p>
+
+        <div class="step">
+            <div class="step-title">Schritt 1: Mehrfachansicht aktivieren</div>
+            <div class="step-content">Klicken Sie in der Symbolleiste auf die Umschaltfläche „Mehrfachansicht“.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Schritt 2: Vier Ansichtsfenster</div>
+            <div class="step-content">Das Ansichtsfenster teilt sich in vier: Oben, Vorne, Rechts und Isometrisch.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Schritt 3: Unabhängige Navigation</div>
+            <div class="step-content">Sie können in jedem Ansichtsfenster unabhängig navigieren. Die Auswahl wird über alle Ansichten synchronisiert.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_multiview.png" alt="Vier-Ansichten-Layout mit Oben, Vorne, Rechts und Isometrisch" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_05_multiview.png</div>
+            <span class="screenshot-caption">Vier-Ansichten-Layout mit Oben, Vorne, Rechts und Isometrisch</span>
+        </div>
+
+        <div class="note note-info">
+            Der Mehrfachansichtsmodus eignet sich hervorragend für präzises Modellieren und zum Verständnis komplexer Geometrien.
+        </div>
+
+        <h2>Ansichtsanimation</h2>
+        <p>Beim Wechseln der Ansichten:</p>
+        <ul>
+            <li>bewegt sich die Kamera sanft animiert an die neue Position</li>
+            <li>Das hilft Ihnen, Orientierung und Kontext zu behalten</li>
+            <li>Sie können die Animation unterbrechen, indem Sie mit der Ansicht interagieren</li>
+        </ul>
+
+        <h2>Anwendungsfälle</h2>
+        <p><b>Ansichten Oben/Vorne/Seite:</b> Ausrichtung, Abmessungen und Symmetrie prüfen</p>
+        <p><b>Isometrische Ansicht:</b> allgemeiner 3D-Überblick, Präsentationen, Standard-Startansicht</p>
+        <p><b>Dimetrisch/Trimetrisch:</b> technische Illustrationen, Konstruktionszeichnungen</p>
+        <p><b>Mehrfachansicht:</b> präzises Modellieren, CAD-Arbeit, komplexe Baugruppen</p>
+
+        <h2>Übung</h2>
+        <p><b>Probieren Sie diese Übung:</b></p>
+        <ol>
+            <li>Öffnen Sie ein Modell (am besten mechanisch oder architektonisch)</li>
+            <li>Gehen Sie alle sechs orthografischen Ansichten durch (Oben, Vorne, Links, Unten, Hinten, Rechts)</li>
+            <li>Wechseln Sie zur isometrischen Ansicht</li>
+            <li>Probieren Sie die dimetrische und die trimetrische Ansicht</li>
+            <li>Wechseln Sie zwischen orthografischer und perspektivischer Projektion</li>
+            <li>Aktivieren Sie den Mehrfachansichtsmodus und üben Sie das Navigieren in jedem Ansichtsfenster</li>
+            <li>Kehren Sie zum Einzelansichtsmodus zurück</li>
+            <li>Beachten Sie, wie jeder Ansichtsmodus für unterschiedliche Zwecke nützlich ist</li>
+        </ol>
+
+        <h2>Tastenkürzel</h2>
+        <table>
+            <thead><tr><th>Taste</th><th>Ansicht</th></tr></thead>
+            <tbody>
+				<tr><td><kbd>Ctrl+T</kbd></td><td>Oben</td></tr>
+                <tr><td><kbd>Ctrl+F</kbd></td><td>Vorne</td></tr>
+				<tr><td><kbd>Ctrl+L</kbd></td><td>Links</td></tr>
+				<tr><td><kbd>Ctrl+B</kbd></td><td>Unten</td></tr>
+				<tr><td><kbd>Ctrl+R</kbd></td><td>Hinten</td></tr>
+                <tr><td><kbd>Ctrl+J</kbd></td><td>Rechts</td></tr>                
+                <tr><td><kbd>Ctrl+1</kbd></td><td>Isometrisch</td></tr>
+				<tr><td><kbd>Ctrl+2</kbd></td><td>Dimetrisch</td></tr>
+				<tr><td><kbd>Ctrl+3</kbd></td><td>Trimetrisch</td></tr>
+                <tr><td><kbd>Ctrl+P</kbd></td><td>Perspektive/Orthografisch umschalten</td></tr>
+				<tr><td><kbd>Pos1</kbd></td><td>Axonometrisch (Isometrisch/Dimetrisch/Trimetrisch - je nach zuletzt eingestelltem Modus)</td></tr>
+                <tr><td><kbd>Ctrl+M</kbd></td><td>Mehrfachansichtsmodus</td></tr>
+            </tbody>
+        </table>
+
+        <div class="lesson-navigation">
+            <a href='lesson04.html' class='nav-button'>← Vorherige Lektion</a>
+            <a href="index.html" class="back-to-index">↑ Zurück zur Übersicht</a>
+            <a href='lesson06.html' class='nav-button'>Nächste Lektion →</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 23: 3D Plots from CSV Data - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials &amp; Textures</a>
+            <a href="lesson10.html">10. Lighting &amp; Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips &amp; Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge &amp; Wireframe Rendering</a>
+            <a href="lesson19.html">19. Simulation Results</a>
+            <a href="lesson20.html">20. Looking Inside a Result</a>
+            <a href="lesson21.html">21. Charts and Probing</a>
+            <a href="lesson22.html">22. Comparing Results, Cell and Shell Data</a>
+            <a href="lesson23.html" class='active'>23. 3D Plots from CSV Data</a>
+            <a href="lesson24.html">24. 3D Plots from Formulas, Fills, Images and Notes</a>
+            <a href="lesson25.html">25. Plots and Results Played Together</a>
+            <a href="lesson26.html">26. Mesh Tools</a>
+            <a href="lesson27.html">27. Measure, Annotate and Report</a>
+            <a href="lesson28.html">28. Analysis, Selection and Scenes</a>
+            <a href="lesson29.html">29. Ray Tracing in Practice</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 23 of 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 79.31%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 23: 3D Plots from CSV Data</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>ModelViewer is not only for models: it can plot your own data in 3D, in the same scene and with the same camera, selection and export tools. Surfaces, contours, lines, scatter, bars, voxels and vector fields are drawn from a table of numbers - a CSV file or pasted text. This lesson builds a plot from a CSV and shows how to control it afterwards.</p>
+        <div class="note note-info">
+            The sample data is in <code>sample-models/Plot3D</code>. It is generated, not measured, and each file has a shape that is easy to recognise: <code>surface_ripple.csv</code>, <code>scatter_clusters.csv</code>, <code>line_helix.csv</code>, <code>bar_histogram.csv</code>, <code>voxel_sphere.csv</code>, <code>quiver_vortex.csv</code> and more.
+        </div>
+        <h2>Your First Plot: a Surface</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Open the dialog</div>
+            <div class="step-content">Choose <b>Visualization → Plot 3D...</b> (or <b>Add 3D Plot...</b> in the <b>3D Plot</b> tab).</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Choose the data</div>
+            <div class="step-content">Set <b>Data source</b> to <i>CSV file or pasted data</i>, click <b>Open CSV...</b> and pick <code>surface_ripple.csv</code> - a 21 x 21 grid of x, y and z = sin(r)/r. You can also <b>Paste</b> text; <b>Delimiter</b> and <b>First row contains column names</b> adapt to your table.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Pick the plot type and columns</div>
+            <div class="step-content">Choose <b>Surface</b> as the plot type and map the columns to <b>X</b>, <b>Y</b> and <b>Z</b>. An optional <b>Colour value</b> column colours the plot; without it the height does.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 4: Preview, then build</div>
+            <div class="step-content">Click <b>Preview</b> to see the plot before it is added, and <b>Clear Preview</b> to remove it. <b>Build Plot</b> adds it to the scene.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_23_add_plot_dialog.png" alt="tutorial_23_add_plot_dialog.png" title="Capture: Visualization &gt; Plot 3D..., Open CSV... surface_ripple.csv, plot type Surface, X/Y/Z mapped, preview showing; capture the whole dialog." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Visualization &gt; Plot 3D..., Open CSV... surface_ripple.csv, plot type Surface, X/Y/Z mapped, preview showing; capture the whole dialog." style="display:none; width:700px; height:450px;">Screenshot: tutorial_23_add_plot_dialog.png (700x520)</div>
+            <span class="screenshot-caption">The Add 3D Plot dialog with surface_ripple.csv loaded and the columns mapped</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_23_surface_built.png" alt="tutorial_23_surface_built.png" title="Capture: After Build Plot: the whole main window with the ripple surface, axes box, colour legend and the 3D Plot tab visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: After Build Plot: the whole main window with the ripple surface, axes box, colour legend and the 3D Plot tab visible." style="display:none; width:700px; height:450px;">Screenshot: tutorial_23_surface_built.png (700x450)</div>
+            <span class="screenshot-caption">The ripple surface built in the scene, with its axes box and colour legend</span>
+        </div>
+
+        <h2>The Seven Plot Types</h2>
+        <table>
+            <thead><tr><th>Plot type</th><th>Try this file</th><th>What to look for</th></tr></thead>
+            <tbody>
+            <tr><td>Surface</td><td><code>surface_ripple.csv</code>, <code>surface_scattered.csv</code></td><td>A ripple peaking at 1.0 in the middle; the scattered file has no complete grid and is triangulated from irregular points.</td></tr>
+            <tr><td>Contour</td><td><code>surface_ripple.csv</code></td><td>Only the iso-lines of Z, optionally flattened onto the base plane.</td></tr>
+            <tr><td>Line / Curve</td><td><code>line_helix.csv</code></td><td>A helix of two turns; row order matters for a line, and the colour follows z along the curve.</td></tr>
+            <tr><td>Scatter</td><td><code>scatter_clusters.csv</code>, <code>scatter_error_bars.csv</code></td><td>Three clusters coloured by their id; scatter colours are per point, not interpolated.</td></tr>
+            <tr><td>Bar / Histogram</td><td><code>bar_histogram.csv</code>, <code>bar_histogram_1d.csv</code>, <code>bar_signed.csv</code></td><td>An 8 x 8 bump of bars; the 1-D file is one row of eight bars (set Y to (none)); the signed file has bars above and below their base.</td></tr>
+            <tr><td>Voxel / Volumetric</td><td><code>voxel_sphere.csv</code></td><td>A sphere in a 9 x 9 x 9 grid, denser in the middle (map X/Y/Z to i/j/k and Colour value to occupancy).</td></tr>
+            <tr><td>Vector (Quiver)</td><td><code>quiver_vortex.csv</code></td><td>Arrows curling around the Z axis and lengthening with distance (map U, V, W to the matching columns).</td></tr>
+            </tbody>
+        </table>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_23_plot_types.png" alt="tutorial_23_plot_types.png" title="Capture: Build scatter_clusters.csv, bar_histogram.csv and quiver_vortex.csv into one document (they share the axes) and capture the scene from an isometric view." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build scatter_clusters.csv, bar_histogram.csv and quiver_vortex.csv into one document (they share the axes) and capture the scene from an isometric view." style="display:none; width:700px; height:450px;">Screenshot: tutorial_23_plot_types.png (700x450)</div>
+            <span class="screenshot-caption">A scatter, a bar chart and a vector field built into one scene</span>
+        </div>
+
+        <h2>Controlling a Plot Afterwards</h2>
+        <p>Everything about a built plot lives in the <b>3D Plot</b> tab. Choose the <b>Active plot</b>, then change:</p>
+        <ul>
+            <li><b>Title</b>, <b>Colour map</b> and <b>Colour bands</b>; the colour range is automatic (<b>Automatic colour range</b>) or fixed with a minimum and a maximum</li>
+            <li><b>Line width</b> (lines), <b>Marker size</b> (scatter), <b>Arrow size</b> (vectors), and bar <b>width</b> and <b>depth</b></li>
+            <li><b>Show axes box</b> and the reference <b>Planes</b> (XY, XZ, YZ), with their opacity, frame the plot</li>
+            <li><b>Edit Plot...</b> reopens the plot's definition: change the data or the columns and rebuild it in place with <b>Rebuild Plot</b></li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_23_plot_tab.png" alt="tutorial_23_plot_tab.png" title="Capture: With the ripple surface selected, crop the 3D Plot tab from Active plot down to the plane options." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: With the ripple surface selected, crop the 3D Plot tab from Active plot down to the plane options." style="display:none; width:420px; height:450px;">Screenshot: tutorial_23_plot_tab.png (420x560)</div>
+            <span class="screenshot-caption">The 3D Plot tab with the controls of the active plot</span>
+        </div>
+
+        <h2>Contour Lines and Section Curves</h2>
+        <p>Any surface can carry iso-lines of Z. Set <b>Contour lines</b> to <i>On the surface</i> for dark lines drawn on it, or <i>On the base plane</i> for colour-mapped lines flattened onto the floor of the axes box, and choose the number of <b>Contour levels</b>.</p>
+        <p>Tick <b>Show section curves on hover</b> and move the cursor over the surface: through the hovered point you see the curves where the X, Y and Z planes cut the surface (red, green, blue like the axes; the blue one is the contour line through the point), together with the point's data values.</p>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_23_contours_and_sections.png" alt="tutorial_23_contours_and_sections.png" title="Capture: Ripple surface with Contour lines = On the base plane (about 10 levels) and Show section curves on hover on; hover near a ring of the ripple so the red/green/blue curves and the data readout show." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Ripple surface with Contour lines = On the base plane (about 10 levels) and Show section curves on hover on; hover near a ring of the ripple so the red/green/blue curves and the data readout show." style="display:none; width:700px; height:450px;">Screenshot: tutorial_23_contours_and_sections.png (700x450)</div>
+            <span class="screenshot-caption">Contour lines on the base plane and the section curves through the hovered point</span>
+        </div>
+
+        <h2>Scatter, Bar and Voxel Options</h2>
+        <ul>
+            <li><b>Scatter</b>: draw <b>stems to Base Z</b>, show <b>error bars</b> (<code>scatter_error_bars.csv</code>) or fill to a base - the next lesson shows fills in detail.</li>
+            <li><b>Bars</b>: <b>Base</b>, <b>Width</b> and <b>Depth</b> columns are optional; without them bars start at 0 and use a width and depth of 0.8. A column named for <b>Z</b> gives the height, so negative values hang below the base.</li>
+            <li><b>Voxel</b>: the plot is drawn as a volume; map X, Y, Z to the grid indices and the colour value to occupancy, and you get a semi-transparent cloud like the volume rendering of Lesson 20.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_23_voxel_sphere.png" alt="tutorial_23_voxel_sphere.png" title="Capture: Build voxel_sphere.csv (Voxel / Volumetric, X/Y/Z = i/j/k, Colour value = occupancy) and capture the cloud from an isometric view." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build voxel_sphere.csv (Voxel / Volumetric, X/Y/Z = i/j/k, Colour value = occupancy) and capture the cloud from an isometric view." style="display:none; width:700px; height:450px;">Screenshot: tutorial_23_voxel_sphere.png (700x450)</div>
+            <span class="screenshot-caption">voxel_sphere.csv drawn as a semi-transparent sphere</span>
+        </div>
+
+        <h2>Saving and Exporting</h2>
+        <p>Plots are stored in the <b>.mvf</b> session with their data, definition, axes and notes, so <b>Edit Plot...</b> still works after you reopen it. Point and line plots also export to <b>glTF</b>, <b>GLB</b> and <b>OBJ</b> together with the rest of the scene. Plots are not drawn by the ray tracer.</p>
+        <div class="note note-tip">
+            If the plot looks wrong, check the column mapping first: the file's column order is only a convenience, and the mapping is index-based. A status line under the preview tells you what was read and, if a table cannot be used, why.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson22.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson24.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 29: Ray Tracing in Practice - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials &amp; Textures</a>
+            <a href="lesson10.html">10. Lighting &amp; Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips &amp; Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge &amp; Wireframe Rendering</a>
+            <a href="lesson19.html">19. Simulation Results</a>
+            <a href="lesson20.html">20. Looking Inside a Result</a>
+            <a href="lesson21.html">21. Charts and Probing</a>
+            <a href="lesson22.html">22. Comparing Results, Cell and Shell Data</a>
+            <a href="lesson23.html">23. 3D Plots from CSV Data</a>
+            <a href="lesson24.html">24. 3D Plots from Formulas, Fills, Images and Notes</a>
+            <a href="lesson25.html">25. Plots and Results Played Together</a>
+            <a href="lesson26.html">26. Mesh Tools</a>
+            <a href="lesson27.html">27. Measure, Annotate and Report</a>
+            <a href="lesson28.html">28. Analysis, Selection and Scenes</a>
+            <a href="lesson29.html" class='active'>29. Ray Tracing in Practice</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 29 of 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 100%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 29: Ray Tracing in Practice</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Ray tracing follows light through the scene to produce reflections, soft shadows, glass and realistic lighting that the real-time viewer can only approximate. ModelViewer has two ray-tracing engines and uses the same materials and environment you already set up. This lesson takes you from a live ray-traced view to a high-resolution image on disk and a batch of views rendered in one go.</p>
+        <div class="note note-info">
+            Two engines: the <b>CPU</b> engine (Embree) runs everywhere; the <b>GPU</b> engine (NVIDIA OptiX) needs an NVIDIA graphics card and a build with OptiX. <b>Help → About</b> tells you whether the GPU engine is enabled in your build. Simulation results and 3D plots are not drawn by the ray tracer.
+        </div>
+        <h2>A Live Ray-Traced View</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Prepare a scene</div>
+            <div class="step-content">Open a model with interesting materials - the Futuristic Transport Shuttle or the Tea-Pot - and set up its environment and lights as in Lesson 10.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Switch the rendering mode</div>
+            <div class="step-content">Choose <b>View → Rendering Mode → Ray Traced</b>. The viewport starts rendering progressively: the image is noisy at first and settles as samples accumulate, then a denoiser cleans it up. Move the camera and it restarts.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Compare with PBR</div>
+            <div class="step-content">Switch between <b>PBR (Metallic-Roughness)</b> and <b>Ray Traced</b>. Materials, environment lighting and the shadow-catcher floor follow the raster viewer, so you see the same scene, now with true reflections and shadows.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_29_pbr_vs_ray_traced.png" alt="tutorial_29_pbr_vs_ray_traced.png" title="Capture: Futuristic Transport Shuttle (or the Tea-Pot on a reflective floor) with the same camera in PBR and, after a few seconds of accumulation, in Ray Traced mode; join the two captures side by side." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Futuristic Transport Shuttle (or the Tea-Pot on a reflective floor) with the same camera in PBR and, after a few seconds of accumulation, in Ray Traced mode; join the two captures side by side." style="display:none; width:700px; height:350px;">Screenshot: tutorial_29_pbr_vs_ray_traced.png (700x350)</div>
+            <span class="screenshot-caption">The same scene in PBR (left) and ray traced (right)</span>
+        </div>
+
+        <h2>The Ray Tracing Dialog</h2>
+        <p><b>Visualization → Ray Tracing...</b> opens the settings and the offline render. It has three tabs.</p>
+        <table>
+            <thead><tr><th>Tab</th><th>What it holds</th></tr></thead>
+            <tbody>
+            <tr><td>Basic</td><td><b>Render Engine</b> (<i>Auto</i> prefers OptiX when available, <i>Embree (CPU)</i> or <i>OptiX (GPU)</i>), <b>Max Samples</b> per pixel, <b>Max Bounces</b> of light per path, <b>Enable Denoiser</b> and its <b>Denoiser Engine</b> (Auto, OIDN on CPU, OIDN on GPU/CUDA or OptiX), and the <b>Export Preset</b> and <b>Export Resolution</b> with <b>Match Viewport</b>.</td></tr>
+            <tr><td>Advanced</td><td><b>Firefly Clamp Threshold</b> (caps single bright samples), <b>Max Transmission Bounces</b> for glass, <b>Russian Roulette Start Depth</b>, <b>Max Shadow Ray Hits</b> (CPU only), <b>Max Volume Scatter Bounces</b>, <b>Environment Importance Sampling</b>, and the switches <b>Shadows</b> and <b>Self Shadows</b>.</td></tr>
+            <tr><td>Diagnostics</td><td>Read-only information about the renderer and the GPU, the traversal and denoiser in use, the resolution, the triangle count, the acceleration-structure build times, samples per second, MRays per second and the render time.</td></tr>
+            </tbody>
+        </table>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_29_dialog_basic.png" alt="tutorial_29_dialog_basic.png" title="Capture: Visualization &gt; Ray Tracing..., Basic tab; capture the whole dialog including Render, Stop and Export Image... at the bottom." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Visualization &gt; Ray Tracing..., Basic tab; capture the whole dialog including Render, Stop and Export Image... at the bottom." style="display:none; width:560px; height:450px;">Screenshot: tutorial_29_dialog_basic.png (560x520)</div>
+            <span class="screenshot-caption">The Basic tab of the Ray Tracing dialog</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_29_dialog_diagnostics.png" alt="tutorial_29_dialog_diagnostics.png" title="Capture: Start a render, switch to the Diagnostics tab and capture it with renderer, GPU, samples/sec and MRays/sec filled in." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Start a render, switch to the Diagnostics tab and capture it with renderer, GPU, samples/sec and MRays/sec filled in." style="display:none; width:560px; height:450px;">Screenshot: tutorial_29_dialog_diagnostics.png (560x480)</div>
+            <span class="screenshot-caption">The Diagnostics tab while a render is running</span>
+        </div>
+
+        <div class="note note-tip">
+            For a quicker preview lower <b>Max Samples</b> and <b>Max Bounces</b>; for a clean final image raise <b>Max Samples</b>, keep the denoiser on, and leave <b>Environment Importance Sampling</b> on to cut noise from bright skies. Hover over a setting for a short explanation.
+        </div>
+        <h2>Rendering and Exporting an Image</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Choose the size</div>
+            <div class="step-content">Pick an <b>Export Preset</b> or type a width and height under <b>Export Resolution</b>, or click <b>Match Viewport</b>. A resolution larger than the viewport triggers an offline render, which may take a while and can be cancelled with the button that replaces <b>Stop</b>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Render</div>
+            <div class="step-content">Click <b>Render</b>. The status line and the progress show how far it is; <b>Stop</b> ends it early.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Save the image</div>
+            <div class="step-content">Click <b>Export Image...</b> and choose PNG, JPEG, BMP, TIFF or OpenEXR. OpenEXR keeps the full dynamic range, which is what you want for further editing.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_29_rendered_image.png" alt="tutorial_29_rendered_image.png" title="Capture: Render the shuttle at 3840 x 2160 (Basic tab, denoiser on), Export Image... as PNG, and place that PNG here (a downscaled copy is fine)." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Render the shuttle at 3840 x 2160 (Basic tab, denoiser on), Export Image... as PNG, and place that PNG here (a downscaled copy is fine)." style="display:none; width:700px; height:450px;">Screenshot: tutorial_29_rendered_image.png (700x450)</div>
+            <span class="screenshot-caption">A finished high-resolution ray-traced image of the model</span>
+        </div>
+
+        <div class="note note-warning">
+            With an orthographic camera and a thin-walled glass material every pixel samples the same environment direction, so that glass renders flat. This is expected, not a bug - switch to a perspective projection (Lesson 6) for realistic glass. The dialog shows a warning when it detects this combination.
+        </div>
+        <h2>Batch Rendering Views</h2>
+        <p><b>Tools → Batch Render Views...</b> renders the camera views you captured in the Cameras panel to a folder with the ray tracer, in one run: tick the views, pick the format (PNG, JPEG, BMP, TIFF or OpenEXR) and the resolution, choose the folder and start. Combine it with scene states (Lesson 28) to produce a whole set of presentation images - overview, cutaway, details - without touching the model again.</p>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_29_batch_render.png" alt="tutorial_29_batch_render.png" title="Capture: Capture three views in the Cameras panel, then Tools &gt; Batch Render Views...; capture the dialog with the three views ticked, the format and resolution set and a folder chosen." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Capture three views in the Cameras panel, then Tools &gt; Batch Render Views...; capture the dialog with the three views ticked, the format and resolution set and a folder chosen." style="display:none; width:600px; height:450px;">Screenshot: tutorial_29_batch_render.png (600x480)</div>
+            <span class="screenshot-caption">The Batch Render Views dialog with three captured views ticked</span>
+        </div>
+
+        <div class="note note-info">
+            Remember the limits from earlier lessons: simulation results and 3D plots are drawn the same flat way in every mode. Use ray tracing for models, assemblies and presentation images, and the normal viewer for the scientific views.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson28.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <span class='nav-button disabled'>Tutorial Complete ✔</span>
+        </div>
+    </div>
+</body>
+</html>

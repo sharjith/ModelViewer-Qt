@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lección 3: Navegación básica - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primeros pasos</a>
+            <a href="lesson02.html">2. Abrir modelos</a>
+            <a href="lesson03.html" class='active'>3. Navegación básica</a>
+            <a href="lesson04.html">4. Seleccionar objetos</a>
+            <a href="lesson05.html">5. Modos de vista</a>
+            <a href="lesson06.html">6. Modos de cámara</a>
+            <a href="lesson07.html">7. Modos de visualización</a>
+            <a href="lesson08.html">8. Manipular objetos</a>
+            <a href="lesson09.html">9. Materiales y texturas</a>
+            <a href="lesson10.html">10. Iluminación y entorno</a>
+            <a href="lesson11.html">11. Trabajar con la visibilidad</a>
+            <a href="lesson12.html">12. Funciones avanzadas</a>
+            <a href="lesson13.html">13. Optimización del rendimiento</a>
+            <a href="lesson14.html">14. Consejos y flujos de trabajo</a>
+            <a href="lesson15.html">15. Vistas explosionadas</a>
+            <a href="lesson16.html">16. Animación de morph targets</a>
+            <a href="lesson17.html">17. Edición de la transformación de nodos</a>
+            <a href="lesson18.html">18. Renderizado de bordes y malla de alambre</a>
+            <a href="lesson19.html">19. Resultados de simulación</a>
+            <a href="lesson20.html">20. Mirar dentro de un resultado</a>
+            <a href="lesson21.html">21. Gráficos y sondeo</a>
+            <a href="lesson22.html">22. Comparar resultados, datos de celda y de lámina</a>
+            <a href="lesson23.html">23. Gráficos 3D a partir de datos CSV</a>
+            <a href="lesson24.html">24. Gráficos 3D a partir de fórmulas, rellenos, imágenes y notas</a>
+            <a href="lesson25.html">25. Gráficos y resultados reproducidos juntos</a>
+            <a href="lesson26.html">26. Herramientas de malla</a>
+            <a href="lesson27.html">27. Medir, anotar e informar</a>
+            <a href="lesson28.html">28. Análisis, selección y escenas</a>
+            <a href="lesson29.html">29. Trazado de rayos en la práctica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lección 3 de 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 10.34%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lección 3: Navegación básica</h1>
+        </div>
+
+        <h2>Introducción</h2>
+        <p>Navegar por la vista 3D es esencial para examinar sus modelos desde todos los ángulos. ModelViewer ofrece controles intuitivos de ratón y teclado para una navegación fluida.</p>
+
+        <h2>Navegación con el ratón</h2>
+        <p>La forma principal de navegar por la vista:</p>
+        
+        <div class="step">
+            <div class="step-title">Paso 1: Girar la vista</div>
+            <div class="step-content">
+                Mantenga pulsado el <kbd>botón central del ratón</kbd> y arrastre para girar la cámara alrededor del modelo.<br/> <b>Alternativa:</b> Mantenga pulsado <kbd>Ctrl</kbd> + <kbd>botón izquierdo del ratón</kbd> y arrastre.
+            </div>
+        </div>
+
+        
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_03_rotate_gesture.gif" alt="Ilustración del gesto de giro con el botón central del ratón con flechas indicadoras" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:400px; height:300px;">Captura: tutorial_03_rotate_gesture.png (400x300)</div>
+            <span class="screenshot-caption">Ilustración del gesto de giro con el botón central del ratón con flechas indicadoras</span>
+        </div>
+
+        <div class="note note-tip">
+            El giro usa inercia: si se mueve rápido y suelta, la vista sigue girando suavemente y se ralentiza poco a poco.
+        </div>
+
+        <div class="step">
+            <div class="step-title">Paso 2: Desplazar la vista</div>
+            <div class="step-content">
+                Mantenga pulsado el <kbd>botón derecho del ratón</kbd> y arrastre para mover la cámara de lado a lado y de arriba abajo.<br/> <b>Alternativa:</b> Mantenga pulsado <kbd>Ctrl</kbd> + <kbd>botón derecho del ratón</kbd> y arrastre.
+            </div>
+        </div>
+
+        
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_03_pan_gesture.gif" alt="Ilustración del gesto de desplazamiento con el botón derecho del ratón" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:400px; height:300px;">Captura: tutorial_03_pan_gesture.png (400x300)</div>
+            <span class="screenshot-caption">Ilustración del gesto de desplazamiento con el botón derecho del ratón</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Paso 3: Hacer zoom en la vista</div>
+            <div class="step-content">
+                Use la <kbd>rueda del ratón</kbd> para acercar y alejar.<br/> <b>Alternativa:</b> Mantenga pulsado <kbd>Ctrl</kbd> + <kbd>botón central del ratón</kbd> y arrastre verticalmente.
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_03_zoom_gesture.gif" alt="Ilustración del zoom con la rueda del ratón" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:400px; height:300px;">Captura: tutorial_03_zoom_gesture.png (400x300)</div>
+            <span class="screenshot-caption">Ilustración del zoom con la rueda del ratón</span>
+        </div>
+
+        <div class="note note-info">
+            El zoom se centra en la posición del ratón, así que apunte a lo que quiera acercar antes de desplazar la rueda.
+        </div>
+
+        <div class="step">
+            <div class="step-title">Paso 4: Centrado rápido</div>
+            <div class="step-content">
+                Haga clic con el <kbd>botón central del ratón</kbd> (pulsar y soltar, sin arrastrar) para desplazar la vista y centrarla en un punto nuevo.
+            </div>
+        </div>
+
+        <h2>Navegación con el teclado</h2>
+        <p>Para un control preciso y una navegación ampliada:</p>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Teclas</th>
+                    <th>Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td><kbd>W</kbd> / <kbd>A</kbd> / <kbd>S</kbd> / <kbd>D</kbd></td><td>Mover la cámara (el comportamiento depende del modo de cámara)</td></tr>
+                <tr><td><kbd>I</kbd> / <kbd>K</kbd></td><td>Girar alrededor del eje X (cabeceo arriba/abajo)</td></tr>
+                <tr><td><kbd>J</kbd> / <kbd>L</kbd></td><td>Girar alrededor del eje Y (guiñada izquierda/derecha)</td></tr>
+                <tr><td><kbd>M</kbd> / <kbd>N</kbd></td><td>Girar alrededor del eje Z (alabeo en sentido horario/antihorario)</td></tr>
+                <tr><td><kbd>X</kbd> / <kbd>Z</kbd></td><td>Acercar/alejar (solo en modo Órbita)</td></tr>
+                <tr><td><kbd>F</kbd></td><td>Ajustar todos los objetos a la vista</td></tr>
+            </tbody>
+        </table>
+
+        <div class="note note-tip">
+            Mantenga pulsadas las teclas de navegación para un movimiento continuo y suave.
+        </div>
+
+        <h2>Usar la barra de herramientas de vista</h2>
+        <p>La barra de herramientas ofrece una forma alternativa de activar los modos de navegación:</p>
+        
+        <div class="step">
+            <div class="step-title">Paso 1: Mostrar la barra de herramientas</div>
+            <div class="step-content">Mueva el ratón al borde inferior de la vista para mostrar la barra de herramientas.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_03_toolbar_revealed.png" alt="La barra de herramientas de vista aparece en la parte inferior de la vista" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:600px; height:150px;">Captura: tutorial_03_toolbar_revealed.png (600x150)</div>
+            <span class="screenshot-caption">La barra de herramientas de vista aparece en la parte inferior de la vista</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Paso 2: Hacer clic en un modo de navegación</div>
+            <div class="step-content">Haga clic en el botón Girar, Desplazar o Zoom para activar ese modo.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Paso 3: Usar el botón izquierdo del ratón</div>
+            <div class="step-content">
+                Una vez activo un modo, use el <kbd>botón izquierdo del ratón</kbd> para realizar esa acción. El cursor cambia para indicar el modo activo.
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_03_mode_cursors.png" alt="Distintos iconos de cursor para los modos Girar, Desplazar y Zoom" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:200px;">Captura: tutorial_03_mode_cursors.png (500x200)</div>
+            <span class="screenshot-caption">Distintos iconos de cursor para los modos Girar, Desplazar y Zoom</span>
+        </div>
+
+        <div class="note note-info">
+            Pulse <kbd>Esc</kbd> para cancelar cualquier modo de navegación activo y volver al modo de selección normal.
+        </div>
+
+        <h2>Ajustar los objetos a la vista</h2>
+        <p>La función «Ajustar todo» es una de las herramientas de navegación más útiles:</p>
+
+        <div class="step">
+            <div class="step-title">Paso 1: Pulsar la tecla F</div>
+            <div class="step-content">Simplemente pulse <kbd>F</kbd> para encuadrar automáticamente todos los objetos visibles en la vista.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Paso 2: O usar la barra de herramientas</div>
+            <div class="step-content">Haga clic en el botón «Ajustar todo» de la barra de herramientas de vista.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_03_fit_all_before.png" alt="Antes de Ajustar todo: objeto parcialmente visible y descentrado" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:600px; height:350px;">Captura: tutorial_03_fit_all_before.png (600x350)</div>
+            <span class="screenshot-caption">Antes de Ajustar todo: objeto parcialmente visible y descentrado</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_03_fit_all_after.png" alt="Después de Ajustar todo: objeto perfectamente centrado y dimensionado para ajustarse a la vista" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:600px; height:350px;">Captura: tutorial_03_fit_all_after.png (600x350)</div>
+            <span class="screenshot-caption">Después de Ajustar todo: objeto perfectamente centrado y dimensionado para ajustarse a la vista</span>
+        </div>
+
+        <div class="note note-tip">
+            Use «Ajustar todo» siempre que se sienta perdido en el espacio 3D o tras ocultar/mostrar objetos, para reencuadrar la vista.
+        </div>
+
+        <h2>Ejercicio práctico</h2>
+        <p><b>Pruebe este ejercicio para dominar la navegación básica:</b></p>
+        <ol>
+            <li>Abra cualquier modelo 3D</li>
+            <li>Gire la vista 360 grados alrededor del modelo con el botón central del ratón</li>
+            <li>Desplace el modelo a distintas esquinas de la pantalla con el botón derecho del ratón</li>
+            <li>Acerque mucho el zoom para ver los detalles de la superficie</li>
+            <li>Pulse <kbd>F</kbd> para restablecer y ajustar todo</li>
+            <li>Pruebe las teclas de navegación (W/A/S/D, I/J/K/L)</li>
+            <li>Active el modo Girar desde la barra de herramientas y gire con el botón izquierdo del ratón</li>
+        </ol>
+        <p>¡Practique hasta que estos movimientos le resulten naturales!</p>
+
+        <div class="lesson-navigation">
+            <a href='lesson02.html' class='nav-button'>← Lección anterior</a>
+            <a href="index.html" class="back-to-index">↑ Volver al índice</a>
+            <a href='lesson04.html' class='nav-button'>Siguiente lección →</a>
+        </div>
+    </div>
+</body>
+</html>

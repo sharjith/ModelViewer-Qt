@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lezione 8: Manipolare gli oggetti - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primi passi</a>
+            <a href="lesson02.html">2. Aprire i modelli</a>
+            <a href="lesson03.html">3. Navigazione di base</a>
+            <a href="lesson04.html">4. Selezionare gli oggetti</a>
+            <a href="lesson05.html">5. Modalità di visualizzazione</a>
+            <a href="lesson06.html">6. Modalità fotocamera</a>
+            <a href="lesson07.html">7. Modalità di display</a>
+            <a href="lesson08.html" class='active'>8. Manipolare gli oggetti</a>
+            <a href="lesson09.html">9. Materiali e texture</a>
+            <a href="lesson10.html">10. Illuminazione e ambiente</a>
+            <a href="lesson11.html">11. Lavorare con la visibilità</a>
+            <a href="lesson12.html">12. Funzioni avanzate</a>
+            <a href="lesson13.html">13. Ottimizzazione delle prestazioni</a>
+            <a href="lesson14.html">14. Suggerimenti e flussi di lavoro</a>
+            <a href="lesson15.html">15. Viste esplose</a>
+            <a href="lesson16.html">16. Animazione dei morph target</a>
+            <a href="lesson17.html">17. Modifica della trasformazione dei nodi</a>
+            <a href="lesson18.html">18. Rendering di bordi e wireframe</a>
+            <a href="lesson19.html">19. Risultati di simulazione</a>
+            <a href="lesson20.html">20. Guardare dentro un risultato</a>
+            <a href="lesson21.html">21. Grafici e sonde</a>
+            <a href="lesson22.html">22. Confrontare risultati, dati di cella e di guscio</a>
+            <a href="lesson23.html">23. Grafici 3D da dati CSV</a>
+            <a href="lesson24.html">24. Grafici 3D da formule, riempimenti, immagini e note</a>
+            <a href="lesson25.html">25. Grafici e risultati riprodotti insieme</a>
+            <a href="lesson26.html">26. Strumenti per mesh</a>
+            <a href="lesson27.html">27. Misurare, annotare e riferire</a>
+            <a href="lesson28.html">28. Analisi, selezione e scene</a>
+            <a href="lesson29.html">29. Ray tracing in pratica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lezione 8 di 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 27.59%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lezione 8: Manipolare gli oggetti</h1>
+        </div>
+
+        <h2>Accedere alle trasformazioni</h2>
+        <p>Seleziona un oggetto, poi usa il pannello Trasformazioni a destra per inserire valori numerici esatti, oppure fai clic destro sulla selezione per la stessa opzione.</p>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_08_transform_panel.png" alt="Il pannello delle trasformazioni con i campi di traslazione, rotazione e scala e i pulsanti Applica e Reimposta" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Schermata: tutorial_08_transform_panel.png</div>
+        </div>
+
+        <div class="note note-info">
+            Preferisci lavorare visivamente invece di digitare numeri? La lezione 17 tratta il <b>gizmo di trasformazione</b> interattivo a schermo, che modifica la stessa trasformazione sottostante trascinando le maniglie direttamente nella vista.
+        </div>
+
+        <h2>Traslazione, rotazione e scala</h2>
+        <div class="step">
+            <div class="step-title">Traslazione</div>
+            <div class="step-content">Sposta la selezione lungo X, Y o Z inserendo valori DX, DY, DZ.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_08_translate.png" alt="Posizione dell&#x27;oggetto prima e dopo la traslazione" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Schermata: tutorial_08_translate.png</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Rotazione</div>
+            <div class="step-content">Inserisci valori RX, RY, RZ (in gradi) per ruotare attorno a ciascun asse.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_08_rotate.png" alt="Oggetto prima e dopo la rotazione" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Schermata: tutorial_08_rotate.png</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Scala</div>
+            <div class="step-content">Inserisci valori SX, SY, SZ per asse. I fattori >1 ingrandiscono; <1 riducono. Imposta tutti e tre allo stesso valore per una scala uniforme.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_08_scale.png" alt="Oggetto con diversi fattori di scala" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Schermata: tutorial_08_scale.png</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Applica / Reimposta</div>
+            <div class="step-content">Fai clic su «Applica trasformazioni» per confermare i valori inseriti, oppure su «Reimposta trasformazioni» per riportare i campi a zero/identità. L'applicazione è completamente annullabile (Modifica → Annulla).</div>
+        </div>
+
+        <h2>Duplicare</h2>
+        <p>Crea copie con clic destro → Duplica. Usa le trasformazioni per separare la copia dall'originale.</p>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_08_duplicate.png" alt="Oggetto originale e suo duplicato posizionati vicini" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Schermata: tutorial_08_duplicate.png</div>
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson07.html' class='nav-button'>← Lezione precedente</a>
+            <a href="index.html" class="back-to-index">↑ Torna all'indice</a>
+            <a href='lesson09.html' class='nav-button'>Lezione successiva →</a>
+        </div>
+    </div>
+</body>
+</html>

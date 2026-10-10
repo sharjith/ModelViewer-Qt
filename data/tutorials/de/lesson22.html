@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lektion 22: Ergebnisse vergleichen, Zell- und Schalendaten - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Anleitung</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Erste Schritte</a>
+            <a href="lesson02.html">2. Modelle öffnen</a>
+            <a href="lesson03.html">3. Grundlegende Navigation</a>
+            <a href="lesson04.html">4. Objekte auswählen</a>
+            <a href="lesson05.html">5. Ansichtsmodi</a>
+            <a href="lesson06.html">6. Kameramodi</a>
+            <a href="lesson07.html">7. Anzeigemodi</a>
+            <a href="lesson08.html">8. Objekte manipulieren</a>
+            <a href="lesson09.html">9. Materialien und Texturen</a>
+            <a href="lesson10.html">10. Beleuchtung und Umgebung</a>
+            <a href="lesson11.html">11. Arbeiten mit Sichtbarkeit</a>
+            <a href="lesson12.html">12. Erweiterte Funktionen</a>
+            <a href="lesson13.html">13. Leistungsoptimierung</a>
+            <a href="lesson14.html">14. Tipps und Workflows</a>
+            <a href="lesson15.html">15. Explosionsansichten</a>
+            <a href="lesson16.html">16. Morph-Target-Animation</a>
+            <a href="lesson17.html">17. Knotentransformation bearbeiten</a>
+            <a href="lesson18.html">18. Kanten- und Drahtgitter-Rendering</a>
+            <a href="lesson19.html">19. Simulationsergebnisse</a>
+            <a href="lesson20.html">20. Ins Innere eines Ergebnisses schauen</a>
+            <a href="lesson21.html">21. Diagramme und Sonden</a>
+            <a href="lesson22.html" class='active'>22. Ergebnisse vergleichen, Zell- und Schalendaten</a>
+            <a href="lesson23.html">23. 3D-Diagramme aus CSV-Daten</a>
+            <a href="lesson24.html">24. 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</a>
+            <a href="lesson25.html">25. Diagramme und Ergebnisse gemeinsam abspielen</a>
+            <a href="lesson26.html">26. Mesh-Werkzeuge</a>
+            <a href="lesson27.html">27. Messen, Kommentieren und Berichten</a>
+            <a href="lesson28.html">28. Analyse, Auswahl und Szenen</a>
+            <a href="lesson29.html">29. Raytracing in der Praxis</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lektion 22 von 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 75.86%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lektion 22: Ergebnisse vergleichen, Zell- und Schalendaten</h1>
+        </div>
+
+        <h2>Einführung</h2>
+        <p>Echte Ergebnisdateien unterscheiden sich nicht nur in ihren Zahlen. Zwei Analysen desselben Bauteils müssen fair verglichen werden; elementweise Daten werden flach gezeichnet, sofern Sie sie nicht mitteln; Schalenmodelle haben kein Volumen zum Schneiden; und Strömungsergebnisse bringen eigene Einheiten mit. Diese Lektion zeigt, wie ModelViewer mit jedem Fall umgeht.</p>
+        <h2>Zwei Ergebnisse vergleichen</h2>
+        <p>Vergleichen zeigt zwei Ergebnisse desselben Dokuments nebeneinander oder übereinander, mit einer gemeinsamen Kamera. Das Beispiel hier stellt Biegung und Torsion desselben I-Trägers gegenüber.</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Beide Ergebnisse in ein Dokument legen</div>
+            <div class="step-content">Öffnen Sie <code>ibeam_cantilever.frd</code> und fügen Sie dann mit <b>Visualisierung → Simulationsergebnisse → Ergebnis zu diesem Dokument hinzufügen...</b> die Datei <code>ibeam_torsion.frd</code> hinzu.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Den Vergleich starten</div>
+            <div class="step-content">Wählen Sie das zweite Ergebnis unter <b>Vergleichen mit:</b> und klicken Sie auf <b>Vergleichen</b> (oder verwenden Sie <b>Visualisierung → Simulationsergebnisse → Ergebnisse vergleichen...</b>). Wählen Sie nebeneinander oder übereinander.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Die Farben vergleichbar machen</div>
+            <div class="step-content">Aktivieren Sie <b>Gleicher Farbbereich für beide</b>: Gleiche Farben bedeuten dann in beiden Ansichten gleiche Werte. Aktivieren Sie <b>Kameras koppeln</b>, damit beide Ansichten beim Drehen oder Zoomen im Gleichschritt bleiben.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 4: Den Vergleich beenden</div>
+            <div class="step-content">Klicken Sie auf <b>Vergleich beenden</b> (dieselbe Schaltfläche), um zur einzelnen Ansicht zurückzukehren.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_22_compare_side_by_side.png" alt="tutorial_22_compare_side_by_side.png" title="Capture: Open ibeam_cantilever.frd, add ibeam_torsion.frd, Compare side by side with &quot;Same colour range for both&quot; and &quot;Link the cameras&quot; on, last load step, deformed shape on; capture the viewport." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open ibeam_cantilever.frd, add ibeam_torsion.frd, Compare side by side with &quot;Same colour range for both&quot; and &quot;Link the cameras&quot; on, last load step, deformed shape on; capture the viewport." style="display:none; width:700px; height:420px;">Screenshot: tutorial_22_compare_side_by_side.png (700x420)</div>
+            <span class="screenshot-caption">Biegung (links) und Torsion (rechts) desselben I-Trägers, nebeneinander mit einem Farbbereich</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_22_compare_controls.png" alt="tutorial_22_compare_controls.png" title="Capture: While comparing, crop the part of the Simulation Results tab with Compare with, Show in (layout), Same colour range, Link the cameras and Exit Compare." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: While comparing, crop the part of the Simulation Results tab with Compare with, Show in (layout), Same colour range, Link the cameras and Exit Compare." style="display:none; width:420px; height:360px;">Screenshot: tutorial_22_compare_controls.png (420x360)</div>
+            <span class="screenshot-caption">Die Vergleichssteuerung in der Registerkarte „Simulationsergebnisse“</span>
+        </div>
+
+        <h2>Elementdaten (Zelldaten)</h2>
+        <p>Manche Solver schreiben einen Wert pro Element statt pro Knoten. Diese Felder tragen in der Feldliste <b>[Zellen]</b>, und jedes Element wird in einer einzigen flachen Farbe gezeichnet. <b>Zelldaten auf Knoten mitteln</b> zeichnet sie glatt: Jeder Knoten übernimmt den nach Größe gewichteten Mittelwert der umgebenden Elemente.</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Den Zelldaten-Würfel öffnen</div>
+            <div class="step-content">Öffnen Sie <code>cell_data_cube.vtk</code>, einen 8 x 8 x 8 Block aus Hexaedern mit nur Zellfeldern: einer glatten <i>Element_Stress</i> und einer ganzzahligen <i>Element_Group</i> mit vier Bereichen.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Flach und gemittelt vergleichen</div>
+            <div class="step-content">Betrachten Sie <i>Element_Stress</i> beim Öffnen - eine flache Farbe pro Element - und aktivieren Sie dann <b>Zelldaten auf Knoten mitteln</b>, um zu sehen, wie es glatt wird. <i>Element_Group</i> lassen Sie besser flach: Seine Bereiche sind Bezeichner, keine Größen.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_22_cell_data_flat_vs_smooth.png" alt="tutorial_22_cell_data_flat_vs_smooth.png" title="Capture: Open cell_data_cube.vtk, Field = Element_Stress; capture the cube with the option off, then on (same camera) and join the two pictures side by side." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open cell_data_cube.vtk, Field = Element_Stress; capture the cube with the option off, then on (same camera) and join the two pictures side by side." style="display:none; width:700px; height:350px;">Screenshot: tutorial_22_cell_data_flat_vs_smooth.png (700x350)</div>
+            <span class="screenshot-caption">Element_Stress flach gezeichnet (links) und auf die Knoten gemittelt (rechts)</span>
+        </div>
+
+        <div class="note note-info">
+            Zeitverlauf, Linienverlauf, Volumendarstellung und Isoflächen funktionieren auch für ein Zellfeld; sie verwenden immer die gemittelten Werte. Ein Ergebnis mit nur einem Schritt zeigt seinen Verlauf als einen Punkt.
+        </div>
+        <h2>Schalenergebnisse (nur Oberfläche)</h2>
+        <p>Ein Ergebnis nur aus Dreiecken oder Vierecken hat kein Volumen zum Schneiden. Diagramme funktionieren trotzdem: Der Zeitverlauf liest den angeklickten Punkt der Fläche, und der Linienverlauf folgt der Linie entlang der Fläche und lässt bei einer gekrümmten Schale eine Lücke, wo die Linie sie verlässt.</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Die Schalenplatte öffnen</div>
+            <div class="step-content">Öffnen Sie <code>shell_plate_transient.frd</code>: eine flache 2 x 1 Platte aus Schalenvierecken mit dem Temperaturfeld über 10 Zeitschritte und Wärme, die vom linken Rand einströmt.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Ein Diagramm erstellen</div>
+            <div class="step-content">Klicken Sie nahe der Mitte mit rechts und wählen Sie <b>Verlauf hier darstellen</b>; probieren Sie dann <b>Entlang Linie darstellen...</b> vom linken zum rechten Rand beim letzten Schritt und spielen Sie die Zeitleiste bei geöffnetem Diagramm ab.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_22_shell_plot_over_line.png" alt="tutorial_22_shell_plot_over_line.png" title="Capture: Open shell_plate_transient.frd, last step, Plot Over Line from the left edge to the right edge; capture viewport and chart together." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open shell_plate_transient.frd, last step, Plot Over Line from the left edge to the right edge; capture viewport and chart together." style="display:none; width:700px; height:450px;">Screenshot: tutorial_22_shell_plot_over_line.png (700x450)</div>
+            <span class="screenshot-caption">Temperatur entlang der Schalenplatte mit dem Diagramm daneben</span>
+        </div>
+
+        <h2>Ein Strömungsergebnis mit eigenen Einheiten</h2>
+        <p>Öffnen Sie <code>openfoam_cavity/cavity.foam</code> (die .foam-Datei ist leer; sie verweist nur auf den Fall). Alle ihre Felder sind Zelldaten und werden daher flach gezeichnet; die Einheiten stammen aus den Dimensionen des Falls: Temperatur in Kelvin, Geschwindigkeit in Metern pro Sekunde, der symmetrische Tensor <i>sigma</i> in Pascal; der kinematische Druck <i>p</i> hat keine Einheit. Spielen Sie die fünf Zeitverzeichnisse (0 bis 2 s) ab, um einen Wirbel anlaufen und einen Temperaturgradienten sich erwärmen zu sehen.</p>
+        <div class="note note-warning">
+            Die Feldwerte dieses Beispiels sind synthetisch: Kein OpenFOAM-Lauf hat sie erzeugt. Sie dienen dazu, den Leser, die Zelldaten-Darstellung, die Zeitleiste und die Einheiten zu testen. Öffnen Sie Ihren eigenen OpenFOAM-Fall auf dieselbe Weise - die .foam-Datei im Fallordner.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_22_openfoam_cavity.png" alt="tutorial_22_openfoam_cavity.png" title="Capture: Open sample-models/Simulation/openfoam_cavity/cavity.foam, Field = U, Component = Magnitude, last time step; capture the viewport with the legend showing m/s." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open sample-models/Simulation/openfoam_cavity/cavity.foam, Field = U, Component = Magnitude, last time step; capture the viewport with the legend showing m/s." style="display:none; width:700px; height:450px;">Screenshot: tutorial_22_openfoam_cavity.png (700x450)</div>
+            <span class="screenshot-caption">Das OpenFOAM-Hohlraumbeispiel, Geschwindigkeitsbetrag mit seiner Einheit in der Legende</span>
+        </div>
+
+
+        <div class="lesson-navigation">
+            <a href='lesson21.html' class='nav-button'>← Vorherige Lektion</a>
+            <a href="index.html" class="back-to-index">↑ Zurück zur Übersicht</a>
+            <a href='lesson23.html' class='nav-button'>Nächste Lektion →</a>
+        </div>
+    </div>
+</body>
+</html>

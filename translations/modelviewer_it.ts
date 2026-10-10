@@ -20548,6 +20548,61 @@ Razza</translation>
 <context>
     <name>TutorialDialog</name>
     <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>19. Simulation Results</source>
+        <translation>19. Risultati di simulazione</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>20. Looking Inside a Result</source>
+        <translation>20. Guardare dentro un risultato</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>21. Charts and Probing</source>
+        <translation>21. Grafici e sonde</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>22. Comparing Results, Cell and Shell Data</source>
+        <translation>22. Confrontare risultati, dati di cella e di guscio</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>23. 3D Plots from CSV Data</source>
+        <translation>23. Grafici 3D da dati CSV</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>24. 3D Plots from Formulas, Fills, Images and Notes</source>
+        <translation>24. Grafici 3D da formule, riempimenti, immagini e note</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>25. Plots and Results Played Together</source>
+        <translation>25. Grafici e risultati riprodotti insieme</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>26. Mesh Tools</source>
+        <translation>26. Strumenti per mesh</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>27. Measure, Annotate and Report</source>
+        <translation>27. Misurare, annotare e riferire</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>28. Analysis, Selection and Scenes</source>
+        <translation>28. Analisi, selezione e scene</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>29. Ray Tracing in Practice</source>
+        <translation>29. Ray tracing in pratica</translation>
+    </message>
+    <message>
         <location filename="../src/App/TutorialDialog.cpp" line="50"/>
         <source>ModelViewer Tutorial</source>
         <translation>Tutorial ModelViewer</translation>
@@ -20570,47 +20625,47 @@ Razza</translation>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="190"/>
         <source>📚 Tutorial Home</source>
-        <translation>📚 Home Tutorial</translation>
+        <translation>📚 Home del tutorial</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="193"/>
         <source>1. Getting Started</source>
-        <translation>1. Primi Passi</translation>
+        <translation>1. Primi passi</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="194"/>
         <source>2. Opening Models</source>
-        <translation>2. Apertura Modelli</translation>
+        <translation>2. Aprire i modelli</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="195"/>
         <source>3. Basic Navigation</source>
-        <translation>3. Navigazione Base</translation>
+        <translation>3. Navigazione di base</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="196"/>
         <source>4. Selecting Objects</source>
-        <translation>4. Selezione Oggetti</translation>
+        <translation>4. Selezionare gli oggetti</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="197"/>
         <source>5. View Modes</source>
-        <translation>5. Modalità Visualizzazione</translation>
+        <translation>5. Modalità di visualizzazione</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="198"/>
         <source>6. Camera Modes</source>
-        <translation>6. Modalità di fotocamera</translation>
+        <translation>6. Modalità fotocamera</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="199"/>
         <source>7. Display Modes</source>
-        <translation>7. Modalità di visualizzazione</translation>
+        <translation>7. Modalità di display</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="200"/>
         <source>8. Manipulating Objects</source>
-        <translation>8. Manipolare oggetti</translation>
+        <translation>8. Manipolare gli oggetti</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="201"/>
@@ -20620,17 +20675,17 @@ Razza</translation>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="202"/>
         <source>10. Lighting &amp; Environment</source>
-        <translation>Dieci. Illuminazione e ambiente</translation>
+        <translation>10. Illuminazione e ambiente</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="203"/>
         <source>11. Working with Visibility</source>
-        <translation>11. Lavorare con Visibilità</translation>
+        <translation>11. Lavorare con la visibilità</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="204"/>
         <source>12. Advanced Features</source>
-        <translation>12. Caratteristiche avanzate</translation>
+        <translation>12. Funzioni avanzate</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="205"/>
@@ -20650,12 +20705,12 @@ Razza</translation>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="208"/>
         <source>16. Morph Target Animation</source>
-        <translation>16. Animazione morph target</translation>
+        <translation>16. Animazione dei morph target</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="209"/>
         <source>17. Node Transform Editing</source>
-        <translation>17. Modifica trasformazione nodo</translation>
+        <translation>17. Modifica della trasformazione dei nodi</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="210"/>
@@ -20665,7 +20720,7 @@ Razza</translation>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="239"/>
         <source>Tutorial Home</source>
-        <translation>Tutorial Home</translation>
+        <translation>Home del tutorial</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="311"/>
@@ -22972,6 +23027,11 @@ invece di un colore semplice</translation>
 </context>
 <context>
     <name>WhatsNewDialog</name>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Tutorial: lesson %1</source>
+        <translation>Tutorial: lezione %1</translation>
+    </message>
     <message>
         <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
         <source>What&apos;s New</source>

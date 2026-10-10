@@ -11,6 +11,7 @@
 #include <QPushButton>
 #include <QSettings>
 #include <QTextBrowser>
+#include <QUrl>
 #include <QVBoxLayout>
 
 namespace
@@ -80,7 +81,11 @@ WhatsNewDialog::WhatsNewDialog(QWidget* parent)
 		QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 		s.setValue(kShowOnUpdateKey, on);
 	});
-	connect(_tutorialButton, &QPushButton::clicked, this, &WhatsNewDialog::openTutorialRequested);
+	connect(_tutorialButton, &QPushButton::clicked, this, [this]() { emit openTutorialRequested(0); });
+	connect(_browser, &QTextBrowser::anchorClicked, this, [this](const QUrl& url) {
+		if (url.scheme() == QLatin1String("lesson"))
+			emit openTutorialRequested(url.path().toInt());
+	});
 	connect(_helpButton, &QPushButton::clicked, this, &WhatsNewDialog::openQuickHelpRequested);
 	connect(_closeButton, &QPushButton::clicked, this, &QDialog::accept);
 }
@@ -95,32 +100,33 @@ QString WhatsNewDialog::buildHtml() const
 	struct Item
 	{
 		QString title, body, where;
+		int lesson; // the tutorial lesson that covers it (0 = none)
 	};
 	const QList<Item> items = {
 		{ tr("Ray Tracing"),
 		  tr("A CPU and a GPU (NVIDIA OptiX) ray tracer draws the scene with physically based materials, environment lighting and soft shadows, with denoising and offline export at any size."),
-		  tr("Visualization > Ray Tracing...") },
+		  tr("Visualization > Ray Tracing..."), 29 },
 		{ tr("Simulation results"),
 		  tr("Open FEM and CFD results (VTK, CalculiX, Exodus, CGNS, MED, OpenFOAM, VTKHDF), colour them by any field, play the time steps, probe, cut and chart them, and compare two results side by side. ModelViewer displays the results your solver has written; it does not run simulations."),
-		  tr("File > Import, Visualization > Simulation Results, and the Simulation Results tab") },
+		  tr("File > Import, Visualization > Simulation Results, and the Simulation Results tab"), 19 },
 		{ tr("3D data plotting"),
 		  tr("Plot CSV data or formulas as surfaces, contours, lines, scatter, bars, voxels, vector fields and pathlines, on shared linear, log or symlog axes, with text notes and fills."),
-		  tr("Visualization > Plot 3D... and the 3D Plot tab") },
+		  tr("Visualization > Plot 3D... and the 3D Plot tab"), 23 },
 		{ tr("Measure and annotate"),
 		  tr("Measure distances, angles, radii, diameters, areas and geodesic distances directly on the model, add annotations and export a PDF report."),
-		  tr("Tools > Measure... and Annotate...") },
+		  tr("Tools > Measure... and Annotate..."), 27 },
 		{ tr("Mesh tools"),
 		  tr("Union, shrink-wrap, subdivide, reconstruct from points, repair and fill holes, split, merge and group meshes, and generate UVs."),
-		  tr("The Tools menu and the Tools toolbar") },
+		  tr("The Tools menu and the Tools toolbar"), 26 },
 		{ tr("Analysis"),
 		  tr("Check draft angle, zebra stripes, curvature, wall thickness and deviation, and get volume, mass and centre of gravity per mesh and material."),
-		  tr("Tools > Surface Analysis... and Mass Properties...") },
+		  tr("Tools > Surface Analysis... and Mass Properties..."), 28 },
 		{ tr("Selection and scenes"),
 		  tr("Select with a lasso or by material, colour or box, use the material eyedropper, keep named selection sets and scene states, and render several views in one batch."),
-		  tr("The Selection menu and Tools > Batch Render Views...") },
+		  tr("The Selection menu and Tools > Batch Render Views..."), 28 },
 		{ tr("Interface"),
 		  tr("Tabbed toolbars, a seamless navigation panel, clipping planes with a draggable gizmo and a box mode, oblique projections, and German, Spanish, French and Italian translations."),
-		  tr("The View and Tools menus") },
+		  tr("The View and Tools menus"), 0 },
 	};
 
 	QString html = QStringLiteral("<html><body style='color:%1; font-size:13px; margin:14px 22px;'>").arg(text);
@@ -129,8 +135,11 @@ QString WhatsNewDialog::buildHtml() const
 	for (const Item& item : items)
 	{
 		html += QStringLiteral("<h3 style='color:%1; margin-bottom:0px;'>%2</h3>").arg(accent, item.title.toHtmlEscaped());
-		html += QStringLiteral("<p style='margin-top:2px;'>%1<br/><span style='color:%2;'>%3</span></p>")
-			.arg(item.body.toHtmlEscaped(), muted, item.where.toHtmlEscaped());
+		QString lessonLink;
+		if (item.lesson > 0)
+			lessonLink = QStringLiteral(" &nbsp;<a href='lesson:%1' style='color:%2;'>%3</a>").arg(item.lesson).arg(accent, tr("Tutorial: lesson %1").arg(item.lesson).toHtmlEscaped());
+		html += QStringLiteral("<p style='margin-top:2px;'>%1<br/><span style='color:%2;'>%3</span>%4</p>")
+			.arg(item.body.toHtmlEscaped(), muted, item.where.toHtmlEscaped(), lessonLink);
 	}
 	html += QStringLiteral("</body></html>");
 	return html;

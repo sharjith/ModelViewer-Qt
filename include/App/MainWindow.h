@@ -361,4 +361,5 @@ private:
 	static QuickHelpDialog* _helpDialog;
 	static class WhatsNewDialog* _whatsNewDialog;
 	void showWhatsNew(bool automatic); // automatic: opened by the once-per-version startup rule
+	void showTutorial(int lesson);     // lesson 0 = the tutorial home; asks for the display method unless a choice is remembered
 };

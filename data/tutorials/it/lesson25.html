@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lezione 25: Grafici e risultati riprodotti insieme - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primi passi</a>
+            <a href="lesson02.html">2. Aprire i modelli</a>
+            <a href="lesson03.html">3. Navigazione di base</a>
+            <a href="lesson04.html">4. Selezionare gli oggetti</a>
+            <a href="lesson05.html">5. Modalità di visualizzazione</a>
+            <a href="lesson06.html">6. Modalità fotocamera</a>
+            <a href="lesson07.html">7. Modalità di display</a>
+            <a href="lesson08.html">8. Manipolare gli oggetti</a>
+            <a href="lesson09.html">9. Materiali e texture</a>
+            <a href="lesson10.html">10. Illuminazione e ambiente</a>
+            <a href="lesson11.html">11. Lavorare con la visibilità</a>
+            <a href="lesson12.html">12. Funzioni avanzate</a>
+            <a href="lesson13.html">13. Ottimizzazione delle prestazioni</a>
+            <a href="lesson14.html">14. Suggerimenti e flussi di lavoro</a>
+            <a href="lesson15.html">15. Viste esplose</a>
+            <a href="lesson16.html">16. Animazione dei morph target</a>
+            <a href="lesson17.html">17. Modifica della trasformazione dei nodi</a>
+            <a href="lesson18.html">18. Rendering di bordi e wireframe</a>
+            <a href="lesson19.html">19. Risultati di simulazione</a>
+            <a href="lesson20.html">20. Guardare dentro un risultato</a>
+            <a href="lesson21.html">21. Grafici e sonde</a>
+            <a href="lesson22.html">22. Confrontare risultati, dati di cella e di guscio</a>
+            <a href="lesson23.html">23. Grafici 3D da dati CSV</a>
+            <a href="lesson24.html">24. Grafici 3D da formule, riempimenti, immagini e note</a>
+            <a href="lesson25.html" class='active'>25. Grafici e risultati riprodotti insieme</a>
+            <a href="lesson26.html">26. Strumenti per mesh</a>
+            <a href="lesson27.html">27. Misurare, annotare e riferire</a>
+            <a href="lesson28.html">28. Analisi, selezione e scene</a>
+            <a href="lesson29.html">29. Ray tracing in pratica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lezione 25 di 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 86.21%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lezione 25: Grafici e risultati riprodotti insieme</h1>
+        </div>
+
+        <h2>Introduzione</h2>
+        <p>Le lezioni da 19 a 24 ti hanno presentato risultati di simulazione e grafici 3D separatamente. Vivono nella stessa scena e, quando entrambi cambiano nel tempo, un'unica barra di riproduzione può guidarli insieme. Questa lezione traccia particelle in un flusso dipendente dal tempo come <b>linee di percorso</b>, le anima e le riproduce in sincronia con un risultato.</p>
+        <h2>Linee di percorso da una serie temporale CSV</h2>
+        <p>Una linea di percorso è la traccia di una particella trasportata da un flusso che cambia nel tempo. Dai a ModelViewer il campo di velocità su una griglia regolare, con righe di tabella per ogni istante, ed esso rilascia particelle e integra i loro percorsi attraverso il campo variabile.</p>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Scegliere la sorgente</div>
+            <div class="step-content">Nella finestra Aggiungi grafico 3D imposta <b>Origine dei dati</b> su <i>Serie temporale CSV (linee di percorso)</i> e apri <code>pathlines_double_gyre.csv</code>: il doppio vortice di Shadden, due celle controrotanti la cui linea divisoria oscilla, campionato a 21 istanti.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Controllare le colonne</div>
+            <div class="step-content"><b>Colonna del tempo</b>, X, Y, una Z facoltativa e U, V, W vengono dedotte dai nomi di intestazione (t o time, x, u ...) e possono essere modificate. La riga di stato indica che le righe formano una griglia completa e quanti punti di partenza e segmenti risultano, oppure perché la tabella non è utilizzabile.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 3: Creare</div>
+            <div class="step-content">Fai clic su <b>Anteprima</b>, poi su <b>Crea grafico</b>. Le tracce sono linee colorate secondo il tempo, con una legenda che va dall'istante iniziale a quello finale. I punti di partenza vengono rilasciati lungo Y a metà dell'intervallo X.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_25_double_gyre_pathlines.png" alt="tutorial_25_double_gyre_pathlines.png" title="Capture: Build pathlines_double_gyre.csv (CSV time series), top view so the two cells and the folding trails are visible, legend showing the time range." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build pathlines_double_gyre.csv (CSV time series), top view so the two cells and the folding trails are visible, legend showing the time range." style="display:none; width:700px; height:450px;">Schermata: tutorial_25_double_gyre_pathlines.png (700x450)</div>
+            <span class="screenshot-caption">Linee di percorso del doppio vortice, colorate secondo il tempo</span>
+        </div>
+
+        <div class="note note-info">
+            <code>pathlines_rising_vortex_3d.csv</code> è una versione 3D con una colonna Z: una rotazione la cui velocità pulsa nel tempo più una velocità verticale oscillante, così le tracce salgono mentre girano. Se elimini una riga da una copia di una tabella, la riga di stato dice che non è una griglia completa e di quante righe ha bisogno.
+        </div>
+        <h2>Linee di percorso da una formula</h2>
+        <p><i>Linee di percorso da formula (dipendenti dal tempo)</i> non richiede file: <b>u(x,y,z,t)</b>, <b>v(x,y,z,t)</b> e <b>w(x,y,z,t)</b> sono espressioni della posizione <i>e del tempo</i>; i punti di partenza si impostano con <b>Intervallo Y / campioni</b> e l'intervallo di tempo con <b>Intervallo di T / passi</b>. Preimpostazioni: Pulsating Vortex, Double Gyre, Travelling Wave e Oscillating Updraft.</p>
+        <div class="note note-warning">
+            Qui <b>t</b> è il <i>tempo</i>. In <i>Linee di flusso da formula</i> il campo è stazionario e in <i>Curva parametrica</i> t è solo il parametro della curva; non confonderli.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_25_formula_pathlines.png" alt="tutorial_25_formula_pathlines.png" title="Capture: Add 3D Plot &gt; Formula pathlines (time-dependent) &gt; Pulsating Vortex; Build; top view with the time legend visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Add 3D Plot &gt; Formula pathlines (time-dependent) &gt; Pulsating Vortex; Build; top view with the time legend visible." style="display:none; width:700px; height:450px;">Schermata: tutorial_25_formula_pathlines.png (700x450)</div>
+            <span class="screenshot-caption">La preimpostazione Pulsating Vortex: anelli le cui bande di colore si addensano dove la particella rallenta</span>
+        </div>
+
+        <h2>Animare le linee di percorso</h2>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Selezionare il grafico</div>
+            <div class="step-content">Scegli il grafico delle linee di percorso in <b>Grafico attivo</b> nella scheda Grafico 3D.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Spuntare Anima le linee di percorso</div>
+            <div class="step-content">Spunta <b>Anima le linee di percorso (linea temporale)</b>. In alto nella vista compare una linea temporale con i comandi della lezione 19. L'intero grafico è visibile finché non premi riproduci; dalla fine, la riproduzione ricomincia.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 3: Premere riproduci</div>
+            <div class="step-content">Le tracce vengono disegnate solo fino all'istante corrente, con un punto in testa a ciascuna, colorato secondo l'istante corrente. Trascina il cursore avanti e indietro, disattiva <b>Ripeti</b> o prova le velocità da 0,5x a 4x.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_25_animated_pathlines.png" alt="tutorial_25_animated_pathlines.png" title="Capture: Double gyre pathlines with Animate pathlines ticked, stopped at about t = 10 s; capture the viewport with the timeline bar at the top." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Double gyre pathlines with Animate pathlines ticked, stopped at about t = 10 s; capture the viewport with the timeline bar at the top." style="display:none; width:700px; height:420px;">Schermata: tutorial_25_animated_pathlines.png (700x420)</div>
+            <span class="screenshot-caption">Linee di percorso a metà animazione, con i loro punti di testa e la linea temporale</span>
+        </div>
+
+        <div class="note note-info">
+            L'animazione è un aiuto alla visualizzazione: non viene salvata con il file e i punti non vengono esportati né tracciati con i raggi. Nascondere il grafico nell'albero della scena rimuove la linea temporale e mette in pausa la riproduzione.
+        </div>
+        <h2>Una barra di riproduzione per entrambi</h2>
+        <p>La linea temporale riproduce l'elemento scelto nella casella alla sua sinistra. La casella elenca ogni risultato di simulazione a più passi (<i>Simulation: nome</i>) e il grafico delle linee di percorso animato (<i>Pathlines: nome</i>) e, quando entrambi possono essere riprodotti, <b>Tutti insieme</b>. Con un solo elemento riproducibile la casella è nascosta. Le legende di un risultato e di un grafico si impilano in una colonna, ciascuna intestata con il nome del suo proprietario.</p>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Aprire il risultato della cavità</div>
+            <div class="step-content">Apri <code>sample-models/Simulation/openfoam_cavity/cavity.foam</code> e scegli l'intensità della velocità (<b>U</b>, <b>Intensità</b>) nella scheda Risultati di simulazione.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Aggiungere le linee di percorso corrispondenti</div>
+            <div class="step-content">Nella scheda Grafico 3D scegli <b>Aggiungi grafico 3D...</b>, sorgente <i>Serie temporale CSV (linee di percorso)</i>, apri <code>pathlines_openfoam_cavity.csv</code> da <code>sample-models/Plot3D</code> e associa Tempo = t, X = x, Y = y, Z = z, U = u, V = v, W = w. Quel file contiene la velocità al centro delle celle dello stesso caso su un piano appena sopra la faccia superiore, quindi entrambi condividono coordinate e tempo reale. Crea il grafico e nascondi il suo box degli assi se ingombra la vista.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 3: Riprodurre entrambi</div>
+            <div class="step-content">Spunta <b>Anima le linee di percorso (linea temporale)</b>, scegli <b>Tutti insieme</b> nella casella di riproduzione e premi riproduci. Le tracce crescono mentre il campo avanza da 0 a 2 s; la barra indica l'istante e il passo correnti, ad esempio <i>t = 1 - passo 3 di 5</i>. Entrambi seguono il tempo reale: il risultato mantiene ogni passo fino all'istante del successivo.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_25_cavity_with_pathlines.png" alt="tutorial_25_cavity_with_pathlines.png" title="Capture: openfoam_cavity result plus pathlines_openfoam_cavity.csv pathlines, All together selected, paused at t = 1; capture the viewport including the timeline and the two stacked legends." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: openfoam_cavity result plus pathlines_openfoam_cavity.csv pathlines, All together selected, paused at t = 1; capture the viewport including the timeline and the two stacked legends." style="display:none; width:700px; height:450px;">Schermata: tutorial_25_cavity_with_pathlines.png (700x450)</div>
+            <span class="screenshot-caption">Il risultato della cavità e le sue linee di percorso riprodotti insieme, con la casella di riproduzione su Tutti insieme</span>
+        </div>
+
+        <div class="note note-warning">
+            Un risultato modale come <code>FEM_box_modes.frd</code>, i cui passi sono frequenze in hertz, non può condividere un asse temporale con le linee di percorso: <b>Tutti insieme</b> le riproduce allora per avanzamento invece che per tempo.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson24.html' class='nav-button'>← Lezione precedente</a>
+            <a href="index.html" class="back-to-index">↑ Torna all'indice</a>
+            <a href='lesson26.html' class='nav-button'>Lezione successiva →</a>
+        </div>
+    </div>
+</body>
+</html>

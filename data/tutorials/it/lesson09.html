@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lezione 9: Materiali e texture - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primi passi</a>
+            <a href="lesson02.html">2. Aprire i modelli</a>
+            <a href="lesson03.html">3. Navigazione di base</a>
+            <a href="lesson04.html">4. Selezionare gli oggetti</a>
+            <a href="lesson05.html">5. Modalità di visualizzazione</a>
+            <a href="lesson06.html">6. Modalità fotocamera</a>
+            <a href="lesson07.html">7. Modalità di display</a>
+            <a href="lesson08.html">8. Manipolare gli oggetti</a>
+            <a href="lesson09.html" class='active'>9. Materiali e texture</a>
+            <a href="lesson10.html">10. Illuminazione e ambiente</a>
+            <a href="lesson11.html">11. Lavorare con la visibilità</a>
+            <a href="lesson12.html">12. Funzioni avanzate</a>
+            <a href="lesson13.html">13. Ottimizzazione delle prestazioni</a>
+            <a href="lesson14.html">14. Suggerimenti e flussi di lavoro</a>
+            <a href="lesson15.html">15. Viste esplose</a>
+            <a href="lesson16.html">16. Animazione dei morph target</a>
+            <a href="lesson17.html">17. Modifica della trasformazione dei nodi</a>
+            <a href="lesson18.html">18. Rendering di bordi e wireframe</a>
+            <a href="lesson19.html">19. Risultati di simulazione</a>
+            <a href="lesson20.html">20. Guardare dentro un risultato</a>
+            <a href="lesson21.html">21. Grafici e sonde</a>
+            <a href="lesson22.html">22. Confrontare risultati, dati di cella e di guscio</a>
+            <a href="lesson23.html">23. Grafici 3D da dati CSV</a>
+            <a href="lesson24.html">24. Grafici 3D da formule, riempimenti, immagini e note</a>
+            <a href="lesson25.html">25. Grafici e risultati riprodotti insieme</a>
+            <a href="lesson26.html">26. Strumenti per mesh</a>
+            <a href="lesson27.html">27. Misurare, annotare e riferire</a>
+            <a href="lesson28.html">28. Analisi, selezione e scene</a>
+            <a href="lesson29.html">29. Ray tracing in pratica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lezione 9 di 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 31.03%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lezione 9: Materiali e texture</h1>
+        </div>
+
+        <h2>Introduzione</h2>
+        <p>ModelViewer crea i materiali con un unico modello basato sulla fisica (PBR): colore base, metallico, ruvidità e proprietà correlate. Non esiste un flusso di lavoro separato per «materiali ADS» tra cui passare; ogni materiale è un materiale PBR.</p>
+
+        <div class="note note-info">
+            Puoi comunque vedere «ADS» altrove in ModelViewer: è l'interruttore della <b>Modalità di rendering</b> (vedi la lezione 7 / la scheda Modalità di rendering e visualizzazione della finestra di Guida rapida), che ombreggia i dati del tuo materiale PBR con un modello di illuminazione classico ambiente-diffuso-speculare invece dell'illuminazione PBR completa. È un modo alternativo di illuminare lo stesso materiale, non un tipo diverso di materiale da creare.
+        </div>
+
+        <h2>Editor dei materiali</h2>
+        <p>Accedi all'editor dei materiali dal pannello di destra:</p>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Selezionare gli oggetti</div>
+            <div class="step-content">Seleziona uno o più oggetti a cui applicare i materiali.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Aprire la scheda Materiali</div>
+            <div class="step-content">Fai clic sulla scheda «Materiali» nel pannello di destra. La modifica di materiali e texture è combinata in questo unico pannello.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_09_material_panel.png" alt="Il pannello dei materiali con le proprietà PBR" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:500px;">Schermata: tutorial_09_material_panel.png (300x500)</div>
+            <span class="screenshot-caption">Il pannello dei materiali con le proprietà PBR</span>
+        </div>
+
+        <h2>Proprietà dei materiali PBR</h2>
+        <p>Proprietà basate sulla fisica per un rendering realistico:</p>
+                <div class="step">
+            <div class="step-title">Passaggio 1: Colore base/albedo</div>
+            <div class="step-content">Il colore della superficie senza effetti di illuminazione.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Metallico</div>
+            <div class="step-content">0,0 = non metallo (dielettrico), 1,0 = metallo puro. Controlla come la luce viene riflessa.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 3: Ruvidità</div>
+            <div class="step-content">0,0 = specchio perfettamente liscio, 1,0 = completamente ruvido/opaco.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 4: Occlusione ambientale (AO)</div>
+            <div class="step-content">Simula le ombre nelle fessure e negli angoli. Di solito proviene da una mappa di texture.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_09_pbr_materials.png" alt="Sfere con diversi valori di metallico e ruvidità in una griglia" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:500px;">Schermata: tutorial_09_pbr_materials.png (700x500)</div>
+            <span class="screenshot-caption">Sfere con diversi valori di metallico e ruvidità in una griglia</span>
+        </div>
+
+        <h2>Applicare le texture</h2>
+        <p>Aggiungi dettagli basati su immagini alle superfici, dallo stesso pannello Materiali di sopra:</p>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Caricare le immagini di texture</div>
+            <div class="step-content">Fai clic sui pulsanti «Sfoglia» per selezionare i file di texture (PNG, JPG, TGA, ecc.) per le diverse mappe.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Tipi di texture</div>
+            <div class="step-content">
+                • Mappa albedo/colore base<br/> • Mappa delle normali: dettaglio della superficie<br/> • Mappa metallica<br/> • Mappa di ruvidità<br/> • Mappa di occlusione ambientale (AO)<br/> • Mappa di altezza
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 3: Applicare le texture</div>
+            <div class="step-content">Fai clic su «Applica» per applicare le texture caricate agli oggetti selezionati.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_09_texture_maps.png" alt="Pannello di mappatura delle texture con diversi slot di texture" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:500px;">Schermata: tutorial_09_texture_maps.png (300x500)</div>
+            <span class="screenshot-caption">Pannello di mappatura delle texture con diversi slot di texture</span>
+        </div>
+
+        <h2>Generare le coordinate UV</h2>
+        <p>Alcuni modelli non hanno coordinate UV (necessarie per le texture):</p>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Selezionare gli oggetti</div>
+            <div class="step-content">Seleziona gli oggetti che necessitano di coordinate UV.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Generare gli UV</div>
+            <div class="step-content">Clic destro → «Genera UV» per creare automaticamente le coordinate di texture.</div>
+        </div>
+
+        <div class="note note-info">
+            La generazione degli UV usa vari algoritmi. I risultati variano in base alla geometria. Per un unwrapping UV complesso potresti dover usare un software 3D esterno.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_09_uv_generation.png" alt="Oggetto prima e dopo la generazione degli UV con la texture applicata" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:350px;">Schermata: tutorial_09_uv_generation.png (700x350)</div>
+            <span class="screenshot-caption">Oggetto prima e dopo la generazione degli UV con la texture applicata</span>
+        </div>
+
+        <h2>Preset di materiali</h2>
+        <p>Punti di partenza rapidi:</p>
+        <ul>
+            <li><b>Plastica:</b> metallico basso (0,0), ruvidità media (0,4-0,6)</li>
+            <li><b>Metallo:</b> metallico alto (0,9-1,0), ruvidità bassa (0,1-0,3)</li>
+            <li><b>Legno:</b> metallico basso (0,0), ruvidità alta (0,7-0,9)</li>
+            <li><b>Vetro:</b> metallico basso, ruvidità molto bassa, attiva la trasmissione</li>
+        </ul>
+
+        <div class="lesson-navigation">
+            <a href='lesson08.html' class='nav-button'>← Lezione precedente</a>
+            <a href="index.html" class="back-to-index">↑ Torna all'indice</a>
+            <a href='lesson10.html' class='nav-button'>Lezione successiva →</a>
+        </div>
+    </div>
+</body>
+</html>

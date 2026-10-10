@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lektion 23: 3D-Diagramme aus CSV-Daten - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Anleitung</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Erste Schritte</a>
+            <a href="lesson02.html">2. Modelle öffnen</a>
+            <a href="lesson03.html">3. Grundlegende Navigation</a>
+            <a href="lesson04.html">4. Objekte auswählen</a>
+            <a href="lesson05.html">5. Ansichtsmodi</a>
+            <a href="lesson06.html">6. Kameramodi</a>
+            <a href="lesson07.html">7. Anzeigemodi</a>
+            <a href="lesson08.html">8. Objekte manipulieren</a>
+            <a href="lesson09.html">9. Materialien und Texturen</a>
+            <a href="lesson10.html">10. Beleuchtung und Umgebung</a>
+            <a href="lesson11.html">11. Arbeiten mit Sichtbarkeit</a>
+            <a href="lesson12.html">12. Erweiterte Funktionen</a>
+            <a href="lesson13.html">13. Leistungsoptimierung</a>
+            <a href="lesson14.html">14. Tipps und Workflows</a>
+            <a href="lesson15.html">15. Explosionsansichten</a>
+            <a href="lesson16.html">16. Morph-Target-Animation</a>
+            <a href="lesson17.html">17. Knotentransformation bearbeiten</a>
+            <a href="lesson18.html">18. Kanten- und Drahtgitter-Rendering</a>
+            <a href="lesson19.html">19. Simulationsergebnisse</a>
+            <a href="lesson20.html">20. Ins Innere eines Ergebnisses schauen</a>
+            <a href="lesson21.html">21. Diagramme und Sonden</a>
+            <a href="lesson22.html">22. Ergebnisse vergleichen, Zell- und Schalendaten</a>
+            <a href="lesson23.html" class='active'>23. 3D-Diagramme aus CSV-Daten</a>
+            <a href="lesson24.html">24. 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</a>
+            <a href="lesson25.html">25. Diagramme und Ergebnisse gemeinsam abspielen</a>
+            <a href="lesson26.html">26. Mesh-Werkzeuge</a>
+            <a href="lesson27.html">27. Messen, Kommentieren und Berichten</a>
+            <a href="lesson28.html">28. Analyse, Auswahl und Szenen</a>
+            <a href="lesson29.html">29. Raytracing in der Praxis</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lektion 23 von 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 79.31%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lektion 23: 3D-Diagramme aus CSV-Daten</h1>
+        </div>
+
+        <h2>Einführung</h2>
+        <p>ModelViewer ist nicht nur für Modelle da: Es kann Ihre eigenen Daten in 3D darstellen, in derselben Szene und mit derselben Kamera, Auswahl und denselben Exportwerkzeugen. Flächen, Konturen, Linien, Streudiagramme, Balken, Voxel und Vektorfelder werden aus einer Zahlentabelle gezeichnet - einer CSV-Datei oder eingefügtem Text. Diese Lektion erstellt ein Diagramm aus einer CSV und zeigt, wie Sie es danach steuern.</p>
+        <div class="note note-info">
+            Die Beispieldaten liegen in <code>sample-models/Plot3D</code>. Sie sind erzeugt, nicht gemessen, und jede Datei hat eine leicht erkennbare Form: <code>surface_ripple.csv</code>, <code>scatter_clusters.csv</code>, <code>line_helix.csv</code>, <code>bar_histogram.csv</code>, <code>voxel_sphere.csv</code>, <code>quiver_vortex.csv</code> und weitere.
+        </div>
+        <h2>Ihr erstes Diagramm: eine Fläche</h2>
+        <div class="step">
+            <div class="step-title">Schritt 1: Den Dialog öffnen</div>
+            <div class="step-content">Wählen Sie <b>Visualisierung → 3D-Diagramm...</b> (oder <b>3D-Diagramm hinzufügen...</b> in der Registerkarte <b>3D-Diagramm</b>).</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Die Daten wählen</div>
+            <div class="step-content">Stellen Sie <b>Datenquelle</b> auf <i>CSV-Datei oder eingefügte Daten</i>, klicken Sie auf <b>CSV öffnen...</b> und wählen Sie <code>surface_ripple.csv</code> - ein 21 x 21 Raster aus x, y und z = sin(r)/r. Sie können auch Text <b>einfügen</b>; <b>Trennzeichen</b> und <b>Erste Zeile enthält Spaltennamen</b> passen sich Ihrer Tabelle an.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Diagrammtyp und Spalten wählen</div>
+            <div class="step-content">Wählen Sie <b>Fläche</b> als Diagrammtyp und ordnen Sie die Spalten <b>X</b>, <b>Y</b> und <b>Z</b> zu. Eine optionale Spalte <b>Farbwert</b> färbt das Diagramm ein; ohne sie übernimmt das die Höhe.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 4: Vorschau, dann erstellen</div>
+            <div class="step-content">Klicken Sie auf <b>Vorschau</b>, um das Diagramm zu sehen, bevor es hinzugefügt wird, und auf <b>Vorschau löschen</b>, um sie zu entfernen. <b>Diagramm erstellen</b> fügt es der Szene hinzu.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_23_add_plot_dialog.png" alt="tutorial_23_add_plot_dialog.png" title="Capture: Visualization &gt; Plot 3D..., Open CSV... surface_ripple.csv, plot type Surface, X/Y/Z mapped, preview showing; capture the whole dialog." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Visualization &gt; Plot 3D..., Open CSV... surface_ripple.csv, plot type Surface, X/Y/Z mapped, preview showing; capture the whole dialog." style="display:none; width:700px; height:450px;">Screenshot: tutorial_23_add_plot_dialog.png (700x520)</div>
+            <span class="screenshot-caption">Der Dialog „3D-Diagramm hinzufügen“ mit geladener surface_ripple.csv und zugeordneten Spalten</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_23_surface_built.png" alt="tutorial_23_surface_built.png" title="Capture: After Build Plot: the whole main window with the ripple surface, axes box, colour legend and the 3D Plot tab visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: After Build Plot: the whole main window with the ripple surface, axes box, colour legend and the 3D Plot tab visible." style="display:none; width:700px; height:450px;">Screenshot: tutorial_23_surface_built.png (700x450)</div>
+            <span class="screenshot-caption">Die Wellenfläche in der Szene, mit Achsenbox und Farblegende</span>
+        </div>
+
+        <h2>Die sieben Diagrammtypen</h2>
+        <table>
+            <thead><tr><th>Diagrammtyp</th><th>Probieren Sie diese Datei</th><th>Worauf Sie achten</th></tr></thead>
+            <tbody>
+            <tr><td>Fläche</td><td><code>surface_ripple.csv</code>, <code>surface_scattered.csv</code></td><td>Eine Welle mit Maximum 1,0 in der Mitte; die gestreute Datei hat kein vollständiges Raster und wird aus unregelmäßigen Punkten trianguliert.</td></tr>
+            <tr><td>Kontur</td><td><code>surface_ripple.csv</code></td><td>Nur die Isolinien von Z, wahlweise auf die Basisebene projiziert.</td></tr>
+            <tr><td>Linie / Kurve</td><td><code>line_helix.csv</code></td><td>Eine Helix mit zwei Windungen; bei einer Linie zählt die Zeilenreihenfolge, und die Farbe folgt z entlang der Kurve.</td></tr>
+            <tr><td>Streudiagramm</td><td><code>scatter_clusters.csv</code>, <code>scatter_error_bars.csv</code></td><td>Drei Cluster, nach ihrer Kennung eingefärbt; Streudiagramm-Farben gelten pro Punkt, nicht interpoliert.</td></tr>
+            <tr><td>Balken / Histogramm</td><td><code>bar_histogram.csv</code>, <code>bar_histogram_1d.csv</code>, <code>bar_signed.csv</code></td><td>Eine 8 x 8 Erhebung aus Balken; die 1D-Datei ist eine Reihe aus acht Balken (Y auf (keine) setzen); die vorzeichenbehaftete Datei hat Balken über und unter ihrer Basis.</td></tr>
+            <tr><td>Voxel / Volumetrisch</td><td><code>voxel_sphere.csv</code></td><td>Eine Kugel in einem 9 x 9 x 9 Raster, in der Mitte dichter (X/Y/Z auf i/j/k und Farbwert auf occupancy abbilden).</td></tr>
+            <tr><td>Vektor (Pfeile)</td><td><code>quiver_vortex.csv</code></td><td>Pfeile, die sich um die Z-Achse drehen und mit dem Abstand länger werden (U, V, W den passenden Spalten zuordnen).</td></tr>
+            </tbody>
+        </table>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_23_plot_types.png" alt="tutorial_23_plot_types.png" title="Capture: Build scatter_clusters.csv, bar_histogram.csv and quiver_vortex.csv into one document (they share the axes) and capture the scene from an isometric view." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build scatter_clusters.csv, bar_histogram.csv and quiver_vortex.csv into one document (they share the axes) and capture the scene from an isometric view." style="display:none; width:700px; height:450px;">Screenshot: tutorial_23_plot_types.png (700x450)</div>
+            <span class="screenshot-caption">Ein Streudiagramm, ein Balkendiagramm und ein Vektorfeld in einer Szene</span>
+        </div>
+
+        <h2>Ein Diagramm nachträglich steuern</h2>
+        <p>Alles zu einem erstellten Diagramm finden Sie in der Registerkarte <b>3D-Diagramm</b>. Wählen Sie das <b>Aktive Diagramm</b> und ändern Sie dann:</p>
+        <ul>
+            <li><b>Titel</b>, <b>Farbskala</b> und <b>Farbstufen</b>; der Farbbereich ist automatisch (<b>Farbbereich automatisch</b>) oder mit Minimum und Maximum festgelegt</li>
+            <li><b>Linienbreite</b> (Linien), <b>Markergröße</b> (Streudiagramm), <b>Pfeilgröße</b> (Vektoren) sowie Balken-<b>Breite</b> und -<b>Tiefe</b></li>
+            <li><b>Achsenbox anzeigen</b> und die Referenz-<b>Ebenen</b> (XY, XZ, YZ) mit ihrer Deckkraft rahmen das Diagramm ein</li>
+            <li><b>Diagramm bearbeiten...</b> öffnet die Definition des Diagramms erneut: Ändern Sie die Daten oder Spalten und erstellen Sie es mit <b>Diagramm neu erstellen</b> an Ort und Stelle neu</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_23_plot_tab.png" alt="tutorial_23_plot_tab.png" title="Capture: With the ripple surface selected, crop the 3D Plot tab from Active plot down to the plane options." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: With the ripple surface selected, crop the 3D Plot tab from Active plot down to the plane options." style="display:none; width:420px; height:450px;">Screenshot: tutorial_23_plot_tab.png (420x560)</div>
+            <span class="screenshot-caption">Die Registerkarte „3D-Diagramm“ mit den Steuerelementen des aktiven Diagramms</span>
+        </div>
+
+        <h2>Konturlinien und Schnittkurven</h2>
+        <p>Jede Fläche kann Isolinien von Z tragen. Stellen Sie <b>Konturlinien</b> auf <i>Auf der Fläche</i> für dunkle, auf ihr gezeichnete Linien oder auf <i>Auf der Basisebene</i> für farbcodierte, auf den Boden der Achsenbox projizierte Linien und wählen Sie die Anzahl der <b>Konturstufen</b>.</p>
+        <p>Aktivieren Sie <b>Schnittkurven beim Überfahren anzeigen</b> und bewegen Sie den Cursor über die Fläche: Durch den überfahrenen Punkt sehen Sie die Kurven, in denen die X-, Y- und Z-Ebenen die Fläche schneiden (rot, grün, blau wie die Achsen; die blaue ist die Höhenlinie durch den Punkt), zusammen mit den Datenwerten des Punkts.</p>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_23_contours_and_sections.png" alt="tutorial_23_contours_and_sections.png" title="Capture: Ripple surface with Contour lines = On the base plane (about 10 levels) and Show section curves on hover on; hover near a ring of the ripple so the red/green/blue curves and the data readout show." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Ripple surface with Contour lines = On the base plane (about 10 levels) and Show section curves on hover on; hover near a ring of the ripple so the red/green/blue curves and the data readout show." style="display:none; width:700px; height:450px;">Screenshot: tutorial_23_contours_and_sections.png (700x450)</div>
+            <span class="screenshot-caption">Konturlinien auf der Basisebene und die Schnittkurven durch den überfahrenen Punkt</span>
+        </div>
+
+        <h2>Streu-, Balken- und Voxel-Optionen</h2>
+        <ul>
+            <li><b>Streudiagramm</b>: <b>Stiele bis Basis-Z</b> zeichnen, <b>Fehlerbalken</b> anzeigen (<code>scatter_error_bars.csv</code>) oder bis zu einer Basis füllen - die nächste Lektion zeigt Füllungen im Detail.</li>
+            <li><b>Balken</b>: Die Spalten <b>Basis</b>, <b>Breite</b> und <b>Tiefe</b> sind optional; ohne sie beginnen die Balken bei 0 und haben Breite und Tiefe 0,8. Die <b>Z</b>-Spalte liefert die Höhe, negative Werte hängen daher unter die Basis.</li>
+            <li><b>Voxel</b>: Das Diagramm wird als Volumen gezeichnet; ordnen Sie X, Y, Z den Rasterindizes und den Farbwert der Belegung zu, und Sie erhalten eine halbtransparente Wolke wie bei der Volumendarstellung aus Lektion 20.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_23_voxel_sphere.png" alt="tutorial_23_voxel_sphere.png" title="Capture: Build voxel_sphere.csv (Voxel / Volumetric, X/Y/Z = i/j/k, Colour value = occupancy) and capture the cloud from an isometric view." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build voxel_sphere.csv (Voxel / Volumetric, X/Y/Z = i/j/k, Colour value = occupancy) and capture the cloud from an isometric view." style="display:none; width:700px; height:450px;">Screenshot: tutorial_23_voxel_sphere.png (700x450)</div>
+            <span class="screenshot-caption">voxel_sphere.csv als halbtransparente Kugel dargestellt</span>
+        </div>
+
+        <h2>Speichern und Exportieren</h2>
+        <p>Diagramme werden mit ihren Daten, ihrer Definition, ihren Achsen und Notizen in der <b>.mvf</b>-Sitzung gespeichert, sodass <b>Diagramm bearbeiten...</b> nach dem erneuten Öffnen weiterhin funktioniert. Punkt- und Liniendiagramme lassen sich zusammen mit dem Rest der Szene auch nach <b>glTF</b>, <b>GLB</b> und <b>OBJ</b> exportieren. Diagramme werden nicht vom Raytracer gezeichnet.</p>
+        <div class="note note-tip">
+            Wenn das Diagramm falsch aussieht, prüfen Sie zuerst die Spaltenzuordnung: Die Spaltenreihenfolge der Datei ist nur ein Komfort, die Zuordnung erfolgt über den Index. Eine Statuszeile unter der Vorschau sagt Ihnen, was gelesen wurde und, falls eine Tabelle nicht verwendbar ist, warum.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson22.html' class='nav-button'>← Vorherige Lektion</a>
+            <a href="index.html" class="back-to-index">↑ Zurück zur Übersicht</a>
+            <a href='lesson24.html' class='nav-button'>Nächste Lektion →</a>
+        </div>
+    </div>
+</body>
+</html>

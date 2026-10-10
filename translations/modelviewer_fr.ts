@@ -20545,6 +20545,61 @@ Dureté</translation>
 <context>
     <name>TutorialDialog</name>
     <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>19. Simulation Results</source>
+        <translation>19. Résultats de simulation</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>20. Looking Inside a Result</source>
+        <translation>20. Regarder à l&apos;intérieur d&apos;un résultat</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>21. Charts and Probing</source>
+        <translation>21. Graphiques et sondes</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>22. Comparing Results, Cell and Shell Data</source>
+        <translation>22. Comparer des résultats, données de cellule et de coque</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>23. 3D Plots from CSV Data</source>
+        <translation>23. Graphiques 3D à partir de données CSV</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>24. 3D Plots from Formulas, Fills, Images and Notes</source>
+        <translation>24. Graphiques 3D à partir de formules, remplissages, images et notes</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>25. Plots and Results Played Together</source>
+        <translation>25. Graphiques et résultats lus ensemble</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>26. Mesh Tools</source>
+        <translation>26. Outils de maillage</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>27. Measure, Annotate and Report</source>
+        <translation>27. Mesurer, annoter et rapporter</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>28. Analysis, Selection and Scenes</source>
+        <translation>28. Analyse, sélection et scènes</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>29. Ray Tracing in Practice</source>
+        <translation>29. Lancer de rayons en pratique</translation>
+    </message>
+    <message>
         <location filename="../src/App/TutorialDialog.cpp" line="50"/>
         <source>ModelViewer Tutorial</source>
         <translation>Tutoriel ModelViewer</translation>
@@ -20572,42 +20627,42 @@ Dureté</translation>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="193"/>
         <source>1. Getting Started</source>
-        <translation>1. Premiers Pas</translation>
+        <translation>1. Premiers pas</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="194"/>
         <source>2. Opening Models</source>
-        <translation>2. Ouverture de Modèles</translation>
+        <translation>2. Ouvrir des modèles</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="195"/>
         <source>3. Basic Navigation</source>
-        <translation>3. Navigation de Base</translation>
+        <translation>3. Navigation de base</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="196"/>
         <source>4. Selecting Objects</source>
-        <translation>4. Sélection d&apos;Objets</translation>
+        <translation>4. Sélectionner des objets</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="197"/>
         <source>5. View Modes</source>
-        <translation>5. Modes d&apos;Affichage</translation>
+        <translation>5. Modes d'affichage</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="198"/>
         <source>6. Camera Modes</source>
-        <translation>6. Modes de la caméra</translation>
+        <translation>6. Modes de caméra</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="199"/>
         <source>7. Display Modes</source>
-        <translation>7. Modes d&apos;affichage</translation>
+        <translation>7. Modes d'affichage des objets</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="200"/>
         <source>8. Manipulating Objects</source>
-        <translation>8. Manipulation des objets</translation>
+        <translation>8. Manipuler des objets</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="201"/>
@@ -20627,7 +20682,7 @@ Dureté</translation>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="204"/>
         <source>12. Advanced Features</source>
-        <translation>12. Caractéristiques avancées</translation>
+        <translation>12. Fonctions avancées</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="205"/>
@@ -20647,12 +20702,12 @@ Dureté</translation>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="208"/>
         <source>16. Morph Target Animation</source>
-        <translation>16. Animation de morph target</translation>
+        <translation>16. Animation de morph targets</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="209"/>
         <source>17. Node Transform Editing</source>
-        <translation>17. Édition de la transformation de nœud</translation>
+        <translation>17. Édition de la transformation des nœuds</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="210"/>
@@ -20662,7 +20717,7 @@ Dureté</translation>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="239"/>
         <source>Tutorial Home</source>
-        <translation>Tutoriel</translation>
+        <translation>Accueil du tutoriel</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="311"/>
@@ -22969,6 +23024,11 @@ au lieu d&apos;une couleur unie</translation>
 </context>
 <context>
     <name>WhatsNewDialog</name>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Tutorial: lesson %1</source>
+        <translation>Tutoriel : leçon %1</translation>
+    </message>
     <message>
         <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
         <source>What&apos;s New</source>

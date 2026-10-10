@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lektion 25: Diagramme und Ergebnisse gemeinsam abspielen - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Anleitung</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Erste Schritte</a>
+            <a href="lesson02.html">2. Modelle öffnen</a>
+            <a href="lesson03.html">3. Grundlegende Navigation</a>
+            <a href="lesson04.html">4. Objekte auswählen</a>
+            <a href="lesson05.html">5. Ansichtsmodi</a>
+            <a href="lesson06.html">6. Kameramodi</a>
+            <a href="lesson07.html">7. Anzeigemodi</a>
+            <a href="lesson08.html">8. Objekte manipulieren</a>
+            <a href="lesson09.html">9. Materialien und Texturen</a>
+            <a href="lesson10.html">10. Beleuchtung und Umgebung</a>
+            <a href="lesson11.html">11. Arbeiten mit Sichtbarkeit</a>
+            <a href="lesson12.html">12. Erweiterte Funktionen</a>
+            <a href="lesson13.html">13. Leistungsoptimierung</a>
+            <a href="lesson14.html">14. Tipps und Workflows</a>
+            <a href="lesson15.html">15. Explosionsansichten</a>
+            <a href="lesson16.html">16. Morph-Target-Animation</a>
+            <a href="lesson17.html">17. Knotentransformation bearbeiten</a>
+            <a href="lesson18.html">18. Kanten- und Drahtgitter-Rendering</a>
+            <a href="lesson19.html">19. Simulationsergebnisse</a>
+            <a href="lesson20.html">20. Ins Innere eines Ergebnisses schauen</a>
+            <a href="lesson21.html">21. Diagramme und Sonden</a>
+            <a href="lesson22.html">22. Ergebnisse vergleichen, Zell- und Schalendaten</a>
+            <a href="lesson23.html">23. 3D-Diagramme aus CSV-Daten</a>
+            <a href="lesson24.html">24. 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</a>
+            <a href="lesson25.html" class='active'>25. Diagramme und Ergebnisse gemeinsam abspielen</a>
+            <a href="lesson26.html">26. Mesh-Werkzeuge</a>
+            <a href="lesson27.html">27. Messen, Kommentieren und Berichten</a>
+            <a href="lesson28.html">28. Analyse, Auswahl und Szenen</a>
+            <a href="lesson29.html">29. Raytracing in der Praxis</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lektion 25 von 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 86.21%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lektion 25: Diagramme und Ergebnisse gemeinsam abspielen</h1>
+        </div>
+
+        <h2>Einführung</h2>
+        <p>Die Lektionen 19 bis 24 haben Ihnen Simulationsergebnisse und 3D-Diagramme getrennt vorgestellt. Sie leben in derselben Szene, und wenn sich beide über die Zeit ändern, kann eine Wiedergabeleiste sie gemeinsam steuern. Diese Lektion verfolgt Teilchen durch eine zeitabhängige Strömung als <b>Bahnlinien</b>, animiert sie und spielt sie im Gleichschritt mit einem Ergebnis ab.</p>
+        <h2>Bahnlinien aus einer CSV-Zeitreihe</h2>
+        <p>Eine Bahnlinie ist die Spur eines Teilchens, das von einer sich zeitlich verändernden Strömung getragen wird. Geben Sie ModelViewer das Geschwindigkeitsfeld auf einem regelmäßigen Raster, mit einer Tabellenzeile für jede Zeit, und es setzt Teilchen frei und integriert ihre Bahnen durch das veränderliche Feld.</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Die Quelle wählen</div>
+            <div class="step-content">Stellen Sie im Dialog „3D-Diagramm hinzufügen“ die <b>Datenquelle</b> auf <i>CSV-Zeitreihe (Bahnlinien)</i> und öffnen Sie <code>pathlines_double_gyre.csv</code>: Shaddens Doppelwirbel, zwei gegenläufig drehende Zellen, deren Trennlinie schwingt, abgetastet zu 21 Zeitpunkten.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Die Spalten prüfen</div>
+            <div class="step-content"><b>Zeitspalte</b>, X, Y, ein optionales Z sowie U, V, W werden aus den Kopfzeilennamen erraten (t oder time, x, u ...) und lassen sich ändern. Die Statuszeile meldet entweder, dass die Zeilen ein vollständiges Raster bilden und wie viele Startpunkte und Segmente entstehen, oder warum die Tabelle nicht verwendbar ist.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Erstellen</div>
+            <div class="step-content">Klicken Sie auf <b>Vorschau</b>, dann auf <b>Diagramm erstellen</b>. Die Bahnen sind nach der Zeit eingefärbte Linien mit einer Legende von der Start- bis zur Endzeit. Die Startpunkte werden entlang Y in der Mitte des X-Bereichs freigesetzt.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_25_double_gyre_pathlines.png" alt="tutorial_25_double_gyre_pathlines.png" title="Capture: Build pathlines_double_gyre.csv (CSV time series), top view so the two cells and the folding trails are visible, legend showing the time range." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build pathlines_double_gyre.csv (CSV time series), top view so the two cells and the folding trails are visible, legend showing the time range." style="display:none; width:700px; height:450px;">Screenshot: tutorial_25_double_gyre_pathlines.png (700x450)</div>
+            <span class="screenshot-caption">Bahnlinien des Doppelwirbels, nach der Zeit eingefärbt</span>
+        </div>
+
+        <div class="note note-info">
+            <code>pathlines_rising_vortex_3d.csv</code> ist eine 3D-Version mit Z-Spalte: eine Rotation, deren Rate zeitlich pulsiert, plus eine oszillierende Vertikalgeschwindigkeit, sodass die Bahnen beim Kreisen steigen. Löschen Sie aus einer Kopie einer Tabelle eine Zeile, meldet die Statuszeile, dass es kein vollständiges Raster ist und wie viele Zeilen es braucht.
+        </div>
+        <h2>Bahnlinien aus einer Formel</h2>
+        <p><i>Formel-Bahnlinien (zeitabhängig)</i> braucht keine Datei: <b>u(x,y,z,t)</b>, <b>v(x,y,z,t)</b> und <b>w(x,y,z,t)</b> sind Ausdrücke in Ort <i>und Zeit</i>, die Startpunkte legt <b>Y-Bereich / Samples</b> fest, das Zeitintervall <b>T-Bereich / Schritte</b>. Voreinstellungen: Pulsating Vortex, Double Gyre, Travelling Wave und Oscillating Updraft.</p>
+        <div class="note note-warning">
+            Hier ist <b>t</b> die <i>Zeit</i>. Bei <i>Formel-Stromlinien</i> ist das Feld stationär, und bei <i>Parametrische Kurve</i> ist t nur der Kurvenparameter - verwechseln Sie sie nicht.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_25_formula_pathlines.png" alt="tutorial_25_formula_pathlines.png" title="Capture: Add 3D Plot &gt; Formula pathlines (time-dependent) &gt; Pulsating Vortex; Build; top view with the time legend visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Add 3D Plot &gt; Formula pathlines (time-dependent) &gt; Pulsating Vortex; Build; top view with the time legend visible." style="display:none; width:700px; height:450px;">Screenshot: tutorial_25_formula_pathlines.png (700x450)</div>
+            <span class="screenshot-caption">Die Voreinstellung Pulsating Vortex: Ringe, deren Farbstufen sich dort drängen, wo das Teilchen langsamer wird</span>
+        </div>
+
+        <h2>Bahnlinien animieren</h2>
+        <div class="step">
+            <div class="step-title">Schritt 1: Das Diagramm auswählen</div>
+            <div class="step-content">Wählen Sie das Bahnlinien-Diagramm unter <b>Aktives Diagramm</b> in der Registerkarte „3D-Diagramm“.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Bahnlinien animieren aktivieren</div>
+            <div class="step-content">Aktivieren Sie <b>Bahnlinien animieren (Zeitleiste)</b>. Oben im Ansichtsfenster erscheint eine Zeitleiste mit den Steuerelementen aus Lektion 19. Das gesamte Diagramm ist sichtbar, bis Sie auf Wiedergabe drücken; vom Ende aus beginnt die Wiedergabe von vorn.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Wiedergabe drücken</div>
+            <div class="step-content">Die Bahnen werden nur bis zur aktuellen Zeit gezeichnet, mit einem Punkt an der Spitze jeder Bahn, nach der aktuellen Zeit eingefärbt. Ziehen Sie den Schieberegler hin und her, schalten Sie <b>Wiederholen</b> aus oder probieren Sie die Geschwindigkeiten von 0,5x bis 4x.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_25_animated_pathlines.png" alt="tutorial_25_animated_pathlines.png" title="Capture: Double gyre pathlines with Animate pathlines ticked, stopped at about t = 10 s; capture the viewport with the timeline bar at the top." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Double gyre pathlines with Animate pathlines ticked, stopped at about t = 10 s; capture the viewport with the timeline bar at the top." style="display:none; width:700px; height:420px;">Screenshot: tutorial_25_animated_pathlines.png (700x420)</div>
+            <span class="screenshot-caption">Bahnlinien mitten in der Animation, mit ihren Kopfpunkten und der Zeitleiste</span>
+        </div>
+
+        <div class="note note-info">
+            Die Animation ist eine Betrachtungshilfe: Sie wird nicht mit der Datei gespeichert, und die Punkte werden weder exportiert noch per Raytracing dargestellt. Das Ausblenden des Diagramms im Szenenbaum entfernt die Zeitleiste und pausiert die Wiedergabe.
+        </div>
+        <h2>Eine Wiedergabeleiste für beides</h2>
+        <p>Die Zeitleiste spielt das Element ab, das im Feld links davon gewählt ist. Das Feld listet jedes mehrstufige Simulationsergebnis (<i>Simulation: Name</i>) und das animierte Bahnlinien-Diagramm (<i>Pathlines: Name</i>) auf und, wenn beide abspielbar sind, <b>Alle zusammen</b>. Gibt es nur ein abspielbares Element, ist das Feld ausgeblendet. Die Legenden eines Ergebnisses und eines Diagramms stapeln sich in einer Spalte, jeweils mit dem Namen ihres Besitzers überschrieben.</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Das Hohlraumergebnis öffnen</div>
+            <div class="step-content">Öffnen Sie <code>sample-models/Simulation/openfoam_cavity/cavity.foam</code> und wählen Sie in der Registerkarte „Simulationsergebnisse“ den Geschwindigkeitsbetrag (<b>U</b>, <b>Betrag</b>).</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Die passenden Bahnlinien hinzufügen</div>
+            <div class="step-content">Wählen Sie in der Registerkarte „3D-Diagramm“ <b>3D-Diagramm hinzufügen...</b>, Quelle <i>CSV-Zeitreihe (Bahnlinien)</i>, öffnen Sie <code>pathlines_openfoam_cavity.csv</code> aus <code>sample-models/Plot3D</code> und ordnen Sie Zeit = t, X = x, Y = y, Z = z, U = u, V = v, W = w zu. Diese Datei enthält die Zellmittelpunkt-Geschwindigkeit desselben Falls auf einer Ebene knapp über seiner Oberseite, sodass beide Koordinaten und echte Zeit teilen. Erstellen Sie das Diagramm und blenden Sie seine Achsenbox aus, falls sie die Ansicht überlädt.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Beides abspielen</div>
+            <div class="step-content">Aktivieren Sie <b>Bahnlinien animieren (Zeitleiste)</b>, wählen Sie im Wiedergabefeld <b>Alle zusammen</b> und drücken Sie Wiedergabe. Die Bahnen wachsen, während das Feld von 0 bis 2 s fortschreitet; die Leiste zeigt die aktuelle Zeit und den Schritt, zum Beispiel <i>t = 1 - Schritt 3 von 5</i>. Beide folgen der echten Zeit: Das Ergebnis hält jeden Schritt bis zur Zeit des nächsten.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_25_cavity_with_pathlines.png" alt="tutorial_25_cavity_with_pathlines.png" title="Capture: openfoam_cavity result plus pathlines_openfoam_cavity.csv pathlines, All together selected, paused at t = 1; capture the viewport including the timeline and the two stacked legends." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: openfoam_cavity result plus pathlines_openfoam_cavity.csv pathlines, All together selected, paused at t = 1; capture the viewport including the timeline and the two stacked legends." style="display:none; width:700px; height:450px;">Screenshot: tutorial_25_cavity_with_pathlines.png (700x450)</div>
+            <span class="screenshot-caption">Das Hohlraumergebnis und seine Bahnlinien beim gemeinsamen Abspielen, das Wiedergabefeld zeigt „Alle zusammen“</span>
+        </div>
+
+        <div class="note note-warning">
+            Ein Modalergebnis wie <code>FEM_box_modes.frd</code>, dessen Schritte Frequenzen in Hertz sind, kann keine Zeitachse mit Bahnlinien teilen: <b>Alle zusammen</b> spielt sie dann nach Fortschritt statt nach Zeit ab.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson24.html' class='nav-button'>← Vorherige Lektion</a>
+            <a href="index.html" class="back-to-index">↑ Zurück zur Übersicht</a>
+            <a href='lesson26.html' class='nav-button'>Nächste Lektion →</a>
+        </div>
+    </div>
+</body>
+</html>

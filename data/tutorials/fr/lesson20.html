@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leçon 20 : Regarder à l'intérieur d'un résultat - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutoriel</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Premiers pas</a>
+            <a href="lesson02.html">2. Ouvrir des modèles</a>
+            <a href="lesson03.html">3. Navigation de base</a>
+            <a href="lesson04.html">4. Sélectionner des objets</a>
+            <a href="lesson05.html">5. Modes d'affichage</a>
+            <a href="lesson06.html">6. Modes de caméra</a>
+            <a href="lesson07.html">7. Modes d'affichage des objets</a>
+            <a href="lesson08.html">8. Manipuler des objets</a>
+            <a href="lesson09.html">9. Matériaux et textures</a>
+            <a href="lesson10.html">10. Éclairage et environnement</a>
+            <a href="lesson11.html">11. Travailler avec la visibilité</a>
+            <a href="lesson12.html">12. Fonctions avancées</a>
+            <a href="lesson13.html">13. Optimisation des performances</a>
+            <a href="lesson14.html">14. Conseils et flux de travail</a>
+            <a href="lesson15.html">15. Vues éclatées</a>
+            <a href="lesson16.html">16. Animation de morph targets</a>
+            <a href="lesson17.html">17. Édition de la transformation des nœuds</a>
+            <a href="lesson18.html">18. Rendu des arêtes et du fil de fer</a>
+            <a href="lesson19.html">19. Résultats de simulation</a>
+            <a href="lesson20.html" class='active'>20. Regarder à l'intérieur d'un résultat</a>
+            <a href="lesson21.html">21. Graphiques et sondes</a>
+            <a href="lesson22.html">22. Comparer des résultats, données de cellule et de coque</a>
+            <a href="lesson23.html">23. Graphiques 3D à partir de données CSV</a>
+            <a href="lesson24.html">24. Graphiques 3D à partir de formules, remplissages, images et notes</a>
+            <a href="lesson25.html">25. Graphiques et résultats lus ensemble</a>
+            <a href="lesson26.html">26. Outils de maillage</a>
+            <a href="lesson27.html">27. Mesurer, annoter et rapporter</a>
+            <a href="lesson28.html">28. Analyse, sélection et scènes</a>
+            <a href="lesson29.html">29. Lancer de rayons en pratique</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Leçon 20 sur 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 68.97%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Leçon 20 : Regarder à l'intérieur d'un résultat</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Un résultat est dessiné sous la forme de sa surface extérieure, mais les valeurs intéressantes se trouvent souvent à l'intérieur. Cette leçon présente cinq façons de regarder dedans : couper le résultat avec une coupe, extraire des isosurfaces, tracer des lignes de courant dans un écoulement, afficher un champ en volume et dessiner des vecteurs et des tenseurs de contraintes sous forme de glyphes.</p>
+        <div class="note note-info">
+            Vous aurez besoin de ces exemples de <code>sample-models/Simulation</code> : <code>FEM_box_static_stress.vtu</code> (coupes), <code>block.cgns</code> (isosurfaces et volume ; <code>block.exo</code> et <code>block.vtkhdf</code> contiennent les mêmes données), <code>duct.cgns</code> (lignes de courant), <code>plate_with_hole.frd</code> et <code>stress_states.vtu</code> (ellipsoïdes de contraintes).
+        </div>
+        <h2>Coupes</h2>
+        <p>Les plans de coupe de la leçon 12 coupent un résultat comme n'importe quel autre modèle, et la coupe peut montrer les valeurs du champ au lieu d'un creux vide.</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Ouvrir la boîte et un plan de coupe</div>
+            <div class="step-content">Ouvrez <code>FEM_box_static_stress.vtu</code>, cliquez sur <b>Vue en coupe</b> dans la barre d'outils Affichage et activez un plan.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Colorer la coupe</div>
+            <div class="step-content">Dans l'onglet Résultats de simulation, cochez <b>Colorer la coupe du plan de coupe avec le champ</b>. La face coupée montre maintenant la contrainte à l'intérieur de la boîte.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Déplacer le plan</div>
+            <div class="step-content">Modifiez le coefficient du plan pour faire glisser la coupe à travers la boîte et voir les valeurs changer.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_20_coloured_section.png" alt="tutorial_20_coloured_section.png" title="Capture: Open FEM_box_static_stress.vtu, enable one clipping plane (Section View), tick &quot;Colour the Clipping Plane cut with the field&quot;, move the plane to about the middle and rotate so the cut face is visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open FEM_box_static_stress.vtu, enable one clipping plane (Section View), tick &quot;Colour the Clipping Plane cut with the field&quot;, move the plane to about the middle and rotate so the cut face is visible." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_20_coloured_section.png (700x450)</div>
+            <span class="screenshot-caption">Une boîte coupée par un plan de coupe, la face coupée colorée selon la contrainte</span>
+        </div>
+
+        <h2>Isosurfaces</h2>
+        <p>Une isosurface est la surface sur laquelle un champ a une valeur constante, par exemple une enveloppe de température égale. Elle rend visible l'intérieur d'un volume sans le couper.</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Ouvrir un résultat volumique</div>
+            <div class="step-content">Ouvrez <code>block.cgns</code>, un bloc d'hexaèdres avec un champ de température sur cinq pas.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Activer les isosurfaces</div>
+            <div class="step-content">Cochez <b>Afficher les isosurfaces</b>, choisissez le <b>Champ des isosurfaces</b> (Temperature) et le nombre de <b>Niveaux des isosurfaces</b>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : La combiner avec une coupe</div>
+            <div class="step-content">Activez aussi un plan de coupe : les enveloppes imbriquées sont ouvertes et vous voyez comment le champ est stratifié à l'intérieur.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_20_iso_surfaces.png" alt="tutorial_20_iso_surfaces.png" title="Capture: Open block.cgns, Field = Temperature, tick Show iso-surfaces with about 5 levels, and one clipping plane so the nested shells are visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open block.cgns, Field = Temperature, tick Show iso-surfaces with about 5 levels, and one clipping plane so the nested shells are visible." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_20_iso_surfaces.png (700x450)</div>
+            <span class="screenshot-caption">Isosurfaces du champ de température dans le bloc</span>
+        </div>
+
+        <h2>Lignes de courant</h2>
+        <p>Les lignes de courant suivent un champ de vitesse : chaque ligne est le chemin que suivrait une particule sans masse si l'écoulement était figé au pas actuel.</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Ouvrir le conduit</div>
+            <div class="step-content">Ouvrez <code>duct.cgns</code> : un conduit en demi-anneau avec un écoulement tourbillonnant sur quatre pas.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Afficher les lignes de courant</div>
+            <div class="step-content">Cochez <b>Afficher les lignes de courant</b>, choisissez le <b>Champ des lignes de courant</b> (Velocity) et réglez le nombre de <b>Points de départ des lignes de courant</b>. <b>Pointes de flèche</b> ajoute de petits cônes qui montrent le sens et <b>Épaisseur des lignes</b> règle la largeur.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Partir depuis un plan</div>
+            <div class="step-content">Activez un plan de coupe et cochez <b>Départ sur le plan de coupe</b> : les lignes partent de la coupe et montrent exactement où va l'écoulement à partir de cette section.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_20_streamlines.png" alt="tutorial_20_streamlines.png" title="Capture: Open duct.cgns, tick Show streamlines (Velocity, about 60 seeds, Arrowheads on); rotate to see the half-ring shape of the duct." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open duct.cgns, tick Show streamlines (Velocity, about 60 seeds, Arrowheads on); rotate to see the half-ring shape of the duct." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_20_streamlines.png (700x450)</div>
+            <span class="screenshot-caption">Lignes de courant tourbillonnant dans le conduit, avec pointes de flèche</span>
+        </div>
+
+        <h2>Rendu volumique</h2>
+        <p><b>Afficher en volume</b> affiche un champ sous la forme d'un nuage semi-transparent plutôt que d'une surface. Choisissez le <b>Champ de volume</b>, une <b>Qualité du volume</b> (de Faible 32 à Très élevée 128) et façonnez la courbe d'opacité pour que seule la plage de valeurs qui vous intéresse soit visible.</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Réutiliser le bloc</div>
+            <div class="step-content">Avec <code>block.cgns</code> ouvert, désactivez les isosurfaces et cochez <b>Afficher en volume</b> avec Temperature comme champ de volume.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Façonner l'opacité</div>
+            <div class="step-content">Modifiez la courbe d'opacité : faites glisser un point, double-cliquez pour en ajouter un, faites un clic droit sur un point intérieur pour le supprimer. Relevez la courbe pour les valeurs chaudes et abaissez-la pour les froides afin de ne voir que le cœur chaud.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Parcourir le temps</div>
+            <div class="step-content">Appuyez sur lecture dans la chronologie : le nuage suit les cinq pas du résultat.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_20_volume_rendering.png" alt="tutorial_20_volume_rendering.png" title="Capture: Open block.cgns, tick Show as volume (Temperature, Medium or High quality), and include the opacity curve widget in the Simulation Results tab in the shot (crop window + dock together)." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open block.cgns, tick Show as volume (Temperature, Medium or High quality), and include the opacity curve widget in the Simulation Results tab in the shot (crop window + dock together)." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_20_volume_rendering.png (700x450)</div>
+            <span class="screenshot-caption">Le champ de température du bloc affiché en volume</span>
+        </div>
+
+        <h2>Flèches vectorielles</h2>
+        <p><b>Afficher les flèches vectorielles</b> dessine une flèche pour un champ vectoriel en des points échantillonnés de la surface. Choisissez le <b>Champ des flèches</b>, la <b>Taille des flèches</b> (stable lors du zoom) et le <b>Nombre de flèches</b>. Si <b>Mettre les flèches à l'échelle de la magnitude</b> est désactivé, toutes les flèches ont la même longueur et seule la couleur indique la magnitude.</p>
+        <h2>Ellipsoïdes de contraintes</h2>
+        <p>Pour un tenseur de contraintes symétrique, <b>Afficher les ellipsoïdes de contraintes</b> dessine un ellipsoïde en des points échantillonnés. Ses trois axes pointent dans les directions principales et leurs longueurs suivent les valeurs principales ; l'axe le plus long a toujours la même taille à l'écran, de sorte que la <i>forme</i> montre comment la contrainte est répartie et la couleur sa valeur.</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Commencer avec la plaque</div>
+            <div class="step-content">Ouvrez <code>plate_with_hole.frd</code>, cochez <b>Afficher les ellipsoïdes de contraintes</b> et réglez le <b>Nombre d'ellipsoïdes</b> sur 1500 ou plus. Loin du trou, les ellipsoïdes sont des aiguilles alignées sur la traction ; autour du trou, ils changent fortement de forme et de couleur.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Choisir entre les tenseurs</div>
+            <div class="step-content">Ouvrez <code>stress_states.vtu</code>, qui possède trois tenseurs de contraintes, et changez le <b>Champ tensoriel</b> : aiguilles pour la flexion, disques inclinés pour la torsion, ellipsoïdes aplatis pour le tenseur par élément.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_20_stress_ellipsoids.png" alt="tutorial_20_stress_ellipsoids.png" title="Capture: Open plate_with_hole.frd, Show stress ellipsoids with count 2000, last load step, view the plate face-on, zoomed so the hole fills about a third of the viewport." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open plate_with_hole.frd, Show stress ellipsoids with count 2000, last load step, view the plate face-on, zoomed so the hole fills about a third of the viewport." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_20_stress_ellipsoids.png (700x450)</div>
+            <span class="screenshot-caption">Ellipsoïdes de contraintes autour du trou de la plaque</span>
+        </div>
+
+        <div class="note note-tip">
+            Les flèches vectorielles, les ellipsoïdes de contraintes et la forme déformée peuvent être actifs en même temps ; désactivez ce que vous n'utilisez pas pour garder l'image lisible.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson19.html' class='nav-button'>← Leçon précédente</a>
+            <a href="index.html" class="back-to-index">↑ Retour à l'index</a>
+            <a href='lesson21.html' class='nav-button'>Leçon suivante →</a>
+        </div>
+    </div>
+</body>
+</html>

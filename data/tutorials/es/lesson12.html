@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lección 12: Funciones avanzadas - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primeros pasos</a>
+            <a href="lesson02.html">2. Abrir modelos</a>
+            <a href="lesson03.html">3. Navegación básica</a>
+            <a href="lesson04.html">4. Seleccionar objetos</a>
+            <a href="lesson05.html">5. Modos de vista</a>
+            <a href="lesson06.html">6. Modos de cámara</a>
+            <a href="lesson07.html">7. Modos de visualización</a>
+            <a href="lesson08.html">8. Manipular objetos</a>
+            <a href="lesson09.html">9. Materiales y texturas</a>
+            <a href="lesson10.html">10. Iluminación y entorno</a>
+            <a href="lesson11.html">11. Trabajar con la visibilidad</a>
+            <a href="lesson12.html" class='active'>12. Funciones avanzadas</a>
+            <a href="lesson13.html">13. Optimización del rendimiento</a>
+            <a href="lesson14.html">14. Consejos y flujos de trabajo</a>
+            <a href="lesson15.html">15. Vistas explosionadas</a>
+            <a href="lesson16.html">16. Animación de morph targets</a>
+            <a href="lesson17.html">17. Edición de la transformación de nodos</a>
+            <a href="lesson18.html">18. Renderizado de bordes y malla de alambre</a>
+            <a href="lesson19.html">19. Resultados de simulación</a>
+            <a href="lesson20.html">20. Mirar dentro de un resultado</a>
+            <a href="lesson21.html">21. Gráficos y sondeo</a>
+            <a href="lesson22.html">22. Comparar resultados, datos de celda y de lámina</a>
+            <a href="lesson23.html">23. Gráficos 3D a partir de datos CSV</a>
+            <a href="lesson24.html">24. Gráficos 3D a partir de fórmulas, rellenos, imágenes y notas</a>
+            <a href="lesson25.html">25. Gráficos y resultados reproducidos juntos</a>
+            <a href="lesson26.html">26. Herramientas de malla</a>
+            <a href="lesson27.html">27. Medir, anotar e informar</a>
+            <a href="lesson28.html">28. Análisis, selección y escenas</a>
+            <a href="lesson29.html">29. Trazado de rayos en la práctica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lección 12 de 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 41.38%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lección 12: Funciones avanzadas</h1>
+        </div>
+
+        <h2>Introducción</h2>
+        <p>ModelViewer incluye varias funciones avanzadas para tareas especializadas de visualización y análisis.</p>
+
+        <h2>Planos de corte / Vista de sección</h2>
+        <p>Corte los modelos para ver la estructura interna:</p>
+                <div class="step">
+            <div class="step-title">Paso 1: Activar la vista de sección</div>
+            <div class="step-content">Haga clic en el botón «Vista de sección» de la barra de herramientas de vista.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Editor de planos de corte</div>
+            <div class="step-content">Aparece un panel de control con opciones para los planos de corte XY, YZ y ZX.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Activar los planos</div>
+            <div class="step-content">Active planos individuales y use los deslizadores para colocarlos a través del modelo.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 4: Invertir la dirección</div>
+            <div class="step-content">Use los botones «Invertir» para cambiar el lado que se corta.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_12_clipping_planes.png" alt="Modelo cortado por un plano de corte mostrando la estructura interna" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Captura: tutorial_12_clipping_planes.png (700x450)</div>
+            <span class="screenshot-caption">Modelo cortado por un plano de corte mostrando la estructura interna</span>
+        </div>
+
+        <div class="note note-tip">
+            Use los planos de corte para inspeccionar características internas, analizar secciones transversales o crear vistas en corte para presentaciones.
+        </div>
+
+        <h2>Zoom de ventana</h2>
+        <p>Haga zoom con precisión en un área concreta:</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Activar el zoom de ventana</div>
+            <div class="step-content">Haga clic en el botón «Zoom de ventana» de la barra de herramientas o clic derecho → «Zoom de área».</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Dibujar un rectángulo</div>
+            <div class="step-content">Haga clic y arrastre para dibujar un rectángulo alrededor del área que quiere ampliar.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: El zoom se ejecuta</div>
+            <div class="step-content">Suelte el botón del ratón y la vista se ajusta al área seleccionada.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_12_window_zoom.png" alt="Rectángulo dibujándose para el zoom de ventana, con el resultado" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:350px;">Captura: tutorial_12_window_zoom.png (700x350)</div>
+            <span class="screenshot-caption">Rectángulo dibujándose para el zoom de ventana, con el resultado</span>
+        </div>
+        
+        <h2>Varias sesiones</h2>
+        <p>Trabaje con varios modelos a la vez:</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Abrir una sesión nueva</div>
+            <div class="step-content">Archivo → Nuevo o <kbd>Ctrl+N</kbd> crea una ventana de visor nueva.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Organizar las ventanas</div>
+            <div class="step-content">Use el menú Ventana para mosaico, cascada u otras disposiciones personalizadas.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Vistas independientes</div>
+            <div class="step-content">Cada sesión tiene su propia cámara, ajustes de visualización y árbol de modelos.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_12_multiple_sessions.png" alt="Varias ventanas de visor en mosaico mostrando distintos modelos" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:800px; height:500px;">Captura: tutorial_12_multiple_sessions.png (800x500)</div>
+            <span class="screenshot-caption">Varias ventanas de visor en mosaico mostrando distintos modelos</span>
+        </div>
+
+        <h2>Guardar escenas</h2>
+        <p>Guarde la escena completa con todos los ajustes:</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Guardar el proyecto</div>
+            <div class="step-content">Archivo → Guardar o <kbd>Ctrl+S</kbd> guarda en el formato .mvf de ModelViewer.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Qué se guarda</div>
+            <div class="step-content">
+                • Todos los modelos y su geometría<br/> • Materiales y texturas<br/> • Transformaciones<br/> • Estados de visibilidad<br/> • Posición de la cámara<br/> • Ajustes de visualización
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Reabrir más tarde</div>
+            <div class="step-content">Archivo → Abrir y seleccione su archivo .mvf para restaurar la escena completa.</div>
+        </div>
+
+        <h2>Exportar</h2>
+        <p>Exporte los modelos a distintos formatos:</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Seleccionar objetos</div>
+            <div class="step-content">Seleccione los objetos que quiere exportar (o deje todo seleccionado para una exportación completa).</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Archivo → Exportar</div>
+            <div class="step-content">O pulse <kbd>Ctrl+E</kbd>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Elegir el formato</div>
+            <div class="step-content">Seleccione el formato de destino (OBJ, STL, PLY, etc.) y la ubicación.</div>
+        </div>
+
+        <div class="note note-info">
+            La exportación conserva la geometría, pero puede no exportar todas las propiedades de material según las capacidades del formato de destino.
+        </div>
+
+        <h2>Información de la malla</h2>
+        <p>Vea estadísticas detalladas de los objetos:</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Seleccionar un objeto</div>
+            <div class="step-content">Seleccione un solo objeto en la lista o en la vista.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Info de malla</div>
+            <div class="step-content">Clic derecho → «Info de malla» para ver estadísticas detalladas.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Información mostrada</div>
+            <div class="step-content">
+                • Número de vértices<br/> • Número de triángulos/polígonos<br/> • Dimensiones del cuadro delimitador<br/> • Área de superficie<br/> • Uso de memoria
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_12_mesh_info.png" alt="Diálogo de información de la malla con estadísticas" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:400px; height:300px;">Captura: tutorial_12_mesh_info.png (400x300)</div>
+            <span class="screenshot-caption">Diálogo de información de la malla con estadísticas</span>
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson11.html' class='nav-button'>← Lección anterior</a>
+            <a href="index.html" class="back-to-index">↑ Volver al índice</a>
+            <a href='lesson13.html' class='nav-button'>Siguiente lección →</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lección 16: Animación de morph targets - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primeros pasos</a>
+            <a href="lesson02.html">2. Abrir modelos</a>
+            <a href="lesson03.html">3. Navegación básica</a>
+            <a href="lesson04.html">4. Seleccionar objetos</a>
+            <a href="lesson05.html">5. Modos de vista</a>
+            <a href="lesson06.html">6. Modos de cámara</a>
+            <a href="lesson07.html">7. Modos de visualización</a>
+            <a href="lesson08.html">8. Manipular objetos</a>
+            <a href="lesson09.html">9. Materiales y texturas</a>
+            <a href="lesson10.html">10. Iluminación y entorno</a>
+            <a href="lesson11.html">11. Trabajar con la visibilidad</a>
+            <a href="lesson12.html">12. Funciones avanzadas</a>
+            <a href="lesson13.html">13. Optimización del rendimiento</a>
+            <a href="lesson14.html">14. Consejos y flujos de trabajo</a>
+            <a href="lesson15.html">15. Vistas explosionadas</a>
+            <a href="lesson16.html" class='active'>16. Animación de morph targets</a>
+            <a href="lesson17.html">17. Edición de la transformación de nodos</a>
+            <a href="lesson18.html">18. Renderizado de bordes y malla de alambre</a>
+            <a href="lesson19.html">19. Resultados de simulación</a>
+            <a href="lesson20.html">20. Mirar dentro de un resultado</a>
+            <a href="lesson21.html">21. Gráficos y sondeo</a>
+            <a href="lesson22.html">22. Comparar resultados, datos de celda y de lámina</a>
+            <a href="lesson23.html">23. Gráficos 3D a partir de datos CSV</a>
+            <a href="lesson24.html">24. Gráficos 3D a partir de fórmulas, rellenos, imágenes y notas</a>
+            <a href="lesson25.html">25. Gráficos y resultados reproducidos juntos</a>
+            <a href="lesson26.html">26. Herramientas de malla</a>
+            <a href="lesson27.html">27. Medir, anotar e informar</a>
+            <a href="lesson28.html">28. Análisis, selección y escenas</a>
+            <a href="lesson29.html">29. Trazado de rayos en la práctica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lección 16 de 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 55.17%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lección 16: Animación de morph targets</h1>
+        </div>
+
+        <h2>Introducción</h2>
+        <p>Los morph targets (también llamados blend shapes) permiten que una malla se deforme suavemente entre distintas variantes de posición de vértices; se usan habitualmente para expresiones faciales, ciclos de respiración y otras deformaciones orgánicas que no se pueden lograr solo con transformaciones rígidas o con rigging esquelético. ModelViewer admite morph targets importados de archivos glTF/GLB y los conserva al guardar y volver a cargar una sesión.</p>
+
+        <div class="note note-info">
+            Los morph targets son distintos de las transformaciones de objeto de la lección 8: deforman las posiciones reales de los vértices de la malla en lugar de mover, girar o escalar un objeto rígido.
+        </div>
+
+        <h2>Cargar un modelo con morph targets</h2>
+        <div class="step">
+            <div class="step-title">Paso 1: Importar un modelo glTF/GLB</div>
+            <div class="step-content">Importe un archivo glTF o GLB que contenga datos de morph targets (blend shapes). No todos los modelos los incluyen; consulte el origen del modelo si no está seguro.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Comprobar si hay un clip de animación</div>
+            <div class="step-content">Si el archivo también incluye un clip de animación que controla los pesos de morph a lo largo del tiempo, aparecerá automáticamente en el panel Animaciones.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_16_morph_model_loaded.png" alt="Un modelo con morph targets cargado, listo para reproducirse en el panel Animaciones" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Captura: tutorial_16_morph_model_loaded.png (700x450)</div>
+            <span class="screenshot-caption">Un modelo con morph targets cargado, listo para reproducirse en el panel Animaciones</span>
+        </div>
+
+        <h2>Reproducir animaciones de morph</h2>
+        <p>Los pesos de los morph targets se controlan igual que cualquier otro clip de animación:</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Abrir el panel Animaciones</div>
+            <div class="step-content">Abra el panel Animaciones desde los paneles del lado derecho.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Seleccionar un clip</div>
+            <div class="step-content">Elija en la lista de clips el clip de animación que controla la deformación de morph.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Reproducir, pausar, repetir</div>
+            <div class="step-content">Use el botón «Reproducir»/«Pausa» para controlar la reproducción y active «Repetir» para repetir la animación de forma continua.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 4: Ajustar la velocidad</div>
+            <div class="step-content">Use el control «Velocidad» para ralentizar la reproducción y ver más de cerca la deformación, o acelerarla para una vista previa rápida.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_16_animations_panel.png" alt="Panel Animaciones con un clip de morph seleccionado y los controles de reproducción visibles" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:600px; height:400px;">Captura: tutorial_16_animations_panel.png (600x400)</div>
+            <span class="screenshot-caption">Panel Animaciones con un clip de morph seleccionado y los controles de reproducción visibles</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_16_morph_before_after.png" alt="La misma malla en dos momentos distintos de una animación de morph targets" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:400px;">Captura: tutorial_16_morph_before_after.png (700x400)</div>
+            <span class="screenshot-caption">La misma malla en dos momentos distintos de una animación de morph targets</span>
+        </div>
+
+        <h2>Guardar y volver a cargar</h2>
+        <div class="step">
+            <div class="step-title">Paso 1: Guardar como MVF</div>
+            <div class="step-content">Guarde su sesión como archivo <b>.mvf</b>: los datos de los morph targets y los clips que los controlan se conservan por completo.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Exportar a glTF/GLB</div>
+            <div class="step-content">Al exportar de nuevo a glTF o GLB se vuelven a inyectar los datos de morph targets y de animación, de modo que el archivo sigue siendo compatible con otros visores y herramientas glTF.</div>
+        </div>
+
+        <div class="note note-tip">
+            Si la deformación de morph de un modelo no parece moverse, asegúrese primero de haber seleccionado y reproducido el clip correcto: un modelo puede tener varios clips y no todos controlan necesariamente los pesos de morph.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson15.html' class='nav-button'>← Lección anterior</a>
+            <a href="index.html" class="back-to-index">↑ Volver al índice</a>
+            <a href='lesson17.html' class='nav-button'>Siguiente lección →</a>
+        </div>
+    </div>
+</body>
+</html>

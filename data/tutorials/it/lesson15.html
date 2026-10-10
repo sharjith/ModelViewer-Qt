@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lezione 15: Viste esplose - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primi passi</a>
+            <a href="lesson02.html">2. Aprire i modelli</a>
+            <a href="lesson03.html">3. Navigazione di base</a>
+            <a href="lesson04.html">4. Selezionare gli oggetti</a>
+            <a href="lesson05.html">5. Modalità di visualizzazione</a>
+            <a href="lesson06.html">6. Modalità fotocamera</a>
+            <a href="lesson07.html">7. Modalità di display</a>
+            <a href="lesson08.html">8. Manipolare gli oggetti</a>
+            <a href="lesson09.html">9. Materiali e texture</a>
+            <a href="lesson10.html">10. Illuminazione e ambiente</a>
+            <a href="lesson11.html">11. Lavorare con la visibilità</a>
+            <a href="lesson12.html">12. Funzioni avanzate</a>
+            <a href="lesson13.html">13. Ottimizzazione delle prestazioni</a>
+            <a href="lesson14.html">14. Suggerimenti e flussi di lavoro</a>
+            <a href="lesson15.html" class='active'>15. Viste esplose</a>
+            <a href="lesson16.html">16. Animazione dei morph target</a>
+            <a href="lesson17.html">17. Modifica della trasformazione dei nodi</a>
+            <a href="lesson18.html">18. Rendering di bordi e wireframe</a>
+            <a href="lesson19.html">19. Risultati di simulazione</a>
+            <a href="lesson20.html">20. Guardare dentro un risultato</a>
+            <a href="lesson21.html">21. Grafici e sonde</a>
+            <a href="lesson22.html">22. Confrontare risultati, dati di cella e di guscio</a>
+            <a href="lesson23.html">23. Grafici 3D da dati CSV</a>
+            <a href="lesson24.html">24. Grafici 3D da formule, riempimenti, immagini e note</a>
+            <a href="lesson25.html">25. Grafici e risultati riprodotti insieme</a>
+            <a href="lesson26.html">26. Strumenti per mesh</a>
+            <a href="lesson27.html">27. Misurare, annotare e riferire</a>
+            <a href="lesson28.html">28. Analisi, selezione e scene</a>
+            <a href="lesson29.html">29. Ray tracing in pratica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lezione 15 di 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 51.72%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lezione 15: Viste esplose</h1>
+        </div>
+
+        <h2>Introduzione</h2>
+        <p>Le viste esplose allontanano le parti di un assieme lungo un asse o radialmente da un punto centrale, così puoi vedere come i componenti si relazionano senza tagliare né nascondere nulla. È una vista a fasi e non distruttiva: la geometria reale e le trasformazioni del modello non vengono mai modificate in modo permanente.</p>
+
+        <h2>Aprire il pannello Vista esplosa</h2>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Aprire il pannello</div>
+            <div class="step-content">Apri il pannello Vista esplosa dai pannelli sul lato destro.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_panel_overview.png" alt="Il pannello Vista esplosa con i controlli di assieme, ancora, modalità e distanza" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:500px;">Schermata: tutorial_15_panel_overview.png (700x500)</div>
+            <span class="screenshot-caption">Il pannello Vista esplosa con i controlli di assieme, ancora, modalità e distanza</span>
+        </div>
+
+        <h2>Impostare un'esplosione</h2>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Selezionare l'assieme</div>
+            <div class="step-content">Usa «Seleziona assieme» per scegliere quale gruppo di oggetti verrà esploso.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Selezionare l'ancora</div>
+            <div class="step-content">L'ancora è la parte che resta ferma al suo posto mentre tutto il resto si allontana da essa. Usa «Seleziona ancora» per sceglierla.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 3: Scegliere la modalità di esplosione</div>
+            <div class="step-content">
+                • <b>Auto (radiale):</b> le parti si allontanano automaticamente dal centro dell'assieme<br/> • <b>Asse X / Asse Y / Asse Z:</b> le parti si muovono lungo un singolo asse del mondo<br/> • <b>Vettore personalizzato:</b> definisci la tua direzione con i campi vettore X, Y, Z
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 4: Strategia automatica</div>
+            <div class="step-content">Con la modalità Auto, scegli «Basata sull'assieme» (rispetta il raggruppamento dei sottoassiemi) o «Classica» (tratta ogni parte in modo indipendente).</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_mode_selection.png" alt="Menu a discesa della modalità di esplosione con le opzioni Auto, Asse e Vettore personalizzato" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:350px;">Schermata: tutorial_15_mode_selection.png (500x350)</div>
+            <span class="screenshot-caption">Menu a discesa della modalità di esplosione con le opzioni Auto, Asse e Vettore personalizzato</span>
+        </div>
+
+        <h2>Controllare la distanza di esplosione</h2>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Cursore della distanza</div>
+            <div class="step-content">Trascina il cursore di esplosione per controllare quanto si allontanano le parti, indicato in percentuale.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_distance_slider.png" alt="Assieme con distanza di esplosione dello 0 %, 50 % e 100 %" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:400px;">Schermata: tutorial_15_distance_slider.png (700x400)</div>
+            <span class="screenshot-caption">Assieme con distanza di esplosione dello 0 %, 50 % e 100 %</span>
+        </div>
+
+        <div class="note note-tip">
+            Parti da una piccola percentuale di distanza e aumentala gradualmente: così è più facile tenere traccia di quale parte è andata dove.
+        </div>
+
+        <h2>Posizionamento manuale</h2>
+        <p>Per gli assiemi che richiedono una disposizione fatta a mano invece di un'esplosione automatica uniforme:</p>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Avviare il posizionamento manuale</div>
+            <div class="step-content">Seleziona le parti che vuoi riposizionare, poi fai clic su «Avvia posizionamento manuale».</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Riposizionare con il gizmo di trasformazione</div>
+            <div class="step-content">Il gizmo di trasformazione a schermo compare sulla selezione. Trascina le sue maniglie per traslare o ruotare le parti nella loro posa esplosa a fasi; questo non tocca la trasformazione reale del modello.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 3: Terminare o cancellare</div>
+            <div class="step-content">Fai clic su «Termina posizionamento manuale» per mantenere la posa a fasi, oppure su «Cancella posizionamento manuale» per scartarla e ricominciare.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_manual_placement.png" alt="Modalità di posizionamento manuale con il gizmo di trasformazione attivo su una parte selezionata" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Schermata: tutorial_15_manual_placement.png (700x450)</div>
+            <span class="screenshot-caption">Modalità di posizionamento manuale con il gizmo di trasformazione attivo su una parte selezionata</span>
+        </div>
+
+        <h2>Cattura di passaggi e preset</h2>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Catturare</div>
+            <div class="step-content">Fai clic su «Cattura» per registrare la posa esplosa corrente come passaggio della sequenza. Costruisci più passaggi per creare una rivelazione a fasi di più parti.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Riordinare i passaggi</div>
+            <div class="step-content">Usa le frecce su/giù accanto all'elenco dei passaggi catturati per cambiare l'ordine di riproduzione.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 3: Preset</div>
+            <div class="step-content">Salva una configurazione esplosa completa come preset con nome per passare all'istante tra diversi layout esplosi.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_captured_steps.png" alt="Elenco dei passaggi di esplosione catturati con i controlli di riordino" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:400px;">Schermata: tutorial_15_captured_steps.png (500x400)</div>
+            <span class="screenshot-caption">Elenco dei passaggi di esplosione catturati con i controlli di riordino</span>
+        </div>
+
+        <h2>Animare l'esplosione</h2>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Modalità di animazione</div>
+            <div class="step-content">
+                • <b>Animazione singola (parallela):</b> tutti i passaggi catturati vengono animati insieme<br/> • <b>Animazione singola (sequenziale):</b> i passaggi si susseguono uno dopo l'altro<br/> • <b>Animazioni separate:</b> ogni passaggio diventa una clip di animazione indipendente
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Ritorno al punto di partenza</div>
+            <div class="step-content">Attiva «Ritorno al punto di partenza» perché l'animazione riporti l'assieme alla sua posizione originale non esplosa alla fine.</div>
+        </div>
+
+        <div class="note note-info">
+            Le configurazioni della vista esplosa, compresi preset e passaggi catturati, vengono salvate nel tuo file di sessione <b>.mvf</b>.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson14.html' class='nav-button'>← Lezione precedente</a>
+            <a href="index.html" class="back-to-index">↑ Torna all'indice</a>
+            <a href='lesson16.html' class='nav-button'>Lezione successiva →</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lezione 2: Aprire i modelli - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primi passi</a>
+            <a href="lesson02.html" class='active'>2. Aprire i modelli</a>
+            <a href="lesson03.html">3. Navigazione di base</a>
+            <a href="lesson04.html">4. Selezionare gli oggetti</a>
+            <a href="lesson05.html">5. Modalità di visualizzazione</a>
+            <a href="lesson06.html">6. Modalità fotocamera</a>
+            <a href="lesson07.html">7. Modalità di display</a>
+            <a href="lesson08.html">8. Manipolare gli oggetti</a>
+            <a href="lesson09.html">9. Materiali e texture</a>
+            <a href="lesson10.html">10. Illuminazione e ambiente</a>
+            <a href="lesson11.html">11. Lavorare con la visibilità</a>
+            <a href="lesson12.html">12. Funzioni avanzate</a>
+            <a href="lesson13.html">13. Ottimizzazione delle prestazioni</a>
+            <a href="lesson14.html">14. Suggerimenti e flussi di lavoro</a>
+            <a href="lesson15.html">15. Viste esplose</a>
+            <a href="lesson16.html">16. Animazione dei morph target</a>
+            <a href="lesson17.html">17. Modifica della trasformazione dei nodi</a>
+            <a href="lesson18.html">18. Rendering di bordi e wireframe</a>
+            <a href="lesson19.html">19. Risultati di simulazione</a>
+            <a href="lesson20.html">20. Guardare dentro un risultato</a>
+            <a href="lesson21.html">21. Grafici e sonde</a>
+            <a href="lesson22.html">22. Confrontare risultati, dati di cella e di guscio</a>
+            <a href="lesson23.html">23. Grafici 3D da dati CSV</a>
+            <a href="lesson24.html">24. Grafici 3D da formule, riempimenti, immagini e note</a>
+            <a href="lesson25.html">25. Grafici e risultati riprodotti insieme</a>
+            <a href="lesson26.html">26. Strumenti per mesh</a>
+            <a href="lesson27.html">27. Misurare, annotare e riferire</a>
+            <a href="lesson28.html">28. Analisi, selezione e scene</a>
+            <a href="lesson29.html">29. Ray tracing in pratica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lezione 2 di 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 6.9%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lezione 2: Aprire i modelli</h1>
+        </div>
+
+        <h2>Introduzione</h2>
+        <p>ModelViewer supporta un'ampia varietà di formati di file 3D. Vediamo come aprire e importare modelli nell'applicazione.</p>
+
+        <h2>Formati di file supportati</h2>
+        <ul>
+            <li><b>Formati mesh:</b> OBJ, STL, PLY, glTF (.gltf, .glb), FBX, 3DS, DAE (Collada), Blender (.blend) e molti altri tramite la libreria Assimp</li>
+            <li><b>Formati CAD:</b> STEP (.stp, .step), IGES (.igs, .iges), BREP (.brep) tramite la libreria OpenCASCADE</li>
+            <li><b>Formato nativo:</b> MVF (.mvf): il formato proprio di ModelViewer per salvare scene complete</li>
+        </ul>
+
+        <h2>Metodo 1: dal menu</h2>
+        <p>Il modo standard per aprire i file:</p>
+        
+        <div class="step">
+            <div class="step-title">Passaggio 1: Fare clic su File → Apri</div>
+            <div class="step-content">
+                Vai al menu File nella barra dei menu e fai clic su Apri, oppure premi <kbd>Ctrl+O</kbd>
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_02_file_menu.png" alt="Il menu File con la voce Apri evidenziata" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:250px;">Schermata: tutorial_02_file_menu.png (300x250)</div>
+            <span class="screenshot-caption">Il menu File con la voce Apri evidenziata</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Passaggio 2: Selezionare il file</div>
+            <div class="step-content">
+                Compare una finestra di selezione file. Vai al tuo file di modello 3D e selezionalo.
+            </div>
+        </div>
+
+        
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_02_file_dialog.png" alt="La finestra di selezione file con vari formati di file 3D" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:600px; height:400px;">Schermata: tutorial_02_file_dialog.png (600x400)</div>
+            <span class="screenshot-caption">La finestra di selezione file con vari formati di file 3D</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Passaggio 3: Attendere il caricamento</div>
+            <div class="step-content">
+                Il modello viene caricato e una barra di avanzamento mostra lo stato. Per i file grandi può richiedere un momento.
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_02_loading_progress.png" alt="Barra di avanzamento durante il caricamento di un modello" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:150px;">Schermata: tutorial_02_loading_progress.png (500x150)</div>
+            <span class="screenshot-caption">Barra di avanzamento durante il caricamento di un modello</span>
+        </div>
+
+        <div class="note note-tip">
+            Puoi annullare il caricamento facendo clic sul pulsante «Annulla caricamento» nella barra di stato.
+        </div>
+
+        <h2>Metodo 2: Trascina e rilascia</h2>
+        <p>Il modo più rapido per aprire i file:</p>
+
+        <div class="step">
+            <div class="step-title">Passaggio 1: Trovare il file</div>
+            <div class="step-content">
+                Trova il file del modello 3D nel tuo gestore di file (Esplora risorse, Finder, Nautilus, ecc.)
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Passaggio 2: Trascinare nella finestra</div>
+            <div class="step-content">
+                Trascina semplicemente il file e rilascialo in un punto qualsiasi della finestra di ModelViewer.
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_02_drag_drop.gif" alt="Dimostrazione del trascinamento di un file 3D nella finestra di ModelViewer" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:600px; height:400px;">Schermata: tutorial_02_drag_drop.png (600x400)</div>
+            <span class="screenshot-caption">Dimostrazione del trascinamento di un file 3D nella finestra di ModelViewer</span>
+        </div>
+
+        <div class="note note-info">
+            Puoi trascinare e rilasciare più file contemporaneamente. Ognuno si aprirà in una nuova sessione.
+        </div>
+
+        <h2>Metodo 3: File recenti</h2>
+        <p>Riapri rapidamente i file con cui hai lavorato di recente:</p>
+
+        <div class="step">
+            <div class="step-title">Passaggio 1: Accedere al menu Recenti</div>
+            <div class="step-content">
+                Vai a File → Recenti... per vedere l'elenco dei file aperti di recente.
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Passaggio 2: Selezionare il file</div>
+            <div class="step-content">
+                Fai clic su un file qualsiasi dell'elenco per aprirlo subito.
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_02_recent_files.png" alt="Il menu Recenti con l&#x27;elenco dei modelli aperti in precedenza" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:400px; height:300px;">Schermata: tutorial_02_recent_files.png (400x300)</div>
+            <span class="screenshot-caption">Il menu Recenti con l'elenco dei modelli aperti in precedenza</span>
+        </div>
+
+        <h2>Importare modelli aggiuntivi</h2>
+        <p>Puoi aggiungere modelli a una scena esistente:</p>
+
+        <div class="step">
+            <div class="step-title">Passaggio 1: Usare File → Importa</div>
+            <div class="step-content">
+                Fai clic su File → Importa oppure premi <kbd>Ctrl+I</kbd>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Passaggio 2: Selezionare i modelli</div>
+            <div class="step-content">
+                Scegli uno o più file da aggiungere alla scena corrente.
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Passaggio 3: I modelli vengono combinati</div>
+            <div class="step-content">
+                I nuovi modelli vengono aggiunti all'albero del modello e compaiono nella vista.
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_02_multiple_models.png" alt="Vista con più modelli importati e albero del modello che mostra tutti gli elementi" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Schermata: tutorial_02_multiple_models.png (700x450)</div>
+            <span class="screenshot-caption">Vista con più modelli importati e albero del modello che mostra tutti gli elementi</span>
+        </div>
+
+        <div class="note note-tip">
+            Usa Importa quando vuoi lavorare con più modelli nella stessa scena. Usa Apri quando vuoi ricominciare da zero con un nuovo modello.
+        </div>
+
+        <h2>Caricamento progressivo</h2>
+        <p>Per i file grandi, ModelViewer usa il caricamento progressivo:</p>
+        <ul>
+            <li>Gli oggetti compaiono man mano che vengono caricati</li>
+            <li>Puoi interagire con gli oggetti già caricati</li>
+            <li>La barra di avanzamento mostra il completamento complessivo</li>
+            <li>Puoi annullare in qualsiasi momento</li>
+        </ul>
+
+        <div class="note note-info">
+            Dopo l'apertura di un file, la vista inquadra automaticamente il modello con «Adatta tutto» così lo vedi per intero. Premi <kbd>F</kbd> in qualsiasi momento per adattare tutti gli oggetti alla vista.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson01.html' class='nav-button'>← Lezione precedente</a>
+            <a href="index.html" class="back-to-index">↑ Torna all'indice</a>
+            <a href='lesson03.html' class='nav-button'>Lezione successiva →</a>
+        </div>
+    </div>
+</body>
+</html>

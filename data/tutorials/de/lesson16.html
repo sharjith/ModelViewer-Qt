@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lektion 16: Morph-Target-Animation - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Anleitung</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Erste Schritte</a>
+            <a href="lesson02.html">2. Modelle öffnen</a>
+            <a href="lesson03.html">3. Grundlegende Navigation</a>
+            <a href="lesson04.html">4. Objekte auswählen</a>
+            <a href="lesson05.html">5. Ansichtsmodi</a>
+            <a href="lesson06.html">6. Kameramodi</a>
+            <a href="lesson07.html">7. Anzeigemodi</a>
+            <a href="lesson08.html">8. Objekte manipulieren</a>
+            <a href="lesson09.html">9. Materialien und Texturen</a>
+            <a href="lesson10.html">10. Beleuchtung und Umgebung</a>
+            <a href="lesson11.html">11. Arbeiten mit Sichtbarkeit</a>
+            <a href="lesson12.html">12. Erweiterte Funktionen</a>
+            <a href="lesson13.html">13. Leistungsoptimierung</a>
+            <a href="lesson14.html">14. Tipps und Workflows</a>
+            <a href="lesson15.html">15. Explosionsansichten</a>
+            <a href="lesson16.html" class='active'>16. Morph-Target-Animation</a>
+            <a href="lesson17.html">17. Knotentransformation bearbeiten</a>
+            <a href="lesson18.html">18. Kanten- und Drahtgitter-Rendering</a>
+            <a href="lesson19.html">19. Simulationsergebnisse</a>
+            <a href="lesson20.html">20. Ins Innere eines Ergebnisses schauen</a>
+            <a href="lesson21.html">21. Diagramme und Sonden</a>
+            <a href="lesson22.html">22. Ergebnisse vergleichen, Zell- und Schalendaten</a>
+            <a href="lesson23.html">23. 3D-Diagramme aus CSV-Daten</a>
+            <a href="lesson24.html">24. 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</a>
+            <a href="lesson25.html">25. Diagramme und Ergebnisse gemeinsam abspielen</a>
+            <a href="lesson26.html">26. Mesh-Werkzeuge</a>
+            <a href="lesson27.html">27. Messen, Kommentieren und Berichten</a>
+            <a href="lesson28.html">28. Analyse, Auswahl und Szenen</a>
+            <a href="lesson29.html">29. Raytracing in der Praxis</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lektion 16 von 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 55.17%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lektion 16: Morph-Target-Animation</h1>
+        </div>
+
+        <h2>Einführung</h2>
+        <p>Morph Targets (auch Blend Shapes genannt) lassen ein Mesh sanft zwischen verschiedenen Eckpunktpositions-Varianten verformen - häufig für Gesichtsausdrücke, Atemzyklen und andere organische Verformungen, die mit starren Transformationen oder Skelett-Rigging allein nicht möglich sind. ModelViewer unterstützt aus glTF/GLB-Dateien importierte Morph Targets und bewahrt sie beim Speichern und erneuten Laden einer Sitzung.</p>
+
+        <div class="note note-info">
+            Morph Targets unterscheiden sich von den in Lektion 8 behandelten Objekttransformationen - sie verformen die tatsächlichen Eckpunktpositionen des Meshes, statt ein starres Objekt zu verschieben, zu drehen oder zu skalieren.
+        </div>
+
+        <h2>Ein Modell mit Morph Targets laden</h2>
+        <div class="step">
+            <div class="step-title">Schritt 1: Ein glTF/GLB-Modell importieren</div>
+            <div class="step-content">Importieren Sie eine glTF- oder GLB-Datei mit Morph-Target-Daten (Blend Shapes). Nicht alle Modelle enthalten sie - prüfen Sie die Quelle des Modells, wenn Sie unsicher sind.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Auf einen Animationsclip prüfen</div>
+            <div class="step-content">Enthält die Datei auch einen Animationsclip, der die Morph-Gewichte über die Zeit steuert, erscheint er automatisch im Animationsbereich.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_16_morph_model_loaded.png" alt="Ein Modell mit Morph Targets, bereit zur Wiedergabe im Animationsbereich" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_16_morph_model_loaded.png (700x450)</div>
+            <span class="screenshot-caption">Ein Modell mit Morph Targets, bereit zur Wiedergabe im Animationsbereich</span>
+        </div>
+
+        <h2>Morph-Animationen abspielen</h2>
+        <p>Morph-Target-Gewichte werden wie jeder andere Animationsclip gesteuert:</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Den Animationsbereich öffnen</div>
+            <div class="step-content">Öffnen Sie den Animationsbereich aus den rechten Seitenbereichen.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Einen Clip auswählen</div>
+            <div class="step-content">Wählen Sie aus der Clipliste den Animationsclip, der die Morph-Verformung steuert.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Wiedergabe, Pause, Wiederholen</div>
+            <div class="step-content">Steuern Sie die Wiedergabe mit der Schaltfläche „Wiedergabe“/„Pause“ und aktivieren Sie „Wiederholen“, um die Animation kontinuierlich zu wiederholen.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 4: Geschwindigkeit anpassen</div>
+            <div class="step-content">Verwenden Sie die Steuerung „Geschwindigkeit“, um die Wiedergabe für einen genaueren Blick auf die Verformung zu verlangsamen oder für eine schnelle Vorschau zu beschleunigen.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_16_animations_panel.png" alt="Animationsbereich mit ausgewähltem Morph-Clip und sichtbaren Wiedergabesteuerungen" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:600px; height:400px;">Screenshot: tutorial_16_animations_panel.png (600x400)</div>
+            <span class="screenshot-caption">Animationsbereich mit ausgewähltem Morph-Clip und sichtbaren Wiedergabesteuerungen</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_16_morph_before_after.png" alt="Dasselbe Mesh an zwei verschiedenen Zeitpunkten einer Morph-Target-Animation" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:400px;">Screenshot: tutorial_16_morph_before_after.png (700x400)</div>
+            <span class="screenshot-caption">Dasselbe Mesh an zwei verschiedenen Zeitpunkten einer Morph-Target-Animation</span>
+        </div>
+
+        <h2>Speichern und erneut laden</h2>
+        <div class="step">
+            <div class="step-title">Schritt 1: Als MVF speichern</div>
+            <div class="step-content">Speichern Sie Ihre Sitzung als <b>.mvf</b>-Datei - Morph-Target-Daten und ihre steuernden Clips bleiben vollständig erhalten.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Nach glTF/GLB exportieren</div>
+            <div class="step-content">Beim Zurückexportieren nach glTF oder GLB werden die Morph-Target- und Animationsdaten wieder eingefügt, sodass die Datei mit anderen glTF-Viewern und -Werkzeugen kompatibel bleibt.</div>
+        </div>
+
+        <div class="note note-tip">
+            Scheint sich die Morph-Verformung eines Modells nicht zu bewegen, vergewissern Sie sich zuerst, dass Sie den richtigen Clip ausgewählt und abgespielt haben - ein Modell kann mehrere Clips haben, und nicht alle steuern unbedingt Morph-Gewichte.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson15.html' class='nav-button'>← Vorherige Lektion</a>
+            <a href="index.html" class="back-to-index">↑ Zurück zur Übersicht</a>
+            <a href='lesson17.html' class='nav-button'>Nächste Lektion →</a>
+        </div>
+    </div>
+</body>
+</html>

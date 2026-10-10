@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lezione 27: Misurare, annotare e riferire - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primi passi</a>
+            <a href="lesson02.html">2. Aprire i modelli</a>
+            <a href="lesson03.html">3. Navigazione di base</a>
+            <a href="lesson04.html">4. Selezionare gli oggetti</a>
+            <a href="lesson05.html">5. Modalità di visualizzazione</a>
+            <a href="lesson06.html">6. Modalità fotocamera</a>
+            <a href="lesson07.html">7. Modalità di display</a>
+            <a href="lesson08.html">8. Manipolare gli oggetti</a>
+            <a href="lesson09.html">9. Materiali e texture</a>
+            <a href="lesson10.html">10. Illuminazione e ambiente</a>
+            <a href="lesson11.html">11. Lavorare con la visibilità</a>
+            <a href="lesson12.html">12. Funzioni avanzate</a>
+            <a href="lesson13.html">13. Ottimizzazione delle prestazioni</a>
+            <a href="lesson14.html">14. Suggerimenti e flussi di lavoro</a>
+            <a href="lesson15.html">15. Viste esplose</a>
+            <a href="lesson16.html">16. Animazione dei morph target</a>
+            <a href="lesson17.html">17. Modifica della trasformazione dei nodi</a>
+            <a href="lesson18.html">18. Rendering di bordi e wireframe</a>
+            <a href="lesson19.html">19. Risultati di simulazione</a>
+            <a href="lesson20.html">20. Guardare dentro un risultato</a>
+            <a href="lesson21.html">21. Grafici e sonde</a>
+            <a href="lesson22.html">22. Confrontare risultati, dati di cella e di guscio</a>
+            <a href="lesson23.html">23. Grafici 3D da dati CSV</a>
+            <a href="lesson24.html">24. Grafici 3D da formule, riempimenti, immagini e note</a>
+            <a href="lesson25.html">25. Grafici e risultati riprodotti insieme</a>
+            <a href="lesson26.html">26. Strumenti per mesh</a>
+            <a href="lesson27.html" class='active'>27. Misurare, annotare e riferire</a>
+            <a href="lesson28.html">28. Analisi, selezione e scene</a>
+            <a href="lesson29.html">29. Ray tracing in pratica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lezione 27 di 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 93.1%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lezione 27: Misurare, annotare e riferire</h1>
+        </div>
+
+        <h2>Introduzione</h2>
+        <p>ModelViewer misura direttamente sul modello: punti, distanze, angoli, raggi, diametri, aree, lunghezze di spigolo e la distanza lungo una superficie. Puoi lasciare annotazioni tipo nota adesiva sul modello e raccogliere tutto in un report PDF con viste catturate. Questa lezione tratta gli strumenti in ordine di frequenza d'uso.</p>
+        <div class="note note-info">
+            Esercitati su <code>bottle.step</code>, <code>CAD.step</code> o sul carrello elevatore: i modelli STEP, IGES e BREP contengono spigoli e superfici esatti, quindi gli strumenti di raggio e concentricità possono agganciarsi ai centri analitici dei cerchi. Sulle mesh OBJ e glTF gli stessi strumenti usano la geometria della mesh e alcuni non sono disponibili.
+        </div>
+        <h2>La tua prima misurazione</h2>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Aprire la finestra Misura</div>
+            <div class="step-content">Scegli <b>Strumenti → Misura...</b>. Non ha né pulsante nella barra degli strumenti né scorciatoia da tastiera.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Scegliere uno strumento e fare clic</div>
+            <div class="step-content">Scegli <b>Distanza</b> in <b>Strumento:</b> e fai clic su due punti del modello. Il risultato compare nell'elenco <b>Misurazioni:</b> e come etichetta con linea di quota sul modello.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 3: Continuare o terminare</div>
+            <div class="step-content">Lo strumento resta armato per la misurazione successiva. Per gli strumenti che accettano un numero qualsiasi di selezioni (Circonferenza primitiva, Lunghezza catena) premi <b>Invio</b> o fai clic su <b>Termina</b>. Seleziona una misurazione nell'elenco per trovarla sul modello; <b>Elimina</b> la rimuove.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_27_distance_measurement.png" alt="tutorial_27_distance_measurement.png" title="Capture: Open bottle.step, Tools &gt; Measure..., tool Distance, two clicks on the bottle; capture the model with its dimension label and the dialog with the Measurements list." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open bottle.step, Tools &gt; Measure..., tool Distance, two clicks on the bottle; capture the model with its dimension label and the dialog with the Measurements list." style="display:none; width:700px; height:450px;">Schermata: tutorial_27_distance_measurement.png (700x450)</div>
+            <span class="screenshot-caption">Una misurazione di distanza tra due punti su un modello STEP, con la finestra Misura aperta</span>
+        </div>
+
+        <div class="note note-info">
+            Creare, eliminare e spostare una misurazione o un'annotazione si può annullare; la casella di visibilità nell'elenco no (come la visibilità delle mesh nell'albero della scena). Una misurazione viene risolta dal vivo sulla mesh, quindi resta corretta se poi sposti o trasformi la mesh.
+        </div>
+        <h2>Gli strumenti</h2>
+        <p>Gli strumenti sono raggruppati in <b>Punto e distanza</b>, <b>Archi e cerchi</b>, <b>Facce</b> e <b>Spigoli</b>.</p>
+        <table>
+            <thead><tr><th>Strumento</th><th>Selezioni</th><th>Cosa misura</th></tr></thead>
+            <tbody>
+            <tr><td>Punto</td><td>1 clic</td><td>Le coordinate 3D di un punto</td></tr>
+            <tr><td>Distanza</td><td>2 clic</td><td>La distanza in linea retta tra due punti, che possono trovarsi su mesh diverse</td></tr>
+            <tr><td>Distanza geodetica</td><td>2 clic</td><td>La distanza misurata LUNGO la superficie, ad esempio attorno a un pezzo curvo; entrambi i punti devono stare sulla stessa mesh</td></tr>
+            <tr><td>Angolo a 3 punti</td><td>3 clic</td><td>L'angolo al primo vertice scelto tra i raggi verso gli altri due punti</td></tr>
+            </tbody>
+        </table>
+        <table>
+            <thead><tr><th>Strumento</th><th>Selezioni</th><th>Cosa misura</th></tr></thead>
+            <tbody>
+            <tr><td>Raggio arco a 3 punti</td><td>3 clic</td><td>Raggio e centro di un arco adattato a tre punti del suo bordo</td></tr>
+            <tr><td>Raggio arco centro + 2 punti</td><td>3 clic</td><td>Raggio di un arco o foro da un centro scelto più due punti del bordo; su STEP/IGES/BREP il centro si aggancia al centro esatto, anche per un foro passante</td></tr>
+            <tr><td>Raggio spigolo</td><td>1 clic</td><td>Raggio, centro e asse esatti di uno spigolo circolare (bordo di un foro o di un risalto); solo STEP/IGES/BREP</td></tr>
+            <tr><td>Circonferenza primitiva</td><td>3 o più clic, poi Invio/Termina</td><td>Diametro della circonferenza di miglior adattamento per tre o più centri di fori (una corona di fori) e angolo tra fori adiacenti</td></tr>
+            <tr><td>Concentricità</td><td>2 clic</td><td>Se due fori o risalti condividono un asse: distanza tra i centri e angolo tra gli assi; solo STEP/IGES/BREP</td></tr>
+            <tr><td>Diametro cilindrico/conico</td><td>1 clic sulla superficie curva, non sul suo bordo</td><td>Diametro di un cilindro o cono nel punto scelto (varia lungo un cono); ha opzioni proprie qui sotto</td></tr>
+            </tbody>
+        </table>
+        <table>
+            <thead><tr><th>Strumento</th><th>Selezioni</th><th>Cosa misura</th></tr></thead>
+            <tbody>
+            <tr><td>Faccia a faccia</td><td>2 clic</td><td>Distanza perpendicolare tra due facce quasi parallele, altrimenti l'angolo tra di esse</td></tr>
+            <tr><td>Punto a faccia</td><td>2 clic</td><td>Distanza perpendicolare da un punto al piano di una faccia</td></tr>
+            <tr><td>Area della faccia</td><td>1 clic</td><td>Area di una faccia: il triangolo scelto più ogni triangolo connesso e complanare</td></tr>
+            <tr><td>Distanza minima</td><td>2 clic</td><td>Vera distanza tra i punti più vicini di due superfici; ogni selezione si espande a tutta la sua regione liscia. Funziona anche su una sola mesh, ad esempio per un controllo dello spessore di parete</td></tr>
+            </tbody>
+        </table>
+        <table>
+            <thead><tr><th>Strumento</th><th>Selezioni</th><th>Cosa misura</th></tr></thead>
+            <tbody>
+            <tr><td>Lunghezza spigolo</td><td>1 clic</td><td>Lunghezza di uno spigolo, retto o curvo</td></tr>
+            <tr><td>Spigolo a vertice</td><td>2 clic</td><td>Distanza perpendicolare da un punto alla retta di uno spigolo</td></tr>
+            <tr><td>Spigolo a spigolo</td><td>2 clic</td><td>Distanza perpendicolare tra due spigoli quasi paralleli, altrimenti l'angolo; gestisce anche spigoli sghembi (solo angolo)</td></tr>
+            <tr><td>Spigolo a faccia</td><td>2 clic</td><td>Distanza perpendicolare da uno spigolo al piano di una faccia, altrimenti l'angolo</td></tr>
+            <tr><td>Lunghezza catena</td><td>2 o più clic, poi Invio/Termina</td><td>Lunghezza totale di una serie connessa di spigoli: una saldatura o un perimetro chiuso; ogni nuovo spigolo deve condividere un estremo con la catena finora</td></tr>
+            </tbody>
+        </table>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_27_edge_radius_and_pitch.png" alt="tutorial_27_edge_radius_and_pitch.png" title="Capture: Open CAD.step (or any STEP part with holes), measure one hole with Edge Radius and a bolt-hole pattern with Pitch Circle (Enter to finish); capture the two labels on the part." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open CAD.step (or any STEP part with holes), measure one hole with Edge Radius and a bolt-hole pattern with Pitch Circle (Enter to finish); capture the two labels on the part." style="display:none; width:700px; height:450px;">Schermata: tutorial_27_edge_radius_and_pitch.png (700x450)</div>
+            <span class="screenshot-caption">Un raggio spigolo e una circonferenza primitiva misurati su un pezzo CAD</span>
+        </div>
+
+        <h2>Opzioni diametro cilindrico</h2>
+        <p>Finché <i>Diametro cilindrico/conico</i> è lo strumento attivo, opzioni aggiuntive regolano l'adattamento usato sulle mesh non CAD (solo di sessione, non salvate nel documento): <b>Tolleranza angolare</b> (35 gradi per impostazione predefinita), <b>Dimensione min. regione</b> (24 punti) e <b>Diametro min./max.</b> (0 = nessun limite) per scartare adattamenti troppo piccoli o troppo grandi.</p>
+        <h2>Annotazioni</h2>
+        <p>Un'annotazione è una nota adesiva di testo libero ancorata a un punto della superficie di una mesh e collegata a un'etichetta di testo trascinabile da una linea di richiamo. Aprila con <b>Strumenti → Annota...</b>. Misura e Annota sono mutuamente esclusivi: armare uno disarma l'altro.</p>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Posizionare una nota</div>
+            <div class="step-content">La finestra si apre non armata, il che è utile per rivedere le note esistenti. Fai clic su <b>Posiziona nota</b>, poi su un punto del modello. La nota compare con il testo predefinito «New Note» selezionato, così puoi digitarci sopra subito; lo strumento resta armato per altre note.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Modificare, spostare, eliminare</div>
+            <div class="step-content">Seleziona una nota nell'elenco (o fai clic su di essa nella vista) per modificarne il testo o usa <b>Elimina</b>; l'eliminazione multipla è un solo passo di annullamento. Trascina il riquadro di testo di una nota per spostare l'etichetta e la linea di richiamo indipendentemente dal punto di ancoraggio.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_27_annotations.png" alt="tutorial_27_annotations.png" title="Capture: Tools &gt; Annotate..., place two notes with meaningful text on a model (for example on the Forklift); capture the model with the two labels and leader lines plus the dialog list." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Tools &gt; Annotate..., place two notes with meaningful text on a model (for example on the Forklift); capture the model with the two labels and leader lines plus the dialog list." style="display:none; width:700px; height:450px;">Schermata: tutorial_27_annotations.png (700x450)</div>
+            <span class="screenshot-caption">Due annotazioni su un modello, con la finestra Annota accanto</span>
+        </div>
+
+        <h2>Esporta report</h2>
+        <p><b>Strumenti → Esporta report...</b> scrive un PDF composto da viste della fotocamera catturate e, facoltativamente, da una tabella di tutte le misurazioni e annotazioni.</p>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Catturare le viste</div>
+            <div class="step-content">Imposta ogni vista che vuoi nel report e fai clic su <b>Cattura vista</b> nel pannello Fotocamere. Le viste catturate compaiono automaticamente nella finestra del report.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Scegliere cosa mostra ogni vista</div>
+            <div class="step-content">Fai doppio clic su una vista catturata per scegliere quali misurazioni e annotazioni mostra l'immagine di <i>quella</i> vista, indipendentemente dalla loro visibilità nel documento. <b>Usa visibilità corrente</b> cancella la sostituzione.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 3: Includere la tabella ed esportare</div>
+            <div class="step-content">Spunta <b>Includi tabella misurazioni/annotazioni</b> per aggiungere una tabella di tutte le misurazioni e annotazioni, poi esporta. Al termine, la visibilità reale del documento e la fotocamera della vista vengono ripristinate esattamente com'erano.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_27_report_dialog.png" alt="tutorial_27_report_dialog.png" title="Capture: Capture two views in the Cameras panel, then Tools &gt; Export Report...; capture the dialog with the two views listed and &quot;Include measurement/annotation table&quot; ticked." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Capture two views in the Cameras panel, then Tools &gt; Export Report...; capture the dialog with the two views listed and &quot;Include measurement/annotation table&quot; ticked." style="display:none; width:600px; height:450px;">Schermata: tutorial_27_report_dialog.png (600x480)</div>
+            <span class="screenshot-caption">La finestra Esporta report con due viste catturate e l&#x27;opzione tabella spuntata</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_27_report_pdf.png" alt="tutorial_27_report_pdf.png" title="Capture: Open the exported PDF in a viewer and capture one page showing a view with its labels and the measurement table." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open the exported PDF in a viewer and capture one page showing a view with its labels and the measurement table." style="display:none; width:700px; height:450px;">Schermata: tutorial_27_report_pdf.png (700x500)</div>
+            <span class="screenshot-caption">Una pagina del report PDF esportato con una vista catturata e la tabella</span>
+        </div>
+
+        <div class="note note-warning">
+            Le misurazioni e le annotazioni vengono salvate solo nel formato di sessione nativo <b>.mvf</b>. Non vengono esportate in glTF o GLB, che non hanno un concetto per esse: includile invece in un report.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson26.html' class='nav-button'>← Lezione precedente</a>
+            <a href="index.html" class="back-to-index">↑ Torna all'indice</a>
+            <a href='lesson28.html' class='nav-button'>Lezione successiva →</a>
+        </div>
+    </div>
+</body>
+</html>
