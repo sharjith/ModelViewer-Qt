@@ -44,6 +44,7 @@
     <property name="title">
      <string>Help</string>
     </property>
+    <addaction name="actionWhatsNew"/>
     <addaction name="actionQuick_Help"/>
     <addaction name="actionTutorial"/>
     <addaction name="separator"/>
@@ -1032,6 +1033,18 @@
   <action name="actionVisualizationSeparator">
    <property name="separator">
     <bool>true</bool>
+   </property>
+  </action>
+  <action name="actionWhatsNew">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/quick_help.png</normaloff>:/icons/res/quick_help.png</iconset>
+   </property>
+   <property name="text">
+    <string>What's New...</string>
+   </property>
+   <property name="statusTip">
+    <string>See what is new in this version</string>
    </property>
   </action>
   <action name="actionQuick_Help">

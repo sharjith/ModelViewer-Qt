@@ -32,6 +32,9 @@ private:
     void setupAdvancedFeaturesTab();
     void setupMeasurementTab();
     void setupMeshEditingTab();
+    void setupSimulationTab();     // QuickHelpDialogResults.cpp
+    void setupPlot3DTab();
+    void setupAnalysisScenesTab();
     void setupTipsAndTricksTab();
 
     QString createStyledHtml(const QString& title, const QString& content);
@@ -49,6 +52,9 @@ private:
     QTextBrowser* _advancedBrowser;
     QTextBrowser* _measurementBrowser;
     QTextBrowser* _meshEditingBrowser;
+    QTextBrowser* _simulationBrowser;
+    QTextBrowser* _plot3DBrowser;
+    QTextBrowser* _analysisBrowser;
     QTextBrowser* _tipsBrowser;
     QPushButton* _closeButton;
 	QCheckBox* _showOnStartupCheckBox;

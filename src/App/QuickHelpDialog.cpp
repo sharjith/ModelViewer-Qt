@@ -151,6 +151,9 @@ void QuickHelpDialog::setupUI()
 	_advancedBrowser = new QTextBrowser();
 	_measurementBrowser = new QTextBrowser();
 	_meshEditingBrowser = new QTextBrowser();
+	_simulationBrowser = new QTextBrowser();
+	_plot3DBrowser = new QTextBrowser();
+	_analysisBrowser = new QTextBrowser();
 	_tipsBrowser = new QTextBrowser();
 
 	// Set open external links for all browsers
@@ -163,6 +166,9 @@ void QuickHelpDialog::setupUI()
 	_advancedBrowser->setOpenExternalLinks(false);
 	_measurementBrowser->setOpenExternalLinks(false);
 	_meshEditingBrowser->setOpenExternalLinks(false);
+	_simulationBrowser->setOpenExternalLinks(false);
+	_plot3DBrowser->setOpenExternalLinks(false);
+	_analysisBrowser->setOpenExternalLinks(false);
 	_tipsBrowser->setOpenExternalLinks(false);
 
 	// Add tabs
@@ -175,6 +181,9 @@ void QuickHelpDialog::setupUI()
 	_tabWidget->addTab(_advancedBrowser, tr("Advanced Features"));
 	_tabWidget->addTab(_measurementBrowser, tr("Measurement && Annotation"));
 	_tabWidget->addTab(_meshEditingBrowser, tr("Mesh Editing"));
+	_tabWidget->addTab(_simulationBrowser, tr("Simulation"));
+	_tabWidget->addTab(_plot3DBrowser, tr("3D Plots"));
+	_tabWidget->addTab(_analysisBrowser, tr("Analysis && Scenes"));
 	_tabWidget->addTab(_menuBrowser, tr("Menu Shortcuts"));
 	_tabWidget->addTab(_tipsBrowser, tr("Tips && Tricks"));
 
@@ -188,6 +197,9 @@ void QuickHelpDialog::setupUI()
 	setupAdvancedFeaturesTab();
 	setupMeasurementTab();
 	setupMeshEditingTab();
+	setupSimulationTab();
+	setupPlot3DTab();
+	setupAnalysisScenesTab();
 	setupMenuShortcutsTab();
 	setupTipsAndTricksTab();
 

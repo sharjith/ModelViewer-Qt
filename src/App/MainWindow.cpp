@@ -19,6 +19,7 @@
 #include "StatusBalloon.h"
 #include "AboutDialog.h"
 #include "QuickHelpDialog.h"
+#include "WhatsNewDialog.h"
 #include "TutorialDialog.h"
 #include "Logger.h"
 #include "ui_MainWindow.h"
@@ -79,6 +80,7 @@
 int MainWindow::_viewerCount = 1;
 MainWindow* MainWindow::_mainWindow = nullptr;
 QuickHelpDialog* MainWindow::_helpDialog = nullptr;
+WhatsNewDialog* MainWindow::_whatsNewDialog = nullptr;
 bool MainWindow::_fileLoadCancelRequested = false;
 
 MainWindow::MainWindow(QWidget* parent)
@@ -1997,6 +1999,28 @@ void MainWindow::on_actionExit_triggered(bool /*checked*/)
 	}
 }
 
+void MainWindow::on_actionWhatsNew_triggered()
+{
+	showWhatsNew(false);
+}
+
+void MainWindow::showWhatsNew(bool automatic)
+{
+	if (!_whatsNewDialog)
+	{
+		_whatsNewDialog = new WhatsNewDialog(this);
+		_whatsNewDialog->setAttribute(Qt::WA_DeleteOnClose);
+		connect(_whatsNewDialog, &WhatsNewDialog::openTutorialRequested, this, &MainWindow::on_actionTutorial_triggered);
+		connect(_whatsNewDialog, &WhatsNewDialog::openQuickHelpRequested, this, &MainWindow::on_actionQuick_Help_triggered);
+		connect(_whatsNewDialog, &QObject::destroyed, []() { _whatsNewDialog = nullptr; });
+	}
+	if (automatic)
+		WhatsNewDialog::markShown();
+	_whatsNewDialog->show();
+	_whatsNewDialog->raise();
+	_whatsNewDialog->activateWindow();
+}
+
 void MainWindow::on_actionQuick_Help_triggered()
 {
 	// Create as a member variable or use static to keep one instance
@@ -2206,7 +2230,12 @@ void MainWindow::showEvent(QShowEvent* event)
 		}
 
 		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-		if (settings.value("showQuickHelpOnStartup", true).toBool())
+		if (WhatsNewDialog::dueOnStartup(settings))
+		{
+			// Once per version: What's New instead of (not on top of) the Quick Help popup, which is still one click away in it.
+			QTimer::singleShot(150, this, [this]() { showWhatsNew(true); });
+		}
+		else if (settings.value("showQuickHelpOnStartup", true).toBool())
 		{
 			QTimer::singleShot(150, this, &MainWindow::on_actionQuick_Help_triggered);
 		}
