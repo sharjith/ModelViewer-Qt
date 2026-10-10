@@ -20543,6 +20543,61 @@ Rauheit</translation>
 <context>
     <name>TutorialDialog</name>
     <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>19. Simulation Results</source>
+        <translation>19. Simulationsergebnisse</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>20. Looking Inside a Result</source>
+        <translation>20. Ins Innere eines Ergebnisses schauen</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>21. Charts and Probing</source>
+        <translation>21. Diagramme und Sonden</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>22. Comparing Results, Cell and Shell Data</source>
+        <translation>22. Ergebnisse vergleichen, Zell- und Schalendaten</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>23. 3D Plots from CSV Data</source>
+        <translation>23. 3D-Diagramme aus CSV-Daten</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>24. 3D Plots from Formulas, Fills, Images and Notes</source>
+        <translation>24. 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>25. Plots and Results Played Together</source>
+        <translation>25. Diagramme und Ergebnisse gemeinsam abspielen</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>26. Mesh Tools</source>
+        <translation>26. Mesh-Werkzeuge</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>27. Measure, Annotate and Report</source>
+        <translation>27. Messen, Kommentieren und Berichten</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>28. Analysis, Selection and Scenes</source>
+        <translation>28. Analyse, Auswahl und Szenen</translation>
+    </message>
+    <message>
+        <location filename="../src/App/TutorialDialog.cpp" line="1"/>
+        <source>29. Ray Tracing in Practice</source>
+        <translation>29. Raytracing in der Praxis</translation>
+    </message>
+    <message>
         <location filename="../src/App/TutorialDialog.cpp" line="50"/>
         <source>ModelViewer Tutorial</source>
         <translation>ModelViewer-Anleitung</translation>
@@ -20600,22 +20655,22 @@ Rauheit</translation>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="199"/>
         <source>7. Display Modes</source>
-        <translation>7. Anzeigemodus</translation>
+        <translation>7. Anzeigemodi</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="200"/>
         <source>8. Manipulating Objects</source>
-        <translation>8. Verwalten von Objekten</translation>
+        <translation>8. Objekte manipulieren</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="201"/>
         <source>9. Materials &amp; Textures</source>
-        <translation>ANHANG Materialien und Texturen</translation>
+        <translation>9. Materialien und Texturen</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="202"/>
         <source>10. Lighting &amp; Environment</source>
-        <translation>10. Beleuchtung und Umwelt</translation>
+        <translation>10. Beleuchtung und Umgebung</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="203"/>
@@ -20635,7 +20690,7 @@ Rauheit</translation>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="206"/>
         <source>14. Tips &amp; Workflows</source>
-        <translation>14. Tipps &amp; Workflows</translation>
+        <translation>14. Tipps und Workflows</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="207"/>
@@ -20660,7 +20715,7 @@ Rauheit</translation>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="239"/>
         <source>Tutorial Home</source>
-        <translation>Tutorial Home</translation>
+        <translation>Anleitungsübersicht</translation>
     </message>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="311"/>
@@ -20670,7 +20725,7 @@ Rauheit</translation>
     <message>
         <location filename="../src/App/TutorialDialog.cpp" line="360"/>
         <source>Lesson Not Found</source>
-        <translation>Nicht gefunden</translation>
+        <translation>Lektion nicht gefunden</translation>
     </message>
 </context>
 <context>
@@ -22967,6 +23022,11 @@ statt einer einfachen Farbe</translation>
 </context>
 <context>
     <name>WhatsNewDialog</name>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Tutorial: lesson %1</source>
+        <translation>Anleitung: Lektion %1</translation>
+    </message>
     <message>
         <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
         <source>What&apos;s New</source>
