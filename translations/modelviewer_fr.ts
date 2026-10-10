@@ -9942,6 +9942,69 @@ Elles sont dessinées dans la boîte des axes : elles suivent donc la visibilit�
 <context>
     <name>Plot3DPanel</name>
     <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1"/>
+        <source>Opacity:</source>
+        <translation>Opacité :</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1"/>
+        <source>How opaque the picture is drawn: 100 % shows it as it is, less lets what is behind it show through.</source>
+        <translation>Opacité de l&apos;image : 100 % l&apos;affiche telle quelle, moins laisse voir ce qui se trouve derrière.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1"/>
+        <source>Readable from behind</source>
+        <translation>Lisible par l&apos;arrière</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1"/>
+        <source>The back of the plane shows the picture the right way round instead of mirrored.
+Only for an opaque picture: with a transparent area or an opacity below 100 % both sides
+would show through each other, so the back stays mirrored.</source>
+        <translation>Le dos du plan montre l&apos;image à l&apos;endroit au lieu d&apos;inversée.
+Uniquement pour une image opaque : avec une zone transparente ou une opacité inférieure à 100 %, les deux faces
+se verraient à travers l&apos;autre, le dos reste donc inversé.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1"/>
+        <source>Fill:</source>
+        <translation>Remplissage :</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1"/>
+        <source>Fill the curve down to Base Z:</source>
+        <translation>Remplir la courbe jusqu&apos;au Z de base :</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1"/>
+        <source>or up to z2(t) =</source>
+        <translation>ou jusqu&apos;à z2(t) =</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1"/>
+        <source>a second curve, e.g. 0 or sin(t)</source>
+        <translation>une seconde courbe, p. ex. 0 ou sin(t)</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1"/>
+        <source>Fill between the curve and a second curve with the same x(t), y(t) and this z(t).
+Leave empty to fill down to Base Z.</source>
+        <translation>Remplit entre la courbe et une seconde courbe de mêmes x(t), y(t) et de ce z(t).
+Laissez vide pour remplir jusqu&apos;au Z de base.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1"/>
+        <source>or between the plot and column:</source>
+        <translation>ou entre le tracé et la colonne :</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1"/>
+        <source>Fill a line or scatter down to the base plane, or - choosing a column - between it and a second curve (or set of
+points) whose Z values are in that column (same X and Y).</source>
+        <translation>Remplit une ligne ou un nuage de points jusqu&apos;au plan de base ou, en choisissant une colonne, entre elle et une seconde courbe (ou
+un second ensemble de points) dont les valeurs Z sont dans cette colonne (mêmes X et Y).</translation>
+    </message>
+    <message>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="41"/>
         <source>Add 3D Plot</source>
         <translation>Ajouter un graphique 3D</translation>
@@ -11158,6 +11221,206 @@ dont les valeurs Z sont dans cette colonne (mêmes X et Y).</translation>
 </context>
 <context>
     <name>QObject</name>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>At t=%1: %2</source>
+        <translation>En t=%1 : %2</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>At u=%1, v=%2: %3</source>
+        <translation>En u=%1, v=%2 : %3</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>At x=%1, y=%2, z=%3: %4</source>
+        <translation>En x=%1, y=%2, z=%3 : %4</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>At x=%1, y=%2: %3</source>
+        <translation>En x=%1, y=%2 : %3</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Bar width and depth must be positive.</source>
+        <translation>La largeur et la profondeur des barres doivent être positives.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Choose a valid one-character delimiter.</source>
+        <translation>Choisissez un délimiteur valide d&apos;un seul caractère.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Column %1</source>
+        <translation>Colonne %1</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Division by zero.</source>
+        <translation>Division par zéro.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Expected a number, variable, or expression.</source>
+        <translation>Un nombre, une variable ou une expression était attendu.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Formula ranges must increase and each resolution must be 2 to 512.</source>
+        <translation>Les plages de la formule doivent être croissantes et chaque résolution doit être comprise entre 2 et 512.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Implicit-surface ranges must increase and each resolution must be 2 to 64.</source>
+        <translation>Les plages de la surface implicite doivent être croissantes et chaque résolution doit être comprise entre 2 et 64.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Invalid number.</source>
+        <translation>Nombre invalide.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Missing closing parenthesis after %1.</source>
+        <translation>Parenthèse fermante manquante après %1.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Missing closing parenthesis.</source>
+        <translation>Parenthèse fermante manquante.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>No streamline segments were generated in the selected domain.</source>
+        <translation>Aucun segment de ligne de courant n&apos;a été généré dans le domaine sélectionné.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Parametric ranges must increase and each resolution must be 2 to 512.</source>
+        <translation>Les plages paramétriques doivent être croissantes et chaque résolution doit être comprise entre 2 et 512.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Row %1 has %2 columns; expected %3.</source>
+        <translation>La ligne %1 a %2 colonnes ; %3 attendues.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Row %1 has a negative error.</source>
+        <translation>La ligne %1 a une erreur négative.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Row %1 has a non-positive bar width or depth.</source>
+        <translation>La ligne %1 a une largeur ou une profondeur de barre non positive.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Row %1 has a voxel index that is not a non-negative integer.</source>
+        <translation>La ligne %1 a un indice de voxel qui n&apos;est pas un entier non négatif.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Row %1 has an invalid %2 value in column &apos;%3&apos;.</source>
+        <translation>La ligne %1 a une valeur %2 invalide dans la colonne &apos;%3&apos;.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Row %1 has an occupancy outside the 0 to 1 range.</source>
+        <translation>La ligne %1 a une occupation en dehors de la plage 0 à 1.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Streamline ranges must increase and the seed count must be 2 to 128.</source>
+        <translation>Les plages des lignes de courant doivent être croissantes et le nombre de germes doit être compris entre 2 et 128.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>The %1 column is not selected or is outside the table.</source>
+        <translation>La colonne %1 n&apos;est pas sélectionnée ou se trouve en dehors du tableau.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>The expression produced a non-finite value.</source>
+        <translation>L&apos;expression a produit une valeur non finie.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>The implicit field does not cross zero inside the selected ranges.</source>
+        <translation>Le champ implicite ne franchit pas zéro dans les plages sélectionnées.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>The parameter range must increase and the sample count must be 2 to 8192.</source>
+        <translation>La plage du paramètre doit être croissante et le nombre d&apos;échantillons doit être compris entre 2 et 8192.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>The table has column names but no data rows.</source>
+        <translation>Le tableau a des noms de colonnes mais aucune ligne de données.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>The table has no columns.</source>
+        <translation>Le tableau n&apos;a aucune colonne.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>The table has no data.</source>
+        <translation>Le tableau ne contient aucune donnée.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>The table is empty.</source>
+        <translation>Le tableau est vide.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Unexpected character &apos;%1&apos;.</source>
+        <translation>Caractère inattendu &apos;%1&apos;.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Unexpected text after a closing quote on line %1.</source>
+        <translation>Texte inattendu après un guillemet fermant à la ligne %1.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Unknown function or wrong argument count: %1.</source>
+        <translation>Fonction inconnue ou nombre d&apos;arguments incorrect : %1.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Unknown variable: %1.</source>
+        <translation>Variable inconnue : %1.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Unterminated quoted field at the end of the input.</source>
+        <translation>Champ entre guillemets non terminé à la fin de l&apos;entrée.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Vector-field ranges must increase and each resolution must be 2 to 128.</source>
+        <translation>Les plages du champ vectoriel doivent être croissantes et chaque résolution doit être comprise entre 2 et 128.</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>X index</source>
+        <translation>Indice X</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Y index</source>
+        <translation>Indice Y</translation>
+    </message>
+    <message>
+        <location filename="../src/Plot3D/Core/Plot3DFormula.cpp" line="1"/>
+        <source>Z index</source>
+        <translation>Indice Z</translation>
+    </message>
     <message>
         <source>Apply ADS Colors</source>
         <translation type="vanished">Appliquer les Couleurs ADS</translation>
