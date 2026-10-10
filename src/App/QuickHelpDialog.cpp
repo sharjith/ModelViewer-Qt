@@ -181,7 +181,7 @@ void QuickHelpDialog::setupUI()
 	_tabWidget->addTab(_advancedBrowser, tr("Advanced Features"));
 	_tabWidget->addTab(_measurementBrowser, tr("Measurement && Annotation"));
 	_tabWidget->addTab(_meshEditingBrowser, tr("Mesh Editing"));
-	_tabWidget->addTab(_simulationBrowser, tr("Simulation"));
+	_tabWidget->addTab(_simulationBrowser, tr("Simulation Results"));
 	_tabWidget->addTab(_plot3DBrowser, tr("3D Plots"));
 	_tabWidget->addTab(_analysisBrowser, tr("Analysis && Scenes"));
 	_tabWidget->addTab(_menuBrowser, tr("Menu Shortcuts"));

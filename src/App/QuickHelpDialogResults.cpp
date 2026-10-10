@@ -10,10 +10,11 @@ void QuickHelpDialog::setupSimulationTab()
 	QString content;
 
 	content += createSection(tr("Opening a result"),
-		tr("<p>Use <b>File &gt; Import</b> to open a result in its own document, or <b>Visualization &gt; Simulation &gt; Add Result to This Document...</b> to "
-		   "add one to the current document. Formats: VTK (.vtk, .vtu), CalculiX .frd, Exodus II, CGNS, MED, OpenFOAM (open the .foam file) and VTKHDF. The result "
-		   "is drawn as the model's outer surface, coloured by a field; the <b>Simulation</b> tab (bottom-left dock) controls how.</p>"));
-	content += createSection(tr("The Simulation tab"),
+		tr("<p>ModelViewer displays the results your solver has written; it does not run simulations.</p><p>Use <b>File &gt; Import</b> to open a result in its "
+		   "own document, or <b>Visualization &gt; Simulation Results &gt; Add Result to This Document...</b> to add one to the current document. Formats: VTK "
+		   "(.vtk, .vtu), CalculiX .frd, Exodus II, CGNS, MED, OpenFOAM (open the .foam file) and VTKHDF. The result is drawn as the model's outer surface, "
+		   "coloured by a field; the <b>Simulation Results</b> tab (bottom-left dock) controls how.</p>"));
+	content += createSection(tr("The Simulation Results tab"),
 		tr("<ul><li><b>Field</b> and <b>Component</b>: the field to colour by and one component or the magnitude; fields marked <b>[cells]</b> are element "
 		   "data</li><li><b>Range</b>: Automatic (all steps), Automatic (this step) or Custom; <b>Colormap</b> and <b>Contours</b></li><li><b>Show deformed "
 		   "shape</b> with a <b>Scale factor</b> (Auto picks one)</li><li><b>Mark minimum and maximum</b> labels the extremes on the visible "
@@ -37,8 +38,8 @@ void QuickHelpDialog::setupSimulationTab()
 		   "CSV...</b> (a header like <i>Name (unit)</i> gives the curve a unit; a different unit gets a second axis), <b>Save image...</b>, <b>Export data "
 		   "(CSV)...</b></li></ul>"));
 	content += createSection(tr("Comparing and saving"),
-		tr("<p><b>Compare</b> (or <b>Visualization &gt; Simulation &gt; Compare Results...</b>) shows two results side by side or stacked; <b>Same colour range "
-		   "for both</b> makes equal colours mean equal values and <b>Link the cameras</b> keeps both views in step. A result is stored inside a <b>.mvf</b> "
+		tr("<p><b>Compare</b> (or <b>Visualization &gt; Simulation Results &gt; Compare Results...</b>) shows two results side by side or stacked; <b>Same colour "
+		   "range for both</b> makes equal colours mean equal values and <b>Link the cameras</b> keeps both views in step. A result is stored inside a <b>.mvf</b> "
 		   "session together with its view settings, sections, iso-surfaces and streamlines. Results are not drawn by the ray tracer; PBR and ray-tracing modes "
 		   "add little for them.</p>"));
 
