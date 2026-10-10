@@ -1,5 +1,7 @@
 #include "ModelViewer.h"
 
+#include "MainWindow.h"
+
 #include "AnalysisColorRamp.h"
 #include "Plot3DAssembly.h"
 #include "Plot3DAxisController.h"
@@ -146,7 +148,9 @@ void ModelViewer::addPlot3DSession(Plot3DSession session)
 		return;
 	if (session.title.trimmed().isEmpty())
 		session.title = session.name;
+	const QUuid previousActive = activePlot3DMeshUuid(); // the plot whose axes the box has now
 	_plot3DSessions.push_back(std::move(session));
+	unifyPlot3DAxes(previousActive); // the new plot is drawn with them too
 	markNonUndoDocumentModified();
 	activatePlot3DSession(_plot3DSessions.back().meshUuid);
 	emit plot3DSessionsChanged(true);
@@ -633,6 +637,7 @@ void ModelViewer::setPlot3DSectionProbe(const QUuid& meshUuid, bool enabled)
 	if (!session || !_viewportWidget || session->primitive != Plot3DPrimitive::Surface || session->sectionProbe == enabled)
 		return;
 	session->sectionProbe = enabled;
+	_viewportWidget->setPlot3DSectionProbeAxes(meshUuid, session->axes);
 	_viewportWidget->setPlot3DSectionProbeEnabled(meshUuid, enabled);
 	emit plot3DSessionsChanged(false);
 }
@@ -670,6 +675,10 @@ bool ModelViewer::applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<
 	Plot3DSession* session = sessionFor(_plot3DSessions, meshUuid);
 	if (!session)
 		return false;
+	// The axes are shared: the new settings must be able to place every plot's data, not only this one's (a Log 10 axis needs all of it above zero).
+	for (const Plot3DSession& other : std::as_const(_plot3DSessions))
+		if (_viewportWidget && _viewportWidget->getIndexByUuid(other.meshUuid) >= 0 && !plot3DAxesFitBounds(axes, other.dataMinimum, other.dataMaximum))
+			return false;
 	// Validate before committing the edit.  In particular, a Log10 axis with
 	// non-positive bounds has no drawable layout; retaining that invalid state
 	// would make the panel say it applied settings that the viewport cannot show.
@@ -681,35 +690,128 @@ bool ModelViewer::applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<
 	if (!visiblePlotBounds(this, minimum, maximum)
 		|| !controller.buildLayout(axes, minimum.data(), maximum.data(), layout, &error, session->title))
 		return false;
-	// The geometry follows the scale: every mesh of the plot is moved from the old axes' space to the new one.
-	const std::array<Plot3DAxisConfig, 3> previousAxes = session->axes;
-	session->axes = axes;
-	if (_viewportWidget)
+	// The geometry follows the scale: every plot's meshes are moved from the axes it is drawn with to the new ones.
+	bool moved = false;
+	for (Plot3DSession& each : _plot3DSessions)
 	{
-		bool moved = false;
-		for (const QUuid& uuid : { session->meshUuid, session->markerMeshUuid, session->contourOverlayMeshUuid })
-		{
-			if (uuid.isNull())
-				continue;
-			SceneMesh* mesh = _viewportWidget->getMeshByUuid(uuid);
-			if (!mesh)
-				continue;
-			rescaleMesh(_viewportWidget, mesh, previousAxes, axes);
-			moved = true;
-		}
-		if (moved)
-		{
-			applyPlot3DColourState(meshUuid, session->colourMinimum, session->colourMaximum, session->colormap, session->bands);
-			if (session->pathlineAnimation)
-				refreshPlot3DPathlineAnimation(meshUuid); // the vertex layout was replaced, so the playback ranges are rebuilt
-			_viewportWidget->updateView();
-		}
+		if (!_viewportWidget || _viewportWidget->getIndexByUuid(each.meshUuid) < 0)
+			continue; // a deleted plot waiting in the undo history: unified when it returns (unifyPlot3DAxes)
+		const std::array<Plot3DAxisConfig, 3> previousAxes = each.axes;
+		each.axes = axes;
+		moved = rescalePlot3DSessionGeometry(each, previousAxes, axes) || moved;
 	}
-	if (meshUuid == _activePlot3DMesh)
-		applyAxes(this, session);
+	if (moved && _viewportWidget)
+		_viewportWidget->updateView();
+	if (Plot3DSession* active = sessionFor(_plot3DSessions, activePlot3DMeshUuid()))
+		applyAxes(this, active);
 	markNonUndoDocumentModified();
 	emit plot3DSessionsChanged(false);
 	return true;
+}
+
+bool ModelViewer::rescalePlot3DSessionGeometry(Plot3DSession& session, const std::array<Plot3DAxisConfig, 3>& from, const std::array<Plot3DAxisConfig, 3>& to)
+{
+	if (_viewportWidget && session.primitive == Plot3DPrimitive::Surface)
+		_viewportWidget->setPlot3DSectionProbeAxes(session.meshUuid, to); // the hover readout shows data values on the plot's current axes
+	if (!_viewportWidget || (plot3DSameAxisScale(from[0], to[0]) && plot3DSameAxisScale(from[1], to[1]) && plot3DSameAxisScale(from[2], to[2])))
+		return false;
+	// A quiver's arrows are anchored on its site mesh, so their positions follow it; their directions are carried by the scale's local stretch. The
+	// sites are read before the mesh moves: the stretch depends on where each arrow sits in the OLD space.
+	GlyphSet arrows;
+	bool haveArrows = false;
+	if (session.primitive == Plot3DPrimitive::Quiver)
+	{
+		const GlyphSet* current = _viewportWidget->simulationGlyphSet(session.meshUuid);
+		const SceneMesh* siteMesh = _viewportWidget->getMeshByUuid(session.meshUuid);
+		if (current && siteMesh)
+		{
+			arrows = *current;
+			const std::vector<Vertex> sites = siteMesh->vertices();
+			std::vector<float> positions(arrows.anchors.size());
+			for (std::size_t i = 0; i + 2 < arrows.anchors.size(); i += 3)
+			{
+				const std::uint32_t anchor = arrows.anchors[i];
+				for (std::size_t axis = 0; axis < 3; ++axis)
+					positions[i + axis] = anchor < sites.size() ? sites[anchor].Position[static_cast<int>(axis)] : 0.0f;
+			}
+			plot3DStretchVectors(arrows.vectors, positions, from, to);
+			haveArrows = true;
+		}
+	}
+	// A voxel plot's volume is a regular grid in data space: on a non-linear axis it is rebuilt from the plot's own table and resampled onto a grid regular in
+	// the scaled space (from the table, not from the grid on screen, so changing the scale back and forth never degrades it). Its eight proxy vertices follow.
+	VolumeGrid voxelVolume;
+	std::vector<Vertex> voxelProxy;
+	const bool haveVoxel = session.primitive == Plot3DPrimitive::Voxel && plot3DVoxelVolumeForSession(session, to, voxelVolume, voxelProxy);
+	bool moved = false;
+	for (const QUuid& uuid : { session.meshUuid, session.markerMeshUuid, session.contourOverlayMeshUuid })
+	{
+		if (uuid.isNull())
+			continue;
+		SceneMesh* mesh = _viewportWidget->getMeshByUuid(uuid);
+		if (!mesh)
+			continue;
+		if (haveVoxel && uuid == session.meshUuid)
+		{
+			_viewportWidget->makeCurrent();
+			mesh->setMeshData(voxelProxy, {});
+			_viewportWidget->setSimulationVolume(session.meshUuid, std::move(voxelVolume), session.colormap, plot3DVoxelOpacity());
+			_viewportWidget->doneCurrent();
+			moved = true;
+			continue;
+		}
+		rescaleMesh(_viewportWidget, mesh, from, to);
+		moved = true;
+	}
+	if (moved && haveArrows)
+	{
+		_viewportWidget->makeCurrent();
+		_viewportWidget->setSimulationGlyphs(session.meshUuid, std::move(arrows));
+		_viewportWidget->doneCurrent();
+	}
+	if (moved)
+	{
+		applyPlot3DColourState(session.meshUuid, session.colourMinimum, session.colourMaximum, session.colormap, session.bands);
+		if (session.pathlineAnimation)
+			refreshPlot3DPathlineAnimation(session.meshUuid); // the vertex layout was replaced, so the playback ranges are rebuilt
+	}
+	return moved;
+}
+
+void ModelViewer::unifyPlot3DAxes(const QUuid& referenceMesh)
+{
+	const Plot3DSession* reference = sessionFor(_plot3DSessions, referenceMesh);
+	if (!reference || !_viewportWidget)
+		return;
+	auto present = [this](const Plot3DSession& session) { return _viewportWidget->getIndexByUuid(session.meshUuid) >= 0; };
+	std::array<Plot3DAxisConfig, 3> target = reference->axes;
+	// An axis some plot's data cannot be placed on goes back to Linear for every plot.
+	QStringList downgraded;
+	for (const Plot3DSession& session : std::as_const(_plot3DSessions))
+	{
+		if (!present(session))
+			continue;
+		int bad = -1;
+		while (!plot3DAxesFitBounds(target, session.dataMinimum, session.dataMaximum, &bad) && bad >= 0 && target[static_cast<std::size_t>(bad)].scale != Plot3DAxisScale::Linear)
+		{
+			target[static_cast<std::size_t>(bad)].scale = Plot3DAxisScale::Linear;
+			downgraded << QString(QLatin1Char(static_cast<char>('X' + bad)));
+			bad = -1;
+		}
+	}
+	bool moved = false;
+	for (Plot3DSession& session : _plot3DSessions)
+	{
+		if (!present(session))
+			continue; // a deleted plot waiting in the undo history keeps its own axes until it returns
+		const std::array<Plot3DAxisConfig, 3> previousAxes = session.axes;
+		session.axes = target; // labels, ranges and ticks too
+		moved = rescalePlot3DSessionGeometry(session, previousAxes, target) || moved;
+	}
+	if (moved)
+		_viewportWidget->updateView();
+	if (!downgraded.isEmpty())
+		MainWindow::showStatusMessage(tr("The %1 axis was returned to Linear: a plot's values there reach zero or below, which a Log 10 axis cannot show.").arg(downgraded.join(QStringLiteral(", "))), 8000);
 }
 
 void ModelViewer::setPlot3DTextLabels(const QUuid& meshUuid, const std::vector<Plot3DTextLabel>& labels, const QString& undoText)
@@ -952,8 +1054,9 @@ void ModelViewer::clearPlot3DPreview()
 
 void ModelViewer::refreshPlot3DAxes()
 {
-	refreshPlot3DNotes();
 	const QUuid active = activePlot3DMeshUuid();
+	unifyPlot3DAxes(active); // a plot brought back by undo may carry other axes
+	refreshPlot3DNotes();
 	Plot3DSession* session = sessionFor(_plot3DSessions, active);
 	if (session)
 		applyAxes(this, session);

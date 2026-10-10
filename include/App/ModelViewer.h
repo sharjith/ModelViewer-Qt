@@ -670,6 +670,13 @@ public slots:
 	// Rebuilds the shared axis box from every visible Plot3D session while
 	// retaining the active session's labels/scale/custom-range choices.
 	void refreshPlot3DAxes();
+	// The axes (scales, ranges, labels) are ONE set shared by every plot in the box: every plot is drawn with the same ones. This makes every plot
+	// present in the viewer use the axes of `referenceMesh`'s plot, moving each plot's geometry from the scales it was drawn with to those. An axis a
+	// plot's data cannot be placed on (a Log 10 axis over values at or below zero) goes back to Linear for all. Called when a plot joins, when a file
+	// is restored and when the box is refreshed (a plot that returns by undo).
+	void unifyPlot3DAxes(const QUuid& referenceMesh);
+	// Moves one plot's meshes (and what hangs on them) from the axes it is drawn with to new ones. False when the scales are the same (nothing moves).
+	bool rescalePlot3DSessionGeometry(Plot3DSession& session, const std::array<Plot3DAxisConfig, 3>& from, const std::array<Plot3DAxisConfig, 3>& to);
 	void refreshPlot3DLegend();
 	void applyPlot3DColourState(const QUuid& meshUuid, float minimum, float maximum, int colormap, int bands);
 	void setPlot3DAutomaticColourRange(const QUuid& meshUuid, bool automatic);
@@ -695,7 +702,8 @@ public slots:
 	void refreshPlot3DContourOverlay(const QUuid& meshUuid);
 	void setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visible);
 	void applyPlot3DReferencePlanes(const QUuid& meshUuid, const std::array<bool, 3>& visible, float opacity);
-	// False when the settings cannot be drawn (e.g. a Log 10 axis over a range that reaches zero); nothing is changed then.
+	// The settings apply to EVERY plot (the axes are shared). False when they cannot be drawn for some plot (e.g. a Log 10 axis over data that reaches
+	// zero); nothing is changed then.
 	bool applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<Plot3DAxisConfig, 3>& axes);
 	void setPlot3DAxisTitle(const QUuid& meshUuid, const QString& title);
 	// Text notes at data coordinates, drawn in the axes box while the plot is visible (not undoable; saved with the plot).

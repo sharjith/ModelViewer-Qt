@@ -64,6 +64,33 @@ double plot3DInverseAxisValue(double value, const Plot3DAxisConfig& config);
 std::vector<Plot3DAxisTick> plot3DGenerateAxisTicks(double minimum, double maximum,
 	const Plot3DAxisConfig& config);
 
+// Whether `axes` can place data spanning [minimum, maximum] on each axis: a Log 10 axis needs a positive minimum, a SymLog one a positive linear
+// threshold. On false, `badAxis` (when given) receives the first axis (0..2) that cannot. The axes of the box are shared by every plot in it, so this is
+// asked of each plot's data before a scale is applied.
+bool plot3DAxesFitBounds(const std::array<Plot3DAxisConfig, 3>& axes, const std::array<double, 3>& minimum, const std::array<double, 3>& maximum,
+	int* badAxis = nullptr);
+
+// Re-aims vectors drawn in the space of the axes `from` for the space of `to`: each vector is carried by the local stretch of the scale at its site
+// (the Jacobian of the axis-wise transform is diagonal: to's slope over from's slope, per axis), so an arrow keeps pointing along the same data
+// direction. Each vector keeps its OWN length (it carries the magnitude; only the direction changes). `sitePositions` holds 3 floats per vector, the site
+// in the `from` space; a vector with no usable stretch is left as it is.
+void plot3DStretchVectors(std::vector<float>& vectors, const std::vector<float>& sitePositions, const std::array<Plot3DAxisConfig, 3>& from,
+	const std::array<Plot3DAxisConfig, 3>& to);
+
+// A voxel grid drawn on non-linear axes: the cells of a grid (unit cells in data space, `origin` + index) are resampled onto a grid that is REGULAR in the
+// scaled space, because the volume renderer needs a regular grid. Each output cell takes the value of the data cell under its centre (nearest, so an empty
+// cell stays empty); a scaled axis gets up to twice the cells so the stretched part keeps its detail (at most 256). A Linear axis is copied as it is.
+// False when the grid's extent cannot be placed on the axes (a Log 10 axis over a grid reaching zero).
+struct Plot3DResampledVoxels
+{
+	std::vector<float> values; // x fastest, then y, then z (the layout of Plot3DVoxelGrid / VolumeGrid)
+	int dim[3] = { 0, 0, 0 };
+	double minimum[3] = { 0.0, 0.0, 0.0 }; // the scaled-space corner of the grid
+	double size[3] = { 1.0, 1.0, 1.0 };    // the scaled-space size of one output cell
+};
+bool plot3DResampleVoxels(const std::vector<float>& values, const int dim[3], const double origin[3], const std::array<Plot3DAxisConfig, 3>& axes,
+	Plot3DResampledVoxels& out);
+
 // True when two configs draw an axis the same way (same scale, and the same linear threshold for SymLog).
 bool plot3DSameAxisScale(const Plot3DAxisConfig& a, const Plot3DAxisConfig& b);
 // d(transformed)/d(value) at `value`: how much the scale stretches that axis there (1 for Linear).

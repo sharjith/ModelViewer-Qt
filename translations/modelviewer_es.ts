@@ -7019,6 +7019,11 @@ para añadir desde la escena/árbol</translation>
 <context>
     <name>ModelViewer</name>
     <message>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="1"/>
+        <source>The %1 axis was returned to Linear: a plot&apos;s values there reach zero or below, which a Log 10 axis cannot show.</source>
+        <translation>El eje %1 volvió a Lineal: los valores de un gráfico llegan a cero o menos, algo que un eje Log 10 no puede mostrar.</translation>
+    </message>
+    <message>
         <location filename="../ui/App/ModelViewer.ui" line="24"/>
         <source>Session 1</source>
         <translation>Sesión 1</translation>
@@ -9560,6 +9565,11 @@ La superficie se muestra con los colores que tenía al guardarla.</translation>
 <context>
     <name>Plot3DControlsPanel</name>
     <message>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="1"/>
+        <source>The axes are shared: every plot in the box is drawn with these scales, ranges and labels.</source>
+        <translation>Los ejes son compartidos: todos los gráficos de la caja se dibujan con estas escalas, rangos y etiquetas.</translation>
+    </message>
+    <message>
         <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="300"/>
         <source>Add 3D Plot...</source>
         <translation>Añadir gráfico 3D...</translation>
@@ -9849,8 +9859,8 @@ haga doble clic para editar su texto y clic derecho para eliminarla.</translatio
     </message>
     <message>
         <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="665"/>
-        <source>These axis settings were not applied: the range is not valid for the selected scale (a Log 10 axis needs a range above zero).</source>
-        <translation>No se aplicaron estos ajustes del eje: el rango no es válido para la escala seleccionada (un eje Log 10 necesita un rango superior a cero).</translation>
+        <source>These axis settings were not applied: they cannot be drawn for every plot in the box (a Log 10 axis needs a range above zero and the data of every plot above zero).</source>
+        <translation>No se aplicaron estos ajustes de ejes: no pueden dibujarse para todos los gráficos de la caja (un eje Log 10 necesita un rango por encima de cero y los datos de cada gráfico por encima de cero).</translation>
     </message>
     <message>
         <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="316"/>
@@ -9944,6 +9954,11 @@ Se dibujan en el cuadro de ejes, por lo que siguen la visibilidad y los ejes del
 </context>
 <context>
     <name>Plot3DPanel</name>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="1"/>
+        <source>The voxel grid cannot be placed on the current axes.</source>
+        <translation>La cuadrícula de vóxeles no puede colocarse en los ejes actuales.</translation>
+    </message>
     <message>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1"/>
         <source>Opacity:</source>

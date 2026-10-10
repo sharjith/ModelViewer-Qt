@@ -9837,6 +9837,13 @@ void ViewportWidget::setPlot3DSectionProbeEnabled(const QUuid& meshUuid, bool en
 	update();
 }
 
+void ViewportWidget::setPlot3DSectionProbeAxes(const QUuid& meshUuid, const std::array<Plot3DAxisConfig, 3>& axes)
+{
+	_sectionProbeAxes.insert(meshUuid, axes);
+	if (_sectionProbeMesh == meshUuid)
+		clearPlot3DSectionProbe(); // its text was made with the previous axes; the next hover rebuilds it
+}
+
 void ViewportWidget::clearPlot3DSectionProbe()
 {
 	if (_sectionProbeMesh.isNull() && _sectionProbeLines.empty())
@@ -9903,8 +9910,13 @@ void ViewportWidget::updatePlot3DSectionProbe(const QPoint& pixel)
 	_sectionProbeMesh = anchor.meshUuid;
 	_sectionProbePoint = point;
 	_sectionProbePixel = pixel;
-	_sectionProbeText = QStringLiteral("X %1   Y %2   Z %3")
-		.arg(static_cast<double>(point.x()), 0, 'g', 5).arg(static_cast<double>(point.y()), 0, 'g', 5).arg(static_cast<double>(point.z()), 0, 'g', 5);
+	// The readout is the DATA value: on a log / symlog axis the mesh holds scaled coordinates, taken back through that axis's inverse.
+	double shown[3] = { static_cast<double>(point.x()), static_cast<double>(point.y()), static_cast<double>(point.z()) };
+	const auto axesIt = _sectionProbeAxes.constFind(anchor.meshUuid);
+	if (axesIt != _sectionProbeAxes.constEnd())
+		for (std::size_t axis = 0; axis < 3; ++axis)
+			shown[axis] = plot3DInverseAxisValue(shown[axis], axesIt.value()[axis]);
+	_sectionProbeText = QStringLiteral("X %1   Y %2   Z %3").arg(shown[0], 0, 'g', 5).arg(shown[1], 0, 'g', 5).arg(shown[2], 0, 'g', 5);
 
 	// One curve per axis, in that axis's own colour (the same red / green / blue as the axis labels).
 	_sectionProbeLines.clear();

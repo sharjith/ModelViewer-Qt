@@ -347,6 +347,7 @@ void Plot3DControlsPanel::applyTexts()
 	_barDepthScale->setToolTip(tr("Scale every bar's imported depth while keeping its centre fixed."));
 
 	_axesGroup->setTitle(tr("Axes"));
+	_axesGroup->setToolTip(tr("The axes are shared: every plot in the box is drawn with these scales, ranges and labels."));
 	_plotTitle->setPlaceholderText(tr("Plot title"));
 	_titleLabel->setText(tr("Title:"));
 	_planesLabel->setText(tr("Planes:"));
@@ -517,10 +518,9 @@ void Plot3DControlsPanel::refreshState()
 		const Plot3DAxisConfig& axis = session->axes[i];
 		_axisLabels[i]->setText(axis.label); _axisScales[i]->setCurrentIndex(_axisScales[i]->findData(static_cast<int>(axis.scale)));
 		_axisAutomatic[i]->setChecked(axis.automaticRange); _axisMinimum[i]->setValue(axis.minimum); _axisMaximum[i]->setValue(axis.maximum); _axisTicks[i]->setValue(axis.targetTicks);
-		// Arrows and voxels are drawn by their own renderers, which cannot follow a logarithmic scale: those plots stay Linear.
-		const bool scalable = session->primitive != Plot3DPrimitive::Quiver && session->primitive != Plot3DPrimitive::Voxel;
-		_axisLabels[i]->setEnabled(true); _axisScales[i]->setEnabled(scalable); _axisAutomatic[i]->setEnabled(true); _axisTicks[i]->setEnabled(true);
-		_axisScales[i]->setToolTip(scalable ? QString() : tr("Quiver and voxel plots are always drawn on linear axes."));
+		// The axes are shared by every plot, and every kind of plot follows a non-linear scale now (arrows are re-aimed, a voxel grid is resampled).
+		_axisLabels[i]->setEnabled(true); _axisScales[i]->setEnabled(true); _axisAutomatic[i]->setEnabled(true); _axisTicks[i]->setEnabled(true);
+		_axisScales[i]->setToolTip(QString());
 		_axisMinimum[i]->setEnabled(!axis.automaticRange); _axisMaximum[i]->setEnabled(!axis.automaticRange);
 	}
 	_axisStatus->setText(tr("%1. Use the scene tree checkbox to show or hide this plot.")
@@ -662,6 +662,6 @@ void Plot3DControlsPanel::applyAxisState()
 	{
 		// Put the controls back to the plot's own settings, and say why nothing changed.
 		refreshState();
-		QMessageBox::warning(this, tr("Axis scale"), tr("These axis settings were not applied: the range is not valid for the selected scale (a Log 10 axis needs a range above zero)."));
+		QMessageBox::warning(this, tr("Axis scale"), tr("These axis settings were not applied: they cannot be drawn for every plot in the box (a Log 10 axis needs a range above zero and the data of every plot above zero)."));
 	}
 }

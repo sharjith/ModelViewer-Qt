@@ -7020,6 +7020,11 @@ to add from the scene/tree</source>
 <context>
     <name>ModelViewer</name>
     <message>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="1"/>
+        <source>The %1 axis was returned to Linear: a plot&apos;s values there reach zero or below, which a Log 10 axis cannot show.</source>
+        <translation>L&apos;axe %1 est revenu à Linéaire : les valeurs d&apos;un tracé y atteignent zéro ou moins, ce qu&apos;un axe Log 10 ne peut pas afficher.</translation>
+    </message>
+    <message>
         <location filename="../ui/App/ModelViewer.ui" line="24"/>
         <source>Session 1</source>
         <translation>Séance 1</translation>
@@ -9557,6 +9562,11 @@ La surface est affichée avec les couleurs qu&apos;elle avait lors de l&apos;enr
 <context>
     <name>Plot3DControlsPanel</name>
     <message>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="1"/>
+        <source>The axes are shared: every plot in the box is drawn with these scales, ranges and labels.</source>
+        <translation>Les axes sont partagés : chaque tracé de la boîte est dessiné avec ces échelles, plages et libellés.</translation>
+    </message>
+    <message>
         <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="300"/>
         <source>Add 3D Plot...</source>
         <translation>Ajouter un graphique 3D...</translation>
@@ -9846,8 +9856,8 @@ double-cliquez pour modifier son texte, clic droit pour la supprimer.</translati
     </message>
     <message>
         <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="665"/>
-        <source>These axis settings were not applied: the range is not valid for the selected scale (a Log 10 axis needs a range above zero).</source>
-        <translation>Ces réglages d&apos;axe n&apos;ont pas été appliqués : la plage n&apos;est pas valide pour l&apos;échelle choisie (un axe Log 10 nécessite une plage supérieure à zéro).</translation>
+        <source>These axis settings were not applied: they cannot be drawn for every plot in the box (a Log 10 axis needs a range above zero and the data of every plot above zero).</source>
+        <translation>Ces réglages d&apos;axes n&apos;ont pas été appliqués : ils ne peuvent pas être dessinés pour chaque tracé de la boîte (un axe Log 10 exige une plage au-dessus de zéro et les données de chaque tracé au-dessus de zéro).</translation>
     </message>
     <message>
         <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="316"/>
@@ -9941,6 +9951,11 @@ Elles sont dessinées dans la boîte des axes : elles suivent donc la visibilit�
 </context>
 <context>
     <name>Plot3DPanel</name>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="1"/>
+        <source>The voxel grid cannot be placed on the current axes.</source>
+        <translation>La grille de voxels ne peut pas être placée sur les axes actuels.</translation>
+    </message>
     <message>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1"/>
         <source>Opacity:</source>

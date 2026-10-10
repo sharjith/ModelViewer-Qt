@@ -6044,6 +6044,11 @@ to add from the scene/tree</source>
 <context>
     <name>ModelViewer</name>
     <message>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="1"/>
+        <source>The %1 axis was returned to Linear: a plot&apos;s values there reach zero or below, which a Log 10 axis cannot show.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../ui/App/ModelViewer.ui" line="24"/>
         <source>Session 1</source>
         <translation></translation>
@@ -7611,6 +7616,11 @@ The surface is shown with the colours it had when it was saved.</source>
 <context>
     <name>Plot3DControlsPanel</name>
     <message>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="1"/>
+        <source>The axes are shared: every plot in the box is drawn with these scales, ranges and labels.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="300"/>
         <source>Add 3D Plot...</source>
         <translation type="unfinished"></translation>
@@ -7894,7 +7904,7 @@ double-click to edit its text, right-click for Delete.</source>
     </message>
     <message>
         <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="665"/>
-        <source>These axis settings were not applied: the range is not valid for the selected scale (a Log 10 axis needs a range above zero).</source>
+        <source>These axis settings were not applied: they cannot be drawn for every plot in the box (a Log 10 axis needs a range above zero and the data of every plot above zero).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -7975,6 +7985,11 @@ double-click to edit its text, right-click for Delete.</source>
 </context>
 <context>
     <name>Plot3DPanel</name>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="1"/>
+        <source>The voxel grid cannot be placed on the current axes.</source>
+        <translation type="unfinished"></translation>
+    </message>
     <message>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1"/>
         <source>Opacity:</source>
