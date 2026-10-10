@@ -1,0 +1,148 @@
+<h1 class="chapter appendix">Katalog der Beispieldateien</h1>
+
+<p>Die Beispiele liegen in <code>sample-models/Simulation</code> und <code>sample-models/Plot3D</code>; jeder Ordner hat eine <code>README.txt</code>, die jede Datei und ihre Herkunft beschreibt. Die Werte der erzeugten Dateien sind synthetisch: Sie testen das Programm, nicht die Physik.</p>
+
+<h2>Simulationsergebnisse</h2>
+<table class="compact">
+  <thead><tr><th style="width:30%">Datei</th><th>Was es ist</th><th style="width:20%">Gut für</th></tr></thead>
+  <tbody>
+    <tr><td><code>FEM_box_static_stress.vtu</code></td><td>Statische Analyse eines 10-mm-Quaders (CalculiX über FreeCAD): 280 Knoten, 129 quadratische Tetraeder; Verschiebung, von Mises, Tresca, Hauptspannungen</td><td>Erster Eindruck, Schnitte</td></tr>
+    <tr><td><code>FEM_box_frequency_mode1.vtu</code></td><td>Die erste Schwingungsmode desselben Quaders</td><td>Modaldarstellung</td></tr>
+    <tr><td><code>FEM_box_static.frd</code>, <code>FEM_box_frequency.frd</code></td><td>Dieselben Analysen, wie der Solver sie geschrieben hat (mm, MPa); von Mises usw. werden beim Laden abgeleitet</td><td>Einheiten, abgeleitete Felder</td></tr>
+    <tr><td><code>FEM_box_load_steps.frd</code></td><td>Eine Last, in vier Schritten hochgefahren</td><td>Zeitleiste, feste Farbskala</td></tr>
+    <tr><td><code>FEM_box_modes.frd</code>, <code>FEM_box_modes_frf.csv</code></td><td>Sechs Schwingungsmodi; eine synthetische Frequenzgangkurve mit sechs Spitzen</td><td>Modi, Sprung im Diagramm</td></tr>
+    <tr><td><code>FEM_box_thermal_transient.frd</code>, <code>thermal_probe_test.csv</code></td><td>Instationärer Wärmeübergang, 20 Schritte über 10 s; synthetische Thermoelement-Messwerte</td><td>Zeitdiagramm, CSV-Kurve, Einheiten</td></tr>
+    <tr><td><code>plate_with_hole.frd</code></td><td>Platte mit Loch, vier Laststufen (CalculiX, gmsh-Netz)</td><td>Spannungskonzentration, Ellipsoide, Diagramm entlang einer Linie</td></tr>
+    <tr><td><code>ibeam_cantilever.frd</code>, <code>ibeam_torsion.frd</code></td><td>Ein I-Träger auf Biegung und auf Torsion, je vier Laststufen</td><td>Vergleich, Ellipsoide</td></tr>
+    <tr><td><code>stress_states.vtu</code></td><td>Block mit drei Spannungstensoren (Biegung, Torsion, elementweise)</td><td>Die Wahl des Tensorfeldes</td></tr>
+    <tr><td><code>cell_data_cube.vtk</code></td><td>8 x 8 x 8 Hexaeder nur mit Zelldaten (<i>Element_Stress</i>, <i>Element_Group</i>)</td><td>Zelldaten, Mittelung</td></tr>
+    <tr><td><code>shell_plate_transient.frd</code>, <code>plate.vtk</code></td><td>Eine Schalenplatte mit 10 Temperaturschritten; eine schwingende Platte mit mehreren Vektorfeldern (nur Fläche)</td><td>Schalendiagramme</td></tr>
+    <tr><td><code>openfoam_cavity/cavity.foam</code></td><td>Ein OpenFOAM-Fall mit 20 x 20 x 1 Zellen, fünf Zeitverzeichnisse (synthetische Felder U, p, T, sigma)</td><td>Zelldaten, Einheiten aus Dimensionen, Bahnlinien</td></tr>
+    <tr><td><code>block.cgns</code>, <code>block.exo</code>, <code>block.vtkhdf</code></td><td>Derselbe 8 x 8 x 8-Block in drei Formaten, fünf Schritte: Temperatur, Geschwindigkeit (Vektor), eine Qualität pro Zelle</td><td>Isoflächen, Volumen, Formatleser</td></tr>
+    <tr><td><code>duct.cgns</code></td><td>Ein halbringförmiger Kanal aus zwei strukturierten Blöcken, vier Schritte einer Drallströmung</td><td>Stromlinien</td></tr>
+    <tr><td><code>pointe_4fields.med</code>, <code>fra.med</code></td><td>MED-Dateien aus dem Salome-Beispielsatz (gemischte Zelltypen; eine Knotengeschwindigkeit und ein Dampfanteil)</td><td>MED-Leser</td></tr>
+    <tr><td><code>polyhedra.*</code>, <code>hexa.vtk</code>, <code>post.vtk</code>, <code>tetraMesh.vtk</code>, <code>uGridEx.vtk</code>, <code>beampl.frd</code></td><td>Lesertests: Polyeder, ein glatter Skalar, ein Druckfeld, ein winziges Tetraedernetz, gemischte Zelltypen, ein CalculiX-Beispiel</td><td>Formattests</td></tr>
+    <tr><td><code>real/</code> and <code>large/</code></td><td>Von anderen Werkzeugen geschriebene Dateien (VTK-Testdaten) zum Testen der Leser; ein Generatorskript für sehr große Ergebnisse (1 Million Zellen; nicht in git)</td><td>Tests der Leser und des verzögerten Ladens</td></tr>
+  </tbody>
+</table>
+
+<h2>3D-Diagramme</h2>
+<table class="compact">
+  <thead><tr><th style="width:30%">Datei</th><th>Was es ist</th><th style="width:22%">Diagrammtyp</th></tr></thead>
+  <tbody>
+    <tr><td><code>surface_ripple.csv</code></td><td>sin(r)/r auf einem 21 x 21-Gitter</td><td>Fläche, Kontur</td></tr>
+    <tr><td><code>surface_scattered.csv</code></td><td>Vierzehn unregelmäßige Punkte mit geneigter Höhe</td><td>Fläche (trianguliert)</td></tr>
+    <tr><td><code>line_helix.csv</code></td><td>200 Punkte einer Schraubenlinie mit zwei Windungen</td><td>Linie / Kurve, Füllung</td></tr>
+    <tr><td><code>line_band.csv</code></td><td>Zwei sich kreuzende Kurven (Spalten z und z2), nach der Bandbreite eingefärbt</td><td>Linie, Füllung zwischen Kurven</td></tr>
+    <tr><td><code>line_growth.csv</code></td><td>z = 10^(x/2), von 1 bis 100</td><td>Linie, logarithmische Achse</td></tr>
+    <tr><td><code>scatter_clusters.csv</code></td><td>Drei Cluster zu je 60 Punkten, nach Kennung eingefärbt</td><td>Streudiagramm, Füllung</td></tr>
+    <tr><td><code>scatter_error_bars.csv</code></td><td>Punkte mit einer Fehlerspalte</td><td>Streudiagramm, Fehlerbalken</td></tr>
+    <tr><td><code>scatter_band.csv</code></td><td>Zwei Sätze von Z-Werten (z und z2)</td><td>Streudiagramm, Füllung zwischen</td></tr>
+    <tr><td><code>bar_histogram.csv</code>, <code>bar_histogram_1d.csv</code>, <code>bar_signed.csv</code></td><td>Eine 8 x 8-Erhebung aus Balken; acht Klassenzahlen; Balken über und unter ihrer Basis</td><td>Balken / Histogramm</td></tr>
+    <tr><td><code>voxel_sphere.csv</code></td><td>Eine Kugel in einem 9 x 9 x 9-Belegungsgitter</td><td>Voxel / Volumetrisch</td></tr>
+    <tr><td><code>quiver_vortex.csv</code></td><td>Eine Rotation um Z mit einer Aufwärtsdrift (7 x 7 x 3-Gitter)</td><td>Vektor (Quiver)</td></tr>
+    <tr><td><code>pathlines_double_gyre.csv</code>, <code>pathlines_rising_vortex_3d.csv</code>, <code>pathlines_openfoam_cavity.csv</code></td><td>Zeitabhängige Geschwindigkeitsfelder auf regelmäßigen Gittern</td><td>CSV-Zeitreihe (Bahnlinien)</td></tr>
+    <tr><td><code>image_gradient.png</code>, <code>image_gradient_alpha.png</code></td><td>Ein 320 x 200-Bild mit einer „L“-Markierung; dasselbe mit ausblendender Transparenz</td><td>Bild auf einer Ebene</td></tr>
+  </tbody>
+</table>
+
+
+<h1 class="chapter appendix">Kurzreferenz</h1>
+
+<h2>Wo was zu finden ist</h2>
+<table class="compact">
+  <thead><tr><th style="width:44%">Um dies zu tun</th><th>Gehen Sie zu</th></tr></thead>
+  <tbody>
+    <tr><td>Ein Ergebnis in einem eigenen Dokument öffnen</td><td><span class="path">Datei &rarr; Öffnen...</span></td></tr>
+    <tr><td>Ein Ergebnis zum aktuellen Dokument hinzufügen</td><td><span class="path">Visualisierung &rarr; Simulationsergebnisse &rarr; Ergebnis zu diesem Dokument hinzufügen...</span></td></tr>
+    <tr><td>Zwei Ergebnisse vergleichen</td><td><span class="path">Visualisierung &rarr; Simulationsergebnisse &rarr; Ergebnisse vergleichen...</span> oder <span class="ui">Vergleichen</span> in der Registerkarte</td></tr>
+    <tr><td>Feld, Bereich, Farbskala, Verformung, Schnitte, Volumen, Pfeile, Ellipsoide ändern</td><td>Die Registerkarte <span class="ui">Simulationsergebnisse</span> (Dock unten links)</td></tr>
+    <tr><td>Schneller Verlauf eines Punktes</td><td>Rechtsklick auf das Modell &rarr; <span class="ui">Verlauf hier darstellen</span></td></tr>
+    <tr><td>Ein 3D-Diagramm hinzufügen</td><td><span class="path">Visualisierung &rarr; 3D-Diagramm...</span> oder die Registerkarte <span class="ui">3D-Diagramm</span> &rarr; <span class="ui">3D-Diagramm hinzufügen...</span></td></tr>
+    <tr><td>Ein Diagramm gestalten, Achsen einstellen, Notizen, bearbeiten, animieren</td><td>Die Registerkarte <span class="ui">3D-Diagramm</span></td></tr>
+    <tr><td>Schnitte durch ein Ergebnis</td><td>Die Schaltfläche „Schnittansicht“ der Ansichtssymbolleiste</td></tr>
+    <tr><td>Kommentieren, messen, Bericht</td><td><span class="path">Werkzeuge &rarr; Kommentieren...</span>, <span class="path">Werkzeuge &rarr; Messen...</span>, <span class="path">Werkzeuge &rarr; Bericht exportieren...</span></td></tr>
+    <tr><td>Neuerungen, die Anleitung, die Schnellhilfe</td><td><span class="path">Hilfe &rarr; Neuerungen...</span>, <span class="path">Hilfe &rarr; Anleitung</span>, <span class="path">Hilfe &rarr; Schnellhilfe</span></td></tr>
+  </tbody>
+</table>
+
+<h2>Maus und Tastatur</h2>
+<table class="compact">
+  <thead><tr><th style="width:44%">Wo und was</th><th>Aktion</th></tr></thead>
+  <tbody>
+    <tr><td>Ansichtsfenster: drehen, verschieben, zoomen</td><td>Ziehen mit der mittleren Taste, Ziehen mit der rechten Taste, Rad (siehe Anleitung, Lektion 3)</td></tr>
+    <tr><td>Über ein Ergebnis fahren</td><td>Zeigt den Wert unter dem Cursor</td></tr>
+    <tr><td>Diagramm: zoomen</td><td>Rad; <kbd>Umschalt</kbd>+Rad nur x; <kbd>Strg</kbd>+Rad nur y</td></tr>
+    <tr><td>Diagramm: verschieben, zurücksetzen</td><td>Ziehen mit der mittleren Taste; Doppelklick</td></tr>
+    <tr><td>Zeitdiagramm: in der Zeit bewegen</td><td>Klicken oder Ziehen im Diagramm</td></tr>
+    <tr><td>Deckkraftkurve (Volumen)</td><td>Punkt ziehen; Doppelklick fügt hinzu; Rechtsklick entfernt einen inneren Punkt</td></tr>
+    <tr><td>Zeitleiste</td><td>Wiedergabe/Pause, zurück/weiter, Stopp, Schieberegler, Schleife, Geschwindigkeit; Leiste ziehen, um sie zu verschieben, Doppelklick, um sie zurückzusetzen</td></tr>
+    <tr><td>Diagrammnotizen</td><td>Notiz platzieren, dann klicken; ziehen zum Verschieben, Doppelklick zum Bearbeiten, Rechtsklick zum Löschen</td></tr>
+  </tbody>
+</table>
+
+<h2>Grenzen auf einen Blick</h2>
+<table class="compact">
+  <thead><tr><th style="width:44%">Größe</th><th>Wert</th></tr></thead>
+  <tbody>
+    <tr><td>Stufen der Isoflächen</td><td>1 bis 20</td></tr>
+    <tr><td>Startpunkte der Stromlinien</td><td>1 bis 500 (2000 Schritte oder vier Modelldiagonalen pro Richtung)</td></tr>
+    <tr><td>Volumenqualität</td><td>Niedrig 32, Mittel 64, Hoch 96, Sehr hoch 128</td></tr>
+    <tr><td>Anzahl der Ellipsoide</td><td>20 bis 5000</td></tr>
+    <tr><td>In einer Sitzung gespeicherte Zeitschritte</td><td>100 pro Ergebnis (gleichmäßig verteilt)</td></tr>
+    <tr><td>Ergebnisse werden verzögert gelesen ab</td><td>256 MB Schrittdaten, bei mehr als einem Schritt</td></tr>
+  </tbody>
+</table>
+
+
+<h1 class="chapter appendix">Meldungen und Fehlersuche</h1>
+
+<h2>Was Sie sehen können und was zu tun ist</h2>
+<table>
+  <thead><tr><th style="width:36%">Situation</th><th>Ursache und Abhilfe</th></tr></thead>
+  <tbody>
+    <tr><td>Ein Format fehlt im Öffnen-Dialog</td><td>Ihrem Build fehlt die Bibliothek dafür (NetCDF für Exodus, CGNS, HDF5 für VTKHDF und MED). <span class="path">Hilfe &rarr; Info</span> zeigt, was aktiviert ist.</td></tr>
+    <tr><td>„Ein Simulationsergebnis wird bereits geladen“</td><td>Es wird immer nur ein Ergebnis geladen; warten Sie auf den Fortschrittsbalken oder brechen Sie ihn ab.</td></tr>
+    <tr><td>Das Ergebnis öffnet sich grau, ohne Farben</td><td>Die Datei hat keine Felder (nur Geometrie). Das Feld sagt es.</td></tr>
+    <tr><td>Die Zahlen haben in der Legende keine Einheit</td><td>Die Datei gibt keine an. Wählen Sie sie unter <span class="ui">Größe</span> und <span class="ui">Werte sind in</span>.</td></tr>
+    <tr><td>Die Werte sind um den Faktor 1000 oder 1.000.000 falsch</td><td>Die Einheit der Datei weicht von Ihrer Annahme ab (Pa und MPa; mm und m). Prüfen Sie die Einheiten der Analyse und stellen Sie sie ein.</td></tr>
+    <tr><td>Die Farben unterscheiden sich zwischen Schritten oder Ergebnissen</td><td>Der Bereich gilt pro Schritt oder pro Ergebnis. Verwenden Sie <i>Automatisch (alle Schritte)</i>, einen <i>Benutzerdefinierten</i> Bereich oder <span class="ui">Gleicher Farbbereich für beide</span>.</td></tr>
+    <tr><td>„Dieses Ergebnis hat kein Verschiebungsfeld“</td><td>Es kann nicht verformt gezeigt werden; die Datei muss Verschiebungen enthalten.</td></tr>
+    <tr><td>Schnitte, Isoflächen, Stromlinien oder Volumen bewirken nichts</td><td>Das Ergebnis hat keine Volumenzellen (eine Schale), oder das gewählte Feld ist kein Knotenfeld (Stromlinien brauchen ein Knoten-Vektorfeld). Die Infozeile unter der Gruppe sagt, was zutrifft.</td></tr>
+    <tr><td>Isoflächen sind verborgen</td><td>Schalten Sie eine Schnittebene ein und <span class="ui">Schnitt der Schnittebene mit dem Feld einfärben</span> aus: Ein deckender Schnitt verbirgt, was dahinter liegt.</td></tr>
+    <tr><td>„Schnittflächen und Isoflächen werden so gezeigt, wie sie gespeichert wurden (eingefroren)“</td><td>Die Sitzung wurde ohne das Volumen gespeichert. Speichern Sie mit <span class="ui">Auch das Volumen speichern</span>, um sie lebendig zu halten.</td></tr>
+    <tr><td>Kein Tensor für die Ellipsoide wählbar</td><td>Das Ergebnis hat kein sechskomponentiges Feld mit <i>stress</i> im Namen.</td></tr>
+    <tr><td>Ein Diagramm ist leer oder zeigt nur einen Punkt</td><td>Ein Ergebnis mit einem Schritt zeigt seinen Verlauf als Punkt; ein Klick, der das Ergebnis verfehlt hat, liefert keine Daten.</td></tr>
+    <tr><td>Die Schaltfläche „Vergleichen“ ist nicht verfügbar</td><td>Das Dokument braucht zwei Ergebnisse; der Vergleich endet von selbst, wenn eines ausgeblendet oder geschlossen wird.</td></tr>
+    <tr><td>Diagramm: „Öffnen oder fügen Sie zuerst Tabellendaten ein“</td><td>Die CSV wurde nicht geladen.</td></tr>
+    <tr><td>Diagramm: eine Tabelle, die kein vollständiges Gitter ist</td><td>Eine Flächen- oder Bahnlinientabelle muss jede Gitterkombination einmal enthalten; die Meldung sagt, wie viele Zeilen nötig sind.</td></tr>
+    <tr><td>Diagramm: „Unbekannte Variable“, „Division durch null“, „log erfordert einen positiven Wert“</td><td>Korrigieren Sie den Ausdruck; <span class="ui">Diagramm erstellen</span> bleibt deaktiviert, bis er im gesamten Bereich auswertbar ist.</td></tr>
+    <tr><td>Diagramm: Eine Achse ist auf Linear zurückgesprungen</td><td>Eine Log-10-Achse kann kein Diagramm zeigen, dessen Werte null erreichen; alle Diagramme sind damit auf Linear zurückgekehrt. Verwenden Sie SymLog oder entfernen Sie dieses Diagramm.</td></tr>
+    <tr><td>Ein Bild erscheint gespiegelt</td><td>Sie sehen die Rückseite einer Bildebene. Aktivieren Sie <span class="ui">Von hinten lesbar</span> (nur bei deckenden Bildern) oder schauen Sie von vorn.</td></tr>
+    <tr><td>Glas oder andere Effekte fehlen im Diagramm</td><td>Diagramme und Ergebnisse werden in jedem Modus flach gezeichnet und nicht raygetraced.</td></tr>
+  </tbody>
+</table>
+
+
+<h1 class="chapter appendix">Glossar</h1>
+<dl class="def">
+  <dt>Randfläche</dt><dd>Die Flächen eines Volumenergebnisses, die zu genau einer Zelle gehören: die Haut, die gezeichnet wird.</dd>
+  <dt>Zelldaten</dt><dd>Ein Feld mit einem Wert pro Element, flach gezeichnet (auch: Elementdaten).</dd>
+  <dt>Kontur</dt><dd>Eine Linie (oder Bandkante) gleichen Wertes.</dd>
+  <dt>Abgeleitetes Feld</dt><dd>Ein Wert, der aus einem anderen Feld berechnet wird, etwa die von-Mises-Spannung aus einem Spannungstensor.</dd>
+  <dt>Verschiebung</dt><dd>Der Vektor, um den sich ein Knoten unter Last bewegt hat; die Grundlage der verformten Form.</dd>
+  <dt>Feld</dt><dd>Eine über das Modell definierte Größe: Skalar, Vektor oder Tensor.</dd>
+  <dt>Isofläche</dt><dd>Die Fläche in einem Volumen, auf der ein Feld einen konstanten Wert hat.</dd>
+  <dt>Verzögertes Laden</dt><dd>Einen Schritt erst dann aus der Datei lesen, wenn er gezeigt wird, sodass der Speicher nicht mit der Anzahl der Schritte wächst.</dd>
+  <dt>Modalform</dt><dd>Das Bewegungsmuster einer Struktur, die mit einer Eigenfrequenz schwingt; ihre Amplitude ist beliebig.</dd>
+  <dt>Knotendaten</dt><dd>Ein Feld mit einem Wert pro Netzpunkt, glatt interpoliert.</dd>
+  <dt>Bahnlinie</dt><dd>Die Spur eines Teilchens, das von einem sich mit der Zeit ändernden Feld getragen wird.</dd>
+  <dt>Hauptspannung</dt><dd>Eine der drei Normalspannungen in der Orientierung, in der die Schubspannung verschwindet.</dd>
+  <dt>Quiver</dt><dd>Ein Diagramm aus Pfeilen, einer für jeden Punkt eines Vektorfeldes.</dd>
+  <dt>Schnappschuss</dt><dd>Die Daten, die eine gespeicherte Sitzung von einem Ergebnis behält: die Fläche, die gewählten Felder und Schritte, Einheiten und Ansichtszustand.</dd>
+  <dt>Schritt</dt><dd>Ein Zustand eines Ergebnisses: eine Laststufe, ein Zeitschritt oder ein Modus.</dd>
+  <dt>Stromlinie</dt><dd>Der Weg entlang eines zu einem Zeitpunkt eingefrorenen Vektorfeldes.</dd>
+  <dt>SymLog</dt><dd>Eine Achsenskala, die für große Werte logarithmisch und nahe null linear ist und daher negative Zahlen zeigen kann.</dd>
+  <dt>Tensor-Glyphe</dt><dd>Ein Symbol (hier ein Ellipsoid), dessen Form und Größe einen Tensor zeigen.</dd>
+  <dt>Von-Mises-Spannung</dt><dd>Eine einzelne Vergleichsspannung, aus dem vollen Spannungstensor abgeleitet und zur Beurteilung des Fließens duktiler Werkstoffe verwendet.</dd>
+</dl>

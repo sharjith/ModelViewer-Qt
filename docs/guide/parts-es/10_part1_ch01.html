@@ -1,0 +1,80 @@
+<h1 class="part"><small>Parte I</small>Resultados de simulación</h1>
+
+<h1 class="chapter">Introducción a los resultados de simulación</h1>
+
+<p>Una simulación (un análisis de tensiones por elementos finitos, una ejecución de transferencia de calor, un cálculo de flujo) termina con un archivo de resultados: la malla con la que trabajó el solver y, para cada punto o celda, uno o más <b>campos</b> (tensión, desplazamiento, temperatura, velocidad, presión ...), normalmente para varios <b>pasos</b> (pasos de carga, modos de vibración, instantes de tiempo). ModelViewer lee ese archivo y muestra el modelo coloreado por un campo. Este capítulo explica la idea y el vocabulario; los capítulos siguientes recorren las funciones una a una.</p>
+
+<h2>Un visor, no un solver</h2>
+<p>El límite importa, porque explica tanto los puntos fuertes como las limitaciones. ModelViewer es de <b>solo lectura</b> respecto a la física: nunca cambia un valor, no realiza ningún cálculo propio aparte de la aritmética de visualización descrita más abajo (valores de tensión derivados, conversión de unidades, promediado) y no tiene solver, generador de mallas ni lenguaje de expresiones. A cambio sigue siendo pequeño y rápido, y cada resultado recibe las mismas herramientas de presentación que cualquier modelo: selección, secciones, medición, anotación, exportación de informes y el resto de la vista.</p>
+
+<figure>
+<svg width="640" height="150" viewBox="0 0 640 150" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="12">
+  <rect x="5" y="40" width="120" height="70" rx="8" fill="#e8f0fa" stroke="#2b6cb0"/>
+  <text x="65" y="70" text-anchor="middle" font-weight="600" fill="#14213d">Su solver</text>
+  <text x="65" y="88" text-anchor="middle" fill="#3e4c59">CalculiX, OpenFOAM,</text>
+  <text x="65" y="102" text-anchor="middle" fill="#3e4c59">Code_Aster, Elmer ...</text>
+  <path d="M125 75 H165" stroke="#2b6cb0" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="165" y="40" width="120" height="70" rx="8" fill="#fdf5e4" stroke="#b7791f"/>
+  <text x="225" y="70" text-anchor="middle" font-weight="600" fill="#14213d">Archivo de resultados</text>
+  <text x="225" y="88" text-anchor="middle" fill="#3e4c59" font-size="10.5">.vtu .vtk .frd .exo</text>
+  <text x="225" y="102" text-anchor="middle" fill="#3e4c59" font-size="10.5">.cgns .vtkhdf .med .foam</text>
+  <path d="M285 75 H325" stroke="#2b6cb0" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="325" y="25" width="150" height="100" rx="8" fill="#14213d"/>
+  <text x="400" y="55" text-anchor="middle" font-weight="600" fill="#fff">ModelViewer</text>
+  <text x="400" y="74" text-anchor="middle" fill="#cbd5e0">lee, colorea, corta,</text>
+  <text x="400" y="89" text-anchor="middle" fill="#cbd5e0">sondea, grafica, compara</text>
+  <text x="400" y="110" text-anchor="middle" fill="#f6ad55">no resuelve</text>
+  <path d="M475 75 H515" stroke="#2b6cb0" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="515" y="40" width="120" height="70" rx="8" fill="#e8f6ee" stroke="#2f855a"/>
+  <text x="575" y="70" text-anchor="middle" font-weight="600" fill="#14213d">Salida</text>
+  <text x="575" y="88" text-anchor="middle" fill="#3e4c59">imágenes, informe PDF,</text>
+  <text x="575" y="102" text-anchor="middle" fill="#3e4c59">sesión .mvf</text>
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#2b6cb0"/></marker></defs>
+</svg>
+<figcaption>Dónde se sitúa ModelViewer en un flujo de trabajo de simulación</figcaption>
+</figure>
+
+<h2>Lo que se ve: la superficie del contorno</h2>
+<p>Un resultado sólido tiene millones de celdas en su interior, pero un sólido se mira desde fuera. Por eso ModelViewer extrae la <b>superficie del contorno</b> (las caras que pertenecen a exactamente una celda) y la dibuja coloreada por el campo elegido. El interior no se pierde: las secciones, isosuperficies, líneas de corriente y la representación de volumen (capítulo 6) llegan hasta él, y las sondas y los gráficos leen valores de él. Los resultados que ya son superficies (modelos de lámina formados por triángulos o cuadriláteros) se dibujan tal cual.</p>
+<ul>
+  <li>Tipos de celda admitidos: tetraedros, hexaedros, cuñas, pirámides, sus formas cuadráticas (dibujadas a través de sus nodos de esquina) y poliedros con caras explícitas. Los triángulos y cuadriláteros son láminas.</li>
+  <li>Los tipos de celda que no tienen superficie que dibujar (polígonos, tiras de triángulos y vértices sueltos del formato VTK heredado, y las vigas 1D de una red) se leen pero no se muestran; es lo esperado.</li>
+  <li>La superficie mostrada es una malla normal de la escena, por lo que se puede seleccionar, ocultar, transformar, medir y anotar como cualquier otra.</li>
+</ul>
+
+<h2>Vocabulario</h2>
+<dl class="def">
+  <dt>Campo</dt><dd>Un tipo de valor sobre el modelo: un escalar (temperatura), un vector (desplazamiento, velocidad: tres componentes) o un tensor (tensión: seis componentes).</dd>
+  <dt>Datos de nodo y datos de celda</dt><dd>Un campo de <b>nodo</b> tiene un valor por punto de la malla y se dibuja interpolado suavemente. Un campo de <b>celda</b> tiene un valor por elemento y se dibuja en un color plano por elemento (marcado con <span class="ui">[celdas]</span> en la lista de campos).</dd>
+  <dt>Paso</dt><dd>Un estado del resultado: un incremento de carga, un paso de tiempo o un modo de vibración. Un resultado con varios pasos muestra una línea de tiempo.</dd>
+  <dt>Componente</dt><dd>Una de las partes de un vector o tensor (X, Y, Z ...) o su magnitud.</dd>
+  <dt>Intervalo</dt><dd>Los valores que abarca la escala de color, desde su color mínimo hasta su color máximo.</dd>
+  <dt>Campo derivado</dt><dd>Un valor calculado a partir de otro al cargar: en los archivos de tensiones, la tensión de von Mises, la tensión de Tresca, las tres tensiones principales y el cortante máximo.</dd>
+</dl>
+
+<h2>Formatos admitidos</h2>
+<p>Los lectores son propios de ModelViewer; no hay dependencia de VTK ni de ParaView. Los formatos que aparecen en el diálogo Abrir dependen de las bibliotecas que incluya su compilación.</p>
+<table>
+  <thead><tr><th style="width:22%">Formato</th><th style="width:22%">Extensiones</th><th>Notas</th></tr></thead>
+  <tbody>
+    <tr><td>VTK</td><td><code>.vtu</code>, <code>.vtk</code></td><td>El formato de intercambio habitual. Archivos XML (datos en línea, adjuntos en bruto y comprimidos) y archivos heredados (ASCII y binarios). Se admiten poliedros. La exportación FEM de FreeCAD escribe <code>.vtu</code>.</td></tr>
+    <tr><td>CalculiX</td><td><code>.frd</code></td><td>El archivo de resultados que escribe CalculiX (y que conserva FreeCAD FEM). Desplazamientos, tensiones y deformaciones; von Mises, tensiones principales y cortante máximo se derivan al cargar. Los valores están en las unidades propias del solver.</td></tr>
+    <tr><td>Exodus II</td><td><code>.e</code> <code>.exo</code> <code>.ex2</code> <code>.g</code></td><td>Habitual para resultados de MOOSE y Sierra. Necesita una compilación con NetCDF. Variables de nodo y de elemento, muchos pasos.</td></tr>
+    <tr><td>CGNS</td><td><code>.cgns</code></td><td>Zonas no estructuradas y estructuradas. Necesita una compilación con la biblioteca CGNS. Soluciones en vértices y en centros de celda; las secciones de condiciones de contorno se omiten.</td></tr>
+    <tr><td>VTKHDF</td><td><code>.vtkhdf</code></td><td>El formato VTK basado en HDF5 tal como lo escribe ParaView, incluidos los pasos de tiempo. Se leen mallas no estructuradas, datos poligonales y datos de imagen; los archivos compuestos aún no se admiten. Necesita HDF5.</td></tr>
+    <tr><td>MED</td><td><code>.med</code></td><td>Resultados de Code_Aster y Salome (MED 3 y posteriores). Necesita HDF5. Los archivos con el formato antiguo de Code_Aster 2.x deben convertirse (<i>medimport</i> de Salome).</td></tr>
+    <tr><td>OpenFOAM</td><td><code>.foam</code></td><td>Abra el archivo <code>.foam</code> (vacío) de la carpeta del caso. Los directorios de tiempo del caso se convierten en los pasos. Se admiten mallas poliédricas.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout"><span class="label">Nota</span>
+  <p><b>Ayuda &rarr; Acerca de</b> enumera las bibliotecas opcionales de su compilación. Si falta una extensión en el filtro del diálogo Abrir, esa compilación se hizo sin la biblioteca correspondiente y el formato no se abrirá.</p>
+</div>
+
+<h2>El flujo de trabajo en resumen</h2>
+<ol>
+  <li>Ejecute su análisis en el solver que prefiera y conserve el archivo de resultados.</li>
+  <li>Ábralo en ModelViewer (<span class="path">Archivo &rarr; Abrir...</span>), elija un campo y compruebe las unidades.</li>
+  <li>Mirar: girar, seccionar, recorrer el tiempo, sondear valores, graficarlos, compararlos con otra ejecución.</li>
+  <li>Presentar: añadir anotaciones o mediciones, capturar vistas, exportar un informe PDF o una imagen, o guardar una sesión <code>.mvf</code> que contenga el resultado.</li>
+</ol>

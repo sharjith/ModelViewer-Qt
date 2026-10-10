@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Builds the Simulation Results and 3D Plotting guide PDF from the HTML chapters in parts/.
 
-    python build_guide.py            builds guide.html and the PDF
-    python build_guide.py --html     only guide.html (open it in a browser to check the layout)
+    python build_guide.py                builds guide.html and the PDF (English)
+    python build_guide.py --lang de     the German edition (also es, fr, it): reads parts-de/ and writes guide_de.html and the PDF with a _de suffix
+    python build_guide.py --lang all    all five editions
+    python build_guide.py --html        only the HTML (open it in a browser to check the layout)
 
 The chapters are plain HTML fragments (parts/NN_*.html, joined in file-name order). The build
   * numbers the chapters (1, 2, ...), the sections (1.1, ...) and the appendices (A, B, ...), and writes the table of contents;
@@ -23,8 +25,30 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SHOTS = os.path.normpath(os.path.join(HERE, '..', '..', 'data', 'tutorials', 'screenshots'))
+PDF_BASE = 'ModelViewer_Simulation_and_3D_Plotting_Guide'
+LANGS = ['en', 'de', 'es', 'fr', 'it']
+
+# Text the build itself writes (the chapters carry everything else).
+UI = {
+    'en': {'contents': 'Contents', 'title': 'ModelViewer - Simulation Results and 3D Plotting Guide'},
+    'de': {'contents': 'Inhalt', 'title': 'ModelViewer - Handbuch Simulationsergebnisse und 3D-Diagramme'},
+    'es': {'contents': 'Contenido', 'title': 'ModelViewer - Guía de resultados de simulación y gráficos 3D'},
+    'fr': {'contents': 'Sommaire', 'title': 'ModelViewer - Guide des résultats de simulation et des graphiques 3D'},
+    'it': {'contents': 'Indice', 'title': 'ModelViewer - Guida ai risultati di simulazione e ai grafici 3D'},
+}
+
+LANG = 'en'
 OUT_HTML = os.path.join(HERE, 'guide.html')
-OUT_PDF = os.path.join(HERE, 'ModelViewer_Simulation_and_3D_Plotting_Guide.pdf')
+OUT_PDF = os.path.join(HERE, PDF_BASE + '.pdf')
+
+
+def set_language(lang):
+    """Selects the edition: the chapters folder and the output file names."""
+    global LANG, OUT_HTML, OUT_PDF
+    LANG = lang
+    suffix = '' if lang == 'en' else '_' + lang
+    OUT_HTML = os.path.join(HERE, 'guide%s.html' % suffix)
+    OUT_PDF = os.path.join(HERE, '%s%s.pdf' % (PDF_BASE, suffix))
 
 NL = chr(10)
 BACKSLASH = chr(92)
@@ -51,7 +75,7 @@ def find_browser():
 
 
 def read_parts():
-    parts_dir = os.path.join(HERE, 'parts')
+    parts_dir = os.path.join(HERE, 'parts' if LANG == 'en' else 'parts-' + LANG)
     names = sorted(n for n in os.listdir(parts_dir) if n.endswith('.html'))
     return ''.join(open(os.path.join(parts_dir, n), encoding='utf-8').read() + NL for n in names)
 
@@ -124,7 +148,7 @@ def number_headings(body):
 
 def build_toc(entries, pages=None):
     """pages: optional list of page numbers, one per entry, in order."""
-    out = ['<section class="toc"><h1>Contents</h1><ol>']
+    out = ['<section class="toc"><h1>%s</h1><ol>' % UI[LANG]['contents']]
     for i, (kind, num, text, slug) in enumerate(entries):
         label = html.escape(text)
         pg = ''
@@ -142,11 +166,45 @@ def build_toc(entries, pages=None):
     return NL.join(out)
 
 
+FIT_SCRIPT = '''<script>
+// Translated labels are longer than the English ones: shrink an SVG label until it fits inside the box it sits in.
+window.addEventListener('load', function () {
+  document.querySelectorAll('svg').forEach(function (svg) {
+    var rects = Array.prototype.slice.call(svg.querySelectorAll('rect'));
+    svg.querySelectorAll('text').forEach(function (t) {
+      var x = parseFloat(t.getAttribute('x')), y = parseFloat(t.getAttribute('y'));
+      var best = null;
+      rects.forEach(function (r) {
+        var rx = parseFloat(r.getAttribute('x')), ry = parseFloat(r.getAttribute('y'));
+        var rw = parseFloat(r.getAttribute('width')), rh = parseFloat(r.getAttribute('height'));
+        if (x > rx && x < rx + rw && y > ry && y < ry + rh && (!best || rw * rh < best.w * best.h)) best = {w: rw, h: rh};
+      });
+      var avail = null, w = t.getBBox().width;
+      if (best) {
+        avail = best.w - 12;
+      } else if (t.getAttribute('text-anchor') !== 'middle' && t.getAttribute('text-anchor') !== 'end') {
+        // A label left of a bar: it may run up to the next box on its line.
+        rects.forEach(function (r) {
+          var rx = parseFloat(r.getAttribute('x')), ry = parseFloat(r.getAttribute('y')), rh = parseFloat(r.getAttribute('height'));
+          if (rx > x && y > ry - 4 && y < ry + rh + 4 && (avail === null || rx - x - 8 < avail)) avail = rx - x - 8;
+        });
+      }
+      if (avail === null) return;
+      if (w > avail) {
+        var fs = parseFloat(window.getComputedStyle(t).fontSize) || 12;
+        t.setAttribute('font-size', Math.max(7.5, fs * avail / w).toFixed(2));
+      }
+    });
+  });
+});
+</script>'''
+
+
 def write_html(body_template, entries, pages=None):
     body = body_template.replace('<!--TOC-->', build_toc(entries, pages))
-    doc = ('<!DOCTYPE html>' + NL + '<html lang="en"><head><meta charset="utf-8">'
-           '<title>ModelViewer - Simulation Results and 3D Plotting Guide</title>'
-           '<link rel="stylesheet" href="guide.css"></head><body>' + NL + body + NL + '</body></html>' + NL)
+    doc = ('<!DOCTYPE html>' + NL + '<html lang="%s"><head><meta charset="utf-8">' % LANG +
+           '<title>%s</title>' % html.escape(UI[LANG]['title']) +
+           '<link rel="stylesheet" href="guide.css"></head><body>' + NL + body + NL + FIT_SCRIPT + NL + '</body></html>' + NL)
     with open(OUT_HTML, 'w', encoding='utf-8', newline=NL) as f:
         f.write(doc)
 
@@ -194,19 +252,16 @@ def toc_pages(count):
     return pages if len(pages) == count else None
 
 
-def main():
+def build(lang, html_only, browser):
+    set_language(lang)
     body = read_parts()
     body, kept, dropped = resolve_figures(body)
     body, entries = number_headings(body)
     write_html(body, entries)
-    print('guide.html: %d chapters/sections listed, %d pictures included, %d not captured yet (their figures are left out)'
-          % (len(entries), kept, dropped))
-    if '--html' in sys.argv:
+    print('[%s] %s: %d chapters/sections listed, %d pictures included, %d not captured yet (their figures are left out)'
+          % (lang, os.path.basename(OUT_HTML), len(entries), kept, dropped))
+    if html_only:
         return 0
-    browser = find_browser()
-    if not browser:
-        print('No Edge or Chrome found; open guide.html in a browser and print it to PDF (A4, margins none, no headers).')
-        return 1
     if not print_pdf(browser):
         print('The browser did not write the PDF.')
         return 1
@@ -217,10 +272,36 @@ def main():
         if not print_pdf(browser):
             print('The browser did not write the PDF.')
             return 1
-        print('page numbers added to the contents')
+        print('[%s] page numbers added to the contents' % lang)
     else:
-        print('Contents without page numbers (install PyMuPDF with: pip install pymupdf).')
-    print('wrote', OUT_PDF, '(%.1f MB)' % (os.path.getsize(OUT_PDF) / 1e6))
+        print('[%s] Contents without page numbers (install PyMuPDF with: pip install pymupdf).' % lang)
+    print('[%s] wrote %s (%.1f MB)' % (lang, OUT_PDF, os.path.getsize(OUT_PDF) / 1e6))
+    return 0
+
+
+def main():
+    args = sys.argv[1:]
+    langs = ['en']
+    for i, a in enumerate(args):
+        if a == '--lang' and i + 1 < len(args):
+            langs = LANGS if args[i + 1] == 'all' else [args[i + 1]]
+        elif a.startswith('--lang='):
+            langs = LANGS if a[7:] == 'all' else [a[7:]]
+    for lang in langs:
+        if lang not in LANGS:
+            print('Unknown language %r (use one of %s or all).' % (lang, ', '.join(LANGS)))
+            return 2
+    html_only = '--html' in args
+    browser = None
+    if not html_only:
+        browser = find_browser()
+        if not browser:
+            print('No Edge or Chrome found; open the guide HTML in a browser and print it to PDF (A4, margins none, no headers).')
+            return 1
+    for lang in langs:
+        rc = build(lang, html_only, browser)
+        if rc:
+            return rc
     return 0
 
 

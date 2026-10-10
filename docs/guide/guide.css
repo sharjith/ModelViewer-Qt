@@ -22,6 +22,8 @@
 }
 
 html { font-size: 10.5pt; }
+/* Long words (German in particular) break at hyphenation points inside the text columns. */
+p, li, td, dd { hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; }
 body {
     font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     color: var(--ink);

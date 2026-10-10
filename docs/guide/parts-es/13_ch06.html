@@ -1,0 +1,53 @@
+<h1 class="chapter">Mirar dentro de un resultado</h1>
+
+<p>La superficie de un sólido muestra solo la mitad de la historia: la tensión más alta suele estar dentro, en una sección; la región más caliente, bajo la piel; el flujo más rápido, en el centro de un conducto. ModelViewer ofrece seis formas de mirar dentro, de la más simple (un corte) a la más especializada (tensores de tensión como glifos). Las cuatro primeras necesitan <b>celdas de volumen</b> (tetraedros, hexaedros, cuñas, pirámides, poliedros); en un resultado de lámina el panel indica que no hay nada que cortar ni seguir. Las seis son <b>superposiciones</b>: se dibujan con el resultado pero no son mallas de la escena, por lo que no se pueden seleccionar, exportar ni dibujar con el trazador de rayos.</p>
+
+<h2>Secciones: el corte coloreado por el campo</h2>
+<p>Los planos de corte (el botón Vista de sección de la barra de herramientas Vista; véase la lección 12 del tutorial) cortan un resultado como cualquier modelo. Active <span class="ui">Colorear el corte del plano de corte con el campo</span> y la cara de corte muestra el campo mostrado, con los colores de la leyenda, en lugar de un hueco vacío. El corte coloreado sigue al plano al moverlo.</p>
+<ul>
+  <li>Funciona con un campo de nodo (suave) y con un campo de celda (plano por celda).</li>
+  <li>Con varios planos activados, el corte de un plano se conserva solo donde todos los demás planos han quitado el material, de modo que los cortes siempre quedan en el contorno de lo que queda.</li>
+  <li>Solo participan los planos alineados con los ejes, no el modo de caja ni los planos personalizados.</li>
+  <li>El corte se calcula sobre las celdas de volumen y se admiten poliedros cóncavos.</li>
+</ul>
+<figure data-img="tutorial_20_coloured_section.png"><figcaption>Una caja cortada por un plano de corte, con la cara de corte coloreada por tensión</figcaption></figure>
+
+<h2>Isosuperficies</h2>
+<p>Una <b>isosuperficie</b> es la superficie en la que un campo tiene un valor constante: una cáscara de igual temperatura, una capa de igual tensión. <span class="ui">Mostrar isosuperficies</span> dibuja un conjunto de ellas para el <span class="ui">Campo de isosuperficies</span> (un escalar de nodo o la magnitud de un vector de nodo), con <span class="ui">Niveles de isosuperficies</span> de 1 a 20, repartidos de forma uniforme estrictamente dentro del rango del campo en el paso actual, cada una con su propio color. Un campo constante no tiene isosuperficie; la línea de información lo indica.</p>
+<ul>
+  <li>Las isosuperficies están dentro del modelo, por lo que se ven a través de un corte. Active un plano de corte: la tapa de la sección se mantiene abierta mientras se muestran isosuperficies, porque una tapa opaca las ocultaría. El corte coloreado opaco sí oculta lo que hay detrás; desactive esa opción para ver las isosuperficies.</li>
+  <li>Se recalculan cuando cambia el paso o el campo.</li>
+</ul>
+<figure data-img="tutorial_20_iso_surfaces.png"><figcaption>Isosuperficies del campo de temperatura dentro de un bloque, abierto por un plano de corte</figcaption></figure>
+
+<h2>Líneas de corriente</h2>
+<p>Las líneas de corriente siguen un campo de velocidad: cada línea es el camino que seguiría una partícula sin masa si el flujo estuviera congelado en el paso actual. <span class="ui">Mostrar líneas de corriente</span> usa un campo vectorial de nodo (<span class="ui">Campo de líneas de corriente</span>); <span class="ui">Semillas de líneas de corriente</span> (1 a 500) es el número de puntos de partida.</p>
+<ul>
+  <li><b>Siembra.</b> De forma predeterminada las semillas son puntos aleatorios del volumen, siempre los mismos, para que los fotogramas de la animación sigan siendo comparables. <span class="ui">Sembrar en el plano de corte</span> hace que las líneas partan en cambio de las caras de corte de los planos activados, ponderadas por área, lo que muestra exactamente adónde va el flujo desde una sección. Una semilla fuera de la malla, o donde el campo es cero, no da ninguna línea.</li>
+  <li><b>Trazado.</b> Las líneas se integran con un método de Runge-Kutta de cuarto orden en ambas direcciones desde una semilla hasta que salen de la malla, la velocidad cae a alrededor de una millonésima de la mayor o se alcanza un límite (2000 pasos, o cuatro diagonales del modelo, por dirección). El campo se interpola exactamente dentro de la celda por la que pasan.</li>
+  <li><b>Dibujo.</b> Las líneas se colorean por la magnitud del campo, con el rango de la leyenda cuando la superficie muestra el mismo campo. <span class="ui">Puntas de flecha</span> añade pequeños conos que muestran la dirección y <span class="ui">Grosor de línea</span> fija el ancho. Las líneas se recortan a lo que los planos dejan visible.</li>
+  <li><b>Límites.</b> Solo se trazan campos vectoriales de nodo. Los poliedros cóncavos se excluyen (el panel indica cuántos), porque la interpolación solo es válida en celdas convexas. El trazado no usa hilos, por lo que un resultado muy grande puede volver a trazarse de forma visible en cada paso de tiempo.</li>
+</ul>
+<figure data-img="tutorial_20_streamlines.png"><figcaption>Líneas de corriente a través de un flujo en remolino en un conducto, con puntas de flecha</figcaption></figure>
+
+<h2>Representación de volumen</h2>
+<p><span class="ui">Mostrar como volumen</span> representa un campo como una nube semitransparente en lugar de una superficie, mediante marcha de rayos a través del volumen. Elija el <span class="ui">Campo de volumen</span> y una <span class="ui">Calidad del volumen</span> (Baja 32, Media 64, Alta 96, Muy alta 128 muestras a lo largo de cada rayo: más es más suave y más lento).</p>
+<p>La <b>curva de opacidad</b> bajo las opciones indica cuán opaco es cada valor: el eje horizontal es el valor normalizado del campo y el eje vertical la opacidad. <b>Arrastre</b> un punto para moverlo, <b>haga doble clic</b> para añadir un punto, <b>haga clic derecho</b> en un punto interior para quitarlo (los dos puntos extremos permanecen en 0 y 1). Subir la curva para los valores calientes y bajarla para los fríos deja visible solo el núcleo caliente; la rampa de color es la elegida para la superficie. Un campo de celda se muestra con sus valores promediados. El volumen muestra el paso actual.</p>
+<figure data-img="tutorial_20_volume_rendering.png"><figcaption>El campo de temperatura de un bloque representado como volumen, con la curva de opacidad</figcaption></figure>
+
+<h2>Flechas vectoriales</h2>
+<p><span class="ui">Mostrar flechas vectoriales</span> dibuja una flecha para un campo vectorial en puntos muestreados de la superficie: elija el <span class="ui">Campo de flechas</span>, el <span class="ui">Tamaño de flecha</span> (con 1 la flecha más grande mide el 5 % del tamaño del modelo; el tamaño se mantiene estable al hacer zoom) y el <span class="ui">Número de flechas</span> (aproximadamente ese número de flechas, repartidas uniformemente por la superficie). Con <span class="ui">Escalar flechas por magnitud</span> desactivado, todas las flechas tienen la misma longitud y solo el color muestra la magnitud; útil cuando unos pocos vectores grandes harían invisible el resto.</p>
+
+<h2>Elipsoides de tensión (glifos de tensor)</h2>
+<p>Para un tensor de tensión simétrico, <span class="ui">Mostrar elipsoides de tensión</span> dibuja un elipsoide en puntos muestreados de la superficie. Sus tres ejes apuntan en las <b>direcciones principales</b> y sus longitudes siguen los <b>valores principales</b>. El eje más largo tiene siempre el mismo tamaño en pantalla, de modo que la <i>forma</i> muestra cómo se reparte la tensión (una aguja para una tracción en una dirección, un disco plano para una tracción en dos direcciones, una esfera para una presión uniforme) y el <i>color</i> cuánto vale.</p>
+<ul>
+  <li><span class="ui">Campo tensorial</span>: todo campo de seis componentes del resultado cuyo nombre contiene <i>stress</i>; los campos de nodo van antes que los de celda en la lista. Un tensor con otro nombre (un <i>sigma</i> de OpenFOAM, por ejemplo) no se ofrece, porque seis componentes por sí solas no hacen una tensión.</li>
+  <li><span class="ui">Tamaño de los elipsoides</span> (estable al hacer zoom) y <span class="ui">Número de elipsoides</span> (20 a 5000). Suba el número a 1500 o más para una placa.</li>
+  <li>Las opciones se guardan con la sesión.</li>
+</ul>
+<p>Buenas primeras pruebas: <code>plate_with_hole.frd</code> (agujas a lo largo de la tracción lejos del agujero, que cambian bruscamente a su alrededor; la concentración de tensiones es de unas tres veces la tensión en campo lejano), <code>ibeam_cantilever.frd</code> (flexión: agujas en las alas, inclinadas en el alma) y <code>stress_states.vtu</code>, un bloque sintético con tres tensores hecho para probar la elección de <span class="ui">Campo tensorial</span>.</p>
+<figure data-img="tutorial_20_stress_ellipsoids.png"><figcaption>Elipsoides de tensión alrededor del agujero de una placa</figcaption></figure>
+
+<div class="callout tip"><span class="label">Consejo</span>
+  <p>Las superposiciones se combinan: una forma deformada con una sección coloreada y unas pocas líneas de corriente es una imagen perfectamente buena. Desactive, eso sí, lo que no use: la imagen es más clara con una idea por vista.</p>
+</div>

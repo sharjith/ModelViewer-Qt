@@ -1,0 +1,59 @@
+<h1 class="chapter">Füllungen, Hinweise, Bilder und Abfragen</h1>
+
+<h2>Füllungen: Bänder und Vorhänge</h2>
+<p>Linien und Streudiagramme lassen sich mit einem durchscheinenden Band füllen, das wie das Diagramm eingefärbt ist, bis zu einer Basisebene oder zwischen zwei Kurven.</p>
+<table>
+  <thead><tr><th style="width:30%">Ziel</th><th>Vorgehen</th></tr></thead>
+  <tbody>
+    <tr><td>Ein Vorhang unter einer Linie</td><td>Linie / Kurve (<code>line_helix.csv</code>): Aktivieren Sie <span class="ui">Bis Basis-Z füllen</span> und stellen Sie die Basis ein (0). Mit „Diagramm bearbeiten“ ändern Sie die Basis; der Vorhang hängt dort von der Linie, wo sie unter der Basis liegt.</td></tr>
+    <tr><td>Ein Band zwischen zwei Kurven</td><td>Linie / Kurve mit einer zweiten Z-Spalte (<code>line_band.csv</code>: Spalten x, y, z, z2, value): Aktivieren Sie die Füllung und wählen Sie die Spalte unter <span class="ui">oder zwischen der Linie und Spalte</span>. Das Band zieht sich dort zu einer Linie zusammen, wo sich die Kurven kreuzen. Das Basisfeld wird nicht verwendet, solange eine Spalte gewählt ist; ist die Spalte auf <i>(keine)</i> gesetzt, reicht die Füllung wieder bis zur Basisebene.</td></tr>
+    <tr><td>Bänder aus Streupunkten</td><td>Streudiagramm (<code>scatter_clusters.csv</code>): <span class="ui">Bis Basis-Z füllen</span> mit einer Basis wie -3; oder eine Spalte unter <span class="ui">oder zwischen dem Diagramm und Spalte</span> (<code>scatter_band.csv</code>) für Bänder zwischen zwei Punktmengen.</td></tr>
+    <tr><td>Eine erzeugte Kurve füllen</td><td>Parametrische Kurve, Vorlage Helix: <span class="ui">Kurve bis Basis-Z füllen</span>, oder geben Sie ein zweites z2(t) (zum Beispiel <code>2 + sin(t)</code>) unter <span class="ui">oder bis z2(t) =</span> ein, um zwischen zwei Kurven mit demselben x(t), y(t) zu füllen. Ob ein erzeugtes Diagramm gefüllt ist, wird beim Erstellen entschieden.</td></tr>
+  </tbody>
+</table>
+<p>Die Achsenbox wächst immer so, dass sie einschließt, was die Füllung erreicht.</p>
+<figure data-img="tutorial_24_fill_between_curves.png"><figcaption>Ein durchscheinendes Band zwischen zwei sich kreuzenden Kurven, das sich dort zu einer Linie zusammenzieht, wo sie sich kreuzen</figcaption></figure>
+<figure data-img="tutorial_24_fill_curtain.png"><figcaption>Die Schraubenlinie mit einem Vorhang bis zur Basisebene</figcaption></figure>
+
+<h2>Textnotizen</h2>
+<p>Eine <b>Notiz</b> ist ein kurzer Text an einem Punkt Ihrer Daten - einem Maximum, einem Ausreißer, einem Schwellenwert. Wählen Sie ein Diagramm und öffnen Sie die Gruppe <span class="ui">Textnotizen</span> in der Registerkarte „3D-Diagramm“.</p>
+<ul>
+  <li><span class="ui">Notiz platzieren</span> schaltet ein Klickwerkzeug scharf: Klicken Sie auf einen Punkt des Diagramms. Der Klick rastet auf dem nächsten Datenpunkt eines sichtbaren Diagramms ein (innerhalb von 14 Pixeln; bei Linien auch auf dem nächsten Punkt eines Segments), andernfalls wird der Flächenpunkt unter dem Cursor verwendet. Ein Feld fragt nach dem Text, der mehrere Zeilen haben darf. <span class="ui">Im Zentrum hinzufügen</span> fügt eine Notiz in der Mitte der Daten des Diagramms hinzu.</li>
+  <li>In der Ansicht <b>ziehen</b> Sie eine Notiz, um sie zu verschieben, <b>doppelklicken</b> Sie, um sie zu bearbeiten, und <b>klicken Sie mit rechts</b>, um sie zu löschen. Die Tabelle in der Registerkarte bearbeitet X, Y, Z und den Text der Notiz direkt.</li>
+  <li>Notizen werden in den <i>Daten</i>koordinaten des Diagramms gespeichert und bleiben daher an ihrem Punkt, wenn sich die Achsenskala ändert. Sie folgen der Sichtbarkeit des Diagramms, werden auch bei ausgeblendeter Achsenbox gezeichnet und mit der Sitzung gespeichert.</li>
+  <li>Jedes Platzieren, Verschieben, Bearbeiten und Löschen lässt sich <b>rückgängig machen</b>.</li>
+</ul>
+<figure data-img="tutorial_24_text_notes.png"><figcaption>Eine Notiz auf dem Maximum einer Fläche</figcaption></figure>
+
+<h2>Schnittkurven beim Überfahren</h2>
+<p>Aktivieren Sie bei einer <b>Fläche</b> <span class="ui">Schnittkurven beim Überfahren anzeigen</span>. Bewegt sich der Cursor über die Fläche, werden durch den überfahrenen Punkt die Kurven gezeichnet, in denen die X-, Y- und Z-Ebene sie schneiden - rot, grün und blau wie die Achsen eingefärbt (die blaue ist die Konturlinie durch den Punkt) - zusammen mit den Datenwerten des Punktes. Gezeichnet wird nur die zusammenhängende Kurve durch den Punkt, ein Sattel zeigt also einen Ast. Es ist ein schneller Weg, ein Profil einer Fläche abzulesen, ohne ein Diagramm zu bauen, und funktioniert nur in der Einzelansicht.</p>
+
+<h2>Bilder auf einer Ebene</h2>
+<p>Ein <b>Bild</b> kann auf einer der Diagrammebenen stehen: ein Lageplan unter einer Fläche, ein Foto einer Probe neben ihren Messdaten. Wählen Sie als <span class="ui">Datenquelle</span> <i>Bild auf einer Ebene</i>, wählen Sie die Datei und die Ebene: <b>XY</b> (flach, am Z-Minimum), <b>XZ</b> oder <b>YZ</b> (aufrecht, am Minimum der verbleibenden Achse); die Bereiche passen sich der Form des Bildes an, wenn Sie es wählen oder die Ebene ändern, und Sie können sie anpassen.</p>
+<ul>
+  <li><span class="ui">Deckkraft</span> (standardmäßig 100 %) lässt das, was hinter dem Bild liegt, durchscheinen; ein Bild mit eigener Transparenz verbindet sich damit (<code>image_gradient_alpha.png</code> blendet zu den Ecken hin aus).</li>
+  <li>Von hinten gesehen wirkt ein Bild <b>gespiegelt</b>. Aktivieren Sie bei einem deckenden Bild <span class="ui">Von hinten lesbar</span>, und die Rückseite zeigt es richtig herum (<code>image_gradient.png</code> hat ein „L“-Zeichen, das zeigt, wie herum es ist). Die Option steht nur für ein deckendes Bild mit 100 % Deckkraft zur Verfügung - bei einem transparenten Bereich oder geringerer Deckkraft würden sich beide Seiten gegenseitig durchscheinen, sodass die Rückseite gespiegelt bleibt.</li>
+  <li>Ein Bilddiagramm hat weder Farbskala noch Legende: Seine Pixel sind seine Farbe.</li>
+</ul>
+<figure data-img="tutorial_24_image_plane.png"><figcaption>Ein Bild auf einer Ebene neben einem Flächendiagramm</figcaption></figure>
+
+
+<h1 class="chapter">Bearbeiten, Speichern und Exportieren</h1>
+
+<h2>Ein Diagramm bearbeiten</h2>
+<p>Jedes Diagramm merkt sich, wie es erstellt wurde. Wählen Sie es unter <span class="ui">Aktives Diagramm</span> und klicken Sie auf <span class="ui">Diagramm bearbeiten...</span>: Der Dialog öffnet sich wieder mit derselben Quelle, mit wiederhergestellter Tabelle, Spaltenwahl, Ausdrücken, Bereichen, Stützstellenzahlen und Parametern. Ändern Sie, was Sie brauchen, und klicken Sie auf <span class="ui">Diagramm neu erstellen</span>: <b>Das Diagramm wird an Ort und Stelle neu aufgebaut</b>, ohne neuen Baumeintrag, und behält Titel, Sichtbarkeit, Farbskala, Bereich und Stufen, Bezugsebenen, Konturlinien, Linienbreite und Achseneinstellungen (bei eingeschaltetem <span class="ui">Farbbereich automatisch</span> folgt der Bereich den neuen Daten). Was sich bei einer Bearbeitung nicht ändern lässt, ist die Datenquelle (und bei einer Formelfläche die Wahl Fläche/Kontur); erstellen Sie dafür ein neues Diagramm.</p>
+
+<h2>Speichern</h2>
+<p>Diagramme werden in der <code>.mvf</code>-Sitzung mit allem gespeichert, was zu ihrer späteren Bearbeitung nötig ist: den Daten, der Definition (Spalten oder Ausdrücke), den Achsen, den Farbeinstellungen und den Notizen. Nach dem Wiederöffnen funktioniert <span class="ui">Diagramm bearbeiten...</span> weiterhin. Eine von einer älteren Version gespeicherte Sitzung, die für jedes Diagramm eigene Achsen hatte, öffnet sich mit den Achsen des gewählten Diagramms, die nun gemeinsam sind.</p>
+
+<h2>Exportieren</h2>
+<ul>
+  <li><b>Punkt- und Liniendiagramme</b> (Streudiagramm-Markierungen, Linien, Bahnlinienspuren) werden mit dem Rest der Szene nach <b>glTF</b>, <b>GLB</b> und <b>OBJ</b> exportiert; ihre Farben werden in die Datei eingebrannt, sodass andere Programme sie farbig zeigen.</li>
+  <li>Flächen, Balken und andere Netzdiagramme werden wie jedes Netz exportiert.</li>
+  <li><b>Bilder</b> der Ansicht - für Berichte, Folien, Veröffentlichungen - kommen wie bei jeder anderen Ansicht aus dem Bildexport des Programms und dem PDF-Bericht.</li>
+  <li>Diagramme werden <b>nicht vom Raytracer gezeichnet</b>, und pfadgetracte Bilder enthalten sie nicht. Die Animation der Bahnlinien und die Bildschirmdarstellung der Notizen sind Betrachtungshilfen und nicht Teil eines exportierten Modells.</li>
+</ul>
+
+<div class="callout tip"><span class="label">Tipp</span>
+  <p>Um Ihre Zahlen wieder herauszubekommen, behalten Sie die CSV: Die Definition eines Diagramms wird gespeichert, aber die ursprüngliche Tabelle bleibt die Hauptkopie. Erzeugen Sie Daten aus einem Skript, führen Sie es erneut aus, öffnen Sie das Diagramm mit <span class="ui">Diagramm bearbeiten...</span> neu und laden Sie die neue Tabelle.</p>
+</div>

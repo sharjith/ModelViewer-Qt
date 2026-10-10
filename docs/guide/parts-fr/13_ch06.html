@@ -1,0 +1,53 @@
+<h1 class="chapter">Regarder à l'intérieur d'un résultat</h1>
+
+<p>La surface d'un solide ne montre que la moitié de l'histoire : la contrainte la plus élevée est souvent à l'intérieur d'une coupe, la région la plus chaude sous la peau, l'écoulement le plus rapide au milieu d'un conduit. ModelViewer offre six façons de regarder dedans, de la plus simple (une coupe) à la plus spécialisée (tenseurs de contraintes sous forme de glyphes). Les quatre premières nécessitent des <b>cellules volumiques</b> (tétraèdres, hexaèdres, prismes, pyramides, polyèdres) ; sur un résultat de coque, le panneau indique qu'il n'y a rien à couper ni à suivre. Les six sont des <b>superpositions</b> : elles sont dessinées avec le résultat mais ne sont pas des maillages de la scène ; elles ne peuvent donc pas être sélectionnées, exportées ni dessinées par le lanceur de rayons.</p>
+
+<h2>Coupes : la coupe colorée selon le champ</h2>
+<p>Les plans de coupe (le bouton Vue en coupe de la barre d'outils Affichage ; voir la leçon 12 du tutoriel) coupent un résultat comme n'importe quel modèle. Cochez <span class="ui">Colorer la coupe du plan de coupe avec le champ</span> et la face coupée montre le champ affiché - avec les couleurs de la légende - au lieu d'un creux vide. La coupe colorée suit le plan lorsque vous le déplacez.</p>
+<ul>
+  <li>Cela fonctionne avec un champ aux nœuds (lisse) et avec un champ aux cellules (à plat par cellule).</li>
+  <li>Avec plusieurs plans activés, la coupe d'un plan n'est conservée que là où tous les autres plans ont retiré la matière, de sorte que les coupes se trouvent toujours sur le bord de ce qui reste.</li>
+  <li>Seuls les plans alignés sur les axes interviennent, pas le mode boîte ni les plans personnalisés.</li>
+  <li>La coupe est calculée sur les cellules volumiques, et les polyèdres concaves sont pris en charge.</li>
+</ul>
+<figure data-img="tutorial_20_coloured_section.png"><figcaption>Une boîte coupée par un plan de coupe, la face coupée colorée selon la contrainte</figcaption></figure>
+
+<h2>Isosurfaces</h2>
+<p>Une <b>isosurface</b> est la surface sur laquelle un champ a une valeur constante - une enveloppe de température égale, une couche de contrainte égale. <span class="ui">Afficher les isosurfaces</span> en dessine un ensemble pour le <span class="ui">Champ des isosurfaces</span> (un scalaire aux nœuds ou la magnitude d'un vecteur aux nœuds), avec des <span class="ui">Niveaux des isosurfaces</span> de 1 à 20, répartis uniformément strictement à l'intérieur de la plage du champ au pas actuel, chacune dans sa propre couleur. Un champ constant n'a pas d'isosurface ; la ligne d'information l'indique.</p>
+<ul>
+  <li>Les isosurfaces se trouvent à l'intérieur du modèle ; on les voit donc à travers une coupe. Activez un plan de coupe : le capuchon de la coupe reste ouvert tant que des isosurfaces sont affichées, car un capuchon opaque les cacherait. La coupe colorée opaque cache en revanche ce qui se trouve derrière ; désactivez cette option pour voir les isosurfaces.</li>
+  <li>Elles sont recalculées lorsque le pas ou le champ change.</li>
+</ul>
+<figure data-img="tutorial_20_iso_surfaces.png"><figcaption>Isosurfaces du champ de température dans un bloc, ouvert par un plan de coupe</figcaption></figure>
+
+<h2>Lignes de courant</h2>
+<p>Les lignes de courant suivent un champ de vitesse : chaque ligne est le chemin que suivrait une particule sans masse si l'écoulement était figé au pas actuel. <span class="ui">Afficher les lignes de courant</span> utilise un champ vectoriel aux nœuds (<span class="ui">Champ des lignes de courant</span>) ; <span class="ui">Points de départ des lignes de courant</span> (1 à 500) est le nombre de points de départ.</p>
+<ul>
+  <li><b>Points de départ.</b> Par défaut, les points de départ sont des points aléatoires du volume - toujours les mêmes, pour que les images d'animation restent comparables. <span class="ui">Départ sur le plan de coupe</span> fait partir les lignes des faces de coupe des plans activés, pondérées par l'aire, ce qui montre exactement où va l'écoulement à partir d'une section. Un point de départ hors du maillage, ou là où le champ est nul, ne donne aucune ligne.</li>
+  <li><b>Tracé.</b> Les lignes sont intégrées par une méthode de Runge-Kutta d'ordre quatre dans les deux sens à partir d'un point de départ jusqu'à ce qu'elles quittent le maillage, que la vitesse tombe à environ un millionième de la plus grande, ou qu'une limite soit atteinte (2000 pas, ou quatre diagonales du modèle, par sens). Le champ est interpolé exactement dans la cellule qu'elles traversent.</li>
+  <li><b>Dessin.</b> Les lignes sont colorées selon la magnitude du champ, avec la plage de la légende lorsque la surface montre le même champ. <span class="ui">Pointes de flèche</span> ajoute de petits cônes qui montrent le sens et <span class="ui">Épaisseur des lignes</span> règle la largeur. Les lignes sont rognées à ce que les plans laissent visible.</li>
+  <li><b>Limites.</b> Seuls les champs vectoriels aux nœuds sont tracés. Les polyèdres concaves sont exclus (le panneau indique combien), car l'interpolation n'est valable que dans des cellules convexes. Le tracé n'est pas exécuté dans un fil séparé, de sorte qu'un très gros résultat peut être retracé de façon visible à chaque pas de temps.</li>
+</ul>
+<figure data-img="tutorial_20_streamlines.png"><figcaption>Lignes de courant dans un écoulement tourbillonnant dans un conduit, avec pointes de flèche</figcaption></figure>
+
+<h2>Rendu volumique</h2>
+<p><span class="ui">Afficher en volume</span> affiche un champ sous la forme d'un nuage semi-transparent plutôt que d'une surface, par marche de rayons à travers le volume. Choisissez le <span class="ui">Champ de volume</span> et une <span class="ui">Qualité du volume</span> (Faible 32, Moyenne 64, Élevée 96, Très élevée 128 échantillons le long de chaque rayon : plus est plus lisse et plus lent).</p>
+<p>La <b>courbe d'opacité</b> sous les options indique l'opacité de chaque valeur : l'axe horizontal est la valeur normalisée du champ, l'axe vertical l'opacité. <b>Faites glisser</b> un point pour le déplacer, <b>double-cliquez</b> pour en ajouter un, <b>faites un clic droit</b> sur un point intérieur pour le supprimer (les deux points d'extrémité restent à 0 et 1). Relever la courbe pour les valeurs chaudes et l'abaisser pour les froides ne laisse visible que le cœur chaud ; la palette de couleurs est celle choisie pour la surface. Un champ aux cellules est affiché avec ses valeurs moyennées. Le volume montre le pas actuel.</p>
+<figure data-img="tutorial_20_volume_rendering.png"><figcaption>Le champ de température d'un bloc affiché en volume, avec la courbe d'opacité</figcaption></figure>
+
+<h2>Flèches vectorielles</h2>
+<p><span class="ui">Afficher les flèches vectorielles</span> dessine une flèche pour un champ vectoriel en des points échantillonnés de la surface : choisissez le <span class="ui">Champ des flèches</span>, la <span class="ui">Taille des flèches</span> (avec 1, la plus grande flèche mesure 5 % de la taille du modèle ; la taille reste stable lors du zoom) et le <span class="ui">Nombre de flèches</span> (environ ce nombre de flèches, réparties uniformément sur la surface). Si <span class="ui">Mettre les flèches à l'échelle de la magnitude</span> est désactivé, toutes les flèches ont la même longueur et seule la couleur indique la magnitude - utile lorsque quelques grands vecteurs rendraient le reste invisible.</p>
+
+<h2>Ellipsoïdes de contraintes (glyphes de tenseur)</h2>
+<p>Pour un tenseur de contraintes symétrique, <span class="ui">Afficher les ellipsoïdes de contraintes</span> dessine un ellipsoïde en des points échantillonnés de la surface. Ses trois axes pointent dans les <b>directions principales</b> et leurs longueurs suivent les <b>valeurs principales</b>. L'axe le plus long a toujours la même taille à l'écran, de sorte que la <i>forme</i> montre comment la contrainte est répartie - une aiguille pour une traction dans une direction, un disque plat pour une traction dans deux directions, une sphère pour une pression uniforme - et la <i>couleur</i> sa valeur.</p>
+<ul>
+  <li><span class="ui">Champ tensoriel</span> : tout champ à six composantes du résultat dont le nom contient <i>stress</i> ; les champs aux nœuds viennent avant les champs aux cellules dans la liste. Un tenseur portant un autre nom (un <i>sigma</i> d'OpenFOAM, par exemple) n'est pas proposé, car six composantes seules ne font pas une contrainte.</li>
+  <li><span class="ui">Taille des ellipsoïdes</span> (stable lors du zoom) et <span class="ui">Nombre d'ellipsoïdes</span> (20 à 5000). Portez le nombre à 1500 ou plus pour une plaque.</li>
+  <li>Les choix sont enregistrés avec la session.</li>
+</ul>
+<p>Bons premiers essais : <code>plate_with_hole.frd</code> (aiguilles le long de la traction loin du trou, qui changent fortement autour de lui ; la concentration de contraintes vaut environ trois fois la contrainte en champ lointain), <code>ibeam_cantilever.frd</code> (flexion : aiguilles dans les semelles, inclinées dans l'âme) et <code>stress_states.vtu</code>, un bloc synthétique à trois tenseurs conçu pour essayer le choix du <span class="ui">Champ tensoriel</span>.</p>
+<figure data-img="tutorial_20_stress_ellipsoids.png"><figcaption>Ellipsoïdes de contraintes autour du trou d'une plaque</figcaption></figure>
+
+<div class="callout tip"><span class="label">Astuce</span>
+  <p>Les superpositions se combinent : une forme déformée avec une coupe colorée et quelques lignes de courant fait une très bonne image. Désactivez toutefois ce que vous n'utilisez pas - l'image est la plus claire avec une idée par vue.</p>
+</div>

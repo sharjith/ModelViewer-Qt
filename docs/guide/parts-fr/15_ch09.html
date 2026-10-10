@@ -1,0 +1,105 @@
+<h1 class="chapter">Enregistrement, gros résultats et limites</h1>
+
+<h2>Enregistrer un résultat dans une session</h2>
+<p>Un résultat est une session de visualisation comme une autre ; il est donc enregistré dans le fichier de session <code>.mvf</code> (<span class="path">Fichier &rarr; Enregistrer</span>). L'intérêt d'enregistrer est que la session se rouvre <b>sans le fichier d'origine du solveur</b>, avec le champ, la plage, la palette de couleurs, les unités, la déformation et la chronologie tels que vous les avez laissés. Lorsque le document contient des résultats, ModelViewer demande une fois par session ce qu'il faut stocker :</p>
+<figure>
+<svg width="640" height="190" viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="12">
+  <rect x="5" y="10" width="205" height="170" rx="8" fill="#e8f0fa" stroke="#2b6cb0"/>
+  <text x="107" y="34" text-anchor="middle" font-weight="600" fill="#14213d">Champ affiché et déplacement</text>
+  <text x="107" y="50" text-anchor="middle" fill="#2b6cb0" font-size="11">tous les pas de temps - recommandé</text>
+  <text x="18" y="78" fill="#3e4c59">&#8226; la surface visible</text>
+  <text x="18" y="96" fill="#3e4c59">&#8226; le champ que vous affichez</text>
+  <text x="18" y="114" fill="#3e4c59">&#8226; le champ de déplacement</text>
+  <text x="18" y="132" fill="#3e4c59">&#8226; chaque pas (max. 100)</text>
+  <text x="18" y="156" fill="#3e4c59">le plus petit fichier qui reste actif</text>
+  <rect x="217" y="10" width="205" height="170" rx="8" fill="#fdf5e4" stroke="#b7791f"/>
+  <text x="320" y="34" text-anchor="middle" font-weight="600" fill="#14213d">Tous les champs</text>
+  <text x="320" y="50" text-anchor="middle" fill="#b7791f" font-size="11">tous les pas de temps</text>
+  <text x="230" y="78" fill="#3e4c59">&#8226; la surface visible</text>
+  <text x="230" y="96" fill="#3e4c59">&#8226; chaque champ du résultat</text>
+  <text x="230" y="114" fill="#3e4c59">&#8226; chaque pas (max. 100)</text>
+  <text x="230" y="156" fill="#3e4c59">changer de champ après la réouverture</text>
+  <rect x="429" y="10" width="205" height="170" rx="8" fill="#e8f6ee" stroke="#2f855a"/>
+  <text x="531" y="34" text-anchor="middle" font-weight="600" fill="#14213d">Géométrie seule</text>
+  <text x="531" y="50" text-anchor="middle" fill="#2f855a" font-size="11">pas de données de résultat</text>
+  <text x="442" y="78" fill="#3e4c59">&#8226; la surface avec les couleurs</text>
+  <text x="442" y="96" fill="#3e4c59">  tel qu'affiché</text>
+  <text x="442" y="156" fill="#3e4c59">une image, plus un résultat</text>
+</svg>
+<figcaption>Les trois choix de la boîte de dialogue Enregistrer les résultats de simulation ; chacun affiche une estimation de la taille du fichier</figcaption>
+</figure>
+
+<h3>Ce qui est enregistré</h3>
+<ul>
+  <li>L'instantané est la <b>surface de bord</b>, pas le volume : les valeurs sont stockées par sommet de surface (et non par nœud du solveur), compressées sans perte, sous forme de nombres 32 bits. La boîte de dialogue affiche une estimation de taille avant toute écriture.</li>
+  <li>Les pas (avec leurs temps ou libellés), les champs avec leurs unités et grandeurs, la plage sur tous les nœuds du solveur pour chaque champ et chaque pas (de sorte que la légende et la plage de couleurs sur tous les pas soient identiques à celles du résultat en direct, même si les nœuds intérieurs ne sont pas stockés) et l'état de la vue : champ, composante, plage, palette de couleurs, bandes, pas, déformation et repères.</li>
+  <li>Les champs de contraintes dérivés ne sont <b>pas</b> enregistrés : ils sont recalculés à partir du tenseur de contraintes au chargement.</li>
+  <li>Au plus <b>100 pas de temps</b> sont enregistrés par résultat, régulièrement espacés ; la boîte de dialogue vous prévient quand cela s'applique.</li>
+  <li>Le chemin du fichier source n'est conservé qu'à titre d'information ; la session n'en a jamais besoin.</li>
+</ul>
+
+<h3>Coupes, isosurfaces et lignes de courant dans une session enregistrée</h3>
+<p>Sans le volume, seule la surface visible est enregistrée ; les faces de coupe, isosurfaces et lignes de courant affichées sont donc enregistrées <b>telles qu'elles étaient</b> et reviennent <i>figées</i> : elles ne suivent plus un plan de coupe déplacé ni un autre pas de temps, et le panneau le dit. Cochez <span class="ui">Enregistrer aussi le volume</span> pour les garder actives : les nœuds, cellules et champs choisis de tout le volume sont alors enregistrés eux aussi, le résultat restauré est le résultat complet, et tout - coupes, isosurfaces, lignes de courant, rendu volumique - est recalculé comme avant. Le prix est un fichier bien plus gros, à peu près proportionnel au volume ; la boîte de dialogue montre ce qu'ajoute le volume.</p>
+
+<h3>Rouverture</h3>
+<ul>
+  <li>Une version plus ancienne de ModelViewer ouvre une telle session comme un simple maillage coloré (les couleurs affichées sont enregistrées avec elle) et ignore le reste.</li>
+  <li>Si vous modifiez le maillage d'un résultat enregistré après son chargement - diviser, fusionner, réparer - puis enregistrez, le nombre de sommets ne correspond plus aux données stockées ; au chargement suivant, la session de résultat est abandonnée avec un message plutôt que d'afficher des valeurs fausses. Déplacer, faire pivoter ou mettre à l'échelle le modèle est sans danger.</li>
+</ul>
+
+<h2>Gros résultats</h2>
+<h3>Où va la mémoire</h3>
+<p>La géométrie coûte peu ; ce sont les <b>pas de temps</b> qui font grossir. Un résultat conserve, pour chaque champ et chaque pas, quatre octets par valeur :</p>
+<table class="compact">
+  <thead><tr><th>Maillage (hexaèdres)</th><th>Géométrie</th><th>Un pas d'un scalaire aux nœuds, d'un vecteur aux nœuds et d'un scalaire aux cellules</th><th>50 pas, tous lus d'un coup</th></tr></thead>
+  <tbody>
+    <tr><td>1 million de cellules</td><td>environ 50 Mo</td><td>environ 20 Mo</td><td>environ 1 Go</td></tr>
+    <tr><td>5 millions de cellules</td><td>environ 250 Mo</td><td>environ 100 Mo</td><td>environ 5 Go</td></tr>
+    <tr><td>20 millions de cellules</td><td>environ 1 Go</td><td>environ 410 Mo</td><td>environ 20 Go</td></tr>
+  </tbody>
+</table>
+<p>Ce sont les tailles de ce qui est conservé en mémoire ; le mode comparaison conserve deux résultats à la fois.</p>
+
+<h3>Chargement différé des pas</h3>
+<p>Pour que les gros résultats transitoires restent utilisables, les pas sont chargés <b>à la demande</b>. Un résultat est lu de façon différée lorsque les données de ses pas exigeraient plus de <b>256 Mo</b> et qu'il comporte plus d'un pas ; les formats qui le permettent sont <b>Exodus</b>, <b>CalculiX FRD</b>, <b>CGNS</b>, <b>VTKHDF</b> (grilles non structurées et données polygonales) et les cas <b>OpenFOAM</b>. Les autres formats, ainsi que les données d'image VTKHDF, sont lus en entier ; MED n'est pas encore différé.</p>
+<ul>
+  <li>À l'ouverture, seuls le maillage et les en-têtes de champs sont lus ; les quatre derniers pas affichés restent en mémoire, le moins récemment utilisé partant en premier. Un cas OpenFOAM lit un répertoire de temps par pas. Un fichier CalculiX est projeté en mémoire et indexé une seule fois.</li>
+  <li>Un pas qui n'est pas résident est lu dans le fichier lorsque vous vous y rendez ; parcourir un résultat différé est donc plus lent qu'un résultat résident, et <b>le fichier reste ouvert</b> (un <code>.frd</code> CalculiX est verrouillé en écriture tant que le résultat est chargé).</li>
+  <li>La plage sur tous les pas - la plage de couleurs par défaut - lit chaque pas une fois à la première utilisation ; un curseur d'attente couvre ce premier balayage.</li>
+  <li><b>Enregistrer</b> un résultat différé lit tout le fichier, car l'instantané stocke chaque pas qu'il conserve.</li>
+</ul>
+<p>Mesuré sur un résultat d'un million d'hexaèdres avec cinq pas et neuf champs (485 Mo sur disque), chargé en entier et de façon différée :</p>
+<table class="compact">
+  <thead><tr><th></th><th>Lu en entier</th><th>Différé</th></tr></thead>
+  <tbody>
+    <tr><td>Jeu de données en mémoire après l'ouverture</td><td>361 Mo</td><td>47 Mo</td></tr>
+    <tr><td>Temps de lecture et de construction</td><td>1.0 s</td><td>0.15 s</td></tr>
+    <tr><td>Pic de mémoire du processus</td><td>584 Mo</td><td>323 Mo</td></tr>
+    <tr><td>Afficher un pas</td><td>3 ms</td><td>0,18 s (lu dans le fichier)</td></tr>
+    <tr><td>Plage sur les cinq pas</td><td>7 ms</td><td>0.9 s</td></tr>
+  </tbody>
+</table>
+<p class="small">Chiffres d'une version release pour Windows ; les plages de couleurs concordent jusqu'au dernier chiffre entre les deux modes. Vos chiffres dépendent du disque et du format - les fichiers binaires HDF5 et NetCDF se lisent bien plus vite que les fichiers ASCII.</p>
+
+<h3>Conseils pratiques</h3>
+<ul>
+  <li>Écrivez depuis le solveur uniquement les champs et pas dont vous avez besoin ; chaque pas supplémentaire coûte du temps et de l'espace disque, dans le fichier comme dans une session enregistrée.</li>
+  <li>Préférez les formats binaires structurés (VTKHDF, Exodus, CGNS) aux <code>.vtk</code> ou <code>.frd</code> ASCII pour les gros résultats transitoires.</li>
+  <li>L'ouverture prend du temps en deux étapes : la lecture du fichier, puis l'extraction de la surface de bord (quelques secondes pour cinq millions de cellules ; l'extraction se fait en parallèle).</li>
+  <li>Fermez les résultats que vous ne regardez plus et évitez Comparer avec deux résultats énormes.</li>
+</ul>
+
+<h2>Limites et ce qui n'est pas pris en charge</h2>
+<table>
+  <thead><tr><th style="width:34%">Limite</th><th>Détails</th></tr></thead>
+  <tbody>
+    <tr><td>Ni calcul ni édition</td><td>ModelViewer ne maille pas, ne résout pas, ne modifie pas les valeurs et ne crée pas de champs de différence (A moins B).</td></tr>
+    <tr><td>Formats ouverts uniquement</td><td>Pas de formats propriétaires (Abaqus <code>.odb</code>, ANSYS <code>.rst</code>, Nastran OP2) ; exportez d'abord depuis ces programmes vers VTK ou un autre format ouvert.</td></tr>
+    <tr><td>Les coques n'ont pas d'intérieur</td><td>Les coupes, isosurfaces, lignes de courant et le rendu volumique nécessitent des cellules volumiques.</td></tr>
+    <tr><td>Les superpositions ne sont pas des maillages</td><td>Les faces de coupe, isosurfaces, lignes de courant, flèches et ellipsoïdes ne peuvent pas être sélectionnées, exportées en glTF/OBJ ni dessinées par le lanceur de rayons. Les résultats eux-mêmes sont dessinés à plat dans tous les modes de rendu et ne sont pas tracés par lancer de rayons.</td></tr>
+    <tr><td>Champs des lignes de courant</td><td>Champs vectoriels aux nœuds uniquement ; les polyèdres concaves sont exclus du tracé.</td></tr>
+    <tr><td>Outils de coupe</td><td>La coupe colorée et le départ sur une coupe utilisent les plans de coupe alignés sur les axes, pas le mode boîte ni les plans personnalisés.</td></tr>
+    <tr><td>Lacunes des formats de fichier</td><td>Les fichiers VTKHDF composites (multi-blocs), les grilles VTKHDF structurées et rectilignes et les données CGNS centrées sur les faces ne sont pas encore lus ; les réseaux de poutres Exodus se chargent mais n'ont rien à dessiner ; les polygones, bandes et sommets du VTK historique ne sont pas affichés.</td></tr>
+    <tr><td>Comparer</td><td>Deux résultats à la fois, non enregistrés, et sans prise en compte des volets pour la sélection, la mesure et l'annotation (chapitre 8).</td></tr>
+  </tbody>
+</table>

@@ -1,0 +1,148 @@
+<h1 class="chapter appendix">Catalogue des fichiers d'exemple</h1>
+
+<p>Les exemples sont livrés dans <code>sample-models/Simulation</code> et <code>sample-models/Plot3D</code> ; chaque dossier contient un <code>README.txt</code> qui décrit chaque fichier et la façon dont il a été produit. Les valeurs des fichiers générés sont synthétiques : elles testent le programme, pas la physique.</p>
+
+<h2>Résultats de simulation</h2>
+<table class="compact">
+  <thead><tr><th style="width:30%">Fichier</th><th>Ce que c'est</th><th style="width:20%">Utile pour</th></tr></thead>
+  <tbody>
+    <tr><td><code>FEM_box_static_stress.vtu</code></td><td>Analyse statique d'une boîte de 10 mm (CalculiX via FreeCAD) : 280 nœuds, 129 tétraèdres quadratiques ; déplacement, von Mises, Tresca, contraintes principales</td><td>Premier coup d'œil, coupes</td></tr>
+    <tr><td><code>FEM_box_frequency_mode1.vtu</code></td><td>Le premier mode de vibration de la même boîte</td><td>Affichage modal</td></tr>
+    <tr><td><code>FEM_box_static.frd</code>, <code>FEM_box_frequency.frd</code></td><td>Les mêmes analyses telles que le solveur les a écrites (mm, MPa) ; von Mises, etc., sont dérivés au chargement</td><td>Unités, champs dérivés</td></tr>
+    <tr><td><code>FEM_box_load_steps.frd</code></td><td>Une charge appliquée en quatre incréments</td><td>Chronologie, échelle de couleurs fixe</td></tr>
+    <tr><td><code>FEM_box_modes.frd</code>, <code>FEM_box_modes_frf.csv</code></td><td>Six modes de vibration ; une courbe de réponse en fréquence synthétique avec six pics</td><td>Modes, saut depuis le graphique</td></tr>
+    <tr><td><code>FEM_box_thermal_transient.frd</code>, <code>thermal_probe_test.csv</code></td><td>Transfert thermique transitoire, 20 pas sur 10 s ; relevés synthétiques d'un thermocouple</td><td>Graphique temporel, courbe CSV, unités</td></tr>
+    <tr><td><code>plate_with_hole.frd</code></td><td>Plaque avec un trou, quatre pas de charge (CalculiX, maillage gmsh)</td><td>Concentration de contraintes, ellipsoïdes, graphique le long d'une ligne</td></tr>
+    <tr><td><code>ibeam_cantilever.frd</code>, <code>ibeam_torsion.frd</code></td><td>Une poutre en I en flexion et en torsion, quatre pas de charge chacune</td><td>Comparaison, ellipsoïdes</td></tr>
+    <tr><td><code>stress_states.vtu</code></td><td>Bloc avec trois tenseurs de contraintes (flexion, torsion, par élément)</td><td>Le choix du champ tensoriel</td></tr>
+    <tr><td><code>cell_data_cube.vtk</code></td><td>8 x 8 x 8 hexaèdres avec uniquement des données de cellule (<i>Element_Stress</i>, <i>Element_Group</i>)</td><td>Données de cellule, moyennage</td></tr>
+    <tr><td><code>shell_plate_transient.frd</code>, <code>plate.vtk</code></td><td>Une plaque coque avec 10 pas de température ; une plaque vibrante avec plusieurs champs vectoriels (surface seule)</td><td>Graphiques de coque</td></tr>
+    <tr><td><code>openfoam_cavity/cavity.foam</code></td><td>Un cas OpenFOAM de 20 x 20 x 1 cellules, cinq répertoires de temps (champs synthétiques U, p, T, sigma)</td><td>Données de cellule, unités tirées des dimensions, trajectoires</td></tr>
+    <tr><td><code>block.cgns</code>, <code>block.exo</code>, <code>block.vtkhdf</code></td><td>Le même bloc de 8 x 8 x 8 dans trois formats, cinq pas : Température, Vitesse (vecteur), une qualité par cellule</td><td>Isosurfaces, volume, lecteurs de format</td></tr>
+    <tr><td><code>duct.cgns</code></td><td>Un conduit demi-annulaire de deux blocs structurés, quatre pas d'un écoulement tourbillonnant</td><td>Lignes de courant</td></tr>
+    <tr><td><code>pointe_4fields.med</code>, <code>fra.med</code></td><td>Fichiers MED de l'ensemble d'exemples de Salome (types de cellules mixtes ; une vitesse aux nœuds et un taux de vide)</td><td>Lecteur MED</td></tr>
+    <tr><td><code>polyhedra.*</code>, <code>hexa.vtk</code>, <code>post.vtk</code>, <code>tetraMesh.vtk</code>, <code>uGridEx.vtk</code>, <code>beampl.frd</code></td><td>Tests de lecteurs : polyèdres, un scalaire lisse, un champ de pression, un minuscule maillage tétraédrique, types de cellules mixtes, un exemple CalculiX</td><td>Tests de format</td></tr>
+    <tr><td><code>real/</code> and <code>large/</code></td><td>Fichiers écrits par d'autres outils (données de test VTK) pour tester les lecteurs ; un script générateur pour des résultats très volumineux (1 million de cellules ; pas dans git)</td><td>Tests des lecteurs et du chargement différé</td></tr>
+  </tbody>
+</table>
+
+<h2>Graphiques 3D</h2>
+<table class="compact">
+  <thead><tr><th style="width:30%">Fichier</th><th>Ce que c'est</th><th style="width:22%">Type de graphique</th></tr></thead>
+  <tbody>
+    <tr><td><code>surface_ripple.csv</code></td><td>sin(r)/r sur une grille de 21 x 21</td><td>Surface, Contours</td></tr>
+    <tr><td><code>surface_scattered.csv</code></td><td>Quatorze points irréguliers avec une hauteur en pente</td><td>Surface (triangulée)</td></tr>
+    <tr><td><code>line_helix.csv</code></td><td>200 points d'une hélice de deux tours</td><td>Ligne / Courbe, remplissage</td></tr>
+    <tr><td><code>line_band.csv</code></td><td>Deux courbes qui se croisent (colonnes z et z2) colorées selon la largeur de la bande</td><td>Ligne, remplissage entre courbes</td></tr>
+    <tr><td><code>line_growth.csv</code></td><td>z = 10^(x/2), de 1 à 100</td><td>Ligne, axe logarithmique</td></tr>
+    <tr><td><code>scatter_clusters.csv</code></td><td>Trois groupes de 60 points, colorés selon l'identifiant</td><td>Nuage de points, remplissage</td></tr>
+    <tr><td><code>scatter_error_bars.csv</code></td><td>Points avec une colonne d'erreur</td><td>Nuage de points, barres d'erreur</td></tr>
+    <tr><td><code>scatter_band.csv</code></td><td>Deux jeux de valeurs Z (z et z2)</td><td>Nuage de points, remplissage entre</td></tr>
+    <tr><td><code>bar_histogram.csv</code>, <code>bar_histogram_1d.csv</code>, <code>bar_signed.csv</code></td><td>Une bosse de 8 x 8 barres ; huit effectifs de classes ; des barres au-dessus et au-dessous de leur base</td><td>Barres / Histogramme</td></tr>
+    <tr><td><code>voxel_sphere.csv</code></td><td>Une sphère dans une grille d'occupation de 9 x 9 x 9</td><td>Voxel / Volumétrique</td></tr>
+    <tr><td><code>quiver_vortex.csv</code></td><td>Une rotation autour de Z avec une dérive vers le haut (grille de 7 x 7 x 3)</td><td>Vectoriel (Quiver)</td></tr>
+    <tr><td><code>pathlines_double_gyre.csv</code>, <code>pathlines_rising_vortex_3d.csv</code>, <code>pathlines_openfoam_cavity.csv</code></td><td>Champs de vitesse dépendant du temps sur des grilles régulières</td><td>Série temporelle CSV (trajectoires)</td></tr>
+    <tr><td><code>image_gradient.png</code>, <code>image_gradient_alpha.png</code></td><td>Une image de 320 x 200 avec un repère « L » ; la même avec une transparence dégradée</td><td>Image sur un plan</td></tr>
+  </tbody>
+</table>
+
+
+<h1 class="chapter appendix">Référence rapide</h1>
+
+<h2>Où se trouvent les choses</h2>
+<table class="compact">
+  <thead><tr><th style="width:44%">Pour faire ceci</th><th>Allez à</th></tr></thead>
+  <tbody>
+    <tr><td>Ouvrir un résultat dans son propre document</td><td><span class="path">Fichier &rarr; Ouvrir...</span></td></tr>
+    <tr><td>Ajouter un résultat au document courant</td><td><span class="path">Visualisation &rarr; Résultats de simulation &rarr; Ajouter un résultat à ce document...</span></td></tr>
+    <tr><td>Comparer deux résultats</td><td><span class="path">Visualisation &rarr; Résultats de simulation &rarr; Comparer les résultats...</span> ou <span class="ui">Comparer</span> dans l'onglet</td></tr>
+    <tr><td>Changer le champ, la plage, la palette de couleurs, la déformation, les coupes, le volume, les flèches, les ellipsoïdes</td><td>L'onglet <span class="ui">Résultats de simulation</span> (panneau ancré en bas à gauche)</td></tr>
+    <tr><td>Historique rapide d'un point</td><td>Clic droit sur le modèle &rarr; <span class="ui">Tracer au fil du temps ici</span></td></tr>
+    <tr><td>Ajouter un graphique 3D</td><td><span class="path">Visualisation &rarr; Graphique 3D...</span> ou l'onglet <span class="ui">Graphique 3D</span> &rarr; <span class="ui">Ajouter un graphique 3D...</span></td></tr>
+    <tr><td>Mettre en forme un graphique, régler les axes, remarques, modifier, animer</td><td>L'onglet <span class="ui">Graphique 3D</span></td></tr>
+    <tr><td>Coupes à travers un résultat</td><td>Le bouton Vue en coupe de la barre d'outils Affichage</td></tr>
+    <tr><td>Annoter, mesurer, rapport</td><td><span class="path">Outils &rarr; Annoter...</span>, <span class="path">Outils &rarr; Mesurer...</span>, <span class="path">Outils &rarr; Exporter le rapport...</span></td></tr>
+    <tr><td>Nouveautés, le tutoriel, l'aide rapide</td><td><span class="path">Aide &rarr; Nouveautés...</span>, <span class="path">Aide &rarr; Tutoriel</span>, <span class="path">Aide &rarr; Aide Rapide</span></td></tr>
+  </tbody>
+</table>
+
+<h2>Souris et clavier</h2>
+<table class="compact">
+  <thead><tr><th style="width:44%">Où et quoi</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr><td>Vue : pivoter, déplacer, zoomer</td><td>Glisser avec le bouton central, glisser avec le bouton droit, molette (voir le tutoriel, leçon 3)</td></tr>
+    <tr><td>Survoler un résultat</td><td>Affiche la valeur sous le curseur</td></tr>
+    <tr><td>Graphique : zoom</td><td>Molette ; <kbd>Maj</kbd>+molette x seulement ; <kbd>Ctrl</kbd>+molette y seulement</td></tr>
+    <tr><td>Graphique : déplacer, réinitialiser</td><td>Glisser avec le bouton central ; double-clic</td></tr>
+    <tr><td>Graphique temporel : se déplacer dans le temps</td><td>Clic ou glissement dans le graphique</td></tr>
+    <tr><td>Courbe d'opacité (volume)</td><td>Faire glisser un point ; le double-clic en ajoute un ; le clic droit supprime un point intérieur</td></tr>
+    <tr><td>Chronologie</td><td>Lecture/pause, précédent/suivant, arrêt, curseur, Boucle, vitesse ; faites glisser la barre pour la déplacer, double-clic pour la réinitialiser</td></tr>
+    <tr><td>Remarques du graphique</td><td>Placer une note, puis cliquer ; faire glisser pour déplacer, double-cliquer pour modifier, clic droit pour supprimer</td></tr>
+  </tbody>
+</table>
+
+<h2>Limites en un coup d'œil</h2>
+<table class="compact">
+  <thead><tr><th style="width:44%">Grandeur</th><th>Valeur</th></tr></thead>
+  <tbody>
+    <tr><td>Niveaux des isosurfaces</td><td>1 à 20</td></tr>
+    <tr><td>Points de départ des lignes de courant</td><td>1 à 500 (2000 pas ou quatre diagonales du modèle par sens)</td></tr>
+    <tr><td>Qualité du volume</td><td>Faible 32, Moyenne 64, Élevée 96, Très élevée 128</td></tr>
+    <tr><td>Nombre d'ellipsoïdes</td><td>20 à 5000</td></tr>
+    <tr><td>Pas de temps enregistrés dans une session</td><td>100 par résultat (régulièrement espacés)</td></tr>
+    <tr><td>Les résultats sont lus de façon différée au-delà de</td><td>256 Mo de données de pas, avec plus d'un pas</td></tr>
+  </tbody>
+</table>
+
+
+<h1 class="chapter appendix">Messages et dépannage</h1>
+
+<h2>Ce que vous pouvez voir et que faire</h2>
+<table>
+  <thead><tr><th style="width:36%">Situation</th><th>Cause et remède</th></tr></thead>
+  <tbody>
+    <tr><td>Un format manque dans la boîte de dialogue Ouvrir</td><td>Votre build n'inclut pas la bibliothèque correspondante (NetCDF pour Exodus, CGNS, HDF5 pour VTKHDF et MED). <span class="path">Aide &rarr; À propos</span> montre ce qui est activé.</td></tr>
+    <tr><td>« Un résultat de simulation est déjà en cours de chargement »</td><td>Un seul résultat est chargé à la fois ; attendez la barre de progression ou annulez-la.</td></tr>
+    <tr><td>Le résultat s'ouvre en gris, sans couleurs</td><td>Le fichier n'a pas de champs (seulement la géométrie). Le panneau l'indique.</td></tr>
+    <tr><td>Les nombres n'ont pas d'unité dans la légende</td><td>Le fichier n'en indique aucune. Choisissez-la sous <span class="ui">Grandeur</span> et <span class="ui">Les valeurs sont en</span>.</td></tr>
+    <tr><td>Les valeurs semblent fausses d'un facteur 1000 ou 1 000 000</td><td>L'unité du fichier diffère de ce que vous supposiez (Pa et MPa ; mm et m). Vérifiez les unités de l'analyse et réglez-les.</td></tr>
+    <tr><td>Les couleurs diffèrent entre les pas ou entre les résultats</td><td>La plage est par pas ou par résultat. Utilisez <i>Automatique (tous les pas)</i>, une plage <i>Personnalisée</i> ou <span class="ui">Même plage de couleurs pour les deux</span>.</td></tr>
+    <tr><td>« Ce résultat n'a pas de champ de déplacement »</td><td>Il ne peut pas être affiché déformé ; le fichier doit contenir des déplacements.</td></tr>
+    <tr><td>Les coupes, isosurfaces, lignes de courant ou le volume ne font rien</td><td>Le résultat n'a pas de cellules volumiques (une coque), ou le champ sélectionné n'est pas un champ aux nœuds (les lignes de courant exigent un champ vectoriel aux nœuds). La ligne d'information sous le groupe indique ce qu'il en est.</td></tr>
+    <tr><td>Les isosurfaces sont masquées</td><td>Activez un plan de coupe et désactivez <span class="ui">Colorer la coupe du plan de coupe avec le champ</span> : une coupe opaque cache ce qui se trouve derrière.</td></tr>
+    <tr><td>« Les faces de coupe et les isosurfaces sont affichées telles qu'elles ont été enregistrées (figées) »</td><td>La session a été enregistrée sans le volume. Enregistrez avec <span class="ui">Enregistrer aussi le volume</span> pour les garder actives.</td></tr>
+    <tr><td>Aucun tenseur à choisir pour les ellipsoïdes</td><td>Le résultat n'a aucun champ à six composantes dont le nom contient <i>stress</i>.</td></tr>
+    <tr><td>Un graphique est vide ou réduit à un point</td><td>Un résultat à un seul pas montre son historique sous forme de point ; un clic à côté du résultat ne donne aucune donnée.</td></tr>
+    <tr><td>Le bouton Comparer n'est pas disponible</td><td>Le document a besoin de deux résultats ; la comparaison se termine d'elle-même si l'un est masqué ou fermé.</td></tr>
+    <tr><td>Graphique : « Ouvrez ou collez d'abord des données tabulaires »</td><td>Le CSV n'a pas été chargé.</td></tr>
+    <tr><td>Graphique : un tableau qui n'est pas une grille complète</td><td>Un tableau de surface ou de trajectoires doit contenir chaque combinaison de la grille une fois ; le message indique combien de lignes sont nécessaires.</td></tr>
+    <tr><td>Graphique : « Variable inconnue », « Division par zéro », « log exige une valeur positive »</td><td>Corrigez l'expression ; <span class="ui">Créer le graphique</span> reste désactivé tant qu'elle n'est pas évaluable sur toute la plage.</td></tr>
+    <tr><td>Graphique : un axe est revenu à Linéaire</td><td>Un axe Log 10 ne peut pas afficher un graphique dont les valeurs atteignent zéro ; tous les graphiques sont revenus à Linéaire avec lui. Utilisez SymLog ou supprimez ce graphique.</td></tr>
+    <tr><td>Une image apparaît en miroir</td><td>Vous voyez le dos d'un plan d'image. Cochez <span class="ui">Lisible par l'arrière</span> (images opaques seulement) ou regardez de face.</td></tr>
+    <tr><td>Le verre ou d'autres effets manquent dans le graphique</td><td>Les graphiques et les résultats sont dessinés à plat dans tous les modes et ne sont pas tracés par lancer de rayons.</td></tr>
+  </tbody>
+</table>
+
+
+<h1 class="chapter appendix">Glossaire</h1>
+<dl class="def">
+  <dt>Surface de bord</dt><dd>Les faces d'un résultat volumique qui appartiennent à exactement une cellule : la peau qui est dessinée.</dd>
+  <dt>Données de cellule</dt><dd>Un champ avec une valeur par élément, dessiné à plat (aussi : données d'élément).</dd>
+  <dt>Contours</dt><dd>Une ligne (ou un bord de bande) de même valeur.</dd>
+  <dt>Champ dérivé</dt><dd>Une valeur calculée à partir d'un autre champ, comme la contrainte de von Mises à partir d'un tenseur de contraintes.</dd>
+  <dt>Déplacement</dt><dd>Le vecteur dont un nœud s'est déplacé sous charge ; la base de la forme déformée.</dd>
+  <dt>Champ</dt><dd>Une grandeur définie sur le modèle : scalaire, vecteur ou tenseur.</dd>
+  <dt>Isosurface</dt><dd>La surface d'un volume sur laquelle un champ a une valeur constante.</dd>
+  <dt>Chargement différé</dt><dd>Lire un pas dans le fichier seulement lorsqu'il est affiché, afin que la mémoire ne croisse pas avec le nombre de pas.</dd>
+  <dt>Forme modale</dt><dd>Le motif de mouvement d'une structure qui vibre à une fréquence propre ; son amplitude est arbitraire.</dd>
+  <dt>Données aux nœuds</dt><dd>Un champ avec une valeur par point du maillage, interpolé de façon lisse.</dd>
+  <dt>Trajectoire</dt><dd>La trace d'une particule emportée par un champ qui change avec le temps.</dd>
+  <dt>Contrainte principale</dt><dd>L'une des trois contraintes normales dans l'orientation où la contrainte de cisaillement s'annule.</dd>
+  <dt>Quiver</dt><dd>Un graphique de flèches, une pour chaque point d'un champ vectoriel.</dd>
+  <dt>Instantané</dt><dd>Les données qu'une session enregistrée conserve d'un résultat : la surface, les champs et pas choisis, les unités et l'état de la vue.</dd>
+  <dt>Pas</dt><dd>Un état d'un résultat : un incrément de charge, un pas de temps ou un mode.</dd>
+  <dt>Ligne de courant</dt><dd>Le chemin le long d'un champ vectoriel figé à un instant donné.</dd>
+  <dt>SymLog</dt><dd>Une échelle d'axe logarithmique pour les grandes valeurs et linéaire près de zéro, ce qui lui permet d'afficher des nombres négatifs.</dd>
+  <dt>Glyphe de tenseur</dt><dd>Un symbole (ici un ellipsoïde) dont la forme et la taille montrent un tenseur.</dd>
+  <dt>Contrainte de von Mises</dt><dd>Une contrainte équivalente unique dérivée du tenseur de contraintes complet, utilisée pour juger de la plastification des matériaux ductiles.</dd>
+</dl>

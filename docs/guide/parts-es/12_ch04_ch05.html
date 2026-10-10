@@ -1,0 +1,73 @@
+<h1 class="chapter">La forma deformada y los resultados modales</h1>
+
+<h2>Mostrar la deformación</h2>
+<p>Los resultados estructurales contienen un desplazamiento para cada nodo. Active <span class="ui">Mostrar forma deformada</span> y el modelo se dibuja desplazado por ese campo en lugar de en reposo. El desplazamiento se aplica al dibujar el modelo; la geometría del archivo y las posiciones de reposo no se alteran, de modo que puede desactivar la opción de nuevo en cualquier momento.</p>
+<ul>
+  <li>El <span class="ui">Factor de escala</span> exagera el desplazamiento. Las deflexiones reales suelen ser diminutas comparadas con el modelo, por lo que un factor muy superior a 1 es normal. El botón <span class="ui">Auto</span> elige un factor que hace claramente visible el movimiento.</li>
+  <li>El desplazamiento se aplica en la unidad de longitud propia del archivo; el panel nombra el campo que se usa. Un resultado sin campo de desplazamiento no se puede mostrar deformado, y lo indica.</li>
+  <li>Mientras la forma deformada está activa, todo lo que sigue a la geometría sigue a la malla desplazada: la lectura al pasar el cursor, los marcadores de extremos, las secciones, las isosuperficies y las líneas de corriente.</li>
+</ul>
+<figure data-img="tutorial_19_deformed_plate.png"><figcaption>Una placa con un agujero bajo carga: forma deformada activada, mínimo y máximo marcados</figcaption></figure>
+<div class="callout warn"><span class="label">Precaución</span>
+  <p>La imagen está exagerada a propósito. Cuando juzgue cuánto se mueve realmente una pieza, lea el factor de escala y use la lectura al pasar el cursor o un gráfico para obtener los valores reales de desplazamiento.</p>
+</div>
+
+<h2>Resultados modales</h2>
+<p>Un análisis de frecuencias produce <b>formas modales</b>, no desplazamientos con un tamaño físico: un modo solo dice cómo se mueve la estructura respecto a sí misma, y su amplitud es arbitraria. ModelViewer trata estos resultados (pasos etiquetados <i>Mode 1</i>, <i>Mode 2</i> ... con sus frecuencias en hercios) de forma especial:</p>
+<ul>
+  <li>Cada modo se dibuja con su mayor desplazamiento a una décima parte del tamaño del modelo, de modo que todos los modos son visibles sin ajustes; el <span class="ui">Factor de escala</span> escala eso (un factor de 1 significa una décima parte del tamaño del modelo).</li>
+  <li>Los pasos son los modos. La línea de tiempo los recorre y los reproduce uno tras otro; la etiqueta muestra la frecuencia del modo.</li>
+  <li>El eje x de un gráfico de un resultado modal es la frecuencia de cada modo, lo que permite que una curva de respuesta en frecuencia coincida con los modos (capítulo 7).</li>
+</ul>
+<figure data-img="tutorial_19_modes.png"><figcaption>Dos modos de vibración de la caja, dibujados deformados</figcaption></figure>
+
+<div class="callout"><span class="label">Nota</span>
+  <p>Para probar: <code>FEM_box_modes.frd</code> (seis modos) y <code>FEM_box_frequency_mode1.vtu</code> (el primer modo, tal como lo escribe FreeCAD). <code>FEM_box_static_stress.vtu</code> y <code>plate_with_hole.frd</code> son buenos para la forma deformada normal; <code>plate_with_hole.frd</code> tiene cuatro pasos de carga.</p>
+</div>
+
+
+<h1 class="chapter">Tiempo: pasos y la línea de tiempo</h1>
+
+<h2>Qué es un paso</h2>
+<p>La palabra <b>paso</b> abarca tres cosas distintas, y ModelViewer las trata igual:</p>
+<ul>
+  <li><b>Pasos e incrementos de carga</b> de un análisis estructural (por ejemplo 25 %, 50 %, 87,5 %, 100 % de una carga);</li>
+  <li><b>Pasos de tiempo</b> de un análisis térmico o de flujo transitorio (un caso de OpenFOAM tiene uno por directorio de tiempo);</li>
+  <li><b>Modos</b> de un análisis de frecuencias (capítulo 4).</li>
+</ul>
+<p>Un resultado con más de un paso muestra una <b>línea de tiempo</b> en la parte superior de la vista. Un resultado con un solo paso no tiene línea de tiempo.</p>
+
+<h2>La línea de tiempo</h2>
+<table class="compact">
+  <thead><tr><th style="width:28%">Control</th><th>Uso</th></tr></thead>
+  <tbody>
+    <tr><td>Reproducir / Pausa</td><td>Reproduce los pasos en orden a la velocidad elegida.</td></tr>
+    <tr><td>Paso anterior / siguiente</td><td>Avanza un paso.</td></tr>
+    <tr><td>Detener</td><td>Detiene y rebobina al primer paso.</td></tr>
+    <tr><td>Control deslizante</td><td>Salta a cualquier paso; arrástrelo para recorrer el tiempo. La etiqueta muestra el número de paso y su tiempo (o la frecuencia del modo).</td></tr>
+    <tr><td>Repetir</td><td>Vuelve a empezar desde el primer paso al final.</td></tr>
+    <tr><td>Velocidad</td><td>Velocidad de reproducción, de más lenta a más rápida que el tiempo real.</td></tr>
+    <tr><td>Anclar</td><td>La barra se puede arrastrar a otro lugar de la vista (un doble clic la restablece); el ancla la bloquea donde está.</td></tr>
+  </tbody>
+</table>
+<figure data-img="tutorial_19_timeline.png"><figcaption>La línea de tiempo en la parte superior de la vista al reproducir los pasos de carga de la caja</figcaption></figure>
+
+<h2>Colores a lo largo del tiempo</h2>
+<p>De forma predeterminada el rango de color abarca <b>todos los pasos</b> (capítulo 3), de modo que un color significa el mismo valor en cada fotograma y puede ver cómo crece una tensión o cómo entra el calor. Elija <span class="ui">Automático (este paso)</span> cuando quiera que cada paso use su propio rango completo (por ejemplo para ver la <i>forma</i> de un modo) y <span class="ui">Personalizado</span> para fijar usted la escala.</p>
+
+<h2>Gráficos y tiempo</h2>
+<p>La línea de tiempo y los gráficos temporales del capítulo 7 se controlan mutuamente: un cursor naranja en un gráfico marca el paso actual, y hacer clic o arrastrar en el gráfico mueve el resultado al paso más cercano. Cuando un resultado y un gráfico 3D animado comparten una barra de reproducción (capítulo 18), la barra sigue el tiempo físico.</p>
+
+<h2>Resultados transitorios largos</h2>
+<p>Un resultado con muchos pasos y muchas celdas contiene muchos datos. Los resultados cuyos datos de pasos necesitarían más de 256 MB y que tienen más de un paso se leen <b>de forma diferida</b>: solo unos pocos pasos están en memoria a la vez y los demás se leen del archivo cuando se muestran. La apertura es rápida y la memoria se mantiene constante, a cambio de una breve lectura cada vez que se pasa a un paso que no está residente y del primer recorrido para el rango de color de todos los pasos. El capítulo 9 explica esto y sus consecuencias.</p>
+
+<h3>Ejemplos</h3>
+<table class="compact">
+  <thead><tr><th style="width:36%">Archivo</th><th>Pasos</th></tr></thead>
+  <tbody>
+    <tr><td><code>FEM_box_load_steps.frd</code></td><td>Cuatro incrementos de una rampa de carga; reprodúzcalo para ver crecer la tensión en una escala de color fija.</td></tr>
+    <tr><td><code>FEM_box_thermal_transient.frd</code></td><td>20 pasos de tiempo a lo largo de 10 s: una cara se mantiene a 100 y el resto empieza a 20.</td></tr>
+    <tr><td><code>FEM_box_modes.frd</code></td><td>Los seis primeros modos de vibración, etiquetados con sus frecuencias.</td></tr>
+    <tr><td><code>openfoam_cavity/cavity.foam</code></td><td>Cinco directorios de tiempo, de 0 a 2 s (valores sintéticos; el caso pone a prueba el lector, la visualización de datos de celda y las unidades).</td></tr>
+  </tbody>
+</table>

@@ -1,0 +1,84 @@
+<h1 class="chapter">Ein Ergebnis öffnen</h1>
+
+<h2>Zwei Wege zum Öffnen</h2>
+<table>
+  <thead><tr><th style="width:36%">Befehl</th><th>Was passiert</th></tr></thead>
+  <tbody>
+    <tr><td><span class="path">Datei &rarr; Öffnen...</span> (oder <kbd>Strg</kbd>+<kbd>O</kbd>, oder die Datei auf das Fenster ziehen)</td><td>Das Ergebnis öffnet sich in einem <b>eigenen Dokument</b>. Das ist der normale Weg und derjenige, den Sie zuerst verwenden sollten.</td></tr>
+    <tr><td><span class="path">Visualisierung &rarr; Simulationsergebnisse &rarr; Ergebnis zu diesem Dokument hinzufügen...</span> (auch <span class="ui">Ergebnis hinzufügen...</span> in der Registerkarte)</td><td>Das Ergebnis wird dem <b>aktuellen Dokument</b> hinzugefügt, neben allem, was dort ist - einem CAD-Modell, einem anderen Ergebnis. Verwenden Sie es, um zwei Ergebnisse zu vergleichen (Kapitel 8) oder ein Ergebnis zusammen mit einem Diagramm zu sehen (Kapitel 18).</td></tr>
+  </tbody>
+</table>
+<p>Beide akzeptieren dieselben Dateien. Der Dateifilter bietet <i>Alle Simulationsergebnisse</i> und einen Eintrag pro Format. Ein OpenFOAM-Fall wird über die leere <code>.foam</code>-Datei im Fallordner geöffnet.</p>
+
+<h2>Während des Ladens</h2>
+<p>Lesen, Dekomprimieren, Tesselieren und das Extrahieren der Randfläche laufen im Hintergrund, mit Fortschrittsbalken und einer Abbrechen-Schaltfläche, sodass das Programm bedienbar bleibt. Es wird immer nur ein Ergebnis geladen; wer ein zweites startet, während eines lädt, erhält eine Meldung. Große Textformate (ASCII-<code>.frd</code> oder -<code>.vtk</code>) lassen sich viel langsamer lesen als die binären, auf HDF5 und NetCDF beruhenden; das ist eine Eigenschaft der Formate, nicht des Programms.</p>
+
+<h2>Die Registerkarte „Simulationsergebnisse“</h2>
+<p>Sobald ein Ergebnis geladen ist, wechselt das Dock unten links zur Registerkarte <span class="ui">Simulationsergebnisse</span>. Sie enthält fast alles in diesem Teil des Handbuchs, und ihre Steuerelemente sind inaktiv, bis ein Ergebnis ausgewählt ist. Von oben nach unten:</p>
+<ul>
+  <li><span class="ui">Ergebnis</span>: auf welches Ergebnis des Dokuments sich die Steuerelemente beziehen, mit einer Schaltfläche, die das gewählte Ergebnis aus dem Dokument entfernt (rückgängig zu machen), und einer Infozeile mit dem Dateinamen und den Anzahlen - Knoten, Zellen und Oberflächendreiecke.</li>
+  <li><span class="ui">Modelleinheit</span> und <span class="ui">Modellgröße</span>: die Längeneinheit der Geometrie (Meter, Zentimeter, Millimeter, Zoll, Fuß; wenn die Datei nichts angibt, <i>Nicht angegeben (mm angenommen)</i>) und die Größe des Modells darin.</li>
+  <li><span class="ui">Feld</span>, <span class="ui">Komponente</span>, <span class="ui">Größe</span> und <span class="ui">Werte sind in</span>: wonach eingefärbt wird und in welcher Einheit (Kapitel 3).</li>
+  <li><span class="ui">Bereich</span>, <span class="ui">Farbskala</span>, <span class="ui">Konturen</span>, die Optionen für Verformung und Markierungen sowie die Gruppen für Schnitte, Isoflächen, Stromlinien, Volumen, Pfeile und Ellipsoide (Kapitel 3, 4 und 6).</li>
+  <li><span class="ui">Diagramme</span>: die Schaltflächen für Verläufe entlang einer Linie oder über die Zeit und für die Verteilung (Kapitel 7) sowie die Steuerelemente für <span class="ui">Vergleichen</span> (Kapitel 8).</li>
+</ul>
+
+<figure data-img="tutorial_19_first_result.png"><figcaption>Ein gerade geöffnetes Ergebnis: der Würfel nach von-Mises-Spannung eingefärbt, mit seiner Legende, und die Registerkarte „Simulationsergebnisse“ unten links</figcaption></figure>
+<figure data-img="tutorial_19_results_tab.png"><figcaption>Die Registerkarte „Simulationsergebnisse“: Feld, Komponente, Bereich, Farbskala und Konturen</figcaption></figure>
+
+<h2>Ergebnisse ohne Felder oder ohne Volumen</h2>
+<ul>
+  <li>Eine Datei, die nur Geometrie enthält, zeigt die Geometrie, und die Registerkarte sagt es: Es gibt keine Werte zum Einfärben.</li>
+  <li>Ein Schalenergebnis (nur Dreiecke und Vierecke) hat kein Volumen. Alles, was ein Volumen braucht - Schnitte, die das Innere zeigen, Isoflächen, Stromlinien, Volumendarstellung - meldet, dass es nichts zu schneiden oder zu verfolgen gibt. Farben, Verformung, Sonden und Diagramme funktionieren alle.</li>
+  <li>Ein Ergebnis ohne Verschiebungsfeld kann nicht verformt angezeigt werden; die Option erklärt dies.</li>
+</ul>
+
+<div class="callout tip"><span class="label">Tipp</span>
+  <p>Wenn Sie nicht sicher sind, was eine Datei enthält, öffnen Sie sie und sehen Sie zuerst in die <span class="ui">Feld</span>-Liste und die Infozeile: Sie zeigen jedes Feld, das der Leser gefunden hat, welche Schritte es gibt und wie viele Knoten und Zellen sie hat. Für einen ersten Versuch ist <code>sample-models/Simulation/FEM_box_static_stress.vtu</code> klein und öffnet sich nach von-Mises-Spannung eingefärbt.</p>
+</div>
+
+
+<h1 class="chapter">Felder, Farben und Einheiten</h1>
+
+<h2>Das Feld wählen</h2>
+<p><span class="ui">Feld</span> listet alles auf, was die Datei enthält, plus die abgeleiteten Werte. Ein Vektorfeld bietet <span class="ui">Komponente</span>-Auswahlen - seine Komponenten und seinen <i>Betrag</i>; die sechs Komponenten eines Spannungstensors werden durch die unten beschriebenen abgeleiteten Skalare zusammengefasst. Mit <span class="ui">[Zellen]</span> markierte Felder sind Elementdaten.</p>
+
+<h3>Abgeleitete Spannungswerte</h3>
+<p>Enthält eine Datei einen symmetrischen Spannungstensor (sechs Komponenten in der Reihenfolge XX, YY, ZZ, XY, YZ, ZX), leitet ModelViewer die Größen ab, die Ingenieure meist wollen, und fügt sie als gewöhnliche Skalare in die Feldliste ein: <b>von-Mises</b>-Spannung, <b>Tresca</b>-Spannung, die drei <b>Hauptspannungen</b> und die <b>maximale Schubspannung</b>. Sie werden pro Knoten (oder Zelle) aus dem Tensor berechnet, sobald ein Schritt geladen wird; sie erben die Einheit der Spannung und werden nicht in einer gespeicherten Sitzung abgelegt, weil sie sich jederzeit neu berechnen lassen. Typische Quelle sind CalculiX-<code>.frd</code>-Dateien; der <code>.vtu</code>-Export von FreeCAD enthält einige davon bereits.</p>
+
+<h2>Knotendaten und Zelldaten</h2>
+<p>Ein <b>Knotenfeld</b> hat an jedem Netzpunkt einen Wert und wird über jede Fläche glatt interpoliert, sodass auch ein grobes Netz glatte Farben zeigt. Ein <b>Zellfeld</b> hat einen Wert pro Element: Jedes Element wird in einer einzigen flachen Farbe gezeichnet, was das ehrliche Bild elementweiser Daten ist (zum Beispiel einer Elementqualität oder der meisten OpenFOAM-Felder), aber blockig aussieht.</p>
+<p><span class="ui">Zelldaten auf Knoten mitteln</span> (aktiviert, solange ein Zellfeld angezeigt wird) zeichnet das Feld stattdessen glatt: Jeder Knoten übernimmt den Mittelwert der umgebenden Elemente, nach ihrer Größe gewichtet, sodass ein kleines Element weniger zählt als ein großes. Es ist eine Anzeigewahl - die Daten selbst werden nicht verändert - und es ist auch das, was Diagramme, Volumendarstellung und Isoflächen für ein Zellfeld verwenden. Lassen Sie es für Bezeichner wie eine Material- oder Gruppennummer ausgeschaltet, deren Bereiche Kennungen sind, keine Größen.</p>
+<figure data-img="tutorial_22_cell_data_flat_vs_smooth.png"><figcaption>Ein Zellfeld flach gezeichnet (links) und auf die Knoten gemittelt (rechts)</figcaption></figure>
+
+<h2>Die Farbskala</h2>
+<h3>Bereich</h3>
+<table class="compact">
+  <thead><tr><th style="width:30%">Einstellung <span class="ui">Bereich</span></th><th>Die Skala umfasst ...</th></tr></thead>
+  <tbody>
+    <tr><td>Automatisch (alle Schritte)</td><td>den kleinsten und größten Wert des Feldes über <b>alle Schritte</b>. Das ist die Voreinstellung: Sie hält die Bilder einer Animation vergleichbar, weil eine Farbe in jedem Schritt denselben Wert bedeutet.</td></tr>
+    <tr><td>Automatisch (dieser Schritt)</td><td>den kleinsten und größten Wert nur des <b>aktuellen Schritts</b>. Jedes Bild nutzt seinen vollen Farbbereich, was Struktur gut zeigt, aber die Bilder unvergleichbar macht.</td></tr>
+    <tr><td>Benutzerdefiniert</td><td>ein von Ihnen eingegebenes <span class="ui">Minimum</span> und <span class="ui">Maximum</span> in der Anzeigeeinheit. Werte außerhalb erscheinen in den Endfarben. Verwenden Sie es, um Läufe zu vergleichen oder ein interessantes Band zu vergrößern.</td></tr>
+  </tbody>
+</table>
+<h3>Farbskala, Stufen und Legende</h3>
+<p><span class="ui">Farbskala</span> wählt den Verlauf: sequenzielle Verläufe wie den Regenbogen und einen divergierenden Blau-Weiß-Rot-Verlauf, der zu Größen mit sinnvollem Nullpunkt passt (eine Verschiebungskomponente, eine vorzeichenbehaftete Spannung). <span class="ui">Konturen</span> verwandelt den glatten Verlauf in eine Reihe diskreter Stufen (oder zurück); bei Stufen liegen die Farbgrenzen genau bei gleichen Werten und innerhalb der Dreiecke, nicht an Netzkanten. Die Legende neben dem Modell zeigt die Skala, ihre Einheit und den Schritt; Ergebnisflächen werden unbeleuchtet gezeichnet, sodass Beleuchtung die Farben nie verändert.</p>
+<figure data-img="tutorial_19_contours.png"><figcaption>Glatte Farben (links) und dasselbe Feld mit Konturstufen (rechts)</figcaption></figure>
+
+<h3>Min.-/Max.-Markierungen und die Anzeige beim Überfahren</h3>
+<p><span class="ui">Minimum und Maximum markieren</span> beschriftet den niedrigsten und den höchsten Wert <i>auf der sichtbaren Fläche</i> (die wahren Extreme eines Volumenkörpers können innen liegen; Schnitte zeigen sie). Unabhängig davon zeigt das <b>Überfahren</b> des Modells mit der Maus den Wert des angezeigten Feldes am Cursor mit seiner Einheit. Das Überfahren funktioniert, solange ein Ergebnis ausgewählt ist, außer während zwei Ergebnisse verglichen werden (Kapitel 8).</p>
+
+<h2>Einheiten</h2>
+<p>Eine falsche Einheit bei einer Spannung oder Temperatur ist genau der Fehler, den ein Präsentationswerkzeug nicht machen darf; deshalb sind Einheiten explizit und werden nie stillschweigend geraten.</p>
+<ul>
+  <li>Jedes Feld hat eine <b>Größe</b> (Spannung, Verschiebung, Temperatur, Geschwindigkeit, Druck ...) und zwei Einheiten: die in der <i>Datei</i> und die <i>angezeigte</i>.</li>
+  <li>Mit <span class="ui">Größe</span> und <span class="ui">Werte sind in</span> legen Sie sie fest. Trägt die Datei einen Hinweis, verwendet ModelViewer ihn (OpenFOAM gibt seine Einheiten über die Dimensionen jedes Feldes an: Temperatur in K, Geschwindigkeit in m/s, ein Spannungstensor in Pa; ein kinematischer Druck hat keine Einheit); andernfalls wählen Sie, und der Bereich markiert die Einheit als angenommen, bis Sie sie bestätigen.</li>
+  <li>Umrechnungen sind mehr als Skalierungsfaktoren: Die Temperatur wechselt zwischen Kelvin, Grad Celsius und Grad Fahrenheit, was ein Versatz ebenso wie ein Faktor ist.</li>
+  <li>Die Legende, die Anzeige beim Überfahren, die Markierungen, die Diagramme und der Bericht verwenden alle die angezeigte Einheit.</li>
+  <li>Abgeleitete Felder erben die Einheit des Feldes, aus dem sie stammen.</li>
+</ul>
+<div class="callout warn"><span class="label">Achtung</span>
+  <p>Solver schreiben, was Sie ihnen gegeben haben. Ein CalculiX-Lauf mit einem Modell in Millimetern und einem Elastizitätsmodul in MPa meldet Spannung in MPa und Verschiebungen in mm, aber die Datei sagt es nicht - ModelViewer zeigt bloße Zahlen, bis Sie die Einheiten wählen (das Beispiel <code>FEM_box_static.frd</code> liegt in mm und MPa; sein <code>.vtu</code>-Gegenstück zeigt Pa). Prüfen Sie <span class="ui">Werte sind in</span> immer anhand der Einheiten Ihrer Analyse.</p>
+</div>
+
+<figure data-img="tutorial_19_field_list.png"><figcaption>Die Feldliste des statischen Würfelergebnisses</figcaption></figure>
