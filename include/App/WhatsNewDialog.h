@@ -22,7 +22,7 @@ public:
 	static void markShown();
 
 signals:
-	void openTutorialRequested();
+	void openTutorialRequested(int lesson); // 0 = the tutorial home, otherwise the lesson number
 	void openQuickHelpRequested();
 
 private:

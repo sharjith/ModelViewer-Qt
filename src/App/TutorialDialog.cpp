@@ -1,4 +1,5 @@
-﻿#include "PathUtils.h"
+﻿#include "LanguageManager.h"
+#include "PathUtils.h"
 #include "TutorialDialog.h"
 #include <QApplication>
 #include <QDebug>
@@ -207,7 +208,18 @@ void TutorialDialog::populateLessonList()
         << tr("15. Exploded Views")
         << tr("16. Morph Target Animation")
         << tr("17. Node Transform Editing")
-        << tr("18. Edge & Wireframe Rendering");
+        << tr("18. Edge & Wireframe Rendering")
+        << tr("19. Simulation Results")
+        << tr("20. Looking Inside a Result")
+        << tr("21. Charts and Probing")
+        << tr("22. Comparing Results, Cell and Shell Data")
+        << tr("23. 3D Plots from CSV Data")
+        << tr("24. 3D Plots from Formulas, Fills, Images and Notes")
+        << tr("25. Plots and Results Played Together")
+        << tr("26. Mesh Tools")
+        << tr("27. Measure, Annotate and Report")
+        << tr("28. Analysis, Selection and Scenes")
+        << tr("29. Ray Tracing in Practice");
 
     _lessonList->addItems(items);
 }
@@ -220,16 +232,22 @@ QString TutorialDialog::getTutorialBasePath() const
 
 QString TutorialDialog::getLessonPath(int lessonIndex) const
 {
-    QString basePath = getTutorialBasePath();
+    const QString basePath = getTutorialBasePath();
+    const QString fileName = (lessonIndex == -1) ? QStringLiteral("index.html")
+                                                 : QString("lesson%1.html").arg(lessonIndex, 2, 10, QChar('0'));
 
-    if (lessonIndex == -1)
+    // A translated page lives in a folder named after the UI language (de, es, fr, it); a lesson that is not
+    // translated yet falls back to the English page at the top.
+    const QString language = LanguageManager::instance().currentLanguage().section(QLatin1Char('_'), 0, 0).toLower();
+    if (!language.isEmpty() && language != QLatin1String("en"))
     {
-        // Index page
-        return basePath + "/index.html";
+        const QString localized = basePath + "/" + language + "/" + fileName;
+        if (QFile::exists(localized))
+        {
+            return localized;
+        }
     }
-
-    // Regular lesson (1-18)
-    return basePath + QString("/lesson%1.html").arg(lessonIndex, 2, 10, QChar('0'));
+    return basePath + "/" + fileName;
 }
 
 QString TutorialDialog::getLessonTitle(int lessonIndex) const
@@ -245,7 +263,10 @@ QString TutorialDialog::getLessonTitle(int lessonIndex) const
         "Materials & Textures", "Lighting & Environment", "Working with Visibility",
         "Advanced Features", "Performance Optimization", "Tips & Workflows",
         "Exploded Views", "Morph Target Animation", "Node Transform Editing",
-        "Edge & Wireframe Rendering"
+        "Edge & Wireframe Rendering", "Simulation Results", "Looking Inside a Result", "Charts and Probing",
+        "Comparing Results, Cell and Shell Data", "3D Plots from CSV Data", "3D Plots from Formulas, Fills, Images and Notes",
+        "Plots and Results Played Together", "Mesh Tools", "Measure, Annotate and Report", "Analysis, Selection and Scenes",
+        "Ray Tracing in Practice"
     };
 
     if (lessonIndex >= 1 && lessonIndex <= titles.size())
@@ -273,6 +294,19 @@ QString TutorialDialog::loadHtmlFile(const QString& filename)
     file.close();
 
     return content;
+}
+
+void TutorialDialog::showLesson(int lesson)
+{
+    if (lesson < 0 || lesson > TOTAL_LESSONS)
+    {
+        return;
+    }
+#ifdef HAVE_WEBENGINE
+    loadLesson(lesson);
+#else
+    _lessonList->setCurrentRow(lesson);
+#endif
 }
 
 void TutorialDialog::showError(const QString& title, const QString& message)
@@ -343,7 +377,7 @@ void TutorialDialog::loadLesson(int listIndex)
         return;
     }
 
-    // Convert list index to lesson number (1-18)
+    // Convert list index to lesson number (1-TOTAL_LESSONS)
     int lessonNumber = listIndex;  // listIndex 1 = lesson 1, listIndex 2 = lesson 2, etc.
 
     QString lessonPath = getLessonPath(lessonNumber);

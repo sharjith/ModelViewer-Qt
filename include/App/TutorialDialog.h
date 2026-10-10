@@ -36,6 +36,9 @@ public:
     explicit TutorialDialog(QWidget* parent = nullptr);
     ~TutorialDialog() = default;
 
+    // Jump to a lesson (1..TOTAL_LESSONS); 0 is the index page.
+    void showLesson(int lesson);
+
 private slots:
 #ifndef HAVE_WEBENGINE
     void onLessonSelected(QListWidgetItem* current, QListWidgetItem* previous);
@@ -54,7 +57,7 @@ private:
 #endif
 
     QString getTutorialBasePath() const;
-    QString getLessonPath(int lessonIndex) const;  // lessonIndex is 1-18 for lessons, -1 for index
+    QString getLessonPath(int lessonIndex) const;  // lessonIndex is 1-TOTAL_LESSONS for lessons, -1 for index; the page of the UI language when it exists, else the English one
     QString getLessonTitle(int lessonIndex) const;
     QString loadHtmlFile(const QString& filename);
     void showError(const QString& title, const QString& message);
@@ -74,7 +77,7 @@ private:
 #endif
     QPushButton* _closeButton;
 
-    int _currentListIndex;  // Current position in list (0=index, 1-18=lessons)
-    static constexpr int TOTAL_LESSONS = 18;
+    int _currentListIndex;  // Current position in list (0=index, 1-TOTAL_LESSONS=lessons)
+    static constexpr int TOTAL_LESSONS = 29;
     static constexpr int TOTAL_LIST_ITEMS = TOTAL_LESSONS + 1;  // Include index page
 };
