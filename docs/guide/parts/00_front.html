@@ -1,0 +1,52 @@
+<section class="cover">
+  <svg width="170" height="170" viewBox="0 0 170 170" fill="none" stroke="#ffffff" stroke-width="2">
+    <polygon points="85,12 150,48 150,122 85,158 20,122 20,48" stroke-opacity="0.55"/>
+    <polyline points="85,12 85,85 150,122" stroke-opacity="0.55"/>
+    <polyline points="85,85 20,122" stroke-opacity="0.55"/>
+    <polyline points="30,118 52,92 74,102 98,60 124,72 142,40" stroke="#f6ad55" stroke-width="4"/>
+    <circle cx="98" cy="60" r="5" fill="#f6ad55" stroke="none"/>
+    <circle cx="52" cy="92" r="5" fill="#63b3ed" stroke="none"/>
+    <circle cx="142" cy="40" r="5" fill="#fc8181" stroke="none"/>
+  </svg>
+  <div class="kicker">ModelViewer 2026.11</div>
+  <h1>Simulation Results<br>and 3D Plotting</h1>
+  <div class="subtitle">A user guide to reading solver results and plotting your own data in ModelViewer: from opening a file to a finished report.</div>
+  <div class="meta">User guide &middot; for ModelViewer 2026.11</div>
+</section>
+
+<section>
+  <h1 class="chapter front">About this guide</h1>
+  <p>ModelViewer began as a viewer for 3D models. Two of its newer areas go beyond models: it shows the <b>results of engineering simulations</b> that were calculated elsewhere, and it <b>plots your own data in 3D</b>. This guide covers both in depth, and shows how they work together. The tutorial lessons (Help &rarr; Tutorial, lessons 19 to 25) walk through the same ground step by step; this guide is the reference you keep open next to the program.</p>
+
+  <div class="callout"><span class="label">What ModelViewer does and does not do</span>
+    <p>ModelViewer <b>displays</b> the results that a solver has written. It does not mesh, solve or run simulations, it does not edit results, and it has no scripting or expression language for post-processing. Its strengths are the ones a viewer needs: fast, correct colours; units; time; sections and probes; side-by-side comparison; and the presentation tools (measurement, annotation, PDF report, image export) that the rest of the program offers.</p>
+  </div>
+
+  <h2>Who it is for</h2>
+  <p>Engineers who read the output of structural, thermal or flow analyses (CalculiX, Code_Aster, Elmer, FreeCAD FEM, OpenFOAM, MOOSE and similar open solvers) and want to inspect, compare and present it; and anyone who has tables of numbers - measurements, simulation exports, mathematical functions - and wants to see them as surfaces, curves, points, bars, volumes or vector fields next to a 3D model.</p>
+
+  <h2>How the guide is organised</h2>
+  <table class="compact">
+    <thead><tr><th style="width:26%">Part</th><th>Content</th></tr></thead>
+    <tbody>
+      <tr><td><b>I &ndash; Simulation results</b></td><td>Opening a result, fields and colours, units, deformation, time, looking inside a solid, probing and charts, comparing, saving and large results (chapters 1 to 9).</td></tr>
+      <tr><td><b>II &ndash; 3D plotting</b></td><td>Plots from CSV files and from formulas, the plot types, flow in time, styling and shared axes, notes, images, editing and export (chapters 10 to 17).</td></tr>
+      <tr><td><b>III &ndash; Together</b></td><td>Results and plots on one clock, and worked workflows (chapters 18 and 19).</td></tr>
+      <tr><td><b>Appendices</b></td><td>Catalogue of the sample files, a quick reference, messages and troubleshooting, glossary.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Conventions</h2>
+  <ul>
+    <li>Menu paths use arrows: <span class="path">File &rarr; Open...</span>. Names of controls, tabs and buttons are in <span class="ui">bold</span>, spelled as in the English interface.</li>
+    <li>Keys look like <kbd>Ctrl</kbd>+<kbd>O</kbd>. File names and column names are in <code>monospace</code>.</li>
+    <li>Boxes marked <b>Note</b> add background, <b>Tip</b> a shortcut or good habit, <b>Caution</b> something that surprises people or a limit of the program.</li>
+    <li>All sample files named here ship with ModelViewer in the <code>sample-models</code> folder (<code>Simulation</code> and <code>Plot3D</code>); Appendix A lists them. The pictures were taken with the English interface.</li>
+  </ul>
+
+  <div class="callout tip"><span class="label">Tip</span>
+    <p>Everything here is also in the program: <b>Help &rarr; What's New...</b> gives an overview of the 2026.11 release, <b>Help &rarr; Quick Help</b> has tabs for Simulation Results, 3D Plots and Analysis, and hovering over a control shows a short explanation.</p>
+  </div>
+</section>
+
+<!--TOC-->

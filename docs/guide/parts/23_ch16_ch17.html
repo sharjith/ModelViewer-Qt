@@ -1,0 +1,59 @@
+<h1 class="chapter">Fills, notes, images and probing</h1>
+
+<h2>Fills: ribbons and curtains</h2>
+<p>Lines and scatter plots can be filled with a translucent ribbon, coloured like the plot, to a base plane or between two curves.</p>
+<table>
+  <thead><tr><th style="width:30%">Goal</th><th>How</th></tr></thead>
+  <tbody>
+    <tr><td>A curtain under a line</td><td>Line / Curve (<code>line_helix.csv</code>): tick <span class="ui">Fill to Base Z</span> and set the base (0). Edit Plot to change the base; the curtain hangs from the line where it lies below the base.</td></tr>
+    <tr><td>A band between two curves</td><td>Line / Curve with a second Z column (<code>line_band.csv</code>: columns x, y, z, z2, value): tick the fill and choose the column in <span class="ui">or between the line and column</span>. The band pinches to a line where the curves cross. The base box is unused while a column is chosen; with the column set to <i>(none)</i> the fill reaches the base plane again.</td></tr>
+    <tr><td>Ribbons from scatter points</td><td>Scatter (<code>scatter_clusters.csv</code>): <span class="ui">Fill to Base Z</span> with a base such as -3; or a column in <span class="ui">or between the plot and column</span> (<code>scatter_band.csv</code>) for ribbons between two sets of points.</td></tr>
+    <tr><td>Fill a generated curve</td><td>Parametric curve, Helix preset: <span class="ui">Fill the curve down to Base Z</span>, or type a second z2(t) (for example <code>2 + sin(t)</code>) in <span class="ui">or up to z2(t) =</span> to fill between two curves with the same x(t), y(t). Whether a generated plot is filled is decided when it is built.</td></tr>
+  </tbody>
+</table>
+<p>The axes box always grows to include what the fill reaches.</p>
+<figure data-img="tutorial_24_fill_between_curves.png"><figcaption>A translucent band between two crossing curves, pinching to a line where they cross</figcaption></figure>
+<figure data-img="tutorial_24_fill_curtain.png"><figcaption>The helix with a curtain down to the base plane</figcaption></figure>
+
+<h2>Text notes</h2>
+<p>A <b>note</b> is a short text at a point of your data - a peak, an outlier, a threshold. Select a plot and open the <span class="ui">Text notes</span> group in the 3D Plot tab.</p>
+<ul>
+  <li><span class="ui">Place note</span> arms a click tool: click a point on the plot. The click snaps to the nearest data point of a visible plot (within 14 pixels; for lines, also the closest point on a segment), otherwise it uses the surface point under the cursor. A box asks for the text, which may have several lines. <span class="ui">Add at centre</span> adds a note at the centre of the plot's data.</li>
+  <li>In the view, <b>drag</b> a note to move it, <b>double-click</b> to edit it, <b>right-click</b> to delete it. The table in the tab edits the note's X, Y, Z and text directly.</li>
+  <li>Notes are stored in the plot's <i>data</i> coordinates, so they stay on their point when the axis scale changes. They follow the plot's visibility, are drawn even when the axes box is hidden, and are saved with the session.</li>
+  <li>Every placement, move, edit and deletion can be <b>undone</b>.</li>
+</ul>
+<figure data-img="tutorial_24_text_notes.png"><figcaption>A note on the peak of a surface</figcaption></figure>
+
+<h2>Section curves on hover</h2>
+<p>For a <b>surface</b>, tick <span class="ui">Show section curves on hover</span>. Moving the cursor over the surface draws, through the hovered point, the curves where the X, Y and Z planes cut it - coloured red, green and blue like the axes (the blue one is the contour line through the point) - together with the point's data values. Only the connected curve through the point is drawn, so a saddle shows one branch. It is a quick way to read a profile of a surface without building a chart, and it works in the single view only.</p>
+
+<h2>Images on a plane</h2>
+<p>An <b>image</b> can stand on one of the plot planes: a site map under a surface, a photograph of a specimen beside its measured data. Choose <span class="ui">Data source</span> <i>Image on a plane</i>, pick the file, and choose the plane: <b>XY</b> (flat, at the Z minimum), <b>XZ</b> or <b>YZ</b> (upright, at the minimum of the remaining axis); the ranges adapt to the picture's shape when you pick it or change the plane, and you can adjust them.</p>
+<ul>
+  <li><span class="ui">Opacity</span> (100 % by default) lets what is behind the picture show through; a picture with its own transparency combines with it (<code>image_gradient_alpha.png</code> fades towards its corners).</li>
+  <li>Seen from behind, a picture reads <b>mirrored</b>. For an opaque picture, tick <span class="ui">Readable from behind</span> and the back shows it the right way round (<code>image_gradient.png</code> has an "L" mark to show which way round it is). The option is available only for an opaque picture at 100 % opacity - with a transparent area or a lower opacity both sides would show through each other, so the back stays mirrored.</li>
+  <li>An image plot takes no colour map or legend: its pixels are its colour.</li>
+</ul>
+<figure data-img="tutorial_24_image_plane.png"><figcaption>An image standing on a plane next to a surface plot</figcaption></figure>
+
+
+<h1 class="chapter">Editing, saving and exporting</h1>
+
+<h2>Editing a plot</h2>
+<p>Every plot remembers how it was made. Select it in <span class="ui">Active plot</span> and click <span class="ui">Edit Plot...</span>: the dialog reopens on the same source with the table, the column choices, the expressions, the ranges, the sample counts and the parameters restored. Change what you need and click <span class="ui">Rebuild Plot</span>: <b>the plot is rebuilt in place</b>, with no new tree entry, and keeps its title, visibility, colour map, range and bands, reference planes, contour lines, line width and axes settings (with <span class="ui">Automatic colour range</span> on, the range follows the new data). What cannot change in an edit is the data source (and, for a formula surface, the surface/contour choice); build a new plot for that.</p>
+
+<h2>Saving</h2>
+<p>Plots are saved in the <code>.mvf</code> session with everything needed to edit them later: the data, the definition (columns or expressions), the axes, the colour settings and the notes. After reopening, <span class="ui">Edit Plot...</span> still works. A session saved by an older version that had different axes for each plot opens on the selected plot's axes, now shared.</p>
+
+<h2>Exporting</h2>
+<ul>
+  <li><b>Point and line plots</b> (scatter markers, lines, pathline trails) export to <b>glTF</b>, <b>GLB</b> and <b>OBJ</b> with the rest of the scene; their colours are baked into the file so other programs show them coloured.</li>
+  <li>Surfaces, bars and other mesh plots export like any mesh.</li>
+  <li><b>Images</b> of the view - for reports, slides, papers - come from the program's image export and the PDF report, like any other view.</li>
+  <li>Plots are <b>not drawn by the ray tracer</b>, and path-traced renders do not contain them. The animation of pathlines and the notes' on-screen drawing are viewing aids and are not part of an exported model.</li>
+</ul>
+
+<div class="callout tip"><span class="label">Tip</span>
+  <p>To get your numbers back out, keep the CSV: a plot's definition is saved, but the original table remains the master copy. If you generate data from a script, rerun it, reopen the plot with <span class="ui">Edit Plot...</span> and load the new table.</p>
+</div>

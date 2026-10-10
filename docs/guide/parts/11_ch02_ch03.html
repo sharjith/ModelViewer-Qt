@@ -1,0 +1,84 @@
+<h1 class="chapter">Opening a result</h1>
+
+<h2>Two ways to open</h2>
+<table>
+  <thead><tr><th style="width:36%">Command</th><th>What happens</th></tr></thead>
+  <tbody>
+    <tr><td><span class="path">File &rarr; Open...</span> (or <kbd>Ctrl</kbd>+<kbd>O</kbd>, or drag the file onto the window)</td><td>The result opens in a <b>document of its own</b>. This is the normal way and the one to use first.</td></tr>
+    <tr><td><span class="path">Visualization &rarr; Simulation Results &rarr; Add Result to This Document...</span> (also <span class="ui">Add Result...</span> in the tab)</td><td>The result is added to the <b>current document</b>, next to whatever is there - a CAD model, another result. Use it to compare two results (chapter 8) or to see a result together with a plot (chapter 18).</td></tr>
+  </tbody>
+</table>
+<p>Both accept the same files. The file filter offers <i>All Simulation Results</i> and one entry per format. An OpenFOAM case opens through the empty <code>.foam</code> file in the case folder.</p>
+
+<h2>While it loads</h2>
+<p>Reading, decompressing, tessellating and extracting the boundary surface run in the background, with a progress bar and a Cancel button, so the program stays usable. Only one result loads at a time; starting a second while one is loading gives a message. Large text formats (ASCII <code>.frd</code> or <code>.vtk</code>) are much slower to read than the binary HDF5 and NetCDF based ones, which is a property of the formats, not of the program.</p>
+
+<h2>The Simulation Results tab</h2>
+<p>Once a result is loaded, the dock at the bottom left switches to the <span class="ui">Simulation Results</span> tab. It holds nearly everything in this part of the guide, and its controls are inactive until a result is selected. From the top:</p>
+<ul>
+  <li><span class="ui">Result</span>: which result of the document the controls act on, with a button that removes the selected result from the document (this can be undone), and an info line with the file name and the counts - nodes, cells and surface triangles.</li>
+  <li><span class="ui">Model unit</span> and <span class="ui">Model size</span>: the length unit of the geometry (metres, centimetres, millimetres, inches, feet; when the file does not say, <i>Not specified (assumed mm)</i>) and the size of the model in it.</li>
+  <li><span class="ui">Field</span>, <span class="ui">Component</span>, <span class="ui">Quantity</span> and <span class="ui">Values are in</span>: what to colour by, and its unit (chapter 3).</li>
+  <li><span class="ui">Range</span>, <span class="ui">Colormap</span>, <span class="ui">Contours</span>, the deformation and marker options, and the groups for sections, iso-surfaces, streamlines, volume, arrows and ellipsoids (chapters 3, 4 and 6).</li>
+  <li><span class="ui">Charts</span>: the buttons for plotting over a line or over time and for the distribution (chapter 7), and the <span class="ui">Compare</span> controls (chapter 8).</li>
+</ul>
+
+<figure data-img="tutorial_19_first_result.png"><figcaption>A result just opened: the box coloured by von Mises stress, with its legend, and the Simulation Results tab at the bottom left</figcaption></figure>
+<figure data-img="tutorial_19_results_tab.png"><figcaption>The Simulation Results tab: field, component, range, colormap and contours</figcaption></figure>
+
+<h2>Results without fields or without volume</h2>
+<ul>
+  <li>A file that contains only geometry shows the geometry, and the tab says so: there are no values to colour by.</li>
+  <li>A shell result (triangles and quadrilaterals only) has no volume. Everything that needs a volume - sections that reveal the inside, iso-surfaces, streamlines, volume rendering - reports that there is nothing to cut or trace. Colours, deformation, probes and charts all work.</li>
+  <li>A result without a displacement field cannot be shown deformed; the option explains this.</li>
+</ul>
+
+<div class="callout tip"><span class="label">Tip</span>
+  <p>If you are unsure what a file contains, open it and look at the <span class="ui">Field</span> list and the info line first: they show every field the reader found, which steps exist, and how many nodes and cells it has. For a first try, <code>sample-models/Simulation/FEM_box_static_stress.vtu</code> is small and opens coloured by von Mises stress.</p>
+</div>
+
+
+<h1 class="chapter">Fields, colours and units</h1>
+
+<h2>Choosing the field</h2>
+<p><span class="ui">Field</span> lists everything the file contains, plus the derived values. A vector field offers <span class="ui">Component</span> choices - its components and its <i>magnitude</i>; the six components of a stress tensor are summarised by the derived scalars described below. Fields marked <span class="ui">[cells]</span> are element data.</p>
+
+<h3>Derived stress values</h3>
+<p>When a file contains a symmetric stress tensor (six components, in the order XX, YY, ZZ, XY, YZ, ZX), ModelViewer derives the quantities engineers usually want and adds them to the field list as ordinary scalars: <b>von Mises</b> stress, <b>Tresca</b> stress, the three <b>principal stresses</b> and the <b>maximum shear</b>. They are computed per node (or cell) from the tensor as each step is loaded; they inherit the unit of the stress and are not stored in a saved session, because they can always be recomputed. CalculiX <code>.frd</code> files are the typical source; FreeCAD's <code>.vtu</code> export already contains some of them.</p>
+
+<h2>Node data and cell data</h2>
+<p>A <b>node field</b> has a value at every mesh point and is interpolated smoothly over each face, so a coarse mesh still shows smooth colour. A <b>cell field</b> has one value per element: each element is drawn in a single flat colour, which is the honest picture of element-wise data (for example an element quality, or most OpenFOAM fields) but looks blocky.</p>
+<p><span class="ui">Average cell data to nodes</span> (enabled while a cell field is shown) draws the field smoothly instead: each node takes the average of the elements around it, weighted by their size, so a small element counts for less than a large one. It is a display choice - the data itself is not altered - and it is also what charts, volume rendering and iso-surfaces use for a cell field. Leave it off for labels such as a material or group number, whose regions are identifiers, not quantities.</p>
+<figure data-img="tutorial_22_cell_data_flat_vs_smooth.png"><figcaption>A cell field drawn flat (left) and averaged to the nodes (right)</figcaption></figure>
+
+<h2>The colour scale</h2>
+<h3>Range</h3>
+<table class="compact">
+  <thead><tr><th style="width:30%"><span class="ui">Range</span> setting</th><th>The scale spans ...</th></tr></thead>
+  <tbody>
+    <tr><td>Automatic (all steps)</td><td>the smallest and largest value of the field over <b>all steps</b>. This is the default: it keeps the frames of an animation comparable, because a colour means the same value in every step.</td></tr>
+    <tr><td>Automatic (this step)</td><td>the smallest and largest value of the <b>current step</b> only. Every frame uses its full colour range, which shows structure well but makes frames incomparable.</td></tr>
+    <tr><td>Custom</td><td>a <span class="ui">Minimum</span> and <span class="ui">Maximum</span> that you type, in the display unit. Values outside are shown in the end colours. Use it to compare runs or to enlarge an interesting band.</td></tr>
+  </tbody>
+</table>
+<h3>Colormap, bands and legend</h3>
+<p><span class="ui">Colormap</span> chooses the ramp: sequential ramps such as the rainbow, and a diverging blue-white-red ramp that suits quantities with a meaningful zero (a displacement component, a signed stress). <span class="ui">Contours</span> turns the smooth gradient into a set of discrete bands (or back); with bands, the colour boundaries lie exactly at equal values and inside the triangles, not at mesh edges. The legend beside the model shows the scale, its unit and the step; result surfaces are drawn unlit, so lighting never alters the colours.</p>
+<figure data-img="tutorial_19_contours.png"><figcaption>Smooth colours (left) and the same field with contour bands (right)</figcaption></figure>
+
+<h3>Min / max markers and the hover readout</h3>
+<p><span class="ui">Mark minimum and maximum</span> labels the lowest and highest values <i>on the visible surface</i> (the true extremes of a solid may lie inside; sections reveal them). Independently, <b>hovering</b> over the model with the mouse shows the value of the shown field at the cursor, with its unit. The hover works at all times while a result is selected.</p>
+
+<h2>Units</h2>
+<p>A wrong unit on a stress or a temperature is exactly the error a presentation tool must not make, so units are explicit and never guessed silently.</p>
+<ul>
+  <li>Every field has a <b>quantity</b> (stress, displacement, temperature, velocity, pressure ...) and two units: the one in the <i>file</i> and the one <i>displayed</i>.</li>
+  <li><span class="ui">Quantity</span> and <span class="ui">Values are in</span> let you state them. When the file carries a hint, ModelViewer uses it (OpenFOAM states its units through the dimensions of each field: temperature in K, velocity in m/s, a stress tensor in Pa; a kinematic pressure has no unit); when it does not, you choose, and the panel marks the unit as assumed until you confirm it.</li>
+  <li>Conversions are more than scale factors: temperature moves between kelvin, degrees Celsius and degrees Fahrenheit, which is an offset as well as a factor.</li>
+  <li>The legend, the hover readout, the markers, the charts and the report all use the displayed unit.</li>
+  <li>Derived fields inherit the unit of the field they come from.</li>
+</ul>
+<div class="callout warn"><span class="label">Caution</span>
+  <p>Solvers write what you gave them. A CalculiX run with a model in millimetres and Young's modulus in MPa reports stress in MPa and displacements in mm, but the file does not say so - ModelViewer shows plain numbers until you choose the units (the sample <code>FEM_box_static.frd</code> is in mm and MPa; its <code>.vtu</code> sibling shows Pa). Always check <span class="ui">Values are in</span> against the units of your analysis.</p>
+</div>
+
+<figure data-img="tutorial_19_field_list.png"><figcaption>The field list of the static box result</figcaption></figure>
