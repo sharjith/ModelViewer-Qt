@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lektion 18: Kanten- und Drahtgitter-Rendering - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Anleitung</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Erste Schritte</a>
+            <a href="lesson02.html">2. Modelle öffnen</a>
+            <a href="lesson03.html">3. Grundlegende Navigation</a>
+            <a href="lesson04.html">4. Objekte auswählen</a>
+            <a href="lesson05.html">5. Ansichtsmodi</a>
+            <a href="lesson06.html">6. Kameramodi</a>
+            <a href="lesson07.html">7. Anzeigemodi</a>
+            <a href="lesson08.html">8. Objekte manipulieren</a>
+            <a href="lesson09.html">9. Materialien und Texturen</a>
+            <a href="lesson10.html">10. Beleuchtung und Umgebung</a>
+            <a href="lesson11.html">11. Arbeiten mit Sichtbarkeit</a>
+            <a href="lesson12.html">12. Erweiterte Funktionen</a>
+            <a href="lesson13.html">13. Leistungsoptimierung</a>
+            <a href="lesson14.html">14. Tipps und Workflows</a>
+            <a href="lesson15.html">15. Explosionsansichten</a>
+            <a href="lesson16.html">16. Morph-Target-Animation</a>
+            <a href="lesson17.html">17. Knotentransformation bearbeiten</a>
+            <a href="lesson18.html" class='active'>18. Kanten- und Drahtgitter-Rendering</a>
+            <a href="lesson19.html">19. Simulationsergebnisse</a>
+            <a href="lesson20.html">20. Ins Innere eines Ergebnisses schauen</a>
+            <a href="lesson21.html">21. Diagramme und Sonden</a>
+            <a href="lesson22.html">22. Ergebnisse vergleichen, Zell- und Schalendaten</a>
+            <a href="lesson23.html">23. 3D-Diagramme aus CSV-Daten</a>
+            <a href="lesson24.html">24. 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</a>
+            <a href="lesson25.html">25. Diagramme und Ergebnisse gemeinsam abspielen</a>
+            <a href="lesson26.html">26. Mesh-Werkzeuge</a>
+            <a href="lesson27.html">27. Messen, Kommentieren und Berichten</a>
+            <a href="lesson28.html">28. Analyse, Auswahl und Szenen</a>
+            <a href="lesson29.html">29. Raytracing in der Praxis</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lektion 18 von 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 62.07%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lektion 18: Kanten- und Drahtgitter-Rendering</h1>
+        </div>
+
+        <h2>Einführung</h2>
+        <p>Bei CAD-Formaten wie STEP, IGES und BREP kann ModelViewer echte B-Rep-Kanten (Boundary Representation) - die scharfen, präzisen Kurven, die die Flächen eines Volumenkörpers definieren - getrennt vom triangulierten Mesh für die Schattierung extrahieren und rendern. Das ergibt scharfe Kantenlinien, die unabhängig von der Tessellierungsdichte des Meshes exakt bleiben.</p>
+
+        <h2>Anzeigemodi mit Kanten</h2>
+        <p>Drei Anzeigemodi zeigen Kanten (einzustellen in der Anzeigemodus-Symbolleiste/im Menü, siehe Lektion 7):</p>
+        <ul>
+            <li><b>Drahtgitter:</b> zeigt nur echte Merkmalskanten (Knick-/Randkanten oder B-Rep-Kanten bei CAD-Formaten), die Flächen werden gar nicht schattiert.</li>
+            <li><b>Mesh-Kanten:</b> zeigt normal schattierte Flächen mit <i>jeder</i> überlagerten Dreieckskante und macht die gesamte zugrunde liegende Tessellierungsdichte sichtbar.</li>
+            <li><b>Schattiert mit Kanten:</b> zeigt normal schattierte/beleuchtete Flächen mit nur den echten überlagerten Merkmalskanten - ein saubereres Bild als bei Mesh-Kanten, da die dichten Dreieckslinien entfallen.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_18_wireframe_mode.png" alt="Ein STEP-Modell im Drahtgittermodus mit sauberen B-Rep-Kantenlinien ohne Füllung" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_18_wireframe_mode.png (700x450)</div>
+            <span class="screenshot-caption">Ein STEP-Modell im Drahtgittermodus mit sauberen B-Rep-Kantenlinien ohne Füllung</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_18_mesh_edges_mode.png" alt="Dasselbe Modell im Modus Mesh-Kanten mit schattierten Flächen und jeder Dreieckskante" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_18_mesh_edges_mode.png (700x450)</div>
+            <span class="screenshot-caption">Dasselbe Modell im Modus Mesh-Kanten mit schattierten Flächen und jeder Dreieckskante</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_18_shaded_with_edges_mode.png" alt="Dasselbe Modell im Modus Schattiert mit Kanten, der Schattierung und saubere Merkmalskanten kombiniert" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_18_shaded_with_edges_mode.png (700x450)</div>
+            <span class="screenshot-caption">Dasselbe Modell im Modus Schattiert mit Kanten, der Schattierung und saubere Merkmalskanten kombiniert</span>
+        </div>
+
+        <div class="note note-info">
+            Die echte B-Rep-Kantenextraktion ist nur für CAD-Formate (STEP, IGES, BREP) verfügbar, die Boundary-Representation-Daten enthalten. Reine Mesh-Formate wie OBJ, STL und glTF greifen stattdessen auf Silhouettenkanten an Dreiecksgrenzen zurück.
+        </div>
+
+        <h2>Die Tessellierungsqualität steuern</h2>
+        <p>Die Kanten- und Flächenpräzision bei CAD-Importen wird durch zwei Abweichungseinstellungen unter <b>Bearbeiten → Einstellungen → Import/Export</b> gesteuert:</p>
+        <div class="step">
+            <div class="step-title">Lineare Abweichung</div>
+            <div class="step-content">Steuert den maximal zulässigen Abstand zwischen dem tessellierten Mesh und der echten CAD-Fläche. Niedrigere Werte erzeugen eine glattere, genauere Geometrie auf Kosten von mehr Dreiecken.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Winkelabweichung</div>
+            <div class="step-content">Steuert den maximal zulässigen Winkel zwischen benachbarten Tessellierungsfacetten. Niedrigere Werte erhalten gekrümmte Flächen besser.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_18_deflection_settings.png" alt="Einstellungsdialog mit den Steuerelementen für Lineare und Winkelabweichung" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:400px;">Screenshot: tutorial_18_deflection_settings.png (500x400)</div>
+            <span class="screenshot-caption">Einstellungsdialog mit den Steuerelementen für Lineare und Winkelabweichung</span>
+        </div>
+
+        <div class="note note-warning">
+            Sehr niedrige Abweichungswerte erzeugen deutlich dichtere Meshes und langsameres Laden/Rendern komplexer CAD-Baugruppen - wägen Sie visuelle Genauigkeit gegen Leistung ab (siehe Lektion 13).
+        </div>
+
+        <h2>Kantendaten speichern</h2>
+        <p>Extrahierte B-Rep-Kanten werden nach der Berechnung mit dem Mesh zwischengespeichert und beim Speichern in einer <b>.mvf</b>-Sitzungsdatei bewahrt - das erneute Laden einer gespeicherten Sitzung erfordert also kein erneutes Extrahieren der Kanten aus der ursprünglichen CAD-Datei.</p>
+
+        <p>Damit ist die Kernanleitung abgeschlossen. Die Lektionen 19 bis 29 setzen mit den Neuerungen in 2026.11 fort: Simulationsergebnisse, 3D-Datendiagramme, Mesh-Werkzeuge, Messen und Kommentieren, Analyse und Raytracing in der Praxis.</p>
+
+        <div class="lesson-navigation">
+            <a href='lesson17.html' class='nav-button'>← Vorherige Lektion</a>
+            <a href="index.html" class="back-to-index">↑ Zurück zur Übersicht</a>
+            <a href='lesson19.html' class='nav-button'>Nächste Lektion →</a>
+        </div>
+    </div>
+</body>
+</html>

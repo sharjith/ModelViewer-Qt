@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lektion 6: Kameramodi - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Anleitung</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Erste Schritte</a>
+            <a href="lesson02.html">2. Modelle öffnen</a>
+            <a href="lesson03.html">3. Grundlegende Navigation</a>
+            <a href="lesson04.html">4. Objekte auswählen</a>
+            <a href="lesson05.html">5. Ansichtsmodi</a>
+            <a href="lesson06.html" class='active'>6. Kameramodi</a>
+            <a href="lesson07.html">7. Anzeigemodi</a>
+            <a href="lesson08.html">8. Objekte manipulieren</a>
+            <a href="lesson09.html">9. Materialien und Texturen</a>
+            <a href="lesson10.html">10. Beleuchtung und Umgebung</a>
+            <a href="lesson11.html">11. Arbeiten mit Sichtbarkeit</a>
+            <a href="lesson12.html">12. Erweiterte Funktionen</a>
+            <a href="lesson13.html">13. Leistungsoptimierung</a>
+            <a href="lesson14.html">14. Tipps und Workflows</a>
+            <a href="lesson15.html">15. Explosionsansichten</a>
+            <a href="lesson16.html">16. Morph-Target-Animation</a>
+            <a href="lesson17.html">17. Knotentransformation bearbeiten</a>
+            <a href="lesson18.html">18. Kanten- und Drahtgitter-Rendering</a>
+            <a href="lesson19.html">19. Simulationsergebnisse</a>
+            <a href="lesson20.html">20. Ins Innere eines Ergebnisses schauen</a>
+            <a href="lesson21.html">21. Diagramme und Sonden</a>
+            <a href="lesson22.html">22. Ergebnisse vergleichen, Zell- und Schalendaten</a>
+            <a href="lesson23.html">23. 3D-Diagramme aus CSV-Daten</a>
+            <a href="lesson24.html">24. 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</a>
+            <a href="lesson25.html">25. Diagramme und Ergebnisse gemeinsam abspielen</a>
+            <a href="lesson26.html">26. Mesh-Werkzeuge</a>
+            <a href="lesson27.html">27. Messen, Kommentieren und Berichten</a>
+            <a href="lesson28.html">28. Analyse, Auswahl und Szenen</a>
+            <a href="lesson29.html">29. Raytracing in der Praxis</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lektion 6 von 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 20.69%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lektion 6: Kameramodi</h1>
+        </div>
+
+        <h2>Einführung</h2>
+        <p>Kameramodi ändern, wie Sie sich durch den 3D-Raum bewegen. ModelViewer bietet drei verschiedene Kameramodi für unterschiedliche Zwecke.</p>
+
+        <h2>Kameramodi wechseln</h2>
+        <div class="step">
+            <div class="step-title">Schritt 1: Mit der Tastatur</div>
+            <div class="step-content">Drücken Sie <kbd>1</kbd> für Orbit, <kbd>2</kbd> für Flug oder <kbd>3</kbd> für den Ego-Perspektive-Modus.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Mit der Symbolleiste</div>
+            <div class="step-content">Klicken Sie in der Ansichtssymbolleiste auf die Schaltfläche „Kameramodi“ und wählen Sie im Menü.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_06_camera_menu.png" alt="Dropdown-Menü der Kameramodi mit den Optionen Orbit, Flug und Ego-Perspektive" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_06_camera_menu.png</div>
+            <span class="screenshot-caption">Dropdown-Menü der Kameramodi mit den Optionen Orbit, Flug und Ego-Perspektive</span>
+        </div>
+
+        <div class="note note-info">
+            Das Symbol der Symbolleistenschaltfläche zeigt, welcher Kameramodus gerade aktiv ist.
+        </div>
+
+        <h2>Orbit-Modus (Taste: 1)</h2>
+        <p><b>Am besten für:</b> Objekte untersuchen, CAD-Arbeit, allgemeine Modellinspektion.</p>
+        <div class="step">
+            <div class="step-title">Maussteuerung</div>
+            <div class="step-content">
+                • <b>Ziehen mit mittlerer Maustaste:</b> um das Modell drehen<br/> • <b>Ziehen mit rechter Maustaste:</b> Ansicht verschieben<br/> • <b>Mausrad:</b> hinein-/herauszoomen
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Tastatursteuerung</div>
+            <div class="step-content">
+                • <kbd>W/S</kbd>: nach oben/unten verschieben<br/> • <kbd>A/D</kbd>: nach links/rechts verschieben<br/> • <kbd>X/Z</kbd>: hinein-/herauszoomen<br/> • <kbd>I/K</kbd>: Nicken drehen (oben/unten)<br/> • <kbd>J/L</kbd>: Gieren drehen (links/rechts)<br/> • <kbd>M/N</kbd>: Rollen drehen
+            </div>
+        </div>
+        
+        <h2>Flugmodus (Taste: 2)</h2>
+        <p><b>Am besten für:</b> große Szenen erkunden, architektonische Rundgänge, Geländenavigation.</p>
+        <div class="step">
+            <div class="step-title">Tastatursteuerung</div>
+            <div class="step-content">
+                • <kbd>W/S</kbd>: vorwärts/rückwärts bewegen<br/> • <kbd>A/D</kbd>: seitlich nach links/rechts bewegen<br/> • <kbd>Q/E</kbd>: nach unten/oben bewegen (Höhe)
+            </div>
+        </div>
+
+        <h2>Ego-Perspektive-Modus (Taste: 3)</h2>
+        <p><b>Am besten für:</b> Navigation auf Bodenhöhe, Geh-Simulationen, Gebäudeinnenräume.</p>
+
+        <div class="step">
+            <div class="step-title">Tastatursteuerung</div>
+            <div class="step-content">
+                • <kbd>W/S</kbd>: vorwärts/rückwärts bewegen<br/> • <kbd>A/D</kbd>: seitlich nach links/rechts bewegen<br/> • <kbd>Q/E</kbd>: nach unten/oben bewegen (Höhe)
+            </div>
+        </div>
+
+        <h2>Vergleichstabelle</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Merkmal</th>
+                    <th>Orbit</th>
+                    <th>Flug</th>
+                    <th>Ego-Perspektive</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Am besten für</td><td>Objektinspektion</td><td>Szenenerkundung</td><td>Bodennavigation</td></tr>
+                <tr><td>Modell im Zentrum</td><td>Ja</td><td>Nein</td><td>Nein</td></tr>
+                <tr><td>Vertikale Bewegung</td><td>Nur Verschieben</td><td>Q/E-Tasten</td><td>Keine</td></tr>
+                <tr><td>Nicklimit</td><td>Kein Limit</td><td>±89°</td><td>±60°</td></tr>
+            </tbody>
+        </table>
+
+        <div class="lesson-navigation">
+            <a href='lesson05.html' class='nav-button'>← Vorherige Lektion</a>
+            <a href="index.html" class="back-to-index">↑ Zurück zur Übersicht</a>
+            <a href='lesson07.html' class='nav-button'>Nächste Lektion →</a>
+        </div>
+    </div>
+</body>
+</html>

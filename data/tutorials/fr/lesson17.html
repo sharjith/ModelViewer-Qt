@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leçon 17 : Édition de la transformation des nœuds - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutoriel</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Premiers pas</a>
+            <a href="lesson02.html">2. Ouvrir des modèles</a>
+            <a href="lesson03.html">3. Navigation de base</a>
+            <a href="lesson04.html">4. Sélectionner des objets</a>
+            <a href="lesson05.html">5. Modes d'affichage</a>
+            <a href="lesson06.html">6. Modes de caméra</a>
+            <a href="lesson07.html">7. Modes d'affichage des objets</a>
+            <a href="lesson08.html">8. Manipuler des objets</a>
+            <a href="lesson09.html">9. Matériaux et textures</a>
+            <a href="lesson10.html">10. Éclairage et environnement</a>
+            <a href="lesson11.html">11. Travailler avec la visibilité</a>
+            <a href="lesson12.html">12. Fonctions avancées</a>
+            <a href="lesson13.html">13. Optimisation des performances</a>
+            <a href="lesson14.html">14. Conseils et flux de travail</a>
+            <a href="lesson15.html">15. Vues éclatées</a>
+            <a href="lesson16.html">16. Animation de morph targets</a>
+            <a href="lesson17.html" class='active'>17. Édition de la transformation des nœuds</a>
+            <a href="lesson18.html">18. Rendu des arêtes et du fil de fer</a>
+            <a href="lesson19.html">19. Résultats de simulation</a>
+            <a href="lesson20.html">20. Regarder à l'intérieur d'un résultat</a>
+            <a href="lesson21.html">21. Graphiques et sondes</a>
+            <a href="lesson22.html">22. Comparer des résultats, données de cellule et de coque</a>
+            <a href="lesson23.html">23. Graphiques 3D à partir de données CSV</a>
+            <a href="lesson24.html">24. Graphiques 3D à partir de formules, remplissages, images et notes</a>
+            <a href="lesson25.html">25. Graphiques et résultats lus ensemble</a>
+            <a href="lesson26.html">26. Outils de maillage</a>
+            <a href="lesson27.html">27. Mesurer, annoter et rapporter</a>
+            <a href="lesson28.html">28. Analyse, sélection et scènes</a>
+            <a href="lesson29.html">29. Lancer de rayons en pratique</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Leçon 17 sur 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 58.62%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Leçon 17 : Édition de la transformation des nœuds</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>La leçon 8 portait sur la saisie de valeurs exactes de translation/rotation/échelle dans le panneau Transformations. Cette leçon présente le <b>gizmo de transformation interactif à l'écran</b> : une poignée 3D que vous faites glisser directement dans la vue pour repositionner, réorienter ou redimensionner visuellement les objets sélectionnés, avec un retour immédiat.</p>
+
+        <h2>Afficher le gizmo de transformation</h2>
+        <div class="step">
+            <div class="step-title">Étape 1 : Sélectionner un objet</div>
+            <div class="step-content">Cliquez sur un objet dans la vue ou dans l'arbre du modèle pour le sélectionner.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Activer le gizmo</div>
+            <div class="step-content">Affichez le gizmo de transformation pour la sélection actuelle depuis le menu contextuel (clic droit) ou le panneau Transformations. Le gizmo apparaît centré sur la sélection.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_17_gizmo_overview.png" alt="Gizmo de transformation avec poignées de translation, rotation et échelle sur un objet sélectionné" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Capture d'écran: tutorial_17_gizmo_overview.png (700x450)</div>
+            <span class="screenshot-caption">Gizmo de transformation avec poignées de translation, rotation et échelle sur un objet sélectionné</span>
+        </div>
+
+        <h2>Utiliser les poignées du gizmo</h2>
+        <div class="step">
+            <div class="step-title">Déplacer</div>
+            <div class="step-content">Faites glisser une flèche d'axe (X, Y ou Z) pour déplacer l'objet le long de cet axe uniquement.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Pivoter</div>
+            <div class="step-content">Faites glisser l'un des anneaux de rotation (XY, YZ ou ZX) pour faire pivoter l'objet autour du plan correspondant.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Mise à l'échelle</div>
+            <div class="step-content">Faites glisser la poignée centrale de mise à l'échelle pour redimensionner l'objet uniformément sur tous les axes.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_17_gizmo_translate.png" alt="Glissement de la poignée de translation du gizmo pour déplacer un objet le long d&#x27;un axe" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:400px;">Capture d'écran: tutorial_17_gizmo_translate.png (700x400)</div>
+            <span class="screenshot-caption">Glissement de la poignée de translation du gizmo pour déplacer un objet le long d'un axe</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_17_gizmo_rotate.png" alt="Glissement de l&#x27;un des anneaux de rotation du gizmo" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:400px;">Capture d'écran: tutorial_17_gizmo_rotate.png (700x400)</div>
+            <span class="screenshot-caption">Glissement de l'un des anneaux de rotation du gizmo</span>
+        </div>
+
+        <div class="note note-tip">
+            Le gizmo s'adapte à la distance de la caméra, de sorte que ses poignées gardent une taille utilisable que vous soyez zoomé de près ou que vous regardiez toute la scène de loin.
+        </div>
+
+        <h2>Gizmo et transformations numériques</h2>
+        <p>Les deux approches modifient la même transformation sous-jacente et peuvent être utilisées indifféremment :</p>
+        <ul>
+            <li><b>Gizmo :</b> rapide et visuel, idéal pour un positionnement approximatif et des ajustements rapides pendant que vous voyez le résultat.</li>
+            <li><b>Panneau numérique (leçon 8) :</b> précis, idéal pour des valeurs exactes ou pour reproduire une transformation exacte.</li>
+        </ul>
+
+        <h2>Transformations de nœud et placement manuel de la vue éclatée</h2>
+        <p>Le même gizmo de transformation est réutilisé lors du placement manuel de la vue éclatée (leçon 15) pour amener les pièces dans une pose éclatée personnalisée. La différence essentielle : pendant le placement manuel, les modifications du gizmo ne mettent à jour que la pose éclatée échelonnée, et non la transformation réelle de l'objet ; la géométrie sous-jacente du modèle n'est donc jamais altérée.</p>
+
+        <div class="note note-warning">
+            En dehors du placement manuel de la vue éclatée, les modifications du gizmo changent immédiatement la transformation réelle de l'objet, comme le panneau numérique Transformations.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson16.html' class='nav-button'>← Leçon précédente</a>
+            <a href="index.html" class="back-to-index">↑ Retour à l'index</a>
+            <a href='lesson18.html' class='nav-button'>Leçon suivante →</a>
+        </div>
+    </div>
+</body>
+</html>

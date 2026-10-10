@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lección 26: Herramientas de malla - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primeros pasos</a>
+            <a href="lesson02.html">2. Abrir modelos</a>
+            <a href="lesson03.html">3. Navegación básica</a>
+            <a href="lesson04.html">4. Seleccionar objetos</a>
+            <a href="lesson05.html">5. Modos de vista</a>
+            <a href="lesson06.html">6. Modos de cámara</a>
+            <a href="lesson07.html">7. Modos de visualización</a>
+            <a href="lesson08.html">8. Manipular objetos</a>
+            <a href="lesson09.html">9. Materiales y texturas</a>
+            <a href="lesson10.html">10. Iluminación y entorno</a>
+            <a href="lesson11.html">11. Trabajar con la visibilidad</a>
+            <a href="lesson12.html">12. Funciones avanzadas</a>
+            <a href="lesson13.html">13. Optimización del rendimiento</a>
+            <a href="lesson14.html">14. Consejos y flujos de trabajo</a>
+            <a href="lesson15.html">15. Vistas explosionadas</a>
+            <a href="lesson16.html">16. Animación de morph targets</a>
+            <a href="lesson17.html">17. Edición de la transformación de nodos</a>
+            <a href="lesson18.html">18. Renderizado de bordes y malla de alambre</a>
+            <a href="lesson19.html">19. Resultados de simulación</a>
+            <a href="lesson20.html">20. Mirar dentro de un resultado</a>
+            <a href="lesson21.html">21. Gráficos y sondeo</a>
+            <a href="lesson22.html">22. Comparar resultados, datos de celda y de lámina</a>
+            <a href="lesson23.html">23. Gráficos 3D a partir de datos CSV</a>
+            <a href="lesson24.html">24. Gráficos 3D a partir de fórmulas, rellenos, imágenes y notas</a>
+            <a href="lesson25.html">25. Gráficos y resultados reproducidos juntos</a>
+            <a href="lesson26.html" class='active'>26. Herramientas de malla</a>
+            <a href="lesson27.html">27. Medir, anotar e informar</a>
+            <a href="lesson28.html">28. Análisis, selección y escenas</a>
+            <a href="lesson29.html">29. Trazado de rayos en la práctica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lección 26 de 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 89.66%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lección 26: Herramientas de malla</h1>
+        </div>
+
+        <h2>Introducción</h2>
+        <p>No todos los modelos llegan limpios: los escaneos tienen agujeros y ruido, las exportaciones CAD tienen topología rota y a veces necesita una envolvente limpia alrededor de varias piezas. ModelViewer tiene un conjunto de herramientas de malla para estas tareas, basadas en la biblioteca de geometría CGAL. Esta lección recorre Reparar malla, Rellenar agujeros, Subdividir superficie, Envoltura retráctil y Reconstruir superficie, y después las operaciones de fusión y división del menú contextual.</p>
+        <div class="note note-info">
+            Cada herramienta de la primera mitad de esta lección añade su resultado como una <b>malla nueva</b> y deja intacto el original, y todo el paso se puede deshacer. Los cinco diálogos comparten una casilla, <b>Reemplazar el resultado anterior</b>, marcada de forma predeterminada: cada clic en Generar elimina antes, de forma deshacible, el resultado del clic anterior, de modo que se conserva como máximo un resultado por malla de origen. Desmárquela para que los resultados se acumulen uno junto a otro.
+        </div>
+        <h2>Reparar malla</h2>
+        <p><b>Herramientas → Reparar malla...</b> pasa cada malla de la lista de trabajo por el conjunto de reparación: geometría duplicada y degenerada, vértices no variedad, orientación inconsistente y autointersecciones. Es solo una limpieza de defectos: nunca rellena agujeros ni fuerza el cierre, de modo que un panel abierto a propósito sigue abierto. Una malla que ya es válida se omite y no recibe un nodo nuevo.</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Abrir la malla de prueba rota</div>
+            <div class="step-content">Abra <code>RepairMeshTest.obj</code>: una malla construida para contener todos los defectos que trata la reparación, en tres regiones separadas, empezando por una pajarita de dos abanicos de triángulos que comparten solo un vértice.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Ejecutar la reparación</div>
+            <div class="step-content">Seleccione la malla, abra <b>Herramientas → Reparar malla...</b> y genere. La etiqueta de estado del diálogo indica qué se corrigió. <b>Intentos de resolución de autointersecciones</b> fija cuántas rondas de suavizado y de relleno de agujeros se intentan, y <b>Probar también la resolución basada en suavizado</b> añade una estrategia más lenta.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_repair_mesh.png" alt="tutorial_26_repair_mesh.png" title="Capture: Open RepairMeshTest.obj, Tools &gt; Repair Mesh..., Generate; capture the dialog (status text visible) and the viewport with the repaired mesh." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open RepairMeshTest.obj, Tools &gt; Repair Mesh..., Generate; capture the dialog (status text visible) and the viewport with the repaired mesh." style="display:none; width:700px; height:450px;">Captura: tutorial_26_repair_mesh.png (700x450)</div>
+            <span class="screenshot-caption">El diálogo Reparar malla con su etiqueta de estado, junto al resultado reparado</span>
+        </div>
+
+        <h2>Rellenar agujeros</h2>
+        <p><b>Herramientas → Rellenar agujeros...</b> encuentra cada bucle de borde de las mallas de la lista de trabajo y le deja decidir qué bucles son defectos reales y cuáles un borde abierto a propósito. Solo se parchean los bucles marcados.</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Abrir un cilindro abierto</div>
+            <div class="step-content">Abra <code>OpenCylinder.obj</code>, que tiene un extremo abierto, e inicie <b>Herramientas → Rellenar agujeros...</b>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Elegir los bucles</div>
+            <div class="step-content">Haga clic en una fila de la lista de agujeros detectados: ese bucle se resalta en naranja en la vista. Marque los que desea parchear, fije la <b>Densidad del parche</b> (qué tan fina es la nueva triangulación respecto a la malla circundante) y genere.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_fill_holes.png" alt="tutorial_26_fill_holes.png" title="Capture: Open OpenCylinder.obj, Tools &gt; Fill Holes..., click the detected loop in the list so it shows orange; capture dialog and viewport." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open OpenCylinder.obj, Tools &gt; Fill Holes..., click the detected loop in the list so it shows orange; capture dialog and viewport." style="display:none; width:700px; height:450px;">Captura: tutorial_26_fill_holes.png (700x450)</div>
+            <span class="screenshot-caption">Un agujero detectado resaltado en naranja antes de parchearlo</span>
+        </div>
+
+        <h2>Subdividir superficie</h2>
+        <p><b>Herramientas → Subdividir superficie...</b> suaviza una malla con subdivisión Loop o Catmull-Clark. Abra <code>TorusTestCoarse.obj</code>, un toro grueso de solo 96 triángulos, y pruebe:</p>
+        <ul>
+            <li><b>Método</b>: Loop sigue basado en triángulos; Catmull-Clark trabaja internamente con cuadriláteros y se vuelve a triangular después. Ambos suelen verse igual de suaves.</li>
+            <li><b>Iteraciones</b>: cada paso cuadruplica aproximadamente el número de triángulos, así que 1 o 2 bastan para ver el efecto.</li>
+            <li><b>Conservar aristas vivas</b> (activado de forma predeterminada) mantiene infinitamente afilada cualquier arista doblada 30 grados o más: las tapas planas de un cilindro y las esquinas de un bloque siguen nítidas. Desactívelo para el aspecto clásico totalmente suave, en el que un cubo se convierte en una masa redondeada.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_subdivide.png" alt="tutorial_26_subdivide.png" title="Capture: TorusTestCoarse.obj in Shaded with Edges mode before and after Subdivide Surface (Loop, 2 iterations); join the two captures side by side." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: TorusTestCoarse.obj in Shaded with Edges mode before and after Subdivide Surface (Loop, 2 iterations); join the two captures side by side." style="display:none; width:700px; height:350px;">Captura: tutorial_26_subdivide.png (700x350)</div>
+            <span class="screenshot-caption">El toro grueso (izquierda) y su resultado subdividido y suave (derecha)</span>
+        </div>
+
+        <h2>Envoltura retráctil</h2>
+        <p><b>Herramientas → Envoltura retráctil...</b> combina una o más mallas seleccionadas en una única envolvente nueva <i>estanca</i>, mediante envoltura alfa. Las entradas no necesitan compartir material ni ser variedades. <b>Alfa</b> y <b>Desfase</b> fijan lo ajustada que queda la envolvente y cuánto se separa; <b>Restablecer al valor sugerido</b> calcula valores iniciales razonables a partir del cuadro delimitador de la selección. La selección original queda intacta.</p>
+        <div class="note note-tip">
+            Pruébelo con algunas piezas de la carretilla elevadora o del ensamblaje del monopatín: una envolvente retráctil es un sustituto limpio y cerrado de un ensamblaje complicado, útil para la impresión 3D o como cuerpo de colisión simplificado.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_shrink_wrap.png" alt="tutorial_26_shrink_wrap.png" title="Capture: Select a few Forklift parts, Tools &gt; Shrink Wrap..., Generate; capture the wrapped shell next to the original (move the original aside or show wireframe)." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Select a few Forklift parts, Tools &gt; Shrink Wrap..., Generate; capture the wrapped shell next to the original (move the original aside or show wireframe)." style="display:none; width:700px; height:420px;">Captura: tutorial_26_shrink_wrap.png (700x420)</div>
+            <span class="screenshot-caption">Una envolvente retráctil alrededor de varias piezas, junto al original</span>
+        </div>
+
+        <h2>Reconstruir superficie</h2>
+        <p><b>Herramientas → Reconstruir superficie...</b> crea una superficie triangulada nueva a partir de las <i>posiciones de los puntos</i> de las mallas o nubes de puntos seleccionadas; las caras existentes se ignoran. <b>Nitidez</b> equilibra suavidad y aristas vivas, <b>Tolerancia de borde</b> fija qué tan grande puede ser un hueco que la reconstrucción puede salvar y <b>Simplificar la nube de puntos antes de la reconstrucción</b> muestra un <b>Espaciado objetivo</b> que fusiona antes los puntos más cercanos: más rápido en escaneos grandes o ruidosos, a costa del detalle fino.</p>
+        <h2>Fusionar, dividir y agrupar (menú contextual)</h2>
+        <p>Con mallas seleccionadas, el menú contextual del árbol o de la vista ofrece estas operaciones. Todas añaden nodos de malla nuevos y quitan los originales, y todas se pueden deshacer salvo Seleccionar padre.</p>
+        <table>
+            <thead><tr><th>Operación</th><th>Qué hace</th></tr></thead>
+            <tbody>
+            <tr><td>Dividir por conectividad</td><td>Divide cada malla seleccionada en sus piezas desconectadas, una malla nueva por pieza; una malla que ya es de una sola pieza se deja como está.</td></tr>
+            <tr><td>Fusionar por adyacencia</td><td>Agrupa la selección en conjuntos que se tocan (por posición de vértice compartida) y fusiona cada conjunto en una malla; las mallas que no tocan nada se dejan como están.</td></tr>
+            <tr><td>Fusionar selección</td><td>Combina toda la selección en una malla nueva por simple concatenación, se toquen o no.</td></tr>
+            <tr><td>Unión de mallas</td><td>Intenta una unión booleana real de la geometría reparada; si falla la reparación o el paso booleano, recurre a la simple concatenación, como Fusionar selección.</td></tr>
+            <tr><td>Agrupar</td><td>Solo reorganiza el árbol de la escena: crea un nodo de grupo y mueve las mallas seleccionadas a él. La geometría no cambia.</td></tr>
+            <tr><td>Seleccionar padre</td><td>Selecciona el padre en el árbol del elemento sobre el que hizo clic derecho: solo navegación.</td></tr>
+            </tbody>
+        </table>
+        <div class="note note-info">
+            Cuando un grupo o selección que se tocan tiene más de un material, Fusionar por adyacencia, Fusionar selección y Unión de mallas preguntan: <b>Mantener materiales separados</b> hace una fusión por material, <b>Fusionar de todos modos</b> lo combina todo y usa el material de la primera malla.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_context_menu.png" alt="tutorial_26_context_menu.png" title="Capture: Select two or more meshes in the Scene Tree, right-click one of them and capture the open menu with Split by Connectivity, Merge by Adjacency, Merge Selected, Mesh Union, Group and Select Parent visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Select two or more meshes in the Scene Tree, right-click one of them and capture the open menu with Split by Connectivity, Merge by Adjacency, Merge Selected, Mesh Union, Group and Select Parent visible." style="display:none; width:500px; height:420px;">Captura: tutorial_26_context_menu.png (500x420)</div>
+            <span class="screenshot-caption">Las operaciones de malla en el menú contextual</span>
+        </div>
+
+
+        <div class="lesson-navigation">
+            <a href='lesson25.html' class='nav-button'>← Lección anterior</a>
+            <a href="index.html" class="back-to-index">↑ Volver al índice</a>
+            <a href='lesson27.html' class='nav-button'>Siguiente lección →</a>
+        </div>
+    </div>
+</body>
+</html>

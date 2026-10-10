@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lektion 29: Raytracing in der Praxis - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Anleitung</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Erste Schritte</a>
+            <a href="lesson02.html">2. Modelle öffnen</a>
+            <a href="lesson03.html">3. Grundlegende Navigation</a>
+            <a href="lesson04.html">4. Objekte auswählen</a>
+            <a href="lesson05.html">5. Ansichtsmodi</a>
+            <a href="lesson06.html">6. Kameramodi</a>
+            <a href="lesson07.html">7. Anzeigemodi</a>
+            <a href="lesson08.html">8. Objekte manipulieren</a>
+            <a href="lesson09.html">9. Materialien und Texturen</a>
+            <a href="lesson10.html">10. Beleuchtung und Umgebung</a>
+            <a href="lesson11.html">11. Arbeiten mit Sichtbarkeit</a>
+            <a href="lesson12.html">12. Erweiterte Funktionen</a>
+            <a href="lesson13.html">13. Leistungsoptimierung</a>
+            <a href="lesson14.html">14. Tipps und Workflows</a>
+            <a href="lesson15.html">15. Explosionsansichten</a>
+            <a href="lesson16.html">16. Morph-Target-Animation</a>
+            <a href="lesson17.html">17. Knotentransformation bearbeiten</a>
+            <a href="lesson18.html">18. Kanten- und Drahtgitter-Rendering</a>
+            <a href="lesson19.html">19. Simulationsergebnisse</a>
+            <a href="lesson20.html">20. Ins Innere eines Ergebnisses schauen</a>
+            <a href="lesson21.html">21. Diagramme und Sonden</a>
+            <a href="lesson22.html">22. Ergebnisse vergleichen, Zell- und Schalendaten</a>
+            <a href="lesson23.html">23. 3D-Diagramme aus CSV-Daten</a>
+            <a href="lesson24.html">24. 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</a>
+            <a href="lesson25.html">25. Diagramme und Ergebnisse gemeinsam abspielen</a>
+            <a href="lesson26.html">26. Mesh-Werkzeuge</a>
+            <a href="lesson27.html">27. Messen, Kommentieren und Berichten</a>
+            <a href="lesson28.html">28. Analyse, Auswahl und Szenen</a>
+            <a href="lesson29.html" class='active'>29. Raytracing in der Praxis</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lektion 29 von 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 100%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lektion 29: Raytracing in der Praxis</h1>
+        </div>
+
+        <h2>Einführung</h2>
+        <p>Raytracing verfolgt das Licht durch die Szene und erzeugt Spiegelungen, weiche Schatten, Glas und realistische Beleuchtung, die der Echtzeit-Viewer nur annähern kann. ModelViewer hat zwei Raytracing-Engines und verwendet dieselben Materialien und dieselbe Umgebung, die Sie bereits eingerichtet haben. Diese Lektion führt Sie von einer Live-Raytracing-Ansicht zu einem hochauflösenden Bild auf der Festplatte und einem Stapel von Ansichten, die in einem Durchgang gerendert werden.</p>
+        <div class="note note-info">
+            Zwei Engines: Die <b>CPU</b>-Engine (Embree) läuft überall; die <b>GPU</b>-Engine (NVIDIA OptiX) benötigt eine NVIDIA-Grafikkarte und eine Version mit OptiX. <b>Hilfe → Info</b> sagt Ihnen, ob die GPU-Engine in Ihrer Version aktiviert ist. Simulationsergebnisse und 3D-Diagramme werden nicht vom Raytracer gezeichnet.
+        </div>
+        <h2>Eine Live-Raytracing-Ansicht</h2>
+        <div class="step">
+            <div class="step-title">Schritt 1: Eine Szene vorbereiten</div>
+            <div class="step-content">Öffnen Sie ein Modell mit interessanten Materialien - das Futuristic Transport Shuttle oder die Teekanne - und richten Sie Umgebung und Lichter wie in Lektion 10 ein.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Den Rendering-Modus umschalten</div>
+            <div class="step-content">Wählen Sie <b>Ansicht → Rendering-Modus → Raytracing</b>. Das Ansichtsfenster beginnt progressiv zu rendern: Das Bild ist zuerst verrauscht und beruhigt sich, wenn sich Samples ansammeln, dann bereinigt ein Entrauscher es. Bewegen Sie die Kamera, und es beginnt von vorn.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Mit PBR vergleichen</div>
+            <div class="step-content">Wechseln Sie zwischen <b>PBR (Metallic-Roughness)</b> und <b>Raytracing</b>. Materialien, Umgebungsbeleuchtung und der Schattenfänger-Boden folgen dem Raster-Viewer, Sie sehen also dieselbe Szene, jetzt mit echten Spiegelungen und Schatten.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_29_pbr_vs_ray_traced.png" alt="tutorial_29_pbr_vs_ray_traced.png" title="Capture: Futuristic Transport Shuttle (or the Tea-Pot on a reflective floor) with the same camera in PBR and, after a few seconds of accumulation, in Ray Traced mode; join the two captures side by side." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Futuristic Transport Shuttle (or the Tea-Pot on a reflective floor) with the same camera in PBR and, after a few seconds of accumulation, in Ray Traced mode; join the two captures side by side." style="display:none; width:700px; height:350px;">Screenshot: tutorial_29_pbr_vs_ray_traced.png (700x350)</div>
+            <span class="screenshot-caption">Dieselbe Szene in PBR (links) und mit Raytracing (rechts)</span>
+        </div>
+
+        <h2>Der Raytracing-Dialog</h2>
+        <p><b>Visualisierung → Raytracing...</b> öffnet die Einstellungen und das Offline-Rendering. Der Dialog hat drei Registerkarten.</p>
+        <table>
+            <thead><tr><th>Registerkarte</th><th>Inhalt</th></tr></thead>
+            <tbody>
+            <tr><td>Basis</td><td><b>Render-Engine</b> (<i>Auto</i> bevorzugt OptiX, wenn verfügbar, <i>Embree (CPU)</i> oder <i>OptiX (GPU)</i>), <b>Max. Samples</b> pro Pixel, <b>Max. Bounces</b> des Lichts pro Pfad, <b>Entrauscher aktivieren</b> und seine <b>Entrauscher-Engine</b> (Auto, OIDN auf CPU, OIDN auf GPU/CUDA oder OptiX) sowie <b>Export-Voreinstellung</b> und <b>Exportauflösung</b> mit <b>An Ansichtsfenster anpassen</b>.</td></tr>
+            <tr><td>Erweitert</td><td><b>Firefly-Klemmschwelle</b> (begrenzt einzelne helle Samples), <b>Max. Transmissions-Bounces</b> für Glas, <b>Russisches-Roulette-Starttiefe</b>, <b>Max. Schattenstrahl-Treffer</b> (nur CPU), <b>Max. Volumenstreuungs-Bounces</b>, <b>Umgebungs-Importance-Sampling</b> sowie die Schalter <b>Schatten</b> und <b>Selbstschatten</b>.</td></tr>
+            <tr><td>Diagnose</td><td>Schreibgeschützte Informationen über Renderer und GPU, die verwendete Traversierung und den Entrauscher, die Auflösung, die Dreieckszahl, die Aufbauzeiten der Beschleunigungsstrukturen, Samples pro Sekunde, MRays pro Sekunde und die Renderzeit.</td></tr>
+            </tbody>
+        </table>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_29_dialog_basic.png" alt="tutorial_29_dialog_basic.png" title="Capture: Visualization &gt; Ray Tracing..., Basic tab; capture the whole dialog including Render, Stop and Export Image... at the bottom." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Visualization &gt; Ray Tracing..., Basic tab; capture the whole dialog including Render, Stop and Export Image... at the bottom." style="display:none; width:560px; height:450px;">Screenshot: tutorial_29_dialog_basic.png (560x520)</div>
+            <span class="screenshot-caption">Die Registerkarte „Basis“ des Raytracing-Dialogs</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_29_dialog_diagnostics.png" alt="tutorial_29_dialog_diagnostics.png" title="Capture: Start a render, switch to the Diagnostics tab and capture it with renderer, GPU, samples/sec and MRays/sec filled in." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Start a render, switch to the Diagnostics tab and capture it with renderer, GPU, samples/sec and MRays/sec filled in." style="display:none; width:560px; height:450px;">Screenshot: tutorial_29_dialog_diagnostics.png (560x480)</div>
+            <span class="screenshot-caption">Die Registerkarte „Diagnose“ während ein Rendering läuft</span>
+        </div>
+
+        <div class="note note-tip">
+            Für eine schnellere Vorschau senken Sie <b>Max. Samples</b> und <b>Max. Bounces</b>; für ein sauberes Endbild erhöhen Sie <b>Max. Samples</b>, lassen den Entrauscher an und lassen <b>Umgebungs-Importance-Sampling</b> aktiviert, um Rauschen durch helle Himmel zu verringern. Zeigen Sie auf eine Einstellung, um eine kurze Erklärung zu sehen.
+        </div>
+        <h2>Ein Bild rendern und exportieren</h2>
+        <div class="step">
+            <div class="step-title">Schritt 1: Die Größe wählen</div>
+            <div class="step-content">Wählen Sie eine <b>Export-Voreinstellung</b> oder geben Sie unter <b>Exportauflösung</b> Breite und Höhe ein, oder klicken Sie auf <b>An Ansichtsfenster anpassen</b>. Eine Auflösung, die größer ist als das Ansichtsfenster, löst ein Offline-Rendering aus, das eine Weile dauern kann und sich mit der Schaltfläche abbrechen lässt, die <b>Stopp</b> ersetzt.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Rendern</div>
+            <div class="step-content">Klicken Sie auf <b>Rendern</b>. Statuszeile und Fortschritt zeigen, wie weit es ist; <b>Stopp</b> beendet es vorzeitig.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Das Bild speichern</div>
+            <div class="step-content">Klicken Sie auf <b>Bild exportieren...</b> und wählen Sie PNG, JPEG, BMP, TIFF oder OpenEXR. OpenEXR bewahrt den vollen Dynamikumfang, was Sie für die weitere Bearbeitung wollen.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_29_rendered_image.png" alt="tutorial_29_rendered_image.png" title="Capture: Render the shuttle at 3840 x 2160 (Basic tab, denoiser on), Export Image... as PNG, and place that PNG here (a downscaled copy is fine)." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Render the shuttle at 3840 x 2160 (Basic tab, denoiser on), Export Image... as PNG, and place that PNG here (a downscaled copy is fine)." style="display:none; width:700px; height:450px;">Screenshot: tutorial_29_rendered_image.png (700x450)</div>
+            <span class="screenshot-caption">Ein fertiges hochauflösendes Raytracing-Bild des Modells</span>
+        </div>
+
+        <div class="note note-warning">
+            Bei einer orthografischen Kamera und einem dünnwandigen Glasmaterial tastet jedes Pixel dieselbe Umgebungsrichtung ab, sodass dieses Glas flach dargestellt wird. Das ist erwartetes Verhalten, kein Fehler - wechseln Sie für realistisches Glas zu einer perspektivischen Projektion (Lektion 6). Der Dialog zeigt eine Warnung, wenn er diese Kombination erkennt.
+        </div>
+        <h2>Ansichten stapelweise rendern</h2>
+        <p><b>Werkzeuge → Ansichten stapelweise rendern...</b> rendert die im Kamerabereich erfassten Kameraansichten in einem Durchgang mit dem Raytracer in einen Ordner: Haken Sie die Ansichten an, wählen Sie das Format (PNG, JPEG, BMP, TIFF oder OpenEXR) und die Auflösung, wählen Sie den Ordner und starten Sie. Kombinieren Sie es mit Szenenzuständen (Lektion 28), um einen ganzen Satz Präsentationsbilder - Übersicht, Schnitt, Details - zu erzeugen, ohne das Modell erneut anzufassen.</p>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_29_batch_render.png" alt="tutorial_29_batch_render.png" title="Capture: Capture three views in the Cameras panel, then Tools &gt; Batch Render Views...; capture the dialog with the three views ticked, the format and resolution set and a folder chosen." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Capture three views in the Cameras panel, then Tools &gt; Batch Render Views...; capture the dialog with the three views ticked, the format and resolution set and a folder chosen." style="display:none; width:600px; height:450px;">Screenshot: tutorial_29_batch_render.png (600x480)</div>
+            <span class="screenshot-caption">Der Dialog „Ansichten stapelweise rendern“ mit drei angehakten erfassten Ansichten</span>
+        </div>
+
+        <div class="note note-info">
+            Denken Sie an die Grenzen aus früheren Lektionen: Simulationsergebnisse und 3D-Diagramme werden in jedem Modus gleich flach gezeichnet. Nutzen Sie Raytracing für Modelle, Baugruppen und Präsentationsbilder und den normalen Viewer für die wissenschaftlichen Ansichten.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson28.html' class='nav-button'>← Vorherige Lektion</a>
+            <a href="index.html" class="back-to-index">↑ Zurück zur Übersicht</a>
+            <span class='nav-button disabled'>Anleitung abgeschlossen ✔</span>
+        </div>
+    </div>
+</body>
+</html>

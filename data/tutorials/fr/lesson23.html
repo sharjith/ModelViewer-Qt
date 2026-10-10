@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leçon 23 : Graphiques 3D à partir de données CSV - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutoriel</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Premiers pas</a>
+            <a href="lesson02.html">2. Ouvrir des modèles</a>
+            <a href="lesson03.html">3. Navigation de base</a>
+            <a href="lesson04.html">4. Sélectionner des objets</a>
+            <a href="lesson05.html">5. Modes d'affichage</a>
+            <a href="lesson06.html">6. Modes de caméra</a>
+            <a href="lesson07.html">7. Modes d'affichage des objets</a>
+            <a href="lesson08.html">8. Manipuler des objets</a>
+            <a href="lesson09.html">9. Matériaux et textures</a>
+            <a href="lesson10.html">10. Éclairage et environnement</a>
+            <a href="lesson11.html">11. Travailler avec la visibilité</a>
+            <a href="lesson12.html">12. Fonctions avancées</a>
+            <a href="lesson13.html">13. Optimisation des performances</a>
+            <a href="lesson14.html">14. Conseils et flux de travail</a>
+            <a href="lesson15.html">15. Vues éclatées</a>
+            <a href="lesson16.html">16. Animation de morph targets</a>
+            <a href="lesson17.html">17. Édition de la transformation des nœuds</a>
+            <a href="lesson18.html">18. Rendu des arêtes et du fil de fer</a>
+            <a href="lesson19.html">19. Résultats de simulation</a>
+            <a href="lesson20.html">20. Regarder à l'intérieur d'un résultat</a>
+            <a href="lesson21.html">21. Graphiques et sondes</a>
+            <a href="lesson22.html">22. Comparer des résultats, données de cellule et de coque</a>
+            <a href="lesson23.html" class='active'>23. Graphiques 3D à partir de données CSV</a>
+            <a href="lesson24.html">24. Graphiques 3D à partir de formules, remplissages, images et notes</a>
+            <a href="lesson25.html">25. Graphiques et résultats lus ensemble</a>
+            <a href="lesson26.html">26. Outils de maillage</a>
+            <a href="lesson27.html">27. Mesurer, annoter et rapporter</a>
+            <a href="lesson28.html">28. Analyse, sélection et scènes</a>
+            <a href="lesson29.html">29. Lancer de rayons en pratique</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Leçon 23 sur 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 79.31%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Leçon 23 : Graphiques 3D à partir de données CSV</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>ModelViewer n'est pas réservé aux modèles : il peut tracer vos propres données en 3D, dans la même scène et avec la même caméra, la même sélection et les mêmes outils d'export. Surfaces, contours, lignes, nuages de points, barres, voxels et champs vectoriels sont dessinés à partir d'un tableau de nombres : un fichier CSV ou du texte collé. Cette leçon construit un graphique à partir d'un CSV et montre comment le contrôler ensuite.</p>
+        <div class="note note-info">
+            Les données d'exemple se trouvent dans <code>sample-models/Plot3D</code>. Elles sont générées, non mesurées, et chaque fichier a une forme facile à reconnaître : <code>surface_ripple.csv</code>, <code>scatter_clusters.csv</code>, <code>line_helix.csv</code>, <code>bar_histogram.csv</code>, <code>voxel_sphere.csv</code>, <code>quiver_vortex.csv</code> et d'autres.
+        </div>
+        <h2>Votre premier graphique : une surface</h2>
+        <div class="step">
+            <div class="step-title">Étape 1 : Ouvrir la boîte de dialogue</div>
+            <div class="step-content">Choisissez <b>Visualisation → Graphique 3D...</b> (ou <b>Ajouter un graphique 3D...</b> dans l'onglet <b>Graphique 3D</b>).</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Choisir les données</div>
+            <div class="step-content">Réglez <b>Source des données</b> sur <i>Fichier CSV ou données collées</i>, cliquez sur <b>Ouvrir un CSV...</b> et choisissez <code>surface_ripple.csv</code> : une grille de 21 x 21 de x, y et z = sin(r)/r. Vous pouvez aussi <b>Coller</b> du texte ; <b>Séparateur</b> et <b>La première ligne contient les noms de colonnes</b> s'adaptent à votre tableau.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Choisir le type de tracé et les colonnes</div>
+            <div class="step-content">Choisissez <b>Surface</b> comme type de tracé et associez les colonnes à <b>X</b>, <b>Y</b> et <b>Z</b>. Une colonne facultative <b>Valeur de couleur</b> colore le graphique ; sans elle, c'est la hauteur.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 4 : Aperçu, puis création</div>
+            <div class="step-content">Cliquez sur <b>Aperçu</b> pour voir le graphique avant de l'ajouter et sur <b>Effacer l'aperçu</b> pour le supprimer. <b>Créer le graphique</b> l'ajoute à la scène.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_23_add_plot_dialog.png" alt="tutorial_23_add_plot_dialog.png" title="Capture: Visualization &gt; Plot 3D..., Open CSV... surface_ripple.csv, plot type Surface, X/Y/Z mapped, preview showing; capture the whole dialog." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Visualization &gt; Plot 3D..., Open CSV... surface_ripple.csv, plot type Surface, X/Y/Z mapped, preview showing; capture the whole dialog." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_23_add_plot_dialog.png (700x520)</div>
+            <span class="screenshot-caption">La boîte de dialogue Ajouter un graphique 3D avec surface_ripple.csv chargé et les colonnes associées</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_23_surface_built.png" alt="tutorial_23_surface_built.png" title="Capture: After Build Plot: the whole main window with the ripple surface, axes box, colour legend and the 3D Plot tab visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: After Build Plot: the whole main window with the ripple surface, axes box, colour legend and the 3D Plot tab visible." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_23_surface_built.png (700x450)</div>
+            <span class="screenshot-caption">La surface d&#x27;ondes créée dans la scène, avec sa boîte d&#x27;axes et sa légende de couleurs</span>
+        </div>
+
+        <h2>Les sept types de tracé</h2>
+        <table>
+            <thead><tr><th>Type de tracé</th><th>Essayez ce fichier</th><th>Ce qu'il faut observer</th></tr></thead>
+            <tbody>
+            <tr><td>Surface</td><td><code>surface_ripple.csv</code>, <code>surface_scattered.csv</code></td><td>Une onde culminant à 1,0 au centre ; le fichier dispersé n'a pas de grille complète et est triangulé à partir de points irréguliers.</td></tr>
+            <tr><td>Contours</td><td><code>surface_ripple.csv</code></td><td>Seulement les isolignes de Z, éventuellement aplaties sur le plan de base.</td></tr>
+            <tr><td>Ligne / Courbe</td><td><code>line_helix.csv</code></td><td>Une hélice de deux tours ; l'ordre des lignes compte pour une ligne et la couleur suit z le long de la courbe.</td></tr>
+            <tr><td>Nuage de points</td><td><code>scatter_clusters.csv</code>, <code>scatter_error_bars.csv</code></td><td>Trois groupes colorés selon leur identifiant ; les couleurs du nuage de points sont par point, non interpolées.</td></tr>
+            <tr><td>Barres / Histogramme</td><td><code>bar_histogram.csv</code>, <code>bar_histogram_1d.csv</code>, <code>bar_signed.csv</code></td><td>Une bosse de 8 x 8 barres ; le fichier 1D est une rangée de huit barres (mettez Y sur (aucun)) ; le fichier signé a des barres au-dessus et en dessous de leur base.</td></tr>
+            <tr><td>Voxel / Volumique</td><td><code>voxel_sphere.csv</code></td><td>Une sphère dans une grille 9 x 9 x 9, plus dense au centre (associez X/Y/Z à i/j/k et Valeur de couleur à occupancy).</td></tr>
+            <tr><td>Vecteur (flèches)</td><td><code>quiver_vortex.csv</code></td><td>Flèches qui tournent autour de l'axe Z et s'allongent avec la distance (associez U, V, W aux colonnes correspondantes).</td></tr>
+            </tbody>
+        </table>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_23_plot_types.png" alt="tutorial_23_plot_types.png" title="Capture: Build scatter_clusters.csv, bar_histogram.csv and quiver_vortex.csv into one document (they share the axes) and capture the scene from an isometric view." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build scatter_clusters.csv, bar_histogram.csv and quiver_vortex.csv into one document (they share the axes) and capture the scene from an isometric view." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_23_plot_types.png (700x450)</div>
+            <span class="screenshot-caption">Un nuage de points, un histogramme et un champ vectoriel construits dans une scène</span>
+        </div>
+
+        <h2>Contrôler un graphique ensuite</h2>
+        <p>Tout ce qui concerne un graphique créé se trouve dans l'onglet <b>Graphique 3D</b>. Choisissez le <b>Graphique actif</b>, puis modifiez :</p>
+        <ul>
+            <li><b>Titre</b>, <b>Palette de couleurs</b> et <b>Bandes de couleurs</b> ; la plage de couleurs est automatique (<b>Plage de couleurs automatique</b>) ou fixée par un minimum et un maximum</li>
+            <li><b>Épaisseur de ligne</b> (lignes), <b>Taille du marqueur</b> (nuage de points), <b>Taille des flèches</b> (vecteurs) ainsi que <b>largeur</b> et <b>profondeur</b> des barres</li>
+            <li><b>Afficher la boîte des axes</b> et les <b>Plans</b> de référence (XY, XZ, YZ), avec leur opacité, encadrent le graphique</li>
+            <li><b>Modifier le graphique...</b> rouvre la définition du graphique : modifiez les données ou les colonnes et recréez-le sur place avec <b>Recréer le graphique</b></li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_23_plot_tab.png" alt="tutorial_23_plot_tab.png" title="Capture: With the ripple surface selected, crop the 3D Plot tab from Active plot down to the plane options." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: With the ripple surface selected, crop the 3D Plot tab from Active plot down to the plane options." style="display:none; width:420px; height:450px;">Capture d&#x27;écran: tutorial_23_plot_tab.png (420x560)</div>
+            <span class="screenshot-caption">L&#x27;onglet Graphique 3D avec les commandes du graphique actif</span>
+        </div>
+
+        <h2>Lignes de contour et courbes de section</h2>
+        <p>Toute surface peut porter des isolignes de Z. Réglez <b>Lignes de contour</b> sur <i>Sur la surface</i> pour des lignes sombres tracées dessus, ou sur <i>Sur le plan de base</i> pour des lignes colorées aplaties sur le fond de la boîte des axes, et choisissez le nombre de <b>Niveaux de contour</b>.</p>
+        <p>Cochez <b>Afficher les courbes de section au survol</b> et déplacez le curseur sur la surface : par le point survolé, vous voyez les courbes où les plans X, Y et Z coupent la surface (rouge, vert, bleu comme les axes ; la bleue est la ligne de niveau passant par le point), avec les valeurs de données du point.</p>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_23_contours_and_sections.png" alt="tutorial_23_contours_and_sections.png" title="Capture: Ripple surface with Contour lines = On the base plane (about 10 levels) and Show section curves on hover on; hover near a ring of the ripple so the red/green/blue curves and the data readout show." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Ripple surface with Contour lines = On the base plane (about 10 levels) and Show section curves on hover on; hover near a ring of the ripple so the red/green/blue curves and the data readout show." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_23_contours_and_sections.png (700x450)</div>
+            <span class="screenshot-caption">Lignes de contour sur le plan de base et courbes de section par le point survolé</span>
+        </div>
+
+        <h2>Options des nuages de points, barres et voxels</h2>
+        <ul>
+            <li><b>Nuage de points</b> : tracer des <b>tiges jusqu'au Z de base</b>, afficher des <b>barres d'erreur</b> (<code>scatter_error_bars.csv</code>) ou remplir jusqu'à une base ; la leçon suivante détaille les remplissages.</li>
+            <li><b>Barres</b> : les colonnes <b>Base</b>, <b>Largeur</b> et <b>Profondeur</b> sont facultatives ; sans elles, les barres commencent à 0 et ont une largeur et une profondeur de 0,8. La colonne <b>Z</b> donne la hauteur ; les valeurs négatives pendent donc sous la base.</li>
+            <li><b>Voxel</b> : le graphique est dessiné comme un volume ; associez X, Y, Z aux indices de la grille et la valeur de couleur à l'occupation, et vous obtenez un nuage semi-transparent comme le rendu volumique de la leçon 20.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_23_voxel_sphere.png" alt="tutorial_23_voxel_sphere.png" title="Capture: Build voxel_sphere.csv (Voxel / Volumetric, X/Y/Z = i/j/k, Colour value = occupancy) and capture the cloud from an isometric view." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build voxel_sphere.csv (Voxel / Volumetric, X/Y/Z = i/j/k, Colour value = occupancy) and capture the cloud from an isometric view." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_23_voxel_sphere.png (700x450)</div>
+            <span class="screenshot-caption">voxel_sphere.csv dessiné comme une sphère semi-transparente</span>
+        </div>
+
+        <h2>Enregistrer et exporter</h2>
+        <p>Les graphiques sont enregistrés dans la session <b>.mvf</b> avec leurs données, leur définition, leurs axes et leurs notes ; <b>Modifier le graphique...</b> fonctionne donc encore après la réouverture. Les graphiques de points et de lignes s'exportent aussi en <b>glTF</b>, <b>GLB</b> et <b>OBJ</b> avec le reste de la scène. Les graphiques ne sont pas dessinés par le lanceur de rayons.</p>
+        <div class="note note-tip">
+            Si le graphique semble faux, vérifiez d'abord l'association des colonnes : l'ordre des colonnes du fichier n'est qu'une commodité et l'association se fait par index. Une ligne d'état sous l'aperçu indique ce qui a été lu et, si un tableau est inutilisable, pourquoi.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson22.html' class='nav-button'>← Leçon précédente</a>
+            <a href="index.html" class="back-to-index">↑ Retour à l'index</a>
+            <a href='lesson24.html' class='nav-button'>Leçon suivante →</a>
+        </div>
+    </div>
+</body>
+</html>

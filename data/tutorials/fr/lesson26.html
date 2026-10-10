@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leçon 26 : Outils de maillage - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutoriel</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Premiers pas</a>
+            <a href="lesson02.html">2. Ouvrir des modèles</a>
+            <a href="lesson03.html">3. Navigation de base</a>
+            <a href="lesson04.html">4. Sélectionner des objets</a>
+            <a href="lesson05.html">5. Modes d'affichage</a>
+            <a href="lesson06.html">6. Modes de caméra</a>
+            <a href="lesson07.html">7. Modes d'affichage des objets</a>
+            <a href="lesson08.html">8. Manipuler des objets</a>
+            <a href="lesson09.html">9. Matériaux et textures</a>
+            <a href="lesson10.html">10. Éclairage et environnement</a>
+            <a href="lesson11.html">11. Travailler avec la visibilité</a>
+            <a href="lesson12.html">12. Fonctions avancées</a>
+            <a href="lesson13.html">13. Optimisation des performances</a>
+            <a href="lesson14.html">14. Conseils et flux de travail</a>
+            <a href="lesson15.html">15. Vues éclatées</a>
+            <a href="lesson16.html">16. Animation de morph targets</a>
+            <a href="lesson17.html">17. Édition de la transformation des nœuds</a>
+            <a href="lesson18.html">18. Rendu des arêtes et du fil de fer</a>
+            <a href="lesson19.html">19. Résultats de simulation</a>
+            <a href="lesson20.html">20. Regarder à l'intérieur d'un résultat</a>
+            <a href="lesson21.html">21. Graphiques et sondes</a>
+            <a href="lesson22.html">22. Comparer des résultats, données de cellule et de coque</a>
+            <a href="lesson23.html">23. Graphiques 3D à partir de données CSV</a>
+            <a href="lesson24.html">24. Graphiques 3D à partir de formules, remplissages, images et notes</a>
+            <a href="lesson25.html">25. Graphiques et résultats lus ensemble</a>
+            <a href="lesson26.html" class='active'>26. Outils de maillage</a>
+            <a href="lesson27.html">27. Mesurer, annoter et rapporter</a>
+            <a href="lesson28.html">28. Analyse, sélection et scènes</a>
+            <a href="lesson29.html">29. Lancer de rayons en pratique</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Leçon 26 sur 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 89.66%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Leçon 26 : Outils de maillage</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Tous les modèles n'arrivent pas propres : les scans ont des trous et du bruit, les exports CAO ont une topologie cassée, et il faut parfois une enveloppe nette autour de plusieurs pièces. ModelViewer dispose d'un ensemble d'outils de maillage pour ces tâches, fondés sur la bibliothèque de géométrie CGAL. Cette leçon passe en revue Réparer le maillage, Combler les trous, Subdiviser la surface, Enveloppe rétractable et Reconstruire la surface, puis les opérations de fusion et de séparation du menu contextuel.</p>
+        <div class="note note-info">
+            Chaque outil de la première moitié de cette leçon ajoute son résultat comme un <b>nouveau maillage</b> et laisse l'original intact, et toute l'étape est annulable. Les cinq boîtes de dialogue partagent une case, <b>Remplacer le résultat précédent</b>, cochée par défaut : chaque clic sur Générer supprime alors d'abord, de façon annulable, le résultat du clic précédent, de sorte qu'il reste au plus un résultat par maillage source. Décochez-la pour laisser les résultats s'accumuler côte à côte.
+        </div>
+        <h2>Réparer le maillage</h2>
+        <p><b>Outils → Réparer le maillage...</b> fait passer chaque maillage de la liste de travail dans la boîte à outils de réparation : géométrie dupliquée et dégénérée, sommets non-variétés, orientation incohérente et auto-intersections. C'est un simple nettoyage de défauts : il ne comble jamais les trous et ne force pas la fermeture, un panneau volontairement ouvert reste donc ouvert. Un maillage déjà valide est ignoré et ne reçoit pas de nouveau nœud.</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Ouvrir le maillage de test cassé</div>
+            <div class="step-content">Ouvrez <code>RepairMeshTest.obj</code> : un maillage conçu pour contenir tous les défauts traités par la réparation, en trois régions distinctes, à commencer par un nœud papillon de deux éventails de triangles ne partageant qu'un sommet.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Lancer la réparation</div>
+            <div class="step-content">Sélectionnez le maillage, ouvrez <b>Outils → Réparer le maillage...</b> et générez. L'étiquette d'état de la boîte de dialogue indique ce qui a été corrigé. <b>Tentatives de résolution des auto-intersections</b> fixe le nombre de tours de lissage et de comblement de trous à essayer, et <b>Essayer aussi la résolution par lissage</b> ajoute une stratégie plus lente.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_repair_mesh.png" alt="tutorial_26_repair_mesh.png" title="Capture: Open RepairMeshTest.obj, Tools &gt; Repair Mesh..., Generate; capture the dialog (status text visible) and the viewport with the repaired mesh." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open RepairMeshTest.obj, Tools &gt; Repair Mesh..., Generate; capture the dialog (status text visible) and the viewport with the repaired mesh." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_26_repair_mesh.png (700x450)</div>
+            <span class="screenshot-caption">La boîte de dialogue Réparer le maillage avec son étiquette d&#x27;état, à côté du résultat réparé</span>
+        </div>
+
+        <h2>Combler les trous</h2>
+        <p><b>Outils → Combler les trous...</b> trouve chaque boucle de bord des maillages de la liste de travail et vous laisse décider quelles boucles sont de vrais défauts et lesquelles un bord volontairement ouvert. Seules les boucles cochées sont rebouchées.</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Ouvrir un cylindre ouvert</div>
+            <div class="step-content">Ouvrez <code>OpenCylinder.obj</code>, qui a une extrémité ouverte, et lancez <b>Outils → Combler les trous...</b>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Choisir les boucles</div>
+            <div class="step-content">Cliquez sur une ligne de la liste des trous détectés : cette boucle est surlignée en orange dans la vue. Cochez celles à reboucher, réglez la <b>Densité du patch</b> (la finesse de la nouvelle triangulation par rapport au maillage environnant) et générez.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_fill_holes.png" alt="tutorial_26_fill_holes.png" title="Capture: Open OpenCylinder.obj, Tools &gt; Fill Holes..., click the detected loop in the list so it shows orange; capture dialog and viewport." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open OpenCylinder.obj, Tools &gt; Fill Holes..., click the detected loop in the list so it shows orange; capture dialog and viewport." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_26_fill_holes.png (700x450)</div>
+            <span class="screenshot-caption">Un trou détecté surligné en orange avant son rebouchage</span>
+        </div>
+
+        <h2>Subdiviser la surface</h2>
+        <p><b>Outils → Subdiviser la surface...</b> lisse un maillage par subdivision Loop ou Catmull-Clark. Ouvrez <code>TorusTestCoarse.obj</code>, un tore grossier de seulement 96 triangles, et essayez :</p>
+        <ul>
+            <li><b>Méthode</b> : Loop reste basée sur des triangles ; Catmull-Clark travaille en interne avec des quadrilatères et est re-triangulée ensuite. Les deux donnent généralement un résultat aussi lisse.</li>
+            <li><b>Itérations</b> : chaque étape quadruple à peu près le nombre de triangles ; 1 ou 2 suffisent donc pour voir l'effet.</li>
+            <li><b>Conserver les arêtes vives</b> (activé par défaut) garde infiniment vive toute arête pliée de 30 degrés ou plus : les extrémités planes d'un cylindre et les coins d'un bloc restent nets. Désactivez-le pour l'aspect classique entièrement lisse, où un cube devient une masse arrondie.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_subdivide.png" alt="tutorial_26_subdivide.png" title="Capture: TorusTestCoarse.obj in Shaded with Edges mode before and after Subdivide Surface (Loop, 2 iterations); join the two captures side by side." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: TorusTestCoarse.obj in Shaded with Edges mode before and after Subdivide Surface (Loop, 2 iterations); join the two captures side by side." style="display:none; width:700px; height:350px;">Capture d&#x27;écran: tutorial_26_subdivide.png (700x350)</div>
+            <span class="screenshot-caption">Le tore grossier (à gauche) et son résultat subdivisé et lisse (à droite)</span>
+        </div>
+
+        <h2>Enveloppe rétractable</h2>
+        <p><b>Outils → Enveloppe rétractable...</b> combine un ou plusieurs maillages sélectionnés en une seule nouvelle enveloppe <i>étanche</i>, par enveloppement alpha. Les entrées n'ont pas besoin de partager un matériau ni d'être variétés. <b>Alpha</b> et <b>Décalage</b> règlent l'ajustement de l'enveloppe et son écart ; <b>Rétablir la valeur suggérée</b> calcule des valeurs de départ raisonnables à partir de la boîte englobante de la sélection. La sélection d'origine reste intacte.</p>
+        <div class="note note-tip">
+            Essayez-le sur quelques pièces du chariot élévateur ou de l'assemblage du skateboard : une enveloppe rétractable est un substitut net et fermé d'un assemblage compliqué, pratique pour l'impression 3D ou comme corps de collision simplifié.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_shrink_wrap.png" alt="tutorial_26_shrink_wrap.png" title="Capture: Select a few Forklift parts, Tools &gt; Shrink Wrap..., Generate; capture the wrapped shell next to the original (move the original aside or show wireframe)." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Select a few Forklift parts, Tools &gt; Shrink Wrap..., Generate; capture the wrapped shell next to the original (move the original aside or show wireframe)." style="display:none; width:700px; height:420px;">Capture d&#x27;écran: tutorial_26_shrink_wrap.png (700x420)</div>
+            <span class="screenshot-caption">Une enveloppe rétractable autour de plusieurs pièces, à côté de l&#x27;original</span>
+        </div>
+
+        <h2>Reconstruire la surface</h2>
+        <p><b>Outils → Reconstruire la surface...</b> construit une nouvelle surface triangulée à partir des <i>positions des points</i> des maillages ou nuages de points sélectionnés ; les faces existantes sont ignorées. <b>Netteté</b> arbitre entre lissage et arêtes vives, <b>Tolérance de bord</b> fixe la taille d'écart que la reconstruction peut combler et <b>Simplifier le nuage de points avant la reconstruction</b> fait apparaître un <b>Espacement cible</b> qui fusionne d'abord les points plus proches : plus rapide sur des scans grands ou bruités, au prix du détail fin.</p>
+        <h2>Fusionner, séparer et grouper (menu contextuel)</h2>
+        <p>Avec des maillages sélectionnés, le menu contextuel de l'arbre ou de la vue propose ces opérations. Toutes ajoutent de nouveaux nœuds de maillage et retirent les originaux, et toutes sont annulables sauf Sélectionner le parent.</p>
+        <table>
+            <thead><tr><th>Opération</th><th>Ce qu'elle fait</th></tr></thead>
+            <tbody>
+            <tr><td>Séparer par connectivité</td><td>Sépare chaque maillage sélectionné en ses morceaux déconnectés, un nouveau maillage par morceau ; un maillage déjà d'un seul tenant est laissé tel quel.</td></tr>
+            <tr><td>Fusionner par adjacence</td><td>Regroupe la sélection en groupes qui se touchent (par position de sommet partagée) et fusionne chaque groupe en un maillage ; les maillages qui ne touchent rien sont laissés tels quels.</td></tr>
+            <tr><td>Fusionner la sélection</td><td>Combine toute la sélection en un nouveau maillage par simple concaténation, qu'elle se touche ou non.</td></tr>
+            <tr><td>Union de maillages</td><td>Tente une véritable union booléenne de la géométrie réparée ; si la réparation ou l'étape booléenne échoue, elle revient à la simple concaténation, comme Fusionner la sélection.</td></tr>
+            <tr><td>Grouper</td><td>Réorganise seulement l'arbre de la scène : crée un nœud de groupe et y déplace les maillages sélectionnés. La géométrie ne change pas.</td></tr>
+            <tr><td>Sélectionner le parent</td><td>Sélectionne le parent dans l'arbre de l'élément sur lequel vous avez fait un clic droit : navigation seulement.</td></tr>
+            </tbody>
+        </table>
+        <div class="note note-info">
+            Lorsqu'un groupe ou une sélection qui se touchent comporte plus d'un matériau, Fusionner par adjacence, Fusionner la sélection et Union de maillages demandent : <b>Garder les matériaux séparés</b> fait une fusion par matériau, <b>Fusionner quand même</b> combine tout et utilise le matériau du premier maillage.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_context_menu.png" alt="tutorial_26_context_menu.png" title="Capture: Select two or more meshes in the Scene Tree, right-click one of them and capture the open menu with Split by Connectivity, Merge by Adjacency, Merge Selected, Mesh Union, Group and Select Parent visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Select two or more meshes in the Scene Tree, right-click one of them and capture the open menu with Split by Connectivity, Merge by Adjacency, Merge Selected, Mesh Union, Group and Select Parent visible." style="display:none; width:500px; height:420px;">Capture d&#x27;écran: tutorial_26_context_menu.png (500x420)</div>
+            <span class="screenshot-caption">Les opérations de maillage dans le menu contextuel</span>
+        </div>
+
+
+        <div class="lesson-navigation">
+            <a href='lesson25.html' class='nav-button'>← Leçon précédente</a>
+            <a href="index.html" class="back-to-index">↑ Retour à l'index</a>
+            <a href='lesson27.html' class='nav-button'>Leçon suivante →</a>
+        </div>
+    </div>
+</body>
+</html>

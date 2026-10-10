@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lección 20: Mirar dentro de un resultado - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primeros pasos</a>
+            <a href="lesson02.html">2. Abrir modelos</a>
+            <a href="lesson03.html">3. Navegación básica</a>
+            <a href="lesson04.html">4. Seleccionar objetos</a>
+            <a href="lesson05.html">5. Modos de vista</a>
+            <a href="lesson06.html">6. Modos de cámara</a>
+            <a href="lesson07.html">7. Modos de visualización</a>
+            <a href="lesson08.html">8. Manipular objetos</a>
+            <a href="lesson09.html">9. Materiales y texturas</a>
+            <a href="lesson10.html">10. Iluminación y entorno</a>
+            <a href="lesson11.html">11. Trabajar con la visibilidad</a>
+            <a href="lesson12.html">12. Funciones avanzadas</a>
+            <a href="lesson13.html">13. Optimización del rendimiento</a>
+            <a href="lesson14.html">14. Consejos y flujos de trabajo</a>
+            <a href="lesson15.html">15. Vistas explosionadas</a>
+            <a href="lesson16.html">16. Animación de morph targets</a>
+            <a href="lesson17.html">17. Edición de la transformación de nodos</a>
+            <a href="lesson18.html">18. Renderizado de bordes y malla de alambre</a>
+            <a href="lesson19.html">19. Resultados de simulación</a>
+            <a href="lesson20.html" class='active'>20. Mirar dentro de un resultado</a>
+            <a href="lesson21.html">21. Gráficos y sondeo</a>
+            <a href="lesson22.html">22. Comparar resultados, datos de celda y de lámina</a>
+            <a href="lesson23.html">23. Gráficos 3D a partir de datos CSV</a>
+            <a href="lesson24.html">24. Gráficos 3D a partir de fórmulas, rellenos, imágenes y notas</a>
+            <a href="lesson25.html">25. Gráficos y resultados reproducidos juntos</a>
+            <a href="lesson26.html">26. Herramientas de malla</a>
+            <a href="lesson27.html">27. Medir, anotar e informar</a>
+            <a href="lesson28.html">28. Análisis, selección y escenas</a>
+            <a href="lesson29.html">29. Trazado de rayos en la práctica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lección 20 de 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 68.97%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lección 20: Mirar dentro de un resultado</h1>
+        </div>
+
+        <h2>Introducción</h2>
+        <p>Un resultado se dibuja como su superficie exterior, pero los valores interesantes suelen estar dentro. Esta lección muestra cinco formas de mirar dentro: cortar el resultado con una sección, extraer isosuperficies, trazar líneas de corriente a través de un flujo, representar un campo como volumen y dibujar vectores y tensores de tensión como glifos.</p>
+        <div class="note note-info">
+            Necesitará estos ejemplos de <code>sample-models/Simulation</code>: <code>FEM_box_static_stress.vtu</code> (secciones), <code>block.cgns</code> (isosuperficies y volumen; <code>block.exo</code> y <code>block.vtkhdf</code> contienen los mismos datos), <code>duct.cgns</code> (líneas de corriente), <code>plate_with_hole.frd</code> y <code>stress_states.vtu</code> (elipsoides de tensión).
+        </div>
+        <h2>Secciones</h2>
+        <p>Los planos de corte de la lección 12 cortan un resultado igual que cualquier otro modelo, y el corte puede mostrar los valores del campo en lugar de un hueco vacío.</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Abrir la caja y un plano de corte</div>
+            <div class="step-content">Abra <code>FEM_box_static_stress.vtu</code>, haga clic en <b>Vista de sección</b> en la barra de herramientas Vista y active un plano.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Colorear el corte</div>
+            <div class="step-content">En la pestaña Resultados de simulación active <b>Colorear el corte del plano de corte con el campo</b>. La cara de corte muestra ahora la tensión dentro de la caja.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Mover el plano</div>
+            <div class="step-content">Cambie el coeficiente del plano para deslizar el corte por la caja y ver cómo cambian los valores.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_20_coloured_section.png" alt="tutorial_20_coloured_section.png" title="Capture: Open FEM_box_static_stress.vtu, enable one clipping plane (Section View), tick &quot;Colour the Clipping Plane cut with the field&quot;, move the plane to about the middle and rotate so the cut face is visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open FEM_box_static_stress.vtu, enable one clipping plane (Section View), tick &quot;Colour the Clipping Plane cut with the field&quot;, move the plane to about the middle and rotate so the cut face is visible." style="display:none; width:700px; height:450px;">Captura: tutorial_20_coloured_section.png (700x450)</div>
+            <span class="screenshot-caption">Una caja cortada por un plano de corte, con la cara de corte coloreada por tensión</span>
+        </div>
+
+        <h2>Isosuperficies</h2>
+        <p>Una isosuperficie es la superficie donde un campo tiene un valor constante, por ejemplo una cáscara de igual temperatura. Hace visible el interior de un volumen sin cortarlo.</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Abrir un resultado de volumen</div>
+            <div class="step-content">Abra <code>block.cgns</code>, un bloque de hexaedros con un campo de temperatura en cinco pasos.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Activar las isosuperficies</div>
+            <div class="step-content">Active <b>Mostrar isosuperficies</b>, elija el <b>Campo de isosuperficies</b> (Temperature) y el número de <b>Niveles de isosuperficies</b>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Combinarlas con una sección</div>
+            <div class="step-content">Active también un plano de corte: las cáscaras anidadas se abren y se ve cómo está estratificado el campo por dentro.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_20_iso_surfaces.png" alt="tutorial_20_iso_surfaces.png" title="Capture: Open block.cgns, Field = Temperature, tick Show iso-surfaces with about 5 levels, and one clipping plane so the nested shells are visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open block.cgns, Field = Temperature, tick Show iso-surfaces with about 5 levels, and one clipping plane so the nested shells are visible." style="display:none; width:700px; height:450px;">Captura: tutorial_20_iso_surfaces.png (700x450)</div>
+            <span class="screenshot-caption">Isosuperficies del campo de temperatura dentro del bloque</span>
+        </div>
+
+        <h2>Líneas de corriente</h2>
+        <p>Las líneas de corriente siguen un campo de velocidad: cada línea es el camino que seguiría una partícula sin masa si el flujo estuviera congelado en el paso actual.</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Abrir el conducto</div>
+            <div class="step-content">Abra <code>duct.cgns</code>: un conducto semianular con un flujo en remolino en cuatro pasos.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Mostrar líneas de corriente</div>
+            <div class="step-content">Active <b>Mostrar líneas de corriente</b>, elija el <b>Campo de líneas de corriente</b> (Velocity) y fije el número de <b>Semillas de líneas de corriente</b>. <b>Puntas de flecha</b> añade pequeños conos que muestran la dirección y <b>Grosor de línea</b> fija el ancho.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Sembrar en un plano</div>
+            <div class="step-content">Active un plano de corte y marque <b>Sembrar en el plano de corte</b>: las líneas parten del corte y muestran exactamente adónde va el flujo desde esa sección.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_20_streamlines.png" alt="tutorial_20_streamlines.png" title="Capture: Open duct.cgns, tick Show streamlines (Velocity, about 60 seeds, Arrowheads on); rotate to see the half-ring shape of the duct." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open duct.cgns, tick Show streamlines (Velocity, about 60 seeds, Arrowheads on); rotate to see the half-ring shape of the duct." style="display:none; width:700px; height:450px;">Captura: tutorial_20_streamlines.png (700x450)</div>
+            <span class="screenshot-caption">Líneas de corriente girando por el conducto, con puntas de flecha</span>
+        </div>
+
+        <h2>Representación de volumen</h2>
+        <p><b>Mostrar como volumen</b> representa un campo como una nube semitransparente en lugar de una superficie. Elija el <b>Campo de volumen</b>, una <b>Calidad del volumen</b> (de Baja 32 a Muy alta 128) y modele la curva de opacidad para que solo sea visible el rango de valores que le interesa.</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Usar de nuevo el bloque</div>
+            <div class="step-content">Con <code>block.cgns</code> abierto, desactive las isosuperficies y active <b>Mostrar como volumen</b> con Temperature como campo de volumen.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Modelar la opacidad</div>
+            <div class="step-content">Edite la curva de opacidad: arrastre un punto, haga doble clic para añadir uno y clic derecho en un punto interior para quitarlo. Suba la curva para los valores calientes y bájela para los fríos y verá solo el núcleo caliente.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Recorrer el tiempo</div>
+            <div class="step-content">Pulse reproducir en la línea de tiempo: la nube sigue los cinco pasos del resultado.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_20_volume_rendering.png" alt="tutorial_20_volume_rendering.png" title="Capture: Open block.cgns, tick Show as volume (Temperature, Medium or High quality), and include the opacity curve widget in the Simulation Results tab in the shot (crop window + dock together)." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open block.cgns, tick Show as volume (Temperature, Medium or High quality), and include the opacity curve widget in the Simulation Results tab in the shot (crop window + dock together)." style="display:none; width:700px; height:450px;">Captura: tutorial_20_volume_rendering.png (700x450)</div>
+            <span class="screenshot-caption">El campo de temperatura del bloque representado como volumen</span>
+        </div>
+
+        <h2>Flechas vectoriales</h2>
+        <p><b>Mostrar flechas vectoriales</b> dibuja una flecha para un campo vectorial en puntos muestreados de la superficie. Elija el <b>Campo de flechas</b>, el <b>Tamaño de flecha</b> (estable al hacer zoom) y el <b>Número de flechas</b>. Con <b>Escalar flechas por magnitud</b> desactivado, todas las flechas tienen la misma longitud y solo el color muestra la magnitud.</p>
+        <h2>Elipsoides de tensión</h2>
+        <p>Para un tensor de tensión simétrico, <b>Mostrar elipsoides de tensión</b> dibuja un elipsoide en puntos muestreados. Sus tres ejes apuntan en las direcciones principales y sus longitudes siguen los valores principales; el eje más largo tiene siempre el mismo tamaño en pantalla, de modo que la <i>forma</i> muestra cómo se reparte la tensión y el color cuánto vale.</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Empezar con la placa</div>
+            <div class="step-content">Abra <code>plate_with_hole.frd</code>, active <b>Mostrar elipsoides de tensión</b> y fije el <b>Número de elipsoides</b> en 1500 o más. Lejos del agujero los elipsoides son agujas alineadas con la tracción; alrededor del agujero cambian bruscamente de forma y color.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Elegir entre tensores</div>
+            <div class="step-content">Abra <code>stress_states.vtu</code>, que tiene tres tensores de tensión, y cambie el <b>Campo tensorial</b>: agujas para la flexión, discos inclinados para la torsión, elipsoides aplanados para el tensor por elemento.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_20_stress_ellipsoids.png" alt="tutorial_20_stress_ellipsoids.png" title="Capture: Open plate_with_hole.frd, Show stress ellipsoids with count 2000, last load step, view the plate face-on, zoomed so the hole fills about a third of the viewport." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open plate_with_hole.frd, Show stress ellipsoids with count 2000, last load step, view the plate face-on, zoomed so the hole fills about a third of the viewport." style="display:none; width:700px; height:450px;">Captura: tutorial_20_stress_ellipsoids.png (700x450)</div>
+            <span class="screenshot-caption">Elipsoides de tensión alrededor del agujero de la placa</span>
+        </div>
+
+        <div class="note note-tip">
+            Las flechas vectoriales, los elipsoides de tensión y la forma deformada pueden estar activos a la vez; desactive lo que no use para mantener la imagen legible.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson19.html' class='nav-button'>← Lección anterior</a>
+            <a href="index.html" class="back-to-index">↑ Volver al índice</a>
+            <a href='lesson21.html' class='nav-button'>Siguiente lección →</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lektion 4: Objekte auswählen - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Anleitung</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Erste Schritte</a>
+            <a href="lesson02.html">2. Modelle öffnen</a>
+            <a href="lesson03.html">3. Grundlegende Navigation</a>
+            <a href="lesson04.html" class='active'>4. Objekte auswählen</a>
+            <a href="lesson05.html">5. Ansichtsmodi</a>
+            <a href="lesson06.html">6. Kameramodi</a>
+            <a href="lesson07.html">7. Anzeigemodi</a>
+            <a href="lesson08.html">8. Objekte manipulieren</a>
+            <a href="lesson09.html">9. Materialien und Texturen</a>
+            <a href="lesson10.html">10. Beleuchtung und Umgebung</a>
+            <a href="lesson11.html">11. Arbeiten mit Sichtbarkeit</a>
+            <a href="lesson12.html">12. Erweiterte Funktionen</a>
+            <a href="lesson13.html">13. Leistungsoptimierung</a>
+            <a href="lesson14.html">14. Tipps und Workflows</a>
+            <a href="lesson15.html">15. Explosionsansichten</a>
+            <a href="lesson16.html">16. Morph-Target-Animation</a>
+            <a href="lesson17.html">17. Knotentransformation bearbeiten</a>
+            <a href="lesson18.html">18. Kanten- und Drahtgitter-Rendering</a>
+            <a href="lesson19.html">19. Simulationsergebnisse</a>
+            <a href="lesson20.html">20. Ins Innere eines Ergebnisses schauen</a>
+            <a href="lesson21.html">21. Diagramme und Sonden</a>
+            <a href="lesson22.html">22. Ergebnisse vergleichen, Zell- und Schalendaten</a>
+            <a href="lesson23.html">23. 3D-Diagramme aus CSV-Daten</a>
+            <a href="lesson24.html">24. 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</a>
+            <a href="lesson25.html">25. Diagramme und Ergebnisse gemeinsam abspielen</a>
+            <a href="lesson26.html">26. Mesh-Werkzeuge</a>
+            <a href="lesson27.html">27. Messen, Kommentieren und Berichten</a>
+            <a href="lesson28.html">28. Analyse, Auswahl und Szenen</a>
+            <a href="lesson29.html">29. Raytracing in der Praxis</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lektion 4 von 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 13.79%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lektion 4: Objekte auswählen</h1>
+        </div>
+
+        <h2>Einführung</h2>
+        <p>Die Auswahl ist grundlegend für die Arbeit mit Modellen in ModelViewer. Sie müssen Objekte auswählen, bevor Sie sie bearbeiten, ausblenden oder ändern können.</p>
+
+        <h2>Einzelauswahl</h2>
+        <p>Die einfachste Auswahlmethode:</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Ein Objekt anklicken</div>
+            <div class="step-content"><kbd>Linksklicken</kbd> Sie einfach auf ein beliebiges Objekt im 3D-Ansichtsfenster, um es auszuwählen.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Visuelles Feedback</div>
+            <div class="step-content">Ausgewählte Objekte werden im Ansichtsfenster mit einer leuchtenden Farbe hervorgehoben, und ihr Eintrag im Modellbaum wird ebenfalls hervorgehoben.</div>
+        </div>
+
+        
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_04_single_selection.png" alt="Ausgewähltes Objekt mit leuchtender Hervorhebung und Auswahl im Modellbaum" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_04_single_selection.png (700x450)</div>
+            <span class="screenshot-caption">Ausgewähltes Objekt mit leuchtender Hervorhebungsfarbe und Auswahl im Modellbaum</span>
+        </div>
+
+        <div class="note note-info">
+            Ein Klick auf ein bereits ausgewähltes Objekt hebt die Auswahl auf (Umschalten).
+        </div>
+
+        <h2>Mehrfachauswahl - Gummiband</h2>
+        <p>Mehrere Objekte gleichzeitig auswählen:</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Klicken und ziehen</div>
+            <div class="step-content"><kbd>Linksklicken</kbd> und halten Sie, dann ziehen Sie, um ein Auswahlrechteck (Gummiband) aufzuziehen.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Objekte umfassen</div>
+            <div class="step-content">Jedes Objekt, das innerhalb des Rechtecks liegt, wird ausgewählt.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Loslassen</div>
+            <div class="step-content">Lassen Sie die Maustaste los, um die Auswahl zu bestätigen.</div>
+        </div>
+
+        
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_04_rubber_band.png" alt="Ein Auswahlrechteck wird über mehrere Objekte gezogen" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_04_rubber_band.png (700x450)</div>
+            <span class="screenshot-caption">Ein Auswahlrechteck wird über mehrere Objekte gezogen</span>
+        </div>
+
+        <div class="note note-tip">
+            Die Gummiband-Auswahl eignet sich hervorragend, um Gruppen von Objekten schnell auszuwählen.
+        </div>
+
+        <h2>Aus dem Modellbaum auswählen</h2>
+        <p>Eine alternative Auswahlmethode über den Seitenbereich:</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Das Objekt finden</div>
+            <div class="step-content">Suchen Sie das Objekt im Modellbaum-Bereich auf der rechten Seite. Die Objekte sind hierarchisch nach Baugruppe/Datei geordnet, nicht als flache Liste.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Den Namen anklicken</div>
+            <div class="step-content">Klicken Sie auf den Namen des Objekts, um es auszuwählen. Das Ansichtsfenster zeigt die Auswahl entsprechend an.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_04_list_selection.png" alt="Modellbaum mit hervorgehobenem ausgewähltem Eintrag" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:400px;">Screenshot: tutorial_04_list_selection.png (300x400)</div>
+            <span class="screenshot-caption">Modellbaum mit hervorgehobenem ausgewähltem Eintrag</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Schritt 3: Mehrfachauswahl im Baum</div>
+            <div class="step-content">Halten Sie <kbd>Strg</kbd> gedrückt und klicken Sie mehrere Einträge an, um sie der Auswahl hinzuzufügen.<br/>Halten Sie <kbd>Umschalt</kbd> gedrückt und klicken Sie, um einen Bereich von Einträgen auszuwählen.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Schritt 4: Baugruppen auswählen</div>
+            <div class="step-content">Ein Klick auf einen Baugruppenknoten (übergeordnet) wählt alle seine untergeordneten Teile auf einmal aus. Umgekehrt wird der Baugruppenknoten selbst ebenfalls ausgewählt, wenn Sie manuell jedes Teil darunter auswählen.</div>
+        </div>
+
+        <h2>Suchen und auswählen</h2>
+        <p>Für Szenen mit vielen Objekten:</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Das Suchfeld verwenden</div>
+            <div class="step-content">Geben Sie Text in das Suchfeld über dem Modellbaum ein, um Objekte zu filtern. Der Abgleich erfolgt auch mit den Namen von Baugruppen und Wurzelknoten, nicht nur mit einzelnen Mesh-/Blattnamen, sodass Sie eine ganze Unterbaugruppe über ihren Namen suchen können.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Objekte erscheinen/verschwinden</div>
+            <div class="step-content">Nur Objekte, die Ihrer Suche entsprechen, werden im Baum hervorgehoben. Wird kein Treffer gefunden, zeigt das Suchfeld einen roten Rand.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Aus der gefilterten Liste auswählen</div>
+            <div class="step-content">Gefilterte Objekte werden automatisch aus den gefilterten Ergebnissen ausgewählt.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_04_search_filter.png" alt="Suchfeld mit Text und gefilterter Modellbaum mit den Treffern" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:400px;">Screenshot: tutorial_04_search_filter.png (300x400)</div>
+            <span class="screenshot-caption">Suchfeld mit Text und gefilterter Modellbaum mit den Treffern</span>
+        </div>
+
+        <div class="note note-tip">
+            Leeren Sie das Suchfeld, um wieder alle Objekte anzuzeigen.
+        </div>
+
+        <h2>Auswahl aufheben</h2>
+        <p>Es gibt mehrere Möglichkeiten, die Auswahl aufzuheben:</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Methode</th>
+                    <th>Ergebnis</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Auf ein ausgewähltes Objekt klicken</td><td>Hebt die Auswahl dieses Objekts auf</td></tr>
+                <tr><td>Auf leeren Raum im Ansichtsfenster klicken</td><td>Ausgewählte Objekte bleiben ausgewählt</td></tr>
+                <tr><td><kbd>Esc</kbd> drücken</td><td>Hebt die Auswahl aller Objekte auf</td></tr>
+                <tr><td>Ein anderes Objekt anklicken</td><td>Fügt dieses Objekt der bestehenden Auswahl hinzu</td></tr>
+            </tbody>
+        </table>
+
+        <h2>Auswahlhervorhebung</h2>
+        <p>Steuern Sie, wie die Auswahl angezeigt wird:</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Hervorhebung umschalten</div>
+            <div class="step-content">Verwenden Sie das Kontrollkästchen „Auswahlhervorhebung“ im rechten Bereich, um die Auswahlhervorhebung ein- oder auszuschalten.</div>
+        </div>
+
+        <div class="note note-info">
+            Auch bei ausgeschalteter Hervorhebung sehen Sie im Modellbaum weiterhin, welche Objekte ausgewählt sind. Das hilft, die Auswahlanzeige auszublenden, um die Echtzeit-Änderungen des Aussehens der ausgewählten Objekte bei Farb-, Material- oder Texturanwendung zu beurteilen.
+        </div>
+
+        <h2>Mit ausgewählten Objekten arbeiten</h2>
+        <p>Sobald Objekte ausgewählt sind, können Sie:</p>
+        <ul>
+            <li>Sie aus-/einblenden (<kbd>Leertaste</kbd>)</li>
+            <li>Sie löschen (<kbd>Entf</kbd>-Taste)</li>
+            <li>Sie transformieren (Verschieben, Drehen, Skalieren)</li>
+            <li>Ihre Materialien und Farben ändern</li>
+            <li>Texturen anwenden</li>
+            <li>Sie duplizieren</li>
+            <li>Die Ansicht auf sie zentrieren</li>
+        </ul>
+
+        <h2>Kontextmenü-Aktionen</h2>
+        <p>Klicken Sie mit rechts auf ausgewählte Objekte für schnelle Aktionen:</p>
+        
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_04_context_menu.png" alt="Kontextmenü mit Optionen für ausgewählte Objekte" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:400px;">Screenshot: tutorial_04_context_menu.png (300x400)</div>
+            <span class="screenshot-caption">Kontextmenü mit Optionen für ausgewählte Objekte</span>
+        </div>
+
+        <h2>Übung</h2>
+        <p><b>Probieren Sie diese Übung:</b></p>
+        <ol>
+            <li>Importieren oder öffnen Sie ein Modell mit mehreren Teilen</li>
+            <li>Klicken Sie einzelne Objekte an, um sie auszuwählen</li>
+            <li>Probieren Sie die Gummiband-Auswahl, um mehrere Objekte auf einmal auszuwählen</li>
+            <li>Verwenden Sie <kbd>Strg</kbd>+Klick, um Objekte nacheinander zur Auswahl hinzuzufügen</li>
+            <li>Wählen Sie Objekte aus dem Modellbaum aus</li>
+            <li>Verwenden Sie das Suchfeld, um bestimmte Objekte nach Namen zu finden</li>
+            <li>Üben Sie das Aufheben der Auswahl mit verschiedenen Methoden</li>
+            <li>Klicken Sie mit rechts auf eine Auswahl, um die verfügbaren Aktionen zu sehen</li>
+        </ol>
+
+        <div class="lesson-navigation">
+            <a href='lesson03.html' class='nav-button'>← Vorherige Lektion</a>
+            <a href="index.html" class="back-to-index">↑ Zurück zur Übersicht</a>
+            <a href='lesson05.html' class='nav-button'>Nächste Lektion →</a>
+        </div>
+    </div>
+</body>
+</html>

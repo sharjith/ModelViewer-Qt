@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leçon 4 : Sélectionner des objets - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutoriel</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Premiers pas</a>
+            <a href="lesson02.html">2. Ouvrir des modèles</a>
+            <a href="lesson03.html">3. Navigation de base</a>
+            <a href="lesson04.html" class='active'>4. Sélectionner des objets</a>
+            <a href="lesson05.html">5. Modes d'affichage</a>
+            <a href="lesson06.html">6. Modes de caméra</a>
+            <a href="lesson07.html">7. Modes d'affichage des objets</a>
+            <a href="lesson08.html">8. Manipuler des objets</a>
+            <a href="lesson09.html">9. Matériaux et textures</a>
+            <a href="lesson10.html">10. Éclairage et environnement</a>
+            <a href="lesson11.html">11. Travailler avec la visibilité</a>
+            <a href="lesson12.html">12. Fonctions avancées</a>
+            <a href="lesson13.html">13. Optimisation des performances</a>
+            <a href="lesson14.html">14. Conseils et flux de travail</a>
+            <a href="lesson15.html">15. Vues éclatées</a>
+            <a href="lesson16.html">16. Animation de morph targets</a>
+            <a href="lesson17.html">17. Édition de la transformation des nœuds</a>
+            <a href="lesson18.html">18. Rendu des arêtes et du fil de fer</a>
+            <a href="lesson19.html">19. Résultats de simulation</a>
+            <a href="lesson20.html">20. Regarder à l'intérieur d'un résultat</a>
+            <a href="lesson21.html">21. Graphiques et sondes</a>
+            <a href="lesson22.html">22. Comparer des résultats, données de cellule et de coque</a>
+            <a href="lesson23.html">23. Graphiques 3D à partir de données CSV</a>
+            <a href="lesson24.html">24. Graphiques 3D à partir de formules, remplissages, images et notes</a>
+            <a href="lesson25.html">25. Graphiques et résultats lus ensemble</a>
+            <a href="lesson26.html">26. Outils de maillage</a>
+            <a href="lesson27.html">27. Mesurer, annoter et rapporter</a>
+            <a href="lesson28.html">28. Analyse, sélection et scènes</a>
+            <a href="lesson29.html">29. Lancer de rayons en pratique</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Leçon 4 sur 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 13.79%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Leçon 4 : Sélectionner des objets</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>La sélection est fondamentale pour travailler avec des modèles dans ModelViewer. Vous devez sélectionner des objets avant de pouvoir les manipuler, les masquer ou les modifier.</p>
+
+        <h2>Sélection simple</h2>
+        <p>La méthode de sélection la plus simple :</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Cliquer sur un objet</div>
+            <div class="step-content">Faites simplement un <kbd>clic gauche</kbd> sur n'importe quel objet de la vue 3D pour le sélectionner.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Retour visuel</div>
+            <div class="step-content">Les objets sélectionnés sont mis en évidence par une couleur brillante dans la vue et leur entrée dans l'arbre du modèle est également mise en évidence.</div>
+        </div>
+
+        
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_04_single_selection.png" alt="Objet sélectionné avec mise en évidence brillante et sélection dans l&#x27;arbre du modèle" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Capture d'écran: tutorial_04_single_selection.png (700x450)</div>
+            <span class="screenshot-caption">Objet sélectionné avec couleur de mise en évidence brillante et sélection dans l'arbre du modèle</span>
+        </div>
+
+        <div class="note note-info">
+            Cliquer sur un objet déjà sélectionné le désélectionne (basculement).
+        </div>
+
+        <h2>Sélection multiple - rectangle de sélection</h2>
+        <p>Sélectionner plusieurs objets à la fois :</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Cliquer et faire glisser</div>
+            <div class="step-content">Faites un <kbd>clic gauche</kbd> et maintenez, puis faites glisser pour créer un rectangle de sélection.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Englober des objets</div>
+            <div class="step-content">Tout objet situé dans le rectangle sera sélectionné.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Relâcher</div>
+            <div class="step-content">Relâchez le bouton de la souris pour confirmer la sélection.</div>
+        </div>
+
+        
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_04_rubber_band.png" alt="Un rectangle de sélection tracé sur plusieurs objets" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Capture d'écran: tutorial_04_rubber_band.png (700x450)</div>
+            <span class="screenshot-caption">Un rectangle de sélection tracé sur plusieurs objets</span>
+        </div>
+
+        <div class="note note-tip">
+            La sélection par rectangle est idéale pour sélectionner rapidement des groupes d'objets.
+        </div>
+
+        <h2>Sélectionner depuis l'arbre du modèle</h2>
+        <p>Une autre méthode de sélection à l'aide du panneau latéral :</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Repérer l'objet</div>
+            <div class="step-content">Trouvez l'objet dans le panneau de l'arbre du modèle, à droite. Les objets sont organisés hiérarchiquement par assemblage/fichier, et non sous forme de liste plate.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Cliquer sur le nom</div>
+            <div class="step-content">Cliquez sur le nom de l'objet pour le sélectionner. La vue se met à jour pour afficher la sélection.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_04_list_selection.png" alt="Arbre du modèle avec l&#x27;élément sélectionné mis en évidence" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:400px;">Capture d'écran: tutorial_04_list_selection.png (300x400)</div>
+            <span class="screenshot-caption">Arbre du modèle avec l'élément sélectionné mis en évidence</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Étape 3 : Sélection multiple dans l'arbre</div>
+            <div class="step-content">Maintenez <kbd>Ctrl</kbd> et cliquez sur plusieurs éléments pour les ajouter à la sélection.<br/>Maintenez <kbd>Maj</kbd> et cliquez pour sélectionner une plage d'éléments.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Étape 4 : Sélectionner des assemblages</div>
+            <div class="step-content">Cliquer sur un nœud d'assemblage (parent) sélectionne toutes ses pièces filles d'un coup. Inversement, si vous sélectionnez manuellement chaque enfant d'un assemblage, le nœud d'assemblage lui-même est aussi sélectionné.</div>
+        </div>
+
+        <h2>Rechercher et sélectionner</h2>
+        <p>Pour les scènes comportant de nombreux objets :</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Utiliser la zone de recherche</div>
+            <div class="step-content">Saisissez du texte dans la zone de recherche au-dessus de l'arbre du modèle pour filtrer les objets. La correspondance s'applique aussi aux noms des assemblages et des nœuds racines, pas seulement aux noms de maillages/feuilles individuels, ce qui permet de rechercher un sous-assemblage entier par son nom.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Les objets apparaissent/disparaissent</div>
+            <div class="step-content">Seuls les objets correspondant à votre recherche seront mis en évidence dans l'arbre. Si aucune correspondance n'est trouvée, la zone de recherche affiche une bordure rouge.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Sélectionner dans la liste filtrée</div>
+            <div class="step-content">Les objets filtrés seront automatiquement sélectionnés parmi les résultats filtrés.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_04_search_filter.png" alt="Zone de recherche avec du texte et arbre du modèle filtré affichant les résultats correspondants" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:400px;">Capture d'écran: tutorial_04_search_filter.png (300x400)</div>
+            <span class="screenshot-caption">Zone de recherche avec du texte et arbre du modèle filtré affichant les résultats correspondants</span>
+        </div>
+
+        <div class="note note-tip">
+            Videz la zone de recherche pour afficher de nouveau tous les objets.
+        </div>
+
+        <h2>Désélectionner</h2>
+        <p>Il existe plusieurs façons d'effacer la sélection :</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Méthode</th>
+                    <th>Résultat</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Cliquer sur un objet sélectionné</td><td>Désélectionne cet objet</td></tr>
+                <tr><td>Cliquer dans un espace vide de la vue</td><td>Les objets sélectionnés restent sélectionnés</td></tr>
+                <tr><td>Appuyer sur <kbd>Échap</kbd></td><td>Désélectionne tous les objets</td></tr>
+                <tr><td>Cliquer sur un autre objet</td><td>Ajoute cet objet à la liste existante des objets sélectionnés</td></tr>
+            </tbody>
+        </table>
+
+        <h2>Mise en évidence de la sélection</h2>
+        <p>Contrôlez la façon dont la sélection est affichée :</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Activer ou désactiver la mise en évidence</div>
+            <div class="step-content">Utilisez la case « Mise en évidence de la sélection » du panneau de droite pour activer ou désactiver la mise en évidence de la sélection.</div>
+        </div>
+
+        <div class="note note-info">
+            Même avec la mise en évidence désactivée, vous pouvez toujours voir quels objets sont sélectionnés dans l'arbre du modèle. Cela permet de supprimer l'indication visuelle de la sélection pour observer en temps réel les changements d'aspect des objets sélectionnés lors de l'application d'une couleur, d'un matériau ou d'une texture.
+        </div>
+
+        <h2>Travailler avec des objets sélectionnés</h2>
+        <p>Une fois les objets sélectionnés, vous pouvez :</p>
+        <ul>
+            <li>Les masquer/afficher (touche <kbd>Espace</kbd>)</li>
+            <li>Les supprimer (touche <kbd>Suppr</kbd>)</li>
+            <li>Les transformer (déplacer, pivoter, mettre à l'échelle)</li>
+            <li>Changer leurs matériaux et leurs couleurs</li>
+            <li>Appliquer des textures</li>
+            <li>Les dupliquer</li>
+            <li>Centrer la vue sur eux</li>
+        </ul>
+
+        <h2>Actions du menu contextuel</h2>
+        <p>Faites un clic droit sur les objets sélectionnés pour des actions rapides :</p>
+        
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_04_context_menu.png" alt="Menu contextuel avec les options pour les objets sélectionnés" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:400px;">Capture d'écran: tutorial_04_context_menu.png (300x400)</div>
+            <span class="screenshot-caption">Menu contextuel avec les options pour les objets sélectionnés</span>
+        </div>
+
+        <h2>Exercice pratique</h2>
+        <p><b>Essayez cet exercice :</b></p>
+        <ol>
+            <li>Importez ou ouvrez un modèle comportant plusieurs pièces</li>
+            <li>Exercez-vous à cliquer sur des objets individuels pour les sélectionner</li>
+            <li>Essayez la sélection par rectangle pour sélectionner plusieurs objets à la fois</li>
+            <li>Utilisez <kbd>Ctrl</kbd>+clic pour ajouter des objets à la sélection un par un</li>
+            <li>Sélectionnez des objets depuis l'arbre du modèle</li>
+            <li>Utilisez la zone de recherche pour trouver des objets précis par leur nom</li>
+            <li>Entraînez-vous à désélectionner avec différentes méthodes</li>
+            <li>Faites un clic droit sur une sélection pour voir les actions disponibles</li>
+        </ol>
+
+        <div class="lesson-navigation">
+            <a href='lesson03.html' class='nav-button'>← Leçon précédente</a>
+            <a href="index.html" class="back-to-index">↑ Retour à l'index</a>
+            <a href='lesson05.html' class='nav-button'>Leçon suivante →</a>
+        </div>
+    </div>
+</body>
+</html>

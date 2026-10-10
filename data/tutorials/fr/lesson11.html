@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leçon 11 : Travailler avec la visibilité - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutoriel</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Premiers pas</a>
+            <a href="lesson02.html">2. Ouvrir des modèles</a>
+            <a href="lesson03.html">3. Navigation de base</a>
+            <a href="lesson04.html">4. Sélectionner des objets</a>
+            <a href="lesson05.html">5. Modes d'affichage</a>
+            <a href="lesson06.html">6. Modes de caméra</a>
+            <a href="lesson07.html">7. Modes d'affichage des objets</a>
+            <a href="lesson08.html">8. Manipuler des objets</a>
+            <a href="lesson09.html">9. Matériaux et textures</a>
+            <a href="lesson10.html">10. Éclairage et environnement</a>
+            <a href="lesson11.html" class='active'>11. Travailler avec la visibilité</a>
+            <a href="lesson12.html">12. Fonctions avancées</a>
+            <a href="lesson13.html">13. Optimisation des performances</a>
+            <a href="lesson14.html">14. Conseils et flux de travail</a>
+            <a href="lesson15.html">15. Vues éclatées</a>
+            <a href="lesson16.html">16. Animation de morph targets</a>
+            <a href="lesson17.html">17. Édition de la transformation des nœuds</a>
+            <a href="lesson18.html">18. Rendu des arêtes et du fil de fer</a>
+            <a href="lesson19.html">19. Résultats de simulation</a>
+            <a href="lesson20.html">20. Regarder à l'intérieur d'un résultat</a>
+            <a href="lesson21.html">21. Graphiques et sondes</a>
+            <a href="lesson22.html">22. Comparer des résultats, données de cellule et de coque</a>
+            <a href="lesson23.html">23. Graphiques 3D à partir de données CSV</a>
+            <a href="lesson24.html">24. Graphiques 3D à partir de formules, remplissages, images et notes</a>
+            <a href="lesson25.html">25. Graphiques et résultats lus ensemble</a>
+            <a href="lesson26.html">26. Outils de maillage</a>
+            <a href="lesson27.html">27. Mesurer, annoter et rapporter</a>
+            <a href="lesson28.html">28. Analyse, sélection et scènes</a>
+            <a href="lesson29.html">29. Lancer de rayons en pratique</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Leçon 11 sur 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 37.93%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Leçon 11 : Travailler avec la visibilité</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>La gestion de la visibilité des objets est essentielle pour travailler avec des scènes complexes. ModelViewer offre plusieurs façons de contrôler ce qui est affiché et masqué.</p>
+
+        <h2>Masquer/afficher de base</h2>
+        <p>Contrôlez la visibilité des objets individuels :</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Utiliser les cases à cocher</div>
+            <div class="step-content">Dans l'arbre du modèle, chaque objet a une case à cocher. Cochée = visible, décochée = masqué.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Au clavier</div>
+            <div class="step-content">Sélectionnez des objets et appuyez sur <kbd>Espace</kbd> pour basculer leur visibilité.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Utiliser le menu contextuel</div>
+            <div class="step-content">Faites un clic droit sur les objets sélectionnés et choisissez « Masquer » ou « Afficher ».</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_11_checkboxes.png" alt="Arbre du modèle avec certaines cases cochées et d&#x27;autres décochées" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:400px;">Capture d'écran: tutorial_11_checkboxes.png (300x400)</div>
+            <span class="screenshot-caption">Arbre du modèle avec certaines cases cochées et d'autres décochées</span>
+        </div>
+
+        <div class="note note-info">
+            Les nœuds d'assemblage ont des cases à cocher à <b>trois états</b> : cocher ou décocher un assemblage propage cette visibilité à chaque enfant situé dessous, et un assemblage dont les enfants sont en partie visibles et en partie masqués affiche un état partiel (tiret).
+        </div>
+
+        <h2>Afficher seulement la sélection</h2>
+        <p>Concentrez-vous sur des objets précis :</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Sélectionner des objets</div>
+            <div class="step-content">Sélectionnez les objets sur lesquels vous voulez vous concentrer.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Afficher seulement</div>
+            <div class="step-content">Appuyez sur <kbd>Maj+Espace</kbd> ou clic droit → « Afficher seulement ».</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Résultat</div>
+            <div class="step-content">Tous les autres objets sont masqués ; seule votre sélection reste visible.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_11_show_only.png" alt="Assemblage complexe avec seulement quelques pièces sélectionnées visibles" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Capture d'écran: tutorial_11_show_only.png (700x450)</div>
+            <span class="screenshot-caption">Assemblage complexe avec seulement quelques pièces sélectionnées visibles</span>
+        </div>
+
+        <div class="note note-tip">
+            Utilisez « Afficher seulement » lorsque vous travaillez sur des composants précis dans de grands assemblages. Cela réduit l'encombrement visuel et améliore les performances.
+        </div>
+
+        <h2>Tout afficher/masquer</h2>
+        <p>Agissez rapidement sur tous les objets :</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Tout afficher</div>
+            <div class="step-content">Appuyez sur <kbd>Maj+A</kbd> ou clic droit → « Tout afficher » pour tout rendre visible.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Tout masquer</div>
+            <div class="step-content">Appuyez sur <kbd>Alt+A</kbd> ou clic droit → « Tout masquer » pour tout masquer.</div>
+        </div>
+
+        <h2>Inverser les visibles</h2>
+        <p>Inversez l'état de visibilité :</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Activer l'inversion</div>
+            <div class="step-content">Appuyez sur <kbd>Alt+S</kbd> ou cliquez sur le bouton « Inverser les visibles » de la barre d'outils.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Ce qui se passe</div>
+            <div class="step-content">Les objets actuellement visibles sont masqués et les objets masqués deviennent visibles.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Cas d'utilisation</div>
+            <div class="step-content">Parfait pour inspecter les pièces internes d'assemblages ou alterner entre différentes variantes de conception.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_11_swap_visible.png" alt="Avant et après l&#x27;inversion de l&#x27;état de visibilité" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:350px;">Capture d'écran: tutorial_11_swap_visible.png (700x350)</div>
+            <span class="screenshot-caption">Avant et après l'inversion de l'état de visibilité</span>
+        </div>
+
+        <div class="note note-tip">
+            Le bouton « Inverser les visibles » de la barre d'outils indique l'état actuel. Lorsqu'il est actif, les objets masqués sont affichés à la place des visibles.
+        </div>
+
+        <h2>Indicateurs visuels</h2>
+        <p>Comment savoir ce qui est masqué :</p>
+        <ul>
+            <li>Les objets masqués apparaissent grisés dans l'arbre du modèle.</li>
+            <li>Les cases à cocher des objets masqués sont décochées.</li>
+            <li>Lorsque « Inverser les visibles » est actif, les rôles de visible/masqué sont inversés.</li>
+        </ul>
+
+        <h2>Travailler avec des objets masqués</h2>
+        <p>Les objets masqués restent en mémoire :</p>
+        <ul>
+            <li>Ils peuvent être sélectionnés dans l'arbre du modèle.</li>
+            <li>Vous pouvez appliquer des matériaux, des transformations, etc., à des objets masqués.</li>
+            <li>Ils comptent dans l'utilisation de la mémoire.</li>
+            <li>Ils n'affectent pas les performances de rendu (car ils ne sont pas dessinés).</li>
+            <li>Utilisez « Supprimer » pour retirer réellement des objets de la scène.</li>
+        </ul>
+
+        <h2>Exemple de flux de travail</h2>
+        <p><b>Scénario :</b> vous avez un modèle de voiture et voulez inspecter le moteur.</p>
+        <ol>
+            <li>Sélectionnez tous les panneaux de carrosserie (capot, ailes, portes).</li>
+            <li>Appuyez sur <kbd>Espace</kbd> pour les masquer.</li>
+            <li>Le moteur est maintenant visible et accessible.</li>
+            <li>Lorsque vous avez terminé, appuyez sur <kbd>Maj+A</kbd> pour tout afficher de nouveau.</li>
+        </ol>
+        <p><b>Approche alternative :</b></p>
+        <ol>
+            <li>Sélectionnez uniquement les composants du moteur.</li>
+            <li>Appuyez sur <kbd>Maj+Espace</kbd> pour n'afficher que le moteur.</li>
+            <li>Travaillez sur le moteur.</li>
+            <li>Appuyez sur <kbd>Maj+A</kbd> pour tout afficher de nouveau.</li>
+        </ol>
+
+        <div class="lesson-navigation">
+            <a href='lesson10.html' class='nav-button'>← Leçon précédente</a>
+            <a href="index.html" class="back-to-index">↑ Retour à l'index</a>
+            <a href='lesson12.html' class='nav-button'>Leçon suivante →</a>
+        </div>
+    </div>
+</body>
+</html>

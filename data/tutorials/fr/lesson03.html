@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leçon 3 : Navigation de base - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutoriel</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Premiers pas</a>
+            <a href="lesson02.html">2. Ouvrir des modèles</a>
+            <a href="lesson03.html" class='active'>3. Navigation de base</a>
+            <a href="lesson04.html">4. Sélectionner des objets</a>
+            <a href="lesson05.html">5. Modes d'affichage</a>
+            <a href="lesson06.html">6. Modes de caméra</a>
+            <a href="lesson07.html">7. Modes d'affichage des objets</a>
+            <a href="lesson08.html">8. Manipuler des objets</a>
+            <a href="lesson09.html">9. Matériaux et textures</a>
+            <a href="lesson10.html">10. Éclairage et environnement</a>
+            <a href="lesson11.html">11. Travailler avec la visibilité</a>
+            <a href="lesson12.html">12. Fonctions avancées</a>
+            <a href="lesson13.html">13. Optimisation des performances</a>
+            <a href="lesson14.html">14. Conseils et flux de travail</a>
+            <a href="lesson15.html">15. Vues éclatées</a>
+            <a href="lesson16.html">16. Animation de morph targets</a>
+            <a href="lesson17.html">17. Édition de la transformation des nœuds</a>
+            <a href="lesson18.html">18. Rendu des arêtes et du fil de fer</a>
+            <a href="lesson19.html">19. Résultats de simulation</a>
+            <a href="lesson20.html">20. Regarder à l'intérieur d'un résultat</a>
+            <a href="lesson21.html">21. Graphiques et sondes</a>
+            <a href="lesson22.html">22. Comparer des résultats, données de cellule et de coque</a>
+            <a href="lesson23.html">23. Graphiques 3D à partir de données CSV</a>
+            <a href="lesson24.html">24. Graphiques 3D à partir de formules, remplissages, images et notes</a>
+            <a href="lesson25.html">25. Graphiques et résultats lus ensemble</a>
+            <a href="lesson26.html">26. Outils de maillage</a>
+            <a href="lesson27.html">27. Mesurer, annoter et rapporter</a>
+            <a href="lesson28.html">28. Analyse, sélection et scènes</a>
+            <a href="lesson29.html">29. Lancer de rayons en pratique</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Leçon 3 sur 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 10.34%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Leçon 3 : Navigation de base</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Naviguer dans la vue 3D est essentiel pour examiner vos modèles sous tous les angles. ModelViewer offre des commandes intuitives à la souris et au clavier pour une navigation fluide.</p>
+
+        <h2>Navigation à la souris</h2>
+        <p>La manière principale de naviguer dans la vue :</p>
+        
+        <div class="step">
+            <div class="step-title">Étape 1 : Faire pivoter la vue</div>
+            <div class="step-content">
+                Maintenez le <kbd>bouton central de la souris</kbd> enfoncé et faites glisser pour faire pivoter la caméra autour du modèle.<br/> <b>Alternative :</b> maintenez <kbd>Ctrl</kbd> + <kbd>bouton gauche de la souris</kbd> et faites glisser.
+            </div>
+        </div>
+
+        
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_03_rotate_gesture.gif" alt="Illustration du geste de rotation avec le bouton central de la souris, avec des flèches indicatrices" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:400px; height:300px;">Capture d'écran: tutorial_03_rotate_gesture.png (400x300)</div>
+            <span class="screenshot-caption">Illustration du geste de rotation avec le bouton central de la souris, avec des flèches indicatrices</span>
+        </div>
+
+        <div class="note note-tip">
+            La rotation utilise l'inertie : si vous bougez rapidement puis relâchez, la vue continue de pivoter en douceur et ralentit progressivement.
+        </div>
+
+        <div class="step">
+            <div class="step-title">Étape 2 : Déplacer la vue</div>
+            <div class="step-content">
+                Maintenez le <kbd>bouton droit de la souris</kbd> enfoncé et faites glisser pour déplacer la caméra latéralement et de haut en bas.<br/> <b>Alternative :</b> maintenez <kbd>Ctrl</kbd> + <kbd>bouton droit de la souris</kbd> et faites glisser.
+            </div>
+        </div>
+
+        
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_03_pan_gesture.gif" alt="Illustration du geste de déplacement avec le bouton droit de la souris" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:400px; height:300px;">Capture d'écran: tutorial_03_pan_gesture.png (400x300)</div>
+            <span class="screenshot-caption">Illustration du geste de déplacement avec le bouton droit de la souris</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Étape 3 : Zoomer la vue</div>
+            <div class="step-content">
+                Utilisez la <kbd>molette de la souris</kbd> pour zoomer et dézoomer.<br/> <b>Alternative :</b> maintenez <kbd>Ctrl</kbd> + <kbd>bouton central de la souris</kbd> et faites glisser verticalement.
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_03_zoom_gesture.gif" alt="Illustration du zoom avec la molette de la souris" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:400px; height:300px;">Capture d'écran: tutorial_03_zoom_gesture.png (400x300)</div>
+            <span class="screenshot-caption">Illustration du zoom avec la molette de la souris</span>
+        </div>
+
+        <div class="note note-info">
+            Le zoom est centré sur la position de la souris ; pointez donc ce que vous voulez agrandir avant de faire défiler.
+        </div>
+
+        <div class="step">
+            <div class="step-title">Étape 4 : Centrage rapide</div>
+            <div class="step-content">
+                Cliquez avec le <kbd>bouton central de la souris</kbd> (appuyer et relâcher, sans glisser) pour déplacer la vue et la centrer sur un nouveau point.
+            </div>
+        </div>
+
+        <h2>Navigation au clavier</h2>
+        <p>Pour un contrôle précis et une navigation étendue :</p>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Touches</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td><kbd>W</kbd> / <kbd>A</kbd> / <kbd>S</kbd> / <kbd>D</kbd></td><td>Déplacer la caméra (le comportement dépend du mode de caméra)</td></tr>
+                <tr><td><kbd>I</kbd> / <kbd>K</kbd></td><td>Pivoter autour de l'axe X (tangage haut/bas)</td></tr>
+                <tr><td><kbd>J</kbd> / <kbd>L</kbd></td><td>Pivoter autour de l'axe Y (lacet gauche/droite)</td></tr>
+                <tr><td><kbd>M</kbd> / <kbd>N</kbd></td><td>Pivoter autour de l'axe Z (roulis horaire/antihoraire)</td></tr>
+                <tr><td><kbd>X</kbd> / <kbd>Z</kbd></td><td>Zoom avant/arrière (mode Orbite uniquement)</td></tr>
+                <tr><td><kbd>F</kbd></td><td>Ajuster tous les objets à la vue</td></tr>
+            </tbody>
+        </table>
+
+        <div class="note note-tip">
+            Maintenez les touches de navigation enfoncées pour un mouvement continu et fluide.
+        </div>
+
+        <h2>Utiliser la barre d'outils d'affichage</h2>
+        <p>La barre d'outils offre une autre manière d'activer les modes de navigation :</p>
+        
+        <div class="step">
+            <div class="step-title">Étape 1 : Faire apparaître la barre d'outils</div>
+            <div class="step-content">Déplacez la souris vers le bord inférieur de la vue pour faire apparaître la barre d'outils.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_03_toolbar_revealed.png" alt="La barre d&#x27;outils d&#x27;affichage apparaît en bas de la vue" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:600px; height:150px;">Capture d'écran: tutorial_03_toolbar_revealed.png (600x150)</div>
+            <span class="screenshot-caption">La barre d'outils d'affichage apparaît en bas de la vue</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Étape 2 : Cliquer sur un mode de navigation</div>
+            <div class="step-content">Cliquez sur le bouton Pivoter, Déplacer ou Zoom pour activer ce mode.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Étape 3 : Utiliser le bouton gauche de la souris</div>
+            <div class="step-content">
+                Une fois un mode actif, utilisez le <kbd>bouton gauche de la souris</kbd> pour effectuer cette action. Le curseur change pour indiquer le mode actif.
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_03_mode_cursors.png" alt="Différentes icônes de curseur pour les modes Pivoter, Déplacer et Zoom" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:200px;">Capture d'écran: tutorial_03_mode_cursors.png (500x200)</div>
+            <span class="screenshot-caption">Différentes icônes de curseur pour les modes Pivoter, Déplacer et Zoom</span>
+        </div>
+
+        <div class="note note-info">
+            Appuyez sur <kbd>Échap</kbd> pour annuler tout mode de navigation actif et revenir au mode de sélection normal.
+        </div>
+
+        <h2>Ajuster les objets à la vue</h2>
+        <p>La fonction « Tout ajuster » est l'un des outils de navigation les plus utiles :</p>
+
+        <div class="step">
+            <div class="step-title">Étape 1 : Appuyer sur la touche F</div>
+            <div class="step-content">Appuyez simplement sur <kbd>F</kbd> pour cadrer automatiquement tous les objets visibles dans la vue.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Étape 2 : Ou utiliser la barre d'outils</div>
+            <div class="step-content">Cliquez sur le bouton « Tout ajuster » de la barre d'outils d'affichage.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_03_fit_all_before.png" alt="Avant Tout ajuster : objet partiellement visible et décentré" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:600px; height:350px;">Capture d'écran: tutorial_03_fit_all_before.png (600x350)</div>
+            <span class="screenshot-caption">Avant Tout ajuster : objet partiellement visible et décentré</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_03_fit_all_after.png" alt="Après Tout ajuster : objet parfaitement centré et dimensionné pour s&#x27;adapter à la vue" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:600px; height:350px;">Capture d'écran: tutorial_03_fit_all_after.png (600x350)</div>
+            <span class="screenshot-caption">Après Tout ajuster : objet parfaitement centré et dimensionné pour s'adapter à la vue</span>
+        </div>
+
+        <div class="note note-tip">
+            Utilisez « Tout ajuster » chaque fois que vous vous sentez perdu dans l'espace 3D ou après avoir masqué/affiché des objets, pour recadrer votre vue.
+        </div>
+
+        <h2>Exercice pratique</h2>
+        <p><b>Essayez cet exercice pour maîtriser la navigation de base :</b></p>
+        <ol>
+            <li>Ouvrez un modèle 3D quelconque</li>
+            <li>Faites pivoter la vue de 360 degrés autour du modèle avec le bouton central de la souris</li>
+            <li>Déplacez le modèle vers différents coins de l'écran avec le bouton droit de la souris</li>
+            <li>Zoomez très près pour voir les détails de la surface</li>
+            <li>Appuyez sur <kbd>F</kbd> pour réinitialiser et tout ajuster</li>
+            <li>Essayez les touches de navigation au clavier (W/A/S/D, I/J/K/L)</li>
+            <li>Activez le mode Pivoter dans la barre d'outils et faites pivoter avec le bouton gauche de la souris</li>
+        </ol>
+        <p>Entraînez-vous jusqu'à ce que ces mouvements deviennent naturels !</p>
+
+        <div class="lesson-navigation">
+            <a href='lesson02.html' class='nav-button'>← Leçon précédente</a>
+            <a href="index.html" class="back-to-index">↑ Retour à l'index</a>
+            <a href='lesson04.html' class='nav-button'>Leçon suivante →</a>
+        </div>
+    </div>
+</body>
+</html>

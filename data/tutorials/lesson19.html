@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 19: Simulation Results - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials &amp; Textures</a>
+            <a href="lesson10.html">10. Lighting &amp; Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips &amp; Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge &amp; Wireframe Rendering</a>
+            <a href="lesson19.html" class='active'>19. Simulation Results</a>
+            <a href="lesson20.html">20. Looking Inside a Result</a>
+            <a href="lesson21.html">21. Charts and Probing</a>
+            <a href="lesson22.html">22. Comparing Results, Cell and Shell Data</a>
+            <a href="lesson23.html">23. 3D Plots from CSV Data</a>
+            <a href="lesson24.html">24. 3D Plots from Formulas, Fills, Images and Notes</a>
+            <a href="lesson25.html">25. Plots and Results Played Together</a>
+            <a href="lesson26.html">26. Mesh Tools</a>
+            <a href="lesson27.html">27. Measure, Annotate and Report</a>
+            <a href="lesson28.html">28. Analysis, Selection and Scenes</a>
+            <a href="lesson29.html">29. Ray Tracing in Practice</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 19 of 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 65.52%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 19: Simulation Results</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>ModelViewer shows the results that a solver has already written - it does <b>not</b> run simulations. Open the result file of a finite-element or flow solver and the model appears as its outer surface, coloured by a result field such as stress, temperature or velocity. This lesson covers opening a result, choosing what to colour by, showing the deformation, setting units and stepping through time.</p>
+        <div class="note note-info">
+            Supported formats: VTK (.vtk, .vtu), CalculiX .frd, Exodus II, CGNS, MED, OpenFOAM (open the .foam file) and VTKHDF. Exodus, CGNS, VTKHDF and MED need a build that includes the matching library - if an extension is missing from the Open dialog, your build was made without it.
+        </div>
+        <h2>Sample files for this lesson</h2>
+        <p>All of them are in the <code>sample-models/Simulation</code> folder of the installation.</p>
+        <table>
+            <thead><tr><th>File</th><th>What it is</th></tr></thead>
+            <tbody>
+            <tr><td><code>FEM_box_static_stress.vtu</code></td><td>A static analysis of a 10 mm box. Opens coloured by von Mises stress.</td></tr>
+            <tr><td><code>FEM_box_load_steps.frd</code></td><td>The same box, with the load ramped over four steps.</td></tr>
+            <tr><td><code>FEM_box_modes.frd</code></td><td>The first six vibration modes, with their frequencies.</td></tr>
+            <tr><td><code>FEM_box_thermal_transient.frd</code></td><td>Heat flowing into the box over 20 time steps.</td></tr>
+            <tr><td><code>plate_with_hole.frd</code></td><td>A plate with a hole, pulled in one direction: the stress concentration at the hole.</td></tr>
+            </tbody>
+        </table>
+        <h2>Opening a Result</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Open the file</div>
+            <div class="step-content">Choose <b>File → Open...</b> and pick <code>FEM_box_static_stress.vtu</code>. A result opens in its own document.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Look at the surface</div>
+            <div class="step-content">The box appears coloured by von Mises stress, with a colour legend. Only the outer surface is drawn; Lesson 20 shows how to look inside.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Open the Simulation Results tab</div>
+            <div class="step-content">The tab sits in the bottom-left dock, next to Selections and States. All the controls in this lesson are there.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_19_first_result.png" alt="tutorial_19_first_result.png" title="Capture: Open sample-models/Simulation/FEM_box_static_stress.vtu, rotate to an isometric view and capture the whole window: the box with its colour legend, and the Simulation Results tab visible in the bottom-left dock." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open sample-models/Simulation/FEM_box_static_stress.vtu, rotate to an isometric view and capture the whole window: the box with its colour legend, and the Simulation Results tab visible in the bottom-left dock." style="display:none; width:700px; height:450px;">Screenshot: tutorial_19_first_result.png (700x450)</div>
+            <span class="screenshot-caption">FEM_box_static_stress.vtu just opened, coloured by von Mises stress</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_19_results_tab.png" alt="tutorial_19_results_tab.png" title="Capture: Same file as before: capture only the Simulation Results tab (crop the dock), scrolled to the top so Field, Component, Range, Colormap and Contours are all visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Same file as before: capture only the Simulation Results tab (crop the dock), scrolled to the top so Field, Component, Range, Colormap and Contours are all visible." style="display:none; width:420px; height:450px;">Screenshot: tutorial_19_results_tab.png (420x520)</div>
+            <span class="screenshot-caption">The Simulation Results tab with Field, Component, Range, Colormap and Contours</span>
+        </div>
+
+        <h2>Choosing What to Colour By</h2>
+        <ul>
+            <li><b>Field</b> and <b>Component</b>: the field to colour by (for example Displacement, von Mises, Tresca or a principal stress) and one component of it or its magnitude. Fields marked <b>[cells]</b> hold one value per element and are drawn flat.</li>
+            <li><b>Range</b>: <i>Automatic (all steps)</i> keeps the colours comparable between steps, <i>Automatic (this step)</i> rescales every step, and <i>Custom</i> lets you type a minimum and a maximum.</li>
+            <li><b>Colormap</b> and <b>Contours</b>: change the colour ramp, or turn the smooth gradient into a set of discrete bands.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_19_field_list.png" alt="tutorial_19_field_list.png" title="Capture: Click the Field drop-down in the Simulation Results tab so the list is open (Displacement, von Mises, Tresca, principal stresses ...), and include the Component box below it in the crop." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Click the Field drop-down in the Simulation Results tab so the list is open (Displacement, von Mises, Tresca, principal stresses ...), and include the Component box below it in the crop." style="display:none; width:500px; height:380px;">Screenshot: tutorial_19_field_list.png (500x380)</div>
+            <span class="screenshot-caption">The Field list of the static box result</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_19_contours.png" alt="tutorial_19_contours.png" title="Capture: Two captures of the box joined side by side: left = default smooth colormap, right = Contours set to about 8 bands. Same camera for both." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Two captures of the box joined side by side: left = default smooth colormap, right = Contours set to about 8 bands. Same camera for both." style="display:none; width:700px; height:350px;">Screenshot: tutorial_19_contours.png (700x350)</div>
+            <span class="screenshot-caption">Smooth colours (left) and the same field with contour bands (right)</span>
+        </div>
+
+        <h2>Deformation and Extremes</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Open plate_with_hole.frd</div>
+            <div class="step-content">Open it from the same folder. It has four load steps and is coloured by von Mises stress.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Show the deformed shape</div>
+            <div class="step-content">Tick <b>Show deformed shape</b>. The model moves by its displacement field; <b>Scale factor</b> exaggerates the movement, and <i>Auto</i> picks a factor that makes it visible.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Mark the extremes</div>
+            <div class="step-content">Tick <b>Mark minimum and maximum</b>. The lowest and highest values are labelled on the visible surface - for this plate, the maximum sits at the side of the hole.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_19_deformed_plate.png" alt="tutorial_19_deformed_plate.png" title="Capture: Open plate_with_hole.frd, go to the last load step, tick Show deformed shape (Scale factor Auto) and Mark minimum and maximum; view the plate face-on so the hole and the max label are visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open plate_with_hole.frd, go to the last load step, tick Show deformed shape (Scale factor Auto) and Mark minimum and maximum; view the plate face-on so the hole and the max label are visible." style="display:none; width:700px; height:450px;">Screenshot: tutorial_19_deformed_plate.png (700x450)</div>
+            <span class="screenshot-caption">plate_with_hole.frd deformed, with the minimum and maximum marked</span>
+        </div>
+
+        <div class="note note-warning">
+            The deformation is exaggerated on purpose. Keep the scale factor in mind when you judge how much a part really moves.
+        </div>
+        <h2>Units</h2>
+        <p>Many result files do not say what unit their values are in. <b>Quantity</b> and <b>Values are in</b> let you state it - for example a temperature in degrees Celsius or kelvin, a stress in megapascals - and the legend then shows the unit. <code>FEM_box_thermal_transient.frd</code> states no temperature unit, so none is assumed until you choose one.</p>
+        <h2>Stepping Through Time</h2>
+        <p>A result with several steps - load steps, vibration modes or time steps - shows a timeline at the top of the viewport with play/pause, previous and next step, stop, a slider, <b>Loop</b> and a speed choice.</p>
+        <div class="step">
+            <div class="step-title">Step 1: Play the load steps</div>
+            <div class="step-content">Open <code>FEM_box_load_steps.frd</code> and press play. The colour range covers all steps by default, so a colour means the same value in every frame and you can watch the stress grow.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Step through the vibration modes</div>
+            <div class="step-content">Open <code>FEM_box_modes.frd</code>. Each step is a mode, labelled Mode 1 to 6 with its frequency in hertz. Turn on <b>Show deformed shape</b> and step through them.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Watch the heat flow in</div>
+            <div class="step-content">Open <code>FEM_box_thermal_transient.frd</code>: one face is held at 100, the rest starts at 20, and the heat spreads over 20 time steps.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_19_timeline.png" alt="tutorial_19_timeline.png" title="Capture: Open FEM_box_load_steps.frd, move the slider to step 3 of 4 and capture the viewport including the timeline bar at the top and the colour legend." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open FEM_box_load_steps.frd, move the slider to step 3 of 4 and capture the viewport including the timeline bar at the top and the colour legend." style="display:none; width:700px; height:350px;">Screenshot: tutorial_19_timeline.png (700x350)</div>
+            <span class="screenshot-caption">The timeline at the top of the viewport while playing the load steps</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_19_modes.png" alt="tutorial_19_modes.png" title="Capture: Open FEM_box_modes.frd with Show deformed shape on; capture Mode 1 and Mode 4 (or any two clearly different ones) joined side by side, timeline label visible in each." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open FEM_box_modes.frd with Show deformed shape on; capture Mode 1 and Mode 4 (or any two clearly different ones) joined side by side, timeline label visible in each." style="display:none; width:700px; height:350px;">Screenshot: tutorial_19_modes.png (700x350)</div>
+            <span class="screenshot-caption">Two vibration modes of the box, deformed</span>
+        </div>
+
+        <h2>Adding a Result to the Current Document</h2>
+        <p><b>File → Open</b> puts a result in a document of its own. To see a result together with other models - say a CAD part and its analysis - use <b>Visualization → Simulation Results → Add Result to This Document...</b>. The <b>Result</b> box in the tab chooses which result the controls act on.</p>
+        <h2>Saving</h2>
+        <p>A result is stored inside a <b>.mvf</b> session together with its view settings: field, range, colormap, deformation, sections and more. Reopening the session brings the view back as you left it.</p>
+        <div class="note note-info">
+            Results are drawn flat in every rendering mode and are not drawn by the ray tracer, so PBR and ray tracing add little for them.
+        </div>
+        <h2>Try It Yourself</h2>
+        <ul>
+            <li>Open <code>plate_with_hole.frd</code>, play the four load steps with <b>Show deformed shape</b> on, and find the hottest spot.</li>
+            <li>Switch <b>Field</b> to a principal stress and compare it with von Mises; then try <b>Custom</b> under <b>Range</b>.</li>
+            <li>Open <code>FEM_box_thermal_transient.frd</code> and choose a temperature unit under <b>Values are in</b>; watch the legend change.</li>
+            <li>Save the document as <b>.mvf</b>, close it and open it again.</li>
+        </ul>
+
+        <div class="lesson-navigation">
+            <a href='lesson18.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson20.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

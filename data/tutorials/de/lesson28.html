@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lektion 28: Analyse, Auswahl und Szenen - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Anleitung</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Erste Schritte</a>
+            <a href="lesson02.html">2. Modelle öffnen</a>
+            <a href="lesson03.html">3. Grundlegende Navigation</a>
+            <a href="lesson04.html">4. Objekte auswählen</a>
+            <a href="lesson05.html">5. Ansichtsmodi</a>
+            <a href="lesson06.html">6. Kameramodi</a>
+            <a href="lesson07.html">7. Anzeigemodi</a>
+            <a href="lesson08.html">8. Objekte manipulieren</a>
+            <a href="lesson09.html">9. Materialien und Texturen</a>
+            <a href="lesson10.html">10. Beleuchtung und Umgebung</a>
+            <a href="lesson11.html">11. Arbeiten mit Sichtbarkeit</a>
+            <a href="lesson12.html">12. Erweiterte Funktionen</a>
+            <a href="lesson13.html">13. Leistungsoptimierung</a>
+            <a href="lesson14.html">14. Tipps und Workflows</a>
+            <a href="lesson15.html">15. Explosionsansichten</a>
+            <a href="lesson16.html">16. Morph-Target-Animation</a>
+            <a href="lesson17.html">17. Knotentransformation bearbeiten</a>
+            <a href="lesson18.html">18. Kanten- und Drahtgitter-Rendering</a>
+            <a href="lesson19.html">19. Simulationsergebnisse</a>
+            <a href="lesson20.html">20. Ins Innere eines Ergebnisses schauen</a>
+            <a href="lesson21.html">21. Diagramme und Sonden</a>
+            <a href="lesson22.html">22. Ergebnisse vergleichen, Zell- und Schalendaten</a>
+            <a href="lesson23.html">23. 3D-Diagramme aus CSV-Daten</a>
+            <a href="lesson24.html">24. 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</a>
+            <a href="lesson25.html">25. Diagramme und Ergebnisse gemeinsam abspielen</a>
+            <a href="lesson26.html">26. Mesh-Werkzeuge</a>
+            <a href="lesson27.html">27. Messen, Kommentieren und Berichten</a>
+            <a href="lesson28.html" class='active'>28. Analyse, Auswahl und Szenen</a>
+            <a href="lesson29.html">29. Raytracing in der Praxis</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lektion 28 von 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 96.55%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lektion 28: Analyse, Auswahl und Szenen</h1>
+        </div>
+
+        <h2>Einführung</h2>
+        <p>Diese Lektion behandelt die Werkzeuge, die Ihnen helfen, ein Design zu prüfen und ein großes Modell zu bearbeiten: Flächen einfärben, um Probleme zu finden, Masseneigenschaften ablesen, Teile danach auswählen, was sie sind statt wo sie liegen, und den Zustand einer Szene speichern, um mit einem Klick dorthin zurückzukehren.</p>
+        <h2>Oberflächenanalyse</h2>
+        <p><b>Werkzeuge → Oberflächenanalyse...</b> färbt die gewählten Meshes nach einem Qualitätsmaß ein. Wählen Sie eine Analyse, lesen Sie die Farben anhand der Legende ab und verwenden Sie <b>Anzeige beim Überfahren einblenden</b>, um den Wert unter dem Cursor auszugeben. <b>Overlay löschen</b> entfernt alle Analysefarben.</p>
+        <table>
+            <thead><tr><th>Analyse</th><th>Was sie zeigt</th></tr></thead>
+            <tbody>
+            <tr><td>Entformungsschräge</td><td>Den Winkel jeder Fläche gegen eine gewählte Entformungsrichtung - lässt sich das Teil aus einer Form lösen?</td></tr>
+            <tr><td>Zebrastreifen</td><td>Gespiegelte Streifen: Knicke in den Streifen zeigen, wo Flächen nicht glatt ineinander übergehen.</td></tr>
+            <tr><td>Mittlere Krümmung</td><td>Wie stark und in welchem Sinn sich die Fläche an jedem Punkt krümmt.</td></tr>
+            <tr><td>Wandstärke</td><td>Die Dicke der Wände, mit einer Option, Wände dünner als ein Grenzwert hervorzuheben. Methoden: <i>Einbeschriebene Kugel</i>, <i>Lokale Dicke (Strahlen)</i> und <i>Normalenstrahl (schnell)</i>.</td></tr>
+            <tr><td>Abweichung</td><td>Wie weit ein Mesh von einem Referenz-Mesh entfernt ist - um einen Scan mit seinem CAD-Modell zu vergleichen.</td></tr>
+            </tbody>
+        </table>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_28_wall_thickness.png" alt="tutorial_28_wall_thickness.png" title="Capture: Open &quot;MBB Gehause Rohteil.step&quot;, Tools &gt; Surface Analysis..., Wall-Thickness with a limit that highlights the thin walls; capture the dialog and the coloured part." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open &quot;MBB Gehause Rohteil.step&quot;, Tools &gt; Surface Analysis..., Wall-Thickness with a limit that highlights the thin walls; capture the dialog and the coloured part." style="display:none; width:700px; height:450px;">Screenshot: tutorial_28_wall_thickness.png (700x450)</div>
+            <span class="screenshot-caption">Wandstärke eines Gehäuses auf der Fläche eingefärbt, dünne Wände hervorgehoben</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_28_zebra_and_draft.png" alt="tutorial_28_zebra_and_draft.png" title="Capture: One part (for example bottle.step) with Zebra Stripe, then Clear Overlay and Draft Angle with a vertical pull direction; join the two captures side by side." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: One part (for example bottle.step) with Zebra Stripe, then Clear Overlay and Draft Angle with a vertical pull direction; join the two captures side by side." style="display:none; width:700px; height:350px;">Screenshot: tutorial_28_zebra_and_draft.png (700x350)</div>
+            <span class="screenshot-caption">Zebrastreifen (links) und eine Entformungsschrägen-Analyse (rechts) am selben Teil</span>
+        </div>
+
+        <div class="note note-tip">
+            Analysefarben ersetzen das übliche Materialaussehen, bis Sie auf <b>Overlay löschen</b> klicken. Sieht eine Fläche später seltsam eingefärbt aus, ist das das Erste, was Sie prüfen sollten.
+        </div>
+        <h2>Masseneigenschaften</h2>
+        <p><b>Werkzeuge → Masseneigenschaften...</b> listet Volumen, Masse und Schwerpunkt jedes Meshes und jedes Materials auf. Die Dichte stammt aus der Registerkarte <b>Physikalische Eigenschaften</b> des Materials, legen Sie sie also zuerst dort fest. Die Tabelle lässt sich durchsuchen und sortieren; das Zeilenmenü bietet <b>Nur anzeigen</b>, und die Auswahl einer Zeile wählt dieses Mesh im Viewer aus. Offene (Schalen-)Flächen verwenden eine Schalendicke statt eines Volumens.</p>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_28_mass_properties.png" alt="tutorial_28_mass_properties.png" title="Capture: Open the Skate-Board assembly, give two materials a density (Physical Properties), Tools &gt; Mass Properties...; select a row and capture the table with the mesh highlighted." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open the Skate-Board assembly, give two materials a density (Physical Properties), Tools &gt; Mass Properties...; select a row and capture the table with the mesh highlighted." style="display:none; width:700px; height:450px;">Screenshot: tutorial_28_mass_properties.png (700x450)</div>
+            <span class="screenshot-caption">Die Tabelle der Masseneigenschaften einer Baugruppe, mit gewählter Zeile und hervorgehobenem Mesh</span>
+        </div>
+
+        <h2>Auswählen nach dem, was Teile sind</h2>
+        <p>Das Menü <b>Auswahl</b> bietet Werkzeuge für große Baugruppen, bei denen das Anklicken einzelner Teile zu langsam ist:</p>
+        <ul>
+            <li><b>Lasso</b> wählt alles innerhalb einer Freihandkontur aus.</li>
+            <li><b>Nach Material filtern</b> und <b>Nach Farbe filtern</b> wählen jedes Mesh aus, das ein Material oder eine Farbe verwendet.</li>
+            <li><b>Nach Begrenzungsrahmen filtern</b> zeigt ein ziehbares Quader-Gizmo und wählt die darin liegenden Teile aus.</li>
+            <li><b>Benannte Auswahlsätze</b> speichern eine Auswahl unter einem Namen, damit Sie sie später wieder aufrufen können.</li>
+            <li>Die <b>Material-Pipette / der Pinsel</b> nimmt das Material eines Meshes auf und überträgt es auf andere.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_28_filter_by_material.png" alt="tutorial_28_filter_by_material.png" title="Capture: Open the Forklift or Skate-Board assembly, Selection &gt; Filter by Material, choose one material; capture the viewport with the matching parts highlighted." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open the Forklift or Skate-Board assembly, Selection &gt; Filter by Material, choose one material; capture the viewport with the matching parts highlighted." style="display:none; width:700px; height:450px;">Screenshot: tutorial_28_filter_by_material.png (700x450)</div>
+            <span class="screenshot-caption">Alle Meshes mit einem Material auf einmal mit „Nach Material filtern“ ausgewählt</span>
+        </div>
+
+        <h2>Szenenzustände</h2>
+        <p>Ein Szenenzustand speichert eine benannte Momentaufnahme der Szene: die Kamera, welche Meshes sichtbar sind, die Auswahl und die Darstellungseinstellungen. Wählen Sie <b>Auswahl → Szenenzustand speichern...</b> und geben Sie einen Namen ein; der Bereich <b>Zustände</b> im Dokument-Dock listet jeden Zustand auf und ruft ihn mit einem Klick auf. Nutzen Sie sie für die Ansichten, zu denen Sie zurückkehren - eine Übersicht, ein Schnitt, ein Detail mit ausgeblendeten Teilen.</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Eine Ansicht einrichten</div>
+            <div class="step-content">Blenden Sie die unerwünschten Teile aus, wählen Sie die hervorzuhebenden aus und positionieren Sie die Kamera.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Speichern</div>
+            <div class="step-content">Wählen Sie <b>Auswahl → Szenenzustand speichern...</b>, geben Sie einen Namen wie <i>Nur Getriebe</i> ein und bestätigen Sie. Erstellen Sie einen zweiten Zustand aus einer anderen Ansicht.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Aufrufen</div>
+            <div class="step-content">Klicken Sie im Bereich <b>Zustände</b> auf einen Zustand: Kamera, Sichtbarkeit, Auswahl und Darstellung kehren in einem Schritt zurück.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_28_states_panel.png" alt="tutorial_28_states_panel.png" title="Capture: After saving two scene states, capture the States panel in the document dock (crop the dock) with both entries listed." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: After saving two scene states, capture the States panel in the document dock (crop the dock) with both entries listed." style="display:none; width:420px; height:360px;">Screenshot: tutorial_28_states_panel.png (420x360)</div>
+            <span class="screenshot-caption">Der Bereich „Zustände“ mit zwei gespeicherten Szenenzuständen</span>
+        </div>
+
+
+        <div class="lesson-navigation">
+            <a href='lesson27.html' class='nav-button'>← Vorherige Lektion</a>
+            <a href="index.html" class="back-to-index">↑ Zurück zur Übersicht</a>
+            <a href='lesson29.html' class='nav-button'>Nächste Lektion →</a>
+        </div>
+    </div>
+</body>
+</html>

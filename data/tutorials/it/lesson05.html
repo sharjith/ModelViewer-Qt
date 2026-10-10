@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lezione 5: Modalità di visualizzazione - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primi passi</a>
+            <a href="lesson02.html">2. Aprire i modelli</a>
+            <a href="lesson03.html">3. Navigazione di base</a>
+            <a href="lesson04.html">4. Selezionare gli oggetti</a>
+            <a href="lesson05.html" class='active'>5. Modalità di visualizzazione</a>
+            <a href="lesson06.html">6. Modalità fotocamera</a>
+            <a href="lesson07.html">7. Modalità di display</a>
+            <a href="lesson08.html">8. Manipolare gli oggetti</a>
+            <a href="lesson09.html">9. Materiali e texture</a>
+            <a href="lesson10.html">10. Illuminazione e ambiente</a>
+            <a href="lesson11.html">11. Lavorare con la visibilità</a>
+            <a href="lesson12.html">12. Funzioni avanzate</a>
+            <a href="lesson13.html">13. Ottimizzazione delle prestazioni</a>
+            <a href="lesson14.html">14. Suggerimenti e flussi di lavoro</a>
+            <a href="lesson15.html">15. Viste esplose</a>
+            <a href="lesson16.html">16. Animazione dei morph target</a>
+            <a href="lesson17.html">17. Modifica della trasformazione dei nodi</a>
+            <a href="lesson18.html">18. Rendering di bordi e wireframe</a>
+            <a href="lesson19.html">19. Risultati di simulazione</a>
+            <a href="lesson20.html">20. Guardare dentro un risultato</a>
+            <a href="lesson21.html">21. Grafici e sonde</a>
+            <a href="lesson22.html">22. Confrontare risultati, dati di cella e di guscio</a>
+            <a href="lesson23.html">23. Grafici 3D da dati CSV</a>
+            <a href="lesson24.html">24. Grafici 3D da formule, riempimenti, immagini e note</a>
+            <a href="lesson25.html">25. Grafici e risultati riprodotti insieme</a>
+            <a href="lesson26.html">26. Strumenti per mesh</a>
+            <a href="lesson27.html">27. Misurare, annotare e riferire</a>
+            <a href="lesson28.html">28. Analisi, selezione e scene</a>
+            <a href="lesson29.html">29. Ray tracing in pratica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lezione 5 di 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 17.24%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lezione 5: Modalità di visualizzazione</h1>
+        </div>
+
+        <h2>Introduzione</h2>
+        <p>Le modalità di visualizzazione permettono di orientare rapidamente la fotocamera su posizioni standard, perfette per disegni tecnici, presentazioni o per esaminare i modelli da angolazioni specifiche.</p>
+
+        <h2>Accedere alle modalità di visualizzazione</h2>
+        <p>Le modalità di visualizzazione sono disponibili nella barra degli strumenti della vista:</p>
+
+        <div class="step">
+            <div class="step-title">Passaggio 1: Mostrare la barra degli strumenti</div>
+            <div class="step-content">Sposta il mouse sul bordo inferiore della vista per mostrare la barra degli strumenti.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Passaggio 2: Trovare i pulsanti di vista</div>
+            <div class="step-content">Cerca i pulsanti «Superiore», «Anteriore», «Sinistra», ecc., e il pulsante a discesa «Vista assonometrica».</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_toolbar_views.png" alt="Barra degli strumenti della vista con i pulsanti delle viste ortografiche e assonometriche evidenziati" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Schermata: tutorial_05_toolbar_views.png</div>
+            <span class="screenshot-caption">Barra degli strumenti della vista con i pulsanti delle viste ortografiche e assonometriche evidenziati</span>
+        </div>
+
+        <h2>Viste ortografiche</h2>
+        <p>Sei viste ortografiche standard:</p>
+
+        <div class="step">
+            <div class="step-title">Passaggio 1: Vista dall'alto</div>
+            <div class="step-content">Fai clic su «Superiore» per vedere il modello direttamente dall'alto (guardando lungo l'asse Z).</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_top_view.png" alt="Modello in vista dall&#x27;alto" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Schermata: tutorial_05_top_view.png</div>
+			<span class="screenshot-caption">Vista dall'alto</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Passaggio 2: Vista frontale</div>
+            <div class="step-content">Fai clic su «Anteriore» per vedere dal davanti (lungo l'asse Y).</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_front_view.png" alt="Modello in vista frontale" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Schermata: tutorial_05_front_view.png</div>
+			<span class="screenshot-caption">Vista frontale</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Passaggio 3: Vista da sinistra</div>
+            <div class="step-content">Fai clic su «Sinistra» per vedere dal lato sinistro (lungo l'asse X).</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Passaggio 4: Viste aggiuntive</div>
+            <div class="step-content">Sono disponibili anche le viste «Inferiore», «Posteriore» e «Destra» per una copertura completa.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_six_views.png" alt="Griglia con tutte e sei le viste ortografiche" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Schermata: tutorial_05_six_views.png</div>
+            <span class="screenshot-caption">Griglia con tutte e sei le viste ortografiche<br>Superiore, Anteriore, Sinistra<br>Inferiore, Posteriore, Destra</span>
+        </div>
+
+        <div class="note note-info">
+            Le viste ortografiche sono particolarmente utili per disegni tecnici e misurazioni perché mostrano le dimensioni reali senza distorsione prospettica.
+        </div>
+
+        <h2>Viste assonometriche</h2>
+        <p>Viste standard tridimensionali:</p>
+
+        <div class="step">
+            <div class="step-title">Passaggio 1: Vista isometrica</div>
+            <div class="step-content">Fai clic sul pulsante Assonometrica e seleziona «Isometrica». Mostra il modello con angoli uguali (120°) tra i tre assi.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_isometric.png" alt="Modello in vista isometrica con angoli degli assi uguali" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Schermata: tutorial_05_isometric.png</div>
+			<span class="screenshot-caption">Proiezione isometrica</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Passaggio 2: Vista dimetrica</div>
+            <div class="step-content">Seleziona «Dimetrica» per una vista in cui due assi sono accorciati in modo uguale.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_dimetric.png" alt="Modello in vista dimetrica" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Schermata: tutorial_05_dimetric.png</div>
+			<span class="screenshot-caption">Proiezione dimetrica</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Passaggio 3: Vista trimetrica</div>
+            <div class="step-content">Seleziona «Trimetrica» per una vista in cui tutti e tre gli assi sono accorciati in modo diverso.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_trimetric.png" alt="Modello in vista trimetrica" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Schermata: tutorial_05_trimetric.png</div>
+			<span class="screenshot-caption">Proiezione trimetrica</span>
+        </div>
+
+        <div class="note note-tip">
+            Le viste assonometriche sono ottime per illustrazioni tecniche e disegni di ingegneria perché mostrano la struttura 3D mantenendo parallele le linee.
+        </div>
+
+        <h2>Alternare la proiezione</h2>
+        <p>Passa tra la proiezione ortografica e quella prospettica:</p>
+
+        <div class="step">
+            <div class="step-title">Passaggio 1: Trovare il pulsante di alternanza</div>
+            <div class="step-content">Cerca nella barra degli strumenti il pulsante di alternanza della proiezione (mostra un'icona di fotocamera).</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Passaggio 2: Ortografica e prospettica</div>
+            <div class="step-content">
+                <b>Ortografica:</b> le linee parallele restano parallele, nessun punto di fuga. Gli oggetti hanno la stessa dimensione a prescindere dalla distanza.<br/> <b>Prospettica:</b> vista realistica con punti di fuga. Gli oggetti lontani appaiono più piccoli.
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_ortho_vs_persp.png" alt="Confronto affiancato: proiezione ortografica (a sinistra) e prospettica (a destra)" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Schermata: tutorial_05_ortho_vs_persp.png</div>
+            <span class="screenshot-caption">Confronto affiancato: proiezione ortografica (a sinistra) e prospettica (a destra)</span>
+        </div>
+
+        <div class="note note-tip">
+            Usa l'ortografica per lavori tecnici e misurazioni, e la prospettica per presentazioni realistiche e visualizzazione.
+        </div>
+
+        <h2>Modalità multi-vista</h2>
+        <p>Vedere più viste contemporaneamente:</p>
+
+        <div class="step">
+            <div class="step-title">Passaggio 1: Attivare la multi-vista</div>
+            <div class="step-content">Fai clic sul pulsante di alternanza «Multi-vista» nella barra degli strumenti.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Passaggio 2: Quattro viste</div>
+            <div class="step-content">La vista si divide in quattro: Superiore, Anteriore, Destra e Isometrica.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Passaggio 3: Navigazione indipendente</div>
+            <div class="step-content">Puoi navigare in modo indipendente in ogni vista. La selezione è sincronizzata in tutte le viste.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_multiview.png" alt="Layout a quattro viste con Superiore, Anteriore, Destra e Isometrica" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Schermata: tutorial_05_multiview.png</div>
+            <span class="screenshot-caption">Layout a quattro viste con Superiore, Anteriore, Destra e Isometrica</span>
+        </div>
+
+        <div class="note note-info">
+            La modalità multi-vista è ottima per la modellazione di precisione e per comprendere geometrie complesse.
+        </div>
+
+        <h2>Animazione della vista</h2>
+        <p>Quando si cambia vista:</p>
+        <ul>
+            <li>la fotocamera si anima dolcemente verso la nuova posizione</li>
+            <li>Questo ti aiuta a mantenere orientamento e contesto</li>
+            <li>Puoi interrompere l'animazione interagendo con la vista</li>
+        </ul>
+
+        <h2>Casi d'uso</h2>
+        <p><b>Viste superiore/anteriore/laterale:</b> controllare allineamento, dimensioni e simmetria</p>
+        <p><b>Vista isometrica:</b> panoramica 3D generale, presentazioni, vista iniziale predefinita</p>
+        <p><b>Dimetrica/Trimetrica:</b> illustrazioni tecniche, disegni di ingegneria</p>
+        <p><b>Multi-vista:</b> modellazione di precisione, lavoro CAD, assiemi complessi</p>
+
+        <h2>Esercizio pratico</h2>
+        <p><b>Prova questo esercizio:</b></p>
+        <ol>
+            <li>Apri un modello (preferibilmente meccanico o architettonico)</li>
+            <li>Scorri tutte e sei le viste ortografiche (Superiore, Anteriore, Sinistra, Inferiore, Posteriore, Destra)</li>
+            <li>Passa alla vista isometrica</li>
+            <li>Prova le viste dimetrica e trimetrica</li>
+            <li>Passa tra proiezione ortografica e prospettica</li>
+            <li>Attiva la modalità multi-vista ed esercitati a navigare in ogni vista</li>
+            <li>Torna alla modalità vista singola</li>
+            <li>Nota come ogni modalità di visualizzazione sia utile per scopi diversi</li>
+        </ol>
+
+        <h2>Scorciatoie da tastiera</h2>
+        <table>
+            <thead><tr><th>Tasto</th><th>Vista</th></tr></thead>
+            <tbody>
+				<tr><td><kbd>Ctrl+T</kbd></td><td>Superiore</td></tr>
+                <tr><td><kbd>Ctrl+F</kbd></td><td>Anteriore</td></tr>
+				<tr><td><kbd>Ctrl+L</kbd></td><td>Sinistra</td></tr>
+				<tr><td><kbd>Ctrl+B</kbd></td><td>Inferiore</td></tr>
+				<tr><td><kbd>Ctrl+R</kbd></td><td>Posteriore</td></tr>
+                <tr><td><kbd>Ctrl+J</kbd></td><td>Destra</td></tr>                
+                <tr><td><kbd>Ctrl+1</kbd></td><td>Isometrica</td></tr>
+				<tr><td><kbd>Ctrl+2</kbd></td><td>Dimetrica</td></tr>
+				<tr><td><kbd>Ctrl+3</kbd></td><td>Trimetrica</td></tr>
+                <tr><td><kbd>Ctrl+P</kbd></td><td>Alternare prospettica/ortografica</td></tr>
+				<tr><td><kbd>Home</kbd></td><td>Assonometrica (isometrica/dimetrica/trimetrica, in base all'ultima modalità impostata)</td></tr>
+                <tr><td><kbd>Ctrl+M</kbd></td><td>Modalità multi-vista</td></tr>
+            </tbody>
+        </table>
+
+        <div class="lesson-navigation">
+            <a href='lesson04.html' class='nav-button'>← Lezione precedente</a>
+            <a href="index.html" class="back-to-index">↑ Torna all'indice</a>
+            <a href='lesson06.html' class='nav-button'>Lezione successiva →</a>
+        </div>
+    </div>
+</body>
+</html>

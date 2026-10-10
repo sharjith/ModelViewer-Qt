@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lezione 18: Rendering di bordi e wireframe - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primi passi</a>
+            <a href="lesson02.html">2. Aprire i modelli</a>
+            <a href="lesson03.html">3. Navigazione di base</a>
+            <a href="lesson04.html">4. Selezionare gli oggetti</a>
+            <a href="lesson05.html">5. Modalità di visualizzazione</a>
+            <a href="lesson06.html">6. Modalità fotocamera</a>
+            <a href="lesson07.html">7. Modalità di display</a>
+            <a href="lesson08.html">8. Manipolare gli oggetti</a>
+            <a href="lesson09.html">9. Materiali e texture</a>
+            <a href="lesson10.html">10. Illuminazione e ambiente</a>
+            <a href="lesson11.html">11. Lavorare con la visibilità</a>
+            <a href="lesson12.html">12. Funzioni avanzate</a>
+            <a href="lesson13.html">13. Ottimizzazione delle prestazioni</a>
+            <a href="lesson14.html">14. Suggerimenti e flussi di lavoro</a>
+            <a href="lesson15.html">15. Viste esplose</a>
+            <a href="lesson16.html">16. Animazione dei morph target</a>
+            <a href="lesson17.html">17. Modifica della trasformazione dei nodi</a>
+            <a href="lesson18.html" class='active'>18. Rendering di bordi e wireframe</a>
+            <a href="lesson19.html">19. Risultati di simulazione</a>
+            <a href="lesson20.html">20. Guardare dentro un risultato</a>
+            <a href="lesson21.html">21. Grafici e sonde</a>
+            <a href="lesson22.html">22. Confrontare risultati, dati di cella e di guscio</a>
+            <a href="lesson23.html">23. Grafici 3D da dati CSV</a>
+            <a href="lesson24.html">24. Grafici 3D da formule, riempimenti, immagini e note</a>
+            <a href="lesson25.html">25. Grafici e risultati riprodotti insieme</a>
+            <a href="lesson26.html">26. Strumenti per mesh</a>
+            <a href="lesson27.html">27. Misurare, annotare e riferire</a>
+            <a href="lesson28.html">28. Analisi, selezione e scene</a>
+            <a href="lesson29.html">29. Ray tracing in pratica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lezione 18 di 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 62.07%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lezione 18: Rendering di bordi e wireframe</h1>
+        </div>
+
+        <h2>Introduzione</h2>
+        <p>Per formati CAD come STEP, IGES e BREP, ModelViewer può estrarre e renderizzare veri spigoli B-Rep (rappresentazione di contorno), le curve nette e precise che definiscono le facce di un solido, separatamente dalla mesh triangolata usata per l'ombreggiatura. Questo dà linee di spigolo nitide che restano accurate indipendentemente dalla densità di tassellazione della mesh.</p>
+
+        <h2>Modalità di visualizzazione con spigoli</h2>
+        <p>Tre modalità di visualizzazione mostrano gli spigoli (si impostano dalla barra degli strumenti/menu delle modalità di visualizzazione, vedi la lezione 7):</p>
+        <ul>
+            <li><b>Wireframe:</b> mostra solo i veri spigoli caratteristici (spigoli di piega/contorno, o spigoli B-Rep per i formati CAD), con le facce non ombreggiate affatto.</li>
+            <li><b>Spigoli della mesh:</b> mostra facce normalmente ombreggiate con <i>ogni</i> spigolo dei triangoli sovrapposto, rivelando tutta la densità di tassellazione sottostante.</li>
+            <li><b>Ombreggiata con spigoli:</b> mostra facce normalmente ombreggiate/illuminate con sovrapposti solo i veri spigoli caratteristici: un aspetto più pulito di Spigoli della mesh perché omette le dense linee per triangolo.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_18_wireframe_mode.png" alt="Un modello STEP in modalità wireframe con linee di spigolo B-Rep pulite e senza riempimento" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Schermata: tutorial_18_wireframe_mode.png (700x450)</div>
+            <span class="screenshot-caption">Un modello STEP in modalità wireframe con linee di spigolo B-Rep pulite e senza riempimento</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_18_mesh_edges_mode.png" alt="Lo stesso modello in modalità Spigoli della mesh, con facce ombreggiate e ogni spigolo dei triangoli" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Schermata: tutorial_18_mesh_edges_mode.png (700x450)</div>
+            <span class="screenshot-caption">Lo stesso modello in modalità Spigoli della mesh, con facce ombreggiate e ogni spigolo dei triangoli</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_18_shaded_with_edges_mode.png" alt="Lo stesso modello in modalità Ombreggiata con spigoli, che combina ombreggiatura e spigoli caratteristici puliti" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Schermata: tutorial_18_shaded_with_edges_mode.png (700x450)</div>
+            <span class="screenshot-caption">Lo stesso modello in modalità Ombreggiata con spigoli, che combina ombreggiatura e spigoli caratteristici puliti</span>
+        </div>
+
+        <div class="note note-info">
+            L'estrazione dei veri spigoli B-Rep è disponibile solo per i formati CAD (STEP, IGES, BREP) che contengono dati di rappresentazione di contorno. I formati solo mesh come OBJ, STL e glTF ripiegano invece su spigoli di silhouette ai confini dei triangoli.
+        </div>
+
+        <h2>Controllare la qualità di tassellazione</h2>
+        <p>La precisione di spigoli e facce nelle importazioni CAD è controllata da due impostazioni di deflessione in <b>Modifica → Impostazioni → Importazione/Esportazione</b>:</p>
+        <div class="step">
+            <div class="step-title">Deflessione lineare</div>
+            <div class="step-content">Controlla la distanza massima consentita tra la mesh tassellata e la vera superficie CAD. Valori più bassi producono una geometria più liscia e accurata al costo di più triangoli.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Deflessione angolare</div>
+            <div class="step-content">Controlla l'angolo massimo consentito tra faccette di tassellazione adiacenti. Valori più bassi preservano meglio le superfici curve.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_18_deflection_settings.png" alt="Finestra delle impostazioni con i controlli di deflessione lineare e angolare" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:400px;">Schermata: tutorial_18_deflection_settings.png (500x400)</div>
+            <span class="screenshot-caption">Finestra delle impostazioni con i controlli di deflessione lineare e angolare</span>
+        </div>
+
+        <div class="note note-warning">
+            Valori di deflessione molto bassi producono mesh molto più dense e un caricamento/rendering più lento per assiemi CAD complessi: bilancia la precisione visiva con le prestazioni (vedi la lezione 13).
+        </div>
+
+        <h2>Salvare i dati degli spigoli</h2>
+        <p>Gli spigoli B-Rep estratti vengono memorizzati nella cache con la mesh una volta calcolati e sono conservati quando si salva in un file di sessione <b>.mvf</b>, quindi ricaricare una sessione salvata non richiede di estrarre di nuovo gli spigoli dal file CAD originale.</p>
+
+        <p>Con questo il tutorial di base è completo. Le lezioni da 19 a 29 proseguono con le novità della 2026.11: risultati di simulazione, grafici di dati 3D, strumenti per mesh, misurazione e annotazione, analisi e ray tracing in pratica.</p>
+
+        <div class="lesson-navigation">
+            <a href='lesson17.html' class='nav-button'>← Lezione precedente</a>
+            <a href="index.html" class="back-to-index">↑ Torna all'indice</a>
+            <a href='lesson19.html' class='nav-button'>Lezione successiva →</a>
+        </div>
+    </div>
+</body>
+</html>

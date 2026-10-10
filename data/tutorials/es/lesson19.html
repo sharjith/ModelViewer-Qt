@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lección 19: Resultados de simulación - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primeros pasos</a>
+            <a href="lesson02.html">2. Abrir modelos</a>
+            <a href="lesson03.html">3. Navegación básica</a>
+            <a href="lesson04.html">4. Seleccionar objetos</a>
+            <a href="lesson05.html">5. Modos de vista</a>
+            <a href="lesson06.html">6. Modos de cámara</a>
+            <a href="lesson07.html">7. Modos de visualización</a>
+            <a href="lesson08.html">8. Manipular objetos</a>
+            <a href="lesson09.html">9. Materiales y texturas</a>
+            <a href="lesson10.html">10. Iluminación y entorno</a>
+            <a href="lesson11.html">11. Trabajar con la visibilidad</a>
+            <a href="lesson12.html">12. Funciones avanzadas</a>
+            <a href="lesson13.html">13. Optimización del rendimiento</a>
+            <a href="lesson14.html">14. Consejos y flujos de trabajo</a>
+            <a href="lesson15.html">15. Vistas explosionadas</a>
+            <a href="lesson16.html">16. Animación de morph targets</a>
+            <a href="lesson17.html">17. Edición de la transformación de nodos</a>
+            <a href="lesson18.html">18. Renderizado de bordes y malla de alambre</a>
+            <a href="lesson19.html" class='active'>19. Resultados de simulación</a>
+            <a href="lesson20.html">20. Mirar dentro de un resultado</a>
+            <a href="lesson21.html">21. Gráficos y sondeo</a>
+            <a href="lesson22.html">22. Comparar resultados, datos de celda y de lámina</a>
+            <a href="lesson23.html">23. Gráficos 3D a partir de datos CSV</a>
+            <a href="lesson24.html">24. Gráficos 3D a partir de fórmulas, rellenos, imágenes y notas</a>
+            <a href="lesson25.html">25. Gráficos y resultados reproducidos juntos</a>
+            <a href="lesson26.html">26. Herramientas de malla</a>
+            <a href="lesson27.html">27. Medir, anotar e informar</a>
+            <a href="lesson28.html">28. Análisis, selección y escenas</a>
+            <a href="lesson29.html">29. Trazado de rayos en la práctica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lección 19 de 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 65.52%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lección 19: Resultados de simulación</h1>
+        </div>
+
+        <h2>Introducción</h2>
+        <p>ModelViewer muestra los resultados que un solver ya ha escrito: <b>no</b> ejecuta simulaciones. Abra el archivo de resultados de un solver de elementos finitos o de flujo y el modelo aparece como su superficie exterior, coloreada por un campo de resultados como la tensión, la temperatura o la velocidad. Esta lección explica cómo abrir un resultado, elegir el campo de color, mostrar la deformación, indicar unidades y recorrer los pasos de tiempo.</p>
+        <div class="note note-info">
+            Formatos admitidos: VTK (.vtk, .vtu), CalculiX .frd, Exodus II, CGNS, MED, OpenFOAM (abra el archivo .foam) y VTKHDF. Exodus, CGNS, VTKHDF y MED necesitan una compilación que incluya la biblioteca correspondiente; si falta una extensión en el diálogo Abrir, su compilación se hizo sin ella.
+        </div>
+        <h2>Archivos de ejemplo de esta lección</h2>
+        <p>Todos están en la carpeta <code>sample-models/Simulation</code> de la instalación.</p>
+        <table>
+            <thead><tr><th>Archivo</th><th>Contenido</th></tr></thead>
+            <tbody>
+            <tr><td><code>FEM_box_static_stress.vtu</code></td><td>Un análisis estático de una caja de 10 mm. Se abre coloreado por tensión de von Mises.</td></tr>
+            <tr><td><code>FEM_box_load_steps.frd</code></td><td>La misma caja, con la carga aumentada en cuatro pasos.</td></tr>
+            <tr><td><code>FEM_box_modes.frd</code></td><td>Los seis primeros modos de vibración, con sus frecuencias.</td></tr>
+            <tr><td><code>FEM_box_thermal_transient.frd</code></td><td>Calor que entra en la caja a lo largo de 20 pasos de tiempo.</td></tr>
+            <tr><td><code>plate_with_hole.frd</code></td><td>Una placa con un agujero, estirada en una dirección: la concentración de tensiones en el agujero.</td></tr>
+            </tbody>
+        </table>
+        <h2>Abrir un resultado</h2>
+        <div class="step">
+            <div class="step-title">Paso 1: Abrir el archivo</div>
+            <div class="step-content">Elija <b>Archivo → Abrir...</b> y seleccione <code>FEM_box_static_stress.vtu</code>. Un resultado se abre en su propio documento.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Observar la superficie</div>
+            <div class="step-content">La caja aparece coloreada por tensión de von Mises, con una leyenda de colores. Solo se dibuja la superficie exterior; la lección 20 muestra cómo mirar el interior.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Abrir la pestaña Resultados de simulación</div>
+            <div class="step-content">La pestaña está en el panel inferior izquierdo, junto a Selecciones y Estados. Allí están todos los controles de esta lección.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_19_first_result.png" alt="tutorial_19_first_result.png" title="Capture: Open sample-models/Simulation/FEM_box_static_stress.vtu, rotate to an isometric view and capture the whole window: the box with its colour legend, and the Simulation Results tab visible in the bottom-left dock." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open sample-models/Simulation/FEM_box_static_stress.vtu, rotate to an isometric view and capture the whole window: the box with its colour legend, and the Simulation Results tab visible in the bottom-left dock." style="display:none; width:700px; height:450px;">Captura: tutorial_19_first_result.png (700x450)</div>
+            <span class="screenshot-caption">FEM_box_static_stress.vtu recién abierto, coloreado por tensión de von Mises</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_19_results_tab.png" alt="tutorial_19_results_tab.png" title="Capture: Same file as before: capture only the Simulation Results tab (crop the dock), scrolled to the top so Field, Component, Range, Colormap and Contours are all visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Same file as before: capture only the Simulation Results tab (crop the dock), scrolled to the top so Field, Component, Range, Colormap and Contours are all visible." style="display:none; width:420px; height:450px;">Captura: tutorial_19_results_tab.png (420x520)</div>
+            <span class="screenshot-caption">La pestaña Resultados de simulación con Campo, Componente, Rango, Mapa de colores y Contornos</span>
+        </div>
+
+        <h2>Elegir el campo de color</h2>
+        <ul>
+            <li><b>Campo</b> y <b>Componente</b>: el campo por el que se colorea (por ejemplo desplazamiento, von Mises, Tresca o una tensión principal) y una de sus componentes o su magnitud. Los campos marcados con <b>[celdas]</b> tienen un valor por elemento y se dibujan planos.</li>
+            <li><b>Rango</b>: <i>Automático (todos los pasos)</i> mantiene los colores comparables entre pasos, <i>Automático (este paso)</i> reescala cada paso y <i>Personalizado</i> permite escribir un mínimo y un máximo.</li>
+            <li><b>Mapa de colores</b> y <b>Contornos</b>: cambie la rampa de colores o convierta el degradado suave en bandas discretas.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_19_field_list.png" alt="tutorial_19_field_list.png" title="Capture: Click the Field drop-down in the Simulation Results tab so the list is open (Displacement, von Mises, Tresca, principal stresses ...), and include the Component box below it in the crop." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Click the Field drop-down in the Simulation Results tab so the list is open (Displacement, von Mises, Tresca, principal stresses ...), and include the Component box below it in the crop." style="display:none; width:500px; height:380px;">Captura: tutorial_19_field_list.png (500x380)</div>
+            <span class="screenshot-caption">La lista de campos del resultado de la caja estática</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_19_contours.png" alt="tutorial_19_contours.png" title="Capture: Two captures of the box joined side by side: left = default smooth colormap, right = Contours set to about 8 bands. Same camera for both." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Two captures of the box joined side by side: left = default smooth colormap, right = Contours set to about 8 bands. Same camera for both." style="display:none; width:700px; height:350px;">Captura: tutorial_19_contours.png (700x350)</div>
+            <span class="screenshot-caption">Colores suaves (izquierda) y el mismo campo con bandas de contorno (derecha)</span>
+        </div>
+
+        <h2>Deformación y extremos</h2>
+        <div class="step">
+            <div class="step-title">Paso 1: Abrir plate_with_hole.frd</div>
+            <div class="step-content">Ábrala desde la misma carpeta. Tiene cuatro pasos de carga y está coloreada por tensión de von Mises.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Mostrar la forma deformada</div>
+            <div class="step-content">Active <b>Mostrar forma deformada</b>. El modelo se mueve según su campo de desplazamiento; el <b>Factor de escala</b> exagera el movimiento y <i>Auto</i> elige un factor que lo hace visible.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Marcar los extremos</div>
+            <div class="step-content">Active <b>Marcar mínimo y máximo</b>. Los valores más bajo y más alto se etiquetan en la superficie visible; en esta placa, el máximo está en el lado del agujero.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_19_deformed_plate.png" alt="tutorial_19_deformed_plate.png" title="Capture: Open plate_with_hole.frd, go to the last load step, tick Show deformed shape (Scale factor Auto) and Mark minimum and maximum; view the plate face-on so the hole and the max label are visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open plate_with_hole.frd, go to the last load step, tick Show deformed shape (Scale factor Auto) and Mark minimum and maximum; view the plate face-on so the hole and the max label are visible." style="display:none; width:700px; height:450px;">Captura: tutorial_19_deformed_plate.png (700x450)</div>
+            <span class="screenshot-caption">plate_with_hole.frd deformada, con el mínimo y el máximo marcados</span>
+        </div>
+
+        <div class="note note-warning">
+            La deformación se exagera a propósito. Tenga presente el factor de escala al juzgar cuánto se mueve realmente una pieza.
+        </div>
+        <h2>Unidades</h2>
+        <p>Muchos archivos de resultados no indican en qué unidad están sus valores. <b>Magnitud</b> y <b>Los valores están en</b> permiten indicarla (por ejemplo una temperatura en grados Celsius o kelvin, una tensión en megapascales) y la leyenda muestra entonces la unidad. <code>FEM_box_thermal_transient.frd</code> no indica ninguna unidad de temperatura, así que no se supone ninguna hasta que elija una.</p>
+        <h2>Recorrer los pasos de tiempo</h2>
+        <p>Un resultado con varios pasos (pasos de carga, modos de vibración o pasos de tiempo) muestra una línea de tiempo en la parte superior de la vista con reproducir/pausa, paso anterior y siguiente, detener, un control deslizante, <b>Repetir</b> y una selección de velocidad.</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Reproducir los pasos de carga</div>
+            <div class="step-content">Abra <code>FEM_box_load_steps.frd</code> y pulse reproducir. El rango de color abarca todos los pasos de forma predeterminada, así que un color significa el mismo valor en cada fotograma y se ve crecer la tensión.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Recorrer los modos de vibración</div>
+            <div class="step-content">Abra <code>FEM_box_modes.frd</code>. Cada paso es un modo, etiquetado de Mode 1 a 6 con su frecuencia en hercios. Active <b>Mostrar forma deformada</b> y recórralos.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Ver entrar el calor</div>
+            <div class="step-content">Abra <code>FEM_box_thermal_transient.frd</code>: una cara se mantiene a 100, el resto empieza a 20 y el calor se extiende a lo largo de 20 pasos de tiempo.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_19_timeline.png" alt="tutorial_19_timeline.png" title="Capture: Open FEM_box_load_steps.frd, move the slider to step 3 of 4 and capture the viewport including the timeline bar at the top and the colour legend." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open FEM_box_load_steps.frd, move the slider to step 3 of 4 and capture the viewport including the timeline bar at the top and the colour legend." style="display:none; width:700px; height:350px;">Captura: tutorial_19_timeline.png (700x350)</div>
+            <span class="screenshot-caption">La línea de tiempo en la parte superior de la vista al reproducir los pasos de carga</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_19_modes.png" alt="tutorial_19_modes.png" title="Capture: Open FEM_box_modes.frd with Show deformed shape on; capture Mode 1 and Mode 4 (or any two clearly different ones) joined side by side, timeline label visible in each." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open FEM_box_modes.frd with Show deformed shape on; capture Mode 1 and Mode 4 (or any two clearly different ones) joined side by side, timeline label visible in each." style="display:none; width:700px; height:350px;">Captura: tutorial_19_modes.png (700x350)</div>
+            <span class="screenshot-caption">Dos modos de vibración de la caja, deformados</span>
+        </div>
+
+        <h2>Añadir un resultado al documento actual</h2>
+        <p><b>Archivo → Abrir</b> coloca un resultado en un documento propio. Para ver un resultado junto con otros modelos (por ejemplo una pieza CAD y su análisis), use <b>Visualización → Resultados de simulación → Añadir resultado a este documento...</b>. El cuadro <b>Resultado</b> de la pestaña elige sobre qué resultado actúan los controles.</p>
+        <h2>Guardar</h2>
+        <p>Un resultado se guarda dentro de una sesión <b>.mvf</b> junto con sus ajustes de vista: campo, rango, mapa de colores, deformación, secciones y más. Al reabrir la sesión, la vista vuelve como la dejó.</p>
+        <div class="note note-info">
+            Los resultados se dibujan planos en todos los modos de renderizado y el trazador de rayos no los dibuja, por lo que PBR y el trazado de rayos aportan poco.
+        </div>
+        <h2>Pruébelo usted mismo</h2>
+        <ul>
+            <li>Abra <code>plate_with_hole.frd</code>, reproduzca los cuatro pasos de carga con <b>Mostrar forma deformada</b> activado y encuentre el punto más caliente.</li>
+            <li>Cambie <b>Campo</b> a una tensión principal y compárela con von Mises; después pruebe <b>Personalizado</b> en <b>Rango</b>.</li>
+            <li>Abra <code>FEM_box_thermal_transient.frd</code> y elija una unidad de temperatura en <b>Los valores están en</b>; observe cómo cambia la leyenda.</li>
+            <li>Guarde el documento como <b>.mvf</b>, ciérrelo y ábralo de nuevo.</li>
+        </ul>
+
+        <div class="lesson-navigation">
+            <a href='lesson18.html' class='nav-button'>← Lección anterior</a>
+            <a href="index.html" class="back-to-index">↑ Volver al índice</a>
+            <a href='lesson20.html' class='nav-button'>Siguiente lección →</a>
+        </div>
+    </div>
+</body>
+</html>

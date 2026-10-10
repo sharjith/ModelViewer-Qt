@@ -1,247 +1,44 @@
-# ModelViewer Tutorial - Multi-Page Version
+# ModelViewer tutorial
 
-## 📦 Package Contents
+The tutorial is a set of plain HTML pages that ModelViewer shows in **Help > Tutorial** (an integrated dialog, or the web browser, depending on the user's choice). The same files can be opened directly in any browser: start at `index.html`.
 
-- **index.html** - Landing page with course overview
-- **lesson01.html to lesson14.html** - Individual lesson pages
-- **common-styles.css** - Shared stylesheet for all lessons
-- **screenshots/** - Tutorial screenshots referenced by the lessons
-- **README.md** - This file
+## Contents
 
-## 🚀 Quick Start
+| Item | What it is |
+|---|---|
+| `index.html` | The home page with a card for every lesson |
+| `lesson01.html` ... `lesson29.html` | The lessons, in English |
+| `de/`, `es/`, `fr/`, `it/` | The same pages translated (index and all 29 lessons) |
+| `common-styles.css` | The stylesheet shared by every page (the translated pages use `../common-styles.css`) |
+| `screenshots/` | The pictures. All languages share one set, taken in the English UI |
+| `screenshots/SHOT_LIST_19-29.md` | The pictures still to capture for lessons 19-29, with what each must show |
 
-### 1. Test Locally (Immediate)
-```bash
-# Open index.html in your browser
-firefox index.html
-# or
-chrome index.html
-# or just double-click index.html
-```
+Lessons 1-18 are the core tutorial (interface, navigation, selection, views, materials, lighting, visibility, advanced features, performance, exploded views, morph targets, the transform gizmo, edges). Lessons 19-29 cover what 2026.11 added: simulation results (19-22), 3D data plots (23-25), mesh tools (26), measurement and annotation (27), analysis, selection and scenes (28), and ray tracing (29).
 
-### 2. Install in ModelViewer
+## How the dialog picks a page
 
-Copy this entire directory to:
-```
-MODELVIEWER_DATA_DIR/data/tutorials/
-```
+`TutorialDialog` takes the page of the UI language from `data/tutorials/<language>/` when it exists and falls back to the English page at the top otherwise, so a lesson that is not translated yet still opens. The links inside a page are relative (`lesson05.html`, `index.html`); the dialog catches them and applies the same rule.
 
-**Example paths:**
-- Linux: `/usr/local/share/modelviewer/data/tutorials/`
-- Windows: `C:\Program Files\ModelViewer\data\tutorials\`
-- macOS: `/Applications/ModelViewer.app/Contents/Resources/data/tutorials/`
+## Adding or changing a lesson
 
-### 3. Add Launcher Code
+1. Edit the English page (or add `lessonNN.html`; copy the sidebar, progress bar and footer of a neighbour and add the lesson to the sidebar of **every** page, in all languages, and to `index.html`).
+2. Make the same change in the four translations under `de/`, `es/`, `fr/`, `it/`.
+3. Add the lesson's title to `TutorialDialog.cpp` (the list and `TOTAL_LESSONS`) and translate it in the `TutorialDialog` context of the `.ts` files.
 
-In `MainWindow.cpp`:
-```cpp
-#include <QDesktopServices>
-#include <QUrl>
-#include <QFile>
+Use the names of the controls exactly as the UI shows them in that language, in bold, and arrows (`File → Open...`) for menu paths.
 
-void MainWindow::on_actionTutorial_triggered()
-{
-    QString path = QString(MODELVIEWER_DATA_DIR) + "/data/tutorials/index.html";
-    
-    if (QFile::exists(path)) {
-        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
-    } else {
-        QMessageBox::warning(this, tr("Tutorial Not Found"),
-            tr("Tutorial file not found at: %1").arg(path));
-    }
-}
-```
+## Screenshots
 
-Add menu action with shortcut: **Ctrl+F1**
+* Every picture is referenced as `screenshots/tutorial_<lesson>_<name>.png`. In lessons 19-29 the `alt` text of the image **is** that file name; in lessons 1-18 the `alt` text describes the picture (the expected file name is in the placeholder).
+* While a picture is missing, the page shows a dashed placeholder with the file name and size. Its tooltip (the `title` attribute) says what to capture and which sample file to open.
+* `screenshots/SHOT_LIST_19-29.md` lists them all as a checklist.
+* Capture in the English UI with the default theme. A width of about 700 px is right for most; the page scales a picture down to the width of the text column.
+* Animated gestures (lessons 2 and 3) are `.gif` files.
 
-## 📖 Lesson Status
+## Sample files used by the lessons
 
-### ✅ Complete (Full Content)
-- Lessons 1-18 all have full content
-- Lessons 15-18 (Exploded Views, Morph Target Animation, Node Transform
-  Editing, Edge & Wireframe Rendering) still need their screenshots captured
-  — placeholders are in place with the `tutorial_NN_description.png` naming
-  convention already wired into each lesson's `<img>`/alt text
+Lessons 19-25 use `sample-models/Simulation` and `sample-models/Plot3D`; both folders have a `README.txt` that describes every file. Lessons 26-29 use the CAD and mesh samples in `sample-models` (for example `RepairMeshTest.obj`, `OpenCylinder.obj`, `TorusTestCoarse.obj`, `bottle.step`, `MBB Gehause Rohteil.step`, the Forklift and the Futuristic Transport Shuttle).
 
-## 🖼️ Adding Screenshots
+## Installing
 
-Place PNG/JPG files in the `screenshots/` directory with these exact names:
-
-```
-screenshots/
-├── tutorial_01_main_window.png
-├── tutorial_01_interface_labeled.png
-├── tutorial_02_file_menu.png
-├── tutorial_02_file_dialog.png
-├── tutorial_03_rotate_gesture.png
-└── ... (87 total - see SCREENSHOT_GUIDE.md)
-```
-
-Screenshots automatically display when present, show placeholders when missing.
-Lessons 15-18 additionally reference `tutorial_15_*.png` through `tutorial_18_*.png`
-(see each lesson's `<img>` alt text for the exact expected filenames).
-
-## ✏️ Completing Lessons 5-14
-
-Each lesson file follows this structure:
-
-1. Open the lesson file (e.g., `lesson05.html`)
-2. Find the content section between lesson-header and lesson-navigation
-3. Replace placeholder with actual content
-4. Use these HTML components:
-
-### Available Components
-
-**Sections:**
-```html
-<h2>Section Title</h2>
-<p>Paragraph text...</p>
-```
-
-**Steps:**
-```html
-<div class="step">
-    <div class="step-title">Step 1: Do This</div>
-    <div class="step-content">Description here...</div>
-</div>
-```
-
-**Screenshots:**
-```html
-<div class="screenshot-container">
-    <img src="screenshots/tutorial_XX_name.png" alt="Description"
-         onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
-    <div class="screenshot-placeholder" style="display:none;">
-        Screenshot: tutorial_XX_name.png
-    </div>
-    <span class="screenshot-caption">Caption text</span>
-</div>
-```
-
-**Notes:**
-```html
-<div class="note note-tip">Tip content...</div>
-<div class="note note-info">Info content...</div>
-<div class="note note-warning">Warning content...</div>
-```
-
-**Tables:**
-```html
-<table>
-    <thead><tr><th>Header 1</th><th>Header 2</th></tr></thead>
-    <tbody>
-        <tr><td>Data 1</td><td>Data 2</td></tr>
-    </tbody>
-</table>
-```
-
-**Keyboard Keys:**
-```html
-<kbd>Ctrl</kbd> + <kbd>O</kbd>
-```
-
-## 🎨 Customization
-
-### Colors
-Edit `common-styles.css`:
-```css
-/* Sidebar background */
-#sidebar {
-    background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
-}
-
-/* Accent color (borders, buttons) */
-/* Change #3498db to your color */
-```
-
-### Layout
-```css
-#sidebar {
-    width: 280px;  /* Sidebar width */
-}
-
-#main-content {
-    max-width: 1200px;  /* Content max width */
-}
-```
-
-## 🌍 Localization
-
-Create translated versions:
-```
-tutorials/
-├── index.html (English)
-├── index_de.html (German)
-├── lesson01.html (English)
-├── lesson01_de.html (German)
-└── ...
-```
-
-Update launcher to detect language:
-```cpp
-QString lang = QLocale::system().name().left(2);
-QString indexFile = (lang == "en") ? "index.html" : QString("index_%1.html").arg(lang);
-```
-
-## 📊 Features
-
-✅ **Multi-page navigation** - One lesson per page
-✅ **Progress tracking** - "Lesson X of 14" indicator
-✅ **Sidebar navigation** - Jump to any lesson
-✅ **Previous/Next buttons** - Sequential learning
-✅ **Responsive design** - Works on mobile
-✅ **Screenshot fallbacks** - Placeholders until images added
-✅ **Professional styling** - Modern, clean design
-✅ **No dependencies** - Pure HTML/CSS
-✅ **Fast loading** - Each page loads independently
-
-## 🧪 Testing
-
-### Local Testing
-1. Open `index.html` in browser
-2. Click "Start Tutorial" button
-3. Test navigation (sidebar, prev/next)
-4. Verify all 14 lessons load
-5. Check responsive design (resize window)
-
-### Integration Testing
-1. Copy to ModelViewer data directory
-2. Launch from Help menu (Ctrl+F1)
-3. Verify tutorial opens in browser
-4. Test all lessons
-5. Add one screenshot, verify it displays
-
-## 🆚 Advantages Over Single-Page
-
-✅ **Focused learning** - One topic at a time
-✅ **Progress feeling** - Complete lessons one by one
-✅ **Faster loading** - Only one lesson loads
-✅ **Better bookmarking** - URL per lesson
-✅ **Less overwhelming** - Not seeing all 14 lessons at once
-✅ **Mental chunking** - Natural break points
-
-## 📝 TODO
-
-- [ ] Complete content for lessons 5-14
-- [ ] Create all 87 screenshots
-- [ ] Test on different browsers
-- [ ] Add print styles
-- [ ] Consider adding "Mark Complete" feature with localStorage
-- [ ] Add search functionality across lessons
-- [ ] Consider adding quiz/exercise pages
-
-## 📄 License
-
-Same as ModelViewer project.
-
-## 🙋 Support
-
-For issues or questions:
-- Check that files are in correct directory
-- Verify MODELVIEWER_DATA_DIR is set correctly
-- Test by opening index.html directly in browser
-- Check browser console for errors (F12)
-
----
-
-**Ready to use! Just add your screenshots and expand lessons 5-14 with content.** 🚀
+The `data` folder is installed as a whole, so the language folders and the screenshots go with it. For a manual copy, place this folder at `<ModelViewer data directory>/data/tutorials/`.

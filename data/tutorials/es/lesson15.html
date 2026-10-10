@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lección 15: Vistas explosionadas - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primeros pasos</a>
+            <a href="lesson02.html">2. Abrir modelos</a>
+            <a href="lesson03.html">3. Navegación básica</a>
+            <a href="lesson04.html">4. Seleccionar objetos</a>
+            <a href="lesson05.html">5. Modos de vista</a>
+            <a href="lesson06.html">6. Modos de cámara</a>
+            <a href="lesson07.html">7. Modos de visualización</a>
+            <a href="lesson08.html">8. Manipular objetos</a>
+            <a href="lesson09.html">9. Materiales y texturas</a>
+            <a href="lesson10.html">10. Iluminación y entorno</a>
+            <a href="lesson11.html">11. Trabajar con la visibilidad</a>
+            <a href="lesson12.html">12. Funciones avanzadas</a>
+            <a href="lesson13.html">13. Optimización del rendimiento</a>
+            <a href="lesson14.html">14. Consejos y flujos de trabajo</a>
+            <a href="lesson15.html" class='active'>15. Vistas explosionadas</a>
+            <a href="lesson16.html">16. Animación de morph targets</a>
+            <a href="lesson17.html">17. Edición de la transformación de nodos</a>
+            <a href="lesson18.html">18. Renderizado de bordes y malla de alambre</a>
+            <a href="lesson19.html">19. Resultados de simulación</a>
+            <a href="lesson20.html">20. Mirar dentro de un resultado</a>
+            <a href="lesson21.html">21. Gráficos y sondeo</a>
+            <a href="lesson22.html">22. Comparar resultados, datos de celda y de lámina</a>
+            <a href="lesson23.html">23. Gráficos 3D a partir de datos CSV</a>
+            <a href="lesson24.html">24. Gráficos 3D a partir de fórmulas, rellenos, imágenes y notas</a>
+            <a href="lesson25.html">25. Gráficos y resultados reproducidos juntos</a>
+            <a href="lesson26.html">26. Herramientas de malla</a>
+            <a href="lesson27.html">27. Medir, anotar e informar</a>
+            <a href="lesson28.html">28. Análisis, selección y escenas</a>
+            <a href="lesson29.html">29. Trazado de rayos en la práctica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lección 15 de 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 51.72%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lección 15: Vistas explosionadas</h1>
+        </div>
+
+        <h2>Introducción</h2>
+        <p>Las vistas explosionadas separan las piezas de un ensamblaje a lo largo de un eje o radialmente desde un punto central, para que pueda ver cómo se relacionan los componentes sin cortar ni ocultar nada. Es una vista por etapas y no destructiva: la geometría y las transformaciones reales del modelo nunca se modifican de forma permanente.</p>
+
+        <h2>Abrir el panel de vista explosionada</h2>
+        <div class="step">
+            <div class="step-title">Paso 1: Abrir el panel</div>
+            <div class="step-content">Abra el panel Vista explosionada desde los paneles del lado derecho.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_panel_overview.png" alt="El panel Vista explosionada con los controles de ensamblaje, ancla, modo y distancia" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:500px;">Captura: tutorial_15_panel_overview.png (700x500)</div>
+            <span class="screenshot-caption">El panel Vista explosionada con los controles de ensamblaje, ancla, modo y distancia</span>
+        </div>
+
+        <h2>Configurar una explosión</h2>
+        <div class="step">
+            <div class="step-title">Paso 1: Seleccionar el ensamblaje</div>
+            <div class="step-content">Use «Seleccionar ensamblaje» para elegir qué grupo de objetos se explosionará.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Seleccionar el ancla</div>
+            <div class="step-content">El ancla es la pieza que permanece fija en su sitio mientras todo lo demás se aleja de ella. Use «Seleccionar ancla» para elegirla.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Elegir el modo de explosión</div>
+            <div class="step-content">
+                • <b>Auto (radial):</b> las piezas se alejan automáticamente del centro del ensamblaje<br/> • <b>Eje X / Eje Y / Eje Z:</b> las piezas se mueven a lo largo de un único eje del mundo<br/> • <b>Vector personalizado:</b> defina su propia dirección con los campos de vector X, Y, Z
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 4: Estrategia automática</div>
+            <div class="step-content">Con el modo Auto, elija «Según ensamblaje» (respeta la agrupación de subensamblajes) o «Clásica» (trata cada pieza de forma independiente).</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_mode_selection.png" alt="Menú desplegable del modo de explosión con las opciones Auto, Eje y Vector personalizado" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:350px;">Captura: tutorial_15_mode_selection.png (500x350)</div>
+            <span class="screenshot-caption">Menú desplegable del modo de explosión con las opciones Auto, Eje y Vector personalizado</span>
+        </div>
+
+        <h2>Controlar la distancia de explosión</h2>
+        <div class="step">
+            <div class="step-title">Paso 1: Deslizador de distancia</div>
+            <div class="step-content">Arrastre el deslizador de explosión para controlar cuánto se separan las piezas, indicado como porcentaje.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_distance_slider.png" alt="Ensamblaje con una distancia de explosión del 0 %, 50 % y 100 %" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:400px;">Captura: tutorial_15_distance_slider.png (700x400)</div>
+            <span class="screenshot-caption">Ensamblaje con una distancia de explosión del 0 %, 50 % y 100 %</span>
+        </div>
+
+        <div class="note note-tip">
+            Empiece con un porcentaje de distancia pequeño y auméntelo gradualmente: así es más fácil seguir la pista de qué pieza fue adónde.
+        </div>
+
+        <h2>Colocación manual</h2>
+        <p>Para ensamblajes que necesitan una disposición hecha a mano en lugar de una explosión automática uniforme:</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Iniciar la colocación manual</div>
+            <div class="step-content">Seleccione las piezas que quiere recolocar y haga clic en «Iniciar colocación manual».</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Recolocar con el gizmo de transformación</div>
+            <div class="step-content">El gizmo de transformación en pantalla aparece sobre su selección. Arrastre sus tiradores para trasladar o girar las piezas hasta su pose explosionada por etapas; esto no toca la transformación real del modelo.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Finalizar o borrar</div>
+            <div class="step-content">Haga clic en «Finalizar colocación manual» para conservar la pose por etapas, o en «Borrar colocación manual» para descartarla y empezar de nuevo.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_manual_placement.png" alt="Modo de colocación manual con el gizmo de transformación activo en una pieza seleccionada" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Captura: tutorial_15_manual_placement.png (700x450)</div>
+            <span class="screenshot-caption">Modo de colocación manual con el gizmo de transformación activo en una pieza seleccionada</span>
+        </div>
+
+        <h2>Captura de pasos y preajustes</h2>
+        <div class="step">
+            <div class="step-title">Paso 1: Capturar</div>
+            <div class="step-content">Haga clic en «Capturar» para registrar la pose explosionada actual como un paso de la secuencia. Cree varios pasos para lograr una revelación por etapas de varias piezas.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Reordenar los pasos</div>
+            <div class="step-content">Use las flechas arriba/abajo junto a la lista de pasos capturados para cambiar el orden de reproducción.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Preajustes</div>
+            <div class="step-content">Guarde una configuración explosionada completa como preajuste con nombre para cambiar al instante entre distintas disposiciones explosionadas.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_captured_steps.png" alt="Lista de pasos de explosión capturados con controles para reordenar" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:400px;">Captura: tutorial_15_captured_steps.png (500x400)</div>
+            <span class="screenshot-caption">Lista de pasos de explosión capturados con controles para reordenar</span>
+        </div>
+
+        <h2>Animar la explosión</h2>
+        <div class="step">
+            <div class="step-title">Paso 1: Modo de animación</div>
+            <div class="step-content">
+                • <b>Animación única (paralela):</b> todos los pasos capturados se animan a la vez<br/> • <b>Animación única (secuencial):</b> los pasos se reproducen uno tras otro<br/> • <b>Animaciones separadas:</b> cada paso se convierte en su propio clip de animación independiente
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Volver al inicio</div>
+            <div class="step-content">Active «Volver al inicio» para que la animación devuelva el ensamblaje a su posición original sin explosionar al final.</div>
+        </div>
+
+        <div class="note note-info">
+            Las configuraciones de vista explosionada, incluidos los preajustes y los pasos capturados, se guardan en su archivo de sesión <b>.mvf</b>.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson14.html' class='nav-button'>← Lección anterior</a>
+            <a href="index.html" class="back-to-index">↑ Volver al índice</a>
+            <a href='lesson16.html' class='nav-button'>Siguiente lección →</a>
+        </div>
+    </div>
+</body>
+</html>

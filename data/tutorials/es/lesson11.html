@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lección 11: Trabajar con la visibilidad - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primeros pasos</a>
+            <a href="lesson02.html">2. Abrir modelos</a>
+            <a href="lesson03.html">3. Navegación básica</a>
+            <a href="lesson04.html">4. Seleccionar objetos</a>
+            <a href="lesson05.html">5. Modos de vista</a>
+            <a href="lesson06.html">6. Modos de cámara</a>
+            <a href="lesson07.html">7. Modos de visualización</a>
+            <a href="lesson08.html">8. Manipular objetos</a>
+            <a href="lesson09.html">9. Materiales y texturas</a>
+            <a href="lesson10.html">10. Iluminación y entorno</a>
+            <a href="lesson11.html" class='active'>11. Trabajar con la visibilidad</a>
+            <a href="lesson12.html">12. Funciones avanzadas</a>
+            <a href="lesson13.html">13. Optimización del rendimiento</a>
+            <a href="lesson14.html">14. Consejos y flujos de trabajo</a>
+            <a href="lesson15.html">15. Vistas explosionadas</a>
+            <a href="lesson16.html">16. Animación de morph targets</a>
+            <a href="lesson17.html">17. Edición de la transformación de nodos</a>
+            <a href="lesson18.html">18. Renderizado de bordes y malla de alambre</a>
+            <a href="lesson19.html">19. Resultados de simulación</a>
+            <a href="lesson20.html">20. Mirar dentro de un resultado</a>
+            <a href="lesson21.html">21. Gráficos y sondeo</a>
+            <a href="lesson22.html">22. Comparar resultados, datos de celda y de lámina</a>
+            <a href="lesson23.html">23. Gráficos 3D a partir de datos CSV</a>
+            <a href="lesson24.html">24. Gráficos 3D a partir de fórmulas, rellenos, imágenes y notas</a>
+            <a href="lesson25.html">25. Gráficos y resultados reproducidos juntos</a>
+            <a href="lesson26.html">26. Herramientas de malla</a>
+            <a href="lesson27.html">27. Medir, anotar e informar</a>
+            <a href="lesson28.html">28. Análisis, selección y escenas</a>
+            <a href="lesson29.html">29. Trazado de rayos en la práctica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lección 11 de 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 37.93%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lección 11: Trabajar con la visibilidad</h1>
+        </div>
+
+        <h2>Introducción</h2>
+        <p>Gestionar la visibilidad de los objetos es crucial para trabajar con escenas complejas. ModelViewer ofrece varias formas de controlar qué se muestra y qué se oculta.</p>
+
+        <h2>Ocultar y mostrar básico</h2>
+        <p>Controle la visibilidad de objetos individuales:</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Usar las casillas de verificación</div>
+            <div class="step-content">En el árbol de modelos, cada objeto tiene una casilla. Marcada = visible, desmarcada = oculto.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Con el teclado</div>
+            <div class="step-content">Seleccione objetos y pulse <kbd>Espacio</kbd> para alternar su visibilidad.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Usar el menú contextual</div>
+            <div class="step-content">Haga clic derecho en los objetos seleccionados y elija «Ocultar» o «Mostrar».</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_11_checkboxes.png" alt="Árbol de modelos con algunas casillas marcadas y otras desmarcadas" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:400px;">Captura: tutorial_11_checkboxes.png (300x400)</div>
+            <span class="screenshot-caption">Árbol de modelos con algunas casillas marcadas y otras desmarcadas</span>
+        </div>
+
+        <div class="note note-info">
+            Los nodos de ensamblaje tienen casillas de <b>tres estados</b>: marcar o desmarcar un ensamblaje propaga esa visibilidad a todos los hijos que contiene, y un ensamblaje con una mezcla de hijos visibles y ocultos muestra un estado parcial (guion).
+        </div>
+
+        <h2>Mostrar solo lo seleccionado</h2>
+        <p>Concéntrese en objetos concretos:</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Seleccionar objetos</div>
+            <div class="step-content">Seleccione los objetos en los que quiere concentrarse.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Mostrar solo</div>
+            <div class="step-content">Pulse <kbd>Mayús+Espacio</kbd> o clic derecho → «Mostrar solo».</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Resultado</div>
+            <div class="step-content">Todos los demás objetos se ocultan y solo queda visible su selección.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_11_show_only.png" alt="Ensamblaje complejo con solo unas pocas piezas seleccionadas visibles" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Captura: tutorial_11_show_only.png (700x450)</div>
+            <span class="screenshot-caption">Ensamblaje complejo con solo unas pocas piezas seleccionadas visibles</span>
+        </div>
+
+        <div class="note note-tip">
+            Use «Mostrar solo» cuando trabaje en componentes concretos de ensamblajes grandes. Reduce el desorden visual y mejora el rendimiento.
+        </div>
+
+        <h2>Mostrar/ocultar todo</h2>
+        <p>Afecte rápidamente a todos los objetos:</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Mostrar todo</div>
+            <div class="step-content">Pulse <kbd>Mayús+A</kbd> o clic derecho → «Mostrar todo» para hacer visible todo.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Ocultar todo</div>
+            <div class="step-content">Pulse <kbd>Alt+A</kbd> o clic derecho → «Ocultar todo» para ocultar todo.</div>
+        </div>
+
+        <h2>Intercambiar los visibles</h2>
+        <p>Invierta el estado de visibilidad:</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Activar el intercambio</div>
+            <div class="step-content">Pulse <kbd>Alt+S</kbd> o haga clic en el botón «Intercambiar visibles» de la barra de herramientas.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Qué ocurre</div>
+            <div class="step-content">Los objetos actualmente visibles pasan a estar ocultos y los ocultos pasan a estar visibles.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Caso de uso</div>
+            <div class="step-content">Perfecto para inspeccionar las piezas internas de los ensamblajes o alternar entre distintas opciones de diseño.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_11_swap_visible.png" alt="Antes y después de intercambiar el estado de visibilidad" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:350px;">Captura: tutorial_11_swap_visible.png (700x350)</div>
+            <span class="screenshot-caption">Antes y después de intercambiar el estado de visibilidad</span>
+        </div>
+
+        <div class="note note-tip">
+            El botón «Intercambiar visibles» de la barra de herramientas muestra el estado actual. Cuando está activo, se muestran los objetos ocultos en lugar de los visibles.
+        </div>
+
+        <h2>Indicadores visuales</h2>
+        <p>Cómo saber qué está oculto:</p>
+        <ul>
+            <li>Los objetos ocultos aparecen atenuados en el árbol de modelos.</li>
+            <li>Las casillas de los objetos ocultos están desmarcadas.</li>
+            <li>Cuando «Intercambiar visibles» está activo, los papeles de visible/oculto se invierten.</li>
+        </ul>
+
+        <h2>Trabajar con objetos ocultos</h2>
+        <p>Los objetos ocultos siguen en memoria:</p>
+        <ul>
+            <li>Se pueden seleccionar desde el árbol de modelos.</li>
+            <li>Puede aplicar materiales, transformaciones, etc., a objetos ocultos.</li>
+            <li>Cuentan para el uso de memoria.</li>
+            <li>No afectan al rendimiento de renderizado (porque no se dibujan).</li>
+            <li>Use «Eliminar» para quitar realmente objetos de la escena.</li>
+        </ul>
+
+        <h2>Ejemplo de flujo de trabajo</h2>
+        <p><b>Escenario:</b> tiene un modelo de coche y quiere inspeccionar el motor.</p>
+        <ol>
+            <li>Seleccione todos los paneles de la carrocería (capó, aletas, puertas).</li>
+            <li>Pulse <kbd>Espacio</kbd> para ocultarlos.</li>
+            <li>El motor ya es visible y accesible.</li>
+            <li>Cuando termine, pulse <kbd>Mayús+A</kbd> para mostrar todo de nuevo.</li>
+        </ol>
+        <p><b>Enfoque alternativo:</b></p>
+        <ol>
+            <li>Seleccione solo los componentes del motor.</li>
+            <li>Pulse <kbd>Mayús+Espacio</kbd> para mostrar solo el motor.</li>
+            <li>Trabaje en el motor.</li>
+            <li>Pulse <kbd>Mayús+A</kbd> para mostrar todo de nuevo.</li>
+        </ol>
+
+        <div class="lesson-navigation">
+            <a href='lesson10.html' class='nav-button'>← Lección anterior</a>
+            <a href="index.html" class="back-to-index">↑ Volver al índice</a>
+            <a href='lesson12.html' class='nav-button'>Siguiente lección →</a>
+        </div>
+    </div>
+</body>
+</html>

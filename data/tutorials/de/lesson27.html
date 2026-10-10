@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lektion 27: Messen, Kommentieren und Berichten - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Anleitung</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Erste Schritte</a>
+            <a href="lesson02.html">2. Modelle öffnen</a>
+            <a href="lesson03.html">3. Grundlegende Navigation</a>
+            <a href="lesson04.html">4. Objekte auswählen</a>
+            <a href="lesson05.html">5. Ansichtsmodi</a>
+            <a href="lesson06.html">6. Kameramodi</a>
+            <a href="lesson07.html">7. Anzeigemodi</a>
+            <a href="lesson08.html">8. Objekte manipulieren</a>
+            <a href="lesson09.html">9. Materialien und Texturen</a>
+            <a href="lesson10.html">10. Beleuchtung und Umgebung</a>
+            <a href="lesson11.html">11. Arbeiten mit Sichtbarkeit</a>
+            <a href="lesson12.html">12. Erweiterte Funktionen</a>
+            <a href="lesson13.html">13. Leistungsoptimierung</a>
+            <a href="lesson14.html">14. Tipps und Workflows</a>
+            <a href="lesson15.html">15. Explosionsansichten</a>
+            <a href="lesson16.html">16. Morph-Target-Animation</a>
+            <a href="lesson17.html">17. Knotentransformation bearbeiten</a>
+            <a href="lesson18.html">18. Kanten- und Drahtgitter-Rendering</a>
+            <a href="lesson19.html">19. Simulationsergebnisse</a>
+            <a href="lesson20.html">20. Ins Innere eines Ergebnisses schauen</a>
+            <a href="lesson21.html">21. Diagramme und Sonden</a>
+            <a href="lesson22.html">22. Ergebnisse vergleichen, Zell- und Schalendaten</a>
+            <a href="lesson23.html">23. 3D-Diagramme aus CSV-Daten</a>
+            <a href="lesson24.html">24. 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</a>
+            <a href="lesson25.html">25. Diagramme und Ergebnisse gemeinsam abspielen</a>
+            <a href="lesson26.html">26. Mesh-Werkzeuge</a>
+            <a href="lesson27.html" class='active'>27. Messen, Kommentieren und Berichten</a>
+            <a href="lesson28.html">28. Analyse, Auswahl und Szenen</a>
+            <a href="lesson29.html">29. Raytracing in der Praxis</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lektion 27 von 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 93.1%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lektion 27: Messen, Kommentieren und Berichten</h1>
+        </div>
+
+        <h2>Einführung</h2>
+        <p>ModelViewer misst direkt am Modell: Punkte, Abstände, Winkel, Radien, Durchmesser, Flächen, Kantenlängen und den Abstand entlang einer Fläche. Sie können Haftnotiz-Kommentare am Modell hinterlassen und alles mit erfassten Ansichten in einen PDF-Bericht übernehmen. Diese Lektion behandelt die Werkzeuge in der Reihenfolge, wie oft Sie sie verwenden werden.</p>
+        <div class="note note-info">
+            Üben Sie an <code>bottle.step</code>, <code>CAD.step</code> oder dem Gabelstapler: STEP-, IGES- und BREP-Modelle tragen exakte Kanten und Flächen, sodass Radius- und Konzentrizitätswerkzeuge auf analytische Kreismittelpunkte einrasten können. Bei OBJ- und glTF-Meshes verwenden dieselben Werkzeuge die Mesh-Geometrie, und einige sind nicht verfügbar.
+        </div>
+        <h2>Ihre erste Messung</h2>
+        <div class="step">
+            <div class="step-title">Schritt 1: Den Dialog „Messen“ öffnen</div>
+            <div class="step-content">Wählen Sie <b>Werkzeuge → Messen...</b>. Dafür gibt es weder eine Symbolleistenschaltfläche noch ein Tastenkürzel.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Ein Werkzeug wählen und klicken</div>
+            <div class="step-content">Wählen Sie unter <b>Werkzeug:</b> <b>Abstand</b> und klicken Sie zwei Punkte am Modell an. Das Ergebnis erscheint in der Liste <b>Messungen:</b> und als Beschriftung mit Maßlinie am Modell.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Weitermachen oder abschließen</div>
+            <div class="step-content">Das Werkzeug bleibt für die nächste Messung aktiv. Bei Werkzeugen mit beliebig vielen Auswahlen (Teilkreis, Kettenlänge) drücken Sie <b>Eingabe</b> oder klicken auf <b>Abschließen</b>. Wählen Sie eine Messung in der Liste, um sie am Modell zu finden; <b>Löschen</b> entfernt sie.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_27_distance_measurement.png" alt="tutorial_27_distance_measurement.png" title="Capture: Open bottle.step, Tools &gt; Measure..., tool Distance, two clicks on the bottle; capture the model with its dimension label and the dialog with the Measurements list." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open bottle.step, Tools &gt; Measure..., tool Distance, two clicks on the bottle; capture the model with its dimension label and the dialog with the Measurements list." style="display:none; width:700px; height:450px;">Screenshot: tutorial_27_distance_measurement.png (700x450)</div>
+            <span class="screenshot-caption">Eine Abstandsmessung zwischen zwei Punkten an einem STEP-Modell, bei geöffnetem Dialog „Messen“</span>
+        </div>
+
+        <div class="note note-info">
+            Das Erstellen, Löschen und Verschieben einer Messung oder eines Kommentars lässt sich rückgängig machen; das Sichtbarkeits-Kontrollkästchen in der Liste nicht (wie die Mesh-Sichtbarkeit im Szenenbaum). Eine Messung wird live gegen das Mesh aufgelöst und bleibt daher korrekt, wenn Sie das Mesh später verschieben oder transformieren.
+        </div>
+        <h2>Die Werkzeuge</h2>
+        <p>Die Werkzeuge sind in <b>Punkt & Abstand</b>, <b>Bögen & Kreise</b>, <b>Flächen</b> und <b>Kanten</b> gruppiert.</p>
+        <table>
+            <thead><tr><th>Werkzeug</th><th>Auswahl</th><th>Was es misst</th></tr></thead>
+            <tbody>
+            <tr><td>Punkt</td><td>1 Klick</td><td>Die 3D-Koordinaten eines Punkts</td></tr>
+            <tr><td>Abstand</td><td>2 Klicks</td><td>Der geradlinige Abstand zwischen zwei Punkten, die auf verschiedenen Meshes liegen dürfen</td></tr>
+            <tr><td>Geodätischer Abstand</td><td>2 Klicks</td><td>Der Abstand ENTLANG der Fläche, zum Beispiel um ein gekrümmtes Teil herum; beide Punkte müssen auf demselben Mesh liegen</td></tr>
+            <tr><td>3-Punkt-Winkel</td><td>3 Klicks</td><td>Der Winkel am zuerst gewählten Eckpunkt zwischen den Strahlen zu den beiden anderen Punkten</td></tr>
+            </tbody>
+        </table>
+        <table>
+            <thead><tr><th>Werkzeug</th><th>Auswahl</th><th>Was es misst</th></tr></thead>
+            <tbody>
+            <tr><td>3-Punkt-Bogenradius</td><td>3 Klicks</td><td>Radius und Mittelpunkt eines Bogens durch drei Punkte auf seinem Rand</td></tr>
+            <tr><td>Mittelpunkt + 2-Punkt-Bogenradius</td><td>3 Klicks</td><td>Radius eines Bogens oder Lochs aus einem gewählten Mittelpunkt plus zwei Randpunkten; bei STEP/IGES/BREP rastet der Mittelpunkt auf den exakten Mittelpunkt ein, auch bei einem Durchgangsloch</td></tr>
+            <tr><td>Kantenradius</td><td>1 Klick</td><td>Exakter Radius, Mittelpunkt und Achse einer Kreiskante (Loch- oder Zapfenrand); nur STEP/IGES/BREP</td></tr>
+            <tr><td>Teilkreis</td><td>3+ Klicks, dann Eingabe/Abschließen</td><td>Durchmesser des am besten passenden Kreises durch drei oder mehr Lochmittelpunkte (ein Lochkreis) und der Winkel zwischen benachbarten Löchern</td></tr>
+            <tr><td>Konzentrizität</td><td>2 Klicks</td><td>Ob zwei Löcher oder Zapfen dieselbe Achse teilen: Abstand der Mittelpunkte und Winkel zwischen den Achsen; nur STEP/IGES/BREP</td></tr>
+            <tr><td>Zylindrischer/konischer Durchmesser</td><td>1 Klick auf die gekrümmte Fläche, nicht auf ihren Rand</td><td>Durchmesser eines Zylinders oder Kegels am gewählten Punkt (beim Kegel veränderlich); hat unten eigene Optionen</td></tr>
+            </tbody>
+        </table>
+        <table>
+            <thead><tr><th>Werkzeug</th><th>Auswahl</th><th>Was es misst</th></tr></thead>
+            <tbody>
+            <tr><td>Fläche zu Fläche</td><td>2 Klicks</td><td>Senkrechter Abstand zweier nahezu paralleler Flächen, sonst der Winkel zwischen ihnen</td></tr>
+            <tr><td>Punkt zu Fläche</td><td>2 Klicks</td><td>Senkrechter Abstand eines Punkts zur Ebene einer Fläche</td></tr>
+            <tr><td>Flächeninhalt</td><td>1 Klick</td><td>Flächeninhalt einer Fläche: das gewählte Dreieck plus jedes verbundene, koplanare Dreieck</td></tr>
+            <tr><td>Mindestabstand</td><td>2 Klicks</td><td>Echter Abstand der nächstgelegenen Punkte zweier Flächen; jede Auswahl wächst auf ihren gesamten glatten Bereich. Funktioniert auch auf einem Mesh, zum Beispiel für eine Wanddickenprüfung</td></tr>
+            </tbody>
+        </table>
+        <table>
+            <thead><tr><th>Werkzeug</th><th>Auswahl</th><th>Was es misst</th></tr></thead>
+            <tbody>
+            <tr><td>Kantenlänge</td><td>1 Klick</td><td>Länge einer Kante, gerade oder gekrümmt</td></tr>
+            <tr><td>Kante zu Eckpunkt</td><td>2 Klicks</td><td>Senkrechter Abstand eines Punkts zur Geraden einer Kante</td></tr>
+            <tr><td>Kante zu Kante</td><td>2 Klicks</td><td>Senkrechter Abstand zweier nahezu paralleler Kanten, sonst der Winkel; behandelt auch windschiefe Kanten (nur Winkel)</td></tr>
+            <tr><td>Kante zu Fläche</td><td>2 Klicks</td><td>Senkrechter Abstand einer Kante zur Ebene einer Fläche, sonst der Winkel</td></tr>
+            <tr><td>Kettenlänge</td><td>2+ Klicks, dann Eingabe/Abschließen</td><td>Gesamtlänge einer zusammenhängenden Kantenfolge - eine Schweißnaht oder ein geschlossener Umfang; jede neue Kante muss einen Endpunkt mit der bisherigen Kette teilen</td></tr>
+            </tbody>
+        </table>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_27_edge_radius_and_pitch.png" alt="tutorial_27_edge_radius_and_pitch.png" title="Capture: Open CAD.step (or any STEP part with holes), measure one hole with Edge Radius and a bolt-hole pattern with Pitch Circle (Enter to finish); capture the two labels on the part." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open CAD.step (or any STEP part with holes), measure one hole with Edge Radius and a bolt-hole pattern with Pitch Circle (Enter to finish); capture the two labels on the part." style="display:none; width:700px; height:450px;">Screenshot: tutorial_27_edge_radius_and_pitch.png (700x450)</div>
+            <span class="screenshot-caption">Ein Kantenradius und ein Teilkreis, an einem CAD-Teil gemessen</span>
+        </div>
+
+        <h2>Optionen für zylindrischen Durchmesser</h2>
+        <p>Solange <i>Zylindrischer/konischer Durchmesser</i> das aktive Werkzeug ist, justieren zusätzliche Optionen die Anpassung für Nicht-CAD-Meshes (nur für die Sitzung, nicht im Dokument gespeichert): <b>Winkeltoleranz</b> (standardmäßig 35 Grad), <b>Min. Regionsgröße</b> (24 Punkte) und <b>Min./Max. Durchmesser</b> (0 = kein Limit), um zu kleine oder zu große Anpassungen abzulehnen.</p>
+        <h2>Kommentare</h2>
+        <p>Ein Kommentar ist eine Freitext-Haftnotiz, die an einem Punkt auf einer Mesh-Fläche verankert und über eine Hinweislinie mit einem verschiebbaren Textfeld verbunden ist. Öffnen Sie ihn mit <b>Werkzeuge → Kommentieren...</b>. Messen und Kommentieren schließen sich gegenseitig aus: Das Aktivieren des einen deaktiviert das andere.</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Eine Notiz platzieren</div>
+            <div class="step-content">Der Dialog öffnet sich nicht aktiviert, was zum Durchsehen vorhandener Notizen nützlich ist. Klicken Sie auf <b>Notiz platzieren</b> und dann auf einen Punkt am Modell. Die Notiz erscheint mit dem markierten Standardtext „New Note“, den Sie sofort überschreiben können; das Werkzeug bleibt für weitere Notizen aktiv.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Bearbeiten, verschieben, löschen</div>
+            <div class="step-content">Wählen Sie eine Notiz in der Liste (oder klicken Sie sie im Ansichtsfenster an), um ihren Text zu bearbeiten oder sie zu <b>löschen</b>; ein Löschen mehrerer Notizen ist ein Rückgängig-Schritt. Ziehen Sie den Textrahmen einer Notiz, um Beschriftung und Hinweislinie unabhängig vom Ankerpunkt zu verschieben.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_27_annotations.png" alt="tutorial_27_annotations.png" title="Capture: Tools &gt; Annotate..., place two notes with meaningful text on a model (for example on the Forklift); capture the model with the two labels and leader lines plus the dialog list." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Tools &gt; Annotate..., place two notes with meaningful text on a model (for example on the Forklift); capture the model with the two labels and leader lines plus the dialog list." style="display:none; width:700px; height:450px;">Screenshot: tutorial_27_annotations.png (700x450)</div>
+            <span class="screenshot-caption">Zwei Kommentare an einem Modell, daneben der Dialog „Kommentieren“</span>
+        </div>
+
+        <h2>Bericht exportieren</h2>
+        <p><b>Werkzeuge → Bericht exportieren...</b> schreibt ein PDF aus erfassten Kameraansichten und optional einer Tabelle aller Messungen und Kommentare.</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Die Ansichten erfassen</div>
+            <div class="step-content">Richten Sie jede Ansicht ein, die im Bericht erscheinen soll, und klicken Sie im Kamerabereich auf <b>Ansicht erfassen</b>. Erfasste Ansichten erscheinen automatisch im Berichtsdialog.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Festlegen, was jede Ansicht zeigt</div>
+            <div class="step-content">Doppelklicken Sie auf eine erfasste Ansicht, um festzulegen, welche Messungen und Kommentare das Bild <i>dieser</i> Ansicht zeigt, unabhängig von ihrer Sichtbarkeit im Dokument. <b>Aktuelle Sichtbarkeit verwenden</b> hebt die Festlegung auf.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Die Tabelle einschließen und exportieren</div>
+            <div class="step-content">Aktivieren Sie <b>Mess-/Kommentartabelle einschließen</b>, um eine Tabelle aller Messungen und Kommentare anzuhängen, und exportieren Sie. Nach Abschluss werden die tatsächliche Sichtbarkeit des Dokuments und die Kamera des Ansichtsfensters exakt wie zuvor wiederhergestellt.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_27_report_dialog.png" alt="tutorial_27_report_dialog.png" title="Capture: Capture two views in the Cameras panel, then Tools &gt; Export Report...; capture the dialog with the two views listed and &quot;Include measurement/annotation table&quot; ticked." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Capture two views in the Cameras panel, then Tools &gt; Export Report...; capture the dialog with the two views listed and &quot;Include measurement/annotation table&quot; ticked." style="display:none; width:600px; height:450px;">Screenshot: tutorial_27_report_dialog.png (600x480)</div>
+            <span class="screenshot-caption">Der Dialog „Bericht exportieren“ mit zwei erfassten Ansichten und aktivierter Tabellenoption</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_27_report_pdf.png" alt="tutorial_27_report_pdf.png" title="Capture: Open the exported PDF in a viewer and capture one page showing a view with its labels and the measurement table." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open the exported PDF in a viewer and capture one page showing a view with its labels and the measurement table." style="display:none; width:700px; height:450px;">Screenshot: tutorial_27_report_pdf.png (700x500)</div>
+            <span class="screenshot-caption">Eine Seite des exportierten PDF-Berichts mit einer erfassten Ansicht und der Tabelle</span>
+        </div>
+
+        <div class="note note-warning">
+            Messungen und Kommentare werden nur im nativen <b>.mvf</b>-Sitzungsformat gespeichert. Sie werden nicht nach glTF oder GLB exportiert, die dafür kein Konzept haben - nehmen Sie sie stattdessen in einen Bericht auf.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson26.html' class='nav-button'>← Vorherige Lektion</a>
+            <a href="index.html" class="back-to-index">↑ Zurück zur Übersicht</a>
+            <a href='lesson28.html' class='nav-button'>Nächste Lektion →</a>
+        </div>
+    </div>
+</body>
+</html>

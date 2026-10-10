@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leçon 25 : Graphiques et résultats lus ensemble - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutoriel</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Premiers pas</a>
+            <a href="lesson02.html">2. Ouvrir des modèles</a>
+            <a href="lesson03.html">3. Navigation de base</a>
+            <a href="lesson04.html">4. Sélectionner des objets</a>
+            <a href="lesson05.html">5. Modes d'affichage</a>
+            <a href="lesson06.html">6. Modes de caméra</a>
+            <a href="lesson07.html">7. Modes d'affichage des objets</a>
+            <a href="lesson08.html">8. Manipuler des objets</a>
+            <a href="lesson09.html">9. Matériaux et textures</a>
+            <a href="lesson10.html">10. Éclairage et environnement</a>
+            <a href="lesson11.html">11. Travailler avec la visibilité</a>
+            <a href="lesson12.html">12. Fonctions avancées</a>
+            <a href="lesson13.html">13. Optimisation des performances</a>
+            <a href="lesson14.html">14. Conseils et flux de travail</a>
+            <a href="lesson15.html">15. Vues éclatées</a>
+            <a href="lesson16.html">16. Animation de morph targets</a>
+            <a href="lesson17.html">17. Édition de la transformation des nœuds</a>
+            <a href="lesson18.html">18. Rendu des arêtes et du fil de fer</a>
+            <a href="lesson19.html">19. Résultats de simulation</a>
+            <a href="lesson20.html">20. Regarder à l'intérieur d'un résultat</a>
+            <a href="lesson21.html">21. Graphiques et sondes</a>
+            <a href="lesson22.html">22. Comparer des résultats, données de cellule et de coque</a>
+            <a href="lesson23.html">23. Graphiques 3D à partir de données CSV</a>
+            <a href="lesson24.html">24. Graphiques 3D à partir de formules, remplissages, images et notes</a>
+            <a href="lesson25.html" class='active'>25. Graphiques et résultats lus ensemble</a>
+            <a href="lesson26.html">26. Outils de maillage</a>
+            <a href="lesson27.html">27. Mesurer, annoter et rapporter</a>
+            <a href="lesson28.html">28. Analyse, sélection et scènes</a>
+            <a href="lesson29.html">29. Lancer de rayons en pratique</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Leçon 25 sur 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 86.21%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Leçon 25 : Graphiques et résultats lus ensemble</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Les leçons 19 à 24 vous ont présenté séparément les résultats de simulation et les graphiques 3D. Ils vivent dans la même scène et, lorsque les deux évoluent dans le temps, une seule barre de lecture peut les piloter ensemble. Cette leçon suit des particules dans un écoulement dépendant du temps sous forme de <b>trajectoires</b>, les anime et les lit en phase avec un résultat.</p>
+        <h2>Trajectoires à partir d'une série temporelle CSV</h2>
+        <p>Une trajectoire est le parcours d'une particule emportée par un écoulement qui évolue dans le temps. Donnez à ModelViewer le champ de vitesse sur une grille régulière, avec des lignes de tableau pour chaque instant, et il libère des particules et intègre leurs trajets dans le champ changeant.</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Choisir la source</div>
+            <div class="step-content">Dans la boîte de dialogue Ajouter un graphique 3D, réglez <b>Source des données</b> sur <i>Série temporelle CSV (trajectoires)</i> et ouvrez <code>pathlines_double_gyre.csv</code> : le double tourbillon de Shadden, deux cellules contrarotatives dont la ligne de séparation oscille, échantillonné à 21 instants.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Vérifier les colonnes</div>
+            <div class="step-content"><b>Colonne du temps</b>, X, Y, un Z facultatif et U, V, W sont devinés d'après les noms d'en-tête (t ou time, x, u ...) et peuvent être modifiés. La ligne d'état indique soit que les lignes forment une grille complète et combien de points de départ et de segments en résultent, soit pourquoi le tableau est inutilisable.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Créer</div>
+            <div class="step-content">Cliquez sur <b>Aperçu</b>, puis sur <b>Créer le graphique</b>. Les traces sont des lignes colorées selon le temps, avec une légende allant de l'instant de départ à l'instant final. Les points de départ sont libérés le long de Y au milieu de la plage X.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_25_double_gyre_pathlines.png" alt="tutorial_25_double_gyre_pathlines.png" title="Capture: Build pathlines_double_gyre.csv (CSV time series), top view so the two cells and the folding trails are visible, legend showing the time range." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build pathlines_double_gyre.csv (CSV time series), top view so the two cells and the folding trails are visible, legend showing the time range." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_25_double_gyre_pathlines.png (700x450)</div>
+            <span class="screenshot-caption">Trajectoires du double tourbillon, colorées selon le temps</span>
+        </div>
+
+        <div class="note note-info">
+            <code>pathlines_rising_vortex_3d.csv</code> est une version 3D avec une colonne Z : une rotation dont le taux pulse dans le temps plus une vitesse verticale oscillante, de sorte que les trajectoires montent en tournant. Si vous supprimez une ligne d'une copie d'un tableau, la ligne d'état indique que ce n'est pas une grille complète et combien de lignes il faut.
+        </div>
+        <h2>Trajectoires à partir d'une formule</h2>
+        <p><i>Trajectoires par formule (dépendantes du temps)</i> ne nécessite aucun fichier : <b>u(x,y,z,t)</b>, <b>v(x,y,z,t)</b> et <b>w(x,y,z,t)</b> sont des expressions de la position <i>et du temps</i> ; les points de départ se règlent avec <b>Plage Y / échantillons</b> et l'intervalle de temps avec <b>Plage de T / pas</b>. Préréglages : Pulsating Vortex, Double Gyre, Travelling Wave et Oscillating Updraft.</p>
+        <div class="note note-warning">
+            Ici <b>t</b> est le <i>temps</i>. Dans <i>Lignes de courant par formule</i>, le champ est stationnaire et dans <i>Courbe paramétrique</i>, t n'est que le paramètre de la courbe ; ne les confondez pas.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_25_formula_pathlines.png" alt="tutorial_25_formula_pathlines.png" title="Capture: Add 3D Plot &gt; Formula pathlines (time-dependent) &gt; Pulsating Vortex; Build; top view with the time legend visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Add 3D Plot &gt; Formula pathlines (time-dependent) &gt; Pulsating Vortex; Build; top view with the time legend visible." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_25_formula_pathlines.png (700x450)</div>
+            <span class="screenshot-caption">Le préréglage Pulsating Vortex : des anneaux dont les bandes de couleur se resserrent là où la particule ralentit</span>
+        </div>
+
+        <h2>Animer les trajectoires</h2>
+        <div class="step">
+            <div class="step-title">Étape 1 : Sélectionner le graphique</div>
+            <div class="step-content">Choisissez le graphique de trajectoires dans <b>Graphique actif</b> de l'onglet Graphique 3D.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Cocher Animer les trajectoires</div>
+            <div class="step-content">Cochez <b>Animer les trajectoires (chronologie)</b>. Une chronologie apparaît en haut de la vue avec les commandes de la leçon 19. Tout le graphique est visible jusqu'à ce que vous appuyiez sur lecture ; depuis la fin, la lecture recommence.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Appuyer sur lecture</div>
+            <div class="step-content">Les traces ne sont dessinées que jusqu'à l'instant actuel, avec un point en tête de chacune, coloré selon l'instant actuel. Faites glisser le curseur d'avant en arrière, désactivez <b>Boucle</b> ou essayez les vitesses de 0,5x à 4x.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_25_animated_pathlines.png" alt="tutorial_25_animated_pathlines.png" title="Capture: Double gyre pathlines with Animate pathlines ticked, stopped at about t = 10 s; capture the viewport with the timeline bar at the top." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Double gyre pathlines with Animate pathlines ticked, stopped at about t = 10 s; capture the viewport with the timeline bar at the top." style="display:none; width:700px; height:420px;">Capture d&#x27;écran: tutorial_25_animated_pathlines.png (700x420)</div>
+            <span class="screenshot-caption">Trajectoires à mi-chemin de l&#x27;animation, avec leurs points de tête et la chronologie</span>
+        </div>
+
+        <div class="note note-info">
+            L'animation est une aide à la visualisation : elle n'est pas enregistrée avec le fichier et les points ne sont ni exportés ni calculés par lancer de rayons. Masquer le graphique dans l'arbre de la scène retire la chronologie et met la lecture en pause.
+        </div>
+        <h2>Une barre de lecture pour les deux</h2>
+        <p>La chronologie lit l'élément choisi dans la zone à sa gauche. La zone liste chaque résultat de simulation à plusieurs pas (<i>Simulation : nom</i>) et le graphique de trajectoires animé (<i>Pathlines : nom</i>) et, lorsque les deux peuvent être lus, <b>Tous ensemble</b>. Avec un seul élément lisible, la zone est masquée. Les légendes d'un résultat et d'un graphique s'empilent dans une colonne, chacune surmontée du nom de son propriétaire.</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Ouvrir le résultat de la cavité</div>
+            <div class="step-content">Ouvrez <code>sample-models/Simulation/openfoam_cavity/cavity.foam</code> et choisissez la magnitude de la vitesse (<b>U</b>, <b>Magnitude</b>) dans l'onglet Résultats de simulation.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Ajouter les trajectoires correspondantes</div>
+            <div class="step-content">Dans l'onglet Graphique 3D, choisissez <b>Ajouter un graphique 3D...</b>, source <i>Série temporelle CSV (trajectoires)</i>, ouvrez <code>pathlines_openfoam_cavity.csv</code> depuis <code>sample-models/Plot3D</code> et associez Temps = t, X = x, Y = y, Z = z, U = u, V = v, W = w. Ce fichier contient la vitesse au centre des cellules du même cas sur un plan juste au-dessus de sa face supérieure ; les deux partagent donc coordonnées et temps réel. Créez le graphique et masquez sa boîte des axes si elle encombre la vue.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Lire les deux</div>
+            <div class="step-content">Cochez <b>Animer les trajectoires (chronologie)</b>, choisissez <b>Tous ensemble</b> dans la zone de lecture et appuyez sur lecture. Les traces s'allongent pendant que le champ avance de 0 à 2 s ; la barre indique l'instant et le pas actuels, par exemple <i>t = 1 - pas 3 sur 5</i>. Les deux suivent le temps réel : le résultat conserve chaque pas jusqu'à l'instant du suivant.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_25_cavity_with_pathlines.png" alt="tutorial_25_cavity_with_pathlines.png" title="Capture: openfoam_cavity result plus pathlines_openfoam_cavity.csv pathlines, All together selected, paused at t = 1; capture the viewport including the timeline and the two stacked legends." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: openfoam_cavity result plus pathlines_openfoam_cavity.csv pathlines, All together selected, paused at t = 1; capture the viewport including the timeline and the two stacked legends." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_25_cavity_with_pathlines.png (700x450)</div>
+            <span class="screenshot-caption">Le résultat de la cavité et ses trajectoires lus ensemble, la zone de lecture indiquant Tous ensemble</span>
+        </div>
+
+        <div class="note note-warning">
+            Un résultat modal tel que <code>FEM_box_modes.frd</code>, dont les pas sont des fréquences en hertz, ne peut pas partager un axe de temps avec des trajectoires : <b>Tous ensemble</b> les lit alors selon la progression plutôt que selon le temps.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson24.html' class='nav-button'>← Leçon précédente</a>
+            <a href="index.html" class="back-to-index">↑ Retour à l'index</a>
+            <a href='lesson26.html' class='nav-button'>Leçon suivante →</a>
+        </div>
+    </div>
+</body>
+</html>

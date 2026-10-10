@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lektion 15: Explosionsansichten - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Anleitung</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Erste Schritte</a>
+            <a href="lesson02.html">2. Modelle öffnen</a>
+            <a href="lesson03.html">3. Grundlegende Navigation</a>
+            <a href="lesson04.html">4. Objekte auswählen</a>
+            <a href="lesson05.html">5. Ansichtsmodi</a>
+            <a href="lesson06.html">6. Kameramodi</a>
+            <a href="lesson07.html">7. Anzeigemodi</a>
+            <a href="lesson08.html">8. Objekte manipulieren</a>
+            <a href="lesson09.html">9. Materialien und Texturen</a>
+            <a href="lesson10.html">10. Beleuchtung und Umgebung</a>
+            <a href="lesson11.html">11. Arbeiten mit Sichtbarkeit</a>
+            <a href="lesson12.html">12. Erweiterte Funktionen</a>
+            <a href="lesson13.html">13. Leistungsoptimierung</a>
+            <a href="lesson14.html">14. Tipps und Workflows</a>
+            <a href="lesson15.html" class='active'>15. Explosionsansichten</a>
+            <a href="lesson16.html">16. Morph-Target-Animation</a>
+            <a href="lesson17.html">17. Knotentransformation bearbeiten</a>
+            <a href="lesson18.html">18. Kanten- und Drahtgitter-Rendering</a>
+            <a href="lesson19.html">19. Simulationsergebnisse</a>
+            <a href="lesson20.html">20. Ins Innere eines Ergebnisses schauen</a>
+            <a href="lesson21.html">21. Diagramme und Sonden</a>
+            <a href="lesson22.html">22. Ergebnisse vergleichen, Zell- und Schalendaten</a>
+            <a href="lesson23.html">23. 3D-Diagramme aus CSV-Daten</a>
+            <a href="lesson24.html">24. 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</a>
+            <a href="lesson25.html">25. Diagramme und Ergebnisse gemeinsam abspielen</a>
+            <a href="lesson26.html">26. Mesh-Werkzeuge</a>
+            <a href="lesson27.html">27. Messen, Kommentieren und Berichten</a>
+            <a href="lesson28.html">28. Analyse, Auswahl und Szenen</a>
+            <a href="lesson29.html">29. Raytracing in der Praxis</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lektion 15 von 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 51.72%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lektion 15: Explosionsansichten</h1>
+        </div>
+
+        <h2>Einführung</h2>
+        <p>Explosionsansichten ziehen die Teile einer Baugruppe entlang einer Achse oder radial von einem Mittelpunkt nach außen auseinander, damit Sie sehen, wie die Komponenten zusammenhängen, ohne etwas zu schneiden oder auszublenden. Dies ist eine gestufte, nicht-destruktive Ansicht - die echte Geometrie und die Transformationen Ihres Modells werden nie dauerhaft verändert.</p>
+
+        <h2>Den Bereich „Explosionsansicht“ öffnen</h2>
+        <div class="step">
+            <div class="step-title">Schritt 1: Den Bereich öffnen</div>
+            <div class="step-content">Öffnen Sie den Bereich „Explosionsansicht“ aus den rechten Seitenbereichen.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_panel_overview.png" alt="Der Bereich „Explosionsansicht“ mit Steuerelementen für Baugruppe, Anker, Modus und Abstand" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:500px;">Screenshot: tutorial_15_panel_overview.png (700x500)</div>
+            <span class="screenshot-caption">Der Bereich „Explosionsansicht“ mit Steuerelementen für Baugruppe, Anker, Modus und Abstand</span>
+        </div>
+
+        <h2>Eine Explosion einrichten</h2>
+        <div class="step">
+            <div class="step-title">Schritt 1: Baugruppe auswählen</div>
+            <div class="step-content">Verwenden Sie „Baugruppe auswählen“, um festzulegen, welche Objektgruppe auseinandergezogen wird.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Anker auswählen</div>
+            <div class="step-content">Der Anker ist das Teil, das an Ort und Stelle bleibt, während sich alles andere davon entfernt. Wählen Sie ihn mit „Anker auswählen“.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Explosionsmodus wählen</div>
+            <div class="step-content">
+                • <b>Auto (radial):</b> Teile bewegen sich automatisch vom Baugruppenzentrum nach außen<br/> • <b>Achse X / Achse Y / Achse Z:</b> Teile bewegen sich entlang einer einzelnen Weltachse<br/> • <b>Eigener Vektor:</b> Legen Sie Ihre eigene Richtung über die Vektorfelder X, Y, Z fest
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 4: Auto-Strategie</div>
+            <div class="step-content">Wählen Sie im Auto-Modus „Baugruppenbewusst“ (berücksichtigt die Gruppierung von Unterbaugruppen) oder „Klassisch“ (behandelt jedes Teil unabhängig).</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_mode_selection.png" alt="Dropdown-Menü des Explosionsmodus mit den Optionen Auto, Achse und Eigener Vektor" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:350px;">Screenshot: tutorial_15_mode_selection.png (500x350)</div>
+            <span class="screenshot-caption">Dropdown-Menü des Explosionsmodus mit den Optionen Auto, Achse und Eigener Vektor</span>
+        </div>
+
+        <h2>Den Explosionsabstand steuern</h2>
+        <div class="step">
+            <div class="step-title">Schritt 1: Abstandsregler</div>
+            <div class="step-content">Ziehen Sie den Explosionsregler, um zu steuern, wie weit die Teile auseinandergehen, angegeben in Prozent.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_distance_slider.png" alt="Baugruppe bei 0 %, 50 % und 100 % Explosionsabstand" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:400px;">Screenshot: tutorial_15_distance_slider.png (700x400)</div>
+            <span class="screenshot-caption">Baugruppe bei 0 %, 50 % und 100 % Explosionsabstand</span>
+        </div>
+
+        <div class="note note-tip">
+            Beginnen Sie mit einem kleinen Prozentwert und erhöhen Sie ihn schrittweise - so behalten Sie leichter den Überblick, welches Teil wohin gegangen ist.
+        </div>
+
+        <h2>Manuelle Platzierung</h2>
+        <p>Für Baugruppen, die ein von Hand gestaltetes Layout statt einer gleichmäßigen automatischen Explosion benötigen:</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Manuelle Platzierung starten</div>
+            <div class="step-content">Wählen Sie die Teile aus, die Sie neu positionieren möchten, und klicken Sie auf „Manuelle Platzierung starten“.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Mit dem Transformations-Gizmo neu positionieren</div>
+            <div class="step-content">Das Transformations-Gizmo auf dem Bildschirm erscheint an Ihrer Auswahl. Ziehen Sie seine Griffe, um die Teile in ihre gestufte Explosionsposition zu verschieben oder zu drehen - das verändert nicht die echte Transformation des Modells.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Abschließen oder zurücksetzen</div>
+            <div class="step-content">Klicken Sie auf „Manuelle Platzierung abschließen“, um die gestufte Position zu behalten, oder auf „Manuelle Platzierung löschen“, um sie zu verwerfen und neu zu beginnen.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_manual_placement.png" alt="Modus der manuellen Platzierung mit aktivem Transformations-Gizmo an einem ausgewählten Teil" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_15_manual_placement.png (700x450)</div>
+            <span class="screenshot-caption">Modus der manuellen Platzierung mit aktivem Transformations-Gizmo an einem ausgewählten Teil</span>
+        </div>
+
+        <h2>Schritte und Voreinstellungen erfassen</h2>
+        <div class="step">
+            <div class="step-title">Schritt 1: Erfassen</div>
+            <div class="step-content">Klicken Sie auf „Erfassen“, um die aktuelle Explosionsposition als Schritt der Sequenz aufzuzeichnen. Bauen Sie mehrere Schritte auf, um ein gestuftes, mehrteiliges Aufdecken zu erzeugen.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Schritte neu anordnen</div>
+            <div class="step-content">Verwenden Sie die Auf-/Ab-Pfeile neben der Liste der erfassten Schritte, um die Wiedergabereihenfolge zu ändern.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Voreinstellungen</div>
+            <div class="step-content">Speichern Sie eine komplette Explosionskonfiguration als benannte Voreinstellung, um sofort zwischen verschiedenen Explosionslayouts zu wechseln.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_15_captured_steps.png" alt="Liste erfasster Explosionsschritte mit Steuerelementen zum Umordnen" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:400px;">Screenshot: tutorial_15_captured_steps.png (500x400)</div>
+            <span class="screenshot-caption">Liste erfasster Explosionsschritte mit Steuerelementen zum Umordnen</span>
+        </div>
+
+        <h2>Die Explosion animieren</h2>
+        <div class="step">
+            <div class="step-title">Schritt 1: Animationsmodus</div>
+            <div class="step-content">
+                • <b>Einzelanimation (parallel):</b> Alle erfassten Schritte werden gleichzeitig animiert<br/> • <b>Einzelanimation (sequenziell):</b> Die Schritte laufen nacheinander ab<br/> • <b>Getrennte Animationen:</b> Jeder Schritt wird zu einem eigenen unabhängigen Animationsclip
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Rücklauf</div>
+            <div class="step-content">Aktivieren Sie „Rücklauf“, damit die Animation die Baugruppe am Ende in ihre ursprüngliche, nicht auseinandergezogene Position zurückführt.</div>
+        </div>
+
+        <div class="note note-info">
+            Explosionsansichts-Konfigurationen, einschließlich Voreinstellungen und erfasster Schritte, werden in Ihrer <b>.mvf</b>-Sitzungsdatei gespeichert.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson14.html' class='nav-button'>← Vorherige Lektion</a>
+            <a href="index.html" class="back-to-index">↑ Zurück zur Übersicht</a>
+            <a href='lesson16.html' class='nav-button'>Nächste Lektion →</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lección 14: Consejos y flujos de trabajo - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primeros pasos</a>
+            <a href="lesson02.html">2. Abrir modelos</a>
+            <a href="lesson03.html">3. Navegación básica</a>
+            <a href="lesson04.html">4. Seleccionar objetos</a>
+            <a href="lesson05.html">5. Modos de vista</a>
+            <a href="lesson06.html">6. Modos de cámara</a>
+            <a href="lesson07.html">7. Modos de visualización</a>
+            <a href="lesson08.html">8. Manipular objetos</a>
+            <a href="lesson09.html">9. Materiales y texturas</a>
+            <a href="lesson10.html">10. Iluminación y entorno</a>
+            <a href="lesson11.html">11. Trabajar con la visibilidad</a>
+            <a href="lesson12.html">12. Funciones avanzadas</a>
+            <a href="lesson13.html">13. Optimización del rendimiento</a>
+            <a href="lesson14.html" class='active'>14. Consejos y flujos de trabajo</a>
+            <a href="lesson15.html">15. Vistas explosionadas</a>
+            <a href="lesson16.html">16. Animación de morph targets</a>
+            <a href="lesson17.html">17. Edición de la transformación de nodos</a>
+            <a href="lesson18.html">18. Renderizado de bordes y malla de alambre</a>
+            <a href="lesson19.html">19. Resultados de simulación</a>
+            <a href="lesson20.html">20. Mirar dentro de un resultado</a>
+            <a href="lesson21.html">21. Gráficos y sondeo</a>
+            <a href="lesson22.html">22. Comparar resultados, datos de celda y de lámina</a>
+            <a href="lesson23.html">23. Gráficos 3D a partir de datos CSV</a>
+            <a href="lesson24.html">24. Gráficos 3D a partir de fórmulas, rellenos, imágenes y notas</a>
+            <a href="lesson25.html">25. Gráficos y resultados reproducidos juntos</a>
+            <a href="lesson26.html">26. Herramientas de malla</a>
+            <a href="lesson27.html">27. Medir, anotar e informar</a>
+            <a href="lesson28.html">28. Análisis, selección y escenas</a>
+            <a href="lesson29.html">29. Trazado de rayos en la práctica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lección 14 de 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 48.28%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lección 14: Consejos y flujos de trabajo</h1>
+        </div>
+
+        <h2>Introducción</h2>
+        <p>Esta lección final trata consejos útiles, atajos y flujos de trabajo profesionales que le harán más productivo en ModelViewer.</p>
+
+        <h2>Consejos de navegación</h2>
+        <ul>
+            <li><b>¿Perdido en el espacio?</b> Pulse <kbd>F</kbd> para ajustar al instante todos los objetos a la vista.</li>
+            <li><b>Desplazamiento rápido a un punto:</b> haga clic con el botón central (sin arrastrar) para recentrar la vista en un punto concreto.</li>
+            <li><b>Zoom hacia el ratón:</b> el zoom con la rueda se centra en la posición actual del cursor.</li>
+            <li><b>Inercia suave:</b> los gestos rápidos del ratón crean un movimiento inercial suave para una visualización fluida.</li>
+            <li><b>Detener el movimiento:</b> haga clic con cualquier botón del ratón para detener al instante el movimiento inercial.</li>
+        </ul>
+
+        <h2>Trucos de selección</h2>
+        <ul>
+            <li><b>Deseleccionar rápido:</b> pulse <kbd>Esc</kbd> para borrar todas las selecciones actuales.</li>
+            <li><b>Buscar objetos:</b> use el cuadro de búsqueda sobre el árbol de modelos para filtrar elementos por nombre; también coincide con nombres de ensamblajes y nodos raíz, no solo de mallas hoja.</li>
+            <li><b>Centrar en la selección:</b> clic derecho → «Centrar pantalla» para encuadrar solo los objetos seleccionados.</li>
+            <li><b>Desplazarse a la selección:</b> clic derecho → «Centrar lista de objetos» para desplazar automáticamente el árbol hasta el elemento seleccionado.</li>
+        </ul>
+
+        <h2>Flujos de trabajo de visibilidad</h2>
+        <ul>
+            <li><b>Enfoque rápido:</b> seleccione piezas y pulse <kbd>Mayús+Espacio</kbd> para aislarlas de inmediato.</li>
+            <li><b>Comparar alternativas:</b> oculte un diseño, trabaje en otro y luego use <kbd>Alt+S</kbd> para intercambiar la visibilidad y compararlos.</li>
+            <li><b>Revelado progresivo:</b> oculte todos los objetos y muestre los grupos uno por uno para comprender poco a poco los ensamblajes complejos.</li>
+        </ul>
+
+        <h2>Consejos de cámara y vista</h2>
+        <ul>
+            <li><b>Cambio rápido de cámara:</b> pulse <kbd>1</kbd>, <kbd>2</kbd> o <kbd>3</kbd> para cambiar al instante de modo de cámara.</li>
+            <li><b>Vistas estándar:</b> use los botones de la barra de herramientas para vistas instantáneas Superior, Frontal o Izquierda.</li>
+            <li><b>Vista de presentación:</b> combine la vista isométrica, la proyección en perspectiva y el modo realista.</li>
+            <li><b>Vista técnica:</b> use la vista frontal, la proyección ortográfica y el modo sombreado.</li>
+            <li><b>Vista de análisis:</b> use el modo Malla de alambre o Sombreado con malla para inspeccionar la topología de la malla.</li>
+        </ul>
+
+        <h2>Flujo de trabajo de materiales</h2>
+        <ol>
+            <li>Empiece con colores básicos en el <b>modo Sombreado</b>.</li>
+            <li>Cambie al <b>modo realista</b> para ver el renderizado PBR.</li>
+            <li>Ajuste los valores de <b>metálico y rugosidad</b> para definir los tipos de superficie.</li>
+            <li>Añada <b>texturas</b> (albedo, normales, rugosidad) para dar detalle.</li>
+            <li>Active <b>IBL</b> (iluminación basada en imágenes) para la iluminación ambiental final.</li>
+            <li>Ajuste con precisión la <b>exposición y el mapeo tonal</b> para el aspecto final.</li>
+        </ol>
+
+        <h2>Eficiencia con el teclado</h2>
+        <p>Domine estos atajos para lograr la máxima velocidad:</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Tarea</th>
+                    <th>Atajo</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Ajustar todo</td><td><kbd>F</kbd></td></tr>
+                <tr><td>Ocultar la selección</td><td><kbd>Espacio</kbd></td></tr>
+                <tr><td>Mostrar solo</td><td><kbd>Mayús+Espacio</kbd></td></tr>
+                <tr><td>Intercambiar visibles</td><td><kbd>Alt+S</kbd></td></tr>
+                <tr><td>Eliminar</td><td><kbd>Supr</kbd></td></tr>
+                <tr><td>Deseleccionar todo</td><td><kbd>Esc</kbd></td></tr>
+                <tr><td>Importar</td><td><kbd>Ctrl+I</kbd></td></tr>
+                <tr><td>Exportar</td><td><kbd>Ctrl+E</kbd></td></tr>
+                <tr><td>Modos de cámara</td><td><kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd></td></tr>
+            </tbody>
+        </table>
+
+        <h2>Flujos de trabajo profesionales</h2>
+        <h3>Inspección de ensamblajes mecánicos</h3>
+        <ol>
+            <li>Abra el ensamblaje en el <b>modo de varias vistas</b>.</li>
+            <li>Use <b>planos de corte</b> para ver los componentes internos.</li>
+            <li>Active <b>Sombreado con malla</b> para ver con claridad los límites de las piezas.</li>
+            <li>Use <b>«Mostrar solo»</b> para aislar subsistemas concretos y estudiarlos.</li>
+        </ol>
+
+        <h3>Recorrido arquitectónico</h3>
+        <ol>
+            <li>Cambie al <b>modo de cámara en primera persona</b> (<kbd>3</kbd>).</li>
+            <li>Active <b>IBL</b> con un entorno HDRI arquitectónico.</li>
+            <li>Active el <b>plano del suelo</b> y las <b>sombras</b>.</li>
+            <li>Use las teclas <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> para recorrer los espacios con naturalidad.</li>
+        </ol>
+
+        <h3>Renderizado de productos</h3>
+        <ol>
+            <li>Use el <b>modo de visualización realista</b>.</li>
+            <li>Ajuste con cuidado las propiedades del <b>material PBR</b>.</li>
+            <li>Active <b>IBL</b> con un mapa HDRI de iluminación de estudio.</li>
+            <li>Ajuste la <b>exposición</b> para obtener el brillo correcto.</li>
+            <li>Use el <b>plano del suelo</b> con los reflejos activados.</li>
+            <li>Encuadre la toma con la <b>proyección en perspectiva</b>.</li>
+        </ol>
+
+        <h2>Soluciones rápidas a problemas</h2>
+        <ul>
+            <li><b>Pantalla negra:</b> compruebe si el objeto aparece en el árbol de modelos; puede que necesite iluminación o esté colocado lejos de la cámara.</li>
+            <li><b>Texturas parpadeantes:</b> compruebe si existen UV; si no, pruebe «Generar UV».</li>
+            <li><b>Sombreado extraño:</b> active «Mostrar normales» para diagnosticar caras invertidas o problemas de normales.</li>
+            <li><b>No se puede seleccionar:</b> pulse <kbd>Esc</kbd> para cancelar cualquier modo de vista especial activo.</li>
+            <li><b>El modelo ha desaparecido:</b> pulse <kbd>F</kbd> para volver a ajustar todos los objetos a la vista.</li>
+            <li><b>Rendimiento lento:</b> cambie al modo Sombreado y oculte los objetos que no use.</li>
+        </ul>
+
+        <h2>Personalización</h2>
+        <ul>
+            <li><b>Color de fondo:</b> clic derecho → «Color de fondo» para fijar un color personalizado de la vista.</li>
+            <li><b>Tema:</b> vaya a Editar → Ajustes para alternar entre los temas Claro, Oscuro o del Sistema.</li>
+            <li><b>Idioma:</b> Editar → Ajustes para cambiar el idioma de la interfaz.</li>
+            <li><b>Calidad frente a rendimiento:</b> use Editar → Ajustes para regular MSAA y el filtrado anisotrópico.</li>
+        </ul>
+
+        <h2>Organización de archivos</h2>
+        <ul>
+            <li>Use el menú <b>Recientes</b> (Archivo → Recientes) para acceder rápidamente a su trabajo.</li>
+            <li>Guarde las sesiones de trabajo como archivos <b>.mvf</b> para conservar las posiciones de la cámara, la visibilidad y los ajustes.</li>
+            <li>Mantenga los <b>archivos de textura</b> en la misma carpeta que sus modelos para que las rutas se encuentren automáticamente.</li>
+            <li>Use <b>nombres descriptivos</b> en el árbol de modelos (doble clic para renombrar).</li>
+        </ul>
+
+        <h2>Aprender más</h2>
+        <ul>
+            <li><b>Menú Ayuda:</b> pulse <kbd>F1</kbd> o vaya a Ayuda → Ayuda rápida para una referencia instantánea.</li>
+            <li><b>Experimente:</b> pruebe todas las funciones con distintos modelos de prueba para ver cómo se comportan.</li>
+            <li><b>Ajustes:</b> explore Editar → Ajustes para ver otras opciones ocultas.</li>
+            <li><b>Menús contextuales:</b> haga clic derecho en todas partes para descubrir las opciones según el contexto.</li>
+        </ul>
+
+        <h2>Reflexiones finales</h2>
+        <p>ModelViewer es una herramienta potente con muchas funciones. La clave para dominarla es la práctica:</p>
+        <ul>
+            <li>Empiece con la navegación y la selección básicas.</li>
+            <li>Explore poco a poco los modos de visualización y de cámara.</li>
+            <li>Aprenda la gestión de la visibilidad para escenas complejas.</li>
+            <li>Experimente con materiales e iluminación.</li>
+            <li>Descubra sus propios flujos de trabajo.</li>
+        </ul>
+        <p><b>¡Ha completado el tutorial básico!</b> Ya tiene los conocimientos para usar ModelViewer eficazmente en el día a día. Las lecciones restantes tratan funciones más avanzadas y especializadas.</p>
+
+        <div class="lesson-navigation">
+            <a href='lesson13.html' class='nav-button'>← Lección anterior</a>
+            <a href="index.html" class="back-to-index">↑ Volver al índice</a>
+            <a href='lesson15.html' class='nav-button'>Siguiente lección →</a>
+        </div>
+    </div>
+</body>
+</html>

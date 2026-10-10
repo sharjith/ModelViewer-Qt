@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 21: Charts and Probing - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials &amp; Textures</a>
+            <a href="lesson10.html">10. Lighting &amp; Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips &amp; Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge &amp; Wireframe Rendering</a>
+            <a href="lesson19.html">19. Simulation Results</a>
+            <a href="lesson20.html">20. Looking Inside a Result</a>
+            <a href="lesson21.html" class='active'>21. Charts and Probing</a>
+            <a href="lesson22.html">22. Comparing Results, Cell and Shell Data</a>
+            <a href="lesson23.html">23. 3D Plots from CSV Data</a>
+            <a href="lesson24.html">24. 3D Plots from Formulas, Fills, Images and Notes</a>
+            <a href="lesson25.html">25. Plots and Results Played Together</a>
+            <a href="lesson26.html">26. Mesh Tools</a>
+            <a href="lesson27.html">27. Measure, Annotate and Report</a>
+            <a href="lesson28.html">28. Analysis, Selection and Scenes</a>
+            <a href="lesson29.html">29. Ray Tracing in Practice</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 21 of 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 72.41%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 21: Charts and Probing</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Colours tell you where a value is high or low; a chart tells you how much. This lesson reads values straight from the model, plots them over time, along a line and as a distribution, and compares a result with your own measured data.</p>
+        <div class="note note-info">
+            Samples used (in <code>sample-models/Simulation</code>): <code>FEM_box_thermal_transient.frd</code>, <code>thermal_probe_test.csv</code>, <code>FEM_box_modes.frd</code>, <code>FEM_box_modes_frf.csv</code>, <code>plate_with_hole.frd</code>.
+        </div>
+        <h2>Reading a Value</h2>
+        <p>Open <code>plate_with_hole.frd</code> and simply move the mouse over the plate: the value of the shown field at the cursor appears next to it, in the unit you set in Lesson 19.</p>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_21_hover_value.png" alt="tutorial_21_hover_value.png" title="Capture: Open plate_with_hole.frd, view face-on and hover next to the hole so the value readout is visible beside the cursor (the cursor must be in the picture if your capture tool allows it)." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open plate_with_hole.frd, view face-on and hover next to the hole so the value readout is visible beside the cursor (the cursor must be in the picture if your capture tool allows it)." style="display:none; width:700px; height:420px;">Screenshot: tutorial_21_hover_value.png (700x420)</div>
+            <span class="screenshot-caption">The value under the cursor, read directly from the plate</span>
+        </div>
+
+        <h2>Plot Over Time</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Open a transient result</div>
+            <div class="step-content">Open <code>FEM_box_thermal_transient.frd</code> and rotate until you can see the face opposite the heated one.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Right-click a point</div>
+            <div class="step-content">Right-click a point on the middle of that face and choose <b>Plot Over Time Here</b>. A chart opens at once with the history of that point.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Move through time from the chart</div>
+            <div class="step-content">The orange cursor marks the result's current step. Click or drag in the chart to move to the nearest step - the chart and the timeline drive each other.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_21_plot_over_time.png" alt="tutorial_21_plot_over_time.png" title="Capture: Open FEM_box_thermal_transient.frd, right-click the middle of the far face &gt; Plot Over Time Here, play to about step 10 and capture the chart window next to the viewport." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open FEM_box_thermal_transient.frd, right-click the middle of the far face &gt; Plot Over Time Here, play to about step 10 and capture the chart window next to the viewport." style="display:none; width:700px; height:450px;">Screenshot: tutorial_21_plot_over_time.png (700x450)</div>
+            <span class="screenshot-caption">A Plot Over Time chart with its orange cursor</span>
+        </div>
+
+        <div class="note note-info">
+            <b>Plot Over Time...</b> in the Simulation Results tab does the same after you click a point. Plot Over Time Here is not available while two results are compared (Lesson 22).
+        </div>
+        <h2>Comparing Several Points</h2>
+        <p>Right-click the chart and choose <b>Add a point from the model</b>, then click another point on the same result: its history joins the chart as another curve, named by its position, with a legend.</p>
+        <h2>Adding Your Own Data</h2>
+        <p>A chart can carry measured data next to the simulated curve. The CSV needs two columns, x then y, and a header row that names the curve. A header like <i>Name (unit)</i> gives the curve a unit; a curve whose unit differs from the main one (a temperature next to a stress) is drawn against a second axis on the right.</p>
+        <div class="step">
+            <div class="step-title">Step 1: Add the thermocouple readings</div>
+            <div class="step-content">With the chart from before open, right-click it, choose <b>Add curve from CSV...</b> and pick <code>thermal_probe_test.csv</code> - synthetic thermocouple readings for the middle of the far face.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Play and compare</div>
+            <div class="step-content">Press play on the timeline: the cursor travels along both curves. Your clicked point is not exactly the sample's, so the curves are close but not identical. <b>Remove added curves</b> clears the data again.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_21_csv_overlay.png" alt="tutorial_21_csv_overlay.png" title="Capture: Chart from the previous shot after Add curve from CSV (thermal_probe_test.csv): both curves and the legend visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Chart from the previous shot after Add curve from CSV (thermal_probe_test.csv): both curves and the legend visible." style="display:none; width:700px; height:450px;">Screenshot: tutorial_21_csv_overlay.png (700x450)</div>
+            <span class="screenshot-caption">The simulated history and the measured readings on one chart</span>
+        </div>
+
+        <h2>Frequency Response and Modes</h2>
+        <p>For a modal result the chart's x axis is the frequency of each mode. Open <code>FEM_box_modes.frd</code>, plot over time at any point, then add <code>FEM_box_modes_frf.csv</code>, a frequency-response curve with peaks at the six mode frequencies. Click on a peak and the result jumps to that mode.</p>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_21_frf_peaks.png" alt="tutorial_21_frf_peaks.png" title="Capture: Open FEM_box_modes.frd, Plot Over Time Here, add FEM_box_modes_frf.csv; capture the chart with the peaks and the orange cursor on one of them." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open FEM_box_modes.frd, Plot Over Time Here, add FEM_box_modes_frf.csv; capture the chart with the peaks and the orange cursor on one of them." style="display:none; width:700px; height:450px;">Screenshot: tutorial_21_frf_peaks.png (700x450)</div>
+            <span class="screenshot-caption">Mode frequencies on the x axis with the response curve and its peaks</span>
+        </div>
+
+        <h2>Plot Over Line and Distribution</h2>
+        <ul>
+            <li><b>Plot Over Line...</b>: click two points and the chart shows the field along the straight line between them - ideal for the stress across a plate from the hole's edge to the free edge. Try it on <code>plate_with_hole.frd</code>.</li>
+            <li><b>Distribution...</b>: a histogram of the field over the whole result - how much of the model is at low, medium and high values.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_21_plot_over_line.png" alt="tutorial_21_plot_over_line.png" title="Capture: Open plate_with_hole.frd, Plot Over Line... and click the edge of the hole then the plate edge; capture the chart showing the stress falling off from the hole." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open plate_with_hole.frd, Plot Over Line... and click the edge of the hole then the plate edge; capture the chart showing the stress falling off from the hole." style="display:none; width:700px; height:450px;">Screenshot: tutorial_21_plot_over_line.png (700x450)</div>
+            <span class="screenshot-caption">Stress along a line from the hole edge to the plate edge</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_21_distribution.png" alt="tutorial_21_distribution.png" title="Capture: plate_with_hole.frd, Field = von Mises, click Distribution... and capture the histogram window." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: plate_with_hole.frd, Field = von Mises, click Distribution... and capture the histogram window." style="display:none; width:600px; height:400px;">Screenshot: tutorial_21_distribution.png (600x400)</div>
+            <span class="screenshot-caption">A histogram of the von Mises field</span>
+        </div>
+
+        <h2>Working With a Chart</h2>
+        <table>
+            <thead><tr><th>Action</th><th>Result</th></tr></thead>
+            <tbody>
+            <tr><td>Mouse wheel</td><td>Zoom around the pointer</td></tr>
+            <tr><td>Shift + wheel / Ctrl + wheel</td><td>Zoom the x axis only / the y axis only</td></tr>
+            <tr><td>Middle button drag</td><td>Pan</td></tr>
+            <tr><td>Double-click</td><td>Reset the zoom (also right-click → Reset zoom)</td></tr>
+            <tr><td>Right-click → Save image...</td><td>Saves the chart as a PNG</td></tr>
+            <tr><td>Right-click → Export data (CSV)...</td><td>Writes one x, y column pair per curve; the header carries the unit</td></tr>
+            </tbody>
+        </table>
+        <div class="note note-tip">
+            An exported CSV can be added back to a chart later with <b>Add curve from CSV...</b> - handy for comparing two analysis runs.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson20.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson22.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>
