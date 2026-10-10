@@ -71,7 +71,7 @@ thermal_probe_test.csv        Synthetic "thermocouple" readings (time, temperatu
                               Plot over time, click near the middle of the far face (rotate to see it), right-click the chart >
                               Add curve from CSV, pick this file, then Play: the cursor travels along both curves; click the chart
                               to jump in time. Your clicked point is not exactly the sample's, so the curves are close, not identical.
-FEM_box_modes_frf.csv         A synthetic frequency-response curve (frequency_Hz, amplitude) with peaks at the six mode frequencies of
+FEM_box_modes_frf.csv         A synthetic frequency-response curve (frequency_Hz, amplitude (mm/N)) with peaks at the six mode frequencies of
                               FEM_box_modes.frd (54280, 54317, 73971, 128658, 143336, 143478 Hz; the close pairs merge into one
                               peak). Try: open FEM_box_modes.frd, Plot over time on any point (its x axis is the frequency of
                               each mode), add this curve, and click on a peak: the result jumps to that mode.

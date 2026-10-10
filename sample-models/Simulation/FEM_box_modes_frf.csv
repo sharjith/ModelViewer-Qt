@@ -1,4 +1,4 @@
-frequency_Hz,amplitude
+frequency_Hz,amplitude (mm/N)
 40000,0.4772
 40250,0.4808
 40500,0.4845
