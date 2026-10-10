@@ -2203,6 +2203,16 @@ Then remove the ones you don&apos;t want with each row&apos;s × button.</source
 <context>
     <name>MainWindow</name>
     <message>
+        <location filename="../ui/App/MainWindow.ui" line="1"/>
+        <source>What&apos;s New...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/App/MainWindow.ui" line="1"/>
+        <source>See what is new in this version</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../ui/App/MainWindow.ui" line="17"/>
         <source>3D Model Viewer</source>
         <translation></translation>
@@ -10107,6 +10117,206 @@ Z values are in that column (same X and Y).</source>
 </context>
 <context>
     <name>QuickHelpDialog</name>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>Simulation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>Simulation Results</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>Opening a result</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>&lt;p&gt;Use &lt;b&gt;File &amp;gt; Import&lt;/b&gt; to open a result in its own document, or &lt;b&gt;Visualization &amp;gt; Simulation &amp;gt; Add Result to This Document...&lt;/b&gt; to add one to the current document. Formats: VTK (.vtk, .vtu), CalculiX .frd, Exodus II, CGNS, MED, OpenFOAM (open the .foam file) and VTKHDF. The result is drawn as the model&apos;s outer surface, coloured by a field; the &lt;b&gt;Simulation&lt;/b&gt; tab (bottom-left dock) controls how.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>The Simulation tab</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Field&lt;/b&gt; and &lt;b&gt;Component&lt;/b&gt;: the field to colour by and one component or the magnitude; fields marked &lt;b&gt;[cells]&lt;/b&gt; are element data&lt;/li&gt;&lt;li&gt;&lt;b&gt;Range&lt;/b&gt;: Automatic (all steps), Automatic (this step) or Custom; &lt;b&gt;Colormap&lt;/b&gt; and &lt;b&gt;Contours&lt;/b&gt;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Show deformed shape&lt;/b&gt; with a &lt;b&gt;Scale factor&lt;/b&gt; (Auto picks one)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mark minimum and maximum&lt;/b&gt; labels the extremes on the visible surface&lt;/li&gt;&lt;li&gt;&lt;b&gt;Show vector arrows&lt;/b&gt; and &lt;b&gt;Show stress ellipsoids&lt;/b&gt; (choose the field, size and count)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Average cell data to nodes&lt;/b&gt; draws element data smooth instead of flat&lt;/li&gt;&lt;li&gt;&lt;b&gt;Quantity&lt;/b&gt; and &lt;b&gt;Values are in&lt;/b&gt; set the unit when the file does not state one&lt;/li&gt;&lt;/ul&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>Time steps</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>&lt;p&gt;A result with several steps shows a timeline at the top of the viewport: play, step and stop. By default the colour range covers all steps, so the frames stay comparable; choose &lt;b&gt;Automatic (this step)&lt;/b&gt; or &lt;b&gt;Custom&lt;/b&gt; under &lt;b&gt;Range&lt;/b&gt; to change that. A chart&apos;s time cursor and the timeline drive each other.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>Looking inside</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Sections&lt;/b&gt;: the Clipping Planes cut the result; tick &lt;b&gt;Colour the Clipping Plane cut with the field&lt;/b&gt; to colour the cut&lt;/li&gt;&lt;li&gt;&lt;b&gt;Show iso-surfaces&lt;/b&gt;: choose the &lt;b&gt;Iso-surface field&lt;/b&gt; and the number of levels&lt;/li&gt;&lt;li&gt;&lt;b&gt;Show streamlines&lt;/b&gt;: choose the field and the number of seeds, optionally &lt;b&gt;Seed on the Clipping Plane&lt;/b&gt;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Show as volume&lt;/b&gt;: direct volume rendering of a field, with a quality setting and an opacity curve&lt;/li&gt;&lt;/ul&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>Probing and charts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>&lt;ul&gt;&lt;li&gt;Hover over the result to read the value at the cursor; right-click a point and choose &lt;b&gt;Plot Over Time Here&lt;/b&gt; for a quick history&lt;/li&gt;&lt;li&gt;&lt;b&gt;Plot Over Line...&lt;/b&gt; (pick two points) and &lt;b&gt;Plot Over Time...&lt;/b&gt; (pick one point) open a chart; &lt;b&gt;Distribution...&lt;/b&gt; shows a histogram of the field&lt;/li&gt;&lt;li&gt;In a chart: the mouse wheel zooms (Shift: x only, Ctrl: y only), the middle button pans, a double-click resets; the orange cursor marks the current step, click or drag to move it&lt;/li&gt;&lt;li&gt;Right-click a chart: &lt;b&gt;Add a point from the model&lt;/b&gt;, &lt;b&gt;Add curve from CSV...&lt;/b&gt; (a header like &lt;i&gt;Name (unit)&lt;/i&gt; gives the curve a unit; a different unit gets a second axis), &lt;b&gt;Save image...&lt;/b&gt;, &lt;b&gt;Export data (CSV)...&lt;/b&gt;&lt;/li&gt;&lt;/ul&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>Comparing and saving</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>&lt;p&gt;&lt;b&gt;Compare&lt;/b&gt; (or &lt;b&gt;Visualization &amp;gt; Simulation &amp;gt; Compare Results...&lt;/b&gt;) shows two results side by side or stacked; &lt;b&gt;Same colour range for both&lt;/b&gt; makes equal colours mean equal values and &lt;b&gt;Link the cameras&lt;/b&gt; keeps both views in step. A result is stored inside a &lt;b&gt;.mvf&lt;/b&gt; session together with its view settings, sections, iso-surfaces and streamlines. Results are not drawn by the ray tracer; PBR and ray-tracing modes add little for them.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>3D Plots</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>3D Data Plots</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>Adding a plot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>&lt;p&gt;&lt;b&gt;Visualization &amp;gt; Plot 3D...&lt;/b&gt; (or &lt;b&gt;Add 3D Plot...&lt;/b&gt; in the &lt;b&gt;3D Plot&lt;/b&gt; tab) opens the dialog. Pick a &lt;b&gt;Data source&lt;/b&gt;: a CSV file or pasted data, a formula (surface, parametric surface or curve, vector field, implicit surface, streamlines, pathlines), a CSV time series (pathlines) or an image on a plane. Plot types: Surface, Contour, Line / Curve, Scatter, Bar / Histogram, Voxel / Volumetric and vector (Quiver). &lt;b&gt;Preview&lt;/b&gt; shows the plot before &lt;b&gt;Build&lt;/b&gt; adds it.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>Columns and options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>&lt;ul&gt;&lt;li&gt;Map the table&apos;s columns to &lt;b&gt;X&lt;/b&gt;, &lt;b&gt;Y&lt;/b&gt;, &lt;b&gt;Z&lt;/b&gt; and an optional colour &lt;b&gt;value&lt;/b&gt;; vectors use &lt;b&gt;U, V, W&lt;/b&gt;; bars have &lt;b&gt;Base&lt;/b&gt;, &lt;b&gt;Width&lt;/b&gt; and &lt;b&gt;Depth&lt;/b&gt;&lt;/li&gt;&lt;li&gt;Scatter: draw &lt;b&gt;stems to Base Z&lt;/b&gt;, show &lt;b&gt;error bars&lt;/b&gt;, or &lt;b&gt;fill to Base Z&lt;/b&gt;&lt;/li&gt;&lt;li&gt;Line and scatter: &lt;b&gt;Fill to Base Z&lt;/b&gt;, or fill &lt;b&gt;between the plot and a column&lt;/b&gt; holding a second curve&apos;s Z values; a parametric curve can fill up to a second z(t)&lt;/li&gt;&lt;li&gt;An image on a plane has an &lt;b&gt;Opacity&lt;/b&gt; and &lt;b&gt;Readable from behind&lt;/b&gt; (for an opaque picture)&lt;/li&gt;&lt;/ul&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>The 3D Plot tab</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>&lt;p&gt;Choose the &lt;b&gt;Active plot&lt;/b&gt;, then change its &lt;b&gt;Title&lt;/b&gt;, &lt;b&gt;Colour map&lt;/b&gt;, &lt;b&gt;Colour bands&lt;/b&gt; and colour range (&lt;b&gt;Automatic colour range&lt;/b&gt; or a fixed one), &lt;b&gt;Line width&lt;/b&gt;, &lt;b&gt;Marker size&lt;/b&gt;, &lt;b&gt;Arrow size&lt;/b&gt;, bar &lt;b&gt;width&lt;/b&gt; and &lt;b&gt;depth&lt;/b&gt;, &lt;b&gt;Contour levels&lt;/b&gt; and &lt;b&gt;Contour lines&lt;/b&gt; (on the surface or on the base plane). &lt;b&gt;Show axes box&lt;/b&gt; and the reference &lt;b&gt;Planes&lt;/b&gt; (XY, XZ, YZ) frame the plot. &lt;b&gt;Edit Plot...&lt;/b&gt; reopens a plot&apos;s definition: change the data, columns or formulas and rebuild it in place.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>Shared axes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>&lt;p&gt;All plots in the document share one set of axes. Under &lt;b&gt;Axes&lt;/b&gt; set each axis&apos; label, &lt;b&gt;Axis scale&lt;/b&gt; (&lt;b&gt;Linear&lt;/b&gt;, &lt;b&gt;Log 10&lt;/b&gt; or &lt;b&gt;SymLog&lt;/b&gt;), range and tick count; every plot is re-laid out together, arrows are re-aimed and voxel grids resampled to follow the scale. A Log 10 axis needs the data of every plot above zero; if a plot added later cannot be shown on a Log 10 axis, that axis returns to Linear.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>Notes and probing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Text notes&lt;/b&gt;: click &lt;b&gt;Place note&lt;/b&gt; and click a point on the plot (or &lt;b&gt;Add at centre&lt;/b&gt;); drag a note to move it, double-click to edit, right-click to delete; all of it can be undone&lt;/li&gt;&lt;li&gt;&lt;b&gt;Show section curves on hover&lt;/b&gt; (surfaces): the curves where the X, Y and Z planes through the cursor cut the surface, with the point&apos;s data values&lt;/li&gt;&lt;li&gt;&lt;b&gt;Animate pathlines (timeline)&lt;/b&gt; plays pathline plots over time, together with a simulation result&lt;/li&gt;&lt;/ul&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>Saving and exporting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>&lt;p&gt;Plots are stored in the &lt;b&gt;.mvf&lt;/b&gt; session with their data, definition, axes and notes. Point and line plots export to glTF, GLB and OBJ with the rest of the scene. Plots are not drawn by the ray tracer.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>Analysis &amp;&amp; Scenes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>Analysis, Scenes and Rendering</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>Surface Analysis</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>&lt;p&gt;&lt;b&gt;Tools &amp;gt; Surface Analysis...&lt;/b&gt; colours the selected meshes: &lt;b&gt;Draft Angle&lt;/b&gt; against a &lt;b&gt;Pull direction&lt;/b&gt;, &lt;b&gt;Zebra Stripe&lt;/b&gt;, &lt;b&gt;Mean Curvature&lt;/b&gt;, &lt;b&gt;Wall-Thickness&lt;/b&gt; (methods: &lt;i&gt;Inscribed sphere&lt;/i&gt;, &lt;i&gt;Local thickness (rays)&lt;/i&gt;, &lt;i&gt;Normal ray (fast)&lt;/i&gt;; highlight walls thinner than a limit) and &lt;b&gt;Deviation&lt;/b&gt; from a reference mesh. &lt;b&gt;Show Readout on Hover&lt;/b&gt; prints the value under the cursor; &lt;b&gt;Clear Overlay&lt;/b&gt; removes every analysis colour.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>Mass Properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>&lt;p&gt;&lt;b&gt;Tools &amp;gt; Mass Properties...&lt;/b&gt; lists volume, mass and centre of gravity per mesh and per material. The density comes from the material&apos;s &lt;b&gt;Physical Properties&lt;/b&gt; tab. The table can be searched and sorted; the row menu has &lt;b&gt;Show Only&lt;/b&gt;, and selecting a row selects the mesh in the viewer. Open (shell) surfaces use a shell thickness.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>Selection tools</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>&lt;p&gt;The &lt;b&gt;Selection&lt;/b&gt; menu has &lt;b&gt;Lasso&lt;/b&gt;, &lt;b&gt;Filter by Material&lt;/b&gt;, &lt;b&gt;Filter by Colour&lt;/b&gt; and &lt;b&gt;Filter by Bounding Box&lt;/b&gt; (a draggable box gizmo), plus named selection sets. The &lt;b&gt;Material Eyedropper / Brush&lt;/b&gt; picks a material from one mesh and paints it onto others.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>Scene States and batch rendering</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>&lt;p&gt;&lt;b&gt;Selection &amp;gt; Save Scene State...&lt;/b&gt; stores a named state: camera, which meshes are visible, the selection and the presentation settings; the &lt;b&gt;States&lt;/b&gt; panel recalls it in one click. &lt;b&gt;Tools &amp;gt; Batch Render Views...&lt;/b&gt; renders the checked captured views to a folder (PNG, JPEG, BMP, TIFF or OpenEXR, at the resolution you set) with the ray tracer.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>Ray Tracing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/QuickHelpDialogResults.cpp" line="1"/>
+        <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Visualization &amp;gt; Ray Tracing...&lt;/b&gt; opens the Ray Tracing dialog (Basic, Advanced and Diagnostics tabs); &lt;b&gt;View &amp;gt; Rendering Mode&lt;/b&gt; switches the viewport to a live ray-traced view&lt;/li&gt;&lt;li&gt;Two engines: the &lt;b&gt;CPU&lt;/b&gt; engine (Embree) runs everywhere; the &lt;b&gt;GPU&lt;/b&gt; engine (NVIDIA OptiX) needs an NVIDIA GPU and a build with OptiX - the About dialog says whether it is enabled&lt;/li&gt;&lt;li&gt;Progressive rendering with denoising (Intel OIDN, on the CPU or the GPU); materials, environment lighting and the shadow-catcher floor follow the raster viewer&lt;/li&gt;&lt;li&gt;&lt;b&gt;Export Ray-Traced Image&lt;/b&gt; saves PNG, JPEG, BMP, TIFF or OpenEXR at any resolution&lt;/li&gt;&lt;li&gt;Simulation results and 3D plots are not drawn by the ray tracer&lt;/li&gt;&lt;/ul&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
     <message>
         <location filename="../src/App/QuickHelpDialog.cpp" line="126"/>
         <source>Quick Help - ModelViewer</source>
@@ -19587,6 +19797,170 @@ instead of a plain color</source>
     <message>
         <location filename="../src/Import/XCAFVRMLProcessor.cxx" line="89"/>
         <source>Traversing assembly and building scene...</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>WhatsNewDialog</name>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>What&apos;s New</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Show this window after an update</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Open What&apos;s New once when a new version starts for the first time.
+It is always available under Help &gt; What&apos;s New.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Open Tutorial</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Quick Help</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Close</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>What&apos;s new in ModelViewer %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>This is the biggest release so far. The tutorial has a lesson for each of the new areas.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Ray Tracing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>A CPU and a GPU (NVIDIA OptiX) ray tracer draws the scene with physically based materials, environment lighting and soft shadows, with denoising and offline export at any size.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Visualization &gt; Ray Tracing...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Simulation results</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Open FEM and CFD results (VTK, CalculiX, Exodus, CGNS, MED, OpenFOAM, VTKHDF), colour them by any field, play the time steps, probe, cut and chart them, and compare two results side by side.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>File &gt; Import, Visualization &gt; Simulation, and the Simulation tab</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>3D data plotting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Plot CSV data or formulas as surfaces, contours, lines, scatter, bars, voxels, vector fields and pathlines, on shared linear, log or symlog axes, with text notes and fills.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Visualization &gt; Plot 3D... and the 3D Plot tab</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Measure and annotate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Measure distances, angles, radii, diameters, areas and geodesic distances directly on the model, add annotations and export a PDF report.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Tools &gt; Measure... and Annotate...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Mesh tools</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Union, shrink-wrap, subdivide, reconstruct from points, repair and fill holes, split, merge and group meshes, and generate UVs.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>The Tools menu and the Tools toolbar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Analysis</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Check draft angle, zebra stripes, curvature, wall thickness and deviation, and get volume, mass and centre of gravity per mesh and material.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Tools &gt; Surface Analysis... and Mass Properties...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Selection and scenes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Select with a lasso or by material, colour or box, use the material eyedropper, keep named selection sets and scene states, and render several views in one batch.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>The Selection menu and Tools &gt; Batch Render Views...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Interface</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>Tabbed toolbars, a seamless navigation panel, clipping planes with a draggable gizmo and a box mode, oblique projections, and German, Spanish, French and Italian translations.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/WhatsNewDialog.cpp" line="1"/>
+        <source>The View and Tools menus</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
