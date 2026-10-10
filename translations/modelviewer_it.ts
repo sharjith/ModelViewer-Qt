@@ -7020,6 +7020,11 @@ da aggiungere dalla scena/albero</translation>
 <context>
     <name>ModelViewer</name>
     <message>
+        <location filename="../src/Plot3D/UI/ModelViewerPlot3D.cpp" line="1"/>
+        <source>The %1 axis was returned to Linear: a plot&apos;s values there reach zero or below, which a Log 10 axis cannot show.</source>
+        <translation>L&apos;asse %1 è tornato a Lineare: i valori di un grafico arrivano a zero o meno, cosa che un asse Log 10 non può mostrare.</translation>
+    </message>
+    <message>
         <location filename="../ui/App/ModelViewer.ui" line="24"/>
         <source>Session 1</source>
         <translation>Sessione 1</translation>
@@ -9560,6 +9565,11 @@ La superficie viene mostrata con i colori che aveva al momento del salvataggio.<
 <context>
     <name>Plot3DControlsPanel</name>
     <message>
+        <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="1"/>
+        <source>The axes are shared: every plot in the box is drawn with these scales, ranges and labels.</source>
+        <translation>Gli assi sono condivisi: ogni grafico nel riquadro è disegnato con queste scale, intervalli ed etichette.</translation>
+    </message>
+    <message>
         <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="300"/>
         <source>Add 3D Plot...</source>
         <translation>Aggiungi grafico 3D...</translation>
@@ -9849,8 +9859,8 @@ doppio clic per modificarne il testo, clic destro per eliminarla.</translation>
     </message>
     <message>
         <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="665"/>
-        <source>These axis settings were not applied: the range is not valid for the selected scale (a Log 10 axis needs a range above zero).</source>
-        <translation>Queste impostazioni dell&apos;asse non sono state applicate: l&apos;intervallo non è valido per la scala selezionata (un asse Log 10 richiede un intervallo maggiore di zero).</translation>
+        <source>These axis settings were not applied: they cannot be drawn for every plot in the box (a Log 10 axis needs a range above zero and the data of every plot above zero).</source>
+        <translation>Queste impostazioni degli assi non sono state applicate: non possono essere disegnate per ogni grafico nel riquadro (un asse Log 10 richiede un intervallo sopra lo zero e i dati di ogni grafico sopra lo zero).</translation>
     </message>
     <message>
         <location filename="../src/Plot3D/UI/Plot3DControlsPanel.cpp" line="316"/>
@@ -9944,6 +9954,11 @@ Sono disegnate nel riquadro degli assi, quindi seguono la visibilità e gli assi
 </context>
 <context>
     <name>Plot3DPanel</name>
+    <message>
+        <location filename="../src/Plot3D/UI/Plot3DAssembly.cpp" line="1"/>
+        <source>The voxel grid cannot be placed on the current axes.</source>
+        <translation>La griglia di voxel non può essere collocata sugli assi attuali.</translation>
+    </message>
     <message>
         <location filename="../src/Plot3D/UI/Plot3DPanel.cpp" line="1"/>
         <source>Opacity:</source>
