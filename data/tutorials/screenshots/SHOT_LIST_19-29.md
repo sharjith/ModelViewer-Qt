@@ -71,7 +71,7 @@ Capture in the English UI; the translated lessons share the same pictures.
   *A scatter, a bar chart and a vector field built into one scene*
 - [ ] `tutorial_23_plot_tab.png` (420x560) - With the ripple surface selected, crop the 3D Plot tab from Active plot down to the plane options.  
   *The 3D Plot tab with the controls of the active plot*
-- [ ] `tutorial_23_contours_and_sections.png` (700x450) - Ripple surface with Contour lines = On the base plane (about 10 levels) and Show section curves on hover on; hover near a ring of the ripple so the red/green/blue curves and the data readout show.  
+- [ ] `tutorial_23_contours_and_sections.png` (700x450) - Rosenbrock Function (formula surface preset) with Contour lines = On the base plane (about 10 levels) and Show section curves on hover on; hover near a ring of the ripple so the red/green/blue curves and the data readout show.  
   *Contour lines on the base plane and the section curves through the hovered point*
 - [ ] `tutorial_23_voxel_sphere.png` (700x450) - Build voxel_sphere.csv (Voxel / Volumetric, X/Y/Z = i/j/k, Colour value = occupancy) and capture the cloud from an isometric view.  
   *voxel_sphere.csv drawn as a semi-transparent sphere*
