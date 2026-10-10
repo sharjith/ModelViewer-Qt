@@ -1,0 +1,53 @@
+<h1 class="chapter">Guardare dentro un risultato</h1>
+
+<p>La superficie di un solido mostra solo metà della storia: la tensione più alta è spesso all'interno di una sezione, la regione più calda sotto la pelle, il flusso più veloce al centro di un condotto. ModelViewer offre sei modi per guardare dentro, dal più semplice (un taglio) al più specializzato (tensori di tensione come glifi). I primi quattro richiedono <b>celle di volume</b> (tetraedri, esaedri, prismi, piramidi, poliedri); su un risultato a guscio il pannello indica che non c'è nulla da tagliare o seguire. Tutti e sei sono <b>sovrapposizioni</b>: vengono disegnate con il risultato ma non sono mesh della scena, quindi non possono essere selezionate, esportate o disegnate dal ray tracer.</p>
+
+<h2>Sezioni: il taglio colorato secondo il campo</h2>
+<p>I piani di taglio (il pulsante Vista in sezione della barra degli strumenti Vista; vedi la lezione 12 del tutorial) tagliano un risultato come qualsiasi modello. Spunta <span class="ui">Colora il taglio del piano di taglio con il campo</span> e la faccia di taglio mostra il campo visualizzato - con i colori della legenda - invece di una cavità vuota. Il taglio colorato segue il piano mentre lo sposti.</p>
+<ul>
+  <li>Funziona con un campo nodale (continuo) e con un campo di cella (piatto per cella).</li>
+  <li>Con più piani attivi, il taglio di un piano viene mantenuto solo dove ogni altro piano ha rimosso il materiale, così i tagli stanno sempre sul bordo di ciò che resta.</li>
+  <li>Partecipano solo i piani allineati agli assi, non la modalità a scatola né i piani personalizzati.</li>
+  <li>Il taglio viene calcolato sulle celle di volume e i poliedri concavi sono supportati.</li>
+</ul>
+<figure data-img="tutorial_20_coloured_section.png"><figcaption>Una scatola tagliata da un piano di taglio, con la faccia di taglio colorata secondo la tensione</figcaption></figure>
+
+<h2>Isosuperfici</h2>
+<p>Un'<b>isosuperficie</b> è la superficie su cui un campo ha un valore costante - un guscio di uguale temperatura, uno strato di uguale tensione. <span class="ui">Mostra isosuperfici</span> ne disegna un insieme per il <span class="ui">Campo delle isosuperfici</span> (uno scalare nodale o l'intensità di un vettore nodale), con <span class="ui">Livelli delle isosuperfici</span> da 1 a 20, distribuiti uniformemente strettamente all'interno dell'intervallo del campo al passo corrente, ciascuno con il proprio colore. Un campo costante non ha isosuperficie; la riga di informazioni lo dice.</p>
+<ul>
+  <li>Le isosuperfici stanno all'interno del modello, quindi si vedono attraverso un taglio. Attiva un piano di taglio: il tappo della sezione resta aperto finché sono mostrate isosuperfici, perché un tappo opaco le nasconderebbe. Il taglio colorato opaco invece nasconde ciò che sta dietro; disattiva quell'opzione per vedere le isosuperfici.</li>
+  <li>Vengono ricalcolate quando cambia il passo o il campo.</li>
+</ul>
+<figure data-img="tutorial_20_iso_surfaces.png"><figcaption>Isosuperfici del campo di temperatura dentro un blocco, aperto da un piano di taglio</figcaption></figure>
+
+<h2>Linee di flusso</h2>
+<p>Le linee di flusso seguono un campo di velocità: ogni linea è il percorso che seguirebbe una particella senza massa se il flusso fosse congelato al passo corrente. <span class="ui">Mostra linee di flusso</span> usa un campo vettoriale nodale (<span class="ui">Campo delle linee di flusso</span>); <span class="ui">Punti di partenza delle linee di flusso</span> (da 1 a 500) è il numero di punti di partenza.</p>
+<ul>
+  <li><b>Punti di partenza.</b> Per impostazione predefinita i punti di partenza sono punti casuali del volume - sempre gli stessi, così i fotogrammi dell'animazione restano confrontabili. <span class="ui">Partenza sul piano di taglio</span> fa partire invece le linee dalle facce di taglio dei piani abilitati, pesate per area, il che mostra esattamente dove va il flusso da una sezione. Un punto di partenza fuori dalla mesh, o dove il campo è zero, non dà alcuna linea.</li>
+  <li><b>Tracciamento.</b> Le linee vengono integrate con un metodo di Runge-Kutta del quarto ordine in entrambe le direzioni a partire da un punto di partenza fino a quando escono dalla mesh, la velocità scende a circa un milionesimo della massima o si raggiunge un limite (2000 passi, o quattro diagonali del modello, per direzione). Il campo viene interpolato esattamente all'interno della cella che attraversano.</li>
+  <li><b>Disegno.</b> Le linee sono colorate secondo l'intensità del campo, con l'intervallo della legenda quando la superficie mostra lo stesso campo. <span class="ui">Punte di freccia</span> aggiunge piccoli coni che mostrano la direzione e <span class="ui">Spessore delle linee</span> imposta la larghezza. Le linee vengono ritagliate a ciò che i piani lasciano visibile.</li>
+  <li><b>Limiti.</b> Vengono tracciati solo campi vettoriali nodali. I poliedri concavi sono esclusi (il pannello indica quanti), perché l'interpolazione è valida solo in celle convesse. Il tracciamento non è eseguito in un thread separato, quindi un risultato molto grande può essere ritracciato in modo visibile a ogni passo di tempo.</li>
+</ul>
+<figure data-img="tutorial_20_streamlines.png"><figcaption>Linee di flusso attraverso un flusso vorticoso in un condotto, con punte di freccia</figcaption></figure>
+
+<h2>Rendering volumetrico</h2>
+<p><span class="ui">Mostra come volume</span> rappresenta un campo come una nuvola semitrasparente invece che come una superficie, tramite ray marching attraverso il volume. Scegli il <span class="ui">Campo del volume</span> e una <span class="ui">Qualità del volume</span> (Bassa 32, Media 64, Alta 96, Molto alta 128 campioni lungo ogni raggio: di più è più liscio e più lento).</p>
+<p>La <b>curva di opacità</b> sotto le opzioni dice quanto è opaco ogni valore: l'asse orizzontale è il valore normalizzato del campo, l'asse verticale l'opacità. <b>Trascina</b> un punto per spostarlo, <b>fai doppio clic</b> per aggiungerne uno, <b>fai clic destro</b> su un punto interno per rimuoverlo (i due punti estremi restano a 0 e 1). Alzare la curva per i valori caldi e abbassarla per quelli freddi lascia visibile solo il nucleo caldo; la scala di colori è quella scelta per la superficie. Un campo di cella viene mostrato con i suoi valori mediati. Il volume mostra il passo corrente.</p>
+<figure data-img="tutorial_20_volume_rendering.png"><figcaption>Il campo di temperatura di un blocco rappresentato come volume, con la curva di opacità</figcaption></figure>
+
+<h2>Frecce vettoriali</h2>
+<p><span class="ui">Mostra frecce vettoriali</span> disegna una freccia per un campo vettoriale in punti campionati della superficie: scegli il <span class="ui">Campo delle frecce</span>, la <span class="ui">Dimensione frecce</span> (con 1 la freccia più grande è il 5 % della dimensione del modello; la dimensione resta stabile durante lo zoom) e il <span class="ui">Numero di frecce</span> (circa questo numero di frecce, distribuite uniformemente sulla superficie). Con <span class="ui">Scala le frecce per intensità</span> disattivato, tutte le frecce hanno la stessa lunghezza e solo il colore mostra l'intensità - utile quando pochi vettori grandi renderebbero invisibile il resto.</p>
+
+<h2>Ellissoidi di tensione (glifi di tensore)</h2>
+<p>Per un tensore di tensione simmetrico, <span class="ui">Mostra ellissoidi di tensione</span> disegna un ellissoide in punti campionati della superficie. I suoi tre assi puntano lungo le <b>direzioni principali</b> e le loro lunghezze seguono i <b>valori principali</b>. L'asse più lungo ha sempre la stessa dimensione sullo schermo, così la <i>forma</i> mostra come è distribuita la tensione - un ago per una trazione in una direzione, un disco piatto per una trazione in due direzioni, una sfera per una pressione uniforme - e il <i>colore</i> quanto è grande.</p>
+<ul>
+  <li><span class="ui">Campo tensoriale</span>: ogni campo a sei componenti del risultato il cui nome contiene <i>stress</i>; i campi nodali vengono prima di quelli di cella nell'elenco. Un tensore con un altro nome (un <i>sigma</i> di OpenFOAM, ad esempio) non viene offerto, perché sei componenti da sole non fanno una tensione.</li>
+  <li><span class="ui">Dimensione degli ellissoidi</span> (stabile durante lo zoom) e <span class="ui">Numero di ellissoidi</span> (da 20 a 5000). Porta il numero a 1500 o più per una piastra.</li>
+  <li>Le scelte vengono salvate con la sessione.</li>
+</ul>
+<p>Buoni primi test: <code>plate_with_hole.frd</code> (aghi lungo la trazione lontano dal foro, che cambiano bruscamente attorno ad esso; la concentrazione di tensione è circa tre volte la tensione in campo lontano), <code>ibeam_cantilever.frd</code> (flessione: aghi nelle ali, inclinati nell'anima) e <code>stress_states.vtu</code>, un blocco sintetico con tre tensori fatto per provare la scelta del <span class="ui">Campo tensoriale</span>.</p>
+<figure data-img="tutorial_20_stress_ellipsoids.png"><figcaption>Ellissoidi di tensione intorno al foro di una piastra</figcaption></figure>
+
+<div class="callout tip"><span class="label">Suggerimento</span>
+  <p>Le sovrapposizioni si combinano: una forma deformata con una sezione colorata e alcune linee di flusso è un'ottima immagine. Disattiva però ciò che non usi - l'immagine è più chiara con un'idea per vista.</p>
+</div>

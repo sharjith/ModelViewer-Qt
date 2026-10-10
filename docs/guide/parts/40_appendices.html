@@ -1,0 +1,148 @@
+<h1 class="chapter appendix">Sample file catalogue</h1>
+
+<p>The samples ship in <code>sample-models/Simulation</code> and <code>sample-models/Plot3D</code>; each folder has a <code>README.txt</code> that describes every file and how it was made. Values in the generated files are synthetic: they test the program, not physics.</p>
+
+<h2>Simulation results</h2>
+<table class="compact">
+  <thead><tr><th style="width:30%">File</th><th>What it is</th><th style="width:20%">Good for</th></tr></thead>
+  <tbody>
+    <tr><td><code>FEM_box_static_stress.vtu</code></td><td>Static analysis of a 10 mm box (CalculiX via FreeCAD): 280 nodes, 129 quadratic tetrahedra; displacement, von Mises, Tresca, principal stresses</td><td>First look, sections</td></tr>
+    <tr><td><code>FEM_box_frequency_mode1.vtu</code></td><td>The first vibration mode of the same box</td><td>Modal display</td></tr>
+    <tr><td><code>FEM_box_static.frd</code>, <code>FEM_box_frequency.frd</code></td><td>The same analyses as the solver wrote them (mm, MPa); von Mises etc. are derived on load</td><td>Units, derived fields</td></tr>
+    <tr><td><code>FEM_box_load_steps.frd</code></td><td>A load ramped in four increments</td><td>Timeline, fixed colour scale</td></tr>
+    <tr><td><code>FEM_box_modes.frd</code>, <code>FEM_box_modes_frf.csv</code></td><td>Six vibration modes; a synthetic frequency-response curve with six peaks</td><td>Modes, chart seek</td></tr>
+    <tr><td><code>FEM_box_thermal_transient.frd</code>, <code>thermal_probe_test.csv</code></td><td>Transient heat transfer, 20 steps over 10 s; synthetic thermocouple readings</td><td>Time chart, CSV curve, units</td></tr>
+    <tr><td><code>plate_with_hole.frd</code></td><td>Plate with a hole, four load steps (CalculiX, gmsh mesh)</td><td>Stress concentration, ellipsoids, chart over line</td></tr>
+    <tr><td><code>ibeam_cantilever.frd</code>, <code>ibeam_torsion.frd</code></td><td>An I-beam in bending and in torsion, four load steps each</td><td>Compare, ellipsoids</td></tr>
+    <tr><td><code>stress_states.vtu</code></td><td>Block with three stress tensors (bending, torsion, element-wise)</td><td>The Tensor field choice</td></tr>
+    <tr><td><code>cell_data_cube.vtk</code></td><td>8 x 8 x 8 hexahedra with cell data only (<i>Element_Stress</i>, <i>Element_Group</i>)</td><td>Cell data, averaging</td></tr>
+    <tr><td><code>shell_plate_transient.frd</code>, <code>plate.vtk</code></td><td>A shell plate with 10 temperature steps; a vibrating plate with several vector fields (surface only)</td><td>Shell charts</td></tr>
+    <tr><td><code>openfoam_cavity/cavity.foam</code></td><td>A 20 x 20 x 1 cell OpenFOAM case, five time directories (synthetic fields U, p, T, sigma)</td><td>Cell data, units from dimensions, pathlines</td></tr>
+    <tr><td><code>block.cgns</code>, <code>block.exo</code>, <code>block.vtkhdf</code></td><td>The same 8 x 8 x 8 block in three formats, five steps: Temperature, Velocity (vector), a per-cell quality</td><td>Iso-surfaces, volume, format readers</td></tr>
+    <tr><td><code>duct.cgns</code></td><td>A half-ring duct of two structured blocks, four steps of a swirling flow</td><td>Streamlines</td></tr>
+    <tr><td><code>pointe_4fields.med</code>, <code>fra.med</code></td><td>MED files from the Salome sample set (mixed cell types; a nodal velocity and void fraction)</td><td>MED reader</td></tr>
+    <tr><td><code>polyhedra.*</code>, <code>hexa.vtk</code>, <code>post.vtk</code>, <code>tetraMesh.vtk</code>, <code>uGridEx.vtk</code>, <code>beampl.frd</code></td><td>Reader tests: polyhedra, a smooth scalar, a pressure field, a tiny tetrahedral mesh, mixed cell types, a CalculiX example</td><td>Format tests</td></tr>
+    <tr><td><code>real/</code> and <code>large/</code></td><td>Files written by other tools (VTK test data) to test the readers; a generator script for very large results (1 million cells; not in git)</td><td>Reader and lazy-loading tests</td></tr>
+  </tbody>
+</table>
+
+<h2>3D plots</h2>
+<table class="compact">
+  <thead><tr><th style="width:30%">File</th><th>What it is</th><th style="width:22%">Plot type</th></tr></thead>
+  <tbody>
+    <tr><td><code>surface_ripple.csv</code></td><td>sin(r)/r on a 21 x 21 grid</td><td>Surface, Contour</td></tr>
+    <tr><td><code>surface_scattered.csv</code></td><td>Fourteen irregular points with a sloped height</td><td>Surface (triangulated)</td></tr>
+    <tr><td><code>line_helix.csv</code></td><td>200 points of a two-turn helix</td><td>Line / Curve, fill</td></tr>
+    <tr><td><code>line_band.csv</code></td><td>Two crossing curves (columns z and z2) coloured by the band width</td><td>Line, fill between curves</td></tr>
+    <tr><td><code>line_growth.csv</code></td><td>z = 10^(x/2), from 1 to 100</td><td>Line, log axis</td></tr>
+    <tr><td><code>scatter_clusters.csv</code></td><td>Three clusters of 60 points, coloured by id</td><td>Scatter, fill</td></tr>
+    <tr><td><code>scatter_error_bars.csv</code></td><td>Points with an error column</td><td>Scatter, error bars</td></tr>
+    <tr><td><code>scatter_band.csv</code></td><td>Two sets of Z values (z and z2)</td><td>Scatter, fill between</td></tr>
+    <tr><td><code>bar_histogram.csv</code>, <code>bar_histogram_1d.csv</code>, <code>bar_signed.csv</code></td><td>An 8 x 8 bump of bars; eight bin counts; bars above and below their base</td><td>Bar / Histogram</td></tr>
+    <tr><td><code>voxel_sphere.csv</code></td><td>A sphere in a 9 x 9 x 9 occupancy grid</td><td>Voxel / Volumetric</td></tr>
+    <tr><td><code>quiver_vortex.csv</code></td><td>A rotation about Z with an upward drift (7 x 7 x 3 grid)</td><td>Vector (Quiver)</td></tr>
+    <tr><td><code>pathlines_double_gyre.csv</code>, <code>pathlines_rising_vortex_3d.csv</code>, <code>pathlines_openfoam_cavity.csv</code></td><td>Time-dependent velocity fields on regular grids</td><td>CSV time series (pathlines)</td></tr>
+    <tr><td><code>image_gradient.png</code>, <code>image_gradient_alpha.png</code></td><td>A 320 x 200 picture with an "L" mark; the same with fading transparency</td><td>Image on a plane</td></tr>
+  </tbody>
+</table>
+
+
+<h1 class="chapter appendix">Quick reference</h1>
+
+<h2>Where things are</h2>
+<table class="compact">
+  <thead><tr><th style="width:44%">To do this</th><th>Go to</th></tr></thead>
+  <tbody>
+    <tr><td>Open a result in its own document</td><td><span class="path">File &rarr; Open...</span></td></tr>
+    <tr><td>Add a result to the current document</td><td><span class="path">Visualization &rarr; Simulation Results &rarr; Add Result to This Document...</span></td></tr>
+    <tr><td>Compare two results</td><td><span class="path">Visualization &rarr; Simulation Results &rarr; Compare Results...</span> or the tab's <span class="ui">Compare</span></td></tr>
+    <tr><td>Change field, range, colormap, deformation, sections, volume, arrows, ellipsoids</td><td>The <span class="ui">Simulation Results</span> tab (bottom-left dock)</td></tr>
+    <tr><td>Quick history of a point</td><td>Right-click the model &rarr; <span class="ui">Plot Over Time Here</span></td></tr>
+    <tr><td>Add a 3D plot</td><td><span class="path">Visualization &rarr; Plot 3D...</span> or the <span class="ui">3D Plot</span> tab &rarr; <span class="ui">Add 3D Plot...</span></td></tr>
+    <tr><td>Style a plot, set the axes, notes, edit, animate</td><td>The <span class="ui">3D Plot</span> tab</td></tr>
+    <tr><td>Sections through a result</td><td>The Section View button of the View toolbar</td></tr>
+    <tr><td>Annotate, measure, report</td><td><span class="path">Tools &rarr; Annotate...</span>, <span class="path">Tools &rarr; Measure...</span>, <span class="path">Tools &rarr; Export Report...</span></td></tr>
+    <tr><td>What is new, the tutorial, quick help</td><td><span class="path">Help &rarr; What's New...</span>, <span class="path">Help &rarr; Tutorial</span>, <span class="path">Help &rarr; Quick Help</span></td></tr>
+  </tbody>
+</table>
+
+<h2>Mouse and keyboard</h2>
+<table class="compact">
+  <thead><tr><th style="width:44%">Where and what</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr><td>Viewport: rotate, pan, zoom</td><td>Middle button drag, right button drag, wheel (see the tutorial, lesson 3)</td></tr>
+    <tr><td>Hover over a result</td><td>Shows the value under the cursor</td></tr>
+    <tr><td>Chart: zoom</td><td>Wheel; <kbd>Shift</kbd>+wheel x only; <kbd>Ctrl</kbd>+wheel y only</td></tr>
+    <tr><td>Chart: pan, reset</td><td>Middle button drag; double-click</td></tr>
+    <tr><td>Time chart: move in time</td><td>Click or drag in the chart</td></tr>
+    <tr><td>Opacity curve (volume)</td><td>Drag a point; double-click adds; right-click removes an inner point</td></tr>
+    <tr><td>Timeline</td><td>Play/pause, previous/next, stop, slider, Loop, speed; drag the bar to move it, double-click to reset it</td></tr>
+    <tr><td>Plot notes</td><td>Place note, then click; drag to move, double-click to edit, right-click to delete</td></tr>
+  </tbody>
+</table>
+
+<h2>Limits at a glance</h2>
+<table class="compact">
+  <thead><tr><th style="width:44%">Quantity</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>Iso-surface levels</td><td>1 to 20</td></tr>
+    <tr><td>Streamline seeds</td><td>1 to 500 (2000 steps or four model diagonals per direction)</td></tr>
+    <tr><td>Volume quality</td><td>Low 32, Medium 64, High 96, Very high 128</td></tr>
+    <tr><td>Ellipsoid count</td><td>20 to 5000</td></tr>
+    <tr><td>Time steps stored in a session</td><td>100 per result (evenly spaced)</td></tr>
+    <tr><td>Results read lazily above</td><td>256 MB of step data, with more than one step</td></tr>
+  </tbody>
+</table>
+
+
+<h1 class="chapter appendix">Messages and troubleshooting</h1>
+
+<h2>What you may see, and what to do</h2>
+<table>
+  <thead><tr><th style="width:36%">Situation</th><th>Cause and remedy</th></tr></thead>
+  <tbody>
+    <tr><td>A format is missing from the Open dialog</td><td>Your build lacks the library for it (NetCDF for Exodus, CGNS, HDF5 for VTKHDF and MED). <span class="path">Help &rarr; About</span> shows what is enabled.</td></tr>
+    <tr><td>"A simulation result is already being loaded"</td><td>Only one result loads at a time; wait for the progress bar or cancel it.</td></tr>
+    <tr><td>The result opens grey, with no colours</td><td>The file has no fields (only geometry). The panel says so.</td></tr>
+    <tr><td>Numbers have no unit in the legend</td><td>The file does not state one. Choose it under <span class="ui">Quantity</span> and <span class="ui">Values are in</span>.</td></tr>
+    <tr><td>Values look wrong by a factor of 1000 or 1,000,000</td><td>The unit of the file differs from what you assumed (Pa and MPa; mm and m). Check the units of the analysis and set them.</td></tr>
+    <tr><td>Colours differ between steps or between results</td><td>The range is per step or per result. Use <i>Automatic (all steps)</i>, a <i>Custom</i> range, or <span class="ui">Same colour range for both</span>.</td></tr>
+    <tr><td>"This result has no displacement field"</td><td>It cannot be shown deformed; the file has to contain displacements.</td></tr>
+    <tr><td>Sections, iso-surfaces, streamlines or volume do nothing</td><td>The result has no volume cells (a shell), or the selected field is not a node field (streamlines need a node vector field). The info line under the group says which.</td></tr>
+    <tr><td>Iso-surfaces are hidden</td><td>Switch on a clipping plane and switch off <span class="ui">Colour the Clipping Plane cut with the field</span>: an opaque cut hides what is behind it.</td></tr>
+    <tr><td>"Cut faces and iso-surfaces are shown as they were saved (frozen)"</td><td>The session was saved without the volume. Save with <span class="ui">Also store the volume</span> to keep them live.</td></tr>
+    <tr><td>No tensor to choose for the ellipsoids</td><td>The result has no six-component field with <i>stress</i> in its name.</td></tr>
+    <tr><td>A chart is empty or one dot</td><td>A one-step result shows its history as a point; a click that missed the result gives no data.</td></tr>
+    <tr><td>Compare button unavailable</td><td>The document needs two results; compare ends by itself if one is hidden or closed.</td></tr>
+    <tr><td>Plot: "Open or paste tabular data first"</td><td>The CSV has not been loaded.</td></tr>
+    <tr><td>Plot: a table that is not a complete grid</td><td>A surface or pathline table must have every grid combination once; the message says how many rows are needed.</td></tr>
+    <tr><td>Plot: "Unknown variable", "Division by zero", "log requires a positive value"</td><td>Fix the expression; <span class="ui">Build Plot</span> stays disabled until it evaluates everywhere in the range.</td></tr>
+    <tr><td>Plot: an axis went back to Linear</td><td>A Log 10 axis cannot show a plot whose values reach zero; every plot returned to Linear with it. Use SymLog, or remove that plot.</td></tr>
+    <tr><td>A picture appears mirrored</td><td>You see the back of an image plane. Tick <span class="ui">Readable from behind</span> (opaque pictures only) or look from the front.</td></tr>
+    <tr><td>Glass or other effects are missing in the plot</td><td>Plots and results are drawn flat in every mode and are not ray traced.</td></tr>
+  </tbody>
+</table>
+
+
+<h1 class="chapter appendix">Glossary</h1>
+<dl class="def">
+  <dt>Boundary surface</dt><dd>The faces of a solid result that belong to exactly one cell: the skin that is drawn.</dd>
+  <dt>Cell data</dt><dd>A field with one value per element, drawn flat (also: element data).</dd>
+  <dt>Contour</dt><dd>A line (or band edge) of equal value.</dd>
+  <dt>Derived field</dt><dd>A value computed from another field, such as von Mises stress from a stress tensor.</dd>
+  <dt>Displacement</dt><dd>The vector by which a node moved under load; the basis of the deformed shape.</dd>
+  <dt>Field</dt><dd>A quantity defined over the model: scalar, vector or tensor.</dd>
+  <dt>Iso-surface</dt><dd>The surface in a volume where a field has one constant value.</dd>
+  <dt>Lazy loading</dt><dd>Reading a step from the file only when it is shown, so memory does not grow with the number of steps.</dd>
+  <dt>Mode shape</dt><dd>The pattern of movement of a structure vibrating at a natural frequency; its amplitude is arbitrary.</dd>
+  <dt>Node data</dt><dd>A field with one value per mesh point, interpolated smoothly.</dd>
+  <dt>Pathline</dt><dd>The track of a particle carried by a field that changes with time.</dd>
+  <dt>Principal stress</dt><dd>One of the three normal stresses in the orientation where the shear stress vanishes.</dd>
+  <dt>Quiver</dt><dd>A plot of arrows, one for each point of a vector field.</dd>
+  <dt>Snapshot</dt><dd>The data a saved session keeps of a result: the surface, the chosen fields and steps, units and view state.</dd>
+  <dt>Step</dt><dd>One state of a result: a load increment, a time step or a mode.</dd>
+  <dt>Streamline</dt><dd>The path along a vector field frozen at one moment.</dd>
+  <dt>SymLog</dt><dd>An axis scale that is logarithmic for large values and linear near zero, so it can show negative numbers.</dd>
+  <dt>Tensor glyph</dt><dd>A symbol (here an ellipsoid) whose shape and size show a tensor.</dd>
+  <dt>Von Mises stress</dt><dd>A single equivalent stress derived from the full stress tensor, used to judge yielding of ductile materials.</dd>
+</dl>

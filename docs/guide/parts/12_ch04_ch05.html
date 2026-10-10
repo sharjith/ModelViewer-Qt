@@ -1,0 +1,73 @@
+<h1 class="chapter">The deformed shape and modal results</h1>
+
+<h2>Showing the deformation</h2>
+<p>Structural results contain a displacement for every node. Tick <span class="ui">Show deformed shape</span> and the model is drawn displaced by that field instead of at rest. The displacement is applied as the model is drawn; the geometry in the file and the rest positions are not altered, so you can switch the option off again at any time.</p>
+<ul>
+  <li><span class="ui">Scale factor</span> exaggerates the displacement. Real deflections are usually tiny compared with the model, so a factor well above 1 is normal. The <span class="ui">Auto</span> button picks a factor that makes the movement clearly visible.</li>
+  <li>The displacement is applied in the file's own length unit; the panel names the field that is used. A result without a displacement field cannot be shown deformed, and says so.</li>
+  <li>While the deformed shape is on, everything that follows the geometry follows the displaced mesh: the hover readout, the extrema markers, sections, iso-surfaces and streamlines.</li>
+</ul>
+<figure data-img="tutorial_19_deformed_plate.png"><figcaption>A plate with a hole under load: deformed shape on, minimum and maximum marked</figcaption></figure>
+<div class="callout warn"><span class="label">Caution</span>
+  <p>The picture is exaggerated on purpose. When you judge how much a part really moves, read the scale factor, and use the hover readout or a chart for the true displacement values.</p>
+</div>
+
+<h2>Modal results</h2>
+<p>A frequency analysis produces <b>mode shapes</b>, not displacements with a physical size: a mode only says how the structure moves relative to itself, and its amplitude is arbitrary. ModelViewer treats such results (steps labelled <i>Mode 1</i>, <i>Mode 2</i> ... with their frequencies in hertz) specially:</p>
+<ul>
+  <li>Each mode is drawn with its largest displacement at a tenth of the model size, so every mode is visible without fiddling; the <span class="ui">Scale factor</span> scales that (a factor of 1 means a tenth of the model size).</li>
+  <li>The steps are the modes. The timeline steps through them and plays them one after another; the label shows the mode's frequency.</li>
+  <li>The x axis of a chart of a modal result is the frequency of each mode, which is what makes a frequency-response curve line up with the modes (chapter 7).</li>
+</ul>
+<figure data-img="tutorial_19_modes.png"><figcaption>Two vibration modes of the box, drawn deformed</figcaption></figure>
+
+<div class="callout"><span class="label">Note</span>
+  <p>Samples to try: <code>FEM_box_modes.frd</code> (six modes) and <code>FEM_box_frequency_mode1.vtu</code> (the first mode, as written by FreeCAD). <code>FEM_box_static_stress.vtu</code> and <code>plate_with_hole.frd</code> are good for the ordinary deformed shape; <code>plate_with_hole.frd</code> has four load steps.</p>
+</div>
+
+
+<h1 class="chapter">Time: steps and the timeline</h1>
+
+<h2>What a step is</h2>
+<p>The word <b>step</b> covers three different things, and ModelViewer treats them alike:</p>
+<ul>
+  <li><b>Load steps and increments</b> of a structural analysis (for example 25 %, 50 %, 87.5 %, 100 % of a load);</li>
+  <li><b>Time steps</b> of a transient thermal or flow analysis (an OpenFOAM case has one per time directory);</li>
+  <li><b>Modes</b> of a frequency analysis (chapter 4).</li>
+</ul>
+<p>A result with more than one step shows a <b>timeline</b> at the top of the viewport. A result with a single step has no timeline.</p>
+
+<h2>The timeline</h2>
+<table class="compact">
+  <thead><tr><th style="width:28%">Control</th><th>Use</th></tr></thead>
+  <tbody>
+    <tr><td>Play / Pause</td><td>Plays the steps in order at the chosen speed.</td></tr>
+    <tr><td>Previous / Next step</td><td>Moves by one step.</td></tr>
+    <tr><td>Stop</td><td>Stops and rewinds to the first step.</td></tr>
+    <tr><td>Slider</td><td>Jumps to any step; drag it to scrub through time. The label shows the step number and its time (or the mode's frequency).</td></tr>
+    <tr><td>Loop</td><td>Starts again from the first step at the end.</td></tr>
+    <tr><td>Speed</td><td>Playback speed, from slower to faster than real time.</td></tr>
+    <tr><td>Pin</td><td>The bar can be dragged to another place in the viewport (double-click resets it); the pin locks it where it is.</td></tr>
+  </tbody>
+</table>
+<figure data-img="tutorial_19_timeline.png"><figcaption>The timeline at the top of the viewport while playing the load steps of the box</figcaption></figure>
+
+<h2>Colours over time</h2>
+<p>By default the colour range covers <b>all steps</b> (chapter 3), so a colour means the same value in every frame and you can watch a stress build up or heat flow in. Choose <span class="ui">Automatic (this step)</span> when you want each step to use its own full range - for instance to see the <i>shape</i> of a mode - and <span class="ui">Custom</span> to fix the scale yourself.</p>
+
+<h2>Charts and time</h2>
+<p>The timeline and the time charts of chapter 7 drive each other: an orange cursor in a chart marks the current step, and clicking or dragging in the chart moves the result to the nearest step. When a result and an animated 3D plot share one playback bar (chapter 18), the bar follows physical time.</p>
+
+<h2>Long transient results</h2>
+<p>A result with many steps and many cells holds a lot of data. Results whose step data would need more than 256 MB, and which have more than one step, are read <b>lazily</b>: only a few steps are in memory at a time and the others are read from the file when they are shown. Opening is fast and memory stays flat, at the price of a short read each time you move to a step that is not resident, and of the first scan for the all-steps colour range. Chapter 9 explains this and its consequences.</p>
+
+<h3>Samples</h3>
+<table class="compact">
+  <thead><tr><th style="width:36%">File</th><th>Steps</th></tr></thead>
+  <tbody>
+    <tr><td><code>FEM_box_load_steps.frd</code></td><td>Four increments of a load ramp; play it to watch the stress grow on a fixed colour scale.</td></tr>
+    <tr><td><code>FEM_box_thermal_transient.frd</code></td><td>20 time steps over 10 s: one face held at 100, the rest starting at 20.</td></tr>
+    <tr><td><code>FEM_box_modes.frd</code></td><td>The first six vibration modes, labelled with their frequencies.</td></tr>
+    <tr><td><code>openfoam_cavity/cavity.foam</code></td><td>Five time directories, 0 to 2 s (synthetic values; the case exercises the reader, the cell-data display and the units).</td></tr>
+  </tbody>
+</table>

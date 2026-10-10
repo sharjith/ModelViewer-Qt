@@ -1,0 +1,96 @@
+<h1 class="chapter">Los tipos de gráfico</h1>
+
+<p>Este capítulo es la referencia de lo que necesita y ofrece cada tipo de gráfico. Las columnas se asignan en el cuadro de diálogo Añadir gráfico 3D; los controles de estilo que se nombran aquí están en la pestaña <span class="ui">Gráfico 3D</span> (capítulo 15).</p>
+
+<table>
+  <thead><tr><th style="width:20%">Tipo de gráfico</th><th style="width:34%">Columnas</th><th>Notas</th></tr></thead>
+  <tbody>
+    <tr><td><b>Superficie</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span>; opcional <span class="ui">Valor de color</span></td><td>Una cuadrícula regular completa se dibuja como malla; los puntos dispersos se trianguan (Delaunay). Opcionalmente con líneas de contorno.</td></tr>
+    <tr><td><b>Contorno</b></td><td>como Superficie</td><td>Solo las isolíneas de Z; se pueden aplanar sobre el plano base.</td></tr>
+    <tr><td><b>Línea / Curva</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span>; opcional <span class="ui">Valor de color</span></td><td>Puntos en orden. Una línea de ancho constante; el ancho está en píxeles de pantalla, así que no cambia con el zoom. Se puede rellenar.</td></tr>
+    <tr><td><b>Dispersión</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span>; opcional <span class="ui">Valor de color</span></td><td>Un marcador por punto. Opcionalmente tallos, barras de error y rellenos.</td></tr>
+    <tr><td><b>Barras / Histograma</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span> (la altura); opcional <span class="ui">Base</span>, <span class="ui">Ancho</span>, <span class="ui">Profundidad</span>, <span class="ui">Valor de color</span></td><td>Una caja por fila. Un histograma unidimensional pone Y en <i>(ninguno)</i>.</td></tr>
+    <tr><td><b>Vóxel / Volumétrico</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span> (índices de la cuadrícula); <span class="ui">Valor de color</span> (ocupación)</td><td>Se dibuja como una nube semitransparente, como la representación de volumen de un resultado.</td></tr>
+    <tr><td><b>Vectorial (Quiver)</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span> y <span class="ui">U</span>, <span class="ui">V</span>, <span class="ui">W</span>; opcional <span class="ui">Valor de color</span></td><td>Una flecha por fila; el tamaño y el color de la flecha se controlan en la pestaña.</td></tr>
+  </tbody>
+</table>
+
+<h2>Superficie y contorno</h2>
+<p>Una superficie necesita z sobre x e y. Cuando las filas forman una <b>cuadrícula regular completa</b> (cada combinación de los valores de x y de y exactamente una vez, en cualquier orden de filas), la cuadrícula se convierte directamente en malla. En caso contrario los puntos se trianguan, que es lo que prueba <code>surface_scattered.csv</code>: catorce puntos irregulares con una altura suavemente inclinada.</p>
+<ul>
+  <li><span class="ui">Líneas de contorno</span> añade isolíneas de Z a cualquier superficie: <i>Sobre la superficie</i> dibuja líneas oscuras sobre ella (visibles desde ambos lados), <i>Sobre el plano base</i> dibuja líneas con mapa de color aplanadas sobre el suelo de la caja de ejes. <span class="ui">Niveles de contorno</span> fija cuántas.</li>
+  <li>El tipo independiente <b>Contorno (isolíneas de la superficie)</b> muestra solo las líneas, y <span class="ui">Proyectar los contornos sobre el plano base</span> las aplana.</li>
+  <li><span class="ui">Bandas de color</span> convierte el color suave de la superficie en bandas discretas; también hay disponible un rango de color fijo.</li>
+</ul>
+<figure data-img="tutorial_23_contours_and_sections.png"><figcaption>Líneas de contorno sobre el plano base y las curvas de sección por el punto señalado (capítulo 16)</figcaption></figure>
+
+<h2>Línea / curva</h2>
+<p>El orden de las filas es el orden a lo largo de la curva (<code>line_helix.csv</code>: dos vueltas de una hélice). El color sigue a <span class="ui">Valor de color</span> (o Z) a lo largo de la curva. El <span class="ui">Ancho de línea</span> está en píxeles de pantalla. Una línea se puede <b>rellenar</b> hasta el plano base o hasta una segunda curva (capítulo 16).</p>
+
+<h2>Dispersión</h2>
+<p>Un marcador por fila; <span class="ui">Tamaño del marcador</span> fija el tamaño. Los colores son <b>por punto</b>, no interpolados: <code>scatter_clusters.csv</code> tiene tres grupos coloreados por su identificador. Variantes:</p>
+<ul>
+  <li><span class="ui">Dibujar tallos hasta Z base</span>: una línea fina desde cada punto hacia abajo (o arriba) hasta el valor base.</li>
+  <li><span class="ui">Mostrar barras de error (&plusmn;Z)</span> con una columna de error: una barra vertical de &plusmn; ese tamaño en cada punto (<code>scatter_error_bars.csv</code>).</li>
+  <li><span class="ui">Rellenar hasta Z base</span>: una cinta translúcida desde cada punto hasta el plano base o, con una columna elegida en <i>o entre el gráfico y la columna</i>, hasta un segundo conjunto de valores Z (<code>scatter_band.csv</code>). La caja de ejes crece para incluir ambos.</li>
+</ul>
+
+<h2>Barras e histograma</h2>
+<ul>
+  <li>La altura es <span class="ui">Z</span>. <span class="ui">Base</span>, <span class="ui">Ancho</span> y <span class="ui">Profundidad</span> son opcionales; sin ellos las barras empiezan en 0 y usan un ancho y una profundidad de 0,8, lo que deja un hueco entre barras vecinas. Una barra por debajo de su base se extiende hacia abajo, de modo que los datos con signo funcionan (<code>bar_signed.csv</code>).</li>
+  <li><span class="ui">Valor de color</span> es por defecto la altura.</li>
+  <li><b>Histograma unidimensional</b> (<code>bar_histogram_1d.csv</code>: columnas <i>bin</i> y <i>count</i>): ponga X en la columna de intervalos, Y en <i>(ninguno)</i>, Z en el recuento y deje el resto en <i>(ninguno)</i>. El resultado es una fila de barras iguales centrada en Y = 0, con altura y color determinados por el recuento.</li>
+  <li><span class="ui">Ancho de barra</span> y <span class="ui">Profundidad de barra</span> se pueden cambiar más tarde en la pestaña.</li>
+</ul>
+
+<h2>Vóxel / volumétrico</h2>
+<p>Asigne X, Y y Z a los índices de la cuadrícula y el valor de color a la ocupación (<code>voxel_sphere.csv</code>: una esfera tallada en una cuadrícula de 9 x 9 x 9, con la ocupación decreciendo de 1,0 en el centro a 0,15 cerca de la cáscara). La ocupación cero es transparente y los valores distintos de cero aparecen gradualmente según la ocupación, de modo que el gráfico es una nube suave y no un conjunto de cajas.</p>
+
+<h2>Vectorial (quiver)</h2>
+<p>Cada fila es un punto y un vector. <code>quiver_vortex.csv</code> es una rotación rígida alrededor del eje Z más una pequeña componente ascendente: las flechas se enroscan alrededor de Z y se alargan con la distancia. <span class="ui">Tamaño de flecha</span> en la pestaña fija la escala de longitud sin crecer con la cámara; el color de la flecha sigue el valor (la leyenda dice <i>Magnitud del vector</i>).</p>
+<figure data-img="tutorial_23_plot_types.png"><figcaption>Un gráfico de dispersión, uno de barras y un campo vectorial en una escena</figcaption></figure>
+<figure data-img="tutorial_23_voxel_sphere.png"><figcaption><code>voxel_sphere.csv</code> dibujado como una esfera semitransparente</figcaption></figure>
+
+
+<h1 class="chapter">Gráficos a partir de fórmulas</h1>
+
+<p>No necesita un archivo para hacer un gráfico: una fórmula, una definición paramétrica o un preajuste genera los datos. Los orígenes comparten con los gráficos CSV la vista previa, el color, los ejes, las notas y las herramientas de exportación, y un gráfico generado recuerda su definición para poder editarse y reconstruirse (capítulo 17).</p>
+
+<h2>Los orígenes</h2>
+<table>
+  <thead><tr><th style="width:26%">Origen</th><th>Usted proporciona</th><th>Preajustes</th></tr></thead>
+  <tbody>
+    <tr><td><b>Superficie por fórmula</b></td><td>z(x, y) = ..., rangos y números de muestras de x e y, parámetros con nombre</td><td>Plano, Silla, Paraboloide, Cono, Gaussiana, Ondulación sinc, Onda, Sombrero mexicano, Normal bivariante, Regresión logística, Rosenbrock</td></tr>
+    <tr><td><b>Superficie paramétrica</b></td><td>x(u, v), y(u, v), z(u, v), rangos de u y v</td><td>Toro, Elipsoide, Cinta de Möbius, Botella de Klein, Superelipsoide, Helicoide, Catenoide, Superficie de Enneper, Armónico esférico</td></tr>
+    <tr><td><b>Curva paramétrica</b></td><td>x(t), y(t), z(t), rango de t</td><td>Hélice, Lissajous, Nudo trébol, Curva de Viviani, Espiral amortiguada</td></tr>
+    <tr><td><b>Superficie implícita</b></td><td>f(x, y, z), dibujada donde f = 0; rangos y muestras de los tres ejes</td><td>Esfera, Toro, Giroide, Interferencia de ondas</td></tr>
+    <tr><td><b>Campo vectorial por fórmula</b></td><td>u, v, w como funciones de x e y, evaluadas en una cuadrícula plana; rangos y muestras de x e y</td><td>Vórtice, Radial, Silla, Helicoidal</td></tr>
+    <tr><td><b>Líneas de corriente por fórmula</b></td><td>un campo <i>estacionario</i> u, v, w; rangos de x e y y un número de semillas</td><td>Preajustes de los campos vectoriales</td></tr>
+    <tr><td><b>Líneas de trayectoria por fórmula</b></td><td>un campo dependiente del tiempo u, v, w(x, y, z, t)</td><td>Vórtice pulsante, Doble giro, Onda progresiva, Corriente ascendente oscilante (capítulo 14)</td></tr>
+  </tbody>
+</table>
+
+<h2>Escribir expresiones</h2>
+<table class="compact">
+  <thead><tr><th style="width:26%">Elemento</th><th>Disponible</th></tr></thead>
+  <tbody>
+    <tr><td>Operadores</td><td><code>+  -  *  /  ^</code> (potencia; <code>2^3^2</code> es <code>2^9</code>), menos unario, paréntesis</td></tr>
+    <tr><td>Funciones</td><td><code>sin cos tan asin acos atan sinh cosh tanh exp log sqrt abs sign</code> (un argumento; <code>log</code> es natural y necesita un valor positivo, <code>sqrt</code> uno no negativo) y las de dos argumentos <code>pow(a, b)  min(a, b)  max(a, b)</code></td></tr>
+    <tr><td>Constantes</td><td><code>pi</code>, <code>e</code></td></tr>
+    <tr><td>Variables</td><td><code>x</code>, <code>y</code> (y <code>z</code> donde existe una tercera coordenada); <code>u</code>, <code>v</code> son los parámetros de superficie de una superficie paramétrica, <code>t</code> el parámetro de una curva o, para las líneas de trayectoria, el <i>tiempo</i></td></tr>
+    <tr><td>Parámetros</td><td>Constantes con nombre como <code>a</code>, <code>s</code>, <code>kx</code>, que aporta un preajuste y que puede editar: cambie una y pulse <span class="ui">Actualizar vista previa</span></td></tr>
+  </tbody>
+</table>
+<p>Un error se indica por su nombre en la línea de estado bajo la vista previa: <i>Variable desconocida: q</i>, <i>Falta el paréntesis de cierre</i>, <i>División por cero</i>, <i>log requiere un valor positivo</i>. <span class="ui">Crear gráfico</span> permanece desactivado hasta que la expresión se pueda evaluar. Ejemplos:</p>
+<pre>Superficie por fórmula   z =  a*exp(-((x-x0)^2+(y-y0)^2)/(2*s^2))        (preajuste Gaussiana)
+Curva paramétrica  x = cos(t)   y = sin(t)   z = t/(2*pi)            (una hélice)
+Superficie implícita  f = x^2 + y^2 + z^2 - r^2                      (una esfera de radio r)</pre>
+
+<h2>Vista previa, creación y edición</h2>
+<p><span class="ui">Actualizar vista previa</span> evalúa la fórmula y muestra el gráfico en la escena, con una línea de estado como <i>Líneas de trayectoria desde 12 semillas en t = 0 ... 10 (n segmentos), coloreadas por tiempo</i>. <span class="ui">Crear gráfico</span> lo añade. Más tarde, seleccione el gráfico en <span class="ui">Gráfico activo</span> y haga clic en <span class="ui">Editar gráfico...</span>: el cuadro de diálogo se reabre con el mismo origen y con las expresiones, rangos, números de muestras y parámetros restaurados; cambie algo y haga clic en <span class="ui">Recrear gráfico</span>. El gráfico se actualiza <b>en su sitio</b>, conservando su título, visibilidad, colores y ajustes de ejes. El tipo de origen no se puede cambiar al editar; cree un gráfico nuevo para eso.</p>
+<figure data-img="tutorial_24_formula_surface.png"><figcaption>La superficie por fórmula Sombrero mexicano con el cuadro de diálogo y su línea de estado</figcaption></figure>
+<figure data-img="tutorial_24_parametric_surfaces.png"><figcaption>Un toro y una botella de Klein de los preajustes paramétricos</figcaption></figure>
+
+<div class="callout tip"><span class="label">Consejo</span>
+  <p>Los gráficos generados son una forma rápida de comprobar una cadena de datos o de construir una imagen sin datos a mano: una campana gaussiana como objetivo, una silla para mostrar un mínimo-máximo, un toro como objeto de prueba para las herramientas de superficie.</p>
+</div>

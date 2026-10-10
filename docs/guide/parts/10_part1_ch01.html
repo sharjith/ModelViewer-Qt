@@ -1,0 +1,80 @@
+<h1 class="part"><small>Part I</small>Simulation results</h1>
+
+<h1 class="chapter">Introduction to simulation results</h1>
+
+<p>A simulation - a finite-element stress analysis, a heat-transfer run, a flow calculation - ends with a result file: the mesh the solver worked on, and for each point or cell of it one or more <b>fields</b> (stress, displacement, temperature, velocity, pressure ...), usually for several <b>steps</b> (load steps, vibration modes, moments in time). ModelViewer reads such a file and shows the model coloured by a field. This chapter explains the idea and the vocabulary; the following chapters go through the features one at a time.</p>
+
+<h2>A viewer, not a solver</h2>
+<p>The boundary matters, because it explains both the strengths and the limits. ModelViewer is <b>read-only</b> with respect to the physics: it never changes a value, never runs a calculation of its own other than the display arithmetic described below (derived stress values, unit conversion, averaging), and has no solver, mesher or expression language. In exchange it stays small and fast, and every result gets the same presentation tools as any model: selection, sections, measurement, annotation, report export and the rest of the viewport.</p>
+
+<figure>
+<svg width="640" height="150" viewBox="0 0 640 150" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="12">
+  <rect x="5" y="40" width="120" height="70" rx="8" fill="#e8f0fa" stroke="#2b6cb0"/>
+  <text x="65" y="70" text-anchor="middle" font-weight="600" fill="#14213d">Your solver</text>
+  <text x="65" y="88" text-anchor="middle" fill="#3e4c59">CalculiX, OpenFOAM,</text>
+  <text x="65" y="102" text-anchor="middle" fill="#3e4c59">Code_Aster, Elmer ...</text>
+  <path d="M125 75 H165" stroke="#2b6cb0" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="165" y="40" width="120" height="70" rx="8" fill="#fdf5e4" stroke="#b7791f"/>
+  <text x="225" y="70" text-anchor="middle" font-weight="600" fill="#14213d">Result file</text>
+  <text x="225" y="88" text-anchor="middle" fill="#3e4c59" font-size="10.5">.vtu .vtk .frd .exo</text>
+  <text x="225" y="102" text-anchor="middle" fill="#3e4c59" font-size="10.5">.cgns .vtkhdf .med .foam</text>
+  <path d="M285 75 H325" stroke="#2b6cb0" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="325" y="25" width="150" height="100" rx="8" fill="#14213d"/>
+  <text x="400" y="55" text-anchor="middle" font-weight="600" fill="#fff">ModelViewer</text>
+  <text x="400" y="74" text-anchor="middle" fill="#cbd5e0">reads, colours, cuts,</text>
+  <text x="400" y="89" text-anchor="middle" fill="#cbd5e0">probes, charts, compares</text>
+  <text x="400" y="110" text-anchor="middle" fill="#f6ad55">does not solve</text>
+  <path d="M475 75 H515" stroke="#2b6cb0" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="515" y="40" width="120" height="70" rx="8" fill="#e8f6ee" stroke="#2f855a"/>
+  <text x="575" y="70" text-anchor="middle" font-weight="600" fill="#14213d">Output</text>
+  <text x="575" y="88" text-anchor="middle" fill="#3e4c59">images, PDF report,</text>
+  <text x="575" y="102" text-anchor="middle" fill="#3e4c59">.mvf session</text>
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#2b6cb0"/></marker></defs>
+</svg>
+<figcaption>Where ModelViewer sits in a simulation workflow</figcaption>
+</figure>
+
+<h2>What you see: the boundary surface</h2>
+<p>A solid result has millions of cells inside, but you look at a solid from outside. ModelViewer therefore extracts the <b>boundary surface</b> - the faces that belong to exactly one cell - and draws that, coloured by the chosen field. The interior is not lost: sections, iso-surfaces, streamlines and volume rendering (chapter 6) reach into it, and probes and charts read values from it. Results that already are surfaces (shell models made of triangles or quadrilaterals) are drawn as they are.</p>
+<ul>
+  <li>Supported cell types: tetrahedra, hexahedra, wedges, pyramids, their quadratic forms (drawn through their corner nodes) and polyhedra with explicit faces. Triangles and quadrilaterals are shells.</li>
+  <li>Cell types that have no surface to draw - polygons, triangle strips and single vertices of the legacy VTK format, and the 1-D beams of a network - are read but not displayed; this is expected.</li>
+  <li>The displayed surface is an ordinary mesh in the scene, so it can be selected, hidden, transformed, measured and annotated like any other.</li>
+</ul>
+
+<h2>Vocabulary</h2>
+<dl class="def">
+  <dt>Field</dt><dd>One kind of value over the model: a scalar (temperature), a vector (displacement, velocity - three components) or a tensor (stress - six components).</dd>
+  <dt>Node data and cell data</dt><dd>A <b>node</b> field has one value per mesh point and is drawn smoothly interpolated. A <b>cell</b> field has one value per element and is drawn in one flat colour per element (marked <span class="ui">[cells]</span> in the field list).</dd>
+  <dt>Step</dt><dd>One state of the result: a load increment, a time step, or a vibration mode. A result with several steps shows a timeline.</dd>
+  <dt>Component</dt><dd>One of the parts of a vector or tensor (X, Y, Z ...) or its magnitude.</dd>
+  <dt>Range</dt><dd>The values that the colour scale spans, from its minimum colour to its maximum colour.</dd>
+  <dt>Derived field</dt><dd>A value computed from another one at load time - for stress files, von Mises stress, Tresca stress, the three principal stresses and the maximum shear.</dd>
+</dl>
+
+<h2>Supported formats</h2>
+<p>The readers are ModelViewer's own; there is no dependency on VTK or ParaView. Which formats appear in the Open dialog depends on the libraries your build includes.</p>
+<table>
+  <thead><tr><th style="width:22%">Format</th><th style="width:22%">Extensions</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>VTK</td><td><code>.vtu</code>, <code>.vtk</code></td><td>The common interchange format. XML files (inline, appended raw and compressed data) and legacy files (ASCII and binary). Polyhedra are supported. FreeCAD's FEM export writes <code>.vtu</code>.</td></tr>
+    <tr><td>CalculiX</td><td><code>.frd</code></td><td>The result file CalculiX writes (and FreeCAD FEM keeps). Displacements, stresses and strains; von Mises, principal stresses and maximum shear are derived while loading. Values are in the solver's own units.</td></tr>
+    <tr><td>Exodus II</td><td><code>.e</code> <code>.exo</code> <code>.ex2</code> <code>.g</code></td><td>Common for MOOSE and Sierra results. Needs a build with NetCDF. Node and element variables, many steps.</td></tr>
+    <tr><td>CGNS</td><td><code>.cgns</code></td><td>Unstructured and structured zones. Needs a build with the CGNS library. Vertex and cell-centre solutions; boundary-condition sections are skipped.</td></tr>
+    <tr><td>VTKHDF</td><td><code>.vtkhdf</code></td><td>The HDF5-based VTK format as ParaView writes it, including time steps. Unstructured grids, poly data and image data are read; composite files are not supported yet. Needs HDF5.</td></tr>
+    <tr><td>MED</td><td><code>.med</code></td><td>Code_Aster and Salome results (MED 3 and later). Needs HDF5. Older Code_Aster 2.x-layout files must be converted (Salome's <i>medimport</i>).</td></tr>
+    <tr><td>OpenFOAM</td><td><code>.foam</code></td><td>Open the (empty) <code>.foam</code> file in the case folder. The case's time directories become the steps. Polyhedral meshes are supported.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout"><span class="label">Note</span>
+  <p><b>Help &rarr; About</b> lists the optional libraries of your build. If an extension is missing from the Open dialog's filter, that build was made without the matching library, and the format will not open.</p>
+</div>
+
+<h2>The workflow in short</h2>
+<ol>
+  <li>Run your analysis in the solver of your choice and keep the result file.</li>
+  <li>Open it in ModelViewer (<span class="path">File &rarr; Open...</span>), pick a field, check the units.</li>
+  <li>Look: rotate, section, step through time, probe values, chart them, compare with another run.</li>
+  <li>Present: add annotations or measurements, capture views, export a PDF report or an image, or save a <code>.mvf</code> session that contains the result.</li>
+</ol>

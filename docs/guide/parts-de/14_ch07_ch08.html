@@ -1,0 +1,90 @@
+<h1 class="chapter">Sonden und Diagramme</h1>
+
+<p>Farben zeigen Ihnen, <i>wo</i> ein Wert hoch oder niedrig ist; ein Diagramm zeigt, <i>wie viel</i> und wie er sich ändert. ModelViewer liest Werte direkt aus dem Ergebnis und stellt sie dar, ohne das Programm zu verlassen.</p>
+
+<h2>Einen einzelnen Wert ablesen</h2>
+<p>Bewegen Sie die Maus über das Modell: Der Wert des angezeigten Feldes am Cursor erscheint daneben, in der angezeigten Einheit. Bei einem Knotenfeld wird der Wert am Cursor interpoliert; bei einem Zellfeld ist es der Wert des Elements unter dem Cursor (oder der gemittelte Wert, wenn <span class="ui">Zelldaten auf Knoten mitteln</span> aktiv ist).</p>
+<figure data-img="tutorial_21_hover_value.png"><figcaption>Der Wert unter dem Cursor, direkt am Modell abgelesen</figcaption></figure>
+
+<h2>Die vier Diagramme</h2>
+<table>
+  <thead><tr><th style="width:30%">Diagramm</th><th style="width:30%">So starten Sie es</th><th>Zeigt</th></tr></thead>
+  <tbody>
+    <tr><td><b>Zeitverlauf</b></td><td>Rechtsklick auf einen Punkt des Ergebnisses &rarr; <span class="ui">Verlauf hier darstellen</span>; oder die Schaltfläche <span class="ui">Zeitverlauf darstellen...</span>, dann einen Punkt anklicken</td><td>Der Verlauf des angezeigten Feldes an diesem Punkt über alle Schritte. Bei einem Modalergebnis ist die x-Achse die Frequenz jedes Modus.</td></tr>
+    <tr><td><b>Verlauf entlang einer Linie</b></td><td><span class="ui">Entlang Linie darstellen...</span>, dann zwei Punkte anklicken</td><td>Das Feld entlang der Geraden (Sehne) zwischen den beiden Punkten, beim aktuellen Schritt.</td></tr>
+    <tr><td><b>Verteilung</b></td><td><span class="ui">Verteilung...</span></td><td>Ein Histogramm des Feldes über das gesamte Ergebnis: wie viel vom Modell bei niedrigen, mittleren und hohen Werten liegt.</td></tr>
+    <tr><td><b>Hinzugefügte Kurven</b></td><td>Rechtsklick in ein Diagramm</td><td>Weitere Punkte des Modells oder Ihre eigenen Daten aus einer CSV-Datei auf denselben Achsen.</td></tr>
+  </tbody>
+</table>
+<figure data-img="tutorial_21_plot_over_time.png"><figcaption>Ein Zeitverlaufsdiagramm; der orangefarbene Cursor markiert den aktuellen Schritt</figcaption></figure>
+<ul>
+  <li>Der Punktverlauf liest den Wert am angeklickten Punkt des <i>Volumens</i> oder, bei einem Schalenergebnis, am nächstgelegenen Punkt der Fläche. Die Sehne eines Linienverlaufs folgt bei einer Schale der Fläche; wo die Sehne eine gekrümmte Schale verlässt, hat die Kurve eine Lücke.</li>
+  <li>Ein Diagramm eines Zellfeldes verwendet die gemittelten Werte; ein Ergebnis mit einem Schritt zeigt seinen Verlauf als einen einzelnen Punkt.</li>
+  <li><span class="ui">Verlauf hier darstellen</span> ist nicht verfügbar, solange zwei Ergebnisse verglichen werden (Kapitel 8).</li>
+</ul>
+<figure data-img="tutorial_21_plot_over_line.png"><figcaption>Spannung entlang einer Linie vom Rand des Lochs zum Rand der Platte</figcaption></figure>
+<figure data-img="tutorial_21_distribution.png"><figcaption>Ein Histogramm des von-Mises-Feldes</figcaption></figure>
+
+<h2>Mit einem Diagramm arbeiten</h2>
+<table class="compact">
+  <thead><tr><th style="width:34%">Aktion</th><th>Ergebnis</th></tr></thead>
+  <tbody>
+    <tr><td>Mausrad</td><td>Zoom um den Mauszeiger. Mit <kbd>Umschalt</kbd> zoomt nur die x-Achse, mit <kbd>Strg</kbd> nur die y-Achse.</td></tr>
+    <tr><td>Ziehen mit der mittleren Taste</td><td>Verschieben.</td></tr>
+    <tr><td>Doppelklick oder Rechtsklick &rarr; <span class="ui">Zoom zurücksetzen</span></td><td>Wieder alles anzeigen.</td></tr>
+    <tr><td>Klicken oder Ziehen in einem Zeitdiagramm</td><td>Bewegt das Ergebnis zum nächstgelegenen Schritt (der orangefarbene Cursor markiert den aktuellen); Diagramm und Zeitleiste steuern sich gegenseitig.</td></tr>
+    <tr><td>Rechtsklick &rarr; <span class="ui">Punkt vom Modell hinzufügen</span></td><td>Klicken Sie dann einen weiteren Punkt desselben Ergebnisses an: Sein Verlauf kommt als weitere Kurve hinzu, benannt nach seiner Position, mit einer Legende.</td></tr>
+    <tr><td>Rechtsklick &rarr; <span class="ui">Kurve aus CSV hinzufügen...</span></td><td>Fügt Ihre eigenen Daten hinzu (siehe unten).</td></tr>
+    <tr><td>Rechtsklick &rarr; <span class="ui">Hinzugefügte Kurven entfernen</span></td><td>Löscht die hinzugefügten Kurven wieder.</td></tr>
+    <tr><td>Rechtsklick &rarr; <span class="ui">Bild speichern...</span></td><td>Schreibt das Diagramm als PNG-Bild.</td></tr>
+    <tr><td>Rechtsklick &rarr; <span class="ui">Daten exportieren (CSV)...</span></td><td>Schreibt die Kurven als CSV: pro Kurve ein x/y-Spaltenpaar, mit der Einheit in der Kopfzeile.</td></tr>
+  </tbody>
+</table>
+
+<h2>Eigene Daten hinzufügen</h2>
+<p>Ein Diagramm kann Messwerte, eine Antwortkurve oder eine andere Analyse neben der simulierten Kurve tragen. Die CSV braucht <b>zwei Spalten, x dann y</b>, und eine Kopfzeile, die die Kurve benennt. Eine Kopfzeile der Form <code>Name (Einheit)</code> gibt der Kurve eine Einheit: Ist sie dieselbe wie die der Hauptkurve, teilen beide die y-Achse; unterscheidet sie sich - eine Temperatur neben einer Spannung -, wird die Kurve auf einer <b>zweiten y-Achse rechts</b> gezeichnet. Eine Kurve, deren Kopfzeile keine Einheit hat, teilt die Hauptachse.</p>
+<table class="compact">
+  <thead><tr><th style="width:36%">Beispiel</th><th>Verwendung</th></tr></thead>
+  <tbody>
+    <tr><td><code>thermal_probe_test.csv</code></td><td>Synthetische „Thermoelement“-Messwerte (Zeit, Temperatur) für die Mitte der gegenüberliegenden Fläche von <code>FEM_box_thermal_transient.frd</code>. Öffnen Sie das Ergebnis, stellen Sie den Verlauf an dieser Fläche dar, fügen Sie die CSV hinzu und spielen Sie ab: Der Cursor wandert über beide Kurven. Der angeklickte Punkt ist nicht genau der der Probe, die Kurven sind daher nah, aber nicht identisch.</td></tr>
+    <tr><td><code>FEM_box_modes_frf.csv</code></td><td>Ein synthetischer Frequenzgang mit Spitzen bei den sechs Modalfrequenzen von <code>FEM_box_modes.frd</code>. Stellen Sie den Verlauf an einem beliebigen Punkt dar, fügen Sie die CSV hinzu und klicken Sie auf eine Spitze: Das Ergebnis springt zu diesem Modus.</td></tr>
+  </tbody>
+</table>
+<figure data-img="tutorial_21_csv_overlay.png"><figcaption>Der simulierte Verlauf und die Messwerte in einem Diagramm</figcaption></figure>
+<figure data-img="tutorial_21_frf_peaks.png"><figcaption>Modalfrequenzen auf der x-Achse mit einer Antwortkurve und ihren Spitzen</figcaption></figure>
+<div class="callout tip"><span class="label">Tipp</span>
+  <p>Eine exportierte Diagramm-CSV lässt sich später mit <span class="ui">Kurve aus CSV hinzufügen...</span> wieder in ein Diagramm einfügen - praktisch, um zwei Analyseläufe in einem Diagramm zu vergleichen, weil die Kopfzeile die Einheit trägt.</p>
+</div>
+
+
+<h1 class="chapter">Ergebnisse vergleichen</h1>
+
+<p>Die üblichen Gründe, zwei Ergebnisse zu öffnen, sind zwei Entwürfe, vorher und nachher bei einer Änderung, ein statischer Lauf gegenüber einem Schwingungsmodus oder zwei Lastfälle. Ihr Vergleich braucht die Ergebnisse nebeneinander, aus demselben Blickwinkel gesehen, mit Farben, die dasselbe bedeuten. <b>Vergleichen</b> leistet genau das.</p>
+
+<h2>Einen Vergleich einrichten</h2>
+<ol>
+  <li>Legen Sie beide Ergebnisse in <b>ein Dokument</b>: Öffnen Sie das erste mit <span class="path">Datei &rarr; Öffnen...</span> und fügen Sie das zweite mit <span class="path">Visualisierung &rarr; Simulationsergebnisse &rarr; Ergebnis zu diesem Dokument hinzufügen...</span> hinzu. Beide behalten ihre echten Dateikoordinaten, zwei Ergebnisse desselben Modells fallen also zusammen, weshalb der Vergleich sie in getrennten Ansichten zeichnet.</li>
+  <li>Wählen Sie in der Registerkarte „Simulationsergebnisse“ das andere Ergebnis unter <span class="ui">Vergleichen mit</span> und klicken Sie auf <span class="ui">Vergleichen</span> (oder verwenden Sie <span class="path">Visualisierung &rarr; Simulationsergebnisse &rarr; Ergebnisse vergleichen...</span>). Das Ansichtsfenster teilt sich in zwei Ansichten, die je ein Ergebnis mit eigener Legende zeichnen. <span class="ui">Anzeigen in</span> wählt nebeneinander oder übereinander (oben und unten).</li>
+  <li>Aktivieren Sie <span class="ui">Gleicher Farbbereich für beide</span>: Gleiche Farben bedeuten dann in beiden Ansichten gleiche Werte. Ohne diese Option verwendet jedes Ergebnis seinen eigenen Bereich.</li>
+  <li>Aktivieren Sie <span class="ui">Kameras koppeln</span>, damit beide Ansichten im Gleichschritt bleiben: Drehen, Verschieben oder Zoomen der einen bewirkt dasselbe in der anderen.</li>
+  <li>Klicken Sie auf <span class="ui">Vergleich beenden</span> (dieselbe Schaltfläche), um zur einzelnen Ansicht zurückzukehren.</li>
+</ol>
+<figure data-img="tutorial_22_compare_side_by_side.png"><figcaption>Biegung (links) und Torsion (rechts) desselben I-Trägers, nebeneinander mit einem Farbbereich</figcaption></figure>
+<figure data-img="tutorial_22_compare_controls.png"><figcaption>Die Vergleichssteuerung der Registerkarte</figcaption></figure>
+
+<h2>Was im Vergleichsmodus funktioniert und was nicht</h2>
+<ul>
+  <li>Der Vergleich zeigt zwei <b>verschiedene</b> Ergebnisse des Dokuments; dasselbe Ergebnis lässt sich nicht mit sich selbst vergleichen. Jede Ansicht hat ihre eigene Legende, überschrieben mit dem Namen des Ergebnisses.</li>
+  <li>Drehen, Verschieben, Zoomen und die Standardansichten funktionieren. <span class="ui">Gleicher Farbbereich für beide</span> verbindet die Bereiche der beiden Ergebnisse und ist nur verfügbar, solange beide dieselbe Einheit zeigen.</li>
+  <li>Die Zeitleiste steuert nur das aktive Ergebnis, das im Feld <span class="ui">Ergebnis</span> gewählte.</li>
+  <li>Solange der Vergleich aktiv ist, sind die Auswahl durch Klicken, die Hervorhebung beim Überfahren und die Wertanzeige beim Überfahren sowie die Gizmos der Schnittebenen abgeschaltet, und <span class="ui">Verlauf hier darstellen</span> ist nicht verfügbar. Die Werkzeuge zum Messen und Kommentieren sind noch nicht ansichtsbewusst. Raytracing ist aus.</li>
+  <li><b>An Ansicht anpassen</b> passt weiterhin das ganze Fenster an, sodass ein breites Modell breiter sein kann als seine Ansicht: Zoomen Sie ein wenig heraus.</li>
+  <li>Der Vergleich endet von selbst, wenn eines der Ergebnisse ausgeblendet, geschlossen oder entfernt wird (auch durch Rückgängig). Das Layout wird nicht in einer Sitzung gespeichert.</li>
+  <li>Der Vergleich hält beide Ergebnisse gleichzeitig im Speicher, sodass zwei sehr große Ergebnisse den doppelten Speicher brauchen (Kapitel 9).</li>
+</ul>
+<div class="callout warn"><span class="label">Achtung</span>
+  <p>Der Vergleich zeigt zwei Ergebnisse nebeneinander; er berechnet nicht die Differenz zwischen ihnen (es gibt kein Feld A minus B). Um Zahlen aus zwei Analysen abzulesen, stellen Sie denselben Punkt jedes Ergebnisses dar und legen beide in ein Diagramm (Kapitel 7) oder vergleichen Sie die Werte beim Überfahren für ein Ergebnis nach dem anderen.</p>
+</div>
+
+<h3>Ein gutes Paar zum Ausprobieren</h3>
+<p><code>ibeam_cantilever.frd</code> (Biegung) und <code>ibeam_torsion.frd</code> (Torsion) sind derselbe I-Träger unter verschiedenen Lasten: Fügen Sie einen zum Dokument des anderen hinzu, schalten Sie die verformte Form und den gemeinsamen Farbbereich ein und stellen Sie die letzte Laststufe ein.</p>

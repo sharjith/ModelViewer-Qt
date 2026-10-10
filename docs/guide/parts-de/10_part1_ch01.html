@@ -1,0 +1,80 @@
+<h1 class="part"><small>Teil I</small>Simulationsergebnisse</h1>
+
+<h1 class="chapter">Einführung in Simulationsergebnisse</h1>
+
+<p>Eine Simulation - eine Finite-Elemente-Spannungsanalyse, eine Wärmeübertragungsrechnung, eine Strömungsberechnung - endet mit einer Ergebnisdatei: dem Netz, auf dem der Solver gerechnet hat, und für jeden Punkt oder jede Zelle davon einem oder mehreren <b>Feldern</b> (Spannung, Verschiebung, Temperatur, Geschwindigkeit, Druck ...), meist für mehrere <b>Schritte</b> (Laststufen, Schwingungsmodi, Zeitpunkte). ModelViewer liest eine solche Datei und zeigt das Modell nach einem Feld eingefärbt. Dieses Kapitel erklärt die Idee und die Begriffe; die folgenden Kapitel gehen die Funktionen nacheinander durch.</p>
+
+<h2>Ein Viewer, kein Solver</h2>
+<p>Diese Grenze ist wichtig, denn sie erklärt Stärken und Grenzen zugleich. ModelViewer ist in Bezug auf die Physik <b>schreibgeschützt</b>: Es ändert nie einen Wert, führt keine eigene Berechnung aus außer der unten beschriebenen Anzeige-Arithmetik (abgeleitete Spannungswerte, Einheitenumrechnung, Mittelung) und hat keinen Solver, keinen Vernetzer und keine Ausdruckssprache. Dafür bleibt es klein und schnell, und jedes Ergebnis erhält dieselben Präsentationswerkzeuge wie jedes Modell: Auswahl, Schnitte, Messen, Kommentieren, Berichtsexport und den Rest des Ansichtsfensters.</p>
+
+<figure>
+<svg width="640" height="150" viewBox="0 0 640 150" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="12">
+  <rect x="5" y="40" width="120" height="70" rx="8" fill="#e8f0fa" stroke="#2b6cb0"/>
+  <text x="65" y="70" text-anchor="middle" font-weight="600" fill="#14213d">Ihr Solver</text>
+  <text x="65" y="88" text-anchor="middle" fill="#3e4c59">CalculiX, OpenFOAM,</text>
+  <text x="65" y="102" text-anchor="middle" fill="#3e4c59">Code_Aster, Elmer ...</text>
+  <path d="M125 75 H165" stroke="#2b6cb0" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="165" y="40" width="120" height="70" rx="8" fill="#fdf5e4" stroke="#b7791f"/>
+  <text x="225" y="70" text-anchor="middle" font-weight="600" fill="#14213d">Ergebnisdatei</text>
+  <text x="225" y="88" text-anchor="middle" fill="#3e4c59" font-size="10.5">.vtu .vtk .frd .exo</text>
+  <text x="225" y="102" text-anchor="middle" fill="#3e4c59" font-size="10.5">.cgns .vtkhdf .med .foam</text>
+  <path d="M285 75 H325" stroke="#2b6cb0" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="325" y="25" width="150" height="100" rx="8" fill="#14213d"/>
+  <text x="400" y="55" text-anchor="middle" font-weight="600" fill="#fff">ModelViewer</text>
+  <text x="400" y="74" text-anchor="middle" fill="#cbd5e0">liest, färbt, schneidet,</text>
+  <text x="400" y="89" text-anchor="middle" fill="#cbd5e0">sondiert, zeichnet, vergleicht</text>
+  <text x="400" y="110" text-anchor="middle" fill="#f6ad55">löst nicht</text>
+  <path d="M475 75 H515" stroke="#2b6cb0" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="515" y="40" width="120" height="70" rx="8" fill="#e8f6ee" stroke="#2f855a"/>
+  <text x="575" y="70" text-anchor="middle" font-weight="600" fill="#14213d">Ausgabe</text>
+  <text x="575" y="88" text-anchor="middle" fill="#3e4c59">Bilder, PDF-Bericht,</text>
+  <text x="575" y="102" text-anchor="middle" fill="#3e4c59">.mvf-Sitzung</text>
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#2b6cb0"/></marker></defs>
+</svg>
+<figcaption>Wo ModelViewer in einem Simulations-Arbeitsablauf steht</figcaption>
+</figure>
+
+<h2>Was Sie sehen: die Randfläche</h2>
+<p>Ein Volumenergebnis hat im Inneren Millionen Zellen, aber einen Volumenkörper betrachtet man von außen. ModelViewer extrahiert daher die <b>Randfläche</b> - die Flächen, die zu genau einer Zelle gehören - und zeichnet sie nach dem gewählten Feld eingefärbt. Das Innere geht nicht verloren: Schnitte, Isoflächen, Stromlinien und Volumendarstellung (Kapitel 6) reichen hinein, und Sonden und Diagramme lesen Werte daraus. Ergebnisse, die bereits Flächen sind (Schalenmodelle aus Dreiecken oder Vierecken), werden so gezeichnet, wie sie sind.</p>
+<ul>
+  <li>Unterstützte Zelltypen: Tetraeder, Hexaeder, Keile, Pyramiden, ihre quadratischen Formen (über ihre Eckknoten gezeichnet) und Polyeder mit expliziten Flächen. Dreiecke und Vierecke sind Schalen.</li>
+  <li>Zelltypen, die keine Fläche zum Zeichnen haben - Polygone, Dreiecksstreifen und einzelne Eckpunkte des alten VTK-Formats sowie die 1D-Balken eines Netzwerks - werden gelesen, aber nicht angezeigt; das ist erwartet.</li>
+  <li>Die angezeigte Fläche ist ein gewöhnliches Mesh in der Szene und kann daher wie jedes andere ausgewählt, ausgeblendet, transformiert, gemessen und kommentiert werden.</li>
+</ul>
+
+<h2>Begriffe</h2>
+<dl class="def">
+  <dt>Feld</dt><dd>Eine Art von Wert über dem Modell: ein Skalar (Temperatur), ein Vektor (Verschiebung, Geschwindigkeit - drei Komponenten) oder ein Tensor (Spannung - sechs Komponenten).</dd>
+  <dt>Knotendaten und Zelldaten</dt><dd>Ein <b>Knotenfeld</b> hat einen Wert pro Netzpunkt und wird glatt interpoliert gezeichnet. Ein <b>Zellfeld</b> hat einen Wert pro Element und wird pro Element in einer flachen Farbe gezeichnet (in der Feldliste mit <span class="ui">[Zellen]</span> markiert).</dd>
+  <dt>Schritt</dt><dd>Ein Zustand des Ergebnisses: eine Laststufe, ein Zeitschritt oder ein Schwingungsmodus. Ein Ergebnis mit mehreren Schritten zeigt eine Zeitleiste.</dd>
+  <dt>Komponente</dt><dd>Einer der Teile eines Vektors oder Tensors (X, Y, Z ...) oder sein Betrag.</dd>
+  <dt>Bereich</dt><dd>Die Werte, die die Farbskala überspannt, von ihrer Minimalfarbe bis zu ihrer Maximalfarbe.</dd>
+  <dt>Abgeleitetes Feld</dt><dd>Ein beim Laden aus einem anderen berechneter Wert - bei Spannungsdateien die von-Mises-Spannung, die Tresca-Spannung, die drei Hauptspannungen und die maximale Schubspannung.</dd>
+</dl>
+
+<h2>Unterstützte Formate</h2>
+<p>Die Leser sind die von ModelViewer selbst; es gibt keine Abhängigkeit von VTK oder ParaView. Welche Formate im Öffnen-Dialog erscheinen, hängt von den Bibliotheken Ihrer Version ab.</p>
+<table>
+  <thead><tr><th style="width:22%">Format</th><th style="width:22%">Endungen</th><th>Hinweise</th></tr></thead>
+  <tbody>
+    <tr><td>VTK</td><td><code>.vtu</code>, <code>.vtk</code></td><td>Das gängige Austauschformat. XML-Dateien (Inline-, angehängte Roh- und komprimierte Daten) und ältere Dateien (ASCII und binär). Polyeder werden unterstützt. Der FEM-Export von FreeCAD schreibt <code>.vtu</code>.</td></tr>
+    <tr><td>CalculiX</td><td><code>.frd</code></td><td>Die von CalculiX geschriebene (und von FreeCAD FEM aufbewahrte) Ergebnisdatei. Verschiebungen, Spannungen und Dehnungen; von Mises, Hauptspannungen und maximale Schubspannung werden beim Laden abgeleitet. Die Werte liegen in den eigenen Einheiten des Solvers vor.</td></tr>
+    <tr><td>Exodus II</td><td><code>.e</code> <code>.exo</code> <code>.ex2</code> <code>.g</code></td><td>Üblich für MOOSE- und Sierra-Ergebnisse. Benötigt eine Version mit NetCDF. Knoten- und Elementvariablen, viele Schritte.</td></tr>
+    <tr><td>CGNS</td><td><code>.cgns</code></td><td>Unstrukturierte und strukturierte Zonen. Benötigt eine Version mit der CGNS-Bibliothek. Lösungen an Eckpunkten und Zellmitten; Randbedingungsabschnitte werden übersprungen.</td></tr>
+    <tr><td>VTKHDF</td><td><code>.vtkhdf</code></td><td>Das HDF5-basierte VTK-Format, wie ParaView es schreibt, einschließlich Zeitschritten. Unstrukturierte Gitter, Polydaten und Bilddaten werden gelesen; zusammengesetzte Dateien werden noch nicht unterstützt. Benötigt HDF5.</td></tr>
+    <tr><td>MED</td><td><code>.med</code></td><td>Ergebnisse von Code_Aster und Salome (MED 3 und neuer). Benötigt HDF5. Ältere Dateien im Code_Aster-2.x-Layout müssen konvertiert werden (<i>medimport</i> von Salome).</td></tr>
+    <tr><td>OpenFOAM</td><td><code>.foam</code></td><td>Öffnen Sie die (leere) <code>.foam</code>-Datei im Fallordner. Die Zeitverzeichnisse des Falls werden zu den Schritten. Polyedernetze werden unterstützt.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout"><span class="label">Hinweis</span>
+  <p><b>Hilfe &rarr; Über uns</b> listet die optionalen Bibliotheken Ihrer Version auf. Fehlt eine Endung im Filter des Öffnen-Dialogs, wurde diese Version ohne die passende Bibliothek erstellt, und das Format lässt sich nicht öffnen.</p>
+</div>
+
+<h2>Der Arbeitsablauf in Kürze</h2>
+<ol>
+  <li>Führen Sie Ihre Analyse im Solver Ihrer Wahl aus und bewahren Sie die Ergebnisdatei auf.</li>
+  <li>Öffnen Sie sie in ModelViewer (<span class="path">Datei &rarr; Öffnen...</span>), wählen Sie ein Feld und prüfen Sie die Einheiten.</li>
+  <li>Betrachten: drehen, schneiden, durch die Zeit gehen, Werte abfragen, sie in Diagrammen darstellen, mit einem anderen Lauf vergleichen.</li>
+  <li>Präsentieren: Kommentare oder Messungen hinzufügen, Ansichten erfassen, einen PDF-Bericht oder ein Bild exportieren oder eine <code>.mvf</code>-Sitzung speichern, die das Ergebnis enthält.</li>
+</ol>

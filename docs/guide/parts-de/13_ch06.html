@@ -1,0 +1,53 @@
+<h1 class="chapter">Ins Innere eines Ergebnisses schauen</h1>
+
+<p>Die Oberfläche eines Volumenkörpers zeigt nur die halbe Geschichte: Die höchste Spannung liegt oft in einem Schnitt, die heißeste Region unter der Haut, die schnellste Strömung in der Mitte eines Kanals. ModelViewer bietet sechs Wege hinein, vom einfachsten (ein Schnitt) bis zum spezialisiertesten (Spannungstensoren als Glyphen). Die ersten vier brauchen <b>Volumenzellen</b> (Tetraeder, Hexaeder, Keile, Pyramiden, Polyeder); bei einem Schalenergebnis meldet der Bereich, dass es nichts zu schneiden oder zu verfolgen gibt. Alle sechs sind <b>Überlagerungen</b>: Sie werden mit dem Ergebnis gezeichnet, sind aber keine Szenen-Meshes und können daher nicht ausgewählt, exportiert oder vom Raytracer gezeichnet werden.</p>
+
+<h2>Schnitte: die Schnittfläche nach dem Feld eingefärbt</h2>
+<p>Die Schnittebenen (die Schaltfläche „Schnittansicht“ der Ansichtssymbolleiste; siehe Anleitungslektion 12) schneiden ein Ergebnis wie jedes Modell. Aktivieren Sie <span class="ui">Schnitt der Schnittebene mit dem Feld einfärben</span>, und die Schnittfläche zeigt das angezeigte Feld - mit den Farben der Legende - statt einer leeren Höhlung. Die eingefärbte Schnittfläche folgt der Ebene, wenn Sie sie verschieben.</p>
+<ul>
+  <li>Es funktioniert mit einem Knotenfeld (glatt) und mit einem Zellfeld (flach pro Zelle).</li>
+  <li>Sind mehrere Ebenen eingeschaltet, bleibt der Schnitt einer Ebene nur dort erhalten, wo jede andere Ebene das Material entfernt hat, sodass die Schnitte immer auf dem Rand dessen liegen, was übrig bleibt.</li>
+  <li>Nur die achsenparallelen Ebenen nehmen teil, nicht der Quadermodus und nicht benutzerdefinierte Ebenen.</li>
+  <li>Der Schnitt wird auf den Volumenzellen berechnet, und konkave Polyeder werden unterstützt.</li>
+</ul>
+<figure data-img="tutorial_20_coloured_section.png"><figcaption>Ein von einer Schnittebene geschnittener Würfel, die Schnittfläche nach Spannung eingefärbt</figcaption></figure>
+
+<h2>Isoflächen</h2>
+<p>Eine <b>Isofläche</b> ist die Fläche, auf der ein Feld einen konstanten Wert hat - eine Hülle gleicher Temperatur, eine Schicht gleicher Spannung. <span class="ui">Isoflächen anzeigen</span> zeichnet für das <span class="ui">Feld der Isoflächen</span> (einen Knotenskalar oder den Betrag eines Knotenvektors) eine Schar davon, mit <span class="ui">Stufen der Isoflächen</span> von 1 bis 20, gleichmäßig streng innerhalb des Bereichs des Feldes beim aktuellen Schritt verteilt, jede in eigener Farbe. Ein konstantes Feld hat keine Isofläche; die Infozeile sagt es.</p>
+<ul>
+  <li>Isoflächen liegen im Inneren des Modells und sind daher durch einen Schnitt zu sehen. Schalten Sie eine Schnittebene ein: Die Schnittkappe bleibt offen, solange Isoflächen angezeigt werden, weil eine deckende Kappe sie verbergen würde. Die deckende eingefärbte Schnittfläche verbirgt, was dahinter liegt; schalten Sie diese Option aus, um die Isoflächen zu sehen.</li>
+  <li>Sie werden neu berechnet, wenn sich der Schritt oder das Feld ändert.</li>
+</ul>
+<figure data-img="tutorial_20_iso_surfaces.png"><figcaption>Isoflächen des Temperaturfeldes in einem Block, von einer Schnittebene geöffnet</figcaption></figure>
+
+<h2>Stromlinien</h2>
+<p>Stromlinien folgen einem Geschwindigkeitsfeld: Jede Linie ist der Weg, den ein masseloses Teilchen nähme, wenn die Strömung beim aktuellen Schritt eingefroren wäre. <span class="ui">Stromlinien anzeigen</span> verwendet ein Knoten-Vektorfeld (<span class="ui">Feld der Stromlinien</span>); <span class="ui">Startpunkte der Stromlinien</span> (1 bis 500) ist die Anzahl der Startpunkte.</p>
+<ul>
+  <li><b>Startpunkte.</b> Standardmäßig sind die Startpunkte Zufallspunkte des Volumens - jedes Mal dieselben, damit Animationsbilder vergleichbar bleiben. <span class="ui">Auf der Schnittebene starten</span> lässt die Linien stattdessen von den Schnittflächen der aktivierten Ebenen beginnen, nach Fläche gewichtet, was genau zeigt, wohin die Strömung von einem Querschnitt aus geht. Ein Startpunkt außerhalb des Netzes oder dort, wo das Feld null ist, ergibt keine Linie.</li>
+  <li><b>Verfolgung.</b> Die Linien werden mit einem Runge-Kutta-Verfahren vierter Ordnung in beide Richtungen von einem Startpunkt aus integriert, bis sie das Netz verlassen, die Geschwindigkeit auf etwa ein Millionstel der größten fällt oder eine Grenze erreicht ist (2000 Schritte oder vier Modelldiagonalen pro Richtung). Das Feld wird in der Zelle, die sie durchlaufen, exakt interpoliert.</li>
+  <li><b>Darstellung.</b> Die Linien werden nach dem Betrag des Feldes eingefärbt, mit dem Bereich der Legende, wenn die Fläche dasselbe Feld zeigt. <span class="ui">Pfeilspitzen</span> fügt kleine Kegel hinzu, die die Richtung zeigen, und <span class="ui">Liniendicke</span> legt die Breite fest. Die Linien werden auf das gekürzt, was die Ebenen sichtbar lassen.</li>
+  <li><b>Grenzen.</b> Nur Knoten-Vektorfelder werden verfolgt. Konkave Polyeder sind ausgeschlossen (der Bereich meldet, wie viele), weil die Interpolation nur in konvexen Zellen gültig ist. Die Verfolgung läuft nicht in einem eigenen Thread, sodass ein sehr großes Ergebnis bei jedem Zeitschritt sichtbar neu verfolgt werden kann.</li>
+</ul>
+<figure data-img="tutorial_20_streamlines.png"><figcaption>Stromlinien durch eine Drallströmung in einem Kanal, mit Pfeilspitzen</figcaption></figure>
+
+<h2>Volumendarstellung</h2>
+<p><span class="ui">Als Volumen anzeigen</span> stellt ein Feld als halbtransparente Wolke statt als Fläche dar, durch Ray Marching durch das Volumen. Wählen Sie das <span class="ui">Volumenfeld</span> und eine <span class="ui">Volumenqualität</span> (Niedrig 32, Mittel 64, Hoch 96, Sehr hoch 128 Abtastungen entlang jedes Strahls: mehr ist glatter und langsamer).</p>
+<p>Die <b>Deckkraftkurve</b> unter den Optionen sagt, wie deckend jeder Wert ist: Die horizontale Achse ist der normierte Feldwert, die vertikale Achse die Deckkraft. <b>Ziehen</b> Sie einen Punkt, um ihn zu verschieben, <b>doppelklicken</b> Sie, um einen Punkt hinzuzufügen, <b>klicken Sie mit rechts</b> auf einen inneren Punkt, um ihn zu entfernen (die beiden Endpunkte bleiben bei 0 und 1). Erhöhen Sie die Kurve für die heißen Werte und senken Sie sie für die kalten, bleibt nur der heiße Kern sichtbar; der Farbverlauf ist der für die Fläche gewählte. Ein Zellfeld wird mit seinen gemittelten Werten gezeigt. Das Volumen zeigt den aktuellen Schritt.</p>
+<figure data-img="tutorial_20_volume_rendering.png"><figcaption>Das Temperaturfeld eines Blocks als Volumen dargestellt, mit der Deckkraftkurve</figcaption></figure>
+
+<h2>Vektorpfeile</h2>
+<p><span class="ui">Vektorpfeile anzeigen</span> zeichnet für ein Vektorfeld an abgetasteten Punkten der Fläche je einen Pfeil: Wählen Sie das <span class="ui">Pfeilfeld</span>, die <span class="ui">Pfeilgröße</span> (bei 1 ist der größte Pfeil 5 % der Modellgröße lang; die Größe bleibt beim Zoomen stabil) und die <span class="ui">Pfeilanzahl</span> (etwa so viele Pfeile, gleichmäßig über die Fläche verteilt). Ist <span class="ui">Pfeile nach Betrag skalieren</span> aus, haben alle Pfeile dieselbe Länge, und nur die Farbe zeigt den Betrag - nützlich, wenn einige große Vektoren den Rest unsichtbar machen würden.</p>
+
+<h2>Spannungsellipsoide (Tensor-Glyphen)</h2>
+<p>Für einen symmetrischen Spannungstensor zeichnet <span class="ui">Spannungsellipsoide anzeigen</span> an abgetasteten Punkten der Fläche je ein Ellipsoid. Seine drei Achsen zeigen in die <b>Hauptrichtungen</b>, und ihre Längen folgen den <b>Hauptwerten</b>. Die längste Achse ist auf dem Bildschirm immer gleich groß, sodass die <i>Form</i> zeigt, wie die Spannung verteilt ist - eine Nadel bei einem Zug in eine Richtung, eine flache Scheibe bei einem Zug in zwei Richtungen, eine Kugel bei gleichmäßigem Druck - und die <i>Farbe</i>, wie groß sie ist.</p>
+<ul>
+  <li><span class="ui">Tensorfeld</span>: jedes sechskomponentige Feld des Ergebnisses, dessen Name <i>stress</i> enthält; die Knotenfelder stehen in der Liste vor den Zellfeldern. Ein Tensor mit anderem Namen (etwa ein OpenFOAM-<i>sigma</i>) wird nicht angeboten, weil sechs Komponenten allein noch keine Spannung ergeben.</li>
+  <li><span class="ui">Ellipsoidgröße</span> (stabil beim Zoomen) und <span class="ui">Anzahl der Ellipsoide</span> (20 bis 5000). Erhöhen Sie die Anzahl für eine Platte auf 1500 oder mehr.</li>
+  <li>Die Einstellungen werden mit der Sitzung gespeichert.</li>
+</ul>
+<p>Gute erste Tests: <code>plate_with_hole.frd</code> (Nadeln entlang des Zugs weit vom Loch, die sich um das Loch herum stark ändern; die Spannungskonzentration beträgt etwa das Dreifache der Spannung im Fernfeld), <code>ibeam_cantilever.frd</code> (Biegung: Nadeln in den Flanschen, im Steg geneigt) und <code>stress_states.vtu</code>, ein synthetischer Block mit drei Tensoren, gemacht, um die Wahl des <span class="ui">Tensorfeldes</span> auszuprobieren.</p>
+<figure data-img="tutorial_20_stress_ellipsoids.png"><figcaption>Spannungsellipsoide um das Loch einer Platte</figcaption></figure>
+
+<div class="callout tip"><span class="label">Tipp</span>
+  <p>Die Überlagerungen lassen sich kombinieren: Eine verformte Form mit eingefärbtem Schnitt und einigen Stromlinien ist ein durchaus gutes Bild. Schalten Sie aber aus, was Sie nicht brauchen - das Bild ist am klarsten mit einer Idee pro Ansicht.</p>
+</div>

@@ -1,0 +1,115 @@
+<h1 class="part"><small>Teil II</small>3D-Diagramme</h1>
+
+<h1 class="chapter">Einführung in 3D-Diagramme</h1>
+
+<p>ModelViewer kann Daten darstellen, die nichts mit einem Solver zu tun haben. Eine Zahlentabelle - Messwerte, ein Export aus einer Tabellenkalkulation, eine mathematische Funktion - wird zu einer Fläche, einer Kurve, einer Punktwolke, einer Reihe von Balken, einem Volumen oder einem Feld von Pfeilen, <b>in derselben 3D-Szene</b> wie Ihre Modelle, mit derselben Kamera, denselben Werkzeugen für Auswahl, Schnitt, Kommentare und Bildexport und derselben Beleuchtung. Es ist eine Möglichkeit, Daten im Raum zu betrachten, keine Tabellenkalkulation und kein Statistikpaket: Es gibt keine Datenbearbeitung, keine Anpassung und keinen Live-Datenstrom.</p>
+
+<h2>Die Idee in einem Bild</h2>
+<figure>
+<svg width="640" height="150" viewBox="0 0 640 150" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="12">
+  <rect x="5" y="20" width="150" height="110" rx="8" fill="#fdf5e4" stroke="#b7791f"/>
+  <text x="80" y="44" text-anchor="middle" font-weight="600" fill="#14213d">Datenquelle</text>
+  <text x="80" y="65" text-anchor="middle" fill="#3e4c59">CSV-Datei oder eingefügter Text</text>
+  <text x="80" y="82" text-anchor="middle" fill="#3e4c59">Formel oder Vorlage</text>
+  <text x="80" y="99" text-anchor="middle" fill="#3e4c59">CSV-Zeitreihe</text>
+  <text x="80" y="116" text-anchor="middle" fill="#3e4c59">Bild auf einer Ebene</text>
+  <path d="M155 75 H190" stroke="#2b6cb0" stroke-width="2" marker-end="url(#b)"/>
+  <rect x="190" y="20" width="150" height="110" rx="8" fill="#e8f0fa" stroke="#2b6cb0"/>
+  <text x="265" y="44" text-anchor="middle" font-weight="600" fill="#14213d">Dialog „3D-Diagramm hinzufügen“</text>
+  <text x="265" y="65" text-anchor="middle" fill="#3e4c59">Typ wählen, Spalten zuordnen</text>
+  <text x="265" y="82" text-anchor="middle" fill="#3e4c59">Vorschau</text>
+  <text x="265" y="99" text-anchor="middle" fill="#3e4c59">Diagramm erstellen</text>
+  <path d="M340 75 H375" stroke="#2b6cb0" stroke-width="2" marker-end="url(#b)"/>
+  <rect x="375" y="20" width="130" height="110" rx="8" fill="#14213d"/>
+  <text x="440" y="44" text-anchor="middle" font-weight="600" fill="#fff">In der Szene</text>
+  <text x="440" y="65" text-anchor="middle" fill="#cbd5e0">Diagramm + Achsenbox</text>
+  <text x="440" y="82" text-anchor="middle" fill="#cbd5e0">Legende, Eintrag im Baum</text>
+  <text x="440" y="99" text-anchor="middle" fill="#cbd5e0">mit Ihren Modellen</text>
+  <path d="M505 75 H535" stroke="#2b6cb0" stroke-width="2" marker-end="url(#b)"/>
+  <rect x="535" y="20" width="100" height="110" rx="8" fill="#e8f6ee" stroke="#2f855a"/>
+  <text x="585" y="44" text-anchor="middle" font-weight="600" fill="#14213d">Registerkarte „3D-Diagramm“</text>
+  <text x="585" y="65" text-anchor="middle" fill="#3e4c59">Stil, Achsen,</text>
+  <text x="585" y="82" text-anchor="middle" fill="#3e4c59">Hinweise, Bearbeiten,</text>
+  <text x="585" y="99" text-anchor="middle" fill="#3e4c59">Export</text>
+  <defs><marker id="b" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#2b6cb0"/></marker></defs>
+</svg>
+<figcaption>Von einer Zahlentabelle zu einem Diagramm in der Szene</figcaption>
+</figure>
+
+<h2>Datenquellen und Diagrammtypen</h2>
+<p>Ein Diagramm hat zwei voneinander unabhängige Wahlmöglichkeiten: <b>woher seine Daten kommen</b> (die Datenquelle) und <b>wie es aussieht</b> (der Diagrammtyp).</p>
+<table>
+  <thead><tr><th style="width:34%">Datenquelle</th><th>Ergibt</th><th style="width:20%">Kapitel</th></tr></thead>
+  <tbody>
+    <tr><td>CSV-Datei oder eingefügte Daten</td><td>Eine Tabelle, die Sie X, Y, Z und weiteren Größen zuordnen, gezeichnet als jeder Diagrammtyp</td><td>11, 12</td></tr>
+    <tr><td>Formelfläche</td><td>z(x, y) aus einem Ausdruck oder einer von 11 Vorlagen</td><td>13</td></tr>
+    <tr><td>Parametrische Fläche, parametrische Kurve</td><td>x, y, z als Funktionen von zwei Parametern (u, v) oder einem (t); Torus, Kleinsche Flasche, Schraubenlinie, Kleeblattknoten ...</td><td>13</td></tr>
+    <tr><td>Implizite Fläche</td><td>Die Fläche, auf der f(x, y, z) = 0 gilt: Kugel, Torus, Gyroid ...</td><td>13</td></tr>
+    <tr><td>Formel-Vektorfeld, Formel-Stromlinien</td><td>Pfeile oder Strömungslinien eines Feldes, das durch drei Ausdrücke gegeben ist</td><td>13</td></tr>
+    <tr><td>Formel-Bahnlinien, CSV-Zeitreihe (Bahnlinien)</td><td>Teilchenbahnen durch ein Feld, das sich mit der Zeit ändert</td><td>14</td></tr>
+    <tr><td>Bild auf einer Ebene</td><td>Ein Bild, das auf einer der Diagrammebenen steht</td><td>16</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th style="width:26%">Diagrammtyp</th><th>Für Daten, die ...</th></tr></thead>
+  <tbody>
+    <tr><td>Fläche</td><td>eine Höhe z über x und y (ein Gitter oder verstreute Punkte)</td></tr>
+    <tr><td>Kontur</td><td>dasselbe, gezeichnet als Isolinien von z</td></tr>
+    <tr><td>Linie / Kurve</td><td>ein geordneter Pfad aus Punkten</td></tr>
+    <tr><td>Streudiagramm</td><td>ungeordnete Punkte (wahlweise mit Stielen, Fehlerbalken oder Füllungen)</td></tr>
+    <tr><td>Balken / Histogramm</td><td>Höhen über einem Gitter oder Anzahlen in Klassen</td></tr>
+    <tr><td>Voxel / Volumetrisch</td><td>eine Belegung oder Dichte auf einem 3D-Gitter</td></tr>
+    <tr><td>Vektor (Quiver)</td><td>ein Vektor an jedem Punkt</td></tr>
+  </tbody>
+</table>
+
+<h2>Was Sie in der Szene bekommen</h2>
+<ul>
+  <li>Jedes Diagramm ist ein Eintrag im <b>Szenenbaum</b> mit eigenem Sichtbarkeits-Kontrollkästchen und kann daher wie ein Modell aus- und eingeblendet werden.</li>
+  <li>Eine <b>Achsenbox</b> rahmt die Diagramme ein, mit Beschriftungen, Teilstrichen und Zahlen; Bezugsebenen (XY, XZ, YZ) stehen zur Verfügung. <b>Alle Diagramme eines Dokuments teilen sich einen Satz Achsen</b> (Kapitel 15).</li>
+  <li>Für Diagramme, die nach einem Wert eingefärbt sind, erscheint eine <b>Farblegende</b>.</li>
+  <li>Ein Diagramm lässt sich später bearbeiten: Ändern Sie die Daten, Spalten oder Formeln und bauen Sie es an Ort und Stelle neu auf (Kapitel 17).</li>
+  <li>Diagramme werden mit ihren Daten in der <code>.mvf</code>-Sitzung gespeichert, und Punkt- und Liniendiagramme lassen sich auch nach glTF, GLB und OBJ exportieren (Kapitel 17).</li>
+</ul>
+
+<div class="callout"><span class="label">Hinweis</span>
+  <p>Diagramme sind Analyseansichten. Sie werden in jedem Darstellungsmodus gleich gezeichnet und nicht vom Raytracer gezeichnet. Wenn Sie ein gerendertes Bild eines Diagramms möchten, verwenden Sie den normalen Bildexport des Viewers.</p>
+</div>
+
+
+<h1 class="chapter">Eine CSV-Datei darstellen</h1>
+
+<h2>Wie die Tabelle aussehen muss</h2>
+<p>Die Eingabe ist eine Klartexttabelle: Zeilen aus Zahlen, getrennt durch ein Trennzeichen, meist mit einer <b>Kopfzeile</b>, die die Spalten benennt. Jede Tabellenkalkulation und jedes Analysewerkzeug kann sie schreiben. Der Dialog unterstützt Komma, Semikolon und Tabulator als <span class="ui">Trennzeichen</span>, und <span class="ui">Erste Zeile enthält Spaltennamen</span> legt fest, ob die erste Zeile eine Kopfzeile ist. Ein kleines Beispiel, der Anfang von <code>surface_ripple.csv</code> (z = sin(r)/r über einem 21 x 21-Gitter; die letzte Spalte wiederholt z als Farbwert):</p>
+<pre>x,y,z,value
+-5.0000,-5.0000,0.100248,0.100248
+-5.0000,-4.5000,0.063807,0.063807
+-5.0000,-4.0000,0.018686,0.018686
+...</pre>
+<ul>
+  <li>Zahlen verwenden den Dezimalpunkt. Leere oder nicht numerische Zellen in einer numerischen Spalte machen die Tabelle unbrauchbar; die Statuszeile nennt die Zeile.</li>
+  <li>Bei einer <b>Linie</b> kommt es auf die Zeilenreihenfolge an (sie ist die Reihenfolge entlang des Pfades); bei den anderen Typen nicht.</li>
+  <li>Die Tabelle kann aus einer Datei geöffnet (<span class="ui">CSV öffnen...</span>) oder eingefügt werden (<span class="ui">Einfügen</span>); nach dem Laden werden die ersten 200 Zeilen in einer Vorschautabelle gezeigt, und die Statuszeile meldet, wie viele Zeilen und Spalten gelesen wurden.</li>
+</ul>
+
+<h2>Der Dialog „3D-Diagramm hinzufügen“</h2>
+<ol>
+  <li>Öffnen Sie <span class="path">Visualisierung &rarr; 3D-Diagramm...</span> (oder <span class="ui">3D-Diagramm hinzufügen...</span> in der Registerkarte <span class="ui">3D-Diagramm</span>).</li>
+  <li><span class="ui">Datenquelle</span>: <i>CSV-Datei oder eingefügte Daten</i>. Öffnen oder fügen Sie Ihre Tabelle ein; prüfen Sie das Trennzeichen und die Einstellung für die Kopfzeile.</li>
+  <li><span class="ui">Diagrammtyp</span>: Wählen Sie den Typ (Kapitel 12). Die Spaltenwahl darunter passt sich ihm an.</li>
+  <li>Ordnen Sie die Spalten zu: die Positionsspalten <span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span> und, je nach Typ, <span class="ui">Farbwert</span>, <span class="ui">U</span>, <span class="ui">V</span>, <span class="ui">W</span>, <span class="ui">Basis</span>, <span class="ui">Breite</span>, <span class="ui">Tiefe</span>. Die Wahl <i>(keine)</i> lässt eine Zuordnung weg. Das Programm rät sinnvolle Spalten anhand der Kopfzeilennamen, und Sie können sie ändern: Die Zuordnung erfolgt nach der Position in der Tabelle, die Reihenfolge der Spalten in der Datei ist also eine Bequemlichkeit, keine Voraussetzung.</li>
+  <li><span class="ui">Vorschau</span> zeigt das Diagramm in der Szene, bevor es hinzugefügt wird - mit derselben Größe, denselben Farben und demselben Verhalten wie das endgültige Diagramm - und <span class="ui">Vorschau löschen</span> entfernt sie. Auch das Schließen des Dialogs entfernt eine Vorschau.</li>
+  <li><span class="ui">Diagramm erstellen</span> fügt das Diagramm der Szene hinzu. Ein <span class="ui">Titel</span> benennt es.</li>
+</ol>
+<figure data-img="tutorial_23_add_plot_dialog.png"><figcaption>Der Dialog „3D-Diagramm hinzufügen“ mit geladener <code>surface_ripple.csv</code> und zugeordneten Spalten</figcaption></figure>
+<figure data-img="tutorial_23_surface_built.png"><figcaption>Die Wellenfläche in der Szene mit ihrer Achsenbox und Legende</figcaption></figure>
+
+<h2>Der Farbwert</h2>
+<p>Flächen-, Linien-, Streu- und Balkendiagramme werden nach einem Wert eingefärbt. Standardmäßig ist es die Höhe (Z); ordnen Sie <span class="ui">Farbwert</span> einer anderen Spalte zu, um nach etwas anderem einzufärben - der Clusternummer eines Streudiagramms, der Geschwindigkeit entlang eines Pfades. Die Farbe eines Streudiagramms gilt pro Punkt; die einer Fläche wird zwischen ihren Eckpunkten interpoliert.</p>
+
+<h2>Wenn die Tabelle nicht verwendbar ist</h2>
+<p>Die Statuszeile unter der Vorschau sagt, was gelesen wurde und, wenn die Tabelle nicht verwendbar ist, warum: eine Zeile mit Text, wo eine Zahl nötig ist (sie nennt die Zeile), eine Tabelle, die kein vollständiges regelmäßiges Gitter ist, wo eines verlangt wird (sie sagt, wie viele Zeilen fehlen), oder eine Spalte, die nicht gewählt wurde. Die Schaltfläche <span class="ui">Diagramm erstellen</span> bleibt deaktiviert, bis das Problem behoben ist. Anhang C listet die Meldungen auf.</p>
+
+<div class="callout tip"><span class="label">Tipp</span>
+  <p>Beginnen Sie mit einem Beispiel des gewünschten Typs (Anhang A) und sehen Sie sich seine Spalten an, dann formen Sie Ihre eigene Tabelle genauso. Eine neue Datei ist so einfach wie eine Kopfzeile und Zeilen aus Zahlen.</p>
+</div>

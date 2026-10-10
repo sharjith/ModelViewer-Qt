@@ -1,0 +1,90 @@
+<h1 class="chapter">Sonde e grafici</h1>
+
+<p>I colori ti dicono <i>dove</i> un valore è alto o basso; un grafico ti dice <i>quanto</i> e come cambia. ModelViewer legge i valori direttamente dal risultato e li traccia senza uscire dal programma.</p>
+
+<h2>Leggere un singolo valore</h2>
+<p>Muovi il mouse sul modello: il valore del campo visualizzato sotto il cursore compare accanto, nell'unità visualizzata. Su un campo nodale il valore è interpolato al cursore; su un campo di cella è il valore dell'elemento sotto il cursore (o il valore mediato, se <span class="ui">Media i dati di cella sui nodi</span> è attivo).</p>
+<figure data-img="tutorial_21_hover_value.png"><figcaption>Il valore sotto il cursore, letto direttamente dal modello</figcaption></figure>
+
+<h2>I quattro grafici</h2>
+<table>
+  <thead><tr><th style="width:30%">Grafico</th><th style="width:30%">Come avviarlo</th><th>Mostra</th></tr></thead>
+  <tbody>
+    <tr><td><b>Grafico nel tempo</b></td><td>Clic destro su un punto del risultato &rarr; <span class="ui">Traccia nel tempo qui</span>; oppure il pulsante <span class="ui">Grafico nel tempo...</span>, poi un clic su un punto</td><td>La storia del campo visualizzato in quel punto, su tutti i passi. Per un risultato modale l'asse x è la frequenza di ogni modo.</td></tr>
+    <tr><td><b>Grafico lungo una linea</b></td><td><span class="ui">Grafico lungo una linea...</span>, poi un clic su due punti</td><td>Il campo lungo la retta (corda) tra i due punti, al passo corrente.</td></tr>
+    <tr><td><b>Distribuzione</b></td><td><span class="ui">Distribuzione...</span></td><td>Un istogramma del campo su tutto il risultato: quanta parte del modello si trova a valori bassi, medi e alti.</td></tr>
+    <tr><td><b>Curve aggiunte</b></td><td>Clic destro dentro un grafico</td><td>Altri punti del modello, o i tuoi dati da un file CSV, sugli stessi assi.</td></tr>
+  </tbody>
+</table>
+<figure data-img="tutorial_21_plot_over_time.png"><figcaption>Un grafico nel tempo; il cursore arancione segna il passo corrente</figcaption></figure>
+<ul>
+  <li>La storia di un punto legge il valore nel punto del <i>volume</i> su cui hai fatto clic o, per un risultato a guscio, nel punto più vicino della superficie. La corda di un grafico lungo una linea segue la superficie di un guscio; dove la corda lascia un guscio curvo la curva ha un vuoto.</li>
+  <li>Un grafico di un campo di cella usa i valori mediati; un risultato con un solo passo mostra la sua storia come un singolo punto.</li>
+  <li><span class="ui">Traccia nel tempo qui</span> non è disponibile mentre si confrontano due risultati (capitolo 8).</li>
+</ul>
+<figure data-img="tutorial_21_plot_over_line.png"><figcaption>Tensione lungo una linea dal bordo del foro al bordo della piastra</figcaption></figure>
+<figure data-img="tutorial_21_distribution.png"><figcaption>Un istogramma del campo di von Mises</figcaption></figure>
+
+<h2>Lavorare con un grafico</h2>
+<table class="compact">
+  <thead><tr><th style="width:34%">Azione</th><th>Risultato</th></tr></thead>
+  <tbody>
+    <tr><td>Rotellina del mouse</td><td>Zoom attorno al puntatore. Con <kbd>Maiusc</kbd> si ingrandisce solo l'asse x, con <kbd>Ctrl</kbd> solo l'asse y.</td></tr>
+    <tr><td>Trascinare con il pulsante centrale</td><td>Spostare.</td></tr>
+    <tr><td>Doppio clic, oppure clic destro &rarr; <span class="ui">Reimposta zoom</span></td><td>Mostrare di nuovo tutto.</td></tr>
+    <tr><td>Clic o trascinamento in un grafico temporale</td><td>Porta il risultato al passo più vicino (il cursore arancione segna quello corrente); il grafico e la linea temporale si controllano a vicenda.</td></tr>
+    <tr><td>Clic destro &rarr; <span class="ui">Aggiungi un punto dal modello</span></td><td>Fai poi clic su un altro punto dello stesso risultato: la sua storia si unisce al grafico come un'altra curva, con il nome della sua posizione e una legenda.</td></tr>
+    <tr><td>Clic destro &rarr; <span class="ui">Aggiungi curva da CSV...</span></td><td>Aggiunge i tuoi dati (vedi sotto).</td></tr>
+    <tr><td>Clic destro &rarr; <span class="ui">Rimuovi le curve aggiunte</span></td><td>Cancella di nuovo le curve aggiunte.</td></tr>
+    <tr><td>Clic destro &rarr; <span class="ui">Salva immagine...</span></td><td>Scrive il grafico come immagine PNG.</td></tr>
+    <tr><td>Clic destro &rarr; <span class="ui">Esporta dati (CSV)...</span></td><td>Scrive le curve come CSV: una coppia di colonne x, y per curva, con l'unità nell'intestazione.</td></tr>
+  </tbody>
+</table>
+
+<h2>Aggiungere i propri dati</h2>
+<p>Un grafico può contenere misure, una curva di risposta o un'altra analisi accanto alla curva simulata. Il CSV richiede <b>due colonne, x poi y</b>, e una riga di intestazione che dà il nome alla curva. Un'intestazione della forma <code>Nome (unità)</code> assegna un'unità alla curva: se quell'unità è la stessa della curva principale, entrambe condividono l'asse y; se differisce - una temperatura accanto a una tensione - la curva viene disegnata su un <b>secondo asse y a destra</b>. Una curva la cui intestazione non ha unità condivide l'asse principale.</p>
+<table class="compact">
+  <thead><tr><th style="width:36%">Esempio</th><th>Uso</th></tr></thead>
+  <tbody>
+    <tr><td><code>thermal_probe_test.csv</code></td><td>Letture sintetiche di una «termocoppia» (tempo, temperatura) per il centro della faccia opposta di <code>FEM_box_thermal_transient.frd</code>. Apri il risultato, traccia nel tempo su quella faccia, aggiungi il CSV e riproduci: il cursore percorre entrambe le curve. Il punto su cui hai fatto clic non è esattamente quello del campione, quindi le curve sono vicine, non identiche.</td></tr>
+    <tr><td><code>FEM_box_modes_frf.csv</code></td><td>Una curva di risposta in frequenza sintetica con picchi alle sei frequenze dei modi di <code>FEM_box_modes.frd</code>. Traccia nel tempo in un punto qualsiasi, aggiungi il CSV e fai clic su un picco: il risultato salta a quel modo.</td></tr>
+  </tbody>
+</table>
+<figure data-img="tutorial_21_csv_overlay.png"><figcaption>La storia simulata e le letture misurate in un unico grafico</figcaption></figure>
+<figure data-img="tutorial_21_frf_peaks.png"><figcaption>Frequenze dei modi sull'asse x con una curva di risposta e i suoi picchi</figcaption></figure>
+<div class="callout tip"><span class="label">Suggerimento</span>
+  <p>Un CSV di grafico esportato può essere riaggiunto in seguito a un grafico con <span class="ui">Aggiungi curva da CSV...</span>, utile per confrontare due esecuzioni di analisi su un unico grafico, perché l'intestazione riporta l'unità.</p>
+</div>
+
+
+<h1 class="chapter">Confrontare risultati</h1>
+
+<p>I motivi abituali per aprire due risultati sono due progetti, prima e dopo una modifica, un'esecuzione statica contro un modo di vibrazione, o due casi di carico. Confrontarli richiede i risultati affiancati, visti dallo stesso punto di vista, con colori che significano la stessa cosa. <b>Confronta</b> fa esattamente questo.</p>
+
+<h2>Impostare un confronto</h2>
+<ol>
+  <li>Metti entrambi i risultati in <b>un solo documento</b>: apri il primo con <span class="path">File &rarr; Apri...</span> e aggiungi il secondo con <span class="path">Visualizzazione &rarr; Risultati di simulazione &rarr; Aggiungi risultato a questo documento...</span>. Entrambi mantengono le loro vere coordinate di file, quindi due risultati dello stesso modello coincidono, ed è per questo che il confronto li disegna in riquadri separati.</li>
+  <li>Nella scheda Risultati di simulazione scegli l'altro risultato in <span class="ui">Confronta con</span> e fai clic su <span class="ui">Confronta</span> (oppure usa <span class="path">Visualizzazione &rarr; Risultati di simulazione &rarr; Confronta risultati...</span>). La vista si divide in due riquadri, ciascuno con un risultato e la propria legenda. <span class="ui">Mostra in</span> sceglie affiancati o in colonna (sopra e sotto).</li>
+  <li>Spunta <span class="ui">Stesso intervallo di colori per entrambi</span>: colori uguali significano allora valori uguali in entrambi i riquadri. Senza di essa, ogni risultato usa il proprio intervallo.</li>
+  <li>Spunta <span class="ui">Collega le telecamere</span> per mantenere le due viste allineate: ruotare, spostare o ingrandire una fa lo stesso nell'altra.</li>
+  <li>Fai clic su <span class="ui">Esci dal confronto</span> (lo stesso pulsante) per tornare alla vista singola.</li>
+</ol>
+<figure data-img="tutorial_22_compare_side_by_side.png"><figcaption>Flessione (a sinistra) e torsione (a destra) della stessa trave a I, affiancate con un unico intervallo di colori</figcaption></figure>
+<figure data-img="tutorial_22_compare_controls.png"><figcaption>I comandi di confronto della scheda</figcaption></figure>
+
+<h2>Cosa funziona nella modalità di confronto e cosa no</h2>
+<ul>
+  <li>Confronta mostra due risultati <b>diversi</b> del documento; lo stesso risultato non può essere confrontato con se stesso. Ogni riquadro ha la propria legenda, intestata con il nome del risultato.</li>
+  <li>Rotazione, spostamento, zoom e le viste standard funzionano. <span class="ui">Stesso intervallo di colori per entrambi</span> unisce gli intervalli dei due risultati ed è disponibile solo finché entrambi mostrano la stessa unità.</li>
+  <li>La linea temporale guida solo il risultato attivo, quello scelto nella casella <span class="ui">Risultato</span>.</li>
+  <li>Mentre il confronto è attivo, la selezione con clic, l'evidenziazione al passaggio del mouse, la lettura del valore al passaggio del mouse e i gizmo dei piani di taglio sono disattivati, e <span class="ui">Traccia nel tempo qui</span> non è disponibile. Gli strumenti di misurazione e annotazione non distinguono ancora i riquadri. Il ray tracing è disattivato.</li>
+  <li><b>Adatta allo schermo</b> adatta ancora l'intera finestra, quindi un modello largo può essere più largo del suo riquadro: riduci un po' lo zoom.</li>
+  <li>Il confronto termina da solo quando uno dei risultati viene nascosto, chiuso o rimosso (anche con annulla). Il layout non viene salvato in una sessione.</li>
+  <li>Confronta tiene entrambi i risultati in memoria contemporaneamente, quindi due risultati molto grandi richiedono il doppio della memoria (capitolo 9).</li>
+</ul>
+<div class="callout warn"><span class="label">Attenzione</span>
+  <p>Confronta mostra due risultati uno accanto all'altro; non calcola la differenza tra di essi (non esiste un campo A meno B). Per leggere numeri da due analisi, traccia lo stesso punto di ciascuna e metti entrambi su un grafico (capitolo 7), oppure confronta i valori al passaggio del mouse un risultato alla volta.</p>
+</div>
+
+<h3>Una buona coppia da provare</h3>
+<p><code>ibeam_cantilever.frd</code> (flessione) e <code>ibeam_torsion.frd</code> (torsione) sono la stessa trave a I con carichi diversi: aggiungi uno al documento dell'altro, attiva la forma deformata e l'intervallo di colori condiviso, e imposta l'ultimo passo di carico.</p>

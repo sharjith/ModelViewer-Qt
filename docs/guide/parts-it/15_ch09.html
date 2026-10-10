@@ -1,0 +1,105 @@
+<h1 class="chapter">Salvataggio, risultati grandi e limiti</h1>
+
+<h2>Salvare un risultato in una sessione</h2>
+<p>Un risultato è una sessione di visualizzazione come le altre, quindi viene salvato nel file di sessione <code>.mvf</code> (<span class="path">File &rarr; Salva</span>). Lo scopo del salvataggio è che la sessione si riapra <b>senza il file originale del solutore</b>, con campo, intervallo, mappa colori, unità, deformazione e linea temporale come li avevi lasciati. Quando il documento contiene risultati, ModelViewer chiede una volta per sessione cosa memorizzare:</p>
+<figure>
+<svg width="640" height="190" viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="12">
+  <rect x="5" y="10" width="205" height="170" rx="8" fill="#e8f0fa" stroke="#2b6cb0"/>
+  <text x="107" y="34" text-anchor="middle" font-weight="600" fill="#14213d">Campo visualizzato e spostamento</text>
+  <text x="107" y="50" text-anchor="middle" fill="#2b6cb0" font-size="11">tutti i passi di tempo - consigliato</text>
+  <text x="18" y="78" fill="#3e4c59">&#8226; la superficie visibile</text>
+  <text x="18" y="96" fill="#3e4c59">&#8226; il campo che mostri</text>
+  <text x="18" y="114" fill="#3e4c59">&#8226; il campo di spostamento</text>
+  <text x="18" y="132" fill="#3e4c59">&#8226; ogni passo (max. 100)</text>
+  <text x="18" y="156" fill="#3e4c59">il file più piccolo che resta attivo</text>
+  <rect x="217" y="10" width="205" height="170" rx="8" fill="#fdf5e4" stroke="#b7791f"/>
+  <text x="320" y="34" text-anchor="middle" font-weight="600" fill="#14213d">Tutti i campi</text>
+  <text x="320" y="50" text-anchor="middle" fill="#b7791f" font-size="11">tutti i passi di tempo</text>
+  <text x="230" y="78" fill="#3e4c59">&#8226; la superficie visibile</text>
+  <text x="230" y="96" fill="#3e4c59">&#8226; ogni campo del risultato</text>
+  <text x="230" y="114" fill="#3e4c59">&#8226; ogni passo (max. 100)</text>
+  <text x="230" y="156" fill="#3e4c59">cambiare campo dopo la riapertura</text>
+  <rect x="429" y="10" width="205" height="170" rx="8" fill="#e8f6ee" stroke="#2f855a"/>
+  <text x="531" y="34" text-anchor="middle" font-weight="600" fill="#14213d">Solo geometria</text>
+  <text x="531" y="50" text-anchor="middle" fill="#2f855a" font-size="11">nessun dato di risultato</text>
+  <text x="442" y="78" fill="#3e4c59">&#8226; la superficie con i colori</text>
+  <text x="442" y="96" fill="#3e4c59">  come visualizzato</text>
+  <text x="442" y="156" fill="#3e4c59">un'immagine, non più un risultato</text>
+</svg>
+<figcaption>Le tre scelte della finestra Salva risultati di simulazione; ognuna mostra una stima della dimensione del file</figcaption>
+</figure>
+
+<h3>Cosa viene salvato</h3>
+<ul>
+  <li>L'istantanea è la <b>superficie di contorno</b>, non il volume: i valori vengono salvati per vertice della superficie (non per nodo del solutore), compressi senza perdita, come numeri a 32 bit. La finestra mostra una stima della dimensione prima di scrivere qualsiasi cosa.</li>
+  <li>I passi (con i loro tempi o etichette), i campi con le loro unità e grandezze, l'intervallo su tutti i nodi del solutore per ogni campo e passo (così legenda e intervallo di colori su tutti i passi sono identici a quelli del risultato attivo anche se i nodi interni non vengono salvati) e lo stato della vista: campo, componente, intervallo, mappa colori, bande, passo, deformazione e marcatori.</li>
+  <li>I campi di tensione derivati <b>non</b> vengono salvati: vengono ricalcolati dal tensore di tensione al caricamento.</li>
+  <li>Vengono salvati al massimo <b>100 passi di tempo</b> per risultato, distribuiti uniformemente; la finestra avvisa quando ciò si applica.</li>
+  <li>Il percorso del file sorgente viene conservato solo come informazione; la sessione non ne ha mai bisogno.</li>
+</ul>
+
+<h3>Sezioni, isosuperfici e linee di flusso in una sessione salvata</h3>
+<p>Senza il volume viene salvata solo la superficie visibile, quindi le facce di taglio, le isosuperfici e le linee di flusso mostrate vengono salvate <b>come erano</b> e tornano <i>congelate</i>: non seguono più un piano di taglio spostato né un altro passo di tempo, e il pannello lo dice. Spunta <span class="ui">Salva anche il volume</span> per mantenerle attive: vengono salvati anche i nodi, le celle e i campi scelti dell'intero volume, il risultato ripristinato è il risultato completo e tutto - sezioni, isosuperfici, linee di flusso, rendering volumetrico - viene ricalcolato come prima. Il prezzo è un file molto più grande, circa proporzionale al volume; la finestra mostra cosa aggiunge il volume.</p>
+
+<h3>Riapertura</h3>
+<ul>
+  <li>Una versione precedente di ModelViewer apre una sessione di questo tipo come una semplice mesh colorata (i colori mostrati sono salvati con essa) e ignora il resto.</li>
+  <li>Se modifichi la mesh di un risultato salvato dopo averlo caricato - dividi, unisci, ripara - e salvi, il numero di vertici non corrisponde più ai dati salvati; al caricamento successivo la sessione del risultato viene scartata con un messaggio invece di mostrare valori errati. Spostare, ruotare o scalare il modello è innocuo.</li>
+</ul>
+
+<h2>Risultati grandi</h2>
+<h3>Dove va la memoria</h3>
+<p>La geometria costa poco; sono i <b>passi di tempo</b> a far crescere. Un risultato conserva, per ogni campo e ogni passo, quattro byte per valore:</p>
+<table class="compact">
+  <thead><tr><th>Mesh (esaedri)</th><th>Geometria</th><th>Un passo di uno scalare nodale, un vettore nodale e uno scalare di cella</th><th>50 passi, tutti letti in una volta</th></tr></thead>
+  <tbody>
+    <tr><td>1 milione di celle</td><td>circa 50 MB</td><td>circa 20 MB</td><td>circa 1 GB</td></tr>
+    <tr><td>5 milioni di celle</td><td>circa 250 MB</td><td>circa 100 MB</td><td>circa 5 GB</td></tr>
+    <tr><td>20 milioni di celle</td><td>circa 1 GB</td><td>circa 410 MB</td><td>circa 20 GB</td></tr>
+  </tbody>
+</table>
+<p>Queste sono le dimensioni di ciò che è tenuto in memoria; la modalità di confronto tiene due risultati contemporaneamente.</p>
+
+<h3>Caricamento differito dei passi</h3>
+<p>Per mantenere utilizzabili i grandi risultati transitori, i passi vengono caricati <b>su richiesta</b>. Un risultato viene letto in modo differito quando i dati dei suoi passi richiederebbero più di <b>256 MB</b> e ha più di un passo; i formati che lo supportano sono <b>Exodus</b>, <b>CalculiX FRD</b>, <b>CGNS</b>, <b>VTKHDF</b> (griglie non strutturate e dati poligonali) e i casi <b>OpenFOAM</b>. Gli altri formati, e i dati immagine VTKHDF, vengono letti per intero; MED non è ancora differito.</p>
+<ul>
+  <li>All'apertura vengono letti solo la mesh e le intestazioni dei campi; gli ultimi quattro passi mostrati restano in memoria, e il meno usato di recente esce per primo. Un caso OpenFOAM legge una cartella temporale per passo. Un file CalculiX viene mappato in memoria e indicizzato una sola volta.</li>
+  <li>Un passo che non è residente viene letto dal file quando ci si sposta su di esso, quindi scorrere un risultato differito è più lento che uno residente, e <b>il file resta aperto</b> (un <code>.frd</code> di CalculiX è bloccato in scrittura finché il risultato è caricato).</li>
+  <li>L'intervallo su tutti i passi - l'intervallo di colori predefinito - legge ogni passo una volta al primo uso; un cursore di attesa copre quella prima scansione.</li>
+  <li><b>Salvare</b> un risultato differito legge l'intero file, perché l'istantanea memorizza ogni passo che conserva.</li>
+</ul>
+<p>Misurato su un risultato di un milione di esaedri con cinque passi e nove campi (485 MB su disco), caricato per intero e in modo differito:</p>
+<table class="compact">
+  <thead><tr><th></th><th>Letto per intero</th><th>Differito</th></tr></thead>
+  <tbody>
+    <tr><td>Dataset in memoria dopo l'apertura</td><td>361 MB</td><td>47 MB</td></tr>
+    <tr><td>Tempo di lettura e costruzione</td><td>1.0 s</td><td>0.15 s</td></tr>
+    <tr><td>Picco di memoria del processo</td><td>584 MB</td><td>323 MB</td></tr>
+    <tr><td>Mostrare un passo</td><td>3 ms</td><td>0,18 s (letto dal file)</td></tr>
+    <tr><td>Intervallo sui cinque passi</td><td>7 ms</td><td>0.9 s</td></tr>
+  </tbody>
+</table>
+<p class="small">Cifre da una build di rilascio per Windows; gli intervalli di colori concordano fino all'ultima cifra tra le due modalità. I tuoi numeri dipendono dal disco e dal formato - i file binari HDF5 e NetCDF si leggono molto più velocemente di quelli ASCII.</p>
+
+<h3>Consigli pratici</h3>
+<ul>
+  <li>Scrivi dal solutore solo i campi e i passi che ti servono; ogni passo in più costa tempo e spazio su disco, nel file e in una sessione salvata.</li>
+  <li>Preferisci formati binari strutturati (VTKHDF, Exodus, CGNS) rispetto a <code>.vtk</code> o <code>.frd</code> ASCII per i grandi risultati transitori.</li>
+  <li>L'apertura richiede tempo in due fasi: la lettura del file, poi l'estrazione della superficie di contorno (alcuni secondi per cinque milioni di celle; l'estrazione avviene in parallelo).</li>
+  <li>Chiudi i risultati che non guardi più ed evita Confronta con due risultati enormi.</li>
+</ul>
+
+<h2>Limiti e ciò che non è supportato</h2>
+<table>
+  <thead><tr><th style="width:34%">Limite</th><th>Dettagli</th></tr></thead>
+  <tbody>
+    <tr><td>Nessuna soluzione né modifica</td><td>ModelViewer non crea mesh, non risolve, non modifica valori e non crea campi di differenza (A meno B).</td></tr>
+    <tr><td>Solo formati aperti</td><td>Nessun formato proprietario (Abaqus <code>.odb</code>, ANSYS <code>.rst</code>, Nastran OP2); esporta prima da quei programmi in VTK o in un altro formato aperto.</td></tr>
+    <tr><td>I gusci non hanno un interno</td><td>Sezioni, isosuperfici, linee di flusso e rendering volumetrico richiedono celle di volume.</td></tr>
+    <tr><td>Le sovrapposizioni non sono mesh</td><td>Le facce di taglio, le isosuperfici, le linee di flusso, le frecce e gli ellissoidi non possono essere selezionati, esportati in glTF/OBJ né disegnati dal ray tracer. I risultati stessi vengono disegnati piatti in ogni modalità di rendering e non sono tracciati con raggi.</td></tr>
+    <tr><td>Campi delle linee di flusso</td><td>Solo campi vettoriali nodali; i poliedri concavi sono esclusi dal tracciamento.</td></tr>
+    <tr><td>Strumenti di sezione</td><td>Il taglio colorato e la partenza su un taglio usano i piani di taglio allineati agli assi, non la modalità a scatola né i piani personalizzati.</td></tr>
+    <tr><td>Lacune nei formati di file</td><td>I file VTKHDF compositi (multiblocco), le griglie VTKHDF strutturate e rettilinee e i dati CGNS centrati sulle facce non vengono ancora letti; le reti di travi Exodus si caricano ma non hanno nulla da disegnare; i poligoni, le strisce e i vertici del VTK legacy non vengono visualizzati.</td></tr>
+    <tr><td>Confronta</td><td>Due risultati alla volta, non salvati e senza distinzione dei riquadri per selezione, misurazione e annotazione (capitolo 8).</td></tr>
+  </tbody>
+</table>
