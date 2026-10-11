@@ -1530,7 +1530,13 @@ void MainWindow::activateDocument(ModelViewer* child)
 	if (child && child == _activeDocument)
 		return;
 
+	// The chart windows of the document being left are hidden and those of the one being entered come back (they are top-level
+	// windows owned by their document, so Qt would otherwise leave them on screen over another document).
+	if (_activeDocument && _activeDocument != child)
+		_activeDocument->hideDocumentWindows();
 	_activeDocument = child;
+	if (child)
+		child->showDocumentWindows();
 
 	updateMenus();
 

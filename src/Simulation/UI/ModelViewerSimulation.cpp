@@ -2539,6 +2539,7 @@ void ModelViewer::onSimulationChartPointsPicked(const QUuid& meshUuid, const QVe
 	QTimer::singleShot(0, this, [this, series, overTime, chartMesh]() {
 		auto* chart = new SimulationChartWidget(this);
 		chart->setSeries(series);
+		_chartWindows.push_back(chart);
 		if (overTime)
 		{
 			chart->setSeekable(true);
@@ -2561,6 +2562,33 @@ void ModelViewer::onSimulationChartPointsPicked(const QUuid& meshUuid, const QVe
 	});
 }
 
+void ModelViewer::hideDocumentWindows()
+{
+	_chartsHiddenByDeactivation.clear();
+	for (int i = _chartWindows.size() - 1; i >= 0; --i)
+	{
+		if (!_chartWindows[i])
+		{
+			_chartWindows.removeAt(i); // closed (WA_DeleteOnClose)
+			continue;
+		}
+		if (_chartWindows[i]->isVisible())
+		{
+			_chartsHiddenByDeactivation.push_back(_chartWindows[i]);
+			_chartWindows[i]->hide(); // a hidden top-level window keeps its geometry
+		}
+	}
+}
+
+void ModelViewer::showDocumentWindows()
+{
+	const QVector<QPointer<SimulationChartWidget>> toShow = _chartsHiddenByDeactivation;
+	_chartsHiddenByDeactivation.clear();
+	for (const QPointer<SimulationChartWidget>& chart : toShow)
+		if (chart)
+			chart->show();
+}
+
 void ModelViewer::requestSimulationHistogram()
 {
 	SimulationSession* session = findSimulationSession(_activeSimulationMesh);
@@ -2576,6 +2604,7 @@ void ModelViewer::requestSimulationHistogram()
 	}
 	auto* chart = new SimulationChartWidget(this);
 	chart->setHistogram(tr("Distribution of %1").arg(label), label, unit, edges, counts);
+	_chartWindows.push_back(chart);
 	chart->show();
 	chart->raise();
 	chart->activateWindow();
