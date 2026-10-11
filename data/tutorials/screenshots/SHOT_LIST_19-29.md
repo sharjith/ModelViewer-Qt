@@ -134,8 +134,12 @@ Capture in the English UI; the translated lessons share the same pictures.
 
 - [ ] `tutorial_28_wall_thickness.png` (700x450) - Open "MBB Gehause Rohteil.step", Tools > Surface Analysis..., Wall-Thickness with a limit that highlights the thin walls; capture the dialog and the coloured part.  
   *Wall thickness of a housing coloured on the surface, with thin walls highlighted*
-- [ ] `tutorial_28_zebra_and_draft.png` (700x350) - One part (for example bottle.step) with Zebra Stripe, then Clear Overlay and Draft Angle with a vertical pull direction; join the two captures side by side.  
-  *Zebra stripes (left) and a draft-angle analysis (right) on the same part*
+- [ ] `tutorial_28_draft_angle.png` (700x450) - One part (for example bottle.step), Tools > Surface Analysis..., Draft Angle with a vertical pull direction; capture the dialog and the coloured part.  
+  *Draft-angle analysis of a part against a vertical pull direction*
+- [ ] `tutorial_28_zebra_stripes.png` (700x450) - One part (for example bottle.step), Tools > Surface Analysis..., Zebra Stripe; capture the striped part.  
+  *Zebra stripes on a part: smooth, continuous stripes mean a smooth surface*
+- [ ] `tutorial_28_mean_curvature.png` (700x450) - One part (for example bottle.step), Tools > Surface Analysis..., Mean Curvature; capture the dialog and the coloured part.  
+  *Mean curvature of a part: how strongly and in which sense the surface curves*
 - [ ] `tutorial_28_mass_properties.png` (700x450) - Open the Skate-Board assembly, give two materials a density (Physical Properties), Tools > Mass Properties...; select a row and capture the table with the mesh highlighted.  
   *The Mass Properties table for an assembly, with a row selected and its mesh highlighted*
 - [ ] `tutorial_28_filter_by_material.png` (700x450) - Open the Forklift or Skate-Board assembly, Selection > Filter by Material, choose one material; capture the viewport with the matching parts highlighted.  
@@ -151,7 +155,7 @@ Capture in the English UI; the translated lessons share the same pictures.
   *The Basic tab of the Ray Tracing dialog*
 - [ ] `tutorial_29_dialog_diagnostics.png` (560x480) - Start a render, switch to the Diagnostics tab and capture it with renderer, GPU, samples/sec and MRays/sec filled in.  
   *The Diagnostics tab while a render is running*
-- [ ] `tutorial_29_rendered_image.png` (700x450) - Render the shuttle at 3840 x 2160 (Basic tab, denoiser on), Export Image... as PNG, and place that PNG here (a downscaled copy is fine).  
+- [ ] `tutorial_29_rendered_image.png` (700x450) - Render the Car Concept model (Khronos glTF Sample Assets, CC BY 4.0 - credit Eric Chadwick) at 3840 x 2160 (Basic tab, denoiser on), Export Image... as PNG, and place that PNG here (a downscaled copy is fine).  
   *A finished high-resolution ray-traced image of the model*
 - [ ] `tutorial_29_batch_render.png` (600x480) - Capture three views in the Cameras panel, then Tools > Batch Render Views...; capture the dialog with the three views ticked, the format and resolution set and a folder chosen.  
   *The Batch Render Views dialog with three captured views ticked*
