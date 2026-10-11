@@ -749,6 +749,10 @@ public slots:
 	void requestSimulationPlotOverTime();
 	void requestSimulationPlotOverLine();
 	void requestSimulationHistogram();
+	// The chart windows (plot over time / line, distribution) belong to this document: they are hidden while another document is the
+	// active one and come back exactly where they were (position, size, zoom) when this one is activated again; they close with it.
+	void hideDocumentWindows();
+	void showDocumentWindows();
 	// Time steps of the active result: show step `step` (clamped), and start/stop the playback timer. Both are
 	// driven by the timeline overlay; `fromPlayback` skips the panel refresh that a manual step triggers.
 	void setSimulationStep(int step, bool fromPlayback = false);
@@ -1184,6 +1188,8 @@ private:
 		QUuid mesh;
 	};
 	QVector<SimulationChartLink> _simulationChartLinks;
+	QVector<QPointer<SimulationChartWidget>> _chartWindows;      // every chart window of this document (open or hidden)
+	QVector<QPointer<SimulationChartWidget>> _chartsHiddenByDeactivation; // the ones visible when the document was deactivated
 	bool _plot3DViewportSignalsConnected = false;
 	QPointer<SimulationChartWidget> _chartPickTarget; // a chart waiting for another point: the next one picked is added to it
 	QUuid _chartPickTargetMesh;

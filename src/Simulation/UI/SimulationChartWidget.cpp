@@ -8,6 +8,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFontMetrics>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -20,13 +21,13 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <vector>
 
 namespace
 {
-	constexpr int kMargin = 44;    // left/bottom room for axis labels and ticks
-	constexpr int kTopMargin = 28; // room for the title
-	constexpr int kRightMargin = 16;
-	constexpr int kSecondaryMargin = 62; // the right-hand axis: tick labels and its rotated name
+	constexpr int kMinRightMargin = 16; // right edge of the plot when there is no second y axis
+	constexpr int kLabelGap = 6;        // between a tick label and the axis, and between one label block and the next
+	constexpr int kMarginQuantum = 8;   // the left/right margins grow in steps of this, so the plot does not twitch while panning
 
 	// A "nice" tick step (1/2/5 x a power of ten) covering `range` in about `targetTicks` steps.
 	double niceStep(double range, int targetTicks)
@@ -40,11 +41,47 @@ namespace
 		return step * magnitude;
 	}
 
+	// A value for the hover read-outs: four significant digits, trailing zeros dropped (2.791e+07, 0.0125, 4).
 	QString formatNumber(double v)
 	{
 		if (!std::isfinite(v))
 			return QStringLiteral("-");
-		return QString::number(v, std::fabs(v) >= 1.0e5 || (std::fabs(v) < 1.0e-3 && v != 0.0) ? 'e' : 'g', 4);
+		return QString::number(v, 'g', 4);
+	}
+
+	// The tick values of an axis: multiples of `step` inside [lo, hi].
+	std::vector<double> tickValues(double lo, double hi, double step)
+	{
+		std::vector<double> ticks;
+		if (!(step > 0.0) || !(hi > lo))
+			return ticks;
+		for (double v = std::ceil(lo / step) * step; v <= hi + step * 1.0e-9 && ticks.size() < 64; v += step)
+			ticks.push_back(std::fabs(v) < step * 1.0e-9 ? 0.0 : v);
+		return ticks;
+	}
+
+	// A tick label, as short as the step allows: decimals only as fine as the step needs, and a compact exponent (1.2e7, 4e-5) for very large or
+	// very small values - so the labels fit the margin instead of being clipped.
+	QString formatTick(double v, double step)
+	{
+		if (!std::isfinite(v))
+			return QStringLiteral("-");
+		if (v == 0.0)
+			return QStringLiteral("0");
+		const double magnitude = std::fabs(v);
+		if (magnitude >= 1.0e5 || magnitude < 1.0e-3)
+		{
+			const QString scientific = QString::number(v, 'e', 3);
+			const int e = scientific.indexOf(QLatin1Char('e'));
+			QString mantissa = scientific.left(e);
+			while (mantissa.endsWith(QLatin1Char('0')))
+				mantissa.chop(1);
+			if (mantissa.endsWith(QLatin1Char('.')))
+				mantissa.chop(1);
+			return mantissa + QLatin1Char('e') + QString::number(scientific.mid(e + 1).toInt());
+		}
+		const int decimals = step > 0.0 ? std::clamp(static_cast<int>(-std::floor(std::log10(step))), 0, 6) : 4;
+		return QString::number(v, 'f', decimals);
 	}
 
 	QString withUnit(const QString& label, const QString& unit) { return unit.isEmpty() ? label : label + QStringLiteral(" (%1)").arg(unit); }
@@ -154,8 +191,34 @@ bool SimulationChartWidget::hasSecondaryAxis() const
 
 QRectF SimulationChartWidget::plotRect() const
 {
-	const int right = hasSecondaryAxis() ? kSecondaryMargin : kRightMargin;
-	return QRectF(kMargin, kTopMargin, std::max(1, width() - kMargin - right), std::max(1, height() - kTopMargin - kMargin));
+	// The margins follow the font and the widest tick label (a fixed margin clipped long labels such as 2.791e7 and the rotated axis names).
+	const QFontMetrics fm(font());
+	const int line = fm.height();
+	const Axes axes = computeAxes();
+	int yLabelWidth = fm.horizontalAdvance(QStringLiteral("0000")), y2LabelWidth = 0, lastXHalf = 0;
+	if (axes.valid)
+	{
+		const double yStep = niceStep(axes.yMax - axes.yMin, 6);
+		for (double y : tickValues(axes.yMin, axes.yMax, yStep))
+			yLabelWidth = std::max(yLabelWidth, fm.horizontalAdvance(formatTick(y, yStep)));
+		const double xStep = niceStep(axes.xMax - axes.xMin, 6);
+		const std::vector<double> xTicks = tickValues(axes.xMin, axes.xMax, xStep);
+		if (!xTicks.empty())
+			lastXHalf = fm.horizontalAdvance(formatTick(xTicks.back(), xStep)) / 2;
+		if (axes.hasY2)
+		{
+			const double y2Step = niceStep(axes.y2Max - axes.y2Min, 6);
+			for (double y : tickValues(axes.y2Min, axes.y2Max, y2Step))
+				y2LabelWidth = std::max(y2LabelWidth, fm.horizontalAdvance(formatTick(y, y2Step)));
+		}
+	}
+	auto quantize = [](int w) { return (w + kMarginQuantum - 1) / kMarginQuantum * kMarginQuantum; };
+	const int left = quantize(yLabelWidth + kLabelGap) + kLabelGap + line + kLabelGap; // tick labels, then the rotated axis name
+	const int right = (axes.valid && axes.hasY2) ? quantize(y2LabelWidth + kLabelGap) + kLabelGap + line + kLabelGap
+	                                             : std::max(kMinRightMargin, lastXHalf + 4);
+	const int top = line + 10;                       // the title
+	const int bottom = 2 * line + 2 * kLabelGap + 4; // x tick labels, then the x axis name
+	return QRectF(left, top, std::max(1, width() - left - right), std::max(1, height() - top - bottom));
 }
 
 SimulationChartWidget::Axes SimulationChartWidget::computeAxes() const
@@ -231,7 +294,10 @@ void SimulationChartWidget::paintEvent(QPaintEvent*)
 	const QColor axisColor = palette().windowText().color();
 	const QColor gridColor = QColor(axisColor.red(), axisColor.green(), axisColor.blue(), 40);
 	painter.setPen(axisColor);
-	painter.drawText(QRectF(0, 4, width(), kTopMargin - 4), Qt::AlignHCenter, _histogram ? _histTitle : _series.title);
+	const QFontMetrics fm(font());
+	const int line = fm.height();
+	painter.drawText(QRectF(4, 4, width() - 8, line + 4), Qt::AlignHCenter | Qt::TextDontClip,
+	                 fm.elidedText(_histogram ? _histTitle : _series.title, Qt::ElideRight, std::max(1, width() - 8)));
 
 	if (_histogram ? _histCounts.empty() : _series.empty())
 	{
@@ -253,31 +319,36 @@ void SimulationChartWidget::paintEvent(QPaintEvent*)
 	// Gridlines and tick labels.
 	painter.setPen(gridColor);
 	const double yStep = niceStep(yMax - yMin, 6);
-	for (double y = std::ceil(yMin / yStep) * yStep; y <= yMax; y += yStep)
+	const std::vector<double> yTicks = tickValues(yMin, yMax, yStep);
+	for (double y : yTicks)
 	{
 		const double py = toY(y);
 		painter.drawLine(QPointF(plot.left(), py), QPointF(plot.right(), py));
 	}
 	const double xStep = niceStep(xMax - xMin, 6);
-	for (double x = std::ceil(xMin / xStep) * xStep; x <= xMax; x += xStep)
+	const std::vector<double> xTicks = tickValues(xMin, xMax, xStep);
+	for (double x : xTicks)
 	{
 		const double px = toX(x);
 		painter.drawLine(QPointF(px, plot.top()), QPointF(px, plot.bottom()));
 	}
 	painter.setPen(axisColor);
-	for (double y = std::ceil(yMin / yStep) * yStep; y <= yMax; y += yStep)
-		painter.drawText(QRectF(0, toY(y) - 8, kMargin - 6, 16), Qt::AlignRight | Qt::AlignVCenter, formatNumber(y));
-	for (double x = std::ceil(xMin / xStep) * xStep; x <= xMax; x += xStep)
-		painter.drawText(QRectF(toX(x) - 30, plot.bottom() + 2, 60, 16), Qt::AlignHCenter, formatNumber(x));
+	// The y tick labels sit right-aligned against the plot; the rotated y axis name takes the strip to their left.
+	for (double y : yTicks)
+		painter.drawText(QRectF(0, toY(y) - line / 2.0, plot.left() - kLabelGap, line), Qt::AlignRight | Qt::AlignVCenter | Qt::TextDontClip, formatTick(y, yStep));
+	for (double x : xTicks)
+		painter.drawText(QRectF(toX(x) - 50, plot.bottom() + 3, 100, line), Qt::AlignHCenter | Qt::TextDontClip, formatTick(x, xStep));
 	painter.drawRect(plot);
 
 	const QString xAxisLabel = _histogram ? withUnit(_histXLabel, _histXUnit) : withUnit(_series.xLabel, _series.xUnit);
 	const QString yAxisLabel = _histogram ? tr("Count") : withUnit(_series.yLabel, _series.yUnit);
-	painter.drawText(QRectF(0, height() - 18, width(), 16), Qt::AlignHCenter, xAxisLabel);
+	painter.drawText(QRectF(4, height() - line - 4, width() - 8, line), Qt::AlignHCenter | Qt::TextDontClip,
+	                 fm.elidedText(xAxisLabel, Qt::ElideMiddle, std::max(1, width() - 8)));
 	painter.save();
-	painter.translate(12, height() / 2.0);
+	painter.translate(4 + line / 2.0, plot.center().y());
 	painter.rotate(-90);
-	painter.drawText(QRectF(-height() / 2.0, -14, static_cast<double>(height()), 16), Qt::AlignHCenter, yAxisLabel);
+	painter.drawText(QRectF(-plot.height() / 2.0, -line / 2.0, plot.height(), line), Qt::AlignHCenter | Qt::AlignVCenter | Qt::TextDontClip,
+	                 fm.elidedText(yAxisLabel, Qt::ElideMiddle, std::max(1, static_cast<int>(plot.height()))));
 	painter.restore();
 
 	// The second y axis, on the right, in the colour of the first curve that uses it.
@@ -293,13 +364,15 @@ void SimulationChartWidget::paintEvent(QPaintEvent*)
 		const QColor colour = kExtraColours[first % 4];
 		const double step2 = niceStep(axes.y2Max - axes.y2Min, 6);
 		painter.setPen(colour);
-		for (double y = std::ceil(axes.y2Min / step2) * step2; y <= axes.y2Max; y += step2)
-			painter.drawText(QRectF(plot.right() + 4, toY2(y) - 8, 46, 16), Qt::AlignLeft | Qt::AlignVCenter, formatNumber(y));
+		for (double y : tickValues(axes.y2Min, axes.y2Max, step2))
+			painter.drawText(QRectF(plot.right() + kLabelGap, toY2(y) - line / 2.0, width() - plot.right() - kLabelGap, line),
+			                 Qt::AlignLeft | Qt::AlignVCenter | Qt::TextDontClip, formatTick(y, step2));
 		painter.save();
-		painter.translate(width() - 6, height() / 2.0);
+		painter.translate(width() - 4 - line / 2.0, plot.center().y());
 		painter.rotate(90);
-		painter.drawText(QRectF(-height() / 2.0, -14, static_cast<double>(height()), 16), Qt::AlignHCenter,
-			withUnit(_extraCurves[first].yLabel.isEmpty() ? _extraCurves[first].title : _extraCurves[first].yLabel, _extraCurves[first].yUnit));
+		const QString y2Name = withUnit(_extraCurves[first].yLabel.isEmpty() ? _extraCurves[first].title : _extraCurves[first].yLabel, _extraCurves[first].yUnit);
+		painter.drawText(QRectF(-plot.height() / 2.0, -line / 2.0, plot.height(), line), Qt::AlignHCenter | Qt::AlignVCenter | Qt::TextDontClip,
+		                 fm.elidedText(y2Name, Qt::ElideMiddle, std::max(1, static_cast<int>(plot.height()))));
 		painter.restore();
 	}
 
