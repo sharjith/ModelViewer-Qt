@@ -787,10 +787,24 @@
             </div>
 
             <h3>Linux Build</h3>
-            <p><strong>Ubuntu 26.04 LTS</strong> (the platform of the <code>.deb</code>): run <code>packaging/linux/setup-wsl-build-env.sh</code>, which installs the
-            system packages, vcpkg's two vendored ports and <strong>CGAL 6.2 or newer</strong> from cgal.org (Ubuntu's own <code>libcgal-dev</code> is 6.1 and is too old; the
-            configure step stops with a message if it finds an older one), then <code>cmake --preset linux_system_release</code>, build, and
-            <code>cpack -G DEB</code>.</p>
+            <p><strong>Ubuntu 26.04 LTS / Kubuntu 26.04</strong> (the platform of the <code>.deb</code>): the supported route, which builds the same package as the releases page.</p>
+            <pre><code>git clone --branch dev https://github.com/sharjith/ModelViewer-Qt.git ~/dev/ModelViewer-Qt
+cd ~/dev/ModelViewer-Qt
+git submodule update --init --recursive
+
+# one-time setup (needs sudo): apt packages, CGAL 6.2+ from cgal.org, vcpkg for the two bundled ports
+bash packaging/linux/setup-wsl-build-env.sh
+
+cmake --preset linux_system_release
+cmake --build out/build/linux_system_release --parallel
+
+cd out/build/linux_system_release &amp;&amp; cpack -G DEB
+sudo apt install ./modelviewer_2026.11.0_amd64.deb
+modelviewer</code></pre>
+            <p>In an existing clone, update it first with <code>git fetch origin &amp;&amp; git checkout dev &amp;&amp; git pull</code>. CGAL comes from cgal.org because Ubuntu's own
+            <code>libcgal-dev</code> is 6.1 and too old (the configure step stops with a message if it finds an older one). The script is named after WSL but works on any Ubuntu 26.04
+            system. Build the whole project, not just <code>--target ModelViewer</code>, or <code>cpack</code> cannot find the icon. For NVIDIA graphics install the driver first
+            (<code>sudo ubuntu-drivers install</code>).</p>
             <p>Other Linux builds go through <strong>vcpkg</strong> (manifest mode) for dependency
             management, using the bundled CMake presets.</p>
             <ol>
