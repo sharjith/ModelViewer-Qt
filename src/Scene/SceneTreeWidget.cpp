@@ -14,10 +14,12 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
+#include <QPointer>
 #include <QProxyStyle>
 #include <QRegularExpression>
 #include <QSignalBlocker>
 #include <QStyle>
+#include <QStyleFactory>
 #include <QStyleOption>
 #include <QStyledItemDelegate>
 #include <QScrollBar>
@@ -154,7 +156,9 @@ public:
     }
 
 private:
-    QWidget* _owner = nullptr;
+    // QPointer: the style can be reached by a widget painting after its tree is gone (see the
+    // constructor's setStyle() comment); a raw pointer there crashed in QObject::property().
+    QPointer<QWidget> _owner;
 };
 
 class OverlayTreeItemDelegate : public QStyledItemDelegate
@@ -377,7 +381,15 @@ SceneTreeWidget::SceneTreeWidget(QWidget* parent)
     horizontalScrollBar()->installEventFilter(this);
     verticalScrollBar()->installEventFilter(this);
 
-    setStyle(new PlusMinusStyle(style(), this));
+    // QProxyStyle takes OWNERSHIP of its base style, so wrapping style() directly would hand it
+    // the shared application-wide style. Give it a private copy instead, and parent the proxy to
+    // this tree so it is destroyed with it rather than outliving it (and its _owner).
+    QStyle* baseStyle = QStyleFactory::create(style()->name());
+    if (!baseStyle)
+        baseStyle = QStyleFactory::create(QStringLiteral("Fusion"));
+    auto* plusMinusStyle = new PlusMinusStyle(baseStyle, this);
+    plusMinusStyle->setParent(this);
+    setStyle(plusMinusStyle);
     // QWidget::style() has no parent-chain fallback (checks only its own extra->style, else
     // QApplication::style() directly - confirmed in Qt6 source) - viewport() is a SEPARATE
     // widget from the outer QTreeWidget the line above set this style on, so without this it
