@@ -17,6 +17,41 @@ ModelViewer now reads **simulation results** (FEM / CFD) and plots **your own da
 The [releases page](https://github.com/sharjith/ModelViewer-Qt/releases) has a **Windows installer** (`.exe`) and a **Linux `.deb`** for Ubuntu 26.04 LTS
 (`sudo apt install ./modelviewer_2026.11.0_amd64.deb`). To build from source see [Building the Code](#building-the-code).
 
+### Optional content packs (full material library, all HDRI maps)
+
+To keep the download small, the installer and the `.deb` include only a starter set: **19 materials** (the common metals, plastics, rubber, wood, stone, paper, denim
+and a clear-coated paint), **4 environment maps** (`@Default`, Frozenwaterfall, Newport_Loft, Venice_Sunset) and the sample models. The complete libraries are separate
+downloads on the same releases page. Every zip contains paths that start at `textures\...` or `sample-models\...`, and each carries a `README.txt` with the same steps.
+
+| Download | Adds | Size |
+|---|---|---|
+| `ModelViewer-MaterialLibrary-2026.11.0-part1.zip` and `-part2.zip` | All ~129 material presets (`textures/materials`). Download **both** parts | about 2.2 GB in total |
+| `ModelViewer-EnvironmentMaps-2026.11.0.zip` | Every HDRI environment map pack | about 1.0 GB |
+| `ModelViewer-LargeSamples-2026.11.0.zip` | Million-cell stress-test results for the simulation readers (optional) | about 150 MB |
+
+`SHA256SUMS.txt` on the releases page lists the checksum of each zip.
+
+**Install a pack** (close ModelViewer first). Unzip it **into the ModelViewer data folder** so that the `textures` (or `sample-models`) folder in the zip merges with the one
+already there:
+
+- **Windows**: the data folder is `<install folder>\share\ModelViewer` - by default `C:\Program Files\ModelViewer\share\ModelViewer` (or
+  `%LOCALAPPDATA%\Programs\ModelViewer\share\ModelViewer` if you installed for the current user only). Unzipping into `C:\Program Files` needs administrator rights, e.g.
+  in an elevated PowerShell:
+  ```powershell
+  Expand-Archive -Force ModelViewer-MaterialLibrary-2026.11.0-part1.zip "C:\Program Files\ModelViewer\share\ModelViewer"
+  Expand-Archive -Force ModelViewer-MaterialLibrary-2026.11.0-part2.zip "C:\Program Files\ModelViewer\share\ModelViewer"
+  Expand-Archive -Force ModelViewer-EnvironmentMaps-2026.11.0.zip "C:\Program Files\ModelViewer\share\ModelViewer"
+  ```
+- **Linux** (`.deb`): the data folder is `/usr/share/ModelViewer`:
+  ```bash
+  sudo unzip -o ModelViewer-MaterialLibrary-2026.11.0-part1.zip -d /usr/share/ModelViewer
+  sudo unzip -o ModelViewer-MaterialLibrary-2026.11.0-part2.zip -d /usr/share/ModelViewer
+  sudo unzip -o ModelViewer-EnvironmentMaps-2026.11.0.zip -d /usr/share/ModelViewer
+  ```
+
+Restart ModelViewer: the new materials appear in the Material panel library and the new maps in the Environment panel. Existing files are simply overwritten with identical
+content, so a pack can be applied again safely. Packs are built with `packaging/make-content-packs.ps1` (see the script header).
+
 **ADS Mode for CAD Visualization**
 
 ![Screenshot 2021-07-24 172616](https://github.com/user-attachments/assets/364c5cf4-34b5-4991-938c-d36ea05a8026)
