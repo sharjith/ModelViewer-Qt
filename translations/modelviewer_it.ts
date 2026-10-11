@@ -12407,73 +12407,73 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
     <message>
         <location filename="../src/App/QuickHelpDialog.cpp" line="176"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="327"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="477"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="475"/>
         <source>Mouse Controls</source>
         <translation>Controlli Mouse</translation>
     </message>
     <message>
         <location filename="../src/App/QuickHelpDialog.cpp" line="177"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="549"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="547"/>
         <source>Keyboard Shortcuts</source>
         <translation>Scorciatoie da Tastiera</translation>
     </message>
     <message>
         <location filename="../src/App/QuickHelpDialog.cpp" line="178"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="617"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="615"/>
         <source>View Toolbar</source>
         <translation>Barra Strumenti Vista</translation>
     </message>
     <message>
         <location filename="../src/App/QuickHelpDialog.cpp" line="179"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="520"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="568"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="673"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="518"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="566"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="671"/>
         <source>Camera Modes</source>
         <translation>Modalità di Fotocamera</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="584"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="582"/>
         <source>Display Modes</source>
         <translation>Modalità di Visualizzazione</translation>
     </message>
     <message>
         <location filename="../src/App/QuickHelpDialog.cpp" line="187"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1261"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1259"/>
         <source>Menu Shortcuts</source>
         <translation>Scorciatoie Menu</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1237"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1235"/>
         <source>  Edit Material</source>
         <translation>  Modifica materiale</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1237"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1235"/>
         <source>Open the material editor for the selected meshes</source>
         <translation>Apri l&apos;editor dei materiali per le mesh selezionate</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1238"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1236"/>
         <source>  Copy / Cut</source>
         <translation>  Copia / Taglia</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1238"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1236"/>
         <source>Copy or cut the selected items (they can be pasted into this or another document)</source>
         <translation>Copia o taglia gli elementi selezionati (possono essere incollati in questo o in un altro documento)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1318"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1316"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Edit Material:&lt;/b&gt; Right-click object → Edit Material&lt;/li&gt;&lt;li&gt;&lt;b&gt;Material Editor:&lt;/b&gt; Use the Materials tab of the Properties panel on the right to edit colors, roughness, metallic properties&lt;/li&gt;&lt;li&gt;&lt;b&gt;Texture Mapping:&lt;/b&gt; Apply textures in the Textures tab of the same Materials panel&lt;/li&gt;&lt;li&gt;&lt;b&gt;Environment:&lt;/b&gt; Enable SkyBox and IBL for realistic lighting&lt;/li&gt;&lt;li&gt;&lt;b&gt;Display Modes:&lt;/b&gt; Switch to Realistic mode to see full PBR materials&lt;/li&gt;&lt;li&gt;&lt;b&gt;Eyedropper:&lt;/b&gt; Sample one mesh&apos;s material and brush it onto others from the Material Properties panel&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Modifica materiale:&lt;/b&gt; Clic destro sull&apos;oggetto → Modifica materiale&lt;/li&gt;&lt;li&gt;&lt;b&gt;Editor materiali:&lt;/b&gt; Usa la scheda Materiali del pannello Proprietà a destra per modificare colori, ruvidità, proprietà metalliche&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mappatura texture:&lt;/b&gt; Applica texture nella scheda Texture dello stesso pannello Materiali&lt;/li&gt;&lt;li&gt;&lt;b&gt;Ambiente:&lt;/b&gt; Attiva SkyBox e IBL per un&apos;illuminazione realistica&lt;/li&gt;&lt;li&gt;&lt;b&gt;Modalità di visualizzazione:&lt;/b&gt; Passa alla modalità Realistica per vedere i materiali PBR completi&lt;/li&gt;&lt;li&gt;&lt;b&gt;Contagocce:&lt;/b&gt; Campiona il materiale di una mesh e applicalo ad altre dal pannello Proprietà materiale&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1357"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1355"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Settings:&lt;/b&gt; Edit → Settings to configure MSAA, anisotropic filtering, and theme&lt;/li&gt;&lt;li&gt;&lt;b&gt;Background:&lt;/b&gt; Right-click → Background Color to customize viewport background&lt;/li&gt;&lt;li&gt;&lt;b&gt;Theme:&lt;/b&gt; Choose between Light, Dark, or System theme in Settings&lt;/li&gt;&lt;li&gt;&lt;b&gt;Language:&lt;/b&gt; Change interface language in Settings dialog&lt;/li&gt;&lt;li&gt;&lt;b&gt;Axis Position:&lt;/b&gt; Configure corner axis triad position in Settings&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Impostazioni:&lt;/b&gt; Modifica → Impostazioni per configurare MSAA, filtro anisotropico e tema&lt;/li&gt;&lt;li&gt;&lt;b&gt;Sfondo:&lt;/b&gt; Clic destro → Colore di sfondo per personalizzare lo sfondo della vista&lt;/li&gt;&lt;li&gt;&lt;b&gt;Tema:&lt;/b&gt; Scegli tra tema Chiaro, Scuro o di Sistema nelle Impostazioni&lt;/li&gt;&lt;li&gt;&lt;b&gt;Lingua:&lt;/b&gt; Cambia la lingua dell&apos;interfaccia nella finestra Impostazioni&lt;/li&gt;&lt;li&gt;&lt;b&gt;Posizione asse:&lt;/b&gt; Configura la posizione della triade degli assi nell&apos;angolo nelle Impostazioni&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1365"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1363"/>
         <source>Tips &amp; Tricks</source>
         <translation>Suggerimenti &amp; Trucchi</translation>
     </message>
@@ -12513,168 +12513,167 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation>Teiera</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="365"/>
         <source>Camera</source>
-        <translation>Fotocamera</translation>
+        <translation type="vanished">Fotocamera</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="451"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="485"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1149"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1259"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="449"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="483"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1147"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1257"/>
         <source>Action</source>
         <translation>Azione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="451"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1456"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="449"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1454"/>
         <source>Mouse Control</source>
         <translation>Controllo Mouse</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="451"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="449"/>
         <source>Alternative</source>
         <translation>Alternativa</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="453"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="558"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="451"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="556"/>
         <source>Rotate View</source>
         <translation>Ruota Vista</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="453"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="451"/>
         <source>Ctrl + Left Button + Drag</source>
         <translation>Ctrl + Tasto Sinistro + Trascina</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="453"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="451"/>
         <source>Enable &apos;Rotate View&apos; mode from toolbar</source>
         <translation>Attiva modalità &apos;Ruota Vista&apos; dalla barra strumenti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="454"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="560"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="452"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="558"/>
         <source>Pan View</source>
         <translation>Vista Panoramica</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="454"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="452"/>
         <source>Ctrl + Right Button + Drag</source>
         <translation>Ctrl + Tasto Destro + Trascina</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="454"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="452"/>
         <source>Enable &apos;Pan View&apos; mode from toolbar</source>
         <translation>Attiva modalità &apos;Sposta Vista&apos; dalla barra strumenti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="455"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="562"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="453"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="560"/>
         <source>Zoom View</source>
         <translation>Zoom Vista</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="455"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="453"/>
         <source>Mouse Wheel&lt;br/&gt;OR&lt;br/&gt;Ctrl + Middle Button + Drag</source>
         <translation>Rotella Mouse&lt;br/&gt;OPPURE&lt;br/&gt;Ctrl + Tasto Centrale + Trascina</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="455"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="453"/>
         <source>Enable &apos;Zoom View&apos; mode from toolbar</source>
         <translation>Attiva modalità &apos;Zoom Vista&apos; dalla barra strumenti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="457"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="455"/>
         <source>Center Pan</source>
         <translation>Sposta Centrato</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="457"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="455"/>
         <source>Middle Button Click (release at new position)</source>
         <translation>Clic Tasto Centrale (rilascia nella nuova posizione)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="457"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="458"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="461"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="455"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="456"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="459"/>
         <source>N/A</source>
         <translation>N/D</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="458"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="456"/>
         <source>Select Object</source>
         <translation>Seleziona Oggetto</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="458"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="456"/>
         <source>Left Button Click</source>
         <translation>Clic Tasto Sinistro</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="459"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="457"/>
         <source>Multi-Select</source>
         <translation>Selezione Multipla</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="459"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="457"/>
         <source>Left Button + Drag (rubber band)</source>
         <translation>Tasto Sinistro + Trascina (selezione elastica)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="459"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="457"/>
         <source>Hold Ctrl while clicking</source>
         <translation>Tieni premuto Ctrl mentre clicchi</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="460"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="566"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="458"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="564"/>
         <source>Window Zoom</source>
         <translation>Zoom della Finestra</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="460"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="458"/>
         <source>Enable mode, then Left Button + Drag</source>
         <translation>Attiva modalità, poi Tasto Sinistro + Trascina</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="460"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="458"/>
         <source>Right-click menu</source>
         <translation>Menu clic-destro</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="461"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="459"/>
         <source>Context Menu</source>
         <translation>Menu Contestuale</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="461"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="459"/>
         <source>Right Button Click</source>
         <translation>Clic Tasto Destro</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="464"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="462"/>
         <source>View Manipulation</source>
         <translation>Manipolazione Vista</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="465"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="463"/>
         <source>The mouse controls allow intuitive 3D view manipulation:</source>
         <translation>I controlli del mouse permettono una manipolazione intuitiva della vista 3D:</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="468"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="466"/>
         <source>Important Notes</source>
         <translation>Note Importanti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="469"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="467"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Inertia:&lt;/b&gt; Mouse movements support inertial scrolling for smooth navigation&lt;/li&gt;&lt;li&gt;&lt;b&gt;Cursor Changes:&lt;/b&gt; The cursor changes to indicate the active manipulation mode&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mode Activation:&lt;/b&gt; You can activate view modes from the toolbar or right-click menu, then use Left Button to perform the action&lt;/li&gt;&lt;li&gt;&lt;b&gt;Large Models:&lt;/b&gt; For models larger than 50MB, a low-resolution preview is shown during manipulation&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Inerzia:&lt;/b&gt; i movimenti del mouse supportano lo scorrimento inerziale per una navigazione fluida&lt;/li&gt;&lt;li&gt;&lt;b&gt;Cambiamenti del cursore:&lt;/b&gt; il cursore cambia per indicare la modalità di manipolazione attiva&lt;/li&gt;&lt;li&gt;&lt;b&gt;Attivazione della modalità:&lt;/b&gt; è possibile attivare le modalità di visualizzazione dalla barra degli strumenti o dal menu di scelta rapida, quindi utilizzare il pulsante sinistro per eseguire l&apos;azione&lt;/li&gt;&lt;li&gt;&lt;b&gt;Modelli di grandi dimensioni:&lt;/b&gt; per i modelli più grandi di 50 MB, durante la manipolazione viene visualizzata un&apos;anteprima a bassa risoluzione&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="485"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1454"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="483"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1452"/>
         <source>Key</source>
         <translation>Tasto</translation>
     </message>
@@ -12683,263 +12682,263 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">W, A, S, D</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="487"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="485"/>
         <source>Navigate in current camera mode:&lt;br/&gt;• &lt;b&gt;Orbit Mode:&lt;/b&gt; Pan view (W=up, S=down, A=left, D=right)&lt;br/&gt;• &lt;b&gt;Fly/First Person:&lt;/b&gt; Move forward/backward/left/right</source>
         <translation>Navigare in modalità telecamera attuale: &lt;b&gt; Modalità d&apos;ordine: Vista panoramica (W=up, S=down, A=left, D=right) &lt;b&gt;Fly/First Person: Spostare avanti/back/sinistra/destra/destra</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="490"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="488"/>
         <source>Q, E</source>
         <translation>Q, E</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="490"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="488"/>
         <source>Move up/down (Fly mode only)</source>
         <translation>Muovi su/giù (solo modalità Volo)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="491"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="489"/>
         <source>Hold an Arrow key or I/K/J/L/N/X/Z while navigating to move 3x faster.&lt;br/&gt;• &lt;b&gt;Not on W/A/S/D/Q/E/M:&lt;/b&gt; those letters double as Shift shortcuts for other things (Show All, display modes) - use the Arrow keys instead for faster movement (fully equivalent to W/A/S/D in every camera mode)</source>
         <translation>Tieni premuto un tasto freccia o I/K/J/L/N/X/Z durante la navigazione per muoverti 3 volte più veloce.&lt;br/&gt;• &lt;b&gt;Non su W/A/S/D/Q/E/M:&lt;/b&gt; queste lettere fungono anche da scorciatoie Maiusc per altre funzioni (Mostra tutto, modalità di visualizzazione) - usa invece i tasti freccia per un movimento più rapido (pienamente equivalente a W/A/S/D in ogni modalità fotocamera)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="496"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="494"/>
         <source>I, K</source>
         <translation>I, K</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="496"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="494"/>
         <source>Rotate view around X-axis (up/down)</source>
         <translation>Ruota vista attorno asse X (su/giù)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="497"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="495"/>
         <source>J, L</source>
         <translation>J, L</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="497"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="495"/>
         <source>Rotate view around Y-axis (left/right)</source>
         <translation>Ruota vista attorno asse Y (sinistra/destra)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="498"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="496"/>
         <source>M, N</source>
         <translation>M, N</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="498"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="496"/>
         <source>Rotate view around Z-axis (clockwise/counter-clockwise)</source>
         <translation>Ruota vista attorno asse Z (orario/antiorario)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="499"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="497"/>
         <source>X, Z</source>
         <translation>X, Z</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="499"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="497"/>
         <source>Zoom in/out (Orbit mode only)</source>
         <translation>Zoom avanti/indietro (solo modalità Orbita)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="500"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="510"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1249"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="498"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="508"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1247"/>
         <source>F</source>
         <translation>F</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="500"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="498"/>
         <source>Fit All - frame entire scene in view</source>
         <translation>Adatta Tutto - inquadra intera scena nella vista</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="501"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="499"/>
         <source>Ctrl + P</source>
         <translation>Ctrl + P</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="501"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="499"/>
         <source>Toggle between Orthographic and Perspective projection</source>
         <translation>Alterna tra proiezione Ortografica e Prospettiva</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="502"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="500"/>
         <source>Ctrl + M</source>
         <translation>Ctrl + M</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="502"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="500"/>
         <source>Toggle between multi-view and single view</source>
         <translation>Alterna tra multi-vista e vista singola</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="503"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="501"/>
         <source>Ctrl + T</source>
         <translation>Ctrl + T</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="503"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="501"/>
         <source>Top View</source>
         <translation>Vista dall&apos;Alto</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="504"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="502"/>
         <source>Ctrl + B</source>
         <translation>Ctrl + B</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="504"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="502"/>
         <source>Bottom View</source>
         <translation>Vista Inferiore</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="505"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="503"/>
         <source>Ctrl + F</source>
         <translation>Ctrl + F</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="505"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="503"/>
         <source>Front View</source>
         <translation>Vista Frontale</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="506"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="504"/>
         <source>Ctrl + R</source>
         <translation>Ctrl + R</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="506"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="504"/>
         <source>Rear View</source>
         <translation>Vista Posteriore</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="507"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="505"/>
         <source>Ctrl + L</source>
         <translation>Ctrl + L</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="507"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="505"/>
         <source>Left View</source>
         <translation>Vista a Sinistra</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="508"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="506"/>
         <source>Ctrl + J</source>
         <translation>Ctrl + J</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="508"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="506"/>
         <source>Right View</source>
         <translation>Vista Destra</translation>
     </message>
     <message>
         <location filename="../src/App/QuickHelpDialog.cpp" line="175"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="509"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="507"/>
         <source>Home</source>
         <translation>Casa</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="509"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="507"/>
         <source>Axonometric View</source>
         <translation>Vista Assonometrica</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="510"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="564"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="508"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="562"/>
         <source>Fit All</source>
         <translation>Tutti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="512"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="510"/>
         <source>View Navigation</source>
         <translation>Navigazione Vista</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="516"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="514"/>
         <source>1</source>
         <translation>1</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="516"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="514"/>
         <source>Switch to Orbit camera mode</source>
         <translation>Passa a modalità camera Orbita</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="517"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="515"/>
         <source>2</source>
         <translation>2</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="517"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="515"/>
         <source>Switch to Fly camera mode</source>
         <translation>Passa a modalità camera Volo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="518"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="516"/>
         <source>3</source>
         <translation>3</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="518"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="516"/>
         <source>Switch to First Person camera mode</source>
         <translation>Passa a modalità camera Prima Persona</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="524"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1239"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="522"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1237"/>
         <source>Delete</source>
         <translation>Cancella</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="524"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="522"/>
         <source>Delete selected objects</source>
         <translation>Elimina oggetti selezionati</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="525"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1234"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="523"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1232"/>
         <source>Space</source>
         <translation>Spazio</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="525"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="523"/>
         <source>Hide selected objects (or show if swapped)</source>
         <translation>Nascondi oggetti selezionati (o mostra se scambiati)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="526"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="524"/>
         <source>Shift + Space</source>
         <translation>Shift + spazio</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="526"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="524"/>
         <source>Show only selected objects</source>
         <translation>Mostra solo oggetti selezionati</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="527"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="525"/>
         <source>Alt + S</source>
         <translation>Alt + S</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="527"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="525"/>
         <source>Swap visible/hidden objects</source>
         <translation>Scambio oggetti visibili / nascosti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="528"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="526"/>
         <source>Esc</source>
         <translation>Esc</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="528"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="526"/>
         <source>Cancel current operation and deselect all</source>
         <translation>Cancellare l&apos;operazione corrente e deselezionare tutti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="530"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="528"/>
         <source>Selection &amp; Visibility</source>
         <translation>Selezione e visibilità</translation>
     </message>
@@ -12948,8 +12947,8 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">Ctrl + Shift + I</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="534"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1155"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="532"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1153"/>
         <source>Import model into current scene</source>
         <translation>Modello di importazione nella scena attuale</translation>
     </message>
@@ -12958,18 +12957,18 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">Ctrl + Shift + E</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="535"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1156"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="533"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1154"/>
         <source>Export selected objects</source>
         <translation>Esporta oggetti selezionati</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="537"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="535"/>
         <source>File Operations</source>
         <translation>Operazioni di file</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="539"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="537"/>
         <source>Tips</source>
         <translation>Consigli</translation>
     </message>
@@ -12978,107 +12977,107 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">&lt;ul&gt;&lt;li&gt;Tieni premuti i tasti in modo continuo per una navigazione fluida&lt;/li&gt;&lt;li&gt;La modalità telecamera influisce sul comportamento dei tasti W/A/S/D&lt;/li&gt;&lt;li&gt;Nella modalità Prima persona, l&apos;inclinazione è limitata a ±60 gradi&lt;/li&gt;&lt;li&gt;Nella modalità Volo, l&apos;inclinazione è limitata a ±89 gradi&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="556"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1455"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="554"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1453"/>
         <source>Button</source>
         <translation>Pulsante</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="556"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="554"/>
         <source>Function</source>
         <translation>Funzione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="556"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="680"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="736"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="752"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1259"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="554"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="678"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="734"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="750"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1257"/>
         <source>Description</source>
         <translation>Descrizione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="558"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="556"/>
         <source>Activate rotation mode</source>
         <translation>Attiva la modalità di rotazione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="559"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="557"/>
         <source>Click to enable, then use Left Mouse to rotate the view</source>
         <translation>Fare clic per abilitare, quindi utilizzare il mouse sinistro per ruotare la vista</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="560"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="558"/>
         <source>Activate pan mode</source>
         <translation>Attiva la modalità pan</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="561"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="559"/>
         <source>Click to enable, then use Left Mouse to pan the view</source>
         <translation>Fare clic per abilitare, quindi utilizzare il mouse sinistro per la visualizzazione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="562"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="560"/>
         <source>Activate zoom mode</source>
         <translation>Attiva la modalità zoom</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="563"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="561"/>
         <source>Click to enable, then drag Left Mouse vertically to zoom</source>
         <translation>Fare clic per abilitare, quindi trascinare il mouse sinistro verticalmente per ingrandire</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="564"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="562"/>
         <source>Frame scene</source>
         <translation>Scena del telaio</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="565"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="563"/>
         <source>Fits entire scene in the viewport (Shortcut: F)</source>
         <translation>Si adatta a tutta la scena nel viewport (Shortcut: F)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="566"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="564"/>
         <source>Zoom to area</source>
         <translation>Zoom sulla zona</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="567"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="565"/>
         <source>Drag a rectangle to zoom into that specific area</source>
         <translation>Trascinare un rettangolo per ingrandire l&apos;area specifica</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="568"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="566"/>
         <source>Switch camera type</source>
         <translation>Tipo di fotocamera commutatore</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="569"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="567"/>
         <source>Choose between Orbit, Fly, or First Person camera modes&lt;br/&gt;Shortcuts: 1=Orbit, 2=Fly, 3=First Person</source>
         <translation>Scegliere tra le modalità Orbit, Fly, o First Person della fotocamera</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="571"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="569"/>
         <source>Orthographic Views</source>
         <translation>Ortografico Visite</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="571"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="569"/>
         <source>Standard views</source>
         <translation>Vista standard</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="572"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="570"/>
         <source>Quick access to Top, Front, Left, Bottom, Rear, Right views</source>
         <translation>Accesso rapido a Top, Front, Left, Bottom, Rear, Vista destra</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="573"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="571"/>
         <source>Axonometric Views</source>
         <translation>Axonometrica Visite</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="573"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="571"/>
         <source>3D standard views</source>
         <translation>3D viste standard</translation>
     </message>
@@ -13099,17 +13098,17 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">Interruttore tra proiezione ortografica e prospettiva</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="579"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="577"/>
         <source>Multi-View</source>
         <translation>Multi-View</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="579"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="577"/>
         <source>Four viewport layout</source>
         <translation>Quattro viewport layout</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="580"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="578"/>
         <source>Show Top, Front, Right, and Isometric views simultaneously</source>
         <translation>Mostra contemporaneamente Top, Front, Right e Isometric</translation>
     </message>
@@ -13122,77 +13121,77 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">Scegliere il display realistico, ombreggiato, wireframe o WireShaded</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="592"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="590"/>
         <source>Section View</source>
         <translation>Vista sezione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="592"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="590"/>
         <source>Clipping planes</source>
         <translation>Piani di ritaglio</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="593"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="591"/>
         <source>Enable interactive clipping planes for cross-sections</source>
         <translation>Abilitare piani di clipping interattivi per sezioni trasversali</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="594"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="592"/>
         <source>Swap Visible</source>
         <translation>Visibile Swap</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="594"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="592"/>
         <source>Invert visibility</source>
         <translation>Invertire la visibilità</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="595"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="593"/>
         <source>Show hidden objects and hide visible ones</source>
         <translation>Mostra oggetti nascosti e nascondi quelli visibili</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="596"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="594"/>
         <source>Show/Hide Axis</source>
         <translation>Mostra/Asse di Guida</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="596"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="594"/>
         <source>Toggle axis display</source>
         <translation>Visualizzazione dell&apos;asse Toggle</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="597"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="595"/>
         <source>Show or hide the 3D coordinate axis indicator</source>
         <translation>Mostra o nascondi l&apos;indicatore dell&apos;asse coordinato 3D</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="606"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="604"/>
         <source>Toolbar Buttons</source>
         <translation>Pulsanti della barra degli strumenti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="608"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="606"/>
         <source>Auto-Hide Behavior</source>
         <translation>Auto-Hide Behavior</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="609"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="607"/>
         <source>&lt;ul&gt;&lt;li&gt;The toolbar automatically appears at the bottom of the viewport&lt;/li&gt;&lt;li&gt;Move mouse to bottom edge to reveal the toolbar&lt;/li&gt;&lt;li&gt;Toolbar hides after 2 seconds of inactivity&lt;/li&gt;&lt;li&gt;Toolbar remains visible when mouse is over it or menus are open&lt;/li&gt;&lt;li&gt;Scroll buttons appear if toolbar is wider than viewport&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;La barra degli strumenti appare automaticamente nella parte inferiore della finestra&lt;/li&gt;&lt;li&gt;Sposta il mouse sul bordo inferiore per visualizzare la barra degli strumenti&lt;/li&gt;&lt;li&gt;La barra degli strumenti si nasconde dopo 2 secondi di inattività&lt;/li&gt;&lt;li&gt;La barra degli strumenti rimane visibile quando il mouse è sopra di essa o i menu sono aperti&lt;/li&gt;&lt;li&gt;I pulsanti di scorrimento vengono visualizzati se la barra degli strumenti è più larga della finestra&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="624"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="622"/>
         <source>Orbit Camera Mode (Key: 1)</source>
         <translation>Modalità fotocamera Orbit (Key: 1)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="625"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="623"/>
         <source>&lt;p&gt;&lt;b&gt;Best for:&lt;/b&gt; Examining objects from all angles, CAD-like viewing&lt;/p&gt;&lt;p&gt;&lt;b&gt;Behavior:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Camera orbits around the model center point&lt;/li&gt;&lt;li&gt;Rotation keeps the model in view&lt;/li&gt;&lt;li&gt;Up direction is always maintained&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/A/S/D:&lt;/b&gt; Pan the view (up/down/left/right)&lt;/li&gt;&lt;li&gt;&lt;b&gt;X/Z:&lt;/b&gt; Zoom in/out&lt;/li&gt;&lt;li&gt;&lt;b&gt;I/K:&lt;/b&gt; Rotate around X-axis&lt;/li&gt;&lt;li&gt;&lt;b&gt;J/L:&lt;/b&gt; Rotate around Y-axis&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;&lt;b&gt;Ideale per:&lt;/b&gt; Esaminare oggetti da tutte le angolazioni, visualizzazione simile a quella CAD&lt;/p&gt;&lt;p&gt;&lt;b&gt;Comportamento:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;La telecamera orbita attorno al punto centrale del modello&lt;/li&gt;&lt;li&gt;La rotazione mantiene il modello in vista&lt;/li&gt;&lt;li&gt;La direzione verso l&apos;alto viene sempre mantenuta&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/A/S/D:&lt;/b&gt; Sposta la vista (su/giù/sinistra/destra)&lt;/li&gt;&lt;li&gt;&lt;b&gt;X/Z:&lt;/b&gt; Ingrandisci/riduci&lt;/li&gt;&lt;li&gt;&lt;b&gt;I/K:&lt;/b&gt; Ruota attorno all&apos;asse X&lt;/li&gt;&lt;li&gt;&lt;b&gt;J/L:&lt;/b&gt; Ruota attorno all&apos;asse Y&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="637"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="635"/>
         <source>Fly Camera Mode (Key: 2)</source>
         <translation>Modo della fotocamera del volo (Key: 2)</translation>
     </message>
@@ -13201,7 +13200,7 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">&lt;p&gt;&lt;b&gt;Ideale per:&lt;/b&gt; Esplorazione libera di scene di grandi dimensioni, passeggiate architettoniche&lt;/p&gt;&lt;p&gt;&lt;b&gt;Comportamento:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;La telecamera si muove liberamente nello spazio 3D&lt;/li&gt;&lt;li&gt;Il mouse controlla la direzione dello sguardo&lt;/li&gt;&lt;li&gt;Nessuna restrizione sull&apos;angolo di visione&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/S:&lt;/b&gt; Muoviti avanti/indietro nella direzione di visione&lt;/li&gt;&lt;li&gt;&lt;b&gt;A/D:&lt;/b&gt; Muoviti a sinistra/destra&lt;/li&gt;&lt;li&gt;&lt;b&gt;Q/E:&lt;/b&gt; Muoviti verticalmente verso il basso/l&apos;alto&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mouse:&lt;/b&gt; Guardati intorno (angolo di visuale limitato a ±89°)&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="651"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="649"/>
         <source>First Person Camera Mode (Key: 3)</source>
         <translation>Modalità fotocamera per la prima persona (Key: 3)</translation>
     </message>
@@ -13210,41 +13209,41 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">&lt;p&gt;&lt;b&gt;Ideale per:&lt;/b&gt; Esplorazione a livello del suolo, prospettiva del personaggio&lt;/p&gt;&lt;p&gt;&lt;b&gt;Comportamento:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Simile alla modalità Volo ma con limitazioni&lt;/li&gt;&lt;li&gt;Inclinazione limitata a ±60° (più naturale per i movimenti a terra)&lt;/li&gt;&lt;li&gt;Tipicamente utilizzato per simulazioni di camminata&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/S:&lt;/b&gt; Muoviti avanti/indietro&lt;/li&gt;&lt;li&gt;&lt;b&gt;A/D:&lt;/b&gt; Spostati a sinistra/destra&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mouse:&lt;/b&gt; Guardati intorno (inclinazione limitata a ±60°)&lt;/li&gt;&lt;li&gt;Nota: nessun movimento Q/E verticale in questa modalità&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="665"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="663"/>
         <source>Switching Modes</source>
         <translation>Modalità di commutazione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="666"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="664"/>
         <source>&lt;p&gt;You can switch between camera modes in several ways:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Press &lt;b&gt;1&lt;/b&gt;, &lt;b&gt;2&lt;/b&gt;, or &lt;b&gt;3&lt;/b&gt; on keyboard&lt;/li&gt;&lt;li&gt;Use the Camera Modes button on the View Toolbar&lt;/li&gt;&lt;li&gt;The toolbar button updates to show current mode&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;È possibile passare da una modalità della fotocamera all&apos;altra in diversi modi:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Premere &lt;b&gt;1&lt;/b&gt;, &lt;b&gt;2&lt;/b&gt; o &lt;b&gt;3&lt;/b&gt; sulla tastiera&lt;/li&gt;&lt;li&gt;Utilizzare il pulsante Modalità fotocamera sulla barra degli strumenti Visualizza&lt;/li&gt;&lt;li&gt;Il pulsante della barra degli strumenti si aggiorna per mostrare la modalità corrente&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="680"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="678"/>
         <source>Display Mode</source>
         <translation>Modalità di Visualizzazione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="680"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="752"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1452"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="678"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="750"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1450"/>
         <source>Shortcut Key</source>
         <translation>Chiave di collegamento</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="680"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="736"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="752"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="678"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="734"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="750"/>
         <source>Use Case</source>
         <translation>Utilizzare il caso</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="682"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="680"/>
         <source>Realistic</source>
         <translation>Realistico</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="683"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="681"/>
         <source>Shift + R</source>
         <translation>Shift + R</translation>
     </message>
@@ -13253,37 +13252,37 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">Rendering PBR completo con tutte le proprietà materiali, texture, illuminazione, ombre e riflessi</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="686"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="684"/>
         <source>Final presentation, material evaluation, photorealistic visualization</source>
         <translation>Presentazione finale, valutazione dei materiali, visualizzazione fotorealistica</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="688"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="686"/>
         <source>Shaded</source>
         <translation>Ombreggiato</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="689"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="687"/>
         <source>Shift + S</source>
         <translation>Shift + S</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="690"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="688"/>
         <source>Solid colored surfaces with basic lighting (Ambient-Diffuse-Specular model)</source>
         <translation>Superficie tinta unita con illuminazione di base (modello Ambient-Diffuse-Specular)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="691"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="689"/>
         <source>General modeling work, performance, shape evaluation</source>
         <translation>Lavoro di modellazione generale, performance, valutazione della forma</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="703"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="701"/>
         <source>Wireframe</source>
         <translation>Filo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="704"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="702"/>
         <source>Shift + W</source>
         <translation>Shift + W</translation>
     </message>
@@ -13300,7 +13299,7 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">Wireshaded</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="709"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="707"/>
         <source>Shift + E</source>
         <translation>Shift + E</translation>
     </message>
@@ -13313,74 +13312,74 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">Lavoro di modellazione dove è necessario vedere sia forma che topologia</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="714"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="712"/>
         <source>Available Display Modes</source>
         <translation>Modalità di visualizzazione disponibili</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="716"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="714"/>
         <source>Rendering Features</source>
         <translation>Caratteristiche di rendering</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="717"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="715"/>
         <source>&lt;p&gt;The Realistic mode includes advanced rendering features:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;PBR Materials:&lt;/b&gt; Physically Based Rendering with metallic/roughness workflow&lt;/li&gt;&lt;li&gt;&lt;b&gt;Image-Based Lighting:&lt;/b&gt; Environmental lighting from HDRI maps&lt;/li&gt;&lt;li&gt;&lt;b&gt;Shadows:&lt;/b&gt; Real-time shadow mapping with adjustable quality&lt;/li&gt;&lt;li&gt;&lt;b&gt;Reflections:&lt;/b&gt; Environment reflections on surfaces&lt;/li&gt;&lt;li&gt;&lt;b&gt;Advanced Materials:&lt;/b&gt; Support for transmission, clearcoat, sheen, iridescence, anisotropy&lt;/li&gt;&lt;li&gt;&lt;b&gt;HDR &amp; Tone Mapping:&lt;/b&gt; High dynamic range with multiple tone mapping algorithms&lt;/li&gt;&lt;li&gt;&lt;b&gt;Gamma Correction:&lt;/b&gt; Proper color space handling&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;La modalità Realistica include funzionalità di rendering avanzate:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Materiali PBR:&lt;/b&gt; Rendering basato sulla fisica con flusso di lavoro metallico/rugoso&lt;/li&gt;&lt;li&gt;&lt;b&gt;Illuminazione basata sulle immagini:&lt;/b&gt; Illuminazione ambientale da mappe HDRI&lt;/li&gt;&lt;li&gt;&lt;b&gt;Ombre:&lt;/b&gt; Mappatura delle ombre in tempo reale con qualità regolabile&lt;/li&gt;&lt;li&gt;&lt;b&gt;Riflessi:&lt;/b&gt; Riflessi ambientali sulle superfici&lt;/li&gt;&lt;li&gt;&lt;b&gt;Materiali avanzati:&lt;/b&gt; Supporto per trasmissione, vernice trasparente, lucentezza, iridescenza, anisotropia&lt;/li&gt;&lt;li&gt;&lt;b&gt;HDR e mappatura dei toni:&lt;/b&gt; Gamma dinamica elevata con più algoritmi di mappatura dei toni&lt;/li&gt;&lt;li&gt;&lt;b&gt;Correzione gamma:&lt;/b&gt; Gestione corretta dello spazio colore&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="728"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="726"/>
         <source>Performance Considerations</source>
         <translation>Considerazioni sulle prestazioni</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="729"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="727"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Realistic mode&lt;/b&gt; is most demanding - may be slower on complex scenes&lt;/li&gt;&lt;li&gt;&lt;b&gt;Shaded mode&lt;/b&gt; offers good balance of appearance and performance&lt;/li&gt;&lt;li&gt;&lt;b&gt;Wireframe mode&lt;/b&gt; is fastest but least visually informative&lt;/li&gt;&lt;li&gt;For large models (&gt;50MB), low-resolution preview is automatically enabled during manipulation&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;La modalità realistica&lt;/b&gt; è la più impegnativa, ma potrebbe essere più lenta nelle scene complesse&lt;/li&gt;&lt;li&gt;&lt;b&gt;La modalità ombreggiata&lt;/b&gt; offre un buon equilibrio tra aspetto e prestazioni&lt;/li&gt;&lt;li&gt;&lt;b&gt;La modalità wireframe&lt;/b&gt; è la più veloce ma meno informativa a livello visivo&lt;/li&gt;&lt;li&gt;Per i modelli di grandi dimensioni (&gt;50 MB), l&apos;anteprima a bassa risoluzione viene abilitata automaticamente durante la manipolazione&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1149"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1147"/>
         <source>Menu</source>
         <translation>Menu</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1149"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1259"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1453"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1147"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1257"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1451"/>
         <source>Shortcut</source>
         <translation>Scorciatoia</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1153"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1151"/>
         <source>File → New</source>
         <translation>File → Nuovo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1153"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1151"/>
         <source>Ctrl+N</source>
         <translation>Ctrl+N</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1153"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1151"/>
         <source>Create new viewer session</source>
         <translation>Crea una nuova sessione di viewer</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1154"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1152"/>
         <source>File → Open</source>
         <translation>File → Aprire</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1154"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1152"/>
         <source>Ctrl+O</source>
         <translation>Ctrl+O</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1154"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1152"/>
         <source>Open a 3D model file</source>
         <translation>Aprire un file di modello 3D</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1155"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1153"/>
         <source>File → Import</source>
         <translation>File → Importazione</translation>
     </message>
@@ -13389,7 +13388,7 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">Ctrl+Shift+I</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1156"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1154"/>
         <source>File → Export</source>
         <translation>File → Esportazione</translation>
     </message>
@@ -13398,37 +13397,37 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">Ctrl+Shift+E</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1157"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1155"/>
         <source>File → Save</source>
         <translation>File → Salva</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1157"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1155"/>
         <source>Ctrl+S</source>
         <translation>Ctrl+S</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1157"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1155"/>
         <source>Save current scene</source>
         <translation>Salva la scena corrente</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1158"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1156"/>
         <source>File → Save As</source>
         <translation>File → Salva come</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1158"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1156"/>
         <source>Ctrl+Shift+S</source>
         <translation>Ctrl+Maiusc+S</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1158"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1156"/>
         <source>Save scene with new name</source>
         <translation>Salva scena con nuovo nome</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1159"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1157"/>
         <source>File → Close</source>
         <translation>File → Chiudere</translation>
     </message>
@@ -13437,12 +13436,12 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">Ctrl+W</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1159"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1157"/>
         <source>Close current document</source>
         <translation>Chiudi documento corrente</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1160"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1158"/>
         <source>File → Exit</source>
         <translation>File → Uscita</translation>
     </message>
@@ -13451,62 +13450,62 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">Ctrl+Q</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1160"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1158"/>
         <source>Exit application</source>
         <translation>Applicazione di uscita</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1162"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1160"/>
         <source>File Menu</source>
         <translation>Menu di file</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1166"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1164"/>
         <source>Edit → Undo</source>
         <translation>Modifica → Annulla</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1166"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1164"/>
         <source>Ctrl+Z</source>
         <translation>Ctrl+Z</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1166"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1164"/>
         <source>Undo last operation</source>
         <translation>Annulla ultima operazione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1167"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1165"/>
         <source>Edit → Redo</source>
         <translation>Modifica → Redo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1167"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1165"/>
         <source>Ctrl+Y</source>
         <translation>Ctrl+Y</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1167"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1165"/>
         <source>Redo previously undone operation</source>
         <translation>Redo operazione precedentemente annullata</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1170"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1168"/>
         <source>Edit Menu</source>
         <translation>Modifica menu</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1206"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1204"/>
         <source>Visualization → Texture Debugger</source>
         <translation>Visualizzazione → Debugger texture</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1208"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1206"/>
         <source>Visualization Menu</source>
         <translation>Menu Visualizzazione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1221"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1219"/>
         <source>Window → Next</source>
         <translation>Finestra → Successivo</translation>
     </message>
@@ -13515,12 +13514,12 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">Ctrl+Tab</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1221"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1219"/>
         <source>Switch to next document window</source>
         <translation>Passare alla finestra successiva del documento</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1222"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1220"/>
         <source>Window → Previous</source>
         <translation>Finestra → Precedente</translation>
     </message>
@@ -13529,41 +13528,43 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">Ctrl+Shift+Tab</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1222"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1220"/>
         <source>Switch to previous document window</source>
         <translation>Passare alla finestra del documento precedente</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1224"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1222"/>
         <source>Window Menu</source>
         <translation>Menu finestra</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1227"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1225"/>
         <source>Right-Click Context Menu</source>
         <translation>Menù contestuale a destra</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1228"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1226"/>
         <source>&lt;p&gt;Right-clicking in the viewport provides quick access to common operations:&lt;/p&gt;</source>
         <translation>&lt;p&gt;Fare clic con il tasto destro nel viewport consente un rapido accesso alle operazioni comuni:&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1231"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1229"/>
         <source>When object selected:</source>
         <translation>Quando l&apos;oggetto selezionato:</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1159"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1160"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1168"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1157"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1158"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1166"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1172"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1173"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1174"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1175"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1176"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1177"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1178"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1179"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1180"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1184"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1185"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1186"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1187"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1188"/>
@@ -13575,23 +13576,23 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1194"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1195"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1196"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1197"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1198"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1202"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1203"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1204"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1205"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1206"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1212"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1213"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1210"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1211"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1217"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1218"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1219"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1220"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1221"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1222"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1229"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1230"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1231"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1232"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1233"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1234"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1235"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1236"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1237"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1238"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1239"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1240"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1241"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1242"/>
@@ -13599,13 +13600,11 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1244"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1245"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1246"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1247"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1248"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1250"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1251"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1249"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1253"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1254"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1255"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1256"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1257"/>
         <source></source>
         <translation></translation>
     </message>
@@ -13650,37 +13649,37 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation>Visualizza scorciatoie</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="382"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="380"/>
         <source>Recommended First Steps</source>
         <translation>Primi passi consigliati</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="387"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="385"/>
         <source>1. Open a model and press &lt;b&gt;F&lt;/b&gt; to fit the full scene.</source>
         <translation>1. Apri un modello e premi &lt;b&gt;F&lt;/b&gt; per adattare l&apos;intera scena.</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="388"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="386"/>
         <source>2. Use &lt;b&gt;1 / 2 / 3&lt;/b&gt; to switch between Orbit, Fly, and First Person camera modes.</source>
         <translation>2. Usa &lt;b&gt;1 / 2 / 3&lt;/b&gt; per passare tra le modalità fotocamera Orbita, Volo e Prima Persona.</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="389"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="387"/>
         <source>3. Right-click in the viewport for common actions like visibility control, transformations, and visualization settings.</source>
         <translation>3. Fai clic destro nella vista per azioni comuni come controllo visibilità, trasformazioni e impostazioni di visualizzazione.</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="390"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="388"/>
         <source>4. Use the tabs in this dialog whenever you need shortcuts, view controls, or tips.</source>
         <translation>4. Usa le schede in questa finestra ogni volta che hai bisogno di scorciatoie, controlli di visualizzazione o suggerimenti.</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="487"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="485"/>
         <source>W, A, S, D / Arrow Keys</source>
         <translation>W, A, S, D / Tasti freccia</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="491"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="489"/>
         <source>Shift</source>
         <translation>Maiusc</translation>
     </message>
@@ -13689,277 +13688,277 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">Tieni premuto durante la navigazione per muoverti più velocemente nelle modalità Volo/Prima Persona</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="534"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="532"/>
         <source>Ctrl + I</source>
         <translation>Ctrl + I</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="535"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="533"/>
         <source>Ctrl + E</source>
         <translation>Ctrl + E</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="540"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="538"/>
         <source>&lt;ul&gt;&lt;li&gt;Hold keys continuously for smooth navigation&lt;/li&gt;&lt;li&gt;W/A/S/D and the Arrow keys both support navigation&lt;/li&gt;&lt;li&gt;Camera mode affects how movement keys behave&lt;/li&gt;&lt;li&gt;Hold Shift in Fly or First Person mode to sprint&lt;/li&gt;&lt;li&gt;In First Person mode, pitch is limited to ±60 degrees&lt;/li&gt;&lt;li&gt;In Fly mode, pitch is limited to ±89 degrees&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;Tieni premuti i tasti continuamente per una navigazione fluida&lt;/li&gt;&lt;li&gt;W/A/S/D e i tasti freccia supportano entrambi la navigazione&lt;/li&gt;&lt;li&gt;La modalità fotocamera influisce sul comportamento dei tasti di movimento&lt;/li&gt;&lt;li&gt;Tieni premuto Maiusc in modalità Volo o Prima Persona per scattare&lt;/li&gt;&lt;li&gt;In modalità Prima Persona, l&apos;inclinazione è limitata a ±60 gradi&lt;/li&gt;&lt;li&gt;In modalità Volo, l&apos;inclinazione è limitata a ±89 gradi&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="581"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="579"/>
         <source>Realistic Rendering</source>
         <translation>Rendering realistico</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="581"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="579"/>
         <source>Toggle full PBR look</source>
         <translation>Attiva/disattiva aspetto PBR completo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="582"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="580"/>
         <source>Standalone toggle (Shortcut: Shift+R) that layers full material/lighting detail on top of whichever Display Mode is active</source>
         <translation>Interruttore indipendente (Scorciatoia: Maiusc+R) che sovrappone il dettaglio completo di materiale/illuminazione alla modalità di visualizzazione attiva</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="584"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="582"/>
         <source>Base rendering style</source>
         <translation>Stile di rendering base</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="585"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="583"/>
         <source>Choose Shaded (Shift+S), Hollow Mesh (Shift+H), Mesh Edges (Shift+M, shaded + every triangle edge), Wireframe (Shift+W, feature edges only, no fill), or Shaded with Edges (Shift+E, shaded + feature edges only)</source>
         <translation>Scegli Ombreggiato (Maiusc+S), Mesh cava (Maiusc+H), Bordi mesh (Maiusc+M, ombreggiato + ogni bordo del triangolo), Wireframe (Maiusc+W, solo bordi caratteristici, senza riempimento), o Ombreggiato con bordi (Maiusc+E, ombreggiato + solo bordi caratteristici)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="588"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="736"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="746"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="586"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="734"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="744"/>
         <source>Rendering Mode</source>
         <translation>Modalità di rendering</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="588"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="586"/>
         <source>Shading model</source>
         <translation>Modello di ombreggiatura</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="589"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="587"/>
         <source>Choose ADS (Blinn-Phong) or PBR (Metallic-Roughness) as the underlying lighting model</source>
         <translation>Scegli ADS (Blinn-Phong) o PBR (Metallico-Ruvidità) come modello di illuminazione sottostante</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="590"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="752"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="763"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="588"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="750"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="761"/>
         <source>Shading Normal Mode</source>
         <translation>Modalità normale di ombreggiatura</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="590"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="588"/>
         <source>Normal interpolation</source>
         <translation>Interpolazione delle normali</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="591"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="589"/>
         <source>Choose Flat Shaded (Shift+F) for faceted faces, or Smooth Shaded (Shift+G) for smoothed normals</source>
         <translation>Scegli Ombreggiato piatto (Maiusc+F) per facce sfaccettate, o Ombreggiato morbido (Maiusc+G) per normali lisciate</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="598"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="596"/>
         <source>Lasso Select</source>
         <translation>Selezione a lazo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="598"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="596"/>
         <source>Freeform selection</source>
         <translation>Selezione a mano libera</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="599"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="597"/>
         <source>Click to arm, then drag a freeform outline around meshes to select them; stays armed across multiple drags until clicked again</source>
         <translation>Fai clic per attivare, poi trascina un contorno a mano libera attorno alle mesh per selezionarle; resta attivo per più trascinamenti finché non si fa clic di nuovo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="601"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="892"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="599"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="890"/>
         <source>Turntable</source>
         <translation>Piattaforma girevole</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="601"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="599"/>
         <source>Auto-rotate camera</source>
         <translation>Rotazione automatica della fotocamera</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="602"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="600"/>
         <source>Toggles continuous camera rotation for presentation; stops automatically on any manual navigation input</source>
         <translation>Attiva/disattiva la rotazione continua della fotocamera per le presentazioni; si arresta automaticamente a qualsiasi navigazione manuale</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="638"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="636"/>
         <source>&lt;p&gt;&lt;b&gt;Best for:&lt;/b&gt; Free exploration of large scenes, architectural walkthroughs&lt;/p&gt;&lt;p&gt;&lt;b&gt;Behavior:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Camera moves freely through 3D space&lt;/li&gt;&lt;li&gt;Mouse controls look direction&lt;/li&gt;&lt;li&gt;No restrictions on viewing angle&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/S&lt;/b&gt; or &lt;b&gt;Up/Down:&lt;/b&gt; Move forward/backward in viewing direction&lt;/li&gt;&lt;li&gt;&lt;b&gt;A/D&lt;/b&gt; or &lt;b&gt;Left/Right:&lt;/b&gt; Strafe left/right&lt;/li&gt;&lt;li&gt;&lt;b&gt;Q/E:&lt;/b&gt; Move down/up vertically&lt;/li&gt;&lt;li&gt;&lt;b&gt;Shift:&lt;/b&gt; Move faster while navigating&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mouse:&lt;/b&gt; Look around (pitch limited to ±89°)&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;&lt;b&gt;Ideale per:&lt;/b&gt; Esplorazione libera di scene grandi, percorsi architettonici&lt;/p&gt;&lt;p&gt;&lt;b&gt;Comportamento:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;La fotocamera si muove liberamente nello spazio 3D&lt;/li&gt;&lt;li&gt;Il mouse controlla la direzione dello sguardo&lt;/li&gt;&lt;li&gt;Nessuna restrizione sull&apos;angolo di visuale&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/S&lt;/b&gt; o &lt;b&gt;Su/Giù:&lt;/b&gt; Muoviti avanti/indietro nella direzione di visuale&lt;/li&gt;&lt;li&gt;&lt;b&gt;A/D&lt;/b&gt; o &lt;b&gt;Sinistra/Destra:&lt;/b&gt; Spostamento laterale sinistra/destra&lt;/li&gt;&lt;li&gt;&lt;b&gt;Q/E:&lt;/b&gt; Muoviti verticalmente giù/su&lt;/li&gt;&lt;li&gt;&lt;b&gt;Maiusc:&lt;/b&gt; Muoviti più velocemente durante la navigazione&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mouse:&lt;/b&gt; Guardati intorno (inclinazione limitata a ±89°)&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="652"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="650"/>
         <source>&lt;p&gt;&lt;b&gt;Best for:&lt;/b&gt; Ground-level exploration, character perspective&lt;/p&gt;&lt;p&gt;&lt;b&gt;Behavior:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Similar to Fly mode but with constraints&lt;/li&gt;&lt;li&gt;Pitch restricted to ±60° (more natural for ground movement)&lt;/li&gt;&lt;li&gt;Typically used for walking simulations&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/S&lt;/b&gt; or &lt;b&gt;Up/Down:&lt;/b&gt; Walk forward/backward on the ground plane&lt;/li&gt;&lt;li&gt;&lt;b&gt;A/D&lt;/b&gt; or &lt;b&gt;Left/Right:&lt;/b&gt; Strafe left/right on the ground plane&lt;/li&gt;&lt;li&gt;&lt;b&gt;Shift:&lt;/b&gt; Move faster while navigating&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mouse:&lt;/b&gt; Look around (pitch limited to ±60°)&lt;/li&gt;&lt;li&gt;Note: No vertical Q/E movement in this mode&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;&lt;b&gt;Ideale per:&lt;/b&gt; Esplorazione a livello del suolo, prospettiva in prima persona&lt;/p&gt;&lt;p&gt;&lt;b&gt;Comportamento:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Simile alla modalità Volo ma con vincoli&lt;/li&gt;&lt;li&gt;Inclinazione limitata a ±60° (più naturale per il movimento a terra)&lt;/li&gt;&lt;li&gt;In genere usata per simulazioni di camminata&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/S&lt;/b&gt; o &lt;b&gt;Su/Giù:&lt;/b&gt; Cammina avanti/indietro sul piano di terra&lt;/li&gt;&lt;li&gt;&lt;b&gt;A/D&lt;/b&gt; o &lt;b&gt;Sinistra/Destra:&lt;/b&gt; Spostamento laterale sinistra/destra sul piano di terra&lt;/li&gt;&lt;li&gt;&lt;b&gt;Maiusc:&lt;/b&gt; Muoviti più velocemente durante la navigazione&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mouse:&lt;/b&gt; Guardati intorno (inclinazione limitata a ±60°)&lt;/li&gt;&lt;li&gt;Nota: Nessun movimento verticale Q/E in questa modalità&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="684"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="682"/>
         <source>Standalone toggle that layers full PBR material properties, textures, lighting, shadows, and reflections on top of whichever display mode below is active</source>
         <translation>Interruttore indipendente che sovrappone proprietà complete del materiale PBR, texture, illuminazione, ombre e riflessi alla modalità di visualizzazione attiva qui sotto</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="693"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="691"/>
         <source>Hollow Mesh</source>
         <translation>Mesh cava</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="694"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="692"/>
         <source>Shift + H</source>
         <translation>Maiusc + H</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="695"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="693"/>
         <source>Shows faces as translucent/hollow shells without solid shading</source>
         <translation>Mostra le facce come gusci traslucidi/cavi senza ombreggiatura solida</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="696"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="694"/>
         <source>Seeing through outer surfaces to inspect internal structure</source>
         <translation>Vedere attraverso le superfici esterne per ispezionare la struttura interna</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="698"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="696"/>
         <source>Mesh Edges</source>
         <translation>Bordi mesh</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="699"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="697"/>
         <source>Shift + M</source>
         <translation>Maiusc + M</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="700"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="698"/>
         <source>Shows solid filled surfaces with every triangle edge overlaid, revealing the full mesh tessellation</source>
         <translation>Mostra superfici solide riempite con ogni bordo del triangolo sovrapposto, rivelando la tessellazione completa della mesh</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="701"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="699"/>
         <source>Inspecting tessellation density, triangle-level topology checking</source>
         <translation>Ispezione della densità di tessellazione, verifica della topologia a livello di triangolo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="705"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="703"/>
         <source>Shows only true feature edges (crease/boundary edges, or B-Rep edges for CAD formats), no filled surfaces</source>
         <translation>Mostra solo i veri bordi caratteristici (bordi di piega/confine, o bordi B-Rep per formati CAD), senza superfici riempite</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="706"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="704"/>
         <source>Clean edge-only inspection, technical drawings</source>
         <translation>Ispezione pulita solo dei bordi, disegni tecnici</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="708"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="706"/>
         <source>Shaded with Edges</source>
         <translation>Ombreggiato con bordi</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="710"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="708"/>
         <source>Combination of shaded surfaces with only true feature edges overlaid (not every triangle edge)</source>
         <translation>Combinazione di superfici ombreggiate con solo i veri bordi caratteristici sovrapposti (non ogni bordo del triangolo)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="711"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="709"/>
         <source>Modeling work where you need to see both shape and clean topology</source>
         <translation>Lavoro di modellazione in cui è necessario vedere sia la forma che una topologia pulita</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="738"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="736"/>
         <source>ADS (Blinn-Phong)</source>
         <translation>ADS (Blinn-Phong)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="739"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="737"/>
         <source>Classic Ambient-Diffuse-Specular lighting model with a single specular highlight term</source>
         <translation>Modello di illuminazione classico Ambientale-Diffuso-Speculare con un unico termine di riflesso speculare</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="740"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="738"/>
         <source>Lightweight shading, non-physical stylized looks, quick previews</source>
         <translation>Ombreggiatura leggera, aspetti stilizzati non fisici, anteprime rapide</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="741"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="739"/>
         <source>PBR (Metallic-Roughness)</source>
         <translation>PBR (Metallico-Ruvidità)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="742"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="740"/>
         <source>Physically Based Rendering using the metallic/roughness workflow, driven by material metallic, roughness, and other PBR factors/textures</source>
         <translation>Rendering basato sulla fisica che usa il flusso di lavoro metallico/ruvidità, guidato dalla metallicità, ruvidità e altri fattori/texture PBR del materiale</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="744"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="742"/>
         <source>Photorealistic materials, glTF-authored assets, IBL-driven lighting</source>
         <translation>Materiali fotorealistici, asset creati in glTF, illuminazione basata su IBL</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="747"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="745"/>
         <source>&lt;p&gt;Selected from the Rendering Mode flyout button on the View Toolbar. This chooses the underlying lighting/shading model used to light every mesh, independent of Display Mode and the Realistic toggle.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Selezionato dal pulsante a comparsa Modalità di rendering nella barra degli strumenti di visualizzazione. Questo sceglie il modello di illuminazione/ombreggiatura sottostante usato per illuminare ogni mesh, indipendentemente dalla Modalità di visualizzazione e dall&apos;interruttore Realistico.&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="754"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="752"/>
         <source>Flat Shaded</source>
         <translation>Ombreggiato piatto</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="755"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="753"/>
         <source>Shift + F</source>
         <translation>Maiusc + F</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="756"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="754"/>
         <source>Each triangle face uses a single face normal, producing a faceted look with visible edges between faces</source>
         <translation>Ogni faccia triangolare usa una singola normale della faccia, producendo un aspetto sfaccettato con bordi visibili tra le facce</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="757"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="755"/>
         <source>Inspecting actual mesh facets, low-poly/faceted stylistic looks</source>
         <translation>Ispezione delle sfaccettature reali della mesh, aspetti stilistici low-poly/sfaccettati</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="758"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="756"/>
         <source>Smooth Shaded</source>
         <translation>Ombreggiato morbido</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="759"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="757"/>
         <source>Shift + G</source>
         <translation>Maiusc + G</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="760"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="758"/>
         <source>Interpolates vertex normals across each face, producing a smooth, continuous-looking surface</source>
         <translation>Interpola le normali dei vertici su ogni faccia, producendo una superficie liscia e dall&apos;aspetto continuo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="761"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="759"/>
         <source>Most everyday viewing of organic or curved surfaces</source>
         <translation>La maggior parte delle visualizzazioni quotidiane di superfici organiche o curve</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="764"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="762"/>
         <source>&lt;p&gt;Selected from the Shading Normal Mode flyout button on the View Toolbar. This controls how face normals are interpolated for lighting, independent of Display Mode and Rendering Mode.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Selezionato dal pulsante a comparsa Modalità normale di ombreggiatura nella barra degli strumenti di visualizzazione. Questo controlla come vengono interpolate le normali delle facce per l&apos;illuminazione, indipendentemente dalla Modalità di visualizzazione e dalla Modalità di rendering.&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="768"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="766"/>
         <source>Rendering &amp; Display Modes</source>
         <translation>Modalità di rendering e visualizzazione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="775"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="773"/>
         <source>Clipping Planes (Section View)</source>
         <translation>Piani di taglio (Vista in sezione)</translation>
     </message>
@@ -13968,665 +13967,665 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">&lt;p&gt;Taglia un modello con fino a tre piani di taglio allineati agli assi per vedere la struttura interna, aperto tramite il pulsante Vista in sezione nella barra degli strumenti di visualizzazione.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;XY / YZ / ZX:&lt;/b&gt; Abilita ogni piano indipendentemente; ognuno ha il proprio interruttore &quot;Capovolgi&quot; per invertire il lato tagliato&lt;/li&gt;&lt;li&gt;&lt;b&gt;Coefficiente:&lt;/b&gt; Un campo numerico per piano che lo posiziona lungo il proprio asse&lt;/li&gt;&lt;li&gt;&lt;b&gt;Chiusura:&lt;/b&gt; Riempie la sezione trasversale tagliata con un tappo solido invece di lasciarla cava&lt;/li&gt;&lt;li&gt;&lt;b&gt;Chiusura dinamica:&lt;/b&gt; Ricalcola il tappo mentre muovi o animi il modello, invece che solo al rilascio del piano&lt;/li&gt;&lt;li&gt;&lt;b&gt;Motivo tratteggio:&lt;/b&gt; Scegli Diagonale 45/135, Orizzontale, Verticale, Griglia o Tratteggio incrociato per la sezione chiusa, con affiancamento, colore e texture opzionale regolabili&lt;/li&gt;&lt;li&gt;&lt;b&gt;Reimposta coefficienti / Reimposta tutto:&lt;/b&gt; Riporta rapidamente i piani alla posizione predefinita o cancella tutto lo stato di taglio&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="791"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="789"/>
         <source>Exploded Views</source>
         <translation>Viste esplose</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="792"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="790"/>
         <source>&lt;p&gt;Pull an assembly&apos;s parts apart to inspect how components relate, without altering the real model. Opened from the Exploded View panel.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Assembly / Anchor:&lt;/b&gt; Choose which parts explode and which part stays fixed as the anchor&lt;/li&gt;&lt;li&gt;&lt;b&gt;Explosion Mode:&lt;/b&gt; Auto (Radial), Axis X/Y/Z, or a Custom Vector direction&lt;/li&gt;&lt;li&gt;&lt;b&gt;Distance Slider:&lt;/b&gt; Controls how far apart the parts spread, as a percentage&lt;/li&gt;&lt;li&gt;&lt;b&gt;Manual Placement:&lt;/b&gt; Use the on-screen transform gizmo to hand-position specific parts into a staged exploded pose, without changing their real transform&lt;/li&gt;&lt;li&gt;&lt;b&gt;Capture Steps:&lt;/b&gt; Record multiple exploded poses in sequence and reorder them to build a staged, multi-part reveal&lt;/li&gt;&lt;li&gt;&lt;b&gt;Presets:&lt;/b&gt; Save a full exploded configuration by name and switch between layouts instantly&lt;/li&gt;&lt;li&gt;&lt;b&gt;Animation:&lt;/b&gt; Play captured steps in parallel, sequentially, or as separate animation clips; exportable to glTF/GLB&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Separa le parti di un assieme per ispezionare come si relazionano i componenti, senza alterare il modello reale. Aperto dal pannello Vista esplosa.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Assieme / Ancora:&lt;/b&gt; Scegli quali parti esplodono e quale parte rimane fissa come ancora&lt;/li&gt;&lt;li&gt;&lt;b&gt;Modalità esplosione:&lt;/b&gt; Automatico (Radiale), Asse X/Y/Z, o una direzione Vettore personalizzato&lt;/li&gt;&lt;li&gt;&lt;b&gt;Cursore distanza:&lt;/b&gt; Controlla quanto si allontanano le parti, in percentuale&lt;/li&gt;&lt;li&gt;&lt;b&gt;Posizionamento manuale:&lt;/b&gt; Usa il gizmo di trasformazione a schermo per posizionare manualmente parti specifiche in una posa esplosa preparata, senza modificare la loro trasformazione reale&lt;/li&gt;&lt;li&gt;&lt;b&gt;Cattura passaggi:&lt;/b&gt; Registra più pose esplose in sequenza e riordinale per costruire una rivelazione preparata e multi-parte&lt;/li&gt;&lt;li&gt;&lt;b&gt;Preset:&lt;/b&gt; Salva una configurazione esplosa completa con un nome e passa istantaneamente tra i layout&lt;/li&gt;&lt;li&gt;&lt;b&gt;Animazione:&lt;/b&gt; Riproduci i passaggi catturati in parallelo, in sequenza o come clip di animazione separate; esportabile in glTF/GLB&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="807"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="805"/>
         <source>Transform Gizmo</source>
         <translation>Gizmo di trasformazione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="808"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="806"/>
         <source>&lt;p&gt;An interactive on-screen handle for translating, rotating, and scaling a selection directly in the viewport, shown via the right-click context menu or the Transformations panel.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Translate:&lt;/b&gt; Drag an axis arrow (X, Y, or Z) to move along that axis&lt;/li&gt;&lt;li&gt;&lt;b&gt;Rotate:&lt;/b&gt; Drag a rotation ring (XY, YZ, or ZX) to rotate around that plane&lt;/li&gt;&lt;li&gt;&lt;b&gt;Scale:&lt;/b&gt; Drag the center handle to resize uniformly&lt;/li&gt;&lt;li&gt;The gizmo scales itself relative to camera distance so its handles stay usable at any zoom level&lt;/li&gt;&lt;li&gt;The same gizmo is reused during Exploded View manual placement to stage poses non-destructively&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Una maniglia interattiva a schermo per traslare, ruotare e scalare una selezione direttamente nella vista, mostrata tramite il menu contestuale del clic destro o il pannello Trasformazioni.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Trasla:&lt;/b&gt; Trascina una freccia dell&apos;asse (X, Y o Z) per muoverti lungo quell&apos;asse&lt;/li&gt;&lt;li&gt;&lt;b&gt;Ruota:&lt;/b&gt; Trascina un anello di rotazione (XY, YZ o ZX) per ruotare attorno a quel piano&lt;/li&gt;&lt;li&gt;&lt;b&gt;Scala:&lt;/b&gt; Trascina la maniglia centrale per ridimensionare uniformemente&lt;/li&gt;&lt;li&gt;Il gizmo si ridimensiona in base alla distanza della fotocamera, così le sue maniglie restano utilizzabili a qualsiasi livello di zoom&lt;/li&gt;&lt;li&gt;Lo stesso gizmo viene riutilizzato durante il posizionamento manuale nella Vista esplosa per preparare pose in modo non distruttivo&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="818"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="816"/>
         <source>Morph Target (Blend Shape) Animation</source>
         <translation>Animazione morph target (forma combinata)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="819"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="817"/>
         <source>&lt;p&gt;Models imported from glTF/GLB that include morph targets (blend shapes) can smoothly deform between vertex-position variants — commonly used for facial expressions or organic deformation that rigid transforms and skeletal rigs alone can&apos;t produce.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Morph weights are driven by animation clips, played back through the Animations panel (Play/Pause, Loop, Speed) just like any other clip&lt;/li&gt;&lt;li&gt;Morph target data is fully preserved when saving to &lt;b&gt;.mvf&lt;/b&gt;, and re-injected on export back to glTF/GLB&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;I modelli importati da glTF/GLB che includono morph target (forme combinate) possono deformarsi in modo fluido tra varianti di posizione dei vertici — comunemente usato per espressioni facciali o deformazioni organiche che le sole trasformazioni rigide e i rig scheletrici non possono produrre.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;I pesi morph sono guidati da clip di animazione, riprodotte tramite il pannello Animazioni (Riproduci/Pausa, Ciclo, Velocità) come qualsiasi altra clip&lt;/li&gt;&lt;li&gt;I dati morph target sono completamente preservati quando si salva in &lt;b&gt;.mvf&lt;/b&gt;, e reiniettati all&apos;esportazione di nuovo in glTF/GLB&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="829"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="827"/>
         <source>Lasso Selection</source>
         <translation>Selezione a lazo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="830"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="828"/>
         <source>&lt;p&gt;A freeform-polygon alternative to click/rubber-band selection, armed via the Lasso Select button on the View Toolbar.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Click the toolbar button to arm it, then drag a freeform outline in the viewport - every mesh whose center falls inside the outline is selected when you release&lt;/li&gt;&lt;li&gt;Stays armed across multiple drags until you click the button again (or press Esc), unlike Window Zoom&apos;s one-shot gesture&lt;/li&gt;&lt;li&gt;Hold Shift while dragging to add to the current selection instead of replacing it&lt;/li&gt;&lt;li&gt;Plain click and rubber-band selection still work normally whenever Lasso isn&apos;t armed&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Un&apos;alternativa a poligono a mano libera alla selezione per clic/rettangolo di selezione, attivata tramite il pulsante Selezione a lazo nella barra degli strumenti Vista.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Fai clic sul pulsante della barra degli strumenti per attivarlo, poi trascina un contorno a mano libera nel viewport - ogni mesh il cui centro cade all&apos;interno del contorno viene selezionata al rilascio&lt;/li&gt;&lt;li&gt;Resta attivo per più trascinamenti finché non si fa di nuovo clic sul pulsante (o si preme Esc), a differenza del gesto singolo dello zoom finestra&lt;/li&gt;&lt;li&gt;Tieni premuto Maiusc durante il trascinamento per aggiungere alla selezione corrente invece di sostituirla&lt;/li&gt;&lt;li&gt;Il clic semplice e la selezione a rettangolo continuano a funzionare normalmente quando il lazo non è attivo&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="841"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="839"/>
         <source>Filter by Material</source>
         <translation>Filtra per materiale</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="842"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="840"/>
         <source>&lt;p&gt;Opened via Selection → Filter by Material..., this lists every distinct material actually in use in the scene and lets you select every mesh using it.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Groups by each mesh&apos;s &lt;b&gt;current&lt;/b&gt; material, not where it was imported from - a mesh re-materialed with the Eyedropper below is grouped by what it looks like now&lt;/li&gt;&lt;li&gt;Multi-select rows with Ctrl/Shift-click - the live viewport selection updates as the union of every checked material&lt;/li&gt;&lt;li&gt;&lt;b&gt;Show Only&lt;/b&gt; / &lt;b&gt;Hide&lt;/b&gt; act immediately on whatever the list currently has selected, so you can isolate or hide a material as soon as you find it&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Aperta da Selezione → Filtra per materiale..., elenca ogni materiale distinto effettivamente in uso nella scena e permette di selezionare ogni mesh che lo utilizza.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Raggruppa in base al materiale &lt;b&gt;attuale&lt;/b&gt; di ciascuna mesh, non alla sua origine di importazione - una mesh a cui è stato riassegnato un materiale con il contagocce qui sotto viene raggruppata in base al suo aspetto attuale&lt;/li&gt;&lt;li&gt;Selezione multipla delle righe con Ctrl/Maiusc-clic - la selezione dal vivo nel viewport si aggiorna come unione di tutti i materiali selezionati&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mostra solo&lt;/b&gt; / &lt;b&gt;Nascondi&lt;/b&gt; agiscono immediatamente su ciò che la lista ha attualmente selezionato, così da isolare o nascondere un materiale non appena lo trovi&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="853"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="851"/>
         <source>Filter by Color</source>
         <translation>Filtra per colore</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="854"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="852"/>
         <source>&lt;p&gt;Opened via Selection → Filter by Color..., this builds a list of target colors and selects every mesh whose color falls within a shared tolerance of any of them.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Three ways to add a color: the &lt;b&gt;+ Add Color...&lt;/b&gt; button opens the OS color picker; the &lt;b&gt;eyedropper&lt;/b&gt; button lets you click meshes directly in the viewport for an exact match (no guessing - screen-sampling a rendered pixel rarely lands close enough to a mesh&apos;s true stored color); &lt;b&gt;Auto-Detect Colors in Scene&lt;/b&gt; seeds the list with every distinct color already in the scene, so you can start from everything and prune what you don&apos;t want with each row&apos;s own × button&lt;/li&gt;&lt;li&gt;Each listed color shows its own live match count, so you can see at a glance whether a color you added is actually catching anything&lt;/li&gt;&lt;li&gt;&lt;b&gt;Match Tolerance&lt;/b&gt; is shared across every listed color - raise it if a picked/sampled color isn&apos;t quite matching&lt;/li&gt;&lt;li&gt;&lt;b&gt;Show Only&lt;/b&gt; / &lt;b&gt;Hide&lt;/b&gt; act on the combined result, same as Filter by Material&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Aperta da Selezione → Filtra per colore..., costruisce un elenco di colori target e seleziona ogni mesh il cui colore rientra in una tolleranza condivisa rispetto a uno qualsiasi di essi.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Tre modi per aggiungere un colore: il pulsante &lt;b&gt;+ Aggiungi colore...&lt;/b&gt; apre il selettore colore del sistema operativo; il pulsante &lt;b&gt;contagocce&lt;/b&gt; consente di fare clic direttamente sulle mesh nel viewport per una corrispondenza esatta (niente supposizioni - il campionamento di un pixel renderizzato sullo schermo raramente si avvicina abbastanza al vero colore memorizzato di una mesh); &lt;b&gt;Rileva automaticamente i colori nella scena&lt;/b&gt; popola l&apos;elenco con ogni colore distinto già presente nella scena, così puoi partire da tutto e rimuovere ciò che non vuoi con il pulsante × di ogni riga&lt;/li&gt;&lt;li&gt;Ogni colore elencato mostra il proprio conteggio di corrispondenze in tempo reale, per vedere a colpo d&apos;occhio se un colore aggiunto sta effettivamente catturando qualcosa&lt;/li&gt;&lt;li&gt;La &lt;b&gt;tolleranza di corrispondenza&lt;/b&gt; è condivisa tra tutti i colori elencati - aumentala se un colore scelto/campionato non corrisponde del tutto&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mostra solo&lt;/b&gt; / &lt;b&gt;Nascondi&lt;/b&gt; agiscono sul risultato combinato, come per Filtra per materiale&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="870"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="868"/>
         <source>Material Eyedropper / Brush</source>
         <translation>Contagocce / Pennello materiale</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="871"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="869"/>
         <source>&lt;p&gt;Copies one mesh&apos;s material onto others, armed from the eyedropper button in the Material Properties panel.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Click the button, then click a source mesh to sample its material - the cursor switches to a brush icon&lt;/li&gt;&lt;li&gt;Click or drag across target meshes to apply the sampled material - every mesh touched during one stroke is batched into a single undo step&lt;/li&gt;&lt;li&gt;Stays armed after a stroke finishes, so you can keep applying the same sampled material&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Copia il materiale di una mesh su altre, attivato dal pulsante contagocce nel pannello Proprietà materiale.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Fai clic sul pulsante, poi su una mesh sorgente per campionarne il materiale - il cursore diventa un&apos;icona a pennello&lt;/li&gt;&lt;li&gt;Fai clic o trascina sulle mesh di destinazione per applicare il materiale campionato - ogni mesh toccata durante un tratto viene raggruppata in un unico passaggio di annullamento&lt;/li&gt;&lt;li&gt;Resta attivo al termine di un tratto, così puoi continuare ad applicare lo stesso materiale campionato&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="881"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="879"/>
         <source>Named Selection Sets</source>
         <translation>Set di selezione con nome</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="882"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="880"/>
         <source>&lt;p&gt;Save the current selection under a name and recall it later, from the Selections panel or Selection → Save Selection Set...&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Recalling a set reveals any of its members that are currently hidden, so the set always shows what you saved even if visibility has changed since&lt;/li&gt;&lt;li&gt;A set that references a since-deleted mesh gracefully skips that entry on recall instead of failing&lt;/li&gt;&lt;li&gt;Saved sets are persisted with the document&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Salva la selezione corrente con un nome e richiamala in seguito, dal pannello Selezioni o da Selezione → Salva set di selezione...&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Richiamare un set rivela tutti i suoi membri attualmente nascosti, in modo che il set mostri sempre ciò che hai salvato anche se la visibilità è cambiata nel frattempo&lt;/li&gt;&lt;li&gt;Un set che fa riferimento a una mesh nel frattempo eliminata salta elegantemente quella voce al richiamo invece di fallire&lt;/li&gt;&lt;li&gt;I set salvati vengono conservati con il documento&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="893"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="891"/>
         <source>&lt;p&gt;A standalone View Toolbar toggle for continuous camera auto-rotation, useful for presentation or demo purposes.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Works independently of whichever camera mode (Orbit/Fly/First Person) is active&lt;/li&gt;&lt;li&gt;Stops automatically the instant you rotate, pan, zoom, or otherwise navigate manually&lt;/li&gt;&lt;li&gt;Always off when a document is first opened - it&apos;s a transient presentation setting, not saved with the document&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Un interruttore autonomo nella barra degli strumenti Vista per la rotazione automatica continua della fotocamera, utile per presentazioni o demo.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Funziona indipendentemente dalla modalità fotocamera attiva (Orbita/Volo/Prima persona)&lt;/li&gt;&lt;li&gt;Si arresta automaticamente non appena ruoti, esegui una panoramica, zoomi o navighi manualmente in altro modo&lt;/li&gt;&lt;li&gt;Sempre disattivato quando un documento viene aperto per la prima volta - è un&apos;impostazione di presentazione transitoria, non salvata con il documento&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="909"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="907"/>
         <source>Measure &amp; Annotate</source>
         <translation>Misura &amp;&amp; Annota</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="910"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="908"/>
         <source>&lt;p&gt;Opened via Tools → Measure... and Tools → Annotate... (no toolbar button or keyboard shortcut for either) - the two tools are mutually exclusive, arming one disarms the other.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Creating, deleting, and repositioning a measurement or annotation is undoable; the per-item visibility checkbox in either dialog&apos;s list is not (same convention as mesh visibility in the Scene Tree)&lt;/li&gt;&lt;li&gt;Both are saved only in this app&apos;s native &lt;b&gt;.mvf&lt;/b&gt; session format, not exported to glTF/GLB (neither format has a native concept of a measurement or annotation)&lt;/li&gt;&lt;li&gt;A measurement is resolved live against current mesh geometry, so it stays correct if you move/transform a mesh afterward&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Si apre da Strumenti → Misura... e Strumenti → Annota... (nessun pulsante nella barra degli strumenti né scorciatoia da tastiera per entrambi) - i due strumenti si escludono a vicenda, attivarne uno disattiva l&apos;altro.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Creare, eliminare e riposizionare una misurazione o un&apos;annotazione è annullabile; la casella di visibilità per singolo elemento nell&apos;elenco di ciascuna finestra non lo è (stessa convenzione della visibilità delle mesh nell&apos;albero della scena)&lt;/li&gt;&lt;li&gt;Entrambe vengono salvate solo nel formato di sessione nativo &lt;b&gt;.mvf&lt;/b&gt; di questa app, non esportate in glTF/GLB (nessuno dei due formati ha un concetto nativo di misurazione o annotazione)&lt;/li&gt;&lt;li&gt;Una misurazione viene risolta dal vivo rispetto alla geometria corrente della mesh, quindi resta corretta se in seguito sposti/trasformi una mesh&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="922"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="920"/>
         <source>Tool</source>
         <translation>Strumento</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="922"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="920"/>
         <source>What It Measures</source>
         <translation>Cosa misura</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="922"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="920"/>
         <source>Picks</source>
         <translation>Clic</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="922"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="920"/>
         <source>Notes</source>
         <translation>Note</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="925"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="923"/>
         <source>Point</source>
         <translation>Punto</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="925"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="923"/>
         <source>The 3D coordinates of a single point</source>
         <translation>Le coordinate 3D di un singolo punto</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="925"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="944"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="976"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="985"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="923"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="942"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="974"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="983"/>
         <source>1 click</source>
         <translation>1 clic</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="925"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="932"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="938"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="923"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="930"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="936"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="970"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="972"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="974"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="976"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="984"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="986"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="988"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="993"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="991"/>
         <source>Works on any mesh</source>
         <translation>Funziona su qualsiasi mesh</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="926"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="924"/>
         <source>Distance</source>
         <translation>Distanza</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="926"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="924"/>
         <source>Straight-line distance between two points</source>
         <translation>Distanza in linea retta tra due punti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="926"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="929"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="949"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="924"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="927"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="947"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="970"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="972"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="974"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="978"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="976"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="986"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="988"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="990"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="993"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="991"/>
         <source>2 clicks</source>
         <translation>2 clic</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="927"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="925"/>
         <source>Points may be on different meshes/files</source>
         <translation>I punti possono trovarsi su mesh/file diversi</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="928"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="926"/>
         <source>Geodesic Distance</source>
         <translation>Distanza geodetica</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="928"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="926"/>
         <source>Distance measured ALONG the surface between two points (e.g. wrapping around a curved part), not straight-line</source>
         <translation>Distanza misurata LUNGO la superficie tra due punti (ad es. avvolgendo una parte curva), non in linea retta</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="930"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="928"/>
         <source>Both points must land on the SAME mesh</source>
         <translation>Entrambi i punti devono trovarsi sulla STESSA mesh</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="931"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="929"/>
         <source>3-Point Angle</source>
         <translation>Angolo a 3 punti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="931"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="929"/>
         <source>The angle (0-180°) at a picked vertex, between rays to two other picked points</source>
         <translation>L&apos;angolo (0-180°) in un vertice selezionato, tra i raggi verso altri due punti selezionati</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="932"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="930"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="936"/>
         <location filename="../src/App/QuickHelpDialog.cpp" line="938"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="940"/>
         <source>3 clicks</source>
         <translation>3 clic</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="934"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="932"/>
         <source>Point &amp; Distance</source>
         <translation>Punto &amp;&amp; Distanza</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="937"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="935"/>
         <source>3-Point Arc Radius</source>
         <translation>Raggio arco a 3 punti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="937"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="935"/>
         <source>Radius/center of a circular arc, fit through three picked points on its rim</source>
         <translation>Raggio/centro di un arco circolare, calcolato attraverso tre punti selezionati sul suo bordo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="939"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="937"/>
         <source>Center + 2-Point Arc Radius</source>
         <translation>Raggio arco centro + 2 punti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="939"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="937"/>
         <source>Radius of an arc/hole from a picked center plus two points on the rim</source>
         <translation>Raggio di un arco/foro a partire da un centro selezionato più due punti sul bordo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="941"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="939"/>
         <source>STEP/IGES/BREP: center snaps to the exact analytic center (works for through-holes too). glTF/OBJ: center must land on real geometry - won&apos;t work on a through-hole&apos;s center</source>
         <translation>STEP/IGES/BREP: il centro si aggancia al centro analitico esatto (funziona anche per i fori passanti). glTF/OBJ: il centro deve trovarsi su geometria reale - non funziona sul centro di un foro passante</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="943"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="941"/>
         <source>Edge Radius</source>
         <translation>Raggio spigolo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="943"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="941"/>
         <source>Exact radius/center/axis of a circular edge (hole or boss rim)</source>
         <translation>Raggio/centro/asse esatto di uno spigolo circolare (bordo di foro o risalto)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="944"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="950"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="942"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="948"/>
         <source>STEP/IGES/BREP only - not available on glTF/OBJ meshes</source>
         <translation>Solo STEP/IGES/BREP - non disponibile sulle mesh glTF/OBJ</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="945"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="943"/>
         <source>Pitch Circle</source>
         <translation>Circonferenza primitiva</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="945"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="943"/>
         <source>Diameter of the best-fit circle through 3+ hole centers (a bolt-hole pattern), plus the angular gap between adjacent holes</source>
         <translation>Diametro della circonferenza di miglior adattamento attraverso 3+ centri di fori (un pattern di fori per bulloni), più lo scarto angolare tra fori adiacenti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="946"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="944"/>
         <source>3+ clicks, then Enter/Finish</source>
         <translation>3+ clic, poi Invio/Fine</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="947"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="945"/>
         <source>Center-snapping works best on STEP/IGES/BREP; falls back to a plain surface pick on glTF/OBJ</source>
         <translation>L&apos;aggancio al centro funziona meglio con STEP/IGES/BREP; ricade su una semplice selezione della superficie con glTF/OBJ</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="948"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="946"/>
         <source>Concentricity</source>
         <translation>Concentricità</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="948"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="946"/>
         <source>Whether two holes/bosses share the same axis - distance between centers and angle between axes</source>
         <translation>Se due fori/risalti condividono lo stesso asse - distanza tra i centri e angolo tra gli assi</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="951"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="949"/>
         <source>Cylindrical/Conical Diameter</source>
         <translation>Diametro cilindrico/conico</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="951"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="949"/>
         <source>Diameter of a cylindrical or conical surface at the picked point (varies along a cone&apos;s length)</source>
         <translation>Diametro di una superficie cilindrica o conica nel punto selezionato (varia lungo la lunghezza di un cono)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="952"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="950"/>
         <source>1 click on the curved surface, not its rim</source>
         <translation>1 clic sulla superficie curva, non sul suo bordo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="953"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="951"/>
         <source>STEP/IGES/BREP uses the exact surface axis; glTF/OBJ uses a validated local fit. Has its own options panel - see below</source>
         <translation>STEP/IGES/BREP usa l&apos;asse esatto della superficie; glTF/OBJ usa un adattamento locale validato. Ha un proprio pannello opzioni - vedi sotto</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="956"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="954"/>
         <source>Arcs &amp; Circles</source>
         <translation>Archi &amp;&amp; Cerchi</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="958"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="956"/>
         <source>Cylindrical Diameter Options</source>
         <translation>Opzioni diametro cilindrico</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="959"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="957"/>
         <source>&lt;p&gt;Shown only while Cylindrical/Conical Diameter is the active tool - tunes the mesh-fit/region-growing path used on non-CAD or fit-based cases (session-only, not saved with the document):&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Angle tolerance:&lt;/b&gt; max angle between a candidate point&apos;s normal and the fitted cylinder&apos;s radial direction to join the region (app default 35°, CGAL&apos;s own default is 25°)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Min region size:&lt;/b&gt; minimum accepted point count for a fitted region (app default 24, CGAL&apos;s own default is 3)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Min/Max diameter (0 = no limit):&lt;/b&gt; reject a fit smaller/larger than these bounds&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Mostrato solo quando Diametro cilindrico/conico è lo strumento attivo - regola il percorso di adattamento mesh/crescita regione usato nei casi non CAD o basati sull&apos;adattamento (solo per la sessione, non salvato con il documento):&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Tolleranza angolare:&lt;/b&gt; angolo massimo tra la normale di un punto candidato e la direzione radiale del cilindro adattato per unirsi alla regione (predefinito dell&apos;app 35°, predefinito proprio di CGAL 25°)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Dimensione minima regione:&lt;/b&gt; numero minimo di punti accettato per una regione adattata (predefinito dell&apos;app 24, predefinito proprio di CGAL 3)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Diametro min/max (0 = nessun limite):&lt;/b&gt; rifiuta un adattamento più piccolo/grande di questi limiti&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="971"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="969"/>
         <source>Face to Face</source>
         <translation>Faccia a faccia</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="971"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="969"/>
         <source>Perpendicular distance between two near-parallel faces, or the angle (0-90°) between them otherwise</source>
         <translation>Distanza perpendicolare tra due facce quasi parallele, oppure l&apos;angolo (0-90°) tra loro in caso contrario</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="973"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="971"/>
         <source>Point to Face</source>
         <translation>Punto a faccia</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="973"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="971"/>
         <source>Perpendicular distance from a picked point to a picked face&apos;s (infinite) plane</source>
         <translation>Distanza perpendicolare da un punto selezionato al piano (infinito) di una faccia selezionata</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="975"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="973"/>
         <source>Face Area</source>
         <translation>Area della faccia</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="975"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="973"/>
         <source>Surface area of a face - the picked triangle plus every triangle connected to it and coplanar with it</source>
         <translation>Area della superficie di una faccia - il triangolo selezionato più ogni triangolo ad esso collegato e complanare</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="977"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="975"/>
         <source>Minimum Distance</source>
         <translation>Distanza minima</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="977"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="975"/>
         <source>True closest-point distance between two faces/surfaces - each pick expands to its whole smooth region</source>
         <translation>Vera distanza punto-più-vicino tra due facce/superfici - ogni selezione si espande a tutta la sua regione liscia</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="979"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="977"/>
         <source>May be picked on the same mesh (e.g. a wall-thickness check) or two different ones; can take a moment on a very large, finely-tessellated face</source>
         <translation>Può essere selezionata sulla stessa mesh (ad es. un controllo dello spessore della parete) o su due diverse; può richiedere un momento su una faccia molto grande e finemente tassellata</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="982"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="980"/>
         <source>Faces</source>
         <translation>Facce</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="985"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="983"/>
         <source>Edge Length</source>
         <translation>Lunghezza spigolo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="985"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="983"/>
         <source>Length of a single edge (straight or curved)</source>
         <translation>Lunghezza di un singolo spigolo (dritto o curvo)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="987"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="985"/>
         <source>Edge to Vertex</source>
         <translation>Spigolo a vertice</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="987"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="985"/>
         <source>Perpendicular distance from a picked vertex/point to a picked edge&apos;s (infinite) line</source>
         <translation>Distanza perpendicolare da un vertice/punto selezionato alla linea (infinita) di uno spigolo selezionato</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="989"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="987"/>
         <source>Edge to Edge</source>
         <translation>Spigolo a spigolo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="989"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="987"/>
         <source>Perpendicular distance between two near-parallel edges, or the angle (0-90°) between them otherwise</source>
         <translation>Distanza perpendicolare tra due spigoli quasi paralleli, oppure l&apos;angolo (0-90°) tra loro in caso contrario</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="991"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="989"/>
         <source>Also handles skew, non-intersecting edges (angle-only result)</source>
         <translation>Gestisce anche spigoli sghembi non intersecanti (risultato solo angolare)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="992"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="990"/>
         <source>Edge to Face</source>
         <translation>Spigolo a faccia</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="992"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="990"/>
         <source>Perpendicular distance from an edge to a face&apos;s plane, or the angle (0-90°) between them otherwise</source>
         <translation>Distanza perpendicolare da uno spigolo al piano di una faccia, oppure l&apos;angolo (0-90°) tra loro in caso contrario</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="994"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="992"/>
         <source>Chain Length</source>
         <translation>Lunghezza catena</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="994"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="992"/>
         <source>Total length of a connected run of edges - an open chain (e.g. a weld seam) or a closed perimeter/loop</source>
         <translation>Lunghezza totale di una sequenza connessa di spigoli - una catena aperta (ad es. un cordone di saldatura) o un perimetro/anello chiuso</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="995"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="993"/>
         <source>2+ clicks, then Enter/Finish</source>
         <translation>2+ clic, poi Invio/Fine</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="996"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="994"/>
         <source>Each new pick must share an endpoint with the chain so far - a disconnected edge is rejected</source>
         <translation>Ogni nuova selezione deve condividere un&apos;estremità con la catena esistente finora - uno spigolo non collegato viene rifiutato</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="998"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="996"/>
         <source>Edges</source>
         <translation>Spigoli</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1000"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="998"/>
         <source>Annotation</source>
         <translation>Annotazione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1001"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="999"/>
         <source>&lt;p&gt;A free-text sticky note anchored to a point on a mesh surface, connected to a draggable text label by a leader line.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Opens unarmed (still useful for reviewing/editing existing notes) - click &lt;b&gt;Place Note&lt;/b&gt; to arm it&lt;/li&gt;&lt;li&gt;Click a point on the model to place a note there - it&apos;s auto-selected with default text &quot;New Note&quot; so you can immediately type over it; stays armed for placing more notes in a row&lt;/li&gt;&lt;li&gt;Select a note from the results list (or click it in the viewport) to edit its text, or &lt;b&gt;Delete&lt;/b&gt; it - multi-select delete batches into one undo step&lt;/li&gt;&lt;li&gt;Drag a note&apos;s text frame to reposition just the label/leader, independent of its anchor point&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Una nota adesiva in testo libero ancorata a un punto sulla superficie di una mesh, collegata a un&apos;etichetta di testo trascinabile tramite una linea di richiamo.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Si apre disattivata (comunque utile per rivedere/modificare le note esistenti) - fai clic su &lt;b&gt;Posiziona nota&lt;/b&gt; per attivarla&lt;/li&gt;&lt;li&gt;Fai clic su un punto del modello per posizionarvi una nota - viene selezionata automaticamente con il testo predefinito &quot;Nuova nota&quot; così puoi digitare subito sopra; resta attiva per posizionare più note di seguito&lt;/li&gt;&lt;li&gt;Seleziona una nota dall&apos;elenco dei risultati (o fai clic su di essa nel viewport) per modificarne il testo, oppure &lt;b&gt;eliminala&lt;/b&gt; - l&apos;eliminazione con selezione multipla viene raggruppata in un unico passaggio di annullamento&lt;/li&gt;&lt;li&gt;Trascina il riquadro di testo di una nota per riposizionare solo l&apos;etichetta/linea di richiamo, indipendentemente dal suo punto di ancoraggio&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1015"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1013"/>
         <source>Export Report</source>
         <translation>Esporta report</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1016"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1014"/>
         <source>&lt;p&gt;Opened via Tools → Export Report..., produces a PDF built from captured camera views plus an optional measurement/annotation summary table.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;The views list is pulled from the Cameras panel&apos;s own &lt;b&gt;Capture View&lt;/b&gt; button - capture a view there first, it then appears here automatically&lt;/li&gt;&lt;li&gt;&lt;b&gt;Include measurement/annotation table&lt;/b&gt; appends an HTML table listing every measurement and annotation&apos;s text to the PDF&lt;/li&gt;&lt;li&gt;Double-click a captured view to override which specific measurements/annotations THAT view&apos;s screenshot shows, independent of the document&apos;s real visibility - &lt;b&gt;Use Current Visibility&lt;/b&gt; clears the override&lt;/li&gt;&lt;li&gt;Export restores the document&apos;s real visibility and the viewport&apos;s camera exactly as they were before, once finished - nothing is left toggled or parked on a captured view&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Aperta da Strumenti → Esporta report..., produce un PDF costruito a partire dalle viste della fotocamera catturate più una tabella riepilogativa opzionale di misurazioni/annotazioni.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;L&apos;elenco delle viste proviene dal pulsante &lt;b&gt;Cattura vista&lt;/b&gt; del pannello Fotocamere - cattura prima lì una vista, poi comparirà qui automaticamente&lt;/li&gt;&lt;li&gt;&lt;b&gt;Includi tabella misurazioni/annotazioni&lt;/b&gt; aggiunge al PDF una tabella HTML con il testo di ogni misurazione e annotazione&lt;/li&gt;&lt;li&gt;Fai doppio clic su una vista catturata per sovrascrivere quali misurazioni/annotazioni specifiche mostra la schermata di QUELLA vista, indipendentemente dalla visibilità reale del documento - &lt;b&gt;Usa visibilità corrente&lt;/b&gt; cancella la sovrascrittura&lt;/li&gt;&lt;li&gt;Al termine, l&apos;esportazione ripristina esattamente come prima la visibilità reale del documento e la fotocamera del viewport - nulla resta commutato o fissato su una vista catturata&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1030"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1028"/>
         <source>Measurement &amp; Annotation</source>
         <translation>Misurazione &amp;&amp; Annotazione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1037"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1035"/>
         <source>Shrink Wrap</source>
         <translation>Avvolgimento a pelle</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1038"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1036"/>
         <source>&lt;p&gt;Opened via Tools → Shrink Wrap..., combines one or more selected meshes into a single new watertight, 2-manifold shell using CGAL&apos;s alpha wrapping - the inputs don&apos;t need to share a material or even be manifold themselves.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Alpha&lt;/b&gt; / &lt;b&gt;Offset:&lt;/b&gt; the two numeric fields controlling how tightly the shell wraps and how far it&apos;s offset from the input surface; &lt;b&gt;Reset to Suggested&lt;/b&gt; computes sensible starting values from the selection&apos;s bounding box&lt;/li&gt;&lt;li&gt;Always produces a brand-new mesh node - the original selection is left untouched&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Aperta da Strumenti → Avvolgimento a pelle..., combina una o più mesh selezionate in un unico nuovo guscio stagno e 2-varietà usando l&apos;alpha wrapping di CGAL - gli input non devono condividere un materiale né essere essi stessi varietà.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Alfa&lt;/b&gt; / &lt;b&gt;Offset:&lt;/b&gt; i due campi numerici che controllano quanto strettamente il guscio avvolge e quanto è scostato dalla superficie di ingresso; &lt;b&gt;Ripristina valori suggeriti&lt;/b&gt; calcola valori iniziali ragionevoli a partire dal bounding box della selezione&lt;/li&gt;&lt;li&gt;Produce sempre un nodo mesh completamente nuovo - la selezione originale resta intatta&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1048"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1046"/>
         <source>Reconstruct Surface</source>
         <translation>Ricostruisci superficie</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1049"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1047"/>
         <source>&lt;p&gt;Opened via Tools → Reconstruct Surface..., builds a new triangulated surface from the point positions of one or more selected meshes/point clouds via CGAL&apos;s advancing-front reconstruction - existing faces are ignored, only point positions matter.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Sharpness:&lt;/b&gt; lower is smoother/rounder, higher preserves sharper edges&lt;/li&gt;&lt;li&gt;&lt;b&gt;Boundary Tolerance:&lt;/b&gt; how large a gap the reconstruction may bridge&lt;/li&gt;&lt;li&gt;&lt;b&gt;Simplify point cloud before reconstruction:&lt;/b&gt; optional, reveals a &lt;b&gt;Target Spacing&lt;/b&gt; field that merges points closer than that distance first - speeds up large/noisy scans at the cost of fine detail&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Aperta da Strumenti → Ricostruisci superficie..., costruisce una nuova superficie triangolata dalle posizioni dei punti di una o più mesh/nuvole di punti selezionate tramite la ricostruzione advancing-front di CGAL - le facce esistenti vengono ignorate, contano solo le posizioni dei punti.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Nitidezza:&lt;/b&gt; più bassa è più liscia/arrotondata, più alta preserva spigoli più netti&lt;/li&gt;&lt;li&gt;&lt;b&gt;Tolleranza del contorno:&lt;/b&gt; quanto grande può essere il divario che la ricostruzione può colmare&lt;/li&gt;&lt;li&gt;&lt;b&gt;Semplifica la nuvola di punti prima della ricostruzione:&lt;/b&gt; opzionale, rivela un campo &lt;b&gt;Spaziatura target&lt;/b&gt; che unisce prima i punti più vicini di quella distanza - velocizza scansioni grandi/rumorose a scapito del dettaglio fine&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1060"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1058"/>
         <source>Repair Mesh</source>
         <translation>Ripara mesh</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1061"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1059"/>
         <source>&lt;p&gt;Opened via Tools → Repair Mesh..., runs each mesh in the working list independently through CGAL&apos;s repair toolkit: duplicate/degenerate geometry, non-manifold vertices, inconsistent winding, and self-intersections. It&apos;s defect cleanup only - it never fills holes or forces closure, so an intentionally open panel stays open.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;A mesh already reported valid is skipped, no new node is created for it&lt;/li&gt;&lt;li&gt;&lt;b&gt;Self-intersection resolution attempts:&lt;/b&gt; how many smoothing/hole-refill rounds to try (CGAL&apos;s own default is 7)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Try smoothing-based resolution too:&lt;/b&gt; adds a slower smoothing-based strategy alongside the default hole-filling-based one&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Aperta da Strumenti → Ripara mesh..., esegue ogni mesh dell&apos;elenco di lavoro indipendentemente attraverso il toolkit di riparazione di CGAL: geometria duplicata/degenere, vertici non varietà, avvolgimento incoerente e autointersezioni. È solo pulizia dei difetti - non riempie mai i fori né forza la chiusura, quindi un pannello intenzionalmente aperto resta aperto.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Una mesh già segnalata come valida viene saltata, non viene creato alcun nuovo nodo per essa&lt;/li&gt;&lt;li&gt;&lt;b&gt;Tentativi di risoluzione delle autointersezioni:&lt;/b&gt; quanti cicli di smoothing/riempimento fori provare (il predefinito proprio di CGAL è 7)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Prova anche la risoluzione basata su smoothing:&lt;/b&gt; aggiunge una strategia più lenta basata su smoothing accanto a quella predefinita basata sul riempimento dei fori&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1073"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1071"/>
         <source>Fill Holes</source>
         <translation>Riempi fori</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1074"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1072"/>
         <source>&lt;p&gt;Opened via Tools → Fill Holes..., detects every boundary loop (potential hole) across the meshes in the working list and lets you interactively choose which loops are genuine defects vs. an intentionally open edge, before patching only the checked ones via CGAL&apos;s triangulate-and-refine-hole.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Selecting a detected-hole row highlights that loop in orange in the viewport&lt;/li&gt;&lt;li&gt;&lt;b&gt;Patch density:&lt;/b&gt; how fine the new patch&apos;s triangulation is relative to the surrounding mesh&lt;/li&gt;&lt;li&gt;Shares the same self-intersection resolution options as Repair Mesh above&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Aperta da Strumenti → Riempi fori..., rileva ogni anello di contorno (foro potenziale) tra le mesh nell&apos;elenco di lavoro e consente di scegliere in modo interattivo quali anelli sono difetti reali rispetto a un bordo intenzionalmente aperto, prima di rattoppare solo quelli selezionati tramite il triangulate-and-refine-hole di CGAL.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Selezionare una riga di foro rilevato evidenzia quell&apos;anello in arancione nel viewport&lt;/li&gt;&lt;li&gt;&lt;b&gt;Densità della toppa:&lt;/b&gt; quanto è fine la triangolazione della nuova toppa rispetto alla mesh circostante&lt;/li&gt;&lt;li&gt;Condivide le stesse opzioni di risoluzione delle autointersezioni di Ripara mesh sopra&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1085"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1083"/>
         <source>Subdivide Surface</source>
         <translation>Suddividi superficie</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1086"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1084"/>
         <source>&lt;p&gt;Opened via Tools → Subdivide Surface..., this smooths one or more selected meshes using CGAL&apos;s Loop or Catmull-Clark subdivision — each selected mesh is refined independently, added as a new mesh alongside the original (which is left untouched), and becomes undoable once the dialog closes.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Method:&lt;/b&gt; Loop stays triangle-based throughout; Catmull-Clark produces quads internally and is triangulated back afterward — both usually look similarly smooth&lt;/li&gt;&lt;li&gt;&lt;b&gt;Iterations:&lt;/b&gt; each step roughly quadruples the triangle count, so higher values get expensive fast; 1-2 is enough to see the effect&lt;/li&gt;&lt;li&gt;&lt;b&gt;Preserve sharp edges&lt;/b&gt; (on by default): keeps any edge with a 30-degree-or-greater bend infinitely sharp instead of smoothing it away — a cylinder&apos;s flat end caps and a block&apos;s corners stay crisp while the rest of the surface still smooths normally. Turn it off for the classic fully-smooth subdivision-surface look (the same way subdividing a cube yields a rounded blob, not a cube with a finer mesh) - useful on coarse/organic meshes where an all-over rounding effect is what&apos;s actually wanted&lt;/li&gt;&lt;li&gt;&lt;b&gt;Replace previous result:&lt;/b&gt; when checked, each Generate click replaces the prior preview; unchecked, results accumulate side by side&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Aperto tramite Strumenti → Suddividi superficie..., questo smussa una o più mesh selezionate usando la suddivisione Loop o Catmull-Clark di CGAL — ogni mesh selezionata viene raffinata in modo indipendente, aggiunta come nuova mesh accanto all&apos;originale (che rimane intatta), e diventa annullabile una volta chiusa la finestra.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Metodo:&lt;/b&gt; Loop rimane basato su triangoli per tutto il processo; Catmull-Clark produce quadrilateri internamente e viene poi ritriangolato — entrambi appaiono solitamente ugualmente lisci&lt;/li&gt;&lt;li&gt;&lt;b&gt;Iterazioni:&lt;/b&gt; ogni passo quadruplica circa il numero di triangoli, quindi valori più alti diventano rapidamente onerosi; 1-2 è sufficiente per vedere l&apos;effetto&lt;/li&gt;&lt;li&gt;&lt;b&gt;Preserva spigoli netti&lt;/b&gt; (attivo per impostazione predefinita): mantiene infinitamente netto ogni spigolo con una piegatura di 30 gradi o più invece di smussarlo — i tappi piatti di un cilindro e gli angoli di un blocco restano nitidi mentre il resto della superficie si smussa normalmente. Disattivalo per l&apos;aspetto classico di superficie di suddivisione completamente liscia (allo stesso modo in cui suddividere un cubo produce una forma arrotondata, non un cubo con una mesh più fine) - utile su mesh grezze/organiche dove è effettivamente desiderato un effetto di arrotondamento generale&lt;/li&gt;&lt;li&gt;&lt;b&gt;Sostituisci risultato precedente:&lt;/b&gt; se selezionato, ogni clic su Genera sostituisce l&apos;anteprima precedente; se deselezionato, i risultati si accumulano fianco a fianco&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1105"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1103"/>
         <source>Shared &quot;Replace Previous Result&quot; Convention</source>
         <translation>Convenzione condivisa &quot;Sostituisci risultato precedente&quot;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1106"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1104"/>
         <source>&lt;p&gt;Shrink Wrap, Reconstruct Surface, Repair Mesh, Fill Holes, and Subdivide Surface all share one checkbox, checked by default: when checked, each Generate click undoably deletes the prior click&apos;s result before creating the new one, so at most one live result accumulates per source mesh. Unchecked, results accumulate side by side instead.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Avvolgimento a pelle, Ricostruisci superficie, Ripara mesh, Riempi fori e Suddividi superficie condividono tutte una casella, selezionata per impostazione predefinita: quando selezionata, ogni clic su Genera elimina in modo annullabile il risultato del clic precedente prima di crearne uno nuovo, così si accumula al massimo un risultato attivo per mesh di origine. Deselezionata, i risultati si accumulano invece fianco a fianco.&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1111"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1109"/>
         <source>Mesh Operations (Right-Click Menu)</source>
         <translation>Operazioni sulla mesh (menu clic destro)</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1112"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1110"/>
         <source>&lt;p&gt;Available from the tree/viewport right-click context menu when meshes are selected - all add new mesh node(s) and remove the originals, and are undoable except Select Parent (a pure navigation helper).&lt;/p&gt;</source>
         <translation>&lt;p&gt;Disponibile dal menu contestuale del clic destro sull&apos;albero/viewport quando sono selezionate delle mesh - tutte aggiungono nuovi nodi mesh e rimuovono gli originali, e sono annullabili tranne Seleziona genitore (un semplice aiuto di navigazione).&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1116"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1114"/>
         <source>Operation</source>
         <translation>Operazione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1116"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1114"/>
         <source>What It Does</source>
         <translation>Cosa fa</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1116"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1114"/>
         <source>Selection Requirement</source>
         <translation>Requisito di selezione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1118"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1116"/>
         <source>Split by Connectivity</source>
         <translation>Dividi per connettività</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1118"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1116"/>
         <source>Splits each selected mesh into its disconnected pieces, one new mesh per piece. A mesh already a single connected piece is left untouched</source>
         <translation>Divide ogni mesh selezionata nei suoi pezzi disconnessi, una nuova mesh per pezzo. Una mesh già costituita da un unico pezzo connesso resta intatta</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1120"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1118"/>
         <source>One or more meshes, each evaluated independently</source>
         <translation>Una o più mesh, ciascuna valutata indipendentemente</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1121"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1119"/>
         <source>Merge by Adjacency</source>
         <translation>Unisci per adiacenza</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1121"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1119"/>
         <source>Groups the selection into touching clusters (by shared vertex position) and merges each touching cluster into one mesh; non-touching meshes are left alone</source>
         <translation>Raggruppa la selezione in cluster a contatto (per posizione di vertice condivisa) e unisce ogni cluster a contatto in un&apos;unica mesh; le mesh non a contatto restano invariate</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1123"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1121"/>
         <source>2+ meshes; only touching subgroups are merged</source>
         <translation>2+ mesh; vengono unificati solo i sottogruppi a contatto</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1124"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1122"/>
         <source>Merge Selected</source>
         <translation>Unisci selezionati</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1124"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1122"/>
         <source>Combines the whole selection into one new mesh by plain concatenation, regardless of whether the meshes are touching</source>
         <translation>Combina l&apos;intera selezione in un&apos;unica nuova mesh mediante semplice concatenazione, indipendentemente dal fatto che le mesh siano a contatto</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1125"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1128"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1123"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1126"/>
         <source>2+ meshes</source>
         <translation>2+ mesh</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1126"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1124"/>
         <source>Mesh Union</source>
         <translation>Unione mesh</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1126"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1124"/>
         <source>Attempts a real CGAL boolean union across the selection&apos;s repaired geometry; silently falls back to plain concatenation (same as Merge Selected) if repair or corefinement fails</source>
         <translation>Tenta una vera unione booleana CGAL sulla geometria riparata della selezione; ricade silenziosamente sulla semplice concatenazione (come Unisci selezionati) se la riparazione o il corefinement falliscono</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1129"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1127"/>
         <source>Group</source>
         <translation>Raggruppa</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1129"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1127"/>
         <source>Pure scene-graph reorganization - creates a new Group node and moves the selected meshes into it. No geometry is touched</source>
         <translation>Pura riorganizzazione del grafo di scena - crea un nuovo nodo Gruppo e vi sposta le mesh selezionate. Nessuna geometria viene toccata</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1130"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1128"/>
         <source>One or more meshes</source>
         <translation>Una o più mesh</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1131"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1129"/>
         <source>Select Parent</source>
         <translation>Seleziona genitore</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1131"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1129"/>
         <source>Selects the tree parent of the right-clicked item - navigation only, no geometry change</source>
         <translation>Seleziona il genitore nell&apos;albero dell&apos;elemento su cui si è fatto clic destro - solo navigazione, nessuna modifica alla geometria</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1132"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1130"/>
         <source>The single right-clicked item</source>
         <translation>Il singolo elemento su cui si è fatto clic destro</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1136"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1134"/>
         <source>Mixed-Material Merges</source>
         <translation>Unioni con materiali misti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1137"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1135"/>
         <source>&lt;p&gt;Merge by Adjacency, Merge Selected, and Mesh Union all prompt when a touching group/selection has more than one material: &lt;b&gt;Keep Materials Separate&lt;/b&gt; splits that group into one merge per material instead of combining everything into one with the first mesh&apos;s material, or choose &lt;b&gt;Merge Anyway&lt;/b&gt; to combine regardless.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Unisci per adiacenza, Unisci selezionati e Unione mesh chiedono tutte conferma quando un gruppo/selezione a contatto ha più di un materiale: &lt;b&gt;Mantieni materiali separati&lt;/b&gt; divide quel gruppo in un&apos;unione per materiale invece di combinare tutto in una con il materiale della prima mesh, oppure scegli &lt;b&gt;Unisci comunque&lt;/b&gt; per combinare indipendentemente.&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1155"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1153"/>
         <source>Ctrl+I</source>
         <translation>Ctrl+I</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1156"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1154"/>
         <source>Ctrl+E</source>
         <translation>Ctrl+E</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1168"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1166"/>
         <source>Edit → Settings</source>
         <translation>Modifica → Impostazioni</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1168"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1166"/>
         <source>Open the settings dialog</source>
         <translation>Apri la finestra delle impostazioni</translation>
     </message>
@@ -14635,12 +14634,12 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">Strumenti → Debugger delle texture</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1206"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1204"/>
         <source>Open the texture debugger panel</source>
         <translation>Apri il pannello del debugger delle texture</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1200"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1198"/>
         <source>Tools Menu</source>
         <translation>Menu Strumenti</translation>
     </message>
@@ -14651,362 +14650,362 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
     </message>
     <message>
         <location filename="../src/App/QuickHelpDialog.cpp" line="183"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1142"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1140"/>
         <source>Mesh Editing</source>
         <translation>Modifica mesh</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="456"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="454"/>
         <source>Scroll Object Tree</source>
         <translation>Scorri l&apos;albero degli oggetti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="456"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="454"/>
         <source>Ctrl + Mouse Wheel over the tree</source>
         <translation>Ctrl + rotellina del mouse sull&apos;albero</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="456"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="454"/>
         <source>Scroll bar on the tree&apos;s edge</source>
         <translation>Barra di scorrimento sul bordo dell&apos;albero</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="574"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="572"/>
         <source>Choose Isometric, Dimetric or Trimetric, and (next button) the compass corner it is seen from: SE, NE, NW or SW. Clicking either button steps to the next type or corner while the view is axonometric (from another view it enters the last-used one); hold to pick directly; Home enters the last-used type&lt;br/&gt;Shortcuts: Ctrl+1/2/3=Isometric/Dimetric/Trimetric, Ctrl+4/5/6/7=SE/NE/NW/SW corner, Ctrl+Shift+Left/Right=previous/next corner</source>
         <translation>Scegli Isometrico, Dimetrico o Trimetrico e (pulsante successivo) l&apos;angolo cardinale da cui viene vista: SE, NE, NO o SO. Facendo clic su uno dei due pulsanti si passa al tipo o all&apos;angolo successivo mentre la vista è assonometrica (da un&apos;altra vista si entra in quello usato per ultimo); tieni premuto per scegliere direttamente; Home entra nell&apos;ultimo tipo usato&lt;br/&gt;Scorciatoie: Ctrl+1/2/3=Isometrico/Dimetrico/Trimetrico, Ctrl+4/5/6/7=angolo SE/NE/NO/SO, Ctrl+Maiusc+Sinistra/Destra=angolo precedente/successivo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="576"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="574"/>
         <source>Projection</source>
         <translation>Proiezione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="576"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="574"/>
         <source>Perspective, Ortho, Cavalier, Cabinet</source>
         <translation>Prospettica, Ortografica, Cavaliera, Cabinet</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="577"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="575"/>
         <source>Click toggles between Perspective and the parallel projection used last (Orthographic until you pick another); hold to open the list and pick Perspective, Orthographic, Cavalier or Cabinet&lt;br/&gt;Cavalier and Cabinet are oblique projections: the face parallel to the screen keeps its true shape while depth recedes up and to the right (full depth for Cavalier, half depth for Cabinet). Like Perspective and Orthographic they stay in effect while you orbit, pan, zoom or change views. Not available with ray tracing</source>
         <translation>Un clic alterna tra Prospettica e l&apos;ultima proiezione parallela usata (Ortografica finché non ne scegli un&apos;altra); tieni premuto per aprire l&apos;elenco e scegliere Prospettica, Ortografica, Cavaliera o Cabinet&lt;br/&gt;Cavaliera e Cabinet sono proiezioni oblique: la faccia parallela allo schermo mantiene la sua forma reale mentre la profondità si allontana verso l&apos;alto e verso destra (profondità piena per Cavaliera, metà per Cabinet). Come Prospettica e Ortografica, restano attive mentre orbiti, sposti, ingrandisci o cambi vista. Non disponibile con il ray tracing</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="776"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="774"/>
         <source>&lt;p&gt;Cut through a model with up to three axis-aligned clipping planes to see internal structure, opened via the Section View button on the View Toolbar.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;XY / YZ / XZ:&lt;/b&gt; Enable each plane independently; by default each cuts away the half facing you in its matching standard view (Top, Right or Front), so the cut face is visible, and each has its own &apos;Flip&apos; toggle to reverse which side is cut away&lt;/li&gt;&lt;li&gt;&lt;b&gt;Coefficient:&lt;/b&gt; A numeric field per plane that positions it along its axis&lt;/li&gt;&lt;li&gt;&lt;b&gt;Capping:&lt;/b&gt; Fills the cut cross-section with a solid cap instead of leaving it hollow&lt;/li&gt;&lt;li&gt;&lt;b&gt;Dynamic Capping:&lt;/b&gt; Recomputes the cap as you move or animate the model, rather than only when you release the plane&lt;/li&gt;&lt;li&gt;&lt;b&gt;Hatch Pattern:&lt;/b&gt; Choose Diagonal 45/135, Horizontal, Vertical, Grid, or Cross Hatch for the capped cross-section, with adjustable tiling, color, and an optional texture&lt;/li&gt;&lt;li&gt;&lt;b&gt;Reset Coefficients / Reset All:&lt;/b&gt; Quickly return planes to their default position or clear all clipping state&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Seziona un modello con fino a tre piani di taglio allineati agli assi per vedere la struttura interna; si apre con il pulsante Vista sezione della barra degli strumenti Vista.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;XY / YZ / XZ:&lt;/b&gt; Attiva ogni piano in modo indipendente; per impostazione predefinita ognuno rimuove la metà rivolta verso di te nella vista standard corrispondente (Superiore, Destra o Anteriore), così la faccia di taglio è visibile, e ognuno ha un proprio interruttore «Inverti» per invertire il lato rimosso&lt;/li&gt;&lt;li&gt;&lt;b&gt;Coefficiente:&lt;/b&gt; Un campo numerico per piano che lo posiziona lungo il proprio asse&lt;/li&gt;&lt;li&gt;&lt;b&gt;Tappatura:&lt;/b&gt; Riempie la sezione tagliata con un tappo pieno invece di lasciarla cava&lt;/li&gt;&lt;li&gt;&lt;b&gt;Tappatura dinamica:&lt;/b&gt; Ricalcola il tappo mentre sposti o animi il modello, e non solo al rilascio del piano&lt;/li&gt;&lt;li&gt;&lt;b&gt;Motivo di tratteggio:&lt;/b&gt; Scegli Diagonale 45/135, Orizzontale, Verticale, Griglia o Tratteggio incrociato per la sezione tappata, con tassellatura, colore e texture opzionale regolabili&lt;/li&gt;&lt;li&gt;&lt;b&gt;Ripristina coefficienti / Ripristina tutto:&lt;/b&gt; Riporta rapidamente i piani alla posizione predefinita o cancella tutto lo stato di taglio&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1174"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1172"/>
         <source>Selection → Lasso Select</source>
         <translation>Selezione → Selezione a lazo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1174"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1172"/>
         <source>Select meshes with a freehand lasso drawn in the viewport</source>
         <translation>Seleziona le mesh con un lazo disegnato a mano libera nella vista</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1175"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1173"/>
         <source>Selection → Filter by Material...</source>
         <translation>Selezione → Filtra per materiale...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1175"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1173"/>
         <source>Select every mesh in the scene using a chosen material</source>
         <translation>Seleziona ogni mesh nella scena che usa un materiale scelto</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1176"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1174"/>
         <source>Selection → Filter by Color...</source>
         <translation>Selezione → Filtra per colore...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1176"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1174"/>
         <source>Select every mesh whose color matches a chosen target, within a tolerance</source>
         <translation>Seleziona ogni mesh il cui colore corrisponde a un target scelto, entro una tolleranza</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1177"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1175"/>
         <source>Selection → Filter by Bounding Box...</source>
         <translation>Selezione → Filtra per riquadro di delimitazione...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1177"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1175"/>
         <source>Select every mesh whose bounding box matches a set of world-space X/Y/Z limits</source>
         <translation>Seleziona ogni mesh il cui riquadro di delimitazione corrisponde a un insieme di limiti X/Y/Z nello spazio globale</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1178"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1176"/>
         <source>Selection → Swap Visible</source>
         <translation>Selezione → Scambia visibili</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1178"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1176"/>
         <source>Invert the visibility of all objects</source>
         <translation>Inverti la visibilità di tutti gli oggetti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1179"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1177"/>
         <source>Selection → Save Selection Set...</source>
         <translation>Selezione → Salva set di selezione...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1179"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1177"/>
         <source>Save the current selection under a name, for quick recall later</source>
         <translation>Salva la selezione corrente con un nome, per un rapido richiamo successivo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1180"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1178"/>
         <source>Selection → Save Scene State...</source>
         <translation>Selezione → Salva stato della scena...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1180"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1178"/>
         <source>Save the camera view, visibility and selection together under a name, for one-click recall later</source>
         <translation>Salva insieme vista della telecamera, visibilità e selezione con un nome, per richiamarle in seguito con un clic</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1182"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1180"/>
         <source>Selection Menu</source>
         <translation>Menu Selezione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1186"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1184"/>
         <source>Tools → Measure...</source>
         <translation>Strumenti → Misura...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1186"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1184"/>
         <source>Open the measurement tool - point, distance, and arc-radius tools among others</source>
         <translation>Apri lo strumento di misurazione - strumenti di punto, distanza e raggio d&apos;arco tra gli altri</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1187"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1185"/>
         <source>Tools → Annotate...</source>
         <translation>Strumenti → Annota...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1187"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1185"/>
         <source>Open the annotation tool - place text notes anchored to points on the model</source>
         <translation>Apri lo strumento di annotazione - posiziona note di testo ancorate a punti del modello</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1188"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1186"/>
         <source>Tools → Export Report...</source>
         <translation>Strumenti → Esporta report...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1188"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1186"/>
         <source>Export captured views and the measurement/annotation list as a PDF report</source>
         <translation>Esporta le viste catturate e l&apos;elenco di misurazioni/annotazioni come report PDF</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1189"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1187"/>
         <source>Tools → Batch Render Views...</source>
         <translation>Strumenti → Rendering batch delle viste...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1189"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1187"/>
         <source>Render every captured view (or a checked subset) as a high-quality ray-traced image, one file per view</source>
         <translation>Renderizza ogni vista catturata (o un sottoinsieme selezionato) come immagine ray-traced di alta qualità, un file per vista</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1190"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1188"/>
         <source>Tools → Mass Properties...</source>
         <translation>Strumenti → Proprietà di massa...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1190"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1188"/>
         <source>Volume, surface area, mass and centre of mass of the selection</source>
         <translation>Volume, area della superficie, massa e centro di massa della selezione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1191"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1189"/>
         <source>Tools → Surface Analysis...</source>
         <translation>Strumenti → Analisi della superficie...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1191"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1189"/>
         <source>Curvature, wall-thickness, draft-angle and deviation inspection painted on the mesh surface</source>
         <translation>Ispezione di curvatura, spessore di parete, angolo di sformo e deviazione dipinta direttamente sulla superficie della mesh</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1192"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1190"/>
         <source>Tools → Shrink Wrap...</source>
         <translation>Strumenti → Avvolgimento a pelle...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1192"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1190"/>
         <source>Combine the selected meshes into one new watertight shell</source>
         <translation>Combina le mesh selezionate in un nuovo guscio stagno</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1193"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1191"/>
         <source>Tools → Subdivide Surface...</source>
         <translation>Strumenti → Suddividi superficie...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1193"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1191"/>
         <source>Smooth the selected meshes via CGAL subdivision</source>
         <translation>Leviga le mesh selezionate tramite suddivisione CGAL</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1194"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1192"/>
         <source>Tools → Reconstruct Surface...</source>
         <translation>Strumenti → Ricostruisci superficie...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1194"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1192"/>
         <source>Reconstruct a triangulated surface from the selected point cloud(s)</source>
         <translation>Ricostruisci una superficie triangolata dalla/dalle nuvola/e di punti selezionata/e</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1195"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1193"/>
         <source>Tools → Repair Mesh...</source>
         <translation>Strumenti → Ripara mesh...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1195"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1193"/>
         <source>Fix defects (non-manifold vertices, self-intersections, etc.) on the selected meshes</source>
         <translation>Correggi i difetti (vertici non varietà, autointersezioni, ecc.) sulle mesh selezionate</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1196"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1194"/>
         <source>Tools → Fill Holes...</source>
         <translation>Strumenti → Riempi fori...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1196"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1194"/>
         <source>Detect and interactively patch boundary-loop holes in the selected meshes</source>
         <translation>Rileva e rattoppa in modo interattivo i fori ad anello di contorno nelle mesh selezionate</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1197"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1195"/>
         <source>Tools → Generate UVs...</source>
         <translation>Strumenti → Genera UV...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1197"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1195"/>
         <source>Generate UV coordinates for meshes using a chosen projection method</source>
         <translation>Genera coordinate UV per le mesh usando un metodo di proiezione scelto</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1198"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1196"/>
         <source>Tools → Purge Redundant Nodes</source>
         <translation>Strumenti → Elimina nodi ridondanti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1198"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1196"/>
         <source>Collapse sub-assembly nodes that only wrap a single mesh</source>
         <translation>Comprimi i nodi di sotto-assieme che racchiudono una sola mesh</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1204"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1202"/>
         <source>Visualization → Ray Tracing...</source>
         <translation>Visualizzazione → Ray tracing...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1204"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1202"/>
         <source>Open the ray tracing settings and start a render</source>
         <translation>Apri le impostazioni del ray tracing e avvia un rendering</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1205"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1203"/>
         <source>Visualization → Plot 3D...</source>
         <translation>Visualizzazione → Grafico 3D...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1205"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1203"/>
         <source>Create a 3D plot from tabular data, formulas or parametric expressions</source>
         <translation>Crea un grafico 3D da dati tabellari, formule o espressioni parametriche</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1212"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1210"/>
         <source>Visualization → Simulation Results → Add Result to This Document...</source>
         <translation>Visualizzazione → Risultati di simulazione → Aggiungi risultato a questo documento...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1212"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1210"/>
         <source>Add a simulation result (.vtu, .vtk, .frd, .foam ...) to the current document</source>
         <translation>Aggiungi un risultato di simulazione (.vtu, .vtk, .frd, .foam ...) al documento corrente</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1213"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1211"/>
         <source>Visualization → Simulation Results → Compare Results...</source>
         <translation>Visualizzazione → Risultati di simulazione → Confronta risultati...</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1213"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1211"/>
         <source>Show two results side by side with one shared camera; choose it again to exit</source>
         <translation>Mostra due risultati affiancati con una telecamera condivisa; sceglilo di nuovo per uscire</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1215"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1213"/>
         <source>Simulation Results Menu</source>
         <translation>Menu Risultati di simulazione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1219"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1217"/>
         <source>Window → Close</source>
         <translation>Finestra → Chiudi</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1219"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1217"/>
         <source>Close the active document window</source>
         <translation>Chiudi la finestra del documento attivo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1220"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1218"/>
         <source>Window → Close All</source>
         <translation>Finestra → Chiudi tutto</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1220"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1218"/>
         <source>Close all document windows</source>
         <translation>Chiudi tutte le finestre dei documenti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1232"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1230"/>
         <source>  Center Screen</source>
         <translation>  Schermo centrale</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1232"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1230"/>
         <source>Center view on selected object</source>
         <translation>Vista Centro su oggetto selezionato</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1233"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1231"/>
         <source>  Center Object List</source>
         <translation>  Elenco degli oggetti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1233"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1231"/>
         <source>Scroll object list to selected item</source>
         <translation>Scorrere l&apos;elenco degli oggetti all&apos;elemento selezionato</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1234"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1232"/>
         <source>  Hide/Show</source>
         <translation>  Nascondi/Mostra</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1234"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1232"/>
         <source>Toggle visibility of selected objects</source>
         <translation>Toggle visibilità di oggetti selezionati</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1235"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1233"/>
         <source>  Show Only</source>
         <translation>  Mostra solo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1235"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1233"/>
         <source>Shift+Space</source>
         <translation>Shift+Spazio</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1235"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1233"/>
         <source>Show only selected, hide all others</source>
         <translation>Mostra solo selezionato, nascondi tutti gli altri</translation>
     </message>
@@ -15019,12 +15018,12 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">Materiale aperto / impostazioni di apparizione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1236"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1234"/>
         <source>  Transformations</source>
         <translation>  Trasformazioni</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1236"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1234"/>
         <source>Open transformation panel (move/rotate/scale)</source>
         <translation>Pannello di trasformazione aperto (move/rotate/scale)</translation>
     </message>
@@ -15045,207 +15044,207 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">Crea copia di oggetti selezionati</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1239"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1237"/>
         <source>  Delete</source>
         <translation>  Elimina</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1239"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1237"/>
         <source>Remove selected objects</source>
         <translation>Rimuovi gli oggetti selezionati</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1240"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1238"/>
         <source>  Mesh Info</source>
         <translation>  Informazioni su Mesh</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1240"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1238"/>
         <source>Display detailed mesh information</source>
         <translation>Visualizza informazioni dettagliate sulle mesh</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1241"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1239"/>
         <source>  Select Parent</source>
         <translation>  Seleziona genitore</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1241"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1239"/>
         <source>Select the tree parent of the right-clicked item</source>
         <translation>Seleziona il genitore nell&apos;albero dell&apos;elemento su cui si è fatto clic destro</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1242"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1240"/>
         <source>  Split by Connectivity</source>
         <translation>  Dividi per connettività</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1242"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1240"/>
         <source>Split each selected mesh into its disconnected pieces</source>
         <translation>Dividi ogni mesh selezionata nei suoi pezzi disconnessi</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1243"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1241"/>
         <source>  Merge by Adjacency</source>
         <translation>  Unisci per adiacenza</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1243"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1241"/>
         <source>Merge only the touching clusters within the selection</source>
         <translation>Unisci solo i cluster a contatto all&apos;interno della selezione</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1244"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1242"/>
         <source>  Merge Selected</source>
         <translation>  Unisci selezionati</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1244"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1242"/>
         <source>Combine the whole selection into one mesh</source>
         <translation>Combina l&apos;intera selezione in un&apos;unica mesh</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1245"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1243"/>
         <source>  Mesh Union</source>
         <translation>  Unione mesh</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1245"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1243"/>
         <source>Combine the selection via a real CGAL boolean union</source>
         <translation>Combina la selezione tramite una vera unione booleana CGAL</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1246"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1244"/>
         <source>  Group</source>
         <translation>  Raggruppa</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1246"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1244"/>
         <source>Move the selected meshes into a new group node</source>
         <translation>Sposta le mesh selezionate in un nuovo nodo gruppo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1248"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1246"/>
         <source>When no selection:</source>
         <translation>Quando non selezione:</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1249"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1247"/>
         <source>  Fit All</source>
         <translation>  Tutti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1249"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1247"/>
         <source>Frame entire scene</source>
         <translation>Tutta la scena</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1250"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1248"/>
         <source>  Zoom Area</source>
         <translation>  Area Zoom</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1250"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1248"/>
         <source>Enable window zoom mode</source>
         <translation>Attiva la modalità zoom finestra</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1251"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1249"/>
         <source>  Select/Zoom/Pan/Rotate</source>
         <translation>  Seleziona/Zoom/Pan/Rotate</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1251"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1249"/>
         <source>Activate view manipulation modes</source>
         <translation>Attivare modalità di manipolazione della vista</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1252"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1250"/>
         <source>  Show All</source>
         <translation>  Mostra tutto</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1252"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1250"/>
         <source>Shift+A</source>
         <translation>Maiusc+A</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1252"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1250"/>
         <source>Make all objects visible</source>
         <translation>Rendere visibili tutti gli oggetti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1253"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1251"/>
         <source>  Hide All</source>
         <translation>  Nascondi tutto</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1253"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1251"/>
         <source>Alt+A</source>
         <translation>Alt+A</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1253"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1251"/>
         <source>Hide all objects</source>
         <translation>Nascondi tutti gli oggetti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1254"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1252"/>
         <source>  Swap Visible</source>
         <translation>  Visibile Swap</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1254"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1252"/>
         <source>Alt+S</source>
         <translation>Alt+S</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1254"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1252"/>
         <source>Invert visibility of all objects</source>
         <translation>Invertire la visibilità di tutti gli oggetti</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1255"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1253"/>
         <source>  Paste</source>
         <translation>  Incolla</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1255"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1253"/>
         <source>Paste previously copied or cut items</source>
         <translation>Incolla gli elementi copiati o tagliati in precedenza</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1256"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1254"/>
         <source>  Environment Settings</source>
         <translation>  Impostazioni ambiente</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1256"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1254"/>
         <source>Open the Environment panel</source>
         <translation>Apri il pannello Ambiente</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1257"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1255"/>
         <source>  Background Color</source>
         <translation>  Colore Sfondo</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1257"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1255"/>
         <source>Change viewport background color</source>
         <translation>Cambia vista sfondo colore</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1268"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1266"/>
         <source>Getting Started</source>
         <translation>Iniziare</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1269"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1267"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Opening Files:&lt;/b&gt; Drag and drop files directly onto the window, or use File → Open&lt;/li&gt;&lt;li&gt;&lt;b&gt;First View:&lt;/b&gt; Press &apos;F&apos; to frame your model perfectly in the viewport&lt;/li&gt;&lt;li&gt;&lt;b&gt;Quick Navigation:&lt;/b&gt; Use Middle Mouse for rotation, Mouse Wheel for zoom, Right Mouse for pan&lt;/li&gt;&lt;li&gt;&lt;b&gt;Recent Files:&lt;/b&gt; Access recently opened files from File → Recent menu&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Apertura dei file:&lt;/b&gt; trascina e rilascia i file direttamente nella finestra oppure usa File → Apri&lt;/li&gt;&lt;li&gt;&lt;b&gt;Prima vista:&lt;/b&gt; premi &apos;F&apos; per inquadrare perfettamente il tuo modello nella finestra&lt;/li&gt;&lt;li&gt;&lt;b&gt;Navigazione rapida:&lt;/b&gt; usa il tasto centrale del mouse per la rotazione, la rotellina del mouse per lo zoom, il tasto destro del mouse per la panoramica&lt;/li&gt;&lt;li&gt;&lt;b&gt;File recenti:&lt;/b&gt; accedi ai file aperti di recente dal menu File → Recenti&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1276"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1274"/>
         <source>Selection Techniques</source>
         <translation>Tecniche di selezione</translation>
     </message>
@@ -15254,17 +15253,17 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">&lt;ul&gt;&lt;li&gt;&lt;b&gt;Selezione singola:&lt;/b&gt; fai clic con il pulsante sinistro del mouse su un oggetto nella finestra di visualizzazione&lt;/li&gt;&lt;li&gt;&lt;b&gt;Selezione multipla:&lt;/b&gt; trascina un rettangolo elastico attorno a più oggetti&lt;/li&gt;&lt;li&gt;&lt;b&gt;Attiva/disattiva selezione:&lt;/b&gt; fai clic su un oggetto già selezionato per deselezionarlo&lt;/li&gt;&lt;li&gt;&lt;b&gt;Seleziona dall&apos;elenco:&lt;/b&gt; usa il pannello dell&apos;elenco degli oggetti sul lato sinistro&lt;/li&gt;&lt;li&gt;&lt;b&gt;Cerca oggetti:&lt;/b&gt; usa la casella di ricerca sopra l&apos;elenco degli oggetti per filtrare per nome&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1290"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1288"/>
         <source>Working with Visibility</source>
         <translation>Lavorare con Visibilità</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1291"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1289"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Hide Selected:&lt;/b&gt; Press Space to temporarily hide objects you don&apos;t need&lt;/li&gt;&lt;li&gt;&lt;b&gt;Isolate:&lt;/b&gt; Press Shift+Space to focus on selected objects only&lt;/li&gt;&lt;li&gt;&lt;b&gt;Swap Visible:&lt;/b&gt; Press Alt+S to see what&apos;s hidden (and hide what&apos;s visible)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Show All:&lt;/b&gt; Press Shift+A to bring everything back&lt;/li&gt;&lt;li&gt;&lt;b&gt;Visual Indicator:&lt;/b&gt; Hidden objects are grayed out in the object list&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Nascondi selezionati:&lt;/b&gt; premi la barra spaziatrice per nascondere temporaneamente gli oggetti che non ti servono&lt;/li&gt;&lt;li&gt;&lt;b&gt;Isola:&lt;/b&gt; premi Maiusc+Barra spaziatrice per concentrarti solo sugli oggetti selezionati&lt;/li&gt;&lt;li&gt;&lt;b&gt;Scambia visibili:&lt;/b&gt; premi Alt+S per vedere cosa è nascosto (e nascondere cosa è visibile)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mostra tutto:&lt;/b&gt; premi Maiusc+A per visualizzare tutto&lt;/li&gt;&lt;li&gt;&lt;b&gt;Indicatore visivo:&lt;/b&gt; gli oggetti nascosti sono visualizzati in grigio nell&apos;elenco degli oggetti&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1299"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1297"/>
         <source>View Organization</source>
         <translation>Visualizza Organizzazione</translation>
     </message>
@@ -15273,17 +15272,17 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">&lt;ul&gt;&lt;li&gt;&lt;b&gt;Sessioni multiple:&lt;/b&gt; File → Nuovo crea finestre di visualizzazione aggiuntive&lt;/li&gt;&lt;li&gt;&lt;b&gt;Layout delle finestre:&lt;/b&gt; Usa il menu Finestra per affiancare o sovrapporre più documenti&lt;/li&gt;&lt;li&gt;&lt;b&gt;Modalità multi-vista:&lt;/b&gt; Abilita dalla barra degli strumenti per visualizzare quattro finestre contemporaneamente&lt;/li&gt;&lt;li&gt;&lt;b&gt;Viste standard:&lt;/b&gt; Usa i pulsanti della barra degli strumenti per viste istantanee dall&apos;alto/frontale/laterale&lt;/li&gt;&lt;li&gt;&lt;b&gt;Viste assonometriche:&lt;/b&gt; Scegli Isometrica/Dimetrica/Trimetrica per i disegni tecnici&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1308"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1306"/>
         <source>Performance Tips</source>
         <translation>Consigli sulle prestazioni</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1309"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1307"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Large Models:&lt;/b&gt; Automatic low-res preview during manipulation for models &gt;50MB&lt;/li&gt;&lt;li&gt;&lt;b&gt;Display Mode:&lt;/b&gt; Switch to Shaded or Wireframe for better performance&lt;/li&gt;&lt;li&gt;&lt;b&gt;Progressive Loading:&lt;/b&gt; Large files load progressively with status updates&lt;/li&gt;&lt;li&gt;&lt;b&gt;Shadow Quality:&lt;/b&gt; Adjust in Environment settings if shadows are slow&lt;/li&gt;&lt;li&gt;&lt;b&gt;Hidden Objects:&lt;/b&gt; Hidden objects are still in memory but not rendered&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Modelli di grandi dimensioni:&lt;/b&gt; Anteprima automatica a bassa risoluzione durante la manipolazione per modelli &gt;50 MB&lt;/li&gt;&lt;li&gt;&lt;b&gt;Modalità di visualizzazione:&lt;/b&gt; Passa a Ombreggiato o Wireframe per prestazioni migliori&lt;/li&gt;&lt;li&gt;&lt;b&gt;Caricamento progressivo:&lt;/b&gt; I file di grandi dimensioni vengono caricati progressivamente con aggiornamenti di stato&lt;/li&gt;&lt;li&gt;&lt;b&gt;Qualità delle ombre:&lt;/b&gt; Regola nelle impostazioni Ambiente se le ombre sono lente&lt;/li&gt;&lt;li&gt;&lt;b&gt;Oggetti nascosti:&lt;/b&gt; Gli oggetti nascosti sono ancora in memoria ma non vengono renderizzati&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1317"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1315"/>
         <source>Materials and Appearance</source>
         <translation>Materiali e Aspetto</translation>
     </message>
@@ -15293,18 +15292,18 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
     </message>
     <message>
         <location filename="../src/App/QuickHelpDialog.cpp" line="181"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="902"/>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1328"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="900"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1326"/>
         <source>Advanced Features</source>
         <translation>Caratteristiche avanzate</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1277"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1275"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Single Select:&lt;/b&gt; Left-click on an object in the viewport&lt;/li&gt;&lt;li&gt;&lt;b&gt;Multi-Select:&lt;/b&gt; Drag a rubber band rectangle around multiple objects&lt;/li&gt;&lt;li&gt;&lt;b&gt;Toggle Selection:&lt;/b&gt; Click on an already selected object to deselect it&lt;/li&gt;&lt;li&gt;&lt;b&gt;Select from List:&lt;/b&gt; Use the object list panel on the left side&lt;/li&gt;&lt;li&gt;&lt;b&gt;Search Objects:&lt;/b&gt; Use the search box above the object list to filter by name&lt;/li&gt;&lt;li&gt;&lt;b&gt;Lasso Select:&lt;/b&gt; Arm it from the View Toolbar for a freeform selection outline&lt;/li&gt;&lt;li&gt;&lt;b&gt;Filter by Material/Color:&lt;/b&gt; Use the Selection menu to select every mesh matching a material or color across the whole scene&lt;/li&gt;&lt;li&gt;&lt;b&gt;Named Selection Sets:&lt;/b&gt; Save a selection under a name from the Selections panel to recall it instantly later&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Selezione singola:&lt;/b&gt; Clic sinistro su un oggetto nel viewport&lt;/li&gt;&lt;li&gt;&lt;b&gt;Selezione multipla:&lt;/b&gt; Trascina un rettangolo di selezione attorno a più oggetti&lt;/li&gt;&lt;li&gt;&lt;b&gt;Attiva/disattiva selezione:&lt;/b&gt; Fai clic su un oggetto già selezionato per deselezionarlo&lt;/li&gt;&lt;li&gt;&lt;b&gt;Seleziona dall&apos;elenco:&lt;/b&gt; Usa il pannello elenco oggetti sul lato sinistro&lt;/li&gt;&lt;li&gt;&lt;b&gt;Cerca oggetti:&lt;/b&gt; Usa la casella di ricerca sopra l&apos;elenco oggetti per filtrare per nome&lt;/li&gt;&lt;li&gt;&lt;b&gt;Selezione a lazo:&lt;/b&gt; Attivala dalla barra degli strumenti Vista per un contorno di selezione a mano libera&lt;/li&gt;&lt;li&gt;&lt;b&gt;Filtra per materiale/colore:&lt;/b&gt; Usa il menu Selezione per selezionare ogni mesh corrispondente a un materiale o colore in tutta la scena&lt;/li&gt;&lt;li&gt;&lt;b&gt;Set di selezione con nome:&lt;/b&gt; Salva una selezione con un nome dal pannello Selezioni per richiamarla istantaneamente in seguito&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1300"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1298"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Multiple Sessions:&lt;/b&gt; File → New creates additional viewer windows&lt;/li&gt;&lt;li&gt;&lt;b&gt;Window Layouts:&lt;/b&gt; Use Window menu to tile or cascade multiple documents&lt;/li&gt;&lt;li&gt;&lt;b&gt;Multi-View Mode:&lt;/b&gt; Enable from toolbar to see four viewports simultaneously&lt;/li&gt;&lt;li&gt;&lt;b&gt;Standard Views:&lt;/b&gt; Use toolbar buttons for instant Top/Front/Side views&lt;/li&gt;&lt;li&gt;&lt;b&gt;Axonometric Views:&lt;/b&gt; Choose Isometric, Dimetric or Trimetric, and the compass corner (SE/NE/NW/SW) it is seen from, for technical drawings&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Sessioni multiple:&lt;/b&gt; File → Nuovo crea finestre di visualizzazione aggiuntive&lt;/li&gt;&lt;li&gt;&lt;b&gt;Disposizioni delle finestre:&lt;/b&gt; Usa il menu Finestra per affiancare o sovrapporre più documenti&lt;/li&gt;&lt;li&gt;&lt;b&gt;Modalità multivista:&lt;/b&gt; Attivala dalla barra degli strumenti per vedere quattro viste contemporaneamente&lt;/li&gt;&lt;li&gt;&lt;b&gt;Viste standard:&lt;/b&gt; Usa i pulsanti della barra degli strumenti per viste Superiore/Anteriore/Laterale immediate&lt;/li&gt;&lt;li&gt;&lt;b&gt;Viste assonometriche:&lt;/b&gt; Scegli Isometrico, Dimetrico o Trimetrico e l&apos;angolo cardinale (SE/NE/NO/SO) da cui viene vista, per i disegni tecnici&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
@@ -15313,32 +15312,32 @@ i cui valori Z sono in quella colonna (stessi X e Y).</translation>
         <translation type="vanished">&lt;ul&gt;&lt;li&gt;&lt;b&gt;Impostazioni di visualizzazione:&lt;/b&gt; Clic destro sull&apos;oggetto → Impostazioni di visualizzazione&lt;/li&gt;&lt;li&gt;&lt;b&gt;Editor materiali:&lt;/b&gt; Usa il pannello sinistro per modificare colori, ruvidità, proprietà metalliche&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mappatura texture:&lt;/b&gt; Applica texture tramite il pannello Mappatura texture&lt;/li&gt;&lt;li&gt;&lt;b&gt;Ambiente:&lt;/b&gt; Attiva SkyBox e IBL per un&apos;illuminazione realistica&lt;/li&gt;&lt;li&gt;&lt;b&gt;Modalità di visualizzazione:&lt;/b&gt; Passa alla modalità Realistica per vedere i materiali PBR completi&lt;/li&gt;&lt;li&gt;&lt;b&gt;Contagocce:&lt;/b&gt; Campiona il materiale di una mesh e applicalo ad altre dal pannello Proprietà materiale&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1329"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1327"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Clipping Planes:&lt;/b&gt; Use Section View to cut through models and see internals&lt;/li&gt;&lt;li&gt;&lt;b&gt;Transformations:&lt;/b&gt; Move, rotate, scale objects individually or in groups&lt;/li&gt;&lt;li&gt;&lt;b&gt;Floor Plane:&lt;/b&gt; Enable in Environment settings for shadow casting and reflections&lt;/li&gt;&lt;li&gt;&lt;b&gt;Shadows:&lt;/b&gt; Toggle real-time shadows in Environment settings&lt;/li&gt;&lt;li&gt;&lt;b&gt;Window Zoom:&lt;/b&gt; Zoom precisely into a specific region of interest&lt;/li&gt;&lt;li&gt;&lt;b&gt;UV Generation:&lt;/b&gt; Auto-generate texture coordinates for objects without UVs&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Piani di ritaglio:&lt;/b&gt; usa la vista sezione per tagliare i modelli e vedere gli interni&lt;/li&gt;&lt;li&gt;&lt;b&gt;Trasformazioni:&lt;/b&gt; sposta, ruota, ridimensiona gli oggetti singolarmente o in gruppi&lt;/li&gt;&lt;li&gt;&lt;b&gt;Piano del pavimento:&lt;/b&gt; abilita nelle impostazioni dell&apos;ambiente la proiezione di ombre e riflessi&lt;/li&gt;&lt;li&gt;&lt;b&gt;Ombre:&lt;/b&gt; attiva/disattiva le ombre in tempo reale nelle impostazioni dell&apos;ambiente&lt;/li&gt;&lt;li&gt;&lt;b&gt;Zoom finestra:&lt;/b&gt; ingrandisci con precisione una regione di interesse specifica&lt;/li&gt;&lt;li&gt;&lt;b&gt;Generazione UV:&lt;/b&gt; genera automaticamente le coordinate della texture per gli oggetti senza UV&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1338"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1336"/>
         <source>Measuring &amp; Documenting</source>
         <translation>Misurare &amp;&amp; Documentare</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1339"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1337"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Measure:&lt;/b&gt; Tools → Measure... for point, distance, arc-radius, and other precision CAD measurements&lt;/li&gt;&lt;li&gt;&lt;b&gt;Annotate:&lt;/b&gt; Tools → Annotate... to pin text notes to specific points on the model&lt;/li&gt;&lt;li&gt;&lt;b&gt;Capture Views First:&lt;/b&gt; Capture camera views on the Cameras tab before Export Report needs them - the report&apos;s view list is pulled from there&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Misura:&lt;/b&gt; Strumenti → Misura... per misurazioni CAD di precisione di punto, distanza, raggio d&apos;arco e altro&lt;/li&gt;&lt;li&gt;&lt;b&gt;Annota:&lt;/b&gt; Strumenti → Annota... per appuntare note di testo su punti specifici del modello&lt;/li&gt;&lt;li&gt;&lt;b&gt;Cattura prima le viste:&lt;/b&gt; Cattura le viste della fotocamera nella scheda Fotocamere prima che Esporta report ne abbia bisogno - l&apos;elenco delle viste del report viene prelevato da lì&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1347"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1345"/>
         <source>Troubleshooting</source>
         <translation>Risoluzione dei problemi</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1348"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1346"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Lost Objects:&lt;/b&gt; Press &apos;F&apos; to fit all, or check if objects are hidden&lt;/li&gt;&lt;li&gt;&lt;b&gt;Stuck in Mode:&lt;/b&gt; Press Esc to cancel any active operation&lt;/li&gt;&lt;li&gt;&lt;b&gt;Can&apos;t Select:&lt;/b&gt; Make sure you&apos;re not in a view manipulation mode (check cursor)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Black Screen:&lt;/b&gt; Check display mode and lighting settings&lt;/li&gt;&lt;li&gt;&lt;b&gt;Slow Performance:&lt;/b&gt; Try switching to Shaded mode or hiding some objects&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Oggetti persi:&lt;/b&gt; Premi &apos;F&apos; per adattare tutto o controlla se gli oggetti sono nascosti&lt;/li&gt;&lt;li&gt;&lt;b&gt;Bloccato in modalità:&lt;/b&gt; Premi Esc per annullare qualsiasi operazione attiva&lt;/li&gt;&lt;li&gt;&lt;b&gt;Impossibile selezionare:&lt;/b&gt; Assicurati di non essere in modalità di manipolazione della vista (controlla il cursore)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Schermo nero:&lt;/b&gt; Controlla la modalità di visualizzazione e le impostazioni di illuminazione&lt;/li&gt;&lt;li&gt;&lt;b&gt;Prestazioni lente:&lt;/b&gt; Prova a passare alla modalità Ombreggiato o a nascondere alcuni oggetti&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/App/QuickHelpDialog.cpp" line="1356"/>
+        <location filename="../src/App/QuickHelpDialog.cpp" line="1354"/>
         <source>Customization</source>
         <translation>Personalizzazione</translation>
     </message>

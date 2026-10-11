@@ -381,11 +381,11 @@
         <div class="feature-showcase">
             <div class="showcase-item">
                 <h3>ADS Mode for CAD Visualization</h3>
-                <img src="assets/screenshots/ads-mode.jpg" alt="Screenshot ADS Mode">
+                <img width="1431" height="1032" src="assets/screenshots/ads-mode.jpg" alt="Screenshot ADS Mode">
             </div>
             <div class="showcase-item">
                 <h3>PBR Mode for Advanced Visualization</h3>
-                <img width="1920" height="1032" src="assets/screenshots/pbr-mode.jpg" alt="Screenshot PBR Mode">
+                <img width="1431" height="1032" src="assets/screenshots/pbr-mode.jpg" alt="Screenshot PBR Mode">
             </div>
         </div>
 
@@ -404,6 +404,12 @@
             installer (<code>.exe</code>) and a Linux <code>.deb</code> for Ubuntu 26.04 LTS
             (<code>sudo apt install ./modelviewer_2026.11.0_amd64.deb</code>). The full list of changes is in the
             <a href="https://github.com/sharjith/ModelViewer-Qt/blob/master/CHANGELOG.md">changelog</a>.</p>
+            <p><strong>Optional content packs:</strong> to keep the installer small it carries 19 materials and 4 HDRI maps. The complete
+            <em>material library</em> (about 2.2&nbsp;GB, two zips), <em>all HDRI environment maps</em> (about 1.0&nbsp;GB) and the optional
+            <em>large simulation samples</em> are separate downloads on the same release page. Unzip each into the ModelViewer data folder
+            (Windows: <code>C:\Program Files\ModelViewer\share\ModelViewer</code>, Linux: <code>/usr/share/ModelViewer</code>, administrator rights needed),
+            restart ModelViewer, and the new materials and environments appear. Step-by-step commands are in the
+            <a href="https://github.com/sharjith/ModelViewer-Qt#optional-content-packs-full-material-library-all-hdri-maps">README</a>.</p>
         </section>
 
         <!-- Features Overview Section -->
@@ -489,7 +495,7 @@
 
             <h3>Material System & KHR Extensions</h3>
             <p>ModelViewer implements comprehensive support for Khronos KHR material extensions, enabling advanced material rendering capabilities:</p>
-            <img width="1920" height="1032" src="assets/screenshots/material-system.jpg" alt="Material System">
+            <img width="1431" height="1032" src="assets/screenshots/material-system.jpg" alt="Material System">
 
             <h4>Supported KHR Material Extensions:</h4>
             <ul>
@@ -535,7 +541,7 @@
             </div>
 
             <h4>KHR Punctual Lights Support:</h4>
-            <img width="1920" height="1032" src="assets/screenshots/punctual-lights.jpg" alt="Punctual Lights">
+            <img width="1431" height="1032" src="assets/screenshots/punctual-lights.jpg" alt="Punctual Lights">
 
             <h4>Texture Transform Support:</h4>
             <ul>
@@ -558,15 +564,15 @@
                 <li><strong>Capture Steps & Sequences:</strong> Reorderable explosion steps with presets for repeatable assembly walkthroughs</li>
                 <li><strong>Animation Export:</strong> Parallel, sequential, or separate-clip export of the explosion sequence</li>
             </ul>
-            <img width="1920" height="1032" src="assets/screenshots/exploded-view.jpg" alt="Exploded View">
+            <img width="1431" height="1032" src="assets/screenshots/exploded-view.jpg" alt="Exploded View">
 
             <h3>Interactive Transform Gizmo & View Cube</h3>
             <ul>
                 <li><strong>On-Screen Transform Gizmo:</strong> Translate/rotate/scale handles for direct manipulation, shared by exploded-view manual placement</li>
                 <li><strong>Interactive View Cube:</strong> Click-to-orient navigation overlay with a switchable grid ground mode</li>
             </ul>
-            <img width="1920" height="1032" src="assets/screenshots/transform-gizmo.jpg" alt="Transform Gizmo">
-            <img width="1920" height="1032" src="assets/screenshots/view-cube.jpg" alt="View Cube">
+            <img width="1431" height="1032" src="assets/screenshots/transform-gizmo.jpg" alt="Transform Gizmo">
+            <img width="1112" height="890" src="assets/screenshots/view-cube.jpg" alt="View Cube">
 
             <h3>Animation System</h3>
             <ul>
@@ -574,15 +580,15 @@
                 <li><strong>glTF Camera Support:</strong> Import/export of animated camera tracking data</li>
                 <li><strong>Material Variants (KHR_materials_variants):</strong> Switchable material sets per scene with full export round-trip</li>
             </ul>
-            <img width="1920" height="1032" src="assets/screenshots/morph-target-animation.jpg" alt="Morph Target Animation">
+            <img width="1431" height="1032" src="assets/screenshots/morph-target-animation.jpg" alt="Morph Target Animation">
 
             <h4>glTF Camera Support:</h4>
             <p>Import and export of glTF cameras, including animated camera tracking data driven by the same Animations panel used for skeletal and morph-target clips.</p>
-            <img width="1920" height="1032" src="assets/screenshots/gltf-camera.jpg" alt="glTF Camera Support">
+            <img width="1431" height="1032" src="assets/screenshots/gltf-camera.jpg" alt="glTF Camera Support">
 
             <h4>Material Variants (KHR_materials_variants):</h4>
             <p>Switchable material sets per scene — swap an object's entire material assignment at runtime (e.g. color/finish options for a product model), with full round-trip preservation on glTF/GLB export.</p>
-            <img width="1920" height="1032" src="assets/screenshots/material-variants.jpg" alt="glTF Material Variants">
+            <img width="1431" height="1032" src="assets/screenshots/material-variants.jpg" alt="glTF Material Variants">
 
             <h3>Scene Graph & Unified Material Workflow</h3>
             <ul>
@@ -591,7 +597,7 @@
                 <li><strong>Unified Material Panel:</strong> Single editor merging material and texture editing, UUID-based material keys, unsaved-change tracking, and a user material library</li>
                 <li><strong>Texture Debugger Panel:</strong> Live texture/extension overrides with Khronos-aligned channel isolation for geometry and texture channel inspection</li>
             </ul>
-            <img width="543" height="974" src="assets/screenshots/tree-widget.jpg" alt="Scene Graph Tree Widget">
+            <img width="450" height="506" src="assets/screenshots/tree-widget.jpg" alt="Scene Graph Tree Widget">
 
             <h4>Texture Debugger Panel:</h4>
             <p>Live texture and extension overrides with Khronos-aligned channel isolation, letting you inspect individual geometry and texture channels (albedo, normal, roughness, metallic, AO, and more) in isolation.</p>
@@ -621,7 +627,7 @@
                 <li><strong>Texture Transform:</strong> Per-texture UV transformation with full KHR_texture_transform support</li>
                 <li><strong>Multi-Channel Support:</strong> Independent handling of multiple texture sets and UV coordinates</li>
             </ul>
-            <img width="622" height="1003" src="assets/screenshots/texture-management.jpg" alt="Texture Management">
+            <img width="800" height="451" src="assets/screenshots/texture-management.jpg" alt="Texture Management">
 
             <h3>CAD Support & Assembly Visualization</h3>
             <h4>OpenCASCADE Integration:</h4>
@@ -634,7 +640,7 @@
                 <li><strong>Property Preservation:</strong> Metadata and naming preserved across the import pipeline</li>
             </ul>
             <!-- TODO: screenshot - OCC true-edge wireframe -->            
-			<img width="1920" height="1032" src="assets/screenshots/true-edge-wireframe.jpg" alt="OCC True-Edge Wireframe">
+			<img width="1431" height="1032" src="assets/screenshots/true-edge-wireframe.jpg" alt="OCC True-Edge Wireframe">
 
             <h4>Assimp Integration:</h4>
             <ul>
@@ -691,7 +697,7 @@
 
             <h3>Realistic PBR Rendering</h3>
             <h4>Realistic Automotive Paint Rendering (Clearcoat & Iridescence):</h4>
-            <img width="1920" height="1032" src="assets/screenshots/automotive-paint.jpg" alt="Automotive Paint">
+            <img width="1431" height="1032" src="assets/screenshots/automotive-paint.jpg" alt="Automotive Paint">
 
             <h3>User Interface & Tools</h3>
             <h4>Detachable Panels:</h4>

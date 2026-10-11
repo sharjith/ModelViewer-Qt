@@ -37,7 +37,7 @@ Use the names of the controls exactly as the UI shows them in that language, in 
 
 ## Sample files used by the lessons
 
-Lessons 19-25 use `sample-models/Simulation` and `sample-models/Plot3D`; both folders have a `README.txt` that describes every file. Lessons 26-29 use the CAD and mesh samples in `sample-models` (for example `RepairMeshTest.obj`, `OpenCylinder.obj`, `TorusTestCoarse.obj`, `bottle.step`, `MBB Gehause Rohteil.step`, the Forklift and the Futuristic Transport Shuttle).
+Lessons 19-25 use `sample-models/Simulation` and `sample-models/Plot3D`; both folders have a `README.txt` that describes every file. Lessons 26-29 use the CAD and mesh samples in `sample-models` (for example `RepairMeshTest.obj`, `OpenCylinder.obj`, `TorusTestCoarse.obj`, `bottle.step`, `MBB Gehause Rohteil.step` and the Forklift).
 
 ## Installing
 

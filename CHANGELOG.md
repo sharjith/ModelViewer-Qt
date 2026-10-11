@@ -133,6 +133,15 @@ plotting, measurement and annotation, CGAL-based mesh editing and surface analys
   newer** from cgal.org (Ubuntu's own CGAL is 6.1); the CMake configure step says so,
   and `packaging/linux/setup-wsl-build-env.sh` installs it.
 
+- **Smaller downloads.** The installer and the `.deb` ship a starter set only (19 materials, 4 HDRI maps, curated
+  sample models), about 400 MB instead of several GB. The complete material library (two zips), all HDRI maps and the
+  million-cell simulation stress-test files are optional downloads on the release page, each with `README.txt` deploy
+  instructions and a `SHA256SUMS.txt`; see "Optional content packs" in the README. They are built with
+  `packaging/make-content-packs.ps1`.
+- **Sample models cleaned up.** Models that could not be redistributed (a CC BY-NC shuttle, three engine / grader archives,
+  a vendor actuator, the Open CASCADE logo) were removed; every remaining sample is documented in
+  `sample-models/LICENSES.md`. The Forklift is now stored upright (Z-up). The Camera sample stays in the repository but is not installed.
+
 ### Documentation
 - Eleven new tutorial lessons (19-29: simulation results, looking inside a result,
   charts and probing, comparing results, 3D plots from CSV and from formulas, playing

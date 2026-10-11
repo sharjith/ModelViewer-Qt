@@ -957,9 +957,31 @@ else()
     message(STATUS "No QM files to install")
 endif()
 
-install(DIRECTORY fonts shaders themes sample-models data
+install(DIRECTORY fonts shaders themes data
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}"
 )
+
+# Sample models: the curated set (see sample-models/LICENSES.md). Not shipped: Camera/ (credit-required third-party model, large),
+# Simulation/large/ (generated stress-test files, git-ignored, ~870 MB) and anything else that is not listed here. Listed explicitly instead of
+# install(DIRECTORY sample-models) so a stray local file can never end up in a package.
+file(GLOB _sample_loose LIST_DIRECTORIES false CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/sample-models/*")
+install(FILES ${_sample_loose}
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/sample-models"
+)
+foreach(_sample_dir Skate-Board-Assy Tea-Pot Forklift Cube Plot3D)
+    install(DIRECTORY "sample-models/${_sample_dir}"
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/sample-models"
+    )
+endforeach()
+file(GLOB _simulation_loose LIST_DIRECTORIES false CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/sample-models/Simulation/*")
+install(FILES ${_simulation_loose}
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/sample-models/Simulation"
+)
+foreach(_simulation_dir openfoam_cavity real)
+    install(DIRECTORY "sample-models/Simulation/${_simulation_dir}"
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/sample-models/Simulation"
+    )
+endforeach()
 
 # The PDF user guide (one per language, docs/guide): a user document, so the installer and the .deb ship it; Help > Simulation and 3D Plotting Guide opens it.
 file(GLOB MODELVIEWER_GUIDE_PDFS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/docs/guide/*.pdf")
@@ -1018,9 +1040,7 @@ install(FILES
 )
 
 set(_hdri_included_packs
-    "@Default" "Canary_Wharf" "Colorful_Studio" "Dancing_Hall"
-    "Evening_Museum_Courtyard" "Footprint_Court" "Frozenwaterfall"
-    "Newport_Loft" "Venice_Sunset"
+    "@Default" "Frozenwaterfall" "Newport_Loft" "Venice_Sunset"
 )
 foreach(_pack ${_hdri_included_packs})
     install(DIRECTORY "textures/envmap/skyboxes/HDRI/${_pack}"
@@ -1029,23 +1049,14 @@ foreach(_pack ${_hdri_included_packs})
     )
 endforeach()
 
+# The essentials: the common metals, plastics, rubber, wood, stone, paper, denim and a clear-coated paint (~150 MB). The rest of the library (~2.2 GB) is a
+# separate download (the "material library" pack, see packaging/make-content-packs.ps1) that users unzip into share/ModelViewer/textures.
 set(_material_included_presets
-    "ClearCoat_Metallic_Blue" "Fabric_Denim_02" "Fabric_Fabric050"
-    "Fabric_Leather026" "Fabric_Leather030" "Fabric_Leather038"
-    "Ground_Cobblestone_Floor_07" "Metal_Aluminium" "Metal_Bronze"
-    "Metal_Bronze-1" "Metal_Brushed-Metal" "Metal_Chrome" "Metal_Copper"
-    "Metal_Dull_Brass" "Metal_Dull_Copper" "Metal_Gold" "Metal_Iron"
-    "Metal_Lead" "Metal_Magnesium" "Metal_Nickel" "Metal_Ornate_Brass"
-    "Metal_Pewter" "Metal_Pirate_Gold" "Metal_Pitted_Metal" "Metal_Platinum"
-    "Metal_Rose_Gold" "Metal_Rusted_Iron" "Metal_Silver_Dull"
-    "Metal_Stainless_Steel" "Metal_Steel" "Metal_Titanium" "Metal_Zinc"
-    "Organic_Human_Skin-Freckled" "Organic_Human_Skin1" "Paper_Paper001"
-    "Paper_Paper005" "Plastic_ABS_Glossy" "Plastic_ABS_Matte"
-    "Plastic_Plastic007" "Plastic_Plastic012a" "Plastic_Plastic016a"
-    "Plastic_Scuffed-1" "Rubber_Rubber002" "Rubber_Tire" "Stone_Granite006a"
-    "Stone_Marble009" "Stone_Rock_06" "Synthetic_Sponge001" "Wall_Bricks"
-    "Wall_Bricks_Plaster" "Wall_Glass_Window" "Wood_Antique-Veneer1"
-    "Wood_Bark_Brown_02" "Wood_KitchenWood" "Wood_Plywood" "Wood_Wood051"
+    "ClearCoat_Metallic_Blue" "Fabric_Denim_02" "Metal_Aluminium" "Metal_Brushed-Metal"
+    "Metal_Chrome" "Metal_Copper" "Metal_Dull_Brass" "Metal_Gold" "Metal_Silver_Dull"
+    "Metal_Stainless_Steel" "Metal_Steel" "Metal_Titanium" "Paper_Paper001"
+    "Plastic_ABS_Glossy" "Plastic_ABS_Matte" "Rubber_Tire" "Stone_Granite006a"
+    "Wood_Plywood" "Wood_Wood051"
 )
 foreach(_preset ${_material_included_presets})
     install(DIRECTORY "textures/materials/${_preset}"
