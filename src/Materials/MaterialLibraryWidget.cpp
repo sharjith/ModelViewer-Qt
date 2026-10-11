@@ -291,7 +291,22 @@ bool MaterialLibraryWidget::loadAllMaterials(const QString& jsonPath, QString* e
 				// Material::name(), e.g. Mass Properties' per-material
 				// rollup) comes back with an empty name.
 				s_materialMap.insert(key, [props, name]() -> Material {
-					Material mat = Material::fromVariantMap(props);
+					// Catalog texture paths are relative to the data directory. Resolve them
+					// here (and drop any that are not installed) - otherwise they are opened
+					// relative to the process's working directory, which only works when the
+					// app happens to be launched from a folder that has its own textures/.
+					QVariantMap propsResolved = props;
+					const QString dataDir = PathUtils::getDataDirectory() + "/";
+					for (auto it = propsResolved.begin(); it != propsResolved.end(); ++it)
+					{
+						if (!it.key().endsWith("MapPath") || it.value().typeId() != QMetaType::QString)
+							continue;
+						const QString rel = it.value().toString();
+						if (rel.isEmpty() || QDir::isAbsolutePath(rel))
+							continue;
+						it.value() = QFile::exists(dataDir + rel) ? QVariant(dataDir + rel) : QVariant(QString());
+					}
+					Material mat = Material::fromVariantMap(propsResolved);
 					mat.setName(name);
 					return mat;
 					});
