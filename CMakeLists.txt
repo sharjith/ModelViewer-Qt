@@ -42,6 +42,14 @@ find_package(OpenEXR CONFIG REQUIRED)
 # not present anywhere else in this project; not intended to survive if
 # this experiment doesn't pan out.
 find_package(CGAL CONFIG REQUIRED)
+# The code uses <CGAL/boost/graph/border.h> and the CGAL 6.2 namespaces; Ubuntu 26.04's apt libcgal-dev is 6.1.x, which lacks them. Fail here with
+# the way out instead of a missing-header error deep in the build.
+string(REGEX MATCH "^[0-9]+[.][0-9]+" _cgal_major_minor "${CGAL_VERSION}") # "6.2-I-900" style development versions compare as 6.2
+if(_cgal_major_minor AND _cgal_major_minor VERSION_LESS 6.2)
+    message(FATAL_ERROR "ModelViewer needs CGAL 6.2 or newer, but found CGAL ${CGAL_VERSION} (${CGAL_DIR}). "
+        "Install the current CGAL release from https://www.cgal.org (header-only; see packaging/linux/setup-wsl-build-env.sh) "
+        "and, if an older system copy is found first, point CMake at the new one with -DCGAL_DIR=<prefix>/lib/cmake/CGAL.")
+endif()
 # CGAL's vcpkg port only depends on eigen3 via its own "qt" feature (which
 # this project doesn't use) - CGAL::Shape_detection's Region_growing cylinder
 # fitting (cylinder_fitting.h) needs Eigen directly regardless, so it has to
@@ -67,6 +75,19 @@ endif()
 
 # Optional: the HDF5 C library for the VTKHDF result reader (it is already installed as a dependency of NetCDF and CGNS).
 find_package(HDF5 CONFIG QUIET COMPONENTS C)
+if(NOT (HDF5_FOUND AND (TARGET hdf5::hdf5-shared OR TARGET hdf5::hdf5-static)))
+    # Debian/Ubuntu's libhdf5-dev ships no CMake package config (only pkg-config): fall back to CMake's own FindHDF5 module and give its
+    # imported target the name the rest of this file links against.
+    find_package(HDF5 QUIET COMPONENTS C)
+    if(HDF5_FOUND AND TARGET HDF5::HDF5 AND NOT TARGET hdf5::hdf5-shared)
+        add_library(hdf5::hdf5-shared ALIAS HDF5::HDF5)
+        # Debian/Ubuntu's CGNS package exports the bare name "hdf5-shared" in its link interface (no namespace); without a target of that
+        # name CMake passes a literal -lhdf5-shared to the linker, which does not exist there.
+        if(NOT TARGET hdf5-shared)
+            add_library(hdf5-shared ALIAS HDF5::HDF5)
+        endif()
+    endif()
+endif()
 if(HDF5_FOUND AND (TARGET hdf5::hdf5-shared OR TARGET hdf5::hdf5-static))
     message(STATUS "HDF5 found: VTKHDF result files enabled")
 else()
@@ -365,7 +386,7 @@ qt6_wrap_ui(ui_wrapped ${ui_sources})
 add_executable(ModelViewer)
 
 set(APP_VERSION_MAJOR 2026)
-set(APP_VERSION_MINOR 7)
+set(APP_VERSION_MINOR 11)
 set(APP_VERSION_PATCH 0)
 
 

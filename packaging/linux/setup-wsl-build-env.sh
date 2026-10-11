@@ -4,6 +4,9 @@
 # sudo (apt-get) and compiles vcpkg + the two vendored ports (basisu,
 # openimagedenoise), so it isn't something to run unattended.
 #
+# CGAL is the one dependency taken from upstream instead of apt: Ubuntu 26.04's libcgal-dev is 6.1.x and the code needs 6.2 or newer. CGAL is
+# header-only, so this installs the release's library tarball (checksum-verified) under /usr/local; nothing CGAL-related is needed to RUN the .deb.
+#
 # Ubuntu 22.04/24.04's apt-packaged Qt6/Assimp/zstd are too old for this
 # project (missing Qt6Svg's QImage::flipped(), Assimp's
 # KHR_materials_anisotropy, a zstd config exposing the zstd::libzstd target) -
@@ -40,6 +43,7 @@ sudo apt-get install -y \
   qt6-tools-dev \
   qt6-l10n-tools \
   qt6-svg-dev \
+  qt6-webengine-dev \
   qt6-image-formats-plugins \
   libqt-advanced-docking-system-dev \
   libocct-foundation-dev \
@@ -57,8 +61,42 @@ sudo apt-get install -y \
   libjpeg-turbo8-dev \
   libtbb-dev \
   libzstd-dev \
+  libboost-dev \
+  libeigen3-dev \
+  libgmp-dev \
+  libmpfr-dev \
+  libhdf5-dev \
+  libnetcdf-dev \
+  libcgns-dev \
   imagemagick \
   dpkg-dev
+
+# --- CGAL 6.2 or newer, from upstream -------------------------------------------------------------------------------------------------------
+CGAL_VERSION="6.2.1"
+CGAL_SHA256="8e7ce1e30e8ffcb3e69d153c3a561bb1f38bbb4becd8e6544cbaa0fb2889af62"   # CGAL-6.2.1-library.tar.xz (GitHub release asset digest)
+CGAL_PREFIX="/usr/local"
+CGAL_NEEDED_NR=1060200000                                                          # CGAL_VERSION_NR of 6.2.0 (the code needs >= 6.2)
+
+installed_nr=0
+if [[ -f "$CGAL_PREFIX/include/CGAL/version.h" ]]; then
+  installed_nr="$(sed -n 's/^#define CGAL_VERSION_NR \([0-9]*\).*/\1/p' "$CGAL_PREFIX/include/CGAL/version.h" | head -1)"
+  installed_nr="${installed_nr:-0}"
+fi
+if (( installed_nr >= CGAL_NEEDED_NR )); then
+  echo "CGAL already installed in $CGAL_PREFIX (CGAL_VERSION_NR $installed_nr), skipping"
+else
+  echo "Installing CGAL $CGAL_VERSION into $CGAL_PREFIX"
+  CGAL_TMP="$(mktemp -d)"
+  curl -fL "https://github.com/CGAL/cgal/releases/download/v$CGAL_VERSION/CGAL-$CGAL_VERSION-library.tar.xz" -o "$CGAL_TMP/cgal.tar.xz"
+  echo "$CGAL_SHA256  $CGAL_TMP/cgal.tar.xz" | sha256sum -c -
+  tar -xf "$CGAL_TMP/cgal.tar.xz" -C "$CGAL_TMP"
+  cmake -S "$CGAL_TMP/CGAL-$CGAL_VERSION" -B "$CGAL_TMP/build" -DCMAKE_BUILD_TYPE=Release
+  sudo cmake --install "$CGAL_TMP/build" --prefix "$CGAL_PREFIX"
+  rm -rf "$CGAL_TMP"
+fi
+if dpkg -s libcgal-dev >/dev/null 2>&1; then
+  echo "note: apt's libcgal-dev is installed too (older than 6.2); $CGAL_PREFIX is searched first, but remove it if CMake ever picks the old one." >&2
+fi
 
 REPO_DIR="${1:-$HOME/dev/ModelViewer-Qt}"
 if [[ -d "$REPO_DIR/.git" ]]; then

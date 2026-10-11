@@ -9,7 +9,7 @@ The last release is `Release-2026.7.0` (published 2026-07-05, Windows installer 
 | Item | Proposal |
 |---|---|
 | Version | **2026.11.0** (decided; the project's year.month.patch scheme: 2026.7.0 was July) |
-| Where the number lives | `CMakeLists.txt` lines 367-369 (`APP_VERSION_MAJOR/MINOR/PATCH`; feeds `config.h`, the About dialog and CPack). `vcpkg.json` still says `1.0.0` (a manifest label only; can follow). |
+| Where the number lives | `CMakeLists.txt` lines 388-390 (`APP_VERSION_MAJOR/MINOR/PATCH`; feeds `config.h`, the About dialog and CPack). `vcpkg.json` still says `1.0.0` (a manifest label only; can follow). |
 | Tag / release | tag `Release-2026.11.0`; `master` brought up to date from `dev` first (master is still at the 2026.7.0 site overhaul) |
 | Artifacts | Windows installer (.exe, Inno Setup: `packaging/windows/mvinstaller.iss`) and a Linux **.deb** built in WSL (replacing the AppImage, as planned in the release pipeline notes), both uploaded with `gh release create` from local builds (CI is not part of the release path) |
 
