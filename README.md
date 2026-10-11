@@ -3,6 +3,20 @@ OpenGL-based 3D Model Viewer with Advanced Rendering Capabilities
 
 A professional-grade 3D viewer that reads and displays a comprehensive range of 3D file formats supported by Assimp (OBJ, FBX, COLLADA, BLEND, and more) and CAD formats, including STEP, IGES, and BRep files via OpenCASCADE. Features physically-based rendering (PBR), advanced material systems with Khronos KHR extensions, and sophisticated CAD visualization capabilities.
 
+## What's new in 2026.11
+
+ModelViewer now reads **simulation results** (FEM / CFD) and plots **your own data in 3D**, and adds a **ray tracer**, **measurement and annotation**,
+**CGAL-based mesh tools** and **surface analysis**. See the [changelog](CHANGELOG.md) for the full list, the in-app **Help > What's New** and
+**Help > Tutorial** (29 lessons in English, German, Spanish, French and Italian), and the PDF guide *Simulation Results and 3D Plotting*:
+[English](docs/guide/ModelViewer_Simulation_and_3D_Plotting_Guide.pdf), [Deutsch](docs/guide/ModelViewer_Simulation_and_3D_Plotting_Guide_de.pdf),
+[Español](docs/guide/ModelViewer_Simulation_and_3D_Plotting_Guide_es.pdf), [Français](docs/guide/ModelViewer_Simulation_and_3D_Plotting_Guide_fr.pdf),
+[Italiano](docs/guide/ModelViewer_Simulation_and_3D_Plotting_Guide_it.pdf).
+
+## Download
+
+The [releases page](https://github.com/sharjith/ModelViewer-Qt/releases) has a **Windows installer** (`.exe`) and a **Linux `.deb`** for Ubuntu 26.04 LTS
+(`sudo apt install ./modelviewer_2026.11.0_amd64.deb`). To build from source see [Building the Code](#building-the-code).
+
 **ADS Mode for CAD Visualization**
 
 ![Screenshot 2021-07-24 172616](https://github.com/user-attachments/assets/364c5cf4-34b5-4991-938c-d36ea05a8026)
@@ -13,6 +27,46 @@ A professional-grade 3D viewer that reads and displays a comprehensive range of 
 
 
 ## Features Overview
+
+### Simulation Results
+
+ModelViewer **displays** the results of FEM and CFD solvers; it does not mesh or solve. A result opens as its outer surface coloured by any field, and the
+tools below look inside it.
+
+<img src="data/tutorials/screenshots/tutorial_19_first_result.png" alt="A simulation result coloured by von Mises stress" width="700">
+
+- **Readers**: VTK (`.vtk`, `.vtu`), CalculiX `.frd`, Exodus II, CGNS, MED, OpenFOAM cases, VTKHDF; large results load step by step
+- **Fields**: node and cell data, vectors, tensors, derived stress fields (von Mises, Tresca, principal, maximum shear), units with a file and a display unit
+- **Display**: colour maps and ranges, contour bands, deformed shape, min/max markers, vector arrows, stress ellipsoids, a timeline with playback
+- **Looking inside**: plane sections, iso-surfaces, streamlines, volume rendering, hover probe, charts over time and along a line (with your own curves from CSV)
+- **Compare** two results side by side; save results inside an `.mvf` session
+
+### 3D Data Plotting
+
+Plot tables of numbers, formulas and time series in the same 3D scene as your models, with the same camera, section, annotation and export tools.
+
+<img src="data/tutorials/screenshots/tutorial_23_plot_types.png" alt="A scatter, a bar and a vector plot sharing one set of axes" width="700">
+
+- **Plot types**: surface, contour, line, scatter, bar / histogram, voxel, vector field, pathlines, image on a plane
+- **Sources**: CSV or pasted data, and formulas (surface, parametric surface and curve, implicit surface, vector field, streamlines, pathlines) with presets
+- **Shared axes** (linear, Log 10, SymLog), fills between curves, text notes, a section probe, animated pathlines, edit-in-place, glTF/GLB/OBJ export of point and line plots
+
+### Ray Tracing
+
+A physically based ray tracer with a CPU engine (Embree) and an optional GPU engine (NVIDIA OptiX), a live ray-traced viewport, offline renders of any size,
+OIDN denoising and batch rendering of captured views.
+
+<img src="data/tutorials/screenshots/tutorial_29_pbr_vs_ray_traced.png" alt="The same model in PBR and ray-traced mode" width="700">
+
+### Measure, Annotate and Report
+
+Point, distance, angle, radius, diameter, pitch-circle, area and geodesic measurements with CAD-style dimension lines, text annotations, and a PDF report of
+captured views with their measurement and annotation table.
+
+### Mesh Tools and Surface Analysis
+
+- **Editing**: Mesh Union (boolean), Shrink Wrap, Subdivide Surface, Reconstruct Surface from point clouds, Repair Mesh, Fill Holes, split / merge / group, UV generation
+- **Analysis**: draft angle, zebra stripes, curvature, wall thickness, deviation, and mass properties (volume, mass, centre of gravity) per mesh and material
 
 ### Rendering Modes & Visualization
 
@@ -248,8 +302,13 @@ OBJ, FBX, COLLADA, Blender, VRML, STL, DAE, 3DS, IQM, XGL, ZGL, PLY, MS3D, LWO, 
 - **IGES** (.iges, .igs) - Industry-standard CAD interchange format
 - **BRep** (.brep) - OpenCASCADE native boundary representation format
 
+### Simulation Result Formats
+
+VTK legacy and XML (`.vtk`, `.vtu`), CalculiX (`.frd`), Exodus II, CGNS, MED, OpenFOAM cases (`.foam`) and VTKHDF. Plot data comes from CSV files or pasted text.
+
 ### Export Formats
 
+- **PDF report** - captured views with the measurement and annotation table; **PNG / CSV** for charts
 - **GLB** (.glb) - Binary glTF with full material and texture embedding
 - **glTF** (.gltf) - Khronos glTF format with separate texture resources
 
@@ -475,3 +534,10 @@ For the full license text, see the [LICENSE](LICENSE) file in the repository roo
 - [Qt](https://www.qt.io/) - GUI framework
 - [GLM](https://github.com/g-truc/glm) - Mathematics library
 - [Khronos](https://www.khronos.org/) - glTF and KHR extension specifications
+- [CGAL](https://www.cgal.org/) - Computational Geometry Algorithms Library (mesh repair, boolean union, shrink wrap, subdivision, analysis)
+- [Embree](https://www.embree.org/) and [Intel Open Image Denoise](https://www.openimagedenoise.org/) - ray tracing and denoising
+- [NVIDIA OptiX](https://developer.nvidia.com/rtx/ray-tracing/optix) - optional GPU ray tracing
+- [NetCDF](https://www.unidata.ucar.edu/software/netcdf/), [HDF5](https://www.hdfgroup.org/solutions/hdf5/) and [CGNS](https://cgns.github.io/) - simulation result readers
+- [Eigen](https://eigen.tuxfamily.org/), [Boost](https://www.boost.org/), [GMP](https://gmplib.org/) and [MPFR](https://www.mpfr.org/) - numerics used by CGAL
+- [meshoptimizer](https://github.com/zeux/meshoptimizer), [Basis Universal](https://github.com/BinomialLLC/basis_universal), [OpenEXR](https://openexr.com/), [zstd](https://facebook.github.io/zstd/) and [FreeType](https://freetype.org/)
+- Tutorial image for ray tracing: "Car Concept" by Eric Chadwick, CC BY 4.0, from the [Khronos glTF Sample Assets](https://github.com/KhronosGroup/glTF-Sample-Assets) (see [CREDITS.md](CREDITS.md))
