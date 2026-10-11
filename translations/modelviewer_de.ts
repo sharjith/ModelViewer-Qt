@@ -2787,7 +2787,7 @@ Modell kann teilweise geladen werden</translation>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="58"/>
         <source>Window</source>
-        <translation>Wind</translation>
+        <translation>Fenster</translation>
     </message>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="74"/>
