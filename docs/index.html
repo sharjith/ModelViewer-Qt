@@ -389,9 +389,75 @@
             </div>
         </div>
 
+        <section id="whats-new">
+            <h2>What's new in 2026.11</h2>
+            <p>ModelViewer now reads <strong>simulation results</strong> (FEM / CFD) and plots <strong>your own data in 3D</strong>, and adds a
+            <strong>ray tracer</strong>, <strong>measurement and annotation</strong>, <strong>CGAL-based mesh tools</strong> and
+            <strong>surface analysis</strong>. The application has a <em>What's New</em> dialog and a 29-lesson tutorial in English, German,
+            Spanish, French and Italian, and there is a PDF guide <em>Simulation Results and 3D Plotting</em> in the same languages:
+            <a href="guide/ModelViewer_Simulation_and_3D_Plotting_Guide.pdf">English</a>,
+            <a href="guide/ModelViewer_Simulation_and_3D_Plotting_Guide_de.pdf">Deutsch</a>,
+            <a href="guide/ModelViewer_Simulation_and_3D_Plotting_Guide_es.pdf">Espa&ntilde;ol</a>,
+            <a href="guide/ModelViewer_Simulation_and_3D_Plotting_Guide_fr.pdf">Fran&ccedil;ais</a>,
+            <a href="guide/ModelViewer_Simulation_and_3D_Plotting_Guide_it.pdf">Italiano</a>.</p>
+            <p><strong>Download:</strong> the <a href="https://github.com/sharjith/ModelViewer-Qt/releases/latest">latest release</a> has a Windows
+            installer (<code>.exe</code>) and a Linux <code>.deb</code> for Ubuntu 26.04 LTS
+            (<code>sudo apt install ./modelviewer_2026.11.0_amd64.deb</code>). The full list of changes is in the
+            <a href="https://github.com/sharjith/ModelViewer-Qt/blob/master/CHANGELOG.md">changelog</a>.</p>
+        </section>
+
         <!-- Features Overview Section -->
         <section id="features">
             <h2>Features Overview</h2>
+
+            <h3>Simulation Results</h3>
+            <p>ModelViewer <em>displays</em> the results of FEM and CFD solvers; it does not mesh or solve. A result opens as its outer surface coloured by
+            any field, and the tools below look inside it.</p>
+            <img src="assets/screenshots/sim-result.png" alt="A simulation result coloured by von Mises stress">
+            <ul>
+                <li><strong>Readers:</strong> VTK (<code>.vtk</code>, <code>.vtu</code>), CalculiX <code>.frd</code>, Exodus II, CGNS, MED, OpenFOAM cases, VTKHDF; large results load step by step</li>
+                <li><strong>Fields:</strong> node and cell data, vectors, tensors, derived stress fields (von Mises, Tresca, principal, maximum shear), units with a file and a display unit</li>
+                <li><strong>Display:</strong> colour maps and ranges, contour bands, deformed shape, min/max markers, vector arrows, stress ellipsoids, a timeline with playback</li>
+                <li><strong>Looking inside:</strong> plane sections, iso-surfaces, streamlines, volume rendering, a hover probe, charts over time and along a line (with your own curves from CSV)</li>
+                <li><strong>Compare</strong> two results side by side; results are saved inside an <code>.mvf</code> session</li>
+            </ul>
+            <div class="feature-showcase">
+                <div class="showcase-item"><img src="assets/screenshots/sim-isosurfaces.png" alt="Iso-surfaces of a temperature field"></div>
+                <div class="showcase-item"><img src="assets/screenshots/sim-streamlines.png" alt="Streamlines through a duct"></div>
+            </div>
+            <img src="assets/screenshots/sim-chart.png" alt="A temperature history chart next to its result">
+
+            <h3>3D Data Plotting</h3>
+            <p>Plot tables of numbers, formulas and time series in the same 3D scene as your models, with the same camera, section, annotation and export tools.</p>
+            <img src="assets/screenshots/plot3d-types.png" alt="A scatter, a bar and a vector plot sharing one set of axes">
+            <ul>
+                <li><strong>Plot types:</strong> surface, contour, line, scatter, bar / histogram, voxel, vector field, pathlines, image on a plane</li>
+                <li><strong>Sources:</strong> CSV or pasted data, and formulas (surface, parametric surface and curve, implicit surface, vector field, streamlines, pathlines) with presets</li>
+                <li><strong>Shared axes</strong> (linear, Log 10, SymLog), fills between curves, text notes, a section probe, animated pathlines, edit-in-place, glTF / GLB / OBJ export of point and line plots</li>
+            </ul>
+            <img src="assets/screenshots/plot3d-parametric.png" alt="A torus and a Klein bottle from parametric formulas">
+
+            <h3>Ray Tracing</h3>
+            <p>A physically based ray tracer with a CPU engine (Embree) and an optional GPU engine (NVIDIA OptiX), a live ray-traced viewport, offline renders of any
+            size, OIDN denoising and batch rendering of captured views.</p>
+            <img src="assets/screenshots/raytrace-compare.png" alt="The same model in PBR and ray-traced mode">
+            <img src="assets/screenshots/raytrace-render.png" alt="A finished ray-traced render">
+            <p><small>Model: &quot;Car Concept&quot; by Eric Chadwick, CC BY 4.0, from the Khronos glTF Sample Assets.</small></p>
+
+            <h3>Measure, Annotate and Report</h3>
+            <p>Point, distance, angle, radius, diameter, pitch-circle, area and geodesic measurements with CAD-style dimension lines, text annotations, and a PDF report of
+            captured views with their measurement and annotation table.</p>
+            <img src="assets/screenshots/measure.png" alt="An edge radius and a pitch circle measured on a CAD part">
+
+            <h3>Mesh Tools and Surface Analysis</h3>
+            <ul>
+                <li><strong>Editing:</strong> Mesh Union (boolean), Shrink Wrap, Subdivide Surface, Reconstruct Surface from point clouds, Repair Mesh, Fill Holes, split / merge / group, UV generation</li>
+                <li><strong>Analysis:</strong> draft angle, zebra stripes, curvature, wall thickness, deviation, and mass properties (volume, mass, centre of gravity) per mesh and material</li>
+            </ul>
+            <div class="feature-showcase">
+                <div class="showcase-item"><img src="assets/screenshots/analysis-zebra.png" alt="Zebra stripes on a bottle"></div>
+                <div class="showcase-item"><img src="assets/screenshots/mesh-subdivide.png" alt="A coarse torus and its subdivided surface"></div>
+            </div>
 
             <h3>Rendering Modes & Visualization</h3>
             <p>ModelViewer supports a comprehensive range of visualization and rendering styles for different inspection and analysis needs:</p>
@@ -715,7 +781,11 @@
             </div>
 
             <h3>Linux Build</h3>
-            <p>Linux builds now go through <strong>vcpkg</strong> (manifest mode) for dependency
+            <p><strong>Ubuntu 26.04 LTS</strong> (the platform of the <code>.deb</code>): run <code>packaging/linux/setup-wsl-build-env.sh</code>, which installs the
+            system packages, vcpkg's two vendored ports and <strong>CGAL 6.2 or newer</strong> from cgal.org (Ubuntu's own <code>libcgal-dev</code> is 6.1 and is too old; the
+            configure step stops with a message if it finds an older one), then <code>cmake --preset linux_system_release</code>, build, and
+            <code>cpack -G DEB</code>.</p>
+            <p>Other Linux builds go through <strong>vcpkg</strong> (manifest mode) for dependency
             management, using the bundled CMake presets.</p>
             <ol>
                 <li>Install base system packages (compiler, X11/OpenGL headers, etc. — see the
@@ -872,6 +942,11 @@ make -j$(sysctl -n hw.ncpu)
                 <li><a href="https://www.qt.io/">Qt</a> - GUI framework</li>
                 <li><a href="https://github.com/g-truc/glm">GLM</a> - Mathematics library</li>
                 <li><a href="https://www.khronos.org/">Khronos</a> - glTF and KHR extension specifications</li>
+                <li><a href="https://www.cgal.org/">CGAL</a> - Computational Geometry Algorithms Library (mesh repair, boolean union, shrink wrap, subdivision, analysis)</li>
+                <li><a href="https://www.embree.org/">Embree</a> and <a href="https://www.openimagedenoise.org/">Intel Open Image Denoise</a> - ray tracing and denoising; <a href="https://developer.nvidia.com/rtx/ray-tracing/optix">NVIDIA OptiX</a> - optional GPU ray tracing</li>
+                <li><a href="https://www.unidata.ucar.edu/software/netcdf/">NetCDF</a>, <a href="https://www.hdfgroup.org/solutions/hdf5/">HDF5</a> and <a href="https://cgns.github.io/">CGNS</a> - simulation result readers</li>
+                <li><a href="https://eigen.tuxfamily.org/">Eigen</a>, <a href="https://www.boost.org/">Boost</a>, <a href="https://gmplib.org/">GMP</a> and <a href="https://www.mpfr.org/">MPFR</a> - numerics used by CGAL</li>
+                <li><a href="https://github.com/zeux/meshoptimizer">meshoptimizer</a>, <a href="https://github.com/BinomialLLC/basis_universal">Basis Universal</a>, <a href="https://openexr.com/">OpenEXR</a>, <a href="https://facebook.github.io/zstd/">zstd</a> and <a href="https://freetype.org/">FreeType</a></li>
             </ul>
         </section>
     </div>
