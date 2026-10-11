@@ -23,7 +23,9 @@ plotting, measurement and annotation, CGAL-based mesh editing and surface analys
   Repair Mesh, Fill Holes, split / merge / group, UV generation (smart project, LSCM, ARAP).
 - **Surface Analysis and Mass Properties**: draft angle, zebra stripes, curvature,
   wall thickness, deviation, volume / mass / centre of gravity per mesh and material.
-- A **What's new** dialog and **ten new tutorial lessons**, all translated.
+- A **What's new** dialog, **eleven new tutorial lessons** (19-29) and a PDF user
+  guide for simulation results and 3D plotting, all in English, German, Spanish,
+  French and Italian.
 
 ### New Features
 
@@ -124,8 +126,20 @@ plotting, measurement and annotation, CGAL-based mesh editing and surface analys
   (optional), CGAL, and netCDF / HDF5 / CGNS for the result readers.
 
 ### Packaging
-- Windows installer (Inno Setup) and a Linux `.deb` package, built and published
-  locally; the Linux AppImage is no longer produced.
+- Windows installer (Inno Setup) and a Linux `.deb` package for Ubuntu 26.04, built
+  and published locally; the Linux AppImage is no longer produced.
+- The `.deb` is built against Ubuntu 26.04's Qt 6.10 and OpenCASCADE 7.9 with
+  NetCDF, CGNS, HDF5 and Qt WebEngine. Building from source needs **CGAL 6.2 or
+  newer** from cgal.org (Ubuntu's own CGAL is 6.1); the CMake configure step says so,
+  and `packaging/linux/setup-wsl-build-env.sh` installs it.
+
+### Documentation
+- Eleven new tutorial lessons (19-29: simulation results, looking inside a result,
+  charts and probing, comparing results, 3D plots from CSV and from formulas, playing
+  plots and results together, mesh tools, measure and annotate, surface analysis,
+  ray tracing); lessons 1-16 brought up to the current interface.
+- *Simulation Results and 3D Plotting*: a PDF guide (`docs/guide`) in five languages.
+- Quick Help brought up to date with the current menus and context menu.
 
 ### Known limitations
 - Simulation results and 3D plots are not drawn by the ray tracer.

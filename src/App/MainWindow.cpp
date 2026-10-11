@@ -2051,6 +2051,22 @@ void MainWindow::on_actionTutorial_triggered()
 	showTutorial(0);
 }
 
+void MainWindow::on_actionUserGuide_triggered()
+{
+	// The guide of the UI language when it ships, else the English one (docs/guide next to the data folders; the source tree has the same layout).
+	const QString guideDir = PathUtils::getDataDirectory() + "/docs/guide";
+	const QString base = QStringLiteral("ModelViewer_Simulation_and_3D_Plotting_Guide");
+	const QString language = LanguageManager::instance().currentLanguage().section(QLatin1Char('_'), 0, 0).toLower();
+	QString path = guideDir + "/" + base + ".pdf";
+	if (!language.isEmpty() && language != QLatin1String("en") && QFile::exists(guideDir + "/" + base + "_" + language + ".pdf"))
+		path = guideDir + "/" + base + "_" + language + ".pdf";
+	if (QFile::exists(path))
+		QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+	else
+		QMessageBox::warning(this, tr("Guide Not Found"),
+			tr("The PDF guide was not found at:\n%1\n\nPlease ensure the documentation files are installed correctly.").arg(path));
+}
+
 void MainWindow::showTutorial(int lesson)
 {
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());

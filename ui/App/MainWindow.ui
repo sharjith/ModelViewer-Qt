@@ -47,6 +47,7 @@
     <addaction name="actionWhatsNew"/>
     <addaction name="actionQuick_Help"/>
     <addaction name="actionTutorial"/>
+    <addaction name="actionUserGuide"/>
     <addaction name="separator"/>
     <addaction name="actionView_Logs"/>
     <addaction name="actionOpen_Logs_Folder"/>
@@ -1075,6 +1076,18 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+F1</string>
+   </property>
+  </action>
+  <action name="actionUserGuide">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/tutorial.png</normaloff>:/icons/res/tutorial.png</iconset>
+   </property>
+   <property name="text">
+    <string>Simulation and 3D Plotting Guide (PDF)</string>
+   </property>
+   <property name="statusTip">
+    <string>Open the PDF guide to simulation results and 3D plotting</string>
    </property>
   </action>
   <action name="actionView_Logs">

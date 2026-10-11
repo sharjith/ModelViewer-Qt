@@ -961,6 +961,14 @@ install(DIRECTORY fonts shaders themes sample-models data
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}"
 )
 
+# The PDF user guide (one per language, docs/guide): a user document, so the installer and the .deb ship it; Help > Simulation and 3D Plotting Guide opens it.
+file(GLOB MODELVIEWER_GUIDE_PDFS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/docs/guide/*.pdf")
+if(MODELVIEWER_GUIDE_PDFS)
+    install(FILES ${MODELVIEWER_GUIDE_PDFS}
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/docs/guide"
+    )
+endif()
+
 # textures/envmap/skyboxes/HDRI contains ~65 optional, browsable environment-map
 # packs (~1.3GB) in addition to the 3 default presets (studio/outdoor/office.hdr)
 # referenced directly by ViewportWidget. textures/materials contains ~129

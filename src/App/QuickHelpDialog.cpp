@@ -1171,9 +1171,13 @@ void QuickHelpDialog::setupMenuShortcutsTab()
 
 	// Selection Menu
 	QList<QStringList> selectionRows = {
+		{tr("Selection → Lasso Select"), tr(""), tr("Select meshes with a freehand lasso drawn in the viewport")},
 		{tr("Selection → Filter by Material..."), tr(""), tr("Select every mesh in the scene using a chosen material")},
 		{tr("Selection → Filter by Color..."), tr(""), tr("Select every mesh whose color matches a chosen target, within a tolerance")},
-		{tr("Selection → Save Selection Set..."), tr(""), tr("Save the current selection under a name, for quick recall later")}
+		{tr("Selection → Filter by Bounding Box..."), tr(""), tr("Select every mesh whose bounding box matches a set of world-space X/Y/Z limits")},
+		{tr("Selection → Swap Visible"), tr(""), tr("Invert the visibility of all objects")},
+		{tr("Selection → Save Selection Set..."), tr(""), tr("Save the current selection under a name, for quick recall later")},
+		{tr("Selection → Save Scene State..."), tr(""), tr("Save the camera view, visibility and selection together under a name, for one-click recall later")}
 	};
 	content += createSection(tr("Selection Menu"), "") + createTable(headers, selectionRows);
 
@@ -1182,23 +1186,38 @@ void QuickHelpDialog::setupMenuShortcutsTab()
 		{tr("Tools → Measure..."), tr(""), tr("Open the measurement tool - point, distance, and arc-radius tools among others")},
 		{tr("Tools → Annotate..."), tr(""), tr("Open the annotation tool - place text notes anchored to points on the model")},
 		{tr("Tools → Export Report..."), tr(""), tr("Export captured views and the measurement/annotation list as a PDF report")},
+		{tr("Tools → Batch Render Views..."), tr(""), tr("Render every captured view (or a checked subset) as a high-quality ray-traced image, one file per view")},
+		{tr("Tools → Mass Properties..."), tr(""), tr("Volume, surface area, mass and centre of mass of the selection")},
+		{tr("Tools → Surface Analysis..."), tr(""), tr("Curvature, wall-thickness, draft-angle and deviation inspection painted on the mesh surface")},
 		{tr("Tools → Shrink Wrap..."), tr(""), tr("Combine the selected meshes into one new watertight shell")},
 		{tr("Tools → Subdivide Surface..."), tr(""), tr("Smooth the selected meshes via CGAL subdivision")},
 		{tr("Tools → Reconstruct Surface..."), tr(""), tr("Reconstruct a triangulated surface from the selected point cloud(s)")},
 		{tr("Tools → Repair Mesh..."), tr(""), tr("Fix defects (non-manifold vertices, self-intersections, etc.) on the selected meshes")},
 		{tr("Tools → Fill Holes..."), tr(""), tr("Detect and interactively patch boundary-loop holes in the selected meshes")},
-		{tr("Tools → Generate UVs..."), tr(""), tr("Generate UV coordinates for meshes using a chosen projection method")}
+		{tr("Tools → Generate UVs..."), tr(""), tr("Generate UV coordinates for meshes using a chosen projection method")},
+		{tr("Tools → Purge Redundant Nodes"), tr(""), tr("Collapse sub-assembly nodes that only wrap a single mesh")}
 	};
 	content += createSection(tr("Tools Menu"), "") + createTable(headers, toolsRows);
 
 	// Visualization Menu
 	QList<QStringList> visualizationRows = {
+		{tr("Visualization → Ray Tracing..."), tr(""), tr("Open the ray tracing settings and start a render")},
+		{tr("Visualization → Plot 3D..."), tr(""), tr("Create a 3D plot from tabular data, formulas or parametric expressions")},
 		{tr("Visualization → Texture Debugger"), tr(""), tr("Open the texture debugger panel")}
 	};
 	content += createSection(tr("Visualization Menu"), "") + createTable(headers, visualizationRows);
 
+	// Simulation Results Menu (a submenu of Visualization)
+	QList<QStringList> simulationRows = {
+		{tr("Visualization → Simulation Results → Add Result to This Document..."), tr(""), tr("Add a simulation result (.vtu, .vtk, .frd, .foam ...) to the current document")},
+		{tr("Visualization → Simulation Results → Compare Results..."), tr(""), tr("Show two results side by side with one shared camera; choose it again to exit")}
+	};
+	content += createSection(tr("Simulation Results Menu"), "") + createTable(headers, simulationRows);
+
 	// Window Menu
 	QList<QStringList> windowRows = {
+		{tr("Window → Close"), tr(""), tr("Close the active document window")},
+		{tr("Window → Close All"), tr(""), tr("Close all document windows")},
 		{tr("Window → Next"), tr(""), tr("Switch to next document window")},
 		{tr("Window → Previous"), tr(""), tr("Switch to previous document window")}
 	};
@@ -1214,10 +1233,9 @@ void QuickHelpDialog::setupMenuShortcutsTab()
 		{tr("  Center Object List"), tr(""), tr("Scroll object list to selected item")},
 		{tr("  Hide/Show"), tr("Space"), tr("Toggle visibility of selected objects")},
 		{tr("  Show Only"), tr("Shift+Space"), tr("Show only selected, hide all others")},
-		{tr("  Visualization Settings"), tr(""), tr("Open material/appearance settings")},
 		{tr("  Transformations"), tr(""), tr("Open transformation panel (move/rotate/scale)")},
-		{tr("  Generate UVs"), tr(""), tr("Auto-generate texture coordinates")},
-		{tr("  Duplicate"), tr(""), tr("Create copy of selected objects")},
+		{tr("  Edit Material"), tr(""), tr("Open the material editor for the selected meshes")},
+		{tr("  Copy / Cut"), tr(""), tr("Copy or cut the selected items (they can be pasted into this or another document)")},
 		{tr("  Delete"), tr("Delete"), tr("Remove selected objects")},
 		{tr("  Mesh Info"), tr(""), tr("Display detailed mesh information")},
 		{tr("  Select Parent"), tr(""), tr("Select the tree parent of the right-clicked item")},
@@ -1234,6 +1252,8 @@ void QuickHelpDialog::setupMenuShortcutsTab()
 		{tr("  Show All"), tr("Shift+A"), tr("Make all objects visible")},
 		{tr("  Hide All"), tr("Alt+A"), tr("Hide all objects")},
 		{tr("  Swap Visible"), tr("Alt+S"), tr("Invert visibility of all objects")},
+		{tr("  Paste"), tr(""), tr("Paste previously copied or cut items")},
+		{tr("  Environment Settings"), tr(""), tr("Open the Environment panel")},
 		{tr("  Background Color"), tr(""), tr("Change viewport background color")}
 	};
 	content += createTable({ tr("Action"), tr("Shortcut"), tr("Description") }, contextRows);
@@ -1296,9 +1316,9 @@ void QuickHelpDialog::setupTipsAndTricksTab()
 
 	content += createSection(tr("Materials and Appearance"),
 		tr("<ul>"
-			"<li><b>Visualization Settings:</b> Right-click object → Visualization Settings</li>"
-			"<li><b>Material Editor:</b> Use the left panel to edit colors, roughness, metallic properties</li>"
-			"<li><b>Texture Mapping:</b> Apply textures through the Texture Mapping panel</li>"
+			"<li><b>Edit Material:</b> Right-click object → Edit Material</li>"
+			"<li><b>Material Editor:</b> Use the Materials tab of the Properties panel on the right to edit colors, roughness, metallic properties</li>"
+			"<li><b>Texture Mapping:</b> Apply textures in the Textures tab of the same Materials panel</li>"
 			"<li><b>Environment:</b> Enable SkyBox and IBL for realistic lighting</li>"
 			"<li><b>Display Modes:</b> Switch to Realistic mode to see full PBR materials</li>"
 			"<li><b>Eyedropper:</b> Sample one mesh's material and brush it onto others from the Material "
