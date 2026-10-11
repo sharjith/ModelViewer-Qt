@@ -361,8 +361,6 @@ void QuickHelpDialog::setupHomeTab()
 		":/icons/res/sample-models/Skateboard-Assy.png", tr("Skateboard Assy"), "Skate-Board-Assy/Skate-Board-Assy.stp"));
 	sampleModelsRow->addWidget(createSampleModelButton(sampleModelsFrame,
 		":/icons/res/sample-models/Teapot.png", tr("Teapot"), "Tea-Pot/Teapot.obj"));
-	sampleModelsRow->addWidget(createSampleModelButton(sampleModelsFrame,
-		":/icons/res/sample-models/Camera.png", tr("Camera"), "Camera/glTF/camera.glb"));
 
 	sampleModelsLayout->addLayout(sampleModelsRow);
 

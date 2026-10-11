@@ -149,7 +149,7 @@ Capture in the English UI; the translated lessons share the same pictures.
 
 ## Lesson 29 - Ray Tracing in Practice
 
-- [ ] `tutorial_29_pbr_vs_ray_traced.png` (700x350) - Futuristic Transport Shuttle (or the Tea-Pot on a reflective floor) with the same camera in PBR and, after a few seconds of accumulation, in Ray Traced mode; join the two captures side by side.  
+- [ ] `tutorial_29_pbr_vs_ray_traced.png` (700x350) - the Tea-Pot on a reflective floor with the same camera in PBR and, after a few seconds of accumulation, in Ray Traced mode; join the two captures side by side.  
   *The same scene in PBR (left) and ray traced (right)*
 - [ ] `tutorial_29_dialog_basic.png` (560x520) - Visualization > Ray Tracing..., Basic tab; capture the whole dialog including Render, Stop and Export Image... at the bottom.  
   *The Basic tab of the Ray Tracing dialog*
