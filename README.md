@@ -365,6 +365,36 @@ Ensure you have the following installed:
 
 ### Linux Build
 
+#### Ubuntu 26.04 LTS / Kubuntu 26.04 (the platform of the `.deb`)
+
+This is the supported route and builds the same package that is published on the releases page. Ubuntu 26.04's Qt, OpenCASCADE and Assimp are new enough; older
+releases (22.04 / 24.04) are not.
+
+```bash
+# 1. clone (or, in an existing clone: git fetch origin && git checkout dev && git pull) and fetch the submodules
+git clone --branch dev https://github.com/sharjith/ModelViewer-Qt.git ~/dev/ModelViewer-Qt
+cd ~/dev/ModelViewer-Qt
+git submodule update --init --recursive
+
+# 2. one-time setup: apt packages, CGAL 6.2 from cgal.org (needs sudo), vcpkg for the two bundled dependencies
+bash packaging/linux/setup-wsl-build-env.sh
+
+# 3. configure and build
+cmake --preset linux_system_release
+cmake --build out/build/linux_system_release --parallel
+
+# 4. make the .deb, install it and start the program
+cd out/build/linux_system_release && cpack -G DEB
+sudo apt install ./modelviewer_2026.11.0_amd64.deb
+modelviewer
+```
+
+Notes: the script is named after WSL but runs on any Ubuntu 26.04 system. Build the whole project (no `--target ModelViewer`), or `cpack` cannot find the icon. For
+NVIDIA graphics install the driver first (`sudo ubuntu-drivers install`) and check `glxinfo -B` names your card rather than `llvmpipe`. The optional material, HDRI and
+sample packs are unzipped into `/usr/share/ModelViewer` (see [Optional content packs](#optional-content-packs-full-material-library-all-hdri-maps)).
+
+#### Other Linux distributions
+
 1. Install required dependencies using your package manager:
 
    ```bash
