@@ -59,12 +59,37 @@ namespace
 	// smaller pixmap) gives each row real presence in the list. Also used at
 	// a larger size for showHoverPreview()'s preview popup - same
 	// compositing, just a bigger edge.
-	QPixmap materialSwatchPixmap(const Material& material, int edge)
+	// The albedo/diffuse image for a swatch. The material's own texture slot only carries the
+	// decoded image for imported models; a material applied from the library keeps just the
+	// path there, with the decoded image living on the mesh's own texture list - so look in
+	// the slot first, then the mesh, then fall back to reading the file.
+	QImage swatchAlbedoImage(const SceneMesh& mesh, bool useSpecularGlossiness)
 	{
+		const Material& material = mesh.getMaterial();
+		const Material::Texture& slot = material.texture(
+			useSpecularGlossiness ? Material::TextureType::Diffuse : Material::TextureType::Albedo);
+		if (!slot.imageData.isNull())
+			return slot.imageData;
+
+		const std::string meshType = useSpecularGlossiness ? "diffuseMap" : "albedoMap";
+		for (const Material::Texture& t : mesh.textures())
+		{
+			if (t.type == meshType && !t.imageData.isNull())
+				return t.imageData;
+		}
+
+		const QString path = !slot.path.empty()
+			? QString::fromStdString(slot.path)
+			: (useSpecularGlossiness ? material.diffuseMapPath() : material.albedoMapPath());
+		return path.isEmpty() ? QImage() : QImage(path);
+	}
+
+	QPixmap materialSwatchPixmap(const SceneMesh& mesh, int edge)
+	{
+		const Material& material = mesh.getMaterial();
 		const bool useSpecularGlossiness = material.getUseSpecularGlossiness();
 		const QVector3D tint = useSpecularGlossiness ? material.diffuseColor() : material.albedoColor();
-		const Material::Texture& albedoTex = material.texture(
-			useSpecularGlossiness ? Material::TextureType::Diffuse : Material::TextureType::Albedo);
+		const QImage albedoImage = swatchAlbedoImage(mesh, useSpecularGlossiness);
 		const QColor tintColor = QColor::fromRgbF(
 			std::clamp(tint.x(), 0.0f, 1.0f),
 			std::clamp(tint.y(), 0.0f, 1.0f),
@@ -80,9 +105,9 @@ namespace
 			clipPath.addRoundedRect(QRectF(0.5, 0.5, edge - 1.0, edge - 1.0), 6, 6);
 			painter.setClipPath(clipPath);
 
-			if (!albedoTex.imageData.isNull())
+			if (!albedoImage.isNull())
 			{
-				const QImage& src = albedoTex.imageData;
+				const QImage& src = albedoImage;
 				const int cropSize = std::min(src.width(), src.height());
 				const QRect cropRect((src.width() - cropSize) / 2, (src.height() - cropSize) / 2, cropSize, cropSize);
 				const QImage scaled = src.copy(cropRect).scaled(
@@ -106,9 +131,9 @@ namespace
 		return pixmap;
 	}
 
-	QIcon materialSwatchIcon(const Material& material, int edge = 56)
+	QIcon materialSwatchIcon(const SceneMesh& mesh, int edge = 56)
 	{
-		return QIcon(materialSwatchPixmap(material, edge));
+		return QIcon(materialSwatchPixmap(mesh, edge));
 	}
 
 	// Walks up the parent chain from a widget inside the MDI area to find the QMdiArea itself -
@@ -396,7 +421,7 @@ void FilterByMaterialDialog::rebuildGroups()
 			? tr("%1 (1 mesh)").arg(name)
 			: tr("%1 (%2 meshes)").arg(name).arg(group.size());
 
-		rows.push_back({ label, materialSwatchIcon(refMesh->getMaterial()), static_cast<int>(g), group.size() });
+		rows.push_back({ label, materialSwatchIcon(*refMesh), static_cast<int>(g), group.size() });
 	}
 
 	if (_sortByCountCheck->isChecked())
@@ -680,7 +705,7 @@ void FilterByMaterialDialog::showHoverPreview()
 			"QLabel { background-color: #2a2a2a; border: 1px solid #555555; "
 			"padding: 6px; border-radius: 4px; }");
 	}
-	_hoverPreview->setPixmap(materialSwatchPixmap(meshStore[meshIndex]->getMaterial(), 160));
+	_hoverPreview->setPixmap(materialSwatchPixmap(*meshStore[meshIndex], 160));
 	_hoverPreview->adjustSize();
 	_hoverPreview->move(QCursor::pos() + QPoint(18, 18));
 	_hoverPreview->show();
@@ -735,7 +760,7 @@ void FilterByMaterialDialog::onListContextMenuRequested(const QPoint& pos)
 			if (name.isEmpty())
 				name = tr("Unnamed Material");
 
-			QAction* replaceAction = replaceMenu->addAction(materialSwatchIcon(refMesh->getMaterial()), name);
+			QAction* replaceAction = replaceMenu->addAction(materialSwatchIcon(*refMesh), name);
 			const int targetGroupIndex = static_cast<int>(g);
 			connect(replaceAction, &QAction::triggered, this, [this, sourceGroupIndex, targetGroupIndex]() {
 				onReplaceMaterialRequested(sourceGroupIndex, targetGroupIndex);
