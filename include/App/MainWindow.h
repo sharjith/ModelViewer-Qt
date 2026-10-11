@@ -143,6 +143,7 @@ protected slots:
 	void on_actionWhatsNew_triggered();
 	void on_actionQuick_Help_triggered();
 	void on_actionTutorial_triggered();
+	void on_actionUserGuide_triggered();
 	void on_actionView_Logs_triggered();
 	void on_actionOpen_Logs_Folder_triggered();
 	void on_actionShow_Console_triggered();
