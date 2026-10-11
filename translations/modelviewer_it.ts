@@ -3651,12 +3651,12 @@ Il modello può essere caricato parzialmente</translation>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="1087"/>
         <source>Simulation and 3D Plotting Guide (PDF)</source>
-        <translation type="unfinished"></translation>
+        <translation>Guida ai risultati di simulazione e ai grafici 3D (PDF)</translation>
     </message>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="1090"/>
         <source>Open the PDF guide to simulation results and 3D plotting</source>
-        <translation type="unfinished"></translation>
+        <translation>Apri la guida in PDF ai risultati di simulazione e ai grafici 3D</translation>
     </message>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="1099"/>
@@ -3957,7 +3957,7 @@ Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
     <message>
         <location filename="../src/App/MainWindow.cpp" line="2066"/>
         <source>Guide Not Found</source>
-        <translation type="unfinished"></translation>
+        <translation>Guida non trovata</translation>
     </message>
     <message>
         <location filename="../src/App/MainWindow.cpp" line="2067"/>
@@ -3965,7 +3965,10 @@ Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
 %1
 
 Please ensure the documentation files are installed correctly.</source>
-        <translation type="unfinished"></translation>
+        <translation>La guida in PDF non è stata trovata in:
+%1
+
+Verifica che i file della documentazione siano installati correttamente.</translation>
     </message>
     <message>
         <location filename="../src/App/MainWindow.cpp" line="2378"/>
