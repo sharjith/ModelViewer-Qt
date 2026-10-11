@@ -2760,12 +2760,12 @@ El modelo se puede cargar parcialmente</translation>
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1044"/>
+        <location filename="../ui/App/MainWindow.ui" line="1045"/>
         <source>What&apos;s New...</source>
         <translation>Novedades...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1047"/>
+        <location filename="../ui/App/MainWindow.ui" line="1048"/>
         <source>See what is new in this version</source>
         <translation>Vea qué hay de nuevo en esta versión</translation>
     </message>
@@ -2785,104 +2785,104 @@ El modelo se puede cargar parcialmente</translation>
         <translation>Ayuda</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="59"/>
+        <location filename="../ui/App/MainWindow.ui" line="60"/>
         <source>Window</source>
         <translation>Ventana</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="75"/>
+        <location filename="../ui/App/MainWindow.ui" line="76"/>
         <source>Edit</source>
         <translation>Editar</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="84"/>
+        <location filename="../ui/App/MainWindow.ui" line="85"/>
         <source>Navigation</source>
         <translation>Navegación</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="89"/>
+        <location filename="../ui/App/MainWindow.ui" line="90"/>
         <source>Standard Views</source>
         <translation>Vistas estándar</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="97"/>
+        <location filename="../ui/App/MainWindow.ui" line="98"/>
         <source>Axonometric Views</source>
         <translation>Vistas axonométricas</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="107"/>
+        <location filename="../ui/App/MainWindow.ui" line="108"/>
         <source>Camera</source>
         <translation>Cámara</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="115"/>
+        <location filename="../ui/App/MainWindow.ui" line="116"/>
         <source>Projection</source>
         <translation>Proyección</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="122"/>
+        <location filename="../ui/App/MainWindow.ui" line="123"/>
         <source>Display Mode</source>
         <translation>Modo de visualización</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="129"/>
+        <location filename="../ui/App/MainWindow.ui" line="130"/>
         <source>Rendering Mode</source>
         <translation>Modo de renderizado</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="134"/>
+        <location filename="../ui/App/MainWindow.ui" line="135"/>
         <source>Shading Normals</source>
         <translation>Normales de sombreado</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="138"/>
+        <location filename="../ui/App/MainWindow.ui" line="139"/>
         <source>Debug Overlays</source>
         <translation>Superposiciones de depuración</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="145"/>
+        <location filename="../ui/App/MainWindow.ui" line="146"/>
         <source>Panels</source>
         <translation>Paneles</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="171"/>
+        <location filename="../ui/App/MainWindow.ui" line="172"/>
         <source>Selection</source>
         <translation>Selección</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="186"/>
+        <location filename="../ui/App/MainWindow.ui" line="187"/>
         <source>Tools</source>
         <translation>Herramientas</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="210"/>
+        <location filename="../ui/App/MainWindow.ui" line="211"/>
         <location filename="../src/App/MainWindow.cpp" line="258"/>
         <location filename="../src/App/MainWindow.cpp" line="1038"/>
         <source>Simulation Results</source>
         <translation>Resultados de simulación</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="218"/>
+        <location filename="../ui/App/MainWindow.ui" line="219"/>
         <source>Visualization</source>
         <translation>Visualización</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="242"/>
+        <location filename="../ui/App/MainWindow.ui" line="243"/>
         <source>Exit</source>
         <translation>Exit</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="245"/>
+        <location filename="../ui/App/MainWindow.ui" line="246"/>
         <source>Exit the application</source>
         <translation>Exit the application</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="254"/>
+        <location filename="../ui/App/MainWindow.ui" line="255"/>
         <source>About</source>
         <translation>Acerca de</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="257"/>
+        <location filename="../ui/App/MainWindow.ui" line="258"/>
         <source>About the application</source>
         <translation>Acerca de la aplicación</translation>
     </message>
@@ -2895,785 +2895,795 @@ El modelo se puede cargar parcialmente</translation>
         <translation type="vanished">Acerca de la Biblioteca Qt</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="261"/>
+        <location filename="../ui/App/MainWindow.ui" line="262"/>
         <source>Fit All</source>
         <translation>Ajustar todo</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="265"/>
+        <location filename="../ui/App/MainWindow.ui" line="266"/>
         <source>Window Zoom</source>
         <translation>Zoom de Ventana</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="270"/>
+        <location filename="../ui/App/MainWindow.ui" line="271"/>
         <source>Multi-View</source>
         <translation>Multi-View</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="275"/>
+        <location filename="../ui/App/MainWindow.ui" line="276"/>
         <source>Realistic Rendering</source>
         <translation>Renderizado realista</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="280"/>
+        <location filename="../ui/App/MainWindow.ui" line="281"/>
         <source>Clipping Planes</source>
         <translation>Planos de corte</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="285"/>
+        <location filename="../ui/App/MainWindow.ui" line="286"/>
         <source>Exploded View</source>
         <translation>Vista explosionada</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="290"/>
+        <location filename="../ui/App/MainWindow.ui" line="291"/>
         <source>Turntable</source>
         <translation>Plato giratorio</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="295"/>
+        <location filename="../ui/App/MainWindow.ui" line="296"/>
         <source>Show Axis</source>
         <translation>Mostrar ejes</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="300"/>
+        <location filename="../ui/App/MainWindow.ui" line="301"/>
         <source>Lasso Select</source>
         <translation>Selección con lazo</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="305"/>
+        <location filename="../ui/App/MainWindow.ui" line="306"/>
         <source>Swap Visible</source>
         <translation>Intercambiar visibles</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="310"/>
+        <location filename="../ui/App/MainWindow.ui" line="311"/>
         <source>Keep Toolbar Visible</source>
         <translation>Mantener visible la barra de herramientas</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="315"/>
+        <location filename="../ui/App/MainWindow.ui" line="316"/>
         <source>Rotate</source>
         <translation>Rotar</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="320"/>
+        <location filename="../ui/App/MainWindow.ui" line="321"/>
         <source>Pan</source>
         <translation>Desplazar</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="325"/>
+        <location filename="../ui/App/MainWindow.ui" line="326"/>
         <source>Zoom</source>
         <translation>Zoom</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="329"/>
+        <location filename="../ui/App/MainWindow.ui" line="330"/>
         <source>Top</source>
         <translation>Superior</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="333"/>
+        <location filename="../ui/App/MainWindow.ui" line="334"/>
         <source>Bottom</source>
         <translation>Inferior</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="337"/>
+        <location filename="../ui/App/MainWindow.ui" line="338"/>
         <source>Front</source>
         <translation>Frontal</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="341"/>
+        <location filename="../ui/App/MainWindow.ui" line="342"/>
         <source>Rear</source>
         <translation>Trasero</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="345"/>
+        <location filename="../ui/App/MainWindow.ui" line="346"/>
         <source>Left</source>
         <translation>Izquierda</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="349"/>
+        <location filename="../ui/App/MainWindow.ui" line="350"/>
         <source>Right</source>
         <translation>Derecha</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="354"/>
+        <location filename="../ui/App/MainWindow.ui" line="355"/>
         <source>Isometric</source>
         <translation>Isométrico</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="359"/>
+        <location filename="../ui/App/MainWindow.ui" line="360"/>
         <source>Dimetric</source>
         <translation>Dimétrico</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="364"/>
+        <location filename="../ui/App/MainWindow.ui" line="365"/>
         <source>Trimetric</source>
         <translation>Trimétrico</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="369"/>
+        <location filename="../ui/App/MainWindow.ui" line="370"/>
         <source>SE Corner</source>
         <translation>Esquina sureste</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="374"/>
+        <location filename="../ui/App/MainWindow.ui" line="375"/>
         <source>NE Corner</source>
         <translation>Esquina noreste</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="379"/>
+        <location filename="../ui/App/MainWindow.ui" line="380"/>
         <source>NW Corner</source>
         <translation>Esquina noroeste</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="384"/>
+        <location filename="../ui/App/MainWindow.ui" line="385"/>
         <source>SW Corner</source>
         <translation>Esquina suroeste</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="389"/>
+        <location filename="../ui/App/MainWindow.ui" line="390"/>
         <source>Orbit</source>
         <translation>Órbita</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="394"/>
+        <location filename="../ui/App/MainWindow.ui" line="395"/>
         <source>Fly</source>
         <translation>Volar</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="399"/>
+        <location filename="../ui/App/MainWindow.ui" line="400"/>
         <source>First Person</source>
         <translation>Primera Persona</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="404"/>
+        <location filename="../ui/App/MainWindow.ui" line="405"/>
         <source>Z-Up</source>
         <translation>Z-Arriba</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="409"/>
+        <location filename="../ui/App/MainWindow.ui" line="410"/>
         <source>Y-Up</source>
         <translation>Y-Arriba</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="414"/>
+        <location filename="../ui/App/MainWindow.ui" line="415"/>
         <source>Perspective</source>
         <translation>Perspectiva</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="419"/>
+        <location filename="../ui/App/MainWindow.ui" line="420"/>
         <source>Orthographic</source>
         <translation>Ortográfica</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="424"/>
+        <location filename="../ui/App/MainWindow.ui" line="425"/>
         <source>Cavalier</source>
         <translation>Caballera</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="429"/>
+        <location filename="../ui/App/MainWindow.ui" line="430"/>
         <source>Cabinet</source>
         <translation>Gabinete</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="434"/>
+        <location filename="../ui/App/MainWindow.ui" line="435"/>
         <source>Shaded</source>
         <translation>Sombreado</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="439"/>
+        <location filename="../ui/App/MainWindow.ui" line="440"/>
         <source>Hollow Mesh</source>
         <translation>Malla hueca</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="444"/>
+        <location filename="../ui/App/MainWindow.ui" line="445"/>
         <source>Mesh Edges</source>
         <translation>Bordes de malla</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="449"/>
+        <location filename="../ui/App/MainWindow.ui" line="450"/>
         <source>Wireframe</source>
         <translation>Estructura alámbrica</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="454"/>
+        <location filename="../ui/App/MainWindow.ui" line="455"/>
         <source>Shaded with Edges</source>
         <translation>Sombreado con bordes</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="459"/>
+        <location filename="../ui/App/MainWindow.ui" line="460"/>
         <source>ADS (Blinn-Phong)</source>
         <translation>ADS (Blinn-Phong)</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="464"/>
+        <location filename="../ui/App/MainWindow.ui" line="465"/>
         <source>PBR (Metallic-Roughness)</source>
         <translation>PBR (Metálico-Rugosidad)</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="469"/>
+        <location filename="../ui/App/MainWindow.ui" line="470"/>
         <source>Ray Traced</source>
         <translation>Trazado por rayos</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="474"/>
+        <location filename="../ui/App/MainWindow.ui" line="475"/>
         <source>Smooth</source>
         <translation>Suave</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="479"/>
+        <location filename="../ui/App/MainWindow.ui" line="480"/>
         <source>Flat</source>
         <translation>Plano</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="484"/>
+        <location filename="../ui/App/MainWindow.ui" line="485"/>
         <source>Enable Overlay</source>
         <translation>Activar superposición</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="489"/>
+        <location filename="../ui/App/MainWindow.ui" line="490"/>
         <source>Bounding Box</source>
         <translation>Cuadro delimitador</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="494"/>
+        <location filename="../ui/App/MainWindow.ui" line="495"/>
         <source>Vertex Normals</source>
         <translation>Normales de vértices</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="499"/>
+        <location filename="../ui/App/MainWindow.ui" line="500"/>
         <source>Face Normals</source>
         <translation>Normales de caras</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="508"/>
+        <location filename="../ui/App/MainWindow.ui" line="509"/>
         <source>New</source>
         <translation>Nuevo</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="511"/>
+        <location filename="../ui/App/MainWindow.ui" line="512"/>
         <source>Create a new document window</source>
         <translation>Crear una nueva ventana de documento</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="514"/>
+        <location filename="../ui/App/MainWindow.ui" line="515"/>
         <source>Ctrl+N</source>
         <translation>Ctrl+N</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="523"/>
+        <location filename="../ui/App/MainWindow.ui" line="524"/>
         <source>Tile Horizontally</source>
         <translation>Azulejos</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="526"/>
+        <location filename="../ui/App/MainWindow.ui" line="527"/>
         <source>Tile sub windows horizontally</source>
         <translation>Ventanas sub de azulejo horizontalmente</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="535"/>
+        <location filename="../ui/App/MainWindow.ui" line="536"/>
         <source>Tile Vertically</source>
         <translation>Azulejos verticalmente</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="538"/>
+        <location filename="../ui/App/MainWindow.ui" line="539"/>
         <source>Tile sub windows vertically</source>
         <translation>Ventanas submarinas verticalmente</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="547"/>
+        <location filename="../ui/App/MainWindow.ui" line="548"/>
         <source>Cascade</source>
         <translation>Cascada</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="550"/>
+        <location filename="../ui/App/MainWindow.ui" line="551"/>
         <source>Cascade sub windows</source>
         <translation>Subventanas en cascada</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="559"/>
+        <location filename="../ui/App/MainWindow.ui" line="560"/>
         <source>Tile</source>
         <translation>Teja</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="562"/>
+        <location filename="../ui/App/MainWindow.ui" line="563"/>
         <source>Tile sub windows</source>
         <translation>Subventanas de mosaico</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="571"/>
-        <location filename="../ui/App/MainWindow.ui" line="715"/>
+        <location filename="../ui/App/MainWindow.ui" line="572"/>
+        <location filename="../ui/App/MainWindow.ui" line="716"/>
         <source>Close</source>
         <translation>Cerca</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="574"/>
+        <location filename="../ui/App/MainWindow.ui" line="575"/>
         <source>Close the current document window</source>
         <translation>Cerrar la ventana del documento actual</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="583"/>
+        <location filename="../ui/App/MainWindow.ui" line="584"/>
         <source>Close All</source>
         <translation>Cerrar todo</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="586"/>
+        <location filename="../ui/App/MainWindow.ui" line="587"/>
         <source>Close all document windows</source>
         <translation>Cerrar todas las ventanas de documentos</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="595"/>
+        <location filename="../ui/App/MainWindow.ui" line="596"/>
         <source>Next</source>
         <translation>Siguiente</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="598"/>
+        <location filename="../ui/App/MainWindow.ui" line="599"/>
         <source>Activate the next sub window</source>
         <translation>Activar la siguiente subventana</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="607"/>
+        <location filename="../ui/App/MainWindow.ui" line="608"/>
         <source>Previous</source>
         <translation>Anterior</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="610"/>
+        <location filename="../ui/App/MainWindow.ui" line="611"/>
         <source>Activate the next previous window</source>
         <translation>Activar la ventana anterior</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="619"/>
+        <location filename="../ui/App/MainWindow.ui" line="620"/>
         <source>Open</source>
         <translation>Abierto</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="622"/>
+        <location filename="../ui/App/MainWindow.ui" line="623"/>
         <source>Open an existing model</source>
         <translation>Abrir un modelo existente</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="625"/>
+        <location filename="../ui/App/MainWindow.ui" line="626"/>
         <source>Ctrl+O</source>
         <translation>Ctrl+O</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="634"/>
+        <location filename="../ui/App/MainWindow.ui" line="635"/>
         <source>Import</source>
         <translation>Importar</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="637"/>
+        <location filename="../ui/App/MainWindow.ui" line="638"/>
         <source>Import a model into the current document</source>
         <translation>Importar un modelo en el documento actual</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="640"/>
+        <location filename="../ui/App/MainWindow.ui" line="641"/>
         <source>Ctrl+I</source>
         <translation>Ctrl+I</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="649"/>
+        <location filename="../ui/App/MainWindow.ui" line="650"/>
         <source>Save</source>
         <translation>Guardar</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="652"/>
+        <location filename="../ui/App/MainWindow.ui" line="653"/>
         <source>Save the current document</source>
         <translation>Guardar el documento actual</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="655"/>
+        <location filename="../ui/App/MainWindow.ui" line="656"/>
         <source>Ctrl+S</source>
         <translation>Ctrl+S</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="664"/>
+        <location filename="../ui/App/MainWindow.ui" line="665"/>
         <source>Save As</source>
         <translation>Guardar como</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="667"/>
+        <location filename="../ui/App/MainWindow.ui" line="668"/>
         <source>Save the current document as another file name</source>
         <translation>Guardar el documento actual como otro nombre de archivo</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="670"/>
+        <location filename="../ui/App/MainWindow.ui" line="671"/>
         <source>Ctrl+Shift+S</source>
         <translation>Ctrl+Mayús+S</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="679"/>
+        <location filename="../ui/App/MainWindow.ui" line="680"/>
         <source>Undo</source>
         <translation>Deshacer</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="682"/>
+        <location filename="../ui/App/MainWindow.ui" line="683"/>
         <source>Undo the last action</source>
         <translation>Deshacer la última acción</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="685"/>
+        <location filename="../ui/App/MainWindow.ui" line="686"/>
         <source>Ctrl+Z</source>
         <translation>Ctrl+Z</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="697"/>
+        <location filename="../ui/App/MainWindow.ui" line="698"/>
         <source>Redo</source>
         <translation>Rehacer</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="700"/>
+        <location filename="../ui/App/MainWindow.ui" line="701"/>
         <source>Redo the last action</source>
         <translation>Rehacer la última acción</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="703"/>
+        <location filename="../ui/App/MainWindow.ui" line="704"/>
         <source>Ctrl+Y</source>
         <translation>Ctrl+Y</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="718"/>
+        <location filename="../ui/App/MainWindow.ui" line="719"/>
         <source>Close the current file</source>
         <translation>Cerrar el archivo actual</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="727"/>
+        <location filename="../ui/App/MainWindow.ui" line="728"/>
         <source>Export</source>
         <translation>Exportar</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="730"/>
+        <location filename="../ui/App/MainWindow.ui" line="731"/>
         <source>Export the scene</source>
         <translation>Exportar la escena</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="733"/>
+        <location filename="../ui/App/MainWindow.ui" line="734"/>
         <source>Ctrl+E</source>
         <translation>Ctrl+E</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="738"/>
+        <location filename="../ui/App/MainWindow.ui" line="739"/>
         <source>Clear UV Prompt Settings</source>
         <translation>Ajustes de Prompta UV Clara</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="747"/>
+        <location filename="../ui/App/MainWindow.ui" line="748"/>
         <source>Settings</source>
         <translation>Ajustes</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="750"/>
+        <location filename="../ui/App/MainWindow.ui" line="751"/>
         <source>Open the settings dialog</source>
         <translation>Abrir el diálogo de configuración</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="759"/>
+        <location filename="../ui/App/MainWindow.ui" line="760"/>
         <source>Texture Debugger</source>
         <translation>Depurador de texturas</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="762"/>
+        <location filename="../ui/App/MainWindow.ui" line="763"/>
         <source>Open the texture debug panel for the selected mesh</source>
         <translation>Abrir el panel de depuración de texturas para la malla seleccionada</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="771"/>
+        <location filename="../ui/App/MainWindow.ui" line="772"/>
         <source>Ray Tracing...</source>
         <translation>Trazado de rayos...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="774"/>
+        <location filename="../ui/App/MainWindow.ui" line="775"/>
         <source>Open ray tracing settings and start a render</source>
         <translation>Abrir la configuración de trazado de rayos e iniciar un renderizado</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="783"/>
+        <location filename="../ui/App/MainWindow.ui" line="784"/>
         <source>Plot 3D...</source>
         <translation>Gráfico 3D...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="786"/>
+        <location filename="../ui/App/MainWindow.ui" line="787"/>
         <source>Create a 3D plot from tabular data, formulas, or parametric expressions</source>
         <translation>Crear un gráfico 3D a partir de datos tabulares, fórmulas o expresiones paramétricas</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="795"/>
+        <location filename="../ui/App/MainWindow.ui" line="796"/>
         <source>Measure...</source>
         <translation>Medir...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="798"/>
+        <location filename="../ui/App/MainWindow.ui" line="799"/>
         <source>Open the measurement tool - point, distance, and arc-radius tools</source>
         <translation>Abrir la herramienta de medición - herramientas de punto, distancia y radio de arco</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="807"/>
+        <location filename="../ui/App/MainWindow.ui" line="808"/>
         <source>Filter by Material...</source>
         <translation>Filtrar por material...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="810"/>
+        <location filename="../ui/App/MainWindow.ui" line="811"/>
         <source>Select every mesh in the scene that uses a chosen material</source>
         <translation>Seleccionar cada malla de la escena que utiliza un material elegido</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="813"/>
+        <location filename="../ui/App/MainWindow.ui" line="814"/>
         <source>Select every mesh in the scene that uses a chosen material
 (import a model first)</source>
         <translation>Seleccionar cada malla de la escena que utiliza un material elegido
 (importe primero un modelo)</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="823"/>
+        <location filename="../ui/App/MainWindow.ui" line="824"/>
         <source>Filter by Color...</source>
         <translation>Filtrar por color...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="826"/>
+        <location filename="../ui/App/MainWindow.ui" line="827"/>
         <source>Select every mesh in the scene whose color matches a chosen target, within a tolerance</source>
         <translation>Seleccionar cada malla de la escena cuyo color coincida con un objetivo elegido, dentro de una tolerancia</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="829"/>
+        <location filename="../ui/App/MainWindow.ui" line="830"/>
         <source>Select every mesh in the scene whose color matches a chosen target
 (import a model first)</source>
         <translation>Seleccionar cada malla de la escena cuyo color coincida con un objetivo elegido
 (importe primero un modelo)</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="839"/>
+        <location filename="../ui/App/MainWindow.ui" line="840"/>
         <source>Filter by Bounding Box...</source>
         <translation>Filtrar por cuadro delimitador...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="842"/>
+        <location filename="../ui/App/MainWindow.ui" line="843"/>
         <source>Select every mesh in the scene whose bounding box matches a set of world-space X/Y/Z limits</source>
         <translation>Selecciona todas las mallas de la escena cuyo cuadro delimitador coincide con un conjunto de límites X/Y/Z en el espacio del mundo</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="845"/>
+        <location filename="../ui/App/MainWindow.ui" line="846"/>
         <source>Select every mesh in the scene whose bounding box matches a set of world-space X/Y/Z limits
 (import a model first)</source>
         <translation>Selecciona todas las mallas de la escena cuyo cuadro delimitador coincide con un conjunto de límites X/Y/Z en el espacio del mundo
 (primero importe un modelo)</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="855"/>
+        <location filename="../ui/App/MainWindow.ui" line="856"/>
         <source>Save Selection Set...</source>
         <translation>Guardar conjunto de selección...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="858"/>
+        <location filename="../ui/App/MainWindow.ui" line="859"/>
         <source>Save the current selection under a name, for quick recall later</source>
         <translation>Guardar la selección actual con un nombre, para recuperarla rápidamente más tarde</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="867"/>
+        <location filename="../ui/App/MainWindow.ui" line="868"/>
         <source>Save Scene State...</source>
         <translation>Guardar estado de escena...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="870"/>
+        <location filename="../ui/App/MainWindow.ui" line="871"/>
         <source>Save the current camera view, visibility, and selection together under a name, for one-click recall later</source>
         <translation>Guarda la vista de cámara, la visibilidad y la selección actuales bajo un nombre, para recuperarlas después con un clic</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="879"/>
+        <location filename="../ui/App/MainWindow.ui" line="880"/>
         <source>Annotate...</source>
         <translation>Anotar...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="882"/>
+        <location filename="../ui/App/MainWindow.ui" line="883"/>
         <source>Open the annotation tool - place text notes anchored to points on the model</source>
         <translation>Abrir la herramienta de anotación - colocar notas de texto ancladas a puntos del modelo</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="891"/>
+        <location filename="../ui/App/MainWindow.ui" line="892"/>
         <source>Export Report...</source>
         <translation>Exportar informe...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="894"/>
+        <location filename="../ui/App/MainWindow.ui" line="895"/>
         <source>Export captured views and the measurement/annotation list as a PDF report</source>
         <translation>Exportar las vistas capturadas y la lista de mediciones/anotaciones como informe en PDF</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="903"/>
+        <location filename="../ui/App/MainWindow.ui" line="904"/>
         <source>Batch Render Views...</source>
         <translation>Renderizar vistas por lotes...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="906"/>
+        <location filename="../ui/App/MainWindow.ui" line="907"/>
         <source>Render every captured view (or a checked subset) as a high-quality offline path-traced image, one per file</source>
         <translation>Renderiza cada vista capturada (o un subconjunto marcado) como una imagen de alta calidad con trazado de trayectorias sin conexión, una por archivo</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="915"/>
+        <location filename="../ui/App/MainWindow.ui" line="916"/>
         <source>Mass Properties...</source>
         <translation>Propiedades de masa...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="918"/>
+        <location filename="../ui/App/MainWindow.ui" line="919"/>
         <source>Volume, surface area, mass, and center of mass for the current selection</source>
         <translation>Volumen, área de superficie, masa y centro de masa de la selección actual</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="927"/>
+        <location filename="../ui/App/MainWindow.ui" line="928"/>
         <source>Surface Analysis...</source>
         <translation>Análisis de superficie...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="930"/>
+        <location filename="../ui/App/MainWindow.ui" line="931"/>
         <source>Curvature, wall-thickness/draft-angle, and deviation inspection, painted directly on the mesh surface</source>
         <translation>Inspección de curvatura, espesor de pared/ángulo de desmoldeo y desviación, pintada directamente sobre la superficie de la malla</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="939"/>
+        <location filename="../ui/App/MainWindow.ui" line="940"/>
         <source>Shrink Wrap...</source>
         <translation>Envoltura retráctil...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="942"/>
+        <location filename="../ui/App/MainWindow.ui" line="943"/>
         <source>Combine the selected meshes into one new watertight approximating shell (CGAL alpha wrapping), added as a new node</source>
         <translation>Combinar las mallas seleccionadas en una nueva envoltura aproximada estanca (envoltura alfa de CGAL), añadida como nuevo nodo</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="951"/>
+        <location filename="../ui/App/MainWindow.ui" line="952"/>
         <source>Subdivide Surface...</source>
         <translation>Subdividir superficie...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="954"/>
+        <location filename="../ui/App/MainWindow.ui" line="955"/>
         <source>Smooth the selected meshes via CGAL Loop/Catmull-Clark subdivision, each added as a new node</source>
         <translation>Suavizar las mallas seleccionadas mediante subdivisión CGAL Loop/Catmull-Clark, cada una añadida como nuevo nodo</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="963"/>
+        <location filename="../ui/App/MainWindow.ui" line="964"/>
         <source>Reconstruct Surface...</source>
         <translation>Reconstruir superficie...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="966"/>
+        <location filename="../ui/App/MainWindow.ui" line="967"/>
         <source>Reconstruct a triangulated surface from the selected point cloud(s) via CGAL advancing-front reconstruction, added as a new node</source>
         <translation>Reconstruir una superficie triangulada a partir de la(s) nube(s) de puntos seleccionada(s) mediante la reconstrucción de frente avanzante de CGAL, añadida como nuevo nodo</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="975"/>
+        <location filename="../ui/App/MainWindow.ui" line="976"/>
         <source>Repair Mesh...</source>
         <translation>Reparar malla...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="978"/>
+        <location filename="../ui/App/MainWindow.ui" line="979"/>
         <source>Fix duplicate/degenerate geometry, non-manifold vertices, inconsistent winding, and self-intersections on the selected meshes (CGAL repair toolkit), each added as a new node</source>
         <translation>Corregir geometría duplicada/degenerada, vértices no variedad, devanado inconsistente y autointersecciones en las mallas seleccionadas (kit de reparación de CGAL), cada una añadida como nuevo nodo</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="983"/>
+        <location filename="../ui/App/MainWindow.ui" line="984"/>
         <source>Add Result to This Document...</source>
         <translation>Añadir resultado a este documento...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="986"/>
+        <location filename="../ui/App/MainWindow.ui" line="987"/>
         <source>Add a simulation result (.vtu, .vtk, .frd, .foam) to the current document, shown as its outer surface coloured by a result field. To open a result in its own document, use File &gt; Open.</source>
         <translation>Añade un resultado de simulación (.vtu, .vtk, .frd, .foam) al documento actual, mostrado como su superficie exterior coloreada según un campo de resultados. Para abrir un resultado en su propio documento, use Archivo &gt; Abrir.</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="991"/>
+        <location filename="../ui/App/MainWindow.ui" line="992"/>
         <location filename="../src/App/MainWindow.cpp" line="1218"/>
         <source>Compare Results...</source>
         <translation>Comparar resultados...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="994"/>
+        <location filename="../ui/App/MainWindow.ui" line="995"/>
         <source>Show the active simulation result next to another one in two panes with one shared camera (needs two results in this document). Choose it again to exit.</source>
         <translation>Muestra el resultado de simulación activo junto a otro en dos paneles con una cámara compartida (requiere dos resultados en este documento). Vuelva a elegirlo para salir.</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1003"/>
+        <location filename="../ui/App/MainWindow.ui" line="1004"/>
         <source>Fill Holes...</source>
         <translation>Rellenar agujeros...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1006"/>
+        <location filename="../ui/App/MainWindow.ui" line="1007"/>
         <source>Detect boundary-loop holes in the selected meshes and interactively choose which ones to patch (CGAL triangulate_and_refine_hole), each added as a new node</source>
         <translation>Detectar agujeros de bucle de contorno en las mallas seleccionadas y elegir interactivamente cuáles parchear (triangulate_and_refine_hole de CGAL), cada una añadida como nuevo nodo</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1015"/>
+        <location filename="../ui/App/MainWindow.ui" line="1016"/>
         <source>Generate UVs...</source>
         <translation>Generar UV...</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1018"/>
+        <location filename="../ui/App/MainWindow.ui" line="1019"/>
         <source>Generate UV coordinates for meshes using a chosen projection method, from a working list you build in the dialog</source>
         <translation>Generar coordenadas UV para mallas usando un método de proyección elegido, a partir de una lista de trabajo que usted crea en el diálogo</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1027"/>
+        <location filename="../ui/App/MainWindow.ui" line="1028"/>
         <source>Purge Redundant Nodes</source>
         <translation>Purgar nodos redundantes</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1030"/>
+        <location filename="../ui/App/MainWindow.ui" line="1031"/>
         <source>Collapse sub-assembly nodes that exist only to wrap a single mesh (whole scene) - the mesh is promoted into the wrapper, renamed to its own name, and the wrapper&apos;s empty child is removed</source>
         <translation>Contrae los nodos de subensamblaje que solo envuelven una malla (toda la escena): la malla se sube al contenedor, se renombra con su propio nombre y se elimina el hijo vacío del contenedor</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1056"/>
+        <location filename="../ui/App/MainWindow.ui" line="1057"/>
         <source>Quick Help</source>
         <translation>Ayuda Rápida</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1059"/>
+        <location filename="../ui/App/MainWindow.ui" line="1060"/>
         <source>Open the quick help dialog</source>
         <translation>Abrir el diálogo de ayuda rápida</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1062"/>
+        <location filename="../ui/App/MainWindow.ui" line="1063"/>
         <source>F1</source>
         <translation>F1</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1071"/>
+        <location filename="../ui/App/MainWindow.ui" line="1072"/>
         <source>Tutorial</source>
         <translation>Tutorial</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1074"/>
+        <location filename="../ui/App/MainWindow.ui" line="1075"/>
         <source>Open the application tutorial</source>
         <translation>Abrir el tutorial de la aplicación</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1077"/>
+        <location filename="../ui/App/MainWindow.ui" line="1078"/>
         <source>Ctrl+F1</source>
         <translation>Ctrl+F1</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1086"/>
+        <location filename="../ui/App/MainWindow.ui" line="1087"/>
+        <source>Simulation and 3D Plotting Guide (PDF)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/App/MainWindow.ui" line="1090"/>
+        <source>Open the PDF guide to simulation results and 3D plotting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/App/MainWindow.ui" line="1099"/>
         <source>View Logs</source>
         <translation>Ver Registros</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1089"/>
+        <location filename="../ui/App/MainWindow.ui" line="1102"/>
         <source>Open the logs dialog</source>
         <translation>Abrir el diálogo de registros</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1098"/>
+        <location filename="../ui/App/MainWindow.ui" line="1111"/>
         <source>Open Logs Folder</source>
         <translation>Abrir Carpeta de Registros</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1101"/>
+        <location filename="../ui/App/MainWindow.ui" line="1114"/>
         <source>Open the logs folder in the system explorer</source>
         <translation>Abrir la carpeta de registros en el explorador del sistema</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1110"/>
+        <location filename="../ui/App/MainWindow.ui" line="1123"/>
         <source>Show Console</source>
         <translation>Mostrar consola</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="1113"/>
+        <location filename="../ui/App/MainWindow.ui" line="1126"/>
         <source>Show the live console log window (also enables it in Settings)</source>
         <translation>Mostrar la ventana de registro de consola en vivo (también la activa en Ajustes)</translation>
     </message>
@@ -3729,42 +3739,42 @@ El modelo se puede cargar parcialmente</translation>
         <translation type="vanished">¿Quieres ahorrar?</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2065"/>
+        <location filename="../src/App/MainWindow.cpp" line="2081"/>
         <source>Tutorial Display Method</source>
         <translation>Método de Visualización del Tutorial</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2066"/>
+        <location filename="../src/App/MainWindow.cpp" line="2082"/>
         <source>How would you like to view the tutorial?</source>
         <translation>¿Cómo deseas ver el tutorial?</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2067"/>
+        <location filename="../src/App/MainWindow.cpp" line="2083"/>
         <source>Choose between an integrated dialog or opening in your web browser.</source>
         <translation>Elige entre un diálogo integrado o abrirlo en tu navegador web.</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2070"/>
+        <location filename="../src/App/MainWindow.cpp" line="2086"/>
         <source>Dialog Window</source>
         <translation>Ventana de Diálogo</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2071"/>
+        <location filename="../src/App/MainWindow.cpp" line="2087"/>
         <source>Web Browser</source>
         <translation>Navegador Web</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2074"/>
+        <location filename="../src/App/MainWindow.cpp" line="2090"/>
         <source>Remember my choice</source>
         <translation>Recordar mi elección</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2130"/>
+        <location filename="../src/App/MainWindow.cpp" line="2146"/>
         <source>Tutorial Not Found</source>
         <translation>Tutorial No Encontrado</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2131"/>
+        <location filename="../src/App/MainWindow.cpp" line="2147"/>
         <source>Tutorial file not found at:
 %1
 
@@ -3775,12 +3785,12 @@ Please ensure the tutorial files are installed correctly.</source>
 Asegúrate de que los archivos del tutorial estén instalados correctamente.</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2165"/>
+        <location filename="../src/App/MainWindow.cpp" line="2181"/>
         <source>Logs Folder Not Found</source>
         <translation>Carpeta de Registros No Encontrada</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2166"/>
+        <location filename="../src/App/MainWindow.cpp" line="2182"/>
         <source>The logs folder could not be found at:
 %1
 
@@ -3893,7 +3903,7 @@ Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
         <translation>Entorno</translation>
     </message>
     <message>
-        <location filename="../ui/App/MainWindow.ui" line="83"/>
+        <location filename="../ui/App/MainWindow.ui" line="84"/>
         <source>View</source>
         <translation>Vista</translation>
     </message>
@@ -3944,81 +3954,94 @@ Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
         <translation>Salir de la comparación</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2362"/>
+        <location filename="../src/App/MainWindow.cpp" line="2066"/>
+        <source>Guide Not Found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/MainWindow.cpp" line="2067"/>
+        <source>The PDF guide was not found at:
+%1
+
+Please ensure the documentation files are installed correctly.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/MainWindow.cpp" line="2378"/>
         <source>Error</source>
         <translation>Error</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2362"/>
+        <location filename="../src/App/MainWindow.cpp" line="2378"/>
         <source>
 Unsupported file format: </source>
         <translation>
 Formato de archivo no compatible: </translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2406"/>
+        <location filename="../src/App/MainWindow.cpp" line="2422"/>
         <source>Open Model File</source>
         <translation>Abrir archivo modelo</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2416"/>
+        <location filename="../src/App/MainWindow.cpp" line="2432"/>
         <source>Simulation Results (%1)</source>
         <translation>Resultados de simulación (%1)</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2765"/>
+        <location filename="../src/App/MainWindow.cpp" line="2781"/>
         <source>&amp;Undo %1</source>
         <translation>&amp;Deshacer %1</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2767"/>
-        <location filename="../src/App/MainWindow.cpp" line="2779"/>
+        <location filename="../src/App/MainWindow.cpp" line="2783"/>
+        <location filename="../src/App/MainWindow.cpp" line="2795"/>
         <source>&amp;Undo</source>
         <translation>&amp;Deshacer</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2770"/>
+        <location filename="../src/App/MainWindow.cpp" line="2786"/>
         <source>&amp;Redo %1</source>
         <translation>&amp;Rehacer %1</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2772"/>
-        <location filename="../src/App/MainWindow.cpp" line="2780"/>
+        <location filename="../src/App/MainWindow.cpp" line="2788"/>
+        <location filename="../src/App/MainWindow.cpp" line="2796"/>
         <source>&amp;Redo</source>
         <translation>&amp;Rehacer</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2892"/>
+        <location filename="../src/App/MainWindow.cpp" line="2908"/>
         <source>Confirm Exit</source>
         <translation>Confirmar Salida</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2893"/>
+        <location filename="../src/App/MainWindow.cpp" line="2909"/>
         <source>Are you sure you want to exit the application?</source>
         <translation>¿Estás seguro de que deseas salir de la aplicación?</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2948"/>
+        <location filename="../src/App/MainWindow.cpp" line="2964"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2950"/>
+        <location filename="../src/App/MainWindow.cpp" line="2966"/>
         <source>%1 -&gt; Shift-click to import into active document</source>
         <translation>%1 -&gt; Mayús-clic para importar al documento activo</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2951"/>
+        <location filename="../src/App/MainWindow.cpp" line="2967"/>
         <source>Click to open • Shift-click to import into active window</source>
         <translation>Clic para abrir • Mayús-clic para importar a la ventana activa</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2982"/>
+        <location filename="../src/App/MainWindow.cpp" line="2998"/>
         <source>File Not Found</source>
         <translation>Archivo no encontrado</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2983"/>
+        <location filename="../src/App/MainWindow.cpp" line="2999"/>
         <source>The file &apos;%1&apos; no longer exists. Would you like to remove it from the recent files?</source>
         <translation>El archivo &apos;%1&apos; ya no existe. ¿Desea eliminarlo de los archivos recientes?</translation>
     </message>
