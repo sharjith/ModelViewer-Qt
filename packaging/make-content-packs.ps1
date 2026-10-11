@@ -21,8 +21,13 @@
 param(
     [Parameter(Mandatory = $true)][string]$Version,
     [string]$OutDir = 'dist\content-packs',
-    [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+    [string]$RepoRoot = ''
 )
+
+if (-not $RepoRoot) {
+    $here = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+    $RepoRoot = (Resolve-Path (Join-Path $here '..')).Path
+}
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression
