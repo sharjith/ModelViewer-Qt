@@ -1068,9 +1068,7 @@ void RenderableMesh::setupUniforms()
 	// into either would defeat the overlay's "transient, never touches
 	// authored data, nothing to restore" contract (see RenderableMesh.h's
 	// doc comment on _analysisOverlayColorBuffer).
-	_prog->setUniformValue("analysisOverlayActive", _hasAnalysisOverlay || _hasAnalysisFlatOverlay);
-	_prog->setUniformValue("analysisOverlayBands", _analysisOverlayBands);
-	_prog->setUniformValue("analysisOverlayColormap", _analysisOverlayColormap);
+	uploadAnalysisOverlayUniforms();
 	_prog->setUniformValue("zebraStripeActive", _zebraStripeActive);
 	_prog->setUniformValue("zebraStripeFrequency", _zebraStripeFrequency);
 	_prog->setUniformValue("hasNegativeScale", hasNegativeScale());
@@ -1703,6 +1701,7 @@ void RenderableMesh::render()
 	applyDebugTextureOverrides();
 
 	setupUniforms();
+	uploadAnalysisOverlayUniforms();
 	applyDebugUniformOverrides();
 
 	if(_material.opacity() < 1.0f ||
@@ -3194,6 +3193,18 @@ void RenderableMesh::setAnalysisOverlayBanding(int bands, int colormap)
 	_analysisOverlayBands = normalizedBands;
 	_analysisOverlayColormap = colormap;
 	markUniformsDirty();
+}
+
+void RenderableMesh::uploadAnalysisOverlayUniforms()
+{
+	// Uploaded on EVERY draw, deliberately outside setupUniforms()'s dirty gate and
+	// SceneMesh's uniform-state reuse: these are program-wide uniforms, so a mesh that skipped
+	// the upload would inherit analysisOverlayActive=true from the analysed mesh drawn just
+	// before it and render the overlay colour from its empty analysis attribute - black
+	// (e.g. the Deviation reference mesh, which shares the analysed mesh's material signature).
+	_prog->setUniformValue("analysisOverlayActive", _hasAnalysisOverlay || _hasAnalysisFlatOverlay);
+	_prog->setUniformValue("analysisOverlayBands", _analysisOverlayBands);
+	_prog->setUniformValue("analysisOverlayColormap", _analysisOverlayColormap);
 }
 
 void RenderableMesh::setAnalysisOverlayActive(bool active)

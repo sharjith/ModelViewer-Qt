@@ -1264,6 +1264,8 @@ void SceneMesh::render()
 	_currentUniformStateSignature = uniformSignature;
 	_currentUniformStateHadDebugOverrides = hasDebugUniformOverrides;
 
+	uploadAnalysisOverlayUniforms(); // every draw - see its definition
+
 	// Apply debug uniform overrides (TextureDebugPanel extension toggles).
 	// Called unconditionally — NOT inside the _uniformsDirty gate — so the
 	// shader reflects the user's toggle state every frame even when the

@@ -558,6 +558,8 @@ public:
 	void setAnalysisOverlayBanding(int bands, int colormap);
 
 	void setAnalysisOverlayActive(bool active);
+	// Sends the overlay uniforms to the bound program; call on every draw (see the definition).
+	void uploadAnalysisOverlayUniforms();
 	void clearAnalysisOverlay();
 	bool hasAnalysisOverlay() const { return _hasAnalysisOverlay || _hasAnalysisFlatOverlay; }
 
