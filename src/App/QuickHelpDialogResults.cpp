@@ -13,7 +13,7 @@ void QuickHelpDialog::setupSimulationTab()
 		tr("<p>ModelViewer displays the results your solver has written; it does not run simulations.</p><p>Use <b>File &gt; Import</b> to open a result in its "
 		   "own document, or <b>Visualization &gt; Simulation Results &gt; Add Result to This Document...</b> to add one to the current document. Formats: VTK "
 		   "(.vtk, .vtu), CalculiX .frd, Exodus II, CGNS, MED, OpenFOAM (open the .foam file) and VTKHDF. The result is drawn as the model's outer surface, "
-		   "coloured by a field; the <b>Simulation Results</b> tab (bottom-left dock) controls how.</p>"));
+		   "coloured by a field; the <b>Simulation Results</b> tab (bottom-right dock) controls how.</p>"));
 	content += createSection(tr("The Simulation Results tab"),
 		tr("<ul><li><b>Field</b> and <b>Component</b>: the field to colour by and one component or the magnitude; fields marked <b>[cells]</b> are element "
 		   "data</li><li><b>Range</b>: Automatic (all steps), Automatic (this step) or Custom; <b>Colormap</b> and <b>Contours</b></li><li><b>Show deformed "

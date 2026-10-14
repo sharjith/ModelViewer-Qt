@@ -5,7 +5,7 @@ Capture in the English UI; the translated lessons share the same pictures.
 
 ## Lesson 19 - Simulation Results
 
-- [ ] `tutorial_19_first_result.png` (700x450) - Open sample-models/Simulation/FEM_box_static_stress.vtu, rotate to an isometric view and capture the whole window: the box with its colour legend, and the Simulation Results tab visible in the bottom-left dock.  
+- [ ] `tutorial_19_first_result.png` (700x450) - Open sample-models/Simulation/FEM_box_static_stress.vtu, rotate to an isometric view and capture the whole window: the box with its colour legend, and the Simulation Results tab visible in the bottom-right dock.  
   *FEM_box_static_stress.vtu just opened, coloured by von Mises stress*
 - [ ] `tutorial_19_results_tab.png` (420x520) - Same file as before: capture only the Simulation Results tab (crop the dock), scrolled to the top so Field, Component, Range, Colormap and Contours are all visible.  
   *The Simulation Results tab with Field, Component, Range, Colormap and Contours*
