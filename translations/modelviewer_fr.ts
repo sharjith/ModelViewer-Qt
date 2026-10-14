@@ -2374,78 +2374,78 @@ Supprimez ensuite celles que vous ne voulez pas avec le bouton × de chaque lign
 <context>
     <name>FilterByMaterialDialog</name>
     <message>
-        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="132"/>
+        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="157"/>
         <source>Filter by Material</source>
         <translation>Filtrer par matériau</translation>
     </message>
     <message>
-        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="140"/>
+        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="165"/>
         <source>Select a material to preview every mesh in the scene that uses it, then Show Only or Hide the result:</source>
         <translation>Sélectionnez un matériau pour prévisualiser chaque maillage de la scène qui l&apos;utilise, puis Afficher uniquement ou Masquer le résultat :</translation>
     </message>
     <message>
-        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="146"/>
+        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="171"/>
         <source>Materials in Scene</source>
         <translation>Matériaux dans la scène</translation>
     </message>
     <message>
-        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="151"/>
+        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="176"/>
         <source>Search materials...</source>
         <translation>Rechercher des matériaux...</translation>
     </message>
     <message>
-        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="155"/>
+        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="180"/>
         <source>Sort by usage</source>
         <translation>Trier par utilisation</translation>
     </message>
     <message>
-        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="156"/>
+        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="181"/>
         <source>Sort by mesh count (most used first) instead of alphabetically</source>
         <translation>Trie par nombre de maillages (les plus utilisés d&apos;abord) au lieu de l&apos;ordre alphabétique</translation>
     </message>
     <message>
-        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="184"/>
+        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="209"/>
         <source>Show Only</source>
         <translation>Afficher uniquement</translation>
     </message>
     <message>
-        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="185"/>
+        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="210"/>
         <source>Hide</source>
         <translation>Masquer</translation>
     </message>
     <message>
-        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="393"/>
-        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="736"/>
+        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="418"/>
+        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="761"/>
         <source>Unnamed Material</source>
         <translation>Matériau sans nom</translation>
     </message>
     <message>
-        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="396"/>
+        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="421"/>
         <source>%1 (1 mesh)</source>
         <translation>%1 (1 maillage)</translation>
     </message>
     <message>
-        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="397"/>
+        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="422"/>
         <source>%1 (%2 meshes)</source>
         <translation>%1 (%2 maillages)</translation>
     </message>
     <message>
-        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="497"/>
+        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="522"/>
         <source>Materials in Scene (%1)</source>
         <translation>Matériaux dans la scène (%1)</translation>
     </message>
     <message>
-        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="498"/>
+        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="523"/>
         <source>Materials in Scene (%1 of %2)</source>
         <translation>Matériaux dans la scène (%1 sur %2)</translation>
     </message>
     <message>
-        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="710"/>
+        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="735"/>
         <source>Edit Material...</source>
         <translation>Modifier le matériau...</translation>
     </message>
     <message>
-        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="719"/>
+        <location filename="../src/MeshTools/FilterByMaterialDialog.cpp" line="744"/>
         <source>Replace With</source>
         <translation>Remplacer par</translation>
     </message>
@@ -2858,7 +2858,7 @@ Le modèle peut être partiellement chargé</translation>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="211"/>
         <location filename="../src/App/MainWindow.cpp" line="258"/>
-        <location filename="../src/App/MainWindow.cpp" line="1038"/>
+        <location filename="../src/App/MainWindow.cpp" line="1044"/>
         <source>Simulation Results</source>
         <translation>Résultats de simulation</translation>
     </message>
@@ -3579,7 +3579,7 @@ Le modèle peut être partiellement chargé</translation>
     </message>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="992"/>
-        <location filename="../src/App/MainWindow.cpp" line="1218"/>
+        <location filename="../src/App/MainWindow.cpp" line="1226"/>
         <source>Compare Results...</source>
         <translation>Comparer les résultats...</translation>
     </message>
@@ -3690,44 +3690,44 @@ Le modèle peut être partiellement chargé</translation>
     </message>
     <message>
         <location filename="../src/App/MainWindow.cpp" line="667"/>
-        <location filename="../src/App/MainWindow.cpp" line="1067"/>
+        <location filename="../src/App/MainWindow.cpp" line="1073"/>
         <source>Recent...</source>
         <translation>Récent...</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="681"/>
-        <location filename="../src/App/MainWindow.cpp" line="1075"/>
+        <location filename="../src/App/MainWindow.cpp" line="687"/>
+        <location filename="../src/App/MainWindow.cpp" line="1083"/>
         <source>Close the active window</source>
         <translation>Fermer la fenêtre active</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="686"/>
-        <location filename="../src/App/MainWindow.cpp" line="1077"/>
+        <location filename="../src/App/MainWindow.cpp" line="692"/>
+        <location filename="../src/App/MainWindow.cpp" line="1085"/>
         <source>Close the active document</source>
         <translation>Fermer le document actif</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="691"/>
-        <location filename="../src/App/MainWindow.cpp" line="1079"/>
+        <location filename="../src/App/MainWindow.cpp" line="697"/>
+        <location filename="../src/App/MainWindow.cpp" line="1087"/>
         <source>Close all the windows</source>
         <translation>Fermez toutes les fenêtres</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="696"/>
-        <location filename="../src/App/MainWindow.cpp" line="1081"/>
+        <location filename="../src/App/MainWindow.cpp" line="702"/>
+        <location filename="../src/App/MainWindow.cpp" line="1089"/>
         <source>Move the focus to the next window</source>
         <translation>Déplacer le focus vers la fenêtre suivante</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="701"/>
-        <location filename="../src/App/MainWindow.cpp" line="1083"/>
+        <location filename="../src/App/MainWindow.cpp" line="707"/>
+        <location filename="../src/App/MainWindow.cpp" line="1091"/>
         <source>Move the focus to the previous window</source>
         <translation>Déplacer le focus vers la fenêtre précédente</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="995"/>
-        <location filename="../src/App/MainWindow.cpp" line="1021"/>
-        <location filename="../src/App/MainWindow.cpp" line="1071"/>
+        <location filename="../src/App/MainWindow.cpp" line="1001"/>
+        <location filename="../src/App/MainWindow.cpp" line="1027"/>
+        <location filename="../src/App/MainWindow.cpp" line="1079"/>
         <source>Cancel Loading</source>
         <translation>Annuler le Chargement</translation>
     </message>
@@ -3740,42 +3740,42 @@ Le modèle peut être partiellement chargé</translation>
         <translation type="vanished">Voulez-vous économiser ?</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2081"/>
+        <location filename="../src/App/MainWindow.cpp" line="2094"/>
         <source>Tutorial Display Method</source>
         <translation>Méthode d&apos;Affichage du Tutoriel</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2082"/>
+        <location filename="../src/App/MainWindow.cpp" line="2095"/>
         <source>How would you like to view the tutorial?</source>
         <translation>Comment souhaitez-vous afficher le tutoriel ?</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2083"/>
+        <location filename="../src/App/MainWindow.cpp" line="2096"/>
         <source>Choose between an integrated dialog or opening in your web browser.</source>
         <translation>Choisissez entre une boîte de dialogue intégrée ou l&apos;ouverture dans votre navigateur web.</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2086"/>
+        <location filename="../src/App/MainWindow.cpp" line="2099"/>
         <source>Dialog Window</source>
         <translation>Fenêtre de Dialogue</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2087"/>
+        <location filename="../src/App/MainWindow.cpp" line="2100"/>
         <source>Web Browser</source>
         <translation>Navigateur Web</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2090"/>
+        <location filename="../src/App/MainWindow.cpp" line="2103"/>
         <source>Remember my choice</source>
         <translation>Mémoriser mon choix</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2146"/>
+        <location filename="../src/App/MainWindow.cpp" line="2159"/>
         <source>Tutorial Not Found</source>
         <translation>Tutoriel Non Trouvé</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2147"/>
+        <location filename="../src/App/MainWindow.cpp" line="2160"/>
         <source>Tutorial file not found at:
 %1
 
@@ -3786,12 +3786,12 @@ Please ensure the tutorial files are installed correctly.</source>
 Veuillez vous assurer que les fichiers du tutoriel sont correctement installés.</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2181"/>
+        <location filename="../src/App/MainWindow.cpp" line="2194"/>
         <source>Logs Folder Not Found</source>
         <translation>Dossier des Journaux Non Trouvé</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2182"/>
+        <location filename="../src/App/MainWindow.cpp" line="2195"/>
         <source>The logs folder could not be found at:
 %1
 
@@ -3825,81 +3825,81 @@ Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
     </message>
     <message>
         <location filename="../src/App/MainWindow.cpp" line="222"/>
-        <location filename="../src/App/MainWindow.cpp" line="1030"/>
+        <location filename="../src/App/MainWindow.cpp" line="1036"/>
         <source>Variants</source>
         <translation>Variantes</translation>
     </message>
     <message>
         <location filename="../src/App/MainWindow.cpp" line="225"/>
-        <location filename="../src/App/MainWindow.cpp" line="1031"/>
+        <location filename="../src/App/MainWindow.cpp" line="1037"/>
         <source>Animations</source>
         <translation>Animations</translation>
     </message>
     <message>
         <location filename="../src/App/MainWindow.cpp" line="228"/>
-        <location filename="../src/App/MainWindow.cpp" line="1032"/>
+        <location filename="../src/App/MainWindow.cpp" line="1038"/>
         <source>Cameras</source>
         <translation>Caméras</translation>
     </message>
     <message>
         <location filename="../src/App/MainWindow.cpp" line="249"/>
-        <location filename="../src/App/MainWindow.cpp" line="1036"/>
+        <location filename="../src/App/MainWindow.cpp" line="1042"/>
         <source>Selections</source>
         <translation>Sélections</translation>
     </message>
     <message>
         <location filename="../src/App/MainWindow.cpp" line="252"/>
-        <location filename="../src/App/MainWindow.cpp" line="1037"/>
+        <location filename="../src/App/MainWindow.cpp" line="1043"/>
         <source>States</source>
         <translation>États</translation>
     </message>
     <message>
         <location filename="../src/App/MainWindow.cpp" line="337"/>
         <location filename="../src/App/MainWindow.cpp" line="338"/>
-        <location filename="../src/App/MainWindow.cpp" line="1056"/>
-        <location filename="../src/App/MainWindow.cpp" line="1057"/>
+        <location filename="../src/App/MainWindow.cpp" line="1062"/>
+        <location filename="../src/App/MainWindow.cpp" line="1063"/>
         <source>Auto Fit View On Hide/Show</source>
         <translation>Ajuster la vue au masquage/affichage</translation>
     </message>
     <message>
         <location filename="../src/App/MainWindow.cpp" line="339"/>
-        <location filename="../src/App/MainWindow.cpp" line="1061"/>
+        <location filename="../src/App/MainWindow.cpp" line="1067"/>
         <source>Selection Highlighting</source>
         <translation>Surlignage de la sélection</translation>
     </message>
     <message>
         <location filename="../src/App/MainWindow.cpp" line="340"/>
-        <location filename="../src/App/MainWindow.cpp" line="1062"/>
+        <location filename="../src/App/MainWindow.cpp" line="1068"/>
         <source>Selection Highlighting in Viewer</source>
         <translation>Surlignage de la sélection dans la visionneuse</translation>
     </message>
     <message>
         <location filename="../src/App/MainWindow.cpp" line="390"/>
-        <location filename="../src/App/MainWindow.cpp" line="1023"/>
+        <location filename="../src/App/MainWindow.cpp" line="1029"/>
         <source>Document</source>
         <translation>Document</translation>
     </message>
     <message>
         <location filename="../src/App/MainWindow.cpp" line="416"/>
-        <location filename="../src/App/MainWindow.cpp" line="1051"/>
+        <location filename="../src/App/MainWindow.cpp" line="1057"/>
         <source>Materials</source>
         <translation>Matériaux</translation>
     </message>
     <message>
         <location filename="../src/App/MainWindow.cpp" line="422"/>
-        <location filename="../src/App/MainWindow.cpp" line="1052"/>
+        <location filename="../src/App/MainWindow.cpp" line="1058"/>
         <source>Transformations</source>
         <translation>Transformations</translation>
     </message>
     <message>
         <location filename="../src/App/MainWindow.cpp" line="426"/>
-        <location filename="../src/App/MainWindow.cpp" line="1025"/>
+        <location filename="../src/App/MainWindow.cpp" line="1031"/>
         <source>Properties</source>
         <translation>Propriétés</translation>
     </message>
     <message>
         <location filename="../src/App/MainWindow.cpp" line="439"/>
-        <location filename="../src/App/MainWindow.cpp" line="1027"/>
+        <location filename="../src/App/MainWindow.cpp" line="1033"/>
         <source>Environment</source>
         <translation>Environnement</translation>
     </message>
@@ -3920,47 +3920,53 @@ Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
     </message>
     <message>
         <location filename="../src/App/MainWindow.cpp" line="316"/>
-        <location filename="../src/App/MainWindow.cpp" line="1039"/>
+        <location filename="../src/App/MainWindow.cpp" line="1045"/>
         <source>3D Plot</source>
         <translation>Graphique 3D</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="877"/>
+        <location filename="../src/App/MainWindow.cpp" line="678"/>
+        <location filename="../src/App/MainWindow.cpp" line="1075"/>
+        <source>Clear Recent Files</source>
+        <translation>Effacer les fichiers récents</translation>
+    </message>
+    <message>
+        <location filename="../src/App/MainWindow.cpp" line="883"/>
         <source>Save Selection Set</source>
         <translation>Enregistrer l&apos;ensemble de sélection</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="878"/>
+        <location filename="../src/App/MainWindow.cpp" line="884"/>
         <source>Name for this selection:</source>
         <translation>Nom pour cette sélection :</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="892"/>
+        <location filename="../src/App/MainWindow.cpp" line="898"/>
         <source>Save Scene State</source>
         <translation>Enregistrer l&apos;état de la scène</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="893"/>
+        <location filename="../src/App/MainWindow.cpp" line="899"/>
         <source>Name for this state:</source>
         <translation>Nom de cet état :</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="990"/>
+        <location filename="../src/App/MainWindow.cpp" line="996"/>
         <source>Restoring window layout...</source>
         <translation>Restauration de la disposition des fenêtres...</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="1218"/>
+        <location filename="../src/App/MainWindow.cpp" line="1226"/>
         <source>Exit Compare</source>
         <translation>Quitter la comparaison</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2066"/>
+        <location filename="../src/App/MainWindow.cpp" line="2079"/>
         <source>Guide Not Found</source>
         <translation>Guide introuvable</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2067"/>
+        <location filename="../src/App/MainWindow.cpp" line="2080"/>
         <source>The PDF guide was not found at:
 %1
 
@@ -3971,81 +3977,81 @@ Please ensure the documentation files are installed correctly.</source>
 Veuillez vérifier que les fichiers de documentation sont correctement installés.</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2378"/>
+        <location filename="../src/App/MainWindow.cpp" line="2391"/>
         <source>Error</source>
         <translation>Erreur</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2378"/>
+        <location filename="../src/App/MainWindow.cpp" line="2391"/>
         <source>
 Unsupported file format: </source>
         <translation>
 Format de fichier non pris en charge : </translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2422"/>
+        <location filename="../src/App/MainWindow.cpp" line="2435"/>
         <source>Open Model File</source>
         <translation>Ouvrir le fichier modèle</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2432"/>
+        <location filename="../src/App/MainWindow.cpp" line="2445"/>
         <source>Simulation Results (%1)</source>
         <translation>Résultats de simulation (%1)</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2781"/>
+        <location filename="../src/App/MainWindow.cpp" line="2794"/>
         <source>&amp;Undo %1</source>
         <translation>&amp;Annuler %1</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2783"/>
-        <location filename="../src/App/MainWindow.cpp" line="2795"/>
+        <location filename="../src/App/MainWindow.cpp" line="2796"/>
+        <location filename="../src/App/MainWindow.cpp" line="2808"/>
         <source>&amp;Undo</source>
         <translation>&amp;Annuler</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2786"/>
+        <location filename="../src/App/MainWindow.cpp" line="2799"/>
         <source>&amp;Redo %1</source>
         <translation>&amp;Rétablir %1</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2788"/>
-        <location filename="../src/App/MainWindow.cpp" line="2796"/>
+        <location filename="../src/App/MainWindow.cpp" line="2801"/>
+        <location filename="../src/App/MainWindow.cpp" line="2809"/>
         <source>&amp;Redo</source>
         <translation>&amp;Rétablir</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2908"/>
+        <location filename="../src/App/MainWindow.cpp" line="2921"/>
         <source>Confirm Exit</source>
         <translation>Confirmer la Sortie</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2909"/>
+        <location filename="../src/App/MainWindow.cpp" line="2922"/>
         <source>Are you sure you want to exit the application?</source>
         <translation>Êtes-vous sûr de vouloir quitter l&apos;application ?</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2964"/>
+        <location filename="../src/App/MainWindow.cpp" line="2977"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2966"/>
+        <location filename="../src/App/MainWindow.cpp" line="2979"/>
         <source>%1 -&gt; Shift-click to import into active document</source>
         <translation>%1 -&gt; Maj-clic pour importer dans le document actif</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2967"/>
+        <location filename="../src/App/MainWindow.cpp" line="2980"/>
         <source>Click to open • Shift-click to import into active window</source>
         <translation>Cliquer pour ouvrir • Maj-clic pour importer dans la fenêtre active</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2998"/>
+        <location filename="../src/App/MainWindow.cpp" line="3024"/>
         <source>File Not Found</source>
         <translation>Fichier introuvable</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2999"/>
+        <location filename="../src/App/MainWindow.cpp" line="3025"/>
         <source>The file &apos;%1&apos; no longer exists. Would you like to remove it from the recent files?</source>
         <translation>Le fichier &apos;%1&apos; n&apos;existe plus. Souhaitez-vous le supprimer des fichiers récents ?</translation>
     </message>
@@ -4658,32 +4664,32 @@ Format de fichier non pris en charge : </translation>
         <translation>Échec de la suppression</translation>
     </message>
     <message>
-        <location filename="../src/Materials/MaterialLibraryWidget.cpp" line="642"/>
+        <location filename="../src/Materials/MaterialLibraryWidget.cpp" line="657"/>
         <source>Overwrite Material?</source>
         <translation>Écraser le matériau ?</translation>
     </message>
     <message>
-        <location filename="../src/Materials/MaterialLibraryWidget.cpp" line="643"/>
+        <location filename="../src/Materials/MaterialLibraryWidget.cpp" line="658"/>
         <source>A material with this key already exists. Overwrite it?</source>
         <translation>Un matériau avec cette clé existe déjà. L&apos;écraser ?</translation>
     </message>
     <message>
-        <location filename="../src/Materials/MaterialLibraryWidget.cpp" line="791"/>
+        <location filename="../src/Materials/MaterialLibraryWidget.cpp" line="806"/>
         <source>Remove Material?</source>
         <translation>Supprimer le matériau ?</translation>
     </message>
     <message>
-        <location filename="../src/Materials/MaterialLibraryWidget.cpp" line="792"/>
+        <location filename="../src/Materials/MaterialLibraryWidget.cpp" line="807"/>
         <source>Are you sure you want to remove this material from your library?</source>
         <translation>Voulez-vous vraiment supprimer ce matériau de votre bibliothèque ?</translation>
     </message>
     <message>
-        <location filename="../src/Materials/MaterialLibraryWidget.cpp" line="901"/>
+        <location filename="../src/Materials/MaterialLibraryWidget.cpp" line="916"/>
         <source>Overwrite File?</source>
         <translation>Écraser le fichier ?</translation>
     </message>
     <message>
-        <location filename="../src/Materials/MaterialLibraryWidget.cpp" line="902"/>
+        <location filename="../src/Materials/MaterialLibraryWidget.cpp" line="917"/>
         <source>The target file already exists. Overwrite it?</source>
         <translation>Le fichier cible existe déjà. L&apos;écraser ?</translation>
     </message>
@@ -11494,9 +11500,9 @@ dont les valeurs Z sont dans cette colonne (mêmes X et Y).</translation>
         <translation type="vanished">%1 maillages ont été figés - annulation de transformation ignorée</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="1850"/>
-        <location filename="../src/App/MainWindow.cpp" line="1876"/>
-        <location filename="../src/App/MainWindow.cpp" line="1915"/>
+        <location filename="../src/App/MainWindow.cpp" line="1863"/>
+        <location filename="../src/App/MainWindow.cpp" line="1889"/>
+        <location filename="../src/App/MainWindow.cpp" line="1928"/>
         <source>Cancel Loading</source>
         <translation>Annuler le chargement</translation>
     </message>
