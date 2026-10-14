@@ -13032,7 +13032,7 @@ points) whose Z values are in that column (same X and Y).</source>
     </message>
     <message>
         <location filename="../src/App/QuickHelpDialog.cpp" line="1267"/>
-        <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Opening Files:&lt;/b&gt; Drag and drop files directly onto the window, or use File → Open&lt;/li&gt;&lt;li&gt;&lt;b&gt;First View:&lt;/b&gt; Press &apos;F&apos; to frame your model perfectly in the viewport&lt;/li&gt;&lt;li&gt;&lt;b&gt;Quick Navigation:&lt;/b&gt; Use Middle Mouse for rotation, Mouse Wheel for zoom, Right Mouse for pan&lt;/li&gt;&lt;li&gt;&lt;b&gt;Recent Files:&lt;/b&gt; Access recently opened files from File → Recent menu&lt;/li&gt;&lt;/ul&gt;</source>
+        <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Opening Files:&lt;/b&gt; Drag and drop files directly onto the window, or use File → Open&lt;/li&gt;&lt;li&gt;&lt;b&gt;First View:&lt;/b&gt; Press &apos;F&apos; to frame your model perfectly in the viewport&lt;/li&gt;&lt;li&gt;&lt;b&gt;Quick Navigation:&lt;/b&gt; Hold Ctrl and drag with the Left Mouse to rotate or the Right Mouse to pan; the Mouse Wheel zooms&lt;/li&gt;&lt;li&gt;&lt;b&gt;Recent Files:&lt;/b&gt; Access recently opened files from File → Recent menu&lt;/li&gt;&lt;/ul&gt;</source>
         <translation></translation>
     </message>
     <message>
