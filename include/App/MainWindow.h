@@ -170,6 +170,7 @@ private slots:
 	void updateRecentFileActions();
     void removeFromRecentFiles(const QString& fileName);
 	void openRecentFile();
+	void clearRecentFiles();
 	void updateWindowMenu();
 
 	void cancelFileLoading();
@@ -349,6 +350,8 @@ private:
 	QAction* recentFileActs[MaxRecentFiles];
 	QAction* recentFileSeparator;
 	QAction* recentFileSubMenuAct;
+	QAction* recentFileClearSeparator = nullptr;
+	QAction* recentFileClearAct = nullptr;
 
 	bool _bFirstTime;
 
