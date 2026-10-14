@@ -673,6 +673,12 @@ MainWindow::MainWindow(QWidget* parent)
 		recentFileActs[i]->setVisible(false);
 	}
 
+	// Clear entry at the bottom of the submenu (shown only while there is something to clear)
+	recentFileClearSeparator = recentMenu->addSeparator();
+	recentFileClearAct = recentMenu->addAction(tr("Clear Recent Files"), this, &MainWindow::clearRecentFiles);
+	recentFileClearSeparator->setVisible(false);
+	recentFileClearAct->setVisible(false);
+
 	setRecentFilesVisible(MainWindow::hasRecentFiles());
 
 	connect(ui->menuWindows, &QMenu::aboutToShow, this, &MainWindow::updateWindowMenu);
@@ -1065,6 +1071,8 @@ void MainWindow::retranslateUI()
 	// Recent files submenu
 	if (recentFileSubMenuAct && recentFileSubMenuAct->menu())
 		recentFileSubMenuAct->menu()->setTitle(tr("Recent..."));
+	if (recentFileClearAct)
+		recentFileClearAct->setText(tr("Clear Recent Files"));
 
 	// Cancel loading button
 	if (_cancelTaskButton)
@@ -1772,7 +1780,9 @@ QStringList MainWindow::readRecentFiles(QSettings& settings)
 {
 	QStringList result;
 	const int count = settings.beginReadArray(recentFilesKey());
-	for (int i = 0; i < count; ++i) {
+	// Only the first MaxRecentFiles entries are ever used. Older versions never trimmed the stored list, so it can
+	// hold hundreds of stale entries; reading just the head keeps every open and menu refresh cheap.
+	for (int i = 0; i < qMin(count, int(MaxRecentFiles)); ++i) {
 		settings.setArrayIndex(i);
 		result.append(settings.value(fileKey()).toString());
 	}
@@ -1782,7 +1792,10 @@ QStringList MainWindow::readRecentFiles(QSettings& settings)
 
 void MainWindow::writeRecentFiles(const QStringList& files, QSettings& settings)
 {
-	const int count = files.size();
+	const int count = qMin(int(files.size()), int(MaxRecentFiles));
+	// Drop the whole old array first: beginWriteArray() only sets the new size and would leave stale
+	// higher-index entries behind in the registry / ini file.
+	settings.remove(recentFilesKey());
 	settings.beginWriteArray(recentFilesKey());
 	for (int i = 0; i < count; ++i) {
 		settings.setArrayIndex(i);
@@ -2970,6 +2983,19 @@ void MainWindow::updateRecentFileActions()
 
 	for (; i < MaxRecentFiles; ++i)
 		recentFileActs[i]->setVisible(false);
+
+	if (recentFileClearSeparator)
+		recentFileClearSeparator->setVisible(count > 0);
+	if (recentFileClearAct)
+		recentFileClearAct->setVisible(count > 0);
+}
+
+void MainWindow::clearRecentFiles()
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	settings.remove(recentFilesKey());
+	setRecentFilesVisible(false);
+	updateRecentFileActions();
 }
 
 void MainWindow::removeFromRecentFiles(const QString& fileName)
