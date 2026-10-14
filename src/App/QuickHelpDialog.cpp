@@ -1267,7 +1267,7 @@ void QuickHelpDialog::setupTipsAndTricksTab()
 		tr("<ul>"
 			"<li><b>Opening Files:</b> Drag and drop files directly onto the window, or use File → Open</li>"
 			"<li><b>First View:</b> Press 'F' to frame your model perfectly in the viewport</li>"
-			"<li><b>Quick Navigation:</b> Use Middle Mouse for rotation, Mouse Wheel for zoom, Right Mouse for pan</li>"
+			"<li><b>Quick Navigation:</b> Hold Ctrl and drag with the Left Mouse to rotate or the Right Mouse to pan; the Mouse Wheel zooms</li>"
 			"<li><b>Recent Files:</b> Access recently opened files from File → Recent menu</li>"
 			"</ul>"));
 
