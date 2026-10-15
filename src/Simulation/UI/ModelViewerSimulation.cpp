@@ -1855,6 +1855,11 @@ void ModelViewer::updateSimulationTensorGlyphs(SimulationSession& session, bool 
 	else
 		session.tensorGlyphInfo = tr("Ellipsoids: %1, coloured by von Mises from %2 to %3%4.")
 			.arg(field.name).arg(lo, 0, 'g', 4).arg(hi, 0, 'g', 4).arg(set.unit.isEmpty() ? QString() : QStringLiteral(" ") + set.unit);
+	// Ellipsoids sit at the surface's own sample points only. When the surface has fewer of them than the count asked for
+	// (a coarse mesh), a larger count cannot add any - say so, otherwise the count box looks like it does nothing.
+	if (session.tensorGlyphSites.size() < wanted * 4 / 5)
+		session.tensorGlyphInfo += QLatin1Char(' ')
+			+ tr("This surface has only %1 sample points, so a higher count adds no more ellipsoids.").arg(session.tensorGlyphSites.size());
 	_viewportWidget->setSimulationTensorGlyphs(session.meshUuid, std::move(set));
 }
 
