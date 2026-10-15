@@ -30,7 +30,7 @@ Capture in the English UI; the translated lessons share the same pictures.
   *Streamlines swirling through the duct, with arrowheads*
 - [ ] `tutorial_20_volume_rendering.png` (700x450) - Open block.cgns, tick Show as volume (Temperature, Medium or High quality), and include the opacity curve widget in the Simulation Results tab in the shot (crop window + dock together).  
   *The temperature field of the block rendered as a volume*
-- [ ] `tutorial_20_stress_ellipsoids.png` (700x450) - Open plate_with_hole.frd, Show stress ellipsoids with count 2000, last load step, view the plate face-on, zoomed so the hole fills about a third of the viewport.  
+- [ ] `tutorial_20_stress_ellipsoids.png` (700x450) - Open plate_with_hole.frd, Show stress ellipsoids (default count 400; this surface has fewer sample points than that), last load step, view the plate face-on, zoomed so the hole fills about a third of the viewport.  
   *Stress ellipsoids around the hole of the plate*
 
 ## Lesson 21 - Charts and Probing
