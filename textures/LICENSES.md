@@ -71,9 +71,9 @@ Materials from sources that did not allow redistribution (freepbr.com, Poliigon)
 | Vestibule | Sergej Majboroda | https://polyhaven.com/a/vestibule |
 | Vignaioli_Night | Greg Zaal & Rico Cilliers | https://polyhaven.com/a/vignaioli_night |
 | Warm_Restaurant_Night | Greg Zaal & Jarod Guest | https://polyhaven.com/a/warm_restaurant_night |
-| `studio.hdr` | Greg Zaal | Poly Haven `studio_small_03` (2k) |
-| `outdoor.hdr` | Greg Zaal | Poly Haven `kloofendal_43d_clear_puresky` (2k) |
-| `office.hdr` | Sergej Majboroda | Poly Haven `entrance_hall` (2k) |
+| `studio.hdr` | Grzegorz Wronkowski | https://polyhaven.com/a/pav_studio_03 (PAV Studio 03) |
+| `outdoor.hdr` | Grzegorz Wronkowski | https://polyhaven.com/a/modern_evening_street (Modern Evening Street) |
+| `office.hdr` | Greg Zaal | https://polyhaven.com/a/poly_haven_studio (Poly Haven Studio) |
 
 All Poly Haven maps are CC0 1.0 (https://polyhaven.com/license): no credit required, credit appreciated.
 
