@@ -89,3 +89,9 @@ By Emil Persson, aka Humus (http://www.humus.name), licensed under **Creative Co
 
 - `textures/khronos` (charlie and sheen-E look-up tables): from the Khronos glTF Sample Viewer (Apache-2.0). *To confirm.*
 - `textures/patterns` and `textures/envmap/floor`: sources *to confirm*.
+
+### Removed in 2026-10 (licence could not be confirmed as redistributable)
+
+Doge's Palace (`doge2`), Dining Room (`ennis`) and Pisa: from Paul Debevec's light probe gallery (USC ICT); the gallery page states "Images Copyright (c) 1998, 1999 Paul Debevec. If you'd like to use them, let us know!", so permission is needed.
+Field: an HDRI Hub free sample; HDRI Hub has offered free images for personal use only.
+Footprint Court, Helipad, Papermill Ruins, Newport Loft, Frozen Waterfall, Mon Valley, Ueno Shrine, Winter Forest, Blue Lagoon Night: sIBL-archive style maps (HDRLabs and others); the one licence statement found describes the sIBL archive as CC BY-NC-SA 3.0 (non-commercial). They can be restored if permission or a permissive licence is obtained.
