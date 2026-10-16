@@ -2,6 +2,8 @@
 
 Every texture shipped in `textures/` and where it comes from. Audited 2026-10-15; the entries marked *to confirm* could not be verified yet.
 
+The GPL-3.0 licence of the ModelViewer program does not apply to these third-party files. Each file keeps the licence of its source as listed here, and a licence on the program cannot change the terms of an asset.
+
 ## Materials (`textures/materials`)
 
 | Source | Licence | Folders |
