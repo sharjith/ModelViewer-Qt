@@ -1040,7 +1040,7 @@ install(FILES
 )
 
 set(_hdri_included_packs
-    "@Default" "Frozenwaterfall" "Newport_Loft" "Venice_Sunset"
+    "@Default" "Kloofendal_43D_Clear_Puresky" "Kloofendal_Overcast_Puresky" "Venice_Sunset"
 )
 foreach(_pack ${_hdri_included_packs})
     install(DIRECTORY "textures/envmap/skyboxes/HDRI/${_pack}"
@@ -1052,10 +1052,10 @@ endforeach()
 # The essentials: the common metals, plastics, rubber, wood, stone, paper, denim and a clear-coated paint (~150 MB). The rest of the library (~2.2 GB) is a
 # separate download (the "material library" pack, see packaging/make-content-packs.ps1) that users unzip into share/ModelViewer/textures.
 set(_material_included_presets
-    "ClearCoat_Metallic_Blue" "Fabric_Denim_02" "Metal_Aluminium" "Metal_Brushed-Metal"
-    "Metal_Chrome" "Metal_Copper" "Metal_Dull_Brass" "Metal_Gold" "Metal_Silver_Dull"
-    "Metal_Stainless_Steel" "Metal_Steel" "Metal_Titanium" "Paper_Paper001"
-    "Plastic_ABS_Glossy" "Plastic_ABS_Matte" "Rubber_Tire" "Stone_Granite006a"
+    "ClearCoat_Metallic_Blue" "Fabric_Denim_02" "Metal_Metal050A" "Metal_Brushed-Metal"
+    "Metal_Metal049A" "Metal_Copper" "Metal_Metal048C" "Metal_Metal048A" "Metal_Silver_Dull"
+    "Metal_Metal033" "Metal_Metal038" "Metal_Metal059A" "Paper_Paper001"
+    "Plastic_Plastic006" "Plastic_Plastic011" "Rubber_Rubber004" "Stone_Granite006a"
     "Wood_Plywood" "Wood_Wood051"
 )
 foreach(_preset ${_material_included_presets})
