@@ -13,9 +13,118 @@ The GPL-3.0 licence of the ModelViewer program does not apply to these third-par
 | The ModelViewer author (made with Blender scripts) | GPL-3.0, like the project | `ClearCoat_Metallic_Blue`, `Metal_Bronze-1`, `Metal_Bronze-2`, `Metal_Brushed-Metal`, `Metal_Copper`, `Metal_Silver_Dull` |
 | *to confirm* | probably 3dtextures.me, CC0 | `Stone_Quartz_001`, `Wall_Glass_Window` |
 
-ambientCG sets added in 2026-10 (each folder has a `SOURCE.txt`): `Ground_Grass005`, `Ground_Snow010A`, `Metal_CorrugatedSteel005`, `Metal_Metal007`, `Metal_Metal008`, `Metal_Metal009`, `Metal_Metal010`, `Metal_Metal030`, `Metal_Metal031`, `Metal_Metal034`, `Metal_Metal035`, `Metal_Metal036`, `Metal_Metal038`, `Metal_Metal041A`, `Metal_Metal041C`, `Metal_Metal043A`, `Metal_Metal044A`, `Metal_Metal045A`, `Metal_Metal046A`, `Metal_Metal048A`, `Metal_Metal048B`, `Metal_Metal048C`, `Metal_Metal049A`, `Metal_Metal049B`, `Metal_Metal050A`, `Metal_Metal050B`, `Metal_Metal052A`, `Metal_Metal053B`, `Metal_Metal054A`, `Metal_Metal055A`, `Metal_Metal055C`, `Metal_Metal057A`, `Metal_Metal057B`, `Metal_Metal058B`, `Metal_Metal059A`, `Metal_Metal059C`, `Metal_Metal060A`, `Metal_Metal060B`, `Metal_Metal062A`, `Metal_MetalPlates017A`, `Plastic_Plastic003`, `Plastic_Plastic006`, `Plastic_Plastic010`, `Plastic_Plastic011`, `Plastic_Plastic018B`, `Wall_Bricks008`, `Wall_Bricks019`, `Wood_Bamboo001C`, `Wood_Wood052`, `Wood_Wood093`, `Wood_Wood094`
+ambientCG sets added in 2026-10 (each folder has a `SOURCE.txt`): `Ground_Grass005`, `Ground_Snow_Fresh`, `Metal_Corrugated_Steel`, `Metal_Steel_Pitted`, `Metal_Gold_Worn`, `Metal_Bronze_Weathered`, `Metal_Aluminum_Brushed`, `Metal_Steel_Brushed`, `Metal_Lead`, `Metal_Magnesium_Satin`, `Metal_Gold_Light`, `Metal_Copper_Satin`, `Metal_Zinc_Satin_Dark`, `Metal_Steel_Scratched`, `Metal_Iron_Heavily_Rusted`, `Metal_Gold_Rose`, `Metal_Steel_Stainless`, `Metal_Nickel_Polished`, `Metal_Gold_Mirror`, `Metal_Brass_Polished`, `Metal_Brass_Dull`, `Metal_Chrome_Mirror`, `Metal_Silver_Smudged`, `Metal_Aluminum_Polished`, `Metal_Aluminum_Scuffed`, `Metal_Chrome_Black`, `Metal_Steel_Polished`, `Metal_Iron_Rust_Covered`, `Metal_Iron_Scuffed`, `Metal_Iron`, `Metal_Iron_Rusted`, `Metal_Bronze_Polished`, `Metal_Copper_Scuffed`, `Metal_Copper_Oxidized`, `Metal_Titanium_Polished`, `Metal_Titanium_Scuffed`, `Metal_Gunmetal`, `Metal_Pewter_Aged`, `Metal_Platinum_Polished`, `Metal_Sci-Fi_Panel`, `Plastic_Dark_Brown_Textured`, `Plastic_ABS_Glossy_Black`, `Plastic_PVC_Light_Grey`, `Plastic_ABS_Matte_Grey`, `Plastic_Grey_Scuffed`, `Wall_Stone_Blocks_Grey`, `Wall_Bricks_Cream`, `Wood_Bamboo_Semigloss`, `Wood_Orange_Pine`, `Wood_Veneer_Cherry`, `Wood_Veneer_Light_Beech`
 
-Earlier ambientCG sets (file names `Name###_2K-JPG_*`): `Fabric_Fabric030`, `Fabric_Fabric037`, `Fabric_Fabric040`, `Fabric_Fabric050`, `Fabric_Fabric059`, `Fabric_Fabric060`, `Fabric_Leather025`, `Fabric_Leather026`, `Fabric_Leather027`, `Fabric_Leather028`, `Fabric_Leather029`, `Fabric_Leather030`, `Fabric_Leather033a`, `Fabric_Leather034c`, `Fabric_Leather035a`, `Fabric_Leather038`, `Fabric_Leather039`, `Metal_Copper_Dirty`, `Metal_Copper_Smudge`, `Metal_Grey_Metal`, `Metal_Grey_Metal_1`, `Metal_Nickel_Rough`, `Metal_Powder_Steel`, `Paper_Paper001`, `Paper_Paper002`, `Paper_Paper005`, `Plastic_Plastic007`, `Plastic_Plastic008`, `Plastic_Plastic012a`, `Plastic_Plastic013a`, `Plastic_Plastic014a`, `Plastic_Plastic015a`, `Plastic_Plastic016a`, `Plastic_Plastic017a`, `Plastic_Plastic018a`, `Rubber_Rubber001`, `Rubber_Rubber002`, `Rubber_Rubber003`, `Rubber_Rubber004`, `Stone_Granite005b`, `Stone_Granite006a`, `Stone_Marble008`, `Stone_Marble009`, `Stone_Marble014`, `Stone_Marble018`, `Synthetic_Sponge001`, `Synthetic_Sponge003`, `Wood_Plywood`, `Wood_Wood040`, `Wood_Wood043`, `Wood_Wood051`, `Wood_Wood067`, `Wood_Wood068`
+Earlier ambientCG sets (file names `Name###_2K-JPG_*`): `Fabric_Grey_Linen`, `Fabric_Green_Linen`, `Fabric_Rust_Linen`, `Fabric_Tartan`, `Fabric_Bright_Blue`, `Fabric_White_Linen`, `Fabric_Leather_Cream_Textured`, `Fabric_Leather_Black_Grained`, `Fabric_Leather_Black_Soft`, `Fabric_Leather_Chocolate_Textured`, `Fabric_Leather_Saddle_Brown_Textured`, `Fabric_Leather_Dark_Brown_Textured`, `Fabric_Leather_Distressed_Brown`, `Fabric_Leather_Quilted_Dark`, `Fabric_Leather_Quilted_Cream`, `Fabric_Leather_Orange_Textured`, `Fabric_Leather_Peach_Textured`, `Metal_Copper_Dirty`, `Metal_Copper_Smudge`, `Metal_Grey_Metal`, `Metal_Grey_Metal_1`, `Metal_Nickel_Rough`, `Metal_Powder_Steel`, `Paper_White`, `Paper_Grey_Cardboard`, `Paper_Kraft`, `Plastic_Orange_Textured`, `Plastic_Navy_Textured`, `Plastic_Charcoal_Textured`, `Plastic_Off-White_Textured`, `Plastic_Coral_Textured`, `Plastic_Sky_Blue_Textured`, `Plastic_Yellow_Textured`, `Plastic_Green_Textured`, `Plastic_Grey_Textured`, `Rubber_Black_Speckled`, `Rubber_Dark_Teal_Speckled`, `Rubber_Teal_Speckled`, `Rubber_Tire`, `Stone_Granite_Light_Grey`, `Stone_Granite_Red`, `Stone_Marble_Brown_Veined`, `Stone_Marble_Black_Green`, `Stone_Marble_Cream`, `Stone_Marble_Grey_Veined`, `Synthetic_Sponge_Yellow`, `Synthetic_Sponge_Green`, `Wood_Plywood`, `Wood_Plywood_Weathered_Grey`, `Wood_Planks_Dark_Grey`, `Wood_Dark_Brown_Grain`, `Wood_Mahogany`, `Wood_Light_Grain`
+
+The metal folders are named after the material; the ambientCG set each one comes from is also written in its `SOURCE.txt`:
+
+| Folder | ambientCG set |
+|---|---|
+| `Metal_Aluminum_Brushed` | Metal009 |
+| `Metal_Aluminum_Polished` | Metal050A |
+| `Metal_Aluminum_Scuffed` | Metal050B |
+| `Metal_Brass_Dull` | Metal048C |
+| `Metal_Brass_Polished` | Metal048B |
+| `Metal_Bronze_Polished` | Metal057A |
+| `Metal_Bronze_Weathered` | Metal008 |
+| `Metal_Chrome_Black` | Metal052A |
+| `Metal_Chrome_Mirror` | Metal049A |
+| `Metal_Copper_Oxidized` | Metal058B |
+| `Metal_Copper_Satin` | Metal035 |
+| `Metal_Copper_Scuffed` | Metal057B |
+| `Metal_Corrugated_Steel` | CorrugatedSteel005 |
+| `Metal_Gold_Light` | Metal034 |
+| `Metal_Gold_Mirror` | Metal048A |
+| `Metal_Gold_Rose` | Metal043A |
+| `Metal_Gold_Worn` | Metal007 |
+| `Metal_Gunmetal` | Metal060A |
+| `Metal_Iron` | Metal055A |
+| `Metal_Iron_Heavily_Rusted` | Metal041C |
+| `Metal_Iron_Rust_Covered` | Metal053B |
+| `Metal_Iron_Rusted` | Metal055C |
+| `Metal_Iron_Scuffed` | Metal054A |
+| `Metal_Lead` | Metal030 |
+| `Metal_Magnesium_Satin` | Metal031 |
+| `Metal_Nickel_Polished` | Metal045A |
+| `Metal_Pewter_Aged` | Metal060B |
+| `Metal_Platinum_Polished` | Metal062A |
+| `Metal_Sci-Fi_Panel` | MetalPlates017A |
+| `Metal_Silver_Smudged` | Metal049B |
+| `Metal_Steel_Brushed` | Metal010 |
+| `Metal_Steel_Pitted` | Metal005 |
+| `Metal_Steel_Polished` | Metal053A |
+| `Metal_Steel_Scratched` | Metal038 |
+| `Metal_Steel_Stainless` | Metal044A |
+| `Metal_Titanium_Polished` | Metal059A |
+| `Metal_Titanium_Scuffed` | Metal059B |
+| `Metal_Zinc_Satin_Dark` | Metal036 |
+
+
+The remaining folders were renamed in the same way; the ambientCG set each one comes from:
+
+| Folder | ambientCG set |
+|---|---|
+| `Fabric_Bright_Blue` | Fabric059 |
+| `Fabric_Green_Linen` | Fabric037 |
+| `Fabric_Grey_Linen` | Fabric030 |
+| `Fabric_Leather_Black_Grained` | Leather026 |
+| `Fabric_Leather_Black_Soft` | Leather027 |
+| `Fabric_Leather_Chocolate_Textured` | Leather028 |
+| `Fabric_Leather_Cream_Textured` | Leather025 |
+| `Fabric_Leather_Dark_Brown_Textured` | Leather030 |
+| `Fabric_Leather_Distressed_Brown` | Leather033a |
+| `Fabric_Leather_Orange_Textured` | Leather038 |
+| `Fabric_Leather_Peach_Textured` | Leather039 |
+| `Fabric_Leather_Quilted_Cream` | Leather035a |
+| `Fabric_Leather_Quilted_Dark` | Leather034c |
+| `Fabric_Leather_Saddle_Brown_Textured` | Leather029 |
+| `Fabric_Rust_Linen` | Fabric040 |
+| `Fabric_Tartan` | Fabric050 |
+| `Fabric_White_Linen` | Fabric060 |
+| `Ground_Snow_Fresh` | Snow010A |
+| `Paper_Grey_Cardboard` | Paper002 |
+| `Paper_Kraft` | Paper005 |
+| `Paper_White` | Paper001 |
+| `Plastic_ABS_Glossy_Black` | Plastic006 |
+| `Plastic_ABS_Matte_Grey` | Plastic011 |
+| `Plastic_Charcoal_Textured` | Plastic012a |
+| `Plastic_Coral_Textured` | Plastic014a |
+| `Plastic_Dark_Brown_Textured` | Plastic003 |
+| `Plastic_Green_Textured` | Plastic017a |
+| `Plastic_Grey_Scuffed` | Plastic018B |
+| `Plastic_Grey_Textured` | Plastic018a |
+| `Plastic_Navy_Textured` | Plastic008 |
+| `Plastic_Off-White_Textured` | Plastic013a |
+| `Plastic_Orange_Textured` | Plastic007 |
+| `Plastic_PVC_Light_Grey` | Plastic010 |
+| `Plastic_Sky_Blue_Textured` | Plastic015a |
+| `Plastic_Yellow_Textured` | Plastic016a |
+| `Rubber_Black_Speckled` | Rubber001 |
+| `Rubber_Dark_Teal_Speckled` | Rubber002 |
+| `Rubber_Teal_Speckled` | Rubber003 |
+| `Rubber_Tire` | Rubber004 |
+| `Stone_Granite_Light_Grey` | Granite005b |
+| `Stone_Granite_Red` | Granite006a |
+| `Stone_Marble_Black_Green` | Marble009 |
+| `Stone_Marble_Brown_Veined` | Marble008 |
+| `Stone_Marble_Cream` | Marble014 |
+| `Stone_Marble_Grey_Veined` | Marble018 |
+| `Synthetic_Sponge_Green` | Sponge003 |
+| `Synthetic_Sponge_Yellow` | Sponge001 |
+| `Wall_Bricks_Cream` | Bricks019 |
+| `Wall_Stone_Blocks_Grey` | Bricks008 |
+| `Wood_Bamboo_Semigloss` | Bamboo001C |
+| `Wood_Dark_Brown_Grain` | Wood051 |
+| `Wood_Light_Grain` | Wood068 |
+| `Wood_Mahogany` | Wood067 |
+| `Wood_Orange_Pine` | Wood052 |
+| `Wood_Planks_Dark_Grey` | Wood043 |
+| `Wood_Plywood_Weathered_Grey` | Wood040 |
+| `Wood_Veneer_Cherry` | Wood093 |
+| `Wood_Veneer_Light_Beech` | Wood094 |
+
+The `Metal_Gold_Brushed`, `Metal_Silver_Brushed`, `Metal_Copper_Brushed`, `Metal_Brass_Brushed`, `Metal_Bronze_Brushed`, `Metal_Nickel_Brushed` and `Metal_Titanium_Brushed` folders are ambientCG `Metal009` (CC0) with its colour map tinted; the other maps are unchanged.
 
 Materials from sources that did not allow redistribution (freepbr.com, Poliigon) were removed in 2026-10 and replaced with the ambientCG sets above.
 

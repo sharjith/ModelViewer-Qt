@@ -1058,11 +1058,11 @@ endforeach()
 # The essentials: the common metals, plastics, rubber, wood, stone, paper, denim and a clear-coated paint (~150 MB). The rest of the library (~2.2 GB) is a
 # separate download (the "material library" pack, see packaging/make-content-packs.ps1) that users unzip into share/ModelViewer/textures.
 set(_material_included_presets
-    "ClearCoat_Metallic_Blue" "Fabric_Denim_02" "Metal_Metal050A" "Metal_Brushed-Metal"
-    "Metal_Metal049A" "Metal_Copper" "Metal_Metal048C" "Metal_Metal048A" "Metal_Silver_Dull"
-    "Metal_Metal044A" "Metal_Metal038" "Metal_Metal059A" "Paper_Paper001"
-    "Plastic_Plastic006" "Plastic_Plastic011" "Rubber_Rubber004" "Stone_Granite006a"
-    "Wood_Plywood" "Wood_Wood051"
+    "ClearCoat_Metallic_Blue" "Fabric_Denim_02" "Metal_Aluminum_Polished" "Metal_Brushed-Metal"
+    "Metal_Chrome_Mirror" "Metal_Copper" "Metal_Brass_Dull" "Metal_Gold_Mirror" "Metal_Silver_Dull"
+    "Metal_Steel_Stainless" "Metal_Steel_Scratched" "Metal_Titanium_Polished" "Paper_White"
+    "Plastic_ABS_Glossy_Black" "Plastic_ABS_Matte_Grey" "Rubber_Tire" "Stone_Granite_Red"
+    "Wood_Plywood" "Wood_Dark_Brown_Grain"
 )
 foreach(_preset ${_material_included_presets})
     install(DIRECTORY "textures/materials/${_preset}"
