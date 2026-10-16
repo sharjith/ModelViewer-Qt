@@ -64,38 +64,48 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/AboutDialog.cpp" line="155"/>
+        <location filename="../src/App/AboutDialog.cpp" line="157"/>
         <source>3D Model Viewer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/AboutDialog.cpp" line="156"/>
+        <location filename="../src/App/AboutDialog.cpp" line="158"/>
         <source>A desktop 3D model viewer for CAD and graphics-interchange formats</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/AboutDialog.cpp" line="157"/>
+        <location filename="../src/App/AboutDialog.cpp" line="159"/>
         <source>Visualizes OBJ and StereoLithography (STL) models via the Assimp library, and STEP, IGES, and BREP CAD files via the OpenCASCADE library, with real-time rasterized and offline path-traced rendering.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/AboutDialog.cpp" line="160"/>
+        <location filename="../src/App/AboutDialog.cpp" line="162"/>
         <source>Version Information</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/AboutDialog.cpp" line="162"/>
+        <location filename="../src/App/AboutDialog.cpp" line="164"/>
         <source>Graphics</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/AboutDialog.cpp" line="164"/>
+        <location filename="../src/App/AboutDialog.cpp" line="166"/>
         <source>Copyright © 2021–2026 Sharjith Naramparambath</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/AboutDialog.cpp" line="165"/>
+        <location filename="../src/App/AboutDialog.cpp" line="167"/>
         <source>Contact</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/AboutDialog.cpp" line="168"/>
+        <source>Third-Party Credits</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/AboutDialog.cpp" line="169"/>
+        <source>Environment maps in the LDRI set: Emil Persson (Humus), CC BY 3.0. Carbon Fiber material: &amp;quot;Carbon Fibre Ball&amp;quot; by Eric Chadwick, &amp;copy; 2023 Wayfair, via the Khronos glTF Sample Assets, CC BY 4.0. Most other textures and HDRI maps are CC0 (ambientCG, Poly Haven, 3dtextures.me, TextureCan). The full list is in CREDITS.md and textures/LICENSES.md in the installation folder.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

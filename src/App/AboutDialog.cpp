@@ -148,6 +148,8 @@ QString AboutDialog::buildDetailsHtml(const QString& graphicsInfo) const
 		"<table>%5</table>"
 		"<h2>%6</h2>"
 		"<table>%7</table>"
+		"<h2>%10</h2>"
+		"<p class='desc'>%11</p>"
 		"<p class='copyright'>%8<br/>"
 		"%9 &middot; <a href='mailto:sharjith@gmail.com'>sharjith@gmail.com</a> &middot; "
 		"<a href='https://github.com/sharjith/ModelViewer-Qt'>github.com/sharjith/ModelViewer-Qt</a></p>"
@@ -162,5 +164,10 @@ QString AboutDialog::buildDetailsHtml(const QString& graphicsInfo) const
 		.arg(tr("Graphics"))
 		.arg(graphicsRows)
 		.arg(tr("Copyright © 2021–2026 Sharjith Naramparambath"))
-		.arg(tr("Contact"));
+		.arg(tr("Contact"))
+		.arg(tr("Third-Party Credits"))
+		.arg(tr("Environment maps in the LDRI set: Emil Persson (Humus), CC BY 3.0. "
+			"Carbon Fiber material: &quot;Carbon Fibre Ball&quot; by Eric Chadwick, &copy; 2023 Wayfair, via the Khronos glTF Sample Assets, CC BY 4.0. "
+			"Most other textures and HDRI maps are CC0 (ambientCG, Poly Haven, 3dtextures.me, TextureCan). "
+			"The full list is in CREDITS.md and textures/LICENSES.md in the installation folder."));
 }

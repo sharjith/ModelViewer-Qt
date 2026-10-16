@@ -1178,28 +1178,28 @@ QVector<QPair<QString, QVector<QPair<QString, QString>>>> MaterialLibraryWidget:
 		QString group = QStringLiteral("Plastics");
 		QVector<QPair<QString, QString>> items;
 		materialMap.insert("BLACK_PLASTIC", []() { return Material::BLACK_PLASTIC(); });
-		items.emplace_back(QStringLiteral("Black Plastic"), QStringLiteral("BLACK_PLASTIC"));
+		items.emplace_back(QStringLiteral("Plastic, Black"), QStringLiteral("BLACK_PLASTIC"));
 
 		materialMap.insert("BLUE_PLASTIC", []() { return Material::BLUE_PLASTIC(); });
-		items.emplace_back(QStringLiteral("Blue Plastic"), QStringLiteral("BLUE_PLASTIC"));
+		items.emplace_back(QStringLiteral("Plastic, Blue"), QStringLiteral("BLUE_PLASTIC"));
 
 		materialMap.insert("CYAN_PLASTIC", []() { return Material::CYAN_PLASTIC(); });
-		items.emplace_back(QStringLiteral("Cyan Plastic"), QStringLiteral("CYAN_PLASTIC"));
+		items.emplace_back(QStringLiteral("Plastic, Cyan"), QStringLiteral("CYAN_PLASTIC"));
 
 		materialMap.insert("GREEN_PLASTIC", []() { return Material::GREEN_PLASTIC(); });
-		items.emplace_back(QStringLiteral("Green Plastic"), QStringLiteral("GREEN_PLASTIC"));
+		items.emplace_back(QStringLiteral("Plastic, Green"), QStringLiteral("GREEN_PLASTIC"));
 
 		materialMap.insert("MAGENTA_PLASTIC", []() { return Material::MAGENTA_PLASTIC(); });
-		items.emplace_back(QStringLiteral("Magenta Plastic"), QStringLiteral("MAGENTA_PLASTIC"));
+		items.emplace_back(QStringLiteral("Plastic, Magenta"), QStringLiteral("MAGENTA_PLASTIC"));
 
 		materialMap.insert("RED_PLASTIC", []() { return Material::RED_PLASTIC(); });
-		items.emplace_back(QStringLiteral("Red Plastic"), QStringLiteral("RED_PLASTIC"));
+		items.emplace_back(QStringLiteral("Plastic, Red"), QStringLiteral("RED_PLASTIC"));
 
 		materialMap.insert("WHITE_PLASTIC", []() { return Material::WHITE_PLASTIC(); });
-		items.emplace_back(QStringLiteral("White Plastic"), QStringLiteral("WHITE_PLASTIC"));
+		items.emplace_back(QStringLiteral("Plastic, White"), QStringLiteral("WHITE_PLASTIC"));
 
 		materialMap.insert("YELLOW_PLASTIC", []() { return Material::YELLOW_PLASTIC(); });
-		items.emplace_back(QStringLiteral("Yellow Plastic"), QStringLiteral("YELLOW_PLASTIC"));
+		items.emplace_back(QStringLiteral("Plastic, Yellow"), QStringLiteral("YELLOW_PLASTIC"));
 
 		builtInGroups.emplace_back(group, items);
 	}
@@ -1209,35 +1209,35 @@ QVector<QPair<QString, QVector<QPair<QString, QString>>>> MaterialLibraryWidget:
 		QString group = QStringLiteral("Rubbers");
 		QVector<QPair<QString, QString>> items;
 		materialMap.insert("BLACK_RUBBER", []() { return Material::BLACK_RUBBER(); });
-		items.emplace_back(QStringLiteral("Black Rubber"), QStringLiteral("BLACK_RUBBER"));
+		items.emplace_back(QStringLiteral("Rubber, Black"), QStringLiteral("BLACK_RUBBER"));
 
 		materialMap.insert("BLUE_RUBBER", []() { return Material::BLUE_RUBBER(); });
-		items.emplace_back(QStringLiteral("Blue Rubber"), QStringLiteral("BLUE_RUBBER"));
+		items.emplace_back(QStringLiteral("Rubber, Blue"), QStringLiteral("BLUE_RUBBER"));
 
 		materialMap.insert("CYAN_RUBBER", []() { return Material::CYAN_RUBBER(); });
-		items.emplace_back(QStringLiteral("Cyan Rubber"), QStringLiteral("CYAN_RUBBER"));
+		items.emplace_back(QStringLiteral("Rubber, Cyan"), QStringLiteral("CYAN_RUBBER"));
 
 		materialMap.insert("GREEN_RUBBER", []() { return Material::GREEN_RUBBER(); });
-		items.emplace_back(QStringLiteral("Green Rubber"), QStringLiteral("GREEN_RUBBER"));
+		items.emplace_back(QStringLiteral("Rubber, Green"), QStringLiteral("GREEN_RUBBER"));
 
 		materialMap.insert("MAGENTA_RUBBER", []() { return Material::MAGENTA_RUBBER(); });
-		items.emplace_back(QStringLiteral("Magenta Rubber"), QStringLiteral("MAGENTA_RUBBER"));
+		items.emplace_back(QStringLiteral("Rubber, Magenta"), QStringLiteral("MAGENTA_RUBBER"));
 
 		materialMap.insert("RED_RUBBER", []() { return Material::RED_RUBBER(); });
-		items.emplace_back(QStringLiteral("Red Rubber"), QStringLiteral("RED_RUBBER"));
+		items.emplace_back(QStringLiteral("Rubber, Red"), QStringLiteral("RED_RUBBER"));
 
 		materialMap.insert("WHITE_RUBBER", []() { return Material::WHITE_RUBBER(); });
-		items.emplace_back(QStringLiteral("White Rubber"), QStringLiteral("WHITE_RUBBER"));
+		items.emplace_back(QStringLiteral("Rubber, White"), QStringLiteral("WHITE_RUBBER"));
 
 		materialMap.insert("YELLOW_RUBBER", []() { return Material::YELLOW_RUBBER(); });
-		items.emplace_back(QStringLiteral("Yellow Rubber"), QStringLiteral("YELLOW_RUBBER"));
+		items.emplace_back(QStringLiteral("Rubber, Yellow"), QStringLiteral("YELLOW_RUBBER"));
 
 		builtInGroups.emplace_back(group, items);
 	}
 
 	// --- Wood Materials ---
 	{
-		QString group = QStringLiteral("Wood Materials");
+		QString group = QStringLiteral("Wood");
 		QVector<QPair<QString, QString>> items;
 		materialMap.insert("WOOD_BAMBOO", []() { return Material::WOOD_BAMBOO(); });
 		items.emplace_back(QStringLiteral("Bamboo"), QStringLiteral("WOOD_BAMBOO"));
@@ -1277,7 +1277,7 @@ QVector<QPair<QString, QVector<QPair<QString, QString>>>> MaterialLibraryWidget:
 
 	// --- Concrete Materials ---
 	{
-		QString group = QStringLiteral("Concrete Materials");
+		QString group = QStringLiteral("Walls & Concrete");
 		QVector<QPair<QString, QString>> items;
 		materialMap.insert("CONCRETE", []() { return Material::CONCRETE(); });
 		items.emplace_back(QStringLiteral("Concrete"), QStringLiteral("CONCRETE"));
@@ -1296,154 +1296,154 @@ QVector<QPair<QString, QVector<QPair<QString, QString>>>> MaterialLibraryWidget:
 
 	// --- Sheen Materials (cloth/fabric variants) ---
 	{
-		QString group = QStringLiteral("Sheen Materials");
+		QString group = QStringLiteral("Fabrics");
 		QVector<QPair<QString, QString>> items;
 		materialMap.insert("FABRIC", []() { return Material::FABRIC(); });
-		items.emplace_back(QStringLiteral("Fabric"), QStringLiteral("FABRIC"));
+		items.emplace_back(QStringLiteral("Fabric, Plain"), QStringLiteral("FABRIC"));
 
 		materialMap.insert("MICROFIBER_CLOTH", []() { return Material::MICROFIBER_CLOTH(); });
-		items.emplace_back(QStringLiteral("Microfiber Cloth"), QStringLiteral("MICROFIBER_CLOTH"));
+		items.emplace_back(QStringLiteral("Fabric, Microfiber"), QStringLiteral("MICROFIBER_CLOTH"));
 
 		materialMap.insert("SATIN_FABRIC", []() { return Material::SATIN_FABRIC(); });
-		items.emplace_back(QStringLiteral("Satin Fabric"), QStringLiteral("SATIN_FABRIC"));
+		items.emplace_back(QStringLiteral("Fabric, Satin"), QStringLiteral("SATIN_FABRIC"));
 
 		materialMap.insert("VELVET_RED", []() { return Material::VELVET_RED(); });
-		items.emplace_back(QStringLiteral("Velvet Red"), QStringLiteral("VELVET_RED"));
+		items.emplace_back(QStringLiteral("Fabric, Velvet Red"), QStringLiteral("VELVET_RED"));
 
 		builtInGroups.emplace_back(group, items);
 	}
 
 	// --- Leather Materials ---
 	{
-		QString group = QStringLiteral("Leather Materials");
+		QString group = QStringLiteral("Leather");
 		QVector<QPair<QString, QString>> items;
 		materialMap.insert("LEATHER_BLACK", []() { return Material::LEATHER_BLACK(); });
-		items.emplace_back(QStringLiteral("Leather Black"), QStringLiteral("LEATHER_BLACK"));
+		items.emplace_back(QStringLiteral("Leather, Black"), QStringLiteral("LEATHER_BLACK"));
 
 		materialMap.insert("LEATHER_BROWN", []() { return Material::LEATHER_BROWN(); });
-		items.emplace_back(QStringLiteral("Leather Brown"), QStringLiteral("LEATHER_BROWN"));
+		items.emplace_back(QStringLiteral("Leather, Brown"), QStringLiteral("LEATHER_BROWN"));
 
 		materialMap.insert("LEATHER_OXBLOOD", []() { return Material::LEATHER_OXBLOOD(); });
-		items.emplace_back(QStringLiteral("Leather Oxblood"), QStringLiteral("LEATHER_OXBLOOD"));
+		items.emplace_back(QStringLiteral("Leather, Oxblood"), QStringLiteral("LEATHER_OXBLOOD"));
 
 		materialMap.insert("LEATHER_RED", []() { return Material::LEATHER_RED(); });
-		items.emplace_back(QStringLiteral("Leather Red"), QStringLiteral("LEATHER_RED"));
+		items.emplace_back(QStringLiteral("Leather, Red"), QStringLiteral("LEATHER_RED"));
 
 		materialMap.insert("LEATHER_TAN", []() { return Material::LEATHER_TAN(); });
-		items.emplace_back(QStringLiteral("Leather Tan"), QStringLiteral("LEATHER_TAN"));
+		items.emplace_back(QStringLiteral("Leather, Tan"), QStringLiteral("LEATHER_TAN"));
 
 		materialMap.insert("LEATHER_WHITE", []() { return Material::LEATHER_WHITE(); });
-		items.emplace_back(QStringLiteral("Leather White"), QStringLiteral("LEATHER_WHITE"));
+		items.emplace_back(QStringLiteral("Leather, White"), QStringLiteral("LEATHER_WHITE"));
 
 		builtInGroups.emplace_back(group, items);
 	}
 
 	// --- Clearcoat / Car Paints ---
 	{
-		QString group = QStringLiteral("Clearcoat Materials");
+		QString group = QStringLiteral("Clearcoat Car Paints");
 		QVector<QPair<QString, QString>> items;
 
 		materialMap.insert("CAR_PAINT_BURGUNDY", []() { return Material::CAR_PAINT_BURGUNDY(); });
-		items.emplace_back(QStringLiteral("Car Paint Burgundy"), QStringLiteral("CAR_PAINT_BURGUNDY"));
+		items.emplace_back(QStringLiteral("Burgundy"), QStringLiteral("CAR_PAINT_BURGUNDY"));
 
 		materialMap.insert("CAR_PAINT_CANDY_APPLE_RED", []() { return Material::CAR_PAINT_CANDY_APPLE_RED(); });
-		items.emplace_back(QStringLiteral("Car Paint Candy Apple Red"), QStringLiteral("CAR_PAINT_CANDY_APPLE_RED"));
+		items.emplace_back(QStringLiteral("Candy Apple Red"), QStringLiteral("CAR_PAINT_CANDY_APPLE_RED"));
 
 		materialMap.insert("CAR_PAINT_CHARCOAL_GRAY", []() { return Material::CAR_PAINT_CHARCOAL_GRAY(); });
-		items.emplace_back(QStringLiteral("Car Paint Charcoal Gray"), QStringLiteral("CAR_PAINT_CHARCOAL_GRAY"));
+		items.emplace_back(QStringLiteral("Charcoal Gray"), QStringLiteral("CAR_PAINT_CHARCOAL_GRAY"));
 
 		materialMap.insert("CAR_PAINT_CORAL", []() { return Material::CAR_PAINT_CORAL(); });
-		items.emplace_back(QStringLiteral("Car Paint Coral"), QStringLiteral("CAR_PAINT_CORAL"));
+		items.emplace_back(QStringLiteral("Coral"), QStringLiteral("CAR_PAINT_CORAL"));
 
 		materialMap.insert("CAR_PAINT_CREAM_YELLOW", []() { return Material::CAR_PAINT_CREAM_YELLOW(); });
-		items.emplace_back(QStringLiteral("Car Paint Cream Yellow"), QStringLiteral("CAR_PAINT_CREAM_YELLOW"));
+		items.emplace_back(QStringLiteral("Cream Yellow"), QStringLiteral("CAR_PAINT_CREAM_YELLOW"));
 
 		materialMap.insert("CAR_PAINT_DEEP_METALLIC_BLUE", []() { return Material::CAR_PAINT_DEEP_METALLIC_BLUE(); });
-		items.emplace_back(QStringLiteral("Car Paint Deep Metallic Blue"), QStringLiteral("CAR_PAINT_DEEP_METALLIC_BLUE"));
+		items.emplace_back(QStringLiteral("Deep Metallic Blue"), QStringLiteral("CAR_PAINT_DEEP_METALLIC_BLUE"));
 
 		materialMap.insert("CAR_PAINT_FOREST_GREEN", []() { return Material::CAR_PAINT_FOREST_GREEN(); });
-		items.emplace_back(QStringLiteral("Car Paint Forest Green"), QStringLiteral("CAR_PAINT_FOREST_GREEN"));
+		items.emplace_back(QStringLiteral("Forest Green"), QStringLiteral("CAR_PAINT_FOREST_GREEN"));
 
 		materialMap.insert("CAR_PAINT_GLOSSY_BLACK", []() { return Material::CAR_PAINT_GLOSSY_BLACK(); });
-		items.emplace_back(QStringLiteral("Car Paint Glossy Black"), QStringLiteral("CAR_PAINT_GLOSSY_BLACK"));
+		items.emplace_back(QStringLiteral("Glossy, Black"), QStringLiteral("CAR_PAINT_GLOSSY_BLACK"));
 
 		materialMap.insert("CAR_PAINT_GLOSSY_ORANGE", []() { return Material::CAR_PAINT_GLOSSY_ORANGE(); });
-		items.emplace_back(QStringLiteral("Car Paint Glossy Orange"), QStringLiteral("CAR_PAINT_GLOSSY_ORANGE"));
+		items.emplace_back(QStringLiteral("Glossy, Orange"), QStringLiteral("CAR_PAINT_GLOSSY_ORANGE"));
 
 		materialMap.insert("CAR_PAINT_GLOSSY_WHITE", []() { return Material::CAR_PAINT_GLOSSY_WHITE(); });
-		items.emplace_back(QStringLiteral("Car Paint Glossy White"), QStringLiteral("CAR_PAINT_GLOSSY_WHITE"));
+		items.emplace_back(QStringLiteral("Glossy, White"), QStringLiteral("CAR_PAINT_GLOSSY_WHITE"));
 
 		materialMap.insert("CAR_PAINT_GLOSSY_YELLOW", []() { return Material::CAR_PAINT_GLOSSY_YELLOW(); });
-		items.emplace_back(QStringLiteral("Car Paint Glossy Yellow"), QStringLiteral("CAR_PAINT_GLOSSY_YELLOW"));
+		items.emplace_back(QStringLiteral("Glossy, Yellow"), QStringLiteral("CAR_PAINT_GLOSSY_YELLOW"));
 
 		materialMap.insert("CAR_PAINT_IRIDESCENT_GREEN", []() { return Material::CAR_PAINT_IRIDESCENT_GREEN(); });
-		items.emplace_back(QStringLiteral("Car Paint Iridescent Green"), QStringLiteral("CAR_PAINT_IRIDESCENT_GREEN"));
+		items.emplace_back(QStringLiteral("Iridescent, Green"), QStringLiteral("CAR_PAINT_IRIDESCENT_GREEN"));
 
 		materialMap.insert("CAR_PAINT_LAVENDER", []() { return Material::CAR_PAINT_LAVENDER(); });
-		items.emplace_back(QStringLiteral("Car Paint Lavender"), QStringLiteral("CAR_PAINT_LAVENDER"));
+		items.emplace_back(QStringLiteral("Lavender"), QStringLiteral("CAR_PAINT_LAVENDER"));
 
 		materialMap.insert("CAR_PAINT_MATTE_RED", []() { return Material::CAR_PAINT_MATTE_RED(); });
-		items.emplace_back(QStringLiteral("Car Paint Matte Red"), QStringLiteral("CAR_PAINT_MATTE_RED"));
+		items.emplace_back(QStringLiteral("Matte, Red"), QStringLiteral("CAR_PAINT_MATTE_RED"));
 
 		materialMap.insert("CAR_PAINT_METALLIC_BLUE", []() { return Material::CAR_PAINT_METALLIC_BLUE(); });
-		items.emplace_back(QStringLiteral("Car Paint Metallic Blue"), QStringLiteral("CAR_PAINT_METALLIC_BLUE"));
+		items.emplace_back(QStringLiteral("Metallic, Blue"), QStringLiteral("CAR_PAINT_METALLIC_BLUE"));
 
 		materialMap.insert("CAR_PAINT_METALLIC_BRONZE", []() { return Material::CAR_PAINT_METALLIC_BRONZE(); });
-		items.emplace_back(QStringLiteral("Car Paint Metallic Bronze"), QStringLiteral("CAR_PAINT_METALLIC_BRONZE"));
+		items.emplace_back(QStringLiteral("Metallic, Bronze"), QStringLiteral("CAR_PAINT_METALLIC_BRONZE"));
 
 		materialMap.insert("CAR_PAINT_METALLIC_CHAMPAGNE", []() { return Material::CAR_PAINT_METALLIC_CHAMPAGNE(); });
-		items.emplace_back(QStringLiteral("Car Paint Metallic Champagne"), QStringLiteral("CAR_PAINT_METALLIC_CHAMPAGNE"));
+		items.emplace_back(QStringLiteral("Metallic, Champagne"), QStringLiteral("CAR_PAINT_METALLIC_CHAMPAGNE"));
 
 		materialMap.insert("CAR_PAINT_METALLIC_COPPER", []() { return Material::CAR_PAINT_METALLIC_COPPER(); });
-		items.emplace_back(QStringLiteral("Car Paint Metallic Copper"), QStringLiteral("CAR_PAINT_METALLIC_COPPER"));
+		items.emplace_back(QStringLiteral("Metallic, Copper"), QStringLiteral("CAR_PAINT_METALLIC_COPPER"));
 
 		materialMap.insert("CAR_PAINT_METALLIC_GOLD", []() { return Material::CAR_PAINT_METALLIC_GOLD(); });
-		items.emplace_back(QStringLiteral("Car Paint Metallic Gold"), QStringLiteral("CAR_PAINT_METALLIC_GOLD"));
+		items.emplace_back(QStringLiteral("Metallic, Gold"), QStringLiteral("CAR_PAINT_METALLIC_GOLD"));
 
 		materialMap.insert("CAR_PAINT_METALLIC_GREEN", []() { return Material::CAR_PAINT_METALLIC_GREEN(); });
-		items.emplace_back(QStringLiteral("Car Paint Metallic Green"), QStringLiteral("CAR_PAINT_METALLIC_GREEN"));
+		items.emplace_back(QStringLiteral("Metallic, Green"), QStringLiteral("CAR_PAINT_METALLIC_GREEN"));
 
 		materialMap.insert("CAR_PAINT_METALLIC_GUNMETAL", []() { return Material::CAR_PAINT_METALLIC_GUNMETAL(); });
-		items.emplace_back(QStringLiteral("Car Paint Metallic Gunmetal"), QStringLiteral("CAR_PAINT_METALLIC_GUNMETAL"));
+		items.emplace_back(QStringLiteral("Metallic, Gunmetal"), QStringLiteral("CAR_PAINT_METALLIC_GUNMETAL"));
 
 		materialMap.insert("CAR_PAINT_METALLIC_PURPLE", []() { return Material::CAR_PAINT_METALLIC_PURPLE(); });
-		items.emplace_back(QStringLiteral("Car Paint Metallic Purple"), QStringLiteral("CAR_PAINT_METALLIC_PURPLE"));
+		items.emplace_back(QStringLiteral("Metallic, Purple"), QStringLiteral("CAR_PAINT_METALLIC_PURPLE"));
 
 		materialMap.insert("CAR_PAINT_METALLIC_RED", []() { return Material::CAR_PAINT_METALLIC_RED(); });
-		items.emplace_back(QStringLiteral("Car Paint Metallic Red"), QStringLiteral("CAR_PAINT_METALLIC_RED"));
+		items.emplace_back(QStringLiteral("Metallic, Red"), QStringLiteral("CAR_PAINT_METALLIC_RED"));
 
 		materialMap.insert("CAR_PAINT_METALLIC_SILVER", []() { return Material::CAR_PAINT_METALLIC_SILVER(); });
-		items.emplace_back(QStringLiteral("Car Paint Metallic Silver"), QStringLiteral("CAR_PAINT_METALLIC_SILVER"));
+		items.emplace_back(QStringLiteral("Metallic, Silver"), QStringLiteral("CAR_PAINT_METALLIC_SILVER"));
 
 		materialMap.insert("CAR_PAINT_MIDNIGHT_BLUE", []() { return Material::CAR_PAINT_MIDNIGHT_BLUE(); });
-		items.emplace_back(QStringLiteral("Car Paint Midnight Blue"), QStringLiteral("CAR_PAINT_MIDNIGHT_BLUE"));
+		items.emplace_back(QStringLiteral("Midnight Blue"), QStringLiteral("CAR_PAINT_MIDNIGHT_BLUE"));
 
 		materialMap.insert("CAR_PAINT_MINT_GREEN", []() { return Material::CAR_PAINT_MINT_GREEN(); });
-		items.emplace_back(QStringLiteral("Car Paint Mint Green"), QStringLiteral("CAR_PAINT_MINT_GREEN"));
+		items.emplace_back(QStringLiteral("Mint Green"), QStringLiteral("CAR_PAINT_MINT_GREEN"));
 
 		materialMap.insert("CAR_PAINT_PEARL", []() { return Material::CAR_PAINT_PEARL(); });
-		items.emplace_back(QStringLiteral("Car Paint Pearl"), QStringLiteral("CAR_PAINT_PEARL"));
+		items.emplace_back(QStringLiteral("Pearl"), QStringLiteral("CAR_PAINT_PEARL"));
 
 		materialMap.insert("CAR_PAINT_PEARLESCENT_BLUE", []() { return Material::CAR_PAINT_PEARLESCENT_BLUE(); });
-		items.emplace_back(QStringLiteral("Car Paint Pearlescent Blue"), QStringLiteral("CAR_PAINT_PEARLESCENT_BLUE"));
+		items.emplace_back(QStringLiteral("Pearlescent, Blue"), QStringLiteral("CAR_PAINT_PEARLESCENT_BLUE"));
 
 		materialMap.insert("CAR_PAINT_POWDER_BLUE", []() { return Material::CAR_PAINT_POWDER_BLUE(); });
-		items.emplace_back(QStringLiteral("Car Paint Powder Blue"), QStringLiteral("CAR_PAINT_POWDER_BLUE"));
+		items.emplace_back(QStringLiteral("Powder Blue"), QStringLiteral("CAR_PAINT_POWDER_BLUE"));
 
 		materialMap.insert("CAR_PAINT_RED", []() { return Material::CAR_PAINT_RED(); });
-		items.emplace_back(QStringLiteral("Car Paint Red"), QStringLiteral("CAR_PAINT_RED"));
+		items.emplace_back(QStringLiteral("Red"), QStringLiteral("CAR_PAINT_RED"));
 
 		materialMap.insert("CAR_PAINT_SATIN_GRAY", []() { return Material::CAR_PAINT_SATIN_GRAY(); });
-		items.emplace_back(QStringLiteral("Car Paint Satin Gray"), QStringLiteral("CAR_PAINT_SATIN_GRAY"));
+		items.emplace_back(QStringLiteral("Satin Gray"), QStringLiteral("CAR_PAINT_SATIN_GRAY"));
 
 		materialMap.insert("CAR_PAINT_SLATE_BLUE", []() { return Material::CAR_PAINT_SLATE_BLUE(); });
-		items.emplace_back(QStringLiteral("Car Paint Slate Blue"), QStringLiteral("CAR_PAINT_SLATE_BLUE"));
+		items.emplace_back(QStringLiteral("Slate Blue"), QStringLiteral("CAR_PAINT_SLATE_BLUE"));
 
 		materialMap.insert("CAR_PAINT_TEAL", []() { return Material::CAR_PAINT_TEAL(); });
-		items.emplace_back(QStringLiteral("Car Paint Teal"), QStringLiteral("CAR_PAINT_TEAL"));
+		items.emplace_back(QStringLiteral("Teal"), QStringLiteral("CAR_PAINT_TEAL"));
 
 		materialMap.insert("CAR_PAINT_WHITE", []() { return Material::CAR_PAINT_WHITE(); });
-		items.emplace_back(QStringLiteral("Car Paint White"), QStringLiteral("CAR_PAINT_WHITE"));
+		items.emplace_back(QStringLiteral("White"), QStringLiteral("CAR_PAINT_WHITE"));
 
 		materialMap.insert("MATTE_GREY", []() { return Material::MATTE_GREY(); });
 		items.emplace_back(QStringLiteral("Matte Grey"), QStringLiteral("MATTE_GREY"));
@@ -1456,19 +1456,19 @@ QVector<QPair<QString, QVector<QPair<QString, QString>>>> MaterialLibraryWidget:
 
 	// --- Transmission Materials (glass, crystal) ---
 	{
-		QString group = QStringLiteral("Transmission Materials");
+		QString group = QStringLiteral("Glass & Transparent");
 		QVector<QPair<QString, QString>> items;
 		materialMap.insert("COLORED_GLASS_GREEN", []() { return Material::COLORED_GLASS_GREEN(); });
-		items.emplace_back(QStringLiteral("Colored Glass (Green)"), QStringLiteral("COLORED_GLASS_GREEN"));
+		items.emplace_back(QStringLiteral("Transmission, Glass Green"), QStringLiteral("COLORED_GLASS_GREEN"));
 
 		materialMap.insert("CRYSTAL_QUARTZ", []() { return Material::CRYSTAL_QUARTZ(); });
-		items.emplace_back(QStringLiteral("Crystal Quartz"), QStringLiteral("CRYSTAL_QUARTZ"));
+		items.emplace_back(QStringLiteral("Transmission, Quartz Crystal"), QStringLiteral("CRYSTAL_QUARTZ"));
 
 		materialMap.insert("FROSTED_GLASS", []() { return Material::FROSTED_GLASS(); });
-		items.emplace_back(QStringLiteral("Frosted Glass"), QStringLiteral("FROSTED_GLASS"));
+		items.emplace_back(QStringLiteral("Transmission, Glass Frosted"), QStringLiteral("FROSTED_GLASS"));
 
 		materialMap.insert("GLASS", []() { return Material::GLASS(); });
-		items.emplace_back(QStringLiteral("Glass"), QStringLiteral("GLASS"));
+		items.emplace_back(QStringLiteral("Transmission, Glass Clear"), QStringLiteral("GLASS"));
 
 		builtInGroups.emplace_back(group, items);
 	}
@@ -1478,31 +1478,31 @@ QVector<QPair<QString, QVector<QPair<QString, QString>>>> MaterialLibraryWidget:
 		QString group = QStringLiteral("Emissive Materials");
 		QVector<QPair<QString, QString>> items;
 		materialMap.insert("LED_BLUE", []() { return Material::LED_BLUE(); });
-		items.emplace_back(QStringLiteral("LED Blue"), QStringLiteral("LED_BLUE"));
+		items.emplace_back(QStringLiteral("LED, Blue"), QStringLiteral("LED_BLUE"));
 
 		materialMap.insert("LED_GREEN", []() { return Material::LED_GREEN(); });
-		items.emplace_back(QStringLiteral("LED Green"), QStringLiteral("LED_GREEN"));
+		items.emplace_back(QStringLiteral("LED, Green"), QStringLiteral("LED_GREEN"));
 
 		materialMap.insert("LED_RED", []() { return Material::LED_RED(); });
-		items.emplace_back(QStringLiteral("LED Red"), QStringLiteral("LED_RED"));
+		items.emplace_back(QStringLiteral("LED, Red"), QStringLiteral("LED_RED"));
 
 		materialMap.insert("LED_WHITE", []() { return Material::LED_WHITE(); });
-		items.emplace_back(QStringLiteral("LED White"), QStringLiteral("LED_WHITE"));
+		items.emplace_back(QStringLiteral("LED, White"), QStringLiteral("LED_WHITE"));
 
 		materialMap.insert("LED_YELLOW", []() { return Material::LED_YELLOW(); });
-		items.emplace_back(QStringLiteral("LED Yellow"), QStringLiteral("LED_YELLOW"));
+		items.emplace_back(QStringLiteral("LED, Yellow"), QStringLiteral("LED_YELLOW"));
 
 		materialMap.insert("NEON_BLUE", []() { return Material::NEON_BLUE(); });
-		items.emplace_back(QStringLiteral("Neon Blue"), QStringLiteral("NEON_BLUE"));
+		items.emplace_back(QStringLiteral("Neon, Blue"), QStringLiteral("NEON_BLUE"));
 
 		materialMap.insert("NEON_GREEN", []() { return Material::NEON_GREEN(); });
-		items.emplace_back(QStringLiteral("Neon Green"), QStringLiteral("NEON_GREEN"));
+		items.emplace_back(QStringLiteral("Neon, Green"), QStringLiteral("NEON_GREEN"));
 
 		materialMap.insert("NEON_RED", []() { return Material::NEON_RED(); });
-		items.emplace_back(QStringLiteral("Neon Red"), QStringLiteral("NEON_RED"));
+		items.emplace_back(QStringLiteral("Neon, Red"), QStringLiteral("NEON_RED"));
 
 		materialMap.insert("NEON_YELLOW", []() { return Material::NEON_YELLOW(); });
-		items.emplace_back(QStringLiteral("Neon Yellow"), QStringLiteral("NEON_YELLOW"));
+		items.emplace_back(QStringLiteral("Neon, Yellow"), QStringLiteral("NEON_YELLOW"));
 
 		builtInGroups.emplace_back(group, items);
 	}
@@ -1515,7 +1515,7 @@ QVector<QPair<QString, QVector<QPair<QString, QString>>>> MaterialLibraryWidget:
 		items.emplace_back(QStringLiteral("Carbon Fiber"), QStringLiteral("CARBON_FIBER"));
 
 		materialMap.insert("IRIDESCENT_SOAP_BUBBLE", []() { return Material::IRIDESCENT_SOAP_BUBBLE(); });
-		items.emplace_back(QStringLiteral("Iridescent Soap Bubble"), QStringLiteral("IRIDESCENT_SOAP_BUBBLE"));
+		items.emplace_back(QStringLiteral("Soap Bubble, Iridescent"), QStringLiteral("IRIDESCENT_SOAP_BUBBLE"));
 
 		materialMap.insert("WET_ASPHALT", []() { return Material::WET_ASPHALT(); });
 		items.emplace_back(QStringLiteral("Wet Asphalt"), QStringLiteral("WET_ASPHALT"));
@@ -1525,7 +1525,7 @@ QVector<QPair<QString, QVector<QPair<QString, QString>>>> MaterialLibraryWidget:
 
 	// --- Special ---
 	{
-		QString group = QStringLiteral("Special");
+		QString group = QStringLiteral("Special Materials");
 		QVector<QPair<QString, QString>> items;
 		materialMap.insert("CERAMIC", []() { return Material::CERAMIC(); });
 		items.emplace_back(QStringLiteral("Ceramic"), QStringLiteral("CERAMIC"));
@@ -1534,7 +1534,7 @@ QVector<QPair<QString, QVector<QPair<QString, QString>>>> MaterialLibraryWidget:
 		items.emplace_back(QStringLiteral("Diamond"), QStringLiteral("DIAMOND"));
 
 		materialMap.insert("PAPER", []() { return Material::PAPER(); });
-		items.emplace_back(QStringLiteral("Paper"), QStringLiteral("PAPER"));
+		items.emplace_back(QStringLiteral("Paper, Plain"), QStringLiteral("PAPER"));
 
 		materialMap.insert("SKIN", []() { return Material::SKIN(); });
 		items.emplace_back(QStringLiteral("Skin"), QStringLiteral("SKIN"));

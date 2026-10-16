@@ -961,6 +961,15 @@ install(DIRECTORY fonts shaders themes data
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}"
 )
 
+# Third-party credits and texture sources. Several shipped assets are CC BY (attribution required), so the installer and the .deb carry the credit
+# files alongside the data they describe (the About dialog points here as well).
+install(FILES CREDITS.md
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}"
+)
+install(FILES textures/LICENSES.md
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/textures"
+)
+
 # Sample models: the curated set (see sample-models/LICENSES.md). Not shipped: Camera/ (credit-required third-party model, large),
 # Simulation/large/ (generated stress-test files, git-ignored, ~870 MB) and anything else that is not listed here. Listed explicitly instead of
 # install(DIRECTORY sample-models) so a stray local file can never end up in a package.

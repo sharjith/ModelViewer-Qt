@@ -1,0 +1,4 @@
+"Carbon Fibre Ball" by Eric Chadwick, (c) 2023 Wayfair, Khronos glTF Sample Assets
+https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CarbonFibre
+Licence: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/legalcode) - attribution required (see CREDITS.md)
+Files: the normal and occlusion textures of the model. Material values follow the model: base colour 0.009, roughness 0.4, normal scale 2, anisotropy strength 0.5.

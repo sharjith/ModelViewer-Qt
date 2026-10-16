@@ -171,39 +171,49 @@
         <translation>Désactivé (aucune chaîne d&apos;outils CUDA/OptiX trouvée lors de la compilation)</translation>
     </message>
     <message>
-        <location filename="../src/App/AboutDialog.cpp" line="155"/>
+        <location filename="../src/App/AboutDialog.cpp" line="157"/>
         <source>3D Model Viewer</source>
         <translation>3D Model Viewer</translation>
     </message>
     <message>
-        <location filename="../src/App/AboutDialog.cpp" line="156"/>
+        <location filename="../src/App/AboutDialog.cpp" line="158"/>
         <source>A desktop 3D model viewer for CAD and graphics-interchange formats</source>
         <translation>Une visionneuse de modèles 3D de bureau pour les formats CAO et d&apos;échange graphique</translation>
     </message>
     <message>
-        <location filename="../src/App/AboutDialog.cpp" line="157"/>
+        <location filename="../src/App/AboutDialog.cpp" line="159"/>
         <source>Visualizes OBJ and StereoLithography (STL) models via the Assimp library, and STEP, IGES, and BREP CAD files via the OpenCASCADE library, with real-time rasterized and offline path-traced rendering.</source>
         <translation>Visualise les modèles OBJ et StereoLithography (STL) via la bibliothèque Assimp, ainsi que les fichiers CAO STEP, IGES et BREP via la bibliothèque OpenCASCADE, avec rendu rastérisé en temps réel et rendu par tracé de chemin hors ligne.</translation>
     </message>
     <message>
-        <location filename="../src/App/AboutDialog.cpp" line="160"/>
+        <location filename="../src/App/AboutDialog.cpp" line="162"/>
         <source>Version Information</source>
         <translation>Informations de version</translation>
     </message>
     <message>
-        <location filename="../src/App/AboutDialog.cpp" line="162"/>
+        <location filename="../src/App/AboutDialog.cpp" line="164"/>
         <source>Graphics</source>
         <translation>Graphisme</translation>
     </message>
     <message>
-        <location filename="../src/App/AboutDialog.cpp" line="164"/>
+        <location filename="../src/App/AboutDialog.cpp" line="166"/>
         <source>Copyright © 2021–2026 Sharjith Naramparambath</source>
         <translation>Copyright © 2021–2026 Sharjith Naramparambath</translation>
     </message>
     <message>
-        <location filename="../src/App/AboutDialog.cpp" line="165"/>
+        <location filename="../src/App/AboutDialog.cpp" line="167"/>
         <source>Contact</source>
         <translation>Contact</translation>
+    </message>
+    <message>
+        <location filename="../src/App/AboutDialog.cpp" line="168"/>
+        <source>Third-Party Credits</source>
+        <translation>Crédits tiers</translation>
+    </message>
+    <message>
+        <location filename="../src/App/AboutDialog.cpp" line="169"/>
+        <source>Environment maps in the LDRI set: Emil Persson (Humus), CC BY 3.0. Carbon Fiber material: &amp;quot;Carbon Fibre Ball&amp;quot; by Eric Chadwick, &amp;copy; 2023 Wayfair, via the Khronos glTF Sample Assets, CC BY 4.0. Most other textures and HDRI maps are CC0 (ambientCG, Poly Haven, 3dtextures.me, TextureCan). The full list is in CREDITS.md and textures/LICENSES.md in the installation folder.</source>
+        <translation>Cartes d’environnement du jeu LDRI : Emil Persson (Humus), CC BY 3.0. Matériau « Carbon Fiber » : &amp;quot;Carbon Fibre Ball&amp;quot; par Eric Chadwick, &amp;copy; 2023 Wayfair, via les Khronos glTF Sample Assets, CC BY 4.0. La plupart des autres textures et cartes HDRI sont CC0 (ambientCG, Poly Haven, 3dtextures.me, TextureCan). La liste complète se trouve dans CREDITS.md et textures/LICENSES.md, dans le dossier d’installation.</translation>
     </message>
 </context>
 <context>
