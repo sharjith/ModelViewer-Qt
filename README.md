@@ -20,14 +20,14 @@ The [releases page](https://github.com/sharjith/ModelViewer-Qt/releases) has a *
 ### Optional content packs (full material library, all HDRI maps)
 
 To keep the download small, the installer and the `.deb` include only a starter set: **19 materials** (the common metals, plastics, rubber, wood, stone, paper, denim
-and a clear-coated paint), **4 environment maps** (`@Default`, Frozenwaterfall, Newport_Loft, Venice_Sunset) and the sample models. The complete libraries are separate
+and a clear-coated paint), **23 environment maps** (indoor studios, clear and overcast skies, sunset, night and an urban street; about 320 MB) and the sample models. The complete libraries are separate
 downloads on the same releases page. Every zip contains paths that start at `textures\...` or `sample-models\...`, and each carries a `README.txt` with the same steps.
 
 | Download | Adds | Size |
 |---|---|---|
 | `ModelViewer-MaterialLibrary-2026.11.0-part1.zip` and `-part2.zip` | All ~129 material presets (`textures/materials`). Download **both** parts | about 2.2 GB in total |
 | `ModelViewer-EnvironmentMaps-2026.11.0.zip` | Every HDRI environment map pack | about 1.0 GB |
-| `ModelViewer-LargeSamples-2026.11.0.zip` | Million-cell stress-test results for the simulation readers (optional) | about 150 MB |
+| `ModelViewer-LargeSamples-2026.11.0.zip` | Million-cell stress-test results for the simulation readers (optional) | about 320 MB |
 
 `SHA256SUMS.txt` on the releases page lists the checksum of each zip.
 

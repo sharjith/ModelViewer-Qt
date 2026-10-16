@@ -1041,6 +1041,12 @@ install(FILES
 
 set(_hdri_included_packs
     "@Default" "Kloofendal_43D_Clear_Puresky" "Kloofendal_Overcast_Puresky" "Venice_Sunset"
+    "Colorful_Studio" "Brown_Photostudio_01" "Neon_Photostudio" "Aft_Lounge"
+    "Kiara_5_Noon" "LakeSide" "Steinbach_Field"
+    "Sunflowers_Puresky" "Pizzo_Pernice_Puresky" "Rustig_Koppie_Puresky"
+    "Leadenhall_Market" "Vignaioli_Night"
+    "Canary_Wharf" "Dancing_Hall" "Evening_Museum_Courtyard" "Palermo_Square"
+    "Paul_Lobe_Haus" "Rotes_Rathaus" "Aerodynamics_Workshop"
 )
 foreach(_pack ${_hdri_included_packs})
     install(DIRECTORY "textures/envmap/skyboxes/HDRI/${_pack}"
@@ -1054,7 +1060,7 @@ endforeach()
 set(_material_included_presets
     "ClearCoat_Metallic_Blue" "Fabric_Denim_02" "Metal_Metal050A" "Metal_Brushed-Metal"
     "Metal_Metal049A" "Metal_Copper" "Metal_Metal048C" "Metal_Metal048A" "Metal_Silver_Dull"
-    "Metal_Metal033" "Metal_Metal038" "Metal_Metal059A" "Paper_Paper001"
+    "Metal_Metal044A" "Metal_Metal038" "Metal_Metal059A" "Paper_Paper001"
     "Plastic_Plastic006" "Plastic_Plastic011" "Rubber_Rubber004" "Stone_Granite006a"
     "Wood_Plywood" "Wood_Wood051"
 )
