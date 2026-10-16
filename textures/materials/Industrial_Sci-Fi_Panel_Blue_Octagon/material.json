@@ -1,7 +1,7 @@
 {
     "maps": {
         "albedo": {
-            "file": "MetalPlates017A_1K-JPG_Color.jpg",
+            "file": "MetalPlates016A_1K-JPG_Color.jpg",
             "magFilter": "linear",
             "minFilter": "linear_mipmap_linear",
             "offset": [
@@ -24,7 +24,7 @@
             "wrapT": "repeat"
         },
         "ao": {
-            "file": "MetalPlates017A_1K-JPG_AmbientOcclusion.jpg",
+            "file": "MetalPlates016A_1K-JPG_AmbientOcclusion.jpg",
             "magFilter": "linear",
             "minFilter": "linear_mipmap_linear",
             "offset": [
@@ -47,7 +47,7 @@
             "wrapT": "repeat"
         },
         "height": {
-            "file": "MetalPlates017A_1K-JPG_Displacement.jpg",
+            "file": "MetalPlates016A_1K-JPG_Displacement.jpg",
             "magFilter": "linear",
             "minFilter": "linear_mipmap_linear",
             "offset": [
@@ -70,7 +70,7 @@
             "wrapT": "repeat"
         },
         "metallic": {
-            "file": "MetalPlates017A_1K-JPG_Metalness.jpg",
+            "file": "MetalPlates016A_1K-JPG_Metalness.jpg",
             "magFilter": "linear",
             "minFilter": "linear_mipmap_linear",
             "offset": [
@@ -93,7 +93,7 @@
             "wrapT": "repeat"
         },
         "normal": {
-            "file": "MetalPlates017A_1K-JPG_NormalGL.jpg",
+            "file": "MetalPlates016A_1K-JPG_NormalGL.jpg",
             "magFilter": "linear",
             "minFilter": "linear_mipmap_linear",
             "offset": [
@@ -116,7 +116,7 @@
             "wrapT": "repeat"
         },
         "roughness": {
-            "file": "MetalPlates017A_1K-JPG_Roughness.jpg",
+            "file": "MetalPlates016A_1K-JPG_Roughness.jpg",
             "magFilter": "linear",
             "minFilter": "linear_mipmap_linear",
             "offset": [
@@ -192,6 +192,6 @@
         "thicknessFactor": 0,
         "transmission": 0
     },
-    "name": "Metal_Sci-Fi_Panel",
+    "name": "Industrial_Sci-Fi_Panel_Blue_Octagon",
     "version": 1
 }

@@ -11,9 +11,9 @@ The GPL-3.0 licence of the ModelViewer program does not apply to these third-par
 | ambientCG (https://ambientcg.com) | CC0 1.0 (no credit required) | 51 folders with a `SOURCE.txt` (1K JPG, added 2026-10) and the earlier ambientCG sets: see below |
 | Poly Haven (https://polyhaven.com), author Rob Tuytel | CC0 1.0 | `Fabric_Denim_02`, `Metal_Rusty_Metal_02`, `Wall_Castle_Brick_02_Red`, `Wall_Rough_Plaster_03`, `Wood_Bark_Brown_02`, `Wood_KitchenWood`, `Ground_Cobblestone_Floor_07`, `Metal_Plate`, `Stone_Rock_06`, `Wall_Bricks_Plaster`, `Wood_Planks_Brown_10` |
 | The ModelViewer author (made with Blender scripts) | GPL-3.0, like the project | `ClearCoat_Metallic_Blue`, `Metal_Bronze-1`, `Metal_Bronze-2`, `Metal_Brushed-Metal`, `Metal_Copper`, `Metal_Silver_Dull` |
-| *to confirm* | probably 3dtextures.me, CC0 | `Stone_Quartz_001`, `Wall_Glass_Window` |
+| 3dtextures.me (https://3dtextures.me), `quartz-001` and `glass-window-002`; matched by name and file naming | CC0 1.0 (all textures on the site, per https://3dtextures.me/about/) | `Stone_Quartz_001`, `Wall_Glass_Window` |
 
-ambientCG sets added in 2026-10 (each folder has a `SOURCE.txt`): `Ground_Grass005`, `Ground_Snow_Fresh`, `Metal_Corrugated_Steel`, `Metal_Steel_Pitted`, `Metal_Gold_Worn`, `Metal_Bronze_Weathered`, `Metal_Aluminum_Brushed`, `Metal_Steel_Brushed`, `Metal_Lead`, `Metal_Magnesium_Satin`, `Metal_Gold_Light`, `Metal_Copper_Satin`, `Metal_Zinc_Satin_Dark`, `Metal_Steel_Scratched`, `Metal_Iron_Heavily_Rusted`, `Metal_Gold_Rose`, `Metal_Steel_Stainless`, `Metal_Nickel_Polished`, `Metal_Gold_Mirror`, `Metal_Brass_Polished`, `Metal_Brass_Dull`, `Metal_Chrome_Mirror`, `Metal_Silver_Smudged`, `Metal_Aluminum_Polished`, `Metal_Aluminum_Scuffed`, `Metal_Chrome_Black`, `Metal_Steel_Polished`, `Metal_Iron_Rust_Covered`, `Metal_Iron_Scuffed`, `Metal_Iron`, `Metal_Iron_Rusted`, `Metal_Bronze_Polished`, `Metal_Copper_Scuffed`, `Metal_Copper_Oxidized`, `Metal_Titanium_Polished`, `Metal_Titanium_Scuffed`, `Metal_Gunmetal`, `Metal_Pewter_Aged`, `Metal_Platinum_Polished`, `Metal_Sci-Fi_Panel`, `Plastic_Dark_Brown_Textured`, `Plastic_ABS_Glossy_Black`, `Plastic_PVC_Light_Grey`, `Plastic_ABS_Matte_Grey`, `Plastic_Grey_Scuffed`, `Wall_Stone_Blocks_Grey`, `Wall_Bricks_Cream`, `Wood_Bamboo_Semigloss`, `Wood_Orange_Pine`, `Wood_Veneer_Cherry`, `Wood_Veneer_Light_Beech`
+ambientCG sets added in 2026-10 (each folder has a `SOURCE.txt`): `Ground_Grass005`, `Ground_Snow_Fresh`, `Metal_Corrugated_Steel`, `Metal_Steel_Pitted`, `Metal_Gold_Worn`, `Metal_Bronze_Weathered`, `Metal_Aluminum_Brushed`, `Metal_Steel_Brushed`, `Metal_Lead`, `Metal_Magnesium_Satin`, `Metal_Gold_Light`, `Metal_Copper_Satin`, `Metal_Zinc_Satin_Dark`, `Metal_Steel_Scratched`, `Metal_Iron_Heavily_Rusted`, `Metal_Gold_Rose`, `Metal_Steel_Stainless`, `Metal_Nickel_Polished`, `Metal_Gold_Mirror`, `Metal_Brass_Polished`, `Metal_Brass_Dull`, `Metal_Chrome_Mirror`, `Metal_Silver_Smudged`, `Metal_Aluminum_Polished`, `Metal_Aluminum_Scuffed`, `Metal_Chrome_Black`, `Metal_Steel_Polished`, `Metal_Iron_Rust_Covered`, `Metal_Iron_Scuffed`, `Metal_Iron`, `Metal_Iron_Rusted`, `Metal_Bronze_Polished`, `Metal_Copper_Scuffed`, `Metal_Copper_Oxidized`, `Metal_Titanium_Polished`, `Metal_Titanium_Scuffed`, `Metal_Gunmetal`, `Metal_Pewter_Aged`, `Metal_Platinum_Polished`, `Plastic_Dark_Brown_Textured`, `Plastic_ABS_Glossy_Black`, `Plastic_PVC_Light_Grey`, `Plastic_ABS_Matte_Grey`, `Plastic_Grey_Scuffed`, `Wall_Stone_Blocks_Grey`, `Wall_Bricks_Cream`, `Wood_Bamboo_Semigloss`, `Wood_Orange_Pine`, `Wood_Veneer_Cherry`, `Wood_Veneer_Light_Beech`
 
 Earlier ambientCG sets (file names `Name###_2K-JPG_*`): `Fabric_Grey_Linen`, `Fabric_Green_Linen`, `Fabric_Rust_Linen`, `Fabric_Tartan`, `Fabric_Bright_Blue`, `Fabric_White_Linen`, `Fabric_Leather_Cream_Textured`, `Fabric_Leather_Black_Grained`, `Fabric_Leather_Black_Soft`, `Fabric_Leather_Chocolate_Textured`, `Fabric_Leather_Saddle_Brown_Textured`, `Fabric_Leather_Dark_Brown_Textured`, `Fabric_Leather_Distressed_Brown`, `Fabric_Leather_Quilted_Dark`, `Fabric_Leather_Quilted_Cream`, `Fabric_Leather_Orange_Textured`, `Fabric_Leather_Peach_Textured`, `Metal_Copper_Dirty`, `Metal_Copper_Smudge`, `Metal_Grey_Metal`, `Metal_Grey_Metal_1`, `Metal_Nickel_Rough`, `Metal_Powder_Steel`, `Paper_White`, `Paper_Grey_Cardboard`, `Paper_Kraft`, `Plastic_Orange_Textured`, `Plastic_Navy_Textured`, `Plastic_Charcoal_Textured`, `Plastic_Off-White_Textured`, `Plastic_Coral_Textured`, `Plastic_Sky_Blue_Textured`, `Plastic_Yellow_Textured`, `Plastic_Green_Textured`, `Plastic_Grey_Textured`, `Rubber_Black_Speckled`, `Rubber_Dark_Teal_Speckled`, `Rubber_Teal_Speckled`, `Rubber_Tire`, `Stone_Granite_Light_Grey`, `Stone_Granite_Red`, `Stone_Marble_Brown_Veined`, `Stone_Marble_Black_Green`, `Stone_Marble_Cream`, `Stone_Marble_Grey_Veined`, `Synthetic_Sponge_Yellow`, `Synthetic_Sponge_Green`, `Wood_Plywood`, `Wood_Plywood_Weathered_Grey`, `Wood_Planks_Dark_Grey`, `Wood_Dark_Brown_Grain`, `Wood_Mahogany`, `Wood_Light_Grain`
 
@@ -49,7 +49,6 @@ The metal folders are named after the material; the ambientCG set each one comes
 | `Metal_Nickel_Polished` | Metal045A |
 | `Metal_Pewter_Aged` | Metal060B |
 | `Metal_Platinum_Polished` | Metal062A |
-| `Metal_Sci-Fi_Panel` | MetalPlates017A |
 | `Metal_Silver_Smudged` | Metal049B |
 | `Metal_Steel_Brushed` | Metal010 |
 | `Metal_Steel_Pitted` | Metal005 |
@@ -123,6 +122,32 @@ The remaining folders were renamed in the same way; the ambientCG set each one c
 | `Wood_Plywood_Weathered_Grey` | Wood040 |
 | `Wood_Veneer_Cherry` | Wood093 |
 | `Wood_Veneer_Light_Beech` | Wood094 |
+
+The `Industrial_*` folders (Industrial & Sci-Fi group), each ambientCG set (CC0, 1K JPG):
+
+| Folder | ambientCG set |
+|---|---|
+| `Industrial_Hull_Plating_Black_Fine_Grid` | MetalPlates007 |
+| `Industrial_Hull_Plating_Black_Herringbone` | MetalPlates006 |
+| `Industrial_Hull_Plating_Black_Large_Tiles` | MetalPlates004 |
+| `Industrial_Hull_Plating_Black_Stacked` | MetalPlates005 |
+| `Industrial_Hull_Plating_Silver_Mixed` | MetalPlates008 |
+| `Industrial_Hull_Plating_Silver_Wide` | MetalPlates009 |
+| `Industrial_Riveted_Plate_Clustered` | MetalPlates001 |
+| `Industrial_Riveted_Plate_Rows` | MetalPlates002 |
+| `Industrial_Riveted_Plate_Weathered` | MetalPlates003 |
+| `Industrial_Sci-Fi_Panel_Blue_Octagon` | MetalPlates016A |
+| `Industrial_Sci-Fi_Panel_Blue_Worn` | MetalPlates016B |
+| `Industrial_Sci-Fi_Panel_Octagon_Dark` | MetalPlates015B |
+| `Industrial_Sci-Fi_Panel_Octagon_Grey` | MetalPlates015A |
+| `Industrial_Sci-Fi_Panel_Octagon_Light` | MetalPlates017A |
+| `Industrial_Sci-Fi_Panel_Octagon_Light_Worn` | MetalPlates017B |
+
+Added 2026-10-16: `Rubber_Tread_Plate_Blue`, `Rubber_Tread_Plate_Yellow`, `Rubber_Tread_Plate_White` and `Industrial_Diamond_Plate_Black` are ambientCG DiamondPlate005A, 006A, 007A and 008A (CC0). `Rubber_Floor_Tiles_Black` is Poly Haven `rubber_tiles` (Amal Kumar, CC0) and `Rubber_Track_Red` is Poly Haven `rubberized_track` (Charlotte Baglioni, CC0).
+
+`Rubber_Tyre_Tread` is TextureCan "Clean Car Tire Rubber Texture" (Plastic 0022), CC0 1.0 per https://texturecan.com/terms/ (a procedural texture, no brand marks).
+
+`Rubber_Tread_Y_Lugs`, `Rubber_Tread_Hex_Studs` and `Rubber_Hex_Grip` are 3dtextures.me Rubber Sole 001, Rubber Sole 003 and Hexa Grip Board 001 (CC0, 1K).
 
 The `Metal_Gold_Brushed`, `Metal_Silver_Brushed`, `Metal_Copper_Brushed`, `Metal_Brass_Brushed`, `Metal_Bronze_Brushed`, `Metal_Nickel_Brushed` and `Metal_Titanium_Brushed` folders are ambientCG `Metal009` (CC0) with its colour map tinted; the other maps are unchanged.
 

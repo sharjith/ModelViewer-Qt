@@ -1055,14 +1055,18 @@ foreach(_pack ${_hdri_included_packs})
     )
 endforeach()
 
-# The essentials: the common metals, plastics, rubber, wood, stone, paper, denim and a clear-coated paint (~150 MB). The rest of the library (~2.2 GB) is a
+# The essentials: a spread from every group (metals, brushed metals, industrial and sci-fi panels, stone, plastics, rubber, wood, walls, fabric and leather, paper and a clear-coated paint, ~250 MB). The rest of the library (~2.2 GB) is a
 # separate download (the "material library" pack, see packaging/make-content-packs.ps1) that users unzip into share/ModelViewer/textures.
 set(_material_included_presets
-    "ClearCoat_Metallic_Blue" "Fabric_Denim_02" "Metal_Aluminum_Polished" "Metal_Brushed-Metal"
-    "Metal_Chrome_Mirror" "Metal_Copper" "Metal_Brass_Dull" "Metal_Gold_Mirror" "Metal_Silver_Dull"
-    "Metal_Steel_Stainless" "Metal_Steel_Scratched" "Metal_Titanium_Polished" "Paper_White"
-    "Plastic_ABS_Glossy_Black" "Plastic_ABS_Matte_Grey" "Rubber_Tire" "Stone_Granite_Red"
-    "Wood_Plywood" "Wood_Dark_Brown_Grain"
+    "ClearCoat_Metallic_Blue" "Metal_Aluminum_Polished" "Metal_Brass_Dull" "Metal_Bronze_Weathered" "Metal_Chrome_Mirror" "Metal_Copper_Satin"
+    "Metal_Copper_Oxidized" "Metal_Gold_Mirror" "Metal_Gold_Worn" "Metal_Gunmetal" "Metal_Iron_Rusted" "Metal_Steel_Polished" "Metal_Steel_Scratched"
+    "Metal_Steel_Stainless" "Metal_Titanium_Polished" "Metal_Silver_Smudged" "Metal_Silver_Dull" "Metal_Brushed-Metal" "Metal_Aluminum_Brushed"
+    "Metal_Steel_Brushed" "Metal_Gold_Brushed" "Metal_Copper_Brushed" "Industrial_Sci-Fi_Panel_Octagon_Light" "Industrial_Sci-Fi_Panel_Blue_Octagon"
+    "Industrial_Hull_Plating_Black_Large_Tiles" "Industrial_Hull_Plating_Silver_Wide" "Industrial_Riveted_Plate_Weathered" "Metal_Corrugated_Steel"
+    "Stone_Granite_Red" "Stone_Marble_Grey_Veined" "Ground_Grass005" "Ground_Snow_Fresh" "Stone_Quartz_001" "Plastic_ABS_Glossy_Black"
+    "Plastic_ABS_Matte_Grey" "Plastic_PVC_Light_Grey" "Plastic_Dark_Brown_Textured" "Plastic_Grey_Scuffed" "Rubber_Tire" "Rubber_Tyre_Tread" "Wood_Veneer_Cherry"
+    "Wood_Veneer_Light_Beech" "Wood_Orange_Pine" "Wood_Bamboo_Semigloss" "Wood_Planks_Dark_Grey" "Wood_Dark_Brown_Grain" "Wall_Bricks_Cream"
+    "Wall_Stone_Blocks_Grey" "Wall_Glass_Window" "Fabric_Tartan" "Fabric_Leather_Black_Grained" "Fabric_Leather_Distressed_Brown" "Paper_White"
 )
 foreach(_preset ${_material_included_presets})
     install(DIRECTORY "textures/materials/${_preset}"
