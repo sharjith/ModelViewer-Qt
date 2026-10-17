@@ -133,14 +133,19 @@ plotting, measurement and annotation, CGAL-based mesh editing and surface analys
   newer** from cgal.org (Ubuntu's own CGAL is 6.1); the CMake configure step says so,
   and `packaging/linux/setup-wsl-build-env.sh` installs it.
 
-- **Smaller downloads.** The installer and the `.deb` ship a starter set only (19 materials, 4 HDRI maps, curated
-  sample models), about 400 MB instead of several GB. The complete material library (two zips), all HDRI maps and the
+- **Smaller downloads.** The installer and the `.deb` ship a starter set only (53 materials covering every group, 23 HDRI maps, curated
+  sample models), about 700 MB instead of several GB. The complete material library (two zips), all HDRI maps and the
   million-cell simulation stress-test files are optional downloads on the release page, each with `README.txt` deploy
   instructions and a `SHA256SUMS.txt`; see "Optional content packs" in the README. They are built with
   `packaging/make-content-packs.ps1`.
 - **Sample models cleaned up.** Models that could not be redistributed (a CC BY-NC shuttle, three engine / grader archives,
   a vendor actuator, the Open CASCADE logo) were removed; every remaining sample is documented in
   `sample-models/LICENSES.md`. The Forklift is now stored upright (Z-up). The Camera sample stays in the repository but is not installed.
+- **Material library and environment maps reorganised and re-licensed.** The library is grouped (metals, brushed metals,
+  industrial and sci-fi, stone, plastics, rubber, wood, fabrics, leather, glass and transparent, clear-coat car paints and more)
+  with descriptive "Type, Finish" names. Every texture, HDRI map, floor texture, hatch pattern and look-up table now has a
+  documented source and licence (CC0, CC BY or Apache-2.0); the sources are in `textures/LICENSES.md` and the credits in
+  `CREDITS.md`, also shown in the About dialog. Textures and maps whose terms could not be verified were replaced or removed.
 
 ### Documentation
 - Eleven new tutorial lessons (19-29: simulation results, looking inside a result,

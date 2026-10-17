@@ -11,6 +11,7 @@ ModelViewer now reads **simulation results** (FEM / CFD) and plots **your own da
 [English](docs/guide/ModelViewer_Simulation_and_3D_Plotting_Guide.pdf), [Deutsch](docs/guide/ModelViewer_Simulation_and_3D_Plotting_Guide_de.pdf),
 [Español](docs/guide/ModelViewer_Simulation_and_3D_Plotting_Guide_es.pdf), [Français](docs/guide/ModelViewer_Simulation_and_3D_Plotting_Guide_fr.pdf),
 [Italiano](docs/guide/ModelViewer_Simulation_and_3D_Plotting_Guide_it.pdf).
+Short video tutorials are on the [ModelViewer YouTube channel](https://www.youtube.com/@ModelViewerQt).
 
 ## Download
 
@@ -54,11 +55,13 @@ content, so a pack can be applied again safely. Packs are built with `packaging/
 
 **ADS Mode for CAD Visualization**
 
-![Screenshot 2021-07-24 172616](https://github.com/user-attachments/assets/364c5cf4-34b5-4991-938c-d36ea05a8026)
+<img width="1920" height="1032" alt="ADS mode with the scene tree: the Skate-Board-Assy sample" src="docs/assets/screenshots/ads-mode.jpg" />
 
 **PBR Mode for Advanced Visualization**
 
-<img width="1920" height="1032" alt="Screenshot 2026-03-07 151616" src="https://github.com/user-attachments/assets/9b31b1fd-90ee-47c4-af3b-3cacae6f0f27" />
+<img width="1920" height="1032" alt="PBR mode with image-based lighting and ground reflections" src="docs/assets/screenshots/pbr-mode.jpg" />
+
+Model: "2023 Nissan X-Trail 4x4-i" by Ddiaz Design, CC BY 4.0 (see [CREDITS.md](CREDITS.md)).
 
 
 ## Features Overview
@@ -253,7 +256,7 @@ ModelViewer implements comprehensive support for Khronos KHR material extensions
 
 **Realistic Automotive Paint Rendering (Clearcoat & Iridescence):**
 
-<img width="1920" height="1032" alt="Screenshot 2026-03-02 213714" src="https://github.com/user-attachments/assets/58f6ae47-3e7d-41b6-aa56-362c037fcd4c" />
+<img width="1431" height="1032" alt="Automotive paint with clearcoat and iridescence" src="docs/assets/screenshots/automotive-paint.jpg" />
 
 ### User Interface & Tools
 
@@ -606,3 +609,11 @@ For the full license text, see the [LICENSE](LICENSE) file in the repository roo
 - [Eigen](https://eigen.tuxfamily.org/), [Boost](https://www.boost.org/), [GMP](https://gmplib.org/) and [MPFR](https://www.mpfr.org/) - numerics used by CGAL
 - [meshoptimizer](https://github.com/zeux/meshoptimizer), [Basis Universal](https://github.com/BinomialLLC/basis_universal), [OpenEXR](https://openexr.com/), [zstd](https://facebook.github.io/zstd/) and [FreeType](https://freetype.org/)
 - Tutorial image for ray tracing: "Car Concept" by Eric Chadwick, CC BY 4.0, from the [Khronos glTF Sample Assets](https://github.com/KhronosGroup/glTF-Sample-Assets) (see [CREDITS.md](CREDITS.md))
+- Models shown in the screenshots, all from the [Khronos glTF Sample Assets](https://github.com/KhronosGroup/glTF-Sample-Assets) unless noted (details in [CREDITS.md](CREDITS.md)):
+  "SheenWoodLeatherSofa" (Fran Calvente, CC0, with 2024 improvements by Eric Chadwick, (c) Darmstadt Graphics Group GmbH, CC BY 4.0);
+  "GlassHurricaneCandleHolder" (Eric Chadwick, (c) 2021 Wayfair, CC BY 4.0);
+  "LightsPunctualLamp" ((c) 2021 Darmstadt Graphics Group GmbH, CC BY 4.0);
+  "ChronographWatch" (Eric Chadwick, (c) 2025 Darmstadt Graphics Group GmbH, CC BY 4.0, based on a model by graphiccompressor, CC BY);
+  the "Compare..." test spheres (Eric Chadwick and DGG, CC0).
+  Other sources: "Mazda Vision RX | www.vecarz.com" by vecarz and "2023 Nissan X-Trail 4x4-i" by Ddiaz Design, both from Sketchfab, CC BY 4.0;
+  the pump is an Open CASCADE Technology test model.

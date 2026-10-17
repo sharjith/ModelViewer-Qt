@@ -404,7 +404,9 @@
             installer (<code>.exe</code>) and a Linux <code>.deb</code> for Ubuntu 26.04 LTS
             (<code>sudo apt install ./modelviewer_2026.11.0_amd64.deb</code>). The full list of changes is in the
             <a href="https://github.com/sharjith/ModelViewer-Qt/blob/master/CHANGELOG.md">changelog</a>.</p>
-            <p><strong>Optional content packs:</strong> to keep the installer small it carries 19 materials and 4 HDRI maps. The complete
+            <p><strong>Video tutorials:</strong> a series of short tutorials, from opening a model to simulation results, 3D plots and ray tracing, is on the
+            <a href="https://www.youtube.com/@ModelViewerQt">ModelViewer YouTube channel</a>.</p>
+            <p><strong>Optional content packs:</strong> to keep the installer small it carries 53 materials and 23 HDRI maps. The complete
             <em>material library</em> (about 2.2&nbsp;GB, two zips), <em>all HDRI environment maps</em> (about 1.0&nbsp;GB) and the optional
             <em>large simulation samples</em> are separate downloads on the same release page. Unzip each into the ModelViewer data folder
             (Windows: <code>C:\Program Files\ModelViewer\share\ModelViewer</code>, Linux: <code>/usr/share/ModelViewer</code>, administrator rights needed),
@@ -484,6 +486,7 @@
             
             <h4>Sheen, Alpha Coverage</h4>
             <img width="4400" height="2430" src="assets/screenshots/sheen-alpha-coverage.jpg" alt="Sheen and Alpha">
+            <p><small>Sofa: &quot;SheenWoodLeatherSofa&quot; by Fran Calvente (CC0), with 2024 improvements by Eric Chadwick, &copy; Darmstadt Graphics Group GmbH, CC BY 4.0, from the Khronos glTF Sample Assets.</small></p>
 
             <ul>
                 <li><strong>Physically-Based Rendering (PBR):</strong> Full Cook-Torrance BRDF implementation with metallic/roughness workflows</li>
@@ -766,7 +769,7 @@
 
             <div class="note">
                 <strong>Just want to run ModelViewer?</strong> You don't need to build anything —
-                grab the prebuilt <strong>Windows installer</strong> or <strong>Linux AppImage</strong>
+                grab the prebuilt <strong>Windows installer</strong> or the <strong>Linux .deb package</strong> (Ubuntu 26.04)
                 from the <a href="https://github.com/sharjith/ModelViewer-Qt/releases/latest">latest release</a>.
                 The steps below are only needed if you want to build from source.
             </div>
@@ -967,6 +970,21 @@ make -j$(sysctl -n hw.ncpu)
                 <li><a href="https://www.unidata.ucar.edu/software/netcdf/">NetCDF</a>, <a href="https://www.hdfgroup.org/solutions/hdf5/">HDF5</a> and <a href="https://cgns.github.io/">CGNS</a> - simulation result readers</li>
                 <li><a href="https://eigen.tuxfamily.org/">Eigen</a>, <a href="https://www.boost.org/">Boost</a>, <a href="https://gmplib.org/">GMP</a> and <a href="https://www.mpfr.org/">MPFR</a> - numerics used by CGAL</li>
                 <li><a href="https://github.com/zeux/meshoptimizer">meshoptimizer</a>, <a href="https://github.com/BinomialLLC/basis_universal">Basis Universal</a>, <a href="https://openexr.com/">OpenEXR</a>, <a href="https://facebook.github.io/zstd/">zstd</a> and <a href="https://freetype.org/">FreeType</a></li>
+            </ul>
+            <h3>Models shown in the screenshots</h3>
+            <p>Sample models from the <a href="https://github.com/KhronosGroup/glTF-Sample-Assets">Khronos glTF Sample Assets</a>. Where a model has two layers of licensing, both are listed.</p>
+            <ul>
+                <li>&quot;DiffuseTransmissionPlant&quot;: Eric Chadwick for materials and animation, &copy; 2024 Darmstadt Graphics Group GmbH, CC BY 4.0; original asset by Rico Cilliers, CC0.</li>
+                <li>&quot;ChronographWatch&quot;: Eric Chadwick for model and textures, &copy; 2025 Darmstadt Graphics Group GmbH, CC BY 4.0; based on a model by graphiccompressor, CC BY.</li>
+                <li>&quot;LightsPunctualLamp&quot;: created by Teresa Gonz&aacute;lez Viegas and DGG, &copy; 2021 Darmstadt Graphics Group GmbH, CC BY 4.0.</li>
+                <li>Candle holder with the glTF and KHR logos (&quot;GlassHurricaneCandleHolder&quot;): Eric Chadwick, &copy; 2021 Wayfair, LLC, CC BY 4.0.</li>
+                <li>&quot;Fox&quot;: model by PixelMannen (CC0); rigging and animation by tomkranis (CC BY 4.0); conversion to glTF by @AsoboStudio and @scurest (CC BY 4.0).</li>
+                <li>&quot;SheenWoodLeatherSofa&quot;: original by Fran Calvente (CC0); 2024 improvements by Eric Chadwick, &copy; Darmstadt Graphics Group GmbH, CC BY 4.0.</li>
+                <li>&quot;Differential Gearbox&quot; by DKS, from the <a href="https://grabcad.com/library/differential-gearbox-78">GrabCAD Community Library</a> (March 2025).</li>
+                <li>&quot;Mazda Vision RX | www.vecarz.com&quot; by vecarz (<a href="https://sketchfab.com/3d-models/mazda-vision-rx-wwwvecarzcom-8a1530794143468cbb8fff262d4a7455">Sketchfab</a>), CC BY 4.0.</li>
+                <li>&quot;2023 Nissan X-Trail 4x4-i&quot; by Ddiaz Design (<a href="https://sketchfab.com/3d-models/2023-nissan-x-trail-4x4-i-f9f2cbdacac74ee7acfe1c731195ccaa">Sketchfab</a>), CC BY 4.0.</li>
+                <li>&quot;Car Concept&quot;: Eric Chadwick, &copy; 2024 Darmstadt Graphics Group GmbH, CC BY 4.0.</li>
+                <li>The &quot;Compare&hellip;&quot; test spheres: Eric Chadwick and DGG, CC0.</li>
             </ul>
         </section>
     </div>
