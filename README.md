@@ -1,7 +1,7 @@
 # ModelViewer
 OpenGL-based 3D Model Viewer with Advanced Rendering Capabilities
 
-A professional-grade 3D viewer that reads and displays a comprehensive range of 3D file formats supported by Assimp (OBJ, FBX, COLLADA, BLEND, and more) and CAD formats, including STEP, IGES, and BRep files via OpenCASCADE. Features physically-based rendering (PBR), advanced material systems with Khronos KHR extensions, and sophisticated CAD visualization capabilities.
+A professional-grade 3D viewer that reads and displays a comprehensive range of 3D file formats supported by Assimp (OBJ, FBX, COLLADA, BLEND, and more) and CAD formats, including STEP, IGES, and BRep files via OpenCASCADE, and displays FEM / CFD simulation results (VTK, CalculiX, Exodus II, CGNS, MED, OpenFOAM, VTKHDF). Features physically-based rendering (PBR), advanced material systems with Khronos KHR extensions, and sophisticated CAD visualization capabilities.
 
 ## What's new in 2026.11
 
@@ -332,7 +332,11 @@ ModelViewer implements a sophisticated dual-pipeline rendering system:
 
 ### 3D Model Formats (via Assimp)
 
-OBJ, FBX, COLLADA, Blender, VRML, STL, DAE, 3DS, IQM, XGL, ZGL, PLY, MS3D, LWO, LWS, Ogex, 3D, Q3O, Q3S, raw, STP, and more (30+ formats supported)
+glTF / GLB (also with Draco mesh compression and KTX2 textures), OBJ, FBX, COLLADA (.dae), Blender (.blend), VRML (.wrl), STL, 3DS, PLY, DXF, IFC, OFF, LWO / LWS, AC3D, Irrlicht, MD5, IQM, XGL, ZGL, MS3D, Ogex, Q3O, Q3S, raw, and more (30+ formats supported)
+
+### Native Session Format
+
+**MVF** (`.mvf`) - ModelViewer session file: the loaded models, materials, lights, cameras, animations, exploded-view steps, annotations, measurements, plots and simulation results.
 
 ### CAD Formats (via OpenCASCADE)
 
@@ -342,7 +346,19 @@ OBJ, FBX, COLLADA, Blender, VRML, STL, DAE, 3DS, IQM, XGL, ZGL, PLY, MS3D, LWO, 
 
 ### Simulation Result Formats
 
-VTK legacy and XML (`.vtk`, `.vtu`), CalculiX (`.frd`), Exodus II, CGNS, MED, OpenFOAM cases (`.foam`) and VTKHDF. Plot data comes from CSV files or pasted text.
+ModelViewer displays results that other programs have computed; it does not run simulations. Open them with File > Import:
+
+| Format | Extensions | Typical source |
+|---|---|---|
+| VTK legacy and XML unstructured grid | `.vtk`, `.vtu` | ParaView, VTK-based tools, many solvers |
+| CalculiX results | `.frd` | CalculiX |
+| OpenFOAM case | `.foam` | OpenFOAM |
+| Exodus II | `.e`, `.exo`, `.ex2`, `.g` | Sierra, MOOSE, Cubit, others |
+| CGNS (unstructured and structured zones) | `.cgns` | many CFD codes |
+| MED | `.med` | Salome, Code_Aster |
+| VTKHDF | `.vtkhdf` | VTK 9.x, ParaView |
+
+Node and cell (element) data, vectors, tensors, time steps, line and polyhedral cells are supported; results can be kept inside an `.mvf` session. A reader is only offered if its library was built in (NetCDF for Exodus II, the CGNS library for CGNS, HDF5 for MED and VTKHDF); a source build without those libraries shows only VTK, CalculiX and OpenFOAM. Plot data comes from CSV files or pasted text.
 
 ### Export Formats
 
