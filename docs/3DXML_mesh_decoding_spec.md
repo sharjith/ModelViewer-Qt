@@ -1,5 +1,10 @@
 # Sample-derived 3DXML mesh decoding specification
 
+> Scene placement and basis conventions are documented in
+> [the scene graph specification](3DXML_scene_graph_spec.md). Decoded triples
+> are native XYZ. The earlier cyclic OBJ display permutation has been removed
+> from exported geometry; the PNG preview rotation is presentation only.
+
 2026-10-17. This supersedes the earlier connectivity hypotheses in
 `3DXML_reverse_engineering.md`. All rules below come from the supplied archive
 and original analysis scripts, without vendor software, source, schemas or SDKs.
@@ -111,11 +116,11 @@ Otherwise:
    trailing components of the previous tuple. Emit the whole tuple.
 5. Require exact consumption of Q floats; reject nonfinite positions.
 
-The serialized tuple's first component is axial for the pin/ring. Exported
-research OBJs permute `(p0,p1,p2)` to `(p1,p2,p0)` and label it as the
-candidate `(z,x,y)` to `(x,y,z)` mapping. This is a cyclic permutation and
-preserves handedness. Do not assume this establishes assembly matrix
-orientation, source units or global up-axis.
+The serialized tuple is retained as native XYZ. Its first component is
+axial X for the pin/ring, while the screw axis is Z. Exported research OBJs
+now preserve these coordinates. Earlier OBJs used a cyclic display
+permutation; regenerate them for scene placement. The scene graph
+specification records the independent evidence and exact XML matrix mapping.
 
 Keep repeated positions as separate vertex records. They can carry distinct
 attributes and can be shared differently across detail levels and face groups.
@@ -258,8 +263,10 @@ copied into source control.
 4. Check geometry on more of the 140 members, especially open surfaces,
    multiple components and nonmanifold cases. This audit only establishes
    consistent counts and in-range indices for that broader set.
-5. Confirm assembly matrix orientation, nested occurrences and units before
-   translating this specification into the planned C++ importer.
+5. Apply the separately documented assembly matrix/basis/visibility rules.
+   Units are millimetres by sample calibration, without an explicit XML unit
+   declaration; general unit handling still needs a documented policy.
 
-No application build/test commands or commits were run. The application
-sources, dependencies and import filters remain unchanged.
+No application build/test commands were run. The owner's later request
+authorized research-only checkpoints on `feature/3dxml-importer`. The
+application sources, dependencies and import filters remain unchanged.

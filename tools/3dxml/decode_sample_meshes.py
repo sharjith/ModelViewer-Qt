@@ -312,8 +312,8 @@ def write_obj(path, mesh, smooth_candidates=None):
     points = mesh["positions_serialized"]
     triangles = [tri for face in mesh["finest_faces"] for tri in face["triangles"]]
     lines = ["# Research: decoded references; " + ("candidate source smooth normals" if smooth_candidates else "derived flat normals"),
-             "# Candidate source component order z,x,y remapped to OBJ x,y,z"]
-    lines.extend("v %.9g %.9g %.9g" % (p[1], p[2], p[0]) for p in points)
+             "# Native source XYZ retained; no display-axis permutation"]
+    lines.extend("v %.9g %.9g %.9g" % tuple(p) for p in points)
     normal_indices = []
     for tri in triangles:
         a, b, c = [points[index] for index in tri]
@@ -321,14 +321,14 @@ def write_obj(path, mesh, smooth_candidates=None):
         length = math.sqrt(dot(normal, normal))
         normal = tuple(component / length for component in normal) if length else (0, 0, 0)
         if smooth_candidates is None:
-            lines.append("vn %.9g %.9g %.9g" % (normal[1], normal[2], normal[0]))
+            lines.append("vn %.9g %.9g %.9g" % tuple(normal))
     if smooth_candidates is not None:
         for face in mesh["finest_faces"]:
             for tri in face["triangles"]:
                 per_triangle = []
                 for index in tri:
                     normal = face["constant_normal_serialized"] or smooth_candidates[index]
-                    lines.append("vn %.9g %.9g %.9g" % (normal[1], normal[2], normal[0]))
+                    lines.append("vn %.9g %.9g %.9g" % tuple(normal))
                     per_triangle.append(len(normal_indices) * 3 + len(per_triangle) + 1)
                 normal_indices.append(per_triangle)
     cursor = 0

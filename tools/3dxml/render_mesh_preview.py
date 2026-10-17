@@ -39,6 +39,8 @@ def main():
              ("Distanzring_1_R", "Spacer ring", (126, 159, 226))]
     for panel, (stem, title, color) in enumerate(items):
         mesh = json.loads((args.directory / (stem + ".mesh.json")).read_text())
+        # Display-only camera presentation: make these axial-X parts upright.
+        # OBJ/scene coordinates retain native XYZ; never bake this into import.
         points = [(p[1], p[2], p[0]) for p in mesh["positions_serialized"]]
         center = tuple((min(p[i] for p in points) + max(p[i] for p in points)) / 2 for i in range(3))
         centered = [tuple(p[i] - center[i] for i in range(3)) for p in points]

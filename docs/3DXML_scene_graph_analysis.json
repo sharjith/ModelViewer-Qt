@@ -1,0 +1,539 @@
+{
+  "method": "raw sample XML and mesh bytes; no vendor software/reference output",
+  "root_member": "ASM_GETRAG_V160.3dxml",
+  "xml_counts": {
+    "references": 173,
+    "instances": 251,
+    "representation_references": 153,
+    "representation_instances": 153
+  },
+  "expanded_occurrences": 251,
+  "visible_occurrences": 234,
+  "maximum_path_depth": 3,
+  "reused_references": {
+    "161": 2,
+    "262": 4,
+    "311": 2,
+    "325": 10,
+    "333": 2,
+    "342": 4,
+    "353": 7,
+    "362": 2,
+    "389": 3,
+    "395": 3,
+    "485": 5,
+    "617": 4,
+    "621": 3,
+    "632": 4,
+    "655": 3,
+    "661": 4,
+    "668": 2,
+    "688": 21,
+    "714": 13
+  },
+  "hidden_paths": [
+    [
+      "290",
+      "337"
+    ],
+    [
+      "550",
+      "608"
+    ],
+    [
+      "550",
+      "612"
+    ],
+    [
+      "711"
+    ]
+  ],
+  "unresolved_hidden_paths": [],
+  "rotation_checks": {
+    "minimum_determinant": 0.999999999999992,
+    "maximum_determinant": 1.0000000000000056,
+    "maximum_orthogonality_error": 1.5987211554602254e-14
+  },
+  "pin_matrix_disambiguation": [
+    {
+      "instance": "484",
+      "translation": [
+        401.5,
+        -1.2170264795941e-12,
+        99.9999999999999
+      ],
+      "columns_inward_radial_cosine": 1.0,
+      "rows_inward_radial_cosine": -0.9414542424942058
+    },
+    {
+      "instance": "498",
+      "translation": [
+        467.0,
+        56.1569562223602,
+        85.1544299724176
+      ],
+      "columns_inward_radial_cosine": 1.0000000000000007,
+      "rows_inward_radial_cosine": -0.9715451528443413
+    },
+    {
+      "instance": "509",
+      "translation": [
+        361.5,
+        71.1916065216292,
+        61.7352802799298
+      ],
+      "columns_inward_radial_cosine": 1.0000000000000007,
+      "rows_inward_radial_cosine": -0.8715019182049544
+    },
+    {
+      "instance": "520",
+      "translation": [
+        552.5,
+        -51.8434604576482,
+        83.7327320435838
+      ],
+      "columns_inward_radial_cosine": 1.0000000000000002,
+      "rows_inward_radial_cosine": -0.6229699346663294
+    },
+    {
+      "instance": "531",
+      "translation": [
+        234.0,
+        36.8944036536855,
+        103.026374534042
+      ],
+      "columns_inward_radial_cosine": 1.0,
+      "rows_inward_radial_cosine": -1.0
+    }
+  ],
+  "screw_matrix_disambiguation": [
+    {
+      "instance": "160",
+      "translation": [
+        197.3,
+        25.9807621135333,
+        -105.0
+      ],
+      "column_interpretation_local_z_axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "row_interpretation_local_z_axis": [
+        -1.0,
+        -4.44089209850063e-16,
+        0.0
+      ]
+    },
+    {
+      "instance": "164",
+      "translation": [
+        197.299999999999,
+        -25.9807621135332,
+        -75.0000000000001
+      ],
+      "column_interpretation_local_z_axis": [
+        0.999999999999998,
+        0.0,
+        0.0
+      ],
+      "row_interpretation_local_z_axis": [
+        1.0,
+        1.66533453693773e-16,
+        0.0
+      ]
+    }
+  ],
+  "coordinate_permutation_evidence": [
+    {
+      "permutation": [
+        0,
+        1,
+        2
+      ],
+      "members": 140,
+      "median_center_error": 2.379204281243004e-05,
+      "maximum_center_error": 29.01895473137066,
+      "mean_center_error": 0.8352228421348705
+    },
+    {
+      "permutation": [
+        0,
+        2,
+        1
+      ],
+      "members": 140,
+      "median_center_error": 10.254511544756893,
+      "maximum_center_error": 267.3637142786781,
+      "mean_center_error": 49.23214600020723
+    },
+    {
+      "permutation": [
+        1,
+        0,
+        2
+      ],
+      "members": 140,
+      "median_center_error": 314.64912368520186,
+      "maximum_center_error": 1159.6551263038898,
+      "mean_center_error": 365.0712880923624
+    },
+    {
+      "permutation": [
+        1,
+        2,
+        0
+      ],
+      "members": 140,
+      "median_center_error": 310.48586468738836,
+      "maximum_center_error": 1102.7093905467568,
+      "mean_center_error": 360.28501349352655
+    },
+    {
+      "permutation": [
+        2,
+        0,
+        1
+      ],
+      "members": 140,
+      "median_center_error": 310.53580819422655,
+      "maximum_center_error": 1102.7093905467568,
+      "mean_center_error": 360.4289004376202
+    },
+    {
+      "permutation": [
+        2,
+        1,
+        0
+      ],
+      "members": 140,
+      "median_center_error": 254.74777723311536,
+      "maximum_center_error": 1035.2043276571055,
+      "mean_center_error": 340.4319525110635
+    }
+  ],
+  "coordinate_center_examples": [
+    {
+      "member": "Distanzring_1_R.3DRep",
+      "bounds_native_candidate": [
+        [
+          515.2999877929688,
+          519.2999877929688
+        ],
+        [
+          -33.999046325683594,
+          33.999046325683594
+        ],
+        [
+          -33.995269775390625,
+          33.995269775390625
+        ]
+      ],
+      "bounds_center": [
+        517.2999877929688,
+        0.0,
+        0.0
+      ],
+      "binary_center_candidate_offset": 773,
+      "binary_center_candidate": [
+        517.300048828125,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "member": "DIN_ISO_4762_M5x12.3DRep",
+      "bounds_native_candidate": [
+        [
+          -4.2454328536987305,
+          4.2454328536987305
+        ],
+        [
+          -4.248978137969971,
+          4.248978137969971
+        ],
+        [
+          -5.0,
+          12.0
+        ]
+      ],
+      "bounds_center": [
+        0.0,
+        0.0,
+        3.5
+      ],
+      "binary_center_candidate_offset": 961,
+      "binary_center_candidate": [
+        0.0,
+        0.0,
+        3.5
+      ]
+    },
+    {
+      "member": "ISO_2338_5x25_Zyl_Stift.3DRep",
+      "bounds_native_candidate": [
+        [
+          0.0,
+          25.0
+        ],
+        [
+          -2.5,
+          2.5
+        ],
+        [
+          -2.5,
+          2.5
+        ]
+      ],
+      "bounds_center": [
+        12.5,
+        0.0,
+        0.0
+      ],
+      "binary_center_candidate_offset": 760,
+      "binary_center_candidate": [
+        12.5,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "largest_native_center_residuals": [
+    {
+      "member": "Gabel_3_4.3DRep",
+      "native_center_error": 29.01895473137066
+    },
+    {
+      "member": "Gabel_1_2.3DRep",
+      "native_center_error": 26.48742113337618
+    },
+    {
+      "member": "Gabel_R.3DRep",
+      "native_center_error": 25.298938941600596
+    },
+    {
+      "member": "Gabel_5_6.3DRep",
+      "native_center_error": 18.471156886221856
+    },
+    {
+      "member": "Wippe_5_6.3DRep",
+      "native_center_error": 3.9742147166324635
+    },
+    {
+      "member": "Schiebemuffe_3_4.3DRep",
+      "native_center_error": 1.9301986694335938
+    },
+    {
+      "member": "Haltewikel_5_6.3DRep",
+      "native_center_error": 1.9273389572194646
+    },
+    {
+      "member": "Synchro_R_233_0_0376_98.3DRep",
+      "native_center_error": 1.739824652671814
+    },
+    {
+      "member": "Rueckstellfeder.3DRep",
+      "native_center_error": 1.3708816642245982
+    },
+    {
+      "member": "Schaltstange_5_6_Primaer.3DRep",
+      "native_center_error": 0.9330705313839105
+    },
+    {
+      "member": "Schaltstange_5_6_Sekundaer.3DRep",
+      "native_center_error": 0.8899703362718974
+    },
+    {
+      "member": "Rastierung_1_2.3DRep",
+      "native_center_error": 0.6763859038680099
+    }
+  ],
+  "unit_calibrations": [
+    {
+      "member": "ISO_2338_10x20_Zyl_Stift.3DRep",
+      "bounds_spans": [
+        20.0,
+        10.0,
+        9.980267524719238
+      ],
+      "maximum_radial_diameter_about_local_x": 10.000000433298103
+    },
+    {
+      "member": "ISO_2338_8x14_Zyl_Stift.3DRep",
+      "bounds_spans": [
+        14.0,
+        8.0,
+        7.981349945068359
+      ],
+      "maximum_radial_diameter_about_local_x": 8.000000215873637
+    },
+    {
+      "member": "ISO_2338_5x25_Zyl_Stift.3DRep",
+      "bounds_spans": [
+        25.0,
+        5.0,
+        5.0
+      ],
+      "maximum_radial_diameter_about_local_x": 5.000000190789816
+    }
+  ],
+  "explicit_unit_xml_elements_or_attributes": [],
+  "default_camera": {
+    "Position": [
+      -24.18094063,
+      657.1871948,
+      215.9381256
+    ],
+    "Sight": [
+      0.4355120957,
+      -0.8536574841,
+      -0.285654068
+    ],
+    "Right": [
+      -0.896071732,
+      -0.4414099455,
+      -0.04704001918
+    ],
+    "Up": [
+      0.08593448997,
+      -0.276453048,
+      0.9571776986
+    ],
+    "visualizedHeight": 189.0961985,
+    "targetDistance": 787.6420288,
+    "nearPlaneDistance": 192.5203247,
+    "farPlaneDistance": 1422.104736,
+    "target": [
+      318.84668999408774,
+      -15.189317876827772,
+      -9.055024054493146
+    ],
+    "right_from_sight_cross_up": [
+      -0.8960718437957034,
+      -0.44141000211602466,
+      -0.0470400257919258
+    ]
+  },
+  "nonidentity_assembly_occurrences": [
+    {
+      "instance": "173",
+      "name": "ZSB-Synchro_3-4.1",
+      "matrix": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          366.499999999998
+        ],
+        [
+          0.0,
+          1.0,
+          -1.11022302462516e-16,
+          4.2632564145606e-14
+        ],
+        [
+          0.0,
+          1.11022302462516e-16,
+          1.0,
+          5.6843418860808e-14
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    {
+      "instance": "300",
+      "name": "BAFUD 16 24 4 12010799 (0).1",
+      "matrix": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          582.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          88.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    {
+      "instance": "314",
+      "name": "BAUMSLX7 56 72 8 410420 (0).1",
+      "matrix": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          627.000013221387
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    {
+      "instance": "366",
+      "name": "BAUMSL 40 72 10 477147 (0).1",
+      "matrix": [
+        [
+          -1.0,
+          0.0,
+          0.0,
+          164.0
+        ],
+        [
+          0.0,
+          0.906307787036652,
+          0.4226182617407,
+          4.2632564145606e-14
+        ],
+        [
+          0.0,
+          0.4226182617407,
+          -0.906307787036652,
+          5.6843418860808e-14
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    }
+  ]
+}

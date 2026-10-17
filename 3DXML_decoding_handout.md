@@ -1,5 +1,10 @@
 # Handout: decoding binary CATIA V5 `.3DRep` (3DXML) for ModelViewer-Qt
 
+> **Current research:** Start at the [research index](docs/3DXML_RESEARCH_INDEX.md).
+> The [scene graph specification](docs/3DXML_scene_graph_spec.md) corrects the
+> earlier coordinate-axis interpretation and documents matrix composition,
+> instances, visibility and the sample-backed unit inference.
+
 > **Continuation, 2026-10-17:** The current user requested resuming research.
 > See [corrected findings and importer plan](docs/3DXML_reverse_engineering.md)
 > and the reproducible measurements in `docs/3DXML_sample_analysis.json`.
