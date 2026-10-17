@@ -1,0 +1,92 @@
+{
+  "status": "sample prototype; source per-vertex normals still unresolved",
+  "representations": [
+    {
+      "member": "ISO_2338_5x25_Zyl_Stift.3DRep",
+      "sha256": "55056783279a33b15dc4571c4d31e0f4a4c3552220178b50cc62db206d951cbc",
+      "checks": {
+        "vertices_in_pool": 268,
+        "unique_positions": 140,
+        "used_unique_positions": 140,
+        "triangles": 276,
+        "welded_edges": 414,
+        "edge_incidence_histogram": {
+          "2": 414
+        },
+        "edge_orientation_mismatches": 0,
+        "euler_characteristic": 2,
+        "signed_volume_serialized": 484.3689824221496,
+        "degenerate_triangles": [],
+        "constant_normal_winding_mismatches": [],
+        "candidate_normals": {
+          "status": "candidate: exact source scaling still unconfirmed",
+          "vertices_using_pool_normals": 212,
+          "vertices_on_constant_normal_faces": 68,
+          "minimum_dot_with_triangle_normal": 0.9959869234320272,
+          "opposed_vertex_normals": 0,
+          "max_unit_length_error": 2.220446049250313e-16
+        }
+      },
+      "geometry_end_offset": 4225,
+      "remaining_bits": 31
+    },
+    {
+      "member": "Distanzring_1_R.3DRep",
+      "sha256": "1c659d7104679f1ae7d501374fa3e2aea2e8234ea0608a58262fc5cad83c0db1",
+      "checks": {
+        "vertices_in_pool": 729,
+        "unique_positions": 472,
+        "used_unique_positions": 472,
+        "triangles": 944,
+        "welded_edges": 1416,
+        "edge_incidence_histogram": {
+          "2": 1416
+        },
+        "edge_orientation_mismatches": 0,
+        "euler_characteristic": 0,
+        "signed_volume_serialized": 8163.06900236077,
+        "degenerate_triangles": [],
+        "constant_normal_winding_mismatches": [],
+        "candidate_normals": {
+          "status": "candidate: exact source scaling still unconfirmed",
+          "vertices_using_pool_normals": 472,
+          "vertices_on_constant_normal_faces": 472,
+          "minimum_dot_with_triangle_normal": 0.9995573214298111,
+          "opposed_vertex_normals": 0,
+          "max_unit_length_error": 2.220446049250313e-16
+        }
+      },
+      "geometry_end_offset": 10951,
+      "remaining_bits": 9
+    },
+    {
+      "member": "DIN_ISO_4762_M5x12.3DRep",
+      "sha256": "3dc6bcb476158362e613a51805958d6041079a4730e5295d7181853bf43055eb",
+      "checks": {
+        "vertices_in_pool": 8909,
+        "unique_positions": 6268,
+        "used_unique_positions": 6268,
+        "triangles": 12532,
+        "welded_edges": 18798,
+        "edge_incidence_histogram": {
+          "2": 18798
+        },
+        "edge_orientation_mismatches": 0,
+        "euler_characteristic": 2,
+        "signed_volume_serialized": 403.93835332981786,
+        "degenerate_triangles": [],
+        "constant_normal_winding_mismatches": [],
+        "candidate_normals": {
+          "status": "candidate: exact source scaling still unconfirmed",
+          "vertices_using_pool_normals": 8307,
+          "vertices_on_constant_normal_faces": 218,
+          "minimum_dot_with_triangle_normal": 0.4686933120318287,
+          "opposed_vertex_normals": 0,
+          "max_unit_length_error": 2.220446049250313e-16
+        }
+      },
+      "geometry_end_offset": 159888,
+      "remaining_bits": 13
+    }
+  ]
+}
