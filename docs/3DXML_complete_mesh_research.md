@@ -259,6 +259,34 @@ depth-buffer verification. No source mesh is decimated for this preview.
 
 ## Reproduction and implementation boundary
 
+The owner-inspection OBJ is
+`out/3dxml-research/export/ASM-GETRAG_V160_decoded.obj`, with a companion MTL,
+manifest and verification report in the same directory. It includes the
+default-visible assembly: 276 named body occurrences, 3,634,460 vertex records
+and 5,608,912 triangles. The named OBJ objects flatten the XML/internal hierarchy;
+source occurrence paths and matrices are retained in the manifest. World
+placements are baked once; source triangles are not simplified or repaired.
+
+The OBJ uses derived flat normals and two neutral inspection materials. Keep
+the MTL beside the OBJ. Its default export basis is `(x,z,-y)` from native
+coordinates because the existing ModelViewer OBJ loader applies +90 degrees
+about X. That import rotation restores the native assembly orientation.
+`--native-xyz` disables this export-only compensation for other inspection
+tools; it does not change the native 3DXML decoding convention. The optional
+`--hide-housings` exports the internal mechanism alone.
+
+```powershell
+python -I tools/3dxml/export_decoded_assembly.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --occurrences out/3dxml-research/scene_graph.json --output out/3dxml-research/export/ASM-GETRAG_V160_decoded.obj
+python -I tools/3dxml/verify_exported_obj.py out/3dxml-research/export/ASM-GETRAG_V160_decoded.obj
+```
+
+The independent streaming OBJ check validates all face references, per-object
+vertex/index ranges and counts, finite coordinates, bounds, unit normals and
+explicit per-triangle normal binding, material-file presence and the OBJ hash.
+This does not replace the owner's ModelViewer runtime inspection. The export
+and generated geometry remain ignored artifacts; the reproducible scripts are
+versioned research source.
+
 ```powershell
 python -I tools/3dxml/decode_representation.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --report docs/3DXML_complete_mesh_audit.json --geometry-qa
 python -I tools/3dxml/analyze_normal_quantization.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --report docs/3DXML_normal_quantization_analysis.json
