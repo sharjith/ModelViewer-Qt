@@ -14,6 +14,11 @@ exact stored smooth-normal quantization remains explicitly unproven.
 
 ## Current specifications
 
+A [hierarchical GLB inspection checkpoint](3DXML_glb_inspection.md) now preserves
+all 252 XML nodes, shared representation meshes, default visibility and face
+colors. Its geometry and placements match the verified OBJ; owner inspection
+in ModelViewer is pending before implementation.
+
 The owner's subsequent reference screenshots prompted a
 [face-color pass](3DXML_face_color_findings.md): 45 stored BGR colors are now
 bound to the corresponding finest face packets in a separate colored OBJ.
