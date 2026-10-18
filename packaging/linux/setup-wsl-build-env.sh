@@ -54,6 +54,8 @@ sudo apt-get install -y \
   libembree-dev \
   libassimp-dev \
   libminizip-dev \
+  zlib1g-dev \
+  liblzma-dev \
   libmeshoptimizer-dev \
   libopenexr-dev \
   libfreetype-dev \

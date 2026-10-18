@@ -39,6 +39,7 @@
 #include "GltfAnimationData.h"
 #include "GltfCameraData.h"
 #include "ThreeDXml/Document.h"
+#include "Jt/JtImporter.h"
 #include "GltfVariantData.h"
 
 
@@ -307,6 +308,7 @@ private:
 
 	const aiScene* _scene = nullptr; // Holds the loaded scene
 	ThreeDXml::ImportResult _threeDXml; // Owns custom aiScene independently of Assimp::Importer.
+	Jt::ImportResult _jt;
 	
 	SceneMeshInfo _sceneStats; // Holds statistics about the scene
 	int _totalNodeCount = 0;

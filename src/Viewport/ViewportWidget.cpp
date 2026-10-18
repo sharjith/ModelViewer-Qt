@@ -5380,7 +5380,8 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 	const bool hadExistingMeshes = !_sceneRuntime.meshStore().empty();
 	_initiallyHiddenImportMeshes.clear();
 	const size_t meshCountBeforeLoad = _sceneRuntime.meshStore().size();
-	const bool isThreeDXmlImport = fileName.endsWith(".3dxml", Qt::CaseInsensitive);
+	const bool isNativeCadImport = fileName.endsWith(".3dxml", Qt::CaseInsensitive) ||
+		fileName.endsWith(".jt", Qt::CaseInsensitive);
 	MainWindow::clearFileLoadCancel();
 	bool success = false;
 
@@ -5530,8 +5531,8 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 
 		makeCurrent();
 		std::vector<AssImpMeshData> meshes = loadingWorker->getMeshes();
-		const bool rollbackThreeDXml = isThreeDXmlImport && (!success || _sceneRuntime.loadCancelled());
-		if (rollbackThreeDXml) {
+		const bool rollbackNativeCad = isNativeCadImport && (!success || _sceneRuntime.loadCancelled());
+		if (rollbackNativeCad) {
 			// A native archive import is atomic: never attach a complete hierarchy
 			// to only the progressive batches that happened to arrive before Cancel.
 			_sceneRuntime.pendingSceneUuids().clear();
@@ -5572,7 +5573,7 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 			}
 		}
 
-		_sceneRuntime.setAssimpScene(rollbackThreeDXml ? nullptr : loadingWorker->getScene());
+		_sceneRuntime.setAssimpScene(rollbackNativeCad ? nullptr : loadingWorker->getScene());
 		_sceneRuntime.globalSceneTransform() = loadingWorker->getGlobalSceneTransform();
 		const bool autoOrientCameraEnabled = loadingWorker->isAutoOrientActive();
 		const SceneUpAxis sceneUpAxis = loadingWorker->sceneUpAxis();
@@ -5701,7 +5702,7 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 
 	if (_sceneRuntime.loadCancelled())
 	{
-		if (isThreeDXmlImport) {
+		if (isNativeCadImport) {
 			success = false;
 			MainWindow::showStatusMessage(tr("Model loading cancelled"), 3000);
 		}
@@ -5709,11 +5710,11 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 		{
 			success = true;
 		}
-		if (!isThreeDXmlImport && _sceneRuntime.meshStore().empty())
+		if (!isNativeCadImport && _sceneRuntime.meshStore().empty())
 		{
 			MainWindow::showStatusMessage(tr("Model loading cancelled"), 3000);
 		}
-		else if (!isThreeDXmlImport)
+		else if (!isNativeCadImport)
 		{
 			MainWindow::showStatusMessage(
 				tr("Model loading cancelled after importing %1 meshes").arg(_sceneRuntime.meshStore().size()),

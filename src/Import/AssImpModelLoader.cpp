@@ -924,6 +924,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	_processedMeshCount = 0;
 	_totalMeshOccurrences = 0;
 	_threeDXml = {};
+	_jt = {};
 
 	_materialProcessor.clearGLBCaches();
 	_materialProcessor.clearLoadedTextures();
@@ -960,6 +961,28 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			_errorMessage = QString::fromUtf8(e.what());
 			if (_loadingCancelled || MainWindow::isFileLoadCancelRequested()) {
 				_loadingCancelled = true; _errorMessage = "Model loading cancelled by user."; emit loadingCancelled();
+			}
+			emit loadingFinished(false, nullptr);
+			return;
+		}
+	}
+	else if (fi.suffix().compare("jt", Qt::CaseInsensitive) == 0)
+	{
+		try {
+			Jt::Options options;
+			options.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
+			options.progress = [this](const QString&, int done, int total) {
+				emit fileReadProcessed(total ? float(done)/total : 0.0f);
+			};
+			_jt = Jt::Importer::read(fi.absoluteFilePath(), options);
+			_scene = _jt.scene.get();
+			for (const QString& warning : _jt.warnings) qWarning().noquote() << warning;
+		} catch (const std::exception& e) {
+			_errorMessage = QString::fromUtf8(e.what());
+			if (_loadingCancelled || MainWindow::isFileLoadCancelRequested()) {
+				_loadingCancelled = true;
+				_errorMessage = "Model loading cancelled by user.";
+				emit loadingCancelled();
 			}
 			emit loadingFinished(false, nullptr);
 			return;
@@ -1284,7 +1307,7 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 		aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];		
 		AssImpMeshData myMesh = processMesh(mesh, scene, node->mMeshes[i], scene->mNumMeshes, globalTransform, node->mName.C_Str());
 
-		myMesh.initiallyVisible = !_threeDXml.hiddenNodes.contains(node);
+		myMesh.initiallyVisible = !_threeDXml.hiddenNodes.contains(node) && !_jt.hiddenNodes.contains(node);
 		_meshes.push_back(myMesh);            // full mesh store
 		++_processedMeshCount;
 		emit nodeMeshProgressUpdated(
@@ -2171,6 +2194,7 @@ void AssImpModelLoader::freeScene()
 {
 	_importer.FreeScene();
 	_threeDXml = {};
+	_jt = {};
 	_scene = nullptr;
 }
 

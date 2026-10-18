@@ -54,6 +54,8 @@
     "freetype",
     "glm",
     "minizip",
+    "zlib",
+    "liblzma",
     "opencascade",
     "meshoptimizer",
     "cgal",

@@ -84,3 +84,4 @@ add_test(NAME mvf_tests COMMAND mvf_tests)
 
 # Native 3DXML codec and scene parity checks (QtCore, Assimp and ZIP; no GL).
 add_subdirectory(3dxml)
+add_subdirectory(jt)

@@ -1,0 +1,87 @@
+{
+  "research_date": "2026-10-18",
+  "source_root": "D:\\work\\progs\\qt5\\ModelViewer-Github\\data",
+  "method": "Read first 65536 bytes only; remove text CR/LF; extract header schema and observed internal length-prefixed schema strings (15 or 23 characters). No record stream or geometry decoded.",
+  "files": [
+    {
+      "file": "2003-honda-cbr954rr-engine-1.snapshot.1/cbr954rr Engine build assy.x_t",
+      "bytes": 58008359,
+      "header_schema_key": "SCH_3100203_31001",
+      "internal_schema_key": "SCH_3100203_31001_13006",
+      "status": "header_probe_only",
+      "parasolid_kit_advertised_exact_profile": false
+    },
+    {
+      "file": "B4T-25.0-FB/B4T-25.0-FB.x_t",
+      "bytes": 115561052,
+      "header_schema_key": "SCH_2500248_25001",
+      "internal_schema_key": "SCH_2500248_25001_13006",
+      "status": "header_probe_only",
+      "parasolid_kit_advertised_exact_profile": false
+    },
+    {
+      "file": "B4T-6.5 RC.x_t",
+      "bytes": 87831406,
+      "header_schema_key": "SCH_2500176_25001",
+      "internal_schema_key": "SCH_2500176_25001_13006",
+      "status": "header_probe_only",
+      "parasolid_kit_advertised_exact_profile": false
+    },
+    {
+      "file": "engine-v-twin-4-valve-heads-1.snapshot.2/Engine Issue 1-0 Parasolid.x_t",
+      "bytes": 24920096,
+      "header_schema_key": "SCH_2800204_28002",
+      "internal_schema_key": "SCH_2800204_28002_13006",
+      "status": "header_probe_only",
+      "parasolid_kit_advertised_exact_profile": false
+    },
+    {
+      "file": "hitachi-wheel-loader-1.snapshot.1/ASSEMBLY BODY.SLDASM.x_t",
+      "bytes": 0,
+      "header_schema_key": null,
+      "internal_schema_key": null,
+      "status": "empty",
+      "parasolid_kit_advertised_exact_profile": false
+    },
+    {
+      "file": "hitachi-wheel-loader-1.snapshot.1/WHEEL ASSEMBLY.SLDASM.x_t",
+      "bytes": 0,
+      "header_schema_key": null,
+      "internal_schema_key": null,
+      "status": "empty",
+      "parasolid_kit_advertised_exact_profile": false
+    },
+    {
+      "file": "kuka-robotic-arm-industrial-1.snapshot.2/Robotic arm/last assembly Parasolid.x_t",
+      "bytes": 7530173,
+      "header_schema_key": "SCH_3101284_31100",
+      "internal_schema_key": "SCH_3101284_31100_13006",
+      "status": "header_probe_only",
+      "parasolid_kit_advertised_exact_profile": false
+    },
+    {
+      "file": "volvo-vm-8x4-tipper-truck-1.snapshot.11/Volvo VM 8x4 para.x_t",
+      "bytes": 122955132,
+      "header_schema_key": "SCH_2400216_20000",
+      "internal_schema_key": "SCH_900000_9008",
+      "status": "header_probe_only",
+      "parasolid_kit_advertised_exact_profile": false
+    },
+    {
+      "file": "yamaha-xs650-engine-1.snapshot.2/XS650 Engine Assy Onepiece and Carbs.x_t",
+      "bytes": 23078297,
+      "header_schema_key": "SCH_3000298_30000",
+      "internal_schema_key": "SCH_3000298_30000_13006",
+      "status": "header_probe_only",
+      "parasolid_kit_advertised_exact_profile": false
+    }
+  ],
+  "summary": {
+    "files": 9,
+    "nonempty": 7,
+    "empty": 2,
+    "exact_profile_matches": 0,
+    "jt_files_found_in_checked_roots": 0
+  },
+  "candidate_commit": "2bc959687c8ca87145c4e0594828c3fa11aab912"
+}

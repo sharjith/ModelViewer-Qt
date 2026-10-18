@@ -394,6 +394,8 @@ qt6_wrap_ui(ui_wrapped ${ui_sources})
 # CREATE THE TARGET - This must come before any target_* commands
 # ============================================================================
 add_executable(ModelViewer)
+add_subdirectory(third_party/occt-jt)
+target_link_libraries(ModelViewer PRIVATE mv_jt_codec)
 target_link_libraries(ModelViewer PRIVATE ${MV_MINIZIP_TARGET})
 
 set(APP_VERSION_MAJOR 2026)
