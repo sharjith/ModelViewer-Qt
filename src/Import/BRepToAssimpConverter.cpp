@@ -17,6 +17,7 @@
 #include <gp_Cylinder.hxx>
 #include <gp_Dir.hxx>
 #include <BRepBndLib.hxx>
+#include <Bnd_Box.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
@@ -1098,6 +1099,31 @@ bool BRepToAssimpConverter::isShapeMeshable(const TopoDS_Shape& shape)
  *
  * @since Version 2.0 - Optimized performance implementation
  */
+namespace
+{
+// True when every node of `tri` (placed by `loc`) lies within (a margin around) the bounding box of `face`'s own edges. A
+// face's triangulation cannot legitimately extend far past its boundary, so one that does came from a repair that replaced
+// the real boundary (e.g. ShapeFix's "add natural bound", or a rebuild from the surface's full UV range) - the large stray
+// triangle that results is worse than leaving the face out.
+bool triangulationStaysNearFaceEdges(const TopoDS_Face& face, const Handle(Poly_Triangulation)& tri, const TopLoc_Location& loc)
+{
+	Bnd_Box box;
+	for (TopExp_Explorer ex(face, TopAbs_EDGE); ex.More(); ex.Next())
+		BRepBndLib::AddClose(ex.Current(), box);
+	if (box.IsVoid() || tri.IsNull())
+		return true; // nothing to compare against - do not reject
+	const double margin = std::max(0.05 * std::sqrt(box.SquareExtent()), 1.0e-6);
+	box.Enlarge(margin);
+	for (int i = 1; i <= tri->NbNodes(); ++i)
+	{
+		const gp_Pnt p = tri->Node(i).Transformed(loc);
+		if (box.IsOut(p))
+			return false;
+	}
+	return true;
+}
+} // namespace
+
 aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapOfShape& faceGroup, int meshIndex, bool enableStatistics,
 	const std::vector<aiColor4D>* faceColors)
 {
@@ -1267,6 +1293,12 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 						if (!healedFace.IsNull())
 						{
 							triangulation = BRep_Tool::Triangulation(healedFace, loc);
+							if (!triangulation.IsNull() && !triangulationStaysNearFaceEdges(face, triangulation, loc))
+							{
+								qWarning().noquote() << QStringLiteral("[STEP import] mesh %1: a healed face's tessellation extends far beyond its boundary - left out")
+									.arg(meshIndex);
+								triangulation.Nullify();
+							}
 							if (!triangulation.IsNull())
 							{
 								processedFace = healedFace;

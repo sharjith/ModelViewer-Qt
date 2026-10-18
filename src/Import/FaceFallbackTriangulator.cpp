@@ -588,7 +588,7 @@ Handle(Poly_Triangulation) FaceFallbackTriangulator::triangulate(const TopoDS_Fa
 		{
 			std::vector<double> sorted = segmentLengths;
 			std::nth_element(sorted.begin(), sorted.begin() + sorted.size() / 2, sorted.end());
-			const double h = sorted[sorted.size() / 2];
+			double h = sorted[sorted.size() / 2];
 			double uMin = 1e300, uMax = -1e300, vMin = 1e300, vMax = -1e300;
 			for (const auto& l : loopsUV)
 			{
@@ -602,6 +602,12 @@ Handle(Poly_Triangulation) FaceFallbackTriangulator::triangulate(const TopoDS_Fa
 			gp_Vec du, dv;
 			surface->D1(0.5 * (uMin + uMax), 0.5 * (vMin + vMax), centre, du, dv);
 			const double lu = du.Magnitude(), lv = dv.Magnitude();
+			// The median boundary segment is long on a long, thin face (its sides are sampled coarsely along the
+			// length), so sizing the interior points by it alone puts none across the narrow width - and the
+			// triangles then become chords cutting straight across a curved surface. Never space the points wider
+			// than a fraction of the face's narrower parametric extent.
+			if (lu > 1e-9 && lv > 1e-9)
+				h = std::min(h, 0.25 * std::min((uMax - uMin) * lu, (vMax - vMin) * lv));
 			if (h > 1e-9 && lu > 1e-9 && lv > 1e-9)
 			{
 				int nu = std::max(1, static_cast<int>(std::ceil((uMax - uMin) * lu / h)));
@@ -683,6 +689,11 @@ Handle(Poly_Triangulation) FaceFallbackTriangulator::triangulate(const TopoDS_Fa
 			if (mapped.find(&*v) == mapped.end())
 				v->info() = -1; // a vertex created by crossing constraints - not expected for a valid loop set
 		}
+		// A boundary whose (u, v) points are all collinear (a sliver / degenerate face) gives a
+		// triangulation of dimension < 2: there are no 2-D faces, and Face::neighbor(2) is null, so
+		// markDomains() would dereference it. Nothing can be triangulated there anyway.
+		if (cdt.dimension() < 2)
+			return fail("the face boundary is degenerate in (u, v) (collinear points)");
 		markDomains(cdt);
 
 		std::vector<std::array<int, 3>> triangles;
