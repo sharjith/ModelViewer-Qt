@@ -1,0 +1,115 @@
+<h1 class="part"><small>Part II</small>3D plotting</h1>
+
+<h1 class="chapter">Introduction to 3D plotting</h1>
+
+<p>ModelViewer can plot data that has nothing to do with a solver. A table of numbers - measurements, an export from a spreadsheet, a mathematical function - becomes a surface, a curve, a cloud of points, a set of bars, a volume or a field of arrows, <b>in the same 3D scene</b> as your models, with the same camera, selection, section, annotation and image-export tools, and the same lighting. It is a way to look at data in space, not a spreadsheet or a statistics package: there is no data editing, no fitting, and no live data feed.</p>
+
+<h2>The idea in one picture</h2>
+<figure>
+<svg width="640" height="150" viewBox="0 0 640 150" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="12">
+  <rect x="5" y="20" width="150" height="110" rx="8" fill="#fdf5e4" stroke="#b7791f"/>
+  <text x="80" y="44" text-anchor="middle" font-weight="600" fill="#14213d">Data source</text>
+  <text x="80" y="65" text-anchor="middle" fill="#3e4c59">CSV file or pasted text</text>
+  <text x="80" y="82" text-anchor="middle" fill="#3e4c59">formula or preset</text>
+  <text x="80" y="99" text-anchor="middle" fill="#3e4c59">CSV time series</text>
+  <text x="80" y="116" text-anchor="middle" fill="#3e4c59">image on a plane</text>
+  <path d="M155 75 H190" stroke="#2b6cb0" stroke-width="2" marker-end="url(#b)"/>
+  <rect x="190" y="20" width="150" height="110" rx="8" fill="#e8f0fa" stroke="#2b6cb0"/>
+  <text x="265" y="44" text-anchor="middle" font-weight="600" fill="#14213d">Add 3D Plot dialog</text>
+  <text x="265" y="65" text-anchor="middle" fill="#3e4c59">choose type, map columns</text>
+  <text x="265" y="82" text-anchor="middle" fill="#3e4c59">Preview</text>
+  <text x="265" y="99" text-anchor="middle" fill="#3e4c59">Build Plot</text>
+  <path d="M340 75 H375" stroke="#2b6cb0" stroke-width="2" marker-end="url(#b)"/>
+  <rect x="375" y="20" width="130" height="110" rx="8" fill="#14213d"/>
+  <text x="440" y="44" text-anchor="middle" font-weight="600" fill="#fff">In the scene</text>
+  <text x="440" y="65" text-anchor="middle" fill="#cbd5e0">plot + axes box</text>
+  <text x="440" y="82" text-anchor="middle" fill="#cbd5e0">legend, tree entry</text>
+  <text x="440" y="99" text-anchor="middle" fill="#cbd5e0">with your models</text>
+  <path d="M505 75 H535" stroke="#2b6cb0" stroke-width="2" marker-end="url(#b)"/>
+  <rect x="535" y="20" width="100" height="110" rx="8" fill="#e8f6ee" stroke="#2f855a"/>
+  <text x="585" y="44" text-anchor="middle" font-weight="600" fill="#14213d">3D Plot tab</text>
+  <text x="585" y="65" text-anchor="middle" fill="#3e4c59">style, axes,</text>
+  <text x="585" y="82" text-anchor="middle" fill="#3e4c59">notes, edit,</text>
+  <text x="585" y="99" text-anchor="middle" fill="#3e4c59">export</text>
+  <defs><marker id="b" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#2b6cb0"/></marker></defs>
+</svg>
+<figcaption>From a table of numbers to a plot in the scene</figcaption>
+</figure>
+
+<h2>Data sources and plot types</h2>
+<p>A plot has two independent choices: <b>where its data comes from</b> (the data source) and <b>what it looks like</b> (the plot type).</p>
+<table>
+  <thead><tr><th style="width:34%">Data source</th><th>Gives</th><th style="width:20%">Chapter</th></tr></thead>
+  <tbody>
+    <tr><td>CSV file or pasted data</td><td>A table you map to X, Y, Z and more, drawn as any plot type</td><td>11, 12</td></tr>
+    <tr><td>Formula surface</td><td>z(x, y) from an expression or one of 11 presets</td><td>13</td></tr>
+    <tr><td>Parametric surface, parametric curve</td><td>x, y, z as functions of two parameters (u, v) or one (t); Torus, Klein bottle, helix, trefoil knot ...</td><td>13</td></tr>
+    <tr><td>Implicit surface</td><td>The surface where f(x, y, z) = 0: sphere, torus, gyroid ...</td><td>13</td></tr>
+    <tr><td>Formula vector field, formula streamlines</td><td>Arrows or flow lines of a field given by three expressions</td><td>13</td></tr>
+    <tr><td>Formula pathlines, CSV time series (pathlines)</td><td>Particle tracks through a field that changes with time</td><td>14</td></tr>
+    <tr><td>Image on a plane</td><td>A picture standing on one of the plot planes</td><td>16</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th style="width:26%">Plot type</th><th>For data that is ...</th></tr></thead>
+  <tbody>
+    <tr><td>Surface</td><td>a height z over x and y (a grid or scattered points)</td></tr>
+    <tr><td>Contour</td><td>the same, drawn as iso-lines of z</td></tr>
+    <tr><td>Line / Curve</td><td>an ordered path of points</td></tr>
+    <tr><td>Scatter</td><td>unordered points (optionally with stems, error bars or fills)</td></tr>
+    <tr><td>Bar / Histogram</td><td>heights over a grid, or counts in bins</td></tr>
+    <tr><td>Voxel / Volumetric</td><td>an occupancy or density on a 3-D grid</td></tr>
+    <tr><td>Vector (Quiver)</td><td>a vector at each point</td></tr>
+  </tbody>
+</table>
+
+<h2>What you get in the scene</h2>
+<ul>
+  <li>Every plot is an entry in the <b>scene tree</b> with its own visibility checkbox, so it can be hidden or shown like a model.</li>
+  <li>An <b>axes box</b> frames the plots, with labels, tick marks and numbers; reference planes (XY, XZ, YZ) are available. <b>All plots of a document share one set of axes</b> (chapter 15).</li>
+  <li>A <b>colour legend</b> appears for plots coloured by a value.</li>
+  <li>A plot can be edited later: change the data, columns or formulas and rebuild it in place (chapter 17).</li>
+  <li>Plots are saved in the <code>.mvf</code> session with their data, and point and line plots also export to glTF, GLB and OBJ (chapter 17).</li>
+</ul>
+
+<div class="callout"><span class="label">Note</span>
+  <p>Plots are analysis views. They are drawn the same way in every rendering mode and are not drawn by the ray tracer. If you want a rendered picture of a plot, use the normal viewer's image export.</p>
+</div>
+
+
+<h1 class="chapter">Plotting a CSV file</h1>
+
+<h2>What the table must look like</h2>
+<p>The input is a plain-text table: rows of numbers separated by a delimiter, usually with a <b>header row</b> that names the columns. Any spreadsheet or analysis tool can write it. The dialog supports the comma, the semicolon and the tab as the <span class="ui">Delimiter</span>, and <span class="ui">First row contains column names</span> says whether the first line is a header. A small example, the start of <code>surface_ripple.csv</code> (z = sin(r)/r over a 21 x 21 grid; the last column repeats z as the colour value):</p>
+<pre>x,y,z,value
+-5.0000,-5.0000,0.100248,0.100248
+-5.0000,-4.5000,0.063807,0.063807
+-5.0000,-4.0000,0.018686,0.018686
+...</pre>
+<ul>
+  <li>Numbers use the decimal point. Empty or non-numeric cells in a numeric column make the table unusable; the status line names the row.</li>
+  <li>For a <b>line</b> the row order matters (it is the order along the path); for the other types it does not.</li>
+  <li>The table can be opened from a file (<span class="ui">Open CSV...</span>) or pasted (<span class="ui">Paste</span>); after loading, the first 200 rows are shown in a preview table, and the status line reports how many rows and columns were read.</li>
+</ul>
+
+<h2>The Add 3D Plot dialog</h2>
+<ol>
+  <li>Open <span class="path">Visualization &rarr; Plot 3D...</span> (or <span class="ui">Add 3D Plot...</span> in the <span class="ui">3D Plot</span> tab).</li>
+  <li><span class="ui">Data source</span>: <i>CSV file or pasted data</i>. Open or paste your table; check the delimiter and the header setting.</li>
+  <li><span class="ui">Plot type</span>: pick the type (chapter 12). The column choices below change to match it.</li>
+  <li>Map the columns: the position columns <span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span>, and, as the type needs, <span class="ui">Colour value</span>, <span class="ui">U</span>, <span class="ui">V</span>, <span class="ui">W</span>, <span class="ui">Base</span>, <span class="ui">Width</span>, <span class="ui">Depth</span>. A choice of <i>(none)</i> leaves a mapping out. The program guesses sensible columns from the header names, and you can change them: the mapping is by position in the table, so the order of columns in the file is a convenience, not a requirement.</li>
+  <li><span class="ui">Preview</span> shows the plot in the scene before it is added - the same size, colours and behaviour as the final plot - and <span class="ui">Clear Preview</span> removes it. Closing the dialog also removes a preview.</li>
+  <li><span class="ui">Build Plot</span> adds the plot to the scene. A <span class="ui">Title</span> names it.</li>
+</ol>
+<figure data-img="tutorial_23_add_plot_dialog.png"><figcaption>The Add 3D Plot dialog with <code>surface_ripple.csv</code> loaded and the columns mapped</figcaption></figure>
+<figure data-img="tutorial_23_surface_built.png"><figcaption>The ripple surface in the scene with its axes box and legend</figcaption></figure>
+
+<h2>The colour value</h2>
+<p>Surface, line, scatter and bar plots are coloured by a value. By default it is the height (Z); map <span class="ui">Colour value</span> to another column to colour by something else - the cluster number of a scatter plot, the speed along a path. A scatter plot's colour is per point; a surface's is interpolated between its vertices.</p>
+
+<h2>When the table cannot be used</h2>
+<p>The status line below the preview says what was read and, if the table cannot be used, why: a row with text where a number is needed (it names the row), a table that is not a complete regular grid where one is required (it says how many rows are missing), or a column that was not chosen. The <span class="ui">Build Plot</span> button stays disabled until the problem is fixed. Appendix C lists the messages.</p>
+
+<div class="callout tip"><span class="label">Tip</span>
+  <p>Start with a sample of the type you want (Appendix A) and look at its columns, then shape your own table the same way. A new file is as easy as a header line and rows of numbers.</p>
+</div>

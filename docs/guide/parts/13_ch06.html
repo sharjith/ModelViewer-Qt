@@ -1,0 +1,53 @@
+<h1 class="chapter">Looking inside a result</h1>
+
+<p>The surface of a solid shows only half the story: the highest stress is often inside a section, the hottest region under the skin, the fastest flow in the middle of a duct. ModelViewer offers six ways to look in, from the simplest (a cut) to the most specialised (stress tensors as glyphs). The first four need <b>volume cells</b> (tetrahedra, hexahedra, wedges, pyramids, polyhedra); on a shell result the panel states that there is nothing to cut or trace. All six are <b>overlays</b>: they are drawn with the result but are not scene meshes, so they cannot be selected, exported or drawn by the ray tracer.</p>
+
+<h2>Sections: the cut coloured by the field</h2>
+<p>The Clipping Planes (the Section View button of the View toolbar; see the tutorial lesson 12) cut a result like any model. Tick <span class="ui">Colour the Clipping Plane cut with the field</span> and the cut face shows the shown field - with the colours of the legend - instead of an empty hollow. The coloured cut follows the plane as you move it.</p>
+<ul>
+  <li>It works with a node field (smooth) and with a cell field (flat per cell).</li>
+  <li>With several planes switched on, a plane's cut is kept only where every other plane has removed the material, so the cuts always lie on the boundary of what is left.</li>
+  <li>Only the axis-aligned planes take part, not the box mode and not custom planes.</li>
+  <li>The cut is computed on the volume cells, and concave polyhedra are supported.</li>
+</ul>
+<figure data-img="tutorial_20_coloured_section.png"><figcaption>A box cut by a clipping plane, the cut face coloured by stress</figcaption></figure>
+
+<h2>Iso-surfaces</h2>
+<p>An <b>iso-surface</b> is the surface on which a field has one constant value - a shell of equal temperature, a layer of equal stress. <span class="ui">Show iso-surfaces</span> draws a set of them for the <span class="ui">Iso-surface field</span> (a node scalar, or the magnitude of a node vector), at <span class="ui">Iso-surface levels</span> numbering 1 to 20, spaced evenly strictly inside the range of the field at the current step, each in its own colour. A constant field has no iso-surface; the info line says so.</p>
+<ul>
+  <li>Iso-surfaces lie inside the model, so they are seen through a cut. Switch on a Clipping Plane: the section cap is kept open while iso-surfaces are shown, because an opaque cap would hide them. The opaque coloured cut does hide what is behind it; switch that option off to see the iso-surfaces.</li>
+  <li>They are recomputed when the step or the field changes.</li>
+</ul>
+<figure data-img="tutorial_20_iso_surfaces.png"><figcaption>Iso-surfaces of the temperature field inside a block, opened by a clipping plane</figcaption></figure>
+
+<h2>Streamlines</h2>
+<p>Streamlines follow a velocity field: each line is the path a massless particle would take if the flow were frozen at the current step. <span class="ui">Show streamlines</span> uses a node vector field (<span class="ui">Streamline field</span>); <span class="ui">Streamline seeds</span> (1 to 500) is the number of start points.</p>
+<ul>
+  <li><b>Seeding.</b> By default the seeds are random points of the volume - the same ones every time, so animation frames stay comparable. <span class="ui">Seed on the Clipping Plane</span> starts the lines from the cut faces of the enabled planes instead, weighted by area, which shows exactly where the flow goes from a cross-section. A seed outside the mesh, or where the field is zero, gives no line.</li>
+  <li><b>Tracing.</b> Lines are integrated with a fourth-order Runge-Kutta method in both directions from a seed until they leave the mesh, the speed falls to about a millionth of the largest, or a limit is reached (2000 steps, or four model diagonals, per direction). The field is interpolated exactly inside the cell it passes through.</li>
+  <li><b>Drawing.</b> Lines are coloured by the magnitude of the field, with the legend's range when the surface shows the same field. <span class="ui">Arrowheads</span> adds small cones that show the direction, and <span class="ui">Line thickness</span> sets the width. Lines are trimmed to what the planes leave visible.</li>
+  <li><b>Limits.</b> Only node vector fields are traced. Concave polyhedra are excluded (the panel reports how many), because the interpolation is only valid in convex cells. Tracing is not threaded, so a very large result may retrace visibly at each time step.</li>
+</ul>
+<figure data-img="tutorial_20_streamlines.png"><figcaption>Streamlines through a swirling duct flow, with arrowheads</figcaption></figure>
+
+<h2>Volume rendering</h2>
+<p><span class="ui">Show as volume</span> renders a field as a semi-transparent cloud instead of a surface, by ray marching through the volume. Choose the <span class="ui">Volume field</span> and a <span class="ui">Volume quality</span> (Low 32, Medium 64, High 96, Very high 128 samples along each ray: more is smoother and slower).</p>
+<p>The <b>opacity curve</b> beneath the options says how opaque each value is: the horizontal axis is the normalised field value, the vertical axis the opacity. <b>Drag</b> a point to move it, <b>double-click</b> to add a point, <b>right-click</b> an inner point to remove it (the two end points stay at 0 and 1). Raising the curve for the hot values and lowering it for the cold ones leaves only the hot core visible; the colour ramp is the one chosen for the surface. A cell field is shown as its averaged values. The volume shows the current step.</p>
+<figure data-img="tutorial_20_volume_rendering.png"><figcaption>The temperature field of a block rendered as a volume, with the opacity curve</figcaption></figure>
+
+<h2>Vector arrows</h2>
+<p><span class="ui">Show vector arrows</span> draws an arrow for a vector field at sampled points of the surface: choose the <span class="ui">Arrow field</span>, the <span class="ui">Arrow size</span> (1 makes the largest arrow 5 % of the model size; the size stays stable while you zoom) and the <span class="ui">Arrow count</span> (about this many arrows, spread evenly over the surface). With <span class="ui">Scale arrows by magnitude</span> off, every arrow has the same length and only the colour shows the magnitude - useful when a few large vectors would make the rest invisible.</p>
+
+<h2>Stress ellipsoids (tensor glyphs)</h2>
+<p>For a symmetric stress tensor, <span class="ui">Show stress ellipsoids</span> draws an ellipsoid at sampled points of the surface. Its three axes point along the <b>principal directions</b> and their lengths follow the <b>principal values</b>. The longest axis is always the same size on screen, so the <i>shape</i> shows how the stress is distributed - a needle for a pull in one direction, a flat disc for a two-way pull, a sphere for an even pressure - and the <i>colour</i> shows how large it is.</p>
+<ul>
+  <li><span class="ui">Tensor field</span>: every six-component field of the result whose name contains <i>stress</i>; the node fields come before the cell fields in the list. A tensor with another name (an OpenFOAM <i>sigma</i>, say) is not offered, because six components alone do not make a stress.</li>
+  <li><span class="ui">Ellipsoid size</span> (stable while zooming) and <span class="ui">Ellipsoid count</span> (20 to 5000). Raise the count to 1500 or more for a plate.</li>
+  <li>The choices are saved with the session.</li>
+</ul>
+<p>Good first tests: <code>plate_with_hole.frd</code> (needles along the pull far from the hole, changing sharply around it; the stress concentration is about three times the far-field stress), <code>ibeam_cantilever.frd</code> (bending: needles in the flanges, tilting in the web) and <code>stress_states.vtu</code>, a synthetic block with three tensors made to try the <span class="ui">Tensor field</span> choice.</p>
+<figure data-img="tutorial_20_stress_ellipsoids.png"><figcaption>Stress ellipsoids around the hole of a plate</figcaption></figure>
+
+<div class="callout tip"><span class="label">Tip</span>
+  <p>The overlays combine: a deformed shape with a coloured section and a few streamlines is a perfectly good picture. Switch off what you do not use, though - the picture is clearest with one idea per view.</p>
+</div>

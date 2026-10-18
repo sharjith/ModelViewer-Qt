@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lektion 13: Leistungsoptimierung - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Anleitung</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Erste Schritte</a>
+            <a href="lesson02.html">2. Modelle öffnen</a>
+            <a href="lesson03.html">3. Grundlegende Navigation</a>
+            <a href="lesson04.html">4. Objekte auswählen</a>
+            <a href="lesson05.html">5. Ansichtsmodi</a>
+            <a href="lesson06.html">6. Kameramodi</a>
+            <a href="lesson07.html">7. Anzeigemodi</a>
+            <a href="lesson08.html">8. Objekte manipulieren</a>
+            <a href="lesson09.html">9. Materialien und Texturen</a>
+            <a href="lesson10.html">10. Beleuchtung und Umgebung</a>
+            <a href="lesson11.html">11. Arbeiten mit Sichtbarkeit</a>
+            <a href="lesson12.html">12. Erweiterte Funktionen</a>
+            <a href="lesson13.html" class='active'>13. Leistungsoptimierung</a>
+            <a href="lesson14.html">14. Tipps und Workflows</a>
+            <a href="lesson15.html">15. Explosionsansichten</a>
+            <a href="lesson16.html">16. Morph-Target-Animation</a>
+            <a href="lesson17.html">17. Knotentransformation bearbeiten</a>
+            <a href="lesson18.html">18. Kanten- und Drahtgitter-Rendering</a>
+            <a href="lesson19.html">19. Simulationsergebnisse</a>
+            <a href="lesson20.html">20. Ins Innere eines Ergebnisses schauen</a>
+            <a href="lesson21.html">21. Diagramme und Sonden</a>
+            <a href="lesson22.html">22. Ergebnisse vergleichen, Zell- und Schalendaten</a>
+            <a href="lesson23.html">23. 3D-Diagramme aus CSV-Daten</a>
+            <a href="lesson24.html">24. 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</a>
+            <a href="lesson25.html">25. Diagramme und Ergebnisse gemeinsam abspielen</a>
+            <a href="lesson26.html">26. Mesh-Werkzeuge</a>
+            <a href="lesson27.html">27. Messen, Kommentieren und Berichten</a>
+            <a href="lesson28.html">28. Analyse, Auswahl und Szenen</a>
+            <a href="lesson29.html">29. Raytracing in der Praxis</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lektion 13 von 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 44.83%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lektion 13: Leistungsoptimierung</h1>
+        </div>
+
+        <h2>Einführung</h2>
+        <p>Die Arbeit mit großen Modellen erfordert Optimierungsstrategien. So behalten Sie auch bei komplexen Szenen eine flüssige Leistung.</p>
+
+        <h2>Die Leistung verstehen</h2>
+        <p>Mehrere Faktoren beeinflussen die Rendergeschwindigkeit:</p>
+        <ul>
+            <li><b>Polygonanzahl:</b> Mehr Polygone bedeuten langsameres Rendering.</li>
+            <li><b>Anzeigemodus:</b> Der realistische Modus ist deutlich langsamer als Schattiert oder Drahtgitter.</li>
+            <li><b>Anzahl der Objekte:</b> Hohe Objektzahlen erhöhen den Systemaufwand.</li>
+            <li><b>Texturgröße:</b> Große Texturen verbrauchen mehr Speicher und GPU-Bandbreite.</li>
+            <li><b>Beleuchtungskomplexität:</b> Schatten und bildbasierte Beleuchtung (IBL) sind rechenintensiv.</li>
+            <li><b>Bildschirmauflösung:</b> Höhere Auflösungen erfordern die Berechnung von mehr Pixeln.</li>
+        </ul>
+
+        <h2>Automatische Optimierungen</h2>
+        <p>ModelViewer enthält integrierte Funktionen zur Leistungsverwaltung:</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Vorschau mit niedriger Auflösung</div>
+            <div class="step-content">Bei Modellen über 50 MB wird während der Navigation (Drehen, Verschieben, Zoomen) automatisch eine vereinfachte Version angezeigt. Die volle Detailtiefe kehrt zurück, sobald die Bewegung endet.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Progressives Laden</div>
+            <div class="step-content">Große Dateien werden progressiv geladen, sodass Sie mit der Arbeit beginnen können, bevor das gesamte Modell vollständig geladen ist.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Sichtvolumen-Culling</div>
+            <div class="step-content">Objekte außerhalb des aktuellen Sichtfelds der Kamera werden nicht gezeichnet, bleiben aber im Speicher.</div>
+        </div>
+
+        <h2>Manuelle Optimierungsstrategien</h2>
+        <p>Techniken, mit denen Sie die Reaktionsfähigkeit verbessern können:</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Anzeigemodi wechseln</div>
+            <div class="step-content">
+                Verwenden Sie den Modus Schattiert oder Drahtgitter beim Modellieren oder Transformieren. Heben Sie sich den realistischen Modus für die abschließende Prüfung auf.<br> <b>Leistungsranking (vom schnellsten zum langsamsten):</b> Drahtgitter > Schattiert > Schattiert mit Drahtgitter > Realistisch.
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Nicht benötigte Objekte ausblenden</div>
+            <div class="step-content">Blenden Sie Objekte aus, an denen Sie gerade nicht arbeiten. Ausgeblendete Objekte werden nicht gezeichnet und geben GPU-Ressourcen frei. Verwenden Sie „Nur anzeigen“, um Komponenten in großen Baugruppen zu isolieren.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Schattenqualität verringern</div>
+            <div class="step-content">Senken Sie in den Umgebungseinstellungen die Schattenqualität (Ultra → Hoch → Mittel → Niedrig) oder deaktivieren Sie Schatten bei aufwendiger Arbeit ganz.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 4: IBL/Spiegelungen deaktivieren</div>
+            <div class="step-content">Schalten Sie bildbasierte Beleuchtung und Umgebungsspiegelungen aus, wenn sie für die aktuelle Aufgabe nicht unbedingt nötig sind.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 5: Orthografische Projektion verwenden</div>
+            <div class="step-content">Die orthografische Projektion ist etwas schneller als die perspektivische und daher ideal für technische Arbeit.</div>
+        </div>
+
+        <h2>Einstellungsoptimierung</h2>
+        <p>Die globale Rendering-Qualität konfigurieren:</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: MSAA-Stufe</div>
+            <div class="step-content">Senken Sie unter <b>Bearbeiten → Einstellungen → Rendering</b> die MSAA-Samples (Kantenglättung) (8x → 4x → 2x → Aus), wenn die Bildrate schlecht ist.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Anisotrope Filterung</div>
+            <div class="step-content">Verringern Sie die Filterstufe (16x → 8x → 4x → 2x), um die Texturverarbeitungslast zu senken.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_13_settings.png" alt="Einstellungsdialog mit den Optionen zur Rendering-Qualität" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:400px;">Screenshot: tutorial_13_settings.png (500x400)</div>
+            <span class="screenshot-caption">Einstellungsdialog mit den Optionen zur Rendering-Qualität</span>
+        </div>
+
+        <h2>Mit großen Dateien arbeiten</h2>
+        <p>Strategien für riesige Modelle:</p>
+        <ol>
+            <li><b>Selektiv importieren:</b> Importieren Sie nach Möglichkeit nur die Teile, die Sie benötigen.</li>
+            <li><b>Low-Poly-Versionen verwenden:</b> Halten Sie separate Low-Poly-Versionen für die aktive Modellierarbeit bereit.</li>
+            <li><b>In Abschnitten arbeiten:</b> Verwenden Sie Schnittebenen, um jeweils nur einen Bereich zu bearbeiten und zu rendern.</li>
+            <li><b>Das Laden abwarten:</b> Lassen Sie Dateien vollständig laden, bevor Sie aufwendig interagieren.</li>
+            <li><b>Nicht benötigte Sitzungen schließen:</b> Jedes geöffnete Viewer-Fenster verbraucht Systemressourcen.</li>
+        </ol>
+
+        <h2>Speicherverwaltung</h2>
+        <p>Systemressourcen überwachen und verwalten:</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Speicheranzeigen</div>
+            <div class="step-content">Beobachten Sie die Statusleiste auf Warnungen zum Speicherverbrauch.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Nicht benötigte Objekte löschen</div>
+            <div class="step-content">Löschen Sie nicht benötigte Objekte dauerhaft, statt sie nur auszublenden, denn ausgeblendete Objekte belegen weiterhin RAM und VRAM.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Texturgrößen</div>
+            <div class="step-content">Verwenden Sie angemessen große Texturen; 4K-Texturen sind für kleine Objekte oft unnötig. Erwägen Sie 2K- oder 1K-Texturen für bessere Leistung.</div>
+        </div>
+
+        <h2>Leistungs-Checkliste</h2>
+        <p>Bei Verlangsamung probieren Sie diese Schritte der Reihe nach:</p>
+        <ol>
+            <li>Wechseln Sie in den Anzeigemodus Schattiert oder Drahtgitter.</li>
+            <li>Blenden Sie momentan nicht benötigte Objekte aus.</li>
+            <li>Deaktivieren Sie Schatten vorübergehend.</li>
+            <li>Schalten Sie IBL und Umgebungskarten aus.</li>
+            <li>Senken Sie die MSAA-Einstellung in den Einstellungen.</li>
+            <li>Verwenden Sie die orthografische Projektion.</li>
+            <li>Schließen Sie nicht benötigte Viewer-Sitzungen.</li>
+            <li>Verkleinern Sie die Texturen.</li>
+            <li>Erwägen Sie, mit einer Version mit weniger Polygonen zu arbeiten.</li>
+        </ol>
+
+        <div class="note note-tip">
+            In Extremfällen (über 100 Millionen Polygone) sollten Sie erwägen, das Modell in separate Dateien aufzuteilen oder für die aufwendigste Geometriearbeit spezielle CAD-Software zu verwenden.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson12.html' class='nav-button'>← Vorherige Lektion</a>
+            <a href="index.html" class="back-to-index">↑ Zurück zur Übersicht</a>
+            <a href='lesson14.html' class='nav-button'>Nächste Lektion →</a>
+        </div>
+    </div>
+</body>
+</html>

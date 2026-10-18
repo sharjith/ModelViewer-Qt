@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lezione 17: Modifica della trasformazione dei nodi - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primi passi</a>
+            <a href="lesson02.html">2. Aprire i modelli</a>
+            <a href="lesson03.html">3. Navigazione di base</a>
+            <a href="lesson04.html">4. Selezionare gli oggetti</a>
+            <a href="lesson05.html">5. Modalità di visualizzazione</a>
+            <a href="lesson06.html">6. Modalità fotocamera</a>
+            <a href="lesson07.html">7. Modalità di display</a>
+            <a href="lesson08.html">8. Manipolare gli oggetti</a>
+            <a href="lesson09.html">9. Materiali e texture</a>
+            <a href="lesson10.html">10. Illuminazione e ambiente</a>
+            <a href="lesson11.html">11. Lavorare con la visibilità</a>
+            <a href="lesson12.html">12. Funzioni avanzate</a>
+            <a href="lesson13.html">13. Ottimizzazione delle prestazioni</a>
+            <a href="lesson14.html">14. Suggerimenti e flussi di lavoro</a>
+            <a href="lesson15.html">15. Viste esplose</a>
+            <a href="lesson16.html">16. Animazione dei morph target</a>
+            <a href="lesson17.html" class='active'>17. Modifica della trasformazione dei nodi</a>
+            <a href="lesson18.html">18. Rendering di bordi e wireframe</a>
+            <a href="lesson19.html">19. Risultati di simulazione</a>
+            <a href="lesson20.html">20. Guardare dentro un risultato</a>
+            <a href="lesson21.html">21. Grafici e sonde</a>
+            <a href="lesson22.html">22. Confrontare risultati, dati di cella e di guscio</a>
+            <a href="lesson23.html">23. Grafici 3D da dati CSV</a>
+            <a href="lesson24.html">24. Grafici 3D da formule, riempimenti, immagini e note</a>
+            <a href="lesson25.html">25. Grafici e risultati riprodotti insieme</a>
+            <a href="lesson26.html">26. Strumenti per mesh</a>
+            <a href="lesson27.html">27. Misurare, annotare e riferire</a>
+            <a href="lesson28.html">28. Analisi, selezione e scene</a>
+            <a href="lesson29.html">29. Ray tracing in pratica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lezione 17 di 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 58.62%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lezione 17: Modifica della trasformazione dei nodi</h1>
+        </div>
+
+        <h2>Introduzione</h2>
+        <p>La lezione 8 ha trattato l'inserimento di valori esatti di traslazione/rotazione/scala nel pannello Trasformazioni. Questa lezione tratta il <b>gizmo di trasformazione interattivo a schermo</b>: una maniglia 3D che trascini direttamente nella vista per riposizionare, riorientare o ridimensionare visivamente gli oggetti selezionati, con riscontro immediato.</p>
+
+        <h2>Mostrare il gizmo di trasformazione</h2>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Selezionare un oggetto</div>
+            <div class="step-content">Fai clic su un oggetto nella vista o nell'albero del modello per selezionarlo.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Attivare il gizmo</div>
+            <div class="step-content">Mostra il gizmo di trasformazione per la selezione corrente dal menu contestuale (clic destro) o dal pannello Trasformazioni. Il gizmo compare centrato sulla selezione.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_17_gizmo_overview.png" alt="Gizmo di trasformazione con maniglie di traslazione, rotazione e scala su un oggetto selezionato" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Schermata: tutorial_17_gizmo_overview.png (700x450)</div>
+            <span class="screenshot-caption">Gizmo di trasformazione con maniglie di traslazione, rotazione e scala su un oggetto selezionato</span>
+        </div>
+
+        <h2>Usare le maniglie del gizmo</h2>
+        <div class="step">
+            <div class="step-title">Traslare</div>
+            <div class="step-content">Trascina una freccia d'asse (X, Y o Z) per spostare l'oggetto lungo quel singolo asse.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Ruotare</div>
+            <div class="step-content">Trascina uno degli anelli di rotazione (XY, YZ o ZX) per ruotare l'oggetto attorno al piano corrispondente.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Scala</div>
+            <div class="step-content">Trascina la maniglia centrale di scala per ridimensionare l'oggetto in modo uniforme su tutti gli assi.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_17_gizmo_translate.png" alt="Trascinamento della maniglia di traslazione del gizmo per spostare un oggetto lungo un asse" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:400px;">Schermata: tutorial_17_gizmo_translate.png (700x400)</div>
+            <span class="screenshot-caption">Trascinamento della maniglia di traslazione del gizmo per spostare un oggetto lungo un asse</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_17_gizmo_rotate.png" alt="Trascinamento di uno degli anelli di rotazione del gizmo" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:400px;">Schermata: tutorial_17_gizmo_rotate.png (700x400)</div>
+            <span class="screenshot-caption">Trascinamento di uno degli anelli di rotazione del gizmo</span>
+        </div>
+
+        <div class="note note-tip">
+            Il gizmo si scala in base alla distanza della fotocamera, così le sue maniglie mantengono una dimensione utilizzabile sia che tu sia ingrandito da vicino sia che guardi l'intera scena da lontano.
+        </div>
+
+        <h2>Gizmo e trasformazioni numeriche</h2>
+        <p>Entrambi gli approcci modificano la stessa trasformazione sottostante e possono essere usati in modo intercambiabile:</p>
+        <ul>
+            <li><b>Gizmo:</b> rapido e visivo, ideale per un posizionamento approssimativo e rapidi aggiustamenti mentre vedi il risultato.</li>
+            <li><b>Pannello numerico (lezione 8):</b> preciso, ideale per valori esatti o per riprodurre una trasformazione esatta.</li>
+        </ul>
+
+        <h2>Trasformazioni dei nodi e posizionamento manuale della vista esplosa</h2>
+        <p>Lo stesso gizmo di trasformazione viene riutilizzato durante il posizionamento manuale della vista esplosa (lezione 15) per portare le parti in una posa esplosa personalizzata. La differenza fondamentale: durante il posizionamento manuale, le modifiche del gizmo aggiornano solo la posa esplosa a fasi, non la trasformazione reale dell'oggetto, quindi la geometria sottostante del modello non viene mai alterata.</p>
+
+        <div class="note note-warning">
+            Al di fuori del posizionamento manuale della vista esplosa, le modifiche del gizmo cambiano subito la trasformazione reale dell'oggetto, proprio come il pannello numerico Trasformazioni.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson16.html' class='nav-button'>← Lezione precedente</a>
+            <a href="index.html" class="back-to-index">↑ Torna all'indice</a>
+            <a href='lesson18.html' class='nav-button'>Lezione successiva →</a>
+        </div>
+    </div>
+</body>
+</html>

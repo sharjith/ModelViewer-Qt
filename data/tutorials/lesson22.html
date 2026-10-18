@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 22: Comparing Results, Cell and Shell Data - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials &amp; Textures</a>
+            <a href="lesson10.html">10. Lighting &amp; Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips &amp; Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge &amp; Wireframe Rendering</a>
+            <a href="lesson19.html">19. Simulation Results</a>
+            <a href="lesson20.html">20. Looking Inside a Result</a>
+            <a href="lesson21.html">21. Charts and Probing</a>
+            <a href="lesson22.html" class='active'>22. Comparing Results, Cell and Shell Data</a>
+            <a href="lesson23.html">23. 3D Plots from CSV Data</a>
+            <a href="lesson24.html">24. 3D Plots from Formulas, Fills, Images and Notes</a>
+            <a href="lesson25.html">25. Plots and Results Played Together</a>
+            <a href="lesson26.html">26. Mesh Tools</a>
+            <a href="lesson27.html">27. Measure, Annotate and Report</a>
+            <a href="lesson28.html">28. Analysis, Selection and Scenes</a>
+            <a href="lesson29.html">29. Ray Tracing in Practice</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 22 of 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 75.86%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 22: Comparing Results, Cell and Shell Data</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Real result files differ in more than their numbers. Two analyses of the same part need to be compared fairly; element-wise data is drawn flat unless you average it; shell models have no volume to cut; and flow results arrive with units of their own. This lesson shows how ModelViewer handles each case.</p>
+        <h2>Comparing Two Results</h2>
+        <p>Compare shows two results of the same document side by side or stacked, with one shared camera. The example here puts bending against torsion on the same I-beam.</p>
+        <div class="step">
+            <div class="step-title">Step 1: Put both results in one document</div>
+            <div class="step-content">Open <code>ibeam_cantilever.frd</code>, then use <b>Visualization → Simulation Results → Add Result to This Document...</b> to add <code>ibeam_torsion.frd</code>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Start the comparison</div>
+            <div class="step-content">Choose the second result in <b>Compare with:</b> and click <b>Compare</b> (or use <b>Visualization → Simulation Results → Compare Results...</b>). Pick side by side or stacked.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Make the colours comparable</div>
+            <div class="step-content">Tick <b>Same colour range for both</b>: equal colours then mean equal values in both panes. Tick <b>Link the cameras</b> to keep both views in step when you rotate or zoom.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 4: Leave the comparison</div>
+            <div class="step-content">Click <b>Exit Compare</b> (the same button) to return to a single view.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_22_compare_side_by_side.png" alt="tutorial_22_compare_side_by_side.png" title="Capture: Open ibeam_cantilever.frd, add ibeam_torsion.frd, Compare side by side with &quot;Same colour range for both&quot; and &quot;Link the cameras&quot; on, last load step, deformed shape on; capture the viewport." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open ibeam_cantilever.frd, add ibeam_torsion.frd, Compare side by side with &quot;Same colour range for both&quot; and &quot;Link the cameras&quot; on, last load step, deformed shape on; capture the viewport." style="display:none; width:700px; height:420px;">Screenshot: tutorial_22_compare_side_by_side.png (700x420)</div>
+            <span class="screenshot-caption">Bending (left) and torsion (right) of the same I-beam, side by side with one colour range</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_22_compare_controls.png" alt="tutorial_22_compare_controls.png" title="Capture: While comparing, crop the part of the Simulation Results tab with Compare with, Show in (layout), Same colour range, Link the cameras and Exit Compare." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: While comparing, crop the part of the Simulation Results tab with Compare with, Show in (layout), Same colour range, Link the cameras and Exit Compare." style="display:none; width:420px; height:360px;">Screenshot: tutorial_22_compare_controls.png (420x360)</div>
+            <span class="screenshot-caption">The compare controls in the Simulation Results tab</span>
+        </div>
+
+        <h2>Element Data (Cell Data)</h2>
+        <p>Some solvers write one value per element instead of per node. These fields carry <b>[cells]</b> in the Field list and every element is drawn in a single flat colour. <b>Average cell data to nodes</b> draws them smooth: each node takes the average of the surrounding elements, weighted by their size.</p>
+        <div class="step">
+            <div class="step-title">Step 1: Open the cell-data cube</div>
+            <div class="step-content">Open <code>cell_data_cube.vtk</code>, an 8 x 8 x 8 block of hexahedra with only cell fields: a smooth <i>Element_Stress</i> and an integer <i>Element_Group</i> with four regions.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Compare flat and averaged</div>
+            <div class="step-content">Look at <i>Element_Stress</i> as it opens - one flat colour per element - then tick <b>Average cell data to nodes</b> and watch it turn smooth. <i>Element_Group</i> is better left flat: its regions are labels, not quantities.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_22_cell_data_flat_vs_smooth.png" alt="tutorial_22_cell_data_flat_vs_smooth.png" title="Capture: Open cell_data_cube.vtk, Field = Element_Stress; capture the cube with the option off, then on (same camera) and join the two pictures side by side." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open cell_data_cube.vtk, Field = Element_Stress; capture the cube with the option off, then on (same camera) and join the two pictures side by side." style="display:none; width:700px; height:350px;">Screenshot: tutorial_22_cell_data_flat_vs_smooth.png (700x350)</div>
+            <span class="screenshot-caption">Element_Stress drawn flat (left) and averaged to the nodes (right)</span>
+        </div>
+
+        <div class="note note-info">
+            Plot over time or line, volume rendering and iso-surfaces also work on a cell field; they always use the averaged values. A result with a single step shows its history as one dot.
+        </div>
+        <h2>Shell (Surface-Only) Results</h2>
+        <p>A result made only of triangles or quads has no volume to cut. Charts still work: Plot Over Time reads the point of the surface you clicked, and Plot Over Line follows the line along the surface, leaving a gap where the line leaves it on a curved shell.</p>
+        <div class="step">
+            <div class="step-title">Step 1: Open the shell plate</div>
+            <div class="step-content">Open <code>shell_plate_transient.frd</code>: a flat 2 x 1 plate of shell quads with the temperature field over 10 time steps and heat flowing in from the left edge.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Chart it</div>
+            <div class="step-content">Right-click near the middle and choose <b>Plot Over Time Here</b>; then try <b>Plot Over Line...</b> from the left edge to the right edge at the last step, and play the timeline with the chart open.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_22_shell_plot_over_line.png" alt="tutorial_22_shell_plot_over_line.png" title="Capture: Open shell_plate_transient.frd, last step, Plot Over Line from the left edge to the right edge; capture viewport and chart together." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open shell_plate_transient.frd, last step, Plot Over Line from the left edge to the right edge; capture viewport and chart together." style="display:none; width:700px; height:450px;">Screenshot: tutorial_22_shell_plot_over_line.png (700x450)</div>
+            <span class="screenshot-caption">Temperature along the shell plate with the chart beside it</span>
+        </div>
+
+        <h2>A Flow Result With Its Own Units</h2>
+        <p>Open <code>openfoam_cavity/cavity.foam</code> (the .foam file is empty; it only points at the case). All its fields are cell data, so they are drawn flat, and the units come from the case's own dimensions: temperature in kelvin, velocity in metres per second, the symmetric tensor <i>sigma</i> in pascal; the kinematic pressure <i>p</i> has no unit. Play the five time directories (0 to 2 s) to see a vortex spin up and a temperature gradient warm.</p>
+        <div class="note note-warning">
+            The field values of this sample are synthetic: no OpenFOAM run produced them. They exist to exercise the reader, the cell-data display, the timeline and the units. Open your own OpenFOAM case the same way - the .foam file in the case folder.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_22_openfoam_cavity.png" alt="tutorial_22_openfoam_cavity.png" title="Capture: Open sample-models/Simulation/openfoam_cavity/cavity.foam, Field = U, Component = Magnitude, last time step; capture the viewport with the legend showing m/s." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open sample-models/Simulation/openfoam_cavity/cavity.foam, Field = U, Component = Magnitude, last time step; capture the viewport with the legend showing m/s." style="display:none; width:700px; height:450px;">Screenshot: tutorial_22_openfoam_cavity.png (700x450)</div>
+            <span class="screenshot-caption">The OpenFOAM cavity sample, velocity magnitude with its unit in the legend</span>
+        </div>
+
+
+        <div class="lesson-navigation">
+            <a href='lesson21.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson23.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

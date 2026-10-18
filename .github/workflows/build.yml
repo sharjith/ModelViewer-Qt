@@ -1,18 +1,19 @@
 name: CI Build
 
 on:
-  push:
-    branches: [ master, dev ]
-    tags: [ 'Release-*' ]
-  pull_request:
-    branches: [ master, dev ]
+  # No automatic push/PR trigger: this project builds and packages release
+  # artifacts locally now (both platforms) and publishes them straight to
+  # GitHub Releases via `gh release create`/`gh release upload`/`gh release
+  # edit --draft=false` - see the release process notes. This workflow is
+  # kept only as an on-demand manual sanity check (workflow_dispatch), not
+  # as part of the release pipeline.
   workflow_dispatch:
     inputs:
       os:
         description: 'Limit to one OS (leave as "all" to run the full matrix)'
         type: choice
         default: 'all'
-        options: [ all, ubuntu-latest, windows-latest ]
+        options: [ all, ubuntu-26.04, windows-latest ]
       build_type:
         description: 'Limit to one build type (leave as "all" to run both)'
         type: choice
@@ -53,8 +54,17 @@ jobs:
         # macos-latest dropped: Apple deprecated OpenGL (this app's rendering
         # backend) with no further investment, so macOS CI coverage isn't
         # worth the vcpkg/toolchain flakiness it kept hitting.
+        #
+        # ubuntu-latest still resolves to 24.04 (GitHub hasn't flipped the
+        # -latest label to 26.04 yet), whose apt-packaged Qt6/Assimp/zstd
+        # trail what this project's Linux build actually needs (Qt6Svg's
+        # QImage::flipped(), Assimp's KHR_materials_anisotropy, a zstd config
+        # exposing the zstd::libzstd target) - repeatedly causing CI-only
+        # failures that don't reproduce on newer dev machines. Pinned to the
+        # already-GA ubuntu-26.04 image instead of chasing each gap
+        # individually.
         all_os = [
-            {"os": "ubuntu-latest", "triplet": "x64-linux", "mono": "mono"},
+            {"os": "ubuntu-26.04", "triplet": "x64-linux", "mono": "mono"},
             {"os": "windows-latest", "triplet": "x64-windows", "mono": ""},
         ]
         all_build_types = ["Release", "Debug"]
@@ -91,6 +101,15 @@ jobs:
 
     - name: Install system dependencies (Ubuntu)
       if: runner.os == 'Linux'
+      # Since the switch to the system-packages build (see CMakePresets.json's
+      # linux_system_* presets and packaging/linux/vendor/), this only needs
+      # the actual libraries ModelViewer links against directly, plus basic
+      # build tooling - it no longer needs to build Qt/OpenCASCADE/gperf/etc
+      # from source the way the old full-vcpkg Linux build did, so the
+      # X11/mesa dev headers, tcl/tk, and autoconf/automake/libtool that were
+      # only there for those source builds are gone too. Only OpenImageDenoise
+      # and basisu are still vendored (no apt package exists for either) -
+      # see the "Install vendor vcpkg dependencies" step below.
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -105,31 +124,29 @@ jobs:
           git \
           gcc \
           g++ \
-          libx11-dev \
-          libxext-dev \
-          libxrender-dev \
-          libxrandr-dev \
-          libxinerama-dev \
-          libxcursor-dev \
-          libxi-dev \
-          libgl1-mesa-dev \
-          libglu1-mesa-dev \
-          libegl1-mesa-dev \
-          libxkbcommon-dev \
-          libxkbcommon-x11-dev \
-          libfontconfig1-dev \
-          libfreetype6-dev \
-          libopengl-dev \
-          libxmu-dev \
+          qt6-base-dev \
+          qt6-tools-dev \
+          qt6-l10n-tools \
+          qt6-svg-dev \
+          qt6-image-formats-plugins \
+          libqt-advanced-docking-system-dev \
+          libocct-foundation-dev \
+          libocct-modeling-data-dev \
+          libocct-modeling-algorithms-dev \
+          libocct-data-exchange-dev \
+          libocct-ocaf-dev \
+          libembree-dev \
+          libassimp-dev \
+          libmeshoptimizer-dev \
+          libopenexr-dev \
+          libfreetype-dev \
+          libglm-dev \
+          libwebp-dev \
+          libjpeg-turbo8-dev \
           libtbb-dev \
-          libtcl8.6 \
-          libtk8.6 \
-          tcl8.6-dev \
-          tk8.6-dev \
-          autoconf \
-          automake \
-          libtool \
-          imagemagick
+          libzstd-dev \
+          imagemagick \
+          dpkg-dev
 
     - name: Setup MSVC (Windows)
       if: runner.os == 'Windows'
@@ -150,9 +167,25 @@ jobs:
         vcpkgGitCommitId: 'dd3097e305afa53f7b4312371f62058d2e665320'
         runVcpkgInstall: false
 
-    - name: Install vcpkg dependencies
+    - name: Install vcpkg dependencies (Windows)
+      if: runner.os == 'Windows'
       run: |
         ${{ github.workspace }}/vcpkg/vcpkg install --triplet=${{ matrix.triplet }} --x-manifest-root=. --x-install-root=./build/vcpkg_installed
+
+    - name: Install vendor vcpkg dependencies (Linux)
+      if: runner.os == 'Linux'
+      # OpenImageDenoise and basisu have no apt packages (see the previous
+      # step's comment) - vcpkg still builds/fetches just those two, via the
+      # minimal manifest in packaging/linux/vendor, not the full vcpkg.json.
+      # openimagedenoise's overlay port only repackages prebuilt binaries and
+      # basisu is a plain CMake project, so this needs no extra toolchain
+      # beyond what's already installed above.
+      run: |
+        ${{ github.workspace }}/vcpkg/vcpkg install --triplet x64-linux \
+          --x-manifest-root=packaging/linux/vendor \
+          --x-install-root=packaging/linux/vendor/vcpkg_installed \
+          --overlay-ports=overlay-ports \
+          --overlay-triplets=vcpkg/triplets
 
     - name: Create required directories (Windows)
       if: runner.os == 'Windows'
@@ -167,16 +200,26 @@ jobs:
     - name: Configure CMake (Windows)
       if: runner.os == 'Windows'
       run: |
-        cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} -DCMAKE_INSTALL_PREFIX=install -G Ninja
+        cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/install" -G Ninja
 
-    - name: Configure CMake (Unix)
-      if: runner.os != 'Windows'
+    - name: Configure CMake (Linux)
+      if: runner.os == 'Linux'
+      # No vcpkg toolchain here at all - find_package() resolves Qt6/
+      # OpenCASCADE/embree/assimp/etc against the apt packages installed
+      # above directly (matches CMakePresets.json's linux_system_* presets,
+      # replicated here as raw flags rather than `cmake --preset` to keep
+      # this step's build/install directory layout consistent with the
+      # Windows leg's steps below, which don't use presets either).
+      # CMAKE_PREFIX_PATH points at the vendored packages, plus zstd - apt's
+      # libzstd-dev on some Ubuntu versions doesn't define the zstd::libzstd
+      # interface-alias target that basisu's exported config requires, so
+      # the vendored vcpkg zstd config (a basisu transitive dependency,
+      # already present in the vendor install) is used instead.
       run: |
         cmake -B build \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake \
-          -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} \
-          -DCMAKE_INSTALL_PREFIX=install \
+          -DCMAKE_PREFIX_PATH="${{ github.workspace }}/packaging/linux/vendor/vcpkg_installed/x64-linux/share/basisu;${{ github.workspace }}/packaging/linux/vendor/vcpkg_installed/x64-linux/share/OpenImageDenoise;${{ github.workspace }}/packaging/linux/vendor/vcpkg_installed/x64-linux/share/zstd" \
+          -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/install" \
           -G Ninja
 
     - name: Build
@@ -191,7 +234,7 @@ jobs:
       run: ctest --build-config ${{ matrix.build_type }} --output-on-failure --parallel
 
     - name: Install
-      run: cmake --install build --prefix install --config ${{ matrix.build_type }}
+      run: cmake --install build --prefix "${{ github.workspace }}/install" --config ${{ matrix.build_type }}
 
     - name: Package artifacts (Windows)
       if: runner.os == 'Windows' && matrix.build_type == 'Release'
@@ -216,66 +259,26 @@ jobs:
         path: dist/*.exe
         retention-days: 30
 
-    - name: Build Linux AppImage
+    - name: Build Debian package (cpack)
       if: runner.os == 'Linux' && matrix.build_type == 'Release' && (startsWith(github.ref, 'refs/tags/Release-') || github.event_name == 'workflow_dispatch')
+      # CPack's DEB generator packages straight from the CMake install rules
+      # (see CMakeLists.txt's "Linux desktop integration ... CPack" section) -
+      # it does its own internal install to a staging dir, so it doesn't
+      # depend on the separate "install/" tree above, just a configured and
+      # built build/ directory.
+      working-directory: build
       run: |
         set -e
-
-        # --- Assemble an AppDir from the CMake install output. Qt's own
-        # qt_generate_deploy_app_script (now unconditional, not WIN32-only -
-        # see CMakeLists.txt) already bundled the runtime plugins (platform
-        # plugin, imageformats, etc.) into install/ during "cmake --install",
-        # so no separate Qt-deployment step is needed here at all: this
-        # project links Qt statically (vcpkg x64-linux triplet), so there are
-        # no Qt shared libraries for linuxdeploy's "qt" plugin to find -
-        # every earlier attempt using --plugin qt failed with "Could not
-        # find Qt modules to deploy" for exactly that reason. ---
-        APPDIR="${{ github.workspace }}/AppDir"
-        mkdir -p "$APPDIR/usr"
-        cp -r "${{ github.workspace }}/install/"* "$APPDIR/usr/"
-
-        # Convert the existing 42x42 .ico to a PNG for the AppImage/.desktop icon.
-        mkdir -p "$APPDIR/usr/share/icons/hicolor/256x256/apps"
-        convert "${{ github.workspace }}/res/ModelViewer.ico[0]" \
-          "$APPDIR/usr/share/icons/hicolor/256x256/apps/modelviewer.png"
-
-        # --- Download linuxdeploy and appimagetool, then pre-extract each
-        # (--appimage-extract) so neither needs FUSE to run on the CI runner. ---
-        TOOLS_DIR="${{ github.workspace }}/appimage-tools"
-        mkdir -p "$TOOLS_DIR"
-        cd "$TOOLS_DIR"
-
-        curl -L -o linuxdeploy-x86_64.AppImage \
-          https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-        curl -L -o appimagetool-x86_64.AppImage \
-          https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-        chmod +x ./*.AppImage
-
-        ./linuxdeploy-x86_64.AppImage --appimage-extract >/dev/null
-        mv squashfs-root linuxdeploy-extracted
-
-        ./appimagetool-x86_64.AppImage --appimage-extract >/dev/null
-        mv squashfs-root appimagetool-extracted
-        ln -s "$TOOLS_DIR/appimagetool-extracted/AppRun" \
-              "$TOOLS_DIR/appimagetool-extracted/appimagetool"
-
-        export PATH="$TOOLS_DIR/appimagetool-extracted:$PATH"
-
+        cpack -G DEB
         mkdir -p "${{ github.workspace }}/dist"
-        cd "${{ github.workspace }}/dist"
-        "$TOOLS_DIR/linuxdeploy-extracted/AppRun" \
-          --appdir "$APPDIR" \
-          --executable "$APPDIR/usr/bin/ModelViewer" \
-          --desktop-file "${{ github.workspace }}/ModelViewer.desktop" \
-          --icon-file "$APPDIR/usr/share/icons/hicolor/256x256/apps/modelviewer.png" \
-          --output appimage
+        mv ./*.deb "${{ github.workspace }}/dist/"
 
-    - name: Upload Linux AppImage
+    - name: Upload Debian package
       if: runner.os == 'Linux' && matrix.build_type == 'Release' && (startsWith(github.ref, 'refs/tags/Release-') || github.event_name == 'workflow_dispatch')
       uses: actions/upload-artifact@v4
       with:
-        name: modelviewer-linux-appimage
-        path: dist/*.AppImage
+        name: modelviewer-linux-deb
+        path: dist/*.deb
         retention-days: 30
 
     - name: Upload build artifacts
@@ -310,33 +313,3 @@ jobs:
       with:
         limit-access-to-actor: true
       timeout-minutes: 30
-
-  publish-release:
-    name: Publish GitHub Release
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/Release-')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Download Windows installer
-      uses: actions/download-artifact@v4
-      with:
-        name: modelviewer-windows-installer
-        path: release-assets
-
-    - name: Download Linux AppImage
-      uses: actions/download-artifact@v4
-      with:
-        name: modelviewer-linux-appimage
-        path: release-assets
-
-    - name: Create/update GitHub Release
-      uses: softprops/action-gh-release@v2
-      with:
-        body_path: CHANGELOG.md
-        files: release-assets/*

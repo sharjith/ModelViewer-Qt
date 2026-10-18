@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lezione 21: Grafici e sonde - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primi passi</a>
+            <a href="lesson02.html">2. Aprire i modelli</a>
+            <a href="lesson03.html">3. Navigazione di base</a>
+            <a href="lesson04.html">4. Selezionare gli oggetti</a>
+            <a href="lesson05.html">5. Modalità di visualizzazione</a>
+            <a href="lesson06.html">6. Modalità fotocamera</a>
+            <a href="lesson07.html">7. Modalità di display</a>
+            <a href="lesson08.html">8. Manipolare gli oggetti</a>
+            <a href="lesson09.html">9. Materiali e texture</a>
+            <a href="lesson10.html">10. Illuminazione e ambiente</a>
+            <a href="lesson11.html">11. Lavorare con la visibilità</a>
+            <a href="lesson12.html">12. Funzioni avanzate</a>
+            <a href="lesson13.html">13. Ottimizzazione delle prestazioni</a>
+            <a href="lesson14.html">14. Suggerimenti e flussi di lavoro</a>
+            <a href="lesson15.html">15. Viste esplose</a>
+            <a href="lesson16.html">16. Animazione dei morph target</a>
+            <a href="lesson17.html">17. Modifica della trasformazione dei nodi</a>
+            <a href="lesson18.html">18. Rendering di bordi e wireframe</a>
+            <a href="lesson19.html">19. Risultati di simulazione</a>
+            <a href="lesson20.html">20. Guardare dentro un risultato</a>
+            <a href="lesson21.html" class='active'>21. Grafici e sonde</a>
+            <a href="lesson22.html">22. Confrontare risultati, dati di cella e di guscio</a>
+            <a href="lesson23.html">23. Grafici 3D da dati CSV</a>
+            <a href="lesson24.html">24. Grafici 3D da formule, riempimenti, immagini e note</a>
+            <a href="lesson25.html">25. Grafici e risultati riprodotti insieme</a>
+            <a href="lesson26.html">26. Strumenti per mesh</a>
+            <a href="lesson27.html">27. Misurare, annotare e riferire</a>
+            <a href="lesson28.html">28. Analisi, selezione e scene</a>
+            <a href="lesson29.html">29. Ray tracing in pratica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lezione 21 di 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 72.41%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lezione 21: Grafici e sonde</h1>
+        </div>
+
+        <h2>Introduzione</h2>
+        <p>I colori mostrano dove un valore è alto o basso; un grafico mostra di quanto. Questa lezione legge i valori direttamente dal modello, li traccia nel tempo, lungo una linea e come distribuzione, e confronta un risultato con i tuoi dati misurati.</p>
+        <div class="note note-info">
+            Esempi utilizzati (in <code>sample-models/Simulation</code>): <code>FEM_box_thermal_transient.frd</code>, <code>thermal_probe_test.csv</code>, <code>FEM_box_modes.frd</code>, <code>FEM_box_modes_frf.csv</code>, <code>plate_with_hole.frd</code>.
+        </div>
+        <h2>Leggere un valore</h2>
+        <p>Apri <code>plate_with_hole.frd</code> e muovi semplicemente il mouse sulla piastra: il valore del campo mostrato sotto il cursore compare accanto, nell'unità impostata nella lezione 19.</p>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_21_hover_value.png" alt="tutorial_21_hover_value.png" title="Capture: Open plate_with_hole.frd, view face-on and hover next to the hole so the value readout is visible beside the cursor (the cursor must be in the picture if your capture tool allows it)." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open plate_with_hole.frd, view face-on and hover next to the hole so the value readout is visible beside the cursor (the cursor must be in the picture if your capture tool allows it)." style="display:none; width:700px; height:420px;">Schermata: tutorial_21_hover_value.png (700x420)</div>
+            <span class="screenshot-caption">Il valore sotto il cursore, letto direttamente dalla piastra</span>
+        </div>
+
+        <h2>Grafico nel tempo</h2>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Aprire un risultato transitorio</div>
+            <div class="step-content">Apri <code>FEM_box_thermal_transient.frd</code> e ruota finché vedi la faccia opposta a quella riscaldata.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Clic destro su un punto</div>
+            <div class="step-content">Fai clic destro su un punto al centro di quella faccia e scegli <b>Traccia nel tempo qui</b>. Si apre subito un grafico con la storia di quel punto.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 3: Muoversi nel tempo dal grafico</div>
+            <div class="step-content">Il cursore arancione segna il passo corrente del risultato. Fai clic o trascina nel grafico per andare al passo più vicino: il grafico e la linea temporale si controllano a vicenda.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_21_plot_over_time.png" alt="tutorial_21_plot_over_time.png" title="Capture: Open FEM_box_thermal_transient.frd, right-click the middle of the far face &gt; Plot Over Time Here, play to about step 10 and capture the chart window next to the viewport." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open FEM_box_thermal_transient.frd, right-click the middle of the far face &gt; Plot Over Time Here, play to about step 10 and capture the chart window next to the viewport." style="display:none; width:700px; height:450px;">Schermata: tutorial_21_plot_over_time.png (700x450)</div>
+            <span class="screenshot-caption">Un grafico nel tempo con il suo cursore arancione</span>
+        </div>
+
+        <div class="note note-info">
+            <b>Grafico nel tempo...</b> nella scheda Risultati di simulazione fa lo stesso dopo aver fatto clic su un punto. «Traccia nel tempo qui» non è disponibile mentre si confrontano due risultati (lezione 22).
+        </div>
+        <h2>Confrontare più punti</h2>
+        <p>Fai clic destro nel grafico, scegli <b>Aggiungi un punto dal modello</b> e poi fai clic su un altro punto dello stesso risultato: la sua storia si unisce al grafico come un'altra curva, con il nome della sua posizione e una legenda.</p>
+        <h2>Aggiungere i propri dati</h2>
+        <p>Un grafico può contenere dati misurati accanto alla curva simulata. Il CSV richiede due colonne, x poi y, e una riga di intestazione che dà il nome alla curva. Un'intestazione come <i>Nome (unità)</i> assegna un'unità alla curva; una curva la cui unità differisce da quella principale (una temperatura accanto a una tensione) viene disegnata su un secondo asse a destra.</p>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Aggiungere le letture della termocoppia</div>
+            <div class="step-content">Con il grafico precedente aperto, fai clic destro, scegli <b>Aggiungi curva da CSV...</b> e seleziona <code>thermal_probe_test.csv</code>: letture sintetiche di una termocoppia per il centro della faccia opposta.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Riprodurre e confrontare</div>
+            <div class="step-content">Premi riproduci sulla linea temporale: il cursore percorre entrambe le curve. Il punto su cui hai fatto clic non è esattamente quello del campione, quindi le curve sono vicine ma non identiche. <b>Rimuovi le curve aggiunte</b> cancella di nuovo i dati.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_21_csv_overlay.png" alt="tutorial_21_csv_overlay.png" title="Capture: Chart from the previous shot after Add curve from CSV (thermal_probe_test.csv): both curves and the legend visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Chart from the previous shot after Add curve from CSV (thermal_probe_test.csv): both curves and the legend visible." style="display:none; width:700px; height:450px;">Schermata: tutorial_21_csv_overlay.png (700x450)</div>
+            <span class="screenshot-caption">La storia simulata e le letture misurate in un unico grafico</span>
+        </div>
+
+        <h2>Risposta in frequenza e modi</h2>
+        <p>Per un risultato modale l'asse x del grafico è la frequenza di ciascun modo. Apri <code>FEM_box_modes.frd</code>, traccia in un punto qualsiasi e poi aggiungi <code>FEM_box_modes_frf.csv</code>, una curva di risposta in frequenza con picchi alle sei frequenze dei modi. Fai clic su un picco e il risultato salta a quel modo.</p>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_21_frf_peaks.png" alt="tutorial_21_frf_peaks.png" title="Capture: Open FEM_box_modes.frd, Plot Over Time Here, add FEM_box_modes_frf.csv; capture the chart with the peaks and the orange cursor on one of them." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open FEM_box_modes.frd, Plot Over Time Here, add FEM_box_modes_frf.csv; capture the chart with the peaks and the orange cursor on one of them." style="display:none; width:700px; height:450px;">Schermata: tutorial_21_frf_peaks.png (700x450)</div>
+            <span class="screenshot-caption">Frequenze dei modi sull&#x27;asse x con la curva di risposta e i suoi picchi</span>
+        </div>
+
+        <h2>Lungo una linea e distribuzione</h2>
+        <ul>
+            <li><b>Grafico lungo una linea...</b>: fai clic su due punti e il grafico mostra il campo lungo la retta tra di essi, ideale per la tensione attraverso una piastra dal bordo del foro al bordo libero. Provalo con <code>plate_with_hole.frd</code>.</li>
+            <li><b>Distribuzione...</b>: un istogramma del campo su tutto il risultato: quanta parte del modello si trova a valori bassi, medi e alti.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_21_plot_over_line.png" alt="tutorial_21_plot_over_line.png" title="Capture: Open plate_with_hole.frd, Plot Over Line... and click the edge of the hole then the plate edge; capture the chart showing the stress falling off from the hole." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open plate_with_hole.frd, Plot Over Line... and click the edge of the hole then the plate edge; capture the chart showing the stress falling off from the hole." style="display:none; width:700px; height:450px;">Schermata: tutorial_21_plot_over_line.png (700x450)</div>
+            <span class="screenshot-caption">Tensione lungo una linea dal bordo del foro al bordo della piastra</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_21_distribution.png" alt="tutorial_21_distribution.png" title="Capture: plate_with_hole.frd, Field = von Mises, click Distribution... and capture the histogram window." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: plate_with_hole.frd, Field = von Mises, click Distribution... and capture the histogram window." style="display:none; width:600px; height:400px;">Schermata: tutorial_21_distribution.png (600x400)</div>
+            <span class="screenshot-caption">Un istogramma del campo di von Mises</span>
+        </div>
+
+        <h2>Lavorare con un grafico</h2>
+        <table>
+            <thead><tr><th>Azione</th><th>Risultato</th></tr></thead>
+            <tbody>
+            <tr><td>Rotellina del mouse</td><td>Zoom attorno al puntatore</td></tr>
+            <tr><td>Maiusc + rotellina / Ctrl + rotellina</td><td>Zoom solo sull'asse x / solo sull'asse y</td></tr>
+            <tr><td>Trascinare con il pulsante centrale</td><td>Spostare</td></tr>
+            <tr><td>Doppio clic</td><td>Reimposta lo zoom (anche clic destro → Reimposta zoom)</td></tr>
+            <tr><td>Clic destro → Salva immagine...</td><td>Salva il grafico come PNG</td></tr>
+            <tr><td>Clic destro → Esporta dati (CSV)...</td><td>Scrive una coppia di colonne x, y per curva; l'intestazione riporta l'unità</td></tr>
+            </tbody>
+        </table>
+        <div class="note note-tip">
+            Un CSV esportato può essere riaggiunto in seguito a un grafico con <b>Aggiungi curva da CSV...</b>, utile per confrontare due esecuzioni di analisi.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson20.html' class='nav-button'>← Lezione precedente</a>
+            <a href="index.html" class="back-to-index">↑ Torna all'indice</a>
+            <a href='lesson22.html' class='nav-button'>Lezione successiva →</a>
+        </div>
+    </div>
+</body>
+</html>

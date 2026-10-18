@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <author>N. Sharjith</author>
+ <class>ModelViewer</class>
+ <widget class="QWidget" name="ModelViewer">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1102</width>
+    <height>1477</height>
+   </rect>
+  </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
+  </property>
+  <property name="acceptDrops">
+   <bool>true</bool>
+  </property>
+  <property name="windowTitle">
+   <string>Session 1</string>
+  </property>
+  <property name="windowIcon">
+   <iconset resource="../ModelViewer.qrc">
+    <normaloff>:/icons/res/logo.png</normaloff>:/icons/res/logo.png</iconset>
+  </property>
+  <layout class="QGridLayout" name="gridLayout_14">
+   <property name="leftMargin">
+    <number>5</number>
+   </property>
+   <property name="topMargin">
+    <number>5</number>
+   </property>
+   <property name="rightMargin">
+    <number>5</number>
+   </property>
+   <property name="bottomMargin">
+    <number>5</number>
+   </property>
+   <property name="spacing">
+    <number>5</number>
+   </property>
+   <item row="0" column="0">
+    <widget class="QFrame" name="viewerframe">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+       <horstretch>100</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <layout class="QGridLayout" name="gridLayout">
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
+       <number>0</number>
+      </property>
+      <property name="spacing">
+       <number>0</number>
+      </property>
+      <item row="0" column="0">
+       <widget class="QFrame" name="glFrame">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QWidget" name="modelNavigationWidget" native="true">
+        <layout class="QVBoxLayout" name="verticalLayout">
+         <property name="spacing">
+          <number>6</number>
+         </property>
+         <property name="leftMargin">
+          <number>1</number>
+         </property>
+         <property name="topMargin">
+          <number>1</number>
+         </property>
+         <property name="rightMargin">
+          <number>1</number>
+         </property>
+         <property name="bottomMargin">
+          <number>1</number>
+         </property>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_28">
+           <item>
+            <widget class="QLabel" name="label_23">
+             <property name="text">
+              <string>Search</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLineEdit" name="searchBox">
+             <property name="clearButtonEnabled">
+              <bool>true</bool>
+             </property>
+             <property name="toolTip">
+              <string>Filter the scene tree by name</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QToolButton" name="navPinButton">
+             <property name="minimumSize">
+              <size>
+               <width>22</width>
+               <height>22</height>
+              </size>
+             </property>
+             <property name="maximumSize">
+              <size>
+               <width>22</width>
+               <height>22</height>
+              </size>
+             </property>
+             <property name="toolTip">
+              <string>Keep navigation panel visible</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QLabel" name="labelMeshCount">
+           <property name="text">
+            <string notr="true"/>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="SceneTreeWidget" name="treeWidgetModel">
+           <property name="styleSheet">
+            <string notr="true"/>
+           </property>
+           <property name="selectionMode">
+            <enum>QAbstractItemView::SelectionMode::ExtendedSelection</enum>
+           </property>
+           <column>
+            <property name="text">
+             <string notr="true">1</string>
+            </property>
+           </column>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <layoutdefault spacing="6" margin="11"/>
+ <customwidgets>
+  <customwidget>
+   <class>SceneTreeWidget</class>
+   <extends>QTreeWidget</extends>
+   <header>SceneTreeWidget.h</header>
+  </customwidget>
+ </customwidgets>
+ <tabstops>
+  <tabstop>treeWidgetModel</tabstop>
+ </tabstops>
+ <resources>
+  <include location="../ModelViewer.qrc"/>
+ </resources>
+ <connections/>
+ <slots>
+  <slot>slotResetRotations()</slot>
+ </slots>
+</ui>

@@ -13,6 +13,9 @@ uniform vec4 clipPlaneY;
 uniform vec4 clipPlaneZ;
 // user defined clip plane
 uniform vec4 clipPlane;
+// Box clipping (4th clipping mode) - see main_scene.vert.
+uniform vec4 clipPlaneBox[6];
+uniform bool clipPlaneBoxEnabled;
 uniform bool hasSkinning;
 uniform int jointCount;
 uniform mat4 jointMatrices[128];
@@ -57,8 +60,22 @@ void main()
     v_clipDistZ = dot(clipPlaneZ, viewPos);
     v_clipDist =  dot(clipPlane, viewPos);
 
-    gl_ClipDistance[0] = v_clipDistX;
-    gl_ClipDistance[1] = v_clipDistY;
-    gl_ClipDistance[2] = v_clipDistZ;
-    gl_ClipDistance[3] = v_clipDist;
+    if (clipPlaneBoxEnabled)
+    {
+        gl_ClipDistance[0] = dot(clipPlaneBox[0], viewPos);
+        gl_ClipDistance[1] = dot(clipPlaneBox[1], viewPos);
+        gl_ClipDistance[2] = dot(clipPlaneBox[2], viewPos);
+        gl_ClipDistance[3] = dot(clipPlaneBox[3], viewPos);
+        gl_ClipDistance[4] = dot(clipPlaneBox[4], viewPos);
+        gl_ClipDistance[5] = dot(clipPlaneBox[5], viewPos);
+    }
+    else
+    {
+        gl_ClipDistance[0] = v_clipDistX;
+        gl_ClipDistance[1] = v_clipDistY;
+        gl_ClipDistance[2] = v_clipDistZ;
+        gl_ClipDistance[3] = v_clipDist;
+        gl_ClipDistance[4] = 1.0;
+        gl_ClipDistance[5] = 1.0;
+    }
 }

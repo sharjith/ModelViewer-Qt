@@ -1,0 +1,2860 @@
+﻿#pragma once
+
+#include <algorithm>
+#include <atomic>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <utility>
+#include <QHash>
+#include <QUuid>
+#include <QVariantMap>
+class ToolsToolbar;
+
+#include "AdaptiveShadowMapper.h"
+#include "AnimationRuntimeController.h"
+#include "VisibilityComputationHelper.h"
+#include "BoundingSphere.h"
+#include "ExplodedViewRuntimeController.h"
+#include "GpuResourceRegistry.h"
+#include "IGpuContextResource.h"
+#include "LambdaGpuResource.h"
+#include "RenderableMeshGpuResourceAdapter.h"
+#include "SceneRenderController.h"
+#include "ViewportInteractionController.h"
+#include "Camera.h"
+#include "Material.h"
+#include "ComparePaneLayout.h"
+#include "MeshSurfaceAnchor.h"
+#include "MeasurementData.h"
+#include "MeasurementController.h"
+#include "AnnotationController.h"
+#include "SeamMarkingController.h"
+#include "FillHolesController.h"
+#include "SimulationGlyphController.h"
+#include "SimulationTensorGlyphController.h"
+#include "SimulationVolumeController.h"
+#include "SimulationSliceController.h"
+#include "SimulationStreamlineController.h"
+#include "Plot3DAxisController.h"
+#include "MvfMeshPreparationWorker.h"
+#include "PlaneRenderable.h"
+#include "PlaneGizmo.h"
+#include "FloorPlane.h"
+#include "SceneRuntime.h"
+#include "RenderableMesh.h"
+#include "TransformCommand.h"
+#include "ShaderProgram.h"
+#include "AssImpModelLoader.h"
+#include "AssemblyRelationGraph.h"
+#include <math.h>
+#include <QColor>
+#include <QElapsedTimer>
+#include <QEventLoop>
+#include <QFormLayout>
+#include <QImage>
+#include <QMultiHash>
+#include <QOpenGLFunctions_4_5_Core>
+#include <QOpenGLWidget>
+#include <QPointer>
+#include <QRubberBand>
+#include <QPolygon>
+#include "LassoOverlayWidget.h"
+#include <QSet>
+#include <QString>
+#include <array>
+#include "ViewToolbar.h"
+#include "TabbedViewportToolbar.h"
+#include "SceneUtils.h"
+#include "PunctualLights.h"
+#include "KTX2Loader.h"
+#include "SelectionManager.h"
+#include "TransformGizmo.h"
+#include "RtInteractiveRenderer.h"
+#include "RtInteractionController.h"
+#include "RtOptixRayTracingSession.h"
+#include "RtOptixSceneTracer.h"
+#include "RtRayTracingSession.h"
+#include "RtPresenter.h"
+
+/* Custom OpenGL Viewer Widget */
+
+namespace Mvf { struct Document; }
+
+class TextRenderer;
+class ClippingPlanesEditor;
+class ExplodedViewPanel;
+class ExplodedViewManager;
+
+#include "RenderEnums.h"
+class AssImpModelLoader;
+class ConeRenderable;
+class CubeRenderable;
+class SphereRenderable;
+class ViewCubeMesh;
+class AssImpModelLoader;
+struct SceneNode;
+
+class ModelViewer;
+
+// ViewMode, ViewProjection, CornerAxisPosition, RenderingMode,
+// ClippingPlaneHatchMode, HatchPattern â†’ RenderEnums.h (Phase 11/12)
+enum class DisplayMode { SHADED, HOLLOW_MESH, MESH_EDGES, WIREFRAME, SHADED_WITH_EDGES };
+
+// User-facing ray-tracing render-engine choice (PT settings dropdown) -
+// mirrors DenoiserDevicePreference's placement/style in RtDenoiser.h,
+// including the Auto option. Auto resolves to a concrete CPU/GPU choice via
+// ViewportWidget::effectiveRayTracingEnginePreference() - see that
+// function's doc comment for how (a cheap check, not a new probe). Every
+// render-path branch reads the EFFECTIVE preference, never this raw one
+// directly, so Auto never needs handling at individual call sites - CPU and
+// GPU remain the only two real backends as far as rendering code is concerned.
+enum class RtRayTracingEnginePreference
+{
+	Auto,
+	CPU,
+	GPU
+};
+
+// ---------------------------------------------------------------------------
+// TextureSlotInfo
+// Describes one texture slot as seen by the GPU â€” used by TextureDebugPanel.
+// Built inside ViewportWidget::requestTextureReadback() via glGetTexImage readback.
+// ---------------------------------------------------------------------------
+struct TextureSlotInfo
+{
+	QString  slotName;              // human-readable name ("albedoMap", "normalMap", â€¦)
+	int      unitIndex  = -1;       // GL texture unit index (0, 6, 10â€“31)
+	GLuint   textureId  = 0;        // GL object ID; 0 = slot not populated
+	QPixmap  thumbnail;             // 64Ã—64 readback pixmap; null when textureId == 0
+	bool     isActive        = false; // textureId != 0 (a texture is bound)
+	bool     extensionEnabled = false;// the parent KHR extension is active (may be true even
+	                                  // when no texture is bound â€” e.g. sheen colour factor set)
+	bool     isMarker        = false; // synthetic slot used only for scalar-driven activity
+	                                  // detection; never shown in the thumbnail grid
+};
+Q_DECLARE_METATYPE(QVector<TextureSlotInfo>)
+
+class ViewportWidget : public QOpenGLWidget, QOpenGLFunctions_4_5_Core
+{
+	Q_OBJECT
+public:
+	ViewportWidget(QWidget* parent = 0, const char* name = 0);
+	~ViewportWidget();
+
+	void retranslateUI();
+
+	void updateView();
+
+	void resizeView(int w, int h) { resizeGL(w, h); }
+	void setViewMode(ViewMode mode);
+	// Compass corner (SE/NE/NW/SW) the axonometric views are seen from, independent of the axonometric
+	// type. Re-applies the current axonometric view at the new corner; when the view is not axonometric
+	// (a standard view, a free orbit) it switches to the last-used axonometric type at that corner.
+	void setIsoCorner(IsoCorner corner);
+	// Pushes the axonometric type/corner/active state to the View toolbar's flyout buttons.
+	void updateViewSelectorState();
+    QVariantMap viewMenuState() const;
+    void executeViewCommand(const QString& command, bool checked);
+    void clearViewNavigation();
+	void setCameraUpAxisZUp(bool zUp, bool syncToolbar = true);
+	bool isCameraUpAxisZUp() const { return _viewCtrl.cameraUpAxisZUp(); }
+	void setProjection(ViewProjection proj);
+	ViewProjection projection() const { return _viewCtrl.projection(); }
+	// Cavalier/Cabinet flavour of the orthographic projection (NONE = plain orthographic, same as
+	// setProjection(ORTHOGRAPHIC)). Like Perspective/Orthographic it is independent of the view: it stays
+	// in effect while orbiting, panning, zooming and changing views. Refused (returns false) in
+	// Fly/First-person mode or while ray tracing is armed.
+	bool setObliqueMode(ObliqueMode mode);
+	ObliqueMode obliqueMode() const { return _viewCtrl.obliqueMode(); }
+	// The ray tracer builds its camera from a symmetric orthographic/pinhole projection and cannot
+	// render the shear, so arming it (or an offline render) drops an active oblique projection back to
+	// plain orthographic and says so in the status bar.
+	void dropObliqueForRayTracing();
+	void setCameraMode(Camera::CameraMode mode);
+	Camera::CameraMode cameraMode() const;
+
+	void setMultiView(bool active) { _viewCtrl.setMultiViewActive(active); emit viewStateChanged(); }
+	void setRotationActive(bool active);
+	void setPanningActive(bool active);
+	void setZoomingActive(bool active);
+
+	void setShowCenterAxisOverride(bool show) { _viewCtrl.setUserShowAxisOverride(show); update(); }
+	void setShowCornerAxisOverride(bool show) { _viewCtrl.setUserShowCornerAxisOverride(show); update(); }
+	void setShowViewCubeOverride(bool show) { _viewCtrl.setShowViewCubeOverride(show); update(); }
+	void setCornerAxisPosition(CornerAxisPosition position) { _viewCtrl.setCornerAxisPosition(position); update(); }
+
+	void beginWindowZoom();
+	void performWindowZoom();
+
+	void setDisplayList(const std::vector<int>& ids);
+	GltfCameraData cameraDataForMvfSave(const GltfCameraData& source) const;
+	void triggerShadowRecomputation();
+	void setShadowQuality(AdaptiveShadowMapper::QualityLevel quality);
+	AdaptiveShadowMapper::QualityLevel getShadowQuality() const { return shadowMapper.quality(); }
+	float calculateLightDistance();
+
+	QVector<QUuid> duplicateObjects(const std::vector<int>& ids);
+
+	void updateFloorPlane();
+	// Extracted from updateFloorPlane() so setLightOffset() can also call it
+	// directly - the persistent PunctualLights fallback light (distinct from
+	// buildRayTracedSnapshot()'s own freshly-recomputed "keyLight"; see that
+	// function's doc comment) is otherwise only ever refreshed when
+	// updateFloorPlane() itself runs (scene load/resize/bounding-box change),
+	// leaving it stale at the OLD light-offset position after a slider drag
+	// while buildRayTracedSnapshot() still appends a second, correctly-
+	// positioned keyLight on top - two point lights, casting two visibly
+	// different shadow directions in CPU/GPU ray tracing, neither of which
+	// is what raster's own single, always-live shadow shows.
+	void refreshFallbackLight();
+	void updateBoundingSphere();
+
+	void updateBoundingBox();
+
+	int getModelNum() const
+	{
+		return _modelNum;
+	}
+
+	void updateClippingPlane();
+	// Recomputes the 3 clipping-plane gizmos' position/extent/visibility
+	// from current clip-coefficient/enabled/flip state and the scene
+	// bounding box - called from updateClippingPlane() (the same function
+	// that already recomputes the cap-fill quads from the same inputs) and
+	// directly from ClippingPlanesEditor whenever its own "Show Gizmo"
+	// checkbox toggles (no coefficient/bounds change to justify the fuller
+	// updateClippingPlane() in that case, just a visibility flip).
+	void updatePlaneGizmos();
+	// Filter by Bounding Box's 6-face gizmo - see _bboxGizmoXMin's own doc
+	// comment for the ownership/lifecycle shape. createBoundingBoxGizmos()
+	// is idempotent (safe to call every time the dialog opens, same as
+	// createCappingPlanes()'s own null-check pattern) and must be called
+	// before the getters below return non-null for the first time.
+	void createBoundingBoxGizmos();
+	// Repositions/resizes all 6 faces from the given world-space limits -
+	// each face's OTHER-two-axis extent comes from the box's OWN current
+	// size (not the scene bounds, unlike the clipping-plane gizmos), so
+	// changing any one limit can resize up to 4 of the 6 faces, not just
+	// reposition one - call this on every limit change, not just the axis
+	// that moved. No-op if createBoundingBoxGizmos() hasn't run yet.
+	void updateBoundingBoxGizmos(const BoundingBox& limits);
+	void setBoundingBoxGizmosVisible(bool visible);
+	PlaneGizmo* bboxGizmoXMin() const { return _bboxGizmoXMin; }
+	PlaneGizmo* bboxGizmoXMax() const { return _bboxGizmoXMax; }
+	PlaneGizmo* bboxGizmoYMin() const { return _bboxGizmoYMin; }
+	PlaneGizmo* bboxGizmoYMax() const { return _bboxGizmoYMax; }
+	PlaneGizmo* bboxGizmoZMin() const { return _bboxGizmoZMin; }
+	PlaneGizmo* bboxGizmoZMax() const { return _bboxGizmoZMax; }
+
+	// ---- Box clipping (4th Clipping Planes mode) --------------------------
+	// Limits are absolute world coordinates; face order everywhere is 0..5 =
+	// xMin, xMax, yMin, yMax, zMin, zMax. The Clipping Planes editor owns the
+	// enable/flip checkboxes and the six spin boxes; these are the entry points
+	// it (and the box's own gizmo drags/undo) call.
+	// Turns box mode on/off. The first enable seeds the limits (see
+	// resetBoxClippingLimits()); later enables keep whatever the user set.
+	void setBoxClippingEnabled(bool enabled);
+	// false (default): keep the outside, cut a box-shaped hole. true: keep only the inside (crop).
+	void setBoxClippingKeepInside(bool keepInside) { _renderCtrl.setBoxClippingKeepInside(keepInside); }
+	// Re-seeds the box centered on the scene bounding-box center, half the scene's
+	// size per axis (matching CAD Assistant's default), and syncs the editor's
+	// spin boxes.
+	void resetBoxClippingLimits();
+	// The single place a box face limit changes: clamps against the partner face
+	// (kMinBoxGap) and the scene-derived absolute range, applies it, syncs the
+	// editor's spin box and the gizmos. Reused by spin-box edits, gizmo drags and
+	// the drag's undo/redo so all three produce identical side effects.
+	void setBoxClippingLimit(int face, double value);
+	double boxClippingLimit(int face) const;
+	// Absolute range a box limit on `axis` (0=X,1=Y,2=Z) may take: the scene
+	// bounds plus a margin, so a face can be dragged a bit past the model.
+	void boxClippingLimitRange(int axis, double& outMin, double& outMax) const;
+	// Positions/shows the 6 box-clip gizmos from the current state (visible only
+	// while box mode is on AND the editor's "Show Gizmo" is checked).
+	void updateClipBoxGizmos();
+	void showClippingPlaneEditor(bool show);
+	void showExplodedViewPanel(bool show);
+	ExplodedViewPanel* getExplodedViewPanel() const { return _explodedViewPanel; }
+	void updateExplosion();
+	QWidget* attachOverlayPanel(QWidget* contentWidget, const QRect& geometry,
+	                            Qt::Alignment alignment = Qt::AlignTop | Qt::AlignLeft,
+	                            const QString& objectName = QString());
+	QWidget* takeOverlayPanel(QWidget* contentWidget);
+	void refreshDetachedNavigationOverlayTheme();
+	void setClippingPlaneHatchMode(ClippingPlaneHatchMode mode);
+	// Thin _renderCtrl.hatchMode() passthrough - lets ClippingPlanesEditor
+	// decide the texture picker's one-time visibility (only shown when the
+	// Settings-configured default mode is Textured) without needing its own
+	// copy of the Settings-seeded value.
+	ClippingPlaneHatchMode clippingPlaneHatchMode() const;
+	void setClippingPlaneHatchPattern(HatchPattern pattern);
+	void setHatchTiling(int tiling);
+	void setHatchLineThickness(float width);
+	void setHatchIntensity(float spacing);
+	void setHatchLayers(int layers);
+	void setHatchLineColor(const QColor& color);
+	void setHatchTexture(const QString& path);
+
+	void showAxis(bool show);
+	void showTransformGizmoForSelection(bool show);
+	bool beginExplodedViewManualPlacement(const QVector<QUuid>& selectionUuids = {});
+	void finishExplodedViewManualPlacement();
+	void clearExplodedViewManualPlacement();
+	bool isExplodedViewManualPlacementActive() const { return _explodedViewCtrl.isManualPlacementActive(); }
+	bool hasExplodedViewManualPlacement() const { return !_explodedViewCtrl.manualOriginalStates().isEmpty(); }
+	bool hasExplodedViewManualTransformChanges() const;
+	QSet<QUuid> explodedViewManualPlacementUuids() const;
+	QVector3D explodedViewManualPlacementTranslationDelta() const;
+	QVector3D explodedViewManualPlacementRotationDelta() const;
+	void setExplodedViewManualPlacementTranslationDelta(const QVector3D& delta);
+	void setExplodedViewManualPlacementRotationDelta(const QVector3D& delta);
+	QMap<QUuid, TransformState> explodedViewManualStates() const;
+	void restoreExplodedViewManualStates(const QMap<QUuid, TransformState>& states);
+	bool userModelTransformForFile(const QString& sourceFile,
+	                               QMatrix4x4& outTransform) const;
+
+	void showShadows(bool show);
+	void showSelfShadows(bool show);
+	void showEnvironment(bool show);
+	void showSkyBox(bool show);
+	void blurSkyBox(bool blur) { setSkyBoxBlurPercent(blur ? 100 : 0); }
+	void setSkyBoxBlurPercent(int percent) { _renderCtrl.setSkyBoxBlurPercent(std::clamp(percent, 0, 100)); update(); }
+	void showReflections(bool show);
+	void setShadowCatcherDarkness(float darkness);
+	void setShadowCatcherBaseColor(const QVector3D& color);
+	void setShadowCatcherMetalness(float metalness);
+	void setShadowCatcherRoughness(float roughness);
+	void setGroundMode(GroundMode mode);
+	GroundMode groundMode() const { return _renderCtrl.groundMode(); }
+	// _renderCtrl.floorOffsetPercent() is internally a FRACTION (0-1, used
+	// directly as a multiplier against floor size in updateFloorPlane()'s
+	// geometry math), despite its own name - setFloorOffsetPercent(double)
+	// below takes a UI-scale percent (0-100) and divides by 100 before
+	// storing it there. This getter converts back to that same percent scale
+	// so it's the correct round-trip inverse of the setter, matching what
+	// its own name promises (a caller that round-trips get->set, as every
+	// current caller does - VisualizationEnvironmentPanel's document-switch
+	// UI sync, Scene State capture/recall, MVF viewerState save/load - would
+	// otherwise silently shrink the value 100x on every restore).
+	float getFloorOffsetPercent() const { return _renderCtrl.floorOffsetPercent() * 100.0f; }
+	float getFloorTexRepeatS() const { return _renderCtrl.floorTexRepeatS(); }
+	float getFloorTexRepeatT() const { return _renderCtrl.floorTexRepeatT(); }
+	bool isOpenGLInitialized() const { return _renderCtrl.isOpenGLInitialized(); }
+	void showFloor(bool show) { setGroundMode(show ? GroundMode::Floor : GroundMode::None); }
+	bool isFloorShown() { return _renderCtrl.groundMode() == GroundMode::Floor; }
+	bool isGridShown() const { return _renderCtrl.groundMode() == GroundMode::Grid; }
+	void showFloorTexture(bool show);
+	void setFloorTexture(QImage img);
+	// Which image file is loaded as the floor texture, if any - setFloorTexture()
+	// above only ever receives already-decoded pixel data, with no way to
+	// recover the source path afterward, so document/scene-state persistence
+	// had nothing to save. setFloorTextureFromPath() is the single entry
+	// point that both loads the image AND remembers the path (falling back
+	// to a dummy image on a load failure, same as
+	// VisualizationEnvironmentPanel::onFloorTextureClicked()'s own fallback)
+	// - use it from anywhere that needs the path remembered, including that
+	// same file-dialog handler.
+	QString getFloorTexturePath() const { return _floorTexturePath; }
+	void setFloorTextureFromPath(const QString& path);
+
+	std::vector<SceneMesh*> getMeshStore() const
+	{
+		return _sceneRuntime.meshPointers();
+	}
+
+	void addToDisplay(SceneMesh*);
+	void removeFromDisplay(int index);
+	void centerScreen(std::vector<int> selectedIDs);
+	void select(int id)                    { if (_selectionManager) _selectionManager->select(id); }
+	void deselect(int id)                  { if (_selectionManager) _selectionManager->deselect(id); }
+	void syncMeshSelectionVisualState()    { if (_selectionManager) _selectionManager->syncMeshSelectionVisualState(); }
+
+	bool loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading = false);
+
+	bool generateUVsForMeshes(const std::vector<int>& ids, const UVMethod& uvMethod, const UVConfig& uvConfig, QString& error);
+
+	aiScene* getAssImpScene() const { return _sceneRuntime.globalScene(); }
+	glm::mat4 getGlobalSceneTransform() const { return _sceneRuntime.globalSceneTransform(); }
+
+	void invertADSOpacityTexMap(const std::vector<int>& ids, const bool& inverted) { _sceneRuntime.invertAdsOpacityMaps(ids, inverted); }
+
+	void setMaterialToObjects(const std::vector<int>& ids, const Material& mat);
+	void setTexturesToObjects(const std::vector<int>& ids, const Material& mat);
+	void synchronizeTextureCache(const Material* material, Material::TextureType type);
+	void clearTextureCache();
+
+	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
+	void resetTransformation(const std::vector<int>& ids);
+	void applyTransforms(const QMap<int, TransformState>& transforms, bool fitView = true);
+	void applyExplodedViewTransforms(const QMap<int, TransformState>& transforms, bool fitView = false);
+
+	void setSkyBoxTextureFolder(QString folder);
+	bool loadCubemapFromSingleHDR(const QString& filePath);
+	bool convertEquirectangularToCubemap(const QString& filePath);
+	bool convertEquirectangularToCubemapQuad(const QString& filePath);
+
+	void renderConversionCube();
+
+	void setAnisotropicFilteringLevel(int level) { _renderCtrl.setAnisotropicFilteringLevel(level); }
+	int getAnisotropicFilteringLevel() const { return _renderCtrl.anisotropicFilteringLevel(); }
+
+	void setTransmissionEnabled(const bool& enabled);
+	bool isTransmissionEnabled() const { return _renderCtrl.transmissionEnabled(); }
+	void setActiveAnimation(const QString& sourceFile, int clipIndex);
+	void setAnimationPlaying(bool playing);
+
+	// Drop the cached animation runtime for a file whose meshes were removed
+	// from the document, stopping playback if that file was the active one.
+	// Without this the stale runtime (old UUIDs) survives deletion and can be
+	// picked up when the same file is imported again.
+	void clearAnimationRuntimeForFile(const QString& sourceFile);
+	void seekAnimation(double timeSeconds);
+	void setAnimationLooping(bool looping) { _animCtrl.setLooping(looping); emit animationStateChanged(); }
+	void setAnimationPlaybackSpeed(double speed);
+	void syncRuntimeNodeTransforms(const QString& sourceFile);
+	void refreshAnimationMaterialState(const QString& sourceFile);
+	QString activeAnimationFile() const { return _animCtrl.activeAnimationFile(); }
+	int activeAnimationClip() const { return _animCtrl.activeAnimationClip(); }
+	double currentAnimationTimeSeconds() const { return _animCtrl.animationCurrentTimeSeconds(); }
+	bool isAnimationPlaying() const { return _animCtrl.isPlaying(); }
+	bool isAnimationLooping() const { return _animCtrl.isLooping(); }
+	double animationPlaybackSpeed() const { return _animCtrl.playbackSpeed(); }
+
+	// glTF camera switching
+	void activateGltfCamera(const QString& sourceFile, int cameraIndex);
+	void resetToSystemCamera();
+	bool isGltfCameraActive()     const { return _animCtrl.activeGltfCameraIndex() >= 0; }
+	QString activeGltfCameraFile()  const { return _animCtrl.activeGltfCameraFile(); }
+	int     activeGltfCameraIndex() const { return _animCtrl.activeGltfCameraIndex(); }
+
+	// Snapshot the live Camera state into a GltfCameraEntry ("Capture View"
+	// in the Cameras tab). The entry has needsNewNode = true and no source
+	// file of its own - ModelViewer stores it under the synthetic
+	// capturedViewsSourceFileKey() bucket in SceneGraph, so activation,
+	// deletion, MVF save/load, and glTF/GLB export all reuse the exact same
+	// per-file glTF camera machinery as an authored camera - notably
+	// activateGltfCamera()'s system-camera save/restore latch, which a
+	// separate bookmark-specific code path used to skip (bug: couldn't
+	// return to System Camera after activating a captured view).
+	GltfCameraEntry captureCurrentCameraEntry(const QString& name) const;
+
+	// Activates a camera entry that is NOT looked up from SceneGraph's
+	// per-file bucket (e.g. a Named Scene State's own private GltfCameraEntry
+	// snapshot, SceneStateData.h). Same system-camera-save-latch + notify
+	// behavior as activateGltfCamera()'s non-animated branch; skips the
+	// SceneGraph lookup and the animation-clip re-apply branch, neither of
+	// which applies to a state's private snapshot (it's never tied to any
+	// file's animation clip). Not undoable - matches this app's existing
+	// convention that no camera activation, including activateGltfCamera()
+	// itself, is ever pushed to the undo stack.
+	void activateCameraEntry(const GltfCameraEntry& cam);
+
+	// ---- Measurement tool ----------------------------------------------------
+	// Thin forwards to _measurementController, which owns the entire
+	// Measurement toolset (state, picking, rendering, hit-testing, dragging -
+	// see MeasurementController.h). Kept here, unchanged in shape, because
+	// MeasurementDialog.cpp talks to ViewportWidget directly, not the
+	// controller - these 8 methods (plus the 3 measurement*Changed signals
+	// below) are that entire public surface.
+	void setMeasurementTool(MeasurementTool tool);
+	MeasurementTool measurementTool() const { return _measurementController->measurementTool(); }
+	void finishVariableLengthMeasurement();
+	const QSet<QUuid>& selectedMeasurementIds() const { return _measurementController->selectedMeasurementIds(); }
+	bool hasSelectedMeasurements() const { return _measurementController->hasSelectedMeasurements(); }
+	void setSelectedMeasurementIds(const QSet<QUuid>& ids);
+	QString measurementSummaryText(const Measurement& m) const { return _measurementController->measurementSummaryText(m); }
+	// True if at least one measurement is hidden - feeds the viewport
+	// context menu's Swap-Visible-gating condition alongside SceneRuntime's
+	// own hidden-mesh check (see showContextMenu()).
+	bool hasHiddenMeasurements() const { return _measurementController->hasHiddenMeasurements(); }
+	// Clears the CGAL cylinder-fit/geodesic-distance caches - see
+	// MeasurementController::clearGeometryCaches()'s doc comment. Called by
+	// ModelViewer::importFiles() whenever new meshes are loaded.
+	void clearMeasurementGeometryCaches() { _measurementController->clearGeometryCaches(); }
+
+	// ---- Cylindrical Diameter's Region Growing tunables - thin forwards to
+	// _measurementController, see its own field doc comment (MeasurementController.h) -------
+	void setCylDiameterMaxAngleDegrees(double degrees) { _measurementController->setCylDiameterMaxAngleDegrees(degrees); }
+	void setCylDiameterMinRegionSize(std::size_t size) { _measurementController->setCylDiameterMinRegionSize(size); }
+	void setCylDiameterMinDiameter(double diameter) { _measurementController->setCylDiameterMinDiameter(diameter); }
+	void setCylDiameterMaxDiameter(double diameter) { _measurementController->setCylDiameterMaxDiameter(diameter); }
+
+	// ---- Annotation tool ----------------------------------------------------
+	// Thin forwards to _annotationController, which owns the entire
+	// Annotate toolset (state, picking, rendering, hit-testing, leader-line
+	// dragging - see AnnotationController.h). Same shape as the Measurement
+	// forwards above - AnnotationDialog.cpp talks to ViewportWidget directly,
+	// not the controller.
+	void setAnnotationToolArmed(bool armed);
+	bool annotationToolArmed() const { return _annotationController->annotationToolArmed(); }
+	const QSet<QUuid>& selectedAnnotationIds() const { return _annotationController->selectedAnnotationIds(); }
+	bool hasSelectedAnnotations() const { return _annotationController->hasSelectedAnnotations(); }
+	void setSelectedAnnotationIds(const QSet<QUuid>& ids);
+	// Same role as hasHiddenMeasurements() above, for annotations.
+	bool hasHiddenAnnotations() const { return _annotationController->hasHiddenAnnotations(); }
+
+	// ---- Seam-marking tool (Generate UVs dialog's "Mark Seams") ------------
+	// Thin forwards to _seamMarkingController - see SeamMarkingController.h.
+	// Unlike Measurement/Annotation, marks() is session state (no dialog
+	// backing a full anchor-list UI elsewhere) - UVGenerationDialog reads/
+	// mutates it directly via these forwards.
+	void setSeamMarkingToolArmed(bool armed);
+	bool seamMarkingToolArmed() const { return _seamMarkingController->seamToolArmed(); }
+	const QVector<SeamEdgeMark>& seamMarks() const { return _seamMarkingController->marks(); }
+	void removeSeamMarkAt(int index) { _seamMarkingController->removeMarkAt(index); }
+	// Clears the mark list AND disarms the tool - the full "session end"
+	// teardown UVGenerationDialog::closeEvent()/reject() call.
+	void clearSeamMarks();
+
+	// ---- Lasso selection ----------------------------------------------------
+	// Freeform-polygon drag selection, armed via ViewToolbar's toggle button.
+	// Mutually exclusive with Measure/Annotate/Mark-Seams above (same
+	// cross-clearing shape those three already use with each other) - stays
+	// armed across multiple drags until toggled off again, unlike Window
+	// Zoom's one-shot gesture.
+	void setLassoToolArmed(bool armed);
+	bool lassoToolArmed() const { return _lassoToolArmed; }
+
+	// ---- Material eyedropper/brush ------------------------------------------
+	// Two-phase tool armed from MaterialPropertiesPanel's eyeDropper button:
+	// AwaitingSample (next click samples a source mesh's material) then
+	// Brushing (subsequent clicks/drags apply it to target meshes, whole-mesh
+	// at a time, batched into one undo command per stroke - see
+	// eyedropperStrokeFinished()). One pick, one stroke (which can still
+	// cover many meshes via a single continuous drag), then auto-disarms
+	// back to Idle - staying armed past a completed stroke used to silently
+	// swallow every following click as another brush action instead of
+	// falling through to normal selection (looked like a selection
+	// regression from the outside - see mouseReleaseEvent()'s
+	// setEyedropperArmed(false) call right after eyedropperStrokeFinished).
+	// Mutually exclusive with Measure/Annotate/Mark-Seams/Lasso above, same
+	// cross-clearing shape.
+	enum class EyedropperPhase { Idle, AwaitingSample, Brushing };
+	void setEyedropperArmed(bool armed);
+	bool eyedropperArmed() const { return _eyedropperPhase != EyedropperPhase::Idle; }
+
+	// ---- Color eyedropper (Filter by Color's "pick from mesh") -------------
+	// Single-phase sibling of the material eyedropper above: armed from
+	// FilterByColorDialog's own pick button, a click samples a mesh's
+	// meshRepresentativeColor() (see MeshColorUtils.h - the SAME value the
+	// dialog's own matching already compares against, so this is always an
+	// exact hit, unlike eyeballing/screen-sampling via QColorDialog) and
+	// emits colorPicked() - no "brush/apply" phase needed, this only ever
+	// reads. Stays armed across multiple clicks until toggled off, same as
+	// Lasso. Mutually exclusive with Measure/Annotate/Mark-Seams/Lasso/
+	// Eyedropper above, same cross-clearing shape.
+	void setColorPickArmed(bool armed);
+	bool colorPickArmed() const { return _colorPickArmed; }
+
+	// ---- Simulation chart point picking (plot over time / plot over line) --
+	// Same single-phase armed-tool shape as the colour eyedropper above: arm with the number of points the caller
+	// needs (1 for "plot over time" at a point, 2 for "plot over line" between two) and, when the caller cares which
+	// mesh (it always does today - only the active simulation result's mesh is acceptable), a filter that rejects a
+	// pick by returning false for its mesh uuid; every point of one pick is also held to the mesh the FIRST point
+	// landed on, regardless of the filter. Re-arming while already armed (e.g. switching straight from "plot over
+	// time" to "plot over line") resets the point count/filter/collected points rather than being a no-op. Each
+	// click that hits an accepted mesh maps its MeshSurfaceAnchor's world position back into that mesh's own LOCAL
+	// space (combinedRenderTransform() inverted) - the space ResultDataset/CellLocator work in - and appends it;
+	// once enough points are collected, simulationChartPointsPicked() fires with the mesh uuid and all of them (in
+	// click order, local space) and the tool disarms itself. A miss (no mesh under the cursor), a rejected mesh, or
+	// a non-invertible transform does not count as a click - stays armed, try again. Mutually exclusive with
+	// Measure/Annotate/Mark-Seams/Lasso/Eyedropper/colour-pick above (both ways: arming any of those disarms this,
+	// and vice versa) and cancelled by Escape like they are.
+	void setSimulationChartPickArmed(bool armed, int pointsNeeded = 1, std::function<bool(const QUuid&)> meshFilter = {});
+	// One-shot, no arming: the point history of whatever result lies under `pixel` (the right-click menu's "Plot Over Time Here").
+	void plotOverTimeAt(const QPoint& pixel);
+	bool simulationChartPickArmed() const { return _simulationChartPickArmed; }
+
+	// ---- Fill Holes dialog's detected-hole-loop overlay --------------------
+	// Thin forwards to _fillHolesController - see FillHolesController.h. No tool-armed state
+	// to forward (unlike Mark Seams above) - FillHolesDialog owns detection/selection entirely
+	// and just pushes results here to be drawn.
+	void setDetectedHoles(std::vector<DetectedHole> holes) { _fillHolesController->setDetectedHoles(std::move(holes)); }
+	void clearDetectedHoles() { _fillHolesController->clearDetectedHoles(); }
+	void setHighlightedHole(const QUuid& meshUuid, int loopId) { _fillHolesController->setHighlightedHole(meshUuid, loopId); }
+	void clearHighlightedHole() { _fillHolesController->clearHighlightedHole(); }
+
+	// Recomputes bounds/fit after a measurement or annotation's visibility
+	// changed - mesh visibility changes already trigger this (and,
+	// conditionally, an auto-fit) as part of setDisplayList(), but
+	// measurement/annotation visibility mutates SceneGraph directly and
+	// never goes through setDisplayList() at all, so without this call
+	// the bounding box/sphere went stale and "Auto Fit View On Hide/Show"
+	// silently didn't apply to them - the user had to press F manually
+	// every time. Called from ModelViewer::setMeasurementVisibilityWithoutUndo()/
+	// setAnnotationVisibilityWithoutUndo() (the undo-integrated context-menu/
+	// Hide-All/Show-All path) and from MeasurementDialog/AnnotationDialog's
+	// own checkbox handlers (the non-undo dialog-list path) - the two places
+	// that actually mutate this state.
+	void refreshMeasurementAnnotationBounds();
+
+public:
+	QVector4D getDefaultLightColor() const;
+	void setDefaultLightColor(const QVector4D& defaultLightColor);
+
+	QVector3D getLightPosition() const;
+	QVector3D getLightOffset() const { return _renderCtrl.lightOffset(); }
+	void setLightOffset(const QVector3D& offset);
+
+	float getFloorSize() const { return _floorSize; }
+
+	bool isShaded() const;
+	DisplayMode getDisplayMode() const;
+	void setDisplayMode(DisplayMode mode);
+	bool isRealismEnabled() const { return _realismEnabled; }
+	void setRealismEnabled(bool enabled);
+	ShadingNormalMode shadingNormalMode() const { return _shadingNormalMode; }
+	void setShadingNormalMode(ShadingNormalMode mode);
+
+	bool isVertexNormalsShown() const { return _renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::VertexNormals; }
+	void setShowVertexNormals(bool showVertexNormals);
+	bool isBoundingBoxShown() const { return _renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::BoundingBox; }
+	void setShowBoundingBox(bool showBoundingBox);
+	DebugOverlayMode debugOverlayMode() const { return _renderCtrl.debugOverlayMode(); }
+	void setDebugOverlayMode(DebugOverlayMode mode);
+	bool isDebugOverlayEnabled() const { return _renderCtrl.debugOverlayEnabled(); }
+	void setDebugOverlayEnabled(bool enabled);
+	void setDebugOverlayAvailability(bool boundingBox, bool vertexNormals, bool faceNormals);
+
+	bool isFaceNormalsShown() const { return _renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::FaceNormals; }
+	void setShowFaceNormals(bool showFaceNormals);
+
+	std::vector<int> getDisplayedObjectsIds() const;
+	std::vector<int> getHiddenObjectsIds() const;
+	const std::vector<int>& currentVisibleObjectIds() const { return _sceneRuntime.currentVisibleObjectIds(); }
+
+	bool isVisibleSwapped() const;
+
+	BoundingSphere getBoundingSphere() const;
+
+	QColor getBgTopColor() const;
+	void setBgTopColor(const QColor& bgTopColor);
+
+
+	QColor getBgBotColor() const;
+	void setBgBotColor(const QColor& bgBotColor);
+
+	int getBgGradientStyle() const { return _renderCtrl.gradientStyle(); }
+	// notifySceneContentMutated(): the gradient style feeds the PT snapshot's
+	// fallback-background scalars (RtEnvironment::fallbackGradientStyle) -
+	// without a restart, an already-converged PT frame keeps showing the old
+	// style. Camera-grade restart only (no scene-revision bump): env scalars
+	// flow per-launch, no GPU rebuild needed - see RtOptixSceneTracer::
+	// renderScene(). No-op when PT isn't armed.
+	void setBgGradientStyle(int style) { _renderCtrl.setGradientStyle(style); _rtInteractionCtrl->notifySceneContentMutated(); update(); }
+	void loadBgColorSettings();
+	void loadNavigationSettings();
+	void loadRenderSettings();
+	// Settings -> Display -> Overlay Text Scale, re-read and re-applied to
+	// both TextRenderer instances - callable both at construction
+	// (initializeGL()) and live from MainWindow's SettingsDialog::
+	// settingsChanged() handler, same "load...Settings()" shape as the
+	// three siblings above.
+	void loadTextOverlaySettings();
+
+	struct CameraPose
+	{
+		QVector3D position;
+		QVector3D viewDir;
+		QVector3D upVector;
+		QVector3D rightVector;
+		float     viewRange;
+	};
+	CameraPose saveCameraPose() const;
+	void       restoreCameraPose(const CameraPose& pose);
+
+	RenderingMode getRenderingMode() const { return _renderCtrl.renderingMode(); }
+	void setRenderingMode(const RenderingMode& renderingMode);
+
+	// ---- Ray-traced rendering mode ----------------------------------------
+	// Arms the "Ray Traced" mode: forces the raster shader to PBR (path
+	// tracing never feeds RenderingMode::RAY_TRACED into the shader uniform
+	// itself - see RenderEnums.h and the design note above onRenderingMode-
+	// Selected() in ModelViewer.cpp) and starts the idle-detection timer.
+	// While armed, camera interaction behaves differently per backend (see
+	// RtInteractionController::notifyCameraInteracting()'s own doc comment
+	// for the full split): on
+	// CPU/Embree, any camera interaction still cancels the in-flight/
+	// converged trace and falls back to the live PBR raster feed immediately.
+	// On GPU/OptiX, camera interaction instead restarts a reduced-quality
+	// INTERACTIVE trace (startInteractiveRayTracedGpuSession()) and keeps
+	// compositing it live - raster is never shown for GPU PT while armed.
+	// CPU/Embree still promotes to the full user-configured quality once the
+	// camera settles (onRayTracedIdleTimeout()); GPU/OptiX has no such
+	// promotion anymore - the same continuous interactive accumulator just
+	// keeps converging/denoising in place once the camera holds still (see
+	// RtInteractiveRenderer's class doc comment and onRayTracedIdleTimeout(),
+	// which is a GPU no-op).
+	//
+	// startInteractiveSessionNow (default true) controls whether arming also
+	// immediately starts/warms up the interactive session - pass false when
+	// the caller (requestRayTracedRenderNow()) is about to immediately
+	// replace it with the settled session anyway, so arming doesn't pay a
+	// real GAS/IAS rebuild + synchronous warm-up launch just to have
+	// startRayTracedSession() tear it back down a moment later.
+	void armRayTracedRenderingMode(bool startInteractiveSessionNow = true);
+	void disarmRayTracedRenderingMode();
+	bool isRayTracedRenderingModeArmed() const { return _rtInteractionCtrl->armed(); }
+
+	// Call when geometry/material/light/visibility changes for a reason other
+	// than direct viewport interaction (undo/redo, a material/light panel
+	// edit, transform typed into a field, etc.) - anything that isn't already
+	// covered by mousePressEvent()/wheelEvent()/keyPressEvent()/inertia.
+	// UNLIKE a camera-only event, this always falls back to the live raster
+	// feed immediately on BOTH backends (cameraInteracting stays false/
+	// default) - a material/light/geometry edit invalidates shading
+	// correctness in a way camera movement doesn't (see
+	// RtInteractionController::notifyCameraInteracting()'s doc comment for
+	// why camera-only GPU restarts are safe to keep showing a
+	// stale-but-still-correct frame through, and why this call site
+	// deliberately doesn't get that treatment). The next startRayTracedSession()
+	// call already rebuilds the RtSceneSnapshot from current scene state
+	// unconditionally. The revision bump lets GPU PT distinguish real scene/
+	// env changes from camera-only restarts so it can keep its GAS/IAS alive
+	// across camera movement.
+	//
+	// RtInteractionController::notifySceneContentMutated() itself
+	// (re)arms the debounced resume warm-up (see
+	// onRayTracedResumeWarmUpTimeout()'s doc comment) whenever it tears the
+	// interactive accumulator down - this is just one of several call sites
+	// that share that same behavior, not a special case, so nothing
+	// scene-mutation-specific needs to happen here
+	// beyond the revision bump.
+	void notifyRayTracedSceneMutated();
+	// Supplies per-mesh RGBA (4 floats per vertex) that the path tracer uses in place of the meshes' own vertex colours,
+	// for colours drawn as a display overlay (Plot3D, Simulation results). Evaluated each time a path-traced scene is built.
+	void setPathTracerColorProvider(std::function<QHash<QUuid, std::vector<float>>()> provider) { _pathTracerColorProvider = std::move(provider); }
+	// Animation playback/scrubbing is also a scene mutation, but for the GPU
+	// backend we want to drive the live interactive PT path with those new
+	// revisions instead of unconditionally dropping to raster/PBR. Falls back
+	// to notifyRayTracedSceneMutated()'s original teardown behavior if the
+	// interactive GPU path can't be restarted/refreshed.
+	void notifyRayTracedAnimationMutated();
+
+	// User-adjustable PT quality settings (RtRenderDialog) - stored here
+	// rather than pushed straight into _rtSession/CpuPathTracer::Settings so
+	// they survive across arm/disarm and apply to the NEXT
+	// startRayTracedSession() call, same lifecycle as every other snapshot
+	// input it already reads fresh from _renderCtrl/_viewCtrl each call.
+	void setRayTracingMaxSamples(uint32_t maxSamples) { _ptMaxSamples = maxSamples > 0 ? maxSamples : 1; }
+	void setRayTracingMaxBounces(int maxBounces) { _ptMaxBounces = std::max(1, maxBounces); }
+	uint32_t rayTracingMaxSamples() const { return _ptMaxSamples; }
+	int rayTracingMaxBounces() const { return _ptMaxBounces; }
+
+	// Advanced settings - see CpuPathTracer::Settings/RtRayTracingSession
+	// for what each one actually controls.
+	void setRayTracingDenoiserEnabled(bool enabled) { _ptDenoiserEnabled = enabled; }
+	void setRayTracingDenoiserDevicePreference(DenoiserDevicePreference preference) { _ptDenoiserDevicePreference = preference; }
+	DenoiserDevicePreference rayTracingDenoiserDevicePreference() const { return _ptDenoiserDevicePreference; }
+	// Switching engines mid-session used to leave the OLD engine's already-
+	// converged (and now stale) frame on screen - this setter used to be a
+	// plain field assignment, never stopping the old session/invalidating
+	// the presenter, and the idle timer had usually already fired and gone
+	// quiet, so nothing repainted until the user happened to nudge the
+	// camera. Worse, if that nudge (e.g. a zoom) landed before the switch
+	// forced a restart, the stale frame (captured at the OLD zoom level)
+	// stayed composited over the NEWLY-resized raster underneath - "two
+	// models of different sizes" on screen at once. notifyEngineSwitch()
+	// immediately stops both sessions and invalidates the presenter (clearing
+	// the stale frame, falling back to the live raster), then
+	// startRayTracedSession() re-renders with the new engine right away
+	// instead of waiting for the idle-settle countdown (that debounce exists
+	// for rapid camera interaction, not a single explicit menu choice).
+	void setRayTracingEnginePreference(RtRayTracingEnginePreference preference)
+	{
+		if (_ptEnginePreference == preference)
+			return;
+		_ptEnginePreference = preference;
+		if (!_rtInteractionCtrl->armed())
+			return; // not in ray-traced mode right now - just remember the preference for next time
+		_rtInteractionCtrl->notifyEngineSwitch();
+		update();
+	}
+	RtRayTracingEnginePreference rayTracingEnginePreference() const { return _ptEnginePreference; }
+	// Resolves Auto to a concrete CPU/GPU choice - GPU if this document's
+	// OptiX tracer initialized successfully, CPU otherwise. Cheap: _ptOptixSession's
+	// RtOptixSceneTracer already ran the real cudaFree(0)/optixInit()/device-
+	// context/pipeline setup unconditionally in its own constructor the
+	// moment this ViewportWidget was created (see RtOptixSceneTracer's own
+	// constructor), so isAvailable() here is just reading an already-computed
+	// bool, not probing anything new. Every render-path branch below reads
+	// THIS, never _ptEnginePreference directly, so Auto never needs handling
+	// at individual call sites - CPU and GPU remain the only two real
+	// backends as far as rendering code is concerned. rayTracingEnginePreference()
+	// above still returns the RAW (possibly Auto) preference, since
+	// RtRenderDialog's combo box needs to keep showing "Auto" as what the
+	// user actually chose, not silently normalize it to whatever it resolved to.
+	//
+	// NOT the reference point for DenoiserDevicePreference::OptiX - unlike the
+	// render engine choice above, the native OptiX denoiser (RtDenoiser) owns
+	// its own standalone OptixDeviceContext and works regardless of which
+	// engine actually produced the frame, so _ptDenoiserDevicePreference is
+	// forwarded to both _rtSession and _ptOptixSession as-is (see the
+	// setDenoiserDevicePreference() call sites in ViewportWidget.cpp).
+	RtRayTracingEnginePreference effectiveRayTracingEnginePreference() const
+	{
+		if (_ptEnginePreference == RtRayTracingEnginePreference::Auto)
+			return _ptOptixSession.isAvailable() ? RtRayTracingEnginePreference::GPU : RtRayTracingEnginePreference::CPU;
+		return _ptEnginePreference;
+	}
+	void setRayTracingEnvImportanceSamplingEnabled(bool enabled) { _ptEnvImportanceSamplingEnabled = enabled; }
+	void setRayTracingFireflyClampThreshold(float threshold) { _ptFireflyClampThreshold = std::max(0.01f, threshold); }
+	void setRayTracingMaxTransmissionBounces(int maxBounces) { _ptMaxTransmissionBounces = std::max(1, maxBounces); }
+	void setRayTracingRussianRouletteStartDepth(int depth) { _ptRussianRouletteStartDepth = std::max(1, depth); }
+	// KHR_materials_volume_scatter's free-flight random walk's own, separate
+	// scatter-event budget - see CpuPathTracer::Settings::maxVolumeScatterBounces's
+	// doc comment.
+	void setRayTracingMaxVolumeScatterBounces(int maxBounces) { _ptMaxVolumeScatterBounces = std::max(1, maxBounces); }
+	// CPU (Embree) only - see CpuPathTracer::Settings::maxShadowRayHits' doc
+	// comment for why GPU (OptiX) has no equivalent setting.
+	void setRayTracingMaxShadowRayHits(int hits) { _ptMaxShadowRayHits = std::max(1, hits); }
+	bool rayTracingDenoiserEnabled() const { return _ptDenoiserEnabled; }
+	bool rayTracingEnvImportanceSamplingEnabled() const { return _ptEnvImportanceSamplingEnabled; }
+	float rayTracingFireflyClampThreshold() const { return _ptFireflyClampThreshold; }
+	int rayTracingMaxTransmissionBounces() const { return _ptMaxTransmissionBounces; }
+	int rayTracingRussianRouletteStartDepth() const { return _ptRussianRouletteStartDepth; }
+	int rayTracingMaxShadowRayHits() const { return _ptMaxShadowRayHits; }
+	int rayTracingMaxVolumeScatterBounces() const { return _ptMaxVolumeScatterBounces; }
+
+	// Applies the user's persisted PT settings (QSettings "raytracing/*"
+	// keys - same keys RtRenderDialog::saveSettings() writes) on top of
+	// whatever these members currently hold, narrowing/leaving each one
+	// untouched if its key was never saved. Called once unconditionally from
+	// the constructor - NOT only from RtRenderDialog::loadSettings() (that
+	// still calls this too, so re-opening the dialog picks up any changes
+	// made outside it) - because Ray Tracing can trigger via the idle timer
+	// without the dialog ever having been opened in the session, which
+	// previously left every setting pinned to its hardcoded default (e.g.
+	// _ptMaxSamples's 16) until the user happened to open it once.
+	void loadRayTracingSettingsFromDisk();
+
+	// True when the most recently built PT scene combines orthographic
+	// projection with a thin-walled transmissive material (KHR_materials_
+	// transmission without KHR_materials_volume) - a genuine mathematical
+	// degenerate case (every pixel samples the same environment direction,
+	// see startRayTracedSession()'s detection), not a bug. RtRenderDialog
+	// surfaces this so the user understands why such glass looks flat
+	// instead of assuming the renderer is broken.
+	bool rayTracingOrthoThinWallWarningActive() const { return _ptOrthoThinWallWarningActive; }
+
+	// Progress snapshot for RtRenderDialog's poll timer - current/target
+	// sample counts and whether the worker is still running. Cheap (no frame
+	// copy) - see RtRayTracingSession::currentSampleCount(). Reads from
+	// whichever backend's session is actually the active one, so the
+	// progress bar/elapsed-time display works identically for both engines.
+	void rayTracingProgress(uint32_t& outCurrentSamples, uint32_t& outTargetSamples, bool& outRunning) const
+	{
+		const bool gpu = effectiveRayTracingEnginePreference() == RtRayTracingEnginePreference::GPU;
+		if (gpu && _rayTracedInteractiveActive)
+		{
+			outCurrentSamples = _rtInteractiveRenderer.currentSampleCount();
+			outTargetSamples  = _rtInteractiveRenderer.maxSampleCount();
+			outRunning        = _rtInteractiveRenderer.isFrameInFlight() || outCurrentSamples < outTargetSamples;
+			return;
+		}
+		if (effectiveRayTracingEnginePreference() == RtRayTracingEnginePreference::GPU)
+		{
+			outCurrentSamples = _ptOptixSession.currentSampleCount();
+			outTargetSamples  = _ptOptixSession.maxSamples();
+			outRunning        = _ptOptixSession.isRunning();
+			return;
+		}
+		outCurrentSamples = _rtSession.currentSampleCount();
+		outTargetSamples  = _rtSession.maxSamples();
+		outRunning        = _rtSession.isRunning();
+	}
+
+	// Snapshot of everything RtRenderDialog's Diagnostics tab displays -
+	// see the diagnostics-tab feature notes for the field list this mirrors
+	// (Renderer/GPU/Traversal/Denoiser, Resolution/Triangles/BLAS-TLAS build
+	// time/samples-per-sec/render time). Deliberately a single call rather
+	// than several small accessors, so RtRenderDialog can gate ALL of it
+	// behind "is the Diagnostics tab actually the visible one right now" at
+	// one call site instead of several - every field read here is already
+	// cheap/precomputed (see RtOptixSceneTracer's own diagnostics accessors'
+	// doc comments), but there's still no reason to touch any of it, even
+	// this cheaply, while the tab isn't on screen to show it.
+	struct RayTracingDiagnostics
+	{
+		bool gpuEngineActive = false;
+		QString rendererName;   // "OptiX (GPU)" or "Embree (CPU)"
+		QString gpuDeviceName;  // physical GPU name, if this build has OptiX at all - empty otherwise
+		bool traversalKnown = false; // false while the CPU engine is active - traversal mode is an OptiX-only concept
+		bool hasHardwareRT = false;
+		QString denoiserName;
+		int width = 0;
+		int height = 0;
+		bool triangleCountKnown = false; // false while the CPU engine is active - see rayTracingDiagnostics()'s doc comment
+		uint64_t triangleCount = 0;
+		bool buildTimesKnown = false; // false while the CPU engine is active - BLAS/TLAS are OptiX-only concepts
+		double gasBuildMs = 0.0;
+		double iasBuildMs = 0.0;
+		uint32_t currentSamples = 0;
+		uint32_t targetSamples = 0;
+		// Deliberately no elapsedMs field here: rayTracingElapsedMs() is a
+		// live, never-reset session clock that keeps ticking after Stop is
+		// pressed - callers computing a rate (samples/sec, render time) MUST
+		// use RtRenderDialog's own frozen-on-stop elapsed value (see
+		// onProgressTimer()'s _frozenElapsedMs) instead, or those rates would
+		// keep sliding toward zero forever after rendering actually stops.
+	};
+	RayTracingDiagnostics rayTracingDiagnostics() const
+	{
+		RayTracingDiagnostics d;
+		const bool gpu = effectiveRayTracingEnginePreference() == RtRayTracingEnginePreference::GPU;
+		const bool interactiveGpu = gpu && _rayTracedInteractiveActive;
+		d.gpuEngineActive = gpu;
+		d.rendererName    = gpu ? QStringLiteral("OptiX (GPU)") : QStringLiteral("Embree (CPU)");
+		const RtOptixSceneTracer& gpuTracer = interactiveGpu ? _rtInteractiveTracer : _ptOptixSession.tracer();
+		d.gpuDeviceName   = QString::fromLatin1(gpuTracer.deviceName());
+		d.traversalKnown  = gpu && gpuTracer.isAvailable();
+		d.hasHardwareRT   = gpuTracer.hasHardwareRT();
+		d.denoiserName    = QString::fromLatin1(
+			gpu ? (interactiveGpu ? _rtInteractiveRenderer.activeDenoiserName() : _ptOptixSession.activeDenoiserName())
+			    : _rtSession.activeDenoiserName());
+		d.width           = gpu ? (interactiveGpu ? _rtInteractiveRenderer.renderWidth() : _ptOptixSession.width())  : _rtSession.width();
+		d.height          = gpu ? (interactiveGpu ? _rtInteractiveRenderer.renderHeight() : _ptOptixSession.height()) : _rtSession.height();
+		d.triangleCountKnown = gpu;
+		d.triangleCount   = gpu ? gpuTracer.lastTriangleCount() : 0;
+		d.buildTimesKnown = gpu;
+		d.gasBuildMs      = gpu ? gpuTracer.lastGasBuildMs() : 0.0;
+		d.iasBuildMs      = gpu ? gpuTracer.lastIasBuildMs() : 0.0;
+		bool running = false;
+		rayTracingProgress(d.currentSamples, d.targetSamples, running);
+		return d;
+	}
+
+	// Milliseconds since the CURRENTLY active PT session actually began -
+	// _ptSessionElapsedTimer is (re)started at the single place a session
+	// really starts (startRayTracedSession()/startOptixTestRayTracedSession()),
+	// regardless of what triggered it: the dialog's own Render button, a
+	// keyboard shortcut toggling ray-traced mode directly, or an automatic
+	// camera-settle restart. RtRenderDialog reads this directly instead of
+	// running its own independent clock that only starts once the dialog
+	// happens to be open and polling - a dialog opened AFTER a shortcut-
+	// triggered session was already well underway previously had no way to
+	// know that, and showed elapsed time counting up from 0 instead of the
+	// session's real age.
+	qint64 rayTracingElapsedMs() const { return _ptSessionElapsedTimer.isValid() ? _ptSessionElapsedTimer.elapsed() : 0; }
+
+	// Whether whichever backend's session is CURRENTLY the active one
+	// (per _ptEnginePreference) is running - used by the paintGL()/
+	// applicationStateChanged watchdogs that self-heal a stuck-idle path-
+	// traced mode. Checking only _rtSession.isRunning() unconditionally (an
+	// earlier version of both watchdogs did) is permanently false whenever
+	// GPU is selected (that backend never touches _rtSession at all), making
+	// both watchdogs think a build-in-progress GPU session was "stuck idle"
+	// and restart it on every single paint call - each restart calling
+	// RtOptixRayTracingSession::stop() first, which kills whatever
+	// buildScene()/first-chunk-render was already in flight, so the session
+	// could never actually finish and publish its first frame. A real,
+	// previously-unnoticed bug once the GPU path moved from one blocking
+	// optixLaunch() (where hasFrame() flipped true near-instantly, before
+	// paintGL() got a chance to see otherwise) to a background progressive
+	// session with real build/first-chunk latency.
+	// _rayTracedInteractiveActive covers the continuous interactive
+	// accumulator (RtInteractiveRenderer has no worker thread/isRunning() of
+	// its own - it's driven from paintGL() - so "running" for it just means
+	// "armed and already given at least one camera pose", the same flag
+	// startInteractiveRayTracedGpuSession() sets). Without this, the
+	// app-reactivation/visibility-change watchdogs below would see
+	// _ptOptixSession.isRunning()==false (correctly - it's no longer used
+	// for auto-interaction, see RtInteractionController::notifyCameraInteracting()'s
+	// GPU branch) and
+	// wrongly conclude nothing is running, restarting the settled session
+	// redundantly alongside the interactive one that's already live.
+	bool rayTracedSessionRunning() const
+	{
+		return effectiveRayTracingEnginePreference() == RtRayTracingEnginePreference::GPU
+			? (_ptOptixSession.isRunning() || _rayTracedInteractiveActive)
+			: _rtSession.isRunning();
+	}
+
+	// Raw linear HDR frame (un-tonemapped, optionally denoised) for fast EXR
+	// export. In CPU mode this comes from _rtSession.latestFrame(); in settled
+	// GPU mode from _ptOptixSession.latestFrame(); and while live interactive
+	// GPU PT is active from RtInteractiveRenderer's latest completed device
+	// frame, read back on demand through _rtInteractiveTracer. RtPresenter's
+	// tonemap only happens at PRESENT time in the display shader, so none of
+	// these paths mutate the underlying linear radiance buffer.
+	std::vector<glm::vec3> rayTracingRawFrame(int& outWidth, int& outHeight) const
+	{
+		uint32_t sampleCount = 0;
+		if (effectiveRayTracingEnginePreference() == RtRayTracingEnginePreference::GPU)
+		{
+			if (_rayTracedInteractiveActive)
+			{
+				RtCamera frameCamera;
+				uint64_t generation = 0;
+				if (void* deviceFrame = _rtInteractiveRenderer.pollCompletedFrame(outWidth, outHeight, frameCamera, generation))
+				{
+					std::vector<glm::vec3> hostFrame;
+					std::vector<float> hostAlpha;
+					if (_rtInteractiveTracer.readbackDeviceRGBABuffer(deviceFrame, outWidth, outHeight, hostFrame, hostAlpha))
+						return hostFrame;
+				}
+				outWidth = 0;
+				outHeight = 0;
+				return {};
+			}
+			return _ptOptixSession.latestFrame(outWidth, outHeight, sampleCount);
+		}
+		return _rtSession.latestFrame(outWidth, outHeight, sampleCount);
+	}
+
+	// Arms Ray Traced mode AND starts tracing immediately, rather than
+	// waiting for the idle-settle countdown armRayTracedRenderingMode()
+	// alone leaves running - RtRenderDialog's "Render" button wants the
+	// press to visibly start work right away, not after a camera-idle delay
+	// that may never arrive if the user isn't touching the viewport at all.
+	void requestRayTracedRenderNow()
+	{
+		// See armRayTracedRenderingMode()'s doc comment for why false here -
+		// startRayTracedSession() right below is about to start the real
+		// settled session regardless of engine, tearing down anything the
+		// interactive path just started.
+		armRayTracedRenderingMode(/*startInteractiveSessionNow=*/false);
+		startRayTracedSession();
+	}
+
+	// Renders and returns the current frame with the axis triad/view cube/
+	// mesh-count HUD overlays suppressed - for RtRenderDialog's Export,
+	// which wants exactly the composited raster+ray-traced pixels, not a
+	// viewport screenshot. Triggers a real synchronous re-paint (via
+	// QOpenGLWidget::grabFramebuffer(), which paintGL() then sees
+	// _capturingCleanFrame set for) rather than reading back whatever was
+	// last on screen, then restores normal HUD-visible display afterward.
+	QImage captureCleanRayTracedImage()
+	{
+		_capturingCleanFrame = true;
+		QImage img = grabFramebuffer();
+		_capturingCleanFrame = false;
+		update(); // restore the normal HUD-visible view
+		return img;
+	}
+
+	// Current on-screen device-pixel resolution - same fbWidth/fbHeight
+	// computation startRayTracedSession() uses. RtRenderDialog compares
+	// its requested export resolution against this to decide whether a
+	// downscale of the already-converged frame is enough (fast path) or a
+	// fresh renderRayTracedOffline() call is needed (requested resolution
+	// exceeds this in either dimension).
+	void rayTracingViewportResolution(int& outWidth, int& outHeight) const
+	{
+		const qreal dpr = devicePixelRatioF();
+		outWidth  = static_cast<int>(width()  * dpr);
+		outHeight = static_cast<int>(height() * dpr);
+	}
+
+	// Live tonemap settings - same values passed to _rtPresenter.draw() for
+	// on-screen display. RtRenderDialog's offline export path needs
+	// these directly (see RtTonemap.h) since it never touches the GPU/
+	// RtPresenter at all, unlike the fast path which just grabs the
+	// already-tonemapped framebuffer.
+	void rayTracingToneMapSettings(bool& outHdrToneMapping, bool& outGammaCorrection,
+		float& outScreenGamma, float& outIblExposure, int& outToneMapMode) const
+	{
+		outHdrToneMapping  = _renderCtrl.hdrToneMapping();
+		outGammaCorrection = _renderCtrl.gammaCorrection();
+		outScreenGamma     = _renderCtrl.screenGamma();
+		outIblExposure     = _renderCtrl.iblExposure();
+		outToneMapMode     = static_cast<int>(_renderCtrl.toneMappingMode());
+	}
+
+	// Blocking offline ray-traced render at an arbitrary resolution,
+	// decoupled entirely from the interactive session/viewport (see
+	// buildRayTracedSnapshot()'s doc comment for the shared setup logic,
+	// and RtRenderDialog::onExportClicked() for when this is used vs the
+	// fast downscale-existing-frame path). Dispatches to CPU (RtEmbreeScene/
+	// CpuPathTracer) or GPU (renderRayTracedOfflineGpu(), RtOptixSceneTracer)
+	// based on _ptEnginePreference - same engine the interactive viewport is
+	// currently using. Genuinely blocks the calling thread for the whole
+	// render - no worker thread - per an explicit call that a blocking
+	// offline export is acceptable; the caller is expected to pump
+	// QApplication::processEvents() (WITHOUT ExcludeUserInputEvents - see
+	// cancelRayTracedOfflineRender()'s doc comment for why) from onProgress
+	// to keep the UI visually responsive and let a cancel request actually
+	// reach this call. onProgress is called once per completed sample with
+	// (currentSample, maxSamples). Returns false (outLinearRgb left
+	// untouched) if the scene/camera isn't ready to render at all, or (GPU
+	// only) if OptiX isn't available on this machine. outCancelled, if
+	// non-null, is set true when the render stopped early because
+	// cancelRayTracedOfflineRender() was called mid-render - a false
+	// return with outCancelled set is not a failure and shouldn't be
+	// reported as one.
+	bool renderRayTracedOffline(int width, int height,
+		const std::function<void(uint32_t currentSample, uint32_t maxSamples)>& onProgress,
+		std::vector<glm::vec3>& outLinearRgb, bool* outCancelled = nullptr);
+
+	// Requests that an in-progress renderRayTracedOffline() stop at the
+	// next opportunity (next sample boundary on GPU, next scanline on CPU -
+	// see CpuPathTracer::renderPass()'s own cancelFlag doc comment) rather
+	// than running to completion. Safe to call from a Qt slot invoked via
+	// QApplication::processEvents() while renderRayTracedOffline() is
+	// still blocking the calling thread further up the same call stack -
+	// this is the ONLY way a click can reach that call at all, since it
+	// never returns to the event loop on its own until done or cancelled.
+	// No-op if no offline render is currently in progress (the flag is
+	// reset at the start of every renderRayTracedOffline() call, so a
+	// stale request can't affect a later, unrelated one).
+	void cancelRayTracedOfflineRender() { _ptOfflineCancelRequested.store(true, std::memory_order_release); }
+
+	void setCappingPlanesEnabled(const bool& enabled) { _renderCtrl.setCappingEnabled(enabled); }
+	bool cappingPlanesEnabled() const { return _renderCtrl.cappingEnabled(); }
+
+	void setYZClippingEnabled(const bool& enabled) { _renderCtrl.setYZClippingEnabled(enabled); }
+	bool yzClippingEnabled() const { return _renderCtrl.yzClippingEnabled(); }
+	void setZXClippingEnabled(const bool& enabled) { _renderCtrl.setZXClippingEnabled(enabled); }
+	bool zxClippingEnabled() const { return _renderCtrl.zxClippingEnabled(); }
+	void setXYClippingEnabled(const bool& enabled) { _renderCtrl.setXYClippingEnabled(enabled); }
+	bool xyClippingEnabled() const { return _renderCtrl.xyClippingEnabled(); }
+
+	void setClippingXFlipped(const bool& flipped) { _renderCtrl.setClippingXFlipped(flipped); }
+	bool clippingXFlipped() const { return _renderCtrl.clippingXFlipped(); }
+	void setClippingYFlipped(const bool& flipped) { _renderCtrl.setClippingYFlipped(flipped); }
+	bool clippingYFlipped() const { return _renderCtrl.clippingYFlipped(); }
+	void setClippingZFlipped(const bool& flipped) { _renderCtrl.setClippingZFlipped(flipped); }
+	bool clippingZFlipped() const { return _renderCtrl.clippingZFlipped(); }
+
+	void setClippingXCoeff(const float& coeff) { _renderCtrl.setClippingXCoeff(coeff); }
+	float clippingXCoeff() const { return _renderCtrl.clippingXCoeff(); }
+	void setClippingYCoeff(const float& coeff) { _renderCtrl.setClippingYCoeff(coeff); }
+	float clippingYCoeff() const { return _renderCtrl.clippingYCoeff(); }
+	void setClippingZCoeff(const float& coeff) { _renderCtrl.setClippingZCoeff(coeff); }
+	float clippingZCoeff() const { return _renderCtrl.clippingZCoeff(); }
+
+	bool getHdrToneMapping() const { return _renderCtrl.hdrToneMapping(); }
+	bool getGammaCorrection() const { return _renderCtrl.gammaCorrection(); }
+	float getScreenGamma() const { return _renderCtrl.screenGamma(); }
+
+	// Environment mapping accessors
+	// index: 0 = ViewerIBL, 1 = Studio, 2 = Outdoor, 3 = Office
+	GLuint getEnvironmentMap(int index = 0, bool regenerate = false);
+	GLuint getIrradianceMap(int index = 0, bool regenerate = false);
+	GLuint getPrefilterMap(int index = 0, bool regenerate = false);
+	GLuint getSheenPrefilterMap(int index = 0, bool regenerate = false);
+	unsigned int getPrefilterMipLevels() const { return _renderCtrl.prefilterMipLevels(); }
+	unsigned int getSheenPrefilterMipLevels() const { return _renderCtrl.sheenPrefilterMipLevels(); }
+	GLuint getBrdfLUT() const { return _renderCtrl.brdfLUTTexture(); }
+	GLuint getCharlieLUT() const { return _renderCtrl.charlieLUTTexture(); }
+	GLuint getSheenELUT() const { return _renderCtrl.sheenELUTTexture(); }
+	bool isEnvironmentMapEnabled() const { return _renderCtrl.envMapEnabled(); }
+	bool isIBLEnabled() const { return _renderCtrl.useIBL(); }
+	float getIBLExposure() const { return _renderCtrl.iblExposure(); }
+	float getEnvMapExposure() const { return _renderCtrl.envMapExposure(); }
+	QString getCurrentSkyboxFolder() const { return _renderCtrl.currentSkyboxFolder(); }
+	bool isSkyBoxShown() const { return _renderCtrl.skyBoxEnabled(); }
+	bool isSkyBoxHDRIEnabled() const { return _renderCtrl.skyBoxTextureHDRI(); }
+	int getSkyBoxBlurPercent() const { return _renderCtrl.skyBoxBlurPercent(); }
+	float getSkyBoxFOV() const { return _renderCtrl.skyBoxFOV(); }
+	float getPerspFOV()  const { return _viewCtrl.FOV(); }
+	float getSkyBoxZRotationDegrees() const { return _renderCtrl.skyBoxZRotation(); }
+	bool areReflectionsEnabled() const { return _renderCtrl.reflectionsEnabled(); }
+	// Implied by GroundMode::InfinitePlane being selected - see that enum
+	// value's own doc comment.
+	bool isShadowCatcherEnabled() const { return _renderCtrl.groundMode() == GroundMode::InfinitePlane; }
+	float shadowCatcherDarkness() const { return _renderCtrl.shadowCatcherDarkness(); }
+	QVector3D shadowCatcherBaseColor() const { return _renderCtrl.shadowCatcherBaseColor(); }
+	float shadowCatcherMetalness() const { return _renderCtrl.shadowCatcherMetalness(); }
+	float shadowCatcherRoughness() const { return _renderCtrl.shadowCatcherRoughness(); }
+	bool isFloorTextureShown() const { return _renderCtrl.floorTextureDisplayed(); }
+	bool areShadowsEnabled() const { return _renderCtrl.shadowsEnabled(); }
+	bool areSelfShadowsEnabled() const { return _renderCtrl.selfShadowsEnabled(); }
+	bool areDefaultLightsEnabled() const { return _renderCtrl.useDefaultLights(); }
+	bool arePunctualLightsEnabled() const { return _renderCtrl.usePunctualLights(); }
+	bool areLightsShown() const { return _renderCtrl.showLights(); }
+
+    ToolsToolbar* getToolsToolbar() const;
+	ViewToolbar* getViewToolbar() const { return _viewToolbar; }
+    void raiseViewportToolbar();
+
+	// Releases every GPU-context-bound resource's GL handles (via
+	// _gpuResourceRegistry.releaseAll() - see IGpuContextResource.h) without
+	// deleting the owning C++ objects, which survive for the next
+	// initializeGL()'s restorePhase() calls to reuse. Shared between
+	// ~ViewportWidget() (widget going away for good - see
+	// deleteGpuOwnedObjects() for the object-deletion step that follows) and
+	// the QOpenGLContext::aboutToBeDestroyed() handler wired up in
+	// initializeGL() (widget survives, only its GL context is being replaced
+	// - see that connection's own comment for why this is needed there too).
+	void releaseGLSceneResources();
+
+	// initializeGL()'s QOpenGLContext::aboutToBeDestroyed() connection (see
+	// its own comment there) - must be disconnected at the very top of
+	// ~ViewportWidget(), before that destructor's own explicit cleanup runs,
+	// otherwise the base QOpenGLWidget destructor's later context teardown
+	// fires this a second time and calls releaseGLSceneResources() again on
+	// already-freed GL objects (e.g. SceneRenderController::releaseGpuResources()
+	// double-destroying a QOpenGLBuffer).
+	QMetaObject::Connection _glContextAboutToBeDestroyedConnection;
+
+	void invalidateTextureCacheGpuResources();
+	void releaseLoadedMeshGpuResources();
+	void restoreLoadedMeshGpuResources();
+
+	// Recycle bin operations (used by DeleteCommand)
+	void moveToRecycleBin(const QUuid& uuid, int originalIndex);
+	bool restoreFromRecycleBin(const QUuid& uuid);
+	void permanentlyDeleteFromBin(const QUuid& uuid);
+
+	// Query methods
+	bool isInRecycleBin(const QUuid& uuid) const;
+	QVector<QUuid> getRecycleBinUuids() const;
+	QList<QUuid> getPendingSceneUuids() const;
+
+	// UUID lookup methods
+	SceneMesh* getMeshByUuid(const QUuid& uuid) const;
+	SceneMesh* getMeshByIndex(int index) const;
+	int getIndexByUuid(const QUuid& uuid) const;
+	QUuid getUuidByIndex(int index) const;
+
+	// Generate a name that doesn't clash with any existing mesh name.
+	QString generateUniqueMeshName(const QString& baseName) { return _sceneRuntime.generateUniqueMeshName(baseName); }
+
+	// ---- MVF mesh loading ----
+
+	using PreparedMvfMesh = ::PreparedMvfMesh;
+
+	/// Clear the mesh store and display list (safe to call from main thread).
+	/// Called before uploading new MVF meshes to replace any existing geometry.
+	void clearMeshStore();
+
+	/// Single-mesh GL upload for use with BlockingQueuedConnection.
+	/// Called once per mesh from the main thread while worker waits.
+	void uploadOneMvfMesh(const PreparedMvfMesh& pm);
+
+	/// GL-only upload: creates SceneMesh objects, uploads VBOs and
+	/// textures, and populates the display list.  Must run on the main
+	/// (GL) thread.  Updates the progress bar between meshes.
+	bool uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes);
+
+	void setParsedLights(const GltfLightData& lights);
+
+	/// Rebuilds the parsed light baseline from all SceneGraph-registered light data.
+	/// Connected to SceneGraph::lightDataChanged to stay current on model add/remove.
+	void onSceneLightDataChanged();
+
+	/// Thin slot that delegates to SceneRuntime. Qt::UniqueConnection requires a
+	/// member-function pointer â€” it does not work with lambda connections in Qt6.
+	void onSceneStructureChanged() { _sceneRuntime.invalidateRuntimeVisibilityHierarchy(); }
+
+	/// Accessor for the foreground shader (for pre-load shader validation).
+	ShaderProgram* getShader() const { return _renderCtrl.fgShader(); }
+
+	void setSectionCapsDynamicEnabled(bool enabled) { _renderCtrl.setDynamicCappingEnabled(enabled); if (!enabled && _renderCtrl.sectionCapsSuppressedDuringInteraction()) setSectionCapsInteractionSuppressed(false); }
+
+	// Moved to AnimationRuntimeController (Phase 8); aliases preserve external access.
+	using RuntimeNodeTransform       = AnimationRuntimeController::RuntimeNodeTransform;
+	using RuntimeAnimationFileState  = AnimationRuntimeController::RuntimeAnimationFileState;
+
+signals:
+    void viewStateChanged();
+	// A Clipping Plane was switched, moved or flipped (every change of the Clipping Planes editor ends in updateClippingPlane()).
+	void clippingPlanesChanged();
+    void toolCommandRequested(const QString& command);
+	// Fired synchronously, on the two actual `delete meshRecord.mesh`/
+	// `delete entry.mesh` call sites (permanentlyDeleteFromBin(),
+	// clearMeshStore()) - NOT on an ordinary DeleteMeshCommand::redo(),
+	// which only moves a mesh into the recycle bin (still alive, restorable
+	// via undo). Any long-lived component that tracks raw SceneMesh*
+	// pointers across event-loop turns (e.g. a non-modal dialog's cached
+	// selection) must connect here and drop the pointer before returning -
+	// the mesh is still valid for the duration of this signal, but not
+	// after.
+	void meshAboutToBeDeleted(SceneMesh* mesh);
+	void meshRecycleStateChanged(const QUuid& uuid, bool inRecycleBin);
+	// Availability/visibility of the persistent Plot3D axis overlay changed. The shared 3D Plot panel uses this to
+	// follow the active document and changes made by a newly-built plot.
+	void plot3DAxisStateChanged(bool available, bool visible);
+	// Plot3D text notes: the placement tool was armed / disarmed; a click placed one (at a position in the plot's own, scaled space); one was
+	// dragged to a new position; or the user asked to edit / delete one (double-click, right-click).
+	void plot3DNotePlacementChanged(bool armed);
+	void plot3DNotePlaced(const QUuid& plot, const QVector3D& localPosition);
+	void plot3DNoteMoved(const QUuid& plot, int index, const QVector3D& localPosition);
+	void plot3DNoteEditRequested(const QUuid& plot, int index);
+	void plot3DNoteDeleteRequested(const QUuid& plot, int index);
+
+	void windowZoomEnded();
+	void rotationsSet();
+	void zoomAndPanSet();
+	void viewSet();
+	void displayListSet();
+	void singleSelectionDone(int);
+	void sweepSelectionDone(QList<int>);
+	void floorShown(bool);
+	void visibleSwapped(bool);
+	void loadingAssImpModelCancelled();
+	void displayModeChanged(int);
+	void renderingModeChanged(int);
+	void animationStateChanged();
+	void explodedViewManualPlacementChanged();
+	// Emitted whenever the armed measurement tool changes - including from
+	// inside this widget (Escape cancels it) - so the Measurement dialog's
+	// combo box can stay in sync without it having to be the ONLY thing that
+	// ever sets the tool.
+	void measurementToolChanged(MeasurementTool tool);
+	// Fires whenever the in-progress pick count changes for the active
+	// tool (a click added an anchor, or the pending set was cleared/reset)
+	// so the Measurement dialog can show "click the 2nd point" etc.
+	// `picked`/`required` are both 0 when no tool is armed.
+	void measurementProgressChanged(int picked, int required);
+	// Fires whenever the selected measurement set changes - including from
+	// clicking one directly in the viewport (setSelectedMeasurementIds()'s
+	// other caller besides the Measurement dialog) - so the dialog's results
+	// list can keep its highlighted rows in sync either way.
+	void measurementSelectionChanged(const QSet<QUuid>& ids);
+	// Emitted whenever the armed Annotate tool state changes - same reasoning
+	// as measurementToolChanged() above, so AnnotationDialog's "Place Note"
+	// button can stay in sync without being the ONLY thing that ever arms it.
+	void annotationToolArmedChanged(bool armed);
+	// Fires whenever the selected annotation set changes - same reasoning as
+	// measurementSelectionChanged() above.
+	void annotationSelectionChanged(const QSet<QUuid>& ids);
+	// Emitted whenever the armed "Mark Seams" tool state changes - same
+	// reasoning as annotationToolArmedChanged() above, so UVGenerationDialog's
+	// arm button can stay in sync (e.g. Escape disarming it).
+	void seamToolArmedChanged(bool armed);
+	// Emitted whenever the armed Lasso tool state changes - including from
+	// this widget's own mutual-exclusion clearing (another tool got armed)
+	// - so ViewToolbar's toggle button (via setLassoToolChecked()) can stay
+	// in sync without being the ONLY thing that ever arms/disarms it.
+	void lassoToolArmedChanged(bool armed);
+	// Emitted the instant the eyedropper's sample click hits a mesh (phase
+	// transitions AwaitingSample -> Brushing) - ModelViewer binds `material`
+	// into MaterialPropertiesPanel, mirroring editMeshMaterial()'s existing
+	// createUnsavedMaterialFromMesh() flow, so the panel reflects what was
+	// actually sampled.
+	void eyedropperMaterialSampled(const Material& material, const QString& sourceMeshName);
+	// Emitted on mouse release ending one brush stroke, only if it actually
+	// touched at least one target mesh - ModelViewer pushes a single
+	// ApplyMaterialCommand covering the whole stroke (one undo entry per
+	// gesture, same convention as every other multi-mesh operation in this
+	// app).
+	void eyedropperStrokeFinished(const QVector<QUuid>& targetUuids, const Material& material);
+	// Emitted whenever the armed eyedropper state changes - including this
+	// widget's own mutual-exclusion clearing - so MaterialPropertiesPanel's
+	// eyeDropper button (via setEyedropperChecked()) stays in sync either way.
+	void eyedropperArmedChanged(bool armed);
+	// Emitted the instant a color-pick click hits a mesh while
+	// setColorPickArmed(true) - FilterByColorDialog connects to this
+	// directly (it owns its ModelViewer/ViewportWidget outright, unlike the
+	// shared-panel material eyedropper, so no MainWindow rebind-dispatch is
+	// needed) and appends the color to its list. Stays armed after a hit -
+	// mirrors Lasso's "stays armed across multiple drags" convention, since
+	// clicking several meshes in a row to build up a color list is exactly
+	// the expected workflow here.
+	void colorPicked(const QVector3D& color);
+	// Emitted whenever the armed color-pick state changes - including this
+	// widget's own mutual-exclusion clearing (e.g. arming Lasso while color-
+	// pick was active) - so FilterByColorDialog's own pick button stays in
+	// sync without being the only thing that ever arms/disarms it.
+	void colorPickArmedChanged(bool armed);
+	// Fires once setSimulationChartPickArmed()'s requested point count has been clicked; SimulationPanel connects
+	// to build the "plot over line"/"plot over time" chart from the world points.
+	void simulationChartPointsPicked(const QUuid& meshUuid, const QVector<QVector3D>& localPoints);
+	void simulationChartPickArmedChanged(bool armed);
+	// Fires whenever the seam-mark list changes (add/remove/clear) - lets
+	// UVGenerationDialog's mark-list widget refresh without polling.
+	void seamMarksChanged();
+	void backgroundColorChanged(const QColor& topColor, const QColor& bottomColor);
+	// Forwarded from SelectionManager so external panels (e.g. TextureDebugPanel)
+	// can react to mesh selection changes without needing access to SelectionManager.
+	void selectionChanged(const QList<int>& selectedIds);
+	// Emitted by requestTextureReadback() once the GL readback is complete.
+	void textureReadbackReady(QVector<TextureSlotInfo> slots, QString meshName);
+	void cameraUpAxisChanged(bool zUp);
+	// Emitted whenever turntable actually starts or stops - including when
+	// stopAnimations() stops it on manual camera interaction, not just when
+	// setTurntableEnabled() is called directly - so ViewToolbar's toggle
+	// button can stay in sync (via setTurntableChecked()) either way.
+	void turntableStateChanged(bool enabled);
+
+public slots:
+	void animateViewChange();
+	void animateFitAll();
+	void animateWindowZoom();
+	void animateCenterScreen();
+	void onInertiaTimer();
+	void onTurntableTimer();
+	void setTurntableEnabled(bool enabled);
+	bool turntableEnabled() const { return _turntableTimer && _turntableTimer->isActive(); }
+	void stopAnimations();
+	void checkAndStopTimers();
+	void fitAll();
+	void fitAllImmediate();
+	void setAutoFitViewOnUpdate(bool update) { _viewCtrl.setAutoFitViewOnUpdate(update); }
+	bool autoFitViewOnUpdate() const { return _viewCtrl.autoFitViewOnUpdate(); }
+	void setSelectionHighlighting(bool highlight);
+	bool isSelectionHighlighting() const { return _selectionHighlighting; }
+	void performKeyboardNav();
+	void disableLowRes();
+	void disableSectionCapsInteractionSuppression() { setSectionCapsInteractionSuppressed(false); }
+	void setFloorTexRepeatS(double floorTexRepeatS);
+	void setFloorTexRepeatT(double floorTexRepeatT);
+	void setFloorOffsetPercent(double value);
+	// notifySceneContentMutated(): skyBoxFOV feeds the PT snapshot's
+	// environment scalars - see setBgGradientStyle()'s identical reasoning.
+	void setSkyBoxFOV(double fov) { _renderCtrl.setSkyBoxFOV(static_cast<float>(fov)); _rtInteractionCtrl->notifySceneContentMutated(); update(); }
+	void setPerspFOV(int fovDegrees);
+	void setSkyBoxZRotation(int index);
+	// Direct continuous-angle setter - VisualizationEnvironmentPanel's fine
+	// rotation slider combines a preset axis angle (still driven through
+	// setSkyBoxZRotation(int)'s fixed 4-way table) with a +/-45 degree
+	// offset, and needs to apply the COMBINED result directly rather than
+	// snapping to one of the 4 presets. Does exactly what
+	// setSkyBoxZRotation(int)'s body does, just parameterized on the raw
+	// angle instead of a table index - see that method for why (skybox view
+	// matrix rebuild + camera-grade PT restart).
+	void setSkyBoxZRotationDegrees(float degrees);
+	void setSkyBoxTextureHDRI(bool hdrSet) { _renderCtrl.setSkyBoxTextureHDRI(hdrSet); update(); }
+	void enableHDRToneMapping(bool hdrToneMapping) { _renderCtrl.setHdrToneMapping(hdrToneMapping); update(); }
+	void enableGammaCorrection(bool gammaCorrection) { _renderCtrl.setGammaCorrection(gammaCorrection); update(); }
+	void setScreenGamma(double screenGamma) { _renderCtrl.setScreenGamma(static_cast<float>(screenGamma)); update(); }
+	void setHDRToneMappingMode(HDRToneMapMode mode) { _renderCtrl.setToneMappingMode(mode); update(); }
+	// notifySceneContentMutated(): envMapExposure feeds the PT snapshot's
+	// environment scalars - see setBgGradientStyle()'s identical reasoning.
+	// (The neighboring tonemap/gamma/iblExposure setters deliberately DON'T
+	// restart: those are present-time uniforms RtPresenter::draw() reads
+	// live every paint, so update() alone already shows them immediately.)
+	void setEnvMapExposure(double exposure) { _renderCtrl.setEnvMapExposure(std::pow(2.0f, static_cast<float>(exposure))); _rtInteractionCtrl->notifySceneContentMutated(); update(); }
+	void setIBLExposure(double exposure) { _renderCtrl.setIblExposure(std::pow(2.0f, static_cast<float>(exposure))); update(); }
+
+	// Getters for tone mapping and gamma settings
+	bool isHDRToneMappingEnabled() const { return _renderCtrl.hdrToneMapping(); }
+	bool isGammaCorrectionEnabled() const { return _renderCtrl.gammaCorrection(); }
+	HDRToneMapMode getHDRToneMappingMode() const { return _renderCtrl.toneMappingMode(); }
+	void showLights(bool showLights);
+	// notifyRayTracedSceneMutated() (NOT just notifyCameraInteracting()/
+	// notifySceneContentMutated()): both feed buildRayTracedSnapshot()'s
+	// light list fresh on every call, which is enough for CPU (RtRayTracingSession::
+	// start() unconditionally rebuilds its Embree scene every restart), but
+	// RtOptixRayTracingSession::start() only re-uploads its lights buffer
+	// (inside buildScene()) when snapshot->revisionId actually changed - a
+	// bare idle-timer restart with the SAME revision reuses the GPU's stale
+	// lights buffer. Bumping the revision forces both engines to pick up the
+	// new light set. Toggling either previously only triggered a raster
+	// update(), leaving a ray-traced session showing a stale frame with the
+	// old light set until some unrelated event (camera move, etc.) happened
+	// to restart it.
+	// refreshFallbackLight() re-evaluates the persistent PunctualLights
+	// fallback entry against the new useDefaultLights() value (see its own
+	// doc comment) - without this call, toggling the checkbox never
+	// created/cleared that entry at all, only ever affecting
+	// buildRayTracedSnapshot()'s separately-recomputed keyLight.
+	void useDefaultLights(bool useDefaultLights) { _renderCtrl.setUseDefaultLights(useDefaultLights); refreshFallbackLight(); notifyRayTracedSceneMutated(); update(); }
+	void usePunctualLights(bool usePunctualLights) { _renderCtrl.setUsePunctualLights(usePunctualLights); notifyRayTracedSceneMutated(); update(); }
+
+	// Upload a new GPU light list (e.g. after a per-light checkbox toggle) and
+	// sync the hasPunctualLights / lightCount shader uniforms in one call.
+	void applyEnabledLightList(const std::vector<GPULight>& enabledLights);
+	void useIBL(bool useIBL) { _renderCtrl.setUseIBL(useIBL); update(); }
+	void showFileReadingProgress(float percent);
+	void showMeshLoadingProgress(float percent);
+	void showNodeMeshLoadingProgress(int processedNodes, int totalNodes, int processedMeshes, int totalMeshes, bool uvProcessed);
+	void swapVisible(bool checked);
+	void cancelAssImpModelLoading();
+	void onAnimationTick();
+
+	// Accessors for SelectionManager
+	QMatrix4x4 getViewMatrix() const { return _viewCtrl.viewMatrix(); }
+	QMatrix4x4 getProjectionMatrix() const { return _viewCtrl.projectionMatrix(); }
+	QMatrix4x4 getModelViewMatrix() const { return _viewCtrl.modelViewMatrix(); }
+	QMatrix4x4 getModelMatrix() const { return _viewCtrl.modelMatrix(); }
+	bool isMultiViewActive() const { return _viewCtrl.multiViewActive(); }
+	ShaderProgram* getSelectionShader() const { return _renderCtrl.selectionShader(); }
+	SelectionManager* getSelectionManager() const { return _selectionManager; }
+	bool isMeshAnimationVisibleForSelection(const SceneMesh* mesh) const { return isMeshAnimationVisible(mesh); }
+	// Returns the camera configured for the viewport that contains 'pixel'.
+	// In multi-view mode the ortho camera is set to the correct orientation
+	// (Top/Front/Left) before being returned; the isometric viewport returns
+	// the primary camera.  In single-view mode the primary camera is returned.
+	Camera* getCameraForPoint(const QPoint& pixel);
+
+	static Material resolveMaterialTextures(ViewportWidget* w, const Material& src);
+
+	// Reads back all per-mesh texture slots for meshId via glGetTexImage and
+	// emits textureReadbackReady().  Must be called on the GL thread (or the
+	// method calls makeCurrent/doneCurrent internally).  meshId is a _meshStore
+	// index; pass -1 to emit an empty result and clear the debug panel.
+	void requestTextureReadback(int meshId);
+
+	// Enable or disable a specific texture unit for meshId during rendering.
+	// When disabled the unit is replaced with a neutral placeholder texture
+	// (white for colour channels, tangent-space neutral for normal maps) so the
+	// shader still runs but that channel contributes a neutral value.
+	// Calls update() to trigger a repaint.
+	void setDebugTextureEnabled(int meshId, int unitIndex, bool enabled);
+
+	// Full-state apply for the checkbox panel.  enabledUnits = currently active
+	// (not disabled by user); allUnits = all units with real textures on this mesh.
+	// Handles the emissive-only special case (uses in-shader isolation automatically).
+	void applyDebugTextureState(int meshId,
+	                             const QSet<int>& enabledUnits,
+	                             const QSet<int>& allUnits);
+
+	// Global single-channel isolation for the channel dropdown.
+	// Applies to every mesh in the scene â€” no selection required.
+	// channelId matches shader IDs (1-9 = geometry, 10+ = texture units).
+	// channelId == 0 restores normal rendering on all meshes.
+	void setGlobalDebugChannel(int channelId);
+
+	// Remove all debug texture overrides for meshId and repaint.
+	void clearDebugTextureOverrides(int meshId);
+
+	// Remove all debug texture AND uniform overrides for meshId and repaint.
+	void clearAllDebugOverrides(int meshId);
+
+	// Disable/re-enable an entire KHR extension for meshId by zeroing the
+	// relevant scalar factor uniforms and neutral-binding its texture units.
+	// extensionKey is one of: "Sheen", "Clearcoat", "Iridescence",
+	// "Volume / SSS", "Specular", "Anisotropy", "Transmission",
+	// "Diffuse Transmission".
+	void setDebugExtensionEnabled(int meshId, const QString& extensionKey, bool enabled);
+
+	// Remove all extension-level debug uniform+texture overrides for meshId.
+	void clearDebugExtensionOverrides(int meshId);
+
+	// Builds and shows the viewport's own context menu at pos (viewport-local coordinates).
+	// Public (not just the private slot connected to this widget's own customContextMenuRequested)
+	// so SceneTreeWidget::contextMenuEvent() can call it directly for a right-click landing on
+	// its transparent overlay background - a plain function call, not another signal/event
+	// round-trip, after the signal-emission forwarding attempt proved unreliable in practice.
+	void showContextMenu(const QPoint& pos);
+
+	// Immediately drops the cached Surface Analysis hover-readout text (see
+	// updateSurfaceAnalysisHoverReadout()'s own doc comment for why this
+	// can't just wait for the next passive mouse move) - public so
+	// SurfaceAnalysisDialog can call it directly when the hover-readout
+	// toggle is turned off, "Clear Overlay" is pressed, or the dialog itself
+	// closes, instead of leaving a stale numeric label on screen indefinitely
+	// while the pointer sits still.
+	void clearSurfaceAnalysisHoverReadout();
+
+public:
+	// Text labels pinned to a vertex of a mesh (the simulation results' min/max markers): the label follows the
+	// mesh's current transformed vertex, and is hidden while that vertex faces away from the camera or the mesh
+	// is gone/hidden. Replaces the previous set; empty clears.
+	struct VertexMarker
+	{
+		QUuid meshUuid;
+		int vertex = -1;          // index into the mesh's vertices
+		QVector3D localNormal;    // the vertex normal in the mesh's own frame, to hide markers on the far side
+		QString text;
+		QColor color = Qt::white;
+	};
+	void setVertexMarkers(const QVector<VertexMarker>& markers);
+
+	// The vector-field arrows of a simulation result (see SimulationGlyphController.h): drawn on the result's mesh, in its
+	// pane in compare mode. An empty set clears them.
+	void setSimulationGlyphs(const QUuid& meshUuid, GlyphSet glyphs);
+	void setSimulationGlyphScale(const QUuid& meshUuid, float scale);
+	void setSimulationGlyphColors(const QUuid& meshUuid, std::vector<float> colors, float fieldMinimum, float fieldMaximum);
+	void clearSimulationGlyphs(const QUuid& meshUuid);
+
+	// The tensor-field ellipsoids of a simulation result (see SimulationTensorGlyphController.h): same shape as
+	// the vector arrows above, for a symmetric tensor (stress) field instead.
+	void setSimulationTensorGlyphs(const QUuid& meshUuid, TensorGlyphSet glyphs);
+	void clearSimulationTensorGlyphs(const QUuid& meshUuid);
+	void setSimulationVolume(const QUuid& meshUuid, VolumeGrid grid, int colormap, QVector<QPointF> opacity);
+	void setSimulationVolumeTransferFunction(const QUuid& meshUuid, int colormap, QVector<QPointF> opacity);
+	void clearSimulationVolume(const QUuid& meshUuid);
+	bool hasSimulationVolume(const QUuid& meshUuid) const;
+	// What the arrow / volume controllers currently hold for a mesh (null when none). Plot3D saves its Quiver and Voxel
+	// plots from these, since neither renderer's data lives in the plot's mesh.
+	const GlyphSet* simulationGlyphSet(const QUuid& meshUuid) const;
+	const VolumeGrid* simulationVolumeGrid(const QUuid& meshUuid) const;
+
+	// Cut surfaces of a simulation result's volume (data-coloured sections, iso-surfaces): see SimulationSliceController.h. An empty list clears them.
+	void setSimulationSlices(const QUuid& meshUuid, std::vector<SliceDisplay> slices);
+	void clearSimulationSlices(const QUuid& meshUuid);
+	// Streamlines of a simulation result's vector field: see SimulationStreamlineController.h. An empty display clears them.
+	void setSimulationStreamlines(const QUuid& meshUuid, StreamlineDisplay lines);
+	void clearSimulationStreamlines(const QUuid& meshUuid);
+	// The bounds (min xyz, max xyz) of a simulation result shown deformed. The Clipping Plane gizmos are sized from the scene bounds, which do not follow a mesh
+	// that is deformed; these widen them so they still cover the deformed model. An empty list clears them.
+	void setSimulationGizmoBounds(const QUuid& meshUuid, const QVector<float>& bounds);
+
+	// The 3D Plot (Plot3D module) axis box overlay: a labelled axis box with tick marks and optional reference
+	// planes, built by Plot3DAxisController::buildLayout() from a plot's own axis config and data bounds - NOT tied
+	// to any mesh (a plot may have no scene mesh yet while its data source is only being previewed). Only one
+	// layout is shown at a time. Visibility can be toggled without discarding the layout, so a persistent Plot3D
+	// panel can hide/show it after the import dialog has gone away.
+	void setPlot3DAxisLayout(const Plot3DAxisLayout& layout);
+	void clearPlot3DAxisLayout();
+	void setPlot3DAxisVisible(bool visible);
+
+	// Plot3D text notes: screen-space labels at positions in the plots' own (scaled) space, drawn whether or not the axes box is shown. Each
+	// belongs to a plot and is that plot's `index`-th note. They can be placed (armed tool: a click on a plot snaps to its nearest data point or
+	// surface point), dragged, edited by double-click and deleted from the right-click menu.
+	struct Plot3DNote
+	{
+		QUuid plot;
+		int index = 0;
+		QString text;
+		QVector3D position;
+		QVector3D color{ 1.0f, 0.88f, 0.35f };
+	};
+	void setPlot3DNotes(const QVector<Plot3DNote>& notes);
+	void setPlot3DNotePlacementArmed(bool armed);
+	bool plot3DNotePlacementArmed() const { return _plot3DNotePlaceArmed; }
+	int plot3DNoteAt(const QPoint& pixel) const; // index into the notes last set, or -1
+	// Hover probe for Plot3D surfaces: while the cursor is over an enabled plot's surface, the curves where the X, Y and Z
+	// planes through the hovered point cut that surface are drawn, with the point's coordinates. Off by default.
+	void setPlot3DSectionProbeEnabled(const QUuid& meshUuid, bool enabled);
+	// The axes the plot is drawn with: the probe's readout then shows the DATA value at the hovered point (the mesh holds scaled coordinates on a log / symlog axis).
+	void setPlot3DSectionProbeAxes(const QUuid& meshUuid, const std::array<Plot3DAxisConfig, 3>& axes);
+	// Points drawn over a Plot3D mesh in its own coordinates (position(3) + colour(3) per point, `size` pixels): the moving
+	// heads of an animated pathline plot. Not scene content - not saved, exported, picked or path traced.
+	void setPlot3DPointOverlay(const QUuid& meshUuid, std::vector<float> positionsAndColours, float size);
+	void clearPlot3DPointOverlay(const QUuid& meshUuid);
+	bool plot3DSectionProbeEnabled(const QUuid& meshUuid) const { return _sectionProbeMeshes.contains(meshUuid); }
+	bool hasPlot3DAxisLayout() const { return _plot3DAxisLayout.has_value(); }
+	bool plot3DAxisVisible() const { return _plot3DAxisVisible && _plot3DAxisLayout.has_value(); }
+
+	// What is displayed for a result now (empty when nothing), for saving it in a snapshot.
+	std::vector<SliceDisplay> simulationSlices(const QUuid& meshUuid) const;
+	StreamlineDisplay simulationStreamlines(const QUuid& meshUuid) const;
+	// Switches on and sets the axis-aligned Clipping Planes of `cuts` (through the Clipping Planes editor, so its controls follow), as a restored snapshot had them.
+	// Planes that are not in `cuts` are left as they are. `ClippingCut` is declared below.
+	// The axis-aligned Clipping Planes that are on (X = 0, Y = 1, Z = 2) at their world position; a simulation section follows them.
+	struct ClippingCut
+	{
+		int axis = 0;
+		double position = 0.0;
+		bool keepPositive = false; // the model is kept on the +axis side (a flipped plane), else on the -axis side
+	};
+	QVector<ClippingCut> clippingCuts() const;
+	void applyClippingCuts(const QVector<ClippingCut>& cuts);
+
+	// Compare mode (simulation results side by side, docs/simulation_compare_mode_design.md): the window is divided
+	// into one pane per mesh, each drawing ONLY its mesh with the shared camera - orbit, pan, zoom and fit act on all
+	// panes at once. Picking-based interactions (selection, hover highlight, the hover probe, plane gizmos) are off
+	// while it is active. `meshUuids` (2-4) are shown in reading order.
+	void setCompareResults(const QVector<QUuid>& meshUuids, CompareArrangement arrangement);
+	void clearCompare();
+	bool compareActive() const { return _compareActive; }
+	QVector<QUuid> compareMeshes() const { return _compareMeshes; }
+	// Every compared result has its own camera (orbit, pan and zoom act on the pane under the cursor). With `linked` on, a
+	// navigation drag or wheel turn moves all panes together instead.
+	void setCompareLinkCameras(bool linked) { _compareLinkCameras = linked; }
+	int comparePaneOfMesh(const QUuid& meshUuid) const;   // -1 when the mesh is not in a pane
+	QRect comparePaneRect(int paneIndex) const;           // widget coordinates; empty when there is no such pane
+
+private slots:
+	void centerDisplayList();
+	void setBackgroundColor();
+	
+protected:
+    bool eventFilter(QObject* object, QEvent* event) override;
+	void initializeGL();
+	void createCappingPlanes();
+	void resizeGL(int width, int height);
+	void paintGL();
+
+	void renderSingleView(QColor& topColor, QColor& botColor);
+
+	void renderMultiView(QColor& topColor, QColor& botColor);
+	void renderComparePanes(QColor& topColor, QColor& botColor);
+	// Fit-to-screen in compare mode. The fit maths sizes the picture for a viewport of this size - a pane's, so a
+	// model is fitted to its pane - and the range it returns is scaled by fitRangeCorrection() because the panes are
+	// drawn with the full-window projection (whose range maps to the window's shorter side, not the pane's). Outside
+	// compare mode: the window size and 1, i.e. the fit is exactly as it always was.
+	QSize fitViewportSize() const;
+	float fitRangeCorrection() const;
+	void applyOverlayPanelStyle(QWidget* wrapper, const QString& objectName);
+	void refreshNavigationOverlayStyle();
+
+	void resizeEvent(QResizeEvent* event);
+	void showEvent(QShowEvent* event);
+	void hideEvent(QHideEvent* event);
+	void mousePressEvent(QMouseEvent*);
+	void mouseReleaseEvent(QMouseEvent*);
+	void mouseMoveEvent(QMouseEvent*);
+	// Opens the owning MeasurementDialog/AnnotationDialog for a double-
+	// clicked measurement/annotation (with it pre-selected) - see
+	// ModelViewer::openMeasurementDialog()/openAnnotationDialog(). No prior
+	// double-click handling existed on this widget.
+	void mouseDoubleClickEvent(QMouseEvent*);
+	void wheelEvent(QWheelEvent*);
+	void keyPressEvent(QKeyEvent* event);
+	void keyReleaseEvent(QKeyEvent* event);
+	void closeEvent(QCloseEvent* event);
+
+private:
+
+	void createShaderPrograms();
+	void syncUniformsToFlatShader();
+	void createLights();
+
+	// Fullscreen triangle methods for IBL
+	void createFullscreenTriangle();
+	void drawFullscreenTriangle();
+	void setIBLFaceBasis(QOpenGLShaderProgram* prog, int faceIndex);
+	void updateEnvMapRotationMatrix();
+
+	// allowCacheReuse=true only from initializeGL()'s context-recreation
+	// path - see the identical reasoning on loadIrradianceMap() below;
+	// getEnvironmentMap(regenerate=true) (used to load a newly selected
+	// skybox folder) must always re-upload regardless of context sharing.
+	void loadEnvMap(bool allowCacheReuse = false);
+	// allowCacheReuse=true only from initializeGL()'s context-recreation
+	// path, where skipping regeneration when the IBL maps already survived
+	// a shared context is correct. Every other call site (skybox/environment
+	// changes, explicit regenerate=true requests from getIrradianceMap()/
+	// getPrefilterMap()/getSheenPrefilterMap()) means "the environment
+	// itself changed, or the caller explicitly wants fresh data" - the old
+	// irradiance/prefilter maps having non-zero handles there doesn't mean
+	// they're still correct, just that they haven't been freed yet, so
+	// those callers must always regenerate regardless of context sharing.
+	void loadIrradianceMap(bool allowCacheReuse = false);
+	GLuint loadPresetEnvironmentMap(const QString& hdrFilePath);
+	bool generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradianceMap, GLuint& outPrefilterMap, GLuint& outSheenPrefilterMap);
+	void loadFloor();
+	void ensureShadowMapResources();
+	void applyFloorPlaneMaterialSettings();
+	void syncFloorPlaneAlbedoTexture();
+	QVector3D effectiveWorldLightOffset() const;
+	QVector3D effectiveWorldLightPosition() const;
+	void updateMainLightPosition(float halfObjectSize);
+	float updateFloorGeometry();
+	void syncDefaultLightColorUniforms();
+	void syncPunctualLightUniforms(int lightCount, bool hasPunctualLights);
+	bool shouldUseFallbackLightForVisibleScene() const;
+
+	void updatePunctualLights();  // Update lights based on bounding sphere changes
+	void setAnimatedLightVisibilityState(const QString& sourceFile, const QVector<bool>& visibleByParsedLight);
+	void setAnimatedLightTransformState(const QString& sourceFile, const std::vector<GPULight>& animatedLights);
+	void clearAnimatedLightTransformState(const QString& sourceFile);
+	void clearAnimatedLightVisibilityState(const QString& sourceFile);
+	void setAnimatedMeshVisibilityState(const QString& sourceFile, const QSet<QUuid>& hiddenMeshUuids);
+	void clearAnimatedMeshVisibilityState(const QString& sourceFile);
+	void recalculateVisibleSceneStats(bool updateMemorySize = false);
+
+	void drawMesh(QOpenGLShaderProgram* prog);
+
+	// activeClipPlaneIndex: -1 = no clipping (frustum only), 0 = YZ, 1 = ZX, 2 = XY,
+	// or one of the box-clip constants below. Box constants are deliberately >= 0
+	// (a negative value means "no clipping" to every consumer) and are dispatched
+	// BEFORE the axis-only checks in isMeshVisible()/collectVisibleMeshIdsForPass():
+	// the axis-only "invisible in all clip passes" test is vacuously true when no
+	// axis plane is enabled, which would cull the whole scene in box mode.
+	static constexpr int kCullBoxCrop = 100; // box mode, keep inside (crop): one pass, 6 clip distances
+	static constexpr int kCullBoxHole = 101; // box mode, keep outside (hole, the default): one pass, fragment discard
+	void drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex = -1);
+	void drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex = -1);
+	void drawMeshesWithClipping(QOpenGLShaderProgram* prog, bool transparentPass);
+	// One model-draw pass of the current clipping configuration: enableMask has
+	// bit i set for each GL_CLIP_DISTANCE0+i to enable during the pass, cullIndex
+	// is the activeClipPlaneIndex handed to the draw/cull functions.
+	struct ClipPass
+	{
+		unsigned int enableMask = 0;
+		int          cullIndex  = -1;
+		bool         boxDiscard = false; // flipped box mode: main_scene.frag discards fragments inside the box
+	};
+	// Sets main_scene.frag's boxDiscardEnabled on BOTH fgShader() and the flat-
+	// shading program (glProgramUniform1i, no bind needed). Owned by the model
+	// draw loops, never left on: that shader is also used by the floor and the
+	// plane gizmos, and uniforms persist, so a leftover true would punch a
+	// box-shaped hole in them. BoxDiscardGuard resets it to false when a loop
+	// exits by any path.
+	void setBoxDiscardEnabled(bool enabled);
+	struct BoxDiscardGuard
+	{
+		explicit BoxDiscardGuard(ViewportWidget* w) : _w(w) {}
+		~BoxDiscardGuard() { _w->setBoxDiscardEnabled(false); }
+		BoxDiscardGuard(const BoxDiscardGuard&) = delete;
+		BoxDiscardGuard& operator=(const BoxDiscardGuard&) = delete;
+		ViewportWidget* _w;
+	};
+	// Shared by drawMeshesWithClipping() and the SSS opaque pass so the pass
+	// structure lives in one place. Axis mode: one single-bit pass per enabled
+	// plane (the union-of-half-spaces technique - see drawMeshesWithClipping()).
+	// Box crop: ONE pass with all six clip distances (native GL AND semantics).
+	// Box hole (keep outside, the default): one pass, no clip distances - a fragment discard in
+	// main_scene.frag does the clipping (ClipPass::boxDiscard). Single-pass on
+	// purpose: a six-pass union would draw transparent fragments several times and
+	// depth-sort transparent meshes only within each pass. No clipping: one pass,
+	// no distances.
+	std::vector<ClipPass> currentClipPasses() const;
+	void drawSSSMeshesOnly(QOpenGLShaderProgram* prog, int activeClipPlaneIndex = -1);
+	void setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camera);
+
+	// Visibility culling
+	void extractFrustumPlanes();
+	void rebuildClippingContext();
+	float computeFullyVisibleMinMeshRadius() const;
+	void  updateZoomInLimit();
+	bool isMeshAnimationVisible(const SceneMesh* mesh) const;
+	bool isMeshDisplayed(const QUuid& meshUuid) const;
+	bool isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex, bool includeVolumeReplacement = false) const;
+	bool sceneHasVisibleTransmissionMaterials() const;
+	bool sceneHasVisibleSSSMaterials() const;
+	void collectVisibleMeshIdsForPass(int nodeIndex,
+	                                  int activeClipPlaneIndex,
+	                                  bool wantTransparent,
+	                                  std::vector<int>& out) const;
+
+	void drawSectionCapping();
+	// Box-mode counterpart of drawSectionCapping()'s per-axis loop (called from it
+	// when box clipping is on): up to six stencil-fill + cap-quad sub-passes, one
+	// per box face. Each face's stencil fill uses ONLY that face's own clip
+	// distance - the same single-plane parity recipe the axis loop uses, NOT all
+	// six planes at once (that would count crossings over the whole entry->exit
+	// segment through the box and give even parity, i.e. no cap, for any solid
+	// bigger than the box). The cap quad is then trimmed to the face's rectangle
+	// in clipping_plane.frag (boxTrim*).
+	void drawBoxSectionCapping(float localCappingSceneDiag);
+	// collectCappingGroups()/computeLocalCappingSceneDiag() planeIndex values
+	// kCapPlaneBoxFaceBase + face (face 0..5 = xMin, xMax, yMin, yMax, zMin, zMax)
+	// address the six box-clip faces; 0..2 remain the axis planes.
+	static constexpr int kCapPlaneBoxFaceBase = 10;
+	// Draws exactly the given mesh ids (opaque/transparent split, no re-filtering -
+	// callers are expected to have already applied whatever culling they need).
+	// Used by drawSectionCapping() to fill the stencil for one isolated capping
+	// group at a time - see collectCappingGroups().
+	void drawMeshSubset(QOpenGLShaderProgram* prog, const std::vector<int>& meshIds);
+	// Groups the meshes straddling capping plane `planeIndex` (0=YZ, 1=ZX, 2=XY)
+	// so drawSectionCapping() can compute the stencil parity fill separately per
+	// group instead of batching the whole scene into one shared stencil buffer.
+	// The classic stencil-capping technique accumulates crossing counts for every
+	// fragment rasterized into the same stencil buffer regardless of depth, so if
+	// two unrelated, separate parts of the assembly happen to overlap in screen
+	// space where the cut plane crosses both, sharing one pass mixes their
+	// crossing counts and produces a wrong cap. Grouping by owning scene-graph
+	// node (not the imported node's display name, which two genuinely separate
+	// parts can share) keeps material-split siblings of one originally-
+	// imported part together (their shared seam still resolves correctly)
+	// while isolating genuinely separate parts from each other - the same granularity
+	// OpenCascade's OpenGl_CappingAlgo gets for free by computing capping per
+	// render structure (~ one imported part). Deliberately does NOT exclude
+	// non-manifold meshes - every straddling mesh always attempts to cap,
+	// even a genuinely defective one (which may show an imperfect cap for
+	// its own group as a result); losing capping outright on a fine mesh was
+	// judged worse than an occasional imperfect one on a broken mesh.
+	std::vector<std::vector<int>> collectCappingGroups(int planeIndex) const;
+	// Local (not whole-scene) hatch-tiling scale for drawSectionCapping()'s
+	// procedural hatch: the diagonal of the union of world-space bounding
+	// spheres of every mesh straddling ANY currently-enabled plane (not just
+	// the one being drawn), so a large assembly cut through one small part
+	// gets hatch tiles sized to that part instead of the whole scene, while
+	// multiple simultaneously-active planes (e.g. a corner cut) still share
+	// one consistent scale instead of drifting apart at the seam. Falls back
+	// to the whole-scene bounding radius if nothing currently straddles any
+	// active plane.
+	float computeLocalCappingSceneDiag() const;
+	void drawFloor(const bool& drawReflection = true);
+	void drawGrid();
+	void drawSkyBox(const QMatrix4x4* overrideViewMatrix = nullptr);
+	void drawVertexNormals();
+	void drawFaceNormals();
+	void drawBoundingBoxOverlay();
+	void drawDebugOverlay(Camera* camera);
+	// The 3D Plot axis box/ticks/reference-planes overlay (Plot3D module) - a
+	// screen-space-labelled line overlay in the same style as
+	// drawBoundingBoxOverlay(), driven by whatever layout setPlot3DAxisLayout()
+	// last handed it rather than scene bounds. No-op when no layout is set.
+	void drawPlot3DAxisOverlay(Camera* camera);
+	void drawPlot3DSectionProbe(Camera* camera);
+	void drawPlot3DPointOverlays(Camera* camera);
+	void updatePlot3DSectionProbe(const QPoint& pixel);
+	void clearPlot3DSectionProbe();
+	void drawAxis(Camera* camera, const QMatrix4x4* overrideViewMatrix = nullptr);
+	void drawCornerAxis(CornerAxisPosition position, const QMatrix4x4* overrideRotationMatrix = nullptr);
+	void drawTransformGizmo(Camera* camera);
+	void drawViewCube(const QMatrix4x4* overrideRotationMatrix = nullptr);
+	void drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix, float cubeScale);
+	BoundingSphere computeTransformGizmoSelectionSphere() const;
+	QVector3D computeTransformGizmoPivot() const;
+	std::vector<int> activeTransformGizmoSelectionIds() const;
+	void applyExplodedViewManualPlacementSessionTransform();
+	void syncTransformGizmoToSelection();
+	bool beginTransformGizmoDrag(TransformGizmo::Handle handle, const QPoint& pixel);
+	bool beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle, const QPoint& pixel);
+	void updateTransformGizmoTranslationDrag(const QPoint& pixel);
+	void finishTransformGizmoTranslationDrag(bool commit);
+	bool beginTransformGizmoScaleDrag(TransformGizmo::Handle handle, const QPoint& pixel, bool uniformScale);
+	void updateTransformGizmoScaleDrag(const QPoint& pixel);
+	void finishTransformGizmoScaleDrag(bool commit);
+	bool beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, const QPoint& pixel);
+	void updateTransformGizmoRotationDrag(const QPoint& pixel);
+	void finishTransformGizmoRotationDrag(bool commit);
+
+	// PlaneGizmo drag interaction (Clipping Planes / Filter by Bounding Box)
+	// - see include/PlaneGizmo.h's own doc comment for why this is a
+	// separate, independent drag session from the mesh transform gizmo's
+	// above (not reusable: that one writes into per-mesh-id transform maps,
+	// this one just reports a scalar position to a caller-supplied
+	// callback). Reuses the exact same screen-space-axis-projection formula
+	// as updateTransformGizmoTranslationDrag() above, aimed at the
+	// PlaneGizmo's own fixed axis instead of a mesh's local axis.
+	// Every PlaneGizmo currently in play - the 3 clipping-plane gizmos plus
+	// the 6 Filter by Bounding Box face gizmos (entries are null before
+	// createBoundingBoxGizmos() has ever run for this document, or always
+	// for the 3 clip ones only if that's never happened - callers already
+	// null-check/isVisible()-check each entry). Single source of truth for
+	// hitTestPlaneGizmos()/updatePlaneGizmoHover()/renderPlaneGizmos(), so
+	// both gizmo families share one hit-test/hover/render pipeline instead
+	// of duplicating it.
+	std::array<PlaneGizmo*, 15> allPlaneGizmos() const;
+	PlaneGizmo* hitTestPlaneGizmos(const QPoint& pixel); // not const - calls getCameraForPoint(), which isn't const
+	bool beginPlaneGizmoDrag(PlaneGizmo* gizmo, const QPoint& pixel);
+	void updatePlaneGizmoDrag(const QPoint& pixel);
+	void finishPlaneGizmoDrag();
+	// Mouse-move-only hover tracking (no button held) - separate from the
+	// drag path above. Ray-hit-tests every gizmo in allPlaneGizmos() and
+	// toggles setHovered() on whichever one is currently under the cursor,
+	// clearing it on whichever previously held it, so the gizmo about to be
+	// grabbed visually stands out before the user commits to a drag.
+	void updatePlaneGizmoHover(const QPoint& pixel);
+	void renderPlaneGizmos();
+	// Draws `text` at `pixel` via _axisTextRenderer, offset up-right of the
+	// cursor - shared by drawPlaneGizmoDragLabel() and
+	// drawSurfaceAnalysisHoverLabel() below, the two floating-numeric-
+	// readout call sites in this file. color defaults to white for the
+	// gizmo-drag caller (a fixed viewport background, not a variable-color
+	// heatmap); the Surface Analysis caller picks per-pixel contrast
+	// instead - see SurfaceAnalysisDialog::hoverReadoutText()'s own doc
+	// comment on why a fixed color isn't legible there.
+	void drawFloatingLabel(const QString& text, const QPoint& pixel, const QColor& color = Qt::white);
+	// Draws _planeGizmoDragLabelText at _planeGizmoDragLabelPixel - no-op
+	// when no drag is active. Called as its own step right after
+	// renderPlaneGizmos() (2D pixel-space text, not part of that function's
+	// 3D scene-shader draw calls).
+	void drawPlaneGizmoDragLabel();
+	// Mouse-move-only (no button held) readout for the Surface Analysis
+	// dialog's active heatmap - see SurfaceAnalysisDialog::hoverReadoutText()'s
+	// own doc comment. No-op (and no picking work done) unless that dialog
+	// is currently open with its own "Show Readout on Hover" toggle checked.
+	void updateSurfaceAnalysisHoverReadout(const QPoint& pixel);
+	void drawSurfaceAnalysisHoverLabel();
+	void drawVertexMarkers();
+	void drawLights();
+
+	void bindIBLTextures();
+
+	void render(Camera* camera);
+	void renderToShadowBuffer();
+	void renderQuad();
+	void renderMeshWithDisplayMode(SceneMesh* mesh, DisplayMode mode);
+	void renderMeshExploded(SceneMesh* mesh, DisplayMode mode);
+
+	void gradientBackground(float top_r, float top_g, float top_b, float top_a,
+		float bot_r, float bot_g, float bot_b, float bot_a, int gradientStyle);
+	void syncCameraWorldUp();
+	void rotateCurrentCameraAroundWorldX(float degrees);
+	QString sceneUpAxisLabel(SceneUpAxis sceneUpAxis) const;
+	void applyAutoOrientCameraConvention(SceneUpAxis sceneUpAxis);
+	void warnOnConflictingImportedSceneUpAxis(const QString& fileName, SceneUpAxis sceneUpAxis);
+
+	QRect viewCubeRect() const;
+	QRect viewCubeScreenRect() const;
+	void initializeViewCubeLabels();
+	bool computeViewCubeRenderState(QRect& viewportRect,
+	                               QMatrix4x4& viewMatrix,
+	                               QMatrix4x4& projectionMatrix,
+	                               QMatrix4x4& modelMatrix,
+	                               float& cubeScale,
+	                               const QMatrix4x4* overrideRotationMatrix = nullptr) const;
+	bool pickViewCubeRegionAtPixel(const QPoint& pixel, QVector3D& outwardNormal, int* regionId = nullptr) const;
+	bool handleViewCubeClick(const QPoint& pixel);
+	void updateViewCubeHover(const QPoint& pixel, Qt::MouseButtons buttons);
+	bool orientCameraToViewCubeNormal(const QVector3D& outwardNormal);
+
+	void splitScreen();
+
+	void animateToRotation(const QQuaternion& targetRotation);
+	void setRotations(float xRot, float yRot, float zRot);
+	void setZoomAndPan(float zoom, QVector3D pan);
+	void setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir);
+	void fitBoxToScreen(const BoundingBox& box);
+
+	// Collect a sampled set of world-space vertex positions from every visible
+	// mesh (â‰¤ 1024 samples per mesh for performance).  Using actual vertices
+	// instead of 8 per-mesh AABB corners gives a genuinely tight silhouette:
+	// phantom corners from combining per-axis extremes that never coexist in
+	// real geometry are eliminated, so the fit zooms in as tight as possible.
+	std::vector<QVector3D> collectVisibleCorners() const;
+
+	// Core fit computation on an explicit corner set + explicit view axes.
+	// Separating axes from corners lets setViewMode() pass the *destination*
+	// quaternion's axes so rotation and zoom animate concurrently.
+	// If outCenter is non-null it receives the projected visual centre of the
+	// geometry (midpoint of view-space extents), which callers should set as
+	// the new orbit/pan target so the scene appears centred on screen.
+	float computeFitViewRange(const std::vector<QVector3D>& corners,
+	                          const QVector3D& right, const QVector3D& up,
+	                          const QVector3D& viewDir,
+	                          QVector3D* outCenter = nullptr) const;
+
+	// Convenience: collects visible corners, then calls the core with the
+	// provided axes (used by setViewMode with target-orientation axes).
+	float computeFitViewRange(const QVector3D& right, const QVector3D& up,
+	                          const QVector3D& viewDir,
+	                          QVector3D* outCenter = nullptr) const;
+
+	// Convenience: collects visible corners + reads axes from the current
+	// view matrix (used by fitAll and projection-toggle).
+	float computeFitViewRange(QVector3D* outCenter = nullptr) const;
+	float computeOrthographicFitViewRangeForViewport(
+		const std::vector<QVector3D>& corners,
+		const QVector3D& right,
+		const QVector3D& up,
+		const QVector3D& viewDir,
+		int viewportWidth,
+		int viewportHeight,
+		QVector3D* outCenter = nullptr,
+		const QVector3D& eyePos = QVector3D(0, 0, 0)) const;
+	QVector3D computeVisibleWorldCenter(const std::vector<QVector3D>& corners) const;
+	float computeSharedOrthographicMultiViewRange(
+		const std::vector<QVector3D>& corners,
+		int viewportWidth,
+		int viewportHeight,
+		const QVector3D& eyePos = QVector3D(0, 0, 0)) const;
+	void configureOrthoSubviewCamera(ViewMode viewMode,
+		const std::vector<QVector3D>& corners,
+		int viewportWidth,
+		int viewportHeight,
+		const QVector3D& sharedCenter,
+		float sharedViewRange);
+
+	float highestModelZ() { return _viewCtrl.visibleHighestZ(); }
+	float lowestModelZ()  { return _viewCtrl.visibleLowestZ(); }
+	bool positionGameplayCameraForScene(Camera::CameraMode mode);
+
+	QList<int> sweepSelect(const QPoint& pixel, SelectionCombineMode mode = SelectionCombineMode::Replace);  // Sweep selection using rubber band
+	QList<int> lassoSelect(SelectionCombineMode mode = SelectionCombineMode::Replace);  // Freeform selection using _lassoPoints, same shape as sweepSelect() above
+	QVector3D get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end);
+	unsigned int loadTextureFromFile(const char* path,
+		GLenum wrapS = GL_REPEAT, GLenum wrapT = GL_REPEAT,
+		GLenum minFilter = GL_LINEAR_MIPMAP_LINEAR, GLenum magFilter = GL_LINEAR,
+		bool flipY = false);
+	void setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos);
+	// The six box-clip half-space planes (order: xMin, xMax, yMin, yMax, zMin,
+	// zMax) in the same view-space form setupClippingUniforms() builds for the
+	// per-axis planes - see its doc comment. Shared by setupClippingUniforms()
+	// (main mesh shaders) and drawSectionCapping() (stencil-fill shader).
+	void buildBoxClipPlanes(const QVector3D& pos, QVector4D out[6]);
+
+	void onMeshBatchReady(const std::vector<AssImpMeshData>& batch);
+	SceneMesh* createMeshFromData(const AssImpMeshData& meshData);
+	void syncFileNodeTransforms(const QString& sourceFile);
+	void reapplyGltfCameraAfterTransform();
+	void applyNodeTransformsToMeshes(const QString& sourceFile,
+		const AnimationRuntimeController::RuntimeAnimationFileState& runtime,
+		AnimationRuntimeController::AnimationSampleResult& result,
+		SceneNode* fileNode);
+	void applyMorphTargetWeights(const QString& sourceFile,
+		const AnimationRuntimeController::AnimationSampleResult& result);
+	void applyAnimatedMaterialChanges(const AnimationRuntimeController::AnimationSampleResult& result);
+	void applyAnimatedMeshVisibility(const QString& sourceFile,
+		const AnimationRuntimeController::RuntimeAnimationFileState& runtime,
+		const AnimationRuntimeController::AnimationSampleResult& result,
+		SceneNode* fileNode);
+	void applyAnimatedLightTransforms(const QString& sourceFile,
+		const AnimationRuntimeController::RuntimeAnimationFileState& runtime,
+		const AnimationRuntimeController::AnimationSampleResult& result,
+		SceneNode* fileNode);
+	void applyAnimatedCamera(const QString& sourceFile,
+		const AnimationRuntimeController::RuntimeAnimationFileState& runtime,
+		const AnimationRuntimeController::AnimationSampleResult& result);
+	void applyAnimationPose(const QString& sourceFile, int clipIndex, double timeSeconds);
+	void resetAnimationPose(const QString& sourceFile);
+	void updateAnimatedMeshState(const QString& sourceFile,
+		const QHash<QUuid, QMatrix4x4>& worldTransformsByNodeUuid);
+
+	GLuint createGPUTextureFromImage(const QImage& image, const TextureSamplerSettings& samplers);
+	GLuint uploadDecodedTextureImage(const QImage& image, const TextureSamplerSettings& samplers);
+	GLuint uploadKtx2TextureImage(const QString& path, const std::string& mapType, const TextureSamplerSettings& samplers,
+		QImage* outDecodedImage = nullptr);
+	GLuint uploadDecodedTexture(Material::Texture& texture, const QImage& image);
+	GLuint uploadKtx2Texture(const QString& path, const std::string& mapType, Material::Texture& texture);
+	UVMethod promptLargeModelUVDecision(int totalTriangles, UVMethod currentMethod);
+	void retainTexture(unsigned int texId);
+	void releaseTexture(unsigned int texId);
+
+public:
+	unsigned int getOrCreateTextureCached(const QString& cacheKey,
+		const QImage& image,
+		const TextureSamplerSettings& samplers = TextureSamplerSettings());
+	unsigned int getOrLoadKtx2TextureCached(const QString& path,
+		const std::string& mapType,
+		const TextureSamplerSettings& samplers = TextureSamplerSettings());
+	unsigned int getOrLoadTextureCached(const QString& path,
+		const TextureSamplerSettings& samplers = TextureSamplerSettings());
+
+private:
+		
+	// --- Transmission Buffer Methods ---
+	void initTransmissionBuffer();
+	void renderToTransmissionBuffer(Camera* camera, const QColor& topColor, const QColor& botColor);
+	void cleanupTransmissionBuffer();
+	void resizeTransmissionBuffer(int width, int height);
+
+	// --- SSS (Subsurface Scattering) Buffer Methods ---
+	void initSSSBuffer();
+	void renderToSSSBuffer(Camera* camera);
+	void resizeSSSBuffer(int width, int height);
+	void cleanupSSSBuffer();
+
+	void generateCubemapMipmaps(GLuint cubemapTexture);
+
+	void setSectionCapsInteractionSuppressed(bool suppressed);
+private:
+	SceneRuntime _sceneRuntime;
+
+	AnimationRuntimeController _animCtrl;
+
+	ExplodedViewRuntimeController _explodedViewCtrl;
+
+	// Render-pipeline resources â€” owned here; ViewportWidget aliases every field by
+	// reference so all existing call sites in ViewportWidget.cpp remain unchanged.
+	// Declaration order: _renderCtrl must come before all its aliases.
+	SceneRenderController _renderCtrl;
+
+	// Viewport interaction state â€” owned here; ViewportWidget aliases every field by
+	// reference so all existing call sites in ViewportWidget.cpp remain unchanged.
+	// Declaration order: _viewCtrl must come before all its aliases.
+	ViewportInteractionController _viewCtrl;
+
+	// Cached per-frame culling contexts â€” rebuilt in extractFrustumPlanes() /
+	// rebuildClippingContext(). Avoids repeated look-ups inside tight render loops.
+	VisibilityComputationHelper::FrustumContext  _frustumCtx;
+	VisibilityComputationHelper::ClippingContext _clippingCtx;
+	VisibilityComputationHelper::BoxClippingContext _boxClipCtx;
+
+	ViewToolbar* _viewToolbar;
+    TabbedViewportToolbar* _tabbedToolbar = nullptr;
+
+	QSet<int> _keys;
+	DisplayMode _displayMode;
+	bool _realismEnabled = false;
+	ShadingNormalMode _shadingNormalMode = ShadingNormalMode::SMOOTH;
+	// _renderingMode, _bgTopColor, _bgBotColor, _gradientStyle â†’ SceneRenderController (Phase 12)
+	int _modelNum;
+	QImage _texImage, _texBuffer;
+	// _floorTexRepeatS/T â†’ SceneRenderController (Phase 12)
+	TextRenderer* _textRenderer;
+	TextRenderer* _axisTextRenderer;
+	std::optional<Plot3DAxisLayout> _plot3DAxisLayout;
+	QVector<Plot3DNote> _plot3DNotes;
+	QVector<QRectF> _plot3DNoteRects; // where each note was drawn last frame (widget coordinates), for hit-testing
+	bool _plot3DNotePlaceArmed = false;
+	int _plot3DNoteDrag = -1;         // the note being dragged, or -1
+	float _plot3DNoteDragDepth = 0.0f; // its window depth, kept while it is dragged (it slides in the view plane)
+	bool _plot3DNoteDragMoved = false;
+	void drawPlot3DNotes();
+	void handlePlot3DNotePlaceClick(const QPoint& pixel);
+	bool _plot3DAxisVisible = false;
+	// Hover section probe (see setPlot3DSectionProbeEnabled()). The per-mesh cache holds a compact copy of the positions
+	// and triangles because SceneMesh::vertices() copies the whole vertex array, far too heavy per mouse move.
+	struct SectionProbeCache { std::vector<float> positions; std::vector<unsigned int> indices; std::vector<int> neighbours; quint64 revision = ~0ull; };
+	struct Plot3DPointOverlay { std::vector<float> data; float size = 6.0f; };
+	QHash<QUuid, Plot3DPointOverlay> _plot3DPointOverlays;
+	QSet<QUuid> _sectionProbeMeshes;
+	QHash<QUuid, std::array<Plot3DAxisConfig, 3>> _sectionProbeAxes;
+	QHash<QUuid, SectionProbeCache> _sectionProbeCaches;
+	QUuid _sectionProbeMesh;            // the mesh the curves below belong to (null = nothing drawn)
+	QVector3D _sectionProbePoint;       // hovered point in the mesh's own coordinates
+	std::vector<float> _sectionProbeLines; // pos(3) + colour(3) per vertex, mesh coordinates
+	QString _sectionProbeText;
+	QPoint _sectionProbePixel;
+	QString _labelTop, _labelFront, _labelLeft, _labelIsometric, _labelDimetric, _labelTrimetric;
+	QString _labelAxisX, _labelAxisY, _labelAxisZ;
+	QString _modelName;
+
+	bool _selectionHighlighting;
+
+	QRubberBand* _rubberBand;
+	QRubberBand* _selectRect;
+	QTimer* _inertiaTimer        = nullptr;
+
+	// Lasso selection state. _lassoPoints accumulates screen-space points
+	// across mouseMoveEvent()s during one drag (member, not local, since it
+	// must persist between event calls) - cleared at the start of each new
+	// drag and drawn as a live overlay polyline while _lassoDragging.
+	bool _lassoToolArmed = false;
+	bool _lassoDragging = false;
+	QPolygon _lassoPoints;
+	LassoOverlayWidget* _lassoOverlay = nullptr;
+
+	// Eyedropper state - see the EyedropperPhase enum/setEyedropperArmed()
+	// doc comment above. _eyedropperMaterial is only meaningful once phase
+	// is Brushing; _eyedropperSampleMeshUuid is excluded from its own
+	// stroke's targets so a stroke never no-op-reapplies a mesh's material
+	// to itself; _eyedropperStrokeTargets accumulates across one drag,
+	// flushed (and cleared) on release.
+	EyedropperPhase _eyedropperPhase = EyedropperPhase::Idle;
+	Material _eyedropperMaterial;
+	QUuid _eyedropperSampleMeshUuid;
+	QVector<QUuid> _eyedropperStrokeTargets;
+	// Suppress the normal whole-mesh hover highlight while armed - same
+	// reasoning and save/restore shape as AnnotationController::
+	// setAnnotationToolArmed()/SeamMarkingController::setSeamToolArmed()/
+	// MeasurementController::setMeasurementTool()'s identical blocks (it's
+	// ambiguous while a click means "sample"/"brush" instead of "select").
+	HoverHighlightMode _savedHoverHighlightModeBeforeEyedropper = HoverHighlightMode::RaycastOnly;
+	// True only while a brush stroke is genuinely armed for the CURRENT
+	// press - set at the start of a fresh mousePressEvent that brushes (not
+	// during the sample press's own transition to Brushing), cleared on
+	// release. Without this, the sample press's own trailing mouseMoveEvent
+	// (near-unavoidable mouse jitter during any real click) could brush-and-
+	// apply within the very same gesture that just sampled - confirmed real
+	// bug, fix requires a genuinely new press before painting starts.
+	bool _eyedropperBrushGestureActive = false;
+	void handleEyedropperSampleClick(const QPoint& pixel);
+	void eyedropperBrushAt(const QPoint& pixel);
+
+	// Color eyedropper state - see setColorPickArmed()'s doc comment above.
+	// Single bool, no phase enum needed (there's no brush/apply step).
+	bool _colorPickArmed = false;
+	HoverHighlightMode _savedHoverHighlightModeBeforeColorPick = HoverHighlightMode::RaycastOnly;
+	void handleColorPickClick(const QPoint& pixel);
+
+	// Simulation chart point picking - see setSimulationChartPickArmed()'s doc comment above.
+	bool _simulationChartPickArmed = false;
+	int _simulationChartPickPointsNeeded = 1;
+	std::function<bool(const QUuid&)> _simulationChartPickMeshFilter;
+	QUuid _simulationChartPickMeshUuid; // the mesh the pick's first accepted point landed on; every later point of the same pick must match it
+	QVector<QVector3D> _simulationChartPickedPoints; // local (mesh) space, not world - see the header comment above
+	HoverHighlightMode _savedHoverHighlightModeBeforeChartPick = HoverHighlightMode::RaycastOnly;
+	void handleSimulationChartPickClick(const QPoint& pixel);
+
+	// Restores whichever cursor the CURRENTLY-armed single-click tool
+	// (material eyedropper or color eyedropper) calls for, or the arrow if
+	// neither is armed - called after any navigation interaction (Ctrl-drag
+	// rotate, pan, zoom) ends, since those set their own cursor mid-drag and
+	// previously left it stuck instead of handing the cursor back to the
+	// still-armed tool. Named generically (not restoreEyedropperCursor) now
+	// that it covers both eyedroppers.
+	void restoreArmedToolCursor();
+
+	// Scroll-wheel zoom shows the same zoom cursor a drag-zoom does, for the
+	// duration of one wheel "burst" (each wheel tick restarts a short timer);
+	// endWheelZoomCursor() hands back whatever cursor was showing before, unless
+	// something else (a drag, an armed tool) has changed it in the meantime.
+	void showWheelZoomCursor();
+	void endWheelZoomCursor();
+
+	// Continuous auto-orbit for presentation/demo purposes - same ~60fps tick
+	// shape as _inertiaTimer, but a constant velocity instead of a decaying
+	// one. Mutually exclusive with _inertiaTimer via stopAnimations() (see
+	// setTurntableEnabled()/onTurntableTimer()).
+	QTimer* _turntableTimer = nullptr;
+	float _turntableSpeedDegPerSec = 15.0f; // one full rotation per ~24s
+	// Stops _turntableTimer (and notifies via turntableStateChanged) if it's
+	// active - called from both stopAnimations() and checkAndStopTimers(),
+	// since manual mouse-drag navigation goes through the LATTER (at the
+	// very top of mousePressEvent), not stopAnimations() - stopAnimations()
+	// alone left turntable running through a plain Ctrl-drag rotate/pan/zoom
+	// (confirmed real bug).
+	void stopTurntableIfActive();
+
+	// ---- Ray-traced rendering mode -----------------------------------------
+	// _rtSession/_rtPresenter own the actual background tracing/presentation;
+	// this widget only arms/disarms them and feeds them a fresh RtSceneSnapshot
+	// on settle - see armRayTracedRenderingMode()/onRayTracedIdleTimeout().
+	RtRayTracingSession _rtSession;
+	RtPresenter          _rtPresenter;
+	QTimer*  _rayTracedIdleTimer    = nullptr; // reset on every camera-affecting event
+	QTimer*  _rayTracedRefreshTimer = nullptr; // periodically repaints while a trace is running
+	// Debounced GAS/IAS rebuild + interactive warm-up, armed by
+	// RtInteractionController every time the interactive accumulator
+	// gets torn down while ray tracing stays armed (a scene mutation, a scripted
+	// view animation, a real resize, hiding/showing this widget's MDI
+	// document, ...) - single-shot, restarted on every teardown so a burst of
+	// rapid events (e.g. a slider being dragged in VisualizationEnvironmentPanel)
+	// only pays the rebuild once, after the burst actually settles, rather
+	// than once per tick. See onRayTracedResumeWarmUpTimeout()'s own doc
+	// comment for the full rationale and kRayTracedResumeWarmUpDebounceMs in
+	// ViewportWidget.cpp for the debounce interval.
+	QTimer*  _rayTracedResumeWarmUpTimer = nullptr;
+	// Owns the GPU interactive-PT settle/resume STATE MACHINE - see its own
+	// class doc comment. Sole source of truth for "is ray tracing armed"
+	// (isRayTracedRenderingModeArmed() now just forwards to armed()); the
+	// old standalone _rayTracedArmed bool was removed so the two could never
+	// drift apart. Constructed in the ctor body (not the initializer list)
+	// once _rayTracedIdleTimer/_rayTracedResumeWarmUpTimer actually exist -
+	// raw owning pointer, deleted in ~ViewportWidget(), since
+	// RtInteractionController is a plain (non-QObject) class and so
+	// can't be parented into Qt's object tree the way the two timers are.
+	RtInteractionController* _rtInteractionCtrl = nullptr;
+	uint64_t _rayTracedSceneRevision = 1;
+	std::function<QHash<QUuid, std::vector<float>>()> _pathTracerColorProvider;
+	int      _rayTracedFramebufferWidth = 0;
+	int      _rayTracedFramebufferHeight = 0;
+	bool     _preservePtPresenterOnNextStart = false;
+	RtCamera _rtInteractivePreviewCamera;
+	bool     _rtInteractivePreviewCameraValid = false;
+
+	// True while _rtInteractiveRenderer is the live GPU/OptiX continuous
+	// accumulator (see RtInteractiveRenderer's class doc comment) - set by
+	// startInteractiveRayTracedGpuSession(), which RtInteractionController
+	// calls on every camera-affecting event for GPU. There is no more
+	// "promote to a different, full-quality session on settle" - the same
+	// accumulator just keeps converging/denoising in place once the camera
+	// holds still (onRayTracedIdleTimeout() is a GPU no-op now). Cleared
+	// false by RtInteractionController::notifySceneContentMutated()'s
+	// hard-invalidate branch (a scene mutation, or switching to the
+	// CPU/Embree engine) and by hideEvent()
+	// (stopRtInteractiveRenderer() releases the renderer's resources but
+	// doesn't clear this itself - see hideEvent()'s own doc comment for why
+	// leaving it true there was a real bug, not just an oversight).
+	// GPU/OptiX only - CPU/Embree never sets this.
+	bool  _rayTracedInteractiveActive  = false;
+	// Throttles startInteractiveRayTracedGpuSession()'s SLOW path only (a
+	// real ensureSceneResources()+resize() with a rebuilt snapshot - the
+	// first tick of a new interactive burst, or a mid-drag resolution
+	// change) - the fast path (RtInteractiveRenderer::updateCamera(), used
+	// on every other tick) is cheap enough to call unthrottled. See
+	// kInteractiveGpuRestartMinIntervalMs in ViewportWidget.cpp.
+	qint64 _lastInteractiveGpuRestartMs = 0;
+	// Wall-clock timestamp (QDateTime::currentMSecsSinceEpoch()) of the last
+	// genuine RtInteractionController::notifyCameraInteracting() call -
+	// see onRayTracedIdleTimeout()'s doc comment for why this exists: Qt's
+	// QTimer can be throttled/coalesced by the OS under heavy GUI-thread load
+	// (dragging + GPU launches + presenter uploads is exactly that), so the
+	// 450ms single-shot idle timer firing is not, by itself, reliable proof
+	// that 450ms of genuine idleness actually passed - it can fire late AND,
+	// under coalescing, effectively "early" relative to the last real
+	// interaction once the event loop catches up. onRayTracedIdleTimeout()
+	// cross-checks against this before treating a timeout as a real settle.
+	qint64 _lastCameraInteractionMs = 0;
+
+	// User-adjustable PT quality settings - see setRayTracingMaxSamples()/
+	// setRayTracingMaxBounces()'s doc comments. Defaults match
+	// RtRayTracingSession/CpuPathTracer::Settings's own defaults exactly, so
+	// behavior is unchanged until a user actually opens RtRenderDialog and
+	// changes them. _ptMaxSamples deliberately lower (16, not the old 128) -
+	// a fast, responsive default that still lets the live viewport refine
+	// quickly; the same spinBoxMaxSamples value also drives offline Export
+	// (see RtRenderDialog::onExportClicked()), so users doing a final
+	// high-quality render should raise it there before exporting.
+	uint32_t _ptMaxSamples = 16;
+	int      _ptMaxBounces = 6;
+	bool     _ptDenoiserEnabled = true;
+	bool     _ptEnvImportanceSamplingEnabled = true;
+	float    _ptFireflyClampThreshold = 3.0f;
+	int      _ptMaxTransmissionBounces = 32;
+	int      _ptRussianRouletteStartDepth = 3;
+	int      _ptMaxVolumeScatterBounces = 64;
+	int      _ptMaxShadowRayHits = 8; // CPU (Embree) only - matches CpuPathTracer::Settings::maxShadowRayHits' default
+	DenoiserDevicePreference _ptDenoiserDevicePreference = DenoiserDevicePreference::Auto;
+	RtRayTracingEnginePreference _ptEnginePreference = RtRayTracingEnginePreference::Auto;
+	RtOptixRayTracingSession _ptOptixSession; // GPU-backend counterpart to _rtSession above - see startOptixTestRayTracedSession()
+
+	// Same-frame, GPU-resident, non-blocking-submission interactive PT
+	// renderer (see its own doc comment) - this is the ONLY interactive GPU
+	// PT path; _ptOptixSession above is used exclusively for the settled/
+	// full-quality session now (its own former interactive half was retired
+	// once this renderer was proven - see RtOptixRayTracingSession.h's doc
+	// comment). Owns a SEPARATE RtOptixSceneTracer instance (its own
+	// GAS/IAS/texture uploads, its own VRAM) rather than sharing
+	// _ptOptixSession's internal tracer - RtOptixRayTracingSession only
+	// exposes that as const (tracer(), a read-only diagnostics accessor),
+	// and even if it exposed a mutable one, having two independent
+	// revision-gated callers (_ptOptixSession's own workerLoop() and this
+	// renderer) mutate the SAME scene/acceleration-structure state from
+	// different threads/call patterns would be a real race - a second,
+	// separate tracer avoids that entirely at the cost of ~2x GPU scene
+	// memory while a settled session and an interactive one are both live.
+	// _rtInteractiveTracer MUST be declared before _rtInteractiveRenderer
+	// (member construction order, not initializer-list order) since the
+	// renderer holds a reference to it.
+	RtOptixSceneTracer   _rtInteractiveTracer;
+	RtInteractiveRenderer _rtInteractiveRenderer{ _rtInteractiveTracer };
+	// Retained snapshot from the last slow-path rebuild (see
+	// startInteractiveRayTracedGpuSession()) - unlike RtOptixRayTracingSession
+	// (which stores its own snapshot internally for workerLoop() to read),
+	// RtInteractiveRenderer is driven entirely from paintGL() and takes a
+	// snapshot only transiently (ensureSceneResources()), so ViewportWidget
+	// itself must hold onto this to keep supplying tick()'s environment/
+	// shadow-setting parameters on every paint without rebuilding.
+	std::shared_ptr<const RtSceneSnapshot> _rtInteractiveRendererSnapshot;
+	// Last RtInteractiveRenderer::pollCompletedFrame() generation this widget
+	// consumed - paintGL()'s interactive-pull block skips re-uploading a frame
+	// whose generation it has already seen.
+	uint64_t _lastConsumedRtInteractiveRendererGeneration = 0;
+
+	bool     _ptOrthoThinWallWarningActive = false; // see rayTracingOrthoThinWallWarningActive()'s doc comment
+	QElapsedTimer _ptSessionElapsedTimer; // see rayTracingElapsedMs()'s doc comment
+
+	// See cancelRayTracedOfflineRender()'s doc comment - reset to false at
+	// the start of every renderRayTracedOffline() call, checked between
+	// samples/chunks by that call and its GPU counterpart. Atomic even
+	// though everything touching it currently runs on the same (UI) thread
+	// - the whole point is that it's set from a Qt slot invoked via
+	// QApplication::processEvents() while a call further up the SAME
+	// thread's stack is still blocking, which is a real (if same-thread)
+	// concurrent-access pattern worth being explicit and correct about.
+	std::atomic<bool> _ptOfflineCancelRequested{ false };
+
+	// Set for the duration of a captureCleanRayTracedImage() call -
+	// paintGL() checks this to suppress the axis triad/view cube/mesh-count
+	// HUD overlays (see their call sites) so an exported render contains
+	// only the composited raster+ray-traced scene, matching what a render-
+	// to-file export should look like rather than a viewport screenshot.
+	bool _capturingCleanFrame = false;
+
+	// cameraInteracting: false (default) is today's original behavior - stop
+	// both sessions, invalidate the presenter, fall back to raster, restart
+	// the settle countdown. true is passed from call sites representing
+	// genuine, USER-DRIVEN camera movement whose per-tick delta naturally
+	// decays toward zero as it ends - mouseMoveEvent's orbit/pan/zoom
+	// branches, wheelEvent, onInertiaTimer()'s coasting (velocity decays via
+	// inertiaDamping() every tick), performKeyboardNav()'s held-key
+	// navigation - NOT resize or any scene-mutation call site, which all
+	// keep the default. For the GPU/OptiX backend only, true keeps a
+	// reduced-quality INTERACTIVE trace (startInteractiveRayTracedGpuSession())
+	// live and tracking the camera instead of tearing down to raster.
+	//
+	// The per-frame PROGRAMMATIC animation callbacks - animateViewChange()/
+	// animateFitAll()/animateWindowZoom() (Home/standard-view/axonometric/
+	// fit/window-zoom transitions) - deliberately pass false instead, even
+	// though they're also genuine camera movement: unlike a live drag or an
+	// inertia coast, their per-tick delta (a slerp/interpolation step)
+	// does NOT decay toward zero as the animation ends, so the interactive
+	// trace's inherent one-tick-behind lag (see RtInteractiveRenderer's
+	// design notes) surfaces as a full-sized, objectionable jerk right at
+	// the finish instead of the imperceptible one inertia's decay masks -
+	// plain raster/PBR for the whole animation, settling into full-quality
+	// PT once it's actually done, was judged smoother in practice. CPU/Embree
+	// ignores this flag entirely regardless of any of the above and always
+	// takes the original path, since it has no hardware RT acceleration to
+	// make a per-frame interactive trace realistic. See
+	// armRayTracedRenderingMode()'s doc comment for the user-visible summary.
+	void onRayTracedIdleTimeout();
+	void onRayTracedRefreshTimer();
+	void startRayTracedSession();
+	// GPU/OptiX-only reduced-quality trace kicked off while the camera is
+	// actively moving - see RtInteractionController::notifyCameraInteracting()'s
+	// doc comment. The
+	// FIRST call of a new interactive burst does a real (throttled, see
+	// _lastInteractiveGpuRestartMs) RtInteractiveRenderer::ensureSceneResources()
+	// +resize(), reusing that class's own revision-gated GAS/IAS rebuild-skip
+	// (camera-only movement leaves _rayTracedSceneRevision unchanged); every
+	// subsequent call while that renderer is already at the right resolution
+	// instead takes a much cheaper path - RtInteractiveRenderer::
+	// updateCamera(), which needs neither a rebuilt scene snapshot nor any
+	// GPU work of its own - so it's cheap enough to call unthrottled on every
+	// mouse-move event. See RtInteractiveRenderer::updateCamera()'s doc
+	// comment for why that distinction matters (buildRayTracedSnapshot()'s
+	// synchronous environment-cubemap GPU readback, not the trace itself, was
+	// the real per-tick cost a naive always-restart approach used to pay).
+	// forceSceneRefresh=true is the animation path: if an interactive PT
+	// session is ALREADY live at the current resolution, rebuilds (or queues,
+	// if a launch is still in flight) a NEW scene snapshot against that SAME
+	// renderer instance instead of tearing it down and starting over.
+	void startInteractiveRayTracedGpuSession(bool forceSceneRefresh = false);
+
+	// Called unconditionally from the END of startInteractiveRayTracedGpuSession()'s
+	// slow path - i.e. every time that path runs, regardless of which caller
+	// triggered it (armRayTracedRenderingMode(), the debounced
+	// onRayTracedResumeWarmUpTimeout(), or a genuine mouse-move/wheel event
+	// resuming the accumulator after some other teardown). Forces the FIRST
+	// interactive launch's one-time costs - GAS/IAS build (ensureSceneResources()
+	// only rebuilds when the scene snapshot's revision actually changed, which
+	// is unconditionally true the first time through a fresh slow path) plus
+	// OptiX pipeline/SBT warm-up and cold-BVH-cache traversal - to happen
+	// synchronously, right there, before the triggering call returns, rather
+	// than letting that cost race whatever happens next.
+	//
+	// This used to only be called from two of the three possible callers
+	// (arm-time and the debounced timeout), on the theory that a real drag
+	// event would just submit its first launch asynchronously via paintGL()'s
+	// tick() like normal. That left a real, if intermittent, gap: if the user
+	// started dragging before the debounce timer fired, the mouse-move-driven
+	// call was the one that actually ran the slow path, and it never warmed
+	// up - the eventual publish showed a camera pose captured back when the
+	// rebuild started (stale by the whole build+warmup duration) while the
+	// still-live raster skybox/mesh had kept tracking the mouse the whole
+	// time, read as a lag/snap. Calling this unconditionally from the slow
+	// path itself - rather than trusting each caller to remember to call it -
+	// closes that gap structurally: a short synchronous pause exactly when a
+	// rebuild happens, never a stale-pose snap once it's done. No-op if
+	// startInteractiveRayTracedGpuSession() didn't actually start anything
+	// (e.g. OptiX unavailable).
+	void warmUpInteractiveRayTracedGpuSession();
+
+	// Tears down whichever GPU PT session(s) are currently active/converging
+	// - shared by RtInteractionController's Recovering-entry teardown,
+	// hideEvent(), and disarmRayTracedRenderingMode(), which previously each
+	// reimplemented this teardown slightly differently (see hideEvent()'s own
+	// doc comment for the bug that divergence caused). Does NOT touch
+	// _rayTracedArmed, _rayTracedIdleTimer, or _rayTracedResumeWarmUpTimer
+	// - callers decide those independently based on their own context.
+	void teardownActiveRayTracedSessions();
+
+	// _rayTracedResumeWarmUpTimer's single-shot timeout - fires once a burst
+	// of teardowns goes quiet
+	// for kRayTracedResumeWarmUpDebounceMs. Re-enters
+	// startInteractiveRayTracedGpuSession()'s slow path (rebuilding whatever
+	// the teardown invalidated) plus warmUpInteractiveRayTracedGpuSession(),
+	// but ONLY when nothing is already running (!rayTracedSessionRunning())
+	// - if the user resumed dragging before this timer fired, the normal
+	// mouse-move path already restarted the interactive session itself (fast
+	// or slow path as appropriate), and re-triggering here would be redundant
+	// at best, a wasted duplicate GAS rebuild at worst. Also bails if path
+	// tracing was disarmed or switched to CPU/Embree in the meantime. Safe to
+	// fire while this widget is hidden (see hideEvent()'s call site) - the
+	// warm-up is pure CUDA/OptiX work with no GL-context/visibility
+	// dependency.
+	void onRayTracedResumeWarmUpTimeout();
+
+	// Releases _rtInteractiveRenderer's GPU resources (stream, per-slot
+	// device/host buffers) and forgets its retained snapshot/generation
+	// state. Called alongside EVERY _ptOptixSession.stop() call site (see
+	// those call sites' own comments) so the "never run two GPU PT backends
+	// at once" invariant holds: the settled session (_ptOptixSession) and
+	// the interactive renderer are separate objects with separate
+	// RtOptixSceneTracer instances now, unlike the old architecture where
+	// "interactive" and "settled" were just two modes of the SAME
+	// _ptOptixSession (so starting one always implicitly stopped the other
+	// for free) - without this call, both could end up alive/holding GPU
+	// resources at the same time. Safe/cheap to call even when the renderer
+	// was never started this session (releaseResources() is idempotent).
+	void stopRtInteractiveRenderer();
+
+	// Phase 2a GPU-engine path - see RtOptixSceneParams.h's doc comment for
+	// exactly what this does and doesn't render yet (real geometry/
+	// instancing/camera, flat-normal-as-color shading, no materials/lights/
+	// bounces). Rebuilds the GPU acceleration structure from the current
+	// snapshot (see buildRayTracedSnapshot()) and renders it through the
+	// real camera at the current framebuffer size, uploading the result
+	// through the same _rtPresenter the CPU path uses, so switching the
+	// Render Engine dropdown is directly comparable in the same viewport.
+	// Called from startRayTracedSession() instead of the real _rtSession
+	// setup when the GPU engine is selected.
+	void startOptixTestRayTracedSession(int fbWidth, int fbHeight);
+
+	// GPU-engine counterpart to renderRayTracedOffline()'s CPU path -
+	// same blocking-until-done, own-fresh-scene-independent-of-the-live-
+	// session contract, just built on RtOptixSceneTracer instead of
+	// RtEmbreeScene/CpuPathTracer. Mirrors RtOptixRayTracingSession::
+	// workerLoop()'s exact chunked running-mean accumulation + final-pass-
+	// only denoise (see that function's own doc comment for the numerics
+	// rationale), just as a plain synchronous loop in the calling thread
+	// rather than a background worker - offline export already blocks the
+	// whole application per renderRayTracedOffline()'s own contract, so
+	// there is no reason to pay for a worker thread + polling wait here.
+	bool renderRayTracedOfflineGpu(int width, int height, const RtSceneSnapshot& snapshot,
+		const std::function<void(uint32_t currentSample, uint32_t maxSamples)>& onProgress,
+		std::vector<glm::vec3>& outLinearRgb, bool* outCancelled);
+
+	// Builds a fresh RtSceneSnapshot for the given OUTPUT resolution -
+	// shared by startRayTracedSession() (the interactive session) and
+	// renderRayTracedOffline() (blocking export at an arbitrary
+	// resolution), so the light/environment/floor snapshot-building logic
+	// isn't duplicated between them. aspectRatio is recomputed from
+	// width/height rather than reusing the camera's own configured aspect,
+	// so an offline export at a different aspect ratio than the live
+	// viewport frames correctly instead of stretching the same framing.
+	// Also updates _ptOrthoThinWallWarningActive as a side effect (see its
+	// doc comment) - both callers want this detection to run.
+	std::shared_ptr<const RtSceneSnapshot> buildRayTracedSnapshot(int width, int height,
+		const RtEnvironment* reusedEnvironment = nullptr);
+
+	// Live (not cached) camera-vs-floor-plane test, computed the same way
+	// RtSceneBuilder::build() decides whether to include the floor at all
+	// (camera's up-axis coordinate vs _floorPlaneZ). Used to compare against
+	// _rtLastBuildCameraAboveFloor on every camera-only fast-path update, to
+	// detect when the camera has actually crossed the floor's plane and a
+	// real rebuild is needed to hide/show it - see that member's own doc
+	// comment for the full rationale. Returns true (never hide) if there's
+	// no primary camera yet.
+	bool isCameraAboveFloorPlane() const
+	{
+		if (!_primaryCamera)
+			return true;
+		const float cameraUpCoord = _viewCtrl.cameraUpAxisZUp()
+			? _primaryCamera->getRenderPosition().z()
+			: _primaryCamera->getRenderPosition().y();
+		return cameraUpCoord >= _floorPlaneZ;
+	}
+
+	// Selection manager instance (owns all selection logic and state)
+	SelectionManager* _selectionManager = nullptr;
+
+	// _defaultLightColor â†’ SceneRenderController (Phase 12)
+	QVector4D _ambientLight;
+	QVector4D _diffuseLight;
+	QVector4D _specularLight;
+
+	QVector3D _lightPosition;
+	// _lightOffsetX/Y/Z â†’ SceneRenderController._lightOffset (Phase 12)
+
+	QMatrix4x4 _lightSpaceMatrix;
+
+
+
+	QImage					 _floorTexImage;
+	// Source path for _floorTexImage, if it was loaded from a file via
+	// setFloorTextureFromPath() - see that function's doc comment.
+	QString                  _floorTexturePath;
+	float                    _floorSize;
+	float 					 _floorSizeFactor;
+	// _floorOffsetPercent â†’ SceneRenderController (Phase 12)
+	float                    _floorPlaneZ;
+	QVector3D                _floorCenter;
+
+	// Whether the camera was above (vs below) the floor's plane the last
+	// time buildRayTracedSnapshot() actually ran RtSceneBuilder::build() -
+	// see isCameraAboveFloorPlane()'s own doc comment for why this exists:
+	// RtSceneBuilder::build() decides whether to include the PT floor at
+	// all based on camera position, but ordinary camera-only interaction
+	// (startInteractiveRayTracedGpuSession()'s fast path) deliberately
+	// never calls build() again, reusing the existing snapshot/GAS - so
+	// without this, orbiting the camera below the floor mid-drag would
+	// never actually hide it (build() ran once, before the crossing,
+	// and never runs again for a pure camera move). Updated every time
+	// buildRayTracedSnapshot() runs; compared against the LIVE camera
+	// position on every fast-path camera update to detect a genuine
+	// crossing and force a real rebuild only then.
+	bool _rtLastBuildCameraAboveFloor = true;
+
+
+	QPointer<QWidget> _navigationOverlayPanel;
+
+	QVBoxLayout* _editorLayout;
+	QFormLayout* _lowerLayout;
+	QFormLayout* _upperLayout;
+
+	ClippingPlanesEditor* _clippingPlanesEditor;
+	ExplodedViewPanel*    _explodedViewPanel;
+	PlaneRenderable* _clippingPlaneXY;
+	PlaneRenderable* _clippingPlaneYZ;
+	PlaneRenderable* _clippingPlaneZX;
+	// ONE shared unit quad (1x1, XY plane through the origin) that
+	// drawBoxSectionCapping() re-poses per box face via its render transform
+	// (translate + rotate + scale) - unlike the three per-axis cap quads above,
+	// which are each rebuilt/oversized per plane, all six box faces can share
+	// one because the fragment-shader box trim (clipping_plane.frag's boxTrim*)
+	// bounds the visible cap, not the quad's own size.
+	PlaneRenderable* _clippingPlaneBox = nullptr;
+
+	// Draggable translucent gizmo planes for Clipping Planes - see
+	// include/PlaneGizmo.h. Paired naming with _clippingPlaneXY/YZ/ZX above,
+	// but these are separate PlaneRenderable/PlaneGizmo instances (not the
+	// same objects re-tinted) - the cap-fill quads participate in the
+	// stencil-capping render pass and must stay exactly as they are; the
+	// gizmo quads are a purely additive, independent visual+hit-test layer.
+	// Constructed alongside _clippingPlaneXY/YZ/ZX; visible only while
+	// ClippingPlanesEditor's own "Show Gizmo" checkbox is checked AND that
+	// axis's clipping is enabled.
+	PlaneGizmo* _clipPlaneGizmoX = nullptr;
+	PlaneGizmo* _clipPlaneGizmoY = nullptr;
+	PlaneGizmo* _clipPlaneGizmoZ = nullptr;
+
+	// Filter by Bounding Box's 6-face gizmo - one PlaneGizmo per face
+	// (Min/Max on each axis), independently positioned/sized so together
+	// they read as a box (per the user's own explicit direction, allowed to
+	// overlap slightly at the edges rather than being a fused/watertight
+	// mesh - same reasoning as the 3 clipping-plane gizmos above, just 6
+	// instead of 3). Lazily constructed by createBoundingBoxGizmos() the
+	// first time FilterByBoundingBoxDialog opens for this document (unlike
+	// the clipping-plane gizmos, which always exist once the viewport does)
+	// so a document that never opens that dialog never pays for 6 unused
+	// PlaneRenderables. FilterByBoundingBoxDialog owns "what a drag means"
+	// via onDragged, same as the clipping-plane gizmos' owner does.
+	PlaneGizmo* _bboxGizmoXMin = nullptr;
+	PlaneGizmo* _bboxGizmoXMax = nullptr;
+	PlaneGizmo* _bboxGizmoYMin = nullptr;
+	PlaneGizmo* _bboxGizmoYMax = nullptr;
+	PlaneGizmo* _bboxGizmoZMin = nullptr;
+	PlaneGizmo* _bboxGizmoZMax = nullptr;
+
+	// Box-clip mode's OWN 6 face gizmos (Clipping Planes editor) - deliberately not
+	// shared with _bboxGizmo* above: each PlaneGizmo carries a single set of
+	// onDragStarted/onDragged/onDragFinished callbacks, so two features owning the
+	// same instances would silently overwrite each other's wiring, and the two
+	// boxes are independent state. Built eagerly in createCappingPlanes() like the
+	// 3 axis clip gizmos.
+	PlaneGizmo* _clipBoxGizmoXMin = nullptr;
+	PlaneGizmo* _clipBoxGizmoXMax = nullptr;
+	PlaneGizmo* _clipBoxGizmoYMin = nullptr;
+	PlaneGizmo* _clipBoxGizmoYMax = nullptr;
+	PlaneGizmo* _clipBoxGizmoZMin = nullptr;
+	PlaneGizmo* _clipBoxGizmoZMax = nullptr;
+	// True once the box limits have been seeded from the scene (first enable, or
+	// an explicit reset) so later enables don't overwrite the user's box.
+	bool _boxClipLimitsSeeded = false;
+
+	// Single active plane-gizmo drag session (never more than one at once,
+	// unlike the multi-mesh transform gizmo - no mesh-id-keyed map needed).
+	PlaneGizmo* _activePlaneGizmoDrag = nullptr;
+	QPoint _planeGizmoDragStartPixel;
+	float _planeGizmoDragStartPosition = 0.0f;
+
+	// Live numeric readout shown next to the cursor while a plane-gizmo drag
+	// is in progress - set every drag-move frame in updatePlaneGizmoDrag(),
+	// drawn by drawPlaneGizmoDragLabel() (gated on _activePlaneGizmoDrag !=
+	// nullptr, so no separate "valid" flag is needed).
+	QString _planeGizmoDragLabelText;
+	QPoint _planeGizmoDragLabelPixel;
+
+	// Same shape as the plane-gizmo drag label above, for Surface Analysis'
+	// mouse-hover numeric readout - set (or cleared to empty, which
+	// drawSurfaceAnalysisHoverLabel() treats as "nothing to draw") by
+	// updateSurfaceAnalysisHoverReadout() on plain mouse-move.
+	QVector<VertexMarker> _vertexMarkers;
+
+	// Compare mode state. While a pane is being drawn, `_paneMeshFilter` restricts isMeshVisible() to that pane's mesh.
+	bool _compareActive = false;
+	QVector<QUuid> _compareMeshes;
+	CompareArrangement _compareArrangement = CompareArrangement::SideBySide;
+	std::vector<ComparePane> _comparePanes;
+	// ---- Compare mode: one camera per pane. A pane's camera looks at its result's centre with the shared camera's orientation
+	// turned by `rotation` (in view space, about that centre) and the shared view range divided by `zoom`; `offset` moves the
+	// look-at point (view-frame world units), which is how a pane is panned. The shared camera itself then only supplies the
+	// starting orientation (the view buttons and Fit reset every pane to it).
+	struct ComparePaneView
+	{
+		QQuaternion rotation;
+		float zoom = 0.0f;       // 0 = not fitted yet: fitted to the pane on the next frame
+		QPointF offset;          // look-at point relative to the result's centre along the pane's right / up axes
+		float pixelsPerUnit = 1.0f; // window pixels per world unit at zoom 1 (measured each frame, used by navigation)
+		QSize fittedPaneSize;    // the pane size the zoom was fitted for
+	};
+	std::vector<ComparePaneView> _comparePaneViews;
+	std::vector<Camera> _comparePaneCameras; // the camera each pane was drawn with (last frame)
+	bool _compareLinkCameras = false;
+	struct PaneNavigation
+	{
+		enum class Mode { None, Rotate, Pan, Zoom };
+		Mode mode = Mode::None;
+		int pane = -1;
+		QPoint last;
+	};
+	PaneNavigation _paneNav;
+	void updateComparePaneViews();
+	void resetComparePaneViews();
+	std::vector<QVector3D> sampleMeshPoints(const SceneMesh* mesh) const;
+	bool comparePaneNavPress(QMouseEvent* e);
+	bool comparePaneNavMove(QMouseEvent* e);
+	bool comparePaneNavRelease(QMouseEvent* e);
+	bool comparePaneNavWheel(QWheelEvent* e);
+	void navigateComparePane(int pane, PaneNavigation::Mode mode, const QPointF& delta, const QPointF& anchorInPane, double wheelFactor);
+	const QSet<QUuid>* _paneMeshFilter = nullptr;
+	QString _surfaceAnalysisHoverText;
+	QPoint _surfaceAnalysisHoverPixel;
+	QColor _surfaceAnalysisHoverTextColor = Qt::white;
+
+	// Whichever gizmo (if any) is currently under the cursor with no button
+	// held - see updatePlaneGizmoHover()'s own doc comment. Tracked
+	// separately from _activePlaneGizmoDrag so hover can be cleared on the
+	// previously-hovered gizmo even after the pointer moves off it entirely.
+	PlaneGizmo* _hoveredPlaneGizmo = nullptr;
+
+
+	Camera* _primaryCamera;
+	Camera* _orthoViewsCamera;
+
+	QTimer* _keyboardNavTimer;
+	QTimer* _animateViewTimer;
+	QTimer* _animateFitAllTimer;
+	QTimer* _animateWindowZoomTimer;
+	QTimer* _animateCenterScreenTimer;
+
+
+	FloorPlane* _floorPlane;
+	CubeRenderable* _skyBox;
+	// _fsTriVAO/VBO, _skyBoxFaces, _skyBoxFOV/_skyBoxZRotation, gamma/HDR/tone-map settings,
+
+	ConeRenderable* _axisCone;
+	ViewCubeMesh* _viewCube = nullptr;
+	TransformGizmo* _transformGizmo = nullptr;
+	// Owns the entire Measurement toolset - see MeasurementController.h.
+	// Also an IGpuContextResource (registered alongside _transformGizmo
+	// below) purely to re-resolve its own QOpenGLFunctions_4_5_Core
+	// pointers after context recreation - it owns no actual GL objects.
+	MeasurementController* _measurementController = nullptr;
+	// Owns the entire Annotate toolset - see AnnotationController.h. Same
+	// IGpuContextResource-for-pointer-re-resolution-only reasoning as
+	// _measurementController above.
+	AnnotationController* _annotationController = nullptr;
+	// Owns the Generate UVs dialog's "Mark Seams" tool - see
+	// SeamMarkingController.h. Same IGpuContextResource-for-pointer-re-
+	// resolution-only reasoning as _measurementController/_annotationController
+	// above.
+	SeamMarkingController* _seamMarkingController = nullptr;
+	// Owns the Fill Holes dialog's detected-hole-loop overlay - see FillHolesController.h. Same
+	// IGpuContextResource-for-pointer-re-resolution-only reasoning as
+	// _measurementController/_annotationController/_seamMarkingController above.
+	FillHolesController* _fillHolesController = nullptr;
+	SimulationGlyphController* _simulationGlyphController = nullptr;
+	void drawSimulationGlyphs(Camera* camera);
+	SimulationTensorGlyphController* _simulationTensorGlyphController = nullptr;
+	void drawSimulationTensorGlyphs(Camera* camera);
+	SimulationVolumeController* _simulationVolumeController = nullptr;
+	void drawSimulationVolumes(Camera* camera);
+	SimulationSliceController* _simulationSliceController = nullptr;
+	QHash<QUuid, QVector<float>> _simulationGizmoBounds;
+	void drawSimulationSlices(Camera* camera);
+	SimulationStreamlineController* _simulationStreamlineController = nullptr;
+	void drawSimulationStreamlines(Camera* camera);
+	// Iso-surfaces or streamlines of a result that is shown: the section cap would hide them, so it is not drawn.
+	bool simulationOverlaysHideCaps() const;
+
+	CubeRenderable* _lightCube;
+	SphereRenderable* _lightSphere;
+	// _showLights â†’ SceneRenderController (Phase 12)
+
+	// GPU-context-recreation-survival registry (see IGpuContextResource.h) -
+	// _transformGizmo/&_renderCtrl implement the interface directly and are
+	// registered from this widget's constructor; the RenderableMesh-derived
+	// decoration objects above register via a RenderableMeshGpuResourceAdapter
+	// (owned by _gpuResourceAdapters) the first time each is constructed, in
+	// their own existing initializeGL() call sites.
+	GpuResourceRegistry _gpuResourceRegistry;
+	std::vector<std::unique_ptr<IGpuContextResource>> _gpuResourceAdapters;
+	// Guards the one-time LambdaGpuResource registration for the
+	// transmission/SSS buffer pairs - see their call site in initializeGL().
+	bool _bufferGpuResourcesRegistered = false;
+	void deleteGpuOwnedObjects();
+	// Wraps mesh's inherited releaseContextBoundGpuResources()/
+	// restoreContextBoundGpuResources(shader) pair and registers the
+	// adapter into GpuResourcePhase::Decorations - call exactly once, the
+	// first time each decoration object is constructed.
+	void registerDecorationGpuResource(RenderableMesh* mesh, std::function<QOpenGLShaderProgram*()> shaderResolver);
+
+	ModelViewer* _viewer;
+
+
+	unsigned long long _displayedObjectsMemSize;
+
+	AssImpModelLoader* _assimpModelLoader;
+	KTX2Loader _ktx2Loader;
+	GPUCapabilities _gpuCapabilities;
+
+
+	// _hatch* fields â†’ SceneRenderController (Phase 12)
+
+	AdaptiveShadowMapper shadowMapper;
+
+	float _originalBoundingRadius = 1.0f;
+
+	// Navigation settings (from SettingsDialog / QSettings)
+	bool  _invertZoom           = false;
+	bool  _invertYAxis          = false;
+	bool  _smoothNavigation     = true;
+	float _mouseSensitivity     = 1.0f; // 1.0 = default (slider 5/10)
+	float _wheelSensitivity     = 1.0f; // 1.0 = default (slider 5/10)
+	QTimer* _wheelZoomCursorTimer = nullptr;
+	// Last axonometric type/corner/active state pushed to the View toolbar (see updateViewSelectorState()).
+	int     _lastViewSelectorKey = -1;
+	QCursor _wheelZoomCursor;
+	QCursor _cursorBeforeWheelZoom;
+	bool    _hadExplicitCursorBeforeWheelZoom = false;
+
+	// Derive the user model transform for one file directly from its meshes'
+	// TRS state.  Returns true (and fills outTransform) only when every mesh
+	// of the file carries the same non-identity transformation â€” i.e. the
+	// user applied a model-level transform.  Lights and glTF cameras of that
+	// file follow this exact matrix; the visible-scene bounding sphere plays
+	// no role, so hide/show/delete of other models cannot disturb them.
+	void updateOverlayEditorTheme();
+
+	void applyGltfCameraEntryTransform(const GltfCameraEntry& cam);
+
+};

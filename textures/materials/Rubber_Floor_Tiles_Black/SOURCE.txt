@@ -1,0 +1,4 @@
+Poly Haven rubber_tiles by Amal Kumar
+https://polyhaven.com/a/rubber_tiles
+Licence: CC0 1.0 Universal (no credit required)
+Files: 1K JPG (diffuse, normal GL, roughness, displacement, AO), downloaded 2026-10-16

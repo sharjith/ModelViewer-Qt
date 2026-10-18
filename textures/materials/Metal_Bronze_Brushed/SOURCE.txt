@@ -1,0 +1,3 @@
+Derived from ambientCG Metal009 (https://ambientcg.com/a/Metal009), Creative Commons CC0 1.0 Universal.
+Height, normal, roughness and metalness maps are unchanged; the colour map is the original grey colour map tinted to bronze.
+Tinted 2026-10-16 by the ModelViewer author, same licence (CC0).

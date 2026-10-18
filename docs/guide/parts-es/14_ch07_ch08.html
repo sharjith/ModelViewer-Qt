@@ -1,0 +1,90 @@
+<h1 class="chapter">Sondeo y gráficos</h1>
+
+<p>Los colores le dicen <i>dónde</i> un valor es alto o bajo; un gráfico le dice <i>cuánto</i> y cómo cambia. ModelViewer lee los valores directamente del resultado y los representa sin salir del programa.</p>
+
+<h2>Leer un único valor</h2>
+<p>Mueva el ratón sobre el modelo: el valor del campo mostrado en el cursor aparece a su lado, en la unidad mostrada. En un campo de nodo el valor se interpola en el cursor; en un campo de celda es el valor del elemento bajo el cursor (o el valor promediado, si <span class="ui">Promediar datos de celda en los nodos</span> está activado).</p>
+<figure data-img="tutorial_21_hover_value.png"><figcaption>El valor bajo el cursor, leído directamente del modelo</figcaption></figure>
+
+<h2>Los cuatro gráficos</h2>
+<table>
+  <thead><tr><th style="width:30%">Gráfico</th><th style="width:30%">Cómo iniciarlo</th><th>Muestra</th></tr></thead>
+  <tbody>
+    <tr><td><b>Gráfico en el tiempo</b></td><td>Clic derecho en un punto del resultado &rarr; <span class="ui">Graficar en el tiempo aquí</span>; o el botón <span class="ui">Graficar en el tiempo...</span> y luego clic en un punto</td><td>La historia del campo mostrado en ese punto, a lo largo de todos los pasos. Para un resultado modal, el eje x es la frecuencia de cada modo.</td></tr>
+    <tr><td><b>Gráfico a lo largo de una línea</b></td><td><span class="ui">Graficar a lo largo de una línea...</span> y luego clic en dos puntos</td><td>El campo a lo largo de la recta (cuerda) entre los dos puntos, en el paso actual.</td></tr>
+    <tr><td><b>Distribución</b></td><td><span class="ui">Distribución...</span></td><td>Un histograma del campo sobre todo el resultado: qué parte del modelo está en valores bajos, medios y altos.</td></tr>
+    <tr><td><b>Curvas añadidas</b></td><td>Clic derecho dentro de un gráfico</td><td>Más puntos del modelo, o sus propios datos de un archivo CSV, en los mismos ejes.</td></tr>
+  </tbody>
+</table>
+<figure data-img="tutorial_21_plot_over_time.png"><figcaption>Un gráfico en el tiempo; el cursor naranja marca el paso actual</figcaption></figure>
+<ul>
+  <li>La historia de un punto lee el valor en el punto del <i>volumen</i> en el que se hizo clic o, en un resultado de lámina, en el punto más cercano de la superficie. La cuerda de un gráfico a lo largo de una línea sigue la superficie de una lámina; donde la cuerda abandona una lámina curva, la curva tiene un hueco.</li>
+  <li>Un gráfico de un campo de celda usa los valores promediados; un resultado con un solo paso muestra su historia como un único punto.</li>
+  <li><span class="ui">Graficar en el tiempo aquí</span> no está disponible mientras se comparan dos resultados (capítulo 8).</li>
+</ul>
+<figure data-img="tutorial_21_plot_over_line.png"><figcaption>Tensión a lo largo de una línea desde el borde del agujero hasta el borde de la placa</figcaption></figure>
+<figure data-img="tutorial_21_distribution.png"><figcaption>Un histograma del campo de von Mises</figcaption></figure>
+
+<h2>Trabajar con un gráfico</h2>
+<table class="compact">
+  <thead><tr><th style="width:34%">Acción</th><th>Resultado</th></tr></thead>
+  <tbody>
+    <tr><td>Rueda del ratón</td><td>Zoom alrededor del puntero. Con <kbd>Mayús</kbd> solo hace zoom el eje x, con <kbd>Ctrl</kbd> solo el eje y.</td></tr>
+    <tr><td>Arrastrar con el botón central</td><td>Desplazar.</td></tr>
+    <tr><td>Doble clic, o clic derecho &rarr; <span class="ui">Restablecer zoom</span></td><td>Mostrar todo de nuevo.</td></tr>
+    <tr><td>Clic o arrastre en un gráfico temporal</td><td>Mueve el resultado al paso más cercano (el cursor naranja marca el actual); el gráfico y la línea de tiempo se controlan mutuamente.</td></tr>
+    <tr><td>Clic derecho &rarr; <span class="ui">Añadir un punto del modelo</span></td><td>Haga clic después en otro punto del mismo resultado: su historia se une al gráfico como otra curva, con el nombre de su posición y una leyenda.</td></tr>
+    <tr><td>Clic derecho &rarr; <span class="ui">Añadir curva desde CSV...</span></td><td>Añade sus propios datos (véase abajo).</td></tr>
+    <tr><td>Clic derecho &rarr; <span class="ui">Quitar las curvas añadidas</span></td><td>Borra de nuevo las curvas añadidas.</td></tr>
+    <tr><td>Clic derecho &rarr; <span class="ui">Guardar imagen...</span></td><td>Escribe el gráfico como una imagen PNG.</td></tr>
+    <tr><td>Clic derecho &rarr; <span class="ui">Exportar datos (CSV)...</span></td><td>Escribe las curvas como un CSV: un par de columnas x, y por curva, con la unidad en el encabezado.</td></tr>
+  </tbody>
+</table>
+
+<h2>Añadir sus propios datos</h2>
+<p>Un gráfico puede llevar mediciones, una curva de respuesta u otro análisis junto a la curva simulada. El CSV necesita <b>dos columnas, x e y</b>, y una fila de encabezado que nombre la curva. Un encabezado de la forma <code>Nombre (unidad)</code> da una unidad a la curva: si esa unidad es la misma que la de la curva principal, ambas comparten el eje y; si difiere (una temperatura junto a una tensión), la curva se dibuja contra un <b>segundo eje y a la derecha</b>. Una curva cuyo encabezado no tiene unidad comparte el eje principal.</p>
+<table class="compact">
+  <thead><tr><th style="width:36%">Ejemplo</th><th>Uso</th></tr></thead>
+  <tbody>
+    <tr><td><code>thermal_probe_test.csv</code></td><td>Lecturas sintéticas de un «termopar» (tiempo, temperatura) para el centro de la cara opuesta de <code>FEM_box_thermal_transient.frd</code>. Abra el resultado, grafique en el tiempo en esa cara, añada el CSV y reproduzca: el cursor recorre ambas curvas. El punto en el que hizo clic no es exactamente el de la muestra, así que las curvas son cercanas, no idénticas.</td></tr>
+    <tr><td><code>FEM_box_modes_frf.csv</code></td><td>Una curva sintética de respuesta en frecuencia con picos en las seis frecuencias de modo de <code>FEM_box_modes.frd</code>. Grafique en el tiempo en cualquier punto, añada el CSV y haga clic en un pico: el resultado salta a ese modo.</td></tr>
+  </tbody>
+</table>
+<figure data-img="tutorial_21_csv_overlay.png"><figcaption>La historia simulada y las lecturas medidas en un mismo gráfico</figcaption></figure>
+<figure data-img="tutorial_21_frf_peaks.png"><figcaption>Frecuencias de modo en el eje x con una curva de respuesta y sus picos</figcaption></figure>
+<div class="callout tip"><span class="label">Consejo</span>
+  <p>Un CSV de gráfico exportado se puede volver a añadir a un gráfico más tarde con <span class="ui">Añadir curva desde CSV...</span>, útil para comparar dos ejecuciones de análisis en un gráfico, porque el encabezado lleva la unidad.</p>
+</div>
+
+
+<h1 class="chapter">Comparar resultados</h1>
+
+<p>Los motivos habituales para abrir dos resultados son dos diseños, antes y después de un cambio, una ejecución estática frente a un modo de vibración, o dos casos de carga. Compararlos necesita los resultados lado a lado, vistos desde el mismo punto de vista, con colores que signifiquen lo mismo. <b>Comparar</b> hace exactamente eso.</p>
+
+<h2>Preparar una comparación</h2>
+<ol>
+  <li>Ponga ambos resultados en <b>un documento</b>: abra el primero con <span class="path">Archivo &rarr; Abrir...</span> y añada el segundo con <span class="path">Visualización &rarr; Resultados de simulación &rarr; Añadir resultado a este documento...</span>. Ambos conservan sus coordenadas reales de archivo, por lo que dos resultados del mismo modelo coinciden, y por eso comparar los dibuja en paneles separados.</li>
+  <li>En la pestaña Resultados de simulación elija el otro resultado en <span class="ui">Comparar con</span> y haga clic en <span class="ui">Comparar</span> (o use <span class="path">Visualización &rarr; Resultados de simulación &rarr; Comparar resultados...</span>). La vista se divide en dos paneles, cada uno con un resultado y su propia leyenda. <span class="ui">Mostrar en</span> elige lado a lado o apilados (arriba y abajo).</li>
+  <li>Marque <span class="ui">Mismo rango de color para ambos</span>: colores iguales significan entonces valores iguales en ambos paneles. Sin ello, cada resultado usa su propio rango.</li>
+  <li>Marque <span class="ui">Enlazar las cámaras</span> para que ambas vistas vayan a la par: girar, desplazar o hacer zoom en una hace lo mismo en la otra.</li>
+  <li>Haga clic en <span class="ui">Salir de la comparación</span> (el mismo botón) para volver a la vista única.</li>
+</ol>
+<figure data-img="tutorial_22_compare_side_by_side.png"><figcaption>Flexión (izquierda) y torsión (derecha) de la misma viga en I, lado a lado con un solo rango de color</figcaption></figure>
+<figure data-img="tutorial_22_compare_controls.png"><figcaption>Los controles de comparación de la pestaña</figcaption></figure>
+
+<h2>Qué funciona en el modo de comparación y qué no</h2>
+<ul>
+  <li>Comparar muestra dos resultados <b>distintos</b> del documento; no se puede comparar un resultado consigo mismo. Cada panel tiene su propia leyenda, encabezada con el nombre del resultado.</li>
+  <li>Giro, desplazamiento, zoom y las vistas estándar funcionan. <span class="ui">Mismo rango de color para ambos</span> une los rangos de los dos resultados y solo está disponible mientras ambos muestran la misma unidad.</li>
+  <li>La línea de tiempo controla solo el resultado activo, el elegido en el cuadro <span class="ui">Resultado</span>.</li>
+  <li>Mientras la comparación está activa, la selección con clic, el resaltado al pasar el cursor, la lectura de valores al pasar el cursor y los gizmos de los planos de corte están desactivados, y <span class="ui">Graficar en el tiempo aquí</span> no está disponible. Las herramientas de medición y anotación aún no distinguen entre paneles. El trazado de rayos está desactivado.</li>
+  <li><b>Ajustar a la pantalla</b> sigue ajustando toda la ventana, por lo que un modelo ancho puede ser más ancho que su panel: reduzca un poco el zoom.</li>
+  <li>La comparación termina por sí sola cuando uno de los resultados se oculta, se cierra o se quita (también mediante deshacer). La disposición no se guarda en una sesión.</li>
+  <li>Comparar mantiene ambos resultados en memoria a la vez, por lo que dos resultados muy grandes necesitan el doble de memoria (capítulo 9).</li>
+</ul>
+<div class="callout warn"><span class="label">Precaución</span>
+  <p>Comparar muestra dos resultados uno junto al otro; no calcula la diferencia entre ellos (no hay un campo A menos B). Para leer números de dos análisis, grafique el mismo punto de cada uno y ponga ambos en un gráfico (capítulo 7), o compare los valores al pasar el cursor de un resultado cada vez.</p>
+</div>
+
+<h3>Un buen par para probar</h3>
+<p><code>ibeam_cantilever.frd</code> (flexión) e <code>ibeam_torsion.frd</code> (torsión) son la misma viga en I con cargas distintas: añada uno al documento del otro, active la forma deformada y el rango de color compartido, y fije el último paso de carga.</p>

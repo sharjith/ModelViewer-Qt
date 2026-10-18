@@ -1,0 +1,198 @@
+#include "RtOptixRayTracingSession.h"
+
+#include <algorithm>
+
+#include <QDebug>
+
+RtOptixRayTracingSession::RtOptixRayTracingSession() = default;
+
+RtOptixRayTracingSession::~RtOptixRayTracingSession()
+{
+	stop();
+}
+
+bool RtOptixRayTracingSession::isAvailable() const
+{
+	return _tracer.isAvailable();
+}
+
+void RtOptixRayTracingSession::setResolution(int width, int height)
+{
+	_width  = width;
+	_height = height;
+}
+
+bool RtOptixRayTracingSession::start(std::shared_ptr<const RtSceneSnapshot> snapshot)
+{
+	stop(); // cancel/join any previously running worker before touching shared state
+
+	if (!snapshot || _width <= 0 || _height <= 0 || !_tracer.isAvailable())
+		return false;
+
+	if (snapshot->revisionId != _builtRevision || _builtRevision == 0)
+	{
+		if (!_tracer.buildScene(*snapshot))
+		{
+			qWarning() << "RtOptixRayTracingSession::start: buildScene() failed.";
+			return false;
+		}
+		_builtRevision = snapshot->revisionId;
+	}
+
+	{
+		std::lock_guard<std::mutex> lock(_snapshotMutex);
+		_snapshot = snapshot;
+	}
+
+	{
+		std::lock_guard<std::mutex> lock(_publishMutex);
+		_publishedFrame.clear();
+		_publishedAlpha.clear();
+		_publishedCamera = snapshot->camera;
+		_publishedWidth  = 0;
+		_publishedHeight = 0;
+	}
+	_publishedSampleCount.store(0, std::memory_order_release);
+
+	const uint64_t myGeneration = ++_generation;
+	_cancelRequested.store(false, std::memory_order_release);
+	_running.store(true, std::memory_order_release);
+	_worker = std::thread(&RtOptixRayTracingSession::workerLoop, this, myGeneration);
+	return true;
+}
+
+void RtOptixRayTracingSession::stop()
+{
+	_cancelRequested.store(true, std::memory_order_release);
+	if (_worker.joinable())
+		_worker.join();
+	_running.store(false, std::memory_order_release);
+}
+
+void RtOptixRayTracingSession::workerLoop(uint64_t myGeneration)
+{
+	std::shared_ptr<const RtSceneSnapshot> snapshot;
+	{
+		std::lock_guard<std::mutex> lock(_snapshotMutex);
+		snapshot = _snapshot;
+	}
+	if (!snapshot)
+	{
+		_running.store(false, std::memory_order_release);
+		return;
+	}
+
+	const int width  = _width;
+	const int height = _height;
+	const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
+
+	// Running means in double precision, accumulated across chunks - avoids
+	// the fp32 precision loss a long-running naive running-sum would incur
+	// once sampleCount climbs into the hundreds, same concern
+	// RtFrameAccumulator's own accumulator addresses on the CPU side. Albedo/
+	// normal are OIDN guide buffers, averaged the same way the beauty image
+	// is - see RtOptixSceneTracer::renderScene()'s doc comment.
+	std::vector<glm::dvec3> runningMean(pixelCount, glm::dvec3(0.0));
+	std::vector<glm::dvec3> runningMeanAlbedo(pixelCount, glm::dvec3(0.0));
+	std::vector<glm::dvec3> runningMeanNormal(pixelCount, glm::dvec3(0.0));
+	std::vector<double>     runningMeanAlpha(pixelCount, 0.0);
+	uint32_t sampleCount = 0;
+
+	const RtCamera& activeCamera = snapshot->camera;
+
+	while (!_cancelRequested.load(std::memory_order_acquire) &&
+	       _generation.load(std::memory_order_acquire) == myGeneration)
+	{
+		if (sampleCount >= _maxSamples)
+			break; // fully converged - this (settled-only) session exits its worker thread once done
+
+		const uint32_t chunkSpp = std::min(_samplesPerChunk, _maxSamples - sampleCount);
+
+		std::vector<glm::vec3> chunkFrame, chunkAlbedo, chunkNormal;
+		std::vector<float> chunkAlpha;
+		if (!_tracer.renderScene(activeCamera, snapshot->environment, width, height, chunkSpp, sampleCount, _maxBounces,
+			snapshot->shadowsEnabled, snapshot->selfShadowsEnabled, _enableEnvironmentImportanceSampling,
+			_maxTransmissionBounces, _fireflyClampThreshold, _russianRouletteStartDepth, _maxVolumeScatterBounces,
+			chunkFrame, chunkAlbedo, chunkNormal, chunkAlpha))
+			break;
+
+		if (_cancelRequested.load(std::memory_order_acquire) ||
+		    _generation.load(std::memory_order_acquire) != myGeneration ||
+		    chunkFrame.size() != pixelCount)
+			break;
+
+		// Incremental running-mean update: newMean = oldMean + (chunkValue -
+		// oldMean) * chunkWeight / newTotalCount - equivalent to a plain
+		// weighted running sum but numerically steadier over many chunks.
+		const uint32_t newSampleCount = sampleCount + chunkSpp;
+		const double chunkWeight = static_cast<double>(chunkSpp) / static_cast<double>(newSampleCount);
+		for (size_t i = 0; i < pixelCount; ++i)
+		{
+			runningMean[i]       += (glm::dvec3(chunkFrame[i])  - runningMean[i])       * chunkWeight;
+			runningMeanAlbedo[i] += (glm::dvec3(chunkAlbedo[i]) - runningMeanAlbedo[i]) * chunkWeight;
+			runningMeanNormal[i] += (glm::dvec3(chunkNormal[i]) - runningMeanNormal[i]) * chunkWeight;
+			runningMeanAlpha[i]  += (static_cast<double>(chunkAlpha[i]) - runningMeanAlpha[i]) * chunkWeight;
+		}
+		sampleCount = newSampleCount;
+
+		std::vector<glm::vec3> resolved(pixelCount);
+		std::vector<float> alpha(pixelCount);
+		for (size_t i = 0; i < pixelCount; ++i)
+		{
+			resolved[i] = glm::vec3(runningMean[i]);
+			alpha[i] = static_cast<float>(runningMeanAlpha[i]);
+		}
+
+		std::vector<glm::vec3> presented = resolved;
+
+		// Only worth denoising once accumulation is done - see this class's
+		// own doc comment (mirrors RtRayTracingSession::publishLatest()'s
+		// finalDenoise contract exactly).
+		if (_denoiserEnabled && sampleCount >= _maxSamples)
+		{
+			std::vector<glm::vec3> resolvedAlbedo(pixelCount), resolvedNormal(pixelCount);
+			for (size_t i = 0; i < pixelCount; ++i)
+			{
+				resolvedAlbedo[i] = glm::vec3(runningMeanAlbedo[i]);
+				resolvedNormal[i] = glm::vec3(runningMeanNormal[i]);
+			}
+			_denoiser.denoise(resolved, width, height, presented, sampleCount, &resolvedAlbedo, &resolvedNormal);
+
+			// Pure-background pixels (no primary ray ever hit geometry) keep
+			// the raw accumulated value - OIDN over-smooths a sharp traced
+			// background it has no guide values for; same restoration
+			// RtRayTracingSession::publishLatest() does. Mostly invisible
+			// here since these pixels are alpha=0 anyway (raster shows
+			// through), but keeps the published frame itself sane.
+			for (size_t i = 0; i < pixelCount; ++i)
+				if (alpha[i] <= 0.0f)
+					presented[i] = resolved[i];
+		}
+
+		{
+			std::lock_guard<std::mutex> lock(_publishMutex);
+			_publishedFrame  = std::move(presented);
+			_publishedAlpha  = std::move(alpha);
+			_publishedCamera = activeCamera;
+			_publishedWidth  = width;
+			_publishedHeight = height;
+		}
+		_publishedSampleCount.store(sampleCount, std::memory_order_release);
+	}
+
+	_running.store(false, std::memory_order_release);
+}
+
+std::vector<glm::vec3> RtOptixRayTracingSession::latestFrame(int& outWidth, int& outHeight, uint32_t& outSampleCount,
+	std::vector<float>* outAlpha, RtCamera* outCamera) const
+{
+	std::lock_guard<std::mutex> lock(_publishMutex);
+	outWidth       = _publishedWidth;
+	outHeight      = _publishedHeight;
+	outSampleCount = _publishedSampleCount.load(std::memory_order_acquire);
+	if (outAlpha)
+		*outAlpha = _publishedAlpha;
+	if (outCamera)
+		*outCamera = _publishedCamera;
+	return _publishedFrame;
+}

@@ -1,0 +1,73 @@
+<h1 class="chapter">La forma deformata e i risultati modali</h1>
+
+<h2>Mostrare la deformazione</h2>
+<p>I risultati strutturali contengono uno spostamento per ogni nodo. Spunta <span class="ui">Mostra forma deformata</span> e il modello viene disegnato spostato da quel campo invece che a riposo. Lo spostamento viene applicato al momento del disegno; la geometria nel file e le posizioni di riposo non vengono alterate, quindi puoi disattivare di nuovo l'opzione in qualsiasi momento.</p>
+<ul>
+  <li>Il <span class="ui">Fattore di scala</span> esagera lo spostamento. Le deflessioni reali sono di solito minuscole rispetto al modello, quindi un fattore ben superiore a 1 è normale. Il pulsante <span class="ui">Auto</span> sceglie un fattore che rende il movimento chiaramente visibile.</li>
+  <li>Lo spostamento viene applicato nell'unità di lunghezza propria del file; il pannello indica il campo usato. Un risultato senza campo di spostamento non può essere mostrato deformato, e lo dice.</li>
+  <li>Finché la forma deformata è attiva, tutto ciò che segue la geometria segue la mesh spostata: la lettura al passaggio del mouse, i marcatori degli estremi, le sezioni, le isosuperfici e le linee di flusso.</li>
+</ul>
+<figure data-img="tutorial_19_deformed_plate.png"><figcaption>Una piastra con un foro sotto carico: forma deformata attiva, minimo e massimo segnati</figcaption></figure>
+<div class="callout warn"><span class="label">Attenzione</span>
+  <p>L'immagine è volutamente esagerata. Quando valuti quanto si muove realmente un pezzo, leggi il fattore di scala e usa la lettura al passaggio del mouse o un grafico per i veri valori di spostamento.</p>
+</div>
+
+<h2>Risultati modali</h2>
+<p>Un'analisi in frequenza produce <b>forme modali</b>, non spostamenti con una dimensione fisica: un modo dice solo come si muove la struttura rispetto a se stessa, e la sua ampiezza è arbitraria. ModelViewer tratta questi risultati (passi etichettati <i>Mode 1</i>, <i>Mode 2</i> ... con le loro frequenze in hertz) in modo particolare:</p>
+<ul>
+  <li>Ogni modo viene disegnato con il suo spostamento massimo a un decimo della dimensione del modello, così ogni modo è visibile senza ritocchi; il <span class="ui">Fattore di scala</span> scala questo valore (un fattore di 1 significa un decimo della dimensione del modello).</li>
+  <li>I passi sono i modi. La linea temporale li scorre e li riproduce uno dopo l'altro; l'etichetta mostra la frequenza del modo.</li>
+  <li>L'asse x di un grafico di un risultato modale è la frequenza di ogni modo, il che permette a una curva di risposta in frequenza di allinearsi ai modi (capitolo 7).</li>
+</ul>
+<figure data-img="tutorial_19_modes.png"><figcaption>Due modi di vibrazione della scatola, disegnati deformati</figcaption></figure>
+
+<div class="callout"><span class="label">Nota</span>
+  <p>Da provare: <code>FEM_box_modes.frd</code> (sei modi) e <code>FEM_box_frequency_mode1.vtu</code> (il primo modo, come lo scrive FreeCAD). <code>FEM_box_static_stress.vtu</code> e <code>plate_with_hole.frd</code> vanno bene per la normale forma deformata; <code>plate_with_hole.frd</code> ha quattro passi di carico.</p>
+</div>
+
+
+<h1 class="chapter">Il tempo: passi e linea temporale</h1>
+
+<h2>Cos'è un passo</h2>
+<p>La parola <b>passo</b> copre tre cose diverse, e ModelViewer le tratta allo stesso modo:</p>
+<ul>
+  <li><b>Passi e incrementi di carico</b> di un'analisi strutturale (ad esempio 25 %, 50 %, 87,5 %, 100 % di un carico);</li>
+  <li><b>Passi di tempo</b> di un'analisi termica o di flusso transitoria (un caso OpenFOAM ne ha uno per directory di tempo);</li>
+  <li><b>Modi</b> di un'analisi in frequenza (capitolo 4).</li>
+</ul>
+<p>Un risultato con più di un passo mostra una <b>linea temporale</b> in alto nella vista. Un risultato con un solo passo non ha la linea temporale.</p>
+
+<h2>La linea temporale</h2>
+<table class="compact">
+  <thead><tr><th style="width:28%">Controllo</th><th>Uso</th></tr></thead>
+  <tbody>
+    <tr><td>Riproduci / Pausa</td><td>Riproduce i passi in ordine alla velocità scelta.</td></tr>
+    <tr><td>Passo precedente / successivo</td><td>Si sposta di un passo.</td></tr>
+    <tr><td>Stop</td><td>Ferma e torna al primo passo.</td></tr>
+    <tr><td>Cursore</td><td>Salta a qualsiasi passo; trascinalo per scorrere il tempo. L'etichetta mostra il numero del passo e il suo tempo (o la frequenza del modo).</td></tr>
+    <tr><td>Ripeti</td><td>Ricomincia dal primo passo alla fine.</td></tr>
+    <tr><td>Velocità</td><td>Velocità di riproduzione, da più lenta a più veloce del tempo reale.</td></tr>
+    <tr><td>Blocca</td><td>La barra può essere trascinata in un altro punto della vista (un doppio clic la ripristina); il blocco la fissa dov'è.</td></tr>
+  </tbody>
+</table>
+<figure data-img="tutorial_19_timeline.png"><figcaption>La linea temporale in alto nella vista durante la riproduzione dei passi di carico della scatola</figcaption></figure>
+
+<h2>I colori nel tempo</h2>
+<p>Per impostazione predefinita l'intervallo di colori copre <b>tutti i passi</b> (capitolo 3), quindi un colore indica lo stesso valore in ogni fotogramma e puoi vedere crescere una tensione o entrare il calore. Scegli <span class="ui">Automatico (questo passo)</span> quando vuoi che ogni passo usi il proprio intervallo completo - ad esempio per vedere la <i>forma</i> di un modo - e <span class="ui">Personalizzato</span> per fissare tu la scala.</p>
+
+<h2>Grafici e tempo</h2>
+<p>La linea temporale e i grafici nel tempo del capitolo 7 si controllano a vicenda: un cursore arancione in un grafico segna il passo corrente, e fare clic o trascinare nel grafico porta il risultato al passo più vicino. Quando un risultato e un grafico 3D animato condividono una barra di riproduzione (capitolo 18), la barra segue il tempo fisico.</p>
+
+<h2>Risultati transitori lunghi</h2>
+<p>Un risultato con molti passi e molte celle contiene molti dati. I risultati i cui dati dei passi richiederebbero più di 256 MB e che hanno più di un passo vengono letti in modo <b>differito</b>: solo pochi passi sono in memoria alla volta e gli altri vengono letti dal file quando vengono mostrati. L'apertura è veloce e la memoria resta stabile, al prezzo di una breve lettura ogni volta che si passa a un passo non residente e della prima scansione per l'intervallo di colori di tutti i passi. Il capitolo 9 spiega questo e le sue conseguenze.</p>
+
+<h3>Esempi</h3>
+<table class="compact">
+  <thead><tr><th style="width:36%">File</th><th>Passi</th></tr></thead>
+  <tbody>
+    <tr><td><code>FEM_box_load_steps.frd</code></td><td>Quattro incrementi di una rampa di carico; riproducilo per vedere crescere la tensione su una scala di colori fissa.</td></tr>
+    <tr><td><code>FEM_box_thermal_transient.frd</code></td><td>20 passi di tempo in 10 s: una faccia è mantenuta a 100, il resto parte da 20.</td></tr>
+    <tr><td><code>FEM_box_modes.frd</code></td><td>I primi sei modi di vibrazione, etichettati con le loro frequenze.</td></tr>
+    <tr><td><code>openfoam_cavity/cavity.foam</code></td><td>Cinque directory di tempo, da 0 a 2 s (valori sintetici; il caso mette alla prova il lettore, la visualizzazione dei dati di cella e le unità).</td></tr>
+  </tbody>
+</table>

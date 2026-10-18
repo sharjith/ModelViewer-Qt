@@ -1,0 +1,84 @@
+<h1 class="chapter">Aprire un risultato</h1>
+
+<h2>Due modi per aprire</h2>
+<table>
+  <thead><tr><th style="width:36%">Comando</th><th>Cosa succede</th></tr></thead>
+  <tbody>
+    <tr><td><span class="path">File &rarr; Apri...</span> (oppure <kbd>Ctrl</kbd>+<kbd>O</kbd>, oppure trascina il file sulla finestra)</td><td>Il risultato si apre in un <b>documento a sé</b>. È il modo normale e quello da usare per primo.</td></tr>
+    <tr><td><span class="path">Visualizzazione &rarr; Risultati di simulazione &rarr; Aggiungi risultato a questo documento...</span> (anche <span class="ui">Aggiungi risultato...</span> nella scheda)</td><td>Il risultato viene aggiunto al <b>documento corrente</b>, accanto a ciò che c'è già - un modello CAD, un altro risultato. Usalo per confrontare due risultati (capitolo 8) o per vedere un risultato insieme a un grafico (capitolo 18).</td></tr>
+  </tbody>
+</table>
+<p>Entrambi accettano gli stessi file. Il filtro dei file offre <i>Tutti i risultati di simulazione</i> e una voce per formato. Un caso OpenFOAM si apre tramite il file <code>.foam</code> vuoto nella cartella del caso.</p>
+
+<h2>Durante il caricamento</h2>
+<p>La lettura, la decompressione, la tassellazione e l'estrazione della superficie di contorno vengono eseguite in background, con una barra di avanzamento e un pulsante Annulla, così il programma resta utilizzabile. Si carica un solo risultato alla volta; avviarne un secondo mentre uno si sta caricando produce un messaggio. I formati di testo grandi (<code>.frd</code> o <code>.vtk</code> ASCII) sono molto più lenti da leggere di quelli binari basati su HDF5 e NetCDF, il che è una proprietà dei formati, non del programma.</p>
+
+<h2>La scheda Risultati di simulazione</h2>
+<p>Una volta caricato un risultato, il dock in basso a sinistra passa alla scheda <span class="ui">Risultati di simulazione</span>. Contiene quasi tutto ciò che c'è in questa parte della guida, e i suoi controlli sono inattivi finché non è selezionato un risultato. Dall'alto:</p>
+<ul>
+  <li><span class="ui">Risultato</span>: su quale risultato del documento agiscono i comandi, con un pulsante che rimuove il risultato selezionato dal documento (annullabile) e una riga di informazioni con il nome del file e i conteggi - nodi, celle e triangoli di superficie.</li>
+  <li><span class="ui">Unità del modello</span> e <span class="ui">Dimensione del modello</span>: l'unità di lunghezza della geometria (metri, centimetri, millimetri, pollici, piedi; quando il file non la indica, <i>Non specificato (si assume mm)</i>) e la dimensione del modello in essa.</li>
+  <li><span class="ui">Campo</span>, <span class="ui">Componente</span>, <span class="ui">Grandezza</span> e <span class="ui">I valori sono in</span>: secondo cosa colorare e in quale unità (capitolo 3).</li>
+  <li><span class="ui">Intervallo</span>, <span class="ui">Mappa colori</span>, <span class="ui">Contorni</span>, le opzioni di deformazione e dei marcatori, e i gruppi per sezioni, isosuperfici, linee di flusso, volume, frecce ed ellissoidi (capitoli 3, 4 e 6).</li>
+  <li><span class="ui">Grafici</span>: i pulsanti per tracciare lungo una linea o nel tempo e per la distribuzione (capitolo 7), e i comandi di <span class="ui">Confronta</span> (capitolo 8).</li>
+</ul>
+
+<figure data-img="tutorial_19_first_result.png"><figcaption>Un risultato appena aperto: la scatola colorata secondo la tensione di von Mises, con la sua legenda, e la scheda Risultati di simulazione in basso a sinistra</figcaption></figure>
+<figure data-img="tutorial_19_results_tab.png"><figcaption>La scheda Risultati di simulazione: campo, componente, intervallo, mappa colori e contorni</figcaption></figure>
+
+<h2>Risultati senza campi o senza volume</h2>
+<ul>
+  <li>Un file che contiene solo geometria mostra la geometria, e la scheda lo dice: non ci sono valori con cui colorare.</li>
+  <li>Un risultato a guscio (solo triangoli e quadrilateri) non ha volume. Tutto ciò che richiede un volume - sezioni che rivelano l'interno, isosuperfici, linee di flusso, rendering volumetrico - segnala che non c'è nulla da tagliare o seguire. Colori, deformazione, sonde e grafici funzionano tutti.</li>
+  <li>Un risultato senza campo di spostamento non può essere mostrato deformato; l'opzione lo spiega.</li>
+</ul>
+
+<div class="callout tip"><span class="label">Suggerimento</span>
+  <p>Se non sei sicuro di cosa contenga un file, aprilo e guarda prima l'elenco <span class="ui">Campo</span> e la riga di informazioni: mostrano ogni campo trovato dal lettore, quali passi esistono e quanti nodi e celle ha. Per una prima prova, <code>sample-models/Simulation/FEM_box_static_stress.vtu</code> è piccolo e si apre colorato secondo la tensione di von Mises.</p>
+</div>
+
+
+<h1 class="chapter">Campi, colori e unità</h1>
+
+<h2>Scegliere il campo</h2>
+<p><span class="ui">Campo</span> elenca tutto ciò che contiene il file, più i valori derivati. Un campo vettoriale offre scelte di <span class="ui">Componente</span> - le sue componenti e la sua <i>intensità</i>; le sei componenti di un tensore di tensione sono riassunte dagli scalari derivati descritti più sotto. I campi contrassegnati <span class="ui">[celle]</span> sono dati di elemento.</p>
+
+<h3>Valori di tensione derivati</h3>
+<p>Quando un file contiene un tensore di tensione simmetrico (sei componenti, nell'ordine XX, YY, ZZ, XY, YZ, ZX), ModelViewer deriva le grandezze che gli ingegneri di solito vogliono e le aggiunge all'elenco dei campi come normali scalari: tensione di <b>von Mises</b>, tensione di <b>Tresca</b>, le tre <b>tensioni principali</b> e il <b>taglio massimo</b>. Vengono calcolate per nodo (o cella) dal tensore man mano che si carica ogni passo; ereditano l'unità della tensione e non vengono memorizzate in una sessione salvata, perché si possono sempre ricalcolare. I file <code>.frd</code> di CalculiX sono la fonte tipica; l'esportazione <code>.vtu</code> di FreeCAD ne contiene già alcune.</p>
+
+<h2>Dati nodali e dati di cella</h2>
+<p>Un <b>campo nodale</b> ha un valore in ogni punto della mesh e viene interpolato dolcemente su ogni faccia, così anche una mesh grossolana mostra un colore continuo. Un <b>campo di cella</b> ha un valore per elemento: ogni elemento viene disegnato con un unico colore piatto, che è l'immagine onesta di dati per elemento (ad esempio la qualità di un elemento o la maggior parte dei campi OpenFOAM) ma appare a blocchi.</p>
+<p><span class="ui">Media i dati di cella sui nodi</span> (abilitato mentre è mostrato un campo di cella) disegna invece il campo in modo continuo: ogni nodo assume la media degli elementi circostanti, pesata sulla loro dimensione, così un elemento piccolo conta meno di uno grande. È una scelta di visualizzazione - i dati in sé non vengono alterati - ed è anche ciò che usano grafici, rendering volumetrico e isosuperfici per un campo di cella. Lascialo disattivato per etichette come un numero di materiale o di gruppo, le cui regioni sono identificatori, non grandezze.</p>
+<figure data-img="tutorial_22_cell_data_flat_vs_smooth.png"><figcaption>Un campo di cella disegnato piatto (a sinistra) e mediato sui nodi (a destra)</figcaption></figure>
+
+<h2>La scala di colori</h2>
+<h3>Intervallo</h3>
+<table class="compact">
+  <thead><tr><th style="width:30%">Impostazione <span class="ui">Intervallo</span></th><th>La scala copre ...</th></tr></thead>
+  <tbody>
+    <tr><td>Automatico (tutti i passi)</td><td>il valore più piccolo e più grande del campo su <b>tutti i passi</b>. È l'impostazione predefinita: mantiene confrontabili i fotogrammi di un'animazione, perché un colore indica lo stesso valore in ogni passo.</td></tr>
+    <tr><td>Automatico (questo passo)</td><td>il valore più piccolo e più grande del solo <b>passo corrente</b>. Ogni fotogramma usa il suo intero intervallo di colori, il che mostra bene la struttura ma rende i fotogrammi non confrontabili.</td></tr>
+    <tr><td>Personalizzato</td><td>un <span class="ui">Minimo</span> e un <span class="ui">Massimo</span> che digiti, nell'unità di visualizzazione. I valori al di fuori compaiono nei colori estremi. Usalo per confrontare esecuzioni o per ingrandire una fascia interessante.</td></tr>
+  </tbody>
+</table>
+<h3>Mappa colori, bande e legenda</h3>
+<p><span class="ui">Mappa colori</span> sceglie la scala: scale sequenziali come l'arcobaleno e una scala divergente blu-bianco-rosso adatta a grandezze con uno zero significativo (una componente di spostamento, una tensione con segno). <span class="ui">Contorni</span> trasforma il gradiente continuo in un insieme di bande discrete (o viceversa); con le bande, i confini di colore cadono esattamente a valori uguali e dentro i triangoli, non sugli spigoli della mesh. La legenda accanto al modello mostra la scala, la sua unità e il passo; le superfici dei risultati sono disegnate senza illuminazione, quindi l'illuminazione non altera mai i colori.</p>
+<figure data-img="tutorial_19_contours.png"><figcaption>Colori continui (a sinistra) e lo stesso campo con bande di contorno (a destra)</figcaption></figure>
+
+<h3>Marcatori min / max e la lettura al passaggio del mouse</h3>
+<p><span class="ui">Segna minimo e massimo</span> etichetta i valori più basso e più alto <i>sulla superficie visibile</i> (i veri estremi di un solido possono trovarsi all'interno; le sezioni li rivelano). Indipendentemente, <b>passare il mouse</b> sul modello mostra il valore del campo visualizzato sotto il cursore, con la sua unità. Funziona finché è selezionato un risultato, tranne mentre si confrontano due risultati (capitolo 8).</p>
+
+<h2>Unità</h2>
+<p>Un'unità sbagliata su una tensione o una temperatura è esattamente l'errore che uno strumento di presentazione non deve commettere; per questo le unità sono esplicite e non vengono mai indovinate in silenzio.</p>
+<ul>
+  <li>Ogni campo ha una <b>grandezza</b> (tensione, spostamento, temperatura, velocità, pressione ...) e due unità: quella nel <i>file</i> e quella <i>visualizzata</i>.</li>
+  <li><span class="ui">Grandezza</span> e <span class="ui">I valori sono in</span> permettono di specificarle. Quando il file porta un'indicazione, ModelViewer la usa (OpenFOAM indica le sue unità tramite le dimensioni di ogni campo: temperatura in K, velocità in m/s, un tensore di tensione in Pa; una pressione cinematica non ha unità); altrimenti scegli tu, e il pannello contrassegna l'unità come presunta finché non la confermi.</li>
+  <li>Le conversioni sono più di semplici fattori di scala: la temperatura passa tra kelvin, gradi Celsius e gradi Fahrenheit, il che è uno scostamento oltre che un fattore.</li>
+  <li>La legenda, la lettura al passaggio del mouse, i marcatori, i grafici e il report usano tutti l'unità visualizzata.</li>
+  <li>I campi derivati ereditano l'unità del campo da cui provengono.</li>
+</ul>
+<div class="callout warn"><span class="label">Attenzione</span>
+  <p>I solutori scrivono ciò che hai fornito loro. Un'esecuzione di CalculiX con un modello in millimetri e un modulo di Young in MPa riporta la tensione in MPa e gli spostamenti in mm, ma il file non lo dice - ModelViewer mostra numeri semplici finché non scegli le unità (l'esempio <code>FEM_box_static.frd</code> è in mm e MPa; il suo equivalente <code>.vtu</code> mostra Pa). Controlla sempre <span class="ui">I valori sono in</span> rispetto alle unità della tua analisi.</p>
+</div>
+
+<figure data-img="tutorial_19_field_list.png"><figcaption>L'elenco dei campi del risultato della scatola statica</figcaption></figure>

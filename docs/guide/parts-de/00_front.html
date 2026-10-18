@@ -1,0 +1,52 @@
+<section class="cover">
+  <svg width="170" height="170" viewBox="0 0 170 170" fill="none" stroke="#ffffff" stroke-width="2">
+    <polygon points="85,12 150,48 150,122 85,158 20,122 20,48" stroke-opacity="0.55"/>
+    <polyline points="85,12 85,85 150,122" stroke-opacity="0.55"/>
+    <polyline points="85,85 20,122" stroke-opacity="0.55"/>
+    <polyline points="30,118 52,92 74,102 98,60 124,72 142,40" stroke="#f6ad55" stroke-width="4"/>
+    <circle cx="98" cy="60" r="5" fill="#f6ad55" stroke="none"/>
+    <circle cx="52" cy="92" r="5" fill="#63b3ed" stroke="none"/>
+    <circle cx="142" cy="40" r="5" fill="#fc8181" stroke="none"/>
+  </svg>
+  <div class="kicker">ModelViewer 2026.11</div>
+  <h1>Simulationsergebnisse<br>und 3D-Diagramme</h1>
+  <div class="subtitle">Ein Benutzerhandbuch zum Lesen von Solver-Ergebnissen und zum Darstellen eigener Daten in ModelViewer: vom Öffnen einer Datei bis zum fertigen Bericht.</div>
+  <div class="meta">Benutzerhandbuch &middot; für ModelViewer 2026.11</div>
+</section>
+
+<section>
+  <h1 class="chapter front">Über dieses Handbuch</h1>
+  <p>ModelViewer begann als Viewer für 3D-Modelle. Zwei seiner neueren Bereiche gehen über Modelle hinaus: Es zeigt die <b>Ergebnisse technischer Simulationen</b>, die anderswo berechnet wurden, und es <b>stellt Ihre eigenen Daten in 3D dar</b>. Dieses Handbuch behandelt beide ausführlich und zeigt, wie sie zusammenarbeiten. Die Anleitungslektionen (Hilfe &rarr; Anleitung, Lektionen 19 bis 25) führen Schritt für Schritt durch dasselbe Gebiet; dieses Handbuch ist das Nachschlagewerk, das Sie neben dem Programm geöffnet halten.</p>
+
+  <div class="callout"><span class="label">Was ModelViewer leistet und was nicht</span>
+    <p>ModelViewer <b>zeigt</b> die Ergebnisse an, die ein Solver geschrieben hat. Es vernetzt nicht, löst nicht und führt keine Simulationen aus, es bearbeitet keine Ergebnisse und hat keine Skript- oder Ausdruckssprache für die Nachbearbeitung. Seine Stärken sind die, die ein Viewer braucht: schnelle, korrekte Farben, Einheiten, Zeit, Schnitte und Sonden, der direkte Vergleich nebeneinander und die Präsentationswerkzeuge (Messen, Kommentieren, PDF-Bericht, Bildexport) des restlichen Programms.</p>
+  </div>
+
+  <h2>Für wen es gedacht ist</h2>
+  <p>Ingenieure, die die Ausgabe von Struktur-, Thermik- oder Strömungsanalysen (CalculiX, Code_Aster, Elmer, FreeCAD FEM, OpenFOAM, MOOSE und ähnliche offene Solver) lesen und prüfen, vergleichen und präsentieren möchten; und alle, die Zahlentabellen haben - Messungen, Simulationsexporte, mathematische Funktionen - und diese als Flächen, Kurven, Punkte, Balken, Volumen oder Vektorfelder neben einem 3D-Modell sehen möchten.</p>
+
+  <h2>Wie das Handbuch aufgebaut ist</h2>
+  <table class="compact">
+    <thead><tr><th style="width:26%">Teil</th><th>Inhalt</th></tr></thead>
+    <tbody>
+      <tr><td><b>I &ndash; Simulationsergebnisse</b></td><td>Ein Ergebnis öffnen, Felder und Farben, Einheiten, Verformung, Zeit, ins Innere eines Volumenkörpers schauen, Sonden und Diagramme, Vergleichen, Speichern und große Ergebnisse (Kapitel 1 bis 9).</td></tr>
+      <tr><td><b>II &ndash; 3D-Diagramme</b></td><td>Diagramme aus CSV-Dateien und aus Formeln, die Diagrammtypen, Strömung in der Zeit, Gestaltung und gemeinsame Achsen, Notizen, Bilder, Bearbeiten und Export (Kapitel 10 bis 17).</td></tr>
+      <tr><td><b>III &ndash; Zusammen</b></td><td>Ergebnisse und Diagramme auf einer Zeitachse sowie durchgespielte Arbeitsabläufe (Kapitel 18 und 19).</td></tr>
+      <tr><td><b>Anhänge</b></td><td>Katalog der Beispieldateien, eine Kurzreferenz, Meldungen und Fehlersuche, Glossar.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Konventionen</h2>
+  <ul>
+    <li>Menüpfade verwenden Pfeile: <span class="path">Datei &rarr; Öffnen...</span>. Namen von Steuerelementen, Registerkarten und Schaltflächen stehen <span class="ui">fett</span> und so, wie sie in der deutschen Oberfläche heißen.</li>
+    <li>Tasten sehen so aus: <kbd>Strg</kbd>+<kbd>O</kbd>. Dateinamen und Spaltennamen stehen in <code>Festbreitenschrift</code>.</li>
+    <li>Kästen mit <b>Hinweis</b> liefern Hintergrund, <b>Tipp</b> eine Abkürzung oder gute Gewohnheit, <b>Achtung</b> etwas, das überrascht, oder eine Grenze des Programms.</li>
+    <li>Alle hier genannten Beispieldateien werden mit ModelViewer im Ordner <code>sample-models</code> ausgeliefert (<code>Simulation</code> und <code>Plot3D</code>); Anhang A listet sie auf. Die Bilder wurden mit der englischen Oberfläche aufgenommen.</li>
+  </ul>
+
+  <div class="callout tip"><span class="label">Tipp</span>
+    <p>Alles hier steht auch im Programm: <b>Hilfe &rarr; Neuerungen...</b> gibt einen Überblick über die Version 2026.11, <b>Hilfe &rarr; Schnellhilfe</b> hat Registerkarten für Simulationsergebnisse, 3D-Diagramme und Analyse, und beim Überfahren eines Steuerelements erscheint eine kurze Erklärung.</p>
+  </div>
+</section>
+
+<!--TOC-->

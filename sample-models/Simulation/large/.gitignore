@@ -1,0 +1,5 @@
+# Large result files are generated locally (see README.txt); only the README and the generator are tracked.
+*
+!.gitignore
+!README.txt
+!make_large_samples.py

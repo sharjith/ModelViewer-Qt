@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lezione 26: Strumenti per mesh - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primi passi</a>
+            <a href="lesson02.html">2. Aprire i modelli</a>
+            <a href="lesson03.html">3. Navigazione di base</a>
+            <a href="lesson04.html">4. Selezionare gli oggetti</a>
+            <a href="lesson05.html">5. Modalità di visualizzazione</a>
+            <a href="lesson06.html">6. Modalità fotocamera</a>
+            <a href="lesson07.html">7. Modalità di display</a>
+            <a href="lesson08.html">8. Manipolare gli oggetti</a>
+            <a href="lesson09.html">9. Materiali e texture</a>
+            <a href="lesson10.html">10. Illuminazione e ambiente</a>
+            <a href="lesson11.html">11. Lavorare con la visibilità</a>
+            <a href="lesson12.html">12. Funzioni avanzate</a>
+            <a href="lesson13.html">13. Ottimizzazione delle prestazioni</a>
+            <a href="lesson14.html">14. Suggerimenti e flussi di lavoro</a>
+            <a href="lesson15.html">15. Viste esplose</a>
+            <a href="lesson16.html">16. Animazione dei morph target</a>
+            <a href="lesson17.html">17. Modifica della trasformazione dei nodi</a>
+            <a href="lesson18.html">18. Rendering di bordi e wireframe</a>
+            <a href="lesson19.html">19. Risultati di simulazione</a>
+            <a href="lesson20.html">20. Guardare dentro un risultato</a>
+            <a href="lesson21.html">21. Grafici e sonde</a>
+            <a href="lesson22.html">22. Confrontare risultati, dati di cella e di guscio</a>
+            <a href="lesson23.html">23. Grafici 3D da dati CSV</a>
+            <a href="lesson24.html">24. Grafici 3D da formule, riempimenti, immagini e note</a>
+            <a href="lesson25.html">25. Grafici e risultati riprodotti insieme</a>
+            <a href="lesson26.html" class='active'>26. Strumenti per mesh</a>
+            <a href="lesson27.html">27. Misurare, annotare e riferire</a>
+            <a href="lesson28.html">28. Analisi, selezione e scene</a>
+            <a href="lesson29.html">29. Ray tracing in pratica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lezione 26 di 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 89.66%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lezione 26: Strumenti per mesh</h1>
+        </div>
+
+        <h2>Introduzione</h2>
+        <p>Non tutti i modelli arrivano puliti: le scansioni hanno fori e rumore, le esportazioni CAD hanno topologia danneggiata e a volte serve un guscio pulito attorno a più parti. ModelViewer ha un insieme di strumenti per mesh per questi compiti, basati sulla libreria di geometria CGAL. Questa lezione tratta Ripara mesh, Riempi fori, Suddividi superficie, Avvolgimento a contrazione e Ricostruisci superficie, poi le operazioni di unione e divisione nel menu contestuale.</p>
+        <div class="note note-info">
+            Ogni strumento della prima metà di questa lezione aggiunge il suo risultato come <b>nuova mesh</b> e lascia intatto l'originale, e l'intero passo è annullabile. Tutte e cinque le finestre condividono una casella, <b>Sostituisci il risultato precedente</b>, spuntata per impostazione predefinita: ogni clic su Genera elimina prima, in modo annullabile, il risultato del clic precedente, così si conserva al massimo un risultato per mesh di origine. Deseleziona la casella per lasciare che i risultati si accumulino affiancati.
+        </div>
+        <h2>Ripara mesh</h2>
+        <p><b>Strumenti → Ripara mesh...</b> fa passare ogni mesh dell'elenco di lavoro attraverso il kit di riparazione: geometria duplicata e degenere, vertici non-manifold, orientamento incoerente e autointersezioni. È solo una pulizia dei difetti: non riempie mai i fori e non forza la chiusura, quindi un pannello volutamente aperto resta aperto. Una mesh già valida viene saltata e non riceve un nuovo nodo.</p>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Aprire la mesh di prova danneggiata</div>
+            <div class="step-content">Apri <code>RepairMeshTest.obj</code>: una mesh costruita per contenere tutti i difetti trattati dalla riparazione, in tre regioni separate, a cominciare da un farfallino di due ventagli di triangoli che condividono solo un vertice.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Eseguire la riparazione</div>
+            <div class="step-content">Seleziona la mesh, apri <b>Strumenti → Ripara mesh...</b> e genera. L'etichetta di stato della finestra indica cosa è stato corretto. <b>Tentativi di risoluzione delle autointersezioni</b> imposta quanti cicli di levigatura e riempimento fori tentare, e <b>Prova anche la risoluzione basata su levigatura</b> aggiunge una strategia più lenta.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_repair_mesh.png" alt="tutorial_26_repair_mesh.png" title="Capture: Open RepairMeshTest.obj, Tools &gt; Repair Mesh..., Generate; capture the dialog (status text visible) and the viewport with the repaired mesh." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open RepairMeshTest.obj, Tools &gt; Repair Mesh..., Generate; capture the dialog (status text visible) and the viewport with the repaired mesh." style="display:none; width:700px; height:450px;">Schermata: tutorial_26_repair_mesh.png (700x450)</div>
+            <span class="screenshot-caption">La finestra Ripara mesh con la sua etichetta di stato, accanto al risultato riparato</span>
+        </div>
+
+        <h2>Riempi fori</h2>
+        <p><b>Strumenti → Riempi fori...</b> trova ogni anello di bordo delle mesh dell'elenco di lavoro e ti lascia decidere quali anelli sono veri difetti e quali un bordo volutamente aperto. Solo gli anelli spuntati vengono rattoppati.</p>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Aprire un cilindro aperto</div>
+            <div class="step-content">Apri <code>OpenCylinder.obj</code>, che ha un'estremità aperta, e avvia <b>Strumenti → Riempi fori...</b>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Scegliere gli anelli</div>
+            <div class="step-content">Fai clic su una riga dell'elenco dei fori rilevati: quell'anello viene evidenziato in arancione nella vista. Spunta quelli da rattoppare, imposta la <b>Densità della toppa</b> (quanto è fine la nuova triangolazione rispetto alla mesh circostante) e genera.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_fill_holes.png" alt="tutorial_26_fill_holes.png" title="Capture: Open OpenCylinder.obj, Tools &gt; Fill Holes..., click the detected loop in the list so it shows orange; capture dialog and viewport." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open OpenCylinder.obj, Tools &gt; Fill Holes..., click the detected loop in the list so it shows orange; capture dialog and viewport." style="display:none; width:700px; height:450px;">Schermata: tutorial_26_fill_holes.png (700x450)</div>
+            <span class="screenshot-caption">Un foro rilevato evidenziato in arancione prima di essere rattoppato</span>
+        </div>
+
+        <h2>Suddividi superficie</h2>
+        <p><b>Strumenti → Suddividi superficie...</b> leviga una mesh con suddivisione Loop o Catmull-Clark. Apri <code>TorusTestCoarse.obj</code>, un toro grossolano di soli 96 triangoli, e prova:</p>
+        <ul>
+            <li><b>Metodo</b>: Loop resta basato su triangoli; Catmull-Clark lavora internamente con quadrilateri e viene poi ritriangolato. Entrambi di solito appaiono ugualmente levigati.</li>
+            <li><b>Iterazioni</b>: ogni passo quadruplica circa il numero di triangoli, quindi 1 o 2 bastano per vedere l'effetto.</li>
+            <li><b>Mantieni gli spigoli vivi</b> (attivo per impostazione predefinita) mantiene infinitamente netto ogni spigolo piegato di 30 gradi o più: i tappi piatti di un cilindro e gli angoli di un blocco restano netti. Disattivalo per l'aspetto classico completamente levigato, in cui un cubo diventa una massa arrotondata.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_subdivide.png" alt="tutorial_26_subdivide.png" title="Capture: TorusTestCoarse.obj in Shaded with Edges mode before and after Subdivide Surface (Loop, 2 iterations); join the two captures side by side." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: TorusTestCoarse.obj in Shaded with Edges mode before and after Subdivide Surface (Loop, 2 iterations); join the two captures side by side." style="display:none; width:700px; height:350px;">Schermata: tutorial_26_subdivide.png (700x350)</div>
+            <span class="screenshot-caption">Il toro grossolano (a sinistra) e il suo risultato suddiviso e levigato (a destra)</span>
+        </div>
+
+        <h2>Avvolgimento a contrazione</h2>
+        <p><b>Strumenti → Avvolgimento a contrazione...</b> combina una o più mesh selezionate in un unico nuovo guscio <i>a tenuta stagna</i>, usando l'avvolgimento alfa. Gli input non devono condividere un materiale né essere manifold. <b>Alfa</b> e <b>Offset</b> impostano quanto aderisce il guscio e quanto si discosta; <b>Ripristina il valore suggerito</b> calcola valori iniziali sensati dal riquadro di delimitazione della selezione. La selezione originale resta intatta.</p>
+        <div class="note note-tip">
+            Provalo su alcune parti del carrello elevatore o dell'assieme dello skateboard: un guscio a contrazione è un sostituto pulito e chiuso di un assieme complicato, utile per la stampa 3D o come corpo di collisione semplificato.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_shrink_wrap.png" alt="tutorial_26_shrink_wrap.png" title="Capture: Select a few Forklift parts, Tools &gt; Shrink Wrap..., Generate; capture the wrapped shell next to the original (move the original aside or show wireframe)." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Select a few Forklift parts, Tools &gt; Shrink Wrap..., Generate; capture the wrapped shell next to the original (move the original aside or show wireframe)." style="display:none; width:700px; height:420px;">Schermata: tutorial_26_shrink_wrap.png (700x420)</div>
+            <span class="screenshot-caption">Un guscio a contrazione attorno a più parti, accanto all&#x27;originale</span>
+        </div>
+
+        <h2>Ricostruisci superficie</h2>
+        <p><b>Strumenti → Ricostruisci superficie...</b> costruisce una nuova superficie triangolata dalle <i>posizioni dei punti</i> delle mesh o nuvole di punti selezionate; le facce esistenti vengono ignorate. <b>Nitidezza</b> bilancia levigatezza e spigoli vivi, <b>Tolleranza di bordo</b> imposta quanto grande può essere un vuoto che la ricostruzione può colmare e <b>Semplifica la nuvola di punti prima della ricostruzione</b> mostra una <b>Spaziatura obiettivo</b> che fonde prima i punti più vicini: più veloce su scansioni grandi o rumorose, a scapito del dettaglio fine.</p>
+        <h2>Unire, dividere e raggruppare (menu contestuale)</h2>
+        <p>Con le mesh selezionate, il menu contestuale nell'albero o nella vista offre queste operazioni. Tutte aggiungono nuovi nodi mesh e rimuovono gli originali, e tutte sono annullabili tranne Seleziona genitore.</p>
+        <table>
+            <thead><tr><th>Operazione</th><th>Cosa fa</th></tr></thead>
+            <tbody>
+            <tr><td>Dividi per connettività</td><td>Divide ogni mesh selezionata nei suoi pezzi disconnessi, una nuova mesh per pezzo; una mesh che è già un unico pezzo viene lasciata com'è.</td></tr>
+            <tr><td>Unisci per adiacenza</td><td>Raggruppa la selezione in cluster che si toccano (per posizione di vertice condivisa) e unisce ogni cluster in una mesh; le mesh che non toccano nulla vengono lasciate com'erano.</td></tr>
+            <tr><td>Unisci selezione</td><td>Combina l'intera selezione in una nuova mesh per semplice concatenazione, si tocchino o no.</td></tr>
+            <tr><td>Unione di mesh</td><td>Tenta una vera unione booleana della geometria riparata; se la riparazione o il passo booleano falliscono, ricade sulla semplice concatenazione, come Unisci selezione.</td></tr>
+            <tr><td>Raggruppa</td><td>Riorganizza solo l'albero della scena: crea un nodo gruppo e vi sposta le mesh selezionate. La geometria non cambia.</td></tr>
+            <tr><td>Seleziona genitore</td><td>Seleziona il genitore nell'albero dell'elemento su cui hai fatto clic destro: solo navigazione.</td></tr>
+            </tbody>
+        </table>
+        <div class="note note-info">
+            Quando un gruppo o una selezione che si toccano ha più di un materiale, Unisci per adiacenza, Unisci selezione e Unione di mesh chiedono: <b>Mantieni separati i materiali</b> esegue un'unione per materiale, <b>Unisci comunque</b> combina tutto e usa il materiale della prima mesh.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_context_menu.png" alt="tutorial_26_context_menu.png" title="Capture: Select two or more meshes in the Scene Tree, right-click one of them and capture the open menu with Split by Connectivity, Merge by Adjacency, Merge Selected, Mesh Union, Group and Select Parent visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Select two or more meshes in the Scene Tree, right-click one of them and capture the open menu with Split by Connectivity, Merge by Adjacency, Merge Selected, Mesh Union, Group and Select Parent visible." style="display:none; width:500px; height:420px;">Schermata: tutorial_26_context_menu.png (500x420)</div>
+            <span class="screenshot-caption">Le operazioni sulle mesh nel menu contestuale</span>
+        </div>
+
+
+        <div class="lesson-navigation">
+            <a href='lesson25.html' class='nav-button'>← Lezione precedente</a>
+            <a href="index.html" class="back-to-index">↑ Torna all'indice</a>
+            <a href='lesson27.html' class='nav-button'>Lezione successiva →</a>
+        </div>
+    </div>
+</body>
+</html>

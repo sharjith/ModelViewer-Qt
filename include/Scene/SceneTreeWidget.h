@@ -1,0 +1,521 @@
+#pragma once
+
+#include <QHash>
+#include <QList>
+#include <QPalette>
+#include <QSet>
+#include <QString>
+#include <QTimer>
+#include <QTreeWidget>
+#include <QUuid>
+#include <vector>
+
+#include "SceneNode.h"
+
+class SceneGraph;
+class ViewportWidget;
+
+// ---------------------------------------------------------------------------
+// SceneTreeWidget
+//
+// A QTreeWidget that mirrors the SceneGraph hierarchy.  Replaces the old
+// flat ModelObjectList (QListWidget).
+//
+// Node types shown (icons from Qt resources):
+//   document-root.png  Synthetic file-level node (one per imported file)
+//   assembly.png       Assembly node (has child SceneNodes)
+//   mesh.png           Mesh leaf (one per SceneMesh UUID in a SceneNode)
+//
+// Assembly / file items carry tri-state check boxes that control all leaves
+// beneath them.  Clicking an assembly item selects all mesh leaves below it.
+// Empty assembly nodes (all children deleted) are hidden from the tree but
+// kept alive in SceneGraph so undo can restore them without reconstruction.
+//
+// Thread safety: all public methods must be called from the UI thread.
+// ---------------------------------------------------------------------------
+class SceneTreeWidget : public QTreeWidget
+{
+    Q_OBJECT
+
+public:
+    // Data roles stored on QTreeWidgetItem instances
+    enum ItemDataRole
+    {
+        MeshUuidRole    = Qt::UserRole,       // QUuid  — valid only on mesh leaf items
+        IsLeafRole      = Qt::UserRole + 1,   // bool   — true if this is a mesh leaf
+        PureNameRole    = Qt::UserRole + 2,   // QString— plain mesh name for the editor
+        IsSyntheticRole = Qt::UserRole + 3,   // bool   — true on file-level (synthetic) nodes
+        NodeUuidRole    = Qt::UserRole + 4,   // QUuid  — nodeUuid for assembly/file items
+    };
+
+    explicit SceneTreeWidget(QWidget* parent = nullptr);
+
+    void setSceneGraph(SceneGraph* sg);
+    void setViewportWidget(ViewportWidget* viewportWidget);
+
+    // -----------------------------------------------------------------------
+    // Selection
+    // -----------------------------------------------------------------------
+
+    /** Returns UUIDs of all currently selected mesh-leaf items. */
+    QList<QUuid> selectedMeshUuids() const;
+
+    /** True if at least one mesh leaf is selected. */
+    bool hasMeshSelection() const;
+
+    /** Total number of mesh leaf items currently in the tree. */
+    int meshCount() const;
+
+    /**
+     * Set selection from a set of mesh-store indices (converted via ViewportWidget).
+     * Does NOT emit selectionUpdated().
+     */
+    void setSelectionByIndices(const QSet<int>& indices);
+
+    /**
+     * Set selection from a set of mesh UUIDs.
+     * Does NOT emit selectionUpdated().
+     */
+    void setSelectionByUuids(const QSet<QUuid>& uuids);
+
+    /** Returns mesh-store indices for all selected mesh leaves. */
+    std::vector<int> getSelectedIndices() const;
+
+    /** UUID of the current (last-clicked) item, or null if not a mesh leaf. */
+    QUuid currentMeshUuid() const;
+
+    /** Clear the selection without emitting selectionUpdated(). */
+    void clearMeshSelection();
+
+    // -----------------------------------------------------------------------
+    // Visibility (check state)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Update check states from the set of currently-visible mesh UUIDs.
+     * Does NOT emit meshVisibilityChanged().
+     */
+    void setVisibilityByUuids(const QSet<QUuid>& visibleUuids);
+
+    /**
+     * Update only the specified mesh leaves from the visible set, then refresh
+     * only the affected ancestor chain(s). Used for small selective edits.
+     * Does NOT emit meshVisibilityChanged().
+     */
+    void setVisibilityDelta(const QSet<QUuid>& changedUuids,
+                            const QSet<QUuid>& visibleUuids);
+
+    /** Returns UUIDs of all checked (visible) mesh leaves. */
+    QSet<QUuid> getVisibleUuids() const;
+
+    /** Returns mesh-store indices of all checked (visible) mesh leaves. */
+    std::vector<int> getVisibleIndices() const;
+
+    /** Count of checked (visible) mesh leaves. */
+    int visibleMeshCount() const;
+
+    // -----------------------------------------------------------------------
+    // Filter / search
+    // -----------------------------------------------------------------------
+
+    /**
+     * Filter the tree by item text (assembly + mesh names, with fuzzy fallback).
+     * Matching branches stay visible; if an assembly matches, its descendant
+     * mesh leaves become the effective selection. An empty filter restores all
+     * items.
+     * Emits selectionUpdated() after updating the selection.
+     */
+    void filterItems(const QString& filter);
+
+    // -----------------------------------------------------------------------
+    // Tree expand / collapse helpers (used by context menu)
+    // -----------------------------------------------------------------------
+
+    /** Expand item one level: shows direct children; grandchildren untouched. */
+    // (use the inherited QTreeWidget::expandItem() directly for this)
+
+    /**
+     * Expand item one level strictly: shows direct children but ensures
+     * those children are collapsed so their subtrees stay hidden.
+     * (Plain expandItem() shows previously-expanded grandchildren too.)
+     */
+    void expandOneLevel(QTreeWidgetItem* item);
+
+    /** Expand item AND all of its descendants recursively. */
+    void expandSubtree(QTreeWidgetItem* item);
+
+    /**
+     * Collapse one level: collapse each DIRECT CHILD of item so their
+     * contents are hidden, but item itself stays expanded (children remain
+     * visible and can be individually re-opened).  Deeper levels untouched.
+     */
+    void collapseOneLevel(QTreeWidgetItem* item);
+
+    /**
+     * Collapse all below: deeply collapse every descendant subtree so that
+     * re-opening any child shows it in a fully-collapsed state.  Item itself
+     * stays expanded so its direct children remain visible.
+     */
+    void collapseAllBelow(QTreeWidgetItem* item);
+
+    // -----------------------------------------------------------------------
+    // Misc
+    // -----------------------------------------------------------------------
+
+    /** Map a local widget position to global screen coordinates. */
+    QPoint mapMenuToGlobal(const QPoint& localPos) const;
+    bool isAssemblyAt(const QPoint& localPos) const;
+    bool hasChildrenAt(const QPoint& localPos) const;
+    void ensureAssemblySelectionAt(const QPoint& localPos);
+
+    // Return the SceneNode* for the item at localPos, or nullptr if the item
+    // is a mesh leaf or there is no item at that position.
+    const SceneNode* nodeAt(const QPoint& localPos) const;
+
+    // Return the SceneNode* for each selected non-leaf item (assembly / file).
+    // Top-level only — does not deduplicate against selected ancestors.
+    QList<const SceneNode*> selectedAssemblyNodes() const;
+
+    // Subset of selectedAssemblyNodes() the user actually clicked/targeted
+    // directly, excluding ones selected purely as a side effect of every one
+    // of their direct children being selected (refreshParentSelectionUpward()
+    // enforces "parent selected iff all direct children selected", so a
+    // multi-mesh assembly whose leaves were all individually selected ends
+    // up looking IDENTICAL, in the resulting tree selection, to that same
+    // assembly having been clicked directly - the two cases are only
+    // distinguishable at the moment of the interaction itself, tracked via
+    // _explicitlySelectedAssemblyUuids). Callers that need to tell "user
+    // wants to act on this assembly as a group" apart from "user selected
+    // all its meshes individually" (e.g. deciding whether Duplicate should
+    // fall back to its leaf-only flat-clone behavior) should use this
+    // instead of selectedAssemblyNodes().
+    QList<const SceneNode*> explicitlySelectedAssemblyNodes() const;
+
+    // Clear the current selection and select only the item at localPos.
+    // Blocks selectionUpdated so no downstream handlers fire.
+    // Used by the context menu to give single-item visual feedback.
+    void highlightSingleItemAt(const QPoint& localPos);
+
+    // Clears the current selection and selects the assembly/file item whose
+    // NodeUuidRole matches nodeUuid, cascading the selection down to every
+    // descendant mesh leaf exactly as if the user had clicked the item
+    // directly (same selectSearchMatch()/refreshSelectionClosureBottomUp()
+    // convention filterItems() uses, not a raw setSelected() + native-signal
+    // approach - the latter's outcome depends on whatever state
+    // _prevSelection happens to already be in). Used by
+    // ModelViewer::showContextMenu()'s "Select Parent" action. Returns false
+    // without changing anything if nodeUuid has no corresponding item in the
+    // tree (e.g. it's the invisible SceneGraph root, or a stale uuid).
+    bool selectNodeByUuid(const QUuid& nodeUuid);
+
+    void expandOneLevelAt(const QPoint& localPos);
+    void expandSubtreeAt(const QPoint& localPos);
+    void collapseAllBelowAt(const QPoint& localPos);
+    void scrollFirstSelectedToCenter();
+    void setDetachedOverlayMode(bool enabled);
+
+    // -----------------------------------------------------------------------
+    // Cut-mark styling
+    // -----------------------------------------------------------------------
+
+    /**
+     * Gray out the given mesh leaves and assembly nodes to signal a pending
+     * Cut.  Styling propagates down to all descendants of marked assemblies.
+     * Persists across tree rebuilds.
+     */
+    void markAsCut(const QSet<QUuid>& meshUuids, const QSet<QUuid>& nodeUuids);
+
+    /** Remove all cut-mark styling and clear the stored sets. */
+    void clearCutMarks();
+
+public slots:
+    /**
+     * Fully rebuild the tree from the current SceneGraph state.
+     * Automatically called when SceneGraph::structureChanged() fires.
+     * Preserves existing visibility and selection state where possible.
+     * Assembly nodes whose entire subtree has been deleted are hidden.
+     */
+    void rebuild();
+
+    /**
+     * Update the display name of a single mesh leaf without triggering a
+     * full rebuild.  Used by RenameMeshCommand redo/undo to apply or
+     * revert a rename efficiently.
+     */
+    void updateMeshName(const QUuid& uuid, const QString& name);
+
+signals:
+    /** Emitted when the user changes the selection (not programmatic). */
+    void selectionUpdated();
+
+    /** Emitted when any leaf check-state (visibility) changes. */
+    void meshVisibilityChanged();
+
+    /** Emitted when a mesh leaf is successfully renamed by the user. */
+    void meshRenamed(const QUuid& uuid, const QString& newName);
+
+    /** Emitted when the asynchronous tree rebuild has fully completed. */
+    void rebuildComplete();
+
+protected:
+    void paintEvent(QPaintEvent* event) override;
+    void keyPressEvent(QKeyEvent* event) override;
+    // A press with no item under the cursor - OR one that lands in a row's ANCESTOR
+    // indentation gutter (the blank connector-line columns to the left of the item's own
+    // expand/collapse toggle - see isInAncestorIndentationGutter()) - OR one that lands past
+    // an item's own rendered content on the trailing/right side (see isPastItemContent(), the
+    // symmetric case: the column is sized to the widest sibling, so a short item's row still
+    // extends well past its own text) - is explicitly forwarded
+    // just ignore()'d - same overlay-passthrough rationale as wheelEvent() below (blank tree
+    // background/gutter is where the 3D viewport shows through visually), but plain
+    // event->ignore() does not reliably reach the viewport here: QTreeWidget/QAbstractItemView
+    // delivers mouse events to the outer widget via its internal scroll-area viewport's own
+    // forwarding path, not a fresh QApplication::notify() cycle on this widget, so Qt's usual
+    // ignored-event-propagates-to-parent mechanism (which DOES work for wheelEvent below) does
+    // not apply the same way here - confirmed empirically, not just by reading Qt's
+    // event-propagation source. The item's OWN expand/collapse toggle column is deliberately
+    // excluded from the gutter test, so clicking it still toggles that branch normally. Once a
+    // press starts forwarding, mouseMoveEvent()/mouseReleaseEvent() below keep forwarding the
+    // same gesture (_forwardingClickToViewport) regardless of where the cursor drifts, so a
+    // click-drag (orbit/pan) that starts in the gutter works too, not just a static click.
+    void mousePressEvent(QMouseEvent* event) override;
+    // Also forwards passive hover (no button held) over the same background territory, not just
+    // an active click-drag gesture - see the .cpp definition for the full rationale and a
+    // performance note.
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+    // Same background hit-test as mousePressEvent() - a double-click landing there reaches the
+    // viewport's own mouseDoubleClickEvent() instead of QAbstractItemView's default (which does
+    // effectively nothing for a click with no item hit).
+    void mouseDoubleClickEvent(QMouseEvent* event) override;
+    // Ignored (not scrolled) rather than accepted - the tree lives as a
+    // transparent overlay glued to the viewport (see
+    // ModelViewer::attachNavigationOverlay()), and an ignored wheel event
+    // propagates up to the viewport underneath instead, so scrolling over
+    // the tree still zooms the 3D view like scrolling anywhere else in it. Ctrl + wheel is the exception: it
+    // scrolls the tree (and is swallowed, never zooming).
+    void wheelEvent(QWheelEvent* event) override;
+
+    // Right-click (or the Menu key / other platform trigger) landing on the same "transparent
+    // overlay background" territory mousePressEvent() forwards - no item, the ancestor gutter,
+    // or past an item's own rendered content - is forwarded to _viewportWidget's own context
+    // menu instead of raising the tree's. This can't reuse the CustomContextMenu-policy signal
+    // path the rest of the tree's context menu uses (ModelViewer::showContextMenu(), wired to
+    // customContextMenuRequested()): with that policy QWidget::event() emits the signal itself
+    // for EVERY right-click in the widget's bounds before this class ever sees it, regardless of
+    // hit-test - there's no way to conditionally suppress one particular emission. Switching to
+    // Qt::DefaultContextMenu policy instead (see constructor) routes every request through this
+    // virtual first, where a hit-test can decide: on real content, manually emit
+    // customContextMenuRequested() to keep ModelViewer::showContextMenu() working exactly as
+    // before; on background, call _viewportWidget->showContextMenu() directly (a plain function
+    // call, made public on ViewportWidget for exactly this - not a re-synthesized QContextMenuEvent
+    // sent through the event system, nor a manually emitted signal: both were tried and proved
+    // unreliable in practice, likely interacting with in-flight mouse-gesture state a forwarded
+    // right-button press/release already left on the viewport via mousePressEvent()'s forwarding).
+    void contextMenuEvent(QContextMenuEvent* event) override;
+
+    // Watches the two scrollbars (installed on them in the constructor) for Enter/Leave to
+    // drive the hover-to-reveal "hovered" dynamic property the scrollbar stylesheet keys off of
+    // - see the constructor's setStyleSheet() call for why a dynamic property + [hovered="true"]
+    // selector, not a plain QSS :hover rule (that would only trigger over the tiny handle thumb
+    // itself, not the full scrollbar strip a user should be able to hover anywhere in). Also
+    // consumes wheel events that land on either scrollbar (after letting it scroll) so they are
+    // never relayed to the viewport once the scrollbar hits an extent.
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
+    // Position-mapped redelivery of `event` to _viewportWidget - see mousePressEvent()'s doc
+    // comment above for why this exists instead of relying on event->ignore() propagation.
+    void forwardToViewport(QMouseEvent* event);
+
+    // True when `pos` falls in `item`'s ANCESTOR indentation gutter - the blank connector-line
+    // columns to the left of item's own expand/collapse toggle, i.e. strictly left of
+    // visualRect(indexFromItem(item)).left() - indentation(). That boundary intentionally
+    // leaves item's own toggle column (one indentation() width, immediately before its content)
+    // out of the gutter, so this never claims a click meant to expand/collapse item itself -
+    // only genuinely decorative ancestor guide lines read as "click through to the viewport".
+    bool isInAncestorIndentationGutter(const QPoint& pos, QTreeWidgetItem* item) const;
+
+    // True when `pos` falls to the RIGHT of item's own rendered content (its checkbox/icon/text,
+    // as measured by the item delegate's natural sizeHint) but still within its row. The column
+    // is sized via ResizeToContents to fit the WIDEST visible sibling, so a short item's row rect
+    // (visualRect()/itemAt() hit area) still extends well past its own text all the way to that
+    // shared column width - blank space where the transparent overlay shows the 3D viewport
+    // through, same "click through to the viewport" territory as isInAncestorIndentationGutter()
+    // covers on the left, just on the trailing side instead.
+    bool isPastItemContent(const QPoint& pos, QTreeWidgetItem* item) const;
+
+    // Combines the three checks above (no item / ancestor gutter / past item content) into the
+    // single "is pos on the transparent overlay's background" test every pass-through call site
+    // (mousePressEvent(), mouseMoveEvent()'s hover forward, mouseDoubleClickEvent(),
+    // contextMenuEvent()) shares, so they can't quietly drift apart from each other.
+    bool isOnOverlayBackground(const QPoint& pos) const;
+
+private slots:
+    void onItemChanged(QTreeWidgetItem* item, int column);
+    void onItemSelectionChanged();
+
+    // Marks a non-leaf item's node UUID as explicitly selected the moment
+    // the user clicks it - QTreeWidget::itemClicked fires for ANY left-
+    // click landing on an item's row regardless of whether the click
+    // actually changed Qt's selection state, unlike
+    // onItemSelectionChanged()'s added/removed delta (which misses a click
+    // on an item that was already selected, e.g. one that got auto-selected
+    // by refreshParentSelectionUpward() because all its children happened
+    // to already be selected - clicking it directly afterward is a real,
+    // deliberate targeting that delta-based tracking alone can't see).
+    void onItemClicked(QTreeWidgetItem* item, int column);
+    void processRebuildBatch();
+
+private:
+    struct BuildTask
+    {
+        QTreeWidgetItem* parentItem = nullptr;
+        const SceneNode* node = nullptr;
+        bool forceItem = false;
+    };
+
+    // Recursive tree builder — skips nodes with no mesh descendants
+    void buildSubtree(QTreeWidgetItem* parentItem, const SceneNode* node);
+    void enqueueRebuildTasks(QTreeWidgetItem* parentItem,
+                             const SceneNode* node,
+                             bool forceItem = false);
+    void finalizeRebuild();
+
+    // Returns true if node has at least one mesh UUID anywhere in its subtree
+    bool nodeHasMeshes(const SceneNode* node) const;
+
+    // Item factories
+    QTreeWidgetItem* makeMeshLeaf(const QUuid& uuid);
+    QTreeWidgetItem* makeAssemblyItem(const SceneNode* node);
+
+    // Tri-state helpers
+    void propagateCheckDown(QTreeWidgetItem* item, Qt::CheckState state);
+    void refreshCheckUpward(QTreeWidgetItem* item);
+
+    // Enumerate all leaf items (DFS)
+    void collectLeaves(QTreeWidgetItem* subtree,
+                       QList<QTreeWidgetItem*>& out) const;
+    void collectAllLeaves(QList<QTreeWidgetItem*>& out) const;
+    void collectExpandedItems(QTreeWidgetItem* subtree,
+                              QList<QTreeWidgetItem*>& out) const;
+
+
+    void collectSubtreeItems(QTreeWidgetItem* subtree,
+        QList<QTreeWidgetItem*>& out) const;
+
+    // Internal helper: collapse item and all its descendants
+    void collapseSubtreeHelper(QTreeWidgetItem* item);
+
+    bool allDirectChildrenSelected(QTreeWidgetItem* parent) const;
+    void refreshParentSelectionUpward(QTreeWidgetItem* startParent);
+    void refreshSelectionClosureBottomUp(QTreeWidgetItem* item);
+
+    // Bulk assembly tristate + icon refresh (used after show/hide all)
+    void refreshAllAssemblyStates();
+    void refreshAssemblyBottomUp(QTreeWidgetItem* item);
+    Qt::CheckState aggregateChildCheckState(QTreeWidgetItem* item) const;
+
+    // Sync the item's icon to its current check-state
+    void updateItemIcon(QTreeWidgetItem* item);
+
+    // Levenshtein distance for fuzzy name matching
+    int levenshteinDistance(const QString& s1, const QString& s2) const;
+
+    // Search / filter helpers
+    QString itemSearchText(QTreeWidgetItem* item) const;
+    QString itemPathSearchText(QTreeWidgetItem* item) const;
+    QStringList searchTerms(const QString& text) const;
+    int textMatchRank(QTreeWidgetItem* item, const QString& lowerFilter) const;
+    int fuzzyThreshold(const QString& lowerFilter) const;
+    void showSubtree(QTreeWidgetItem* item);
+    void selectSearchMatch(QTreeWidgetItem* item);
+    void selectMatchesAtRank(QTreeWidgetItem* item,
+                             const QString& lowerFilter,
+                             int bestRank);
+    bool applySubstringFilter(QTreeWidgetItem* item,
+                              const QString& lowerFilter,
+                              bool ancestorMatched,
+                              bool& anyMatch,
+                              int& bestRank);
+    QTreeWidgetItem* findBestFuzzyMatch(QTreeWidgetItem* item,
+                                        const QString& lowerFilter,
+                                        int& bestScore) const;
+
+    SceneGraph* _sceneGraph = nullptr;
+    ViewportWidget*   _viewportWidget   = nullptr;
+
+    // True from a mousePressEvent() that started forwarding to _viewportWidget (no item under
+    // the cursor) until the matching mouseReleaseEvent() - keeps the whole gesture (a
+    // click-drag orbit/pan) forwarded even if the cursor crosses over an actual tree item
+    // mid-drag, instead of the target flip-flopping mid-gesture.
+    bool _forwardingClickToViewport = false;
+
+    // O(1) lookup from mesh UUID to its leaf QTreeWidgetItem
+    QHash<QUuid, QTreeWidgetItem*> _uuidToLeaf;
+    QTimer* _rebuildTimer = nullptr;
+    QList<BuildTask> _pendingBuildTasks;
+    QSet<QUuid> _pendingVisibleUuids;
+    QSet<QUuid> _pendingSelectedUuids;
+    QSet<QUuid> _pendingOldUuids;
+    bool _rebuildInProgress = false;
+
+    QPersistentModelIndex _pressIndex;
+    Qt::KeyboardModifiers _pressMods = Qt::NoModifier;
+    bool _pressWasSelected = false;
+    Qt::CheckState _pressCheckState = Qt::Unchecked;
+    bool _pressExpanded = false;
+    bool _pressValid = false;
+    QSet<QTreeWidgetItem*> _prevSelection;
+
+    // Node UUIDs of non-leaf items the user (or a caller acting deliberately
+    // on their behalf, e.g. "Select Parent") directly targeted, as opposed
+    // to ones that became selected only because refreshParentSelectionUpward()
+    // enforces "parent selected iff all direct children selected" - see
+    // explicitlySelectedAssemblyNodes()'s own doc comment for why this
+    // distinction can't be recovered from the resulting selection state
+    // alone. Set by onItemClicked() (fires on ANY click landing on an
+    // item's row, regardless of whether the click changed Qt's selection -
+    // onItemSelectionChanged()'s added/removed delta alone would miss a
+    // click on an already-selected item) and by ensureAssemblySelectionAt()/
+    // selectNodeByUuid() for their own equally-deliberate single target
+    // (both bypass onItemClicked, going through blockSignals instead).
+    // Pruned by onItemSelectionChanged() AFTER its own propagation
+    // (applySubtreeSelect/refreshParentSelectionUpward) has fully settled -
+    // not from the raw added/removed delta computed before propagation
+    // runs, since a parent can be auto-deselected (or selected) there as a
+    // side effect of a child's own click, entirely outside that delta. Also
+    // cleared wholesale by every OTHER programmatic (non-click) selection rewrite
+    // (rebuild(), setSelectionByUuids(), clearMeshSelection(),
+    // filterItems()) - none of those represent a deliberate single-assembly
+    // click, so any assembly they leave selected is always a fresh closure
+    // selection, never explicit. Stores UUIDs rather than QTreeWidgetItem*
+    // so a stale entry left behind by a tree rebuild is simply never matched
+    // by explicitlySelectedAssemblyNodes()'s filter, never a dangling
+    // pointer.
+    QSet<QUuid> _explicitlySelectedAssemblyUuids;
+
+    // Apply/clear cut-mark gray styling.  Called by markAsCut, clearCutMarks,
+    // and finalizeRebuild (to re-apply marks after a tree rebuild).
+    void applyCutMarkStyling();
+    void applyCutStyleRecursive(QTreeWidgetItem* item, bool isCut);
+
+    QSet<QUuid> _cutMeshUuids;  // mesh UUIDs currently marked as cut
+    QSet<QUuid> _cutNodeUuids;  // assembly nodeUuids currently marked as cut
+
+    bool _updatingTree = false; // suppress re-entrant signal handling
+    bool _inRename     = false; // suppress itemChanged during delegate setModelData
+    bool _detachedOverlayMode = false;
+    bool _savedAutoFillBackground = false;
+    bool _savedViewportAutoFillBackground = false;
+    QPalette _savedTreePalette;
+    QPalette _savedViewportPalette;
+    QString _savedStyleSheet;
+    QFrame::Shape _savedFrameShape = QFrame::StyledPanel;
+    // Alpha 0, unlike the sibling detached-overlay panels (MaterialVariantsPanel/
+    // CamerasPanel/AnimationsPanel) that dynamically retint theirs by theme -
+    // this one is never updated after construction, so a nonzero default here
+    // would leave a fixed, theme-independent tint painted (via paintEvent()'s
+    // CompositionMode_Source fillRect) across the tree's dead space and even
+    // rows regardless of the tree's own QSS background-color.
+    QColor _detachedOverlayFillColor = QColor(255, 255, 255, 0);
+};

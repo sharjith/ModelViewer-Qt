@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leçon 18 : Rendu des arêtes et du fil de fer - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutoriel</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Premiers pas</a>
+            <a href="lesson02.html">2. Ouvrir des modèles</a>
+            <a href="lesson03.html">3. Navigation de base</a>
+            <a href="lesson04.html">4. Sélectionner des objets</a>
+            <a href="lesson05.html">5. Modes d'affichage</a>
+            <a href="lesson06.html">6. Modes de caméra</a>
+            <a href="lesson07.html">7. Modes d'affichage des objets</a>
+            <a href="lesson08.html">8. Manipuler des objets</a>
+            <a href="lesson09.html">9. Matériaux et textures</a>
+            <a href="lesson10.html">10. Éclairage et environnement</a>
+            <a href="lesson11.html">11. Travailler avec la visibilité</a>
+            <a href="lesson12.html">12. Fonctions avancées</a>
+            <a href="lesson13.html">13. Optimisation des performances</a>
+            <a href="lesson14.html">14. Conseils et flux de travail</a>
+            <a href="lesson15.html">15. Vues éclatées</a>
+            <a href="lesson16.html">16. Animation de morph targets</a>
+            <a href="lesson17.html">17. Édition de la transformation des nœuds</a>
+            <a href="lesson18.html" class='active'>18. Rendu des arêtes et du fil de fer</a>
+            <a href="lesson19.html">19. Résultats de simulation</a>
+            <a href="lesson20.html">20. Regarder à l'intérieur d'un résultat</a>
+            <a href="lesson21.html">21. Graphiques et sondes</a>
+            <a href="lesson22.html">22. Comparer des résultats, données de cellule et de coque</a>
+            <a href="lesson23.html">23. Graphiques 3D à partir de données CSV</a>
+            <a href="lesson24.html">24. Graphiques 3D à partir de formules, remplissages, images et notes</a>
+            <a href="lesson25.html">25. Graphiques et résultats lus ensemble</a>
+            <a href="lesson26.html">26. Outils de maillage</a>
+            <a href="lesson27.html">27. Mesurer, annoter et rapporter</a>
+            <a href="lesson28.html">28. Analyse, sélection et scènes</a>
+            <a href="lesson29.html">29. Lancer de rayons en pratique</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Leçon 18 sur 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 62.07%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Leçon 18 : Rendu des arêtes et du fil de fer</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Pour les formats CAO comme STEP, IGES et BREP, ModelViewer peut extraire et rendre de véritables arêtes B-Rep (représentation par frontières), les courbes nettes et précises qui définissent les faces d'un solide, séparément du maillage triangulé utilisé pour l'ombrage. Cela donne des lignes d'arête nettes qui restent exactes quelle que soit la densité de tessellation du maillage.</p>
+
+        <h2>Modes d'affichage avec arêtes</h2>
+        <p>Trois modes d'affichage montrent les arêtes (à régler depuis la barre d'outils/le menu des modes d'affichage, voir la leçon 7) :</p>
+        <ul>
+            <li><b>Fil de fer :</b> n'affiche que les véritables arêtes caractéristiques (arêtes de pli/de contour, ou arêtes B-Rep pour les formats CAO), les faces n'étant pas ombrées du tout.</li>
+            <li><b>Arêtes du maillage :</b> affiche des faces normalement ombrées avec <i>chaque</i> arête de triangle superposée, révélant toute la densité de tessellation sous-jacente.</li>
+            <li><b>Ombré avec arêtes :</b> affiche des faces normalement ombrées/éclairées avec seulement les véritables arêtes caractéristiques superposées : un rendu plus net que Arêtes du maillage car il omet les lignes denses par triangle.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_18_wireframe_mode.png" alt="Un modèle STEP en mode fil de fer avec des lignes d&#x27;arêtes B-Rep nettes et sans remplissage" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Capture d'écran: tutorial_18_wireframe_mode.png (700x450)</div>
+            <span class="screenshot-caption">Un modèle STEP en mode fil de fer avec des lignes d'arêtes B-Rep nettes et sans remplissage</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_18_mesh_edges_mode.png" alt="Le même modèle en mode Arêtes du maillage, avec des faces ombrées et chaque arête de triangle" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Capture d'écran: tutorial_18_mesh_edges_mode.png (700x450)</div>
+            <span class="screenshot-caption">Le même modèle en mode Arêtes du maillage, avec des faces ombrées et chaque arête de triangle</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_18_shaded_with_edges_mode.png" alt="Le même modèle en mode Ombré avec arêtes, combinant ombrage et arêtes caractéristiques nettes" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Capture d'écran: tutorial_18_shaded_with_edges_mode.png (700x450)</div>
+            <span class="screenshot-caption">Le même modèle en mode Ombré avec arêtes, combinant ombrage et arêtes caractéristiques nettes</span>
+        </div>
+
+        <div class="note note-info">
+            L'extraction de véritables arêtes B-Rep n'est disponible que pour les formats CAO (STEP, IGES, BREP) qui contiennent des données de représentation par frontières. Les formats de maillage seul comme OBJ, STL et glTF se rabattent sur des arêtes de silhouette aux limites des triangles.
+        </div>
+
+        <h2>Contrôler la qualité de tessellation</h2>
+        <p>La précision des arêtes et des faces pour les imports CAO est contrôlée par deux réglages de déflexion dans <b>Modifier → Paramètres → Import/Export</b> :</p>
+        <div class="step">
+            <div class="step-title">Déflexion linéaire</div>
+            <div class="step-content">Contrôle la distance maximale autorisée entre le maillage tessellé et la véritable surface CAO. Des valeurs plus basses produisent une géométrie plus lisse et plus précise au prix de davantage de triangles.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Déflexion angulaire</div>
+            <div class="step-content">Contrôle l'angle maximal autorisé entre des facettes de tessellation adjacentes. Des valeurs plus basses préservent mieux les surfaces courbes.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_18_deflection_settings.png" alt="Boîte de dialogue des paramètres avec les commandes de déflexion linéaire et angulaire" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:400px;">Capture d'écran: tutorial_18_deflection_settings.png (500x400)</div>
+            <span class="screenshot-caption">Boîte de dialogue des paramètres avec les commandes de déflexion linéaire et angulaire</span>
+        </div>
+
+        <div class="note note-warning">
+            Des valeurs de déflexion très basses produisent des maillages beaucoup plus denses et un chargement/rendu plus lent pour les assemblages CAO complexes : équilibrez la précision visuelle et les performances (voir la leçon 13).
+        </div>
+
+        <h2>Enregistrer les données d'arêtes</h2>
+        <p>Les arêtes B-Rep extraites sont mises en cache avec le maillage une fois calculées et sont conservées lors de l'enregistrement dans un fichier de session <b>.mvf</b> ; recharger une session enregistrée ne nécessite donc pas de réextraire les arêtes du fichier CAO d'origine.</p>
+
+        <p>Voilà qui termine le tutoriel de base. Les leçons 19 à 29 poursuivent avec les nouveautés de 2026.11 : résultats de simulation, graphiques de données 3D, outils de maillage, mesure et annotation, analyse, et lancer de rayons en pratique.</p>
+
+        <div class="lesson-navigation">
+            <a href='lesson17.html' class='nav-button'>← Leçon précédente</a>
+            <a href="index.html" class="back-to-index">↑ Retour à l'index</a>
+            <a href='lesson19.html' class='nav-button'>Leçon suivante →</a>
+        </div>
+    </div>
+</body>
+</html>

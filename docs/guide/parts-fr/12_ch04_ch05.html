@@ -1,0 +1,73 @@
+<h1 class="chapter">La forme déformée et les résultats modaux</h1>
+
+<h2>Afficher la déformation</h2>
+<p>Les résultats de structure contiennent un déplacement pour chaque nœud. Cochez <span class="ui">Afficher la forme déformée</span> et le modèle est dessiné déplacé par ce champ au lieu d'être au repos. Le déplacement est appliqué au moment du dessin ; la géométrie du fichier et les positions de repos ne sont pas modifiées, vous pouvez donc décocher l'option à tout moment.</p>
+<ul>
+  <li>Le <span class="ui">Facteur d'échelle</span> exagère le déplacement. Les flèches réelles sont généralement minuscules par rapport au modèle, un facteur bien supérieur à 1 est donc normal. Le bouton <span class="ui">Auto</span> choisit un facteur qui rend le mouvement nettement visible.</li>
+  <li>Le déplacement est appliqué dans l'unité de longueur propre au fichier ; le panneau nomme le champ utilisé. Un résultat sans champ de déplacement ne peut pas être affiché déformé, et le dit.</li>
+  <li>Tant que la forme déformée est affichée, tout ce qui suit la géométrie suit le maillage déplacé : la valeur au survol, les repères d'extrêmes, les coupes, les isosurfaces et les lignes de courant.</li>
+</ul>
+<figure data-img="tutorial_19_deformed_plate.png"><figcaption>Une plaque trouée sous charge : forme déformée affichée, minimum et maximum marqués</figcaption></figure>
+<div class="callout warn"><span class="label">Attention</span>
+  <p>L'image est volontairement exagérée. Pour juger de l'amplitude réelle du mouvement d'une pièce, lisez le facteur d'échelle et utilisez la valeur au survol ou un graphique pour les vraies valeurs de déplacement.</p>
+</div>
+
+<h2>Résultats modaux</h2>
+<p>Une analyse de fréquences produit des <b>formes propres</b>, pas des déplacements d'une taille physique : un mode dit seulement comment la structure se déplace par rapport à elle-même, et son amplitude est arbitraire. ModelViewer traite ces résultats (pas étiquetés <i>Mode 1</i>, <i>Mode 2</i> ... avec leurs fréquences en hertz) de manière particulière :</p>
+<ul>
+  <li>Chaque mode est dessiné avec son plus grand déplacement à un dixième de la taille du modèle, de sorte que chaque mode est visible sans tâtonner ; le <span class="ui">Facteur d'échelle</span> met cela à l'échelle (un facteur de 1 signifie un dixième de la taille du modèle).</li>
+  <li>Les pas sont les modes. La chronologie les parcourt et les lit l'un après l'autre ; l'étiquette indique la fréquence du mode.</li>
+  <li>L'axe x d'un graphique d'un résultat modal est la fréquence de chaque mode, ce qui permet à une courbe de réponse en fréquence de s'aligner sur les modes (chapitre 7).</li>
+</ul>
+<figure data-img="tutorial_19_modes.png"><figcaption>Deux modes de vibration de la boîte, dessinés déformés</figcaption></figure>
+
+<div class="callout"><span class="label">Remarque</span>
+  <p>À essayer : <code>FEM_box_modes.frd</code> (six modes) et <code>FEM_box_frequency_mode1.vtu</code> (le premier mode, tel que FreeCAD l'écrit). <code>FEM_box_static_stress.vtu</code> et <code>plate_with_hole.frd</code> conviennent pour la forme déformée ordinaire ; <code>plate_with_hole.frd</code> a quatre pas de charge.</p>
+</div>
+
+
+<h1 class="chapter">Le temps : pas et chronologie</h1>
+
+<h2>Ce qu'est un pas</h2>
+<p>Le mot <b>pas</b> recouvre trois choses différentes, et ModelViewer les traite de la même façon :</p>
+<ul>
+  <li><b>Pas et incréments de charge</b> d'une analyse de structure (par exemple 25 %, 50 %, 87,5 %, 100 % d'une charge) ;</li>
+  <li><b>Pas de temps</b> d'une analyse thermique ou d'écoulement transitoire (un cas OpenFOAM en a un par répertoire de temps) ;</li>
+  <li><b>Modes</b> d'une analyse de fréquences (chapitre 4).</li>
+</ul>
+<p>Un résultat à plus d'un pas affiche une <b>chronologie</b> en haut de la vue. Un résultat à un seul pas n'a pas de chronologie.</p>
+
+<h2>La chronologie</h2>
+<table class="compact">
+  <thead><tr><th style="width:28%">Commande</th><th>Utilisation</th></tr></thead>
+  <tbody>
+    <tr><td>Lecture / Pause</td><td>Lit les pas dans l'ordre à la vitesse choisie.</td></tr>
+    <tr><td>Pas précédent / suivant</td><td>Avance d'un pas.</td></tr>
+    <tr><td>Arrêt</td><td>Arrête et revient au premier pas.</td></tr>
+    <tr><td>Curseur</td><td>Saute à n'importe quel pas ; faites-le glisser pour parcourir le temps. L'étiquette indique le numéro du pas et son instant (ou la fréquence du mode).</td></tr>
+    <tr><td>Boucle</td><td>Recommence au premier pas à la fin.</td></tr>
+    <tr><td>Vitesse</td><td>Vitesse de lecture, de plus lente à plus rapide que le temps réel.</td></tr>
+    <tr><td>Épingler</td><td>La barre peut être déplacée à un autre endroit de la vue (un double-clic la réinitialise) ; l'épingle la verrouille là où elle se trouve.</td></tr>
+  </tbody>
+</table>
+<figure data-img="tutorial_19_timeline.png"><figcaption>La chronologie en haut de la vue pendant la lecture des pas de charge de la boîte</figcaption></figure>
+
+<h2>Les couleurs dans le temps</h2>
+<p>Par défaut, la plage de couleurs couvre <b>tous les pas</b> (chapitre 3) : une couleur signifie donc la même valeur dans chaque image et vous pouvez voir une contrainte se construire ou la chaleur pénétrer. Choisissez <span class="ui">Automatique (ce pas)</span> lorsque vous voulez que chaque pas utilise sa propre plage complète - par exemple pour voir la <i>forme</i> d'un mode - et <span class="ui">Personnalisé</span> pour fixer vous-même l'échelle.</p>
+
+<h2>Graphiques et temps</h2>
+<p>La chronologie et les graphiques temporels du chapitre 7 se pilotent mutuellement : un curseur orange dans un graphique marque le pas actuel, et cliquer ou faire glisser dans le graphique amène le résultat au pas le plus proche. Lorsqu'un résultat et un graphique 3D animé partagent une même barre de lecture (chapitre 18), la barre suit le temps physique.</p>
+
+<h2>Longs résultats transitoires</h2>
+<p>Un résultat avec de nombreux pas et de nombreuses cellules contient beaucoup de données. Les résultats dont les données de pas nécessiteraient plus de 256 Mo et qui ont plus d'un pas sont lus <b>paresseusement</b> : seuls quelques pas sont en mémoire à la fois et les autres sont lus dans le fichier lorsqu'ils sont affichés. L'ouverture est rapide et la mémoire reste stable, au prix d'une courte lecture chaque fois que l'on passe à un pas non résident et du premier parcours pour la plage de couleurs de tous les pas. Le chapitre 9 explique cela et ses conséquences.</p>
+
+<h3>Exemples</h3>
+<table class="compact">
+  <thead><tr><th style="width:36%">Fichier</th><th>Pas</th></tr></thead>
+  <tbody>
+    <tr><td><code>FEM_box_load_steps.frd</code></td><td>Quatre incréments d'une rampe de charge ; lisez-la pour voir la contrainte croître sur une échelle de couleurs fixe.</td></tr>
+    <tr><td><code>FEM_box_thermal_transient.frd</code></td><td>20 pas de temps sur 10 s : une face est maintenue à 100, le reste part de 20.</td></tr>
+    <tr><td><code>FEM_box_modes.frd</code></td><td>Les six premiers modes de vibration, étiquetés avec leurs fréquences.</td></tr>
+    <tr><td><code>openfoam_cavity/cavity.foam</code></td><td>Cinq répertoires de temps, de 0 à 2 s (valeurs synthétiques ; le cas sollicite le lecteur, l'affichage des données de cellule et les unités).</td></tr>
+  </tbody>
+</table>

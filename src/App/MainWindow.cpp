@@ -1,0 +1,3058 @@
+﻿
+#include <QApplication>
+#include <QCoreApplication>
+#include <QCursor>
+#include <QEventLoop>
+#include <QMessageBox>
+#include <QFileDialog>
+#include <QSettings>
+#include <QSignalBlocker>
+#include <QInputDialog>
+#include <QLineEdit>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+#include "ModelViewerApplication.h"
+#include "MainWindow.h"
+#include "StatusBalloon.h"
+#include "AboutDialog.h"
+#include "QuickHelpDialog.h"
+#include "WhatsNewDialog.h"
+#include "TutorialDialog.h"
+#include "Logger.h"
+#include "ui_MainWindow.h"
+#include "ModelViewer.h"
+#include "ThemeManager.h"
+#include "LanguageManager.h"
+#include "StartupSplash.h"
+#include "TextShrink.h"
+#include "ViewportWidget.h"
+#include "ToolsToolbar.h"
+#include <QtOpenGL>
+#include <QProgressBar>
+#include <QPushButton>
+#include <QUuid>
+#include <utility>
+
+#include "PathUtils.h"
+#include "ReportExportDialog.h"
+#include "BatchRenderViewsDialog.h"
+#include "MassPropertiesDialog.h"
+#include "RtRenderDialog.h"
+
+#include <QMdiArea>
+#include <QMdiSubWindow>
+#include <QDockWidget>
+#include <QAbstractScrollArea>
+#include <QBrush>
+#include <QLabel>
+#include <QCheckBox>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QTabWidget>
+#include <QSplitter>
+#include <QTabBar>
+#include <QSet>
+#include <QStyle>
+#include <QScrollArea>
+#include <QShortcut>
+#include <QPointer>
+#include "MaterialPropertiesPanel.h"
+#include "ObjectTransformPanel.h"
+#include "VisualizationEnvironmentPanel.h"
+#include "Plot3DPanel.h"
+#include "Plot3DControlsPanel.h"
+#include "MaterialPreviewWidget.h"
+#include "MaterialVariantsPanel.h"
+#include "AnimationsPanel.h"
+#include "CamerasPanel.h"
+#include "SelectionSetsPanel.h"
+#include "SceneStatesPanel.h"
+#include "SimulationPanel.h"
+
+#if defined _WIN32 && QT_VERSION_MAJOR == 5
+#include <QWinTaskbarProgress>
+#include <QWinTaskbarButton>
+#endif
+
+int MainWindow::_viewerCount = 1;
+MainWindow* MainWindow::_mainWindow = nullptr;
+QuickHelpDialog* MainWindow::_helpDialog = nullptr;
+WhatsNewDialog* MainWindow::_whatsNewDialog = nullptr;
+bool MainWindow::_fileLoadCancelRequested = false;
+
+MainWindow::MainWindow(QWidget* parent)
+	: QMainWindow(parent)
+{
+	ui = new Ui::MainWindow();
+	ui->setupUi(this);
+    setupViewMenus();
+
+	// Explicit, rather than relying purely on Windows extracting the icon from the exe's embedded
+	// .rc resource ("A", res/ModelViewer.ico - same file, bundled into the qrc under this path
+	// specifically for this) as it did previously. That static, startup-time extraction looked
+	// fine initially, but Windows can later re-query the LIVE window's icon via WM_GETICON - e.g.
+	// after resuming from screen lock/idle, a display/DPI reconfiguration, or an Explorer restart -
+	// and a QWidget that never had setWindowIcon() called has nothing to answer with, so Windows
+	// falls back to its own generic default EXE icon in the taskbar. Setting it explicitly here
+	// means Qt always has a real icon on hand regardless of when/why it gets re-queried.
+	setWindowIcon(QIcon(":/icons/res/ModelViewer.ico"));
+
+	// Set the application theme based on user settings - deliberately done
+	// here, before any dock/panel below is constructed (rather than its
+	// original spot much later in this constructor). Those panels are now
+	// single shared instances built directly in this constructor (see the
+	// "Properties dock" comment below) rather than per-document, unlike
+	// ModelViewer's own widgets (e.g. its Scene Tree search box), which are
+	// only ever constructed later via main.cpp's createMdiChild() - i.e.
+	// always after this whole constructor, and thus always after the theme
+	// is applied. A shared panel built before setTheme() forces
+	// qApp->setStyle(QStyleFactory::create("Fusion")) constructs any native
+	// controls with private, style-dependent sub-widgets (confirmed via
+	// investigation: QLineEdit's built-in clear button specifically) against
+	// the pre-Fusion default style, and they don't necessarily repaint
+	// correctly once the style is swapped out from under them afterward -
+	// exactly the "MaterialPropertiesPanel's search box clear icon never
+	// appears, the per-document Scene Tree one does" symptom that traced
+	// back to this ordering difference.
+	QSettings themeSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	int themeSettingValue = themeSettings.value("comboBoxTheme", 0).toInt();
+
+	StartupSplash::report(tr("Applying theme..."), 20);
+	ThemeManager* themeManager = new ThemeManager(this);
+	themeManager->setTheme(static_cast<ThemeManager::Theme>(themeSettingValue));
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+	connect(qApp->styleHints(), &QStyleHints::colorSchemeChanged,
+			themeManager, [themeManager](Qt::ColorScheme scheme) {
+		themeManager->applyThemeForColorScheme(scheme == Qt::ColorScheme::Dark);
+	});
+#else
+	// Use polling timer fallback for older Qt versions
+	QTimer* themeCheckTimer = new QTimer(qApp);
+	connect(themeCheckTimer, &QTimer::timeout, [themeManager]() {
+		static bool lastDarkMode = themeManager->isSystemInDarkMode();
+		bool currentDarkMode = themeManager->isSystemInDarkMode();
+
+		if (currentDarkMode != lastDarkMode) {
+			themeManager->applyThemeForColorScheme(currentDarkMode);
+			lastDarkMode = currentDarkMode;
+		}
+	});
+	themeCheckTimer->start(1000);
+#endif
+
+	StartupSplash::report(tr("Creating panels and docks..."), 30);
+
+	// Documents live in a native QMdiArea (tabbed, with tiling/cascading/
+	// restoring and most-recently-used Next/Previous via
+	// ActivationHistoryOrder, all built in) - built programmatically here
+	// rather than via the .ui file, matching this constructor's existing
+	// style for everything below. Most properties mirror the pre-Qt-ADS
+	// .ui definition of this widget (viewMode is the one deliberate
+	// departure - see below).
+	{
+		_mdiArea = new QMdiArea();
+		_mdiArea->setAutoFillBackground(false);
+		_mdiArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+		_mdiArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+		_mdiArea->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
+		_mdiArea->setBackground(QBrush(QColor(35, 35, 35)));
+		_mdiArea->setActivationOrder(QMdiArea::ActivationHistoryOrder);
+		// TabbedView, not the pre-Qt-ADS default of SubWindowView - gives a
+		// real tab bar across the top of the document area. tileSubWindows()/
+		// cascadeSubWindows() (see on_actionTile*/on_actionCascade_triggered())
+		// still work in this mode - confirmed via Qt's own source
+		// (qmdiarea.cpp): neither function nor the QMdiAreaPrivate::rearrange()
+		// they both funnel through checks viewMode at all.
+		_mdiArea->setViewMode(QMdiArea::TabbedView);
+		// Document mode for a cleaner/flatter tab bar, closable (per-tab close
+		// button, handled internally by QMdiArea - closes the underlying
+		// QMdiSubWindow the same as the existing Close action) and movable
+		// (drag-to-reorder) tabs, and North to match every other tab widget
+		// in this app (_documentTabWidget/_propertiesTabWidget above).
+		_mdiArea->setDocumentMode(true);
+		_mdiArea->setTabsClosable(true);
+		_mdiArea->setTabsMovable(true);
+		_mdiArea->setTabPosition(QTabWidget::North);
+
+		// _rightPanelWindow hosts the Document/Properties/Environment docks (added further below) instead of this
+		// outer MainWindow - see _rightPanelWindow's own doc comment (header) for why. Qt::Widget clears the Window
+		// flag QMainWindow's constructor sets unconditionally, regardless of parent - without it, this would try to
+		// render as a second top-level window instead of embedding into _rightPanelSplitter below.
+		_rightPanelWindow = new QMainWindow();
+		_rightPanelWindow->setWindowFlags(Qt::Widget);
+
+		_rightPanelSplitter = new QSplitter(Qt::Horizontal);
+		// Default true, kept explicit: this is the whole point of routing the dock column through a splitter pane
+		// instead of relying on QMainWindow's own (non-collapsible) dock-area resize - see the header comment.
+		_rightPanelSplitter->setChildrenCollapsible(true);
+		_rightPanelSplitter->addWidget(_mdiArea);
+		_rightPanelSplitter->addWidget(_rightPanelWindow);
+		// The viewport is what should absorb extra space on a window resize; the panel column keeps whatever width
+		// the user last dragged it to (restoreState() below overrides this on every run after the first).
+		_rightPanelSplitter->setStretchFactor(0, 1);
+		_rightPanelSplitter->setStretchFactor(1, 0);
+		_rightPanelSplitter->setSizes({ 1000, 320 });
+		setCentralWidget(_rightPanelSplitter);
+
+		// Single activation source, unlike Qt-ADS's multi-area document
+		// splitting - one connection covers every document-switch case.
+		connect(_mdiArea, &QMdiArea::subWindowActivated, this, &MainWindow::handleActiveDocumentChanged);
+
+		// --- Document dock: Variants + Animations + Cameras sub-tabs, single
+		// shared instances - used to be built on demand inside each
+		// document's own navigation area (_innerTabWidget), duplicated per
+		// MDI child, and only shown when that document's model actually had
+		// the relevant data. All three tabs stay visible always now (dimmed
+		// via setDocumentTabDimmed() when the active document has none of
+		// that data) rather than appearing/disappearing, since this dock is
+		// a permanent MainWindow fixture rather than something built fresh
+		// per document.
+		_documentTabWidget = new QTabWidget();
+		_documentTabWidget->setTabPosition(QTabWidget::North);
+		_documentTabWidget->setTabShape(QTabWidget::Rounded);
+		_documentTabWidget->setIconSize(QSize(32, 32));
+		_documentTabWidget->setDocumentMode(false);
+		_documentTabWidget->setMovable(true);
+
+		_materialVariantsPanel = new MaterialVariantsPanel();
+		_documentTabWidget->addTab(_materialVariantsPanel, QIcon(":/icons/res/material_variants.png"), tr("Variants"));
+
+		_animationsPanel = new AnimationsPanel();
+		_documentTabWidget->addTab(_animationsPanel, QIcon(":/icons/res/animations.png"), tr("Animations"));
+
+		_camerasPanel = new CamerasPanel();
+		_documentTabWidget->addTab(_camerasPanel, QIcon(":/icons/res/camera.png"), tr("Cameras"));
+
+		// Second, independently-tabbed group stacked below the one above (see
+		// documentTabSplitter further down) - saved configurations (Selections/
+		// States) rather than live document content (Variants/Animations/
+		// Cameras). A 4th/5th tab on _documentTabWidget was the original
+		// design, but five tabs at 32px icons didn't fit one row (forcing
+		// scroll arrows - see the screenshot this layout replaced), and with
+		// only one tab's content visible at a time, most of the dock's
+		// vertical height went unused whenever the active tab's content (e.g.
+		// an empty States list) didn't need it. Two independently-sized,
+		// always-visible regions use that space instead of hiding one group
+		// behind tab-switching.
+		_documentSecondaryTabWidget = new QTabWidget();
+		_documentSecondaryTabWidget->setTabPosition(QTabWidget::North);
+		_documentSecondaryTabWidget->setTabShape(QTabWidget::Rounded);
+		_documentSecondaryTabWidget->setIconSize(QSize(32, 32));
+		_documentSecondaryTabWidget->setDocumentMode(false);
+		_documentSecondaryTabWidget->setMovable(true);
+
+		_selectionSetsPanel = new SelectionSetsPanel();
+		_documentSecondaryTabWidget->addTab(_selectionSetsPanel, QIcon(":/icons/res/select.png"), tr("Selections"));
+
+		_sceneStatesPanel = new SceneStatesPanel();
+		_documentSecondaryTabWidget->addTab(_sceneStatesPanel, QIcon(":/icons/res/save_scene_state.png"), tr("States"));
+
+		// Simulation results: field/range/colormap/contour controls for the active document's result, plus an
+		// "Open Result..." button (see docs/simulation_results_design.md section 9). Its signals go to whichever
+		// document is active, like the toolbar/menu actions do.
+		_simulationPanel = new SimulationPanel();
+		_documentSecondaryTabWidget->addTab(_simulationPanel, QIcon(":/icons/res/surface_analysis.png"), tr("Simulation Results"));
+		connect(_simulationPanel, &SimulationPanel::openRequested, this, [this]() {
+			if (auto* child = activeMdiChild())
+				child->openSimulationResult();
+		});
+		connect(_simulationPanel, &SimulationPanel::resultActivated, this, [this](const QUuid& uuid) {
+			if (auto* child = activeMdiChild())
+				child->activateSimulationResult(uuid);
+		});
+		connect(_simulationPanel, &SimulationPanel::resultVisibilityChanged, this, [this](const QUuid& uuid, bool visible) {
+			if (auto* child = activeMdiChild())
+				child->setSimulationResultVisible(uuid, visible);
+		});
+		connect(_simulationPanel, &SimulationPanel::compareStartRequested, this, [this](const QUuid& uuid, bool stacked, bool shared) {
+			if (auto* child = activeMdiChild())
+				child->startSimulationCompare(uuid, stacked, shared);
+		});
+		connect(_simulationPanel, &SimulationPanel::compareStopRequested, this, [this]() {
+			if (auto* child = activeMdiChild())
+				child->stopSimulationCompare();
+		});
+		connect(_simulationPanel, &SimulationPanel::compareOptionsChanged, this, [this](bool stacked, bool shared) {
+			if (auto* child = activeMdiChild())
+				child->setSimulationCompareOptions(stacked, shared);
+		});
+		connect(_simulationPanel, &SimulationPanel::resultCloseRequested, this, [this](const QUuid& uuid) {
+			if (auto* child = activeMdiChild())
+				child->closeSimulationResult(uuid);
+		});
+		connect(_simulationPanel, &SimulationPanel::viewStateChanged, this, [this](const SimulationViewState& state) {
+			if (auto* child = activeMdiChild())
+				child->applySimulationViewState(state);
+		});
+		connect(_simulationPanel, &SimulationPanel::lengthUnitChanged, this, [this](const QString& unit) {
+			if (auto* child = activeMdiChild())
+				child->applySimulationLengthUnit(unit);
+		});
+		connect(_simulationPanel, &SimulationPanel::unitsChanged, this,
+			[this](int fieldIndex, const QString& kindId, const QString& fileUnit, const QString& displayUnit) {
+				if (auto* child = activeMdiChild())
+					child->applySimulationUnits(fieldIndex, kindId, fileUnit, displayUnit);
+			});
+		connect(_simulationPanel, &SimulationPanel::plotOverTimeRequested, this, [this]() {
+			if (auto* child = activeMdiChild())
+				child->requestSimulationPlotOverTime();
+		});
+		connect(_simulationPanel, &SimulationPanel::plotOverLineRequested, this, [this]() {
+			if (auto* child = activeMdiChild())
+				child->requestSimulationPlotOverLine();
+		});
+		connect(_simulationPanel, &SimulationPanel::histogramRequested, this, [this]() {
+			if (auto* child = activeMdiChild())
+				child->requestSimulationHistogram();
+		});
+
+		// Persistent controls for plots after the roomy import dialog has closed. This shared panel is rebound to
+		// the active document in rebindSharedPanelsTo(), matching the Simulation tab immediately beside it.
+		_plot3DControlsPanel = new Plot3DControlsPanel();
+		_documentSecondaryTabWidget->addTab(_plot3DControlsPanel, QIcon(":/icons/res/plot3d.png"), tr("3D Plot"));
+		connect(_plot3DControlsPanel, &Plot3DControlsPanel::addPlotRequested,
+			this, &MainWindow::showAdd3DPlotDialog);
+		connect(_plot3DControlsPanel, &Plot3DControlsPanel::editPlotRequested, this, [this](const QUuid& meshUuid) {
+			ModelViewer* child = activeMdiChild();
+			if (!child)
+				return;
+			Plot3DPanel* panel = child->findChild<Plot3DPanel*>(QString(), Qt::FindDirectChildrenOnly);
+			if (!panel)
+				panel = new Plot3DPanel(child, child);
+			panel->loadPlotForEditing(meshUuid);
+			panel->show();
+			panel->raise();
+			panel->activateWindow();
+		});
+
+		// Auto Fit View / Selection Highlighting: moved here from the
+		// per-document nav overlay, above the Variants/Animations/Cameras
+		// tabs - single shared instances rebound to whichever document is
+		// active (see rebindSharedPanelsTo()), matching every other panel
+		// in this dock instead of being duplicated per document.
+		_checkBoxAutoFitView = new QCheckBox(tr("Auto Fit View On Hide/Show"));
+		_checkBoxAutoFitView->setToolTip(tr("Auto Fit View On Hide/Show"));
+		_checkBoxSelectionHighlight = new QCheckBox(tr("Selection Highlighting"));
+		_checkBoxSelectionHighlight->setToolTip(tr("Selection Highlighting in Viewer"));
+		connect(_checkBoxAutoFitView, &QCheckBox::toggled, this, [this](bool checked) {
+			if (ModelViewer* child = activeMdiChild())
+				child->getViewportWidget()->setAutoFitViewOnUpdate(checked);
+		});
+		connect(_checkBoxSelectionHighlight, &QCheckBox::toggled, this, [this](bool checked) {
+			if (ModelViewer* child = activeMdiChild())
+				child->getViewportWidget()->setSelectionHighlighting(checked);
+		});
+		auto* documentControlsRow = new QWidget();
+		auto* documentControlsLayout = new QHBoxLayout(documentControlsRow);
+		documentControlsLayout->setContentsMargins(4, 4, 4, 4);
+		documentControlsLayout->addWidget(_checkBoxAutoFitView);
+		documentControlsLayout->addWidget(_checkBoxSelectionHighlight);
+		documentControlsLayout->addStretch(1);
+
+		// Vertical splitter, not a fixed ratio - lets the user reclaim space
+		// for whichever group they're using more (e.g. widen Selections/States
+		// while pruning a long list), with the split remembered across
+		// sessions (see readSettings()/writeSettings()). setChildrenCollapsible(false)
+		// keeps a stray drag from hiding either group entirely - both are
+		// always meant to be reachable, not just resizable to zero.
+		_documentTabSplitter = new QSplitter(Qt::Vertical);
+		_documentTabSplitter->setChildrenCollapsible(false);
+		_documentTabSplitter->addWidget(_documentTabWidget);
+		_documentTabSplitter->addWidget(_documentSecondaryTabWidget);
+		// Initial (pre-restoreState) even 1:1 split - only matters the very
+		// first run, before any saved splitter state exists to restore.
+		// Stretch factors alone only govern how EXTRA space redistributes on
+		// a later resize, not the initial split, so setSizes() with two equal
+		// values is also needed here (QSplitter normalizes them proportionally
+		// against the widget's actual height, so the exact number doesn't
+		// matter as long as both halves match).
+		_documentTabSplitter->setStretchFactor(0, 1);
+		_documentTabSplitter->setStretchFactor(1, 1);
+		_documentTabSplitter->setSizes({ 1000, 1000 });
+
+		auto* documentTabContainer = new QWidget();
+		auto* documentTabContainerLayout = new QVBoxLayout(documentTabContainer);
+		documentTabContainerLayout->setContentsMargins(0, 0, 0, 0);
+		documentTabContainerLayout->setSpacing(0);
+		documentTabContainerLayout->addWidget(documentControlsRow);
+		documentTabContainerLayout->addWidget(_documentTabSplitter, 1);
+
+		// North, not Qt's own default (South) for a tabified dock group's
+		// tab bar - matches every other QTabWidget in this app
+		// (_documentTabWidget/_propertiesTabWidget above both explicitly
+		// set North too).
+		_rightPanelWindow->setTabPosition(Qt::RightDockWidgetArea, QTabWidget::North);
+
+		auto* documentDock = new QDockWidget(tr("Document"), this);
+		documentDock->setObjectName(QStringLiteral("documentDock"));
+		// A tabified QDockWidget group's tab icon comes from windowIcon(),
+		// not any dock-specific API.
+		documentDock->setWindowIcon(QIcon(":/icons/res/document-root.png"));
+		documentDock->setWidget(documentTabContainer);
+		// Not wrapped in a scroll area like the other docks, so without this a long translation of any label,
+		// button or check box in here sets the dock's minimum width and pushes it into the viewport.
+		allowTextToShrink(documentTabContainer);
+		_rightPanelWindow->addDockWidget(Qt::RightDockWidgetArea, documentDock);
+		_documentDock = documentDock;
+
+		// --- Properties dock: Materials + Transformations sub-tabs, single
+		// shared instances (used to be one MaterialPropertiesPanel/
+		// ObjectTransformPanel per open document, duplicated per MDI child).
+		_propertiesTabWidget = new QTabWidget();
+		_propertiesTabWidget->setTabPosition(QTabWidget::North);
+		_propertiesTabWidget->setTabShape(QTabWidget::Rounded);
+		_propertiesTabWidget->setIconSize(QSize(32, 32));
+		_propertiesTabWidget->setDocumentMode(false);
+		_propertiesTabWidget->setMovable(true);
+
+		_materialPropertiesPanel = new MaterialPropertiesPanel();
+		auto* scrollAreaMaterial = new QScrollArea();
+		scrollAreaMaterial->setWidgetResizable(true);
+		scrollAreaMaterial->setWidget(_materialPropertiesPanel);
+		_propertiesTabWidget->addTab(scrollAreaMaterial, QIcon(":/icons/res/material.png"), tr("Materials"));
+
+		_objectTransformPanel = new ObjectTransformPanel();
+		auto* scrollAreaTransform = new QScrollArea();
+		scrollAreaTransform->setWidgetResizable(true);
+		scrollAreaTransform->setWidget(_objectTransformPanel);
+		_propertiesTabWidget->addTab(scrollAreaTransform, QIcon(":/icons/res/transformations.png"), tr("Transformations"));
+
+		_propertiesTabWidget->setCurrentIndex(0);
+
+		_propertiesDock = new QDockWidget(tr("Properties"), this);
+		_propertiesDock->setObjectName(QStringLiteral("propertiesDock"));
+		_propertiesDock->setWindowIcon(QIcon(":/icons/res/properties.png"));
+		_propertiesDock->setWidget(_propertiesTabWidget);
+		_rightPanelWindow->addDockWidget(Qt::RightDockWidgetArea, _propertiesDock);
+		_rightPanelWindow->tabifyDockWidget(documentDock, _propertiesDock);
+
+		// --- Environment dock: single shared VisualizationEnvironmentPanel.
+		_visualizationEnvironmentPanel = new VisualizationEnvironmentPanel();
+		auto* scrollAreaEnv = new QScrollArea();
+		scrollAreaEnv->setWidgetResizable(true);
+		scrollAreaEnv->setWidget(_visualizationEnvironmentPanel);
+
+		_environmentDock = new QDockWidget(tr("Environment"), this);
+		_environmentDock->setObjectName(QStringLiteral("environmentDock"));
+		_environmentDock->setWindowIcon(QIcon(":/icons/res/environment.png"));
+		_environmentDock->setWidget(scrollAreaEnv);
+		_rightPanelWindow->addDockWidget(Qt::RightDockWidgetArea, _environmentDock);
+		_rightPanelWindow->tabifyDockWidget(_propertiesDock, _environmentDock);
+
+		// Default to the Document tab up front, matching the tab order
+		// documents were tabbed in above.
+		documentDock->raise();
+
+		// Qt's default per-dock title bar redundantly repeats the active
+		// tab's label above the tab strip while docked/tabbed. Two custom-
+		// title-bar-widget suppression attempts (bare QWidget, then one
+		// with an explicit fixed height) both broke drag-to-redock
+		// regardless of the widget's size - Qt's built-in drag-to-redock is
+		// gated on whether a custom title bar widget is set AT ALL, not on
+		// its geometry, so that whole avenue is abandoned; the default
+		// title bar widget itself is never touched below.
+		//
+		// This is a color-only attempt instead: QSS `color: transparent`
+		// on ::title previously had no visible effect - that may be
+		// because it relies on alpha blending the style's paint path
+		// doesn't honor for this sub-control's text specifically, not
+		// because the selector/property itself is ignored. Retrying with
+		// an OPAQUE color matched to the title bar's own background
+		// (palette(window), same value the background rule below uses)
+		// instead of true transparency - a different rendering mechanism
+		// that may succeed where alpha failed. Safe for dockability either
+		// way: this never calls setTitleBarWidget(), so the real,
+		// fully-functional default title bar is what's still there
+		// underneath - only its rendered pixels are being asked to change.
+		this->setStyleSheet(this->styleSheet() + QStringLiteral(
+			"QDockWidget[dockTitleHidden=\"true\"]::title {"
+			"  background: palette(window);"
+			"  color: palette(window);"
+			"}"));
+		for (QDockWidget* dock : { documentDock, _propertiesDock, _environmentDock })
+		{
+			dock->setProperty("dockTitleHidden", true);
+			connect(dock, &QDockWidget::topLevelChanged, dock, [dock](bool floating) {
+				dock->setProperty("dockTitleHidden", !floating);
+				dock->style()->unpolish(dock);
+				dock->style()->polish(dock);
+			});
+		}
+
+		// Every connection below is made ONCE, for the shared panels'
+		// lifetime, rather than per-document as before. Where a handler used
+		// to touch the emitting ModelViewer directly (`this`), it now
+		// dispatches to activeMdiChild() instead - safe because these panels
+		// only ever receive input while docked/floating and visible, which
+		// requires their host document to be the active one.
+		connect(_objectTransformPanel, &ObjectTransformPanel::applyTransformationsRequested, this, [this]() {
+			if (ModelViewer* child = activeMdiChild())
+				child->setTransformation();
+		});
+		connect(_objectTransformPanel, &ObjectTransformPanel::resetTransformationsRequested, this, [this]() {
+			if (ModelViewer* child = activeMdiChild())
+				child->resetTransformation();
+			_objectTransformPanel->resetAllValues();
+		});
+
+		connect(_materialPropertiesPanel, &MaterialPropertiesPanel::materialApplied, this, [this](const Material& mat) {
+			if (ModelViewer* child = activeMdiChild())
+				child->onCustomMaterialApplied(mat);
+		});
+		connect(_materialPropertiesPanel, &MaterialPropertiesPanel::meshMaterialApplied, this,
+			[this](const QUuid& meshUuid, const Material& material) {
+				if (ModelViewer* child = activeMdiChild())
+					child->applyMeshMaterial(meshUuid, material);
+			});
+		connect(_materialPropertiesPanel, &MaterialPropertiesPanel::textureSamplerChanged, this,
+			[this](Material* material, Material::TextureType type) {
+				if (ModelViewer* child = activeMdiChild())
+					child->setTextureSamplersToSelectedItems(material, type);
+			});
+		connect(_materialPropertiesPanel, &MaterialPropertiesPanel::textureCacheClearRequested, this, [this]() {
+			if (ModelViewer* child = activeMdiChild())
+				child->onTextureCacheCleared();
+		});
+		connect(_materialPropertiesPanel, &MaterialPropertiesPanel::eyedropperArmed, this, [this](bool armed) {
+			if (ModelViewer* child = activeMdiChild())
+				child->setEyedropperArmed(armed);
+		});
+
+		connect(_selectionSetsPanel, &SelectionSetsPanel::selectionSetSaveRequested, this, [this](const QString& name) {
+			if (ModelViewer* child = activeMdiChild())
+				child->saveCurrentSelectionAsSet(name);
+		});
+		connect(_selectionSetsPanel, &SelectionSetsPanel::selectionSetRecallRequested, this, [this](const QUuid& setId) {
+			if (ModelViewer* child = activeMdiChild())
+				child->recallSelectionSet(setId);
+		});
+		connect(_selectionSetsPanel, &SelectionSetsPanel::selectionSetDeleteRequested, this, [this](const QUuid& setId) {
+			if (ModelViewer* child = activeMdiChild())
+				child->deleteSelectionSet(setId);
+		});
+		connect(_selectionSetsPanel, &SelectionSetsPanel::selectionSetDeselectRequested, this, [this]() {
+			if (ModelViewer* child = activeMdiChild())
+				child->deselectAllWithUndo();
+		});
+
+		connect(_sceneStatesPanel, &SceneStatesPanel::sceneStateSaveRequested, this, [this](const QString& name) {
+			if (ModelViewer* child = activeMdiChild())
+				child->saveCurrentSceneState(name);
+		});
+		connect(_sceneStatesPanel, &SceneStatesPanel::sceneStateRecallRequested, this, [this](const QUuid& stateId) {
+			if (ModelViewer* child = activeMdiChild())
+				child->recallSceneState(stateId);
+		});
+		connect(_sceneStatesPanel, &SceneStatesPanel::sceneStateDeleteRequested, this, [this](const QUuid& stateId) {
+			if (ModelViewer* child = activeMdiChild())
+				child->deleteSceneState(stateId);
+		});
+
+		// Mirrors the old on_tabWidgetVizAttribs_currentChanged: the
+		// Transformations sub-tab shows the viewport's transform gizmo for
+		// the active document's current selection while it's frontmost.
+		connect(_propertiesTabWidget, &QTabWidget::currentChanged, this, [this](int index) {
+			ModelViewer* child = activeMdiChild();
+			if (!child)
+				return;
+			if (index == 1)
+			{
+				child->getViewportWidget()->showTransformGizmoForSelection(true);
+				child->updateTransformationValues();
+			}
+			else
+			{
+				child->getViewportWidget()->showTransformGizmoForSelection(false);
+			}
+		});
+
+		// Variants/Animations/Cameras: same one-time-connect, dispatch-via-
+		// activeMdiChild() pattern as the Properties/Environment panels
+		// above. The panel->viewport forwards (clipActivated etc.) go
+		// straight to the active document's ViewportWidget with no
+		// ModelViewer-level method needed, since they're 1:1 forwards with
+		// matching signatures; the *DeleteRequested ones need the new
+		// ModelViewer::deleteVariant()/deleteAnimationClip()/
+		// deleteGltfCamera() methods since they also touch this document's
+		// own SceneGraph/undo stack, not just its viewport.
+		connect(_materialVariantsPanel, &MaterialVariantsPanel::variantActivated, this,
+			[this](const QString& file, int index) {
+				if (ModelViewer* child = activeMdiChild())
+					child->applyVariant(file, index);
+			});
+		connect(_materialVariantsPanel, &MaterialVariantsPanel::variantDeleteRequested, this,
+			[this](const QString& file, int index) {
+				if (ModelViewer* child = activeMdiChild())
+					child->deleteVariant(file, index);
+			});
+		connect(_materialVariantsPanel, &MaterialVariantsPanel::captureVariantRequested, this,
+			[this](const QString& file, const QString& name) {
+				if (ModelViewer* child = activeMdiChild())
+					child->captureVariant(file, name);
+			});
+		connect(_materialVariantsPanel, &MaterialVariantsPanel::setDefaultVariantRequested, this,
+			[this](const QString& file, int index) {
+				if (ModelViewer* child = activeMdiChild())
+					child->setVariantAsDefault(file, index);
+			});
+
+		connect(_animationsPanel, &AnimationsPanel::clipActivated, this,
+			[this](const QString& file, int clip) {
+				if (ModelViewer* child = activeMdiChild())
+					child->getViewportWidget()->setActiveAnimation(file, clip);
+			});
+		connect(_animationsPanel, &AnimationsPanel::playbackToggled, this,
+			[this](bool playing) {
+				if (ModelViewer* child = activeMdiChild())
+					child->getViewportWidget()->setAnimationPlaying(playing);
+			});
+		connect(_animationsPanel, &AnimationsPanel::loopToggled, this,
+			[this](bool looping) {
+				if (ModelViewer* child = activeMdiChild())
+					child->getViewportWidget()->setAnimationLooping(looping);
+			});
+		connect(_animationsPanel, &AnimationsPanel::seekRequested, this,
+			[this](double seconds) {
+				if (ModelViewer* child = activeMdiChild())
+					child->getViewportWidget()->seekAnimation(seconds);
+			});
+		connect(_animationsPanel, &AnimationsPanel::playbackSpeedChanged, this,
+			[this](double speed) {
+				if (ModelViewer* child = activeMdiChild())
+					child->getViewportWidget()->setAnimationPlaybackSpeed(speed);
+			});
+		connect(_animationsPanel, &AnimationsPanel::clipDeleteRequested, this,
+			[this](const QString& file, int clip) {
+				if (ModelViewer* child = activeMdiChild())
+					child->deleteAnimationClip(file, clip);
+			});
+
+		connect(_camerasPanel, &CamerasPanel::gltfCameraActivated, this,
+			[this](const QString& file, int index) {
+				if (ModelViewer* child = activeMdiChild())
+					child->getViewportWidget()->activateGltfCamera(file, index);
+			});
+		connect(_camerasPanel, &CamerasPanel::systemCameraRequested, this,
+			[this]() {
+				if (ModelViewer* child = activeMdiChild())
+					child->getViewportWidget()->resetToSystemCamera();
+			});
+		connect(_camerasPanel, &CamerasPanel::gltfCameraDeleteRequested, this,
+			[this](const QString& file, int index) {
+				if (ModelViewer* child = activeMdiChild())
+					child->deleteGltfCamera(file, index);
+			});
+		connect(_camerasPanel, &CamerasPanel::captureViewRequested, this,
+			[this](const QString& name) {
+				if (ModelViewer* child = activeMdiChild())
+					child->captureCameraView(name);
+			});
+
+		// Closing a QDockWidget only hides it, but with nothing wired to its
+		// toggleViewAction() there was no way back in from the UI - a closed
+		// dock looked permanently gone.
+        ui->menuViewPanels->addAction(documentDock->toggleViewAction());
+        ui->menuViewPanels->addAction(_propertiesDock->toggleViewAction());
+        ui->menuViewPanels->addAction(_environmentDock->toggleViewAction());
+	}
+
+	QMenu* fileMenu = ui->menuFile;
+	QAction* exitAct = ui->actionExit;
+	recentFileSeparator = fileMenu->insertSeparator(exitAct);
+
+	recentFileSubMenuAct = fileMenu->insertMenu(recentFileSeparator, new QMenu(tr("Recent...")));
+	QMenu* recentMenu = recentFileSubMenuAct->menu();
+	connect(recentMenu, &QMenu::aboutToShow, this, &MainWindow::updateRecentFileActions);
+
+	for (int i = 0; i < MaxRecentFiles; ++i) {
+		recentFileActs[i] = recentMenu->addAction(QString(), this, &MainWindow::openRecentFile);
+		recentFileActs[i]->setVisible(false);
+	}
+
+	// Clear entry at the bottom of the submenu (shown only while there is something to clear)
+	recentFileClearSeparator = recentMenu->addSeparator();
+	recentFileClearAct = recentMenu->addAction(tr("Clear Recent Files"), this, &MainWindow::clearRecentFiles);
+	recentFileClearSeparator->setVisible(false);
+	recentFileClearAct->setVisible(false);
+
+	setRecentFilesVisible(MainWindow::hasRecentFiles());
+
+	connect(ui->menuWindows, &QMenu::aboutToShow, this, &MainWindow::updateWindowMenu);
+
+	QAction* closeAct = ui->actionClose;
+	closeAct->setStatusTip(tr("Close the active window"));
+	connect(closeAct, &QAction::triggered,
+		this, &MainWindow::closeSubWindow);
+
+	closeAct = ui->actionFileClose;
+	closeAct->setStatusTip(tr("Close the active document"));
+	connect(closeAct, &QAction::triggered,
+		this, &MainWindow::closeSubWindow);
+
+	QAction* closeAllAct = ui->actionClose_All;
+	closeAllAct->setStatusTip(tr("Close all the windows"));
+	connect(closeAllAct, &QAction::triggered, this, &MainWindow::closeAllSubWindows);
+
+	QAction* nextAct = ui->actionNext;
+	nextAct->setShortcuts(QKeySequence::NextChild);
+	nextAct->setStatusTip(tr("Move the focus to the next window"));
+	connect(nextAct, &QAction::triggered, _mdiArea, &QMdiArea::activateNextSubWindow);
+
+	QAction* previousAct = ui->actionPrevious;
+	previousAct->setShortcuts(QKeySequence::PreviousChild);
+	previousAct->setStatusTip(tr("Move the focus to the previous "
+		"window"));
+	connect(previousAct, &QAction::triggered, _mdiArea, &QMdiArea::activatePreviousSubWindow);
+
+	// Document-scoped shortcuts (Delete, and the rendering-mode/import/
+	// export ones below) - single MainWindow-owned instances dispatching to
+	// activeMdiChild(), same pattern as Undo/Redo/Ray Tracing right below.
+	// A single instance per shortcut, scoped to MainWindow, can never be
+	// ambiguous with itself regardless of how many documents are open or
+	// how they're arranged - an improvement kept from when documents were
+	// briefly Qt-ADS dock widgets (which had no per-document shortcut-scope
+	// flag), even though QMdiSubWindow's Qt::SubWindow flag would make the
+	// old per-document-QShortcut pattern viable again too.
+	connect(new QShortcut(QKeySequence(Qt::Key_Delete), this), &QShortcut::activated, this, [this]() {
+		ModelViewer* child = activeMdiChild();
+		if (!child)
+			return;
+		// Narrower than the other document shortcuts below: only fires while
+		// the active document's own navigation tree OR its 3D viewport has
+		// keyboard focus - Delete must not also fire while, say, typing into
+		// a search box or a property field. deleteSelectedItems() itself is
+		// selection-state-based, not focus-based (both a tree click and a
+		// viewport click update the same underlying selection), so either
+		// widget having focus is equally valid - this used to check the tree
+		// only, which silently broke Delete for viewport-made selections
+		// (ViewportWidget::keyPressEvent() has its own now-dead Key_Delete
+		// branch for exactly that case - this shortcut, having WindowShortcut
+		// context, always intercepts the key first).
+		QWidget* focusWidget = QApplication::focusWidget();
+		QWidget* tree = child->treeWidgetModel;
+		QWidget* viewport = child->getViewportWidget();
+		if (focusWidget && ((tree && (focusWidget == tree || tree->isAncestorOf(focusWidget))) ||
+		                     focusWidget == viewport))
+		{
+			// A selected measurement (see ViewportWidget::selectedMeasurementIds(),
+			// set by clicking one in the viewport or multi/shift-selecting in
+			// the Measurement dialog's list) is independent of mesh selection
+			// and takes priority - the user just selected it specifically, so
+			// Delete should act on that, not on whatever mesh selection
+			// happens to still be sitting around from before. A selected
+			// annotation (see ViewportWidget::selectedAnnotationIds()) is
+			// checked first among the two, same reasoning, arbitrary order
+			// since a measurement and an annotation can't both be selected
+			// at once in practice (arming either tool disarms the other -
+			// see AnnotationController.h's doc comment - though their
+			// SELECTION sets, unlike their TOOL-armed state, aren't actually
+			// mutually exclusive by construction, this ordering is still a
+			// reasonable tie-break).
+			if (child->getViewportWidget()->hasSelectedAnnotations())
+				child->deleteSelectedAnnotations();
+			else if (child->getViewportWidget()->hasSelectedMeasurements())
+				child->deleteSelectedMeasurements();
+			else
+				child->deleteSelectedItems();
+		}
+		});
+	connect(new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I), this), &QShortcut::activated, this, [this]() {
+		if (ModelViewer* child = activeMdiChild())
+			child->importModel();
+		});
+	connect(new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E), this), &QShortcut::activated, this, [this]() {
+		if (ModelViewer* child = activeMdiChild())
+			child->exportModel();
+		});
+	connect(new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A), this), &QShortcut::activated, this, [this]() {
+		if (ModelViewer* child = activeMdiChild())
+			child->requestRenderingMode("ADS");
+		});
+	connect(new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P), this), &QShortcut::activated, this, [this]() {
+		if (ModelViewer* child = activeMdiChild())
+			child->requestRenderingMode("PBR");
+		});
+	connect(new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_R), this), &QShortcut::activated, this, [this]() {
+		if (ModelViewer* child = activeMdiChild())
+			child->requestRenderingMode("RayTraced");
+		});
+
+	// Connect undo/redo actions
+	connect(ui->actionUndo, &QAction::triggered, this, [this]() {
+		if (activeMdiChild())
+			activeMdiChild()->undo();
+		});
+
+	connect(ui->actionRedo, &QAction::triggered, this, [this]() {
+		if (activeMdiChild())
+			activeMdiChild()->redo();
+		});
+
+	// Visualization → Texture Debugger
+	connect(ui->actionTextureDebugger, &QAction::triggered, this, [this]() {
+		if (activeMdiChild())
+			activeMdiChild()->showTextureDebugPanel();
+		});
+
+	// Visualization → Ray Tracing - non-modal, at most one instance per document
+	// (mirrors SettingsDialog's WA_DeleteOnClose pattern for auto-cleanup,
+	// but reuses/raises an already-open dialog instead of stacking a new one
+	// on each click - repeatedly triggering the menu/shortcut used to spawn
+	// a fresh dialog every time, leaving several identical windows open on
+	// top of each other with no way to tell them apart).
+	connect(ui->actionRayTracing, &QAction::triggered, this, [this]() {
+		if (!activeMdiChild())
+			return;
+		// Opening the dialog does NOT switch rendering mode by itself - it
+		// stays whatever it currently is (ADS/PBR/already-RayTraced) until
+		// the user actually presses Render inside the dialog (see
+		// RtRenderDialog::onRenderClicked()), which is the single place
+		// that switches to Ray Traced mode.
+		//
+		// Parented to the ModelViewer (the document's own content widget,
+		// wrapped in its QMdiSubWindow - see createDocumentSubWindow()), NOT to
+		// MainWindow (`this`) - a QDialog still floats as an independent
+		// top-level window regardless of which widget is passed as its
+		// parent, but the parent IS what Qt uses to auto-destroy child
+		// widgets when it's destroyed. Parenting to MainWindow meant the
+		// dialog outlived every document, including all of them being
+		// closed - this way it closes along with the document it belongs to
+		// instead.
+		//
+		// findChild() (direct children only - the dialog parents its own
+		// widgets under itself too, but none of THOSE are RtRenderDialogs)
+		// doubles as the "is one already open for this document" check:
+		// WA_DeleteOnClose means a closed dialog stops being findable here,
+		// so this naturally reduces to "create one" the first time and
+		// "bring the existing one forward" on every repeat click after.
+		ModelViewer* child = activeMdiChild();
+		if (RtRenderDialog* existing = child->findChild<RtRenderDialog*>(QString(), Qt::FindDirectChildrenOnly))
+		{
+			existing->show();
+			existing->raise();
+			existing->activateWindow();
+			return;
+		}
+		RtRenderDialog* dialog = new RtRenderDialog(child, child);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+		dialog->show();
+		});
+
+	connect(ui->actionAdd3DPlot, &QAction::triggered, this, [this]() {
+		showAdd3DPlotDialog();
+		});
+
+	// Tools → Measure... - opens the non-modal Measurement dialog (combo box
+	// covering every MeasurementTool - Point, Distance, and the arc-radius
+	// tools, with room for Face/Edge/Edge-radius tools later - see
+	// MeasurementData.h). The findChild-reuse-or-create logic itself now
+	// lives in ModelViewer::openMeasurementDialog() - shared with
+	// ViewportWidget::mouseDoubleClickEvent()'s double-click-a-measurement
+	// gesture, so the two can't drift apart.
+	connect(ui->actionMeasure, &QAction::triggered, this, [this]() {
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("measure"));
+    });
+
+	// Selection -> Filter by Material.../Filter by Color... - modal, one-shot
+	// dialogs (same reasoning as actionExportReport below: no persistent tool
+	// state to keep in sync with the viewport, so no findChild-reuse needed).
+	connect(ui->actionFilterByMaterial, &QAction::triggered, this, [this]() {
+		if (activeMdiChild())
+			activeMdiChild()->filterSelectionByMaterial();
+		});
+	connect(ui->actionFilterByColor, &QAction::triggered, this, [this]() {
+		if (activeMdiChild())
+			activeMdiChild()->filterSelectionByColor();
+		});
+	connect(ui->actionFilterByBoundingBox, &QAction::triggered, this, [this]() {
+		if (activeMdiChild())
+			activeMdiChild()->filterSelectionByBoundingBox();
+		});
+	// Selection -> Save Selection Set... - a quick way to save without
+	// opening the Selections panel first; same name-prompt shape as that
+	// panel's own Save button.
+	connect(ui->actionSaveSelectionSet, &QAction::triggered, this, [this]() {
+		ModelViewer* child = activeMdiChild();
+		if (!child)
+			return;
+		bool ok = false;
+		const QString name = QInputDialog::getText(this, tr("Save Selection Set"),
+			tr("Name for this selection:"), QLineEdit::Normal, QString(), &ok);
+		if (ok && !name.trimmed().isEmpty())
+			child->saveCurrentSelectionAsSet(name.trimmed());
+		});
+	// Selection -> Save Scene State... - a quick way to save without opening
+	// the States panel first; same name-prompt shape as
+	// actionSaveSelectionSet above and that panel's own Save button. Not
+	// gated on hasSelection (see the enable/disable block below) - an empty
+	// selection is a meaningful part of a scene state, not "nothing to save."
+	connect(ui->actionSaveSceneState, &QAction::triggered, this, [this]() {
+		ModelViewer* child = activeMdiChild();
+		if (!child)
+			return;
+		bool ok = false;
+		const QString name = QInputDialog::getText(this, tr("Save Scene State"),
+			tr("Name for this state:"), QLineEdit::Normal, QString(), &ok);
+		if (ok && !name.trimmed().isEmpty())
+			child->saveCurrentSceneState(name.trimmed());
+		});
+
+	// Tools → Annotate... - opens the non-modal Annotation dialog. Same
+	// shared-implementation reasoning as actionMeasure above.
+	connect(ui->actionAnnotate, &QAction::triggered, this, [this]() {
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("annotate"));
+    });
+
+	// Tools → Export Report... - modal (unlike Measure/Annotate above), since
+	// it's a one-shot batch action with no persistent tool state to keep in
+	// sync with the viewport - no findChild-reuse needed, modality already
+	// prevents stacking a second instance.
+	connect(ui->actionExportReport, &QAction::triggered, this, [this]() {
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("report"));
+    });
+
+	// Tools → Batch Render Views... - same "modal, one-shot batch action"
+	// reasoning as actionExportReport above, just producing individual
+	// offline path-traced image files instead of one PDF.
+	connect(ui->actionBatchRenderViews, &QAction::triggered, this, [this]() {
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("batch"));
+    });
+
+	// Tools → Mass Properties... - same modal, one-shot, re-derive-from-
+	// scratch-every-open shape as the dialogs above.
+	connect(ui->actionMassProperties, &QAction::triggered, this, [this]() {
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("mass"));
+    });
+
+	// Tools → Surface Analysis... - opens the non-modal SurfaceAnalysisDialog,
+	// same wiring shape as actionShrinkWrap above (an ongoing interactive
+	// tool, not a one-shot report like Mass Properties just above).
+	connect(ui->actionSurfaceAnalysis, &QAction::triggered, this, [this]() {
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("analysis"));
+    });
+
+	// Tools → Shrink Wrap... - opens the non-modal ShrinkWrapDialog, same
+	// wiring shape as actionMeasure/actionAnnotate above.
+	connect(ui->actionShrinkWrap, &QAction::triggered, this, [this]() {
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("shrink"));
+    });
+
+	// Tools → Subdivide Surface... - opens the non-modal SubdivisionDialog,
+	// same wiring shape as actionShrinkWrap above.
+	connect(ui->actionSubdivideSurface, &QAction::triggered, this, [this]() {
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("subdivide"));
+    });
+
+	// Tools → Reconstruct Surface... - opens the non-modal
+	// ReconstructSurfaceDialog, same wiring shape as actionShrinkWrap above.
+	connect(ui->actionReconstructSurface, &QAction::triggered, this, [this]() {
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("reconstruct"));
+    });
+
+	// Tools → Repair Mesh... - opens the non-modal RepairMeshDialog, same wiring shape as
+	// actionShrinkWrap above.
+	connect(ui->actionRepairMesh, &QAction::triggered, this, [this]() {
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("repair"));
+    });
+
+	// Visualization → Simulation → Open Result... - file dialog + load, same wiring shape as the Tools actions above.
+	connect(ui->actionOpenSimulationResult, &QAction::triggered, this, [this]() {
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("simulation_open"));
+    });
+
+	// Visualization → Simulation → Compare Results... - starts compare mode (asking for the second result when there are several) or
+	// exits it; the text and enabled state follow the document in refreshSimulationPanel().
+	connect(ui->actionSimulationCompare, &QAction::triggered, this, [this]() {
+        if (auto* child = activeMdiChild()) child->toggleSimulationCompare();
+    });
+
+	// Tools → Fill Holes... - opens the non-modal FillHolesDialog, same wiring shape as
+	// actionRepairMesh above.
+	connect(ui->actionFillHoles, &QAction::triggered, this, [this]() {
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("fill"));
+    });
+
+	// Tools → Generate UVs... - opens the non-modal UVGenerationDialog, same
+	// wiring shape as actionShrinkWrap above. Moved here from the scene-tree
+	// context menu now that the dialog owns its own working mesh list
+	// instead of requiring a pre-existing selection.
+	connect(ui->actionGenerateUVs, &QAction::triggered, this, [this]() {
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("uv"));
+    });
+
+	// Tools → Purge Redundant Nodes - sweeps the whole active document's scene tree (nullptr = SceneGraph's own
+	// root); the scene tree's own context menu offers the same operation scoped to just one right-clicked
+	// assembly node, see ModelViewer::purgeRedundantAssemblyNodes()'s own doc comment.
+	connect(ui->actionPurgeRedundantNodes, &QAction::triggered, this, [this]() {
+		if (auto* child = activeMdiChild()) child->purgeRedundantAssemblyNodes(nullptr);
+	});
+
+	updateMenus();
+
+	StartupSplash::report(tr("Restoring window layout..."), 55);
+	readSettings();
+
+	setAttribute(Qt::WA_DeleteOnClose);
+
+	_cancelTaskButton = new QPushButton(tr("Cancel Loading"), ui->statusBar);
+	ui->statusBar->addPermanentWidget(_cancelTaskButton);
+	connect(_cancelTaskButton, SIGNAL(clicked()), this, SLOT(cancelFileLoading()));
+	_cancelTaskButton->hide();
+
+	_progressBar = new QProgressBar(ui->statusBar);
+	ui->statusBar->addPermanentWidget(_progressBar);
+	_progressBar->hide();
+	//createMdiChild();
+
+	_bFirstTime = true;
+
+	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
+		ui->retranslateUi(this);
+		retranslateUI();  // if needed
+		});
+
+}
+
+void MainWindow::retranslateUI()
+{
+	updateCornerIcons();
+
+	// Right-hand docks: titles, tab labels and the shared document check boxes are all created once with tr(),
+	// so they have to be re-applied here (the panels inside retranslate themselves).
+	if (_cancelTaskButton)
+		_cancelTaskButton->setText(tr("Cancel Loading"));
+	if (_documentDock)
+		_documentDock->setWindowTitle(tr("Document"));
+	if (_propertiesDock)
+		_propertiesDock->setWindowTitle(tr("Properties"));
+	if (_environmentDock)
+		_environmentDock->setWindowTitle(tr("Environment"));
+	if (_documentTabWidget)
+	{
+		_documentTabWidget->setTabText(_documentTabWidget->indexOf(_materialVariantsPanel), tr("Variants"));
+		_documentTabWidget->setTabText(_documentTabWidget->indexOf(_animationsPanel), tr("Animations"));
+		_documentTabWidget->setTabText(_documentTabWidget->indexOf(_camerasPanel), tr("Cameras"));
+	}
+	if (_documentSecondaryTabWidget)
+	{
+		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_selectionSetsPanel), tr("Selections"));
+		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_sceneStatesPanel), tr("States"));
+		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_simulationPanel), tr("Simulation Results"));
+		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_plot3DControlsPanel), tr("3D Plot"));
+	}
+	if (_simulationPanel)
+	{
+		// The Simulation panel's controls are built once with tr(): rebuild them in the new language, then show the active document's result again.
+		_simulationPanel->retranslate();
+		refreshSimulationPanel(activeMdiChild());
+	}
+	if (_plot3DControlsPanel)
+		_plot3DControlsPanel->retranslate();
+	if (_propertiesTabWidget && _propertiesTabWidget->count() >= 2)
+	{
+		_propertiesTabWidget->setTabText(0, tr("Materials"));
+		_propertiesTabWidget->setTabText(1, tr("Transformations"));
+	}
+	if (_checkBoxAutoFitView)
+	{
+		_checkBoxAutoFitView->setText(tr("Auto Fit View On Hide/Show"));
+		_checkBoxAutoFitView->setToolTip(tr("Auto Fit View On Hide/Show"));
+	}
+	if (_checkBoxSelectionHighlight)
+	{
+		_checkBoxSelectionHighlight->setText(tr("Selection Highlighting"));
+		_checkBoxSelectionHighlight->setToolTip(tr("Selection Highlighting in Viewer"));
+	}
+
+	// Recent files submenu
+	if (recentFileSubMenuAct && recentFileSubMenuAct->menu())
+		recentFileSubMenuAct->menu()->setTitle(tr("Recent..."));
+	if (recentFileClearAct)
+		recentFileClearAct->setText(tr("Clear Recent Files"));
+
+	// Cancel loading button
+	if (_cancelTaskButton)
+		_cancelTaskButton->setText(tr("Cancel Loading"));
+
+	// Status tips for dynamically created actions
+	if (ui->actionClose)
+		ui->actionClose->setStatusTip(tr("Close the active window"));
+	if (ui->actionFileClose)
+		ui->actionFileClose->setStatusTip(tr("Close the active document"));
+	if (ui->actionClose_All)
+		ui->actionClose_All->setStatusTip(tr("Close all the windows"));
+	if (ui->actionNext)
+		ui->actionNext->setStatusTip(tr("Move the focus to the next window"));
+	if (ui->actionPrevious)
+		ui->actionPrevious->setStatusTip(tr("Move the focus to the previous window"));
+
+	// Recent file actions (text set dynamically)
+	updateRecentFileActions();
+}
+
+ModelViewer* MainWindow::createMdiChild()
+{
+	// nullptr, not _mdiArea - createDocumentSubWindow() below reparents this
+	// into a new QMdiSubWindow regardless, so constructing with _mdiArea as
+	// the parent just means the widget gets reparented twice (once
+	// implicitly here, once by addSubWindow()) instead of once. QOpenGLWidget
+	// destroys and recreates its GL context on every reparent that changes
+	// the top-level window, then relies on a fresh expose event to re-trigger
+	// initializeGL() - see refreshFallbackLight()'s doc comment and
+	// ViewportWidget::~ViewportWidget()'s cleanup guard for the class of bug
+	// this causes if that sequence doesn't complete under XWayland. Matches
+	// on_actionNew_triggered()'s identical construction for every
+	// subsequently created document, which already uses nullptr here.
+	ModelViewer* viewer = new ModelViewer(nullptr);
+	QString lastOpenedDir = PathUtils::getDataDirectory() + QString("/sample-models");
+	viewer->setLastOpenedDir(lastOpenedDir);
+	viewer->setAttribute(Qt::WA_DeleteOnClose);
+	QMdiSubWindow* subWindow = createDocumentSubWindow(viewer);
+	qDebug() << "MainWindow: created document via Open/createMdiChild -"
+	         << "viewer=" << (void*)viewer << "subWindow=" << (void*)subWindow;
+
+	// Apply persisted perspective FOV immediately so the first view uses the
+	// setting before any settingsChanged signal fires.
+	{
+		QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		const int fov = s.value("fieldOfViewSpinBox", 45).toInt();
+		viewer->getViewportWidget()->setPerspFOV(fov);
+	}
+
+	return viewer;
+}
+
+QMdiSubWindow* MainWindow::createDocumentSubWindow(ModelViewer* viewer)
+{
+    _viewers.append(viewer);
+    const QPointer<ViewportWidget> view = viewer->getViewportWidget();
+    connect(view.data(), &ViewportWidget::viewStateChanged, this, [this, view]() {
+        if (!_shuttingDown && view && activeMdiChild() && activeMdiChild()->getViewportWidget() == view)
+            updateViewMenus();
+    }, Qt::QueuedConnection);
+	// Keep _viewers in sync regardless of how the document is closed (MDI
+	// close button, closeAllSubWindows, failed load, etc.). WA_DeleteOnClose
+	// deletes the viewer without going through closeSubWindow(), so without
+	// this the list accumulates dangling pointers that crash settings apply.
+	connect(viewer, &QObject::destroyed, this, [this, viewer]() {
+		// On application exit, _viewers is a MainWindow member being torn
+		// down as part of ~MainWindow()'s own cascading parent-child
+		// destruction - by the time this fires from deep inside that
+		// cascade (QWidget's base-class destructor deleting children,
+		// which reaches this document's QMdiSubWindow -> its wrapped
+		// ModelViewer -> this destroyed() signal), ~MainWindow()'s BODY
+		// and its own member destructors (including _viewers itself, a
+		// plain QList<ModelViewer*> member, not a pointer) have already
+		// run - C++ destroys derived members before the base class - so
+		// _viewers is itself an already-destructed object at this point.
+		// Touching it (even just removeAll()) is a real crash (confirmed
+		// via a coredump: SIGSEGV inside QArrayDataPointer::
+		// reallocateAndGrow() reached straight from this lambda), not just
+		// a hypothetical one - the _shuttingDown check must come BEFORE
+		// any member access, not after it. Only the normal
+		// one-document-at-a-time close path (viewer->close() -> deferred
+		// deleteLater()) reaches this outside of any destructor call
+		// stack, where touching _viewers is safe.
+		if (_shuttingDown)
+			return;
+		// Pointer value only - viewer is mid-QObject-destruction here (this
+		// slot runs off QObject::destroyed(), emitted from ~QObject() after
+		// ~ModelViewer() has already fully run), so calling any method on it
+		// (windowTitle(), etc.) is undefined behavior. Diagnostic for the
+		// "tab present, document gone" bug (2026-08-10) - confirms whether a
+		// document actually goes through this normal destruction path or
+		// disappears some other way.
+		qDebug() << "MainWindow: document destroyed (normal close path) - viewer=" << (void*)viewer;
+		_viewers.removeAll(viewer);
+
+		const bool viewerWasActive = (viewer == _activeDocument);
+		const bool viewerWasLastBound = (viewer == _lastBoundModelViewer);
+
+		// Closing the active document can otherwise leave both
+		// activeMdiChild() and activateDocument() pointing through stale
+		// ModelViewer pointers until QMdiArea happens to emit a later
+		// subWindowActivated() repair signal. Clear those eagerly here.
+		if (viewerWasActive)
+		{
+			_activeDocument = nullptr;
+			rebindSharedPanelsTo(nullptr);
+			updateMenus();
+		}
+		if (viewerWasLastBound)
+			_lastBoundModelViewer = nullptr;
+
+		// Let QMdiArea finish promoting whichever surviving subwindow is
+		// now active, then resync our document bookkeeping from that real
+		// post-close state.
+		QTimer::singleShot(0, this, [this]() {
+			if (_shuttingDown || !_mdiArea)
+				return;
+			if (QMdiSubWindow* active = _mdiArea->activeSubWindow())
+			{
+				if (ModelViewer* child = qobject_cast<ModelViewer*>(active->widget()))
+				{
+					activateDocument(child);
+					return;
+				}
+			}
+			activateDocument(nullptr);
+		});
+	});
+	connect(viewer, &ModelViewer::documentModifiedChanged,
+	        this, [this, viewer](bool) {
+	            if (viewer == activeMdiChild())
+	                updateMenus();
+	        });
+
+	return _mdiArea->addSubWindow(viewer);
+}
+
+void MainWindow::refreshSimulationPanel(ModelViewer* viewer)
+{
+	if (!_simulationPanel)
+		return;
+	_simulationPanel->setResults(viewer ? viewer->simulationResults() : QVector<SimulationResultItem>(),
+	                             viewer ? viewer->activeSimulationMeshUuid() : QUuid());
+	_simulationPanel->setCompareState(viewer && viewer->simulationCompareActive(), viewer && viewer->simulationCompareStacked(),
+	                                  viewer && viewer->simulationCompareSharedRange());
+	_simulationPanel->setSession(viewer ? viewer->activeSimulationSession() : nullptr);
+
+	// The menu's Compare entry: needs a second result to start, and reads "Exit Compare" while comparing.
+	const bool comparing = viewer && viewer->simulationCompareActive();
+	ui->actionSimulationCompare->setText(comparing ? tr("Exit Compare") : tr("Compare Results..."));
+	ui->actionSimulationCompare->setEnabled(viewer && (comparing || viewer->simulationResults().size() >= 2));
+}
+
+void MainWindow::showAdd3DPlotDialog()
+{
+	ModelViewer* child = activeMdiChild();
+	if (!child)
+		return;
+	if (_documentSecondaryTabWidget && _plot3DControlsPanel)
+		_documentSecondaryTabWidget->setCurrentWidget(_plot3DControlsPanel);
+	if (Plot3DPanel* existing = child->findChild<Plot3DPanel*>(QString(), Qt::FindDirectChildrenOnly))
+	{
+		existing->show();
+		existing->raise();
+		existing->activateWindow();
+		return;
+	}
+	auto* panel = new Plot3DPanel(child, child);
+	panel->show();
+}
+
+void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
+{
+	if (!viewer)
+	{
+		// Closing the last document can drive this branch more than once for
+		// the same transition (synchronous destroyed() lambda, its deferred
+		// singleShot follow-up, and QMdiArea's own subWindowActivated(nullptr)
+		// all reach here independently) - only the first needs to do
+		// anything; repeated teardown against already-unbound panels is what
+		// produced an intermittent crash.
+		if (!_sharedPanelsBound)
+			return;
+		_sharedPanelsBound = false;
+
+		// No active document (last one just closed) - disabling isn't
+		// enough on its own: these panels are single shared instances that
+		// cache the ModelViewer/ViewportWidget/SceneGraph pointers they were
+		// last bound to (see initialize() on each), and disabling a widget
+		// doesn't touch those. Left uncleared, the pointers go dangling the
+		// moment that document is actually destroyed - and a REENTRANT call
+		// into one of these panels can still happen after that (confirmed
+        // via a real crash: opening a new document runs its first
+        // initializeGL() -> loadRenderSettings() ->
+        // ModelViewer::onRenderingModeSelected(), which reaches
+        // VisualizationEnvironmentPanel::setPBRLightingMode() - and that
+        // panel was still holding the PREVIOUS, by-then-destroyed
+        // document's ViewportWidget*, so it called a shader bind on freed
+        // memory). Passing nullptr through the same initialize()/setter
+        // calls the non-null branch below already uses is what actually
+        // clears the dangling references - each of these was already
+        // confirmed to handle null viewer/viewport/sceneGraph arguments
+        // safely (they're guarded internally, or plain setters with no
+        // immediate dereference).
+		_materialPropertiesPanel->initialize(nullptr, nullptr);
+		_objectTransformPanel->setEnabled(false);
+		_visualizationEnvironmentPanel->initialize(nullptr, nullptr);
+		_materialVariantsPanel->setSceneGraph(nullptr);
+		_animationsPanel->setSceneGraph(nullptr);
+		_animationsPanel->setViewportWidget(nullptr);
+		_camerasPanel->setSceneGraph(nullptr);
+		_camerasPanel->setViewportWidget(nullptr);
+		_selectionSetsPanel->setSceneGraph(nullptr);
+		_sceneStatesPanel->setSceneGraph(nullptr);
+		if (_plot3DControlsPanel)
+			_plot3DControlsPanel->setModelViewer(nullptr);
+
+		_materialVariantsPanel->refresh();
+		_animationsPanel->refresh();
+		_camerasPanel->refresh();
+		_selectionSetsPanel->refresh();
+		_sceneStatesPanel->refresh();
+
+		disconnect(_variantDataChangedConnection);
+		disconnect(_animationDataChangedConnection);
+		disconnect(_gltfCameraDataChangedConnection);
+		disconnect(_animationStateChangedConnection);
+		disconnect(_selectionSetsChangedConnection);
+		disconnect(_selectionSetsSyncConnection);
+		_selectionSetsPanel->syncActiveSet({});
+		disconnect(_sceneStatesChangedConnection);
+		disconnect(_hasMeshesSyncConnection);
+		ui->actionFilterByMaterial->setEnabled(false);
+		ui->actionFilterByColor->setEnabled(false);
+		ui->actionFilterByBoundingBox->setEnabled(false);
+		disconnect(_materialPropertiesEyedropperConnection);
+		_materialPropertiesPanel->setEyedropperChecked(false);
+
+		_materialPropertiesPanel->setEnabled(false);
+		_objectTransformPanel->setEnabled(false);
+		_visualizationEnvironmentPanel->setEnabled(false);
+		_materialVariantsPanel->setEnabled(false);
+		_animationsPanel->setEnabled(false);
+		_camerasPanel->setEnabled(false);
+		_selectionSetsPanel->setEnabled(false);
+		_sceneStatesPanel->setEnabled(false);
+		disconnect(_simulationSessionConnection);
+		_simulationPanel->setSession(nullptr);
+		_simulationPanel->setEnabled(false);
+		ui->actionSimulationCompare->setEnabled(false);
+		_checkBoxAutoFitView->setEnabled(false);
+		_checkBoxSelectionHighlight->setEnabled(false);
+		return;
+	}
+
+	_sharedPanelsBound = true;
+
+	_materialPropertiesPanel->setEnabled(true);
+	_objectTransformPanel->setEnabled(true);
+	_visualizationEnvironmentPanel->setEnabled(true);
+	_materialVariantsPanel->setEnabled(true);
+	_animationsPanel->setEnabled(true);
+	_camerasPanel->setEnabled(true);
+	_selectionSetsPanel->setEnabled(true);
+	_sceneStatesPanel->setEnabled(true);
+	_simulationPanel->setEnabled(true);
+	_checkBoxAutoFitView->setEnabled(true);
+	_checkBoxSelectionHighlight->setEnabled(true);
+
+	ViewportWidget* viewport = viewer->getViewportWidget();
+
+	// Reflect the newly-bound document's own current state, not the
+	// previously active document's - blockSignals() so this doesn't loop
+	// back through the toggled-> dispatch connections made in the
+	// constructor and write it right back (redundantly, but harmlessly,
+	// since they'd dispatch to the same viewport this value came from).
+	_checkBoxAutoFitView->blockSignals(true);
+	_checkBoxAutoFitView->setChecked(viewport->autoFitViewOnUpdate());
+	_checkBoxAutoFitView->blockSignals(false);
+	_checkBoxSelectionHighlight->blockSignals(true);
+	_checkBoxSelectionHighlight->setChecked(viewport->isSelectionHighlighting());
+	_checkBoxSelectionHighlight->blockSignals(false);
+
+	// MaterialPropertiesPanel::initialize() has no one-shot guard, so this is
+	// already safe to call on every rebind.
+	_materialPropertiesPanel->initialize(viewer, viewport);
+	// Clears state left over from whichever document was active before -
+	// without this, an in-progress mesh-material edit on the previous
+	// document would still look "in progress" against the new one.
+	_materialPropertiesPanel->setEditingMeshUuid(QUuid());
+
+	_visualizationEnvironmentPanel->setPreviewWidget(_materialPropertiesPanel->getPreviewWidget());
+	_visualizationEnvironmentPanel->initialize(viewer, viewport);
+
+	// These two connections are per-ViewportWidget, and every document has
+	// its own - reconnect them to the newly-active one each time instead of
+	// leaving them wired to whichever viewport was active before.
+	disconnect(_environmentPanelDisplayModeConnection);
+	_environmentPanelDisplayModeConnection = connect(viewport, QOverload<int>::of(&ViewportWidget::displayModeChanged),
+		_visualizationEnvironmentPanel, QOverload<int>::of(&VisualizationEnvironmentPanel::onDisplayModeChanged));
+
+	disconnect(_materialPreviewRenderingModeConnection);
+	MaterialPreviewWidget* previewWidget = _materialPropertiesPanel->getPreviewWidget();
+	_materialPreviewRenderingModeConnection = connect(viewport, QOverload<int>::of(&ViewportWidget::renderingModeChanged),
+		this, [previewWidget](int) { previewWidget->update(); });
+
+	// Reflect the newly-bound document's own current eyedropper state (not
+	// whichever document was active before), then keep it live for as long
+	// as this document stays active - same "reflect current state, then
+	// reconnect" shape as the two connections above.
+	_materialPropertiesPanel->setEyedropperChecked(viewport->eyedropperArmed());
+	disconnect(_materialPropertiesEyedropperConnection);
+	_materialPropertiesEyedropperConnection = connect(viewport, &ViewportWidget::eyedropperArmedChanged,
+		_materialPropertiesPanel, &MaterialPropertiesPanel::setEyedropperChecked);
+
+	// Same "reflect current state, then reconnect" shape as the eyedropper
+	// sync above - keeps actionSaveSelectionSet enabled/disabled and the
+	// Selections panel's active-row highlight live as this document's own
+	// selection changes (not just at document-lifecycle points, where
+	// updateMenus()/refresh() alone would leave them stale mid-session).
+	ui->actionSaveSelectionSet->setEnabled(viewer->hasSelection());
+	_selectionSetsPanel->syncActiveSet(viewer->getSelectedUuids());
+	disconnect(_selectionSetsSyncConnection);
+	_selectionSetsSyncConnection = connect(viewport, &ViewportWidget::selectionChanged, this,
+		[this, viewer](const QList<int>&) {
+			ui->actionSaveSelectionSet->setEnabled(viewer->hasSelection());
+			_selectionSetsPanel->syncActiveSet(viewer->getSelectedUuids());
+		});
+
+	// Simulation panel: show this document's active result now, and follow it while this document stays active
+	// (an open, a selection change and an edit all emit simulationSessionChanged()).
+	refreshSimulationPanel(viewer);
+	if (_plot3DControlsPanel)
+		_plot3DControlsPanel->setModelViewer(viewer);
+	disconnect(_simulationSessionConnection);
+	_simulationSessionConnection = connect(viewer, &ModelViewer::simulationSessionChanged, this,
+		[this, viewer](bool activateTab) {
+			refreshSimulationPanel(viewer);
+			if (activateTab && _documentSecondaryTabWidget)
+				_documentSecondaryTabWidget->setCurrentWidget(_simulationPanel);
+		});
+
+	// Unconditional, not just on switching TO the Transformations tab - if
+	// the user was already looking at that tab when a different document
+	// activated, only the tab-changed handler would have caught it, leaving
+	// the panel showing the previous document's selection's values.
+	viewer->updateTransformationValues();
+
+	// Document dock: Variants/Animations/Cameras. setSceneGraph()/
+	// setViewportWidget() are plain setters with no one-shot guard or
+	// ordering hazard (checked their implementations directly, given what
+	// the Environment panel's initialize() ordering bug cost earlier) -
+	// safe to call on every rebind.
+	SceneGraph* sceneGraph = viewer->sceneGraph();
+	_materialVariantsPanel->setSceneGraph(sceneGraph);
+	_animationsPanel->setSceneGraph(sceneGraph);
+	_animationsPanel->setViewportWidget(viewport);
+	_camerasPanel->setSceneGraph(sceneGraph);
+	_camerasPanel->setViewportWidget(viewport);
+	_selectionSetsPanel->setSceneGraph(sceneGraph);
+	_sceneStatesPanel->setSceneGraph(sceneGraph);
+	_materialVariantsPanel->refresh();
+	_animationsPanel->refresh();
+	_camerasPanel->refresh();
+	_selectionSetsPanel->refresh();
+	_sceneStatesPanel->refresh();
+
+	// Per-document sources (this document's SceneGraph/ViewportWidget, not
+	// the shared panels) - disconnect from whichever document was
+	// previously bound and reconnect to the new one, same reasoning as the
+	// Environment panel's SceneGraph::lightDataChanged connection.
+	disconnect(_variantDataChangedConnection);
+	disconnect(_animationDataChangedConnection);
+	disconnect(_gltfCameraDataChangedConnection);
+	disconnect(_structureChangedForVariantsConnection);
+	disconnect(_animationStateChangedConnection);
+	disconnect(_selectionSetsChangedConnection);
+	disconnect(_sceneStatesChangedConnection);
+	if (sceneGraph)
+	{
+		_selectionSetsChangedConnection = connect(sceneGraph, &SceneGraph::selectionSetsChanged, this,
+			[this]() { _selectionSetsPanel->refresh(); refreshDocumentDockTabStyling(activeMdiChild()); });
+		_sceneStatesChangedConnection = connect(sceneGraph, &SceneGraph::sceneStatesChanged, this,
+			[this]() { _sceneStatesPanel->refresh(); refreshDocumentDockTabStyling(activeMdiChild()); });
+		_variantDataChangedConnection = connect(sceneGraph, &SceneGraph::variantDataChanged, this,
+			[this]() { _materialVariantsPanel->refresh(); refreshDocumentDockTabStyling(activeMdiChild()); });
+		// The Variants tab now lists every loaded file (not just ones that
+		// already carry KHR_materials_variants), so it needs to refresh
+		// whenever the scene structure changes too - e.g. a new file just
+		// finished importing - not only when variant data itself changes.
+		_structureChangedForVariantsConnection = connect(sceneGraph, &SceneGraph::structureChanged, this,
+			[this]() { _materialVariantsPanel->refresh(); refreshDocumentDockTabStyling(activeMdiChild()); });
+		_animationDataChangedConnection = connect(sceneGraph, &SceneGraph::animationDataChanged, this,
+			[this]() { _animationsPanel->refresh(); refreshDocumentDockTabStyling(activeMdiChild()); });
+		// gltfCameraDataChanged also covers user-captured views ("Capture
+		// View" in the Cameras tab) - they're stored as regular per-file
+		// glTF camera data under SceneGraph's synthetic
+		// capturedViewsSourceFileKey() bucket, not a separate concept.
+		_gltfCameraDataChangedConnection = connect(sceneGraph, &SceneGraph::gltfCameraDataChanged, this,
+			[this]() { _camerasPanel->refresh(); refreshDocumentDockTabStyling(activeMdiChild()); });
+
+		// Reflect the newly-bound document's own current mesh-count state
+		// (not whichever document was active before), then keep it live -
+		// same "reflect current state, then reconnect" shape as the
+		// eyedropper/selection-set-sync connections above.
+		disconnect(_hasMeshesSyncConnection);
+		auto refreshFilterActionsEnabled = [this, viewport]() {
+			const bool hasMeshes = !viewport->getMeshStore().empty();
+			ui->actionFilterByMaterial->setEnabled(hasMeshes);
+			ui->actionFilterByColor->setEnabled(hasMeshes);
+			ui->actionFilterByBoundingBox->setEnabled(hasMeshes);
+		};
+		refreshFilterActionsEnabled();
+		_hasMeshesSyncConnection = connect(sceneGraph, &SceneGraph::structureChanged, this, refreshFilterActionsEnabled);
+	}
+	_animationStateChangedConnection = connect(viewport, &ViewportWidget::animationStateChanged,
+		_animationsPanel, &AnimationsPanel::refresh);
+
+	refreshDocumentDockTabStyling(viewer);
+}
+
+void MainWindow::handleActiveDocumentChanged(QMdiSubWindow* subWindow)
+{
+	// QMdiArea fires this with a null subWindow in TWO unrelated situations
+	// it gives no way to tell apart from the signal alone: the last document
+	// closing, AND simply "the MDI area itself lost focus to some other
+	// top-level widget in this app" - e.g. a non-modal tool dialog like
+	// ShrinkWrapDialog/SubdivisionDialog/MeasurementDialog gaining focus
+	// while a document is still very much open. Reacting to the second case
+	// by clearing _activeDocument disabled Undo/Redo (and every other
+	// document-scoped menu action) for as long as such a dialog had focus -
+	// confirmed bug ("Undo doesn't work while the Subdivision dialog is
+	// active"). The real "no documents open" case is already handled
+	// directly, synchronously, where a document actually closes (see the
+	// viewerWasActive block in createDocumentSubWindow()'s destroyed()
+	// handler) - this signal-driven path only needs to react to a REAL
+	// subwindow transition, so a null one is simply ignored here.
+	if (!subWindow)
+		return;
+	activateDocument(qobject_cast<ModelViewer*>(subWindow->widget()));
+}
+
+void MainWindow::activateDocument(ModelViewer* child)
+{
+	// _mdiArea's subWindowActivated signal is Qt's own and fires during
+	// app-shutdown cascading widget destruction too, independent of and
+	// unguarded by the _shuttingDown check in createDocumentSubWindow()'s
+	// destroyed() lambda (that lambda covers a different call path). By the
+	// time that cascade reaches _mdiArea, ~MainWindow()'s body has already
+	// set _shuttingDown - reaching rebindSharedPanelsTo()/updateMenus() from
+	// here after that point risks touching menus/panels mid-teardown, whose
+	// own destruction order relative to _mdiArea's isn't guaranteed.
+	if (_shuttingDown)
+		return;
+
+	// Called both from handleActiveDocumentChanged() (via _mdiArea's
+	// subWindowActivated signal) and directly, as a defensive safety net,
+	// from presentDocumentFullscreen()/openFile()/updateWindowMenu() for
+	// cases where subWindowActivated() may not fire on its own - skip
+	// redoing the rebind/undo-stack/repaint-nudge work below if the
+	// document isn't actually changing.
+	if (child && child == _activeDocument)
+		return;
+
+	// The chart windows of the document being left are hidden and those of the one being entered come back (they are top-level
+	// windows owned by their document, so Qt would otherwise leave them on screen over another document).
+	if (_activeDocument && _activeDocument != child)
+		_activeDocument->hideDocumentWindows();
+	_activeDocument = child;
+	if (child)
+		child->showDocumentWindows();
+
+	updateMenus();
+
+	// Disconnect from the PREVIOUS child's undo stack before connecting to
+	// the new one - without this, every document switch added another
+	// connection to the last child's stack, so updateMenus() fired once per
+	// prior switch on every subsequent undo/redo.
+	if (_lastBoundModelViewer && _lastBoundModelViewer->getUndoStack())
+		disconnect(_lastBoundModelViewer->getUndoStack(), &QUndoStack::indexChanged, this, &MainWindow::updateMenus);
+
+	rebindSharedPanelsTo(child);
+	_lastBoundModelViewer = child;
+
+	if (child && child->getUndoStack())
+	{
+		connect(child->getUndoStack(), &QUndoStack::indexChanged,
+			this, &MainWindow::updateMenus, Qt::UniqueConnection);
+	}
+
+	if (child)
+	{
+		// A tab becoming current only shows the QOpenGLWidget again - it
+		// doesn't itself guarantee a repaint, so without this the viewport
+		// can sit on stale/blank contents until something else (a click, an
+		// animation frame) happens to trigger one. Also grabs keyboard focus
+		// the same way a click into the viewport already does (see
+		// ViewportWidget::mousePressEvent()), so camera-navigation keys work
+		// immediately on switching tabs instead of requiring a click first.
+		if (ViewportWidget* viewport = child->getViewportWidget())
+		{
+			viewport->setFocus();
+			// Neither update() nor repaint() actually fixes this (confirmed
+			// by testing both): the viewport reports isVisible()==true with
+			// a correct size right here, and repaint() forces Qt to run
+			// paintGL() synchronously, yet the screen stayed on stale/black
+			// contents until a genuine native input event (the mouse
+			// entering the viewport OR passing over a nearby widget like the
+			// tab's close button) happened. That points at the window
+			// manager/compositor never being told this region needs
+			// recompositing - Qt's own internal repaint clearly ran, but
+			// nothing reached the compositor without real input activity.
+			// A real resize (shrink then restore) forces genuine native
+			// ConfigureNotify/Expose events the compositor can't ignore,
+			// unlike a pure Qt-level update()/repaint() call - matches the
+			// same class of Wayland/XWayland compositor quirk already
+			// worked around elsewhere in this codebase (see
+			// ViewportWidget::paintGL()'s alpha-stomp comment), just showing
+			// up as stale pixels here instead of alpha bleed-through.
+			//
+			// The shrink and restore need to be genuinely separate event-
+			// loop passes, not back-to-back calls - two resize() calls with
+			// no event processing between them risk Qt coalescing them into
+			// a single net no-op (final size == original size), which would
+			// never generate a real native event at all. That's consistent
+			// with this only failing "randomly": whether Qt happens to
+			// process something in between the two calls isn't guaranteed
+			// by calling them consecutively in the same function.
+			//
+			// Windows-only: DWM doesn't have the "Qt-level repaint never
+			// reaches the compositor" bug this works around, so on Windows
+			// this is pure liability rather than a needed fix - QOpenGLWidget
+			// resize there recreates FBOs/backing stores more synchronously
+			// than X11/Wayland, and with multiple documents open the QPointer
+			// guard only protects against the viewport being destroyed, not
+			// against the user switching to yet another tab before these
+			// pending timers fire (each still resizes whatever ViewportWidget
+			// it captured, even one that's no longer active/visible).
+#if !defined(Q_OS_WIN)
+			QPointer<ViewportWidget> guardedViewport(viewport);
+			QTimer::singleShot(0, this, [guardedViewport]() {
+				if (!guardedViewport)
+					return;
+				const QSize size = guardedViewport->size();
+				guardedViewport->resize(size - QSize(1, 1));
+				QTimer::singleShot(0, guardedViewport, [guardedViewport, size]() {
+					if (guardedViewport)
+						guardedViewport->resize(size);
+					});
+				});
+#else
+			// On Windows the viewport no longer crashes now that context sharing
+			// keeps the heavy GL resources alive, but a newly-current QOpenGLWidget
+			// can still sit black until the next native input event delivers a real
+			// paint/update pulse. A lightweight updateRequest on the top-level
+			// window, deferred until the tab switch has finished, provides that
+			// pulse without the resize churn the old workaround used.
+			QPointer<ViewportWidget> guardedViewport(viewport);
+			QTimer::singleShot(0, this, [guardedViewport]() {
+				if (!guardedViewport)
+					return;
+				guardedViewport->update();
+				if (QWidget* topLevel = guardedViewport->window())
+					topLevel->update();
+				if (QWindow* windowHandle = guardedViewport->window()->windowHandle())
+					windowHandle->requestUpdate();
+			});
+#endif
+		}
+	}
+	else
+	{
+	}
+}
+
+void MainWindow::setDocumentTabDimmed(int tabIndex, bool dimmed)
+{
+	QTabBar* tabBar = _documentTabWidget->tabBar();
+	if (tabIndex < 0 || tabIndex >= tabBar->count())
+		return;
+	// QPalette::NoRole clears the override and falls back to the tab bar's
+	// normal palette - can't just use a fixed "undimmed" color here since
+	// that would stop tracking the app's actual theme (dark vs light).
+	tabBar->setTabTextColor(tabIndex, dimmed ? tabBar->palette().color(QPalette::Disabled, QPalette::WindowText)
+	                                          : QColor());
+}
+
+void MainWindow::refreshDocumentDockTabStyling(ModelViewer* viewer)
+{
+	if (!_documentTabWidget)
+		return;
+
+	SceneGraph* sceneGraph = viewer ? viewer->sceneGraph() : nullptr;
+	// Not gated on filesWithVariants(): the Variants tab now lists every
+	// loaded file so "Capture Current as Variant..." is reachable even
+	// before any variant exists yet (e.g. a freshly loaded STEP/OBJ file).
+	const bool hasVariants = sceneGraph && !sceneGraph->allSourceFiles().isEmpty();
+	const bool hasAnimations = sceneGraph && !sceneGraph->filesWithAnimations().isEmpty();
+	// User-captured views ("Capture View" in the Cameras tab) are already
+	// included here - they're stored as regular glTF camera data under
+	// SceneGraph's synthetic capturedViewsSourceFileKey() bucket.
+	const bool hasCameras = sceneGraph && !sceneGraph->filesWithGltfCameras().isEmpty();
+
+	setDocumentTabDimmed(0, !hasVariants);
+	setDocumentTabDimmed(1, !hasAnimations);
+	setDocumentTabDimmed(2, !hasCameras);
+}
+
+void MainWindow::showMaterialsPropertiesPage()
+{
+	_propertiesTabWidget->setCurrentIndex(0);
+	_propertiesDock->setVisible(true);
+	_propertiesDock->raise();
+}
+
+void MainWindow::showTransformationsPropertiesPage()
+{
+	_propertiesTabWidget->setCurrentIndex(1);
+	_propertiesDock->setVisible(true);
+	_propertiesDock->raise();
+	if (ModelViewer* child = activeMdiChild())
+	{
+		child->getViewportWidget()->showTransformGizmoForSelection(true);
+		child->updateTransformationValues();
+	}
+}
+
+void MainWindow::showEnvironmentDockPage()
+{
+	_environmentDock->setVisible(true);
+	_environmentDock->raise();
+}
+
+
+MainWindow::~MainWindow()
+{
+	// Must be set before anything below runs Qt's cascading parent-child
+	// destruction of _mdiArea/_viewers and their child widgets - see the
+	// comment in createDocumentSubWindow()'s destroyed-signal handler.
+	_shuttingDown = true;
+	delete ui;
+}
+
+void MainWindow::readSettings()
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	static constexpr int kNativeMdiDockStateVersion = 1;
+	const QByteArray geometry = settings.value("geometry", QByteArray()).toByteArray();
+	if (geometry.isEmpty()) {
+		const QRect availableGeometry = screen()->availableGeometry();
+		resize(availableGeometry.width() / 3, availableGeometry.height() / 2);
+		move((availableGeometry.width() - width()) / 2,
+			(availableGeometry.height() - height()) / 2);
+	}
+	else {
+		restoreGeometry(geometry);
+	}
+
+	// Native QMainWindow dock state is not compatible with the old Qt-ADS
+	// bytes that previously lived under "dockState". Gate restore on an
+	// explicit version/key pair so a branch switch from Qt-ADS does not try
+	// to deserialize stale foreign state into the new MDI/dock layout.
+	// The three right-panel docks live on the NESTED _rightPanelWindow now (see its own doc comment), so their
+	// state is restored there, not on this outer window - restoreState() only covers a QMainWindow's OWN docks/
+	// toolbars, never a descendant one's.
+	if (settings.value("dockStateNativeMdiVersion", 0).toInt() == kNativeMdiDockStateVersion)
+	{
+		restoreState(settings.value("dockStateNativeMdi").toByteArray());
+		if (_rightPanelWindow)
+			_rightPanelWindow->restoreState(settings.value("dockStateRightPanel").toByteArray());
+	}
+
+	// _documentTabSplitter's handle position isn't part of QMainWindow's own
+	// dock/toolbar state above (that only covers QDockWidget geometry, not
+	// an arbitrary child splitter inside one), so it needs its own key.
+	const QByteArray splitterState = settings.value("documentTabSplitterState").toByteArray();
+	if (_documentTabSplitter && !splitterState.isEmpty())
+		_documentTabSplitter->restoreState(splitterState);
+
+	// _rightPanelSplitter's own handle position - same reasoning as _documentTabSplitter above, a separate key
+	// since QMainWindow's saveState()/restoreState() knows nothing about a QSplitter it happens to be embedded in.
+	const QByteArray rightPanelSplitterState = settings.value("rightPanelSplitterState").toByteArray();
+	if (_rightPanelSplitter && !rightPanelSplitterState.isEmpty())
+		_rightPanelSplitter->restoreState(rightPanelSplitterState);
+}
+
+void MainWindow::writeSettings()
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	static constexpr int kNativeMdiDockStateVersion = 1;
+	settings.setValue("geometry", saveGeometry());
+	settings.setValue("dockStateNativeMdiVersion", kNativeMdiDockStateVersion);
+	settings.setValue("dockStateNativeMdi", saveState());
+	if (_rightPanelWindow)
+		settings.setValue("dockStateRightPanel", _rightPanelWindow->saveState());
+	if (_documentTabSplitter)
+		settings.setValue("documentTabSplitterState", _documentTabSplitter->saveState());
+	if (_rightPanelSplitter)
+		settings.setValue("rightPanelSplitterState", _rightPanelSplitter->saveState());
+}
+
+
+QStringList MainWindow::readRecentFiles(QSettings& settings)
+{
+	QStringList result;
+	const int count = settings.beginReadArray(recentFilesKey());
+	// Only the first MaxRecentFiles entries are ever used. Older versions never trimmed the stored list, so it can
+	// hold hundreds of stale entries; reading just the head keeps every open and menu refresh cheap.
+	for (int i = 0; i < qMin(count, int(MaxRecentFiles)); ++i) {
+		settings.setArrayIndex(i);
+		result.append(settings.value(fileKey()).toString());
+	}
+	settings.endArray();
+	return result;
+}
+
+void MainWindow::writeRecentFiles(const QStringList& files, QSettings& settings)
+{
+	const int count = qMin(int(files.size()), int(MaxRecentFiles));
+	// Drop the whole old array first: beginWriteArray() only sets the new size and would leave stale
+	// higher-index entries behind in the registry / ini file.
+	settings.remove(recentFilesKey());
+	settings.beginWriteArray(recentFilesKey());
+	for (int i = 0; i < count; ++i) {
+		settings.setArrayIndex(i);
+		settings.setValue(fileKey(), files.at(i));
+	}
+	settings.endArray();
+}
+
+QPushButton* MainWindow::cancelTaskButton()
+{
+	return _cancelTaskButton;
+}
+
+void MainWindow::showStatusMessage(const QString& message, int timeout)
+{
+	if (!_mainWindow)
+	{
+		return;
+	}
+	if (QThread::currentThread() != _mainWindow->thread())
+	{
+		QMetaObject::invokeMethod(_mainWindow, [message, timeout]() {
+			MainWindow::showStatusMessage(message, timeout);
+		}, Qt::QueuedConnection);
+		return;
+	}
+	_mainWindow->statusBar()->showMessage(message, timeout);
+	_mainWindow->statusBar()->update();
+}
+
+void MainWindow::showStatusBalloon(const QString& message, int timeout)
+{
+	if (!_mainWindow)
+		return;
+	if (QThread::currentThread() != _mainWindow->thread())
+	{
+		QMetaObject::invokeMethod(_mainWindow, [message, timeout]() { MainWindow::showStatusBalloon(message, timeout); }, Qt::QueuedConnection);
+		return;
+	}
+	if (!_mainWindow->_statusBalloon)
+		_mainWindow->_statusBalloon = new StatusBalloon(_mainWindow);
+	_mainWindow->_statusBalloon->showText(message, timeout);
+}
+
+void MainWindow::showProgressBar(const bool showCancelButton)
+{
+	if (!_mainWindow)
+	{
+		return;
+	}
+	if (QThread::currentThread() != _mainWindow->thread())
+	{
+		QMetaObject::invokeMethod(_mainWindow, [showCancelButton]() {
+			MainWindow::showProgressBar(showCancelButton);
+		}, Qt::QueuedConnection);
+		return;
+	}
+	_fileLoadCancelRequested = false;
+	_mainWindow->_progressBar->show();
+#if defined _WIN32 && QT_VERSION_MAJOR == 5
+	_mainWindow->_windowsTaskbarProgress->show();
+#endif 
+	if (showCancelButton)
+	{
+		_mainWindow->_cancelTaskButton->setText(QObject::tr("Cancel Loading"));
+		_mainWindow->_cancelTaskButton->setEnabled(true);
+		_mainWindow->_cancelTaskButton->show();
+	}
+}
+
+void MainWindow::showIndeterminateProgressBar()
+{
+	if (!_mainWindow)
+	{
+		return;
+	}
+	if (QThread::currentThread() != _mainWindow->thread())
+	{
+		QMetaObject::invokeMethod(_mainWindow, []() {
+			MainWindow::showIndeterminateProgressBar();
+		}, Qt::QueuedConnection);
+		return;
+	}
+	_fileLoadCancelRequested = false;
+	_mainWindow->_progressBar->setRange(0, 0);
+	_mainWindow->_progressBar->show();	
+#if defined _WIN32 && QT_VERSION_MAJOR == 5
+	_mainWindow->_windowsTaskbarProgress->show();
+#endif 
+	_mainWindow->_cancelTaskButton->show();
+	_mainWindow->_cancelTaskButton->setText(QObject::tr("Cancel Loading"));
+	_mainWindow->_cancelTaskButton->setEnabled(true);
+}
+
+void MainWindow::resetProgressBar()
+{
+	if (!_mainWindow)
+	{
+		return;
+	}
+	if (QThread::currentThread() != _mainWindow->thread())
+	{
+		QMetaObject::invokeMethod(_mainWindow, []() {
+			MainWindow::resetProgressBar();
+		}, Qt::QueuedConnection);
+		return;
+	}
+	_mainWindow->_progressBar->reset();
+	_mainWindow->_progressBar->setRange(0, 100);	
+}
+
+void MainWindow::hideProgressBar()
+{
+	if (!_mainWindow)
+	{
+		return;
+	}
+	if (QThread::currentThread() != _mainWindow->thread())
+	{
+		QMetaObject::invokeMethod(_mainWindow, []() {
+			MainWindow::hideProgressBar();
+		}, Qt::QueuedConnection);
+		return;
+	}
+	_mainWindow->_progressBar->hide();
+#if defined _WIN32 && QT_VERSION_MAJOR == 5
+	_mainWindow->_windowsTaskbarProgress->hide();
+#endif 
+	_mainWindow->_cancelTaskButton->hide();
+	_mainWindow->_cancelTaskButton->setText(QObject::tr("Cancel Loading"));
+	_mainWindow->_cancelTaskButton->setEnabled(true);
+	_fileLoadCancelRequested = false;
+}
+
+void MainWindow::setProgressValue(const int& value)
+{
+	if (!_mainWindow)
+	{
+		return;
+	}
+	if (QThread::currentThread() != _mainWindow->thread())
+	{
+		QMetaObject::invokeMethod(_mainWindow, [value]() {
+			MainWindow::setProgressValue(value);
+		}, Qt::QueuedConnection);
+		return;
+	}
+	if (value == 0)
+	{
+		_mainWindow->_progressBar->reset();
+#if defined _WIN32 && QT_VERSION_MAJOR == 5
+		_mainWindow->_windowsTaskbarProgress->reset();
+#endif 
+	}
+	else
+	{
+		_mainWindow->_progressBar->setValue(value);
+#if defined _WIN32 && QT_VERSION_MAJOR == 5
+		_mainWindow->_windowsTaskbarProgress->setValue(value);
+#endif 
+	}
+	_mainWindow->_progressBar->update();
+}
+
+void MainWindow::setCancelButtonEnabled(bool enabled)
+{
+	_mainWindow->_cancelTaskButton->setEnabled(enabled);
+}
+
+void MainWindow::setCancelButtonText(const QString& text)
+{
+	_mainWindow->_cancelTaskButton->setText(text);
+}
+
+void MainWindow::requestFileLoadCancel()
+{
+	_fileLoadCancelRequested = true;
+}
+
+void MainWindow::clearFileLoadCancel()
+{
+	_fileLoadCancelRequested = false;
+}
+
+bool MainWindow::isFileLoadCancelRequested()
+{
+	return _fileLoadCancelRequested;
+}
+
+void MainWindow::setLoadingUiLocked(bool locked)
+{
+	if (!_mainWindow)
+	{
+		return;
+	}
+	if (QThread::currentThread() != _mainWindow->thread())
+	{
+		QMetaObject::invokeMethod(_mainWindow, [locked]() {
+			MainWindow::setLoadingUiLocked(locked);
+		}, Qt::QueuedConnection);
+		return;
+	}
+	const bool enabled = !locked;
+	_mainWindow->menuBar()->setEnabled(enabled);
+	if (_mainWindow->_mdiArea)
+		_mainWindow->_mdiArea->setEnabled(enabled);
+	if (_mainWindow->_propertiesDock)
+		_mainWindow->_propertiesDock->setEnabled(enabled);
+	if (_mainWindow->_environmentDock)
+		_mainWindow->_environmentDock->setEnabled(enabled);
+	if (_mainWindow->_documentDock)
+		_mainWindow->_documentDock->setEnabled(enabled);
+}
+
+void MainWindow::on_actionExit_triggered(bool /*checked*/)
+{
+	if (canExit())
+	{		
+		qApp->exit();
+	}
+}
+
+void MainWindow::on_actionWhatsNew_triggered()
+{
+	showWhatsNew(false);
+}
+
+void MainWindow::showWhatsNew(bool automatic)
+{
+	if (!_whatsNewDialog)
+	{
+		_whatsNewDialog = new WhatsNewDialog(this);
+		_whatsNewDialog->setAttribute(Qt::WA_DeleteOnClose);
+		connect(_whatsNewDialog, &WhatsNewDialog::openTutorialRequested, this, &MainWindow::showTutorial);
+		connect(_whatsNewDialog, &WhatsNewDialog::openQuickHelpRequested, this, &MainWindow::on_actionQuick_Help_triggered);
+		connect(_whatsNewDialog, &QObject::destroyed, []() { _whatsNewDialog = nullptr; });
+	}
+	if (automatic)
+		WhatsNewDialog::markShown();
+	_whatsNewDialog->show();
+	_whatsNewDialog->raise();
+	_whatsNewDialog->activateWindow();
+}
+
+void MainWindow::on_actionQuick_Help_triggered()
+{
+	// Create as a member variable or use static to keep one instance
+	if (!_helpDialog)
+	{
+		_helpDialog = new QuickHelpDialog(this);
+		_helpDialog->setAttribute(Qt::WA_DeleteOnClose);
+		_helpDialog->setModal(false);
+		_helpDialog->setWindowModality(Qt::NonModal);
+		connect(_helpDialog, &QObject::destroyed, []() {
+			_helpDialog = nullptr; // Reset pointer when dialog is closed
+			});
+	}
+
+	_helpDialog->show();
+	_helpDialog->raise();
+	_helpDialog->activateWindow();
+}
+
+void MainWindow::on_actionTutorial_triggered()
+{
+	showTutorial(0);
+}
+
+void MainWindow::on_actionUserGuide_triggered()
+{
+	// The guide of the UI language when it ships, else the English one (docs/guide next to the data folders; the source tree has the same layout).
+	const QString guideDir = PathUtils::getDataDirectory() + "/docs/guide";
+	const QString base = QStringLiteral("ModelViewer_Simulation_and_3D_Plotting_Guide");
+	const QString language = LanguageManager::instance().currentLanguage().section(QLatin1Char('_'), 0, 0).toLower();
+	QString path = guideDir + "/" + base + ".pdf";
+	if (!language.isEmpty() && language != QLatin1String("en") && QFile::exists(guideDir + "/" + base + "_" + language + ".pdf"))
+		path = guideDir + "/" + base + "_" + language + ".pdf";
+	if (QFile::exists(path))
+		QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+	else
+		QMessageBox::warning(this, tr("Guide Not Found"),
+			tr("The PDF guide was not found at:\n%1\n\nPlease ensure the documentation files are installed correctly.").arg(path));
+}
+
+void MainWindow::showTutorial(int lesson)
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+
+	// Check if user has saved a preference
+	QString tutorialMode = settings.value("tutorial/displayMode", "ask").toString();
+
+	if (tutorialMode == "ask")
+	{
+		// Ask user which method they prefer
+		QMessageBox msgBox(this);
+		msgBox.setWindowTitle(tr("Tutorial Display Method"));
+		msgBox.setText(tr("How would you like to view the tutorial?"));
+		msgBox.setInformativeText(tr("Choose between an integrated dialog or opening in your web browser."));
+		msgBox.setIcon(QMessageBox::Question);
+
+		QPushButton* dialogButton = msgBox.addButton(tr("Dialog Window"), QMessageBox::AcceptRole);
+		QPushButton* browserButton = msgBox.addButton(tr("Web Browser"), QMessageBox::AcceptRole);
+		msgBox.addButton(QMessageBox::Cancel);
+
+		QCheckBox* rememberCheckbox = new QCheckBox(tr("Remember my choice"), &msgBox);
+		msgBox.setCheckBox(rememberCheckbox);
+
+		msgBox.exec();
+
+		if (msgBox.clickedButton() == dialogButton)
+		{
+			tutorialMode = "dialog";
+			if (rememberCheckbox->isChecked())
+			{
+				settings.setValue("tutorial/displayMode", "dialog");
+				settings.setValue("checkTutorialLaunch", false);
+			}
+		}
+		else if (msgBox.clickedButton() == browserButton)
+		{
+			tutorialMode = "browser";
+			if (rememberCheckbox->isChecked())
+			{
+				settings.setValue("tutorial/displayMode", "browser");
+				settings.setValue("checkTutorialLaunch", false);
+			}
+		}
+		else
+		{
+			// User cancelled
+			return;
+		}
+	}
+
+	// Open tutorial based on chosen mode
+	if (tutorialMode == "dialog")
+	{
+		TutorialDialog* tutorial = new TutorialDialog(this);
+		tutorial->setAttribute(Qt::WA_DeleteOnClose);
+		tutorial->show();
+		if (lesson > 0)
+			tutorial->showLesson(lesson);
+	}
+	else if (tutorialMode == "browser")
+	{
+		// The page of the UI language when it exists, else the English one.
+		const QString tutorialDir = PathUtils::getDataDirectory() + "/data/tutorials";
+		const QString fileName = lesson > 0 ? QString("lesson%1.html").arg(lesson, 2, 10, QChar('0')) : QStringLiteral("index.html");
+		const QString language = LanguageManager::instance().currentLanguage().section(QLatin1Char('_'), 0, 0).toLower();
+		QString tutorialPath = tutorialDir + "/" + fileName;
+		if (!language.isEmpty() && language != QLatin1String("en") && QFile::exists(tutorialDir + "/" + language + "/" + fileName))
+			tutorialPath = tutorialDir + "/" + language + "/" + fileName;
+		QFile tutorialFile(tutorialPath);
+
+		if (tutorialFile.exists())
+		{
+			QDesktopServices::openUrl(QUrl::fromLocalFile(tutorialPath));
+		}
+		else
+		{
+			QMessageBox::warning(this, tr("Tutorial Not Found"),
+				tr("Tutorial file not found at:\n%1\n\n"
+					"Please ensure the tutorial files are installed correctly.").arg(tutorialPath));
+		}
+	}
+}
+
+#include "LogViewer.h"
+void MainWindow::on_actionView_Logs_triggered()
+{
+	// Create as a member variable or use static to keep one instance
+	static LogViewer* logViewer = nullptr;
+	if (!logViewer)
+	{
+		logViewer = new LogViewer(this);
+		logViewer->setAttribute(Qt::WA_DeleteOnClose);
+		connect(logViewer, &QObject::destroyed, []() {
+			logViewer = nullptr; // Reset pointer when dialog is closed
+			});
+	}
+	logViewer->show();
+	logViewer->raise();
+	logViewer->activateWindow();
+}
+
+void MainWindow::on_actionOpen_Logs_Folder_triggered()
+{
+	// Open the logs folder in the system file explorer
+	QString logsPath = Logger::instance().getLogDirectory();
+	if (QDir(logsPath).exists())
+	{
+		QDesktopServices::openUrl(QUrl::fromLocalFile(logsPath));
+	}
+	else
+	{
+		QMessageBox::warning(this, tr("Logs Folder Not Found"),
+			tr("The logs folder could not be found at:\n%1\n\n"
+				"Please ensure the application has permission to create and access the logs directory.").arg(logsPath));
+	}
+}
+
+void MainWindow::on_actionShow_Console_triggered()
+{
+	// The console panel's own close button only hides it (see
+	// ConsolePanel::closeEvent()) rather than destroying it, but the
+	// Settings dialog's "Enable console" checkbox only re-applies when its
+	// checked state actually *changes* from what was last saved - if the
+	// user closed the panel that way, there was previously no way back
+	// short of restarting the app. setConsoleEnabled(true) is the same
+	// call Settings' Apply makes, so this also creates the panel on first
+	// use and keeps the checkbox in sync next time Settings is opened.
+	Logger::instance().setConsoleEnabled(true);
+
+	// Settings' own checkbox persists under this separate key (read by
+	// main.cpp at startup) rather than the "logging/consoleEnabled" key
+	// setConsoleEnabled() above writes to - keep both in sync so the
+	// checkbox reflects reality next time Settings is opened, and so the
+	// console still auto-shows on the next launch.
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	settings.setValue("enableConsoleCheckBox", true);
+}
+
+void MainWindow::on_actionAbout_triggered(bool /*checked*/)
+{
+	AboutDialog dlg(graphicsInfo(), this);
+	dlg.exec();
+}
+
+void MainWindow::showEvent(QShowEvent* event)
+{
+	QWidget::showEvent(event);
+
+#if defined _WIN32 && QT_VERSION_MAJOR == 5
+	QWinTaskbarButton* windowsTaskbarButton = new QWinTaskbarButton(this);    //Create the taskbar button which will show the progress
+	windowsTaskbarButton->setWindow(windowHandle());    //Associate the taskbar button to the progress bar, assuming that the progress bar is its own window
+	_windowsTaskbarProgress = windowsTaskbarButton->progress();
+#endif
+
+	if (_bFirstTime)
+	{
+		//std::vector<int> mod = { 5 };
+		//_viewers[0]->getViewportWidget()->setDisplayList(mod);
+		presentDocumentFullscreen(_viewers[0]);
+		_viewers[0]->updateDisplayList();
+
+		// Native Qt has no public API for a tabified dock-widget group's
+		// icon size (unlike QTabWidget::setIconSize(), used for
+		// _documentTabWidget/_propertiesTabWidget's own inner tabs below) -
+		// the group's QTabBar is an internal widget QMainWindowLayout
+		// creates lazily once the window is actually laid out/shown, but
+		// it's still a real, findable child widget. 20x20 chosen to look
+		// uniform against the other tab bars in this window (user-tuned),
+		// vs. the style's smaller (commonly 16px) default this would
+		// otherwise use. Excludes the other QTabBars already in this window's
+		// tree (_documentTabWidget/_documentSecondaryTabWidget/
+		// _propertiesTabWidget's own inner tabs, and _mdiArea's TabbedView
+		// document-tab bar) so only the Document/Properties/Environment
+		// group's tab bar is touched.
+		const QSet<QTabBar*> otherTabBars = { _documentTabWidget->tabBar(), _documentSecondaryTabWidget->tabBar(),
+			_propertiesTabWidget->tabBar(), _mdiArea->findChild<QTabBar*>() };
+		for (QTabBar* bar : findChildren<QTabBar*>())
+		{
+			if (!otherTabBars.contains(bar))
+				bar->setIconSize(QSize(20, 20));
+		}
+
+		// Document tabs (_mdiArea's own TabbedView tab bar, not touched by
+		// the icon-size loop above) default to expanding to fill the whole
+		// tab bar width - with only one or two documents open that stretches
+		// each tab across a large chunk of the window instead of sizing to
+		// its label/icon. setExpanding(false) is Qt's documented switch for
+		// this (QTabBar::expanding). setAutoHide(false) is explicit
+		// insurance against QTabBar's own default of hiding itself entirely
+		// with fewer than 2 tabs - this app always wants the strip visible,
+		// even for a single open document.
+		if (QTabBar* mdiTabBar = _mdiArea->findChild<QTabBar*>())
+		{
+			mdiTabBar->setExpanding(false);
+			mdiTabBar->setAutoHide(false);
+		}
+
+		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		if (WhatsNewDialog::dueOnStartup(settings))
+		{
+			// Once per version: What's New instead of (not on top of) the Quick Help popup, which is still one click away in it.
+			QTimer::singleShot(150, this, [this]() { showWhatsNew(true); });
+		}
+		else if (settings.value("showQuickHelpOnStartup", true).toBool())
+		{
+			QTimer::singleShot(150, this, &MainWindow::on_actionQuick_Help_triggered);
+		}
+
+		_bFirstTime = false;
+	}
+}
+
+void MainWindow::closeEvent(QCloseEvent* event)
+{
+	// canExit() below can show one or more prompts (per-document unsaved-
+	// changes checks, then the generic exit confirmation) - if this close
+	// request arrived while the app wasn't the foreground window (notably
+	// Windows' taskbar "Close all windows" on a grouped icon, which can
+	// fire this even when some other application currently has focus),
+	// those dialogs could otherwise appear behind other windows or not
+	// visibly grab attention at all. Bring the window forward first so
+	// whatever canExit() shows is actually seen.
+	if (isMinimized())
+	{
+		showNormal();
+	}
+	raise();
+	activateWindow();
+
+#ifdef _WIN32
+	// activateWindow() above calls SetForegroundWindow() internally, but
+	// Windows' anti-focus-stealing heuristic silently ignores that when the
+	// request comes from a process that didn't receive the most recent
+	// input event - exactly this case, where the input (right-click +
+	// "Close all windows") went to Explorer, not to this process. This is
+	// the standard workaround: temporarily attaching this thread's input
+	// queue to the current foreground window's thread borrows the
+	// exemption Windows normally reserves for whichever process the user
+	// just interacted with, letting SetForegroundWindow() actually take
+	// effect instead of being a silent no-op.
+	HWND hwnd = reinterpret_cast<HWND>(winId());
+	HWND foregroundWnd = GetForegroundWindow();
+	if (foregroundWnd && foregroundWnd != hwnd)
+	{
+		DWORD foregroundThreadId = GetWindowThreadProcessId(foregroundWnd, nullptr);
+		DWORD currentThreadId = GetCurrentThreadId();
+		if (foregroundThreadId != 0 && foregroundThreadId != currentThreadId)
+		{
+			AttachThreadInput(foregroundThreadId, currentThreadId, TRUE);
+			SetForegroundWindow(hwnd);
+			AttachThreadInput(foregroundThreadId, currentThreadId, FALSE);
+		}
+		else
+		{
+			SetForegroundWindow(hwnd);
+		}
+
+		// The AttachThreadInput exemption above doesn't reliably survive
+		// every path into this handler (observed: still just flashes the
+		// taskbar button - Windows' documented fallback when
+		// SetForegroundWindow() is silently denied - rather than actually
+		// raising the window, with ConsolePanel now also present as a
+		// second top-level window in the same taskbar group). Minimizing
+		// and immediately restoring is one of the few cases Windows grants
+		// foreground activation unconditionally, regardless of the
+		// anti-focus-stealing lock, so fall back to it if the window still
+		// isn't foreground.
+		if (GetForegroundWindow() != hwnd)
+		{
+			ShowWindow(hwnd, SW_MINIMIZE);
+			ShowWindow(hwnd, SW_RESTORE);
+		}
+	}
+#endif
+
+	if (canExit())
+	{
+		writeSettings();
+		event->accept();
+		qApp->exit();		
+	}
+	else
+	{
+		event->ignore();
+	}	
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent* event)
+{
+	if (event->mimeData()->hasUrls())
+	{
+		event->acceptProposedAction();
+	}
+}
+
+void MainWindow::dropEvent(QDropEvent* event)
+{
+	QStringList supportedExtensions = ModelViewerApplication::supportedImportExtensions();
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+	foreach(const QUrl & url, event->mimeData()->urls())
+	{
+		QString fileName = url.toLocalFile();
+		ModelViewer::setLastOpenedDir(QFileInfo(fileName).path()); // store path for next time
+		QFileInfo fi(fileName);
+		QString extn = fi.suffix();
+		if (!supportedExtensions[0].contains(extn, Qt::CaseInsensitive)
+			&& extn != "mvf" && !isSupportedResultFile(fileName))
+		{
+			QMessageBox::critical(this, tr("Error"), url.toString() + tr("\nUnsupported file format: ") + extn);
+		}
+		else
+		{
+			openFile(fileName);
+		}
+	}
+	QApplication::restoreOverrideCursor();
+}
+
+void MainWindow::on_actionNew_triggered()
+{
+	ModelViewer* viewer = new ModelViewer(nullptr);
+	viewer->setAttribute(Qt::WA_DeleteOnClose);
+	viewer->setSessionNumber(++_viewerCount);
+	QMdiSubWindow* subWindow = createDocumentSubWindow(viewer);
+	qDebug() << "MainWindow: created document via New -"
+	         << "viewer=" << (void*)viewer << "subWindow=" << (void*)subWindow
+	         << "title=" << viewer->windowTitle();
+	viewer->showMaximized();
+	// Matches presentDocumentFullscreen()'s eager activateDocument() call
+	// (used by every other document-creation path - Open, the startup
+	// document) instead of relying solely on QMdiArea's own
+	// subWindowActivated signal to establish _activeDocument.
+	activateDocument(viewer);
+	//std::vector<int> mod = { 5 };
+	//viewer->getViewportWidget()->setDisplayList(mod);
+	viewer->updateDisplayList();
+}
+
+void MainWindow::presentDocumentFullscreen(ModelViewer* viewer)
+{
+	viewer->showMaximized();
+	// The very first startup document can be visibly current before
+	// QMdiArea has emitted any subWindowActivated signal that would
+	// otherwise drive _activeDocument. Establish it eagerly here so
+	// commands that depend on activeMdiChild() (for example Shift+Recent-
+	// file import) target the already-visible document even before the
+	// first user focus transition.
+	activateDocument(viewer);
+}
+
+void MainWindow::on_actionOpen_triggered()
+{
+	QFileDialog fileDialog(this, tr("Open Model File"), ModelViewer::getLastOpenedDir());
+	fileDialog.setFileMode(QFileDialog::ExistingFile);	
+	QStringList supportedExtensions = ModelViewerApplication::supportedImportExtensions();
+	supportedExtensions[0].insert(supportedExtensions[0].lastIndexOf(')'), " *.mvf");
+	// Simulation results (.vtu/.vtk, ...): part of "All Supported Files" and offered as their own filter. They open
+	// in a new document like any other file (ModelViewer::loadFile() routes them).
+	QString resultGlobs;
+	for (const QString& extension : supportedResultExtensions())
+		resultGlobs += QStringLiteral(" *.") + extension;
+	supportedExtensions[0].insert(supportedExtensions[0].lastIndexOf(')'), resultGlobs);
+	supportedExtensions.append(tr("Simulation Results (%1)").arg(resultGlobs.trimmed()));
+	QStringList nativeFilter = { "ModelViewer Files (*.mvf)" };
+	supportedExtensions.append(nativeFilter);
+	fileDialog.setNameFilters(supportedExtensions);
+	fileDialog.selectNameFilter(ModelViewer::getLastSelectedFilter());
+	QString fileName;
+	if (fileDialog.exec())
+	{
+        fileName = fileDialog.selectedFiles().at(0);
+		ModelViewer::setLastSelectedFilter(fileDialog.selectedNameFilter());
+	}
+
+	if (!fileName.isEmpty())
+	{
+		QApplication::setOverrideCursor(Qt::WaitCursor);
+		openFile(fileName);
+		QApplication::restoreOverrideCursor();
+		MainWindow::mainWindow()->activateWindow();
+		QApplication::alert(MainWindow::mainWindow());
+	}
+}
+
+bool MainWindow::openFile(const QString& fileName)
+{
+	if (QMdiSubWindow* existing = findMdiChild(fileName))
+	{
+		_mdiArea->setActiveSubWindow(existing);
+		// Defensive, mirroring updateWindowMenu()'s equivalent call: keeps
+		// _activeDocument in sync even if setActiveSubWindow() doesn't
+		// re-emit subWindowActivated for an already-active subwindow.
+		if (ModelViewer* child = qobject_cast<ModelViewer*>(existing->widget()))
+			activateDocument(child);
+		return true;
+	}
+	const bool succeeded = loadFile(fileName);
+
+	return succeeded;
+}
+
+void MainWindow::cancelFileLoading()
+{
+	if (activeMdiChild())
+	{
+		ViewportWidget* viewportWidget = activeMdiChild()->getViewportWidget();
+		if (viewportWidget)
+			viewportWidget->cancelAssImpModelLoading();
+	}
+}
+
+void MainWindow::closeSubWindow()
+{
+	// close() runs ModelViewer::closeEvent() (unsaved-changes save prompt)
+	// and, if accepted, WA_DeleteOnClose schedules its deletion - the
+	// destroyed-signal handler in createDocumentSubWindow() removes it from
+	// _viewers; its QMdiSubWindow auto-deletes along with it.
+	if (ModelViewer* viewer = activeMdiChild())
+		viewer->close();
+}
+
+void MainWindow::closeAllSubWindows()
+{
+	// Snapshot first - closing each viewer mutates _viewers via the
+	// destroyed-signal handler in createDocumentSubWindow().
+	const QList<ModelViewer*> viewers = _viewers;
+	for (ModelViewer* viewer : viewers)
+		viewer->close();
+}
+
+bool MainWindow::loadFile(const QString& fileName)
+{
+	ModelViewer* child = createMdiChild();
+	presentDocumentFullscreen(child);
+	const bool succeeded = child->loadFile(fileName);
+	if (!succeeded)
+		child->close();
+	else
+	{
+		child->setWindowTitle(QFileInfo(fileName).fileName());
+		child->setCurrentFile(fileName);
+		child->setDocumentModified(false);
+		MainWindow::prependToRecentFiles(fileName);
+		updateMenus();
+	}
+	return succeeded;
+}
+
+void MainWindow::on_actionImport_triggered()
+{
+	if (activeMdiChild())
+	{
+		activeMdiChild()->importModel();
+		updateMenus();
+	}
+
+}
+
+void MainWindow::on_actionExport_triggered()
+{
+	if (activeMdiChild())
+		activeMdiChild()->exportModel();
+}
+
+void MainWindow::on_actionSave_triggered()
+{
+	if (activeMdiChild())
+		activeMdiChild()->save();
+}
+
+void MainWindow::on_actionSave_As_triggered()
+{
+	if (activeMdiChild())
+		activeMdiChild()->saveAs();
+}
+
+#include "SettingsDialog.h"
+void MainWindow::on_actionSettings_triggered()
+{
+	SettingsDialog* settingsDialog = new SettingsDialog(this);
+	settingsDialog->setAttribute(Qt::WA_DeleteOnClose);
+	settingsDialog->setMaxMSAASamples(ModelViewerApplication::supportedMSAASamples());
+	settingsDialog->setMaxAnisotropy(ModelViewerApplication::supportedAnisotropicFilteringLevel());	
+	settingsDialog->setModal(true);
+	settingsDialog->show();
+
+	connect(settingsDialog, &SettingsDialog::settingsChanged, this, [this, settingsDialog]() {
+		if (!_viewers.empty())
+		{
+			int anIsoVals[] = {1, 2, 4, 8, 16};
+			int idx = settingsDialog->renderingAnisotropyIndex();
+			if (idx < 0 || idx >= static_cast<int>(sizeof(anIsoVals) / sizeof(anIsoVals[0])))
+				idx = 0;
+			for (ModelViewer* viewer : _viewers)
+			{
+				ViewportWidget* vp = viewer ? viewer->getViewportWidget() : nullptr;
+				if (!vp) continue;
+
+				const ViewportWidget::CameraPose pose = vp->saveCameraPose();
+
+				vp->setAnisotropicFilteringLevel(anIsoVals[idx]);
+				vp->setShowCenterAxisOverride(settingsDialog->displayShowCenterTrihedron());
+				vp->setShowCornerAxisOverride(settingsDialog->displayShowCornerTrihedron());
+				vp->setShowViewCubeOverride(settingsDialog->displayShowViewCube());
+				vp->setCornerAxisPosition(static_cast<CornerAxisPosition>(settingsDialog->displayCornerTrihedronPosition()));
+				if (vp->getSelectionManager())
+					vp->getSelectionManager()->setHoverHighlightMode(settingsDialog->displayHoverHighlightMode());
+				vp->setPerspFOV(settingsDialog->displayFieldOfView());
+				if (vp->getViewToolbar())
+					vp->getViewToolbar()->setFeatureEdgeModesVisible(settingsDialog->displayShowWireframe());
+				vp->setDebugOverlayAvailability(
+					settingsDialog->displayShowBoundingBox(),
+					settingsDialog->displayShowVertexNormals(),
+					settingsDialog->displayShowFaceNormals());
+				vp->loadBgColorSettings();
+				vp->loadNavigationSettings();
+				vp->loadRenderSettings();
+				vp->loadTextOverlaySettings();
+
+				vp->restoreCameraPose(pose);
+
+				// Navigation Tree font size - a plain Qt widget font, not a
+				// TextRenderer concern like the overlay text scale above, so
+				// it's applied directly here rather than through a
+				// ViewportWidget "load...Settings()" method.
+				if (SceneTreeWidget* tree = viewer->getTreeModel())
+				{
+					QFont treeFont = tree->font();
+					treeFont.setPointSize(settingsDialog->generalNavigationTreeFontSize());
+					tree->setFont(treeFont);
+				}
+			}
+		}
+		// Re-read QSettings now that they have been committed (OK / Apply).
+		updateMenus();
+		});
+
+	// Live toggle: update the Tools menu immediately when the checkbox is
+	// flipped, without waiting for OK/Apply (which is when QSettings is written).
+	// The bool is passed directly so we don't have to re-read QSettings.
+	connect(settingsDialog, &SettingsDialog::textureDebugPanelVisibilityChanged,
+	        this, [this](bool enabled) {
+		const bool hasMdiChild = (activeMdiChild() != nullptr);
+		ui->actionVisualizationSeparator->setVisible(enabled && hasMdiChild);
+		ui->actionTextureDebugger->setVisible(enabled && hasMdiChild);
+		ToolsToolbar::setTextureDebuggerVisibleEverywhere(enabled);
+	});
+
+	connect(settingsDialog, &SettingsDialog::clearCachesRequested, this, [this]() {
+		for (ModelViewer* viewer : _viewers)
+		{
+			ViewportWidget* vp = viewer ? viewer->getViewportWidget() : nullptr;
+			if (!vp)
+				continue;
+			// Each MDI document owns its own GL context; the cache-clearing
+			// glDeleteTextures calls require that context current.
+			vp->makeCurrent();
+			vp->clearTextureCache();
+			vp->doneCurrent();
+		}
+	});
+}
+
+void MainWindow::on_actionTile_Horizontally_triggered()
+{
+	_mdiArea->tileSubWindows();
+	if (_mdiArea->subWindowList().isEmpty())
+		return;
+
+	QPoint position(0, 0);
+	foreach(QMdiSubWindow * window, _mdiArea->subWindowList())
+	{
+		QRect rect(0, 0, _mdiArea->width() / _mdiArea->subWindowList().count(), _mdiArea->height());
+		window->setGeometry(rect);
+		window->move(position);
+		position.setX(position.x() + window->width());
+	}
+}
+
+void MainWindow::on_actionTile_Vertically_triggered()
+{
+	_mdiArea->tileSubWindows();
+	if (_mdiArea->subWindowList().isEmpty())
+		return;
+
+	QPoint position(0, 0);
+	foreach(QMdiSubWindow * window, _mdiArea->subWindowList())
+	{
+		QRect rect(0, 0, _mdiArea->width(), _mdiArea->height() / _mdiArea->subWindowList().count());
+		window->setGeometry(rect);
+		window->move(position);
+		position.setY(position.y() + window->height());
+	}
+}
+
+void MainWindow::on_actionTile_triggered()
+{
+	_mdiArea->tileSubWindows();
+}
+
+void MainWindow::on_actionCascade_triggered()
+{
+	_mdiArea->cascadeSubWindows();
+}
+
+MainWindow* MainWindow::mainWindow()
+{
+	if (_mainWindow == nullptr)
+		_mainWindow = new MainWindow();
+	return _mainWindow;
+}
+
+void MainWindow::updateMenus()
+{
+    updateViewMenus();
+	bool hasMdiChild = (activeMdiChild() != nullptr);
+	ui->actionSave->setVisible(hasMdiChild);
+	ui->actionSave_As->setVisible(hasMdiChild);
+	if (hasMdiChild)
+	{
+		ui->actionSave->setEnabled(activeMdiChild()->documentModified());	
+		ui->actionSave_As->setEnabled(!activeMdiChild()->getViewportWidget()->getMeshStore().empty());
+	}
+#ifndef QT_NO_CLIPBOARD
+	//pasteAct->setEnabled(hasMdiChild);
+#endif
+	ui->actionImport->setVisible(hasMdiChild);
+	ui->actionExport->setVisible(hasMdiChild);
+	ui->actionClose->setEnabled(hasMdiChild);
+	ui->actionFileClose->setVisible(hasMdiChild);
+	const int documentCount = _viewers.count();
+	ui->actionClose_All->setVisible(hasMdiChild && documentCount > 1);
+
+	ui->menuWindows->menuAction()->setVisible(hasMdiChild);
+
+	// The Visualization menu is always visible - Ray Tracing is a
+	// permanent, non-debug entry; only the Texture Debugger action (and
+	// its separator) stay gated behind the Settings debug flag.
+	ui->actionRayTracing->setEnabled(hasMdiChild);
+	ui->actionAdd3DPlot->setEnabled(hasMdiChild);
+	ui->actionMeasure->setEnabled(hasMdiChild);
+	// Also requires at least one mesh loaded (short-circuits before
+	// dereferencing activeMdiChild() when hasMdiChild is false) - both
+	// dialogs have nothing to list/filter against an empty scene. Re-
+	// evaluated live on every import/delete too (see the per-SceneGraph
+	// structureChanged connect in rebindSharedPanelsTo()), not just at
+	// these document-lifecycle points.
+	const bool hasMeshesForFilters = hasMdiChild && !activeMdiChild()->getViewportWidget()->getMeshStore().empty();
+	ui->actionFilterByMaterial->setEnabled(hasMeshesForFilters);
+	ui->actionFilterByColor->setEnabled(hasMeshesForFilters);
+	ui->actionFilterByBoundingBox->setEnabled(hasMeshesForFilters);
+	// Also requires an active selection (short-circuits before dereferencing
+	// activeMdiChild() when hasMdiChild is false) - saving an empty
+	// selection set is meaningless, and this is re-evaluated live on every
+	// selection change too (see the per-viewport selectionChanged connect
+	// in rebindSharedPanelsTo(), not just at these document-lifecycle points).
+	ui->actionSaveSelectionSet->setEnabled(hasMdiChild && activeMdiChild()->hasSelection());
+	// Not gated on hasSelection, unlike actionSaveSelectionSet above - an
+	// empty selection is a meaningful part of a scene state, not "nothing to
+	// save."
+	ui->actionSaveSceneState->setEnabled(hasMdiChild);
+	ui->actionAnnotate->setEnabled(hasMdiChild);
+	ui->actionExportReport->setEnabled(hasMdiChild);
+	ui->actionBatchRenderViews->setEnabled(hasMdiChild);
+	ui->actionMassProperties->setEnabled(hasMdiChild);
+	ui->actionSurfaceAnalysis->setEnabled(hasMdiChild);
+	ui->actionShrinkWrap->setEnabled(hasMdiChild);
+	ui->actionSubdivideSurface->setEnabled(hasMdiChild);
+	ui->actionReconstructSurface->setEnabled(hasMdiChild);
+	ui->actionRepairMesh->setEnabled(hasMdiChild);
+	ui->actionFillHoles->setEnabled(hasMdiChild);
+	ui->actionOpenSimulationResult->setEnabled(hasMdiChild);
+	ui->actionGenerateUVs->setEnabled(hasMdiChild);
+	ui->actionPurgeRedundantNodes->setEnabled(hasMdiChild);
+	{
+		QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		const bool debugEnabled = s.value("showTextureDebugPanelCheckBox", false).toBool();
+		ui->actionVisualizationSeparator->setVisible(debugEnabled && hasMdiChild);
+		ui->actionTextureDebugger->setVisible(debugEnabled && hasMdiChild);
+		ToolsToolbar::setTextureDebuggerVisibleEverywhere(debugEnabled);
+	}
+	ui->actionTile->setEnabled(hasMdiChild);
+	ui->actionTile_Horizontally->setEnabled(hasMdiChild);
+	ui->actionTile_Vertically->setEnabled(hasMdiChild);
+	ui->actionCascade->setEnabled(hasMdiChild);
+	ui->actionNext->setVisible(hasMdiChild && documentCount > 1);
+	ui->actionPrevious->setVisible(hasMdiChild && documentCount > 1);
+
+#ifndef QT_NO_CLIPBOARD
+	//bool hasSelection = (activeMdiChild() && activeMdiChild()->textCursor().hasSelection());
+	//cutAct->setEnabled(hasSelection);
+	//copyAct->setEnabled(hasSelection);
+#endif
+
+	ui->actionUndo->setVisible(hasMdiChild);
+	ui->actionRedo->setVisible(hasMdiChild);
+	if (hasMdiChild)
+	{
+		ui->actionUndo->setEnabled(activeMdiChild()->hasUndo());
+		ui->actionRedo->setEnabled(activeMdiChild()->hasRedo());
+	}
+	// Undo/Redo actions
+	ui->actionUndo->setVisible(hasMdiChild);
+	ui->actionRedo->setVisible(hasMdiChild);
+
+	if (hasMdiChild && activeMdiChild()->getUndoStack())
+	{
+		QUndoStack* stack = activeMdiChild()->getUndoStack();
+
+		// Update with descriptive text
+		if (stack->canUndo())
+			ui->actionUndo->setText(tr("&Undo %1").arg(stack->undoText()));
+		else
+			ui->actionUndo->setText(tr("&Undo"));
+
+		if (stack->canRedo())
+			ui->actionRedo->setText(tr("&Redo %1").arg(stack->redoText()));
+		else
+			ui->actionRedo->setText(tr("&Redo"));
+
+		ui->actionUndo->setEnabled(stack->canUndo());
+		ui->actionRedo->setEnabled(stack->canRedo());
+	}
+	else
+	{
+		ui->actionUndo->setText(tr("&Undo"));
+		ui->actionRedo->setText(tr("&Redo"));
+		ui->actionUndo->setEnabled(false);
+		ui->actionRedo->setEnabled(false);
+	}
+}
+
+void MainWindow::updateWindowMenu()
+{
+	ui->menuWindows->clear();
+	ui->menuWindows->addAction(ui->actionClose);
+	ui->menuWindows->addAction(ui->actionClose_All);
+	ui->menuWindows->addSeparator();
+	ui->menuWindows->addAction(ui->actionCascade);
+	ui->menuWindows->addAction(ui->actionTile);
+	ui->menuWindows->addAction(ui->actionTile_Horizontally);
+	ui->menuWindows->addAction(ui->actionTile_Vertically);
+	ui->menuWindows->addSeparator();
+	ui->menuWindows->addAction(ui->actionNext);
+	ui->menuWindows->addAction(ui->actionPrevious);
+
+	if (!_viewers.isEmpty())
+		ui->menuWindows->addSeparator();
+
+	for (ModelViewer* child : std::as_const(_viewers))
+	{
+		auto* subWindow = qobject_cast<QMdiSubWindow*>(child->parentWidget());
+		if (!subWindow)
+		{
+			// Diagnostic for the "tab present, document gone from the Window
+			// menu" bug (2026-08-10) - _viewers still references this
+			// ModelViewer, but its parentWidget() no longer resolves to a
+			// QMdiSubWindow, so it's silently skipped here without ever
+			// being removed from _viewers. Logging the actual parent type
+			// pins down whether this is a real reparent/detach or something
+			// else (e.g. a mid-destruction qobject_cast quirk).
+			qWarning() << "MainWindow::updateWindowMenu - skipping tracked document with non-QMdiSubWindow parent:"
+			           << "viewer=" << (void*)child << "title=" << child->windowTitle()
+			           << "currentFile=" << child->currentFile()
+			           << "parentWidget=" << (child->parentWidget() ? child->parentWidget()->metaObject()->className() : "null");
+			continue;
+		}
+
+		const QString text = child->currentFile().isEmpty() ? child->windowTitle() : QFileInfo(child->currentFile()).fileName();
+		QAction* action = ui->menuWindows->addAction(text, subWindow, [this, subWindow, child]() {
+			_mdiArea->setActiveSubWindow(subWindow);
+			// Defensive, mirroring openFile()'s equivalent call: keeps
+			// _activeDocument in sync even if setActiveSubWindow() doesn't
+			// re-emit subWindowActivated for an already-active subwindow.
+			activateDocument(child);
+			});
+		action->setCheckable(true);
+		action->setChecked(child == activeMdiChild());
+	}
+}
+
+ModelViewer* MainWindow::activeMdiChild() const
+{
+	return _activeDocument;
+}
+
+QMdiSubWindow* MainWindow::findMdiChild(const QString& fileName) const
+{
+	for (QMdiSubWindow* window : _mdiArea->subWindowList())
+	{
+		if (auto* child = qobject_cast<ModelViewer*>(window->widget()))
+			if (child->currentFile() == fileName)
+				return window;
+	}
+	return nullptr;
+}
+
+bool MainWindow::canExit()
+{
+	// Query each open document FIRST, before the generic "are you sure?"
+	// confirmation below - this used to run in the opposite order, which
+	// meant every close (including Windows' bulk "Close all windows" from a
+	// grouped taskbar icon, and OS logoff/shutdown) always blocked on an
+	// extra, purely redundant dialog before ever reaching the checks that
+	// actually protect data. Windows applies a much shorter non-responsive
+	// timeout to a bulk/grouped close than to a single window's X button,
+	// and it silently force-terminates the process once that timeout
+	// elapses - the previous ordering left the app sitting on the
+	// redundant confirmation for however many documents were open (up to
+	// two sequential dialogs each - unsaved materials, then unsaved
+	// changes), making a force-terminated exit-with-data-loss-and-no-
+	// prompt-ever-shown far more likely the more documents were open.
+	// Checking documents first means the common case (nothing unsaved)
+	// responds to the close request immediately, with no dialog at all.
+	for (ModelViewer* child : std::as_const(_viewers))
+	{
+		// Create a close event and let the child handle it
+		// This will trigger ModelViewer::closeEvent which shows the save dialog
+		QCloseEvent closeEvent;
+		child->closeEvent(&closeEvent);
+
+		// If the child rejected the close (user clicked Cancel), return false
+		if (!closeEvent.isAccepted())
+		{
+			return false;  // Exit cancelled - don't close application
+		}
+	}
+
+	// Check user preference for exit confirmation - only reached once every
+	// document has already been confirmed clean (or its changes handled),
+	// so this is now a genuinely low-stakes "are you sure?" rather than a
+	// gate in front of the data-safety checks.
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	bool confirmOnExit = settings.value("checkConfirmExit", true).toBool();
+	if (confirmOnExit)
+	{
+		QMessageBox::StandardButton reply = QMessageBox::question(
+			this,
+			tr("Confirm Exit"),
+			tr("Are you sure you want to exit the application?"),
+			QMessageBox::Yes | QMessageBox::No
+		);
+		if (reply != QMessageBox::Yes)
+		{
+			return false; // User chose not to exit
+		}
+	}
+
+	// All children accepted the close event - safe to exit
+	return true;
+}
+
+bool MainWindow::hasRecentFiles()
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	const int count = settings.beginReadArray(recentFilesKey());
+	settings.endArray();
+	return count > 0;
+}
+
+void MainWindow::prependToRecentFiles(const QString& fileName)
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+
+	const QStringList oldRecentFiles = readRecentFiles(settings);
+	QStringList recentFiles = oldRecentFiles;
+	recentFiles.removeAll(fileName);
+	recentFiles.prepend(fileName);
+	if (oldRecentFiles != recentFiles)
+		writeRecentFiles(recentFiles, settings);
+
+	setRecentFilesVisible(!recentFiles.isEmpty());
+}
+
+void MainWindow::setRecentFilesVisible(bool visible)
+{
+	recentFileSubMenuAct->setVisible(visible);
+	recentFileSeparator->setVisible(visible);
+}
+
+void MainWindow::updateRecentFileActions()
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+
+	const QStringList recentFiles = readRecentFiles(settings);
+	const int count = qMin(int(MaxRecentFiles), recentFiles.size());
+
+	int i = 0;
+	for (; i < count; ++i)
+	{
+		const QString filePath = recentFiles.at(i);
+		const QString fileName = QFileInfo(filePath).fileName();
+
+		QAction* act = recentFileActs[i];
+		act->setText(tr("&%1 %2").arg(i + 1).arg(fileName));
+		act->setData(filePath);
+		act->setStatusTip(tr("%1 -> Shift-click to import into active document").arg(filePath));
+		act->setToolTip(tr("Click to open • Shift-click to import into active window"));
+		act->setVisible(true);
+	}
+
+	for (; i < MaxRecentFiles; ++i)
+		recentFileActs[i]->setVisible(false);
+
+	if (recentFileClearSeparator)
+		recentFileClearSeparator->setVisible(count > 0);
+	if (recentFileClearAct)
+		recentFileClearAct->setVisible(count > 0);
+}
+
+void MainWindow::clearRecentFiles()
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	settings.remove(recentFilesKey());
+	setRecentFilesVisible(false);
+	updateRecentFileActions();
+}
+
+void MainWindow::removeFromRecentFiles(const QString& fileName)
+{
+    QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    QStringList recentFiles = readRecentFiles(settings);
+    recentFiles.removeAll(fileName);
+    writeRecentFiles(recentFiles, settings);
+    setRecentFilesVisible(!recentFiles.isEmpty());
+}
+
+void MainWindow::openRecentFile()
+{
+	QAction* action = qobject_cast<QAction*>(sender());
+	if (!action)
+		return;
+
+	const QString filePath = action->data().toString();
+	if (filePath.isEmpty())
+		return;
+
+	if (!QFile::exists(filePath))
+	{
+		QMessageBox::StandardButton reply = QMessageBox::question(
+			this,
+			tr("File Not Found"),
+			tr("The file '%1' no longer exists. Would you like to remove it from the recent files?")
+			.arg(filePath),
+			QMessageBox::Yes | QMessageBox::No
+		);
+
+		if (reply == QMessageBox::Yes)
+		{
+			removeFromRecentFiles(filePath);
+			updateRecentFileActions();
+		}
+		return;
+	}
+
+	const bool shiftPressed =
+		QApplication::keyboardModifiers() & Qt::ShiftModifier;
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	if (shiftPressed && activeMdiChild())
+	{
+		// SHIFT -> Import into active document
+		activeMdiChild()->loadFile(filePath);
+	}
+	else
+	{
+		// Default -> Open as new document
+		openFile(filePath);
+	}
+
+	QApplication::restoreOverrideCursor();
+	activateWindow();
+	QApplication::alert(this);
+}
+

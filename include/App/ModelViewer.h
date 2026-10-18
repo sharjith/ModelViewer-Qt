@@ -1,0 +1,1251 @@
+#pragma once
+
+
+#include "ui_ModelViewer.h"
+
+#include "ViewportWidget.h"
+#include "Material.h"
+#include "SceneGraph.h"
+#include "SceneTreeWidget.h"
+#include "UVPromptDialog.h"
+#include "AssImpModelLoader.h"
+#include "ApplyMaterialCommand.h"
+#include "RenameMeshCommand.h"
+#include "AnimationsPanel.h"
+#include "CamerasPanel.h"
+#include "ExplodedViewPanel.h"
+#include "MaterialPropertiesPanel.h"
+#include "ObjectTransformPanel.h"
+#include "VisualizationEnvironmentPanel.h"
+#include "SceneClipboard.h"
+#include "CutCommand.h"
+#include "MaterialVariantsPanel.h"
+#include "TextureDebugPanel.h"
+#include "ResultSnapshot.h"
+#include "PlaybackClock.h"
+#include "SimulationResultDisplay.h"
+#include "Plot3DPathlines.h"
+#include "Plot3DSession.h"
+#include "Plot3DSessionIO.h"
+
+#include <QPointer>
+#include <QUndoStack>
+
+#include <functional>
+
+class QTabWidget;
+class QTimer;
+struct MeshSurfaceAnchor;
+struct Plot3DMeshData;
+class SimulationLegendWidget;
+class SimulationTimelineWidget;
+class SimulationChartWidget;
+class QToolButton;
+class QFrame;
+class QTimer;
+class QPropertyAnimation;
+
+// Playback state of an animated pathline plot (see ModelViewer::setPlot3DPathlineAnimation). The plot's mesh is a list of
+// GL_LINES segment pairs; each trail is a contiguous run of segments with rising times, so showing the trails up to a moment is
+// one draw range per trail.
+struct Plot3DPathlineAnimation
+{
+	QUuid mesh;                     // null = nothing is animated
+	double timeMinimum = 0.0, timeMaximum = 1.0;
+	int frames = 200;
+	int frame = 0;
+	std::vector<Plot3DPathlineTrail> trails;
+	std::vector<float> positions;   // x, y, z per vertex of the plot's mesh
+	std::vector<float> times;       // the time at each vertex (the plot's values)
+};
+
+// One thing the shared playback bar (the timeline) can play: a multi-step Simulation result or the animated pathline plot.
+struct PlaybackItem
+{
+	bool pathline = false;
+	QUuid mesh;
+	QString name;
+	// "All together": a Simulation result and the animated pathline plot (mesh) play on one clock (see PlaybackClock.h).
+	bool together = false;
+};
+
+struct UVDialogResult
+{
+	UVMethod method = UVMethod::None;
+};
+
+// One result from a single mesh's repair, as produced by RepairMeshDialog::onGenerateClicked() -
+// already attached/inserted into the scene graph (same "already happened" convention
+// ModelViewer::commitShrinkWrap()'s parameters follow) by the time it's passed to
+// ModelViewer::commitRepairMesh(). Free-standing rather than nested inside the ModelViewer class
+// - moc cannot parse a nested struct definition inside a Q_OBJECT class body ("Not a signal or
+// slot declaration"), same reason SceneMesh.h's DetectedCircularLoop/MeshRepairReport forward
+// declaration live outside SceneMesh itself.
+struct RepairMeshResult
+{
+	SceneNode* node = nullptr;
+	SceneNode* parent = nullptr;
+	int position = 0;
+	QUuid meshUuid;
+};
+
+// Same shape/role as RepairMeshResult above, for FillHolesDialog::onGenerateClicked() ->
+// ModelViewer::commitFillHoles() - one result per source mesh that had at least one checked
+// hole successfully filled.
+struct FillHolesResult
+{
+	SceneNode* node = nullptr;
+	SceneNode* parent = nullptr;
+	int position = 0;
+	QUuid meshUuid;
+};
+
+namespace Mvf
+{
+struct Document;
+struct MVFPackage;
+}
+
+// A simulation result read from an .mvf file, decoded on the loader thread and waiting for its mesh to exist.
+struct PendingSimulationRestore
+{
+	QUuid meshUuid;
+	DecodedSnapshot decoded; // decoded.dataset is null when `error` is set
+	QString error;
+};
+
+// A 3D Plot read from an .mvf file, decoded on the loader thread and waiting for its mesh to exist (see
+// ModelViewer::restorePlot3DSessions()).
+struct PendingPlot3DRestore
+{
+	Plot3DSession session;
+	Plot3DRendererPayload payload; // the Quiver arrows / Voxel grid, which live in viewport controllers rather than the mesh
+};
+
+class ModelViewer : public QWidget, public Ui::ModelViewer
+{
+	Q_OBJECT
+public:
+	ModelViewer(QWidget* parent = 0);
+	~ModelViewer();
+
+	void retranslateUI();
+
+	void close();
+
+	ViewportWidget*    getViewportWidget()    const { return _viewportWidget; }
+	SceneGraph*  sceneGraph()   const { return _sceneGraph; }
+
+	// Document-level units fallback (viewerState["defaultImportUnit"] - see
+	// LengthUnits.h's resolveEffectiveImportUnit()) - used only when a mesh's
+	// owning file node can't resolve its own importUnit. Unknown means
+	// nothing has ever set this; resolution then falls through to the
+	// hardcoded Millimeter default.
+	LengthUnit defaultImportUnit() const { return _defaultImportUnit; }
+	void setDefaultImportUnit(LengthUnit unit)
+	{
+		if (_defaultImportUnit == unit)
+			return;
+		_defaultImportUnit = unit;
+		emit importUnitsChanged();
+	}
+	void notifyImportUnitsChanged() { emit importUnitsChanged(); }
+	QMap<QString, CachedMaterial>* getMaterialCache() { return &_materialCache; }
+	void registerOwnedUnsavedMaterial(const QString& materialKey) { _ownedUnsavedMaterials.insert(materialKey); }
+
+	void setMaterialToSelectedItems(const Material& mat);
+	void setTexturesToSelectedItems(const Material& mat);
+	void setTextureSamplersToSelectedItems(const Material* material, Material::TextureType type);
+
+	void setTransformation();
+	void resetTransformation();
+	void syncLightPositionUiToScene();
+
+	SceneTreeWidget* getTreeModel() { return treeWidgetModel; }
+
+	// Aliases to MainWindow's single shared instances (used to be owned
+	// per-document via ui/ModelViewer.ui) - set once in the constructor,
+	// rebound to whichever document is active by
+	// MainWindow::rebindSharedPanelsTo(), not by ModelViewer itself. Public
+	// to match their old effective accessibility as public members inherited
+	// from Ui::ModelViewer (RtRenderDialog/ViewportWidget read these).
+	MaterialPropertiesPanel* predefinedMaterialsPanel = nullptr;
+	ObjectTransformPanel* objectTransformPanel = nullptr;
+	QTabWidget* tabWidgetVizAttribs = nullptr;
+	VisualizationEnvironmentPanel* visualizationEnvironmentPanel = nullptr;
+
+	void updateTransformationValues();
+	void resetTransformationValues();
+
+	void switchToRealisticRendering();
+
+	static QString getLastOpenedDir();
+	static void setLastOpenedDir(const QString& lastOpenedDir);
+
+	static QString getLastSelectedFilter();
+	static void setLastSelectedFilter(const QString& lastSelectedFilter);
+
+	void setCurrentFile(const QString& fileName);
+	QString currentFile() const;
+
+	bool loadFile(const QString& fileName);
+
+	void importModel();
+	void exportModel();
+
+	bool saveToFile(const QString& fileName);
+	bool loadFromFile(const QString& fileName);
+
+	bool documentModified() const { return _documentModified; }
+	void setDocumentModified(bool modified = true);
+	// A document with no file yet is a numbered session ("Session 2"). The number is stored, and the title derived from it,
+	// so the title follows a language switch; a document with a file is titled by the file name instead.
+	void setSessionNumber(int number);
+	QString documentBaseTitle() const;
+	void refreshDocumentTitle();
+	void markNonUndoDocumentModified();
+
+	bool save();
+	bool saveAs();
+
+	void closeEvent(QCloseEvent* event);
+
+	void setDocumentSaved(bool saved = true);
+	bool isDocumentSaved() const { return _documentSaved; }
+
+	void selectAll();
+	void deselectAll();
+	void deselectAllWithUndo();
+
+	// For UV generation dialog user selection
+	static UVDialogResult askUserForUVMethod(QWidget* parent);
+
+	// Skybox index accessors for VisualizationEnvironmentPanel
+	int getSkyBoxLDRIIndex() const { return _skyBoxLDRIIndex; }
+	int getSkyBoxHDRIIndex() const { return _skyBoxHDRIIndex; }
+	void setSkyBoxLDRIIndex(int index) { _skyBoxLDRIIndex = index; }
+	void setSkyBoxHDRIIndex(int index) { _skyBoxHDRIIndex = index; }
+
+	// Undo/Redo interface (called by MainWindow)
+	bool hasUndo() const;
+	bool hasRedo() const;
+	void undo();
+	void redo();
+
+	// Opens (or raises) the Texture Debug Panel for the current selection.
+	// Called by MainWindow when Visualization → Texture Debugger is triggered.
+	void showTextureDebugPanel();
+
+	// Undo stack access
+	QUndoStack* getUndoStack() const { return _undoStack; }
+
+	// Selection helpers (used by SelectionCommand)
+	// mergeSource: opaque tag (e.g. a live-filter dialog's `this`) so
+	// consecutive pushes from the SAME caller collapse into one undo step
+	// via SelectionCommand::mergeWith() - see its header doc comment.
+	// Defaults to null ("never merges"), which is what every plain
+	// click/lasso/sweep selection already wants.
+	void setSelectionWithUndo(const QSet<int>& newSelection, const void* mergeSource = nullptr);
+	void setSelectionWithoutUndo(const QSet<int>& selection);
+	// Selection helpers (for DuplicateCommand)
+	void setSelectionWithoutUndo(const QSet<QUuid>& uuids);
+
+	// Visibility helpers (used by VisibilityCommand)
+	QSet<QUuid> getVisibleUuids() const;
+	void setVisibilityWithUndo(const QSet<QUuid>& newVisibleUuids,
+		const QString& commandText);
+	void setVisibilityWithoutUndo(const QSet<QUuid>& visibleUuids);
+
+signals:
+	void documentModifiedChanged(bool modified);
+	void importUnitsChanged();
+	// The active simulation result (or its view state) changed - MainWindow refreshes the Simulation dock panel.
+	// `activateTab` is true when a result was just opened, so the dock switches to the Simulation tab.
+	void simulationSessionChanged(bool activateTab);
+	// The document-owned Plot3D session list or active plot changed.  `activateTab`
+	// is true only when a newly built plot should bring the persistent plot tab forward.
+	void plot3DSessionsChanged(bool activateTab);
+	// Emitted from updateVisibilityUiFromState() alongside its own overlay
+	// labelMeshCount update - lets MainWindow's Document dock mirror the
+	// same count for whichever document is currently active, without
+	// polling.
+	void visibleMeshCountChanged(int count);
+
+public:
+	bool hasSelection() const;
+	std::vector<int> getSelectedIDs() const;
+
+	// Selection helpers (for DuplicateCommand)
+	QSet<QUuid> getSelectedUuids() const;
+
+	// Attaches the navigation tree as a permanent transparent overlay on this
+	// document's own viewport - called once from the constructor. Hover-reveal
+	// like TabbedViewportToolbar: pinned (default) keeps it always fully
+	// visible; unpinned narrows it to just the left-edge chevron strip after
+	// _navHideTimer's idle timeout, re-expanding on hover/proximity (see
+	// _navCollapseButton below). The separate navPinButton (.ui, in the
+	// panel's own search-box row) controls the pinned/unpinned choice itself.
+	// updateNavigationOverlayGeometry() repositions/resizes the overlay on
+	// viewport resize (see resizeEvent()) and on reveal/hide.
+	void attachNavigationOverlay();
+	void updateNavigationOverlayGeometry();
+
+	// Called from ViewportWidget::mouseMoveEvent() on every passive move (no
+	// button held), mirroring _tabbedToolbar->trackPointer() - reveals the
+	// nav panel when the pointer is near its collapsed strip (or already
+	// pinned/interacting), otherwise arms the auto-hide timer.
+	void trackPointerForNavigation(const QPoint& viewportPos);
+
+	// Applies material to meshUuid via an undo-able ApplyMaterialCommand.
+	// Extracted from what used to be an inline lambda on
+	// MaterialPropertiesPanel::meshMaterialApplied, back when that panel was
+	// constructed once per document rather than as a single shared instance
+	// MainWindow dispatches to whichever document is currently active.
+	void applyMeshMaterial(const QUuid& meshUuid, const Material& material);
+
+	// Forwards to _viewportWidget->setEyedropperArmed() - arms/disarms the
+	// material eyedropper/brush tool (MaterialPropertiesPanel's eyeDropper
+	// button).
+	void setEyedropperArmed(bool armed);
+	// Receives the sampled material once the eyedropper's first click hits a
+	// mesh - binds it into the shared MaterialPropertiesPanel, mirroring
+	// editMeshMaterial()'s own createUnsavedMaterialFromMesh() flow, so the
+	// panel visually reflects what was actually sampled.
+	void onEyedropperMaterialSampled(const Material& material, const QString& sourceMeshName);
+	// Receives one finished brush stroke's target UUIDs - pushes a single
+	// undoable ApplyMaterialCommand covering the whole stroke (one undo
+	// entry per gesture).
+	void applyEyedropperStroke(const QVector<QUuid>& targetUuids, const Material& material);
+	// Reassigns every listed mesh to newMaterial as one undo step - same
+	// ApplyMaterialCommand batching applyEyedropperStroke() uses above, just
+	// called from FilterByMaterialDialog's "Replace With..." instead of a
+	// viewport brush gesture.
+	void replaceMaterial(const QVector<QUuid>& meshUuids, const Material& newMaterial);
+
+	// Apply a named variant to all meshes from the given source file.
+	// variantIndex = -1 resets to the file's default material assignments.
+	void applyVariant(const QString& sourceFile, int variantIndex);
+
+	// Extracted from what used to be inline lambdas on
+	// MaterialVariantsPanel::variantDeleteRequested/
+	// AnimationsPanel::clipDeleteRequested/
+	// CamerasPanel::gltfCameraDeleteRequested, same reasoning as
+	// applyMeshMaterial() above - now dispatched from MainWindow via
+	// activeMdiChild() instead of connected directly per-document.
+	void deleteVariant(const QString& sourceFile, int variantIndex);
+	void deleteAnimationClip(const QString& sourceFile, int clipIndex);
+	void deleteGltfCamera(const QString& sourceFile, int cameraIndex);
+
+	// Capture the live material state of every mesh in sourceFile as a new
+	// named KHR_materials_variants variant ("Capture Current as Variant..."
+	// in the Variants tab). Undoable via CaptureVariantCommand.
+	void captureVariant(const QString& sourceFile, const QString& variantName);
+
+	// Replace sourceFile's "Default" (fallback) material with variantIndex's
+	// material, for every mesh in that file ("Set as Default" in the
+	// Variants tab). This is what glTF/GLB export writes as each
+	// primitive's base material. Undoable via SetDefaultVariantCommand.
+	void setVariantAsDefault(const QString& sourceFile, int variantIndex);
+
+	// Capture the live camera pose as a new named view ("Capture View" in
+	// the Cameras tab), stored as a GltfCameraEntry under SceneGraph's
+	// synthetic capturedViewsSourceFileKey() bucket. Activation and
+	// deletion reuse the existing glTF-camera signals/methods
+	// (gltfCameraActivated -> ViewportWidget::activateGltfCamera(),
+	// deleteGltfCamera()) - no separate bookmark path, see GltfCameraData.h.
+	// Undoable via CaptureCameraCommand.
+	void captureCameraView(const QString& name);
+
+	// Add a completed Measurement (Point or Distance) to SceneGraph's
+	// document-level list. Undoable via AddMeasurementCommand. Called from
+	// ViewportWidget::handleMeasurementClick() once a click finishes a
+	// measurement, instead of writing to SceneGraph directly.
+	void addMeasurement(const Measurement& measurement);
+
+	// Delete one measurement by id. Undoable via DeleteMeasurementCommand.
+	void deleteMeasurement(const QUuid& measurementId);
+
+	// Deletes every measurement currently selected in the viewport (see
+	// ViewportWidget::selectedMeasurementIds()) - the Measurement dialog's
+	// results list supports multi/shift-select, so this can be more than
+	// one. Wrapped in a single undo macro when there's more than one, so
+	// one Undo restores the whole batch rather than needing N presses.
+	// Wired to the same Key_Delete shortcut as mesh deletion in MainWindow -
+	// a selected measurement takes priority over a selected mesh.
+	void deleteSelectedMeasurements();
+
+	// Add a completed Annotation to SceneGraph's document-level list.
+	// Undoable via AddAnnotationCommand. Called from
+	// AnnotationController::handleAnnotationClick() once a click places a
+	// note, instead of writing to SceneGraph directly. Same guard/shape as
+	// addMeasurement() above.
+	void addAnnotation(const Annotation& annotation);
+
+	// Delete one annotation by id. Undoable via DeleteAnnotationCommand.
+	void deleteAnnotation(const QUuid& annotationId);
+
+	// Deletes every annotation currently selected in the viewport - same
+	// multi-select/undo-macro shape as deleteSelectedMeasurements().
+	void deleteSelectedAnnotations();
+
+	// Commits an annotation's text edit. Undoable via AnnotationTextCommand
+	// (unlike SceneGraph::setAnnotationVisible()'s plain display toggle -
+	// text is core content). Called from AnnotationDialog's details pane on
+	// focus-out, not per-keystroke; no-ops if the text hasn't actually
+	// changed so an unedited focus-out doesn't push a no-op undo step.
+	void setAnnotationText(const QUuid& annotationId, const QString& text);
+
+	// Shows (findChild-reuse) or creates the non-modal MeasurementDialog for
+	// this document - the single implementation behind both the Tools ->
+	// Measure... menu action and ViewportWidget::mouseDoubleClickEvent()'s
+	// double-click-a-measurement gesture, so the two can't drift apart. If
+	// selectId is non-null, selects it in the viewport afterward - both
+	// dialogs already sync their list selection AND scroll to it off that
+	// signal (see MeasurementDialog/AnnotationDialog::onViewportSelectionChanged()),
+	// so this is enough to land the user on the right row with no dialog-side
+	// changes needed.
+	void openMeasurementDialog(const QUuid& selectId = QUuid());
+	// Same role as openMeasurementDialog() above, for AnnotationDialog.
+	void openAnnotationDialog(const QUuid& selectId = QUuid());
+
+	// ---- Measurement/Annotation visibility (undo-integrated tier) --------
+	// Mirrors the mesh visibility split exactly: getVisibleUuids()/
+	// setVisibilityWithUndo()/setVisibilityWithoutUndo() (see those methods'
+	// own doc comments) has a context-menu/keyboard tier that's undo-
+	// integrated (VisibilityCommand) and a scene-tree-checkbox tier that
+	// isn't. The Measurement/Annotation dialogs' own checkbox lists already
+	// ARE that second, non-undo tier (SceneGraph::setMeasurementVisible()/
+	// setAnnotationVisible(), called directly from MeasurementDialog::
+	// onResultItemChanged()/AnnotationDialog::onResultItemChanged() -
+	// unchanged). These four methods are the missing first tier, for the new
+	// viewport context-menu Hide/Show actions.
+	QSet<QUuid> getVisibleMeasurementUuids() const;
+	void setMeasurementVisibilityWithUndo(const QSet<QUuid>& newVisibleIds, const QString& commandText);
+	void setMeasurementVisibilityWithoutUndo(const QSet<QUuid>& visibleIds);
+	void hideSelectedMeasurements();
+	void showSelectedMeasurements();
+
+	QSet<QUuid> getVisibleAnnotationUuids() const;
+	void setAnnotationVisibilityWithUndo(const QSet<QUuid>& newVisibleIds, const QString& commandText);
+	void setAnnotationVisibilityWithoutUndo(const QSet<QUuid>& visibleIds);
+	void hideSelectedAnnotations();
+	void showSelectedAnnotations();
+
+public slots:
+	void updateDisplayList();
+	void updateSelectionStatusMessage();
+	void showAllItems();
+	void showSelectedItems();
+	void showOnlySelectedItems();
+	void hideAllItems();
+	void hideSelectedItems();
+	// Selection -> Filter by Material...: opens (or raises) a non-modal,
+	// per-document FilterByMaterialDialog listing every current-material
+	// identity in the scene (see groupIndicesByCurrentMaterial() in
+	// MaterialGrouping.h). Scene-wide, not scoped to a prior selection. The
+	// dialog live-previews the matching mesh set as the real (undoable, via
+	// setSelectionWithUndo()) viewport selection as the chosen material
+	// changes, and its own Show Only/Hide buttons act on that live result
+	// directly - see FilterByMaterialDialog.h's doc comment for the full
+	// design.
+	void filterSelectionByMaterial();
+	// Selection -> Filter by Color...: same shape as filterSelectionByMaterial()
+	// above, but opens FilterByColorDialog - the user builds a small list of
+	// target colors there (not scoped to a prior selection, though a fresh
+	// dialog seeds that list from the current selection's own distinct
+	// colors), and matches every mesh whose representative color (material
+	// albedo, or averaged per-vertex color for Point Set Reconstruction
+	// meshes) falls within a shared tolerance of ANY of them.
+	void filterSelectionByColor();
+	// Selection -> Filter by Bounding Box...: same shape as
+	// filterSelectionByMaterial()/filterSelectionByColor() above, but opens
+	// FilterByBoundingBoxDialog - the user sets world-space X/Y/Z min/max
+	// limits (a fresh dialog seeds them from the current selection's
+	// combined bounds, or the whole scene's if nothing is selected), and
+	// matches every mesh whose world-space bounding box either fully falls
+	// within the limits or merely overlaps them, per the dialog's own
+	// containment-mode choice.
+	void filterSelectionByBoundingBox();
+	// Selection -> Save Selection Set... (also SelectionSetsPanel's own Save
+	// button): saves the current viewport selection (mesh UUIDs, not the
+	// runtime int ids - see SelectionSetData.h) under `name`, via an
+	// undoable SaveSelectionSetCommand.
+	void saveCurrentSelectionAsSet(const QString& name);
+	// SelectionSetsPanel single-click (same immediate-activation convention
+	// as CamerasPanel): replaces the viewport selection with the named
+	// set's meshes, resolving stored UUIDs back to live indices and
+	// skipping any that no longer resolve (a set may reference a
+	// since-deleted mesh). Also reveals any of the set's own members that
+	// are currently hidden (never touches visibility outside the set - not
+	// a "Show Only"), so a bookmark to a hidden mesh doesn't silently fail
+	// to select it. Undoable via setSelectionWithUndo()'s own
+	// SelectionCommand, same as any other selection change - when a reveal
+	// is also needed, both land in one undo macro so a single Ctrl+Z
+	// reverses both together.
+	void recallSelectionSet(const QUuid& setId);
+	// SelectionSetsPanel's Delete button, via an undoable
+	// DeleteSelectionSetCommand.
+	void deleteSelectionSet(const QUuid& setId);
+	// Selection -> Save Scene State... (also SceneStatesPanel's own Save
+	// button): snapshots the current camera view (captureCurrentCameraEntry()),
+	// visibility (getVisibleUuids()), and selection (getSelectedUuids())
+	// together under `name`, via an undoable SaveSceneStateCommand. Unlike
+	// saveCurrentSelectionAsSet(), an empty selection isn't skipped - it's a
+	// meaningful part of the snapshot, not "nothing to save."
+	void saveCurrentSceneState(const QString& name);
+	// SceneStatesPanel single-click: restores the named state's camera
+	// (immediate, NOT undoable - see ViewportWidget::activateCameraEntry()),
+	// then its visibility and selection EXACTLY as saved (not unioned with
+	// the current state, unlike recallSelectionSet() - a scene state is a
+	// full configuration snapshot, not an "also reveal these" bookmark),
+	// wrapped in one undo macro so a single Ctrl+Z reverses both together.
+	// Stale UUIDs (meshes deleted since the state was saved) are dropped.
+	void recallSceneState(const QUuid& stateId);
+	// SceneStatesPanel's Delete button, via an undoable
+	// DeleteSceneStateCommand.
+	void deleteSceneState(const QUuid& stateId);
+	void centerScreen();
+	void copySelectedItems();
+	void cutSelectedItems();
+	void pasteIntoSelectedNode(const SceneNode* targetNode);
+
+	// The clipboard is shared across every open document (static) so a
+	// Copy/Cut in one document's window can be pasted into another's - see
+	// s_clipboardSourceViewer's doc comment for why this needs a source-
+	// document guard rather than being a bare shared list.
+	static bool hasClipboardContent() { return !s_clipboard.isEmpty(); }
+	static quint64 currentClipboardGeneration() { return s_clipboardGeneration; }
+	void duplicateSelectedItems();
+	// For every selected mesh containing more than one spatially-disconnected
+	// triangle island (see SceneMesh::findConnectedTriangleGroups()), replaces
+	// it with one independently-selectable fragment mesh per island. Meshes
+	// that are already a single connected piece are left untouched and
+	// reported separately. Undoable (SplitByConnectivityCommand), one per
+	// split mesh, grouped into a single undo macro when more than one mesh
+	// is split at once.
+	void splitSelectedMeshesByConnectivity();
+
+	// Inverse of splitSelectedMeshesByConnectivity(): clusters the selected
+	// meshes by shared-vertex (world-space) adjacency, and replaces each
+	// touching cluster of 2+ meshes with one combined mesh (see SceneMesh::
+	// mergeMeshes()). A cluster merges unconditionally if every member
+	// shares the same source file, tracked original material index, and
+	// primitive mode; if any touching cluster has mixed materials, asks
+	// once (covering every mismatched cluster) whether to merge them anyway
+	// by cascading each cluster's first mesh's material onto the rest, or
+	// leave them unmerged - never changes appearance silently. Undoable
+	// (MergeByAdjacencyCommand), one per merged cluster, grouped into a
+	// single undo macro when more than one cluster is merged at once.
+	void mergeSelectedMeshesByAdjacency();
+
+	// Unconditional counterpart to mergeSelectedMeshesByAdjacency(): combines
+	// the ENTIRE current selection into one mesh regardless of whether the
+	// meshes touch - no clustering, just the same material-compatibility
+	// gate (same source file + tracked original material index + primitive
+	// mode across every selected mesh) applied once to the whole set. On a
+	// mismatch, asks once whether to merge anyway by cascading the first
+	// mesh's material, same as the by-adjacency path. Undoable (a single
+	// MergeByAdjacencyCommand - the command itself doesn't care how its
+	// source set was chosen). Plain vertex/index concatenation via
+	// SceneMesh::mergeMeshes() - overlapping geometry stays overlapping
+	// triangle soup, not a real solid. See unionSelectedMeshes() for that.
+	void mergeSelectedMeshes();
+
+	// True-solid counterpart to mergeSelectedMeshes(): identical selection
+	// gathering, material-compatibility gate, and undo bookkeeping, but
+	// combines geometry via SceneMesh::booleanUnionMeshes() - a real CGAL
+	// boolean union (corefine_and_compute_union(), with a repair pipeline
+	// establishing its documented preconditions), silently falling back to
+	// plain concatenation if the input can't be repaired into something
+	// corefinement can use. Kept as its own separate command rather than
+	// folded into "Merge Selected" - unlike plain concatenation, a real
+	// union changes the merged mesh's actual geometry (e.g. it hard-splits
+	// vertex normals across a >=15 degree crease at any new seam, which
+	// visibly changes shading), so it isn't a safe drop-in replacement for
+	// the old, purely non-destructive merge.
+	void unionSelectedMeshes();
+
+	// Organizational "Group": creates a new (empty) assembly SceneNode as a
+	// sibling of the first selected mesh's own owner node, and moves every
+	// selected mesh's UUID into it - no geometry is touched, this is pure
+	// scene-tree reorganization (the inversion of Split by Connectivity in
+	// spirit only - that one splits GEOMETRY, this one only reorganizes
+	// HIERARCHY). Works on a selection of just one mesh too (wraps it alone
+	// in a new group), unlike Merge/Split which need 2+. Undoable
+	// (GroupMeshesCommand).
+	void groupSelectedMeshes();
+
+	// Organizational "Purge": collapses a sub-assembly node that exists solely to wrap a single mesh (one child,
+	// no meshes of its own; that child has no children and exactly one mesh) - the mesh is promoted into the
+	// wrapper, renamed to the wrapper's own (usually more meaningful) name, and the child is removed. Run bottom-
+	// up over scanRoot's subtree, so a CHAIN of such wrappers collapses in one pass, not just the innermost.
+	// scanRoot itself is never eliminated (only ever a promotion target for ITS OWN children) - pass nullptr to
+	// sweep the whole scene (Tools > Purge Redundant Nodes), or a specific node (the scene tree's own context
+	// menu) to purge just that subtree. No geometry is touched; undoable (PurgeRedundantNodesCommand). Does
+	// nothing, silently, if scanRoot's subtree has nothing to collapse.
+	void purgeRedundantAssemblyNodes(SceneNode* scanRoot = nullptr);
+
+	// Shrink Wrap: opens the non-modal ShrinkWrapDialog (Tools -> Shrink
+	// Wrap...), findChild-reuse-or-create/show/raise, same pattern as
+	// openMeasurementDialog()/openAnnotationDialog() below. Whatever's
+	// currently tree-selected is seeded into the dialog's working list
+	// immediately (dialog->addCurrentTreeSelection()) - opening with a
+	// selection already made shouldn't require re-picking it inside the
+	// dialog.
+	void openShrinkWrapDialog();
+
+	// The Shrink Wrap dialog's one-line bridge into the undo stack (same
+	// "dialog never touches _undoStack directly" convention as
+	// addMeasurement()/addAnnotation() below) - called once per Generate
+	// result, immediately after ShrinkWrapDialog::onGenerateClicked() builds
+	// it (matching MeasurementDialog: every result is independently
+	// undoable without closing the dialog first - confirmed bug when this
+	// was instead deferred to closeEvent() as a "live preview"). wrapNode/
+	// wrapParent/wrapPosition/wrappedMeshUuid must already be live in the
+	// scene (attached/inserted) - this only pushes the command that
+	// remembers how to undo/redo that already-done attachment, same
+	// "already happened, command just replays it" convention as
+	// GroupMeshesCommand/MergeByAdjacencyCommand.
+	void commitShrinkWrap(SceneNode* wrapNode, SceneNode* wrapParent, int wrapPosition,
+	                       const QUuid& wrappedMeshUuid, const QSet<QUuid>& originalSelection);
+
+	// Undoably deletes a set of previously-committed tool results (Shrink
+	// Wrap/Subdivision) - the "Replace previous result" checkbox's delete
+	// half. Called from ShrinkWrapDialog/SubdivisionDialog right before a
+	// new Generate, in place of the old discardAllPreviews() (which deleted
+	// outside the undo stack entirely, back when results were uncommitted
+	// scratch state). A thin push of DeleteMeshCommand, same as
+	// deleteSelectedItems() uses, just without its selection/confirmation-
+	// dialog steps - meshUuids is caller-supplied directly.
+	void replaceToolResults(const QVector<QUuid>& meshUuids, const QString& text);
+
+	// Subdivide Surface: opens the non-modal SubdivisionDialog (Tools ->
+	// Subdivide Surface...), same findChild-reuse-or-create/show/raise/
+	// seed-with-tree-selection pattern as openShrinkWrapDialog() above.
+	void openSubdivisionDialog();
+
+	// The Subdivision dialog's one-line bridge into the undo stack - same
+	// convention and immediate-per-result timing as commitShrinkWrap()
+	// above, and in fact reuses the exact same ShrinkWrapCommand class (it's
+	// already fully generic: "add one new node+mesh, know how to undo/redo
+	// that" - nothing about it is Shrink-Wrap-specific beyond the default
+	// `text` argument), just with text = tr("Subdivide") so the undo-stack
+	// entry reads correctly.
+	void commitSubdivision(SceneNode* node, SceneNode* parent, int position,
+	                        const QUuid& meshUuid, const QSet<QUuid>& originalSelection);
+
+	// Reconstruct Surface: opens the non-modal ReconstructSurfaceDialog
+	// (Tools -> Reconstruct Surface...), same findChild-reuse-or-create/
+	// show/raise/seed-with-tree-selection pattern as openShrinkWrapDialog()/
+	// openSubdivisionDialog() above.
+	void openReconstructSurfaceDialog();
+
+	// Simulation -> Open Result...: file dialog, off-thread read + boundary extraction, then a new undoable
+	// scene node holding the boundary surface coloured by a default field. See
+	// docs/simulation_results_design.md and src/ModelViewerSimulation.cpp.
+	void openSimulationResult();
+	// Starts reading and showing the result file `path` in THIS document (off-thread; the outcome is reported when
+	// the read finishes). Called by openSimulationResult() after its file dialog, and by loadFile()/drop handling
+	// when a result file is opened through File > Open or dropped. Returns false if it could not be started.
+	bool openSimulationResultFile(const QString& path);
+
+	// The result whose controls the Simulation panel shows: the last one selected/opened whose mesh is still
+	// displayed, or nullptr. See src/ModelViewerSimulation.cpp.
+	const SimulationSession* activeSimulationSession() const;
+	// The results of this document that are still displayed (not deleted), in the order they were added, and which
+	// one is active. The Simulation panel lists them; these three act on one by its mesh uuid.
+	QVector<SimulationResultItem> simulationResults() const;
+	QUuid activeSimulationMeshUuid() const;
+	void activateSimulationResult(const QUuid& meshUuid);        // selects it and makes it the one the panel shows
+	void setSimulationResultVisible(const QUuid& meshUuid, bool visible); // undoable, like hiding any mesh
+	void closeSimulationResult(const QUuid& meshUuid);           // undoable delete of the result's mesh
+
+	// Plot3D session controls.  Plot meshes remain normal scene meshes; these methods
+	// own only the presentation state that the persistent 3D Plot tab needs.
+	QVector<Plot3DSession> plot3DSessions() const;
+	QUuid activePlot3DMeshUuid() const;
+	void addPlot3DSession(Plot3DSession session);
+	void updatePlot3DSession(Plot3DSession session);
+	void activatePlot3DSession(const QUuid& meshUuid);
+	// Rebuilds the shared axis box from every visible Plot3D session while
+	// retaining the active session's labels/scale/custom-range choices.
+	void refreshPlot3DAxes();
+	// The axes (scales, ranges, labels) are ONE set shared by every plot in the box: every plot is drawn with the same ones. This makes every plot
+	// present in the viewer use the axes of `referenceMesh`'s plot, moving each plot's geometry from the scales it was drawn with to those. An axis a
+	// plot's data cannot be placed on (a Log 10 axis over values at or below zero) goes back to Linear for all. Called when a plot joins, when a file
+	// is restored and when the box is refreshed (a plot that returns by undo).
+	void unifyPlot3DAxes(const QUuid& referenceMesh);
+	// Moves one plot's meshes (and what hangs on them) from the axes it is drawn with to new ones. False when the scales are the same (nothing moves).
+	bool rescalePlot3DSessionGeometry(Plot3DSession& session, const std::array<Plot3DAxisConfig, 3>& from, const std::array<Plot3DAxisConfig, 3>& to);
+	void refreshPlot3DLegend();
+	void applyPlot3DColourState(const QUuid& meshUuid, float minimum, float maximum, int colormap, int bands);
+	void setPlot3DAutomaticColourRange(const QUuid& meshUuid, bool automatic);
+	// Generated plots: record the definition Edit Plot reopens, and rebuild the plot's own mesh in place (same mesh, scene node,
+	// visibility, axes and colour settings) from freshly generated geometry.
+	void setPlot3DGeneratedSpec(const QUuid& meshUuid, const Plot3DGeneratedSpec& spec);
+	// A CSV time-series plot (pathlines) keeps its table and column mapping so Edit Plot can reopen it.
+	void setPlot3DTimeSeriesSource(const QUuid& meshUuid, const QString& csvText, const Plot3DCsvOptions& options, const Plot3DColumnMapping& mapping);
+	bool replacePlot3DMesh(const QUuid& meshUuid, const Plot3DMeshData& data, unsigned int primitiveMode);
+	void applyPlot3DAppearance(const QUuid& meshUuid, float lineWidth, float markerSize, float arrowScale);
+	void applyPlot3DBarAppearance(const QUuid& meshUuid, float widthScale, float depthScale);
+	void setPlot3DContourLevels(const QUuid& meshUuid, int levels);
+	void setPlot3DContourProjected(const QUuid& meshUuid, bool projected);
+	// Surface-type plots can carry a companion mesh of Z iso-lines (mode 0 none, 1 on the surface, 2 on the base plane).
+	// refresh rebuilds it from the plot's current mesh (after the plot itself was rebuilt or restored).
+	void setPlot3DContourOverlay(const QUuid& meshUuid, int mode, int levels);
+	// Hover section curves for a Surface plot (a viewing aid, off by default and not saved with the file).
+	void setPlot3DSectionProbe(const QUuid& meshUuid, bool enabled);
+	// Pathline plots can be played back over time: a timeline (the Simulation one's widget) reveals the trails up to the
+	// current moment, with a moving head on each. A viewing aid: off by default, not saved with the file.
+	void setPlot3DPathlineAnimation(const QUuid& meshUuid, bool enabled);
+	void refreshPlot3DPathlineAnimation(const QUuid& meshUuid); // after the plot's mesh was replaced
+	void refreshPlot3DContourOverlay(const QUuid& meshUuid);
+	void setPlot3DSessionAxesVisible(const QUuid& meshUuid, bool visible);
+	void applyPlot3DReferencePlanes(const QUuid& meshUuid, const std::array<bool, 3>& visible, float opacity);
+	// The settings apply to EVERY plot (the axes are shared). False when they cannot be drawn for some plot (e.g. a Log 10 axis over data that reaches
+	// zero); nothing is changed then.
+	bool applyPlot3DAxisConfig(const QUuid& meshUuid, const std::array<Plot3DAxisConfig, 3>& axes);
+	void setPlot3DAxisTitle(const QUuid& meshUuid, const QString& title);
+	// Text notes at data coordinates, drawn in the axes box while the plot is visible (not undoable; saved with the plot).
+	// Undoable (one step per change, named `undoText`); a change that leaves the notes as they were pushes nothing.
+	void setPlot3DTextLabels(const QUuid& meshUuid, const std::vector<Plot3DTextLabel>& labels, const QString& undoText = QString());
+	// The change itself, with no undo record: what the undo command calls.
+	void applyPlot3DTextLabels(const QUuid& meshUuid, const std::vector<Plot3DTextLabel>& labels);
+	// The notes of every visible plot -> the viewport, each placed through its own plot's axis scales (the way its geometry is). Called whenever
+	// a plot, its axes or its visibility change.
+	void refreshPlot3DNotes();
+	// Click-to-place: the next click on a plot (its data points, lines or surface) puts a new note there and asks for its text.
+	void startPlot3DNotePlacement();
+	QUuid plot3DOwnerOfMesh(const QUuid& meshUuid) const;      // the plot a mesh (its own, or a marker / contour companion) belongs to, or null
+	QVector<QUuid> plot3DVisibleMeshes() const;                // the meshes of the visible plots, companions included
+	void connectPlot3DViewportSignals();                       // the viewport's note signals (placed, moved, edit, delete); safe to call twice
+	// A Plot3D creation dialog can display one temporary plot directly in the
+	// viewport before committing it. Preview meshes deliberately have no scene
+	// node, session, undo record, or persistence entry.
+	void setPlot3DPreview(const QVector<QUuid>& meshUuids, const Plot3DAxisLayout& axes);
+	void clearPlot3DPreview();
+
+	// Compare mode: the active result and `otherMeshUuid` side by side (or stacked) in two panes with one shared
+	// camera, each with its own legend; optionally with one colour range for both so equal colours mean equal values
+	// (applied only while both show the same unit). It ends by itself when either result is hidden, closed or undone.
+	bool simulationCompareActive() const { return _simulationCompareActive; }
+	bool simulationCompareStacked() const { return _simulationCompareStacked; }
+	bool simulationCompareSharedRange() const { return _simulationCompareSharedRange; }
+	void startSimulationCompare(const QUuid& otherMeshUuid, bool stacked, bool sharedRange);
+	void setSimulationCompareOptions(bool stacked, bool sharedRange);
+	void stopSimulationCompare();
+	// The menu command: exits compare mode, or starts it with the one other result (asking which when there are several).
+	void toggleSimulationCompare();
+	// Hover probe: the shown result value under the cursor, when it is over a simulation result mesh (empty text
+	// otherwise). `color` is set to a readable text colour for the paint under the cursor.
+	bool hasSimulationResults() const { return !_simulationSessions.empty(); }
+	bool isSimulationResultMesh(const QUuid& meshUuid) const; // the mesh is a Simulation result of this document
+	QString simulationProbeText(const MeshSurfaceAnchor& anchor, QColor& color) const;
+	// Applies an edit from the Simulation panel to the active session: recolours its mesh and updates the legend.
+	void applySimulationViewState(const SimulationViewState& state);
+	// Charts of the active session's current field/component (SimulationCharts.h / SimulationChartWidget). The
+	// first two arm ViewportWidget's chart point picking (1 point / 2 points) and open the chart once
+	// simulationChartPointsPicked() fires; the histogram needs no picking and opens right away.
+	void requestSimulationPlotOverTime();
+	void requestSimulationPlotOverLine();
+	void requestSimulationHistogram();
+	// The chart windows (plot over time / line, distribution) belong to this document: they are hidden while another document is the
+	// active one and come back exactly where they were (position, size, zoom) when this one is activated again; they close with it.
+	void hideDocumentWindows();
+	void showDocumentWindows();
+	// Time steps of the active result: show step `step` (clamped), and start/stop the playback timer. Both are
+	// driven by the timeline overlay; `fromPlayback` skips the panel refresh that a manual step triggers.
+	void setSimulationStep(int step, bool fromPlayback = false);
+	void setSimulationPlaying(bool playing);
+	// Applies a quantity/unit edit from the Simulation panel to the active session's field (and its derived
+	// fields), then redraws. A custom colour range follows a change of display unit; a change of what the numbers
+	// ARE (quantity or file unit) returns it to the data range.
+	// The length unit of the active result's coordinates ("" = not specified, else "mm", "cm", "m", "in", "ft"): stored on the
+	// result and on its scene node, where Mass Properties and Surface Analysis read it (LengthUnits.h).
+	void applySimulationLengthUnit(const QString& unit);
+	void applySimulationUnits(int fieldIndex, const QString& kindId, const QString& fileUnit, const QString& displayUnit);
+
+	// The Reconstruct Surface dialog's one-line bridge into the undo stack -
+	// same convention and immediate-per-result timing as commitShrinkWrap()/
+	// commitSubdivision() above, reusing the exact same ShrinkWrapCommand
+	// class with text = tr("Reconstruct Surface").
+	void commitReconstructSurface(SceneNode* node, SceneNode* parent, int position,
+	                               const QUuid& meshUuid, const QSet<QUuid>& originalSelection);
+
+	// Repair Mesh: opens the non-modal RepairMeshDialog (Tools -> Repair Mesh...), same
+	// findChild-reuse-or-create/show/raise/seed-with-tree-selection pattern as
+	// openShrinkWrapDialog()/openSubdivisionDialog() above.
+	void openRepairMeshDialog();
+
+	// The Repair Mesh dialog's one-line bridge into the undo stack. Unlike commitShrinkWrap()/
+	// commitSubdivision()/commitReconstructSurface() (always exactly one result per Generate
+	// click), a single Repair Mesh Generate click can independently repair several meshes at
+	// once - reuses the exact same ShrinkWrapCommand class per result (text = tr("Repair Mesh")),
+	// wrapped in a single undo-stack macro when results.size() > 1 so one Ctrl+Z undoes the whole
+	// batch, same "one user action, several underlying commands" convention as
+	// commitUVGeneration()'s multi-mesh batching.
+	void commitRepairMesh(const QVector<RepairMeshResult>& results, const QSet<QUuid>& originalSelection);
+
+	// Fill Holes: opens the non-modal FillHolesDialog (Tools -> Fill Holes...), same
+	// findChild-reuse-or-create/show/raise/seed-with-tree-selection pattern as
+	// openRepairMeshDialog()/openShrinkWrapDialog() above.
+	void openFillHolesDialog();
+
+	// The Fill Holes dialog's one-line bridge into the undo stack - same shape/macro-wrapping
+	// convention as commitRepairMesh() just above (one result per source mesh that had at
+	// least one checked hole filled, text = tr("Fill Holes")).
+	void commitFillHoles(const QVector<FillHolesResult>& results, const QSet<QUuid>& originalSelection);
+
+	// Generate UVs: opens the non-modal UVGenerationDialog (Tools -> Generate
+	// UVs...), same findChild-reuse-or-create/show/raise/seed-with-tree-
+	// selection pattern as openShrinkWrapDialog()/openSubdivisionDialog()
+	// above - replaces the old generateUVsForSelectedItems(), which opened
+	// the dialog modally (dialog.exec()) from the scene-tree context menu
+	// and required a pre-existing selection just to open it. The dialog now
+	// owns its own working mesh list (Add/Remove Selected, same as
+	// ShrinkWrapDialog) so it can be opened empty from the Tools menu and
+	// populated afterward, and Generate can be clicked repeatedly with
+	// different methods/settings without relaunching.
+	void openUVGenerationDialog();
+
+	// UV generation's one-line bridge into the undo stack - called by
+	// UVGenerationDialog::onGenerateClicked() once per Generate click, after
+	// the mutation has already happened (each SetMeshUVsCommand's before/
+	// after snapshots are captured by the caller, same "already happened,
+	// command just replays it" convention as commitShrinkWrap() above).
+	// Wraps the whole batch in a single beginMacro()/endMacro() when more
+	// than one mesh was targeted (same pattern as hideAllItems()), so one
+	// Ctrl+Z undoes an entire multi-mesh Generate click as one step.
+	void commitUVGeneration(QVector<QUndoCommand*> commands, const QString& methodName);
+
+	// Surface Analysis: opens the non-modal SurfaceAnalysisDialog (Tools ->
+	// Surface Analysis...), same findChild-reuse-or-create/show/raise
+	// pattern as openShrinkWrapDialog() above. The dialog keeps its own list of
+	// meshes (a MeshSelectionBox, like MassPropertiesDialog): seeded from the
+	// current viewport selection when it opens - or again when this is called
+	// while it is already open - and edited there, so it does not follow the
+	// viewer's live selection afterwards.
+	void openSurfaceAnalysisDialog(const QString& mode = QString());
+
+	// Mass Properties: opens the non-modal MassPropertiesDialog, reusing one that is already open (re-seeded from
+	// the current viewport selection) - same findChild-reuse-or-create/show/raise pattern as above.
+	void openMassPropertiesDialog();
+    void executeToolCommand(const QString& command);
+    void updateMeshTools();
+    QMap<QString, QString> meshToolDisabledReasons() const;
+    bool executeMeshToolCommand(const QString& command);
+
+	// Called by CutCommand and PasteCommand to manage cut-mark state.
+	// generation must match s_clipboardGeneration at the time of the call or
+	// the call is a no-op - guards against a stale command (from a document
+	// whose cut has since been superseded by a different document's Copy/Cut)
+	// clobbering whichever document's clipboard/marks are current now.
+	void clearCutMarks(quint64 generation);
+	void reapplyCutMarks(quint64 generation,
+	                     const QList<ClipboardEntry>& entries,
+	                     const QSet<QUuid>& meshUuids,
+	                     const QSet<QUuid>& nodeUuids);
+	void deleteSelectedItems();
+	void displaySelectedMeshInfo();
+	void editMeshMaterial();
+	void showImportUnitsDialog(SceneNode* fileNode);
+	void showVisualizationModelPage();
+	void showEnvironmentPage();
+	void showPredefinedMaterialsPage();
+	void showTransformationsPage();
+	void onDisplayModeChanged(int mode);
+	void onTextureCacheCleared();
+	void onRenderingModeSelected(const QString& mode);
+	// What the user's own choices of a rendering mode (the toolbar, the shortcuts, the view commands, the Render dialog) go through: the same as
+	// onRenderingModeSelected(), followed by a status-bar notice when the document holds Simulation results or 3D plots and the mode is PBR or
+	// path tracing, which add little for them. Programmatic changes (restoring a saved view) call
+	// onRenderingModeSelected() directly and never show it.
+	void requestRenderingMode(const QString& mode);
+	void onCustomMaterialApplied(const Material& mat);
+
+private slots:
+	void setListRow(int index);
+	void setListRows(QList<int> indices);
+	void showContextMenu(const QPoint& pos);
+
+	void onFileImport();
+
+	// Validates the cut clipboard whenever the scene structure changes.
+	// Invalidates (clears) the clipboard if any cut source is no longer present.
+	void validateCutClipboard();
+	void importFiles(QStringList& fileNames);
+	void onFileExport();
+
+	void handleTreeWidgetVisibilityChanged();
+	void handleTreeWidgetSelectionChanged();
+	void handleTreeWidgetMeshRenamed(const QUuid& uuid, const QString& newName);
+
+	void onPredefinedMaterialSelected(const Material& mat);
+
+	void onTexturesApplied(const Material* mat = nullptr);
+
+
+protected:
+	void showEvent(QShowEvent* event);
+	bool eventFilter(QObject* watched, QEvent* event) override;
+	void keyPressEvent(QKeyEvent* event);
+	void dragEnterEvent(QDragEnterEvent* event);
+	void dropEvent(QDropEvent* event);
+	void resizeEvent(QResizeEvent* event);
+	void mouseMoveEvent(QMouseEvent* event);
+
+private:
+	// Builds the scene node/mesh/legend for a loaded simulation result (main thread; see openSimulationResult()).
+	void presentSimulationResult(const QString& path, LoadedSimulationResult& result);
+	// The world points a "plot over time"/"plot over line" pick collected (1 or 2, see requestSimulationPlotOverTime()
+	// /requestSimulationPlotOverLine()); opens the resulting chart. Connected once in connectSimulationHooks().
+	void onSimulationChartPointsPicked(const QUuid& meshUuid, const QVector<QVector3D>& points);
+	SimulationSession* findSimulationSession(const QUuid& meshUuid);
+	void closeEmptyResultDocument();
+	SimulationSession* activeSimulationSessionMutable();
+	void connectSimulationHooks();
+	void refreshSimulationDisplay(SimulationSession& session);
+	// Rebuilds (or removes) the session's vector arrows for its current step. `surfaceLo/surfaceHi` is the colour range of the
+	// surface scalar, used when the arrows show that same field so their colours match the legend; `haveSurfaceRange` false
+	// when nothing is coloured.
+	// Rebuilds (or removes) the session's cut faces (a data-coloured section on each Clipping Plane) and iso-surfaces. Cuts the undeformed mesh.
+	void updateSimulationSlices(SimulationSession& session);
+	void updateSimulationStreamlines(SimulationSession& session);
+	// After a language change: the timeline, the legend and the messages of the results are built with tr() and are made again.
+	void retranslateSimulation();
+	void updateSimulationGlyphs(SimulationSession& session, bool haveSurfaceRange, float surfaceLo, float surfaceHi);
+	void updateSimulationTensorGlyphs(SimulationSession& session, bool haveSurfaceRange, float surfaceLo, float surfaceHi);
+	void updateSimulationVolume(SimulationSession& session);
+	void updateSimulationTimeline();
+	void checkSimulationCompare(); // ends compare mode when one of its results went away
+	void pushSimulationMarkers();  // the min/max labels the viewport shows (active result's, or both compared results')
+	void startNextPendingSimulationFile(); // results queued while another was loading (a multi-file import)
+	// Recolours both compared results (twice with a shared range, so each sees the other's up-to-date own range).
+	void refreshComparePair();
+	// Moves the compared partner to the same fraction of its own steps as `driver` (identical steps when both have as many).
+	void syncComparePartnerStep(const SimulationSession& driver);
+	// Saving results into .mvf (docs/simulation_mvf_persistence_design.md, S2). The prompt runs once per session on the
+	// first save of a document that has results; the snapshots and the baked COLOR_0 are added while the package is built.
+	bool promptSimulationSaveOptions();
+	// Loading them back (S3): turns each decoded snapshot into a live SimulationSession on its already-uploaded mesh.
+	void restoreSimulationSessions(QVector<PendingSimulationRestore>& restores);
+	void appendSimulationSnapshots(Mvf::MVFPackage& package) const;
+	// Saving / loading 3D Plot sessions into .mvf (src/Plot3D/UI/ModelViewerPlot3DPersistence.cpp). The plot MESHES already
+	// persist as ordinary scene content; these add the session (axes, colour and appearance controls) and the Quiver /
+	// Voxel renderer data that no mesh holds. Colours are re-derived on load through applyPlot3DColourState().
+	void appendPlot3DSessions(Mvf::MVFPackage& package) const;
+	void restorePlot3DSessions(QVector<PendingPlot3DRestore>& restores, const QUuid& activeMesh);
+	QHash<QUuid, std::vector<float>> simulationBakedColors() const;
+	// The shown colour of every vertex of each coloured 3D Plot mesh (RGBA), written as COLOR_0 on save so other glTF
+	// viewers and the path tracer see the plot colours. Quiver / Voxel arrows and volumes live in controllers and are not baked.
+	QHash<QUuid, std::vector<float>> plot3DBakedColors() const;
+	void advanceSimulationStep();
+	bool buildPathlineAnimationState(const Plot3DSession& session, SceneMesh& mesh);
+	void applyPathlineFrame();
+	void setPathlineFrame(int frame, bool fromPlayback);
+	void setPathlinePlaying(bool playing);
+	void advancePathlineFrame();
+	void bindPlaybackToPathline();
+	void bindPlaybackTogether();
+	void updateSimulationChartCursors(const SimulationSession& session); // puts the linked charts' cursors at the session's step
+	void seekSimulationFromChart(const QUuid& meshUuid, double x);        // a chart asked for the step at x (its time / frequency axis)
+	QUuid pickTogetherResult() const;   // the result that plays along with the pathlines (the active one if it can be played)
+	void setTogetherFrame(int frame);
+	void applyTogetherFrame();
+	void applyPathlineTime(double now);  // draws the pathlines up to a time
+	int playbackFrame() const;           // the position / length of whichever clock the bar shows for the pathline item
+	int playbackFrames() const;
+	QVector<PlaybackItem> playbackItems() const;
+	void endPathlineAnimation(bool touchMesh = true);
+
+	// Shared implementation for mergeSelectedMeshes()/unionSelectedMeshes() -
+	// see mergeSelectedMeshes()'s doc comment for what's common between them,
+	// and combineSelectedMeshes()'s own .cpp doc comment for why combineFn
+	// is type-erased (std::function) rather than a plain function pointer.
+	void combineSelectedMeshes(
+		const std::function<SceneMesh*(const QVector<SceneMesh*>&, const QString&, QString* outDetail)>& combineFn,
+		const QString& actionName);
+
+	void checkAndRenameModel(SceneMesh* mesh, const QString& name);
+	QString computeUniqueName(SceneMesh* exclude, const QString& name) const;
+	bool checkForActiveSelection();
+	Mvf::MVFPackage buildMVFPackage() const;
+			
+	void updateControls();
+	QString getSupportedQtImagesFilter();
+
+	// Cleanup methods
+	void setupUndoStackMonitoring();
+	void onUndoStackChanged();
+	bool undoCommandAffectsDocument(const QUndoCommand* command) const;
+	bool hasUnsavedUndoDocumentChanges() const;
+	void cleanupOrphanedMeshes();
+	void validateVariantData();   // removes variant data for files with no remaining meshes
+	void validateAnimationData(); // removes animation data for files with no remaining meshes
+	void validateCameraData();    // removes camera data for files with no remaining meshes
+	void validateLightData();     // removes punctual-light data for files with no remaining meshes
+	bool saveMaterialsBeforeClose();  // Save all unsaved materials to library before closing
+	void cleanupUnsavedMaterialsFromLibrary();
+	QSet<QUuid> scanStackForReferencedUuids();
+	QSet<QUuid> collectVisibleUuidsFromDisplayList() const;
+	std::vector<int> visibleIndicesFromState() const;
+	void updateVisibilityUiFromState();
+	void invalidateCutClipboard();  // clears cut clipboard + tree marks
+	// Cross-document cut+paste: s_clipboardSourceViewer != this. Leaf mesh
+	// entries are actually moved (cloned into target, deleted from source).
+	// Assembly entries can't be cleanly removed from the source yet (no
+	// mechanism to detach/clean up an emptied-out assembly node the way
+	// detachEmptyFileNode() does for file nodes) - those fall back to
+	// copy semantics instead of being rejected outright: cloned into
+	// target, original left untouched in source, with a message explaining
+	// why. Pushes up to two independent undo commands - one on each
+	// document's own QUndoStack, since there is no cross-stack undo
+	// mechanism in this codebase.
+	void performCrossDocumentCutPaste(SceneNode* target);
+
+	// Shared by the ordinary copy-paste path and performCrossDocumentCutPaste:
+	// recursively clones a ClipboardNode subtree, resolving each mesh from
+	// srcVp (the document being cloned FROM) and inserting into `parent`
+	// (in THIS document). resolveTextures re-resolves material textures
+	// through this document's own cache after cloning - needed whenever
+	// srcVp belongs to a different document, a no-op cost otherwise.
+	SceneNode* cloneClipboardSubtree(const ClipboardNode& cn, SceneNode* parent,
+	                                 ViewportWidget* srcVp, bool resolveTextures,
+	                                 QList<QUuid>& allUuids);
+
+	// Recursively captures a live SceneNode's name/transform/mesh-UUID
+	// structure into a pointer-free ClipboardNode snapshot. Shared by
+	// copySelectedItems() (populates entry.assemblyRoot directly) and
+	// performCrossDocumentCutPaste() (a CUT entry's assemblyRoot is left
+	// default-constructed/empty at cut time - only cutNodeUuid is needed
+	// for the same-document move-by-pointer path - so the cross-document
+	// fallback has to build this snapshot lazily, at paste time, from the
+	// still-live source node).
+	static ClipboardNode snapshotSceneNode(const SceneNode* n);
+	void scheduleTreeRebuild(int delayMs = 1200);
+	void rebuildTreeFromCurrentState();
+	void applyVisibleMeshState(bool syncTree,
+	                           bool deferTreeSync = false,
+	                           const QSet<QUuid>& changedUuids = {});
+	void scheduleTreeVisibilitySync(int delayMs = 900);
+	void syncTreeVisibilityFromModel();
+
+private:
+	ViewportWidget*   _viewportWidget;
+	SceneGraph* _sceneGraph;
+	LengthUnit _defaultImportUnit = LengthUnit::Unknown;
+
+	Material _material;
+
+	bool _bHasTexture;
+
+	QString _albedoPBRTexture;
+	QString _metallicPBRTexture;
+	QString _roughnessPBRTexture;
+	QString _normalPBRTexture;
+	QString _aoPBRTexture;
+	QString _opacityPBRTexture;
+	QString _heightPBRTexture;
+	bool    _hasPBRAlbedoTex;
+	bool    _hasPBRMetallicTex;
+	bool    _hasPBRRoughnessTex;
+	bool    _hasPBRNormalTex;
+	bool    _hasPBRAOTex;
+	bool    _hasPBROpacTex;
+	bool    _hasPBRHeightTex;
+	float   _heightPBRTexScale;
+
+	bool _runningFirstTime;
+
+	QString _currentFile;
+	bool _textureDirOpenedFirstTime;
+	bool _documentSaved;
+	bool _documentModified;
+	int _sessionNumber = 1; // matches the "Session 1" title the .ui gives the startup document
+
+	bool _progressiveLoadingEnabled = false;
+	bool _animateProgressiveFitEnabled = true;
+
+	static QString _lastOpenedDir;
+	static QString _lastSelectedFilter;
+
+	int _skyBoxLDRIIndex = 0;
+	int _skyBoxHDRIIndex = 0;
+
+	QPointer<QWidget> _navigationOverlay;
+	// Chevron strip glued to the overlay's own left edge (a child of the
+	// composite widget passed to attachOverlayPanel(), not of gridLayout -
+	// the overlay is an absolutely-positioned floating child of
+	// _viewportWidget, not a normal side-by-side grid column, so it has to
+	// live and move with it, not in the document's outer layout). Always
+	// visible regardless of reveal state - it's the hover-sensitive area
+	// (see eventFilter()'s Enter/Leave handling for it, and
+	// trackPointerForNavigation()'s proximity check) that reveals/hides the
+	// panel on hover instead of the old click-to-toggle. The separate PIN
+	// button (navPinButton, a real .ui member inside modelNavigationWidget's
+	// own search-box row - only present/visible while the panel itself is
+	// revealed) controls whether it's allowed to auto-hide at all; this
+	// strip is purely the reveal/hide trigger + collapsed-state indicator.
+	// One click exception: while pinned, clicking this strip (its clicked()
+	// connection in attachNavigationOverlay()) is a shortcut for unpinning
+	// and collapsing at once, instead of unpinning via navPinButton and then
+	// waiting out the auto-hide delay. Unpinned, clicking it does nothing -
+	// hover already reveals/hides it.
+	QToolButton* _navCollapseButton = nullptr;
+	bool _navigationPinned = true;
+	// Current visual state (true = fully open). Drives
+	// updateNavigationOverlayGeometry()'s width choice; kept in sync with
+	// _navRevealAnimation's start/end rather than driven by it directly, so
+	// a resize mid-animation can always read "what should this be right now"
+	// without inspecting animation internals.
+	bool _navigationRevealed = true;
+	QPropertyAnimation* _navRevealAnimation = nullptr;
+	QTimer* _navHideTimer = nullptr;
+	// Debounces both hover-reveal triggers - trackPointerForNavigation()'s
+	// proximity check AND _navCollapseButton's own direct Enter event (Qt
+	// delivers that one straight to the button, never through
+	// ViewportWidget::mouseMoveEvent(), so it needed the same treatment) -
+	// while pinned=false. The cursor must still be within the sensitive
+	// zone once this single-shot timer elapses before actually revealing,
+	// filtering out a cursor path that merely passed through/over that
+	// area on the way elsewhere. Reveals instantly when pinned instead, in
+	// both call sites, since there's nothing to filter for a panel that's
+	// always open anyway.
+	QTimer* _navRevealDelayTimer = nullptr;
+	void revealNavigation();
+	void tryHideNavigation();
+	// The actual collapse - animates to the narrow strip and flips
+	// _navigationRevealed unconditionally, with none of tryHideNavigation()'s
+	// own pinned/isNavigationInteracting() guards. tryHideNavigation() calls
+	// this once its guards pass; the strip's pinned-click shortcut (see
+	// _navCollapseButton's own doc comment) calls it directly, since an
+	// explicit click should collapse at once even though the cursor is
+	// necessarily still over the strip right after clicking it (which would
+	// otherwise make isNavigationInteracting() keep it open).
+	void collapseNavigationNow();
+	bool isNavigationInteracting() const;
+	// Local, per-instance apply only (button sync + reveal/hide) - see its
+	// own doc comment (.cpp) for why this must not write QSettings or
+	// broadcast to other instances itself.
+	void applyNavigationPinned(bool pinned);
+	// The actual toggle entry point: writes the persisted preference once,
+	// then calls applyNavigationPinned() on every open ModelViewer, matching
+	// TabbedViewportToolbar::setPinnedPreference()'s identical pattern.
+	static void setNavigationPinnedPreference(bool pinned);
+	void updateNavPinButton();
+	// User-draggable width, mirroring _lightTreeResizeHandle's pattern in
+	// VisualizationEnvironmentPanel (a thin QFrame line, event-filtered for
+	// mouse press/move/release) but horizontal instead of vertical - glued
+	// to the overlay's right edge, a sibling of modelNavigationWidget inside
+	// the same composite as _navCollapseButton above.
+	QFrame* _navResizeHandle = nullptr;
+	int _navigationOverlayWidth = 420;
+	qreal _navResizeDragStartX = 0.0;
+	int _navResizeDragStartWidth = 0;
+	bool _navResizeDragActive = false;
+
+	TextureDebugPanel*     _textureDebugPanel  = nullptr;
+
+	QUndoStack* _undoStack;
+	bool _simulationLoadInFlight = false;
+	// True when this document was just created (File > Open) only to show one result file: if reading it fails,
+	// the still-empty document is closed again instead of being left blank, and a successful open leaves the
+	// document unmodified and without an undo step (like importing any other format).
+	bool _closeOnSimulationLoadFailure = false;
+	std::vector<SimulationSession> _simulationSessions; // every result opened in this document
+	QVector<Plot3DSession> _plot3DSessions;
+	QUuid _activePlot3DMesh;
+	QVector<QUuid> _plot3DPreviewMeshes;
+	QPointer<SimulationLegendWidget> _plot3DLegend; // colour legend of the active visible scalar Plot3D session
+	QUuid _activeSimulationMesh;                        // the session the Simulation panel currently shows
+	bool _simulationHooksConnected = false;
+	enum class SimulationSaveContent { ShownAndDisplacement, AllFields, GeometryOnly };
+	SimulationSaveContent _simulationSaveContent = SimulationSaveContent::ShownAndDisplacement;
+	bool _simulationSavePrompted = false;
+	bool _simulationSaveVolume = false; // also store the volume (see SnapshotOptions::includeVolume)
+	mutable QStringList _simulationSaveNotes; // what the last package build had to leave out (e.g. subsampled steps)
+	QStringList _pendingSimulationFiles;
+	bool _simulationCompareActive = false;
+	bool _simulationCompareStacked = false;
+	bool _simulationCompareSharedRange = false;
+	QVector<QUuid> _simulationCompareMeshes;
+	QHash<QUuid, QPointer<SimulationLegendWidget>> _compareLegends; // one per compared result, in its own pane
+	bool _refreshingComparePartner = false;
+	QPointer<SimulationTimelineWidget> _simulationTimeline; // playback controls of a multi-step result
+	QTimer* _simulationPlayTimer = nullptr;
+	Plot3DPathlineAnimation _pathlineAnimation;
+	// The one playback bar plays whichever item is selected (see updateSimulationTimeline()).
+	bool _playbackPathline = false;     // the selected item is the pathline plot (else a Simulation result)
+	bool _playbackTogether = false;     // ... played together with a result (then _playbackPathline is true as well)
+	QUuid _playbackTogetherResult;      // the result that plays along with the pathlines in that mode
+	PlaybackClock _togetherClock;       // how the two are matched, and the bar's frames
+	std::vector<double> _togetherStepTimes; // the result's step times, for the clock
+	int _togetherFrame = 0;
+	// The "plot over time" charts opened for a result: each shows a cursor at the result's current step and can drive it (a click or drag).
+	struct SimulationChartLink
+	{
+		QPointer<SimulationChartWidget> chart;
+		QUuid mesh;
+	};
+	QVector<SimulationChartLink> _simulationChartLinks;
+	QVector<QPointer<SimulationChartWidget>> _chartWindows;      // every chart window of this document (open or hidden)
+	QVector<QPointer<SimulationChartWidget>> _chartsHiddenByDeactivation; // the ones visible when the document was deactivated
+	bool _plot3DViewportSignalsConnected = false;
+	QPointer<SimulationChartWidget> _chartPickTarget; // a chart waiting for another point: the next one picked is added to it
+	QUuid _chartPickTargetMesh;
+	QUuid _playbackMesh;                // ... and its mesh
+	QUuid _playbackSeenActiveSim;       // the active result last time: the selection follows when it changes
+	bool _playbackBoundPathline = false; // what the controls are currently bound to (playback pauses when that changes)
+	bool _playbackBoundTogether = false;
+	QUuid _playbackBoundMesh;
+	QTimer* _pathlineTimer = nullptr;
+	bool _pathlinePlaying = false;
+	bool _pathlineLoop = true;
+	double _pathlineSpeed = 1.0;
+	bool _simulationPlaying = false;
+	bool _simulationLoop = true;
+	double _simulationSpeed = 1.0;   // 0.5 / 1 / 2 / 4; one step per 500 ms at 1x
+	QUuid _simulationPlayingMesh;    // the result the timer is playing (playback stops if another becomes active)
+	QPointer<SimulationLegendWidget> _simulationLegend; // colour-bar legend of the most recently opened simulation result
+	bool _lastCanUndo = false;
+	bool _lastCanRedo = false;
+	int _lastUndoIndex = 0;
+	int _savedUndoIndex = 0;
+	bool _nonUndoDocumentDirty = false;
+	// Cleanup optimization
+	int _lastStackCount = 0;
+	QSet<QUuid> _cachedReferencedUuids;  // Meshes referenced in undo stack
+	QSet<QUuid> _visibleMeshUuids;       // Authoritative visible mesh state
+	int _treeRebuildGeneration = 0;
+	bool _treeRebuildPending = false;
+	int _treeVisibilitySyncGeneration = 0;
+	bool _treeVisibilityDirty = false;
+
+	// Material cache - MDI-scoped, auto-destroyed when MDI closes
+	QMap<QString, CachedMaterial> _materialCache;  // Maps material keys to cached materials with metadata
+	QSet<QString> _ownedUnsavedMaterials;  // Tracks unsaved materials created by this MDI (for cleanup)
+
+	QUuid _currentEditingMeshUuid;  // UUID of mesh being edited (null if not editing)
+
+	// Shared across every open document (static) so Paste can target a
+	// different document than the one Copy/Cut ran in - non-undoable, same
+	// as the old per-instance clipboard was.
+	//
+	// s_clipboardSourceViewer tracks which document's SceneGraph the
+	// clipboard's UUIDs actually resolve against (needed because Copy/Cut
+	// still only stores UUIDs, resolved lazily at paste time - see
+	// SceneClipboard.h). QPointer auto-nulls if that document is closed
+	// with a cut still pending, which is exactly the safety check needed
+	// before touching it from elsewhere.
+	//
+	// s_clipboardGeneration guards CutCommand/PasteCommand's cut-mark calls
+	// (clearCutMarks/reapplyCutMarks): each command captures the generation
+	// current when it was built, and the guarded calls no-op if some other
+	// document has since taken over the clipboard (bumped a new
+	// generation) - without this, an Undo/Redo far up one document's stack
+	// could clobber a completely different document's current clipboard
+	// state.
+	static QList<ClipboardEntry> s_clipboard;
+	static QPointer<ModelViewer> s_clipboardSourceViewer;
+	static quint64                s_clipboardGeneration;
+};

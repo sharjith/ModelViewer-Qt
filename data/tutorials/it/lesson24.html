@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lezione 24: Grafici 3D da formule, riempimenti, immagini e note - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primi passi</a>
+            <a href="lesson02.html">2. Aprire i modelli</a>
+            <a href="lesson03.html">3. Navigazione di base</a>
+            <a href="lesson04.html">4. Selezionare gli oggetti</a>
+            <a href="lesson05.html">5. Modalità di visualizzazione</a>
+            <a href="lesson06.html">6. Modalità fotocamera</a>
+            <a href="lesson07.html">7. Modalità di display</a>
+            <a href="lesson08.html">8. Manipolare gli oggetti</a>
+            <a href="lesson09.html">9. Materiali e texture</a>
+            <a href="lesson10.html">10. Illuminazione e ambiente</a>
+            <a href="lesson11.html">11. Lavorare con la visibilità</a>
+            <a href="lesson12.html">12. Funzioni avanzate</a>
+            <a href="lesson13.html">13. Ottimizzazione delle prestazioni</a>
+            <a href="lesson14.html">14. Suggerimenti e flussi di lavoro</a>
+            <a href="lesson15.html">15. Viste esplose</a>
+            <a href="lesson16.html">16. Animazione dei morph target</a>
+            <a href="lesson17.html">17. Modifica della trasformazione dei nodi</a>
+            <a href="lesson18.html">18. Rendering di bordi e wireframe</a>
+            <a href="lesson19.html">19. Risultati di simulazione</a>
+            <a href="lesson20.html">20. Guardare dentro un risultato</a>
+            <a href="lesson21.html">21. Grafici e sonde</a>
+            <a href="lesson22.html">22. Confrontare risultati, dati di cella e di guscio</a>
+            <a href="lesson23.html">23. Grafici 3D da dati CSV</a>
+            <a href="lesson24.html" class='active'>24. Grafici 3D da formule, riempimenti, immagini e note</a>
+            <a href="lesson25.html">25. Grafici e risultati riprodotti insieme</a>
+            <a href="lesson26.html">26. Strumenti per mesh</a>
+            <a href="lesson27.html">27. Misurare, annotare e riferire</a>
+            <a href="lesson28.html">28. Analisi, selezione e scene</a>
+            <a href="lesson29.html">29. Ray tracing in pratica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lezione 24 di 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 82.76%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lezione 24: Grafici 3D da formule, riempimenti, immagini e note</h1>
+        </div>
+
+        <h2>Introduzione</h2>
+        <p>Non serve un file per creare un grafico. Una formula può generare una superficie, una curva, un campo vettoriale o il moto di una particella; i riempimenti trasformano linee e punti in nastri e tende; un'immagine può stare su un piano; le note di testo etichettano ciò che conta; e tutti i grafici di un documento condividono un unico insieme di assi, che può essere logaritmico.</p>
+        <h2>Superfici da formula</h2>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Scegliere una sorgente di formula</div>
+            <div class="step-content">Nella finestra Aggiungi grafico 3D imposta <b>Origine dei dati</b> su <i>Superficie da formula</i>. <b>Preimpostazione</b> offre Plane, Saddle, Paraboloid, Cone, Gaussian, Sinc Ripple, Wave, Mexican Hat, Bivariate Normal, Logistic Regression e Rosenbrock; la casella <b>z =</b> contiene l'espressione in x e y, e gli intervalli e il numero di campioni definiscono la griglia.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Anteprima e creazione</div>
+            <div class="step-content">Fai clic su <b>Aggiorna anteprima</b> dopo aver modificato un'espressione o un parametro, poi su <b>Crea grafico</b>. Se l'espressione è sbagliata, ad esempio per una variabile sconosciuta, la riga di stato indica il problema e Crea resta disattivato.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_formula_surface.png" alt="tutorial_24_formula_surface.png" title="Capture: Add 3D Plot &gt; Formula surface &gt; Preset Mexican Hat; Refresh Preview; capture the dialog and the preview in the viewport." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Add 3D Plot &gt; Formula surface &gt; Preset Mexican Hat; Refresh Preview; capture the dialog and the preview in the viewport." style="display:none; width:700px; height:450px;">Schermata: tutorial_24_formula_surface.png (700x450)</div>
+            <span class="screenshot-caption">La superficie da formula Mexican Hat, con la finestra e la riga di stato</span>
+        </div>
+
+        <p>La stessa finestra offre anche <b>Superficie parametrica</b> (Torus, Ellipsoid, Mobius Strip, Klein Bottle, Superellipsoid, Helicoid, Catenoid, Enneper Surface, Spherical Harmonic), <b>Curva parametrica</b> (Helix, Lissajous, Trefoil Knot, Viviani Curve, Damped Spiral; il parametro si chiama <i>t</i>), <b>Superficie implicita</b> e <b>Campo vettoriale da formula</b>.</p>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_parametric_surfaces.png" alt="tutorial_24_parametric_surfaces.png" title="Capture: Build Parametric surface presets Torus and Klein Bottle separately (two captures joined side by side), isometric view, axes box on." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build Parametric surface presets Torus and Klein Bottle separately (two captures joined side by side), isometric view, axes box on." style="display:none; width:700px; height:350px;">Schermata: tutorial_24_parametric_surfaces.png (700x350)</div>
+            <span class="screenshot-caption">Un toro e una bottiglia di Klein creati con preimpostazioni parametriche</span>
+        </div>
+
+        <h2>Modificare un grafico generato</h2>
+        <p>I grafici da formule ricordano la definizione con cui sono stati creati. Selezionane uno in <b>Grafico attivo</b>, fai clic su <b>Modifica grafico...</b>, cambia un'espressione, un intervallo o un parametro e fai clic su <b>Ricrea grafico</b>: il grafico esistente si aggiorna sul posto e conserva titolo, visibilità, colori e impostazioni degli assi. Il tipo di sorgente non può essere cambiato in una modifica; crea un nuovo grafico per questo.</p>
+        <h2>Riempimenti: nastri e tende</h2>
+        <p>Una linea o una dispersione può essere riempita fino a un piano di base o tra due curve. I riempimenti sono traslucidi e colorati come il grafico.</p>
+        <table>
+            <thead><tr><th>Obiettivo</th><th>Come</th></tr></thead>
+            <tbody>
+            <tr><td>Una tenda sotto una linea</td><td><code>line_helix.csv</code> come <b>Linea / Curva</b>, spunta <b>Riempi fino alla Z di base</b> con base 0.</td></tr>
+            <tr><td>Una banda tra due curve</td><td><code>line_band.csv</code> come <b>Linea / Curva</b>, Valore colore = value, spunta il riempimento e scegli <i>z2</i> in <b>oppure tra la linea e la colonna</b>.</td></tr>
+            <tr><td>Nastri da punti di dispersione</td><td><code>scatter_clusters.csv</code> come <b>Dispersione</b>, spunta <b>Riempi fino alla Z di base</b> con una base come -3; oppure <code>scatter_band.csv</code> con <i>z2</i> per nastri tra due insiemi di punti.</td></tr>
+            <tr><td>Riempire una curva generata</td><td><b>Curva parametrica</b> con la preimpostazione Helix: spunta <b>Riempire la curva fino alla Z di base</b>, oppure digita un secondo <i>z2(t)</i> come 2 + sin(t) per riempire tra le due curve.</td></tr>
+            </tbody>
+        </table>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_fill_between_curves.png" alt="tutorial_24_fill_between_curves.png" title="Capture: Build line_band.csv as Line / Curve with the fill between the line and column z2 (Colour value = value); isometric view so both crossings are visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build line_band.csv as Line / Curve with the fill between the line and column z2 (Colour value = value); isometric view so both crossings are visible." style="display:none; width:700px; height:450px;">Schermata: tutorial_24_fill_between_curves.png (700x450)</div>
+            <span class="screenshot-caption">Una banda traslucida tra due curve che si incrociano, che si riduce a una linea dove si incrociano</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_fill_curtain.png" alt="tutorial_24_fill_curtain.png" title="Capture: Build line_helix.csv as Line / Curve with Fill to Base Z = 0." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build line_helix.csv as Line / Curve with Fill to Base Z = 0." style="display:none; width:700px; height:400px;">Schermata: tutorial_24_fill_curtain.png (700x400)</div>
+            <span class="screenshot-caption">L&#x27;elica con una tenda fino al piano di base</span>
+        </div>
+
+        <h2>Immagini su un piano</h2>
+        <p>Un'immagine può stare su uno dei piani del grafico: una mappa del sito sotto una superficie, una scansione accanto a un modello. Imposta <b>Origine dei dati</b> su <i>Immagine su un piano</i>, scegli un file immagine, il piano (XY piatto al minimo di Z, XZ o YZ verticale) e gli intervalli; si adattano alla forma dell'immagine quando la scegli. <b>Opacità</b> lascia vedere ciò che sta dietro. Vista da dietro, un'immagine appare speculare; per un'immagine opaca, spunta <b>Leggibile da dietro</b>.</p>
+        <div class="note note-info">
+            Prova <code>image_gradient.png</code> (320 x 200, con una «L» in un angolo, che mostra se l'immagine è speculare) e <code>image_gradient_alpha.png</code>, la cui trasparenza propria si combina con l'impostazione di opacità. «Leggibile da dietro» è disponibile solo per un'immagine opaca al 100 % di opacità.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_image_plane.png" alt="tutorial_24_image_plane.png" title="Capture: Build surface_ripple.csv, then Image on a plane with image_gradient.png on the XZ plane (shared axes); capture so the &quot;L&quot; mark is visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build surface_ripple.csv, then Image on a plane with image_gradient.png on the XZ plane (shared axes); capture so the &quot;L&quot; mark is visible." style="display:none; width:700px; height:450px;">Schermata: tutorial_24_image_plane.png (700x450)</div>
+            <span class="screenshot-caption">Un&#x27;immagine su un piano accanto a un grafico di superficie</span>
+        </div>
+
+        <h2>Note di testo</h2>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Posizionare una nota</div>
+            <div class="step-content">Seleziona un grafico, apri il gruppo <b>Note di testo</b> nella scheda Grafico 3D e fai clic su <b>Posiziona nota</b>, poi fai clic su un punto del grafico, oppure usa <b>Aggiungi al centro</b>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Modificarla e spostarla</div>
+            <div class="step-content">Trascina una nota per spostarla, fai doppio clic per modificarne il testo e clic destro per eliminarla. Tutto può essere annullato.</div>
+        </div>
+        <p>Le note vengono disegnate nel loro punto dati dentro il box degli assi, seguono la visibilità del grafico e vengono salvate con la sessione.</p>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_text_notes.png" alt="tutorial_24_text_notes.png" title="Capture: Ripple surface with a note &quot;Peak = 1.0&quot; placed on the central peak; capture the note and the 3D Plot tab Text notes group together." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Ripple surface with a note &quot;Peak = 1.0&quot; placed on the central peak; capture the note and the 3D Plot tab Text notes group together." style="display:none; width:700px; height:450px;">Schermata: tutorial_24_text_notes.png (700x450)</div>
+            <span class="screenshot-caption">Una nota sul picco di una superficie</span>
+        </div>
+
+        <h2>Assi condivisi e scale non lineari</h2>
+        <p>Tutti i grafici di un documento vengono disegnati su <b>un unico insieme di assi</b>. In <b>Assi</b>, nella scheda Grafico 3D, imposti per ogni asse l'etichetta, la <b>Scala dell'asse</b> (<i>Lineare</i>, <i>Log 10</i> o <i>SymLog</i>), l'intervallo e il numero di tacche. Cambiare una scala ridispone tutti i grafici insieme: linee, dispersione, superfici, barre, frecce e griglie di voxel la seguono.</p>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Creare due grafici</div>
+            <div class="step-content">Crea <code>scatter_error_bars.csv</code> come dispersione, poi <code>line_growth.csv</code> come Linea / Curva (z = 10^(x/2), da 1 a 100).</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Impostare Z su Log 10</div>
+            <div class="step-content">In <b>Assi</b> imposta la <b>Scala dell'asse</b> Z su <i>Log 10</i>. Entrambi i grafici si ridispongono insieme: la linea esponenziale diventa retta e la dispersione si sposta con essa.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 3: Incontrare il limite</div>
+            <div class="step-content">Un asse Log 10 richiede che i dati di <i>ogni</i> grafico siano maggiori di zero. Creare <code>line_helix.csv</code>, che arriva a 0, mentre Z è su Log 10 riporta Z a Lineare con un messaggio di stato; provare a impostare Log 10 con un tale grafico presente viene rifiutato con un messaggio che indica il motivo. <i>SymLog</i> gestisce qualsiasi dato, compresi i valori negativi.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_log_axis_shared.png" alt="tutorial_24_log_axis_shared.png" title="Capture: scatter_error_bars.csv and line_growth.csv built, Z axis scale = Log 10; capture the scene with the Axes group of the 3D Plot tab visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: scatter_error_bars.csv and line_growth.csv built, Z axis scale = Log 10; capture the scene with the Axes group of the 3D Plot tab visible." style="display:none; width:700px; height:450px;">Schermata: tutorial_24_log_axis_shared.png (700x450)</div>
+            <span class="screenshot-caption">Una dispersione e una linea esponenziale che condividono un asse Z logaritmico</span>
+        </div>
+
+        <div class="note note-tip">
+            Le frecce vettoriali vengono riorientate secondo lo stiramento locale della scala nella loro posizione e mantengono lunghezza e colore; le griglie di voxel vengono ricampionate; la lettura al passaggio del mouse su una superficie mostra ancora i valori dei dati del grafico, non le posizioni sugli assi scalati. Tornare a Lineare ripristina tutto.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson23.html' class='nav-button'>← Lezione precedente</a>
+            <a href="index.html" class="back-to-index">↑ Torna all'indice</a>
+            <a href='lesson25.html' class='nav-button'>Lezione successiva →</a>
+        </div>
+    </div>
+</body>
+</html>

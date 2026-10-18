@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leçon 13 : Optimisation des performances - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutoriel</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Premiers pas</a>
+            <a href="lesson02.html">2. Ouvrir des modèles</a>
+            <a href="lesson03.html">3. Navigation de base</a>
+            <a href="lesson04.html">4. Sélectionner des objets</a>
+            <a href="lesson05.html">5. Modes d'affichage</a>
+            <a href="lesson06.html">6. Modes de caméra</a>
+            <a href="lesson07.html">7. Modes d'affichage des objets</a>
+            <a href="lesson08.html">8. Manipuler des objets</a>
+            <a href="lesson09.html">9. Matériaux et textures</a>
+            <a href="lesson10.html">10. Éclairage et environnement</a>
+            <a href="lesson11.html">11. Travailler avec la visibilité</a>
+            <a href="lesson12.html">12. Fonctions avancées</a>
+            <a href="lesson13.html" class='active'>13. Optimisation des performances</a>
+            <a href="lesson14.html">14. Conseils et flux de travail</a>
+            <a href="lesson15.html">15. Vues éclatées</a>
+            <a href="lesson16.html">16. Animation de morph targets</a>
+            <a href="lesson17.html">17. Édition de la transformation des nœuds</a>
+            <a href="lesson18.html">18. Rendu des arêtes et du fil de fer</a>
+            <a href="lesson19.html">19. Résultats de simulation</a>
+            <a href="lesson20.html">20. Regarder à l'intérieur d'un résultat</a>
+            <a href="lesson21.html">21. Graphiques et sondes</a>
+            <a href="lesson22.html">22. Comparer des résultats, données de cellule et de coque</a>
+            <a href="lesson23.html">23. Graphiques 3D à partir de données CSV</a>
+            <a href="lesson24.html">24. Graphiques 3D à partir de formules, remplissages, images et notes</a>
+            <a href="lesson25.html">25. Graphiques et résultats lus ensemble</a>
+            <a href="lesson26.html">26. Outils de maillage</a>
+            <a href="lesson27.html">27. Mesurer, annoter et rapporter</a>
+            <a href="lesson28.html">28. Analyse, sélection et scènes</a>
+            <a href="lesson29.html">29. Lancer de rayons en pratique</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Leçon 13 sur 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 44.83%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Leçon 13 : Optimisation des performances</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Travailler avec de gros modèles nécessite des stratégies d'optimisation. Voici comment conserver des performances fluides même avec des scènes complexes.</p>
+
+        <h2>Comprendre les performances</h2>
+        <p>Plusieurs facteurs influencent la vitesse de rendu :</p>
+        <ul>
+            <li><b>Nombre de polygones :</b> plus de polygones signifie un rendu plus lent.</li>
+            <li><b>Mode d'affichage :</b> le mode réaliste est nettement plus lent que Ombré ou Fil de fer.</li>
+            <li><b>Nombre d'objets :</b> un grand nombre d'objets augmente la charge système.</li>
+            <li><b>Taille des textures :</b> les grandes textures consomment plus de mémoire et de bande passante GPU.</li>
+            <li><b>Complexité de l'éclairage :</b> les ombres et l'éclairage basé sur l'image (IBL) sont coûteux en calcul.</li>
+            <li><b>Résolution d'écran :</b> les résolutions plus élevées nécessitent de calculer davantage de pixels.</li>
+        </ul>
+
+        <h2>Optimisations automatiques</h2>
+        <p>ModelViewer comprend des fonctions intégrées pour aider à gérer les performances :</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Aperçu basse résolution</div>
+            <div class="step-content">Pour les modèles de plus de 50 Mo, une version simplifiée est automatiquement affichée pendant la navigation (rotation, déplacement, zoom). Le détail complet revient lorsque le mouvement s'arrête.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Chargement progressif</div>
+            <div class="step-content">Les gros fichiers se chargent progressivement, ce qui vous permet de commencer à travailler avant que le modèle soit entièrement chargé.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Élimination hors champ (frustum culling)</div>
+            <div class="step-content">Les objets situés en dehors du champ de vision actuel de la caméra ne sont pas rendus, bien qu'ils restent en mémoire.</div>
+        </div>
+
+        <h2>Stratégies d'optimisation manuelle</h2>
+        <p>Techniques que vous pouvez utiliser pour améliorer la réactivité :</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Changer de mode d'affichage</div>
+            <div class="step-content">
+                Utilisez le mode Ombré ou Fil de fer pendant la modélisation ou la transformation. Gardez le mode réaliste pour les revues finales.<br> <b>Classement des performances (du plus rapide au plus lent) :</b> Fil de fer > Ombré > Ombré avec fil de fer > Réaliste.
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Masquer les objets inutiles</div>
+            <div class="step-content">Masquez les objets sur lesquels vous ne travaillez pas. Les objets masqués ne sont pas rendus, ce qui libère des ressources GPU. Utilisez « Afficher seulement » pour isoler des composants dans de grands assemblages.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Réduire la qualité des ombres</div>
+            <div class="step-content">Dans les réglages d'Environnement, abaissez la qualité des ombres (Ultra → Élevée → Moyenne → Faible) ou désactivez complètement les ombres pendant les travaux lourds.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 4 : Désactiver l'IBL/les reflets</div>
+            <div class="step-content">Désactivez l'éclairage basé sur l'image et les reflets d'environnement lorsqu'ils ne sont pas strictement nécessaires à la tâche en cours.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 5 : Utiliser la projection orthographique</div>
+            <div class="step-content">La projection orthographique est légèrement plus rapide que la perspective, ce qui la rend idéale pour le travail technique.</div>
+        </div>
+
+        <h2>Optimisation des réglages</h2>
+        <p>Configurez la qualité de rendu globale :</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Niveau de MSAA</div>
+            <div class="step-content">Dans <b>Modifier → Paramètres → Rendu</b>, réduisez les échantillons MSAA (anticrénelage) (8x → 4x → 2x → Désactivé) si la fréquence d'images est mauvaise.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Filtrage anisotrope</div>
+            <div class="step-content">Réduisez le niveau de filtrage (16x → 8x → 4x → 2x) pour diminuer la charge de traitement des textures.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_13_settings.png" alt="Boîte de dialogue des paramètres montrant les options de qualité de rendu" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:400px;">Capture d'écran: tutorial_13_settings.png (500x400)</div>
+            <span class="screenshot-caption">Boîte de dialogue des paramètres montrant les options de qualité de rendu</span>
+        </div>
+
+        <h2>Travailler avec de gros fichiers</h2>
+        <p>Stratégies pour les modèles massifs :</p>
+        <ol>
+            <li><b>Importer sélectivement :</b> si possible, n'importez que les pièces dont vous avez besoin.</li>
+            <li><b>Utiliser des versions à faible nombre de polygones :</b> conservez des versions low-poly distinctes pour le travail de modélisation actif.</li>
+            <li><b>Travailler par sections :</b> utilisez les plans de coupe pour vous concentrer sur une seule zone à la fois et ne rendre que celle-ci.</li>
+            <li><b>Attendre le chargement :</b> laissez les fichiers se charger complètement avant de lancer une interaction lourde.</li>
+            <li><b>Fermer les sessions inutilisées :</b> chaque fenêtre de visualisation ouverte consomme des ressources système.</li>
+        </ol>
+
+        <h2>Gestion de la mémoire</h2>
+        <p>Surveillez et gérez les ressources système :</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Indicateurs de mémoire</div>
+            <div class="step-content">Surveillez la barre d'état pour les avertissements d'utilisation de la mémoire.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Supprimer les objets inutilisés</div>
+            <div class="step-content">Supprimez définitivement les objets dont vous n'avez pas besoin plutôt que de simplement les masquer, car les objets masqués occupent toujours de la RAM et de la VRAM.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Tailles des textures</div>
+            <div class="step-content">Utilisez des textures de taille appropriée ; les textures 4K sont souvent inutiles pour de petits objets. Envisagez des textures 2K ou 1K pour de meilleures performances.</div>
+        </div>
+
+        <h2>Liste de contrôle des performances</h2>
+        <p>En cas de ralentissement, essayez ceci dans l'ordre :</p>
+        <ol>
+            <li>Passez au mode d'affichage Ombré ou Fil de fer.</li>
+            <li>Masquez les objets dont vous n'avez pas besoin pour le moment.</li>
+            <li>Désactivez temporairement les ombres.</li>
+            <li>Désactivez l'IBL et les cartes d'environnement.</li>
+            <li>Abaissez le réglage MSAA dans les Paramètres.</li>
+            <li>Utilisez la projection orthographique.</li>
+            <li>Fermez les sessions de visualisation inutiles.</li>
+            <li>Réduisez la taille des textures.</li>
+            <li>Envisagez de travailler avec une version à moins de polygones.</li>
+        </ol>
+
+        <div class="note note-tip">
+            Dans les cas extrêmes (plus de 100 millions de polygones), envisagez de scinder le modèle en fichiers séparés ou d'utiliser un logiciel de CAO dédié pour les travaux de géométrie les plus lourds.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson12.html' class='nav-button'>← Leçon précédente</a>
+            <a href="index.html" class="back-to-index">↑ Retour à l'index</a>
+            <a href='lesson14.html' class='nav-button'>Leçon suivante →</a>
+        </div>
+    </div>
+</body>
+</html>

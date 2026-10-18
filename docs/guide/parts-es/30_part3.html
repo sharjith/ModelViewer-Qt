@@ -1,0 +1,103 @@
+<h1 class="part"><small>Parte III</small>Juntos</h1>
+
+<h1 class="chapter">Resultados y gráficos con un único reloj</h1>
+
+<p>Un resultado de simulación y un gráfico viven en la misma escena, por lo que se pueden mostrar juntos. Cuando ambos cambian con el tiempo, una <b>barra de reproducción</b> los reproduce a la par. Qué combinación tiene sentido depende de si los datos comparten coordenadas y tiempo.</p>
+
+<h2>Cuatro situaciones</h2>
+<table>
+  <thead><tr><th style="width:28%">Usted tiene</th><th style="width:30%">¿Mismas coordenadas?</th><th>Qué se sincroniza y cómo se muestra</th></tr></thead>
+  <tbody>
+    <tr><td>Un resultado transitorio de flujo o térmico y líneas de trayectoria del mismo flujo (por ejemplo, una serie temporal CSV exportada del solver)</td><td>Sí</td><td><b>Tiempo físico.</b> Una vista, superpuesta: el tiempo del resultado es igual al tiempo de las líneas de trayectoria. Use <i>Todo junto</i> en la barra de reproducción (abajo).</td></tr>
+    <tr><td>Un resultado y un gráfico de la historia de un punto, la tensión máxima en el tiempo, una fuerza de reacción o datos de ensayo medidos</td><td>No (una curva no está en el espacio del modelo)</td><td><b>Tiempo físico</b>, con un cursor móvil en el gráfico y clic para saltar (capítulo 7). El modelo y el gráfico se muestran uno junto al otro.</td></tr>
+    <tr><td>Un análisis modal y una curva de respuesta en frecuencia</td><td>No</td><td><b>Frecuencia.</b> El cursor del gráfico se sitúa en la frecuencia del modo actual; hacer clic en un pico selecciona el modo.</td></tr>
+    <tr><td>Un barrido de pasos de carga o paramétrico y una curva de respuesta</td><td>No</td><td><b>El valor del paso</b> frente al eje del gráfico.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout"><span class="label">La regla que hay detrás</span>
+  <p>Los datos se emparejan por <b>valor físico, no por progreso</b>. Un resultado de 0 a 2 s y unas líneas de trayectoria de 0 a 1,5 s coinciden en 1 s. Emparejar por progreso (0 a 100 %) es solo el recurso cuando las unidades son incompatibles (un resultado modal está en hercios y las líneas de trayectoria en segundos), y entonces la barra de reproducción indica <i>por progreso</i>.</p>
+</div>
+
+<h2>La barra de reproducción para ambos</h2>
+<p>La línea de tiempo reproduce el elemento elegido en el cuadro de su izquierda. El cuadro enumera cada resultado de simulación de varios pasos (<i>Simulación: nombre</i>), el gráfico de líneas de trayectoria animado (<i>Líneas de trayectoria: nombre</i>) y, cuando ambos se pueden reproducir, <b>Todo junto</b>. Con un único elemento reproducible el cuadro se oculta. La barra sigue aquello con lo que trabaja: elegir un resultado en la pestaña Resultados de simulación lo selecciona, y marcar <span class="ui">Animar las líneas de trayectoria (línea de tiempo)</span> selecciona ese gráfico. Cambiar el elemento seleccionado pausa el que se estaba reproduciendo. Las leyendas de un resultado y de un gráfico se apilan en una columna, cada una encabezada con el nombre de su propietario.</p>
+<figure>
+<svg width="640" height="150" viewBox="0 0 640 150" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="11.5">
+  <text x="5" y="16" font-weight="600" fill="#14213d">Un reloj, dos elementos (Todo junto)</text>
+  <line x1="95" y1="130" x2="625" y2="130" stroke="#5f6b7a"/>
+  <g stroke="#5f6b7a"><line x1="95" y1="126" x2="95" y2="134"/><line x1="228" y1="126" x2="228" y2="134"/><line x1="360" y1="126" x2="360" y2="134"/><line x1="493" y1="126" x2="493" y2="134"/><line x1="625" y1="126" x2="625" y2="134"/></g>
+  <text x="95" y="146" text-anchor="middle" fill="#5f6b7a">0 s</text><text x="228" y="146" text-anchor="middle" fill="#5f6b7a">0.5</text><text x="360" y="146" text-anchor="middle" fill="#5f6b7a">1.0</text><text x="493" y="146" text-anchor="middle" fill="#5f6b7a">1.5</text><text x="625" y="146" text-anchor="middle" fill="#5f6b7a">2.0 s</text>
+  <text x="5" y="52" fill="#3e4c59">Resultado: 5 pasos</text>
+  <g fill="#2b6cb0"><rect x="95" y="38" width="130" height="22" rx="3"/><rect x="228" y="38" width="130" height="22" rx="3" opacity="0.85"/><rect x="360" y="38" width="130" height="22" rx="3" opacity="0.7"/><rect x="493" y="38" width="130" height="22" rx="3" opacity="0.55"/></g>
+  <text x="5" y="97" fill="#3e4c59">Líneas de trayectoria: 0 - 1,5 s</text>
+  <rect x="95" y="83" width="398" height="22" rx="3" fill="#f6ad55"/>
+  <line x1="360" y1="28" x2="360" y2="124" stroke="#e53e3e" stroke-width="2"/>
+  <text x="364" y="30" fill="#e53e3e">t = 1 s</text>
+</svg>
+<figcaption>Ambos elementos siguen el tiempo real. El resultado mantiene cada paso hasta el tiempo del siguiente; las líneas de trayectoria mantienen su último fotograma después de 1,5 s</figcaption>
+</figure>
+
+<h2>Ejemplo resuelto: el flujo en la cavidad</h2>
+<ol>
+  <li>Abra <code>sample-models/Simulation/openfoam_cavity/cavity.foam</code> y elija <span class="ui">U</span> con la componente <i>Magnitud</i>.</li>
+  <li>En la pestaña Gráfico 3D elija <span class="ui">Añadir gráfico 3D...</span>, origen <i>Serie temporal CSV (líneas de trayectoria)</i>, abra <code>sample-models/Plot3D/pathlines_openfoam_cavity.csv</code> y asigne Tiempo = t, X = x, Y = y, Z = z, U = u, V = v, W = w. Este archivo contiene la velocidad en el centro de las celdas del mismo caso en un plano justo encima de su cara superior, de modo que ambos comparten coordenadas y tiempo real. Cree el gráfico; oculte su caja de ejes si recarga la vista.</li>
+  <li>Marque <span class="ui">Animar las líneas de trayectoria (línea de tiempo)</span>, elija <b>Todo junto</b> en el cuadro de reproducción y pulse reproducir. Los rastros crecen mientras el campo avanza de 0 a 2 s; la barra muestra el tiempo y el paso, por ejemplo <i>t = 1 &ndash; paso 3 de 5</i>.</li>
+</ol>
+<figure data-img="tutorial_25_cavity_with_pathlines.png"><figcaption>El resultado de la cavidad y sus líneas de trayectoria reproduciéndose juntos</figcaption></figure>
+<div class="callout warn"><span class="label">Precaución</span>
+  <p>Un resultado modal como <code>FEM_box_modes.frd</code> tiene pasos en hercios y no puede compartir un eje de tiempo con líneas de trayectoria en segundos; <b>Todo junto</b> las reproduce entonces por progreso, y lo indica.</p>
+</div>
+
+<h2>Los gráficos como segunda mitad</h2>
+<p>Para las otras tres situaciones, el gráfico hace el trabajo: grafique la historia de un punto (clic derecho &rarr; <span class="ui">Graficar en el tiempo aquí</span>), añada su curva medida desde un CSV y reproduzca. El cursor recorre ambas curvas; haga clic en el gráfico para saltar en el tiempo. Para un resultado modal, añada un CSV de respuesta en frecuencia y haga clic en un pico para saltar a ese modo. El capítulo 7 tiene los detalles y los archivos de ejemplo.</p>
+
+
+<h1 class="chapter">Flujos de trabajo resueltos</h1>
+
+<p>Recetas que combinan los capítulos. Cada una enumera los archivos de ejemplo con los que probarla.</p>
+
+<h2>Revisar un análisis estructural</h2>
+<ol>
+  <li>Abra el resultado (<code>plate_with_hole.frd</code>), mire la línea de información y fije las unidades en <span class="ui">Los valores están en</span>: este archivo está en mm y MPa.</li>
+  <li>Coloree por <span class="ui">von Mises</span>, mantenga <i>Automático (todos los pasos)</i> y marque <span class="ui">Marcar mínimo y máximo</span>.</li>
+  <li>Active <span class="ui">Mostrar forma deformada</span> con escala automática y reproduzca los cuatro pasos de carga.</li>
+  <li>Active <span class="ui">Mostrar elipsoides de tensión</span> (número 1500+) para ver la concentración de tensiones en el agujero.</li>
+  <li>Use <b>Graficar a lo largo de una línea</b> desde el borde del agujero hasta el borde de la placa para leer cómo decae la tensión, y guarde la imagen del gráfico.</li>
+  <li>Coloque dos anotaciones (<span class="path">Herramientas &rarr; Anotar...</span>) en el máximo, capture vistas en el panel Cámaras y exporte el informe (<span class="path">Herramientas &rarr; Exportar informe...</span>).</li>
+</ol>
+
+<h2>Un transitorio térmico frente a mediciones</h2>
+<ol>
+  <li>Abra <code>FEM_box_thermal_transient.frd</code>; el archivo no indica unidad de temperatura, así que elija una en <span class="ui">Los valores están en</span>.</li>
+  <li>Clic derecho en el centro de la cara opuesta &rarr; <span class="ui">Graficar en el tiempo aquí</span>.</li>
+  <li>En el gráfico, clic derecho &rarr; <span class="ui">Añadir curva desde CSV...</span> &rarr; <code>thermal_probe_test.csv</code>. Reproduzca la línea de tiempo y compare las curvas.</li>
+  <li>Añada un segundo punto (<span class="ui">Añadir un punto del modelo</span>) cerca de la cara calentada para ver que el calor llega antes. Guarde el gráfico como imagen.</li>
+</ol>
+
+<h2>Un flujo con las trayectorias de sus partículas</h2>
+<p>Siga el ejemplo de la cavidad del capítulo 18. Para un flujo 3D estacionario sin serie temporal, use en su lugar líneas de corriente del resultado: <code>duct.cgns</code> con <span class="ui">Mostrar líneas de corriente</span> (Velocidad), <span class="ui">Sembrar en el plano de corte</span> y un plano de corte a través del conducto.</p>
+
+<h2>Modos y una respuesta en frecuencia</h2>
+<ol>
+  <li>Abra <code>FEM_box_modes.frd</code>, active la forma deformada y recorra los seis modos.</li>
+  <li>Clic derecho en un punto &rarr; <span class="ui">Graficar en el tiempo aquí</span>: el eje x es la frecuencia del modo.</li>
+  <li>Añada <code>FEM_box_modes_frf.csv</code> y haga clic en un pico: el resultado salta al modo correspondiente.</li>
+</ol>
+
+<h2>Dos variantes de diseño</h2>
+<ol>
+  <li>Abra el primer resultado y añada el segundo con <span class="ui">Añadir resultado a este documento...</span>.</li>
+  <li>Compare lado a lado con <span class="ui">Mismo rango de color para ambos</span> y <span class="ui">Enlazar las cámaras</span> (<code>ibeam_cantilever.frd</code> frente a <code>ibeam_torsion.frd</code>).</li>
+  <li>Salga de la comparación y grafique el mismo punto de cada resultado; exporte ambos gráficos como CSV y cargue uno en el gráfico del otro para ver las dos curvas juntas.</li>
+</ol>
+
+<h2>Datos medidos junto a un modelo CAD</h2>
+<ol>
+  <li>Abra la pieza CAD y después añada un gráfico de dispersión de sus mediciones (columnas x, y, z y una desviación como valor de color); ambos están en las mismas coordenadas si la tabla usa las unidades del modelo.</li>
+  <li>Ajuste los ejes para que coincidan con el modelo, añada notas en los puntos de interés y oculte la caja de ejes si solo quiere los puntos.</li>
+  <li>Para una imagen de la probeta, añada una <i>Imagen en un plano</i> en el lugar adecuado.</li>
+</ol>
+
+<div class="callout tip"><span class="label">Consejo</span>
+  <p>Guarde el documento como <code>.mvf</code> en cada etapa que valga la pena conservar (el capítulo 9 explica qué contiene un resultado guardado): una sesión con resultados, gráficos, anotaciones y vistas capturadas es el mejor registro único de una revisión de análisis.</p>
+</div>

@@ -1,0 +1,105 @@
+<h1 class="chapter">Speichern, große Ergebnisse und Grenzen</h1>
+
+<h2>Ein Ergebnis in einer Sitzung speichern</h2>
+<p>Ein Ergebnis ist eine Betrachtungssitzung wie jede andere und wird daher in der <code>.mvf</code>-Sitzungsdatei gespeichert (<span class="path">Datei &rarr; Speichern</span>). Der Sinn des Speicherns ist, dass sich die Sitzung <b>ohne die ursprüngliche Solver-Datei</b> wieder öffnen lässt, mit Feld, Bereich, Farbskala, Einheiten, Verformung und Zeitleiste, wie Sie sie verlassen haben. Enthält das Dokument Ergebnisse, fragt ModelViewer einmal pro Sitzung, was gespeichert werden soll:</p>
+<figure>
+<svg width="640" height="190" viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="12">
+  <rect x="5" y="10" width="205" height="170" rx="8" fill="#e8f0fa" stroke="#2b6cb0"/>
+  <text x="107" y="34" text-anchor="middle" font-weight="600" fill="#14213d">Angezeigtes Feld und Verschiebung</text>
+  <text x="107" y="50" text-anchor="middle" fill="#2b6cb0" font-size="11">alle Zeitschritte - empfohlen</text>
+  <text x="18" y="78" fill="#3e4c59">&#8226; die sichtbare Fläche</text>
+  <text x="18" y="96" fill="#3e4c59">&#8226; das angezeigte Feld</text>
+  <text x="18" y="114" fill="#3e4c59">&#8226; das Verschiebungsfeld</text>
+  <text x="18" y="132" fill="#3e4c59">&#8226; jeder Schritt (max. 100)</text>
+  <text x="18" y="156" fill="#3e4c59">kleinste Datei, die aktiv bleibt</text>
+  <rect x="217" y="10" width="205" height="170" rx="8" fill="#fdf5e4" stroke="#b7791f"/>
+  <text x="320" y="34" text-anchor="middle" font-weight="600" fill="#14213d">Alle Felder</text>
+  <text x="320" y="50" text-anchor="middle" fill="#b7791f" font-size="11">alle Zeitschritte</text>
+  <text x="230" y="78" fill="#3e4c59">&#8226; die sichtbare Fläche</text>
+  <text x="230" y="96" fill="#3e4c59">&#8226; jedes Feld des Ergebnisses</text>
+  <text x="230" y="114" fill="#3e4c59">&#8226; jeder Schritt (max. 100)</text>
+  <text x="230" y="156" fill="#3e4c59">Felder nach dem Wiederöffnen wechseln</text>
+  <rect x="429" y="10" width="205" height="170" rx="8" fill="#e8f6ee" stroke="#2f855a"/>
+  <text x="531" y="34" text-anchor="middle" font-weight="600" fill="#14213d">Nur Geometrie</text>
+  <text x="531" y="50" text-anchor="middle" fill="#2f855a" font-size="11">keine Ergebnisdaten</text>
+  <text x="442" y="78" fill="#3e4c59">&#8226; die Fläche mit den Farben</text>
+  <text x="442" y="96" fill="#3e4c59">  wie angezeigt</text>
+  <text x="442" y="156" fill="#3e4c59">ein Bild, kein Ergebnis mehr</text>
+</svg>
+<figcaption>Die drei Auswahlmöglichkeiten des Dialogs „Simulationsergebnisse speichern“; jede zeigt eine Schätzung der Dateigröße</figcaption>
+</figure>
+
+<h3>Was gespeichert wird</h3>
+<ul>
+  <li>Der Schnappschuss ist die <b>Randfläche</b>, nicht das Volumen: Die Werte werden pro Flächenknoten (nicht pro Solver-Knoten) gespeichert, verlustfrei komprimiert, als 32-Bit-Zahlen. Der Dialog zeigt eine Größenschätzung, bevor etwas geschrieben wird.</li>
+  <li>Die Schritte (mit ihren Zeiten oder Beschriftungen), die Felder mit ihren Einheiten und Größen, der Bereich über alle Solver-Knoten für jedes Feld und jeden Schritt (damit Legende und Farbbereich über alle Schritte mit dem Live-Ergebnis identisch sind, obwohl die inneren Knoten nicht gespeichert werden) und der Ansichtszustand: Feld, Komponente, Bereich, Farbskala, Bänder, Schritt, Verformung und Markierungen.</li>
+  <li>Die abgeleiteten Spannungsfelder werden <b>nicht</b> gespeichert: Sie werden beim Laden aus dem Spannungstensor neu berechnet.</li>
+  <li>Pro Ergebnis werden höchstens <b>100 Zeitschritte</b> gespeichert, gleichmäßig verteilt; der Dialog sagt es, wenn das zutrifft.</li>
+  <li>Der Pfad der Quelldatei wird nur zur Information aufbewahrt; die Sitzung braucht ihn nie.</li>
+</ul>
+
+<h3>Schnitte, Isoflächen und Stromlinien in einer gespeicherten Sitzung</h3>
+<p>Ohne das Volumen wird nur die sichtbare Fläche gespeichert; die angezeigten Schnittflächen, Isoflächen und Stromlinien werden daher <b>so, wie sie waren</b>, gespeichert und kommen <i>eingefroren</i> zurück: Sie folgen keiner verschobenen Schnittebene und keinem anderen Zeitschritt mehr, und der Bereich sagt das. Aktivieren Sie <span class="ui">Auch das Volumen speichern</span>, um sie lebendig zu halten: Dann werden auch die Knoten, Zellen und gewählten Felder des gesamten Volumens gespeichert, das wiederhergestellte Ergebnis ist das vollständige Ergebnis, und alles - Schnitte, Isoflächen, Stromlinien, Volumendarstellung - wird wie zuvor neu berechnet. Der Preis ist eine viel größere Datei, ungefähr proportional zum Volumen; der Dialog zeigt, was das Volumen hinzufügt.</p>
+
+<h3>Wieder öffnen</h3>
+<ul>
+  <li>Eine ältere Version von ModelViewer öffnet eine solche Sitzung als einfaches farbiges Netz (die angezeigten Farben sind mitgespeichert) und ignoriert den Rest.</li>
+  <li>Bearbeiten Sie das Netz eines gespeicherten Ergebnisses nach dem Laden - Teilen, Zusammenführen, Reparieren - und speichern, stimmt die Knotenanzahl nicht mehr mit den gespeicherten Daten überein; beim nächsten Laden wird die Ergebnissitzung mit einer Meldung verworfen, statt falsche Werte zu zeigen. Verschieben, Drehen oder Skalieren des Modells ist unbedenklich.</li>
+</ul>
+
+<h2>Große Ergebnisse</h2>
+<h3>Wohin der Speicher geht</h3>
+<p>Die Geometrie ist billig; was wächst, sind die <b>Zeitschritte</b>. Ein Ergebnis hält für jedes Feld und jeden Schritt vier Bytes pro Wert:</p>
+<table class="compact">
+  <thead><tr><th>Netz (Hexaeder)</th><th>Geometrie</th><th>Ein Schritt eines Knotenskalars, eines Knotenvektors und eines Zellskalars</th><th>50 Schritte, alle auf einmal gelesen</th></tr></thead>
+  <tbody>
+    <tr><td>1 Million Zellen</td><td>etwa 50 MB</td><td>etwa 20 MB</td><td>etwa 1 GB</td></tr>
+    <tr><td>5 Millionen Zellen</td><td>etwa 250 MB</td><td>etwa 100 MB</td><td>etwa 5 GB</td></tr>
+    <tr><td>20 Millionen Zellen</td><td>etwa 1 GB</td><td>etwa 410 MB</td><td>etwa 20 GB</td></tr>
+  </tbody>
+</table>
+<p>Das sind die Größen dessen, was im Speicher gehalten wird; der Vergleichsmodus hält zwei Ergebnisse gleichzeitig.</p>
+
+<h3>Verzögertes Laden der Schritte</h3>
+<p>Damit große zeitabhängige Ergebnisse benutzbar bleiben, werden die Schritte <b>bei Bedarf</b> geladen. Ein Ergebnis wird verzögert gelesen, wenn die Daten seiner Schritte mehr als <b>256 MB</b> bräuchten und es mehr als einen Schritt hat; die Formate, die das unterstützen, sind <b>Exodus</b>, <b>CalculiX FRD</b>, <b>CGNS</b>, <b>VTKHDF</b> (unstrukturierte Gitter und Polydaten) und <b>OpenFOAM</b>-Fälle. Die anderen Formate und VTKHDF-Bilddaten werden vollständig gelesen; MED ist noch nicht verzögert.</p>
+<ul>
+  <li>Beim Öffnen werden nur das Netz und die Feldköpfe gelesen; die zuletzt gezeigten vier Schritte bleiben im Speicher, der am längsten nicht benutzte fliegt zuerst heraus. Ein OpenFOAM-Fall liest pro Schritt ein Zeitverzeichnis. Eine CalculiX-Datei wird in den Speicher abgebildet und einmal indiziert.</li>
+  <li>Ein Schritt, der nicht im Speicher liegt, wird aus der Datei gelesen, wenn Sie zu ihm gehen; das Durchlaufen eines verzögert geladenen Ergebnisses ist also langsamer als bei einem vollständig geladenen, und <b>die Datei bleibt geöffnet</b> (eine CalculiX-<code>.frd</code> ist zum Schreiben gesperrt, solange das Ergebnis geladen ist).</li>
+  <li>Der Bereich über alle Schritte - der Standard-Farbbereich - liest bei der ersten Verwendung jeden Schritt einmal; ein Warte-Cursor deckt diesen ersten Durchlauf ab.</li>
+  <li>Das <b>Speichern</b> eines verzögert geladenen Ergebnisses liest die ganze Datei, weil der Schnappschuss jeden Schritt speichert, den er behält.</li>
+</ul>
+<p>Gemessen an einem Ergebnis mit einer Million Hexaedern, fünf Schritten und neun Feldern (485 MB auf der Platte), vollständig und verzögert geladen:</p>
+<table class="compact">
+  <thead><tr><th></th><th>Vollständig gelesen</th><th>Verzögert</th></tr></thead>
+  <tbody>
+    <tr><td>Datensatz im Speicher nach dem Öffnen</td><td>361 MB</td><td>47 MB</td></tr>
+    <tr><td>Zeit zum Lesen und Aufbauen</td><td>1.0 s</td><td>0.15 s</td></tr>
+    <tr><td>Spitzenspeicher des Prozesses</td><td>584 MB</td><td>323 MB</td></tr>
+    <tr><td>Einen Schritt anzeigen</td><td>3 ms</td><td>0,18 s (aus der Datei gelesen)</td></tr>
+    <tr><td>Bereich über alle fünf Schritte</td><td>7 ms</td><td>0.9 s</td></tr>
+  </tbody>
+</table>
+<p class="small">Zahlen aus einem Release-Build für Windows; die Farbbereiche stimmen zwischen den beiden Modi bis zur letzten Stelle überein. Ihre Zahlen hängen von Platte und Format ab - binäre HDF5- und NetCDF-Dateien werden viel schneller gelesen als ASCII-Dateien.</p>
+
+<h3>Praktische Hinweise</h3>
+<ul>
+  <li>Schreiben Sie vom Solver nur die Felder und Schritte, die Sie brauchen; jeder zusätzliche Schritt kostet Zeit und Plattenplatz, in der Datei wie in einer gespeicherten Sitzung.</li>
+  <li>Bevorzugen Sie für große zeitabhängige Ergebnisse binäre, strukturierte Formate (VTKHDF, Exodus, CGNS) gegenüber ASCII-<code>.vtk</code> oder -<code>.frd</code>.</li>
+  <li>Das Öffnen dauert in zwei Stufen: das Lesen der Datei, dann das Extrahieren der Randfläche (einige Sekunden bei fünf Millionen Zellen; die Extraktion läuft parallel).</li>
+  <li>Schließen Sie Ergebnisse, die Sie nicht mehr ansehen, und vermeiden Sie den Vergleich mit zwei riesigen Ergebnissen.</li>
+</ul>
+
+<h2>Grenzen und was nicht unterstützt wird</h2>
+<table>
+  <thead><tr><th style="width:34%">Grenze</th><th>Einzelheiten</th></tr></thead>
+  <tbody>
+    <tr><td>Kein Lösen oder Bearbeiten</td><td>ModelViewer vernetzt nicht, löst nicht, bearbeitet keine Werte und erzeugt keine Differenzfelder (A minus B).</td></tr>
+    <tr><td>Nur offene Formate</td><td>Keine proprietären Formate (Abaqus <code>.odb</code>, ANSYS <code>.rst</code>, Nastran OP2); exportieren Sie aus diesen Programmen zuerst nach VTK oder in ein anderes offenes Format.</td></tr>
+    <tr><td>Schalen haben kein Inneres</td><td>Schnitte, Isoflächen, Stromlinien und Volumendarstellung brauchen Volumenzellen.</td></tr>
+    <tr><td>Überlagerungen sind keine Netze</td><td>Schnittflächen, Isoflächen, Stromlinien, Pfeile und Ellipsoide können nicht ausgewählt, nach glTF/OBJ exportiert oder vom Raytracer gezeichnet werden. Die Ergebnisse selbst werden in jedem Darstellungsmodus flach gezeichnet und nicht raygetraced.</td></tr>
+    <tr><td>Stromlinienfelder</td><td>Nur Knoten-Vektorfelder; konkave Polyeder sind von der Verfolgung ausgeschlossen.</td></tr>
+    <tr><td>Schnittwerkzeuge</td><td>Der eingefärbte Schnitt und das Starten auf einem Schnitt verwenden die achsenparallelen Schnittebenen, nicht den Quadermodus oder benutzerdefinierte Ebenen.</td></tr>
+    <tr><td>Lücken bei Dateiformaten</td><td>Zusammengesetzte VTKHDF-Dateien (mehrere Blöcke), strukturierte und rechtwinklige VTKHDF-Gitter sowie flächenzentrierte CGNS-Daten werden noch nicht gelesen; Exodus-Balkennetze werden geladen, haben aber nichts zu zeichnen; veraltete VTK-Polygone, -Streifen und -Eckpunkte werden nicht angezeigt.</td></tr>
+    <tr><td>Vergleichen</td><td>Zwei Ergebnisse gleichzeitig, nicht gespeichert und für Auswahl, Messen und Kommentieren nicht ansichtsbewusst (Kapitel 8).</td></tr>
+  </tbody>
+</table>

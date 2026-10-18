@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lezione 10: Illuminazione e ambiente - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primi passi</a>
+            <a href="lesson02.html">2. Aprire i modelli</a>
+            <a href="lesson03.html">3. Navigazione di base</a>
+            <a href="lesson04.html">4. Selezionare gli oggetti</a>
+            <a href="lesson05.html">5. Modalità di visualizzazione</a>
+            <a href="lesson06.html">6. Modalità fotocamera</a>
+            <a href="lesson07.html">7. Modalità di display</a>
+            <a href="lesson08.html">8. Manipolare gli oggetti</a>
+            <a href="lesson09.html">9. Materiali e texture</a>
+            <a href="lesson10.html" class='active'>10. Illuminazione e ambiente</a>
+            <a href="lesson11.html">11. Lavorare con la visibilità</a>
+            <a href="lesson12.html">12. Funzioni avanzate</a>
+            <a href="lesson13.html">13. Ottimizzazione delle prestazioni</a>
+            <a href="lesson14.html">14. Suggerimenti e flussi di lavoro</a>
+            <a href="lesson15.html">15. Viste esplose</a>
+            <a href="lesson16.html">16. Animazione dei morph target</a>
+            <a href="lesson17.html">17. Modifica della trasformazione dei nodi</a>
+            <a href="lesson18.html">18. Rendering di bordi e wireframe</a>
+            <a href="lesson19.html">19. Risultati di simulazione</a>
+            <a href="lesson20.html">20. Guardare dentro un risultato</a>
+            <a href="lesson21.html">21. Grafici e sonde</a>
+            <a href="lesson22.html">22. Confrontare risultati, dati di cella e di guscio</a>
+            <a href="lesson23.html">23. Grafici 3D da dati CSV</a>
+            <a href="lesson24.html">24. Grafici 3D da formule, riempimenti, immagini e note</a>
+            <a href="lesson25.html">25. Grafici e risultati riprodotti insieme</a>
+            <a href="lesson26.html">26. Strumenti per mesh</a>
+            <a href="lesson27.html">27. Misurare, annotare e riferire</a>
+            <a href="lesson28.html">28. Analisi, selezione e scene</a>
+            <a href="lesson29.html">29. Ray tracing in pratica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lezione 10 di 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 34.48%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lezione 10: Illuminazione e ambiente</h1>
+        </div>
+
+        <h2>Introduzione</h2>
+        <p>Una buona illuminazione è essenziale per una visualizzazione realistica. ModelViewer offre diverse opzioni di illuminazione, tra cui luci predefinite, luci puntuali e illuminazione basata su immagini (IBL).</p>
+
+        <h2>Pannello Ambiente</h2>
+        <p>Accedere ai comandi di illuminazione:</p>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Aprire la scheda Ambiente</div>
+            <div class="step-content">Fai clic sulla scheda «Ambiente» nel pannello di destra.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_10_environment_panel.png" alt="Pannello Ambiente con le impostazioni di illuminazione e ambiente" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:500px;">Schermata: tutorial_10_environment_panel.png (300x500)</div>
+            <span class="screenshot-caption">Pannello Ambiente con le impostazioni di illuminazione e ambiente</span>
+        </div>
+
+        <h2>Luci predefinite</h2>
+        <p>Semplice illuminazione a tre punti:</p>
+                <div class="step">
+            <div class="step-title">Passaggio 1: Attivare le luci predefinite</div>
+            <div class="step-content">Spunta la casella «Usa luci predefinite».</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Regolare la posizione della luce</div>
+            <div class="step-content">Usa i cursori per posizionare la sorgente luminosa in X, Y e Z.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 3: Proprietà della luce</div>
+            <div class="step-content">La luce predefinita include componenti ambiente, diffusa e speculare che illuminano automaticamente la scena.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_10_default_lights.png" alt="Oggetto illuminato con le luci predefinite, con una chiara definizione della forma" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Schermata: tutorial_10_default_lights.png (700x450)</div>
+            <span class="screenshot-caption">Oggetto illuminato con le luci predefinite, con una chiara definizione della forma</span>
+        </div>
+
+        <h2>Luci puntuali (luci glTF)</h2>
+        <p>Luci di scena dai modelli glTF:</p>
+                <div class="step">
+            <div class="step-title">Passaggio 1: Attivare le luci puntuali</div>
+            <div class="step-content">Spunta «Usa luci puntuali» quando lavori con modelli glTF che includono luci.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Tipi di luce</div>
+            <div class="step-content">
+                • <b>Luci puntiformi:</b> emettono in tutte le direzioni da un punto<br/> • <b>Faretti:</b> cono di luce direzionale<br/> • <b>Luci direzionali:</b> raggi paralleli come la luce del sole
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 3: Mostrare le luci</div>
+            <div class="step-content">Spunta «Mostra luci» per visualizzare nella vista gli indicatori di posizione delle luci.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_10_punctual_lights.png" alt="Scena con più luci puntuali e i loro indicatori di posizione" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Schermata: tutorial_10_punctual_lights.png (700x450)</div>
+            <span class="screenshot-caption">Scena con più luci puntuali e i loro indicatori di posizione</span>
+        </div>
+
+        <h2>Illuminazione basata su immagini (IBL)</h2>
+        <p>Illuminazione ambientale realistica da immagini HDRI:</p>
+                <div class="step">
+            <div class="step-title">Passaggio 1: Attivare l'IBL</div>
+            <div class="step-content">Spunta la casella «Usa IBL».</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Selezionare la mappa dell'ambiente</div>
+            <div class="step-content">Scegli un'immagine HDRI dal menu a discesa oppure caricane una personalizzata.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 3: Regolare l'esposizione</div>
+            <div class="step-content">Usa il cursore «Esposizione IBL» per controllare l'intensità dell'illuminazione ambientale.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_10_ibl_lighting.png" alt="Oggetti metallici che mostrano i riflessi dell&#x27;ambiente IBL" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Schermata: tutorial_10_ibl_lighting.png (700x450)</div>
+            <span class="screenshot-caption">Oggetti metallici che mostrano i riflessi dell'ambiente IBL</span>
+        </div>
+
+        <div class="note note-tip">
+            L'IBL fornisce illuminazione E riflessi. È essenziale per materiali metallici e di vetro realistici.
+        </div>
+
+        <h2>Skybox</h2>
+        <p>Sfondo visivo dell'ambiente:</p>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Attivare la skybox</div>
+            <div class="step-content">Spunta «Attiva skybox» nel pannello Ambiente.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Selezionare la mappa</div>
+            <div class="step-content">Scegli tra gli ambienti HDR predefiniti oppure carica una cubemap personalizzata.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 3: Opzione di sfocatura</div>
+            <div class="step-content">Spunta «Sfoca skybox» per uno sfondo più morbido e meno distraente.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 4: Regolare il campo visivo</div>
+            <div class="step-content">Regola «Campo visivo della skybox» per controllare quanta parte dell'ambiente è visibile.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_10_skybox.png" alt="Scena con l&#x27;ambiente skybox visibile sullo sfondo" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Schermata: tutorial_10_skybox.png (700x450)</div>
+            <span class="screenshot-caption">Scena con l'ambiente skybox visibile sullo sfondo</span>
+        </div>
+
+        <h2>Ombre</h2>
+        <p>Aggiungi profondità con la shadow map:</p>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Attivare le ombre</div>
+            <div class="step-content">Spunta «Attiva ombre» nel pannello Ambiente.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Regolare la qualità</div>
+            <div class="step-content">Usa il menu a discesa «Qualità ombre»: Bassa, Media, Alta o Ultra. Una qualità maggiore crea ombre più morbide e realistiche, ma è più lenta.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 3: Autoombre</div>
+            <div class="step-content">Attiva «Autoombre» perché gli oggetti proiettino ombre su se stessi.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_10_shadows.png" alt="Oggetto con e senza ombre a confronto" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:350px;">Schermata: tutorial_10_shadows.png (700x350)</div>
+            <span class="screenshot-caption">Oggetto con e senza ombre a confronto</span>
+        </div>
+
+        <h2>Piano del pavimento</h2>
+        <p>Aggiungi un pavimento per ombre e riflessi:</p>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Attivare il pavimento</div>
+            <div class="step-content">Spunta la casella «Mostra pavimento».</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Regolare la posizione</div>
+            <div class="step-content">Usa il cursore «Offset pavimento» per posizionare il pavimento rispetto al modello.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 3: Texture</div>
+            <div class="step-content">Il pavimento può mostrare una texture a scacchiera. Regola «Ripeti S» e «Ripeti T» per controllare la ripetizione della texture.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_10_floor.png" alt="Modello sul piano del pavimento con ombre e riflessi" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Schermata: tutorial_10_floor.png (700x450)</div>
+            <span class="screenshot-caption">Modello sul piano del pavimento con ombre e riflessi</span>
+        </div>
+
+        <h2>HDR e tone mapping</h2>
+        <p>Per un rendering realistico ad alta gamma dinamica:</p>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Attivare il tone mapping HDR</div>
+            <div class="step-content">Spunta «Tone mapping HDR» per gestire correttamente le alte luci.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Selezionare l'algoritmo</div>
+            <div class="step-content">Scegli la modalità di tone mapping: Reinhard, ACES, Filmic, ecc.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 3: Regolare l'esposizione</div>
+            <div class="step-content">Usa «Esposizione mappa ambiente» per controllare la luminosità complessiva.</div>
+        </div>
+
+        <div class="note note-info">
+            Il tone mapping converte i valori HDR nella gamma visualizzabile preservando il dettaglio sia nelle ombre sia nelle alte luci.
+        </div>
+
+        <h2>Correzione gamma</h2>
+        <p>Assicura una corretta visualizzazione dei colori:</p>
+        <div class="step">
+            <div class="step-title">Passaggio 1: Attivare la correzione gamma</div>
+            <div class="step-content">Spunta «Correzione gamma» per colori accurati.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Passaggio 2: Gamma dello schermo</div>
+            <div class="step-content">Imposta «Gamma dello schermo» su 2,2 (standard per la maggior parte dei monitor).</div>
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson09.html' class='nav-button'>← Lezione precedente</a>
+            <a href="index.html" class="back-to-index">↑ Torna all'indice</a>
+            <a href='lesson11.html' class='nav-button'>Lezione successiva →</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lektion 26: Mesh-Werkzeuge - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Anleitung</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Erste Schritte</a>
+            <a href="lesson02.html">2. Modelle öffnen</a>
+            <a href="lesson03.html">3. Grundlegende Navigation</a>
+            <a href="lesson04.html">4. Objekte auswählen</a>
+            <a href="lesson05.html">5. Ansichtsmodi</a>
+            <a href="lesson06.html">6. Kameramodi</a>
+            <a href="lesson07.html">7. Anzeigemodi</a>
+            <a href="lesson08.html">8. Objekte manipulieren</a>
+            <a href="lesson09.html">9. Materialien und Texturen</a>
+            <a href="lesson10.html">10. Beleuchtung und Umgebung</a>
+            <a href="lesson11.html">11. Arbeiten mit Sichtbarkeit</a>
+            <a href="lesson12.html">12. Erweiterte Funktionen</a>
+            <a href="lesson13.html">13. Leistungsoptimierung</a>
+            <a href="lesson14.html">14. Tipps und Workflows</a>
+            <a href="lesson15.html">15. Explosionsansichten</a>
+            <a href="lesson16.html">16. Morph-Target-Animation</a>
+            <a href="lesson17.html">17. Knotentransformation bearbeiten</a>
+            <a href="lesson18.html">18. Kanten- und Drahtgitter-Rendering</a>
+            <a href="lesson19.html">19. Simulationsergebnisse</a>
+            <a href="lesson20.html">20. Ins Innere eines Ergebnisses schauen</a>
+            <a href="lesson21.html">21. Diagramme und Sonden</a>
+            <a href="lesson22.html">22. Ergebnisse vergleichen, Zell- und Schalendaten</a>
+            <a href="lesson23.html">23. 3D-Diagramme aus CSV-Daten</a>
+            <a href="lesson24.html">24. 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</a>
+            <a href="lesson25.html">25. Diagramme und Ergebnisse gemeinsam abspielen</a>
+            <a href="lesson26.html" class='active'>26. Mesh-Werkzeuge</a>
+            <a href="lesson27.html">27. Messen, Kommentieren und Berichten</a>
+            <a href="lesson28.html">28. Analyse, Auswahl und Szenen</a>
+            <a href="lesson29.html">29. Raytracing in der Praxis</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lektion 26 von 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 89.66%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lektion 26: Mesh-Werkzeuge</h1>
+        </div>
+
+        <h2>Einführung</h2>
+        <p>Nicht jedes Modell kommt sauber an: Scans haben Löcher und Rauschen, CAD-Exporte haben defekte Topologie, und manchmal brauchen Sie eine saubere Hülle um mehrere Teile. ModelViewer hat dafür eine Reihe von Mesh-Werkzeugen, die auf der Geometriebibliothek CGAL aufbauen. Diese Lektion behandelt Mesh reparieren, Löcher füllen, Fläche unterteilen, Einschrumpfen und Fläche rekonstruieren, danach die Zusammenführen- und Teilen-Operationen im Kontextmenü.</p>
+        <div class="note note-info">
+            Jedes Werkzeug der ersten Lektionshälfte fügt sein Ergebnis als <b>neues Mesh</b> hinzu und lässt das Original unberührt, und der gesamte Schritt ist rückgängig zu machen. Alle fünf Dialoge teilen sich ein Kontrollkästchen, <b>Vorheriges Ergebnis ersetzen</b>, standardmäßig aktiviert: Jeder Klick auf Erzeugen löscht dann zuerst rückgängig machbar das Ergebnis des vorherigen Klicks, sodass pro Quell-Mesh höchstens ein Ergebnis bleibt. Deaktivieren Sie es, damit sich Ergebnisse nebeneinander ansammeln.
+        </div>
+        <h2>Mesh reparieren</h2>
+        <p><b>Werkzeuge → Mesh reparieren...</b> schickt jedes Mesh der Arbeitsliste durch das Reparatur-Toolkit: doppelte und entartete Geometrie, nicht-mannigfaltige Eckpunkte, inkonsistente Umlaufrichtung und Selbstdurchdringungen. Es bereinigt nur Defekte - es füllt nie Löcher und erzwingt keinen Abschluss, eine absichtlich offene Fläche bleibt also offen. Ein bereits gültiges Mesh wird übersprungen und erhält keinen neuen Knoten.</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Das defekte Testmesh öffnen</div>
+            <div class="step-content">Öffnen Sie <code>RepairMeshTest.obj</code>: ein Mesh, das jeden vom Reparaturwerkzeug behandelten Defekt enthält, in drei getrennten Bereichen, beginnend mit einer Schleife aus zwei Dreiecksfächern, die nur einen Eckpunkt teilen.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Die Reparatur ausführen</div>
+            <div class="step-content">Wählen Sie das Mesh, öffnen Sie <b>Werkzeuge → Mesh reparieren...</b> und erzeugen Sie. Das Statusfeld des Dialogs meldet, was behoben wurde. <b>Versuche zur Auflösung von Selbstdurchdringungen</b> legt fest, wie viele Glättungs- und Lochfüll-Runden versucht werden, und <b>Auch glättungsbasierte Auflösung versuchen</b> fügt eine langsamere Strategie hinzu.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_repair_mesh.png" alt="tutorial_26_repair_mesh.png" title="Capture: Open RepairMeshTest.obj, Tools &gt; Repair Mesh..., Generate; capture the dialog (status text visible) and the viewport with the repaired mesh." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open RepairMeshTest.obj, Tools &gt; Repair Mesh..., Generate; capture the dialog (status text visible) and the viewport with the repaired mesh." style="display:none; width:700px; height:450px;">Screenshot: tutorial_26_repair_mesh.png (700x450)</div>
+            <span class="screenshot-caption">Der Dialog „Mesh reparieren“ mit seinem Statusfeld, neben dem reparierten Ergebnis</span>
+        </div>
+
+        <h2>Löcher füllen</h2>
+        <p><b>Werkzeuge → Löcher füllen...</b> findet jede Randschleife der Meshes der Arbeitsliste und lässt Sie entscheiden, welche Schleifen echte Defekte und welche eine absichtlich offene Kante sind. Nur die angekreuzten Schleifen werden gepatcht.</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Einen offenen Zylinder öffnen</div>
+            <div class="step-content">Öffnen Sie <code>OpenCylinder.obj</code>, das ein offenes Ende hat, und starten Sie <b>Werkzeuge → Löcher füllen...</b>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Die Schleifen wählen</div>
+            <div class="step-content">Klicken Sie auf eine Zeile der Liste erkannter Löcher: Diese Schleife wird im Ansichtsfenster orange hervorgehoben. Haken Sie die zu patchenden an, stellen Sie die <b>Patch-Dichte</b> ein (wie fein die neue Triangulierung im Vergleich zum umgebenden Mesh ist) und erzeugen Sie.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_fill_holes.png" alt="tutorial_26_fill_holes.png" title="Capture: Open OpenCylinder.obj, Tools &gt; Fill Holes..., click the detected loop in the list so it shows orange; capture dialog and viewport." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open OpenCylinder.obj, Tools &gt; Fill Holes..., click the detected loop in the list so it shows orange; capture dialog and viewport." style="display:none; width:700px; height:450px;">Screenshot: tutorial_26_fill_holes.png (700x450)</div>
+            <span class="screenshot-caption">Ein erkanntes Loch, orange hervorgehoben, bevor es gepatcht wird</span>
+        </div>
+
+        <h2>Fläche unterteilen</h2>
+        <p><b>Werkzeuge → Fläche unterteilen...</b> glättet ein Mesh per Loop- oder Catmull-Clark-Unterteilung. Öffnen Sie <code>TorusTestCoarse.obj</code>, einen groben Torus mit nur 96 Dreiecken, und probieren Sie:</p>
+        <ul>
+            <li><b>Methode</b>: Loop bleibt dreiecksbasiert; Catmull-Clark arbeitet intern mit Vierecken und wird danach wieder trianguliert. Beide sehen meist ähnlich glatt aus.</li>
+            <li><b>Iterationen</b>: Jeder Schritt vervierfacht die Dreieckszahl etwa, daher genügen 1 oder 2, um die Wirkung zu sehen.</li>
+            <li><b>Scharfe Kanten beibehalten</b> (standardmäßig an) hält jede um 30 Grad oder mehr geknickte Kante unendlich scharf: Die ebenen Endkappen eines Zylinders und die Ecken eines Blocks bleiben scharf. Schalten Sie es für den klassischen, völlig glatten Look aus, bei dem aus einem Würfel ein abgerundeter Klumpen wird.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_subdivide.png" alt="tutorial_26_subdivide.png" title="Capture: TorusTestCoarse.obj in Shaded with Edges mode before and after Subdivide Surface (Loop, 2 iterations); join the two captures side by side." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: TorusTestCoarse.obj in Shaded with Edges mode before and after Subdivide Surface (Loop, 2 iterations); join the two captures side by side." style="display:none; width:700px; height:350px;">Screenshot: tutorial_26_subdivide.png (700x350)</div>
+            <span class="screenshot-caption">Der grobe Torus (links) und sein unterteiltes, glattes Ergebnis (rechts)</span>
+        </div>
+
+        <h2>Einschrumpfen</h2>
+        <p><b>Werkzeuge → Einschrumpfen...</b> fasst ein oder mehrere gewählte Meshes per Alpha-Wrapping zu einer einzigen neuen <i>wasserdichten</i> Hülle zusammen. Die Eingaben müssen weder ein Material teilen noch mannigfaltig sein. <b>Alpha</b> und <b>Versatz</b> legen fest, wie eng die Hülle anliegt und wie weit sie absteht; <b>Auf Vorschlag zurücksetzen</b> berechnet sinnvolle Startwerte aus der Bounding Box der Auswahl. Die ursprüngliche Auswahl bleibt unberührt.</p>
+        <div class="note note-tip">
+            Probieren Sie es an einigen Teilen des Gabelstaplers oder der Skateboard-Baugruppe: Eine eingeschrumpfte Hülle ist ein sauberer, geschlossener Ersatz für eine komplizierte Baugruppe, praktisch für den 3D-Druck oder als vereinfachter Kollisionskörper.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_shrink_wrap.png" alt="tutorial_26_shrink_wrap.png" title="Capture: Select a few Forklift parts, Tools &gt; Shrink Wrap..., Generate; capture the wrapped shell next to the original (move the original aside or show wireframe)." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Select a few Forklift parts, Tools &gt; Shrink Wrap..., Generate; capture the wrapped shell next to the original (move the original aside or show wireframe)." style="display:none; width:700px; height:420px;">Screenshot: tutorial_26_shrink_wrap.png (700x420)</div>
+            <span class="screenshot-caption">Eine Einschrumpf-Hülle um mehrere Teile, neben dem Original</span>
+        </div>
+
+        <h2>Fläche rekonstruieren</h2>
+        <p><b>Werkzeuge → Fläche rekonstruieren...</b> erstellt aus den <i>Punktpositionen</i> gewählter Meshes oder Punktwolken eine neue triangulierte Fläche; vorhandene Flächen werden ignoriert. <b>Schärfe</b> wägt Glätte gegen scharfe Kanten ab, <b>Randtoleranz</b> legt fest, wie große Lücken die Rekonstruktion überbrücken darf, und <b>Punktwolke vor der Rekonstruktion vereinfachen</b> blendet einen <b>Zielabstand</b> ein, der näher liegende Punkte zuerst zusammenführt - schneller bei großen oder verrauschten Scans, auf Kosten feiner Details.</p>
+        <h2>Zusammenführen, Teilen und Gruppieren (Kontextmenü)</h2>
+        <p>Sind Meshes ausgewählt, bietet das Kontextmenü im Baum oder im Ansichtsfenster diese Operationen. Alle fügen neue Mesh-Knoten hinzu und entfernen die Originale, und alle lassen sich rückgängig machen, außer „Übergeordnetes auswählen“.</p>
+        <table>
+            <thead><tr><th>Operation</th><th>Was sie tut</th></tr></thead>
+            <tbody>
+            <tr><td>Nach Konnektivität teilen</td><td>Teilt jedes gewählte Mesh in seine getrennten Teile, ein neues Mesh pro Teil; ein Mesh, das bereits aus einem Stück besteht, bleibt unberührt.</td></tr>
+            <tr><td>Nach Nachbarschaft zusammenführen</td><td>Gruppiert die Auswahl in sich berührende Cluster (nach gemeinsamer Eckpunktposition) und führt jeden Cluster zu einem Mesh zusammen; Meshes ohne Berührung bleiben unberührt.</td></tr>
+            <tr><td>Auswahl zusammenführen</td><td>Fasst die gesamte Auswahl durch einfaches Aneinanderhängen zu einem neuen Mesh zusammen, ob berührend oder nicht.</td></tr>
+            <tr><td>Mesh-Vereinigung</td><td>Versucht eine echte boolesche Vereinigung der reparierten Geometrie; schlagen Reparatur oder boolescher Schritt fehl, fällt es wie „Auswahl zusammenführen“ auf einfaches Aneinanderhängen zurück.</td></tr>
+            <tr><td>Gruppieren</td><td>Ordnet nur den Szenenbaum neu: erstellt einen Gruppenknoten und verschiebt die gewählten Meshes hinein. Die Geometrie ändert sich nicht.</td></tr>
+            <tr><td>Übergeordnetes auswählen</td><td>Wählt das übergeordnete Element im Baum des angeklickten Eintrags - nur Navigation.</td></tr>
+            </tbody>
+        </table>
+        <div class="note note-info">
+            Hat eine sich berührende Gruppe oder Auswahl mehr als ein Material, fragen „Nach Nachbarschaft zusammenführen“, „Auswahl zusammenführen“ und „Mesh-Vereinigung“ nach: <b>Materialien getrennt halten</b> erzeugt eine Zusammenführung pro Material, <b>Trotzdem zusammenführen</b> kombiniert alles und verwendet das Material des ersten Meshes.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_26_context_menu.png" alt="tutorial_26_context_menu.png" title="Capture: Select two or more meshes in the Scene Tree, right-click one of them and capture the open menu with Split by Connectivity, Merge by Adjacency, Merge Selected, Mesh Union, Group and Select Parent visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Select two or more meshes in the Scene Tree, right-click one of them and capture the open menu with Split by Connectivity, Merge by Adjacency, Merge Selected, Mesh Union, Group and Select Parent visible." style="display:none; width:500px; height:420px;">Screenshot: tutorial_26_context_menu.png (500x420)</div>
+            <span class="screenshot-caption">Die Mesh-Operationen im Kontextmenü</span>
+        </div>
+
+
+        <div class="lesson-navigation">
+            <a href='lesson25.html' class='nav-button'>← Vorherige Lektion</a>
+            <a href="index.html" class="back-to-index">↑ Zurück zur Übersicht</a>
+            <a href='lesson27.html' class='nav-button'>Nächste Lektion →</a>
+        </div>
+    </div>
+</body>
+</html>

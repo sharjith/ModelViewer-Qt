@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leçon 24 : Graphiques 3D à partir de formules, remplissages, images et notes - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutoriel</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Premiers pas</a>
+            <a href="lesson02.html">2. Ouvrir des modèles</a>
+            <a href="lesson03.html">3. Navigation de base</a>
+            <a href="lesson04.html">4. Sélectionner des objets</a>
+            <a href="lesson05.html">5. Modes d'affichage</a>
+            <a href="lesson06.html">6. Modes de caméra</a>
+            <a href="lesson07.html">7. Modes d'affichage des objets</a>
+            <a href="lesson08.html">8. Manipuler des objets</a>
+            <a href="lesson09.html">9. Matériaux et textures</a>
+            <a href="lesson10.html">10. Éclairage et environnement</a>
+            <a href="lesson11.html">11. Travailler avec la visibilité</a>
+            <a href="lesson12.html">12. Fonctions avancées</a>
+            <a href="lesson13.html">13. Optimisation des performances</a>
+            <a href="lesson14.html">14. Conseils et flux de travail</a>
+            <a href="lesson15.html">15. Vues éclatées</a>
+            <a href="lesson16.html">16. Animation de morph targets</a>
+            <a href="lesson17.html">17. Édition de la transformation des nœuds</a>
+            <a href="lesson18.html">18. Rendu des arêtes et du fil de fer</a>
+            <a href="lesson19.html">19. Résultats de simulation</a>
+            <a href="lesson20.html">20. Regarder à l'intérieur d'un résultat</a>
+            <a href="lesson21.html">21. Graphiques et sondes</a>
+            <a href="lesson22.html">22. Comparer des résultats, données de cellule et de coque</a>
+            <a href="lesson23.html">23. Graphiques 3D à partir de données CSV</a>
+            <a href="lesson24.html" class='active'>24. Graphiques 3D à partir de formules, remplissages, images et notes</a>
+            <a href="lesson25.html">25. Graphiques et résultats lus ensemble</a>
+            <a href="lesson26.html">26. Outils de maillage</a>
+            <a href="lesson27.html">27. Mesurer, annoter et rapporter</a>
+            <a href="lesson28.html">28. Analyse, sélection et scènes</a>
+            <a href="lesson29.html">29. Lancer de rayons en pratique</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Leçon 24 sur 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 82.76%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Leçon 24 : Graphiques 3D à partir de formules, remplissages, images et notes</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Vous n'avez pas besoin d'un fichier pour créer un graphique. Une formule peut générer une surface, une courbe, un champ vectoriel ou le mouvement d'une particule ; les remplissages transforment lignes et points en rubans et rideaux ; une image peut se poser sur un plan ; des notes textuelles étiquettent l'essentiel ; et tous les graphiques d'un document partagent un même jeu d'axes, qui peut être logarithmique.</p>
+        <h2>Surfaces par formule</h2>
+        <div class="step">
+            <div class="step-title">Étape 1 : Choisir une source de formule</div>
+            <div class="step-content">Dans la boîte de dialogue Ajouter un graphique 3D, réglez <b>Source des données</b> sur <i>Surface par formule</i>. <b>Préréglage</b> propose Plane, Saddle, Paraboloid, Cone, Gaussian, Sinc Ripple, Wave, Mexican Hat, Bivariate Normal, Logistic Regression et Rosenbrock ; la zone <b>z =</b> contient l'expression en x et y, et les plages et nombres d'échantillons définissent la grille.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Aperçu et création</div>
+            <div class="step-content">Cliquez sur <b>Actualiser l'aperçu</b> après avoir modifié une expression ou un paramètre, puis sur <b>Créer le graphique</b>. Si l'expression est erronée, par exemple à cause d'une variable inconnue, la ligne d'état nomme le problème et Créer reste désactivé.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_formula_surface.png" alt="tutorial_24_formula_surface.png" title="Capture: Add 3D Plot &gt; Formula surface &gt; Preset Mexican Hat; Refresh Preview; capture the dialog and the preview in the viewport." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Add 3D Plot &gt; Formula surface &gt; Preset Mexican Hat; Refresh Preview; capture the dialog and the preview in the viewport." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_24_formula_surface.png (700x450)</div>
+            <span class="screenshot-caption">La surface par formule Mexican Hat, avec la boîte de dialogue et la ligne d&#x27;état</span>
+        </div>
+
+        <p>La même boîte de dialogue propose aussi <b>Surface paramétrique</b> (Torus, Ellipsoid, Mobius Strip, Klein Bottle, Superellipsoid, Helicoid, Catenoid, Enneper Surface, Spherical Harmonic), <b>Courbe paramétrique</b> (Helix, Lissajous, Trefoil Knot, Viviani Curve, Damped Spiral ; le paramètre s'appelle <i>t</i>), <b>Surface implicite</b> et <b>Champ vectoriel par formule</b>.</p>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_parametric_surfaces.png" alt="tutorial_24_parametric_surfaces.png" title="Capture: Build Parametric surface presets Torus and Klein Bottle separately (two captures joined side by side), isometric view, axes box on." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build Parametric surface presets Torus and Klein Bottle separately (two captures joined side by side), isometric view, axes box on." style="display:none; width:700px; height:350px;">Capture d&#x27;écran: tutorial_24_parametric_surfaces.png (700x350)</div>
+            <span class="screenshot-caption">Un tore et une bouteille de Klein créés à partir de préréglages paramétriques</span>
+        </div>
+
+        <h2>Modifier un graphique généré</h2>
+        <p>Les graphiques issus de formules mémorisent la définition à partir de laquelle ils ont été créés. Sélectionnez-en un dans <b>Graphique actif</b>, cliquez sur <b>Modifier le graphique...</b>, changez une expression, une plage ou un paramètre, puis cliquez sur <b>Recréer le graphique</b> : le graphique existant est mis à jour sur place et conserve son titre, sa visibilité, ses couleurs et ses réglages d'axes. Le type de source ne peut pas être changé lors d'une modification ; créez un nouveau graphique pour cela.</p>
+        <h2>Remplissages : rubans et rideaux</h2>
+        <p>Une ligne ou un nuage de points peut être rempli jusqu'à un plan de base ou entre deux courbes. Les remplissages sont translucides et colorés comme le graphique.</p>
+        <table>
+            <thead><tr><th>Objectif</th><th>Comment</th></tr></thead>
+            <tbody>
+            <tr><td>Un rideau sous une ligne</td><td><code>line_helix.csv</code> en <b>Ligne / Courbe</b>, cochez <b>Remplir jusqu'au Z de base</b> avec une base de 0.</td></tr>
+            <tr><td>Une bande entre deux courbes</td><td><code>line_band.csv</code> en <b>Ligne / Courbe</b>, Valeur de couleur = value, cochez le remplissage et choisissez <i>z2</i> dans <b>ou entre la ligne et la colonne</b>.</td></tr>
+            <tr><td>Rubans à partir de points</td><td><code>scatter_clusters.csv</code> en <b>Nuage de points</b>, cochez <b>Remplir jusqu'au Z de base</b> avec une base telle que -3 ; ou <code>scatter_band.csv</code> avec <i>z2</i> pour des rubans entre deux ensembles de points.</td></tr>
+            <tr><td>Remplir une courbe générée</td><td><b>Courbe paramétrique</b> avec le préréglage Helix : cochez <b>Remplir la courbe jusqu'au Z de base</b>, ou saisissez un second <i>z2(t)</i> tel que 2 + sin(t) pour remplir entre les deux courbes.</td></tr>
+            </tbody>
+        </table>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_fill_between_curves.png" alt="tutorial_24_fill_between_curves.png" title="Capture: Build line_band.csv as Line / Curve with the fill between the line and column z2 (Colour value = value); isometric view so both crossings are visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build line_band.csv as Line / Curve with the fill between the line and column z2 (Colour value = value); isometric view so both crossings are visible." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_24_fill_between_curves.png (700x450)</div>
+            <span class="screenshot-caption">Une bande translucide entre deux courbes qui se croisent, se resserrant en une ligne aux croisements</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_fill_curtain.png" alt="tutorial_24_fill_curtain.png" title="Capture: Build line_helix.csv as Line / Curve with Fill to Base Z = 0." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build line_helix.csv as Line / Curve with Fill to Base Z = 0." style="display:none; width:700px; height:400px;">Capture d&#x27;écran: tutorial_24_fill_curtain.png (700x400)</div>
+            <span class="screenshot-caption">L&#x27;hélice avec un rideau jusqu&#x27;au plan de base</span>
+        </div>
+
+        <h2>Images sur un plan</h2>
+        <p>Une image peut se poser sur l'un des plans du graphique : un plan de situation sous une surface, un scan à côté d'un modèle. Réglez <b>Source des données</b> sur <i>Image sur un plan</i>, choisissez un fichier d'image, le plan (XY à plat au minimum de Z, XZ ou YZ debout) et les plages ; elles s'adaptent à la forme de l'image lorsque vous la choisissez. <b>Opacité</b> laisse voir ce qui se trouve derrière. Vue de derrière, une image apparaît en miroir ; pour une image opaque, cochez <b>Lisible par l'arrière</b>.</p>
+        <div class="note note-info">
+            Essayez <code>image_gradient.png</code> (320 x 200, avec un « L » dans un coin, qui montre si l'image est en miroir) et <code>image_gradient_alpha.png</code>, dont la propre transparence se combine avec le réglage d'opacité. « Lisible par l'arrière » n'est disponible que pour une image opaque à 100 % d'opacité.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_image_plane.png" alt="tutorial_24_image_plane.png" title="Capture: Build surface_ripple.csv, then Image on a plane with image_gradient.png on the XZ plane (shared axes); capture so the &quot;L&quot; mark is visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build surface_ripple.csv, then Image on a plane with image_gradient.png on the XZ plane (shared axes); capture so the &quot;L&quot; mark is visible." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_24_image_plane.png (700x450)</div>
+            <span class="screenshot-caption">Une image sur un plan à côté d&#x27;un graphique de surface</span>
+        </div>
+
+        <h2>Notes textuelles</h2>
+        <div class="step">
+            <div class="step-title">Étape 1 : Placer une note</div>
+            <div class="step-content">Sélectionnez un graphique, ouvrez le groupe <b>Notes textuelles</b> dans l'onglet Graphique 3D et cliquez sur <b>Placer une note</b>, puis cliquez sur un point du graphique, ou utilisez <b>Ajouter au centre</b>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : La modifier et la déplacer</div>
+            <div class="step-content">Faites glisser une note pour la déplacer, double-cliquez pour modifier son texte et faites un clic droit pour la supprimer. Tout peut être annulé.</div>
+        </div>
+        <p>Les notes sont dessinées à leur point de données dans la boîte des axes, suivent la visibilité du graphique et sont enregistrées avec la session.</p>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_text_notes.png" alt="tutorial_24_text_notes.png" title="Capture: Ripple surface with a note &quot;Peak = 1.0&quot; placed on the central peak; capture the note and the 3D Plot tab Text notes group together." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Ripple surface with a note &quot;Peak = 1.0&quot; placed on the central peak; capture the note and the 3D Plot tab Text notes group together." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_24_text_notes.png (700x450)</div>
+            <span class="screenshot-caption">Une note au sommet d&#x27;une surface</span>
+        </div>
+
+        <h2>Axes partagés et échelles non linéaires</h2>
+        <p>Tous les graphiques d'un document sont dessinés sur <b>un seul jeu d'axes</b>. Sous <b>Axes</b>, dans l'onglet Graphique 3D, vous réglez pour chaque axe l'étiquette, l'<b>Échelle de l'axe</b> (<i>Linéaire</i>, <i>Log 10</i> ou <i>SymLog</i>), la plage et le nombre de graduations. Changer une échelle réorganise tous les graphiques ensemble : lignes, nuages de points, surfaces, barres, flèches et grilles de voxels la suivent.</p>
+        <div class="step">
+            <div class="step-title">Étape 1 : Créer deux graphiques</div>
+            <div class="step-content">Créez <code>scatter_error_bars.csv</code> en nuage de points, puis <code>line_growth.csv</code> en Ligne / Courbe (z = 10^(x/2), de 1 à 100).</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 2 : Mettre Z sur Log 10</div>
+            <div class="step-content">Sous <b>Axes</b>, réglez l'<b>Échelle de l'axe</b> Z sur <i>Log 10</i>. Les deux graphiques se réorganisent ensemble : la ligne exponentielle devient droite et le nuage de points suit.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Étape 3 : Rencontrer la limite</div>
+            <div class="step-content">Un axe Log 10 exige que les données de <i>chaque</i> graphique soient supérieures à zéro. Créer <code>line_helix.csv</code>, qui atteint 0, alors que Z est en Log 10 ramène Z à Linéaire avec un message d'état ; tenter de régler Log 10 en présence d'un tel graphique est refusé avec un message indiquant la raison. <i>SymLog</i> accepte toutes les données, y compris les valeurs négatives.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_log_axis_shared.png" alt="tutorial_24_log_axis_shared.png" title="Capture: scatter_error_bars.csv and line_growth.csv built, Z axis scale = Log 10; capture the scene with the Axes group of the 3D Plot tab visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: scatter_error_bars.csv and line_growth.csv built, Z axis scale = Log 10; capture the scene with the Axes group of the 3D Plot tab visible." style="display:none; width:700px; height:450px;">Capture d&#x27;écran: tutorial_24_log_axis_shared.png (700x450)</div>
+            <span class="screenshot-caption">Un nuage de points et une ligne exponentielle partageant un axe Z logarithmique</span>
+        </div>
+
+        <div class="note note-tip">
+            Les flèches vectorielles sont réorientées selon l'étirement local de l'échelle à leur position et conservent leur longueur et leur couleur ; les grilles de voxels sont rééchantillonnées ; la lecture au survol d'une surface montre toujours les valeurs de données du graphique, pas des positions sur les axes mis à l'échelle. Revenir à Linéaire restaure tout.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson23.html' class='nav-button'>← Leçon précédente</a>
+            <a href="index.html" class="back-to-index">↑ Retour à l'index</a>
+            <a href='lesson25.html' class='nav-button'>Leçon suivante →</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<h1 class="chapter">Die verformte Form und Modalergebnisse</h1>
+
+<h2>Die Verformung anzeigen</h2>
+<p>Strukturergebnisse enthalten für jeden Knoten eine Verschiebung. Aktivieren Sie <span class="ui">Verformte Form anzeigen</span>, und das Modell wird um dieses Feld verschoben statt in Ruhelage gezeichnet. Die Verschiebung wird beim Zeichnen des Modells angewendet; die Geometrie in der Datei und die Ruhelagen werden nicht verändert, sodass Sie die Option jederzeit wieder ausschalten können.</p>
+<ul>
+  <li>Der <span class="ui">Skalierungsfaktor</span> überhöht die Verschiebung. Echte Durchbiegungen sind meist winzig im Vergleich zum Modell, ein Faktor weit über 1 ist daher normal. Die Schaltfläche <span class="ui">Auto</span> wählt einen Faktor, der die Bewegung deutlich sichtbar macht.</li>
+  <li>Die Verschiebung wird in der eigenen Längeneinheit der Datei angewendet; der Bereich nennt das verwendete Feld. Ein Ergebnis ohne Verschiebungsfeld kann nicht verformt angezeigt werden und sagt es.</li>
+  <li>Solange die verformte Form aktiv ist, folgt alles, was der Geometrie folgt, dem verschobenen Netz: die Anzeige beim Überfahren, die Extremwert-Markierungen, Schnitte, Isoflächen und Stromlinien.</li>
+</ul>
+<figure data-img="tutorial_19_deformed_plate.png"><figcaption>Eine Platte mit Loch unter Last: verformte Form an, Minimum und Maximum markiert</figcaption></figure>
+<div class="callout warn"><span class="label">Achtung</span>
+  <p>Das Bild ist absichtlich überhöht. Wenn Sie beurteilen, wie stark sich ein Bauteil tatsächlich bewegt, lesen Sie den Skalierungsfaktor ab und verwenden Sie die Anzeige beim Überfahren oder ein Diagramm für die wahren Verschiebungswerte.</p>
+</div>
+
+<h2>Modalergebnisse</h2>
+<p>Eine Frequenzanalyse liefert <b>Eigenformen</b>, keine Verschiebungen mit physikalischer Größe: Ein Modus sagt nur, wie sich die Struktur relativ zu sich selbst bewegt, und seine Amplitude ist beliebig. ModelViewer behandelt solche Ergebnisse (Schritte mit den Bezeichnungen <i>Mode 1</i>, <i>Mode 2</i> ... und ihren Frequenzen in Hertz) besonders:</p>
+<ul>
+  <li>Jeder Modus wird mit seiner größten Verschiebung bei einem Zehntel der Modellgröße gezeichnet, sodass jeder Modus ohne Herumprobieren sichtbar ist; der <span class="ui">Skalierungsfaktor</span> skaliert dies (ein Faktor von 1 bedeutet ein Zehntel der Modellgröße).</li>
+  <li>Die Schritte sind die Modi. Die Zeitleiste geht sie durch und spielt sie nacheinander ab; die Beschriftung zeigt die Frequenz des Modus.</li>
+  <li>Die x-Achse eines Diagramms eines Modalergebnisses ist die Frequenz jedes Modus, wodurch sich ein Frequenzgang mit den Modi in Deckung bringen lässt (Kapitel 7).</li>
+</ul>
+<figure data-img="tutorial_19_modes.png"><figcaption>Zwei Schwingungsmodi des Würfels, verformt dargestellt</figcaption></figure>
+
+<div class="callout"><span class="label">Hinweis</span>
+  <p>Zum Ausprobieren: <code>FEM_box_modes.frd</code> (sechs Modi) und <code>FEM_box_frequency_mode1.vtu</code> (der erste Modus, wie FreeCAD ihn schreibt). <code>FEM_box_static_stress.vtu</code> und <code>plate_with_hole.frd</code> eignen sich für die gewöhnliche verformte Form; <code>plate_with_hole.frd</code> hat vier Laststufen.</p>
+</div>
+
+
+<h1 class="chapter">Zeit: Schritte und die Zeitleiste</h1>
+
+<h2>Was ein Schritt ist</h2>
+<p>Das Wort <b>Schritt</b> umfasst drei verschiedene Dinge, und ModelViewer behandelt sie gleich:</p>
+<ul>
+  <li><b>Laststufen und Inkremente</b> einer Strukturanalyse (zum Beispiel 25 %, 50 %, 87,5 %, 100 % einer Last);</li>
+  <li><b>Zeitschritte</b> einer instationären thermischen oder Strömungsanalyse (ein OpenFOAM-Fall hat einen pro Zeitverzeichnis);</li>
+  <li><b>Modi</b> einer Frequenzanalyse (Kapitel 4).</li>
+</ul>
+<p>Ein Ergebnis mit mehr als einem Schritt zeigt oben im Ansichtsfenster eine <b>Zeitleiste</b>. Ein Ergebnis mit einem einzigen Schritt hat keine Zeitleiste.</p>
+
+<h2>Die Zeitleiste</h2>
+<table class="compact">
+  <thead><tr><th style="width:28%">Steuerelement</th><th>Verwendung</th></tr></thead>
+  <tbody>
+    <tr><td>Wiedergabe / Pause</td><td>Spielt die Schritte der Reihe nach mit der gewählten Geschwindigkeit ab.</td></tr>
+    <tr><td>Vorheriger / Nächster Schritt</td><td>Geht um einen Schritt weiter.</td></tr>
+    <tr><td>Stopp</td><td>Hält an und spult zum ersten Schritt zurück.</td></tr>
+    <tr><td>Schieberegler</td><td>Springt zu jedem Schritt; ziehen Sie ihn, um durch die Zeit zu blättern. Die Beschriftung zeigt die Schrittnummer und ihre Zeit (oder die Frequenz des Modus).</td></tr>
+    <tr><td>Wiederholen</td><td>Beginnt am Ende wieder beim ersten Schritt.</td></tr>
+    <tr><td>Geschwindigkeit</td><td>Wiedergabegeschwindigkeit, von langsamer bis schneller als Echtzeit.</td></tr>
+    <tr><td>Fixieren</td><td>Die Leiste lässt sich an eine andere Stelle im Ansichtsfenster ziehen (Doppelklick setzt sie zurück); die Fixierung sperrt sie an ihrer Stelle.</td></tr>
+  </tbody>
+</table>
+<figure data-img="tutorial_19_timeline.png"><figcaption>Die Zeitleiste oben im Ansichtsfenster beim Abspielen der Laststufen des Würfels</figcaption></figure>
+
+<h2>Farben über die Zeit</h2>
+<p>Standardmäßig umfasst der Farbbereich <b>alle Schritte</b> (Kapitel 3), sodass eine Farbe in jedem Bild denselben Wert bedeutet und Sie zusehen können, wie sich eine Spannung aufbaut oder Wärme einströmt. Wählen Sie <span class="ui">Automatisch (dieser Schritt)</span>, wenn jeder Schritt seinen eigenen vollen Bereich nutzen soll - zum Beispiel, um die <i>Form</i> eines Modus zu sehen - und <span class="ui">Benutzerdefiniert</span>, um die Skala selbst festzulegen.</p>
+
+<h2>Diagramme und Zeit</h2>
+<p>Die Zeitleiste und die Zeitdiagramme aus Kapitel 7 steuern sich gegenseitig: Ein orangefarbener Cursor in einem Diagramm markiert den aktuellen Schritt, und Klicken oder Ziehen im Diagramm bewegt das Ergebnis zum nächstgelegenen Schritt. Wenn sich ein Ergebnis und ein animiertes 3D-Diagramm eine Wiedergabeleiste teilen (Kapitel 18), folgt die Leiste der physikalischen Zeit.</p>
+
+<h2>Lange instationäre Ergebnisse</h2>
+<p>Ein Ergebnis mit vielen Schritten und vielen Zellen enthält viele Daten. Ergebnisse, deren Schrittdaten mehr als 256 MB bräuchten und die mehr als einen Schritt haben, werden <b>verzögert</b> gelesen: Nur wenige Schritte liegen gleichzeitig im Speicher, und die anderen werden aus der Datei gelesen, wenn sie angezeigt werden. Das Öffnen ist schnell und der Speicherbedarf bleibt gleich, auf Kosten eines kurzen Lesevorgangs bei jedem Wechsel zu einem Schritt, der nicht im Speicher ist, und des ersten Durchlaufs für den Farbbereich über alle Schritte. Kapitel 9 erklärt dies und seine Folgen.</p>
+
+<h3>Beispiele</h3>
+<table class="compact">
+  <thead><tr><th style="width:36%">Datei</th><th>Schritte</th></tr></thead>
+  <tbody>
+    <tr><td><code>FEM_box_load_steps.frd</code></td><td>Vier Inkremente einer Lastrampe; spielen Sie sie ab, um die Spannung auf einer festen Farbskala wachsen zu sehen.</td></tr>
+    <tr><td><code>FEM_box_thermal_transient.frd</code></td><td>20 Zeitschritte über 10 s: eine Fläche wird auf 100 gehalten, der Rest beginnt bei 20.</td></tr>
+    <tr><td><code>FEM_box_modes.frd</code></td><td>Die ersten sechs Schwingungsmodi, mit ihren Frequenzen beschriftet.</td></tr>
+    <tr><td><code>openfoam_cavity/cavity.foam</code></td><td>Fünf Zeitverzeichnisse, 0 bis 2 s (synthetische Werte; der Fall testet den Leser, die Zelldaten-Darstellung und die Einheiten).</td></tr>
+  </tbody>
+</table>

@@ -1,0 +1,236 @@
+#pragma once
+
+// Simulation result data model - see docs/simulation_results_design.md (section 4).
+//
+// GUI-free and GL-free on purpose: depends only on QtCore + the standard library, so the readers and
+// boundary extraction built on it are unit-testable without a window or a GL context. This is the
+// SOURCE OF TRUTH for a loaded result; the mesh shown in the scene is derived from it, never the other
+// way round. A future Simulation workbench is built on this class, not on scene meshes.
+
+#include <QString>
+#include <QStringList>
+
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <list>
+#include <memory>
+#include <mutex>
+#include <vector>
+
+enum class ResultCellType : std::uint8_t
+{
+	Unsupported = 0, // kept as a placeholder so cell indices, offsets and cell-field tuples stay aligned
+	Line,
+	Triangle,
+	Quad,
+	Tetra,
+	Hexahedron,
+	Wedge,
+	Pyramid,
+	// Quadratic (second-order) cells, VTK node order: corner nodes first, then mid-edge nodes. Phase 0 shows
+	// them through their corner nodes only (see resultCellCornerType()); mid-edge nodes are kept in the
+	// dataset but ignored for display, so curved edges are not represented yet.
+	Triangle6,
+	Quad8,
+	Tetra10,
+	Hexahedron20,
+	Wedge15,
+	Pyramid13,
+	// A cell of arbitrary shape (OpenFOAM meshes): it carries no node list here (empty connectivity), only its place
+	// in the cell numbering so cell fields line up. It is drawn through the dataset's ready-made boundary triangles
+	// (see ResultDataset::boundaryTriangles); interior polyhedra are not displayed.
+	Polyhedron
+};
+
+// Number of nodes a cell of this type must reference; 0 for Unsupported and Polyhedron (any count accepted).
+int resultCellNodeCount(ResultCellType type);
+bool resultCellIsVolume(ResultCellType type);  // Tetra, Hexahedron, Wedge, Pyramid and their quadratic forms
+bool resultCellIsSurface(ResultCellType type); // Triangle, Quad and their quadratic forms
+bool resultCellIsQuadratic(ResultCellType type);
+// The linear cell whose corners are the first N nodes of `type` (identity for linear/unsupported types).
+ResultCellType resultCellCornerType(ResultCellType type);
+
+// Maps a VTK cell-type id (vtkCellType.h) to ours; anything not yet supported is Unsupported.
+ResultCellType resultCellTypeFromVtk(int vtkCellTypeId);
+
+class ResultDataset;
+// User-facing warnings for a freshly read dataset's cell types: quadratic cells shown through their corner
+// nodes, and cells of an unsupported type that will not be displayed. Empty when there is nothing to say.
+QStringList resultCellTypeWarnings(const ResultDataset& dataset);
+
+enum class ResultFieldAssociation
+{
+	Node,
+	Cell
+};
+
+// One named field. `stepData[s]` holds tupleCount * components floats for step s, or is EMPTY when that
+// step is not loaded (the dataset will load steps lazily; Phase 0 files have exactly one step).
+struct ResultField
+{
+	QString name;
+	ResultFieldAssociation association = ResultFieldAssociation::Node;
+	int components = 1; // 1 scalar, 3 vector, 6/9 tensor
+	// Optional names of the components when the file provides them (CalculiX: SXX, SYY, SZZ, SXY, SYZ, SZX).
+	// Empty, or exactly `components` entries.
+	std::vector<QString> componentNames;
+	// Units (see ResultUnits.h, design section 7). quantityKind is a ResultUnits kind id ("pressure", "length", ...);
+	// fileUnit is what the stored numbers are written in, displayUnit what they are shown in (empty = the file
+	// unit). All empty means "not specified". unitConfirmed is false while fileUnit is only a guess.
+	QString quantityKind;
+	QString fileUnit;
+	QString displayUnit;
+	bool unitConfirmed = false;
+	// For a field computed from another (von Mises from STRESS): that field's index; -1 otherwise. Derived fields
+	// always share their source's units.
+	int derivedFromField = -1;
+	std::vector<std::vector<float>> stepData;
+	// Optional min/max over data that is NOT in stepData (a stored snapshot keeps only the boundary vertices but
+	// remembers the range of the whole model, in file units): [step][selector][lo, hi] flattened, NaN = unknown. A
+	// selector is a component (0..components-1) or, for a 3-component field, the magnitude (index 3); a scalar has
+	// one. Empty = none: the range is whatever stepData holds. Only ever WIDENS the range buildDisplayScalar reports.
+	std::vector<float> storedRange;
+	// Set by a reader that loads steps lazily (see LazySteps): the field has data at some step although none of it is in memory yet.
+	bool lazyData = false;
+
+	std::size_t tupleCount(std::size_t step = 0) const
+	{
+		return (step < stepData.size() && components > 0) ? stepData[step].size() / static_cast<std::size_t>(components) : 0;
+	}
+};
+
+// Range selectors of a field (see ResultField::storedRange).
+inline int resultRangeSelectorCount(int components) { return components == 1 ? 1 : (components == 3 ? 4 : components); }
+// The selector a request for `component` (-1 = the scalar itself, or the magnitude of a 3-component field) uses;
+// -1 when there is none (a tensor without an explicit component).
+inline int resultRangeSelector(int components, int component)
+{
+	if (components == 1)
+		return 0;
+	if (component >= 0)
+		return component < components ? component : -1;
+	return components == 3 ? 3 : -1;
+}
+
+// Whether a field has data at any step, and the first step that does (-1 when none). A field can be absent at step 0 (a
+// variable an analysis only writes from a later step on) and must not be treated as missing.
+inline bool resultFieldHasData(const ResultField& field)
+{
+	if (field.lazyData)
+		return true;
+	for (const std::vector<float>& data : field.stepData)
+		if (!data.empty())
+			return true;
+	return false;
+}
+inline int resultFieldFirstStep(const ResultField& field)
+{
+	if (field.lazyData)
+		return 0; // (which steps have data is not known until they are loaded: the first is as good as any)
+	for (std::size_t s = 0; s < field.stepData.size(); ++s)
+		if (!field.stepData[s].empty())
+			return static_cast<int>(s);
+	return -1;
+}
+
+struct ResultStep
+{
+	double time = 0.0;
+	QString label;    // e.g. "Mode 3"; empty for a plain time step
+	QString timeUnit; // unit of `time` when the file says what it is (a modal step's time is a frequency: "Hz")
+};
+
+class ResultDataset;
+
+// Lazy loading of time steps. A result with many steps and large fields need not hold every step of every field in memory: a reader that supports it leaves the
+// steps' data empty (ResultField::stepData has its slot per step, all empty) and gives the dataset a loader; ResultDataset::ensureStepLoaded() then reads a
+// step when something asks for it and keeps the last few in memory (least recently used out first). Everything that reads a step's data calls it first.
+// Meant for the GUI thread: the data of a step must not be read while another thread may load a different one.
+struct LazySteps
+{
+	// Reads step `step` of every stored field into dataset.fields[i].stepData[step] (the derived fields of a stress tensor included); false when the step cannot
+	// be read (its data stays empty, like a step without data).
+	std::function<bool(std::size_t step, ResultDataset& dataset)> load;
+	// The fields whose steps are loaded and evicted, by index (empty = all of them). A field that is not managed keeps its data in stepData for good
+	// (a displacement computed from moving points, say).
+	std::vector<bool> managed;
+	std::size_t maxResident = 4; // steps kept in memory (at least 2: the one asked for and the one before it)
+	std::list<std::size_t> resident; // most recently used first
+	std::mutex mutex;
+};
+
+// Results whose step data would need more than this many bytes are read lazily by the readers that support it (Exodus, VTKHDF, OpenFOAM, FRD, CGNS); MODELVIEWER_LAZY_MB overrides it. 0 = every result (tests).
+std::size_t resultLazyThresholdBytes();
+void setResultLazyThresholdBytes(std::size_t bytes);
+
+class ResultDataset
+{
+public:
+	QString sourcePath;
+	QString solverName; // empty when unknown
+	QString lengthUnit; // empty until confirmed - never guess silently (design section 7)
+
+	// Nodes: xyz per node in the file's own length unit. nodeIds is optional (empty => id == index).
+	std::vector<float> nodePositions;
+	std::vector<std::int64_t> nodeIds;
+
+	// Cells in VTK layout: cell i uses cellConnectivity[cellOffsets[i] .. cellOffsets[i+1]).
+	// cellOffsets has cellCount()+1 entries. cellIds is optional (empty => id == index).
+	std::vector<ResultCellType> cellTypes;
+	std::vector<std::uint32_t> cellOffsets;
+	std::vector<std::uint32_t> cellConnectivity;
+	std::vector<std::int64_t> cellIds;
+
+	// Explicit faces of Polyhedron cells (VTK polyhedra, CGNS NGON/NFACE ...). A face is a ring of node indices, faceNodes[faceOffsets[f] ..
+	// faceOffsets[f + 1]); faces may be shared by the two cells they separate (each lists it) or repeated per cell - the boundary extraction
+	// matches faces by their node sets. A polyhedron cell c is bounded by cellFaces[cellFaceOffsets[c] .. cellFaceOffsets[c + 1]) (face
+	// indices); cellFaceOffsets has cellCount() + 1 entries when used and a cell that is not a polyhedron has an empty range. All four are
+	// empty for a dataset without explicit faces (OpenFOAM keeps ready-made boundary triangles instead, below).
+	std::vector<std::uint32_t> faceNodes;
+	std::vector<std::uint32_t> faceOffsets;
+	std::vector<std::uint32_t> cellFaces;
+	std::vector<std::uint32_t> cellFaceOffsets;
+
+	// Optional ready-made boundary surface, for formats that store their boundary faces explicitly (OpenFOAM: the
+	// last faces of the mesh) - no cell-face hashing is needed and the cells may be polyhedra. Triangles as node
+	// indices, outward-facing, plus the cell each belongs to. Empty = derive the boundary from the cells.
+	std::vector<std::uint32_t> boundaryTriangles;      // 3 node indices per triangle
+	std::vector<std::uint32_t> boundaryTriangleCells;  // one cell index per triangle
+
+	std::vector<ResultStep> steps;
+	std::vector<ResultField> fields;
+
+	// Set for a lazily loaded result (see LazySteps); null when every step is in stepData.
+	std::shared_ptr<LazySteps> lazy;
+	bool isLazy() const { return lazy != nullptr; }
+	// Makes step `step` of every field resident (no-op for an eager result or a step out of range), evicting the least recently used ones beyond the limit.
+	void ensureStepLoaded(std::size_t step) const;
+
+	std::size_t nodeCount() const { return nodePositions.size() / 3; }
+	std::size_t cellCount() const { return cellTypes.size(); }
+	std::size_t faceCount() const { return faceOffsets.empty() ? 0 : faceOffsets.size() - 1; }
+	// The number of explicit faces polyhedron cell `c` has (0 when it has none listed).
+	std::size_t polyhedronFaceCount(std::size_t c) const
+	{
+		return c + 1 < cellFaceOffsets.size() ? static_cast<std::size_t>(cellFaceOffsets[c + 1] - cellFaceOffsets[c]) : 0;
+	}
+	std::size_t stepCount() const { return steps.size(); }
+
+	std::int64_t nodeId(std::size_t index) const
+	{
+		return index < nodeIds.size() ? nodeIds[index] : static_cast<std::int64_t>(index);
+	}
+	std::int64_t cellId(std::size_t index) const
+	{
+		return index < cellIds.size() ? cellIds[index] : static_cast<std::int64_t>(index);
+	}
+
+	const ResultField* findField(const QString& name, ResultFieldAssociation association) const;
+
+	// Structural consistency check. Returns an empty string when the dataset is valid, otherwise a
+	// description of the FIRST problem found. Readers call this before handing a dataset out, so every
+	// consumer can rely on: all offsets/indices in range, cell node counts matching their type, and
+	// every loaded field step sized tupleCount * components.
+	QString validate() const;
+};

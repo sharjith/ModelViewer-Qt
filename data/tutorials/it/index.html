@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutorial di ModelViewer - Home</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 60px 40px;
+            text-align: center;
+        }
+
+        .hero h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .hero p {
+            font-size: 20px;
+            opacity: 0.95;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .content {
+            padding: 50px 40px;
+        }
+
+        .intro {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .intro h2 {
+            color: #2c3e50;
+            font-size: 32px;
+            margin-bottom: 15px;
+        }
+
+        .intro p {
+            color: #555;
+            font-size: 18px;
+            line-height: 1.6;
+        }
+
+        .lessons-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        .lesson-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 25px;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
+        .lesson-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            border-color: #3498db;
+        }
+
+        .lesson-number {
+            display: inline-block;
+            background: #3498db;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 40px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .lesson-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .lesson-description {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .start-button {
+            display: block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            padding: 20px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 50px;
+            text-decoration: none;
+            max-width: 400px;
+            margin: 0 auto;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .start-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 40px 0;
+        }
+
+        .feature {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .feature-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        .feature-text {
+            color: #555;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 32px;
+            }
+            
+            .lessons-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+                </style>
+</head>
+<body>
+    <div class="container">
+        <div class="hero">
+            <h1>📚 Tutorial di ModelViewer</h1>
+            <p>Padroneggia la visualizzazione 3D con la nostra guida completa passo dopo passo</p>
+        </div>
+        <div class="content">
+            <div class="intro">
+                <h2>Benvenuto!</h2>
+                <p>Questo tutorial ti guida attraverso tutte le funzioni di ModelViewer, dalla navigazione di base ai risultati di simulazione, ai grafici 3D e al ray tracing. Completa tutte le 29 lezioni per diventare un esperto di ModelViewer!</p>
+            </div>
+            <div class="features">
+                <div class="feature"><div class="feature-icon">🎯</div><div class="feature-text">29 lezioni complete</div></div>
+                <div class="feature"><div class="feature-icon">📖</div><div class="feature-text">Istruzioni passo dopo passo</div></div>
+                <div class="feature"><div class="feature-icon">🖼️</div><div class="feature-text">Schermate illustrative</div></div>
+                <div class="feature"><div class="feature-icon">⚡</div><div class="feature-text">Esercizi pratici</div></div>
+            </div>
+            <a href="lesson01.html" class="start-button">Inizia il tutorial →</a>
+            <h2 style="text-align: center; color: #2c3e50; margin: 60px 0 30px 0;">Contenuto del corso</h2>
+            <div class="lessons-grid">
+                <a href="lesson01.html" class="lesson-card">
+                    <div class="lesson-number">1</div>
+                    <div class="lesson-title">Primi passi</div>
+                    <div class="lesson-description">Introduzione all'interfaccia e alla disposizione dell'area di lavoro di ModelViewer</div>
+                </a>
+                <a href="lesson02.html" class="lesson-card">
+                    <div class="lesson-number">2</div>
+                    <div class="lesson-title">Aprire i modelli</div>
+                    <div class="lesson-description">Impara ad aprire e importare diversi formati di file 3D</div>
+                </a>
+                <a href="lesson03.html" class="lesson-card">
+                    <div class="lesson-number">3</div>
+                    <div class="lesson-title">Navigazione di base</div>
+                    <div class="lesson-description">Padroneggia i comandi di mouse e tastiera per navigare nella vista</div>
+                </a>
+                <a href="lesson04.html" class="lesson-card">
+                    <div class="lesson-number">4</div>
+                    <div class="lesson-title">Selezionare gli oggetti</div>
+                    <div class="lesson-description">Diversi metodi e tecniche di selezione</div>
+                </a>
+                <a href="lesson05.html" class="lesson-card">
+                    <div class="lesson-number">5</div>
+                    <div class="lesson-title">Modalità di visualizzazione</div>
+                    <div class="lesson-description">Layout ortografici, assonometrici e a più viste</div>
+                </a>
+                <a href="lesson06.html" class="lesson-card">
+                    <div class="lesson-number">6</div>
+                    <div class="lesson-title">Modalità fotocamera</div>
+                    <div class="lesson-description">Comandi della fotocamera orbitale, di volo e in prima persona</div>
+                </a>
+                <a href="lesson07.html" class="lesson-card">
+                    <div class="lesson-number">7</div>
+                    <div class="lesson-title">Modalità di display</div>
+                    <div class="lesson-description">Rendering realistico, ombreggiato, wireframe e ombreggiato con wireframe</div>
+                </a>
+                <a href="lesson08.html" class="lesson-card">
+                    <div class="lesson-number">8</div>
+                    <div class="lesson-title">Manipolare gli oggetti</div>
+                    <div class="lesson-description">Spostare, ruotare, scalare e duplicare gli oggetti</div>
+                </a>
+                <a href="lesson09.html" class="lesson-card">
+                    <div class="lesson-number">9</div>
+                    <div class="lesson-title">Materiali e texture</div>
+                    <div class="lesson-description">Applicare materiali PBR e texture con il pannello Materiali unificato</div>
+                </a>
+                <a href="lesson10.html" class="lesson-card">
+                    <div class="lesson-number">10</div>
+                    <div class="lesson-title">Illuminazione e ambiente</div>
+                    <div class="lesson-description">Configurare luci, IBL, ombre e ambienti</div>
+                </a>
+                <a href="lesson11.html" class="lesson-card">
+                    <div class="lesson-number">11</div>
+                    <div class="lesson-title">Lavorare con la visibilità</div>
+                    <div class="lesson-description">Nascondere, mostrare e gestire la visibilità degli oggetti</div>
+                </a>
+                <a href="lesson12.html" class="lesson-card">
+                    <div class="lesson-number">12</div>
+                    <div class="lesson-title">Funzioni avanzate</div>
+                    <div class="lesson-description">Piani di taglio, zoom finestra e strumenti avanzati</div>
+                </a>
+                <a href="lesson13.html" class="lesson-card">
+                    <div class="lesson-number">13</div>
+                    <div class="lesson-title">Ottimizzazione delle prestazioni</div>
+                    <div class="lesson-description">Tecniche per lavorare in modo efficiente con modelli grandi</div>
+                </a>
+                <a href="lesson14.html" class="lesson-card">
+                    <div class="lesson-number">14</div>
+                    <div class="lesson-title">Suggerimenti e flussi di lavoro</div>
+                    <div class="lesson-description">Scorciatoie professionali e buone pratiche</div>
+                </a>
+                <a href="lesson15.html" class="lesson-card">
+                    <div class="lesson-number">15</div>
+                    <div class="lesson-title">Viste esplose</div>
+                    <div class="lesson-description">Esplosione automatica e manuale degli assiemi, cattura dei passaggi e animazione della rivelazione</div>
+                </a>
+                <a href="lesson16.html" class="lesson-card">
+                    <div class="lesson-number">16</div>
+                    <div class="lesson-title">Animazione dei morph target</div>
+                    <div class="lesson-description">Riprodurre le clip di deformazione dei blend shape glTF</div>
+                </a>
+                <a href="lesson17.html" class="lesson-card">
+                    <div class="lesson-number">17</div>
+                    <div class="lesson-title">Modifica della trasformazione dei nodi</div>
+                    <div class="lesson-description">Gizmo di trasformazione interattivo per spostare, ruotare e scalare</div>
+                </a>
+                <a href="lesson18.html" class="lesson-card">
+                    <div class="lesson-number">18</div>
+                    <div class="lesson-title">Rendering di bordi e wireframe</div>
+                    <div class="lesson-description">Veri bordi B-Rep per STEP/IGES/BREP e controllo della qualità di tassellazione</div>
+                </a>
+                <a href="lesson19.html" class="lesson-card">
+                    <div class="lesson-number">19</div>
+                    <div class="lesson-title">Risultati di simulazione <span style="font-size:11px;background:#e67e22;color:white;border-radius:10px;padding:2px 8px;vertical-align:middle;">Novità della 2026.11</span></div>
+                    <div class="lesson-description">Aprire risultati del solutore, scegliere il campo, mostrare la deformazione, impostare le unità e riprodurre i passi di tempo</div>
+                </a>
+                <a href="lesson20.html" class="lesson-card">
+                    <div class="lesson-number">20</div>
+                    <div class="lesson-title">Guardare dentro un risultato <span style="font-size:11px;background:#e67e22;color:white;border-radius:10px;padding:2px 8px;vertical-align:middle;">Novità della 2026.11</span></div>
+                    <div class="lesson-description">Sezioni, isosuperfici, linee di flusso, rendering volumetrico, frecce vettoriali ed ellissoidi di tensione</div>
+                </a>
+                <a href="lesson21.html" class="lesson-card">
+                    <div class="lesson-number">21</div>
+                    <div class="lesson-title">Grafici e sonde <span style="font-size:11px;background:#e67e22;color:white;border-radius:10px;padding:2px 8px;vertical-align:middle;">Novità della 2026.11</span></div>
+                    <div class="lesson-description">Leggere valori, tracciare nel tempo e lungo una linea, aggiungere dati misurati e usare istogrammi</div>
+                </a>
+                <a href="lesson22.html" class="lesson-card">
+                    <div class="lesson-number">22</div>
+                    <div class="lesson-title">Confrontare risultati, dati di cella e di guscio <span style="font-size:11px;background:#e67e22;color:white;border-radius:10px;padding:2px 8px;vertical-align:middle;">Novità della 2026.11</span></div>
+                    <div class="lesson-description">Confrontare due risultati in modo equo e gestire dati di cella, modelli a guscio e risultati di flusso con unità</div>
+                </a>
+                <a href="lesson23.html" class="lesson-card">
+                    <div class="lesson-number">23</div>
+                    <div class="lesson-title">Grafici 3D da dati CSV <span style="font-size:11px;background:#e67e22;color:white;border-radius:10px;padding:2px 8px;vertical-align:middle;">Novità della 2026.11</span></div>
+                    <div class="lesson-description">Rappresentare in 3D i tuoi dati CSV: superfici, contorni, linee, dispersione, barre, voxel e campi vettoriali</div>
+                </a>
+                <a href="lesson24.html" class="lesson-card">
+                    <div class="lesson-number">24</div>
+                    <div class="lesson-title">Grafici 3D da formule, riempimenti, immagini e note <span style="font-size:11px;background:#e67e22;color:white;border-radius:10px;padding:2px 8px;vertical-align:middle;">Novità della 2026.11</span></div>
+                    <div class="lesson-description">Grafici da formula, riempimenti, immagini su piani, note di testo e assi condivisi lineari o logaritmici</div>
+                </a>
+                <a href="lesson25.html" class="lesson-card">
+                    <div class="lesson-number">25</div>
+                    <div class="lesson-title">Grafici e risultati riprodotti insieme <span style="font-size:11px;background:#e67e22;color:white;border-radius:10px;padding:2px 8px;vertical-align:middle;">Novità della 2026.11</span></div>
+                    <div class="lesson-description">Linee di percorso di un flusso dipendente dal tempo, animate e riprodotte in sincronia con un risultato di simulazione</div>
+                </a>
+                <a href="lesson26.html" class="lesson-card">
+                    <div class="lesson-number">26</div>
+                    <div class="lesson-title">Strumenti per mesh <span style="font-size:11px;background:#e67e22;color:white;border-radius:10px;padding:2px 8px;vertical-align:middle;">Novità della 2026.11</span></div>
+                    <div class="lesson-description">Riparare, riempire fori, suddividere, avvolgere, ricostruire e unire o dividere mesh</div>
+                </a>
+                <a href="lesson27.html" class="lesson-card">
+                    <div class="lesson-number">27</div>
+                    <div class="lesson-title">Misurare, annotare e riferire <span style="font-size:11px;background:#e67e22;color:white;border-radius:10px;padding:2px 8px;vertical-align:middle;">Novità della 2026.11</span></div>
+                    <div class="lesson-description">Misurare punti, distanze, raggi e aree, aggiungere annotazioni ed esportare un report PDF</div>
+                </a>
+                <a href="lesson28.html" class="lesson-card">
+                    <div class="lesson-number">28</div>
+                    <div class="lesson-title">Analisi, selezione e scene <span style="font-size:11px;background:#e67e22;color:white;border-radius:10px;padding:2px 8px;vertical-align:middle;">Novità della 2026.11</span></div>
+                    <div class="lesson-description">Analisi della superficie, proprietà di massa, strumenti di selezione intelligenti e stati della scena salvati</div>
+                </a>
+                <a href="lesson29.html" class="lesson-card">
+                    <div class="lesson-number">29</div>
+                    <div class="lesson-title">Ray tracing in pratica <span style="font-size:11px;background:#e67e22;color:white;border-radius:10px;padding:2px 8px;vertical-align:middle;">Novità della 2026.11</span></div>
+                    <div class="lesson-description">Viste tracciate dal vivo, la finestra Ray tracing, esportazione ad alta risoluzione e rendering batch</div>
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,216 @@
+# Simulation Results - Large-Result Review
+
+Status: **review + first fixes** (2026-09-26). Branch: `feature/simulation-results`. Companion to `simulation_results_design.md`.
+
+Question: what happens when a result has millions of cells and many time steps - in memory and in time - and what should change?
+
+Method: a read of the load and display paths, plus an opt-in benchmark (`result_tests --bench`, `--time`, section 6) so the numbers can be
+**measured** instead of guessed. Everything below marked *estimate* is reasoning from the code, not a measurement.
+
+## 1. Memory model
+
+What a loaded result holds (`ResultDataset`), all resident for the life of the result:
+
+| Data | Cost |
+|---|---|
+| node position | 12 B per node (+ 8 B if the file gave ids) |
+| hexahedron | 32 B connectivity + 4 B offset + 1 B type = 37 B per cell (+ 8 B ids) |
+| polyhedron faces | 4 B per face node + offsets (see `ResultDataset::faceNodes`) |
+| one field at one step | 4 B x tuples x components |
+
+The last row is the one that grows: **every step of every field is read at open** (`ResultField::stepData`).
+
+| Mesh (hexahedra ~ nodes) | Geometry | One step of {node scalar, node vector, cell scalar} | 50 steps |
+|---|---|---|---|
+| 1 M cells | ~ 50 MB | ~ 20 MB | ~ 1.0 GB |
+| 5 M cells | ~ 250 MB | ~ 100 MB | ~ 5.1 GB |
+| 20 M cells | ~ 1.0 GB | ~ 410 MB | ~ 20 GB |
+
+So the eager-step model, not the geometry, is what caps result size: a 5 M-cell transient result already needs several GB before anything is drawn.
+Compare mode holds two results at once.
+
+Transient peaks on top of that:
+
+- **Readers.** Exodus reads a field straight into its final array (fixed earlier). CGNS accumulated every component of every step and then
+  assembled the shown fields from them, so the peak was ~2x the data; it now releases each component as soon as its field is built.
+  MED reads one value block at a time as doubles (a transient 8 B/value block). VTKHDF/OpenFOAM/VTK read into the final arrays.
+- **Boundary extraction.** Face records are 24 B each, held ~2 M at a time (~48 MB) and sorted per partition; *estimate*: the surface itself is
+  small (a cube of n^3 cells has ~6 n^2 faces).
+- **Showing a step.** `buildDisplayScalar` allocates the whole field's scalar (4 B x N) per frame; the arrow layer does the same for its own field.
+- **Snapshot encode.** Byte-shuffled copies of the surface data (small: boundary vertices only, at most 100 steps).
+
+## 2. Time model
+
+*Estimates* (the benchmark replaces them):
+
+- **Open.** Reading is I/O bound (text formats - `.frd`, ASCII `.vtk` - are much slower than HDF5/NetCDF ones); `validate()` is one pass over the cells.
+- **Boundary extraction.** The face-hash space is split in `ceil(faces / 2M)` partitions (at most 64) and **every partition scans every cell**:
+  5 M hexahedra = 30 M faces = 16 partitions = ~480 M face keys built. Single-threaded that is on the order of 10 s.
+- **Showing one step** costs O(N) in the number of nodes (or cells), not in the surface: build the scalar (allocate, copy or magnitude, unit
+  conversion, min/max), then map only the surface's share of it. For a volume mesh the surface is ~1 % of the nodes, so ~99 % of that work is
+  not needed for what is drawn. At 5 M nodes I expect tens of milliseconds per frame - it caps playback rate.
+- **Range over all steps** (the default colour range) is a scan of every step of the field, once per field/component/unit change, **on the UI thread**.
+
+## 3. Done in this pass
+
+1. `buildDisplayScalar` no longer allocates the output twice and converts units and finds min/max in **one** pass (was: allocate, fill, convert,
+   min/max = 4 passes). Same results.
+2. `computeAllStepsRange` scans each step **in place** (`computeStepRange`), without building a per-step copy of the whole field: one pass and no N-sized
+   allocation per step (was: a full `buildDisplayScalar` per step). A test checks it equals what `buildDisplayScalar` reports.
+3. Boundary extraction runs its partitions **on up to 4 threads** (each partition is independent; results are merged and sorted, so the surface is
+   identical). Peak transient memory rises by ~50 MB per extra worker.
+4. CGNS releases the accumulated components as fields are built (see section 1).
+5. The benchmark harness (section 6).
+
+## 4. Findings still open, ranked
+
+**P1 - Load steps on demand. Done, section 8.** The only change that removes the memory ceiling. `ResultField::stepData[s]` empty already means "not loaded" and
+`validate()` already accepts it; what is missing is a way to load it later and a budget for what stays resident:
+
+- a `IResultStepSource` (shared pointer in the dataset) with `loadStep(field, step)`; formats that can seek support it (VTKHDF, Exodus, CGNS, MED,
+  OpenFOAM time directories; `.frd` needs an index of file offsets; single-file VTK is one step anyway);
+- an LRU of resident steps under a memory budget (a setting), the current step and its playback neighbours pinned;
+- the per-field ranges over all steps are needed **before** any step is shown (legend, fixed colour scale): gather them while opening in one streaming
+  pass (min/max per field/component/step, the shape `ResultField::storedRange` already has for snapshots) instead of from resident data;
+- consumers must ask for a step (`ensureStep`) before reading it: the display refresh, arrows, probe, extrema markers, snapshot save, derived stress.
+  Playback prefetches the next steps on a worker thread.
+
+Cost: opening does one full pass over the file for the ranges; a step change may wait for I/O. Risk: touches every reader and every consumer of `stepData`.
+
+**P2 - Build the shown scalar for the surface only. Not done (2026-09-27): overtaken by the section/iso-surface/streamline work.** `cutVolume`, the
+iso-surface distance field and `traceStreamlines` all read `buildDisplayScalar`'s full per-node array, not just the surface's share of it - they postdate this
+review. Restricting the build to the surface would need a "does anything need the volume right now" special case for no measured benefit (section 7 already
+found a step costs 12 ms at 5 M nodes); left alone.
+
+**P3 - Cheaper boundary extraction. Done, section 9.** Threading (done) cuts the wall time; the O(faces x partitions) work is still there. Bucketing the records
+by hash in one pass (or keying each face once into a 64-bit hash + owner, 12 B) would make it O(faces).
+
+**P4 - Keep long scans off the UI thread. Done differently, 2026-09-27 (see section 10): a busy cursor, not a worker thread.** The all-steps range,
+`restoreSimulationSessions` decode and a deformed-mesh rebuild block the UI. Run them in a worker with a progress hint; needed once steps stream (P1).
+
+**P5 - Smaller items. Checked 2026-09-27, section 11: one fixed, two were already non-issues.** MED's per-block double buffer; `SimulationSession` keeping both
+the `DisplayScalar` and the surface values (probe reads the former); glyph arrows recomputing magnitudes for the whole field per frame.
+
+## 5. Recommendation
+
+Measure first (section 6), then P1 - it is the only fix for RAM - designed together with P2, because a step that is not resident is exactly a step
+whose range must already be known. P3/P4/P5 are independent and can follow.
+
+## 6. Measuring
+
+Opt-in, nothing runs in the normal test pass. Times each stage of opening a result and of showing steps, and reports the dataset size and the
+process's peak working set (Windows):
+
+```
+result_tests.exe --bench 100 20        (a synthetic 100 x 100 x 100 hexahedron block, 20 steps; 1 M cells)
+result_tests.exe --bench 170 10        (~ 5 M cells)
+result_tests.exe --time path\to\file.vtkhdf   (any supported result file, real data)
+```
+
+It prints: read/build, validate, boundary surface (time, triangles, peak MB), *show a step* per node and cell field (the per-frame cost),
+range over all steps, snapshot encode, process peak. Please run it on the sizes you care about; those numbers replace the estimates above.
+
+## 7. Measured (2026-09-26, Windows, release build, after the fixes of section 3)
+
+| Stage | 1 M cells, 20 steps | 4.9 M cells, 10 steps |
+|---|---|---|
+| dataset in memory | 438 MB (~20 MB per step) | 1181 MB (~118 MB per step) |
+| boundary surface | 0.49 s | 4.6 s |
+| show one step (node or cell field) | 2.6 ms | 12 ms |
+| range over all steps of a field | 26 ms | 63 ms |
+| snapshot encode | 18 ms | 50 ms |
+| process peak | 649 MB | 1503 MB |
+
+Conclusions: the estimates for the per-frame cost (P2) and the range scan (P4) were pessimistic - at 5 M nodes a step takes 12 ms, so neither is
+worth changing now. The boundary extraction (4.6 s at 5 M cells, one time per open) is the slowest stage (P3, not urgent). **Memory is the limit**:
+the dataset grows linearly with the steps (118 MB per step here), so P1 only matters once steps x size approaches the machine's RAM.
+Decision (2026-09-26): P1 is deferred; the section / iso-surface / streamline work goes first.
+
+## 8. Lazy step loading (P1, implemented 2026-09-27)
+
+Memory was the limit, so the steps of a large result are no longer all held in memory: a reader that supports it leaves each field's `stepData` slots empty and gives
+the dataset a loader (`LazySteps`, `ResultDataset.h`); `ResultDataset::ensureStepLoaded(step)` reads a step when something asks for it and keeps the last four
+in memory, the least recently used going first (`maxResident`, at least 2).
+
+- **Which results**: **Exodus**, **CalculiX FRD**, **CGNS**, **VTKHDF** (unstructured grids and polydata with time steps - the arrays of `PointData` / `CellData`) and **OpenFOAM** cases (only the headers of the field
+  files are read at open - class, format, dimensions - and one time directory's fields per step, which also makes opening a case with many big ASCII fields fast). A result is read lazily when
+  its step data would need more than `resultLazyThresholdBytes()` (256 MB) and it has more than one step; the tests force it with 0. An FRD file is memory-mapped and indexed once (the file offset of every result block); a step's blocks are parsed from their offsets when it is asked for (the file stays open, so it is locked while the result is shown; a 65 MB result opens in 0.2 s instead of 1.0 s and needs 4 MB instead of 25 MB). A CGNS file is scanned for the names of its solutions' fields only; the vector / tensor grouping is decided from the names, and a step's arrays are read from the (kept open) file, zone by zone, when it is asked for. Other readers (MED, VTK XML / legacy,
+  VTKHDF ImageData) still read everything at once. MED needs its file handle kept open: next steps, in that order of value.
+- **What asks**: everything that reads the data of a step calls `ensureStepLoaded()` first - the colour scalar, its range for a step, the deformation, the modal factor, the arrows, the
+  streamlines' vectors, and the snapshot encoder (which reads every step it keeps, so saving a lazy result reads the whole file). The derived stress fields (von Mises ...) are
+  computed for a step as it is loaded (`computeDerivedStressStep`). A field a lazy reader defined is flagged `lazyData`, so it counts as having data before any of it is in memory.
+- **Ranges over all steps** (the fixed colour scale of an animation, the arrows' reference length, the auto deformation scale) read every step once and cache the exact result. This avoids
+  clipping an unsampled transient peak; a busy cursor covers the first scan of a lazy result.
+- **Fields that are not loaded step by step** (the displacement made from moving points in VTKHDF) are not `managed`: they keep their data.
+- **Threading**: the loader runs on the GUI thread, on demand. Playback of a lazy result therefore reads a step per frame; a step that is already resident is free.
+- **Tests**: `testLazySteps` - the bookkeeping (least recently used out, out-of-range no-op, unmanaged fields), Exodus (classic and NetCDF-4, with and without the stress tensor) and VTKHDF
+  read lazily and compared step by step, field by field with the eager read, the eviction with room for two steps, and the display code (scalar, range) on a lazy result.
+
+Measured (2026-09-27, `result_tests --write-exodus-sample big.exo 100` then `MV_LAZY_MB=<mb> result_tests --time big.exo`; 100^3 = 1 M hexahedra, 1.03 M nodes, 5 steps, 9 fields, 485 MB on disk):
+
+| | eager | lazy |
+|---|---|---|
+| dataset in memory at open | 361 MB | 47 MB |
+| read / build | 1.03 s | 0.15 s |
+| process peak | 584 MB | 323 MB |
+| show one step | 3 ms | 0.18 s (the step is read from the file) |
+| range over all 5 steps | 7 ms | 0.9 s (five reads) |
+| snapshot encode | 0.1 s | 1.9 s (every step is read) |
+
+The ranges agree to the digit. The price of lazy loading is the read of each step that is not in memory; what it buys is that memory no longer grows with the step count.
+
+## 9. Cheaper boundary extraction (P3, implemented 2026-09-27)
+
+The per-partition design (section 3.3) revisits every cell once per partition, computing and discarding most of each face's key: for `p` partitions that is `p`
+times the face-keying work a single pass would need. Every face's key is now computed exactly once when the total is small enough to hold at once: each of up to
+4 worker threads keys a contiguous range of cells and scatters its records into the partitions by the key's hash (a single pass over the cells), and only then are
+the partitions independently sorted and reduced to the faces that occur exactly once, as before. This is a genuine memory-for-time trade. The fast-path budget
+counts both the permanent worker buckets and the partition copies held by concurrent reducers. If their combined face-record storage would exceed
+`fastKeyingBudgetBytes` (200 MB by default), `extractBoundarySurface` uses the bounded per-partition re-derivation. Allocation failure in either threaded phase is
+caught and reported rather than escaping a worker thread. Tests exercise both paths on the same dataset (`fastKeyingBudgetBytes = 1` forces the bounded path)
+and require identical output.
+
+## 10. Keep long scans off the UI thread (P4, implemented differently, 2026-09-27)
+
+Two of the three items were already resolved by other work: `restoreSimulationSessions`'s snapshot decode already runs on a `QThread` worker
+(`MvfMeshPreparationWorker`, `ModelViewer.cpp`), and the deformed-mesh rebuild (`buildDeformedNodePositions`) is the same O(nodes) cost class `buildDisplayScalar`
+was measured at in section 7 (12 ms at 5 M nodes) - not worth threading on its own.
+
+The remaining one - the all-steps range scan - is genuinely slow only on a **lazy** result: it calls `ensureStepLoaded()` for every step, each a real file read,
+so the UI's "Automatic (all steps)" range is exact even when a transient peak lies between widely spaced frames. `LazySteps` is explicitly documented for the GUI
+thread only: its mutex protects the eviction bookkeeping, but every place that
+reads a step's data afterwards (the renderer, probe, arrows, slices) does so without taking that lock. Backgrounding the scan would let it evict and overwrite the
+very step the GUI thread is mid-render on, an unsynchronized data race - correctly making it safe would mean adding locking to every one of those read sites, the
+same "touches every reader" risk P1 already carried.
+
+Decision: a busy cursor (`Qt::WaitCursor`) instead of a worker thread. `LazyScanCursor` (`ModelViewerSimulation.cpp`) and the equivalent guard in
+`SimulationPanel::currentDataRange` show it only when the dataset `isLazy()`, for the duration of the scan; an eager result never sees it. The scan itself is
+unchanged and stays cached (`SimulationRangeCache` and the glyph/streamline equivalents), so this only shows on the first field/component/unit choice after a
+big lazy result is opened, not on every frame.
+
+## 11. P5, the smaller items (checked 2026-09-27)
+
+**MED's per-block double buffer.** Already minimal: `MedReader.cpp` reads one profile group's values into a local `std::vector<double>` (a small, transient
+buffer - one field's one entity type's one profile, not the whole field), converts them into the dataset's float arrays immediately, and lets the buffer go out
+of scope at the end of that loop iteration. There is no whole-field double copy to remove. No change.
+
+**`SimulationSession` keeping both `DisplayScalar` and the surface values.** Not actually true of the current code: `refreshSimulationDisplay` computes the
+surface-mapped values (`boundaryVertexValues` / `boundaryFaceValues`) as a local, used to colour the mesh and find the extrema markers, then discards it; only
+the full-size `DisplayScalar` (`session.shownScalar`) is kept, for the hover probe. It cannot be replaced by a surface-only array either: `updateSimulationSlices`
+reads `shownScalar.nodeValues` to colour a section cut, which needs every node's value (a cut point is generally not a mesh vertex) - the same reason P2 no
+longer applies (section 4). No change.
+
+**Glyph arrows recomputing magnitudes for the whole field per frame.** Real, fixed. `buildGlyphSet` called `buildDisplayScalar` to get a vector field's
+magnitude - building, unit-converting and storing one float per node/cell of the WHOLE field - just to read a few hundred `glyphSites` out of it. It now calls
+`computeStepRange` (an in-place scan, no allocation) for the field's min/max, and converts the magnitude only at each sampled site (from the raw vector already
+being read there for the arrow's direction). Same result (`testGlyphs` and the other glyph tests are unchanged and pass), an O(N) allocation and unit-conversion
+pass removed per glyph refresh.
+
+## 12. MED lazy step loading - deferred
+
+Not implemented (2026-09-27): the only reader P1 did not reach. `MedReader.cpp` splits one file field into several dataset fields when it is a symmetric
+tensor or a shell's DX DY DZ DRX DRY DRZ (translation + rotation), with a component-mapping table built once per field before its step loop runs. Making the
+value read lazy needs a per-step loader that shares that mapping logic exactly with the eager path - duplicating it for a background loader would risk a subtle
+divergence in exactly the case that path exists to get right. MED files in this pipeline (Salome, Code_Aster) are also usually smaller than the Exodus/CGNS
+cases that motivated P1. Left as a known gap; the file is still read eagerly, correctly, and section 1's "MED reads one value block at a time as doubles" note
+still applies (it is not a large single allocation, just not deferred to first use).

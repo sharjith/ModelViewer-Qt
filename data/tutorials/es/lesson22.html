@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lección 22: Comparar resultados, datos de celda y de lámina - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primeros pasos</a>
+            <a href="lesson02.html">2. Abrir modelos</a>
+            <a href="lesson03.html">3. Navegación básica</a>
+            <a href="lesson04.html">4. Seleccionar objetos</a>
+            <a href="lesson05.html">5. Modos de vista</a>
+            <a href="lesson06.html">6. Modos de cámara</a>
+            <a href="lesson07.html">7. Modos de visualización</a>
+            <a href="lesson08.html">8. Manipular objetos</a>
+            <a href="lesson09.html">9. Materiales y texturas</a>
+            <a href="lesson10.html">10. Iluminación y entorno</a>
+            <a href="lesson11.html">11. Trabajar con la visibilidad</a>
+            <a href="lesson12.html">12. Funciones avanzadas</a>
+            <a href="lesson13.html">13. Optimización del rendimiento</a>
+            <a href="lesson14.html">14. Consejos y flujos de trabajo</a>
+            <a href="lesson15.html">15. Vistas explosionadas</a>
+            <a href="lesson16.html">16. Animación de morph targets</a>
+            <a href="lesson17.html">17. Edición de la transformación de nodos</a>
+            <a href="lesson18.html">18. Renderizado de bordes y malla de alambre</a>
+            <a href="lesson19.html">19. Resultados de simulación</a>
+            <a href="lesson20.html">20. Mirar dentro de un resultado</a>
+            <a href="lesson21.html">21. Gráficos y sondeo</a>
+            <a href="lesson22.html" class='active'>22. Comparar resultados, datos de celda y de lámina</a>
+            <a href="lesson23.html">23. Gráficos 3D a partir de datos CSV</a>
+            <a href="lesson24.html">24. Gráficos 3D a partir de fórmulas, rellenos, imágenes y notas</a>
+            <a href="lesson25.html">25. Gráficos y resultados reproducidos juntos</a>
+            <a href="lesson26.html">26. Herramientas de malla</a>
+            <a href="lesson27.html">27. Medir, anotar e informar</a>
+            <a href="lesson28.html">28. Análisis, selección y escenas</a>
+            <a href="lesson29.html">29. Trazado de rayos en la práctica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lección 22 de 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 75.86%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lección 22: Comparar resultados, datos de celda y de lámina</h1>
+        </div>
+
+        <h2>Introducción</h2>
+        <p>Los archivos de resultados reales no solo se diferencian en sus números. Dos análisis de la misma pieza deben compararse con justicia; los datos por elemento se dibujan planos salvo que los promedie; los modelos de lámina no tienen volumen que cortar; y los resultados de flujo llegan con sus propias unidades. Esta lección muestra cómo ModelViewer trata cada caso.</p>
+        <h2>Comparar dos resultados</h2>
+        <p>Comparar muestra dos resultados del mismo documento uno al lado del otro o apilados, con una cámara compartida. El ejemplo pone la flexión frente a la torsión en la misma viga en I.</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Poner ambos resultados en un documento</div>
+            <div class="step-content">Abra <code>ibeam_cantilever.frd</code> y use <b>Visualización → Resultados de simulación → Añadir resultado a este documento...</b> para añadir <code>ibeam_torsion.frd</code>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Iniciar la comparación</div>
+            <div class="step-content">Elija el segundo resultado en <b>Comparar con:</b> y haga clic en <b>Comparar</b> (o use <b>Visualización → Resultados de simulación → Comparar resultados...</b>). Elija lado a lado o apilados.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Hacer comparables los colores</div>
+            <div class="step-content">Active <b>Mismo rango de color para ambos</b>: colores iguales significan entonces valores iguales en ambos paneles. Active <b>Enlazar las cámaras</b> para que ambas vistas vayan a la par al girar o hacer zoom.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 4: Salir de la comparación</div>
+            <div class="step-content">Haga clic en <b>Salir de la comparación</b> (el mismo botón) para volver a una sola vista.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_22_compare_side_by_side.png" alt="tutorial_22_compare_side_by_side.png" title="Capture: Open ibeam_cantilever.frd, add ibeam_torsion.frd, Compare side by side with &quot;Same colour range for both&quot; and &quot;Link the cameras&quot; on, last load step, deformed shape on; capture the viewport." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open ibeam_cantilever.frd, add ibeam_torsion.frd, Compare side by side with &quot;Same colour range for both&quot; and &quot;Link the cameras&quot; on, last load step, deformed shape on; capture the viewport." style="display:none; width:700px; height:420px;">Captura: tutorial_22_compare_side_by_side.png (700x420)</div>
+            <span class="screenshot-caption">Flexión (izquierda) y torsión (derecha) de la misma viga en I, lado a lado con un solo rango de color</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_22_compare_controls.png" alt="tutorial_22_compare_controls.png" title="Capture: While comparing, crop the part of the Simulation Results tab with Compare with, Show in (layout), Same colour range, Link the cameras and Exit Compare." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: While comparing, crop the part of the Simulation Results tab with Compare with, Show in (layout), Same colour range, Link the cameras and Exit Compare." style="display:none; width:420px; height:360px;">Captura: tutorial_22_compare_controls.png (420x360)</div>
+            <span class="screenshot-caption">Los controles de comparación en la pestaña Resultados de simulación</span>
+        </div>
+
+        <h2>Datos de elemento (datos de celda)</h2>
+        <p>Algunos solvers escriben un valor por elemento en lugar de por nodo. Estos campos llevan <b>[celdas]</b> en la lista de campos y cada elemento se dibuja de un único color plano. <b>Promediar datos de celda en los nodos</b> los dibuja suaves: cada nodo toma el promedio de los elementos que lo rodean, ponderado por su tamaño.</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Abrir el cubo de datos de celda</div>
+            <div class="step-content">Abra <code>cell_data_cube.vtk</code>, un bloque de 8 x 8 x 8 hexaedros con solo campos de celda: un <i>Element_Stress</i> suave y un <i>Element_Group</i> entero con cuatro regiones.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Comparar plano y promediado</div>
+            <div class="step-content">Mire <i>Element_Stress</i> al abrir (un color plano por elemento) y luego active <b>Promediar datos de celda en los nodos</b> y vea cómo se suaviza. <i>Element_Group</i> es mejor dejarlo plano: sus regiones son etiquetas, no cantidades.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_22_cell_data_flat_vs_smooth.png" alt="tutorial_22_cell_data_flat_vs_smooth.png" title="Capture: Open cell_data_cube.vtk, Field = Element_Stress; capture the cube with the option off, then on (same camera) and join the two pictures side by side." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open cell_data_cube.vtk, Field = Element_Stress; capture the cube with the option off, then on (same camera) and join the two pictures side by side." style="display:none; width:700px; height:350px;">Captura: tutorial_22_cell_data_flat_vs_smooth.png (700x350)</div>
+            <span class="screenshot-caption">Element_Stress dibujado plano (izquierda) y promediado en los nodos (derecha)</span>
+        </div>
+
+        <div class="note note-info">
+            El gráfico en el tiempo o a lo largo de una línea, la representación de volumen y las isosuperficies también funcionan con un campo de celda; siempre usan los valores promediados. Un resultado con un solo paso muestra su historia como un punto.
+        </div>
+        <h2>Resultados de lámina (solo superficie)</h2>
+        <p>Un resultado formado solo por triángulos o cuadriláteros no tiene volumen que cortar. Los gráficos siguen funcionando: el gráfico en el tiempo lee el punto de la superficie en el que hizo clic, y el gráfico a lo largo de una línea sigue la línea sobre la superficie, dejando un hueco donde la línea la abandona en una lámina curva.</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Abrir la placa de lámina</div>
+            <div class="step-content">Abra <code>shell_plate_transient.frd</code>: una placa plana de 2 x 1 de cuadriláteros de lámina con el campo de temperatura en 10 pasos de tiempo y calor que entra por el borde izquierdo.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Graficarla</div>
+            <div class="step-content">Haga clic derecho cerca del centro y elija <b>Graficar en el tiempo aquí</b>; pruebe luego <b>Graficar a lo largo de una línea...</b> del borde izquierdo al derecho en el último paso y reproduzca la línea de tiempo con el gráfico abierto.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_22_shell_plot_over_line.png" alt="tutorial_22_shell_plot_over_line.png" title="Capture: Open shell_plate_transient.frd, last step, Plot Over Line from the left edge to the right edge; capture viewport and chart together." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open shell_plate_transient.frd, last step, Plot Over Line from the left edge to the right edge; capture viewport and chart together." style="display:none; width:700px; height:450px;">Captura: tutorial_22_shell_plot_over_line.png (700x450)</div>
+            <span class="screenshot-caption">Temperatura a lo largo de la placa de lámina con el gráfico a su lado</span>
+        </div>
+
+        <h2>Un resultado de flujo con sus propias unidades</h2>
+        <p>Abra <code>openfoam_cavity/cavity.foam</code> (el archivo .foam está vacío; solo apunta al caso). Todos sus campos son datos de celda, por lo que se dibujan planos, y las unidades proceden de las dimensiones del propio caso: temperatura en kelvin, velocidad en metros por segundo, el tensor simétrico <i>sigma</i> en pascales; la presión cinemática <i>p</i> no tiene unidad. Reproduzca los cinco directorios de tiempo (0 a 2 s) para ver cómo arranca un vórtice y se calienta un gradiente de temperatura.</p>
+        <div class="note note-warning">
+            Los valores de campo de este ejemplo son sintéticos: ninguna ejecución de OpenFOAM los produjo. Existen para probar el lector, la visualización de datos de celda, la línea de tiempo y las unidades. Abra su propio caso de OpenFOAM de la misma forma: el archivo .foam de la carpeta del caso.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_22_openfoam_cavity.png" alt="tutorial_22_openfoam_cavity.png" title="Capture: Open sample-models/Simulation/openfoam_cavity/cavity.foam, Field = U, Component = Magnitude, last time step; capture the viewport with the legend showing m/s." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open sample-models/Simulation/openfoam_cavity/cavity.foam, Field = U, Component = Magnitude, last time step; capture the viewport with the legend showing m/s." style="display:none; width:700px; height:450px;">Captura: tutorial_22_openfoam_cavity.png (700x450)</div>
+            <span class="screenshot-caption">El ejemplo de cavidad de OpenFOAM, magnitud de velocidad con su unidad en la leyenda</span>
+        </div>
+
+
+        <div class="lesson-navigation">
+            <a href='lesson21.html' class='nav-button'>← Lección anterior</a>
+            <a href="index.html" class="back-to-index">↑ Volver al índice</a>
+            <a href='lesson23.html' class='nav-button'>Siguiente lección →</a>
+        </div>
+    </div>
+</body>
+</html>

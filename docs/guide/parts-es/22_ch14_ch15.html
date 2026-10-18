@@ -1,0 +1,97 @@
+<h1 class="chapter">Flujo en el tiempo: líneas de trayectoria</h1>
+
+<p>Una <b>línea de corriente</b> es el camino a lo largo de un campo congelado en un instante. Una <b>línea de trayectoria</b> es el recorrido de una partícula transportada por un campo que <i>cambia con el tiempo</i>: es lo que mostraría una gota de colorante. Cuando el flujo es no estacionario, las dos difieren, y las líneas de trayectoria son las que coinciden con la realidad. ModelViewer dibuja líneas de trayectoria a partir de una fórmula dependiente del tiempo o de una serie temporal CSV, las colorea por tiempo y puede animarlas.</p>
+
+<h2>Líneas de trayectoria a partir de una serie temporal CSV</h2>
+<p>La tabla es un campo de velocidad muestreado en una <b>cuadrícula regular completa</b> para cada uno de una serie de tiempos. Cada fila contiene un tiempo, una posición y una velocidad:</p>
+<pre>t,x,y,u,v,w
+0,0,0,-0.000000,0.000000,0
+0,0,0.25,-0.000000,0.222144,0
+...</pre>
+<ul>
+  <li>Elija como <span class="ui">Origen de los datos</span> <i>Serie temporal CSV (líneas de trayectoria)</i> y abra o pegue la tabla. <span class="ui">Columna de tiempo</span>, <span class="ui">X</span>, <span class="ui">Y</span>, un <span class="ui">Z</span> opcional y <span class="ui">U</span>, <span class="ui">V</span>, <span class="ui">W</span> se adivinan a partir de los nombres del encabezado (<code>t</code> o <code>time</code>, <code>x</code>, <code>u</code> ...) y se pueden cambiar. Sin columna Z el campo es plano.</li>
+  <li>La línea de estado indica <i>N filas forman una cuadrícula completa</i> y cuántas semillas y segmentos resultan, o por qué la tabla no se puede usar: una fila que falta (indica cuántas filas hacen falta), una celda no numérica (nombra la fila), una columna omitida.</li>
+  <li><b>Cómo se traza.</b> Las semillas se sueltan a lo largo de Y en el centro del rango de X (en el plano z central para una tabla 3D) y se transportan por el campo con una integración de Runge-Kutta de cuarto orden, en <span class="ui">pasos de tiempo</span> iguales desde el primer hasta el último tiempo de la tabla. El campo se interpola linealmente en el espacio y en el tiempo. Un rastro termina donde su partícula abandona la cuadrícula. El orden de las filas del archivo no importa.</li>
+  <li>Los rastros son líneas coloreadas por <b>tiempo</b>, de modo que la leyenda va del tiempo inicial al final, y admiten los controles habituales de mapa de colores, bandas, rango y ancho de línea.</li>
+</ul>
+<figure data-img="tutorial_25_double_gyre_pathlines.png"><figcaption>Líneas de trayectoria del doble giro, coloreadas por tiempo</figcaption></figure>
+
+<table class="compact">
+  <thead><tr><th style="width:40%">Ejemplo</th><th>Qué es</th></tr></thead>
+  <tbody>
+    <tr><td><code>pathlines_double_gyre.csv</code></td><td>El clásico doble giro no estacionario en x 0..2, y 0..1: dos celdas que giran en sentidos opuestos y cuya línea divisoria oscila con un periodo de 10 s, muestreado en 21 tiempos (945 filas). Un campo plano.</td></tr>
+    <tr><td><code>pathlines_rising_vortex_3d.csv</code></td><td>Un campo 3D (4.212 filas con una columna Z): una rotación alrededor del eje Z cuya velocidad pulsa en el tiempo más una velocidad vertical oscilante, de modo que los rastros suben mientras giran.</td></tr>
+    <tr><td><code>pathlines_openfoam_cavity.csv</code></td><td>La velocidad en el centro de las celdas del ejemplo de cavidad de OpenFOAM (tiempos de 0 a 2 s) en un plano justo encima de su cara superior, hecha para reproducirse junto con ese resultado (capítulo 18).</td></tr>
+  </tbody>
+</table>
+
+<h2>Líneas de trayectoria a partir de una fórmula</h2>
+<p>Con <b>Líneas de trayectoria por fórmula (dependientes del tiempo)</b> el campo son tres expresiones <span class="ui">u(x,y,z,t)</span>, <span class="ui">v(x,y,z,t)</span>, <span class="ui">w(x,y,z,t)</span> en la posición <b>y el tiempo</b>; <span class="ui">Rango / muestras de Y</span> fija las semillas a lo largo de Y en el centro del rango de X (en z = 0), y <span class="ui">Rango / pasos de T</span> el intervalo de tiempo y el número de pasos de integración. Un rastro termina donde su partícula abandona el rango de x / y.</p>
+<table class="compact">
+  <thead><tr><th style="width:28%">Preajuste</th><th>Comportamiento</th></tr></thead>
+  <tbody>
+    <tr><td>Vórtice pulsante</td><td>Una rotación rígida cuya velocidad pulsa en el tiempo: anillos concéntricos; las bandas de color (tiempo) se aprietan donde la partícula se frena y se estiran donde acelera.</td></tr>
+    <tr><td>Doble giro</td><td>Dos celdas que giran en sentidos opuestos y cuya línea divisoria oscila; los rastros vecinos se pliegan y se estiran.</td></tr>
+    <tr><td>Onda progresiva</td><td>Una corriente estacionaria desviada lateralmente por una onda que viaja en x: los rastros derivan hacia delante y ondulan.</td></tr>
+    <tr><td>Corriente ascendente oscilante</td><td>Un vórtice con una velocidad vertical que oscila: los anillos suben y bajan, de modo que los rastros dibujan hélices en Z.</td></tr>
+  </tbody>
+</table>
+<div class="callout warn"><span class="label">Precaución</span>
+  <p>En este origen <code>t</code> es el <b>tiempo</b>. En <i>Líneas de corriente por fórmula</i> el campo es estacionario (sin tiempo), y en <i>Curva paramétrica</i> <code>t</code> es solo el parámetro de la curva. Si el final del rango de tiempo es anterior a su comienzo, <span class="ui">Crear gráfico</span> se desactiva con un mensaje.</p>
+</div>
+<figure data-img="tutorial_25_formula_pathlines.png"><figcaption>El preajuste Vórtice pulsante: anillos cuyas bandas de color se aprietan donde la partícula se frena</figcaption></figure>
+
+<h2>Animar las líneas de trayectoria</h2>
+<p>Seleccione el gráfico en <span class="ui">Gráfico activo</span> y marque <span class="ui">Animar las líneas de trayectoria (línea de tiempo)</span> en la pestaña Gráfico 3D. En la parte superior de la vista aparece una <b>línea de tiempo</b>, la misma barra que para los resultados de simulación, con reproducir/pausa, paso, parada, un control deslizante, el tiempo actual, <span class="ui">Bucle</span> y una elección de velocidad. Los rastros se dibujan solo hasta el tiempo actual, con un punto en la cabeza de cada uno, coloreado por el tiempo actual. Al activar la opción se muestra todo el gráfico hasta que pulsa reproducir; desde el final, la reproducción vuelve a empezar; al desmarcar la opción vuelven los rastros completos y se quita la barra. Ocultar el gráfico en el árbol de la escena quita la barra y pausa la reproducción.</p>
+<figure data-img="tutorial_25_animated_pathlines.png"><figcaption>Líneas de trayectoria a mitad de la animación, con sus puntos de cabeza y la línea de tiempo</figcaption></figure>
+<p class="small">La animación es una ayuda de visualización: no se guarda con el archivo y los puntos de cabeza no se exportan.</p>
+
+
+<h1 class="chapter">Estilo, ejes y escalas</h1>
+
+<p>Todo lo relativo a un gráfico creado (colores, tamaños, los ejes) está en la pestaña <span class="ui">Gráfico 3D</span> del panel acoplable (junto a la pestaña Resultados de simulación). Elija el gráfico en <span class="ui">Gráfico activo</span>; los controles actúan sobre él. La entrada del gráfico en el árbol de la escena tiene la casilla de visibilidad.</p>
+
+<h2>Color</h2>
+<table class="compact">
+  <thead><tr><th style="width:30%">Control</th><th>Qué hace</th></tr></thead>
+  <tbody>
+    <tr><td><span class="ui">Título</span></td><td>El nombre que se muestra en el árbol de la escena y en la leyenda.</td></tr>
+    <tr><td><span class="ui">Mapa de colores</span></td><td>La rampa de color: secuencial, divergente y otras.</td></tr>
+    <tr><td><span class="ui">Bandas de color</span></td><td>Colores suaves o un número de bandas discretas.</td></tr>
+    <tr><td><span class="ui">Rango de color automático</span></td><td>Activado: el rango sigue a los datos (también tras una edición). Desactivado: <span class="ui">Mínimo</span> y <span class="ui">Máximo</span> son suyos; úselo para comparar gráficos.</td></tr>
+  </tbody>
+</table>
+
+<h2>Tamaño y forma</h2>
+<table class="compact">
+  <thead><tr><th style="width:30%">Control</th><th>Para</th></tr></thead>
+  <tbody>
+    <tr><td><span class="ui">Ancho de línea</span></td><td>líneas y líneas de trayectoria (en píxeles de pantalla)</td></tr>
+    <tr><td><span class="ui">Tamaño del marcador</span></td><td>marcadores de dispersión</td></tr>
+    <tr><td><span class="ui">Tamaño de flecha</span></td><td>campos vectoriales (escala de longitud; no crece con la cámara)</td></tr>
+    <tr><td><span class="ui">Ancho de barra</span>, <span class="ui">Profundidad de barra</span></td><td>barras</td></tr>
+    <tr><td><span class="ui">Niveles de contorno</span>, <span class="ui">Líneas de contorno</span></td><td>superficies: cuántas isolíneas y si van sobre la superficie o sobre el plano base</td></tr>
+    <tr><td><span class="ui">Opacidad</span></td><td>planos de imagen y los planos de referencia</td></tr>
+  </tbody>
+</table>
+
+<h2>La caja de ejes y los planos de referencia</h2>
+<p><span class="ui">Mostrar caja de ejes</span> enmarca el gráfico con ejes rotulados, marcas y números; ocultarla no descarta la disposición. <span class="ui">Planos</span> añade los planos de referencia XY, XZ e YZ en el mínimo de los otros ejes, con una <span class="ui">Opacidad</span>. Un eje plano (todos los valores iguales) se amplía con una décima parte de la mayor de las demás extensiones, para que un plano no se convierta en una aguja.</p>
+
+<h2>Ejes compartidos</h2>
+<p>Todos los gráficos de un documento se dibujan sobre <b>un único conjunto de ejes</b> (las mismas escalas, rangos y etiquetas), porque eso es lo que permite compararlos. En <span class="ui">Ejes</span> cada eje tiene una etiqueta, una <span class="ui">Escala del eje</span>, un rango y un número de marcas. Cambiar una vuelve a disponer <b>todos los gráficos juntos</b>, sea cual sea el gráfico seleccionado; un gráfico creado más tarde se une a los ejes que ya existen.</p>
+<table class="compact">
+  <thead><tr><th style="width:22%">Escala</th><th>Significado y límite</th></tr></thead>
+  <tbody>
+    <tr><td><b>Lineal</b></td><td>El valor predeterminado.</td></tr>
+    <tr><td><b>Log 10</b></td><td>Potencias de diez. Necesita que los datos de <i>todos</i> los gráficos sean mayores que cero en ese eje. Fijarla mientras un gráfico llega a cero se rechaza con un mensaje que indica el motivo; crear un gráfico que no se puede mostrar en un eje Log 10 existente devuelve ese eje a Lineal para todos los gráficos, con un mensaje de estado.</td></tr>
+    <tr><td><b>SymLog</b></td><td>Logarítmica para valores grandes, lineal alrededor de cero; funciona con cualquier dato, incluidos los valores negativos. Ejemplos son los índices de vóxeles que empiezan en 0 y los campos vectoriales con ambos signos.</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>Las líneas, la dispersión, las superficies, las barras, las flechas vectoriales y los volúmenes de vóxeles siguen todos la escala: la geometría se transforma, no solo se vuelve a rotular.</li>
+  <li>Las flechas vectoriales se reorientan según el estiramiento local de la escala en su posición y conservan su longitud (que lleva la magnitud) y su color; las cuadrículas de vóxeles se remuestrean en una cuadrícula regular en el espacio escalado. Volver a Lineal lo restaura todo.</li>
+  <li>La lectura al pasar el cursor sobre una superficie sigue mostrando los <b>valores de los datos</b> del gráfico, no posiciones en los ejes escalados.</li>
+</ul>
+<figure data-img="tutorial_24_log_axis_shared.png"><figcaption>Un gráfico de dispersión y una línea exponencial que comparten un eje Z logarítmico</figcaption></figure>
+<figure data-img="tutorial_23_plot_tab.png"><figcaption>La pestaña Gráfico 3D con los controles del gráfico activo</figcaption></figure>

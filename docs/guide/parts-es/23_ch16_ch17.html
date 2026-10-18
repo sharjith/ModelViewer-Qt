@@ -1,0 +1,59 @@
+<h1 class="chapter">Rellenos, notas, imágenes y sondeo</h1>
+
+<h2>Rellenos: cintas y cortinas</h2>
+<p>Las líneas y los gráficos de dispersión se pueden rellenar con una cinta translúcida, coloreada como el gráfico, hasta un plano base o entre dos curvas.</p>
+<table>
+  <thead><tr><th style="width:30%">Objetivo</th><th>Cómo</th></tr></thead>
+  <tbody>
+    <tr><td>Una cortina bajo una línea</td><td>Línea / Curva (<code>line_helix.csv</code>): marque <span class="ui">Rellenar hasta Z base</span> y fije la base (0). Con Editar gráfico se cambia la base; la cortina cuelga de la línea donde queda por debajo de la base.</td></tr>
+    <tr><td>Una banda entre dos curvas</td><td>Línea / Curva con una segunda columna Z (<code>line_band.csv</code>: columnas x, y, z, z2, value): marque el relleno y elija la columna en <span class="ui">o entre la línea y la columna</span>. La banda se estrecha hasta una línea donde las curvas se cruzan. El cuadro de la base no se usa mientras haya una columna elegida; con la columna en <i>(ninguno)</i> el relleno vuelve a llegar al plano base.</td></tr>
+    <tr><td>Cintas a partir de puntos de dispersión</td><td>Dispersión (<code>scatter_clusters.csv</code>): <span class="ui">Rellenar hasta Z base</span> con una base como -3; o una columna en <span class="ui">o entre el gráfico y la columna</span> (<code>scatter_band.csv</code>) para cintas entre dos conjuntos de puntos.</td></tr>
+    <tr><td>Rellenar una curva generada</td><td>Curva paramétrica, preajuste Hélice: <span class="ui">Rellenar la curva hasta Z base</span>, o escriba una segunda z2(t) (por ejemplo <code>2 + sin(t)</code>) en <span class="ui">o hasta z2(t) =</span> para rellenar entre dos curvas con las mismas x(t), y(t). Si un gráfico generado está relleno se decide al crearlo.</td></tr>
+  </tbody>
+</table>
+<p>La caja de ejes siempre crece para incluir lo que alcanza el relleno.</p>
+<figure data-img="tutorial_24_fill_between_curves.png"><figcaption>Una banda translúcida entre dos curvas que se cruzan, que se estrecha hasta una línea donde se cruzan</figcaption></figure>
+<figure data-img="tutorial_24_fill_curtain.png"><figcaption>La hélice con una cortina hasta el plano base</figcaption></figure>
+
+<h2>Notas de texto</h2>
+<p>Una <b>nota</b> es un texto breve en un punto de sus datos: un pico, un valor atípico, un umbral. Seleccione un gráfico y abra el grupo <span class="ui">Notas de texto</span> en la pestaña Gráfico 3D.</p>
+<ul>
+  <li><span class="ui">Colocar nota</span> activa una herramienta de clic: haga clic en un punto del gráfico. El clic se ajusta al punto de datos más cercano de un gráfico visible (a menos de 14 píxeles; en las líneas, también al punto más cercano de un segmento); si no, usa el punto de la superficie bajo el cursor. Un cuadro pide el texto, que puede tener varias líneas. <span class="ui">Añadir en el centro</span> añade una nota en el centro de los datos del gráfico.</li>
+  <li>En la vista, <b>arrastre</b> una nota para moverla, <b>haga doble clic</b> para editarla, <b>haga clic derecho</b> para borrarla. La tabla de la pestaña edita directamente X, Y, Z y el texto de la nota.</li>
+  <li>Las notas se guardan en las coordenadas de los <i>datos</i> del gráfico, por lo que permanecen en su punto cuando cambia la escala del eje. Siguen la visibilidad del gráfico, se dibujan incluso con la caja de ejes oculta y se guardan con la sesión.</li>
+  <li>Cada colocación, movimiento, edición y borrado se puede <b>deshacer</b>.</li>
+</ul>
+<figure data-img="tutorial_24_text_notes.png"><figcaption>Una nota en el pico de una superficie</figcaption></figure>
+
+<h2>Curvas de sección al pasar el cursor</h2>
+<p>Para una <b>superficie</b>, marque <span class="ui">Mostrar curvas de sección al pasar el cursor</span>. Al mover el cursor sobre la superficie se dibujan, por el punto señalado, las curvas en que la cortan los planos X, Y y Z (coloreadas en rojo, verde y azul como los ejes; la azul es la línea de contorno por el punto), junto con los valores de datos del punto. Solo se dibuja la curva conexa por el punto, de modo que una silla muestra una rama. Es una forma rápida de leer un perfil de una superficie sin construir un gráfico, y funciona solo en la vista única.</p>
+
+<h2>Imágenes en un plano</h2>
+<p>Una <b>imagen</b> puede apoyarse en uno de los planos del gráfico: un plano de situación bajo una superficie, una fotografía de una probeta junto a sus datos medidos. Elija como <span class="ui">Origen de los datos</span> <i>Imagen en un plano</i>, elija el archivo y el plano: <b>XY</b> (plano, en el mínimo de Z), <b>XZ</b> o <b>YZ</b> (vertical, en el mínimo del eje restante); los rangos se adaptan a la forma de la imagen al elegirla o al cambiar el plano, y puede ajustarlos.</p>
+<ul>
+  <li><span class="ui">Opacidad</span> (100 % de forma predeterminada) deja ver lo que hay detrás de la imagen; una imagen con su propia transparencia se combina con ella (<code>image_gradient_alpha.png</code> se desvanece hacia sus esquinas).</li>
+  <li>Visto por detrás, una imagen se lee <b>en espejo</b>. Para una imagen opaca, marque <span class="ui">Legible desde atrás</span> y la parte posterior la muestra del derecho (<code>image_gradient.png</code> tiene una marca «L» para mostrar cómo está orientada). La opción solo está disponible para una imagen opaca al 100 % de opacidad: con una zona transparente o una opacidad menor ambas caras se verían a través una de la otra, así que la parte posterior permanece en espejo.</li>
+  <li>Un gráfico de imagen no tiene mapa de colores ni leyenda: sus píxeles son su color.</li>
+</ul>
+<figure data-img="tutorial_24_image_plane.png"><figcaption>Una imagen apoyada en un plano junto a un gráfico de superficie</figcaption></figure>
+
+
+<h1 class="chapter">Editar, guardar y exportar</h1>
+
+<h2>Editar un gráfico</h2>
+<p>Cada gráfico recuerda cómo se hizo. Selecciónelo en <span class="ui">Gráfico activo</span> y haga clic en <span class="ui">Editar gráfico...</span>: el cuadro de diálogo se reabre con el mismo origen y con la tabla, la elección de columnas, las expresiones, los rangos, los números de muestras y los parámetros restaurados. Cambie lo que necesite y haga clic en <span class="ui">Recrear gráfico</span>: <b>el gráfico se reconstruye en su sitio</b>, sin nueva entrada en el árbol, y conserva su título, visibilidad, mapa de colores, rango y bandas, planos de referencia, líneas de contorno, ancho de línea y ajustes de ejes (con <span class="ui">Rango de color automático</span> activado, el rango sigue a los nuevos datos). Lo que no puede cambiar en una edición es el origen de los datos (y, en una superficie por fórmula, la elección superficie/contorno); cree un gráfico nuevo para eso.</p>
+
+<h2>Guardar</h2>
+<p>Los gráficos se guardan en la sesión <code>.mvf</code> con todo lo necesario para editarlos más tarde: los datos, la definición (columnas o expresiones), los ejes, los ajustes de color y las notas. Tras reabrir, <span class="ui">Editar gráfico...</span> sigue funcionando. Una sesión guardada por una versión anterior que tenía ejes distintos para cada gráfico se abre con los ejes del gráfico seleccionado, que ahora son compartidos.</p>
+
+<h2>Exportar</h2>
+<ul>
+  <li>Los <b>gráficos de puntos y de líneas</b> (marcadores de dispersión, líneas, rastros de líneas de trayectoria) se exportan a <b>glTF</b>, <b>GLB</b> y <b>OBJ</b> con el resto de la escena; sus colores se incorporan al archivo para que otros programas los muestren coloreados.</li>
+  <li>Las superficies, las barras y otros gráficos de malla se exportan como cualquier malla.</li>
+  <li>Las <b>imágenes</b> de la vista (para informes, diapositivas, artículos) salen de la exportación de imágenes del programa y del informe en PDF, como en cualquier otra vista.</li>
+  <li>Los gráficos <b>no los dibuja el trazador de rayos</b> y los renders con trazado de caminos no los contienen. La animación de las líneas de trayectoria y el dibujo en pantalla de las notas son ayudas de visualización y no forman parte de un modelo exportado.</li>
+</ul>
+
+<div class="callout tip"><span class="label">Consejo</span>
+  <p>Para recuperar sus números, conserve el CSV: la definición de un gráfico se guarda, pero la tabla original sigue siendo la copia maestra. Si genera los datos desde un script, vuelva a ejecutarlo, reabra el gráfico con <span class="ui">Editar gráfico...</span> y cargue la tabla nueva.</p>
+</div>

@@ -1,0 +1,105 @@
+<h1 class="chapter">Saving, large results and limits</h1>
+
+<h2>Saving a result in a session</h2>
+<p>A result is a viewing session like any other, so it is saved in the <code>.mvf</code> session file (<span class="path">File &rarr; Save</span>). The point of saving is that the session reopens <b>without the original solver file</b>, with the field, range, colormap, units, deformation and timeline as you left them. When the document contains results, ModelViewer asks what to store, once per session:</p>
+<figure>
+<svg width="640" height="190" viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="12">
+  <rect x="5" y="10" width="205" height="170" rx="8" fill="#e8f0fa" stroke="#2b6cb0"/>
+  <text x="107" y="34" text-anchor="middle" font-weight="600" fill="#14213d">Shown field and displacement</text>
+  <text x="107" y="50" text-anchor="middle" fill="#2b6cb0" font-size="11">all time steps - recommended</text>
+  <text x="18" y="78" fill="#3e4c59">&#8226; the visible surface</text>
+  <text x="18" y="96" fill="#3e4c59">&#8226; the field you show</text>
+  <text x="18" y="114" fill="#3e4c59">&#8226; the displacement field</text>
+  <text x="18" y="132" fill="#3e4c59">&#8226; every step (max. 100)</text>
+  <text x="18" y="156" fill="#3e4c59">smallest file that stays live</text>
+  <rect x="217" y="10" width="205" height="170" rx="8" fill="#fdf5e4" stroke="#b7791f"/>
+  <text x="320" y="34" text-anchor="middle" font-weight="600" fill="#14213d">All fields</text>
+  <text x="320" y="50" text-anchor="middle" fill="#b7791f" font-size="11">all time steps</text>
+  <text x="230" y="78" fill="#3e4c59">&#8226; the visible surface</text>
+  <text x="230" y="96" fill="#3e4c59">&#8226; every field of the result</text>
+  <text x="230" y="114" fill="#3e4c59">&#8226; every step (max. 100)</text>
+  <text x="230" y="156" fill="#3e4c59">switch fields after reopening</text>
+  <rect x="429" y="10" width="205" height="170" rx="8" fill="#e8f6ee" stroke="#2f855a"/>
+  <text x="531" y="34" text-anchor="middle" font-weight="600" fill="#14213d">Geometry only</text>
+  <text x="531" y="50" text-anchor="middle" fill="#2f855a" font-size="11">no result data</text>
+  <text x="442" y="78" fill="#3e4c59">&#8226; the surface with the colours</text>
+  <text x="442" y="96" fill="#3e4c59">  as displayed</text>
+  <text x="442" y="156" fill="#3e4c59">a picture, no longer a result</text>
+</svg>
+<figcaption>The three choices of the Save Simulation Results dialog; each shows an estimate of the file size</figcaption>
+</figure>
+
+<h3>What is stored</h3>
+<ul>
+  <li>The snapshot is the <b>boundary surface</b>, not the volume: values are stored per surface vertex (not per solver node), compressed without loss, as 32-bit numbers. The dialog shows a size estimate before anything is written.</li>
+  <li>The steps (with their times or labels), the fields with their units and quantities, the all-solver-nodes range of each field and step (so the legend and the all-steps colour range are identical to the live result even though interior nodes are not stored), and the view state: field, component, range, colormap, bands, step, deformation and markers.</li>
+  <li>The derived stress fields are <b>not</b> stored: they are recomputed from the stress tensor on loading.</li>
+  <li>At most <b>100 time steps</b> are stored per result, evenly spaced; the dialog tells you if that applies.</li>
+  <li>The path of the source file is kept as information only; the session never needs it.</li>
+</ul>
+
+<h3>Sections, iso-surfaces and streamlines in a saved session</h3>
+<p>Without the volume, only the visible surface is stored, so the cut faces, iso-surfaces and streamlines on display are saved <b>as they were</b> and come back <i>frozen</i>: they no longer follow a moved clipping plane or another time step, and the panel says so. Tick <span class="ui">Also store the volume</span> to keep them live: the nodes, cells and chosen fields of the whole volume are stored too, the restored result is the full result, and everything - sections, iso-surfaces, streamlines, volume rendering - recomputes as before. The price is a much larger file, roughly in proportion to the volume; the dialog shows what the volume adds.</p>
+
+<h3>Reopening</h3>
+<ul>
+  <li>An older version of ModelViewer opens such a session as a plain coloured mesh (the shown colours are stored with it) and ignores the rest.</li>
+  <li>If you edit the mesh of a stored result after loading - split, merge, repair - and save, the vertex count no longer matches the stored data; on the next load the result session is dropped with a message rather than showing wrong values. Moving, rotating or scaling the model is harmless.</li>
+</ul>
+
+<h2>Large results</h2>
+<h3>Where the memory goes</h3>
+<p>Geometry is cheap; <b>time steps</b> are what grow. A result holds, for every field and every step, four bytes per value:</p>
+<table class="compact">
+  <thead><tr><th>Mesh (hexahedra)</th><th>Geometry</th><th>One step of a node scalar, a node vector and a cell scalar</th><th>50 steps, all read at once</th></tr></thead>
+  <tbody>
+    <tr><td>1 million cells</td><td>about 50 MB</td><td>about 20 MB</td><td>about 1 GB</td></tr>
+    <tr><td>5 million cells</td><td>about 250 MB</td><td>about 100 MB</td><td>about 5 GB</td></tr>
+    <tr><td>20 million cells</td><td>about 1 GB</td><td>about 410 MB</td><td>about 20 GB</td></tr>
+  </tbody>
+</table>
+<p>These are sizes of what is held in memory; Compare mode holds two results at once.</p>
+
+<h3>Lazy step loading</h3>
+<p>To keep large transient results usable, steps are loaded <b>on demand</b>. A result is read lazily when the data of its steps would need more than <b>256 MB</b> and it has more than one step; the formats that support it are <b>Exodus</b>, <b>CalculiX FRD</b>, <b>CGNS</b>, <b>VTKHDF</b> (unstructured grids and poly data) and <b>OpenFOAM</b> cases. The other formats, and VTKHDF image data, are read in full; MED is not lazy yet.</p>
+<ul>
+  <li>Opening reads only the mesh and the field headers; the last four steps that were shown stay in memory, the least recently used going first. An OpenFOAM case reads one time directory per step. A CalculiX file is memory-mapped and indexed once.</li>
+  <li>A step that is not resident is read from the file when you move to it, so scrubbing a lazy result is slower than a resident one, and <b>the file stays open</b> (a CalculiX <code>.frd</code> is locked for writing while the result is loaded).</li>
+  <li>The range over all steps - the default colour range - reads every step once on first use; a busy cursor covers that first scan.</li>
+  <li><b>Saving</b> a lazy result reads the whole file, because the snapshot stores every step it keeps.</li>
+</ul>
+<p>Measured on a result of one million hexahedra with five steps and nine fields (485 MB on disk), loaded fully and lazily:</p>
+<table class="compact">
+  <thead><tr><th></th><th>Fully read</th><th>Lazy</th></tr></thead>
+  <tbody>
+    <tr><td>Dataset in memory after opening</td><td>361 MB</td><td>47 MB</td></tr>
+    <tr><td>Time to read and build</td><td>1.0 s</td><td>0.15 s</td></tr>
+    <tr><td>Process memory peak</td><td>584 MB</td><td>323 MB</td></tr>
+    <tr><td>Show one step</td><td>3 ms</td><td>0.18 s (read from the file)</td></tr>
+    <tr><td>Range over all five steps</td><td>7 ms</td><td>0.9 s</td></tr>
+  </tbody>
+</table>
+<p class="small">Figures from a Windows release build; the colour ranges agree to the last digit between the two modes. Your numbers depend on the disk and the format - binary HDF5 and NetCDF files read much faster than ASCII ones.</p>
+
+<h3>Practical advice</h3>
+<ul>
+  <li>Write the fields and steps you need from the solver; every extra step costs time and disk space, in the file and in a saved session.</li>
+  <li>Prefer binary, structured formats (VTKHDF, Exodus, CGNS) over ASCII <code>.vtk</code> or <code>.frd</code> for big transient results.</li>
+  <li>Opening takes time in two stages: reading the file, then extracting the boundary surface (a few seconds for five million cells; the extraction is done in parallel).</li>
+  <li>Close results you no longer look at, and avoid Compare with two huge results.</li>
+</ul>
+
+<h2>Limits and what is not supported</h2>
+<table>
+  <thead><tr><th style="width:34%">Limit</th><th>Details</th></tr></thead>
+  <tbody>
+    <tr><td>No solving or editing</td><td>ModelViewer neither meshes nor solves, edits values, or creates difference (A minus B) fields.</td></tr>
+    <tr><td>Open formats only</td><td>No proprietary formats (Abaqus <code>.odb</code>, ANSYS <code>.rst</code>, Nastran OP2); export from those programs to VTK or another open format first.</td></tr>
+    <tr><td>Shells have no inside</td><td>Sections, iso-surfaces, streamlines and volume rendering need volume cells.</td></tr>
+    <tr><td>Overlays are not meshes</td><td>Cut faces, iso-surfaces, streamlines, arrows and ellipsoids cannot be selected, exported to glTF/OBJ, or drawn by the ray tracer. Results themselves are drawn flat in every rendering mode and are not ray traced.</td></tr>
+    <tr><td>Streamline fields</td><td>Node vector fields only; concave polyhedra are excluded from tracing.</td></tr>
+    <tr><td>Section tools</td><td>The coloured cut and the seeding on a cut use the axis-aligned Clipping Planes, not the box mode or custom planes.</td></tr>
+    <tr><td>File-format gaps</td><td>Composite VTKHDF files (multi-block), structured and rectilinear VTKHDF grids, and CGNS face-centred data are not read yet; Exodus beam networks load but have nothing to draw; legacy VTK polygons, strips and vertices are not displayed.</td></tr>
+    <tr><td>Compare</td><td>Two results at a time, not saved, and not pane-aware for picking, measurement and annotation (chapter 8).</td></tr>
+  </tbody>
+</table>

@@ -1,0 +1,96 @@
+<h1 class="chapter">Die Diagrammtypen</h1>
+
+<p>Dieses Kapitel ist das Nachschlagewerk dafür, was jeder Diagrammtyp braucht und bietet. Die Spalten werden im Dialog „3D-Diagramm hinzufügen“ zugeordnet; die hier genannten Gestaltungssteuerungen befinden sich in der Registerkarte <span class="ui">3D-Diagramm</span> (Kapitel 15).</p>
+
+<table>
+  <thead><tr><th style="width:20%">Diagrammtyp</th><th style="width:34%">Spalten</th><th>Hinweise</th></tr></thead>
+  <tbody>
+    <tr><td><b>Fläche</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span>; optional <span class="ui">Farbwert</span></td><td>Ein vollständiges regelmäßiges Gitter wird als Netz gezeichnet; verstreute Punkte werden trianguliert (Delaunay). Wahlweise mit Konturlinien.</td></tr>
+    <tr><td><b>Kontur</b></td><td>wie Fläche</td><td>Nur die Isolinien von Z; sie lassen sich auf die Basisebene abflachen.</td></tr>
+    <tr><td><b>Linie / Kurve</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span>; optional <span class="ui">Farbwert</span></td><td>Punkte in Reihenfolge. Eine Linie konstanter Breite; die Breite ist in Bildschirmpixeln, ändert sich also nicht mit dem Zoom. Kann gefüllt werden.</td></tr>
+    <tr><td><b>Streudiagramm</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span>; optional <span class="ui">Farbwert</span></td><td>Eine Markierung pro Punkt. Wahlweise Stiele, Fehlerbalken und Füllungen.</td></tr>
+    <tr><td><b>Balken / Histogramm</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span> (die Höhe); optional <span class="ui">Basis</span>, <span class="ui">Breite</span>, <span class="ui">Tiefe</span>, <span class="ui">Farbwert</span></td><td>Ein Quader pro Zeile. Ein eindimensionales Histogramm setzt Y auf <i>(keine)</i>.</td></tr>
+    <tr><td><b>Voxel / Volumetrisch</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span> (Gitterindizes); <span class="ui">Farbwert</span> (Belegung)</td><td>Gezeichnet als halbtransparente Wolke, wie die Volumendarstellung eines Ergebnisses.</td></tr>
+    <tr><td><b>Vektor (Quiver)</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span> und <span class="ui">U</span>, <span class="ui">V</span>, <span class="ui">W</span>; optional <span class="ui">Farbwert</span></td><td>Ein Pfeil pro Zeile; Pfeilgröße und Farbe werden in der Registerkarte gesteuert.</td></tr>
+  </tbody>
+</table>
+
+<h2>Fläche und Kontur</h2>
+<p>Eine Fläche braucht z über x und y. Bilden die Zeilen ein <b>vollständiges regelmäßiges Gitter</b> (jede Kombination der x-Werte und der y-Werte genau einmal, in beliebiger Zeilenreihenfolge), wird das Gitter direkt vernetzt. Andernfalls werden die Punkte trianguliert, was <code>surface_scattered.csv</code> prüft: vierzehn unregelmäßige Punkte mit einer sanft geneigten Höhe.</p>
+<ul>
+  <li><span class="ui">Konturlinien</span> fügt jeder Fläche Isolinien von Z hinzu: <i>Auf der Fläche</i> zeichnet dunkle Linien darauf (von beiden Seiten sichtbar), <i>Auf der Basisebene</i> zeichnet farbkodierte Linien, die auf den Boden der Achsenbox abgeflacht sind. <span class="ui">Konturstufen</span> legt fest, wie viele.</li>
+  <li>Der eigene Typ <b>Kontur (Isolinien der Fläche)</b> zeigt nur die Linien, und <span class="ui">Konturen auf die Basisebene projizieren</span> flacht sie ab.</li>
+  <li><span class="ui">Farbstufen</span> verwandelt die glatte Farbe der Fläche in einzelne Bänder; auch ein fester Farbbereich ist verfügbar.</li>
+</ul>
+<figure data-img="tutorial_23_contours_and_sections.png"><figcaption>Konturlinien auf der Basisebene und die Schnittkurven durch den überfahrenen Punkt (Kapitel 16)</figcaption></figure>
+
+<h2>Linie / Kurve</h2>
+<p>Die Zeilenreihenfolge ist die Reihenfolge entlang der Kurve (<code>line_helix.csv</code>: zwei Windungen einer Schraubenlinie). Die Farbe folgt <span class="ui">Farbwert</span> (oder Z) entlang der Kurve. Die <span class="ui">Linienbreite</span> ist in Bildschirmpixeln. Eine Linie kann bis zur Basisebene oder bis zu einer zweiten Kurve <b>gefüllt</b> werden (Kapitel 16).</p>
+
+<h2>Streudiagramm</h2>
+<p>Eine Markierung pro Zeile; <span class="ui">Markergröße</span> legt die Größe fest. Die Farben gelten <b>pro Punkt</b> und werden nicht interpoliert: <code>scatter_clusters.csv</code> hat drei Cluster, die nach ihrer Kennung eingefärbt sind. Varianten:</p>
+<ul>
+  <li><span class="ui">Stiele bis Basis-Z zeichnen</span>: eine dünne Linie von jedem Punkt nach unten (oder oben) bis zum Basiswert.</li>
+  <li><span class="ui">Fehlerbalken anzeigen (&plusmn;Z)</span> mit einer Fehlerspalte: ein senkrechter Balken von &plusmn; dieser Größe an jedem Punkt (<code>scatter_error_bars.csv</code>).</li>
+  <li><span class="ui">Bis Basis-Z füllen</span>: ein durchscheinendes Band von jedem Punkt bis zur Basisebene oder, wenn in <i>oder zwischen Diagramm und Spalte</i> eine Spalte gewählt ist, bis zu einer zweiten Reihe von Z-Werten (<code>scatter_band.csv</code>). Die Achsenbox wächst, sodass sie beides einschließt.</li>
+</ul>
+
+<h2>Balken und Histogramm</h2>
+<ul>
+  <li>Die Höhe ist <span class="ui">Z</span>. <span class="ui">Basis</span>, <span class="ui">Breite</span> und <span class="ui">Tiefe</span> sind optional; ohne sie beginnen die Balken bei 0 und haben Breite und Tiefe 0,8, was zwischen benachbarten Balken eine Lücke lässt. Ein Balken unterhalb seiner Basis reicht nach unten, sodass vorzeichenbehaftete Daten funktionieren (<code>bar_signed.csv</code>).</li>
+  <li><span class="ui">Farbwert</span> ist standardmäßig die Höhe.</li>
+  <li><b>Eindimensionales Histogramm</b> (<code>bar_histogram_1d.csv</code>: Spalten <i>bin</i> und <i>count</i>): Setzen Sie X auf die Klassenspalte, Y auf <i>(keine)</i>, Z auf die Anzahl und lassen Sie den Rest auf <i>(keine)</i>. Das Ergebnis ist eine Reihe gleich breiter Balken, zentriert auf Y = 0, wobei Höhe und Farbe beide von der Anzahl bestimmt werden.</li>
+  <li><span class="ui">Balkenbreite</span> und <span class="ui">Balkentiefe</span> lassen sich später in der Registerkarte ändern.</li>
+</ul>
+
+<h2>Voxel / Volumetrisch</h2>
+<p>Ordnen Sie X, Y und Z den Gitterindizes und den Farbwert der Belegung zu (<code>voxel_sphere.csv</code>: eine aus einem 9 x 9 x 9-Gitter geschnittene Kugel, deren Belegung von 1,0 in der Mitte auf 0,15 nahe der Hülle abnimmt). Belegung null ist transparent, und von null verschiedene Werte blenden je nach Belegung ein, sodass das Diagramm eine weiche Wolke und kein Satz von Quadern ist.</p>
+
+<h2>Vektor (Quiver)</h2>
+<p>Jede Zeile ist ein Punkt und ein Vektor. <code>quiver_vortex.csv</code> ist eine Starrkörperrotation um die Z-Achse plus eine kleine Aufwärtskomponente: Die Pfeile winden sich um Z und werden mit dem Abstand länger. <span class="ui">Pfeilgröße</span> in der Registerkarte legt den Längenmaßstab fest, ohne mit der Kamera zu wachsen; die Pfeilfarbe folgt dem Wert (die Legende lautet <i>Vektorbetrag</i>).</p>
+<figure data-img="tutorial_23_plot_types.png"><figcaption>Ein Streudiagramm, ein Balkendiagramm und ein Vektorfeld in einer Szene</figcaption></figure>
+<figure data-img="tutorial_23_voxel_sphere.png"><figcaption><code>voxel_sphere.csv</code>, als halbtransparente Kugel gezeichnet</figcaption></figure>
+
+
+<h1 class="chapter">Diagramme aus Formeln</h1>
+
+<p>Für ein Diagramm brauchen Sie keine Datei: Eine Formel, eine parametrische Definition oder eine Vorlage erzeugt die Daten. Die Quellen teilen sich Vorschau, Farbe, Achsen, Hinweise und Exportwerkzeuge mit den CSV-Diagrammen, und ein erzeugtes Diagramm merkt sich seine Definition, sodass es bearbeitet und neu aufgebaut werden kann (Kapitel 17).</p>
+
+<h2>Die Quellen</h2>
+<table>
+  <thead><tr><th style="width:26%">Quelle</th><th>Sie geben an</th><th>Vorlagen</th></tr></thead>
+  <tbody>
+    <tr><td><b>Formelfläche</b></td><td>z(x, y) = ..., Bereiche und Stützstellenzahlen von x und y, benannte Parameter</td><td>Ebene, Sattel, Paraboloid, Kegel, Gauß, Sinc-Wellen, Welle, Mexikanerhut, Bivariate Normalverteilung, Logistische Regression, Rosenbrock</td></tr>
+    <tr><td><b>Parametrische Fläche</b></td><td>x(u, v), y(u, v), z(u, v), Bereiche von u und v</td><td>Torus, Ellipsoid, Möbiusband, Kleinsche Flasche, Superellipsoid, Helikoid, Katenoid, Enneper-Fläche, Kugelflächenfunktion</td></tr>
+    <tr><td><b>Parametrische Kurve</b></td><td>x(t), y(t), z(t), Bereich von t</td><td>Helix, Lissajous, Kleeblattknoten, Vivianische Kurve, Gedämpfte Spirale</td></tr>
+    <tr><td><b>Implizite Fläche</b></td><td>f(x, y, z), gezeichnet dort, wo f = 0; Bereiche und Stützstellen aller drei Achsen</td><td>Kugel, Torus, Gyroid, Wellen-Interferenz</td></tr>
+    <tr><td><b>Formel-Vektorfeld</b></td><td>u, v, w als Funktionen von x und y, ausgewertet auf einem ebenen Gitter; Bereiche und Stützstellen von x und y</td><td>Wirbel, Radial, Sattel, Schraubenförmig</td></tr>
+    <tr><td><b>Formel-Stromlinien</b></td><td>ein <i>stationäres</i> Feld u, v, w; Bereiche von x und y und eine Anzahl von Startpunkten</td><td>Vorlagen der Vektorfelder</td></tr>
+    <tr><td><b>Formel-Bahnlinien</b></td><td>ein zeitabhängiges Feld u, v, w(x, y, z, t)</td><td>Pulsierender Wirbel, Doppelwirbel, Wanderwelle, Oszillierender Aufwind (Kapitel 14)</td></tr>
+  </tbody>
+</table>
+
+<h2>Ausdrücke schreiben</h2>
+<table class="compact">
+  <thead><tr><th style="width:26%">Element</th><th>Verfügbar</th></tr></thead>
+  <tbody>
+    <tr><td>Operatoren</td><td><code>+  -  *  /  ^</code> (Potenz; <code>2^3^2</code> ist <code>2^9</code>), unäres Minus, Klammern</td></tr>
+    <tr><td>Funktionen</td><td><code>sin cos tan asin acos atan sinh cosh tanh exp log sqrt abs sign</code> (ein Argument; <code>log</code> ist natürlich und braucht einen positiven Wert, <code>sqrt</code> einen nichtnegativen) und die zweiargumentigen <code>pow(a, b)  min(a, b)  max(a, b)</code></td></tr>
+    <tr><td>Konstanten</td><td><code>pi</code>, <code>e</code></td></tr>
+    <tr><td>Variablen</td><td><code>x</code>, <code>y</code> (und <code>z</code>, wo es eine dritte Koordinate gibt); <code>u</code>, <code>v</code> sind die Flächenparameter einer parametrischen Fläche, <code>t</code> der Parameter einer Kurve oder, bei Bahnlinien, die <i>Zeit</i></td></tr>
+    <tr><td>Parameter</td><td>Benannte Konstanten wie <code>a</code>, <code>s</code>, <code>kx</code>, die eine Vorlage liefert und die Sie bearbeiten können - ändern Sie eine und drücken Sie <span class="ui">Vorschau aktualisieren</span></td></tr>
+  </tbody>
+</table>
+<p>Ein Fehler wird in der Statuszeile unter der Vorschau mit Namen gemeldet: <i>Unbekannte Variable: q</i>, <i>Schließende Klammer fehlt</i>, <i>Division durch null</i>, <i>log erfordert einen positiven Wert</i>. <span class="ui">Diagramm erstellen</span> bleibt deaktiviert, bis sich der Ausdruck auswerten lässt. Beispiele:</p>
+<pre>Formelfläche      z =  a*exp(-((x-x0)^2+(y-y0)^2)/(2*s^2))        (Vorlage Gauß)
+Parametrische Kurve  x = cos(t)   y = sin(t)   z = t/(2*pi)         (eine Schraubenlinie)
+Implizite Fläche  f = x^2 + y^2 + z^2 - r^2                         (eine Kugel mit Radius r)</pre>
+
+<h2>Vorschau, Erstellen und Bearbeiten</h2>
+<p><span class="ui">Vorschau aktualisieren</span> wertet die Formel aus und zeigt das Diagramm in der Szene, mit einer Statuszeile wie <i>Bahnlinien von 12 Startpunkten über t = 0 ... 10 (n Segmente), nach Zeit eingefärbt</i>. <span class="ui">Diagramm erstellen</span> fügt es hinzu. Später wählen Sie das Diagramm unter <span class="ui">Aktives Diagramm</span> und klicken auf <span class="ui">Diagramm bearbeiten...</span>: Der Dialog öffnet sich wieder mit derselben Quelle, mit wiederhergestellten Ausdrücken, Bereichen, Stützstellenzahlen und Parametern; ändern Sie etwas und klicken Sie auf <span class="ui">Diagramm neu erstellen</span>. Das Diagramm wird <b>an Ort und Stelle</b> aktualisiert und behält Titel, Sichtbarkeit, Farben und Achseneinstellungen. Der Quelltyp lässt sich bei einer Bearbeitung nicht ändern; erstellen Sie dafür ein neues Diagramm.</p>
+<figure data-img="tutorial_24_formula_surface.png"><figcaption>Die Formelfläche „Mexikanerhut“ mit dem Dialog und seiner Statuszeile</figcaption></figure>
+<figure data-img="tutorial_24_parametric_surfaces.png"><figcaption>Ein Torus und eine Kleinsche Flasche aus den parametrischen Vorlagen</figcaption></figure>
+
+<div class="callout tip"><span class="label">Tipp</span>
+  <p>Erzeugte Diagramme sind ein schneller Weg, eine Datenkette zu prüfen oder ein Bild ohne Daten zur Hand zu bauen: eine Gaußsche Glocke als Ziel, ein Sattel, um ein Minimum-Maximum zu zeigen, ein Torus als Testobjekt für die Flächenwerkzeuge.</p>
+</div>

@@ -1,0 +1,115 @@
+<h1 class="part"><small>Parte II</small>Grafici 3D</h1>
+
+<h1 class="chapter">Introduzione ai grafici 3D</h1>
+
+<p>ModelViewer può tracciare dati che non hanno nulla a che fare con un solutore. Una tabella di numeri - misure, un'esportazione da un foglio di calcolo, una funzione matematica - diventa una superficie, una curva, una nuvola di punti, un insieme di barre, un volume o un campo di frecce, <b>nella stessa scena 3D</b> dei tuoi modelli, con la stessa telecamera, gli stessi strumenti di selezione, sezione, annotazione ed esportazione di immagini, e la stessa illuminazione. È un modo per guardare i dati nello spazio, non un foglio di calcolo né un pacchetto statistico: non c'è modifica dei dati, né adattamento, né flusso di dati in tempo reale.</p>
+
+<h2>L'idea in un'immagine</h2>
+<figure>
+<svg width="640" height="150" viewBox="0 0 640 150" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="12">
+  <rect x="5" y="20" width="150" height="110" rx="8" fill="#fdf5e4" stroke="#b7791f"/>
+  <text x="80" y="44" text-anchor="middle" font-weight="600" fill="#14213d">Origine dei dati</text>
+  <text x="80" y="65" text-anchor="middle" fill="#3e4c59">File CSV o testo incollato</text>
+  <text x="80" y="82" text-anchor="middle" fill="#3e4c59">formula o preimpostazione</text>
+  <text x="80" y="99" text-anchor="middle" fill="#3e4c59">serie temporale CSV</text>
+  <text x="80" y="116" text-anchor="middle" fill="#3e4c59">immagine su un piano</text>
+  <path d="M155 75 H190" stroke="#2b6cb0" stroke-width="2" marker-end="url(#b)"/>
+  <rect x="190" y="20" width="150" height="110" rx="8" fill="#e8f0fa" stroke="#2b6cb0"/>
+  <text x="265" y="44" text-anchor="middle" font-weight="600" fill="#14213d">Finestra Aggiungi grafico 3D</text>
+  <text x="265" y="65" text-anchor="middle" fill="#3e4c59">scegliere il tipo, associare le colonne</text>
+  <text x="265" y="82" text-anchor="middle" fill="#3e4c59">Anteprima</text>
+  <text x="265" y="99" text-anchor="middle" fill="#3e4c59">Crea grafico</text>
+  <path d="M340 75 H375" stroke="#2b6cb0" stroke-width="2" marker-end="url(#b)"/>
+  <rect x="375" y="20" width="130" height="110" rx="8" fill="#14213d"/>
+  <text x="440" y="44" text-anchor="middle" font-weight="600" fill="#fff">Nella scena</text>
+  <text x="440" y="65" text-anchor="middle" fill="#cbd5e0">grafico + scatola degli assi</text>
+  <text x="440" y="82" text-anchor="middle" fill="#cbd5e0">legenda, voce nell'albero</text>
+  <text x="440" y="99" text-anchor="middle" fill="#cbd5e0">con i tuoi modelli</text>
+  <path d="M505 75 H535" stroke="#2b6cb0" stroke-width="2" marker-end="url(#b)"/>
+  <rect x="535" y="20" width="100" height="110" rx="8" fill="#e8f6ee" stroke="#2f855a"/>
+  <text x="585" y="44" text-anchor="middle" font-weight="600" fill="#14213d">Scheda Grafico 3D</text>
+  <text x="585" y="65" text-anchor="middle" fill="#3e4c59">stile, assi,</text>
+  <text x="585" y="82" text-anchor="middle" fill="#3e4c59">note, modifica,</text>
+  <text x="585" y="99" text-anchor="middle" fill="#3e4c59">esportazione</text>
+  <defs><marker id="b" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#2b6cb0"/></marker></defs>
+</svg>
+<figcaption>Da una tabella di numeri a un grafico nella scena</figcaption>
+</figure>
+
+<h2>Origini dei dati e tipi di grafico</h2>
+<p>Un grafico ha due scelte indipendenti: <b>da dove provengono i suoi dati</b> (l'origine dei dati) e <b>che aspetto ha</b> (il tipo di grafico).</p>
+<table>
+  <thead><tr><th style="width:34%">Origine dei dati</th><th>Produce</th><th style="width:20%">Capitolo</th></tr></thead>
+  <tbody>
+    <tr><td>File CSV o dati incollati</td><td>Una tabella che associ a X, Y, Z e altro, disegnata come qualsiasi tipo di grafico</td><td>11, 12</td></tr>
+    <tr><td>Superficie da formula</td><td>z(x, y) da un'espressione o da una delle 11 preimpostazioni</td><td>13</td></tr>
+    <tr><td>Superficie parametrica, curva parametrica</td><td>x, y, z come funzioni di due parametri (u, v) o di uno (t); toro, bottiglia di Klein, elica, nodo a trifoglio ...</td><td>13</td></tr>
+    <tr><td>Superficie implicita</td><td>La superficie in cui f(x, y, z) = 0: sfera, toro, gyroid ...</td><td>13</td></tr>
+    <tr><td>Campo vettoriale da formula, linee di flusso da formula</td><td>Frecce o linee di flusso di un campo dato da tre espressioni</td><td>13</td></tr>
+    <tr><td>Traiettorie da formula, serie temporale CSV (traiettorie)</td><td>Traiettorie di particelle attraverso un campo che cambia nel tempo</td><td>14</td></tr>
+    <tr><td>Immagine su un piano</td><td>Un'immagine appoggiata su uno dei piani del grafico</td><td>16</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th style="width:26%">Tipo di grafico</th><th>Per dati che sono ...</th></tr></thead>
+  <tbody>
+    <tr><td>Superficie</td><td>un'altezza z su x e y (una griglia o punti sparsi)</td></tr>
+    <tr><td>Contorno</td><td>lo stesso, disegnato come isolinee di z</td></tr>
+    <tr><td>Linea / Curva</td><td>un percorso ordinato di punti</td></tr>
+    <tr><td>Dispersione</td><td>punti non ordinati (opzionalmente con steli, barre di errore o riempimenti)</td></tr>
+    <tr><td>Barre / Istogramma</td><td>altezze su una griglia, o conteggi in intervalli</td></tr>
+    <tr><td>Voxel / Volumetrico</td><td>un'occupazione o una densità su una griglia 3D</td></tr>
+    <tr><td>Vettoriale (Quiver)</td><td>un vettore in ogni punto</td></tr>
+  </tbody>
+</table>
+
+<h2>Cosa ottieni nella scena</h2>
+<ul>
+  <li>Ogni grafico è una voce nell'<b>albero della scena</b> con la propria casella di visibilità, quindi può essere nascosto o mostrato come un modello.</li>
+  <li>Una <b>scatola degli assi</b> inquadra i grafici, con etichette, tacche e numeri; sono disponibili piani di riferimento (XY, XZ, YZ). <b>Tutti i grafici di un documento condividono un solo insieme di assi</b> (capitolo 15).</li>
+  <li>Compare una <b>legenda dei colori</b> per i grafici colorati secondo un valore.</li>
+  <li>Un grafico può essere modificato in seguito: cambia i dati, le colonne o le formule e ricostruiscilo sul posto (capitolo 17).</li>
+  <li>I grafici vengono salvati nella sessione <code>.mvf</code> con i loro dati, e i grafici a punti e a linee si esportano anche in glTF, GLB e OBJ (capitolo 17).</li>
+</ul>
+
+<div class="callout"><span class="label">Nota</span>
+  <p>I grafici sono viste di analisi. Vengono disegnati allo stesso modo in ogni modalità di rendering e non sono disegnati dal ray tracer. Se vuoi un'immagine renderizzata di un grafico, usa la normale esportazione di immagini del visualizzatore.</p>
+</div>
+
+
+<h1 class="chapter">Tracciare un file CSV</h1>
+
+<h2>Come deve essere la tabella</h2>
+<p>L'input è una tabella in testo semplice: righe di numeri separati da un delimitatore, di solito con una <b>riga di intestazione</b> che dà il nome alle colonne. Qualsiasi foglio di calcolo o strumento di analisi può scriverla. La finestra supporta la virgola, il punto e virgola e la tabulazione come <span class="ui">Delimitatore</span>, e <span class="ui">La prima riga contiene i nomi delle colonne</span> indica se la prima riga è un'intestazione. Un piccolo esempio, l'inizio di <code>surface_ripple.csv</code> (z = sin(r)/r su una griglia 21 x 21; l'ultima colonna ripete z come valore di colore):</p>
+<pre>x,y,z,value
+-5.0000,-5.0000,0.100248,0.100248
+-5.0000,-4.5000,0.063807,0.063807
+-5.0000,-4.0000,0.018686,0.018686
+...</pre>
+<ul>
+  <li>I numeri usano il punto decimale. Celle vuote o non numeriche in una colonna numerica rendono la tabella inutilizzabile; la riga di stato indica la riga.</li>
+  <li>Per una <b>linea</b> l'ordine delle righe conta (è l'ordine lungo il percorso); per gli altri tipi no.</li>
+  <li>La tabella può essere aperta da un file (<span class="ui">Apri CSV...</span>) o incollata (<span class="ui">Incolla</span>); dopo il caricamento le prime 200 righe vengono mostrate in una tabella di anteprima, e la riga di stato indica quante righe e colonne sono state lette.</li>
+</ul>
+
+<h2>La finestra Aggiungi grafico 3D</h2>
+<ol>
+  <li>Apri <span class="path">Visualizzazione &rarr; Grafico 3D...</span> (oppure <span class="ui">Aggiungi grafico 3D...</span> nella scheda <span class="ui">Grafico 3D</span>).</li>
+  <li><span class="ui">Origine dei dati</span>: <i>File CSV o dati incollati</i>. Apri o incolla la tua tabella; controlla il delimitatore e l'impostazione dell'intestazione.</li>
+  <li><span class="ui">Tipo di grafico</span>: scegli il tipo (capitolo 12). Le scelte di colonna sottostanti cambiano di conseguenza.</li>
+  <li>Associa le colonne: le colonne di posizione <span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span> e, secondo il tipo, <span class="ui">Valore colore</span>, <span class="ui">U</span>, <span class="ui">V</span>, <span class="ui">W</span>, <span class="ui">Base</span>, <span class="ui">Larghezza</span>, <span class="ui">Profondità</span>. La scelta <i>(nessuna)</i> lascia fuori un'associazione. Il programma indovina colonne sensate dai nomi dell'intestazione, e puoi cambiarle: l'associazione è per posizione nella tabella, quindi l'ordine delle colonne nel file è una comodità, non un requisito.</li>
+  <li><span class="ui">Anteprima</span> mostra il grafico nella scena prima che venga aggiunto - stessa dimensione, stessi colori e stesso comportamento del grafico finale - e <span class="ui">Cancella anteprima</span> lo rimuove. Anche chiudere la finestra rimuove un'anteprima.</li>
+  <li><span class="ui">Crea grafico</span> aggiunge il grafico alla scena. Un <span class="ui">Titolo</span> gli dà un nome.</li>
+</ol>
+<figure data-img="tutorial_23_add_plot_dialog.png"><figcaption>La finestra Aggiungi grafico 3D con <code>surface_ripple.csv</code> caricato e le colonne associate</figcaption></figure>
+<figure data-img="tutorial_23_surface_built.png"><figcaption>La superficie a onde nella scena con la sua scatola degli assi e la legenda</figcaption></figure>
+
+<h2>Il valore colore</h2>
+<p>I grafici di superficie, linea, dispersione e barre sono colorati secondo un valore. Per impostazione predefinita è l'altezza (Z); associa <span class="ui">Valore colore</span> a un'altra colonna per colorare secondo qualcos'altro - il numero di gruppo di un grafico a dispersione, la velocità lungo un percorso. Il colore di un grafico a dispersione è per punto; quello di una superficie è interpolato tra i suoi vertici.</p>
+
+<h2>Quando la tabella non è utilizzabile</h2>
+<p>La riga di stato sotto l'anteprima dice cosa è stato letto e, se la tabella non è utilizzabile, perché: una riga con testo dove serve un numero (indica la riga), una tabella che non è una griglia regolare completa dove ne serve una (dice quante righe mancano) o una colonna che non è stata scelta. Il pulsante <span class="ui">Crea grafico</span> resta disabilitato finché il problema non è risolto. L'appendice C elenca i messaggi.</p>
+
+<div class="callout tip"><span class="label">Suggerimento</span>
+  <p>Parti da un esempio del tipo che vuoi (appendice A) e guarda le sue colonne, poi dai la stessa forma alla tua tabella. Un nuovo file è semplice come una riga di intestazione e righe di numeri.</p>
+</div>

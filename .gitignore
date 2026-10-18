@@ -20,4 +20,6 @@ dist/
 
 /vcpkg_installed/vcpkg
 /vcpkg_installed/x64-windows
+/vcpkg_installed/x64-linux
+/packaging/linux/vendor/vcpkg_installed
 /.claude

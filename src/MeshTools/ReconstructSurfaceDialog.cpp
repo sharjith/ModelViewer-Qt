@@ -1,0 +1,291 @@
+#include "ReconstructSurfaceDialog.h"
+#include "DialogLayoutHelpers.h"
+#include "ui_ReconstructSurfaceDialog.h"
+
+#include "ModelViewer.h"
+#include "ViewportWidget.h"
+#include "SceneGraph.h"
+#include "SceneMesh.h"
+#include "SceneTreeWidget.h"
+#include "MainWindow.h"
+
+#include <QApplication>
+#include <QCloseEvent>
+#include <QListWidget>
+#include <QMdiArea>
+#include <QMdiSubWindow>
+#include <QRegularExpression>
+#include <QSet>
+#include <QSettings>
+#include <QVector>
+#include <QtMath>
+
+namespace
+{
+	// Walks up the parent chain from a widget inside the MDI area to find the QMdiArea itself -
+	// same helper as RtRenderDialog.cpp, redeclared locally per that file's own convention.
+	QMdiArea* findMdiArea(QWidget* widget)
+	{
+		for (QWidget* w = widget; w; w = w->parentWidget())
+		{
+			if (auto* area = qobject_cast<QMdiArea*>(w))
+				return area;
+		}
+		return nullptr;
+	}
+
+	// Highest N found among direct top-level nodes named "Reconstruct Surface
+	// NNN" (0 if none) - lets a fresh dialog/document keep numbering forward
+	// instead of restarting at 1 and colliding with an already-committed name.
+	int highestExistingReconstructIndex(SceneNode* root)
+	{
+		if (!root)
+			return 0;
+		static const QRegularExpression pattern(QStringLiteral("^Reconstruct Surface (\\d+)$"));
+		int highest = 0;
+		for (SceneNode* child : root->children)
+		{
+			if (!child)
+				continue;
+			const QRegularExpressionMatch m = pattern.match(child->name);
+			if (m.hasMatch())
+				highest = std::max(highest, m.captured(1).toInt());
+		}
+		return highest;
+	}
+}
+
+ReconstructSurfaceDialog::ReconstructSurfaceDialog(ModelViewer* modelViewer, QWidget* parent)
+	: QDialog(parent)
+	, _modelViewer(modelViewer)
+	, ui(std::make_unique<Ui::ReconstructSurfaceDialog>())
+{
+	ui->setupUi(this);
+	// Default layout: the controls pack to the top, the status text and the Generate button sit at the bottom, and any
+	// leftover height is the gap between them - instead of being spread through the dialog.
+	DialogLayout::pinActionToBottom(ui->verticalLayout, ui->statusLabel, ui->generateButton, true);
+	// The mesh list is the shared selection box; its label keeps this dialog's own wording.
+	ui->meshSelectionBox->setModelViewer(_modelViewer);
+	ui->meshSelectionBox->setLabelText(tr("Point clouds (or meshes) to reconstruct from:"));
+	connect(ui->meshSelectionBox, &MeshSelectionBox::meshUuidsChanged, this, &ReconstructSurfaceDialog::onMeshListChanged);
+	setAttribute(Qt::WA_DeleteOnClose);
+
+	connect(ui->resetToleranceButton, &QPushButton::clicked, this, &ReconstructSurfaceDialog::onResetToleranceClicked);
+	connect(ui->simplifyCheckBox, &QCheckBox::toggled, this, &ReconstructSurfaceDialog::onSimplifyToggled);
+	connect(ui->generateButton, &QPushButton::clicked, this, &ReconstructSurfaceDialog::onGenerateClicked);
+
+	if (_modelViewer->sceneGraph())
+		_nextReconstructIndex = highestExistingReconstructIndex(_modelViewer->sceneGraph()->root()) + 1;
+
+	updateActionButtonsEnabled();
+	loadSettings();
+
+	// Hide/show this dialog as its OWN document's MDI subwindow loses/gains focus - mirrors
+	// RtRenderDialog's identical mechanism. Without this, a dialog opened for one document kept
+	// showing (and still reflecting) that document's stale state even while a different one
+	// became the active tab.
+	if (_modelViewer)
+	{
+		if (QMdiArea* mdiArea = findMdiArea(_modelViewer))
+			connect(mdiArea, &QMdiArea::subWindowActivated, this, &ReconstructSurfaceDialog::onActiveSubWindowChanged);
+	}
+}
+
+ReconstructSurfaceDialog::~ReconstructSurfaceDialog()
+{
+}
+
+void ReconstructSurfaceDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)
+{
+	const bool isOwnDocumentActive = _modelViewer
+		&& activeSubWindow
+		&& activeSubWindow->widget() == static_cast<QWidget*>(_modelViewer);
+	setVisible(isOwnDocumentActive);
+}
+
+void ReconstructSurfaceDialog::onMeshListChanged()
+{
+	// The list of meshes changed (added, removed or cleared through the selection box).
+	const bool hasMeshes = !ui->meshSelectionBox->isEmpty();
+	if (!_hadMeshes && hasMeshes)
+		refreshSuggestedSpacing();
+	_hadMeshes = hasMeshes;
+	updateActionButtonsEnabled();
+}
+
+void ReconstructSurfaceDialog::addCurrentTreeSelection()
+{
+	ui->meshSelectionBox->addViewportSelection();
+}
+
+void ReconstructSurfaceDialog::updateActionButtonsEnabled()
+{
+	const bool hasMeshes = !ui->meshSelectionBox->isEmpty();
+	ui->generateButton->setEnabled(hasMeshes);
+	ui->resetToleranceButton->setEnabled(hasMeshes);
+}
+
+void ReconstructSurfaceDialog::onResetToleranceClicked()
+{
+	refreshSuggestedSpacing();
+}
+
+void ReconstructSurfaceDialog::onSimplifyToggled(bool checked)
+{
+	ui->spacingSpin->setEnabled(checked);
+	if (checked && ui->spacingSpin->value() <= 0.0)
+		refreshSuggestedSpacing();
+}
+
+void ReconstructSurfaceDialog::refreshSuggestedSpacing()
+{
+	ViewportWidget* viewport = _modelViewer->getViewportWidget();
+	if (!viewport)
+		return;
+
+	QVector<SceneMesh*> meshes;
+	for (const QUuid& listedUuid : ui->meshSelectionBox->meshUuids())
+	{
+		SceneMesh* mesh = viewport->getMeshByUuid(listedUuid);
+		if (mesh)
+			meshes.append(mesh);
+	}
+
+	if (meshes.isEmpty())
+	{
+		ui->statusLabel->setText(tr("Add at least one mesh to the list first."));
+		return;
+	}
+
+	double spacing = 0.0;
+	SceneMesh::suggestReconstructionSpacing(meshes, spacing);
+	if (spacing > 0.0)
+		ui->spacingSpin->setValue(spacing);
+}
+
+void ReconstructSurfaceDialog::onGenerateClicked()
+{
+	ViewportWidget* viewport = _modelViewer->getViewportWidget();
+	SceneGraph* sceneGraph = _modelViewer->sceneGraph();
+	if (!viewport || !sceneGraph)
+		return;
+
+	QVector<SceneMesh*> meshes;
+	int totalPoints = 0;
+	for (const QUuid& listedUuid : ui->meshSelectionBox->meshUuids())
+	{
+		SceneMesh* mesh = viewport->getMeshByUuid(listedUuid);
+		if (mesh)
+		{
+			meshes.append(mesh);
+			totalPoints += static_cast<int>(mesh->getTrsfPoints().size() / 3);
+		}
+	}
+
+	if (meshes.isEmpty())
+	{
+		ui->statusLabel->setText(tr("Add at least one mesh to the list first."));
+		return;
+	}
+
+	// Reconstruction cost scales with input size (a full Delaunay
+	// triangulation of every point) and is synchronous/non-cancellable,
+	// same as alpha_wrap_3 - give the user a heads-up before committing to a
+	// potentially long call on a large scan, rather than just going quiet.
+	constexpr int kLargePointCountWarningThreshold = 200000;
+	ui->statusLabel->setText(totalPoints > kLargePointCountWarningThreshold
+		? tr("Reconstructing %1 points - this may take a while...").arg(totalPoints)
+		: tr("Generating..."));
+	ui->generateButton->setEnabled(false);
+	MainWindow::showIndeterminateProgressBar();
+	MainWindow::setCancelButtonEnabled(false); // no cancellation mid-call is possible
+	QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+
+	// "Replace previous result" undoably deletes the last result (one real
+	// DeleteMeshCommand push) - same convention as ShrinkWrapDialog/
+	// SubdivisionDialog, see ModelViewer::replaceToolResults()'s doc comment.
+	if (ui->replacePreviousCheckBox->isChecked() && !_lastResultMeshUuids.isEmpty())
+	{
+		_modelViewer->replaceToolResults(_lastResultMeshUuids, tr("Replace Reconstructed Surface"));
+		_lastResultMeshUuids.clear();
+	}
+
+	const QSet<QUuid> originalSelection = _modelViewer->getSelectedUuids();
+
+	viewport->makeCurrent();
+
+	const QString reconName = QStringLiteral("Reconstruct Surface %1").arg(_nextReconstructIndex, 3, 10, QChar('0'));
+	const QString meshName = viewport->generateUniqueMeshName(reconName);
+	const double beta = qDegreesToRadians(ui->sharpnessSpin->value());
+	const double simplifySpacing = ui->simplifyCheckBox->isChecked() ? ui->spacingSpin->value() : 0.0;
+	SceneMesh* reconstructed = SceneMesh::reconstructSurfaceFromPoints(
+		meshes, meshName, ui->boundaryToleranceSpin->value(), beta, simplifySpacing);
+	if (!reconstructed)
+	{
+		viewport->doneCurrent();
+		MainWindow::hideProgressBar();
+		ui->generateButton->setEnabled(true);
+		ui->statusLabel->setText(tr("Reconstruction failed - no geometry was produced."));
+		return;
+	}
+	viewport->addToDisplay(reconstructed);
+	const QUuid reconstructedUuid = reconstructed->uuid();
+
+	SceneNode* reconNode = new SceneNode();
+	reconNode->nodeUuid = QUuid::createUuid();
+	reconNode->name = reconName;
+
+	SceneNode* topParent = sceneGraph->root();
+	const int reconPosition = topParent->children.size();
+	sceneGraph->insertChildNode(topParent, reconNode, reconPosition);
+	sceneGraph->restoreMeshUuid(reconNode, reconstructedUuid, 0);
+
+	viewport->doneCurrent();
+	viewport->updateView();
+	_modelViewer->updateDisplayList();
+
+	// Pushed immediately, not deferred to dialog close - matches
+	// MeasurementDialog/ShrinkWrapDialog/SubdivisionDialog: every result is
+	// independently undoable right away (see this class's header doc
+	// comment for the bug this fixes).
+	_modelViewer->commitReconstructSurface(reconNode, topParent, reconPosition, reconstructedUuid, originalSelection);
+	_lastResultMeshUuids = { reconstructedUuid };
+	++_nextReconstructIndex;
+
+	MainWindow::hideProgressBar();
+	ui->generateButton->setEnabled(true);
+	ui->statusLabel->setText(tr("%1: %2 point(s) -> %3 vertices, %4 triangles.")
+	                              .arg(reconName)
+	                              .arg(totalPoints)
+	                              .arg(reconstructed->vertices().size())
+	                              .arg(reconstructed->indices().size() / 3));
+}
+
+void ReconstructSurfaceDialog::closeEvent(QCloseEvent* event)
+{
+	saveSettings();
+	QDialog::closeEvent(event);
+}
+
+void ReconstructSurfaceDialog::reject()
+{
+	// Escape reaches here, not closeEvent() (see this override's doc comment
+	// in the header) - closeEvent() only does saveSettings() now, so this
+	// just needs to make sure Escape doesn't skip it too.
+	saveSettings();
+	QDialog::reject();
+}
+
+void ReconstructSurfaceDialog::loadSettings()
+{
+	QSettings settings;
+	const QByteArray geometry = settings.value("reconstructSurface/geometry", QByteArray()).toByteArray();
+	if (!geometry.isEmpty())
+		restoreGeometry(geometry);
+}
+
+void ReconstructSurfaceDialog::saveSettings()
+{
+	QSettings settings;
+	settings.setValue("reconstructSurface/geometry", saveGeometry());
+}

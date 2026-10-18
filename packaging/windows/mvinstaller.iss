@@ -12,7 +12,7 @@
 ;   iscc /DMyAppInstallDir="..\..\install" packaging\windows\mvinstaller.iss
 
 #define MyAppName "ModelViewer"
-#define MyAppVersion "2026.7.0"
+#define MyAppVersion "2026.11.0"
 #define MyAppArch "Win-X64"
 #define MyAppPublisher "Sharjith N"
 #define MyAppURL "https://github.com/sharjith/ModelViewer-Qt"

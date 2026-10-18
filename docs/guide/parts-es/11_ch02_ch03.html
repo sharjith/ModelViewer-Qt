@@ -1,0 +1,84 @@
+<h1 class="chapter">Abrir un resultado</h1>
+
+<h2>Dos formas de abrir</h2>
+<table>
+  <thead><tr><th style="width:36%">Comando</th><th>Qué ocurre</th></tr></thead>
+  <tbody>
+    <tr><td><span class="path">Archivo &rarr; Abrir...</span> (o <kbd>Ctrl</kbd>+<kbd>O</kbd>, o arrastre el archivo a la ventana)</td><td>El resultado se abre en un <b>documento propio</b>. Es la forma normal y la que conviene usar primero.</td></tr>
+    <tr><td><span class="path">Visualización &rarr; Resultados de simulación &rarr; Añadir resultado a este documento...</span> (también <span class="ui">Añadir resultado...</span> en la pestaña)</td><td>El resultado se añade al <b>documento actual</b>, junto a lo que ya haya: un modelo CAD, otro resultado. Úselo para comparar dos resultados (capítulo 8) o para ver un resultado junto con un gráfico (capítulo 18).</td></tr>
+  </tbody>
+</table>
+<p>Ambos aceptan los mismos archivos. El filtro de archivos ofrece <i>Todos los resultados de simulación</i> y una entrada por formato. Un caso de OpenFOAM se abre mediante el archivo <code>.foam</code> vacío de la carpeta del caso.</p>
+
+<h2>Mientras se carga</h2>
+<p>La lectura, la descompresión, la teselación y la extracción de la superficie del contorno se ejecutan en segundo plano, con una barra de progreso y un botón Cancelar, de modo que el programa sigue siendo utilizable. Solo se carga un resultado a la vez; si inicia un segundo mientras se carga uno, aparece un mensaje. Los formatos de texto grandes (<code>.frd</code> o <code>.vtk</code> en ASCII) se leen mucho más despacio que los binarios basados en HDF5 y NetCDF, lo cual es una propiedad de los formatos, no del programa.</p>
+
+<h2>La pestaña Resultados de simulación</h2>
+<p>Una vez cargado un resultado, el panel inferior izquierdo cambia a la pestaña <span class="ui">Resultados de simulación</span>. Contiene casi todo lo de esta parte de la guía, y sus controles están inactivos hasta que se selecciona un resultado. De arriba abajo:</p>
+<ul>
+  <li><span class="ui">Resultado</span>: sobre qué resultado del documento actúan los controles, con un botón que quita el resultado seleccionado del documento (se puede deshacer) y una línea de información con el nombre del archivo y los recuentos: nodos, celdas y triángulos de superficie.</li>
+  <li><span class="ui">Unidad del modelo</span> y <span class="ui">Tamaño del modelo</span>: la unidad de longitud de la geometría (metros, centímetros, milímetros, pulgadas, pies; cuando el archivo no lo dice, <i>No especificado (se supone mm)</i>) y el tamaño del modelo en ella.</li>
+  <li><span class="ui">Campo</span>, <span class="ui">Componente</span>, <span class="ui">Magnitud</span> y <span class="ui">Los valores están en</span>: por qué se colorea y en qué unidad (capítulo 3).</li>
+  <li><span class="ui">Rango</span>, <span class="ui">Mapa de colores</span>, <span class="ui">Contornos</span>, las opciones de deformación y de marcadores, y los grupos de secciones, isosuperficies, líneas de corriente, volumen, flechas y elipsoides (capítulos 3, 4 y 6).</li>
+  <li><span class="ui">Gráficos</span>: los botones para graficar a lo largo de una línea o en el tiempo y para la distribución (capítulo 7), y los controles de <span class="ui">Comparar</span> (capítulo 8).</li>
+</ul>
+
+<figure data-img="tutorial_19_first_result.png"><figcaption>Un resultado recién abierto: la caja coloreada por tensión de von Mises, con su leyenda, y la pestaña Resultados de simulación abajo a la izquierda</figcaption></figure>
+<figure data-img="tutorial_19_results_tab.png"><figcaption>La pestaña Resultados de simulación: campo, componente, rango, mapa de colores y contornos</figcaption></figure>
+
+<h2>Resultados sin campos o sin volumen</h2>
+<ul>
+  <li>Un archivo que solo contiene geometría muestra la geometría, y la pestaña lo indica: no hay valores con los que colorear.</li>
+  <li>Un resultado de lámina (solo triángulos y cuadriláteros) no tiene volumen. Todo lo que necesita un volumen (secciones que muestran el interior, isosuperficies, líneas de corriente, representación de volumen) indica que no hay nada que cortar ni seguir. Los colores, la deformación, las sondas y los gráficos funcionan todos.</li>
+  <li>Un resultado sin campo de desplazamiento no se puede mostrar deformado; la opción lo explica.</li>
+</ul>
+
+<div class="callout tip"><span class="label">Consejo</span>
+  <p>Si no está seguro de lo que contiene un archivo, ábralo y mire primero la lista <span class="ui">Campo</span> y la línea de información: muestran todos los campos que encontró el lector, qué pasos existen y cuántos nodos y celdas tiene. Para una primera prueba, <code>sample-models/Simulation/FEM_box_static_stress.vtu</code> es pequeño y se abre coloreado por tensión de von Mises.</p>
+</div>
+
+
+<h1 class="chapter">Campos, colores y unidades</h1>
+
+<h2>Elegir el campo</h2>
+<p><span class="ui">Campo</span> enumera todo lo que contiene el archivo, más los valores derivados. Un campo vectorial ofrece opciones de <span class="ui">Componente</span>: sus componentes y su <i>magnitud</i>; las seis componentes de un tensor de tensiones se resumen en los escalares derivados que se describen más abajo. Los campos marcados con <span class="ui">[celdas]</span> son datos de elemento.</p>
+
+<h3>Valores de tensión derivados</h3>
+<p>Cuando un archivo contiene un tensor de tensiones simétrico (seis componentes, en el orden XX, YY, ZZ, XY, YZ, ZX), ModelViewer deriva las magnitudes que suelen querer los ingenieros y las añade a la lista de campos como escalares normales: tensión de <b>von Mises</b>, tensión de <b>Tresca</b>, las tres <b>tensiones principales</b> y el <b>cortante máximo</b>. Se calculan por nodo (o celda) a partir del tensor a medida que se carga cada paso; heredan la unidad de la tensión y no se guardan en una sesión guardada, porque siempre se pueden recalcular. Los archivos <code>.frd</code> de CalculiX son la fuente típica; la exportación <code>.vtu</code> de FreeCAD ya contiene algunos de ellos.</p>
+
+<h2>Datos de nodo y datos de celda</h2>
+<p>Un <b>campo de nodo</b> tiene un valor en cada punto de la malla y se interpola suavemente sobre cada cara, de modo que una malla gruesa sigue mostrando un color suave. Un <b>campo de celda</b> tiene un valor por elemento: cada elemento se dibuja en un único color plano, que es la imagen honesta de los datos por elemento (por ejemplo la calidad de un elemento o la mayoría de los campos de OpenFOAM) pero se ve a bloques.</p>
+<p><span class="ui">Promediar datos de celda en los nodos</span> (activo mientras se muestra un campo de celda) dibuja el campo suavemente: cada nodo toma el promedio de los elementos que lo rodean, ponderado por su tamaño, de modo que un elemento pequeño cuenta menos que uno grande. Es una opción de visualización (los datos no se alteran) y es también lo que usan los gráficos, la representación de volumen y las isosuperficies para un campo de celda. Déjelo desactivado para etiquetas como un número de material o de grupo, cuyas regiones son identificadores, no cantidades.</p>
+<figure data-img="tutorial_22_cell_data_flat_vs_smooth.png"><figcaption>Un campo de celda dibujado plano (izquierda) y promediado en los nodos (derecha)</figcaption></figure>
+
+<h2>La escala de color</h2>
+<h3>Intervalo</h3>
+<table class="compact">
+  <thead><tr><th style="width:30%">Ajuste <span class="ui">Rango</span></th><th>La escala abarca ...</th></tr></thead>
+  <tbody>
+    <tr><td>Automático (todos los pasos)</td><td>el valor más pequeño y el más grande del campo en <b>todos los pasos</b>. Es el valor predeterminado: mantiene comparables los fotogramas de una animación, porque un color significa el mismo valor en cada paso.</td></tr>
+    <tr><td>Automático (este paso)</td><td>el valor más pequeño y el más grande solo del <b>paso actual</b>. Cada fotograma usa su rango de color completo, lo que muestra bien la estructura pero hace incomparables los fotogramas.</td></tr>
+    <tr><td>Personalizado</td><td>un <span class="ui">Mínimo</span> y un <span class="ui">Máximo</span> que usted escribe, en la unidad de visualización. Los valores fuera de ellos se muestran en los colores extremos. Úselo para comparar ejecuciones o para ampliar una banda interesante.</td></tr>
+  </tbody>
+</table>
+<h3>Mapa de colores, bandas y leyenda</h3>
+<p><span class="ui">Mapa de colores</span> elige la rampa: rampas secuenciales como el arcoíris y una rampa divergente azul-blanco-rojo que conviene a magnitudes con un cero significativo (una componente de desplazamiento, una tensión con signo). <span class="ui">Contornos</span> convierte el degradado suave en un conjunto de bandas discretas (o al revés); con bandas, los límites de color caen exactamente en valores iguales y dentro de los triángulos, no en las aristas de la malla. La leyenda junto al modelo muestra la escala, su unidad y el paso; las superficies de resultado se dibujan sin iluminación, de modo que la iluminación nunca altera los colores.</p>
+<figure data-img="tutorial_19_contours.png"><figcaption>Colores suaves (izquierda) y el mismo campo con bandas de contorno (derecha)</figcaption></figure>
+
+<h3>Marcadores de mín. / máx. y la lectura al pasar el cursor</h3>
+<p><span class="ui">Marcar mínimo y máximo</span> etiqueta los valores más bajo y más alto <i>en la superficie visible</i> (los extremos reales de un sólido pueden estar en el interior; las secciones los revelan). Independientemente, <b>pasar el cursor</b> sobre el modelo muestra el valor del campo mostrado en el cursor, con su unidad. Funciona siempre que haya un resultado seleccionado, salvo mientras se comparan dos resultados (capítulo 8).</p>
+
+<h2>Unidades</h2>
+<p>Una unidad equivocada en una tensión o una temperatura es exactamente el error que una herramienta de presentación no debe cometer, así que las unidades son explícitas y nunca se suponen en silencio.</p>
+<ul>
+  <li>Cada campo tiene una <b>magnitud</b> (tensión, desplazamiento, temperatura, velocidad, presión ...) y dos unidades: la del <i>archivo</i> y la <i>mostrada</i>.</li>
+  <li><span class="ui">Magnitud</span> y <span class="ui">Los valores están en</span> permiten indicarlas. Cuando el archivo lleva una pista, ModelViewer la usa (OpenFOAM indica sus unidades mediante las dimensiones de cada campo: temperatura en K, velocidad en m/s, un tensor de tensiones en Pa; una presión cinemática no tiene unidad); cuando no, usted elige, y el panel marca la unidad como supuesta hasta que la confirme.</li>
+  <li>Las conversiones son más que factores de escala: la temperatura pasa entre kelvin, grados Celsius y grados Fahrenheit, lo que es un desfase además de un factor.</li>
+  <li>La leyenda, la lectura al pasar el cursor, los marcadores, los gráficos y el informe usan todos la unidad mostrada.</li>
+  <li>Los campos derivados heredan la unidad del campo del que proceden.</li>
+</ul>
+<div class="callout warn"><span class="label">Precaución</span>
+  <p>Los solvers escriben lo que usted les dio. Una ejecución de CalculiX con un modelo en milímetros y un módulo de Young en MPa informa de la tensión en MPa y de los desplazamientos en mm, pero el archivo no lo dice: ModelViewer muestra números sin más hasta que usted elige las unidades (el ejemplo <code>FEM_box_static.frd</code> está en mm y MPa; su equivalente <code>.vtu</code> muestra Pa). Compruebe siempre <span class="ui">Los valores están en</span> frente a las unidades de su análisis.</p>
+</div>
+
+<figure data-img="tutorial_19_field_list.png"><figcaption>La lista de campos del resultado de la caja estática</figcaption></figure>

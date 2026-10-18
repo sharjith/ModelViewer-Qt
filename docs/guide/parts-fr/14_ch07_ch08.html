@@ -1,0 +1,90 @@
+<h1 class="chapter">Sondes et graphiques</h1>
+
+<p>Les couleurs vous disent <i>où</i> une valeur est haute ou basse ; un graphique vous dit <i>de combien</i> et comment elle évolue. ModelViewer lit les valeurs directement dans le résultat et les trace sans quitter le programme.</p>
+
+<h2>Lire une seule valeur</h2>
+<p>Déplacez la souris sur le modèle : la valeur du champ affiché sous le curseur apparaît à côté, dans l'unité affichée. Pour un champ aux nœuds, la valeur est interpolée au curseur ; pour un champ aux cellules, c'est la valeur de l'élément sous le curseur (ou la valeur moyennée, si <span class="ui">Moyenner les données de cellule sur les nœuds</span> est activé).</p>
+<figure data-img="tutorial_21_hover_value.png"><figcaption>La valeur sous le curseur, lue directement sur le modèle</figcaption></figure>
+
+<h2>Les quatre graphiques</h2>
+<table>
+  <thead><tr><th style="width:30%">Graphique</th><th style="width:30%">Comment le lancer</th><th>Montre</th></tr></thead>
+  <tbody>
+    <tr><td><b>Tracé en fonction du temps</b></td><td>Clic droit sur un point du résultat &rarr; <span class="ui">Tracer au fil du temps ici</span> ; ou le bouton <span class="ui">Tracer en fonction du temps...</span>, puis un clic sur un point</td><td>L'historique du champ affiché en ce point, sur tous les pas. Pour un résultat modal, l'axe x est la fréquence de chaque mode.</td></tr>
+    <tr><td><b>Tracé le long d'une ligne</b></td><td><span class="ui">Tracer le long d'une ligne...</span>, puis un clic sur deux points</td><td>Le champ le long de la droite (corde) entre les deux points, au pas actuel.</td></tr>
+    <tr><td><b>Distribution</b></td><td><span class="ui">Distribution...</span></td><td>Un histogramme du champ sur l'ensemble du résultat : quelle part du modèle se situe à des valeurs basses, moyennes et hautes.</td></tr>
+    <tr><td><b>Courbes ajoutées</b></td><td>Clic droit dans un graphique</td><td>D'autres points du modèle, ou vos propres données d'un fichier CSV, sur les mêmes axes.</td></tr>
+  </tbody>
+</table>
+<figure data-img="tutorial_21_plot_over_time.png"><figcaption>Un graphique en fonction du temps ; le curseur orange marque le pas actuel</figcaption></figure>
+<ul>
+  <li>L'historique d'un point lit la valeur au point cliqué du <i>volume</i> ou, pour un résultat de coque, au point le plus proche de la surface. La corde d'un tracé le long d'une ligne suit la surface d'une coque ; là où la corde quitte une coque courbe, la courbe présente un trou.</li>
+  <li>Un graphique d'un champ aux cellules utilise les valeurs moyennées ; un résultat à un seul pas montre son historique sous forme d'un seul point.</li>
+  <li><span class="ui">Tracer au fil du temps ici</span> n'est pas disponible pendant la comparaison de deux résultats (chapitre 8).</li>
+</ul>
+<figure data-img="tutorial_21_plot_over_line.png"><figcaption>Contrainte le long d'une ligne du bord du trou au bord de la plaque</figcaption></figure>
+<figure data-img="tutorial_21_distribution.png"><figcaption>Un histogramme du champ de von Mises</figcaption></figure>
+
+<h2>Travailler avec un graphique</h2>
+<table class="compact">
+  <thead><tr><th style="width:34%">Action</th><th>Résultat</th></tr></thead>
+  <tbody>
+    <tr><td>Molette de la souris</td><td>Zoom autour du pointeur. Avec <kbd>Maj</kbd>, seul l'axe x est zoomé, avec <kbd>Ctrl</kbd> seul l'axe y.</td></tr>
+    <tr><td>Glisser avec le bouton central</td><td>Déplacer.</td></tr>
+    <tr><td>Double-clic, ou clic droit &rarr; <span class="ui">Réinitialiser le zoom</span></td><td>Tout afficher de nouveau.</td></tr>
+    <tr><td>Clic ou glissement dans un graphique temporel</td><td>Amène le résultat au pas le plus proche (le curseur orange marque le pas actuel) ; le graphique et la chronologie se pilotent mutuellement.</td></tr>
+    <tr><td>Clic droit &rarr; <span class="ui">Ajouter un point du modèle</span></td><td>Cliquez ensuite sur un autre point du même résultat : son historique rejoint le graphique comme une autre courbe, nommée d'après sa position, avec une légende.</td></tr>
+    <tr><td>Clic droit &rarr; <span class="ui">Ajouter une courbe depuis un CSV...</span></td><td>Ajoute vos propres données (voir ci-dessous).</td></tr>
+    <tr><td>Clic droit &rarr; <span class="ui">Supprimer les courbes ajoutées</span></td><td>Efface de nouveau les courbes ajoutées.</td></tr>
+    <tr><td>Clic droit &rarr; <span class="ui">Enregistrer l'image...</span></td><td>Écrit le graphique sous forme d'image PNG.</td></tr>
+    <tr><td>Clic droit &rarr; <span class="ui">Exporter les données (CSV)...</span></td><td>Écrit les courbes sous forme de CSV : une paire de colonnes x, y par courbe, avec l'unité dans l'en-tête.</td></tr>
+  </tbody>
+</table>
+
+<h2>Ajouter vos propres données</h2>
+<p>Un graphique peut porter des mesures, une courbe de réponse ou une autre analyse à côté de la courbe simulée. Le CSV nécessite <b>deux colonnes, x puis y</b>, et une ligne d'en-tête qui nomme la courbe. Un en-tête de la forme <code>Nom (unité)</code> donne une unité à la courbe : si cette unité est la même que celle de la courbe principale, les deux partagent l'axe y ; si elle diffère - une température à côté d'une contrainte -, la courbe est tracée sur un <b>second axe y à droite</b>. Une courbe dont l'en-tête n'a pas d'unité partage l'axe principal.</p>
+<table class="compact">
+  <thead><tr><th style="width:36%">Exemple</th><th>Utilisation</th></tr></thead>
+  <tbody>
+    <tr><td><code>thermal_probe_test.csv</code></td><td>Relevés « thermocouple » synthétiques (temps, température) pour le milieu de la face opposée de <code>FEM_box_thermal_transient.frd</code>. Ouvrez le résultat, tracez en fonction du temps sur cette face, ajoutez le CSV et lisez : le curseur parcourt les deux courbes. Le point cliqué n'est pas exactement celui de l'échantillon ; les courbes sont donc proches, pas identiques.</td></tr>
+    <tr><td><code>FEM_box_modes_frf.csv</code></td><td>Une courbe de réponse en fréquence synthétique avec des pics aux six fréquences de mode de <code>FEM_box_modes.frd</code>. Tracez en fonction du temps en un point quelconque, ajoutez le CSV et cliquez sur un pic : le résultat saute à ce mode.</td></tr>
+  </tbody>
+</table>
+<figure data-img="tutorial_21_csv_overlay.png"><figcaption>L'historique simulé et les relevés mesurés sur un même graphique</figcaption></figure>
+<figure data-img="tutorial_21_frf_peaks.png"><figcaption>Fréquences de mode sur l'axe x avec une courbe de réponse et ses pics</figcaption></figure>
+<div class="callout tip"><span class="label">Astuce</span>
+  <p>Un CSV de graphique exporté peut être rajouté plus tard à un graphique avec <span class="ui">Ajouter une courbe depuis un CSV...</span>, pratique pour comparer deux calculs sur un même graphique, car l'en-tête porte l'unité.</p>
+</div>
+
+
+<h1 class="chapter">Comparer des résultats</h1>
+
+<p>Les raisons habituelles d'ouvrir deux résultats sont deux conceptions, avant et après une modification, un calcul statique face à un mode de vibration, ou deux cas de charge. Les comparer exige les résultats côte à côte, vus du même point de vue, avec des couleurs qui signifient la même chose. <b>Comparer</b> fait exactement cela.</p>
+
+<h2>Mettre en place une comparaison</h2>
+<ol>
+  <li>Placez les deux résultats dans <b>un seul document</b> : ouvrez le premier avec <span class="path">Fichier &rarr; Ouvrir...</span> et ajoutez le second avec <span class="path">Visualisation &rarr; Résultats de simulation &rarr; Ajouter un résultat à ce document...</span>. Tous deux conservent leurs vraies coordonnées de fichier ; deux résultats d'un même modèle coïncident donc, ce qui explique pourquoi la comparaison les dessine dans des volets séparés.</li>
+  <li>Dans l'onglet Résultats de simulation, choisissez l'autre résultat dans <span class="ui">Comparer avec</span> et cliquez sur <span class="ui">Comparer</span> (ou utilisez <span class="path">Visualisation &rarr; Résultats de simulation &rarr; Comparer les résultats...</span>). La vue se divise en deux volets, chacun dessinant un résultat avec sa propre légende. <span class="ui">Afficher en</span> choisit côte à côte ou empilés (haut et bas).</li>
+  <li>Cochez <span class="ui">Même plage de couleurs pour les deux</span> : des couleurs identiques signifient alors des valeurs identiques dans les deux volets. Sans cela, chaque résultat utilise sa propre plage.</li>
+  <li>Cochez <span class="ui">Lier les caméras</span> pour que les deux vues restent synchronisées : faire pivoter, déplacer ou zoomer l'une fait de même dans l'autre.</li>
+  <li>Cliquez sur <span class="ui">Quitter la comparaison</span> (le même bouton) pour revenir à la vue unique.</li>
+</ol>
+<figure data-img="tutorial_22_compare_side_by_side.png"><figcaption>Flexion (à gauche) et torsion (à droite) de la même poutre en I, côte à côte avec une seule plage de couleurs</figcaption></figure>
+<figure data-img="tutorial_22_compare_controls.png"><figcaption>Les commandes de comparaison de l'onglet</figcaption></figure>
+
+<h2>Ce qui fonctionne en mode comparaison et ce qui ne fonctionne pas</h2>
+<ul>
+  <li>Comparer affiche deux résultats <b>différents</b> du document ; le même résultat ne peut pas être comparé à lui-même. Chaque volet a sa propre légende, surmontée du nom du résultat.</li>
+  <li>La rotation, le déplacement, le zoom et les vues standard fonctionnent. <span class="ui">Même plage de couleurs pour les deux</span> réunit les plages des deux résultats et n'est disponible que tant que les deux montrent la même unité.</li>
+  <li>La chronologie ne pilote que le résultat actif, celui choisi dans la zone <span class="ui">Résultat</span>.</li>
+  <li>Tant que la comparaison est active, la sélection par clic, la mise en évidence au survol, l'affichage de la valeur au survol et les gizmos des plans de coupe sont désactivés, et <span class="ui">Tracer au fil du temps ici</span> n'est pas disponible. Les outils de mesure et d'annotation ne tiennent pas encore compte des volets. Le lancer de rayons est désactivé.</li>
+  <li><b>Ajuster à l'écran</b> ajuste toujours toute la fenêtre ; un modèle large peut donc être plus large que son volet : dézoomez un peu.</li>
+  <li>La comparaison se termine d'elle-même lorsque l'un des résultats est masqué, fermé ou retiré (y compris par annulation). La disposition n'est pas enregistrée dans une session.</li>
+  <li>Comparer garde les deux résultats en mémoire en même temps ; deux très gros résultats exigent donc le double de mémoire (chapitre 9).</li>
+</ul>
+<div class="callout warn"><span class="label">Attention</span>
+  <p>Comparer affiche deux résultats l'un à côté de l'autre ; il ne calcule pas la différence entre eux (il n'y a pas de champ A moins B). Pour lire des nombres dans deux analyses, tracez le même point de chacune et mettez les deux sur un graphique (chapitre 7), ou comparez les valeurs au survol, un résultat à la fois.</p>
+</div>
+
+<h3>Une bonne paire à essayer</h3>
+<p><code>ibeam_cantilever.frd</code> (flexion) et <code>ibeam_torsion.frd</code> (torsion) sont la même poutre en I sous des charges différentes : ajoutez l'une au document de l'autre, activez la forme déformée et la plage de couleurs partagée, et réglez le dernier pas de charge.</p>

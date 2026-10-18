@@ -1,0 +1,97 @@
+<h1 class="chapter">Flow in time: pathlines</h1>
+
+<p>A <b>streamline</b> is the path along a field frozen at one moment. A <b>pathline</b> is the track of a particle carried by a field that <i>changes with time</i> - it is what a drop of dye would show. When the flow is unsteady the two differ, and pathlines are the ones that match reality. ModelViewer draws pathlines from a time-dependent formula or from a CSV time series, colours them by time, and can animate them.</p>
+
+<h2>Pathlines from a CSV time series</h2>
+<p>The table is a velocity field sampled on a <b>complete regular grid</b> for each of a series of times. Each row holds a time, a position and a velocity:</p>
+<pre>t,x,y,u,v,w
+0,0,0,-0.000000,0.000000,0
+0,0,0.25,-0.000000,0.222144,0
+...</pre>
+<ul>
+  <li>Choose <span class="ui">Data source</span> <i>CSV time series (pathlines)</i> and open or paste the table. <span class="ui">Time column</span>, <span class="ui">X</span>, <span class="ui">Y</span>, an optional <span class="ui">Z</span> and <span class="ui">U</span>, <span class="ui">V</span>, <span class="ui">W</span> are guessed from the header names (<code>t</code> or <code>time</code>, <code>x</code>, <code>u</code> ...) and can be changed. Without a Z column the field is planar.</li>
+  <li>The status line reports either <i>N rows form a complete grid</i> and how many seeds and segments result, or why the table cannot be used: a missing row (it says how many rows are needed), a non-numeric cell (it names the row), a column left out.</li>
+  <li><b>How it is traced.</b> Seeds are released along Y at the middle of the X range (in the middle z plane for a 3-D table) and carried through the field with a fourth-order Runge-Kutta integration, over <span class="ui">time steps</span> equal steps from the first to the last time in the table. The field is interpolated linearly in space and in time. A trail ends where its particle leaves the grid. The row order of the file does not matter.</li>
+  <li>The trails are lines coloured by <b>time</b>, so the legend runs from the start to the end time, and they take the usual colour map, bands, range and line-width controls.</li>
+</ul>
+<figure data-img="tutorial_25_double_gyre_pathlines.png"><figcaption>Pathlines of the double gyre, coloured by time</figcaption></figure>
+
+<table class="compact">
+  <thead><tr><th style="width:40%">Sample</th><th>What it is</th></tr></thead>
+  <tbody>
+    <tr><td><code>pathlines_double_gyre.csv</code></td><td>The classic unsteady double gyre on x 0..2, y 0..1: two counter-rotating cells whose dividing line oscillates with a period of 10 s, sampled at 21 times (945 rows). A planar field.</td></tr>
+    <tr><td><code>pathlines_rising_vortex_3d.csv</code></td><td>A 3-D field (4,212 rows with a Z column): a rotation about the Z axis whose rate pulses in time plus an oscillating vertical velocity, so the trails climb as they circle.</td></tr>
+    <tr><td><code>pathlines_openfoam_cavity.csv</code></td><td>The cell-centre velocity of the OpenFOAM cavity sample (times 0 to 2 s) on a plane just above its top face, made to be played together with that result (chapter 18).</td></tr>
+  </tbody>
+</table>
+
+<h2>Pathlines from a formula</h2>
+<p>With <b>Formula pathlines (time-dependent)</b> the field is three expressions <span class="ui">u(x,y,z,t)</span>, <span class="ui">v(x,y,z,t)</span>, <span class="ui">w(x,y,z,t)</span> in position <b>and time</b>; <span class="ui">Y range / samples</span> sets the seeds along Y at the middle of the X range (at z = 0), and <span class="ui">T range / steps</span> the time interval and the number of integration steps. A trail ends where its particle leaves the x / y range.</p>
+<table class="compact">
+  <thead><tr><th style="width:28%">Preset</th><th>Behaviour</th></tr></thead>
+  <tbody>
+    <tr><td>Pulsating Vortex</td><td>A rigid rotation whose rate pulses in time: concentric rings; the colour (time) bands bunch up where the particle slows and stretch where it speeds up.</td></tr>
+    <tr><td>Double Gyre</td><td>Two counter-rotating cells whose dividing line oscillates; neighbouring trails fold and stretch.</td></tr>
+    <tr><td>Travelling Wave</td><td>A steady stream deflected sideways by a wave travelling in x: the trails drift forward and wiggle.</td></tr>
+    <tr><td>Oscillating Updraft</td><td>A vortex with a vertical velocity that oscillates: the rings climb and sink, so the trails draw helices in Z.</td></tr>
+  </tbody>
+</table>
+<div class="callout warn"><span class="label">Caution</span>
+  <p>In this source <code>t</code> is <b>time</b>. In <i>Formula streamlines</i> the field is steady (no time), and in <i>Parametric curve</i> <code>t</code> is merely the curve parameter. If the end of the time range is before its start, <span class="ui">Build Plot</span> is disabled with a message.</p>
+</div>
+<figure data-img="tutorial_25_formula_pathlines.png"><figcaption>The Pulsating Vortex preset: rings whose colour bands bunch up where the particle slows</figcaption></figure>
+
+<h2>Animating pathlines</h2>
+<p>Select the plot in <span class="ui">Active plot</span> and tick <span class="ui">Animate pathlines (timeline)</span> in the 3D Plot tab. A <b>timeline</b> appears at the top of the viewport - the same bar as for simulation results, with play/pause, step, stop, a slider, the current time, <span class="ui">Loop</span> and a speed choice. The trails are drawn only up to the current time, with a dot at the head of each, coloured by the current time. Switching the option on shows the whole plot until you press play; from the end, play starts over; unticking the option brings back the full trails and removes the bar. Hiding the plot in the scene tree removes the bar and pauses playback.</p>
+<figure data-img="tutorial_25_animated_pathlines.png"><figcaption>Pathlines part-way through the animation, with their head dots and the timeline</figcaption></figure>
+<p class="small">The animation is a viewing aid: it is not saved with the file and the head dots are not exported.</p>
+
+
+<h1 class="chapter">Styling, axes and scales</h1>
+
+<p>Everything about a built plot - colours, sizes, the axes - is in the <span class="ui">3D Plot</span> tab of the dock (next to the Simulation Results tab). Choose the plot in <span class="ui">Active plot</span>; the controls act on it. The plot's entry in the scene tree has the visibility checkbox.</p>
+
+<h2>Colour</h2>
+<table class="compact">
+  <thead><tr><th style="width:30%">Control</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><span class="ui">Title</span></td><td>The name shown in the scene tree and the legend.</td></tr>
+    <tr><td><span class="ui">Colour map</span></td><td>The colour ramp: sequential, diverging, and others.</td></tr>
+    <tr><td><span class="ui">Colour bands</span></td><td>Smooth colours, or a number of discrete bands.</td></tr>
+    <tr><td><span class="ui">Automatic colour range</span></td><td>On: the range follows the data (also after an edit). Off: <span class="ui">Minimum</span> and <span class="ui">Maximum</span> are yours - use it to compare plots.</td></tr>
+  </tbody>
+</table>
+
+<h2>Size and shape</h2>
+<table class="compact">
+  <thead><tr><th style="width:30%">Control</th><th>For</th></tr></thead>
+  <tbody>
+    <tr><td><span class="ui">Line width</span></td><td>lines and pathlines (in screen pixels)</td></tr>
+    <tr><td><span class="ui">Marker size</span></td><td>scatter markers</td></tr>
+    <tr><td><span class="ui">Arrow size</span></td><td>vector fields (length scale; does not grow with the camera)</td></tr>
+    <tr><td><span class="ui">Bar width</span>, <span class="ui">Bar depth</span></td><td>bars</td></tr>
+    <tr><td><span class="ui">Contour levels</span>, <span class="ui">Contour lines</span></td><td>surfaces: how many iso-lines, and whether on the surface or on the base plane</td></tr>
+    <tr><td><span class="ui">Opacity</span></td><td>image planes and the reference planes</td></tr>
+  </tbody>
+</table>
+
+<h2>The axes box and the reference planes</h2>
+<p><span class="ui">Show axes box</span> frames the plot with labelled axes, ticks and numbers; hiding it does not discard the layout. <span class="ui">Planes</span> adds the reference planes XY, XZ and YZ at the minimum of the other axes, with an <span class="ui">Opacity</span>. A flat axis (all values equal) is padded by a tenth of the largest other extent, so a plane does not turn into a needle.</p>
+
+<h2>Shared axes</h2>
+<p>All plots in a document are drawn on <b>one set of axes</b> - the same scales, ranges and labels - because that is what lets you compare them. Under <span class="ui">Axes</span> every axis has a label, an <span class="ui">Axis scale</span>, a range and a tick count. Changing one re-lays out <b>all the plots together</b>, whichever plot is selected; a plot built later joins the axes that are already there.</p>
+<table class="compact">
+  <thead><tr><th style="width:22%">Scale</th><th>Meaning and limit</th></tr></thead>
+  <tbody>
+    <tr><td><b>Linear</b></td><td>The default.</td></tr>
+    <tr><td><b>Log 10</b></td><td>Powers of ten. Needs the data of <i>every</i> plot to be above zero on that axis. Setting it while a plot reaches zero is refused with a message naming the reason; building a plot that cannot be shown on an existing Log 10 axis returns that axis to Linear for all plots, with a status message.</td></tr>
+    <tr><td><b>SymLog</b></td><td>Logarithmic for large values, linear around zero; works for any data including negative values. Voxel indices that start at 0 and vector fields with both signs are examples.</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>Lines, scatter, surfaces, bars, vector arrows and voxel volumes all follow the scale: the geometry is transformed, not just relabelled.</li>
+  <li>Vector arrows are re-aimed by the local stretch of the scale at their site and keep their length (it carries the magnitude) and colour; voxel grids are resampled onto a grid that is regular in the scaled space. Returning to Linear restores everything.</li>
+  <li>The hover readout of a surface still shows the plot's <b>data values</b>, not positions on the scaled axes.</li>
+</ul>
+<figure data-img="tutorial_24_log_axis_shared.png"><figcaption>A scatter plot and an exponential line sharing a logarithmic Z axis</figcaption></figure>
+<figure data-img="tutorial_23_plot_tab.png"><figcaption>The 3D Plot tab with the controls of the active plot</figcaption></figure>

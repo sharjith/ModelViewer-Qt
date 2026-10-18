@@ -1,0 +1,103 @@
+<h1 class="part"><small>Teil III</small>Zusammen</h1>
+
+<h1 class="chapter">Ergebnisse und Diagramme auf einer Uhr</h1>
+
+<p>Ein Simulationsergebnis und ein Diagramm leben in derselben Szene und lassen sich daher zusammen zeigen. Ändern sich beide über die Zeit, spielt eine <b>Wiedergabeleiste</b> sie im Gleichschritt ab. Welche Kombination sinnvoll ist, hängt davon ab, ob die Daten Koordinaten und Zeit teilen.</p>
+
+<h2>Vier Situationen</h2>
+<table>
+  <thead><tr><th style="width:28%">Sie haben</th><th style="width:30%">Gleiche Koordinaten?</th><th>Was synchronisiert wird und wie es gezeigt wird</th></tr></thead>
+  <tbody>
+    <tr><td>Ein instationäres Strömungs- oder Wärmeergebnis und Bahnlinien derselben Strömung (zum Beispiel eine aus dem Solver exportierte CSV-Zeitreihe)</td><td>Ja</td><td><b>Physikalische Zeit.</b> Eine Ansicht, überlagert: Die Zeit des Ergebnisses entspricht der Zeit der Bahnlinien. Verwenden Sie <i>Alle zusammen</i> in der Wiedergabeleiste (unten).</td></tr>
+    <tr><td>Ein Ergebnis und ein Diagramm des Verlaufs an einem Punkt, der maximalen Spannung über die Zeit, einer Reaktionskraft oder gemessener Versuchsdaten</td><td>Nein (eine Kurve liegt nicht im Modellraum)</td><td><b>Physikalische Zeit</b>, mit einem wandernden Cursor im Diagramm und Klick zum Springen (Kapitel 7). Das Modell und das Diagramm werden nebeneinander gezeigt.</td></tr>
+    <tr><td>Eine Modalanalyse und eine Frequenzgangkurve</td><td>Nein</td><td><b>Frequenz.</b> Der Cursor des Diagramms steht bei der Frequenz des aktuellen Modus; ein Klick auf eine Spitze wählt den Modus.</td></tr>
+    <tr><td>Ein Laststufen- oder Parameterdurchlauf und eine Antwortkurve</td><td>Nein</td><td><b>Der Wert des Schritts</b> gegenüber der Achse des Diagramms.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout"><span class="label">Die Regel dahinter</span>
+  <p>Daten werden nach <b>physikalischem Wert, nicht nach Fortschritt</b> zugeordnet. Ein Ergebnis von 0 bis 2 s und Bahnlinien von 0 bis 1,5 s stimmen bei 1 s überein. Das Zuordnen nach Fortschritt (0 bis 100 %) ist nur der Ausweg, wenn die Einheiten unvereinbar sind - ein Modalergebnis ist in Hertz, Bahnlinien sind in Sekunden -, und die Wiedergabeleiste sagt dann <i>nach Fortschritt</i>.</p>
+</div>
+
+<h2>Die Wiedergabeleiste für beide</h2>
+<p>Die Zeitleiste spielt den Eintrag ab, der im Feld links von ihr gewählt ist. Das Feld listet jedes mehrstufige Simulationsergebnis (<i>Simulation: Name</i>), das animierte Bahnlinien-Diagramm (<i>Bahnlinien: Name</i>) und, wenn beide abspielbar sind, <b>Alle zusammen</b>. Gibt es nur einen abspielbaren Eintrag, ist das Feld ausgeblendet. Die Leiste folgt dem, woran Sie arbeiten: Die Wahl eines Ergebnisses in der Registerkarte „Simulationsergebnisse“ wählt es aus, und das Aktivieren von <span class="ui">Bahnlinien animieren (Zeitleiste)</span> wählt dieses Diagramm. Wird der gewählte Eintrag gewechselt, pausiert der, der gerade lief. Die Legenden eines Ergebnisses und eines Diagramms stapeln sich in einer Spalte, jede mit dem Namen ihres Besitzers überschrieben.</p>
+<figure>
+<svg width="640" height="150" viewBox="0 0 640 150" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="11.5">
+  <text x="5" y="16" font-weight="600" fill="#14213d">Eine Uhr, zwei Einträge (Alle zusammen)</text>
+  <line x1="95" y1="130" x2="625" y2="130" stroke="#5f6b7a"/>
+  <g stroke="#5f6b7a"><line x1="95" y1="126" x2="95" y2="134"/><line x1="228" y1="126" x2="228" y2="134"/><line x1="360" y1="126" x2="360" y2="134"/><line x1="493" y1="126" x2="493" y2="134"/><line x1="625" y1="126" x2="625" y2="134"/></g>
+  <text x="95" y="146" text-anchor="middle" fill="#5f6b7a">0 s</text><text x="228" y="146" text-anchor="middle" fill="#5f6b7a">0.5</text><text x="360" y="146" text-anchor="middle" fill="#5f6b7a">1.0</text><text x="493" y="146" text-anchor="middle" fill="#5f6b7a">1.5</text><text x="625" y="146" text-anchor="middle" fill="#5f6b7a">2.0 s</text>
+  <text x="5" y="52" fill="#3e4c59">Ergebnis: 5 Schritte</text>
+  <g fill="#2b6cb0"><rect x="95" y="38" width="130" height="22" rx="3"/><rect x="228" y="38" width="130" height="22" rx="3" opacity="0.85"/><rect x="360" y="38" width="130" height="22" rx="3" opacity="0.7"/><rect x="493" y="38" width="130" height="22" rx="3" opacity="0.55"/></g>
+  <text x="5" y="97" fill="#3e4c59">Bahnlinien: 0 - 1,5 s</text>
+  <rect x="95" y="83" width="398" height="22" rx="3" fill="#f6ad55"/>
+  <line x1="360" y1="28" x2="360" y2="124" stroke="#e53e3e" stroke-width="2"/>
+  <text x="364" y="30" fill="#e53e3e">t = 1 s</text>
+</svg>
+<figcaption>Beide Einträge folgen der Echtzeit. Das Ergebnis hält jeden Schritt bis zur Zeit des nächsten; die Bahnlinien halten nach 1,5 s ihr letztes Bild</figcaption>
+</figure>
+
+<h2>Durchgerechnetes Beispiel: die Hohlraumströmung</h2>
+<ol>
+  <li>Öffnen Sie <code>sample-models/Simulation/openfoam_cavity/cavity.foam</code> und wählen Sie <span class="ui">U</span> mit der Komponente <i>Betrag</i>.</li>
+  <li>Wählen Sie in der Registerkarte „3D-Diagramm“ <span class="ui">3D-Diagramm hinzufügen...</span>, die Quelle <i>CSV-Zeitreihe (Bahnlinien)</i>, öffnen Sie <code>sample-models/Plot3D/pathlines_openfoam_cavity.csv</code> und ordnen Sie Zeit = t, X = x, Y = y, Z = z, U = u, V = v, W = w zu. Diese Datei enthält die Zellmittelpunktsgeschwindigkeit desselben Falls auf einer Ebene knapp über seiner Deckfläche, die beiden teilen also Koordinaten und Echtzeit. Erstellen Sie das Diagramm; blenden Sie seine Achsenbox aus, wenn sie die Ansicht überfrachtet.</li>
+  <li>Aktivieren Sie <span class="ui">Bahnlinien animieren (Zeitleiste)</span>, wählen Sie im Wiedergabefeld <b>Alle zusammen</b> und drücken Sie Wiedergabe. Die Spuren wachsen, während das Feld von 0 bis 2 s fortschreitet; die Leiste zeigt die Zeit und den Schritt, zum Beispiel <i>t = 1 &ndash; Schritt 3 von 5</i>.</li>
+</ol>
+<figure data-img="tutorial_25_cavity_with_pathlines.png"><figcaption>Das Hohlraumergebnis und seine Bahnlinien, gemeinsam abgespielt</figcaption></figure>
+<div class="callout warn"><span class="label">Achtung</span>
+  <p>Ein Modalergebnis wie <code>FEM_box_modes.frd</code> hat Schritte in Hertz und kann keine Zeitachse mit Bahnlinien in Sekunden teilen; <b>Alle zusammen</b> spielt sie dann nach Fortschritt ab und sagt es.</p>
+</div>
+
+<h2>Diagramme als zweite Hälfte</h2>
+<p>Für die anderen drei Situationen leistet das Diagramm die Arbeit: Stellen Sie den Verlauf eines Punktes dar (Rechtsklick &rarr; <span class="ui">Verlauf hier darstellen</span>), fügen Sie Ihre gemessene Kurve aus einer CSV hinzu und spielen Sie ab. Der Cursor wandert über beide Kurven; ein Klick ins Diagramm springt in der Zeit. Fügen Sie bei einem Modalergebnis eine Frequenzgang-CSV hinzu und klicken Sie auf eine Spitze, um zu diesem Modus zu springen. Kapitel 7 hat die Einzelheiten und die Beispieldateien.</p>
+
+
+<h1 class="chapter">Durchgespielte Arbeitsabläufe</h1>
+
+<p>Rezepte, die die Kapitel verbinden. Jedes nennt die Beispieldateien zum Ausprobieren.</p>
+
+<h2>Eine Strukturanalyse prüfen</h2>
+<ol>
+  <li>Öffnen Sie das Ergebnis (<code>plate_with_hole.frd</code>), sehen Sie sich die Infozeile an und stellen Sie die Einheiten unter <span class="ui">Werte sind in</span> ein: Diese Datei ist in mm und MPa.</li>
+  <li>Färben Sie nach <span class="ui">von Mises</span>, behalten Sie <i>Automatisch (alle Schritte)</i> und aktivieren Sie <span class="ui">Minimum und Maximum markieren</span>.</li>
+  <li>Schalten Sie <span class="ui">Verformte Form anzeigen</span> mit automatischer Skalierung ein und spielen Sie die vier Laststufen ab.</li>
+  <li>Schalten Sie <span class="ui">Spannungsellipsoide anzeigen</span> ein (Anzahl 1500+), um die Spannungskonzentration am Loch zu sehen.</li>
+  <li>Verwenden Sie <b>Entlang Linie darstellen</b> vom Rand des Lochs zum Plattenrand, um abzulesen, wie die Spannung abfällt, und speichern Sie das Diagrammbild.</li>
+  <li>Setzen Sie zwei Kommentare (<span class="path">Werkzeuge &rarr; Kommentieren...</span>) am Maximum, erfassen Sie Ansichten im Kameras-Bereich und exportieren Sie den Bericht (<span class="path">Werkzeuge &rarr; Bericht exportieren...</span>).</li>
+</ol>
+
+<h2>Ein thermischer Übergangsvorgang gegen Messwerte</h2>
+<ol>
+  <li>Öffnen Sie <code>FEM_box_thermal_transient.frd</code>; die Datei nennt keine Temperatureinheit, wählen Sie also unter <span class="ui">Werte sind in</span> eine.</li>
+  <li>Rechtsklick auf die Mitte der gegenüberliegenden Fläche &rarr; <span class="ui">Verlauf hier darstellen</span>.</li>
+  <li>Klicken Sie im Diagramm mit rechts &rarr; <span class="ui">Kurve aus CSV hinzufügen...</span> &rarr; <code>thermal_probe_test.csv</code>. Spielen Sie die Zeitleiste ab und vergleichen Sie die Kurven.</li>
+  <li>Fügen Sie einen zweiten Punkt (<span class="ui">Punkt vom Modell hinzufügen</span>) nahe der beheizten Fläche hinzu, um zu sehen, dass die Wärme früher ankommt. Speichern Sie das Diagramm als Bild.</li>
+</ol>
+
+<h2>Eine Strömung mit ihren Teilchenbahnen</h2>
+<p>Folgen Sie dem Hohlraumbeispiel aus Kapitel 18. Für eine stationäre 3D-Strömung ohne Zeitreihe verwenden Sie stattdessen Stromlinien des Ergebnisses: <code>duct.cgns</code> mit <span class="ui">Stromlinien anzeigen</span> (Geschwindigkeit), <span class="ui">Auf der Schnittebene starten</span> und einer Schnittebene quer durch den Kanal.</p>
+
+<h2>Modi und ein Frequenzgang</h2>
+<ol>
+  <li>Öffnen Sie <code>FEM_box_modes.frd</code>, schalten Sie die verformte Form ein und gehen Sie die sechs Modi durch.</li>
+  <li>Rechtsklick auf einen Punkt &rarr; <span class="ui">Verlauf hier darstellen</span>: Die x-Achse ist die Modalfrequenz.</li>
+  <li>Fügen Sie <code>FEM_box_modes_frf.csv</code> hinzu und klicken Sie auf eine Spitze: Das Ergebnis springt zum entsprechenden Modus.</li>
+</ol>
+
+<h2>Zwei Entwurfsvarianten</h2>
+<ol>
+  <li>Öffnen Sie das erste Ergebnis und fügen Sie das zweite mit <span class="ui">Ergebnis zu diesem Dokument hinzufügen...</span> hinzu.</li>
+  <li>Vergleichen Sie nebeneinander mit <span class="ui">Gleicher Farbbereich für beide</span> und <span class="ui">Kameras koppeln</span> (<code>ibeam_cantilever.frd</code> gegen <code>ibeam_torsion.frd</code>).</li>
+  <li>Beenden Sie den Vergleich und stellen Sie denselben Punkt jedes Ergebnisses im Diagramm dar; exportieren Sie beide Diagramme als CSV und laden Sie eines in das Diagramm des anderen, um die beiden Kurven zusammen zu sehen.</li>
+</ol>
+
+<h2>Messdaten neben einem CAD-Modell</h2>
+<ol>
+  <li>Öffnen Sie das CAD-Teil und fügen Sie dann ein Streudiagramm Ihrer Messwerte hinzu (Spalten x, y, z und eine Abweichung als Farbwert); beide liegen in denselben Koordinaten, wenn die Tabelle die Einheiten des Modells verwendet.</li>
+  <li>Stellen Sie die Achsen passend zum Modell ein, fügen Sie Notizen an interessanten Punkten hinzu und blenden Sie die Achsenbox aus, wenn Sie nur die Punkte wollen.</li>
+  <li>Für ein Bild der Probe fügen Sie an der richtigen Stelle ein <i>Bild auf einer Ebene</i> hinzu.</li>
+</ol>
+
+<div class="callout tip"><span class="label">Tipp</span>
+  <p>Speichern Sie das Dokument in jeder erhaltenswerten Phase als <code>.mvf</code> (Kapitel 9 erklärt, was ein gespeichertes Ergebnis enthält): Eine Sitzung mit Ergebnissen, Diagrammen, Kommentaren und erfassten Ansichten ist die beste einzelne Aufzeichnung einer Analyseprüfung.</p>
+</div>

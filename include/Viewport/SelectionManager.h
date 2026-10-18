@@ -1,0 +1,208 @@
+#pragma once
+
+
+#include "SceneMeshRecord.h"
+#include "MeshEdgeCircleAnchor.h"
+#include "MeshSurfaceAnchor.h"
+
+#include <QObject>
+#include <QPoint>
+#include <QPolygon>
+#include <QList>
+#include <QMap>
+#include <QVector3D>
+
+class ViewportWidget;
+class Camera;
+class RenderableMesh;
+// Hover highlighting mode enumeration
+enum class HoverHighlightMode
+{    
+    RaycastOnly,   // Fast ray-casting preview
+    Accurate,       // Full hybrid (expensive, but accurate with FBO rendering)
+    Disabled      // No hover feedback
+};
+
+// Click selection mode enumeration
+enum class SelectionMode
+{
+    RayOnly,
+    ColorOnly,
+    Hybrid // Try ray, fallback to color
+};
+
+// How a drag-selection gesture (sweepSelect/lassoSelect) combines its
+// newly-covered meshes with whatever's already selected - Replace and Add
+// existed as a single addToSelection bool; Subtract (Alt+Shift-drag) removes
+// covered meshes from the existing selection instead of adding to it, so a
+// 3-state enum replaces the bool outright rather than growing a second one
+// (which would leave an ambiguous "both true" state).
+enum class SelectionCombineMode
+{
+    Replace,
+    Add,
+    Subtract
+};
+
+/**
+ * @class SelectionManager
+ * @brief Manages all mesh selection operations and state
+ *
+ * This manager encapsulates all selection logic including:
+ * - Click-based selection (single, sweep, multi-select)
+ * - Hover-based selection preview
+ * - Color picking via FBO rendering
+ * - Ray-casting intersection detection
+ *
+ * Signals are emitted when selection state changes, allowing other
+ * components to respond without tight coupling.
+ */
+class SelectionManager : public QObject
+{
+    Q_OBJECT
+
+public:
+    explicit SelectionManager(
+        ViewportWidget* viewportWidget,
+        Camera* primaryCamera,
+        std::vector<SceneMeshRecord>& meshStore,
+        const std::vector<int>& displayedObjectsIds,
+        const std::vector<int>& hiddenObjectsIds,
+        bool& visibleSwapped,
+        QObject* parent = nullptr);
+
+    ~SelectionManager();
+
+    // Selection operations
+    int clickSelect(const QPoint& pixel);
+    int hoverSelect(const QPoint& pixel);
+    QList<int> sweepSelect(const QPoint& p1, const QPoint& p2, SelectionCombineMode mode = SelectionCombineMode::Replace);
+
+    // Freeform-polygon counterpart to sweepSelect() above - same per-mesh
+    // screen-space bounding-sphere projection, but tests the projected
+    // center against an arbitrary polygon (Qt::OddEvenFill) instead of a
+    // QRect's containment/overlap - a center-inside test, simpler than an
+    // exact polygon-circle overlap area, consistent with sweepSelect()'s own
+    // pragmatic mesh-granularity approximation.
+    QList<int> lassoSelect(const QPolygon& lassoPath, SelectionCombineMode mode = SelectionCombineMode::Replace);
+    void select(int id);
+    void deselect(int id);
+    void syncMeshSelectionVisualState();
+    int processSelection(const QPoint& pixel);
+
+    // Pick a precise surface anchor at the given pixel: the closest
+    // ray-triangle hit across all visible meshes, with vertex-snapping
+    // (nearest of the hit triangle's 3 vertices, if within snapPixelRadius
+    // screen pixels). For Measurement/Annotation point picking - unlike
+    // clickSelect()/hoverSelect(), this returns geometric detail (triangle
+    // index + barycentric weights), not just a mesh id, and it does not
+    // touch selection state. Returns an anchor with triangleIndex == -1
+    // (isValid() == false) if nothing was hit.
+    MeshSurfaceAnchor pickSurfaceAnchor(const QPoint& pixel, int snapPixelRadius = 8);
+    // While set (a non-null uuid), pickSurfaceAnchor() only considers that mesh. Compare mode: each pane shows one
+    // result, so a hover in a pane must not hit the other result that lies behind it in the shared scene.
+    void setPickOnlyMesh(const QUuid& meshUuid) { _pickOnlyMesh = meshUuid; }
+
+    // Pick the nearest CIRCULAR B-Rep edge (Edge Radius measurement tool)
+    // within snapPixelRadius screen pixels of the given pixel, across all
+    // visible OCC-sourced meshes. Non-circular edges (lines, splines) are
+    // never candidates - this tool only ever measures a circle, so there is
+    // nothing useful to return for them. Screen-space proximity against the
+    // same tessellated polyline the edge-wireframe overlay already renders -
+    // not a 3D ray test like pickSurfaceAnchor(): OCC edges are a flat
+    // segment buffer with no meaningful "surface" to ray-cast against.
+    MeshEdgeCircleAnchor pickEdgeCircleAnchor(const QPoint& pixel, int snapPixelRadius = 8);
+
+    // Pick the nearest edge of ANY kind (Edge Length/Edge-to-Edge/Edge-to-
+    // Face/Edge-to-Vertex measurement tools) - unlike pickEdgeCircleAnchor()
+    // above, every OCC edge is a candidate here (lines/splines included,
+    // not just circles), and on a mesh with no OCC data at all (glTF/OBJ)
+    // this falls back to the heuristic feature-edge list instead
+    // (SceneMesh::getFeatureEdgeIndices()) so edge picking works on any
+    // mesh type, not just CAD ones. Reuses MeshEdgeCircleAnchor's shape
+    // (meshUuid + edgeIndex) even though nothing here is necessarily a
+    // circle - see ViewportWidget::resolveMeasurementEdgeSegment() for how
+    // edgeIndex is interpreted differently depending on which of the two
+    // edge sources the target mesh actually has.
+    MeshEdgeCircleAnchor pickStraightEdgeAnchor(const QPoint& pixel, int snapPixelRadius = 8);
+
+    // Pick the nearest circular B-Rep edge's CENTER, for use anywhere a
+    // measurement wants an arbitrary point rather than a face/edge (Point,
+    // Distance, both arc tools, Point-to-Face's point anchor, Edge-to-
+    // Vertex's vertex anchor - see ViewportWidget::handleMeasurementClick()'s
+    // point-pick branch). A through-hole's center is empty space with no
+    // geometry to ray-cast against (see MeasurementData.h's
+    // ArcRadiusCenterPoint doc comment for why that tool was boss-only up to
+    // now), so this tests proximity to each circular edge's analytic center
+    // projected to screen space directly, the same way vertex-snapping
+    // already works off a projected point rather than a ray hit - AND to
+    // the rim itself (reusing pickEdgeCircleAnchor()'s segment-walk), since
+    // the rim is the visible, natural click target while the center itself
+    // may not even be visible (e.g. occluded by the far side of a bore). A
+    // hit here is preferred over the ordinary triangle-surface pick - exact
+    // beats approximate when both are available (e.g. a boss whose cap face
+    // happens to be near a hole's center too).
+    MeshEdgeCircleAnchor pickCircularEdgeCenterAnchor(const QPoint& pixel, int snapPixelRadius = 8);
+
+    // State queries
+    QList<int> getSelectedIds() const { return _selectedMeshIds; }
+    int getHoveredId() const { return _hoveredMeshId; }
+    HoverHighlightMode getHoverMode() const { return _hoverHighlightMode; }
+    SelectionMode getSelectionMode() const { return _selectionMode; }
+
+    // State setters (for sync with ViewportWidget after sweep selection)
+    void setSelectedIds(const QList<int>& selectedIds) {
+        _selectedMeshIds = selectedIds;
+        emit selectionChanged(_selectedMeshIds);
+    }
+
+    // Sync selection state without emitting signal (used by sweep selection to avoid feedback loops)
+    void syncSelectedIds(const QList<int>& selectedIds) {
+        _selectedMeshIds = selectedIds;
+    }
+
+    // FBO management (called by ViewportWidget)
+    void initializeFBOResources();
+    void cleanupFBOResources();
+    void resizeFBOResources(int width, int height);
+
+public slots:
+    void setHoverHighlightMode(HoverHighlightMode mode);
+    void setSelectionMode(SelectionMode mode);
+
+signals:
+    void selectionChanged(const QList<int>& selectedIds);
+    void hoverChanged(int hoveredId);
+    void hoverModeChanged(HoverHighlightMode mode);
+    void selectionModeChanged(SelectionMode mode);
+
+private:
+    QUuid _pickOnlyMesh;
+    // Helper methods for ray-casting
+    void getRayFromPixelCoords(const QPoint& pixel, QVector3D& rayPos, QVector3D& rayDir);
+    void convertClickToRay(const QPoint& pixel, const QRect& viewport,
+                          Camera* camera, QVector3D& rayPos, QVector3D& rayDir);
+
+    // State members
+    QList<int> _selectedMeshIds;           // Currently selected mesh IDs
+    int _hoveredMeshId = -1;               // Currently hovered mesh (-1 = none)
+    HoverHighlightMode _hoverHighlightMode = HoverHighlightMode::RaycastOnly;
+    SelectionMode _selectionMode = SelectionMode::Hybrid;
+
+    // FBO resources for color picking
+    unsigned int _selectionFBO = 0;
+    unsigned int _selectionRBO = 0;        // Color render buffer
+    unsigned int _selectionDBO = 0;        // Depth render buffer
+
+    // References to ViewportWidget data (don't own these)
+    ViewportWidget* _viewportWidget;
+    Camera* _primaryCamera;
+    std::vector<SceneMeshRecord>& _meshStore;
+    const std::vector<int>& _displayedObjectsIds;
+    const std::vector<int>& _hiddenObjectsIds;
+    bool& _visibleSwapped;
+
+    // Cached viewport dimensions for FBO
+    int _fboWidth = 0;
+    int _fboHeight = 0;
+};

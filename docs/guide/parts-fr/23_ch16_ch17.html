@@ -1,0 +1,59 @@
+<h1 class="chapter">Remplissages, remarques, images et sondage</h1>
+
+<h2>Remplissages : rubans et rideaux</h2>
+<p>Les lignes et nuages de points peuvent être remplis avec un ruban translucide, coloré comme le graphique, jusqu'à un plan de base ou entre deux courbes.</p>
+<table>
+  <thead><tr><th style="width:30%">Objectif</th><th>Comment</th></tr></thead>
+  <tbody>
+    <tr><td>Un rideau sous une ligne</td><td>Ligne / Courbe (<code>line_helix.csv</code>) : cochez <span class="ui">Remplir jusqu'à Z de base</span> et réglez la base (0). Modifier le graphique permet de changer la base ; le rideau pend de la ligne là où elle se trouve sous la base.</td></tr>
+    <tr><td>Une bande entre deux courbes</td><td>Ligne / Courbe avec une seconde colonne Z (<code>line_band.csv</code> : colonnes x, y, z, z2, value) : cochez le remplissage et choisissez la colonne dans <span class="ui">ou entre la ligne et la colonne</span>. La bande se resserre en une ligne là où les courbes se croisent. La zone de la base n'est pas utilisée tant qu'une colonne est choisie ; avec la colonne sur <i>(aucune)</i>, le remplissage atteint de nouveau le plan de base.</td></tr>
+    <tr><td>Rubans à partir de points d'un nuage</td><td>Nuage de points (<code>scatter_clusters.csv</code>) : <span class="ui">Remplir jusqu'à Z de base</span> avec une base telle que -3 ; ou une colonne dans <span class="ui">ou entre le graphique et la colonne</span> (<code>scatter_band.csv</code>) pour des rubans entre deux jeux de points.</td></tr>
+    <tr><td>Remplir une courbe générée</td><td>Courbe paramétrique, préréglage Hélice : <span class="ui">Remplir la courbe jusqu'à Z de base</span>, ou saisissez une seconde z2(t) (par exemple <code>2 + sin(t)</code>) dans <span class="ui">ou jusqu'à z2(t) =</span> pour remplir entre deux courbes de mêmes x(t), y(t). Le fait qu'un graphique généré soit rempli est décidé à sa création.</td></tr>
+  </tbody>
+</table>
+<p>La boîte d'axes s'agrandit toujours pour inclure ce qu'atteint le remplissage.</p>
+<figure data-img="tutorial_24_fill_between_curves.png"><figcaption>Une bande translucide entre deux courbes qui se croisent, se resserrant en une ligne là où elles se croisent</figcaption></figure>
+<figure data-img="tutorial_24_fill_curtain.png"><figcaption>L'hélice avec un rideau jusqu'au plan de base</figcaption></figure>
+
+<h2>Notes textuelles</h2>
+<p>Une <b>note</b> est un court texte placé en un point de vos données - un pic, une valeur aberrante, un seuil. Sélectionnez un graphique et ouvrez le groupe <span class="ui">Notes textuelles</span> dans l'onglet Graphique 3D.</p>
+<ul>
+  <li><span class="ui">Placer une note</span> arme un outil de clic : cliquez sur un point du graphique. Le clic s'aimante au point de données le plus proche d'un graphique visible (à moins de 14 pixels ; pour les lignes, aussi au point le plus proche d'un segment), sinon il utilise le point de la surface sous le curseur. Une boîte demande le texte, qui peut comporter plusieurs lignes. <span class="ui">Ajouter au centre</span> ajoute une note au centre des données du graphique.</li>
+  <li>Dans la vue, <b>faites glisser</b> une note pour la déplacer, <b>double-cliquez</b> pour la modifier, <b>faites un clic droit</b> pour la supprimer. Le tableau de l'onglet modifie directement X, Y, Z et le texte de la note.</li>
+  <li>Les notes sont stockées dans les coordonnées des <i>données</i> du graphique ; elles restent donc sur leur point lorsque l'échelle de l'axe change. Elles suivent la visibilité du graphique, sont dessinées même lorsque la boîte d'axes est masquée et sont enregistrées avec la session.</li>
+  <li>Chaque placement, déplacement, modification et suppression peut être <b>annulé</b>.</li>
+</ul>
+<figure data-img="tutorial_24_text_notes.png"><figcaption>Une note sur le pic d'une surface</figcaption></figure>
+
+<h2>Courbes de section au survol</h2>
+<p>Pour une <b>surface</b>, cochez <span class="ui">Afficher les courbes de section au survol</span>. Lorsque le curseur se déplace sur la surface, on dessine, par le point survolé, les courbes selon lesquelles les plans X, Y et Z la coupent - colorées en rouge, vert et bleu comme les axes (la bleue est la ligne de contour passant par le point) - avec les valeurs de données du point. Seule la courbe connexe passant par le point est dessinée ; une selle montre donc une branche. C'est un moyen rapide de lire un profil de surface sans construire de graphique, et cela ne fonctionne que dans la vue unique.</p>
+
+<h2>Images sur un plan</h2>
+<p>Une <b>image</b> peut être posée sur l'un des plans du graphique : un plan de situation sous une surface, une photographie d'une éprouvette à côté de ses données mesurées. Choisissez comme <span class="ui">Source des données</span> <i>Image sur un plan</i>, choisissez le fichier et le plan : <b>XY</b> (à plat, au minimum de Z), <b>XZ</b> ou <b>YZ</b> (verticale, au minimum de l'axe restant) ; les plages s'adaptent à la forme de l'image lorsque vous la choisissez ou changez de plan, et vous pouvez les ajuster.</p>
+<ul>
+  <li><span class="ui">Opacité</span> (100 % par défaut) laisse transparaître ce qui se trouve derrière l'image ; une image dotée de sa propre transparence se combine avec elle (<code>image_gradient_alpha.png</code> s'estompe vers ses coins).</li>
+  <li>Vue de derrière, une image se lit <b>en miroir</b>. Pour une image opaque, cochez <span class="ui">Lisible par l'arrière</span> et le dos la montre dans le bon sens (<code>image_gradient.png</code> comporte un repère « L » qui indique son orientation). L'option n'est disponible que pour une image opaque à 100 % d'opacité - avec une zone transparente ou une opacité inférieure, les deux faces se verraient à travers l'une l'autre ; le dos reste donc en miroir.</li>
+  <li>Un graphique d'image n'a ni palette de couleurs ni légende : ses pixels sont sa couleur.</li>
+</ul>
+<figure data-img="tutorial_24_image_plane.png"><figcaption>Une image posée sur un plan à côté d'un graphique de surface</figcaption></figure>
+
+
+<h1 class="chapter">Modifier, enregistrer et exporter</h1>
+
+<h2>Modifier un graphique</h2>
+<p>Chaque graphique se souvient de la façon dont il a été créé. Sélectionnez-le dans <span class="ui">Graphique actif</span> et cliquez sur <span class="ui">Modifier le graphique...</span> : la boîte de dialogue se rouvre sur la même source, avec le tableau, le choix des colonnes, les expressions, les plages, les nombres d'échantillons et les paramètres restaurés. Changez ce qu'il vous faut et cliquez sur <span class="ui">Recréer le graphique</span> : <b>le graphique est reconstruit sur place</b>, sans nouvelle entrée dans l'arbre, et conserve son titre, sa visibilité, sa palette de couleurs, sa plage et ses bandes, ses plans de référence, ses lignes de contour, son épaisseur de ligne et ses réglages d'axes (avec <span class="ui">Plage de couleurs automatique</span> activée, la plage suit les nouvelles données). Ce qui ne peut pas changer lors d'une modification, c'est la source de données (et, pour une surface par formule, le choix surface/contours) ; créez un nouveau graphique pour cela.</p>
+
+<h2>Enregistrement</h2>
+<p>Les graphiques sont enregistrés dans la session <code>.mvf</code> avec tout ce qu'il faut pour les modifier plus tard : les données, la définition (colonnes ou expressions), les axes, les réglages de couleur et les remarques. Après réouverture, <span class="ui">Modifier le graphique...</span> fonctionne toujours. Une session enregistrée par une version plus ancienne qui avait des axes différents pour chaque graphique s'ouvre avec les axes du graphique sélectionné, désormais partagés.</p>
+
+<h2>Export</h2>
+<ul>
+  <li>Les <b>graphiques de points et de lignes</b> (marqueurs de nuage de points, lignes, traces de trajectoires) s'exportent en <b>glTF</b>, <b>GLB</b> et <b>OBJ</b> avec le reste de la scène ; leurs couleurs sont incorporées au fichier afin que d'autres programmes les affichent en couleur.</li>
+  <li>Les surfaces, barres et autres graphiques maillés s'exportent comme n'importe quel maillage.</li>
+  <li>Les <b>images</b> de la vue - pour des rapports, des diapositives, des articles - proviennent de l'export d'images du programme et du rapport PDF, comme pour toute autre vue.</li>
+  <li>Les graphiques <b>ne sont pas dessinés par le lanceur de rayons</b>, et les rendus par tracé de chemins ne les contiennent pas. L'animation des trajectoires et le dessin à l'écran des remarques sont des aides à la visualisation et ne font pas partie d'un modèle exporté.</li>
+</ul>
+
+<div class="callout tip"><span class="label">Astuce</span>
+  <p>Pour récupérer vos nombres, conservez le CSV : la définition d'un graphique est enregistrée, mais le tableau d'origine reste la copie maîtresse. Si vous générez les données à partir d'un script, relancez-le, rouvrez le graphique avec <span class="ui">Modifier le graphique...</span> et chargez le nouveau tableau.</p>
+</div>

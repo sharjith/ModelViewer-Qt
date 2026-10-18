@@ -1,0 +1,96 @@
+<h1 class="chapter">The plot types</h1>
+
+<p>This chapter is the reference for what each plot type needs and offers. The columns are mapped in the Add 3D Plot dialog; the styling controls named here are in the <span class="ui">3D Plot</span> tab (chapter 15).</p>
+
+<table>
+  <thead><tr><th style="width:20%">Plot type</th><th style="width:34%">Columns</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td><b>Surface</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span>; optional <span class="ui">Colour value</span></td><td>A complete regular grid is drawn as a mesh; scattered points are triangulated (Delaunay). Optionally with contour lines.</td></tr>
+    <tr><td><b>Contour</b></td><td>as Surface</td><td>Only the iso-lines of Z; they can be flattened onto the base plane.</td></tr>
+    <tr><td><b>Line / Curve</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span>; optional <span class="ui">Colour value</span></td><td>Points in order. A constant-width line; the width is in screen pixels, so it does not change with the zoom. Can be filled.</td></tr>
+    <tr><td><b>Scatter</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span>; optional <span class="ui">Colour value</span></td><td>One marker per point. Optional stems, error bars and fills.</td></tr>
+    <tr><td><b>Bar / Histogram</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span> (the height); optional <span class="ui">Base</span>, <span class="ui">Width</span>, <span class="ui">Depth</span>, <span class="ui">Colour value</span></td><td>One box per row. A one-dimensional histogram sets Y to <i>(none)</i>.</td></tr>
+    <tr><td><b>Voxel / Volumetric</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span> (grid indices); <span class="ui">Colour value</span> (occupancy)</td><td>Drawn as a semi-transparent cloud, like the volume rendering of a result.</td></tr>
+    <tr><td><b>Vector (Quiver)</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span> and <span class="ui">U</span>, <span class="ui">V</span>, <span class="ui">W</span>; optional <span class="ui">Colour value</span></td><td>One arrow per row; arrow size and colour are controlled in the tab.</td></tr>
+  </tbody>
+</table>
+
+<h2>Surface and contour</h2>
+<p>A surface needs z over x and y. When the rows form a <b>complete regular grid</b> (every combination of the x values and the y values exactly once, in any row order), the grid is meshed directly. Otherwise the points are triangulated, which is what <code>surface_scattered.csv</code> tests: fourteen irregular points with a gently sloped height.</p>
+<ul>
+  <li><span class="ui">Contour lines</span> adds iso-lines of Z to any surface: <i>On the surface</i> draws dark lines on it (visible from both sides), <i>On the base plane</i> draws colour-mapped lines flattened onto the floor of the axes box. <span class="ui">Contour levels</span> sets how many.</li>
+  <li>The separate <b>Contour (surface iso-lines)</b> type shows the lines only, and <span class="ui">Project contours onto the base plane</span> flattens them.</li>
+  <li><span class="ui">Colour bands</span> turns the smooth colour of the surface into discrete bands; a fixed colour range is available too.</li>
+</ul>
+<figure data-img="tutorial_23_contours_and_sections.png"><figcaption>Contour lines on the base plane, and the section curves through the hovered point (chapter 16)</figcaption></figure>
+
+<h2>Line / curve</h2>
+<p>Row order is the order along the curve (<code>line_helix.csv</code>: two turns of a helix). The colour follows <span class="ui">Colour value</span> (or Z) along the curve. The <span class="ui">Line width</span> is in screen pixels. A line can be <b>filled</b> to the base plane or to a second curve (chapter 16).</p>
+
+<h2>Scatter</h2>
+<p>One marker per row; <span class="ui">Marker size</span> sets the size. Colours are <b>per point</b>, not interpolated: <code>scatter_clusters.csv</code> has three clusters coloured by their id. Variants:</p>
+<ul>
+  <li><span class="ui">Draw stems to Base Z</span>: a thin line from each point down (or up) to the base value.</li>
+  <li><span class="ui">Show error bars (&plusmn;Z)</span> with an error column: a vertical bar of &plusmn; that size at each point (<code>scatter_error_bars.csv</code>).</li>
+  <li><span class="ui">Fill to Base Z</span>: a translucent ribbon from each point to the base plane, or, with a column chosen in <i>or between the plot and column</i>, to a second set of Z values (<code>scatter_band.csv</code>). The axes box grows to include both.</li>
+</ul>
+
+<h2>Bar and histogram</h2>
+<ul>
+  <li>The height is <span class="ui">Z</span>. <span class="ui">Base</span>, <span class="ui">Width</span> and <span class="ui">Depth</span> are optional; without them bars start at 0 and use a width and depth of 0.8, which leaves a gap between neighbouring bars. A bar below its base extends downward, so signed data works (<code>bar_signed.csv</code>).</li>
+  <li><span class="ui">Colour value</span> defaults to the height.</li>
+  <li><b>One-dimensional histogram</b> (<code>bar_histogram_1d.csv</code>: columns <i>bin</i> and <i>count</i>): set X to the bin column, Y to <i>(none)</i>, Z to the count, and leave the rest <i>(none)</i>. The result is one row of equal bars centred on Y = 0, with height and colour both driven by the count.</li>
+  <li><span class="ui">Bar width</span> and <span class="ui">Bar depth</span> can be changed later in the tab.</li>
+</ul>
+
+<h2>Voxel / volumetric</h2>
+<p>Map X, Y and Z to the grid indices and the colour value to the occupancy (<code>voxel_sphere.csv</code>: a sphere carved from a 9 x 9 x 9 grid, with occupancy fading from 1.0 at the centre to 0.15 near the shell). Zero occupancy is transparent and non-zero values fade in by occupancy, so the plot is a soft cloud rather than a set of boxes.</p>
+
+<h2>Vector (quiver)</h2>
+<p>Each row is a point and a vector. <code>quiver_vortex.csv</code> is a rigid rotation about the Z axis plus a small upward component: arrows curl around Z and lengthen with distance. <span class="ui">Arrow size</span> in the tab sets the length scale without growing with the camera; arrow colour follows the value (the legend reads <i>Vector magnitude</i>).</p>
+<figure data-img="tutorial_23_plot_types.png"><figcaption>A scatter, a bar chart and a vector field built into one scene</figcaption></figure>
+<figure data-img="tutorial_23_voxel_sphere.png"><figcaption><code>voxel_sphere.csv</code> drawn as a semi-transparent sphere</figcaption></figure>
+
+
+<h1 class="chapter">Plots from formulas</h1>
+
+<p>You do not need a file to make a plot: a formula, a parametric definition or a preset generates the data. The sources share the CSV plots' preview, colour, axes, notes and export tools, and a generated plot remembers its definition so it can be edited and rebuilt (chapter 17).</p>
+
+<h2>The sources</h2>
+<table>
+  <thead><tr><th style="width:26%">Source</th><th>You give</th><th>Presets</th></tr></thead>
+  <tbody>
+    <tr><td><b>Formula surface</b></td><td>z(x, y) = ..., ranges and sample counts of x and y, named parameters</td><td>Plane, Saddle, Paraboloid, Cone, Gaussian, Sinc Ripple, Wave, Mexican Hat, Bivariate Normal, Logistic Regression, Rosenbrock</td></tr>
+    <tr><td><b>Parametric surface</b></td><td>x(u, v), y(u, v), z(u, v), ranges of u and v</td><td>Torus, Ellipsoid, Mobius Strip, Klein Bottle, Superellipsoid, Helicoid, Catenoid, Enneper Surface, Spherical Harmonic</td></tr>
+    <tr><td><b>Parametric curve</b></td><td>x(t), y(t), z(t), range of t</td><td>Helix, Lissajous, Trefoil Knot, Viviani Curve, Damped Spiral</td></tr>
+    <tr><td><b>Implicit surface</b></td><td>f(x, y, z), drawn where f = 0; ranges and samples of all three axes</td><td>Sphere, Torus, Gyroid, Wave Interference</td></tr>
+    <tr><td><b>Formula vector field</b></td><td>u, v, w as functions of x and y, evaluated on a planar grid; ranges and samples of x and y</td><td>Vortex, Radial, Saddle, Helical</td></tr>
+    <tr><td><b>Formula streamlines</b></td><td>a <i>steady</i> field u, v, w; ranges of x and y and a number of seeds</td><td>Presets of the vector fields</td></tr>
+    <tr><td><b>Formula pathlines</b></td><td>a time-dependent field u, v, w(x, y, z, t)</td><td>Pulsating Vortex, Double Gyre, Travelling Wave, Oscillating Updraft (chapter 14)</td></tr>
+  </tbody>
+</table>
+
+<h2>Writing expressions</h2>
+<table class="compact">
+  <thead><tr><th style="width:26%">Element</th><th>Available</th></tr></thead>
+  <tbody>
+    <tr><td>Operators</td><td><code>+  -  *  /  ^</code> (power; <code>2^3^2</code> is <code>2^9</code>), unary minus, parentheses</td></tr>
+    <tr><td>Functions</td><td><code>sin cos tan asin acos atan sinh cosh tanh exp log sqrt abs sign</code> (one argument; <code>log</code> is natural and needs a positive value, <code>sqrt</code> a non-negative one), and the two-argument <code>pow(a, b)  min(a, b)  max(a, b)</code></td></tr>
+    <tr><td>Constants</td><td><code>pi</code>, <code>e</code></td></tr>
+    <tr><td>Variables</td><td><code>x</code>, <code>y</code> (and <code>z</code> where a third coordinate exists); <code>u</code>, <code>v</code> are the surface parameters of a parametric surface, <code>t</code> the parameter of a curve or, for pathlines, the <i>time</i></td></tr>
+    <tr><td>Parameters</td><td>Named constants such as <code>a</code>, <code>s</code>, <code>kx</code> that a preset provides and that you can edit - change one and press <span class="ui">Refresh Preview</span></td></tr>
+  </tbody>
+</table>
+<p>A mistake is reported in the status line under the preview, by name: <i>Unknown variable: q</i>, <i>Missing closing parenthesis</i>, <i>Division by zero</i>, <i>log requires a positive value</i>. <span class="ui">Build Plot</span> stays disabled until the expression evaluates. Examples:</p>
+<pre>Formula surface   z =  a*exp(-((x-x0)^2+(y-y0)^2)/(2*s^2))        (Gaussian preset)
+Parametric curve  x = cos(t)   y = sin(t)   z = t/(2*pi)            (a helix)
+Implicit surface  f = x^2 + y^2 + z^2 - r^2                         (a sphere of radius r)</pre>
+
+<h2>Preview, build and edit</h2>
+<p><span class="ui">Refresh Preview</span> evaluates the formula and shows the plot in the scene, with a status line such as <i>Pathlines from 12 seeds over t = 0 ... 10 (n segments), coloured by time</i>. <span class="ui">Build Plot</span> adds it. Later, select the plot in <span class="ui">Active plot</span>, click <span class="ui">Edit Plot...</span>: the dialog reopens on the same source with the expressions, ranges, sample counts and parameters restored; change one and click <span class="ui">Rebuild Plot</span>. The plot updates <b>in place</b>, keeping its title, visibility, colours and axis settings. The source type cannot be changed in an edit; build a new plot for that.</p>
+<figure data-img="tutorial_24_formula_surface.png"><figcaption>The Mexican Hat formula surface with the dialog and its status line</figcaption></figure>
+<figure data-img="tutorial_24_parametric_surfaces.png"><figcaption>A torus and a Klein bottle from the parametric presets</figcaption></figure>
+
+<div class="callout tip"><span class="label">Tip</span>
+  <p>Generated plots are a fast way to check a data pipeline or to build a picture with no data at hand: a Gaussian bump as a target, a saddle to show a minimum-maximum, a torus as a test object for the surface tools.</p>
+</div>

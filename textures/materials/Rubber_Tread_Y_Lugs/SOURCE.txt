@@ -1,0 +1,4 @@
+3dtextures.me, Rubber Sole 001
+https://3dtextures.me (rubber-sole-001)
+Licence: CC0 1.0 Universal (all textures on the site, https://3dtextures.me/about/)
+Files: free 1K set downloaded 2026-10-16; the 16-bit height map was converted to 8-bit PNG. Normal maps are OpenGL convention.

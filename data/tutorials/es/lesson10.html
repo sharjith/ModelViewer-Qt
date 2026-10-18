@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lección 10: Iluminación y entorno - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primeros pasos</a>
+            <a href="lesson02.html">2. Abrir modelos</a>
+            <a href="lesson03.html">3. Navegación básica</a>
+            <a href="lesson04.html">4. Seleccionar objetos</a>
+            <a href="lesson05.html">5. Modos de vista</a>
+            <a href="lesson06.html">6. Modos de cámara</a>
+            <a href="lesson07.html">7. Modos de visualización</a>
+            <a href="lesson08.html">8. Manipular objetos</a>
+            <a href="lesson09.html">9. Materiales y texturas</a>
+            <a href="lesson10.html" class='active'>10. Iluminación y entorno</a>
+            <a href="lesson11.html">11. Trabajar con la visibilidad</a>
+            <a href="lesson12.html">12. Funciones avanzadas</a>
+            <a href="lesson13.html">13. Optimización del rendimiento</a>
+            <a href="lesson14.html">14. Consejos y flujos de trabajo</a>
+            <a href="lesson15.html">15. Vistas explosionadas</a>
+            <a href="lesson16.html">16. Animación de morph targets</a>
+            <a href="lesson17.html">17. Edición de la transformación de nodos</a>
+            <a href="lesson18.html">18. Renderizado de bordes y malla de alambre</a>
+            <a href="lesson19.html">19. Resultados de simulación</a>
+            <a href="lesson20.html">20. Mirar dentro de un resultado</a>
+            <a href="lesson21.html">21. Gráficos y sondeo</a>
+            <a href="lesson22.html">22. Comparar resultados, datos de celda y de lámina</a>
+            <a href="lesson23.html">23. Gráficos 3D a partir de datos CSV</a>
+            <a href="lesson24.html">24. Gráficos 3D a partir de fórmulas, rellenos, imágenes y notas</a>
+            <a href="lesson25.html">25. Gráficos y resultados reproducidos juntos</a>
+            <a href="lesson26.html">26. Herramientas de malla</a>
+            <a href="lesson27.html">27. Medir, anotar e informar</a>
+            <a href="lesson28.html">28. Análisis, selección y escenas</a>
+            <a href="lesson29.html">29. Trazado de rayos en la práctica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lección 10 de 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 34.48%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lección 10: Iluminación y entorno</h1>
+        </div>
+
+        <h2>Introducción</h2>
+        <p>Una buena iluminación es esencial para una visualización realista. ModelViewer ofrece varias opciones de iluminación, entre ellas luces predeterminadas, luces puntuales e iluminación basada en imágenes (IBL).</p>
+
+        <h2>Panel de entorno</h2>
+        <p>Acceder a los controles de iluminación:</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Abrir la pestaña Entorno</div>
+            <div class="step-content">Haga clic en la pestaña «Entorno» del panel derecho.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_10_environment_panel.png" alt="Panel de entorno con los ajustes de iluminación y entorno" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:500px;">Captura: tutorial_10_environment_panel.png (300x500)</div>
+            <span class="screenshot-caption">Panel de entorno con los ajustes de iluminación y entorno</span>
+        </div>
+
+        <h2>Luces predeterminadas</h2>
+        <p>Configuración sencilla de iluminación de tres puntos:</p>
+                <div class="step">
+            <div class="step-title">Paso 1: Activar las luces predeterminadas</div>
+            <div class="step-content">Marque la casilla «Usar luces predeterminadas».</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Ajustar la posición de la luz</div>
+            <div class="step-content">Use los deslizadores para colocar la fuente de luz en X, Y y Z.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Propiedades de la luz</div>
+            <div class="step-content">La luz predeterminada incluye componentes ambiental, difusa y especular que iluminan automáticamente la escena.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_10_default_lights.png" alt="Objeto iluminado con las luces predeterminadas, con una definición clara de la forma" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Captura: tutorial_10_default_lights.png (700x450)</div>
+            <span class="screenshot-caption">Objeto iluminado con las luces predeterminadas, con una definición clara de la forma</span>
+        </div>
+
+        <h2>Luces puntuales (luces glTF)</h2>
+        <p>Luces de escena de modelos glTF:</p>
+                <div class="step">
+            <div class="step-title">Paso 1: Activar las luces puntuales</div>
+            <div class="step-content">Marque «Usar luces puntuales» al trabajar con modelos glTF que incluyen luces.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Tipos de luz</div>
+            <div class="step-content">
+                • <b>Luces puntuales:</b> emiten en todas direcciones desde un punto<br/> • <b>Focos:</b> cono de luz direccional<br/> • <b>Luces direccionales:</b> rayos paralelos como la luz solar
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Mostrar las luces</div>
+            <div class="step-content">Marque «Mostrar luces» para mostrar en la vista los indicadores de posición de las luces.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_10_punctual_lights.png" alt="Escena con varias luces puntuales y sus indicadores de posición" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Captura: tutorial_10_punctual_lights.png (700x450)</div>
+            <span class="screenshot-caption">Escena con varias luces puntuales y sus indicadores de posición</span>
+        </div>
+
+        <h2>Iluminación basada en imágenes (IBL)</h2>
+        <p>Iluminación ambiental realista a partir de imágenes HDRI:</p>
+                <div class="step">
+            <div class="step-title">Paso 1: Activar IBL</div>
+            <div class="step-content">Marque la casilla «Usar IBL».</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Seleccionar el mapa de entorno</div>
+            <div class="step-content">Elija una imagen HDRI del menú desplegable o cargue una personalizada.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Ajustar la exposición</div>
+            <div class="step-content">Use el deslizador «Exposición IBL» para controlar la intensidad de la iluminación ambiental.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_10_ibl_lighting.png" alt="Objetos metálicos mostrando reflejos del entorno IBL" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Captura: tutorial_10_ibl_lighting.png (700x450)</div>
+            <span class="screenshot-caption">Objetos metálicos mostrando reflejos del entorno IBL</span>
+        </div>
+
+        <div class="note note-tip">
+            IBL proporciona iluminación Y reflejos. Es imprescindible para materiales metálicos y de vidrio realistas.
+        </div>
+
+        <h2>Skybox</h2>
+        <p>Fondo visual del entorno:</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Activar la skybox</div>
+            <div class="step-content">Marque «Activar skybox» en el panel Entorno.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Seleccionar el mapa</div>
+            <div class="step-content">Elija entre entornos HDR predefinidos o cargue un cubemap personalizado.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Opción de desenfoque</div>
+            <div class="step-content">Marque «Desenfocar skybox» para un fondo más suave y menos distractor.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 4: Ajustar el campo de visión</div>
+            <div class="step-content">Ajuste «Campo de visión de la skybox» para controlar cuánto del entorno es visible.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_10_skybox.png" alt="Escena con el entorno skybox visible al fondo" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Captura: tutorial_10_skybox.png (700x450)</div>
+            <span class="screenshot-caption">Escena con el entorno skybox visible al fondo</span>
+        </div>
+
+        <h2>Sombras</h2>
+        <p>Añada profundidad con el mapeo de sombras:</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Activar las sombras</div>
+            <div class="step-content">Marque «Habilitar sombras» en el panel Entorno.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Ajustar la calidad</div>
+            <div class="step-content">Use el menú desplegable «Calidad de sombras»: Baja, Media, Alta o Ultra. Una mayor calidad crea sombras más suaves y realistas, pero es más lenta.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Autosombras</div>
+            <div class="step-content">Active «Autosombras» para que los objetos proyecten sombras sobre sí mismos.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_10_shadows.png" alt="Objeto con y sin sombras para comparar" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:350px;">Captura: tutorial_10_shadows.png (700x350)</div>
+            <span class="screenshot-caption">Objeto con y sin sombras para comparar</span>
+        </div>
+
+        <h2>Plano del suelo</h2>
+        <p>Añada un suelo para sombras y reflejos:</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Activar el suelo</div>
+            <div class="step-content">Marque la casilla «Mostrar suelo».</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Ajustar la posición</div>
+            <div class="step-content">Use el deslizador «Desplazamiento del suelo» para colocar el suelo respecto al modelo.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Textura</div>
+            <div class="step-content">El suelo puede mostrar una textura de tablero de ajedrez. Ajuste «Repetir S» y «Repetir T» para controlar el mosaico de la textura.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_10_floor.png" alt="Modelo sobre el plano del suelo con sombras y reflejos" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Captura: tutorial_10_floor.png (700x450)</div>
+            <span class="screenshot-caption">Modelo sobre el plano del suelo con sombras y reflejos</span>
+        </div>
+
+        <h2>HDR y mapeo tonal</h2>
+        <p>Para un renderizado realista de alto rango dinámico:</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Activar el mapeo tonal HDR</div>
+            <div class="step-content">Marque «Mapeo tonal HDR» para tratar correctamente las luces brillantes.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Seleccionar el algoritmo</div>
+            <div class="step-content">Elija el modo de mapeo tonal: Reinhard, ACES, Filmic, etc.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 3: Ajustar la exposición</div>
+            <div class="step-content">Use «Exposición del mapa de entorno» para controlar el brillo general.</div>
+        </div>
+
+        <div class="note note-info">
+            El mapeo tonal convierte los valores HDR al rango que se puede mostrar conservando el detalle tanto en las sombras como en las luces.
+        </div>
+
+        <h2>Corrección gamma</h2>
+        <p>Asegure una visualización correcta del color:</p>
+        <div class="step">
+            <div class="step-title">Paso 1: Activar la corrección gamma</div>
+            <div class="step-content">Marque «Corrección gamma» para obtener colores precisos.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Gamma de pantalla</div>
+            <div class="step-content">Fije «Gamma de pantalla» en 2,2 (estándar para la mayoría de los monitores).</div>
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson09.html' class='nav-button'>← Lección anterior</a>
+            <a href="index.html" class="back-to-index">↑ Volver al índice</a>
+            <a href='lesson11.html' class='nav-button'>Siguiente lección →</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,6 +1,6 @@
 //Microsoft Developer Studio generated resource script.
 //
-#include "include/resource.h"
+#include "include/Core/Resource.h"
 
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////
@@ -57,7 +57,7 @@ BEGIN
         BEGIN
             VALUE "Comments", "\0"
             VALUE "CompanyName", "N. Sharjith\0"
-            VALUE "FileDescription", "Assimp OpenGL Model Viewer\0"
+            VALUE "FileDescription", "Model Viewer\0"
             VALUE "FileVersion", "1.0\0"
             VALUE "InternalName", "ModelViewer\0"
             VALUE "LegalCopyright", "N. Sharjith\0"
@@ -86,7 +86,7 @@ END
 
 1 TEXTINCLUDE DISCARDABLE 
 BEGIN
-    "resource.h\0"
+    "include/Core/Resource.h\0"
 END
 
 2 TEXTINCLUDE DISCARDABLE 

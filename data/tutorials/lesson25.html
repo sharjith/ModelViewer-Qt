@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 25: Plots and Results Played Together - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials &amp; Textures</a>
+            <a href="lesson10.html">10. Lighting &amp; Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips &amp; Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge &amp; Wireframe Rendering</a>
+            <a href="lesson19.html">19. Simulation Results</a>
+            <a href="lesson20.html">20. Looking Inside a Result</a>
+            <a href="lesson21.html">21. Charts and Probing</a>
+            <a href="lesson22.html">22. Comparing Results, Cell and Shell Data</a>
+            <a href="lesson23.html">23. 3D Plots from CSV Data</a>
+            <a href="lesson24.html">24. 3D Plots from Formulas, Fills, Images and Notes</a>
+            <a href="lesson25.html" class='active'>25. Plots and Results Played Together</a>
+            <a href="lesson26.html">26. Mesh Tools</a>
+            <a href="lesson27.html">27. Measure, Annotate and Report</a>
+            <a href="lesson28.html">28. Analysis, Selection and Scenes</a>
+            <a href="lesson29.html">29. Ray Tracing in Practice</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 25 of 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 86.21%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 25: Plots and Results Played Together</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Lessons 19 to 24 gave you simulation results and 3D plots separately. They live in the same scene, and when both change over time one playback bar can drive them together. This lesson traces particles through a time-dependent flow as <b>pathlines</b>, animates them, and plays them in step with a result.</p>
+        <h2>Pathlines from a CSV Time Series</h2>
+        <p>A pathline is the track of a particle carried by a flow that changes with time. Give ModelViewer the velocity field on a regular grid, one table of rows for every time, and it releases particles and integrates their paths through the changing field.</p>
+        <div class="step">
+            <div class="step-title">Step 1: Choose the source</div>
+            <div class="step-content">In the Add 3D Plot dialog set <b>Data source</b> to <i>CSV time series (pathlines)</i> and open <code>pathlines_double_gyre.csv</code>: Shadden's double gyre, two counter-rotating cells whose dividing line oscillates, sampled at 21 times.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Check the columns</div>
+            <div class="step-content"><b>Time column</b>, X, Y, an optional Z, and U, V, W are guessed from the header names (t or time, x, u ...) and can be changed. The status line reports either that the rows form a complete grid and how many seeds and segments result, or why the table cannot be used.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Build</div>
+            <div class="step-content">Click <b>Preview</b>, then <b>Build Plot</b>. The trails are lines coloured by time, with a legend that runs from the start to the end time. The seeds are released along Y at the middle of the X range.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_25_double_gyre_pathlines.png" alt="tutorial_25_double_gyre_pathlines.png" title="Capture: Build pathlines_double_gyre.csv (CSV time series), top view so the two cells and the folding trails are visible, legend showing the time range." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build pathlines_double_gyre.csv (CSV time series), top view so the two cells and the folding trails are visible, legend showing the time range." style="display:none; width:700px; height:450px;">Screenshot: tutorial_25_double_gyre_pathlines.png (700x450)</div>
+            <span class="screenshot-caption">Pathlines of the double gyre, coloured by time</span>
+        </div>
+
+        <div class="note note-info">
+            <code>pathlines_rising_vortex_3d.csv</code> is a 3-D version with a Z column: a rotation whose rate pulses in time plus an oscillating vertical velocity, so the trails climb as they circle. Delete a line from a copy of a table and the status line says it is not a complete grid and how many rows it needs.
+        </div>
+        <h2>Pathlines from a Formula</h2>
+        <p><i>Formula pathlines (time-dependent)</i> needs no file: <b>u(x,y,z,t)</b>, <b>v(x,y,z,t)</b> and <b>w(x,y,z,t)</b> are expressions in position <i>and time</i>, with seeds set by <b>Y range / samples</b> and the time interval by <b>T range / steps</b>. Presets: Pulsating Vortex, Double Gyre, Travelling Wave and Oscillating Updraft.</p>
+        <div class="note note-warning">
+            Here <b>t</b> is <i>time</i>. In <i>Formula streamlines</i> the field is steady, and in <i>Parametric curve</i> t is only the curve parameter - do not mix them up.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_25_formula_pathlines.png" alt="tutorial_25_formula_pathlines.png" title="Capture: Add 3D Plot &gt; Formula pathlines (time-dependent) &gt; Pulsating Vortex; Build; top view with the time legend visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Add 3D Plot &gt; Formula pathlines (time-dependent) &gt; Pulsating Vortex; Build; top view with the time legend visible." style="display:none; width:700px; height:450px;">Screenshot: tutorial_25_formula_pathlines.png (700x450)</div>
+            <span class="screenshot-caption">The Pulsating Vortex preset: rings whose colour bands bunch up where the particle slows</span>
+        </div>
+
+        <h2>Animating Pathlines</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Select the plot</div>
+            <div class="step-content">Choose the pathline plot in <b>Active plot</b> in the 3D Plot tab.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Tick Animate pathlines</div>
+            <div class="step-content">Tick <b>Animate pathlines (timeline)</b>. A timeline appears at the top of the viewport with the controls you know from Lesson 19. The whole plot shows until you press play; from the end, play starts over.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Press play</div>
+            <div class="step-content">The trails are drawn only up to the current time, with a dot at the head of each, coloured by the current time. Drag the slider back and forth, switch <b>Loop</b> off, or try the speed choices from 0.5x to 4x.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_25_animated_pathlines.png" alt="tutorial_25_animated_pathlines.png" title="Capture: Double gyre pathlines with Animate pathlines ticked, stopped at about t = 10 s; capture the viewport with the timeline bar at the top." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Double gyre pathlines with Animate pathlines ticked, stopped at about t = 10 s; capture the viewport with the timeline bar at the top." style="display:none; width:700px; height:420px;">Screenshot: tutorial_25_animated_pathlines.png (700x420)</div>
+            <span class="screenshot-caption">Pathlines part-way through the animation, with their head dots and the timeline</span>
+        </div>
+
+        <div class="note note-info">
+            The animation is a viewing aid: it is not saved with the file, and the dots are not exported or ray traced. Hiding the plot in the Scene Tree removes the timeline and pauses playback.
+        </div>
+        <h2>One Playback Bar for Both</h2>
+        <p>The timeline plays whichever item is chosen in the box at its left. The box lists every multi-step simulation result (<i>Simulation: name</i>) and the animated pathline plot (<i>Pathlines: name</i>), and, when both can play, <b>All together</b>. With only one playable item the box is hidden. The legends of a result and a plot stack in one column, each headed with its owner's name.</p>
+        <div class="step">
+            <div class="step-title">Step 1: Open the cavity result</div>
+            <div class="step-content">Open <code>sample-models/Simulation/openfoam_cavity/cavity.foam</code> and choose the velocity magnitude (<b>U</b>, <b>Magnitude</b>) in the Simulation Results tab.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Add the matching pathlines</div>
+            <div class="step-content">In the 3D Plot tab choose <b>Add 3D Plot...</b>, source <i>CSV time series (pathlines)</i>, open <code>pathlines_openfoam_cavity.csv</code> from <code>sample-models/Plot3D</code> and map Time = t, X = x, Y = y, Z = z, U = u, V = v, W = w. That file holds the cell-centre velocity of the same case on a plane just above its top face, so both share coordinates and real time. Build, and hide the plot's axes box if it clutters the view.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Play both</div>
+            <div class="step-content">Tick <b>Animate pathlines (timeline)</b>, choose <b>All together</b> in the playback box and press play. The trails grow while the field steps from 0 to 2 s; the bar reads the current time and step, for example <i>t = 1 - step 3 of 5</i>. Both follow real time: the result holds each step until the next one's time.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_25_cavity_with_pathlines.png" alt="tutorial_25_cavity_with_pathlines.png" title="Capture: openfoam_cavity result plus pathlines_openfoam_cavity.csv pathlines, All together selected, paused at t = 1; capture the viewport including the timeline and the two stacked legends." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: openfoam_cavity result plus pathlines_openfoam_cavity.csv pathlines, All together selected, paused at t = 1; capture the viewport including the timeline and the two stacked legends." style="display:none; width:700px; height:450px;">Screenshot: tutorial_25_cavity_with_pathlines.png (700x450)</div>
+            <span class="screenshot-caption">The cavity result and its pathlines playing together, with the playback box showing All together</span>
+        </div>
+
+        <div class="note note-warning">
+            A modal result such as <code>FEM_box_modes.frd</code>, whose steps are frequencies in hertz, cannot share a time axis with pathlines: <b>All together</b> then plays them by progress instead of by time.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson24.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson26.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

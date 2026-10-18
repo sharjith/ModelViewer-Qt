@@ -1,0 +1,97 @@
+<h1 class="chapter">Strömung in der Zeit: Bahnlinien</h1>
+
+<p>Eine <b>Stromlinie</b> ist der Weg entlang eines zu einem Zeitpunkt eingefrorenen Feldes. Eine <b>Bahnlinie</b> ist die Spur eines Teilchens, das von einem Feld getragen wird, das sich <i>mit der Zeit ändert</i> - sie ist das, was ein Tropfen Farbstoff zeigen würde. Ist die Strömung instationär, unterscheiden sich die beiden, und Bahnlinien sind diejenigen, die der Wirklichkeit entsprechen. ModelViewer zeichnet Bahnlinien aus einer zeitabhängigen Formel oder aus einer CSV-Zeitreihe, färbt sie nach der Zeit und kann sie animieren.</p>
+
+<h2>Bahnlinien aus einer CSV-Zeitreihe</h2>
+<p>Die Tabelle ist ein Geschwindigkeitsfeld, das für jede einer Reihe von Zeiten auf einem <b>vollständigen regelmäßigen Gitter</b> abgetastet ist. Jede Zeile enthält eine Zeit, eine Position und eine Geschwindigkeit:</p>
+<pre>t,x,y,u,v,w
+0,0,0,-0.000000,0.000000,0
+0,0,0.25,-0.000000,0.222144,0
+...</pre>
+<ul>
+  <li>Wählen Sie als <span class="ui">Datenquelle</span> <i>CSV-Zeitreihe (Bahnlinien)</i> und öffnen oder fügen Sie die Tabelle ein. <span class="ui">Zeitspalte</span>, <span class="ui">X</span>, <span class="ui">Y</span>, ein optionales <span class="ui">Z</span> sowie <span class="ui">U</span>, <span class="ui">V</span>, <span class="ui">W</span> werden anhand der Kopfzeilennamen erraten (<code>t</code> oder <code>time</code>, <code>x</code>, <code>u</code> ...) und können geändert werden. Ohne Z-Spalte ist das Feld eben.</li>
+  <li>Die Statuszeile meldet entweder <i>N Zeilen bilden ein vollständiges Gitter</i> und wie viele Startpunkte und Segmente daraus entstehen, oder warum die Tabelle nicht verwendbar ist: eine fehlende Zeile (sie sagt, wie viele Zeilen nötig sind), eine nicht numerische Zelle (sie nennt die Zeile), eine weggelassene Spalte.</li>
+  <li><b>Wie verfolgt wird.</b> Startpunkte werden entlang Y in der Mitte des X-Bereichs freigesetzt (bei einer 3D-Tabelle in der mittleren z-Ebene) und mit einer Runge-Kutta-Integration vierter Ordnung durch das Feld getragen, über <span class="ui">Zeitschritte</span> gleiche Schritte von der ersten bis zur letzten Zeit der Tabelle. Das Feld wird im Raum und in der Zeit linear interpoliert. Eine Spur endet dort, wo ihr Teilchen das Gitter verlässt. Die Zeilenreihenfolge der Datei spielt keine Rolle.</li>
+  <li>Die Spuren sind Linien, die nach der <b>Zeit</b> eingefärbt sind; die Legende läuft also von der Start- bis zur Endzeit, und es gelten die üblichen Steuerungen für Farbskala, Stufen, Bereich und Linienbreite.</li>
+</ul>
+<figure data-img="tutorial_25_double_gyre_pathlines.png"><figcaption>Bahnlinien des Doppelwirbels, nach Zeit eingefärbt</figcaption></figure>
+
+<table class="compact">
+  <thead><tr><th style="width:40%">Beispiel</th><th>Was es ist</th></tr></thead>
+  <tbody>
+    <tr><td><code>pathlines_double_gyre.csv</code></td><td>Der klassische instationäre Doppelwirbel auf x 0..2, y 0..1: zwei gegenläufig drehende Zellen, deren Trennlinie mit einer Periode von 10 s oszilliert, abgetastet zu 21 Zeitpunkten (945 Zeilen). Ein ebenes Feld.</td></tr>
+    <tr><td><code>pathlines_rising_vortex_3d.csv</code></td><td>Ein 3D-Feld (4.212 Zeilen mit einer Z-Spalte): eine Rotation um die Z-Achse, deren Rate zeitlich pulsiert, plus eine oszillierende vertikale Geschwindigkeit, sodass die Spuren beim Kreisen aufsteigen.</td></tr>
+    <tr><td><code>pathlines_openfoam_cavity.csv</code></td><td>Die Zellmittelpunktsgeschwindigkeit des OpenFOAM-Hohlraum-Beispiels (Zeiten 0 bis 2 s) auf einer Ebene knapp über seiner Deckfläche, gemacht, um zusammen mit diesem Ergebnis abgespielt zu werden (Kapitel 18).</td></tr>
+  </tbody>
+</table>
+
+<h2>Bahnlinien aus einer Formel</h2>
+<p>Bei <b>Formel-Bahnlinien (zeitabhängig)</b> besteht das Feld aus drei Ausdrücken <span class="ui">u(x,y,z,t)</span>, <span class="ui">v(x,y,z,t)</span>, <span class="ui">w(x,y,z,t)</span> in Position <b>und Zeit</b>; <span class="ui">Y-Bereich / Stützstellen</span> legt die Startpunkte entlang Y in der Mitte des X-Bereichs fest (bei z = 0), und <span class="ui">T-Bereich / Schritte</span> das Zeitintervall und die Anzahl der Integrationsschritte. Eine Spur endet dort, wo ihr Teilchen den x-/y-Bereich verlässt.</p>
+<table class="compact">
+  <thead><tr><th style="width:28%">Vorlage</th><th>Verhalten</th></tr></thead>
+  <tbody>
+    <tr><td>Pulsierender Wirbel</td><td>Eine Starrkörperrotation, deren Rate zeitlich pulsiert: konzentrische Ringe; die (Zeit-)Farbbänder drängen sich dort zusammen, wo das Teilchen langsamer wird, und dehnen sich dort, wo es schneller wird.</td></tr>
+    <tr><td>Doppelwirbel</td><td>Zwei gegenläufig drehende Zellen, deren Trennlinie oszilliert; benachbarte Spuren falten und strecken sich.</td></tr>
+    <tr><td>Wanderwelle</td><td>Eine stationäre Strömung, die von einer in x laufenden Welle seitlich abgelenkt wird: Die Spuren driften nach vorn und wackeln.</td></tr>
+    <tr><td>Oszillierender Aufwind</td><td>Ein Wirbel mit oszillierender Vertikalgeschwindigkeit: Die Ringe steigen und sinken, sodass die Spuren Schraubenlinien in Z zeichnen.</td></tr>
+  </tbody>
+</table>
+<div class="callout warn"><span class="label">Achtung</span>
+  <p>In dieser Quelle ist <code>t</code> die <b>Zeit</b>. Bei <i>Formel-Stromlinien</i> ist das Feld stationär (ohne Zeit), und bei <i>Parametrische Kurve</i> ist <code>t</code> lediglich der Kurvenparameter. Liegt das Ende des Zeitbereichs vor seinem Anfang, ist <span class="ui">Diagramm erstellen</span> mit einer Meldung deaktiviert.</p>
+</div>
+<figure data-img="tutorial_25_formula_pathlines.png"><figcaption>Die Vorlage „Pulsierender Wirbel“: Ringe, deren Farbbänder sich dort zusammendrängen, wo das Teilchen langsamer wird</figcaption></figure>
+
+<h2>Bahnlinien animieren</h2>
+<p>Wählen Sie das Diagramm unter <span class="ui">Aktives Diagramm</span> und aktivieren Sie <span class="ui">Bahnlinien animieren (Zeitleiste)</span> in der Registerkarte „3D-Diagramm“. Oben im Ansichtsfenster erscheint eine <b>Zeitleiste</b> - dieselbe Leiste wie bei Simulationsergebnissen, mit Wiedergabe/Pause, Einzelschritt, Stopp, einem Schieberegler, der aktuellen Zeit, <span class="ui">Schleife</span> und einer Geschwindigkeitswahl. Die Spuren werden nur bis zur aktuellen Zeit gezeichnet, mit einem Punkt an der Spitze jeder Spur, eingefärbt nach der aktuellen Zeit. Beim Einschalten der Option wird das ganze Diagramm gezeigt, bis Sie auf Wiedergabe drücken; vom Ende aus beginnt die Wiedergabe von vorn; wird die Option abgewählt, kehren die vollständigen Spuren zurück und die Leiste verschwindet. Das Ausblenden des Diagramms im Szenenbaum entfernt die Leiste und hält die Wiedergabe an.</p>
+<figure data-img="tutorial_25_animated_pathlines.png"><figcaption>Bahnlinien mitten in der Animation, mit ihren Kopfpunkten und der Zeitleiste</figcaption></figure>
+<p class="small">Die Animation ist eine Betrachtungshilfe: Sie wird nicht mit der Datei gespeichert, und die Kopfpunkte werden nicht exportiert.</p>
+
+
+<h1 class="chapter">Gestaltung, Achsen und Skalen</h1>
+
+<p>Alles über ein erstelltes Diagramm - Farben, Größen, die Achsen - befindet sich in der Registerkarte <span class="ui">3D-Diagramm</span> des Docks (neben der Registerkarte „Simulationsergebnisse“). Wählen Sie das Diagramm unter <span class="ui">Aktives Diagramm</span>; die Steuerungen wirken auf dieses. Der Eintrag des Diagramms im Szenenbaum hat das Sichtbarkeits-Kontrollkästchen.</p>
+
+<h2>Farbe</h2>
+<table class="compact">
+  <thead><tr><th style="width:30%">Steuerelement</th><th>Was es tut</th></tr></thead>
+  <tbody>
+    <tr><td><span class="ui">Titel</span></td><td>Der Name, der im Szenenbaum und in der Legende angezeigt wird.</td></tr>
+    <tr><td><span class="ui">Farbskala</span></td><td>Der Farbverlauf: sequenziell, divergierend und andere.</td></tr>
+    <tr><td><span class="ui">Farbstufen</span></td><td>Glatte Farben oder eine Anzahl einzelner Stufen.</td></tr>
+    <tr><td><span class="ui">Farbbereich automatisch</span></td><td>Ein: Der Bereich folgt den Daten (auch nach einer Bearbeitung). Aus: <span class="ui">Minimum</span> und <span class="ui">Maximum</span> bestimmen Sie selbst - nützlich, um Diagramme zu vergleichen.</td></tr>
+  </tbody>
+</table>
+
+<h2>Größe und Form</h2>
+<table class="compact">
+  <thead><tr><th style="width:30%">Steuerelement</th><th>Für</th></tr></thead>
+  <tbody>
+    <tr><td><span class="ui">Linienbreite</span></td><td>Linien und Bahnlinien (in Bildschirmpixeln)</td></tr>
+    <tr><td><span class="ui">Markergröße</span></td><td>Streudiagramm-Markierungen</td></tr>
+    <tr><td><span class="ui">Pfeilgröße</span></td><td>Vektorfelder (Längenmaßstab; wächst nicht mit der Kamera)</td></tr>
+    <tr><td><span class="ui">Balkenbreite</span>, <span class="ui">Balkentiefe</span></td><td>Balken</td></tr>
+    <tr><td><span class="ui">Konturstufen</span>, <span class="ui">Konturlinien</span></td><td>Flächen: wie viele Isolinien und ob auf der Fläche oder auf der Basisebene</td></tr>
+    <tr><td><span class="ui">Deckkraft</span></td><td>Bildebenen und die Bezugsebenen</td></tr>
+  </tbody>
+</table>
+
+<h2>Die Achsenbox und die Bezugsebenen</h2>
+<p><span class="ui">Achsenbox anzeigen</span> rahmt das Diagramm mit beschrifteten Achsen, Teilstrichen und Zahlen ein; sie auszublenden verwirft das Layout nicht. <span class="ui">Ebenen</span> fügt die Bezugsebenen XY, XZ und YZ am Minimum der jeweils anderen Achsen hinzu, mit einer <span class="ui">Deckkraft</span>. Eine flache Achse (alle Werte gleich) wird um ein Zehntel der größten anderen Ausdehnung aufgepolstert, damit eine Ebene nicht zur Nadel wird.</p>
+
+<h2>Gemeinsame Achsen</h2>
+<p>Alle Diagramme eines Dokuments werden auf <b>einem Satz Achsen</b> gezeichnet - denselben Skalen, Bereichen und Beschriftungen -, denn nur so lassen sie sich vergleichen. Unter <span class="ui">Achsen</span> hat jede Achse eine Beschriftung, eine <span class="ui">Achsenskala</span>, einen Bereich und eine Anzahl Teilstriche. Eine Änderung ordnet <b>alle Diagramme gemeinsam</b> neu an, gleich welches Diagramm gewählt ist; ein später erstelltes Diagramm schließt sich den bereits vorhandenen Achsen an.</p>
+<table class="compact">
+  <thead><tr><th style="width:22%">Skala</th><th>Bedeutung und Grenze</th></tr></thead>
+  <tbody>
+    <tr><td><b>Linear</b></td><td>Die Voreinstellung.</td></tr>
+    <tr><td><b>Log 10</b></td><td>Zehnerpotenzen. Verlangt, dass die Daten <i>jedes</i> Diagramms auf dieser Achse über null liegen. Wird sie eingestellt, während ein Diagramm null erreicht, wird das mit einer Meldung abgelehnt, die den Grund nennt; das Erstellen eines Diagramms, das auf einer vorhandenen Log-10-Achse nicht gezeigt werden kann, setzt diese Achse für alle Diagramme auf Linear zurück, mit einer Statusmeldung.</td></tr>
+    <tr><td><b>SymLog</b></td><td>Logarithmisch für große Werte, linear um null; funktioniert für beliebige Daten einschließlich negativer Werte. Beispiele sind Voxel-Indizes, die bei 0 beginnen, und Vektorfelder mit beiden Vorzeichen.</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>Linien, Streudiagramme, Flächen, Balken, Vektorpfeile und Voxel-Volumen folgen alle der Skala: Die Geometrie wird transformiert, nicht nur neu beschriftet.</li>
+  <li>Vektorpfeile werden durch die lokale Streckung der Skala an ihrer Stelle neu ausgerichtet und behalten ihre Länge (sie trägt den Betrag) und Farbe; Voxel-Gitter werden auf ein Gitter umgetastet, das im skalierten Raum regelmäßig ist. Die Rückkehr zu Linear stellt alles wieder her.</li>
+  <li>Die Anzeige beim Überfahren einer Fläche zeigt weiterhin die <b>Datenwerte</b> des Diagramms, nicht Positionen auf den skalierten Achsen.</li>
+</ul>
+<figure data-img="tutorial_24_log_axis_shared.png"><figcaption>Ein Streudiagramm und eine exponentielle Linie auf einer gemeinsamen logarithmischen Z-Achse</figcaption></figure>
+<figure data-img="tutorial_23_plot_tab.png"><figcaption>Die Registerkarte „3D-Diagramm“ mit den Steuerungen des aktiven Diagramms</figcaption></figure>

@@ -1,0 +1,103 @@
+<h1 class="part"><small>Part III</small>Together</h1>
+
+<h1 class="chapter">Results and plots on one clock</h1>
+
+<p>A simulation result and a plot live in the same scene, so they can be shown together. When both change over time, one <b>playback bar</b> plays them in step. Which combination makes sense depends on whether the data shares coordinates and time.</p>
+
+<h2>Four situations</h2>
+<table>
+  <thead><tr><th style="width:28%">You have</th><th style="width:30%">Same coordinates?</th><th>What is synchronised, and how it is shown</th></tr></thead>
+  <tbody>
+    <tr><td>A transient flow or thermal result and pathlines of the same flow (for instance a CSV time series exported from the solver)</td><td>Yes</td><td><b>Physical time.</b> One view, overlaid: the result's time equals the pathlines' time. Use <i>All together</i> on the playback bar (below).</td></tr>
+    <tr><td>A result and a chart of a point's history, maximum stress against time, a reaction force, or measured test data</td><td>No (a curve is not in model space)</td><td><b>Physical time</b>, with a moving cursor on the chart and click-to-seek (chapter 7). The model and the chart are shown beside each other.</td></tr>
+    <tr><td>A modal analysis and a frequency-response curve</td><td>No</td><td><b>Frequency.</b> The chart's cursor sits at the current mode's frequency; clicking a peak selects the mode.</td></tr>
+    <tr><td>A load-step or parametric sweep and a response curve</td><td>No</td><td><b>The step's value</b> against the chart's axis.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout"><span class="label">The rule behind it</span>
+  <p>Data is matched by <b>physical value, not by progress</b>. A result from 0 to 2 s and pathlines from 0 to 1.5 s line up at 1 s. Matching by progress (0 to 100 %) is only the fallback when the units are incompatible - a modal result is in hertz and pathlines are in seconds - and the playback bar then says <i>by progress</i>.</p>
+</div>
+
+<h2>The playback bar for both</h2>
+<p>The timeline plays whichever item is chosen in the box at its left. The box lists every multi-step simulation result (<i>Simulation: name</i>), the animated pathline plot (<i>Pathlines: name</i>) and, when both can play, <b>All together</b>. With only one playable item the box is hidden. The bar follows what you work on: choosing a result in the Simulation Results tab selects it, and ticking <span class="ui">Animate pathlines (timeline)</span> selects that plot. Changing the selected item pauses the one that was playing. The legends of a result and a plot stack in one column, each headed with its owner's name.</p>
+<figure>
+<svg width="640" height="150" viewBox="0 0 640 150" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="11.5">
+  <text x="5" y="16" font-weight="600" fill="#14213d">One clock, two items (All together)</text>
+  <line x1="95" y1="130" x2="625" y2="130" stroke="#5f6b7a"/>
+  <g stroke="#5f6b7a"><line x1="95" y1="126" x2="95" y2="134"/><line x1="228" y1="126" x2="228" y2="134"/><line x1="360" y1="126" x2="360" y2="134"/><line x1="493" y1="126" x2="493" y2="134"/><line x1="625" y1="126" x2="625" y2="134"/></g>
+  <text x="95" y="146" text-anchor="middle" fill="#5f6b7a">0 s</text><text x="228" y="146" text-anchor="middle" fill="#5f6b7a">0.5</text><text x="360" y="146" text-anchor="middle" fill="#5f6b7a">1.0</text><text x="493" y="146" text-anchor="middle" fill="#5f6b7a">1.5</text><text x="625" y="146" text-anchor="middle" fill="#5f6b7a">2.0 s</text>
+  <text x="5" y="52" fill="#3e4c59">Result: 5 steps</text>
+  <g fill="#2b6cb0"><rect x="95" y="38" width="130" height="22" rx="3"/><rect x="228" y="38" width="130" height="22" rx="3" opacity="0.85"/><rect x="360" y="38" width="130" height="22" rx="3" opacity="0.7"/><rect x="493" y="38" width="130" height="22" rx="3" opacity="0.55"/></g>
+  <text x="5" y="97" fill="#3e4c59">Pathlines: 0 - 1.5 s</text>
+  <rect x="95" y="83" width="398" height="22" rx="3" fill="#f6ad55"/>
+  <line x1="360" y1="28" x2="360" y2="124" stroke="#e53e3e" stroke-width="2"/>
+  <text x="364" y="30" fill="#e53e3e">t = 1 s</text>
+</svg>
+<figcaption>Both items follow real time. The result holds each step until the time of the next; the pathlines hold their last frame after 1.5 s</figcaption>
+</figure>
+
+<h2>Worked example: the cavity flow</h2>
+<ol>
+  <li>Open <code>sample-models/Simulation/openfoam_cavity/cavity.foam</code> and choose <span class="ui">U</span> with the <i>Magnitude</i> component.</li>
+  <li>In the 3D Plot tab choose <span class="ui">Add 3D Plot...</span>, source <i>CSV time series (pathlines)</i>, open <code>sample-models/Plot3D/pathlines_openfoam_cavity.csv</code> and map Time = t, X = x, Y = y, Z = z, U = u, V = v, W = w. This file holds the cell-centre velocity of the same case on a plane just above its top face, so the two share coordinates and real time. Build the plot; hide its axes box if it clutters the view.</li>
+  <li>Tick <span class="ui">Animate pathlines (timeline)</span>, choose <b>All together</b> in the playback box and press play. The trails grow while the field steps from 0 to 2 s; the bar reads the time and the step, for example <i>t = 1 &ndash; step 3 of 5</i>.</li>
+</ol>
+<figure data-img="tutorial_25_cavity_with_pathlines.png"><figcaption>The cavity result and its pathlines playing together</figcaption></figure>
+<div class="callout warn"><span class="label">Caution</span>
+  <p>A modal result such as <code>FEM_box_modes.frd</code> has steps in hertz and cannot share a time axis with pathlines in seconds; <b>All together</b> then plays them by progress, and says so.</p>
+</div>
+
+<h2>Charts as the second half</h2>
+<p>For the other three situations the chart does the work: plot a point's history (right-click &rarr; <span class="ui">Plot Over Time Here</span>), add your measured curve from a CSV, and play. The cursor travels along both curves; click in the chart to jump in time. For a modal result add a frequency-response CSV and click a peak to jump to that mode. Chapter 7 has the details and the sample files.</p>
+
+
+<h1 class="chapter">Worked workflows</h1>
+
+<p>Recipes that combine the chapters. Each lists the sample files to try it with.</p>
+
+<h2>Review a structural analysis</h2>
+<ol>
+  <li>Open the result (<code>plate_with_hole.frd</code>), look at the info line, and set the units under <span class="ui">Values are in</span>: this file is in mm and MPa.</li>
+  <li>Colour by <span class="ui">von Mises</span>, keep <i>Automatic (all steps)</i>, tick <span class="ui">Mark minimum and maximum</span>.</li>
+  <li>Switch on <span class="ui">Show deformed shape</span> with Auto scale, and play the four load steps.</li>
+  <li>Turn on <span class="ui">Show stress ellipsoids</span> (count 1500+) to see the stress concentration at the hole.</li>
+  <li>Use <b>Plot Over Line</b> from the edge of the hole to the plate edge to read how the stress falls off, and save the chart image.</li>
+  <li>Place two annotations (<span class="path">Tools &rarr; Annotate...</span>) at the maximum, capture views in the Cameras panel and export the report (<span class="path">Tools &rarr; Export Report...</span>).</li>
+</ol>
+
+<h2>A thermal transient against measurements</h2>
+<ol>
+  <li>Open <code>FEM_box_thermal_transient.frd</code>; the file states no temperature unit, so choose one under <span class="ui">Values are in</span>.</li>
+  <li>Right-click the middle of the far face &rarr; <span class="ui">Plot Over Time Here</span>.</li>
+  <li>In the chart, right-click &rarr; <span class="ui">Add curve from CSV...</span> &rarr; <code>thermal_probe_test.csv</code>. Play the timeline and compare the curves.</li>
+  <li>Add a second point (<span class="ui">Add a point from the model</span>) near the heated face to see the heat arrive earlier. Save the chart as an image.</li>
+</ol>
+
+<h2>A flow with its particle tracks</h2>
+<p>Follow the cavity example of chapter 18. For a steady 3-D flow without a time series, use streamlines of the result instead: <code>duct.cgns</code> with <span class="ui">Show streamlines</span> (Velocity), <span class="ui">Seed on the Clipping Plane</span> and a clipping plane across the duct.</p>
+
+<h2>Modes and a frequency response</h2>
+<ol>
+  <li>Open <code>FEM_box_modes.frd</code>, switch on the deformed shape, and step through the six modes.</li>
+  <li>Right-click a point &rarr; <span class="ui">Plot Over Time Here</span>: the x axis is the mode frequency.</li>
+  <li>Add <code>FEM_box_modes_frf.csv</code> and click a peak: the result jumps to the corresponding mode.</li>
+</ol>
+
+<h2>Two design variants</h2>
+<ol>
+  <li>Open the first result, add the second with <span class="ui">Add Result to This Document...</span>.</li>
+  <li>Compare side by side with <span class="ui">Same colour range for both</span> and <span class="ui">Link the cameras</span> (<code>ibeam_cantilever.frd</code> against <code>ibeam_torsion.frd</code>).</li>
+  <li>Exit compare and chart the same point of each result; export both charts as CSV and load one into the other's chart to see the two curves together.</li>
+</ol>
+
+<h2>Measured data next to a CAD model</h2>
+<ol>
+  <li>Open the CAD part, then add a scatter plot of your measurements (columns x, y, z and a deviation as the colour value); both are in the same coordinates if the table uses the model's units.</li>
+  <li>Set the axes to match the model, add notes at points of interest, and hide the axes box if you only want the points.</li>
+  <li>For a picture of the specimen, add an <i>Image on a plane</i> at the right place.</li>
+</ol>
+
+<div class="callout tip"><span class="label">Tip</span>
+  <p>Save the document as <code>.mvf</code> at each stage worth keeping (chapter 9 explains what a saved result contains): a session with results, plots, annotations and captured views is the best single record of an analysis review.</p>
+</div>

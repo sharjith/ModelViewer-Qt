@@ -1,0 +1,96 @@
+<h1 class="chapter">Les types de graphiques</h1>
+
+<p>Ce chapitre est la référence de ce dont chaque type de graphique a besoin et de ce qu'il offre. Les colonnes sont associées dans la boîte de dialogue Ajouter un graphique 3D ; les commandes de style citées ici se trouvent dans l'onglet <span class="ui">Graphique 3D</span> (chapitre 15).</p>
+
+<table>
+  <thead><tr><th style="width:20%">Type de graphique</th><th style="width:34%">Colonnes</th><th>Remarques</th></tr></thead>
+  <tbody>
+    <tr><td><b>Surface</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span> ; facultatif <span class="ui">Valeur de couleur</span></td><td>Une grille régulière complète est dessinée comme un maillage ; les points dispersés sont triangulés (Delaunay). Éventuellement avec des lignes de contour.</td></tr>
+    <tr><td><b>Contours</b></td><td>comme Surface</td><td>Seulement les isolignes de Z ; elles peuvent être aplaties sur le plan de base.</td></tr>
+    <tr><td><b>Ligne / Courbe</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span> ; facultatif <span class="ui">Valeur de couleur</span></td><td>Points dans l'ordre. Une ligne d'épaisseur constante ; l'épaisseur est en pixels d'écran et ne change donc pas avec le zoom. Peut être remplie.</td></tr>
+    <tr><td><b>Nuage de points</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span> ; facultatif <span class="ui">Valeur de couleur</span></td><td>Un marqueur par point. Éventuellement des tiges, des barres d'erreur et des remplissages.</td></tr>
+    <tr><td><b>Barres / Histogramme</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span> (la hauteur) ; facultatif <span class="ui">Base</span>, <span class="ui">Largeur</span>, <span class="ui">Profondeur</span>, <span class="ui">Valeur de couleur</span></td><td>Une boîte par ligne. Un histogramme à une dimension met Y sur <i>(aucune)</i>.</td></tr>
+    <tr><td><b>Voxel / Volumétrique</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span> (indices de la grille) ; <span class="ui">Valeur de couleur</span> (occupation)</td><td>Dessiné comme un nuage semi-transparent, comme le rendu volumique d'un résultat.</td></tr>
+    <tr><td><b>Vectoriel (Quiver)</b></td><td><span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span> et <span class="ui">U</span>, <span class="ui">V</span>, <span class="ui">W</span> ; facultatif <span class="ui">Valeur de couleur</span></td><td>Une flèche par ligne ; la taille et la couleur des flèches se règlent dans l'onglet.</td></tr>
+  </tbody>
+</table>
+
+<h2>Surface et contours</h2>
+<p>Une surface a besoin de z au-dessus de x et y. Lorsque les lignes forment une <b>grille régulière complète</b> (chaque combinaison des valeurs de x et de y exactement une fois, dans n'importe quel ordre), la grille est maillée directement. Sinon, les points sont triangulés, ce que teste <code>surface_scattered.csv</code> : quatorze points irréguliers avec une hauteur en pente douce.</p>
+<ul>
+  <li><span class="ui">Lignes de contour</span> ajoute des isolignes de Z à n'importe quelle surface : <i>Sur la surface</i> dessine dessus des lignes sombres (visibles des deux côtés), <i>Sur le plan de base</i> dessine des lignes colorées aplaties sur le sol de la boîte d'axes. <span class="ui">Niveaux de contour</span> fixe leur nombre.</li>
+  <li>Le type distinct <b>Contours (isolignes de la surface)</b> montre seulement les lignes, et <span class="ui">Projeter les contours sur le plan de base</span> les aplatit.</li>
+  <li><span class="ui">Bandes de couleurs</span> transforme la couleur lisse de la surface en bandes discrètes ; une plage de couleurs fixe est aussi disponible.</li>
+</ul>
+<figure data-img="tutorial_23_contours_and_sections.png"><figcaption>Lignes de contour sur le plan de base et courbes de coupe passant par le point survolé (chapitre 16)</figcaption></figure>
+
+<h2>Ligne / courbe</h2>
+<p>L'ordre des lignes est l'ordre le long de la courbe (<code>line_helix.csv</code> : deux tours d'une hélice). La couleur suit <span class="ui">Valeur de couleur</span> (ou Z) le long de la courbe. L'<span class="ui">Épaisseur de ligne</span> est en pixels d'écran. Une ligne peut être <b>remplie</b> jusqu'au plan de base ou jusqu'à une seconde courbe (chapitre 16).</p>
+
+<h2>Nuage de points</h2>
+<p>Un marqueur par ligne ; <span class="ui">Taille du marqueur</span> fixe la taille. Les couleurs sont <b>par point</b>, non interpolées : <code>scatter_clusters.csv</code> comporte trois groupes colorés selon leur identifiant. Variantes :</p>
+<ul>
+  <li><span class="ui">Tracer des tiges jusqu'à Z de base</span> : une ligne fine de chaque point vers le bas (ou le haut) jusqu'à la valeur de base.</li>
+  <li><span class="ui">Afficher les barres d'erreur (&plusmn;Z)</span> avec une colonne d'erreur : une barre verticale de &plusmn; cette taille à chaque point (<code>scatter_error_bars.csv</code>).</li>
+  <li><span class="ui">Remplir jusqu'à Z de base</span> : un ruban translucide de chaque point jusqu'au plan de base ou, avec une colonne choisie dans <i>ou entre le graphique et la colonne</i>, jusqu'à un second jeu de valeurs Z (<code>scatter_band.csv</code>). La boîte d'axes s'agrandit pour inclure les deux.</li>
+</ul>
+
+<h2>Barres et histogramme</h2>
+<ul>
+  <li>La hauteur est <span class="ui">Z</span>. <span class="ui">Base</span>, <span class="ui">Largeur</span> et <span class="ui">Profondeur</span> sont facultatives ; sans elles, les barres partent de 0 et ont une largeur et une profondeur de 0,8, ce qui laisse un espace entre barres voisines. Une barre située sous sa base s'étend vers le bas, de sorte que les données signées fonctionnent (<code>bar_signed.csv</code>).</li>
+  <li><span class="ui">Valeur de couleur</span> vaut par défaut la hauteur.</li>
+  <li><b>Histogramme à une dimension</b> (<code>bar_histogram_1d.csv</code> : colonnes <i>bin</i> et <i>count</i>) : mettez X sur la colonne des classes, Y sur <i>(aucune)</i>, Z sur l'effectif et laissez le reste sur <i>(aucune)</i>. Le résultat est une rangée de barres égales centrée sur Y = 0, dont la hauteur et la couleur sont toutes deux pilotées par l'effectif.</li>
+  <li><span class="ui">Largeur des barres</span> et <span class="ui">Profondeur des barres</span> peuvent être modifiées plus tard dans l'onglet.</li>
+</ul>
+
+<h2>Voxel / volumétrique</h2>
+<p>Associez X, Y et Z aux indices de la grille et la valeur de couleur à l'occupation (<code>voxel_sphere.csv</code> : une sphère taillée dans une grille de 9 x 9 x 9, dont l'occupation passe de 1,0 au centre à 0,15 près de la coque). Une occupation nulle est transparente et les valeurs non nulles apparaissent progressivement selon l'occupation ; le graphique est donc un nuage doux plutôt qu'un ensemble de boîtes.</p>
+
+<h2>Vectoriel (quiver)</h2>
+<p>Chaque ligne est un point et un vecteur. <code>quiver_vortex.csv</code> est une rotation rigide autour de l'axe Z plus une petite composante vers le haut : les flèches s'enroulent autour de Z et s'allongent avec la distance. <span class="ui">Taille des flèches</span> dans l'onglet fixe l'échelle de longueur sans grandir avec la caméra ; la couleur des flèches suit la valeur (la légende indique <i>Norme du vecteur</i>).</p>
+<figure data-img="tutorial_23_plot_types.png"><figcaption>Un nuage de points, un diagramme en barres et un champ vectoriel dans une scène</figcaption></figure>
+<figure data-img="tutorial_23_voxel_sphere.png"><figcaption><code>voxel_sphere.csv</code> dessiné comme une sphère semi-transparente</figcaption></figure>
+
+
+<h1 class="chapter">Graphiques à partir de formules</h1>
+
+<p>Vous n'avez pas besoin d'un fichier pour créer un graphique : une formule, une définition paramétrique ou un préréglage génère les données. Les sources partagent avec les graphiques CSV l'aperçu, la couleur, les axes, les remarques et les outils d'export, et un graphique généré mémorise sa définition afin de pouvoir être modifié et reconstruit (chapitre 17).</p>
+
+<h2>Les sources</h2>
+<table>
+  <thead><tr><th style="width:26%">Source</th><th>Vous fournissez</th><th>Préréglages</th></tr></thead>
+  <tbody>
+    <tr><td><b>Surface par formule</b></td><td>z(x, y) = ..., plages et nombres d'échantillons de x et y, paramètres nommés</td><td>Plan, Selle, Paraboloïde, Cône, Gaussienne, Ondulation sinc, Onde, Chapeau mexicain, Normale bivariée, Régression logistique, Rosenbrock</td></tr>
+    <tr><td><b>Surface paramétrique</b></td><td>x(u, v), y(u, v), z(u, v), plages de u et v</td><td>Tore, Ellipsoïde, Ruban de Möbius, Bouteille de Klein, Superellipsoïde, Hélicoïde, Caténoïde, Surface d'Enneper, Harmonique sphérique</td></tr>
+    <tr><td><b>Courbe paramétrique</b></td><td>x(t), y(t), z(t), plage de t</td><td>Hélice, Lissajous, Nœud de trèfle, Courbe de Viviani, Spirale amortie</td></tr>
+    <tr><td><b>Surface implicite</b></td><td>f(x, y, z), dessinée là où f = 0 ; plages et échantillons des trois axes</td><td>Sphère, Tore, Gyroïde, Interférence d'ondes</td></tr>
+    <tr><td><b>Champ vectoriel par formule</b></td><td>u, v, w comme fonctions de x et y, évaluées sur une grille plane ; plages et échantillons de x et y</td><td>Tourbillon, Radial, Selle, Hélicoïdal</td></tr>
+    <tr><td><b>Lignes de courant par formule</b></td><td>un champ <i>stationnaire</i> u, v, w ; plages de x et y et un nombre de points de départ</td><td>Préréglages des champs vectoriels</td></tr>
+    <tr><td><b>Trajectoires par formule</b></td><td>un champ dépendant du temps u, v, w(x, y, z, t)</td><td>Tourbillon pulsant, Double gyre, Onde progressive, Courant ascendant oscillant (chapitre 14)</td></tr>
+  </tbody>
+</table>
+
+<h2>Écrire des expressions</h2>
+<table class="compact">
+  <thead><tr><th style="width:26%">Élément</th><th>Disponible</th></tr></thead>
+  <tbody>
+    <tr><td>Opérateurs</td><td><code>+  -  *  /  ^</code> (puissance ; <code>2^3^2</code> vaut <code>2^9</code>), moins unaire, parenthèses</td></tr>
+    <tr><td>Fonctions</td><td><code>sin cos tan asin acos atan sinh cosh tanh exp log sqrt abs sign</code> (un argument ; <code>log</code> est naturel et exige une valeur positive, <code>sqrt</code> une valeur non négative) et les fonctions à deux arguments <code>pow(a, b)  min(a, b)  max(a, b)</code></td></tr>
+    <tr><td>Constantes</td><td><code>pi</code>, <code>e</code></td></tr>
+    <tr><td>Variables</td><td><code>x</code>, <code>y</code> (et <code>z</code> là où il existe une troisième coordonnée) ; <code>u</code>, <code>v</code> sont les paramètres de surface d'une surface paramétrique, <code>t</code> le paramètre d'une courbe ou, pour les trajectoires, le <i>temps</i></td></tr>
+    <tr><td>Paramètres</td><td>Constantes nommées comme <code>a</code>, <code>s</code>, <code>kx</code>, fournies par un préréglage et que vous pouvez modifier - changez-en une et appuyez sur <span class="ui">Actualiser l'aperçu</span></td></tr>
+  </tbody>
+</table>
+<p>Une erreur est signalée par son nom dans la ligne d'état sous l'aperçu : <i>Variable inconnue : q</i>, <i>Parenthèse fermante manquante</i>, <i>Division par zéro</i>, <i>log exige une valeur positive</i>. <span class="ui">Créer le graphique</span> reste désactivé tant que l'expression ne peut pas être évaluée. Exemples :</p>
+<pre>Surface par formule   z =  a*exp(-((x-x0)^2+(y-y0)^2)/(2*s^2))        (préréglage Gaussienne)
+Courbe paramétrique  x = cos(t)   y = sin(t)   z = t/(2*pi)            (une hélice)
+Surface implicite  f = x^2 + y^2 + z^2 - r^2                          (une sphère de rayon r)</pre>
+
+<h2>Aperçu, création et modification</h2>
+<p><span class="ui">Actualiser l'aperçu</span> évalue la formule et montre le graphique dans la scène, avec une ligne d'état telle que <i>Trajectoires de 12 points de départ sur t = 0 ... 10 (n segments), colorées selon le temps</i>. <span class="ui">Créer le graphique</span> l'ajoute. Plus tard, sélectionnez le graphique dans <span class="ui">Graphique actif</span> et cliquez sur <span class="ui">Modifier le graphique...</span> : la boîte de dialogue se rouvre sur la même source, avec les expressions, plages, nombres d'échantillons et paramètres restaurés ; changez-en un et cliquez sur <span class="ui">Recréer le graphique</span>. Le graphique est mis à jour <b>sur place</b>, en conservant son titre, sa visibilité, ses couleurs et ses réglages d'axes. Le type de source ne peut pas être changé lors d'une modification ; créez un nouveau graphique pour cela.</p>
+<figure data-img="tutorial_24_formula_surface.png"><figcaption>La surface par formule Chapeau mexicain avec la boîte de dialogue et sa ligne d'état</figcaption></figure>
+<figure data-img="tutorial_24_parametric_surfaces.png"><figcaption>Un tore et une bouteille de Klein issus des préréglages paramétriques</figcaption></figure>
+
+<div class="callout tip"><span class="label">Astuce</span>
+  <p>Les graphiques générés sont un moyen rapide de vérifier une chaîne de traitement de données ou de construire une image sans données sous la main : une bosse gaussienne comme cible, une selle pour montrer un minimum-maximum, un tore comme objet de test pour les outils de surface.</p>
+</div>

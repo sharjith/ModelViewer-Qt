@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 27: Measure, Annotate and Report - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials &amp; Textures</a>
+            <a href="lesson10.html">10. Lighting &amp; Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips &amp; Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge &amp; Wireframe Rendering</a>
+            <a href="lesson19.html">19. Simulation Results</a>
+            <a href="lesson20.html">20. Looking Inside a Result</a>
+            <a href="lesson21.html">21. Charts and Probing</a>
+            <a href="lesson22.html">22. Comparing Results, Cell and Shell Data</a>
+            <a href="lesson23.html">23. 3D Plots from CSV Data</a>
+            <a href="lesson24.html">24. 3D Plots from Formulas, Fills, Images and Notes</a>
+            <a href="lesson25.html">25. Plots and Results Played Together</a>
+            <a href="lesson26.html">26. Mesh Tools</a>
+            <a href="lesson27.html" class='active'>27. Measure, Annotate and Report</a>
+            <a href="lesson28.html">28. Analysis, Selection and Scenes</a>
+            <a href="lesson29.html">29. Ray Tracing in Practice</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 27 of 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 93.1%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 27: Measure, Annotate and Report</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>ModelViewer measures directly on the model: points, distances, angles, radii, diameters, areas, edge lengths and the distance along a surface. You can leave sticky-note annotations on the model and put it all into a PDF report with captured views. This lesson takes the tools in order of how often you will use them.</p>
+        <div class="note note-info">
+            Practice on <code>bottle.step</code>, <code>CAD.step</code> or the Forklift: STEP, IGES and BREP models carry exact edges and surfaces, so the radius and concentricity tools can snap to analytic circle centres. On OBJ and glTF meshes the same tools use the mesh geometry and some of them are not available.
+        </div>
+        <h2>Your First Measurement</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Open the Measure dialog</div>
+            <div class="step-content">Choose <b>Tools → Measure...</b>. There is no toolbar button or keyboard shortcut for it.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Pick a tool and click</div>
+            <div class="step-content">Choose <b>Distance</b> in <b>Tool:</b> and click two points on the model. The result appears in the <b>Measurements:</b> list and as a label with a dimension line on the model.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Keep going or finish</div>
+            <div class="step-content">The tool stays armed for the next measurement. For tools that take any number of picks (Pitch Circle, Chain Length) press <b>Enter</b> or click <b>Finish</b>. Select a measurement in the list to find it on the model, and <b>Delete</b> removes it.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_27_distance_measurement.png" alt="tutorial_27_distance_measurement.png" title="Capture: Open bottle.step, Tools &gt; Measure..., tool Distance, two clicks on the bottle; capture the model with its dimension label and the dialog with the Measurements list." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open bottle.step, Tools &gt; Measure..., tool Distance, two clicks on the bottle; capture the model with its dimension label and the dialog with the Measurements list." style="display:none; width:700px; height:450px;">Screenshot: tutorial_27_distance_measurement.png (700x450)</div>
+            <span class="screenshot-caption">A distance measurement between two points on a STEP model, with the Measure dialog open</span>
+        </div>
+
+        <div class="note note-info">
+            Creating, deleting and moving a measurement or annotation can be undone; the visibility checkbox in the list cannot (like mesh visibility in the Scene Tree). A measurement is resolved live against the mesh, so it stays correct if you move or transform the mesh afterwards.
+        </div>
+        <h2>The Tools</h2>
+        <p>The tools are grouped as <b>Point & Distance</b>, <b>Arcs & Circles</b>, <b>Faces</b> and <b>Edges</b>.</p>
+        <table>
+            <thead><tr><th>Tool</th><th>Picks</th><th>What it measures</th></tr></thead>
+            <tbody>
+            <tr><td>Point</td><td>1 click</td><td>The 3D coordinates of one point</td></tr>
+            <tr><td>Distance</td><td>2 clicks</td><td>The straight-line distance between two points, which may lie on different meshes</td></tr>
+            <tr><td>Geodesic Distance</td><td>2 clicks</td><td>The distance measured ALONG the surface, for example around a curved part; both points must be on the same mesh</td></tr>
+            <tr><td>3-Point Angle</td><td>3 clicks</td><td>The angle at the first picked vertex between the rays to the other two points</td></tr>
+            </tbody>
+        </table>
+        <table>
+            <thead><tr><th>Tool</th><th>Picks</th><th>What it measures</th></tr></thead>
+            <tbody>
+            <tr><td>3-Point Arc Radius</td><td>3 clicks</td><td>Radius and centre of an arc fitted through three points on its rim</td></tr>
+            <tr><td>Center + 2-Point Arc Radius</td><td>3 clicks</td><td>Radius of an arc or hole from a picked centre plus two rim points; on STEP/IGES/BREP the centre snaps to the exact centre, even for a through hole</td></tr>
+            <tr><td>Edge Radius</td><td>1 click</td><td>Exact radius, centre and axis of a circular edge (a hole or boss rim); STEP/IGES/BREP only</td></tr>
+            <tr><td>Pitch Circle</td><td>3+ clicks, then Enter/Finish</td><td>Diameter of the best-fit circle through three or more hole centres (a bolt-hole pattern) and the angle between neighbouring holes</td></tr>
+            <tr><td>Concentricity</td><td>2 clicks</td><td>Whether two holes or bosses share one axis: distance between centres and angle between axes; STEP/IGES/BREP only</td></tr>
+            <tr><td>Cylindrical/Conical Diameter</td><td>1 click on the curved surface, not its rim</td><td>Diameter of a cylinder or cone at the picked point (it varies along a cone); has its own options below</td></tr>
+            </tbody>
+        </table>
+        <table>
+            <thead><tr><th>Tool</th><th>Picks</th><th>What it measures</th></tr></thead>
+            <tbody>
+            <tr><td>Face to Face</td><td>2 clicks</td><td>Perpendicular distance between two near-parallel faces, otherwise the angle between them</td></tr>
+            <tr><td>Point to Face</td><td>2 clicks</td><td>Perpendicular distance from a point to the plane of a face</td></tr>
+            <tr><td>Face Area</td><td>1 click</td><td>Area of a face: the picked triangle plus every connected, coplanar triangle</td></tr>
+            <tr><td>Minimum Distance</td><td>2 clicks</td><td>True closest-point distance between two surfaces; each pick expands to its whole smooth region. Works on one mesh too, for example a wall-thickness check</td></tr>
+            </tbody>
+        </table>
+        <table>
+            <thead><tr><th>Tool</th><th>Picks</th><th>What it measures</th></tr></thead>
+            <tbody>
+            <tr><td>Edge Length</td><td>1 click</td><td>Length of one edge, straight or curved</td></tr>
+            <tr><td>Edge to Vertex</td><td>2 clicks</td><td>Perpendicular distance from a point to the line of an edge</td></tr>
+            <tr><td>Edge to Edge</td><td>2 clicks</td><td>Perpendicular distance between two near-parallel edges, otherwise the angle; also handles skew edges (angle only)</td></tr>
+            <tr><td>Edge to Face</td><td>2 clicks</td><td>Perpendicular distance from an edge to the plane of a face, otherwise the angle</td></tr>
+            <tr><td>Chain Length</td><td>2+ clicks, then Enter/Finish</td><td>Total length of a connected run of edges - a weld seam or a closed perimeter; each new edge must share an endpoint with the chain so far</td></tr>
+            </tbody>
+        </table>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_27_edge_radius_and_pitch.png" alt="tutorial_27_edge_radius_and_pitch.png" title="Capture: Open CAD.step (or any STEP part with holes), measure one hole with Edge Radius and a bolt-hole pattern with Pitch Circle (Enter to finish); capture the two labels on the part." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open CAD.step (or any STEP part with holes), measure one hole with Edge Radius and a bolt-hole pattern with Pitch Circle (Enter to finish); capture the two labels on the part." style="display:none; width:700px; height:450px;">Screenshot: tutorial_27_edge_radius_and_pitch.png (700x450)</div>
+            <span class="screenshot-caption">An edge radius and a pitch circle measured on a CAD part</span>
+        </div>
+
+        <h2>Cylindrical Diameter Options</h2>
+        <p>While <i>Cylindrical/Conical Diameter</i> is the active tool, extra options tune the fit used on non-CAD meshes (they are session-only, not saved with the document): <b>Angle tolerance</b> (35 degrees by default), <b>Min region size</b> (24 points) and <b>Min / Max diameter</b> (0 = no limit) to reject fits that are too small or too large.</p>
+        <h2>Annotations</h2>
+        <p>An annotation is a free-text sticky note anchored to a point on a mesh surface and joined to a draggable text label by a leader line. Open it with <b>Tools → Annotate...</b>. Measure and Annotate are mutually exclusive: arming one disarms the other.</p>
+        <div class="step">
+            <div class="step-title">Step 1: Place a note</div>
+            <div class="step-content">The dialog opens unarmed, which is useful for reviewing existing notes. Click <b>Place Note</b>, then click a point on the model. The note appears with the default text "New Note" selected, so you can type over it at once; the tool stays armed for more notes.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Edit, move, delete</div>
+            <div class="step-content">Select a note in the list (or click it in the viewport) to edit its text or <b>Delete</b> it; a multi-select delete is one undo step. Drag a note's text frame to move the label and leader independently of the anchor point.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_27_annotations.png" alt="tutorial_27_annotations.png" title="Capture: Tools &gt; Annotate..., place two notes with meaningful text on a model (for example on the Forklift); capture the model with the two labels and leader lines plus the dialog list." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Tools &gt; Annotate..., place two notes with meaningful text on a model (for example on the Forklift); capture the model with the two labels and leader lines plus the dialog list." style="display:none; width:700px; height:450px;">Screenshot: tutorial_27_annotations.png (700x450)</div>
+            <span class="screenshot-caption">Two annotations on a model, with the Annotate dialog beside it</span>
+        </div>
+
+        <h2>Export Report</h2>
+        <p><b>Tools → Export Report...</b> writes a PDF made from captured camera views and, optionally, a table of every measurement and annotation.</p>
+        <div class="step">
+            <div class="step-title">Step 1: Capture the views</div>
+            <div class="step-content">Set up each view you want in the report and click <b>Capture View</b> in the Cameras panel. Captured views appear in the report dialog automatically.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Choose what each view shows</div>
+            <div class="step-content">Double-click a captured view to choose which measurements and annotations <i>that</i> view's picture shows, independent of their visibility in the document. <b>Use Current Visibility</b> clears the override.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Include the table and export</div>
+            <div class="step-content">Tick <b>Include measurement/annotation table</b> to append a table of all measurements and annotations, then export. When it finishes, the document's real visibility and the viewport camera are restored exactly as they were.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_27_report_dialog.png" alt="tutorial_27_report_dialog.png" title="Capture: Capture two views in the Cameras panel, then Tools &gt; Export Report...; capture the dialog with the two views listed and &quot;Include measurement/annotation table&quot; ticked." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Capture two views in the Cameras panel, then Tools &gt; Export Report...; capture the dialog with the two views listed and &quot;Include measurement/annotation table&quot; ticked." style="display:none; width:600px; height:450px;">Screenshot: tutorial_27_report_dialog.png (600x480)</div>
+            <span class="screenshot-caption">The Export Report dialog with two captured views and the table option ticked</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_27_report_pdf.png" alt="tutorial_27_report_pdf.png" title="Capture: Open the exported PDF in a viewer and capture one page showing a view with its labels and the measurement table." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open the exported PDF in a viewer and capture one page showing a view with its labels and the measurement table." style="display:none; width:700px; height:450px;">Screenshot: tutorial_27_report_pdf.png (700x500)</div>
+            <span class="screenshot-caption">A page of the exported PDF report with a captured view and the table</span>
+        </div>
+
+        <div class="note note-warning">
+            Measurements and annotations are saved only in the native <b>.mvf</b> session format. They are not exported to glTF or GLB, which have no concept of them - include them in a report instead.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson26.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson28.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

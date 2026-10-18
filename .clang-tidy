@@ -1,0 +1,28 @@
+---
+# Curated for this codebase deliberately, not clang-tidy's defaults:
+# - Qt's parent/child ownership model is the correct way to manage memory
+#   here, not a bug - cppcoreguidelines-owning-memory/modernize-*'s
+#   smart-pointer suggestions would fight the framework, not improve it.
+# - readability-*/cppcoreguidelines-* naming/style checks encode a
+#   different convention than this project's own (Qt-style camelCase,
+#   underscore-prefixed private members) - flagging every symbol as
+#   "wrong" isn't useful signal.
+# Keeps categories that catch real bugs/perf issues regardless of style:
+# bugprone-*, performance-*, clang-analyzer-* (static analysis: leaks,
+# null derefs, use-after-free), and a small set of narrowly-scoped
+# modernize-*/misc-* checks that are safe, mechanical, and non-stylistic.
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-implicit-widening-of-multiplication-result,
+  performance-*,
+  clang-analyzer-*,
+  modernize-use-override,
+  modernize-use-nullptr,
+  misc-unused-using-decls,
+  misc-unused-alias-decls,
+
+WarningsAsErrors: ''
+HeaderFilterRegex: '^/home/sharjith/Projects/ModelViewer-Qt/(src|include)/'
+FormatStyle: none

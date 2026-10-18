@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 26: Mesh Tools - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials &amp; Textures</a>
+            <a href="lesson10.html">10. Lighting &amp; Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips &amp; Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge &amp; Wireframe Rendering</a>
+            <a href="lesson19.html">19. Simulation Results</a>
+            <a href="lesson20.html">20. Looking Inside a Result</a>
+            <a href="lesson21.html">21. Charts and Probing</a>
+            <a href="lesson22.html">22. Comparing Results, Cell and Shell Data</a>
+            <a href="lesson23.html">23. 3D Plots from CSV Data</a>
+            <a href="lesson24.html">24. 3D Plots from Formulas, Fills, Images and Notes</a>
+            <a href="lesson25.html">25. Plots and Results Played Together</a>
+            <a href="lesson26.html" class='active'>26. Mesh Tools</a>
+            <a href="lesson27.html">27. Measure, Annotate and Report</a>
+            <a href="lesson28.html">28. Analysis, Selection and Scenes</a>
+            <a href="lesson29.html">29. Ray Tracing in Practice</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 26 of 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 89.66%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 26: Mesh Tools</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Not every model arrives clean: scans have holes and noise, CAD exports have broken topology, and sometimes you need one tidy shell around several parts. ModelViewer has a set of mesh tools for these jobs, built on the CGAL geometry library. This lesson goes through Repair Mesh, Fill Holes, Subdivide Surface, Shrink Wrap and Reconstruct Surface, then the merge and split operations in the right-click menu.</p>
+        <div class="note note-info">
+            Every tool in the first half of this lesson adds its result as a <b>new mesh</b> and leaves the original untouched, and the whole step is undoable. All five dialogs share one checkbox, <b>Replace previous result</b>, checked by default: each Generate click then undoably deletes the previous click's result first, so you keep at most one result per source mesh. Untick it to let results pile up side by side.
+        </div>
+        <h2>Repair Mesh</h2>
+        <p><b>Tools → Repair Mesh...</b> runs each mesh in the working list through the repair toolkit: duplicate and degenerate geometry, non-manifold vertices, inconsistent winding and self-intersections. It is defect cleanup only - it never fills holes or forces closure, so an intentionally open panel stays open. A mesh that is already valid is skipped and gets no new node.</p>
+        <div class="step">
+            <div class="step-title">Step 1: Open the broken test mesh</div>
+            <div class="step-content">Open <code>RepairMeshTest.obj</code>: a mesh built to contain every defect the repair handles, in three separate regions, starting with a bowtie of two triangle fans that share only a vertex.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Run the repair</div>
+            <div class="step-content">Select the mesh, open <b>Tools → Repair Mesh...</b> and generate. The dialog's status label reports what was fixed. <b>Self-intersection resolution attempts</b> sets how many smoothing and hole-refill rounds to try, and <b>Try smoothing-based resolution too</b> adds a slower strategy.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_26_repair_mesh.png" alt="tutorial_26_repair_mesh.png" title="Capture: Open RepairMeshTest.obj, Tools &gt; Repair Mesh..., Generate; capture the dialog (status text visible) and the viewport with the repaired mesh." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open RepairMeshTest.obj, Tools &gt; Repair Mesh..., Generate; capture the dialog (status text visible) and the viewport with the repaired mesh." style="display:none; width:700px; height:450px;">Screenshot: tutorial_26_repair_mesh.png (700x450)</div>
+            <span class="screenshot-caption">The Repair Mesh dialog with its status label, next to the repaired result</span>
+        </div>
+
+        <h2>Fill Holes</h2>
+        <p><b>Tools → Fill Holes...</b> finds every boundary loop of the meshes in the working list and lets you decide which loops are real defects and which are an intentionally open edge. Only the ticked loops are patched.</p>
+        <div class="step">
+            <div class="step-title">Step 1: Open an open cylinder</div>
+            <div class="step-content">Open <code>OpenCylinder.obj</code>, which has an open end, and start <b>Tools → Fill Holes...</b>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Choose the loops</div>
+            <div class="step-content">Click a row of the detected-hole list: that loop is highlighted in orange in the viewport. Tick the ones to patch, set <b>Patch density</b> (how fine the new triangulation is compared with the surrounding mesh) and generate.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_26_fill_holes.png" alt="tutorial_26_fill_holes.png" title="Capture: Open OpenCylinder.obj, Tools &gt; Fill Holes..., click the detected loop in the list so it shows orange; capture dialog and viewport." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Open OpenCylinder.obj, Tools &gt; Fill Holes..., click the detected loop in the list so it shows orange; capture dialog and viewport." style="display:none; width:700px; height:450px;">Screenshot: tutorial_26_fill_holes.png (700x450)</div>
+            <span class="screenshot-caption">A detected hole highlighted in orange before it is patched</span>
+        </div>
+
+        <h2>Subdivide Surface</h2>
+        <p><b>Tools → Subdivide Surface...</b> smooths a mesh with Loop or Catmull-Clark subdivision. Open <code>TorusTestCoarse.obj</code>, a coarse torus of only 96 triangles, and try:</p>
+        <ul>
+            <li><b>Method</b>: Loop stays triangle-based; Catmull-Clark works with quads internally and is triangulated back afterwards. Both usually look similarly smooth.</li>
+            <li><b>Iterations</b>: each step roughly quadruples the triangle count, so 1 or 2 is enough to see the effect.</li>
+            <li><b>Preserve sharp edges</b> (on by default) keeps any edge bent by 30 degrees or more infinitely sharp: a cylinder's flat end caps and a block's corners stay crisp. Turn it off for the classic fully-smooth look, where a cube becomes a rounded blob.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_26_subdivide.png" alt="tutorial_26_subdivide.png" title="Capture: TorusTestCoarse.obj in Shaded with Edges mode before and after Subdivide Surface (Loop, 2 iterations); join the two captures side by side." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: TorusTestCoarse.obj in Shaded with Edges mode before and after Subdivide Surface (Loop, 2 iterations); join the two captures side by side." style="display:none; width:700px; height:350px;">Screenshot: tutorial_26_subdivide.png (700x350)</div>
+            <span class="screenshot-caption">The coarse torus (left) and its subdivided, smooth result (right)</span>
+        </div>
+
+        <h2>Shrink Wrap</h2>
+        <p><b>Tools → Shrink Wrap...</b> combines one or more selected meshes into a single new <i>watertight</i> shell, using alpha wrapping. The inputs need not share a material or even be manifold. <b>Alpha</b> and <b>Offset</b> set how tightly the shell wraps and how far it stands off; <b>Reset to Suggested</b> computes sensible starting values from the selection's bounding box. The original selection is left untouched.</p>
+        <div class="note note-tip">
+            Try it on a few parts of the Forklift or the Skate-Board assembly: a shrink-wrapped shell is a clean, closed stand-in for a complicated assembly, handy for 3D printing or as a simplified collision body.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_26_shrink_wrap.png" alt="tutorial_26_shrink_wrap.png" title="Capture: Select a few Forklift parts, Tools &gt; Shrink Wrap..., Generate; capture the wrapped shell next to the original (move the original aside or show wireframe)." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Select a few Forklift parts, Tools &gt; Shrink Wrap..., Generate; capture the wrapped shell next to the original (move the original aside or show wireframe)." style="display:none; width:700px; height:420px;">Screenshot: tutorial_26_shrink_wrap.png (700x420)</div>
+            <span class="screenshot-caption">A shrink-wrap shell around several parts, next to the original</span>
+        </div>
+
+        <h2>Reconstruct Surface</h2>
+        <p><b>Tools → Reconstruct Surface...</b> builds a new triangulated surface from the <i>point positions</i> of selected meshes or point clouds; existing faces are ignored. <b>Sharpness</b> trades smoothness against sharp edges, <b>Boundary Tolerance</b> sets how large a gap the reconstruction may bridge, and <b>Simplify point cloud before reconstruction</b> reveals a <b>Target Spacing</b> that merges closer points first - faster on large or noisy scans, at the cost of fine detail.</p>
+        <h2>Merge, Split and Group (Right-Click Menu)</h2>
+        <p>With meshes selected, the right-click menu in the tree or the viewport offers these operations. All add new mesh nodes and remove the originals, and all can be undone except Select Parent.</p>
+        <table>
+            <thead><tr><th>Operation</th><th>What it does</th></tr></thead>
+            <tbody>
+            <tr><td>Split by Connectivity</td><td>Splits each selected mesh into its disconnected pieces, one new mesh per piece; a mesh that is already one piece is left alone.</td></tr>
+            <tr><td>Merge by Adjacency</td><td>Groups the selection into touching clusters (by shared vertex position) and merges each cluster into one mesh; meshes that touch nothing are left alone.</td></tr>
+            <tr><td>Merge Selected</td><td>Combines the whole selection into one new mesh by plain concatenation, touching or not.</td></tr>
+            <tr><td>Mesh Union</td><td>Tries a real boolean union of the repaired geometry; if repair or the boolean step fails it falls back to plain concatenation, like Merge Selected.</td></tr>
+            <tr><td>Group</td><td>Only reorganises the scene tree: creates a Group node and moves the selected meshes into it. No geometry changes.</td></tr>
+            <tr><td>Select Parent</td><td>Selects the tree parent of the item you right-clicked - navigation only.</td></tr>
+            </tbody>
+        </table>
+        <div class="note note-info">
+            When a touching group or selection has more than one material, Merge by Adjacency, Merge Selected and Mesh Union ask: <b>Keep Materials Separate</b> makes one merge per material, <b>Merge Anyway</b> combines everything and uses the first mesh's material.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_26_context_menu.png" alt="tutorial_26_context_menu.png" title="Capture: Select two or more meshes in the Scene Tree, right-click one of them and capture the open menu with Split by Connectivity, Merge by Adjacency, Merge Selected, Mesh Union, Group and Select Parent visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Select two or more meshes in the Scene Tree, right-click one of them and capture the open menu with Split by Connectivity, Merge by Adjacency, Merge Selected, Mesh Union, Group and Select Parent visible." style="display:none; width:500px; height:420px;">Screenshot: tutorial_26_context_menu.png (500x420)</div>
+            <span class="screenshot-caption">The mesh operations in the right-click menu</span>
+        </div>
+
+
+        <div class="lesson-navigation">
+            <a href='lesson25.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson27.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

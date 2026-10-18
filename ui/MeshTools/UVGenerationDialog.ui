@@ -1,0 +1,1572 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>UVGenerationDialog</class>
+ <widget class="QDialog" name="UVGenerationDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>410</width>
+    <height>664</height>
+   </rect>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>410</width>
+    <height>16777215</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>Generate UV Coordinates</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="MeshSelectionBox" name="meshSelectionBox" native="true"/>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupBox_Seams">
+     <property name="title">
+      <string>Seams (Angle-Based / Angle-Based Smart UV / ARAP)</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_Seams">
+      <item>
+       <widget class="QPushButton" name="markSeamsButton">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Click mesh edges in the viewport to force them into the seam set - click a marked edge again to unmark it. Cleared when this dialog closes.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="text">
+         <string>Mark Seams</string>
+        </property>
+        <property name="checkable">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QListWidget" name="seamMarkList">
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>70</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="seamListButtonRow">
+        <item>
+         <widget class="QPushButton" name="removeSeamMarkButton">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="text">
+           <string>Remove Selected</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="clearSeamMarksButton">
+          <property name="text">
+           <string>Clear All</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupBox_Method">
+     <property name="title">
+      <string>UV Mapping Method</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_2">
+      <item>
+       <widget class="QComboBox" name="comboBox_Method">
+        <item>
+         <property name="text">
+          <string>Planar</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Cylindrical</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Spherical</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Torus</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Angle-Based</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Hybrid</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Angle-Based Smart UV</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Smart Project (Blender-style)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>ARAP (As-Rigid-As-Possible)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>LSCM (Conformal)</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="resetDefaultsButton">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Reset every method's settings back to their default values (does not change the currently selected method or the mesh list)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="text">
+         <string>Reset to Defaults</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QScrollArea" name="scrollArea">
+     <property name="widgetResizable">
+      <bool>true</bool>
+     </property>
+     <widget class="QWidget" name="scrollAreaWidgetContents">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>390</width>
+        <height>352</height>
+       </rect>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_3">
+       <item>
+        <widget class="QStackedWidget" name="stackedWidget_Options">
+         <property name="currentIndex">
+          <number>0</number>
+         </property>
+         <widget class="QWidget" name="page_Planar">
+          <layout class="QFormLayout" name="formLayout_Planar">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_PlanarScaleX">
+             <property name="text">
+              <string>Scale X:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_PlanarScaleX">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>0.001000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>100.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>1.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_PlanarScaleY">
+             <property name="text">
+              <string>Scale Y:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_PlanarScaleY">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>0.001000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>100.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>1.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="label_FlipV_Planar">
+             <property name="text">
+              <string>Flip V:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QCheckBox" name="checkBox_FlipV_Planar">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="page_Cylindrical">
+          <layout class="QFormLayout" name="formLayout_Cylindrical">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_CylScale">
+             <property name="text">
+              <string>Scale:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_CylScale">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>0.001000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>100.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>1.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_CylOffset">
+             <property name="text">
+              <string>Offset:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_CylOffset">
+             <property name="toolTip">
+              <string>Shifts the cylindrical projection along its axis</string>
+             </property>
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-10.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>10.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="label_CylSeamRotation">
+             <property name="text">
+              <string>Seam Rotation (degrees):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_CylSeamRotation">
+             <property name="decimals">
+              <number>1</number>
+             </property>
+             <property name="minimum">
+              <double>-360.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>360.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="label_SeamlessCylindrical">
+             <property name="text">
+              <string>Seamless:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QCheckBox" name="checkBox_SeamlessCylindrical">
+             <property name="toolTip">
+              <string>Wrap U continuously to avoid a visible seam</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="label_FlipV_Cyl">
+             <property name="text">
+              <string>Flip V:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QCheckBox" name="checkBox_FlipV_Cyl">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="0">
+            <widget class="QLabel" name="label_CylAutoDetectAxis">
+             <property name="text">
+              <string>Auto-detect Axis (PCA):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="1">
+            <widget class="QCheckBox" name="checkBox_CylAutoDetectAxis">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Detect the cylinder's axis automatically from its geometry. Uncheck to enter the axis manually below.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0" colspan="2">
+            <widget class="QGroupBox" name="groupBox_CylAxis">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="title">
+              <string>Cylinder Axis</string>
+             </property>
+             <layout class="QFormLayout" name="formLayout_CylAxis">
+              <item row="0" column="0">
+               <widget class="QLabel" name="label_CylAxisX">
+                <property name="text">
+                 <string>X:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QDoubleSpinBox" name="spinBox_CylAxisX">
+                <property name="decimals">
+                 <number>3</number>
+                </property>
+                <property name="minimum">
+                 <double>-1.000000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>1.000000000000000</double>
+                </property>
+                <property name="value">
+                 <double>0.000000000000000</double>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="label_CylAxisY">
+                <property name="text">
+                 <string>Y:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QDoubleSpinBox" name="spinBox_CylAxisY">
+                <property name="decimals">
+                 <number>3</number>
+                </property>
+                <property name="minimum">
+                 <double>-1.000000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>1.000000000000000</double>
+                </property>
+                <property name="value">
+                 <double>1.000000000000000</double>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="label_CylAxisZ">
+                <property name="text">
+                 <string>Z:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QDoubleSpinBox" name="spinBox_CylAxisZ">
+                <property name="decimals">
+                 <number>3</number>
+                </property>
+                <property name="minimum">
+                 <double>-1.000000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>1.000000000000000</double>
+                </property>
+                <property name="value">
+                 <double>0.000000000000000</double>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="page_Spherical">
+          <layout class="QFormLayout" name="formLayout_Spherical">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_SphereScale">
+             <property name="text">
+              <string>Scale:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_SphereScale">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>0.001000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>100.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>1.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_SphereRotation">
+             <property name="text">
+              <string>UV Rotation (degrees):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_SphereRotation">
+             <property name="decimals">
+              <number>1</number>
+             </property>
+             <property name="minimum">
+              <double>-360.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>360.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="label_DuplicatePoles">
+             <property name="text">
+              <string>Duplicate Pole Vertices:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QCheckBox" name="checkBox_DuplicatePoles">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Duplicate vertices at the poles to avoid UV pinching/distortion&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="label_SeamlessSpherical">
+             <property name="text">
+              <string>Seamless:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QCheckBox" name="checkBox_SeamlessSpherical">
+             <property name="toolTip">
+              <string>Wrap U continuously to avoid a visible seam</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="label_FlipV_Sphere">
+             <property name="text">
+              <string>Flip V:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QCheckBox" name="checkBox_FlipV_Sphere">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="0">
+            <widget class="QLabel" name="label_SphereAutoDetectAxis">
+             <property name="text">
+              <string>Auto-detect Axis (PCA):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="1">
+            <widget class="QCheckBox" name="checkBox_SphereAutoDetectAxis">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Detect the sphere's polar axis automatically from its geometry. Uncheck to enter the axis manually below.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0" colspan="2">
+            <widget class="QGroupBox" name="groupBox_SphereAxis">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="title">
+              <string>Sphere Axis</string>
+             </property>
+             <layout class="QFormLayout" name="formLayout_SphereAxis">
+              <item row="0" column="0">
+               <widget class="QLabel" name="label_SphereAxisX">
+                <property name="text">
+                 <string>X:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QDoubleSpinBox" name="spinBox_SphereAxisX">
+                <property name="decimals">
+                 <number>3</number>
+                </property>
+                <property name="minimum">
+                 <double>-1.000000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>1.000000000000000</double>
+                </property>
+                <property name="value">
+                 <double>0.000000000000000</double>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="label_SphereAxisY">
+                <property name="text">
+                 <string>Y:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QDoubleSpinBox" name="spinBox_SphereAxisY">
+                <property name="decimals">
+                 <number>3</number>
+                </property>
+                <property name="minimum">
+                 <double>-1.000000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>1.000000000000000</double>
+                </property>
+                <property name="value">
+                 <double>1.000000000000000</double>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="label_SphereAxisZ">
+                <property name="text">
+                 <string>Z:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QDoubleSpinBox" name="spinBox_SphereAxisZ">
+                <property name="decimals">
+                 <number>3</number>
+                </property>
+                <property name="minimum">
+                 <double>-1.000000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>1.000000000000000</double>
+                </property>
+                <property name="value">
+                 <double>0.000000000000000</double>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="page_Torus">
+          <layout class="QFormLayout" name="formLayout_Torus">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_TorusScale">
+             <property name="text">
+              <string>Scale:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_TorusScale">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>0.001000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>100.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>1.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_TorusMinorScale">
+             <property name="text">
+              <string>Minor (V) Scale:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_TorusMinorScale">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Manual V-axis multiplier to correct texture stretch for a thin-tube torus (tube radius much smaller than the ring radius)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>0.001000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>100.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>1.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="label_TorusSeamRotation">
+             <property name="text">
+              <string>Seam Rotation (degrees):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_TorusSeamRotation">
+             <property name="decimals">
+              <number>1</number>
+             </property>
+             <property name="minimum">
+              <double>-360.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>360.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="label_SeamlessTorus">
+             <property name="text">
+              <string>Seamless:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QCheckBox" name="checkBox_SeamlessTorus">
+             <property name="toolTip">
+              <string>Wrap both U and V continuously to avoid visible seams</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="label_FlipV_Torus">
+             <property name="text">
+              <string>Flip V:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QCheckBox" name="checkBox_FlipV_Torus">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="0">
+            <widget class="QLabel" name="label_TorusAutoDetectAxis">
+             <property name="text">
+              <string>Auto-detect Axis (PCA):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="1">
+            <widget class="QCheckBox" name="checkBox_TorusAutoDetectAxis">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Detect the torus's axis of revolution automatically from its geometry. Uncheck to enter the axis manually below.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0" colspan="2">
+            <widget class="QGroupBox" name="groupBox_TorusAxis">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="title">
+              <string>Torus Axis</string>
+             </property>
+             <layout class="QFormLayout" name="formLayout_TorusAxis">
+              <item row="0" column="0">
+               <widget class="QLabel" name="label_TorusAxisX">
+                <property name="text">
+                 <string>X:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QDoubleSpinBox" name="spinBox_TorusAxisX">
+                <property name="decimals">
+                 <number>3</number>
+                </property>
+                <property name="minimum">
+                 <double>-1.000000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>1.000000000000000</double>
+                </property>
+                <property name="value">
+                 <double>0.000000000000000</double>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="label_TorusAxisY">
+                <property name="text">
+                 <string>Y:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QDoubleSpinBox" name="spinBox_TorusAxisY">
+                <property name="decimals">
+                 <number>3</number>
+                </property>
+                <property name="minimum">
+                 <double>-1.000000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>1.000000000000000</double>
+                </property>
+                <property name="value">
+                 <double>1.000000000000000</double>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="label_TorusAxisZ">
+                <property name="text">
+                 <string>Z:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QDoubleSpinBox" name="spinBox_TorusAxisZ">
+                <property name="decimals">
+                 <number>3</number>
+                </property>
+                <property name="minimum">
+                 <double>-1.000000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>1.000000000000000</double>
+                </property>
+                <property name="value">
+                 <double>0.000000000000000</double>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="page_AngleBased">
+          <layout class="QFormLayout" name="formLayout_AngleBased">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_AngleThreshold">
+             <property name="text">
+              <string>Angle Threshold (degrees):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_AngleThreshold">
+             <property name="toolTip">
+              <string>Face-angle difference above which a hard UV seam is cut</string>
+             </property>
+             <property name="decimals">
+              <number>1</number>
+             </property>
+             <property name="maximum">
+              <double>180.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>60.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_DistortionWeight">
+             <property name="text">
+              <string>Distortion Weight:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_DistortionWeight">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Balance between angle-preserving and area-preserving unwrapping&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="decimals">
+              <number>2</number>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.100000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="label_PreserveAspect">
+             <property name="text">
+              <string>Preserve Aspect Ratio:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QCheckBox" name="checkBox_PreserveAspect">
+             <property name="toolTip">
+              <string>Keep UV proportions matching the 3D geometry</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="label_SeamPadding">
+             <property name="text">
+              <string>Seam Padding:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_SeamPadding">
+             <property name="toolTip">
+              <string>Gap left around UV island edges to prevent texture bleeding</string>
+             </property>
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.010000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.020000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="label_EnableRelaxation">
+             <property name="text">
+              <string>Enable Relaxation:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QCheckBox" name="checkBox_EnableRelaxation">
+             <property name="toolTip">
+              <string>Smooth UV islands after unwrapping to reduce stretching</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="0">
+            <widget class="QLabel" name="label_RelaxationIterations">
+             <property name="text">
+              <string>Relaxation Iterations:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="1">
+            <widget class="QSpinBox" name="spinBox_RelaxationIterations">
+             <property name="toolTip">
+              <string>How many relaxation passes to run</string>
+             </property>
+             <property name="minimum">
+              <number>1</number>
+             </property>
+             <property name="maximum">
+              <number>100</number>
+             </property>
+             <property name="value">
+              <number>10</number>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0">
+            <widget class="QLabel" name="label_EnablePacking">
+             <property name="text">
+              <string>Enable Packing:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="1">
+            <widget class="QCheckBox" name="checkBox_EnablePacking">
+             <property name="toolTip">
+              <string>Automatically pack UV islands into 0-1 space</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="0">
+            <widget class="QLabel" name="label_UseMarkedSeams">
+             <property name="text">
+              <string>Use Marked Seams:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="1">
+            <widget class="QCheckBox" name="checkBox_UseMarkedSeams">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Force manually-marked edges (Mark Seams above) into the seam set, in addition to the automatic angle-threshold detection&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="page_Hybrid">
+          <layout class="QVBoxLayout" name="verticalLayout_4">
+           <item>
+            <widget class="QLabel" name="label_Hybrid">
+             <property name="text">
+              <string>Hybrid method automatically selects the best UV mapping based on mesh analysis. No additional parameters required.</string>
+             </property>
+             <property name="wordWrap">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="verticalSpacer_Hybrid">
+             <property name="orientation">
+              <enum>Qt::Orientation::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>40</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="page_SmartUV">
+          <layout class="QFormLayout" name="formLayout_SmartUV">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_AngleThreshold_Smart">
+             <property name="text">
+              <string>Angle Threshold (degrees):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_AngleThreshold_Smart">
+             <property name="toolTip">
+              <string>Face-angle difference above which a hard UV seam is cut</string>
+             </property>
+             <property name="decimals">
+              <number>1</number>
+             </property>
+             <property name="maximum">
+              <double>180.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>60.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_EnableRelaxation_Smart">
+             <property name="text">
+              <string>Enable Relaxation:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QCheckBox" name="checkBox_EnableRelaxation_Smart">
+             <property name="toolTip">
+              <string>Smooth UV islands after unwrapping to reduce stretching</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="label_RelaxationIterations_Smart">
+             <property name="text">
+              <string>Relaxation Iterations:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QSpinBox" name="spinBox_RelaxationIterations_Smart">
+             <property name="toolTip">
+              <string>How many relaxation passes to run</string>
+             </property>
+             <property name="minimum">
+              <number>1</number>
+             </property>
+             <property name="maximum">
+              <number>100</number>
+             </property>
+             <property name="value">
+              <number>10</number>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="label_UseMarkedSeams_SmartUV">
+             <property name="text">
+              <string>Use Marked Seams:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QCheckBox" name="checkBox_UseMarkedSeams_SmartUV">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Force manually-marked edges (Mark Seams above) into the seam set, in addition to the automatic angle-threshold detection&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="page_SmartProject">
+          <layout class="QFormLayout" name="formLayout_SmartProject">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_AngleLimit_SmartProject">
+             <property name="text">
+              <string>Angle Limit (degrees):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_AngleLimit_SmartProject">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Lower for more projection groups (less distortion, more islands), higher for fewer projection groups&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="decimals">
+              <number>1</number>
+             </property>
+             <property name="minimum">
+              <double>0.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>89.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>66.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_AreaWeight_SmartProject">
+             <property name="text">
+              <string>Area Weight:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_AreaWeight_SmartProject">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Weight projection direction clustering by face area; 0 treats all faces equally, 1 lets large faces dominate&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="decimals">
+              <number>2</number>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.100000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="label_EnablePacking_SmartProject">
+             <property name="text">
+              <string>Enable Packing:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QCheckBox" name="checkBox_EnablePacking_SmartProject">
+             <property name="toolTip">
+              <string>Automatically pack UV islands into 0-1 space</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="label_FlipV_SmartProject">
+             <property name="text">
+              <string>Flip V:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QCheckBox" name="checkBox_FlipV_SmartProject">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="page_ARAP">
+          <layout class="QFormLayout" name="formLayout_ARAP">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_AngleThreshold_ARAP">
+             <property name="text">
+              <string>Seam Angle Threshold:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_AngleThreshold_ARAP">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Dihedral angle (degrees) above which an edge is treated as a seam, same as Angle-Based&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="decimals">
+              <number>1</number>
+             </property>
+             <property name="minimum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>179.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>60.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_Rigidity_ARAP">
+             <property name="text">
+              <string>Rigidity:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_Rigidity_ARAP">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Balances local shape preservation against the free-boundary solve. Higher biases toward preserving the boundary shape; lower toward local rigidity.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="decimals">
+              <number>1</number>
+             </property>
+             <property name="minimum">
+              <double>0.100000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000000.000000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>100.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>1000.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="label_SeamPadding_ARAP">
+             <property name="text">
+              <string>Seam Padding:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_SeamPadding_ARAP">
+             <property name="toolTip">
+              <string>Padding around packed UV islands</string>
+             </property>
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="maximum">
+              <double>0.500000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.010000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.020000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="label_EnablePacking_ARAP">
+             <property name="text">
+              <string>Enable Packing:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QCheckBox" name="checkBox_EnablePacking_ARAP">
+             <property name="toolTip">
+              <string>Automatically pack UV islands into 0-1 space</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="label_FlipV_ARAP">
+             <property name="text">
+              <string>Flip V:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QCheckBox" name="checkBox_FlipV_ARAP">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="0">
+            <widget class="QLabel" name="label_UseMarkedSeams_ARAP">
+             <property name="text">
+              <string>Use Marked Seams:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="1">
+            <widget class="QCheckBox" name="checkBox_UseMarkedSeams_ARAP">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Force manually-marked edges (Mark Seams above) into the seam set, in addition to the automatic angle-threshold detection&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0">
+            <widget class="QLabel" name="label_Iterations_ARAP">
+             <property name="text">
+              <string>Iterations:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="1">
+            <widget class="QSpinBox" name="spinBox_Iterations_ARAP">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Maximum number of local/global energy-minimization passes. CGAL's own default is 50.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="minimum">
+              <number>1</number>
+             </property>
+             <property name="maximum">
+              <number>500</number>
+             </property>
+             <property name="value">
+              <number>50</number>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="0">
+            <widget class="QLabel" name="label_Tolerance_ARAP">
+             <property name="text">
+              <string>Convergence Tolerance:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_Tolerance_ARAP">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Minimal energy difference between passes before the minimization loop exits early. CGAL's own default is 0.000001.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="decimals">
+              <number>8</number>
+             </property>
+             <property name="minimum">
+              <double>0.000000010000000</double>
+             </property>
+             <property name="maximum">
+              <double>0.010000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.000001000000000</double>
+             </property>
+             <property name="value">
+              <double>0.000001000000000</double>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="page_LSCM">
+          <layout class="QFormLayout" name="formLayout_LSCM">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_AngleThreshold_LSCM">
+             <property name="text">
+              <string>Seam Angle Threshold:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_AngleThreshold_LSCM">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Dihedral angle (degrees) above which an edge is treated as a seam, same as Angle-Based&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="decimals">
+              <number>1</number>
+             </property>
+             <property name="minimum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>179.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>60.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_SeamPadding_LSCM">
+             <property name="text">
+              <string>Seam Padding:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_SeamPadding_LSCM">
+             <property name="toolTip">
+              <string>Padding around packed UV islands</string>
+             </property>
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="maximum">
+              <double>0.500000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.010000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.020000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="label_EnablePacking_LSCM">
+             <property name="text">
+              <string>Enable Packing:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QCheckBox" name="checkBox_EnablePacking_LSCM">
+             <property name="toolTip">
+              <string>Automatically pack UV islands into 0-1 space</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="label_FlipV_LSCM">
+             <property name="text">
+              <string>Flip V:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QCheckBox" name="checkBox_FlipV_LSCM">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="label_UseMarkedSeams_LSCM">
+             <property name="text">
+              <string>Use Marked Seams:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QCheckBox" name="checkBox_UseMarkedSeams_LSCM">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Force manually-marked edges (Mark Seams above) into the seam set, in addition to the automatic angle-threshold detection&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="generateButton">
+     <property name="enabled">
+      <bool>false</bool>
+     </property>
+     <property name="text">
+      <string>Generate</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="statusLabel">
+     <property name="text">
+      <string/>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>MeshSelectionBox</class>
+   <extends>QWidget</extends>
+   <header>MeshSelectionBox.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

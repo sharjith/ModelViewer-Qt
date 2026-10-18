@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leçon 5 : Modes d'affichage - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutoriel</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Premiers pas</a>
+            <a href="lesson02.html">2. Ouvrir des modèles</a>
+            <a href="lesson03.html">3. Navigation de base</a>
+            <a href="lesson04.html">4. Sélectionner des objets</a>
+            <a href="lesson05.html" class='active'>5. Modes d'affichage</a>
+            <a href="lesson06.html">6. Modes de caméra</a>
+            <a href="lesson07.html">7. Modes d'affichage des objets</a>
+            <a href="lesson08.html">8. Manipuler des objets</a>
+            <a href="lesson09.html">9. Matériaux et textures</a>
+            <a href="lesson10.html">10. Éclairage et environnement</a>
+            <a href="lesson11.html">11. Travailler avec la visibilité</a>
+            <a href="lesson12.html">12. Fonctions avancées</a>
+            <a href="lesson13.html">13. Optimisation des performances</a>
+            <a href="lesson14.html">14. Conseils et flux de travail</a>
+            <a href="lesson15.html">15. Vues éclatées</a>
+            <a href="lesson16.html">16. Animation de morph targets</a>
+            <a href="lesson17.html">17. Édition de la transformation des nœuds</a>
+            <a href="lesson18.html">18. Rendu des arêtes et du fil de fer</a>
+            <a href="lesson19.html">19. Résultats de simulation</a>
+            <a href="lesson20.html">20. Regarder à l'intérieur d'un résultat</a>
+            <a href="lesson21.html">21. Graphiques et sondes</a>
+            <a href="lesson22.html">22. Comparer des résultats, données de cellule et de coque</a>
+            <a href="lesson23.html">23. Graphiques 3D à partir de données CSV</a>
+            <a href="lesson24.html">24. Graphiques 3D à partir de formules, remplissages, images et notes</a>
+            <a href="lesson25.html">25. Graphiques et résultats lus ensemble</a>
+            <a href="lesson26.html">26. Outils de maillage</a>
+            <a href="lesson27.html">27. Mesurer, annoter et rapporter</a>
+            <a href="lesson28.html">28. Analyse, sélection et scènes</a>
+            <a href="lesson29.html">29. Lancer de rayons en pratique</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Leçon 5 sur 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 17.24%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Leçon 5 : Modes d'affichage</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Les modes d'affichage permettent d'orienter rapidement votre caméra vers des positions standard, idéales pour les dessins techniques, les présentations ou l'examen de modèles sous des angles précis.</p>
+
+        <h2>Accéder aux modes d'affichage</h2>
+        <p>Les modes d'affichage sont disponibles dans la barre d'outils d'affichage :</p>
+
+        <div class="step">
+            <div class="step-title">Étape 1 : Afficher la barre d'outils</div>
+            <div class="step-content">Déplacez la souris vers le bord inférieur de la vue pour faire apparaître la barre d'outils.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Étape 2 : Trouver les boutons de vue</div>
+            <div class="step-content">Repérez les boutons « Haut », « Avant », « Gauche », etc., ainsi que le bouton déroulant « Vue axonométrique ».</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_toolbar_views.png" alt="Barre d&#x27;outils d&#x27;affichage avec les boutons de vues orthographiques et axonométriques mis en évidence" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_05_toolbar_views.png</div>
+            <span class="screenshot-caption">Barre d'outils d'affichage avec les boutons de vues orthographiques et axonométriques mis en évidence</span>
+        </div>
+
+        <h2>Vues orthographiques</h2>
+        <p>Six vues orthographiques standard :</p>
+
+        <div class="step">
+            <div class="step-title">Étape 1 : Vue de dessus</div>
+            <div class="step-content">Cliquez sur « Haut » pour voir le modèle directement du dessus (en regardant le long de l'axe Z).</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_top_view.png" alt="Modèle en vue de dessus" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_05_top_view.png</div>
+			<span class="screenshot-caption">Vue de dessus</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Étape 2 : Vue de face</div>
+            <div class="step-content">Cliquez sur « Avant » pour voir de face (le long de l'axe Y).</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_front_view.png" alt="Modèle en vue de face" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_05_front_view.png</div>
+			<span class="screenshot-caption">Vue de face</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Étape 3 : Vue de gauche</div>
+            <div class="step-content">Cliquez sur « Gauche » pour voir depuis le côté gauche (le long de l'axe X).</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Étape 4 : Vues supplémentaires</div>
+            <div class="step-content">Les vues « Bas », « Arrière » et « Droite » sont aussi disponibles pour une couverture complète.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_six_views.png" alt="Grille montrant les six vues orthographiques" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_05_six_views.png</div>
+            <span class="screenshot-caption">Grille montrant les six vues orthographiques<br>Haut, Avant, Gauche<br>Bas, Arrière, Droite</span>
+        </div>
+
+        <div class="note note-info">
+            Les vues orthographiques sont particulièrement utiles pour les dessins techniques et les mesures, car elles montrent les dimensions réelles sans distorsion de perspective.
+        </div>
+
+        <h2>Vues axonométriques</h2>
+        <p>Vues standard tridimensionnelles :</p>
+
+        <div class="step">
+            <div class="step-title">Étape 1 : Vue isométrique</div>
+            <div class="step-content">Cliquez sur le bouton Axonométrique et sélectionnez « Isométrique ». Cela montre le modèle avec des angles égaux (120°) entre les trois axes.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_isometric.png" alt="Modèle en vue isométrique montrant des angles d&#x27;axes égaux" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_05_isometric.png</div>
+			<span class="screenshot-caption">Projection isométrique</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Étape 2 : Vue dimétrique</div>
+            <div class="step-content">Sélectionnez « Dimétrique » pour une vue où deux axes sont raccourcis de façon égale.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_dimetric.png" alt="Modèle en vue dimétrique" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_05_dimetric.png</div>
+			<span class="screenshot-caption">Projection dimétrique</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Étape 3 : Vue trimétrique</div>
+            <div class="step-content">Sélectionnez « Trimétrique » pour une vue où les trois axes sont raccourcis différemment.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_trimetric.png" alt="Modèle en vue trimétrique" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_05_trimetric.png</div>
+			<span class="screenshot-caption">Projection trimétrique</span>
+        </div>
+
+        <div class="note note-tip">
+            Les vues axonométriques sont idéales pour les illustrations techniques et les dessins d'ingénierie car elles montrent la structure 3D tout en conservant les lignes parallèles.
+        </div>
+
+        <h2>Basculer la projection</h2>
+        <p>Basculez entre la projection orthographique et la projection en perspective :</p>
+
+        <div class="step">
+            <div class="step-title">Étape 1 : Trouver le bouton de basculement</div>
+            <div class="step-content">Repérez dans la barre d'outils le bouton de basculement de la projection (il affiche une icône de caméra).</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Étape 2 : Orthographique et perspective</div>
+            <div class="step-content">
+                <b>Orthographique :</b> les lignes parallèles restent parallèles, sans point de fuite. Les objets ont la même taille quelle que soit la distance.<br/> <b>Perspective :</b> vue réaliste avec points de fuite. Les objets éloignés paraissent plus petits.
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_ortho_vs_persp.png" alt="Comparaison côte à côte : projection orthographique (à gauche) et en perspective (à droite)" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_05_ortho_vs_persp.png</div>
+            <span class="screenshot-caption">Comparaison côte à côte : projection orthographique (à gauche) et en perspective (à droite)</span>
+        </div>
+
+        <div class="note note-tip">
+            Utilisez l'orthographique pour le travail technique et les mesures, et la perspective pour les présentations réalistes et la visualisation.
+        </div>
+
+        <h2>Mode multi-vues</h2>
+        <p>Voir plusieurs vues en même temps :</p>
+
+        <div class="step">
+            <div class="step-title">Étape 1 : Activer le multi-vues</div>
+            <div class="step-content">Cliquez sur le bouton de basculement « Multi-vues » de la barre d'outils.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Étape 2 : Quatre vues</div>
+            <div class="step-content">La vue se divise en quatre : Haut, Avant, Droite et Isométrique.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Étape 3 : Navigation indépendante</div>
+            <div class="step-content">Vous pouvez naviguer indépendamment dans chaque vue. La sélection est synchronisée entre toutes les vues.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_05_multiview.png" alt="Disposition à quatre vues avec Haut, Avant, Droite et Isométrique" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Capture d'écran: tutorial_05_multiview.png</div>
+            <span class="screenshot-caption">Disposition à quatre vues avec Haut, Avant, Droite et Isométrique</span>
+        </div>
+
+        <div class="note note-info">
+            Le mode multi-vues est excellent pour la modélisation de précision et la compréhension de géométries complexes.
+        </div>
+
+        <h2>Animation de la vue</h2>
+        <p>Lors du changement de vue :</p>
+        <ul>
+            <li>la caméra se déplace en douceur vers la nouvelle position</li>
+            <li>Cela vous aide à conserver votre orientation et le contexte</li>
+            <li>Vous pouvez interrompre l'animation en interagissant avec la vue</li>
+        </ul>
+
+        <h2>Cas d'utilisation</h2>
+        <p><b>Vues de haut/avant/côté :</b> vérifier l'alignement, les dimensions et la symétrie</p>
+        <p><b>Vue isométrique :</b> aperçu 3D général, présentations, vue de départ par défaut</p>
+        <p><b>Dimétrique/Trimétrique :</b> illustrations techniques, dessins d'ingénierie</p>
+        <p><b>Multi-vues :</b> modélisation de précision, travail de CAO, assemblages complexes</p>
+
+        <h2>Exercice pratique</h2>
+        <p><b>Essayez cet exercice :</b></p>
+        <ol>
+            <li>Ouvrez un modèle (de préférence mécanique ou architectural)</li>
+            <li>Parcourez les six vues orthographiques (Haut, Avant, Gauche, Bas, Arrière, Droite)</li>
+            <li>Passez à la vue isométrique</li>
+            <li>Essayez les vues dimétrique et trimétrique</li>
+            <li>Basculez entre la projection orthographique et la perspective</li>
+            <li>Activez le mode multi-vues et exercez-vous à naviguer dans chaque vue</li>
+            <li>Revenez au mode vue unique</li>
+            <li>Remarquez comment chaque mode d'affichage est utile à des fins différentes</li>
+        </ol>
+
+        <h2>Raccourcis clavier</h2>
+        <table>
+            <thead><tr><th>Touche</th><th>Vue</th></tr></thead>
+            <tbody>
+				<tr><td><kbd>Ctrl+T</kbd></td><td>Haut</td></tr>
+                <tr><td><kbd>Ctrl+F</kbd></td><td>Avant</td></tr>
+				<tr><td><kbd>Ctrl+L</kbd></td><td>Gauche</td></tr>
+				<tr><td><kbd>Ctrl+B</kbd></td><td>Bas</td></tr>
+				<tr><td><kbd>Ctrl+R</kbd></td><td>Arrière</td></tr>
+                <tr><td><kbd>Ctrl+J</kbd></td><td>Droite</td></tr>                
+                <tr><td><kbd>Ctrl+1</kbd></td><td>Isométrique</td></tr>
+				<tr><td><kbd>Ctrl+2</kbd></td><td>Dimétrique</td></tr>
+				<tr><td><kbd>Ctrl+3</kbd></td><td>Trimétrique</td></tr>
+                <tr><td><kbd>Ctrl+P</kbd></td><td>Basculer perspective/orthographique</td></tr>
+				<tr><td><kbd>Origine</kbd></td><td>Axonométrique (isométrique/dimétrique/trimétrique, selon le dernier mode défini)</td></tr>
+                <tr><td><kbd>Ctrl+M</kbd></td><td>Mode multi-vues</td></tr>
+            </tbody>
+        </table>
+
+        <div class="lesson-navigation">
+            <a href='lesson04.html' class='nav-button'>← Leçon précédente</a>
+            <a href="index.html" class="back-to-index">↑ Retour à l'index</a>
+            <a href='lesson06.html' class='nav-button'>Leçon suivante →</a>
+        </div>
+    </div>
+</body>
+</html>

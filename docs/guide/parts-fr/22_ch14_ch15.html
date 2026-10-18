@@ -1,0 +1,97 @@
+<h1 class="chapter">Écoulement dans le temps : trajectoires</h1>
+
+<p>Une <b>ligne de courant</b> est le chemin le long d'un champ figé à un instant donné. Une <b>trajectoire</b> est la trace d'une particule emportée par un champ qui <i>change avec le temps</i> - c'est ce que montrerait une goutte de colorant. Lorsque l'écoulement est instationnaire, les deux diffèrent, et ce sont les trajectoires qui correspondent à la réalité. ModelViewer dessine des trajectoires à partir d'une formule dépendant du temps ou d'une série temporelle CSV, les colore selon le temps et peut les animer.</p>
+
+<h2>Trajectoires à partir d'une série temporelle CSV</h2>
+<p>Le tableau est un champ de vitesse échantillonné sur une <b>grille régulière complète</b> pour chacun d'une série de temps. Chaque ligne contient un temps, une position et une vitesse :</p>
+<pre>t,x,y,u,v,w
+0,0,0,-0.000000,0.000000,0
+0,0,0.25,-0.000000,0.222144,0
+...</pre>
+<ul>
+  <li>Choisissez comme <span class="ui">Source des données</span> <i>Série temporelle CSV (trajectoires)</i> et ouvrez ou collez le tableau. <span class="ui">Colonne du temps</span>, <span class="ui">X</span>, <span class="ui">Y</span>, un <span class="ui">Z</span> facultatif et <span class="ui">U</span>, <span class="ui">V</span>, <span class="ui">W</span> sont devinés d'après les noms de l'en-tête (<code>t</code> ou <code>time</code>, <code>x</code>, <code>u</code> ...) et peuvent être modifiés. Sans colonne Z, le champ est plan.</li>
+  <li>La ligne d'état indique soit <i>N lignes forment une grille complète</i> et combien de points de départ et de segments en résultent, soit pourquoi le tableau est inutilisable : une ligne manquante (elle indique combien de lignes sont nécessaires), une cellule non numérique (elle nomme la ligne), une colonne omise.</li>
+  <li><b>Comment c'est tracé.</b> Les points de départ sont lâchés le long de Y au milieu de la plage de X (dans le plan z médian pour un tableau 3D) et emportés à travers le champ par une intégration de Runge-Kutta d'ordre quatre, sur des <span class="ui">pas de temps</span> égaux du premier au dernier temps du tableau. Le champ est interpolé linéairement dans l'espace et dans le temps. Une trace s'arrête là où sa particule quitte la grille. L'ordre des lignes du fichier n'a pas d'importance.</li>
+  <li>Les traces sont des lignes colorées selon le <b>temps</b> ; la légende va donc du temps de début au temps de fin, et elles acceptent les commandes habituelles de palette de couleurs, de bandes, de plage et d'épaisseur de ligne.</li>
+</ul>
+<figure data-img="tutorial_25_double_gyre_pathlines.png"><figcaption>Trajectoires du double tourbillon, colorées selon le temps</figcaption></figure>
+
+<table class="compact">
+  <thead><tr><th style="width:40%">Exemple</th><th>Ce que c'est</th></tr></thead>
+  <tbody>
+    <tr><td><code>pathlines_double_gyre.csv</code></td><td>Le double tourbillon instationnaire classique sur x 0..2, y 0..1 : deux cellules contrarotatives dont la ligne de séparation oscille avec une période de 10 s, échantillonné à 21 instants (945 lignes). Un champ plan.</td></tr>
+    <tr><td><code>pathlines_rising_vortex_3d.csv</code></td><td>Un champ 3D (4 212 lignes avec une colonne Z) : une rotation autour de l'axe Z dont la vitesse pulse dans le temps, plus une vitesse verticale oscillante, de sorte que les traces montent en tournant.</td></tr>
+    <tr><td><code>pathlines_openfoam_cavity.csv</code></td><td>La vitesse au centre des cellules de l'exemple de cavité OpenFOAM (temps de 0 à 2 s) sur un plan juste au-dessus de sa face supérieure, conçue pour être lue avec ce résultat (chapitre 18).</td></tr>
+  </tbody>
+</table>
+
+<h2>Trajectoires à partir d'une formule</h2>
+<p>Avec <b>Trajectoires par formule (dépendantes du temps)</b>, le champ est constitué de trois expressions <span class="ui">u(x,y,z,t)</span>, <span class="ui">v(x,y,z,t)</span>, <span class="ui">w(x,y,z,t)</span> de la position <b>et du temps</b> ; <span class="ui">Plage / échantillons de Y</span> fixe les points de départ le long de Y au milieu de la plage de X (à z = 0), et <span class="ui">Plage / pas de T</span> l'intervalle de temps et le nombre de pas d'intégration. Une trace s'arrête là où sa particule quitte la plage de x / y.</p>
+<table class="compact">
+  <thead><tr><th style="width:28%">Préréglage</th><th>Comportement</th></tr></thead>
+  <tbody>
+    <tr><td>Tourbillon pulsant</td><td>Une rotation rigide dont la vitesse pulse dans le temps : des anneaux concentriques ; les bandes de couleurs (temps) se resserrent là où la particule ralentit et s'étirent là où elle accélère.</td></tr>
+    <tr><td>Double gyre</td><td>Deux cellules contrarotatives dont la ligne de séparation oscille ; les traces voisines se plient et s'étirent.</td></tr>
+    <tr><td>Onde progressive</td><td>Un courant stationnaire dévié latéralement par une onde se propageant en x : les traces dérivent vers l'avant et ondulent.</td></tr>
+    <tr><td>Courant ascendant oscillant</td><td>Un tourbillon dont la vitesse verticale oscille : les anneaux montent et descendent, de sorte que les traces dessinent des hélices en Z.</td></tr>
+  </tbody>
+</table>
+<div class="callout warn"><span class="label">Attention</span>
+  <p>Dans cette source, <code>t</code> est le <b>temps</b>. Dans <i>Lignes de courant par formule</i>, le champ est stationnaire (sans temps), et dans <i>Courbe paramétrique</i>, <code>t</code> n'est que le paramètre de la courbe. Si la fin de la plage de temps précède son début, <span class="ui">Créer le graphique</span> est désactivé avec un message.</p>
+</div>
+<figure data-img="tutorial_25_formula_pathlines.png"><figcaption>Le préréglage Tourbillon pulsant : des anneaux dont les bandes de couleurs se resserrent là où la particule ralentit</figcaption></figure>
+
+<h2>Animer les trajectoires</h2>
+<p>Sélectionnez le graphique dans <span class="ui">Graphique actif</span> et cochez <span class="ui">Animer les trajectoires (chronologie)</span> dans l'onglet Graphique 3D. Une <b>chronologie</b> apparaît en haut de la vue - la même barre que pour les résultats de simulation, avec lecture/pause, pas à pas, arrêt, un curseur, le temps actuel, <span class="ui">Boucle</span> et un choix de vitesse. Les traces ne sont dessinées que jusqu'au temps actuel, avec un point en tête de chacune, coloré selon le temps actuel. Activer l'option affiche tout le graphique jusqu'à ce que vous appuyiez sur lecture ; depuis la fin, la lecture repart du début ; décocher l'option ramène les traces complètes et supprime la barre. Masquer le graphique dans l'arbre de la scène supprime la barre et met la lecture en pause.</p>
+<figure data-img="tutorial_25_animated_pathlines.png"><figcaption>Trajectoires en cours d'animation, avec leurs points de tête et la chronologie</figcaption></figure>
+<p class="small">L'animation est une aide à la visualisation : elle n'est pas enregistrée avec le fichier et les points de tête ne sont pas exportés.</p>
+
+
+<h1 class="chapter">Style, axes et échelles</h1>
+
+<p>Tout ce qui concerne un graphique créé - couleurs, tailles, axes - se trouve dans l'onglet <span class="ui">Graphique 3D</span> du panneau ancré (à côté de l'onglet Résultats de simulation). Choisissez le graphique dans <span class="ui">Graphique actif</span> ; les commandes agissent sur lui. L'entrée du graphique dans l'arbre de la scène porte la case de visibilité.</p>
+
+<h2>Couleur</h2>
+<table class="compact">
+  <thead><tr><th style="width:30%">Commande</th><th>Ce que cela fait</th></tr></thead>
+  <tbody>
+    <tr><td><span class="ui">Titre</span></td><td>Le nom affiché dans l'arbre de la scène et dans la légende.</td></tr>
+    <tr><td><span class="ui">Palette de couleurs</span></td><td>La rampe de couleurs : séquentielle, divergente et autres.</td></tr>
+    <tr><td><span class="ui">Bandes de couleurs</span></td><td>Couleurs lisses ou un certain nombre de bandes discrètes.</td></tr>
+    <tr><td><span class="ui">Plage de couleurs automatique</span></td><td>Activé : la plage suit les données (y compris après une modification). Désactivé : <span class="ui">Minimum</span> et <span class="ui">Maximum</span> sont à vous - utile pour comparer des graphiques.</td></tr>
+  </tbody>
+</table>
+
+<h2>Taille et forme</h2>
+<table class="compact">
+  <thead><tr><th style="width:30%">Commande</th><th>Pour</th></tr></thead>
+  <tbody>
+    <tr><td><span class="ui">Épaisseur de ligne</span></td><td>lignes et trajectoires (en pixels d'écran)</td></tr>
+    <tr><td><span class="ui">Taille du marqueur</span></td><td>marqueurs de nuage de points</td></tr>
+    <tr><td><span class="ui">Taille des flèches</span></td><td>champs vectoriels (échelle de longueur ; ne grandit pas avec la caméra)</td></tr>
+    <tr><td><span class="ui">Largeur des barres</span>, <span class="ui">Profondeur des barres</span></td><td>barres</td></tr>
+    <tr><td><span class="ui">Niveaux de contour</span>, <span class="ui">Lignes de contour</span></td><td>surfaces : combien d'isolignes, et si elles sont sur la surface ou sur le plan de base</td></tr>
+    <tr><td><span class="ui">Opacité</span></td><td>plans d'image et plans de référence</td></tr>
+  </tbody>
+</table>
+
+<h2>La boîte d'axes et les plans de référence</h2>
+<p><span class="ui">Afficher la boîte des axes</span> encadre le graphique avec des axes étiquetés, des graduations et des nombres ; la masquer n'abandonne pas la disposition. <span class="ui">Plans</span> ajoute les plans de référence XY, XZ et YZ au minimum des autres axes, avec une <span class="ui">Opacité</span>. Un axe plat (toutes les valeurs égales) est élargi d'un dixième de la plus grande autre étendue, afin qu'un plan ne devienne pas une aiguille.</p>
+
+<h2>Axes partagés</h2>
+<p>Tous les graphiques d'un document sont dessinés sur <b>un seul jeu d'axes</b> - mêmes échelles, plages et étiquettes - car c'est ce qui permet de les comparer. Sous <span class="ui">Axes</span>, chaque axe a une étiquette, une <span class="ui">Échelle de l'axe</span>, une plage et un nombre de graduations. En modifier un réagence <b>tous les graphiques ensemble</b>, quel que soit le graphique sélectionné ; un graphique créé plus tard rejoint les axes déjà présents.</p>
+<table class="compact">
+  <thead><tr><th style="width:22%">Échelle</th><th>Signification et limite</th></tr></thead>
+  <tbody>
+    <tr><td><b>Linéaire</b></td><td>La valeur par défaut.</td></tr>
+    <tr><td><b>Log 10</b></td><td>Puissances de dix. Exige que les données de <i>chaque</i> graphique soient supérieures à zéro sur cet axe. La régler pendant qu'un graphique atteint zéro est refusé avec un message qui en donne la raison ; créer un graphique qui ne peut pas être affiché sur un axe Log 10 existant ramène cet axe à Linéaire pour tous les graphiques, avec un message d'état.</td></tr>
+    <tr><td><b>SymLog</b></td><td>Logarithmique pour les grandes valeurs, linéaire autour de zéro ; fonctionne avec toutes les données, y compris les valeurs négatives. Les indices de voxels qui commencent à 0 et les champs vectoriels aux deux signes en sont des exemples.</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>Les lignes, nuages de points, surfaces, barres, flèches vectorielles et volumes de voxels suivent tous l'échelle : la géométrie est transformée, pas simplement réétiquetée.</li>
+  <li>Les flèches vectorielles sont réorientées selon l'étirement local de l'échelle à leur emplacement et conservent leur longueur (qui porte la norme) et leur couleur ; les grilles de voxels sont rééchantillonnées sur une grille régulière dans l'espace mis à l'échelle. Revenir à Linéaire rétablit tout.</li>
+  <li>L'affichage au survol d'une surface montre toujours les <b>valeurs des données</b> du graphique, pas des positions sur les axes mis à l'échelle.</li>
+</ul>
+<figure data-img="tutorial_24_log_axis_shared.png"><figcaption>Un nuage de points et une ligne exponentielle partageant un axe Z logarithmique</figcaption></figure>
+<figure data-img="tutorial_23_plot_tab.png"><figcaption>L'onglet Graphique 3D avec les commandes du graphique actif</figcaption></figure>

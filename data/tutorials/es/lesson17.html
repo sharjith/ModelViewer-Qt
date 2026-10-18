@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lección 17: Edición de la transformación de nodos - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Primeros pasos</a>
+            <a href="lesson02.html">2. Abrir modelos</a>
+            <a href="lesson03.html">3. Navegación básica</a>
+            <a href="lesson04.html">4. Seleccionar objetos</a>
+            <a href="lesson05.html">5. Modos de vista</a>
+            <a href="lesson06.html">6. Modos de cámara</a>
+            <a href="lesson07.html">7. Modos de visualización</a>
+            <a href="lesson08.html">8. Manipular objetos</a>
+            <a href="lesson09.html">9. Materiales y texturas</a>
+            <a href="lesson10.html">10. Iluminación y entorno</a>
+            <a href="lesson11.html">11. Trabajar con la visibilidad</a>
+            <a href="lesson12.html">12. Funciones avanzadas</a>
+            <a href="lesson13.html">13. Optimización del rendimiento</a>
+            <a href="lesson14.html">14. Consejos y flujos de trabajo</a>
+            <a href="lesson15.html">15. Vistas explosionadas</a>
+            <a href="lesson16.html">16. Animación de morph targets</a>
+            <a href="lesson17.html" class='active'>17. Edición de la transformación de nodos</a>
+            <a href="lesson18.html">18. Renderizado de bordes y malla de alambre</a>
+            <a href="lesson19.html">19. Resultados de simulación</a>
+            <a href="lesson20.html">20. Mirar dentro de un resultado</a>
+            <a href="lesson21.html">21. Gráficos y sondeo</a>
+            <a href="lesson22.html">22. Comparar resultados, datos de celda y de lámina</a>
+            <a href="lesson23.html">23. Gráficos 3D a partir de datos CSV</a>
+            <a href="lesson24.html">24. Gráficos 3D a partir de fórmulas, rellenos, imágenes y notas</a>
+            <a href="lesson25.html">25. Gráficos y resultados reproducidos juntos</a>
+            <a href="lesson26.html">26. Herramientas de malla</a>
+            <a href="lesson27.html">27. Medir, anotar e informar</a>
+            <a href="lesson28.html">28. Análisis, selección y escenas</a>
+            <a href="lesson29.html">29. Trazado de rayos en la práctica</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lección 17 de 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 58.62%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lección 17: Edición de la transformación de nodos</h1>
+        </div>
+
+        <h2>Introducción</h2>
+        <p>La lección 8 trató la introducción de números exactos de traslación/rotación/escala en el panel Transformaciones. Esta lección trata el <b>gizmo de transformación en pantalla</b> interactivo: un tirador 3D que arrastra directamente en la vista para recolocar, reorientar o redimensionar visualmente los objetos seleccionados, con respuesta inmediata.</p>
+
+        <h2>Mostrar el gizmo de transformación</h2>
+        <div class="step">
+            <div class="step-title">Paso 1: Seleccionar un objeto</div>
+            <div class="step-content">Haga clic en un objeto de la vista o del árbol de modelos para seleccionarlo.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Paso 2: Activar el gizmo</div>
+            <div class="step-content">Muestre el gizmo de transformación de la selección actual desde el menú contextual (clic derecho) o el panel Transformaciones. El gizmo aparece centrado en la selección.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_17_gizmo_overview.png" alt="Gizmo de transformación con tiradores de traslación, rotación y escala en un objeto seleccionado" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Captura: tutorial_17_gizmo_overview.png (700x450)</div>
+            <span class="screenshot-caption">Gizmo de transformación con tiradores de traslación, rotación y escala en un objeto seleccionado</span>
+        </div>
+
+        <h2>Usar los tiradores del gizmo</h2>
+        <div class="step">
+            <div class="step-title">Trasladar</div>
+            <div class="step-content">Arrastre una flecha de eje (X, Y o Z) para mover el objeto a lo largo de ese único eje.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Girar</div>
+            <div class="step-content">Arrastre uno de los anillos de rotación (XY, YZ o ZX) para girar el objeto alrededor del plano correspondiente.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Escala</div>
+            <div class="step-content">Arrastre el tirador central de escala para redimensionar el objeto de forma uniforme en todos los ejes.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_17_gizmo_translate.png" alt="Arrastrar el tirador de traslación del gizmo para mover un objeto a lo largo de un eje" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:400px;">Captura: tutorial_17_gizmo_translate.png (700x400)</div>
+            <span class="screenshot-caption">Arrastrar el tirador de traslación del gizmo para mover un objeto a lo largo de un eje</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_17_gizmo_rotate.png" alt="Arrastrar uno de los anillos de rotación del gizmo" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:400px;">Captura: tutorial_17_gizmo_rotate.png (700x400)</div>
+            <span class="screenshot-caption">Arrastrar uno de los anillos de rotación del gizmo</span>
+        </div>
+
+        <div class="note note-tip">
+            El gizmo se escala en relación con la distancia de la cámara, de modo que sus tiradores mantienen un tamaño útil tanto si está muy cerca como si ve toda la escena desde lejos.
+        </div>
+
+        <h2>Gizmo frente a transformaciones numéricas</h2>
+        <p>Ambos enfoques editan la misma transformación subyacente y se pueden usar indistintamente:</p>
+        <ul>
+            <li><b>Gizmo:</b> rápido y visual, ideal para posicionamiento aproximado y ajustes rápidos mientras ve el resultado.</li>
+            <li><b>Panel numérico (lección 8):</b> preciso, ideal para valores exactos o para reproducir una transformación exacta.</li>
+        </ul>
+
+        <h2>Transformaciones de nodo y colocación manual de la vista explosionada</h2>
+        <p>El mismo gizmo de transformación se reutiliza durante la colocación manual de la vista explosionada (lección 15) para llevar las piezas a una pose explosionada personalizada. La diferencia clave: durante la colocación manual, las ediciones del gizmo actualizan solo la pose explosionada por etapas, no la transformación real del objeto, de modo que la geometría subyacente del modelo nunca se altera.</p>
+
+        <div class="note note-warning">
+            Fuera de la colocación manual de la vista explosionada, las ediciones del gizmo cambian de inmediato la transformación real del objeto, igual que el panel numérico Transformaciones.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson16.html' class='nav-button'>← Lección anterior</a>
+            <a href="index.html" class="back-to-index">↑ Volver al índice</a>
+            <a href='lesson18.html' class='nav-button'>Siguiente lección →</a>
+        </div>
+    </div>
+</body>
+</html>

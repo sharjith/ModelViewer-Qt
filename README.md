@@ -1,18 +1,110 @@
 # ModelViewer
 OpenGL-based 3D Model Viewer with Advanced Rendering Capabilities
 
-A professional-grade 3D viewer that reads and displays a comprehensive range of 3D file formats supported by Assimp (OBJ, FBX, COLLADA, BLEND, and more) and CAD formats, including STEP, IGES, and BRep files via OpenCASCADE. Features physically-based rendering (PBR), advanced material systems with Khronos KHR extensions, and sophisticated CAD visualization capabilities.
+A professional-grade 3D viewer that reads and displays a comprehensive range of 3D file formats supported by Assimp (OBJ, FBX, COLLADA, BLEND, and more) and CAD formats, including STEP, IGES, and BRep files via OpenCASCADE, and displays FEM / CFD simulation results (VTK, CalculiX, Exodus II, CGNS, MED, OpenFOAM, VTKHDF). Features physically-based rendering (PBR), advanced material systems with Khronos KHR extensions, and sophisticated CAD visualization capabilities.
+
+## What's new in 2026.11
+
+ModelViewer now reads **simulation results** (FEM / CFD) and plots **your own data in 3D**, and adds a **ray tracer**, **measurement and annotation**,
+**CGAL-based mesh tools** and **surface analysis**. See the [changelog](CHANGELOG.md) for the full list, the in-app **Help > What's New** and
+**Help > Tutorial** (29 lessons in English, German, Spanish, French and Italian), and the PDF guide *Simulation Results and 3D Plotting*:
+[English](docs/guide/ModelViewer_Simulation_and_3D_Plotting_Guide.pdf), [Deutsch](docs/guide/ModelViewer_Simulation_and_3D_Plotting_Guide_de.pdf),
+[Español](docs/guide/ModelViewer_Simulation_and_3D_Plotting_Guide_es.pdf), [Français](docs/guide/ModelViewer_Simulation_and_3D_Plotting_Guide_fr.pdf),
+[Italiano](docs/guide/ModelViewer_Simulation_and_3D_Plotting_Guide_it.pdf).
+Short video tutorials are on the [ModelViewer YouTube channel](https://www.youtube.com/@ModelViewerQt).
+
+## Download
+
+The [releases page](https://github.com/sharjith/ModelViewer-Qt/releases) has a **Windows installer** (`.exe`) and a **Linux `.deb`** for Ubuntu 26.04 LTS
+(`sudo apt install ./modelviewer_2026.11.0_amd64.deb`). To build from source see [Building the Code](#building-the-code).
+
+### Optional content packs (full material library, all HDRI maps)
+
+To keep the download small, the installer and the `.deb` include only a starter set: **53 materials** (a spread from every group: metals, brushed metals, industrial and sci-fi panels, stone, plastics, rubber, wood, walls, fabric and leather, paper
+and a clear-coated paint), **23 environment maps** (indoor studios, clear and overcast skies, sunset, night and an urban street; about 320 MB) and the sample models. The complete libraries are separate
+downloads on the same releases page. Every zip contains paths that start at `textures\...` or `sample-models\...`, and each carries a `README.txt` with the same steps.
+
+| Download | Adds | Size |
+|---|---|---|
+| `ModelViewer-MaterialLibrary-2026.11.0-part1.zip` and `-part2.zip` | All ~144 material presets (`textures/materials`). Download **both** parts | about 2 GB in total |
+| `ModelViewer-EnvironmentMaps-2026.11.0.zip` | Every HDRI environment map pack | about 1.0 GB |
+| `ModelViewer-LargeSamples-2026.11.0.zip` | Million-cell stress-test results for the simulation readers (optional) | about 320 MB |
+
+`SHA256SUMS.txt` on the releases page lists the checksum of each zip.
+
+**Install a pack** (close ModelViewer first). Unzip it **into the ModelViewer data folder** so that the `textures` (or `sample-models`) folder in the zip merges with the one
+already there:
+
+- **Windows**: the data folder is `<install folder>\share\ModelViewer` - by default `C:\Program Files\ModelViewer\share\ModelViewer` (or
+  `%LOCALAPPDATA%\Programs\ModelViewer\share\ModelViewer` if you installed for the current user only). Unzipping into `C:\Program Files` needs administrator rights, e.g.
+  in an elevated PowerShell:
+  ```powershell
+  Expand-Archive -Force ModelViewer-MaterialLibrary-2026.11.0-part1.zip "C:\Program Files\ModelViewer\share\ModelViewer"
+  Expand-Archive -Force ModelViewer-MaterialLibrary-2026.11.0-part2.zip "C:\Program Files\ModelViewer\share\ModelViewer"
+  Expand-Archive -Force ModelViewer-EnvironmentMaps-2026.11.0.zip "C:\Program Files\ModelViewer\share\ModelViewer"
+  ```
+- **Linux** (`.deb`): the data folder is `/usr/share/ModelViewer`:
+  ```bash
+  sudo unzip -o ModelViewer-MaterialLibrary-2026.11.0-part1.zip -d /usr/share/ModelViewer
+  sudo unzip -o ModelViewer-MaterialLibrary-2026.11.0-part2.zip -d /usr/share/ModelViewer
+  sudo unzip -o ModelViewer-EnvironmentMaps-2026.11.0.zip -d /usr/share/ModelViewer
+  ```
+
+Restart ModelViewer: the new materials appear in the Material panel library and the new maps in the Environment panel. Existing files are simply overwritten with identical
+content, so a pack can be applied again safely. Packs are built with `packaging/make-content-packs.ps1` (see the script header).
 
 **ADS Mode for CAD Visualization**
 
-![Screenshot 2021-07-24 172616](https://github.com/user-attachments/assets/364c5cf4-34b5-4991-938c-d36ea05a8026)
+<img width="1920" height="1032" alt="ADS mode with the scene tree: the Skate-Board-Assy sample" src="docs/assets/screenshots/ads-mode.jpg" />
 
 **PBR Mode for Advanced Visualization**
 
-<img width="1920" height="1032" alt="Screenshot 2026-03-07 151616" src="https://github.com/user-attachments/assets/9b31b1fd-90ee-47c4-af3b-3cacae6f0f27" />
+<img width="1920" height="1032" alt="PBR mode with image-based lighting and ground reflections" src="docs/assets/screenshots/pbr-mode.jpg" />
+
+Model: "2023 Nissan X-Trail 4x4-i" by Ddiaz Design, CC BY 4.0 (see [CREDITS.md](CREDITS.md)).
 
 
 ## Features Overview
+
+### Simulation Results
+
+ModelViewer **displays** the results of FEM and CFD solvers; it does not mesh or solve. A result opens as its outer surface coloured by any field, and the
+tools below look inside it.
+
+<img src="data/tutorials/screenshots/tutorial_19_first_result.png" alt="A simulation result coloured by von Mises stress" width="700">
+
+- **Readers**: VTK (`.vtk`, `.vtu`), CalculiX `.frd`, Exodus II, CGNS, MED, OpenFOAM cases, VTKHDF; large results load step by step
+- **Fields**: node and cell data, vectors, tensors, derived stress fields (von Mises, Tresca, principal, maximum shear), units with a file and a display unit
+- **Display**: colour maps and ranges, contour bands, deformed shape, min/max markers, vector arrows, stress ellipsoids, a timeline with playback
+- **Looking inside**: plane sections, iso-surfaces, streamlines, volume rendering, hover probe, charts over time and along a line (with your own curves from CSV)
+- **Compare** two results side by side; save results inside an `.mvf` session
+
+### 3D Data Plotting
+
+Plot tables of numbers, formulas and time series in the same 3D scene as your models, with the same camera, section, annotation and export tools.
+
+<img src="data/tutorials/screenshots/tutorial_23_plot_types.png" alt="A scatter, a bar and a vector plot sharing one set of axes" width="700">
+
+- **Plot types**: surface, contour, line, scatter, bar / histogram, voxel, vector field, pathlines, image on a plane
+- **Sources**: CSV or pasted data, and formulas (surface, parametric surface and curve, implicit surface, vector field, streamlines, pathlines) with presets
+- **Shared axes** (linear, Log 10, SymLog), fills between curves, text notes, a section probe, animated pathlines, edit-in-place, glTF/GLB/OBJ export of point and line plots
+
+### Ray Tracing
+
+A physically based ray tracer with a CPU engine (Embree) and an optional GPU engine (NVIDIA OptiX), a live ray-traced viewport, offline renders of any size,
+OIDN denoising and batch rendering of captured views.
+
+<img src="data/tutorials/screenshots/tutorial_29_pbr_vs_ray_traced.png" alt="The same model in PBR and ray-traced mode" width="700">
+
+### Measure, Annotate and Report
+
+Point, distance, angle, radius, diameter, pitch-circle, area and geodesic measurements with CAD-style dimension lines, text annotations, and a PDF report of
+captured views with their measurement and annotation table.
+
+### Mesh Tools and Surface Analysis
+
+- **Editing**: Mesh Union (boolean), Shrink Wrap, Subdivide Surface, Reconstruct Surface from point clouds, Repair Mesh, Fill Holes, split / merge / group, UV generation
+- **Analysis**: draft angle, zebra stripes, curvature, wall thickness, deviation, and mass properties (volume, mass, centre of gravity) per mesh and material
 
 ### Rendering Modes & Visualization
 
@@ -164,7 +256,7 @@ ModelViewer implements comprehensive support for Khronos KHR material extensions
 
 **Realistic Automotive Paint Rendering (Clearcoat & Iridescence):**
 
-<img width="1920" height="1032" alt="Screenshot 2026-03-02 213714" src="https://github.com/user-attachments/assets/58f6ae47-3e7d-41b6-aa56-362c037fcd4c" />
+<img width="1431" height="1032" alt="Automotive paint with clearcoat and iridescence" src="docs/assets/screenshots/automotive-paint.jpg" />
 
 ### User Interface & Tools
 
@@ -240,7 +332,11 @@ ModelViewer implements a sophisticated dual-pipeline rendering system:
 
 ### 3D Model Formats (via Assimp)
 
-OBJ, FBX, COLLADA, Blender, VRML, STL, DAE, 3DS, IQM, XGL, ZGL, PLY, MS3D, LWO, LWS, Ogex, 3D, Q3O, Q3S, raw, STP, and more (30+ formats supported)
+glTF / GLB (also with Draco mesh compression and KTX2 textures), OBJ, FBX, COLLADA (.dae), Blender (.blend), VRML (.wrl), STL, 3DS, PLY, DXF, IFC, OFF, LWO / LWS, AC3D, Irrlicht, MD5, IQM, XGL, ZGL, MS3D, Ogex, Q3O, Q3S, raw, and more (30+ formats supported)
+
+### Native Session Format
+
+**MVF** (`.mvf`) - ModelViewer session file: the loaded models, materials, lights, cameras, animations, exploded-view steps, annotations, measurements, plots and simulation results.
 
 ### CAD Formats (via OpenCASCADE)
 
@@ -248,8 +344,25 @@ OBJ, FBX, COLLADA, Blender, VRML, STL, DAE, 3DS, IQM, XGL, ZGL, PLY, MS3D, LWO, 
 - **IGES** (.iges, .igs) - Industry-standard CAD interchange format
 - **BRep** (.brep) - OpenCASCADE native boundary representation format
 
+### Simulation Result Formats
+
+ModelViewer displays results that other programs have computed; it does not run simulations. Open them with File > Import:
+
+| Format | Extensions | Typical source |
+|---|---|---|
+| VTK legacy and XML unstructured grid | `.vtk`, `.vtu` | ParaView, VTK-based tools, many solvers |
+| CalculiX results | `.frd` | CalculiX |
+| OpenFOAM case | `.foam` | OpenFOAM |
+| Exodus II | `.e`, `.exo`, `.ex2`, `.g` | Sierra, MOOSE, Cubit, others |
+| CGNS (unstructured and structured zones) | `.cgns` | many CFD codes |
+| MED | `.med` | Salome, Code_Aster |
+| VTKHDF | `.vtkhdf` | VTK 9.x, ParaView |
+
+Node and cell (element) data, vectors, tensors, time steps, line and polyhedral cells are supported; results can be kept inside an `.mvf` session. A reader is only offered if its library was built in (NetCDF for Exodus II, the CGNS library for CGNS, HDF5 for MED and VTKHDF); a source build without those libraries shows only VTK, CalculiX and OpenFOAM. Plot data comes from CSV files or pasted text.
+
 ### Export Formats
 
+- **PDF report** - captured views with the measurement and annotation table; **PNG / CSV** for charts
 - **GLB** (.glb) - Binary glTF with full material and texture embedding
 - **glTF** (.gltf) - Khronos glTF format with separate texture resources
 
@@ -271,6 +384,36 @@ Ensure you have the following installed:
 
 ### Linux Build
 
+#### Ubuntu 26.04 LTS / Kubuntu 26.04 (the platform of the `.deb`)
+
+This is the supported route and builds the same package that is published on the releases page. Ubuntu 26.04's Qt, OpenCASCADE and Assimp are new enough; older
+releases (22.04 / 24.04) are not.
+
+```bash
+# 1. clone (or, in an existing clone: git fetch origin && git checkout dev && git pull) and fetch the submodules
+git clone --branch dev https://github.com/sharjith/ModelViewer-Qt.git ~/dev/ModelViewer-Qt
+cd ~/dev/ModelViewer-Qt
+git submodule update --init --recursive
+
+# 2. one-time setup: apt packages, CGAL 6.2 from cgal.org (needs sudo), vcpkg for the two bundled dependencies
+bash packaging/linux/setup-wsl-build-env.sh
+
+# 3. configure and build
+cmake --preset linux_system_release
+cmake --build out/build/linux_system_release --parallel
+
+# 4. make the .deb, install it and start the program
+cd out/build/linux_system_release && cpack -G DEB
+sudo apt install ./modelviewer_2026.11.0_amd64.deb
+modelviewer
+```
+
+Notes: the script is named after WSL but runs on any Ubuntu 26.04 system. Build the whole project (no `--target ModelViewer`), or `cpack` cannot find the icon. For
+NVIDIA graphics install the driver first (`sudo ubuntu-drivers install`) and check `glxinfo -B` names your card rather than `llvmpipe`. The optional material, HDRI and
+sample packs are unzipped into `/usr/share/ModelViewer` (see [Optional content packs](#optional-content-packs-full-material-library-all-hdri-maps)).
+
+#### Other Linux distributions
+
 1. Install required dependencies using your package manager:
 
    ```bash
@@ -281,6 +424,17 @@ Ensure you have the following installed:
    # Fedora/RHEL
    sudo dnf install cmake qt6-base-devel assimp-devel glm-devel \
      freetype-devel opencascade-devel
+   ```
+
+   **Ubuntu 26.04 LTS:** the full dependency list (including the Qt, OpenCASCADE, embree and Boost/GMP/MPFR/Eigen packages the project needs) is installed by
+   `packaging/linux/setup-wsl-build-env.sh`; it also installs **CGAL 6.2 or newer** from cgal.org. This one cannot come from apt: Ubuntu 26.04's
+   `libcgal-dev` is 6.1.x, and the configure step stops with a message if it finds a CGAL older than 6.2. CGAL is header-only, so to do it by hand:
+
+   ```bash
+   curl -LO https://github.com/CGAL/cgal/releases/download/v6.2.1/CGAL-6.2.1-library.tar.xz
+   tar -xf CGAL-6.2.1-library.tar.xz
+   cmake -S CGAL-6.2.1 -B cgal-build -DCMAKE_BUILD_TYPE=Release
+   sudo cmake --install cgal-build --prefix /usr/local     # or any prefix, then pass -DCGAL_DIR=<prefix>/lib/cmake/CGAL
    ```
 
 2. Clone the repository:
@@ -464,3 +618,18 @@ For the full license text, see the [LICENSE](LICENSE) file in the repository roo
 - [Qt](https://www.qt.io/) - GUI framework
 - [GLM](https://github.com/g-truc/glm) - Mathematics library
 - [Khronos](https://www.khronos.org/) - glTF and KHR extension specifications
+- [CGAL](https://www.cgal.org/) - Computational Geometry Algorithms Library (mesh repair, boolean union, shrink wrap, subdivision, analysis)
+- [Embree](https://www.embree.org/) and [Intel Open Image Denoise](https://www.openimagedenoise.org/) - ray tracing and denoising
+- [NVIDIA OptiX](https://developer.nvidia.com/rtx/ray-tracing/optix) - optional GPU ray tracing
+- [NetCDF](https://www.unidata.ucar.edu/software/netcdf/), [HDF5](https://www.hdfgroup.org/solutions/hdf5/) and [CGNS](https://cgns.github.io/) - simulation result readers
+- [Eigen](https://eigen.tuxfamily.org/), [Boost](https://www.boost.org/), [GMP](https://gmplib.org/) and [MPFR](https://www.mpfr.org/) - numerics used by CGAL
+- [meshoptimizer](https://github.com/zeux/meshoptimizer), [Basis Universal](https://github.com/BinomialLLC/basis_universal), [OpenEXR](https://openexr.com/), [zstd](https://facebook.github.io/zstd/) and [FreeType](https://freetype.org/)
+- Tutorial image for ray tracing: "Car Concept" by Eric Chadwick, CC BY 4.0, from the [Khronos glTF Sample Assets](https://github.com/KhronosGroup/glTF-Sample-Assets) (see [CREDITS.md](CREDITS.md))
+- Models shown in the screenshots, all from the [Khronos glTF Sample Assets](https://github.com/KhronosGroup/glTF-Sample-Assets) unless noted (details in [CREDITS.md](CREDITS.md)):
+  "SheenWoodLeatherSofa" (Fran Calvente, CC0, with 2024 improvements by Eric Chadwick, (c) Darmstadt Graphics Group GmbH, CC BY 4.0);
+  "GlassHurricaneCandleHolder" (Eric Chadwick, (c) 2021 Wayfair, CC BY 4.0);
+  "LightsPunctualLamp" ((c) 2021 Darmstadt Graphics Group GmbH, CC BY 4.0);
+  "ChronographWatch" (Eric Chadwick, (c) 2025 Darmstadt Graphics Group GmbH, CC BY 4.0, based on a model by graphiccompressor, CC BY);
+  the "Compare..." test spheres (Eric Chadwick and DGG, CC0).
+  Other sources: "Mazda Vision RX | www.vecarz.com" by vecarz and "2023 Nissan X-Trail 4x4-i" by Ddiaz Design, both from Sketchfab, CC BY 4.0;
+  the pump is an Open CASCADE Technology test model.

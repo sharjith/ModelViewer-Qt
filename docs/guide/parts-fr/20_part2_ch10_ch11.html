@@ -1,0 +1,115 @@
+<h1 class="part"><small>Partie II</small>Graphiques 3D</h1>
+
+<h1 class="chapter">Introduction aux graphiques 3D</h1>
+
+<p>ModelViewer peut représenter des données qui n'ont rien à voir avec un solveur. Un tableau de nombres - mesures, export d'un tableur, fonction mathématique - devient une surface, une courbe, un nuage de points, un ensemble de barres, un volume ou un champ de flèches, <b>dans la même scène 3D</b> que vos modèles, avec la même caméra, les mêmes outils de sélection, de coupe, d'annotation et d'export d'images, et le même éclairage. C'est une façon de regarder des données dans l'espace, pas un tableur ni un logiciel de statistiques : il n'y a ni édition des données, ni ajustement, ni flux de données en direct.</p>
+
+<h2>L'idée en une image</h2>
+<figure>
+<svg width="640" height="150" viewBox="0 0 640 150" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="12">
+  <rect x="5" y="20" width="150" height="110" rx="8" fill="#fdf5e4" stroke="#b7791f"/>
+  <text x="80" y="44" text-anchor="middle" font-weight="600" fill="#14213d">Source des données</text>
+  <text x="80" y="65" text-anchor="middle" fill="#3e4c59">Fichier CSV ou texte collé</text>
+  <text x="80" y="82" text-anchor="middle" fill="#3e4c59">formule ou préréglage</text>
+  <text x="80" y="99" text-anchor="middle" fill="#3e4c59">série temporelle CSV</text>
+  <text x="80" y="116" text-anchor="middle" fill="#3e4c59">image sur un plan</text>
+  <path d="M155 75 H190" stroke="#2b6cb0" stroke-width="2" marker-end="url(#b)"/>
+  <rect x="190" y="20" width="150" height="110" rx="8" fill="#e8f0fa" stroke="#2b6cb0"/>
+  <text x="265" y="44" text-anchor="middle" font-weight="600" fill="#14213d">Boîte de dialogue Ajouter un graphique 3D</text>
+  <text x="265" y="65" text-anchor="middle" fill="#3e4c59">choisir le type, associer les colonnes</text>
+  <text x="265" y="82" text-anchor="middle" fill="#3e4c59">Aperçu</text>
+  <text x="265" y="99" text-anchor="middle" fill="#3e4c59">Créer le graphique</text>
+  <path d="M340 75 H375" stroke="#2b6cb0" stroke-width="2" marker-end="url(#b)"/>
+  <rect x="375" y="20" width="130" height="110" rx="8" fill="#14213d"/>
+  <text x="440" y="44" text-anchor="middle" font-weight="600" fill="#fff">Dans la scène</text>
+  <text x="440" y="65" text-anchor="middle" fill="#cbd5e0">graphique + boîte d'axes</text>
+  <text x="440" y="82" text-anchor="middle" fill="#cbd5e0">légende, entrée dans l'arbre</text>
+  <text x="440" y="99" text-anchor="middle" fill="#cbd5e0">avec vos modèles</text>
+  <path d="M505 75 H535" stroke="#2b6cb0" stroke-width="2" marker-end="url(#b)"/>
+  <rect x="535" y="20" width="100" height="110" rx="8" fill="#e8f6ee" stroke="#2f855a"/>
+  <text x="585" y="44" text-anchor="middle" font-weight="600" fill="#14213d">Onglet Graphique 3D</text>
+  <text x="585" y="65" text-anchor="middle" fill="#3e4c59">style, axes,</text>
+  <text x="585" y="82" text-anchor="middle" fill="#3e4c59">remarques, édition,</text>
+  <text x="585" y="99" text-anchor="middle" fill="#3e4c59">export</text>
+  <defs><marker id="b" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#2b6cb0"/></marker></defs>
+</svg>
+<figcaption>D'un tableau de nombres à un graphique dans la scène</figcaption>
+</figure>
+
+<h2>Sources de données et types de graphiques</h2>
+<p>Un graphique comporte deux choix indépendants : <b>d'où viennent ses données</b> (la source des données) et <b>son aspect</b> (le type de graphique).</p>
+<table>
+  <thead><tr><th style="width:34%">Source des données</th><th>Donne</th><th style="width:20%">Chapitre</th></tr></thead>
+  <tbody>
+    <tr><td>Fichier CSV ou données collées</td><td>Un tableau que vous associez à X, Y, Z et plus, dessiné comme n'importe quel type de graphique</td><td>11, 12</td></tr>
+    <tr><td>Surface par formule</td><td>z(x, y) à partir d'une expression ou de l'un des 11 préréglages</td><td>13</td></tr>
+    <tr><td>Surface paramétrique, courbe paramétrique</td><td>x, y, z comme fonctions de deux paramètres (u, v) ou d'un seul (t) ; tore, bouteille de Klein, hélice, nœud de trèfle ...</td><td>13</td></tr>
+    <tr><td>Surface implicite</td><td>La surface où f(x, y, z) = 0 : sphère, tore, gyroïde ...</td><td>13</td></tr>
+    <tr><td>Champ vectoriel par formule, lignes de courant par formule</td><td>Flèches ou lignes d'écoulement d'un champ donné par trois expressions</td><td>13</td></tr>
+    <tr><td>Trajectoires par formule, série temporelle CSV (trajectoires)</td><td>Trajectoires de particules à travers un champ qui change avec le temps</td><td>14</td></tr>
+    <tr><td>Image sur un plan</td><td>Une image posée sur l'un des plans du graphique</td><td>16</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th style="width:26%">Type de graphique</th><th>Pour des données qui sont ...</th></tr></thead>
+  <tbody>
+    <tr><td>Surface</td><td>une hauteur z au-dessus de x et y (une grille ou des points dispersés)</td></tr>
+    <tr><td>Contours</td><td>la même chose, dessinée sous forme d'isolignes de z</td></tr>
+    <tr><td>Ligne / Courbe</td><td>un chemin ordonné de points</td></tr>
+    <tr><td>Nuage de points</td><td>points non ordonnés (éventuellement avec tiges, barres d'erreur ou remplissages)</td></tr>
+    <tr><td>Barres / Histogramme</td><td>hauteurs sur une grille, ou effectifs par classes</td></tr>
+    <tr><td>Voxel / Volumétrique</td><td>une occupation ou une densité sur une grille 3D</td></tr>
+    <tr><td>Vectoriel (Quiver)</td><td>un vecteur en chaque point</td></tr>
+  </tbody>
+</table>
+
+<h2>Ce que vous obtenez dans la scène</h2>
+<ul>
+  <li>Chaque graphique est une entrée de l'<b>arbre de la scène</b> avec sa propre case de visibilité ; il peut donc être masqué ou affiché comme un modèle.</li>
+  <li>Une <b>boîte d'axes</b> encadre les graphiques, avec des étiquettes, des graduations et des nombres ; des plans de référence (XY, XZ, YZ) sont disponibles. <b>Tous les graphiques d'un document partagent un même jeu d'axes</b> (chapitre 15).</li>
+  <li>Une <b>légende de couleurs</b> apparaît pour les graphiques colorés selon une valeur.</li>
+  <li>Un graphique peut être modifié plus tard : changez les données, les colonnes ou les formules et reconstruisez-le sur place (chapitre 17).</li>
+  <li>Les graphiques sont enregistrés dans la session <code>.mvf</code> avec leurs données, et les graphiques de points et de lignes s'exportent aussi en glTF, GLB et OBJ (chapitre 17).</li>
+</ul>
+
+<div class="callout"><span class="label">Remarque</span>
+  <p>Les graphiques sont des vues d'analyse. Ils sont dessinés de la même façon dans tous les modes de rendu et ne sont pas dessinés par le lanceur de rayons. Pour obtenir une image rendue d'un graphique, utilisez l'export d'images normal du visualiseur.</p>
+</div>
+
+
+<h1 class="chapter">Tracer un fichier CSV</h1>
+
+<h2>À quoi doit ressembler le tableau</h2>
+<p>L'entrée est un tableau en texte brut : des lignes de nombres séparés par un séparateur, généralement avec une <b>ligne d'en-tête</b> qui nomme les colonnes. Tout tableur ou outil d'analyse peut l'écrire. La boîte de dialogue accepte la virgule, le point-virgule et la tabulation comme <span class="ui">Séparateur</span>, et <span class="ui">La première ligne contient les noms de colonnes</span> indique si la première ligne est un en-tête. Un petit exemple, le début de <code>surface_ripple.csv</code> (z = sin(r)/r sur une grille de 21 x 21 ; la dernière colonne répète z comme valeur de couleur) :</p>
+<pre>x,y,z,value
+-5.0000,-5.0000,0.100248,0.100248
+-5.0000,-4.5000,0.063807,0.063807
+-5.0000,-4.0000,0.018686,0.018686
+...</pre>
+<ul>
+  <li>Les nombres utilisent le point décimal. Des cellules vides ou non numériques dans une colonne numérique rendent le tableau inutilisable ; la ligne d'état indique la ligne concernée.</li>
+  <li>Pour une <b>ligne</b>, l'ordre des lignes compte (c'est l'ordre le long du chemin) ; pour les autres types, non.</li>
+  <li>Le tableau peut être ouvert depuis un fichier (<span class="ui">Ouvrir un CSV...</span>) ou collé (<span class="ui">Coller</span>) ; après le chargement, les 200 premières lignes sont affichées dans un tableau d'aperçu, et la ligne d'état indique combien de lignes et de colonnes ont été lues.</li>
+</ul>
+
+<h2>La boîte de dialogue Ajouter un graphique 3D</h2>
+<ol>
+  <li>Ouvrez <span class="path">Visualisation &rarr; Graphique 3D...</span> (ou <span class="ui">Ajouter un graphique 3D...</span> dans l'onglet <span class="ui">Graphique 3D</span>).</li>
+  <li><span class="ui">Source des données</span> : <i>Fichier CSV ou données collées</i>. Ouvrez ou collez votre tableau ; vérifiez le séparateur et le réglage de l'en-tête.</li>
+  <li><span class="ui">Type de tracé</span> : choisissez le type (chapitre 12). Les choix de colonnes ci-dessous s'adaptent à lui.</li>
+  <li>Associez les colonnes : les colonnes de position <span class="ui">X</span>, <span class="ui">Y</span>, <span class="ui">Z</span> et, selon le type, <span class="ui">Valeur de couleur</span>, <span class="ui">U</span>, <span class="ui">V</span>, <span class="ui">W</span>, <span class="ui">Base</span>, <span class="ui">Largeur</span>, <span class="ui">Profondeur</span>. Le choix <i>(aucune)</i> omet une association. Le programme devine des colonnes plausibles d'après les noms de l'en-tête, et vous pouvez les modifier : l'association se fait par position dans le tableau, l'ordre des colonnes dans le fichier est donc une commodité, pas une exigence.</li>
+  <li><span class="ui">Aperçu</span> montre le graphique dans la scène avant son ajout - même taille, mêmes couleurs et même comportement que le graphique final - et <span class="ui">Effacer l'aperçu</span> le retire. Fermer la boîte de dialogue retire aussi un aperçu.</li>
+  <li><span class="ui">Créer le graphique</span> ajoute le graphique à la scène. Un <span class="ui">Titre</span> le nomme.</li>
+</ol>
+<figure data-img="tutorial_23_add_plot_dialog.png"><figcaption>La boîte de dialogue Ajouter un graphique 3D avec <code>surface_ripple.csv</code> chargé et les colonnes associées</figcaption></figure>
+<figure data-img="tutorial_23_surface_built.png"><figcaption>La surface ondulée dans la scène avec sa boîte d'axes et sa légende</figcaption></figure>
+
+<h2>La valeur de couleur</h2>
+<p>Les graphiques de surface, de ligne, de nuage de points et de barres sont colorés selon une valeur. Par défaut, c'est la hauteur (Z) ; associez <span class="ui">Valeur de couleur</span> à une autre colonne pour colorer selon autre chose - le numéro de groupe d'un nuage de points, la vitesse le long d'un chemin. La couleur d'un nuage de points est par point ; celle d'une surface est interpolée entre ses sommets.</p>
+
+<h2>Quand le tableau est inutilisable</h2>
+<p>La ligne d'état sous l'aperçu indique ce qui a été lu et, si le tableau est inutilisable, pourquoi : une ligne avec du texte là où un nombre est nécessaire (elle nomme la ligne), un tableau qui n'est pas une grille régulière complète là où il en faut une (elle indique combien de lignes manquent), ou une colonne qui n'a pas été choisie. Le bouton <span class="ui">Créer le graphique</span> reste désactivé tant que le problème n'est pas corrigé. L'annexe C énumère les messages.</p>
+
+<div class="callout tip"><span class="label">Astuce</span>
+  <p>Commencez avec un exemple du type souhaité (annexe A) et regardez ses colonnes, puis donnez la même forme à votre propre tableau. Un nouveau fichier est aussi simple qu'une ligne d'en-tête et des lignes de nombres.</p>
+</div>

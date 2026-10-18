@@ -1,0 +1,824 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>RtRenderDialog</class>
+ <widget class="QDialog" name="RtRenderDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>497</width>
+    <height>583</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Ray Tracing</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout_main">
+   <item>
+    <widget class="QTabWidget" name="tabWidgetSettings">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="tabBasic">
+      <attribute name="title">
+       <string>Basic</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayoutBasic">
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayoutRenderEngine">
+         <item>
+          <widget class="QLabel" name="labelRenderEngine">
+           <property name="text">
+            <string>Render Engine</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="comboBoxRenderEngine">
+           <property name="toolTip">
+            <string>Auto prefers OptiX (GPU) when available,
+falling back to Embree (CPU)</string>
+           </property>
+           <item>
+            <property name="text">
+             <string>Auto</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Embree (CPU)</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>OptiX (GPU)</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="Line" name="lineAfterRenderEngine">
+         <property name="frameShape">
+          <enum>QFrame::Shape::HLine</enum>
+         </property>
+         <property name="frameShadow">
+          <enum>QFrame::Shadow::Sunken</enum>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QFormLayout" name="formLayoutBasic">
+         <item row="0" column="0">
+          <widget class="QLabel" name="labelMaxSamples">
+           <property name="text">
+            <string>Max Samples</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QSpinBox" name="spinBoxMaxSamples">
+           <property name="toolTip">
+            <string>Total accumulated samples per pixel before the
+render is considered converged. Higher = less
+noise, longer render time</string>
+           </property>
+           <property name="minimum">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <number>100000</number>
+           </property>
+           <property name="singleStep">
+            <number>16</number>
+           </property>
+           <property name="value">
+            <number>16</number>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="labelMaxBounces">
+           <property name="text">
+            <string>Max Bounces</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QSpinBox" name="spinBoxMaxBounces">
+           <property name="toolTip">
+            <string>Maximum light bounces per path. Higher gives
+more accurate indirect lighting/reflections, at a cost</string>
+           </property>
+           <property name="minimum">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <number>64</number>
+           </property>
+           <property name="value">
+            <number>6</number>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="Line" name="lineBeforeDenoiser">
+         <property name="frameShape">
+          <enum>QFrame::Shape::HLine</enum>
+         </property>
+         <property name="frameShadow">
+          <enum>QFrame::Shadow::Sunken</enum>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="checkBoxDenoiser">
+         <property name="toolTip">
+          <string>AI-denoise the final image so it looks
+clean at fewer samples</string>
+         </property>
+         <property name="text">
+          <string>Enable Denoiser</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayoutDenoiserDevice">
+         <item>
+          <widget class="QLabel" name="labelDenoiserDevice">
+           <property name="text">
+            <string>Denoiser Engine</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="comboBoxDenoiserDevice">
+           <property name="toolTip">
+            <string>Which hardware/backend runs the denoiser</string>
+           </property>
+           <item>
+            <property name="text">
+             <string>Auto</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>OIDN (CPU)</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>OIDN (GPU CUDA)</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>OptiX</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="Line" name="lineAfterDenoiser">
+         <property name="frameShape">
+          <enum>QFrame::Shape::HLine</enum>
+         </property>
+         <property name="frameShadow">
+          <enum>QFrame::Shadow::Sunken</enum>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayoutResolutionPreset">
+         <item>
+          <widget class="QLabel" name="labelResolutionPreset">
+           <property name="text">
+            <string>Export Preset</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="comboBoxResolutionPreset"/>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayoutResolution">
+         <item>
+          <widget class="QLabel" name="labelExportResolution">
+           <property name="text">
+            <string>Export Resolution</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QSpinBox" name="spinBoxExportWidth">
+           <property name="toolTip">
+            <string>Exported image width, in pixels</string>
+           </property>
+           <property name="minimum">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <number>16384</number>
+           </property>
+           <property name="value">
+            <number>1</number>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="labelResolutionX">
+           <property name="text">
+            <string>x</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QSpinBox" name="spinBoxExportHeight">
+           <property name="toolTip">
+            <string>Exported image height, in pixels</string>
+           </property>
+           <property name="minimum">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <number>16384</number>
+           </property>
+           <property name="value">
+            <number>1</number>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="pushButtonMatchViewport">
+           <property name="toolTip">
+            <string>Set the export resolution to the current viewport size</string>
+           </property>
+           <property name="text">
+            <string>Match Viewport</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QLabel" name="labelResolutionWarning">
+         <property name="visible">
+          <bool>false</bool>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">color: #b8860b;</string>
+         </property>
+         <property name="text">
+          <string>Export resolution exceeds the current viewport size - this will trigger an offline render, which may take a while (cancellable via the Cancel button that replaces Stop for the duration).</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="verticalSpacerBasic">
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>10</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tabAdvanced">
+      <attribute name="title">
+       <string>Advanced</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayoutAdvanced">
+       <item>
+        <layout class="QFormLayout" name="formLayoutAdvanced">
+         <item row="0" column="0">
+          <widget class="QLabel" name="labelFireflyClamp">
+           <property name="text">
+            <string>Firefly Clamp Threshold</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QDoubleSpinBox" name="doubleSpinBoxFireflyClamp">
+           <property name="toolTip">
+            <string>Caps individual sample brightness to suppress
+noisy bright-pixel outliers ("fireflies")</string>
+           </property>
+           <property name="minimum">
+            <double>0.100000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>1000.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.500000000000000</double>
+           </property>
+           <property name="value">
+            <double>3.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="labelMaxTransmissionBounces">
+           <property name="text">
+            <string>Max Transmission Bounces</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QSpinBox" name="spinBoxMaxTransmissionBounces">
+           <property name="toolTip">
+            <string>Separate bounce budget for glass/transmissive surfaces,
+independent of Max Bounces</string>
+           </property>
+           <property name="minimum">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <number>256</number>
+           </property>
+           <property name="value">
+            <number>32</number>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="labelRussianRouletteDepth">
+           <property name="text">
+            <string>Russian Roulette Start Depth</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QSpinBox" name="spinBoxRussianRouletteDepth">
+           <property name="toolTip">
+            <string>Bounce depth after which low-contribution paths start
+being probabilistically terminated early, for speed</string>
+           </property>
+           <property name="minimum">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <number>64</number>
+           </property>
+           <property name="value">
+            <number>3</number>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="labelMaxShadowRayHits">
+           <property name="text">
+            <string>Max Shadow Ray Hits (CPU only)</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QSpinBox" name="spinBoxMaxShadowRayHits">
+           <property name="toolTip">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Caps how many stacked transparent/glass surfaces a shadow ray walks through on the Embree (CPU) engine before giving up. &lt;/p&gt;&lt;p&gt;No effect on the OptiX (GPU) engine, which has no equivalent limit.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <property name="minimum">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <number>32</number>
+           </property>
+           <property name="value">
+            <number>8</number>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="labelMaxVolumeScatterBounces">
+           <property name="text">
+            <string>Max Volume Scatter Bounces</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QSpinBox" name="spinBoxMaxVolumeScatterBounces">
+           <property name="toolTip">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Caps how many free (no Russian roulette) scatter events KHR_materials_volume_scatter's subsurface-scattering random walk runs before it starts probabilistically terminating.&lt;/p&gt;&lt;p&gt;Lower this to trade SSS quality for render speed on volume-scatter-heavy scenes; has no effect on scenes without such materials.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <property name="minimum">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <number>256</number>
+           </property>
+           <property name="value">
+            <number>64</number>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="checkBoxEnvImportanceSampling">
+         <property name="toolTip">
+          <string>Sample brighter parts of the environment more
+often, reducing noise from HDRI lighting</string>
+         </property>
+         <property name="text">
+          <string>Environment Importance Sampling (MIS)</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayoutShadows">
+         <item>
+          <widget class="QCheckBox" name="checkBoxShadows">
+           <property name="toolTip">
+            <string>Trace shadow rays for direct lighting</string>
+           </property>
+           <property name="text">
+            <string>Shadows</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="checkBoxSelfShadows">
+           <property name="toolTip">
+            <string>Allow a surface to cast shadows on itself</string>
+           </property>
+           <property name="text">
+            <string>Self Shadows</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <spacer name="verticalSpacerAdvanced">
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>10</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tabDiagnostics">
+      <attribute name="title">
+       <string>Diagnostics</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayoutDiagnostics">
+       <item>
+        <layout class="QFormLayout" name="formLayoutDiagnosticsEngine">
+         <item row="0" column="0">
+          <widget class="QLabel" name="labelDiagRenderer">
+           <property name="text">
+            <string>Renderer:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QLabel" name="labelDiagRendererValue">
+           <property name="text">
+            <string>-</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="labelDiagGpu">
+           <property name="text">
+            <string>GPU:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QLabel" name="labelDiagGpuValue">
+           <property name="text">
+            <string>-</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="labelDiagTraversal">
+           <property name="text">
+            <string>Traversal:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QLabel" name="labelDiagTraversalValue">
+           <property name="text">
+            <string>-</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="labelDiagDenoiser">
+           <property name="text">
+            <string>Denoiser:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QLabel" name="labelDiagDenoiserValue">
+           <property name="text">
+            <string>-</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <spacer name="verticalSpacerDiagnosticsGroup">
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Policy::Fixed</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>12</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <layout class="QFormLayout" name="formLayoutDiagnosticsScene">
+         <item row="0" column="0">
+          <widget class="QLabel" name="labelDiagResolution">
+           <property name="text">
+            <string>Resolution:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QLabel" name="labelDiagResolutionValue">
+           <property name="text">
+            <string>-</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="labelDiagTriangles">
+           <property name="text">
+            <string>Triangles:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QLabel" name="labelDiagTrianglesValue">
+           <property name="text">
+            <string>-</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="labelDiagBlas">
+           <property name="text">
+            <string>BLAS Build:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QLabel" name="labelDiagBlasValue">
+           <property name="text">
+            <string>-</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="labelDiagTlas">
+           <property name="text">
+            <string>TLAS Build:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QLabel" name="labelDiagTlasValue">
+           <property name="text">
+            <string>-</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="labelDiagSamplesPerSec">
+           <property name="text">
+            <string>Samples/sec:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QLabel" name="labelDiagSamplesPerSecValue">
+           <property name="text">
+            <string>-</string>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="0">
+          <widget class="QLabel" name="labelDiagMRaysPerSec">
+           <property name="text">
+            <string>MRays/sec:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="1">
+          <widget class="QLabel" name="labelDiagMRaysPerSecValue">
+           <property name="text">
+            <string>-</string>
+           </property>
+          </widget>
+         </item>
+         <item row="6" column="0">
+          <widget class="QLabel" name="labelDiagRenderTime">
+           <property name="text">
+            <string>Render Time:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="6" column="1">
+          <widget class="QLabel" name="labelDiagRenderTimeValue">
+           <property name="text">
+            <string>-</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <spacer name="verticalSpacerDiagnostics">
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>10</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="labelOrthoThinWallWarning">
+     <property name="visible">
+      <bool>false</bool>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">color: #b8860b;</string>
+     </property>
+     <property name="text">
+      <string>Orthographic projection + thin-walled transmissive material detected: every pixel samples the same environment direction, so this glass will render flat/uniform. This is expected behavior, not a bug - switch to perspective projection to see refraction detail.</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayoutRestoreDefaults">
+     <item>
+      <spacer name="horizontalSpacerRestoreDefaults">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="pushButtonRestoreDefaults">
+       <property name="toolTip">
+        <string>Reset all ray tracing settings on this dialog to defaults</string>
+       </property>
+       <property name="text">
+        <string>Restore Defaults</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayoutRenderButtons">
+     <item>
+      <widget class="QPushButton" name="pushButtonRender">
+       <property name="toolTip">
+        <string>Start a path-traced render at these settings</string>
+       </property>
+       <property name="text">
+        <string>Render</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="pushButtonStop">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="toolTip">
+        <string>Cancel the in-progress render</string>
+       </property>
+       <property name="text">
+        <string>Stop</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QProgressBar" name="progressBarSamples">
+     <property name="minimum">
+      <number>0</number>
+     </property>
+     <property name="maximum">
+      <number>128</number>
+     </property>
+     <property name="value">
+      <number>0</number>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="labelStatus">
+     <property name="text">
+      <string>Idle</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignmentFlag::AlignHCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="labelElapsedTime">
+     <property name="text">
+      <string/>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignmentFlag::AlignHCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QVBoxLayout" name="verticalLayoutExport">
+     <item>
+      <widget class="Line" name="lineExportSeparator">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="pushButtonExport">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="toolTip">
+        <string>Save the completed render to an image file</string>
+       </property>
+       <property name="text">
+        <string>Export Image...</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

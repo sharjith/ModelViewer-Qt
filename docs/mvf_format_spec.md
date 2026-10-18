@@ -298,6 +298,69 @@ Material reconstruction on load is implemented in:
 
 via `reconstructMvfMaterial(...)`.
 
+## Simulation Results
+
+A document that contains simulation results (see `simulation_results_design.md`) stores them in
+`mvfSession.simulationResults`, one entry per result mesh. Older builds ignore the key and open the mesh as an
+ordinary mesh (its `COLOR_0` still shows the colours the result had when saved). Design and rationale:
+`simulation_mvf_persistence_design.md`.
+
+The result mesh itself is an ordinary mesh (the visible boundary surface, possibly in its deformed pose). Two
+things are added for results:
+
+- **`COLOR_0`** holds the colours the result was displayed with (colormap and contour bands applied), so other
+  viewers show the coloured result. The app replaces it on load with its own live overlay.
+- **The snapshot**, an entry of `simulationResults`:
+
+```json
+{
+  "meshUuid": "...",
+  "content": "shown" | "all",
+  "blobViews": [12, 13, 14],
+  "snapshot": {
+    "version": 1,
+    "vertexCount": 2646, "triangleCount": 5292,
+    "solver": "", "lengthUnit": "", "sourcePath": "...",
+    "restPositions": 0, "nodeIds": 1,
+    "steps":  [ { "time": 0.5, "label": "", "timeUnit": "", "src": 0 } ],
+    "fields": [ { "name": "DISP", "components": 3, "componentNames": ["D1","D2","D3"],
+                  "kind": "length", "fileUnit": "mm", "displayUnit": "mm", "unitConfirmed": false,
+                  "stepData": [2, 3, -1] } ],
+    "ranges": [ { "name": "DISP", "data": [lo, hi, ...] } ],
+    "view":   { "field": "STRESS von Mises", "component": -1, "customRange": false, "step": 0,
+                "colormap": 0, "bands": 0, "allStepsRange": true, "deform": false, "deformScale": 1,
+                "markExtrema": false },
+    "blobs":  [ { "i": 0, "n": 7938, "elem": 4, "enc": "shuffle-zlib" } ]
+  }
+}
+```
+
+- **Per surface vertex, not per solver node.** Every array has one entry per vertex of the mesh (in the mesh's
+  vertex order, which MVF preserves). The volume is not stored.
+- **`blobViews`** lists `bufferViews` (buffer 0, the `GEOM` chunk); `snapshot.blobs[i]` describes the blob stored in
+  `bufferViews[blobViews[i]]`. `restPositions` (VEC3) and `nodeIds` (int64, the solver's own node ids) are blob
+  indices, as is every non-negative entry of a field's `stepData` (one blob per kept step; -1 = no data at that
+  step). Field values are float32 with the components of a tuple interleaved; NaN marks "no value at this node".
+- **Blob encoding** `raw` or `shuffle-zlib`: the bytes of all elements are regrouped into planes (all first bytes,
+  then all second bytes, ...) and deflated with zlib (Qt's `qCompress`, i.e. a 4-byte big-endian length, then the
+  zlib stream). Lossless. A blob that would not shrink is stored `raw`; blobs under 512 bytes always are.
+- **Derived fields** (von Mises, principal stresses, max shear of a stored stress tensor) are not stored; they are
+  rebuilt on load. Their units are those of the source field.
+- **`ranges`** holds, per stored or derived field and kept step, the min and max over ALL solver nodes for each
+  selector (each component, plus the magnitude for a 3-component field; `null` = unknown), in file units. It keeps
+  the legend range identical to that of the full result although interior nodes are not stored.
+- **`steps[].src`** is the step's index in the original result; more than 100 steps are subsampled evenly (first and
+  last kept). `view.step` indexes the kept steps.
+- **`content`**: `shown` stores the field on display (its source tensor for a derived one) plus the displacement
+  field, `all` every source field. A "geometry only" save writes no `simulationResults` at all.
+- **Validation on load:** a different vertex or triangle count than at save time (the mesh was edited), a newer
+  `version`, a missing or damaged blob, or a field that does not match the steps makes that result fail to restore.
+  The user is told, and the mesh stays as a plain coloured surface. Nothing is shown from mismatched data.
+
+Implemented in `ResultSnapshot.h/.cpp` (codec, unit-tested in `tests/result_tests.cpp`),
+`ModelViewerSimulation.cpp` (`appendSimulationSnapshots`, `simulationBakedColors`, `promptSimulationSaveOptions`,
+`restoreSimulationSessions`), and the `colorOverrides` parameter of `Mvf::buildMVFPackage`.
+
 ## Texture, Image, And Sampler Model
 
 MVF follows the glTF-style split:

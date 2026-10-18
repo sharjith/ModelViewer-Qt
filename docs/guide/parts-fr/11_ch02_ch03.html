@@ -1,0 +1,84 @@
+<h1 class="chapter">Ouvrir un résultat</h1>
+
+<h2>Deux façons d'ouvrir</h2>
+<table>
+  <thead><tr><th style="width:36%">Commande</th><th>Ce qui se passe</th></tr></thead>
+  <tbody>
+    <tr><td><span class="path">Fichier &rarr; Ouvrir...</span> (ou <kbd>Ctrl</kbd>+<kbd>O</kbd>, ou faites glisser le fichier sur la fenêtre)</td><td>Le résultat s'ouvre dans un <b>document à part</b>. C'est la méthode normale et celle à utiliser en premier.</td></tr>
+    <tr><td><span class="path">Visualisation &rarr; Résultats de simulation &rarr; Ajouter un résultat à ce document...</span> (aussi <span class="ui">Ajouter un résultat...</span> dans l'onglet)</td><td>Le résultat est ajouté au <b>document actuel</b>, à côté de ce qui s'y trouve - un modèle CAO, un autre résultat. Utilisez-le pour comparer deux résultats (chapitre 8) ou pour voir un résultat avec un graphique (chapitre 18).</td></tr>
+  </tbody>
+</table>
+<p>Les deux acceptent les mêmes fichiers. Le filtre de fichiers propose <i>Tous les résultats de simulation</i> et une entrée par format. Un cas OpenFOAM s'ouvre par le fichier <code>.foam</code> vide du dossier du cas.</p>
+
+<h2>Pendant le chargement</h2>
+<p>La lecture, la décompression, la tessellation et l'extraction de la surface de bord s'exécutent en arrière-plan, avec une barre de progression et un bouton Annuler, de sorte que le programme reste utilisable. Un seul résultat se charge à la fois ; en lancer un second pendant un chargement affiche un message. Les gros formats texte (<code>.frd</code> ou <code>.vtk</code> ASCII) sont bien plus lents à lire que les formats binaires fondés sur HDF5 et NetCDF, ce qui est une propriété des formats, pas du programme.</p>
+
+<h2>L'onglet Résultats de simulation</h2>
+<p>Une fois un résultat chargé, le dock en bas à gauche passe à l'onglet <span class="ui">Résultats de simulation</span>. Il contient presque tout ce qui figure dans cette partie du guide, et ses commandes sont inactives tant qu'aucun résultat n'est sélectionné. De haut en bas :</p>
+<ul>
+  <li><span class="ui">Résultat</span> : le résultat du document sur lequel agissent les commandes, avec un bouton qui retire le résultat sélectionné du document (annulable) et une ligne d'information avec le nom du fichier et les nombres - nœuds, cellules et triangles de surface.</li>
+  <li><span class="ui">Unité du modèle</span> et <span class="ui">Taille du modèle</span> : l'unité de longueur de la géométrie (mètres, centimètres, millimètres, pouces, pieds ; lorsque le fichier ne la précise pas, <i>Non spécifié (mm supposé)</i>) et la taille du modèle dans cette unité.</li>
+  <li><span class="ui">Champ</span>, <span class="ui">Composante</span>, <span class="ui">Grandeur</span> et <span class="ui">Les valeurs sont en</span> : ce qui sert à colorer et son unité (chapitre 3).</li>
+  <li><span class="ui">Plage</span>, <span class="ui">Palette de couleurs</span>, <span class="ui">Contours</span>, les options de déformation et de repères, et les groupes pour les coupes, isosurfaces, lignes de courant, volume, flèches et ellipsoïdes (chapitres 3, 4 et 6).</li>
+  <li><span class="ui">Graphiques</span> : les boutons pour tracer le long d'une ligne ou en fonction du temps et pour la distribution (chapitre 7), et les commandes de <span class="ui">Comparer</span> (chapitre 8).</li>
+</ul>
+
+<figure data-img="tutorial_19_first_result.png"><figcaption>Un résultat qui vient de s'ouvrir : la boîte colorée selon la contrainte de von Mises, avec sa légende, et l'onglet Résultats de simulation en bas à gauche</figcaption></figure>
+<figure data-img="tutorial_19_results_tab.png"><figcaption>L'onglet Résultats de simulation : champ, composante, plage, palette de couleurs et contours</figcaption></figure>
+
+<h2>Résultats sans champs ou sans volume</h2>
+<ul>
+  <li>Un fichier qui ne contient que de la géométrie affiche la géométrie, et l'onglet le précise : il n'y a aucune valeur pour colorer.</li>
+  <li>Un résultat de coque (triangles et quadrilatères seulement) n'a pas de volume. Tout ce qui exige un volume - coupes qui révèlent l'intérieur, isosurfaces, lignes de courant, rendu volumique - indique qu'il n'y a rien à couper ni à suivre. Les couleurs, la déformation, les sondes et les graphiques fonctionnent tous.</li>
+  <li>Un résultat sans champ de déplacement ne peut pas être affiché déformé ; l'option l'explique.</li>
+</ul>
+
+<div class="callout tip"><span class="label">Astuce</span>
+  <p>Si vous ne savez pas ce que contient un fichier, ouvrez-le et regardez d'abord la liste <span class="ui">Champ</span> et la ligne d'information : elles montrent tous les champs trouvés par le lecteur, quels pas existent et combien de nœuds et de cellules il comporte. Pour un premier essai, <code>sample-models/Simulation/FEM_box_static_stress.vtu</code> est petit et s'ouvre coloré selon la contrainte de von Mises.</p>
+</div>
+
+
+<h1 class="chapter">Champs, couleurs et unités</h1>
+
+<h2>Choisir le champ</h2>
+<p><span class="ui">Champ</span> liste tout ce que contient le fichier, plus les valeurs dérivées. Un champ vectoriel propose des choix de <span class="ui">Composante</span> - ses composantes et sa <i>magnitude</i> ; les six composantes d'un tenseur de contraintes sont résumées par les scalaires dérivés décrits plus bas. Les champs marqués <span class="ui">[cellules]</span> sont des données d'élément.</p>
+
+<h3>Valeurs de contrainte dérivées</h3>
+<p>Lorsqu'un fichier contient un tenseur de contraintes symétrique (six composantes, dans l'ordre XX, YY, ZZ, XY, YZ, ZX), ModelViewer dérive les grandeurs que les ingénieurs souhaitent généralement et les ajoute à la liste des champs comme des scalaires ordinaires : contrainte de <b>von Mises</b>, contrainte de <b>Tresca</b>, les trois <b>contraintes principales</b> et le <b>cisaillement maximal</b>. Elles sont calculées par nœud (ou cellule) à partir du tenseur au fur et à mesure du chargement de chaque pas ; elles héritent de l'unité de la contrainte et ne sont pas stockées dans une session enregistrée, car elles peuvent toujours être recalculées. Les fichiers <code>.frd</code> de CalculiX en sont la source typique ; l'export <code>.vtu</code> de FreeCAD en contient déjà certaines.</p>
+
+<h2>Données aux nœuds et données aux cellules</h2>
+<p>Un <b>champ aux nœuds</b> a une valeur en chaque point du maillage et est interpolé en douceur sur chaque face, de sorte qu'un maillage grossier donne encore une couleur lisse. Un <b>champ aux cellules</b> a une valeur par élément : chaque élément est dessiné d'une seule couleur à plat, ce qui est l'image honnête de données par élément (par exemple une qualité d'élément, ou la plupart des champs OpenFOAM) mais paraît en blocs.</p>
+<p><span class="ui">Moyenner les données de cellule sur les nœuds</span> (activé tant qu'un champ aux cellules est affiché) dessine le champ en douceur : chaque nœud prend la moyenne des éléments qui l'entourent, pondérée par leur taille, de sorte qu'un petit élément compte moins qu'un grand. C'est un choix d'affichage - les données elles-mêmes ne sont pas modifiées - et c'est aussi ce qu'utilisent les graphiques, le rendu volumique et les isosurfaces pour un champ aux cellules. Laissez-le désactivé pour des étiquettes comme un numéro de matériau ou de groupe, dont les régions sont des identifiants et non des grandeurs.</p>
+<figure data-img="tutorial_22_cell_data_flat_vs_smooth.png"><figcaption>Un champ aux cellules dessiné à plat (à gauche) et moyenné sur les nœuds (à droite)</figcaption></figure>
+
+<h2>L'échelle de couleurs</h2>
+<h3>Plage</h3>
+<table class="compact">
+  <thead><tr><th style="width:30%">Réglage <span class="ui">Plage</span></th><th>L'échelle couvre ...</th></tr></thead>
+  <tbody>
+    <tr><td>Automatique (tous les pas)</td><td>la plus petite et la plus grande valeur du champ sur <b>tous les pas</b>. C'est le réglage par défaut : il garde les images d'une animation comparables, car une couleur signifie la même valeur à chaque pas.</td></tr>
+    <tr><td>Automatique (ce pas)</td><td>la plus petite et la plus grande valeur du <b>pas actuel</b> seulement. Chaque image utilise sa plage de couleurs complète, ce qui montre bien la structure mais rend les images incomparables.</td></tr>
+    <tr><td>Personnalisé</td><td>un <span class="ui">Minimum</span> et un <span class="ui">Maximum</span> que vous saisissez, dans l'unité d'affichage. Les valeurs en dehors apparaissent dans les couleurs extrêmes. Utilisez-le pour comparer des calculs ou agrandir une bande intéressante.</td></tr>
+  </tbody>
+</table>
+<h3>Palette de couleurs, bandes et légende</h3>
+<p><span class="ui">Palette de couleurs</span> choisit le dégradé : des dégradés séquentiels comme l'arc-en-ciel, et un dégradé divergent bleu-blanc-rouge qui convient aux grandeurs ayant un zéro significatif (une composante de déplacement, une contrainte signée). <span class="ui">Contours</span> transforme le dégradé continu en un ensemble de bandes discrètes (ou l'inverse) ; avec des bandes, les limites de couleur se situent exactement à des valeurs égales et à l'intérieur des triangles, pas aux arêtes du maillage. La légende à côté du modèle montre l'échelle, son unité et le pas ; les surfaces de résultat sont dessinées sans éclairage, de sorte que l'éclairage n'altère jamais les couleurs.</p>
+<figure data-img="tutorial_19_contours.png"><figcaption>Couleurs continues (à gauche) et le même champ avec des bandes de contour (à droite)</figcaption></figure>
+
+<h3>Repères min / max et la valeur au survol</h3>
+<p><span class="ui">Marquer le minimum et le maximum</span> étiquette les valeurs la plus basse et la plus haute <i>sur la surface visible</i> (les vrais extrêmes d'un solide peuvent se trouver à l'intérieur ; les coupes les révèlent). Indépendamment, le <b>survol</b> du modèle à la souris affiche la valeur du champ affiché sous le curseur, avec son unité. Le survol fonctionne tant qu'un résultat est sélectionné, sauf pendant la comparaison de deux résultats (chapitre 8).</p>
+
+<h2>Unités</h2>
+<p>Une mauvaise unité sur une contrainte ou une température est exactement l'erreur qu'un outil de présentation ne doit pas commettre ; les unités sont donc explicites et jamais devinées en silence.</p>
+<ul>
+  <li>Chaque champ a une <b>grandeur</b> (contrainte, déplacement, température, vitesse, pression ...) et deux unités : celle du <i>fichier</i> et celle qui est <i>affichée</i>.</li>
+  <li><span class="ui">Grandeur</span> et <span class="ui">Les valeurs sont en</span> permettent de les préciser. Lorsque le fichier porte une indication, ModelViewer l'utilise (OpenFOAM indique ses unités par les dimensions de chaque champ : température en K, vitesse en m/s, un tenseur de contraintes en Pa ; une pression cinématique n'a pas d'unité) ; sinon, vous choisissez, et le panneau marque l'unité comme supposée jusqu'à ce que vous la confirmiez.</li>
+  <li>Les conversions sont plus que des facteurs d'échelle : la température passe entre kelvins, degrés Celsius et degrés Fahrenheit, ce qui est un décalage autant qu'un facteur.</li>
+  <li>La légende, la valeur au survol, les repères, les graphiques et le rapport utilisent tous l'unité affichée.</li>
+  <li>Les champs dérivés héritent de l'unité du champ dont ils proviennent.</li>
+</ul>
+<div class="callout warn"><span class="label">Attention</span>
+  <p>Les solveurs écrivent ce que vous leur avez donné. Un calcul CalculiX avec un modèle en millimètres et un module d'Young en MPa donne la contrainte en MPa et les déplacements en mm, mais le fichier ne le dit pas - ModelViewer affiche de simples nombres tant que vous n'avez pas choisi les unités (l'exemple <code>FEM_box_static.frd</code> est en mm et MPa ; son équivalent <code>.vtu</code> affiche des Pa). Vérifiez toujours <span class="ui">Les valeurs sont en</span> par rapport aux unités de votre analyse.</p>
+</div>
+
+<figure data-img="tutorial_19_field_list.png"><figcaption>La liste des champs du résultat de la boîte statique</figcaption></figure>

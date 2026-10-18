@@ -1,0 +1,52 @@
+<section class="cover">
+  <svg width="170" height="170" viewBox="0 0 170 170" fill="none" stroke="#ffffff" stroke-width="2">
+    <polygon points="85,12 150,48 150,122 85,158 20,122 20,48" stroke-opacity="0.55"/>
+    <polyline points="85,12 85,85 150,122" stroke-opacity="0.55"/>
+    <polyline points="85,85 20,122" stroke-opacity="0.55"/>
+    <polyline points="30,118 52,92 74,102 98,60 124,72 142,40" stroke="#f6ad55" stroke-width="4"/>
+    <circle cx="98" cy="60" r="5" fill="#f6ad55" stroke="none"/>
+    <circle cx="52" cy="92" r="5" fill="#63b3ed" stroke="none"/>
+    <circle cx="142" cy="40" r="5" fill="#fc8181" stroke="none"/>
+  </svg>
+  <div class="kicker">ModelViewer 2026.11</div>
+  <h1>Résultats de simulation<br>et graphiques 3D</h1>
+  <div class="subtitle">Un guide de l'utilisateur pour lire des résultats de solveur et tracer vos propres données dans ModelViewer : de l'ouverture d'un fichier au rapport terminé.</div>
+  <div class="meta">Guide de l'utilisateur &middot; pour ModelViewer 2026.11</div>
+</section>
+
+<section>
+  <h1 class="chapter front">À propos de ce guide</h1>
+  <p>ModelViewer a commencé comme visualiseur de modèles 3D. Deux de ses domaines plus récents vont au-delà des modèles : il affiche les <b>résultats de simulations d'ingénierie</b> calculés ailleurs et <b>trace vos propres données en 3D</b>. Ce guide traite les deux en profondeur et montre comment ils fonctionnent ensemble. Les leçons du tutoriel (Aide &rarr; Tutoriel, leçons 19 à 25) parcourent le même terrain pas à pas ; ce guide est la référence que l'on garde ouverte à côté du programme.</p>
+
+  <div class="callout"><span class="label">Ce que ModelViewer fait et ne fait pas</span>
+    <p>ModelViewer <b>affiche</b> les résultats qu'un solveur a écrits. Il ne maille pas, ne résout pas et n'exécute pas de simulations, il ne modifie pas les résultats et n'a pas de langage de script ou d'expressions pour le post-traitement. Ses points forts sont ceux dont un visualiseur a besoin : des couleurs rapides et correctes, les unités, le temps, les coupes et les sondes, la comparaison côte à côte et les outils de présentation (mesure, annotation, rapport PDF, export d'images) du reste du programme.</p>
+  </div>
+
+  <h2>À qui il s'adresse</h2>
+  <p>Les ingénieurs qui lisent les résultats d'analyses de structure, thermiques ou d'écoulement (CalculiX, Code_Aster, Elmer, FreeCAD FEM, OpenFOAM, MOOSE et solveurs ouverts similaires) et veulent les inspecter, les comparer et les présenter ; et toute personne disposant de tableaux de nombres - mesures, exports de simulation, fonctions mathématiques - et souhaitant les voir sous forme de surfaces, de courbes, de points, de barres, de volumes ou de champs vectoriels à côté d'un modèle 3D.</p>
+
+  <h2>Comment le guide est organisé</h2>
+  <table class="compact">
+    <thead><tr><th style="width:26%">Partie</th><th>Contenu</th></tr></thead>
+    <tbody>
+      <tr><td><b>I &ndash; Résultats de simulation</b></td><td>Ouvrir un résultat, champs et couleurs, unités, déformation, temps, regarder à l'intérieur d'un solide, sondes et graphiques, comparer, enregistrer et gros résultats (chapitres 1 à 9).</td></tr>
+      <tr><td><b>II &ndash; Graphiques 3D</b></td><td>Graphiques à partir de fichiers CSV et de formules, les types de graphiques, écoulement dans le temps, mise en forme et axes partagés, notes, images, modification et export (chapitres 10 à 17).</td></tr>
+      <tr><td><b>III &ndash; Ensemble</b></td><td>Résultats et graphiques sur une même horloge, et flux de travail détaillés (chapitres 18 et 19).</td></tr>
+      <tr><td><b>Annexes</b></td><td>Catalogue des fichiers exemples, une référence rapide, messages et dépannage, glossaire.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Conventions</h2>
+  <ul>
+    <li>Les chemins de menu utilisent des flèches : <span class="path">Fichier &rarr; Ouvrir...</span>. Les noms des commandes, onglets et boutons sont en <span class="ui">gras</span> et orthographiés comme dans l'interface en français.</li>
+    <li>Les touches se présentent ainsi : <kbd>Ctrl</kbd>+<kbd>O</kbd>. Les noms de fichiers et de colonnes sont en <code>chasse fixe</code>.</li>
+    <li>Les encadrés marqués <b>Remarque</b> apportent du contexte, <b>Astuce</b> un raccourci ou une bonne habitude, <b>Attention</b> quelque chose qui surprend ou une limite du programme.</li>
+    <li>Tous les fichiers exemples cités ici sont livrés avec ModelViewer dans le dossier <code>sample-models</code> (<code>Simulation</code> et <code>Plot3D</code>) ; l'annexe A les énumère. Les images ont été prises avec l'interface en anglais.</li>
+  </ul>
+
+  <div class="callout tip"><span class="label">Astuce</span>
+    <p>Tout ce qui figure ici se trouve aussi dans le programme : <b>Aide &rarr; Nouveautés...</b> donne un aperçu de la version 2026.11, <b>Aide &rarr; Aide rapide</b> propose des onglets Résultats de simulation, Graphiques 3D et Analyse, et le survol d'une commande affiche une courte explication.</p>
+  </div>
+</section>
+
+<!--TOC-->

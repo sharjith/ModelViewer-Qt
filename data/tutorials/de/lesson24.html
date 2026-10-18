@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lektion 24: 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="../common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Anleitung</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Erste Schritte</a>
+            <a href="lesson02.html">2. Modelle öffnen</a>
+            <a href="lesson03.html">3. Grundlegende Navigation</a>
+            <a href="lesson04.html">4. Objekte auswählen</a>
+            <a href="lesson05.html">5. Ansichtsmodi</a>
+            <a href="lesson06.html">6. Kameramodi</a>
+            <a href="lesson07.html">7. Anzeigemodi</a>
+            <a href="lesson08.html">8. Objekte manipulieren</a>
+            <a href="lesson09.html">9. Materialien und Texturen</a>
+            <a href="lesson10.html">10. Beleuchtung und Umgebung</a>
+            <a href="lesson11.html">11. Arbeiten mit Sichtbarkeit</a>
+            <a href="lesson12.html">12. Erweiterte Funktionen</a>
+            <a href="lesson13.html">13. Leistungsoptimierung</a>
+            <a href="lesson14.html">14. Tipps und Workflows</a>
+            <a href="lesson15.html">15. Explosionsansichten</a>
+            <a href="lesson16.html">16. Morph-Target-Animation</a>
+            <a href="lesson17.html">17. Knotentransformation bearbeiten</a>
+            <a href="lesson18.html">18. Kanten- und Drahtgitter-Rendering</a>
+            <a href="lesson19.html">19. Simulationsergebnisse</a>
+            <a href="lesson20.html">20. Ins Innere eines Ergebnisses schauen</a>
+            <a href="lesson21.html">21. Diagramme und Sonden</a>
+            <a href="lesson22.html">22. Ergebnisse vergleichen, Zell- und Schalendaten</a>
+            <a href="lesson23.html">23. 3D-Diagramme aus CSV-Daten</a>
+            <a href="lesson24.html" class='active'>24. 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</a>
+            <a href="lesson25.html">25. Diagramme und Ergebnisse gemeinsam abspielen</a>
+            <a href="lesson26.html">26. Mesh-Werkzeuge</a>
+            <a href="lesson27.html">27. Messen, Kommentieren und Berichten</a>
+            <a href="lesson28.html">28. Analyse, Auswahl und Szenen</a>
+            <a href="lesson29.html">29. Raytracing in der Praxis</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lektion 24 von 29</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 82.76%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lektion 24: 3D-Diagramme aus Formeln, Füllungen, Bildern und Notizen</h1>
+        </div>
+
+        <h2>Einführung</h2>
+        <p>Für ein Diagramm brauchen Sie keine Datei. Eine Formel kann eine Fläche, eine Kurve, ein Vektorfeld oder die Strömung eines Teilchens erzeugen; Füllungen machen aus Linien und Punkten Bänder und Vorhänge; ein Bild kann auf einer Ebene stehen; Textnotizen beschriften das Wichtige; und alle Diagramme eines Dokuments teilen sich einen Satz Achsen, der auch logarithmisch sein kann.</p>
+        <h2>Formelflächen</h2>
+        <div class="step">
+            <div class="step-title">Schritt 1: Eine Formelquelle wählen</div>
+            <div class="step-content">Stellen Sie im Dialog „3D-Diagramm hinzufügen“ die <b>Datenquelle</b> auf <i>Formelfläche</i>. Die <b>Voreinstellung</b> bietet Plane, Saddle, Paraboloid, Cone, Gaussian, Sinc Ripple, Wave, Mexican Hat, Bivariate Normal, Logistic Regression und Rosenbrock; das Feld <b>z =</b> enthält den Ausdruck in x und y, und Bereiche und Sample-Anzahlen legen das Raster fest.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Vorschau und Erstellen</div>
+            <div class="step-content">Klicken Sie nach dem Ändern eines Ausdrucks oder Parameters auf <b>Vorschau aktualisieren</b>, dann auf <b>Diagramm erstellen</b>. Ist der Ausdruck falsch, zum Beispiel wegen einer unbekannten Variablen, nennt die Statuszeile das Problem, und „Erstellen“ bleibt deaktiviert.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_formula_surface.png" alt="tutorial_24_formula_surface.png" title="Capture: Add 3D Plot &gt; Formula surface &gt; Preset Mexican Hat; Refresh Preview; capture the dialog and the preview in the viewport." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Add 3D Plot &gt; Formula surface &gt; Preset Mexican Hat; Refresh Preview; capture the dialog and the preview in the viewport." style="display:none; width:700px; height:450px;">Screenshot: tutorial_24_formula_surface.png (700x450)</div>
+            <span class="screenshot-caption">Die Mexican-Hat-Formelfläche mit dem Dialog und der Statuszeile</span>
+        </div>
+
+        <p>Derselbe Dialog bietet auch <b>Parametrische Fläche</b> (Torus, Ellipsoid, Möbiusband, Kleinsche Flasche, Superellipsoid, Helikoid, Katenoid, Enneper-Fläche, Kugelflächenfunktion), <b>Parametrische Kurve</b> (Helix, Lissajous, Kleeblattknoten, Viviani-Kurve, gedämpfte Spirale; der Parameter heißt <i>t</i>), <b>Implizite Fläche</b> und <b>Formel-Vektorfeld</b>.</p>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_parametric_surfaces.png" alt="tutorial_24_parametric_surfaces.png" title="Capture: Build Parametric surface presets Torus and Klein Bottle separately (two captures joined side by side), isometric view, axes box on." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build Parametric surface presets Torus and Klein Bottle separately (two captures joined side by side), isometric view, axes box on." style="display:none; width:700px; height:350px;">Screenshot: tutorial_24_parametric_surfaces.png (700x350)</div>
+            <span class="screenshot-caption">Ein Torus und eine Kleinsche Flasche aus parametrischen Voreinstellungen</span>
+        </div>
+
+        <h2>Ein erzeugtes Diagramm bearbeiten</h2>
+        <p>Diagramme aus Formeln merken sich die Definition, aus der sie erstellt wurden. Wählen Sie eines unter <b>Aktives Diagramm</b>, klicken Sie auf <b>Diagramm bearbeiten...</b>, ändern Sie einen Ausdruck, einen Bereich oder einen Parameter und klicken Sie auf <b>Diagramm neu erstellen</b>: Das vorhandene Diagramm wird an Ort und Stelle aktualisiert und behält Titel, Sichtbarkeit, Farben und Achseneinstellungen. Der Quellentyp lässt sich beim Bearbeiten nicht ändern - dafür erstellen Sie ein neues Diagramm.</p>
+        <h2>Füllungen: Bänder und Vorhänge</h2>
+        <p>Eine Linie oder ein Streudiagramm lässt sich bis zu einer Basisebene oder zwischen zwei Kurven füllen. Füllungen sind durchscheinend und wie das Diagramm eingefärbt.</p>
+        <table>
+            <thead><tr><th>Ziel</th><th>Vorgehen</th></tr></thead>
+            <tbody>
+            <tr><td>Ein Vorhang unter einer Linie</td><td><code>line_helix.csv</code> als <b>Linie / Kurve</b>, <b>Bis Basis-Z füllen</b> mit Basis 0 aktivieren.</td></tr>
+            <tr><td>Ein Band zwischen zwei Kurven</td><td><code>line_band.csv</code> als <b>Linie / Kurve</b>, Farbwert = value, Füllung aktivieren und <i>z2</i> unter <b>oder zwischen der Linie und Spalte</b> wählen.</td></tr>
+            <tr><td>Bänder von Streupunkten</td><td><code>scatter_clusters.csv</code> als <b>Streudiagramm</b>, <b>Bis Basis-Z füllen</b> mit einer Basis wie -3 aktivieren; oder <code>scatter_band.csv</code> mit <i>z2</i> für Bänder zwischen zwei Punktmengen.</td></tr>
+            <tr><td>Eine erzeugte Kurve füllen</td><td><b>Parametrische Kurve</b> mit der Voreinstellung Helix: <b>Kurve bis Basis-Z füllen</b> aktivieren oder ein zweites <i>z2(t)</i> wie 2 + sin(t) eingeben, um zwischen den beiden Kurven zu füllen.</td></tr>
+            </tbody>
+        </table>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_fill_between_curves.png" alt="tutorial_24_fill_between_curves.png" title="Capture: Build line_band.csv as Line / Curve with the fill between the line and column z2 (Colour value = value); isometric view so both crossings are visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build line_band.csv as Line / Curve with the fill between the line and column z2 (Colour value = value); isometric view so both crossings are visible." style="display:none; width:700px; height:450px;">Screenshot: tutorial_24_fill_between_curves.png (700x450)</div>
+            <span class="screenshot-caption">Ein durchscheinendes Band zwischen zwei sich kreuzenden Kurven, das sich an den Kreuzungen zur Linie verengt</span>
+        </div>
+
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_fill_curtain.png" alt="tutorial_24_fill_curtain.png" title="Capture: Build line_helix.csv as Line / Curve with Fill to Base Z = 0." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build line_helix.csv as Line / Curve with Fill to Base Z = 0." style="display:none; width:700px; height:400px;">Screenshot: tutorial_24_fill_curtain.png (700x400)</div>
+            <span class="screenshot-caption">Die Helix mit einem Vorhang bis zur Basisebene</span>
+        </div>
+
+        <h2>Bilder auf einer Ebene</h2>
+        <p>Ein Bild kann auf einer der Diagrammebenen stehen - eine Lagekarte unter einer Fläche, ein Scan neben einem Modell. Stellen Sie die <b>Datenquelle</b> auf <i>Bild auf einer Ebene</i>, wählen Sie eine Bilddatei, die Ebene (XY flach am Z-Minimum, XZ oder YZ aufrecht) und die Bereiche; diese passen sich beim Auswählen der Form des Bildes an. Mit <b>Deckkraft</b> scheint durch, was dahinter liegt. Von hinten gesehen erscheint ein Bild gespiegelt - aktivieren Sie bei einem deckenden Bild <b>Von hinten lesbar</b>.</p>
+        <div class="note note-info">
+            Probieren Sie <code>image_gradient.png</code> (320 x 200, mit einem „L“ in einer Ecke - es zeigt, ob das Bild gespiegelt ist) und <code>image_gradient_alpha.png</code>, dessen eigene Transparenz sich mit der Deckkraft-Einstellung verbindet. „Von hinten lesbar“ ist nur für ein deckendes Bild mit 100 % Deckkraft verfügbar.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_image_plane.png" alt="tutorial_24_image_plane.png" title="Capture: Build surface_ripple.csv, then Image on a plane with image_gradient.png on the XZ plane (shared axes); capture so the &quot;L&quot; mark is visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Build surface_ripple.csv, then Image on a plane with image_gradient.png on the XZ plane (shared axes); capture so the &quot;L&quot; mark is visible." style="display:none; width:700px; height:450px;">Screenshot: tutorial_24_image_plane.png (700x450)</div>
+            <span class="screenshot-caption">Ein Bild auf einer Ebene neben einem Flächendiagramm</span>
+        </div>
+
+        <h2>Textnotizen</h2>
+        <div class="step">
+            <div class="step-title">Schritt 1: Eine Notiz platzieren</div>
+            <div class="step-content">Wählen Sie ein Diagramm, öffnen Sie in der Registerkarte „3D-Diagramm“ die Gruppe <b>Textnotizen</b> und klicken Sie auf <b>Notiz platzieren</b>, dann auf einen Punkt des Diagramms - oder verwenden Sie <b>Im Zentrum hinzufügen</b>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Bearbeiten und verschieben</div>
+            <div class="step-content">Ziehen Sie eine Notiz, um sie zu verschieben, doppelklicken Sie, um ihren Text zu bearbeiten, und klicken Sie mit rechts, um sie zu löschen. Alles lässt sich rückgängig machen.</div>
+        </div>
+        <p>Notizen werden an ihrem Datenpunkt in der Achsenbox gezeichnet, folgen der Sichtbarkeit des Diagramms und werden mit der Sitzung gespeichert.</p>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_text_notes.png" alt="tutorial_24_text_notes.png" title="Capture: Ripple surface with a note &quot;Peak = 1.0&quot; placed on the central peak; capture the note and the 3D Plot tab Text notes group together." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: Ripple surface with a note &quot;Peak = 1.0&quot; placed on the central peak; capture the note and the 3D Plot tab Text notes group together." style="display:none; width:700px; height:450px;">Screenshot: tutorial_24_text_notes.png (700x450)</div>
+            <span class="screenshot-caption">Eine Notiz am Gipfel einer Fläche</span>
+        </div>
+
+        <h2>Gemeinsame Achsen und nichtlineare Skalen</h2>
+        <p>Alle Diagramme eines Dokuments werden auf <b>einem Satz Achsen</b> gezeichnet. Unter <b>Achsen</b> in der Registerkarte „3D-Diagramm“ legen Sie für jede Achse Beschriftung, <b>Achsenskala</b> (<i>Linear</i>, <i>Log 10</i> oder <i>SymLog</i>), Bereich und Anzahl der Teilstriche fest. Das Ändern einer Skala ordnet alle Diagramme gemeinsam neu an: Linien, Streudiagramme, Flächen, Balken, Pfeile und Voxelraster folgen ihr.</p>
+        <div class="step">
+            <div class="step-title">Schritt 1: Zwei Diagramme erstellen</div>
+            <div class="step-content">Erstellen Sie <code>scatter_error_bars.csv</code> als Streudiagramm und dann <code>line_growth.csv</code> als Linie / Kurve (z = 10^(x/2), von 1 bis 100).</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 2: Z auf Log 10 setzen</div>
+            <div class="step-content">Stellen Sie unter <b>Achsen</b> die <b>Achsenskala</b> von Z auf <i>Log 10</i>. Beide Diagramme ordnen sich gemeinsam neu an: Die Exponentiallinie wird gerade und das Streudiagramm bewegt sich mit.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Schritt 3: Die Grenze erleben</div>
+            <div class="step-content">Eine Log-10-Achse verlangt, dass die Daten <i>jedes</i> Diagramms über null liegen. Erstellen Sie <code>line_helix.csv</code>, das 0 erreicht, während Z auf Log 10 steht, kehrt Z mit einer Statusmeldung zu Linear zurück; Log 10 bei vorhandenem solchem Diagramm zu setzen, wird mit einer Meldung abgelehnt, die den Grund nennt. <i>SymLog</i> verarbeitet beliebige Daten, auch negative Werte.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="../screenshots/tutorial_24_log_axis_shared.png" alt="tutorial_24_log_axis_shared.png" title="Capture: scatter_error_bars.csv and line_growth.csv built, Z axis scale = Log 10; capture the scene with the Axes group of the 3D Plot tab visible." onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" title="Capture: scatter_error_bars.csv and line_growth.csv built, Z axis scale = Log 10; capture the scene with the Axes group of the 3D Plot tab visible." style="display:none; width:700px; height:450px;">Screenshot: tutorial_24_log_axis_shared.png (700x450)</div>
+            <span class="screenshot-caption">Ein Streudiagramm und eine Exponentiallinie auf einer gemeinsamen logarithmischen Z-Achse</span>
+        </div>
+
+        <div class="note note-tip">
+            Vektorpfeile werden durch die lokale Streckung der Skala an ihrer Stelle neu ausgerichtet und behalten Länge und Farbe; Voxelraster werden neu abgetastet; die Anzeige beim Überfahren einer Fläche zeigt weiterhin die Datenwerte des Diagramms, nicht Positionen auf den skalierten Achsen. Das Zurückschalten auf Linear stellt alles wieder her.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson23.html' class='nav-button'>← Vorherige Lektion</a>
+            <a href="index.html" class="back-to-index">↑ Zurück zur Übersicht</a>
+            <a href='lesson25.html' class='nav-button'>Nächste Lektion →</a>
+        </div>
+    </div>
+</body>
+</html>

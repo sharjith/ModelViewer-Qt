@@ -375,23 +375,97 @@
 
     <div class="container">
         <div class="feature-intro">
-            <p>A professional-grade 3D viewer that reads and displays a comprehensive range of 3D file formats supported by Assimp (OBJ, FBX, COLLADA, BLEND, and more) and CAD formats, including STEP, IGES, and BRep files via OpenCASCADE. Features physically-based rendering (PBR), advanced material systems with Khronos KHR extensions, and sophisticated CAD visualization capabilities.</p>
+            <p>A professional-grade 3D viewer that reads and displays a comprehensive range of 3D file formats supported by Assimp (OBJ, FBX, COLLADA, BLEND, and more) and CAD formats, including STEP, IGES, and BRep files via OpenCASCADE, and displays FEM / CFD simulation results (VTK, CalculiX, Exodus II, CGNS, MED, OpenFOAM, VTKHDF). Features physically-based rendering (PBR), advanced material systems with Khronos KHR extensions, and sophisticated CAD visualization capabilities.</p>
         </div>
 
         <div class="feature-showcase">
             <div class="showcase-item">
                 <h3>ADS Mode for CAD Visualization</h3>
-                <img src="assets/screenshots/ads-mode.jpg" alt="Screenshot ADS Mode">
+                <img width="1431" height="1032" src="assets/screenshots/ads-mode.jpg" alt="Screenshot ADS Mode">
             </div>
             <div class="showcase-item">
                 <h3>PBR Mode for Advanced Visualization</h3>
-                <img width="1920" height="1032" src="assets/screenshots/pbr-mode.jpg" alt="Screenshot PBR Mode">
+                <img width="1431" height="1032" src="assets/screenshots/pbr-mode.jpg" alt="Screenshot PBR Mode">
             </div>
         </div>
+
+        <section id="whats-new">
+            <h2>What's new in 2026.11</h2>
+            <p>ModelViewer now reads <strong>simulation results</strong> (FEM / CFD) and plots <strong>your own data in 3D</strong>, and adds a
+            <strong>ray tracer</strong>, <strong>measurement and annotation</strong>, <strong>CGAL-based mesh tools</strong> and
+            <strong>surface analysis</strong>. The application has a <em>What's New</em> dialog and a 29-lesson tutorial in English, German,
+            Spanish, French and Italian, and there is a PDF guide <em>Simulation Results and 3D Plotting</em> in the same languages:
+            <a href="guide/ModelViewer_Simulation_and_3D_Plotting_Guide.pdf">English</a>,
+            <a href="guide/ModelViewer_Simulation_and_3D_Plotting_Guide_de.pdf">Deutsch</a>,
+            <a href="guide/ModelViewer_Simulation_and_3D_Plotting_Guide_es.pdf">Espa&ntilde;ol</a>,
+            <a href="guide/ModelViewer_Simulation_and_3D_Plotting_Guide_fr.pdf">Fran&ccedil;ais</a>,
+            <a href="guide/ModelViewer_Simulation_and_3D_Plotting_Guide_it.pdf">Italiano</a>.</p>
+            <p><strong>Download:</strong> the <a href="https://github.com/sharjith/ModelViewer-Qt/releases/latest">latest release</a> has a Windows
+            installer (<code>.exe</code>) and a Linux <code>.deb</code> for Ubuntu 26.04 LTS
+            (<code>sudo apt install ./modelviewer_2026.11.0_amd64.deb</code>). The full list of changes is in the
+            <a href="https://github.com/sharjith/ModelViewer-Qt/blob/master/CHANGELOG.md">changelog</a>.</p>
+            <p><strong>Video tutorials:</strong> a series of short tutorials, from opening a model to simulation results, 3D plots and ray tracing, is on the
+            <a href="https://www.youtube.com/@ModelViewerQt">ModelViewer YouTube channel</a>.</p>
+            <p><strong>Optional content packs:</strong> to keep the installer small it carries 53 materials and 23 HDRI maps. The complete
+            <em>material library</em> (about 2.2&nbsp;GB, two zips), <em>all HDRI environment maps</em> (about 1.0&nbsp;GB) and the optional
+            <em>large simulation samples</em> are separate downloads on the same release page. Unzip each into the ModelViewer data folder
+            (Windows: <code>C:\Program Files\ModelViewer\share\ModelViewer</code>, Linux: <code>/usr/share/ModelViewer</code>, administrator rights needed),
+            restart ModelViewer, and the new materials and environments appear. Step-by-step commands are in the
+            <a href="https://github.com/sharjith/ModelViewer-Qt#optional-content-packs-full-material-library-all-hdri-maps">README</a>.</p>
+        </section>
 
         <!-- Features Overview Section -->
         <section id="features">
             <h2>Features Overview</h2>
+
+            <h3>Simulation Results</h3>
+            <p>ModelViewer <em>displays</em> the results of FEM and CFD solvers; it does not mesh or solve. A result opens as its outer surface coloured by
+            any field, and the tools below look inside it.</p>
+            <img src="assets/screenshots/sim-result.png" alt="A simulation result coloured by von Mises stress">
+            <ul>
+                <li><strong>Readers:</strong> VTK (<code>.vtk</code>, <code>.vtu</code>), CalculiX <code>.frd</code>, Exodus II, CGNS, MED, OpenFOAM cases, VTKHDF; large results load step by step</li>
+                <li><strong>Fields:</strong> node and cell data, vectors, tensors, derived stress fields (von Mises, Tresca, principal, maximum shear), units with a file and a display unit</li>
+                <li><strong>Display:</strong> colour maps and ranges, contour bands, deformed shape, min/max markers, vector arrows, stress ellipsoids, a timeline with playback</li>
+                <li><strong>Looking inside:</strong> plane sections, iso-surfaces, streamlines, volume rendering, a hover probe, charts over time and along a line (with your own curves from CSV)</li>
+                <li><strong>Compare</strong> two results side by side; results are saved inside an <code>.mvf</code> session</li>
+            </ul>
+            <div class="feature-showcase">
+                <div class="showcase-item"><img src="assets/screenshots/sim-isosurfaces.png" alt="Iso-surfaces of a temperature field"></div>
+                <div class="showcase-item"><img src="assets/screenshots/sim-streamlines.png" alt="Streamlines through a duct"></div>
+            </div>
+            <img src="assets/screenshots/sim-chart.png" alt="A temperature history chart next to its result">
+
+            <h3>3D Data Plotting</h3>
+            <p>Plot tables of numbers, formulas and time series in the same 3D scene as your models, with the same camera, section, annotation and export tools.</p>
+            <img src="assets/screenshots/plot3d-types.png" alt="A scatter, a bar and a vector plot sharing one set of axes">
+            <ul>
+                <li><strong>Plot types:</strong> surface, contour, line, scatter, bar / histogram, voxel, vector field, pathlines, image on a plane</li>
+                <li><strong>Sources:</strong> CSV or pasted data, and formulas (surface, parametric surface and curve, implicit surface, vector field, streamlines, pathlines) with presets</li>
+                <li><strong>Shared axes</strong> (linear, Log 10, SymLog), fills between curves, text notes, a section probe, animated pathlines, edit-in-place, glTF / GLB / OBJ export of point and line plots</li>
+            </ul>
+            <img src="assets/screenshots/plot3d-parametric.png" alt="A torus and a Klein bottle from parametric formulas">
+
+            <h3>Ray Tracing</h3>
+            <p>A physically based ray tracer with a CPU engine (Embree) and an optional GPU engine (NVIDIA OptiX), a live ray-traced viewport, offline renders of any
+            size, OIDN denoising and batch rendering of captured views.</p>
+            <img src="assets/screenshots/raytrace-compare.png" alt="The same model in PBR and ray-traced mode">
+            <img src="assets/screenshots/raytrace-render.png" alt="A finished ray-traced render">
+            <p><small>Model: &quot;Car Concept&quot; by Eric Chadwick, CC BY 4.0, from the Khronos glTF Sample Assets.</small></p>
+
+            <h3>Measure, Annotate and Report</h3>
+            <p>Point, distance, angle, radius, diameter, pitch-circle, area and geodesic measurements with CAD-style dimension lines, text annotations, and a PDF report of
+            captured views with their measurement and annotation table.</p>
+            <img src="assets/screenshots/measure.png" alt="An edge radius and a pitch circle measured on a CAD part">
+
+            <h3>Mesh Tools and Surface Analysis</h3>
+            <ul>
+                <li><strong>Editing:</strong> Mesh Union (boolean), Shrink Wrap, Subdivide Surface, Reconstruct Surface from point clouds, Repair Mesh, Fill Holes, split / merge / group, UV generation</li>
+                <li><strong>Analysis:</strong> draft angle, zebra stripes, curvature, wall thickness, deviation, and mass properties (volume, mass, centre of gravity) per mesh and material</li>
+            </ul>
+            <div class="feature-showcase">
+                <div class="showcase-item"><img src="assets/screenshots/analysis-zebra.png" alt="Zebra stripes on a bottle"></div>
+                <div class="showcase-item"><img src="assets/screenshots/mesh-subdivide.png" alt="A coarse torus and its subdivided surface"></div>
+            </div>
 
             <h3>Rendering Modes & Visualization</h3>
             <p>ModelViewer supports a comprehensive range of visualization and rendering styles for different inspection and analysis needs:</p>
@@ -412,6 +486,7 @@
             
             <h4>Sheen, Alpha Coverage</h4>
             <img width="4400" height="2430" src="assets/screenshots/sheen-alpha-coverage.jpg" alt="Sheen and Alpha">
+            <p><small>Sofa: &quot;SheenWoodLeatherSofa&quot; by Fran Calvente (CC0), with 2024 improvements by Eric Chadwick, &copy; Darmstadt Graphics Group GmbH, CC BY 4.0, from the Khronos glTF Sample Assets.</small></p>
 
             <ul>
                 <li><strong>Physically-Based Rendering (PBR):</strong> Full Cook-Torrance BRDF implementation with metallic/roughness workflows</li>
@@ -423,7 +498,7 @@
 
             <h3>Material System & KHR Extensions</h3>
             <p>ModelViewer implements comprehensive support for Khronos KHR material extensions, enabling advanced material rendering capabilities:</p>
-            <img width="1920" height="1032" src="assets/screenshots/material-system.jpg" alt="Material System">
+            <img width="1431" height="1032" src="assets/screenshots/material-system.jpg" alt="Material System">
 
             <h4>Supported KHR Material Extensions:</h4>
             <ul>
@@ -469,7 +544,7 @@
             </div>
 
             <h4>KHR Punctual Lights Support:</h4>
-            <img width="1920" height="1032" src="assets/screenshots/punctual-lights.jpg" alt="Punctual Lights">
+            <img width="1431" height="1032" src="assets/screenshots/punctual-lights.jpg" alt="Punctual Lights">
 
             <h4>Texture Transform Support:</h4>
             <ul>
@@ -492,15 +567,15 @@
                 <li><strong>Capture Steps & Sequences:</strong> Reorderable explosion steps with presets for repeatable assembly walkthroughs</li>
                 <li><strong>Animation Export:</strong> Parallel, sequential, or separate-clip export of the explosion sequence</li>
             </ul>
-            <img width="1920" height="1032" src="assets/screenshots/exploded-view.jpg" alt="Exploded View">
+            <img width="1431" height="1032" src="assets/screenshots/exploded-view.jpg" alt="Exploded View">
 
             <h3>Interactive Transform Gizmo & View Cube</h3>
             <ul>
                 <li><strong>On-Screen Transform Gizmo:</strong> Translate/rotate/scale handles for direct manipulation, shared by exploded-view manual placement</li>
                 <li><strong>Interactive View Cube:</strong> Click-to-orient navigation overlay with a switchable grid ground mode</li>
             </ul>
-            <img width="1920" height="1032" src="assets/screenshots/transform-gizmo.jpg" alt="Transform Gizmo">
-            <img width="1920" height="1032" src="assets/screenshots/view-cube.jpg" alt="View Cube">
+            <img width="1431" height="1032" src="assets/screenshots/transform-gizmo.jpg" alt="Transform Gizmo">
+            <img width="1112" height="890" src="assets/screenshots/view-cube.jpg" alt="View Cube">
 
             <h3>Animation System</h3>
             <ul>
@@ -508,15 +583,15 @@
                 <li><strong>glTF Camera Support:</strong> Import/export of animated camera tracking data</li>
                 <li><strong>Material Variants (KHR_materials_variants):</strong> Switchable material sets per scene with full export round-trip</li>
             </ul>
-            <img width="1920" height="1032" src="assets/screenshots/morph-target-animation.jpg" alt="Morph Target Animation">
+            <img width="1431" height="1032" src="assets/screenshots/morph-target-animation.jpg" alt="Morph Target Animation">
 
             <h4>glTF Camera Support:</h4>
             <p>Import and export of glTF cameras, including animated camera tracking data driven by the same Animations panel used for skeletal and morph-target clips.</p>
-            <img width="1920" height="1032" src="assets/screenshots/gltf-camera.jpg" alt="glTF Camera Support">
+            <img width="1431" height="1032" src="assets/screenshots/gltf-camera.jpg" alt="glTF Camera Support">
 
             <h4>Material Variants (KHR_materials_variants):</h4>
             <p>Switchable material sets per scene — swap an object's entire material assignment at runtime (e.g. color/finish options for a product model), with full round-trip preservation on glTF/GLB export.</p>
-            <img width="1920" height="1032" src="assets/screenshots/material-variants.jpg" alt="glTF Material Variants">
+            <img width="1431" height="1032" src="assets/screenshots/material-variants.jpg" alt="glTF Material Variants">
 
             <h3>Scene Graph & Unified Material Workflow</h3>
             <ul>
@@ -525,7 +600,7 @@
                 <li><strong>Unified Material Panel:</strong> Single editor merging material and texture editing, UUID-based material keys, unsaved-change tracking, and a user material library</li>
                 <li><strong>Texture Debugger Panel:</strong> Live texture/extension overrides with Khronos-aligned channel isolation for geometry and texture channel inspection</li>
             </ul>
-            <img width="543" height="974" src="assets/screenshots/tree-widget.jpg" alt="Scene Graph Tree Widget">
+            <img width="450" height="506" src="assets/screenshots/tree-widget.jpg" alt="Scene Graph Tree Widget">
 
             <h4>Texture Debugger Panel:</h4>
             <p>Live texture and extension overrides with Khronos-aligned channel isolation, letting you inspect individual geometry and texture channels (albedo, normal, roughness, metallic, AO, and more) in isolation.</p>
@@ -555,7 +630,7 @@
                 <li><strong>Texture Transform:</strong> Per-texture UV transformation with full KHR_texture_transform support</li>
                 <li><strong>Multi-Channel Support:</strong> Independent handling of multiple texture sets and UV coordinates</li>
             </ul>
-            <img width="622" height="1003" src="assets/screenshots/texture-management.jpg" alt="Texture Management">
+            <img width="800" height="451" src="assets/screenshots/texture-management.jpg" alt="Texture Management">
 
             <h3>CAD Support & Assembly Visualization</h3>
             <h4>OpenCASCADE Integration:</h4>
@@ -568,7 +643,7 @@
                 <li><strong>Property Preservation:</strong> Metadata and naming preserved across the import pipeline</li>
             </ul>
             <!-- TODO: screenshot - OCC true-edge wireframe -->            
-			<img width="1920" height="1032" src="assets/screenshots/true-edge-wireframe.jpg" alt="OCC True-Edge Wireframe">
+			<img width="1431" height="1032" src="assets/screenshots/true-edge-wireframe.jpg" alt="OCC True-Edge Wireframe">
 
             <h4>Assimp Integration:</h4>
             <ul>
@@ -625,7 +700,7 @@
 
             <h3>Realistic PBR Rendering</h3>
             <h4>Realistic Automotive Paint Rendering (Clearcoat & Iridescence):</h4>
-            <img width="1920" height="1032" src="assets/screenshots/automotive-paint.jpg" alt="Automotive Paint">
+            <img width="1431" height="1032" src="assets/screenshots/automotive-paint.jpg" alt="Automotive Paint">
 
             <h3>User Interface & Tools</h3>
             <h4>Detachable Panels:</h4>
@@ -694,7 +769,7 @@
 
             <div class="note">
                 <strong>Just want to run ModelViewer?</strong> You don't need to build anything —
-                grab the prebuilt <strong>Windows installer</strong> or <strong>Linux AppImage</strong>
+                grab the prebuilt <strong>Windows installer</strong> or the <strong>Linux .deb package</strong> (Ubuntu 26.04)
                 from the <a href="https://github.com/sharjith/ModelViewer-Qt/releases/latest">latest release</a>.
                 The steps below are only needed if you want to build from source.
             </div>
@@ -715,7 +790,25 @@
             </div>
 
             <h3>Linux Build</h3>
-            <p>Linux builds now go through <strong>vcpkg</strong> (manifest mode) for dependency
+            <p><strong>Ubuntu 26.04 LTS / Kubuntu 26.04</strong> (the platform of the <code>.deb</code>): the supported route, which builds the same package as the releases page.</p>
+            <pre><code>git clone --branch dev https://github.com/sharjith/ModelViewer-Qt.git ~/dev/ModelViewer-Qt
+cd ~/dev/ModelViewer-Qt
+git submodule update --init --recursive
+
+# one-time setup (needs sudo): apt packages, CGAL 6.2+ from cgal.org, vcpkg for the two bundled ports
+bash packaging/linux/setup-wsl-build-env.sh
+
+cmake --preset linux_system_release
+cmake --build out/build/linux_system_release --parallel
+
+cd out/build/linux_system_release &amp;&amp; cpack -G DEB
+sudo apt install ./modelviewer_2026.11.0_amd64.deb
+modelviewer</code></pre>
+            <p>In an existing clone, update it first with <code>git fetch origin &amp;&amp; git checkout dev &amp;&amp; git pull</code>. CGAL comes from cgal.org because Ubuntu's own
+            <code>libcgal-dev</code> is 6.1 and too old (the configure step stops with a message if it finds an older one). The script is named after WSL but works on any Ubuntu 26.04
+            system. Build the whole project, not just <code>--target ModelViewer</code>, or <code>cpack</code> cannot find the icon. For NVIDIA graphics install the driver first
+            (<code>sudo ubuntu-drivers install</code>).</p>
+            <p>Other Linux builds go through <strong>vcpkg</strong> (manifest mode) for dependency
             management, using the bundled CMake presets.</p>
             <ol>
                 <li>Install base system packages (compiler, X11/OpenGL headers, etc. — see the
@@ -872,6 +965,26 @@ make -j$(sysctl -n hw.ncpu)
                 <li><a href="https://www.qt.io/">Qt</a> - GUI framework</li>
                 <li><a href="https://github.com/g-truc/glm">GLM</a> - Mathematics library</li>
                 <li><a href="https://www.khronos.org/">Khronos</a> - glTF and KHR extension specifications</li>
+                <li><a href="https://www.cgal.org/">CGAL</a> - Computational Geometry Algorithms Library (mesh repair, boolean union, shrink wrap, subdivision, analysis)</li>
+                <li><a href="https://www.embree.org/">Embree</a> and <a href="https://www.openimagedenoise.org/">Intel Open Image Denoise</a> - ray tracing and denoising; <a href="https://developer.nvidia.com/rtx/ray-tracing/optix">NVIDIA OptiX</a> - optional GPU ray tracing</li>
+                <li><a href="https://www.unidata.ucar.edu/software/netcdf/">NetCDF</a>, <a href="https://www.hdfgroup.org/solutions/hdf5/">HDF5</a> and <a href="https://cgns.github.io/">CGNS</a> - simulation result readers</li>
+                <li><a href="https://eigen.tuxfamily.org/">Eigen</a>, <a href="https://www.boost.org/">Boost</a>, <a href="https://gmplib.org/">GMP</a> and <a href="https://www.mpfr.org/">MPFR</a> - numerics used by CGAL</li>
+                <li><a href="https://github.com/zeux/meshoptimizer">meshoptimizer</a>, <a href="https://github.com/BinomialLLC/basis_universal">Basis Universal</a>, <a href="https://openexr.com/">OpenEXR</a>, <a href="https://facebook.github.io/zstd/">zstd</a> and <a href="https://freetype.org/">FreeType</a></li>
+            </ul>
+            <h3>Models shown in the screenshots</h3>
+            <p>Sample models from the <a href="https://github.com/KhronosGroup/glTF-Sample-Assets">Khronos glTF Sample Assets</a>. Where a model has two layers of licensing, both are listed.</p>
+            <ul>
+                <li>&quot;DiffuseTransmissionPlant&quot;: Eric Chadwick for materials and animation, &copy; 2024 Darmstadt Graphics Group GmbH, CC BY 4.0; original asset by Rico Cilliers, CC0.</li>
+                <li>&quot;ChronographWatch&quot;: Eric Chadwick for model and textures, &copy; 2025 Darmstadt Graphics Group GmbH, CC BY 4.0; based on a model by graphiccompressor, CC BY.</li>
+                <li>&quot;LightsPunctualLamp&quot;: created by Teresa Gonz&aacute;lez Viegas and DGG, &copy; 2021 Darmstadt Graphics Group GmbH, CC BY 4.0.</li>
+                <li>Candle holder with the glTF and KHR logos (&quot;GlassHurricaneCandleHolder&quot;): Eric Chadwick, &copy; 2021 Wayfair, LLC, CC BY 4.0.</li>
+                <li>&quot;Fox&quot;: model by PixelMannen (CC0); rigging and animation by tomkranis (CC BY 4.0); conversion to glTF by @AsoboStudio and @scurest (CC BY 4.0).</li>
+                <li>&quot;SheenWoodLeatherSofa&quot;: original by Fran Calvente (CC0); 2024 improvements by Eric Chadwick, &copy; Darmstadt Graphics Group GmbH, CC BY 4.0.</li>
+                <li>&quot;Differential gear box&quot; by Mir Mostafa Tahmid, from the <a href="https://grabcad.com/library/differential-gear-box-34">GrabCAD Community Library</a> (June 2023).</li>
+                <li>&quot;Mazda Vision RX | www.vecarz.com&quot; by vecarz (<a href="https://sketchfab.com/3d-models/mazda-vision-rx-wwwvecarzcom-8a1530794143468cbb8fff262d4a7455">Sketchfab</a>), CC BY 4.0.</li>
+                <li>&quot;2023 Nissan X-Trail 4x4-i&quot; by Ddiaz Design (<a href="https://sketchfab.com/3d-models/2023-nissan-x-trail-4x4-i-f9f2cbdacac74ee7acfe1c731195ccaa">Sketchfab</a>), CC BY 4.0.</li>
+                <li>&quot;Car Concept&quot;: Eric Chadwick, &copy; 2024 Darmstadt Graphics Group GmbH, CC BY 4.0.</li>
+                <li>The &quot;Compare&hellip;&quot; test spheres: Eric Chadwick and DGG, CC0.</li>
             </ul>
         </section>
     </div>

@@ -1,0 +1,90 @@
+<h1 class="chapter">Probing and charts</h1>
+
+<p>Colours tell you <i>where</i> a value is high or low; a chart tells you <i>how much</i>, and how it changes. ModelViewer reads values straight from the result and plots them without leaving the program.</p>
+
+<h2>Reading a single value</h2>
+<p>Move the mouse over the model: the value of the shown field at the cursor appears next to it, in the displayed unit. On a node field the value is interpolated at the cursor; on a cell field it is the value of the element under the cursor (or the averaged value, if <span class="ui">Average cell data to nodes</span> is on).</p>
+<figure data-img="tutorial_21_hover_value.png"><figcaption>The value under the cursor, read directly from the model</figcaption></figure>
+
+<h2>The four charts</h2>
+<table>
+  <thead><tr><th style="width:30%">Chart</th><th style="width:30%">How to start it</th><th>Shows</th></tr></thead>
+  <tbody>
+    <tr><td><b>Plot Over Time</b></td><td>Right-click a point on the result &rarr; <span class="ui">Plot Over Time Here</span>; or the <span class="ui">Plot Over Time...</span> button, then click a point</td><td>The history of the shown field at that point, over all steps. For a modal result the x axis is the frequency of each mode.</td></tr>
+    <tr><td><b>Plot Over Line</b></td><td><span class="ui">Plot Over Line...</span>, then click two points</td><td>The field along the straight line (chord) between the two points, at the current step.</td></tr>
+    <tr><td><b>Distribution</b></td><td><span class="ui">Distribution...</span></td><td>A histogram of the field over the whole result: how much of the model is at low, middle and high values.</td></tr>
+    <tr><td><b>Added curves</b></td><td>Right-click inside a chart</td><td>More points of the model, or your own data from a CSV file, on the same axes.</td></tr>
+  </tbody>
+</table>
+<figure data-img="tutorial_21_plot_over_time.png"><figcaption>A Plot Over Time chart; the orange cursor marks the current step</figcaption></figure>
+<ul>
+  <li>The point history reads the value at the clicked point of the <i>volume</i> or, for a shell result, at the closest point of the surface. The chord of a Plot Over Line follows the surface of a shell; where the chord leaves a curved shell the curve has a gap.</li>
+  <li>A chart of a cell field uses the averaged values; a result with one step shows its history as a single dot.</li>
+  <li><span class="ui">Plot Over Time Here</span> is not available while two results are being compared (chapter 8).</li>
+</ul>
+<figure data-img="tutorial_21_plot_over_line.png"><figcaption>Stress along a line from the edge of the hole to the edge of the plate</figcaption></figure>
+<figure data-img="tutorial_21_distribution.png"><figcaption>A histogram of the von Mises field</figcaption></figure>
+
+<h2>Working in a chart</h2>
+<table class="compact">
+  <thead><tr><th style="width:34%">Action</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Mouse wheel</td><td>Zoom around the pointer. With <kbd>Shift</kbd> only the x axis zooms, with <kbd>Ctrl</kbd> only the y axis.</td></tr>
+    <tr><td>Drag with the middle button</td><td>Pan.</td></tr>
+    <tr><td>Double-click, or right-click &rarr; <span class="ui">Reset zoom</span></td><td>Show everything again.</td></tr>
+    <tr><td>Click or drag in a time chart</td><td>Move the result to the nearest step (the orange cursor marks the current one); the chart and the timeline drive each other.</td></tr>
+    <tr><td>Right-click &rarr; <span class="ui">Add a point from the model</span></td><td>Then click another point on the same result: its history joins the chart as another curve, named by its position, with a legend.</td></tr>
+    <tr><td>Right-click &rarr; <span class="ui">Add curve from CSV...</span></td><td>Adds your own data (see below).</td></tr>
+    <tr><td>Right-click &rarr; <span class="ui">Remove added curves</span></td><td>Clears the added curves again.</td></tr>
+    <tr><td>Right-click &rarr; <span class="ui">Save image...</span></td><td>Writes the chart as a PNG image.</td></tr>
+    <tr><td>Right-click &rarr; <span class="ui">Export data (CSV)...</span></td><td>Writes the curves as a CSV: one x, y pair of columns per curve, with the unit in the header.</td></tr>
+  </tbody>
+</table>
+
+<h2>Adding your own data</h2>
+<p>A chart can carry measurements, a response curve or another analysis next to the simulated curve. The CSV needs <b>two columns, x then y</b>, and a header row that names the curve. A header of the form <code>Name (unit)</code> gives the curve a unit: if that unit is the same as the main curve's, both share the y axis; if it differs - a temperature next to a stress - the curve is drawn against a <b>second y axis on the right</b>. A curve whose header has no unit shares the main axis.</p>
+<table class="compact">
+  <thead><tr><th style="width:36%">Sample</th><th>Use</th></tr></thead>
+  <tbody>
+    <tr><td><code>thermal_probe_test.csv</code></td><td>Synthetic "thermocouple" readings (time, temperature) for the middle of the far face of <code>FEM_box_thermal_transient.frd</code>. Open the result, plot over time at that face, add the CSV, play: the cursor travels along both curves. The clicked point is not exactly the sample's, so the curves are close, not identical.</td></tr>
+    <tr><td><code>FEM_box_modes_frf.csv</code></td><td>A synthetic frequency-response curve with peaks at the six mode frequencies of <code>FEM_box_modes.frd</code>. Plot over time on any point, add the CSV, and click a peak: the result jumps to that mode.</td></tr>
+  </tbody>
+</table>
+<figure data-img="tutorial_21_csv_overlay.png"><figcaption>The simulated history and the measured readings on one chart</figcaption></figure>
+<figure data-img="tutorial_21_frf_peaks.png"><figcaption>Mode frequencies on the x axis with a response curve and its peaks</figcaption></figure>
+<div class="callout tip"><span class="label">Tip</span>
+  <p>An exported chart CSV can be added back to a chart later with <span class="ui">Add curve from CSV...</span> - handy for comparing two analysis runs on one chart, because the header carries the unit.</p>
+</div>
+
+
+<h1 class="chapter">Comparing results</h1>
+
+<p>The usual reasons to open two results are two designs, before and after a change, a static run against a vibration mode, or two load cases. Comparing them needs the results side by side, seen from the same viewpoint, with colours that mean the same thing. <b>Compare</b> does exactly that.</p>
+
+<h2>Setting up a comparison</h2>
+<ol>
+  <li>Put both results in <b>one document</b>: open the first with <span class="path">File &rarr; Open...</span> and add the second with <span class="path">Visualization &rarr; Simulation Results &rarr; Add Result to This Document...</span>. Both keep their true file coordinates, so two results of the same model coincide, which is why compare draws them in separate panes.</li>
+  <li>In the Simulation Results tab choose the other result in <span class="ui">Compare with</span> and click <span class="ui">Compare</span> (or use <span class="path">Visualization &rarr; Simulation Results &rarr; Compare Results...</span>). The viewport splits into two panes, each drawing one result with its own legend. <span class="ui">Show in</span> chooses side by side or stacked (top and bottom).</li>
+  <li>Tick <span class="ui">Same colour range for both</span>: equal colours then mean equal values in both panes. Without it each result uses its own range.</li>
+  <li>Tick <span class="ui">Link the cameras</span> to keep both views in step: rotating, panning or zooming one does the same in the other.</li>
+  <li>Click <span class="ui">Exit Compare</span> (the same button) to return to the single view.</li>
+</ol>
+<figure data-img="tutorial_22_compare_side_by_side.png"><figcaption>Bending (left) and torsion (right) of the same I-beam, side by side with one colour range</figcaption></figure>
+<figure data-img="tutorial_22_compare_controls.png"><figcaption>The comparison controls of the tab</figcaption></figure>
+
+<h2>What works in compare mode, and what does not</h2>
+<ul>
+  <li>Compare shows two <b>different</b> results of the document; the same result cannot be compared with itself. Each pane has its own legend, headed with the result's name.</li>
+  <li>Orbit, pan, zoom and the standard views work. <span class="ui">Same colour range for both</span> joins the ranges of the two results, and is only available while both show the same unit.</li>
+  <li>The timeline drives the active result only, the one chosen in the <span class="ui">Result</span> box.</li>
+  <li>While compare is on, selection by clicking, the hover highlight and the hover value readout, and the clipping-plane gizmos are switched off, and <span class="ui">Plot Over Time Here</span> is not available. The measurement and annotation tools are not pane-aware yet. Ray tracing is off.</li>
+  <li><b>Fit to screen</b> still fits the whole window, so a wide model can be wider than its pane: zoom out a little.</li>
+  <li>Compare ends by itself when either result is hidden, closed or removed (also by undo). The layout is not saved in a session.</li>
+  <li>Compare holds both results in memory at once, so two very large results need twice the memory (chapter 9).</li>
+</ul>
+<div class="callout warn"><span class="label">Caution</span>
+  <p>Compare shows two results next to each other; it does not compute the difference between them (there is no A minus B field). To read numbers out of two analyses, chart the same point of each and put both on one chart (chapter 7), or compare the hover values one result at a time.</p>
+</div>
+
+<h3>A good pair to try</h3>
+<p><code>ibeam_cantilever.frd</code> (bending) and <code>ibeam_torsion.frd</code> (torsion) are the same I-beam under different loads: add one to the other's document, turn on the deformed shape and the shared colour range, and set the last load step.</p>
