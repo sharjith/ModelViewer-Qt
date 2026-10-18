@@ -18,6 +18,10 @@ TESSELLATED, extended binary groups, image-free materials, allocation padding
 and power-of-two index widths. All five supplied archives pass native import
 and independent triangle-count checks; additional-file GUI acceptance is pending.
 
+The [published-specification research](3DXML_specification_research.md) records
+verified document locations, unavailable schema downloads, the remaining UVR
+codec gap and a proposed conformance work list.
+
 ## Current specifications
 
 The [final stored-normal pass](3DXML_stored_normal_final_pass.md) confirms the
