@@ -14,6 +14,12 @@ exact stored smooth-normal quantization remains explicitly unproven.
 
 ## Current specifications
 
+The [final stored-normal pass](3DXML_stored_normal_final_pass.md) confirms the
+candidate direction mapping but does not resolve the exact quantizer. It also
+isolates 72 opposed corners with exact axis tags, proving that those winding
+disagreements do not come from coefficient quantization. Flat normals remain
+the validated default; original words/tags are retained for optional research.
+
 A [hierarchical GLB inspection checkpoint](3DXML_glb_inspection.md) now preserves
 all 252 XML nodes, shared representation meshes, default visibility and face
 colors. Its geometry and placements match the verified OBJ; owner inspection

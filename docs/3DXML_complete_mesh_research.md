@@ -201,6 +201,13 @@ explicitly rather than be skipped by a marker search.
 
 ## Normal results and supported rendering policy
 
+The subsequent [final focused normal pass](3DXML_stored_normal_final_pass.md)
+checks all 2,627,746 records and 11,485,434 pool-normal corners. Exact scaling
+and rounding remain unresolved. Of the 333 opposed corners, 72 use exact axis
+tags (no coefficient quantizer), and 329 have dot < -0.01. These findings
+separate substantial winding disagreements from tiny coefficient errors;
+they do not establish a correction to source binding or tessellation.
+
 All 188 leaves' normal word/tag counts reconcile. The existing dominant-axis
 candidate reconstruction produces finite unit normals without missing pool
 references on finest nonconstant faces. Constant face normals override pool
