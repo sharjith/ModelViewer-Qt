@@ -8,7 +8,9 @@ ImportResult Importer::read(const QString& path, const Options& options)
 {
     options.check();
     ArchiveReader archive(path, options);
-    const QString root = ProductStructureReader::rootMember(archive.read(QStringLiteral("Manifest.xml")));
+    const QString root = archive.rootDocument().isEmpty()
+        ? ProductStructureReader::rootMember(archive.read(QStringLiteral("Manifest.xml")))
+        : archive.rootDocument();
     const auto document = ProductStructureReader::read(archive.read(root), options);
     auto result = SceneBuilder::build(document, archive, options);
     bool hasUVR = false;

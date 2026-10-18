@@ -1,0 +1,157 @@
+{
+    "bounds_max": [
+        -10.0047607421875,
+        657.769287109375,
+        1373.4757080078125
+    ],
+    "bounds_min": [
+        -332,
+        -199.78118896484375,
+        55.871395111083984
+    ],
+    "mesh_occurrences": 9,
+    "mesh_resources": 9,
+    "nodes": 28,
+    "occurrence_appearances": [
+        {
+            "colors": [
+                [
+                    0.501960813999176,
+                    0.250980406999588,
+                    0.250980406999588,
+                    1
+                ],
+                [
+                    0.501960813999176,
+                    0.250980406999588,
+                    0.250980406999588,
+                    1
+                ]
+            ],
+            "meshes": [
+                "Bielle_1_3D.3DRep__body_141",
+                "Bielle_1_3D.3DRep__body_141"
+            ],
+            "overridden": true,
+            "path": "28",
+            "triangles": [
+                1162,
+                358
+            ]
+        },
+        {
+            "colors": [
+                [
+                    1,
+                    0.501960813999176,
+                    0,
+                    1
+                ]
+            ],
+            "meshes": [
+                "Bielle_2_3D.3DRep__body_141"
+            ],
+            "overridden": true,
+            "path": "32",
+            "triangles": [
+                1332
+            ]
+        },
+        {
+            "colors": [
+                [
+                    0.501960813999176,
+                    0,
+                    0,
+                    1
+                ]
+            ],
+            "meshes": [
+                "Bielle_3_3D.3DRep__body_141"
+            ],
+            "overridden": true,
+            "path": "41",
+            "triangles": [
+                2176
+            ]
+        },
+        {
+            "colors": [
+                [
+                    1,
+                    1,
+                    0,
+                    1
+                ]
+            ],
+            "meshes": [
+                "Tige_verin_3D.3DRep__body_141"
+            ],
+            "overridden": true,
+            "path": "47",
+            "triangles": [
+                7360
+            ]
+        },
+        {
+            "colors": [
+                [
+                    0,
+                    0.501960813999176,
+                    1,
+                    1
+                ]
+            ],
+            "meshes": [
+                "Corps_verin_3D.3DRep__body_141"
+            ],
+            "overridden": true,
+            "path": "53",
+            "triangles": [
+                3652
+            ]
+        },
+        {
+            "colors": [
+                [
+                    0.8235294222831726,
+                    0.8235294222831726,
+                    1,
+                    1
+                ],
+                [
+                    0.8274509906768799,
+                    0.6980392336845398,
+                    0.4901960790157318,
+                    1
+                ],
+                [
+                    0,
+                    0,
+                    0,
+                    1
+                ]
+            ],
+            "meshes": [
+                "Roue.3DRep__body_141",
+                "Roue.3DRep__body_141",
+                "Roue.3DRep__body_141"
+            ],
+            "overridden": false,
+            "path": "57",
+            "triangles": [
+                5822,
+                5946,
+                31188
+            ]
+        }
+    ],
+    "passed": true,
+    "resource_triangles": 58996,
+    "resource_vertices": 34814,
+    "source": "D:/work/progs/qt5/ModelViewer-Github/data/_fbc_001_dmg00005563053_dmg00005563053.3dxml",
+    "source_sha256": "3e8a57234166550365b333632aa311f5fd3de8e1fbd3b8b4b044db7a9a28c73a",
+    "visible_mesh_occurrences": 9,
+    "visible_triangles": 58996,
+    "xml_nodes": 28
+}

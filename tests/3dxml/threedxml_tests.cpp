@@ -12,6 +12,7 @@
 #include <QJsonArray>
 #include <QTemporaryDir>
 #include <QCryptographicHash>
+#include <assimp/material.h>
 #include <minizip/zip.h>
 #include <QtEndian>
 #include <iostream>
@@ -139,8 +140,79 @@ void synthetic()
       <ReferenceRep id='2' format='TESSELLATED' associatedFile='part.3DRep'/>
       <InstanceRep id='3'><IsAggregatedBy>1</IsAggregatedBy><IsInstanceOf>2</IsInstanceOf></InstanceRep></ProductStructure>)";
     writeZip(zip,{{"Manifest.xml","<m><Root>main.xml</Root></m>"},{"main.xml",tessellatedProduct},{"part.3DRep",tessellated}});
+    auto saveFixture=[&](const QString& name,const QByteArray& bytes) {
+        QFile file(temp.filePath(name)); require(file.open(QIODevice::WriteOnly),"write loose fixture"); require(file.write(bytes)==bytes.size(),"complete loose fixture");
+    };
+    const QByteArray looseXml=QByteArray::fromHex("efbbbf")+"<Model_3dxml>"+tessellatedProduct+"</Model_3dxml>";
+    saveFixture("loose.3dxml",looseXml); saveFixture("part.3DRep",tessellated);
+    auto loose=Importer::read(temp.filePath("loose.3dxml"));
+    require(loose.scene->mNumMeshes==2&&countSceneMeshOccurrences(loose.scene->mRootNode)==2,"loose XML model with sibling geometry");
+    { ArchiveReader directory(temp.filePath("loose.3dxml"),{});
+        require(directory.rootDocument()=="loose.3dxml"&&directory.read("part.3DRep")==tessellated,"loose root/member resolution");
+        rejects([&] { directory.read("absent.3DRep"); });
+        rejects([&] { directory.read("../outside.3DRep"); });
+    }
+    saveFixture("material.3dxml","<Model_3dxml><CATMaterialRef/></Model_3dxml>");
+    bool companionError=false;
+    try { Importer::read(temp.filePath("material.3dxml")); }
+    catch (const Error& e) { companionError=QString::fromUtf8(e.what()).contains("companion resources"); }
+    require(companionError,"companion-only document diagnostic");
+    saveFixture("dtd.3dxml","<!DOCTYPE Model_3dxml><Model_3dxml/>");
+    rejects([&] { Importer::read(temp.filePath("dtd.3dxml")); });
+    saveFixture("invalid.3dxml","garbage"); rejects([&] { Importer::read(temp.filePath("invalid.3dxml")); });
+    Options cancelledLoose; cancelledLoose.cancelled=[] { return true; };
+    rejects([&] { Importer::read(temp.filePath("loose.3dxml"),cancelledLoose); });
+#ifndef Q_OS_WIN
+    QTemporaryDir outside;
+    QFile outsideFile(outside.filePath("secret")); require(outsideFile.open(QIODevice::WriteOnly),"outside link fixture"); outsideFile.write("secret"); outsideFile.close();
+    require(QFile::link(outsideFile.fileName(),temp.filePath("outside-link")),"symlink fixture");
+    { ArchiveReader directory(temp.filePath("loose.3dxml"),{}); rejects([&] { directory.read("outside-link"); }); }
+#endif
+
     auto importedTessellation=Importer::read(zip);
     require(importedTessellation.scene->mNumMeshes==2&&countSceneMeshOccurrences(importedTessellation.scene->mRootNode)==2,"XML meshes attached to product scene");
+
+
+    QByteArray coloredProduct=R"(<Model><ProductStructure root='1'>
+      <Reference3D id='1' name='root'/><Reference3D id='2' name='assembly'/><Reference3D id='3' name='part'/>
+      <ReferenceRep id='4' format='TESSELLATED' associatedFile='part.3DRep'/>
+      <InstanceRep id='5'><IsAggregatedBy>3</IsAggregatedBy><IsInstanceOf>4</IsInstanceOf></InstanceRep>
+      <Instance3D id='10'><IsAggregatedBy>1</IsAggregatedBy><IsInstanceOf>2</IsInstanceOf><RelativeMatrix>1 0 0 0 1 0 0 0 1 0 0 0</RelativeMatrix></Instance3D>
+      <Instance3D id='11'><IsAggregatedBy>2</IsAggregatedBy><IsInstanceOf>3</IsInstanceOf><RelativeMatrix>1 0 0 0 1 0 0 0 1 0 0 0</RelativeMatrix></Instance3D>
+      <Instance3D id='12'><IsAggregatedBy>2</IsAggregatedBy><IsInstanceOf>3</IsInstanceOf><RelativeMatrix>1 0 0 0 1 0 0 0 1 0 0 0</RelativeMatrix></Instance3D>
+      <Instance3D id='13'><IsAggregatedBy>1</IsAggregatedBy><IsInstanceOf>3</IsInstanceOf><RelativeMatrix>1 0 0 0 1 0 0 0 1 0 0 0</RelativeMatrix></Instance3D>
+      <Instance3D id='14'><IsAggregatedBy>1</IsAggregatedBy><IsInstanceOf>3</IsInstanceOf><RelativeMatrix>1 0 0 0 1 0 0 0 1 0 0 0</RelativeMatrix></Instance3D>
+      </ProductStructure><DefaultView>
+      <DefaultViewProperty><OccurenceId><id>urn:test#10</id></OccurenceId><GraphicProperties><SurfaceAttributes><Color red='0' green='0' blue='1' alpha='0.25'/></SurfaceAttributes></GraphicProperties></DefaultViewProperty>
+      <DefaultViewProperty><OccurenceId><id>urn:test#10</id><id>urn:test#12</id></OccurenceId><GraphicProperties><SurfaceAttributes><Color red='1' green='1' blue='0'/></SurfaceAttributes></GraphicProperties></DefaultViewProperty>
+      <DefaultViewProperty><OccurenceId><id>urn:test#14</id></OccurenceId><GraphicProperties><SurfaceAttributes><Color red='0' green='0' blue='1' alpha='0.25'/></SurfaceAttributes></GraphicProperties></DefaultViewProperty>
+      </DefaultView></Model>)";
+    auto coloredDoc=ProductStructureReader::read(coloredProduct,{});
+    require(coloredDoc.occurrenceColors.size()==3&&coloredDoc.occurrenceColors.value("10/12").a==1,"occurrence color paths/default alpha");
+    writeZip(zip,{{"Manifest.xml","<m><Root>main.xml</Root></m>"},{"main.xml",coloredProduct},{"part.3DRep",tessellated}});
+    auto colored=Importer::read(zip); const auto& coloredScene=*colored.scene;
+    require(coloredScene.mNumMeshes==6&&countSceneMeshOccurrences(coloredScene.mRootNode)==8,"material variants preserve instances");
+    QHash<QString,const aiNode*> colorNodes;
+    for(auto it=colored.occurrencePaths.cbegin();it!=colored.occurrencePaths.cend();++it) colorNodes.insert(it.value(),it.key());
+    auto colorAt=[&](const QString& path,unsigned slot) {
+        const auto n=colorNodes.value(path); require(n&&slot<n->mNumMeshes,"color occurrence mesh");
+        const auto m=coloredScene.mMeshes[n->mMeshes[slot]]; aiColor4D rgba;
+        require(coloredScene.mMaterials[m->mMaterialIndex]->Get(AI_MATKEY_BASE_COLOR,rgba)==AI_SUCCESS,"occurrence base color"); return rgba;
+    };
+    for(unsigned slot=0;slot<2;++slot) {
+        const auto blue=colorAt("10/11",slot),yellow=colorAt("10/12",slot);
+        require(blue==aiColor4D(0,0,1,.25f)&&yellow==aiColor4D(1,1,0,1),"inherited and child occurrence override");
+        require(colorNodes["10/11"]->mMeshes[slot]==colorNodes["14"]->mMeshes[slot],"same override reuses variant");
+        const auto a=coloredScene.mMeshes[colorNodes["10/11"]->mMeshes[slot]],b=coloredScene.mMeshes[colorNodes["10/12"]->mMeshes[slot]];
+        require(a->mVertices!=b->mVertices&&a->mNumVertices==b->mNumVertices&&a->mNumFaces==b->mNumFaces,"variant owns independent geometry buffers");
+        for(unsigned i=0;i<a->mNumVertices;++i) require(a->mVertices[i]==b->mVertices[i]&&a->mNormals[i]==b->mNormals[i],"variant geometry unchanged");
+    }
+    require(colorAt("13",0)==aiColor4D(1,0,0,1)&&colorAt("13",1)==aiColor4D(0,1,0,1),"uncolored instance retains face colors");
+    auto invalidColor=coloredProduct; invalidColor.replace("blue='1'","blue='2'");
+    rejects([&] { ProductStructureReader::read(invalidColor,{}); });
+    invalidColor=coloredProduct; invalidColor.replace("urn:test#14","urn:test#999");
+    writeZip(zip,{{"Manifest.xml","<m><Root>main.xml</Root></m>"},{"main.xml",invalidColor},{"part.3DRep",tessellated}});
+    rejects([&] { Importer::read(zip); });
 
     auto geometry=TessellatedReader::read(tessellated,{});
     require(geometry.bodies.size()==1&&geometry.occurrences.size()==1,"XML body occurrence");
@@ -263,6 +335,9 @@ void sample(const QString& archive, const QString& glbPath, const QString& occur
 
 void audit(const QString& path,const QString& output) {
     auto result=Importer::read(path); const auto& scene=*result.scene;
+    ArchiveReader sourceArchive(path,{});
+    const auto product=ProductStructureReader::read(sourceArchive.read(sourceArchive.rootDocument().isEmpty()?ProductStructureReader::rootMember(sourceArchive.read("Manifest.xml")):sourceArchive.rootDocument()),{});
+    QJsonArray appearances;
     quint64 triangles=0,vertices=0,visibleTriangles=0; unsigned nodes=0,visibleMeshes=0;
     for(unsigned i=0;i<scene.mNumMeshes;++i) {
         const auto& mesh=*scene.mMeshes[i]; triangles+=mesh.mNumFaces; vertices+=mesh.mNumVertices;
@@ -275,6 +350,21 @@ void audit(const QString& path,const QString& output) {
     aiVector3D low(1e30f,1e30f,1e30f),high(-1e30f,-1e30f,-1e30f);
     std::function<void(const aiNode*,const aiMatrix4x4&)> walk=[&](const aiNode* n,const aiMatrix4x4& parent) {
         ++nodes; auto world=parent*n->mTransformation;
+        const QString occurrence=result.occurrencePaths.value(n,result.occurrencePaths.value(n->mParent));
+        QString ancestor=occurrence;
+        while(!ancestor.isEmpty()&&!product.occurrenceColors.contains(ancestor)) ancestor=ancestor.contains('/')?ancestor.section('/',0,-2):QString();
+        if(n->mNumMeshes) {
+            QJsonArray colors,names,triangleCounts;
+            for(unsigned i=0;i<n->mNumMeshes;++i) {
+                const auto mesh=scene.mMeshes[n->mMeshes[i]]; aiColor4D base,diffuse; ai_real opacity=0;
+                const auto mat=scene.mMaterials[mesh->mMaterialIndex];
+                require(mat->Get(AI_MATKEY_BASE_COLOR,base)==AI_SUCCESS&&mat->Get(AI_MATKEY_COLOR_DIFFUSE,diffuse)==AI_SUCCESS,"audit color properties");
+                require(mat->Get(AI_MATKEY_OPACITY,opacity)==AI_SUCCESS&&base==diffuse&&base.a==opacity,"audit color/opacity bindings");
+                colors.append(QJsonArray{base.r,base.g,base.b,base.a});
+                names.append(QString::fromUtf8(mesh->mName.C_Str())); triangleCounts.append(int(mesh->mNumFaces));
+            }
+            appearances.append(QJsonObject{{"path",occurrence},{"colors",colors},{"meshes",names},{"triangles",triangleCounts},{"overridden",product.occurrenceColors.contains(ancestor)}});
+        }
         if(!result.hiddenNodes.contains(n)) for(unsigned i=0;i<n->mNumMeshes;++i) {
             ++visibleMeshes; const auto& mesh=*scene.mMeshes[n->mMeshes[i]]; visibleTriangles+=mesh.mNumFaces;
             for(unsigned j=0;j<mesh.mNumVertices;++j) { auto p=world*mesh.mVertices[j]; for(int k=0;k<3;++k) { low[k]=std::min(low[k],p[k]); high[k]=std::max(high[k],p[k]); } }
@@ -286,7 +376,7 @@ void audit(const QString& path,const QString& output) {
     QJsonObject report{{"source",path},{"source_sha256",QString::fromLatin1(QCryptographicHash::hash(readFile(path),QCryptographicHash::Sha256).toHex())},
         {"mesh_resources",int(scene.mNumMeshes)},{"resource_vertices",double(vertices)},{"resource_triangles",double(triangles)},
         {"nodes",int(nodes)},{"xml_nodes",int(result.occurrencePaths.size())},{"mesh_occurrences",int(countSceneMeshOccurrences(scene.mRootNode))},
-        {"visible_mesh_occurrences",int(visibleMeshes)},{"visible_triangles",double(visibleTriangles)},
+        {"visible_mesh_occurrences",int(visibleMeshes)},{"visible_triangles",double(visibleTriangles)},{"occurrence_appearances",appearances},
         {"bounds_min",QJsonArray{low.x,low.y,low.z}},{"bounds_max",QJsonArray{high.x,high.y,high.z}},{"passed",true}};
     QFile file(output); require(file.open(QIODevice::WriteOnly),"audit output"); file.write(QJsonDocument(report).toJson());
     std::cout<<QJsonDocument(report).toJson().constData();

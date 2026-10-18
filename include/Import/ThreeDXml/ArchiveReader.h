@@ -9,9 +9,10 @@ public:
     ArchiveReader(const ArchiveReader&) = delete;
     ArchiveReader& operator=(const ArchiveReader&) = delete;
     QByteArray read(const QString& member);
+    QString rootDocument() const { return _rootDocument; }
     static QString memberPath(const QString& name);
 private:
-    QString _path;
+    QString _path, _directory, _rootDocument;
     Options _options;
     void* _zip = nullptr;
     quint64 _expanded = 0;

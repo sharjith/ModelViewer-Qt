@@ -78,16 +78,35 @@ Document ProductStructureReader::read(const QByteArray& bytes, const Options& op
                 // Append after parsing all definitions; XML declaration order is not significant.
             }
         } else if (tag == QLatin1String("DefaultViewProperty")) {
-            QStringList path; bool hidden = false; int depth = 1;
+            QStringList path; bool hidden = false, hasColor = false; aiColor4D color; int depth = 1, surfaceDepth = -1;
             while (depth && !xml.atEnd()) {
                 xml.readNext(); checkToken(xml);
                 if (xml.isStartElement()) {
                     ++depth;
+                    if (xml.name() == QLatin1String("SurfaceAttributes")) surfaceDepth = depth;
+                    if (xml.name() == QLatin1String("Color") && depth == surfaceDepth+1 && surfaceDepth > 0) {
+                        if (hasColor) throw Error(QStringLiteral("Multiple colors in occurrence property"));
+                        const auto attributes = xml.attributes();
+                        const char* channels[] = {"red","green","blue","alpha"};
+                        for (int k=0;k<4;++k) {
+                            if (k==3 && !attributes.hasAttribute(QLatin1String("alpha"))) { color[k]=1; continue; }
+                            bool ok=false; const double value=attributes.value(QLatin1String(channels[k])).toDouble(&ok);
+                            if (!ok || !std::isfinite(value) || value<0 || value>1) throw Error(QStringLiteral("Invalid occurrence color"));
+                            color[k]=static_cast<ai_real>(value);
+                        }
+                        hasColor=true;
+                    }
                     if (xml.name() == QLatin1String("GeneralAttributes") && xml.attributes().value("visible") == QLatin1String("false")) hidden = true;
                     if (xml.name() == QLatin1String("id")) {
                         path.append(xml.readElementText().trimmed().section('#', -1)); --depth;
                     }
-                } else if (xml.isEndElement()) --depth;
+                } else if (xml.isEndElement()) { if (depth==surfaceDepth) surfaceDepth=-1; --depth; }
+            }
+            if (hasColor) {
+                if (path.isEmpty()) throw Error(QStringLiteral("Color property has no occurrence path"));
+                const auto key=path.join('/');
+                if (doc.occurrenceColors.contains(key)) throw Error(QStringLiteral("Duplicate occurrence color property"));
+                doc.occurrenceColors.insert(key,color);
             }
             if (hidden) {
                 if (path.isEmpty()) throw Error(QStringLiteral("Visibility property has no occurrence path"));
@@ -96,6 +115,7 @@ Document ProductStructureReader::read(const QByteArray& bytes, const Options& op
         }
     }
     finish(xml);
+    if (doc.root.isEmpty()) throw Error(QStringLiteral("This XML document has no product structure. Material/image documents are companion resources; open the assembly document named in Manifest.xml."));
     if (!doc.references.contains(doc.root)) throw Error(QStringLiteral("Missing product root reference"));
     // QHash iteration is not declaration order; retain XML order for occurrence DFS.
     QXmlStreamReader ordered(bytes);

@@ -1,0 +1,31 @@
+{
+  "passed": true,
+  "source": "D:/work/progs/cad-in-unity/3D XML Example/quad.3dxml",
+  "source_sha256": "2770ee9d050fecb4d67c907438a225f9cd349c97fadd0a413a088bed6ee142aa",
+  "native": {
+    "mesh_resources": 8,
+    "mesh_occurrences": 12,
+    "nodes": 14,
+    "xml_nodes": 12,
+    "resource_triangles": 25406,
+    "visible_triangles": 35014,
+    "bounds_min": [
+      -95.934326171875,
+      5.5429229736328125,
+      -128.95028686523438
+    ],
+    "bounds_max": [
+      664.159423828125,
+      448.1748352050781,
+      320.5780944824219
+    ]
+  },
+  "repacked_audit_matches": true,
+  "independent_xml_resource_triangles": 25406,
+  "companion_documents_rejected_with_explanation": [
+    "CATMaterialRef.3dxml",
+    "CATRepImage.3dxml"
+  ],
+  "standalone_and_integrated_ctest_passed": true,
+  "release_application_build_passed": true
+}

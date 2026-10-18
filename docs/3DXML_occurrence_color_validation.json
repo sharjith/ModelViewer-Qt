@@ -1,0 +1,331 @@
+{
+  "passed": true,
+  "archives": [
+    {
+      "file": "_fbc_001_dmg00005563053_dmg00005563053.3dxml",
+      "independent": {
+        "mesh_bodies": 6,
+        "source_triangles": 58996,
+        "renderable_triangles": 58996,
+        "uvr_members": 13,
+        "xml_members": 0,
+        "annotation_members": 0,
+        "review_members": 1,
+        "collapsed_triangles": 0,
+        "verified_color_overrides": 5
+      },
+      "native": {
+        "bounds_max": [
+          -10.0047607421875,
+          657.769287109375,
+          1373.4757080078125
+        ],
+        "bounds_min": [
+          -332,
+          -199.78118896484375,
+          55.871395111083984
+        ],
+        "mesh_occurrences": 9,
+        "mesh_resources": 9,
+        "nodes": 28,
+        "occurrence_appearances": [
+          {
+            "colors": [
+              [
+                0.501960813999176,
+                0.250980406999588,
+                0.250980406999588,
+                1
+              ],
+              [
+                0.501960813999176,
+                0.250980406999588,
+                0.250980406999588,
+                1
+              ]
+            ],
+            "path": "28"
+          },
+          {
+            "colors": [
+              [
+                1,
+                0.501960813999176,
+                0,
+                1
+              ]
+            ],
+            "path": "32"
+          },
+          {
+            "colors": [
+              [
+                0.501960813999176,
+                0,
+                0,
+                1
+              ]
+            ],
+            "path": "41"
+          },
+          {
+            "colors": [
+              [
+                1,
+                1,
+                0,
+                1
+              ]
+            ],
+            "path": "47"
+          },
+          {
+            "colors": [
+              [
+                0,
+                0.501960813999176,
+                1,
+                1
+              ]
+            ],
+            "path": "53"
+          }
+        ],
+        "passed": true,
+        "resource_triangles": 58996,
+        "resource_vertices": 34814,
+        "source_sha256": "3e8a57234166550365b333632aa311f5fd3de8e1fbd3b8b4b044db7a9a28c73a",
+        "visible_mesh_occurrences": 9,
+        "visible_triangles": 58996,
+        "xml_nodes": 28
+      }
+    },
+    {
+      "file": "_fbc_001_dmg00005921053_dmg00005921053.3dxml",
+      "independent": {
+        "mesh_bodies": 7,
+        "source_triangles": 3370,
+        "renderable_triangles": 3370,
+        "uvr_members": 16,
+        "xml_members": 0,
+        "annotation_members": 0,
+        "review_members": 1,
+        "collapsed_triangles": 0,
+        "verified_color_overrides": 7
+      },
+      "native": {
+        "bounds_max": [
+          2,
+          47.96524429321289,
+          34.64099884033203
+        ],
+        "bounds_min": [
+          -5,
+          -14.306916236877441,
+          -9.755910873413086
+        ],
+        "mesh_occurrences": 7,
+        "mesh_resources": 7,
+        "nodes": 17,
+        "occurrence_appearances": [
+          {
+            "colors": [
+              [
+                0.501960813999176,
+                0.250980406999588,
+                0.250980406999588,
+                1
+              ]
+            ],
+            "path": "38"
+          },
+          {
+            "colors": [
+              [
+                0,
+                0.501960813999176,
+                1,
+                1
+              ]
+            ],
+            "path": "42"
+          },
+          {
+            "colors": [
+              [
+                0,
+                1,
+                0,
+                1
+              ]
+            ],
+            "path": "46"
+          },
+          {
+            "colors": [
+              [
+                1,
+                0.501960813999176,
+                0,
+                1
+              ]
+            ],
+            "path": "50"
+          },
+          {
+            "colors": [
+              [
+                1,
+                1,
+                0,
+                1
+              ]
+            ],
+            "path": "54"
+          },
+          {
+            "colors": [
+              [
+                0.501960813999176,
+                0,
+                1,
+                1
+              ]
+            ],
+            "path": "58"
+          },
+          {
+            "colors": [
+              [
+                1,
+                0,
+                0,
+                1
+              ]
+            ],
+            "path": "62"
+          }
+        ],
+        "passed": true,
+        "resource_triangles": 3370,
+        "resource_vertices": 3483,
+        "source_sha256": "92ea46f11be8550ff71000a452953e52928f475d9cfe480cd68e5de2d3aef50b",
+        "visible_mesh_occurrences": 7,
+        "visible_triangles": 3370,
+        "xml_nodes": 17
+      }
+    },
+    {
+      "file": "ASM-GETRAG_V160.3dxml",
+      "independent": {
+        "mesh_bodies": 188,
+        "source_triangles": 4152382,
+        "renderable_triangles": 4152382,
+        "uvr_members": 152,
+        "xml_members": 0,
+        "annotation_members": 0,
+        "review_members": 1,
+        "collapsed_triangles": 0,
+        "verified_color_overrides": 0
+      },
+      "native": {
+        "bounds_max": [
+          857.5,
+          198.70689392089844,
+          298
+        ],
+        "bounds_min": [
+          -19,
+          -193.45761108398438,
+          -194.8492889404297
+        ],
+        "mesh_occurrences": 553,
+        "mesh_resources": 388,
+        "nodes": 338,
+        "occurrence_appearances": [],
+        "passed": true,
+        "resource_triangles": 4152382,
+        "resource_vertices": 2669781,
+        "source_sha256": "6f95b1a5bd3e5a51db842eef3793ed492c2aa3db5a00c8b37ac33434b79b11b9",
+        "visible_mesh_occurrences": 538,
+        "visible_triangles": 5608912,
+        "xml_nodes": 252
+      }
+    },
+    {
+      "file": "nist-ctc-02-part.3dxml",
+      "independent": {
+        "mesh_bodies": 492,
+        "source_triangles": 61317,
+        "renderable_triangles": 60790,
+        "uvr_members": 0,
+        "xml_members": 492,
+        "annotation_members": 0,
+        "review_members": 0,
+        "collapsed_triangles": 527,
+        "verified_color_overrides": 0
+      },
+      "native": {
+        "bounds_max": [
+          340,
+          820,
+          40.00225830078125
+        ],
+        "bounds_min": [
+          -340,
+          -40,
+          -360
+        ],
+        "mesh_occurrences": 492,
+        "mesh_resources": 492,
+        "nodes": 493,
+        "occurrence_appearances": [],
+        "passed": true,
+        "resource_triangles": 60790,
+        "resource_vertices": 154482,
+        "source_sha256": "0d480a20de89213c3661aa83cd940f2778e3ae480127fcecbca69b8751ec99e0",
+        "visible_mesh_occurrences": 492,
+        "visible_triangles": 60790,
+        "xml_nodes": 493
+      }
+    },
+    {
+      "file": "press_rink_axe_fta.3dxml",
+      "independent": {
+        "mesh_bodies": 17,
+        "source_triangles": 46168,
+        "renderable_triangles": 46168,
+        "uvr_members": 17,
+        "xml_members": 0,
+        "annotation_members": 1,
+        "review_members": 0,
+        "collapsed_triangles": 0,
+        "verified_color_overrides": 0
+      },
+      "native": {
+        "bounds_max": [
+          400.95947265625,
+          685,
+          92.01412963867188
+        ],
+        "bounds_min": [
+          -401.2643127441406,
+          -1555,
+          -459.98333740234375
+        ],
+        "mesh_occurrences": 32,
+        "mesh_resources": 17,
+        "nodes": 37,
+        "occurrence_appearances": [],
+        "passed": true,
+        "resource_triangles": 46168,
+        "resource_vertices": 39366,
+        "source_sha256": "28778061da869c2a1e70a21e527a86c4de7dbed9a18028ea8a100de979ea26b4",
+        "visible_mesh_occurrences": 32,
+        "visible_triangles": 61898,
+        "xml_nodes": 37
+      }
+    }
+  ],
+  "scope": "Native occurrence colors compared independently with source XML; all five geometry counts unchanged."
+}

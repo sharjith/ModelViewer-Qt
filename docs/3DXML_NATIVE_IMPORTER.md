@@ -10,6 +10,11 @@ and looks perfect in ModelViewer. Four additional archives now pass native impor
 checks; their visual acceptance is pending. See [additional layouts and validation](3DXML_additional_layouts.md).
 Measured sample coverage is not universal format coverage.
 
+ZIP packages and standalone `Model_3dxml` assembly documents are supported.
+Loose documents resolve companion files within their containing directory.
+Material/image support documents alone are not renderable assemblies; see
+[loose XML loading and validation](3DXML_loose_xml.md).
+
 ## Code and integration
 
 `include/Import/ThreeDXml` and `src/Import/ThreeDXml` contain `Importer`,
@@ -37,7 +42,13 @@ available. Invalid constant normals can fall back to a triangle normal; unknown
 encodings or missing referenced pool records are rejected. Exact exporter
 quantization is still unproven, despite visual acceptance for the sample.
 
-The 45 BGR face colors use the same numeric RGB/255 and roughness policy as the
+Default-view occurrence RGBA colors now override mesh colors at their addressed
+product paths; descendants inherit the nearest override. Unoverridden occurrences
+retain source face colors. Material variants are cached per source mesh/binding,
+so recoloring one instance cannot alter another. See
+[occurrence-color validation](3DXML_occurrence_colors.md).
+
+The 45 GETRAG BGR face colors use the same numeric RGB/255 and roughness policy as the
 accepted GLB. Full source material properties, textures, analytic CAD surfaces,
 source curves/points and source cameras are outside this implementation.
 TECHREP review attachments are skipped with diagnostics. The measured

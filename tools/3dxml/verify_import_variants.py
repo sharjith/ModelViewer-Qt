@@ -1,5 +1,6 @@
 """Audit provided 3DXML variants against the native importer without exporting geometry."""
 import argparse
+from collections import Counter
 import hashlib
 import json
 from pathlib import Path
@@ -59,7 +60,7 @@ def xml_counts(data):
             visit(e)
     return bodies, raw, rendered
 
-def source_counts(path):
+def source_counts(path, face_palettes=None):
     counts = dict(mesh_bodies=0, source_triangles=0, renderable_triangles=0,
                   uvr_members=0, xml_members=0, annotation_members=0, review_members=0)
     with zipfile.ZipFile(path) as archive:
@@ -91,14 +92,63 @@ def source_counts(path):
             def visit(leaf, mesh, groups, styles):
                 counts['mesh_bodies'] += 1
                 points = mesh['positions_serialized']
-                for face in mesh['finest_faces']:
+                palette=Counter()
+                for face,style in zip(mesh['finest_faces'],styles):
                     for triangle in face['triangles']:
                         counts['source_triangles'] += 1
-                        counts['renderable_triangles'] += nondegenerate(points, triangle)
+                        renderable=nondegenerate(points,triangle)
+                        counts['renderable_triangles'] += renderable
+                        if renderable:
+                            palette[tuple(reversed(style))] += 1
+                if face_palettes is not None:
+                    face_palettes[f"{member}__body_{leaf['offset']}"]=palette
             graph = DECODER['skeleton_graph'](DECODER['join_stream'](data,skeletons[0]),visit)
             DECODER['surface_links'](data,entries,graph)
     counts['collapsed_triangles'] = counts['source_triangles']-counts['renderable_triangles']
     return counts
+
+def check_occurrence_colors(path, native):
+    with zipfile.ZipFile(path) as archive:
+        manifest=ET.fromstring(archive.read('Manifest.xml'))
+        root=next(e.text.strip() for e in manifest.iter() if local(e)=='Root')
+        expected={}
+        for prop in ET.fromstring(archive.read(root)).iter():
+            if local(prop)!='DefaultViewProperty':
+                continue
+            color=next((e for e in prop.iter() if local(e)=='Color'),None)
+            if color is None:
+                continue
+            key='/'.join(e.text.strip().rsplit('#',1)[-1] for e in prop.iter() if local(e)=='id')
+            expected[key]=[int(float(color.attrib[k])*255+0.5)/255 for k in ('red','green','blue')]+[float(color.attrib.get('alpha','1'))]
+    checked=set()
+    for appearance in native['occurrence_appearances']:
+        if not appearance['overridden']:
+            continue
+        key=appearance['path']
+        while key not in expected and key:
+            key=key.rsplit('/',1)[0] if '/' in key else ''
+        assert key in expected, appearance
+        for color in appearance['colors']:
+            assert all(abs(a-b)<1e-6 for a,b in zip(color,expected[key])), (path.name,key,color,expected[key])
+        checked.add(key)
+    assert checked==set(expected), (path.name,checked,expected)
+    return len(checked)
+
+def check_uvr_face_colors(native, face_palettes):
+    checked=0
+    for appearance in native['occurrence_appearances']:
+        if appearance['overridden']:
+            continue
+        actual={}
+        for name,rgba,triangles in zip(appearance['meshes'],appearance['colors'],appearance['triangles']):
+            if name not in face_palettes:
+                continue  # XML tessellation has separate parser fixtures.
+            rgb=tuple(round(v*255) for v in rgba[:3])
+            actual.setdefault(name,Counter())[rgb] += triangles
+        for name,palette in actual.items():
+            assert palette==face_palettes[name], (name,palette,face_palettes[name])
+            checked+=1
+    return checked
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
@@ -112,7 +162,8 @@ def main():
         raise ValueError("No 3DXML archives found")
     with tempfile.TemporaryDirectory() as temporary:
         for path in paths:
-            source=source_counts(path)
+            face_palettes={}
+            source=source_counts(path,face_palettes)
             report=Path(temporary)/'native.json'
             report.unlink(missing_ok=True)
             result=subprocess.run([str(args.executable.resolve()),'--audit',str(path),str(report)],capture_output=True,text=True)
@@ -122,6 +173,8 @@ def main():
             assert native['source_sha256']==hashlib.sha256(path.read_bytes()).hexdigest()
             assert native['mesh_occurrences']>0 and native['visible_triangles']>0
             assert native['resource_triangles']==source['renderable_triangles'], (path.name,source,native)
+            source['verified_color_overrides']=check_occurrence_colors(path,native)
+            source['verified_face_color_occurrences']=check_uvr_face_colors(native,face_palettes)
             native.pop('source',None)
             rows.append(dict(file=path.name,independent=source,native=native))
             print(path.name,source,'PASS',flush=True)

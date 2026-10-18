@@ -4,6 +4,7 @@
 #include "TessellatedReader.h"
 #include <assimp/material.h>
 #include <assimp/metadata.h>
+#include <assimp/SceneCombiner.h>
 #include <algorithm>
 #include <cmath>
 #include <map>
@@ -42,14 +43,15 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
     ImportResult result; result.scene = std::make_unique<aiScene>();
     std::vector<std::unique_ptr<aiMesh>> meshes;
     std::vector<std::unique_ptr<aiMaterial>> materials;
-    std::map<unsigned,unsigned> palette;
-    auto material = [&](unsigned rgb) {
-        auto found = palette.find(rgb); if (found != palette.end()) return found->second;
+    std::map<std::pair<unsigned,ai_real>,unsigned> palette;
+    auto material = [&](unsigned rgb, ai_real alpha = 1) {
+        const auto key=std::make_pair(rgb,alpha);
+        auto found = palette.find(key); if (found != palette.end()) return found->second;
         auto mat = std::make_unique<aiMaterial>();
         aiString name(QStringLiteral("face_rgb_%1").arg(rgb,6,16,QLatin1Char('0')).toUtf8().constData());
-        aiColor4D color(ai_real((rgb>>16)&255)/255,ai_real((rgb>>8)&255)/255,ai_real(rgb&255)/255,1);
+        aiColor4D color(ai_real((rgb>>16)&255)/255,ai_real((rgb>>8)&255)/255,ai_real(rgb&255)/255,alpha);
         aiColor3D ambient(0,0,0), specular(.2f,.2f,.2f);
-        ai_real metal = 0, rough = static_cast<ai_real>(std::sqrt(2.0/26)), shininess = 24, opacity = 1;
+        ai_real metal = 0, rough = static_cast<ai_real>(std::sqrt(2.0/26)), shininess = 24, opacity = alpha;
         int shading = aiShadingMode_PBR_BRDF;
         mat->AddProperty(&name,AI_MATKEY_NAME);
         mat->AddProperty(&color,1,AI_MATKEY_BASE_COLOR); mat->AddProperty(&color,1,AI_MATKEY_COLOR_DIFFUSE);
@@ -57,7 +59,7 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         mat->AddProperty(&metal,1,AI_MATKEY_METALLIC_FACTOR); mat->AddProperty(&rough,1,AI_MATKEY_ROUGHNESS_FACTOR);
         mat->AddProperty(&shininess,1,AI_MATKEY_SHININESS); mat->AddProperty(&opacity,1,AI_MATKEY_OPACITY);
         mat->AddProperty(&shading,1,AI_MATKEY_SHADING_MODEL);
-        unsigned index = static_cast<unsigned>(materials.size()); palette[rgb] = index; materials.push_back(std::move(mat)); return index;
+        unsigned index = static_cast<unsigned>(materials.size()); palette[key] = index; materials.push_back(std::move(mat)); return index;
     };
     quint64 collapsedTriangles = 0;
     std::map<QString,std::vector<BodyMeshes>> resources;
@@ -139,12 +141,44 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         auto& group = resources[member];
         for (const auto& occurrence : geometry.occurrences) group.push_back({occurrence.path,bodyResources.at(occurrence.body)});
     }
-    QSet<QString> active, visitedHidden; size_t nodeCount=0;
-    std::function<std::unique_ptr<aiNode>(const QString&,const QString&,const QString&,const QString&,const aiMatrix4x4&,bool,int)> build;
-    build = [&](const QString& reference,const QString& name,const QString& path,const QString& id,const aiMatrix4x4& local,bool parentVisible,int depth) {
+    // aiMesh owns its material binding. Reuse the first binding in place and
+    // deep-copy only when the same source mesh needs another occurrence color.
+    std::vector<unsigned> baseMaterials;
+    for (const auto& mesh : meshes) baseMaterials.push_back(mesh->mMaterialIndex);
+    std::map<std::pair<unsigned,unsigned>,unsigned> variants;
+    QSet<unsigned> assigned;
+    auto appearance = [&](const std::vector<unsigned>& source, const aiColor4D* overrideColor) {
+        std::vector<unsigned> output;
+        for (unsigned index : source) {
+            unsigned target=baseMaterials.at(index);
+            if (overrideColor) {
+                unsigned rgb=0;
+                for (int k=0;k<3;++k) rgb=(rgb<<8)|unsigned(std::lround((*overrideColor)[k]*255));
+                target=material(rgb,overrideColor->a);
+            }
+            const auto key=std::make_pair(index,target);
+            auto found=variants.find(key);
+            if (found!=variants.end()) { output.push_back(found->second); continue; }
+            unsigned variant=index;
+            if (assigned.contains(index)) {
+                options.check(); aiMesh* copy=nullptr;
+                Assimp::SceneCombiner::Copy(&copy,meshes.at(index).get());
+                std::unique_ptr<aiMesh> owned(copy);
+                owned->mMaterialIndex=target; variant=static_cast<unsigned>(meshes.size()); meshes.push_back(std::move(owned));
+            } else { assigned.insert(index); meshes.at(index)->mMaterialIndex=target; }
+            variants[key]=variant; output.push_back(variant);
+        }
+        return output;
+    };
+    QSet<QString> active, visitedHidden, visitedColors; size_t nodeCount=0;
+    std::function<std::unique_ptr<aiNode>(const QString&,const QString&,const QString&,const QString&,const aiMatrix4x4&,bool,const aiColor4D*,int)> build;
+    build = [&](const QString& reference,const QString& name,const QString& path,const QString& id,const aiMatrix4x4& local,bool parentVisible,const aiColor4D* inheritedColor,int depth) {
         options.check();
         if (depth > 128 || ++nodeCount > 100000 || active.contains(reference)) throw Error(QStringLiteral("Cyclic/excessive product graph at %1").arg(path));
         active.insert(reference); const auto& ref=doc.references[reference];
+        auto override=doc.occurrenceColors.constFind(path);
+        const aiColor4D* color=inheritedColor;
+        if (override!=doc.occurrenceColors.cend()) { color=&override.value(); visitedColors.insert(path); }
         bool visible=parentVisible && !doc.hiddenPaths.contains(path);
         if (doc.hiddenPaths.contains(path)) visitedHidden.insert(path);
         auto node=std::make_unique<aiNode>(name.isEmpty() ? ref.name.toUtf8().constData() : name.toUtf8().constData()); node->mTransformation=local;
@@ -159,23 +193,24 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
             const auto rep=doc.representations[repId];
             if (rep.format != QLatin1String("UVR") && rep.format != QLatin1String("TESSELLATED")) continue;
             const auto& bodies=resources.at(rep.member);
-            if (bodies.size()==1 && ref.representations.size()==1) attach(*node,bodies.front().meshes);
+            if (bodies.size()==1 && ref.representations.size()==1) attach(*node,appearance(bodies.front().meshes,color));
             else for (const auto& body : bodies) {
                 if (++nodeCount > 100000) throw Error(QStringLiteral("Expanded body node limit exceeded"));
                 auto child=std::make_unique<aiNode>(QStringLiteral("%1__body_%2").arg(rep.name,body.path).toUtf8().constData());
-                attach(*child,body.meshes);
+                attach(*child,appearance(body.meshes,color));
                 if (!visible) result.hiddenNodes.insert(child.get());
                 nodes.push_back(std::move(child));
             }
         }
         for (const auto& childId : ref.instances) {
             const auto child=doc.instances[childId];
-            nodes.push_back(build(child.reference,child.name,path.isEmpty() ? child.id : path+'/'+child.id,child.id,child.local,visible,depth+1));
+            nodes.push_back(build(child.reference,child.name,path.isEmpty() ? child.id : path+'/'+child.id,child.id,child.local,visible,color,depth+1));
         }
         children(*node,nodes); active.remove(reference); return node;
     };
-    result.scene->mRootNode=build(doc.root,doc.references[doc.root].name,{},{},aiMatrix4x4(),true,0).release();
+    result.scene->mRootNode=build(doc.root,doc.references[doc.root].name,{},{},aiMatrix4x4(),true,nullptr,0).release();
     if (visitedHidden != doc.hiddenPaths) throw Error(QStringLiteral("Unresolved visibility occurrence path"));
+    if (visitedColors.size()!=doc.occurrenceColors.size()) throw Error(QStringLiteral("Unresolved color occurrence path"));
     // Transfer ownership only after all potentially throwing allocations succeed.
     result.scene->mMeshes=new aiMesh*[meshes.size()]{};
     result.scene->mNumMeshes=static_cast<unsigned>(meshes.size());

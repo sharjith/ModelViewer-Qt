@@ -1,6 +1,8 @@
 #include "ArchiveReader.h"
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QXmlStreamReader>
 #include <minizip/unzip.h>
 #include <minizip/ioapi.h>
 #include <limits>
@@ -18,6 +20,22 @@ QString ArchiveReader::memberPath(const QString& input)
 
 ArchiveReader::ArchiveReader(const QString& path, const Options& options) : _path(path), _options(options)
 {
+    _options.check();
+    QFile probe(path);
+    if (!probe.open(QIODevice::ReadOnly)) throw Error(QStringLiteral("Cannot open 3DXML file: %1").arg(path));
+    if (!probe.peek(4).startsWith("PK")) {
+        if (probe.size()>128LL*1024*1024) throw Error(QStringLiteral("3DXML XML document size limit exceeded"));
+        QXmlStreamReader xml(&probe);
+        while (!xml.atEnd() && !xml.isStartElement()) {
+            _options.check(); xml.readNext();
+            if (xml.isDTD() || xml.isEntityReference()) throw Error(QStringLiteral("Unsupported XML DTD/entity"));
+        }
+        if (!xml.isStartElement() || xml.name()!=QLatin1String("Model_3dxml"))
+            throw Error(QStringLiteral("Expected a 3DXML ZIP package or standalone Model_3dxml document: %1").arg(path));
+        const QFileInfo info(path); _directory=info.canonicalPath(); _rootDocument=info.fileName();
+        return;
+    }
+    probe.close();
     // QFile callbacks preserve Unicode archive paths on Windows as well as Unix.
     zlib_filefunc64_def io{};
     io.opaque = &_path;
@@ -74,6 +92,32 @@ QByteArray ArchiveReader::read(const QString& member)
 {
     _options.check();
     const QString key = memberPath(member);
+    if (!_directory.isEmpty()) {
+        const QString canonical=QFileInfo(QDir(_directory).filePath(key)).canonicalFilePath();
+        QString prefix=QDir::fromNativeSeparators(_directory);
+        if (!prefix.endsWith('/')) prefix+=QLatin1Char('/');
+#ifdef Q_OS_WIN
+        constexpr Qt::CaseSensitivity caseMode=Qt::CaseInsensitive;
+#else
+        constexpr Qt::CaseSensitivity caseMode=Qt::CaseSensitive;
+#endif
+        if (canonical.isEmpty()) throw Error(QStringLiteral("Missing 3DXML companion file: %1").arg(key));
+        if (!QDir::fromNativeSeparators(canonical).startsWith(prefix,caseMode))
+            throw Error(QStringLiteral("3DXML companion escapes the model directory: %1").arg(key));
+        QFile file(canonical);
+        if (!file.open(QIODevice::ReadOnly)) throw Error(QStringLiteral("Cannot read 3DXML companion: %1").arg(key));
+        const qint64 size=file.size();
+        if (size<0 || size>128LL*1024*1024 || _expanded+quint64(size)>1024ULL*1024*1024)
+            throw Error(QStringLiteral("3DXML expanded-data limit exceeded: %1").arg(key));
+        QByteArray data; data.reserve(static_cast<qsizetype>(size));
+        while (data.size()<size) {
+            _options.check(); const auto chunk=file.read(qMin<qint64>(1024*1024,size-data.size()));
+            if (chunk.isEmpty()) throw Error(QStringLiteral("Truncated/unreadable 3DXML companion: %1").arg(key));
+            data.append(chunk);
+        }
+        if (!file.atEnd()) throw Error(QStringLiteral("3DXML companion changed during read: %1").arg(key));
+        _expanded+=data.size(); return data;
+    }
     if (!_names.contains(key) || unzLocateFile(_zip, _names.value(key).constData(), 1) != UNZ_OK)
         throw Error(QStringLiteral("Missing 3DXML member: %1").arg(key));
     unz_file_info64 info{};

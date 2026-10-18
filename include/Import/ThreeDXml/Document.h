@@ -34,6 +34,7 @@ struct Document {
     QHash<QString, Representation> representations;
     QHash<QString, Instance> instances;
     QSet<QString> hiddenPaths;
+    QHash<QString, aiColor4D> occurrenceColors;
 };
 struct Face {
     std::vector<std::array<unsigned, 3>> triangles;
