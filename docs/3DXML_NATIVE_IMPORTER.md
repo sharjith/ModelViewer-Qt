@@ -1,20 +1,19 @@
 # Native 3DXML importer
 
-The C++ importer implements the owner-supplied sample's researched tessellated
-UVR layout. XCAF dispatch is preserved first, followed by native `.3dxml`,
+The C++ importer implements the supplied archives' researched binary UVR and
+XML TESSELLATED geometry layouts. XCAF dispatch is preserved first, followed by native `.3dxml`,
 then ordinary Assimp formats. No intermediate GLB/OBJ, Python runtime, vendor
 SDK or B-Rep conversion is involved at runtime.
 
 The owner has now confirmed that the original GETRAG archive loads directly
-and looks perfect in ModelViewer. Other supplied archives expose additional
-layouts (TESSELLATED XML and different binary graph/attribute records) and
-are being investigated separately; GETRAG acceptance is not general-format
-coverage.
+and looks perfect in ModelViewer. Four additional archives now pass native import and independent triangle-count
+checks; their visual acceptance is pending. See [additional layouts and validation](3DXML_additional_layouts.md).
+Measured sample coverage is not universal format coverage.
 
 ## Code and integration
 
 `include/Import/ThreeDXml` and `src/Import/ThreeDXml` contain `Importer`,
-`ArchiveReader`, `ProductStructureReader`, `RepresentationReader`, `SceneBuilder`
+`ArchiveReader`, `ProductStructureReader`, `RepresentationReader`, `TessellatedReader`, `SceneBuilder`
 and their value types. ZIP access uses a declared minizip dependency; XML uses
 QtCore. `PackedReader` preserves its packed-bit reservoir across raw fields.
 
@@ -28,7 +27,8 @@ The scene retains all original XML nodes and local matrices. Native positions
 stay in source XYZ, with the supported sample's Z-up convention. Multibody
 representations get identity body children. Indexed vertices are split at
 normal-binding boundaries and grouped by body/material; no coordinate welding,
-normal averaging, winding correction or topology repair occurs.
+normal averaging or winding correction occurs. Exact zero-area source triangles
+are omitted with a diagnostic.
 
 Candidate dominant-axis pool normals are used with normalized constant-face
 overrides. `Options::parsedNormals=false` selects derived flat normals for
@@ -40,7 +40,8 @@ quantization is still unproven, despite visual acceptance for the sample.
 The 45 BGR face colors use the same numeric RGB/255 and roughness policy as the
 accepted GLB. Full source material properties, textures, analytic CAD surfaces,
 source curves/points and source cameras are outside this implementation.
-TECHREP review attachments are skipped with diagnostics.
+TECHREP review attachments are skipped with diagnostics. The measured
+annotation-only V4V5_FDT container is accepted without annotation rendering.
 
 ## Visibility, units and progress
 

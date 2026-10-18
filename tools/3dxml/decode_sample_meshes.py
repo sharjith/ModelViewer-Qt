@@ -124,7 +124,7 @@ def style(reader):
     # Only these measured sample style forms are understood. Preserve bytes without
     # making material support part of the geometry milestone. The three stored
     # color bytes are BGR (corroborated by the later owner-supplied reference).
-    if reader.raw(5) not in (bytes.fromhex("30 04 04 ff ff"), bytes.fromhex("b0 04 04 ff 7f")):
+    if reader.raw(5) not in (bytes.fromhex("30 04 04 ff ff"), bytes.fromhex("b0 04 04 ff 7f"), bytes.fromhex("b0 04 04 ff 00")):
         raise ValueError(f"unsupported style at {reader.pos - 5:#x}")
     return list(reader.raw(3))
 
@@ -142,7 +142,7 @@ def decode(data, offset, reader=None):
     prefix = reader.raw(3)
     if prefix != b"\0\0\0":
         raise ValueError("unsupported three-byte prefix")
-    width = (count - 1).bit_length()
+    width = count.bit_length()
     raw_positions = reader.bits(1)
     if raw_positions:
         floats = reader.floats(count * 3)

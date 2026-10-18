@@ -2,6 +2,7 @@
 #include "ArchiveReader.h"
 #include "ProductStructureReader.h"
 #include "RepresentationReader.h"
+#include "TessellatedReader.h"
 #include "PackedReader.h"
 #include "../../include/Import/SceneImportCounts.h"
 #include <QCoreApplication>
@@ -33,8 +34,40 @@ void writeZip(const QString& path,const std::vector<std::pair<QByteArray,QByteAr
     require(zipClose(zip,nullptr)==ZIP_OK,"close ZIP fixture");
 }
 
+
+QByteArray binaryFixture(const QByteArray& skeleton) {
+    auto integer=[](quint32 v) { QByteArray b(4,'\0'); qToBigEndian(v,reinterpret_cast<uchar*>(b.data())); return b; };
+    auto shortInteger=[](quint16 v) { QByteArray b(2,'\0'); qToBigEndian(v,reinterpret_cast<uchar*>(b.data())); return b; };
+    const QByteArray name=QByteArray::fromHex("0053006b0065006c00650074006f006e0000");
+    QByteArray catalog=integer(12+14+name.size())+integer(2)+integer(1);
+    catalog+=integer(14+name.size())+integer(3)+shortInteger(2)+integer(name.size())+name;
+    const quint32 streamAt=128+54+4+name.size()+54;
+    const quint32 catalogAt=streamAt+skeleton.size();
+    auto descriptor=[&](quint32 id,quint16 kind,quint32 physical,quint32 size) {
+        return integer(54)+integer(id)+shortInteger(kind)+integer(kind)+integer(size)+integer(0)+QByteArray(8,'\0')+integer(1)+integer(physical)+integer(size)+integer(size)+integer(0)+integer(0);
+    };
+    QByteArray data(128,'\0'); data.replace(0,8,QByteArray("V5_CFV3\0",8));
+    data.replace(8,4,integer(catalogAt+catalog.size())); data.replace(89,2,shortInteger(3));
+    data+=descriptor(2,1,catalogAt,catalog.size());
+    data+=integer(name.size())+name+descriptor(3,2,streamAt,skeleton.size());
+    data+=skeleton+catalog; return data;
+}
 void synthetic()
 {
+
+    const QByteArray emptyGroup=QByteArray(1,char(0x62))+QByteArray(35,'\0')+QByteArray::fromHex("ff03010000ff00000000");
+    const QByteArray extended=QByteArray::fromHex("a3ff35000000")+emptyGroup.mid(1)+QByteArray::fromHex("0000803f");
+    require(RepresentationReader::read(binaryFixture(extended),{}).bodies.empty(),"extended empty group and descriptor catalog");
+    auto broken=extended; broken[2]=0x34;
+    rejects([&] { RepresentationReader::read(binaryFixture(broken),{}); });
+    broken=extended; broken[broken.size()-1]=0x40;
+    rejects([&] { RepresentationReader::read(binaryFixture(broken),{}); });
+    QByteArray sparse=emptyGroup.left(41)+QByteArray::fromHex("ff020000000101")+emptyGroup+QByteArray::fromHex("0101");
+    require(RepresentationReader::read(binaryFixture(sparse),{}).bodies.empty(),"sparse cache definition and reference");
+    QByteArray material=QByteArray(1,char(0x62))+QByteArray(35,'\0')+QByteArray::fromHex("ff030101000001")+QByteArray(15*4,'\0');
+    material+=QByteArray::fromHex("000001010500010100")+QByteArray(19*4,'\0')+QByteArray::fromHex("0100ff00000000");
+    require(RepresentationReader::read(binaryFixture(material),{}).bodies.empty(),"image-free graph material");
+
     QByteArray packed=QByteArray::fromHex("efcdab89ff785634120000c03f");
     PackedReader bits(packed);
     require(bits.bits(5)==(0x89abcdefU&31),"packed low bits");
@@ -94,6 +127,35 @@ void synthetic()
     require(doc.hiddenPaths.contains("10/11"),"visibility occurrence path");
     Options cancel; cancel.cancelled=[] { return true; };
     rejects([&] { ProductStructureReader::read(xml,cancel); });
+    const QByteArray tessellated=R"(<XMLRepresentation xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'>
+      <Root xsi:type='BagRepType'><Rep xsi:type='PolygonalRepType'>
+      <SurfaceAttributes><Color red='1' green='0' blue='0'/></SurfaceAttributes>
+      <Faces><Face triangles='0 1 2'/><Face strips='0 1 2 3'><SurfaceAttributes><Color red='0' green='1' blue='0'/></SurfaceAttributes></Face><Face fans='0 1 2 3'/></Faces>
+      <PolygonalLOD><Faces><Face triangles='99 99 99'/></Faces></PolygonalLOD>
+      <VertexBuffer><Positions>0 0 0,1 0 0,0 1 0,1 1 0</Positions><Normals>0 0 1,0 0 1,0 0 1,0 0 1</Normals></VertexBuffer>
+      </Rep></Root></XMLRepresentation>)";
+
+    const QByteArray tessellatedProduct=R"(<ProductStructure root='1'><Reference3D id='1' name='test'/>
+      <ReferenceRep id='2' format='TESSELLATED' associatedFile='part.3DRep'/>
+      <InstanceRep id='3'><IsAggregatedBy>1</IsAggregatedBy><IsInstanceOf>2</IsInstanceOf></InstanceRep></ProductStructure>)";
+    writeZip(zip,{{"Manifest.xml","<m><Root>main.xml</Root></m>"},{"main.xml",tessellatedProduct},{"part.3DRep",tessellated}});
+    auto importedTessellation=Importer::read(zip);
+    require(importedTessellation.scene->mNumMeshes==2&&countSceneMeshOccurrences(importedTessellation.scene->mRootNode)==2,"XML meshes attached to product scene");
+
+    auto geometry=TessellatedReader::read(tessellated,{});
+    require(geometry.bodies.size()==1&&geometry.occurrences.size()==1,"XML body occurrence");
+    const auto& body=geometry.bodies.front();
+    require(body.positions.size()==4&&body.normals.size()==4&&body.faces.size()==3,"XML buffers and finest LOD");
+    require(body.faces[0].rgb==0xff0000&&body.faces[1].rgb==0x00ff00,"XML inherited and face colors");
+    require(body.faces[1].triangles==std::vector<std::array<unsigned,3>>{{0,1,2},{2,1,3}},"XML strip winding");
+    require(body.faces[2].triangles==std::vector<std::array<unsigned,3>>{{0,1,2},{0,2,3}},"XML fan winding");
+    auto invalid=tessellated; invalid.replace("triangles='0 1 2'","triangles='0 1 8'");
+    rejects([&] { TessellatedReader::read(invalid,{}); });
+    invalid=tessellated; invalid.replace("0 0 1,0 0 1,0 0 1,0 0 1","0 0 1");
+    rejects([&] { TessellatedReader::read(invalid,{}); });
+    rejects([&] { TessellatedReader::read(tessellated,cancel); });
+    rejects([&] { TessellatedReader::read("<!DOCTYPE x><XMLRepresentation/>",{}); });
+
 }
 
 void sample(const QString& archive, const QString& glbPath, const QString& occurrencesPath, const QString& output)
@@ -198,11 +260,48 @@ void sample(const QString& archive, const QString& glbPath, const QString& occur
     QFile out(output); require(out.open(QIODevice::WriteOnly),"cannot write audit"); out.write(QJsonDocument(report).toJson());
     std::cout<<QJsonDocument(report).toJson().constData();
 }
+
+void audit(const QString& path,const QString& output) {
+    auto result=Importer::read(path); const auto& scene=*result.scene;
+    quint64 triangles=0,vertices=0,visibleTriangles=0; unsigned nodes=0,visibleMeshes=0;
+    for(unsigned i=0;i<scene.mNumMeshes;++i) {
+        const auto& mesh=*scene.mMeshes[i]; triangles+=mesh.mNumFaces; vertices+=mesh.mNumVertices;
+        require(mesh.HasNormals(),"audit normals");
+        for(unsigned j=0;j<mesh.mNumVertices;++j) for(int k=0;k<3;++k)
+            require(std::isfinite(mesh.mVertices[j][k])&&std::isfinite(mesh.mNormals[j][k]),"audit finite geometry");
+        for(unsigned j=0;j<mesh.mNumFaces;++j) { require(mesh.mFaces[j].mNumIndices==3,"audit triangles");
+            for(unsigned k=0;k<3;++k) require(mesh.mFaces[j].mIndices[k]<mesh.mNumVertices,"audit indices"); }
+    }
+    aiVector3D low(1e30f,1e30f,1e30f),high(-1e30f,-1e30f,-1e30f);
+    std::function<void(const aiNode*,const aiMatrix4x4&)> walk=[&](const aiNode* n,const aiMatrix4x4& parent) {
+        ++nodes; auto world=parent*n->mTransformation;
+        if(!result.hiddenNodes.contains(n)) for(unsigned i=0;i<n->mNumMeshes;++i) {
+            ++visibleMeshes; const auto& mesh=*scene.mMeshes[n->mMeshes[i]]; visibleTriangles+=mesh.mNumFaces;
+            for(unsigned j=0;j<mesh.mNumVertices;++j) { auto p=world*mesh.mVertices[j]; for(int k=0;k<3;++k) { low[k]=std::min(low[k],p[k]); high[k]=std::max(high[k],p[k]); } }
+        }
+        for(unsigned i=0;i<n->mNumChildren;++i) walk(n->mChildren[i],world);
+    };
+    walk(scene.mRootNode,aiMatrix4x4());
+    require(visibleMeshes>0&&visibleTriangles>0,"audit placed visible geometry");
+    QJsonObject report{{"source",path},{"source_sha256",QString::fromLatin1(QCryptographicHash::hash(readFile(path),QCryptographicHash::Sha256).toHex())},
+        {"mesh_resources",int(scene.mNumMeshes)},{"resource_vertices",double(vertices)},{"resource_triangles",double(triangles)},
+        {"nodes",int(nodes)},{"xml_nodes",int(result.occurrencePaths.size())},{"mesh_occurrences",int(countSceneMeshOccurrences(scene.mRootNode))},
+        {"visible_mesh_occurrences",int(visibleMeshes)},{"visible_triangles",double(visibleTriangles)},
+        {"bounds_min",QJsonArray{low.x,low.y,low.z}},{"bounds_max",QJsonArray{high.x,high.y,high.z}},{"passed",true}};
+    QFile file(output); require(file.open(QIODevice::WriteOnly),"audit output"); file.write(QJsonDocument(report).toJson());
+    std::cout<<QJsonDocument(report).toJson().constData();
+}
 int main(int argc,char** argv)
 {
     QCoreApplication app(argc,argv);
     try {
         synthetic();
+        if(argc==4&&QString::fromLocal8Bit(argv[1])==QLatin1String("--audit")) audit(QString::fromLocal8Bit(argv[2]),QString::fromLocal8Bit(argv[3]));
+        if(argc==2) {
+            auto imported=ThreeDXml::Importer::read(QString::fromLocal8Bit(argv[1]),{});
+            quint64 triangles=0; for(unsigned i=0;i<imported.scene->mNumMeshes;++i) triangles+=imported.scene->mMeshes[i]->mNumFaces;
+            std::cout<<"Imported "<<imported.scene->mNumMeshes<<" unique meshes, "<<triangles<<" resource triangles\n";
+        }
         if(argc==5) sample(QString::fromLocal8Bit(argv[1]),QString::fromLocal8Bit(argv[2]),QString::fromLocal8Bit(argv[3]),QString::fromLocal8Bit(argv[4]));
         std::cout<<"3DXML checks passed\n"; return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }

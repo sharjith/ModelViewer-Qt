@@ -55,12 +55,25 @@ QString utf16(const QByteArray& data) {
 }
 std::vector<Entry> compound(const QByteArray& data, const Options& options) {
     need(data.startsWith(QByteArray("V5_CFV3\0", 8)) && data.size() <= 128*1024*1024, "compound signature/size");
-    const quint64 rootAt64 = quint64(be(data, 91))+512;
-    need(rootAt64 <= quint64(data.size()), "root catalog offset");
-    const qsizetype rootAt = static_cast<qsizetype>(rootAt64);
-    const quint32 rootSize = be(data, rootAt);
-    need(rootAt64+rootSize == be(data, 8) && rootAt64+rootSize <= quint64(data.size()), "root catalog boundary");
-    const quint32 rootId = be(data, rootAt+4);
+    // The allocation-header bias varies with ancillary data. Resolve the root
+    // through its descriptor and validate it against the independent catalog end.
+    const quint32 rootId = 2;
+    QByteArray rootPattern = QByteArray::fromHex("00000036000000020001");
+    std::vector<Entry> rootCandidates;
+    qsizetype rootSearch = -1;
+    while ((rootSearch = data.indexOf(rootPattern, rootSearch+1)) >= 0) {
+        try {
+            auto e = descriptor(data, rootSearch, rootId, 1);
+            if (e.extents.size()!=1) continue;
+            const auto& extent=e.extents.front();
+            if (quint64(extent.physical)+extent.size!=be(data,8)) continue;
+            const auto catalog=join(data,e);
+            if (catalog.size()>=12 && be(catalog,0)==catalog.size() && be(catalog,4)==rootId) rootCandidates.push_back(e);
+        } catch(const Error&) { }
+    }
+    need(rootCandidates.size()==1,"root catalog descriptor");
+    const qsizetype rootAt=rootCandidates.front().extents.front().physical;
+    const quint32 rootSize=rootCandidates.front().total;
     std::vector<Entry> entries;
     QSet<quint32> seen;
     std::function<void(const QByteArray&, quint32, int)> children;
@@ -150,7 +163,7 @@ using Reader = PackedReader;
 
 unsigned color(Reader& r) {
     const QByteArray prefix(r.raw(5), 5);
-    need(prefix == QByteArray::fromHex("300404ffff") || prefix == QByteArray::fromHex("b00404ff7f"), "face style");
+    need(prefix == QByteArray::fromHex("300404ffff") || prefix == QByteArray::fromHex("b00404ff7f") || prefix == QByteArray::fromHex("b00404ff00"), "face style");
     const unsigned b = r.byte(), g = r.byte(), red = r.byte(); return (red<<16)|(g<<8)|b;
 }
 
@@ -189,7 +202,8 @@ Body mesh(Reader& r, const Options& options) {
     const unsigned vertices = r.count(1000000), records = r.count(1000000);
     need(vertices > 10 && records > 0 && records <= vertices, "unsupported position/normal counts");
     r.expect("000000"); unsigned width = 0;
-    for (unsigned v = vertices-1; v; v >>= 1) ++width;
+    // The stored width includes the count itself, including powers of two.
+    for (unsigned v = vertices; v; v >>= 1) ++width;
     body.positions.resize(vertices);
     if (r.bits(1)) for (auto& p : body.positions) p = r.vector();
     else {
@@ -249,6 +263,13 @@ Body mesh(Reader& r, const Options& options) {
 
 void attributes(Reader& r, unsigned flags) {
     if (!(flags & 0x10000)) return;
+    if (r.pos < r.data.size() && r.data[r.pos] == 0) {
+        r.expect("0001");
+        for (int i=0;i<15;++i) r.scalar();
+        r.expect("000001010500010100");
+        for (int i=0;i<19;++i) r.scalar();
+        r.expect("0100"); return;
+    }
     need(r.byte() == 1, "graph attribute prefix");
     for (int i = 0; i < 15; ++i) r.scalar();
     r.expect("010101"); r.count(std::numeric_limits<quint32>::max()); need(r.byte() == 3, "attribute image format");
@@ -262,6 +283,13 @@ void attributes(Reader& r, unsigned flags) {
 
 Geometry RepresentationReader::read(const QByteArray& member, const Options& options) {
     const auto entries = compound(member, options);
+    const bool hasSkeleton=std::any_of(entries.begin(),entries.end(),[](const Entry& e){return e.name==QLatin1String("Skeleton")&&e.kind==2;});
+    if (!hasSkeleton) {
+        const bool hasSurfaces=std::any_of(entries.begin(),entries.end(),[](const Entry& e){return e.name==QLatin1String("SurfacicReps");});
+        const bool annotations=std::any_of(entries.begin(),entries.end(),[](const Entry& e){return e.name==QLatin1String("V4V5_FDT")&&e.kind==1;});
+        need(!hasSurfaces&&annotations,"missing Skeleton without annotation stream");
+        return {};
+    }
     auto stream = [&](const QString& name) {
         const Entry* found = nullptr;
         for (const auto& e : entries) if (e.name == name && e.kind == 2) { need(!found, "ambiguous logical stream"); found = &e; }
@@ -277,7 +305,9 @@ Geometry RepresentationReader::read(const QByteArray& member, const Options& opt
     std::function<void(int)> node = [&](int depth) {
         options.check(); need(depth <= 128 && graph.size() < 100000, "Skeleton graph limit");
         const qsizetype start = r.pos; const unsigned tag = r.byte(); graph[start] = Node{};
-        if (tag == 0x62) {
+        if (tag == 0x62 || tag == 0xa3) {
+            const qsizetype spanStart = r.pos;
+            const unsigned span = tag == 0xa3 ? r.count() : 0;
             r.raw(35); attributes(r, r.count(std::numeric_limits<quint32>::max())); const unsigned count = r.count(100000);
             for (unsigned i = 0; i < count; ++i) {
                 const unsigned mode = r.byte(); qsizetype target;
@@ -285,9 +315,13 @@ Geometry RepresentationReader::read(const QByteArray& member, const Options& opt
                 else if (mode == 1) {
                     const unsigned index = r.count();
                     if (cache.count(index)) { need(!active.count(index), "cyclic cached node"); target = cache.at(index); }
-                    else { need(index == cache.size(), "nonsequential cache definition"); target = r.pos; cache[index] = target; active.insert(index); node(depth+1); active.erase(index); }
+                    else { target = r.pos; cache[index] = target; active.insert(index); node(depth+1); active.erase(index); }
                 } else { fail(QStringLiteral("graph child mode")); }
                 graph[start].children.push_back(target);
+            }
+            if (tag == 0xa3) {
+                need(r.scalar() == 1.0f, "non-unit extended group scalar");
+                need(quint64(r.pos) == quint64(spanStart)+span+1, "extended group span");
             }
         } else if (tag == 0x95) {
             const qsizetype spanStart = r.pos; const unsigned span = r.count(); r.raw(35); r.expect("ffff020001");

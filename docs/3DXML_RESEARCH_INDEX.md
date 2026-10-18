@@ -13,6 +13,11 @@ attachment. See the [complete mesh research and importer contract](3DXML_complet
 Full sample geometry is ready for implementation with owner-accepted parsed normals;
 exact stored smooth-normal quantization remains explicitly unproven.
 
+The [additional archive layouts](3DXML_additional_layouts.md) cover XML
+TESSELLATED, extended binary groups, image-free materials, allocation padding
+and power-of-two index widths. All five supplied archives pass native import
+and independent triangle-count checks; additional-file GUI acceptance is pending.
+
 ## Current specifications
 
 The [final stored-normal pass](3DXML_stored_normal_final_pass.md) confirms the

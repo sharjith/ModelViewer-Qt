@@ -15,7 +15,7 @@ The existing dirty `vcpkg` submodule was not modified by this work.
 The former requirement that the two leading counts match was too strict.
 The first count N describes positions, while the second M describes the
 normal-tag records. Coordinate control bytes still use `ceil(N/4)`; normal
-tag bytes use `ceil(M/2)`. Index width remains `bit_length(N-1)`.
+tag bytes use `ceil(M/2)`. Index width remains `bit_length(N)`.
 The normal-word constraint remains `W=2*count(tags<6)`.
 
 This change, with no changes to primitive decoding or stored indices, makes

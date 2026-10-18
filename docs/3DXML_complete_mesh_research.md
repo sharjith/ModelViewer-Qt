@@ -1,5 +1,10 @@
 # Complete sample mesh traversal and importer contract
 
+Update: the [additional sample pass](3DXML_additional_layouts.md) supersedes
+the GETRAG-only catalog-address bias and sequential-cache-ID assumptions below.
+It adds XML tessellation and binary variants while preserving the original
+GETRAG geometry/normal audit.
+
 2026-10-18, `feature/3dxml-importer`. This supersedes the former first-block
 coverage limits. It resolves the geometry/traversal blockers for the owner's
 supplied `ASM-GETRAG_V160.3dxml`, whose SHA-256 is

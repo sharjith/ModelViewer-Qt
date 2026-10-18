@@ -98,7 +98,7 @@ explicit offsets remain only in the historical three-fixture entry point.
    ten first blocks; differences range from 1 to 14 records in this sample.
 2. Read three ordinary bytes. These are `00 00 00` in the supported cases;
    their semantics remain unnamed.
-3. Set index bit width `b = bit_length(N - 1)`.
+3. Set index bit width `b = bit_length(N)`.
 4. Read one packed bit: `rawPositions`. With an empty reservoir on the first
    mesh this loads the first packed word; later leaves can consume existing
    bits. Unused bits remain available across coordinate/attribute fields and

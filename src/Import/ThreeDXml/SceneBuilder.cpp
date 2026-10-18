@@ -1,6 +1,7 @@
 #include "SceneBuilder.h"
 #include "ArchiveReader.h"
 #include "RepresentationReader.h"
+#include "TessellatedReader.h"
 #include <assimp/material.h>
 #include <assimp/metadata.h>
 #include <algorithm>
@@ -58,10 +59,15 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         mat->AddProperty(&shading,1,AI_MATKEY_SHADING_MODEL);
         unsigned index = static_cast<unsigned>(materials.size()); palette[rgb] = index; materials.push_back(std::move(mat)); return index;
     };
+    quint64 collapsedTriangles = 0;
     std::map<QString,std::vector<BodyMeshes>> resources;
     QStringList members;
+    QHash<QString,QString> formats;
     for (auto it = doc.representations.cbegin(); it != doc.representations.cend(); ++it) {
-        if (it->format == QLatin1String("UVR")) members.append(it->member);
+        if (it->format == QLatin1String("UVR") || it->format == QLatin1String("TESSELLATED")) {
+            if(formats.contains(it->member)&&formats.value(it->member)!=it->format) throw Error(QStringLiteral("Conflicting representation formats"));
+            formats[it->member]=it->format; members.append(it->member);
+        }
         else if (it->format == QLatin1String("TECHREP")) result.warnings.append(QStringLiteral("Skipped TECHREP review attachment: %1").arg(it->member));
         else throw Error(QStringLiteral("Unsupported 3DXML representation format: %1").arg(it->format));
     }
@@ -70,7 +76,7 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         options.check(); const QString member = members[memberIndex];
         if (options.progress) options.progress(member, memberIndex, members.size());
         Geometry geometry;
-        try { geometry = RepresentationReader::read(archive.read(member),options); }
+        try { geometry = formats.value(member)==QLatin1String("TESSELLATED") ? TessellatedReader::read(archive.read(member),options) : RepresentationReader::read(archive.read(member),options); }
         catch (const Error& e) { throw Error(QStringLiteral("%1: %2").arg(member,QString::fromUtf8(e.what()))); }
         std::vector<std::vector<unsigned>> bodyResources;
         for (const auto& body : geometry.bodies) {
@@ -92,7 +98,8 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
                     const double ux=double(b.x)-a.x, uy=double(b.y)-a.y, uz=double(b.z)-a.z;
                     const double vx=double(c.x)-a.x, vy=double(c.y)-a.y, vz=double(c.z)-a.z;
                     const double x=uy*vz-uz*vy,y=uz*vx-ux*vz,z=ux*vy-uy*vx,len=std::sqrt(x*x+y*y+z*z);
-                    if (!(len > 0) || !std::isfinite(len)) throw Error(QStringLiteral("Degenerate/nonfinite triangle in %1").arg(member));
+                    if (!std::isfinite(len)) throw Error(QStringLiteral("Nonfinite triangle in %1").arg(member));
+                    if (!(len > 0)) { ++collapsedTriangles; continue; } // Collapsed source tessellation has no renderable area.
                     aiVector3D flat(static_cast<ai_real>(x/len),static_cast<ai_real>(y/len),static_cast<ai_real>(z/len));
                     std::array<unsigned,3> output;
                     for (size_t corner = 0; corner < 3; ++corner) {
@@ -100,7 +107,7 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
                         // High bit distinguishes fallback triangle bindings from source pool/face bindings.
                         quint64 binding = (quint64(1)<<63) | (quint64(fi)<<32) | ti;
                         if (options.parsedNormals && validConstant) { normal=constant; binding=(quint64(1)<<62)|fi; }
-                        else if (options.parsedNormals && !face.constant) {
+                        else if (options.parsedNormals && !face.constant && !body.normals.empty()) {
                             if (source >= body.normals.size()) throw Error(QStringLiteral("Missing pool normal for triangle corner in %1").arg(member));
                             const auto n = body.normals[source];
                             if (std::isfinite(n.SquareLength()) && n.SquareLength() > 0) { normal=n; binding=0; }
@@ -117,6 +124,7 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
             }
             std::vector<unsigned> bodyMeshes;
             for (auto& p : primitives) {
+                if (p.triangles.empty()) continue;
                 auto mesh = std::make_unique<aiMesh>();
                 mesh->mName = aiString(QStringLiteral("%1__body_%2").arg(member).arg(body.offset).toUtf8().constData());
                 mesh->mPrimitiveTypes=aiPrimitiveType_TRIANGLE; mesh->mMaterialIndex=material(p.rgb);
@@ -149,7 +157,7 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         std::vector<std::unique_ptr<aiNode>> nodes;
         for (const auto& repId : ref.representations) {
             const auto rep=doc.representations[repId];
-            if (rep.format != QLatin1String("UVR")) continue;
+            if (rep.format != QLatin1String("UVR") && rep.format != QLatin1String("TESSELLATED")) continue;
             const auto& bodies=resources.at(rep.member);
             if (bodies.size()==1 && ref.representations.size()==1) attach(*node,bodies.front().meshes);
             else for (const auto& body : bodies) {
@@ -177,6 +185,7 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
     for (size_t i=0;i<materials.size();++i) result.scene->mMaterials[i]=materials[i].release();
     if (!result.scene->mNumMeshes) throw Error(QStringLiteral("3DXML contains no supported triangle geometry"));
     if (options.progress) options.progress(QStringLiteral("Complete"),members.size(),members.size());
+    if (collapsedTriangles) result.warnings.append(QStringLiteral("Skipped %1 collapsed source triangles.").arg(collapsedTriangles));
     return result;
 }
 }

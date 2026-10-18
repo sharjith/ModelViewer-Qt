@@ -18,6 +18,7 @@ add_executable(threedxml_tests threedxml_tests.cpp
     ${REPO}/src/Import/ThreeDXml/ArchiveReader.cpp
     ${REPO}/src/Import/ThreeDXml/ProductStructureReader.cpp
     ${REPO}/src/Import/ThreeDXml/RepresentationReader.cpp
+    ${REPO}/src/Import/ThreeDXml/TessellatedReader.cpp
     ${REPO}/src/Import/ThreeDXml/SceneBuilder.cpp
     ${REPO}/src/Import/ThreeDXml/Importer.cpp)
 target_include_directories(threedxml_tests PRIVATE ${REPO}/include/Import/ThreeDXml)

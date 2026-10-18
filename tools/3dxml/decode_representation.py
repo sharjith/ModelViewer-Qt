@@ -84,11 +84,27 @@ def catalog_records(payload, expected_id):
 def compound_streams(data):
     if not data.startswith(b"V5_CFV3\0") or len(data) > 128 * 1024 * 1024:
         raise ValueError("unsupported compound signature or size")
-    # Measured header address origin; validated against storage descriptor below.
-    root_offset = be32(data, 91) + 512
-    root_size = be32(data, root_offset)
-    if root_offset + root_size != be32(data, 8):
-        raise ValueError("compound root catalog/header boundary mismatch")
+    # Allocation padding differs in the press files. Resolve the root through
+    # the descriptor, checked against the independent header catalog endpoint.
+    roots = []
+    pattern = struct.pack(">IIH",54,2,1)
+    start = 0
+    while (at := data.find(pattern,start)) >= 0:
+        start = at+1
+        try:
+            entry = descriptor(data,at,2,1)
+            if len(entry['extents']) != 1:
+                continue
+            extent = entry['extents'][0]
+            payload = join_stream(data,entry)
+            if extent['physical']+extent['bytes']==be32(data,8) and len(payload)>=12 and be32(payload,0)==len(payload) and be32(payload,4)==2:
+                roots.append(entry)
+        except (ValueError,struct.error):
+            pass
+    if len(roots)!=1:
+        raise ValueError("absent/ambiguous root catalog descriptor")
+    root_offset = roots[0]['extents'][0]['physical']
+    root_size = roots[0]['bytes']
     payload = data[root_offset:root_offset + root_size]
     root_id = be32(payload, 4)
     entries = []
@@ -211,6 +227,17 @@ def skeleton_graph(data, visit=None):
         if not flags & 0x10000:
             return None
         start = reader.pos
+        if data[reader.pos] == 0:
+            if reader.raw(2) != bytes.fromhex("0001"):
+                raise ValueError("unsupported image-free material prefix")
+            parameters = reader.floats(15)
+            if reader.raw(9) != bytes.fromhex("000001010500010100"):
+                raise ValueError("unsupported image-free mapping prefix")
+            mapping = reader.floats(19)
+            if reader.raw(2) != bytes.fromhex("0100"):
+                raise ValueError("unsupported image-free mapping suffix")
+            return {"offset":start,"end":reader.pos,"parameters":parameters,
+                    "mapping_parameters":mapping,"image_bytes":0}
         # Narrow measured material/environment-image form. Preserve parameters;
         # this only enables structural skipping, not material interpretation.
         if reader.byte() != 1:
@@ -244,7 +271,9 @@ def skeleton_graph(data, visit=None):
             raise ValueError("graph resource limit")
         start = reader.pos
         tag = reader.byte()
-        if tag == 0x62:
+        if tag in (0x62, 0xa3):
+            span_start = reader.pos
+            span = reader.count() if tag == 0xa3 else None
             header = reader.raw(35)
             flags = reader.count()
             extra = attributes(flags)
@@ -272,8 +301,6 @@ def skeleton_graph(data, visit=None):
                         entry["child_links"].append({"mode": "reference", "cache": index,
                                                      "target": cache[index]})
                     else:
-                        if index != len(cache):
-                            raise ValueError("nonsequential graph cache definition")
                         target = reader.pos
                         cache[index] = target
                         active.add(index)
@@ -283,6 +310,11 @@ def skeleton_graph(data, visit=None):
                                                      "target": target})
                 else:
                     raise ValueError("unsupported graph child reference mode")
+            if tag == 0xa3:
+                scalar = reader.floats(1)[0]
+                if scalar != 1 or reader.pos != span_start+span+1:
+                    raise ValueError("extended group span/scalar mismatch")
+                entry["extended_group_scalar"] = scalar
         elif tag == 0x95:
             span_start = reader.pos
             span = reader.count()
@@ -396,6 +428,11 @@ def main():
                 entries = compound_streams(data)
                 row["compound_entries"] = entries
                 skeletons = [e for e in entries if e["name"] == "Skeleton" and e["kind"] == 2]
+                if not skeletons and not any(e['name']=='SurfacicReps' for e in entries) and any(e['name']=='V4V5_FDT' and e['kind']==1 for e in entries):
+                    row['status']='non_mesh_annotation_container'
+                    rows.append(row)
+                    print(member,'annotation container',flush=True)
+                    continue
                 if len(skeletons) != 1:
                     raise ValueError("no unique Skeleton stream")
                 def visit(leaf, mesh, groups, styles):
@@ -427,6 +464,7 @@ def main():
     complete = [r for r in rows if r["status"] == "complete_skeleton_consumption"]
     meshes = [m for r in complete for m in r["graph"]["meshes"]]
     summary = {"complete_uvr_members": len(complete),
+               "non_mesh_annotation_containers": sum(r["status"]=="non_mesh_annotation_container" for r in rows),
                "non_mesh_review_attachments": sum(r["status"] == "non_mesh_review_attachment" for r in rows),
                "unresolved_members": sum(r["status"] == "unresolved" for r in rows),
                "mesh_free_members": [r["member"] for r in complete if not r["graph"]["meshes"]],
