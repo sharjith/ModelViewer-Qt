@@ -51,18 +51,17 @@ def main():
         def material(rgb):
             if rgb not in palette:
                 palette[rgb] = len(doc['materials'])
-                # glTF factors are linear. Interpret the CAD byte palette as sRGB.
+                # Match the owner-verified OBJ numeric diffuse values. Source
+                # color-space semantics remain unproven; do not impose gamma.
                 values = np.asarray(rgb, dtype=float) / 255
-                linear = np.where(values <= .04045, values / 12.92,
-                                  ((values + .055) / 1.055) ** 2.4)
                 doc['materials'].append(dict(name='face_rgb_' + bytes(rgb).hex(),
-                    pbrMetallicRoughness=dict(baseColorFactor=linear.tolist()+[1.0],
-                                             metallicFactor=0.0, roughnessFactor=.6),
+                    pbrMetallicRoughness=dict(baseColorFactor=values.tolist()+[1.0],
+                                             metallicFactor=0.0, roughnessFactor=float(np.sqrt(2/26))),
                     extras=dict(sourceRGB=list(rgb))))
             return palette[rgb]
         occurrences = scene['occurrences']
         members = sorted({rep['associatedFile'].removeprefix('urn:3DXML:')
-                          for item in occurrences for rep in item['representations']
+                          for item in occurrences if item['visible'] for rep in item['representations']
                           if rep['format'] == 'UVR'})
         for member in members:
             data = archive.read(member)
@@ -105,17 +104,19 @@ def main():
                         material=material(rgb), mode=4,
                         extras=dict(sourceLeafOffset=offset, triangles=len(indices))))
                 primitive_resources[offset] = primitives
-            primitives = []
+            body_meshes = []
             for offset, path in instances():
+                primitives = []
                 for primitive in primitive_resources[offset]:
                     primitive = dict(primitive)
                     primitive['extras'] = dict(primitive['extras'], sourceBodyPath=list(path))
                     primitives.append(primitive)
-            count = sum(p['extras']['triangles'] for p in primitives)
-            if primitives:
-                rep_meshes[member] = len(doc['meshes'])
-                doc['meshes'].append(dict(name=Path(member).stem, primitives=primitives,
-                                          extras=dict(sourceMember=member)))
+                if primitives:
+                    body_meshes.append(len(doc['meshes']))
+                    doc['meshes'].append(dict(name=Path(member).stem+'__body_'+('_'.join(map(str,path)) or '0'),
+                        primitives=primitives, extras=dict(sourceMember=member, sourceBodyPath=list(path))))
+            rep_meshes[member] = body_meshes
+            count = sum(p['extras']['triangles'] for index in body_meshes for p in doc['meshes'][index]['primitives'])
             mesh_triangles[member] = count
             audit.append(dict(member=member, triangles=count, bodies=len(list(instances()))))
             print(member, count, 'triangles', flush=True)
@@ -137,12 +138,24 @@ def main():
             reps = [rep['associatedFile'].removeprefix('urn:3DXML:')
                     for rep in item['representations'] if rep['format'] == 'UVR']
             assert len(reps) <= 1, 'multiple representations require additional child nodes'
-            if reps and reps[0] in rep_meshes:
-                node['mesh'] = rep_meshes[reps[0]]
+            if reps and item['visible'] and len(rep_meshes.get(reps[0], [])) == 1:
+                node['mesh'] = rep_meshes[reps[0]][0]
             doc['nodes'].append(node)
         for item in occurrences:
             path = tuple(item['path'])
             doc['nodes'][paths[path[:-1]]].setdefault('children', []).append(paths[path])
+        for item in occurrences:
+            if not item['visible']:
+                continue
+            for rep in item['representations']:
+                members_meshes = rep_meshes.get(rep['associatedFile'].removeprefix('urn:3DXML:'), [])
+                if len(members_meshes) > 1:
+                    for mesh_index in members_meshes:
+                        body = doc['meshes'][mesh_index]
+                        node_index = len(doc['nodes'])
+                        doc['nodes'].append(dict(name=body['name'], mesh=mesh_index,
+                            matrix=column_matrix(np.eye(4)), extras=dict(sourceBodyPath=body['extras']['sourceBodyPath'])))
+                        doc['nodes'][paths[tuple(item['path'])]].setdefault('children', []).append(node_index)
         size = binary.tell()
         doc['buffers'] = [dict(byteLength=size)]
         json_bytes = json.dumps(doc, separators=(',', ':'), ensure_ascii=True).encode('utf-8')
@@ -163,13 +176,13 @@ def main():
     with args.output.open('rb') as output:
         digest = hashlib.file_digest(output, 'sha256').hexdigest()
     report = dict(glb=args.output.name, sha256=digest, bytes=args.output.stat().st_size,
-                  xml_nodes=len(doc['nodes']), hidden_occurrences=sum(not i['visible'] for i in occurrences),
+                  xml_nodes=len(occurrences)+1, total_nodes=len(doc['nodes']), hidden_occurrences=sum(not i['visible'] for i in occurrences),
                   mesh_resources=len(doc['meshes']), materials=len(palette),
                   visible_triangles=visible_triangles, representations=audit,
                   units='metres; source millimetres inferred',
                   normal_policy='derived flat normals',
-                  color_policy='BGR face palette to RGB, sRGB interpreted as linear glTF factors',
-                  visibility='KHR_node_visibility; unsupported readers may show hidden helpers')
+                  color_policy='BGR face palette to RGB/255; same numeric diffuse and derived roughness as verified OBJ',
+                  visibility='hidden XML nodes retained without geometry; no visibility-extension dependency for display')
     args.output.with_suffix('.manifest.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps({k:v for k,v in report.items() if k != 'representations'}, indent=2))
 

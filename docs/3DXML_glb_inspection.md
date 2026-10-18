@@ -1,5 +1,46 @@
 # Hierarchical GLB inspection checkpoint
 
+## Corrected owner-inspection export (v2)
+
+Use `out/3dxml-research/export/ASM-GETRAG_V160_hierarchy_v2.glb`
+(297,474,648 bytes). The original export below is superseded.
+
+Owner screenshots exposed three export/import compatibility issues:
+
+* The original GLB attached 15 effectively hidden helper mesh occurrences.
+  Although ModelViewer parses `KHR_node_visibility`, its static-file load path
+  skips runtime visibility setup when `GltfAnimationData::isEmpty()` returns
+  true (no clips). Thus these helpers appeared. V2 retains all hidden XML
+  nodes without mesh attachments and does not depend on visibility support.
+* ModelViewer enables Assimp `OptimizeMeshes` by default. In the original
+  export, grouping multiple bodies under one representation node allowed
+  18 same-material body splits to merge. The count is exactly explained by
+  538 visible OBJ body/color splits + 15 hidden helpers - 18 merges = 535.
+  V2 uses one mesh per body, with identity child nodes for multibody parts.
+  All 252 original XML nodes remain, plus 86 body nodes: 338 total nodes,
+  185 shared body mesh resources and 538 visible body/material primitives.
+* The original export imposed sRGB-to-linear conversion and roughness 0.6.
+  The verified OBJ supplies direct RGB/255 diffuse values and shininess 24.
+  ModelViewer reads those diffuse values directly and derives roughness as
+  `sqrt(2/(24+2))`. V2 supplies the same numeric base colors and roughness.
+  Source color-space semantics and full material properties remain unproven;
+  matching this inspection baseline does not establish them.
+
+V2 retains 5,608,912 visible triangles. Its 4,126,750 resource triangles omit
+26,632 triangles belonging only to hidden helper definitions. Independent
+validation checks all original hierarchy links and matrices, every normal,
+the absence of hidden mesh attachments, shared body resources, every
+occurrence/body/color triangle count, numeric palette/roughness equality,
+538 body/color splits, and bounds matching the verified OBJ. All pass.
+The official Khronos validator reports zero errors and zero warnings, with
+217 informational messages (identity matrices and unsupported visibility
+metadata). ModelViewer visual confirmation remains pending.
+
+Use the reproduction commands below with `_hierarchy_v2.glb` as output and
+verification input. The scripts now generate the corrected policy by default.
+
+## Original export record (superseded)
+
 Generated 2026-10-18 from the owner-supplied sample using our existing decoder.
 No application code changed. Source-derived artifacts remain ignored locally.
 

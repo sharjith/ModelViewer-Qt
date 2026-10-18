@@ -1,5 +1,6 @@
 """Independently check GLB hierarchy, placements, geometry, and OBJ world bounds."""
 import argparse
+from collections import Counter
 import json
 from pathlib import Path
 import struct
@@ -54,8 +55,12 @@ def main():
             count += len(p)//3
         resource_triangles.append(count)
     fixture = json.loads(args.occurrences.read_text(encoding='utf-8'))
+    baseline = json.loads(args.obj_manifest.read_text(encoding='utf-8'))
+    obj_bodies = {(tuple(o['occurrence_path']), o['member'], tuple(o['body_path'])): o
+                  for o in baseline['objects']}
+    matched_bodies = set()
     expected_nodes = {tuple(item['path']): item for item in fixture['occurrences']}
-    assert len(doc['nodes']) == len(expected_nodes)+1
+    assert sum('sourcePath' in n.get('extras', {}) for n in doc['nodes']) == len(expected_nodes)
     root_basis = np.array([[.001, 0, 0, 0], [0, 0, .001, 0],
                            [0, -.001, 0, 0], [0, 0, 0, 1]])
     seen, paths, world = set(), {}, {}
@@ -73,7 +78,7 @@ def main():
         if index == 0:
             path = ()
             assert np.array_equal(local, root_basis)
-        else:
+        elif 'sourcePath' in node.get('extras', {}):
             path = tuple(node['extras']['sourcePath'])
             item = expected_nodes[path]
             assert path[:-1] == parent_path and node['name'] == item['name']
@@ -81,10 +86,27 @@ def main():
             assert np.allclose(placement, root_basis @ item['world_matrix_rows'], atol=1e-12, rtol=0)
             assert visible == item['visible']
             hidden += not visible
+            if not visible:
+                assert 'mesh' not in node, 'hidden helpers must not depend on reader visibility support'
+        else:
+            assert 'sourceBodyPath' in node['extras']
+            assert np.array_equal(local, np.eye(4)) and visible
+            path = parent_path
         paths[path] = index
         world[index] = placement
         if visible and 'mesh' in node:
             mesh = doc['meshes'][node['mesh']]
+            key = (path, mesh['extras']['sourceMember'], tuple(mesh['extras']['sourceBodyPath']))
+            assert key not in matched_bodies
+            matched_bodies.add(key)
+            expected_colors = Counter()
+            for run in obj_bodies[key]['face_materials']:
+                expected_colors[run['material']] += run['triangles']
+            actual_colors = Counter()
+            for primitive in mesh['primitives']:
+                actual_colors[doc['materials'][primitive['material']]['name']] += (
+                    doc['accessors'][primitive['attributes']['POSITION']]['count']//3)
+            assert actual_colors == expected_colors
             visible_triangles += resource_triangles[node['mesh']]
             for primitive in mesh['primitives']:
                 points = values(primitive['attributes']['POSITION']).astype(np.float64)
@@ -96,7 +118,7 @@ def main():
     assert doc['scenes'][doc['scene']]['nodes'] == [0]
     visit(0, np.eye(4), (), True)
     assert len(seen) == len(doc['nodes'])
-    baseline = json.loads(args.obj_manifest.read_text(encoding='utf-8'))
+    assert matched_bodies == set(obj_bodies)
     expected_low = np.min([o['bounds_min'] for o in baseline['objects']], axis=0)*.001
     expected_high = np.max([o['bounds_max'] for o in baseline['objects']], axis=0)*.001
     assert np.allclose(low, expected_low, atol=1e-10, rtol=0)
@@ -107,15 +129,30 @@ def main():
     for node in doc['nodes']:
         if 'mesh' in node:
             member = doc['meshes'][node['mesh']]['extras']['sourceMember']
-            assert bindings.setdefault(member, node['mesh']) == node['mesh']
+            body = tuple(doc['meshes'][node['mesh']]['extras']['sourceBodyPath'])
+            assert bindings.setdefault((member, body), node['mesh']) == node['mesh']
+    obj_splits = sum(len({run['material'] for run in o['face_materials'] if run['triangles']})
+                     for o in baseline['objects'])
+    primitive_occurrences = sum(len(doc['meshes'][n['mesh']]['primitives'])
+                                for n in doc['nodes'] if 'mesh' in n)
+    assert primitive_occurrences == obj_splits
+    for material in doc['materials']:
+        rgb = baseline['face_color_palette'][material['name']]
+        pbr = material['pbrMetallicRoughness']
+        assert np.allclose(pbr['baseColorFactor'][:3], np.array(rgb)/255, atol=1e-12, rtol=0)
+        assert abs(pbr['roughnessFactor']-np.sqrt(2/26)) < 1e-12
     report = dict(passed=True, nodes=len(seen), hidden_occurrences=hidden,
                   mesh_resources=len(doc['meshes']), materials=len(doc['materials']),
                   resource_triangles=sum(resource_triangles), visible_triangles=visible_triangles,
+                  primitive_occurrences=primitive_occurrences, obj_body_color_splits=obj_splits,
                   bounds_metres_min=low.tolist(), bounds_metres_max=high.tolist(),
                   checks=['all XML parent links, names and local/world transforms',
                           'all accessor ranges, finite values and bounds',
                           'every triangle normal and winding', 'shared representation bindings',
-                          'default visibility', 'visible triangle count and world bounds match verified OBJ'])
+                          'hidden helper geometry omitted', 'palette and roughness match OBJ numeric values',
+                          'body/color split counts match OBJ',
+                          'every occurrence/body/color triangle count matches OBJ',
+                          'visible triangle count and world bounds match verified OBJ'])
     args.glb.with_suffix('.verification.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))
 
