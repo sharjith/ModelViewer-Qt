@@ -126,4 +126,5 @@ Implement in reviewable stages:
 
 Small synthetic decoder fixtures can be tracked. Keep the supplied archive and
 large source-derived geometry outside version control. Record reproducible
-sample validation separately. Implementation work is not started by this plan.
+sample validation separately. Native implementation is now present; see
+`3DXML_NATIVE_IMPORTER.md` for validation and interactive acceptance checks.

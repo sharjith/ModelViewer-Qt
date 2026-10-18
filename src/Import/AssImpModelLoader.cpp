@@ -1,6 +1,8 @@
 ﻿#include "AssImpModelLoader.h"
 
 #include "BRepToAssimpConverter.h"
+#include "ThreeDXml/Importer.h"
+#include "SceneImportCounts.h"
 #include "IXCAFDocProcessor.hxx"
 #include "XCAFDocProcessorFactory.hxx"
 #include "XCAFSTEPProcessor.hxx"
@@ -920,6 +922,8 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	_totalNodeCount = 0;
 	_processedNodeCount = 0;
 	_processedMeshCount = 0;
+	_totalMeshOccurrences = 0;
+	_threeDXml = {};
 
 	_materialProcessor.clearGLBCaches();
 	_materialProcessor.clearLoadedTextures();
@@ -940,6 +944,26 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	if (processor)
 	{
 		_scene = processor->processFile(path);
+	}
+	else if (fi.suffix().compare("3dxml", Qt::CaseInsensitive) == 0)
+	{
+		try {
+			ThreeDXml::Options options;
+			options.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
+			options.progress = [this](const QString&, int done, int total) {
+				emit fileReadProcessed(total ? float(done)/total : 0.0f);
+			};
+			_threeDXml = ThreeDXml::Importer::read(fi.absoluteFilePath(), options);
+			_scene = _threeDXml.scene.get();
+			for (const QString& warning : _threeDXml.warnings) qWarning().noquote() << warning;
+		} catch (const std::exception& e) {
+			_errorMessage = QString::fromUtf8(e.what());
+			if (_loadingCancelled || MainWindow::isFileLoadCancelRequested()) {
+				_loadingCancelled = true; _errorMessage = "Model loading cancelled by user."; emit loadingCancelled();
+			}
+			emit loadingFinished(false, nullptr);
+			return;
+		}
 	}
 	else // all Assimp models
 	{
@@ -1067,6 +1091,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 
 	_sceneStats = collectSceneMeshInfo(_scene);
 	_totalNodeCount = countNodes(_scene->mRootNode);
+	_totalMeshOccurrences = countSceneMeshOccurrences(_scene->mRootNode);
 
 	if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
 	{
@@ -1259,13 +1284,14 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 		aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];		
 		AssImpMeshData myMesh = processMesh(mesh, scene, node->mMeshes[i], scene->mNumMeshes, globalTransform, node->mName.C_Str());
 
+		myMesh.initiallyVisible = !_threeDXml.hiddenNodes.contains(node);
 		_meshes.push_back(myMesh);            // full mesh store
 		++_processedMeshCount;
 		emit nodeMeshProgressUpdated(
 			_processedNodeCount,
 			_totalNodeCount,
 			_processedMeshCount,
-			_sceneStats.meshCount,
+			_totalMeshOccurrences,
 			_needsUVGeneration && _selectedUVMethod != UVMethod::None);
 
 
@@ -1293,7 +1319,7 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 	}
 
 	const bool uvProcessed = _needsUVGeneration && _selectedUVMethod != UVMethod::None;
-	emit nodeMeshProgressUpdated(_processedNodeCount, _totalNodeCount, _processedMeshCount, _sceneStats.meshCount, uvProcessed);
+	emit nodeMeshProgressUpdated(_processedNodeCount, _totalNodeCount, _processedMeshCount, _totalMeshOccurrences, uvProcessed);
 }
 
 int AssImpModelLoader::countNodes(const aiNode* node) const
@@ -2144,6 +2170,7 @@ bool AssImpModelLoader::regenerateUVs(SceneMesh* mesh,
 void AssImpModelLoader::freeScene()
 {
 	_importer.FreeScene();
+	_threeDXml = {};
 	_scene = nullptr;
 }
 
@@ -2170,16 +2197,17 @@ SceneMeshInfo AssImpModelLoader::collectSceneMeshInfo(const aiScene* scene)
 		for (unsigned int i = 0; i < node->mNumMeshes; ++i)
 		{
 			unsigned int meshIndex = node->mMeshes[i];
-			if (!processedMeshes.insert(meshIndex).second)
-				continue;
+			const bool firstOccurrence = processedMeshes.insert(meshIndex).second;
 
 			const aiMesh* mesh = scene->mMeshes[meshIndex];
 			int numFaces = static_cast<int>(mesh->mNumFaces);
 			int numVerts = static_cast<int>(mesh->mNumVertices);
 
-			info.totalVertices += numVerts;
-			info.totalTriangles += numFaces;
-			info.meshCount++;
+			if (firstOccurrence) {
+				info.totalVertices += numVerts;
+				info.totalTriangles += numFaces;
+				info.meshCount++;
+			}
 
 			if (numFaces > info.largestMeshTriangles)
 			{

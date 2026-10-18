@@ -3,6 +3,16 @@ cmake_minimum_required(VERSION 3.18)
 project(ModelViewer)
 
 find_package(assimp REQUIRED)
+find_package(minizip CONFIG QUIET)
+if(TARGET MINIZIP::minizip)
+    set(MV_MINIZIP_TARGET MINIZIP::minizip)
+elseif(TARGET MINIZIP::minizipstatic)
+    set(MV_MINIZIP_TARGET MINIZIP::minizipstatic)
+else()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(MINIZIP REQUIRED IMPORTED_TARGET minizip)
+    set(MV_MINIZIP_TARGET PkgConfig::MINIZIP)
+endif()
 
 # aiTextureType_ANISOTROPY (KHR_materials_anisotropy) was only added in a
 # later Assimp release than some system-package Ubuntu versions ship, and
@@ -384,6 +394,7 @@ qt6_wrap_ui(ui_wrapped ${ui_sources})
 # CREATE THE TARGET - This must come before any target_* commands
 # ============================================================================
 add_executable(ModelViewer)
+target_link_libraries(ModelViewer PRIVATE ${MV_MINIZIP_TARGET})
 
 set(APP_VERSION_MAJOR 2026)
 set(APP_VERSION_MINOR 11)
@@ -1252,5 +1263,6 @@ endif()
 # GUI-free unit tests (simulation result readers/boundary extraction). Off by default; see tests/CMakeLists.txt.
 option(MV_BUILD_TESTS "Build the GUI-free unit tests" OFF)
 if(MV_BUILD_TESTS)
+    enable_testing()
     add_subdirectory(tests)
 endif()

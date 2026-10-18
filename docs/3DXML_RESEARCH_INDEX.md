@@ -2,7 +2,8 @@
 
 Work branch: `feature/3dxml-importer`, created from `dev` at the owner's
 request. Research scripts/documentation are versioned here. Application
-implementation has not started. Existing unrelated `vcpkg` working changes
+implementation is now present; see the [native importer and validation](3DXML_NATIVE_IMPORTER.md).
+Existing unrelated `vcpkg` working changes
 were excluded from research commits.
 
 2026-10-18: merged `origin/dev` (through `5f5decb`) without conflicts. The

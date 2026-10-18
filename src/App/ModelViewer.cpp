@@ -1990,7 +1990,7 @@ void ModelViewer::updateDisplayList()
 		const QList<QUuid> pendingSceneUuids = _viewportWidget->getPendingSceneUuids();
 		for (const QUuid& uuid : pendingSceneUuids)
 		{
-			if (!uuid.isNull())
+			if (!uuid.isNull() && !_viewportWidget->isInitiallyHiddenImportMesh(uuid))
 				_visibleMeshUuids.insert(uuid);
 		}
 	}

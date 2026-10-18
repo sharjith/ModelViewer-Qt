@@ -38,6 +38,7 @@
 #include "PunctualLights.h"
 #include "GltfAnimationData.h"
 #include "GltfCameraData.h"
+#include "ThreeDXml/Document.h"
 #include "GltfVariantData.h"
 
 
@@ -100,6 +101,7 @@ struct SceneMeshInfo
 
 struct AssImpMeshData
 {
+	bool initiallyVisible = true;
 	QString name;
 	std::vector<Vertex> vertices;
 	std::vector<unsigned int> indices;
@@ -226,6 +228,7 @@ public:
 	SceneUpAxis sceneUpAxis() const { return _sceneUpAxis; }
 
 	const aiScene* getScene() const { return _scene; }
+	bool hasThreeDXmlScene() const { return bool(_threeDXml.scene); }
 
 	// Returns variant data parsed from KHR_materials_variants.
 	// Empty when the loaded file has no variant extension.
@@ -303,9 +306,11 @@ private:
 	int _batchSize = 20;
 
 	const aiScene* _scene = nullptr; // Holds the loaded scene
+	ThreeDXml::ImportResult _threeDXml; // Owns custom aiScene independently of Assimp::Importer.
 	
 	SceneMeshInfo _sceneStats; // Holds statistics about the scene
 	int _totalNodeCount = 0;
+	int _totalMeshOccurrences = 0;
 	int _processedNodeCount = 0;
 	int _processedMeshCount = 0;
 

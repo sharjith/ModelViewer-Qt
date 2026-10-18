@@ -53,6 +53,7 @@
     "libjpeg-turbo",
     "freetype",
     "glm",
+    "minizip",
     "opencascade",
     "meshoptimizer",
     "cgal",

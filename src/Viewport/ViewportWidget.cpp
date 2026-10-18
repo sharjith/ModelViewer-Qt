@@ -5378,6 +5378,9 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 	_sceneRuntime.setLoadCancelled(false);
 	_sceneRuntime.pendingSceneUuids().clear();
 	const bool hadExistingMeshes = !_sceneRuntime.meshStore().empty();
+	_initiallyHiddenImportMeshes.clear();
+	const size_t meshCountBeforeLoad = _sceneRuntime.meshStore().size();
+	const bool isThreeDXmlImport = fileName.endsWith(".3dxml", Qt::CaseInsensitive);
 	MainWindow::clearFileLoadCancel();
 	bool success = false;
 
@@ -5527,6 +5530,17 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 
 		makeCurrent();
 		std::vector<AssImpMeshData> meshes = loadingWorker->getMeshes();
+		const bool rollbackThreeDXml = isThreeDXmlImport && (!success || _sceneRuntime.loadCancelled());
+		if (rollbackThreeDXml) {
+			// A native archive import is atomic: never attach a complete hierarchy
+			// to only the progressive batches that happened to arrive before Cancel.
+			_sceneRuntime.pendingSceneUuids().clear();
+			while (_sceneRuntime.meshStore().size() > meshCountBeforeLoad)
+				delete _sceneRuntime.detachMeshAt(static_cast<int>(_sceneRuntime.meshStore().size()-1));
+			_initiallyHiddenImportMeshes.clear();
+			meshes.clear();
+			_viewer->updateDisplayList();
+		}
 		if (meshes.empty())
 		{
 			if (error.isEmpty())
@@ -5548,12 +5562,17 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 				{
 					SceneMesh* mesh = createMeshFromData(meshData);
 					addToDisplay(mesh);
+					if (!meshData.initiallyVisible) {
+						_initiallyHiddenImportMeshes.insert(mesh->uuid());
+						_sceneRuntime.displayedObjectsIds().pop_back();
+						_sceneRuntime.hiddenObjectsIds().push_back(static_cast<int>(_sceneRuntime.meshStore().size()-1));
+					}
 					_sceneRuntime.pendingSceneUuids().append(mesh->uuid());
 				}
 			}
 		}
 
-		_sceneRuntime.setAssimpScene(loadingWorker->getScene());
+		_sceneRuntime.setAssimpScene(rollbackThreeDXml ? nullptr : loadingWorker->getScene());
 		_sceneRuntime.globalSceneTransform() = loadingWorker->getGlobalSceneTransform();
 		const bool autoOrientCameraEnabled = loadingWorker->isAutoOrientActive();
 		const SceneUpAxis sceneUpAxis = loadingWorker->sceneUpAxis();
@@ -5568,6 +5587,11 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 					SceneUtils::glmToAiMatrix(_sceneRuntime.globalSceneTransform()),
 					loadingWorker->wasAutoOrientApplied(),
 					loadingWorker->wasAutoScaleApplied());
+				if (loadingWorker->hasThreeDXmlScene()) {
+					// Use the just-appended import, including when this file was imported before.
+					SceneNode* fileNode = _viewer->sceneGraph()->root()->children.last();
+					if (fileNode && !fileNode->importUnitUserOverridden) fileNode->importUnit = LengthUnit::Millimeter;
+				}
 
 				// Register per-file punctual lights (if any) for this file.
 				// setLightData() emits lightDataChanged() which triggers the
@@ -5677,15 +5701,19 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 
 	if (_sceneRuntime.loadCancelled())
 	{
-		if (!_sceneRuntime.meshStore().empty())
+		if (isThreeDXmlImport) {
+			success = false;
+			MainWindow::showStatusMessage(tr("Model loading cancelled"), 3000);
+		}
+		else if (!_sceneRuntime.meshStore().empty())
 		{
 			success = true;
 		}
-		if (_sceneRuntime.meshStore().empty())
+		if (!isThreeDXmlImport && _sceneRuntime.meshStore().empty())
 		{
 			MainWindow::showStatusMessage(tr("Model loading cancelled"), 3000);
 		}
-		else
+		else if (!isThreeDXmlImport)
 		{
 			MainWindow::showStatusMessage(
 				tr("Model loading cancelled after importing %1 meshes").arg(_sceneRuntime.meshStore().size()),
@@ -14381,6 +14409,11 @@ void ViewportWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
 	{
 		SceneMesh* mesh = createMeshFromData(meshData);
 		addToDisplay(mesh);
+		if (!meshData.initiallyVisible) {
+			_initiallyHiddenImportMeshes.insert(mesh->uuid());
+			_sceneRuntime.displayedObjectsIds().pop_back();
+			_sceneRuntime.hiddenObjectsIds().push_back(static_cast<int>(_sceneRuntime.meshStore().size()-1));
+		}
 		_sceneRuntime.pendingSceneUuids().append(mesh->uuid());
 	}
 	_viewer->updateDisplayList();

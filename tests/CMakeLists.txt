@@ -81,3 +81,6 @@ target_include_directories(mvf_tests PRIVATE ${CMAKE_SOURCE_DIR}/include/Mvf)
 target_link_libraries(mvf_tests PRIVATE Qt6::Core)
 set_target_properties(mvf_tests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 add_test(NAME mvf_tests COMMAND mvf_tests)
+
+# Native 3DXML codec and scene parity checks (QtCore, Assimp and ZIP; no GL).
+add_subdirectory(3dxml)

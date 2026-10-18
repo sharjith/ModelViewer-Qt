@@ -86,6 +86,7 @@ void ModelViewerApplication::initializeSupportedImportExtensions()
 	std::string extList;
 	importer.GetExtensionList(extList); // E.g. "*.obj;*.3ds;*.fbx;..."
 	QString allExtensions = QString::fromStdString(extList).replace(';', ' ');
+	if (!allExtensions.contains("*.3dxml", Qt::CaseInsensitive)) allExtensions += " *.3dxml";
 
 	// 2. Manually add STEP/IGES extensions (if not in Assimp list)
 	if (!allExtensions.contains("*.step", Qt::CaseInsensitive)) {
@@ -117,6 +118,7 @@ void ModelViewerApplication::initializeSupportedImportExtensions()
 		"DXF (*.dxf)",
 		"GLTF (*.gltf *.glb)",
 		"STEP (*.step *.stp)",
+		"3DXML (*.3dxml)",
 		"IGES (*.iges *.igs)",
 		"BREP (*.brep *.rle)",
 		"VRML (*.wrl *.vrml)",

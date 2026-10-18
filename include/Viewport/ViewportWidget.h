@@ -1202,6 +1202,7 @@ public:
 	bool isInRecycleBin(const QUuid& uuid) const;
 	QVector<QUuid> getRecycleBinUuids() const;
 	QList<QUuid> getPendingSceneUuids() const;
+	bool isInitiallyHiddenImportMesh(const QUuid& uuid) const { return _initiallyHiddenImportMeshes.contains(uuid); }
 
 	// UUID lookup methods
 	SceneMesh* getMeshByUuid(const QUuid& uuid) const;
@@ -1682,6 +1683,7 @@ protected:
 	void closeEvent(QCloseEvent* event);
 
 private:
+	QSet<QUuid> _initiallyHiddenImportMeshes; // Import defaults, separate from subsequent user visibility edits.
 
 	void createShaderPrograms();
 	void syncUniformsToFlatShader();
