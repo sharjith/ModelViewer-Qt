@@ -248,10 +248,12 @@ It does not complete the format's unrecognized binary layouts or formally
 establish units for every exporter/version.
 
 Before claiming full support, remaining research includes compound-directory
-entry discovery, unequal vertex/coordinate counts, the large housing variants,
-possible multiple bodies, exact stored-normal quantization, and more geometry
-QA across the broadly audited meshes. The existing 140-member audit checks
-lengths and index ranges, not every shape's topology or every bound field.
+entry discovery, later blocks/possible multiple bodies, exact stored-normal
+quantization, and more geometry QA across the broadly audited meshes.
+The [2026-10-18 continuation](3DXML_extended_layout_findings.md) resolves
+unequal position/normal counts and the first large-housing blocks, increasing
+first-block range/length coverage from 140 to 150 members. This does not
+validate every body's topology or every bound field.
 
 No C++ importer, application filters or dependencies were changed. No
 application build/test commands were run. Research files are checkpointed

@@ -1,7 +1,7 @@
 """Sample-derived mesh decoder prototype for the pin and ring.
 
 Keeps the packed-bit reservoir across ordinary byte/float/count reads. This
-is the critical observed serialization rule. Supports measured equal-count
+is the critical observed serialization rule. Supports measured position/normal-count
 layouts, with three full mesh fixtures and an optional wider audit. Not a general
 CFV3/3DXML importer. OBJ normals are derived from decoded triangles; original
 normal words/tags are preserved separately and not claimed decoded exactly.
@@ -132,7 +132,7 @@ def decode(data, offset):
     reader = Reader(data, offset)
     count = reader.count()
     second = reader.count()
-    if not 10 < count <= 1_000_000 or count != second:
+    if not 10 < count <= 1_000_000 or not 0 < second <= count:
         raise ValueError("unsupported vertex counts")
     prefix = reader.raw(3)
     if prefix != b"\0\0\0":
@@ -162,8 +162,10 @@ def decode(data, offset):
         raise ValueError("invalid decoded positions")
     normal_count = reader.count()
     normal_words = struct.unpack("<%dh" % normal_count, reader.raw(normal_count * 2))
-    packed = reader.raw((count + 1) // 2)
-    normal_tags = [(byte >> shift) & 15 for byte in packed for shift in (0, 4)][:count]
+    # The second count is the normal-record count, not a duplicate vertex count.
+    # This differs from position count in ten measured first-body layouts.
+    packed = reader.raw((second + 1) // 2)
+    normal_tags = [(byte >> shift) & 15 for byte in packed for shift in (0, 4)][:second]
     if any(tag > 11 for tag in normal_tags) or normal_count != 2 * sum(tag < 6 for tag in normal_tags):
         raise ValueError("normal attribute counts mismatch")
     initial_scalar = reader.floats(1)[0]
@@ -181,7 +183,7 @@ def decode(data, offset):
     face_count = reader.count()
     faces = [primitive(reader, width, count) for _ in range(face_count)]
     return {
-        "vertex_count": count, "index_bit_width": width,
+        "vertex_count": count, "normal_record_count": second, "index_bit_width": width,
         "positions_serialized": points,
         "normal_words_signed_le": normal_words, "normal_tags": normal_tags,
         "initial_scalar": initial_scalar, "following_scalars": following_scalars,
@@ -297,6 +299,8 @@ def check_normal_candidates(mesh, normals):
             normal = cross(sub(b, a), sub(c, a))
             length = math.sqrt(dot(normal, normal))
             if length:
+                if any(i >= len(normals) for i in tri):
+                    raise ValueError("pool-normal reference has no measured normal record")
                 dots.extend(dot(normal, normals[i]) / length for i in tri)
     return {
         "status": "candidate: exact source scaling still unconfirmed",

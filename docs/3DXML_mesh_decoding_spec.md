@@ -5,7 +5,7 @@
 > are native XYZ. The earlier cyclic OBJ display permutation has been removed
 > from exported geometry; the PNG preview rotation is presentation only.
 
-2026-10-17. This supersedes the earlier connectivity hypotheses in
+Updated 2026-10-18. This supersedes the earlier connectivity hypotheses in
 `3DXML_reverse_engineering.md`. All rules below come from the supplied archive
 and original analysis scripts, without vendor software, source, schemas or SDKs.
 
@@ -17,10 +17,14 @@ reconstruction, replacement triangulation, or guessed connectivity was used.
 Triangle lists, strips and fans are decoded from the file's own references.
 
 The same decoder passes every primitive-length sum and vertex-index range
-check in **140 of the archive's 153 representations**, covering **1,440,769
-vertex records and 2,190,652 finest-detail triangles**. This audit covers the
-first recognized equal-count layout per member. Full topology checks have
-been performed on the pin, ring and a more complex screw, not on all 140 members.
+check in a first recognized mesh block of **150 of the archive's 153
+representations**, covering **2,347,524 position records and 3,764,012
+finest-detail triangles**. This does not establish whole-member coverage:
+ten members have additional unresolved candidate blocks. The original
+140-member equal-count audit remains as historical evidence; the extended
+audit and [continuation notes](3DXML_extended_layout_findings.md) cover the
+ten unequal-count layouts, including three housings. Topology checks cover
+the three original fixtures and those ten additional first blocks.
 
 | Check | Dowel pin | Spacer ring |
 |---|---:|---:|
@@ -35,9 +39,9 @@ been performed on the pin, ring and a more complex screw, not on all 140 members
 | Stored constant-normal/winding disagreements | 0 | 0 |
 | Signed enclosed volume | 484.3689824 | 8163.0690024 |
 
-The two previews use the decoded triangles and face normals computed from
-them. Their component permutation to OBJ is explicitly documented below;
-assembly placement and global axis conventions still need confirmation.
+The previews use the decoded triangles and derived face normals. OBJ exports
+preserve native XYZ; only preview presentation rotates the displayed parts.
+Assembly placement follows the separate scene graph specification.
 
 An independent check on `DIN_ISO_4762_M5x12.3DRep` produces 8,909 vertex
 records, 6,268 distinct positions, and **12,532 triangles** across 132 face
@@ -85,7 +89,9 @@ The prototype starts at measured count fields supplied explicitly for the
 three fixtures, or by the earlier sample inventory for the wider audit. A
 compound-directory parser is still required for a production importer.
 
-1. Read two compact counts N and M. The supported path requires N=M.
+1. Read two compact counts: N position records and M normal records.
+   Measured layouts have `0 < M <= N`. Requiring equality incorrectly excluded
+   ten first blocks; differences range from 1 to 14 records in this sample.
 2. Read three ordinary bytes. These are `00 00 00` in the supported cases;
    their semantics remain unnamed.
 3. Set index bit width `b = bit_length(N - 1)`.
@@ -128,8 +134,8 @@ attributes and can be shared differently across detail levels and face groups.
 ## Normal data and face binding
 
 After coordinates, read compact word count W and W ordinary signed int16
-little-endian words. Then read `ceil(N/2)` ordinary tag bytes, low nibble
-first, stopping after N tags. In all 140 recognized members:
+little-endian words. Then read `ceil(M/2)` ordinary tag bytes, low nibble
+first, stopping after M tags. In all 150 recognized first blocks:
 
 ```text
 tags are in 0..11
@@ -252,17 +258,20 @@ copied into source control.
 
 ## Remaining work
 
-1. Decode the 13 layouts not recognized by the original inventory, including
-   unequal counts, large housings and possible multiple-body cases. Do not
-   classify small members as empty solely because this decoder skips them.
+1. Resolve later candidate blocks and the compound body graph. Ten members
+   have additional markers that fail when started with a fresh reservoir.
+   Two small UVR members have no recognized mesh marker; do not classify
+   them as empty solely because this decoder skips them. The third member
+   without a marker is the separately identified TECHREP review attachment.
 2. Decode the compound directory and body graph so entry points come from
    structure rather than sample offsets or marker discovery.
 3. Confirm exact stored-normal quantization and axis conventions on more
    shapes. Candidate smooth normals are useful evidence, not a completed
    format specification for all variants.
-4. Check geometry on more of the 140 members, especially open surfaces,
-   multiple components and nonmanifold cases. This audit only establishes
-   consistent counts and in-range indices for that broader set.
+4. Check geometry on more of the broadly audited first blocks, especially
+   open surfaces, multiple components and nonmanifold cases. Preserve the
+   boundary edges and normal disagreements recorded by the extended audit;
+   do not silently repair or re-triangulate them.
 5. Apply the separately documented assembly matrix/basis/visibility rules.
    Units are millimetres by sample calibration, without an explicit XML unit
    declaration; general unit handling still needs a documented policy.

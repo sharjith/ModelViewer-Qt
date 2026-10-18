@@ -5,6 +5,12 @@ request. Research scripts/documentation are versioned here. Application
 implementation has not started. Existing unrelated `vcpkg` working changes
 were excluded from research commits.
 
+2026-10-18: merged `origin/dev` (through `5f5decb`) into this branch without
+conflicts. Research now recognizes first mesh blocks in 150/153 members by
+separating position and normal counts. See the
+[extended findings](3DXML_extended_layout_findings.md) for coverage limits
+and geometry/normal anomalies; additional bodies remain unresolved.
+
 ## Current specifications
 
 1. [Mesh decoding](3DXML_mesh_decoding_spec.md): coordinates, persistent packed
@@ -23,6 +29,7 @@ were excluded from research commits.
 | Full pin/ring/screw geometry checks | `3DXML_mesh_verification.json` | `decode_sample_meshes.py` |
 | 140-member index/count audit | `3DXML_mesh_inventory_audit.json` | `decode_sample_meshes.py --audit-inventory ...` |
 | Matrix/basis/unit/visibility evidence | `3DXML_scene_graph_analysis.json` | `analyze_scene_graph.py` |
+| Extended full-member marker scan and unequal-count geometry checks | `3DXML_extended_layout_audit.json` | `probe_remaining_layouts.py --check-unequal-geometry` |
 
 All use the owner's supplied archive at
 `D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml`.
@@ -54,8 +61,9 @@ branch/checkpoint request authorizes research-only Git checkpoints.
   format guarantee. Keep units, basis and viewer autoscale distinct.
 - Resolve representation entry points from the compound structure rather than
   hard-coded sample offsets before production support.
-- Keep unsupported binary variants explicit. Current 140/153 coverage does
-  not mean that the entire sample assembly can yet be imported completely.
+- Keep unsupported binary variants explicit. Current 150/153 first-block
+  coverage does not mean that the entire sample assembly can yet be imported
+  completely; later candidate blocks still need structural decoding.
 - Make scene ownership and custom error reporting explicit in the loader;
   Assimp only owns scenes that its importer created. Keep 3DXML routing
   separate from pretending tessellations are XCAF B-Rep documents.
