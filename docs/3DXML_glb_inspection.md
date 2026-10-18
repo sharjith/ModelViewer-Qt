@@ -1,5 +1,29 @@
 # Hierarchical GLB inspection checkpoint
 
+## Loading progress denominator mismatch
+
+Owner observed progress exceeding its displayed mesh total (roughly
+`535/385`). Source inspection identifies a ModelViewer accounting mismatch:
+`collectSceneMeshInfo()` deduplicates mesh indices through `processedMeshes`
+before incrementing `info.meshCount`, whereas `processNode()` increments
+`_processedMeshCount` for every node-to-mesh reference. Its progress signal
+uses `_sceneStats.meshCount` as the denominator. The UI displays these values
+directly. Shared mesh instances can therefore take the numerator beyond the
+unique-resource denominator; this does not indicate extra exported geometry.
+
+Direct GLB JSON counts for both `_hierarchy_v2.glb` and
+`_stored_normals_candidate.glb` are 385 distinct material primitives and 538
+node/primitive occurrences. Thus loading all instances can show `538/385`.
+The first, superseded GLB contains 388 distinct primitives and 553 occurrences;
+grouping by material within its representation nodes gives 370 resources and
+535 occurrences, consistent with the earlier merge finding. Actual Assimp
+postprocessing can affect counts in that superseded layout.
+
+A loader correction should count node-to-mesh references for the progress
+denominator (538 here), keeping unique-resource statistics separate. Do not
+disable mesh sharing or change geometry to make the progress numbers agree.
+This checkpoint documents the diagnosis; application code is unchanged.
+
 ## Corrected owner-inspection export (v2)
 
 Use `out/3dxml-research/export/ASM-GETRAG_V160_hierarchy_v2.glb`
