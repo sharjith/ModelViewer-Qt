@@ -1,5 +1,38 @@
 # Stored normals: final focused research pass
 
+## Owner-requested smooth-normal GLB comparison
+
+The separate artifact
+`out/3dxml-research/export/ASM-GETRAG_V160_stored_normals_candidate.glb`
+uses the candidate pool reconstruction on nonconstant faces and normalized
+stored constant-face normals on constant faces. No averaging, normal flipping,
+winding changes or geometric-normal fallback is applied. This permits visual
+assessment without promoting the quantizer to proven status.
+
+Size: 297,468,052 bytes. SHA256:
+`f0710d96c2a2eec265343722d23f5c1ae61a1faaaf4adc08cc7bf0edeb84c7f9`.
+The owner-verified flat GLB (`ASM-GETRAG_V160_hierarchy_v2.glb`) is unchanged.
+Both files retain 538 body/material primitive occurrences, 5,608,912 visible
+triangles, the original 252 XML nodes plus 86 body nodes, the same local
+transforms and 45 material colors, with hidden helper geometry omitted.
+
+Validation compares the entire scene/material/geometry JSON and every
+non-normal buffer byte against the flat baseline; only NORMAL accessor data
+and its min/max metadata may differ. It also independently reconstructs the
+candidate mapping from the raw source words/tags and checks every corner's
+position, color/face binding and normal, including constant-face overrides.
+Khronos validator `2.0.0-dev.3.10` reports zero errors, zero warnings and 217
+informational messages (explicit identity matrices and visibility metadata
+unsupported by that validator version). File-format validation and binding
+checks do not establish exact source-normal quantization.
+
+```powershell
+python -I tools/3dxml/export_decoded_glb.py 'D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml' --occurrences out/3dxml-research/scene_graph.json --output out/3dxml-research/export/ASM-GETRAG_V160_stored_normals_candidate.glb --stored-normal-candidate
+python -I tools/3dxml/verify_exported_glb.py out/3dxml-research/export/ASM-GETRAG_V160_stored_normals_candidate.glb --occurrences out/3dxml-research/scene_graph.json --obj-manifest out/3dxml-research/export/ASM-GETRAG_V160_face_colors.manifest.json --flat-baseline out/3dxml-research/export/ASM-GETRAG_V160_hierarchy_v2.glb --stored-normal-source 'D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml'
+```
+
+## Research findings
+
 2026-10-18. This pass uses only the supplied archive, its XML metadata, our
 sample-derived decoder, and mathematical comparisons. It does not use vendor
 software, SDKs, private schemas, third-party binary decoders or decompilation.

@@ -19,6 +19,9 @@ candidate direction mapping but does not resolve the exact quantizer. It also
 isolates 72 opposed corners with exact axis tags, proving that those winding
 disagreements do not come from coefficient quantization. Flat normals remain
 the validated default; original words/tags are retained for optional research.
+An owner-requested `_stored_normals_candidate.glb` now permits direct smooth
+shading comparison with the unchanged verified flat GLB; see that document
+for the precise normal policy and reproduction commands.
 
 A [hierarchical GLB inspection checkpoint](3DXML_glb_inspection.md) now preserves
 all 252 XML nodes, shared representation meshes, default visibility and face

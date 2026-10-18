@@ -2,7 +2,8 @@
 
 Uses only the existing sample-derived decoder. No application changes.
 Geometry stays in local coordinates; root converts inferred mm/native Z-up
-to glTF metres/Y-up. Flat normals are derived from stored triangle winding.
+to glTF metres/Y-up. Default flat normals derive from stored triangle winding;
+an explicit experimental option exports the candidate source normal mapping.
 """
 import argparse
 import hashlib
@@ -22,6 +23,8 @@ def main():
     parser.add_argument('archive', type=Path)
     parser.add_argument('--occurrences', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--stored-normal-candidate', action='store_true',
+                        help='Experimental dominant-axis pool normals with constant-face overrides; no automatic flips')
     args = parser.parse_args()
     api = runpy.run_path(str(Path(__file__).with_name('decode_representation.py')))
     scene = json.loads(args.occurrences.read_text(encoding='utf-8'))
@@ -84,10 +87,24 @@ def main():
             primitive_resources = {}
             for offset, (mesh, styles) in resources.items():
                 points = np.asarray(mesh['positions_serialized'], dtype=np.float64)
-                colors = {}
+                colors, color_normals = {}, {}
+                pool = (np.asarray(api['MESH']['normal_candidates'](mesh), dtype=np.float64)
+                        if args.stored_normal_candidate else None)
                 assert len(styles) == len(mesh['finest_faces'])
                 for face, bgr in zip(mesh['finest_faces'], styles):
                     colors.setdefault(tuple(reversed(bgr)), []).extend(face['triangles'])
+                    if pool is not None and face['triangles']:
+                        indices = np.asarray(face['triangles'], dtype=np.int64)
+                        constant = face['constant_normal_serialized']
+                        if constant is None:
+                            assert indices.max() < len(pool)
+                            source_normals = pool[indices].reshape(-1, 3)
+                        else:
+                            constant = np.asarray(constant, dtype=np.float64)
+                            length = np.linalg.norm(constant)
+                            assert length > 0 and np.isfinite(length)
+                            source_normals = np.tile(constant/length, (indices.size, 1))
+                        color_normals.setdefault(tuple(reversed(bgr)), []).append(source_normals)
                 primitives = []
                 for rgb, triangles in colors.items():
                     if not triangles:
@@ -99,8 +116,12 @@ def main():
                     lengths = np.linalg.norm(normals, axis=1)
                     assert np.all(lengths > 0) and np.all(np.isfinite(positions))
                     normals /= lengths[:, None]
+                    exported_normals = (np.concatenate(color_normals[rgb], axis=0)
+                                        if pool is not None else np.repeat(normals, 3, axis=0))
+                    assert exported_normals.shape == (indices.size, 3)
+                    assert np.all(np.isfinite(exported_normals))
                     primitives.append(dict(attributes=dict(POSITION=accessor(positions),
-                        NORMAL=accessor(np.repeat(normals, 3, axis=0))),
+                        NORMAL=accessor(exported_normals)),
                         material=material(rgb), mode=4,
                         extras=dict(sourceLeafOffset=offset, triangles=len(indices))))
                 primitive_resources[offset] = primitives
@@ -180,7 +201,8 @@ def main():
                   mesh_resources=len(doc['meshes']), materials=len(palette),
                   visible_triangles=visible_triangles, representations=audit,
                   units='metres; source millimetres inferred',
-                  normal_policy='derived flat normals',
+                  normal_policy=('experimental stored dominant-axis candidate; normalized constant-face overrides; no flips'
+                                 if args.stored_normal_candidate else 'derived flat normals'),
                   color_policy='BGR face palette to RGB/255; same numeric diffuse and derived roughness as verified OBJ',
                   visibility='hidden XML nodes retained without geometry; no visibility-extension dependency for display')
     args.output.with_suffix('.manifest.json').write_text(json.dumps(report, indent=2)+'\n')
