@@ -18,6 +18,7 @@ def main():
     parser.add_argument("archive", type=Path)
     parser.add_argument("--occurrences", type=Path, required=True)
     parser.add_argument("--output-directory", type=Path, required=True)
+    parser.add_argument("--face-colors", action="store_true")
     args = parser.parse_args()
     args.output_directory.mkdir(parents=True, exist_ok=True)
     api = runpy.run_path(str(Path(__file__).with_name("decode_representation.py")))
@@ -64,7 +65,11 @@ def main():
                     ns = normals[front]
                     ns /= np.linalg.norm(ns, axis=1)[:, None]
                     intensity = .28 + .72 * np.maximum(0, ns @ light)
-                    base = np.asarray((161, 178, 195) if housing else (69, 170, 191))
+                    if args.face_colors:
+                        base = np.repeat(np.asarray([color[::-1] for color in styles]),
+                                         [len(face["triangles"]) for face in mesh["finest_faces"]], axis=0)[front]
+                    else:
+                        base = np.asarray((161, 178, 195) if housing else (69, 170, 191))
                     colors = np.clip(intensity[:, None] * base, 0, 255).astype(np.uint8)
                     panels[0].append((projected, colors))
                     if not housing:
@@ -75,7 +80,8 @@ def main():
     draw = ImageDraw.Draw(image)
     font_path = Path("C:/Windows/Fonts/segoeui.ttf")
     font = lambda size: ImageFont.truetype(str(font_path), size) if font_path.exists() else ImageFont.load_default()
-    draw.text((45, 25), "3DXML: complete decoded mesh assembly", font=font(32), fill="#edf4fc")
+    title = "3DXML: decoded face colors" if args.face_colors else "3DXML: complete decoded mesh assembly"
+    draw.text((45, 25), title, font=font(32), fill="#edf4fc")
     draw.text((45, 75), "Stored triangle connectivity + XML occurrence transforms | Derived face normals", font=font(20), fill="#a9bed2")
     summary = {"scope": "visible XML occurrences; all decoded Skeleton mesh leaves",
                "renderer": "orthographic painter ordering; illustrative, not depth-buffer QA",
@@ -97,8 +103,10 @@ def main():
         draw.text((45 + panel * 900, 925), "All meshes decoded; back faces culled for this view", font=font(18), fill="#a9bed2")
         summary["panels"].append({"title": title, "front_facing_triangles_drawn": len(order)})
         print(title, len(order), "triangles drawn", flush=True)
-    image.save(args.output_directory / "complete_assembly.png")
-    (args.output_directory / "assembly_preview_manifest.json").write_text(json.dumps(summary, indent=2) + "\n")
+    image.save(args.output_directory / ("face_colors_assembly.png" if args.face_colors else "complete_assembly.png"))
+    summary["color_policy"] = "face-packet BGR to RGB" if args.face_colors else "inspection colors"
+    name = "face_colors_preview_manifest.json" if args.face_colors else "assembly_preview_manifest.json"
+    (args.output_directory / name).write_text(json.dumps(summary, indent=2) + "\n")
 
 
 if __name__ == "__main__":

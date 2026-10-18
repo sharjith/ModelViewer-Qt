@@ -121,8 +121,9 @@ def primitive(reader, width, vertices):
 
 
 def style(reader):
-    # Only this exact sample style form is understood. Preserve RGB without
-    # making material support part of the geometry milestone.
+    # Only these measured sample style forms are understood. Preserve bytes without
+    # making material support part of the geometry milestone. The three stored
+    # color bytes are BGR (corroborated by the later owner-supplied reference).
     if reader.raw(5) not in (bytes.fromhex("30 04 04 ff ff"), bytes.fromhex("b0 04 04 ff 7f")):
         raise ValueError(f"unsupported style at {reader.pos - 5:#x}")
     return list(reader.raw(3))

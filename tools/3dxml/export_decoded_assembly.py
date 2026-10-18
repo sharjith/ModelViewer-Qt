@@ -25,6 +25,8 @@ def main():
     parser.add_argument("--hide-housings", action="store_true")
     parser.add_argument("--native-xyz", action="store_true",
                         help="Keep source XYZ instead of compensating ModelViewer's OBJ import rotation")
+    parser.add_argument("--face-colors", action="store_true",
+                        help="Use each finest-face packet's stored BGR color instead of inspection colors")
     args = parser.parse_args()
     api = runpy.run_path(str(Path(__file__).with_name("decode_representation.py")))
     scene = json.loads(args.occurrences.read_text(encoding="utf-8"))
@@ -43,6 +45,7 @@ def main():
         "newmtl decoded_housing\nKa 0.15 0.15 0.15\nKd 0.65 0.70 0.75\nKs 0.2 0.2 0.2\nNs 24\nd 1\n",
         encoding="ascii")
     objects = []
+    palette = {}
     vertex_offset, normal_offset = 0, 0
     with args.output.open("w", encoding="ascii", newline="\n", buffering=1024*1024) as output:
         output.write("# Owner-supplied 3DXML: decoded geometry, exact stored triangle connectivity\n")
@@ -51,6 +54,8 @@ def main():
                      "# OBJ Y-up: (x,z,-y) from native XYZ; ModelViewer's +90 X import restores native orientation\n")
         output.write("# Derived flat normals; named objects flatten the source occurrence/body graph\n")
         output.write("# XML-hidden occurrences excluded; no topology repair or decimation\n")
+        if args.face_colors:
+            output.write("# Face-packet BGR colors decoded to RGB diffuse materials; other material properties not reproduced\n")
         output.write(f"mtllib {material_path.name}\ns off\n")
         with zipfile.ZipFile(args.archive) as archive:
             for member, occurrences in placements.items():
@@ -63,7 +68,7 @@ def main():
                 entry = next(e for e in entries if e["name"] == "Skeleton")
                 resources = {}
                 def collect(leaf, mesh, groups, styles):
-                    resources[leaf["offset"]] = (leaf, mesh)
+                    resources[leaf["offset"]] = (leaf, mesh, styles)
                 graph = api["skeleton_graph"](api["join_stream"](data, entry), collect)
                 api["surface_links"](data, entries, graph)
                 nodes = {node["offset"]: node for node in graph["nodes"]}
@@ -81,7 +86,7 @@ def main():
                     transform = np.asarray(occurrence["world_matrix_rows"], dtype=np.float64)
                     if not np.all(np.isfinite(transform)):
                         raise ValueError("invalid world matrix")
-                    for body_path, (leaf, mesh) in mesh_instances(0, [], set()):
+                    for body_path, (leaf, mesh, styles) in mesh_instances(0, [], set()):
                         name = "inst_" + "_".join(occurrence["path"]) + "__" + Path(member).stem
                         name += "__body_" + "_".join(map(str, body_path))
                         name = re.sub(r"[^A-Za-z0-9_.-]", "_", name)
@@ -104,9 +109,24 @@ def main():
                             output.write("v %.17g %.17g %.17g\n" % tuple(p))
                         for normal in normals:
                             output.write("vn %.9g %.9g %.9g\n" % tuple(normal))
-                        for i, (a, b, c) in enumerate(indices):
-                            normal = normal_offset + i + 1
-                            output.write(f"f {vertex_offset+a+1}//{normal} {vertex_offset+b+1}//{normal} {vertex_offset+c+1}//{normal}\n")
+                        face_materials = []
+                        active_material = None
+                        i = 0
+                        for face, stored_bgr in zip(mesh["finest_faces"], styles):
+                            if args.face_colors:
+                                rgb = tuple(reversed(stored_bgr))
+                                material = "face_rgb_" + bytes(rgb).hex()
+                                palette[material] = list(rgb)
+                                if material != active_material:
+                                    output.write(f"usemtl {material}\n")
+                                    active_material = material
+                                face_materials.append({"material": material, "triangles": len(face["triangles"])})
+                            for a, b, c in face["triangles"]:
+                                normal = normal_offset + i + 1
+                                output.write(f"f {vertex_offset+a+1}//{normal} {vertex_offset+b+1}//{normal} {vertex_offset+c+1}//{normal}\n")
+                                i += 1
+                        if i != len(indices):
+                            raise ValueError("exported triangle totals differ from decoded face packets")
                         objects.append({"name": name, "member": member,
                                         "occurrence_path": occurrence["path"],
                                         "body_path": body_path, "leaf_offset": leaf["offset"],
@@ -115,9 +135,19 @@ def main():
                                         "first_normal": normal_offset+1, "triangles": len(indices),
                                         "bounds_min": points.min(axis=0).tolist(),
                                         "bounds_max": points.max(axis=0).tolist()})
+                        if args.face_colors:
+                            objects[-1]["face_materials"] = face_materials
                         vertex_offset += len(points)
                         normal_offset += len(indices)
                         print(name, len(indices), "triangles", flush=True)
+    if args.face_colors:
+        with material_path.open("a", encoding="ascii", newline="\n") as material_output:
+            material_output.write("\n# Stored BGR face styles mapped to RGB diffuse colors\n")
+            for name, rgb in sorted(palette.items()):
+                diffuse = tuple(v / 255 for v in rgb)
+                material_output.write(f"\nnewmtl {name}\nKa 0 0 0\n")
+                material_output.write("Kd %.9g %.9g %.9g\n" % diffuse)
+                material_output.write("Ks 0.2 0.2 0.2\nNs 24\nd 1\nillum 2\n")
     with args.output.open("rb") as source:
         digest = hashlib.file_digest(source, "sha256").hexdigest()
     manifest = {"source_sha256": hashlib.sha256(args.archive.read_bytes()).hexdigest(),
@@ -127,7 +157,9 @@ def main():
                 "units": "millimetres inferred from sample", "normal_policy": "derived flat triangle normals",
                 "visibility": "XML default-visible occurrences; no hidden helpers",
                 "housings_excluded": args.hide_housings, "vertices": vertex_offset,
-                "normals": normal_offset, "triangles": normal_offset, "objects": objects}
+                "normals": normal_offset, "triangles": normal_offset, "objects": objects,
+                "color_policy": "finest-face BGR to RGB diffuse" if args.face_colors else "neutral inspection colors",
+                "face_color_palette": palette}
     args.output.with_suffix(".manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print("Wrote", args.output, args.output.stat().st_size, "bytes", len(objects), "objects", normal_offset, "triangles")
 

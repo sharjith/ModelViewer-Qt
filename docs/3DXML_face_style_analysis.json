@@ -1,0 +1,3335 @@
+{
+  "scope": "finest-face style bytes; BGR ordering corroborated by owner-supplied rendered reference; no full material reconstruction",
+  "style_prefix_counts": {
+    "300404ffff": 60904,
+    "b00404ff7f": 4
+  },
+  "triangles_by_stored_bgr_hex": {
+    "ffff00": 127427,
+    "00ffff": 182576,
+    "8000ff": 95099,
+    "ff8000": 373594,
+    "ff0080": 9845,
+    "ff0000": 82885,
+    "7db2d3": 399017,
+    "80ffff": 25069,
+    "bf9399": 27251,
+    "323232": 8000,
+    "c0c4c1": 50688,
+    "808000": 50075,
+    "c08000": 203956,
+    "000080": 7950,
+    "408000": 42326,
+    "008000": 12239,
+    "d6aa83": 77466,
+    "404080": 10761,
+    "663333": 97449,
+    "4080ff": 6590,
+    "90cdbf": 14160,
+    "00ff00": 29477,
+    "ffd2d2": 1510679,
+    "80ff80": 4064,
+    "a00000": 72210,
+    "e8c081": 157250,
+    "ff00ff": 72300,
+    "47beff": 69256,
+    "6684ea": 39984,
+    "8080ff": 23971,
+    "d68549": 10766,
+    "7c3d00": 3356,
+    "800080": 2960,
+    "ff8080": 77254,
+    "c0c0c0": 15278,
+    "bfbfbf": 12026,
+    "97a27e": 85202,
+    "0080ff": 3456,
+    "808080": 4998,
+    "306a8d": 2676,
+    "d1b3c4": 13624,
+    "414141": 28492,
+    "c08080": 736,
+    "515151": 944,
+    "3d3d3d": 7000
+  },
+  "triangles_by_decoded_rgb_hex": {
+    "00ffff": 127427,
+    "ffff00": 182576,
+    "ff0080": 95099,
+    "0080ff": 373594,
+    "8000ff": 9845,
+    "0000ff": 82885,
+    "d3b27d": 399017,
+    "ffff80": 25069,
+    "9993bf": 27251,
+    "323232": 8000,
+    "c1c4c0": 50688,
+    "008080": 50075,
+    "0080c0": 203956,
+    "800000": 7950,
+    "008040": 42326,
+    "008000": 12239,
+    "83aad6": 77466,
+    "804040": 10761,
+    "333366": 97449,
+    "ff8040": 6590,
+    "bfcd90": 14160,
+    "00ff00": 29477,
+    "d2d2ff": 1510679,
+    "80ff80": 4064,
+    "0000a0": 72210,
+    "81c0e8": 157250,
+    "ff00ff": 72300,
+    "ffbe47": 69256,
+    "ea8466": 39984,
+    "ff8080": 23971,
+    "4985d6": 10766,
+    "003d7c": 3356,
+    "800080": 2960,
+    "8080ff": 77254,
+    "c0c0c0": 15278,
+    "bfbfbf": 12026,
+    "7ea297": 85202,
+    "ff8000": 3456,
+    "808080": 4998,
+    "8d6a30": 2676,
+    "c4b3d1": 13624,
+    "414141": 28492,
+    "8080c0": 736,
+    "515151": 944,
+    "3d3d3d": 7000
+  },
+  "meshes": [
+    {
+      "member": "Eingangswelle.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 1236,
+      "face_packets_by_stored_bgr_hex": {
+        "ffff00": 480,
+        "00ffff": 16,
+        "8000ff": 220,
+        "ff8000": 160,
+        "ff0080": 360
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffff00": 12754,
+        "00ffff": 2228,
+        "8000ff": 2950,
+        "ff8000": 18502,
+        "ff0080": 2044
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "00ffff": 12754,
+        "ffff00": 2228,
+        "ff0080": 2950,
+        "0080ff": 18502,
+        "8000ff": 2044
+      }
+    },
+    {
+      "member": "Kugellager.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 43,
+      "face_packets_by_stored_bgr_hex": {
+        "ff0000": 31,
+        "7db2d3": 12
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ff0000": 8932,
+        "7db2d3": 14400
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "0000ff": 8932,
+        "d3b27d": 14400
+      }
+    },
+    {
+      "member": "Kegelrollenlager_2.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 204,
+      "face_packets_by_stored_bgr_hex": {
+        "80ffff": 170,
+        "bf9399": 34
+      },
+      "triangles_by_stored_bgr_hex": {
+        "80ffff": 11389,
+        "bf9399": 10785
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ffff80": 11389,
+        "9993bf": 10785
+      }
+    },
+    {
+      "member": "Kegelrollenlager_1.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 228,
+      "face_packets_by_stored_bgr_hex": {
+        "bf9399": 28,
+        "80ffff": 200
+      },
+      "triangles_by_stored_bgr_hex": {
+        "bf9399": 8196,
+        "80ffff": 13680
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "9993bf": 8196,
+        "ffff80": 13680
+      }
+    },
+    {
+      "member": "Zylinderrollenlager_1.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 165,
+      "face_packets_by_stored_bgr_hex": {
+        "7db2d3": 144,
+        "ff0000": 15,
+        "323232": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7db2d3": 13702,
+        "ff0000": 5698,
+        "323232": 1744
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d3b27d": 13702,
+        "0000ff": 5698,
+        "323232": 1744
+      }
+    },
+    {
+      "member": "Zylinderrollenlager_2.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 174,
+      "face_packets_by_stored_bgr_hex": {
+        "ff0000": 40,
+        "7db2d3": 128,
+        "323232": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ff0000": 14304,
+        "7db2d3": 10112,
+        "323232": 1864
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "0000ff": 14304,
+        "d3b27d": 10112,
+        "323232": 1864
+      }
+    },
+    {
+      "member": "Zylinderrollenlager_3.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 165,
+      "face_packets_by_stored_bgr_hex": {
+        "7db2d3": 144,
+        "ff0000": 15,
+        "323232": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7db2d3": 12841,
+        "ff0000": 5693,
+        "323232": 2028
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d3b27d": 12841,
+        "0000ff": 5693,
+        "323232": 2028
+      }
+    },
+    {
+      "member": "Ausgangswelle.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 3031,
+      "face_packets_by_stored_bgr_hex": {
+        "c0c4c1": 1264,
+        "8000ff": 1610,
+        "00ffff": 56,
+        "ffff00": 101
+      },
+      "triangles_by_stored_bgr_hex": {
+        "c0c4c1": 34383,
+        "8000ff": 8846,
+        "00ffff": 10334,
+        "ffff00": 22397
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "c1c4c0": 34383,
+        "ff0080": 8846,
+        "ffff00": 10334,
+        "00ffff": 22397
+      }
+    },
+    {
+      "member": "Vorgelegewelle.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 1310,
+      "face_packets_by_stored_bgr_hex": {
+        "808000": 400,
+        "c08000": 4,
+        "00ffff": 16,
+        "ffff00": 35,
+        "8000ff": 220,
+        "ff8000": 635
+      },
+      "triangles_by_stored_bgr_hex": {
+        "808000": 35579,
+        "c08000": 352,
+        "00ffff": 2440,
+        "ffff00": 11830,
+        "8000ff": 2552,
+        "ff8000": 98973
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "008080": 35579,
+        "0080c0": 352,
+        "ffff00": 2440,
+        "00ffff": 11830,
+        "ff0080": 2552,
+        "0080ff": 98973
+      }
+    },
+    {
+      "member": "Gang_6_Losrad.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 681,
+      "face_packets_by_stored_bgr_hex": {
+        "8000ff": 267,
+        "ff8000": 130,
+        "ff0080": 280,
+        "000080": 4
+      },
+      "triangles_by_stored_bgr_hex": {
+        "8000ff": 9128,
+        "ff8000": 15134,
+        "ff0080": 1010,
+        "000080": 56
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff0080": 9128,
+        "0080ff": 15134,
+        "8000ff": 1010,
+        "800000": 56
+      }
+    },
+    {
+      "member": "Nadelkranz_G6.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 582,
+      "face_packets_by_stored_bgr_hex": {
+        "7db2d3": 576,
+        "ff0000": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7db2d3": 26784,
+        "ff0000": 3504
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d3b27d": 26784,
+        "0000ff": 3504
+      }
+    },
+    {
+      "member": "Gang_4_Losrad.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 853,
+      "face_packets_by_stored_bgr_hex": {
+        "8000ff": 280,
+        "ff8000": 185,
+        "ff0080": 384,
+        "000080": 4
+      },
+      "triangles_by_stored_bgr_hex": {
+        "8000ff": 13450,
+        "ff8000": 18134,
+        "ff0080": 1536,
+        "000080": 52
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff0080": 13450,
+        "0080ff": 18134,
+        "8000ff": 1536,
+        "800000": 52
+      }
+    },
+    {
+      "member": "Gang_3_Losrad.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 792,
+      "face_packets_by_stored_bgr_hex": {
+        "8000ff": 278,
+        "ff8000": 190,
+        "ff0080": 320,
+        "000080": 4
+      },
+      "triangles_by_stored_bgr_hex": {
+        "8000ff": 12064,
+        "ff8000": 18466,
+        "ff0080": 1152,
+        "000080": 58
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff0080": 12064,
+        "0080ff": 18466,
+        "8000ff": 1152,
+        "800000": 58
+      }
+    },
+    {
+      "member": "Gang_2_Losrad.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 880,
+      "face_packets_by_stored_bgr_hex": {
+        "8000ff": 182,
+        "ff8000": 180,
+        "000080": 4,
+        "7db2d3": 514
+      },
+      "triangles_by_stored_bgr_hex": {
+        "8000ff": 14318,
+        "ff8000": 18072,
+        "000080": 58,
+        "7db2d3": 8368
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff0080": 14318,
+        "0080ff": 18072,
+        "800000": 58,
+        "d3b27d": 8368
+      }
+    },
+    {
+      "member": "Gang_1_Losrad.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 992,
+      "face_packets_by_stored_bgr_hex": {
+        "8000ff": 224,
+        "ff8000": 250,
+        "7db2d3": 514,
+        "000080": 4
+      },
+      "triangles_by_stored_bgr_hex": {
+        "8000ff": 21070,
+        "ff8000": 19094,
+        "7db2d3": 8368,
+        "000080": 52
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff0080": 21070,
+        "0080ff": 19094,
+        "d3b27d": 8368,
+        "800000": 52
+      }
+    },
+    {
+      "member": "Gang_R_Losrad.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 371,
+      "face_packets_by_stored_bgr_hex": {
+        "8000ff": 156,
+        "ff8000": 215
+      },
+      "triangles_by_stored_bgr_hex": {
+        "8000ff": 9361,
+        "ff8000": 13149
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff0080": 9361,
+        "0080ff": 13149
+      }
+    },
+    {
+      "member": "Kostante_Abtrieb.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 555,
+      "face_packets_by_stored_bgr_hex": {
+        "408000": 177,
+        "8000ff": 154,
+        "ff8000": 220,
+        "008000": 4
+      },
+      "triangles_by_stored_bgr_hex": {
+        "408000": 12296,
+        "8000ff": 484,
+        "ff8000": 18922,
+        "008000": 138
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "008040": 12296,
+        "ff0080": 484,
+        "0080ff": 18922,
+        "008000": 138
+      }
+    },
+    {
+      "member": "Gang_6_Festrad.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 562,
+      "face_packets_by_stored_bgr_hex": {
+        "408000": 183,
+        "8000ff": 154,
+        "ff8000": 225
+      },
+      "triangles_by_stored_bgr_hex": {
+        "408000": 15342,
+        "8000ff": 484,
+        "ff8000": 17540
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "008040": 15342,
+        "ff0080": 484,
+        "0080ff": 17540
+      }
+    },
+    {
+      "member": "Nadelkranz_G4.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 1158,
+      "face_packets_by_stored_bgr_hex": {
+        "7db2d3": 1152,
+        "ff0000": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7db2d3": 41472,
+        "ff0000": 5216
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d3b27d": 41472,
+        "0000ff": 5216
+      }
+    },
+    {
+      "member": "Innenring_1.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 10,
+      "face_packets_by_stored_bgr_hex": {
+        "d6aa83": 10
+      },
+      "triangles_by_stored_bgr_hex": {
+        "d6aa83": 1344
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "83aad6": 1344
+      }
+    },
+    {
+      "member": "Distanzring_1_R.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 6,
+      "face_packets_by_stored_bgr_hex": {
+        "404080": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "404080": 944
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "804040": 944
+      }
+    },
+    {
+      "member": "Nadelkranz_G1.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 934,
+      "face_packets_by_stored_bgr_hex": {
+        "7db2d3": 928,
+        "ff0000": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7db2d3": 39208,
+        "ff0000": 4904
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d3b27d": 39208,
+        "0000ff": 4904
+      }
+    },
+    {
+      "member": "Nadelkranz_R.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 934,
+      "face_packets_by_stored_bgr_hex": {
+        "7db2d3": 928,
+        "ff0000": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7db2d3": 39208,
+        "ff0000": 4904
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d3b27d": 39208,
+        "0000ff": 4904
+      }
+    },
+    {
+      "member": "Sicherungsmutter_Vorgelegewelle.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 141,
+      "face_packets_by_stored_bgr_hex": {
+        "663333": 109,
+        "4080ff": 32
+      },
+      "triangles_by_stored_bgr_hex": {
+        "663333": 3932,
+        "4080ff": 5526
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "333366": 3932,
+        "ff8040": 5526
+      }
+    },
+    {
+      "member": "Zylinderrollenlager_AW.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 213,
+      "face_packets_by_stored_bgr_hex": {
+        "7db2d3": 192,
+        "ff0000": 15,
+        "323232": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7db2d3": 18412,
+        "ff0000": 6612,
+        "323232": 2364
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d3b27d": 18412,
+        "0000ff": 6612,
+        "323232": 2364
+      }
+    },
+    {
+      "member": "Abtriebsflansch.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 472,
+      "face_packets_by_stored_bgr_hex": {
+        "90cdbf": 132,
+        "404080": 240,
+        "00ff00": 24,
+        "00ffff": 8,
+        "ffd2d2": 68
+      },
+      "triangles_by_stored_bgr_hex": {
+        "90cdbf": 13236,
+        "404080": 768,
+        "00ff00": 1360,
+        "00ffff": 1652,
+        "ffd2d2": 5056
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "bfcd90": 13236,
+        "804040": 768,
+        "00ff00": 1360,
+        "ffff00": 1652,
+        "d2d2ff": 5056
+      }
+    },
+    {
+      "member": "Tachoschnecke.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 113,
+      "face_packets_by_stored_bgr_hex": {
+        "bf9399": 48,
+        "ff8000": 65
+      },
+      "triangles_by_stored_bgr_hex": {
+        "bf9399": 4534,
+        "ff8000": 30334
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "9993bf": 4534,
+        "0080ff": 30334
+      }
+    },
+    {
+      "member": "Sicherungsmutter_Flansch.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 156,
+      "face_packets_by_stored_bgr_hex": {
+        "7db2d3": 66,
+        "00ffff": 90
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7db2d3": 5976,
+        "00ffff": 12348
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d3b27d": 5976,
+        "ffff00": 12348
+      }
+    },
+    {
+      "member": "Pilotlager.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 198,
+      "face_packets_by_stored_bgr_hex": {
+        "404080": 6,
+        "7db2d3": 192
+      },
+      "triangles_by_stored_bgr_hex": {
+        "404080": 1912,
+        "7db2d3": 13008
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "804040": 1912,
+        "d3b27d": 13008
+      }
+    },
+    {
+      "member": "Spannhuelse_Pilotlager.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 15,
+      "face_packets_by_stored_bgr_hex": {
+        "80ff80": 15
+      },
+      "triangles_by_stored_bgr_hex": {
+        "80ff80": 1372
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "80ff80": 1372
+      }
+    },
+    {
+      "member": "Vorspannfeder_Pilotlager.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 43,
+      "face_packets_by_stored_bgr_hex": {
+        "a00000": 43
+      },
+      "triangles_by_stored_bgr_hex": {
+        "a00000": 65062
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "0000a0": 65062
+      }
+    },
+    {
+      "member": "Innenring_R.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 10,
+      "face_packets_by_stored_bgr_hex": {
+        "d6aa83": 10
+      },
+      "triangles_by_stored_bgr_hex": {
+        "d6aa83": 1344
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "83aad6": 1344
+      }
+    },
+    {
+      "member": "Safety_Plate_Countershaft.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 26,
+      "face_packets_by_stored_bgr_hex": {
+        "ffd2d2": 26
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffd2d2": 1328
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d2d2ff": 1328
+      }
+    },
+    {
+      "member": "Synchro_5_6_233_0_0376_98.3DRep",
+      "leaf_offset": 377,
+      "face_packets": 688,
+      "face_packets_by_stored_bgr_hex": {
+        "e8c081": 246,
+        "7db2d3": 39,
+        "00ffff": 12,
+        "ff0080": 190,
+        "ff8000": 201
+      },
+      "triangles_by_stored_bgr_hex": {
+        "e8c081": 13628,
+        "7db2d3": 426,
+        "00ffff": 322,
+        "ff0080": 684,
+        "ff8000": 718
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "81c0e8": 13628,
+        "d3b27d": 426,
+        "ffff00": 322,
+        "8000ff": 684,
+        "0080ff": 718
+      }
+    },
+    {
+      "member": "Synchro_5_6_233_0_0376_98.3DRep",
+      "leaf_offset": 256847,
+      "face_packets": 1486,
+      "face_packets_by_stored_bgr_hex": {
+        "ff00ff": 91,
+        "00ffff": 384,
+        "00ff00": 768,
+        "ff0000": 240,
+        "ffff00": 3
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ff00ff": 17654,
+        "00ffff": 6340,
+        "00ff00": 2888,
+        "ff0000": 1728,
+        "ffff00": 462
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff00ff": 17654,
+        "ffff00": 6340,
+        "00ff00": 2888,
+        "0000ff": 1728,
+        "00ffff": 462
+      }
+    },
+    {
+      "member": "Synchro_5_6_233_0_0376_98.3DRep",
+      "leaf_offset": 756649,
+      "face_packets": 1042,
+      "face_packets_by_stored_bgr_hex": {
+        "47beff": 1042
+      },
+      "triangles_by_stored_bgr_hex": {
+        "47beff": 14756
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ffbe47": 14756
+      }
+    },
+    {
+      "member": "Synchro_5_6_233_0_0376_98.3DRep",
+      "leaf_offset": 1026151,
+      "face_packets": 402,
+      "face_packets_by_stored_bgr_hex": {
+        "6684ea": 402
+      },
+      "triangles_by_stored_bgr_hex": {
+        "6684ea": 9996
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ea8466": 9996
+      }
+    },
+    {
+      "member": "Synchro_5_6_233_0_0376_98.3DRep",
+      "leaf_offset": 1185516,
+      "face_packets": 6,
+      "face_packets_by_stored_bgr_hex": {
+        "408000": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "408000": 3672
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "008040": 3672
+      }
+    },
+    {
+      "member": "Synchro_5_6_233_0_0376_98.3DRep",
+      "leaf_offset": 1226004,
+      "face_packets": 96,
+      "face_packets_by_stored_bgr_hex": {
+        "c08000": 96
+      },
+      "triangles_by_stored_bgr_hex": {
+        "c08000": 26022
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "0080c0": 26022
+      }
+    },
+    {
+      "member": "Synchro_5_6_233_0_0376_98.3DRep",
+      "leaf_offset": 1581420,
+      "face_packets": 839,
+      "face_packets_by_stored_bgr_hex": {
+        "7db2d3": 127,
+        "808000": 432,
+        "ff8000": 280
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7db2d3": 8080,
+        "808000": 3456,
+        "ff8000": 896
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d3b27d": 8080,
+        "008080": 3456,
+        "0080ff": 896
+      }
+    },
+    {
+      "member": "Synchro_5_6_233_0_0376_98.3DRep",
+      "leaf_offset": 1803610,
+      "face_packets": 170,
+      "face_packets_by_stored_bgr_hex": {
+        "8080ff": 50,
+        "00ff00": 120
+      },
+      "triangles_by_stored_bgr_hex": {
+        "8080ff": 3612,
+        "00ff00": 1356
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff8080": 3612,
+        "00ff00": 1356
+      }
+    },
+    {
+      "member": "Synchro_5_6_233_0_0376_98.3DRep",
+      "leaf_offset": 1885293,
+      "face_packets": 861,
+      "face_packets_by_stored_bgr_hex": {
+        "7db2d3": 129,
+        "808000": 432,
+        "ff8000": 300
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7db2d3": 8166,
+        "808000": 3456,
+        "ff8000": 962
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d3b27d": 8166,
+        "008080": 3456,
+        "0080ff": 962
+      }
+    },
+    {
+      "member": "Synchro_1_2_233_0_0376_98.3DRep",
+      "leaf_offset": 377,
+      "face_packets": 846,
+      "face_packets_by_stored_bgr_hex": {
+        "e8c081": 277,
+        "7db2d3": 39,
+        "00ffff": 9,
+        "ff0080": 320,
+        "ff8000": 201
+      },
+      "triangles_by_stored_bgr_hex": {
+        "e8c081": 11914,
+        "7db2d3": 318,
+        "00ffff": 487,
+        "ff0080": 1183,
+        "ff8000": 718
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "81c0e8": 11914,
+        "d3b27d": 318,
+        "ffff00": 487,
+        "8000ff": 1183,
+        "0080ff": 718
+      }
+    },
+    {
+      "member": "Synchro_1_2_233_0_0376_98.3DRep",
+      "leaf_offset": 255727,
+      "face_packets": 1486,
+      "face_packets_by_stored_bgr_hex": {
+        "ff00ff": 91,
+        "00ffff": 384,
+        "00ff00": 768,
+        "ff0000": 240,
+        "ffff00": 3
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ff00ff": 17654,
+        "00ffff": 6340,
+        "00ff00": 2888,
+        "ff0000": 1728,
+        "ffff00": 462
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff00ff": 17654,
+        "ffff00": 6340,
+        "00ff00": 2888,
+        "0000ff": 1728,
+        "00ffff": 462
+      }
+    },
+    {
+      "member": "Synchro_1_2_233_0_0376_98.3DRep",
+      "leaf_offset": 755576,
+      "face_packets": 479,
+      "face_packets_by_stored_bgr_hex": {
+        "47beff": 477,
+        "00ffff": 2
+      },
+      "triangles_by_stored_bgr_hex": {
+        "47beff": 10686,
+        "00ffff": 288
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ffbe47": 10686,
+        "ffff00": 288
+      }
+    },
+    {
+      "member": "Synchro_1_2_233_0_0376_98.3DRep",
+      "leaf_offset": 935267,
+      "face_packets": 402,
+      "face_packets_by_stored_bgr_hex": {
+        "6684ea": 402
+      },
+      "triangles_by_stored_bgr_hex": {
+        "6684ea": 9996
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ea8466": 9996
+      }
+    },
+    {
+      "member": "Synchro_1_2_233_0_0376_98.3DRep",
+      "leaf_offset": 1094532,
+      "face_packets": 6,
+      "face_packets_by_stored_bgr_hex": {
+        "408000": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "408000": 3672
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "008040": 3672
+      }
+    },
+    {
+      "member": "Synchro_1_2_233_0_0376_98.3DRep",
+      "leaf_offset": 1135024,
+      "face_packets": 96,
+      "face_packets_by_stored_bgr_hex": {
+        "c08000": 96
+      },
+      "triangles_by_stored_bgr_hex": {
+        "c08000": 26022
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "0080c0": 26022
+      }
+    },
+    {
+      "member": "Synchro_1_2_233_0_0376_98.3DRep",
+      "leaf_offset": 1490389,
+      "face_packets": 95,
+      "face_packets_by_stored_bgr_hex": {
+        "8080ff": 89,
+        "000080": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "8080ff": 1628,
+        "000080": 1140
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff8080": 1628,
+        "800000": 1140
+      }
+    },
+    {
+      "member": "Synchro_1_2_233_0_0376_98.3DRep",
+      "leaf_offset": 1529814,
+      "face_packets": 65,
+      "face_packets_by_stored_bgr_hex": {
+        "d68549": 65
+      },
+      "triangles_by_stored_bgr_hex": {
+        "d68549": 1684
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "4985d6": 1684
+      }
+    },
+    {
+      "member": "Synchro_1_2_233_0_0376_98.3DRep",
+      "leaf_offset": 1557471,
+      "face_packets": 176,
+      "face_packets_by_stored_bgr_hex": {
+        "00ffff": 176
+      },
+      "triangles_by_stored_bgr_hex": {
+        "00ffff": 3560
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ffff00": 3560
+      }
+    },
+    {
+      "member": "Synchro_1_2_233_0_0376_98.3DRep",
+      "leaf_offset": 1621047,
+      "face_packets": 479,
+      "face_packets_by_stored_bgr_hex": {
+        "47beff": 479
+      },
+      "triangles_by_stored_bgr_hex": {
+        "47beff": 10974
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ffbe47": 10974
+      }
+    },
+    {
+      "member": "Synchro_1_2_233_0_0376_98.3DRep",
+      "leaf_offset": 1801200,
+      "face_packets": 176,
+      "face_packets_by_stored_bgr_hex": {
+        "00ffff": 176
+      },
+      "triangles_by_stored_bgr_hex": {
+        "00ffff": 3560
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ffff00": 3560
+      }
+    },
+    {
+      "member": "Synchro_1_2_233_0_0376_98.3DRep",
+      "leaf_offset": 1864686,
+      "face_packets": 95,
+      "face_packets_by_stored_bgr_hex": {
+        "8080ff": 95
+      },
+      "triangles_by_stored_bgr_hex": {
+        "8080ff": 2768
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff8080": 2768
+      }
+    },
+    {
+      "member": "Synchro_1_2_233_0_0376_98.3DRep",
+      "leaf_offset": 1904001,
+      "face_packets": 65,
+      "face_packets_by_stored_bgr_hex": {
+        "d68549": 65
+      },
+      "triangles_by_stored_bgr_hex": {
+        "d68549": 1684
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "4985d6": 1684
+      }
+    },
+    {
+      "member": "Synchro_R_233_0_0376_98.3DRep",
+      "leaf_offset": 471,
+      "face_packets": 1876,
+      "face_packets_by_stored_bgr_hex": {
+        "ff00ff": 91,
+        "00ffff": 768,
+        "00ff00": 768,
+        "ff0000": 240,
+        "ffff00": 9
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ff00ff": 16838,
+        "00ffff": 6148,
+        "00ff00": 2888,
+        "ff0000": 1878,
+        "ffff00": 540
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff00ff": 16838,
+        "ffff00": 6148,
+        "00ff00": 2888,
+        "0000ff": 1878,
+        "00ffff": 540
+      }
+    },
+    {
+      "member": "Synchro_R_233_0_0376_98.3DRep",
+      "leaf_offset": 505503,
+      "face_packets": 864,
+      "face_packets_by_stored_bgr_hex": {
+        "e8c081": 312,
+        "7db2d3": 39,
+        "00ffff": 12,
+        "ff0080": 300,
+        "ff8000": 201
+      },
+      "triangles_by_stored_bgr_hex": {
+        "e8c081": 12513,
+        "7db2d3": 426,
+        "00ffff": 279,
+        "ff0080": 1080,
+        "ff8000": 718
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "81c0e8": 12513,
+        "d3b27d": 426,
+        "ffff00": 279,
+        "8000ff": 1080,
+        "0080ff": 718
+      }
+    },
+    {
+      "member": "Synchro_R_233_0_0376_98.3DRep",
+      "leaf_offset": 765804,
+      "face_packets": 516,
+      "face_packets_by_stored_bgr_hex": {
+        "47beff": 516
+      },
+      "triangles_by_stored_bgr_hex": {
+        "47beff": 7028
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ffbe47": 7028
+      }
+    },
+    {
+      "member": "Synchro_R_233_0_0376_98.3DRep",
+      "leaf_offset": 892493,
+      "face_packets": 402,
+      "face_packets_by_stored_bgr_hex": {
+        "6684ea": 402
+      },
+      "triangles_by_stored_bgr_hex": {
+        "6684ea": 9996
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ea8466": 9996
+      }
+    },
+    {
+      "member": "Synchro_R_233_0_0376_98.3DRep",
+      "leaf_offset": 1051844,
+      "face_packets": 6,
+      "face_packets_by_stored_bgr_hex": {
+        "408000": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "408000": 3672
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "008040": 3672
+      }
+    },
+    {
+      "member": "Synchro_R_233_0_0376_98.3DRep",
+      "leaf_offset": 1092379,
+      "face_packets": 96,
+      "face_packets_by_stored_bgr_hex": {
+        "c08000": 96
+      },
+      "triangles_by_stored_bgr_hex": {
+        "c08000": 26022
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "0080c0": 26022
+      }
+    },
+    {
+      "member": "Synchro_R_233_0_0376_98.3DRep",
+      "leaf_offset": 1448124,
+      "face_packets": 85,
+      "face_packets_by_stored_bgr_hex": {
+        "8080ff": 25,
+        "00ff00": 60
+      },
+      "triangles_by_stored_bgr_hex": {
+        "8080ff": 1698,
+        "00ff00": 678
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff8080": 1698,
+        "00ff00": 678
+      }
+    },
+    {
+      "member": "j_18_fitted.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 22,
+      "face_packets_by_stored_bgr_hex": {
+        "7c3d00": 22
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7c3d00": 840
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "003d7c": 840
+      }
+    },
+    {
+      "member": "sw_38_fitted.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 10,
+      "face_packets_by_stored_bgr_hex": {
+        "7c3d00": 10
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7c3d00": 744
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "003d7c": 744
+      }
+    },
+    {
+      "member": "sw_50_fitted.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 10,
+      "face_packets_by_stored_bgr_hex": {
+        "7c3d00": 10
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7c3d00": 864
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "003d7c": 864
+      }
+    },
+    {
+      "member": "DIN_ISO_4762_M5x12.3DRep",
+      "leaf_offset": 424,
+      "face_packets": 132,
+      "face_packets_by_stored_bgr_hex": {
+        "d6aa83": 40,
+        "ffd2d2": 8,
+        "e8c081": 84
+      },
+      "triangles_by_stored_bgr_hex": {
+        "d6aa83": 3439,
+        "ffd2d2": 86,
+        "e8c081": 9007
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "83aad6": 3439,
+        "d2d2ff": 86,
+        "81c0e8": 9007
+      }
+    },
+    {
+      "member": "Nadelkranz_G3.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 774,
+      "face_packets_by_stored_bgr_hex": {
+        "7db2d3": 768,
+        "ff0000": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7db2d3": 35728,
+        "ff0000": 4568
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d3b27d": 35728,
+        "0000ff": 4568
+      }
+    },
+    {
+      "member": "Nadelkranz_G2.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 838,
+      "face_packets_by_stored_bgr_hex": {
+        "7db2d3": 832,
+        "ff0000": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7db2d3": 38704,
+        "ff0000": 4792
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d3b27d": 38704,
+        "0000ff": 4792
+      }
+    },
+    {
+      "member": "Synchronkoerper_3_4.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 844,
+      "face_packets_by_stored_bgr_hex": {
+        "e8c081": 278,
+        "7db2d3": 39,
+        "00ffff": 6,
+        "ff0080": 320,
+        "ff8000": 201
+      },
+      "triangles_by_stored_bgr_hex": {
+        "e8c081": 10384,
+        "7db2d3": 318,
+        "00ffff": 192,
+        "ff0080": 1156,
+        "ff8000": 718
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "81c0e8": 10384,
+        "d3b27d": 318,
+        "ffff00": 192,
+        "8000ff": 1156,
+        "0080ff": 718
+      }
+    },
+    {
+      "member": "Schiebemuffe_3_4.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 1486,
+      "face_packets_by_stored_bgr_hex": {
+        "ff00ff": 667,
+        "00ffff": 384,
+        "00ff00": 192,
+        "ff0000": 240,
+        "ffff00": 3
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ff00ff": 20154,
+        "00ffff": 6340,
+        "00ff00": 388,
+        "ff0000": 1728,
+        "ffff00": 462
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff00ff": 20154,
+        "ffff00": 6340,
+        "00ff00": 388,
+        "0000ff": 1728,
+        "00ffff": 462
+      }
+    },
+    {
+      "member": "Synchronring_3.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 614,
+      "face_packets_by_stored_bgr_hex": {
+        "47beff": 612,
+        "00ffff": 2
+      },
+      "triangles_by_stored_bgr_hex": {
+        "47beff": 12762,
+        "00ffff": 288
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ffbe47": 12762,
+        "ffff00": 288
+      }
+    },
+    {
+      "member": "Druckstueck_3_4.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 134,
+      "face_packets_by_stored_bgr_hex": {
+        "6684ea": 134
+      },
+      "triangles_by_stored_bgr_hex": {
+        "6684ea": 3332
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ea8466": 3332
+      }
+    },
+    {
+      "member": "Kugel_3_4.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 2,
+      "face_packets_by_stored_bgr_hex": {
+        "408000": 2
+      },
+      "triangles_by_stored_bgr_hex": {
+        "408000": 1224
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "008040": 1224
+      }
+    },
+    {
+      "member": "Feder_3_4.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 32,
+      "face_packets_by_stored_bgr_hex": {
+        "c08000": 32
+      },
+      "triangles_by_stored_bgr_hex": {
+        "c08000": 8674
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "0080c0": 8674
+      }
+    },
+    {
+      "member": "Kupplungskoerper_3.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 924,
+      "face_packets_by_stored_bgr_hex": {
+        "7db2d3": 124,
+        "808000": 432,
+        "ff8000": 320,
+        "8080ff": 48
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7db2d3": 7350,
+        "808000": 3792,
+        "ff8000": 1026,
+        "8080ff": 420
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d3b27d": 7350,
+        "008080": 3792,
+        "0080ff": 1026,
+        "ff8080": 420
+      }
+    },
+    {
+      "member": "Reibkonus_3.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 95,
+      "face_packets_by_stored_bgr_hex": {
+        "8080ff": 89,
+        "000080": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "8080ff": 1628,
+        "000080": 1140
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff8080": 1628,
+        "800000": 1140
+      }
+    },
+    {
+      "member": "Innenkonus_3.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 86,
+      "face_packets_by_stored_bgr_hex": {
+        "d68549": 68,
+        "00ffff": 18
+      },
+      "triangles_by_stored_bgr_hex": {
+        "d68549": 3662,
+        "00ffff": 96
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "4985d6": 3662,
+        "ffff00": 96
+      }
+    },
+    {
+      "member": "Kupplungskoerper_4.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 924,
+      "face_packets_by_stored_bgr_hex": {
+        "7db2d3": 124,
+        "808000": 432,
+        "ff8000": 320,
+        "8080ff": 48
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7db2d3": 7342,
+        "808000": 3792,
+        "ff8000": 1026,
+        "8080ff": 420
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d3b27d": 7342,
+        "008080": 3792,
+        "0080ff": 1026,
+        "ff8080": 420
+      }
+    },
+    {
+      "member": "Innenkonus_4.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 86,
+      "face_packets_by_stored_bgr_hex": {
+        "d68549": 86
+      },
+      "triangles_by_stored_bgr_hex": {
+        "d68549": 3736
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "4985d6": 3736
+      }
+    },
+    {
+      "member": "Synchronring_4.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 614,
+      "face_packets_by_stored_bgr_hex": {
+        "47beff": 614
+      },
+      "triangles_by_stored_bgr_hex": {
+        "47beff": 13050
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ffbe47": 13050
+      }
+    },
+    {
+      "member": "Druckstueck_3_4_48.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 134,
+      "face_packets_by_stored_bgr_hex": {
+        "6684ea": 134
+      },
+      "triangles_by_stored_bgr_hex": {
+        "6684ea": 3332
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ea8466": 3332
+      }
+    },
+    {
+      "member": "Druckstueck_3_4_49.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 134,
+      "face_packets_by_stored_bgr_hex": {
+        "6684ea": 134
+      },
+      "triangles_by_stored_bgr_hex": {
+        "6684ea": 3332
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ea8466": 3332
+      }
+    },
+    {
+      "member": "Kugel_3_4_50.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 2,
+      "face_packets_by_stored_bgr_hex": {
+        "408000": 2
+      },
+      "triangles_by_stored_bgr_hex": {
+        "408000": 1224
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "008040": 1224
+      }
+    },
+    {
+      "member": "Kugel_3_4_51.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 2,
+      "face_packets_by_stored_bgr_hex": {
+        "408000": 2
+      },
+      "triangles_by_stored_bgr_hex": {
+        "408000": 1224
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "008040": 1224
+      }
+    },
+    {
+      "member": "Feder_3_4_52.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 32,
+      "face_packets_by_stored_bgr_hex": {
+        "c08000": 32
+      },
+      "triangles_by_stored_bgr_hex": {
+        "c08000": 8674
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "0080c0": 8674
+      }
+    },
+    {
+      "member": "Feder_3_4_53.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 32,
+      "face_packets_by_stored_bgr_hex": {
+        "c08000": 32
+      },
+      "triangles_by_stored_bgr_hex": {
+        "c08000": 8674
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "0080c0": 8674
+      }
+    },
+    {
+      "member": "Reibkonus_4.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 95,
+      "face_packets_by_stored_bgr_hex": {
+        "8080ff": 95
+      },
+      "triangles_by_stored_bgr_hex": {
+        "8080ff": 2768
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff8080": 2768
+      }
+    },
+    {
+      "member": "Innenring_ZyRoLa_AW.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 14,
+      "face_packets_by_stored_bgr_hex": {
+        "00ff00": 14
+      },
+      "triangles_by_stored_bgr_hex": {
+        "00ff00": 3800
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "00ff00": 3800
+      }
+    },
+    {
+      "member": "M12x1_25_Schraube_Kardanwelle.3DRep",
+      "leaf_offset": 283,
+      "face_packets": 156,
+      "face_packets_by_stored_bgr_hex": {
+        "00ffff": 98,
+        "663333": 58
+      },
+      "triangles_by_stored_bgr_hex": {
+        "00ffff": 16797,
+        "663333": 6363
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ffff00": 16797,
+        "333366": 6363
+      }
+    },
+    {
+      "member": "Lagerhalbschale_Idler.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 117,
+      "face_packets_by_stored_bgr_hex": {
+        "ffff00": 60,
+        "ffd2d2": 52,
+        "ff8000": 2,
+        "00ff00": 3
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffff00": 3976,
+        "ffd2d2": 5194,
+        "ff8000": 144,
+        "00ff00": 174
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "00ffff": 3976,
+        "d2d2ff": 5194,
+        "0080ff": 144,
+        "00ff00": 174
+      }
+    },
+    {
+      "member": "Washer_Idler.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 12,
+      "face_packets_by_stored_bgr_hex": {
+        "ffd2d2": 12
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffd2d2": 1520
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d2d2ff": 1520
+      }
+    },
+    {
+      "member": "Nadelkranz_Idler.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 230,
+      "face_packets_by_stored_bgr_hex": {
+        "ff0000": 118,
+        "7db2d3": 112
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ff0000": 5436,
+        "7db2d3": 6552
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "0000ff": 5436,
+        "d3b27d": 6552
+      }
+    },
+    {
+      "member": "Bolzen_Idler.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 11,
+      "face_packets_by_stored_bgr_hex": {
+        "90cdbf": 11
+      },
+      "triangles_by_stored_bgr_hex": {
+        "90cdbf": 924
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "bfcd90": 924
+      }
+    },
+    {
+      "member": "Idler_Gear.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 186,
+      "face_packets_by_stored_bgr_hex": {
+        "800080": 76,
+        "ff8000": 110
+      },
+      "triangles_by_stored_bgr_hex": {
+        "800080": 2960,
+        "ff8000": 10648
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "800080": 2960,
+        "0080ff": 10648
+      }
+    },
+    {
+      "member": "233_0_0376_98_Kupplungsgehaeuse_FINALPART.3DRep",
+      "leaf_offset": 263493,
+      "face_packets": 5097,
+      "face_packets_by_stored_bgr_hex": {
+        "ffff00": 10,
+        "008000": 84,
+        "ff8000": 158,
+        "00ff00": 38,
+        "ffd2d2": 4807
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffff00": 896,
+        "008000": 2733,
+        "ff8000": 23233,
+        "00ff00": 2545,
+        "ffd2d2": 483309
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "00ffff": 896,
+        "008000": 2733,
+        "0080ff": 23233,
+        "00ff00": 2545,
+        "d2d2ff": 483309
+      }
+    },
+    {
+      "member": "233_0_0376_98_Getriebedeckel_FINALPART.3DRep",
+      "leaf_offset": 1082,
+      "face_packets": 5633,
+      "face_packets_by_stored_bgr_hex": {
+        "ff8000": 190,
+        "008000": 45,
+        "00ff00": 60,
+        "ffd2d2": 5338
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ff8000": 26827,
+        "008000": 2186,
+        "00ff00": 2780,
+        "ffd2d2": 504003
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "0080ff": 26827,
+        "008000": 2186,
+        "00ff00": 2780,
+        "d2d2ff": 504003
+      }
+    },
+    {
+      "member": "_BAFUD_16_24_4_12010799__0__rubber.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 86,
+      "face_packets_by_stored_bgr_hex": {
+        "ff8080": 82,
+        "c0c0c0": 4
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ff8080": 12382,
+        "c0c0c0": 1116
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "8080ff": 12382,
+        "c0c0c0": 1116
+      }
+    },
+    {
+      "member": "_BAFUD_16_24_4_12010799__0__sheet_metal.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 13,
+      "face_packets_by_stored_bgr_hex": {
+        "bfbfbf": 13
+      },
+      "triangles_by_stored_bgr_hex": {
+        "bfbfbf": 2118
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "bfbfbf": 2118
+      }
+    },
+    {
+      "member": "Linearfuehrung.3DRep",
+      "leaf_offset": 283,
+      "face_packets": 120,
+      "face_packets_by_stored_bgr_hex": {
+        "ffd2d2": 120
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffd2d2": 37440
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d2d2ff": 37440
+      }
+    },
+    {
+      "member": "Linearfuehrung.3DRep",
+      "leaf_offset": 462120,
+      "face_packets": 134,
+      "face_packets_by_stored_bgr_hex": {
+        "663333": 134
+      },
+      "triangles_by_stored_bgr_hex": {
+        "663333": 43804
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "333366": 43804
+      }
+    },
+    {
+      "member": "Linearfuehrung.3DRep",
+      "leaf_offset": 1068404,
+      "face_packets": 20,
+      "face_packets_by_stored_bgr_hex": {
+        "ffff00": 20
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffff00": 3848
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "00ffff": 3848
+      }
+    },
+    {
+      "member": "_BAUMSLX7_55_80_8_521008__0__rubber.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 141,
+      "face_packets_by_stored_bgr_hex": {
+        "ff8080": 137,
+        "c0c0c0": 4
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ff8080": 39572,
+        "c0c0c0": 3272
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "8080ff": 39572,
+        "c0c0c0": 3272
+      }
+    },
+    {
+      "member": "_BAUMSLX7_55_80_8_521008__0__sheet_metal.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 13,
+      "face_packets_by_stored_bgr_hex": {
+        "bfbfbf": 13
+      },
+      "triangles_by_stored_bgr_hex": {
+        "bfbfbf": 4416
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "bfbfbf": 4416
+      }
+    },
+    {
+      "member": "Linearfuehrung_D20.3DRep",
+      "leaf_offset": 283,
+      "face_packets": 144,
+      "face_packets_by_stored_bgr_hex": {
+        "ffd2d2": 144
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffd2d2": 20736
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d2d2ff": 20736
+      }
+    },
+    {
+      "member": "Linearfuehrung_D20.3DRep",
+      "leaf_offset": 249260,
+      "face_packets": 156,
+      "face_packets_by_stored_bgr_hex": {
+        "663333": 156
+      },
+      "triangles_by_stored_bgr_hex": {
+        "663333": 18432
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "333366": 18432
+      }
+    },
+    {
+      "member": "Linearfuehrung_D20.3DRep",
+      "leaf_offset": 517836,
+      "face_packets": 20,
+      "face_packets_by_stored_bgr_hex": {
+        "ffff00": 20
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffff00": 3600
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "00ffff": 3600
+      }
+    },
+    {
+      "member": "Sicherungsscheibe_Lager.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 12,
+      "face_packets_by_stored_bgr_hex": {
+        "97a27e": 12
+      },
+      "triangles_by_stored_bgr_hex": {
+        "97a27e": 404
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "7ea297": 404
+      }
+    },
+    {
+      "member": "Magnet.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 10,
+      "face_packets_by_stored_bgr_hex": {
+        "0080ff": 10
+      },
+      "triangles_by_stored_bgr_hex": {
+        "0080ff": 992
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff8000": 992
+      }
+    },
+    {
+      "member": "ISO_2338_10x20_Zyl_Stift.3DRep",
+      "leaf_offset": 189,
+      "face_packets": 8,
+      "face_packets_by_stored_bgr_hex": {
+        "d6aa83": 8
+      },
+      "triangles_by_stored_bgr_hex": {
+        "d6aa83": 388
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "83aad6": 388
+      }
+    },
+    {
+      "member": "DIN_ISO_4762_M5x20.3DRep",
+      "leaf_offset": 471,
+      "face_packets": 178,
+      "face_packets_by_stored_bgr_hex": {
+        "e8c081": 114,
+        "d6aa83": 50,
+        "ffd2d2": 14
+      },
+      "triangles_by_stored_bgr_hex": {
+        "e8c081": 11911,
+        "d6aa83": 4219,
+        "ffd2d2": 96
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "81c0e8": 11911,
+        "83aad6": 4219,
+        "d2d2ff": 96
+      }
+    },
+    {
+      "member": "DIN_ISO_4762_M6x15.3DRep",
+      "leaf_offset": 471,
+      "face_packets": 126,
+      "face_packets_by_stored_bgr_hex": {
+        "d6aa83": 37,
+        "ffd2d2": 14,
+        "e8c081": 75
+      },
+      "triangles_by_stored_bgr_hex": {
+        "d6aa83": 3570,
+        "ffd2d2": 116,
+        "e8c081": 8270
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "83aad6": 3570,
+        "d2d2ff": 116,
+        "81c0e8": 8270
+      }
+    },
+    {
+      "member": "sb_58_fitted.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 10,
+      "face_packets_by_stored_bgr_hex": {
+        "7c3d00": 10
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7c3d00": 908
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "003d7c": 908
+      }
+    },
+    {
+      "member": "ISO_2338_8x14_Zyl_Stift.3DRep",
+      "leaf_offset": 189,
+      "face_packets": 10,
+      "face_packets_by_stored_bgr_hex": {
+        "d6aa83": 10
+      },
+      "triangles_by_stored_bgr_hex": {
+        "d6aa83": 504
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "83aad6": 504
+      }
+    },
+    {
+      "member": "_BAUMSL_40_72_10_477147__0__rubber.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 103,
+      "face_packets_by_stored_bgr_hex": {
+        "ff8080": 99,
+        "c0c0c0": 4
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ff8080": 25300,
+        "c0c0c0": 2808
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "8080ff": 25300,
+        "c0c0c0": 2808
+      }
+    },
+    {
+      "member": "_BAUMSL_40_72_10_477147__0__sheet_metal.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 13,
+      "face_packets_by_stored_bgr_hex": {
+        "bfbfbf": 13
+      },
+      "triangles_by_stored_bgr_hex": {
+        "bfbfbf": 4128
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "bfbfbf": 4128
+      }
+    },
+    {
+      "member": "233_0_0376_98_Mittelgehaeuse_FINALPART.3DRep",
+      "leaf_offset": 1129,
+      "face_packets": 3017,
+      "face_packets_by_stored_bgr_hex": {
+        "008000": 76,
+        "ff8000": 185,
+        "00ff00": 68,
+        "ffd2d2": 2688
+      },
+      "triangles_by_stored_bgr_hex": {
+        "008000": 2664,
+        "ff8000": 19640,
+        "00ff00": 3084,
+        "ffd2d2": 337094
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "008000": 2664,
+        "0080ff": 19640,
+        "00ff00": 3084,
+        "d2d2ff": 337094
+      }
+    },
+    {
+      "member": "Sicherungsscheibe_Lager_lang.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 12,
+      "face_packets_by_stored_bgr_hex": {
+        "97a27e": 12
+      },
+      "triangles_by_stored_bgr_hex": {
+        "97a27e": 404
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "7ea297": 404
+      }
+    },
+    {
+      "member": "M6x15_Flathead.3DRep",
+      "leaf_offset": 471,
+      "face_packets": 132,
+      "face_packets_by_stored_bgr_hex": {
+        "d6aa83": 40,
+        "ffd2d2": 8,
+        "e8c081": 84
+      },
+      "triangles_by_stored_bgr_hex": {
+        "d6aa83": 3820,
+        "ffd2d2": 86,
+        "e8c081": 9322
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "83aad6": 3820,
+        "d2d2ff": 86,
+        "81c0e8": 9322
+      }
+    },
+    {
+      "member": "Magneet.3DRep",
+      "leaf_offset": 283,
+      "face_packets": 10,
+      "face_packets_by_stored_bgr_hex": {
+        "0080ff": 10
+      },
+      "triangles_by_stored_bgr_hex": {
+        "0080ff": 992
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff8000": 992
+      }
+    },
+    {
+      "member": "Schaltstange_5_6_Primaer.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 59,
+      "face_packets_by_stored_bgr_hex": {
+        "ffd2d2": 10,
+        "8000ff": 10,
+        "8080ff": 39
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffd2d2": 830,
+        "8000ff": 128,
+        "8080ff": 916
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d2d2ff": 830,
+        "ff0080": 128,
+        "ff8080": 916
+      }
+    },
+    {
+      "member": "Bolzen_Rastierlager.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 22,
+      "face_packets_by_stored_bgr_hex": {
+        "bf9399": 22
+      },
+      "triangles_by_stored_bgr_hex": {
+        "bf9399": 1700
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "9993bf": 1700
+      }
+    },
+    {
+      "member": "Rastierelement_Schaltwelle.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 17,
+      "face_packets_by_stored_bgr_hex": {
+        "7db2d3": 17
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7db2d3": 1464
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d3b27d": 1464
+      }
+    },
+    {
+      "member": "Druckfeder_Gassenwahl.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 98,
+      "face_packets_by_stored_bgr_hex": {
+        "ffff00": 96,
+        "00ff00": 2
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffff00": 60668,
+        "00ff00": 94
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "00ffff": 60668,
+        "00ff00": 94
+      }
+    },
+    {
+      "member": "Rastierung_R.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 56,
+      "face_packets_by_stored_bgr_hex": {
+        "a00000": 3,
+        "c08000": 53
+      },
+      "triangles_by_stored_bgr_hex": {
+        "a00000": 1726,
+        "c08000": 30928
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "0000a0": 1726,
+        "0080c0": 30928
+      }
+    },
+    {
+      "member": "Rastierung_3_4.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 40,
+      "face_packets_by_stored_bgr_hex": {
+        "a00000": 3,
+        "c08000": 37
+      },
+      "triangles_by_stored_bgr_hex": {
+        "a00000": 1724,
+        "c08000": 20174
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "0000a0": 1724,
+        "0080c0": 20174
+      }
+    },
+    {
+      "member": "Rastierung_1_2.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 40,
+      "face_packets_by_stored_bgr_hex": {
+        "a00000": 3,
+        "c08000": 37
+      },
+      "triangles_by_stored_bgr_hex": {
+        "a00000": 1725,
+        "c08000": 20175
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "0000a0": 1725,
+        "0080c0": 20175
+      }
+    },
+    {
+      "member": "Rastierung_5_6.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 52,
+      "face_packets_by_stored_bgr_hex": {
+        "a00000": 3,
+        "c08000": 49
+      },
+      "triangles_by_stored_bgr_hex": {
+        "a00000": 1725,
+        "c08000": 28239
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "0000a0": 1725,
+        "0080c0": 28239
+      }
+    },
+    {
+      "member": "Anschlagbolzen_Torsionsfeder.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 8,
+      "face_packets_by_stored_bgr_hex": {
+        "bf9399": 8
+      },
+      "triangles_by_stored_bgr_hex": {
+        "bf9399": 316
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "9993bf": 316
+      }
+    },
+    {
+      "member": "ISO4762_M6x20_Zyl_Schraube.3DRep",
+      "leaf_offset": 283,
+      "face_packets": 31,
+      "face_packets_by_stored_bgr_hex": {
+        "d6aa83": 31
+      },
+      "triangles_by_stored_bgr_hex": {
+        "d6aa83": 1256
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "83aad6": 1256
+      }
+    },
+    {
+      "member": "INAFAG_607.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 16,
+      "face_packets_by_stored_bgr_hex": {
+        "808080": 16
+      },
+      "triangles_by_stored_bgr_hex": {
+        "808080": 2194
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "808080": 2194
+      }
+    },
+    {
+      "member": "INAFAG_607.3DRep",
+      "leaf_offset": 26561,
+      "face_packets": 36,
+      "face_packets_by_stored_bgr_hex": {
+        "c0c0c0": 36
+      },
+      "triangles_by_stored_bgr_hex": {
+        "c0c0c0": 8082
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "c0c0c0": 8082
+      }
+    },
+    {
+      "member": "INAFAG_607.3DRep",
+      "leaf_offset": 121374,
+      "face_packets": 16,
+      "face_packets_by_stored_bgr_hex": {
+        "808080": 16
+      },
+      "triangles_by_stored_bgr_hex": {
+        "808080": 2804
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "808080": 2804
+      }
+    },
+    {
+      "member": "Schaltwelle.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 52,
+      "face_packets_by_stored_bgr_hex": {
+        "000080": 21,
+        "00ff00": 4,
+        "ffff00": 11,
+        "00ffff": 16
+      },
+      "triangles_by_stored_bgr_hex": {
+        "000080": 5394,
+        "00ff00": 250,
+        "ffff00": 2114,
+        "00ffff": 494
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "800000": 5394,
+        "00ff00": 250,
+        "00ffff": 2114,
+        "ffff00": 494
+      }
+    },
+    {
+      "member": "Fuehrung_Rueckstellfeder.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 29,
+      "face_packets_by_stored_bgr_hex": {
+        "c0c4c1": 27,
+        "008000": 2
+      },
+      "triangles_by_stored_bgr_hex": {
+        "c0c4c1": 2268,
+        "008000": 110
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "c1c4c0": 2268,
+        "008000": 110
+      }
+    },
+    {
+      "member": "Rueckstellfeder.3DRep",
+      "leaf_offset": 188,
+      "face_packets": 38,
+      "face_packets_by_stored_bgr_hex": {
+        "97a27e": 38
+      },
+      "triangles_by_stored_bgr_hex": {
+        "97a27e": 59196
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "7ea297": 59196
+      }
+    },
+    {
+      "member": "Mitnehmer_Rastierung_Schaltwellenfeder.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 54,
+      "face_packets_by_stored_bgr_hex": {
+        "80ff80": 26,
+        "ffd2d2": 28
+      },
+      "triangles_by_stored_bgr_hex": {
+        "80ff80": 2692,
+        "ffd2d2": 120
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "80ff80": 2692,
+        "d2d2ff": 120
+      }
+    },
+    {
+      "member": "Stift_Schaltwellenmitnahme.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 8,
+      "face_packets_by_stored_bgr_hex": {
+        "e8c081": 8
+      },
+      "triangles_by_stored_bgr_hex": {
+        "e8c081": 264
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "81c0e8": 264
+      }
+    },
+    {
+      "member": "Stift_Schaltwellenmitnahme_94.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 8,
+      "face_packets_by_stored_bgr_hex": {
+        "e8c081": 8
+      },
+      "triangles_by_stored_bgr_hex": {
+        "e8c081": 260
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "81c0e8": 260
+      }
+    },
+    {
+      "member": "Rollen_Schaltwellenmitnahme.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 40,
+      "face_packets_by_stored_bgr_hex": {
+        "ffd2d2": 40
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffd2d2": 1952
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d2d2ff": 1952
+      }
+    },
+    {
+      "member": "Schaltfinger.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 77,
+      "face_packets_by_stored_bgr_hex": {
+        "ffd2d2": 71,
+        "00ff00": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffd2d2": 2950,
+        "00ff00": 274
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d2d2ff": 2950,
+        "00ff00": 274
+      }
+    },
+    {
+      "member": "ISO_2338_5x25_Zyl_Stift.3DRep",
+      "leaf_offset": 189,
+      "face_packets": 8,
+      "face_packets_by_stored_bgr_hex": {
+        "c0c4c1": 8
+      },
+      "triangles_by_stored_bgr_hex": {
+        "c0c4c1": 276
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "c1c4c0": 276
+      }
+    },
+    {
+      "member": "Gabel_1_2.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 223,
+      "face_packets_by_stored_bgr_hex": {
+        "d6aa83": 215,
+        "ff0000": 2,
+        "00ff00": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "d6aa83": 11952,
+        "ff0000": 312,
+        "00ff00": 242
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "83aad6": 11952,
+        "0000ff": 312,
+        "00ff00": 242
+      }
+    },
+    {
+      "member": "Schaltstange_1_2.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 58,
+      "face_packets_by_stored_bgr_hex": {
+        "ffd2d2": 12,
+        "8000ff": 5,
+        "8080ff": 39,
+        "00ff00": 2
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffd2d2": 1356,
+        "8000ff": 68,
+        "8080ff": 904,
+        "00ff00": 166
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d2d2ff": 1356,
+        "ff0080": 68,
+        "ff8080": 904,
+        "00ff00": 166
+      }
+    },
+    {
+      "member": "Gabel_3_4.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 219,
+      "face_packets_by_stored_bgr_hex": {
+        "d6aa83": 211,
+        "ff0000": 2,
+        "00ff00": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "d6aa83": 11814,
+        "ff0000": 316,
+        "00ff00": 242
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "83aad6": 11814,
+        "0000ff": 316,
+        "00ff00": 242
+      }
+    },
+    {
+      "member": "Schaltstange_3_4.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 58,
+      "face_packets_by_stored_bgr_hex": {
+        "ffd2d2": 12,
+        "8000ff": 5,
+        "8080ff": 39,
+        "00ff00": 2
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffd2d2": 1336,
+        "8000ff": 66,
+        "8080ff": 904,
+        "00ff00": 168
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d2d2ff": 1336,
+        "ff0080": 66,
+        "ff8080": 904,
+        "00ff00": 168
+      }
+    },
+    {
+      "member": "Gabel_R.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 243,
+      "face_packets_by_stored_bgr_hex": {
+        "d6aa83": 235,
+        "ff0000": 2,
+        "00ff00": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "d6aa83": 12474,
+        "ff0000": 316,
+        "00ff00": 238
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "83aad6": 12474,
+        "0000ff": 316,
+        "00ff00": 238
+      }
+    },
+    {
+      "member": "Schaltstange_R.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 55,
+      "face_packets_by_stored_bgr_hex": {
+        "ffd2d2": 12,
+        "8000ff": 5,
+        "8080ff": 36,
+        "00ff00": 2
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffd2d2": 1347,
+        "8000ff": 68,
+        "8080ff": 893,
+        "00ff00": 166
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d2d2ff": 1347,
+        "ff0080": 68,
+        "ff8080": 893,
+        "00ff00": 166
+      }
+    },
+    {
+      "member": "Schaltstange_5_6_Sekundaer.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 19,
+      "face_packets_by_stored_bgr_hex": {
+        "ffd2d2": 12,
+        "8000ff": 5,
+        "00ff00": 2
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffd2d2": 1192,
+        "8000ff": 62,
+        "00ff00": 168
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d2d2ff": 1192,
+        "ff0080": 62,
+        "00ff00": 168
+      }
+    },
+    {
+      "member": "Gabel_5_6.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 211,
+      "face_packets_by_stored_bgr_hex": {
+        "d6aa83": 203,
+        "ff0000": 2,
+        "00ff00": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "d6aa83": 11362,
+        "ff0000": 316,
+        "00ff00": 242
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "83aad6": 11362,
+        "0000ff": 316,
+        "00ff00": 242
+      }
+    },
+    {
+      "member": "Wippe_5_6.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 92,
+      "face_packets_by_stored_bgr_hex": {
+        "306a8d": 74,
+        "ffd2d2": 12,
+        "00ff00": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "306a8d": 2676,
+        "ffd2d2": 424,
+        "00ff00": 208
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "8d6a30": 2676,
+        "d2d2ff": 424,
+        "00ff00": 208
+      }
+    },
+    {
+      "member": "Rollen_Wippe.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 26,
+      "face_packets_by_stored_bgr_hex": {
+        "7db2d3": 26
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7db2d3": 1472
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d3b27d": 1472
+      }
+    },
+    {
+      "member": "Haltewikel_5_6.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 19,
+      "face_packets_by_stored_bgr_hex": {
+        "97a27e": 17,
+        "00ff00": 2
+      },
+      "triangles_by_stored_bgr_hex": {
+        "97a27e": 836,
+        "00ff00": 80
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "7ea297": 836,
+        "00ff00": 80
+      }
+    },
+    {
+      "member": "Stift_Schaltschwinge.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 15,
+      "face_packets_by_stored_bgr_hex": {
+        "4080ff": 15
+      },
+      "triangles_by_stored_bgr_hex": {
+        "4080ff": 1064
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff8040": 1064
+      }
+    },
+    {
+      "member": "Tragarm_Schaltung.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 116,
+      "face_packets_by_stored_bgr_hex": {
+        "c0c4c1": 85,
+        "008000": 20,
+        "00ff00": 11
+      },
+      "triangles_by_stored_bgr_hex": {
+        "c0c4c1": 5258,
+        "008000": 728,
+        "00ff00": 926
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "c1c4c0": 5258,
+        "008000": 728,
+        "00ff00": 926
+      }
+    },
+    {
+      "member": "Adapter_Tragarm_Schaltung.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 158,
+      "face_packets_by_stored_bgr_hex": {
+        "663333": 150,
+        "00ff00": 8
+      },
+      "triangles_by_stored_bgr_hex": {
+        "663333": 9556,
+        "00ff00": 384
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "333366": 9556,
+        "00ff00": 384
+      }
+    },
+    {
+      "member": "Anschlagblech_Schalthebel.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 71,
+      "face_packets_by_stored_bgr_hex": {
+        "ffd2d2": 71
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffd2d2": 2524
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d2d2ff": 2524
+      }
+    },
+    {
+      "member": "Schalthebel.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 252,
+      "face_packets_by_stored_bgr_hex": {
+        "ffd2d2": 65,
+        "00ff00": 2,
+        "e8c081": 101,
+        "c0c4c1": 20,
+        "d1b3c4": 23,
+        "414141": 41
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffd2d2": 12775,
+        "00ff00": 100,
+        "e8c081": 21069,
+        "c0c4c1": 512,
+        "d1b3c4": 6072,
+        "414141": 15648
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d2d2ff": 12775,
+        "00ff00": 100,
+        "81c0e8": 21069,
+        "c1c4c0": 512,
+        "c4b3d1": 6072,
+        "414141": 15648
+      }
+    },
+    {
+      "member": "Stahleinsatz_Gummilager.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 12,
+      "face_packets_by_stored_bgr_hex": {
+        "c08080": 12
+      },
+      "triangles_by_stored_bgr_hex": {
+        "c08080": 736
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "8080c0": 736
+      }
+    },
+    {
+      "member": "Koppelblech_Schaltung.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 32,
+      "face_packets_by_stored_bgr_hex": {
+        "bf9399": 32
+      },
+      "triangles_by_stored_bgr_hex": {
+        "bf9399": 1412
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "9993bf": 1412
+      }
+    },
+    {
+      "member": "Koppelstange_Schaltung.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 37,
+      "face_packets_by_stored_bgr_hex": {
+        "ffff00": 29,
+        "00ff00": 8
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffff00": 3418,
+        "00ff00": 616
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "00ffff": 3418,
+        "00ff00": 616
+      }
+    },
+    {
+      "member": "Gummi_Tragarm_Schaltung.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 12,
+      "face_packets_by_stored_bgr_hex": {
+        "515151": 12
+      },
+      "triangles_by_stored_bgr_hex": {
+        "515151": 944
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "515151": 944
+      }
+    },
+    {
+      "member": "Bushing_Kugel.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 183,
+      "face_packets_by_stored_bgr_hex": {
+        "3d3d3d": 20,
+        "7db2d3": 139,
+        "8080ff": 24
+      },
+      "triangles_by_stored_bgr_hex": {
+        "3d3d3d": 7000,
+        "7db2d3": 11868,
+        "8080ff": 960
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "3d3d3d": 7000,
+        "d3b27d": 11868,
+        "ff8080": 960
+      }
+    },
+    {
+      "member": "Zwischenblech_Schalthebel.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 45,
+      "face_packets_by_stored_bgr_hex": {
+        "7db2d3": 45
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7db2d3": 4000
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d3b27d": 4000
+      }
+    },
+    {
+      "member": "Spacer_Schalthebel.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 20,
+      "face_packets_by_stored_bgr_hex": {
+        "d6aa83": 20
+      },
+      "triangles_by_stored_bgr_hex": {
+        "d6aa83": 1400
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "83aad6": 1400
+      }
+    },
+    {
+      "member": "Gleitlagereinsatz_Schalthebel.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 14,
+      "face_packets_by_stored_bgr_hex": {
+        "0080ff": 14
+      },
+      "triangles_by_stored_bgr_hex": {
+        "0080ff": 736
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff8000": 736
+      }
+    },
+    {
+      "member": "Gleitlagereinsatz_Koppelstange.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 14,
+      "face_packets_by_stored_bgr_hex": {
+        "0080ff": 14
+      },
+      "triangles_by_stored_bgr_hex": {
+        "0080ff": 736
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff8000": 736
+      }
+    },
+    {
+      "member": "Koppelstift_Aussenschaltung.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 8,
+      "face_packets_by_stored_bgr_hex": {
+        "bf9399": 8
+      },
+      "triangles_by_stored_bgr_hex": {
+        "bf9399": 308
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "9993bf": 308
+      }
+    },
+    {
+      "member": "Rotationsachse_Schalthebel.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 2,
+      "face_packets_by_stored_bgr_hex": {
+        "ffd2d2": 2
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffd2d2": 12320
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d2d2ff": 12320
+      }
+    },
+    {
+      "member": "DIN_ISO_4762_M6x20.3DRep",
+      "leaf_offset": 424,
+      "face_packets": 166,
+      "face_packets_by_stored_bgr_hex": {
+        "e8c081": 105,
+        "d6aa83": 47,
+        "ffd2d2": 14
+      },
+      "triangles_by_stored_bgr_hex": {
+        "e8c081": 11770,
+        "d6aa83": 4430,
+        "ffd2d2": 116
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "81c0e8": 11770,
+        "83aad6": 4430,
+        "d2d2ff": 116
+      }
+    },
+    {
+      "member": "ISO_4032_M16_Mutter.3DRep",
+      "leaf_offset": 283,
+      "face_packets": 84,
+      "face_packets_by_stored_bgr_hex": {
+        "d6aa83": 32,
+        "008000": 52
+      },
+      "triangles_by_stored_bgr_hex": {
+        "d6aa83": 1538,
+        "008000": 3680
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "83aad6": 1538,
+        "008000": 3680
+      }
+    },
+    {
+      "member": "DIN_6921_M6x70_Hex_Head_Flange.3DRep",
+      "leaf_offset": 330,
+      "face_packets": 395,
+      "face_packets_by_stored_bgr_hex": {
+        "97a27e": 123,
+        "00ffff": 272
+      },
+      "triangles_by_stored_bgr_hex": {
+        "97a27e": 9614,
+        "00ffff": 31402
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "7ea297": 9614,
+        "ffff00": 31402
+      }
+    },
+    {
+      "member": "DIN_6921_M6x30_Hex_Head_Flange.3DRep",
+      "leaf_offset": 330,
+      "face_packets": 259,
+      "face_packets_by_stored_bgr_hex": {
+        "97a27e": 89,
+        "00ffff": 170
+      },
+      "triangles_by_stored_bgr_hex": {
+        "97a27e": 6622,
+        "00ffff": 19434
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "7ea297": 6622,
+        "ffff00": 19434
+      }
+    },
+    {
+      "member": "Threaded_plug_GN_749_M14x1_5_B.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 29,
+      "face_packets_by_stored_bgr_hex": {
+        "a00000": 3,
+        "bfbfbf": 26
+      },
+      "triangles_by_stored_bgr_hex": {
+        "a00000": 248,
+        "bfbfbf": 1364
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "0000a0": 248,
+        "bfbfbf": 1364
+      }
+    },
+    {
+      "member": "Entluefter.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 20,
+      "face_packets_by_stored_bgr_hex": {
+        "c0c4c1": 20
+      },
+      "triangles_by_stored_bgr_hex": {
+        "c0c4c1": 3120
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "c1c4c0": 3120
+      }
+    },
+    {
+      "member": "Entluefter.3DRep",
+      "leaf_offset": 37299,
+      "face_packets": 221,
+      "face_packets_by_stored_bgr_hex": {
+        "414141": 221
+      },
+      "triangles_by_stored_bgr_hex": {
+        "414141": 6224
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "414141": 6224
+      }
+    },
+    {
+      "member": "Rastierung_Schaltwelle.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 337,
+      "face_packets_by_stored_bgr_hex": {
+        "ffd2d2": 148,
+        "c0c4c1": 37,
+        "d1b3c4": 10,
+        "663333": 75,
+        "e8c081": 65,
+        "d6aa83": 2
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffd2d2": 61169,
+        "c0c4c1": 4871,
+        "d1b3c4": 1768,
+        "663333": 8211,
+        "e8c081": 17065,
+        "d6aa83": 2400
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d2d2ff": 61169,
+        "c1c4c0": 4871,
+        "c4b3d1": 1768,
+        "333366": 8211,
+        "81c0e8": 17065,
+        "83aad6": 2400
+      }
+    },
+    {
+      "member": "DIN_6921_M6x35_Hex_Head_Flange.3DRep",
+      "leaf_offset": 330,
+      "face_packets": 299,
+      "face_packets_by_stored_bgr_hex": {
+        "00ffff": 200,
+        "97a27e": 99
+      },
+      "triangles_by_stored_bgr_hex": {
+        "00ffff": 22954,
+        "97a27e": 7502
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ffff00": 22954,
+        "7ea297": 7502
+      }
+    },
+    {
+      "member": "DIN908_M10x1_Verschlussschraube.3DRep",
+      "leaf_offset": 331,
+      "face_packets": 85,
+      "face_packets_by_stored_bgr_hex": {
+        "404080": 30,
+        "d6aa83": 14,
+        "e8c081": 41
+      },
+      "triangles_by_stored_bgr_hex": {
+        "404080": 2644,
+        "d6aa83": 96,
+        "e8c081": 5782
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "804040": 2644,
+        "83aad6": 96,
+        "81c0e8": 5782
+      }
+    },
+    {
+      "member": "DIN908_M10x1_Verschlussschraube.3DRep",
+      "leaf_offset": 132010,
+      "face_packets": 6,
+      "face_packets_by_stored_bgr_hex": {
+        "ffd2d2": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffd2d2": 432
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d2d2ff": 432
+      }
+    },
+    {
+      "member": "DIN908_M22x1_5_Verschlussschraube.3DRep",
+      "leaf_offset": 330,
+      "face_packets": 96,
+      "face_packets_by_stored_bgr_hex": {
+        "404080": 32,
+        "d6aa83": 14,
+        "e8c081": 50
+      },
+      "triangles_by_stored_bgr_hex": {
+        "404080": 4493,
+        "d6aa83": 116,
+        "e8c081": 14091
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "804040": 4493,
+        "83aad6": 116,
+        "81c0e8": 14091
+      }
+    },
+    {
+      "member": "DIN908_M22x1_5_Verschlussschraube.3DRep",
+      "leaf_offset": 286607,
+      "face_packets": 6,
+      "face_packets_by_stored_bgr_hex": {
+        "97a27e": 6
+      },
+      "triangles_by_stored_bgr_hex": {
+        "97a27e": 624
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "7ea297": 624
+      }
+    },
+    {
+      "member": "Speed_Sensor.3DRep",
+      "leaf_offset": 377,
+      "face_packets": 88,
+      "face_packets_by_stored_bgr_hex": {
+        "414141": 47,
+        "d1b3c4": 41
+      },
+      "triangles_by_stored_bgr_hex": {
+        "414141": 2588,
+        "d1b3c4": 5784
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "414141": 2588,
+        "c4b3d1": 5784
+      }
+    },
+    {
+      "member": "Speed_Sensor.3DRep",
+      "leaf_offset": 109601,
+      "face_packets": 57,
+      "face_packets_by_stored_bgr_hex": {
+        "ffd2d2": 57
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffd2d2": 1452
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d2d2ff": 1452
+      }
+    },
+    {
+      "member": "Speed_Sensor.3DRep",
+      "leaf_offset": 126678,
+      "face_packets": 280,
+      "face_packets_by_stored_bgr_hex": {
+        "8080ff": 135,
+        "00ffff": 145
+      },
+      "triangles_by_stored_bgr_hex": {
+        "8080ff": 4452,
+        "00ffff": 6238
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "ff8080": 4452,
+        "ffff00": 6238
+      }
+    },
+    {
+      "member": "Speed_Sensor.3DRep",
+      "leaf_offset": 291699,
+      "face_packets": 8,
+      "face_packets_by_stored_bgr_hex": {
+        "414141": 8
+      },
+      "triangles_by_stored_bgr_hex": {
+        "414141": 4032
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "414141": 4032
+      }
+    },
+    {
+      "member": "Fuehrungsblech_Ausruecklager.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 46,
+      "face_packets_by_stored_bgr_hex": {
+        "7db2d3": 44,
+        "00ff00": 2
+      },
+      "triangles_by_stored_bgr_hex": {
+        "7db2d3": 14944,
+        "00ff00": 84
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d3b27d": 14944,
+        "00ff00": 84
+      }
+    },
+    {
+      "member": "DIN_6921_M8x35_Hex_Head_Flange.3DRep",
+      "leaf_offset": 330,
+      "face_packets": 249,
+      "face_packets_by_stored_bgr_hex": {
+        "663333": 87,
+        "00ffff": 162
+      },
+      "triangles_by_stored_bgr_hex": {
+        "663333": 7151,
+        "00ffff": 22015
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "333366": 7151,
+        "ffff00": 22015
+      }
+    },
+    {
+      "member": "Verschiebungsvektor.3DRep",
+      "leaf_offset": 236,
+      "face_packets": 2,
+      "face_packets_by_stored_bgr_hex": {
+        "ffd2d2": 2
+      },
+      "triangles_by_stored_bgr_hex": {
+        "ffd2d2": 12320
+      },
+      "triangles_by_decoded_rgb_hex": {
+        "d2d2ff": 12320
+      }
+    }
+  ]
+}

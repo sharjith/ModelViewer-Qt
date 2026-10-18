@@ -11,6 +11,11 @@ no application build/test commands were run.
 
 ## Readiness and precise scope
 
+The later [face-color findings](3DXML_face_color_findings.md) add a separate
+source-color inspection export: the three stored color bytes are BGR and bind
+per finest-face packet. This supplements the original neutral-color OBJ below;
+it does not establish complete physical material or transparency semantics.
+
 Complete mesh display of this sample can now be implemented with the file's
 positions and exact triangle connectivity, using derived triangle normals.
 Exact stored smooth-normal quantization remains unproven; this is a shading
@@ -164,7 +169,7 @@ Mesh leaf `0x95`:
    coordinate indices at this mesh's index width. All references must be <N.
    These groups consume the same bit reservoir used by triangle topology.
 6. Each present tail section has an ordinary eight-byte style; observed
-   prefixes are `10 24 04 FF FF` and `10 14 04 FF FF`, followed by RGB bytes.
+   prefixes are `10 24 04 FF FF` and `10 14 04 FF FF`, followed by three color bytes.
 7. At this point require `byteCursor = spanFieldOffset + spanValue`.
 8. Read a compact offset into the logical SurfacicReps stream. That reference
    is outside the preceding span. Do not calculate record ends by assuming

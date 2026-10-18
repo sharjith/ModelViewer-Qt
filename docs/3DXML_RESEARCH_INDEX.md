@@ -14,6 +14,12 @@ exact stored smooth-normal quantization remains explicitly unproven.
 
 ## Current specifications
 
+The owner's subsequent reference screenshots prompted a
+[face-color pass](3DXML_face_color_findings.md): 45 stored BGR colors are now
+bound to the corresponding finest face packets in a separate colored OBJ.
+The first neutral-color OBJ was a geometry inspection artifact, not a source
+appearance export. Full material semantics remain outside this result.
+
 1. [Complete mesh research and importer contract](3DXML_complete_mesh_research.md):
    compound streams, every body, graph reuse, tail records, full audit and rendering policy.
 2. [Mesh decoding](3DXML_mesh_decoding_spec.md): coordinates, persistent packed
@@ -36,6 +42,7 @@ exact stored smooth-normal quantization remains explicitly unproven.
 | Complete compound/Skeleton/mesh/surface-link and topology audit | `3DXML_complete_mesh_audit.json` | `decode_representation.py --geometry-qa` |
 | Independent geometric normal-quantizer comparisons | `3DXML_normal_quantization_analysis.json` | `analyze_normal_quantization.py` |
 | Noncommuting transforms and inverse-transpose normals (synthetic) | `3DXML_transform_fixture.json` | `verify_transform_conventions.py` |
+| Per-face style binding and BGR/RGB color histograms | `3DXML_face_style_analysis.json` | `analyze_face_styles.py` |
 
 All use the owner's supplied archive at
 `D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml`.
