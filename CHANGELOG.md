@@ -140,7 +140,7 @@ plotting, measurement and annotation, CGAL-based mesh editing and surface analys
   `packaging/make-content-packs.ps1`.
 - **Sample models cleaned up.** Models that could not be redistributed (a CC BY-NC shuttle, three engine / grader archives,
   a vendor actuator, the Open CASCADE logo) were removed; every remaining sample is documented in
-  `sample-models/LICENSES.md`. The Forklift is now stored upright (Z-up). The Camera sample stays in the repository but is not installed.
+  `sample-models/LICENSES.md`. The Forklift (GrabCAD, no licence stated) is not redistributed: it is not in the repository or the packages, and `sample-models/Forklift/README.md` links to the download. The Camera sample stays in the repository but is not installed.
 - **Material library and environment maps reorganised and re-licensed.** The library is grouped (metals, brushed metals,
   industrial and sci-fi, stone, plastics, rubber, wood, fabrics, leather, glass and transparent, clear-coat car paints and more)
   with descriptive "Type, Finish" names. Every texture, HDRI map, floor texture, hatch pattern and look-up table now has a

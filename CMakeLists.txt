@@ -977,7 +977,7 @@ file(GLOB _sample_loose LIST_DIRECTORIES false CONFIGURE_DEPENDS "${CMAKE_CURREN
 install(FILES ${_sample_loose}
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/sample-models"
 )
-foreach(_sample_dir Skate-Board-Assy Tea-Pot Forklift Cube Plot3D)
+foreach(_sample_dir Skate-Board-Assy Tea-Pot Cube Plot3D)
     install(DIRECTORY "sample-models/${_sample_dir}"
             DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/sample-models"
     )
