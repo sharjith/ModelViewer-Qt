@@ -35,7 +35,10 @@ for a tessellated archive format.
 
 Existing flow:
 `ModelViewer::loadFile -> ViewportWidget::loadAssImpModel -> AssImpModelLoader::loadModel`.
-Add a `.3dxml` dispatch before XCAF/Assimp file reading. The new importer returns
+Preserve the existing XCAF-first dispatch sequence: try the XCAF processor
+factory first, then route `.3dxml` to the new importer, and otherwise use
+Assimp file reading. This ordering follows the owner's explicit preference.
+The new importer returns
 an in-memory scene to the existing post-read processing and DFS mesh traversal.
 Keep cancellation, progressive loading, UV decisions, error reporting and scene
 merge behavior. Add the extension to all open/import/support filters, including
