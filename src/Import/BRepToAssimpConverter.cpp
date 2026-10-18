@@ -1101,23 +1101,42 @@ bool BRepToAssimpConverter::isShapeMeshable(const TopoDS_Shape& shape)
  */
 namespace
 {
-// True when every node of `tri` (placed by `loc`) lies within (a margin around) the bounding box of `face`'s own edges. A
-// face's triangulation cannot legitimately extend far past its boundary, so one that does came from a repair that replaced
-// the real boundary (e.g. ShapeFix's "add natural bound", or a rebuild from the surface's full UV range) - the large stray
-// triangle that results is worse than leaving the face out.
+// True when every node of `tri` (placed by `loc`) lies within (a margin around) the original `face`: either the bounding box
+// of its own edges, or the box of the face's trimmed surface patch. A face's triangulation cannot legitimately extend far past
+// its boundary, so one that does came from a repair that replaced the real boundary (e.g. ShapeFix's "add natural bound", or
+// a rebuild from the surface's full UV range) - the large stray triangle that results is worse than leaving the face out.
+// Both boxes are used because the edge box alone is too tight for a doubly curved face (a dome or cap bulges well beyond the
+// box of its boundary curve), and a node is only rejected when it is outside BOTH, so good input is never excluded by one
+// box being tight. The surface-patch box ignores any existing triangulation (useTriangulation = false).
 bool triangulationStaysNearFaceEdges(const TopoDS_Face& face, const Handle(Poly_Triangulation)& tri, const TopLoc_Location& loc)
 {
-	Bnd_Box box;
+	Bnd_Box edgeBox;
 	for (TopExp_Explorer ex(face, TopAbs_EDGE); ex.More(); ex.Next())
-		BRepBndLib::AddClose(ex.Current(), box);
-	if (box.IsVoid() || tri.IsNull())
+		BRepBndLib::AddClose(ex.Current(), edgeBox);
+	if (edgeBox.IsVoid() || tri.IsNull())
 		return true; // nothing to compare against - do not reject
-	const double margin = std::max(0.05 * std::sqrt(box.SquareExtent()), 1.0e-6);
-	box.Enlarge(margin);
+
+	Bnd_Box patchBox;
+	try
+	{
+		BRepBndLib::Add(face, patchBox, false);
+	}
+	catch (Standard_Failure&)
+	{
+		patchBox.SetVoid(); // fall back to the edge box alone
+	}
+
+	const auto enlarge = [](Bnd_Box& b) {
+		if (!b.IsVoid())
+			b.Enlarge(std::max(0.05 * std::sqrt(b.SquareExtent()), 1.0e-6));
+	};
+	enlarge(edgeBox);
+	enlarge(patchBox);
+
 	for (int i = 1; i <= tri->NbNodes(); ++i)
 	{
 		const gp_Pnt p = tri->Node(i).Transformed(loc);
-		if (box.IsOut(p))
+		if (edgeBox.IsOut(p) && (patchBox.IsVoid() || patchBox.IsOut(p)))
 			return false;
 	}
 	return true;
