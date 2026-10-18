@@ -29,8 +29,11 @@ Open CASCADE Technology: https://dev.opencascade.org
 | `Simulation/real/` | Test data of the Visualization Toolkit (Kitware, `Testing/Data` of github.com/Kitware/VTK, verified against their hashes): BSD 3-clause, notice in `Simulation/VTK-Data-License.txt` |
 | `Simulation/pointe_4fields.med`, `Simulation/fra.med` | From the SALOME 9.16 sample set (`SAMPLES/MedFiles`), LGPL-2.1 |
 | `Simulation/beampl.frd` | CalculiX's `beampl` example (CalculiX is GPL-2.0-or-later) |
-| `Forklift/` | "Forklift" by Madana (GrabCAD Community Library, 25 August 2020, https://grabcad.com/library/forklift-92), a STEP file of a forklift (`Forklift.STEP`), plus an OBJ conversion, stored Z-up. The GrabCAD page states no licence. Kept at the author's discretion; to be replaced or removed if the author objects or a licence turns up that does not allow redistribution |
 | `Camera/` | "Camera" by White_sniper (https://sketchfab.com/White_sniper), CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/); the credit text is in `Camera/glTF/license.txt`. Not shipped in the installer or the `.deb` |
+
+## Not included (download yourself)
+
+`Forklift/` holds only a README. The tutorial lessons and videos use "Forklift" by Madana (GrabCAD Community Library, 25 August 2020, https://grabcad.com/library/forklift-92). GrabCAD gives other users only a licence for their own non-commercial, internal use, so the model is not redistributed here; download it from GrabCAD to follow those steps.
 
 ## Not part of the project
 
