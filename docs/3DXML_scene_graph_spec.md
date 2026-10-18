@@ -247,13 +247,12 @@ This closes the main scene-graph convention gap for the supplied sample.
 It does not complete the format's unrecognized binary layouts or formally
 establish units for every exporter/version.
 
-Before claiming full support, remaining research includes compound-directory
-entry discovery, later blocks/possible multiple bodies, exact stored-normal
-quantization, and more geometry QA across the broadly audited meshes.
-The [2026-10-18 continuation](3DXML_extended_layout_findings.md) resolves
-unequal position/normal counts and the first large-housing blocks, increasing
-first-block range/length coverage from 140 to 150 members. This does not
-validate every body's topology or every bound field.
+The [complete mesh continuation](3DXML_complete_mesh_research.md) now resolves
+compound stream traversal and all 188 mesh leaves across the 152 UVR members,
+including all later bodies and two mesh-free definitions. Geometry QA covers
+every leaf, and a Python preview applies these XML placements to the complete
+decoded assembly. Exact smooth-normal quantization and other exporter/container
+variants remain unproven. Complete sample display uses derived face normals.
 
 No C++ importer, application filters or dependencies were changed. No
 application build/test commands were run. Research files are checkpointed

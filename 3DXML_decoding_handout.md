@@ -1,6 +1,10 @@
 # Handout: decoding binary CATIA V5 `.3DRep` (3DXML) for ModelViewer-Qt
 
 > **Current research:** Start at the [research index](docs/3DXML_RESEARCH_INDEX.md).
+> [Complete mesh traversal and importer contract](docs/3DXML_complete_mesh_research.md)
+> now accounts for all 152 UVR members and 188 mesh leaves, with a complete
+> assembly preview. Derived face normals support rendering; exact stored
+> smooth-normal quantization remains provisional.
 > The [scene graph specification](docs/3DXML_scene_graph_spec.md) corrects the
 > earlier coordinate-axis interpretation and documents matrix composition,
 > instances, visibility and the sample-backed unit inference.

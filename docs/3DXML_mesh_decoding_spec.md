@@ -1,5 +1,11 @@
 # Sample-derived 3DXML mesh decoding specification
 
+> **Current complete result:** All 152 UVR logical Skeleton streams and their
+> 188 mesh leaves now decode. See [complete traversal, evidence and importer
+> contract](3DXML_complete_mesh_research.md), which supersedes the former
+> first-block coverage limits. Source smooth-normal quantization remains
+> provisional; complete rendering uses derived triangle normals.
+
 > Scene placement and basis conventions are documented in
 > [the scene graph specification](3DXML_scene_graph_spec.md). Decoded triples
 > are native XYZ. The earlier cyclic OBJ display permutation has been removed
@@ -16,15 +22,13 @@ derived flat normals and separate candidate stored smooth normals. No surface
 reconstruction, replacement triangulation, or guessed connectivity was used.
 Triangle lists, strips and fans are decoded from the file's own references.
 
-The same decoder passes every primitive-length sum and vertex-index range
-check in a first recognized mesh block of **150 of the archive's 153
-representations**, covering **2,347,524 position records and 3,764,012
-finest-detail triangles**. This does not establish whole-member coverage:
-ten members have additional unresolved candidate blocks. The original
-140-member equal-count audit remains as historical evidence; the extended
-audit and [continuation notes](3DXML_extended_layout_findings.md) cover the
-ten unequal-count layouts, including three housings. Topology checks cover
-the three original fixtures and those ten additional first blocks.
+The same mesh decoder, driven by compound/Skeleton traversal, now passes all
+primitive-length and index-range checks across **188 mesh leaves** in all 152
+UVR members, covering **2,627,779 position records and 4,152,382 finest-detail
+triangles**. Two UVR members have no mesh leaves; the 153rd representation is
+a separate TECHREP review attachment. Whole-geometry topology and candidate
+normal checks cover all 188 leaves. The earlier 140-member and 150-first-block
+audits remain historical evidence; the complete audit supersedes their limits.
 
 | Check | Dowel pin | Spacer ring |
 |---|---:|---:|
@@ -85,9 +89,9 @@ index coding.
 
 ## Supported entry layout
 
-The prototype starts at measured count fields supplied explicitly for the
-three fixtures, or by the earlier sample inventory for the wider audit. A
-compound-directory parser is still required for a production importer.
+The inner prototype accepts a count-field cursor. The current outer decoder
+reconstructs compound streams and reaches those cursors by graph traversal;
+explicit offsets remain only in the historical three-fixture entry point.
 
 1. Read two compact counts: N position records and M normal records.
    Measured layouts have `0 < M <= N`. Requiring equality incorrectly excluded
@@ -95,9 +99,10 @@ compound-directory parser is still required for a production importer.
 2. Read three ordinary bytes. These are `00 00 00` in the supported cases;
    their semantics remain unnamed.
 3. Set index bit width `b = bit_length(N - 1)`.
-4. Read one packed bit: `rawPositions`. This loads the first packed word.
-   Its other 31 bits remain available for later topology, across all of the
-   coordinate and attribute fields that follow.
+4. Read one packed bit: `rawPositions`. With an empty reservoir on the first
+   mesh this loads the first packed word; later leaves can consume existing
+   bits. Unused bits remain available across coordinate/attribute fields and
+   later topology. Never reset the reservoir at a mesh-leaf boundary.
 
 This corrects the former "seven-byte unknown prefix": three bytes remain
 unknown, while the following four bytes are the first packed word, not an
@@ -227,8 +232,10 @@ triangles into a single rendering mesh.
 
 For the pin, the decoder finishes the geometry at its measured byte cursor
 while retaining unused reservoir bits. Those bits must not be discarded if
-future work continues into later records. The prototype exports the finest
-faces only and preserves coarse packets in its research JSON.
+future work continues into later records. The inner prototype exports finest
+faces only and preserves coarse packets in its research JSON. The complete
+outer decoder consumes styles and indexed tail groups before continuing to
+later leaves, retaining the same reservoir to logical Skeleton EOF.
 
 ## Reproduction and artifacts
 
@@ -256,25 +263,17 @@ Aggregate evidence is retained in `3DXML_mesh_verification.json` and
 original sample. No original archive or extracted vendor representation is
 copied into source control.
 
-## Remaining work
+## Implementation and portability work
 
-1. Resolve later candidate blocks and the compound body graph. Ten members
-   have additional markers that fail when started with a fresh reservoir.
-   Two small UVR members have no recognized mesh marker; do not classify
-   them as empty solely because this decoder skips them. The third member
-   without a marker is the separately identified TECHREP review attachment.
-2. Decode the compound directory and body graph so entry points come from
-   structure rather than sample offsets or marker discovery.
-3. Confirm exact stored-normal quantization and axis conventions on more
-   shapes. Candidate smooth normals are useful evidence, not a completed
-   format specification for all variants.
-4. Check geometry on more of the broadly audited first blocks, especially
-   open surfaces, multiple components and nonmanifold cases. Preserve the
-   boundary edges and normal disagreements recorded by the extended audit;
-   do not silently repair or re-triangulate them.
-5. Apply the separately documented assembly matrix/basis/visibility rules.
-   Units are millimetres by sample calibration, without an explicit XML unit
-   declaration; general unit handling still needs a documented policy.
+Compound traversal, later mesh leaves, the two mesh-free definitions, complete
+surface-block linkage, and whole-sample geometry QA are now covered by the
+[complete mesh contract](3DXML_complete_mesh_research.md). The remaining
+limitations are exact stored smooth-normal quantization and validation on
+other exporter/container variants. Derived triangle normals support complete
+sample display now. Preserve measured topology and normal anomalies instead
+of silently repairing them. C++ implementation/runtime checks, ownership,
+memory planning, units policy and the documented XML placement rules remain
+subsequent application work.
 
 No application build/test commands were run. The owner's later request
 authorized research-only checkpoints on `feature/3dxml-importer`. The

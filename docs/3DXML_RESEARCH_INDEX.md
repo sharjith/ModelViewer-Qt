@@ -5,17 +5,20 @@ request. Research scripts/documentation are versioned here. Application
 implementation has not started. Existing unrelated `vcpkg` working changes
 were excluded from research commits.
 
-2026-10-18: merged `origin/dev` (through `5f5decb`) into this branch without
-conflicts. Research now recognizes first mesh blocks in 150/153 members by
-separating position and normal counts. See the
-[extended findings](3DXML_extended_layout_findings.md) for coverage limits
-and geometry/normal anomalies; additional bodies remain unresolved.
+2026-10-18: merged `origin/dev` (through `5f5decb`) without conflicts. The
+latest pass fully consumes all 152 UVR Skeleton streams: 188 mesh leaves,
+4,152,382 finest triangles, two mesh-free definitions, and a separate TECHREP
+attachment. See the [complete mesh research and importer contract](3DXML_complete_mesh_research.md).
+Full sample geometry is ready for implementation with derived face normals;
+exact stored smooth-normal quantization remains explicitly unproven.
 
 ## Current specifications
 
-1. [Mesh decoding](3DXML_mesh_decoding_spec.md): coordinates, persistent packed
+1. [Complete mesh research and importer contract](3DXML_complete_mesh_research.md):
+   compound streams, every body, graph reuse, tail records, full audit and rendering policy.
+2. [Mesh decoding](3DXML_mesh_decoding_spec.md): coordinates, persistent packed
    bit reservoir, indices, strip/fan expansion, normal bindings, and coverage.
-2. [Scene graph and transforms](3DXML_scene_graph_spec.md): native XYZ,
+3. [Scene graph and transforms](3DXML_scene_graph_spec.md): native XYZ,
    matrix mapping/composition, reference/occurrence graph, visibility,
    sample-backed units, camera and integration conventions.
 
@@ -30,6 +33,9 @@ and geometry/normal anomalies; additional bodies remain unresolved.
 | 140-member index/count audit | `3DXML_mesh_inventory_audit.json` | `decode_sample_meshes.py --audit-inventory ...` |
 | Matrix/basis/unit/visibility evidence | `3DXML_scene_graph_analysis.json` | `analyze_scene_graph.py` |
 | Extended full-member marker scan and unequal-count geometry checks | `3DXML_extended_layout_audit.json` | `probe_remaining_layouts.py --check-unequal-geometry` |
+| Complete compound/Skeleton/mesh/surface-link and topology audit | `3DXML_complete_mesh_audit.json` | `decode_representation.py --geometry-qa` |
+| Independent geometric normal-quantizer comparisons | `3DXML_normal_quantization_analysis.json` | `analyze_normal_quantization.py` |
+| Noncommuting transforms and inverse-transpose normals (synthetic) | `3DXML_transform_fixture.json` | `verify_transform_conventions.py` |
 
 All use the owner's supplied archive at
 `D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml`.
@@ -39,13 +45,15 @@ Its SHA-256 is
 Generated OBJ, mesh JSON, preview and occurrence fixtures live in ignored
 `out/3dxml-research`. They are regeneratable artifacts, not source-controlled
 copies of the original geometry. OBJ exports now preserve native XYZ; the
-old cyclic display permutation must not be used for placement.
+old cyclic display permutation must not be used for placement. The complete
+assembly preview is `out/3dxml-research/complete_assembly.png`; its reproduction
+and limitations are documented in the complete mesh contract.
 
 ## Historical notes
 
 `../3DXML_decoding_handout.md` and `3DXML_reverse_engineering.md` preserve
 the investigation trail, including hypotheses that were later disproven.
-The two current specifications above take precedence over those historical
+The current specifications above take precedence over those historical
 interpretations. The old no-build restriction remains; the owner's later
 branch/checkpoint request authorizes research-only Git checkpoints.
 
@@ -59,11 +67,11 @@ branch/checkpoint request authorizes research-only Git checkpoints.
 - Preserve occurrence-path visibility and treat TECHREP review data separately.
 - Record millimetres as inferred for this sample, not an unconditional
   format guarantee. Keep units, basis and viewer autoscale distinct.
-- Resolve representation entry points from the compound structure rather than
-  hard-coded sample offsets before production support.
-- Keep unsupported binary variants explicit. Current 150/153 first-block
-  coverage does not mean that the entire sample assembly can yet be imported
-  completely; later candidate blocks still need structural decoding.
+- Use validated compound catalogs/extents and Skeleton traversal to reach every
+  mesh leaf; do not port the historical marker scanner as an importer.
+- Keep unsupported container/exporter variants explicit. Complete geometry
+  coverage is established for this sample, not every 3DXML file. Descriptor
+  localization still validates bounded metadata searches and rejects ambiguity.
 - Make scene ownership and custom error reporting explicit in the loader;
   Assimp only owns scenes that its importer created. Keep 3DXML routing
   separate from pretending tessellations are XCAF B-Rep documents.

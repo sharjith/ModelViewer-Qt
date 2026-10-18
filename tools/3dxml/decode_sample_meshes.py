@@ -128,8 +128,12 @@ def style(reader):
     return list(reader.raw(3))
 
 
-def decode(data, offset):
-    reader = Reader(data, offset)
+def decode(data, offset, reader=None):
+    # A logical Skeleton stream may contain many leaves sharing one reservoir.
+    if reader is None:
+        reader = Reader(data, offset)
+    elif reader.data is not data or reader.pos != offset:
+        raise ValueError("mesh reader does not match logical stream cursor")
     count = reader.count()
     second = reader.count()
     if not 10 < count <= 1_000_000 or not 0 < second <= count:

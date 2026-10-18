@@ -1,5 +1,10 @@
 # Unequal counts and wider mesh coverage
 
+> **Historical checkpoint:** The [complete mesh research](3DXML_complete_mesh_research.md)
+> now resolves all later mesh leaves and proves the two small UVR members
+> mesh-free by complete graph consumption. The observations and failures
+> below describe the earlier first-block pass, not current coverage.
+
 2026-10-18. Research only on `feature/3dxml-importer`, after merging
 `origin/dev` at `5f5decb`. The two STEP fixes brought in by that merge are
 owner work; this investigation changes only Python research and documentation.
