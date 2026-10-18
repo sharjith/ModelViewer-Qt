@@ -1,5 +1,14 @@
 # Stored normals: final focused research pass
 
+## Owner visual acceptance
+
+2026-10-18: the owner loaded the candidate-normal GLB in ModelViewer and
+reported "The stored normals look fine", with a screenshot showing smooth
+assembly shading. This accepts the candidate reconstruction for practical
+rendering of this sample. It does not establish the exact exporter quantizer,
+original unquantized values, or behavior on other 3DXML datasets. The known
+normal/winding diagnostics remain recorded and must not be silently repaired.
+
 ## Owner-requested smooth-normal GLB comparison
 
 The separate artifact
@@ -102,11 +111,15 @@ evidence of the rendered sample; they do not prove original smooth normals.
 
 ## Implementation decision
 
-Retain derived flat normals as the owner-verified default. Preserve raw normal
-words/tags and constant-face overrides so an experimental source-smooth path
-can be added without reparsing or discarding evidence. Keep that option
-explicitly labeled until an independent comparison validates the mapping.
-Do not block the complete mesh importer on further coefficient fitting.
+Following owner visual acceptance, use the parsed dominant-axis candidate
+normals as the preferred shading path for this supported sample layout, with
+stored constant-face normals taking precedence and normalized for rendering.
+Retain derived flat normals as an explicit alternative and fallback for missing
+or invalid normal data. Preserve raw words/tags, validate counts and references,
+and report unsupported encodings rather than assuming the sample codec applies.
+Do not flip valid source normals merely because they oppose triangle winding.
+The exact quantizer remains unproven; do not describe the original floats as
+recovered. Further coefficient fitting need not block the mesh importer.
 
 Detailed measured results, per-member counts, all 333 corner diagnostics and
 fixture/model comparisons are in `3DXML_stored_normal_limits.json`.

@@ -9,7 +9,7 @@ were excluded from research commits.
 latest pass fully consumes all 152 UVR Skeleton streams: 188 mesh leaves,
 4,152,382 finest triangles, two mesh-free definitions, and a separate TECHREP
 attachment. See the [complete mesh research and importer contract](3DXML_complete_mesh_research.md).
-Full sample geometry is ready for implementation with derived face normals;
+Full sample geometry is ready for implementation with owner-accepted parsed normals;
 exact stored smooth-normal quantization remains explicitly unproven.
 
 ## Current specifications
@@ -17,16 +17,16 @@ exact stored smooth-normal quantization remains explicitly unproven.
 The [final stored-normal pass](3DXML_stored_normal_final_pass.md) confirms the
 candidate direction mapping but does not resolve the exact quantizer. It also
 isolates 72 opposed corners with exact axis tags, proving that those winding
-disagreements do not come from coefficient quantization. Flat normals remain
-the validated default; original words/tags are retained for optional research.
-An owner-requested `_stored_normals_candidate.glb` now permits direct smooth
-shading comparison with the unchanged verified flat GLB; see that document
-for the precise normal policy and reproduction commands.
+disagreements do not come from coefficient quantization. The owner visually
+accepted `_stored_normals_candidate.glb` in ModelViewer: parsed normals with
+constant-face overrides are now the preferred rendering policy for the
+supported sample layout, with derived flat normals retained as an alternative
+and invalid/missing-data fallback. Exact quantization remains unproven.
 
 A [hierarchical GLB inspection checkpoint](3DXML_glb_inspection.md) now preserves
 all 252 XML nodes, shared representation meshes, default visibility and face
-colors. Its geometry and placements match the verified OBJ; owner inspection
-in ModelViewer is pending before implementation.
+colors. The owner accepted the corrected hierarchy/appearance in ModelViewer,
+followed by the parsed-normal version; these sample inspection checkpoints pass.
 The corrected `_hierarchy_v2.glb` omits hidden helper mesh attachments,
 matches OBJ numeric diffuse/roughness values and preserves 538 body/color
 splits with separate body nodes. The first GLB's static visibility assumption

@@ -201,6 +201,14 @@ explicitly rather than be skipped by a marker search.
 
 ## Normal results and supported rendering policy
 
+**Current owner-accepted policy:** after visually approving the parsed-normal
+GLB, the owner confirmed its shading looks fine. Prefer candidate pool normals
+with normalized constant-face overrides for this supported sample layout;
+keep derived flat normals as an alternative and invalid/missing-data fallback.
+This practical acceptance does not prove the exact quantizer. The original
+flat-first research recommendation below is retained as historical context;
+the [final pass](3DXML_stored_normal_final_pass.md) records the updated decision.
+
 The subsequent [final focused normal pass](3DXML_stored_normal_final_pass.md)
 checks all 2,627,746 records and 11,485,434 pool-normal corners. Exact scaling
 and rounding remain unresolved. Of the 333 opposed corners, 72 use exact axis
