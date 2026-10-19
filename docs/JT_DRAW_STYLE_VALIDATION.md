@@ -2,6 +2,8 @@
 
 19 October 2026, `feature/JT-importer`. Follows the accepted metadata milestone `c435335`. The owner completed the viewer checks and confirmed that the wireframe-hint fixture still renders filled, matching the documented limitation. Together with the automated results, this pass is accepted for commit.
 
+Committed as `8e36e48`. This document records that milestone. The later [wireframe rendering follow-up](JT_WIREFRAME_VALIDATION.md) replaces its filled viewport fallback and is pending separate viewer acceptance; the historical wireframe limitation below applies to `8e36e48`.
+
 ## Implemented behavior
 
 The native reader now recognizes the JT 10.0 Draw Style Attribute Element, including its base attribute header, local version 1 and six defined data flags. Other local versions and nonzero reserved data bits fail explicitly. File-version acceptance remains JT 10.0.

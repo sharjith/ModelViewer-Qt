@@ -76,21 +76,24 @@ inline void writeMetadata(const QString& path,const QString& reference=QString()
     if(options.duplicateTable) {graph.u32(1);graph.u32(0);}
     container(path,graph);
 }
-inline void write(const QString& path,const QString& reference,bool big=false,bool assembly=true,bool duplicate=false){
+inline void write(const QString& path,const QString& reference,bool big=false,bool assembly=true,bool duplicate=false,bool wireframeVariants=false){
     Bytes graph(big);element(graph,type("10dd103e"),1,partition(big,assembly?QString():reference,assembly?std::initializer_list<unsigned>{10,11}:std::initializer_list<unsigned>{}));
     if(assembly){
         element(graph,type("10dd103e"),2,partition(big,reference,{}));
         for(unsigned i=0;i<2;++i){
-            Bytes instance(big);baseNode(instance,{20+2*i,21+2*i});instance.u8(1);instance.u32(2);element(graph,type("10dd102a"),10+i,instance);
-            Bytes transform(big);transform.u8(1);transform.u8(8);transform.u32(0);transform.u32(0);transform.u8(1);transform.u16(8);transform.f64(10+10*i);element(graph,type("10dd1083"),20+2*i,transform,3);
+            Bytes instance(big);if(wireframeVariants)baseNode(instance,{20+2*i,21+2*i,30+i});else baseNode(instance,{20+2*i,21+2*i});instance.u8(1);instance.u32(2);element(graph,type("10dd102a"),10+i,instance);
+            Bytes transform(big);transform.u8(1);transform.u8(8);transform.u32(0);transform.u32(0);transform.u8(1);transform.u16(8);transform.f64(wireframeVariants?-30.0+60*i:10+10*i);element(graph,type("10dd1083"),20+2*i,transform,3);
             Bytes material(big);material.u8(1);material.u8(8);material.u32(0);material.u32(1u<<6);material.u8(1);material.u16(0x3980);
             for(unsigned color=0;color<4;++color)for(unsigned c=0;c<4;++c) material.f32(c==3?1.0f:color==1?float(c==i):0.0f);
             material.f32(15);material.f32(0);material.f32(1);element(graph,type("10dd1030"),21+2*i,material,3);
+            if(wireframeVariants) {
+                Bytes style(big);style.u8(1);style.u8(8);style.u32(0);style.u32(0x3f);style.u8(1);style.u8(i==0?0x0e:0x0a);element(graph,type("10dd1014"),30+i,style,3);
+            }
         }
     }
     if(duplicate)element(graph,type("10dd103e"),1,partition(big,QString(),{}));
     end(graph);
-    const QString names[]={"JT_PROP_NAME","assembly","occurrence A","occurrence B"};
+    const QString names[]={"JT_PROP_NAME",wireframeVariants?"Mixed material wireframe":"assembly",wireframeVariants?"Red wireframe bolt":"occurrence A",wireframeVariants?"Green solid bolt":"occurrence B"};
     for(unsigned i=0;i<4;++i){Bytes string(big);string.u8(1);string.u32(0);string.u8(1);string.text(names[i]);element(graph,type("10dd106e"),100+i,string);}
     end(graph);graph.u16(1);graph.u32(assembly?3:1);
     graph.u32(1);graph.u32(100);graph.u32(101);graph.u32(0);

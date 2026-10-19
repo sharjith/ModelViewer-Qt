@@ -74,6 +74,9 @@ int main(int argc,char** argv) {
                 if(material.Get(AI_MATKEY_ENABLE_WIREFRAME,value)==AI_SUCCESS) entry["wireframe"]=bool(value);
                 if(material.Get("$mat.gltf.unlit",0,0,value)==AI_SUCCESS) entry["unlit"]=bool(value);
                 if(material.Get(AI_MATKEY_SHADING_MODEL,value)==AI_SUCCESS) entry["shadingModel"]=value;
+                float scalar=0;
+                if(material.Get(AI_MATKEY_SHININESS,scalar)==AI_SUCCESS) entry["shininess"]=scalar;
+                if(material.Get(AI_MATKEY_ROUGHNESS_FACTOR,scalar)==AI_SUCCESS) entry["roughness"]=scalar;
                 entries.append(entry);
             }
             std::cout<<QJsonDocument(QJsonObject{{"materials",entries}}).toJson(QJsonDocument::Compact).constData()<<'\n';

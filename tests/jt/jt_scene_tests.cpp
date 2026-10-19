@@ -115,6 +115,44 @@ void inheritance() {
     auto result=build(root);const auto c=color(result,*result.scene->mRootNode->mChildren[0]->mChildren[0]->mChildren[0]);
     check(c.g==1 && c.b==0,"Forced material cleared ancestor final state");
 }
+void shininessTests() {
+    struct Gloss:Material {
+        Gloss(float exponent,unsigned inhibit=0,unsigned finals=0,unsigned state=8)
+            :Material({0.6f,0.6f,0.6f,1},inhibit,finals,state) {myShininess=exponent;}
+    };
+    const auto resolved=[](const Jt::ImportResult& result,unsigned index) {
+        float exponent=-1,roughness=-1;
+        const auto& m=*result.scene->mMaterials[result.scene->mMeshes[index]->mMaterialIndex];
+        check(m.Get(AI_MATKEY_SHININESS,exponent)==AI_SUCCESS,"JT shininess lost");
+        check(m.Get(AI_MATKEY_ROUGHNESS_FACTOR,roughness)==AI_SUCCESS && std::abs(roughness-std::sqrt(2.0f/(exponent+2)))<1e-6f,"JT Phong roughness mapping failed");
+        return exponent;
+    };
+    for(float value:{1.0f,4.0f,96.0f,128.0f}) {
+        auto root=node<JtNode_Partition>("root");auto shape=leaf();root->children({shape});shape->attributes({new Gloss(value)});
+        auto result=build(root);check(resolved(result,0)==value,"JT exponent changed");
+        std::unique_ptr<aiScene> copy(SceneUtils::deepCopyScene(result.scene.get()));
+        float restored=-1;check(copy->mMaterials[copy->mMeshes[0]->mMaterialIndex]->Get(AI_MATKEY_SHININESS,restored)==AI_SUCCESS && restored==value,"Scene copy lost shininess");
+    }
+    for(float value:{0.0f,129.0f,-1.0f,std::numeric_limits<float>::infinity(),std::numeric_limits<float>::quiet_NaN()}) {
+        auto root=node<JtNode_Partition>("root");auto shape=leaf();root->children({shape});shape->attributes({new Gloss(value)});
+        rejected([&]{build(root);},std::isfinite(value)?"shininess is out of range":"nonfinite material");
+    }
+    // Table 16's bit 4 is vertex-colour override, not shininess. Even all
+    // inhibit/final flags do not assign an undocumented lock to the exponent.
+    for(unsigned mode:{0u,1u,2u,3u}) {
+        auto root=node<JtNode_Partition>("root");auto group=node<JtNode_Group>("parent");auto shape=leaf();root->children({group});group->children({shape});
+        group->attributes({new Gloss(4,0,0x1ff)});
+        if(mode!=0) shape->attributes({new Gloss(mode==3?std::numeric_limits<float>::quiet_NaN():96,mode==1?0x1ff:0,0,mode==3?12:8)});
+        auto result=build(root);check(resolved(result,0)==(mode==0 || mode==3?4:96),"Shininess replacement/ignored-state semantics failed");
+    }
+    auto root=node<JtNode_Partition>("root");auto shared=leaf();auto a=node<JtNode_Instance>("broad");auto b=node<JtNode_Instance>("tight");
+    root->children({a,b});a->target(shared);b->target(shared);a->attributes({new Gloss(4)});b->attributes({new Gloss(96)});
+    auto result=build(root);check(result.scene->mNumMeshes==2,"Distinct exponents collapsed in material/mesh cache");
+    check(resolved(result,0)==4 && resolved(result,1)==96,"Instance shininess leaked");
+    check(result.scene->mMeshes[0]->mNumVertices==3 && result.scene->mMeshes[1]->mNumFaces==1,"Shininess changed geometry");
+    auto plainRoot=node<JtNode_Partition>("plain");plainRoot->children({leaf()});auto plain=build(plainRoot);
+    float value=-1;check(plain.scene->mMaterials[plain.scene->mMeshes[0]->mMaterialIndex]->Get(AI_MATKEY_SHININESS,value)!=AI_SUCCESS,"Unauthored exponent was invented");
+}
 void instances() {
     auto root=node<JtNode_Partition>("root");auto shared=leaf("shared");
     auto a=node<JtNode_Instance>("a");auto b=node<JtNode_Instance>("b");auto c=node<JtNode_Instance>("c");
@@ -319,14 +357,14 @@ void drawStyleTests() {
         check(material->Get(AI_MATKEY_SHADING_MODEL,shading)==AI_SUCCESS && shading==aiShadingMode_PBR_BRDF && material->Get("$mat.gltf.unlit",0,0,unlit)==AI_SUCCESS && unlit==0,"Application scene copy lost lit flat style");
     }
     auto root=node<JtNode_Partition>("root");auto shape=leaf();root->children({shape});shape->attributes({new DrawStyle(0x0c)});
-    auto result=build(root);check(result.warnings.size()==2,"Unsupported draw-style combinations were not diagnosed");
+    auto result=build(root);check(result.warnings.size()==1 && result.warnings[0].contains("two-sided lighting"),"Unsupported lighting combination was not diagnosed");
     // A zero-area triangle must retain finite fallback normals.
     struct ZeroTriangle:Triangle {ZeroTriangle() {for(unsigned i=0;i<3;++i)for(unsigned j=0;j<3;++j)myVertices[i][j]=0;}};
     struct ZeroProperty:JtProperty_LateLoaded {ZeroProperty(JtElement_ShapeLOD_Vertex* p) {mySegmentType=7;myDefferedObject=p;}};
     shape->late({new ZeroProperty(new ZeroTriangle)});shape->attributes({new DrawStyle(0x1a)});
     result=build(root);check(result.scene->mMeshes[0]->mNumFaces==1 && result.scene->mMeshes[0]->mNormals[0].z==1,"Degenerate flat triangle lost finite normals");
 }
-void sceneTests() {inheritance();instances();transforms();lodAndFailures();selectionTests();metadataTests();drawStyleTests();std::cout<<"Synthetic JT assembly, transforms, selection, metadata and draw styles passed\n";}
+void sceneTests() {inheritance();shininessTests();instances();transforms();lodAndFailures();selectionTests();metadataTests();drawStyleTests();std::cout<<"Synthetic JT assembly, shininess, transforms, selection, metadata and draw styles passed\n";}
 
 void containerTests(const QString& samples) {
     QTemporaryDir temp;check(temp.isValid(),"Cannot create container directory");
@@ -385,6 +423,15 @@ void containerTests(const QString& samples) {
             walk(result.scene->mRootNode,aiMatrix4x4());check(placed.size()==2,"External nested scene graph failed");
             check(placed[0].world.a4==10 && placed[1].world.a4==20,"External occurrence transforms failed");
             check(color(result,*placed[0].node).r==1 && color(result,*placed[1].node).g==1,"Ancestor final appearance across partitions failed");
+            Fixture::write(path,"parts/leaf.jt",big,true,false,true);result=Jt::Importer::read(path);
+            placed.clear();walk(result.scene->mRootNode,aiMatrix4x4());
+            check(placed.size()==2 && result.scene->mNumMeshes==2 && placed[0].world.a4==-30 && placed[1].world.a4==30,"Mixed wire/solid fixture placement failed");
+            for(unsigned i=0;i<2;++i) {
+                const auto mesh=result.scene->mMeshes[placed[i].node->mMeshes[0]];int wire=-1;
+                check(result.scene->mMaterials[mesh->mMaterialIndex]->Get(AI_MATKEY_ENABLE_WIREFRAME,wire)==AI_SUCCESS && wire==int(i==0),"Mixed occurrences lost their material wireframe flags");
+                check(mesh->mNumVertices==913 && mesh->mNumFaces==904,"Wireframe changed stored geometry counts");
+            }
+            check(color(result,*placed[0].node).r==1 && color(result,*placed[1].node).g==1,"Mixed wire/solid fixture colors failed");
             Fixture::writeSelection(path,"missing.jt","parts/leaf.jt",false,1,big);
             result=Jt::Importer::read(path);check(references(*result.scene->mRootNode)==1,"Switch traversed an unselected external file");
             Fixture::writeSelection(path,"missing.jt","parts/leaf.jt",true,0,big);

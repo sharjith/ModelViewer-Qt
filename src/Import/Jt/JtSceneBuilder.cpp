@@ -120,7 +120,8 @@ std::unique_ptr<aiMesh> storedMesh(const Handle(JtElement_ShapeLOD_Vertex)& sour
 struct Appearance {
     aiColor4D diffuse{0.75f,0.75f,0.78f,1};
     aiColor3D ambient{},specular{},emission{};
-    float bumpiness=1,reflectivity=0;
+    float bumpiness=1,reflectivity=0,shininess=15;
+    bool hasShininess=false;
     unsigned finalFields=0,present=0;
     unsigned blendFlags=0;
     unsigned drawFlags=0x0a,drawPresent=0,drawFinal=0;
@@ -142,6 +143,10 @@ struct Appearance {
         if(allowed&(1u<<1)) specular=rgb(source.SpecularColor());
         if(allowed&(1u<<2)) emission=rgb(source.EmissionColor());
         if(allowed&(1u<<3)) blendFlags=source.DataFlags()&0xffd0u;
+        // Table 16 assigns no inhibit/final bit to shininess. It replaces
+        // the inherited exponent whenever this material participates.
+        // In particular, bit 4 controls vertex-colour override, not shininess.
+        shininess=source.Shininess();hasShininess=true;
         if(allowed&(1u<<5)) reflectivity=source.Reflectivity();
         if(allowed&(1u<<6)) {diffuse.r=c[0];diffuse.g=c[1];diffuse.b=c[2];}
         if(allowed&(1u<<7)) diffuse.a=c[3];
@@ -228,9 +233,13 @@ struct Builder {
         const float opacity=(!blending || (src==1 && dst==0)) ? 1.0f : c.a;
         std::vector<float> key{c.r,c.g,c.b,opacity,style.ambient.r,style.ambient.g,style.ambient.b,
             style.specular.r,style.specular.g,style.specular.b,style.emission.r,style.emission.g,style.emission.b,
-            style.bumpiness,style.reflectivity,float(style.present),float(style.drawFlags),float(style.drawPresent)};
+            style.bumpiness,style.reflectivity,style.shininess,float(style.hasShininess),float(style.present),float(style.drawFlags),float(style.drawPresent)};
         for(float value:key) if(!std::isfinite(value)) throw std::runtime_error("JT has nonfinite material values");
         if(!std::isfinite(c.a) || c.a<0 || c.a>1 || opacity<0 || opacity>1) throw std::runtime_error("JT diffuse alpha is out of range");
+        // JT 10.0 section 6.1.2.2 defines a Phong exponent in [1,128].
+        // The viewer's material adapter converts this to PBR roughness.
+        if(style.hasShininess && (style.shininess<1 || style.shininess>128))
+            throw std::runtime_error("JT shininess is out of range [1,128]");
         const auto found=materialCache.find(key);if(found!=materialCache.end()) return found->second;
         if(blending && !(src==6 && dst==7) && !(src==1 && dst==0))
             result.warnings.append("JT blend factors are approximated using conventional alpha blending");
@@ -239,6 +248,13 @@ struct Builder {
         if(style.present&(1u<<0)) m->AddProperty(&style.ambient,1,AI_MATKEY_COLOR_AMBIENT);
         if(style.present&(1u<<1)) m->AddProperty(&style.specular,1,AI_MATKEY_COLOR_SPECULAR);
         if(style.present&(1u<<2)) m->AddProperty(&style.emission,1,AI_MATKEY_COLOR_EMISSIVE);
+        if(style.hasShininess) {
+            m->AddProperty(&style.shininess,1,AI_MATKEY_SHININESS);
+            // Match MaterialProcessor's existing Phong-to-PBR approximation,
+            // and expose it explicitly for Assimp's PBR/glTF export path.
+            const float roughness=std::sqrt(2.0f/(style.shininess+2.0f));
+            m->AddProperty(&roughness,1,AI_MATKEY_ROUGHNESS_FACTOR);
+        }
         if(style.present&(1u<<8)) m->AddProperty(&style.bumpiness,1,AI_MATKEY_BUMPSCALING);
         if(style.present&(1u<<5)) m->AddProperty(&style.reflectivity,1,AI_MATKEY_REFLECTIVITY);
         if(style.drawPresent) {
@@ -252,7 +268,6 @@ struct Builder {
             // is mapped to Unlit by the application's generic material adapter.
             const aiShadingMode shading=unlit ? aiShadingMode_Unlit : aiShadingMode_PBR_BRDF;
             m->AddProperty(&shading,1,AI_MATKEY_SHADING_MODEL);
-            if(wireframe) result.warnings.append("JT wireframe-only draw style is retained; the viewport displays filled triangles");
             if(twoSided && !unlit && !(style.drawFlags&2))
                 result.warnings.append("JT single-sided lighting without back-face culling is approximated by the renderer's two-sided lighting");
         }

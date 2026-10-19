@@ -2,6 +2,7 @@
 #include "Point.h"
 #include "TriangleBaldwinWeber.h"
 #include "RenderableMesh.h"
+#include "ScopedMaterialWireframe.h"
 #include "SubTriangleGrid.h"
 #include "SceneMesh.h"
 #include "TriangleMollerTrumbore.h"
@@ -1721,6 +1722,8 @@ void RenderableMesh::render()
 	}
 
 	// Handle lighting normal for negative scaling
+	ScopedMaterialWireframe materialWireframe(*this,
+		_material.wireframe() && _primitiveMode == GL_TRIANGLES && !hasAnalysisOverlay());
 	glFrontFace(hasNegativeScale() ? GL_CW : GL_CCW);
 	if (_hasAnalysisFlatOverlay && _analysisFlatVAO.isCreated())
 	{

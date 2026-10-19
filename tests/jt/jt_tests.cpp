@@ -45,6 +45,7 @@ void attributeTests() {
         const auto c=material.DiffuseColor();
         require(c[0]==0.3f && c[1]==0.5f && c[2]==0.7f && c[3]==0.25f,"JT material header shifted RGBA fields");
         require(material.BlendingEnabled()==blending,"JT blending flag mismatch");
+        require(material.Shininess()==15.0f,"JT material exponent read incorrectly");
         auto bad=b;bad[0]=2;Reader unknownBase(bad);JtAttribute_Material unsupported;
         fails([&]{unsupported.Read(unknownBase);});
         bad=b;bad[10]=2;Reader unknownMaterial(bad);fails([&]{unsupported.Read(unknownMaterial);});
@@ -98,6 +99,9 @@ void samples(const QString& dir) {
         float opacity=0;aiColor4D diffuse;
         require(material.Get(AI_MATKEY_OPACITY,opacity)==AI_SUCCESS && opacity==1.0f,"Opaque source material became transparent");
         require(material.Get(AI_MATKEY_COLOR_DIFFUSE,diffuse)==AI_SUCCESS && diffuse.a==1.0f,"JT diffuse alpha mismatch");
+        float exponent=0,roughness=0;
+        require(material.Get(AI_MATKEY_SHININESS,exponent)==AI_SUCCESS && exponent>=1 && exponent<=128,"Sample shininess missing or invalid");
+        require(material.Get(AI_MATKEY_ROUGHNESS_FACTOR,roughness)==AI_SUCCESS && std::abs(roughness-std::sqrt(2.0f/(exponent+2)))<1e-6f,"Sample roughness mapping failed");
         const float expectedRGB[5][3]={{0.87449455f,0.87449455f,0.87449455f},{0.5960632f,0.6666667f,0.6862593f},{0.5960632f,0.6666667f,0.6862593f},{0.5960632f,0.6666667f,0.6862593f},{0.49019608f,0.49019608f,0.49019608f}};
         require(std::abs(diffuse.r-expectedRGB[k][0])<1e-6f && std::abs(diffuse.g-expectedRGB[k][1])<1e-6f && std::abs(diffuse.b-expectedRGB[k][2])<1e-6f,"JT diffuse RGB mismatch");
         for(unsigned i=0;i<mesh.mNumVertices;++i)require(std::abs(mesh.mNormals[i].Length()-1)<1e-4,"Invalid stored normal");
@@ -115,6 +119,8 @@ void samples(const QString& dir) {
             QTemporaryDir temp;Assimp::Exporter exporter;const auto glb=QDir(temp.path()).filePath("roundtrip.glb");
             require(exporter.Export(stored.scene.get(),"glb2",glb.toStdString())==AI_SUCCESS,"GLB validation export failed");
             Assimp::Importer reader;const auto scene=reader.ReadFile(glb.toStdString(),0);require(scene && scene->mNumMeshes==1 && scene->mMeshes[0]->mNumFaces==expectedTriangles[0],"GLB scene roundtrip failed");
+            float restoredRoughness=0;
+            require(scene->mMaterials[scene->mMeshes[0]->mMaterialIndex]->Get(AI_MATKEY_ROUGHNESS_FACTOR,restoredRoughness)==AI_SUCCESS && std::abs(restoredRoughness-roughness)<1e-6f,"GLB roundtrip lost authored roughness");
             unsigned checks=0;Jt::Options cancel;cancel.cancelled=[&]{return ++checks>100;};fails([&]{Jt::Importer::read(path,cancel);});
         }
         std::cout<<names[k]<<": geometry, normals and B-Rep failure fallback passed\n";

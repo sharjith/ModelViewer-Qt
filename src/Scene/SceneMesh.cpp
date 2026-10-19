@@ -1,4 +1,5 @@
 #include "SceneMesh.h"
+#include "ScopedMaterialWireframe.h"
 #include "TextureLocationManager.h"
 #include "IGpuContextResource.h"
 #include "MeasurementGeometry.h"
@@ -1290,6 +1291,12 @@ void SceneMesh::render()
 	// Transparent draws must NOT write depth, but should still depth-test.	
 	constexpr GLboolean prevDepthMask = GL_TRUE;
 	if (isTransparent() && needsDepthMaskOff()) glDepthMask(GL_FALSE);
+
+	// Imported/material-authored wireframe applies to triangle color draws.
+	// Analysis overlays retain the viewport mode; points/lines and shadow/pick
+	// paths keep their existing primitive and visibility behavior.
+	ScopedMaterialWireframe materialWireframe(*this,
+		_material.wireframe() && _primitiveMode == GL_TRIANGLES && !hasAnalysisOverlay());
 
 	// Surface Analysis overlay (draft-angle-style flat colormap) - REPLACES
 	// the normal draw entirely, not an extra pass (same surface/depth, would

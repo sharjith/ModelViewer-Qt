@@ -24,6 +24,10 @@ This generator also references a locally supplied Bolt sample. It shares the ori
 
 Use `jt_fixturegen --kind draw-style --samples <sample-folder> --output <output-folder>` for the draw-style fixture set. `jt_probe input.jt --materials` prints resolved style/culling/unlit fields. See [draw-style validation](../../docs/JT_DRAW_STYLE_VALIDATION.md) for expected counts and renderer limitations.
 
+The [wireframe follow-up](../../docs/JT_WIREFRAME_VALIDATION.md) adds mixed red-wire/green-solid fixtures and optional native OpenGL checks under `tests/render`. It also verifies material runtime JSON persistence. Refer to that follow-up for the current `draw_wire_hint.jt` expectation.
+
+The [shininess follow-up](../../docs/JT_SHININESS_VALIDATION.md) tests inherited Phong exponents, their approximate PBR roughness, material-cache separation, scene copying and GLB roughness persistence. Use `jt_probe <file.jt> --materials` to inspect both fields.
+
 Coverage, sample provenance and UI acceptance are recorded in [native importer](../../docs/JT_NATIVE_IMPORTER.md), [assembly validation](../../docs/JT_ASSEMBLY_ATTRIBUTE_VALIDATION.md) and [display selection validation](../../docs/JT_DISPLAY_SELECTION_VALIDATION.md).
 
 Run `python tests/jt/check_provenance.py` to check decoder manifest coverage and retained source notices. This checks record consistency; it does not establish legal clearance or fulfil binary source-delivery obligations by itself.

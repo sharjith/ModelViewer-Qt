@@ -1272,3 +1272,10 @@ if(MV_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
+
+# Native OpenGL checks are opt-in and separate from the GUI-free core tests.
+option(MV_BUILD_RENDER_TESTS "Build optional desktop OpenGL rendering tests" OFF)
+if(MV_BUILD_RENDER_TESTS)
+    enable_testing()
+    add_subdirectory(tests/render)
+endif()

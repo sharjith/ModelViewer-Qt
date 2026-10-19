@@ -4049,6 +4049,7 @@ QVariantMap Material::toVariantMap() const
 	m.insert("blendMode", QVariant(bm));
 
 	m.insert("twoSided", QVariant(twoSided()));
+	m.insert("wireframe", QVariant(wireframe()));
 	m.insert("alphaThreshold", QVariant(alphaThreshold()));
 
 	// ============================================================================
