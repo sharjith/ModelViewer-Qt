@@ -891,6 +891,11 @@
       "upstream_path": "TKJT/src/JtProperty/JtProperty_String.hxx",
       "upstream_sha256": "54a4ef26bd6a3e08f492fd0be0d0df24db2cb1fbdd856bc67ddd922eba0144f9",
       "modified": true
+    },
+    {
+      "file": "src/JtDecode/JtDecode_VertexColors.hxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-19"
     }
   ],
   "follow_up": {

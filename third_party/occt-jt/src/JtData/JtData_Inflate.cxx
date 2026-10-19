@@ -135,6 +135,7 @@ Standard_Size JtData_Inflate::GetPosition() const
 
 Standard_Size JtData_Inflate::read (Bytef* theBuffer, Standard_Size theLength)
 {
+  if(myStreamEnded) return 0;
   if(theLength>256u*1024u*1024u) throw std::runtime_error("JT inflate request exceeds limit");
   myZStream.next_out  = theBuffer;
   myZStream.avail_out = static_cast<unsigned>(theLength);
@@ -162,7 +163,7 @@ Standard_Size JtData_Inflate::read (Bytef* theBuffer, Standard_Size theLength)
 
     // decompress the loaded data
     int ret = inflate (&myZStream, Z_NO_FLUSH);
-    if(ret==Z_STREAM_END) break;
+    if(ret==Z_STREAM_END) {myStreamEnded=true;break;}
 
     // free the input buffer if it is exhausted
     if (myZStream.avail_in == 0)
@@ -184,4 +185,16 @@ Standard_Size JtData_Inflate::read (Bytef* theBuffer, Standard_Size theLength)
   }
 
   return theLength - myZStream.avail_out;
+}
+
+bool JtData_Inflate::Finish(bool allowSingleZeroPadding)
+{
+  if(myOutBufRest) return false;
+  Bytef extra=0;
+  if(!myStreamEnded && read(&extra,1)!=0) return false;
+  if(myStreamEnded && allowSingleZeroPadding && myInputRest+myZStream.avail_in==1) {
+    if(myZStream.avail_in==1) return *myZStream.next_in==0;
+    Jt_U8 padding=1;return myReader->ReadU8(padding) && padding==0;
+  }
+  return myStreamEnded && myInputRest==0 && myZStream.avail_in==0;
 }

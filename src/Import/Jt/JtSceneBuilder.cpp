@@ -95,8 +95,10 @@ std::unique_ptr<aiMesh> exactMesh(const TopoDS_Shape& shape,const Options& optio
     for(unsigned i=0;i<out->mNumFaces;++i) {out->mFaces[i].mNumIndices=3;out->mFaces[i].mIndices=new unsigned[3]{3*i,3*i+1,3*i+2};}
     validate(*out);return out;
 }
-std::unique_ptr<aiMesh> storedMesh(const Handle(JtElement_ShapeLOD_Vertex)& source) {
+std::unique_ptr<aiMesh> storedMesh(const Handle(JtElement_ShapeLOD_Vertex)& source,unsigned& repairedNormals) {
     const auto& p=source->Vertices();const auto& n=source->Normals();const auto& ix=source->Indices();
+    const auto& colors=source->Colors();
+    const auto& uv=source->TexCoords();
     if(p.Count()<=0 || p.CompCount()!=3 || ix.Count()<=0 || ix.Count()%3)
         throw std::runtime_error("Unsupported/empty JT tessellation layout");
     auto out=std::make_unique<aiMesh>();out->mPrimitiveTypes=aiPrimitiveType_TRIANGLE;
@@ -104,15 +106,45 @@ std::unique_ptr<aiMesh> storedMesh(const Handle(JtElement_ShapeLOD_Vertex)& sour
     JtData_Limits::allocation(size_t(out->mNumVertices)*2*sizeof(aiVector3D)+size_t(out->mNumFaces)*(sizeof(aiFace)+3*sizeof(unsigned)));
     out->mVertices=new aiVector3D[out->mNumVertices];out->mNormals=new aiVector3D[out->mNumVertices]{};
     const bool storedNormals=n.Count()==p.Count() && n.CompCount()==3;
+    repairedNormals=0;
+    if(uv.Count()) {
+        if(uv.Count()!=p.Count() || uv.CompCount()!=2)throw std::runtime_error("Invalid expanded JT texture coordinates");
+        JtData_Limits::allocation(size_t(out->mNumVertices)*sizeof(aiVector3D));
+        out->mTextureCoords[0]=new aiVector3D[out->mNumVertices];out->mNumUVComponents[0]=2;
+        for(unsigned i=0;i<out->mNumVertices;++i) {
+            if(!std::isfinite(uv[i][0]) || !std::isfinite(uv[i][1]))throw std::runtime_error("Nonfinite JT texture coordinate");
+            out->mTextureCoords[0][i]={uv[i][0],uv[i][1],0};
+        }
+    }
+    if(colors.Count()) {
+        if(colors.Count()!=p.Count() || (colors.CompCount()!=3 && colors.CompCount()!=4))
+            throw std::runtime_error("Invalid expanded JT vertex colours");
+        JtData_Limits::allocation(size_t(out->mNumVertices)*sizeof(aiColor4D));
+        out->mColors[0]=new aiColor4D[out->mNumVertices];
+        for(unsigned i=0;i<out->mNumVertices;++i) {
+            auto& c=out->mColors[0][i];c={colors[i][0],colors[i][1],colors[i][2],colors.CompCount()==4?colors[i][3]:1.0f};
+            for(float v:{c.r,c.g,c.b,c.a}) if(!std::isfinite(v) || v<0 || v>1)
+                throw std::runtime_error("Invalid JT vertex colour component");
+        }
+    }
     for(unsigned i=0;i<out->mNumVertices;++i) {out->mVertices[i]={p[i][0],p[i][1],p[i][2]};if(storedNormals) out->mNormals[i]={n[i][0],n[i][1],n[i][2]};}
+    if(storedNormals) for(unsigned i=0;i<out->mNumVertices;++i) {
+        const auto& normal=out->mNormals[i];
+        if(!finite(normal) || !std::isfinite(normal.SquareLength())) throw std::runtime_error("JT has nonfinite stored normals");
+        if(normal.SquareLength()<1e-20f) ++repairedNormals;
+    }
+    std::vector<aiVector3D> generated;
+    if(repairedNormals) {JtData_Limits::allocation(size_t(out->mNumVertices)*sizeof(aiVector3D));generated.resize(out->mNumVertices);}
     out->mFaces=new aiFace[out->mNumFaces];
     for(unsigned i=0;i<out->mNumFaces;++i) {
         auto& f=out->mFaces[i];f.mNumIndices=3;f.mIndices=new unsigned[3];
         for(unsigned j=0;j<3;++j) {const int index=ix[3*i+j];if(index<0 || unsigned(index)>=out->mNumVertices) throw std::runtime_error("JT tessellation index out of range");f.mIndices[j]=unsigned(index);}
         if(!storedNormals) {auto v=(out->mVertices[f.mIndices[1]]-out->mVertices[f.mIndices[0]])^(out->mVertices[f.mIndices[2]]-out->mVertices[f.mIndices[0]]);for(unsigned j=0;j<3;++j)out->mNormals[f.mIndices[j]]+=v;}
+        else if(repairedNormals) {auto v=(out->mVertices[f.mIndices[1]]-out->mVertices[f.mIndices[0]])^(out->mVertices[f.mIndices[2]]-out->mVertices[f.mIndices[0]]);for(unsigned j=0;j<3;++j)generated[f.mIndices[j]]+=v;}
     }
     for(unsigned i=0;i<out->mNumVertices;++i) {
-        if(!storedNormals && out->mNormals[i].SquareLength()<1e-20f) out->mNormals[i]={0,0,1};
+        if(storedNormals && repairedNormals && out->mNormals[i].SquareLength()<1e-20f) out->mNormals[i]=generated[i];
+        if(out->mNormals[i].SquareLength()<1e-20f) out->mNormals[i]={0,0,1};
         out->mNormals[i].Normalize();
     }
     validate(*out);return out;
@@ -122,6 +154,8 @@ struct Appearance {
     aiColor3D ambient{},specular{},emission{};
     float bumpiness=1,reflectivity=0,shininess=15;
     bool hasShininess=false;
+    bool legacyShininess=false;
+    bool overrideColors=false;
     unsigned finalFields=0,present=0;
     unsigned blendFlags=0;
     unsigned drawFlags=0x0a,drawPresent=0,drawFinal=0;
@@ -143,10 +177,11 @@ struct Appearance {
         if(allowed&(1u<<1)) specular=rgb(source.SpecularColor());
         if(allowed&(1u<<2)) emission=rgb(source.EmissionColor());
         if(allowed&(1u<<3)) blendFlags=source.DataFlags()&0xffd0u;
+        if(allowed&(1u<<4)) overrideColors=(source.DataFlags()&0x20)!=0;
         // Table 16 assigns no inhibit/final bit to shininess. It replaces
         // the inherited exponent whenever this material participates.
         // In particular, bit 4 controls vertex-colour override, not shininess.
-        shininess=source.Shininess();hasShininess=true;
+        shininess=source.Shininess();hasShininess=true;legacyShininess=source.IsLegacyLayout();
         if(allowed&(1u<<5)) reflectivity=source.Reflectivity();
         if(allowed&(1u<<6)) {diffuse.r=c[0];diffuse.g=c[1];diffuse.b=c[2];}
         if(allowed&(1u<<7)) diffuse.a=c[3];
@@ -226,20 +261,20 @@ struct Builder {
         for(auto it=materialCache.begin();it!=materialCache.end();) {if(it->second>=c.materials) it=materialCache.erase(it);else ++it;}
         result.storedMeshes=c.stored;result.exactParts=c.exact;result.fallbackParts=c.fallback;
     }
-    unsigned material(const Appearance& style) {
-        const auto c=style.diffuse;
+    unsigned material(const Appearance& style,bool vertexColors=false) {
+        const auto c=vertexColors ? aiColor4D(1,1,1,1) : style.diffuse;
         const bool blending=(style.blendFlags&0x10)!=0;
         const unsigned src=(style.blendFlags>>6)&31,dst=(style.blendFlags>>11)&31;
         const float opacity=(!blending || (src==1 && dst==0)) ? 1.0f : c.a;
         std::vector<float> key{c.r,c.g,c.b,opacity,style.ambient.r,style.ambient.g,style.ambient.b,
             style.specular.r,style.specular.g,style.specular.b,style.emission.r,style.emission.g,style.emission.b,
-            style.bumpiness,style.reflectivity,style.shininess,float(style.hasShininess),float(style.present),float(style.drawFlags),float(style.drawPresent)};
+            style.bumpiness,style.reflectivity,style.shininess,float(style.hasShininess),float(style.overrideColors),float(style.present),float(style.drawFlags),float(style.drawPresent)};
         for(float value:key) if(!std::isfinite(value)) throw std::runtime_error("JT has nonfinite material values");
         if(!std::isfinite(c.a) || c.a<0 || c.a>1 || opacity<0 || opacity>1) throw std::runtime_error("JT diffuse alpha is out of range");
         // JT 10.0 section 6.1.2.2 defines a Phong exponent in [1,128].
         // The viewer's material adapter converts this to PBR roughness.
-        if(style.hasShininess && (style.shininess<1 || style.shininess>128))
-            throw std::runtime_error("JT shininess is out of range [1,128]");
+        if(style.hasShininess && (style.shininess<(style.legacyShininess?0:1) || (!style.legacyShininess && style.shininess>128)))
+            throw std::runtime_error(style.legacyShininess?"Legacy JT shininess is negative":"JT shininess is out of range [1,128]");
         const auto found=materialCache.find(key);if(found!=materialCache.end()) return found->second;
         if(blending && !(src==6 && dst==7) && !(src==1 && dst==0))
             result.warnings.append("JT blend factors are approximated using conventional alpha blending");
@@ -279,16 +314,37 @@ struct Builder {
         JtData_Limits::allocation(size_t(copy->mNumVertices)*2*sizeof(aiVector3D)+size_t(copy->mNumFaces)*(sizeof(aiFace)+3*sizeof(unsigned)));
         copy->mVertices=new aiVector3D[copy->mNumVertices];copy->mNormals=new aiVector3D[copy->mNumVertices];
         std::copy_n(source.mVertices,copy->mNumVertices,copy->mVertices);std::copy_n(source.mNormals,copy->mNumVertices,copy->mNormals);
+        if(source.HasVertexColors(0)) {
+            JtData_Limits::allocation(size_t(copy->mNumVertices)*sizeof(aiColor4D));
+            copy->mColors[0]=new aiColor4D[copy->mNumVertices];std::copy_n(source.mColors[0],copy->mNumVertices,copy->mColors[0]);
+        }
+        if(source.HasTextureCoords(0)) {
+            JtData_Limits::allocation(size_t(copy->mNumVertices)*sizeof(aiVector3D));
+            copy->mTextureCoords[0]=new aiVector3D[copy->mNumVertices];copy->mNumUVComponents[0]=source.mNumUVComponents[0];
+            std::copy_n(source.mTextureCoords[0],copy->mNumVertices,copy->mTextureCoords[0]);
+        }
         copy->mFaces=new aiFace[copy->mNumFaces];
         for(unsigned i=0;i<copy->mNumFaces;++i) {copy->mFaces[i].mNumIndices=3;copy->mFaces[i].mIndices=new unsigned[3];std::copy_n(source.mFaces[i].mIndices,3,copy->mFaces[i].mIndices);}
         return copy;
     }
-    unsigned add(std::unique_ptr<aiMesh> mesh,unsigned mat,const QString& name,bool flat=false) {
-        if(flat) {
+    unsigned add(std::unique_ptr<aiMesh> mesh,const Appearance& style,const QString& name) {
+        if(mesh->HasVertexColors(0) && style.overrideColors) {delete[] mesh->mColors[0];mesh->mColors[0]=nullptr;}
+        const bool colored=mesh->HasVertexColors(0);
+        if(colored) for(unsigned i=0;i<mesh->mNumVertices;++i) {
+            auto& c=mesh->mColors[0][i];
+            if(!(style.blendFlags&0x10)) c.a=1;
+            else if(c.a!=1) throw std::runtime_error("Unsupported translucent JT vertex colours");
+        }
+        const unsigned mat=material(style,colored);
+        if(style.flatNormals()) {
             const size_t count=size_t(mesh->mNumFaces)*3;
             if(count>std::numeric_limits<unsigned>::max()) throw std::runtime_error("JT flat-normal vertex count exceeds render limits");
             JtData_Limits::allocation(count*(2*sizeof(aiVector3D)+sizeof(unsigned)));
             auto positions=std::make_unique<aiVector3D[]>(count);auto normals=std::make_unique<aiVector3D[]>(count);
+            std::unique_ptr<aiColor4D[]> colors;
+            std::unique_ptr<aiVector3D[]> uv;
+            if(mesh->HasTextureCoords(0)) {JtData_Limits::allocation(count*sizeof(aiVector3D));uv=std::make_unique<aiVector3D[]>(count);}
+            if(colored) {JtData_Limits::allocation(count*sizeof(aiColor4D));colors=std::make_unique<aiColor4D[]>(count);}
             for(unsigned i=0;i<mesh->mNumFaces;++i) {
                 options.check();const auto& f=mesh->mFaces[i];
                 const auto a=mesh->mVertices[f.mIndices[0]],b=mesh->mVertices[f.mIndices[1]],c=mesh->mVertices[f.mIndices[2]];
@@ -297,9 +353,11 @@ struct Builder {
                 const double x=y1*z2-z1*y2,y=z1*x2-x1*z2,z=x1*y2-y1*x2,l=std::hypot(x,y,z);
                 const aiVector3D n=l>0 ? aiVector3D(float(x/l),float(y/l),float(z/l)) : mesh->mNormals[f.mIndices[0]];
                 positions[3*i]=a;positions[3*i+1]=b;positions[3*i+2]=c;
-                for(unsigned j=0;j<3;++j) {normals[3*i+j]=n;mesh->mFaces[i].mIndices[j]=3*i+j;}
+                for(unsigned j=0;j<3;++j) {normals[3*i+j]=n;if(colored)colors[3*i+j]=mesh->mColors[0][f.mIndices[j]];if(uv)uv[3*i+j]=mesh->mTextureCoords[0][f.mIndices[j]];mesh->mFaces[i].mIndices[j]=3*i+j;}
             }
             delete[] mesh->mVertices;delete[] mesh->mNormals;
+            if(colored) {delete[] mesh->mColors[0];mesh->mColors[0]=colors.release();}
+            if(uv) {delete[] mesh->mTextureCoords[0];mesh->mTextureCoords[0]=uv.release();}
             mesh->mNumVertices=unsigned(count);mesh->mVertices=positions.release();mesh->mNormals=normals.release();validate(*mesh);
         }
         mesh->mMaterialIndex=mat;mesh->mName=aiString(name.toUtf8().constData());
@@ -349,7 +407,7 @@ struct Builder {
                 options.check();prop->Load();const auto xt=Handle(JtElement_XTBRep)::DownCast(prop->DefferedObject());
                 if(xt.IsNull()) throw std::runtime_error("Unsupported exact JT payload");
                 const auto& bytes=xt->Data();const auto shape=options.exactDecoder(QByteArray(reinterpret_cast<const char*>(bytes.Data()),int(bytes.Count())));
-                options.check();auto m=exactMesh(shape,options);attached.push_back(add(std::move(m),mat,name,style.flatNormals()));result.exactShapes.push_back(shape);++result.exactParts;exact=true;prop->Unload();break;
+                options.check();auto m=exactMesh(shape,options);attached.push_back(add(std::move(m),style,name));result.exactShapes.push_back(shape);++result.exactParts;exact=true;prop->Unload();break;
             } catch(const Cancelled&) {prop->Unload();throw;}
               catch(const std::bad_alloc&) {prop->Unload();throw;}
               catch(const Standard_Failure& e) {result.warnings.append(label+": exact geometry rejected: "+QString::fromUtf8(e.GetMessageString()));}
@@ -368,19 +426,23 @@ struct Builder {
                     try {
                         const auto geometry=geometryCache.find(prop.get());
                         if(geometry!=geometryCache.end()) {
-                            const unsigned id=add(copyGeometry(geometry->second),mat,name,style.flatNormals());meshCache[key]=id;attached.push_back(id);++result.storedMeshes;loaded=true;break;
+                            const unsigned id=add(copyGeometry(geometry->second),style,name);meshCache[key]=id;attached.push_back(id);++result.storedMeshes;loaded=true;break;
                         }
                         struct Unload {Handle(JtProperty_LateLoaded) p;~Unload(){p->Unload();}} unload{prop};
                         options.check();prop->Load();const auto mesh=Handle(JtElement_ShapeLOD_Vertex)::DownCast(prop->DefferedObject());
                         if(mesh.IsNull()) throw std::runtime_error("Unsupported JT tessellation payload");
-                        const unsigned geometryIndex=unsigned(geometries.size());geometries.push_back(storedMesh(mesh));
-                        const unsigned id=add(copyGeometry(geometryIndex),mat,name,style.flatNormals());meshCache[key]=id;geometryCache[prop.get()]=geometryIndex;attached.push_back(id);++result.storedMeshes;loaded=true;break;
+                        unsigned repairedNormals=0;
+                        const unsigned geometryIndex=unsigned(geometries.size());geometries.push_back(storedMesh(mesh,repairedNormals));
+                        if(mesh->TexCoords().Count()) result.warnings.append(label+": JT texture coordinates retained; texture images and shaders are not imported");
+                        if(repairedNormals) result.warnings.append(label+": reconstructed "+QString::number(repairedNormals)+" zero-length stored normals from adjacent triangles");
+                        const unsigned id=add(copyGeometry(geometryIndex),style,name);meshCache[key]=id;geometryCache[prop.get()]=geometryIndex;attached.push_back(id);++result.storedMeshes;loaded=true;break;
                     } catch(const Cancelled&) {throw;}
                       catch(const std::bad_alloc&) {throw;}
                       catch(const Standard_Failure& e) {result.warnings.append(label+": display alternative rejected: "+QString::fromUtf8(e.GetMessageString()));}
                       catch(const std::exception& e) {result.warnings.append(label+": display alternative rejected: "+QString::fromUtf8(e.what()));}
                 }
-                if(!loaded) throw std::runtime_error((label+": no supported JT display tessellation").toStdString());
+                if(!loaded) throw std::runtime_error((label+": no supported JT display tessellation"+
+                    (result.warnings.isEmpty()?QString():QString("; ")+result.warnings.last())).toStdString());
             }
             const auto instance=Handle(JtNode_Instance)::DownCast(object);
             if(!instance.IsNull()) children.push_back(visit(instance->Object(),style,hidden,transformLocked,world));
@@ -451,7 +513,8 @@ struct Builder {
                               catch(const Standard_Failure& e) {rollback(saved);result.warnings.append(label+": LOD alternative "+QString::number(i+1)+" rejected: "+QString::fromUtf8(e.GetMessageString()));}
                               catch(const std::exception& e) {rollback(saved);result.warnings.append(label+": LOD alternative "+QString::number(i+1)+" rejected: "+QString::fromUtf8(e.what()));}
                         }
-                        if(lod && !selected) throw std::runtime_error((label+": no usable JT LOD alternative").toStdString());
+                        if(lod && !selected) throw std::runtime_error((label+": no usable JT LOD alternative"+
+                            (result.warnings.isEmpty()?QString():QString("; ")+result.warnings.last())).toStdString());
                     }
                 }
             }
@@ -475,7 +538,7 @@ struct Builder {
 }
 ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QString& path,const Options& options) {
     std::unique_ptr<JtData_Limits::Scope> scope;
-    if(!JtData_Limits::check) scope=std::make_unique<JtData_Limits::Scope>([&]{options.check();});
+    if(!JtData_Limits::check) scope=std::make_unique<JtData_Limits::Scope>([&]{options.check();},options.decodedAllocationBudget);
     options.check();const QFileInfo info(path);
     if(options.lodEyePoint) for(double coordinate:*options.lodEyePoint)
         if(!std::isfinite(coordinate)) throw std::runtime_error("Invalid JT RangeLOD eye point");

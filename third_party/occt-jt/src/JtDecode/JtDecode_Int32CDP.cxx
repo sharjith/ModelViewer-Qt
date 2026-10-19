@@ -43,10 +43,16 @@ Standard_Boolean JtDecode_Int32CDP::LoadPlain(JtData_Reader& reader) {
 
 JtDecode_Int32CDP::EncodedDataHandle JtDecode_Int32CDP::loadCDP1 (JtData_Reader& theReader)
 {
+  static thread_local unsigned depth=0;
+  if(depth>=8) throw std::runtime_error("JT legacy integer codec recursion limit exceeded");
+  struct Depth {unsigned& d;Depth(unsigned& d):d(d){++d;}~Depth(){--d;}} guard(depth);
   // Read codec type
   Standard_Integer aCodec;
   if (!theReader.ReadU8 (aCodec))
     return EncodedDataHandle();
+
+  if(theReader.Model()->MajorVersion()==8 && aCodec!=0 && aCodec!=1 && aCodec!=3)
+    throw std::runtime_error("Unsupported JT 8.x integer codec (qualified: null, bitlength and arithmetic)");
 
   // Null codec, just read uncoded values
   if (aCodec == 0)
@@ -83,6 +89,8 @@ JtDecode_Int32CDP::EncodedDataHandle JtDecode_Int32CDP::loadCDP1 (JtData_Reader&
     // read probability contexts
     if (!theReader.ReadU8 (aProbContextTableCount))
       return EncodedDataHandle();
+    if(aProbContextTableCount<1 || aProbContextTableCount>16)
+      throw std::runtime_error("Invalid legacy JT probability context count");
 
     JtData_Vector<JtDecode_ProbContextI32> aProbContexts (aProbContextTableCount);
     {
@@ -95,16 +103,23 @@ JtDecode_Int32CDP::EncodedDataHandle JtDecode_Int32CDP::loadCDP1 (JtData_Reader&
         if (!aProbContexts[i].ReadNext (aContextReader, aProbContexts[0]))
           return EncodedDataHandle();
     }
+    for(int table=0;table<aProbContextTableCount;++table)
+      for(size_t entry=0;entry<aProbContexts[table].Size();++entry)
+        if(aProbContexts[table][entry].nextContext>=unsigned(aProbContextTableCount))
+          throw std::runtime_error("Invalid legacy JT next probability context");
     aData->SetProbContexts (aProbContexts.Move());
 
     // load out-of-band data
     Jt_I32 anOutOfBandValueCount;
-    theReader.ReadI32 (anOutOfBandValueCount);
+    if(!theReader.ReadI32 (anOutOfBandValueCount) || anOutOfBandValueCount<0 || anOutOfBandValueCount>16000000)
+      throw std::runtime_error("Invalid legacy JT out-of-band count");
     if (anOutOfBandValueCount > 0)
     {
       JtDecode_Int32CDP anOOBData;
       if (!anOOBData.Load1 (theReader))
         return EncodedDataHandle();
+      if(anOOBData.GetOutValCount()!=anOutOfBandValueCount)
+        throw std::runtime_error("Legacy JT out-of-band count mismatch");
       aData->SetOOBData (anOOBData);
     }
   }
@@ -117,6 +132,8 @@ JtDecode_Int32CDP::EncodedDataHandle JtDecode_Int32CDP::loadCDP1 (JtData_Reader&
   {
     return EncodedDataHandle();
   }
+  if(aCodeTextLength<0 || aCodeTextLength>256*1024*1024 || aValueCount<0 || aValueCount>16000000)
+    throw std::runtime_error("Invalid legacy JT integer packet count/length");
   aData->SetOutValCount (aValueCount);
 
   // Read symbol count if present
@@ -128,7 +145,10 @@ JtDecode_Int32CDP::EncodedDataHandle JtDecode_Int32CDP::loadCDP1 (JtData_Reader&
   }
 
   // Read CodeText data
-  if (!aData->LoadVec())
+  Jt_I32 words;
+  if(!theReader.ReadI32(words) || words<0 || words!=(aCodeTextLength+31)/32)
+    throw std::runtime_error("Invalid legacy JT integer code word count");
+  if (!aData->Load(size_t(words)))
     return EncodedDataHandle();
 
   return EncodedDataHandle (aData);

@@ -27,10 +27,14 @@
 
 #include <JtDecode_Int32CDP.hxx>
 #include <JtDecode_VertexData.hxx>
+#include <JtDecode_VertexData_Quantized.hxx>
+#include <JtDecode_VertexColors.hxx>
 #include <JtDecode_MeshCoderDriver.hxx>
 
 #include <map>
 #include <vector>
+#include <memory>
+#include <cmath>
 
 //#define NO_JT_MULTITHREADING
 #include <JtData_Parallel.hxx>
@@ -187,7 +191,9 @@ Standard_Size JtElement_ShapeLOD_Vertex::VertexBinding2::NbColorComponents()
   {
   case 1 << 0: return 3;
   case 1 << 1: return 4;
-  default: return 0;
+  default:
+    if(myLSB.Color) throw std::runtime_error("Invalid JT vertex colour binding");
+    return 0;
   }
 }
 
@@ -238,6 +244,8 @@ Standard_Boolean JtElement_ShapeLOD_Vertex::readVertexShapeLODData (
   myIndices.Free();
   myVertices.Free();
   myNormals.Free();
+  myColors.Free();
+  myTexCoords.Free();
 
   if (theReader.Model()->MajorVersion() < 9)
   {
@@ -249,6 +257,7 @@ Standard_Boolean JtElement_ShapeLOD_Vertex::readVertexShapeLODData (
       Jt_I16 aVersion;
       if (!theReader.ReadVersion(aVersion))
         return Standard_False;
+      if(aVersion!=1) throw std::runtime_error("Unsupported JT 8.x vertex LOD version");
     }
 
     VertexBinding1     aVertexBinding;
@@ -292,185 +301,143 @@ Standard_Boolean JtElement_ShapeLOD_Vertex::readVertexShapeLODData (
 //function : readVertexBasedShapeCompressedRepData
 //purpose  : Read and decode Vertex Based Shape Compressed Rep Data collection
 //=======================================================================
-Standard_Boolean JtElement_ShapeLOD_Vertex::readVertexBasedShapeCompressedRepData (JtData_Reader& theReader)
+namespace {
+// Original ModelViewer bounded legacy attribute adapters. No texture image or
+// shader interpretation is implied by retaining the source UV coordinates.
+using LegacyVertexData=JtElement_ShapeLOD_Vertex::VertexData;
+using LegacyQuantizer=JtDecode_VertexData_Quantized::UniformQuantizerData;
+Jt_VecI32::Mover legacyCodes(JtData_Reader& reader,int count,JtDecode_Unpack& predictor) {
+  JtDecode_Int32CDP packet;
+  if(!packet.Load1(reader) || packet.GetOutValCount()!=count)
+    throw std::runtime_error("Legacy JT attribute packet count mismatch");
+  return packet.DecodeI32(predictor);
+}
+LegacyVertexData::Mover legacyUV(JtData_Reader& reader,int count) {
+  LegacyQuantizer quantizers[2];Jt_U8 suggested;
+  if(!quantizers[0].Read(reader) || !quantizers[1].Read(reader) || !reader.ReadU8(suggested))
+    throw std::runtime_error("Truncated legacy JT texture quantizer");
+  if(suggested>24 || quantizers[0].bits>24 || quantizers[1].bits>24)
+    throw std::runtime_error("Unsupported legacy JT texture quantization");
+  LegacyVertexData output(count,2);
+  for(unsigned component=0;component<2;++component) {
+    Jt_VecI32 codes(legacyCodes(reader,count,JtDecode_Unpack_Lag1));const auto& q=quantizers[component];
+    if(!q.bits && q.min!=q.max)throw std::runtime_error("Unsupported legacy JT unquantized UV component");
+    const double levels=std::ldexp(1.0,q.bits),step=(double(q.max)-q.min)/levels;
+    for(int i=0;i<count;++i) {
+      if((i&1023)==0) JtData_Limits::poll();
+      if(double(uint32_t(codes[i]))>levels) throw std::runtime_error("Legacy JT UV code out of range");
+      output[i][component]=float(q.min+(double(uint32_t(codes[i]))-0.5)*step);
+      if(!std::isfinite(output[i][component])) throw std::runtime_error("Nonfinite legacy JT UV");
+    }
+  }
+  return output.Move();
+}
+LegacyVertexData::Mover legacyConstantColors(JtData_Reader& reader,int count) {
+  Jt_U8 space,bits,components,arrays;LegacyQuantizer q[4];
+  if(!reader.ReadU8(space)) throw std::runtime_error("Truncated legacy JT colour quantizer");
+  if(space!=0) throw std::runtime_error("Unsupported legacy JT HSV colour quantizer");
+  for(auto& quantizer:q) if(!quantizer.Read(reader)) throw std::runtime_error("Truncated legacy JT colour range");
+  if(!reader.ReadU8(bits) || !reader.ReadU8(components) || !reader.ReadU8(arrays))
+    throw std::runtime_error("Truncated legacy JT colour array header");
+  // This stage qualifies the packed, constant RGB(A) form observed in the
+  // corpus. Variable packed/component-array and HSV colours remain explicit.
+  if(bits>24 || (components!=3 && components!=4) || arrays!=0)
+    throw std::runtime_error("Unsupported legacy JT quantized colour array layout");
+  unsigned packedBits=0;
+  for(unsigned c=0;c<4;++c) {
+    if(q[c].bits>24 || q[c].min!=q[c].max || q[c].min<0 || q[c].max>1)
+      throw std::runtime_error("Unsupported nonconstant legacy JT quantized colours");
+    if(c<components)packedBits+=q[c].bits;
+  }
+  if(packedBits>32) throw std::runtime_error("Unsupported legacy JT packed colour width");
+  Jt_VecI32 codes(legacyCodes(reader,count,JtDecode_Unpack_Lag1));LegacyVertexData output(count,components);
+  for(int i=0;i<count;++i) {
+    if((i&1023)==0) JtData_Limits::poll();
+    if(packedBits<32 && (uint32_t(codes[i])>>packedBits)!=0)
+      throw std::runtime_error("Legacy JT packed colour code out of range");
+    for(unsigned c=0;c<components;++c) output[i][c]=q[c].min;
+  }
+  return output.Move();
+}
+}
+Standard_Boolean JtElement_ShapeLOD_Vertex::readVertexBasedShapeCompressedRepData (JtData_Reader& reader)
 {
-  // The Vertex Based Shape Compressed Rep Data collection is the
-  // compressed and/or encoded representation of the vertex coordinates,
-  // normal, texture coordinate, and color data for a vertex based shape. p.234
-
-  // - Version Number is the version identifier for this Vertex Based Shape Rep Data.
-  //   Version number "0x0001" is currently the only valid value.
-  // - Normal Binding specifies how (at what granularity) normal vector data is supplied ("bound") for the Shape Rep
-  //   in either the Lossless Compressed Raw Vertex Data
-  // - Texture Coord Binding specifies how (at what granularity) texture coordinate data is supplied ("bound")
-  //   for the Shape Rep in either the Lossless Compressed Raw Vertex Data or Lossy Quantized Raw Vertex Data collections.
-  // - Color Binding specifies how (at what granularity) color data is supplied ("bound") for the Shape Rep in either the Lossless
-  //   Compressed Raw Vertex Data or Lossy Quantized Raw Vertex Data collections.
-  Jt_I16 aVersionNumber;
-  Jt_U8 aNormalBinding, aTextCoordBinding, aColorBinding;
-  QuantizationParams aQuantParam;
-  if (!theReader.ReadVersion(aVersionNumber)
-   || !theReader.ReadU8  (aNormalBinding)
-   || !theReader.ReadU8  (aTextCoordBinding)
-   || !theReader.ReadU8  (aColorBinding)
-   || !aQuantParam.Read  (theReader))
-  {
+  // Shared JT 8.x lossless/qualified quantized paths. Bindings and encodings
+  // are checked independently of the accepted file-version family.
+  Jt_I16 version;Jt_U8 normalBinding,uvBinding,colorBinding;QuantizationParams quant;
+  if(!reader.ReadVersion(version) || !reader.ReadU8(normalBinding)
+     || !reader.ReadU8(uvBinding) || !reader.ReadU8(colorBinding) || !quant.Read(reader))
     return Standard_False;
+  if(version!=1) throw std::runtime_error("Unsupported JT 8.x raw vertex version");
+  if(normalBinding>1 || uvBinding>1 || colorBinding>1)
+    throw std::runtime_error("Unsupported JT 8.x per-facet/per-primitive attribute binding");
+  if(quant.BitsPerVertex()>24) throw std::runtime_error("Unsupported JT 8.x position quantization width");
+  if(!quant.BitsPerVertex() && (uvBinding || colorBinding))
+    throw std::runtime_error("Unsupported JT 8.x lossless raw vertex attribute binding");
+  JtDecode_Int32CDP packet;
+  if(!packet.Load1(reader)) return Standard_False;
+  Jt_VecI32 strips(packet.DecodeI32(JtDecode_Unpack_Stride1));
+  if(strips.Count()<2 || strips.First()!=0 || strips.Last()<3 || strips.Last()>16000000)
+    throw std::runtime_error("Invalid JT 8.x strip boundaries");
+  size_t triangles=0;
+  for(int i=0;i<strips.Count()-1;++i) {
+    if(strips[i]<0 || strips[i+1]<strips[i] || strips[i+1]>strips.Last() || strips[i+1]-strips[i]<3)
+      throw std::runtime_error("Invalid JT 8.x strip range");
+    triangles+=size_t(strips[i+1]-strips[i]-2);
+    if(triangles>16000000) throw std::runtime_error("JT 8.x triangle limit exceeded");
   }
-
-  /* Primitive List Indices is a vector of indices into the uncompressed
-   * Raw Vertex Data marking the start/beginning of primitives.
-   * The Primitive List Indices array uses the Int32 version of the CODEC
-   * to compress and encode data. */
-  Jt_VecI32 aPimitiveListIndices;
-  {
-    JtDecode_Int32CDP anEncodedPimitiveListIndices;
-    if (!anEncodedPimitiveListIndices.Load1 (theReader))
-        return Standard_False;
-
-    aPimitiveListIndices = anEncodedPimitiveListIndices.DecodeI32 (JtDecode_Unpack_Stride1);
-  }
-  Jt_I32 aNbPrimitives = aPimitiveListIndices.Count() - 1;
-  Jt_I32 aNbFaces = aPimitiveListIndices.Last() - aPimitiveListIndices.First() - aNbPrimitives * 2;
-
-  // Read raw vertex data
-  Jt_VecI32 aVertexDataIndices;
-  if (aQuantParam.BitsPerVertex() == 0)
-  {
-    // lossless compressed raw vertex data
-
-    // read sizes
-    Jt_I32 anUncompressedSize, aCompressedSize;
-    if (!theReader.ReadI32 (anUncompressedSize)
-     || !theReader.ReadI32 (aCompressedSize))
-    {
-      return Standard_False;
+  if(quant.BitsPerVertex()) {
+    auto coords=JtDecode_VertexData::LoadQuantizedCoords(reader);
+    if(!coords)throw std::runtime_error("Cannot decode legacy JT quantized positions");
+    const int count=coords->GetOutVertexCount();
+    myVertices=coords->Decode();
+    if(normalBinding) {
+      auto normals=JtDecode_VertexData::LoadQuantizedNormals(reader);
+      if(!normals || normals->GetOutVertexCount()!=count)throw std::runtime_error("Legacy JT quantized normal count mismatch");
+      myNormals=normals->Decode();
     }
-
-    // select appropriate reader for reading the segment data
-    JtData_Reader* aDataReaderPtr;
-    if (aCompressedSize > 0)
-      // use JtData_Inflate is the data is compressed
-      aDataReaderPtr = new JtData_Inflate (theReader, aCompressedSize);
-    else
-      // use the original reader otherwise
-      aDataReaderPtr = &theReader;
-
-    // determine number of vertices
-    VertexData::SizeType aVertexCount = aPimitiveListIndices.Last();
-
-    // allocate output storage
-    JtData_CompVector <Jt_F32, VertexData::SizeType, VertexData::CompCountType>
-      aVertices (aVertexCount                     , 3),
-      aNormals  (aNormalBinding ? aVertexCount : 0, 3);
-
-    // read the data
-    for (VertexData::SizeType i = 0; i < aVertexCount; i++)
-    {
-      if (aNormalBinding == VertexBinding1::PerVertex)
-        aDataReaderPtr->ReadArray (aNormals[i]);
-
-      aDataReaderPtr->ReadArray   (aVertices[i]);
-    }
-
-    // move the data to the output vectors
-    myVertices << reinterpret_cast<VertexData&> (aVertices);
-    myNormals  << reinterpret_cast<VertexData&> (aNormals);
-
-    // free the JtData_Inflate reader if it was used
-    if (aDataReaderPtr != &theReader)
-      delete aDataReaderPtr;
-
-    // generate conventional OpenGL arrays
-    myIndices.Allocate (aNbFaces * 3);
-
-    Jt_I32 aPrimIdx, anOrigin;
-    Jt_I64 anOffset1 = 1;
-    Jt_I64 anOffset2 = 2;
-    IndicesVec::SizeType aVertIdx = 0;
-    for (aPrimIdx = 0; aPrimIdx < aNbPrimitives; aPrimIdx++)
-    {
-      for (anOrigin = aPimitiveListIndices[aPrimIdx]; anOrigin < aPimitiveListIndices[aPrimIdx + 1] - 2; ++anOrigin)
-      {
-        myIndices[aVertIdx++] = anOrigin;
-        myIndices[aVertIdx++] = anOrigin + anOffset1;
-        myIndices[aVertIdx++] = anOrigin + anOffset2;
-        anOffset1 ^= 1 ^ 2;
-        anOffset2 ^= 1 ^ 2;
+    if(uvBinding)myTexCoords=legacyUV(reader,count);
+    if(colorBinding)myColors=legacyConstantColors(reader,count);
+    Jt_VecI32 vertices(legacyCodes(reader,strips.Last(),JtDecode_Unpack_StripIdx));
+    for(int i=0;i<vertices.Count();++i)
+      if(vertices[i]<0 || vertices[i]>=count)throw std::runtime_error("Legacy JT quantized vertex index out of range");
+    myIndices.Allocate(int(triangles*3));int output=0;
+    for(int strip=0;strip<strips.Count()-1;++strip) {
+      JtData_Limits::poll();
+      for(int j=0;j<strips[strip+1]-strips[strip]-2;++j) {
+        const int a=strips[strip]+j;myIndices[output++]=vertices[a];
+        myIndices[output++]=vertices[a+(j%2?2:1)];myIndices[output++]=vertices[a+(j%2?1:2)];
       }
     }
+    return Standard_True;
   }
-  else
-  {
-    /*
-     *Read the lossy quantized raw vertex data
-     */
-
-    // create a TBB task group for parallel decoding of read data
-    JtData_Parallel::TaskGroup aDecodeTasks;
-
-    // read unique vertex coords data and start decoding it
-    {
-      JtDecode_VertexData::Handle anEncodedVertices =
-        JtDecode_VertexData::LoadQuantizedCoords (theReader);
-
-      if (!anEncodedVertices)
-        return Standard_False;
-
-      aDecodeTasks.Run (VertexDataDecodeTask (anEncodedVertices, myVertices));
-    }
-
-    // read unique vertex normals data if present and start decoding it
-    if (aNormalBinding != VertexBinding1::None)
-    {
-      JtDecode_VertexData::Handle anEncodedNormals =
-        JtDecode_VertexData::LoadQuantizedNormals (theReader);
-
-      if (!anEncodedNormals)
-        return Standard_False;
-
-      aDecodeTasks.Run (VertexDataDecodeTask (anEncodedNormals, myNormals));
-    }
-
-    /*
-     * Read vertex data indices.
-     * The Compressed Vertex Index List uses the Int32 version of the coded to compress
-     * and encode data.
-     */
-    {
-      JtDecode_Int32CDP anEncodedVertexDataIndices;
-      if (!anEncodedVertexDataIndices.Load1 (theReader))
-          return Standard_False;
-
-      aVertexDataIndices = anEncodedVertexDataIndices.DecodeI32 (JtDecode_Unpack_StripIdx);
-    }
-
-    // generate conventional OpenGL arrays
-    myIndices.Allocate (aNbFaces * 3);
-
-    Jt_I32 aPrimIdx, anOrigin;
-    Jt_I64 anOffset1 = 1;
-    Jt_I64 anOffset2 = 2;
-    IndicesVec::SizeType aVertIdx = 0;
-    for (aPrimIdx = 0; aPrimIdx < aNbPrimitives; aPrimIdx++)
-    {
-      for (anOrigin = aPimitiveListIndices[aPrimIdx]; anOrigin < aPimitiveListIndices[aPrimIdx + 1] - 2; ++anOrigin)
-      {
-        myIndices[aVertIdx++] = aVertexDataIndices[anOrigin];
-        myIndices[aVertIdx++] = aVertexDataIndices[anOrigin + anOffset1];
-        myIndices[aVertIdx++] = aVertexDataIndices[anOrigin + anOffset2];
-        anOffset1 ^= 1 ^ 2;
-        anOffset2 ^= 1 ^ 2;
-      }
-    }
-
-    // wait until all vectors are decoded
-    aDecodeTasks.Wait();
+  Jt_I32 uncompressedSize,compressedSize;
+  if(!reader.ReadI32(uncompressedSize) || !reader.ReadI32(compressedSize)) return Standard_False;
+  const size_t expected=size_t(strips.Last())*(normalBinding?6:3)*sizeof(float);
+  if(uncompressedSize<0 || size_t(uncompressedSize)!=expected || expected>256u*1024u*1024u
+     || compressedSize>256*1024*1024 || (compressedSize<0 && compressedSize!=-uncompressedSize))
+    throw std::runtime_error("Invalid JT 8.x raw vertex byte count");
+  std::unique_ptr<JtData_Inflate> inflated;
+  JtData_Reader* data=&reader;
+  if(compressedSize>0) {inflated=std::make_unique<JtData_Inflate>(reader,size_t(compressedSize));data=inflated.get();}
+  const int count=strips.Last();myVertices.Allocate(count,3);
+  if(normalBinding) myNormals.Allocate(count,3);
+  for(int i=0;i<count;++i) {
+    JtData_Limits::poll();
+    if((normalBinding && !data->ReadArray(myNormals[i])) || !data->ReadArray(myVertices[i]))
+      throw std::runtime_error("Truncated JT 8.x raw vertex array");
   }
-
+  if(inflated && !inflated->Finish(true)) throw std::runtime_error("Invalid/trailing JT 8.x vertex zlib data");
+  myIndices.Allocate(int(triangles*3));int output=0;
+  for(int strip=0;strip<strips.Count()-1;++strip) {
+    // Winding restarts at every strip, including a sequence of 3-vertex strips.
+    for(int j=0;j<strips[strip+1]-strips[strip]-2;++j) {
+      const int a=strips[strip]+j;myIndices[output++]=a;
+      myIndices[output++]=a+(j%2?2:1);myIndices[output++]=a+(j%2?1:2);
+    }
+  }
   return Standard_True;
 }
-
 //=======================================================================
 //function : readTopologicallyCompessedData
 //purpose  : Read and decode Topologically Compressed Rep Data collection
@@ -512,8 +479,12 @@ Standard_Boolean JtElement_ShapeLOD_Vertex::readTopologicallyCompressedData (JtD
   if (!theReader.ReadI32 (aNumberOfAttr))
     return Standard_False;
 
+  if(aNumberOfVert<0 || aNumberOfVert>16000000 || aNumberOfAttr<0 || aNumberOfAttr>16000000)
+    throw std::runtime_error("Invalid JT topological vertex/attribute count");
+
   Standard_Boolean aCoordsPresent = (aVertexBindings.NbVertexCoordComponents() > 0);
   Standard_Boolean aNormalsPresent = aVertexBindings.IsNormalBinding();
+  const unsigned aColorComponents=unsigned(aVertexBindings.NbColorComponents());
 
   // Read vertex coords data and start decoding it
   int32_t aUniqueVerticesCount = 0;
@@ -543,78 +514,61 @@ Standard_Boolean JtElement_ShapeLOD_Vertex::readTopologicallyCompressedData (JtD
     aDecodeTasks.Run (VertexDataDecodeTask (anEncodedNormals, aUniqueNormals));
   }
 
-  // Create a temporary vector of maps used to map combination of coord index and normal index
-  // to a single common index if both coords and normals are present
-  typedef std::map<int32_t, int32_t> Map;
-  JtData_Vector<Map, int32_t> aMaps;
-  if (aCoordsPresent && aNormalsPresent)
-    aMaps.Allocate (aUniqueVerticesCount);
+  VertexData aUniqueColors;
+  if(aColorComponents)
+    aUniqueColors=JtDecode_VertexColors::Read(theReader,aColorComponents,aNumberOfAttr);
 
-  // Wait until all vectors are decoded
   aDecodeTasks.Wait();
-
-  // If both coords and normals are present,
-  // convert the data from separately indexed vectors of unique coords and normals
-  // to vectors representing unique combinations of coords and normals with each
-  // combination indexed by a single index
-  if (aCoordsPresent && aNormalsPresent)
-  {
-    // build the output single vector of indices
-    // and a auxiliary vector of indices of unique combinations of source
-    // indices of coords and normals
-    myIndices.Allocate (aVertexIndices.Count());
-    IndicesVec anIdxIndices (aVertexIndices.Count());
-    int32_t aUniquePairsCount = 0;
-
-    for (int32_t anIdxIdx = 0; anIdxIdx < aVertexIndices.Count(); anIdxIdx++)
-    {
-      int32_t aVertexIdx = aVertexIndices[anIdxIdx];
-      int32_t aNormalIdx = aNormalIndices[anIdxIdx];
-
-      Map& aMap = aMaps[aVertexIdx];
-      Map::iterator anIt = aMap.find (aNormalIdx);
-
-      if (anIt == aMap.end())
-      {
-        aMap.insert (anIt, Map::value_type (aNormalIdx, aUniquePairsCount));
-        anIdxIndices[aUniquePairsCount] = anIdxIdx;
-        myIndices[anIdxIdx] = aUniquePairsCount++;
-      }
-      else
-      {
-        myIndices[anIdxIdx] = anIt->second;
-      }
-    }
-
-    // free the memory used by the vector of maps since it will not be needed anymore
-    aMaps.Free();
-
-    // build the output vectors of coords and normals using the auxiliary vector
-    myVertices.Allocate (aUniquePairsCount, aUniqueVertices.CompCount());
-    myNormals .Allocate (aUniquePairsCount, aUniqueNormals.CompCount());
-
-    for (int32_t aUniquePairIdx = 0; aUniquePairIdx < aUniquePairsCount; aUniquePairIdx++)
-    {
-      int32_t anIdxIdx = anIdxIndices[aUniquePairIdx];
-      myVertices[aUniquePairIdx] = aUniqueVertices[aVertexIndices[anIdxIdx]];
-      myNormals [aUniquePairIdx] = aUniqueNormals [aNormalIndices[anIdxIdx]];
-    }
-  }
-
-  // If only coords are present, use the coords vector and its indices
-  else if (aCoordsPresent)
-  {
-    myVertices << aUniqueVertices;
-    myIndices  << aVertexIndices;
-  }
-
-  // If only normals are present, use the normals vector and its indices
-  else if (aNormalsPresent)
-  {
-    myNormals << aUniqueNormals;
-    myIndices << aNormalIndices;
-  }
-
-  // Success
+  if(aCoordsPresent && aUniqueVertices.Count()!=aNumberOfVert)
+    throw std::runtime_error("JT coordinate count disagrees with topology");
+  if(aNormalsPresent && aUniqueNormals.Count()!=aNumberOfAttr)
+    throw std::runtime_error("JT normal count disagrees with attributes");
+  assembleVertexRecords(aUniqueVertices,aUniqueNormals,aUniqueColors,aVertexIndices,aNormalIndices);
   return Standard_True;
+}
+
+// Original ModelViewer adaptation: every topology attribute record may contain
+// normal, colour and UV data. Preserve the coordinate/attribute pair, including
+// colour seams whose positions and numerical normal values happen to coincide.
+void JtElement_ShapeLOD_Vertex::assembleVertexRecords(
+    const VertexData& coords,const VertexData& normals,const VertexData& colors,
+    const IndicesVec& vertices,const IndicesVec& attributes)
+{
+  myVertices.Free();myNormals.Free();myColors.Free();myIndices.Free();
+  if(coords.Count()<=0 || coords.CompCount()!=3)
+    throw std::runtime_error("Unsupported JT coordinate binding");
+  const bool hasNormals=normals.Count()!=0,hasColors=colors.Count()!=0;
+  if((hasNormals && normals.CompCount()!=3) || (hasColors && colors.CompCount()!=3 && colors.CompCount()!=4)
+     || (hasNormals && hasColors && normals.Count()!=colors.Count()))
+    throw std::runtime_error("Invalid JT attribute record layout");
+  const int attributeCount=hasNormals?normals.Count():colors.Count();
+  if((hasNormals || hasColors) && attributes.Count()!=vertices.Count())
+    throw std::runtime_error("JT corner attribute index count mismatch");
+  if(!hasNormals && !hasColors) {
+    for(int i=0;i<vertices.Count();++i)
+      if(vertices[i]<0 || vertices[i]>=coords.Count()) throw std::runtime_error("JT coordinate index out of range");
+    myVertices=coords;myIndices=vertices;return;
+  }
+  JtData_Limits::allocation(size_t(vertices.Count())*80); // conservative map-node budget
+  std::map<std::pair<int,int>,int> pairs;
+  IndicesVec representatives(vertices.Count());myIndices.Allocate(vertices.Count());
+  int count=0;
+  for(int i=0;i<vertices.Count();++i) {
+    JtData_Limits::poll();
+    const int v=vertices[i],a=(hasNormals || hasColors)?attributes[i]:0;
+    if(v<0 || v>=coords.Count() || ((hasNormals || hasColors) && (a<0 || a>=attributeCount)))
+      throw std::runtime_error("JT corner coordinate/attribute index out of range");
+    const auto inserted=pairs.emplace(std::make_pair(v,a),count);
+    if(inserted.second) representatives[count++]=i;
+    myIndices[i]=inserted.first->second;
+  }
+  myVertices.Allocate(count,3);
+  if(hasNormals) myNormals.Allocate(count,3);
+  if(hasColors) myColors.Allocate(count,colors.CompCount());
+  for(int i=0;i<count;++i) {
+    const int corner=representatives[i];
+    myVertices[i]=coords[vertices[corner]];
+    if(hasNormals) myNormals[i]=normals[attributes[corner]];
+    if(hasColors) myColors[i]=colors[attributes[corner]];
+  }
 }

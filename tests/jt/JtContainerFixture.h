@@ -29,11 +29,11 @@ inline void baseNode(Bytes& b,std::initializer_list<unsigned> attributes){b.u8(1
 inline Bytes partition(bool big,const QString& reference,std::initializer_list<unsigned> children,std::initializer_list<unsigned> attributes={}){
     Bytes b(big);baseNode(b,attributes);b.u8(1);b.list(children);b.u8(1);b.u32(0);b.text(reference);b.f32(0);for(int i=0;i<6;++i)b.u32(0);return b;
 }
-inline void container(const QString& path,const Bytes& graph) {
+inline void container(const QString& path,const Bytes& graph,unsigned minorVersion=0) {
     const QString segmentId="12345678-1234-5678-9abc-def012345678";
     const bool big=graph.big;
     Bytes segment(big);segment.guid(segmentId);segment.u32(1);segment.u32(quint32(33+graph.data.size()));segment.u32(0);segment.u32(quint32(graph.data.size()+1));segment.u8(0);segment.append(graph);
-    Bytes file(big);file.data=QByteArray("Version 10.0 JT synthetic interoperability test").leftJustified(80,' ');file.u8(big?1:0);file.u32(0);file.u64(109+quint64(segment.data.size()));file.guid(segmentId);file.append(segment);
+    Bytes file(big);file.data=(QByteArray("Version 10.")+QByteArray::number(minorVersion)+" JT synthetic interoperability test").leftJustified(80,' ');file.u8(big?1:0);file.u32(0);file.u64(109+quint64(segment.data.size()));file.guid(segmentId);file.append(segment);
     file.u32(1);file.guid(segmentId);file.u64(109);file.u32(quint32(segment.data.size()));file.u32(1u<<24);
     QFile target(path);if(!target.open(QIODevice::WriteOnly)||target.write(file.data)!=file.data.size())throw std::runtime_error("Cannot write synthetic JT container");
 }
@@ -76,7 +76,7 @@ inline void writeMetadata(const QString& path,const QString& reference=QString()
     if(options.duplicateTable) {graph.u32(1);graph.u32(0);}
     container(path,graph);
 }
-inline void write(const QString& path,const QString& reference,bool big=false,bool assembly=true,bool duplicate=false,bool wireframeVariants=false){
+inline void write(const QString& path,const QString& reference,bool big=false,bool assembly=true,bool duplicate=false,bool wireframeVariants=false,unsigned minorVersion=0){
     Bytes graph(big);element(graph,type("10dd103e"),1,partition(big,assembly?QString():reference,assembly?std::initializer_list<unsigned>{10,11}:std::initializer_list<unsigned>{}));
     if(assembly){
         element(graph,type("10dd103e"),2,partition(big,reference,{}));
@@ -98,6 +98,6 @@ inline void write(const QString& path,const QString& reference,bool big=false,bo
     end(graph);graph.u16(1);graph.u32(assembly?3:1);
     graph.u32(1);graph.u32(100);graph.u32(101);graph.u32(0);
     if(assembly)for(unsigned i=0;i<2;++i){graph.u32(10+i);graph.u32(100);graph.u32(102+i);graph.u32(0);}
-    container(path,graph);
+    container(path,graph,minorVersion);
 }
 }

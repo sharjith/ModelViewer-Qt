@@ -16,15 +16,15 @@ IMPLEMENT_OBJECT_CLASS(JtProperty_Float, "Floating point property",
 Standard_Boolean JtProperty_Integer::Read(JtData_Reader& reader)
 {
   Jt_I16 version=0;
-  if(!JtProperty_Base::Read(reader) || !reader.ReadVersion(version)) return Standard_False;
-  if(version!=1) throw std::runtime_error("Unsupported JT integer property version");
+  if(!JtProperty_Base::Read(reader)) return Standard_False;
+  if(reader.Model()->MajorVersion()>8 && (!reader.ReadVersion(version) || version!=1)) throw std::runtime_error("Unsupported JT integer property version");
   return reader.ReadPrimitiveValue(myValue);
 }
 
 Standard_Boolean JtProperty_Float::Read(JtData_Reader& reader)
 {
   Jt_I16 version=0;
-  if(!JtProperty_Base::Read(reader) || !reader.ReadVersion(version)) return Standard_False;
-  if(version!=1) throw std::runtime_error("Unsupported JT floating point property version");
+  if(!JtProperty_Base::Read(reader)) return Standard_False;
+  if(reader.Model()->MajorVersion()>8 && (!reader.ReadVersion(version) || version!=1)) throw std::runtime_error("Unsupported JT floating point property version");
   return reader.ReadPrimitiveValue(myValue);
 }

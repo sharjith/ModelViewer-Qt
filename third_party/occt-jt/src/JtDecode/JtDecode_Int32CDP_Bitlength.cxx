@@ -33,7 +33,11 @@ void JtDecode_Int32CDP_Bitlength::decode (int32_t* theResultPtr, int32_t* theRes
     {
       uint32_t aFirstBit = ReadBit();
       signed aStep = aFirstBit ? STEP_SIZE : -STEP_SIZE;
-      do aFieldWidth += aStep;
+      do {
+        if((aStep<0 && aFieldWidth<unsigned(-aStep)) || (aStep>0 && aFieldWidth>32-unsigned(aStep)))
+          throw std::runtime_error("Invalid JT bitlength field width");
+        aFieldWidth+=aStep;
+      }
       while (ReadBit() == aFirstBit);
     }
 

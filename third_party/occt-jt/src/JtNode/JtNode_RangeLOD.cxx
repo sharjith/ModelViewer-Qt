@@ -43,7 +43,7 @@ Standard_Boolean JtNode_RangeLOD::Read (JtData_Reader& theReader)
   && !theReader.ReadVersion(myVersion))
     return Standard_False;
 
-  if (myVersion != 1) throw std::runtime_error("Unsupported JT RangeLOD node version");
+  if (theReader.Model()->MajorVersion()>8 && myVersion != 1) throw std::runtime_error("Unsupported JT RangeLOD node version");
 
   if (!theReader.ReadVec<Jt_F32>(myVecR) || !theReader.ReadUniformStruct<Jt_F32>(myCenter))
     return Standard_False;

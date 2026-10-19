@@ -4,6 +4,10 @@ Configure this folder as a standalone CMake project against ModelViewer's OCCT, 
 
 `JtContainerFixture.h` and `jt_scene_tests.cpp` contain original generated containers and synthetic geometry. They are part of the repository and do not require downloaded CAD data for the portable suite.
 
+`JtLegacyFixture.h` also exercises the shared 8.0–8.2 lossless family with LE/BE, raw/zlib vertices, codec/binding rejection and the version-specific sample L81 EOF exception. See [8.x validation](../../docs/JT_8X_FAMILY_VALIDATION.md) for the authentic 8.0 success and expected 8.2 quantized sample Q82 rejection. Recognizing a family does not claim all its geometry encodings are implemented.
+
+The later [quantized follow-up](../../docs/JT_LEGACY_QUANTIZED_VALIDATION.md) supersedes that original sample Q82 rejection. `jt_quantized_tests.cpp` adds independently calculable positions/normals/UVs/constant colours, arithmetic/OOB/multiple-context tests, malformed-input/resource checks and application/GLB attribute preservation. Use `jt_tests --quantized-fixtures out/jt-research/quantized-ui-fixtures` to generate the original `legacy_quantized_le.jt` and `legacy_quantized_be.jt` owner acceptance files. Each contains one mesh, seven vertices and three triangles. No downloaded geometry is included in these generated fixtures.
+
 To reproduce the viewer acceptance fixtures, supply a locally obtained `Bolt.jt`:
 
 ```text
@@ -13,6 +17,8 @@ python tests/jt/generate_display_fixtures.py --samples out/jt-research/samples -
 The generator copies that supplied sample into the chosen output folder. It does not download or grant redistribution rights to the sample. Keep the generated `parts/` folder with the fixtures. Their generated README lists expected colors, placement, mesh counts and errors. The optional source samples and generated exports remain outside version control.
 
 `jt_probe input.jt [output.glb]` inspects an import and optionally exports it. Add `--eye x,y,z` to exercise import-time RangeLOD distance selection; this does not enable runtime switching in the viewer.
+
+Add `--validate` to check finite positions/local transforms, normalized normals, triangle indices and scene mesh/material references, and print local mesh-resource bounds and occurrence counts. The [JT 10.3 sample A103 validation](../../docs/JT_103_ASSEMBLY_VALIDATION.md) records the large local assembly check. Portable tests also cover original LE/BE 10.3 graph layouts and configurable cumulative allocation-budget boundaries; downloaded geometry stays outside the repository.
 
 Add `--properties` to print supported source node properties as JSON. Generate the metadata acceptance files with:
 
@@ -27,6 +33,10 @@ Use `jt_fixturegen --kind draw-style --samples <sample-folder> --output <output-
 The [wireframe follow-up](../../docs/JT_WIREFRAME_VALIDATION.md) adds mixed red-wire/green-solid fixtures and optional native OpenGL checks under `tests/render`. It also verifies material runtime JSON persistence. Refer to that follow-up for the current `draw_wire_hint.jt` expectation.
 
 The [shininess follow-up](../../docs/JT_SHININESS_VALIDATION.md) tests inherited Phong exponents, their approximate PBR roughness, material-cache separation, scene copying and GLB roughness persistence. Use `jt_probe <file.jt> --materials` to inspect both fields.
+
+The [vertex-colour follow-up](../../docs/JT_VERTEX_COLOUR_VALIDATION.md) covers lossless RGB/opaque-RGBA arrays, colour seams and material overrides. `jt_color_fixturegen <local Bolt.jt> <output-folder>` produces native viewer fixtures from locally supplied geometry and checks their import. The test-only modifier is deliberately restricted to that little-endian JT 10.0 sample layout; it is not a general JT writer or independent conformance oracle.
+
+The [JT 8.1 follow-up](../../docs/JT_81_VALIDATION.md) adds original full-file legacy fixtures (`JtLegacyFixture.h`) and `jt_legacy_tests.cpp`. Run `jt_tests <JT-10-sample-folder> <local sample-L81.jt>` for both corpora, or `jt_tests --legacy-fixtures <output-folder>` to generate two small blue legacy models for the UI. Downloaded sample L81 geometry remains external to the repository.
 
 Coverage, sample provenance and UI acceptance are recorded in [native importer](../../docs/JT_NATIVE_IMPORTER.md), [assembly validation](../../docs/JT_ASSEMBLY_ATTRIBUTE_VALIDATION.md) and [display selection validation](../../docs/JT_DISPLAY_SELECTION_VALIDATION.md).
 

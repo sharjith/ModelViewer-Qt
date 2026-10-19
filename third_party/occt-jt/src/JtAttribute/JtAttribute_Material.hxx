@@ -55,6 +55,7 @@ public:
 
   //! Return shininess.
   Jt_F32        Shininess()     const { return myShininess;     }
+  bool IsLegacyLayout() const { return myVersion==0; }
 
   Jt_F32 Bumpiness() const { return myBumpiness; }
 

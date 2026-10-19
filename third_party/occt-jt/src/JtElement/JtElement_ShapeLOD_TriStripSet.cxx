@@ -37,6 +37,8 @@ Standard_Boolean JtElement_ShapeLOD_TriStripSet::Read (JtData_Reader& theReader)
   if (!readVertexShapeLODData (theReader, Standard_True)
    || !theReader.ReadVersion(aVersion))
     return Standard_False;
+  if(theReader.Model()->MajorVersion()==8 && aVersion!=1)
+    throw std::runtime_error("Unsupported JT 8.x TriStrip LOD version");
 
   if (theReader.Model()->MajorVersion() < 9)
     return readVertexBasedShapeCompressedRepData (theReader);

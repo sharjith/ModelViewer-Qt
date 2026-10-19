@@ -20,10 +20,14 @@
 
 #include <JtDecode_VertexData_Quantized.hxx>
 #include <JtData_VectorRef.hxx>
+#include <cmath>
 
 Standard_Boolean JtDecode_VertexData_Quantized::UniformQuantizerData::Read (JtData_Reader& theReader)
 {
-  return theReader.ReadF32 (min) && theReader.ReadF32 (max) && theReader.ReadU8 (bits);
+  if(!theReader.ReadF32(min) || !theReader.ReadF32(max) || !theReader.ReadU8(bits)) return Standard_False;
+  if(!std::isfinite(min) || !std::isfinite(max) || min>max || bits>32)
+    throw std::runtime_error("Invalid JT uniform quantizer");
+  return Standard_True;
 }
 
 Standard_Boolean JtDecode_VertexData_Quantized::PointQuantizerData::Read (JtData_Reader& theReader)
@@ -56,11 +60,13 @@ void JtDecode_VertexData_Quantized::decode (Decoded::Ref theResults)
     Standard_Real    aMax  = aCurQuantizerData.max;
     Standard_Integer aBits = aCurQuantizerData.bits;
 
-    Standard_Real aMaxCode = aBits < 32 ? (1 << aBits) : 0xFFFFFFFF;
+    Standard_Real aMaxCode = aBits < 32 ? std::ldexp(1.0,aBits) : 0xFFFFFFFFu;
     Standard_Real aDecodeMultiplier = (aMax - aMin) / aMaxCode;
 
     for (Decoded::SizeType i = 0; i < theResults.Count(); i++)
     {
+      if((i&1023)==0) JtData_Limits::poll();
+      if(double(uint32_t(aCodes[i]))>aMaxCode) throw std::runtime_error("JT coordinate quantizer code out of range");
       Standard_Real aValue = aMin + (static_cast<Jt_U32>(aCodes[i]) - 0.5) * aDecodeMultiplier;
       theResults[i][j] = static_cast <float> (aValue);
     }

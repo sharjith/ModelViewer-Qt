@@ -19,6 +19,7 @@
 // see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
 #include <JtDecode_Int32CDP_Arithmetic.hxx>
+#include <JtData_Limits.hxx>
 
 void JtDecode_Int32CDP_Arithmetic::decode (int32_t* theResultPtr,
                                            int32_t* theResultEnd,
@@ -32,17 +33,23 @@ void JtDecode_Int32CDP_Arithmetic::decode (int32_t* theResultPtr,
 
   // Read first symbol
   uint16_t aCode = static_cast <uint16_t> (ReadU32 (16));
+  size_t steps=0;
+  const size_t maxSteps=size_t(theResultEnd-theResultPtr)*32+1024;
 
   // Decode the data
   while (theResultPtr < theResultEnd)
   {
+    if(++steps>maxSteps) throw std::runtime_error("JT arithmetic symbol step limit exceeded");
+    if((steps&1023)==0) JtData_Limits::poll();
+    if(aCurContextIdx>=myProbContexts.Count() || aCode<aLow || aCode>aHigh)
+      throw std::runtime_error("Invalid JT arithmetic context/range");
     // lookup actual context entry
     const JtDecode_ProbContextI32& aCurContext = myProbContexts[aCurContextIdx];
     unsigned aSymbolsInCurCtx = aCurContext.TotalCount();
-    if(!aSymbolsInCurCtx) throw std::runtime_error("Empty JT arithmetic context");
+    if(!aSymbolsInCurCtx || aSymbolsInCurCtx>65536) throw std::runtime_error("Invalid JT arithmetic frequency total");
 
     unsigned aRange = aHigh - aLow + 1;
-    unsigned aCount = (((aCode - aLow + 1) * aSymbolsInCurCtx - 1) / aRange);
+    unsigned aCount = unsigned((uint64_t(aCode-aLow+1)*aSymbolsInCurCtx-1)/aRange);
 
     const JtDecode_ProbContextI32::Entry* aCurEntryPtr = &aCurContext[0];
     unsigned aSymHigh = aCurEntryPtr->occCount;
@@ -69,8 +76,8 @@ void JtDecode_Int32CDP_Arithmetic::decode (int32_t* theResultPtr,
     // read next symbol
 
     // expand the range to account for the symbol removal
-    aHigh = aLow + uint16_t (aRange * aSymHigh / aSymbolsInCurCtx) - 1;
-    aLow  = aLow + uint16_t (aRange * aSymLow  / aSymbolsInCurCtx);
+    aHigh = uint16_t(aLow + uint64_t(aRange)*aSymHigh/aSymbolsInCurCtx - 1);
+    aLow = uint16_t(aLow + uint64_t(aRange)*aSymLow/aSymbolsInCurCtx);
 
     // shift out matched most significant bits
     uint16_t aMask = aHigh ^ aLow;

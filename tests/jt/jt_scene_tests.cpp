@@ -20,6 +20,8 @@
 #include <JtProperty_Scalar.hxx>
 #include <QTemporaryDir>
 #include <assimp/material.h>
+#include <assimp/Exporter.hpp>
+#include <assimp/Importer.hpp>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -56,6 +58,7 @@ auto leaf(const char* name="triangle") {
 }
 struct Material:JtAttribute_Material {
     Material(aiColor4D color,unsigned inhibit=0,unsigned finals=0,unsigned state=8,bool blending=false) {
+        myVersion=1;
         myStateFlags=state;myFieldInhibitFlags=inhibit;myFieldFinalFlags=finals;myDataFlags=blending?0x3990:0x3980;
         myDiffuseColor[0]=color.r;myDiffuseColor[1]=color.g;myDiffuseColor[2]=color.b;myDiffuseColor[3]=color.a;
         for(int i=0;i<4;++i) {myAmbientColor[i]=i==3?1.0f:0.2f;mySpecularColor[i]=i==3?1.0f:0.4f;myEmissionColor[i]=i==3?1.0f:0.0f;}
@@ -83,6 +86,21 @@ struct BentPatch:JtElement_ShapeLOD_Vertex {
     }
 };
 struct PatchProperty:JtProperty_LateLoaded {PatchProperty() {mySegmentType=7;myDefferedObject=new BentPatch;}};
+struct ColorPatch:JtElement_ShapeLOD_Vertex {
+    using JtElement_ShapeLOD_Vertex::assembleVertexRecords;
+    ColorPatch(bool withNormals=true,float alpha=1) {
+        VertexData p(4,3),n(withNormals?2:0,3),c(2,4);IndicesVec vi(6),ai(6);
+        const float points[4][3]={{0,0,0},{20,0,0},{20,20,0},{0,20,0}};
+        const int indices[6]={0,1,2,0,2,3};
+        for(int i=0;i<4;++i) for(int j=0;j<3;++j)p[i][j]=points[i][j];
+        for(int i=0;i<2;++i) {for(int j=0;j<3;++j) {if(withNormals)n[i][j]=float(j==2);c[i][j]=float(j==i);}c[i][3]=alpha;}
+        for(int i=0;i<6;++i) {vi[i]=indices[i];ai[i]=i/3;}
+        assembleVertexRecords(p,n,c,vi,ai);
+    }
+};
+struct ColorProperty:JtProperty_LateLoaded {
+    ColorProperty(bool normals=true,float alpha=1) {mySegmentType=7;myDefferedObject=new ColorPatch(normals,alpha);}
+};
 unsigned references(const aiNode& n) {unsigned count=n.mNumMeshes;for(unsigned i=0;i<n.mNumChildren;++i)count+=references(*n.mChildren[i]);return count;}
 aiColor4D color(const Jt::ImportResult& result,const aiNode& n) {
     check(n.mNumMeshes==1,"Expected one mesh reference");aiColor4D c;
@@ -152,6 +170,49 @@ void shininessTests() {
     check(result.scene->mMeshes[0]->mNumVertices==3 && result.scene->mMeshes[1]->mNumFaces==1,"Shininess changed geometry");
     auto plainRoot=node<JtNode_Partition>("plain");plainRoot->children({leaf()});auto plain=build(plainRoot);
     float value=-1;check(plain.scene->mMaterials[plain.scene->mMeshes[0]->mMaterialIndex]->Get(AI_MATKEY_SHININESS,value)!=AI_SUCCESS,"Unauthored exponent was invented");
+}
+void vertexColorTests() {
+    const auto colored=[](bool normals=true,float alpha=1) {
+        auto n=node<JtNode_Shape_Base>("red-green seam");n->late({new ColorProperty(normals,alpha)});return n;
+    };
+    for(bool normals:{false,true}) for(bool flat:{false,true}) {
+        auto root=node<JtNode_Partition>("colours");auto shape=colored(normals);root->children({shape});
+        shape->attributes({new Material({0.2f,0.3f,0.4f,1}),new DrawStyle(flat?0x1a:0x0a)});
+        auto result=build(root);const auto& mesh=*result.scene->mMeshes[0];
+        check(mesh.mNumFaces==2 && mesh.mNumVertices==6 && mesh.HasVertexColors(0),"Colour seams/flat normals lost vertices");
+        for(unsigned i=0;i<6;++i) {
+            const auto c=mesh.mColors[0][i];check(c.r==float(i<3) && c.g==float(i>=3) && c.b==0 && c.a==1,"Colour corner remap failed");
+            check(std::abs(mesh.mNormals[i].z-1)<1e-6f,"Colour binding broke stored/generated normals");
+        }
+        check(mesh.mVertices[0]==mesh.mVertices[3] && mesh.mColors[0][0]!=mesh.mColors[0][3],"Shared-position colour discontinuity lost");
+        check(color(result,*result.scene->mRootNode->mChildren[0]).r==1,"Accumulated diffuse incorrectly tinted vertex colours");
+        auto copy=std::unique_ptr<aiScene>(SceneUtils::deepCopyScene(result.scene.get()));
+        check(copy->mMeshes[0]->HasVertexColors(0) && copy->mMeshes[0]->mColors[0][4].g==1,"Scene copy lost vertex colours");
+        QTemporaryDir dir;const auto path=dir.filePath("colours.glb").toStdString();Assimp::Exporter exporter;
+        check(exporter.Export(result.scene.get(),"glb2",path)==AI_SUCCESS,"Colour GLB export failed");
+        Assimp::Importer reader;const auto scene=reader.ReadFile(path,0);
+        check(scene && scene->mNumMeshes==1 && scene->mMeshes[0]->HasVertexColors(0) && scene->mMeshes[0]->mColors[0][4].g==1,"GLB roundtrip lost vertex colours");
+    }
+    struct Override:Material {
+        Override(bool on,unsigned inhibit=0,unsigned finals=0,unsigned state=8):Material({0,0,1,1},inhibit,finals,state) {if(on)myDataFlags|=0x20;}
+    };
+    for(unsigned mode=0;mode<5;++mode) {
+        auto root=node<JtNode_Partition>("root");auto group=node<JtNode_Group>("parent");auto shape=colored();root->children({group});group->children({shape});
+        group->attributes({new Override(true,0,mode==0 || mode==2?1u<<4:0)});
+        shape->attributes({new Override(false,mode==1?1u<<4:0,0,mode==2?10:mode==3?12:8)});
+        auto result=build(root);check(result.scene->mMeshes[0]->HasVertexColors(0)==(mode==2 || mode==4),"Vertex-colour override final/inhibit/force/ignore failed");
+    }
+    // Material variants must not mutate cached canonical colour geometry.
+    auto root=node<JtNode_Partition>("root");auto shared=colored();auto a=node<JtNode_Instance>("source colours");auto b=node<JtNode_Instance>("blue override");auto c=node<JtNode_Instance>("source colours again");
+    root->children({a,b,c});a->target(shared);b->target(shared);c->target(shared);b->attributes({new Override(true)});
+    auto result=build(root);check(result.scene->mNumMeshes==2 && result.scene->mMeshes[0]->HasVertexColors(0) && !result.scene->mMeshes[1]->HasVertexColors(0),"Override contaminated geometry cache");
+    auto blendRoot=node<JtNode_Partition>("root");auto transparent=colored(true,0.5f);blendRoot->children({transparent});
+    transparent->attributes({new Material({1,1,1,1},0,0,8,true)});
+    rejected([&]{build(blendRoot);},"no supported JT display tessellation");
+    transparent->late({new ColorProperty(true,0.5f)});transparent->attributes({new Material({1,1,1,1})});auto opaque=build(blendRoot);
+    check(opaque.scene->mMeshes[0]->mColors[0][0].a==1,"Blending-disabled vertex alpha remained active");
+    ColorPatch target;JtElement_ShapeLOD_Vertex::VertexData p(1,3),n(1,3),colors(1,3);JtElement_ShapeLOD_Vertex::IndicesVec vi(1),ai(1);
+    vi[0]=0;ai[0]=1;rejected([&]{target.assembleVertexRecords(p,n,colors,vi,ai);},"index out of range");
 }
 void instances() {
     auto root=node<JtNode_Partition>("root");auto shared=leaf("shared");
@@ -364,15 +425,23 @@ void drawStyleTests() {
     shape->late({new ZeroProperty(new ZeroTriangle)});shape->attributes({new DrawStyle(0x1a)});
     result=build(root);check(result.scene->mMeshes[0]->mNumFaces==1 && result.scene->mMeshes[0]->mNormals[0].z==1,"Degenerate flat triangle lost finite normals");
 }
-void sceneTests() {inheritance();shininessTests();instances();transforms();lodAndFailures();selectionTests();metadataTests();drawStyleTests();std::cout<<"Synthetic JT assembly, shininess, transforms, selection, metadata and draw styles passed\n";}
+void sceneTests() {inheritance();shininessTests();vertexColorTests();instances();transforms();lodAndFailures();selectionTests();metadataTests();drawStyleTests();std::cout<<"Synthetic JT assembly, shininess, vertex colours, transforms, selection, metadata and draw styles passed\n";}
 
 void containerTests(const QString& samples) {
     QTemporaryDir temp;check(temp.isValid(),"Cannot create container directory");
     const auto path=temp.filePath("assembly.jt");
-    for(bool big:{false,true}) {
-        Fixture::write(path,"missing.jt",big);
+    for(const char* version:{"6.4","7.0","8.3","9.5","10.1","10.2","10.4","10.6","10.9","11.0"}) {
+        Fixture::write(path,"",false,false);
+        QFile file(path);check(file.open(QIODevice::ReadOnly),"Cannot read version fixture");auto bytes=file.readAll();file.close();
+        const auto header=(QByteArray("Version ")+version+" JT original unsupported-version fixture").leftJustified(80,' ');
+        bytes.replace(0,80,header);check(file.open(QIODevice::WriteOnly) && file.write(bytes)==bytes.size(),"Cannot write version fixture");file.close();
+        const auto message=std::string("Unsupported JT version ")+version+"; native reader currently supports the JT 8.0-8.2 lossless family, JT 10.0 and JT 10.3 subsets";
+        rejected([&]{Jt::Importer::read(path);},message.c_str());
+    }
+    for(bool big:{false,true}) for(unsigned minor:{0,3}) {
+        Fixture::write(path,"missing.jt",big,true,false,false,minor);
         Handle(JtData_Model) model=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(path.utf16())));
-        const auto root=model->Init();check(!root.IsNull() && root->Children().Count()==2,"Synthetic container graph failed");
+        const auto root=model->Init();check(model->MinorVersion()==int(minor) && !root.IsNull() && root->Children().Count()==2,"Synthetic versioned container graph failed");
         const auto instance=Handle(JtNode_Instance)::DownCast(root->Children()[0]);
         check(!instance.IsNull() && instance->Name()==TCollection_ExtendedString("occurrence A"),"Container names/instances failed");
         rejected([&]{Jt::Importer::read(path);},"JT partition");
@@ -414,8 +483,8 @@ void containerTests(const QString& samples) {
     if(!samples.isEmpty()) {
         check(QFile::copy(QDir(samples).filePath("Bolt.jt"),temp.filePath("parts/leaf.jt")),"Cannot copy local validation part");
         Fixture::write(bridge,"leaf.jt",false,false);
-        for(bool big:{false,true}) {
-            Fixture::write(path,"parts/bridge.jt",big);
+        for(bool big:{false,true}) for(unsigned minor:{0,3}) {
+            Fixture::write(path,"parts/bridge.jt",big,true,false,false,minor);
             auto result=Jt::Importer::read(path);
             check(result.scene->mNumMeshes==2 && references(*result.scene->mRootNode)==2,"External assembly resources/occurrences mismatch");
             struct Placed {const aiNode* node;aiMatrix4x4 world;};std::vector<Placed> placed;

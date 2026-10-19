@@ -108,7 +108,7 @@ void JtDecode_VertexData_Deering::decode (Decoded::Ref theResults)
   for (Decoded::SizeType i = 0; i < theResults.Count(); ++i)
   {
     Jt_U32 aSextant = aSextantCodes[i];
-    if(aSextant>5 || aThetaCodes[i]+(aSextant&1)>unsigned(1u<<myNbBits) || aPsiCodes[i]>=unsigned(1u<<myNbBits))
+    if(aSextant>5 || aThetaCodes[i]>unsigned(1u<<myNbBits)-(aSextant&1) || aPsiCodes[i]>=unsigned(1u<<myNbBits))
       throw std::runtime_error("Invalid JT normal code");
 
     const SinCos& aThetaPar = LOOKUP_TABLE.Theta[(aThetaCodes[i] + (aSextant & 1)) << anOffset];
@@ -162,6 +162,7 @@ void JtDecode_VertexData_Deering::decode (Decoded::Ref theResults)
 
     // Change some more based on the octant
     Jt_U32 anOctant = anOctantCodes[i];
+    if(anOctant>7)throw std::runtime_error("Invalid JT normal octant");
 
     // if first bit is 0, negate x component
     if ((anOctant & 4) == 0)

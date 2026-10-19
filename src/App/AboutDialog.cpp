@@ -170,6 +170,8 @@ QString AboutDialog::buildDetailsHtml(const QString& graphicsInfo) const
 		"<table>%5</table>"
 		"<h2>%6</h2>"
 		"<table>%7</table>"
+		"<h2>%12</h2>"
+		"<p class='desc'>%13</p>"
 		"<h2>%10</h2>"
 		"<p class='desc'>%11</p>"
 		"<p class='copyright'>%8<br/>"
@@ -195,5 +197,7 @@ QString AboutDialog::buildDetailsHtml(const QString& graphicsInfo) const
 			"JT reader subset: Open CASCADE JT-Assistant, &copy; OPEN CASCADE SAS, GPL-2.0-or-later (GPLv3 chosen). "
 			"JT reference structures/operators: &copy; 2014 Siemens Product Lifecycle Management Software Inc.; &copy; 2026 Siemens. "
 			"Use Third-Party Notices for importer acknowledgements and licence information. "
-			"The full list is in CREDITS.md and textures/LICENSES.md in the installation folder."));
+			"The full list is in CREDITS.md and textures/LICENSES.md in the installation folder."))
+		.arg(tr("JT Import"))
+		.arg(tr("Supported JT versions: 8.0-8.2, 10.0 and 10.3."));
 }

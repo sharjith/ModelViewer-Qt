@@ -48,7 +48,7 @@ Standard_Boolean JtProperty_Base::Read (JtData_Reader& theReader)
   && !theReader.ReadVersion(myVersion))
     return Standard_False;
 
-  if(myVersion!=1 && myVersion!=2) throw std::runtime_error("Unsupported JT base property version "+std::to_string(myVersion));
+  if(theReader.Model()->MajorVersion()>8 && myVersion!=1 && myVersion!=2) throw std::runtime_error("Unsupported JT base property version "+std::to_string(myVersion));
 
   return theReader.ReadU32 (myStateFlags);
 }

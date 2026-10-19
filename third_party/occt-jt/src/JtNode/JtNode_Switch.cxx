@@ -12,6 +12,7 @@ IMPLEMENT_OBJECT_CLASS(JtNode_Switch, "Switch Object",
 
 Standard_Boolean JtNode_Switch::Read(JtData_Reader& reader)
 {
+  if(reader.Model()->MajorVersion()<9) throw std::runtime_error("Unsupported JT 8.x Switch node layout");
   Jt_I16 version = 0;
   if (!JtNode_Group::Read(reader) || !reader.ReadVersion(version)) return Standard_False;
   if (version != 1) throw std::runtime_error("Unsupported JT Switch node version");

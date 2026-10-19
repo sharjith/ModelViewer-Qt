@@ -106,6 +106,11 @@ public:
   //! Normals; can be empty if there is no normals data.
   const VertexData& Normals()  const { return myNormals; }
 
+  //! RGB/RGBA values aligned with the expanded vertex/attribute combinations.
+  const VertexData& Colors() const { return myColors; }
+  //! Original ModelViewer legacy UV preservation (one two-component channel).
+  const VertexData& TexCoords() const { return myTexCoords; }
+
   DEFINE_STANDARD_RTTIEXT(JtElement_ShapeLOD_Vertex, JtElement_ShapeLOD_Base)
   DEFINE_OBJECT_CLASS (JtElement_ShapeLOD_Vertex)
 
@@ -120,10 +125,17 @@ protected:
   Standard_Boolean readVertexBasedShapeCompressedRepData (JtData_Reader& theReader);
   Standard_Boolean readTopologicallyCompressedData       (JtData_Reader& theReader);
 
+  // Original ModelViewer corner-record assembly, shared by normals and colours.
+  void assembleVertexRecords(const VertexData& coords,const VertexData& normals,
+                             const VertexData& colors,const IndicesVec& vertices,
+                             const IndicesVec& attributes);
+
 protected:
   IndicesVec myIndices;  //!< Indices into the vertex parameters arrays
   VertexData myVertices; //!< vertex coordinates
   VertexData myNormals;  //!< normals; can be empty if there is no normals data
+  VertexData myColors;   //!< original ModelViewer colour-stream support
+  VertexData myTexCoords; //!< original ModelViewer legacy texture-coordinate support
 };
 
 DEFINE_STANDARD_HANDLE(JtElement_ShapeLOD_Vertex, JtElement_ShapeLOD_Base)

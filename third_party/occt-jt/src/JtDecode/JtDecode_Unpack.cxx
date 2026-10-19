@@ -35,6 +35,7 @@ public:
   {
     for (I i = 4; i < theValues.Count(); i++)
     {
+      if((i&4095)==0)JtData_Limits::poll();
       T v1 = theValues[i - 1];
       T v2 = theValues[i - 2];
       T v4 = theValues[i - 4];
@@ -50,12 +51,12 @@ public:
 T PredLag1     (I  , T v1, T   , T   ) { return v1; }
 T PredLag2     (I  , T   , T v2, T   ) { return v2; }
 T PredRamp     (I i, T   , T   , T   ) { return i; }
-T PredStride1  (I  , T v1, T v2, T   ) { return v1 + (v1 - v2); }
-T PredStride2  (I  , T   , T v2, T v4) { return v2 + (v2 - v4); }
-T PredStripIdx (I  , T   , T v2, T v4) { T d = v2 - v4;
-                                         return v2 + ((-8 < d && d < 8) ? d : 2); }
+T PredStride1  (I  , T v1, T v2, T   ) { return T(uint32_t(v1)+(uint32_t(v1)-uint32_t(v2))); }
+T PredStride2  (I  , T   , T v2, T v4) { return T(uint32_t(v2)+(uint32_t(v2)-uint32_t(v4))); }
+T PredStripIdx (I  , T   , T v2, T v4) { T d = T(uint32_t(v2)-uint32_t(v4));
+                                         return T(uint32_t(v2)+uint32_t((-8 < d && d < 8) ? d : 2)); }
 // Decoders
-T Add (T predicted, T residual) { return predicted + residual; }
+T Add (T predicted, T residual) { return T(uint32_t(predicted)+uint32_t(residual)); }
 T Xor (T predicted, T residual) { return predicted ^ residual; }
 
 // Unpackers

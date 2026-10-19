@@ -44,6 +44,9 @@ public:
   //! Get absolute reading position in the inflated data.
   Standard_EXPORT virtual Standard_Size GetPosition() const;
 
+  //! Original ModelViewer validation: exact output and complete zlib checksum.
+  Standard_EXPORT bool Finish(bool allowSingleZeroPadding=false);
+
 protected:
   Standard_Size read (Bytef* theBuffer, Standard_Size theLength);
 
@@ -59,6 +62,7 @@ protected:
   Bytef          myOutBuffer[CHUNK];
   const Bytef*   myOutBufPos;
   Standard_Size  myOutBufRest;
+  bool myStreamEnded=false;
 };
 
 #endif // _JtData_Inflate_HeaderFile

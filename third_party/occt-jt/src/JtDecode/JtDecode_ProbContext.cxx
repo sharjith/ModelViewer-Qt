@@ -36,7 +36,8 @@ Standard_Boolean JtDecode_ProbContextI32::ReadNext (JtDecode_BitReader::Raw& the
   for (i = 0; i < theFirstContext.Size(); i++)
     aValuesMap.Bind (theFirstContext[i].symbol, theFirstContext[i].associatedValue);
   for (i = 0; i < Size(); i++)
-    aValuesMap.Find (myEntries[i].symbol, myEntries[i].associatedValue);
+    if(!aValuesMap.Find(myEntries[i].symbol,myEntries[i].associatedValue))
+      throw std::runtime_error("Unknown legacy JT probability symbol in next context");
 
   return Standard_True;
 }
@@ -82,6 +83,8 @@ Standard_Boolean JtDecode_ProbContextI32::read (JtDecode_BitReader::Raw& theRead
   unsigned      aNxtBits     = theReader.ReadU32Or0 (theNxtBitsNumWidth);
   int32_t       aMinValue    = theReader.ReadI32Or0 (theMinValueWidth);
 
+  if(!anEntryCount || anEntryCount>65536 || aSymBits>32 || aOccBits>32 || aValBits>32 || aNxtBits>32)
+    throw std::runtime_error("Invalid legacy JT probability table dimensions");
   if (!theReader.Load (anEntryCount * (aSymBits + aOccBits + aValBits + aNxtBits)))
     return Standard_False;
 
@@ -94,9 +97,11 @@ Standard_Boolean JtDecode_ProbContextI32::read (JtDecode_BitReader::Raw& theRead
 
     anEntry.symbol          = theReader.ReadU32Or0 (aSymBits) - 2;
     anEntry.occCount        = theReader.ReadU32Or0 (aOccBits);
-    anEntry.associatedValue = theReader.ReadU32Or0 (aValBits) + aMinValue;
+    anEntry.associatedValue = int32_t(theReader.ReadU32Or0(aValBits)+uint32_t(aMinValue));
     anEntry.nextContext     = theReader.ReadU32Or0 (aNxtBits);
 
+    if(!anEntry.occCount || anEntry.occCount>0xffffffffu-myTotalCount)
+      throw std::runtime_error("Invalid legacy JT probability frequency");
     myTotalCount += anEntry.occCount;
   }
 

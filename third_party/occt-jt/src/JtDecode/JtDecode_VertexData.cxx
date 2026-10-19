@@ -33,6 +33,9 @@ JtDecode_VertexData::Handle JtDecode_VertexData::LoadQuantizedCoords (JtData_Rea
   if (!aQuantizerData.Read (theReader)
    || !theReader.ReadI32 (aVertexCount))
     return (Handle)0;
+  if(aVertexCount<1 || aVertexCount>16000000 || !aQuantizerData.X.bits || aQuantizerData.X.bits>24
+    || !aQuantizerData.Y.bits || aQuantizerData.Y.bits>24 || !aQuantizerData.Z.bits || aQuantizerData.Z.bits>24)
+    throw std::runtime_error("Invalid JT legacy coordinate quantization/count");
 
   // Create decoder object
   Handle aData (new JtDecode_VertexData_Quantized (aQuantizerData, 3, JtDecode_Unpack_Lag1));
@@ -88,6 +91,7 @@ JtDecode_VertexData::Handle JtDecode_VertexData::LoadQuantizedNormals (JtData_Re
   if (!theReader.ReadU8  (aNbBits)
    || !theReader.ReadI32 (aNormalsCount))
     return (Handle)0;
+  if(aNormalsCount<1 || aNormalsCount>16000000) throw std::runtime_error("Invalid JT legacy normal count");
 
   // Create decoder object
   Handle aData (new JtDecode_VertexData_Deering (aNbBits, JtDecode_Unpack_Lag1));

@@ -16,7 +16,7 @@ No cad-in-unity C# source is bundled. This acknowledgement does not apply that p
 Copyright (C) 2001-2015 OPEN CASCADE SAS; the applicable years vary by file and are retained in each upstream-derived file. Upstream: https://github.com/Open-Cascade-SAS/JT-Assistant
 Pinned source: e859e8c2d809f9d9468e6211eba0052f433978ee.
 
-The 104 upstream-derived source/header files permit GPL version 2 or any later version. ModelViewer-Qt distributes the combined work under GPL version 3 using that permission. Eleven additional decoder source/header files were written for ModelViewer-Qt. Original upstream notices and the GPLv2 text are retained. Dated modification notices, a change summary and a file/hash provenance manifest are in third_party/occt-jt in the corresponding source and licenses/occt-jt in the installed data directory. The upstream viewer, Eigen copy and commercial XT converter are excluded.
+The 104 upstream-derived source/header files permit GPL version 2 or any later version. ModelViewer-Qt distributes the combined work under GPL version 3 using that permission. Twelve additional decoder source/header files were written for ModelViewer-Qt. Original upstream notices and the GPLv2 text are retained. Dated modification notices, a change summary and a file/hash provenance manifest are in third_party/occt-jt in the corresponding source and licenses/occt-jt in the installed data directory. The upstream viewer, Eigen copy and commercial XT converter are excluded.
 
 This software is provided without warranty; the governing GPL texts contain the full terms. Binary distributions must provide Corresponding Source in a manner allowed by GPLv3 section 6. A project-homepage link by itself is not a substitute for that obligation.
 

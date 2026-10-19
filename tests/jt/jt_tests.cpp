@@ -2,6 +2,9 @@
 #include <JtData_Reader.hxx>
 #include <JtData_Limits.hxx>
 #include <JtDecode_Int32CDP.hxx>
+#include <JtDecode_VertexColors.hxx>
+#include <JtElement_ShapeLOD_Vertex.hxx>
+#include "JtContainerFixture.h"
 #include <JtAttribute_Material.hxx>
 #include <JtAttribute_GeometricTransform.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
@@ -18,20 +21,43 @@
 
 void sceneTests();
 void containerTests(const QString& samples);
+void legacyTests();
+void quantizedTests();
+void quantizedFixtureFiles(const QString& folder);
+void legacyFixtureFiles(const QString& folder);
+void warehouseTests(const QString& path);
 
 namespace {
 void require(bool value,const char* message) {if(!value) throw std::runtime_error(message);}
 template<class F> void fails(F action) {bool failed=false;try{action();}catch(const std::exception&){failed=true;}require(failed,"Expected rejected input");}
-struct TestModel: JtData_Model {TestModel():JtData_Model(TCollection_ExtendedString()) {myMajorVersion=10;myMinorVersion=0;myIsFileLE=true;}};
+struct TestModel: JtData_Model {TestModel(bool big=false):JtData_Model(TCollection_ExtendedString()) {myMajorVersion=10;myMinorVersion=0;myIsFileLE=!big;}};
 struct Reader: JtData_Reader {
     std::vector<uint8_t> bytes;size_t pos=0;
-    explicit Reader(std::vector<uint8_t> b):JtData_Reader(new TestModel),bytes(std::move(b)){}
+    explicit Reader(std::vector<uint8_t> b,bool big=false):JtData_Reader(new TestModel(big)),bytes(std::move(b)){}
     Standard_Boolean ReadBytes(void* out,Standard_Size count) override {if(count>bytes.size()-pos)return false;if(count)std::memcpy(out,bytes.data()+pos,count);pos+=count;return true;}
     Standard_Boolean SkipBytes(Standard_Size count) override {if(count>bytes.size()-pos)return false;pos+=count;return true;}
     Standard_Size GetPosition()const override{return pos;}
 };
 void u32(std::vector<uint8_t>& b,uint32_t n) {for(int i=0;i<4;++i)b.push_back(uint8_t(n>>(8*i)));}
 void f32(std::vector<uint8_t>& b,float value) {uint32_t bits;std::memcpy(&bits,&value,4);u32(b,bits);}
+void allocationBudgetTests() {
+    unsigned polls=0;
+    JtData_Limits::Scope outer([&]{++polls;},100);
+    JtData_Limits::allocation(60);
+    fails([]{JtData_Limits::allocation(41);});
+    require(JtData_Limits::allocated==60,"Rejected allocation consumed budget");
+    {
+        JtData_Limits::Scope inner([]{},5);
+        JtData_Limits::allocation(5);fails([]{JtData_Limits::allocation(1);});
+    }
+    require(JtData_Limits::allocated==60 && JtData_Limits::allocationBudget==100,"Nested budget scope lost parent accounting");
+    JtData_Limits::allocation(40);require(polls==3,"Nested scope lost cancellation callback");
+    fails([]{JtData_Limits::allocation(size_t(-1));});
+    {JtData_Limits::Scope limit([]{});fails([]{JtData_Limits::allocation(size_t(256)*1024*1024+1);});}
+    {JtData_Limits::Scope cancel([]{throw Jt::Cancelled();});bool cancelled=false;
+     try{JtData_Limits::allocation(1);}catch(const Jt::Cancelled&){cancelled=true;}
+     require(cancelled && JtData_Limits::allocated==0,"Budget accounting swallowed cancellation");}
+}
 void attributeTests() {
     for(bool blending:{false,true}) {
         // JT 10 base version/state, field-inhibit and field-final words.
@@ -81,6 +107,38 @@ void codecTests() {
     Jt::Options cancelled;cancelled.cancelled=[]{return true;};
     fails([&]{Jt::Importer::read("missing.jt",cancelled);});
 }
+void colorStreamTests() {
+    for(bool big:{false,true}) {
+        Fixture::Bytes raw(big);raw.u64(0x3a);std::vector<uint8_t> bytes(raw.data.begin(),raw.data.end());Reader reader(bytes,big);
+        JtElement_ShapeLOD_Vertex::VertexBinding2 binding;
+        require(binding.Read(reader),"Cannot read colour binding");fails([&]{binding.NbColorComponents();});
+    }
+    for(bool big:{false,true}) for(unsigned components:{3u,4u}) {
+        Fixture::Bytes stream(big);stream.u32(6);stream.u8(components);stream.u8(0);
+        float expected[6][4]{};
+        for(unsigned c=0;c<components;++c) {
+            stream.u32(6);stream.u8(0);stream.u32(6*32);
+            uint32_t previous=0;
+            for(unsigned i=0;i<6;++i) {
+                const float value=c==3?1.0f:float((i+c)%5)/4;expected[i][c]=value;
+                uint32_t bits;std::memcpy(&bits,&value,4);stream.u32(i<4?bits:bits-previous);previous=bits;
+            }
+        }
+        stream.u32(0);std::vector<uint8_t> bytes(stream.data.begin(),stream.data.end());
+        Reader reader(bytes,big);JtDecode_VertexData::Decoded decoded(JtDecode_VertexColors::Read(reader,components,6));
+        require(decoded.Count()==6 && decoded.CompCount()==int(components) && reader.pos==bytes.size(),"Colour stream layout/consumption mismatch");
+        for(int i=0;i<6;++i) for(unsigned c=0;c<components;++c) require(decoded[i][c]==expected[i][c],"Colour predictor/endian mismatch");
+        for(size_t size=0;size<bytes.size();++size) fails([&]{Reader truncated(std::vector<uint8_t>(bytes.begin(),bytes.begin()+size),big);JtDecode_VertexColors::Read(truncated,components,6);});
+        fails([&]{Reader r(bytes,big);JtDecode_VertexColors::Read(r,components,5);});
+        auto bad=bytes;bad[5]=8;fails([&]{Reader r(bad,big);JtDecode_VertexColors::Read(r,components,6);});
+        bad=bytes;bad[4]=2;fails([&]{Reader r(bad,big);JtDecode_VertexColors::Read(r,components,6);});
+        for(uint32_t bits:{0x7fc00000u,0x7f800000u,0xbf800000u,0x40000000u}) {
+            bad=bytes;for(unsigned j=0;j<4;++j)bad[15+j]=uint8_t(bits>>(8*(big?3-j:j)));
+            fails([&]{Reader r(bad,big);JtDecode_VertexColors::Read(r,components,6);});
+        }
+    }
+    std::cout<<"Lossless RGB/RGBA colour packets, prediction, endianness and truncation passed\n";
+}
 unsigned occurrences(const aiNode* n) {unsigned count=n->mNumMeshes;for(unsigned i=0;i<n->mNumChildren;++i)count+=occurrences(n->mChildren[i]);return count;}
 void samples(const QString& dir) {
     containerTests(dir);
@@ -129,6 +187,12 @@ void samples(const QString& dir) {
 }
 int main(int argc,char** argv) {
     QCoreApplication app(argc,argv);
-    try {codecTests();attributeTests();sceneTests();containerTests({});if(argc==2)samples(QString::fromLocal8Bit(argv[1]));std::cout<<"JT tests passed\n";return 0;}
+    try {allocationBudgetTests();codecTests();colorStreamTests();attributeTests();sceneTests();containerTests({});legacyTests();quantizedTests();
+        const bool fixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--legacy-fixtures";
+        const bool quantizedFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--quantized-fixtures";
+        if(quantizedFixtures)quantizedFixtureFiles(QString::fromLocal8Bit(argv[2]));
+        else if(fixtures)legacyFixtureFiles(QString::fromLocal8Bit(argv[2]));
+        else {if(argc>=2)samples(QString::fromLocal8Bit(argv[1]));if(argc==3)warehouseTests(QString::fromLocal8Bit(argv[2]));}
+        std::cout<<"JT tests passed\n";return 0;}
     catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}
 }

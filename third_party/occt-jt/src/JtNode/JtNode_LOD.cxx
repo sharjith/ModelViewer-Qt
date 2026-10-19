@@ -41,7 +41,7 @@ Standard_Boolean JtNode_LOD::Read (JtData_Reader& theReader)
   && !theReader.ReadVersion(myVersion))
     return Standard_False;
 
-  if (myVersion != 1) throw std::runtime_error("Unsupported JT LOD node version");
+  if (theReader.Model()->MajorVersion()>8 && myVersion != 1) throw std::runtime_error("Unsupported JT LOD node version");
 
   Jt_VecF32 aReservedVec;
   Jt_F32    aReservedVal;

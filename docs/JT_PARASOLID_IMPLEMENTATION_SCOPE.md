@@ -4,6 +4,8 @@ Scope based on research completed 18 October 2026. An initial JT 10.0 tessellati
 
 ## Deliverables and order
 
+The active feature sequence and owner build/acceptance stops are in [JT development phases](JT_DEVELOPMENT_PHASES.md). **Gate 0 is accepted; the shared legacy quantized display follow-up has passed Gate 1 UI acceptance.** The numbered stages below describe the original broad work breakdown, not the current acceptance-gate numbering.
+
 | Stage | Deliverable | Completion gate |
 | --- | --- | --- |
 | 0 | Corpus, provenance and compatibility inventory | Representative JT inputs, small XT fixtures and their reference results; explicit version/schema matrix; selected reusable-code/dependency notices |
@@ -15,9 +17,17 @@ Scope based on research completed 18 October 2026. An initial JT 10.0 tessellati
 
 Stages 0-3 are the first product scope. Stages 4-5 are separate from successful JT mesh display. Stage 4 may be researched alongside JT development. The existing large local XT assemblies are stress/coverage cases after small fixtures work. Five public JT 10.0 part samples have now been obtained and exercised; this does not qualify assembly or cross-version coverage.
 
-JT 10.6 Revision D is the verified documentation baseline. Candidate extensions include JT 9.5 and older layouts required by real samples, but acquire the matching authoritative references and qualify them separately. Do not infer support for every 8.x/9.x/10.x file from a common header or an old reader. Check the grant scope when extending beyond the documented 9.5-and-later patent notice.
+JT 10.6 Revision D is the verified public documentation baseline. The [version compatibility policy](JT_VERSION_COMPATIBILITY.md), checked 19 October 2026, sets the staged visualization target at JT 6.4 through 10.11, with a 7.0 lower cap if 6.4 requires substantial viewer scene-model changes. See the [legacy assessment](JT_LEGACY_COMPATIBILITY_ASSESSMENT.md) for the decision gate, pre-8 container boundary and sample requirements. The [shared lossless 8.0–8.2 family](JT_8X_FAMILY_VALIDATION.md), qualified 10.0 subset and native-tested [10.3 sample A103 path](JT_103_ASSEMBLY_VALIDATION.md) are enabled; the owner accepted the 8.0/10.3 baseline at Gate 0. The [quantized follow-up](JT_LEGACY_QUANTIZED_VALIDATION.md) now imports sample Q82 and has passed Gate 1 UI acceptance. Acquire lawful references and representative samples and qualify each additional revision separately. Do not infer support for every 8.x/9.x/10.x file from a common header or an old reader. Check the grant scope when extending beyond the documented 9.5-and-later patent notice. Vendor reports of 11.0 remain unresolved and outside this target.
 
 ## JT module boundary
+
+### Backward-compatibility requirement (19 October 2026)
+
+The owner explicitly requires older-version support as part of a useful JT importer. JT 10.0 was the initial qualified implementation, not the intended product compatibility boundary. The implementation target is version-dispatched visualization support across JT 6.4 through 10.11, including 9.x coverage with 9.5 prioritized. Apply the owner-approved 7.0 lower cap if 6.4 requires substantial viewer scene-model changes. Reuse compatible layout families rather than introducing a parser per minor revision. Do not infer support for every intervening version/minor revision from these targets. Keep version-specific container, attribute and codec adapters behind the existing scene boundary; richer face-group/palette records need not replace the viewer scene graph.
+
+For each family, qualify its container and element layouts, integer/geometry codecs, assembly transforms, normals and appearance against matching references and real/synthetic regression cases. Preserve stored tessellation fallback when exact geometry is unavailable. Reuse audited legacy decoder branches where appropriate, with input limits and existing notices retained. Keep JT 10.0 regressions running while developing the legacy paths. Unsupported encodings within an accepted family must be diagnosed or use a qualified display alternative; accepting a version header alone is insufficient.
+
+The first JT 8.1 lossless path now passes isolated regression tests, including sample L81 and original little/big-endian fixtures, and is enabled alongside JT 10.0. The owner confirms the 8.1 application load works. Coverage remains representation-specific rather than a promise to read every file carrying either version header. See [JT 8.1 validation](JT_81_VALIDATION.md) and [sample L81 investigation](JT_81_CONTAINER_INVESTIGATION.md).
 
 Use `namespace Jt` under `include/Import/Jt` and `src/Import/Jt`. Names below define responsibilities; they need not all become separate classes immediately.
 

@@ -36,12 +36,12 @@ Standard_Boolean JtProperty_String::Read (JtData_Reader& theReader)
   if (!JtProperty_Base::Read (theReader))
     return Standard_False;
 
-  Jt_I16 aVersion;
+  Jt_I16 aVersion=0;
   if (theReader.Model()->MajorVersion() > 8
   && !theReader.ReadVersion(aVersion))
     return Standard_False;
 
-  if(aVersion!=1 && aVersion!=2) throw std::runtime_error("Unsupported JT string property version");
+  if(theReader.Model()->MajorVersion()>8 && aVersion!=1 && aVersion!=2) throw std::runtime_error("Unsupported JT string property version");
 
   return theReader.ReadMbString (myValue);
 }

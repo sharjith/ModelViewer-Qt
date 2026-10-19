@@ -11,6 +11,7 @@ IMPLEMENT_OBJECT_CLASS(JtAttribute_DrawStyle, "Draw style attribute",
 
 Standard_Boolean JtAttribute_DrawStyle::Read(JtData_Reader& reader)
 {
+  if(reader.Model()->MajorVersion()<9) throw std::runtime_error("Unsupported JT 8.x draw style layout");
   Jt_I16 version=0;
   if(!JtAttribute_Base::Read(reader) || !reader.ReadVersion(version)) return Standard_False;
   if(version!=1) throw std::runtime_error("Unsupported JT draw style version");

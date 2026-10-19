@@ -7,6 +7,8 @@
 #include <assimp/Exporter.hpp>
 #include <assimp/material.h>
 #include <iostream>
+#include <cmath>
+#include <limits>
 namespace {
 QJsonObject metadataJson(const aiMetadata& data) {
     QJsonObject output;
@@ -32,7 +34,8 @@ int main(int argc,char** argv) {
     const QCommandLineOption eye("eye","Import-time RangeLOD eye position in JT world coordinates / source units","x,y,z");
     const QCommandLineOption properties("properties","Print supported JT node metadata as JSON");
     const QCommandLineOption materials("materials","Print resolved JT material/style fields as JSON");
-    parser.addOption(eye);parser.addOption(properties);parser.addOption(materials);parser.process(app);
+    const QCommandLineOption validate("validate","Check geometry, stored-normal lengths and node transforms; print local mesh bounds");
+    parser.addOption(eye);parser.addOption(properties);parser.addOption(materials);parser.addOption(validate);parser.process(app);
     const auto arguments=parser.positionalArguments();
     if(arguments.size()<1 || arguments.size()>2) parser.showHelp(2);
     try {
@@ -48,6 +51,34 @@ int main(int argc,char** argv) {
         unsigned vertices=0,triangles=0;
         for(unsigned i=0;i<result.scene->mNumMeshes;++i) {vertices+=result.scene->mMeshes[i]->mNumVertices;triangles+=result.scene->mMeshes[i]->mNumFaces;}
         std::cout<<"meshes="<<result.scene->mNumMeshes<<" vertices="<<vertices<<" triangles="<<triangles<<" fallbackParts="<<result.fallbackParts<<'\n';
+        if(parser.isSet(validate)) {
+            double lo[3]={INFINITY,INFINITY,INFINITY},hi[3]={-INFINITY,-INFINITY,-INFINITY};
+            unsigned uvMeshes=0,colourMeshes=0;
+            for(unsigned i=0;i<result.scene->mNumMeshes;++i) {
+                const auto& mesh=*result.scene->mMeshes[i];
+                uvMeshes+=mesh.HasTextureCoords(0);colourMeshes+=mesh.HasVertexColors(0);
+                if(!mesh.HasNormals() || mesh.mMaterialIndex>=result.scene->mNumMaterials) throw std::runtime_error("Invalid mesh normals/material");
+                for(unsigned v=0;v<mesh.mNumVertices;++v) {
+                    if(mesh.HasTextureCoords(0))for(unsigned k=0;k<3;++k)if(!std::isfinite(mesh.mTextureCoords[0][v][k]))throw std::runtime_error("Nonfinite UV");
+                    if(mesh.HasVertexColors(0))for(unsigned k=0;k<4;++k)if(!std::isfinite(mesh.mColors[0][v][k]) || mesh.mColors[0][v][k]<0 || mesh.mColors[0][v][k]>1)throw std::runtime_error("Invalid colour component");
+                    if(!std::isfinite(mesh.mNormals[v].Length()) || std::abs(mesh.mNormals[v].Length()-1)>1e-4) throw std::runtime_error("Invalid normalized normal");
+                    for(unsigned k=0;k<3;++k) {const double x=mesh.mVertices[v][k];if(!std::isfinite(x))throw std::runtime_error("Nonfinite vertex");lo[k]=std::min(lo[k],x);hi[k]=std::max(hi[k],x);}
+                }
+                for(unsigned f=0;f<mesh.mNumFaces;++f) {
+                    if(mesh.mFaces[f].mNumIndices!=3)throw std::runtime_error("Non-triangle face");
+                    for(unsigned k=0;k<3;++k)if(mesh.mFaces[f].mIndices[k]>=mesh.mNumVertices)throw std::runtime_error("Invalid face index");
+                }
+            }
+            unsigned occurrences=0,nodes=0;
+            std::function<void(const aiNode*)> visit=[&](const aiNode* node) {
+                ++nodes;occurrences+=node->mNumMeshes;
+                for(unsigned r=0;r<4;++r)for(unsigned c=0;c<4;++c)if(!std::isfinite(node->mTransformation[r][c]))throw std::runtime_error("Nonfinite transform");
+                for(unsigned i=0;i<node->mNumMeshes;++i)if(node->mMeshes[i]>=result.scene->mNumMeshes)throw std::runtime_error("Invalid node mesh reference");
+                for(unsigned i=0;i<node->mNumChildren;++i)visit(node->mChildren[i]);
+            };visit(result.scene->mRootNode);
+            std::cout<<"validated nodes="<<nodes<<" occurrences="<<occurrences<<" local mesh bounds="<<lo[0]<<','<<lo[1]<<','<<lo[2]<<" to "<<hi[0]<<','<<hi[1]<<','<<hi[2]<<'\n';
+            std::cout<<"attribute channels: colour meshes="<<colourMeshes<<" UV meshes="<<uvMeshes<<'\n';
+        }
         for(const auto& warning:result.warnings) std::cout<<warning.toStdString()<<'\n';
         QJsonArray propertyNodes;
         std::function<void(const aiNode*)> selections=[&](const aiNode* node) {

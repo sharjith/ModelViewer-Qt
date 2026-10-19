@@ -104,7 +104,12 @@ Handle(JtNode_Partition) JtData_Model::Init()
 
   myMajorVersion = aMajorVersionStr.IntegerValue();
   myMinorVersion = aMinorVersionStr.IntegerValue();
-  if(myMajorVersion!=10 || myMinorVersion!=0) throw std::runtime_error("Unsupported JT version: initial native reader supports JT 10.0");
+  // Qualified 8.x lossless layout family; geometry codecs are checked separately.
+  // Newer 10.x palettes/attributes still require distinct layout qualification.
+  const bool legacy8Family=myMajorVersion==8 && myMinorVersion>=0 && myMinorVersion<=2;
+  if(!((myMajorVersion==10 && (myMinorVersion==0 || myMinorVersion==3)) || legacy8Family))
+    throw std::runtime_error("Unsupported JT version "+std::to_string(myMajorVersion)+"."+
+      std::to_string(myMinorVersion)+"; native reader currently supports the JT 8.0-8.2 lossless family, JT 10.0 and JT 10.3 subsets");
   TRACE ("\n\nInfo: File version = " + myMajorVersion + "." + myMinorVersion);
 
   // Read byte order
@@ -249,7 +254,7 @@ Handle(JtData_Object) JtData_Model::readSegment (std::ifstream&         theFile,
 
   // Select appropriate reader for reading the segment data:
   if(aSize<24 || size_t(aSize)>aReader.End()-aSegStart) throw std::runtime_error("Invalid JT segment size");
-  aReader.Limit(aSegStart+size_t(aSize));
+  const size_t physicalEnd=aReader.End();
   // - use the file reader if the segment is not compressed;
   // - use JtData_Inflate is the segment is compressed.
   JtData_Reader* aDataReaderPtr = &aReader;
@@ -269,6 +274,7 @@ Handle(JtData_Object) JtData_Model::readSegment (std::ifstream&         theFile,
   case 33:
     {
       // read Compression Flag, Data Length, Algorithm
+      if(aSize<33) throw std::runtime_error("Truncated JT compression header");
       Jt_I32 aFlag;
       Jt_I32 aDataLength;
       Jt_U8  aAlgorithm;
@@ -281,7 +287,15 @@ Handle(JtData_Object) JtData_Model::readSegment (std::ifstream&         theFile,
       }
 
       // if compressed, replace the reader by a JtData_Inflate instance
+      // Qualified legacy exporter case: a final LSG segment excludes the
+      // algorithm byte from its size, although its compressed length includes
+      // it. Permit exactly that one byte, only at physical EOF, for JT 8.1.
+      if(myMajorVersion==8 && myMinorVersion==1 && aType==1 && aFlag==2 && aAlgorithm==2
+         && aDataLength==aSize-31 && aSegStart+size_t(aSize)+1==physicalEnd) {
+        ++aSize;
+      }
       if (aDataLength<1 || aDataLength>aSize-32) return {};
+      aReader.Limit(aSegStart+size_t(aSize));
       if (aFlag == 2 && aAlgorithm == 2)
         ownedReader.reset(new JtData_Inflate (aReader, aDataLength - sizeof (Jt_U8)));
       else if (aFlag == 3 && aAlgorithm == 3)
@@ -290,6 +304,8 @@ Handle(JtData_Object) JtData_Model::readSegment (std::ifstream&         theFile,
       if(ownedReader) aDataReaderPtr=ownedReader.get();
     }
   }
+
+  aReader.Limit(aSegStart+size_t(aSize));
 
   // Read the segment data
   Handle(JtData_Object) aFirstObject;
@@ -301,6 +317,8 @@ Handle(JtData_Object) JtData_Model::readSegment (std::ifstream&         theFile,
     aResult = readElement (*aDataReaderPtr, aFirstObject);
 
   // Free the JtData_Inflate reader if it was used
+  if(auto* inflated=dynamic_cast<JtData_Inflate*>(ownedReader.get()))
+    if(aResult && !inflated->Finish()) throw std::runtime_error("Invalid/trailing JT zlib segment data");
   ownedReader.reset();
 
   // Check the reading result
