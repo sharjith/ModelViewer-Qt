@@ -42,3 +42,7 @@ Lessons 19-25 use `sample-models/Simulation` and `sample-models/Plot3D`; both fo
 ## Installing
 
 The `data` folder is installed as a whole, so the language folders and the screenshots go with it. For a manual copy, place this folder at `<ModelViewer data directory>/data/tutorials/`.
+
+## Models shown in the screenshots
+
+Credits for the third-party models in the screenshots are at the bottom of the tutorial index page and under the screenshots of the lessons that show them: "Forklift" by Madana (lessons 9, 10, 11, 12, 18, 26, 27) and "Differential gear box" by Mir Mostafa Tahmid (lesson 15), both from the GrabCAD Community Library and not distributed with ModelViewer, and "Car Concept" by Eric Chadwick, CC BY 4.0 (lesson 29). See `CREDITS.md`.
