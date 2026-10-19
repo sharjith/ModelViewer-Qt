@@ -14,4 +14,14 @@ The generator copies that supplied sample into the chosen output folder. It does
 
 `jt_probe input.jt [output.glb]` inspects an import and optionally exports it. Add `--eye x,y,z` to exercise import-time RangeLOD distance selection; this does not enable runtime switching in the viewer.
 
+Add `--properties` to print supported source node properties as JSON. Generate the metadata acceptance files with:
+
+```text
+jt_fixturegen --samples out/jt-research/samples --output out/jt-research/metadata-fixtures
+```
+
+This generator also references a locally supplied Bolt sample. It shares the original container serializer used by the portable tests. See [metadata validation](../../docs/JT_METADATA_VALIDATION.md) for the representation, qualified local versions, expected values and UI/export limitations.
+
 Coverage, sample provenance and UI acceptance are recorded in [native importer](../../docs/JT_NATIVE_IMPORTER.md), [assembly validation](../../docs/JT_ASSEMBLY_ATTRIBUTE_VALIDATION.md) and [display selection validation](../../docs/JT_DISPLAY_SELECTION_VALIDATION.md).
+
+Run `python tests/jt/check_provenance.py` to check decoder manifest coverage and retained source notices. This checks record consistency; it does not establish legal clearance or fulfil binary source-delivery obligations by itself.

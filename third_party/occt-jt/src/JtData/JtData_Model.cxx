@@ -23,6 +23,7 @@
 #include <JtData_Inflate.hxx>
 #include <JtData_BufferReader.hxx>
 #include <memory>
+#include <set>
 
 #include <JtData_Message.hxx>
 
@@ -371,6 +372,10 @@ Standard_Boolean JtData_Model::readLSGData (JtData_Reader&         theReader,
     return Standard_False;
   }
 
+  if(aTableVersion!=1) throw std::runtime_error("Unsupported JT property table version");
+  std::set<Jt_I32> propertyNodes;
+  size_t propertyCount=0;
+
   while (aTableLength-- > 0)
   {
     // get an object
@@ -380,6 +385,8 @@ Standard_Boolean JtData_Model::readLSGData (JtData_Reader&         theReader,
       ALARM ("Error: Failed to read LSG object ID");
       return Standard_False;
     }
+
+    if(!propertyNodes.insert(anObjectId).second) throw std::runtime_error("Duplicate JT node property table");
 
     Handle(JtData_Object) anObject;
     aMapObjects.Find (anObjectId, anObject);
@@ -399,12 +406,23 @@ Standard_Boolean JtData_Model::readLSGData (JtData_Reader&         theReader,
       if (aKey == 0)
         break;
 
+      if(++propertyCount>1000000) throw std::runtime_error("JT property count limit exceeded");
+      JtData_Limits::poll();
+
       // read value
       if (!theReader.ReadI32 (aValue))
       {
         ALARM ("Error: Failed to read property value");
         return Standard_False;
       }
+
+      Handle(JtData_Object) keyProperty,valueProperty;
+      aMapProperties.Find(aKey,keyProperty);aMapProperties.Find(aValue,valueProperty);
+      const auto propertyNode=Handle(JtNode_Base)::DownCast(anObject);
+      // Unsupported optional atoms remain distinguishable from scalar values.
+      // Late-loaded representation references keep their existing separate path.
+      if(!propertyNode.IsNull() && Handle(JtProperty_LateLoaded)::DownCast(valueProperty).IsNull())
+        propertyNode->BindProperty(aKey,aValue,keyProperty,valueProperty);
 
       // analyse the value
       Handle(JtData_Object) aProperty;

@@ -1,15 +1,36 @@
 #include "Jt/JtImporter.h"
 #include <QCoreApplication>
 #include <QCommandLineParser>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include <assimp/Exporter.hpp>
 #include <iostream>
+namespace {
+QJsonObject metadataJson(const aiMetadata& data) {
+    QJsonObject output;
+    for(unsigned i=0;i<data.mNumProperties;++i) {
+        const auto& entry=data.mValues[i];const auto key=QString::fromUtf8(data.mKeys[i].data,int(data.mKeys[i].length));
+        switch(entry.mType) {
+        case AI_AISTRING: {const auto& s=*static_cast<const aiString*>(entry.mData);output[key]=QString::fromUtf8(s.data,int(s.length));break;}
+        case AI_INT32: output[key]=*static_cast<const int32_t*>(entry.mData);break;
+        case AI_UINT64: output[key]=double(*static_cast<const uint64_t*>(entry.mData));break;
+        case AI_FLOAT: output[key]=double(*static_cast<const float*>(entry.mData));break;
+        case AI_AIMETADATA: output[key]=metadataJson(*static_cast<const aiMetadata*>(entry.mData));break;
+        default: break;
+        }
+    }
+    return output;
+}
+}
 int main(int argc,char** argv) {
     QCoreApplication app(argc,argv);
     QCommandLineParser parser;parser.addHelpOption();
     parser.addPositionalArgument("input","JT file to inspect");
     parser.addPositionalArgument("output","Optional GLB export","[output.glb]");
     const QCommandLineOption eye("eye","Import-time RangeLOD eye position in JT world coordinates / source units","x,y,z");
-    parser.addOption(eye);parser.process(app);
+    const QCommandLineOption properties("properties","Print supported JT node metadata as JSON");
+    parser.addOption(eye);parser.addOption(properties);parser.process(app);
     const auto arguments=parser.positionalArguments();
     if(arguments.size()<1 || arguments.size()>2) parser.showHelp(2);
     try {
@@ -26,6 +47,7 @@ int main(int argc,char** argv) {
         for(unsigned i=0;i<result.scene->mNumMeshes;++i) {vertices+=result.scene->mMeshes[i]->mNumVertices;triangles+=result.scene->mMeshes[i]->mNumFaces;}
         std::cout<<"meshes="<<result.scene->mNumMeshes<<" vertices="<<vertices<<" triangles="<<triangles<<" fallbackParts="<<result.fallbackParts<<'\n';
         for(const auto& warning:result.warnings) std::cout<<warning.toStdString()<<'\n';
+        QJsonArray propertyNodes;
         std::function<void(const aiNode*)> selections=[&](const aiNode* node) {
             int32_t selected=-1;double distance=0;
             if(node->mMetaData && node->mMetaData->Get("JTSelectedChild",selected)) {
@@ -33,8 +55,13 @@ int main(int argc,char** argv) {
                 if(node->mMetaData->Get("JTRangeLODDistance",distance)) std::cout<<" distance="<<distance;
                 std::cout<<'\n';
             }
+            if(parser.isSet(properties) && node->mMetaData && node->mMetaData->HasKey("JTProperties")) {
+                const auto data=metadataJson(*node->mMetaData);
+                propertyNodes.append(QJsonObject{{"node",QString::fromUtf8(node->mName.C_Str())},{"JTProperties",data["JTProperties"]}});
+            }
             for(unsigned i=0;i<node->mNumChildren;++i) selections(node->mChildren[i]);
         };selections(result.scene->mRootNode);
+        if(parser.isSet(properties)) std::cout<<QJsonDocument(propertyNodes).toJson(QJsonDocument::Compact).constData()<<'\n';
         if(arguments.size()==2) {Assimp::Exporter exporter;if(exporter.Export(result.scene.get(),"glb2",arguments[1].toLocal8Bit().constData())!=AI_SUCCESS) throw std::runtime_error(exporter.GetErrorString());}
     } catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 1;}
     return 0;

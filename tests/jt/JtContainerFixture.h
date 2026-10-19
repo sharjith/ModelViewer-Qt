@@ -7,6 +7,8 @@
 #include <QUuid>
 #include <cstring>
 #include <initializer_list>
+#include <stdexcept>
+#include <utility>
 namespace Fixture {
 struct Bytes {
     QByteArray data;bool big=false;
@@ -43,6 +45,30 @@ inline void writeSelection(const QString& path,const QString& first,const QStrin
     else {choice.u8(version);choice.u32(selected);}
     element(graph,type(range?"10dd104c":"10dd10f3"),10,choice);
     end(graph);end(graph);graph.u16(1);graph.u32(0);container(path,graph);
+}
+struct MetadataOptions {bool big=false;unsigned integerVersion=1,baseVersion=1,tableVersion=1,stringVersion=1,floatVersion=1;bool duplicateTable=false;};
+inline void writeMetadata(const QString& path,const QString& reference=QString(),MetadataOptions options={}) {
+    const bool big=options.big;
+    Bytes graph(big);element(graph,type("10dd103e"),1,partition(big,QString(),{2}));
+    element(graph,type("10dd103e"),2,partition(big,reference,{}));end(graph);
+    const auto string=[&](unsigned id,const QString& value) {
+        Bytes b(big);b.u8(options.baseVersion);b.u32(0x45);b.u8(options.stringVersion);b.text(value);element(graph,type("10dd106e"),id,b);
+    };
+    string(100,"JT_PROP_NAME");string(101,"Metadata assembly;original-id");
+    string(102,"PartNumber");string(103,QString::fromUtf8("\xe9\xbd\xbf\xe8\xbd\xae\xe2\x9a\x99"));
+    string(104,"Count");string(106,"Mass");string(108,"Repeated");string(109,"first");string(110,"second");
+    string(111,"Unsupported");string(113,"LongText");string(114,QString(1100,'x'));string(115,"Nonfinite");
+    string(117,"child value");
+    Bytes integer(big);integer.u8(options.baseVersion);integer.u32(0xa5);integer.u8(options.integerVersion);integer.u32(quint32(-7));element(graph,type("10dd102b"),105,integer);
+    Bytes real(big);real.u8(1);real.u32(0x5a);real.u8(options.floatVersion);real.f32(12.5f);element(graph,type("10dd1019"),107,real);
+    Bytes nan(big);nan.u8(1);nan.u32(0);nan.u8(1);nan.u32(0x7fc00000);element(graph,type("10dd1019"),116,nan);
+    Bytes unknown(big);element(graph,type("deadbeef"),112,unknown);end(graph);
+    graph.u16(options.tableVersion);graph.u32(options.duplicateTable?3:2);
+    graph.u32(1);
+    for(auto pair:{std::pair<unsigned,unsigned>{100,101},{102,103},{104,105},{106,107},{108,109},{108,110},{111,112},{113,114},{115,116}}) {graph.u32(pair.first);graph.u32(pair.second);}
+    graph.u32(0);graph.u32(2);graph.u32(108);graph.u32(117);graph.u32(0);
+    if(options.duplicateTable) {graph.u32(1);graph.u32(0);}
+    container(path,graph);
 }
 inline void write(const QString& path,const QString& reference,bool big=false,bool assembly=true,bool duplicate=false){
     Bytes graph(big);element(graph,type("10dd103e"),1,partition(big,assembly?QString():reference,assembly?std::initializer_list<unsigned>{10,11}:std::initializer_list<unsigned>{}));

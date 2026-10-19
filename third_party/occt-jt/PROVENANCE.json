@@ -6,6 +6,16 @@
   "comparison": "Original upstream bytes compared after CRLF-to-LF normalization; whitespace changes count as modifications. Current files additionally carry dated notices.",
   "files": [
     {
+      "file": "src/JtProperty/JtProperty_Scalar.hxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-19"
+    },
+    {
+      "file": "src/JtProperty/JtProperty_Scalar.cxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-19"
+    },
+    {
       "file": "src/JtNode/JtNode_Switch.hxx",
       "origin": "ModelViewer-original",
       "notice_date": "2026-10-19"
@@ -896,5 +906,20 @@
     ],
     "reference": "JT 10.0 sections 6.1.1.8, 6.1.1.9 and 14.11",
     "validation": "docs/JT_DISPLAY_SELECTION_VALIDATION.md"
+  },
+  "metadata_follow_up": {
+    "date": "2026-10-19",
+    "scope": "Original integer/float atom readers; ordered node property pairs, flags/IDs and qualified versions",
+    "files": [
+      "src/JtProperty/JtProperty_Scalar.hxx",
+      "src/JtProperty/JtProperty_Scalar.cxx",
+      "src/JtProperty/JtProperty_Base.hxx",
+      "src/JtProperty/JtProperty_Base.cxx",
+      "src/JtProperty/JtProperty_String.cxx",
+      "src/JtNode/JtNode_Base.hxx",
+      "src/JtData/JtData_Model.cxx"
+    ],
+    "reference": "JT 10.0 sections 6.2.1-6.2.4 and 6.3; sampled local property version 2 layouts",
+    "validation": "docs/JT_METADATA_VALIDATION.md"
   }
 }

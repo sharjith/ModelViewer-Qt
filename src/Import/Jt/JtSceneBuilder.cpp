@@ -13,6 +13,8 @@
 #include <JtElement_XTBRep.hxx>
 #include <JtAttribute_Material.hxx>
 #include <JtAttribute_GeometricTransform.hxx>
+#include <JtProperty_String.hxx>
+#include <JtProperty_Scalar.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRep_Tool.hxx>
@@ -148,6 +150,46 @@ struct Builder {
     std::map<const void*,unsigned> geometryCache;
     std::vector<const aiNode*> hiddenJournal;
     unsigned nodes=0;
+    std::unique_ptr<aiMetadata> properties(const JtNode_Base& source,const QString& label) {
+        std::vector<std::unique_ptr<aiMetadata>> records;
+        size_t unsupported=0,unrepresentable=0;
+        for(const auto& property:source.Properties()) {
+            options.check();
+            const auto key=Handle(JtProperty_String)::DownCast(property.key);
+            const auto text=Handle(JtProperty_String)::DownCast(property.value);
+            const auto integer=Handle(JtProperty_Integer)::DownCast(property.value);
+            const auto real=Handle(JtProperty_Float)::DownCast(property.value);
+            if(key.IsNull() || (text.IsNull() && integer.IsNull() && real.IsNull())) {++unsupported;continue;}
+            const auto utf8=[](const TCollection_ExtendedString& value) {
+                return QString::fromUtf16(reinterpret_cast<const char16_t*>(value.ToExtString()),value.Length()).toUtf8();
+            };
+            const auto k=utf8(key->Value());const auto v=text.IsNull() ? QByteArray() : utf8(text->Value());
+            // aiString has a fixed UTF-8 byte limit. Do not silently truncate
+            // source keys/values or emit nonfinite numbers as valid metadata.
+            if(k.size()>=AI_MAXLEN || v.size()>=AI_MAXLEN || k.contains('\0') || v.contains('\0') || (!real.IsNull() && !std::isfinite(real->Value()))) {
+                ++unrepresentable;continue;
+            }
+            constexpr unsigned fields=6;
+            JtData_Limits::allocation(3*(sizeof(aiMetadata)+fields*(sizeof(aiString)+sizeof(aiMetadataEntry))+2*sizeof(aiString)));
+            auto record=std::unique_ptr<aiMetadata>(aiMetadata::Alloc(fields));
+            record->Set(0,"Key",aiString(k.constData()));
+            if(!text.IsNull()) record->Set(1,"Value",aiString(v.constData()));
+            else if(!integer.IsNull()) record->Set(1,"Value",int32_t(integer->Value()));
+            else record->Set(1,"Value",float(real->Value()));
+            record->Set(2,"KeyAtomId",int32_t(property.keyId));
+            record->Set(3,"ValueAtomId",int32_t(property.valueId));
+            record->Set(4,"KeyStateFlags",uint64_t(key->StateFlags()));
+            const auto atom=Handle(JtProperty_Base)::DownCast(property.value);
+            record->Set(5,"ValueStateFlags",uint64_t(atom->StateFlags()));
+            records.push_back(std::move(record));
+        }
+        if(unsupported) result.warnings.append(label+": skipped "+QString::number(unsupported)+" unsupported or unresolved JT metadata pair(s)");
+        if(unrepresentable) result.warnings.append(label+": skipped "+QString::number(unrepresentable)+" JT metadata pair(s) exceeding Assimp string/numeric limits");
+        if(records.empty()) return {};
+        auto output=std::unique_ptr<aiMetadata>(aiMetadata::Alloc(unsigned(records.size())));
+        for(unsigned i=0;i<records.size();++i) output->Set(i,std::to_string(i),*records[i]);
+        return output;
+    }
     struct Checkpoint {
         size_t meshes,materials,shapes,hidden;
         qsizetype warnings;
@@ -352,10 +394,12 @@ struct Builder {
         node->mNumMeshes=unsigned(attached.size());if(!attached.empty()) {node->mMeshes=new unsigned[attached.size()];std::copy(attached.begin(),attached.end(),node->mMeshes);}
         node->mNumChildren=unsigned(children.size());if(!children.empty()) {node->mChildren=new aiNode*[children.size()]{};for(size_t i=0;i<children.size();++i) {children[i]->mParent=node.get();node->mChildren[i]=children[i].release();}}
         const bool selectionNode=!switchNode.IsNull() || !Handle(JtNode_LOD)::DownCast(object).IsNull();
-        node->mMetaData=aiMetadata::Alloc(1+(selectionNode?1:0)+(lodDistance?1:0));
+        auto sourceProperties=properties(*source,label);
+        node->mMetaData=aiMetadata::Alloc(1+(selectionNode?1:0)+(lodDistance?1:0)+(sourceProperties?1:0));
         node->mMetaData->Set(0,"JTRepresentation",aiString(exact ? "BRep" : attached.empty() ? "Assembly" : "StoredTessellation"));
         if(selectionNode) node->mMetaData->Set(1,"JTSelectedChild",int32_t(selectedChild));
         if(lodDistance) node->mMetaData->Set(2,"JTRangeLODDistance",*lodDistance);
+        if(sourceProperties) node->mMetaData->Set(node->mMetaData->mNumProperties-1,"JTProperties",*sourceProperties);
         if(options.progress) options.progress("Building JT scene",int(nodes),0);
         return node;
     }

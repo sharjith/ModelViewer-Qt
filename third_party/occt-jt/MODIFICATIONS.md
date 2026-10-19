@@ -23,3 +23,7 @@ JtAttribute_Base.hxx now exposes the decoded accumulation flags; JtAttribute_Bas
 ## Display-selection follow-up, 19 October 2026
 
 JtNode_LOD.cxx and JtNode_RangeLOD.cxx reject unqualified local versions; RangeLOD also validates distance limits and centre values. JtNode_Switch.cxx/.hxx are original GPLv3 additions implementing the published JT 10.0 selected-child layout. The original ModelViewer scene builder implements traversal, optional eye-distance selection and rollback. See docs/JT_DISPLAY_SELECTION_VALIDATION.md for evidence, static-selection limits and pending viewer checks. No additional JT file version or XT conversion is enabled.
+
+## Scalar metadata follow-up, 19 October 2026
+
+JtProperty_Scalar.cxx/.hxx are original GPLv3 integer/F32 atom readers. JtProperty_Base exposes source flags and accepts qualified local versions 1/2; JtProperty_String accepts qualified local versions 1/2. JtNode_Base retains ordered property pairs and atom IDs within a count/allocation budget. JtData_Model binds those pairs, validates table versions and duplicate entries, and polls cancellation. The original scene builder adapts supported values to typed Assimp metadata with explicit diagnostics for unsupported or unrepresentable values. See docs/JT_METADATA_VALIDATION.md for source-layout evidence, the independent scene-copy fix and application/export limitations.

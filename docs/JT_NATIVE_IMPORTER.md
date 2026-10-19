@@ -2,6 +2,8 @@
 
 Work on `feature/JT-importer`, 18 October 2026. Uncommitted implementation; exact Parasolid conversion is not implemented.
 
+The tested assembly/display-selection milestone was committed as `b72d2be` after the owner's UI acceptance. The subsequent [scalar metadata pass](JT_METADATA_VALIDATION.md) preserves supported node properties and the scene-copy path; it remains a separate pending rebuild/check. Earlier uncommitted-status statements below are historical.
+
 ## Follow-up: assembly and attribute work (19 October 2026)
 
 The subsequent [Switch and RangeLOD pass](JT_DISPLAY_SELECTION_VALIDATION.md) adds authored Switch choices and optional distance-based import selection, with transactional display fallback. The viewer retains static first-child RangeLOD selection unless an API caller supplies an eye point; runtime LOD switching is not implemented.

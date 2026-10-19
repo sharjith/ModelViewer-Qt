@@ -34,6 +34,7 @@ public:
 
   //! Dump this entity.
   Standard_EXPORT virtual Standard_Integer Dump (Standard_OStream& theStream) const;
+  Jt_U32 StateFlags() const { return myStateFlags; }
 
   DEFINE_STANDARD_RTTIEXT(JtProperty_Base, JtData_Object)
   DEFINE_OBJECT_CLASS (JtProperty_Base)

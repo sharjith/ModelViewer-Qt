@@ -2,6 +2,7 @@
 // Original synthetic scene fixtures; no vendor CAD data or XT decoder is used.
 #include "JtSceneBuilder.h"
 #include "JtContainerFixture.h"
+#include "SceneUtils.h"
 #include <QDir>
 #include <QFile>
 #include <JtNode_Group.hxx>
@@ -14,6 +15,8 @@
 #include <JtElement_ShapeLOD_Vertex.hxx>
 #include <JtAttribute_Material.hxx>
 #include <JtAttribute_GeometricTransform.hxx>
+#include <JtProperty_String.hxx>
+#include <JtProperty_Scalar.hxx>
 #include <QTemporaryDir>
 #include <assimp/material.h>
 #include <cmath>
@@ -201,7 +204,63 @@ void selectionTests() {
     selection->children({broken,first});selection->select(0);root->children({selection});
     rejected([&]{build(root);},"no supported JT display tessellation"); // Switches must not substitute an unauthored child.
 }
-void sceneTests() {inheritance();instances();transforms();lodAndFailures();selectionTests();std::cout<<"Synthetic JT assembly, attributes, sharing, transforms, switches and RangeLOD passed\n";}
+void metadataTests() {
+    QTemporaryDir temp;check(temp.isValid(),"Cannot create metadata fixture directory");const auto path=temp.filePath("metadata.jt");
+    const auto read=[&] {
+        Handle(JtData_Model) model=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(path.utf16())));
+        auto source=model->Init();check(!source.IsNull(),"Cannot read metadata fixture");return source;
+    };
+    for(bool big:{false,true}) {
+        Fixture::MetadataOptions options;options.big=big;Fixture::writeMetadata(path,{},options);auto source=read();
+        check(source->Properties().size()==9 && source->Name()==TCollection_ExtendedString("Metadata assembly"),"Property table/name decoding failed");
+        check(Handle(JtProperty_Integer)::DownCast(source->Properties()[2].value)->Value()==-7,"Signed integer property failed");
+        check(Handle(JtProperty_Float)::DownCast(source->Properties()[3].value)->Value()==12.5f,"Float property failed");
+        auto root=node<JtNode_Partition>("metadata root");auto shape=leaf();root->children({shape});
+        for(const auto& p:source->Properties()) root->BindProperty(p.keyId,p.valueId,p.key,p.value);
+        auto sourceChild=Handle(JtNode_Base)::DownCast(source->Children()[0]);
+        for(const auto& p:sourceChild->Properties()) shape->BindProperty(p.keyId,p.valueId,p.key,p.value);
+        auto result=build(root);aiMetadata records,childRecords;
+        check(result.scene->mRootNode->mMetaData->Get("JTProperties",records) && records.mNumProperties==6,"Supported property records missing");
+        const auto entry=[&](unsigned index) {aiMetadata record;check(records.Get(index,record),"Missing property record");return record;};
+        aiString text;int32_t integer=0;float real=0;uint64_t flags=0;int32_t id=0;
+        check(entry(0).Get("Value",text) && text==aiString("Metadata assembly;original-id"),"Raw name property was shortened");
+        check(entry(1).Get("Value",text) && text==aiString("\xe9\xbd\xbf\xe8\xbd\xae\xe2\x9a\x99"),"Unicode property changed");
+        check(entry(2).Get("Value",integer) && integer==-7 && entry(2).Get("ValueStateFlags",flags) && flags==0xa5,"Integer metadata type/flags failed");
+        check(entry(2).Get("KeyAtomId",id) && id==104 && entry(2).Get("ValueAtomId",id) && id==105,"Property atom IDs changed");
+        check(entry(3).Get("Value",real) && real==12.5f,"Float metadata type failed");
+        check(entry(3).Get("KeyStateFlags",flags) && flags==0x45,"Key atom flags changed");
+        aiString k1,k2,v1,v2;check(entry(4).Get("Key",k1) && entry(5).Get("Key",k2) && k1==k2 && entry(4).Get("Value",v1) && entry(5).Get("Value",v2) && v1!=v2,"Repeated property keys were overwritten");
+        check(result.scene->mRootNode->mChildren[0]->mMetaData->Get("JTProperties",childRecords) && childRecords.mNumProperties==1,"Properties were inherited into a child");
+        check(result.warnings.size()==2 && result.warnings[0].contains("1 unsupported") && result.warnings[1].contains("2 JT metadata"),"Unsupported/unrepresentable metadata was silent");
+        auto copied=std::unique_ptr<aiScene>(SceneUtils::deepCopyScene(result.scene.get()));
+        check(copied->mRootNode->mMetaData!=result.scene->mRootNode->mMetaData,"Copied scene aliases metadata");
+        check(copied->mRootNode->mChildren[0]->mMetaData!=result.scene->mRootNode->mChildren[0]->mMetaData,"Copied child aliases metadata");
+        result.scene.reset(); // Decoded source teardown must not invalidate the app's copy.
+        aiMetadata copiedRecords;check(copied->mRootNode->mMetaData->Get("JTProperties",copiedRecords) && copiedRecords.mNumProperties==6,"Scene copy discarded nested metadata");
+        aiMetadata copiedInteger;check(copiedRecords.Get(2,copiedInteger) && copiedInteger.Get("Value",integer) && integer==-7,"Copied typed property changed after source deletion");
+        for(int failure=0;failure<6;++failure) {
+            Fixture::MetadataOptions bad;bad.big=big;
+            const char* diagnostic=nullptr;
+            switch(failure) {
+            case 0:bad.integerVersion=2;diagnostic="integer property version";break;
+            case 1:bad.floatVersion=2;diagnostic="floating point property version";break;
+            case 2:bad.stringVersion=3;diagnostic="string property version";break;
+            case 3:bad.baseVersion=3;diagnostic="base property version";break;
+            case 4:bad.tableVersion=2;diagnostic="property table version";break;
+            default:bad.duplicateTable=true;diagnostic="Duplicate JT node property table";break;
+            }
+            Fixture::writeMetadata(path,{},bad);rejected(read,diagnostic);
+        }
+        options.baseVersion=2;options.stringVersion=2;Fixture::writeMetadata(path,{},options);
+        source=read();check(source->Properties().size()==9 && source->Name()==TCollection_ExtendedString("Metadata assembly"),"Sample-qualified property version 2 failed");
+    }
+    auto bounded=node<JtNode_Partition>("bounded metadata");
+    for(unsigned i=0;i<100000;++i) bounded->BindProperty(1,2,{},{});
+    rejected([&]{bounded->BindProperty(1,2,{},{});},"node property count limit");
+    bounded->children({leaf()});unsigned polls=0;Jt::Options cancelled;cancelled.cancelled=[&]{return ++polls>30;};
+    rejected([&]{build(bounded,cancelled);},"cancelled");
+}
+void sceneTests() {inheritance();instances();transforms();lodAndFailures();selectionTests();metadataTests();std::cout<<"Synthetic JT assembly, attributes, transforms, selection and typed metadata passed\n";}
 
 void containerTests(const QString& samples) {
     QTemporaryDir temp;check(temp.isValid(),"Cannot create container directory");

@@ -514,6 +514,8 @@ aiScene* SceneUtils::deepCopyScene(const aiScene* source)
 		aiNode* dst = new aiNode();
 		dst->mName = src->mName;
 		dst->mTransformation = src->mTransformation;
+		if (src->mMetaData)
+			dst->mMetaData = new aiMetadata(*src->mMetaData);
 		dst->mNumMeshes = src->mNumMeshes;
 		dst->mNumChildren = src->mNumChildren;
 

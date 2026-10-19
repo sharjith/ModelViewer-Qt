@@ -22,6 +22,8 @@
 #define _JtNode_Base_HeaderFile
 
 #include <JtData_Object.hxx>
+#include <JtData_Limits.hxx>
+#include <vector>
 
 //! Base Node Element is the general form of a node presented in LSG. All the other nodes
 //! are inherited from the Base Node Element. The basic and general methods are implemented.
@@ -46,6 +48,16 @@ public:
   //! Return node's name.
   const TCollection_ExtendedString& Name() const { return myName; }
   bool Ignored() const {return myIgnored;}
+  struct Property {
+    Jt_I32 keyId,valueId;
+    Handle(JtData_Object) key,value;
+  };
+  const std::vector<Property>& Properties() const { return myProperties; }
+  void BindProperty(Jt_I32 keyId,Jt_I32 valueId,const Handle(JtData_Object)& key,const Handle(JtData_Object)& value) {
+    if(myProperties.size()>=100000) throw std::runtime_error("JT node property count limit exceeded");
+    JtData_Limits::allocation(sizeof(Property));
+    myProperties.push_back({keyId,valueId,key,value});
+  }
 
   DEFINE_STANDARD_RTTIEXT(JtNode_Base, JtData_Object)
   DEFINE_OBJECT_CLASS (JtNode_Base)
@@ -54,6 +66,7 @@ protected:
   bool myIgnored=false;
   VectorOfObjects myAttributes;
   TCollection_ExtendedString myName;
+  std::vector<Property> myProperties;
 };
 
 DEFINE_STANDARD_HANDLE(JtNode_Base, JtData_Object)
