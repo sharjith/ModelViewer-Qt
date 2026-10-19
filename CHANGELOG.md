@@ -1,6 +1,6 @@
 # Changelog
 
-## [2026.11.0] - 2026-10-19
+## [2026.11.0] - 2026-10-21
 
 The release that turns ModelViewer from a model viewer into a full engineering
 visualisation tool: a ray tracer, a simulation-results viewer, general 3D data
