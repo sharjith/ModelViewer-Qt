@@ -27,3 +27,7 @@ JtNode_LOD.cxx and JtNode_RangeLOD.cxx reject unqualified local versions; RangeL
 ## Scalar metadata follow-up, 19 October 2026
 
 JtProperty_Scalar.cxx/.hxx are original GPLv3 integer/F32 atom readers. JtProperty_Base exposes source flags and accepts qualified local versions 1/2; JtProperty_String accepts qualified local versions 1/2. JtNode_Base retains ordered property pairs and atom IDs within a count/allocation budget. JtData_Model binds those pairs, validates table versions and duplicate entries, and polls cancellation. The original scene builder adapts supported values to typed Assimp metadata with explicit diagnostics for unsupported or unrepresentable values. See docs/JT_METADATA_VALIDATION.md for source-layout evidence, the independent scene-copy fix and application/export limitations.
+
+## Draw-style follow-up, 19 October 2026
+
+JtAttribute_DrawStyle.cxx/.hxx are original GPLv3 readers for the published JT 10.0 local-version-1 draw-style attribute. They reject unqualified versions and reserved data bits. The original scene builder resolves field-specific accumulation, maps culling/unlit hints, generates independent flat face normals, and retains canonical geometry separately from render variants. Unsupported renderer combinations are diagnosed explicitly. See docs/JT_DRAW_STYLE_VALIDATION.md for tests, provenance and pending viewer acceptance; no additional JT file version or XT conversion is enabled.

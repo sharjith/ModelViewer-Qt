@@ -22,6 +22,8 @@ jt_fixturegen --samples out/jt-research/samples --output out/jt-research/metadat
 
 This generator also references a locally supplied Bolt sample. It shares the original container serializer used by the portable tests. See [metadata validation](../../docs/JT_METADATA_VALIDATION.md) for the representation, qualified local versions, expected values and UI/export limitations.
 
+Use `jt_fixturegen --kind draw-style --samples <sample-folder> --output <output-folder>` for the draw-style fixture set. `jt_probe input.jt --materials` prints resolved style/culling/unlit fields. See [draw-style validation](../../docs/JT_DRAW_STYLE_VALIDATION.md) for expected counts and renderer limitations.
+
 Coverage, sample provenance and UI acceptance are recorded in [native importer](../../docs/JT_NATIVE_IMPORTER.md), [assembly validation](../../docs/JT_ASSEMBLY_ATTRIBUTE_VALIDATION.md) and [display selection validation](../../docs/JT_DISPLAY_SELECTION_VALIDATION.md).
 
 Run `python tests/jt/check_provenance.py` to check decoder manifest coverage and retained source notices. This checks record consistency; it does not establish legal clearance or fulfil binary source-delivery obligations by itself.

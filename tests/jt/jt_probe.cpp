@@ -5,6 +5,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <assimp/Exporter.hpp>
+#include <assimp/material.h>
 #include <iostream>
 namespace {
 QJsonObject metadataJson(const aiMetadata& data) {
@@ -30,7 +31,8 @@ int main(int argc,char** argv) {
     parser.addPositionalArgument("output","Optional GLB export","[output.glb]");
     const QCommandLineOption eye("eye","Import-time RangeLOD eye position in JT world coordinates / source units","x,y,z");
     const QCommandLineOption properties("properties","Print supported JT node metadata as JSON");
-    parser.addOption(eye);parser.addOption(properties);parser.process(app);
+    const QCommandLineOption materials("materials","Print resolved JT material/style fields as JSON");
+    parser.addOption(eye);parser.addOption(properties);parser.addOption(materials);parser.process(app);
     const auto arguments=parser.positionalArguments();
     if(arguments.size()<1 || arguments.size()>2) parser.showHelp(2);
     try {
@@ -62,6 +64,20 @@ int main(int argc,char** argv) {
             for(unsigned i=0;i<node->mNumChildren;++i) selections(node->mChildren[i]);
         };selections(result.scene->mRootNode);
         if(parser.isSet(properties)) std::cout<<QJsonDocument(propertyNodes).toJson(QJsonDocument::Compact).constData()<<'\n';
+        if(parser.isSet(materials)) {
+            QJsonArray entries;
+            for(unsigned i=0;i<result.scene->mNumMaterials;++i) {
+                const auto& material=*result.scene->mMaterials[i];QJsonObject entry{{"index",int(i)}};int value=0;
+                if(material.Get("$mat.jt.drawStyleFlags",0,0,value)==AI_SUCCESS) entry["drawStyleFlags"]=value;
+                if(material.Get("$mat.jt.drawStyleFields",0,0,value)==AI_SUCCESS) entry["drawStyleFields"]=value;
+                if(material.Get(AI_MATKEY_TWOSIDED,value)==AI_SUCCESS) entry["doubleSided"]=bool(value);
+                if(material.Get(AI_MATKEY_ENABLE_WIREFRAME,value)==AI_SUCCESS) entry["wireframe"]=bool(value);
+                if(material.Get("$mat.gltf.unlit",0,0,value)==AI_SUCCESS) entry["unlit"]=bool(value);
+                if(material.Get(AI_MATKEY_SHADING_MODEL,value)==AI_SUCCESS) entry["shadingModel"]=value;
+                entries.append(entry);
+            }
+            std::cout<<QJsonDocument(QJsonObject{{"materials",entries}}).toJson(QJsonDocument::Compact).constData()<<'\n';
+        }
         if(arguments.size()==2) {Assimp::Exporter exporter;if(exporter.Export(result.scene.get(),"glb2",arguments[1].toLocal8Bit().constData())!=AI_SUCCESS) throw std::runtime_error(exporter.GetErrorString());}
     } catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 1;}
     return 0;

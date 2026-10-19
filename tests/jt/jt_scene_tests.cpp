@@ -15,6 +15,7 @@
 #include <JtElement_ShapeLOD_Vertex.hxx>
 #include <JtAttribute_Material.hxx>
 #include <JtAttribute_GeometricTransform.hxx>
+#include <JtAttribute_DrawStyle.hxx>
 #include <JtProperty_String.hxx>
 #include <JtProperty_Scalar.hxx>
 #include <QTemporaryDir>
@@ -68,6 +69,20 @@ struct Transform:JtAttribute_GeometricTransform {
     }
     void rotateScale() {myTransform[0]=0;myTransform[1]=2;myTransform[4]=-3;myTransform[5]=0;}
 };
+struct DrawStyle:JtAttribute_DrawStyle {
+    DrawStyle(unsigned flags,unsigned inhibit=0,unsigned finals=0,unsigned state=8) {
+        myDataFlags=flags;myStateFlags=state;myFieldInhibitFlags=inhibit;myFieldFinalFlags=finals;
+    }
+};
+struct BentPatch:JtElement_ShapeLOD_Vertex {
+    BentPatch() {
+        myVertices.Allocate(4,3);myNormals.Allocate(4,3);myIndices.Allocate(6);
+        const float points[4][3]={{0,0,0},{1,0,0},{0,1,0},{0,0,1}};const int indices[6]={0,1,2,0,3,1};
+        for(unsigned i=0;i<4;++i) for(unsigned j=0;j<3;++j) {myVertices[i][j]=points[i][j];myNormals[i][j]=j==0?0:float(1/std::sqrt(2.0));}
+        for(unsigned i=0;i<6;++i) myIndices[i]=indices[i];
+    }
+};
+struct PatchProperty:JtProperty_LateLoaded {PatchProperty() {mySegmentType=7;myDefferedObject=new BentPatch;}};
 unsigned references(const aiNode& n) {unsigned count=n.mNumMeshes;for(unsigned i=0;i<n.mNumChildren;++i)count+=references(*n.mChildren[i]);return count;}
 aiColor4D color(const Jt::ImportResult& result,const aiNode& n) {
     check(n.mNumMeshes==1,"Expected one mesh reference");aiColor4D c;
@@ -260,7 +275,58 @@ void metadataTests() {
     bounded->children({leaf()});unsigned polls=0;Jt::Options cancelled;cancelled.cancelled=[&]{return ++polls>30;};
     rejected([&]{build(bounded,cancelled);},"cancelled");
 }
-void sceneTests() {inheritance();instances();transforms();lodAndFailures();selectionTests();metadataTests();std::cout<<"Synthetic JT assembly, attributes, transforms, selection and typed metadata passed\n";}
+void drawStyleTests() {
+    for(unsigned field=0;field<6;++field) for(unsigned mode=0;mode<4;++mode) {
+        auto root=node<JtNode_Partition>("root");auto shape=leaf();root->children({shape});
+        root->attributes({new DrawStyle(0x0a,0,mode<=1?1u<<field:0)});
+        shape->attributes({new DrawStyle(0x35,mode==2?1u<<field:0,0,mode==1?10:mode==3?12:8)});
+        auto result=build(root);const auto material=result.scene->mMaterials[result.scene->mMeshes[0]->mMaterialIndex];
+        int flags=-1;check(material->Get("$mat.jt.drawStyleFlags",0,0,flags)==AI_SUCCESS,"Draw style not retained");
+        const unsigned dataBit=field==0?2u:field==1?1u:1u<<field;
+        const unsigned expected=mode==3?0x0a:mode==0 || mode==2 ? (0x35&~dataBit)|(0x0a&dataBit):0x35;
+        check(unsigned(flags)==expected,"Draw style inhibit/final/force/ignore field mapping failed");
+        int twoSided=-1,unlit=-1,wire=-1,shading=-1;
+        check(material->Get(AI_MATKEY_TWOSIDED,twoSided)==AI_SUCCESS && twoSided==int(!(expected&1)),"Back-face culling mapping failed");
+        check(material->Get("$mat.gltf.unlit",0,0,unlit)==AI_SUCCESS && unlit==int(!(expected&8)),"Unlit mapping failed");
+        check(material->Get(AI_MATKEY_ENABLE_WIREFRAME,wire)==AI_SUCCESS && wire==int(bool(expected&4)),"Wireframe hint missing");
+        check(material->Get(AI_MATKEY_SHADING_MODEL,shading)==AI_SUCCESS && shading==int(unlit?aiShadingMode_Unlit:aiShadingMode_PBR_BRDF),"Flat style incorrectly disabled lighting");
+        aiShadingMode exportShading=aiShadingMode_PBR_BRDF;
+        check(material->Get(AI_MATKEY_SHADING_MODEL,exportShading)==AI_SUCCESS && int(exportShading)==shading,"Assimp exporter cannot read the shading enum");
+    }
+    // Same definition, different occurrence styles; exercise both cache orders.
+    for(bool flatFirst:{false,true}) {
+        auto root=node<JtNode_Partition>("root");auto shape=node<JtNode_Shape_Base>("bent patch");shape->late({new PatchProperty});
+        auto flat=node<JtNode_Instance>("flat"),smooth=node<JtNode_Instance>("smooth"),same=node<JtNode_Instance>("same flat");
+        flat->target(shape);smooth->target(shape);same->target(shape);
+        flat->attributes({new DrawStyle(0x1a)});smooth->attributes({new DrawStyle(0x0a)});same->attributes({new DrawStyle(0x1a)});
+        if(flatFirst) root->children({flat,smooth,same});else root->children({smooth,flat,same});
+        auto result=build(root);check(result.scene->mNumMeshes==2 && references(*result.scene->mRootNode)==3,"Draw-style variants broke sharing");
+        const auto flatNode=result.scene->mRootNode->mChildren[flatFirst?0:1]->mChildren[0];
+        const auto smoothNode=result.scene->mRootNode->mChildren[flatFirst?1:0]->mChildren[0];
+        const auto flatMesh=result.scene->mMeshes[flatNode->mMeshes[0]],smoothMesh=result.scene->mMeshes[smoothNode->mMeshes[0]];
+        check(flatMesh->mNumVertices==6 && smoothMesh->mNumVertices==4 && flatMesh->mNumFaces==2,"Flat-normal geometry/cache corruption");
+        check(result.scene->mRootNode->mChildren[2]->mChildren[0]->mMeshes[0]==flatNode->mMeshes[0],"Equal draw styles duplicated geometry");
+        for(unsigned face=0;face<2;++face) for(unsigned corner=0;corner<3;++corner) {
+            const auto index=flatMesh->mFaces[face].mIndices[corner];const auto n=flatMesh->mNormals[index];
+            check(std::abs(n.x)<1e-6 && std::abs(n.y-float(face==1))<1e-6 && std::abs(n.z-float(face==0))<1e-6,"Flat normals do not match the face");
+        }
+        check(std::abs(smoothMesh->mNormals[0].y-float(1/std::sqrt(2.0)))<1e-6,"Flat variant changed canonical stored normals");
+        const unsigned flatIndex=flatNode->mMeshes[0],smoothIndex=smoothNode->mMeshes[0];
+        auto copied=std::unique_ptr<aiScene>(SceneUtils::deepCopyScene(result.scene.get()));result.scene.reset();
+        check(copied->mMeshes[flatIndex]->mNumVertices==6 && copied->mMeshes[smoothIndex]->mNumVertices==4,"Application scene copy lost draw-style geometry");
+        aiShadingMode shading=aiShadingMode_Unlit;int unlit=-1;
+        const auto material=copied->mMaterials[copied->mMeshes[flatIndex]->mMaterialIndex];
+        check(material->Get(AI_MATKEY_SHADING_MODEL,shading)==AI_SUCCESS && shading==aiShadingMode_PBR_BRDF && material->Get("$mat.gltf.unlit",0,0,unlit)==AI_SUCCESS && unlit==0,"Application scene copy lost lit flat style");
+    }
+    auto root=node<JtNode_Partition>("root");auto shape=leaf();root->children({shape});shape->attributes({new DrawStyle(0x0c)});
+    auto result=build(root);check(result.warnings.size()==2,"Unsupported draw-style combinations were not diagnosed");
+    // A zero-area triangle must retain finite fallback normals.
+    struct ZeroTriangle:Triangle {ZeroTriangle() {for(unsigned i=0;i<3;++i)for(unsigned j=0;j<3;++j)myVertices[i][j]=0;}};
+    struct ZeroProperty:JtProperty_LateLoaded {ZeroProperty(JtElement_ShapeLOD_Vertex* p) {mySegmentType=7;myDefferedObject=p;}};
+    shape->late({new ZeroProperty(new ZeroTriangle)});shape->attributes({new DrawStyle(0x1a)});
+    result=build(root);check(result.scene->mMeshes[0]->mNumFaces==1 && result.scene->mMeshes[0]->mNormals[0].z==1,"Degenerate flat triangle lost finite normals");
+}
+void sceneTests() {inheritance();instances();transforms();lodAndFailures();selectionTests();metadataTests();drawStyleTests();std::cout<<"Synthetic JT assembly, transforms, selection, metadata and draw styles passed\n";}
 
 void containerTests(const QString& samples) {
     QTemporaryDir temp;check(temp.isValid(),"Cannot create container directory");
@@ -291,6 +357,15 @@ void containerTests(const QString& samples) {
         rejected([&]{Jt::Importer::read(path);},"no supported tessellation"); // Valid none, rather than an invalid index.
         Fixture::writeSelection(path,"a.jt","b.jt",true,0,big,1,{20,10});
         rejected([&]{Jt::Importer::read(path);},"range limits");
+    }
+    for(bool big:{false,true}) {
+        Fixture::writeDrawStyle(path,"missing.jt",0x1a,big);
+        Handle(JtData_Model) model=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(path.utf16())));
+        auto root=model->Init();check(!root.IsNull(),"Cannot read draw-style container");
+        auto style=Handle(JtAttribute_DrawStyle)::DownCast(root->Attributes()[0]);
+        check(!style.IsNull() && style->DataFlags()==0x1a && style->FieldFinalFlags()==0x3f,"Draw-style header alignment failed");
+        Fixture::writeDrawStyle(path,"missing.jt",0x0a,big,2);rejected([&]{Jt::Importer::read(path);},"draw style version");
+        Fixture::writeDrawStyle(path,"missing.jt",0x80,big);rejected([&]{Jt::Importer::read(path);},"reserved JT draw style flags");
     }
     // Nested cycles must be rejected using canonical file identity.
     QDir(temp.path()).mkpath("parts");const auto bridge=temp.filePath("parts/bridge.jt");

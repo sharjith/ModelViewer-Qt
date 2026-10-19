@@ -6,6 +6,16 @@
   "comparison": "Original upstream bytes compared after CRLF-to-LF normalization; whitespace changes count as modifications. Current files additionally carry dated notices.",
   "files": [
     {
+      "file": "src/JtAttribute/JtAttribute_DrawStyle.hxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-19"
+    },
+    {
+      "file": "src/JtAttribute/JtAttribute_DrawStyle.cxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-19"
+    },
+    {
       "file": "src/JtProperty/JtProperty_Scalar.hxx",
       "origin": "ModelViewer-original",
       "notice_date": "2026-10-19"
@@ -921,5 +931,15 @@
     ],
     "reference": "JT 10.0 sections 6.2.1-6.2.4 and 6.3; sampled local property version 2 layouts",
     "validation": "docs/JT_METADATA_VALIDATION.md"
+  },
+  "draw_style_follow_up": {
+    "date": "2026-10-19",
+    "scope": "Original qualified JT 10.0 draw-style reader; original scene-builder inheritance and render adaptation",
+    "files": [
+      "src/JtAttribute/JtAttribute_DrawStyle.hxx",
+      "src/JtAttribute/JtAttribute_DrawStyle.cxx"
+    ],
+    "reference": "JT 10.0 section 6.1.2.4, tables 34 and 35",
+    "validation": "docs/JT_DRAW_STYLE_VALIDATION.md"
   }
 }

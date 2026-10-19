@@ -2,7 +2,7 @@
 
 Work on `feature/JT-importer`, 18 October 2026. Uncommitted implementation; exact Parasolid conversion is not implemented.
 
-The tested assembly/display-selection milestone was committed as `b72d2be` after the owner's UI acceptance. The subsequent [scalar metadata pass](JT_METADATA_VALIDATION.md) preserves supported node properties and the scene-copy path; it remains a separate pending rebuild/check. Earlier uncommitted-status statements below are historical.
+The tested assembly/display-selection milestone was committed as `b72d2be` after the owner's UI acceptance. The [scalar metadata pass](JT_METADATA_VALIDATION.md) was then accepted and committed as `c435335`. The subsequent [draw-style pass](JT_DRAW_STYLE_VALIDATION.md) adds culling, unlit materials and flat normals, and remains pending the owner's rebuild/check. Earlier uncommitted-status statements below are historical.
 
 ## Follow-up: assembly and attribute work (19 October 2026)
 

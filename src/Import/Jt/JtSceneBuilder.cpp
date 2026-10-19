@@ -13,6 +13,7 @@
 #include <JtElement_XTBRep.hxx>
 #include <JtAttribute_Material.hxx>
 #include <JtAttribute_GeometricTransform.hxx>
+#include <JtAttribute_DrawStyle.hxx>
 #include <JtProperty_String.hxx>
 #include <JtProperty_Scalar.hxx>
 #include <BRepCheck_Analyzer.hxx>
@@ -100,6 +101,7 @@ std::unique_ptr<aiMesh> storedMesh(const Handle(JtElement_ShapeLOD_Vertex)& sour
         throw std::runtime_error("Unsupported/empty JT tessellation layout");
     auto out=std::make_unique<aiMesh>();out->mPrimitiveTypes=aiPrimitiveType_TRIANGLE;
     out->mNumVertices=unsigned(p.Count());out->mNumFaces=unsigned(ix.Count()/3);
+    JtData_Limits::allocation(size_t(out->mNumVertices)*2*sizeof(aiVector3D)+size_t(out->mNumFaces)*(sizeof(aiFace)+3*sizeof(unsigned)));
     out->mVertices=new aiVector3D[out->mNumVertices];out->mNormals=new aiVector3D[out->mNumVertices]{};
     const bool storedNormals=n.Count()==p.Count() && n.CompCount()==3;
     for(unsigned i=0;i<out->mNumVertices;++i) {out->mVertices[i]={p[i][0],p[i][1],p[i][2]};if(storedNormals) out->mNormals[i]={n[i][0],n[i][1],n[i][2]};}
@@ -121,6 +123,17 @@ struct Appearance {
     float bumpiness=1,reflectivity=0;
     unsigned finalFields=0,present=0;
     unsigned blendFlags=0;
+    unsigned drawFlags=0x0a,drawPresent=0,drawFinal=0;
+    bool flatNormals() const {return (drawFlags&0x10)!=0;}
+    void apply(const JtAttribute_DrawStyle& source) {
+        const unsigned allowed=~source.FieldInhibitFlags() & (source.AccumulationForced() ? ~0u : ~drawFinal) & 0x3f;
+        // Field bits 0/1 (lighting/culling) swap places in the data byte.
+        for(unsigned field=0;field<6;++field) if(allowed&(1u<<field)) {
+            const unsigned dataBit=field==0 ? 2u : field==1 ? 1u : 1u<<field;
+            drawFlags=(drawFlags&~dataBit) | (source.DataFlags()&dataBit);
+        }
+        drawPresent|=allowed;drawFinal|=source.FieldFinalFlags()&allowed;
+    }
     void apply(const JtAttribute_Material& source) {
         const unsigned allowed=~source.FieldInhibitFlags() & (source.AccumulationForced() ? ~0u : ~finalFields);
         const auto rgb=[](const float* c){return aiColor3D(c[0],c[1],c[2]);};
@@ -141,6 +154,8 @@ struct Builder {
     const Options& options; QString rootDirectory;
     ImportResult result;
     std::vector<std::unique_ptr<aiMesh>> meshes;
+    // Canonical decoded geometry is independent of material/flat-normal variants.
+    std::vector<std::unique_ptr<aiMesh>> geometries;
     std::vector<std::unique_ptr<aiMaterial>> materials;
     std::set<const void*> active;
     std::set<QString> activeFiles;
@@ -191,17 +206,18 @@ struct Builder {
         return output;
     }
     struct Checkpoint {
-        size_t meshes,materials,shapes,hidden;
+        size_t meshes,materials,shapes,hidden,geometries;
         qsizetype warnings;
         unsigned stored,exact,fallback;
     };
-    Checkpoint checkpoint() const {return {meshes.size(),materials.size(),result.exactShapes.size(),hiddenJournal.size(),result.warnings.size(),result.storedMeshes,result.exactParts,result.fallbackParts};}
+    Checkpoint checkpoint() const {return {meshes.size(),materials.size(),result.exactShapes.size(),hiddenJournal.size(),geometries.size(),result.warnings.size(),result.storedMeshes,result.exactParts,result.fallbackParts};}
     void rollback(const Checkpoint& c) {
         meshes.resize(c.meshes);materials.resize(c.materials);result.exactShapes.resize(c.shapes);
+        geometries.resize(c.geometries);
         while(result.warnings.size()>c.warnings) result.warnings.removeLast();
         while(hiddenJournal.size()>c.hidden) {result.hiddenNodes.remove(hiddenJournal.back());hiddenJournal.pop_back();}
         for(auto it=meshCache.begin();it!=meshCache.end();) {if(it->second>=c.meshes) it=meshCache.erase(it);else ++it;}
-        for(auto it=geometryCache.begin();it!=geometryCache.end();) {if(it->second>=c.meshes) it=geometryCache.erase(it);else ++it;}
+        for(auto it=geometryCache.begin();it!=geometryCache.end();) {if(it->second>=c.geometries) it=geometryCache.erase(it);else ++it;}
         for(auto it=materialCache.begin();it!=materialCache.end();) {if(it->second>=c.materials) it=materialCache.erase(it);else ++it;}
         result.storedMeshes=c.stored;result.exactParts=c.exact;result.fallbackParts=c.fallback;
     }
@@ -212,7 +228,7 @@ struct Builder {
         const float opacity=(!blending || (src==1 && dst==0)) ? 1.0f : c.a;
         std::vector<float> key{c.r,c.g,c.b,opacity,style.ambient.r,style.ambient.g,style.ambient.b,
             style.specular.r,style.specular.g,style.specular.b,style.emission.r,style.emission.g,style.emission.b,
-            style.bumpiness,style.reflectivity,float(style.present)};
+            style.bumpiness,style.reflectivity,float(style.present),float(style.drawFlags),float(style.drawPresent)};
         for(float value:key) if(!std::isfinite(value)) throw std::runtime_error("JT has nonfinite material values");
         if(!std::isfinite(c.a) || c.a<0 || c.a>1 || opacity<0 || opacity>1) throw std::runtime_error("JT diffuse alpha is out of range");
         const auto found=materialCache.find(key);if(found!=materialCache.end()) return found->second;
@@ -225,18 +241,52 @@ struct Builder {
         if(style.present&(1u<<2)) m->AddProperty(&style.emission,1,AI_MATKEY_COLOR_EMISSIVE);
         if(style.present&(1u<<8)) m->AddProperty(&style.bumpiness,1,AI_MATKEY_BUMPSCALING);
         if(style.present&(1u<<5)) m->AddProperty(&style.reflectivity,1,AI_MATKEY_REFLECTIVITY);
+        if(style.drawPresent) {
+            const int flags=int(style.drawFlags),fields=int(style.drawPresent);
+            const int twoSided=(style.drawFlags&1)==0,wireframe=(style.drawFlags&4)!=0,unlit=(style.drawFlags&8)==0;
+            m->AddProperty(&flags,1,"$mat.jt.drawStyleFlags");m->AddProperty(&fields,1,"$mat.jt.drawStyleFields");
+            m->AddProperty(&twoSided,1,AI_MATKEY_TWOSIDED);
+            m->AddProperty(&wireframe,1,AI_MATKEY_ENABLE_WIREFRAME);
+            m->AddProperty(&unlit,1,"$mat.gltf.unlit");
+            // Flat shading is expressed in geometry normals: aiShadingMode_Flat
+            // is mapped to Unlit by the application's generic material adapter.
+            const aiShadingMode shading=unlit ? aiShadingMode_Unlit : aiShadingMode_PBR_BRDF;
+            m->AddProperty(&shading,1,AI_MATKEY_SHADING_MODEL);
+            if(wireframe) result.warnings.append("JT wireframe-only draw style is retained; the viewport displays filled triangles");
+            if(twoSided && !unlit && !(style.drawFlags&2))
+                result.warnings.append("JT single-sided lighting without back-face culling is approximated by the renderer's two-sided lighting");
+        }
         const unsigned id=unsigned(materials.size());materials.push_back(std::move(m));materialCache.emplace(std::move(key),id);return id;
     }
     std::unique_ptr<aiMesh> copyGeometry(unsigned index) {
-        const auto& source=*meshes.at(index);auto copy=std::make_unique<aiMesh>();
+        const auto& source=*geometries.at(index);auto copy=std::make_unique<aiMesh>();
         copy->mPrimitiveTypes=source.mPrimitiveTypes;copy->mNumVertices=source.mNumVertices;copy->mNumFaces=source.mNumFaces;
+        JtData_Limits::allocation(size_t(copy->mNumVertices)*2*sizeof(aiVector3D)+size_t(copy->mNumFaces)*(sizeof(aiFace)+3*sizeof(unsigned)));
         copy->mVertices=new aiVector3D[copy->mNumVertices];copy->mNormals=new aiVector3D[copy->mNumVertices];
         std::copy_n(source.mVertices,copy->mNumVertices,copy->mVertices);std::copy_n(source.mNormals,copy->mNumVertices,copy->mNormals);
         copy->mFaces=new aiFace[copy->mNumFaces];
         for(unsigned i=0;i<copy->mNumFaces;++i) {copy->mFaces[i].mNumIndices=3;copy->mFaces[i].mIndices=new unsigned[3];std::copy_n(source.mFaces[i].mIndices,3,copy->mFaces[i].mIndices);}
         return copy;
     }
-    unsigned add(std::unique_ptr<aiMesh> mesh,unsigned mat,const QString& name) {
+    unsigned add(std::unique_ptr<aiMesh> mesh,unsigned mat,const QString& name,bool flat=false) {
+        if(flat) {
+            const size_t count=size_t(mesh->mNumFaces)*3;
+            if(count>std::numeric_limits<unsigned>::max()) throw std::runtime_error("JT flat-normal vertex count exceeds render limits");
+            JtData_Limits::allocation(count*(2*sizeof(aiVector3D)+sizeof(unsigned)));
+            auto positions=std::make_unique<aiVector3D[]>(count);auto normals=std::make_unique<aiVector3D[]>(count);
+            for(unsigned i=0;i<mesh->mNumFaces;++i) {
+                options.check();const auto& f=mesh->mFaces[i];
+                const auto a=mesh->mVertices[f.mIndices[0]],b=mesh->mVertices[f.mIndices[1]],c=mesh->mVertices[f.mIndices[2]];
+                const double x1=double(b.x)-a.x,y1=double(b.y)-a.y,z1=double(b.z)-a.z;
+                const double x2=double(c.x)-a.x,y2=double(c.y)-a.y,z2=double(c.z)-a.z;
+                const double x=y1*z2-z1*y2,y=z1*x2-x1*z2,z=x1*y2-y1*x2,l=std::hypot(x,y,z);
+                const aiVector3D n=l>0 ? aiVector3D(float(x/l),float(y/l),float(z/l)) : mesh->mNormals[f.mIndices[0]];
+                positions[3*i]=a;positions[3*i+1]=b;positions[3*i+2]=c;
+                for(unsigned j=0;j<3;++j) {normals[3*i+j]=n;mesh->mFaces[i].mIndices[j]=3*i+j;}
+            }
+            delete[] mesh->mVertices;delete[] mesh->mNormals;
+            mesh->mNumVertices=unsigned(count);mesh->mVertices=positions.release();mesh->mNormals=normals.release();validate(*mesh);
+        }
         mesh->mMaterialIndex=mat;mesh->mName=aiString(name.toUtf8().constData());
         meshes.push_back(std::move(mesh)); return unsigned(meshes.size()-1);
     }
@@ -262,6 +312,8 @@ struct Builder {
             }
             const auto appearance=Handle(JtAttribute_Material)::DownCast(a);
             if(!appearance.IsNull()) style.apply(*appearance);
+            const auto drawStyle=Handle(JtAttribute_DrawStyle)::DownCast(a);
+            if(!drawStyle.IsNull()) style.apply(*drawStyle);
         }
         const auto world=parentWorld*node->mTransformation;
         for(unsigned row=0;row<4;++row) for(unsigned column=0;column<4;++column)
@@ -282,7 +334,7 @@ struct Builder {
                 options.check();prop->Load();const auto xt=Handle(JtElement_XTBRep)::DownCast(prop->DefferedObject());
                 if(xt.IsNull()) throw std::runtime_error("Unsupported exact JT payload");
                 const auto& bytes=xt->Data();const auto shape=options.exactDecoder(QByteArray(reinterpret_cast<const char*>(bytes.Data()),int(bytes.Count())));
-                options.check();auto m=exactMesh(shape,options);attached.push_back(add(std::move(m),mat,name));result.exactShapes.push_back(shape);++result.exactParts;exact=true;prop->Unload();break;
+                options.check();auto m=exactMesh(shape,options);attached.push_back(add(std::move(m),mat,name,style.flatNormals()));result.exactShapes.push_back(shape);++result.exactParts;exact=true;prop->Unload();break;
             } catch(const Cancelled&) {prop->Unload();throw;}
               catch(const std::bad_alloc&) {prop->Unload();throw;}
               catch(const Standard_Failure& e) {result.warnings.append(label+": exact geometry rejected: "+QString::fromUtf8(e.GetMessageString()));}
@@ -301,12 +353,13 @@ struct Builder {
                     try {
                         const auto geometry=geometryCache.find(prop.get());
                         if(geometry!=geometryCache.end()) {
-                            const unsigned id=add(copyGeometry(geometry->second),mat,name);meshCache[key]=id;attached.push_back(id);++result.storedMeshes;loaded=true;break;
+                            const unsigned id=add(copyGeometry(geometry->second),mat,name,style.flatNormals());meshCache[key]=id;attached.push_back(id);++result.storedMeshes;loaded=true;break;
                         }
                         struct Unload {Handle(JtProperty_LateLoaded) p;~Unload(){p->Unload();}} unload{prop};
                         options.check();prop->Load();const auto mesh=Handle(JtElement_ShapeLOD_Vertex)::DownCast(prop->DefferedObject());
                         if(mesh.IsNull()) throw std::runtime_error("Unsupported JT tessellation payload");
-                        auto output=storedMesh(mesh);const unsigned id=add(std::move(output),mat,name);meshCache[key]=id;geometryCache[prop.get()]=id;attached.push_back(id);++result.storedMeshes;loaded=true;break;
+                        const unsigned geometryIndex=unsigned(geometries.size());geometries.push_back(storedMesh(mesh));
+                        const unsigned id=add(copyGeometry(geometryIndex),mat,name,style.flatNormals());meshCache[key]=id;geometryCache[prop.get()]=geometryIndex;attached.push_back(id);++result.storedMeshes;loaded=true;break;
                     } catch(const Cancelled&) {throw;}
                       catch(const std::bad_alloc&) {throw;}
                       catch(const Standard_Failure& e) {result.warnings.append(label+": display alternative rejected: "+QString::fromUtf8(e.GetMessageString()));}

@@ -26,8 +26,8 @@ inline QString type(const char* first){return QString::fromLatin1(first)+"-2ac8-
 inline void element(Bytes& graph,const QString& guid,unsigned id,const Bytes& body,unsigned base=0){graph.u32(21+quint32(body.data.size()));graph.guid(guid);graph.u8(base);graph.u32(id);graph.append(body);}
 inline void end(Bytes& stream){stream.u32(16);stream.guid("ffffffff-ffff-ffff-ffff-ffffffffffff");}
 inline void baseNode(Bytes& b,std::initializer_list<unsigned> attributes){b.u8(1);b.u32(0);b.list(attributes);}
-inline Bytes partition(bool big,const QString& reference,std::initializer_list<unsigned> children){
-    Bytes b(big);baseNode(b,{});b.u8(1);b.list(children);b.u8(1);b.u32(0);b.text(reference);b.f32(0);for(int i=0;i<6;++i)b.u32(0);return b;
+inline Bytes partition(bool big,const QString& reference,std::initializer_list<unsigned> children,std::initializer_list<unsigned> attributes={}){
+    Bytes b(big);baseNode(b,attributes);b.u8(1);b.list(children);b.u8(1);b.u32(0);b.text(reference);b.f32(0);for(int i=0;i<6;++i)b.u32(0);return b;
 }
 inline void container(const QString& path,const Bytes& graph) {
     const QString segmentId="12345678-1234-5678-9abc-def012345678";
@@ -45,6 +45,12 @@ inline void writeSelection(const QString& path,const QString& first,const QStrin
     else {choice.u8(version);choice.u32(selected);}
     element(graph,type(range?"10dd104c":"10dd10f3"),10,choice);
     end(graph);end(graph);graph.u16(1);graph.u32(0);container(path,graph);
+}
+inline void writeDrawStyle(const QString& path,const QString& reference,unsigned flags,bool big=false,unsigned version=1) {
+    Bytes graph(big);element(graph,type("10dd103e"),1,partition(big,QString(),{2},{20}));
+    element(graph,type("10dd103e"),2,partition(big,reference,{}));
+    Bytes style(big);style.u8(1);style.u8(8);style.u32(0);style.u32(0x3f);style.u8(version);style.u8(flags);
+    element(graph,type("10dd1014"),20,style,3);end(graph);end(graph);graph.u16(1);graph.u32(0);container(path,graph);
 }
 struct MetadataOptions {bool big=false;unsigned integerVersion=1,baseVersion=1,tableVersion=1,stringVersion=1,floatVersion=1;bool duplicateTable=false;};
 inline void writeMetadata(const QString& path,const QString& reference=QString(),MetadataOptions options={}) {

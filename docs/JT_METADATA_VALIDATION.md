@@ -1,6 +1,6 @@
 # JT scalar metadata preservation
 
-19 October 2026, `feature/JT-importer`. Follows the accepted display-selection milestone `b72d2be`. The owner rebuilt the application and confirmed that both metadata fixtures open with the expected 913 vertices and 904 triangles. Together with the automated property-value and ownership checks, this pass is accepted for commit.
+19 October 2026, `feature/JT-importer`. Follows the accepted display-selection milestone `b72d2be`. The owner rebuilt the application and confirmed that both metadata fixtures open with the expected 913 vertices and 904 triangles. Together with the automated property-value and ownership checks, this pass was accepted and committed as `c435335`.
 
 ## Scope
 
