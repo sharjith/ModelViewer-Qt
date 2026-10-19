@@ -2,6 +2,8 @@
 #include "config.h"
 
 #include <QApplication>
+#include <QDialogButtonBox>
+#include <QFile>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPixmap>
@@ -67,6 +69,26 @@ void AboutDialog::setupUI(const QString& graphicsInfo)
 
 	auto* buttonLayout = new QHBoxLayout();
 	buttonLayout->setContentsMargins(18, 12, 18, 18);
+	auto* noticesButton = new QPushButton(tr("Third-Party Notices"), this);
+	connect(noticesButton, &QPushButton::clicked, this, [this] {
+		QDialog dialog(this);
+		dialog.setWindowTitle(tr("Third-Party Notices"));
+		auto* layout = new QVBoxLayout(&dialog);
+		auto* browser = new QTextBrowser(&dialog);
+		browser->setOpenExternalLinks(true);
+		QFile notices(QStringLiteral(":/legal/THIRD_PARTY_NOTICES.md"));
+		if (notices.open(QIODevice::ReadOnly))
+			browser->setMarkdown(QString::fromUtf8(notices.readAll()));
+		else
+			browser->setPlainText(tr("See THIRD_PARTY_NOTICES.md in the installed data directory."));
+		layout->addWidget(browser);
+		auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+		connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+		layout->addWidget(buttons);
+		dialog.resize(720, 520);
+		dialog.exec();
+	});
+	buttonLayout->addWidget(noticesButton);
 	buttonLayout->addStretch(1);
 
 	_closeButton = new QPushButton(tr("Close"), this);
@@ -169,5 +191,9 @@ QString AboutDialog::buildDetailsHtml(const QString& graphicsInfo) const
 		.arg(tr("Environment maps in the LDRI set: Emil Persson (Humus), CC BY 3.0. "
 			"Carbon Fiber material: &quot;Carbon Fibre Ball&quot; by Eric Chadwick, &copy; 2023 Wayfair, via the Khronos glTF Sample Assets, CC BY 4.0. "
 			"Most other textures and HDRI maps are CC0 (ambientCG, Poly Haven, 3dtextures.me, TextureCan). "
+			"3DXML XML-tessellation reference: cad-in-unity (Apache-2.0); no C# source bundled. "
+			"JT reader subset: Open CASCADE JT-Assistant, &copy; OPEN CASCADE SAS, GPL-2.0-or-later (GPLv3 chosen). "
+			"JT reference structures/operators: &copy; 2014 Siemens Product Lifecycle Management Software Inc.; &copy; 2026 Siemens. "
+			"Use Third-Party Notices for importer acknowledgements and licence information. "
 			"The full list is in CREDITS.md and textures/LICENSES.md in the installation folder."));
 }

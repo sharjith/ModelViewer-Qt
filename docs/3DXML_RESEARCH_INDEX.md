@@ -1,5 +1,7 @@
 # 3DXML importer research index
 
+> Consolidated provenance, dated 19 October 2026: [3DXML_PROVENANCE.md](3DXML_PROVENANCE.md). Early source restrictions describe their individual research phases, not the complete branch history.
+
 Work branch: `feature/3dxml-importer`, created from `dev` at the owner's
 request. Research scripts/documentation are versioned here. Application
 implementation is now present; see the [native importer and validation](3DXML_NATIVE_IMPORTER.md).

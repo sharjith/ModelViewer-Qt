@@ -14,6 +14,10 @@
 // Copy of the GNU General Public License is in LICENSE.txt and
 // on <http://www.gnu.org/licenses/>.
 
+// Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
+// see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
+
 #ifndef _JtElement_XTBRep_HeaderFile
 #define _JtElement_XTBRep_HeaderFile
 

@@ -14,8 +14,14 @@
 // Copy of the GNU General Public License is in LICENSE.txt and
 // on <http://www.gnu.org/licenses/>.
 
+// Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
+// see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
+
 #include <JtNode_RangeLOD.hxx>
 #include <JtData_Reader.hxx>
+#include <cmath>
+#include <stdexcept>
 
 IMPLEMENT_STANDARD_HANDLE (JtNode_RangeLOD, JtNode_LOD)
 IMPLEMENT_STANDARD_RTTIEXT(JtNode_RangeLOD, JtNode_LOD)
@@ -37,8 +43,16 @@ Standard_Boolean JtNode_RangeLOD::Read (JtData_Reader& theReader)
   && !theReader.ReadVersion(myVersion))
     return Standard_False;
 
-  return theReader.ReadVec          <Jt_F32> (myVecR)
-      && theReader.ReadUniformStruct<Jt_F32> (myCenter);
+  if (myVersion != 1) throw std::runtime_error("Unsupported JT RangeLOD node version");
+
+  if (!theReader.ReadVec<Jt_F32>(myVecR) || !theReader.ReadUniformStruct<Jt_F32>(myCenter))
+    return Standard_False;
+  for (size_t i = 0; i < myVecR.Count(); ++i)
+    if (!std::isfinite(myVecR[i]) || myVecR[i] < 0 || (i && myVecR[i] < myVecR[i-1]))
+      throw std::runtime_error("Invalid JT RangeLOD range limits");
+  if (!std::isfinite(myCenter.X) || !std::isfinite(myCenter.Y) || !std::isfinite(myCenter.Z))
+    throw std::runtime_error("Invalid JT RangeLOD centre");
+  return Standard_True;
 }
 
 //=======================================================================

@@ -14,6 +14,10 @@
 // Copy of the GNU General Public License is in LICENSE.txt and
 // on <http://www.gnu.org/licenses/>.
 
+// Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
+// see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
+
 #ifndef _JtAttribute_Material_HeaderFile
 #define _JtAttribute_Material_HeaderFile
 
@@ -41,6 +45,8 @@ public:
   //! JT alpha participates in blending only when the material enables it.
   bool BlendingEnabled() const { return (myDataFlags & 0x0010) != 0; }
 
+  Jt_U16 DataFlags() const { return myDataFlags; }
+
   //! Return specular color.
   const Jt_F32* SpecularColor() const { return mySpecularColor; }
 
@@ -49,6 +55,8 @@ public:
 
   //! Return shininess.
   Jt_F32        Shininess()     const { return myShininess;     }
+
+  Jt_F32 Bumpiness() const { return myBumpiness; }
 
   //! Return reflectivity.
   Jt_F32        Reflectivity()  const { return myReflectivity;  }
@@ -65,6 +73,7 @@ protected:
   Jt_F32 myEmissionColor[4];
   Jt_F32 myShininess;
   Jt_F32 myReflectivity;
+  Jt_F32 myBumpiness;
 };
 
 DEFINE_STANDARD_HANDLE(JtAttribute_Material,JtAttribute_Base)

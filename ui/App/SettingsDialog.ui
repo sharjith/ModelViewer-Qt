@@ -291,6 +291,19 @@ all at once</string>
            </property>
           </widget>
          </item>
+         <item row="11" column="0" colspan="2">
+          <widget class="QCheckBox" name="checkPurgeRedundantNodes">
+           <property name="toolTip">
+            <string>Automatically purge redundant single-mesh wrapper nodes after loading a model. Animated hierarchies are preserved. Applies to subsequent loads.</string>
+           </property>
+           <property name="text">
+            <string>Purge Redundant Nodes</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
          <item row="10" column="0">
           <widget class="QLabel" name="labelNavigationTreeFontSize">
            <property name="text">
@@ -2247,6 +2260,7 @@ The panel shows GPU-side texture bindings for the selected mesh.</string>
   <tabstop>buttonResetUVPrompt</tabstop>
   <tabstop>checkProgressiveLoading</tabstop>
   <tabstop>checkAnimateProgressiveFit</tabstop>
+  <tabstop>checkPurgeRedundantNodes</tabstop>
   <tabstop>vsyncCheckBox</tabstop>
   <tabstop>enableLoggingCheckBox</tabstop>
   <tabstop>logLevelComboBox</tabstop>

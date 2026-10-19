@@ -14,6 +14,10 @@
 // Copy of the GNU General Public License is in LICENSE.txt and
 // on <http://www.gnu.org/licenses/>.
 
+// Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
+// see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
+
 #include <JtAttribute_Material.hxx>
 #include <JtData_Reader.hxx>
 
@@ -51,7 +55,7 @@ namespace
 //purpose  :
 //=======================================================================
 JtAttribute_Material::JtAttribute_Material()
-  : myVersion (0) {}
+  : myVersion (0), myReflectivity (0), myBumpiness (1) {}
 
 //=======================================================================
 //function : Read
@@ -66,6 +70,8 @@ Standard_Boolean JtAttribute_Material::Read (JtData_Reader& theReader)
   && !theReader.ReadVersion(myVersion))
     return Standard_False;
 
+  if (theReader.Model()->MajorVersion() >= 10 && myVersion != 1) throw std::runtime_error("Unsupported JT material attribute version");
+
   if (!theReader.ReadU16 (myDataFlags)
    || !readColor (theReader, myAmbientColor , (myDataFlags & 3) == 3)
    || !readColor (theReader, myDiffuseColor)
@@ -74,9 +80,11 @@ Standard_Boolean JtAttribute_Material::Read (JtData_Reader& theReader)
    || !theReader.ReadF32 (myShininess))
     return Standard_False;
 
-  if (myVersion == 2
+  if ((myVersion == 2 || theReader.Model()->MajorVersion() >= 10)
   && !theReader.ReadF32 (myReflectivity))
     return Standard_False;
+
+  if (theReader.Model()->MajorVersion() >= 10 && !theReader.ReadF32(myBumpiness)) return Standard_False;
 
   return Standard_True;
 }

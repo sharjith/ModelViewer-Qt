@@ -16,6 +16,9 @@
 #include <iostream>
 #include <vector>
 
+void sceneTests();
+void containerTests(const QString& samples);
+
 namespace {
 void require(bool value,const char* message) {if(!value) throw std::runtime_error(message);}
 template<class F> void fails(F action) {bool failed=false;try{action();}catch(const std::exception&){failed=true;}require(failed,"Expected rejected input");}
@@ -36,11 +39,15 @@ void attributeTests() {
         b.push_back(1);b.push_back(blending ? 0x10 : 0);b.push_back(0);
         for(float v:{0.2f,0.2f,0.2f,1.0f, 0.3f,0.5f,0.7f,0.25f,
                      0.75f,0.75f,0.75f,1.0f, 0.0f,0.0f,0.0f,1.0f, 15.0f}) f32(b,v);
+        f32(b,0.0f); f32(b,1.0f); // JT 10 reflectivity and bumpiness
         Reader reader(b);JtAttribute_Material material;
-        require(material.Read(reader),"JT material read failed");
+        require(material.Read(reader) && reader.pos==b.size(),"JT material read failed or fields left unread");
         const auto c=material.DiffuseColor();
         require(c[0]==0.3f && c[1]==0.5f && c[2]==0.7f && c[3]==0.25f,"JT material header shifted RGBA fields");
         require(material.BlendingEnabled()==blending,"JT blending flag mismatch");
+        auto bad=b;bad[0]=2;Reader unknownBase(bad);JtAttribute_Material unsupported;
+        fails([&]{unsupported.Read(unknownBase);});
+        bad=b;bad[10]=2;Reader unknownMaterial(bad);fails([&]{unsupported.Read(unknownMaterial);});
     }
     std::vector<uint8_t> b{1,8};u32(b,0);u32(b,0x01234567);
     b.insert(b.end(),{1,0,0}); // Transform version and identity-mask.
@@ -75,6 +82,7 @@ void codecTests() {
 }
 unsigned occurrences(const aiNode* n) {unsigned count=n->mNumMeshes;for(unsigned i=0;i<n->mNumChildren;++i)count+=occurrences(n->mChildren[i]);return count;}
 void samples(const QString& dir) {
+    containerTests(dir);
     const char* names[]={"Bolt","Brake_Disk","Caliper","Rim","Tire"};
     const unsigned expectedTriangles[]={904,13324,1400,14156,16018};
     const unsigned expectedVertices[]={913,13146,1632,10526,16301};
@@ -115,6 +123,6 @@ void samples(const QString& dir) {
 }
 int main(int argc,char** argv) {
     QCoreApplication app(argc,argv);
-    try {codecTests();attributeTests();if(argc==2)samples(QString::fromLocal8Bit(argv[1]));std::cout<<"JT tests passed\n";return 0;}
+    try {codecTests();attributeTests();sceneTests();containerTests({});if(argc==2)samples(QString::fromLocal8Bit(argv[1]));std::cout<<"JT tests passed\n";return 0;}
     catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}
 }

@@ -1,5 +1,7 @@
 # 3DXML research continuation and importer plan
 
+> Consolidated provenance, dated 19 October 2026: [3DXML_PROVENANCE.md](3DXML_PROVENANCE.md). Early source restrictions describe their individual research phases, not the complete branch history.
+
 > Start at the [research index](3DXML_RESEARCH_INDEX.md) for current results.
 > [Scene graph conventions](3DXML_scene_graph_spec.md) supersede earlier axis
 > hypotheses and specify matrix construction, occurrences and visibility.

@@ -207,4 +207,7 @@
         <file>themes/SolarizedDark.qss</file>
         <file>themes/SolarizedLight.qss</file>
     </qresource>
+    <qresource prefix="/legal">
+        <file alias="THIRD_PARTY_NOTICES.md">THIRD_PARTY_NOTICES.md</file>
+    </qresource>
 </RCC>

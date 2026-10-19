@@ -1,5 +1,7 @@
 # 3DXML published specification research
 
+> Consolidated provenance, dated 19 October 2026: [3DXML_PROVENANCE.md](3DXML_PROVENANCE.md). Early source restrictions describe their individual research phases, not the complete branch history.
+
 Research date: 2026-10-18. This pass changes documentation only.
 
 ## Finding

@@ -4,6 +4,14 @@ Research date: 18 October 2026. Initial JT 10.0 tessellation implementation and 
 
 Follow-up research and concrete milestones: [JT/Parasolid implementation scope](JT_PARASOLID_IMPLEMENTATION_SCOPE.md), [standalone Parasolid assessment](PARASOLID_IMPORT_RESEARCH.md), and [bounded local sample inventory](JT_PARASOLID_SAMPLE_INVENTORY.json).
 
+## Current provenance and distribution status (19 October 2026)
+
+The implemented subset comes from the official Open CASCADE repository at [verified commit e859e8c2d809f9d9468e6211eba0052f433978ee](https://github.com/Open-Cascade-SAS/JT-Assistant/commit/e859e8c2d809f9d9468e6211eba0052f433978ee), not from the earlier mirror candidate. It contains 104 upstream-derived files retaining GPLv2-or-later notices and seven original ModelViewer decoder source/header files. See [modification notices](../third_party/occt-jt/MODIFICATIONS.md), the [per-file manifest](../third_party/occt-jt/PROVENANCE.json) and [shipped notices](../THIRD_PARTY_NOTICES.md). GPLv3 is selected for the combined application. Binary releases must provide corresponding source in a manner allowed by GPLv3 section 6; an undated README or credits entry alone is insufficient.
+
+About displays the importer credits and embeds the notices. CMake installs the notices and applicable licence/provenance files; the Windows installer includes the installed data tree. These measures address notice delivery, not patent freedom-to-operate. No requirement to repeat the full notice in every installer UI screen is inferred from the inspected reference terms.
+
+The candidate evaluation and proposed milestones below are historical research, not a statement that implementation is absent. See [native importer status](JT_NATIVE_IMPORTER.md) for current capabilities. No complete IP clearance is claimed; the format-reference permission, source-code licences, sample rights and patent rights are separate.
+
 ## Recommendation
 
 A native JT visualization reader is a credible route without purchasing a Siemens CAD seat or JT Open Toolkit license. Siemens explicitly permits independently written JT-reading/display applications and publishes a limited royalty-free patent grant. Those permissions have conditions: this is not a claim that JT has no licenses or that every possible implementation is cleared of all third-party rights.
@@ -45,7 +53,7 @@ Native candidate examined: [cbsghost/oce-jt](https://github.com/cbsghost/oce-jt)
 - `TKJT/src/JtDecode/JtDecode_BitReader.cxx`.
 - `TKJT/src/JtDecode/JtDecode_Int32CDP.cxx`.
 
-This was a limited inspection, not a whole-project clearance. Its age, older OCE/Qt dependencies and modern file-version coverage need evaluation before adoption. No third-party implementation code has been added to ModelViewer by this research.
+This was a limited inspection, not a whole-project clearance. Its age, older OCE/Qt dependencies and modern file-version coverage need evaluation before adoption. No third-party implementation code was added during that initial candidate-research phase; the later implementation vendors the official subset identified above.
 
 Follow-up: a complete header scan of the pinned archive's 106 TKJT C/C++ source/header files found GPLv2-or-later notices in all of them. This is stronger evidence than the initial samples, but not a full dependency/provenance audit. Code inspection found old 32-bit TOC-offset handling, whereas the current 10.6 reference specifies 64-bit offsets, and an explicit unimplemented TopoMesh decoding path. Reuse must be selective and version-qualified; it is not a ready-made current JT reader.
 
@@ -83,7 +91,7 @@ Keep the existing XCAF reader ordering. The present dispatch in `src/Import/AssI
 4. Compare assembly placement and visible geometry against JT2Go, with quantitative bounds, triangle/occurrence counts and normal checks. Test inherited colors after geometry and hierarchy.
 5. Add unsupported-version diagnostics and malformed-input coverage; publish an explicit compatibility matrix. Only then integrate and test the normal open/import workflow.
 
-No runtime tests were performed because this pass adds only research documentation. No importer capability is claimed as implemented.
+The initial research-only phase performed no runtime tests. The later implementation and tests are recorded in JT_NATIVE_IMPORTER.md.
 
 ## Evidence provenance
 

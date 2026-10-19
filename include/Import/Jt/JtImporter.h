@@ -8,6 +8,8 @@
 #include <memory>
 #include <stdexcept>
 #include <vector>
+#include <array>
+#include <optional>
 
 namespace Jt {
 struct Cancelled : std::runtime_error { Cancelled():std::runtime_error("Model loading cancelled by user.") {} };
@@ -16,6 +18,9 @@ struct Options {
     std::function<void(const QString&,int,int)> progress;
     // Optional independently licensed XT backend. Empty in the native mesh-only build.
     std::function<TopoDS_Shape(const QByteArray&)> exactDecoder;
+    // Optional import-time eye position in JT world coordinates / source units.
+    // Unset selects the first RangeLOD child; this is not runtime LOD switching.
+    std::optional<std::array<double,3>> lodEyePoint;
     void check() const { if(cancelled && cancelled()) throw Cancelled(); }
 };
 struct ImportResult {

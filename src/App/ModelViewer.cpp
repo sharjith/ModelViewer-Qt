@@ -4267,7 +4267,8 @@ namespace
 		for (SceneNode* child : children)
 			purgeNodeRecursive(sceneGraph, viewport, child, promotions);
 
-		if (node->children.size() != 1 || !node->meshUuids.isEmpty())
+		// Keep the file boundary and its import correction/unit metadata intact.
+		if (node->isSynthetic || node == sceneGraph->root() || node->children.size() != 1 || !node->meshUuids.isEmpty())
 			return;
 
 		SceneNode* onlyChild = node->children.first();
@@ -4279,6 +4280,8 @@ namespace
 		entry.survivorNode = node;
 		entry.eliminatedNode = onlyChild;
 		entry.meshNameAfter = node->name;
+		entry.survivorTransformBefore = node->localTransform;
+		entry.survivorTransformAfter = node->localTransform * onlyChild->localTransform;
 		if (SceneMesh* mesh = viewport->getMeshByUuid(entry.meshUuid))
 			entry.meshNameBefore = mesh->getName();
 
@@ -4287,6 +4290,7 @@ namespace
 		sceneGraph->restoreMeshUuid(node, entry.meshUuid, node->meshUuids.size());
 
 		sceneGraph->removeChildNode(node, onlyChild, entry.eliminatedPosition);
+		node->localTransform = entry.survivorTransformAfter;
 
 		if (SceneMesh* mesh = viewport->getMeshByUuid(entry.meshUuid))
 			mesh->setName(entry.meshNameAfter);
@@ -4295,7 +4299,25 @@ namespace
 	}
 }
 
-void ModelViewer::purgeRedundantAssemblyNodes(SceneNode* scanRoot)
+void ModelViewer::purgeRedundantNodesAfterLoad(SceneNode* fileNode)
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	if (!settings.value("checkPurgeRedundantNodes", true).toBool())
+		return;
+
+	// Runtime animation bindings refer to the imported node identities. These
+	// nodes are functional, rather than redundant wrappers, even with one child.
+	const QList<SceneNode*> files = fileNode ? QList<SceneNode*>{fileNode} : _sceneGraph->root()->children;
+	for (SceneNode* file : files)
+	{
+		const auto animation = _sceneGraph->animationDataForFile(file->sourceFile);
+		if (!animation.isEmpty() || animation.hasSkinning)
+			continue;
+		purgeRedundantAssemblyNodes(file, true);
+	}
+}
+
+void ModelViewer::purgeRedundantAssemblyNodes(SceneNode* scanRoot, bool automatic)
 {
 	if (!scanRoot)
 		scanRoot = _sceneGraph->root();
@@ -4313,16 +4335,20 @@ void ModelViewer::purgeRedundantAssemblyNodes(SceneNode* scanRoot)
 	if (promotions.isEmpty())
 	{
 		QApplication::restoreOverrideCursor();
-		MainWindow::showStatusMessage(tr("Nothing to purge - no redundant single-mesh sub-assembly nodes found."));
+		if (!automatic)
+			MainWindow::showStatusMessage(tr("Nothing to purge - no redundant single-mesh sub-assembly nodes found."));
 		return;
 	}
 
 	updateDisplayList();
 	_undoStack->push(new PurgeRedundantNodesCommand(this, _viewportWidget, promotions, originalSelection));
+	if (automatic)
+		setSelectionWithoutUndo(originalSelection);
 
 	QApplication::restoreOverrideCursor();
 
-	MainWindow::showStatusMessage(tr("Purged %1 redundant node(s).").arg(promotions.size()));
+	if (!automatic)
+		MainWindow::showStatusMessage(tr("Purged %1 redundant node(s).").arg(promotions.size()));
 }
 
 void ModelViewer::openShrinkWrapDialog()
@@ -7228,6 +7254,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 
 	restoreSimulationSessions(result.simulationRestores);
 	restorePlot3DSessions(result.plot3DRestores, result.plot3DActiveMesh);
+	purgeRedundantNodesAfterLoad();
 
 	MainWindow::hideProgressBar();
 	return true;

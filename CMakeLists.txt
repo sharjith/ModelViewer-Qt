@@ -976,8 +976,12 @@ install(DIRECTORY fonts shaders themes data
 
 # Third-party credits and texture sources. Several shipped assets are CC BY (attribution required), so the installer and the .deb carry the credit
 # files alongside the data they describe (the About dialog points here as well).
-install(FILES CREDITS.md
+install(FILES CREDITS.md THIRD_PARTY_NOTICES.md gpl-3.0.txt
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}"
+)
+install(FILES third_party/occt-jt/LICENSE.txt third_party/occt-jt/README.md
+              third_party/occt-jt/MODIFICATIONS.md third_party/occt-jt/PROVENANCE.json
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/licenses/occt-jt"
 )
 install(FILES textures/LICENSES.md
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/textures"

@@ -1,3 +1,5 @@
+// Original ModelViewer-Qt addition, 2026-10-18; provenance recorded 2026-10-19.
+// Copyright (C) 2026 ModelViewer-Qt contributors. SPDX-License-Identifier: GPL-3.0-only
 // ModelViewer additions, GPLv3. JT third-generation bitlength decoding.
 #pragma once
 #include <JtDecode_Int32CDP_Bits.hxx>

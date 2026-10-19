@@ -14,6 +14,10 @@
 // Copy of the GNU General Public License is in LICENSE.txt and
 // on <http://www.gnu.org/licenses/>.
 
+// Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
+// see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
+
 #include <JtData_Model.hxx>
 #include <JtData_FileReader.hxx>
 #include <JtData_Inflate.hxx>
@@ -460,6 +464,7 @@ Standard_Boolean JtData_Model::readElements (JtData_Reader&               theRea
     // if an object of a known type is read, store it
     if (!anObject->IsInstance (STANDARD_TYPE (JtData_Object)))
     {
+      if (theMap.IsBound(anObjectID)) throw std::runtime_error("Duplicate JT object ID");
       theMap.Bind (anObjectID, anObject);
       if (theFirstObject.IsNull())
         theFirstObject = anObject;
@@ -502,6 +507,8 @@ Standard_Boolean JtData_Model::readElement (JtData_Reader&         theReader,
     anObjectTypeID.ToString (aGuidString);
     TRACE ("Info: Reading element with GUID " + aGuidString);
   }
+
+  if(anObjectTypeID != EOEMarkerGUID && (anElemLength<21 || anElemLength>512*1024*1024)) throw std::runtime_error("Invalid JT element envelope");
 
   // Classify and create the object
   const JtData_Object::ClassInfo* aClassInfo = JtData_Object::FindClass (anObjectTypeID);

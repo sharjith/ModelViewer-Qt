@@ -14,6 +14,10 @@
 // Copy of the GNU General Public License is in LICENSE.txt and
 // on <http://www.gnu.org/licenses/>.
 
+// Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
+// see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
+
 #ifndef _JtAttribute_Base_HeaderFile
 #define _JtAttribute_Base_HeaderFile
 
@@ -31,6 +35,11 @@ public:
 
   //! Dump this entity.
   Standard_EXPORT virtual Standard_Integer Dump (Standard_OStream& theStream) const;
+
+  bool AccumulationIgnored() const { return (myStateFlags & 0x04) != 0; }
+  bool AccumulationForced() const { return (myStateFlags & 0x02) != 0; }
+  Jt_U32 FieldInhibitFlags() const { return myFieldInhibitFlags; }
+  Jt_U32 FieldFinalFlags() const { return myFieldFinalFlags; }
 
   DEFINE_STANDARD_RTTIEXT(JtAttribute_Base, JtData_Object)
 

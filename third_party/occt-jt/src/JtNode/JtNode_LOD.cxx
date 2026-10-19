@@ -14,6 +14,10 @@
 // Copy of the GNU General Public License is in LICENSE.txt and
 // on <http://www.gnu.org/licenses/>.
 
+// Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
+// see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
+
 #include <JtNode_LOD.hxx>
 #include <JtData_Reader.hxx>
 
@@ -36,6 +40,8 @@ Standard_Boolean JtNode_LOD::Read (JtData_Reader& theReader)
   if (theReader.Model()->MajorVersion() > 8
   && !theReader.ReadVersion(myVersion))
     return Standard_False;
+
+  if (myVersion != 1) throw std::runtime_error("Unsupported JT LOD node version");
 
   Jt_VecF32 aReservedVec;
   Jt_F32    aReservedVal;

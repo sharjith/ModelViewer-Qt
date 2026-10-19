@@ -2,13 +2,19 @@
 
 Work on `feature/JT-importer`, 18 October 2026. Uncommitted implementation; exact Parasolid conversion is not implemented.
 
+## Follow-up: assembly and attribute work (19 October 2026)
+
+The subsequent [Switch and RangeLOD pass](JT_DISPLAY_SELECTION_VALIDATION.md) adds authored Switch choices and optional distance-based import selection, with transactional display fallback. The viewer retains static first-child RangeLOD selection unless an API caller supplies an eye point; runtime LOD switching is not implemented.
+
+See [assembly/attribute validation](JT_ASSEMBLY_ATTRIBUTE_VALIDATION.md) for the current implementation and test matrix. It adds field-aware material and transform inheritance, resource sharing, nested external-partition tests and transactional representation fallback. The historical initial-scope descriptions below should be read with that follow-up. Version acceptance remains JT 10.0; no XT conversion has been added.
+
 ## Current behavior
 
 `Jt::Importer` in `include/Import/Jt/JtImporter.h` and `src/Import/Jt/JtImporter.cpp` produces an owned Assimp scene. The normal open/import dispatch is XCAF, 3DXML, JT, then Assimp. JT is added to the file dialog. The existing loader builds render meshes and the scene tree from this scene and counts mesh occurrences for progress. JT cancellation uses the native-import rollback path.
 
-The native decoder accepts JT 10.0 only. It handles the sampled LZMA/XZ segments, 64-bit TOC offsets, logical scene graph and TopoMesh tessellation, including mark-3 integer packets, binary coordinates and packed Deering normals. Only one display LOD is selected; currently the first LOD child. All three LODs in each downloaded part were separately decoded during development.
+The native decoder accepts JT 10.0 only. It handles the sampled LZMA/XZ segments, 64-bit TOC offsets, logical scene graph and TopoMesh tessellation, including mark-3 integer packets, binary coordinates and packed Deering normals. Only one usable display LOD is selected, trying children in source order. An ordinary JT LOD list does not imply a highest-detail order. All three LODs in each downloaded part were separately decoded during development.
 
-Scene construction retains local transforms, group/instance nodes, names, inherited diffuse appearance and hidden state. Geometry can be shared across occurrences with the same appearance. External partitions are restricted to the assembly folder and its descendants and resolved relative to the referring file. These assembly paths need real assembly fixtures before being considered qualified. Per-face material palettes, PMI, textures and universal JT version coverage are outside this initial implementation.
+Scene construction retains local transforms, group/instance nodes, names, inherited diffuse appearance and hidden state. Geometry can be shared across occurrences with the same appearance. External partitions are restricted to the assembly folder and its descendants and resolved relative to the referring file. Synthetic and local-part-backed assembly fixtures now exercise these paths; diverse real assemblies and independent comparison remain required for broader qualification. Per-face material palettes, PMI, textures and universal JT version coverage are outside this initial implementation.
 
 ## Exact geometry and fallback
 

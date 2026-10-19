@@ -301,6 +301,7 @@ void SettingsDialog::applySettings()
 	settings.setValue("spinBoxUndoLimit", general_undoLimit);
     settings.setValue("checkProgressiveLoading", general_progressiveLoading);
     settings.setValue("checkAnimateProgressiveFit", general_animateProgressiveFit);
+    settings.setValue("checkPurgeRedundantNodes", general_purgeRedundantNodes);
     settings.setValue("spinBoxNavigationTreeFontSize", general_navigationTreeFontSize);
 
     // Camera tab
@@ -443,6 +444,7 @@ void SettingsDialog::setDefaultValues()
 	ui->spinBoxUndoLimit->setValue(50);           // Explicitly set
     ui->checkProgressiveLoading->setChecked(false);
     ui->checkAnimateProgressiveFit->setChecked(true);
+    ui->checkPurgeRedundantNodes->setChecked(true);
     // Matches whatever the app is ACTUALLY currently showing rather than a
     // hardcoded guess - there's no prior explicit override anywhere in this
     // codebase (SceneTreeWidget never calls setFont() today), so "the
@@ -635,6 +637,7 @@ void SettingsDialog::syncStateFromUi()
     general_undoLimit = ui->spinBoxUndoLimit->value();
     general_progressiveLoading = ui->checkProgressiveLoading->isChecked();
     general_animateProgressiveFit = ui->checkAnimateProgressiveFit->isChecked();
+    general_purgeRedundantNodes = ui->checkPurgeRedundantNodes->isChecked();
     general_navigationTreeFontSize = ui->spinBoxNavigationTreeFontSize->value();
 
     // Camera tab
@@ -758,6 +761,7 @@ void SettingsDialog::loadSettings()
     ui->checkProgressiveLoading->setChecked(bVal);
     bVal = settings.value("checkAnimateProgressiveFit", ui->checkAnimateProgressiveFit->isChecked()).toBool();
     ui->checkAnimateProgressiveFit->setChecked(bVal);
+    ui->checkPurgeRedundantNodes->setChecked(settings.value("checkPurgeRedundantNodes", true).toBool());
     // Fallback is the live QApplication font size, not ui->spinBoxNavigationTreeFontSize->value()
     // (the .ui file's static design-time placeholder) - setDefaultValues() is only ever invoked
     // from the "Restore Defaults" button, never at construction, so on a fresh install (no saved
@@ -995,6 +999,7 @@ void SettingsDialog::restoreDefaults()
         ui->comboBoxTheme, ui->comboBoxLanguage,
 		ui->checkRestoreLastFile, ui->checkTooltips, ui->checkConfirmExit, ui->checkTutorialLaunch, ui->spinBoxUndoLimit,
 		ui->checkProgressiveLoading,
+        ui->checkPurgeRedundantNodes,
         ui->comboProjectionMode, ui->comboDefaultView, ui->comboDefaultProjection,
         ui->comboCameraUpAxis,
         ui->checkInvertZoom,
@@ -1429,6 +1434,11 @@ void SettingsDialog::on_checkProgressiveLoading_stateChanged()
 void SettingsDialog::on_checkAnimateProgressiveFit_stateChanged()
 {
     general_animateProgressiveFit = ui->checkAnimateProgressiveFit->isChecked();
+}
+
+void SettingsDialog::on_checkPurgeRedundantNodes_stateChanged()
+{
+    general_purgeRedundantNodes = ui->checkPurgeRedundantNodes->isChecked();
 }
 
 void SettingsDialog::on_spinBoxNavigationTreeFontSize_valueChanged()
