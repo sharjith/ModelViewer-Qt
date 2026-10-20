@@ -5,6 +5,8 @@
 #include <QEventLoop>
 #include <QMessageBox>
 #include <QFileDialog>
+#include <QFileInfo>
+#include <QDir>
 #include <QSettings>
 #include <QSignalBlocker>
 #include <QInputDialog>
@@ -54,6 +56,8 @@
 #include <QTabWidget>
 #include <QSplitter>
 #include <QTabBar>
+#include <QHelpEvent>
+#include <QToolTip>
 #include <QSet>
 #include <QStyle>
 #include <QScrollArea>
@@ -177,6 +181,8 @@ MainWindow::MainWindow(QWidget* parent)
 		_mdiArea->setTabsClosable(true);
 		_mdiArea->setTabsMovable(true);
 		_mdiArea->setTabPosition(QTabWidget::North);
+		if (auto* tabBar = _mdiArea->findChild<QTabBar*>())
+			tabBar->installEventFilter(this);
 
 		// _rightPanelWindow hosts the Document/Properties/Environment docks (added further below) instead of this
 		// outer MainWindow - see _rightPanelWindow's own doc comment (header) for why. Qt::Widget clears the Window
@@ -1124,6 +1130,34 @@ ModelViewer* MainWindow::createMdiChild()
 	}
 
 	return viewer;
+}
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* event)
+{
+	if (event->type() == QEvent::ToolTip)
+	{
+		auto* tabBar = qobject_cast<QTabBar*>(watched);
+		if (tabBar && _mdiArea && tabBar->parentWidget() == _mdiArea)
+		{
+			auto* helpEvent = static_cast<QHelpEvent*>(event);
+			const int index = tabBar->tabAt(helpEvent->pos());
+			// QMdiArea keeps this order in sync when tabs are moved or closed.
+			const auto windows = _mdiArea->subWindowList(QMdiArea::CreationOrder);
+			if (index >= 0 && index < windows.size())
+			{
+				auto* viewer = qobject_cast<ModelViewer*>(windows.at(index)->widget());
+				if (viewer && !viewer->currentFile().isEmpty())
+				{
+					const QString path = QDir::toNativeSeparators(QFileInfo(viewer->currentFile()).absoluteFilePath());
+					QToolTip::showText(helpEvent->globalPos(), path, tabBar, tabBar->tabRect(index));
+					return true;
+				}
+			}
+			QToolTip::hideText();
+			return true;
+		}
+	}
+	return QMainWindow::eventFilter(watched, event);
 }
 
 QMdiSubWindow* MainWindow::createDocumentSubWindow(ModelViewer* viewer)

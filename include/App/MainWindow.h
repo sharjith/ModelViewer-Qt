@@ -132,6 +132,7 @@ public:
 	static void writeRecentFiles(const QStringList& files, QSettings& settings);
 
 protected:
+	bool eventFilter(QObject* watched, QEvent* event) override;
 	MainWindow(QWidget* parent = Q_NULLPTR);
 	void showEvent(QShowEvent* event);
 	void closeEvent(QCloseEvent* event);
