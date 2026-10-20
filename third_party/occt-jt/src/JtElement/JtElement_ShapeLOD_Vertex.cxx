@@ -244,6 +244,7 @@ Standard_Boolean JtElement_ShapeLOD_Vertex::readVertexShapeLODData (
   JtData_Reader&   theReader,
   Standard_Boolean theIsTriStripSet)
 {
+  myExplicitEmpty=false;
   myIndices.Free();myFaceGroups.Free();
   myVertices.Free();
   myNormals.Free();
@@ -458,7 +459,11 @@ Standard_Boolean JtElement_ShapeLOD_Vertex::readTopologicallyCompressedData (JtD
     return Standard_False;
 
   IndicesVec aVertexIndices, aNormalIndices;
-  aDecodeTasks.Run (MeshDecodeTask (aMeshData, aVertexIndices, aNormalIndices, myFaceGroups));
+  bool emptyTopology=true;
+  for(unsigned i=0;i<8;++i)emptyTopology=emptyTopology && aMeshData->_viOutDegSyms[i].GetOutValCount()==0 && aMeshData->_vvuOutAttrMasks[i].GetOutValCount()==0;
+  for(const auto* packet:{&aMeshData->_vviOutValSyms,&aMeshData->_viOutFGrpSyms,&aMeshData->_vuOutFaceFlags,&aMeshData->_faceAttributeMask8_30,&aMeshData->_vuOutAttrMasksLrg,&aMeshData->_viOutSplitVtxSyms,&aMeshData->_viOutSplitPosSyms})
+    emptyTopology=emptyTopology && packet->GetOutValCount()==0;
+  if(!aMeshData->modernMasks)emptyTopology=emptyTopology && aMeshData->_faceAttributeMask8_4.GetOutValCount()==0;
 
   ///////////////////////////////////////////////////////////////////
   // Topologically Compressed Vertex Records data collection
@@ -477,13 +482,20 @@ Standard_Boolean JtElement_ShapeLOD_Vertex::readTopologicallyCompressedData (JtD
   }
 
   if (aNumberOfVert == 0)
+  {
+    if(!emptyTopology)
+      throw std::runtime_error("Zero-count JT coordinates have nonempty topology");
+    myExplicitEmpty=true;
     return Standard_True;
+  }
 
   if (!theReader.ReadI32 (aNumberOfAttr))
     return Standard_False;
 
   if(aNumberOfVert<0 || aNumberOfVert>16000000 || aNumberOfAttr<0 || aNumberOfAttr>16000000)
     throw std::runtime_error("Invalid JT topological vertex/attribute count");
+
+  aDecodeTasks.Run (MeshDecodeTask (aMeshData, aVertexIndices, aNormalIndices, myFaceGroups));
 
   Standard_Boolean aCoordsPresent = (aVertexBindings.NbVertexCoordComponents() > 0);
   Standard_Boolean aNormalsPresent = aVertexBindings.IsNormalBinding();

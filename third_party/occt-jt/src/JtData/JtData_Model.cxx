@@ -16,7 +16,8 @@
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
 // Additional bounded palette/face-group qualification changes: 2026-10-20.
-// JT 9.5 qualification and shared attribute/codec bounds updated: 2026-10-20.
+// JT 10.5/10.7/10.8/10.10 shared modern-family qualification: 2026-10-20.
+// JT 9.0/9.5 qualification and shared attribute/codec bounds updated: 2026-10-20.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -109,11 +110,12 @@ Handle(JtNode_Partition) JtData_Model::Init()
   myMajorVersion = aMajorVersionStr.IntegerValue();
   myMinorVersion = aMinorVersionStr.IntegerValue();
   // Qualified 8.x lossless layout family; geometry codecs are checked separately.
+  // Qualified 9.0/9.5 share the transitional decoder; local versions remain checked.
   // The observed 10.9 palette family is qualified independently of later versions.
   const bool legacy8Family=myMajorVersion==8 && myMinorVersion>=0 && myMinorVersion<=2;
-  if(!((myMajorVersion==10 && (myMinorVersion==0 || myMinorVersion==3 || myMinorVersion==9)) || legacy8Family || (myMajorVersion==9 && myMinorVersion==5)))
+  if(!((myMajorVersion==10 && (myMinorVersion==0 || myMinorVersion==3 || myMinorVersion==5 || myMinorVersion==7 || myMinorVersion==8 || myMinorVersion==9 || myMinorVersion==10)) || legacy8Family || (myMajorVersion==9 && (myMinorVersion==0 || myMinorVersion==5))))
     throw std::runtime_error("Unsupported JT version "+std::to_string(myMajorVersion)+"."+
-      std::to_string(myMinorVersion)+"; native reader supports qualified JT 8.0-8.2, JT 9.5, JT 10.0, JT 10.3 and JT 10.9 subsets");
+      std::to_string(myMinorVersion)+"; native reader supports qualified JT 8.0-8.2, JT 9.0, JT 9.5, JT 10.0, JT 10.3, JT 10.5, JT 10.7, JT 10.8, JT 10.9 and JT 10.10 subsets");
   TRACE ("\n\nInfo: File version = " + myMajorVersion + "." + myMinorVersion);
 
   // Read byte order

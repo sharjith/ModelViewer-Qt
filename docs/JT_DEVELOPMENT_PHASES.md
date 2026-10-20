@@ -15,6 +15,8 @@ The staged visualization target is **JT 6.4–10.11**. Execution priority, updat
 
 ## Current gate
 
+**Latest checkpoint, 20 October:** the owner confirmed both authentic 10.10 assemblies look good, accepting sampled [Gate 5a](JT_1010_VALIDATION.md) display and the engine material correction. Earlier sampled 9.0, 10.5, 10.7/10.8 and 10.9 results remain accepted as recorded in their validation reports. The next forward target is 10.11; an authentic input remains unavailable. Missing intermediate revisions and pre-8 qualification remain future work. Outstanding Gate 3b mask-fixture checks, release readiness and the separate original 10.9 production-system comparison are not inferred complete. Earlier chronological checkpoints follow below.
+
 **Gates 0 and 1 accepted, 19 October 2026.** The owner reported “Tests passed, commit, push, and proceed” for the shared legacy quantized follow-up. See [implementation and validation](JT_LEGACY_QUANTIZED_VALIDATION.md). Phase 2 is split at two owner gates: [Gate 2a attribute-envelope foundations](JT_MODERN_ATTRIBUTE_VALIDATION.md), then Gate 2b palette/face-group rendering and 10.9 qualification. The owner accepted Gate 2a on 20 October 2026 with “All tests passed.” Gate 2b (10.9 palette/face-group rendering) passed native production-path validation and prior-family regressions; see [owner handoff](JT_109_PALETTE_VALIDATION.md). The owner authorized committing/pushing on 20 October 2026 to enable that production-system build; Gate 2b remains pending. Distribution commit `4cb6ebe` is pushed to `origin/feature/JT-importer`. The owner subsequently authorized independent next-stage work while the production-system test is pending: reference/sample acquisition and 10.10/10.11 layout qualification may proceed; do not treat that authorization as acceptance of Gate 2b. Changes that depend on the correctness of 10.9 rendering remain subject to its reported results. The owner prioritizes current-version coverage: qualify 10.10/10.11 when matching lawful evidence and inputs are available. The later owner direction below selects the available 9.5 input in the meantime.
 
 The owner subsequently selected the available 9.5 input for the next implementation pass, while authentic 10.10/10.11 inputs remain unavailable. Phase 3 **Gate 3a: JT 9.5 was accepted on 20 October 2026** when the owner reported “9.5 works”; keep Gate 2b pending independently. Do not infer acceptance of either gate from the other. See [9.5 implementation and owner checklist](JT_95_VALIDATION.md).
@@ -65,3 +67,27 @@ Standalone XT and JT-embedded precise B-Rep conversion remain a separate future 
 ## Latest owner confirmation — 20 October 2026
 
 The owner confirmed successful UI testing of the supplied Solid Edge 10.9 assembly export. This supersedes earlier statements that all Gate 2b UI qualification is pending: sampled 10.9 display is accepted. The original production-system palette/face-group comparison remains pending additional coverage; the confirmation does not imply that every such variant was exercised. Gate 3b remains pending independently. Authentic 10.10 exports are now available, while 10.11 inputs remain unavailable. See [10.9 acceptance](JT_109_PALETTE_VALIDATION.md) and the [current expansion plan](JT_POINT_VERSION_EXPANSION.md).
+
+## Additional appearance regression — 20 October 2026
+
+A second owner-exported 10.9 assembly differs in colour from its Solid Edge reimport. The [cross-version investigation](JT_CROSS_VERSION_APPEARANCE_INVESTIGATION.md) records repeated fallback material attributes in three parts and the published list-order rule. Source-derived controls subsequently confirmed that Solid Edge selects the earlier material in the observed duplicate-material shape. A narrow writer/author/record compatibility profile passes native checks, and the owner accepted the ModelViewer colour correction on 20 October with "That fixed"; see the investigation for its guards, opt-out and test paths. This acceptance is specific to the colour correction. The owner confirmed the rough 9.5 oil-pan appearance also occurs in Solid Edge and is an export characteristic. Gate 3b remains pending independently.
+
+**Latest 3c1 follow-up:** owner UI acceptance is recorded for SE9_0. The additional E90 empty-sibling-shape correction passed native tests and the owner subsequently confirmed "Tests passed"; see [9.0 validation](JT_90_VALIDATION.md). Other outstanding checks are not inferred accepted.
+
+**Gate 3e1 handoff:** the available 10.5 export qualifies shared modern containers, Sabot-wrapped attributes, palette maps and stored tessellation. Native evidence and owner tests are in [10.5 validation](JT_105_VALIDATION.md). Stop before 10.7/10.8 implementation until this UI gate is accepted.
+
+**Gate 3e1 appearance follow-up:** an additional 10.5 assembly exposed the matching duplicate-material issue. The guarded exporter profile extension passes native/regression checks; owner colour retest remains pending in [10.5 validation](JT_105_VALIDATION.md).
+
+## Gate 3f handoff — 20 October 2026
+
+The owner confirmed "Fixed" for the 10.5 appearance correction. The available authentic 10.7 and 10.8 assemblies now pass the shared modern decoder, geometry/material/transform comparisons and original LE/BE/malformed-input checks. See [10.7/10.8 validation](JT_107_108_VALIDATION.md). Stop for owner application build/UI confirmation before the available 10.10 qualification. Missing 10.4/10.6 and 10.11 inputs remain unqualified; no continuous version range is inferred. No commit or push requested.
+
+**Gate 3f appearance follow-up:** owner reported purple parts in the additional 10.7/10.8 engine exports. Matching duplicate-material records qualify the two exact exporter signatures for the existing guarded compatibility profile. Native before/after geometry and material checks pass; owner colour retest is pending in [10.7/10.8 validation](JT_107_108_VALIDATION.md). Remain at this gate before 10.10.
+
+## Gate 5a: available JT 10.10 — 20 October 2026
+
+The owner accepted the reported 10.7/10.8 colour corrections and supplied an additional 10.10 engine export during qualification. Qualify both the palette assembly and duplicate-material case with the shared reader. Native evidence, limits and owner checklist are in [10.10 validation](JT_1010_VALIDATION.md). Stop at this application gate; 10.11 still lacks an authentic input. No commit or push requested.
+
+## Gate 5a accepted — 20 October 2026
+
+The owner confirmed "Both engine and vice models look good in 10.10". Both authentic display cases and the engine material correction are accepted. The next forward qualification requires an authentic 10.11 input. Release consolidation, missing intermediate revisions and pre-8 work remain distinct; no full-range or release acceptance is implied. No commit or push requested.

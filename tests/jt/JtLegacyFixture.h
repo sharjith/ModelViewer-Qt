@@ -70,7 +70,7 @@ inline QByteArray bytes(Options o={}) {
     Bytes shapeSegment(big);shapeSegment.guid(shapeId);shapeSegment.u32(7);shapeSegment.u32(24+unsigned(shapeData.data.size()));shapeSegment.append(shapeData);
     const auto zipped=zlib(graph.data);Bytes graphSegment(big);graphSegment.guid(graphId);graphSegment.u32(1);const unsigned graphLength=33+unsigned(zipped.size())-(o.eofSizeQuirk?1:0);graphSegment.u32(graphLength);graphSegment.u32(2);graphSegment.u32(1+unsigned(zipped.size()));graphSegment.u8(2);graphSegment.data+=zipped;
     constexpr unsigned toc=105,shapeOffset=toc+4+2*28;const unsigned graphOffset=shapeOffset+unsigned(shapeSegment.data.size());
-    Bytes file(big);file.data=(QByteArray("Version 8.")+QByteArray::number(o.minorVersion)+" JT original regression fixture").leftJustified(80,' ');file.u8(big?1:0);file.u32(0);file.u32(toc);file.guid(graphId);file.u32(2);
+    Bytes file(big);file.data=(QByteArray("Version 8.")+QByteArray::number(o.minorVersion)+" JT original regression fixture").leftJustified(75,' ')+QByteArray(" \n\r\n ",5);file.u8(big?1:0);file.u32(0);file.u32(toc);file.guid(graphId);file.u32(2);
     file.guid(graphId);file.u32(graphOffset);file.u32(graphLength);file.u32(1u<<24);file.guid(shapeId);file.u32(shapeOffset);file.u32(unsigned(shapeSegment.data.size()));file.u32(7u<<24);
     file.append(shapeSegment);file.append(graphSegment);return file.data;
 }

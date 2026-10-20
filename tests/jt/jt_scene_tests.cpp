@@ -37,6 +37,7 @@ template<class T> struct Node:T {
     void attributes(std::initializer_list<Object> values) {this->myAttributes.Allocate(values.size());size_t i=0;for(const auto& v:values)this->myAttributes[i++]=v;}
     void children(std::initializer_list<Object> values) {this->myChildren.Allocate(values.size());size_t i=0;for(const auto& v:values)this->myChildren[i++]=v;}
     void target(const Object& object) {this->myObject=object;}
+    void emptyCounts(int vertices=0) {this->myHasCountRanges=true;this->myVertexRange[0]=this->myVertexRange[1]=vertices;this->myPolyRange[0]=this->myPolyRange[1]=0;}
     void hidden() {this->myIgnored=true;}
     void select(unsigned index) {this->mySelectedChild=index;}
     void ranges(std::initializer_list<float> values) {this->myVecR.Allocate(values.size());size_t i=0;for(float v:values)this->myVecR[i++]=v;this->myCenter={0,0,0};}
@@ -249,6 +250,20 @@ void transforms() {
     const auto& matrix=scaledResult.scene->mRootNode->mChildren[0]->mTransformation;
     check(matrix.a1==-2 && matrix.b2==3 && matrix.c3==4,"Negative/nonuniform scales were coerced");
 }
+void emptyShapeTests() {
+ struct EmptyLOD:JtElement_ShapeLOD_Vertex {EmptyLOD(bool validated){myExplicitEmpty=validated;}};
+ struct EmptyProperty:JtProperty_LateLoaded {EmptyProperty(bool validated){mySegmentType=7;myDefferedObject=new EmptyLOD(validated);}};
+ for(unsigned kind=0;kind<5;++kind){
+  auto root=node<JtNode_Partition>("root");auto lod=node<JtNode_LOD>("LOD");auto group=node<JtNode_Group>("group");auto empty=node<JtNode_Shape_Base>("placeholder");
+  if(kind!=2)empty->emptyCounts(kind==1?3:0);empty->late({new EmptyProperty(kind!=4)});
+  root->children({lod});lod->children({group});if(kind==3)group->children({empty});else group->children({leaf(),empty});
+  if(kind==1||kind==2){rejected([&]{build(root);},"contradicts advertised");continue;}
+  if(kind==3){rejected([&]{build(root);},"no usable JT LOD");continue;}
+  if(kind==4){rejected([&]{build(root);},"Unsupported/empty JT tessellation");continue;}
+  auto result=build(root);check(result.scene->mNumMeshes==1&&references(*result.scene->mRootNode)==1&&result.storedMeshes==1,"Empty placeholder discarded its real sibling");
+  check(!result.warnings.empty(),"Empty placeholder lacks diagnostic");
+ }
+}
 void lodAndFailures() {
     auto root=node<JtNode_Partition>("root");auto lod=node<JtNode_LOD>("alternatives");auto broken=node<JtNode_Group>("broken");auto partial=leaf("partial");partial->hidden();auto invalid=node<JtNode_Shape_Base>("invalid");invalid->late({new Property(false)});
     root->children({lod});broken->children({partial,invalid});lod->children({broken,leaf("coarser")});
@@ -430,20 +445,20 @@ void drawStyleTests() {
     shape->late({new ZeroProperty(new ZeroTriangle)});shape->attributes({new DrawStyle(0x1a)});
     result=build(root);check(result.scene->mMeshes[0]->mNumFaces==1 && result.scene->mMeshes[0]->mNormals[0].z==1,"Degenerate flat triangle lost finite normals");
 }
-void sceneTests() {inheritance();shininessTests();vertexColorTests();instances();transforms();lodAndFailures();selectionTests();metadataTests();drawStyleTests();std::cout<<"Synthetic JT assembly, shininess, vertex colours, transforms, selection, metadata and draw styles passed\n";}
+void sceneTests() {inheritance();shininessTests();vertexColorTests();instances();transforms();emptyShapeTests();lodAndFailures();selectionTests();metadataTests();drawStyleTests();std::cout<<"Synthetic JT assembly, shininess, vertex colours, transforms, selection, metadata and draw styles passed\n";}
 
 void containerTests(const QString& samples) {
     QTemporaryDir temp;check(temp.isValid(),"Cannot create container directory");
     const auto path=temp.filePath("assembly.jt");
-    for(const char* version:{"6.4","7.0","8.3","9.4","9.6","10.1","10.2","10.4","10.6","10.10","10.11","11.0"}) {
+    for(const char* version:{"6.4","7.0","8.3","9.1","9.2","9.3","9.4","9.6","10.1","10.2","10.4","10.6","10.11","11.0"}) {
         Fixture::write(path,"",false,false);
         QFile file(path);check(file.open(QIODevice::ReadOnly),"Cannot read version fixture");auto bytes=file.readAll();file.close();
-        const auto header=(QByteArray("Version ")+version+" JT original unsupported-version fixture").leftJustified(80,' ');
+        const auto header=(QByteArray("Version ")+version+" JT original unsupported-version fixture").leftJustified(75,' ')+QByteArray(" \n\r\n ",5);
         bytes.replace(0,80,header);check(file.open(QIODevice::WriteOnly) && file.write(bytes)==bytes.size(),"Cannot write version fixture");file.close();
-        const auto message=std::string("Unsupported JT version ")+version+"; native reader supports qualified JT 8.0-8.2, JT 9.5, JT 10.0, JT 10.3 and JT 10.9 subsets";
+        const auto message=std::string("Unsupported JT version ")+version+"; native reader supports qualified JT 8.0-8.2, JT 9.0, JT 9.5, JT 10.0, JT 10.3, JT 10.5, JT 10.7, JT 10.8, JT 10.9 and JT 10.10 subsets";
         rejected([&]{Jt::Importer::read(path);},message.c_str());
     }
-    for(bool big:{false,true}) for(unsigned minor:{0,3,9}) {
+    for(bool big:{false,true}) for(unsigned minor:{0,3,5,7,8,9,10}) {
         Fixture::write(path,"missing.jt",big,true,false,false,minor);
         Handle(JtData_Model) model=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(path.utf16())));
         const auto root=model->Init();check(model->MinorVersion()==int(minor) && !root.IsNull() && root->Children().Count()==2,"Synthetic versioned container graph failed");
@@ -488,7 +503,7 @@ void containerTests(const QString& samples) {
     if(!samples.isEmpty()) {
         check(QFile::copy(QDir(samples).filePath("Bolt.jt"),temp.filePath("parts/leaf.jt")),"Cannot copy local validation part");
         Fixture::write(bridge,"leaf.jt",false,false);
-        for(bool big:{false,true}) for(unsigned minor:{0,3,9}) {
+        for(bool big:{false,true}) for(unsigned minor:{0,3,5,7,8,9,10}) {
             Fixture::write(path,"parts/bridge.jt",big,true,false,false,minor);
             auto result=Jt::Importer::read(path);
             check(result.scene->mNumMeshes==2 && references(*result.scene->mRootNode)==2,"External assembly resources/occurrences mismatch");

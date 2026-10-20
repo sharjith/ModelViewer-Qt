@@ -83,3 +83,23 @@ JtData_Model.cxx now includes the detected major/minor version in unsupported-ve
 ## JT 8.1 follow-up, 19 October 2026
 
 Acceptance now includes the tested JT 8.1 lossless subset as well as JT 10.0. JtData_Model corrects the bounded final-graph length discrepancy seen in sample L81; JtData_Inflate adds complete stream/checksum/output validation and an explicit one-zero-padding allowance for legacy raw vertex blocks. Base/string/scalar property and LOD/RangeLOD guards dispatch older unversioned layouts. Material exposes its legacy layout for nonnegative Phong shininess preservation. The raw vertex decoder is rewritten with checked sizes/reads, explicit unsupported bindings, cancellation and winding reset per strip; CDP1 null/bitlength paths are bounded and unqualified legacy codecs are rejected. TriStrip/vertex LOD local versions are checked. Switch/draw-style readers reject unqualified pre-9 layouts. The original scene adapter diagnoses and reconstructs zero-length stored normals. See docs/JT_81_VALIDATION.md for exact coverage, evidence and pending UI checks. Existing upstream notices remain; this is not a blanket JT 8.x/9.x or exact-XT compatibility claim.
+
+## JT 9.0 qualification, 20 October 2026
+
+`JtData_Model.cxx` enables the independently supplied 9.0 export through the existing 9.x transitional container/record/codec family, retaining explicit rejection of unqualified intermediate revisions. `JtAttribute_Material.cxx` limits 9.0 to the sampled local material version 1, while retaining qualified 9.5 material versions 1/2. No new mesh codec, SDK or source package is introduced. Dated notices and existing upstream GPL terms remain. Original LE/BE graph/malformed-version tests and unchanged authentic export checks are documented in `docs/JT_90_VALIDATION.md`; owner UI acceptance is pending.
+
+## Explicitly empty shape follow-up, 20 October 2026
+
+`JtNode_Shape_Base.cxx/.hxx` retain whether count ranges were successfully read and explicitly advertise zero vertex/polygon ranges. `JtElement_ShapeLOD_Vertex.cxx/.hxx` distinguish a zero-coordinate topological payload only when every serialized topology stream is empty, avoiding access to the absent modern upper-four-bit stream. Nonempty decoding remains shared. The original scene adapter retains only these doubly evidenced empty nodes alongside real geometry; arbitrary/contradictory empty output and empty-only LODs remain errors. No empty render mesh is created. Original LE/BE parser and scene regressions, authentic additional 9.0 assembly evidence and pending UI retest are documented in `docs/JT_90_VALIDATION.md`.
+
+## JT 10.5 qualification, 20 October 2026
+
+`JtData_Model.cxx` enables the authentic 10.5 export through the existing modern container/record/codec implementation. No additional reader class, codec, dependency or translator source is introduced. Twelve Sabot-wrapped indexed material attributes and six palette maps in the supplied assembly exercise the shared implementation against the public Prostep JT 10.5-based reference and owner data. Original LE/BE attribute, palette-tail, material-order and malformed-record cases now include 10.5. See `docs/JT_105_VALIDATION.md` for scope, native results, cross-version comparison and pending owner UI acceptance. Intermediate 10.4/10.6 remain unqualified.
+
+## JT 10.7/10.8 qualification, 20 October 2026
+
+`JtData_Model.cxx` admits the independently supplied 10.7 and 10.8 exports through the existing modern reader. No new codec, scene model, SDK or source package is introduced. Original endian, attribute/palette, fallback rendering and malformed-record tests now exercise these versions. Authentic data and comparisons with the accepted 10.9 export are documented in `docs/JT_107_108_VALIDATION.md`; owner application checks are pending. Existing GPL notices and upstream source hashes are retained. No blanket coverage for other revisions/encodings is claimed.
+
+## JT 10.10 qualification, 20 October 2026
+
+`JtData_Model.cxx` enables independently supplied authentic 10.10 assemblies through the existing modern reader. Original endian, malformed attribute/palette and fallback scene tests now include the two-digit minor revision. No new codec, SDK or translator source is introduced. See `docs/JT_1010_VALIDATION.md` for native evidence and the pending Gate 5a owner checks. Existing upstream notices and GPL terms remain. JT 10.11 remains unqualified. The separate exporter-material profile extension is in original scene-adapter code, not the third-party decoder.

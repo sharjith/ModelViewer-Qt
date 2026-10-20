@@ -12,6 +12,7 @@
 #include <JtNode_Shape_Base.hxx>
 #include <JtElement_ShapeLOD_Vertex.hxx>
 #include <JtProperty_LateLoaded.hxx>
+#include <JtProperty_String.hxx>
 #include <QTemporaryDir>
 #include <QDir>
 #include <assimp/material.h>
@@ -29,6 +30,7 @@ template<class T>struct Node:T {
  void target(Object p){this->myObject=p;}
 };
 struct Material:JtAttribute_Material {
+ void ordinary(){JtAttribute_Base::myVersion=2;myDataFlags=0x3980;}
  Material(int pi,aiColor4D c,unsigned inhibit=0,unsigned finals=0,unsigned state=8){
   myPaletteIndex=pi;myVersion=1;myStateFlags=state;myFieldInhibitFlags=inhibit;myFieldFinalFlags=finals;myDataFlags=0x39a0;
   for(unsigned i=0;i<4;++i){myDiffuseColor[i]=(&c.r)[i];myAmbientColor[i]=0;mySpecularColor[i]=0;myEmissionColor[i]=0;}
@@ -53,6 +55,46 @@ auto leaf(){opencascade::handle<Node<JtNode_Shape_Base>> n=new Node<JtNode_Shape
 struct Occurrence {unsigned mesh;aiMatrix4x4 world;const aiNode* node;};
 std::vector<Occurrence> occurrences(const aiScene& scene){std::vector<Occurrence> out;std::function<void(const aiNode*,aiMatrix4x4)> walk=[&](const aiNode* n,aiMatrix4x4 w){w*=n->mTransformation;for(unsigned i=0;i<n->mNumMeshes;++i)out.push_back({n->mMeshes[i],w,n});for(unsigned i=0;i<n->mNumChildren;++i)walk(n->mChildren[i],w);};walk(scene.mRootNode,aiMatrix4x4());return out;}
 aiColor4D colour(const aiScene& s,unsigned mesh){aiColor4D c;check(s.mMaterials[s.mMeshes[mesh]->mMaterialIndex]->Get(AI_MATKEY_COLOR_DIFFUSE,c)==AI_SUCCESS,"Missing palette colour");return c;}
+}
+void solidEdgeMaterialCompatibilityTests(){
+ QTemporaryDir tmp;const auto path=tmp.filePath("source.jt");
+ struct Text:JtProperty_String {Text(const char* value){myValue=TCollection_ExtendedString(value);}};
+ const auto author=[](JtNode_Base& node,const char* value){node.BindProperty(1,2,new Text("CAD_SOURCE::"),new Text(value));};
+ const aiColor4D red{1,0,0,1},green{0,1,0,1},blue{0,0,1,1};
+ for(const char* signature:{"Version 10.5 JT ISO14306-4 DM 10.8.0.1",
+                             "Version 10.7 JT DM 10.8.0.1",
+                             "Version 10.8 JT DM 10.8.0.1",
+                             "Version 10.9 JT DM 10.8.0.1",
+                             "Version 10.10 JT DM 10.8.0.1"}) {
+ for(unsigned kind=0;kind<15;++kind){
+  QFile f(path);check(f.open(QIODevice::WriteOnly),"Cannot write source-profile test header");
+  auto marker=QByteArray(signature);
+  if(kind==2)marker.replace("10.8.0.1","10.7.0.1");
+  if(kind==3)marker="Version 10.3 JT DM 10.8.0.1";
+  const auto header=marker.leftJustified(75,' ')+QByteArray(" \n\r\n ",5);
+  check(f.write(header)==80,"Cannot write source-profile marker");f.close();
+  auto r=root();auto shape=leaf();r->children({shape});if(kind!=1)author(*r,kind==4?"Other CAD":"Solid Edge");
+  auto first=new Material(-1,red);auto second=new Material(kind==8?0:-1,green,kind==6?1u:0,kind==12?1u<<6:0,kind==7?10:kind==13?9:8);first->ordinary();second->ordinary();
+  shape->attrs({first,second});
+  if(kind==14){r->attrs({first,second});shape->attrs({});}
+  if(kind==9)shape->attrs({first,second,new Material(-1,blue)});
+  if(kind==10)r->attrs({new Mapping({-1,-1,-1})});
+  if(kind==11)r->attrs({new Material(0,blue)});
+  Jt::Options options;options.solidEdgeDuplicateMaterialCompatibility=kind!=5;
+  const auto result=Jt::Detail::buildScene(r,path,options);const auto occ=occurrences(*result.scene);
+  check(!occ.empty(),"Source compatibility discarded geometry");
+  const auto expected=kind==0||kind==8?red:kind==9?blue:green;
+  check(colour(*result.scene,occ[0].mesh)==expected,"Source material compatibility escaped its qualified scope");
+  bool diagnostic=false;for(const auto& warning:result.warnings)diagnostic=diagnostic||warning.contains("compatibility profile");
+  check(diagnostic==(kind==0),"Source compatibility diagnostic missing or spurious");
+ }
+ // Author metadata affects descendants of that branch only.
+ {auto r=root();auto a=leaf(),b=leaf();author(*a,"Solid Edge");
+  for(auto shape:{a,b}){auto x=new Material(-1,red);auto y=new Material(-1,green);x->ordinary();y->ordinary();shape->attrs({x,y});}
+  r->children({a,b});const auto result=Jt::Detail::buildScene(r,path,{});const auto occ=occurrences(*result.scene);
+  check(occ.size()==2&&colour(*result.scene,occ[0].mesh)==red&&colour(*result.scene,occ[1].mesh)==green,"Source author profile leaked across sibling branches");}
+ }
+ std::cout<<"Solid Edge 10.5/10.7/10.8/10.9/10.10 duplicate-material profile, opt-out, writer/author/flag/palette guards and sibling isolation passed\n";
 }
 void paletteTests(){
  QTemporaryDir tmp;const auto path=tmp.filePath("assembly.jt");
@@ -90,9 +132,9 @@ void paletteTests(){
   for(qsizetype n=13;n<b.data.size();++n){auto truncated=b;truncated.data.truncate(n);rejects([&]{Reader shortReader(truncated,compressed);JtDecode_Int32CDP shortPacket;check(shortPacket.Load2(shortReader),"Expected truncated packet");Jt_VecI32 values(shortPacket.DecodeI32());});}
  }
  // Full binary palette records: byte order, explicit/omitted fallback tail and malformed fields.
- for(bool big:{false,true})for(bool tail:{false,true}){
+ for(unsigned minor:{3u,5u,7u,8u,10u})for(bool big:{false,true})for(bool tail:{false,true}){
   const auto body=[&](int bad=0){Fixture::Bytes b(big);b.u8(2);b.u8(8);b.u32(0);b.u32(0);b.u8(bad==1?2:1);b.u32(3);b.u8(0);b.u32(96);b.u32(0);b.u32(quint32(-1));b.u32(quint32(bad==2?-3:-2));if(tail)b.u32(quint32(bad==3?0:-1));return b;};
-  const auto read=[&](const Fixture::Bytes& payload){Fixture::Bytes graph(big);Fixture::element(graph,Fixture::type("10dd103e"),1,Fixture::partition(big,{}, {}, {20}));Fixture::element(graph,Fixture::type("10dd1106"),20,payload,3);Fixture::end(graph);Fixture::end(graph);graph.u16(1);graph.u32(0);Fixture::container(path,graph,3);const auto utf=path.toStdU16String();Handle(JtData_Model) m=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(utf.c_str())));auto node=m->Init();check(!node.IsNull(),"Palette record failed to parse");auto map=Handle(JtAttribute_PaletteMap)::DownCast(node->Attributes()[0]);check(!map.IsNull()&&map->Entries().Count()==3&&map->Entries()[2]==-2,"Palette packet values shifted");};
+  const auto read=[&](const Fixture::Bytes& payload){Fixture::Bytes graph(big);Fixture::element(graph,Fixture::type("10dd103e"),1,Fixture::partition(big,{}, {}, {20}));Fixture::element(graph,Fixture::type("10dd1106"),20,payload,3);Fixture::end(graph);Fixture::end(graph);graph.u16(1);graph.u32(0);Fixture::container(path,graph,minor);const auto utf=path.toStdU16String();Handle(JtData_Model) m=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(utf.c_str())));auto node=m->Init();check(!node.IsNull(),"Palette record failed to parse");auto map=Handle(JtAttribute_PaletteMap)::DownCast(node->Attributes()[0]);check(!map.IsNull()&&map->Entries().Count()==3&&map->Entries()[2]==-2,"Palette packet values shifted");};
   read(body());rejects([&]{read(body(1));});rejects([&]{read(body(2));});if(tail)rejects([&]{read(body(3));});
   auto shortTail=body();if(tail){shortTail.data.chop(1);rejects([&]{read(shortTail);});}
  }

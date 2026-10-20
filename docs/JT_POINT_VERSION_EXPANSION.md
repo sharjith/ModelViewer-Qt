@@ -9,11 +9,11 @@ This target contains fifteen file-version identifiers. Three already have accept
 | Gate | Work | Evidence required before enabling additional versions |
 | --- | --- | --- |
 | 3a, accepted | Existing 9.5 transitional container, graph and tessellation path | Original A95 and independent LE/BE packet/assembly tests; owner reported “9.5 works” |
-| 3b, current | Normalize older material field masks and correct the 9.5 raw high-degree topology stream | Original binary layout/mask goldens, rendered-scene inheritance, supplied 9.5/10.0 assembly comparison, prior-family regressions and owner display checks |
-| 3c1 | Qualify 9.0 using the independent Solid Edge export | Matching lawful layout evidence and authentic input; combined diffuse/alpha inhibition, material versions, geometry/normal bindings, instances and unsupported mandatory records |
+| 3b, outstanding fixture checks | Normalize older material field masks and correct the 9.5 raw high-degree topology stream | Original binary layout/mask goldens, rendered-scene inheritance, supplied 9.5/10.0 assembly comparison, prior-family regressions and owner display checks |
+| 3c1, accepted | Qualified 9.0 export and additional empty-shape assembly; owner reports "Tests passed" | Matching lawful layout evidence and authentic input; combined diffuse/alpha inhibition, material versions, geometry/normal bindings, instances and unsupported mandatory records |
 | 3c2 | Qualify 9.1–9.4 as matching inputs become available | Establish actual differences from the transitional family; missing inputs here do not block independent 10.x qualification after Gate 3c1 |
 | 3d | Qualify 10.1 and 10.2 against the modern baseline | Actual file revisions, container/attribute/codec comparisons and representative stored tessellation; keep the accepted 10.0/10.3 cases as regressions |
-| 3e | Qualify 10.4–10.6, including applicable palettes/Sabot forms | Public layout comparisons and authentic inputs; distinguish optional presentation additions from required geometry/scene changes |
+| 3e1, current | Qualify available 10.5 using shared modern records; 10.4/10.6 remain pending inputs | Public layout comparisons and authentic inputs; distinguish optional presentation additions from required geometry/scene changes |
 | 3f | Qualify 10.7 and 10.8 | Lawful differences from the documented modern family and matching authentic files; do not assume identity from successful 10.9 decoding |
 
 These are qualification groups, not separate importers per point release or a claim that every member has an identical layout. Reuse the same code when record semantics agree. A later gate can split further if its evidence reveals another representation family. Each implementation gate includes original malformed-input checks, native validation and an owner UI handoff. Keep stored tessellation as the fallback; exact XT conversion is separate.
@@ -87,3 +87,29 @@ An additional public reference was acquired: [Prostep ivip PSI 14 Part 1 Version
 The reference PDF is retained only in ignored local research storage: 23,607,676 bytes, SHA-256 `df412551f2498f5ff7fab2bc7847f5ab10347de0821cbf8bf5204d8dbd92f7f0`. Copyright remains with prostep ivip Association; the reference's own use/distribution terms apply. It is not bundled with ModelViewer, and no new translator source or SDK was acquired.
 
 NIST publishes [CAD test resources for unrestricted use](https://www.nist.gov/ctl/smart-connected-systems-division/smart-connected-manufacturing-systems-group/mbe-pmi-0). Candidate archive retrieval returned HTTP 403 in this pass, so no new JT file or version qualification is inferred from those listings. A controlled set of owner-created exports remains useful: one solid, a repeated-instance assembly with differing transforms/colours, and a multi-material part, each including stored tessellation at the requested file versions.
+
+## Additional appearance regression — 20 October 2026
+
+A second owner-exported 10.9 assembly differs in colour from its Solid Edge reimport. The [cross-version investigation](JT_CROSS_VERSION_APPEARANCE_INVESTIGATION.md) records repeated fallback material attributes in three parts and the published list-order rule. Source-derived controls subsequently confirmed that Solid Edge selects the earlier material in the observed duplicate-material shape. A narrow writer/author/record compatibility profile passes native checks, and the owner accepted the ModelViewer colour correction on 20 October with "That fixed"; see the investigation for its guards, opt-out and test paths. This acceptance is specific to the colour correction. The owner confirmed the rough 9.5 oil-pan appearance also occurs in Solid Edge and is an export characteristic. Gate 3b remains pending independently.
+
+## Gate 3c1 handoff — 20 October 2026
+
+After accepting the Solid Edge colour correction, the owner explicitly requested continuing the remaining implementation gates. Proceed to the available 9.0 export while retaining the outstanding Gate 3b material-mask fixture checklist; continuation does not assert that those fixture checks passed. The [9.0 validation report](JT_90_VALIDATION.md) records native evidence and the combined next owner checklist. Gate 3c1 UI acceptance is pending. Available 10.5, 10.7 and 10.8 inputs can follow after this gate; missing 9.1–9.4 or other intermediate inputs need not stall those independent families.
+
+**Gate 3c1 follow-up:** the owner confirms SE9_0 opens correctly. A second 9.0 assembly exposed explicitly empty sibling shapes; the guarded correction and native evidence are in [9.0 validation](JT_90_VALIDATION.md). Retest that assembly after rebuilding before closing this gate.
+
+**Gate 3c1 accepted:** the owner reported "Tests passed" after the E90 correction. Gate 3e1 now targets the authentic 10.5 export; unqualified intermediate revisions remain rejected.
+
+**Gate 3e1 ready:** the authentic 10.5 assembly passes shared modern container, Sabot/palette, geometry/material and prior-family native checks. See [10.5 validation and UI checklist](JT_105_VALIDATION.md). Stop for owner build/UI acceptance before 10.7/10.8 implementation; no commit requested.
+
+## Gate 3f handoff — 20 October 2026
+
+The owner confirmed "Fixed" for the 10.5 appearance correction. The available authentic 10.7 and 10.8 assemblies now pass the shared modern decoder, geometry/material/transform comparisons and original LE/BE/malformed-input checks. See [10.7/10.8 validation](JT_107_108_VALIDATION.md). Stop for owner application build/UI confirmation before the available 10.10 qualification. Missing 10.4/10.6 and 10.11 inputs remain unqualified; no continuous version range is inferred. No commit or push requested.
+
+**Gate 3f appearance follow-up:** owner reported purple parts in the additional 10.7/10.8 engine exports. Matching duplicate-material records qualify the two exact exporter signatures for the existing guarded compatibility profile. Native before/after geometry and material checks pass; owner colour retest is pending in [10.7/10.8 validation](JT_107_108_VALIDATION.md). Remain at this gate before 10.10.
+
+## Forward Gate 5a — 20 October 2026
+
+The owner confirmed "Fixed" for both 10.7/10.8 engine colour cases. Continue with the available 10.10 exports under the forward Phase 5 gate. The owner supplied an additional 10.10 engine so the duplicate-material case is covered before the next UI handoff. See [10.10 validation](JT_1010_VALIDATION.md); 10.11 and the missing intermediate revisions remain unqualified.
+
+**Gate 5a accepted, 20 October:** the owner confirmed both authentic 10.10 assemblies look good, including the engine material correction. See [10.10 acceptance](JT_1010_VALIDATION.md). The next forward version, 10.11, still needs an authentic input; unqualified intermediate and legacy revisions remain separate work. No commit or push requested.

@@ -19,9 +19,15 @@
 #include <iostream>
 #include <vector>
 
+void materialOrderFixtureFiles(const QString& folder);
 void jtMaterialMaskFixtureFiles(const QString& folder);
 void jt95Tests();
+void jt1010FixtureFiles(const QString& folder);
+void jt107108FixtureFiles(const QString& folder);
+void jt105FixtureFiles(const QString& folder);
+void jt90FixtureFiles(const QString& folder);
 void jt95FixtureFiles(const QString& folder);
+void solidEdgeMaterialCompatibilityTests();
 void paletteTests();
 void paletteFixtureFiles(const QString& folder);
 void modernAttributeTests();
@@ -194,14 +200,24 @@ void samples(const QString& dir) {
 }
 int main(int argc,char** argv) {
     QCoreApplication app(argc,argv);
-    try {allocationBudgetTests();codecTests();colorStreamTests();attributeTests();sceneTests();containerTests({});legacyTests();quantizedTests();modernAttributeTests();paletteTests();jt95Tests();
+    try {allocationBudgetTests();codecTests();colorStreamTests();attributeTests();sceneTests();containerTests({});legacyTests();quantizedTests();modernAttributeTests();paletteTests();solidEdgeMaterialCompatibilityTests();jt95Tests();
+        const bool orderFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--material-order-fixtures";
         const bool maskFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--material-mask-fixtures";
+        const bool jt1010Fixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--1010-fixtures";
+        const bool jt107108Fixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--107108-fixtures";
+        const bool jt105Fixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--105-fixtures";
+        const bool jt90Fixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--90-fixtures";
         const bool jt95Fixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--95-fixtures";
         const bool fixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--legacy-fixtures";
         const bool quantizedFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--quantized-fixtures";
         const bool modernFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--modern-attribute-fixtures";
         const bool paletteFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--palette-fixtures";
-        if(maskFixtures)jtMaterialMaskFixtureFiles(QString::fromLocal8Bit(argv[2]));
+        if(orderFixtures)materialOrderFixtureFiles(QString::fromLocal8Bit(argv[2]));
+        else if(maskFixtures)jtMaterialMaskFixtureFiles(QString::fromLocal8Bit(argv[2]));
+        else if(jt1010Fixtures)jt1010FixtureFiles(QString::fromLocal8Bit(argv[2]));
+        else if(jt107108Fixtures)jt107108FixtureFiles(QString::fromLocal8Bit(argv[2]));
+        else if(jt105Fixtures)jt105FixtureFiles(QString::fromLocal8Bit(argv[2]));
+        else if(jt90Fixtures)jt90FixtureFiles(QString::fromLocal8Bit(argv[2]));
         else if(jt95Fixtures)jt95FixtureFiles(QString::fromLocal8Bit(argv[2]));
         else if(paletteFixtures)paletteFixtureFiles(QString::fromLocal8Bit(argv[2]));
         else if(modernFixtures)modernAttributeFixtureFiles(QString::fromLocal8Bit(argv[2]));

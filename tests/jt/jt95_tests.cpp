@@ -5,6 +5,7 @@
 #include <JtDecode_Int32CDP.hxx>
 #include <JtDecode_MeshCoderDriver.hxx>
 #include <JtAttribute_Material.hxx>
+#include <JtElement_ShapeLOD_Vertex.hxx>
 #include <QTemporaryDir>
 #include <QDir>
 #include <assimp/material.h>
@@ -78,9 +79,18 @@ void topologyMaskTests(){
   for(qsizetype n=0;n<b.data.size();++n){auto shortPacket=b;shortPacket.data.truncate(n);rejects([&]{Reader r(shortPacket,major);check(JtDecode_MeshCoderDriver::LoadInputData(r).operator bool(),"Truncated topology input");});}
  }
 }
+void emptyTopologyTests(){
+ struct EmptyLOD:JtElement_ShapeLOD_Vertex {bool read(Reader& r){return readTopologicallyCompressedData(r);}};
+ for(bool big:{false,true})for(unsigned major:{9u,10u}){
+  const auto packet=[&](bool corrupt){Fixture::Bytes b(big);for(unsigned i=0;i<24;++i){if(major==10&&i==20)continue;if(corrupt&&i==21){b.u32(1);b.u32(1);}else b.u32(0);}b.u32(0x12345678);b.u64(0x4a);for(unsigned i=0;i<4;++i)b.u8(0);b.u32(0);return b;};
+  auto b=packet(false);Reader r(b,major);EmptyLOD lod;check(lod.read(r)&&lod.ExplicitEmpty()&&r.pos==size_t(b.data.size()),"Explicit empty topology was not validated");
+  auto bad=packet(true);rejects([&]{Reader r(bad,major);EmptyLOD malformed;check(malformed.read(r),"Invalid empty topology");});
+  for(qsizetype n=0;n<b.data.size();++n){auto shortPacket=b;shortPacket.data.truncate(n);rejects([&]{Reader r(shortPacket,major);EmptyLOD malformed;check(malformed.read(r),"Truncated empty topology");});}
+ }
+}
 void baseNode95(Fixture::Bytes& b,std::initializer_list<unsigned> attrs){b.u16(1);b.u32(0);b.list(attrs);}
 Fixture::Bytes partition95(bool big,const QString& reference,std::initializer_list<unsigned> children,std::initializer_list<unsigned> attrs={}){Fixture::Bytes b(big);baseNode95(b,attrs);b.u16(1);b.list(children);b.u32(0);b.text(reference);for(int i=0;i<6;++i)b.f32(0);b.f32(0);for(int i=0;i<6;++i)b.u32(0);return b;}
-QByteArray assembly(bool big,unsigned baseVersion=1,unsigned materialVersion=2,bool maskFixture=false){
+QByteArray assembly(bool big,unsigned baseVersion=1,unsigned materialVersion=2,bool maskFixture=false,unsigned minorVersion=5){
  using namespace Fixture;Bytes graph(big);element(graph,type("10dd103e"),1,partition95(big,{}, maskFixture?std::initializer_list<unsigned>{10,11,12}:std::initializer_list<unsigned>{10,11},maskFixture?std::initializer_list<unsigned>{30}:std::initializer_list<unsigned>{}));element(graph,type("10dd103e"),2,partition95(big,"part.jt",{}));
  for(unsigned i=0;i<(maskFixture?3u:2u);++i){Bytes instance(big);baseNode95(instance,{20+i*2,21+i*2});instance.u16(1);instance.u32(2);element(graph,type("10dd102a"),10+i,instance);
   Bytes transform(big);transform.u16(1);transform.u8(8);transform.u32(0);transform.u16(1);transform.u16(8);transform.f64(100+100*i);element(graph,type("10dd1083"),20+i*2,transform,3);
@@ -91,7 +101,7 @@ QByteArray assembly(bool big,unsigned baseVersion=1,unsigned materialVersion=2,b
  end(graph);end(graph);graph.u16(1);graph.u32(0);
  const QString guid="12345678-1234-5678-9abc-def012345678";
  Bytes segment(big);segment.guid(guid);segment.u32(1);segment.u32(33+unsigned(graph.data.size()));segment.u32(0);segment.u32(1+unsigned(graph.data.size()));segment.u8(0);segment.append(graph);
- Bytes file(big);file.data=QByteArray("Version 9.5 JT original assembly fixture").leftJustified(80,' ');file.u8(big?1:0);file.u32(0);file.u32(105+unsigned(segment.data.size()));file.guid(guid);file.append(segment);
+ Bytes file(big);file.data=(QByteArray("Version 9.")+QByteArray::number(minorVersion)+" JT original assembly fixture").leftJustified(75,' ')+QByteArray(" \n\r\n ",5);file.u8(big?1:0);file.u32(0);file.u32(105+unsigned(segment.data.size()));file.guid(guid);file.append(segment);
  file.u32(1);file.guid(guid);file.u32(105);file.u32(unsigned(segment.data.size()));file.u32(1u<<24);return file.data;
 }
 void write(const QString& path,const QByteArray& bytes){QFile f(path);check(f.open(QIODevice::WriteOnly)&&f.write(bytes)==bytes.size(),"Cannot write JT 9.5 fixture");}
@@ -111,16 +121,20 @@ void materialMaskTests(){
 }
 void assemblyTests(){
  QTemporaryDir dir;check(dir.isValid(),"Cannot create JT 9.5 fixture directory");const auto path=dir.filePath("assembly.jt");
- for(bool big:{false,true})for(unsigned version:{1,2}){
-  LegacyFixture::Options part;part.big=big;part.minorVersion=2;LegacyFixture::write(dir.filePath("part.jt"),part);write(path,assembly(big,1,version));auto result=Jt::Importer::read(path);
+ for(unsigned minor:{0u,5u})for(bool big:{false,true})for(unsigned version:{1,2}){
+  LegacyFixture::Options part;part.big=big;part.minorVersion=2;LegacyFixture::write(dir.filePath("part.jt"),part);write(path,assembly(big,1,version,false,minor));
+  if(minor==0&&version==2){rejects([&]{Jt::Importer::read(path);});continue;}
+  auto result=Jt::Importer::read(path);
   check(result.scene->mNumMeshes==2,"JT 9.5 occurrence colours lost resource separation");
   unsigned occurrences=0;
   const auto visit=[&](auto&& self,const aiNode* node,aiMatrix4x4 world)->void{world=world*node->mTransformation;for(unsigned i=0;i<node->mNumMeshes;++i){const auto mesh=result.scene->mMeshes[node->mMeshes[i]];check(mesh->mNumVertices==7&&mesh->mNumFaces==3,"Cross-version fixture geometry changed");aiColor4D color;check(result.scene->mMaterials[mesh->mMaterialIndex]->Get(AI_MATKEY_COLOR_DIFFUSE,color)==AI_SUCCESS,"Missing JT 9.5 colour");check((color.r==1&&color.g==0&&world.a4==110)||(color.g==1&&color.r==0&&world.a4==210),"JT 9.5 material/transform accumulation mismatch");check(world.b4==-3,"Cross-version local transform lost");++occurrences;}for(unsigned i=0;i<node->mNumChildren;++i)self(self,node->mChildren[i],world);};visit(visit,result.scene->mRootNode,aiMatrix4x4());check(occurrences==2,"JT 9.5 repeated-instance count mismatch");
-  write(path,assembly(big,2,version));rejects([&]{Jt::Importer::read(path);});write(path,assembly(big,1,3));rejects([&]{Jt::Importer::read(path);});
-  auto bad=assembly(big);bad.truncate(106);write(path,bad);rejects([&]{Jt::Importer::read(path);});
+  write(path,assembly(big,2,version,false,minor));rejects([&]{Jt::Importer::read(path);});write(path,assembly(big,1,3,false,minor));rejects([&]{Jt::Importer::read(path);});
+  auto bad=assembly(big,1,version,false,minor);bad.truncate(106);write(path,bad);rejects([&]{Jt::Importer::read(path);});
  }
 }
 }
-void jt95Tests(){codecTests();topologyMaskTests();assemblyTests();materialMaskTests();std::cout<<"JT 9.5 LE/BE Mk.2 arithmetic/bitlength, malformed packets and cross-version assemblies passed\n";}
+void jt95Tests(){codecTests();topologyMaskTests();emptyTopologyTests();assemblyTests();materialMaskTests();std::cout<<"JT 9.0/9.5 LE/BE Mk.2 arithmetic/bitlength, material versions, malformed packets and cross-version assemblies passed\n";}
 void jtMaterialMaskFixtureFiles(const QString& folder){check(QDir().mkpath(folder),"Cannot create material mask UI directory");LegacyFixture::Options part;part.minorVersion=2;part.materialInhibit=0x3f;LegacyFixture::write(QDir(folder).filePath("part.jt"),part);for(bool big:{false,true})write(QDir(folder).filePath(big?"material_masks_be.jt":"material_masks_le.jt"),assembly(big,1,2,true));}
 void jt95FixtureFiles(const QString& folder){check(QDir().mkpath(folder),"Cannot create JT 9.5 fixture directory");LegacyFixture::Options part;part.minorVersion=2;LegacyFixture::write(QDir(folder).filePath("part.jt"),part);for(bool big:{false,true})write(QDir(folder).filePath(big?"assembly_be.jt":"assembly_le.jt"),assembly(big));}
+
+void jt90FixtureFiles(const QString& folder){check(QDir().mkpath(folder),"Cannot create JT 9.0 fixture directory");LegacyFixture::Options part;part.minorVersion=2;LegacyFixture::write(QDir(folder).filePath("part.jt"),part);for(bool big:{false,true})write(QDir(folder).filePath(big?"assembly_be.jt":"assembly_le.jt"),assembly(big,1,1,false,0));}

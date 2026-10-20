@@ -15,6 +15,7 @@
 // on <http://www.gnu.org/licenses/>.
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Explicit empty-shape count evidence retained: 2026-10-20.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -34,6 +35,9 @@ public:
   //! Dump this entity.
   Standard_EXPORT virtual Standard_Integer Dump (Standard_OStream& theStream) const;
 
+  //! True only for successfully read, explicitly zero vertex/polygon ranges.
+  bool DeclaresEmptyGeometry() const {return myHasCountRanges && myVertexRange[0]==0 && myVertexRange[1]==0 && myPolyRange[0]==0 && myPolyRange[1]==0;}
+
   const Jt_BBoxF32& Bounds() const { return myUntransBnd; }
 
   //! Get the late loaded properties associated with this node.
@@ -43,6 +47,7 @@ public:
   DEFINE_OBJECT_CLASS (JtNode_Shape_Base)
 
 protected:
+  bool myHasCountRanges=false;
   VectorOfLateLoads myLateLoads;
 
   Jt_BBoxF32 myReservedBnd;

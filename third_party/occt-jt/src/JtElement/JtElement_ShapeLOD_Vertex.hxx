@@ -15,6 +15,7 @@
 // on <http://www.gnu.org/licenses/>.
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Validated empty topological records distinguished: 2026-10-20.
 // Additional bounded palette/face-group qualification changes: 2026-10-20.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
@@ -99,6 +100,8 @@ public:
   Standard_EXPORT virtual Standard_Integer Dump (Standard_OStream& S) const;
 
   //! Indices into the vertex parameters arrays.
+  bool ExplicitEmpty() const {return myExplicitEmpty;}
+
   const IndicesVec& FaceGroups() const { return myFaceGroups; }
 
   const IndicesVec& Indices()  const { return myIndices; }
@@ -134,6 +137,7 @@ protected:
                              const IndicesVec& attributes);
 
 protected:
+  bool myExplicitEmpty=false;
   IndicesVec myFaceGroups; //!< one face-group ID per decoded triangle
   IndicesVec myIndices;  //!< Indices into the vertex parameters arrays
   VertexData myVertices; //!< vertex coordinates

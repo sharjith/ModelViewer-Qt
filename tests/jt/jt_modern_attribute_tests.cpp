@@ -46,30 +46,40 @@ Bytes graphWith(const Bytes& body,const QString& type=Fixture::type("10dd1030"),
     Bytes graph(body.big);Fixture::element(graph,Fixture::type("10dd103e"),1,Fixture::partition(body.big,{}, {}, {20}));
     attribute(graph,type,20,body,wrapped);Fixture::end(graph);Fixture::end(graph);graph.u16(1);graph.u32(0);return graph;
 }
-Handle(JtNode_Partition) read(const QString& path,const Bytes& graph) {
-    Fixture::container(path,graph,3);
+Handle(JtNode_Partition) read(const QString& path,const Bytes& graph,unsigned minor=3) {
+    Fixture::container(path,graph,minor);
     const auto utf16=path.toStdU16String();
     Handle(JtData_Model) model=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(utf16.c_str())));
     const auto root=model->Init();check(!root.IsNull(),"Cannot decode modern attribute container");return root;
 }
-void writeAssembly(const QString& path,bool big,unsigned baseVersion=2) {
+void writeMaterialOrder(const QString& path,bool big,unsigned minor,bool reverse=false,bool firstFinal=false) {
+    Bytes graph(big);Fixture::element(graph,Fixture::type("10dd103e"),1,Fixture::partition(big,{}, {2},reverse?std::initializer_list<unsigned>{21,20}:std::initializer_list<unsigned>{20,21}));
+    Fixture::element(graph,Fixture::type("10dd103e"),2,Fixture::partition(big,"geometry.jt",{}));
+    for(unsigned i=0;i<2;++i) {
+        Bytes m(big);m.u8(2);m.u8(8);m.u32(0);m.u32(i==0&&firstFinal?1u<<6:0);m.u8(1);m.u16(0x3980);
+        for(unsigned field=0;field<4;++field)for(unsigned c=0;c<4;++c)m.f32(c==3?1.f:field==1?float(c==i):0.f);
+        m.f32(15);m.f32(0);m.f32(1);m.u32(quint32(-1));attribute(graph,Fixture::type("10dd1030"),20+i,m,false);
+    }
+    Fixture::end(graph);Fixture::end(graph);graph.u16(1);graph.u32(0);Fixture::container(path,graph,minor);
+}
+void writeAssembly(const QString& path,bool big,unsigned baseVersion=2,unsigned minor=3) {
     Bytes graph(big);Fixture::element(graph,Fixture::type("10dd103e"),1,Fixture::partition(big,{}, {2},{20,21,22}));
     Fixture::element(graph,Fixture::type("10dd103e"),2,Fixture::partition(big,"geometry.jt",{}));
     attribute(graph,Fixture::type("10dd1030"),20,material(big,baseVersion),false);
     attribute(graph,Fixture::type("10dd1083"),21,transform(big,baseVersion),false);
     attribute(graph,Fixture::type("10dd1014"),22,style(big,baseVersion),false);
-    Fixture::end(graph);Fixture::end(graph);graph.u16(1);graph.u32(0);Fixture::container(path,graph,3);
+    Fixture::end(graph);Fixture::end(graph);graph.u16(1);graph.u32(0);Fixture::container(path,graph,minor);
 }
 }
 void modernAttributeTests() {
     QTemporaryDir tmp;check(tmp.isValid(),"Cannot create modern attribute test directory");const auto path=tmp.filePath("attributes.jt");
-    for(bool big:{false,true})for(bool wrapped:{false,true})for(int pi:{-1,0,17}) {
+    for(unsigned minor:{3u,5u,7u,8u,10u})for(bool big:{false,true})for(bool wrapped:{false,true})for(int pi:{-1,0,17}) {
         Bytes graph(big);Fixture::element(graph,Fixture::type("10dd103e"),1,Fixture::partition(big,{}, {}, {20,21,22}));
         attribute(graph,Fixture::type("10dd1030"),20,material(big,2,pi),wrapped);
         attribute(graph,Fixture::type("10dd1083"),21,transform(big,2,pi),wrapped);
         attribute(graph,Fixture::type("10dd1014"),22,style(big,2,pi),wrapped);
         Fixture::end(graph);Fixture::end(graph);graph.u16(1);graph.u32(0);
-        const auto root=read(path,graph);check(root->Attributes().Count()==3,"Inner Sabot object identities were lost");
+        const auto root=read(path,graph,minor);check(root->Attributes().Count()==3,"Inner Sabot object identities were lost");
         const auto m=Handle(JtAttribute_Material)::DownCast(root->Attributes()[0]);
         const auto t=Handle(JtAttribute_GeometricTransform)::DownCast(root->Attributes()[1]);
         const auto d=Handle(JtAttribute_DrawStyle)::DownCast(root->Attributes()[2]);
@@ -79,37 +89,39 @@ void modernAttributeTests() {
         check(t->GetTrsf()[12]==10&&d->DataFlags()==0x0a,"Transform/style version-2 payload shifted");
         // Indexed entries are now rendered only through an explicit face-group map.
     }
-    for(bool big:{false,true}) {
+    for(unsigned minor:{3u,5u,7u,8u,10u})for(bool big:{false,true}) {
+        const auto readRecord=[&](const Bytes& graph){return read(path,graph,minor);};
         const QString types[]={Fixture::type("10dd1030"),Fixture::type("10dd1083"),Fixture::type("10dd1014")};
         const Bytes bodies[]={material(big),transform(big),style(big)};
         for(unsigned k=0;k<3;++k)for(bool wrapped:{false,true}) {
             for(qsizetype n=0;n<bodies[k].data.size();++n) {
                 Bytes shortBody(big);shortBody.data=bodies[k].data.left(n);
-                reject([&]{read(path,graphWith(shortBody,types[k],wrapped));});
+                reject([&]{readRecord(graphWith(shortBody,types[k],wrapped));});
             }
-            auto bad=bodies[k];bad.data[0]=3;reject([&]{read(path,graphWith(bad,types[k],wrapped));});
+            auto bad=bodies[k];bad.data[0]=3;reject([&]{readRecord(graphWith(bad,types[k],wrapped));});
+            if(k!=1){auto local=bodies[k];local.data[10]=2;reject([&]{readRecord(graphWith(local,types[k],wrapped));});}
             bad=bodies[k];for(int j=1;j<=4;++j)bad.data[bad.data.size()-j]=char(0xff); // -1 is valid
-            read(path,graphWith(bad,types[k],wrapped));
+            readRecord(graphWith(bad,types[k],wrapped));
             bad=bodies[k];Bytes negative(big);negative.u32(quint32(-2));bad.data.chop(4);bad.data+=negative.data;
-            reject([&]{read(path,graphWith(bad,types[k],wrapped));});
-            if(wrapped) {bad=bodies[k];bad.u8(0);reject([&]{read(path,graphWith(bad,types[k],true));});}
+            reject([&]{readRecord(graphWith(bad,types[k],wrapped));});
+            if(wrapped) {bad=bodies[k];bad.u8(0);reject([&]{readRecord(graphWith(bad,types[k],true));});}
         }
         // Wrapped headers cannot cross their enclosing envelope or recursively wrap.
-        for(unsigned n=0;n<21;++n) {Bytes shortInner(big);shortInner.data=QByteArray(n,char(0));reject([&]{read(path,graphWith(shortInner,sabot,false));});}
-        reject([&]{read(path,graphWith(material(big),sabot,true));});
-        reject([&]{read(path,graphWith(material(big,1),Fixture::type("10dd1030"),true));});
-        reject([&]{read(path,graphWith(material(big),Fixture::type("deadbeef"),true));});
-        reject([&]{read(path,graphWith(Fixture::partition(big,{},{}),Fixture::type("10dd103e"),true));});
-        reject([&]{read(path,graphWith(material(big),Fixture::type("10dd1106"),false));});
+        for(unsigned n=0;n<21;++n) {Bytes shortInner(big);shortInner.data=QByteArray(n,char(0));reject([&]{readRecord(graphWith(shortInner,sabot,false));});}
+        reject([&]{readRecord(graphWith(material(big),sabot,true));});
+        reject([&]{readRecord(graphWith(material(big,1),Fixture::type("10dd1030"),true));});
+        reject([&]{readRecord(graphWith(material(big),Fixture::type("deadbeef"),true));});
+        reject([&]{readRecord(graphWith(Fixture::partition(big,{},{}),Fixture::type("10dd103e"),true));});
+        reject([&]{readRecord(graphWith(material(big),Fixture::type("10dd1106"),false));});
         // A duplicate inner ID is an actual graph collision, even if wrapper IDs differ.
         Bytes duplicate(big);Fixture::element(duplicate,Fixture::type("10dd103e"),1,Fixture::partition(big,{}, {}, {20}));
         attribute(duplicate,types[0],20,material(big),true);attribute(duplicate,types[0],20,material(big),true);
-        Fixture::end(duplicate);Fixture::end(duplicate);duplicate.u16(1);duplicate.u32(0);reject([&]{read(path,duplicate);});
+        Fixture::end(duplicate);Fixture::end(duplicate);duplicate.u16(1);duplicate.u32(0);reject([&]{readRecord(duplicate);});
     }
     LegacyFixture::Options geometry;geometry.minorVersion=2;geometry.quantizedData=true;geometry.quantizedBits=4;
     LegacyFixture::write(tmp.filePath("geometry.jt"),geometry);
-    for(bool big:{false,true})for(unsigned version:{1,2}) {
-        writeAssembly(path,big,version);auto result=Jt::Importer::read(path);
+    for(unsigned minor:{3u,5u,7u,8u,10u})for(bool big:{false,true})for(unsigned version:{1,2}) {
+        writeAssembly(path,big,version,minor);auto result=Jt::Importer::read(path);
         check(result.scene->mNumMeshes==1,"Modern fallback attributes changed mesh count");
         const auto* mesh=result.scene->mMeshes[0];aiColor4D c;
         check(mesh->mNumVertices==7&&mesh->mNumFaces==3,"Modern fallback attributes changed geometry");
@@ -126,6 +138,14 @@ void modernAttributeTests() {
         check(exportedMesh->mNumFaces==3&&imported->mMaterials[exportedMesh->mMaterialIndex]->Get(AI_MATKEY_COLOR_DIFFUSE,exportedColour)==AI_SUCCESS&&exportedColour.g==1&&exportedColour.r==0,"GLB roundtrip lost fallback appearance/triangles");
         walk(imported->mRootNode,aiMatrix4x4());
     }
+    // Published list-order accumulation is shared by enabled modern revisions.
+    // These generated graphs test semantics, not native tessellation qualification.
+    {LegacyFixture::Options o;o.minorVersion=2;o.materialInhibit=0x1ff;LegacyFixture::write(tmp.filePath("geometry.jt"),o);}
+    for(bool big:{false,true})for(unsigned minor:{0,3,5,7,8,9,10})for(bool reverse:{false,true})for(bool firstFinal:{false,true}) {
+        writeMaterialOrder(path,big,minor,reverse,firstFinal);auto result=Jt::Importer::read(path);aiColor4D c;
+        const auto mesh=result.scene->mMeshes[0];const bool red=reverse||firstFinal;
+        check(result.scene->mMaterials[mesh->mMaterialIndex]->Get(AI_MATKEY_COLOR_DIFFUSE,c)==AI_SUCCESS&&c.r==float(red)&&c.g==float(!red),"Same-node material order/final semantics differ across modern versions");
+    }
     {JtData_Limits::Scope scope([]{throw Jt::Cancelled();});bool stopped=false;
      try{read(path,graphWith(material(false)));}catch(const Jt::Cancelled&){stopped=true;}
      check(stopped,"Element parsing swallowed cancellation");}
@@ -136,4 +156,32 @@ void modernAttributeFixtureFiles(const QString& folder) {
     LegacyFixture::Options o;o.minorVersion=2;o.quantizedData=true;o.quantizedBits=4;LegacyFixture::write(QDir(folder).filePath("geometry.jt"),o);
     for(bool big:{false,true})writeAssembly(QDir(folder).filePath(big?"attribute_v2_be.jt":"attribute_v2_le.jt"),big);
     Fixture::container(QDir(folder).filePath("palette_not_enabled.jt"),graphWith(material(false,2,0),Fixture::type("10dd1030"),true),3);
+}
+
+void materialOrderFixtureFiles(const QString& folder) {
+    check(QDir().mkpath(folder),"Cannot create material-order fixture folder");
+    LegacyFixture::Options o;o.minorVersion=2;o.materialInhibit=0x1ff;LegacyFixture::write(QDir(folder).filePath("geometry.jt"),o);
+    for(unsigned minor:{0,3,5,7,8,9,10})for(bool reverse:{false,true}) {
+        const auto name=QString("order_10_%1_%2.jt").arg(minor).arg(reverse?"green_red":"red_green");
+        writeMaterialOrder(QDir(folder).filePath(name),false,minor,reverse);
+    }
+}
+
+void jt105FixtureFiles(const QString& folder) {
+    check(QDir().mkpath(folder),"Cannot create 10.5 fixture folder");
+    LegacyFixture::Options o;o.minorVersion=2;o.quantizedData=true;o.quantizedBits=4;LegacyFixture::write(QDir(folder).filePath("geometry.jt"),o);
+    for(bool big:{false,true})writeAssembly(QDir(folder).filePath(big?"attribute_105_be.jt":"attribute_105_le.jt"),big,2,5);
+}
+
+void jt107108FixtureFiles(const QString& folder) {
+    check(QDir().mkpath(folder),"Cannot create 10.7/10.8 fixture folder");
+    LegacyFixture::Options o;o.minorVersion=2;o.quantizedData=true;o.quantizedBits=4;LegacyFixture::write(QDir(folder).filePath("geometry.jt"),o);
+    for(unsigned minor:{7u,8u})for(bool big:{false,true})
+        writeAssembly(QDir(folder).filePath(QString("attribute_10%1_%2.jt").arg(minor).arg(big?"be":"le")),big,2,minor);
+}
+
+void jt1010FixtureFiles(const QString& folder) {
+    check(QDir().mkpath(folder),"Cannot create 10.10 fixture folder");
+    LegacyFixture::Options o;o.minorVersion=2;o.quantizedData=true;o.quantizedBits=4;LegacyFixture::write(QDir(folder).filePath("geometry.jt"),o);
+    for(bool big:{false,true})writeAssembly(QDir(folder).filePath(big?"attribute_1010_be.jt":"attribute_1010_le.jt"),big,2,10);
 }

@@ -28,6 +28,7 @@
 #include <Standard_Failure.hxx>
 #include <QDir>
 #include <QFileInfo>
+#include <QFile>
 #include <assimp/material.h>
 #include <cmath>
 #include <map>
@@ -195,6 +196,40 @@ struct Appearance {
         finalFields|=source.FieldFinalFlags()&allowed;
     }
 };
+struct MaterialSourceContext {
+    bool qualifiedSolidEdgeWriter=false;
+    bool solidEdgeAuthor=false;
+};
+// This is a measured exporter compatibility profile, not JT list-order semantics.
+// Keep it limited to the tested file/writer pairs and explicit author metadata.
+MaterialSourceContext materialSourceContext(const QString& path,const Options& options) {
+    MaterialSourceContext context;
+    if(!options.solidEdgeDuplicateMaterialCompatibility)return context;
+    QFile file(path);if(!file.open(QIODevice::ReadOnly))return context;
+    const auto header=file.read(80).trimmed().simplified();
+    context.qualifiedSolidEdgeWriter=header=="Version 10.9 JT DM 10.8.0.1"
+        ||header=="Version 10.5 JT ISO14306-4 DM 10.8.0.1"
+        ||header=="Version 10.7 JT DM 10.8.0.1"
+        ||header=="Version 10.8 JT DM 10.8.0.1"
+        ||header=="Version 10.10 JT DM 10.8.0.1";
+    return context;
+}
+bool solidEdgeAuthor(const JtNode_Base& node) {
+    for(const auto& property:node.Properties()) {
+        const auto key=Handle(JtProperty_String)::DownCast(property.key);
+        const auto value=Handle(JtProperty_String)::DownCast(property.value);
+        if(key.IsNull()||value.IsNull())continue;
+        const auto text=[](const TCollection_ExtendedString& x){return QString::fromUtf16(reinterpret_cast<const char16_t*>(x.ToExtString()),x.Length());};
+        if(text(key->Value())=="CAD_SOURCE::"&&text(value->Value())=="Solid Edge")return true;
+    }
+    return false;
+}
+bool ordinaryFallbackMaterial(const JtAttribute_Material& material) {
+    return material.BaseVersion()==2&&material.PaletteIndex()==-1
+        &&!material.AccumulationIgnored()&&!material.AccumulationForced()
+        &&material.FieldInhibitFlags()==0&&material.FieldFinalFlags()==0
+        &&material.DataFlags()==0x3980;
+}
 struct PaletteEntry {
     Appearance style;
     aiMatrix4x4 world;
@@ -416,7 +451,7 @@ struct Builder {
         mesh->mMaterialIndex=mat;mesh->mName=aiString(name.toUtf8().constData());
         meshes.push_back(std::move(mesh)); return unsigned(meshes.size()-1);
     }
-    std::unique_ptr<aiNode> visit(const Handle(JtData_Object)& object,Appearance style={},bool parentHidden=false,bool transformLocked=false,const aiMatrix4x4& parentWorld=aiMatrix4x4(),PaletteContext palette={}) {
+    std::unique_ptr<aiNode> visit(const Handle(JtData_Object)& object,Appearance style={},bool parentHidden=false,bool transformLocked=false,const aiMatrix4x4& parentWorld=aiMatrix4x4(),PaletteContext palette={},MaterialSourceContext materialSource={}) {
         options.check();if(object.IsNull()) throw std::runtime_error("JT has an unresolved graph reference");
         if(active.size()>=512 || ++nodes>1000000 || !active.insert(object.get()).second) throw std::runtime_error("JT graph cycle/depth limit exceeded");
         struct Pop {std::set<const void*>& s;const void* p;~Pop(){s.erase(p);}} pop{active,object.get()};
@@ -424,10 +459,28 @@ struct Builder {
         if(source.IsNull()) throw std::runtime_error("Unsupported required JT graph node");
         const bool hidden=parentHidden || source->Ignored();
         const auto name=nameOf(source);const auto label=name.isEmpty()?QStringLiteral("Unnamed JT node"):name;auto node=std::make_unique<aiNode>();node->mName=aiString(name.toUtf8().constData());
+        if(materialSource.qualifiedSolidEdgeWriter&&!materialSource.solidEdgeAuthor)
+            materialSource.solidEdgeAuthor=solidEdgeAuthor(*source);
+        const JtAttribute_Material* skipMaterial=nullptr;
+        if(materialSource.qualifiedSolidEdgeWriter&&materialSource.solidEdgeAuthor
+           &&palette.mapping.IsNull()&&palette.entries->empty()&&!Handle(JtNode_Shape_Base)::DownCast(object).IsNull()) {
+            const JtAttribute_Material* secondMaterial=nullptr;
+            unsigned materialCount=0;
+            bool ordinary=true;
+            for(size_t i=0;i<source->Attributes().Count();++i) {
+                const auto material=Handle(JtAttribute_Material)::DownCast(source->Attributes()[i]);
+                if(!material.IsNull()){if(++materialCount==2)secondMaterial=material.get();ordinary=ordinary&&ordinaryFallbackMaterial(*material); }
+                if(!Handle(JtAttribute_PaletteMap)::DownCast(source->Attributes()[i]).IsNull())ordinary=false;
+            }
+            if(ordinary&&materialCount==2) {
+                skipMaterial=secondMaterial;
+                result.warnings.append(label+": Solid Edge duplicate fallback materials: using first material (compatibility profile)");
+            }
+        }
         for(size_t i=0;i<source->Attributes().Count();++i) {
             const auto a=source->Attributes()[i];
             const auto attribute=Handle(JtAttribute_Base)::DownCast(a);
-            if(attribute.IsNull()||attribute->AccumulationIgnored())continue;
+            if(attribute.IsNull()||attribute->AccumulationIgnored()||attribute.get()==skipMaterial)continue;
             const auto mapping=Handle(JtAttribute_PaletteMap)::DownCast(a);
             if(!mapping.IsNull()) {
                 if(!(attribute->FieldInhibitFlags()&1)&&(!palette.mapLocked||attribute->AccumulationForced())) {
@@ -504,6 +557,11 @@ struct Builder {
                             struct Unload {Handle(JtProperty_LateLoaded) p;~Unload(){p->Unload();}} unload{prop};
                             options.check();prop->Load();const auto mesh=Handle(JtElement_ShapeLOD_Vertex)::DownCast(prop->DefferedObject());
                             if(mesh.IsNull())throw std::runtime_error("Unsupported JT tessellation payload");
+                            if(mesh->ExplicitEmpty()) {
+                                if(!shape->DeclaresEmptyGeometry())throw std::runtime_error("JT empty payload contradicts advertised shape geometry");
+                                result.warnings.append(label+": explicitly empty JT shape retained without render geometry");
+                                loaded=true;break;
+                            }
                             unsigned repairedNormals=0;
                             geometryIndex=unsigned(geometries.size());geometries.push_back(storedMesh(mesh,repairedNormals));
                             geometryGroups.emplace_back();const auto& groups=mesh->FaceGroups();
@@ -572,7 +630,7 @@ struct Builder {
                     (result.warnings.isEmpty()?QString():QString("; ")+result.warnings.last())).toStdString());
             }
             const auto instance=Handle(JtNode_Instance)::DownCast(object);
-            if(!instance.IsNull()) children.push_back(visit(instance->Object(),style,hidden,transformLocked,world,palette));
+            if(!instance.IsNull()) children.push_back(visit(instance->Object(),style,hidden,transformLocked,world,palette,materialSource));
             const auto group=Handle(JtNode_Group)::DownCast(object);
             if(!group.IsNull()) {
                 const auto partition=Handle(JtNode_Partition)::DownCast(object);
@@ -586,7 +644,7 @@ struct Builder {
                         struct FilePop {std::set<QString>& files;QString path;~FilePop(){files.erase(path);}} filePop{activeFiles,fileKey(file)};
                         auto& root=partitions[fileKey(file)];
                         if(root.IsNull()) {Handle(JtData_Model) m=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(file.utf16())));root=m->Init();}
-                        children.push_back(visit(root,style,hidden,transformLocked,world,palette));
+                        children.push_back(visit(root,style,hidden,transformLocked,world,palette,materialSourceContext(file,options)));
                     }
                 } else {
                     const bool lod=!Handle(JtNode_LOD)::DownCast(object).IsNull();
@@ -618,7 +676,7 @@ struct Builder {
                         const auto selected=switchNode->SelectedChild();
                         if(selected!=0xffffffffu) {
                             if(selected>=childCount) throw std::runtime_error("JT Switch selected child is out of range");
-                            children.push_back(visit(group->Children()[selected],style,hidden,transformLocked,world,palette));
+                            children.push_back(visit(group->Children()[selected],style,hidden,transformLocked,world,palette,materialSource));
                             selectedChild=int(selected);
                         }
                     } else {
@@ -626,10 +684,10 @@ struct Builder {
                         for(size_t attempt=0;attempt<childCount;++attempt) {
                             // Preferred, then the remaining source-order alternatives.
                             const size_t i=!lod ? attempt : attempt==0 ? preferred : attempt<=preferred ? attempt-1 : attempt;
-                            if(!lod) {children.push_back(visit(group->Children()[i],style,hidden,transformLocked,world,palette));continue;}
+                            if(!lod) {children.push_back(visit(group->Children()[i],style,hidden,transformLocked,world,palette,materialSource));continue;}
                             const auto saved=checkpoint();
                             try {
-                                auto child=visit(group->Children()[i],style,hidden,transformLocked,world,palette);
+                                auto child=visit(group->Children()[i],style,hidden,transformLocked,world,palette,materialSource);
                                 if(!containsMesh(*child)) throw std::runtime_error("LOD alternative contains no render geometry");
                                 children.push_back(std::move(child));selected=true;selectedChild=int(i);
                                 if(!rangeNode.IsNull() && i!=preferred)
@@ -670,7 +728,7 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
     if(options.lodEyePoint) for(double coordinate:*options.lodEyePoint)
         if(!std::isfinite(coordinate)) throw std::runtime_error("Invalid JT RangeLOD eye point");
     Builder b{options,info.canonicalPath()};b.activeFiles.insert(fileKey(info.canonicalFilePath()));b.material(Appearance{});
-    auto tree=b.visit(root);if(b.meshes.empty()) throw std::runtime_error("JT contains no supported tessellation and no validated exact geometry");
+    auto tree=b.visit(root,{},false,false,aiMatrix4x4(),{},materialSourceContext(info.absoluteFilePath(),options));if(b.meshes.empty()) throw std::runtime_error("JT contains no supported tessellation and no validated exact geometry");
     b.result.scene=std::make_unique<aiScene>();auto& scene=*b.result.scene;
     scene.mRootNode=tree.release();scene.mNumMeshes=unsigned(b.meshes.size());scene.mMeshes=new aiMesh*[scene.mNumMeshes]{};
     for(unsigned i=0;i<scene.mNumMeshes;++i) scene.mMeshes[i]=b.meshes[i].release();

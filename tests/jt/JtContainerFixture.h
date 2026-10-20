@@ -33,7 +33,7 @@ inline void container(const QString& path,const Bytes& graph,unsigned minorVersi
     const QString segmentId="12345678-1234-5678-9abc-def012345678";
     const bool big=graph.big;
     Bytes segment(big);segment.guid(segmentId);segment.u32(1);segment.u32(quint32(33+graph.data.size()));segment.u32(0);segment.u32(quint32(graph.data.size()+1));segment.u8(0);segment.append(graph);
-    Bytes file(big);file.data=(QByteArray("Version 10.")+QByteArray::number(minorVersion)+" JT synthetic interoperability test").leftJustified(80,' ');file.u8(big?1:0);file.u32(0);file.u64(109+quint64(segment.data.size()));file.guid(segmentId);file.append(segment);
+    Bytes file(big);file.data=(QByteArray("Version 10.")+QByteArray::number(minorVersion)+" JT synthetic interoperability test").leftJustified(75,' ')+QByteArray(" \n\r\n ",5);file.u8(big?1:0);file.u32(0);file.u64(109+quint64(segment.data.size()));file.guid(segmentId);file.append(segment);
     file.u32(1);file.guid(segmentId);file.u64(109);file.u32(quint32(segment.data.size()));file.u32(1u<<24);
     QFile target(path);if(!target.open(QIODevice::WriteOnly)||target.write(file.data)!=file.data.size())throw std::runtime_error("Cannot write synthetic JT container");
 }

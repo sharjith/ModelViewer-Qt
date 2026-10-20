@@ -15,6 +15,7 @@
 // on <http://www.gnu.org/licenses/>.
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Explicit empty-shape count evidence retained: 2026-10-20.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -33,6 +34,7 @@ IMPLEMENT_OBJECT_CLASS(JtNode_Shape_Base, "Base Shape Object",
 //=======================================================================
 Standard_Boolean JtNode_Shape_Base::Read (JtData_Reader& theReader)
 {
+  myHasCountRanges=false;
   if (!JtNode_Base::Read (theReader))
     return Standard_False;
 
@@ -41,7 +43,7 @@ Standard_Boolean JtNode_Shape_Base::Read (JtData_Reader& theReader)
   && !theReader.ReadVersion(aVersion))
     return Standard_False;
 
-  return (theReader.Model()->MajorVersion()>=10 || theReader.ReadUniformStruct<Jt_F32> (myReservedBnd))
+  myHasCountRanges = (theReader.Model()->MajorVersion()>=10 || theReader.ReadUniformStruct<Jt_F32> (myReservedBnd))
       && theReader.ReadUniformStruct<Jt_F32> (myUntransBnd)
       && theReader.ReadF32   (myArea)
       && theReader.ReadArray (myVertexRange)
@@ -49,6 +51,7 @@ Standard_Boolean JtNode_Shape_Base::Read (JtData_Reader& theReader)
       && theReader.ReadArray (myPolyRange)
       && theReader.ReadI32   (mySize)
       && theReader.ReadF32   (myCompression);
+  return myHasCountRanges;
 }
 
 //=======================================================================

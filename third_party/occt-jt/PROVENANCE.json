@@ -639,7 +639,7 @@
     {
       "file": "src/JtElement/JtElement_ShapeLOD_Vertex.cxx",
       "origin": "upstream-derived",
-      "notice_date": "2026-10-19",
+      "notice_date": "2026-10-20",
       "upstream_path": "TKJT/src/JtElement/JtElement_ShapeLOD_Vertex.cxx",
       "upstream_sha256": "6288ddb5250e498732a8ccf3411255e68a31388a855f797867450ed315b6d229",
       "modified": true
@@ -647,7 +647,7 @@
     {
       "file": "src/JtElement/JtElement_ShapeLOD_Vertex.hxx",
       "origin": "upstream-derived",
-      "notice_date": "2026-10-19",
+      "notice_date": "2026-10-20",
       "upstream_path": "TKJT/src/JtElement/JtElement_ShapeLOD_Vertex.hxx",
       "upstream_sha256": "31387b76f81b81b9797eff83cea9bfba921ab22a5f2274014cd74fc03b14ce25",
       "modified": true
@@ -799,7 +799,7 @@
     {
       "file": "src/JtNode/JtNode_Shape_Base.cxx",
       "origin": "upstream-derived",
-      "notice_date": "2026-10-19",
+      "notice_date": "2026-10-20",
       "upstream_path": "TKJT/src/JtNode/JtNode_Shape_Base.cxx",
       "upstream_sha256": "6a434793482c796e65e301d105a77c18642e8e382d64d2d5ceb95a36b86df000",
       "modified": true
@@ -807,7 +807,7 @@
     {
       "file": "src/JtNode/JtNode_Shape_Base.hxx",
       "origin": "upstream-derived",
-      "notice_date": "2026-10-19",
+      "notice_date": "2026-10-20",
       "upstream_path": "TKJT/src/JtNode/JtNode_Shape_Base.hxx",
       "upstream_sha256": "82179b9ea0a6b8513ed98cfcd4f2c00be9592888f70ed754dc6e2280bc2d7534",
       "modified": true
@@ -956,5 +956,50 @@
     ],
     "reference": "JT 10.0 section 6.1.2.4, tables 34 and 35",
     "validation": "docs/JT_DRAW_STYLE_VALIDATION.md"
+  },
+  "jt90_follow_up": {
+    "date": "2026-10-20",
+    "scope": "Authentic 9.0 subset through shared transitional decoder; sampled material local-version guard; no new codec or dependency",
+    "files": [
+      "src/JtData/JtData_Model.cxx",
+      "src/JtAttribute/JtAttribute_Material.cxx"
+    ],
+    "validation": "docs/JT_90_VALIDATION.md"
+  },
+  "empty_shape_follow_up": {
+    "date": "2026-10-20",
+    "scope": "Validated zero-count topology plus explicitly zero shape ranges; retain empty siblings without creating render meshes; reject contradictions and empty-only LODs",
+    "files": [
+      "src/JtNode/JtNode_Shape_Base.cxx",
+      "src/JtNode/JtNode_Shape_Base.hxx",
+      "src/JtElement/JtElement_ShapeLOD_Vertex.cxx",
+      "src/JtElement/JtElement_ShapeLOD_Vertex.hxx"
+    ],
+    "validation": "docs/JT_90_VALIDATION.md"
+  },
+  "jt105_follow_up": {
+    "date": "2026-10-20",
+    "scope": "Authentic 10.5 assembly/Sabot/palette qualification through existing modern decoder; explicit file-version gate only; no new codec or dependency",
+    "files": [
+      "src/JtData/JtData_Model.cxx"
+    ],
+    "reference": "Public Prostep ivip PSI 14 Part 1 Version 3 / JT IAP Edition 3, explicitly based on JT 10.5",
+    "validation": "docs/JT_105_VALIDATION.md"
+  },
+  "jt107_108_follow_up": {
+    "date": "2026-10-20",
+    "scope": "Authentic 10.7/10.8 assembly/palette/stored-tessellation qualification through shared modern decoder; explicit version-gate additions, no new codec or dependency",
+    "files": [
+      "src/JtData/JtData_Model.cxx"
+    ],
+    "validation": "docs/JT_107_108_VALIDATION.md"
+  },
+  "jt1010_follow_up": {
+    "date": "2026-10-20",
+    "scope": "Authentic 10.10 assembly/palette/stored-tessellation qualification through existing modern decoder; explicit version gate, no new codec or dependency",
+    "files": [
+      "src/JtData/JtData_Model.cxx"
+    ],
+    "validation": "docs/JT_1010_VALIDATION.md"
   }
 }

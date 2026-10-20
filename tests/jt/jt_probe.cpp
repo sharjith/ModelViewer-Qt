@@ -1,5 +1,11 @@
 #include "Jt/JtImporter.h"
 #include <JtData_Limits.hxx>
+#include <JtData_Model.hxx>
+#include <JtNode_Group.hxx>
+#include <JtNode_Partition.hxx>
+#include <JtNode_Instance.hxx>
+#include <JtAttribute_Material.hxx>
+#include <set>
 #include <QCoreApplication>
 #include <QCommandLineParser>
 #include <QJsonDocument>
@@ -35,14 +41,16 @@ int main(int argc,char** argv) {
     const QCommandLineOption eye("eye","Import-time RangeLOD eye position in JT world coordinates / source units","x,y,z");
     const QCommandLineOption properties("properties","Print supported JT node metadata as JSON");
     const QCommandLineOption materials("materials","Print resolved JT material/style fields as JSON");
+    const QCommandLineOption publishedMaterials("published-material-order","Disable the narrow Solid Edge duplicate-material compatibility profile");
+    const QCommandLineOption sourceAttributes("source-attributes","Print unaccumulated attributes in the input file graph; external partitions are not followed");
     const QCommandLineOption validate("validate","Check geometry, stored-normal lengths and node transforms; print local mesh bounds");
     const QCommandLineOption budget("allocation-budget-mib","Override cumulative charged-allocation budget for native diagnostics","MiB");
-    parser.addOption(budget);
+    parser.addOption(budget);parser.addOption(sourceAttributes);parser.addOption(publishedMaterials);
     parser.addOption(eye);parser.addOption(properties);parser.addOption(materials);parser.addOption(validate);parser.process(app);
     const auto arguments=parser.positionalArguments();
     if(arguments.size()<1 || arguments.size()>2) parser.showHelp(2);
     try {
-        Jt::Options options;
+        Jt::Options options;options.solidEdgeDuplicateMaterialCompatibility=!parser.isSet(publishedMaterials);
         if(parser.isSet(budget)){bool ok=false;const auto mib=parser.value(budget).toULongLong(&ok);if(!ok||!mib||mib>std::numeric_limits<size_t>::max()/(1024*1024))throw std::runtime_error("Invalid allocation budget");options.decodedAllocationBudget=size_t(mib)*1024*1024;}
         size_t charged=0;options.progress=[&](const QString&,int,int){charged=JtData_Limits::allocated;};
         if(parser.isSet(eye)) {
@@ -51,6 +59,32 @@ int main(int argc,char** argv) {
             std::array<double,3> point{};
             for(int i=0;i<3;++i) {bool ok=false;point[i]=coordinates[i].toDouble(&ok);if(!ok) throw std::runtime_error("Invalid --eye coordinate");}
             options.lodEyePoint=point;
+        }
+        if(parser.isSet(sourceAttributes)) {
+            if(arguments.size()!=1) throw std::runtime_error("--source-attributes does not export geometry");
+            JtData_Limits::Scope limits([&]{options.check();},options.decodedAllocationBudget);
+            const auto path=arguments[0].toStdU16String();
+            Handle(JtData_Model) model=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(path.c_str())));
+            const auto root=model->Init();if(root.IsNull())throw std::runtime_error("Cannot read JT source graph");
+            QJsonArray nodes;std::set<const void*> seen;
+            std::function<void(const Handle(JtData_Object)&,unsigned)> walk=[&](const Handle(JtData_Object)& object,unsigned depth) {
+                if(object.IsNull() || depth>512)throw std::runtime_error("Invalid JT source graph reference/depth");
+                if(!seen.insert(object.get()).second)return;
+                if(seen.size()>1000000)throw std::runtime_error("JT source graph node limit");
+                const auto node=Handle(JtNode_Base)::DownCast(object);if(node.IsNull())return;
+                QJsonArray attrs;
+                for(size_t i=0;i<node->Attributes().Count();++i) {
+                    const auto a=Handle(JtAttribute_Base)::DownCast(node->Attributes()[i]);if(a.IsNull())continue;
+                    QJsonObject row{{"listIndex",int(i)},{"type",a->DynamicType()->Name()},{"baseVersion",a->BaseVersion()},{"paletteIndex",a->PaletteIndex()},{"inhibit",double(a->FieldInhibitFlags())},{"final",double(a->FieldFinalFlags())},{"ignored",a->AccumulationIgnored()},{"forced",a->AccumulationForced()}};
+                    const auto m=Handle(JtAttribute_Material)::DownCast(a);
+                    if(!m.IsNull()){const auto c=m->DiffuseColor();row["diffuse"]=QJsonArray{c[0],c[1],c[2],c[3]};row["dataFlags"]=int(m->DataFlags());}
+                    attrs.append(row);
+                }
+                nodes.append(QJsonObject{{"node",QString::fromUtf16(reinterpret_cast<const char16_t*>(node->Name().ToExtString()))},{"type",node->DynamicType()->Name()},{"depth",int(depth)},{"attributes",attrs}});
+                const auto instance=Handle(JtNode_Instance)::DownCast(object);if(!instance.IsNull())walk(instance->Object(),depth+1);
+                const auto group=Handle(JtNode_Group)::DownCast(object);if(!group.IsNull())for(size_t i=0;i<group->Children().Count();++i)walk(group->Children()[i],depth+1);
+            };walk(root,0);
+            std::cout<<QJsonDocument(QJsonObject{{"nodes",nodes},{"externalPartitionsFollowed",false}}).toJson(QJsonDocument::Compact).constData()<<'\n';return 0;
         }
         auto result=Jt::Importer::read(arguments[0],options);
         std::cout<<"charged allocation bytes="<<charged<<'\n';
@@ -111,7 +145,10 @@ int main(int argc,char** argv) {
                 if(material.Get(AI_MATKEY_ENABLE_WIREFRAME,value)==AI_SUCCESS) entry["wireframe"]=bool(value);
                 if(material.Get("$mat.gltf.unlit",0,0,value)==AI_SUCCESS) entry["unlit"]=bool(value);
                 if(material.Get(AI_MATKEY_SHADING_MODEL,value)==AI_SUCCESS) entry["shadingModel"]=value;
+                aiColor4D colour;
+                if(material.Get(AI_MATKEY_COLOR_DIFFUSE,colour)==AI_SUCCESS)entry["diffuse"]=QJsonArray{colour.r,colour.g,colour.b,colour.a};
                 float scalar=0;
+                if(material.Get(AI_MATKEY_OPACITY,scalar)==AI_SUCCESS)entry["opacity"]=scalar;
                 if(material.Get(AI_MATKEY_SHININESS,scalar)==AI_SUCCESS) entry["shininess"]=scalar;
                 if(material.Get(AI_MATKEY_ROUGHNESS_FACTOR,scalar)==AI_SUCCESS) entry["roughness"]=scalar;
                 entries.append(entry);
