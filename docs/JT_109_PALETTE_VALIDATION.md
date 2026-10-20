@@ -1,6 +1,6 @@
 # JT 10.9 palette and face-group qualification
 
-20 October 2026, `feature/JT-importer`. The owner accepted Gate 2a and prioritized current-version coverage: finish Gate 2b (10.9), then qualify 10.10/10.11 before older-format expansion. No 10.10/10.11 input is currently available; the owner will test 10.9 on a separate production system. This is an active implementation checkpoint, not an owner acceptance record.
+20 October 2026, `feature/JT-importer`. The owner accepted Gate 2a and prioritized current-version coverage: finish Gate 2b (10.9), then qualify 10.10/10.11 before older-format expansion. No 10.10/10.11 input is currently available; the owner will test 10.9 on a separate production system. The owner subsequently confirmed successful UI testing of the supplied Solid Edge 10.9 export; see the acceptance record below.
 
 ## Implementation
 
@@ -24,7 +24,7 @@ The diagnostic run produced 3,254 render resources, 606,493 vertices, 685,079 tr
 
 The unchanged original input now passes the production 10.9 path with the normal 6 GiB cumulative budget and no header change or override. Its SHA-256 remains unchanged. Native counts and bounds match the diagnostic observations above. Full portable tests, all five 10.0 parts and the 8.1 geometry/cancellation regression pass. The large 10.3 regression also passed unchanged: 2,468 resources, 2,853 occurrences, 4,450,421 vertices and 5,844,669 triangles. Additional 8.0 and 8.2 probes pass. Source-provenance, whitespace and local documentation-link checks pass. No 10.10/10.11 version is enabled.
 
-Logs stay under ignored `out/jt-research/palette-*`. The owner builds the full application. Stop at Gate 2b for production-system testing before continuing forward-version implementation.
+Logs stay under ignored `out/jt-research/palette-*`. The owner builds the full application. Gate 2b has owner-confirmed sampled 10.9 display acceptance; the original A109 production-system palette/face-group comparison remains a separate pending check. The owner authorized independent subsequent work; the selected next available input is now covered by [Gate 3a](JT_95_VALIDATION.md).
 
 ## References and provenance
 
@@ -32,10 +32,14 @@ Use the archived public Siemens JT 10.6 Revision D reference: attribute/palette 
 
 The new palette-map adapter and tests are original ModelViewer work. Existing upstream GPL notices remain; no additional translator source, restricted SDK or downloaded CAD geometry is bundled. The decoder provenance manifest covers 104 upstream-derived and fourteen original source/header files.
 
-## Gate 2b: ready for owner production-system testing
+## Gate 2b: sampled 10.9 display accepted; production comparison pending
 
 Rebuild `feature/JT-importer` on the production system. Open the unchanged original A109 JT input. Confirm complete geometry, plausible authored placement, face-group colours, normals/shading, hierarchy, selection and fit-to-screen. Compare to an independent source preview where available. Native **render-resource** counts and UI **occurrence** counts are different: the current measured baseline is 3,254 resources and 9,587 occurrences. Optional redundant-node purging may change hierarchy depth.
 
 `out/jt-research/palette-ui-fixtures/palette_three_colours.glb` contains only original synthetic geometry: three separate red, green and blue triangles, three meshes, nine vertices and three triangles. This checks the generated scene/material contract; it is not an independent JT format-conformance oracle. Generate it with `jt_tests --palette-fixtures out/jt-research/palette-ui-fixtures`.
 
-Reopen known-working 8.x, 10.0 and 10.3 inputs for placement/colour/normal regressions. The owner's 9.5 input is inventoried as A95; it is deferred behind current-version coverage. The owner authorized committing and pushing this implementation on 20 October 2026 so it can be pulled, built and tested on the production system. This distribution commit does not record Gate 2b acceptance. Record the production-system outcome before proceeding to 10.10/10.11 implementation.
+Reopen known-working 8.x, 10.0 and 10.3 inputs for placement/colour/normal regressions. The owner's 9.5 input is identified as A95 and is now the separately authorized Gate 3a target. The owner authorized committing and pushing this implementation on 20 October 2026 so it can be pulled, built and tested on the production system. This distribution commit does not record Gate 2b acceptance. Record the production-system outcome independently; subsequent research or Gate 3a results do not accept Gate 2b.
+
+## Owner acceptance update — 20 October 2026
+
+The owner confirmed successful viewer testing of the supplied Solid Edge JT 10.9 assembly export (neutral alias SE10_9). Gate 2b therefore has sampled 10.9 assembly/display acceptance. Its native baseline is 23 render resources, 30 occurrences, 210,257 vertices and 184,618 triangles. The export excludes precise geometry and exercises stored tessellation with external part references. This confirmation does not establish that every palette/face-group variant was exercised. The original A109 production-system check remains pending as additional coverage, rather than leaving all 10.9 UI qualification pending. Gate 3b acceptance is independent and remains pending.

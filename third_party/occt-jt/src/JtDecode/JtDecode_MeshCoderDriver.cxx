@@ -1216,7 +1216,9 @@ JtDecode_MeshCoderDriver::LoadInputData (JtData_Reader& theReader)
   for (Standard_Size i = 0; i < 24; i++)
   {
     if(aData->modernMasks && i==20) continue;
-    if (!(aData->modernMasks && i==21 ? streams[i]->LoadPlain(theReader) : streams[i]->Load2 (theReader))) {
+    // High-degree masks are a raw VecU32 in both JT 9.5 (7.2.2.1)
+    // and JT 10. Only the separate upper-four-bit stream differs.
+    if (!(i==21 ? streams[i]->LoadPlain(theReader) : streams[i]->Load2 (theReader))) {
       throw std::runtime_error("Cannot read JT topology stream " + std::to_string(i) + " at " + std::to_string(theReader.GetPosition()));
       return (InputData::Handle)0;
     }

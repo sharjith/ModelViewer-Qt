@@ -1,6 +1,6 @@
 # JT version compatibility policy
 
-Research checked **19 October 2026**, on `feature/JT-importer`. This document defines the forward target, not a claim that the entire range is implemented.
+Research checked **20 October 2026**, on `feature/JT-importer`. This document defines the forward target, not a claim that the entire range is implemented.
 
 ## Released versions and public documentation
 
@@ -12,7 +12,7 @@ There is unresolved contrary evidence: [Altair Inspire 2025's format table](http
 
 ## Validation sample identifiers
 
-The owner supplied an additional 9.5 input (A95) on 20 October 2026: header `Version 9.5 JT  DM 9.6.3.1`, 410,366,195 bytes, SHA-256 `5062b6b7d2e089ce0461cb8bfa4fe2cf9243d8fd9da64741fc9ee6dba5987f6a`. This is a header/hash inventory only; it does not establish 9.5 import support. Current-version work retains priority.
+The owner supplied an additional 9.5 input (A95) on 20 October 2026: header `Version 9.5 JT  DM 9.6.3.1`, 410,366,195 bytes, SHA-256 `5062b6b7d2e089ce0461cb8bfa4fe2cf9243d8fd9da64741fc9ee6dba5987f6a`. The owner selected it for the next qualification pass while forward-version samples are unavailable. See [9.5 validation and Gate 3a](JT_95_VALIDATION.md) for native results, supported layouts and owner UI acceptance on 20 October 2026.
 
 Downloaded community models are referenced only by neutral IDs: L80 (8.0), L81 (8.1), Q82 (8.2 quantized), A103 (10.3 assembly), A109 (10.9 investigation), and R1-R3 (additional regressions). Their original names and paths are kept in ignored local research notes at `out/jt-research/documentation-sample-map.json`. In reproduction commands, `<local-samples>/sample-*.jt` is a placeholder: substitute the corresponding original local file path. These aliases do not rename the source files or bundle their geometry. Hashes and measured results remain available for matching the validation evidence.
 
@@ -29,10 +29,12 @@ Share parsers/codecs across compatible record layouts and add adapters for actua
 | 8.0 | Shared 8.x layout family; sample L80 accepted at Gate 0; quantized follow-up passes original fixtures | Retain shared adapters; see [quantized validation](JT_LEGACY_QUANTIZED_VALIDATION.md), Gate 1 UI check accepted |
 | 8.1 | Enabled shared legacy family; sample L81 accepted; lossless and qualified quantized fixtures pass | Retain regressions; unsupported Huffman/additional bindings/colour layouts remain explicit |
 | 8.2 | sample Q82 now passes native quantized geometry checks: 6 meshes, 115,176 vertices, 205,355 triangles; Gate 1 UI check accepted | Same 8.x decoder; constant RGB(A) and UV retention qualified; texture images and nonconstant quantized colours remain unsupported |
-| 9.x, prioritizing 9.5 | Not enabled or qualified | Add explicit container, graph and codec adapters; obtain matching references and samples before enabling each revision |
+| 9.5 | Enabled sampled Mk.2/topological tessellation subset; original assembly and LE/BE fixtures under Gate 3a | See [9.5 qualification](JT_95_VALIDATION.md); owner accepted Gate 3a on 20 October 2026 |
+| Other 9.x | Not enabled or qualified | Reuse the transitional family only after matching evidence and tests; 9.5 qualification does not enable all 9.x |
 | 10.0 | Enabled sampled tessellation subset, with owner-tested assembly/appearance follow-ups | Keep as modern regression baseline; improve representation coverage |
 | 10.3 | Enabled subset; original sample A103 sample passes native geometry checks and owner accepted Gate 0 | See [sample A103 validation](JT_103_ASSEMBLY_VALIDATION.md); retain the current scene model and qualify further encodings separately |
-| Other later 10.x through 10.6 | Public 10.6 reference available; other revisions not individually qualified | Implement documented attribute versions, Sabot wrappers and face-group palette semantics; qualify each actual file revision and codec |
+| 10.1–10.2 | Modern baseline references available; authentic exports requested from the owner | Compare actual records/codecs and qualify through Gate 3d |
+| 10.4–10.6 | Public JT 10.5-based Prostep reference and Siemens 10.6 reference available; actual inputs pending | Existing attribute/Sabot/palette adapters are candidates for reuse; qualify actual files through Gate 3e |
 | 10.7–10.8 | No qualified local corpus yet | Assess the shared modern family with representative inputs; do not infer acceptance from 10.9 |
 | 10.9 | Unchanged original passes native production-path validation: palette attributes, face-group appearance and stored tessellation | [Gate 2b](JT_109_PALETTE_VALIDATION.md) awaits owner production-system testing; 10.10/10.11 follow before older-format work |
 | 10.10–10.11 | Shipping-version evidence; no local qualification corpus or matching public reference acquired | Forward target contingent on lawful layout evidence, samples and tests; reassess scope if new representations require substantial redesign |
@@ -43,7 +45,9 @@ See [native importer status](JT_NATIVE_IMPORTER.md), [8.1 validation](JT_81_VALI
 
 ## Architecture and implementation order
 
-Follow the feature milestones and explicit owner build/acceptance gates in [development phases](JT_DEVELOPMENT_PHASES.md). Gates 0, 1 and 2a are accepted. On 20 October 2026 the owner prioritized **10.9, then 10.10/10.11**, ahead of transitional 9.x/intervening 10.x and pre-8 work. Representative 10.10/10.11 inputs are still needed; the owner plans 10.9 testing on a separate production system.
+Follow the feature milestones and explicit owner build/acceptance gates in [development phases](JT_DEVELOPMENT_PHASES.md). Gates 0, 1 and 2a are accepted. On 20 October 2026 the owner prioritized **10.9, then 10.10/10.11**, ahead of transitional 9.x/intervening 10.x and pre-8 work. Representative 10.10/10.11 inputs are still needed; the owner plans 10.9 testing on a separate production system using pushed commit `4cb6ebe`. The owner authorized independent forward qualification while that UI result is pending; see [current research and qualification sequence](JT_FORWARD_COMPATIBILITY_RESEARCH.md).
+
+The latest owner direction prioritizes **9.0–9.5 and 10.0–10.8** while 10.9 production testing waits until 21 October. Follow the [point-version gates](JT_POINT_VERSION_EXPANSION.md); newly targeted identifiers still require qualification evidence.
 
 The output contract remains indexed triangles, positions, stored normals, material groups, shared mesh definitions, occurrence nodes with local transforms, and typed metadata at the owned `aiScene` boundary. The modern and qualified 8.1 paths already fit it. Pre-8 compatibility is a hypothesis to assess rather than established support. Keep source-layout differences within the native reader; apply the 6.4/7.0 decision gate if the output contract would need substantial redesign.
 
@@ -63,4 +67,8 @@ Full PMI rendering, procedural shaders/textures and runtime LOD switching are se
 
 Use published reference material and independently written adapters, retaining audited upstream GPL notices and existing Siemens attribution. The public 10.6 copyright terms and limited patent notice are not blanket clearance for every undocumented later feature. Review the provenance and applicable terms for each extension; do not use leaked SDK code or restricted schema catalogs. See [licensing research](JT_IMPORT_FEASIBILITY.md) and [third-party notices](../THIRD_PARTY_NOTICES.md).
 
-About lists only the supported JT versions (**8.0–8.2, 10.0, 10.3 and 10.9**) and licence credits. Keep representation limits, validation status, planned compatibility and reference research in the [README](../README.md#jt-import) and detailed documentation. The README describes format capabilities without naming downloaded models; validation evidence uses neutral sample IDs in dedicated documents; original filenames and local paths remain in ignored research notes. Update this matrix, the README and About together when supported versions change. Only explicitly enabled versions pass the production version gate.
+About lists only the supported JT versions (**8.0–8.2, 9.5, 10.0, 10.3 and 10.9**) and licence credits. Keep representation limits, validation status, planned compatibility and reference research in the [README](../README.md#jt-import) and detailed documentation. The README describes format capabilities without naming downloaded models; validation evidence uses neutral sample IDs in dedicated documents; original filenames and local paths remain in ignored research notes. Update this matrix, the README and About together when supported versions change. Only explicitly enabled versions pass the production version gate.
+
+## Latest owner confirmation — 20 October 2026
+
+The owner confirmed successful UI testing of the supplied Solid Edge 10.9 assembly export. This supersedes earlier statements that all Gate 2b UI qualification is pending: sampled 10.9 display is accepted. The original production-system palette/face-group comparison remains pending additional coverage; the confirmation does not imply that every such variant was exercised. Gate 3b remains pending independently. Authentic 10.10 exports are now available, while 10.11 inputs remain unavailable. See [10.9 acceptance](JT_109_PALETTE_VALIDATION.md) and the [current expansion plan](JT_POINT_VERSION_EXPANSION.md).

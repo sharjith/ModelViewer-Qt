@@ -155,6 +155,11 @@ void shininessTests() {
         auto root=node<JtNode_Partition>("root");auto shape=leaf();root->children({shape});shape->attributes({new Gloss(value)});
         rejected([&]{build(root);},std::isfinite(value)?"shininess is out of range":"nonfinite material");
     }
+    for(bool force:{false,true}) {
+        auto root=node<JtNode_Partition>("root");auto group=node<JtNode_Group>("parent");auto shape=leaf();root->children({group});group->children({shape});
+        group->attributes({new Gloss(4,0,0,9)});shape->attributes({new Gloss(96,0,0,force?10:8)});
+        auto result=build(root);check(resolved(result,0)==(force?96:4),"Whole-attribute final/force did not protect shininess");
+    }
     // Table 16's bit 4 is vertex-colour override, not shininess. Even all
     // inhibit/final flags do not assign an undocumented lock to the exponent.
     for(unsigned mode:{0u,1u,2u,3u}) {
@@ -430,12 +435,12 @@ void sceneTests() {inheritance();shininessTests();vertexColorTests();instances()
 void containerTests(const QString& samples) {
     QTemporaryDir temp;check(temp.isValid(),"Cannot create container directory");
     const auto path=temp.filePath("assembly.jt");
-    for(const char* version:{"6.4","7.0","8.3","9.5","10.1","10.2","10.4","10.6","10.10","10.11","11.0"}) {
+    for(const char* version:{"6.4","7.0","8.3","9.4","9.6","10.1","10.2","10.4","10.6","10.10","10.11","11.0"}) {
         Fixture::write(path,"",false,false);
         QFile file(path);check(file.open(QIODevice::ReadOnly),"Cannot read version fixture");auto bytes=file.readAll();file.close();
         const auto header=(QByteArray("Version ")+version+" JT original unsupported-version fixture").leftJustified(80,' ');
         bytes.replace(0,80,header);check(file.open(QIODevice::WriteOnly) && file.write(bytes)==bytes.size(),"Cannot write version fixture");file.close();
-        const auto message=std::string("Unsupported JT version ")+version+"; native reader supports qualified JT 8.0-8.2, JT 10.0, JT 10.3 and JT 10.9 subsets";
+        const auto message=std::string("Unsupported JT version ")+version+"; native reader supports qualified JT 8.0-8.2, JT 9.5, JT 10.0, JT 10.3 and JT 10.9 subsets";
         rejected([&]{Jt::Importer::read(path);},message.c_str());
     }
     for(bool big:{false,true}) for(unsigned minor:{0,3,9}) {

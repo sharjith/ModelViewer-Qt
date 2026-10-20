@@ -15,6 +15,7 @@
 // on <http://www.gnu.org/licenses/>.
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// JT 9.5 qualification and shared attribute/codec bounds updated: 2026-10-20.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -39,10 +40,11 @@ public:
   Jt_I16 BaseVersion() const { return myVersion; }
   Jt_I32 PaletteIndex() const { return myPaletteIndex; }
 
+  bool AccumulationFinal() const { return (myStateFlags & 0x01) != 0; }
   bool AccumulationIgnored() const { return (myStateFlags & 0x04) != 0; }
   bool AccumulationForced() const { return (myStateFlags & 0x02) != 0; }
   Jt_U32 FieldInhibitFlags() const { return myFieldInhibitFlags; }
-  Jt_U32 FieldFinalFlags() const { return myFieldFinalFlags; }
+  Jt_U32 FieldFinalFlags() const { return myFieldFinalFlags | (AccumulationFinal() ? ~Jt_U32(0) : Jt_U32(0)); }
 
   DEFINE_STANDARD_RTTIEXT(JtAttribute_Base, JtData_Object)
 

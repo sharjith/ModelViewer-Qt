@@ -17,7 +17,7 @@ target_link_libraries(jt_probe PRIVATE mv_jt_codec Qt6::Core assimp::assimp ${Op
 add_executable(jt_color_fixturegen jt_color_fixturegen.cpp ${REPO}/src/Import/Jt/JtImporter.cpp ${REPO}/src/Import/Jt/JtSceneBuilder.cpp)
 target_include_directories(jt_color_fixturegen PRIVATE ${REPO}/include/Import)
 target_link_libraries(jt_color_fixturegen PRIVATE mv_jt_codec Qt6::Core assimp::assimp ${OpenCASCADE_ModelingData_LIBRARIES} ${OpenCASCADE_ModelingAlgorithms_LIBRARIES})
-add_executable(jt_tests jt_tests.cpp jt_scene_tests.cpp jt_legacy_tests.cpp jt_quantized_tests.cpp jt_modern_attribute_tests.cpp jt_palette_tests.cpp ${REPO}/src/Import/Jt/JtImporter.cpp ${REPO}/src/Import/Jt/JtSceneBuilder.cpp)
+add_executable(jt_tests jt_tests.cpp jt95_tests.cpp jt_scene_tests.cpp jt_legacy_tests.cpp jt_quantized_tests.cpp jt_modern_attribute_tests.cpp jt_palette_tests.cpp ${REPO}/src/Import/Jt/JtImporter.cpp ${REPO}/src/Import/Jt/JtSceneBuilder.cpp)
 target_sources(jt_tests PRIVATE ${REPO}/src/Scene/SceneUtils.cpp)
 target_include_directories(jt_tests PRIVATE ${REPO}/include/Import ${REPO}/src/Import/Jt ${REPO}/include/Scene)
 target_link_libraries(jt_tests PRIVATE mv_jt_codec Qt6::Core assimp::assimp glm::glm ${OpenCASCADE_ModelingData_LIBRARIES} ${OpenCASCADE_ModelingAlgorithms_LIBRARIES})

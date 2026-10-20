@@ -15,6 +15,7 @@
 // on <http://www.gnu.org/licenses/>.
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// JT 9.5 qualification and shared attribute/codec bounds updated: 2026-10-20.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -73,7 +74,8 @@ protected:
                          const unsigned theOccBitsNumWidth,
                          const unsigned theValBitsNumWidth,
                          const unsigned theNxtBitsNumWidth,
-                         const unsigned theMinValueWidth);
+                         const unsigned theMinValueWidth,
+                         const bool theAllowZeroFrequency = false);
 
   JtData_Vector<Entry> myEntries;
   unsigned             myTotalCount;

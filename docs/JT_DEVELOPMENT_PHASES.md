@@ -1,8 +1,8 @@
 # JT development phases and owner acceptance gates
 
-19 October 2026, `feature/JT-importer`. This is the active execution plan, supplementing the broader [JT/Parasolid scope](JT_PARASOLID_IMPLEMENTATION_SCOPE.md) and [version policy](JT_VERSION_COMPATIBILITY.md).
+Updated 20 October 2026, `feature/JT-importer`. This is the active execution plan, supplementing the broader [JT/Parasolid scope](JT_PARASOLID_IMPLEMENTATION_SCOPE.md) and [version policy](JT_VERSION_COMPATIBILITY.md).
 
-The staged visualization target is **JT 6.4–10.11**. Execution priority, updated by the owner on 20 October 2026, is **10.9, then 10.10/10.11**, before transitional and pre-8 expansion; phase identifiers below remain stable for existing gate references. If 6.4 specifically requires a substantial replacement or incompatible extension of the viewer mesh/assembly model, use **7.0 as the lower target**, supported by the documented [legacy decision gate](JT_LEGACY_COMPATIBILITY_ASSESSMENT.md). Missing samples or a difficult codec alone do not demonstrate that condition.
+The staged visualization target is **JT 6.4–10.11**. Execution priority, updated by the owner on 20 October 2026 after Gate 3a acceptance, is **9.0–9.5 and 10.0–10.8**; phase identifiers below remain stable for existing gate references. If 6.4 specifically requires a substantial replacement or incompatible extension of the viewer mesh/assembly model, use **7.0 as the lower target**, supported by the documented [legacy decision gate](JT_LEGACY_COMPATIBILITY_ASSESSMENT.md). Missing samples or a difficult codec alone do not demonstrate that condition.
 
 ## Delivery rules
 
@@ -15,7 +15,11 @@ The staged visualization target is **JT 6.4–10.11**. Execution priority, updat
 
 ## Current gate
 
-**Gates 0 and 1 accepted, 19 October 2026.** The owner reported “Tests passed, commit, push, and proceed” for the shared legacy quantized follow-up. See [implementation and validation](JT_LEGACY_QUANTIZED_VALIDATION.md). Phase 2 is split at two owner gates: [Gate 2a attribute-envelope foundations](JT_MODERN_ATTRIBUTE_VALIDATION.md), then Gate 2b palette/face-group rendering and 10.9 qualification. The owner accepted Gate 2a on 20 October 2026 with “All tests passed.” Gate 2b (10.9 palette/face-group rendering) passed native production-path validation and prior-family regressions; see [owner handoff](JT_109_PALETTE_VALIDATION.md). The owner authorized committing/pushing on 20 October 2026 to enable that production-system build; Gate 2b remains pending. Stop for the production-system test. The owner prioritizes current-version coverage: qualify 10.10/10.11 immediately after 10.9, ahead of transitional and pre-8 work.
+**Gates 0 and 1 accepted, 19 October 2026.** The owner reported “Tests passed, commit, push, and proceed” for the shared legacy quantized follow-up. See [implementation and validation](JT_LEGACY_QUANTIZED_VALIDATION.md). Phase 2 is split at two owner gates: [Gate 2a attribute-envelope foundations](JT_MODERN_ATTRIBUTE_VALIDATION.md), then Gate 2b palette/face-group rendering and 10.9 qualification. The owner accepted Gate 2a on 20 October 2026 with “All tests passed.” Gate 2b (10.9 palette/face-group rendering) passed native production-path validation and prior-family regressions; see [owner handoff](JT_109_PALETTE_VALIDATION.md). The owner authorized committing/pushing on 20 October 2026 to enable that production-system build; Gate 2b remains pending. Distribution commit `4cb6ebe` is pushed to `origin/feature/JT-importer`. The owner subsequently authorized independent next-stage work while the production-system test is pending: reference/sample acquisition and 10.10/10.11 layout qualification may proceed; do not treat that authorization as acceptance of Gate 2b. Changes that depend on the correctness of 10.9 rendering remain subject to its reported results. The owner prioritizes current-version coverage: qualify 10.10/10.11 when matching lawful evidence and inputs are available. The later owner direction below selects the available 9.5 input in the meantime.
+
+The owner subsequently selected the available 9.5 input for the next implementation pass, while authentic 10.10/10.11 inputs remain unavailable. Phase 3 **Gate 3a: JT 9.5 was accepted on 20 October 2026** when the owner reported “9.5 works”; keep Gate 2b pending independently. Do not infer acceptance of either gate from the other. See [9.5 implementation and owner checklist](JT_95_VALIDATION.md).
+
+The owner next requested all known 9.x point versions and all 10.x revisions through 10.8, with the 10.9 production test planned for 21 October. Execute the [point-version expansion gates 3b–3f](JT_POINT_VERSION_EXPANSION.md). Gate 3b corrects the older material mask semantics first; Gates 3c–3f qualify additional file revisions from matching layout/input evidence. No newly targeted version is enabled merely by this plan.
 
 ## Phase map
 
@@ -31,7 +35,7 @@ The staged visualization target is **JT 6.4–10.11**. Execution priority, updat
 
 These are feature milestones, not promises to complete every historical representation. If a phase produces several independently useful changes, split it into an additional owner gate **before** beginning the next change. A geometry-first Gate 1 may state that textures or some secondary appearance remain unsupported, but must not skip unknown UV/colour bytes or misrepresent a partial mesh as complete. Supply a concrete appearance follow-up if needed.
 
-Acquire old/current references and authentic samples as preparation while another phase is active; that does not authorize advancing unaccepted feature changes past a gate. Lack of a corpus may change implementation order after being documented. Do not weaken the validation criteria to manufacture range coverage.
+Acquire old/current references and authentic samples as preparation while another phase is active. The explicit 20 October authorization also permits independent current-version qualification while Gate 2b is pending; other gates still require acceptance before dependent feature work advances. See [forward qualification research](JT_FORWARD_COMPATIBILITY_RESEARCH.md). Lack of a corpus may change implementation order after being documented. Do not weaken the validation criteria to manufacture range coverage.
 
 ## Gate 0: accepted baseline (historical checklist)
 
@@ -57,3 +61,7 @@ Gate 0 is accepted. Phase 1 now adds the checked quantized geometry path, UV ret
 ## Exact geometry boundary
 
 Standalone XT and JT-embedded precise B-Rep conversion remain a separate future implementation/branch decision. No visualization gate depends on buying a Siemens toolkit or on an exact backend succeeding. Optional future exact output must be validated; failure uses qualified stored tessellation, with an explicit failure if none is usable. Full PMI, shader execution, texture fidelity and runtime LOD switching are separate scope unless a phase explicitly brings them into its acceptance criteria.
+
+## Latest owner confirmation — 20 October 2026
+
+The owner confirmed successful UI testing of the supplied Solid Edge 10.9 assembly export. This supersedes earlier statements that all Gate 2b UI qualification is pending: sampled 10.9 display is accepted. The original production-system palette/face-group comparison remains pending additional coverage; the confirmation does not imply that every such variant was exercised. Gate 3b remains pending independently. Authentic 10.10 exports are now available, while 10.11 inputs remain unavailable. See [10.9 acceptance](JT_109_PALETTE_VALIDATION.md) and the [current expansion plan](JT_POINT_VERSION_EXPANSION.md).

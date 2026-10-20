@@ -155,7 +155,7 @@ struct Appearance {
     aiColor4D diffuse{0.75f,0.75f,0.78f,1};
     aiColor3D ambient{},specular{},emission{};
     float bumpiness=1,reflectivity=0,shininess=15;
-    bool hasShininess=false;
+    bool hasShininess=false,shininessFinal=false;
     bool legacyShininess=false;
     bool overrideColors=false;
     unsigned finalFields=0,present=0;
@@ -181,9 +181,12 @@ struct Appearance {
         if(allowed&(1u<<3)) blendFlags=source.DataFlags()&0xffd0u;
         if(allowed&(1u<<4)) overrideColors=(source.DataFlags()&0x20)!=0;
         // Table 16 assigns no inhibit/final bit to shininess. It replaces
-        // the inherited exponent whenever this material participates.
+        // the inherited exponent unless the entire attribute is final.
         // In particular, bit 4 controls vertex-colour override, not shininess.
-        shininess=source.Shininess();hasShininess=true;legacyShininess=source.IsLegacyLayout();
+        if(!shininessFinal || source.AccumulationForced()) {
+            shininess=source.Shininess();hasShininess=true;legacyShininess=source.IsLegacyLayout();
+        }
+        shininessFinal=shininessFinal || source.AccumulationFinal();
         if(allowed&(1u<<5)) reflectivity=source.Reflectivity();
         if(allowed&(1u<<6)) {diffuse.r=c[0];diffuse.g=c[1];diffuse.b=c[2];}
         if(allowed&(1u<<7)) diffuse.a=c[3];

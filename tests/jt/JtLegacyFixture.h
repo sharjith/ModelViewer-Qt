@@ -6,7 +6,7 @@
 #include <vector>
 #include <limits>
 namespace LegacyFixture {
-struct Options {bool big=false,compressed=true,padding=true,eofSizeQuirk=false;int badStrip=0;bool badChecksum=false,badRawSize=false,badPadding=false,quantizedData=false;unsigned normalBinding=1,colorBinding=0,codec=0,minorVersion=1,quantizedBits=0,uvBinding=0,quantizedDamage=0,quantizedColourComponents=3;};
+struct Options {bool big=false,compressed=true,padding=true,eofSizeQuirk=false;int badStrip=0;bool badChecksum=false,badRawSize=false,badPadding=false,quantizedData=false;unsigned materialInhibit=0,normalBinding=1,colorBinding=0,codec=0,minorVersion=1,quantizedBits=0,uvBinding=0,quantizedDamage=0,quantizedColourComponents=3;};
 inline QByteArray zlib(const QByteArray& raw) {
     uLongf size=compressBound(uLong(raw.size()));QByteArray out(qsizetype(size),'\0');
     if(compress2(reinterpret_cast<Bytef*>(out.data()),&size,reinterpret_cast<const Bytef*>(raw.constData()),uLong(raw.size()),1)!=Z_OK)throw std::runtime_error("Fixture compression failed");
@@ -19,7 +19,7 @@ inline QByteArray bytes(Options o={}) {
     element(graph,type("10dd103e"),1,root);
     Bytes shape(big);shape.u32(0);shape.list({});for(int i=0;i<12;++i)shape.f32(0);shape.f32(1);for(int i=0;i<6;++i)shape.u32(0);shape.u32(0);shape.f32(0);
     shape.u32(o.normalBinding);shape.u32(o.uvBinding);shape.u32(o.colorBinding);for(int i=0;i<4;++i)shape.u8(0);element(graph,type("10dd1077"),2,shape);
-    Bytes material(big);material.u8(8);material.u32(0);material.u16(0);
+    Bytes material(big);material.u8(8);material.u32(o.materialInhibit);material.u16(0);
     for(unsigned c=0;c<4;++c)for(unsigned j=0;j<4;++j)material.f32(j==3?1.0f:c==1?float(j==2):0.0f);material.f32(131072);element(graph,type("10dd1030"),20,material,3);
     Bytes transform(big);transform.u8(8);transform.u32(0);transform.u16(0x0c);transform.f32(10);transform.f32(-3);element(graph,type("10dd1083"),21,transform,3);end(graph);
     const auto string=[&](unsigned id,const char* value){Bytes b(big);b.u32(0x40);b.text(value);element(graph,type("10dd106e"),id,b);};

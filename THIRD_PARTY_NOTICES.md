@@ -1,6 +1,6 @@
 # Importer third-party notices
 
-Updated 19 October 2026. These notices supplement the application's existing library and asset notices; they are not an exhaustive list of every dependency. ModelViewer-Qt is distributed under GNU GPL version 3; see the accompanying gpl-3.0.txt and the corresponding source repository at https://github.com/sharjith/ModelViewer-Qt. Copyright and licence notices for other components remain in their supplied files.
+Updated 20 October 2026. These notices supplement the application's existing library and asset notices; they are not an exhaustive list of every dependency. ModelViewer-Qt is distributed under GNU GPL version 3; see the accompanying gpl-3.0.txt and the corresponding source repository at https://github.com/sharjith/ModelViewer-Qt. Copyright and licence notices for other components remain in their supplied files.
 
 ## 3DXML reference acknowledgement
 
@@ -22,6 +22,7 @@ This software is provided without warranty; the governing GPL texts contain the 
 
 ## Siemens JT data-structure notice
 
+JT 9.5 Rev-A reference data structures and operators: Copyright 2010 Siemens Product Lifecycle Management Software Inc.
 JT 10.0 reference data structures and operators: Copyright 2014 Siemens Product Lifecycle Management Software Inc.
 JT 10.6 Revision D reference data structures and operators: Copyright 2026 Siemens.
 

@@ -15,6 +15,7 @@
 // on <http://www.gnu.org/licenses/>.
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// JT 9.5 qualification and shared attribute/codec bounds updated: 2026-10-20.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -44,7 +45,7 @@ Standard_Boolean JtDecode_ProbContextI32::ReadNext (JtDecode_BitReader::Raw& the
 
 Standard_Boolean JtDecode_ProbContextI32::ReadMk2 (JtDecode_BitReader::Raw& theReader)
 {
-  return read (theReader, 16, 6, 6, 6, 0, 32);
+  return read (theReader, 16, 6, 6, 6, 0, 32, true);
 }
 
 Standard_Boolean JtDecode_ProbContextI32::ReadMk3(JtDecode_BitReader::Raw& reader)
@@ -70,7 +71,8 @@ Standard_Boolean JtDecode_ProbContextI32::read (JtDecode_BitReader::Raw& theRead
                                                 const unsigned theOccBitsNumWidth,
                                                 const unsigned theValBitsNumWidth,
                                                 const unsigned theNxtBitsNumWidth,
-                                                const unsigned theMinValueWidth)
+                                                const unsigned theMinValueWidth,
+                                                const bool theAllowZeroFrequency)
 {
   if (!theReader.Load (theEntryCountWidth + theSymBitsNumWidth + theOccBitsNumWidth
                      + theValBitsNumWidth + theNxtBitsNumWidth + theMinValueWidth))
@@ -100,10 +102,13 @@ Standard_Boolean JtDecode_ProbContextI32::read (JtDecode_BitReader::Raw& theRead
     anEntry.associatedValue = int32_t(theReader.ReadU32Or0(aValBits)+uint32_t(aMinValue));
     anEntry.nextContext     = theReader.ReadU32Or0 (aNxtBits);
 
-    if(!anEntry.occCount || anEntry.occCount>0xffffffffu-myTotalCount)
+    // Mk.2 tables can retain unused symbols with zero relative frequency.
+    // They occupy no arithmetic interval; the complete table must stay nonzero.
+    if((!anEntry.occCount && !theAllowZeroFrequency) || anEntry.occCount>0xffffffffu-myTotalCount)
       throw std::runtime_error("Invalid legacy JT probability frequency");
     myTotalCount += anEntry.occCount;
   }
 
+  if(!myTotalCount) throw std::runtime_error("Invalid legacy JT probability frequency total");
   return Standard_True;
 }

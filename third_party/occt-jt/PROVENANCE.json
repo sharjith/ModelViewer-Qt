@@ -38,7 +38,7 @@
     {
       "file": "src/JtAttribute/JtAttribute_Base.cxx",
       "origin": "upstream-derived",
-      "notice_date": "2026-10-19",
+      "notice_date": "2026-10-20",
       "upstream_path": "TKJT/src/JtAttribute/JtAttribute_Base.cxx",
       "upstream_sha256": "3d09fd4b13252988aef8d15419d2d05f4be9062545b05f14a519ccf51d496d71",
       "modified": true
@@ -46,7 +46,7 @@
     {
       "file": "src/JtAttribute/JtAttribute_Base.hxx",
       "origin": "upstream-derived",
-      "notice_date": "2026-10-19",
+      "notice_date": "2026-10-20",
       "upstream_path": "TKJT/src/JtAttribute/JtAttribute_Base.hxx",
       "upstream_sha256": "ca8c3255a2cb5b1fdc8ce5d9f522f690433763fb775a1f28c8dff3ec40d9e070",
       "modified": true
@@ -70,7 +70,7 @@
     {
       "file": "src/JtAttribute/JtAttribute_Material.cxx",
       "origin": "upstream-derived",
-      "notice_date": "2026-10-19",
+      "notice_date": "2026-10-20",
       "upstream_path": "TKJT/src/JtAttribute/JtAttribute_Material.cxx",
       "upstream_sha256": "2f36e95b0b426e58cf859676f3e04d2f17d0d21ed1968f8a5f439cc70aa24122",
       "modified": true
@@ -192,7 +192,7 @@
     {
       "file": "src/JtData/JtData_Model.cxx",
       "origin": "upstream-derived",
-      "notice_date": "2026-10-19",
+      "notice_date": "2026-10-20",
       "upstream_path": "TKJT/src/JtData/JtData_Model.cxx",
       "upstream_sha256": "16154575d91a0436248d8827605f321cb4294b82ce6f70a1b20fd2c21ccde54d",
       "modified": true
@@ -328,7 +328,7 @@
     {
       "file": "src/JtDecode/JtDecode_Int32CDP.cxx",
       "origin": "upstream-derived",
-      "notice_date": "2026-10-19",
+      "notice_date": "2026-10-20",
       "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDP.cxx",
       "upstream_sha256": "dc066c5d1d885b9a84d89dfd501ac55ec403b1c4fad2143ba7c2e764610f9544",
       "modified": true
@@ -376,7 +376,7 @@
     {
       "file": "src/JtDecode/JtDecode_Int32CDP_Bitlength2.cxx",
       "origin": "upstream-derived",
-      "notice_date": "2026-10-19",
+      "notice_date": "2026-10-20",
       "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDP_Bitlength2.cxx",
       "upstream_sha256": "6de5024fca1f938b4734807b7b9d6e923033e53c468f27012b77d567ca0c92a6",
       "modified": true
@@ -413,7 +413,7 @@
     {
       "file": "src/JtDecode/JtDecode_Int32CDP_Chopper.cxx",
       "origin": "upstream-derived",
-      "notice_date": "2026-10-19",
+      "notice_date": "2026-10-20",
       "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDP_Chopper.cxx",
       "upstream_sha256": "5a2c947e1792151ecec1274e1bb7ac3181137333618989c7555193e441453a8f",
       "modified": true
@@ -490,7 +490,7 @@
     {
       "file": "src/JtDecode/JtDecode_ProbContext.cxx",
       "origin": "upstream-derived",
-      "notice_date": "2026-10-19",
+      "notice_date": "2026-10-20",
       "upstream_path": "TKJT/src/JtDecode/JtDecode_ProbContext.cxx",
       "upstream_sha256": "d6505acb1c9cef07722e6db88ce7e2354be4702c5ddc4dbdf3b6d3342fc8d2f9",
       "modified": true
@@ -498,7 +498,7 @@
     {
       "file": "src/JtDecode/JtDecode_ProbContext.hxx",
       "origin": "upstream-derived",
-      "notice_date": "2026-10-19",
+      "notice_date": "2026-10-20",
       "upstream_path": "TKJT/src/JtDecode/JtDecode_ProbContext.hxx",
       "upstream_sha256": "fe29354ef3da784573903941c9683b66ef9d23a2a824c652e9b52a9b37988c39",
       "modified": true

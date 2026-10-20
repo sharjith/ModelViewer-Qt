@@ -14,6 +14,20 @@ Changes include:
 - Disabled upstream decoder threading and original ModelViewer CMake integration using OCCT, zlib and LibLZMA. No viewer, Eigen copy or commercial XT converter is included.
 - Source whitespace normalized during import. The manifest records provenance; the Git history and upstream comparison provide the exact changes, not a promise that every listed subsystem changed in every file.
 
+## JT 9.5 high-degree topology-mask correction, 20 October 2026
+
+The owner-supplied external-reference export exposed a nonempty high-degree face-mask vector. Public JT 9.5 Rev-A section 7.2.2.1 specifies a plain VecU32, not CDP2. LoadInputData now uses the raw-vector loader for this stream in both 9.5 and JT 10, preserving the additional legacy upper-four-bit stream. Original LE/BE tests verify words, high bits, following split streams/hash alignment and truncation. No permissive zero-length compressed-packet workaround or new file version is added. See docs/JT_POINT_VERSION_EXPANSION.md for native results and the pending owner gate.
+
+## Older material field-mask adapter, 20 October 2026
+
+Pre-10 material inhibit masks are normalized to the shared scene accumulator's field numbering after a successful read. The public 9.5 Rev-A table retains the legacy combined diffuse/alpha bit and adds independent RGB/alpha bits; JT 10 reorders these fields. Generic attribute masks and modern material masks are unchanged. Original binary goldens cover every documented bit in both byte orders, and generated cross-version assemblies verify rendered RGB/opacity inheritance. This corrects shared appearance semantics without enabling additional file versions. See docs/JT_POINT_VERSION_EXPANSION.md for Gate 3b and the remaining qualification plan. No additional translator implementation or SDK is added.
+
+## JT 9.5 sampled qualification, 20 October 2026
+
+The existing transitional adapters are explicitly enabled only for JT 9.5: 32-bit directory offsets, 16-bit record versions, earlier topology masks and Mk.2 geometry packets remain distinct from JT 10. Mk.2 probability tables permit unused zero-frequency entries, retaining nonzero-total and overflow guards; Mk.1 behavior stays unchanged. Bitlength2 rejects invalid control widths, field widths, ranges and run overruns, bounds nonproductive adjustments and uses defined wide/modulo arithmetic. Chopper widths/low fields are checked and reconstruction uses unsigned shifts/addition; packet word-count arithmetic avoids signed overflow. JT 9.x base/material versions are checked explicitly.
+
+Whole-attribute Final state flags contribute all final fields, including transform/draw accumulation; the original scene adapter separately protects shininess while preserving Force overrides. No new upstream source or SDK was acquired. The archived public JT 9.5 Rev-A reference (2010), existing audited source and bounded observations of sample A95 inform this work. Original tests and the acceptance/LOD limitations are recorded in docs/JT_95_VALIDATION.md. This is not blanket 9.x or full 9.5 representation support.
+
 ## Palette and face-group rendering, 20 October 2026 (in qualification)
 
 Original JtAttribute_PaletteMap files parse bounded map packets, including the published fallback tail and the observed exact-boundary omitted-tail form. The scene adapter independently accumulates indexed material/draw/transform state, broadcasts fallback attributes into existing entries, and applies inherited map/final/inhibit/force semantics. Topological decoding retains one face-group ID per triangle. The adapter groups faces by resolved appearance, transform and visibility, compacts mesh subsets and shares their resources across occurrences. Inhibited groups retain their geometry as hidden viewer nodes, with an explicit diagnostic that viewer visibility also affects picking. This differs from the reference's render-only inhibition and is not claimed as exact picking fidelity.

@@ -195,9 +195,9 @@ QString AboutDialog::buildDetailsHtml(const QString& graphicsInfo) const
 			"Most other textures and HDRI maps are CC0 (ambientCG, Poly Haven, 3dtextures.me, TextureCan). "
 			"3DXML XML-tessellation reference: cad-in-unity (Apache-2.0); no C# source bundled. "
 			"JT reader subset: Open CASCADE JT-Assistant, &copy; OPEN CASCADE SAS, GPL-2.0-or-later (GPLv3 chosen). "
-			"JT reference structures/operators: &copy; 2014 Siemens Product Lifecycle Management Software Inc.; &copy; 2026 Siemens. "
+			"JT reference structures/operators: &copy; 2010, 2014 Siemens Product Lifecycle Management Software Inc.; &copy; 2026 Siemens. "
 			"Use Third-Party Notices for importer acknowledgements and licence information. "
 			"The full list is in CREDITS.md and textures/LICENSES.md in the installation folder."))
 		.arg(tr("JT Import"))
-		.arg(tr("Supported JT versions: 8.0-8.2, 10.0, 10.3 and 10.9."));
+		.arg(tr("Supported JT versions: 8.0-8.2, 9.5, 10.0, 10.3 and 10.9."));
 }

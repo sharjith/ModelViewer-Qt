@@ -16,6 +16,7 @@
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
 // Additional bounded palette/face-group qualification changes: 2026-10-20.
+// JT 9.5 qualification and shared attribute/codec bounds updated: 2026-10-20.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -194,6 +195,9 @@ JtDecode_Int32CDP::EncodedDataHandle JtDecode_Int32CDP::loadCDP2 (JtData_Reader&
      || !theReader.ReadU8  (aSpan))
       return EncodedDataHandle();
 
+    if(aChop>32 || aSpan>32 || aSpan<aChop)
+      throw std::runtime_error("Invalid JT chopper field widths");
+
     // load chopped MSB and LSB data
     JtDecode_Int32CDP aMSBData;
     JtDecode_Int32CDP aLSBData;
@@ -223,7 +227,7 @@ JtDecode_Int32CDP::EncodedDataHandle JtDecode_Int32CDP::loadCDP2 (JtData_Reader&
   if (aCodec == 0)
   {
     Jt_VecU32 aCodeText;
-    if (!theReader.ReadVec (aCodeText, (aCodeTextLength + 31) / 32))
+    if (!theReader.ReadVec (aCodeText, (size_t(aCodeTextLength) + 31) / 32))
       return EncodedDataHandle();
 
     return EncodedDataHandle (new JtDecode_Int32CDP_Null (aCodeText.Move()));
@@ -251,7 +255,7 @@ JtDecode_Int32CDP::EncodedDataHandle JtDecode_Int32CDP::loadCDP2 (JtData_Reader&
   aData->SetOutValCount (aValueCount);
 
   // Bitlength or arithmetic codec: read CodeText data
-  if (!aData->Load ((aCodeTextLength + 31) / 32))
+  if (!aData->Load ((size_t(aCodeTextLength) + 31) / 32))
     return EncodedDataHandle();
 
   // Arithmetic codec: read probability context and load OOB data
