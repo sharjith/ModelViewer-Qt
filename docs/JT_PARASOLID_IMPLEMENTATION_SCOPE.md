@@ -120,3 +120,5 @@ Commit only after the implemented milestone's focused tests and relevant viewer 
 - **Exact geometry lifetime:** add retained source shapes/documents only when exact geometry is accepted as a product requirement.
 
 Supporting research: [JT permissions and feasibility](JT_IMPORT_FEASIBILITY.md), [Parasolid evidence and limitations](PARASOLID_IMPORT_RESEARCH.md), [local header inventory](JT_PARASOLID_SAMPLE_INVENTORY.json).
+
+Current-version priority (20 October 2026): the 10.9 production path now passes native geometry/scene validation; stop at [Gate 2b](JT_109_PALETTE_VALIDATION.md) for owner testing, then qualify 10.10/10.11 before older formats. A95 provides a deferred 9.5 input; no 9.5/10.10/10.11 acceptance follows from its header inventory.

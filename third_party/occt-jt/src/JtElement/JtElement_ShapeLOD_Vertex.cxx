@@ -15,6 +15,7 @@
 // on <http://www.gnu.org/licenses/>.
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Additional bounded palette/face-group qualification changes: 2026-10-20.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -65,20 +66,22 @@ class JtElement_ShapeLOD_Vertex::MeshDecodeTask
   NCollection_Handle<JtDecode_MeshCoderDriver::InputData> myData;
   IndicesVec* myVertexIndicesPtr;
   IndicesVec* myNormalIndicesPtr;
+  IndicesVec* myFaceGroupsPtr;
 
 public:
   MeshDecodeTask (JtData_SingleHandle<JtDecode_MeshCoderDriver::InputData> theData,
                   IndicesVec& theVertexIndices,
-                  IndicesVec& theNormalIndices)
+                  IndicesVec& theNormalIndices, IndicesVec& theFaceGroups)
     : myData             (theData)
     , myVertexIndicesPtr (&theVertexIndices)
-    , myNormalIndicesPtr (&theNormalIndices) {}
+    , myNormalIndicesPtr (&theNormalIndices)
+    , myFaceGroupsPtr (&theFaceGroups) {}
 
   void operator ()() const
   {
     JtDecode_MeshCoderDriver aMeshCoderDriver;
     aMeshCoderDriver.SetInputData (const_cast <JtDecode_MeshCoderDriver::InputData&> (*myData));
-    aMeshCoderDriver.Decode       (myVertexIndicesPtr, myNormalIndicesPtr);
+    aMeshCoderDriver.Decode       (myVertexIndicesPtr, myNormalIndicesPtr, myFaceGroupsPtr);
   }
 };
 
@@ -241,7 +244,7 @@ Standard_Boolean JtElement_ShapeLOD_Vertex::readVertexShapeLODData (
   JtData_Reader&   theReader,
   Standard_Boolean theIsTriStripSet)
 {
-  myIndices.Free();
+  myIndices.Free();myFaceGroups.Free();
   myVertices.Free();
   myNormals.Free();
   myColors.Free();
@@ -455,7 +458,7 @@ Standard_Boolean JtElement_ShapeLOD_Vertex::readTopologicallyCompressedData (JtD
     return Standard_False;
 
   IndicesVec aVertexIndices, aNormalIndices;
-  aDecodeTasks.Run (MeshDecodeTask (aMeshData, aVertexIndices, aNormalIndices));
+  aDecodeTasks.Run (MeshDecodeTask (aMeshData, aVertexIndices, aNormalIndices, myFaceGroups));
 
   ///////////////////////////////////////////////////////////////////
   // Topologically Compressed Vertex Records data collection

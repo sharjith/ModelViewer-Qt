@@ -81,7 +81,7 @@ Standard_Boolean JtAttribute_GeometricTransform::Read (JtData_Reader& theReader)
     }
   }
 
-  return Standard_True;
+  return ReadFieldsV2(theReader);
 }
 
 //=======================================================================

@@ -17,7 +17,7 @@ struct Cancelled : std::runtime_error { Cancelled():std::runtime_error("Model lo
 struct Options {
     // Cumulative charged allocations, including released scratch arrays; not peak RSS.
     // The decoder also retains a separate 256 MiB per-allocation limit.
-    size_t decodedAllocationBudget=size_t(4)*1024*1024*1024;
+    size_t decodedAllocationBudget=size_t(6)*1024*1024*1024;
     std::function<bool()> cancelled;
     std::function<void(const QString&,int,int)> progress;
     // Optional independently licensed XT backend. Empty in the native mesh-only build.

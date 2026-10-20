@@ -1,4 +1,5 @@
 #include "Jt/JtImporter.h"
+#include <JtData_Limits.hxx>
 #include <QCoreApplication>
 #include <QCommandLineParser>
 #include <QJsonDocument>
@@ -35,11 +36,15 @@ int main(int argc,char** argv) {
     const QCommandLineOption properties("properties","Print supported JT node metadata as JSON");
     const QCommandLineOption materials("materials","Print resolved JT material/style fields as JSON");
     const QCommandLineOption validate("validate","Check geometry, stored-normal lengths and node transforms; print local mesh bounds");
+    const QCommandLineOption budget("allocation-budget-mib","Override cumulative charged-allocation budget for native diagnostics","MiB");
+    parser.addOption(budget);
     parser.addOption(eye);parser.addOption(properties);parser.addOption(materials);parser.addOption(validate);parser.process(app);
     const auto arguments=parser.positionalArguments();
     if(arguments.size()<1 || arguments.size()>2) parser.showHelp(2);
     try {
         Jt::Options options;
+        if(parser.isSet(budget)){bool ok=false;const auto mib=parser.value(budget).toULongLong(&ok);if(!ok||!mib||mib>std::numeric_limits<size_t>::max()/(1024*1024))throw std::runtime_error("Invalid allocation budget");options.decodedAllocationBudget=size_t(mib)*1024*1024;}
+        size_t charged=0;options.progress=[&](const QString&,int,int){charged=JtData_Limits::allocated;};
         if(parser.isSet(eye)) {
             const auto coordinates=parser.value(eye).split(',');
             if(coordinates.size()!=3) throw std::runtime_error("--eye requires x,y,z");
@@ -48,6 +53,7 @@ int main(int argc,char** argv) {
             options.lodEyePoint=point;
         }
         auto result=Jt::Importer::read(arguments[0],options);
+        std::cout<<"charged allocation bytes="<<charged<<'\n';
         unsigned vertices=0,triangles=0;
         for(unsigned i=0;i<result.scene->mNumMeshes;++i) {vertices+=result.scene->mMeshes[i]->mNumVertices;triangles+=result.scene->mMeshes[i]->mNumFaces;}
         std::cout<<"meshes="<<result.scene->mNumMeshes<<" vertices="<<vertices<<" triangles="<<triangles<<" fallbackParts="<<result.fallbackParts<<'\n';

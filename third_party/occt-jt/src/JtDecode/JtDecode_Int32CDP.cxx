@@ -15,6 +15,7 @@
 // on <http://www.gnu.org/licenses/>.
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Additional bounded palette/face-group qualification changes: 2026-10-20.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -269,7 +270,7 @@ JtDecode_Int32CDP::EncodedDataHandle JtDecode_Int32CDP::loadCDP2 (JtData_Reader&
 
     if(hasEscape || theReader.Model()->MajorVersion()<10) {
       JtDecode_Int32CDP anOOBData;
-      if (!anOOBData.Load2 (theReader)) return EncodedDataHandle();
+      if (!(theReader.Model()->MajorVersion()>=10 && theReader.IsExternallyCompressed() ? anOOBData.LoadPlain(theReader) : anOOBData.Load2(theReader))) return EncodedDataHandle();
       aData->SetOOBData (anOOBData);
     }
   }

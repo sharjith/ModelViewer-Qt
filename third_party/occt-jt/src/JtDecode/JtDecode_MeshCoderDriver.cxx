@@ -16,6 +16,7 @@
 // on <http://www.gnu.org/licenses/>.
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Additional bounded palette/face-group qualification changes: 2026-10-20.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -1257,15 +1258,17 @@ class JtDecode_MeshCoderDriver::decodeVFMesh
   IndicesVec           myStartIndices;
   IndicesVec*          myVertexIndices;
   IndicesVec*          myNormalIndices;
+  IndicesVec*          myFaceGroups;
 
 public:
   decodeVFMesh (JtDecode_DualVFMesh* theDualVFMesh,
                 IndicesVec*          theVertexIndices,
-                IndicesVec*          theNormalIndices)
+                IndicesVec*          theNormalIndices, IndicesVec* theFaceGroups)
     : myDualVFMesh    (theDualVFMesh)
     , myStartIndices  (theDualVFMesh->numVts())
     , myVertexIndices (theVertexIndices)
     , myNormalIndices (theNormalIndices)
+    , myFaceGroups (theFaceGroups)
   {
     int32_t numFaces = myDualVFMesh->numVts();
     int32_t numIndices = 0;
@@ -1273,6 +1276,7 @@ public:
     {
       if (myDualVFMesh->vtxGrp (iFace) >= 0)
       {
+        if(myDualVFMesh->valence(iFace)!=3)throw std::runtime_error("Unsupported JT non-triangular topological face");
         myStartIndices[iFace] = numIndices;
         numIndices += myDualVFMesh->valence (iFace);
       }
@@ -1282,6 +1286,7 @@ public:
 
     if (myVertexIndices) myVertexIndices->Allocate (numIndices);
     if (myNormalIndices) myNormalIndices->Allocate (numIndices);
+    if (myFaceGroups) myFaceGroups->Allocate(numIndices/3);
 
     JtData_Parallel::For ((int32_t)0, numFaces, *this);
   }
@@ -1292,6 +1297,7 @@ public:
     if (curIndex < 0)
       return;
 
+    if(myFaceGroups)(*myFaceGroups)[curIndex/3]=myDualVFMesh->vtxGrp(iFace);
     for (int32_t iVSlot = 0; iVSlot < myDualVFMesh->valence (iFace); iVSlot++)
     {
       int32_t vertexIndex = myDualVFMesh->face (iFace, iVSlot);
@@ -1308,7 +1314,7 @@ public:
 };
 
 //! Decodes the mesh
-void JtDecode_MeshCoderDriver::Decode (IndicesVec* theVertexIndices, IndicesVec* theNormalIndices)
+void JtDecode_MeshCoderDriver::Decode (IndicesVec* theVertexIndices, IndicesVec* theNormalIndices, IndicesVec* theFaceGroups)
 {
   // Allocate a coder
   if (_pMeshDecoder == NULL)
@@ -1350,7 +1356,7 @@ void JtDecode_MeshCoderDriver::Decode (IndicesVec* theVertexIndices, IndicesVec*
   }
 
   // Decode output VFMesh
-  decodeVFMesh (_pMeshDecoder->vfm(), theVertexIndices, theNormalIndices);
+  decodeVFMesh (_pMeshDecoder->vfm(), theVertexIndices, theNormalIndices, theFaceGroups);
 }
 
 //! Next degree symbol

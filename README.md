@@ -346,16 +346,16 @@ glTF / GLB (also with Draco mesh compression and KTX2 textures), OBJ, FBX, COLLA
 
 ### JT Import
 
-The native JT (`.jt`) importer supports **JT 8.0-8.2, 10.0 and 10.3**, subject to the representation and encoding limits below. Support for a version does not imply support for every record or codec that version permits.
+The native JT (`.jt`) importer supports **JT 8.0-8.2, 10.0, 10.3 and 10.9**, subject to the representation and encoding limits below. Support for a version does not imply support for every record or codec that version permits.
 
 - Imports stored tessellation, assembly hierarchy, instance transforms, names, normals and supported appearance attributes. One supported level of detail is selected for display.
 - The shared 8.x path handles lossless and qualified quantized tessellation, including quantized positions, stored normals, UV coordinates and packed constant RGB(A) colours. Nonconstant quantized colours, HSV quantizers, Huffman integer packets and additional attribute bindings remain unsupported in this path.
 - Retained UV coordinates do not imply texture support: legacy texture images and shaders are not interpreted. Active vertex translucency is also outside the current subset.
 - Exact Parasolid/JT B-Rep conversion is not implemented. Display uses supported stored tessellation; import reports an error if no usable representation is available.
 
-**Validation status:** the baseline viewer checks passed. The quantized follow-up passed native decoder and scene checks and passed the owner's rebuilt-application checks at Gate 1.
+**Validation status:** the legacy quantized and modern attribute foundations passed native checks and owner viewer tests. The [10.9 palette follow-up](docs/JT_109_PALETTE_VALIDATION.md) passes native geometry/scene validation and awaits Gate 2b production-system testing. Palette entries accumulate independently and select face-group materials/transforms; equivalent groups share render resources. Render-inhibited groups retain hidden geometry, with a documented picking limitation. The default cumulative charged-allocation budget is 6 GiB, with a separate 256 MiB per-allocation guard; cumulative charges are not live RAM usage.
 
-**Planned compatibility:** JT 6.4 through 10.11, qualified by layout family and representation. This is a development target, not the currently supported range. The lower target becomes 7.0 if 6.4 requires substantial changes to the viewer scene model. Version research, reference availability and qualification evidence are maintained in the [compatibility policy](docs/JT_VERSION_COMPATIBILITY.md); implementation milestones are in the [development phases](docs/JT_DEVELOPMENT_PHASES.md).
+**Planned compatibility:** JT 6.4 through 10.11, qualified by layout family and representation. This is a development target, not the currently supported range. Current-version coverage is prioritized: 10.9, then 10.10/10.11 before older-format expansion. The lower target becomes 7.0 if 6.4 requires substantial changes to the viewer scene model. Version research, reference availability and qualification evidence are maintained in the [compatibility policy](docs/JT_VERSION_COMPATIBILITY.md); implementation milestones are in the [development phases](docs/JT_DEVELOPMENT_PHASES.md).
 
 **Licensing:** the reader includes an adapted Open CASCADE JT-Assistant subset under GPL-2.0-or-later, with GPLv3 selected for the combined application. Siemens reference attributions and applicable terms are retained in [Third-Party Notices](THIRD_PARTY_NOTICES.md). See the [native importer documentation](docs/JT_NATIVE_IMPORTER.md) for technical details.
 

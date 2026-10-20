@@ -14,6 +14,8 @@
 #include <JtAttribute_Material.hxx>
 #include <JtAttribute_GeometricTransform.hxx>
 #include <JtAttribute_DrawStyle.hxx>
+#include <JtAttribute_PaletteMap.hxx>
+#include <tuple>
 #include <JtProperty_String.hxx>
 #include <JtProperty_Scalar.hxx>
 #include <BRepCheck_Analyzer.hxx>
@@ -190,6 +192,51 @@ struct Appearance {
         finalFields|=source.FieldFinalFlags()&allowed;
     }
 };
+struct PaletteEntry {
+    Appearance style;
+    aiMatrix4x4 world;
+    bool transformLocked=false;
+};
+struct PaletteContext {
+    using Entries=std::map<int,PaletteEntry>;
+    std::shared_ptr<Entries> entries=std::make_shared<Entries>();
+    Handle(JtAttribute_PaletteMap) mapping;
+    bool mapLocked=false;
+};
+aiMatrix4x4 transformMatrix(const JtAttribute_GeometricTransform& source) {
+    const auto t=source.GetTrsf();
+    for(unsigned j=0;j<16;++j)if(!std::isfinite(float(t[j])))throw std::runtime_error("JT has nonfinite transform values");
+    const double tolerance=64*std::numeric_limits<double>::epsilon();
+    if(std::abs(t[3])>tolerance||std::abs(t[7])>tolerance||std::abs(t[11])>tolerance||std::abs(t[15]-1)>tolerance)throw std::runtime_error("Unsupported projective JT transform");
+    return aiMatrix4x4(float(t[0]),float(t[4]),float(t[8]),float(t[12]),float(t[1]),float(t[5]),float(t[9]),float(t[13]),float(t[2]),float(t[6]),float(t[10]),float(t[14]),0,0,0,1);
+}
+std::unique_ptr<aiMesh> faceSubset(const aiMesh& source,const std::vector<unsigned>& faces) {
+    // A sorted index vector avoids a tree node allocation per used vertex and
+    // charges actual arrays separately, rather than treating their sum as one allocation.
+    JtData_Limits::allocation(faces.size()*3*sizeof(unsigned));
+    std::vector<unsigned> vertices;vertices.reserve(faces.size()*3);
+    for(auto face:faces)for(unsigned j=0;j<3;++j)vertices.push_back(source.mFaces[face].mIndices[j]);
+    std::sort(vertices.begin(),vertices.end());vertices.erase(std::unique(vertices.begin(),vertices.end()),vertices.end());
+    const unsigned next=unsigned(vertices.size());
+    auto mesh=std::make_unique<aiMesh>();mesh->mPrimitiveTypes=aiPrimitiveType_TRIANGLE;
+    mesh->mNumVertices=next;mesh->mNumFaces=unsigned(faces.size());
+    JtData_Limits::allocation(size_t(next)*sizeof(aiVector3D));mesh->mVertices=new aiVector3D[next];
+    JtData_Limits::allocation(size_t(next)*sizeof(aiVector3D));mesh->mNormals=new aiVector3D[next];
+    if(source.HasVertexColors(0)){JtData_Limits::allocation(size_t(next)*sizeof(aiColor4D));mesh->mColors[0]=new aiColor4D[next];}
+    if(source.HasTextureCoords(0)){JtData_Limits::allocation(size_t(next)*sizeof(aiVector3D));mesh->mTextureCoords[0]=new aiVector3D[next];mesh->mNumUVComponents[0]=source.mNumUVComponents[0];}
+    for(unsigned i=0;i<next;++i) {
+        mesh->mVertices[i]=source.mVertices[vertices[i]];mesh->mNormals[i]=source.mNormals[vertices[i]];
+        if(mesh->mColors[0])mesh->mColors[0][i]=source.mColors[0][vertices[i]];
+        if(mesh->mTextureCoords[0])mesh->mTextureCoords[0][i]=source.mTextureCoords[0][vertices[i]];
+    }
+    JtData_Limits::allocation(faces.size()*sizeof(aiFace));mesh->mFaces=new aiFace[faces.size()];
+    JtData_Limits::allocation(faces.size()*3*sizeof(unsigned));
+    for(unsigned i=0;i<faces.size();++i){
+        JtData_Limits::poll();auto& f=mesh->mFaces[i];f.mNumIndices=3;f.mIndices=new unsigned[3];
+        for(unsigned j=0;j<3;++j)f.mIndices[j]=unsigned(std::lower_bound(vertices.begin(),vertices.end(),source.mFaces[faces[i]].mIndices[j])-vertices.begin());
+    }
+    validate(*mesh);return mesh;
+}
 struct Builder {
     const Options& options; QString rootDirectory;
     ImportResult result;
@@ -197,6 +244,8 @@ struct Builder {
     // Canonical decoded geometry is independent of material/flat-normal variants.
     std::vector<std::unique_ptr<aiMesh>> geometries;
     std::vector<std::unique_ptr<aiMaterial>> materials;
+    std::vector<std::vector<int>> geometryGroups;
+    std::map<std::tuple<unsigned,std::vector<int>,unsigned>,unsigned> groupMeshCache;
     std::set<const void*> active;
     std::set<QString> activeFiles;
     std::map<QString,Handle(JtNode_Partition)> partitions;
@@ -253,7 +302,8 @@ struct Builder {
     Checkpoint checkpoint() const {return {meshes.size(),materials.size(),result.exactShapes.size(),hiddenJournal.size(),geometries.size(),result.warnings.size(),result.storedMeshes,result.exactParts,result.fallbackParts};}
     void rollback(const Checkpoint& c) {
         meshes.resize(c.meshes);materials.resize(c.materials);result.exactShapes.resize(c.shapes);
-        geometries.resize(c.geometries);
+        geometries.resize(c.geometries);geometryGroups.resize(c.geometries);
+        for(auto it=groupMeshCache.begin();it!=groupMeshCache.end();) {if(it->second>=c.meshes)it=groupMeshCache.erase(it);else ++it;}
         while(result.warnings.size()>c.warnings) result.warnings.removeLast();
         while(hiddenJournal.size()>c.hidden) {result.hiddenNodes.remove(hiddenJournal.back());hiddenJournal.pop_back();}
         for(auto it=meshCache.begin();it!=meshCache.end();) {if(it->second>=c.meshes) it=meshCache.erase(it);else ++it;}
@@ -363,7 +413,7 @@ struct Builder {
         mesh->mMaterialIndex=mat;mesh->mName=aiString(name.toUtf8().constData());
         meshes.push_back(std::move(mesh)); return unsigned(meshes.size()-1);
     }
-    std::unique_ptr<aiNode> visit(const Handle(JtData_Object)& object,Appearance style={},bool parentHidden=false,bool transformLocked=false,const aiMatrix4x4& parentWorld=aiMatrix4x4()) {
+    std::unique_ptr<aiNode> visit(const Handle(JtData_Object)& object,Appearance style={},bool parentHidden=false,bool transformLocked=false,const aiMatrix4x4& parentWorld=aiMatrix4x4(),PaletteContext palette={}) {
         options.check();if(object.IsNull()) throw std::runtime_error("JT has an unresolved graph reference");
         if(active.size()>=512 || ++nodes>1000000 || !active.insert(object.get()).second) throw std::runtime_error("JT graph cycle/depth limit exceeded");
         struct Pop {std::set<const void*>& s;const void* p;~Pop(){s.erase(p);}} pop{active,object.get()};
@@ -374,19 +424,41 @@ struct Builder {
         for(size_t i=0;i<source->Attributes().Count();++i) {
             const auto a=source->Attributes()[i];
             const auto attribute=Handle(JtAttribute_Base)::DownCast(a);
-            if(!attribute.IsNull() && attribute->AccumulationIgnored()) continue;
-            const auto transform=Handle(JtAttribute_GeometricTransform)::DownCast(a);
-            if(!transform.IsNull() && (!transformLocked || transform->AccumulationForced()) && !(transform->FieldInhibitFlags()&1)) {
-                const auto t=transform->GetTrsf();
-                for(unsigned j=0;j<16;++j) if(!std::isfinite(float(t[j]))) throw std::runtime_error("JT has nonfinite transform values");
-                if(t[3]!=0 || t[7]!=0 || t[11]!=0 || t[15]!=1) throw std::runtime_error("Unsupported projective JT transform");
-                transformLocked=transformLocked || (transform->FieldFinalFlags()&1);
-                node->mTransformation*=aiMatrix4x4(float(t[0]),float(t[4]),float(t[8]),float(t[12]),float(t[1]),float(t[5]),float(t[9]),float(t[13]),float(t[2]),float(t[6]),float(t[10]),float(t[14]),float(t[3]),float(t[7]),float(t[11]),float(t[15]));
+            if(attribute.IsNull()||attribute->AccumulationIgnored())continue;
+            const auto mapping=Handle(JtAttribute_PaletteMap)::DownCast(a);
+            if(!mapping.IsNull()) {
+                if(!(attribute->FieldInhibitFlags()&1)&&(!palette.mapLocked||attribute->AccumulationForced())) {
+                    palette.mapping=mapping;palette.mapLocked=palette.mapLocked||bool(attribute->FieldFinalFlags()&1);
+                }
+                continue;
             }
+            const auto transform=Handle(JtAttribute_GeometricTransform)::DownCast(a);
             const auto appearance=Handle(JtAttribute_Material)::DownCast(a);
-            if(!appearance.IsNull()) style.apply(*appearance);
             const auto drawStyle=Handle(JtAttribute_DrawStyle)::DownCast(a);
-            if(!drawStyle.IsNull()) style.apply(*drawStyle);
+            const auto apply=[&](Appearance& style,aiMatrix4x4& matrix,bool& locked) {
+                if(!appearance.IsNull())style.apply(*appearance);
+                if(!drawStyle.IsNull())style.apply(*drawStyle);
+                if(!transform.IsNull()&&(!locked||attribute->AccumulationForced())&&!(attribute->FieldInhibitFlags()&1)) {
+                    matrix*=transformMatrix(*transform);locked=locked||bool(attribute->FieldFinalFlags()&1);
+                }
+            };
+            const int index=attribute->PaletteIndex();
+            if((index>=0||!palette.entries->empty())&&!palette.entries.unique()) {
+                JtData_Limits::allocation(palette.entries->size()*(sizeof(PaletteEntry)+64));
+                palette.entries=std::make_shared<PaletteContext::Entries>(*palette.entries);
+            }
+            if(index==-1) {
+                apply(style,node->mTransformation,transformLocked);
+                for(auto& item:*palette.entries)apply(item.second.style,item.second.world,item.second.transformLocked);
+            } else {
+                auto it=palette.entries->find(index);
+                if(it==palette.entries->end()) {
+                    if(palette.entries->size()>=16384)throw std::runtime_error("JT palette entry limit exceeded");
+                    JtData_Limits::allocation(sizeof(PaletteEntry)+64);
+                    it=palette.entries->emplace(index,PaletteEntry{style,parentWorld*node->mTransformation,transformLocked}).first;
+                }
+                apply(it->second.style,it->second.world,it->second.transformLocked);
+            }
         }
         const auto world=parentWorld*node->mTransformation;
         for(unsigned row=0;row<4;++row) for(unsigned column=0;column<4;++column)
@@ -402,7 +474,7 @@ struct Builder {
         if(!part.IsNull()) for(size_t i=0;i<part->LateLoads().Count();++i) {
             const auto prop=part->LateLoads()[i];if(prop->SegmentType()!=17 && prop->SegmentType()!=30) continue;
             hasBrep=true;
-            if(!options.exactDecoder) continue;
+            if(!options.exactDecoder || !palette.mapping.IsNull()) continue;
             try {
                 options.check();prop->Load();const auto xt=Handle(JtElement_XTBRep)::DownCast(prop->DefferedObject());
                 if(xt.IsNull()) throw std::runtime_error("Unsupported exact JT payload");
@@ -421,21 +493,73 @@ struct Builder {
                 bool loaded=false;
                 for(size_t i=0;i<shape->LateLoads().Count();++i) {
                     const auto prop=shape->LateLoads()[i];if(prop->SegmentType()<6 || prop->SegmentType()>16) continue;
-                    const auto key=std::make_pair(static_cast<const void*>(prop.get()),mat); const auto cached=meshCache.find(key);
-                    if(cached!=meshCache.end()) {attached.push_back(cached->second);loaded=true;break;}
                     try {
+                        unsigned geometryIndex;
                         const auto geometry=geometryCache.find(prop.get());
-                        if(geometry!=geometryCache.end()) {
-                            const unsigned id=add(copyGeometry(geometry->second),style,name);meshCache[key]=id;attached.push_back(id);++result.storedMeshes;loaded=true;break;
+                        if(geometry!=geometryCache.end())geometryIndex=geometry->second;
+                        else {
+                            struct Unload {Handle(JtProperty_LateLoaded) p;~Unload(){p->Unload();}} unload{prop};
+                            options.check();prop->Load();const auto mesh=Handle(JtElement_ShapeLOD_Vertex)::DownCast(prop->DefferedObject());
+                            if(mesh.IsNull())throw std::runtime_error("Unsupported JT tessellation payload");
+                            unsigned repairedNormals=0;
+                            geometryIndex=unsigned(geometries.size());geometries.push_back(storedMesh(mesh,repairedNormals));
+                            geometryGroups.emplace_back();const auto& groups=mesh->FaceGroups();
+                            if(groups.Count()) {
+                                if(groups.Count()!=int(geometries.back()->mNumFaces))throw std::runtime_error("JT face-group/triangle count mismatch");
+                                JtData_Limits::allocation(size_t(groups.Count())*sizeof(int));
+                                geometryGroups.back().assign(groups.Data(),groups.Data()+groups.Count());
+                            }
+                            geometryCache[prop.get()]=geometryIndex;
+                            if(mesh->TexCoords().Count())result.warnings.append(label+": JT texture coordinates retained; texture images and shaders are not imported");
+                            if(repairedNormals)result.warnings.append(label+": reconstructed "+QString::number(repairedNormals)+" zero-length stored normals from adjacent triangles");
                         }
-                        struct Unload {Handle(JtProperty_LateLoaded) p;~Unload(){p->Unload();}} unload{prop};
-                        options.check();prop->Load();const auto mesh=Handle(JtElement_ShapeLOD_Vertex)::DownCast(prop->DefferedObject());
-                        if(mesh.IsNull()) throw std::runtime_error("Unsupported JT tessellation payload");
-                        unsigned repairedNormals=0;
-                        const unsigned geometryIndex=unsigned(geometries.size());geometries.push_back(storedMesh(mesh,repairedNormals));
-                        if(mesh->TexCoords().Count()) result.warnings.append(label+": JT texture coordinates retained; texture images and shaders are not imported");
-                        if(repairedNormals) result.warnings.append(label+": reconstructed "+QString::number(repairedNormals)+" zero-length stored normals from adjacent triangles");
-                        const unsigned id=add(copyGeometry(geometryIndex),style,name);meshCache[key]=id;geometryCache[prop.get()]=geometryIndex;attached.push_back(id);++result.storedMeshes;loaded=true;break;
+                        const auto& groups=geometryGroups.at(geometryIndex);
+                        int maxGroup=-1;for(int g:groups) {if(g<0||g>16000000)throw std::runtime_error("Invalid JT face-group index");maxGroup=std::max(maxGroup,g);}
+                        const bool mapped=!palette.mapping.IsNull()&&maxGroup>=0&&palette.mapping->Entries().Count()==maxGroup+1;
+                        if(!palette.mapping.IsNull()&&!mapped)result.warnings.append(label+": palette-map length mismatch; using fallback appearance");
+                        if(mapped) {
+                            std::map<int,std::vector<unsigned>> byGroup;
+                            JtData_Limits::allocation(groups.size()*16);
+                            for(unsigned f=0;f<groups.size();++f)byGroup[groups[f]].push_back(f);
+                            struct Batch {Appearance style;aiMatrix4x4 local;bool hidden;unsigned mat;std::vector<int> groups;std::vector<unsigned> faces;};
+                            std::vector<Batch> batches;
+                            using BatchKey=std::tuple<unsigned,std::array<float,16>,bool>;
+                            std::map<BatchKey,unsigned> batchIndex;
+                            for(const auto& group:byGroup) {
+                                options.check();const int index=palette.mapping->Entries()[group.first];
+                                const auto entry=palette.entries->find(index);
+                                const auto& groupStyle=entry==palette.entries->end()?style:entry->second.style;
+                                const unsigned groupMat=material(groupStyle);
+                                aiMatrix4x4 local;
+                                if(entry!=palette.entries->end()) {
+                                    const auto& target=entry->second.world;
+                                    for(unsigned r=0;r<4;++r)for(unsigned c=0;c<4;++c)if(!std::isfinite(target[r][c]))throw std::runtime_error("Nonfinite JT palette transform");
+                                    if(!std::isfinite(target.Determinant())||target.Determinant()==0)throw std::runtime_error("Invalid JT palette transform");
+                                    auto inverse=world;inverse.Inverse();local=inverse*target;
+                                }
+                                std::array<float,16> transformKey;for(unsigned r=0;r<4;++r)for(unsigned c=0;c<4;++c)transformKey[r*4+c]=local[r][c];
+                                const bool groupHidden=hidden||index==-2;
+                                const auto inserted=batchIndex.emplace(BatchKey{groupMat,transformKey,groupHidden},unsigned(batches.size()));
+                                if(inserted.second)batches.push_back({groupStyle,local,groupHidden,groupMat,{},{}});
+                                auto& batch=batches[inserted.first->second];batch.groups.push_back(group.first);batch.faces.insert(batch.faces.end(),group.second.begin(),group.second.end());
+                                if(index==-2)result.warnings.append(label+": inhibited face group retained as hidden geometry; viewer visibility also controls picking");
+                            }
+                            for(const auto& batch:batches) {
+                                const auto key=std::make_tuple(geometryIndex,batch.groups,batch.mat);
+                                const auto cached=groupMeshCache.find(key);
+                                const unsigned id=cached!=groupMeshCache.end()?cached->second:add(batch.faces.size()==geometries.at(geometryIndex)->mNumFaces?copyGeometry(geometryIndex):faceSubset(*geometries.at(geometryIndex),batch.faces),batch.style,name);
+                                groupMeshCache[key]=id;
+                                auto child=std::make_unique<aiNode>();child->mName=aiString((name+" / face groups "+QString::number(batch.groups.front())).toUtf8().constData());
+                                child->mNumMeshes=1;child->mMeshes=new unsigned[1]{id};child->mTransformation=batch.local;
+                                if(batch.hidden){result.hiddenNodes.insert(child.get());hiddenJournal.push_back(child.get());}
+                                children.push_back(std::move(child));
+                            }
+                        } else {
+                            const auto key=std::make_pair(static_cast<const void*>(prop.get()),mat);const auto cached=meshCache.find(key);
+                            const unsigned id=cached!=meshCache.end()?cached->second:add(copyGeometry(geometryIndex),style,name);
+                            meshCache[key]=id;attached.push_back(id);
+                        }
+                        ++result.storedMeshes;loaded=true;break;
                     } catch(const Cancelled&) {throw;}
                       catch(const std::bad_alloc&) {throw;}
                       catch(const Standard_Failure& e) {result.warnings.append(label+": display alternative rejected: "+QString::fromUtf8(e.GetMessageString()));}
@@ -445,7 +569,7 @@ struct Builder {
                     (result.warnings.isEmpty()?QString():QString("; ")+result.warnings.last())).toStdString());
             }
             const auto instance=Handle(JtNode_Instance)::DownCast(object);
-            if(!instance.IsNull()) children.push_back(visit(instance->Object(),style,hidden,transformLocked,world));
+            if(!instance.IsNull()) children.push_back(visit(instance->Object(),style,hidden,transformLocked,world,palette));
             const auto group=Handle(JtNode_Group)::DownCast(object);
             if(!group.IsNull()) {
                 const auto partition=Handle(JtNode_Partition)::DownCast(object);
@@ -459,7 +583,7 @@ struct Builder {
                         struct FilePop {std::set<QString>& files;QString path;~FilePop(){files.erase(path);}} filePop{activeFiles,fileKey(file)};
                         auto& root=partitions[fileKey(file)];
                         if(root.IsNull()) {Handle(JtData_Model) m=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(file.utf16())));root=m->Init();}
-                        children.push_back(visit(root,style,hidden,transformLocked,world));
+                        children.push_back(visit(root,style,hidden,transformLocked,world,palette));
                     }
                 } else {
                     const bool lod=!Handle(JtNode_LOD)::DownCast(object).IsNull();
@@ -491,7 +615,7 @@ struct Builder {
                         const auto selected=switchNode->SelectedChild();
                         if(selected!=0xffffffffu) {
                             if(selected>=childCount) throw std::runtime_error("JT Switch selected child is out of range");
-                            children.push_back(visit(group->Children()[selected],style,hidden,transformLocked,world));
+                            children.push_back(visit(group->Children()[selected],style,hidden,transformLocked,world,palette));
                             selectedChild=int(selected);
                         }
                     } else {
@@ -499,10 +623,10 @@ struct Builder {
                         for(size_t attempt=0;attempt<childCount;++attempt) {
                             // Preferred, then the remaining source-order alternatives.
                             const size_t i=!lod ? attempt : attempt==0 ? preferred : attempt<=preferred ? attempt-1 : attempt;
-                            if(!lod) {children.push_back(visit(group->Children()[i],style,hidden,transformLocked,world));continue;}
+                            if(!lod) {children.push_back(visit(group->Children()[i],style,hidden,transformLocked,world,palette));continue;}
                             const auto saved=checkpoint();
                             try {
-                                auto child=visit(group->Children()[i],style,hidden,transformLocked,world);
+                                auto child=visit(group->Children()[i],style,hidden,transformLocked,world,palette);
                                 if(!containsMesh(*child)) throw std::runtime_error("LOD alternative contains no render geometry");
                                 children.push_back(std::move(child));selected=true;selectedChild=int(i);
                                 if(!rangeNode.IsNull() && i!=preferred)

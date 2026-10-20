@@ -103,3 +103,5 @@ Downloads and extracted text used for research are local under ignored `out/jt-r
 - `Siemens JT V10.6 Format Description Rev D 10 Feb 2026.pdf` SHA-256: `30e421356e67cfdee1860916f401b633639a3e8651817dd8ae6a360a5f43381a`.
 - Copyright terms inspected on printed page ii; patent notice separately retrieved and read in full.
 - Additional candidate: [Liamsi/jt-java](https://github.com/Liamsi/jt-java), inspected `DebugJTReader.java` and `BitReader.java` under `JTViewerGC/src/main/java/uk/ac/liv/jt/`.
+
+Current implementation checkpoint (20 October 2026): [10.9 palettes and face groups](JT_109_PALETTE_VALIDATION.md) pass native production-path validation; Gate 2b owner acceptance remains pending. Current-version qualification of 10.10/10.11 takes priority over older formats. This technical result does not expand the reference permission grants or constitute blanket clearance for unrelated representations.

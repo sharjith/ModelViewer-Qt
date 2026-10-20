@@ -1,7 +1,7 @@
 {
   "upstream": "https://github.com/Open-Cascade-SAS/JT-Assistant",
   "commit": "e859e8c2d809f9d9468e6211eba0052f433978ee",
-  "recorded": "2026-10-19",
+  "recorded": "2026-10-20",
   "upstream_archive_sha256": "9aae63d78e25c586b8a92c1edbc5c6221539bcb0cbedd5be2c82322aa1650fa2",
   "comparison": "Original upstream bytes compared after CRLF-to-LF normalization; whitespace changes count as modifications. Current files additionally carry dated notices.",
   "files": [
@@ -896,6 +896,16 @@
       "file": "src/JtDecode/JtDecode_VertexColors.hxx",
       "origin": "ModelViewer-original",
       "notice_date": "2026-10-19"
+    },
+    {
+      "file": "src/JtAttribute/JtAttribute_PaletteMap.hxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-20"
+    },
+    {
+      "file": "src/JtAttribute/JtAttribute_PaletteMap.cxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-20"
     }
   ],
   "follow_up": {

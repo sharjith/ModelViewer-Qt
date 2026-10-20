@@ -86,7 +86,7 @@ Standard_Boolean JtAttribute_Material::Read (JtData_Reader& theReader)
 
   if (theReader.Model()->MajorVersion() >= 10 && !theReader.ReadF32(myBumpiness)) return Standard_False;
 
-  return Standard_True;
+  return ReadFieldsV2(theReader);
 }
 
 //=======================================================================

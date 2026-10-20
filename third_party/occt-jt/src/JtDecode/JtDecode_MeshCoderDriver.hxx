@@ -15,6 +15,7 @@
 // on <http://www.gnu.org/licenses/>.
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Additional bounded palette/face-group qualification changes: 2026-10-20.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -65,7 +66,7 @@ public:
   Standard_EXPORT void SetInputData (InputData& theData);
 
   //! Decodes the mesh.
-  Standard_EXPORT void Decode (IndicesVec* theVertexIndices, IndicesVec* theNormalIndices);
+  Standard_EXPORT void Decode (IndicesVec* theVertexIndices, IndicesVec* theNormalIndices, IndicesVec* theFaceGroups = nullptr);
 
   int32_t _nextDegSymbol (int32_t iCCntx);
   int32_t _nextValSymbol();

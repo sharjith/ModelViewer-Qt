@@ -19,6 +19,10 @@
 #include <iostream>
 #include <vector>
 
+void paletteTests();
+void paletteFixtureFiles(const QString& folder);
+void modernAttributeTests();
+void modernAttributeFixtureFiles(const QString& folder);
 void sceneTests();
 void containerTests(const QString& samples);
 void legacyTests();
@@ -72,7 +76,7 @@ void attributeTests() {
         require(c[0]==0.3f && c[1]==0.5f && c[2]==0.7f && c[3]==0.25f,"JT material header shifted RGBA fields");
         require(material.BlendingEnabled()==blending,"JT blending flag mismatch");
         require(material.Shininess()==15.0f,"JT material exponent read incorrectly");
-        auto bad=b;bad[0]=2;Reader unknownBase(bad);JtAttribute_Material unsupported;
+        auto bad=b;bad[0]=3;Reader unknownBase(bad);JtAttribute_Material unsupported;
         fails([&]{unsupported.Read(unknownBase);});
         bad=b;bad[10]=2;Reader unknownMaterial(bad);fails([&]{unsupported.Read(unknownMaterial);});
     }
@@ -187,10 +191,14 @@ void samples(const QString& dir) {
 }
 int main(int argc,char** argv) {
     QCoreApplication app(argc,argv);
-    try {allocationBudgetTests();codecTests();colorStreamTests();attributeTests();sceneTests();containerTests({});legacyTests();quantizedTests();
+    try {allocationBudgetTests();codecTests();colorStreamTests();attributeTests();sceneTests();containerTests({});legacyTests();quantizedTests();modernAttributeTests();paletteTests();
         const bool fixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--legacy-fixtures";
         const bool quantizedFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--quantized-fixtures";
-        if(quantizedFixtures)quantizedFixtureFiles(QString::fromLocal8Bit(argv[2]));
+        const bool modernFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--modern-attribute-fixtures";
+        const bool paletteFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--palette-fixtures";
+        if(paletteFixtures)paletteFixtureFiles(QString::fromLocal8Bit(argv[2]));
+        else if(modernFixtures)modernAttributeFixtureFiles(QString::fromLocal8Bit(argv[2]));
+        else if(quantizedFixtures)quantizedFixtureFiles(QString::fromLocal8Bit(argv[2]));
         else if(fixtures)legacyFixtureFiles(QString::fromLocal8Bit(argv[2]));
         else {if(argc>=2)samples(QString::fromLocal8Bit(argv[1]));if(argc==3)warehouseTests(QString::fromLocal8Bit(argv[2]));}
         std::cout<<"JT tests passed\n";return 0;}

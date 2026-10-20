@@ -15,6 +15,7 @@
 // on <http://www.gnu.org/licenses/>.
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Additional bounded palette/face-group qualification changes: 2026-10-20.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -30,6 +31,8 @@
 #include <JtNode_Partition.hxx>
 #include <JtProperty_LateLoaded.hxx>
 #include <JtProperty_String.hxx>
+#include <JtAttribute_Base.hxx>
+#include <limits>
 
 #include <Image_PixMap.hxx>
 
@@ -105,11 +108,11 @@ Handle(JtNode_Partition) JtData_Model::Init()
   myMajorVersion = aMajorVersionStr.IntegerValue();
   myMinorVersion = aMinorVersionStr.IntegerValue();
   // Qualified 8.x lossless layout family; geometry codecs are checked separately.
-  // Newer 10.x palettes/attributes still require distinct layout qualification.
+  // The observed 10.9 palette family is qualified independently of later versions.
   const bool legacy8Family=myMajorVersion==8 && myMinorVersion>=0 && myMinorVersion<=2;
-  if(!((myMajorVersion==10 && (myMinorVersion==0 || myMinorVersion==3)) || legacy8Family))
+  if(!((myMajorVersion==10 && (myMinorVersion==0 || myMinorVersion==3 || myMinorVersion==9)) || legacy8Family))
     throw std::runtime_error("Unsupported JT version "+std::to_string(myMajorVersion)+"."+
-      std::to_string(myMinorVersion)+"; native reader currently supports the JT 8.0-8.2 lossless family, JT 10.0 and JT 10.3 subsets");
+      std::to_string(myMinorVersion)+"; native reader supports qualified JT 8.0-8.2, JT 10.0, JT 10.3 and JT 10.9 subsets");
   TRACE ("\n\nInfo: File version = " + myMajorVersion + "." + myMinorVersion);
 
   // Read byte order
@@ -306,6 +309,7 @@ Handle(JtData_Object) JtData_Model::readSegment (std::ifstream&         theFile,
   }
 
   aReader.Limit(aSegStart+size_t(aSize));
+  aDataReaderPtr->SetExternallyCompressed(bool(ownedReader));
 
   // Read the segment data
   Handle(JtData_Object) aFirstObject;
@@ -515,103 +519,96 @@ Standard_Boolean JtData_Model::readElements (JtData_Reader&               theRea
 //function : readElement
 //purpose  : Read an element from a JT file segment
 //=======================================================================
-Standard_Boolean JtData_Model::readElement (JtData_Reader&         theReader,
-                                            Handle(JtData_Object)& theObject,
-                                            Jt_I32*                theObjectIDPtr) const
+namespace
 {
-  // Read Element Length
-  Standard_Integer anElemLength;
-  if (!theReader.ReadI32 (anElemLength))
+  // Bound every payload read/skip, including inner Sabot headers, to its envelope.
+  class ElementReader final : public JtData_Reader
   {
-    ALARM ("Error: Failed to read element length");
-    return Standard_False;
-  }
+  public:
+    ElementReader(JtData_Reader& source, Standard_Size end)
+      : JtData_Reader(source.Model()), mySource(source), myEnd(end) {SetExternallyCompressed(source.IsExternallyCompressed());}
+    Standard_Boolean ReadBytes(void* out, Standard_Size count) override
+    {
+      const auto pos = GetPosition();
+      if (pos > myEnd || count > myEnd-pos) return Standard_False;
+      return mySource.ReadBytes(out, count);
+    }
+    Standard_Boolean SkipBytes(Standard_Size count) override
+    {
+      const auto pos = GetPosition();
+      if (pos > myEnd || count > myEnd-pos) return Standard_False;
+      return mySource.SkipBytes(count);
+    }
+    Standard_Size GetPosition() const override { return mySource.GetPosition(); }
+    Standard_Size ElementBytesRemaining() const override {return myEnd-GetPosition();}
+  private:
+    JtData_Reader& mySource;
+    Standard_Size myEnd;
+  };
+}
 
-  // Start reading the element data
-  Standard_Size anElemStart = theReader.GetPosition();
-
-  // Read Object Type ID
-  Jt_GUID anObjectTypeID;
-  if (!theReader.ReadGUID (anObjectTypeID))
+Standard_Boolean JtData_Model::readElement (JtData_Reader& theInput,
+                                            Handle(JtData_Object)& theObject,
+                                            Jt_I32* theObjectIDPtr) const
+{
+  JtData_Limits::poll();
+  Jt_I32 length;
+  if (!theInput.ReadI32(length)) return Standard_False;
+  const auto start = theInput.GetPosition();
+  if (length < 16 || length > 512*1024*1024
+      || Standard_Size(length) > std::numeric_limits<Standard_Size>::max()-start)
+    throw std::runtime_error("Invalid JT element envelope");
+  const auto end = start + Standard_Size(length);
+  ElementReader reader(theInput, end);
+  Jt_GUID type;
+  if (!reader.ReadGUID(type)) return Standard_False;
+  if (type == EOEMarkerGUID)
   {
-    ALARM ("Error: Failed to read element GUID");
-    return Standard_False;
-  }
-  else
-  {
-    Standard_Character aGuidString[128];
-    anObjectTypeID.ToString (aGuidString);
-    TRACE ("Info: Reading element with GUID " + aGuidString);
-  }
-
-  if(anObjectTypeID != EOEMarkerGUID && (anElemLength<21 || anElemLength>512*1024*1024)) throw std::runtime_error("Invalid JT element envelope");
-
-  // Classify and create the object
-  const JtData_Object::ClassInfo* aClassInfo = JtData_Object::FindClass (anObjectTypeID);
-  if (aClassInfo != NULL)
-  {
-    // known object
-    TRACE (aClassInfo->Name());
-    theObject = aClassInfo->Create();
-  }
-  else if (anObjectTypeID == EOEMarkerGUID)
-  {
-    // End-Of-Elements marker
-    theObject = Handle(JtData_Object)();
+    if (length != 16) throw std::runtime_error("Invalid JT end marker envelope");
+    theObject.Nullify();
     return Standard_True;
   }
-  else
-  {
-    // unknown object
-    theObject = new JtData_Object();
-    return theReader.Skip (anElemStart + anElemLength - theReader.GetPosition());
-  }
+  if (length < 21) throw std::runtime_error("Invalid JT element envelope");
+  Jt_U8 base;
+  Jt_I32 id = -1;
+  if (!reader.ReadU8(base)) return Standard_False;
+  if ((theObjectIDPtr || MajorVersion() > 8) && !reader.ReadI32(id)) return Standard_False;
 
-  if(anElemLength<21 || anElemLength>512*1024*1024) throw std::runtime_error("Invalid JT element envelope");
-  // Read the object data
-  Standard_Integer anObjectBaseType;
-  if (!theReader.ReadU8 (anObjectBaseType))
-    return Standard_False;
-
-  if (theObjectIDPtr)
+  static const Jt_GUID sabot("96603dd3-5a0f-40f5-97-cb-1e-96-47-cb-d3-7e");
+  const bool wrapped = type == sabot;
+  if (wrapped)
   {
-    // for LSG segment, always read Object ID for elements
-    if (!theReader.ReadI32 (*theObjectIDPtr))
-      return Standard_False;
+    if (MajorVersion() < 10 || base != 9)
+      throw std::runtime_error("Unsupported JT Sabot wrapper layout");
+    // The embedded Element Header has GUID/base/ID, but no element-length word.
+    // The inner object ID replaces the disposable outer wrapper ID.
+    if (!reader.ReadGUID(type) || !reader.ReadU8(base) || !reader.ReadI32(id))
+      throw std::runtime_error("Truncated JT Sabot attribute header");
+    if (type == sabot || base != 3 || type == EOEMarkerGUID)
+      throw std::runtime_error("Invalid JT Sabot wrapped attribute");
   }
-  else if (MajorVersion() > 8)
+  const auto* info = JtData_Object::FindClass(type);
+  if (!info)
   {
-    // for other segments, read Object ID only if JT version is 9.x or higher
-    Jt_I32 anObjectID;
-    if (!theReader.ReadI32 (anObjectID))
-      return Standard_False;
+    if (wrapped) throw std::runtime_error("Unsupported JT Sabot wrapped attribute type");
+    theObject = new JtData_Object;
+    return reader.SkipBytes(end-reader.GetPosition());
   }
-
-  if (!theObject->Read (theReader)) {
-    ALARM(TCollection_ExtendedString("Cannot decode JT element: ") + aClassInfo->Name());
-    return Standard_False;
-  }
-
-  // Check the loaded data length
-  Standard_Size aBytesSpec = anElemStart + anElemLength;
-  Standard_Size aReaderPos = theReader.GetPosition();
-  if (aBytesSpec < aReaderPos)
+  theObject = info->Create();
+  const auto attribute = Handle(JtAttribute_Base)::DownCast(theObject);
+  if (wrapped && attribute.IsNull())
+    throw std::runtime_error("Invalid JT Sabot non-attribute payload");
+  if (!theObject->Read(reader))
   {
-    ALARM(TCollection_ExtendedString("JT element exceeded envelope: ") + aClassInfo->Name());
-#ifdef OCCT_DEBUG
-    Standard_Size aBytesRest = aReaderPos - aBytesSpec;
-    ALARM ("Error: " + (aBytesRest) + " extra bytes were read after end of the element");
-#endif
+    ALARM(TCollection_ExtendedString("Cannot decode JT element: ") + info->Name());
     return Standard_False;
   }
-  if (aBytesSpec > aReaderPos)
-  {
-    Standard_Size aBytesRest = aBytesSpec - aReaderPos;
-    WARNING ("Warning: " + aBytesRest + " element bytes remained after reading, corrected");
-    if (!theReader.Skip (aBytesRest))
-      return Standard_False;
-  }
-
+  if (wrapped && attribute->BaseVersion() != 2)
+    throw std::runtime_error("Unsupported JT Sabot attribute base version");
+  if (wrapped && reader.GetPosition() != end)
+    throw std::runtime_error("Invalid JT Sabot attribute envelope length");
+  if (!reader.SkipBytes(end-reader.GetPosition())) return Standard_False;
+  if (theObjectIDPtr) *theObjectIDPtr = id;
   return Standard_True;
 }
 

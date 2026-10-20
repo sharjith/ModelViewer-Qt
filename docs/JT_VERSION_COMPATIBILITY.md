@@ -12,6 +12,8 @@ There is unresolved contrary evidence: [Altair Inspire 2025's format table](http
 
 ## Validation sample identifiers
 
+The owner supplied an additional 9.5 input (A95) on 20 October 2026: header `Version 9.5 JT  DM 9.6.3.1`, 410,366,195 bytes, SHA-256 `5062b6b7d2e089ce0461cb8bfa4fe2cf9243d8fd9da64741fc9ee6dba5987f6a`. This is a header/hash inventory only; it does not establish 9.5 import support. Current-version work retains priority.
+
 Downloaded community models are referenced only by neutral IDs: L80 (8.0), L81 (8.1), Q82 (8.2 quantized), A103 (10.3 assembly), A109 (10.9 investigation), and R1-R3 (additional regressions). Their original names and paths are kept in ignored local research notes at `out/jt-research/documentation-sample-map.json`. In reproduction commands, `<local-samples>/sample-*.jt` is a placeholder: substitute the corresponding original local file path. These aliases do not rename the source files or bundle their geometry. Hashes and measured results remain available for matching the validation evidence.
 
 ## Target range and current qualification
@@ -31,7 +33,8 @@ Share parsers/codecs across compatible record layouts and add adapters for actua
 | 10.0 | Enabled sampled tessellation subset, with owner-tested assembly/appearance follow-ups | Keep as modern regression baseline; improve representation coverage |
 | 10.3 | Enabled subset; original sample A103 sample passes native geometry checks and owner accepted Gate 0 | See [sample A103 validation](JT_103_ASSEMBLY_VALIDATION.md); retain the current scene model and qualify further encodings separately |
 | Other later 10.x through 10.6 | Public 10.6 reference available; other revisions not individually qualified | Implement documented attribute versions, Sabot wrappers and face-group palette semantics; qualify each actual file revision and codec |
-| 10.7–10.9 | Local 10.9 sample inspected but rejected by the production reader; no successful rendering claimed | First forward-compatibility milestone: qualify the supplied 10.9 assembly after documented attribute/palette work, then cover other revisions with their own evidence |
+| 10.7–10.8 | No qualified local corpus yet | Assess the shared modern family with representative inputs; do not infer acceptance from 10.9 |
+| 10.9 | Unchanged original passes native production-path validation: palette attributes, face-group appearance and stored tessellation | [Gate 2b](JT_109_PALETTE_VALIDATION.md) awaits owner production-system testing; 10.10/10.11 follow before older-format work |
 | 10.10–10.11 | Shipping-version evidence; no local qualification corpus or matching public reference acquired | Forward target contingent on lawful layout evidence, samples and tests; reassess scope if new representations require substantial redesign |
 | 11.0 | Vendor support-table report; authoritative format/release status unresolved | Investigate separately; outside the committed target range |
 | Before 6.4, or beyond the target | No qualification commitment | Add only for demonstrated demand after a separate compatibility assessment |
@@ -40,7 +43,7 @@ See [native importer status](JT_NATIVE_IMPORTER.md), [8.1 validation](JT_81_VALI
 
 ## Architecture and implementation order
 
-Follow the feature milestones and explicit owner build/acceptance gates in [development phases](JT_DEVELOPMENT_PHASES.md). Gate 0 is accepted; the shared quantized 8.x implementation has passed Gate 1 UI acceptance.
+Follow the feature milestones and explicit owner build/acceptance gates in [development phases](JT_DEVELOPMENT_PHASES.md). Gates 0, 1 and 2a are accepted. On 20 October 2026 the owner prioritized **10.9, then 10.10/10.11**, ahead of transitional 9.x/intervening 10.x and pre-8 work. Representative 10.10/10.11 inputs are still needed; the owner plans 10.9 testing on a separate production system.
 
 The output contract remains indexed triangles, positions, stored normals, material groups, shared mesh definitions, occurrence nodes with local transforms, and typed metadata at the owned `aiScene` boundary. The modern and qualified 8.1 paths already fit it. Pre-8 compatibility is a hypothesis to assess rather than established support. Keep source-layout differences within the native reader; apply the 6.4/7.0 decision gate if the output contract would need substantial redesign.
 
@@ -48,7 +51,7 @@ The output contract remains indexed triangles, positions, stored normals, materi
 2. Establish the legacy layout-family map: extend quantized geometry/binding coverage across the shared 8.0–8.2 family, then assess 7.0 and 6.4 using matching lawful references and authentic samples. Implement pre-8 adapters if needed; cap at 7.0 only on evidence of the specified 6.4-specific scene-model change. Missing samples leave qualification pending and do not constitute proof that 6.4 needs redesign.
 3. Implement the observed newer attributes from the 10.6 reference: trailing version-2 palette fields, checked Sabot unwrapping, accumulated palette state and face-group membership. Map face groups to render material splits while preserving shared source geometry and occurrence overrides. These require richer internal records, not a new viewer scene graph.
 4. Qualify the supplied 10.9 file's tessellation, normals, placements and appearance. A header rewrite or successful TOC inspection is not qualification. Legacy reference/sample acquisition need not stop this independent forward work.
-5. Fill 9.x and intervening 10.x coverage using matching references, original fixtures and representative real files. Extend to 10.10/10.11 only after establishing their actual layout/codec differences. Do not add a permissive numeric version-range gate.
+5. Fill 9.x and intervening 10.x coverage using matching references, original fixtures and representative real files. Current-version priority places 10.10/10.11 immediately after 10.9 qualification; establish their actual layout/codec differences and representative inputs before enabling them. Transitional and legacy work follows. Do not add a permissive numeric version-range gate.
 
 Qualification for each version/representation includes bounded reads/decompression, malformed-input and cancellation checks, topology/count/bounds checks, stored-normal binding, hierarchy/transforms, material/colour behavior and owner UI acceptance. Independent reference comparison is required where available; record its absence. Retain little/big-endian coverage where specified. Source mesh resources, material splits and occurrences are separate counts.
 
@@ -60,4 +63,4 @@ Full PMI rendering, procedural shaders/textures and runtime LOD switching are se
 
 Use published reference material and independently written adapters, retaining audited upstream GPL notices and existing Siemens attribution. The public 10.6 copyright terms and limited patent notice are not blanket clearance for every undocumented later feature. Review the provenance and applicable terms for each extension; do not use leaked SDK code or restricted schema catalogs. See [licensing research](JT_IMPORT_FEASIBILITY.md) and [third-party notices](../THIRD_PARTY_NOTICES.md).
 
-About lists only the supported JT versions (**8.0–8.2, 10.0 and 10.3**) and licence credits. Keep representation limits, validation status, planned compatibility and reference research in the [README](../README.md#jt-import) and detailed documentation. The README describes format capabilities without naming downloaded models; validation evidence uses neutral sample IDs in dedicated documents; original filenames and local paths remain in ignored research notes. Update this matrix, the README and About together when supported versions change. Only explicitly enabled versions pass the production version gate.
+About lists only the supported JT versions (**8.0–8.2, 10.0, 10.3 and 10.9**) and licence credits. Keep representation limits, validation status, planned compatibility and reference research in the [README](../README.md#jt-import) and detailed documentation. The README describes format capabilities without naming downloaded models; validation evidence uses neutral sample IDs in dedicated documents; original filenames and local paths remain in ignored research notes. Update this matrix, the README and About together when supported versions change. Only explicitly enabled versions pass the production version gate.

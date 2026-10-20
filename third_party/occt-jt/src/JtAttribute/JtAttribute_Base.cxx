@@ -29,7 +29,8 @@ IMPLEMENT_STANDARD_RTTIEXT(JtAttribute_Base, JtData_Object)
 //purpose  :
 //=======================================================================
 JtAttribute_Base::JtAttribute_Base()
-: myVersion           (0)
+: myPaletteIndex      (-1)
+, myVersion           (0)
 , myStateFlags        (0)
 , myFieldInhibitFlags (0)
 , myFieldFinalFlags (0) {}
@@ -47,7 +48,7 @@ Standard_Boolean JtAttribute_Base::Read (JtData_Reader& theReader)
   && !theReader.ReadVersion(myVersion))
     return Standard_False;
 
-  if (theReader.Model()->MajorVersion() >= 10 && myVersion != 1) throw std::runtime_error("Unsupported JT base attribute version");
+  if (theReader.Model()->MajorVersion() >= 10 && myVersion != 1 && myVersion != 2) throw std::runtime_error("Unsupported JT base attribute version");
 
   return theReader.ReadU8  (myStateFlags)
       && theReader.ReadU32 (myFieldInhibitFlags)
@@ -62,4 +63,14 @@ Standard_Integer JtAttribute_Base::Dump (Standard_OStream& theStream) const
 {
   theStream << "JtAttribute_Base ";
   return JtData_Object::Dump (theStream);
+}
+
+// The palette index belongs after the complete derived payload (reference 5.4).
+Standard_Boolean JtAttribute_Base::ReadFieldsV2 (JtData_Reader& theReader)
+{
+  myPaletteIndex = -1;
+  if (myVersion != 2) return Standard_True;
+  if (!theReader.ReadI32(myPaletteIndex)) return Standard_False;
+  if (myPaletteIndex < -1) throw std::runtime_error("Invalid JT attribute palette index");
+  return Standard_True;
 }

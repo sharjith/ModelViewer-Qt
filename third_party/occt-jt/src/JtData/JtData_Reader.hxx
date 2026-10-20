@@ -15,11 +15,13 @@
 // on <http://www.gnu.org/licenses/>.
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Additional bounded palette/face-group qualification changes: 2026-10-20.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
 #ifndef _JtData_Reader_HeaderFile
 #define _JtData_Reader_HeaderFile
+#include <limits>
 
 #include <JtData_ReaderInterface.hxx>
 #include <JtData_ByteSwap.hxx>
@@ -60,6 +62,12 @@ public:
 
   //! Get absolute reading position.
   Standard_EXPORT virtual Standard_Size GetPosition() const = 0;
+
+  bool IsExternallyCompressed() const {return myExternallyCompressed;}
+  void SetExternallyCompressed(bool value) {myExternallyCompressed=value;}
+
+  //! Remaining bytes when decoding a bounded element payload.
+  virtual Standard_Size ElementBytesRemaining() const {return std::numeric_limits<Standard_Size>::max();}
 
   //! Get the associated model.
   const Handle(JtData_Model)& Model() const { return myModel; }
@@ -127,6 +135,7 @@ public:
 protected:
   Handle(JtData_Model) myModel;
   Standard_Boolean     myNeedSwap;
+  bool myExternallyCompressed=false;
 };
 
 #endif // _JtData_Reader_HeaderFile

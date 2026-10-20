@@ -8,7 +8,7 @@
 namespace JtData_Limits {
 inline thread_local std::function<void()> check;
 inline thread_local size_t allocated=0;
-inline constexpr size_t defaultAllocationBudget=size_t(4)*1024*1024*1024;
+inline constexpr size_t defaultAllocationBudget=size_t(6)*1024*1024*1024;
 inline thread_local size_t allocationBudget=defaultAllocationBudget;
 inline void poll() {if(check) check();}
 inline void allocation(size_t bytes) {

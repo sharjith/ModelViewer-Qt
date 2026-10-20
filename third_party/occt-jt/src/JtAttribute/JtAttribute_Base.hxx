@@ -36,6 +36,9 @@ public:
   //! Dump this entity.
   Standard_EXPORT virtual Standard_Integer Dump (Standard_OStream& theStream) const;
 
+  Jt_I16 BaseVersion() const { return myVersion; }
+  Jt_I32 PaletteIndex() const { return myPaletteIndex; }
+
   bool AccumulationIgnored() const { return (myStateFlags & 0x04) != 0; }
   bool AccumulationForced() const { return (myStateFlags & 0x02) != 0; }
   Jt_U32 FieldInhibitFlags() const { return myFieldInhibitFlags; }
@@ -44,6 +47,10 @@ public:
   DEFINE_STANDARD_RTTIEXT(JtAttribute_Base, JtData_Object)
 
 protected:
+  //! Version-2 fields follow the derived attribute payload, not the base header.
+  Standard_EXPORT Standard_Boolean ReadFieldsV2 (JtData_Reader& theReader);
+
+  Jt_I32 myPaletteIndex;
   Jt_I16 myVersion;
   Jt_U8  myStateFlags;
   Jt_U32 myFieldInhibitFlags;

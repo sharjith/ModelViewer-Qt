@@ -430,15 +430,15 @@ void sceneTests() {inheritance();shininessTests();vertexColorTests();instances()
 void containerTests(const QString& samples) {
     QTemporaryDir temp;check(temp.isValid(),"Cannot create container directory");
     const auto path=temp.filePath("assembly.jt");
-    for(const char* version:{"6.4","7.0","8.3","9.5","10.1","10.2","10.4","10.6","10.9","11.0"}) {
+    for(const char* version:{"6.4","7.0","8.3","9.5","10.1","10.2","10.4","10.6","10.10","10.11","11.0"}) {
         Fixture::write(path,"",false,false);
         QFile file(path);check(file.open(QIODevice::ReadOnly),"Cannot read version fixture");auto bytes=file.readAll();file.close();
         const auto header=(QByteArray("Version ")+version+" JT original unsupported-version fixture").leftJustified(80,' ');
         bytes.replace(0,80,header);check(file.open(QIODevice::WriteOnly) && file.write(bytes)==bytes.size(),"Cannot write version fixture");file.close();
-        const auto message=std::string("Unsupported JT version ")+version+"; native reader currently supports the JT 8.0-8.2 lossless family, JT 10.0 and JT 10.3 subsets";
+        const auto message=std::string("Unsupported JT version ")+version+"; native reader supports qualified JT 8.0-8.2, JT 10.0, JT 10.3 and JT 10.9 subsets";
         rejected([&]{Jt::Importer::read(path);},message.c_str());
     }
-    for(bool big:{false,true}) for(unsigned minor:{0,3}) {
+    for(bool big:{false,true}) for(unsigned minor:{0,3,9}) {
         Fixture::write(path,"missing.jt",big,true,false,false,minor);
         Handle(JtData_Model) model=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(path.utf16())));
         const auto root=model->Init();check(model->MinorVersion()==int(minor) && !root.IsNull() && root->Children().Count()==2,"Synthetic versioned container graph failed");
@@ -483,7 +483,7 @@ void containerTests(const QString& samples) {
     if(!samples.isEmpty()) {
         check(QFile::copy(QDir(samples).filePath("Bolt.jt"),temp.filePath("parts/leaf.jt")),"Cannot copy local validation part");
         Fixture::write(bridge,"leaf.jt",false,false);
-        for(bool big:{false,true}) for(unsigned minor:{0,3}) {
+        for(bool big:{false,true}) for(unsigned minor:{0,3,9}) {
             Fixture::write(path,"parts/bridge.jt",big,true,false,false,minor);
             auto result=Jt::Importer::read(path);
             check(result.scene->mNumMeshes==2 && references(*result.scene->mRootNode)==2,"External assembly resources/occurrences mismatch");

@@ -199,5 +199,5 @@ QString AboutDialog::buildDetailsHtml(const QString& graphicsInfo) const
 			"Use Third-Party Notices for importer acknowledgements and licence information. "
 			"The full list is in CREDITS.md and textures/LICENSES.md in the installation folder."))
 		.arg(tr("JT Import"))
-		.arg(tr("Supported JT versions: 8.0-8.2, 10.0 and 10.3."));
+		.arg(tr("Supported JT versions: 8.0-8.2, 10.0, 10.3 and 10.9."));
 }

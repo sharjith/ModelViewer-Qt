@@ -17,5 +17,5 @@ Standard_Boolean JtAttribute_DrawStyle::Read(JtData_Reader& reader)
   if(version!=1) throw std::runtime_error("Unsupported JT draw style version");
   if(!reader.ReadPrimitiveValue(myDataFlags)) return Standard_False;
   if(myDataFlags & 0xc0) throw std::runtime_error("Unsupported reserved JT draw style flags");
-  return Standard_True;
+  return ReadFieldsV2(reader);
 }
