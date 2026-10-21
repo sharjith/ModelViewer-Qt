@@ -45,6 +45,8 @@ public:
         int        eliminatedPosition  = 0;       // index eliminatedNode held in survivorNode->children
         QString    meshNameBefore;                // the mesh's own name, before this promotion
         QString    meshNameAfter;                 // survivorNode's name at the moment of promotion
+        aiMatrix4x4 survivorTransformBefore;
+        aiMatrix4x4 survivorTransformAfter;
     };
 
     // Called AFTER every promotion in `promotions` has already happened (recorded bottom-up: innermost collapse

@@ -583,7 +583,9 @@ public slots:
 	// sweep the whole scene (Tools > Purge Redundant Nodes), or a specific node (the scene tree's own context
 	// menu) to purge just that subtree. No geometry is touched; undoable (PurgeRedundantNodesCommand). Does
 	// nothing, silently, if scanRoot's subtree has nothing to collapse.
-	void purgeRedundantAssemblyNodes(SceneNode* scanRoot = nullptr);
+	void purgeRedundantAssemblyNodes(SceneNode* scanRoot = nullptr, bool automatic = false);
+	// Applies the load-time preference to this import (or each file in a restored session).
+	void purgeRedundantNodesAfterLoad(SceneNode* fileNode = nullptr);
 
 	// Shrink Wrap: opens the non-modal ShrinkWrapDialog (Tools -> Shrink
 	// Wrap...), findChild-reuse-or-create/show/raise, same pattern as
