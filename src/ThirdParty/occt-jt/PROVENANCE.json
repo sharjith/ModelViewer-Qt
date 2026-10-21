@@ -1087,5 +1087,16 @@
       "include/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.hxx"
     ],
     "validation": "docs/JT_SPARSE_UV_VALIDATION.md"
+  },
+  "arithmetic_symbol_count_follow_up": {
+    "date": "2026-10-21",
+    "scope": "Pass declared CDP1 arithmetic symbol count independently of emitted values; consume non-emitting tails, enforce output/OOB agreement and cancellation; modern packet driver unchanged",
+    "files": [
+      "src/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP.cxx",
+      "src/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Arithmetic.cxx",
+      "include/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Arithmetic.hxx"
+    ],
+    "reference": "Retained Siemens JT9.5 Rev-A sections8.1.1/8.1.1.1.1; inherited licensed CDP1 context-switch behavior",
+    "validation": "docs/JT_ARITHMETIC_COUNT_VALIDATION.md"
   }
 }

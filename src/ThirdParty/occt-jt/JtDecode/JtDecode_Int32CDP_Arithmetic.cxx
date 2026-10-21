@@ -15,6 +15,7 @@
 // on <http://www.gnu.org/licenses/>.
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Declared CDP1 arithmetic symbol/value count agreement: 2026-10-21.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see src/ThirdParty/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -34,10 +35,11 @@ void JtDecode_Int32CDP_Arithmetic::decode (int32_t* theResultPtr,
   // Read first symbol
   uint16_t aCode = static_cast <uint16_t> (ReadU32 (16));
   size_t steps=0;
-  const size_t maxSteps=size_t(theResultEnd-theResultPtr)*32+1024;
+  const bool counted=mySymbolCount>=0;
+  const size_t maxSteps=counted?size_t(mySymbolCount):size_t(theResultEnd-theResultPtr)*32+1024;
 
   // Decode the data
-  while (theResultPtr < theResultEnd)
+  while (counted ? steps<maxSteps : theResultPtr<theResultEnd)
   {
     if(++steps>maxSteps) throw std::runtime_error("JT arithmetic symbol step limit exceeded");
     if((steps&1023)==0) JtData_Limits::poll();
@@ -61,6 +63,10 @@ void JtDecode_Int32CDP_Arithmetic::decode (int32_t* theResultPtr,
     }
     unsigned aSymLow = aSymHigh - aCurEntryPtr->occCount;
 
+    // A later-context escape changes state but does not emit an OOB value.
+    // Count it even after the final output value, as CDP1 explicitly declares.
+    if((aCurEntryPtr->symbol!=-2 || aCurContextIdx==0) && theResultPtr==theResultEnd)
+      throw std::runtime_error("JT arithmetic output count overflow");
     // write output value
     if (aCurEntryPtr->symbol != -2)
       *theResultPtr++ = aCurEntryPtr->associatedValue;
@@ -112,4 +118,8 @@ void JtDecode_Int32CDP_Arithmetic::decode (int32_t* theResultPtr,
       aCode ^= 0x8000;
     }
   }
+  if(counted && theResultPtr!=theResultEnd)
+    throw std::runtime_error("JT arithmetic output count mismatch");
+  if(counted && theOOBDataPtr!=myOOBEnd)
+    throw std::runtime_error("JT arithmetic unused out-of-band values");
 }

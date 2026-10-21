@@ -40,6 +40,8 @@ void jt9ColourTests();
 void uvTests();
 void quantizedColourTests();
 void huffmanTests();
+void arithmeticCountTests();
+void arithmeticCountFixtureFiles(const QString& folder);
 void quantizedTests();
 void quantizedFixtureFiles(const QString& folder);
 void legacyFixtureFiles(const QString& folder);
@@ -205,9 +207,10 @@ void samples(const QString& dir) {
 }
 int main(int argc,char** argv) {
     QCoreApplication app(argc,argv);
-    try {allocationBudgetTests();codecTests();colorStreamTests();uvTests();quantizedColourTests();jt9ColourTests();attributeTests();sceneTests();containerTests({});legacyTests();huffmanTests();quantizedTests();modernAttributeTests();paletteTests();solidEdgeMaterialCompatibilityTests();jt95Tests();
+    try {allocationBudgetTests();codecTests();colorStreamTests();uvTests();quantizedColourTests();jt9ColourTests();attributeTests();sceneTests();containerTests({});legacyTests();huffmanTests();arithmeticCountTests();quantizedTests();modernAttributeTests();paletteTests();solidEdgeMaterialCompatibilityTests();jt95Tests();
         const bool orderFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--material-order-fixtures";
         const bool maskFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--material-mask-fixtures";
+        const bool arithmeticFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--arithmetic-count-fixtures";
         const bool huffmanFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--huffman-fixtures";
         const bool jt1010Fixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--1010-fixtures";
         const bool jt107108Fixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--107108-fixtures";
@@ -218,7 +221,8 @@ int main(int argc,char** argv) {
         const bool quantizedFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--quantized-fixtures";
         const bool modernFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--modern-attribute-fixtures";
         const bool paletteFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--palette-fixtures";
-        if(huffmanFixtures)huffmanFixtureFiles(QString::fromLocal8Bit(argv[2]));
+        if(arithmeticFixtures)arithmeticCountFixtureFiles(QString::fromLocal8Bit(argv[2]));
+        else if(huffmanFixtures)huffmanFixtureFiles(QString::fromLocal8Bit(argv[2]));
         else if(orderFixtures)materialOrderFixtureFiles(QString::fromLocal8Bit(argv[2]));
         else if(maskFixtures)jtMaterialMaskFixtureFiles(QString::fromLocal8Bit(argv[2]));
         else if(jt1010Fixtures)jt1010FixtureFiles(QString::fromLocal8Bit(argv[2]));

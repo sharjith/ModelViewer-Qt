@@ -17,6 +17,7 @@
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
 // Additional bounded palette/face-group qualification changes: 2026-10-20.
 // JT 9.5 qualification and shared attribute/codec bounds updated: 2026-10-20.
+// Declared CDP1 arithmetic symbol/value count agreement: 2026-10-21.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see src/ThirdParty/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -140,12 +141,18 @@ JtDecode_Int32CDP::EncodedDataHandle JtDecode_Int32CDP::loadCDP1 (JtData_Reader&
   aData->SetOutValCount (aValueCount);
   if(aCodec==2)static_cast<JtDecode_Int32CDP_Huffman*>(aData.operator->())->SetCodeTextLength(aCodeTextLength);
 
-  // Read symbol count if present
+  // CDP1 counts symbols, including non-emitting context transitions.
+  Jt_I32 aSymbolCount=aValueCount;
   if (aProbContextTableCount > 1)
   {
-    Jt_I32 aSymbolCount;
     if (!theReader.ReadI32 (aSymbolCount))
       return EncodedDataHandle();
+  }
+
+  if(aCodec==3) {
+    if(aSymbolCount<aValueCount || aSymbolCount>16000000)
+      throw std::runtime_error("Invalid legacy JT arithmetic symbol count");
+    static_cast<JtDecode_Int32CDP_Arithmetic*>(aData.operator->())->SetSymbolCount(aSymbolCount);
   }
 
   // Read CodeText data

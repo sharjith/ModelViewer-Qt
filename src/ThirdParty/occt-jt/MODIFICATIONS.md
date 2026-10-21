@@ -141,3 +141,7 @@ The original `JtDecode_VertexUV.hxx` reads one or two coordinate components, inc
 ## Sparse texture-coordinate bindings, 21 October 2026
 
 `JtElement_ShapeLOD_Vertex.cxx` validates independent scalar/2D bindings in slots 0–3 and reads only present collections. Corner assembly retains absent decoder slots, discovers attribute counts from the first present set when needed and preserves UV-only higher-set seams. Original scene-adapter code zero-pads internal gaps to retain source set numbers through Assimp copy/export. No new dependency or third-party code is added; original notices and upstream hashes remain intact. See `docs/JT_SPARSE_UV_VALIDATION.md` for the exact representation boundary and owner gate.
+
+## Declared arithmetic symbol counts, 21 October 2026
+
+`JtDecode_Int32CDP.cxx` passes bounded explicit/implicit CDP1 symbol counts to `JtDecode_Int32CDP_Arithmetic.cxx/.hxx`. The driver consumes declared non-emitting context transitions as well as emitting symbols, checks output bounds/count and OOB completion, and polls cancellation throughout. CDP2/CDP3 retain their previous driver. No new package or third-party code is introduced; upstream notices and source hashes remain. Original field/full-model tests and the owner gate are in `docs/JT_ARITHMETIC_COUNT_VALIDATION.md`.

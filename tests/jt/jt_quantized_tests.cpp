@@ -65,7 +65,7 @@ void arithmeticTests() {
         rejects([&]{Reader r(badWords,big);JtDecode_Int32CDP p;p.Load1(r);},"code word count");
     }
     {Reader r(arithmetic(false,5,false,false,65536),false);JtDecode_Int32CDP p;check(p.Load1(r),"Maximum-frequency arithmetic load failed");Jt_VecI32 v(p.DecodeI32());check(v[4]==7,"Arithmetic range product overflow");}
-    {Reader r(arithmetic(false,2,true,true,1,true),false);JtDecode_Int32CDP p;check(p.Load1(r),"Loop fixture load failed");rejects([&]{Jt_VecI32 v(p.DecodeI32());},"step limit");}
+    {Reader r(arithmetic(false,2,true,true,1,true),false);JtDecode_Int32CDP p;check(p.Load1(r),"Loop fixture load failed");rejects([&]{Jt_VecI32 v(p.DecodeI32());},"output count mismatch");}
     for(unsigned damage:{1,2,3,4}) {
         Reader r(arithmetic(false,3,true,true,1,false,damage),false);JtDecode_Int32CDP p;
         rejects([&]{p.Load1(r);},damage==1?"next probability context":damage==4?"probability frequency":"out-of-band");

@@ -72,3 +72,7 @@ C1e is owner-accepted. C1f adds scalar U collections and mixed one-/two-componen
 ## Accepted gate C1g — sparse texture-coordinate sets
 
 C1f is owner-accepted for transport. C1g preserves independently absent scalar/2D sets within slots 0–3, consumes only present collections and retains UV-only corner seams without assuming set 0 exists. The scene adapter pads internal gaps with zero pairs for Assimp copy/export compatibility, preserving original real-set numbers. [Sparse UV validation](JT_SPARSE_UV_VALIDATION.md) records representation limits, native checks and owner build/UI instructions. No new file version is enabled; source textures, higher/projective sets and the remaining C1–C7 items stay pending. The owner accepted the focused sparse-set viewer checks on 21 October 2026 with "Works".
+
+## Accepted gate C1h — declared arithmetic symbol counts
+
+C1g is owner-accepted. C1h corrects the existing CDP1 arithmetic driver to consume the declared symbol count, including non-emitting context transitions after the last output, while enforcing output/OOB agreement and cancellation. Modern CDP2/CDP3 and other codecs retain their existing contracts. [Arithmetic count validation](JT_ARITHMETIC_COUNT_VALIDATION.md) records references, original packets/models and a geometry-only owner checklist. Multiple-context Huffman and the other unresolved C1 encodings/bindings remain pending; no new version is enabled. The owner confirmed all C1h application checks passed on 21 October 2026.

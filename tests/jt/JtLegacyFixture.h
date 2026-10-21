@@ -6,7 +6,7 @@
 #include <vector>
 #include <limits>
 namespace LegacyFixture {
-struct Options {bool big=false,compressed=true,padding=true,eofSizeQuirk=false;int badStrip=0;bool badChecksum=false,badRawSize=false,badPadding=false,quantizedData=false;unsigned materialInhibit=0,normalBinding=1,colorBinding=0,codec=0,minorVersion=1,quantizedBits=0,uvBinding=0,quantizedDamage=0,quantizedColourComponents=3;};
+struct Options {bool big=false,compressed=true,padding=true,eofSizeQuirk=false;int badStrip=0;bool badChecksum=false,badRawSize=false,badPadding=false,quantizedData=false;int arithmeticSymbolCount=6;unsigned materialInhibit=0,normalBinding=1,colorBinding=0,codec=0,minorVersion=1,quantizedBits=0,uvBinding=0,quantizedDamage=0,quantizedColourComponents=3;};
 inline QByteArray zlib(const QByteArray& raw) {
     uLongf size=compressBound(uLong(raw.size()));QByteArray out(qsizetype(size),'\0');
     if(compress2(reinterpret_cast<Bytef*>(out.data()),&size,reinterpret_cast<const Bytef*>(raw.constData()),uLong(raw.size()),1)!=Z_OK)throw std::runtime_error("Fixture compression failed");
@@ -43,6 +43,15 @@ inline QByteArray bytes(Options o={}) {
         // Weights 1/2/4, values 0/4/7: codes 11/10/0; strip boundaries 0,4,7.
         bits(2,3);bits(1,3);bits(0,3);bits(3,3);bits(2,3);bits(4,3);bits(4,3);bits(4,3);bits(7,3);
         lod.data+=context;lod.u32(0);lod.u32(5);lod.u32(3);lod.u32(1);lod.u32(0xe0000000);
+    } else if(o.codec==3) {
+        // Singleton escape alphabets alternate contexts. Only context 0 emits
+        // an OOB value; the final context-1 escape follows the final output.
+        lod.u8(2);QByteArray context;unsigned used=0;
+        const auto bits=[&](quint32 value,unsigned width){for(unsigned i=width;i>0;--i){if(used%8==0)context.append(char(0));context[context.size()-1]=char(quint8(context.back())|(((value>>(i-1))&1)<<(7-used%8)));++used;}};
+        bits(1,32);bits(0,6);bits(1,6);bits(0,6);bits(1,6);bits(0,32);bits(1,1);bits(1,1);
+        bits(1,32);bits(0,6);bits(1,6);bits(1,6);bits(1,1);bits(0,1);
+        lod.data+=context;lod.u32(3);lod.u8(0);lod.u32(3);lod.u32(0);lod.u32(4);lod.u32(7);
+        lod.u32(32);lod.u32(3);lod.u32(quint32(o.arithmeticSymbolCount));lod.u32(1);lod.u32(0);
     } else if(o.codec==1) {
         const char bits[]="01110010000111";quint32 word=0;for(unsigned i=0;i<sizeof(bits)-1;++i)word|=quint32(bits[i]=='1')<<(31-i);
         lod.u32(sizeof(bits)-1);lod.u32(3);lod.u32(1);lod.u32(word);
