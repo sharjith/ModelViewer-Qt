@@ -103,7 +103,7 @@ names, parent links, local/world transforms and initial visibility. Results:
 | Compared visible GLB primitives | 385 |
 | Materials | 45 |
 
-Machine-readable results: `3DXML_native_import_validation.json`.
+Machine-readable results: `out/3dxml-research/3DXML_native_import_validation.json`.
 The source archive and generated geometry remain outside version control.
 The archive's SHA256 is
 `6f95b1a5bd3e5a51db842eef3793ed492c2aa3db5a00c8b37ac33434b79b11b9`.

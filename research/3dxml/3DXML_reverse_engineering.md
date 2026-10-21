@@ -17,7 +17,7 @@ Date: 2026-10-17. Research only; no application importer has been added.
 
 ## Scope and provenance
 
-This continues `3DXML_decoding_handout.md` using only the supplied archive's
+This continues `research/3dxml/3DXML_decoding_handout.md` using only the supplied archive's
 bytes and this project's existing import integration. No vendor software,
 SDKs, schemas, disassembly, third-party decoder implementations, or vendor
 viewer output were consulted. No encryption, access control, or certificate
@@ -37,7 +37,7 @@ SHA-256: `6f95b1a5bd3e5a51db842eef3793ed492c2aa3db5a00c8b37ac33434b79b11b9`.
 Reproduce the measurements from the repository root:
 
 ```powershell
-python -I tools/3dxml/analyze_3dxml.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --output docs/3DXML_sample_analysis.json
+python -I tools/3dxml/analyze_3dxml.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --output out/3dxml-research/3DXML_sample_analysis.json
 ```
 
 The script uses only the Python standard library, reads members in memory,
@@ -238,7 +238,7 @@ cylinders cannot substitute for the stored tessellation.
 The next research pass identified substantially more structure. Reproduce it:
 
 ```powershell
-python -I tools/3dxml/probe_topology.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --output docs/3DXML_topology_analysis.json
+python -I tools/3dxml/probe_topology.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --output out/3dxml-research/3DXML_topology_analysis.json
 ```
 
 This second script deliberately uses explicit measured offsets for the two

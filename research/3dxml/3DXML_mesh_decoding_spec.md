@@ -242,7 +242,7 @@ later leaves, retaining the same reservoir to logical Skeleton EOF.
 Run from the repository root:
 
 ```powershell
-python -I tools/3dxml/decode_sample_meshes.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --output-directory out/3dxml-research --audit-inventory docs/3DXML_sample_analysis.json
+python -I tools/3dxml/decode_sample_meshes.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --output-directory out/3dxml-research --audit-inventory out/3dxml-research/3DXML_sample_analysis.json
 python -I tools/3dxml/render_mesh_preview.py out/3dxml-research
 ```
 
@@ -258,8 +258,8 @@ Generated source-derived geometry stays under ignored `out/3dxml-research`:
   stored normal words/tags.
 - `decoded_meshes.png`: an inspection preview of the actual triangles.
 
-Aggregate evidence is retained in `3DXML_mesh_verification.json` and
-`3DXML_mesh_inventory_audit.json`. Archive/member hashes link this work to the
+Aggregate evidence is retained in `out/3dxml-research/3DXML_mesh_verification.json` and
+`out/3dxml-research/3DXML_mesh_inventory_audit.json`. Archive/member hashes link this work to the
 original sample. No original archive or extracted vendor representation is
 copied into source control.
 

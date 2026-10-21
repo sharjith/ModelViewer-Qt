@@ -62,17 +62,17 @@ appearance export. Full material semantics remain outside this result.
 
 | Evidence | File | Reproducer under `tools/3dxml` |
 |---|---|---|
-| Archive/coordinate layout inventory | `3DXML_sample_analysis.json` | `analyze_3dxml.py` |
-| Historical primitive-boundary measurements | `3DXML_topology_analysis.json` | `probe_topology.py` |
-| Historical standalone-code rejection experiments | `3DXML_integer_codec_analysis.json` | `probe_integer_codec.py`; false standalone-reservoir assumption later identified |
-| Full pin/ring/screw geometry checks | `3DXML_mesh_verification.json` | `decode_sample_meshes.py` |
-| 140-member index/count audit | `3DXML_mesh_inventory_audit.json` | `decode_sample_meshes.py --audit-inventory ...` |
-| Matrix/basis/unit/visibility evidence | `3DXML_scene_graph_analysis.json` | `analyze_scene_graph.py` |
-| Extended full-member marker scan and unequal-count geometry checks | `3DXML_extended_layout_audit.json` | `probe_remaining_layouts.py --check-unequal-geometry` |
-| Complete compound/Skeleton/mesh/surface-link and topology audit | `3DXML_complete_mesh_audit.json` | `decode_representation.py --geometry-qa` |
-| Independent geometric normal-quantizer comparisons | `3DXML_normal_quantization_analysis.json` | `analyze_normal_quantization.py` |
-| Noncommuting transforms and inverse-transpose normals (synthetic) | `3DXML_transform_fixture.json` | `verify_transform_conventions.py` |
-| Per-face style binding and BGR/RGB color histograms | `3DXML_face_style_analysis.json` | `analyze_face_styles.py` |
+| Archive/coordinate layout inventory | `out/3dxml-research/3DXML_sample_analysis.json` | `analyze_3dxml.py` |
+| Historical primitive-boundary measurements | `out/3dxml-research/3DXML_topology_analysis.json` | `probe_topology.py` |
+| Historical standalone-code rejection experiments | `out/3dxml-research/3DXML_integer_codec_analysis.json` | `probe_integer_codec.py`; false standalone-reservoir assumption later identified |
+| Full pin/ring/screw geometry checks | `out/3dxml-research/3DXML_mesh_verification.json` | `decode_sample_meshes.py` |
+| 140-member index/count audit | `out/3dxml-research/3DXML_mesh_inventory_audit.json` | `decode_sample_meshes.py --audit-inventory ...` |
+| Matrix/basis/unit/visibility evidence | `out/3dxml-research/3DXML_scene_graph_analysis.json` | `analyze_scene_graph.py` |
+| Extended full-member marker scan and unequal-count geometry checks | `out/3dxml-research/3DXML_extended_layout_audit.json` | `probe_remaining_layouts.py --check-unequal-geometry` |
+| Complete compound/Skeleton/mesh/surface-link and topology audit | `out/3dxml-research/3DXML_complete_mesh_audit.json` | `decode_representation.py --geometry-qa` |
+| Independent geometric normal-quantizer comparisons | `out/3dxml-research/3DXML_normal_quantization_analysis.json` | `analyze_normal_quantization.py` |
+| Noncommuting transforms and inverse-transpose normals (synthetic) | `out/3dxml-research/3DXML_transform_fixture.json` | `verify_transform_conventions.py` |
+| Per-face style binding and BGR/RGB color histograms | `out/3dxml-research/3DXML_face_style_analysis.json` | `analyze_face_styles.py` |
 
 All use the owner's supplied archive at
 `D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml`.

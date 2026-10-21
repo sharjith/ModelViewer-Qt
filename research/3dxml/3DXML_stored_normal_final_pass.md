@@ -122,8 +122,8 @@ The exact quantizer remains unproven; do not describe the original floats as
 recovered. Further coefficient fitting need not block the mesh importer.
 
 Detailed measured results, per-member counts, all 333 corner diagnostics and
-fixture/model comparisons are in `3DXML_stored_normal_limits.json`.
+fixture/model comparisons are in `out/3dxml-research/3DXML_stored_normal_limits.json`.
 
 ```powershell
-python -I tools/3dxml/analyze_stored_normal_limits.py 'D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml' --report docs/3DXML_stored_normal_limits.json
+python -I tools/3dxml/analyze_stored_normal_limits.py 'D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml' --report out/3dxml-research/3DXML_stored_normal_limits.json
 ```

@@ -34,7 +34,7 @@ An independent XML reader agrees on the finest resource-triangle count.
 The native audit for the loose model matches a ZIP repackaging of the same
 files, including counts, bounds, material bindings and occurrence paths.
 Source geometry and repackaged samples remain ignored under `out/`.
-See `3DXML_loose_xml_validation.json` for measurements and source hash.
+See `out/3dxml-research/3DXML_loose_xml_validation.json` for measurements and source hash.
 
 Synthetic tests cover loose XML with UTF-8 BOM, sibling representation loading,
 missing/unsafe references, invalid input, DTD rejection, cancellation and the

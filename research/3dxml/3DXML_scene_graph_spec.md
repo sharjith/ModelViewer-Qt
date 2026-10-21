@@ -19,10 +19,10 @@ No vendor software, schemas, SDKs, disassembly or reference viewer was used.
 | Instance visibility | Apply `DefaultView` overrides by complete occurrence path and inherit hidden parent state. |
 | Geometry reuse | Share representation meshes; create separate transform/visibility nodes for occurrences. |
 
-The full measurements are in `3DXML_scene_graph_analysis.json`. Reproduce:
+The full measurements are in `out/3dxml-research/3DXML_scene_graph_analysis.json`. Reproduce:
 
 ```powershell
-python -I tools/3dxml/analyze_scene_graph.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --inventory docs/3DXML_sample_analysis.json --report docs/3DXML_scene_graph_analysis.json --occurrences out/3dxml-research/scene_graph.json
+python -I tools/3dxml/analyze_scene_graph.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --inventory out/3dxml-research/3DXML_sample_analysis.json --report out/3dxml-research/3DXML_scene_graph_analysis.json --occurrences out/3dxml-research/scene_graph.json
 ```
 
 The generated occurrence fixture includes each path, reference ID, attached

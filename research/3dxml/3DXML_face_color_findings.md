@@ -40,7 +40,7 @@ and color-management behavior are not claimed decoded by this pass. In
 particular, the four alternate-prefix records are recorded without inventing
 their transparency/material semantics; the inspection materials are opaque.
 
-`3DXML_face_style_analysis.json` preserves per-mesh face and triangle color
+`out/3dxml-research/3DXML_face_style_analysis.json` preserves per-mesh face and triangle color
 histograms in stored BGR and decoded RGB order. Source mesh definition totals
 remain 4,152,382 triangles. The default-visible, occurrence-expanded OBJ remains
 5,608,912 triangles in 276 named body objects, using 45 source-color materials.
@@ -68,7 +68,7 @@ Their shared geometry-record SHA-256 is
 All 5,608,912 triangle material bindings and all 45 diffuse colors passed.
 
 ```powershell
-python -I tools/3dxml/analyze_face_styles.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --report docs/3DXML_face_style_analysis.json
+python -I tools/3dxml/analyze_face_styles.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --report out/3dxml-research/3DXML_face_style_analysis.json
 python -I tools/3dxml/export_decoded_assembly.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --occurrences out/3dxml-research/scene_graph.json --output out/3dxml-research/export/ASM-GETRAG_V160_face_colors.obj --face-colors
 python -I tools/3dxml/verify_exported_obj.py out/3dxml-research/export/ASM-GETRAG_V160_face_colors.obj --geometry-baseline out/3dxml-research/export/ASM-GETRAG_V160_decoded.obj
 python -I tools/3dxml/render_assembly_preview.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --occurrences out/3dxml-research/scene_graph.json --output-directory out/3dxml-research --face-colors

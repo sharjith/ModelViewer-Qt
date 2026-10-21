@@ -109,7 +109,7 @@ the XML-identified TECHREP review attachment rather than a UVR mesh.
 ## Reproduce and next step
 
 ```powershell
-python -I tools/3dxml/probe_remaining_layouts.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --output docs/3DXML_extended_layout_audit.json --check-unequal-geometry
+python -I tools/3dxml/probe_remaining_layouts.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --output out/3dxml-research/3DXML_extended_layout_audit.json --check-unequal-geometry
 ```
 
 The report preserves member hashes, every marker candidate and failure,

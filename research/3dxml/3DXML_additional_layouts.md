@@ -80,7 +80,7 @@ counts, hashes and bounds are checked in; no supplied geometry is redistributed.
 | `nist-ctc-02-part` | 492 | 60,790 |
 | `press_rink_axe_fta` | 17 | 46,168 |
 
-See `3DXML_variant_validation.json` for source hashes, occurrence counts and
+See `out/3dxml-research/3DXML_variant_validation.json` for source hashes, occurrence counts and
 bounds. The original GETRAG audit additionally compares every visible primitive
 position exactly, normals within 1e-6, colors and all product placements against
 the owner-accepted GLB. Synthetic tests cover XML winding, LOD exclusion,

@@ -1,17 +1,17 @@
 # Handout: decoding binary CATIA V5 `.3DRep` (3DXML) for ModelViewer-Qt
 
-> **Current research:** Start at the [research index](docs/3DXML_RESEARCH_INDEX.md).
-> [Complete mesh traversal and importer contract](docs/3DXML_complete_mesh_research.md)
+> **Current research:** Start at the [research index](3DXML_RESEARCH_INDEX.md).
+> [Complete mesh traversal and importer contract](3DXML_complete_mesh_research.md)
 > now accounts for all 152 UVR members and 188 mesh leaves, with a complete
 > assembly preview. Derived face normals support rendering; exact stored
 > smooth-normal quantization remains provisional.
-> The [scene graph specification](docs/3DXML_scene_graph_spec.md) corrects the
+> The [scene graph specification](3DXML_scene_graph_spec.md) corrects the
 > earlier coordinate-axis interpretation and documents matrix composition,
 > instances, visibility and the sample-backed unit inference.
 
 > **Continuation, 2026-10-17:** The current user requested resuming research.
-> See [corrected findings and importer plan](docs/3DXML_reverse_engineering.md)
-> and the reproducible measurements in `docs/3DXML_sample_analysis.json`.
+> See [corrected findings and importer plan](3DXML_reverse_engineering.md)
+> and the reproducible measurements in `out/3dxml-research/3DXML_sample_analysis.json`.
 > The continuation corrects the two-bit stream alignment/bit order, derives
 > exact float-consumption counts, and withdraws the apparent interior cap
 > points below. A further pass identifies triangle/strip/fan headers,
@@ -20,7 +20,7 @@
 > semantics remain unresolved.
 > The original notes are preserved below as historical hypotheses.
 
-> **Latest:** [Mesh decoding specification](docs/3DXML_mesh_decoding_spec.md):
+> **Latest:** [Mesh decoding specification](3DXML_mesh_decoding_spec.md):
 > individual indices and strip/fan lengths now decode through a persistent
 > bit reservoir. Exact pin/ring meshes and rendering OBJ fixtures exist;
 > 140 representations pass reference/count checks. Per-vertex normal

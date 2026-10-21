@@ -25,4 +25,4 @@ When you add an asset whose licence needs attribution, add a row here and a cred
 
 ## Importer references
 
-- **3DXML:** cad-in-unity (i2e-haw-hamburg contributors), Apache-2.0, [commit 43a9f0582ecafcdae5bb6f5919c0191467465f86](https://github.com/i2e-haw-hamburg/cad-in-unity/tree/43a9f0582ecafcdae5bb6f5919c0191467465f86), was consulted for XML tessellation concepts. No C# implementation is bundled. See the [consolidated provenance](docs/3DXML_PROVENANCE.md). This credit does not license third-party CAD samples or imply Dassault endorsement.
+- **3DXML:** cad-in-unity (i2e-haw-hamburg contributors), Apache-2.0, [commit 43a9f0582ecafcdae5bb6f5919c0191467465f86](https://github.com/i2e-haw-hamburg/cad-in-unity/tree/43a9f0582ecafcdae5bb6f5919c0191467465f86), was consulted for XML tessellation concepts. No C# implementation is bundled. See the [consolidated provenance](research/3dxml/3DXML_PROVENANCE.md). This credit does not license third-party CAD samples or imply Dassault endorsement.

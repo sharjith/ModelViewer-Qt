@@ -56,7 +56,7 @@ group nodes and zero mesh leaves. Each complete logical Skeleton consumes
 no placeholder geometry should be invented for them. `Applications.3DRep`
 is identified as TECHREP by the root XML and bypasses the UVR decoder.
 
-`3DXML_complete_mesh_audit.json` records every member hash, all discovered
+`out/3dxml-research/3DXML_complete_mesh_audit.json` records every member hash, all discovered
 stream descriptors/extents, every node/link/mesh cursor, source IDs, all 188
 geometry and normal checks, and the surface-block partition checks.
 
@@ -269,7 +269,7 @@ and preserve path-specific inherited visibility. Millimetres remain a
 sample-calibrated inference. The cached internal mesh-free node is preserved;
 internal bounds headers must not be applied as invented transforms.
 
-`3DXML_transform_fixture.json` adds a synthetic noncommuting nested-transform
+`out/3dxml-research/3DXML_transform_fixture.json` adds a synthetic noncommuting nested-transform
 case and an inverse-transpose normal case. Those mathematical checks pass in
 Python; they are not additional sample evidence or C++ runtime verification.
 Port the same expected values when implementing the loader.
@@ -313,9 +313,9 @@ and generated geometry remain ignored artifacts; the reproducible scripts are
 versioned research source.
 
 ```powershell
-python -I tools/3dxml/decode_representation.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --report docs/3DXML_complete_mesh_audit.json --geometry-qa
-python -I tools/3dxml/analyze_normal_quantization.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --report docs/3DXML_normal_quantization_analysis.json
-python -I tools/3dxml/verify_transform_conventions.py --report docs/3DXML_transform_fixture.json
+python -I tools/3dxml/decode_representation.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --report out/3dxml-research/3DXML_complete_mesh_audit.json --geometry-qa
+python -I tools/3dxml/analyze_normal_quantization.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --report out/3dxml-research/3DXML_normal_quantization_analysis.json
+python -I tools/3dxml/verify_transform_conventions.py --report out/3dxml-research/3DXML_transform_fixture.json
 python -I tools/3dxml/render_assembly_preview.py D:\work\progs\qt5\ModelViewer-Github\data\ASM-GETRAG_V160.3dxml --occurrences out/3dxml-research/scene_graph.json --output-directory out/3dxml-research
 ```
 

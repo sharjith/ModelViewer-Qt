@@ -51,7 +51,7 @@ its XML. GETRAG, NIST and press have no such overrides in their product XML.
   graph still pass.
 
 Results and source hashes are recorded in
-`3DXML_occurrence_color_validation.json`. The owner confirmed both FBC assemblies display correctly after reopening
+`out/3dxml-research/3DXML_occurrence_color_validation.json`. The owner confirmed both FBC assemblies display correctly after reopening
 with the color fix; the second missing-color report came from a model opened
 before the fix was applied.
 
