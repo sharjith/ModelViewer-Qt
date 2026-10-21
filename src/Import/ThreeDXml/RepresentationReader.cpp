@@ -242,8 +242,16 @@ Body mesh(Reader& r, const Options& options) {
     r.scalar();
     const unsigned coarse = r.count(100000);
     for (unsigned i = 0; i < coarse; ++i) { options.check(); primitive(r,width,vertices,false); r.scalar(); color(r); }
+    const qsizetype containerOffset = r.pos;
     const QByteArray container(r.raw(3),3);
-    need(container == QByteArray::fromHex("03020a") || container == QByteArray::fromHex("02020a"), "finest-face container");
+    if (container != QByteArray::fromHex("03020a") && container != QByteArray::fromHex("02020a")) {
+        // Structural bytes only (no coordinates): lets an unrecognized exporter variant be reported without sharing the model.
+        const qsizetype from = std::max<qsizetype>(0, containerOffset-12);
+        fail(QStringLiteral("finest-face container %1 at offset 0x%2 (%3 coarse blocks, %4 vertices; preceding bytes %5)")
+            .arg(QString::fromLatin1(container.toHex(' ')))
+            .arg(containerOffset, 0, 16).arg(coarse).arg(vertices)
+            .arg(QString::fromLatin1(r.data.mid(from, containerOffset-from).toHex(' '))));
+    }
     const unsigned faces = r.count(1000000); body.faces.reserve(faces);
     for (unsigned i = 0; i < faces; ++i) { options.check(); body.faces.push_back(primitive(r,width,vertices,true)); }
     for (auto& face : body.faces) face.rgb = color(r);
