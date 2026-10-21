@@ -34,6 +34,7 @@ public:
     bool generalConfirmExit() const { return general_confirmExit; }
     bool generalProgressiveLoading() const { return general_progressiveLoading; }
     bool generalAnimateProgressiveFit() const { return general_animateProgressiveFit; }
+    bool generalPurgeRedundantNodes() const { return general_purgeRedundantNodes; }
     int generalNavigationTreeFontSize() const { return general_navigationTreeFontSize; }
 
     // Camera tab
@@ -216,6 +217,7 @@ private slots:
     void on_radioButtonExportMeshes_toggled(bool checked);
     void on_checkProgressiveLoading_stateChanged();
     void on_checkAnimateProgressiveFit_stateChanged();
+    void on_checkPurgeRedundantNodes_stateChanged();
     void on_spinBoxNavigationTreeFontSize_valueChanged();
     void on_vsyncCheckBox_stateChanged();
     void on_doubleSpinBoxOverlayTextScale_valueChanged();
@@ -249,6 +251,7 @@ private:
 	int general_undoLimit = 50;
     bool general_progressiveLoading = false;
     bool general_animateProgressiveFit = true;
+    bool general_purgeRedundantNodes = true;
     int general_navigationTreeFontSize = 9; // overwritten from QApplication::font() in setDefaultValues() before first show
 
     // Camera tab
