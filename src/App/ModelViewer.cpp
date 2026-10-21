@@ -4260,18 +4260,24 @@ namespace
 	// separate dry-run scan - so by the time recursion returns to a node's parent, that node's children/meshUuids
 	// (and the SceneGraph's own UUID lookup table) already reflect the promotion, and the parent's own check
 	// sees it exactly as it will be, with no separate simulation to keep in sync.
+	//
+	// cameraHostNames: names of the nodes that host a glTF camera. Their identity and transform chain are what the
+	// camera is resolved against (activation, export), so such a node is neither collapsed nor absorbed.
 	void purgeNodeRecursive(SceneGraph* sceneGraph, ViewportWidget* viewport, SceneNode* node,
-		QVector<PurgeRedundantNodesCommand::PromotionEntry>& promotions)
+		QVector<PurgeRedundantNodesCommand::PromotionEntry>& promotions, const QSet<QString>& cameraHostNames)
 	{
 		const QList<SceneNode*> children = node->children; // snapshot - node->children shrinks as children settle
 		for (SceneNode* child : children)
-			purgeNodeRecursive(sceneGraph, viewport, child, promotions);
+			purgeNodeRecursive(sceneGraph, viewport, child, promotions, cameraHostNames);
 
-		if (node->children.size() != 1 || !node->meshUuids.isEmpty())
+		// Keep the file boundary and its import correction/unit metadata intact.
+		if (node->isSynthetic || node == sceneGraph->root() || node->children.size() != 1 || !node->meshUuids.isEmpty())
 			return;
 
 		SceneNode* onlyChild = node->children.first();
 		if (!onlyChild->children.isEmpty() || onlyChild->meshUuids.size() != 1)
+			return;
+		if (cameraHostNames.contains(node->name) || cameraHostNames.contains(onlyChild->name))
 			return;
 
 		PurgeRedundantNodesCommand::PromotionEntry entry;
@@ -4279,6 +4285,8 @@ namespace
 		entry.survivorNode = node;
 		entry.eliminatedNode = onlyChild;
 		entry.meshNameAfter = node->name;
+		entry.survivorTransformBefore = node->localTransform;
+		entry.survivorTransformAfter = node->localTransform * onlyChild->localTransform;
 		if (SceneMesh* mesh = viewport->getMeshByUuid(entry.meshUuid))
 			entry.meshNameBefore = mesh->getName();
 
@@ -4287,6 +4295,7 @@ namespace
 		sceneGraph->restoreMeshUuid(node, entry.meshUuid, node->meshUuids.size());
 
 		sceneGraph->removeChildNode(node, onlyChild, entry.eliminatedPosition);
+		node->localTransform = entry.survivorTransformAfter;
 
 		if (SceneMesh* mesh = viewport->getMeshByUuid(entry.meshUuid))
 			mesh->setName(entry.meshNameAfter);
@@ -4295,7 +4304,25 @@ namespace
 	}
 }
 
-void ModelViewer::purgeRedundantAssemblyNodes(SceneNode* scanRoot)
+void ModelViewer::purgeRedundantNodesAfterLoad(SceneNode* fileNode)
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	if (!settings.value("checkPurgeRedundantNodes", true).toBool())
+		return;
+
+	// Runtime animation bindings refer to the imported node identities. These
+	// nodes are functional, rather than redundant wrappers, even with one child.
+	const QList<SceneNode*> files = fileNode ? QList<SceneNode*>{fileNode} : _sceneGraph->root()->children;
+	for (SceneNode* file : files)
+	{
+		const auto animation = _sceneGraph->animationDataForFile(file->sourceFile);
+		if (!animation.isEmpty() || animation.hasSkinning)
+			continue;
+		purgeRedundantAssemblyNodes(file, true);
+	}
+}
+
+void ModelViewer::purgeRedundantAssemblyNodes(SceneNode* scanRoot, bool automatic)
 {
 	if (!scanRoot)
 		scanRoot = _sceneGraph->root();
@@ -4308,21 +4335,33 @@ void ModelViewer::purgeRedundantAssemblyNodes(SceneNode* scanRoot)
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
 	QVector<PurgeRedundantNodesCommand::PromotionEntry> promotions;
-	purgeNodeRecursive(_sceneGraph, _viewportWidget, scanRoot, promotions);
+	QSet<QString> cameraHostNames;
+	for (const SceneNode* file : _sceneGraph->root()->children)
+	{
+		const GltfCameraData cameraData = _sceneGraph->gltfCameraDataForFile(file->sourceFile);
+		for (const GltfCameraEntry& camera : cameraData.cameras)
+			if (!camera.nodeName.isEmpty())
+				cameraHostNames.insert(camera.nodeName);
+	}
+	purgeNodeRecursive(_sceneGraph, _viewportWidget, scanRoot, promotions, cameraHostNames);
 
 	if (promotions.isEmpty())
 	{
 		QApplication::restoreOverrideCursor();
-		MainWindow::showStatusMessage(tr("Nothing to purge - no redundant single-mesh sub-assembly nodes found."));
+		if (!automatic)
+			MainWindow::showStatusMessage(tr("Nothing to purge - no redundant single-mesh sub-assembly nodes found."));
 		return;
 	}
 
 	updateDisplayList();
 	_undoStack->push(new PurgeRedundantNodesCommand(this, _viewportWidget, promotions, originalSelection));
+	if (automatic)
+		setSelectionWithoutUndo(originalSelection);
 
 	QApplication::restoreOverrideCursor();
 
-	MainWindow::showStatusMessage(tr("Purged %1 redundant node(s).").arg(promotions.size()));
+	if (!automatic)
+		MainWindow::showStatusMessage(tr("Purged %1 redundant node(s).").arg(promotions.size()));
 }
 
 void ModelViewer::openShrinkWrapDialog()
@@ -7228,6 +7267,8 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 
 	restoreSimulationSessions(result.simulationRestores);
 	restorePlot3DSessions(result.plot3DRestores, result.plot3DActiveMesh);
+	// No automatic purge here: a restored session keeps the hierarchy it was saved with (exploded views and
+	// other saved data refer to its nodes by UUID, and the user may have deliberately undone an earlier purge).
 
 	MainWindow::hideProgressBar();
 	return true;

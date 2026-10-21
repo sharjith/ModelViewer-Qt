@@ -16443,6 +16443,16 @@ Continuare?</translation>
         <translation>Anima adattamento progressivo</translation>
     </message>
     <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="299"/>
+        <source>Purge Redundant Nodes Upon Load</source>
+        <translation>Elimina nodi ridondanti al caricamento</translation>
+    </message>
+    <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="295"/>
+        <source>Automatically purge redundant single-mesh wrapper nodes after loading a model. Use Undo to restore the original hierarchy. Animated hierarchies are preserved. Applies to subsequent loads.</source>
+        <translation>Elimina automaticamente i nodi contenitore ridondanti a mesh singola dopo il caricamento di un modello. Usa Annulla per ripristinare la gerarchia originale. Le gerarchie animate vengono conservate. Si applica ai caricamenti successivi.</translation>
+    </message>
+    <message>
         <location filename="../ui/App/SettingsDialog.ui" line="336"/>
         <source>Camera</source>
         <translation>Macchina Fotografica</translation>

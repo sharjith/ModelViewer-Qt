@@ -5373,6 +5373,7 @@ void ViewportWidget::centerScreen(std::vector<int> selectedIDs)
 
 bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading)
 {
+	SceneNode* importedFileNode = nullptr;
 	_sceneRuntime.setProgressiveLoadingEnabled(progressiveLoading);
 	_sceneRuntime.setCancelRequested(false);
 	_sceneRuntime.setLoadCancelled(false);
@@ -5587,6 +5588,7 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 					SceneUtils::glmToAiMatrix(_sceneRuntime.globalSceneTransform()),
 					loadingWorker->wasAutoOrientApplied(),
 					loadingWorker->wasAutoScaleApplied());
+				importedFileNode = _viewer->sceneGraph()->root()->children.last();
 				if (loadingWorker->hasThreeDXmlScene()) {
 					// Use the just-appended import, including when this file was imported before.
 					SceneNode* fileNode = _viewer->sceneGraph()->root()->children.last();
@@ -5724,6 +5726,9 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 	{
 		MainWindow::showStatusMessage("");
 	}
+
+	if (success && !_sceneRuntime.loadCancelled() && importedFileNode)
+		_viewer->purgeRedundantNodesAfterLoad(importedFileNode);
 
 	MainWindow::setProgressValue(0);
 	MainWindow::hideProgressBar();

@@ -44,6 +44,7 @@ void PurgeRedundantNodesCommand::undo()
     for (auto it = _promotions.rbegin(); it != _promotions.rend(); ++it)
     {
         const PromotionEntry& entry = *it;
+        entry.survivorNode->localTransform = entry.survivorTransformBefore;
         sg->insertChildNode(entry.survivorNode, entry.eliminatedNode, entry.eliminatedPosition);
 
         int pos = 0;
@@ -85,6 +86,7 @@ void PurgeRedundantNodesCommand::redo()
     for (const PromotionEntry& entry : _promotions)
     {
         int pos = 0;
+        entry.survivorNode->localTransform = entry.survivorTransformAfter;
         sg->removeMeshUuid(entry.meshUuid, pos);
         sg->restoreMeshUuid(entry.survivorNode, entry.meshUuid, entry.survivorNode->meshUuids.size());
 

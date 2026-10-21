@@ -16440,6 +16440,16 @@ Continuer ?</translation>
         <translation>Animer l&apos;ajustement progressif</translation>
     </message>
     <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="299"/>
+        <source>Purge Redundant Nodes Upon Load</source>
+        <translation>Purger les nœuds redondants au chargement</translation>
+    </message>
+    <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="295"/>
+        <source>Automatically purge redundant single-mesh wrapper nodes after loading a model. Use Undo to restore the original hierarchy. Animated hierarchies are preserved. Applies to subsequent loads.</source>
+        <translation>Purge automatiquement les nœuds enveloppes redondants à maillage unique après le chargement d&apos;un modèle. Utilisez Annuler pour rétablir la hiérarchie d&apos;origine. Les hiérarchies animées sont conservées. S&apos;applique aux chargements suivants.</translation>
+    </message>
+    <message>
         <location filename="../ui/App/SettingsDialog.ui" line="336"/>
         <source>Camera</source>
         <translation>Caméra</translation>
