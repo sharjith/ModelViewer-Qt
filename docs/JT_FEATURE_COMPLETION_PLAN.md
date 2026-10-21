@@ -58,3 +58,17 @@ The owner accepted C1b on 21 October 2026. C1c adds the distinct 9.x lossless ex
 C1c is owner-accepted. C1d preserves two-component texture coordinates in channel 0 for enabled 9.x/10.x topological mesh records. The 8.x UV path stays in regression coverage. Transitional exponent/mantissa and modern IEEE lossless transports are separate; quantized component vectors use the documented predictor and bounded inverse quantization. UV-only seams, combined colour/UV records and flat-normal expansion retain the correct corner association.
 
 [Topological UV validation](JT_TOPOLOGICAL_UV_VALIDATION.md) records field tests, private controls and the owner checklist. Multiple UV channels, one-/three-/four-component texture coordinates, other remaining C1 encodings/bindings and C2 texture resources/shaders remain pending. This gate does not enable a new file version or complete C1. The owner accepted the application build/UI tests on 21 October 2026.
+
+## Accepted gate C1e — multiple UV sets
+
+C1d and the subsequent directory alignment/warning cleanup are owner-accepted. C1e extends the qualified topological UV path to four contiguous two-component sets (0–3), matching the existing viewer vertex layout. Lossless/quantized transports remain unchanged. All sets follow the same coordinate/attribute record mapping and survive appearance copies, palette splitting, flat-normal expansion, scene copies and GLB. The different 8.x path still exposes its existing single UV set.
+
+[Multi-UV validation](JT_MULTI_UV_VALIDATION.md) records tests and owner texture-coordinate-selection checks. Sparse sets, sets 4–7, other component counts, remaining legacy codecs/colours/bindings and C2 source texture/image/shader semantics remain pending. No new file revision is enabled. The owner accepted C1e on 21 October 2026.
+
+## Accepted gate C1f — scalar texture coordinates
+
+C1e is owner-accepted. C1f adds scalar U collections and mixed one-/two-component sets to the same enabled topological families. The JT decoder retains the source component count; the scene adapter embeds scalar U as `(U,0)` pairs for the existing viewer/export path. [Scalar UV validation](JT_SCALAR_UV_VALIDATION.md) records original field and private model controls and the build/UI checklist. Source texture resources remain C2; sparse/higher sets, three-/four-component semantics and the other C1 items remain pending. The owner accepted UV transport and requested proceeding on 21 October 2026; diagnostic UVs remain unsuitable as an unwrap oracle. No new file revision is enabled.
+
+## Accepted gate C1g — sparse texture-coordinate sets
+
+C1f is owner-accepted for transport. C1g preserves independently absent scalar/2D sets within slots 0–3, consumes only present collections and retains UV-only corner seams without assuming set 0 exists. The scene adapter pads internal gaps with zero pairs for Assimp copy/export compatibility, preserving original real-set numbers. [Sparse UV validation](JT_SPARSE_UV_VALIDATION.md) records representation limits, native checks and owner build/UI instructions. No new file version is enabled; source textures, higher/projective sets and the remaining C1–C7 items stay pending. The owner accepted the focused sparse-set viewer checks on 21 October 2026 with "Works".

@@ -129,3 +129,15 @@ Relocation validation: the isolated MSVC AddressSanitizer build and full test su
 ## Unused deprecated OCCT includes, 21 October 2026
 
 Removed the unused `TColStd_SequenceOfInteger.hxx` include from `JtData_Model.cxx` and unused `TColStd_HArray1OfCharacter.hxx` include from `JtElement_XTBRep.cxx`. The latter transitively included the deprecated character-array alias as well. Neither translation unit uses these types; no replacement container or decoding change is needed. Upstream notices and provenance identities remain intact.
+
+## Multiple UV sets, 21 October 2026
+
+`JtElement_ShapeLOD_Vertex.cxx/.hxx` retain four contiguous two-component texture-coordinate sets through the original topological UV reader. The legacy path still uses set 0. Binding layout checks reject sparse sets, sets above 3 and other component counts explicitly. Corner assembly preserves seams in any supported set; original scene-adapter code now copies all four sets through material variants, face-group splitting and flat-normal expansion. No additional codec/dependency/source package is introduced. Upstream identities/notices are retained. `docs/JT_MULTI_UV_VALIDATION.md` records original and private fixture coverage and the owner gate.
+
+## Scalar texture-coordinate bindings, 21 October 2026
+
+The original `JtDecode_VertexUV.hxx` reads one or two coordinate components, including one quantizer per scalar collection rather than reading an absent V quantizer. `JtElement_ShapeLOD_Vertex` validates mixed scalar/UV bindings and preserves each component count through corner expansion. The original scene adapter converts scalar U into explicit `(U,0)` pairs so existing rendering, mesh variants and GLB retain values consistently. Three-/four-component collections remain unqualified; no source texture-resource or shader semantics are inferred. No new dependency or third-party code is added. See `docs/JT_SCALAR_UV_VALIDATION.md` for qualification and pending owner checks.
+
+## Sparse texture-coordinate bindings, 21 October 2026
+
+`JtElement_ShapeLOD_Vertex.cxx` validates independent scalar/2D bindings in slots 0–3 and reads only present collections. Corner assembly retains absent decoder slots, discovers attribute counts from the first present set when needed and preserves UV-only higher-set seams. Original scene-adapter code zero-pads internal gaps to retain source set numbers through Assimp copy/export. No new dependency or third-party code is added; original notices and upstream hashes remain intact. See `docs/JT_SPARSE_UV_VALIDATION.md` for the exact representation boundary and owner gate.

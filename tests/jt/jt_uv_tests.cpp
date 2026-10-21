@@ -19,10 +19,10 @@ struct Reader:JtData_Reader {
  Standard_Size GetPosition()const override{return pos;}
 };
 void packet(Fixture::Bytes& b,const std::vector<uint32_t>& v,bool lag){b.u32(unsigned(v.size()));b.u8(0);b.u32(unsigned(v.size()*32));for(size_t i=0;i<v.size();++i)b.u32(lag&&i>=4?v[i]-v[i-1]:v[i]);}
-Fixture::Bytes stream(bool big,unsigned major,bool quantized,unsigned damage=0){
- Fixture::Bytes b(big);b.u32(6);b.u8(damage==1?3:2);b.u8(damage==2?25:quantized?3:0);
- if(quantized)for(unsigned c=0;c<2;++c){b.f32(damage==11?std::numeric_limits<float>::infinity():damage==3?2.f:-2.f);b.f32(damage==3?-2.f:5.f);b.u8(damage==4?25:damage==5?0:3);}
- for(unsigned c=0;c<2;++c){std::vector<uint32_t> values,mantissae;
+Fixture::Bytes stream(bool big,unsigned major,bool quantized,unsigned damage=0,unsigned components=2){
+ Fixture::Bytes b(big);b.u32(6);b.u8(damage==1?3:components);b.u8(damage==2?25:quantized?3:0);
+ if(quantized)for(unsigned c=0;c<components;++c){b.f32(damage==11?std::numeric_limits<float>::infinity():damage==3?2.f:-2.f);b.f32(damage==3?-2.f:5.f);b.u8(damage==4?25:damage==5?0:3);}
+ for(unsigned c=0;c<components;++c){std::vector<uint32_t> values,mantissae;
   for(unsigned i=0;i<6;++i){float v=float(c?5-int(i):int(i)-2);uint32_t w;std::memcpy(&w,&v,4);
    if(damage==7&&i==0)w=0x7fc00000;
    values.push_back(quantized?(damage==6?8:c?7-i:i):major==9?w>>23:w);mantissae.push_back(w&0x7fffff);}
@@ -36,23 +36,43 @@ Fixture::Bytes stream(bool big,unsigned major,bool quantized,unsigned damage=0){
 struct Shape:JtElement_ShapeLOD_Vertex {using JtElement_ShapeLOD_Vertex::assembleVertexRecords;};
 void seams(){
  using Data=JtElement_ShapeLOD_Vertex::VertexData;using Indices=JtElement_ShapeLOD_Vertex::IndicesVec;
- Data coords(3,3),normals(4,3),colours(4,3),uv(4,2),none;
+ Data coords(3,3),normals(4,3),colours(4,3),none;
+ JtElement_ShapeLOD_Vertex::TextureData channels;channels[0].Allocate(4,2);auto& uv=channels[0];
  for(int i=0;i<3;++i)for(int c=0;c<3;++c)coords[i][c]=float(i==c);
  for(int i=0;i<4;++i){normals[i][0]=normals[i][1]=0;normals[i][2]=1;for(int c=0;c<3;++c)colours[i][c]=0.5f;uv[i][0]=float(i);uv[i][1]=-float(i);}
  Indices vertices(6),attrs(6);const int v[]={0,1,2,0,2,1},a[]={0,1,2,3,2,1};
  for(int i=0;i<6;++i){vertices[i]=v[i];attrs[i]=a[i];}
  for(bool withNormals:{false,true})for(bool withColours:{false,true}){
-  Shape shape;shape.assembleVertexRecords(coords,withNormals?normals:none,withColours?colours:none,uv,vertices,attrs);
+  // Only set 3 differs at the shared position; sets 0-2 remain constant.
+  for(unsigned channel=1;channel<4;++channel){channels[channel].Allocate(4,2);for(int i=0;i<4;++i){channels[channel][i][0]=channel==3?float(i):0;channels[channel][i][1]=float(channel);}}
+  for(int i=0;i<4;++i)uv[i][0]=uv[i][1]=0;
+  Shape shape;shape.assembleVertexRecords(coords,withNormals?normals:none,withColours?colours:none,channels,vertices,attrs);
   check(shape.Vertices().Count()==4&&shape.Indices()[0]!=shape.Indices()[3],"UV-only seam was merged");
   const auto first=shape.Indices()[0],second=shape.Indices()[3];
-  check(shape.Vertices()[first][0]==shape.Vertices()[second][0]&&shape.TexCoords()[first][0]==0&&shape.TexCoords()[second][0]==3,"UV corner mapping changed");
+  check(shape.Vertices()[first][0]==shape.Vertices()[second][0]&&shape.TexCoords(3)[first][0]==0&&shape.TexCoords(3)[second][0]==3,"UV corner mapping changed");
  }
- Shape shape;attrs[0]=4;reject([&]{shape.assembleVertexRecords(coords,none,none,uv,vertices,attrs);});attrs[0]=0;
- Data shortUV(3,2);reject([&]{shape.assembleVertexRecords(coords,normals,none,shortUV,vertices,attrs);});
+ Shape shape;attrs[0]=4;reject([&]{shape.assembleVertexRecords(coords,none,none,channels,vertices,attrs);});attrs[0]=0;
+ for(unsigned channel=0;channel<3;++channel)channels[channel].Free();
+ for(bool withNormals:{false,true}) {
+  shape.assembleVertexRecords(coords,withNormals?normals:none,none,channels,vertices,attrs);
+  check(shape.Vertices().Count()==4&&shape.Indices()[0]!=shape.Indices()[3]&&!shape.TexCoords(0).Count()&&shape.TexCoords(3).Count()==4,"Sparse UV-only seam or absent source slot changed");
+ }
+ channels[3].Allocate(3,2);reject([&]{shape.assembleVertexRecords(coords,normals,none,channels,vertices,attrs);});
+ JtElement_ShapeLOD_Vertex::TextureData shortUV;shortUV[0].Allocate(3,2);reject([&]{shape.assembleVertexRecords(coords,normals,none,shortUV,vertices,attrs);});
 }
 }
 void uvTests(){
  for(unsigned major:{9u,10u})for(unsigned minor:major==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,3,5,7,8,9,10})for(bool big:{false,true})for(bool quantized:{false,true}){
+  for(unsigned sets=0;sets<=4;++sets){Fixture::Bytes bindingBytes(big);uint64_t flags=0;for(unsigned c=0;c<sets;++c)flags|=uint64_t(0x200)<<(4*c);bindingBytes.u64(flags);Reader r(bindingBytes,major,minor);JtElement_ShapeLOD_Vertex::VertexBinding2 binding;check(binding.Read(r)&&binding.TextureChannelCount()==sets,"Multi-UV binding/endian count changed");}
+  for(uint64_t flags:{uint64_t(0x2222200),uint64_t(0x400),uint64_t(0x800)}){Fixture::Bytes b(big);b.u64(flags);Reader r(b,major,minor);JtElement_ShapeLOD_Vertex::VertexBinding2 binding;check(binding.Read(r),"UV negative binding read failed");reject([&]{binding.TextureChannelCount();});}
+  for(unsigned mask=0;mask<16;++mask){Fixture::Bytes b(big);uint64_t flags=0;unsigned count=0;
+   for(unsigned c=0;c<4;++c)if(mask&(1u<<c)){flags|=uint64_t(0x200)<<(4*c);++count;}
+   b.u64(flags);Reader r(b,major,minor);JtElement_ShapeLOD_Vertex::VertexBinding2 binding;
+   check(binding.Read(r)&&binding.TextureChannelCount()==count,"Sparse UV set count/endian changed");
+   for(unsigned c=0;c<4;++c)check(binding.NbTextCoordComponents(c)==((mask&(1u<<c))?2:0),"Sparse UV set identity changed");
+  }
+  {const auto scalar=stream(big,major,quantized,0,1);Reader r(scalar,major,minor);JtDecode_VertexData::Decoded d(JtDecode_VertexUV::Read(r,1,6));check(d.CompCount()==1&&r.pos==size_t(scalar.data.size()),"Scalar UV envelope changed");for(int i=0;i<6;++i)check(d[i][0]==float(i-2),"Scalar U value changed");for(qsizetype size=0;size<scalar.data.size();++size){auto shortData=scalar;shortData.data.truncate(size);reject([&]{Reader r(shortData,major,minor);JtDecode_VertexUV::Read(r,1,6);});}}
+  {Fixture::Bytes b(big);b.u64(0x212100);Reader r(b,major,minor);JtElement_ShapeLOD_Vertex::VertexBinding2 binding;check(binding.Read(r)&&binding.TextureChannelCount()==4&&binding.NbTextCoordComponents(0)==1&&binding.NbTextCoordComponents(1)==2,"Mixed scalar/UV binding changed");}
   const auto b=stream(big,major,quantized);Reader r(b,major,minor);JtDecode_VertexData::Decoded d(JtDecode_VertexUV::Read(r,2,6));
   check(r.pos==size_t(b.data.size())&&d.Count()==6&&d.CompCount()==2,"UV packet envelope mismatch");
   for(int i=0;i<6;++i){check(d[i][0]==float(i-2)&&d[i][1]==float(5-i),"UV ranges, predictor or component order changed");}

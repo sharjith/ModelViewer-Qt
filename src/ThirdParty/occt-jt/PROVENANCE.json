@@ -1059,5 +1059,33 @@
     "sources": "src/ThirdParty/occt-jt",
     "headers": "include/ThirdParty/occt-jt",
     "note": "File and follow-up file paths are relative to repository root; upstream_path and upstream_sha256 retain their original upstream meaning."
+  },
+  "multiple_uv_follow_up": {
+    "date": "2026-10-21",
+    "scope": "Four contiguous two-component UV sets in enabled topological families; preserve all sets through corner assembly and renderer copy/split/flat/export paths; sparse/higher/different-dimensional bindings remain explicit unsupported",
+    "files": [
+      "include/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.hxx",
+      "src/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.cxx"
+    ],
+    "validation": "docs/JT_MULTI_UV_VALIDATION.md"
+  },
+  "scalar_uv_follow_up": {
+    "date": "2026-10-21",
+    "scope": "Original scalar texture-coordinate fields and mixed one-/two-component bindings in four contiguous sets; scene adapter embeds scalar U as (U,0) for rendering and GLB",
+    "files": [
+      "include/ThirdParty/occt-jt/JtDecode/JtDecode_VertexUV.hxx",
+      "include/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.hxx",
+      "src/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.cxx"
+    ],
+    "validation": "docs/JT_SCALAR_UV_VALIDATION.md"
+  },
+  "sparse_uv_follow_up": {
+    "date": "2026-10-21",
+    "scope": "Original independent scalar/2D UV bindings in slots 0-3; retain absent source slots and UV-only seams; original scene adapter zero-pads internal gaps for Assimp/export without renumbering",
+    "files": [
+      "src/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.cxx",
+      "include/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.hxx"
+    ],
+    "validation": "docs/JT_SPARSE_UV_VALIDATION.md"
   }
 }

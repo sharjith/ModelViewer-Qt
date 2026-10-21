@@ -1,5 +1,6 @@
 // Copyright (C) 2026 ModelViewer-Qt contributors. SPDX-License-Identifier: GPL-3.0-only
 // Original bounded UV transport reader, 2026-10-21.
+// Scalar texture-coordinate support, 2026-10-21.
 // Siemens JT 9.5 section 8.1.6 and JT 10.0 section 13.1.5.
 #pragma once
 #include <JtDecode_VertexData.hxx>
@@ -21,14 +22,15 @@ inline JtDecode_VertexData::Decoded::Mover Read(JtData_Reader& reader,unsigned c
     Jt_U32 count;Jt_U8 storedComponents,bits;
     if(!reader.ReadU32(count)||!reader.ReadU8(storedComponents)||!reader.ReadU8(bits))
         throw std::runtime_error("Truncated JT texture-coordinate header");
-    if(count>16000000||expectedCount<0||count!=unsigned(expectedCount)||components!=2||storedComponents!=components)
+    if(count>16000000||expectedCount<0||count!=unsigned(expectedCount)||(components!=1&&components!=2)||storedComponents!=components)
         throw std::runtime_error("Unsupported/invalid JT texture-coordinate count/components");
     if(bits>24)throw std::runtime_error("Invalid JT texture-coordinate quantization width");
     JtData_Limits::allocation(size_t(count)*components*sizeof(float));
     JtDecode_VertexData::Decoded result{int(count),int(components)};
     struct Quantizer {float lo,hi;Jt_U8 width;};
     Quantizer q[2]{};
-    if(bits)for(auto& v:q) {
+    if(bits)for(unsigned c=0;c<components;++c) {
+        auto& v=q[c];
         if(!reader.ReadF32(v.lo)||!reader.ReadF32(v.hi)||!reader.ReadU8(v.width))
             throw std::runtime_error("Truncated JT texture-coordinate quantizer");
         if(v.width>24||!std::isfinite(v.lo)||!std::isfinite(v.hi)||v.lo>v.hi)

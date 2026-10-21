@@ -27,6 +27,7 @@
 
 #include <JtData_Types.hxx>
 #include <JtData_CompVector.hxx>
+#include <array>
 
 //! Vertex Shape LOD Element represents LODs defined by collections of vertices.
 class JtElement_ShapeLOD_Vertex : public JtElement_ShapeLOD_Base
@@ -34,6 +35,9 @@ class JtElement_ShapeLOD_Vertex : public JtElement_ShapeLOD_Base
 public:
   typedef JtData_CompVector <float  , int32_t> VertexData;
   typedef JtData_Vector     <int32_t, int32_t> IndicesVec;
+
+  static constexpr unsigned MaxTextureChannels=4;
+  using TextureData=std::array<VertexData,MaxTextureChannels>;
 
   class QuantizationParams
   {
@@ -90,6 +94,8 @@ public:
     Standard_Size    NbVertexCoordComponents();
     Standard_Size    NbColorComponents();
     Standard_Size    NbTextCoordComponents (Standard_Size theTexture);
+    //! Validate all slots and return present-set count, not highest slot + 1.
+    unsigned TextureChannelCount();
   };
 
 public:
@@ -114,8 +120,11 @@ public:
 
   //! RGB/RGBA values aligned with the expanded vertex/attribute combinations.
   const VertexData& Colors() const { return myColors; }
-  //! Original ModelViewer UV preservation (one two-component channel).
-  const VertexData& TexCoords() const { return myTexCoords; }
+  //! Original ModelViewer UV preservation (up to four scalar/two-component channels).
+  const VertexData& TexCoords(unsigned channel=0) const {
+    if(channel>=MaxTextureChannels)throw std::runtime_error("Invalid JT output texture-coordinate channel");
+    return myTexCoords[channel];
+  }
 
   DEFINE_STANDARD_RTTIEXT(JtElement_ShapeLOD_Vertex, JtElement_ShapeLOD_Base)
   DEFINE_OBJECT_CLASS (JtElement_ShapeLOD_Vertex)
@@ -133,7 +142,7 @@ protected:
 
   // Original ModelViewer corner-record assembly, shared by normals and colours.
   void assembleVertexRecords(const VertexData& coords,const VertexData& normals,
-                             const VertexData& colors,const VertexData& uv,const IndicesVec& vertices,
+                             const VertexData& colors,const TextureData& uv,const IndicesVec& vertices,
                              const IndicesVec& attributes);
 
 protected:
@@ -143,7 +152,7 @@ protected:
   VertexData myVertices; //!< vertex coordinates
   VertexData myNormals;  //!< normals; can be empty if there is no normals data
   VertexData myColors;   //!< original ModelViewer colour-stream support
-  VertexData myTexCoords; //!< original ModelViewer texture-coordinate support
+  TextureData myTexCoords; //!< original ModelViewer texture-coordinate support
 };
 
 DEFINE_STANDARD_HANDLE(JtElement_ShapeLOD_Vertex, JtElement_ShapeLOD_Base)

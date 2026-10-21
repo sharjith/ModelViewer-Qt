@@ -17,6 +17,7 @@
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
 // Additional bounded palette/face-group qualification changes: 2026-10-20.
 // Original topological UV transport and corner-record preservation: 2026-10-21.
+// Four-set UV retention: 2026-10-21.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see src/ThirdParty/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -223,6 +224,18 @@ Standard_Size JtElement_ShapeLOD_Vertex::VertexBinding2::NbTextCoordComponents
   }
 }
 
+unsigned JtElement_ShapeLOD_Vertex::VertexBinding2::TextureChannelCount() {
+  unsigned count=0;
+  for(unsigned channel=0;channel<8;++channel){
+    const auto components=NbTextCoordComponents(channel);
+    if(!components)continue;
+    if(channel>=MaxTextureChannels || (components!=1 && components!=2))
+      throw std::runtime_error("Unsupported JT texture-coordinate layout (qualified: scalar/UV channels 0-3)");
+    ++count;
+  }
+  return count;
+}
+
 //=======================================================================
 //function : Read
 //purpose  : Read this entity from a translate file
@@ -255,7 +268,7 @@ Standard_Boolean JtElement_ShapeLOD_Vertex::readVertexShapeLODData (
   myVertices.Free();
   myNormals.Free();
   myColors.Free();
-  myTexCoords.Free();
+  for(auto& uv:myTexCoords)uv.Free();
 
   if (theReader.Model()->MajorVersion() < 9)
   {
@@ -406,7 +419,7 @@ Standard_Boolean JtElement_ShapeLOD_Vertex::readVertexBasedShapeCompressedRepDat
       if(!normals || normals->GetOutVertexCount()!=count)throw std::runtime_error("Legacy JT quantized normal count mismatch");
       myNormals=normals->Decode();
     }
-    if(uvBinding)myTexCoords=legacyUV(reader,count);
+    if(uvBinding)myTexCoords[0]=legacyUV(reader,count);
     if(colorBinding)myColors=legacyConstantColors(reader,count);
     Jt_VecI32 vertices(legacyCodes(reader,strips.Last(),JtDecode_Unpack_StripIdx));
     for(int i=0;i<vertices.Count();++i)
@@ -539,14 +552,11 @@ Standard_Boolean JtElement_ShapeLOD_Vertex::readTopologicallyCompressedData (JtD
   if(aColorComponents)
     aUniqueColors=JtDecode_VertexColors::Read(theReader,aColorComponents,aNumberOfAttr);
 
-  VertexData aUniqueUV;
-  for(unsigned channel=0;channel<8;++channel) {
-    const auto components=aVertexBindings.NbTextCoordComponents(channel);
-    if(!components)continue;
-    if(channel!=0 || components!=2)
-      throw std::runtime_error("Unsupported JT texture-coordinate channel/components (qualified: channel 0 UV)");
-    aUniqueUV=JtDecode_VertexUV::Read(theReader,unsigned(components),aNumberOfAttr);
-  }
+  TextureData aUniqueUV;
+  aVertexBindings.TextureChannelCount(); // validate every slot before consuming collections
+  for(unsigned channel=0;channel<MaxTextureChannels;++channel)
+    if(const auto components=aVertexBindings.NbTextCoordComponents(channel))
+      aUniqueUV[channel]=JtDecode_VertexUV::Read(theReader,unsigned(components),aNumberOfAttr);
 
   aDecodeTasks.Wait();
   if(aCoordsPresent && aUniqueVertices.Count()!=aNumberOfVert)
@@ -561,19 +571,25 @@ Standard_Boolean JtElement_ShapeLOD_Vertex::readTopologicallyCompressedData (JtD
 // normal, colour and UV data. Preserve the coordinate/attribute pair, including
 // colour seams whose positions and numerical normal values happen to coincide.
 void JtElement_ShapeLOD_Vertex::assembleVertexRecords(
-    const VertexData& coords,const VertexData& normals,const VertexData& colors,const VertexData& uv,
+    const VertexData& coords,const VertexData& normals,const VertexData& colors,const TextureData& uv,
     const IndicesVec& vertices,const IndicesVec& attributes)
 {
-  myVertices.Free();myNormals.Free();myColors.Free();myTexCoords.Free();myIndices.Free();
+  myVertices.Free();myNormals.Free();myColors.Free();for(auto& channel:myTexCoords)channel.Free();myIndices.Free();
   if(coords.Count()<=0 || coords.CompCount()!=3)
     throw std::runtime_error("Unsupported JT coordinate binding");
-  const bool hasNormals=normals.Count()!=0,hasColors=colors.Count()!=0,hasUV=uv.Count()!=0;
+  const bool hasNormals=normals.Count()!=0,hasColors=colors.Count()!=0;
+  int uvCount=0;
+  for(const auto& channel:uv)if(channel.Count()){uvCount=channel.Count();break;}
+  const bool hasUV=uvCount!=0;
   if((hasNormals && normals.CompCount()!=3) || (hasColors && colors.CompCount()!=3 && colors.CompCount()!=4)
      || (hasNormals && hasColors && normals.Count()!=colors.Count()))
     throw std::runtime_error("Invalid JT attribute record layout");
-  const int attributeCount=hasNormals?normals.Count():hasColors?colors.Count():uv.Count();
-  if(hasUV && (uv.CompCount()!=2 || uv.Count()!=attributeCount))
-    throw std::runtime_error("Invalid JT texture-coordinate attribute layout");
+  const int attributeCount=hasNormals?normals.Count():hasColors?colors.Count():uvCount;
+  for(const auto& channel:uv){
+    if(!channel.Count())continue;
+    if((channel.CompCount()!=1 && channel.CompCount()!=2) || channel.Count()!=attributeCount)
+      throw std::runtime_error("Invalid JT texture-coordinate attribute layout");
+  }
   if((hasNormals || hasColors || hasUV) && attributes.Count()!=vertices.Count())
     throw std::runtime_error("JT corner attribute index count mismatch");
   if(!hasNormals && !hasColors && !hasUV) {
@@ -597,12 +613,14 @@ void JtElement_ShapeLOD_Vertex::assembleVertexRecords(
   myVertices.Allocate(count,3);
   if(hasNormals) myNormals.Allocate(count,3);
   if(hasColors) myColors.Allocate(count,colors.CompCount());
-  if(hasUV) myTexCoords.Allocate(count,2);
+  for(unsigned channel=0;channel<MaxTextureChannels;++channel)
+    if(uv[channel].Count())myTexCoords[channel].Allocate(count,uv[channel].CompCount());
   for(int i=0;i<count;++i) {
     const int corner=representatives[i];
     myVertices[i]=coords[vertices[corner]];
     if(hasNormals) myNormals[i]=normals[attributes[corner]];
     if(hasColors) myColors[i]=colors[attributes[corner]];
-    if(hasUV) myTexCoords[i]=uv[attributes[corner]];
+    for(unsigned channel=0;channel<MaxTextureChannels;++channel)
+      if(uv[channel].Count())myTexCoords[channel][i]=uv[channel][attributes[corner]];
   }
 }

@@ -89,19 +89,20 @@ struct BentPatch:JtElement_ShapeLOD_Vertex {
 struct PatchProperty:JtProperty_LateLoaded {PatchProperty() {mySegmentType=7;myDefferedObject=new BentPatch;}};
 struct ColorPatch:JtElement_ShapeLOD_Vertex {
     using JtElement_ShapeLOD_Vertex::assembleVertexRecords;
-    ColorPatch(bool withNormals=true,float alpha=1) {
-        VertexData p(4,3),n(withNormals?2:0,3),c(2,4),uv(2,2);IndicesVec vi(6),ai(6);
+    ColorPatch(bool withNormals=true,float alpha=1,bool sparse=false) {
+        VertexData p(4,3),n(withNormals?2:0,3),c(2,4);TextureData channels;for(unsigned channel=0;channel<4;++channel)channels[channel].Allocate(2,channel%2?2:1);IndicesVec vi(6),ai(6);
         const float points[4][3]={{0,0,0},{20,0,0},{20,20,0},{0,20,0}};
         const int indices[6]={0,1,2,0,2,3};
         for(int i=0;i<4;++i) for(int j=0;j<3;++j)p[i][j]=points[i][j];
         for(int i=0;i<2;++i) {for(int j=0;j<3;++j) {if(withNormals)n[i][j]=float(j==2);c[i][j]=float(j==i);}c[i][3]=alpha;}
         for(int i=0;i<6;++i) {vi[i]=indices[i];ai[i]=i/3;}
-        uv[0][0]=uv[0][1]=0;uv[1][0]=uv[1][1]=1;
-        assembleVertexRecords(p,n,c,uv,vi,ai);
+        for(unsigned channel=0;channel<4;++channel)for(unsigned i=0;i<2;++i){channels[channel][i][0]=float(i)+channel*0.25f;if(channel%2)channels[channel][i][1]=float(i)-channel*0.25f;}
+        if(sparse){channels[0].Free();channels[2].Free();}
+        assembleVertexRecords(p,n,c,channels,vi,ai);
     }
 };
 struct ColorProperty:JtProperty_LateLoaded {
-    ColorProperty(bool normals=true,float alpha=1) {mySegmentType=7;myDefferedObject=new ColorPatch(normals,alpha);}
+    ColorProperty(bool normals=true,float alpha=1,bool sparse=false) {mySegmentType=7;myDefferedObject=new ColorPatch(normals,alpha,sparse);}
 };
 unsigned references(const aiNode& n) {unsigned count=n.mNumMeshes;for(unsigned i=0;i<n.mNumChildren;++i)count+=references(*n.mChildren[i]);return count;}
 aiColor4D color(const Jt::ImportResult& result,const aiNode& n) {
@@ -179,27 +180,30 @@ void shininessTests() {
     float value=-1;check(plain.scene->mMaterials[plain.scene->mMeshes[0]->mMaterialIndex]->Get(AI_MATKEY_SHININESS,value)!=AI_SUCCESS,"Unauthored exponent was invented");
 }
 void vertexColorTests() {
-    const auto colored=[](bool normals=true,float alpha=1) {
-        auto n=node<JtNode_Shape_Base>("red-green seam");n->late({new ColorProperty(normals,alpha)});return n;
+    const auto colored=[](bool normals=true,float alpha=1,bool sparse=false) {
+        auto n=node<JtNode_Shape_Base>("red-green seam");n->late({new ColorProperty(normals,alpha,sparse)});return n;
     };
-    for(bool normals:{false,true}) for(bool flat:{false,true}) {
-        auto root=node<JtNode_Partition>("colours");auto shape=colored(normals);root->children({shape});
+    for(bool normals:{false,true}) for(bool flat:{false,true}) for(bool sparse:{false,true}) {
+        auto root=node<JtNode_Partition>("colours");auto shape=colored(normals,1,sparse);root->children({shape});
         shape->attributes({new Material({0.2f,0.3f,0.4f,1}),new DrawStyle(flat?0x1a:0x0a)});
         auto result=build(root);const auto& mesh=*result.scene->mMeshes[0];
         check(mesh.mNumFaces==2 && mesh.mNumVertices==6 && mesh.HasVertexColors(0) && mesh.HasTextureCoords(0),"Colour seams/flat normals lost vertices");
         for(unsigned i=0;i<6;++i) {
-            check(mesh.mTextureCoords[0][i]==aiVector3D(float(i>=3),float(i>=3),0),"Combined colour/UV corner remap failed");
+            for(unsigned channel=0;channel<4;++channel)check(mesh.HasTextureCoords(channel)&&mesh.mTextureCoords[channel][i]==(sparse&&channel%2==0?aiVector3D():aiVector3D(float(i>=3)+channel*0.25f,channel%2?float(i>=3)-channel*0.25f:0.f,0)),"Combined colour/multi-UV corner remap failed");
             const auto c=mesh.mColors[0][i];check(c.r==float(i<3) && c.g==float(i>=3) && c.b==0 && c.a==1,"Colour corner remap failed");
             check(std::abs(mesh.mNormals[i].z-1)<1e-6f,"Colour binding broke stored/generated normals");
         }
         check(mesh.mVertices[0]==mesh.mVertices[3] && mesh.mColors[0][0]!=mesh.mColors[0][3],"Shared-position colour discontinuity lost");
         check(color(result,*result.scene->mRootNode->mChildren[0]).r==1,"Accumulated diffuse incorrectly tinted vertex colours");
         auto copy=std::unique_ptr<aiScene>(SceneUtils::deepCopyScene(result.scene.get()));
-        check(copy->mMeshes[0]->HasTextureCoords(0) && copy->mMeshes[0]->mTextureCoords[0][4]==aiVector3D(1,1,0) && copy->mMeshes[0]->HasVertexColors(0) && copy->mMeshes[0]->mColors[0][4].g==1,"Scene copy lost vertex colours");
+        for(unsigned channel=0;channel<4;++channel)check(copy->mMeshes[0]->HasTextureCoords(channel)&&copy->mMeshes[0]->mTextureCoords[channel][4]==mesh.mTextureCoords[channel][4],"Scene copy lost UV channel");
+        check(copy->mMeshes[0]->HasTextureCoords(0) && copy->mMeshes[0]->mTextureCoords[0][4]==(sparse?aiVector3D():aiVector3D(1,0,0)) && copy->mMeshes[0]->HasVertexColors(0) && copy->mMeshes[0]->mColors[0][4].g==1,"Scene copy lost vertex colours");
         QTemporaryDir dir;const auto path=dir.filePath("colours.glb").toStdString();Assimp::Exporter exporter;
         check(exporter.Export(result.scene.get(),"glb2",path)==AI_SUCCESS,"Colour GLB export failed");
         Assimp::Importer reader;const auto scene=reader.ReadFile(path,0);
-        check(scene && scene->mNumMeshes==1 && scene->mMeshes[0]->HasTextureCoords(0) && scene->mMeshes[0]->mTextureCoords[0][4]==aiVector3D(1,1,0) && scene->mMeshes[0]->HasVertexColors(0) && scene->mMeshes[0]->mColors[0][4].g==1,"GLB roundtrip lost vertex colours");
+        check(scene&&scene->mNumMeshes==1,"Multi-UV GLB scene missing");
+        for(unsigned channel=0;channel<4;++channel)check(scene->mMeshes[0]->HasTextureCoords(channel)&&scene->mMeshes[0]->mTextureCoords[channel][4]==mesh.mTextureCoords[channel][4],"GLB lost UV channel");
+        check(scene && scene->mNumMeshes==1 && scene->mMeshes[0]->HasTextureCoords(0) && scene->mMeshes[0]->mTextureCoords[0][4]==(sparse?aiVector3D():aiVector3D(1,0,0)) && scene->mMeshes[0]->HasVertexColors(0) && scene->mMeshes[0]->mColors[0][4].g==1,"GLB roundtrip lost vertex colours");
     }
     struct Override:Material {
         Override(bool on,unsigned inhibit=0,unsigned finals=0,unsigned state=8):Material({0,0,1,1},inhibit,finals,state) {if(on)myDataFlags|=0x20;}
@@ -220,7 +224,7 @@ void vertexColorTests() {
     transparent->late({new ColorProperty(true,0.5f)});transparent->attributes({new Material({1,1,1,1})});auto opaque=build(blendRoot);
     check(opaque.scene->mMeshes[0]->mColors[0][0].a==1,"Blending-disabled vertex alpha remained active");
     ColorPatch target;JtElement_ShapeLOD_Vertex::VertexData p(1,3),n(1,3),colors(1,3);JtElement_ShapeLOD_Vertex::IndicesVec vi(1),ai(1);
-    vi[0]=0;ai[0]=1;rejected([&]{target.assembleVertexRecords(p,n,colors,JtElement_ShapeLOD_Vertex::VertexData(),vi,ai);},"index out of range");
+    vi[0]=0;ai[0]=1;rejected([&]{target.assembleVertexRecords(p,n,colors,JtElement_ShapeLOD_Vertex::TextureData(),vi,ai);},"index out of range");
 }
 void instances() {
     auto root=node<JtNode_Partition>("root");auto shared=leaf("shared");

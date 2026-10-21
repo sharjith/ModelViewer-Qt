@@ -101,7 +101,6 @@ std::unique_ptr<aiMesh> exactMesh(const TopoDS_Shape& shape,const Options& optio
 std::unique_ptr<aiMesh> storedMesh(const Handle(JtElement_ShapeLOD_Vertex)& source,unsigned& repairedNormals) {
     const auto& p=source->Vertices();const auto& n=source->Normals();const auto& ix=source->Indices();
     const auto& colors=source->Colors();
-    const auto& uv=source->TexCoords();
     if(p.Count()<=0 || p.CompCount()!=3 || ix.Count()<=0 || ix.Count()%3)
         throw std::runtime_error("Unsupported/empty JT tessellation layout");
     auto out=std::make_unique<aiMesh>();out->mPrimitiveTypes=aiPrimitiveType_TRIANGLE;
@@ -110,14 +109,29 @@ std::unique_ptr<aiMesh> storedMesh(const Handle(JtElement_ShapeLOD_Vertex)& sour
     out->mVertices=new aiVector3D[out->mNumVertices];out->mNormals=new aiVector3D[out->mNumVertices]{};
     const bool storedNormals=n.Count()==p.Count() && n.CompCount()==3;
     repairedNormals=0;
-    if(uv.Count()) {
-        if(uv.Count()!=p.Count() || uv.CompCount()!=2)throw std::runtime_error("Invalid expanded JT texture coordinates");
+    for(unsigned channel=0;channel<JtElement_ShapeLOD_Vertex::MaxTextureChannels;++channel) {
+        const auto& uv=source->TexCoords(channel);
+        if(!uv.Count())continue;
+        if(uv.Count()!=p.Count() || (uv.CompCount()!=1 && uv.CompCount()!=2))throw std::runtime_error("Invalid expanded JT texture coordinates");
         JtData_Limits::allocation(size_t(out->mNumVertices)*sizeof(aiVector3D));
-        out->mTextureCoords[0]=new aiVector3D[out->mNumVertices];out->mNumUVComponents[0]=2;
+        out->mTextureCoords[channel]=new aiVector3D[out->mNumVertices];
+        // The renderer and glTF use UV pairs; embed scalar U as (U,0).
+        out->mNumUVComponents[channel]=2;
         for(unsigned i=0;i<out->mNumVertices;++i) {
-            if(!std::isfinite(uv[i][0]) || !std::isfinite(uv[i][1]))throw std::runtime_error("Nonfinite JT texture coordinate");
-            out->mTextureCoords[0][i]={uv[i][0],uv[i][1],0};
+            if(!std::isfinite(uv[i][0]) || (uv.CompCount()==2 && !std::isfinite(uv[i][1])))throw std::runtime_error("Nonfinite JT texture coordinate");
+            out->mTextureCoords[channel][i]={uv[i][0],uv.CompCount()==2?uv[i][1]:0.f,0};
         }
+    }
+    // Assimp counts UV arrays up to the first empty slot. Pad gaps with zeros
+    // so scene copies/export retain the original higher set numbers. The JT
+    // decoder still distinguishes absent source sets from populated sets.
+    unsigned uvSpan=0;
+    for(unsigned channel=0;channel<JtElement_ShapeLOD_Vertex::MaxTextureChannels;++channel)
+        if(out->HasTextureCoords(channel))uvSpan=channel+1;
+    for(unsigned channel=0;channel<uvSpan;++channel)if(!out->HasTextureCoords(channel)) {
+        JtData_Limits::allocation(size_t(out->mNumVertices)*sizeof(aiVector3D));
+        out->mTextureCoords[channel]=new aiVector3D[out->mNumVertices]{};
+        out->mNumUVComponents[channel]=2;
     }
     if(colors.Count()) {
         if(colors.Count()!=p.Count() || (colors.CompCount()!=3 && colors.CompCount()!=4))
@@ -261,11 +275,13 @@ std::unique_ptr<aiMesh> faceSubset(const aiMesh& source,const std::vector<unsign
     JtData_Limits::allocation(size_t(next)*sizeof(aiVector3D));mesh->mVertices=new aiVector3D[next];
     JtData_Limits::allocation(size_t(next)*sizeof(aiVector3D));mesh->mNormals=new aiVector3D[next];
     if(source.HasVertexColors(0)){JtData_Limits::allocation(size_t(next)*sizeof(aiColor4D));mesh->mColors[0]=new aiColor4D[next];}
-    if(source.HasTextureCoords(0)){JtData_Limits::allocation(size_t(next)*sizeof(aiVector3D));mesh->mTextureCoords[0]=new aiVector3D[next];mesh->mNumUVComponents[0]=source.mNumUVComponents[0];}
+    for(unsigned channel=0;channel<JtElement_ShapeLOD_Vertex::MaxTextureChannels;++channel)
+        if(source.HasTextureCoords(channel)){JtData_Limits::allocation(size_t(next)*sizeof(aiVector3D));mesh->mTextureCoords[channel]=new aiVector3D[next];mesh->mNumUVComponents[channel]=source.mNumUVComponents[channel];}
     for(unsigned i=0;i<next;++i) {
         mesh->mVertices[i]=source.mVertices[vertices[i]];mesh->mNormals[i]=source.mNormals[vertices[i]];
         if(mesh->mColors[0])mesh->mColors[0][i]=source.mColors[0][vertices[i]];
-        if(mesh->mTextureCoords[0])mesh->mTextureCoords[0][i]=source.mTextureCoords[0][vertices[i]];
+        for(unsigned channel=0;channel<JtElement_ShapeLOD_Vertex::MaxTextureChannels;++channel)
+            if(mesh->mTextureCoords[channel])mesh->mTextureCoords[channel][i]=source.mTextureCoords[channel][vertices[i]];
     }
     JtData_Limits::allocation(faces.size()*sizeof(aiFace));mesh->mFaces=new aiFace[faces.size()];
     JtData_Limits::allocation(faces.size()*3*sizeof(unsigned));
@@ -406,10 +422,10 @@ struct Builder {
             JtData_Limits::allocation(size_t(copy->mNumVertices)*sizeof(aiColor4D));
             copy->mColors[0]=new aiColor4D[copy->mNumVertices];std::copy_n(source.mColors[0],copy->mNumVertices,copy->mColors[0]);
         }
-        if(source.HasTextureCoords(0)) {
+        for(unsigned channel=0;channel<JtElement_ShapeLOD_Vertex::MaxTextureChannels;++channel)if(source.HasTextureCoords(channel)) {
             JtData_Limits::allocation(size_t(copy->mNumVertices)*sizeof(aiVector3D));
-            copy->mTextureCoords[0]=new aiVector3D[copy->mNumVertices];copy->mNumUVComponents[0]=source.mNumUVComponents[0];
-            std::copy_n(source.mTextureCoords[0],copy->mNumVertices,copy->mTextureCoords[0]);
+            copy->mTextureCoords[channel]=new aiVector3D[copy->mNumVertices];copy->mNumUVComponents[channel]=source.mNumUVComponents[channel];
+            std::copy_n(source.mTextureCoords[channel],copy->mNumVertices,copy->mTextureCoords[channel]);
         }
         copy->mFaces=new aiFace[copy->mNumFaces];
         for(unsigned i=0;i<copy->mNumFaces;++i) {copy->mFaces[i].mNumIndices=3;copy->mFaces[i].mIndices=new unsigned[3];std::copy_n(source.mFaces[i].mIndices,3,copy->mFaces[i].mIndices);}
@@ -430,8 +446,10 @@ struct Builder {
             JtData_Limits::allocation(count*(2*sizeof(aiVector3D)+sizeof(unsigned)));
             auto positions=std::make_unique<aiVector3D[]>(count);auto normals=std::make_unique<aiVector3D[]>(count);
             std::unique_ptr<aiColor4D[]> colors;
-            std::unique_ptr<aiVector3D[]> uv;
-            if(mesh->HasTextureCoords(0)) {JtData_Limits::allocation(count*sizeof(aiVector3D));uv=std::make_unique<aiVector3D[]>(count);}
+            std::array<std::unique_ptr<aiVector3D[]>,JtElement_ShapeLOD_Vertex::MaxTextureChannels> uv;
+            for(unsigned channel=0;channel<uv.size();++channel)if(mesh->HasTextureCoords(channel)) {
+                JtData_Limits::allocation(count*sizeof(aiVector3D));uv[channel]=std::make_unique<aiVector3D[]>(count);
+            }
             if(colored) {JtData_Limits::allocation(count*sizeof(aiColor4D));colors=std::make_unique<aiColor4D[]>(count);}
             for(unsigned i=0;i<mesh->mNumFaces;++i) {
                 options.check();const auto& f=mesh->mFaces[i];
@@ -441,11 +459,11 @@ struct Builder {
                 const double x=y1*z2-z1*y2,y=z1*x2-x1*z2,z=x1*y2-y1*x2,l=std::hypot(x,y,z);
                 const aiVector3D n=l>0 ? aiVector3D(float(x/l),float(y/l),float(z/l)) : mesh->mNormals[f.mIndices[0]];
                 positions[3*i]=a;positions[3*i+1]=b;positions[3*i+2]=c;
-                for(unsigned j=0;j<3;++j) {normals[3*i+j]=n;if(colored)colors[3*i+j]=mesh->mColors[0][f.mIndices[j]];if(uv)uv[3*i+j]=mesh->mTextureCoords[0][f.mIndices[j]];mesh->mFaces[i].mIndices[j]=3*i+j;}
+                for(unsigned j=0;j<3;++j) {normals[3*i+j]=n;if(colored)colors[3*i+j]=mesh->mColors[0][f.mIndices[j]];for(unsigned channel=0;channel<uv.size();++channel)if(uv[channel])uv[channel][3*i+j]=mesh->mTextureCoords[channel][f.mIndices[j]];mesh->mFaces[i].mIndices[j]=3*i+j;}
             }
             delete[] mesh->mVertices;delete[] mesh->mNormals;
             if(colored) {delete[] mesh->mColors[0];mesh->mColors[0]=colors.release();}
-            if(uv) {delete[] mesh->mTextureCoords[0];mesh->mTextureCoords[0]=uv.release();}
+            for(unsigned channel=0;channel<uv.size();++channel)if(uv[channel]) {delete[] mesh->mTextureCoords[channel];mesh->mTextureCoords[channel]=uv[channel].release();}
             mesh->mNumVertices=unsigned(count);mesh->mVertices=positions.release();mesh->mNormals=normals.release();validate(*mesh);
         }
         mesh->mMaterialIndex=mat;mesh->mName=aiString(name.toUtf8().constData());
@@ -571,7 +589,7 @@ struct Builder {
                                 geometryGroups.back().assign(groups.Data(),groups.Data()+groups.Count());
                             }
                             geometryCache[prop.get()]=geometryIndex;
-                            if(mesh->TexCoords().Count())result.warnings.append(label+": JT texture coordinates retained; texture images and shaders are not imported");
+                            for(unsigned channel=0;channel<JtElement_ShapeLOD_Vertex::MaxTextureChannels;++channel)if(mesh->TexCoords(channel).Count()){result.warnings.append(label+": JT texture coordinates retained; texture images and shaders are not imported");break;}
                             if(repairedNormals)result.warnings.append(label+": reconstructed "+QString::number(repairedNormals)+" zero-length stored normals from adjacent triangles");
                         }
                         const auto& groups=geometryGroups.at(geometryIndex);

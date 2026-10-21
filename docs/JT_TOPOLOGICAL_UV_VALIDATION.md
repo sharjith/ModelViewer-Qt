@@ -41,3 +41,7 @@ Rebuild the application, then check `out/jt-research/uv-ui-fixtures/9.0/`, `9.5/
 For a visible UV check, assign `out/jt-research/uv-ui-fixtures/uv-checker.png` as a base-colour texture through the material editor to the lossless and quantized controls, using the same material parameters and existing UVs. Their patterns should match within each version. Do not regenerate UVs for this comparison. The same check on each companion `.jt.glb` exercises application import through a second route; GLB may omit unreferenced vertices. The checker is an original procedural diagnostic image; manually assigning it does not demonstrate JT texture-resource import.
 
 Also check fit-to-screen/selection and reopen a previously accepted coloured control and an authentic assembly. The owner accepted C1d on 21 October 2026 with "C1d build complete and tested - passed". The agent did not build the full viewer.
+
+## Subsequent multiple-set gate
+
+[C1e](JT_MULTI_UV_VALIDATION.md) extends the previously accepted single-set transport to contiguous sets 0–3 without changing its field decoding. The single-set limitations above describe C1d's original scope; the later validation report governs the new multi-set handoff.

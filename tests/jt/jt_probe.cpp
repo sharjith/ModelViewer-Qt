@@ -99,7 +99,7 @@ int main(int argc,char** argv) {
                 uvMeshes+=mesh.HasTextureCoords(0);colourMeshes+=mesh.HasVertexColors(0);
                 if(!mesh.HasNormals() || mesh.mMaterialIndex>=result.scene->mNumMaterials) throw std::runtime_error("Invalid mesh normals/material");
                 for(unsigned v=0;v<mesh.mNumVertices;++v) {
-                    if(mesh.HasTextureCoords(0))for(unsigned k=0;k<3;++k)if(!std::isfinite(mesh.mTextureCoords[0][v][k]))throw std::runtime_error("Nonfinite UV");
+                    for(unsigned channel=0;channel<AI_MAX_NUMBER_OF_TEXTURECOORDS;++channel)if(mesh.HasTextureCoords(channel))for(unsigned k=0;k<3;++k)if(!std::isfinite(mesh.mTextureCoords[channel][v][k]))throw std::runtime_error("Nonfinite UV");
                     if(mesh.HasVertexColors(0))for(unsigned k=0;k<4;++k)if(!std::isfinite(mesh.mColors[0][v][k]) || mesh.mColors[0][v][k]<0 || mesh.mColors[0][v][k]>1)throw std::runtime_error("Invalid colour component");
                     if(!std::isfinite(mesh.mNormals[v].Length()) || std::abs(mesh.mNormals[v].Length()-1)>1e-4) throw std::runtime_error("Invalid normalized normal");
                     for(unsigned k=0;k<3;++k) {const double x=mesh.mVertices[v][k];if(!std::isfinite(x))throw std::runtime_error("Nonfinite vertex");lo[k]=std::min(lo[k],x);hi[k]=std::max(hi[k],x);}

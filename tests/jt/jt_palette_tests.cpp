@@ -47,6 +47,7 @@ struct Mapping:JtAttribute_PaletteMap {
 struct Triangles:JtElement_ShapeLOD_Vertex {
  Triangles(){myVertices.Allocate(9,3);myNormals.Allocate(9,3);myIndices.Allocate(9);myFaceGroups.Allocate(3);
   for(int i=0;i<9;++i){myIndices[i]=i;myVertices[i][0]=float((i/3)*3+(i%3==1));myVertices[i][1]=float(i%3==2);myVertices[i][2]=0;myNormals[i][0]=myNormals[i][1]=0;myNormals[i][2]=1;}for(int i=0;i<3;++i)myFaceGroups[i]=i;
+  for(unsigned c=0;c<4;++c){myTexCoords[c].Allocate(9,2);for(unsigned i=0;i<9;++i){myTexCoords[c][i][0]=myVertices[i][0]*float(c+1);myTexCoords[c][i][1]=myVertices[i][1]+float(c);}}
  }
 };
 struct Property:JtProperty_LateLoaded {Property(){mySegmentType=7;myDefferedObject=new Triangles;}};
@@ -55,6 +56,9 @@ auto leaf(){opencascade::handle<Node<JtNode_Shape_Base>> n=new Node<JtNode_Shape
 struct Occurrence {unsigned mesh;aiMatrix4x4 world;const aiNode* node;};
 std::vector<Occurrence> occurrences(const aiScene& scene){std::vector<Occurrence> out;std::function<void(const aiNode*,aiMatrix4x4)> walk=[&](const aiNode* n,aiMatrix4x4 w){w*=n->mTransformation;for(unsigned i=0;i<n->mNumMeshes;++i)out.push_back({n->mMeshes[i],w,n});for(unsigned i=0;i<n->mNumChildren;++i)walk(n->mChildren[i],w);};walk(scene.mRootNode,aiMatrix4x4());return out;}
 aiColor4D colour(const aiScene& s,unsigned mesh){aiColor4D c;check(s.mMaterials[s.mMeshes[mesh]->mMaterialIndex]->Get(AI_MATKEY_COLOR_DIFFUSE,c)==AI_SUCCESS,"Missing palette colour");return c;}
+}
+void checkPaletteUV(const aiScene& scene){
+ for(unsigned m=0;m<scene.mNumMeshes;++m){const auto& mesh=*scene.mMeshes[m];for(unsigned c=0;c<4;++c){check(mesh.HasTextureCoords(c),"Palette subset lost UV channel");for(unsigned i=0;i<mesh.mNumVertices;++i)check(mesh.mTextureCoords[c][i]==aiVector3D(mesh.mVertices[i].x*float(c+1),mesh.mVertices[i].y+float(c),0),"Palette subset remapped UV incorrectly");}}
 }
 void solidEdgeMaterialCompatibilityTests(){
  QTemporaryDir tmp;const auto path=tmp.filePath("source.jt");
@@ -91,7 +95,7 @@ void solidEdgeMaterialCompatibilityTests(){
  // Author metadata affects descendants of that branch only.
  {auto r=root();auto a=leaf(),b=leaf();author(*a,"Solid Edge");
   for(auto shape:{a,b}){auto x=new Material(-1,red);auto y=new Material(-1,green);x->ordinary();y->ordinary();shape->attrs({x,y});}
-  r->children({a,b});const auto result=Jt::Detail::buildScene(r,path,{});const auto occ=occurrences(*result.scene);
+  r->children({a,b});const auto result=Jt::Detail::buildScene(r,path,{});checkPaletteUV(*result.scene);const auto occ=occurrences(*result.scene);
   check(occ.size()==2&&colour(*result.scene,occ[0].mesh)==red&&colour(*result.scene,occ[1].mesh)==green,"Source author profile leaked across sibling branches");}
  }
  std::cout<<"Solid Edge 10.5/10.7/10.8/10.9/10.10 duplicate-material profile, opt-out, writer/author/flag/palette guards and sibling isolation passed\n";
@@ -108,14 +112,14 @@ void paletteTests(){
   if(kind==5)r->attrs({new Material(-1,blue),new Material(0,red),new Mapping({0})});
   if(kind==6)r->attrs({new Material(-1,blue),new Material(0,red),new Mapping({0,-2,-1})});
   if(kind==7)r->attrs({new Material(-1,blue),new Mapping({17,17,17})});
-  auto result=Jt::Detail::buildScene(r,path,{});const auto occ=occurrences(*result.scene);check(occ.size()==(kind==0||kind==6?3:1),"Palette material-group occurrence count mismatch");
+  auto result=Jt::Detail::buildScene(r,path,{});checkPaletteUV(*result.scene);const auto occ=occurrences(*result.scene);check(occ.size()==(kind==0||kind==6?3:1),"Palette material-group occurrence count mismatch");
   for(unsigned i=0;i<occ.size();++i){const auto c=colour(*result.scene,occ[i].mesh);const auto expected=kind==0?(i==0?red:i==1?green:blue):kind==1||kind==3?green:kind==2?red:kind==6&&i==0?red:blue;check(c==expected,"Palette accumulation/fallback/final/inhibit colour mismatch");}
   check(result.hiddenNodes.size()==(kind==6?1:0),"Inhibited face-group visibility lost");
   unsigned triangles=0;for(unsigned i=0;i<result.scene->mNumMeshes;++i)triangles+=result.scene->mMeshes[i]->mNumFaces;check(triangles==3,"Palette split lost triangles or inhibited geometry");
-  if(kind==0){Assimp::Exporter e;const auto glb=tmp.filePath("palette.glb");check(e.Export(result.scene.get(),"glb2",glb.toStdString())==AI_SUCCESS,"Palette GLB export failed");Assimp::Importer imp;const auto* read=imp.ReadFile(glb.toStdString(),0);check(read&&occurrences(*read).size()==3,"Palette GLB lost groups");}
+  if(kind==0){Assimp::Exporter e;const auto glb=tmp.filePath("palette.glb");check(e.Export(result.scene.get(),"glb2",glb.toStdString())==AI_SUCCESS,"Palette GLB export failed");Assimp::Importer imp;const auto* read=imp.ReadFile(glb.toStdString(),0);check(read&&occurrences(*read).size()==3,"Palette GLB lost groups");checkPaletteUV(*read);}
  }
- {auto r=root();auto shape=leaf();r->children({shape});r->attrs({new Transform(-1,10),new Material(0,red),new Transform(0,30),new Mapping({0,-1,0})});shape->attrs({new Transform(-1,5)});auto result=Jt::Detail::buildScene(r,path,{});const auto occ=occurrences(*result.scene);check(occ.size()==2&&occ[0].world.a4==45&&occ[1].world.a4==15,"Palette/fallback transform composition mismatch");}
- {auto r=root();auto shape=leaf();opencascade::handle<Node<JtNode_Instance>> a=new Node<JtNode_Instance>,b=new Node<JtNode_Instance>;a->target(shape);b->target(shape);a->attrs({new Transform(-1,10)});b->attrs({new Transform(-1,20)});r->children({a,b});r->attrs({new Material(0,red),new Mapping({0,0,0})});auto result=Jt::Detail::buildScene(r,path,{});const auto occ=occurrences(*result.scene);check(result.scene->mNumMeshes==1&&occ.size()==2,"Palette repeated instances lost resource sharing");check(occ[0].world.a4==10&&occ[1].world.a4==20,"Palette states leaked between occurrences");}
+ {auto r=root();auto shape=leaf();r->children({shape});r->attrs({new Transform(-1,10),new Material(0,red),new Transform(0,30),new Mapping({0,-1,0})});shape->attrs({new Transform(-1,5)});auto result=Jt::Detail::buildScene(r,path,{});checkPaletteUV(*result.scene);const auto occ=occurrences(*result.scene);check(occ.size()==2&&occ[0].world.a4==45&&occ[1].world.a4==15,"Palette/fallback transform composition mismatch");}
+ {auto r=root();auto shape=leaf();opencascade::handle<Node<JtNode_Instance>> a=new Node<JtNode_Instance>,b=new Node<JtNode_Instance>;a->target(shape);b->target(shape);a->attrs({new Transform(-1,10)});b->attrs({new Transform(-1,20)});r->children({a,b});r->attrs({new Material(0,red),new Mapping({0,0,0})});auto result=Jt::Detail::buildScene(r,path,{});checkPaletteUV(*result.scene);const auto occ=occurrences(*result.scene);check(result.scene->mNumMeshes==1&&occ.size()==2,"Palette repeated instances lost resource sharing");check(occ[0].world.a4==10&&occ[1].world.a4==20,"Palette states leaked between occurrences");}
  {auto r=root();auto shape=leaf();r->children({shape});r->attrs({new Transform(0,0),new Mapping({0,0,0})});Jt::Options cancel;cancel.cancelled=[] {return true;};bool stopped=false;try{Jt::Detail::buildScene(r,path,cancel);}catch(const Jt::Cancelled&){stopped=true;}check(stopped,"Palette traversal swallowed cancellation");}
  for(double noise:{1e-18,1e-6}) {auto r=root();auto shape=leaf();r->children({shape});auto t=new Transform(-1,10);t->noise(noise);r->attrs({t});if(noise<1e-12)Jt::Detail::buildScene(r,path,{});else rejects([&]{Jt::Detail::buildScene(r,path,{});});}
  // A single escape symbol produces the sole explicit OOB value. External
