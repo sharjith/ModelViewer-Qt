@@ -18,6 +18,7 @@
 // Additional bounded palette/face-group qualification changes: 2026-10-20.
 // JT 10.5/10.7/10.8/10.10 shared modern-family qualification: 2026-10-20.
 // JT 9.0/9.5 qualification and shared attribute/codec bounds updated: 2026-10-20.
+// Removed unused deprecated OCCT container include: 2026-10-21.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see src/ThirdParty/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -40,7 +41,6 @@
 
 #include <NCollection_DataMap.hxx>
 #include <TCollection_AsciiString.hxx>
-#include <TColStd_SequenceOfInteger.hxx>
 
 const Standard_Boolean JtData_Model::IsLittleEndianHost =
   Image_PixMap::IsBigEndianHost() ? Standard_False : Standard_True;

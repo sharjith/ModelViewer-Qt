@@ -15,13 +15,13 @@
 // on <http://www.gnu.org/licenses/>.
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Removed unused deprecated OCCT container include: 2026-10-21.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see src/ThirdParty/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
 #include <JtElement_XTBRep.hxx>
 #include <JtData_Reader.hxx>
 
-#include <TColStd_HArray1OfCharacter.hxx>
 
 IMPLEMENT_STANDARD_HANDLE (JtElement_XTBRep, JtData_Object)
 IMPLEMENT_STANDARD_RTTIEXT(JtElement_XTBRep, JtData_Object)
