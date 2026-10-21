@@ -114,7 +114,7 @@ public:
 
   //! RGB/RGBA values aligned with the expanded vertex/attribute combinations.
   const VertexData& Colors() const { return myColors; }
-  //! Original ModelViewer legacy UV preservation (one two-component channel).
+  //! Original ModelViewer UV preservation (one two-component channel).
   const VertexData& TexCoords() const { return myTexCoords; }
 
   DEFINE_STANDARD_RTTIEXT(JtElement_ShapeLOD_Vertex, JtElement_ShapeLOD_Base)
@@ -133,7 +133,7 @@ protected:
 
   // Original ModelViewer corner-record assembly, shared by normals and colours.
   void assembleVertexRecords(const VertexData& coords,const VertexData& normals,
-                             const VertexData& colors,const IndicesVec& vertices,
+                             const VertexData& colors,const VertexData& uv,const IndicesVec& vertices,
                              const IndicesVec& attributes);
 
 protected:
@@ -143,7 +143,7 @@ protected:
   VertexData myVertices; //!< vertex coordinates
   VertexData myNormals;  //!< normals; can be empty if there is no normals data
   VertexData myColors;   //!< original ModelViewer colour-stream support
-  VertexData myTexCoords; //!< original ModelViewer legacy texture-coordinate support
+  VertexData myTexCoords; //!< original ModelViewer texture-coordinate support
 };
 
 DEFINE_STANDARD_HANDLE(JtElement_ShapeLOD_Vertex, JtElement_ShapeLOD_Base)

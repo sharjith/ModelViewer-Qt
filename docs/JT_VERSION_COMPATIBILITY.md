@@ -83,3 +83,5 @@ The owner confirmed both 10.10 engine and vice displays look good, accepting the
 ## Feature-first priority after Gate 5a — 20 October 2026
 
 The owner now requests completing remaining features across the enabled revisions before extending horizontally to 10.11. Follow the [feature completion plan](JT_FEATURE_COMPLETION_PLAN.md), starting with bounded legacy Huffman under C1a. Earlier forward-first sequencing is superseded; 10.11 remains unqualified. Do not treat feature work as new version coverage.
+
+**C1d acceptance, 21 October 2026:** [Topological UV arrays](JT_TOPOLOGICAL_UV_VALIDATION.md) pass native field, seam, copy/export and full twelve-version regression checks. Owner application build/UI tests passed. The qualified addition is channel-0 two-component UVs in enabled 9.x/10.x topological meshes; texture resources/shaders and other UV bindings remain later work. No JT file revision is enabled.

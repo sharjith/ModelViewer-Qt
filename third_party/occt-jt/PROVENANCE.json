@@ -906,6 +906,11 @@
       "file": "src/JtAttribute/JtAttribute_PaletteMap.cxx",
       "origin": "ModelViewer-original",
       "notice_date": "2026-10-20"
+    },
+    {
+      "file": "src/JtDecode/JtDecode_VertexUV.hxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-21"
     }
   ],
   "follow_up": {
@@ -1033,5 +1038,19 @@
     ],
     "reference": "Locally retained public Siemens JT9.5 Rev-A sections8.1.7/8.1.11/8.2.1, Figure230 inspected visually, p273",
     "validation": "docs/JT_9X_COLOUR_VALIDATION.md"
+  },
+  "topological_uv_follow_up": {
+    "date": "2026-10-21",
+    "scope": "Original bounded channel-0 two-component UV decoding in transitional and modern topological records, with corner seam preservation; other channels/dimensions remain explicit unsupported",
+    "files": [
+      "src/JtDecode/JtDecode_VertexUV.hxx",
+      "src/JtElement/JtElement_ShapeLOD_Vertex.cxx",
+      "src/JtElement/JtElement_ShapeLOD_Vertex.hxx"
+    ],
+    "references": [
+      "Siemens JT9.5 Rev-A sections7.2.2.1.2.6/8.1.6/8.1.10/8.2.1; Figures90/229 inspected visually",
+      "Siemens JT10.0 sections13.1.5/13.1.10/13.2.1; Figure241 inspected visually"
+    ],
+    "validation": "docs/JT_TOPOLOGICAL_UV_VALIDATION.md"
   }
 }

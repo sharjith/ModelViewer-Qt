@@ -52,3 +52,9 @@ Do not route the 9.x component arrays through the modern packed reader. Zero-bit
 The owner accepted C1b on 21 October 2026. C1c adds the distinct 9.x lossless exponent/mantissa and quantized component-array transports for enabled 9.0/9.5. It reuses bounded quantizer and HSV helpers without changing the modern packed transport. Original field vectors cover both byte orders; private full-model controls are generated separately from authentic 9.0 and 9.5 single-part templates, not by reheadering 10.x geometry.
 
 [9.x colour validation](JT_9X_COLOUR_VALIDATION.md) records the reference diagram, the always-present fourth quantized component vector, full-model agreement and remaining qualification limits. The 9.5 reference is not presented as a complete 9.0 specification or an independently generated 9.0 vertex-colour oracle. The owner accepted C1c on 21 October 2026 with "All tests passed". Variable 8.x colours, zero-bit nonconstant semantics, additional bindings, hash validation and non-opaque vertex-alpha rendering remain later gates.
+
+## Accepted gate C1d — topological UV arrays
+
+C1c is owner-accepted. C1d preserves two-component texture coordinates in channel 0 for enabled 9.x/10.x topological mesh records. The 8.x UV path stays in regression coverage. Transitional exponent/mantissa and modern IEEE lossless transports are separate; quantized component vectors use the documented predictor and bounded inverse quantization. UV-only seams, combined colour/UV records and flat-normal expansion retain the correct corner association.
+
+[Topological UV validation](JT_TOPOLOGICAL_UV_VALIDATION.md) records field tests, private controls and the owner checklist. Multiple UV channels, one-/three-/four-component texture coordinates, other remaining C1 encodings/bindings and C2 texture resources/shaders remain pending. This gate does not enable a new file version or complete C1. The owner accepted the application build/UI tests on 21 October 2026.
