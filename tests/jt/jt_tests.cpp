@@ -38,6 +38,7 @@ void legacyTests();
 void huffmanFixtureFiles(const QString& folder);
 void jt9ColourTests();
 void uvTests();
+void coordinateTests();
 void quantizedColourTests();
 void huffmanTests();
 void arithmeticCountTests();
@@ -207,7 +208,7 @@ void samples(const QString& dir) {
 }
 int main(int argc,char** argv) {
     QCoreApplication app(argc,argv);
-    try {allocationBudgetTests();codecTests();colorStreamTests();uvTests();quantizedColourTests();jt9ColourTests();attributeTests();sceneTests();containerTests({});legacyTests();huffmanTests();arithmeticCountTests();quantizedTests();modernAttributeTests();paletteTests();solidEdgeMaterialCompatibilityTests();jt95Tests();
+    try {allocationBudgetTests();codecTests();colorStreamTests();uvTests();coordinateTests();quantizedColourTests();jt9ColourTests();attributeTests();sceneTests();containerTests({});legacyTests();huffmanTests();arithmeticCountTests();quantizedTests();modernAttributeTests();paletteTests();solidEdgeMaterialCompatibilityTests();jt95Tests();
         const bool orderFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--material-order-fixtures";
         const bool maskFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--material-mask-fixtures";
         const bool arithmeticFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--arithmetic-count-fixtures";

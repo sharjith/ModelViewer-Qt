@@ -1098,5 +1098,19 @@
     ],
     "reference": "Retained Siemens JT9.5 Rev-A sections8.1.1/8.1.1.1.1; inherited licensed CDP1 context-switch behavior",
     "validation": "docs/JT_ARITHMETIC_COUNT_VALIDATION.md"
+  },
+  "rounded_coordinate_follow_up": {
+    "date": "2026-10-21",
+    "scope": "Original rounded inverse for topological coordinates in enabled 9.x/10.x families, endpoint/code-width and collection-layout checks; retain legacy midpoint mode",
+    "files": [
+      "src/ThirdParty/occt-jt/JtDecode/JtDecode_VertexData.cxx",
+      "src/ThirdParty/occt-jt/JtDecode/JtDecode_VertexData_Quantized.cxx",
+      "include/ThirdParty/occt-jt/JtDecode/JtDecode_VertexData_Quantized.hxx"
+    ],
+    "references": [
+      "Retained Siemens JT9.5 Rev-A sections8.1.4/8.1.9/8.1.12/8.2.1",
+      "Retained Siemens JT10.0 sections13.1.3/13.1.9/13.1.12/13.2.1"
+    ],
+    "validation": "docs/JT_COORDINATE_QUANTIZATION_VALIDATION.md"
   }
 }

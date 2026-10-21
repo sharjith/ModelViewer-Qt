@@ -145,3 +145,7 @@ The original `JtDecode_VertexUV.hxx` reads one or two coordinate components, inc
 ## Declared arithmetic symbol counts, 21 October 2026
 
 `JtDecode_Int32CDP.cxx` passes bounded explicit/implicit CDP1 symbol counts to `JtDecode_Int32CDP_Arithmetic.cxx/.hxx`. The driver consumes declared non-emitting context transitions as well as emitting symbols, checks output bounds/count and OOB completion, and polls cancellation throughout. CDP2/CDP3 retain their previous driver. No new package or third-party code is introduced; upstream notices and source hashes remain. Original field/full-model tests and the owner gate are in `docs/JT_ARITHMETIC_COUNT_VALIDATION.md`.
+
+## Rounded topological coordinates, 21 October 2026
+
+`JtDecode_VertexData.cxx` selects the original rounded inverse mode in `JtDecode_VertexData_Quantized.cxx/.hxx` for 9.x/10.x topological coordinates, with early count/component/equal-width checks. The inverse uses the published code range ending at `2^bits-1`, including 32-bit widths, while retaining the previously qualified legacy midpoint path. No new source package/dependency is introduced; upstream notices and identities are retained. Original fields and private controls, with source/oracle boundaries and the owner gate, are recorded in `docs/JT_COORDINATE_QUANTIZATION_VALIDATION.md`.

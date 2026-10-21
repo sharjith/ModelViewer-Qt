@@ -15,6 +15,7 @@
 // on <http://www.gnu.org/licenses/>.
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Original rounded topological-coordinate inverse quantization: 2026-10-21.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see src/ThirdParty/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -49,7 +50,8 @@ public:
   Standard_EXPORT JtDecode_VertexData_Quantized (
     const PointQuantizerData& theQuantizerData,
     const Standard_Size theNbComponents,
-    JtDecode_Unpack& theUnpacker = JtDecode_Unpack_Null);
+    JtDecode_Unpack& theUnpacker = JtDecode_Unpack_Null,
+    const bool theRoundToNearest = false);
 
 protected:
   //! Get expected count of output components.
@@ -59,6 +61,7 @@ protected:
   Standard_EXPORT virtual void decode (Decoded::Ref theResults);
 
   PointQuantizerData myQuantizerData;
+  bool myRoundToNearest;
 };
 
 #endif

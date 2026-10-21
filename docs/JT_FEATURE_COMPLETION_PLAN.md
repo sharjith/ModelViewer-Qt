@@ -76,3 +76,7 @@ C1f is owner-accepted for transport. C1g preserves independently absent scalar/2
 ## Accepted gate C1h — declared arithmetic symbol counts
 
 C1g is owner-accepted. C1h corrects the existing CDP1 arithmetic driver to consume the declared symbol count, including non-emitting context transitions after the last output, while enforcing output/OOB agreement and cancellation. Modern CDP2/CDP3 and other codecs retain their existing contracts. [Arithmetic count validation](JT_ARITHMETIC_COUNT_VALIDATION.md) records references, original packets/models and a geometry-only owner checklist. Multiple-context Huffman and the other unresolved C1 encodings/bindings remain pending; no new version is enabled. The owner confirmed all C1h application checks passed on 21 October 2026.
+
+## Current gate C1i — rounded topological coordinate quantization
+
+C1h is accepted and committed. C1i selects the published rounded uniform inverse for enabled 9.x/10.x topological coordinate collections, retaining the separate legacy midpoint path. It qualifies coordinate endpoints/interiors through 32-bit widths, count/component/axis-width checks, original field vectors and private full-model controls. [Coordinate quantization validation](JT_COORDINATE_QUANTIZATION_VALIDATION.md) records source and oracle limits, native evidence and a geometry-only owner checklist. Remaining legacy encodings/bindings, higher/projective UV layouts, zero-bit semantics and the broader C2–C7 work stay pending. No new file version is enabled; stop for owner confirmation.

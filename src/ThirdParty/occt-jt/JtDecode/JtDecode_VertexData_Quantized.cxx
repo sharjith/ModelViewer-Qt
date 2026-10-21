@@ -15,6 +15,7 @@
 // on <http://www.gnu.org/licenses/>.
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Original rounded topological-coordinate inverse quantization: 2026-10-21.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see src/ThirdParty/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -38,9 +39,11 @@ Standard_Boolean JtDecode_VertexData_Quantized::PointQuantizerData::Read (JtData
 JtDecode_VertexData_Quantized::JtDecode_VertexData_Quantized (
                               const PointQuantizerData& theQuantizerData,
                               const Standard_Size       theNbComponents,
-                                    JtDecode_Unpack&    theUnpacker)
+                                    JtDecode_Unpack&    theUnpacker,
+                              const bool theRoundToNearest)
   : JtDecode_VertexData (theNbComponents, theUnpacker)
-  , myQuantizerData     (theQuantizerData) {}
+  , myQuantizerData     (theQuantizerData)
+  , myRoundToNearest    (theRoundToNearest) {}
 
 Standard_Integer JtDecode_VertexData_Quantized::getOutCompCount (Standard_Size thePackageCount)
 {
@@ -60,14 +63,18 @@ void JtDecode_VertexData_Quantized::decode (Decoded::Ref theResults)
     Standard_Real    aMax  = aCurQuantizerData.max;
     Standard_Integer aBits = aCurQuantizerData.bits;
 
-    Standard_Real aMaxCode = aBits < 32 ? std::ldexp(1.0,aBits) : 0xFFFFFFFFu;
-    Standard_Real aDecodeMultiplier = (aMax - aMin) / aMaxCode;
+    // JT 9.5 section 8.2.1 / JT 10.0 section 13.2.1 use rounded codes
+    // in [0,2^bits-1]. Keep the separately qualified legacy midpoint path.
+    if(myRoundToNearest && !aBits && aMin!=aMax)
+      throw std::runtime_error("Unsupported nonconstant zero-bit JT coordinate quantizer");
+    Standard_Real aMaxCode = aBits < 32 ? std::ldexp(1.0,aBits)-(myRoundToNearest?1:0) : 0xFFFFFFFFu;
+    Standard_Real aDecodeMultiplier = aMaxCode ? (aMax-aMin)/aMaxCode : 0;
 
     for (Decoded::SizeType i = 0; i < theResults.Count(); i++)
     {
       if((i&1023)==0) JtData_Limits::poll();
       if(double(uint32_t(aCodes[i]))>aMaxCode) throw std::runtime_error("JT coordinate quantizer code out of range");
-      Standard_Real aValue = aMin + (static_cast<Jt_U32>(aCodes[i]) - 0.5) * aDecodeMultiplier;
+      Standard_Real aValue = aMin + (double(static_cast<Jt_U32>(aCodes[i]))-(myRoundToNearest?0:0.5))*aDecodeMultiplier;
       theResults[i][j] = static_cast <float> (aValue);
     }
   }

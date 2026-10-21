@@ -15,6 +15,7 @@
 // on <http://www.gnu.org/licenses/>.
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Original rounded topological-coordinate inverse quantization: 2026-10-21.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see src/ThirdParty/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -61,10 +62,17 @@ JtDecode_VertexData::Handle JtDecode_VertexData::LoadCompressedCoords (JtData_Re
   if (!aQuantizerData.Read (theReader))
     return (Handle)0;
 
+  if(aVertexCount<1 || aVertexCount>16000000 || aNbComponents!=3)
+    throw std::runtime_error("Invalid JT compressed coordinate count/components");
+  // The compressed array has one shared quantization mode. JT 10.0
+  // section 13.1.3 explicitly requires equal widths for all three axes.
+  if(aQuantizerData.X.bits!=aQuantizerData.Y.bits || aQuantizerData.X.bits!=aQuantizerData.Z.bits)
+    throw std::runtime_error("Unsupported inconsistent JT coordinate quantization widths");
+
   // Create decoder object
   Handle aData;
   if (aQuantizerData.X.bits)
-    aData = new JtDecode_VertexData_Quantized (aQuantizerData, aNbComponents, JtDecode_Unpack_Lag1);
+    aData = new JtDecode_VertexData_Quantized (aQuantizerData, aNbComponents, JtDecode_Unpack_Lag1, true);
   else if(theReader.Model()->MajorVersion()>=10)
     aData = new JtDecode_VertexData_Binary(aNbComponents,JtDecode_Unpack_Lag1);
   else

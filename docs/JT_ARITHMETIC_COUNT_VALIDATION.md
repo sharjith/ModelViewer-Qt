@@ -24,7 +24,7 @@ Original complete models span 8.0/8.1/8.2 and both byte orders. A pair of single
 
 The isolated MSVC AddressSanitizer build and full test suite pass, including the five prior 10.0 part regressions. Representative authentic-file regressions across all twelve enabled versions pass with previous geometry counts, bounds, occurrences and attribute-channel summaries unchanged. All six endian/version model controls, their null-coded references and the malformed/fallback fixture generation checks pass.
 
-These packets and geometry are original tests. No authentic vendor-export multi-context arithmetic conformance oracle has been added by this gate; authentic files remain regression evidence. Native evidence stays ignored under research storage: `coverage-c1h-build.log`, `coverage-c1h-tests-build.log`, `coverage-c1h-tests.log`, `coverage-c1h-fixtures.log` and native regression logs/summary. The agent did not build the full viewer. The owner subsequently confirmed all application checks passed; this gate remains uncommitted.
+These packets and geometry are original tests. No authentic vendor-export multi-context arithmetic conformance oracle has been added by this gate; authentic files remain regression evidence. Native evidence stays ignored under research storage: `coverage-c1h-build.log`, `coverage-c1h-tests-build.log`, `coverage-c1h-tests.log`, `coverage-c1h-fixtures.log` and native regression logs/summary. The agent did not build the full viewer. The owner subsequently confirmed all application checks passed. The accepted gate was committed as `066a468` before C1i work.
 
 ## Owner check — no texture setup needed
 
