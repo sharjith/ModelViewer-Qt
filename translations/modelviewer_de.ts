@@ -16442,6 +16442,16 @@ Fortfahren?</translation>
         <translation>Progressive Einpassung animieren</translation>
     </message>
     <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="299"/>
+        <source>Purge Redundant Nodes Upon Load</source>
+        <translation>Redundante Knoten beim Laden bereinigen</translation>
+    </message>
+    <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="295"/>
+        <source>Automatically purge redundant single-mesh wrapper nodes after loading a model. Use Undo to restore the original hierarchy. Animated hierarchies are preserved. Applies to subsequent loads.</source>
+        <translation>Redundante Einzelnetz-Hüllknoten nach dem Laden eines Modells automatisch bereinigen. Mit &quot;Rückgängig&quot; lässt sich die ursprüngliche Hierarchie wiederherstellen. Animierte Hierarchien bleiben erhalten. Gilt für nachfolgende Ladevorgänge.</translation>
+    </message>
+    <message>
         <location filename="../ui/App/SettingsDialog.ui" line="336"/>
         <source>Camera</source>
         <translation>Kamera</translation>
