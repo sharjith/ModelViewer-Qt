@@ -584,7 +584,7 @@ public slots:
 	// menu) to purge just that subtree. No geometry is touched; undoable (PurgeRedundantNodesCommand). Does
 	// nothing, silently, if scanRoot's subtree has nothing to collapse.
 	void purgeRedundantAssemblyNodes(SceneNode* scanRoot = nullptr, bool automatic = false);
-	// Applies the load-time preference to this import (or each file in a restored session).
+	// Applies the load-time preference to a freshly imported file (nullptr = every file); a restored .mvf session is never purged automatically.
 	void purgeRedundantNodesAfterLoad(SceneNode* fileNode = nullptr);
 
 	// Shrink Wrap: opens the non-modal ShrinkWrapDialog (Tools -> Shrink
