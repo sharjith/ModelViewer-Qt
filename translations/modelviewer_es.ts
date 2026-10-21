@@ -16443,6 +16443,16 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation>Animar ajuste progresivo</translation>
     </message>
     <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="299"/>
+        <source>Purge Redundant Nodes Upon Load</source>
+        <translation>Purgar nodos redundantes al cargar</translation>
+    </message>
+    <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="295"/>
+        <source>Automatically purge redundant single-mesh wrapper nodes after loading a model. Use Undo to restore the original hierarchy. Animated hierarchies are preserved. Applies to subsequent loads.</source>
+        <translation>Purga automáticamente los nodos contenedores redundantes de una sola malla después de cargar un modelo. Use Deshacer para restaurar la jerarquía original. Las jerarquías animadas se conservan. Se aplica a las cargas posteriores.</translation>
+    </message>
+    <message>
         <location filename="../ui/App/SettingsDialog.ui" line="336"/>
         <source>Camera</source>
         <translation>Cámara</translation>

@@ -4260,12 +4260,15 @@ namespace
 	// separate dry-run scan - so by the time recursion returns to a node's parent, that node's children/meshUuids
 	// (and the SceneGraph's own UUID lookup table) already reflect the promotion, and the parent's own check
 	// sees it exactly as it will be, with no separate simulation to keep in sync.
+	//
+	// cameraHostNames: names of the nodes that host a glTF camera. Their identity and transform chain are what the
+	// camera is resolved against (activation, export), so such a node is neither collapsed nor absorbed.
 	void purgeNodeRecursive(SceneGraph* sceneGraph, ViewportWidget* viewport, SceneNode* node,
-		QVector<PurgeRedundantNodesCommand::PromotionEntry>& promotions)
+		QVector<PurgeRedundantNodesCommand::PromotionEntry>& promotions, const QSet<QString>& cameraHostNames)
 	{
 		const QList<SceneNode*> children = node->children; // snapshot - node->children shrinks as children settle
 		for (SceneNode* child : children)
-			purgeNodeRecursive(sceneGraph, viewport, child, promotions);
+			purgeNodeRecursive(sceneGraph, viewport, child, promotions, cameraHostNames);
 
 		// Keep the file boundary and its import correction/unit metadata intact.
 		if (node->isSynthetic || node == sceneGraph->root() || node->children.size() != 1 || !node->meshUuids.isEmpty())
@@ -4273,6 +4276,8 @@ namespace
 
 		SceneNode* onlyChild = node->children.first();
 		if (!onlyChild->children.isEmpty() || onlyChild->meshUuids.size() != 1)
+			return;
+		if (cameraHostNames.contains(node->name) || cameraHostNames.contains(onlyChild->name))
 			return;
 
 		PurgeRedundantNodesCommand::PromotionEntry entry;
@@ -4330,7 +4335,15 @@ void ModelViewer::purgeRedundantAssemblyNodes(SceneNode* scanRoot, bool automati
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
 	QVector<PurgeRedundantNodesCommand::PromotionEntry> promotions;
-	purgeNodeRecursive(_sceneGraph, _viewportWidget, scanRoot, promotions);
+	QSet<QString> cameraHostNames;
+	for (const SceneNode* file : _sceneGraph->root()->children)
+	{
+		const GltfCameraData cameraData = _sceneGraph->gltfCameraDataForFile(file->sourceFile);
+		for (const GltfCameraEntry& camera : cameraData.cameras)
+			if (!camera.nodeName.isEmpty())
+				cameraHostNames.insert(camera.nodeName);
+	}
+	purgeNodeRecursive(_sceneGraph, _viewportWidget, scanRoot, promotions, cameraHostNames);
 
 	if (promotions.isEmpty())
 	{
@@ -7254,7 +7267,8 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 
 	restoreSimulationSessions(result.simulationRestores);
 	restorePlot3DSessions(result.plot3DRestores, result.plot3DActiveMesh);
-	purgeRedundantNodesAfterLoad();
+	// No automatic purge here: a restored session keeps the hierarchy it was saved with (exploded views and
+	// other saved data refer to its nodes by UUID, and the user may have deliberately undone an earlier purge).
 
 	MainWindow::hideProgressBar();
 	return true;
