@@ -11,6 +11,10 @@
 #include <QHash>
 #include <QDebug>
 #include <QSettings>
+#include <QCryptographicHash>
+#include <QBuffer>
+#include <QImageReader>
+#include <assimp/GltfMaterial.h>
 
 using namespace std;
 
@@ -2961,6 +2965,15 @@ void MaterialProcessor::extractUVTransform(
 		texture.rotation = 0.0f;
 	}
 
+	// JT stored UVs and Assimp-imported glTF UVs share the same convention.
+	// Both use the renderer's existing V conversion with no extra reflection.
+	int mode=0;
+	const auto wrap=[](int value){return value==aiTextureMapMode_Clamp?GL_CLAMP_TO_EDGE:value==aiTextureMapMode_Mirror?GL_MIRRORED_REPEAT:GL_REPEAT;};
+	if(mat->Get(AI_MATKEY_MAPPINGMODE_U(type,slotIndex),mode)==AI_SUCCESS)texture.wrapS=wrap(mode);
+	if(mat->Get(AI_MATKEY_MAPPINGMODE_V(type,slotIndex),mode)==AI_SUCCESS)texture.wrapT=wrap(mode);
+	if(mat->Get(AI_MATKEY_GLTF_MAPPINGFILTER_MAG(type,slotIndex),mode)==AI_SUCCESS)texture.magFilter=GLenum(mode);
+	if(mat->Get(AI_MATKEY_GLTF_MAPPINGFILTER_MIN(type,slotIndex),mode)==AI_SUCCESS)texture.minFilter=GLenum(mode);
+
 	// Debug output (optional)
 	/*std::cout << "UV Transform for " << texture.type << ":\n"
 		<< "  TexCoord: " << texture.texCoordIndex << "\n"
@@ -3407,7 +3420,7 @@ GltfLightData MaterialProcessor::parseKHRLightsPunctual(const QString& gltfPath)
 }
 
 // Sets the texture maps for a material based on the defined texture mappings.
-void MaterialProcessor::processAssimpTextureMaps(aiMaterial* material, std::vector<Material::Texture>& textures, Material& mat)
+void MaterialProcessor::processAssimpTextureMaps(aiMaterial* material, std::vector<Material::Texture>& textures, Material& mat, const aiScene* scene)
 {
 
 	//debugMaterialTextures(material, material->GetName().C_Str());
@@ -3417,7 +3430,7 @@ void MaterialProcessor::processAssimpTextureMaps(aiMaterial* material, std::vect
 	{
 		std::cout << mapping << std::endl;
 		// try primary
-		auto maps = loadMaterialTextures(material, mapping.primaryType, mapping.primaryName, mapping.slotIndex);
+		auto maps = loadMaterialTextures(material, mapping.primaryType, mapping.primaryName, mapping.slotIndex, scene);
 		std::cout << "Loaded " << maps.size() << " textures for " << mapping.primaryName << std::endl;
 		textures.insert(textures.end(), maps.begin(), maps.end());
 
@@ -3425,7 +3438,7 @@ void MaterialProcessor::processAssimpTextureMaps(aiMaterial* material, std::vect
 		// loadMaterialTextures reuses existing IDs and avoids reloading)
 		if (mapping.fallbackType != aiTextureType_NONE)
 		{
-			auto fmaps = loadMaterialTextures(material, mapping.fallbackType, mapping.fallbackName, mapping.fallbackSlotIndex);
+			auto fmaps = loadMaterialTextures(material, mapping.fallbackType, mapping.fallbackName, mapping.fallbackSlotIndex, scene);
 			textures.insert(textures.end(), fmaps.begin(), fmaps.end());
 		}
 	}
@@ -4112,7 +4125,7 @@ std::vector<Material::Texture> MaterialProcessor::loadMaterialTextures(
 	aiMaterial* mat,
 	aiTextureType type,
 	const std::string& typeName,
-	unsigned int slotIndex)
+	unsigned int slotIndex, const aiScene* scene)
 {
 	std::vector<Material::Texture> textures;
 
@@ -4124,6 +4137,13 @@ std::vector<Material::Texture> MaterialProcessor::loadMaterialTextures(
 		return textures;
 
 	std::string textureFilePath = this->_folderPath + '/' + string(str.C_Str());
+	const aiTexture* embedded = scene ? scene->GetEmbeddedTexture(str.C_Str()) : nullptr;
+	if(embedded){
+		const uint64_t bytes=embedded->mHeight?uint64_t(embedded->mWidth)*embedded->mHeight*sizeof(aiTexel):embedded->mWidth;
+		if(!embedded->pcData||bytes==0||bytes>64u*1024u*1024u)return textures;
+		const auto hash=QCryptographicHash::hash(QByteArray::fromRawData(reinterpret_cast<const char*>(embedded->pcData),int(bytes)),QCryptographicHash::Sha256).toHex();
+		textureFilePath="embedded://"+std::to_string(embedded->mWidth)+"x"+std::to_string(embedded->mHeight)+"/"+hash.toStdString();
+	}
 	std::replace(textureFilePath.begin(), textureFilePath.end(), '\\', '/');
 
 	// Extract UV transform FIRST (before checking cache)
@@ -4142,7 +4162,8 @@ std::vector<Material::Texture> MaterialProcessor::loadMaterialTextures(
 			std::abs(a.scale.y - b.scale.y) < 0.0001f &&
 			std::abs(a.offset.x - b.offset.x) < 0.0001f &&
 			std::abs(a.offset.y - b.offset.y) < 0.0001f &&
-			std::abs(a.rotation - b.rotation) < 0.0001f;
+			std::abs(a.rotation - b.rotation) < 0.0001f &&
+			a.wrapS==b.wrapS && a.wrapT==b.wrapT && a.magFilter==b.magFilter && a.minFilter==b.minFilter;
 		};
 
 	// Check 1: Exact match (path + type + UV metadata)
@@ -4162,7 +4183,7 @@ std::vector<Material::Texture> MaterialProcessor::loadMaterialTextures(
 	// In this case, reuse GPU texture ID but create new entry with different metadata
 	for (const auto& lt : _loadedTextures)
 	{
-		if (string(lt.path.c_str()) == textureFilePath)
+		if (string(lt.path.c_str()) == textureFilePath && lt.wrapS==newTexture.wrapS && lt.wrapT==newTexture.wrapT && lt.magFilter==newTexture.magFilter && lt.minFilter==newTexture.minFilter)
 		{
 			// Found same texture file - reuse GPU ID but apply new metadata
 			Material::Texture alias;
@@ -4190,7 +4211,30 @@ std::vector<Material::Texture> MaterialProcessor::loadMaterialTextures(
 		}
 	}
 
-	// Check 3: Not loaded at all - load from file	
+	if(embedded)
+	{
+		QImage decoded;
+		if(embedded->mHeight==0)
+		{
+			QBuffer buffer;buffer.setData(QByteArray::fromRawData(reinterpret_cast<const char*>(embedded->pcData),int(embedded->mWidth)));
+			buffer.open(QIODevice::ReadOnly);QImageReader reader(&buffer);const auto size=reader.size();
+			if(size.width()<1||size.height()<1||uint64_t(size.width())*size.height()*4>64u*1024u*1024u)return textures;
+			decoded=reader.read();
+			if(decoded.size()!=size)return textures;
+		}
+		else if(embedded->pcData&&embedded->mWidth&&embedded->mHeight)
+		{
+			decoded=QImage(int(embedded->mWidth),int(embedded->mHeight),QImage::Format_RGBA8888);
+			if(decoded.isNull())return textures;
+			for(unsigned y=0;y<embedded->mHeight;++y){auto* row=decoded.scanLine(int(y));for(unsigned x=0;x<embedded->mWidth;++x){
+				const auto& p=embedded->pcData[size_t(y)*embedded->mWidth+x];row[4*x]=p.r;row[4*x+1]=p.g;row[4*x+2]=p.b;row[4*x+3]=p.a;}}
+		}
+		if(decoded.isNull())return textures;
+		newTexture.imageData=convertToGLFormat(decoded);newTexture.hasAlpha=checkImageForAlpha(newTexture.imageData);
+		if(_imageTextureUploader)newTexture.id=_imageTextureUploader(newTexture,newTexture.imageData);
+		textures.push_back(newTexture);_loadedTextures.push_back(newTexture);return textures;
+	}
+	// Check 3: Not loaded at all - load from file
 	unsigned int newTextureId = createTextureOnGPU(newTexture);
 	if (newTextureId == 0 && newTexture.imageData.isNull())
 	{

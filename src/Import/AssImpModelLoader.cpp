@@ -1803,7 +1803,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 			//Set color and material
 			_materialProcessor.processAssimpColorAndMaterial(material, mat);
 			// ADS and PBR Maps from Assimp
-			_materialProcessor.processAssimpTextureMaps(material, textures, mat);
+			_materialProcessor.processAssimpTextureMaps(material, textures, mat, scene);
 		}
 	}
 
@@ -1911,7 +1911,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 			else
 			{
 				_materialProcessor.processAssimpTextureMaps(
-					scene->mMaterials[matIdx], varTextures, varMat);
+					scene->mMaterials[matIdx], varTextures, varMat, scene);
 			}
 
 			meshData.allVariantMaterials[matIdx] = varMat;

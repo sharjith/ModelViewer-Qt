@@ -27,7 +27,7 @@ public:
 
 	void processAssimpColorAndMaterial(aiMaterial* material, Material& mat);
 	void setDefaultMaterial(Material& mat);
-	void processAssimpTextureMaps(aiMaterial* material, std::vector<Material::Texture>& textures, Material& mat);
+	void processAssimpTextureMaps(aiMaterial* material, std::vector<Material::Texture>& textures, Material& mat, const aiScene* scene = nullptr);
 	void setTextureTransforms(const std::vector<Material::Texture>& textures, Material& mat);
 	void addExtensionMaps(Material& mat, std::vector<Material::Texture>& textures);
 	void clearLoadedTextures() { _loadedTextures.clear(); }
@@ -58,7 +58,7 @@ public:
 		aiMaterial* mat,
 		aiTextureType type,
 		const std::string& typeName,
-		unsigned int slotIndex);
+		unsigned int slotIndex, const aiScene* scene = nullptr);
 
 	bool checkImageForAlpha(const QImage& image);
 

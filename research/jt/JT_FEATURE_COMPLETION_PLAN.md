@@ -92,3 +92,7 @@ C2a shaded raster transparency is owner-accepted and pushed as `3523fcf`. C2b ap
 ## Accepted gate C2c — ray-traced vertex alpha
 
 C2b is accepted and pushed as `a343467`. C2c uses interpolated RGBA in existing CPU camera/shadow/guide alpha tests and carries RGBA through OptiX uploads/refits and any-hit coverage. [Ray-traced alpha validation](JT_RAYTRACED_ALPHA_VALIDATION.md) records prepared production CPU regressions and the separate CPU/OptiX owner gate using the same original cubes. The owner reported the requested tests passed on 21 October 2026 and authorized commit/push and proceeding. No agent build/run or separate optional-regression execution is claimed. No new JT version is enabled.
+
+## Current gate C2d — source texture descriptors
+
+C2c is accepted and pushed as `8f416ca`. The owner requested combining the descriptor foundation with visible image mapping before acceptance. [Current C2d/C2e handoff](JT_TEXTURE_DESCRIPTOR_VALIDATION.md#current-handoff-combined-c2dc2e-visible-image-mapping) prepares bounded inline/external images, channel-0 2D mapping, UV/sampler transport and embedded-image material loading. Existing synthetic glTF-derived controls are the visual gate. Wider texture modes and authentic-export qualification remain open. Owner build/portable/visual checks are pending; no agent build/run or new supported revision is claimed.

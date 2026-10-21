@@ -453,8 +453,9 @@ aiScene* SceneUtils::deepCopyScene(const aiScene* source)
 					// Sanity checks for reasonable texture size
 					if (size > 0 && size < SIZE_MAX / sizeof(aiTexel) && size < 100000000) // 100M texel limit
 					{
-						size_t byteSize = size * sizeof(aiTexel);
-						dstTex->pcData = new(std::nothrow) aiTexel[size];
+						const size_t byteSize = (height == 0) ? width : size * sizeof(aiTexel);
+						const size_t texelCount = (byteSize + sizeof(aiTexel) - 1) / sizeof(aiTexel);
+						dstTex->pcData = new(std::nothrow) aiTexel[texelCount];
 
 						if (dstTex->pcData)
 						{

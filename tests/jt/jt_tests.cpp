@@ -34,6 +34,8 @@ void modernAttributeTests();
 void modernAttributeFixtureFiles(const QString& folder);
 void sceneTests();
 void vertexAlphaFixtureFiles(const QString& folder);
+void textureTests();
+void textureFixtureFiles(const QString& folder);
 void containerTests(const QString& samples);
 void legacyTests();
 void huffmanFixtureFiles(const QString& folder);
@@ -210,6 +212,8 @@ void samples(const QString& dir) {
 int main(int argc,char** argv) {
     QCoreApplication app(argc,argv);
     try {allocationBudgetTests();codecTests();colorStreamTests();uvTests();coordinateTests();quantizedColourTests();jt9ColourTests();attributeTests();sceneTests();containerTests({});legacyTests();huffmanTests();arithmeticCountTests();quantizedTests();modernAttributeTests();paletteTests();solidEdgeMaterialCompatibilityTests();jt95Tests();
+        textureTests();
+        const bool textureFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--texture-fixtures";
         const bool alphaFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--vertex-alpha-fixtures";
         const bool orderFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--material-order-fixtures";
         const bool maskFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--material-mask-fixtures";
@@ -224,7 +228,8 @@ int main(int argc,char** argv) {
         const bool quantizedFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--quantized-fixtures";
         const bool modernFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--modern-attribute-fixtures";
         const bool paletteFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--palette-fixtures";
-        if(alphaFixtures)vertexAlphaFixtureFiles(QString::fromLocal8Bit(argv[2]));
+        if(textureFixtures)textureFixtureFiles(QString::fromLocal8Bit(argv[2]));
+        else if(alphaFixtures)vertexAlphaFixtureFiles(QString::fromLocal8Bit(argv[2]));
         else if(arithmeticFixtures)arithmeticCountFixtureFiles(QString::fromLocal8Bit(argv[2]));
         else if(huffmanFixtures)huffmanFixtureFiles(QString::fromLocal8Bit(argv[2]));
         else if(orderFixtures)materialOrderFixtureFiles(QString::fromLocal8Bit(argv[2]));

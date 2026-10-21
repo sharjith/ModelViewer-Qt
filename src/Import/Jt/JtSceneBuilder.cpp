@@ -14,6 +14,7 @@
 #include <JtAttribute_Material.hxx>
 #include <JtAttribute_GeometricTransform.hxx>
 #include <JtAttribute_DrawStyle.hxx>
+#include <JtAttribute_TextureImage.hxx>
 #include <JtAttribute_PaletteMap.hxx>
 #include <tuple>
 #include <JtProperty_String.hxx>
@@ -29,8 +30,14 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QFile>
+#include <QBuffer>
+#include <QImage>
+#include <QImageReader>
+#include <QCryptographicHash>
 #include <assimp/material.h>
+#include <assimp/GltfMaterial.h>
 #include <cmath>
+#include <cstring>
 #include <map>
 #include <set>
 #include <array>
@@ -166,7 +173,29 @@ std::unique_ptr<aiMesh> storedMesh(const Handle(JtElement_ShapeLOD_Vertex)& sour
     }
     validate(*out);return out;
 }
+struct TextureState {
+    Handle(JtAttribute_TextureImage) image;
+    int type=0,coordinate=0;
+    unsigned finalFields=0;
+    std::array<int,8> environment{0,2,6,2,2,2,2,0};
+    std::array<float,16> transform{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
+    std::array<int,4> generation{};
+    void apply(const Handle(JtAttribute_TextureImage)& source) {
+        const unsigned allowed=~source->FieldInhibitFlags() & (source->AccumulationForced()?~0u:~finalFields) & 0xffu;
+        const auto& env=source->Environment();
+        if(allowed&1){image=source;type=source->TextureType()==26?0:source->TextureType();}
+        if(allowed&2)environment[0]=env[0];
+        if(allowed&4){environment[1]=env[1];environment[2]=env[2];}
+        if(allowed&8)for(unsigned i=3;i<6;++i)environment[i]=env[i];
+        if(allowed&16)environment[6]=env[6];
+        if(allowed&32)transform=source->Transform();
+        if(allowed&64){coordinate=source->CoordinateChannel();generation=source->Generation();}
+        if(allowed&128)environment[7]=env[7];
+        finalFields|=source->FieldFinalFlags()&allowed;
+    }
+};
 struct Appearance {
+    TextureState texture;
     aiColor4D diffuse{0.75f,0.75f,0.78f,1};
     aiColor3D ambient{},specular{},emission{};
     float bumpiness=1,reflectivity=0,shininess=15;
@@ -298,6 +327,10 @@ struct Builder {
     // Canonical decoded geometry is independent of material/flat-normal variants.
     std::vector<std::unique_ptr<aiMesh>> geometries;
     std::vector<std::unique_ptr<aiMaterial>> materials;
+    std::vector<std::unique_ptr<aiTexture>> textures;
+    std::map<QByteArray,unsigned> texturePixels;
+    struct ImageResult {int index=-1;bool alpha=false;QString error;};
+    std::map<std::pair<const void*,bool>,ImageResult> textureSources;
     std::vector<std::vector<int>> geometryGroups;
     std::map<std::tuple<unsigned,std::vector<int>,unsigned>,unsigned> groupMeshCache;
     std::set<const void*> active;
@@ -308,6 +341,86 @@ struct Builder {
     std::map<const void*,unsigned> geometryCache;
     std::vector<const aiNode*> hiddenJournal;
     unsigned nodes=0;
+    void textureWarning(const QString& text) {if(!result.warnings.contains(text))result.warnings.append(text);}
+    ImageResult image(const TextureState& state,bool allowAlpha) {
+        if(!state.image.IsNull()) {
+            const auto cached=textureSources.find({state.image.get(),allowAlpha});
+            if(cached!=textureSources.end()){if(!cached->second.error.isEmpty())textureWarning(cached->second.error);return cached->second;}
+        }
+        ImageResult resultImage;
+        try {
+            options.check();
+            const auto& source=*state.image;
+            if(source.Images().size()!=1)throw std::runtime_error("only one 2D image is supported");
+            const auto& data=source.Images()[0];QImage pixels;
+            constexpr uint64_t maxBytes=64u*1024u*1024u;
+            if(source.Inline()) {
+                if(data.dataType!=3||(data.format!=1&&data.format!=2&&data.format!=11&&data.format!=12)
+                    ||data.dimensionality!=2||data.depth!=1||data.border!=0)
+                    throw std::runtime_error("inline texture requires borderless 2D unsigned-byte RGB/RGBA/BGR/BGRA");
+                const size_t components=(data.format==2||data.format==12)?4:3;
+                const size_t stride=(size_t(data.width)*components+data.alignment-1)&~size_t(data.alignment-1);
+                if(uint64_t(data.width)*data.height*4>maxBytes||data.baseMip.size()!=stride*size_t(data.height))
+                    throw std::runtime_error("inline texture row/image byte count mismatch");
+                JtData_Limits::allocation(size_t(data.width)*data.height*4);
+                pixels=QImage(data.width,data.height,QImage::Format_RGBA8888);
+                if(pixels.isNull())throw std::bad_alloc();
+                for(int y=0;y<data.height;++y){
+                    options.check();auto* dst=pixels.scanLine(y);const auto* row=data.baseMip.data()+size_t(data.height-1-y)*stride;
+                    for(int x=0;x<data.width;++x){const auto* src=row+size_t(x)*components;const bool bgr=data.format==11||data.format==12;
+                        dst[4*x]=src[bgr?2:0];dst[4*x+1]=src[1];dst[4*x+2]=src[bgr?0:2];dst[4*x+3]=components==4?src[3]:255;}
+                }
+            } else {
+                const auto text=[](const TCollection_ExtendedString& value){return QString::fromUtf16(reinterpret_cast<const char16_t*>(value.ToExtString()),value.Length());};
+                QString reference=text(data.externalName);reference.replace('\\','/');
+                if(reference.isEmpty()||QDir::isAbsolutePath(reference)||reference.contains(":")||reference.contains(QChar('\0')))
+                    throw std::runtime_error("external image must be a local relative path");
+                const QString path=QFileInfo(QFileInfo(text(source.OriginFileName())).dir().filePath(reference)).canonicalFilePath();
+                if(path.isEmpty()||!insideDirectory(path,rootDirectory))throw std::runtime_error("missing or outside-assembly image");
+                QFile file(path);if(!file.open(QIODevice::ReadOnly)||file.size()<1||uint64_t(file.size())>maxBytes)
+                    throw std::runtime_error("external image cannot be opened within the byte limit");
+                JtData_Limits::allocation(size_t(file.size()));const auto encoded=file.read(qint64(maxBytes)+1);
+                if(encoded.size()!=file.size())throw std::runtime_error("external image changed or exceeded byte limit");
+                QBuffer buffer;buffer.setData(encoded);buffer.open(QIODevice::ReadOnly);QImageReader reader(&buffer);
+                if(reader.format()!="png"&&reader.format()!="jpeg")throw std::runtime_error("external image format is not PNG/JPEG");
+                const auto size=reader.size();
+                if(size.width()<1||size.height()<1||uint64_t(size.width())*size.height()*4>maxBytes)
+                    throw std::runtime_error("external image dimensions exceed the decoded byte limit");
+                JtData_Limits::allocation(size_t(size.width())*size.height()*8);
+                pixels=reader.read().convertToFormat(QImage::Format_RGBA8888);
+                if(pixels.isNull()||pixels.size()!=size)throw std::runtime_error("external image decoding failed");
+            }
+            for(int y=0;y<pixels.height();++y){options.check();auto* row=pixels.scanLine(y);
+                for(int x=0;x<pixels.width();++x){if(!allowAlpha)row[4*x+3]=255;else resultImage.alpha=resultImage.alpha||row[4*x+3]<255;}}
+            QByteArray png;QBuffer buffer(&png);buffer.open(QIODevice::WriteOnly);
+            if(!pixels.save(&buffer,"PNG")||uint64_t(png.size())>maxBytes)throw std::runtime_error("texture PNG encoding failed or exceeded byte limit");
+            JtData_Limits::allocation(size_t(png.size()));options.check();
+            const auto hash=QCryptographicHash::hash(png,QCryptographicHash::Sha256);const auto found=texturePixels.find(hash);
+            if(found!=texturePixels.end())resultImage.index=int(found->second);
+            else {
+                if(textures.size()>=4096)throw std::runtime_error("texture resource count limit exceeded");
+                auto texture=std::make_unique<aiTexture>();texture->mWidth=unsigned(png.size());texture->mHeight=0;
+                std::memcpy(texture->achFormatHint,"png",4);const size_t texels=(size_t(png.size())+sizeof(aiTexel)-1)/sizeof(aiTexel);
+                JtData_Limits::allocation(texels*sizeof(aiTexel));texture->pcData=new aiTexel[texels]{};
+                std::memcpy(texture->pcData,png.constData(),size_t(png.size()));
+                resultImage.index=int(textures.size());textures.push_back(std::move(texture));texturePixels.emplace(hash,unsigned(resultImage.index));
+            }
+        }catch(const Cancelled&){throw;}catch(const std::bad_alloc&){throw;}
+        catch(const std::exception& e){resultImage.error="JT texture not applied: "+QString::fromUtf8(e.what());textureWarning(resultImage.error);}
+        textureSources[{state.image.get(),allowAlpha}]=resultImage;return resultImage;
+    }
+    ImageResult texture(const Appearance& style) {
+        const auto& state=style.texture;if(state.type==0||state.image.IsNull())return {};
+        const auto& env=state.environment;
+        bool identity=true;for(unsigned i=0;i<16;++i)identity=identity&&state.transform[i]==float(i%5==0);
+        if(state.type!=9||env[0]!=0||env[6]!=2||!identity||state.coordinate<0||state.coordinate>=4
+            ||std::any_of(state.generation.begin(),state.generation.end(),[](int v){return v!=0;})
+            ||(env[3]!=1&&env[3]!=2&&env[3]!=3&&env[3]!=4)||(env[4]!=1&&env[4]!=2&&env[4]!=3&&env[4]!=4)) {
+            textureWarning("JT texture not applied: supported mapping is channel-0 pre-lit 2D modulate, stored UV0-3, identity transform, no border or coordinate generation");return {};
+        }
+        const unsigned src=(style.blendFlags>>6)&31,dst=(style.blendFlags>>11)&31;
+        return image(state,(style.blendFlags&0x10)&&!(src==1&&dst==0));
+    }
     std::unique_ptr<aiMetadata> properties(const JtNode_Base& source,const QString& label) {
         std::vector<std::unique_ptr<aiMetadata>> records;
         size_t unsupported=0,unrepresentable=0;
@@ -348,6 +461,53 @@ struct Builder {
         for(unsigned i=0;i<records.size();++i) output->Set(i,std::to_string(i),*records[i]);
         return output;
     }
+    std::unique_ptr<aiMetadata> textureDescriptors(const JtNode_Base& source,const QString& label) {
+        std::vector<std::unique_ptr<aiMetadata>> records;
+        const auto utf8=[](const TCollection_ExtendedString& value){return QString::fromUtf16(reinterpret_cast<const char16_t*>(value.ToExtString()),value.Length()).toUtf8();};
+        const auto numeric=[](const auto& values){
+            auto record=std::unique_ptr<aiMetadata>(values.empty()?new aiMetadata:aiMetadata::Alloc(unsigned(values.size())));
+            for(unsigned i=0;i<values.size();++i)record->Set(i,std::to_string(i),values[i]);
+            return record;
+        };
+        for(size_t a=0;a<source.Attributes().Count();++a){
+            const auto texture=Handle(JtAttribute_TextureImage)::DownCast(source.Attributes()[a]);
+            if(texture.IsNull())continue;
+            options.check();if(records.size()>=1024)throw std::runtime_error("JT texture descriptor limit exceeded");
+            JtData_Limits::allocation(256*1024);
+            auto record=std::unique_ptr<aiMetadata>(aiMetadata::Alloc(texture->Parsed()?16:5));
+            record->Set(0,"AttributeIndex",uint64_t(a));record->Set(1,"Parsed",texture->Parsed());
+            record->Set(2,"Ignored",texture->AccumulationIgnored());
+            record->Set(3,"FieldInhibit",uint64_t(texture->FieldInhibitFlags()));record->Set(4,"FieldFinal",uint64_t(texture->FieldFinalFlags()));
+            if(texture->Parsed()){
+                record->Set(5,"TextureType",int32_t(texture->TextureType()));record->Set(6,"Channel",int32_t(texture->Channel()));
+                record->Set(7,"CoordinateChannel",int32_t(texture->CoordinateChannel()));record->Set(8,"Inline",texture->Inline());
+                record->Set(9,"PaletteIndex",int32_t(texture->PaletteIndex()));
+                auto environment=numeric(texture->Environment()),matrix=numeric(texture->Transform()),colors=numeric(texture->Colors()),generation=numeric(texture->Generation()),planes=numeric(texture->Planes());
+                record->Set(10,"Environment",*environment);record->Set(11,"Transform",*matrix);record->Set(12,"Colors",*colors);record->Set(13,"Generation",*generation);record->Set(14,"ReferencePlanes",*planes);
+                auto images=std::unique_ptr<aiMetadata>(texture->Images().empty()?new aiMetadata:aiMetadata::Alloc(unsigned(texture->Images().size())));
+                for(unsigned i=0;i<texture->Images().size();++i){
+                    options.check();JtData_Limits::allocation(128*1024);const auto& image=texture->Images()[i];
+                    auto data=std::unique_ptr<aiMetadata>(aiMetadata::Alloc(13));
+                    const auto externalName=utf8(image.externalName);const bool omitted=externalName.size()>=AI_MAXLEN;
+                    data->Set(0,"ExternalName",aiString(omitted?"":externalName.constData()));
+                    data->Set(12,"ExternalNameOmitted",omitted);
+                    if(omitted)result.warnings.append(label+": JT texture external name exceeds metadata string limit");
+                    data->Set(1,"PixelFormat",uint64_t(image.format));data->Set(2,"DataType",uint64_t(image.dataType));
+                    data->Set(3,"Dimensions",int32_t(image.dimensionality));data->Set(4,"RowAlignment",int32_t(image.alignment));
+                    data->Set(5,"Width",int32_t(image.width));data->Set(6,"Height",int32_t(image.height));data->Set(7,"Depth",int32_t(image.depth));
+                    data->Set(8,"Border",int32_t(image.border));data->Set(9,"Shared",uint64_t(image.shared));data->Set(10,"TotalBytes",int32_t(image.totalBytes));
+                    auto mips=numeric(image.mipBytes);data->Set(11,"MipByteCounts",*mips);images->Set(i,std::to_string(i),*data);
+                }
+                record->Set(15,"Images",*images);
+            }
+            if(!texture->AccumulationIgnored()&&!texture->Parsed())
+                textureWarning(label+": JT texture descriptor retained as metadata; legacy texture layout is not yet qualified");
+            records.push_back(std::move(record));
+        }
+        if(records.empty())return {};
+        auto output=std::unique_ptr<aiMetadata>(aiMetadata::Alloc(unsigned(records.size())));
+        for(unsigned i=0;i<records.size();++i)output->Set(i,std::to_string(i),*records[i]);return output;
+    }
     struct Checkpoint {
         size_t meshes,materials,shapes,hidden,geometries;
         qsizetype warnings;
@@ -366,13 +526,15 @@ struct Builder {
         result.storedMeshes=c.stored;result.exactParts=c.exact;result.fallbackParts=c.fallback;
     }
     unsigned material(const Appearance& style,bool vertexColors=false,bool vertexAlpha=false) {
+        const auto mappedTexture=texture(style);
         const auto c=vertexColors ? aiColor4D(1,1,1,1) : style.diffuse;
         const bool blending=(style.blendFlags&0x10)!=0;
         const unsigned src=(style.blendFlags>>6)&31,dst=(style.blendFlags>>11)&31;
         const float opacity=(!blending || (src==1 && dst==0)) ? 1.0f : c.a;
         std::vector<float> key{c.r,c.g,c.b,opacity,style.ambient.r,style.ambient.g,style.ambient.b,
             style.specular.r,style.specular.g,style.specular.b,style.emission.r,style.emission.g,style.emission.b,
-            style.bumpiness,style.reflectivity,style.shininess,float(style.hasShininess),float(style.overrideColors),float(style.present),float(style.drawFlags),float(style.drawPresent),float(style.blendFlags),float(vertexAlpha)};
+            style.bumpiness,style.reflectivity,style.shininess,float(style.hasShininess),float(style.overrideColors),float(style.present),float(style.drawFlags),float(style.drawPresent),float(style.blendFlags),float(vertexAlpha),float(mappedTexture.index),float(style.texture.coordinate)};
+        if(mappedTexture.index>=0)for(auto value:style.texture.environment)key.push_back(float(value));
         for(float value:key) if(!std::isfinite(value)) throw std::runtime_error("JT has nonfinite material values");
         if(!std::isfinite(c.a) || c.a<0 || c.a>1 || opacity<0 || opacity>1) throw std::runtime_error("JT diffuse alpha is out of range");
         // JT 10.0 section 6.1.2.2 defines a Phong exponent in [1,128].
@@ -384,11 +546,23 @@ struct Builder {
             result.warnings.append("JT blend factors are approximated using conventional alpha blending");
         auto m=std::make_unique<aiMaterial>();const aiColor4D color{c.r,c.g,c.b,1};
         m->AddProperty(&color,1,AI_MATKEY_COLOR_DIFFUSE);m->AddProperty(&opacity,1,AI_MATKEY_OPACITY);
-        if(vertexAlpha) {
+        if(vertexAlpha||mappedTexture.alpha) {
             // Opacity remains 1: vertex alpha is applied once by the shader.
             // Explicit BLEND also selects the renderer's transparent pass and
             // preserves alpha when exporting a neutral material to glTF.
             const aiString mode("BLEND");m->AddProperty(&mode,"$mat.gltf.alphaMode",0,0);
+        }
+        if(mappedTexture.index>=0){
+            const aiString path("*"+std::to_string(mappedTexture.index));const int coordinate=style.texture.coordinate;
+            const auto& env=style.texture.environment;
+            const auto wrap=[](int mode){return int(mode==2?aiTextureMapMode_Wrap:mode==3?aiTextureMapMode_Mirror:aiTextureMapMode_Clamp);};
+            const int u=wrap(env[3]),v=wrap(env[4]);const int mag=env[1]==1?9728:9729;
+            const int filters[]={9729,9728,9729,9984,9985,9986,9987};const int min=filters[env[2]];
+            for(auto type:{aiTextureType_BASE_COLOR,aiTextureType_DIFFUSE}){
+                m->AddProperty(&path,AI_MATKEY_TEXTURE(type,0));m->AddProperty(&coordinate,1,AI_MATKEY_UVWSRC(type,0));
+                m->AddProperty(&u,1,AI_MATKEY_MAPPINGMODE_U(type,0));m->AddProperty(&v,1,AI_MATKEY_MAPPINGMODE_V(type,0));
+                m->AddProperty(&mag,1,AI_MATKEY_GLTF_MAPPINGFILTER_MAG(type,0));m->AddProperty(&min,1,AI_MATKEY_GLTF_MAPPINGFILTER_MIN(type,0));
+            }
         }
         if(style.present&(1u<<0)) m->AddProperty(&style.ambient,1,AI_MATKEY_COLOR_AMBIENT);
         if(style.present&(1u<<1)) m->AddProperty(&style.specular,1,AI_MATKEY_COLOR_SPECULAR);
@@ -449,7 +623,12 @@ struct Builder {
             if(!activeAlpha)c.a=1;
             vertexAlpha=vertexAlpha || c.a<1;
         }
-        const unsigned mat=material(style,colored,vertexAlpha);
+        auto resolved=style;
+        if(resolved.texture.type!=0 && resolved.texture.coordinate>=0 && resolved.texture.coordinate<4
+            &&!mesh->HasTextureCoords(unsigned(resolved.texture.coordinate))){
+            textureWarning("JT texture not applied: selected UV channel is absent from the mesh");resolved.texture.type=0;
+        }
+        const unsigned mat=material(resolved,colored,vertexAlpha);
         if(style.flatNormals()) {
             const size_t count=size_t(mesh->mNumFaces)*3;
             if(count>std::numeric_limits<unsigned>::max()) throw std::runtime_error("JT flat-normal vertex count exceeds render limits");
@@ -519,9 +698,15 @@ struct Builder {
             const auto transform=Handle(JtAttribute_GeometricTransform)::DownCast(a);
             const auto appearance=Handle(JtAttribute_Material)::DownCast(a);
             const auto drawStyle=Handle(JtAttribute_DrawStyle)::DownCast(a);
+            const auto textureImage=Handle(JtAttribute_TextureImage)::DownCast(a);
+            const bool mappedChannel=!textureImage.IsNull()&&textureImage->Parsed()
+                &&(textureImage->Channel()==0||textureImage->TextureType()==0||textureImage->TextureType()==26);
+            if(!textureImage.IsNull()&&textureImage->Parsed()&&!mappedChannel)
+                textureWarning("JT texture not applied: only explicit texture channel 0 is supported");
             const auto apply=[&](Appearance& style,aiMatrix4x4& matrix,bool& locked) {
                 if(!appearance.IsNull())style.apply(*appearance);
                 if(!drawStyle.IsNull())style.apply(*drawStyle);
+                if(mappedChannel)style.texture.apply(textureImage);
                 if(!transform.IsNull()&&(!locked||attribute->AccumulationForced())&&!(attribute->FieldInhibitFlags()&1)) {
                     matrix*=transformMatrix(*transform);locked=locked||bool(attribute->FieldFinalFlags()&1);
                 }
@@ -739,11 +924,13 @@ struct Builder {
         node->mNumChildren=unsigned(children.size());if(!children.empty()) {node->mChildren=new aiNode*[children.size()]{};for(size_t i=0;i<children.size();++i) {children[i]->mParent=node.get();node->mChildren[i]=children[i].release();}}
         const bool selectionNode=!switchNode.IsNull() || !Handle(JtNode_LOD)::DownCast(object).IsNull();
         auto sourceProperties=properties(*source,label);
-        node->mMetaData=aiMetadata::Alloc(1+(selectionNode?1:0)+(lodDistance?1:0)+(sourceProperties?1:0));
+        auto sourceTextures=textureDescriptors(*source,label);
+        node->mMetaData=aiMetadata::Alloc(1+(selectionNode?1:0)+(lodDistance?1:0)+(sourceProperties?1:0)+(sourceTextures?1:0));
         node->mMetaData->Set(0,"JTRepresentation",aiString(exact ? "BRep" : attached.empty() ? "Assembly" : "StoredTessellation"));
         if(selectionNode) node->mMetaData->Set(1,"JTSelectedChild",int32_t(selectedChild));
         if(lodDistance) node->mMetaData->Set(2,"JTRangeLODDistance",*lodDistance);
-        if(sourceProperties) node->mMetaData->Set(node->mMetaData->mNumProperties-1,"JTProperties",*sourceProperties);
+        if(sourceProperties) node->mMetaData->Set(node->mMetaData->mNumProperties-1-(sourceTextures?1:0),"JTProperties",*sourceProperties);
+        if(sourceTextures) node->mMetaData->Set(node->mMetaData->mNumProperties-1,"JTTextures",*sourceTextures);
         if(options.progress) options.progress("Building JT scene",int(nodes),0);
         return node;
     }
@@ -762,6 +949,8 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
     for(unsigned i=0;i<scene.mNumMeshes;++i) scene.mMeshes[i]=b.meshes[i].release();
     scene.mNumMaterials=unsigned(b.materials.size());scene.mMaterials=new aiMaterial*[scene.mNumMaterials]{};
     for(unsigned i=0;i<scene.mNumMaterials;++i) scene.mMaterials[i]=b.materials[i].release();
+    scene.mNumTextures=unsigned(b.textures.size());
+    if(scene.mNumTextures){scene.mTextures=new aiTexture*[scene.mNumTextures]{};for(unsigned i=0;i<scene.mNumTextures;++i)scene.mTextures[i]=b.textures[i].release();}
     options.check();return std::move(b.result);
 }
 }

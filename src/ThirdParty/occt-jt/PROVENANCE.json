@@ -911,6 +911,16 @@
       "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_VertexUV.hxx",
       "origin": "ModelViewer-original",
       "notice_date": "2026-10-21"
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtAttribute/JtAttribute_TextureImage.hxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-21"
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_TextureImage.cxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-21"
     }
   ],
   "follow_up": {
@@ -1112,5 +1122,11 @@
       "Retained Siemens JT10.0 sections13.1.3/13.1.9/13.1.12/13.2.1"
     ],
     "validation": "research/jt/JT_COORDINATE_QUANTIZATION_VALIDATION.md"
+  },
+  "texture_descriptor_follow_up": {
+    "date": "2026-10-21",
+    "scope": "Original bounded modern texture descriptor reader, metadata, base-mip bytes and owning filename retained for supported 2D image mapping; unsupported modes diagnosed",
+    "reference": "Retained Siemens JT10.0 Rev-B section6.1.2.3 and figures50-54",
+    "validation": "research/jt/JT_TEXTURE_DESCRIPTOR_VALIDATION.md"
   }
 }

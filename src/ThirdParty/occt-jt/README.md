@@ -11,7 +11,7 @@ Siemens JT data structures are used under the implementation permissions in the 
 
 ## Dated modifications and distribution notices
 
-ModelViewer adaptations began on 18 October 2026; the dated notice/provenance pass and subsequent additions are recorded on 19–21 October 2026. See [MODIFICATIONS.md](MODIFICATIONS.md) and [PROVENANCE.json](PROVENANCE.json). The manifest distinguishes 104 upstream-derived files from fifteen original decoder source/header files. Original upstream permissions remain intact.
+ModelViewer adaptations began on 18 October 2026; the dated notice/provenance pass and subsequent additions are recorded on 19–21 October 2026. See [MODIFICATIONS.md](MODIFICATIONS.md) and [PROVENANCE.json](PROVENANCE.json). The manifest distinguishes 104 upstream-derived files from seventeen original decoder source/header files. Original upstream permissions remain intact.
 
 [Importer notices](../../../THIRD_PARTY_NOTICES.md) identify the Open CASCADE source and Siemens reference copyrights. The installer carries those notices, this README, the modification summary, provenance manifest and upstream GPLv2 text; the application GPLv3 text is also installed. About includes importer credits and an embedded notices viewer. Binary release preparation must separately satisfy GPLv3 Corresponding Source requirements for the actual distributed work. These documentation changes do not resolve patent clearance or expand Siemens permissions.
 
