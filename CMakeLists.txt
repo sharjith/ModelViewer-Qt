@@ -394,7 +394,7 @@ qt6_wrap_ui(ui_wrapped ${ui_sources})
 # CREATE THE TARGET - This must come before any target_* commands
 # ============================================================================
 add_executable(ModelViewer)
-add_subdirectory(third_party/occt-jt)
+add_subdirectory(src/ThirdParty/occt-jt)
 target_link_libraries(ModelViewer PRIVATE mv_jt_codec)
 target_link_libraries(ModelViewer PRIVATE ${MV_MINIZIP_TARGET})
 
@@ -423,6 +423,9 @@ configure_file(
 # depth, e.g. src/Simulation/Core/, include/Simulation/UI/). Headers are still included as "Foo.h": every directory that
 # holds at least one header is added to the include path below, so a new module needs no CMake change to compile.
 file(GLOB_RECURSE sources CONFIGURE_DEPENDS src/*.cpp src/*.cxx src/*.c include/*.h include/*.hxx)
+# The vendored JT library owns these sources and headers; avoid compiling its
+# implementation again as part of the application's recursive source scan.
+list(FILTER sources EXCLUDE REGEX "/(src|include)/ThirdParty/occt-jt/")
 file(GLOB_RECURSE ui_sources CONFIGURE_DEPENDS ui/*.ui)
 
 # Create translations directory if it doesn't exist
@@ -979,8 +982,8 @@ install(DIRECTORY fonts shaders themes data
 install(FILES CREDITS.md THIRD_PARTY_NOTICES.md gpl-3.0.txt
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}"
 )
-install(FILES third_party/occt-jt/LICENSE.txt third_party/occt-jt/README.md
-              third_party/occt-jt/MODIFICATIONS.md third_party/occt-jt/PROVENANCE.json
+install(FILES src/ThirdParty/occt-jt/LICENSE.txt src/ThirdParty/occt-jt/README.md
+              src/ThirdParty/occt-jt/MODIFICATIONS.md src/ThirdParty/occt-jt/PROVENANCE.json
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/licenses/occt-jt"
 )
 install(FILES textures/LICENSES.md

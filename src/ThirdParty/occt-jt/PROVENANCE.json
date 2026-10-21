@@ -1,0 +1,1063 @@
+{
+  "upstream": "https://github.com/Open-Cascade-SAS/JT-Assistant",
+  "commit": "e859e8c2d809f9d9468e6211eba0052f433978ee",
+  "recorded": "2026-10-20",
+  "upstream_archive_sha256": "9aae63d78e25c586b8a92c1edbc5c6221539bcb0cbedd5be2c82322aa1650fa2",
+  "comparison": "Original upstream bytes compared after CRLF-to-LF normalization; whitespace changes count as modifications. Current files additionally carry dated notices.",
+  "files": [
+    {
+      "file": "include/ThirdParty/occt-jt/JtAttribute/JtAttribute_DrawStyle.hxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-19"
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_DrawStyle.cxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-19"
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtProperty/JtProperty_Scalar.hxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-19"
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtProperty/JtProperty_Scalar.cxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-19"
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtNode/JtNode_Switch.hxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-19"
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtNode/JtNode_Switch.cxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-19"
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_Base.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-20",
+      "upstream_path": "TKJT/src/JtAttribute/JtAttribute_Base.cxx",
+      "upstream_sha256": "3d09fd4b13252988aef8d15419d2d05f4be9062545b05f14a519ccf51d496d71",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtAttribute/JtAttribute_Base.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-20",
+      "upstream_path": "TKJT/src/JtAttribute/JtAttribute_Base.hxx",
+      "upstream_sha256": "ca8c3255a2cb5b1fdc8ce5d9f522f690433763fb775a1f28c8dff3ec40d9e070",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_GeometricTransform.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtAttribute/JtAttribute_GeometricTransform.cxx",
+      "upstream_sha256": "37c5458bb0f11149ced7470b539c092d270ada8eef2b1d8854732aafbf65fac7",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtAttribute/JtAttribute_GeometricTransform.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtAttribute/JtAttribute_GeometricTransform.hxx",
+      "upstream_sha256": "04de30f6045e981328c09f0498f5775b416672f9fe665672433aad54614bafe8",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_Material.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-20",
+      "upstream_path": "TKJT/src/JtAttribute/JtAttribute_Material.cxx",
+      "upstream_sha256": "2f36e95b0b426e58cf859676f3e04d2f17d0d21ed1968f8a5f439cc70aa24122",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtAttribute/JtAttribute_Material.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtAttribute/JtAttribute_Material.hxx",
+      "upstream_sha256": "dbc733c2745cf5e5d35be4dd4dbf13a99256a19f917b2e6ecec9ffbef934986c",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_BufferReader.hxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-19"
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_ByteSwap.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_ByteSwap.hxx",
+      "upstream_sha256": "6f2ac893ee4710f495301aad22a55b9524f25490e0c90e00b3d5f45d3fefc6aa",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_ClassInfo.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_ClassInfo.hxx",
+      "upstream_sha256": "d0089329e1b48906467b9670aed37b8a46c98699b45919cc6ea3aa642389853e",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_CompVector.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_CompVector.hxx",
+      "upstream_sha256": "cdd1286ac947c2bec6582abcb65ea693452dfa5a916a3d7393168a2453a3b0bf",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_CompVectorData.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_CompVectorData.hxx",
+      "upstream_sha256": "25a5614bbba3c4249ba12d039215160a590eaa229b3586120a7f39eeb818a356",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_CompVectorRef.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_CompVectorRef.hxx",
+      "upstream_sha256": "9fe4cd7ce9fdba0f1bc791522eb4573e1b2aebd531db50000c23a50dd8caa310",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtData/JtData_DeferredObject.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_DeferredObject.cxx",
+      "upstream_sha256": "27561e37a797e425b14b0e7d60eb8f5e59886192cfab4f2188df1ba594e80575",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_DeferredObject.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_DeferredObject.hxx",
+      "upstream_sha256": "e2b8b236492cd2281d73756760961d6f131bf035b62ee40f582f5bc6c22aa9eb",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtData/JtData_FileReader.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_FileReader.cxx",
+      "upstream_sha256": "de68e23f343a9c0e4fa0517bb4799b2c48a6a2823e55750357951e9571c5e275",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_FileReader.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_FileReader.hxx",
+      "upstream_sha256": "94b1564726372a7bf36fb9ee1e7a3bf81e813f13e8c39dde9491e999c9303bb5",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtData/JtData_Inflate.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_Inflate.cxx",
+      "upstream_sha256": "05ee854a7a4741e82cc7bb48fb3e026eeee7fffbb971dd2ac810e5455968a226",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_Inflate.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_Inflate.hxx",
+      "upstream_sha256": "1b37c12d02844ff9aaf857b30b4ae953c2f4b32a5803f0a7a9b79e95957bd4d4",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_Limits.hxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-19"
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_Message.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_Message.hxx",
+      "upstream_sha256": "78158fa8b49b9a6b8cc8e19c38ddfd5c867cd165125ca9da9347a58204d6b1f3",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtData/JtData_Model.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-20",
+      "upstream_path": "TKJT/src/JtData/JtData_Model.cxx",
+      "upstream_sha256": "16154575d91a0436248d8827605f321cb4294b82ce6f70a1b20fd2c21ccde54d",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_Model.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_Model.hxx",
+      "upstream_sha256": "3371b2a5ba2e149874bfe36892caed78952d72e854a01ba22583c3b55418f5ea",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtData/JtData_Object.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_Object.cxx",
+      "upstream_sha256": "ab1eb0a8857c2e460f2ec8792a5a4c1a93a1f55eb9e6cebfd8f26f682a22153b",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_Object.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_Object.hxx",
+      "upstream_sha256": "503e75c1672c8507b1a8a80a0a7652979eb737c39eb3a0de90ac359a4210fddd",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_Parallel.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_Parallel.hxx",
+      "upstream_sha256": "e7f5b948289add240dbea7977bc34dba938d8e714f77f7fff23ad0e23e2de13e",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtData/JtData_Reader.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_Reader.cxx",
+      "upstream_sha256": "67ad9f83a4cbcd1e314e75d3c4d0121d29688fc256a7e2358e3ba0720c06c20e",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_Reader.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_Reader.hxx",
+      "upstream_sha256": "b37752ca5e022c84b5bd285427909a17c76a1ff8ec20c985d2d0fb817839610c",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_ReaderInterface.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_ReaderInterface.hxx",
+      "upstream_sha256": "f0cec762a38416230c99f7d1b59a70de32077b597ef8b93133988d4362a9f068",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_SingleHandle.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_SingleHandle.hxx",
+      "upstream_sha256": "69bb109d4f725ed645561a463e6f7128cb7b6b4988ec63fa6b897f0d31d81aff",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtData/JtData_Types.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_Types.cxx",
+      "upstream_sha256": "59daf11adc502635729a30b0020914d887916a95fc8c2775f795ee1aed2476dd",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_Types.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_Types.hxx",
+      "upstream_sha256": "1fa0a39dd3c47d6c4efd21092028642bb0ac0d8379775187b09a0b50b6d095e9",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_Vector.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_Vector.hxx",
+      "upstream_sha256": "1fde7045b35061c90584a06205d424712db4651fc6c75bab782033490cc44dd3",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_VectorData.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_VectorData.hxx",
+      "upstream_sha256": "07c9245e50c28760d7498f752f477e71f56c617255a9f48eb5af26147a127339",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_VectorMover.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_VectorMover.hxx",
+      "upstream_sha256": "4b8e8805cbb1597acbdf229be0f0addfc3498882a6f9fd88c587421bf98c10b2",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_VectorRef.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtData/JtData_VectorRef.hxx",
+      "upstream_sha256": "e72e13523e32924b522205a2484d0c401960519e3eafcc10be78a60e022c91ee",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtDecode/JtDecode_BitReader.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_BitReader.cxx",
+      "upstream_sha256": "342f516cb31301661b65b0f61c25a2cc7fa340ae8359d55f1cfce22d2a22f1c8",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_BitReader.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_BitReader.hxx",
+      "upstream_sha256": "5c3f9cdcc15b2f76e7859b7a67473a7a98171f5ba53cd53c8a4d6f213d2c1999",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-20",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDP.cxx",
+      "upstream_sha256": "dc066c5d1d885b9a84d89dfd501ac55ec403b1c4fad2143ba7c2e764610f9544",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDP.hxx",
+      "upstream_sha256": "5ce72244e4bd724d93bbc2feb90308db079512afd2b9de502d563ff1f161db39",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Arithmetic.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDP_Arithmetic.cxx",
+      "upstream_sha256": "c7ee44f27756d55ce9edb59a89672cbb029d1b735dd3bcaeb989ae293fcded35",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Arithmetic.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDP_Arithmetic.hxx",
+      "upstream_sha256": "abd12088eea5b89649eef42344c195794e7f39c971a9e8298f6366768eaaaf62",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Bitlength.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDP_Bitlength.cxx",
+      "upstream_sha256": "a73831d3325d12de37bff14cfb8b5b45263d0989665ca5c0858ebb3d4ce5eed8",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Bitlength.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDP_Bitlength.hxx",
+      "upstream_sha256": "d0fa69abb9e2ca091d0b20b179cd2843f362cfc37cc35c6825b0ce0320d5ac25",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Bitlength2.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-20",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDP_Bitlength2.cxx",
+      "upstream_sha256": "6de5024fca1f938b4734807b7b9d6e923033e53c468f27012b77d567ca0c92a6",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Bitlength2.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDP_Bitlength2.hxx",
+      "upstream_sha256": "5214178564d4583d48ff98c18c979e5d336044d19cd48d0a7a07fdf741a67055",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Bitlength3.hxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-19"
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Bits.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDP_Bits.cxx",
+      "upstream_sha256": "5c29f2d37a5e2997c55e34ba578480c91f6187309c6b22a1030f41d2394b2c33",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Bits.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDP_Bits.hxx",
+      "upstream_sha256": "b59c606696f441a147276a5b3f8206fe6731975f5f5621218204b9441af90b1b",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Chopper.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-20",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDP_Chopper.cxx",
+      "upstream_sha256": "5a2c947e1792151ecec1274e1bb7ac3181137333618989c7555193e441453a8f",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Chopper.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDP_Chopper.hxx",
+      "upstream_sha256": "2a9b8f679f663288023e3823313469f94302050242f762b8a354ab31c2559860",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Huffman.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDP_Huffman.cxx",
+      "upstream_sha256": "d58cb939f598a6d3e5332da727edf2aea2097840eccacdb8a92edfbf4380fc44",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Huffman.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDP_Huffman.hxx",
+      "upstream_sha256": "21ba1022e33ec04f7295362359844fa87c988776d892539fc577ad648465333e",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Mtf.hxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-19"
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Null.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDP_Null.cxx",
+      "upstream_sha256": "5fec6210b4dfa49db51fefe4b93b8358eb3386e46e56454b8659a1d432d40f97",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Null.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDP_Null.hxx",
+      "upstream_sha256": "a4061506915a5f46c71fc59da3dd71105e692fee1ad52662baaa6292cfd58820",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDPScheduler.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_Int32CDPScheduler.hxx",
+      "upstream_sha256": "b257917bedfdea4fc13dda31ca702b35e3449fce675625a94991a670ce5361ac",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtDecode/JtDecode_MeshCoderDriver.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_MeshCoderDriver.cxx",
+      "upstream_sha256": "16ac3739022aca5ae7f73738851dc5163542f7ebdcf6baeea64378c3c6b25b31",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_MeshCoderDriver.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_MeshCoderDriver.hxx",
+      "upstream_sha256": "a19bf86d9b7c166f05cca74fcc7d703bcd4853013e216b01da477fe9c5232068",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtDecode/JtDecode_ProbContext.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-20",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_ProbContext.cxx",
+      "upstream_sha256": "d6505acb1c9cef07722e6db88ce7e2354be4702c5ddc4dbdf3b6d3342fc8d2f9",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_ProbContext.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-20",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_ProbContext.hxx",
+      "upstream_sha256": "fe29354ef3da784573903941c9683b66ef9d23a2a824c652e9b52a9b37988c39",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtDecode/JtDecode_Unpack.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_Unpack.cxx",
+      "upstream_sha256": "a258faceb89539715195804e8e6878ea172cce0947ccc7b52d6521efda203189",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_Unpack.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_Unpack.hxx",
+      "upstream_sha256": "a523481582eaae3ce98113931d950986dde53662b5a96a7fdbeb8de51c97f1cd",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtDecode/JtDecode_VertexData.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_VertexData.cxx",
+      "upstream_sha256": "33cfcb2bb67fe42c033e30cc5d305f967b4135ae24d32ea5ecda6faf01a758c4",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_VertexData.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_VertexData.hxx",
+      "upstream_sha256": "651af80339aaea7425a0784db0fbceecc6e4526f4bf34950744563b136915621",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_VertexData_Binary.hxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-19"
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtDecode/JtDecode_VertexData_Deering.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_VertexData_Deering.cxx",
+      "upstream_sha256": "4d8df3891870f9c3e8dbc87fda787cc44869b36fc41a98bd7ca8689b9f9f130b",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_VertexData_Deering.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_VertexData_Deering.hxx",
+      "upstream_sha256": "3a9db9c7a304220633ab3dd5476f4d5d54ca71c7b968baff321ea4a52ef86469",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtDecode/JtDecode_VertexData_ExpMant.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_VertexData_ExpMant.cxx",
+      "upstream_sha256": "bae181b3a4577e7f3ec182b76bda5bb970bbbe717b40fa7fca31f73b8a5172a5",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_VertexData_ExpMant.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_VertexData_ExpMant.hxx",
+      "upstream_sha256": "ba2b977e59e46f9afc9468b153668492e6260f2ed33ad39d41862c42edcd05f8",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtDecode/JtDecode_VertexData_Quantized.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_VertexData_Quantized.cxx",
+      "upstream_sha256": "c46c6080cda611b6008d46a94aeff0c5c43c0fe20744b583a98d2fbd1eb2902b",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_VertexData_Quantized.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtDecode/JtDecode_VertexData_Quantized.hxx",
+      "upstream_sha256": "055afc7bddbf52e557755f770fca60f356e975a9a35b226a9f20c8179627fcf8",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtElement/JtElement_MetaData_PMIManager.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtElement/JtElement_MetaData_PMIManager.cxx",
+      "upstream_sha256": "e34be3b134c70b4db5ca0b8f9a6484ea9912a4eb13ef60925b565fec2bc0f0b2",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtElement/JtElement_MetaData_PMIManager.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtElement/JtElement_MetaData_PMIManager.hxx",
+      "upstream_sha256": "5d5b53cb366d1a7c9d76458ebaea89aad4dfe0b2d705472f9e316a6b2f197ac8",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Base.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtElement/JtElement_ShapeLOD_Base.cxx",
+      "upstream_sha256": "505139e37755ee7eddcc228d07c8bf39e7c8f6bcdefc507f1094722bafd50116",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Base.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtElement/JtElement_ShapeLOD_Base.hxx",
+      "upstream_sha256": "720c5c721fc838e67ac2b1876f1c2b41672ac2532dba2c44141bcd9e2ec7658c",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_TriStripSet.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtElement/JtElement_ShapeLOD_TriStripSet.cxx",
+      "upstream_sha256": "103a986543dfbddb7e4a8f0ec614fddb07453f75936dfd9f831087d22a1f1962",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_TriStripSet.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtElement/JtElement_ShapeLOD_TriStripSet.hxx",
+      "upstream_sha256": "4d54b25511faa1ac0c104da5b1914dbbd8daf953991531fe4f9af96d8dd6cdd7",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-20",
+      "upstream_path": "TKJT/src/JtElement/JtElement_ShapeLOD_Vertex.cxx",
+      "upstream_sha256": "6288ddb5250e498732a8ccf3411255e68a31388a855f797867450ed315b6d229",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-20",
+      "upstream_path": "TKJT/src/JtElement/JtElement_ShapeLOD_Vertex.hxx",
+      "upstream_sha256": "31387b76f81b81b9797eff83cea9bfba921ab22a5f2274014cd74fc03b14ce25",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtElement/JtElement_XTBRep.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtElement/JtElement_XTBRep.cxx",
+      "upstream_sha256": "8dc553675b89b30ec8540c362b6cc57e2b63ec2c5d2556c91698b28d39dffd9c",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtElement/JtElement_XTBRep.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtElement/JtElement_XTBRep.hxx",
+      "upstream_sha256": "c0266fa7cf83fcdc9f6c6ff5026114f65cd6b2f9aa4bb1b45c33476b3fe9b18f",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtNode/JtNode_Base.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_Base.cxx",
+      "upstream_sha256": "d0bd1d0648eb989a5bf654117c5d910e3ae68dd75cbebcf42c02c8397daef7cc",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtNode/JtNode_Base.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_Base.hxx",
+      "upstream_sha256": "9b3fe56ee0a57244b54a6259d95bdb1b2a41f7dc3a5f1620dab82119f2835c6a",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtNode/JtNode_Group.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_Group.cxx",
+      "upstream_sha256": "a17ab4b33f3329f3ee5b334bec38d9fa060adbd978b318f3a9e930d308711119",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtNode/JtNode_Group.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_Group.hxx",
+      "upstream_sha256": "46001a97bd2d6e77bf6c2de3c106df2b7e4a894fca72891c90fb9b05d6b0c36c",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtNode/JtNode_Instance.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_Instance.cxx",
+      "upstream_sha256": "06469351c512ec78f684c9d8d4db9e46af1ff93d56c31eb9af17c16b19ae2ff7",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtNode/JtNode_Instance.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_Instance.hxx",
+      "upstream_sha256": "4753c8cd1872f857ea902f0faecab386f9b59b5cf3ad19316248f184a99d4cf1",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtNode/JtNode_LOD.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_LOD.cxx",
+      "upstream_sha256": "da6f97646f875ac11fee74fd71013ce28a9ef1562f9de21b48e22bfc0ce5887a",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtNode/JtNode_LOD.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_LOD.hxx",
+      "upstream_sha256": "205a85e1361c24ac40e2a77efce0a541bbbafb70d2c023ee18267feb8e91e256",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtNode/JtNode_MetaData.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_MetaData.cxx",
+      "upstream_sha256": "94ddae21af706a17130ff40d8515e9716c19011c07783c29eee889375cb76f05",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtNode/JtNode_MetaData.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_MetaData.hxx",
+      "upstream_sha256": "64b070deed23cc93a4bccaa1fdf616c236b5ba77f84291c0a197e7f6fa7a66a9",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtNode/JtNode_Part.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_Part.cxx",
+      "upstream_sha256": "a01249c909e0083dc6d73424e20cd2cb61b6942fd9ed51aa71e186eced3d8102",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtNode/JtNode_Part.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_Part.hxx",
+      "upstream_sha256": "f30d4190b8cf5d746d0047ec3ecf4ac4165d9acd275c51f0a573240ee52689ec",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtNode/JtNode_Partition.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_Partition.cxx",
+      "upstream_sha256": "3b5b8c22713ef1fb6de3c11a7e9b37085a1007fa62bc37ed969e17b3bcd18f21",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtNode/JtNode_Partition.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_Partition.hxx",
+      "upstream_sha256": "e168e2d1cfa262f071d22ad7962ca0cff68df6a9d603a3872137dab481c5b2c2",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtNode/JtNode_RangeLOD.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_RangeLOD.cxx",
+      "upstream_sha256": "56a6362425ae325444b887a44270824a410cf9d1a506e26a21759a15fbd6929d",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtNode/JtNode_RangeLOD.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_RangeLOD.hxx",
+      "upstream_sha256": "003395fae7616f24be57aef99298e27ccd88186d72b4cfaaf68bb732f20d0ab7",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtNode/JtNode_Shape_Base.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-20",
+      "upstream_path": "TKJT/src/JtNode/JtNode_Shape_Base.cxx",
+      "upstream_sha256": "6a434793482c796e65e301d105a77c18642e8e382d64d2d5ceb95a36b86df000",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtNode/JtNode_Shape_Base.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-20",
+      "upstream_path": "TKJT/src/JtNode/JtNode_Shape_Base.hxx",
+      "upstream_sha256": "82179b9ea0a6b8513ed98cfcd4f2c00be9592888f70ed754dc6e2280bc2d7534",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtNode/JtNode_Shape_TriStripSet.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_Shape_TriStripSet.cxx",
+      "upstream_sha256": "cc646aeca5a954c72577e0ea9f20a9b81a44025dff55a43a5cb5d66f00bf14cd",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtNode/JtNode_Shape_TriStripSet.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_Shape_TriStripSet.hxx",
+      "upstream_sha256": "7ae08ab1903763cbbbee0880e93541f9775b8a688acd7d5023da2aeb01985c59",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtNode/JtNode_Shape_Vertex.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_Shape_Vertex.cxx",
+      "upstream_sha256": "fe28acec301477dfb38d0963f9127db137a1eb4c2a71f8d4a620d6ce2c193426",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtNode/JtNode_Shape_Vertex.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtNode/JtNode_Shape_Vertex.hxx",
+      "upstream_sha256": "e16861eb4f7b04318a7f88a4ad1e033cda4e8c1a3101c9743e6bdfb000e66e87",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtProperty/JtProperty_Base.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtProperty/JtProperty_Base.cxx",
+      "upstream_sha256": "331a49668a423c0a247d4cb5f7744870590af514a792cb48c031012465324e91",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtProperty/JtProperty_Base.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtProperty/JtProperty_Base.hxx",
+      "upstream_sha256": "91b3955638887cb23b2ac22d2f12415ea87c8dba04951ee17c665989f8e4a0fd",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtProperty/JtProperty_LateLoaded.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtProperty/JtProperty_LateLoaded.cxx",
+      "upstream_sha256": "572b49fd6238f698a6fbfce3b8a951da5033c6d27d39c6abdd0a65a8100dfa7e",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtProperty/JtProperty_LateLoaded.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtProperty/JtProperty_LateLoaded.hxx",
+      "upstream_sha256": "15227dc5bc0a704e916c89a52d4644ca94bde8ac9a113a59045ed47582b07d80",
+      "modified": true
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtProperty/JtProperty_String.cxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtProperty/JtProperty_String.cxx",
+      "upstream_sha256": "5a6c3b8855f0525b9765e548c0fd1962cb3f56b68dee0e4333083b4fa92abbd2",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtProperty/JtProperty_String.hxx",
+      "origin": "upstream-derived",
+      "notice_date": "2026-10-19",
+      "upstream_path": "TKJT/src/JtProperty/JtProperty_String.hxx",
+      "upstream_sha256": "54a4ef26bd6a3e08f492fd0be0d0df24db2cb1fbdd856bc67ddd922eba0144f9",
+      "modified": true
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_VertexColors.hxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-19"
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtAttribute/JtAttribute_PaletteMap.hxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-20"
+    },
+    {
+      "file": "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_PaletteMap.cxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-20"
+    },
+    {
+      "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_VertexUV.hxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-21"
+    }
+  ],
+  "follow_up": {
+    "date": "2026-10-19",
+    "scope": "Attribute flag access, material defaults/tail fields and qualified versions; duplicate IDs and unknown envelope validation",
+    "files": [
+      "include/ThirdParty/occt-jt/JtAttribute/JtAttribute_Base.hxx",
+      "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_Base.cxx",
+      "include/ThirdParty/occt-jt/JtAttribute/JtAttribute_Material.hxx",
+      "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_Material.cxx",
+      "src/ThirdParty/occt-jt/JtData/JtData_Model.cxx"
+    ],
+    "validation": "docs/JT_ASSEMBLY_ATTRIBUTE_VALIDATION.md"
+  },
+  "display_selection_follow_up": {
+    "date": "2026-10-19",
+    "scope": "Original Switch node implementation; qualified LOD/RangeLOD versions and range validation",
+    "files": [
+      "include/ThirdParty/occt-jt/JtNode/JtNode_Switch.hxx",
+      "src/ThirdParty/occt-jt/JtNode/JtNode_Switch.cxx",
+      "src/ThirdParty/occt-jt/JtNode/JtNode_LOD.cxx",
+      "src/ThirdParty/occt-jt/JtNode/JtNode_RangeLOD.cxx"
+    ],
+    "reference": "JT 10.0 sections 6.1.1.8, 6.1.1.9 and 14.11",
+    "validation": "docs/JT_DISPLAY_SELECTION_VALIDATION.md"
+  },
+  "metadata_follow_up": {
+    "date": "2026-10-19",
+    "scope": "Original integer/float atom readers; ordered node property pairs, flags/IDs and qualified versions",
+    "files": [
+      "include/ThirdParty/occt-jt/JtProperty/JtProperty_Scalar.hxx",
+      "src/ThirdParty/occt-jt/JtProperty/JtProperty_Scalar.cxx",
+      "include/ThirdParty/occt-jt/JtProperty/JtProperty_Base.hxx",
+      "src/ThirdParty/occt-jt/JtProperty/JtProperty_Base.cxx",
+      "src/ThirdParty/occt-jt/JtProperty/JtProperty_String.cxx",
+      "include/ThirdParty/occt-jt/JtNode/JtNode_Base.hxx",
+      "src/ThirdParty/occt-jt/JtData/JtData_Model.cxx"
+    ],
+    "reference": "JT 10.0 sections 6.2.1-6.2.4 and 6.3; sampled local property version 2 layouts",
+    "validation": "docs/JT_METADATA_VALIDATION.md"
+  },
+  "draw_style_follow_up": {
+    "date": "2026-10-19",
+    "scope": "Original qualified JT 10.0 draw-style reader; original scene-builder inheritance and render adaptation",
+    "files": [
+      "include/ThirdParty/occt-jt/JtAttribute/JtAttribute_DrawStyle.hxx",
+      "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_DrawStyle.cxx"
+    ],
+    "reference": "JT 10.0 section 6.1.2.4, tables 34 and 35",
+    "validation": "docs/JT_DRAW_STYLE_VALIDATION.md"
+  },
+  "jt90_follow_up": {
+    "date": "2026-10-20",
+    "scope": "Authentic 9.0 subset through shared transitional decoder; sampled material local-version guard; no new codec or dependency",
+    "files": [
+      "src/ThirdParty/occt-jt/JtData/JtData_Model.cxx",
+      "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_Material.cxx"
+    ],
+    "validation": "docs/JT_90_VALIDATION.md"
+  },
+  "empty_shape_follow_up": {
+    "date": "2026-10-20",
+    "scope": "Validated zero-count topology plus explicitly zero shape ranges; retain empty siblings without creating render meshes; reject contradictions and empty-only LODs",
+    "files": [
+      "src/ThirdParty/occt-jt/JtNode/JtNode_Shape_Base.cxx",
+      "include/ThirdParty/occt-jt/JtNode/JtNode_Shape_Base.hxx",
+      "src/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.cxx",
+      "include/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.hxx"
+    ],
+    "validation": "docs/JT_90_VALIDATION.md"
+  },
+  "jt105_follow_up": {
+    "date": "2026-10-20",
+    "scope": "Authentic 10.5 assembly/Sabot/palette qualification through existing modern decoder; explicit file-version gate only; no new codec or dependency",
+    "files": [
+      "src/ThirdParty/occt-jt/JtData/JtData_Model.cxx"
+    ],
+    "reference": "Public Prostep ivip PSI 14 Part 1 Version 3 / JT IAP Edition 3, explicitly based on JT 10.5",
+    "validation": "docs/JT_105_VALIDATION.md"
+  },
+  "jt107_108_follow_up": {
+    "date": "2026-10-20",
+    "scope": "Authentic 10.7/10.8 assembly/palette/stored-tessellation qualification through shared modern decoder; explicit version-gate additions, no new codec or dependency",
+    "files": [
+      "src/ThirdParty/occt-jt/JtData/JtData_Model.cxx"
+    ],
+    "validation": "docs/JT_107_108_VALIDATION.md"
+  },
+  "jt1010_follow_up": {
+    "date": "2026-10-20",
+    "scope": "Authentic 10.10 assembly/palette/stored-tessellation qualification through existing modern decoder; explicit version gate, no new codec or dependency",
+    "files": [
+      "src/ThirdParty/occt-jt/JtData/JtData_Model.cxx"
+    ],
+    "validation": "docs/JT_1010_VALIDATION.md"
+  },
+  "huffman_follow_up": {
+    "date": "2026-10-20",
+    "scope": "Bounded single-context CDP1 Huffman: preserve inherited heap tie order, vector-owned trees, singleton symbols, unsigned frequency, declared-bit/OOB bounds and cancellation; enable qualified 8.x codec 2",
+    "files": [
+      "src/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP.cxx",
+      "src/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Huffman.cxx",
+      "include/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Huffman.hxx"
+    ],
+    "validation": "docs/JT_HUFFMAN_VALIDATION.md"
+  },
+  "quantized_colour_follow_up": {
+    "date": "2026-10-21",
+    "scope": "Original modern packed RGB/HSV quantized colour decoding, exact field widths/ranges and declared counts; older component-array transport remains separate",
+    "files": [
+      "include/ThirdParty/occt-jt/JtDecode/JtDecode_VertexColors.hxx"
+    ],
+    "references": [
+      "Siemens JT 10.0 section 13.1.6 / 13.1.11 / 13.2.1",
+      "Prostep ivip PSI14 Part1 V3 modern compressed colour collection",
+      "Siemens JT10.6 RevisionD section10.2.6"
+    ],
+    "validation": "docs/JT_QUANTIZED_COLOUR_VALIDATION.md"
+  },
+  "transitional_colour_follow_up": {
+    "date": "2026-10-21",
+    "scope": "Original shared reader dispatch for 9.x lossless exponent/mantissa and four Lag1 quantized component vectors; refactor shared quantizer/HSV helpers, retain modern packed layout",
+    "files": [
+      "include/ThirdParty/occt-jt/JtDecode/JtDecode_VertexColors.hxx"
+    ],
+    "reference": "Locally retained public Siemens JT9.5 Rev-A sections8.1.7/8.1.11/8.2.1, Figure230 inspected visually, p273",
+    "validation": "docs/JT_9X_COLOUR_VALIDATION.md"
+  },
+  "topological_uv_follow_up": {
+    "date": "2026-10-21",
+    "scope": "Original bounded channel-0 two-component UV decoding in transitional and modern topological records, with corner seam preservation; other channels/dimensions remain explicit unsupported",
+    "files": [
+      "include/ThirdParty/occt-jt/JtDecode/JtDecode_VertexUV.hxx",
+      "src/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.cxx",
+      "include/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.hxx"
+    ],
+    "references": [
+      "Siemens JT9.5 Rev-A sections7.2.2.1.2.6/8.1.6/8.1.10/8.2.1; Figures90/229 inspected visually",
+      "Siemens JT10.0 sections13.1.5/13.1.10/13.2.1; Figure241 inspected visually"
+    ],
+    "validation": "docs/JT_TOPOLOGICAL_UV_VALIDATION.md"
+  },
+  "file_path_base": "repository-root",
+  "directory_layout": {
+    "date": "2026-10-21",
+    "sources": "src/ThirdParty/occt-jt",
+    "headers": "include/ThirdParty/occt-jt",
+    "note": "File and follow-up file paths are relative to repository root; upstream_path and upstream_sha256 retain their original upstream meaning."
+  }
+}

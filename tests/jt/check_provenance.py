@@ -5,17 +5,22 @@ import json
 import re
 
 root = Path(__file__).resolve().parents[2]
-decoder = root / "third_party/occt-jt"
+decoder = root / "src/ThirdParty/occt-jt"
+headers = root / "include/ThirdParty/occt-jt"
 manifest = json.loads((decoder / "PROVENANCE.json").read_text(encoding="utf-8"))
 records = manifest["files"]
 paths = [record["file"] for record in records]
 assert len(paths) == len(set(paths)), "Duplicate provenance records"
-actual = {p.relative_to(decoder).as_posix() for p in (decoder / "src").rglob("*") if p.suffix in (".cxx", ".hxx")}
+assert manifest["file_path_base"] == "repository-root", "Unexpected manifest path base"
+assert not list(decoder.rglob("*.hxx")), "Decoder headers belong under include/ThirdParty"
+assert not list(headers.rglob("*.cxx")), "Decoder implementations belong under src/ThirdParty"
+actual = {p.relative_to(root).as_posix() for folder in (decoder, headers)
+          for p in folder.rglob("*") if p.suffix in (".cxx", ".hxx")}
 assert set(paths) == actual, f"Manifest/source mismatch: {set(paths) ^ actual}"
 counts = {"upstream-derived": 0, "ModelViewer-original": 0}
 for record in records:
-    path = decoder / record["file"]
-    assert path.resolve().is_relative_to(decoder.resolve()), "Provenance path outside decoder"
+    path = root / record["file"]
+    assert any(path.resolve().is_relative_to(folder.resolve()) for folder in (decoder, headers)), "Provenance path outside decoder"
     source = path.read_text(encoding="utf-8")
     origin = record["origin"]
     counts[origin] += 1

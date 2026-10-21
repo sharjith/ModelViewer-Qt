@@ -14,7 +14,7 @@
 
 The archived public Siemens JT 10.6 Revision D reference, sections 5.4, 5.4.8, 5.4.9 and Annex E, provides the attribute-tail and wrapper layout basis. The source and permissions are recorded in [compatibility policy](JT_VERSION_COMPATIBILITY.md) and [licensing research](JT_IMPORT_FEASIBILITY.md). Local read-only envelope observations from sample A109 corroborate the nested-header ordering. Neither those observations nor an independently authored synthetic 10.3 container establish full 10.9 compatibility.
 
-The adapters and fixtures are original changes to the existing audited reader; upstream notices remain. No additional translator source, restricted SDK or downloaded geometry is bundled. See [modification history](../third_party/occt-jt/MODIFICATIONS.md).
+The adapters and fixtures are original changes to the existing audited reader; upstream notices remain. No additional translator source, restricted SDK or downloaded geometry is bundled. See [modification history](../src/ThirdParty/occt-jt/MODIFICATIONS.md).
 
 ## Native validation
 
