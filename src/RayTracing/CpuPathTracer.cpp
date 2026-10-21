@@ -2458,7 +2458,7 @@ namespace
 			bool passThrough = (!mat.twoSided) && (glm::dot(ray.direction, hit.geometricNormal) > 0.0f);
 			if (!passThrough && mat.blendMode != 0) // not Opaque - see tracePixel()'s identical alphaTest block
 			{
-				float alphaTest = mat.opacity;
+				float alphaTest = mat.opacity * std::clamp(hit.vertexColor.a, 0.0f, 1.0f);
 				if (mat.opacityTexture)
 					alphaTest *= applyChannelPacking(sampleTexture(*mat.opacityTexture, hit.texCoords), *mat.opacityTexture);
 				else if (mat.baseColorTexture)
@@ -2715,7 +2715,7 @@ namespace
 
 			if (mat.blendMode != 0) // not Opaque - see tracePixel()'s identical alphaTest block
 			{
-				float alphaTest = mat.opacity;
+				float alphaTest = mat.opacity * std::clamp(hit.vertexColor.a, 0.0f, 1.0f);
 				if (mat.opacityTexture)
 					alphaTest *= applyChannelPacking(sampleTexture(*mat.opacityTexture, hit.texCoords), *mat.opacityTexture);
 				else if (mat.baseColorTexture)
@@ -3874,7 +3874,7 @@ namespace
 			// frag's hard `discard`); BLEND stochastically picks per sample.
 			if (mat.blendMode != 0) // not Opaque
 			{
-				float alphaTest = mat.opacity;
+				float alphaTest = mat.opacity * std::clamp(hit.vertexColor.a, 0.0f, 1.0f);
 				if (mat.opacityTexture)
 					alphaTest *= applyChannelPacking(sampleTexture(*mat.opacityTexture, hit.texCoords), *mat.opacityTexture);
 				else if (mat.baseColorTexture)

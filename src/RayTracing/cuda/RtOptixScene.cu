@@ -3007,6 +3007,12 @@ extern "C" __global__ void __anyhit__ah()
 	if (needsAlphaTest)
 	{
 		float opacity = resolveOpacity(data, uv);
+		if (data->vertexColors)
+		{
+			const float vertexAlpha = w * data->vertexColors[tri.x].w
+				+ u * data->vertexColors[tri.y].w + v * data->vertexColors[tri.z].w;
+			opacity *= fminf(fmaxf(vertexAlpha, 0.0f), 1.0f);
+		}
 		if (data->hasRadialAlphaFade != 0)
 		{
 			const float3 rayOriginAH = optixGetWorldRayOrigin();
@@ -3373,10 +3379,11 @@ extern "C" __global__ void __closesthit__ch()
 	// RtOptixSceneHitGroupData::vertexColors' doc comment), so this is
 	// always safe to apply unconditionally.
 	{
-		const float3 vc0 = data->vertexColors[tri.x];
-		const float3 vc1 = data->vertexColors[tri.y];
-		const float3 vc2 = data->vertexColors[tri.z];
-		baseColor = baseColor * (vc0 * w + vc1 * u + vc2 * v);
+		const float4 vc0 = data->vertexColors[tri.x];
+		const float4 vc1 = data->vertexColors[tri.y];
+		const float4 vc2 = data->vertexColors[tri.z];
+		baseColor = baseColor * (make_float3(vc0.x, vc0.y, vc0.z) * w
+			+ make_float3(vc1.x, vc1.y, vc1.z) * u + make_float3(vc2.x, vc2.y, vc2.z) * v);
 	}
 
 	float metalness = data->metalness;
@@ -3499,10 +3506,11 @@ extern "C" __global__ void __closesthit__ch()
 			baseColor = baseColor * sRGBToLinear(make_float3(sampled.x, sampled.y, sampled.z));
 		}
 		{
-			const float3 vc0 = data->vertexColors[tri.x];
-			const float3 vc1 = data->vertexColors[tri.y];
-			const float3 vc2 = data->vertexColors[tri.z];
-			baseColor = baseColor * (vc0 * w + vc1 * u + vc2 * v);
+			const float4 vc0 = data->vertexColors[tri.x];
+			const float4 vc1 = data->vertexColors[tri.y];
+			const float4 vc2 = data->vertexColors[tri.z];
+			baseColor = baseColor * (make_float3(vc0.x, vc0.y, vc0.z) * w
+				+ make_float3(vc1.x, vc1.y, vc1.z) * u + make_float3(vc2.x, vc2.y, vc2.z) * v);
 		}
 
 		float3 specGlossColor = data->specGlossSpecularColor;

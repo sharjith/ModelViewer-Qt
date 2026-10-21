@@ -88,3 +88,7 @@ The owner accepted C1i on 21 October 2026. C1 remains open for multiple-context 
 ## Accepted gate C2b — dedicated wire vertex alpha
 
 C2a shaded raster transparency is owner-accepted and pushed as `3523fcf`. C2b applies already retained BLEND vertex alpha to triangle wires and heuristic feature edges, including shaded edge overlays, with scoped premultiplied blending/depth state. [Wire alpha validation](JT_WIREFRAME_ALPHA_VALIDATION.md) defines the existing-cube checklist and geometry-first limits. Owner accepted the build/viewer gate on 21 October 2026; no new build or GPU run by the agent. Ray-traced alpha and broader C2 features remain separate. The owner authorized commit/push and proceeding. No new JT version is enabled.
+
+## Accepted gate C2c — ray-traced vertex alpha
+
+C2b is accepted and pushed as `a343467`. C2c uses interpolated RGBA in existing CPU camera/shadow/guide alpha tests and carries RGBA through OptiX uploads/refits and any-hit coverage. [Ray-traced alpha validation](JT_RAYTRACED_ALPHA_VALIDATION.md) records prepared production CPU regressions and the separate CPU/OptiX owner gate using the same original cubes. The owner reported the requested tests passed on 21 October 2026 and authorized commit/push and proceeding. No agent build/run or separate optional-regression execution is claimed. No new JT version is enabled.

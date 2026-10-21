@@ -19,3 +19,7 @@ Under [the repository handout](../../RESEARCH_FOLDER_HANDOUT.md), the owner norm
 ## C2b follow-up — 21 October 2026
 
 The dedicated wire/feature-edge alpha pass consulted only existing ModelViewer code and original controls at `3523fcf`. Original shader and scoped render-state changes are described in [wire alpha validation](JT_WIREFRAME_ALPHA_VALIDATION.md). No additional vendor reference, software, schema, SDK, downloaded geometry or third-party implementation was used; no vendored source or notice changed. Owner build/viewer acceptance was recorded on 21 October 2026; the agent did not run a new build or rendering test.
+
+## C2c follow-up — 21 October 2026
+
+The ray-traced vertex-alpha pass consulted only existing ModelViewer snapshot/Embree/CPU/OptiX upload, refit and hit-shader code at `a343467` and original controls. [C2c validation](JT_RAYTRACED_ALPHA_VALIDATION.md) describes original changes and prepared tests. No new vendor reference, SDK, schema, application, third-party source or dependency was consulted or introduced; existing application CUDA/OptiX build dependencies are reused. No vendored source or notices changed. The agent has not built/run C2c; the owner reported the requested C2c tests passed on 21 October 2026 and authorized commit/push. Separate optional-regression execution is not inferred.

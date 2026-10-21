@@ -10,5 +10,6 @@ Suggested reading order:
 4. Latest accepted mesh gate: [C1i coordinate quantization](JT_COORDINATE_QUANTIZATION_VALIDATION.md).
 5. Accepted shaded raster appearance gate: [C2a vertex alpha](JT_VERTEX_ALPHA_VALIDATION.md).
 6. Accepted wire appearance gate: [C2b wire vertex alpha](JT_WIREFRAME_ALPHA_VALIDATION.md).
+7. Accepted ray-traced appearance gate: [C2c ray-traced vertex alpha](JT_RAYTRACED_ALPHA_VALIDATION.md).
 
 Sibling validation documents retain the source, measurement and owner-acceptance records for earlier gates. Research documents belong here; generated evidence and fixtures remain under ignored `out/jt-research/`. The [repository handout](../../RESEARCH_FOLDER_HANDOUT.md) governs new work. See the [repository README](../../README.md) for user-facing import scope.

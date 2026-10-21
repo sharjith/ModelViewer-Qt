@@ -214,7 +214,7 @@ struct RtOptixSceneTracer::Impl
 		CUdeviceptr normals = 0;
 		CUdeviceptr texCoords = 0; // float2, 4 per vertex - see RtOptixSceneHitGroupData::texCoords
 		CUdeviceptr tangents = 0;  // float4 (xyz=tangent, w=handedness) - see RtOptixSceneHitGroupData::tangents
-		CUdeviceptr vertexColors = 0; // float3 - see RtOptixSceneHitGroupData::vertexColors
+		CUdeviceptr vertexColors = 0; // float4 - see RtOptixSceneHitGroupData::vertexColors
 		CUdeviceptr gasOutputBuffer = 0;
 		OptixTraversableHandle handle = 0;
 	};
@@ -1659,7 +1659,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		// never rebuilt from scratch again until something invalidates the
 		// cache entirely, e.g. a vertex/index count change or app restart).
 		std::vector<float2> earlyTexCoords;
-		std::vector<float3> earlyVertexColors;
+		std::vector<float4> earlyVertexColors;
 		if (refitEligible && (mesh.hasSkinningData || mesh.hasMorphData))
 		{
 			earlyTexCoords.resize(mesh.vertices.size() * 4);
@@ -1667,13 +1667,13 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			for (size_t i = 0; i < mesh.vertices.size(); ++i)
 			{
 				const RtVertex& v = mesh.vertices[i];
-				earlyVertexColors[i] = make_float3(v.color.x, v.color.y, v.color.z);
+				earlyVertexColors[i] = make_float4(v.color.x, v.color.y, v.color.z, v.color.w);
 				for (int ch = 0; ch < 4; ++ch)
 					earlyTexCoords[i * 4 + ch] = make_float2(v.texCoords[ch].x, v.texCoords[ch].y);
 			}
 		}
 		const size_t earlyTexCoordsBytes = earlyTexCoords.size() * sizeof(float2);
-		const size_t earlyVertexColorsBytes = earlyVertexColors.size() * sizeof(float3);
+		const size_t earlyVertexColorsBytes = earlyVertexColors.size() * sizeof(float4);
 
 		// GPU-skin fast path - attempted BEFORE building any host-side POSITION/
 		// NORMAL/TANGENT arrays, not after: this mesh's positions/normals/
@@ -1849,13 +1849,13 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		std::vector<float3> normals(mesh.vertices.size());
 		std::vector<float2> texCoords(mesh.vertices.size() * 4);
 		std::vector<float4> tangents(mesh.vertices.size());
-		std::vector<float3> vertexColors(mesh.vertices.size());
+		std::vector<float4> vertexColors(mesh.vertices.size());
 		for (size_t i = 0; i < mesh.vertices.size(); ++i)
 		{
 			const RtVertex& v = mesh.vertices[i];
 			positions[i] = make_float3(v.position.x, v.position.y, v.position.z);
 			normals[i] = make_float3(v.normal.x, v.normal.y, v.normal.z);
-			vertexColors[i] = make_float3(v.color.x, v.color.y, v.color.z);
+			vertexColors[i] = make_float4(v.color.x, v.color.y, v.color.z, v.color.w);
 			for (int ch = 0; ch < 4; ++ch)
 				texCoords[i * 4 + ch] = make_float2(v.texCoords[ch].x, v.texCoords[ch].y);
 
@@ -1880,7 +1880,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		const size_t normalsBytes = normals.size() * sizeof(float3);
 		const size_t texCoordsBytes = texCoords.size() * sizeof(float2);
 		const size_t tangentsBytes = tangents.size() * sizeof(float4);
-		const size_t vertexColorsBytes = vertexColors.size() * sizeof(float3);
+		const size_t vertexColorsBytes = vertexColors.size() * sizeof(float4);
 		const size_t indicesBytes = mesh.indices.size() * sizeof(uint32_t); // uint3[] and uint32_t[3*N] share the same binary layout
 
 		if (refitEligible && !refitSucceeded)
@@ -2405,7 +2405,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		hgSbt.data.indices = reinterpret_cast<uint3*>(_impl->meshGasEntries[inst.meshIndex].indices);
 		hgSbt.data.texCoords = reinterpret_cast<float2*>(_impl->meshGasEntries[inst.meshIndex].texCoords);
 		hgSbt.data.tangents = reinterpret_cast<float4*>(_impl->meshGasEntries[inst.meshIndex].tangents);
-		hgSbt.data.vertexColors = reinterpret_cast<float3*>(_impl->meshGasEntries[inst.meshIndex].vertexColors);
+		hgSbt.data.vertexColors = reinterpret_cast<float4*>(_impl->meshGasEntries[inst.meshIndex].vertexColors);
 
 		if (inst.materialIndex < snapshot.materials.size())
 		{

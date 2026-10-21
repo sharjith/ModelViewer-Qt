@@ -382,14 +382,11 @@ struct RtOptixSceneHitGroupData
 	// tangent data" (matches RtVertex::tangent's own zero-length convention).
 	float4* tangents;
 
-	// COLOR_0-style per-vertex RGB (RtVertex::color.rgb - already linear, no
-	// sRGB decode needed, unlike textures - see RtVertex::color's doc
-	// comment). Always (1,1,1) when the source mesh has no vertex color
-	// attribute, so it's always safe to unconditionally multiply into
-	// baseColor, matching CpuPathTracer::evaluateSurface()'s "apply vertex
-	// color last (in linear)". Alpha is intentionally not carried - nothing
-	// in this backend consumes opacity/alpha yet.
-	float3* vertexColors;
+	// COLOR_0-style linear RGBA, identity (1,1,1,1) without source colours.
+	// RGB modulates shading; interpolated alpha modulates MASK/BLEND coverage
+	// in any-hit for both camera and shadow rays. Host uploads and refits use
+	// the same float4 layout.
+	float4* vertexColors;
 
 	float3 baseColor;
 	float metalness;

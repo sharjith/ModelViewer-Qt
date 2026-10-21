@@ -450,7 +450,6 @@ struct Builder {
             vertexAlpha=vertexAlpha || c.a<1;
         }
         const unsigned mat=material(style,colored,vertexAlpha);
-        if(vertexAlpha)result.warnings.append("JT vertex transparency retained for raster rendering; ray-traced vertex alpha is not yet supported");
         if(style.flatNormals()) {
             const size_t count=size_t(mesh->mNumFaces)*3;
             if(count>std::numeric_limits<unsigned>::max()) throw std::runtime_error("JT flat-normal vertex count exceeds render limits");
