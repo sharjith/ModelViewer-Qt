@@ -2672,7 +2672,9 @@ bool RenderableMesh::isTransparent() const
 
 bool RenderableMesh::needsDepthMaskOff() const
 {
-	return (_material.opacity() < 0.999f);  // uniform-only transparency
+	// BLEND can carry coverage in vertex colours or textures with opacity 1.
+	return _material.blendMode() == Material::BlendMode::Alpha ||
+		_material.opacity() < 0.999f;
 }
 
 

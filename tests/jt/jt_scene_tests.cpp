@@ -2,6 +2,8 @@
 // Original synthetic scene fixtures; no vendor CAD data or XT decoder is used.
 #include "JtSceneBuilder.h"
 #include "JtContainerFixture.h"
+#include "JtLegacyFixture.h"
+#include "JtAlphaCubeFixture.h"
 #include "SceneUtils.h"
 #include <QDir>
 #include <QFile>
@@ -179,6 +181,49 @@ void shininessTests() {
     auto plainRoot=node<JtNode_Partition>("plain");plainRoot->children({leaf()});auto plain=build(plainRoot);
     float value=-1;check(plain.scene->mMaterials[plain.scene->mMeshes[0]->mMaterialIndex]->Get(AI_MATKEY_SHININESS,value)!=AI_SUCCESS,"Unauthored exponent was invented");
 }
+struct AlphaPatch:ColorPatch {
+    AlphaPatch(float first,float second):ColorPatch(){for(int i=0;i<myColors.Count();++i)myColors[i][3]=i<3?first:second;}
+};
+struct AlphaProperty:JtProperty_LateLoaded {
+    AlphaProperty(float first,float second){mySegmentType=7;myDefferedObject=new AlphaPatch(first,second);}
+};
+struct AlphaMaterial:Material {
+    AlphaMaterial(unsigned flags):Material({0.2f,0.3f,0.4f,0.6f}){myDataFlags=flags;}
+};
+auto alphaLeaf(float first=0.25f,float second=0.75f){auto shape=node<JtNode_Shape_Base>("Original alpha patch");shape->late({new AlphaProperty(first,second)});return shape;}
+void checkAlpha(const aiScene& scene,float first,float second,bool blended){
+    check(scene.mNumMeshes==1,"Alpha scene changed resource count");const auto& mesh=*scene.mMeshes[0];
+    check(mesh.mNumFaces==2&&mesh.HasVertexColors(0),"Alpha scene lost triangles/colours");
+    for(unsigned face=0;face<2;++face)for(unsigned corner=0;corner<3;++corner)
+        check(mesh.mColors[0][mesh.mFaces[face].mIndices[corner]].a==(face?second:first),"Vertex alpha changed at a rendered corner");
+    const auto& material=*scene.mMaterials[mesh.mMaterialIndex];float opacity=-1;aiString mode;
+    check(material.Get(AI_MATKEY_OPACITY,opacity)==AI_SUCCESS&&opacity==1,"Vertex alpha was multiplied by material opacity");
+    const bool hasBlend=material.Get("$mat.gltf.alphaMode",0,0,mode)==AI_SUCCESS&&mode==aiString("BLEND");
+    check(hasBlend==blended,"Vertex alpha material classification changed");
+}
+void vertexAlphaTests(){
+    for(bool flat:{false,true})for(unsigned flags:{0x3980u,0x3990u,0x50u})for(float value:{0.f,0.5f,1.f}){
+        auto root=node<JtNode_Partition>("alpha");auto shape=alphaLeaf(value,value);root->children({shape});shape->attributes({new AlphaMaterial(flags),new DrawStyle(flat?0x1a:0x0a)});
+        auto result=build(root);const bool active=flags==0x3990;checkAlpha(*result.scene,active?value:1,active?value:1,active&&value<1);
+        auto copy=std::unique_ptr<aiScene>(SceneUtils::deepCopyScene(result.scene.get()));checkAlpha(*copy,active?value:1,active?value:1,active&&value<1);
+    }
+    auto root=node<JtNode_Partition>("alpha");auto shape=alphaLeaf();root->children({shape});shape->attributes({new AlphaMaterial(0x3990)});
+    auto result=build(root);checkAlpha(*result.scene,0.25f,0.75f,true);
+    QTemporaryDir folder;check(folder.isValid(),"Cannot create alpha export directory");Assimp::Exporter exporter;const auto path=folder.filePath("alpha.glb").toStdString();
+    check(exporter.Export(result.scene.get(),"glb2",path)==AI_SUCCESS,"Alpha GLB export failed");Assimp::Importer reader;const auto* scene=reader.ReadFile(path,0);check(scene!=nullptr,"Alpha GLB import failed");checkAlpha(*scene,0.25f,0.75f,true);
+    // The same geometry must resolve differently under active and disabled
+    // blending, even with identical diffuse RGBA. Repeated active instances share.
+    auto a=node<JtNode_Instance>("active"),b=node<JtNode_Instance>("opaque"),c=node<JtNode_Instance>("active again");
+    shape->late({new AlphaProperty(0.25f,0.75f)}); // each build unloads synthetic late payloads
+    a->target(shape);b->target(shape);c->target(shape);root->children({a,b,c});shape->attributes({});a->attributes({new AlphaMaterial(0x3990)});b->attributes({new AlphaMaterial(0x3980)});c->attributes({new AlphaMaterial(0x3990)});
+    result=build(root);check(result.scene->mNumMeshes==2&&references(*result.scene->mRootNode)==3,"Alpha variants lost cache isolation/sharing");
+    check(result.scene->mMeshes[0]->mColors[0][0].a==0.25f&&result.scene->mMeshes[1]->mColors[0][0].a==1,"Alpha state leaked between instances");
+    // Material colour override removes source RGBA and retains material opacity.
+    shape->late({new AlphaProperty(0.25f,0.75f)});
+    root->children({shape});shape->attributes({new AlphaMaterial(0x39b0)});result=build(root);const auto& overrideMesh=*result.scene->mMeshes[0];
+    float opacity=-1;check(!overrideMesh.HasVertexColors(0)&&result.scene->mMaterials[overrideMesh.mMaterialIndex]->Get(AI_MATKEY_OPACITY,opacity)==AI_SUCCESS&&opacity==0.6f,"Material override retained vertex alpha or lost opacity");
+}
+
 void vertexColorTests() {
     const auto colored=[](bool normals=true,float alpha=1,bool sparse=false) {
         auto n=node<JtNode_Shape_Base>("red-green seam");n->late({new ColorProperty(normals,alpha,sparse)});return n;
@@ -220,7 +265,8 @@ void vertexColorTests() {
     auto result=build(root);check(result.scene->mNumMeshes==2 && result.scene->mMeshes[0]->HasVertexColors(0) && !result.scene->mMeshes[1]->HasVertexColors(0),"Override contaminated geometry cache");
     auto blendRoot=node<JtNode_Partition>("root");auto transparent=colored(true,0.5f);blendRoot->children({transparent});
     transparent->attributes({new Material({1,1,1,1},0,0,8,true)});
-    rejected([&]{build(blendRoot);},"no supported JT display tessellation");
+    const auto blended=build(blendRoot);aiString alphaMode;
+    check(blended.scene->mMeshes[0]->mColors[0][0].a==0.5f&&blended.scene->mMaterials[blended.scene->mMeshes[0]->mMaterialIndex]->Get("$mat.gltf.alphaMode",0,0,alphaMode)==AI_SUCCESS&&alphaMode==aiString("BLEND"),"Active vertex alpha was not retained/classified");
     transparent->late({new ColorProperty(true,0.5f)});transparent->attributes({new Material({1,1,1,1})});auto opaque=build(blendRoot);
     check(opaque.scene->mMeshes[0]->mColors[0][0].a==1,"Blending-disabled vertex alpha remained active");
     ColorPatch target;JtElement_ShapeLOD_Vertex::VertexData p(1,3),n(1,3),colors(1,3);JtElement_ShapeLOD_Vertex::IndicesVec vi(1),ai(1);
@@ -451,7 +497,46 @@ void drawStyleTests() {
     shape->late({new ZeroProperty(new ZeroTriangle)});shape->attributes({new DrawStyle(0x1a)});
     result=build(root);check(result.scene->mMeshes[0]->mNumFaces==1 && result.scene->mMeshes[0]->mNormals[0].z==1,"Degenerate flat triangle lost finite normals");
 }
-void sceneTests() {inheritance();shininessTests();vertexColorTests();instances();transforms();emptyShapeTests();lodAndFailures();selectionTests();metadataTests();drawStyleTests();std::cout<<"Synthetic JT assembly, shininess, vertex colours, transforms, selection, metadata and draw styles passed\n";}
+void sceneTests() {inheritance();shininessTests();vertexColorTests();vertexAlphaTests();instances();transforms();emptyShapeTests();lodAndFailures();selectionTests();metadataTests();drawStyleTests();std::cout<<"Synthetic JT assembly, shininess, vertex colours, transforms, selection, metadata and draw styles passed\n";}
+
+void vertexAlphaFixtureFiles(const QString& folder){
+    check(QDir().mkpath(folder),"Cannot create alpha fixture directory");QDir dir(folder);
+    const auto checkCubes=[](const aiScene& scene,float outerAlpha,bool mixed=false){
+        check(scene.mNumMeshes==2,"Alpha cubes lost a mesh");
+        for(unsigned m=0;m<2;++m){
+            const auto& mesh=*scene.mMeshes[m];const float half=m?2.f:4.f;
+            check(mesh.mNumVertices==24&&mesh.mNumFaces==12&&mesh.HasVertexColors(0)&&mesh.HasNormals(),"Alpha cube topology changed");
+            for(unsigned i=0;i<mesh.mNumVertices;++i){
+                const auto p=mesh.mVertices[i];const auto c=mesh.mColors[0][i];
+                check(std::abs(std::abs(p.x)-half)<1e-5f&&std::abs(std::abs(p.y)-half)<1e-5f&&std::abs(std::abs(p.z)-half)<1e-5f,"Alpha cube bounds/nesting changed");
+                check(mesh.mNormals[i]*p>0,"Alpha cube normal points inward");
+                const float expected=m?1.f:mixed?(p.z>0?0.25f:0.75f):outerAlpha;
+                check(std::abs(c.a-expected)<1e-6f,"Alpha cube coverage changed");
+                check(m?c.r>c.b:c.b>c.r,"Alpha cubes lost distinct colours");
+            }
+            double volume=0;
+            for(unsigned i=0;i<mesh.mNumFaces;++i){const auto& f=mesh.mFaces[i];check(f.mNumIndices==3,"Alpha cube lost triangles");
+                const auto a=mesh.mVertices[f.mIndices[0]],b=mesh.mVertices[f.mIndices[1]],c=mesh.mVertices[f.mIndices[2]];
+                check(((b-a)^(c-a))*(a+b+c)>0,"Alpha cube winding points inward");volume+=double(a*(b^c))/6.;}
+            check(std::abs(volume-8*half*half*half)<1e-4,"Alpha cube is not closed");
+            aiString mode;const bool blend=scene.mMaterials[mesh.mMaterialIndex]->Get("$mat.gltf.alphaMode",0,0,mode)==AI_SUCCESS&&mode==aiString("BLEND");
+            check(blend==(!m&&outerAlpha<1),"Alpha cube blend classification changed");
+        }
+    };
+    for(unsigned minor:{0u,1u,2u})for(bool big:{false,true})for(unsigned mode=0;mode<4;++mode){
+        const auto name=QString("alpha_8_%1_%2_%3.jt").arg(minor).arg(big?"be":"le").arg(mode==0?"blend":mode==1?"opaque":mode==2?"zero":"one_zero");
+        const auto path=dir.filePath(name);AlphaCubeFixture::write(path,minor,big,mode==2?0.f:0.5f,mode==0||mode==2?0x3990:mode==1?0x3980:0x50);
+        const auto result=Jt::Importer::read(path);checkCubes(*result.scene,mode==0?0.5f:mode==2?0.f:1.f);
+    }
+    for(bool active:{false,true}){
+        auto result=Jt::Importer::read(dir.filePath(active?"alpha_8_2_le_blend.jt":"alpha_8_2_le_opaque.jt"));
+        auto& outer=*result.scene->mMeshes[0];for(unsigned i=0;i<outer.mNumVertices;++i)outer.mColors[0][i].a=active?(outer.mVertices[i].z>0?0.25f:0.75f):1.f;
+        checkCubes(*result.scene,active?0.5f:1.f,active);Assimp::Exporter exporter;
+        const auto path=dir.filePath(active?"mixed_alpha_blend.glb":"mixed_alpha_opaque.glb").toStdString();
+        check(exporter.Export(result.scene.get(),"glb2",path)==AI_SUCCESS,"Cannot export original mixed-alpha control");
+        Assimp::Importer reader;const auto* scene=reader.ReadFile(path,0);check(scene!=nullptr,"Cannot reload alpha cubes GLB");checkCubes(*scene,active?0.5f:1.f,active);
+    }
+}
 
 void containerTests(const QString& samples) {
     QTemporaryDir temp;check(temp.isValid(),"Cannot create container directory");

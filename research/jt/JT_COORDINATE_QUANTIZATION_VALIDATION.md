@@ -1,6 +1,6 @@
 # Rounded topological coordinates — Gate C1i
 
-21 October 2026, `feature/JT-importer`. Native evidence is recorded below; owner application build/UI confirmation is pending. Accepted C1h was committed before this work. No new JT file version is enabled.
+21 October 2026, `feature/JT-importer`. Native validation and owner application build/UI checks passed on 21 October 2026. Accepted C1h was committed before this work. No new JT file version is enabled.
 
 ## Correction and qualification boundary
 
@@ -32,4 +32,4 @@ Rebuild and start with `out/jt-research/coordinate-ui-fixtures/9.5/`:
 4. **`invalid_width.jt`** and **`invalid_code.jt`** must fail explicitly. **`coordinate_lod_fallback.jt`** must load one usable part after rejecting the first alternative.
 5. Repeat the positive comparison in the `9.0` and `10.0` folders. The 9.0 counts are also 218 vertices / 188 triangles; the native 10.0 JT controls have **913 vertices / 904 triangles**. Reopen an ordinary accepted legacy and modern assembly as application regressions.
 
-Pass means matching high-precision/reference shape and counts, matching native/GLB quantized geometry, explicit negative-file errors and successful fallback. The numerical rounding checks run in native tests, so the viewer test is a visible regression check. Stop at C1i for owner confirmation. This does not complete C1 or the wider C2–C7 feature pass.
+Pass means matching high-precision/reference shape and counts, matching native/GLB quantized geometry, explicit negative-file errors and successful fallback. The numerical rounding checks run in native tests, so the viewer test is a visible regression check. The owner confirmed the requested C1i tests passed on 21 October 2026. This does not complete C1 or the wider C2–C7 feature pass.

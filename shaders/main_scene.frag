@@ -884,7 +884,8 @@ void main()
 {
 	vec4 v_color_front;
 	vec4 v_color_back;
-	vec4 v_color;
+	// Keep the lighting result separate from the incoming vertex RGBA.
+	vec4 shadedColor;
 
 	// Discard backfaces if not twoSided
 	bool isFrontFacing = gl_FrontFacing;
@@ -1020,26 +1021,26 @@ void main()
 	// Two-sided coloring
 	if (isFrontFacing)
 	{
-		v_color = v_color_front;
+		shadedColor = v_color_front;
 	}
 	else
 	{
 		if (sectionActive) // lighten backfaces in section mode
-			v_color = v_color_back + 0.15f;
+			shadedColor = v_color_back + 0.15f;
 		else
-			v_color = v_color_back;
+			shadedColor = v_color_back;
 	}
 
-	fragColor = v_color; // Start with default shaded color	
+	fragColor = shadedColor; // Start with default shaded color
 
 	// Display modes - this needs to be computed before the alpha
 	if (displayMode == 1) // wireframe
 	{
-		fragColor = vec4(v_color.rgb, 0.75f); // semi-transparent shaded
+		fragColor = vec4(shadedColor.rgb, 0.75f); // semi-transparent shaded
 	}
 	else if (displayMode == 2) // wireshaded
 	{
-		fragColor = v_color;
+		fragColor = shadedColor;
 		if (isWireframePass)
 		{
 			float brightness = dot(fragColor.rgb, vec3(0.2126, 0.7152, 0.0722));
@@ -1065,6 +1066,7 @@ void main()
 	// Works for both ADS and PBR pipelines with dynamic texture availability
 	// Skip for floor rendering - it handles its own alpha
 	float finalAlpha = fragColor.a; // Start with whatever alpha the rendering functions set
+	float vertexAlpha = hasVertexColors ? clamp(v_color.a, 0.0, 1.0) : 1.0;
 
 	if (!floorRendering) // Bypass alpha for floor
 	{		
@@ -1076,7 +1078,7 @@ void main()
 		else if (blendMode == 1)
 		{
 			// MASK: cutout alpha test. Compute testAlpha from material scalar and textures.
-			float testAlpha = opacity; // material scalar
+			float testAlpha = opacity * vertexAlpha;
 
 			// Priority: dedicated opacity map > fallbacks
 			if (hasOpacityMap)
@@ -1098,7 +1100,7 @@ void main()
 		else
 		{ // blendMode == 2 (BLEND) - standard transparency
 			 // Compute finalAlpha as material scalar * dedicated opacity map * fallback alpha
-			float alphaVal = opacity;
+			float alphaVal = opacity * vertexAlpha;
 
 			if (hasOpacityMap)
 			{
@@ -1120,11 +1122,8 @@ void main()
 	// Apply the final alpha (outside floorRendering block)
 	fragColor.a = finalAlpha;
 
-	// Apply vertex color alpha modulation
-	if (hasVertexColors)
-		fragColor.a *= v_color.a;
-
-	// Premultiply for blending (non-floor; floor path already premultiplies)
+	// Premultiply once using the complete coverage, including vertex alpha.
+	// The floor path already premultiplies.
 	if (!floorRendering)
 	{
 		fragColor.rgb *= finalAlpha;
@@ -1361,7 +1360,7 @@ void main()
 			fragColor = computeGridOverlayColor();
 		}
 		else if (!isReflectedPass && floorTextureEnabled)
-			fragColor = v_color * texture(texture_diffuse, getDiffuseTextureUV());
+			fragColor = shadedColor * texture(texture_diffuse, getDiffuseTextureUV());
 		// Compute distance-based blending factor
 		float distance = length(groundPlaneCoords(v_position));
 

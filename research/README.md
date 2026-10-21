@@ -4,7 +4,7 @@ Written research behind feature implementations. This folder holds **documents o
 
 | Folder | Contents |
 |---|---|
-| [`jt/`](jt/) | JT importer: feasibility and licensing, version compatibility, codec and appearance investigations, validation records, Parasolid/JT scope |
+| [`jt/`](jt/JT_RESEARCH_INDEX.md) | JT importer: feasibility and licensing, version compatibility, codec and appearance investigations, validation records, Parasolid/JT scope |
 | [`3dxml/`](3dxml/) | 3DXML importer: format research, mesh and scene-graph specifications, provenance statement, decoding handout |
 | [`parasolid/`](parasolid/) | Standalone Parasolid (XT) import assessment |
 

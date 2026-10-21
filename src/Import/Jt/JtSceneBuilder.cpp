@@ -365,14 +365,14 @@ struct Builder {
         for(auto it=materialCache.begin();it!=materialCache.end();) {if(it->second>=c.materials) it=materialCache.erase(it);else ++it;}
         result.storedMeshes=c.stored;result.exactParts=c.exact;result.fallbackParts=c.fallback;
     }
-    unsigned material(const Appearance& style,bool vertexColors=false) {
+    unsigned material(const Appearance& style,bool vertexColors=false,bool vertexAlpha=false) {
         const auto c=vertexColors ? aiColor4D(1,1,1,1) : style.diffuse;
         const bool blending=(style.blendFlags&0x10)!=0;
         const unsigned src=(style.blendFlags>>6)&31,dst=(style.blendFlags>>11)&31;
         const float opacity=(!blending || (src==1 && dst==0)) ? 1.0f : c.a;
         std::vector<float> key{c.r,c.g,c.b,opacity,style.ambient.r,style.ambient.g,style.ambient.b,
             style.specular.r,style.specular.g,style.specular.b,style.emission.r,style.emission.g,style.emission.b,
-            style.bumpiness,style.reflectivity,style.shininess,float(style.hasShininess),float(style.overrideColors),float(style.present),float(style.drawFlags),float(style.drawPresent)};
+            style.bumpiness,style.reflectivity,style.shininess,float(style.hasShininess),float(style.overrideColors),float(style.present),float(style.drawFlags),float(style.drawPresent),float(style.blendFlags),float(vertexAlpha)};
         for(float value:key) if(!std::isfinite(value)) throw std::runtime_error("JT has nonfinite material values");
         if(!std::isfinite(c.a) || c.a<0 || c.a>1 || opacity<0 || opacity>1) throw std::runtime_error("JT diffuse alpha is out of range");
         // JT 10.0 section 6.1.2.2 defines a Phong exponent in [1,128].
@@ -384,6 +384,12 @@ struct Builder {
             result.warnings.append("JT blend factors are approximated using conventional alpha blending");
         auto m=std::make_unique<aiMaterial>();const aiColor4D color{c.r,c.g,c.b,1};
         m->AddProperty(&color,1,AI_MATKEY_COLOR_DIFFUSE);m->AddProperty(&opacity,1,AI_MATKEY_OPACITY);
+        if(vertexAlpha) {
+            // Opacity remains 1: vertex alpha is applied once by the shader.
+            // Explicit BLEND also selects the renderer's transparent pass and
+            // preserves alpha when exporting a neutral material to glTF.
+            const aiString mode("BLEND");m->AddProperty(&mode,"$mat.gltf.alphaMode",0,0);
+        }
         if(style.present&(1u<<0)) m->AddProperty(&style.ambient,1,AI_MATKEY_COLOR_AMBIENT);
         if(style.present&(1u<<1)) m->AddProperty(&style.specular,1,AI_MATKEY_COLOR_SPECULAR);
         if(style.present&(1u<<2)) m->AddProperty(&style.emission,1,AI_MATKEY_COLOR_EMISSIVE);
@@ -434,12 +440,17 @@ struct Builder {
     unsigned add(std::unique_ptr<aiMesh> mesh,const Appearance& style,const QString& name) {
         if(mesh->HasVertexColors(0) && style.overrideColors) {delete[] mesh->mColors[0];mesh->mColors[0]=nullptr;}
         const bool colored=mesh->HasVertexColors(0);
+        const unsigned src=(style.blendFlags>>6)&31,dst=(style.blendFlags>>11)&31;
+        const bool activeAlpha=(style.blendFlags&0x10) && !(src==1 && dst==0);
+        bool vertexAlpha=false;
         if(colored) for(unsigned i=0;i<mesh->mNumVertices;++i) {
+            if((i&1023)==0)options.check();
             auto& c=mesh->mColors[0][i];
-            if(!(style.blendFlags&0x10)) c.a=1;
-            else if(c.a!=1) throw std::runtime_error("Unsupported translucent JT vertex colours");
+            if(!activeAlpha)c.a=1;
+            vertexAlpha=vertexAlpha || c.a<1;
         }
-        const unsigned mat=material(style,colored);
+        const unsigned mat=material(style,colored,vertexAlpha);
+        if(vertexAlpha)result.warnings.append("JT vertex transparency retained for shaded raster rendering; ray-traced and wireframe vertex alpha are not yet supported");
         if(style.flatNormals()) {
             const size_t count=size_t(mesh->mNumFaces)*3;
             if(count>std::numeric_limits<unsigned>::max()) throw std::runtime_error("JT flat-normal vertex count exceeds render limits");

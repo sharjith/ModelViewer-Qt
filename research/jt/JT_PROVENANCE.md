@@ -1,0 +1,17 @@
+# JT implementation provenance and research method
+
+21 October 2026, `feature/JT-importer`. This is a pass-specific method record, not legal clearance or a statement that every historical branch change used the same sources.
+
+## C2a — vertex alpha adapter pass
+
+Consulted:
+
+- Siemens **JT 10.0 File Format Reference, Revision B**, publisher document obtained during earlier research: [publisher PDF](https://www.plm.automation.siemens.com/en_us/Images/JT-v10-file-format-reference-rev-B_tcm1023-233786.pdf). Locally retained PDF SHA-256: `620828f47cf3b450c73ceaf3737f4ae5d344b39e73200c7b388ecc5ff92f376b`. Section 6.1.2.2 defines the material blending flag/factors and vertex-colour override; the previously qualified RGBA transports supply the values. The compressed coordinate/colour/UV work in earlier passes has its own source/oracle boundaries in the linked validation records.
+- Existing ModelViewer scene adapter, material processor, raster shader and CPU/OptiX rendering code, from repository baseline `6433da9` plus the changes described for C2a. Code inspection identifies the existing raster alpha multiplication and explicit blend-mode classification, as well as the remaining ray-traced vertex-alpha gap and fixed-alpha dedicated wireframe path.
+- Existing audited vendored OPEN CASCADE JT-Assistant subset: upstream [repository](https://github.com/Open-Cascade-SAS/JT-Assistant), pinned commit `e859e8c2d809f9d9468e6211eba0052f433978ee`, recorded archive SHA-256 `9aae63d78e25c586b8a92c1edbc5c6221539bcb0cbedd5be2c82322aa1650fa2`. The existing [manifest](../../src/ThirdParty/occt-jt/PROVENANCE.json) records individual source hashes and modifications. This pass reuses its qualified data structures/material decoding without modifying the vendored decoder or introducing another decoder dependency.
+
+No vendor application, SDK, proprietary schema package, disassembly or binary decoder implementation was used in this pass. No vendor package was downloaded and no terms were accepted on the owner's behalf. This is not a new legal interpretation of the Siemens terms or the upstream licence; earlier legal-scope documents and [third-party notices](../../THIRD_PARTY_NOTICES.md) remain applicable. Existing credits/dependencies do not change.
+
+Implementation is in the original scene adapter, the shared raster shader (unshadowed vertex coverage in MASK/BLEND and premultiplication), and the renderer depth-write policy for explicit BLEND materials; regression/fixture code is original ModelViewer test code. Visual controls use original nested cubes; the earlier planar unit cases remain for corner-alpha checks. Existing test filenames are preserved when regenerating the revised geometry. No downloaded CAD geometry, generated fixture, exported GLB, vendor document, external repository snapshot or machine-generated evidence is added to Git.
+
+Under [the repository handout](../../RESEARCH_FOLDER_HANDOUT.md), the owner normally builds/tests. C2a was initially prepared without executing those commands. On 21 October 2026 the owner explicitly authorized a local control build and fixture generation; this limited exception does not authorize building the full viewer. [C2a validation](JT_VERTEX_ALPHA_VALIDATION.md) records the resulting status and owner viewer gate. Generated files and machine evidence stay ignored under `out/`; only written research belongs under `research/`. No vendor-reader comparison or all-version RGBA conformance claim is inferred from synthetic scene controls.
