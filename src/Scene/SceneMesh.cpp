@@ -12,6 +12,8 @@
 #include <QDebug>
 #include <QSettings>
 #include <QCoreApplication>
+#include <QOpenGLContext>
+#include <QOpenGLFunctions>
 
 #include <algorithm>
 #include <cmath>
@@ -75,6 +77,48 @@
 using namespace std;
 
 namespace {
+
+// Only authored vertex-alpha draws change wire coverage. Preserve the calling
+// pass's blend/depth state, including when a following mesh is opaque.
+class ScopedWireVertexAlpha
+{
+public:
+	ScopedWireVertexAlpha(QOpenGLShaderProgram* program, bool enabled)
+		: _program(program), _gl(enabled ? QOpenGLContext::currentContext()->functions() : nullptr)
+	{
+		if (!_gl) return;
+		_blend = _gl->glIsEnabled(GL_BLEND);
+		_gl->glGetBooleanv(GL_DEPTH_WRITEMASK, &_depthWrite);
+		_gl->glGetIntegerv(GL_BLEND_SRC_RGB, &_srcRgb);
+		_gl->glGetIntegerv(GL_BLEND_DST_RGB, &_dstRgb);
+		_gl->glGetIntegerv(GL_BLEND_SRC_ALPHA, &_srcAlpha);
+		_gl->glGetIntegerv(GL_BLEND_DST_ALPHA, &_dstAlpha);
+		_gl->glGetIntegerv(GL_BLEND_EQUATION_RGB, &_equationRgb);
+		_gl->glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &_equationAlpha);
+		_gl->glEnable(GL_BLEND);
+		_gl->glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+		_gl->glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+		_gl->glDepthMask(GL_FALSE);
+		_program->setUniformValue("vertexAlphaEnabled", true);
+	}
+	~ScopedWireVertexAlpha()
+	{
+		if (!_gl) return;
+		_program->setUniformValue("vertexAlphaEnabled", false);
+		_gl->glBlendFuncSeparate(_srcRgb, _dstRgb, _srcAlpha, _dstAlpha);
+		_gl->glBlendEquationSeparate(_equationRgb, _equationAlpha);
+		_gl->glDepthMask(_depthWrite);
+		if (!_blend) _gl->glDisable(GL_BLEND);
+	}
+	ScopedWireVertexAlpha(const ScopedWireVertexAlpha&) = delete;
+	ScopedWireVertexAlpha& operator=(const ScopedWireVertexAlpha&) = delete;
+private:
+	QOpenGLShaderProgram* _program;
+	QOpenGLFunctions* _gl;
+	GLboolean _blend = GL_FALSE, _depthWrite = GL_TRUE;
+	GLint _srcRgb = GL_ONE, _dstRgb = GL_ZERO, _srcAlpha = GL_ONE, _dstAlpha = GL_ZERO;
+	GLint _equationRgb = GL_FUNC_ADD, _equationAlpha = GL_FUNC_ADD;
+};
 
 // CGAL's stock Loop and Catmull-Clark masks intentionally smooth every
 // interior edge. These variants retain the stock rules except at a geometric
@@ -1388,8 +1432,8 @@ void SceneMesh::renderWireframeFast(QOpenGLShaderProgram* wireProg)
 	if (!_vertexArrayObject.isCreated() || !wireProg)
 		return;
 
-	// Wireframe is a geometry-only visualisation: material alpha, transmission, and
-	// blending properties are intentionally ignored — all meshes show their geometry shape.
+	// Wireframe retains its geometry-first appearance except for authored BLEND
+	// vertex alpha. Material-only opacity/transmission keep the existing contract.
 	// Skinned meshes are fully supported: joint matrices are uploaded below.
 	// Clip planes are handled by the caller (useWireShader gated on activeClipPlaneIndex < 0),
 	// so we never reach here while a clip plane is active.
@@ -1406,6 +1450,8 @@ void SceneMesh::renderWireframeFast(QOpenGLShaderProgram* wireProg)
 	const QMatrix4x4 modelMatrix = currentGlobalModelMatrix() * combinedRenderTransform();
 	wireProg->setUniformValue("modelMatrix", modelMatrix);
 	wireProg->setUniformValue("baseColor",   _material.albedoColor());
+	ScopedWireVertexAlpha vertexAlpha(wireProg,
+		_hasVertexColors && _material.blendMode() == Material::BlendMode::Alpha);
 
 	if (_hasVertexColors)
 		wireProg->setUniformValue("hasVertexColors", true);
@@ -3620,6 +3666,8 @@ void SceneMesh::renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg)
 
 	if (!_featureEdgeVAO.isCreated() || _featureEdgeCount == 0)
 		return;
+	ScopedWireVertexAlpha vertexAlpha(wireProg,
+		_hasVertexColors && _material.blendMode() == Material::BlendMode::Alpha);
 
 	// Feature edges never use albedo textures — the edge line colour is the material
 	// base colour, potentially modulated by vertex colour if present.

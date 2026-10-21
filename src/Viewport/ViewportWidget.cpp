@@ -7972,8 +7972,8 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 		[](const auto& a, const auto& b) { return a.first < b.first; });
 	// Lightweight wire shader requires no active clip plane (it has no gl_ClipDistance).
 	// The fast path supports both static and skinned meshes; wireframe rendering
-	// intentionally uses a geometry-first contract rather than material-faithful
-	// alpha/transmission behavior.
+	// uses a geometry-first contract with authored BLEND vertex alpha; material-only
+	// opacity/transmission do not change wire coverage.
 	const bool useWireShader = _renderCtrl.wireframeShader() && _renderCtrl.wireframeShader()->isLinked()
 	    && activeClipPlaneIndex < 0;
 	if (_displayMode == DisplayMode::HOLLOW_MESH)
