@@ -1,6 +1,6 @@
 # Importer notice delivery and validation
 
-19 October 2026. This records the earlier documentation/credit-only pass, before the subsequent assembly implementation. Current functional checks are in [JT_ASSEMBLY_ATTRIBUTE_VALIDATION.md](JT_ASSEMBLY_ATTRIBUTE_VALIDATION.md).
+19 October 2026. This records the earlier documentation/credit-only pass, before the subsequent assembly implementation. Current functional checks are in [JT_ASSEMBLY_ATTRIBUTE_VALIDATION.md](../research/jt/JT_ASSEMBLY_ATTRIBUTE_VALIDATION.md).
 
 - CREDITS.md links the importer notices and consolidated 3DXML provenance.
 - About includes importer acknowledgements and a Third-Party Notices button. The popup reads THIRD_PARTY_NOTICES.md from the Qt resource bundle and needs no network access.

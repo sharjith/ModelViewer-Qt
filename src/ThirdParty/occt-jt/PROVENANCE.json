@@ -923,7 +923,7 @@
       "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_Material.cxx",
       "src/ThirdParty/occt-jt/JtData/JtData_Model.cxx"
     ],
-    "validation": "docs/JT_ASSEMBLY_ATTRIBUTE_VALIDATION.md"
+    "validation": "research/jt/JT_ASSEMBLY_ATTRIBUTE_VALIDATION.md"
   },
   "display_selection_follow_up": {
     "date": "2026-10-19",
@@ -935,7 +935,7 @@
       "src/ThirdParty/occt-jt/JtNode/JtNode_RangeLOD.cxx"
     ],
     "reference": "JT 10.0 sections 6.1.1.8, 6.1.1.9 and 14.11",
-    "validation": "docs/JT_DISPLAY_SELECTION_VALIDATION.md"
+    "validation": "research/jt/JT_DISPLAY_SELECTION_VALIDATION.md"
   },
   "metadata_follow_up": {
     "date": "2026-10-19",
@@ -950,7 +950,7 @@
       "src/ThirdParty/occt-jt/JtData/JtData_Model.cxx"
     ],
     "reference": "JT 10.0 sections 6.2.1-6.2.4 and 6.3; sampled local property version 2 layouts",
-    "validation": "docs/JT_METADATA_VALIDATION.md"
+    "validation": "research/jt/JT_METADATA_VALIDATION.md"
   },
   "draw_style_follow_up": {
     "date": "2026-10-19",
@@ -960,7 +960,7 @@
       "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_DrawStyle.cxx"
     ],
     "reference": "JT 10.0 section 6.1.2.4, tables 34 and 35",
-    "validation": "docs/JT_DRAW_STYLE_VALIDATION.md"
+    "validation": "research/jt/JT_DRAW_STYLE_VALIDATION.md"
   },
   "jt90_follow_up": {
     "date": "2026-10-20",
@@ -969,7 +969,7 @@
       "src/ThirdParty/occt-jt/JtData/JtData_Model.cxx",
       "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_Material.cxx"
     ],
-    "validation": "docs/JT_90_VALIDATION.md"
+    "validation": "research/jt/JT_90_VALIDATION.md"
   },
   "empty_shape_follow_up": {
     "date": "2026-10-20",
@@ -980,7 +980,7 @@
       "src/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.cxx",
       "include/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.hxx"
     ],
-    "validation": "docs/JT_90_VALIDATION.md"
+    "validation": "research/jt/JT_90_VALIDATION.md"
   },
   "jt105_follow_up": {
     "date": "2026-10-20",
@@ -989,7 +989,7 @@
       "src/ThirdParty/occt-jt/JtData/JtData_Model.cxx"
     ],
     "reference": "Public Prostep ivip PSI 14 Part 1 Version 3 / JT IAP Edition 3, explicitly based on JT 10.5",
-    "validation": "docs/JT_105_VALIDATION.md"
+    "validation": "research/jt/JT_105_VALIDATION.md"
   },
   "jt107_108_follow_up": {
     "date": "2026-10-20",
@@ -997,7 +997,7 @@
     "files": [
       "src/ThirdParty/occt-jt/JtData/JtData_Model.cxx"
     ],
-    "validation": "docs/JT_107_108_VALIDATION.md"
+    "validation": "research/jt/JT_107_108_VALIDATION.md"
   },
   "jt1010_follow_up": {
     "date": "2026-10-20",
@@ -1005,7 +1005,7 @@
     "files": [
       "src/ThirdParty/occt-jt/JtData/JtData_Model.cxx"
     ],
-    "validation": "docs/JT_1010_VALIDATION.md"
+    "validation": "research/jt/JT_1010_VALIDATION.md"
   },
   "huffman_follow_up": {
     "date": "2026-10-20",
@@ -1015,7 +1015,7 @@
       "src/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Huffman.cxx",
       "include/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Huffman.hxx"
     ],
-    "validation": "docs/JT_HUFFMAN_VALIDATION.md"
+    "validation": "research/jt/JT_HUFFMAN_VALIDATION.md"
   },
   "quantized_colour_follow_up": {
     "date": "2026-10-21",
@@ -1028,7 +1028,7 @@
       "Prostep ivip PSI14 Part1 V3 modern compressed colour collection",
       "Siemens JT10.6 RevisionD section10.2.6"
     ],
-    "validation": "docs/JT_QUANTIZED_COLOUR_VALIDATION.md"
+    "validation": "research/jt/JT_QUANTIZED_COLOUR_VALIDATION.md"
   },
   "transitional_colour_follow_up": {
     "date": "2026-10-21",
@@ -1037,7 +1037,7 @@
       "include/ThirdParty/occt-jt/JtDecode/JtDecode_VertexColors.hxx"
     ],
     "reference": "Locally retained public Siemens JT9.5 Rev-A sections8.1.7/8.1.11/8.2.1, Figure230 inspected visually, p273",
-    "validation": "docs/JT_9X_COLOUR_VALIDATION.md"
+    "validation": "research/jt/JT_9X_COLOUR_VALIDATION.md"
   },
   "topological_uv_follow_up": {
     "date": "2026-10-21",
@@ -1051,7 +1051,7 @@
       "Siemens JT9.5 Rev-A sections7.2.2.1.2.6/8.1.6/8.1.10/8.2.1; Figures90/229 inspected visually",
       "Siemens JT10.0 sections13.1.5/13.1.10/13.2.1; Figure241 inspected visually"
     ],
-    "validation": "docs/JT_TOPOLOGICAL_UV_VALIDATION.md"
+    "validation": "research/jt/JT_TOPOLOGICAL_UV_VALIDATION.md"
   },
   "file_path_base": "repository-root",
   "directory_layout": {
@@ -1067,7 +1067,7 @@
       "include/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.hxx",
       "src/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.cxx"
     ],
-    "validation": "docs/JT_MULTI_UV_VALIDATION.md"
+    "validation": "research/jt/JT_MULTI_UV_VALIDATION.md"
   },
   "scalar_uv_follow_up": {
     "date": "2026-10-21",
@@ -1077,7 +1077,7 @@
       "include/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.hxx",
       "src/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.cxx"
     ],
-    "validation": "docs/JT_SCALAR_UV_VALIDATION.md"
+    "validation": "research/jt/JT_SCALAR_UV_VALIDATION.md"
   },
   "sparse_uv_follow_up": {
     "date": "2026-10-21",
@@ -1086,7 +1086,7 @@
       "src/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.cxx",
       "include/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.hxx"
     ],
-    "validation": "docs/JT_SPARSE_UV_VALIDATION.md"
+    "validation": "research/jt/JT_SPARSE_UV_VALIDATION.md"
   },
   "arithmetic_symbol_count_follow_up": {
     "date": "2026-10-21",
@@ -1097,7 +1097,7 @@
       "include/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP_Arithmetic.hxx"
     ],
     "reference": "Retained Siemens JT9.5 Rev-A sections8.1.1/8.1.1.1.1; inherited licensed CDP1 context-switch behavior",
-    "validation": "docs/JT_ARITHMETIC_COUNT_VALIDATION.md"
+    "validation": "research/jt/JT_ARITHMETIC_COUNT_VALIDATION.md"
   },
   "rounded_coordinate_follow_up": {
     "date": "2026-10-21",
@@ -1111,6 +1111,6 @@
       "Retained Siemens JT9.5 Rev-A sections8.1.4/8.1.9/8.1.12/8.2.1",
       "Retained Siemens JT10.0 sections13.1.3/13.1.9/13.1.12/13.2.1"
     ],
-    "validation": "docs/JT_COORDINATE_QUANTIZATION_VALIDATION.md"
+    "validation": "research/jt/JT_COORDINATE_QUANTIZATION_VALIDATION.md"
   }
 }

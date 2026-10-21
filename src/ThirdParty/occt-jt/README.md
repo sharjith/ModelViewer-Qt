@@ -7,7 +7,7 @@ The TKJT reader/decoder subset is used under its per-file GPL version 2-or-later
 
 ModelViewer changes: modern OCCT handles/RTTI and hash API compatibility; version-specific offsets and bounded input handling; diagnostics/cancellation and unsupported-representation handling. See the repository diff for the exact changes. This subset decodes display tessellation; it does not include the commercial Parasolid reader or claim exact B-Rep conversion.
 
-Siemens JT data structures are used under the implementation permissions in the JT Data Format Reference. Copyright Siemens. The reference itself is not redistributed. See [JT reference research](../../../docs/JT_IMPORT_FEASIBILITY.md) for the reference and patent-notice links and their scope.
+Siemens JT data structures are used under the implementation permissions in the JT Data Format Reference. Copyright Siemens. The reference itself is not redistributed. See [JT reference research](../../../research/jt/JT_IMPORT_FEASIBILITY.md) for the reference and patent-notice links and their scope.
 
 ## Dated modifications and distribution notices
 
