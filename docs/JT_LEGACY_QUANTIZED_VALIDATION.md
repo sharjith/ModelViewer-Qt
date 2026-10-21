@@ -75,3 +75,7 @@ Rebuild the current checkout on `feature/JT-importer`, then check:
 3. Reopen a known-working legacy model (sample L81 or sample L80) and `out/jt-research/samples/Bolt.jt`. Their prior appearance and counts should remain unchanged.
 
 The owner accepted this checklist and authorized committing, pushing and starting the modern 10.9 palette phase on 19 October 2026. Secondary appearance work can be split into a subsequent concrete gate if additional samples require nonconstant quantized colours or textures.
+
+## Subsequent codec qualification — 21 October 2026
+
+The historical Huffman rejection above is superseded for the single-context CDP1 form by [C1a](JT_HUFFMAN_VALIDATION.md). It passes original packet/full-model fixtures and all enabled-version native regressions; owner application confirmation is pending. Multiple-context Huffman remains unsupported.

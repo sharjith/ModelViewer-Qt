@@ -39,7 +39,7 @@ void legacyTests(){
     }
     for(bool big:{false,true}){LegacyFixture::Options o;o.big=big;o.codec=1;LegacyFixture::write(path,o);auto r=Jt::Importer::read(path);check(r.scene->mMeshes[0]->mNumFaces==3,"Legacy bitlength packet failed");}
     {LegacyFixture::Options o;o.padding=false;LegacyFixture::write(path,o);auto r=Jt::Importer::read(path);check(r.scene->mMeshes[0]->mNumFaces==3,"Unpadded legacy zlib block failed");}
-    {LegacyFixture::Options o;o.codec=2;LegacyFixture::write(path,o);rejects(path);}
+    {LegacyFixture::Options o;o.codec=4;LegacyFixture::write(path,o);rejects(path);}
     for(unsigned mode=0;mode<6;++mode){LegacyFixture::Options o;o.badStrip=mode<2?int(mode+1):0;o.badChecksum=mode==2;o.badRawSize=mode==3;o.colorBinding=mode==4?1:0;o.badPadding=mode==5;LegacyFixture::write(path,o);rejects(path);}
     LegacyFixture::Options noNormals;noNormals.normalBinding=0;LegacyFixture::write(path,noNormals);auto generated=Jt::Importer::read(path);check(generated.scene->mMeshes[0]->mNormals[6].z==1,"Legacy absent normals not generated");
     const auto original=LegacyFixture::bytes();
@@ -58,7 +58,7 @@ void legacyTests(){
     }
     for(unsigned minor:{0,2}) {
         for(bool big:{false,true}) {LegacyFixture::Options o;o.minorVersion=minor;o.big=big;o.codec=1;LegacyFixture::write(path,o);auto r=Jt::Importer::read(path);check(r.scene->mMeshes[0]->mNumFaces==3,"8.x family bitlength packet failed");}
-        for(unsigned mode=0;mode<6;++mode) {LegacyFixture::Options o;o.minorVersion=minor;o.badStrip=mode<2?int(mode+1):0;o.badChecksum=mode==2;o.badRawSize=mode==3;o.colorBinding=mode==4?1:0;o.codec=mode==5?2:0;LegacyFixture::write(path,o);rejects(path);}
+        for(unsigned mode=0;mode<6;++mode) {LegacyFixture::Options o;o.minorVersion=minor;o.badStrip=mode<2?int(mode+1):0;o.badChecksum=mode==2;o.badRawSize=mode==3;o.colorBinding=mode==4?1:0;o.codec=mode==5?4:0;LegacyFixture::write(path,o);rejects(path);}
     }
     std::cout<<"JT 8.0-8.2 lossless family: native LE/BE, strips, material/metadata, zlib and malformed fixtures passed\n";
 }

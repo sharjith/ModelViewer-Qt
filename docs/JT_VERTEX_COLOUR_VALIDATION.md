@@ -53,3 +53,7 @@ After rebuilding ModelViewer, open the files in `out/jt-research/vertex-color-fi
 | `vertex_color_lod_fallback.jt` | One coloured Bolt loaded from the usable alternative, 913 vertices, 904 triangles |
 
 Keep the files together: the flat and LOD-fallback assemblies reference adjacent files. Check the original Bolt still looks normal. Save/reopen the coloured result as MVF to check the application's full persistence path. The owner reports all supplied viewer tests passed; a separate MVF result was not itemized. The agent has not built the full application or independently compared a real authored coloured JT file.
+
+## Subsequent modern quantized transport — 21 October 2026
+
+[C1b](JT_QUANTIZED_COLOUR_VALIDATION.md) adds packed modern RGB/HSV and opaque RGBA decoding with original field tests across the enabled 10.x revisions and private full-model comparisons. Owner application acceptance is pending. The earlier deliberately unsupported quantized control is now deliberately malformed with width 9; its fallback role remains. Active vertex translucency and the different earlier-family colour transports remain separate work.

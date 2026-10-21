@@ -53,8 +53,8 @@ JtDecode_Int32CDP::EncodedDataHandle JtDecode_Int32CDP::loadCDP1 (JtData_Reader&
   if (!theReader.ReadU8 (aCodec))
     return EncodedDataHandle();
 
-  if(theReader.Model()->MajorVersion()==8 && aCodec!=0 && aCodec!=1 && aCodec!=3)
-    throw std::runtime_error("Unsupported JT 8.x integer codec (qualified: null, bitlength and arithmetic)");
+  if(theReader.Model()->MajorVersion()==8 && (aCodec<0 || aCodec>3))
+    throw std::runtime_error("Unsupported JT 8.x integer codec (qualified: null, bitlength, Huffman and arithmetic)");
 
   // Null codec, just read uncoded values
   if (aCodec == 0)
@@ -94,6 +94,7 @@ JtDecode_Int32CDP::EncodedDataHandle JtDecode_Int32CDP::loadCDP1 (JtData_Reader&
     if(aProbContextTableCount<1 || aProbContextTableCount>16)
       throw std::runtime_error("Invalid legacy JT probability context count");
 
+    if(aCodec==2 && aProbContextTableCount!=1)throw std::runtime_error("Unsupported JT Huffman probability context count");
     JtData_Vector<JtDecode_ProbContextI32> aProbContexts (aProbContextTableCount);
     {
       JtDecode_BitReader::Raw aContextReader (theReader);
@@ -137,6 +138,7 @@ JtDecode_Int32CDP::EncodedDataHandle JtDecode_Int32CDP::loadCDP1 (JtData_Reader&
   if(aCodeTextLength<0 || aCodeTextLength>256*1024*1024 || aValueCount<0 || aValueCount>16000000)
     throw std::runtime_error("Invalid legacy JT integer packet count/length");
   aData->SetOutValCount (aValueCount);
+  if(aCodec==2)static_cast<JtDecode_Int32CDP_Huffman*>(aData.operator->())->SetCodeTextLength(aCodeTextLength);
 
   // Read symbol count if present
   if (aProbContextTableCount > 1)

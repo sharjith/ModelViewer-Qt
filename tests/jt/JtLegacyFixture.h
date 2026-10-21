@@ -36,7 +36,14 @@ inline QByteArray bytes(Options o={}) {
     if(o.compressed && o.padding)payload.append(o.badPadding?'\1':'\0');
     Bytes lod(big);lod.u16(1);lod.u8(o.normalBinding);lod.u8(o.uvBinding);lod.u8(o.colorBinding);lod.u8(0);for(int i=0;i<4;++i)lod.u8(i==0?o.quantizedBits:0);lod.u16(1);lod.u16(1);lod.u8(o.normalBinding);lod.u8(o.uvBinding);lod.u8(o.colorBinding);for(int i=0;i<4;++i)lod.u8(i==0?o.quantizedBits:0);
     lod.u8(o.codec);
-    if(o.codec==1) {
+    if(o.codec==2) {
+        lod.u8(1);QByteArray context;unsigned used=0;
+        const auto bits=[&](quint32 value,unsigned width){for(unsigned i=width;i>0;--i){if(used%8==0)context.append(char(0));context[context.size()-1]=char(quint8(context.back())|(((value>>(i-1))&1)<<(7-used%8)));++used;}};
+        bits(3,32);bits(3,6);bits(3,6);bits(3,6);bits(0,6);bits(0,32);
+        // Weights 1/2/4, values 0/4/7: codes 11/10/0; strip boundaries 0,4,7.
+        bits(2,3);bits(1,3);bits(0,3);bits(3,3);bits(2,3);bits(4,3);bits(4,3);bits(4,3);bits(7,3);
+        lod.data+=context;lod.u32(0);lod.u32(5);lod.u32(3);lod.u32(1);lod.u32(0xe0000000);
+    } else if(o.codec==1) {
         const char bits[]="01110010000111";quint32 word=0;for(unsigned i=0;i<sizeof(bits)-1;++i)word|=quint32(bits[i]=='1')<<(31-i);
         lod.u32(sizeof(bits)-1);lod.u32(3);lod.u32(1);lod.u32(word);
     } else {lod.u32(3);lod.u32(0);lod.u32(o.badStrip==1?8:4);lod.u32(o.badStrip==2?3:7);}

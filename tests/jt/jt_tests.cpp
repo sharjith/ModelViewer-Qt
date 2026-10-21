@@ -35,6 +35,10 @@ void modernAttributeFixtureFiles(const QString& folder);
 void sceneTests();
 void containerTests(const QString& samples);
 void legacyTests();
+void huffmanFixtureFiles(const QString& folder);
+void jt9ColourTests();
+void quantizedColourTests();
+void huffmanTests();
 void quantizedTests();
 void quantizedFixtureFiles(const QString& folder);
 void legacyFixtureFiles(const QString& folder);
@@ -200,9 +204,10 @@ void samples(const QString& dir) {
 }
 int main(int argc,char** argv) {
     QCoreApplication app(argc,argv);
-    try {allocationBudgetTests();codecTests();colorStreamTests();attributeTests();sceneTests();containerTests({});legacyTests();quantizedTests();modernAttributeTests();paletteTests();solidEdgeMaterialCompatibilityTests();jt95Tests();
+    try {allocationBudgetTests();codecTests();colorStreamTests();quantizedColourTests();jt9ColourTests();attributeTests();sceneTests();containerTests({});legacyTests();huffmanTests();quantizedTests();modernAttributeTests();paletteTests();solidEdgeMaterialCompatibilityTests();jt95Tests();
         const bool orderFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--material-order-fixtures";
         const bool maskFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--material-mask-fixtures";
+        const bool huffmanFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--huffman-fixtures";
         const bool jt1010Fixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--1010-fixtures";
         const bool jt107108Fixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--107108-fixtures";
         const bool jt105Fixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--105-fixtures";
@@ -212,7 +217,8 @@ int main(int argc,char** argv) {
         const bool quantizedFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--quantized-fixtures";
         const bool modernFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--modern-attribute-fixtures";
         const bool paletteFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--palette-fixtures";
-        if(orderFixtures)materialOrderFixtureFiles(QString::fromLocal8Bit(argv[2]));
+        if(huffmanFixtures)huffmanFixtureFiles(QString::fromLocal8Bit(argv[2]));
+        else if(orderFixtures)materialOrderFixtureFiles(QString::fromLocal8Bit(argv[2]));
         else if(maskFixtures)jtMaterialMaskFixtureFiles(QString::fromLocal8Bit(argv[2]));
         else if(jt1010Fixtures)jt1010FixtureFiles(QString::fromLocal8Bit(argv[2]));
         else if(jt107108Fixtures)jt107108FixtureFiles(QString::fromLocal8Bit(argv[2]));

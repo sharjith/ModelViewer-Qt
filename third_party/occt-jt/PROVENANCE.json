@@ -1001,5 +1001,37 @@
       "src/JtData/JtData_Model.cxx"
     ],
     "validation": "docs/JT_1010_VALIDATION.md"
+  },
+  "huffman_follow_up": {
+    "date": "2026-10-20",
+    "scope": "Bounded single-context CDP1 Huffman: preserve inherited heap tie order, vector-owned trees, singleton symbols, unsigned frequency, declared-bit/OOB bounds and cancellation; enable qualified 8.x codec 2",
+    "files": [
+      "src/JtDecode/JtDecode_Int32CDP.cxx",
+      "src/JtDecode/JtDecode_Int32CDP_Huffman.cxx",
+      "src/JtDecode/JtDecode_Int32CDP_Huffman.hxx"
+    ],
+    "validation": "docs/JT_HUFFMAN_VALIDATION.md"
+  },
+  "quantized_colour_follow_up": {
+    "date": "2026-10-21",
+    "scope": "Original modern packed RGB/HSV quantized colour decoding, exact field widths/ranges and declared counts; older component-array transport remains separate",
+    "files": [
+      "src/JtDecode/JtDecode_VertexColors.hxx"
+    ],
+    "references": [
+      "Siemens JT 10.0 section 13.1.6 / 13.1.11 / 13.2.1",
+      "Prostep ivip PSI14 Part1 V3 modern compressed colour collection",
+      "Siemens JT10.6 RevisionD section10.2.6"
+    ],
+    "validation": "docs/JT_QUANTIZED_COLOUR_VALIDATION.md"
+  },
+  "transitional_colour_follow_up": {
+    "date": "2026-10-21",
+    "scope": "Original shared reader dispatch for 9.x lossless exponent/mantissa and four Lag1 quantized component vectors; refactor shared quantizer/HSV helpers, retain modern packed layout",
+    "files": [
+      "src/JtDecode/JtDecode_VertexColors.hxx"
+    ],
+    "reference": "Locally retained public Siemens JT9.5 Rev-A sections8.1.7/8.1.11/8.2.1, Figure230 inspected visually, p273",
+    "validation": "docs/JT_9X_COLOUR_VALIDATION.md"
   }
 }

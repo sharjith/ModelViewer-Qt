@@ -100,7 +100,7 @@ void verify(const aiMesh& mesh) {
 void quantizedTests() {
     arithmeticTests();QTemporaryDir temp;check(temp.isValid(),"Cannot create quantized test directory");const auto path=temp.filePath("leaf.jt");
     LegacyFixture::Options options;options.quantizedData=true;options.quantizedBits=4;options.uvBinding=1;options.colorBinding=1;
-    for(unsigned minor:{0,1,2})for(bool big:{false,true})for(unsigned codec:{0,1}) {
+    for(unsigned minor:{0,1,2})for(bool big:{false,true})for(unsigned codec:{0,1,2}) {
         options.minorVersion=minor;options.big=big;options.codec=codec;LegacyFixture::write(path,options);
         auto result=Jt::Importer::read(path);check(result.scene->mNumMeshes==1,"Quantized fixture scene count");verify(*result.scene->mMeshes[0]);
         auto copy=std::unique_ptr<aiScene>(SceneUtils::deepCopyScene(result.scene.get()));verify(*copy->mMeshes[0]);
@@ -139,5 +139,13 @@ void quantizedFixtureFiles(const QString& folder) {
     for(bool big:{false,true}) {
         LegacyFixture::Options options;options.minorVersion=2;options.big=big;options.quantizedData=true;options.quantizedBits=4;options.uvBinding=1;options.colorBinding=1;
         LegacyFixture::write(QDir(folder).filePath(big?"legacy_quantized_be.jt":"legacy_quantized_le.jt"),options);
+    }
+}
+
+void huffmanFixtureFiles(const QString& folder) {
+    check(QDir().mkpath(folder),"Cannot create Huffman fixture folder");
+    for(unsigned minor:{0u,1u,2u})for(bool big:{false,true}) {
+        LegacyFixture::Options o;o.minorVersion=minor;o.big=big;o.codec=2;
+        LegacyFixture::write(QDir(folder).filePath(QString("huffman_8%1_%2.jt").arg(minor).arg(big?"be":"le")),o);
     }
 }

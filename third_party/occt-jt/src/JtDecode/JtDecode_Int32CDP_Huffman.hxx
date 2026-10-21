@@ -15,6 +15,7 @@
 // on <http://www.gnu.org/licenses/>.
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
+// Bounded Huffman code-text tracking: 2026-10-20.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see third_party/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -32,12 +33,16 @@ public:
   //! @param theReader - current readed to obtain codec parameters and coded data.
   JtDecode_Int32CDP_Huffman (JtData_Reader& theReader) : JtDecode_Int32CDP_Bits (theReader) {}
 
+  void SetCodeTextLength(int32_t bits) {myCodeTextLength=bits;}
+
 protected:
 
   //! Decode the data.
   Standard_EXPORT virtual void decode (int32_t* theResultPtr,
                                        int32_t* theResultEnd,
                                  const int32_t* theOOBDataPtr);
+private:
+  int32_t myCodeTextLength=0;
 };
 
 #endif

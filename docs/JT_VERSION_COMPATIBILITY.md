@@ -79,3 +79,7 @@ The owner confirmed successful UI testing of the supplied Solid Edge 10.9 assemb
 ## Latest forward acceptance — 20 October 2026
 
 The owner confirmed both 10.10 engine and vice displays look good, accepting the sampled Gate 5a cases. The next forward target is 10.11, which remains unqualified without an authentic input. This does not establish coverage for missing intermediate revisions or the pre-8 target. See [10.10 acceptance](JT_1010_VALIDATION.md).
+
+## Feature-first priority after Gate 5a — 20 October 2026
+
+The owner now requests completing remaining features across the enabled revisions before extending horizontally to 10.11. Follow the [feature completion plan](JT_FEATURE_COMPLETION_PLAN.md), starting with bounded legacy Huffman under C1a. Earlier forward-first sequencing is superseded; 10.11 remains unqualified. Do not treat feature work as new version coverage.

@@ -56,7 +56,7 @@ QByteArray graphSegment(const QByteArray& original,bool overrideBlue,unsigned co
     Fixture::Bytes body;body.u32(0);body.u32(unsigned(data.size()+1));body.u8(0);body.data+=data;
     auto result=original.left(24)+body.data;put(result,20,result.size(),4);return result;
 }
-QByteArray shapeSegment(const QByteArray& original,unsigned components,bool quantized){
+QByteArray shapeSegment(const QByteArray& original,unsigned components,unsigned quantized){
     auto data=original.mid(24);check(number(data,4,4)==0x10dd10ab,"Fixture generator requires TriStrip LOD");
     Reader reader(data);check(reader.SkipBytes(25),"Short shape element");Jt_I16 version;
     check(reader.ReadVersion(version) && version==1 && reader.ReadVersion(version) && version==1,"Unqualified fixture shape version");
@@ -69,11 +69,24 @@ QByteArray shapeSegment(const QByteArray& original,unsigned components,bool quan
     check(reader.ReadI32(vertices) && reader.ReadI32(attributes) && attributes>0 && attributes<1000000,"Invalid fixture attribute count");
     auto coords=JtDecode_VertexData::LoadCompressedCoords(reader),normals=JtDecode_VertexData::LoadCompressedNormals(reader);
     check(coords.operator bool() && normals.operator bool() && normals->GetOutVertexCount()==attributes,"Cannot scan fixture vertex arrays");
-    Fixture::Bytes colors;colors.u32(attributes);colors.u8(components);colors.u8(quantized?8:0);
-    for(unsigned c=0;c<components;++c) {
+    Fixture::Bytes colors;colors.u32(attributes);colors.u8(components);colors.u8(quantized==1?9:quantized>=2?8:0);
+    if(quantized>=2) {
+        const bool hsv=quantized==3;colors.u8(hsv?1:0);
+        for(unsigned c=0;c<4;++c) {
+            const unsigned width=c==3&&components==3?0:hsv&&c==0?2:8;
+            if(!hsv){colors.f32(c==3&&components==3?1.f:0.f);colors.f32(1.f);}
+            colors.u8(width);
+        }
+        colors.u32(attributes);colors.u8(0);colors.u32(unsigned(attributes)*32);
+        for(int i=0;i<attributes;++i) {
+            const unsigned channel=unsigned(i/25)%3;
+            uint32_t code=hsv?(channel<<16)|0xffffu:channel==0?0xff0000u:channel==1?0xff00u:0xffu;
+            if(components==4)code=(code<<8)|255;
+            colors.u32(code);
+        }
+    } else for(unsigned c=0;c<components;++c) {
         colors.u32(attributes);colors.u8(0);colors.u32(unsigned(attributes)*32);quint32 previous=0;
         for(int i=0;i<attributes;++i) {
-            // Deliberately vivid colours by source attribute-record order.
             const float value=c==3?1.0f:float(unsigned(i/25)%3==c);quint32 bits;std::memcpy(&bits,&value,4);
             colors.u32(i<4?bits:bits-previous);previous=bits;
         }
@@ -86,7 +99,7 @@ QByteArray shapeSegment(const QByteArray& original,unsigned components,bool quan
     put(data,0,number(data,0,4)+quint64(added),4);put(data,qsizetype(innerLength),number(data,qsizetype(innerLength),4)+quint64(added),4);
     auto result=original.left(24)+data;put(result,20,result.size(),4);return result;
 }
-QByteArray fixture(const QByteArray& source,unsigned components,bool overrideBlue=false,bool quantized=false){
+QByteArray fixture(const QByteArray& source,unsigned components,bool overrideBlue=false,unsigned quantized=0){
     check(source.startsWith("Version 10.0") && number(source,80,1)==0,"Fixture generator requires little-endian JT 10.0");
     auto output=source;const auto toc=number(source,85,8),count=number(source,qsizetype(toc),4);unsigned shapes=0;
     check(count>0 && count<10000,"Fixture TOC count");
@@ -120,7 +133,7 @@ int main(int argc,char** argv){
                 for(unsigned i=0;i<mesh.mNumFaces;++i)for(unsigned j=0;j<3;++j)check(mesh.mFaces[i].mIndices[j]==original.mFaces[i].mIndices[j],"Colour stream changed triangle indices");
                 if(blue){aiColor4D c;check(result.scene->mMaterials[mesh.mMaterialIndex]->Get(AI_MATKEY_COLOR_DIFFUSE,c)==AI_SUCCESS && c.b==1 && c.r==0 && c.g==0,"Fixture blue override failed");}
             } else {
-                bool rejected=false;try{Jt::Importer::read(path);}catch(const std::exception& e){rejected=std::string(e.what()).find("quantized vertex colours")!=std::string::npos;}
+                bool rejected=false;try{Jt::Importer::read(path);}catch(const std::exception& e){rejected=std::string(e.what()).find("colour quantization width")!=std::string::npos;}
                 check(rejected,"Quantized fixture was not rejected explicitly");
             }
         }
@@ -134,12 +147,31 @@ int main(int argc,char** argv){
             const auto result=Jt::Importer::read(output.filePath("vertex_rgb_flat.jt"));
             check(result.scene->mNumMeshes==1 && result.scene->mMeshes[0]->HasVertexColors(0) && result.scene->mMeshes[0]->mNumVertices==2712,"Flat colour fixture regression");
         }
+        const auto coloured=Jt::Importer::read(output.filePath("vertex_rgb.jt"));
+        const auto& reference=*coloured.scene->mMeshes[0];
+        const auto verifyPacked=[&](const QString& path){
+            const auto result=Jt::Importer::read(path);check(result.scene->mNumMeshes==1,"Packed-colour fixture mesh count");const auto& mesh=*result.scene->mMeshes[0];
+            check(mesh.mNumVertices==reference.mNumVertices&&mesh.mNumFaces==reference.mNumFaces&&mesh.HasVertexColors(0),"Packed colours changed mesh shape/counts");
+            for(unsigned i=0;i<mesh.mNumVertices;++i)check(mesh.mVertices[i]==reference.mVertices[i]&&mesh.mNormals[i]==reference.mNormals[i]&&mesh.mColors[0][i]==reference.mColors[0][i],"Packed colours differ from independent lossless reference");
+            for(unsigned i=0;i<mesh.mNumFaces;++i)for(unsigned j=0;j<3;++j)check(mesh.mFaces[i].mIndices[j]==reference.mFaces[i].mIndices[j],"Packed colours changed indices");
+        };
+        for(unsigned mode:{2u,3u,4u}) {
+            const auto name=mode==2?"vertex_quantized_rgb.jt":mode==3?"vertex_quantized_hsv.jt":"vertex_quantized_rgba_opaque.jt";
+            const auto path=output.filePath(name);write(path,fixture(source,mode==4?4:3,false,mode));verifyPacked(path);
+        }
+        for(unsigned minor:{0u,3u,5u,7u,8u,9u,10u}) {
+            auto data=fixture(source,3,false,2);
+            const auto header=(QByteArray("Version 10.")+QByteArray::number(minor)+" JT original cross-version colour fixture").leftJustified(75,' ')+QByteArray(" \n\r\n ",5);
+            data.replace(0,80,header);const auto path=output.filePath(QString("vertex_quantized_rgb_10_%1.jt").arg(minor));write(path,data);verifyPacked(path);
+        }
         write(output.filePath("README.txt"),
             "Keep all files together. Locally generated display fixtures; downloaded geometry is not redistributable by inference.\n"
             "vertex_rgb.jt and vertex_rgba_opaque.jt: vivid red/green/blue patches by attribute-record order, one Bolt, 913 vertices/904 triangles.\n"
             "vertex_override_blue.jt: uniformly blue Bolt; material overrides the stored vertex colours.\n"
             "vertex_rgb_flat.jt: same patches, faceted normals, 2712 vertices/904 triangles.\n"
-            "vertex_quantized_unsupported.jt: expected unsupported quantized-colour error (deliberately unsupported packet).\n"
+            "vertex_quantized_unsupported.jt: expected invalid quantization-width error (deliberately malformed packet).\n"
+            "vertex_quantized_rgb/vertex_quantized_hsv/vertex_quantized_rgba_opaque.jt: same patches as lossless RGB, encoded as packed quantized colours.\n"
+            "vertex_quantized_rgb_10_*.jt: synthetic modern-header controls over the same local 10.0 source geometry; not authentic exports of those revisions.\n"
             "vertex_color_lod_fallback.jt: the unsupported alternative fails; one coloured Bolt loads from the other alternative.\n"
             "Colour hash words are placeholders. These fixtures exercise our native importer, not independent JT conformance.\n");
         std::cout<<output.absolutePath().toStdString()<<": native colour fixtures generated and checked\n";

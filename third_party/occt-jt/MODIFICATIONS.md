@@ -103,3 +103,15 @@ Acceptance now includes the tested JT 8.1 lossless subset as well as JT 10.0. Jt
 ## JT 10.10 qualification, 20 October 2026
 
 `JtData_Model.cxx` enables independently supplied authentic 10.10 assemblies through the existing modern reader. Original endian, malformed attribute/palette and fallback scene tests now include the two-digit minor revision. No new codec, SDK or translator source is introduced. See `docs/JT_1010_VALIDATION.md` for native evidence and the pending Gate 5a owner checks. Existing upstream notices and GPL terms remain. JT 10.11 remains unqualified. The separate exporter-material profile extension is in original scene-adapter code, not the third-party decoder.
+
+## Bounded legacy Huffman, 20 October 2026
+
+`JtDecode_Int32CDP` admits the original fixture-qualified single-context CDP1 Huffman path for 8.x. `JtDecode_Int32CDP_Huffman.cxx/.hxx` replace leaking raw tree/code objects with charged vector ownership while retaining the upstream heap tie order; handle singleton alphabets, exact declared-bit limits, unsigned frequency sums, escaped-value bounds/consumption and cancellation. The unused code-assignment recursion is removed. Multiple-context Huffman stays explicit unsupported. Existing upstream copyright/GPL notices and original source hashes are retained. No new decoder source package or dependency is introduced. See `docs/JT_HUFFMAN_VALIDATION.md` for original fixture scope, regression results and owner acceptance status.
+
+## Modern packed quantized colours, 21 October 2026
+
+The ModelViewer-original `JtDecode_VertexColors.hxx` adds bounded packed RGB/HSV colour transport for the modern family. It checks component/count/width/range limits, reads the documented predictor-free packed codes, applies the inverse round-to-nearest uniform quantizer, maps hue sectors and retains existing lossless Lag1 behaviour. Zero-bit nonconstant quantizers and the different older component-array form remain explicit unsupported; vertex translucency rendering remains separate. The implementation is original under GPL-3.0-only, with no added dependency or source package. See `docs/JT_QUANTIZED_COLOUR_VALIDATION.md` for synthetic and private fixture scope, regression results and owner gate.
+
+## Transitional vertex colours, 21 October 2026
+
+The ModelViewer-original `JtDecode_VertexColors.hxx` dispatches 9.x lossless fields to paired raw exponent/mantissa packets and quantized fields to four Lag1 component vectors, including the serialized alpha vector when only RGB is exposed. It checks field widths, counts, component ranges and packet bounds. Quantizer validation/dequantization and HSV conversion are shared with the modern packed reader; existing modern byte/field tests remain regression coverage. No new dependency or third-party source package is introduced. `docs/JT_9X_COLOUR_VALIDATION.md` records the reference, original vectors, private geometry-template controls and pending owner gate.

@@ -81,3 +81,15 @@ The subsequent additional 10.7/10.8 appearance cases extend `solidEdgeMaterialCo
 ## JT 10.10 qualification
 
 [Gate 5a](../../docs/JT_1010_VALIDATION.md) adds minor 10 to original LE/BE container, modern attribute/palette, fallback scene/GLB, malformed-record and published material-order tests. 10.1 and 10.11 remain negative cases. The original material-profile guard suite also runs the newly observed exact 10.10 writer signature, retaining opt-out and writer/author/flags/palette isolation. `jt_tests --1010-fixtures <folder>` generates two original 10.10 LE/BE attribute graphs referencing original 8.2 geometry; each displays a green mesh with seven vertices/three triangles at world x=20, y=-3. Authentic 10.10 tessellation qualification comes from the separate supplied assemblies, not these mixed-version controls.
+
+## Feature gate C1a: legacy Huffman
+
+`jt_huffman_tests.cpp` supplies original known-value CDP1 packets, tie/singleton/cross-word/escape tests, every truncated prefix, declared-bit and OOB bounds, cancellation and budgets. The full original 8.x geometry tests now include Huffman strip boundaries. `jt_tests --huffman-fixtures <folder>` generates six self-contained blue quad-plus-triangle JT files for 8.0/8.1/8.2, LE/BE: one mesh, seven vertices, three triangles each. Multiple-context Huffman remains an explicit unsupported case; modern packet transports are unchanged. See [C1a validation](../../docs/JT_HUFFMAN_VALIDATION.md) and the [feature-completion plan](../../docs/JT_FEATURE_COMPLETION_PLAN.md).
+
+## Feature gate C1b: modern packed quantized colours
+
+`jt_quantized_colour_tests.cpp` supplies original RGB/HSV, 32-bit RGBA, endpoint/interpolation, all-sector/hue-wrap and alpha vectors, every truncated prefix and malformed/budget/cancellation cases under every enabled modern revision, LE/BE. The existing private `jt_color_fixturegen` emits packed RGB/HSV/opaque-RGBA and synthetic modern-header controls from a locally obtained 10.0 source, checking geometry/normal/index/colour agreement against lossless reference output. These contain source geometry and stay ignored, not bundled. Older 9.x component arrays and legacy variable colours remain separate work. Active vertex-alpha rendering is not introduced. See [C1b validation](../../docs/JT_QUANTIZED_COLOUR_VALIDATION.md).
+
+## Feature gate C1c: transitional colour arrays
+
+`jt9_colour_tests.cpp` supplies original LE/BE 9.0/9.5 paired exponent/mantissa and four Lag1 component-vector colours, including malformed/truncated fields, array counts, alpha-vector validation, cancellation and budgets. `jt9_colour_fixturegen <local-single-part-9.x.jt> <output-folder>` generates five source-derived lossless/quantized RGB/RGBA/HSV controls from an observed little-endian 9.0/9.5 part, preserving geometry/normals/indices and source bytes. The outputs contain source geometry and stay ignored. The current two sets each have one mesh, 218 vertices and 188 triangles. See [C1c validation](../../docs/JT_9X_COLOUR_VALIDATION.md) for source/reference qualification limits and the owner checklist.
