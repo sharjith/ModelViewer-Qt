@@ -1,6 +1,6 @@
 # Third-party credits
 
-Assets used in the documentation, tutorial images and samples that are not covered by the project's GPL-3.0 licence.
+Third-party software references and assets. Individual component and asset terms apply; see [importer notices](THIRD_PARTY_NOTICES.md) and the licences shipped with each component.
 
 | Asset | Author | Licence | Used in |
 |---|---|---|---|
@@ -22,3 +22,7 @@ Assets used in the documentation, tutorial images and samples that are not cover
 | Look-up tables `lut_charlie.png`, `lut_sheen_E.png` in `textures/khronos` | The Khronos Group, glTF Sample Renderer | Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0 (text in `textures/khronos/LICENSE-Apache-2.0.txt`) | Sheen rendering (shipped with the application) |
 
 When you add an asset whose licence needs attribution, add a row here and a credit line next to the picture.
+
+## Importer references
+
+- **3DXML:** cad-in-unity (i2e-haw-hamburg contributors), Apache-2.0, [commit 43a9f0582ecafcdae5bb6f5919c0191467465f86](https://github.com/i2e-haw-hamburg/cad-in-unity/tree/43a9f0582ecafcdae5bb6f5919c0191467465f86), was consulted for XML tessellation concepts. No C# implementation is bundled. See the [consolidated provenance](docs/3DXML_PROVENANCE.md). This credit does not license third-party CAD samples or imply Dassault endorsement.

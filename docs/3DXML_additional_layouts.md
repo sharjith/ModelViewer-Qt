@@ -1,5 +1,7 @@
 # Additional 3DXML layouts: 2026-10-18
 
+> Consolidated provenance, dated 19 October 2026: [3DXML_PROVENANCE.md](3DXML_PROVENANCE.md). Early source restrictions describe their individual research phases, not the complete branch history.
+
 The first native importer was validated against GETRAG only. The owner's next
 four archives exposed independent format variants; their failures were not bad
 files. All five supplied archives now pass native import and an independent
