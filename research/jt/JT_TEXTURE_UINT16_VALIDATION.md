@@ -1,5 +1,8 @@
 # Unsigned 16-bit inline images — Gate C2k
 
+
+Current control storage, 22 October 2026: [shared texture resources](JT_SHARED_TEXTURE_CONTROLS.md) replaces per-gate companion copies. Regeneration commands are unchanged; file lists below use logical case names. Current JT filenames use the documented gate prefix in the common directory; glTF locations come from each gate manifest. Earlier acceptance records do not imply viewer requalification of every relocated file.
+
 22 October 2026, `feature/JT-importer`, following owner-accepted C2j `9c8d37a`. **Owner accepted C2k on 22 October 2026 after reporting the tests passed.** Control authoring ran; the agent did not build/run C++ tests or the viewer. The owner authorized commit/push/proceeding after each reported successful test gate; this pass records that acceptance without inferring optional-suite execution or authentic textured-export conformance.
 
 ## Scope and limits

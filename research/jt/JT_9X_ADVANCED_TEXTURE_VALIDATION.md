@@ -1,5 +1,8 @@
 # Advanced 9.x texture blocks — Gate C2j
 
+
+Current control storage, 22 October 2026: [shared texture resources](JT_SHARED_TEXTURE_CONTROLS.md) replaces per-gate companion copies. Regeneration commands are unchanged; file lists below use logical case names. Current JT filenames use the documented gate prefix in the common directory; glTF locations come from each gate manifest. Earlier acceptance records do not imply viewer requalification of every relocated file.
+
 22 October 2026, `feature/JT-importer`. **Owner accepted C2j on 22 October 2026 after reporting that the tests passed.** The agent authored controls but did not build/run C++ tests or the viewer. C3 production checks are deferred until the owner can test tomorrow; C2j is independent of those results.
 
 ## Implemented subset

@@ -124,9 +124,9 @@ def geometry(positions, uvs, indices, store_uv=True):
     return file.data
 
 
-def assembly(big, inline, rgb, width, height, sampler, transform=None, generation=None, planes=None, pixel_format=1, alignment=1, pixel_type=3):
+def assembly(big, inline, rgb, width, height, sampler, transform=None, generation=None, planes=None, pixel_format=1, alignment=1, pixel_type=3, geometry_reference='geometry.jt', image_reference='source_image.png'):
     graph, root, part, texture = (Bytes(big) for _ in range(4))
-    for body, attributes, children, ref in [(root, [20], [2], ''), (part, [], [], 'geometry.jt')]:
+    for body, attributes, children, ref in [(root, [20], [2], ''), (part, [], [], geometry_reference)]:
         body.put('BI', 1, 0); body.ids(attributes); body.put('B', 1); body.ids(children)
         body.put('BI', 1, 0); body.text(ref); body.put('f6I', 0, *([0]*6))
     element(graph, kind('10dd103e'), 1, root); element(graph, kind('10dd103e'), 2, part)
@@ -142,7 +142,7 @@ def assembly(big, inline, rgb, width, height, sampler, transform=None, generatio
     if inline:
         texture.put('II6HIHII', pixel_format, pixel_type, 2, alignment, width, height, 1, 0, 0, 1, len(rgb), len(rgb)); texture.data += rgb
     else:
-        texture.text('source_image.png')
+        texture.text(image_reference)
     element(graph, kind('10dd1073'), 20, texture, 3); end(graph); end(graph); graph.put('HI', 1, 0)
     guid = '12345678-1234-5678-9abc-def012345678'
     seg = Bytes(big); seg.guid(guid); seg.put('IIIIB', 1, 33+len(graph.data), 0, len(graph.data)+1, 0); seg.data += graph.data

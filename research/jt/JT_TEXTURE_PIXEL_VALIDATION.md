@@ -1,5 +1,8 @@
 # Inline texture colour formats — Gate C2h
 
+
+Current control storage, 22 October 2026: [shared texture resources](JT_SHARED_TEXTURE_CONTROLS.md) replaces per-gate companion copies. Regeneration commands are unchanged; file lists below use logical case names. Current JT filenames use the documented gate prefix in the common directory; glTF locations come from each gate manifest. Earlier acceptance records do not imply viewer requalification of every relocated file.
+
 Owner acceptance, 22 October 2026: the owner reported "All looks good" and authorized commit, push and proceeding. This records the requested visual checks, not unreported optional-suite execution or authentic textured-export conformance. The agent did not build/run C++ or the viewer.
 
 22 October 2026, `feature/JT-importer`, following owner-accepted model-linear mapping `38f6c9a`. **Prepared for owner build/test; the agent has not built or run the C++ changes.** Original authoring produced comparison controls under ignored `out/`.

@@ -1,5 +1,8 @@
 # Float16 inline images - Gate C2m
 
+
+Current control storage, 22 October 2026: [shared texture resources](JT_SHARED_TEXTURE_CONTROLS.md) replaces per-gate companion copies. Regeneration commands are unchanged; file lists below use logical case names. Current JT filenames use the documented gate prefix in the common directory; glTF locations come from each gate manifest. Earlier acceptance records do not imply viewer requalification of every relocated file.
+
 22 October 2026, `feature/JT-importer`, following owner-accepted/pushed C2l `df79883`. **Owner accepted C2m on 22 October 2026 after completing the requested visual checks.** Authoring ran under ignored `out/`. The owner built the viewer; at the owner request, the agent launched the positive checklist/reference/regression documents together in one installed app instance. The agent did not build C++ or run the native suite. Standing authorization permits commit/push/proceeding after this acceptance.
 
 ## Scope

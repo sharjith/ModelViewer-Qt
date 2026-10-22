@@ -386,11 +386,11 @@ struct Builder {
             constexpr uint64_t maxBytes=64u*1024u*1024u;
             if(source.Inline()) {
                 const bool colorFormat=(data.format>=1&&data.format<=4)||(data.format>=7&&data.format<=12);
-                if((data.dataType!=2&&data.dataType!=3&&data.dataType!=5&&data.dataType!=9)||!colorFormat
+                if((data.dataType!=2&&data.dataType!=3&&data.dataType!=5&&data.dataType!=7&&data.dataType!=9)||!colorFormat
                     ||data.dimensionality!=2||data.depth!=1||data.border!=0)
-                    throw std::runtime_error("inline texture requires a supported borderless 2D unsigned 8/16-bit or float16/32 colour format");
+                    throw std::runtime_error("inline texture requires a supported borderless 2D unsigned 8/16/32-bit or float16/32 colour format");
                 const size_t components=(data.format==2||data.format==12)?4:(data.format==1||data.format==11)?3:data.format==4?2:1;
-                const size_t componentBytes=data.dataType==2?4:(data.dataType==5||data.dataType==9)?2:1;
+                const size_t componentBytes=(data.dataType==2||data.dataType==7)?4:(data.dataType==5||data.dataType==9)?2:1;
                 const size_t stride=(size_t(data.width)*components*componentBytes+data.alignment-1)&~size_t(data.alignment-1);
                 if(uint64_t(data.width)*data.height*4>maxBytes||data.baseMip.size()!=stride*size_t(data.height))
                     throw std::runtime_error("inline texture row/image byte count mismatch");
@@ -424,6 +424,9 @@ struct Builder {
                                     }
                                     const double normalized=std::max(0.0,std::min(1.0,component));
                                     converted[c]=static_cast<unsigned char>(std::floor(normalized*255.0+0.5));
+                                }else if(data.dataType==7){
+                                    // Widen before multiplication so UINT32_MAX is safe.
+                                    converted[c]=static_cast<unsigned char>((uint64_t(value)*255u+2147483647u)/4294967295u);
                                 }else {
                                     // Normalize UNORM16 into the existing RGBA8 image path.
                                     converted[c]=static_cast<unsigned char>((value+128u)/257u);

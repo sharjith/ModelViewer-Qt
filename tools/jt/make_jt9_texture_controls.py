@@ -5,18 +5,17 @@ Uses the earlier GTEX01 comparison companions; never rewrites version headers on
 another family's graph. No importer or native test is executed.
 """
 import argparse
-import hashlib
 import json
 from pathlib import Path
-import shutil
 import struct
 from PIL import Image
 from make_texture_control import Bytes, kind, element, end
+from texture_fixture_store import TextureFixtureStore
 
 
-def assembly9(minor, big, inline, pixels, width, height, transform, generation, planes, local_version=1, coordinate=0, pixel_type=3):
+def assembly9(minor, big, inline, pixels, width, height, transform, generation, planes, local_version=1, coordinate=0, pixel_type=3, geometry_reference='geometry.jt',image_reference='source_image.png'):
     graph = Bytes(big)
-    for ident, attrs, children, ref in [(1,[20],[2],''),(2,[],[],'geometry.jt')]:
+    for ident, attrs, children, ref in [(1,[20],[2],''),(2,[],[],geometry_reference)]:
         body = Bytes(big); body.put('HI',1,0); body.ids(attrs); body.put('H',1); body.ids(children)
         body.put('I',0); body.text(ref); body.put('7f6I',*([0]*13)); element(graph,kind('10dd103e'),ident,body)
     texture = Bytes(big); texture.put('HBIH',1,8,0,local_version)
@@ -29,7 +28,7 @@ def assembly9(minor, big, inline, pixels, width, height, transform, generation, 
         if not stub:
             if inline:
                 texture.put('II6HBHII',1,pixel_type,2,1,width,height,1,0,1,1,len(pixels),len(pixels)); texture.data += pixels
-            else:texture.text('source_image.png')
+            else:texture.text(image_reference)
         # V3 appends this field; modern v10 places it before image storage.
         if block==3:texture.put('i',coordinate)
     element(graph,kind('10dd1073'),20,texture,3); end(graph); end(graph); graph.put('HI',1,0)
@@ -47,13 +46,14 @@ def main():
     parser.add_argument('--advanced',action='store_true',help='Author local versions 2/3 in separate folders instead of basic version 1')
     numeric=parser.add_mutually_exclusive_group()
     numeric.add_argument('--unsigned16',action='store_true',help='Use unsigned 16-bit inline RGB components')
+    numeric.add_argument('--unsigned32',action='store_true',help='Use unsigned 32-bit inline RGB components')
     numeric.add_argument('--float32',action='store_true',help='Use normalized float32 inline RGB components')
     numeric.add_argument('--float16',action='store_true',help='Use normalized IEEE binary16 inline RGB components')
     args = parser.parse_args(); source, transformed, planar, output = [p.resolve() for p in (args.source_folder,args.transform_folder,args.planar_folder,args.output_folder)]
     if not output.is_relative_to(Path(__file__).resolve().parents[2]/'out') or output in (source,transformed,planar):
         raise ValueError('Use a separate output directory inside ignored repository out/')
     image = Image.open(source/'source_image.png').convert('RGB'); pixels = image.transpose(Image.Transpose.FLIP_TOP_BOTTOM).tobytes()
-    authored = []
+    store=TextureFixtureStore(output);authored=[];obsolete=[]
     for minor in (0,5):
         for version in ((2,3) if args.advanced else (1,)):
             for case in ('stored','mirror','planar'):
@@ -63,9 +63,12 @@ def main():
                 base = planar if case=='planar' else transformed if case=='mirror' else source
                 for path in base.iterdir():
                     if path.suffix in ('.png','.bin') or path.name in ('geometry.jt','SOURCE_LICENSE.md'):
-                        shutil.copyfile(path,folder/path.name)
+                        store.file(path);obsolete.append(folder/path.name)
                 ref = base/('planar_xy_reference.gltf' if case=='planar' else 'mirror_u_reference.gltf' if case=='mirror' else 'reference.gltf')
-                shutil.copyfile(ref,folder/'reference.gltf')
+                case_label=f'9_{minor}/'+(f'v{version}/' if args.advanced else '')+case
+                store.document(json.loads(ref.read_text(encoding='utf-8')),base,case_label)
+                geometry_reference=store.file(base/'geometry.jt');image_reference=store.file(base/'source_image.png')
+                obsolete.append(folder/'reference.gltf')
                 t = [float(i%5==0) for i in range(16)]; gen = [0]*4; planes = [0.0]*16
                 if case=='mirror':t[0],t[12] = -1,1
                 if case=='planar':gen[:2]=[1,1];planes[0]=planes[5]=1
@@ -76,13 +79,15 @@ def main():
                         packed=pixels
                         if args.unsigned16:
                             packed=b''.join((0 if value==0 else 65535 if value==255 else value*257+73).to_bytes(2,'big' if big else 'little') for value in pixels)
+                        if args.unsigned32:
+                            packed=b''.join((0 if value==0 else 0xffffffff if value==255 else value*0x01010101+0x1234).to_bytes(4,'big' if big else 'little') for value in pixels)
                         if args.float32 or args.float16:
                             packed=b''.join(struct.pack(('>' if big else '<')+('e' if args.float16 else 'f'),value/255.0) for value in pixels)
-                        data=assembly9(minor,big,inline,packed,image.width,image.height,t,gen,planes,version,coordinate,9 if args.float16 else 2 if args.float32 else 5 if args.unsigned16 else 3)
-                        (folder/filename).write_bytes(data);authored.append({'file':str((folder/filename).relative_to(output)),'sha256':hashlib.sha256(data).hexdigest()})
+                        data=assembly9(minor,big,inline,packed,image.width,image.height,t,gen,planes,version,coordinate,9 if args.float16 else 2 if args.float32 else 7 if args.unsigned32 else 5 if args.unsigned16 else 3,geometry_reference,image_reference)
+                        authored.append(store.control(case_label+'/'+filename,data));obsolete.append(folder/filename)
     report={'source_folder':str(source),'controls':authored,'method':'Separately serialized original v9 attribute/container records with compatibility stubs for advanced versions; 8.2 geometry companion; synthetic/reference-derived, no native or vendor execution'}
-    (output/'authoring.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
-    print(f'Authored {len(authored)} original 9.0/9.5 texture controls and reference comparisons in {output}')
+    store.report(report);store.cleanup(obsolete)
+    print(f'Authored {len(authored)} controls in {store.root}; gate manifest: {output}/authoring.json')
 
 
 if __name__=='__main__':main()

@@ -20,5 +20,7 @@ Suggested reading order:
 14. Owner-accepted numeric image path: [C2k unsigned 16-bit image components](JT_TEXTURE_UINT16_VALIDATION.md).
 15. Owner-accepted floating image path: [C2l float32 image components](JT_TEXTURE_FLOAT_VALIDATION.md).
 16. Owner-accepted half image path: [C2m binary16 image components](JT_TEXTURE_HALF_VALIDATION.md).
+17. Owner-accepted unsigned image path: [C2n unsigned 32-bit image components](JT_TEXTURE_UINT32_VALIDATION.md).
+18. Current texture-control storage: [shared resources and reference mappings](JT_SHARED_TEXTURE_CONTROLS.md).
 
 Sibling validation documents retain the source, measurement and owner-acceptance records for earlier gates. Research documents belong here; generated evidence and fixtures remain under ignored `out/jt-research/`. The [repository handout](../../RESEARCH_FOLDER_HANDOUT.md) governs new work. See the [repository README](../../README.md) for user-facing import scope.

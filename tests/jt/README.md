@@ -143,3 +143,9 @@ The combined C2d/C2e gate now expects visible textures. See the [current handoff
 ## Feature gate C2m: float16 inline images
 
 `jt_texture_pixel_tests.cpp` adds binary16 components, independent half bit patterns, clamp/rounding/endianness checks, nonfinite colour/alpha fallback and earlier numeric regressions. Authoring tools accept mutually exclusive `--float16`/`--float32`/`--unsigned16` flags; all outputs stay ignored. [C2m validation](../../research/jt/JT_TEXTURE_HALF_VALIDATION.md) records exact regeneration commands and the owner build/UI gate. Source precision/HDR range are reduced in the existing RGBA8 display path.
+
+## Feature gate C2n: unsigned 32-bit inline images
+
+`jt_texture_pixel_tests.cpp` adds unsigned 32-bit word conversion, independently expected endpoints/rounding thresholds, endian/padding/alpha checks and earlier numeric regressions. Writers accept mutually exclusive `--unsigned32` alongside prior numeric flags; all generated outputs stay ignored. [C2n validation](../../research/jt/JT_TEXTURE_UINT32_VALIDATION.md) records exact regeneration commands and the 20-document owner visual gate. Full source precision is reduced in the existing RGBA8 display path.
+
+Numeric/9.x visual controls now share content-addressed geometry, images, buffers and glTF references under ignored out/. Gate manifests map logical case names to shared physical files; see [shared texture layout](../../research/jt/JT_SHARED_TEXTURE_CONTROLS.md). Existing regeneration arguments remain valid.
