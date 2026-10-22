@@ -13,9 +13,11 @@ from make_texture_control import Bytes, kind, element, end, signed_pixel_compone
 from texture_fixture_store import TextureFixtureStore
 
 
-def assembly9(minor, big, inline, pixels, width, height, transform, generation, planes, local_version=1, coordinate=0, pixel_type=3, geometry_reference='geometry.jt',image_reference='source_image.png',border_mode=0,image_border=0,wrap_s=2,wrap_t=2,pixel_format=1,min_filter=6,border_color=(0,0,0,1)):
+def assembly9(minor, big, inline, pixels, width, height, transform, generation, planes, local_version=1, coordinate=0, pixel_type=3, geometry_reference='geometry.jt',image_reference='source_image.png',border_mode=0,image_border=0,wrap_s=2,wrap_t=2,pixel_format=1,min_filter=6,border_color=(0,0,0,1),back_reference=None):
     graph = Bytes(big)
-    for ident, attrs, children, ref in [(1,[20],[2],''),(2,[],[],geometry_reference)]:
+    nodes=[(1,[] if back_reference else [20],[2,3] if back_reference else [2],''),(2,[20] if back_reference else [],[],geometry_reference)]
+    if back_reference:nodes.append((3,[],[],back_reference))
+    for ident, attrs, children, ref in nodes:
         body = Bytes(big); body.put('HI',1,0); body.ids(attrs); body.put('H',1); body.ids(children)
         body.put('I',0); body.text(ref); body.put('7f6I',*([0]*13)); element(graph,kind('10dd103e'),ident,body)
     texture = Bytes(big); texture.put('HBIH',1,8,0,local_version)

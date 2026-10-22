@@ -391,11 +391,16 @@ struct Builder {
             const auto& source=*state.image;
             if(source.Images().size()!=1)throw std::runtime_error("only one 2D image is supported");
             const auto& data=source.Images()[0];QImage pixels;bool borderHasAlpha=true;
+            auto borderColor=state.borderColor;
             constexpr uint64_t maxBytes=64u*1024u*1024u;
             if(source.Inline()) {
-                if((padS||padT)&&data.format!=1&&data.format!=2&&data.format!=11&&data.format!=12)
-                    throw std::runtime_error("sampled constant border currently requires RGB/RGBA storage");
-                borderHasAlpha=data.format==2||data.format==12;
+                if((padS||padT)&&data.format!=1&&data.format!=2&&data.format!=3&&data.format!=4&&data.format!=10&&data.format!=11&&data.format!=12)
+                    throw std::runtime_error("sampled constant border requires a qualified RGB, luminance or alpha format");
+                borderHasAlpha=data.format==2||data.format==4||data.format==10||data.format==12;
+                // Interpret Border Colour using the same internal components as
+                // the image. Alpha-only MODULATE keeps neutral white RGB.
+                if(data.format==3||data.format==4)borderColor[1]=borderColor[2]=borderColor[0];
+                if(data.format==10)borderColor[0]=borderColor[1]=borderColor[2]=1;
                 const bool colorFormat=(data.format>=1&&data.format<=4)||(data.format>=7&&data.format<=12);
                 if(data.dataType<1||data.dataType>9||data.dataType==4||!colorFormat
                     ||data.dimensionality!=2||data.depth!=1||data.border<0||data.border>1)
@@ -511,9 +516,9 @@ struct Builder {
                 JtData_Limits::allocation(size_t(width)*height*4);
                 QImage padded(width,height,QImage::Format_RGBA8888);if(padded.isNull())throw std::bad_alloc();
                 const auto byte=[](float v){return int(std::floor(std::max(0.0,std::min(1.0,double(v)))*255+0.5));};
-                // RGB internal images have no alpha component, including their
+                // RGB/luminance images have no alpha component, including their
                 // constant border. Do not introduce transparency from Border A.
-                padded.fill(QColor(byte(state.borderColor[0]),byte(state.borderColor[1]),byte(state.borderColor[2]),borderHasAlpha?byte(state.borderColor[3]):255));
+                padded.fill(QColor(byte(borderColor[0]),byte(borderColor[1]),byte(borderColor[2]),borderHasAlpha?byte(borderColor[3]):255));
                 for(int y=0;y<pixels.height();++y){options.check();std::memcpy(padded.scanLine(y+int(padT))+4*int(padS),pixels.constScanLine(y),size_t(pixels.width())*4);}
                 resultImage.scaleS=double(pixels.width())/width;resultImage.scaleT=double(pixels.height())/height;
                 resultImage.offsetS=double(padS)/width;resultImage.offsetT=double(padT)/height;

@@ -169,3 +169,7 @@ Numeric/9.x visual controls now share content-addressed geometry, images, buffer
 ## Feature gate C2s: sampled border colour layouts
 
 `jt_texture_border_format_tests.cpp` checks ten explicit-ring colour layouts with independent literal component/colour pairs, byte/unsigned-16 components, source endian and enabled modern/9.x envelopes. RGB/BGR constant borders and external RGB check that zero Border A cannot introduce transparency without an alpha component. The C2q unsupported constant-format case now uses luminance. `make_texture_border_format_controls.py` authors positive comparisons using the common store. [C2s validation](../../research/jt/JT_TEXTURE_BORDER_FORMAT_VALIDATION.md) records regeneration and the 15-document owner gate.
+
+## Feature gate C2t: constant luminance and alpha borders
+
+`jt_texture_border_format_tests.cpp` adds known constant-border component/alpha assertions for luminance, luminance-alpha and alpha-only with enabled/disabled blending across enabled modern/9.x envelopes. C2q unsupported constant-format coverage now uses red-only storage. `make_texture_border_component_controls.py` authors original nested cubes and independent glTF references so transparency reveals another object. Shared serializers accept optional blend/diffuse and untextured-sibling inputs without changing defaults. [C2t validation](../../research/jt/JT_TEXTURE_BORDER_COMPONENT_VALIDATION.md) records regeneration and the 20-document owner gate.

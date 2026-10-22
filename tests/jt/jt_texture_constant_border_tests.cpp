@@ -39,7 +39,7 @@ void constantBorderTests(){
             aiString mode;const auto* material=result.scene->mMaterials[mesh.mMaterialIndex];
             check((material->Get("$mat.gltf.alphaMode",0,0,mode)==AI_SUCCESS&&mode==aiString("BLEND"))==blend,"Sampled border alpha selected wrong pass");
         }
-        for(unsigned damage=0;damage<5;++damage){auto o=base;if(damage==0)o.minFilter=3;if(damage==1)o.borderMode=2;if(damage==2)o.borderMode=0;if(damage==3)o.wrapS=1;if(damage==4)o.pixelFormat=3;write(o,false);
+        for(unsigned damage=0;damage<5;++damage){auto o=base;if(damage==0)o.minFilter=3;if(damage==1)o.borderMode=2;if(damage==2)o.borderMode=0;if(damage==3)o.wrapS=1;if(damage==4)o.pixelFormat=7;write(o,false);
             const auto result=Jt::Importer::read(dir.filePath("border.jt"));check(result.scene->mNumMeshes==1&&result.scene->mNumTextures==0&&!result.warnings.isEmpty(),"Unqualified sampled border did not retain geometry with diagnostic");}
     }
     check(interior().save(dir.filePath("original_texture.png")),"Cannot write RGBA border source");

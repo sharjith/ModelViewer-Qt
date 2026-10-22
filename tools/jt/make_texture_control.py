@@ -82,7 +82,7 @@ def quantizer(dst, values):
     return codes
 
 
-def geometry(positions, uvs, indices, store_uv=True):
+def geometry(positions, uvs, indices, store_uv=True,blend=False,diffuse=(1,1,1,1)):
     big = False
     graph_id = '12345678-1234-5678-9abc-def012345678'
     shape_id = '23456789-1234-5678-9abc-def012345678'
@@ -91,9 +91,9 @@ def geometry(positions, uvs, indices, store_uv=True):
     root.put('7f6I', *([0]*13)); element(graph, kind('10dd103e'), 1, root)
     shape.put('I', 0); shape.ids([]); shape.put('12ff6IIf', *([0]*12), 1, *([0]*8))
     shape.put('III4B', 0, int(store_uv), 0, 0, 0, 0, 0); element(graph, kind('10dd1077'), 2, shape)
-    mat.put('BIH', 8, 0, 0x3980)
+    mat.put('BIH', 8, 0, 0x3990 if blend else 0x3980)
     for field in range(4):
-        mat.put('4f', *([1]*4 if field == 1 else [0, 0, 0, 1]))
+        mat.put('4f', *(diffuse if field == 1 else [0, 0, 0, 1]))
     mat.put('f', 16); element(graph, kind('10dd1030'), 20, mat, 3); end(graph)
     for ident, text in [(100, 'JT_PROP_NAME'), (101, 'Synthetic texture geometry'), (102, 'Textured surface'), (103, 'JT_PROP_LATE_LOADED')]:
         body = Bytes(); body.put('I', 0x40); body.text(text); element(graph, kind('10dd106e'), ident, body)
@@ -136,12 +136,15 @@ def signed_pixel_component(value,bits,big):
     return word.to_bytes(bits//8,'big' if big else 'little'),expected
 
 
-def assembly(big, inline, rgb, width, height, sampler, transform=None, generation=None, planes=None, pixel_format=1, alignment=1, pixel_type=3, geometry_reference='geometry.jt', image_reference='source_image.png',border_mode=0,image_border=0,border_color=(0,0,0,1)):
+def assembly(big, inline, rgb, width, height, sampler, transform=None, generation=None, planes=None, pixel_format=1, alignment=1, pixel_type=3, geometry_reference='geometry.jt', image_reference='source_image.png',border_mode=0,image_border=0,border_color=(0,0,0,1),back_reference=None):
     graph, root, part, texture = (Bytes(big) for _ in range(4))
-    for body, attributes, children, ref in [(root, [20], [2], ''), (part, [], [], geometry_reference)]:
+    for body, attributes, children, ref in [(root, [] if back_reference else [20], [2,3] if back_reference else [2], ''), (part, [20] if back_reference else [], [], geometry_reference)]:
         body.put('BI', 1, 0); body.ids(attributes); body.put('B', 1); body.ids(children)
         body.put('BI', 1, 0); body.text(ref); body.put('f6I', 0, *([0]*6))
     element(graph, kind('10dd103e'), 1, root); element(graph, kind('10dd103e'), 2, part)
+    if back_reference:
+        back=Bytes(big);back.put('BI',1,0);back.ids([]);back.put('B',1);back.ids([])
+        back.put('BI',1,0);back.text(back_reference);back.put('f6I',0,*([0]*6));element(graph,kind('10dd103e'),3,back)
     texture.put('BBIIBI', 1, 8, 0, 0, 1, 9)
     wrap = {33071: 4, 10497: 2, 33648: 3, 33069: 5}
     mag = {9728: 1, 9729: 2}; minimum = {9728: 1, 9729: 2, 9984: 3, 9985: 4, 9986: 5, 9987: 6}

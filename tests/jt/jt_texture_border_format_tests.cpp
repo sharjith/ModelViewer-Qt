@@ -31,11 +31,12 @@ void borderFormatTests(){
     QTemporaryDir dir;check(dir.isValid(),"Cannot create border-format test directory");
     LegacyFixture::Options geometry;geometry.quantizedData=true;geometry.quantizedBits=4;geometry.uvBinding=1;geometry.materialDataFlags=0x3990;
     LegacyFixture::write(dir.filePath("geometry.jt"),geometry);
+    geometry.materialDataFlags=0x3980;LegacyFixture::write(dir.filePath("opaque.jt"),geometry);
     for(unsigned family:{9u,10u})for(unsigned minor:family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,3,5,7,8,9,10})
     for(unsigned version:family==9?std::vector<unsigned>{1,2,3}:std::vector<unsigned>{1})for(bool big:{false,true}){
         TextureFixture::Options base;base.big=big;base.coordinate=0;base.version=version;base.legacyType=version==1?2:9;
         base.baseVersion=family==10&&minor?2:1;base.wrapped=family==10&&minor;base.wrapS=base.wrapT=5;base.alignment=8;
-        const auto write=[&](TextureFixture::Options o){if(family==9)TextureFixture::write9(dir.filePath("format.jt"),minor,o);else TextureFixture::write(dir.filePath("format.jt"),minor,o);};
+        const auto write=[&](TextureFixture::Options o,bool blend=true){if(family==9)TextureFixture::write9(dir.filePath("format.jt"),minor,o,blend?"geometry.jt":"opaque.jt");else TextureFixture::write(dir.filePath("format.jt"),minor,o,blend?"geometry.jt":"opaque.jt");};
         for(const auto& format:formats)for(unsigned type:{3u,5u}){
             auto o=base;o.borderMode=2;o.imageBorder=1;o.width=o.height=4;o.pixelFormat=format.code;o.pixelType=type;o.pixels=QByteArray("");
             for(int y=3;y>=0;--y){const auto start=o.pixels.size();for(int x=0;x<4;++x){
@@ -55,6 +56,15 @@ void borderFormatTests(){
             o.total=o.mipBytes=int(o.pixels.size());write(o);const auto result=Jt::Importer::read(dir.filePath("format.jt"));const auto image=imageOf(result);
             check(image.pixelColor(0,0)==QColor(51,102,153,255)&&image.pixelColor(1,1)==QColor(204,170,85,255),"RGB constant border channel/alpha interpretation differs");
             aiString mode;check(!(result.scene->mMaterials[result.scene->mMeshes[0]->mMaterialIndex]->Get("$mat.gltf.alphaMode",0,0,mode)==AI_SUCCESS&&mode==aiString("BLEND")),"RGB border introduced transparency from unused Border A");
+        }
+        for(const auto& format:formats)if(format.code==3||format.code==4||format.code==10)for(bool blend:{false,true}){
+            auto o=base;o.borderMode=1;o.pixelFormat=format.code;o.borderColor={.2f,.4f,.6f,.25f};o.pixels=QByteArray("");
+            for(int y=0;y<2;++y){const auto start=o.pixels.size();for(int x=0;x<2;++x)o.pixels+=QByteArray::fromHex(format.inner);while((o.pixels.size()-start)%8)o.pixels.append(char(0xea));}
+            o.total=o.mipBytes=int(o.pixels.size());write(o,blend);const auto result=Jt::Importer::read(dir.filePath("format.jt"));const auto image=imageOf(result);
+            const bool alpha=blend&&format.code!=3;
+            const QColor border=format.code==10?QColor(255,255,255,alpha?64:255):QColor(51,51,51,alpha?64:255);
+            check(image.pixelColor(0,0)==border&&image.pixelColor(1,1)==format.innerColor,"Luminance/alpha constant border interpreted wrong internal components");
+            aiString mode;check((result.scene->mMaterials[result.scene->mMeshes[0]->mMaterialIndex]->Get("$mat.gltf.alphaMode",0,0,mode)==AI_SUCCESS&&mode==aiString("BLEND"))==alpha,"Luminance/alpha constant border selected wrong pass");
         }
     }
     QImage rgb(2,2,QImage::Format_RGB888);rgb.fill(QColor(204,170,85));check(rgb.save(dir.filePath("original_texture.png")),"Cannot write RGB external source");
