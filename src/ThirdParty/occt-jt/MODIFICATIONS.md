@@ -158,3 +158,7 @@ The original `JtAttribute_TextureImage.hxx/.cxx` registers the published texture
 ## C2j advanced 9.x texture continuation â€” 22 October 2026
 
 The ModelViewer-original `JtAttribute_TextureImage.cxx` now consumes complete empty lower-version compatibility blocks before active v9 local-version-2/3 descriptors and reads the version-3 coordinate channel after image data. Existing image bounds/cancellation and raw metadata are retained; future layouts remain diagnosed. No upstream-derived source/hashes or file counts change. [Validation and reference provenance](../../../research/jt/JT_9X_ADVANCED_TEXTURE_VALIDATION.md) records the retained public JT9.5 reference, original tests and pending owner gate. No vendor implementation was used.
+
+## C2k texture source byte order — 22 October 2026
+
+The ModelViewer-original texture header/implementation retain the owning file byte order alongside unchanged raw image payloads, allowing the original scene adapter to normalize unsigned 16-bit colour components safely into the existing RGBA8 image path. No upstream-derived source/hashes or decoder file counts change. [C2k validation](../../../research/jt/JT_TEXTURE_UINT16_VALIDATION.md) records source references, prepared original tests and pending owner gate. No vendor implementation was used.

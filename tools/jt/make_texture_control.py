@@ -124,7 +124,7 @@ def geometry(positions, uvs, indices, store_uv=True):
     return file.data
 
 
-def assembly(big, inline, rgb, width, height, sampler, transform=None, generation=None, planes=None, pixel_format=1, alignment=1):
+def assembly(big, inline, rgb, width, height, sampler, transform=None, generation=None, planes=None, pixel_format=1, alignment=1, pixel_type=3):
     graph, root, part, texture = (Bytes(big) for _ in range(4))
     for body, attributes, children, ref in [(root, [20], [2], ''), (part, [], [], 'geometry.jt')]:
         body.put('BI', 1, 0); body.ids(attributes); body.put('B', 1); body.ids(children)
@@ -140,7 +140,7 @@ def assembly(big, inline, rgb, width, height, sampler, transform=None, generatio
     texture.put('16f', *(planes if planes is not None else [0]*16))
     texture.put('IIIBI', 0, 0, 0, int(inline), 1)
     if inline:
-        texture.put('II6HIHII', pixel_format, 3, 2, alignment, width, height, 1, 0, 0, 1, len(rgb), len(rgb)); texture.data += rgb
+        texture.put('II6HIHII', pixel_format, pixel_type, 2, alignment, width, height, 1, 0, 0, 1, len(rgb), len(rgb)); texture.data += rgb
     else:
         texture.text('source_image.png')
     element(graph, kind('10dd1073'), 20, texture, 3); end(graph); end(graph); graph.put('HI', 1, 0)

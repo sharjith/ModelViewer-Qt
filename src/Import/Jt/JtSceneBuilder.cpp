@@ -385,11 +385,12 @@ struct Builder {
             constexpr uint64_t maxBytes=64u*1024u*1024u;
             if(source.Inline()) {
                 const bool colorFormat=(data.format>=1&&data.format<=4)||(data.format>=7&&data.format<=12);
-                if(data.dataType!=3||!colorFormat
+                if((data.dataType!=3&&data.dataType!=5)||!colorFormat
                     ||data.dimensionality!=2||data.depth!=1||data.border!=0)
-                    throw std::runtime_error("inline texture requires a supported borderless 2D unsigned-byte colour format");
+                    throw std::runtime_error("inline texture requires a supported borderless 2D unsigned 8/16-bit colour format");
                 const size_t components=(data.format==2||data.format==12)?4:(data.format==1||data.format==11)?3:data.format==4?2:1;
-                const size_t stride=(size_t(data.width)*components+data.alignment-1)&~size_t(data.alignment-1);
+                const size_t componentBytes=data.dataType==5?2:1;
+                const size_t stride=(size_t(data.width)*components*componentBytes+data.alignment-1)&~size_t(data.alignment-1);
                 if(uint64_t(data.width)*data.height*4>maxBytes||data.baseMip.size()!=stride*size_t(data.height))
                     throw std::runtime_error("inline texture row/image byte count mismatch");
                 JtData_Limits::allocation(size_t(data.width)*data.height*4);
@@ -398,7 +399,20 @@ struct Builder {
                 for(int y=0;y<data.height;++y){
                     options.check();auto* dst=pixels.scanLine(y);const auto* row=data.baseMip.data()+size_t(data.height-1-y)*stride;
                     for(int x=0;x<data.width;++x){
-                        const auto* src=row+size_t(x)*components;auto* out=dst+4*x;
+                        const auto* packed=row+size_t(x)*components*componentBytes;auto* out=dst+4*x;
+                        unsigned char converted[4];
+                        const auto* src=packed;
+                        if(componentBytes==2){
+                            for(size_t c=0;c<components;++c){
+                                const auto* word=packed+2*c;
+                                const unsigned value=source.ImageDataLittleEndian()?unsigned(word[0])|(unsigned(word[1])<<8)
+                                    :(unsigned(word[0])<<8)|unsigned(word[1]);
+                                // Normalize UNORM16 into the existing RGBA8 image path,
+                                // rounding to the nearest byte without unaligned reads.
+                                converted[c]=static_cast<unsigned char>((value+128u)/257u);
+                            }
+                            src=converted;
+                        }
                         out[0]=out[1]=out[2]=0;out[3]=255;
                         if(data.format==3||data.format==4){out[0]=out[1]=out[2]=src[0];if(data.format==4)out[3]=src[1];}
                         else if(data.format>=7&&data.format<=9)out[data.format-7]=src[0];

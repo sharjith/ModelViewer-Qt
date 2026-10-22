@@ -24,6 +24,7 @@ public:
   Jt_I32 Channel() const {return myChannel;}
   Jt_I32 CoordinateChannel() const {return myCoordinateChannel;}
   bool Inline() const {return myInline;}
+  bool ImageDataLittleEndian() const {return myImageDataLE;}
   const std::vector<Image>& Images() const {return myImages;}
   const std::array<Jt_I32,8>& Environment() const {return myEnvironment;}
   const std::array<Jt_F32,16>& Transform() const {return myTransform;}
@@ -34,7 +35,7 @@ public:
   DEFINE_STANDARD_RTTIEXT(JtAttribute_TextureImage, JtAttribute_Base)
   DEFINE_OBJECT_CLASS(JtAttribute_TextureImage)
 private:
-  bool myParsed=false,myInline=false,myLegacy9=false;
+  bool myParsed=false,myInline=false,myLegacy9=false,myImageDataLE=true;
   Jt_I16 myLocalVersion=0;
   Jt_I32 myType=0,myChannel=0,myCoordinateChannel=-1;
   std::array<Jt_I32,8> myEnvironment{};

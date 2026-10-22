@@ -1,5 +1,5 @@
 // Copyright (C) 2026 ModelViewer-Qt contributors. SPDX-License-Identifier: GPL-3.0-only
-// Original unsigned-byte texels and independent RGBA expectations.
+// Original unsigned 8/16-bit texels and independent RGBA expectations.
 #include "JtTextureFixture.h"
 #include "JtLegacyFixture.h"
 #include "Jt/JtImporter.h"
@@ -14,7 +14,14 @@ void author(TextureFixture::Options& o,QImage& expected,bool alpha){
     expected=QImage(3,2,QImage::Format_RGBA8888);o.width=3;o.height=2;o.pixels=QByteArray("");
     for(int y=1;y>=0;--y){const auto start=o.pixels.size();
         for(int x=0;x<3;++x){const auto p=input[3*y+x];unsigned r=0,g=0,b=0,a=255;
-            const auto put=[&](unsigned v){o.pixels.append(char(v));};
+            const auto put=[&](unsigned v){
+                if(o.pixelType==5){
+                    // Unequal bytes make byte-order mistakes visible, while the
+                    // independent expected byte remains v after nearest rounding.
+                    const unsigned word=v==0?0:v==255?65535:v*257+73;
+                    o.pixels.append(char(o.big?word>>8:word));o.pixels.append(char(o.big?word:word>>8));
+                }else o.pixels.append(char(v));
+            };
             switch(o.pixelFormat){
             case 1:put(p.r);put(p.g);put(p.b);r=p.r;g=p.g;b=p.b;break;
             case 2:put(p.r);put(p.g);put(p.b);put(p.a);r=p.r;g=p.g;b=p.b;a=p.a;break;
@@ -39,9 +46,10 @@ void texturePixelTests(){
     LegacyFixture::Options geometry;geometry.quantizedData=true;geometry.quantizedBits=4;geometry.uvBinding=1;geometry.materialDataFlags=0x3990;
     LegacyFixture::write(dir.filePath("blend.jt"),geometry);geometry.materialDataFlags=0x3980;LegacyFixture::write(dir.filePath("opaque.jt"),geometry);
     for(unsigned minor:{0u,3u,5u,7u,8u,9u,10u})for(bool big:{false,true})for(bool alpha:{false,true})
+        for(unsigned pixelType:{3u,5u})
         for(unsigned format:{1u,2u,3u,4u,7u,8u,9u,10u,11u,12u})
         for(int alignment:minor==0?std::vector<int>{1,2,4,8}:std::vector<int>{8}){
-            TextureFixture::Options o;o.coordinate=0;o.big=big;o.baseVersion=minor?2:1;o.wrapped=minor!=0;o.pixelFormat=format;o.alignment=alignment;
+            TextureFixture::Options o;o.coordinate=0;o.big=big;o.baseVersion=minor?2:1;o.wrapped=minor!=0;o.pixelFormat=format;o.alignment=alignment;o.pixelType=pixelType;
             QImage expected;author(o,expected,alpha);TextureFixture::write(dir.filePath("pixels.jt"),minor,o,alpha?"blend.jt":"opaque.jt");
             const auto result=Jt::Importer::read(dir.filePath("pixels.jt"));check(result.scene->mNumMeshes==1,"Pixel format lost geometry");
             const auto* material=result.scene->mMaterials[result.scene->mMeshes[0]->mMaterialIndex];aiString path;
@@ -61,11 +69,44 @@ void texturePixelTests(){
     }
     // Valid descriptors with too few/many base-row bytes must not overread or
     // silently treat padding as pixels. Keep descriptor aggregate counts valid.
-    for(int delta:{-1,1}){
-        TextureFixture::Options o;o.coordinate=0;o.pixelFormat=4;o.alignment=8;QImage image;author(o,image,true);
+    for(unsigned type:{3u,5u})for(int delta:{-1,1}){
+        TextureFixture::Options o;o.coordinate=0;o.pixelFormat=4;o.pixelType=type;o.alignment=8;QImage image;author(o,image,true);
         o.pixels.resize(o.pixels.size()+delta);o.total=o.mipBytes=int(o.pixels.size());TextureFixture::write(dir.filePath("bad_rows.jt"),0,o,"blend.jt");
         const auto result=Jt::Importer::read(dir.filePath("bad_rows.jt"));
         check(result.scene->mNumMeshes==1&&!result.warnings.isEmpty()&&result.scene->mNumTextures==0,"Invalid pixel row count did not fall back");
     }
-    std::cout<<"Inline colour formats, RGBA alpha policy, row alignment, byte orders and image fallback passed\n";
+    // The same numeric conversion must work behind every accepted v9 texture
+    // envelope, including its one-byte shared flag and trailing v3 coordinate.
+    for(unsigned minor:{0u,5u})for(unsigned version:{1u,2u,3u})for(bool big:{false,true})for(unsigned format:{1u,4u,12u}){
+        TextureFixture::Options o;o.big=big;o.version=version;o.legacyType=version==1?2:9;o.coordinate=0;o.pixelType=5;o.pixelFormat=format;o.alignment=8;
+        QImage expected;author(o,expected,true);TextureFixture::write9(dir.filePath("u16_v9.jt"),minor,o,"blend.jt");
+        const auto result=Jt::Importer::read(dir.filePath("u16_v9.jt"));aiString path;
+        check(result.scene->mNumMeshes==1&&result.scene->mMaterials[result.scene->mMeshes[0]->mMaterialIndex]->GetTexture(aiTextureType_DIFFUSE,0,&path)==AI_SUCCESS,"V9 uint16 image lost geometry/association");
+        const auto* image=result.scene->GetEmbeddedTexture(path.C_Str());
+        check(image&&QImage::fromData(reinterpret_cast<const uchar*>(image->pcData),int(image->mWidth)).convertToFormat(QImage::Format_RGBA8888)==expected,"V9 uint16 pixel/endian conversion differs");
+    }
+    // Hand-computed UNORM16 rounding boundaries, not just expanded 8-bit values.
+    const unsigned words[18]={0,1,128,129,256,257,258,32767,32768,65406,65407,65534,65535,0x1234,0xabcd,0x0100,0x8000,0xff00};
+    const unsigned values[18]={0,0,0,1,1,1,1,127,128,254,255,255,255,18,171,1,128,254};
+    for(bool big:{false,true}){
+        TextureFixture::Options o;o.big=big;o.coordinate=0;o.pixelType=5;o.width=3;o.height=2;o.alignment=8;o.pixels=QByteArray("");
+        QImage expected(3,2,QImage::Format_RGBA8888);
+        for(int y=1;y>=0;--y){const auto start=o.pixels.size();
+            for(int x=0;x<3;++x){const auto index=9*y+3*x;
+                for(int c=0;c<3;++c){const auto word=words[index+c];o.pixels.append(char(big?word>>8:word));o.pixels.append(char(big?word:word>>8));}
+                expected.setPixelColor(x,y,QColor(int(values[index]),int(values[index+1]),int(values[index+2])));}
+            while((o.pixels.size()-start)%8)o.pixels.append(char(0xea));
+        }
+        o.total=o.mipBytes=int(o.pixels.size());TextureFixture::write(dir.filePath("u16_boundaries.jt"),0,o,"opaque.jt");
+        const auto result=Jt::Importer::read(dir.filePath("u16_boundaries.jt"));aiString path;
+        check(result.scene->mMaterials[result.scene->mMeshes[0]->mMaterialIndex]->GetTexture(aiTextureType_DIFFUSE,0,&path)==AI_SUCCESS,"Uint16 boundary texture missing");
+        const auto* image=result.scene->GetEmbeddedTexture(path.C_Str());
+        check(image&&QImage::fromData(reinterpret_cast<const uchar*>(image->pcData),int(image->mWidth)).convertToFormat(QImage::Format_RGBA8888)==expected,"Uint16 rounding boundaries differ");
+    }
+    for(unsigned type:{0u,1u,2u,4u,6u,7u,8u,9u}){
+        TextureFixture::Options o;o.coordinate=0;o.pixelType=type;TextureFixture::write(dir.filePath("other_type.jt"),0,o,"opaque.jt");
+        const auto result=Jt::Importer::read(dir.filePath("other_type.jt"));
+        check(result.scene->mNumMeshes==1&&result.scene->mNumTextures==0&&!result.warnings.isEmpty(),"Unsupported numeric type lost fallback");
+    }
+    std::cout<<"Inline unsigned 8/16-bit formats, rounding, alpha policy, row alignment, byte orders and fallback passed\n";
 }

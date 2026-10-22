@@ -13,7 +13,7 @@ from PIL import Image
 from make_texture_control import Bytes, kind, element, end
 
 
-def assembly9(minor, big, inline, pixels, width, height, transform, generation, planes, local_version=1, coordinate=0):
+def assembly9(minor, big, inline, pixels, width, height, transform, generation, planes, local_version=1, coordinate=0, pixel_type=3):
     graph = Bytes(big)
     for ident, attrs, children, ref in [(1,[20],[2],''),(2,[],[],'geometry.jt')]:
         body = Bytes(big); body.put('HI',1,0); body.ids(attrs); body.put('H',1); body.ids(children)
@@ -27,7 +27,7 @@ def assembly9(minor, big, inline, pixels, width, height, transform, generation, 
         texture.put('IIBI',0,0,int(inline),0 if stub else 1)
         if not stub:
             if inline:
-                texture.put('II6HBHII',1,3,2,1,width,height,1,0,1,1,len(pixels),len(pixels)); texture.data += pixels
+                texture.put('II6HBHII',1,pixel_type,2,1,width,height,1,0,1,1,len(pixels),len(pixels)); texture.data += pixels
             else:texture.text('source_image.png')
         # V3 appends this field; modern v10 places it before image storage.
         if block==3:texture.put('i',coordinate)
@@ -44,6 +44,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('source_folder',type=Path); parser.add_argument('transform_folder',type=Path); parser.add_argument('planar_folder',type=Path); parser.add_argument('output_folder',type=Path)
     parser.add_argument('--advanced',action='store_true',help='Author local versions 2/3 in separate folders instead of basic version 1')
+    parser.add_argument('--unsigned16',action='store_true',help='Use unsigned 16-bit inline RGB components')
     args = parser.parse_args(); source, transformed, planar, output = [p.resolve() for p in (args.source_folder,args.transform_folder,args.planar_folder,args.output_folder)]
     if not output.is_relative_to(Path(__file__).resolve().parents[2]/'out') or output in (source,transformed,planar):
         raise ValueError('Use a separate output directory inside ignored repository out/')
@@ -68,7 +69,10 @@ def main():
                     for inline in (False,True):
                         filename=f'texture_{"inline" if inline else "external"}_{"be" if big else "le"}.jt'
                         coordinate=1 if version==3 and case=='planar' else 0
-                        data=assembly9(minor,big,inline,pixels,image.width,image.height,t,gen,planes,version,coordinate)
+                        packed=pixels
+                        if args.unsigned16:
+                            packed=b''.join((0 if value==0 else 65535 if value==255 else value*257+73).to_bytes(2,'big' if big else 'little') for value in pixels)
+                        data=assembly9(minor,big,inline,packed,image.width,image.height,t,gen,planes,version,coordinate,5 if args.unsigned16 else 3)
                         (folder/filename).write_bytes(data);authored.append({'file':str((folder/filename).relative_to(output)),'sha256':hashlib.sha256(data).hexdigest()})
     report={'source_folder':str(source),'controls':authored,'method':'Separately serialized original v9 attribute/container records with compatibility stubs for advanced versions; 8.2 geometry companion; synthetic/reference-derived, no native or vendor execution'}
     (output/'authoring.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')

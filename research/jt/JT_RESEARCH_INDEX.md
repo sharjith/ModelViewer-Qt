@@ -17,5 +17,6 @@ Suggested reading order:
 11. Accepted image formats: [C2h inline colour pixels](JT_TEXTURE_PIXEL_VALIDATION.md).
 12. Accepted basic 9.x image mapping: [C2i textures](JT_9X_TEXTURE_VALIDATION.md).
 13. Owner-accepted advanced image layout: [C2j advanced 9.x textures](JT_9X_ADVANCED_TEXTURE_VALIDATION.md).
+14. Owner-accepted numeric image path: [C2k unsigned 16-bit image components](JT_TEXTURE_UINT16_VALIDATION.md).
 
 Sibling validation documents retain the source, measurement and owner-acceptance records for earlier gates. Research documents belong here; generated evidence and fixtures remain under ignored `out/jt-research/`. The [repository handout](../../RESEARCH_FOLDER_HANDOUT.md) governs new work. See the [repository README](../../README.md) for user-facing import scope.

@@ -131,3 +131,7 @@ The combined C2d/C2e gate now expects visible textures. See the [current handoff
 ## Feature gate C2j: advanced 9.x texture hierarchy
 
 `jt9_texture_tests.cpp` extends original records to local versions 2/3, compatibility-stub validation, trailing coordinate selection, advanced type semantics, pixels/affine/generated coordinates, source metadata, truncated prefixes and resource/cancellation checks. `make_jt9_texture_controls.py --advanced` serializes separate enabled 9.0/9.5 controls, keeping generated assets ignored. [C2j validation](../../research/jt/JT_9X_ADVANCED_TEXTURE_VALIDATION.md) provides the exact regeneration command and owner build/UI gate. No authentic textured-export or full C2 completion claim is made.
+
+## Feature gate C2k: unsigned 16-bit inline images
+
+`jt_texture_pixel_tests.cpp` adds endian-distinct unsigned words, independently expected rounding boundaries, padding/alpha checks across enabled modern revisions and accepted basic/advanced 9.x texture envelopes. Existing unsupported numeric types must retain geometry with diagnostics. Authoring tools accept `--unsigned16`; generated controls remain ignored. [C2k validation](../../research/jt/JT_TEXTURE_UINT16_VALIDATION.md) supplies exact regeneration commands and the owner build/UI gate. The renderer's existing RGBA8 path intentionally reduces source precision.

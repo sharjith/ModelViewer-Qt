@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 ModelViewer-Qt contributors. SPDX-License-Identifier: GPL-3.0-only
-"""Author unsigned-byte JT pixel-format controls and glTF references from GTEX01.
+"""Author unsigned 8/16-bit JT pixel controls and glTF references from GTEX01.
 Assets stay under ignored out/. Visual controls are opaque; alpha policy is covered
 by prepared portable checks and the earlier separate transparency gates.
 """
@@ -17,6 +17,7 @@ from make_texture_control import assembly
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('source_folder', type=Path); parser.add_argument('output_folder', type=Path)
+    parser.add_argument('--unsigned16',action='store_true',help='Pack unsigned 16-bit components with distinguishable bytes')
     args = parser.parse_args(); source, output = args.source_folder.resolve(), args.output_folder.resolve()
     if not output.is_relative_to(Path(__file__).resolve().parents[2]/'out') or output == source:
         raise ValueError('Use a separate output folder inside ignored repository out/')
@@ -51,16 +52,24 @@ def main():
                 elif fmt == 10:sample, color = (a,), (255,255,255,a)
                 elif fmt == 11:sample, color = (b,g,r), (r,g,b,a)
                 else:sample, color = (b,g,r,a), (r,g,b,a)
-                row.extend(sample); expected.putpixel((x,y), color)
+                if args.unsigned16:
+                    for value in sample:
+                        word=0 if value==0 else 65535 if value==255 else value*257+73
+                        row.extend(word.to_bytes(2,'little'))
+                else:row.extend(sample)
+                expected.putpixel((x,y), color)
             row.extend([0xea]*((-len(row))%8)); encoded_rows.append(bytes(row))
         payload = b''.join(reversed(encoded_rows)); image_name = f'{name}_image.png'; expected.save(output/image_name)
         for big in (False, True):
             filename = f'{name}_{"be" if big else "le"}.jt'
-            data = assembly(big, True, payload, width, image.height, sampler, pixel_format=fmt, alignment=8)
+            packed=payload
+            if args.unsigned16 and big:
+                packed=bytearray(payload);packed[0::2],packed[1::2]=payload[1::2],payload[0::2]
+            data = assembly(big, True, packed, width, image.height, sampler, pixel_format=fmt, alignment=8,pixel_type=5 if args.unsigned16 else 3)
             (output/filename).write_bytes(data); authored.append({'file':filename,'sha256':hashlib.sha256(data).hexdigest()})
         reference = copy.deepcopy(doc); reference['images'][reference['textures'][texture]['source']]['uri'] = image_name
         (output/f'{name}_reference.gltf').write_text(json.dumps(reference, indent=2)+'\n', encoding='utf-8')
-    report = {'source_folder':str(source),'image':[width,image.height],'alignment':8,'alpha':'opaque visual controls; no transparency acceptance inferred',
+    report = {'source_folder':str(source),'image':[width,image.height],'alignment':8,'pixel_type':5 if args.unsigned16 else 3,'alpha':'opaque visual controls; no transparency acceptance inferred',
               'controls':authored,'method':'Original pixel packing and expected RGBA images; synthetic 10.0 attributes/8.2 geometry; no importer execution/vendor conformance'}
     (output/'authoring.json').write_text(json.dumps(report, indent=2)+'\n', encoding='utf-8')
     print(f'Authored {len(authored)} pixel-format JT controls and ten glTF references in {output}')

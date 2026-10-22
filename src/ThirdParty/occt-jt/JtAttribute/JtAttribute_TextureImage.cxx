@@ -17,6 +17,7 @@ Standard_Boolean JtAttribute_TextureImage::Read(JtData_Reader& reader)
 {
   myParsed=false;myImages.clear();myLocalVersion=0;myLegacy9=reader.Model()->MajorVersion()==9;
   myOrigin=reader.Model()->FileName();
+  myImageDataLE=reader.Model()->IsFileLE(); // raw texel bytes are retained without host swapping
   if(!JtAttribute_Base::Read(reader))return Standard_False;
   // JT 8.x still needs applicable layout evidence. JT 9.x uses a distinct
   // local-version hierarchy, with complete lower-version compatibility stubs.

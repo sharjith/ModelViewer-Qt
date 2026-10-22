@@ -116,3 +116,7 @@ C2h is pushed as `d757c2f`. [9.x texture validation](JT_9X_TEXTURE_VALIDATION.md
 ## Accepted gate C2j â€” advanced 9.x texture blocks
 
 C2i is owner-accepted and pushed as `0034b48`. [Advanced 9.x texture validation](JT_9X_ADVANCED_TEXTURE_VALIDATION.md) adds the published compatibility-stub hierarchy, active version-2/3 pre-lit 2D image mapping and trailing version-3 coordinate selection. Original checks and 48 authored visual controls are prepared. Authoring ran; the agent did not build/run native tests or the viewer. The owner reported C2j tests passed on 22 October 2026 and authorized commit/push/proceeding after every successful test report. C3 production tests can wait independently; other C2 modes and authentic textured-export qualification remain open. No version or dependency changes.
+
+## Accepted gate C2k — unsigned 16-bit image components
+
+C2j is accepted and pushed as `9c8d37a`. [Unsigned 16-bit texture validation](JT_TEXTURE_UINT16_VALIDATION.md) extends the accepted inline colour path with explicit source-endian word assembly and normalized nearest-byte RGBA8 conversion. Prepared checks cover all enabled modern minors and accepted 9.x texture envelopes, rounding boundaries, padding and alpha. Original modern/9.x comparison controls were authored under ignored out/. No native/viewer execution by the agent; the owner reported C2k passed on 22 October 2026. Other C2 modes, authentic textured exports and C3 production validation remain open. No version or dependency change.

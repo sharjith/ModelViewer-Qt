@@ -1147,5 +1147,15 @@
       "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_TextureImage.cxx"
     ],
     "validation": "research/jt/JT_9X_ADVANCED_TEXTURE_VALIDATION.md"
+  },
+  "texture_uint16_follow_up": {
+    "date": "2026-10-22",
+    "scope": "Original texture descriptor retains owning file byte order for unsigned 16-bit inline colour conversion in the application adapter; raw image data unchanged",
+    "reference": "Retained Siemens JT10.0 Rev-B file header/image type descriptions and JT9.5 Rev-A image descriptions",
+    "files": [
+      "include/ThirdParty/occt-jt/JtAttribute/JtAttribute_TextureImage.hxx",
+      "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_TextureImage.cxx"
+    ],
+    "validation": "research/jt/JT_TEXTURE_UINT16_VALIDATION.md"
   }
 }
