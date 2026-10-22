@@ -1,0 +1,32 @@
+{
+  "tool_schema": 1,
+  "geometry_exported": false,
+  "model_strings_exported": false,
+  "external_files_followed": false,
+  "registry_available": true,
+  "bytes": 20253686,
+  "sha256": "498695d7b62e167fd661ea781a84a03ef1c8e637aefac9a37a79af71e6af3137",
+  "version": "10.9",
+  "byte_order": "LE",
+  "toc_entries": 52,
+  "segment_counts": {
+    "1": 1,
+    "3": 1,
+    "4": 1,
+    "7": 15,
+    "8": 15,
+    "9": 15,
+    "17": 1,
+    "18": 1,
+    "23": 1,
+    "31": 1
+  },
+  "shape_lod_segments_6_to_16": 45,
+  "xt_segments_17_or_30": 1,
+  "jt_brep_segments_2": 0,
+  "lsg_compression": {
+    "flag": 3,
+    "algorithm": 3
+  },
+  "lsg_inventory": "not scanned: compression profile outside this diagnostic tool"
+}
