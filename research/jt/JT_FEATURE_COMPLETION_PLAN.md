@@ -124,3 +124,7 @@ C2j is accepted and pushed as `9c8d37a`. [Unsigned 16-bit texture validation](JT
 ## Accepted gate C2l - float32 inline image components
 
 C2k is accepted and pushed as `e4c5840`. [Float texture validation](JT_TEXTURE_FLOAT_VALIDATION.md) extends the original adapter with source-endian float32 components, finite-value validation, clamping and nearest-byte RGBA8 display conversion. Original checks and modern/9.x comparison controls are prepared; authoring ran under ignored out/. No C++ build/test or viewer run by the agent. The owner reported C2l passed on 22 October 2026. Authentic textured-export qualification, other C2 modes and C3 production checks remain pending. No version, dependency or vendored decoder change.
+
+## Accepted gate C2m - float16 inline image components
+
+C2l is accepted and pushed as `df79883`. [Half texture validation](JT_TEXTURE_HALF_VALIDATION.md) extends the original adapter to documented IEEE binary16 components using exact exponent/fraction evaluation, retaining accepted finite/clamp/nearest-byte display and nonfinite fallback policy. Original native cases and modern/9.x controls are prepared; authoring ran into ignored out/. The owner built the viewer; the agent launched the requested positive documents in one installed app instance and the owner reported the full visual gate passed on 22 October 2026. No native suite execution by the agent. Authentic textured-export qualification, other C2 modes and C3 production checks remain pending. No version, dependency or vendored decoder change.

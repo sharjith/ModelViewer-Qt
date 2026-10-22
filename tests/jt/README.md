@@ -139,3 +139,7 @@ The combined C2d/C2e gate now expects visible textures. See the [current handoff
 ## Feature gate C2l: float32 inline images
 
 `jt_texture_pixel_tests.cpp` adds source-endian float components, independent IEEE boundary values, clamping, nearest-byte output, nonfinite colour/alpha fallback and existing numeric regressions. Authoring tools accept `--float32`, mutually exclusive with `--unsigned16`; outputs stay ignored. [C2l validation](../../research/jt/JT_TEXTURE_FLOAT_VALIDATION.md) provides the owner build/UI gate and exact regeneration commands. Float precision/HDR range are reduced in the established RGBA8 display path.
+
+## Feature gate C2m: float16 inline images
+
+`jt_texture_pixel_tests.cpp` adds binary16 components, independent half bit patterns, clamp/rounding/endianness checks, nonfinite colour/alpha fallback and earlier numeric regressions. Authoring tools accept mutually exclusive `--float16`/`--float32`/`--unsigned16` flags; all outputs stay ignored. [C2m validation](../../research/jt/JT_TEXTURE_HALF_VALIDATION.md) records exact regeneration commands and the owner build/UI gate. Source precision/HDR range are reduced in the existing RGBA8 display path.

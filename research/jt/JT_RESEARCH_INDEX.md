@@ -19,5 +19,6 @@ Suggested reading order:
 13. Owner-accepted advanced image layout: [C2j advanced 9.x textures](JT_9X_ADVANCED_TEXTURE_VALIDATION.md).
 14. Owner-accepted numeric image path: [C2k unsigned 16-bit image components](JT_TEXTURE_UINT16_VALIDATION.md).
 15. Owner-accepted floating image path: [C2l float32 image components](JT_TEXTURE_FLOAT_VALIDATION.md).
+16. Owner-accepted half image path: [C2m binary16 image components](JT_TEXTURE_HALF_VALIDATION.md).
 
 Sibling validation documents retain the source, measurement and owner-acceptance records for earlier gates. Research documents belong here; generated evidence and fixtures remain under ignored `out/jt-research/`. The [repository handout](../../RESEARCH_FOLDER_HANDOUT.md) governs new work. See the [repository README](../../README.md) for user-facing import scope.

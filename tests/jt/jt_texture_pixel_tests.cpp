@@ -1,5 +1,5 @@
 // Copyright (C) 2026 ModelViewer-Qt contributors. SPDX-License-Identifier: GPL-3.0-only
-// Original unsigned 8/16-bit and float32 texels and independent RGBA expectations.
+// Original unsigned 8/16-bit and float16/32 texels and independent RGBA expectations.
 #include "JtTextureFixture.h"
 #include "JtLegacyFixture.h"
 #include "Jt/JtImporter.h"
@@ -16,10 +16,15 @@ void author(TextureFixture::Options& o,QImage& expected,bool alpha){
     for(int y=1;y>=0;--y){const auto start=o.pixels.size();
         for(int x=0;x<3;++x){const auto p=input[3*y+x];unsigned r=0,g=0,b=0,a=255;
             const auto put=[&](unsigned v){
-                if(o.pixelType==2){
+                if(o.pixelType==2||o.pixelType==9){
                     const float component=float(v)/255.f;uint32_t bits;
                     std::memcpy(&bits,&component,sizeof(bits));
-                    for(unsigned i=0;i<4;++i)o.pixels.append(char(bits>>(8*(o.big?3-i:i))));
+                    if(o.pixelType==9){
+                        // Test inputs are zero or normal positive values in
+                        // [10/255,1]; independently round the float mantissa.
+                        const unsigned half=v==0?0:((bits+0x1000u)>>13)-0x1c000u;
+                        o.pixels.append(char(o.big?half>>8:half));o.pixels.append(char(o.big?half:half>>8));
+                    }else for(unsigned i=0;i<4;++i)o.pixels.append(char(bits>>(8*(o.big?3-i:i))));
                 }else if(o.pixelType==5){
                     // Unequal bytes make byte-order mistakes visible, while the
                     // independent expected byte remains v after nearest rounding.
@@ -51,7 +56,7 @@ void texturePixelTests(){
     LegacyFixture::Options geometry;geometry.quantizedData=true;geometry.quantizedBits=4;geometry.uvBinding=1;geometry.materialDataFlags=0x3990;
     LegacyFixture::write(dir.filePath("blend.jt"),geometry);geometry.materialDataFlags=0x3980;LegacyFixture::write(dir.filePath("opaque.jt"),geometry);
     for(unsigned minor:{0u,3u,5u,7u,8u,9u,10u})for(bool big:{false,true})for(bool alpha:{false,true})
-        for(unsigned pixelType:{2u,3u,5u})
+        for(unsigned pixelType:{2u,3u,5u,9u})
         for(unsigned format:{1u,2u,3u,4u,7u,8u,9u,10u,11u,12u})
         for(int alignment:minor==0?std::vector<int>{1,2,4,8}:std::vector<int>{8}){
             TextureFixture::Options o;o.coordinate=0;o.big=big;o.baseVersion=minor?2:1;o.wrapped=minor!=0;o.pixelFormat=format;o.alignment=alignment;o.pixelType=pixelType;
@@ -74,7 +79,7 @@ void texturePixelTests(){
     }
     // Valid descriptors with too few/many base-row bytes must not overread or
     // silently treat padding as pixels. Keep descriptor aggregate counts valid.
-    for(unsigned type:{2u,3u,5u})for(int delta:{-1,1}){
+    for(unsigned type:{2u,3u,5u,9u})for(int delta:{-1,1}){
         TextureFixture::Options o;o.coordinate=0;o.pixelFormat=4;o.pixelType=type;o.alignment=8;QImage image;author(o,image,true);
         o.pixels.resize(o.pixels.size()+delta);o.total=o.mipBytes=int(o.pixels.size());TextureFixture::write(dir.filePath("bad_rows.jt"),0,o,"blend.jt");
         const auto result=Jt::Importer::read(dir.filePath("bad_rows.jt"));
@@ -82,7 +87,7 @@ void texturePixelTests(){
     }
     // The same numeric conversion must work behind every accepted v9 texture
     // envelope, including its one-byte shared flag and trailing v3 coordinate.
-    for(unsigned minor:{0u,5u})for(unsigned version:{1u,2u,3u})for(bool big:{false,true})for(unsigned format:{1u,4u,12u})for(unsigned type:{2u,5u}){
+    for(unsigned minor:{0u,5u})for(unsigned version:{1u,2u,3u})for(bool big:{false,true})for(unsigned format:{1u,4u,12u})for(unsigned type:{2u,5u,9u}){
         TextureFixture::Options o;o.big=big;o.version=version;o.legacyType=version==1?2:9;o.coordinate=0;o.pixelType=type;o.pixelFormat=format;o.alignment=8;
         QImage expected;author(o,expected,true);TextureFixture::write9(dir.filePath("numeric_v9.jt"),minor,o,"blend.jt");
         const auto result=Jt::Importer::read(dir.filePath("numeric_v9.jt"));aiString path;
@@ -113,12 +118,14 @@ void texturePixelTests(){
     const uint32_t floatBits[18]={0xbf800000,0,0x3f000000,0x3f800000,0x40000000,0x3e800000,
         0x3f400000,0x3e000000,0x3f600000,0x80000000,1,0x7f7fffff,0xff7fffff,0x3f7fffff,0x3f000001,0x3effffff,0x3d800000,0x3f700000};
     const unsigned floatExpected[18]={0,0,128,255,255,64,191,32,223,0,0,255,0,255,128,127,16,239};
-    for(bool big:{false,true}){
-        TextureFixture::Options o;o.big=big;o.coordinate=0;o.pixelType=2;o.width=3;o.height=2;o.alignment=8;o.pixels=QByteArray("");
+    const uint32_t halfBits[18]={0xbc00,0,0x3800,0x3c00,0x4000,0x3400,0x3a00,0x3000,0x3b00,0x8000,1,0x7bff,0xfbff,0x3bff,0x3801,0x37ff,0x2c00,0x3b80};
+    for(unsigned type:{2u,9u})for(bool big:{false,true}){
+        const unsigned componentBytes=type==9?2:4;const auto* patterns=type==9?halfBits:floatBits;
+        TextureFixture::Options o;o.big=big;o.coordinate=0;o.pixelType=type;o.width=3;o.height=2;o.alignment=8;o.pixels=QByteArray("");
         QImage expected(3,2,QImage::Format_RGBA8888);
         for(int y=1;y>=0;--y){const auto start=o.pixels.size();
             for(int x=0;x<3;++x){const auto index=9*y+3*x;
-                for(int c=0;c<3;++c)for(unsigned b=0;b<4;++b)o.pixels.append(char(floatBits[index+c]>>(8*(big?3-b:b))));
+                for(int c=0;c<3;++c)for(unsigned b=0;b<componentBytes;++b)o.pixels.append(char(patterns[index+c]>>(8*(big?componentBytes-1-b:b))));
                 expected.setPixelColor(x,y,QColor(int(floatExpected[index]),int(floatExpected[index+1]),int(floatExpected[index+2])));}
             while((o.pixels.size()-start)%8)o.pixels.append(char(0xea));}
         o.total=o.mipBytes=int(o.pixels.size());TextureFixture::write(dir.filePath("float_boundaries.jt"),0,o,"opaque.jt");
@@ -126,20 +133,22 @@ void texturePixelTests(){
         check(result.scene->mMaterials[result.scene->mMeshes[0]->mMaterialIndex]->GetTexture(aiTextureType_DIFFUSE,0,&path)==AI_SUCCESS,"Float32 boundary image missing");
         const auto* image=result.scene->GetEmbeddedTexture(path.C_Str());
         check(image&&QImage::fromData(reinterpret_cast<const uchar*>(image->pcData),int(image->mWidth)).convertToFormat(QImage::Format_RGBA8888)==expected,"Float32 clamp/rounding/endian conversion differs");
-        for(uint32_t invalid:{0x7fc00000u,0x7f800001u,0x7f800000u,0xff800000u})for(bool alpha:{false,true})for(unsigned component:{0u,4u}){
+        const std::vector<uint32_t> invalidValues=type==9?std::vector<uint32_t>{0x7e00,0x7c01,0x7c00,0xfc00}
+            :std::vector<uint32_t>{0x7fc00000,0x7f800001,0x7f800000,0xff800000};
+        for(uint32_t invalid:invalidValues)for(bool alpha:{false,true})for(unsigned component:{0u,componentBytes}){
             o.pixelFormat=4;author(o,expected,alpha);
             // Corrupt alpha as well as colour: disabled blending must not mask
             // invalid input components before validation.
-            for(unsigned b=0;b<4;++b)o.pixels[qsizetype(component+b)]=char(invalid>>(8*(big?3-b:b)));
+            for(unsigned b=0;b<componentBytes;++b)o.pixels[qsizetype(component+b)]=char(invalid>>(8*(big?componentBytes-1-b:b)));
             TextureFixture::write(dir.filePath("float_invalid.jt"),0,o,alpha?"blend.jt":"opaque.jt");
             const auto bad=Jt::Importer::read(dir.filePath("float_invalid.jt"));
             check(bad.scene->mNumMeshes==1&&bad.scene->mNumTextures==0&&!bad.warnings.isEmpty(),"Nonfinite float image did not retain geometry with diagnostic");
         }
     }
-    for(unsigned type:{0u,1u,4u,6u,7u,8u,9u}){
+    for(unsigned type:{0u,1u,4u,6u,7u,8u}){
         TextureFixture::Options o;o.coordinate=0;o.pixelType=type;TextureFixture::write(dir.filePath("other_type.jt"),0,o,"opaque.jt");
         const auto result=Jt::Importer::read(dir.filePath("other_type.jt"));
         check(result.scene->mNumMeshes==1&&result.scene->mNumTextures==0&&!result.warnings.isEmpty(),"Unsupported numeric type lost fallback");
     }
-    std::cout<<"Inline unsigned 8/16-bit and float32 formats, rounding, alpha policy, alignment, byte orders and fallback passed\n";
+    std::cout<<"Inline unsigned 8/16-bit and float16/32 formats, rounding, alpha policy, alignment, byte orders and fallback passed\n";
 }
