@@ -14,6 +14,7 @@ Suggested reading order:
 8. Committed image mapping and owner-confirmed UV correction: [C2d/C2e textures](JT_TEXTURE_DESCRIPTOR_VALIDATION.md).
 9. Accepted and pushed affine mapping: [C2f texture matrices](JT_TEXTURE_TRANSFORM_VALIDATION.md).
 10. Accepted and pushed model-linear mapping: [C2g texture coordinates](JT_TEXTURE_PLANAR_VALIDATION.md).
-11. Current owner build/test handoff: [C2h inline colour image formats](JT_TEXTURE_PIXEL_VALIDATION.md).
+11. Accepted image formats: [C2h inline colour pixels](JT_TEXTURE_PIXEL_VALIDATION.md).
+12. Accepted basic 9.x image mapping: [C2i textures](JT_9X_TEXTURE_VALIDATION.md).
 
 Sibling validation documents retain the source, measurement and owner-acceptance records for earlier gates. Research documents belong here; generated evidence and fixtures remain under ignored `out/jt-research/`. The [repository handout](../../RESEARCH_FOLDER_HANDOUT.md) governs new work. See the [repository README](../../README.md) for user-facing import scope.

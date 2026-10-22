@@ -200,9 +200,15 @@ struct TextureState {
             &&transform[14]==0&&transform[15]==1;
     }
     void apply(const Handle(JtAttribute_TextureImage)& source) {
-        const unsigned allowed=~source->FieldInhibitFlags() & (source->AccumulationForced()?~0u:~finalFields) & 0xffu;
+        const auto raw=source->FieldInhibitFlags();
+        // Basic v9 assigns compression inhibit to bit 8; modern data uses 7.
+        const unsigned inhibit=source->Legacy9()?(raw&0x7fu)|((raw&0x100u)>>1):raw;
+        const unsigned allowed=~inhibit & (source->AccumulationForced()?~0u:~finalFields) & 0xffu;
         const auto& env=source->Environment();
-        if(allowed&1){image=source;type=source->TextureType()==26?0:source->TextureType();}
+        if(allowed&1){image=source;type=source->TextureType()==26?0:source->TextureType();
+            if(source->Legacy9()&&type==2)type=9; // basic v9 2D image -> supported effective pre-lit profile
+            else if(source->Legacy9()&&type!=0)type=-1; // other old numeric types must not acquire modern meanings
+        }
         if(allowed&2)environment[0]=env[0];
         if(allowed&4){environment[1]=env[1];environment[2]=env[2];}
         if(allowed&8)for(unsigned i=3;i<6;++i)environment[i]=env[i];
@@ -210,7 +216,9 @@ struct TextureState {
         if(allowed&32)transform=source->Transform();
         if(allowed&64){coordinate=source->CoordinateChannel();generation=source->Generation();planes=source->Planes();}
         if(allowed&128)environment[7]=env[7];
-        finalFields|=source->FieldFinalFlags()&allowed;
+        const auto rawFinal=source->FieldFinalFlags();
+        const unsigned final=source->Legacy9()?(rawFinal&0x7fu)|((rawFinal&0x100u)>>1):rawFinal;
+        finalFields|=final&allowed;
     }
 };
 struct Appearance {
@@ -502,10 +510,11 @@ struct Builder {
             if(texture.IsNull())continue;
             options.check();if(records.size()>=1024)throw std::runtime_error("JT texture descriptor limit exceeded");
             JtData_Limits::allocation(256*1024);
-            auto record=std::unique_ptr<aiMetadata>(aiMetadata::Alloc(texture->Parsed()?16:5));
+            auto record=std::unique_ptr<aiMetadata>(aiMetadata::Alloc(texture->Parsed()?17:6));
             record->Set(0,"AttributeIndex",uint64_t(a));record->Set(1,"Parsed",texture->Parsed());
             record->Set(2,"Ignored",texture->AccumulationIgnored());
             record->Set(3,"FieldInhibit",uint64_t(texture->FieldInhibitFlags()));record->Set(4,"FieldFinal",uint64_t(texture->FieldFinalFlags()));
+            record->Set(texture->Parsed()?16:5,"LocalVersion",int32_t(texture->LocalVersion()));
             if(texture->Parsed()){
                 record->Set(5,"TextureType",int32_t(texture->TextureType()));record->Set(6,"Channel",int32_t(texture->Channel()));
                 record->Set(7,"CoordinateChannel",int32_t(texture->CoordinateChannel()));record->Set(8,"Inline",texture->Inline());
@@ -529,7 +538,8 @@ struct Builder {
                 record->Set(15,"Images",*images);
             }
             if(!texture->AccumulationIgnored()&&!texture->Parsed())
-                textureWarning(label+": JT texture descriptor retained as metadata; legacy texture layout is not yet qualified");
+                textureWarning(label+(texture->Legacy9()?": JT 9.x texture local version "+QString::number(texture->LocalVersion())+" retained as unparsed metadata; advanced texture blocks are not yet qualified"
+                    :": JT texture descriptor retained as metadata; legacy texture layout is not yet qualified"));
             records.push_back(std::move(record));
         }
         if(records.empty())return {};

@@ -5,20 +5,20 @@
 #include <array>
 namespace TextureFixture {
 struct Options {bool big=false,inlineImage=true,wrapped=false;unsigned baseVersion=1,version=1;int width=2,height=2,alignment=1,total=12,mipBytes=12,storage=-1,coordinate=2;
-    unsigned pixelFormat=1,pixelType=3;QByteArray pixels;
+    unsigned pixelFormat=1,pixelType=3,inhibit=0,legacyType=2,shared=0;int channel=0;QByteArray pixels;
     std::array<float,16> transform{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
     std::array<unsigned,4> generation{};
     std::array<float,16> planes{};};
 inline Fixture::Bytes body(Options o={}){
-    Fixture::Bytes b(o.big);b.u8(o.baseVersion);b.u8(8);b.u32(0);b.u32(0);b.u8(o.version);b.u32(9);
+    Fixture::Bytes b(o.big);b.u8(o.baseVersion);b.u8(8);b.u32(o.inhibit);b.u32(0);b.u8(o.version);b.u32(9);
     for(unsigned v:{0,2,2,2,2,2,2,0})b.u32(v);
     for(unsigned i=0;i<8;++i)b.f32(i%4==3?1.f:0.f);
     for(float value:o.transform)b.f32(value);
     for(auto mode:o.generation)b.u32(mode);
     for(float value:o.planes)b.f32(value);
-    b.u32(0);b.u32(o.coordinate);b.u32(0);b.u8(o.storage>=0?o.storage:o.inlineImage?1:0);b.u32(1);
+    b.u32(o.channel);b.u32(o.coordinate);b.u32(0);b.u8(o.storage>=0?o.storage:o.inlineImage?1:0);b.u32(1);
     if(o.inlineImage){
-        b.u32(o.pixelFormat);b.u32(o.pixelType);b.u16(2);b.u16(o.alignment);b.u16(o.width);b.u16(o.height);b.u16(1);b.u16(0);b.u32(0);b.u16(1);
+        b.u32(o.pixelFormat);b.u32(o.pixelType);b.u16(2);b.u16(o.alignment);b.u16(o.width);b.u16(o.height);b.u16(1);b.u16(0);b.u32(o.shared);b.u16(1);
         b.u32(o.total);b.u32(o.mipBytes);
         if(!o.pixels.isNull())b.data+=o.pixels;
         else {const unsigned pixels[]={255,0,0,0,255,0,0,0,255,255,255,255};for(auto v:pixels)b.u8(v);}
@@ -38,5 +38,33 @@ inline void writePair(const QString& path,unsigned minor,Options first,Options s
     element(graph,type("10dd103e"),3,partition(first.big,geometry,{}, {21}));
     element(graph,type("10dd1073"),20,body(first),3);element(graph,type("10dd1073"),21,body(second),3);
     end(graph);end(graph);graph.u16(1);graph.u32(0);container(path,graph,minor);
+}
+inline Fixture::Bytes body9(Options o={}){
+    Fixture::Bytes b(o.big);b.u16(o.baseVersion);b.u8(8);b.u32(o.inhibit);b.u16(o.version);b.u32(o.legacyType);
+    for(unsigned v:{0,2,2,2,2,2,2,0})b.u32(v);
+    for(unsigned i=0;i<8;++i)b.f32(i%4==3?1.f:0.f);
+    for(float value:o.transform)b.f32(value);for(auto mode:o.generation)b.u32(mode);for(float value:o.planes)b.f32(value);
+    b.u32(o.channel);b.u32(0);b.u8(o.storage>=0?o.storage:o.inlineImage?1:0);b.u32(1);
+    if(o.inlineImage){
+        b.u32(o.pixelFormat);b.u32(o.pixelType);b.u16(2);b.u16(o.alignment);b.u16(o.width);b.u16(o.height);b.u16(1);b.u16(0);b.u8(o.shared);b.u16(1);
+        b.u32(o.total);b.u32(o.mipBytes);
+        if(!o.pixels.isNull())b.data+=o.pixels;
+        else {const unsigned pixels[]={255,0,0,0,255,0,0,0,255,255,255,255};for(auto v:pixels)b.u8(v);}
+    }else b.text("original_texture.png");
+    return b;
+}
+inline void write9(const QString& path,unsigned minor,Options o={},const QString& geometry="geometry.jt"){
+    using namespace Fixture;const auto partition9=[&](const QString& reference,std::initializer_list<unsigned> children,std::initializer_list<unsigned> attrs){
+        Bytes b(o.big);b.u16(1);b.u32(0);b.list(attrs);b.u16(1);b.list(children);b.u32(0);b.text(reference);
+        for(unsigned i=0;i<6;++i)b.f32(0);b.f32(0);for(unsigned i=0;i<6;++i)b.u32(0);return b;
+    };
+    Bytes graph(o.big);element(graph,type("10dd103e"),1,partition9({}, {2}, {20}));element(graph,type("10dd103e"),2,partition9(geometry,{},{}));
+    element(graph,type("10dd1073"),20,body9(o),3);end(graph);end(graph);graph.u16(1);graph.u32(0);
+    const QString guid="12345678-1234-5678-9abc-def012345678";Bytes segment(o.big);segment.guid(guid);
+    segment.u32(1);segment.u32(33+unsigned(graph.data.size()));segment.u32(0);segment.u32(1+unsigned(graph.data.size()));segment.u8(0);segment.append(graph);
+    Bytes file(o.big);file.data=(QByteArray("Version 9.")+QByteArray::number(minor)+" JT original texture fixture").leftJustified(75,' ')+QByteArray(" \n\r\n ",5);
+    file.u8(o.big?1:0);file.u32(0);file.u32(105+unsigned(segment.data.size()));file.guid(guid);file.append(segment);
+    file.u32(1);file.guid(guid);file.u32(105);file.u32(unsigned(segment.data.size()));file.u32(1u<<24);
+    QFile target(path);if(!target.open(QIODevice::WriteOnly)||target.write(file.data)!=file.data.size())throw std::runtime_error("Cannot write original v9 texture fixture");
 }
 }

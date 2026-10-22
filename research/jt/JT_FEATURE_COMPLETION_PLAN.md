@@ -108,3 +108,7 @@ C2f is pushed as `4de7b62`. [Planar texture validation](JT_TEXTURE_PLANAR_VALIDA
 ## Accepted gate C2h — inline colour image formats
 
 C2g is pushed as `38f6c9a`. [Pixel-format validation](JT_TEXTURE_PIXEL_VALIDATION.md) covers luminance/luminance-alpha and single-colour/alpha inputs alongside existing RGB(A)/BGR(A), with unsigned-byte row alignment and existing blend-state semantics. The owner reported the visual results looked good on 22 October 2026 and authorized commit/push/proceeding. Python authoring ran; no C++ build/test or viewer run by the agent. Other pixel types, depth/stencil, wider texture modes and legacy texture layouts remain open; no supported revision changes.
+
+## Accepted gate C2i — basic 9.x texture records
+
+C2h is pushed as `d757c2f`. [9.x texture validation](JT_9X_TEXTURE_VALIDATION.md) covers the distinct basic local-version-1 layout for enabled 9.0/9.5, including old type mapping, implicit UV0, U8 shared flag and raw source metadata. Existing pixel/affine/planar mapping is reused. Advanced blocks remain diagnosed fallbacks. The owner reported C2i tests passed on 22 October 2026 and authorized commit/push. Python authoring ran, no native/viewer execution by the agent. Authentic authored-texture qualification remains open, alongside JT8.x texture layouts and other C1/C2/C3–C7 work; no version changes.

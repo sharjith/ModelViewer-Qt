@@ -1,5 +1,6 @@
 // Copyright (C) 2026 ModelViewer-Qt contributors. SPDX-License-Identifier: GPL-3.0-only
-// Original bounded texture descriptor reader; JT 10.0 reference section 6.1.2.3.
+// Original bounded texture reader; JT 10.0 section 6.1.2.3 and JT 9.5 section 7.2.1.1.2.3.
+// JT 9.x local-version-1 envelope/type/image differences added 2026-10-22.
 #include <JtAttribute_TextureImage.hxx>
 #include <JtData_Reader.hxx>
 #include <JtData_Limits.hxx>
@@ -14,17 +15,19 @@ IMPLEMENT_OBJECT_CLASS(JtAttribute_TextureImage, "Texture image attribute",
 
 Standard_Boolean JtAttribute_TextureImage::Read(JtData_Reader& reader)
 {
-  myParsed=false;myImages.clear();
+  myParsed=false;myImages.clear();myLocalVersion=0;myLegacy9=reader.Model()->MajorVersion()==9;
   myOrigin=reader.Model()->FileName();
   if(!JtAttribute_Base::Read(reader))return Standard_False;
-  // Older local texture versions need separate evidence. The enclosing element
-  // reader skips their remaining bounded payload; do not reinterpret it as v10.
-  if(reader.Model()->MajorVersion()<10)return Standard_True;
+  // JT 8.x still needs applicable layout evidence. JT 9.x uses a distinct
+  // local-version hierarchy; only its published basic version is qualified here.
+  if(reader.Model()->MajorVersion()<9)return Standard_True;
   Jt_I16 version;Jt_U32 empty;Jt_U8 storage;Jt_I32 count;
   if(!reader.ReadVersion(version))return Standard_False;
+  myLocalVersion=version;
+  if(myLegacy9&&version>=2)return Standard_True; // bounded envelope skips advanced blocks
   if(version!=1)throw std::runtime_error("Unsupported JT texture image version");
   if(!reader.ReadI32(myType))return Standard_False;
-  if(myType<0||myType>26)throw std::runtime_error("Invalid JT texture type");
+  if(myType<0||myType>(myLegacy9?6:26))throw std::runtime_error("Invalid JT texture type");
   for(auto& v:myEnvironment)if(!reader.ReadI32(v))return Standard_False;
   const int limits[8]={2,2,6,5,5,5,6,3};
   for(size_t i=0;i<myEnvironment.size();++i)
@@ -32,9 +35,14 @@ Standard_Boolean JtAttribute_TextureImage::Read(JtData_Reader& reader)
   const auto floats=[&](auto& values){for(auto& v:values){if(!reader.ReadF32(v))return false;if(!std::isfinite(v))throw std::runtime_error("Nonfinite JT texture parameter");}return true;};
   if(!floats(myColors)||!floats(myTransform))return Standard_False;
   for(auto& v:myGeneration){if(!reader.ReadI32(v))return Standard_False;if(v<0||v>5)throw std::runtime_error("Invalid JT texture coordinate generation");}
-  if(!floats(myPlanes)||!reader.ReadI32(myChannel)||!reader.ReadI32(myCoordinateChannel)
-    ||!reader.ReadU32(empty)||!reader.ReadU8(storage)||!reader.ReadI32(count))return Standard_False;
+  if(!floats(myPlanes)||!reader.ReadI32(myChannel))return Standard_False;
+  // Basic v9 has no coordinate-channel field. The qualified channel-0 mapping
+  // uses UV0; do not shift the following reserved/storage fields by four bytes.
+  myCoordinateChannel=0;
+  if(!myLegacy9&&!reader.ReadI32(myCoordinateChannel))return Standard_False;
+  if(!reader.ReadU32(empty)||!reader.ReadU8(storage)||!reader.ReadI32(count))return Standard_False;
   if(myChannel<-1||myCoordinateChannel<-1)throw std::runtime_error("Invalid JT texture coordinate/channel");
+  if(myLegacy9&&(myChannel<0||myChannel>31))throw std::runtime_error("Invalid JT 9.x texture channel");
   if(storage>1||count<0||count>64)throw std::runtime_error("Invalid JT texture image storage/count");
   myInline=storage==1;
   JtData_Limits::allocation(size_t(count)*sizeof(Image));myImages.resize(size_t(count));
@@ -46,8 +54,10 @@ Standard_Boolean JtAttribute_TextureImage::Read(JtData_Reader& reader)
     if(!reader.ReadU32(image.format)||!reader.ReadU32(image.dataType)
       ||!reader.ReadI16(image.dimensionality)||!reader.ReadI16(image.alignment)
       ||!reader.ReadI16(image.width)||!reader.ReadI16(image.height)||!reader.ReadI16(image.depth)
-      ||!reader.ReadI16(image.border)||!reader.ReadU32(image.shared)||!reader.ReadI16(mipCount)
-      ||!reader.ReadI32(image.totalBytes))return Standard_False;
+      ||!reader.ReadI16(image.border))return Standard_False;
+    if(myLegacy9){Jt_U8 shared;if(!reader.ReadU8(shared))return Standard_False;image.shared=shared;}
+    else if(!reader.ReadU32(image.shared))return Standard_False;
+    if(!reader.ReadI16(mipCount)||!reader.ReadI32(image.totalBytes))return Standard_False;
     if(image.format>13||image.dataType>9||image.dimensionality<1||image.dimensionality>3
       ||(image.alignment!=1&&image.alignment!=2&&image.alignment!=4&&image.alignment!=8)
       ||image.width<1||image.height<1||image.depth<1||image.border<0||image.border>1

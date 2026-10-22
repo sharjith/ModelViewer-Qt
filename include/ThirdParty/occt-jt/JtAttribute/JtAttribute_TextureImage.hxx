@@ -18,6 +18,8 @@ public:
   };
   Standard_EXPORT Standard_Boolean Read(JtData_Reader& reader) override;
   bool Parsed() const {return myParsed;}
+  bool Legacy9() const {return myLegacy9;}
+  Jt_I16 LocalVersion() const {return myLocalVersion;}
   Jt_I32 TextureType() const {return myType;}
   Jt_I32 Channel() const {return myChannel;}
   Jt_I32 CoordinateChannel() const {return myCoordinateChannel;}
@@ -32,7 +34,8 @@ public:
   DEFINE_STANDARD_RTTIEXT(JtAttribute_TextureImage, JtAttribute_Base)
   DEFINE_OBJECT_CLASS(JtAttribute_TextureImage)
 private:
-  bool myParsed=false,myInline=false;
+  bool myParsed=false,myInline=false,myLegacy9=false;
+  Jt_I16 myLocalVersion=0;
   Jt_I32 myType=0,myChannel=0,myCoordinateChannel=-1;
   std::array<Jt_I32,8> myEnvironment{};
   std::array<Jt_F32,8> myColors{};

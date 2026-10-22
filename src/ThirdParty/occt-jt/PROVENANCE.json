@@ -1128,5 +1128,15 @@
     "scope": "Original bounded modern texture descriptor reader, metadata, base-mip bytes and owning filename retained for supported 2D image mapping; unsupported modes diagnosed",
     "reference": "Retained Siemens JT10.0 Rev-B section6.1.2.3 and figures50-54",
     "validation": "research/jt/JT_TEXTURE_DESCRIPTOR_VALIDATION.md"
+  },
+  "texture9_basic_follow_up": {
+    "date": "2026-10-22",
+    "scope": "Original JT 9.x basic local-version-1 texture path: I16 version, old type/channel layout, U8 shared flag and diagnostic skip for advanced blocks; original raw metadata retained",
+    "reference": "Retained Siemens JT9.5 Rev-A section7.2.1.1.2.3 and figures43-48",
+    "files": [
+      "include/ThirdParty/occt-jt/JtAttribute/JtAttribute_TextureImage.hxx",
+      "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_TextureImage.cxx"
+    ],
+    "validation": "research/jt/JT_9X_TEXTURE_VALIDATION.md"
   }
 }
