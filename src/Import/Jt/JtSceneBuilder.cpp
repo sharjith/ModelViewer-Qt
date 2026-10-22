@@ -32,6 +32,7 @@
 #include <QFile>
 #include <QBuffer>
 #include <QImage>
+#include <QColor>
 #include <QImageReader>
 #include <QCryptographicHash>
 #include <assimp/material.h>
@@ -179,6 +180,7 @@ struct TextureState {
     int type=0,coordinate=0;
     unsigned finalFields=0;
     std::array<int,8> environment{0,2,6,2,2,2,2,0};
+    std::array<float,4> borderColor{};
     std::array<float,16> transform{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
     std::array<int,4> generation{};
     std::array<float,16> planes{};
@@ -212,7 +214,7 @@ struct TextureState {
                 else if(type!=0)type=-1; // basic types must not acquire advanced meanings
             }
         }
-        if(allowed&2)environment[0]=env[0];
+        if(allowed&2){environment[0]=env[0];for(unsigned i=0;i<4;++i)borderColor[i]=source->Colors()[4+i];}
         if(allowed&4){environment[1]=env[1];environment[2]=env[2];}
         if(allowed&8)for(unsigned i=3;i<6;++i)environment[i]=env[i];
         if(allowed&16)environment[6]=env[6];
@@ -359,8 +361,9 @@ struct Builder {
     std::vector<std::unique_ptr<aiMaterial>> materials;
     std::vector<std::unique_ptr<aiTexture>> textures;
     std::map<QByteArray,unsigned> texturePixels;
-    struct ImageResult {int index=-1;bool alpha=false;QString error;};
-    std::map<std::pair<const void*,bool>,ImageResult> textureSources;
+    struct ImageResult {int index=-1;bool alpha=false;QString error;double scaleS=1,scaleT=1,offsetS=0,offsetT=0;};
+    using TextureSourceKey=std::tuple<const void*,bool,bool,bool,std::array<float,4>>;
+    std::map<TextureSourceKey,ImageResult> textureSources;
     std::vector<std::vector<int>> geometryGroups;
     std::map<std::tuple<unsigned,std::vector<int>,unsigned>,unsigned> groupMeshCache;
     std::set<const void*> active;
@@ -373,8 +376,11 @@ struct Builder {
     unsigned nodes=0;
     void textureWarning(const QString& text) {if(!result.warnings.contains(text))result.warnings.append(text);}
     ImageResult image(const TextureState& state,bool allowAlpha) {
+        const bool padS=state.environment[0]==1&&state.environment[3]==5;
+        const bool padT=state.environment[0]==1&&state.environment[4]==5;
+        const TextureSourceKey sourceKey{state.image.get(),allowAlpha,padS,padT,(padS||padT)?state.borderColor:std::array<float,4>{}};
         if(!state.image.IsNull()) {
-            const auto cached=textureSources.find({state.image.get(),allowAlpha});
+            const auto cached=textureSources.find(sourceKey);
             if(cached!=textureSources.end()){if(!cached->second.error.isEmpty())textureWarning(cached->second.error);return cached->second;}
         }
         ImageResult resultImage;
@@ -385,6 +391,8 @@ struct Builder {
             const auto& data=source.Images()[0];QImage pixels;
             constexpr uint64_t maxBytes=64u*1024u*1024u;
             if(source.Inline()) {
+                if((padS||padT)&&data.format!=2&&data.format!=12)
+                    throw std::runtime_error("sampled constant border currently requires RGBA/BGRA storage");
                 const bool colorFormat=(data.format>=1&&data.format<=4)||(data.format>=7&&data.format<=12);
                 if(data.dataType<1||data.dataType>9||data.dataType==4||!colorFormat
                     ||data.dimensionality!=2||data.depth!=1||data.border<0||data.border>1)
@@ -479,8 +487,26 @@ struct Builder {
                 if(size.width()<1||size.height()<1||uint64_t(size.width())*size.height()*4>maxBytes)
                     throw std::runtime_error("external image dimensions exceed the decoded byte limit");
                 JtData_Limits::allocation(size_t(size.width())*size.height()*8);
-                pixels=reader.read().convertToFormat(QImage::Format_RGBA8888);
+                const auto decoded=reader.read();
+                if((padS||padT)&&!decoded.hasAlphaChannel())throw std::runtime_error("sampled constant border requires an RGBA external image");
+                pixels=decoded.convertToFormat(QImage::Format_RGBA8888);
                 if(pixels.isNull()||pixels.size()!=size)throw std::runtime_error("external image decoding failed");
+            }
+            if(padS||padT){
+                // A constant one-texel halo plus interior-relative UVs reproduces
+                // base-level nearest/linear CLAMP_TO_BORDER via clamp-to-edge.
+                // Mipmap filters are excluded: a regenerated halo chain would
+                // change the source interior's level sizes and filter footprint.
+                const int width=pixels.width()+2*int(padS),height=pixels.height()+2*int(padT);
+                if(uint64_t(width)*height*4>maxBytes)throw std::runtime_error("padded border texture exceeds image byte limit");
+                JtData_Limits::allocation(size_t(width)*height*4);
+                QImage padded(width,height,QImage::Format_RGBA8888);if(padded.isNull())throw std::bad_alloc();
+                const auto byte=[](float v){return int(std::floor(std::max(0.0,std::min(1.0,double(v)))*255+0.5));};
+                padded.fill(QColor(byte(state.borderColor[0]),byte(state.borderColor[1]),byte(state.borderColor[2]),byte(state.borderColor[3])));
+                for(int y=0;y<pixels.height();++y){options.check();std::memcpy(padded.scanLine(y+int(padT))+4*int(padS),pixels.constScanLine(y),size_t(pixels.width())*4);}
+                resultImage.scaleS=double(pixels.width())/width;resultImage.scaleT=double(pixels.height())/height;
+                resultImage.offsetS=double(padS)/width;resultImage.offsetT=double(padT)/height;
+                pixels=std::move(padded);
             }
             for(int y=0;y<pixels.height();++y){options.check();auto* row=pixels.scanLine(y);
                 for(int x=0;x<pixels.width();++x){if(!allowAlpha)row[4*x+3]=255;else resultImage.alpha=resultImage.alpha||row[4*x+3]<255;}}
@@ -499,16 +525,18 @@ struct Builder {
             }
         }catch(const Cancelled&){throw;}catch(const std::bad_alloc&){throw;}
         catch(const std::exception& e){resultImage.error="JT texture not applied: "+QString::fromUtf8(e.what());textureWarning(resultImage.error);}
-        textureSources[{state.image.get(),allowAlpha}]=resultImage;return resultImage;
+        textureSources[sourceKey]=resultImage;return resultImage;
     }
     ImageResult texture(const Appearance& style) {
         const auto& state=style.texture;if(state.type==0||state.image.IsNull())return {};
         const auto& env=state.environment;
         const bool ignoresBorder=env[3]>=2&&env[3]<=4&&env[4]>=2&&env[4]<=4;
-        if(state.type!=9||(env[0]!=0&&!ignoresBorder)||env[6]!=2||!state.affine2D()||state.coordinate<0||state.coordinate>=4
+        const bool constantBorder=env[0]==1&&(env[3]==5||env[4]==5)&&env[3]>=2&&env[3]<=5&&env[4]>=2&&env[4]<=5&&env[1]>=1&&env[1]<=2&&env[2]>=1&&env[2]<=2;
+        if(state.type!=9||(env[0]!=0&&!ignoresBorder&&!constantBorder)||env[6]!=2||!state.affine2D()||state.coordinate<0||state.coordinate>=4
             ||!state.planar2D()
-            ||(env[3]!=1&&env[3]!=2&&env[3]!=3&&env[3]!=4)||(env[4]!=1&&env[4]!=2&&env[4]!=3&&env[4]!=4)) {
-            textureWarning("JT texture not applied: supported mapping is channel-0 pre-lit 2D modulate, UV0-3 with stored or model-linear S/T, unit reference planes, affine 2D transform and unsampled borders only");return {};
+            ||(env[3]==5&&!constantBorder)||(env[4]==5&&!constantBorder)
+            ||env[3]<1||env[3]>5||env[4]<1||env[4]>5) {
+            textureWarning("JT texture not applied: supported mapping is channel-0 pre-lit 2D modulate, UV0-3 with stored or model-linear S/T, affine 2D mapping, unsampled borders or non-mipmapped RGBA constant borders");return {};
         }
         if(env[0]==2&&!state.image->Inline()){
             textureWarning("JT texture not applied: explicit border requires an inline image descriptor");return {};
@@ -637,6 +665,8 @@ struct Builder {
             style.bumpiness,style.reflectivity,style.shininess,float(style.hasShininess),float(style.overrideColors),float(style.present),float(style.drawFlags),float(style.drawPresent),float(style.blendFlags),float(vertexAlpha),float(mappedTexture.index),float(style.texture.coordinate)};
         if(mappedTexture.index>=0){
             for(auto value:style.texture.environment)key.push_back(float(value));
+            if(style.texture.environment[0]==1&&(style.texture.environment[3]==5||style.texture.environment[4]==5))
+                for(auto value:style.texture.borderColor)key.push_back(value);
             // Mesh variants are keyed by material ID. Keep different effective
             // transforms distinct even when the image and source mesh are shared.
             for(auto value:style.texture.transform)key.push_back(value);
@@ -739,10 +769,11 @@ struct Builder {
         }
         unsigned mat=material(resolved,colored,vertexAlpha);
         if(materials[mat]->GetTextureCount(aiTextureType_DIFFUSE)>0){
+            const auto mappedImage=texture(resolved);
             const auto& t=resolved.texture.transform;bool identity=true;
             for(unsigned i=0;i<16;++i)identity=identity&&t[i]==float(i%5==0);
             const bool generate=resolved.texture.generation[0]!=0||resolved.texture.generation[1]!=0;
-            if(!identity||generate){
+            if(!identity||generate||mappedImage.scaleS!=1||mappedImage.scaleT!=1){
                 // Bake effective mapping into this appearance-specific copy.
                 // This also carries shear/reflection through scene copy and GLB
                 // without relying on a restricted scale/rotation material model.
@@ -758,8 +789,8 @@ struct Builder {
                         return double(plane[0])*p.x+double(plane[1])*p.y+double(plane[2])*p.z+plane[3];
                     };
                     const double baseS=component(0),baseT=component(1);
-                    const double s=baseS*t[0]+baseT*t[4]+t[12];
-                    const double v=baseS*t[1]+baseT*t[5]+t[13];
+                    const double s=(baseS*t[0]+baseT*t[4]+t[12])*mappedImage.scaleS+mappedImage.offsetS;
+                    const double v=(baseS*t[1]+baseT*t[5]+t[13])*mappedImage.scaleT+mappedImage.offsetT;
                     if(!std::isfinite(s)||!std::isfinite(v)||std::abs(s)>std::numeric_limits<float>::max()
                         ||std::abs(v)>std::numeric_limits<float>::max()){valid=false;break;}
                     mapped[i]={float(s),float(v),0};

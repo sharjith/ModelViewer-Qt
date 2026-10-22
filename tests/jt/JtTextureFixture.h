@@ -6,14 +6,15 @@
 #include <algorithm>
 namespace TextureFixture {
 struct Options {bool big=false,inlineImage=true,wrapped=false;unsigned baseVersion=1,version=1;int width=2,height=2,alignment=1,total=12,mipBytes=12,storage=-1,coordinate=2;
-    unsigned pixelFormat=1,pixelType=3,inhibit=0,legacyType=2,shared=0;int channel=0,imageBorder=0,borderMode=0,wrapS=2,wrapT=2;QByteArray pixels;
+    unsigned pixelFormat=1,pixelType=3,inhibit=0,legacyType=2,shared=0;int channel=0,imageBorder=0,borderMode=0,wrapS=2,wrapT=2,minFilter=2;QByteArray pixels;
+    std::array<float,4> borderColor{0,0,0,1};
     std::array<float,16> transform{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
     std::array<unsigned,4> generation{};
     std::array<float,16> planes{};};
 inline Fixture::Bytes body(Options o={}){
     Fixture::Bytes b(o.big);b.u8(o.baseVersion);b.u8(8);b.u32(o.inhibit);b.u32(0);b.u8(o.version);b.u32(9);
-    for(int v:{o.borderMode,2,2,o.wrapS,o.wrapT,2,2,0})b.u32(v);
-    for(unsigned i=0;i<8;++i)b.f32(i%4==3?1.f:0.f);
+    for(int v:{o.borderMode,2,o.minFilter,o.wrapS,o.wrapT,2,2,0})b.u32(v);
+    for(unsigned i=0;i<4;++i)b.f32(i==3?1.f:0.f);for(float v:o.borderColor)b.f32(v);
     for(float value:o.transform)b.f32(value);
     for(auto mode:o.generation)b.u32(mode);
     for(float value:o.planes)b.f32(value);
@@ -42,8 +43,8 @@ inline void writePair(const QString& path,unsigned minor,Options first,Options s
 }
 inline Fixture::Bytes block9(Options o,unsigned block,bool stub=false){
     Fixture::Bytes b(o.big);b.u32(stub?0:o.legacyType);
-    for(int v:{o.borderMode,2,2,o.wrapS,o.wrapT,2,2,0})b.u32(v);
-    for(unsigned i=0;i<8;++i)b.f32(i%4==3?1.f:0.f);
+    for(int v:{o.borderMode,2,o.minFilter,o.wrapS,o.wrapT,2,2,0})b.u32(v);
+    for(unsigned i=0;i<4;++i)b.f32(i==3?1.f:0.f);for(float v:o.borderColor)b.f32(v);
     for(float value:o.transform)b.f32(value);for(auto mode:o.generation)b.u32(mode);for(float value:o.planes)b.f32(value);
     b.u32(stub?0:o.channel);b.u32(0);b.u8(o.storage>=0?o.storage:o.inlineImage?1:0);b.u32(stub?0:1);
     if(!stub&&o.inlineImage){

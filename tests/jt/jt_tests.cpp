@@ -40,6 +40,7 @@ void texturePlanarTests();
 void texturePixelTests();
 void jt9TextureTests();
 void textureBorderTests();
+void constantBorderTests();
 void textureFixtureFiles(const QString& folder);
 void containerTests(const QString& samples);
 void legacyTests();
@@ -223,6 +224,7 @@ int main(int argc,char** argv) {
         texturePixelTests();
         jt9TextureTests();
         textureBorderTests();
+        constantBorderTests();
         const bool textureFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--texture-fixtures";
         const bool alphaFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--vertex-alpha-fixtures";
         const bool orderFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--material-order-fixtures";
