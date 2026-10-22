@@ -36,6 +36,7 @@ void sceneTests();
 void vertexAlphaFixtureFiles(const QString& folder);
 void textureTests();
 void textureTransformTests();
+void texturePlanarTests();
 void textureFixtureFiles(const QString& folder);
 void containerTests(const QString& samples);
 void legacyTests();
@@ -215,6 +216,7 @@ int main(int argc,char** argv) {
     try {allocationBudgetTests();codecTests();colorStreamTests();uvTests();coordinateTests();quantizedColourTests();jt9ColourTests();attributeTests();sceneTests();containerTests({});legacyTests();huffmanTests();arithmeticCountTests();quantizedTests();modernAttributeTests();paletteTests();solidEdgeMaterialCompatibilityTests();jt95Tests();
         textureTests();
         textureTransformTests();
+        texturePlanarTests();
         const bool textureFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--texture-fixtures";
         const bool alphaFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--vertex-alpha-fixtures";
         const bool orderFixtures=argc==3 && QString::fromLocal8Bit(argv[1])=="--material-order-fixtures";

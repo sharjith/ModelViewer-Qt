@@ -100,3 +100,7 @@ C2d/C2e was committed and pushed as `a2cb18e` at the owner's request. It adds bo
 ## Accepted gate C2f — affine texture matrices
 
 [Affine texture validation](JT_TEXTURE_TRANSFORM_VALIDATION.md) covers scale, offset, reflection, quarter-turn and shear mapping for the supported modern 2D image subset. Effective UVs are baked into appearance-specific meshes; image pixels remain shared, and matrix-aware material identity prevents shared-geometry cache aliasing. The owner reported all requested tests passed on 22 October 2026 and authorized commit/push/proceeding. The authoring tool ran; the agent did not build/run C++ or the viewer. Projective/generated coordinates, wider texture modes and legacy texture layouts remain open; no enabled version changes.
+
+## Accepted gate C2g — model-linear texture coordinates
+
+C2f is pushed as `4de7b62`. [Planar texture validation](JT_TEXTURE_PLANAR_VALIDATION.md) covers authored S/T plane generation, mixed stored/generated components, absent-UV allocation, affine post-mapping and plane-aware shared appearance identity. The owner reported all requested tests passed on 22 October 2026 and authorized commit/push/proceeding. Python authoring ran; the agent did not build/run C++ or the viewer. View-dependent/projective modes, automatic channels, other texture combiners and legacy texture layouts remain open; no supported revision changes.

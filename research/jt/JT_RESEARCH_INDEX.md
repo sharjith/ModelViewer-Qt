@@ -12,6 +12,7 @@ Suggested reading order:
 6. Accepted wire appearance gate: [C2b wire vertex alpha](JT_WIREFRAME_ALPHA_VALIDATION.md).
 7. Accepted ray-traced appearance gate: [C2c ray-traced vertex alpha](JT_RAYTRACED_ALPHA_VALIDATION.md).
 8. Committed image mapping and owner-confirmed UV correction: [C2d/C2e textures](JT_TEXTURE_DESCRIPTOR_VALIDATION.md).
-9. Current owner build/test handoff: [C2f affine texture matrices](JT_TEXTURE_TRANSFORM_VALIDATION.md).
+9. Accepted and pushed affine mapping: [C2f texture matrices](JT_TEXTURE_TRANSFORM_VALIDATION.md).
+10. Current owner build/test handoff: [C2g model-linear texture coordinates](JT_TEXTURE_PLANAR_VALIDATION.md).
 
 Sibling validation documents retain the source, measurement and owner-acceptance records for earlier gates. Research documents belong here; generated evidence and fixtures remain under ignored `out/jt-research/`. The [repository handout](../../RESEARCH_FOLDER_HANDOUT.md) governs new work. See the [repository README](../../README.md) for user-facing import scope.

@@ -5,14 +5,16 @@
 #include <array>
 namespace TextureFixture {
 struct Options {bool big=false,inlineImage=true,wrapped=false;unsigned baseVersion=1,version=1;int width=2,total=12,mipBytes=12,storage=-1,coordinate=2;
-    std::array<float,16> transform{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};};
+    std::array<float,16> transform{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
+    std::array<unsigned,4> generation{};
+    std::array<float,16> planes{};};
 inline Fixture::Bytes body(Options o={}){
     Fixture::Bytes b(o.big);b.u8(o.baseVersion);b.u8(8);b.u32(0);b.u32(0);b.u8(o.version);b.u32(9);
     for(unsigned v:{0,2,2,2,2,2,2,0})b.u32(v);
     for(unsigned i=0;i<8;++i)b.f32(i%4==3?1.f:0.f);
     for(float value:o.transform)b.f32(value);
-    for(unsigned i=0;i<4;++i)b.u32(0);
-    for(unsigned i=0;i<16;++i)b.f32(0);
+    for(auto mode:o.generation)b.u32(mode);
+    for(float value:o.planes)b.f32(value);
     b.u32(0);b.u32(o.coordinate);b.u32(0);b.u8(o.storage>=0?o.storage:o.inlineImage?1:0);b.u32(1);
     if(o.inlineImage){
         b.u32(1);b.u32(3);b.u16(2);b.u16(1);b.u16(o.width);b.u16(2);b.u16(1);b.u16(0);b.u32(0);b.u16(1);

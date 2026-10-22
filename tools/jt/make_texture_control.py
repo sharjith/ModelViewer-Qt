@@ -82,7 +82,7 @@ def quantizer(dst, values):
     return codes
 
 
-def geometry(positions, uvs, indices):
+def geometry(positions, uvs, indices, store_uv=True):
     big = False
     graph_id = '12345678-1234-5678-9abc-def012345678'
     shape_id = '23456789-1234-5678-9abc-def012345678'
@@ -90,7 +90,7 @@ def geometry(positions, uvs, indices):
     root.put('I', 0); root.ids([20]); root.ids([2]); root.put('I', 0); root.text('')
     root.put('7f6I', *([0]*13)); element(graph, kind('10dd103e'), 1, root)
     shape.put('I', 0); shape.ids([]); shape.put('12ff6IIf', *([0]*12), 1, *([0]*8))
-    shape.put('III4B', 0, 1, 0, 0, 0, 0, 0); element(graph, kind('10dd1077'), 2, shape)
+    shape.put('III4B', 0, int(store_uv), 0, 0, 0, 0, 0); element(graph, kind('10dd1077'), 2, shape)
     mat.put('BIH', 8, 0, 0x3980)
     for field in range(4):
         mat.put('4f', *([1]*4 if field == 1 else [0, 0, 0, 1]))
@@ -100,16 +100,17 @@ def geometry(positions, uvs, indices):
     late = Bytes(); late.put('I', 0); late.guid(shape_id); late.put('I', 7)
     element(graph, 'e0b05be5-fbbd-11d1-a3a7-00aa00d10954', 104, late); end(graph)
     graph.put('HI', 1, 2); graph.put('4I', 1, 100, 101, 0); graph.put('6I', 2, 100, 102, 103, 104, 0)
-    lod = Bytes(); lod.put('H4B4BHH3B4B', 1, 0, 1, 0, 0, 16, 0, 0, 0, 1, 1, 0, 1, 0, 16, 0, 0, 0)
+    lod = Bytes(); lod.put('H4B4BHH3B4B', 1, 0, int(store_uv), 0, 0, 16, 0, 0, 0, 1, 1, 0, int(store_uv), 0, 16, 0, 0, 0)
     packet(lod, list(range(0, len(indices)+1, 3)), 'stride')
     codes = [quantizer(lod, [p[axis] for p in positions]) for axis in range(3)]
     lod.put('I', len(positions))
     for c in codes:
         packet(lod, c, 'lag')
-    uv_codes = [quantizer(lod, [uv[axis] for uv in uvs]) for axis in range(2)]
-    lod.put('B', 16)
-    for c in uv_codes:
-        packet(lod, c, 'lag')
+    if store_uv:
+        uv_codes = [quantizer(lod, [uv[axis] for uv in uvs]) for axis in range(2)]
+        lod.put('B', 16)
+        for c in uv_codes:
+            packet(lod, c, 'lag')
     packet(lod, indices, 'strip')
     shape_data = Bytes(); shape_data.put('I', 17+len(lod.data)); shape_data.guid(kind('10dd10ab')); shape_data.put('B', 0); shape_data.data += lod.data
     segment = Bytes(); segment.guid(shape_id); segment.put('II', 7, 24+len(shape_data.data)); segment.data += shape_data.data
@@ -123,7 +124,7 @@ def geometry(positions, uvs, indices):
     return file.data
 
 
-def assembly(big, inline, rgb, width, height, sampler, transform=None):
+def assembly(big, inline, rgb, width, height, sampler, transform=None, generation=None, planes=None):
     graph, root, part, texture = (Bytes(big) for _ in range(4))
     for body, attributes, children, ref in [(root, [20], [2], ''), (part, [], [], 'geometry.jt')]:
         body.put('BI', 1, 0); body.ids(attributes); body.put('B', 1); body.ids(children)
@@ -134,7 +135,9 @@ def assembly(big, inline, rgb, width, height, sampler, transform=None):
     mag = {9728: 1, 9729: 2}; minimum = {9728: 1, 9729: 2, 9984: 3, 9985: 4, 9986: 5, 9987: 6}
     texture.put('8I', 0, mag[sampler.get('magFilter', 9729)], minimum[sampler.get('minFilter', 9987)], wrap[sampler.get('wrapS', 10497)], wrap[sampler.get('wrapT', 10497)], 2, 2, 0)
     texture.put('8f', 0, 0, 0, 1, 0, 0, 0, 1)
-    texture.put('16f', *(transform if transform is not None else [float(i % 5 == 0) for i in range(16)])); texture.put('4I16f', *([0]*20))
+    texture.put('16f', *(transform if transform is not None else [float(i % 5 == 0) for i in range(16)]))
+    texture.put('4I', *(generation if generation is not None else [0]*4))
+    texture.put('16f', *(planes if planes is not None else [0]*16))
     texture.put('IIIBI', 0, 0, 0, int(inline), 1)
     if inline:
         texture.put('II6HIHII', 1, 3, 2, 1, width, height, 1, 0, 0, 1, len(rgb), len(rgb)); texture.data += rgb
