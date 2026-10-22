@@ -1138,5 +1138,14 @@
       "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_TextureImage.cxx"
     ],
     "validation": "research/jt/JT_9X_TEXTURE_VALIDATION.md"
+  },
+  "texture9_advanced_follow_up": {
+    "date": "2026-10-22",
+    "scope": "Original JT 9.x local-version-2/3 compatibility-stub hierarchy, advanced type semantics and trailing v3 coordinate channel; bounded existing image transport reused",
+    "reference": "Retained Siemens JT9.5 Rev-A section7.2.1.1.2.3.2/3 and figures49-50",
+    "files": [
+      "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_TextureImage.cxx"
+    ],
+    "validation": "research/jt/JT_9X_ADVANCED_TEXTURE_VALIDATION.md"
   }
 }

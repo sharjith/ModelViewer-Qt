@@ -206,8 +206,10 @@ struct TextureState {
         const unsigned allowed=~inhibit & (source->AccumulationForced()?~0u:~finalFields) & 0xffu;
         const auto& env=source->Environment();
         if(allowed&1){image=source;type=source->TextureType()==26?0:source->TextureType();
-            if(source->Legacy9()&&type==2)type=9; // basic v9 2D image -> supported effective pre-lit profile
-            else if(source->Legacy9()&&type!=0)type=-1; // other old numeric types must not acquire modern meanings
+            if(source->Legacy9()&&source->LocalVersion()==1){
+                if(type==2)type=9; // basic v9 2D image -> supported effective pre-lit profile
+                else if(type!=0)type=-1; // basic types must not acquire advanced meanings
+            }
         }
         if(allowed&2)environment[0]=env[0];
         if(allowed&4){environment[1]=env[1];environment[2]=env[2];}
@@ -538,7 +540,7 @@ struct Builder {
                 record->Set(15,"Images",*images);
             }
             if(!texture->AccumulationIgnored()&&!texture->Parsed())
-                textureWarning(label+(texture->Legacy9()?": JT 9.x texture local version "+QString::number(texture->LocalVersion())+" retained as unparsed metadata; advanced texture blocks are not yet qualified"
+                textureWarning(label+(texture->Legacy9()?": JT 9.x texture local version "+QString::number(texture->LocalVersion())+" retained as unparsed metadata; unknown texture layout"
                     :": JT texture descriptor retained as metadata; legacy texture layout is not yet qualified"));
             records.push_back(std::move(record));
         }

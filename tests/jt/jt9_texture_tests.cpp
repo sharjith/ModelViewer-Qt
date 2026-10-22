@@ -58,7 +58,7 @@ void jt9TextureTests(){
                 &&descriptor.Get("TextureType",type)&&type==2&&descriptor.Get("LocalVersion",version)&&version==1
                 &&descriptor.Get("FieldInhibit",inhibit)&&inhibit==256,"V9 source type/version/inhibit metadata was normalized destructively");
         }
-        for(unsigned version:{2u,3u}){o.version=version;TextureFixture::write9(dir.filePath("advanced.jt"),minor,o);
+        for(unsigned version:{4u}){o.version=version;TextureFixture::write9(dir.filePath("advanced.jt"),minor,o);
             const auto fallback=Jt::Importer::read(dir.filePath("advanced.jt"));check(fallback.scene->mNumMeshes==1&&!fallback.warnings.isEmpty()&&fallback.scene->mNumTextures==0,"Advanced v9 texture did not retain geometry/diagnostic");}
         o.version=1;
         for(unsigned type:{1u,3u,4u,5u,6u}){auto unsupported=o;unsupported.legacyType=type;
@@ -71,5 +71,62 @@ void jt9TextureTests(){
     TextureFixture::Options o;o.shared=1;auto data=TextureFixture::body9(o);
     {JtData_Limits::Scope budget({},1);reject([&]{decode(data,5,true);});}
     {bool stopped=false;JtData_Limits::Scope cancel([]{throw Jt::Cancelled();});try{decode(data,5,true);}catch(const Jt::Cancelled&){stopped=true;}check(stopped,"V9 texture ignored cancellation");}
-    std::cout<<"Basic 9.0/9.5 texture envelopes, pixels, affine/planes, truncation and advanced fallback passed\n";
+    // Advanced v9 blocks reuse image/mapping machinery, but have different type
+    // meanings and a trailing coordinate channel in local version 3.
+    for(unsigned minor:{0u,5u})for(unsigned version:{2u,3u})for(bool big:{false,true})for(bool inlined:{false,true}){
+        TextureFixture::Options advanced;advanced.version=version;advanced.big=big;advanced.inlineImage=inlined;advanced.legacyType=9;advanced.shared=1;
+        const auto bytes=TextureFixture::body9(advanced);
+        const auto decodeAdvanced=[&](const Fixture::Bytes& data){
+            Reader reader(data,minor);Handle(JtAttribute_TextureImage) image=new JtAttribute_TextureImage;
+            check(image->Read(reader)&&reader.pos==size_t(data.data.size()),"Advanced v9 envelope shifted/truncated");
+            check(image->Parsed()&&image->LocalVersion()==int(version)&&image->TextureType()==9
+                &&image->CoordinateChannel()==(version==3?2:0)&&image->Images().size()==1
+                &&image->Inline()==inlined,"Advanced v9 active block/stubs/channel decoded incorrectly");
+        };
+        decodeAdvanced(bytes);
+        for(qsizetype n=0;n<bytes.data.size();++n){auto truncated=bytes;truncated.data.truncate(n);reject([&]{decodeAdvanced(truncated);});}
+        auto damaged=bytes;damaged.data[9+(big?3:0)]=1;reject([&]{decodeAdvanced(damaged);}); // first compatibility type must be None
+        damaged=bytes;const auto stub=TextureFixture::block9(advanced,1,true);
+        damaged.data[9+stub.data.size()-4+(big?3:0)]=1;reject([&]{decodeAdvanced(damaged);}); // empty compatibility image list
+        if(version==3){damaged=bytes;damaged.data[9+stub.data.size()+(big?3:0)]=1;reject([&]{decodeAdvanced(damaged);});}
+        for(unsigned mapping=0;mapping<3;++mapping){
+            advanced.coordinate=mapping==2&&version==3?2:0;
+            advanced.transform=TextureFixture::Options{}.transform;advanced.generation={};advanced.planes={};
+            if(mapping==1){advanced.transform[0]=-1;advanced.transform[12]=1;}
+            if(mapping==2){advanced.generation={1,1,0,0};advanced.planes[0]=1;advanced.planes[5]=1;}
+            TextureFixture::write9(dir.filePath("advanced.jt"),minor,advanced,mapping==2?"no_uv.jt":"geometry.jt");
+            const auto result=Jt::Importer::read(dir.filePath("advanced.jt"));
+            check(result.scene->mNumMeshes==1&&result.scene->mNumTextures==1,"Advanced v9 image missing");
+            const auto& mesh=*result.scene->mMeshes[0];const auto& source=*baseline.scene->mMeshes[0];aiString resource;
+            const auto* material=result.scene->mMaterials[mesh.mMaterialIndex];
+            check(material->GetTexture(aiTextureType_DIFFUSE,0,&resource)==AI_SUCCESS,"Advanced prelit image missing");
+            unsigned coordinate=99;check(material->Get(AI_MATKEY_UVWSRC(aiTextureType_DIFFUSE,0),coordinate)==AI_SUCCESS
+                &&coordinate==unsigned(advanced.coordinate),"Advanced material lost selected coordinate channel");
+            aiMetadata records,descriptor;int32_t rawVersion=0,rawType=0;
+            check(result.scene->mRootNode->mMetaData&&result.scene->mRootNode->mMetaData->Get("JTTextures",records)&&records.Get(0u,descriptor)
+                &&descriptor.Get("TextureType",rawType)&&rawType==9&&descriptor.Get("LocalVersion",rawVersion)&&rawVersion==int(version),"Advanced raw descriptor metadata lost");
+            const auto* texture=result.scene->GetEmbeddedTexture(resource.C_Str());
+            check(texture&&QImage::fromData(reinterpret_cast<const uchar*>(texture->pcData),int(texture->mWidth)).convertToFormat(QImage::Format_RGBA8888)==expected,"Advanced v9 pixels differ");
+            check(mesh.mNumFaces==source.mNumFaces&&mesh.mNumVertices==source.mNumVertices,"Advanced texture changed geometry");
+            check(mesh.mTextureCoords[advanced.coordinate],"Advanced coordinate channel missing");
+            for(unsigned i=0;i<mesh.mNumVertices;++i){
+                const auto old=source.mTextureCoords[0][i],uv=mesh.mTextureCoords[advanced.coordinate][i];
+                const float s=mapping==2?source.mVertices[i].x:mapping==1?1-old.x:old.x,t=mapping==2?source.mVertices[i].y:old.y;
+                check(std::abs(s-uv.x)<1e-5f&&std::abs(t-uv.y)<1e-5f&&mesh.mVertices[i]==source.mVertices[i],"Advanced stored/affine/generated coordinates differ");
+            }
+        }
+        advanced.generation={};advanced.planes={};advanced.coordinate=0;advanced.transform=TextureFixture::Options{}.transform;
+        for(unsigned type:{2u,13u}){advanced.legacyType=type;TextureFixture::write9(dir.filePath("unsupported.jt"),minor,advanced);
+            const auto result=Jt::Importer::read(dir.filePath("unsupported.jt"));
+            check(result.scene->mNumMeshes==1&&result.scene->mNumTextures==0&&!result.warnings.isEmpty(),"Advanced type acquired basic type-2 semantics");}
+        for(unsigned damage=0;damage<4;++damage){auto bad=advanced;bad.legacyType=9;
+            if(damage==0)bad.legacyType=6;if(damage==1)bad.channel=-2;if(damage==2)bad.coordinate=-2;if(damage==3)bad.channel=32;
+            if((damage!=2||version==3)&&(damage!=3||version==2))reject([&]{Reader reader(TextureFixture::body9(bad),minor);Handle(JtAttribute_TextureImage) image=new JtAttribute_TextureImage;check(image->Read(reader),"Invalid advanced descriptor");});
+        }
+        if(version==3){advanced.legacyType=26;TextureFixture::write9(dir.filePath("reset.jt"),minor,advanced);const auto reset=Jt::Importer::read(dir.filePath("reset.jt"));
+            check(reset.scene->mNumMeshes==1&&reset.scene->mNumTextures==0,"Advanced separator did not clear texture");}
+        {JtData_Limits::Scope budget({},1);reject([&]{decodeAdvanced(bytes);});}
+        {bool stopped=false;JtData_Limits::Scope cancel([]{throw Jt::Cancelled();});try{decodeAdvanced(bytes);}catch(const Jt::Cancelled&){stopped=true;}check(stopped,"Advanced texture ignored cancellation");}
+    }
+    std::cout<<"Basic/advanced 9.0/9.5 texture hierarchy, pixels, affine/planes, truncation and future fallback passed\n";
 }

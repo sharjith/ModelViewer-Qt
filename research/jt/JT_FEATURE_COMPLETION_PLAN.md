@@ -112,3 +112,7 @@ C2g is pushed as `38f6c9a`. [Pixel-format validation](JT_TEXTURE_PIXEL_VALIDATIO
 ## Accepted gate C2i — basic 9.x texture records
 
 C2h is pushed as `d757c2f`. [9.x texture validation](JT_9X_TEXTURE_VALIDATION.md) covers the distinct basic local-version-1 layout for enabled 9.0/9.5, including old type mapping, implicit UV0, U8 shared flag and raw source metadata. Existing pixel/affine/planar mapping is reused. Advanced blocks remain diagnosed fallbacks. The owner reported C2i tests passed on 22 October 2026 and authorized commit/push. Python authoring ran, no native/viewer execution by the agent. Authentic authored-texture qualification remains open, alongside JT8.x texture layouts and other C1/C2/C3–C7 work; no version changes.
+
+## Accepted gate C2j — advanced 9.x texture blocks
+
+C2i is owner-accepted and pushed as `0034b48`. [Advanced 9.x texture validation](JT_9X_ADVANCED_TEXTURE_VALIDATION.md) adds the published compatibility-stub hierarchy, active version-2/3 pre-lit 2D image mapping and trailing version-3 coordinate selection. Original checks and 48 authored visual controls are prepared. Authoring ran; the agent did not build/run native tests or the viewer. The owner reported C2j tests passed on 22 October 2026 and authorized commit/push/proceeding after every successful test report. C3 production tests can wait independently; other C2 modes and authentic textured-export qualification remain open. No version or dependency changes.

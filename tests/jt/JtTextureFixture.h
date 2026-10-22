@@ -3,6 +3,7 @@
 #pragma once
 #include "JtContainerFixture.h"
 #include <array>
+#include <algorithm>
 namespace TextureFixture {
 struct Options {bool big=false,inlineImage=true,wrapped=false;unsigned baseVersion=1,version=1;int width=2,height=2,alignment=1,total=12,mipBytes=12,storage=-1,coordinate=2;
     unsigned pixelFormat=1,pixelType=3,inhibit=0,legacyType=2,shared=0;int channel=0;QByteArray pixels;
@@ -39,18 +40,26 @@ inline void writePair(const QString& path,unsigned minor,Options first,Options s
     element(graph,type("10dd1073"),20,body(first),3);element(graph,type("10dd1073"),21,body(second),3);
     end(graph);end(graph);graph.u16(1);graph.u32(0);container(path,graph,minor);
 }
-inline Fixture::Bytes body9(Options o={}){
-    Fixture::Bytes b(o.big);b.u16(o.baseVersion);b.u8(8);b.u32(o.inhibit);b.u16(o.version);b.u32(o.legacyType);
+inline Fixture::Bytes block9(Options o,unsigned block,bool stub=false){
+    Fixture::Bytes b(o.big);b.u32(stub?0:o.legacyType);
     for(unsigned v:{0,2,2,2,2,2,2,0})b.u32(v);
     for(unsigned i=0;i<8;++i)b.f32(i%4==3?1.f:0.f);
     for(float value:o.transform)b.f32(value);for(auto mode:o.generation)b.u32(mode);for(float value:o.planes)b.f32(value);
-    b.u32(o.channel);b.u32(0);b.u8(o.storage>=0?o.storage:o.inlineImage?1:0);b.u32(1);
-    if(o.inlineImage){
+    b.u32(stub?0:o.channel);b.u32(0);b.u8(o.storage>=0?o.storage:o.inlineImage?1:0);b.u32(stub?0:1);
+    if(!stub&&o.inlineImage){
         b.u32(o.pixelFormat);b.u32(o.pixelType);b.u16(2);b.u16(o.alignment);b.u16(o.width);b.u16(o.height);b.u16(1);b.u16(0);b.u8(o.shared);b.u16(1);
         b.u32(o.total);b.u32(o.mipBytes);
         if(!o.pixels.isNull())b.data+=o.pixels;
         else {const unsigned pixels[]={255,0,0,0,255,0,0,0,255,255,255,255};for(auto v:pixels)b.u8(v);}
-    }else b.text("original_texture.png");
+    }else if(!stub)b.text("original_texture.png");
+    if(block==3)b.u32(o.coordinate);
+    return b;
+}
+inline Fixture::Bytes body9(Options o={}){
+    Fixture::Bytes b(o.big);b.u16(o.baseVersion);b.u8(8);b.u32(o.inhibit);b.u16(o.version);
+    // Versions 2/3 contain complete empty lower-version blocks, not just a
+    // replacement header. Unknown version controls need only a bounded payload.
+    for(unsigned block=1;block<=std::min(o.version,3u);++block)b.append(block9(o,block,block<o.version));
     return b;
 }
 inline void write9(const QString& path,unsigned minor,Options o={},const QString& geometry="geometry.jt"){
