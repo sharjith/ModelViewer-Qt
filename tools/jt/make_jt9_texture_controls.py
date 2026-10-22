@@ -13,7 +13,7 @@ from make_texture_control import Bytes, kind, element, end, signed_pixel_compone
 from texture_fixture_store import TextureFixtureStore
 
 
-def assembly9(minor, big, inline, pixels, width, height, transform, generation, planes, local_version=1, coordinate=0, pixel_type=3, geometry_reference='geometry.jt',image_reference='source_image.png',border_mode=0,image_border=0,wrap_s=2,wrap_t=2,pixel_format=1,min_filter=6,border_color=(0,0,0,1),back_reference=None):
+def assembly9(minor, big, inline, pixels, width, height, transform, generation, planes, local_version=1, coordinate=0, pixel_type=3, geometry_reference='geometry.jt',image_reference='source_image.png',border_mode=0,image_border=0,wrap_s=2,wrap_t=2,pixel_format=1,min_filter=6,border_color=(0,0,0,1),back_reference=None,blend_type=2):
     graph = Bytes(big)
     nodes=[(1,[] if back_reference else [20],[2,3] if back_reference else [2],''),(2,[20] if back_reference else [],[],geometry_reference)]
     if back_reference:nodes.append((3,[],[],back_reference))
@@ -24,7 +24,7 @@ def assembly9(minor, big, inline, pixels, width, height, transform, generation, 
     for block in range(1,local_version+1):
         stub=block<local_version
         texture.put('I',0 if stub else 2 if block==1 else 9)
-        texture.put('8I',border_mode,2,min_filter,wrap_s,wrap_t,2,2,0); texture.put('8f',0,0,0,1,*border_color)
+        texture.put('8I',border_mode,2,min_filter,wrap_s,wrap_t,2,blend_type,0); texture.put('8f',0,0,0,1,*border_color)
         texture.put('16f',*transform); texture.put('4I',*generation); texture.put('16f',*planes)
         texture.put('IIBI',0,0,int(inline),0 if stub else 1)
         if not stub:

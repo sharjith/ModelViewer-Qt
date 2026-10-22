@@ -156,3 +156,11 @@ C2r is accepted/pushed as `e3fdd97`. [Border colour-format validation](JT_TEXTUR
 ## Accepted gate C2t - constant luminance and alpha borders
 
 C2s is accepted/pushed as `53db11e`. [Border component validation](JT_TEXTURE_BORDER_COMPONENT_VALIDATION.md) adds constant luminance, luminance-alpha and alpha-only interpretation using published internal-component rules, retaining blend policy and source descriptors. Native known-pixel/alpha checks span enabled modern/9.x envelopes. Forty original nested-cube roots and five shared references support a 20-document visibility gate. Authoring ran under ignored out/; the owner built the app, the agent launched the 20 positive documents in one installed instance, and the owner accepted C2t on 22 October 2026. No native suite run by the agent. Mipmaps, constant red/green/blue-only interpretation, external explicit rings, authored-border legacy clamp and other C2 modes remain open. No enabled revision, dependency or vendored decoder change.
+
+## Accepted gate C2u - inline RGB/RGBA Replace combiner
+
+C2t is accepted/pushed as `bf63388`. [Replace validation](JT_TEXTURE_REPLACE_VALIDATION.md) adds a bounded inline RGB/RGBA/BGR/BGRA Replace mapping through neutral display factors, retaining RGB material alpha and replacing RGBA incoming alpha. Active vertex-colour and other unqualified cases retain geometry with diagnostics. Original native family/endian/alpha/variant checks and 32 shared cube roots are prepared. Authoring ran under ignored out/; the owner built the app, the agent launched the 17 positive documents in one installed instance, and the owner accepted C2u on 22 October 2026. No native suite run by the agent. Other combiners, wider Replace formats, texture units, image/mip/border gaps and other C2 modes remain open. No enabled revision, renderer extension, dependency or vendored decoder change.
+
+## Remaining C2 scope after C2u
+
+[Remaining C2 scope](JT_C2_REMAINING_SCOPE.md) consolidates the seven still-open work packages and separates implementation work from evidence dependencies. The 21 accepted lettered gates do not establish a fixed total gate count. Future implementation should group related cases into useful owner checkpoints rather than one checkpoint per minor format variation.

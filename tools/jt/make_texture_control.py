@@ -136,7 +136,7 @@ def signed_pixel_component(value,bits,big):
     return word.to_bytes(bits//8,'big' if big else 'little'),expected
 
 
-def assembly(big, inline, rgb, width, height, sampler, transform=None, generation=None, planes=None, pixel_format=1, alignment=1, pixel_type=3, geometry_reference='geometry.jt', image_reference='source_image.png',border_mode=0,image_border=0,border_color=(0,0,0,1),back_reference=None):
+def assembly(big, inline, rgb, width, height, sampler, transform=None, generation=None, planes=None, pixel_format=1, alignment=1, pixel_type=3, geometry_reference='geometry.jt', image_reference='source_image.png',border_mode=0,image_border=0,border_color=(0,0,0,1),back_reference=None,blend_type=2):
     graph, root, part, texture = (Bytes(big) for _ in range(4))
     for body, attributes, children, ref in [(root, [] if back_reference else [20], [2,3] if back_reference else [2], ''), (part, [20] if back_reference else [], [], geometry_reference)]:
         body.put('BI', 1, 0); body.ids(attributes); body.put('B', 1); body.ids(children)
@@ -148,7 +148,7 @@ def assembly(big, inline, rgb, width, height, sampler, transform=None, generatio
     texture.put('BBIIBI', 1, 8, 0, 0, 1, 9)
     wrap = {33071: 4, 10497: 2, 33648: 3, 33069: 5}
     mag = {9728: 1, 9729: 2}; minimum = {9728: 1, 9729: 2, 9984: 3, 9985: 4, 9986: 5, 9987: 6}
-    texture.put('8I', border_mode, mag[sampler.get('magFilter', 9729)], minimum[sampler.get('minFilter', 9987)], wrap[sampler.get('wrapS', 10497)], wrap[sampler.get('wrapT', 10497)], 2, 2, 0)
+    texture.put('8I', border_mode, mag[sampler.get('magFilter', 9729)], minimum[sampler.get('minFilter', 9987)], wrap[sampler.get('wrapS', 10497)], wrap[sampler.get('wrapT', 10497)], 2, blend_type, 0)
     texture.put('8f', 0, 0, 0, 1, *border_color)
     texture.put('16f', *(transform if transform is not None else [float(i % 5 == 0) for i in range(16)]))
     texture.put('4I', *(generation if generation is not None else [0]*4))

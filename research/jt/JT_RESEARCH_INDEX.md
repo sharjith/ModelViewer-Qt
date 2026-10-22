@@ -33,4 +33,8 @@ Suggested reading order:
 
 25. Owner-accepted constant luminance/alpha borders: [C2t internal components and visibility controls](JT_TEXTURE_BORDER_COMPONENT_VALIDATION.md).
 
+26. Owner-accepted inline RGB/RGBA Replace: [C2u combiner mapping](JT_TEXTURE_REPLACE_VALIDATION.md).
+
+27. Current checkpoint scope: [remaining C2 work packages after C2u](JT_C2_REMAINING_SCOPE.md).
+
 Sibling validation documents retain the source, measurement and owner-acceptance records for earlier gates. Research documents belong here; generated evidence and fixtures remain under ignored `out/jt-research/`. The [repository handout](../../RESEARCH_FOLDER_HANDOUT.md) governs new work. See the [repository README](../../README.md) for user-facing import scope.

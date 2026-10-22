@@ -184,6 +184,11 @@ struct TextureState {
     std::array<float,16> transform{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
     std::array<int,4> generation{};
     std::array<float,16> planes{};
+    bool replaceRGB() const {
+        if(environment[6]!=3||image.IsNull()||!image->Inline()||image->Images().size()!=1)return false;
+        const auto format=image->Images()[0].format;
+        return format==1||format==2||format==11||format==12;
+    }
     bool planar2D() const {
         if(generation[0]<0||generation[0]>1||generation[1]<0||generation[1]>1
             ||generation[2]!=0||generation[3]!=0)return false;
@@ -548,11 +553,11 @@ struct Builder {
         const auto& env=state.environment;
         const bool ignoresBorder=env[3]>=2&&env[3]<=4&&env[4]>=2&&env[4]<=4;
         const bool sampledBorder=(env[0]==1||env[0]==2)&&(env[3]==5||env[4]==5)&&env[3]>=2&&env[3]<=5&&env[4]>=2&&env[4]<=5&&env[1]>=1&&env[1]<=2&&env[2]>=1&&env[2]<=2;
-        if(state.type!=9||(env[0]!=0&&!ignoresBorder&&!sampledBorder)||env[6]!=2||!state.affine2D()||state.coordinate<0||state.coordinate>=4
+        if(state.type!=9||(env[0]!=0&&!ignoresBorder&&!sampledBorder)||(env[6]!=2&&!state.replaceRGB())||!state.affine2D()||state.coordinate<0||state.coordinate>=4
             ||!state.planar2D()
             ||(env[3]==5&&!sampledBorder)||(env[4]==5&&!sampledBorder)
             ||env[3]<1||env[3]>5||env[4]<1||env[4]>5) {
-            textureWarning("JT texture not applied: supported mapping is channel-0 pre-lit 2D modulate, UV0-3 with stored or model-linear S/T, affine 2D mapping and qualified non-mipmapped colour borders");return {};
+            textureWarning("JT texture not applied: supported mapping is channel-0 pre-lit 2D modulate or qualified inline RGB/RGBA replace, UV0-3 with stored or model-linear S/T, affine 2D mapping and qualified colour borders");return {};
         }
         if(env[0]==2&&!state.image->Inline()){
             textureWarning("JT texture not applied: explicit border requires an inline image descriptor");return {};
@@ -672,7 +677,12 @@ struct Builder {
     }
     unsigned material(const Appearance& style,bool vertexColors=false,bool vertexAlpha=false) {
         const auto mappedTexture=texture(style);
-        const auto c=vertexColors ? aiColor4D(1,1,1,1) : style.diffuse;
+        const bool replace=mappedTexture.index>=0&&style.texture.replaceRGB();
+        const auto format=replace?style.texture.image->Images()[0].format:0;
+        // REPLACE discards incoming RGB; RGBA also discards incoming alpha.
+        // White factors let the existing modulating renderer/export path carry
+        // this qualified single-unit result without baking away source pixels.
+        const auto c=vertexColors ? aiColor4D(1,1,1,1) : replace?aiColor4D(1,1,1,(format==2||format==12)?1:style.diffuse.a):style.diffuse;
         const bool blending=(style.blendFlags&0x10)!=0;
         const unsigned src=(style.blendFlags>>6)&31,dst=(style.blendFlags>>11)&31;
         const float opacity=(!blending || (src==1 && dst==0)) ? 1.0f : c.a;
@@ -778,6 +788,9 @@ struct Builder {
             vertexAlpha=vertexAlpha || c.a<1;
         }
         auto resolved=style;
+        if(colored&&resolved.texture.environment[6]==3){
+            textureWarning("JT texture not applied: Replace with vertex colours is not qualified");resolved.texture.type=0;
+        }
         if(resolved.texture.type!=0 && resolved.texture.coordinate>=0 && resolved.texture.coordinate<4
             &&!mesh->HasTextureCoords(unsigned(resolved.texture.coordinate))
             &&(resolved.texture.generation[0]!=1||resolved.texture.generation[1]!=1)){

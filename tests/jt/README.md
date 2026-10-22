@@ -173,3 +173,7 @@ Numeric/9.x visual controls now share content-addressed geometry, images, buffer
 ## Feature gate C2t: constant luminance and alpha borders
 
 `jt_texture_border_format_tests.cpp` adds known constant-border component/alpha assertions for luminance, luminance-alpha and alpha-only with enabled/disabled blending across enabled modern/9.x envelopes. C2q unsupported constant-format coverage now uses red-only storage. `make_texture_border_component_controls.py` authors original nested cubes and independent glTF references so transparency reveals another object. Shared serializers accept optional blend/diffuse and untextured-sibling inputs without changing defaults. [C2t validation](../../research/jt/JT_TEXTURE_BORDER_COMPONENT_VALIDATION.md) records regeneration and the 20-document owner gate.
+
+## Feature gate C2u: inline RGB/RGBA Replace
+
+`jt_texture_replace_tests.cpp` checks Replace RGB/A material factors, image pixels, blend policy, source endian/enabled families, vertex-colour fallback, unsupported combiners and distinct Replace/Modulate variants sharing an image. The legacy fixture optionally authors material alpha; texture fixture/writers optionally author combiner mode, preserving defaults. `make_texture_replace_controls.py` reuses original nested cubes and common resources. [C2u validation](../../research/jt/JT_TEXTURE_REPLACE_VALIDATION.md) records regeneration and the 17-document owner visual gate.
