@@ -193,20 +193,22 @@ int main(int argc, char** argv)
 	// caused an intermittent taskbar icon mixup.
 	Logger::instance().notifyApplicationVisible();
 
-	if (argc > 1)
+	const QStringList commandLineFiles = app.arguments().mid(1);
+	bool openedCommandLineFile = false;
+	for (const QString& fileName : commandLineFiles)
 	{
-		QString fileName(argv[1]);
-		QFileInfo fi(fileName);
-		if (fi.exists())
+		const QFileInfo fi(fileName);
+		if (fi.isFile() && mw->openFile(fi.absoluteFilePath()))
 		{
-			mw->openFile(fileName);
-			viewer->parentWidget()->close(); // close the first blank document
+			if (!openedCommandLineFile)
+				viewer->parentWidget()->close(); // close the first blank document once
+			openedCommandLineFile = true;
 		}
 	}
 
 	QStringList recentFiles = MainWindow::readRecentFiles(settings);
 	bool restoreLastOpenFile = settings.value("checkRestoreLastFile", false).toBool();
-	if (restoreLastOpenFile && !recentFiles.isEmpty())
+	if (commandLineFiles.isEmpty() && restoreLastOpenFile && !recentFiles.isEmpty())
 	{
 		QString lastFile = recentFiles.first();
 		QFileInfo fi(lastFile);
