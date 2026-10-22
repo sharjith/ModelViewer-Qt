@@ -120,3 +120,7 @@ C2i is owner-accepted and pushed as `0034b48`. [Advanced 9.x texture validation]
 ## Accepted gate C2k — unsigned 16-bit image components
 
 C2j is accepted and pushed as `9c8d37a`. [Unsigned 16-bit texture validation](JT_TEXTURE_UINT16_VALIDATION.md) extends the accepted inline colour path with explicit source-endian word assembly and normalized nearest-byte RGBA8 conversion. Prepared checks cover all enabled modern minors and accepted 9.x texture envelopes, rounding boundaries, padding and alpha. Original modern/9.x comparison controls were authored under ignored out/. No native/viewer execution by the agent; the owner reported C2k passed on 22 October 2026. Other C2 modes, authentic textured exports and C3 production validation remain open. No version or dependency change.
+
+## Accepted gate C2l - float32 inline image components
+
+C2k is accepted and pushed as `e4c5840`. [Float texture validation](JT_TEXTURE_FLOAT_VALIDATION.md) extends the original adapter with source-endian float32 components, finite-value validation, clamping and nearest-byte RGBA8 display conversion. Original checks and modern/9.x comparison controls are prepared; authoring ran under ignored out/. No C++ build/test or viewer run by the agent. The owner reported C2l passed on 22 October 2026. Authentic textured-export qualification, other C2 modes and C3 production checks remain pending. No version, dependency or vendored decoder change.

@@ -135,3 +135,7 @@ The combined C2d/C2e gate now expects visible textures. See the [current handoff
 ## Feature gate C2k: unsigned 16-bit inline images
 
 `jt_texture_pixel_tests.cpp` adds endian-distinct unsigned words, independently expected rounding boundaries, padding/alpha checks across enabled modern revisions and accepted basic/advanced 9.x texture envelopes. Existing unsupported numeric types must retain geometry with diagnostics. Authoring tools accept `--unsigned16`; generated controls remain ignored. [C2k validation](../../research/jt/JT_TEXTURE_UINT16_VALIDATION.md) supplies exact regeneration commands and the owner build/UI gate. The renderer's existing RGBA8 path intentionally reduces source precision.
+
+## Feature gate C2l: float32 inline images
+
+`jt_texture_pixel_tests.cpp` adds source-endian float components, independent IEEE boundary values, clamping, nearest-byte output, nonfinite colour/alpha fallback and existing numeric regressions. Authoring tools accept `--float32`, mutually exclusive with `--unsigned16`; outputs stay ignored. [C2l validation](../../research/jt/JT_TEXTURE_FLOAT_VALIDATION.md) provides the owner build/UI gate and exact regeneration commands. Float precision/HDR range are reduced in the established RGBA8 display path.

@@ -9,6 +9,7 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+import struct
 from PIL import Image
 from make_texture_control import Bytes, kind, element, end
 
@@ -44,7 +45,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('source_folder',type=Path); parser.add_argument('transform_folder',type=Path); parser.add_argument('planar_folder',type=Path); parser.add_argument('output_folder',type=Path)
     parser.add_argument('--advanced',action='store_true',help='Author local versions 2/3 in separate folders instead of basic version 1')
-    parser.add_argument('--unsigned16',action='store_true',help='Use unsigned 16-bit inline RGB components')
+    numeric=parser.add_mutually_exclusive_group()
+    numeric.add_argument('--unsigned16',action='store_true',help='Use unsigned 16-bit inline RGB components')
+    numeric.add_argument('--float32',action='store_true',help='Use normalized float32 inline RGB components')
     args = parser.parse_args(); source, transformed, planar, output = [p.resolve() for p in (args.source_folder,args.transform_folder,args.planar_folder,args.output_folder)]
     if not output.is_relative_to(Path(__file__).resolve().parents[2]/'out') or output in (source,transformed,planar):
         raise ValueError('Use a separate output directory inside ignored repository out/')
@@ -72,7 +75,9 @@ def main():
                         packed=pixels
                         if args.unsigned16:
                             packed=b''.join((0 if value==0 else 65535 if value==255 else value*257+73).to_bytes(2,'big' if big else 'little') for value in pixels)
-                        data=assembly9(minor,big,inline,packed,image.width,image.height,t,gen,planes,version,coordinate,5 if args.unsigned16 else 3)
+                        if args.float32:
+                            packed=b''.join(struct.pack('>f' if big else '<f',value/255.0) for value in pixels)
+                        data=assembly9(minor,big,inline,packed,image.width,image.height,t,gen,planes,version,coordinate,2 if args.float32 else 5 if args.unsigned16 else 3)
                         (folder/filename).write_bytes(data);authored.append({'file':str((folder/filename).relative_to(output)),'sha256':hashlib.sha256(data).hexdigest()})
     report={'source_folder':str(source),'controls':authored,'method':'Separately serialized original v9 attribute/container records with compatibility stubs for advanced versions; 8.2 geometry companion; synthetic/reference-derived, no native or vendor execution'}
     (output/'authoring.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
