@@ -165,3 +165,7 @@ Numeric/9.x visual controls now share content-addressed geometry, images, buffer
 ## Feature gate C2r: sampled explicit border texels
 
 `explicitBorderTests()` in `jt_texture_border_tests.cpp` checks distinct authored ring pixels, mixed-axis cropping, UV mapping, alpha, numeric/endian/family cases, nonfinite fallback and inherited wrap-axis cache identity. The C2p sampled-ring negative now requests mipmap filtering. The existing border writer accepts `--explicit-ring` for 42 positive controls and three common glTF references. [C2r validation](../../research/jt/JT_TEXTURE_EXPLICIT_BORDER_VALIDATION.md) records regeneration and the 12-document owner visual gate.
+
+## Feature gate C2s: sampled border colour layouts
+
+`jt_texture_border_format_tests.cpp` checks ten explicit-ring colour layouts with independent literal component/colour pairs, byte/unsigned-16 components, source endian and enabled modern/9.x envelopes. RGB/BGR constant borders and external RGB check that zero Border A cannot introduce transparency without an alpha component. The C2q unsupported constant-format case now uses luminance. `make_texture_border_format_controls.py` authors positive comparisons using the common store. [C2s validation](../../research/jt/JT_TEXTURE_BORDER_FORMAT_VALIDATION.md) records regeneration and the 15-document owner gate.
