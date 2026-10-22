@@ -374,10 +374,11 @@ struct Builder {
             const auto& data=source.Images()[0];QImage pixels;
             constexpr uint64_t maxBytes=64u*1024u*1024u;
             if(source.Inline()) {
-                if(data.dataType!=3||(data.format!=1&&data.format!=2&&data.format!=11&&data.format!=12)
+                const bool colorFormat=(data.format>=1&&data.format<=4)||(data.format>=7&&data.format<=12);
+                if(data.dataType!=3||!colorFormat
                     ||data.dimensionality!=2||data.depth!=1||data.border!=0)
-                    throw std::runtime_error("inline texture requires borderless 2D unsigned-byte RGB/RGBA/BGR/BGRA");
-                const size_t components=(data.format==2||data.format==12)?4:3;
+                    throw std::runtime_error("inline texture requires a supported borderless 2D unsigned-byte colour format");
+                const size_t components=(data.format==2||data.format==12)?4:(data.format==1||data.format==11)?3:data.format==4?2:1;
                 const size_t stride=(size_t(data.width)*components+data.alignment-1)&~size_t(data.alignment-1);
                 if(uint64_t(data.width)*data.height*4>maxBytes||data.baseMip.size()!=stride*size_t(data.height))
                     throw std::runtime_error("inline texture row/image byte count mismatch");
@@ -386,8 +387,17 @@ struct Builder {
                 if(pixels.isNull())throw std::bad_alloc();
                 for(int y=0;y<data.height;++y){
                     options.check();auto* dst=pixels.scanLine(y);const auto* row=data.baseMip.data()+size_t(data.height-1-y)*stride;
-                    for(int x=0;x<data.width;++x){const auto* src=row+size_t(x)*components;const bool bgr=data.format==11||data.format==12;
-                        dst[4*x]=src[bgr?2:0];dst[4*x+1]=src[1];dst[4*x+2]=src[bgr?0:2];dst[4*x+3]=components==4?src[3]:255;}
+                    for(int x=0;x<data.width;++x){
+                        const auto* src=row+size_t(x)*components;auto* out=dst+4*x;
+                        out[0]=out[1]=out[2]=0;out[3]=255;
+                        if(data.format==3||data.format==4){out[0]=out[1]=out[2]=src[0];if(data.format==4)out[3]=src[1];}
+                        else if(data.format>=7&&data.format<=9)out[data.format-7]=src[0];
+                        // Alpha-only MODULATE preserves incoming RGB; white is
+                        // the neutral RGB factor in our canonical RGBA texture.
+                        else if(data.format==10){out[0]=out[1]=out[2]=255;out[3]=src[0];}
+                        else {const bool bgr=data.format==11||data.format==12;
+                            out[0]=src[bgr?2:0];out[1]=src[1];out[2]=src[bgr?0:2];if(components==4)out[3]=src[3];}
+                    }
                 }
             } else {
                 const auto text=[](const TCollection_ExtendedString& value){return QString::fromUtf16(reinterpret_cast<const char16_t*>(value.ToExtString()),value.Length());};

@@ -104,3 +104,7 @@ C2d/C2e was committed and pushed as `a2cb18e` at the owner's request. It adds bo
 ## Accepted gate C2g — model-linear texture coordinates
 
 C2f is pushed as `4de7b62`. [Planar texture validation](JT_TEXTURE_PLANAR_VALIDATION.md) covers authored S/T plane generation, mixed stored/generated components, absent-UV allocation, affine post-mapping and plane-aware shared appearance identity. The owner reported all requested tests passed on 22 October 2026 and authorized commit/push/proceeding. Python authoring ran; the agent did not build/run C++ or the viewer. View-dependent/projective modes, automatic channels, other texture combiners and legacy texture layouts remain open; no supported revision changes.
+
+## Accepted gate C2h — inline colour image formats
+
+C2g is pushed as `38f6c9a`. [Pixel-format validation](JT_TEXTURE_PIXEL_VALIDATION.md) covers luminance/luminance-alpha and single-colour/alpha inputs alongside existing RGB(A)/BGR(A), with unsigned-byte row alignment and existing blend-state semantics. The owner reported the visual results looked good on 22 October 2026 and authorized commit/push/proceeding. Python authoring ran; no C++ build/test or viewer run by the agent. Other pixel types, depth/stencil, wider texture modes and legacy texture layouts remain open; no supported revision changes.

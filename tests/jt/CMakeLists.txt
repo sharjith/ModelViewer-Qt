@@ -30,6 +30,7 @@ add_executable(jt_tests jt_tests.cpp jt_arithmetic_count_tests.cpp jt_coordinate
 target_sources(jt_tests PRIVATE jt_texture_tests.cpp)
 target_sources(jt_tests PRIVATE jt_texture_transform_tests.cpp)
 target_sources(jt_tests PRIVATE jt_texture_planar_tests.cpp)
+target_sources(jt_tests PRIVATE jt_texture_pixel_tests.cpp)
 target_sources(jt_tests PRIVATE ${REPO}/src/Scene/SceneUtils.cpp)
 target_include_directories(jt_tests PRIVATE ${REPO}/include/Import ${REPO}/src/Import/Jt ${REPO}/include/Scene)
 target_link_libraries(jt_tests PRIVATE mv_jt_codec Qt6::Core Qt6::Gui assimp::assimp glm::glm ${OpenCASCADE_ModelingData_LIBRARIES} ${OpenCASCADE_ModelingAlgorithms_LIBRARIES})

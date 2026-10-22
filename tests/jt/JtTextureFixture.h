@@ -4,7 +4,8 @@
 #include "JtContainerFixture.h"
 #include <array>
 namespace TextureFixture {
-struct Options {bool big=false,inlineImage=true,wrapped=false;unsigned baseVersion=1,version=1;int width=2,total=12,mipBytes=12,storage=-1,coordinate=2;
+struct Options {bool big=false,inlineImage=true,wrapped=false;unsigned baseVersion=1,version=1;int width=2,height=2,alignment=1,total=12,mipBytes=12,storage=-1,coordinate=2;
+    unsigned pixelFormat=1,pixelType=3;QByteArray pixels;
     std::array<float,16> transform{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
     std::array<unsigned,4> generation{};
     std::array<float,16> planes{};};
@@ -17,9 +18,10 @@ inline Fixture::Bytes body(Options o={}){
     for(float value:o.planes)b.f32(value);
     b.u32(0);b.u32(o.coordinate);b.u32(0);b.u8(o.storage>=0?o.storage:o.inlineImage?1:0);b.u32(1);
     if(o.inlineImage){
-        b.u32(1);b.u32(3);b.u16(2);b.u16(1);b.u16(o.width);b.u16(2);b.u16(1);b.u16(0);b.u32(0);b.u16(1);
+        b.u32(o.pixelFormat);b.u32(o.pixelType);b.u16(2);b.u16(o.alignment);b.u16(o.width);b.u16(o.height);b.u16(1);b.u16(0);b.u32(0);b.u16(1);
         b.u32(o.total);b.u32(o.mipBytes);
-        const unsigned pixels[]={255,0,0,0,255,0,0,0,255,255,255,255};for(auto v:pixels)b.u8(v);
+        if(!o.pixels.isNull())b.data+=o.pixels;
+        else {const unsigned pixels[]={255,0,0,0,255,0,0,0,255,255,255,255};for(auto v:pixels)b.u8(v);}
     }else b.text("original_texture.png");
     if(o.baseVersion==2)b.u32(quint32(-1));return b;
 }
