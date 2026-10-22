@@ -387,8 +387,9 @@ struct Builder {
             if(source.Inline()) {
                 const bool colorFormat=(data.format>=1&&data.format<=4)||(data.format>=7&&data.format<=12);
                 if(data.dataType<1||data.dataType>9||data.dataType==4||!colorFormat
-                    ||data.dimensionality!=2||data.depth!=1||data.border!=0)
-                    throw std::runtime_error("inline texture requires a supported borderless 2D numeric colour format");
+                    ||data.dimensionality!=2||data.depth!=1||data.border<0||data.border>1)
+                    throw std::runtime_error("inline texture requires a supported 2D numeric colour format");
+                if(data.border==1&&(data.width<=2||data.height<=2))throw std::runtime_error("inline border texture has no interior texels");
                 const size_t components=(data.format==2||data.format==12)?4:(data.format==1||data.format==11)?3:data.format==4?2:1;
                 const size_t componentBytes=(data.dataType==2||data.dataType==7||data.dataType==8)?4:(data.dataType==5||data.dataType==6||data.dataType==9)?2:1;
                 const bool signedComponents=data.dataType==1||data.dataType==6||data.dataType==8;
@@ -454,6 +455,13 @@ struct Builder {
                             out[0]=src[bgr?2:0];out[1]=src[1];out[2]=src[bgr?0:2];if(components==4)out[3]=src[3];}
                     }
                 }
+                if(data.border==1){
+                    // Qualified wrap modes never sample this ring. Validate the
+                    // complete source image above, then retain its interior only.
+                    JtData_Limits::allocation(size_t(data.width-2)*(data.height-2)*4);
+                    pixels=pixels.copy(1,1,data.width-2,data.height-2);
+                    if(pixels.isNull())throw std::bad_alloc();
+                }
             } else {
                 const auto text=[](const TCollection_ExtendedString& value){return QString::fromUtf16(reinterpret_cast<const char16_t*>(value.ToExtString()),value.Length());};
                 QString reference=text(data.externalName);reference.replace('\\','/');
@@ -496,10 +504,18 @@ struct Builder {
     ImageResult texture(const Appearance& style) {
         const auto& state=style.texture;if(state.type==0||state.image.IsNull())return {};
         const auto& env=state.environment;
-        if(state.type!=9||env[0]!=0||env[6]!=2||!state.affine2D()||state.coordinate<0||state.coordinate>=4
+        const bool ignoresBorder=env[3]>=2&&env[3]<=4&&env[4]>=2&&env[4]<=4;
+        if(state.type!=9||(env[0]!=0&&!ignoresBorder)||env[6]!=2||!state.affine2D()||state.coordinate<0||state.coordinate>=4
             ||!state.planar2D()
             ||(env[3]!=1&&env[3]!=2&&env[3]!=3&&env[3]!=4)||(env[4]!=1&&env[4]!=2&&env[4]!=3&&env[4]!=4)) {
-            textureWarning("JT texture not applied: supported mapping is channel-0 pre-lit 2D modulate, UV0-3 with stored or model-linear S/T, unit reference planes, affine 2D transform and no border");return {};
+            textureWarning("JT texture not applied: supported mapping is channel-0 pre-lit 2D modulate, UV0-3 with stored or model-linear S/T, unit reference planes, affine 2D transform and unsampled borders only");return {};
+        }
+        if(env[0]==2&&!state.image->Inline()){
+            textureWarning("JT texture not applied: explicit border requires an inline image descriptor");return {};
+        }
+        if(state.image->Inline()&&state.image->Images().size()==1
+            &&state.image->Images()[0].border!=(env[0]==2?1:0)){
+            textureWarning("JT texture not applied: border mode and image descriptor disagree");return {};
         }
         const unsigned src=(style.blendFlags>>6)&31,dst=(style.blendFlags>>11)&31;
         return image(state,(style.blendFlags&0x10)&&!(src==1&&dst==0));

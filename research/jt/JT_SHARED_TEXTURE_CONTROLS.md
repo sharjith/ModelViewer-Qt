@@ -46,6 +46,8 @@ Regenerated the five numeric/colour gate sets and six basic/advanced 9.x sets us
 
 C2o subsequently authored 204 signed-image roots using the same shared store. Its signed-byte comparisons can require distinct expected images; identical geometry/buffers and matching wider-width references remain shared. The owner accepted its visual checks on 22 October 2026; see the [signed gate](JT_TEXTURE_SIGNED_VALIDATION.md).
 
+C2p adds the `texture-border_` prefix and a `texture-border-ui-fixtures/authoring.json` manifest, reusing the same content-addressed store. Its positive controls exercise unsampled image borders; the owner accepted its visual gate on 22 October 2026; see [border validation](JT_TEXTURE_BORDER_VALIDATION.md).
+
 ## Provenance
 
 Only existing original ModelViewer writers/fixture inputs and application resource-boundary code were consulted. The new original helper is `tools/jt/texture_fixture_store.py`; no new asset, vendor tool, SDK/schema, disassembly, third-party implementation or licence interpretation was used. GTEX01 URL, checkout, hashes and CC0 attribution remain in [image-control provenance](JT_TEXTURE_DESCRIPTOR_VALIDATION.md#owner-authorized-gltf-derived-control--gtex01). Source licence copies remain available as shared content-addressed assets. No importer, dependency or vendored decoder changes are needed for this layout. All assets/manifests/logs remain ignored under `out/`; tracked additions are code and this Markdown record. This describes method, not legal clearance. Follow the [repository handout](../../RESEARCH_FOLDER_HANDOUT.md).

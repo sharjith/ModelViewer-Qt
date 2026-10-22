@@ -153,3 +153,7 @@ Numeric/9.x visual controls now share content-addressed geometry, images, buffer
 ## Feature gate C2o: signed integer inline images
 
 `jt_texture_pixel_tests.cpp` adds signed 8/16/32-bit components, explicit sign-extension boundary patterns, historical OpenGL2 normalization and earlier numeric regressions across enabled modern and accepted 9.x image envelopes. Writers accept `--signed-bits 8`, `16` or `32`, mutually exclusive with other numeric flags. Shared references account for signed-byte quantization; no per-gate companion copies are created. [C2o validation](../../research/jt/JT_TEXTURE_SIGNED_VALIDATION.md) records primary references, exact regeneration commands and the 29-document owner visual gate. Source precision is reduced in the existing RGBA8 display path.
+
+## Feature gate C2p: unsampled authored borders
+
+`jt_texture_border_tests.cpp` adds known interior pixels inside transparent bright rings, unused constant-border environments, endian/numeric/family cases, alpha and geometry preservation, plus explicit fallback for sampled/inconsistent/empty/nonfinite border cases. `make_texture_border_controls.py` writes only positive UI controls through the shared asset store. [C2p validation](../../research/jt/JT_TEXTURE_BORDER_VALIDATION.md) records exact regeneration and the 13-document owner visual gate. Border sampling and authored mip preservation remain separate work.
