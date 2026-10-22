@@ -123,7 +123,7 @@ def geometry(positions, uvs, indices):
     return file.data
 
 
-def assembly(big, inline, rgb, width, height, sampler):
+def assembly(big, inline, rgb, width, height, sampler, transform=None):
     graph, root, part, texture = (Bytes(big) for _ in range(4))
     for body, attributes, children, ref in [(root, [20], [2], ''), (part, [], [], 'geometry.jt')]:
         body.put('BI', 1, 0); body.ids(attributes); body.put('B', 1); body.ids(children)
@@ -134,7 +134,7 @@ def assembly(big, inline, rgb, width, height, sampler):
     mag = {9728: 1, 9729: 2}; minimum = {9728: 1, 9729: 2, 9984: 3, 9985: 4, 9986: 5, 9987: 6}
     texture.put('8I', 0, mag[sampler.get('magFilter', 9729)], minimum[sampler.get('minFilter', 9987)], wrap[sampler.get('wrapS', 10497)], wrap[sampler.get('wrapT', 10497)], 2, 2, 0)
     texture.put('8f', 0, 0, 0, 1, 0, 0, 0, 1)
-    texture.put('16f', *[float(i % 5 == 0) for i in range(16)]); texture.put('4I16f', *([0]*20))
+    texture.put('16f', *(transform if transform is not None else [float(i % 5 == 0) for i in range(16)])); texture.put('4I16f', *([0]*20))
     texture.put('IIIBI', 0, 0, 0, int(inline), 1)
     if inline:
         texture.put('II6HIHII', 1, 3, 2, 1, width, height, 1, 0, 0, 1, len(rgb), len(rgb)); texture.data += rgb

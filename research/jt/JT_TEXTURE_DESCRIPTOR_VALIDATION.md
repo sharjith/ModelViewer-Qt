@@ -2,6 +2,8 @@
 
 ## Current handoff: combined C2d/C2e visible image mapping
 
+Update, 22 October 2026: committed/pushed as `a2cb18e`; the owner explicitly reported that the UV correction was tested and correct. This confirms the visual fix, not optional portable-suite execution or authentic textured-export conformance. The next owner handoff is [C2f affine texture matrices](JT_TEXTURE_TRANSFORM_VALIDATION.md). The text below records the earlier implementation and testing sequence.
+
 Owner disposition, 21 October 2026: the owner explicitly requested commit and push after the UV correction. Visible image rendering was previously confirmed; a separate corrected-orientation result and portable-suite execution were not explicitly reported. Commit authorization is recorded without inferring those test results. Authentic textured-export qualification remains open.
 
 21 October 2026, `feature/JT-importer`. This section supersedes the descriptor-only instructions below. After the owner observed untextured controls, they requested actual image mapping before visual acceptance. Implementation is prepared for owner build/test; the agent has not built or executed the C++ changes. No test pass or authentic-export agreement is claimed.

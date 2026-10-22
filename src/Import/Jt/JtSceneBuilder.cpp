@@ -180,6 +180,14 @@ struct TextureState {
     std::array<int,8> environment{0,2,6,2,2,2,2,0};
     std::array<float,16> transform{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
     std::array<int,4> generation{};
+    bool affine2D() const {
+        // Serialized JT matrices use the same row-vector placement as geometric
+        // attributes: translation occupies the last row. Only stored (S,T,0,1)
+        // with an unchanged R/Q plane is qualified here; no projective divide.
+        return transform[2]==0&&transform[3]==0&&transform[6]==0&&transform[7]==0
+            &&transform[8]==0&&transform[9]==0&&transform[10]==1&&transform[11]==0
+            &&transform[14]==0&&transform[15]==1;
+    }
     void apply(const Handle(JtAttribute_TextureImage)& source) {
         const unsigned allowed=~source->FieldInhibitFlags() & (source->AccumulationForced()?~0u:~finalFields) & 0xffu;
         const auto& env=source->Environment();
@@ -412,11 +420,10 @@ struct Builder {
     ImageResult texture(const Appearance& style) {
         const auto& state=style.texture;if(state.type==0||state.image.IsNull())return {};
         const auto& env=state.environment;
-        bool identity=true;for(unsigned i=0;i<16;++i)identity=identity&&state.transform[i]==float(i%5==0);
-        if(state.type!=9||env[0]!=0||env[6]!=2||!identity||state.coordinate<0||state.coordinate>=4
+        if(state.type!=9||env[0]!=0||env[6]!=2||!state.affine2D()||state.coordinate<0||state.coordinate>=4
             ||std::any_of(state.generation.begin(),state.generation.end(),[](int v){return v!=0;})
             ||(env[3]!=1&&env[3]!=2&&env[3]!=3&&env[3]!=4)||(env[4]!=1&&env[4]!=2&&env[4]!=3&&env[4]!=4)) {
-            textureWarning("JT texture not applied: supported mapping is channel-0 pre-lit 2D modulate, stored UV0-3, identity transform, no border or coordinate generation");return {};
+            textureWarning("JT texture not applied: supported mapping is channel-0 pre-lit 2D modulate, stored UV0-3, affine 2D transform, no border or coordinate generation");return {};
         }
         const unsigned src=(style.blendFlags>>6)&31,dst=(style.blendFlags>>11)&31;
         return image(state,(style.blendFlags&0x10)&&!(src==1&&dst==0));
@@ -534,7 +541,12 @@ struct Builder {
         std::vector<float> key{c.r,c.g,c.b,opacity,style.ambient.r,style.ambient.g,style.ambient.b,
             style.specular.r,style.specular.g,style.specular.b,style.emission.r,style.emission.g,style.emission.b,
             style.bumpiness,style.reflectivity,style.shininess,float(style.hasShininess),float(style.overrideColors),float(style.present),float(style.drawFlags),float(style.drawPresent),float(style.blendFlags),float(vertexAlpha),float(mappedTexture.index),float(style.texture.coordinate)};
-        if(mappedTexture.index>=0)for(auto value:style.texture.environment)key.push_back(float(value));
+        if(mappedTexture.index>=0){
+            for(auto value:style.texture.environment)key.push_back(float(value));
+            // Mesh variants are keyed by material ID. Keep different effective
+            // transforms distinct even when the image and source mesh are shared.
+            for(auto value:style.texture.transform)key.push_back(value);
+        }
         for(float value:key) if(!std::isfinite(value)) throw std::runtime_error("JT has nonfinite material values");
         if(!std::isfinite(c.a) || c.a<0 || c.a>1 || opacity<0 || opacity>1) throw std::runtime_error("JT diffuse alpha is out of range");
         // JT 10.0 section 6.1.2.2 defines a Phong exponent in [1,128].
@@ -628,7 +640,33 @@ struct Builder {
             &&!mesh->HasTextureCoords(unsigned(resolved.texture.coordinate))){
             textureWarning("JT texture not applied: selected UV channel is absent from the mesh");resolved.texture.type=0;
         }
-        const unsigned mat=material(resolved,colored,vertexAlpha);
+        unsigned mat=material(resolved,colored,vertexAlpha);
+        if(materials[mat]->GetTextureCount(aiTextureType_DIFFUSE)>0){
+            const auto& t=resolved.texture.transform;bool identity=true;
+            for(unsigned i=0;i<16;++i)identity=identity&&t[i]==float(i%5==0);
+            if(!identity){
+                // Bake effective mapping into this appearance-specific copy.
+                // This also carries shear/reflection through scene copy and GLB
+                // without relying on a restricted scale/rotation material model.
+                const auto channel=unsigned(resolved.texture.coordinate);
+                auto* uv=mesh->mTextureCoords[channel];
+                JtData_Limits::allocation(size_t(mesh->mNumVertices)*sizeof(aiVector3D));
+                std::vector<aiVector3D> mapped(mesh->mNumVertices);bool valid=true;
+                for(unsigned i=0;i<mesh->mNumVertices;++i){
+                    if((i&1023)==0)options.check();
+                    const double s=double(uv[i].x)*t[0]+double(uv[i].y)*t[4]+t[12];
+                    const double v=double(uv[i].x)*t[1]+double(uv[i].y)*t[5]+t[13];
+                    if(!std::isfinite(s)||!std::isfinite(v)||std::abs(s)>std::numeric_limits<float>::max()
+                        ||std::abs(v)>std::numeric_limits<float>::max()){valid=false;break;}
+                    mapped[i]={float(s),float(v),0};
+                }
+                if(valid)std::copy(mapped.begin(),mapped.end(),uv);
+                else {
+                    textureWarning("JT texture not applied: transformed UV exceeds finite render range");
+                    resolved.texture.type=0;mat=material(resolved,colored,vertexAlpha);
+                }
+            }
+        }
         if(style.flatNormals()) {
             const size_t count=size_t(mesh->mNumFaces)*3;
             if(count>std::numeric_limits<unsigned>::max()) throw std::runtime_error("JT flat-normal vertex count exceeds render limits");

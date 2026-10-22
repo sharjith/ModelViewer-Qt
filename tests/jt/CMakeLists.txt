@@ -28,6 +28,7 @@ target_include_directories(jt_coordinate_fixturegen PRIVATE ${REPO}/include/Impo
 target_link_libraries(jt_coordinate_fixturegen PRIVATE mv_jt_codec Qt6::Core Qt6::Gui assimp::assimp glm::glm ${OpenCASCADE_ModelingData_LIBRARIES} ${OpenCASCADE_ModelingAlgorithms_LIBRARIES})
 add_executable(jt_tests jt_tests.cpp jt_arithmetic_count_tests.cpp jt_coordinate_tests.cpp jt_uv_tests.cpp jt_huffman_tests.cpp jt_quantized_colour_tests.cpp jt9_colour_tests.cpp jt95_tests.cpp jt_scene_tests.cpp jt_legacy_tests.cpp jt_quantized_tests.cpp jt_modern_attribute_tests.cpp jt_palette_tests.cpp ${REPO}/src/Import/Jt/JtImporter.cpp ${REPO}/src/Import/Jt/JtSceneBuilder.cpp)
 target_sources(jt_tests PRIVATE jt_texture_tests.cpp)
+target_sources(jt_tests PRIVATE jt_texture_transform_tests.cpp)
 target_sources(jt_tests PRIVATE ${REPO}/src/Scene/SceneUtils.cpp)
 target_include_directories(jt_tests PRIVATE ${REPO}/include/Import ${REPO}/src/Import/Jt ${REPO}/include/Scene)
 target_link_libraries(jt_tests PRIVATE mv_jt_codec Qt6::Core Qt6::Gui assimp::assimp glm::glm ${OpenCASCADE_ModelingData_LIBRARIES} ${OpenCASCADE_ModelingAlgorithms_LIBRARIES})
