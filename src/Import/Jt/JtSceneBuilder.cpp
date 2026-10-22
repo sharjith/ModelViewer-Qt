@@ -376,9 +376,11 @@ struct Builder {
     unsigned nodes=0;
     void textureWarning(const QString& text) {if(!result.warnings.contains(text))result.warnings.append(text);}
     ImageResult image(const TextureState& state,bool allowAlpha) {
+        const bool sampleS=state.environment[0]!=0&&state.environment[3]==5;
+        const bool sampleT=state.environment[0]!=0&&state.environment[4]==5;
         const bool padS=state.environment[0]==1&&state.environment[3]==5;
         const bool padT=state.environment[0]==1&&state.environment[4]==5;
-        const TextureSourceKey sourceKey{state.image.get(),allowAlpha,padS,padT,(padS||padT)?state.borderColor:std::array<float,4>{}};
+        const TextureSourceKey sourceKey{state.image.get(),allowAlpha,sampleS,sampleT,(padS||padT)?state.borderColor:std::array<float,4>{}};
         if(!state.image.IsNull()) {
             const auto cached=textureSources.find(sourceKey);
             if(cached!=textureSources.end()){if(!cached->second.error.isEmpty())textureWarning(cached->second.error);return cached->second;}
@@ -391,8 +393,8 @@ struct Builder {
             const auto& data=source.Images()[0];QImage pixels;
             constexpr uint64_t maxBytes=64u*1024u*1024u;
             if(source.Inline()) {
-                if((padS||padT)&&data.format!=2&&data.format!=12)
-                    throw std::runtime_error("sampled constant border currently requires RGBA/BGRA storage");
+                if((sampleS||sampleT)&&data.format!=2&&data.format!=12)
+                    throw std::runtime_error("sampled border currently requires RGBA/BGRA storage");
                 const bool colorFormat=(data.format>=1&&data.format<=4)||(data.format>=7&&data.format<=12);
                 if(data.dataType<1||data.dataType>9||data.dataType==4||!colorFormat
                     ||data.dimensionality!=2||data.depth!=1||data.border<0||data.border>1)
@@ -464,11 +466,17 @@ struct Builder {
                     }
                 }
                 if(data.border==1){
-                    // Qualified wrap modes never sample this ring. Validate the
-                    // complete source image above, then retain its interior only.
-                    JtData_Limits::allocation(size_t(data.width-2)*(data.height-2)*4);
-                    pixels=pixels.copy(1,1,data.width-2,data.height-2);
-                    if(pixels.isNull())throw std::bad_alloc();
+                    // Retain the ring only on sampled axes. Cropping the other
+                    // axis preserves repeat/mirror/edge sampling of its interior.
+                    const int innerWidth=data.width-2,innerHeight=data.height-2;
+                    const int width=innerWidth+2*int(sampleS),height=innerHeight+2*int(sampleT);
+                    if(!sampleS||!sampleT){
+                        JtData_Limits::allocation(size_t(width)*height*4);
+                        pixels=pixels.copy(int(!sampleS),int(!sampleT),width,height);
+                        if(pixels.isNull())throw std::bad_alloc();
+                    }
+                    resultImage.scaleS=double(innerWidth)/width;resultImage.scaleT=double(innerHeight)/height;
+                    resultImage.offsetS=double(sampleS)/width;resultImage.offsetT=double(sampleT)/height;
                 }
             } else {
                 const auto text=[](const TCollection_ExtendedString& value){return QString::fromUtf16(reinterpret_cast<const char16_t*>(value.ToExtString()),value.Length());};
@@ -531,12 +539,12 @@ struct Builder {
         const auto& state=style.texture;if(state.type==0||state.image.IsNull())return {};
         const auto& env=state.environment;
         const bool ignoresBorder=env[3]>=2&&env[3]<=4&&env[4]>=2&&env[4]<=4;
-        const bool constantBorder=env[0]==1&&(env[3]==5||env[4]==5)&&env[3]>=2&&env[3]<=5&&env[4]>=2&&env[4]<=5&&env[1]>=1&&env[1]<=2&&env[2]>=1&&env[2]<=2;
-        if(state.type!=9||(env[0]!=0&&!ignoresBorder&&!constantBorder)||env[6]!=2||!state.affine2D()||state.coordinate<0||state.coordinate>=4
+        const bool sampledBorder=(env[0]==1||env[0]==2)&&(env[3]==5||env[4]==5)&&env[3]>=2&&env[3]<=5&&env[4]>=2&&env[4]<=5&&env[1]>=1&&env[1]<=2&&env[2]>=1&&env[2]<=2;
+        if(state.type!=9||(env[0]!=0&&!ignoresBorder&&!sampledBorder)||env[6]!=2||!state.affine2D()||state.coordinate<0||state.coordinate>=4
             ||!state.planar2D()
-            ||(env[3]==5&&!constantBorder)||(env[4]==5&&!constantBorder)
+            ||(env[3]==5&&!sampledBorder)||(env[4]==5&&!sampledBorder)
             ||env[3]<1||env[3]>5||env[4]<1||env[4]>5) {
-            textureWarning("JT texture not applied: supported mapping is channel-0 pre-lit 2D modulate, UV0-3 with stored or model-linear S/T, affine 2D mapping, unsampled borders or non-mipmapped RGBA constant borders");return {};
+            textureWarning("JT texture not applied: supported mapping is channel-0 pre-lit 2D modulate, UV0-3 with stored or model-linear S/T, affine 2D mapping, unsampled borders or non-mipmapped RGBA borders");return {};
         }
         if(env[0]==2&&!state.image->Inline()){
             textureWarning("JT texture not applied: explicit border requires an inline image descriptor");return {};

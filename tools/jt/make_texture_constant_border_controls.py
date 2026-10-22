@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 ModelViewer-Qt contributors. SPDX-License-Identifier: GPL-3.0-only
-"""Author bounded RGBA constant-border controls and independent padded glTFs."""
+"""Author bounded RGBA constant/explicit-border controls and independent glTFs."""
 import argparse
 import copy
 import json
@@ -17,13 +17,21 @@ def main():
     parser.add_argument('source_folder',type=Path)
     parser.add_argument('transform_folder',type=Path)
     parser.add_argument('output_folder',type=Path)
+    parser.add_argument('--explicit-ring',action='store_true',help='Use original distinct edge/corner texels instead of a constant colour')
     args=parser.parse_args();source=args.source_folder.resolve();transformed=args.transform_folder.resolve()
     output=args.output_folder.resolve()
     if output in (source,transformed):raise ValueError('Use a separate ignored output folder')
     store=TextureFixtureStore(output);geometry=store.file(source/'geometry.jt')
     if (source/'SOURCE_LICENSE.md').exists():store.file(source/'SOURCE_LICENSE.md')
     image=Image.open(source/'source_image.png').convert('RGBA');image_ref=store.image(image)
-    payload=image.transpose(Image.Transpose.FLIP_TOP_BOTTOM).tobytes()
+    stored=image
+    if args.explicit_ring:
+        stored=Image.new('RGBA',(image.width+2,image.height+2),(255,255,255,255));stored.paste(image,(1,1))
+        for x in range(1,stored.width-1):
+            stored.putpixel((x,0),(255,0,255,255));stored.putpixel((x,stored.height-1),(0,255,255,255))
+        for y in range(1,stored.height-1):
+            stored.putpixel((0,y),(255,128,0,255));stored.putpixel((stored.width-1,y),(128,0,255,255))
+    payload=stored.transpose(Image.Transpose.FLIP_TOP_BOTTOM).tobytes()
     original=json.loads((transformed/'tile_2x2_reference.gltf').read_text(encoding='utf-8'))
     primitive=original['meshes'][0]['primitives'][0]
     accessor=original['accessors'][primitive['attributes']['TEXCOORD_0']]
@@ -36,7 +44,10 @@ def main():
     authored=[]
     for label,s,t,other,color in [('both',1,1,10497,(1,.5,0,1)),('s_repeat',1,0,10497,(1,.5,0,1)),('t_mirror',0,1,33648,(0,1,1,1))]:
         width=image.width+2*s;height=image.height+2*t
-        padded=Image.new('RGBA',(width,height),tuple(round(v*255) for v in color));padded.paste(image,(s,t))
+        if args.explicit_ring:
+            padded=stored.crop((1-s,1-t,stored.width-(1-s),stored.height-(1-t)))
+        else:
+            padded=Image.new('RGBA',(width,height),tuple(round(v*255) for v in color));padded.paste(image,(s,t))
         reference=copy.deepcopy(original)
         # glTF's top-origin V and JT's bottom-origin T share this symmetric
         # interior-to-padded-image formula; no model up-axis rotation is needed.
@@ -58,20 +69,22 @@ def main():
         jt_sampler=dict(sampler,wrapS=33069 if s else other,wrapT=33069 if t else other)
         for big in (False,True):
             endian='be' if big else 'le'
-            for inline in (False,True):
+            for inline in ((True,) if args.explicit_ring else (False,True)):
                 storage='inline' if inline else 'external'
-                data=assembly(big,inline,payload,image.width,image.height,jt_sampler,matrix,pixel_format=2,
-                    geometry_reference=geometry,image_reference=image_ref,border_mode=1,border_color=color)
+                data=assembly(big,inline,payload,stored.width,stored.height,jt_sampler,matrix,pixel_format=2,
+                    geometry_reference=geometry,image_reference=image_ref,border_mode=2 if args.explicit_ring else 1,
+                    image_border=int(args.explicit_ring),border_color=color)
                 authored.append(store.control(f'10_0_{label}_{storage}_{endian}.jt',data))
             for minor in (0,5):
                 for version in (1,2,3):
-                    data=assembly9(minor,big,True,payload,image.width,image.height,matrix,[0]*4,[0.0]*16,
-                        local_version=version,coordinate=0,geometry_reference=geometry,border_mode=1,
+                    data=assembly9(minor,big,True,payload,stored.width,stored.height,matrix,[0]*4,[0.0]*16,
+                        local_version=version,coordinate=0,geometry_reference=geometry,border_mode=2 if args.explicit_ring else 1,
+                        image_border=int(args.explicit_ring),
                         wrap_s=5 if s else (2 if other==10497 else 3),wrap_t=5 if t else (2 if other==10497 else 3),
                         pixel_format=2,min_filter=2,border_color=color)
                     authored.append(store.control(f'9_{minor}_v{version}_{label}_{endian}.jt',data))
-    store.report({'controls':authored,'method':'Original RGBA nearest/linear constant-border envelopes, shared geometry, independently padded glTF image/UV oracle; synthetic, no importer execution or exporter conformance'})
-    print(f'Authored {len(authored)} positive constant-border roots and three shared references in {store.root}')
+    store.report({'controls':authored,'explicit_ring':args.explicit_ring,'method':'Original RGBA base-level border envelopes, shared geometry, independently prepared glTF image/UV oracle; synthetic, no importer execution or exporter conformance'})
+    print(f'Authored {len(authored)} positive border roots and three shared references in {store.root}')
 
 
 if __name__=='__main__':main()

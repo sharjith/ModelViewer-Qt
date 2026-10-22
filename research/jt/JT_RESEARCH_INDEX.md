@@ -27,4 +27,6 @@ Suggested reading order:
 
 22. Owner-accepted sampled constant borders: [C2q RGBA constant-colour borders](JT_TEXTURE_CONSTANT_BORDER_VALIDATION.md).
 
+23. Owner-accepted sampled explicit borders: [C2r authored border texels](JT_TEXTURE_EXPLICIT_BORDER_VALIDATION.md).
+
 Sibling validation documents retain the source, measurement and owner-acceptance records for earlier gates. Research documents belong here; generated evidence and fixtures remain under ignored `out/jt-research/`. The [repository handout](../../RESEARCH_FOLDER_HANDOUT.md) governs new work. See the [repository README](../../README.md) for user-facing import scope.
