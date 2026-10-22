@@ -1,5 +1,5 @@
 // Copyright (C) 2026 ModelViewer-Qt contributors. SPDX-License-Identifier: GPL-3.0-only
-// Original unsigned 8/16/32-bit and float16/32 texels and independent RGBA expectations.
+// Original signed/unsigned 8/16/32-bit and float16/32 texels and independent RGBA expectations.
 #include "JtTextureFixture.h"
 #include "JtLegacyFixture.h"
 #include "Jt/JtImporter.h"
@@ -16,7 +16,12 @@ void author(TextureFixture::Options& o,QImage& expected,bool alpha){
     for(int y=1;y>=0;--y){const auto start=o.pixels.size();
         for(int x=0;x<3;++x){const auto p=input[3*y+x];unsigned r=0,g=0,b=0,a=255;
             const auto put=[&](unsigned v){
-                if(o.pixelType==2||o.pixelType==9){
+                if(o.pixelType==1||o.pixelType==6||o.pixelType==8){
+                    const unsigned bytes=o.pixelType==1?1:o.pixelType==6?2:4;
+                    const uint64_t maximum=(uint64_t(1)<<(bytes*8))-1;
+                    const uint32_t word=v==0?uint32_t((maximum+1)/2):uint32_t((uint64_t(v)*(maximum/255))/2);
+                    for(unsigned i=0;i<bytes;++i)o.pixels.append(char(word>>(8*(o.big?bytes-1-i:i))));
+                }else if(o.pixelType==2||o.pixelType==9){
                     const float component=float(v)/255.f;uint32_t bits;
                     std::memcpy(&bits,&component,sizeof(bits));
                     if(o.pixelType==9){
@@ -47,7 +52,10 @@ void author(TextureFixture::Options& o,QImage& expected,bool alpha){
             case 11:put(p.b);put(p.g);put(p.r);r=p.r;g=p.g;b=p.b;break;
             case 12:put(p.b);put(p.g);put(p.r);put(p.a);r=p.r;g=p.g;b=p.b;a=p.a;break;
             }
-            expected.setPixelColor(x,y,QColor(int(r),int(g),int(b),int(alpha?a:255)));
+            // Signed byte quantization in the historical GL profile produces
+            // odd positive display bytes; larger signed widths round to v.
+            const auto expectedByte=[&](unsigned v){return o.pixelType==1&&v>0&&v<255?(v|1u):v;};
+            expected.setPixelColor(x,y,QColor(int(expectedByte(r)),int(expectedByte(g)),int(expectedByte(b)),int(alpha?expectedByte(a):255)));
         }
         while((o.pixels.size()-start)%o.alignment)o.pixels.append(char(0xea));
     }
@@ -59,7 +67,7 @@ void texturePixelTests(){
     LegacyFixture::Options geometry;geometry.quantizedData=true;geometry.quantizedBits=4;geometry.uvBinding=1;geometry.materialDataFlags=0x3990;
     LegacyFixture::write(dir.filePath("blend.jt"),geometry);geometry.materialDataFlags=0x3980;LegacyFixture::write(dir.filePath("opaque.jt"),geometry);
     for(unsigned minor:{0u,3u,5u,7u,8u,9u,10u})for(bool big:{false,true})for(bool alpha:{false,true})
-        for(unsigned pixelType:{2u,3u,5u,7u,9u})
+        for(unsigned pixelType:{1u,2u,3u,5u,6u,7u,8u,9u})
         for(unsigned format:{1u,2u,3u,4u,7u,8u,9u,10u,11u,12u})
         for(int alignment:minor==0?std::vector<int>{1,2,4,8}:std::vector<int>{8}){
             TextureFixture::Options o;o.coordinate=0;o.big=big;o.baseVersion=minor?2:1;o.wrapped=minor!=0;o.pixelFormat=format;o.alignment=alignment;o.pixelType=pixelType;
@@ -82,7 +90,7 @@ void texturePixelTests(){
     }
     // Valid descriptors with too few/many base-row bytes must not overread or
     // silently treat padding as pixels. Keep descriptor aggregate counts valid.
-    for(unsigned type:{2u,3u,5u,7u,9u})for(int delta:{-1,1}){
+    for(unsigned type:{1u,2u,3u,5u,6u,7u,8u,9u})for(int delta:{-1,1}){
         TextureFixture::Options o;o.coordinate=0;o.pixelFormat=4;o.pixelType=type;o.alignment=8;QImage image;author(o,image,true);
         o.pixels.resize(o.pixels.size()+delta);o.total=o.mipBytes=int(o.pixels.size());TextureFixture::write(dir.filePath("bad_rows.jt"),0,o,"blend.jt");
         const auto result=Jt::Importer::read(dir.filePath("bad_rows.jt"));
@@ -90,7 +98,7 @@ void texturePixelTests(){
     }
     // The same numeric conversion must work behind every accepted v9 texture
     // envelope, including its one-byte shared flag and trailing v3 coordinate.
-    for(unsigned minor:{0u,5u})for(unsigned version:{1u,2u,3u})for(bool big:{false,true})for(unsigned format:{1u,4u,12u})for(unsigned type:{2u,5u,7u,9u}){
+    for(unsigned minor:{0u,5u})for(unsigned version:{1u,2u,3u})for(bool big:{false,true})for(unsigned format:{1u,4u,12u})for(unsigned type:{1u,2u,5u,6u,7u,8u,9u}){
         TextureFixture::Options o;o.big=big;o.version=version;o.legacyType=version==1?2:9;o.coordinate=0;o.pixelType=type;o.pixelFormat=format;o.alignment=8;
         QImage expected;author(o,expected,true);TextureFixture::write9(dir.filePath("numeric_v9.jt"),minor,o,"blend.jt");
         const auto result=Jt::Importer::read(dir.filePath("numeric_v9.jt"));aiString path;
@@ -150,10 +158,32 @@ void texturePixelTests(){
             check(bad.scene->mNumMeshes==1&&bad.scene->mNumTextures==0&&!bad.warnings.isEmpty(),"Nonfinite float image did not retain geometry with diagnostic");
         }
     }
-    for(unsigned type:{0u,1u,4u,6u,8u}){
+    const uint32_t signed8[18]={0x80,0x81,0xff,0,1,2,0x3f,0x40,0x7e,0x7f,0xfe,0x7d,0x20,0x21,0x10,0x11,0x55,0x56};
+    const uint32_t signed16[18]={0x8000,0x8001,0xffff,0,1,2,0x3fff,0x4000,0x7ffe,0x7fff,0xfffe,0x7ffd,0x2000,0x2100,0x1000,0x1100,0x5500,0x5600};
+    const uint32_t signed32[18]={0x80000000,0x80000001,0xffffffff,0,1,2,0x3fffffff,0x40000000,0x7ffffffe,0x7fffffff,0xfffffffe,0x7ffffffd,0x20000000,0x21000000,0x10000000,0x11000000,0x55000000,0x56000000};
+    const unsigned signed8Expected[18]={0,0,0,1,3,5,127,129,253,255,0,251,65,67,33,35,171,173};
+    const unsigned signedWideExpected[18]={0,0,0,0,0,0,127,128,255,255,0,255,64,66,32,34,169,171};
+    for(unsigned type:{1u,6u,8u})for(bool big:{false,true}){
+        const unsigned bytes=type==1?1:type==6?2:4;
+        const auto* patterns=type==1?signed8:type==6?signed16:signed32;
+        const auto* values=type==1?signed8Expected:signedWideExpected;
+        TextureFixture::Options o;o.big=big;o.coordinate=0;o.pixelType=type;o.width=3;o.height=2;o.alignment=8;o.pixels=QByteArray("");
+        QImage expected(3,2,QImage::Format_RGBA8888);
+        for(int y=1;y>=0;--y){const auto start=o.pixels.size();
+            for(int x=0;x<3;++x){const auto index=9*y+3*x;
+                for(int c=0;c<3;++c)for(unsigned b=0;b<bytes;++b)o.pixels.append(char(patterns[index+c]>>(8*(big?bytes-1-b:b))));
+                expected.setPixelColor(x,y,QColor(int(values[index]),int(values[index+1]),int(values[index+2])));}
+            while((o.pixels.size()-start)%8)o.pixels.append(char(0xea));}
+        o.total=o.mipBytes=int(o.pixels.size());TextureFixture::write(dir.filePath("signed_boundaries.jt"),0,o,"opaque.jt");
+        const auto result=Jt::Importer::read(dir.filePath("signed_boundaries.jt"));aiString path;
+        check(result.scene->mNumMeshes==1&&result.scene->mMaterials[result.scene->mMeshes[0]->mMaterialIndex]->GetTexture(aiTextureType_DIFFUSE,0,&path)==AI_SUCCESS,"Signed integer texture missing");
+        const auto* image=result.scene->GetEmbeddedTexture(path.C_Str());
+        check(image&&QImage::fromData(reinterpret_cast<const uchar*>(image->pcData),int(image->mWidth)).convertToFormat(QImage::Format_RGBA8888)==expected,"Signed integer negative/zero/endpoint normalization differs");
+    }
+    for(unsigned type:{0u,4u}){
         TextureFixture::Options o;o.coordinate=0;o.pixelType=type;TextureFixture::write(dir.filePath("other_type.jt"),0,o,"opaque.jt");
         const auto result=Jt::Importer::read(dir.filePath("other_type.jt"));
         check(result.scene->mNumMeshes==1&&result.scene->mNumTextures==0&&!result.warnings.isEmpty(),"Unsupported numeric type lost fallback");
     }
-    std::cout<<"Inline unsigned 8/16/32-bit and float16/32 formats, rounding, alpha policy, alignment, byte orders and fallback passed\n";
+    std::cout<<"Inline signed/unsigned 8/16/32-bit and float16/32 formats, rounding, alpha policy, alignment, byte orders and fallback passed\n";
 }

@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 import struct
 from PIL import Image
-from make_texture_control import Bytes, kind, element, end
+from make_texture_control import Bytes, kind, element, end, signed_pixel_component
 from texture_fixture_store import TextureFixtureStore
 
 
@@ -49,7 +49,9 @@ def main():
     numeric.add_argument('--unsigned32',action='store_true',help='Use unsigned 32-bit inline RGB components')
     numeric.add_argument('--float32',action='store_true',help='Use normalized float32 inline RGB components')
     numeric.add_argument('--float16',action='store_true',help='Use normalized IEEE binary16 inline RGB components')
+    numeric.add_argument('--signed-bits',type=int,choices=[8,16,32],help='Use GL2-profile signed integer components')
     args = parser.parse_args(); source, transformed, planar, output = [p.resolve() for p in (args.source_folder,args.transform_folder,args.planar_folder,args.output_folder)]
+    pixel_type={8:1,16:6,32:8}.get(args.signed_bits) or (9 if args.float16 else 2 if args.float32 else 7 if args.unsigned32 else 5 if args.unsigned16 else 3)
     if not output.is_relative_to(Path(__file__).resolve().parents[2]/'out') or output in (source,transformed,planar):
         raise ValueError('Use a separate output directory inside ignored repository out/')
     image = Image.open(source/'source_image.png').convert('RGB'); pixels = image.transpose(Image.Transpose.FLIP_TOP_BOTTOM).tobytes()
@@ -66,8 +68,15 @@ def main():
                         store.file(path);obsolete.append(folder/path.name)
                 ref = base/('planar_xy_reference.gltf' if case=='planar' else 'mirror_u_reference.gltf' if case=='mirror' else 'reference.gltf')
                 case_label=f'9_{minor}/'+(f'v{version}/' if args.advanced else '')+case
-                store.document(json.loads(ref.read_text(encoding='utf-8')),base,case_label)
                 geometry_reference=store.file(base/'geometry.jt');image_reference=store.file(base/'source_image.png')
+                reference=json.loads(ref.read_text(encoding='utf-8'));overrides=None
+                if args.signed_bits==8:
+                    expected=image.point(lambda value:signed_pixel_component(value,8,False)[1])
+                    image_reference=store.image(expected)
+                    material=reference['meshes'][0]['primitives'][0]['material']
+                    texture=reference['materials'][material]['pbrMetallicRoughness']['baseColorTexture']['index']
+                    overrides={reference['textures'][texture]['source']:image_reference}
+                store.document(reference,base,case_label,overrides)
                 obsolete.append(folder/'reference.gltf')
                 t = [float(i%5==0) for i in range(16)]; gen = [0]*4; planes = [0.0]*16
                 if case=='mirror':t[0],t[12] = -1,1
@@ -83,7 +92,9 @@ def main():
                             packed=b''.join((0 if value==0 else 0xffffffff if value==255 else value*0x01010101+0x1234).to_bytes(4,'big' if big else 'little') for value in pixels)
                         if args.float32 or args.float16:
                             packed=b''.join(struct.pack(('>' if big else '<')+('e' if args.float16 else 'f'),value/255.0) for value in pixels)
-                        data=assembly9(minor,big,inline,packed,image.width,image.height,t,gen,planes,version,coordinate,9 if args.float16 else 2 if args.float32 else 7 if args.unsigned32 else 5 if args.unsigned16 else 3,geometry_reference,image_reference)
+                        if args.signed_bits:
+                            packed=b''.join(signed_pixel_component(value,args.signed_bits,big)[0] for value in pixels)
+                        data=assembly9(minor,big,inline,packed,image.width,image.height,t,gen,planes,version,coordinate,pixel_type,geometry_reference,image_reference)
                         authored.append(store.control(case_label+'/'+filename,data));obsolete.append(folder/filename)
     report={'source_folder':str(source),'controls':authored,'method':'Separately serialized original v9 attribute/container records with compatibility stubs for advanced versions; 8.2 geometry companion; synthetic/reference-derived, no native or vendor execution'}
     store.report(report);store.cleanup(obsolete)

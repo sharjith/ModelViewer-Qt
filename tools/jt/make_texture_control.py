@@ -124,6 +124,18 @@ def geometry(positions, uvs, indices, store_uv=True):
     return file.data
 
 
+def signed_pixel_component(value,bits,big):
+    """Original positive colour control encoding, plus independent expected byte.
+
+    Use signed minimum for a black source pixel. Other values use the closest
+    positive level; the GL2 signed-byte profile can express odd positive bytes.
+    """
+    maximum=(1<<bits)-1
+    word=(1<<(bits-1)) if value==0 else (value*(maximum//255))//2
+    expected=(value|1) if bits==8 and 0<value<255 else value
+    return word.to_bytes(bits//8,'big' if big else 'little'),expected
+
+
 def assembly(big, inline, rgb, width, height, sampler, transform=None, generation=None, planes=None, pixel_format=1, alignment=1, pixel_type=3, geometry_reference='geometry.jt', image_reference='source_image.png'):
     graph, root, part, texture = (Bytes(big) for _ in range(4))
     for body, attributes, children, ref in [(root, [20], [2], ''), (part, [], [], geometry_reference)]:

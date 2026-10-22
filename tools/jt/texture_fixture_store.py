@@ -36,12 +36,13 @@ class TextureFixtureStore:
     def image(self,image):
         data=io.BytesIO();image.save(data,format='PNG');return self.asset(data.getvalue(),'.png')
 
-    def document(self,doc,base,label):
+    def document(self,doc,base,label,image_overrides=None):
         doc=copy.deepcopy(doc)
         for field in ('buffers','images'):
             for item in doc.get(field,[]):
                 uri=item.get('uri')
                 if uri and not uri.startswith('data:'):item['uri']=self.file(base/uri)
+        for index,uri in (image_overrides or {}).items():doc['images'][index]['uri']=uri
         return self.reference(doc,label)
 
     def reference(self,doc,label):

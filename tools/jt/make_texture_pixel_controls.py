@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 ModelViewer-Qt contributors. SPDX-License-Identifier: GPL-3.0-only
-"""Author unsigned 8/16/32-bit or float16/32 JT pixel controls and glTF references from GTEX01.
+"""Author signed/unsigned 8/16/32-bit or float16/32 JT pixel controls and glTF references from GTEX01.
 Assets stay under ignored out/. Visual controls are opaque; alpha policy is covered
 by prepared portable checks and the earlier separate transparency gates.
 """
@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 import struct
 from PIL import Image
-from make_texture_control import assembly
+from make_texture_control import assembly, signed_pixel_component
 from texture_fixture_store import TextureFixtureStore
 
 
@@ -22,7 +22,9 @@ def main():
     numeric.add_argument('--unsigned32',action='store_true',help='Pack unsigned 32-bit components with distinguishable bytes')
     numeric.add_argument('--float32',action='store_true',help='Pack normalized float32 colour components')
     numeric.add_argument('--float16',action='store_true',help='Pack normalized IEEE binary16 colour components')
+    numeric.add_argument('--signed-bits',type=int,choices=[8,16,32],help='Pack GL2-profile signed integer components')
     args = parser.parse_args(); source, output = args.source_folder.resolve(), args.output_folder.resolve()
+    pixel_type={8:1,16:6,32:8}.get(args.signed_bits) or (9 if args.float16 else 2 if args.float32 else 7 if args.unsigned32 else 5 if args.unsigned16 else 3)
     if not output.is_relative_to(Path(__file__).resolve().parents[2]/'out') or output == source:
         raise ValueError('Use a separate output folder inside ignored repository out/')
     doc = json.loads((source/'reference.gltf').read_text(encoding='utf-8'))
@@ -60,7 +62,10 @@ def main():
                 elif fmt == 10:sample, color = (a,), (255,255,255,a)
                 elif fmt == 11:sample, color = (b,g,r), (r,g,b,a)
                 else:sample, color = (b,g,r,a), (r,g,b,a)
-                if args.float32 or args.float16:
+                if args.signed_bits:
+                    for value in sample:row.extend(signed_pixel_component(value,args.signed_bits,False)[0])
+                    color=tuple(signed_pixel_component(value,args.signed_bits,False)[1] for value in color)
+                elif args.float32 or args.float16:
                     row.extend(struct.pack('<'+('e' if args.float16 else 'f')*len(sample),*(value/255.0 for value in sample)))
                 elif args.unsigned32:
                     for value in sample:
@@ -83,11 +88,14 @@ def main():
             if (args.float32 or args.float16 or args.unsigned32) and big:
                 size=2 if args.float16 else 4
                 packed=b''.join(payload[i:i+size][::-1] for i in range(0,len(payload),size))
-            data = assembly(big, True, packed, width, image.height, sampler, pixel_format=fmt, alignment=8,pixel_type=9 if args.float16 else 2 if args.float32 else 7 if args.unsigned32 else 5 if args.unsigned16 else 3,geometry_reference=geometry_reference)
+            if args.signed_bits and big:
+                size=args.signed_bits//8
+                packed=b''.join(payload[i:i+size][::-1] for i in range(0,len(payload),size))
+            data = assembly(big, True, packed, width, image.height, sampler, pixel_format=fmt, alignment=8,pixel_type=pixel_type,geometry_reference=geometry_reference)
             authored.append(store.control(filename,data));obsolete.append(output/filename)
         reference = copy.deepcopy(doc); reference['images'][reference['textures'][texture]['source']]['uri'] = image_name
         store.reference(reference,name)
-    report = {'source_folder':str(source),'image':[width,image.height],'alignment':8,'pixel_type':9 if args.float16 else 2 if args.float32 else 7 if args.unsigned32 else 5 if args.unsigned16 else 3,'alpha':'opaque visual controls; no transparency acceptance inferred',
+    report = {'source_folder':str(source),'image':[width,image.height],'alignment':8,'pixel_type':pixel_type,'alpha':'opaque visual controls; no transparency acceptance inferred',
               'controls':authored,'method':'Original pixel packing and expected RGBA images; synthetic 10.0 attributes/8.2 geometry; no importer execution/vendor conformance'}
     store.report(report);store.cleanup(obsolete)
     print(f'Authored {len(authored)} controls in {store.root}; gate manifest: {output}/authoring.json')

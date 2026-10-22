@@ -23,6 +23,8 @@ The original source, transform and planar authoring input sets remain inputs to 
 | `texture9-u32-ui-fixtures` | `texture9-u32_` |
 | `texture9-float-ui-fixtures` | `texture9-float_` |
 | `texture9-half-ui-fixtures` | `texture9-half_` |
+| `texture-s8-ui-fixtures`, `texture-s16-ui-fixtures`, `texture-s32-ui-fixtures` | `texture-s8_`, `texture-s16_`, `texture-s32_` |
+| `texture9-s8-ui-fixtures`, `texture9-s16-ui-fixtures`, `texture9-s32-ui-fixtures` | `texture9-s8_`, `texture9-s16_`, `texture9-s32_` |
 
 Modern logical `rgb_le.jt` becomes e.g. `texture-u32_rgb_le.jt`. A 9.x logical `9_5/v3/planar/texture_inline_le.jt` becomes `texture9-u32_9_5_v3_planar_texture_inline_le.jt`. Shared glTF filenames come from the manifest's `references` mapping, because multiple logical comparisons may resolve to the same physical document.
 
@@ -41,6 +43,8 @@ Existing regeneration commands in each validation record retain their arguments.
 ## Observed migration and limits
 
 Regenerated the five numeric/colour gate sets and six basic/advanced 9.x sets using their documented commands. The shared output contains 364 positive JT roots, nine unique glTF references and 19 unique resource files for the current local input set. Read-only analysis confirmed all shared glTF buffer/image URIs resolve inside the shared root. Authoring rebuilt original JT envelopes/lengths/TOCs with the new relative resource names; it did not reheader a downloaded file or execute the native reader. The C2n launch uses 19 unique documents for the former 20-document checklist because one identical reference is reused. No negative/native failure case was opened.
+
+C2o subsequently authored 204 signed-image roots using the same shared store. Its signed-byte comparisons can require distinct expected images; identical geometry/buffers and matching wider-width references remain shared. The owner accepted its visual checks on 22 October 2026; see the [signed gate](JT_TEXTURE_SIGNED_VALIDATION.md).
 
 ## Provenance
 

@@ -386,11 +386,12 @@ struct Builder {
             constexpr uint64_t maxBytes=64u*1024u*1024u;
             if(source.Inline()) {
                 const bool colorFormat=(data.format>=1&&data.format<=4)||(data.format>=7&&data.format<=12);
-                if((data.dataType!=2&&data.dataType!=3&&data.dataType!=5&&data.dataType!=7&&data.dataType!=9)||!colorFormat
+                if(data.dataType<1||data.dataType>9||data.dataType==4||!colorFormat
                     ||data.dimensionality!=2||data.depth!=1||data.border!=0)
-                    throw std::runtime_error("inline texture requires a supported borderless 2D unsigned 8/16/32-bit or float16/32 colour format");
+                    throw std::runtime_error("inline texture requires a supported borderless 2D numeric colour format");
                 const size_t components=(data.format==2||data.format==12)?4:(data.format==1||data.format==11)?3:data.format==4?2:1;
-                const size_t componentBytes=(data.dataType==2||data.dataType==7)?4:(data.dataType==5||data.dataType==9)?2:1;
+                const size_t componentBytes=(data.dataType==2||data.dataType==7||data.dataType==8)?4:(data.dataType==5||data.dataType==6||data.dataType==9)?2:1;
+                const bool signedComponents=data.dataType==1||data.dataType==6||data.dataType==8;
                 const size_t stride=(size_t(data.width)*components*componentBytes+data.alignment-1)&~size_t(data.alignment-1);
                 if(uint64_t(data.width)*data.height*4>maxBytes||data.baseMip.size()!=stride*size_t(data.height))
                     throw std::runtime_error("inline texture row/image byte count mismatch");
@@ -403,13 +404,22 @@ struct Builder {
                         const auto* packed=row+size_t(x)*components*componentBytes;auto* out=dst+4*x;
                         unsigned char converted[4];
                         const auto* src=packed;
-                        if(componentBytes>1){
+                        if(componentBytes>1||signedComponents){
                             for(size_t c=0;c<components;++c){
                                 const auto* word=packed+componentBytes*c;
                                 uint32_t value=0;
                                 for(size_t b=0;b<componentBytes;++b)
                                     value|=uint32_t(word[b])<<(8*(source.ImageDataLittleEndian()?b:componentBytes-1-b));
-                                if(data.dataType==2||data.dataType==9){
+                                if(signedComponents){
+                                    const unsigned bits=unsigned(componentBytes*8);
+                                    const uint64_t modulus=uint64_t(1)<<bits;
+                                    const int64_t component=(uint64_t(value)&(modulus>>1))?int64_t(value)-int64_t(modulus):int64_t(value);
+                                    // JT references the OpenGL 2 pixel-transfer profile:
+                                    // (2*c+1)/(2^bits-1), followed by display clamping.
+                                    const uint64_t numerator=component<0?0:uint64_t(component)*2+1;
+                                    const uint64_t denominator=modulus-1;
+                                    converted[c]=static_cast<unsigned char>((numerator*255+denominator/2)/denominator);
+                                }else if(data.dataType==2||data.dataType==9){
                                     double component;
                                     if(data.dataType==9){
                                         const unsigned exponent=(value>>10)&31u,mantissa=value&1023u;
