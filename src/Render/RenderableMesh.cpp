@@ -3,6 +3,7 @@
 #include "TriangleBaldwinWeber.h"
 #include "RenderableMesh.h"
 #include "ScopedMaterialWireframe.h"
+#include "BlendDepthPolicy.h"
 #include "SubTriangleGrid.h"
 #include "SceneMesh.h"
 #include "TriangleMollerTrumbore.h"
@@ -563,6 +564,8 @@ void RenderableMesh::initBuffers(
 		_colors = *colors;
 		_hasVertexColors = true;
 	}
+
+	_hasTransparentVertexAlpha = BlendDepthPolicy::hasTransparentVertexAlpha(_colors);
 
 	if (texCoords)
 		_texCoords = *texCoords;
@@ -2672,9 +2675,9 @@ bool RenderableMesh::isTransparent() const
 
 bool RenderableMesh::needsDepthMaskOff() const
 {
-	// BLEND can carry coverage in vertex colours or textures with opacity 1.
-	return _material.blendMode() == Material::BlendMode::Alpha ||
-		_material.opacity() < 0.999f;
+	return BlendDepthPolicy::disableDepthWrites(_material.opacity(),
+        _material.blendMode() == Material::BlendMode::Alpha,
+        _hasVertexColors && _hasTransparentVertexAlpha);
 }
 
 

@@ -172,3 +172,7 @@ C2t is accepted/pushed as `bf63388`. [Replace validation](JT_TEXTURE_REPLACE_VAL
 ## Accepted gate C2w - shared ray-traced sampler filtering
 
 After owner visual acceptance of C2v on 23 October 2026, [C2w filter validation](JT_TEXTURE_FILTER_PARITY_VALIDATION.md) groups snapshot/cache transport and CPU/OptiX nearest/linear/mip selection. This advances packages 2 and 7 without claiming authored JT mip support or exact raster-footprint parity. Original native pixel checks and 36 positive roots with six shared references are prepared; one eighteen-document visual session reuses common geometry. The owner built and reported tests passed on 23 October 2026 after the eighteen-document single-instance launch. No native suite was executed by the agent; owner native execution and individual CPU/GPU backend coverage were not separately reported. No JT version or vendored decoder change.
+
+## Accepted shared renderer regression correction - 23 October 2026
+
+[BLEND depth compatibility](JT_BLEND_COVERAGE_REGRESSION.md) narrows depth-off classification to actual transparent vertex colours, restoring the historical texture-only policy. The unsuccessful extra coverage pass was removed. The owner rebuilt, confirmed local GA01 transparency fixed, and then reported no regressions in the reopened JT alpha/mip/filter controls. Viewer acceptance releases the commit hold; prepared native execution and CPU/OptiX-specific coverage remain unreported. General transparent-layer ordering is not claimed solved.

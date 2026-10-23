@@ -42,3 +42,5 @@ Suggested reading order:
 Sibling validation documents retain the source, measurement and owner-acceptance records for earlier gates. Research documents belong here; generated evidence and fixtures remain under ignored `out/jt-research/`. The [repository handout](../../RESEARCH_FOLDER_HANDOUT.md) governs new work. See the [repository README](../../README.md) for user-facing import scope.
 
 29. Accepted shared renderer checkpoint: [C2w texture filter transport and sampling](JT_TEXTURE_FILTER_PARITY_VALIDATION.md); owner viewer acceptance on 23 October 2026; native/backend-specific coverage not separately reported.
+
+Owner-accepted shared raster regression correction: [BLEND depth compatibility](JT_BLEND_COVERAGE_REGRESSION.md); local GLB fix and JT alpha/mip/filter viewer regression checks passed on 23 October. Native/backend-specific coverage remains unreported.

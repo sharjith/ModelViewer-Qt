@@ -11,3 +11,7 @@ The opt-in `MV_RT_VERTEX_ALPHA_TESTS=ON` target `rt_vertex_alpha_tests` links th
 ## Pure ray-traced sampler check
 
 `rt_texture_filter_tests` requires no GL context, Embree or CUDA runtime. It invokes the same extracted CPU sampling header used by `CpuPathTracer` and verifies authored nearest/linear/mip filtering with literal pixel/alpha values, UV transforms and wrap boundaries. The shared selection header is also used in OptiX. [C2w validation](../../research/jt/JT_TEXTURE_FILTER_PARITY_VALIDATION.md) gives owner commands, paired viewer controls and explicit footprint/GPU evidence limits. Prepared only; no agent build/test execution.
+
+## BLEND depth compatibility
+
+`blend_depth_policy_tests` compiles the production main-scene shaders and uses the same alpha classification/depth decision helper as RenderableMesh. It checks texture-only surface depth, vertex/scalar transparency and adverse triangle order in a textured shell. It needs an offscreen OpenGL 4.5 core context (skip 77 is not a pass). [Coverage regression](../../research/jt/JT_BLEND_COVERAGE_REGRESSION.md) gives owner build/run commands, the failed earlier attempt and the owner-accepted application gate. Native target prepared only; no agent build/native execution.

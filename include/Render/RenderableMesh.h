@@ -752,6 +752,7 @@ protected:
 	std::vector<float> _jointWeights;
 
 	bool _hasVertexColors;
+	bool _hasTransparentVertexAlpha = false;
 
 	// See geometryRevision()'s doc comment above (public section).
 	quint64 _geometryRevision = 0;

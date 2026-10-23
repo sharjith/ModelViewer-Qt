@@ -40,3 +40,11 @@ target_include_directories(rt_texture_filter_tests PRIVATE ${REPO}/include/RayTr
 target_link_libraries(rt_texture_filter_tests PRIVATE glm::glm)
 target_compile_features(rt_texture_filter_tests PRIVATE cxx_std_17)
 add_test(NAME rt_texture_filter_tests COMMAND rt_texture_filter_tests)
+
+add_executable(blend_depth_policy_tests blend_depth_policy_tests.cpp)
+target_include_directories(blend_depth_policy_tests PRIVATE ${REPO}/include/Render)
+target_link_libraries(blend_depth_policy_tests PRIVATE Qt6::Gui Qt6::OpenGL)
+target_compile_definitions(blend_depth_policy_tests PRIVATE MV_REPO_DIR="${REPO}")
+target_compile_features(blend_depth_policy_tests PRIVATE cxx_std_17)
+add_test(NAME blend_depth_policy_tests COMMAND blend_depth_policy_tests)
+set_tests_properties(blend_depth_policy_tests PROPERTIES SKIP_RETURN_CODE 77)
