@@ -679,6 +679,7 @@ if(MODELVIEWER_HAVE_OPTIX)
                 "${CMAKE_CURRENT_SOURCE_DIR}/${CU_FILE}"
                 -o "${ptx_file}"
             DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${CU_FILE}" "${CMAKE_CURRENT_SOURCE_DIR}/include/${PARAMS_HEADER}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/include/RayTracing/RtTextureFilter.h"
             COMMENT "Compiling ${CU_FILE} to PTX"
             COMMAND_EXPAND_LISTS
             VERBATIM

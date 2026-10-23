@@ -169,6 +169,7 @@ private:
 		float uvRotation = 0.0f;
 		int texCoordIndex = 0;
 		unsigned int wrapS = 0, wrapT = 0;
+		unsigned int magFilter = 0x2601, minFilter = 0x2703;
 		int packingChannel = -1;
 		bool packingInvert = false;
 		float packingScale = 1.0f;
@@ -181,6 +182,7 @@ private:
 				uvOffsetX == o.uvOffsetX && uvOffsetY == o.uvOffsetY &&
 				uvRotation == o.uvRotation && texCoordIndex == o.texCoordIndex &&
 				wrapS == o.wrapS && wrapT == o.wrapT &&
+				magFilter == o.magFilter && minFilter == o.minFilter &&
 				packingChannel == o.packingChannel && packingInvert == o.packingInvert &&
 				packingScale == o.packingScale && packingBias == o.packingBias;
 		}
@@ -199,6 +201,8 @@ private:
 			mix(std::hash<int>{}(k.texCoordIndex));
 			mix(std::hash<unsigned int>{}(k.wrapS));
 			mix(std::hash<unsigned int>{}(k.wrapT));
+			mix(std::hash<unsigned int>{}(k.magFilter));
+			mix(std::hash<unsigned int>{}(k.minFilter));
 			mix(std::hash<int>{}(k.packingChannel));
 			mix(std::hash<bool>{}(k.packingInvert));
 			mix(std::hash<float>{}(k.packingScale));

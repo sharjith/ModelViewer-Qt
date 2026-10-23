@@ -371,6 +371,7 @@ struct RtOptixSceneTracer::Impl
 		float uvRotation = 0.0f;
 		int texCoordIndex = 0;
 		unsigned int wrapS = 0, wrapT = 0;
+		unsigned int magFilter = 0x2601, minFilter = 0x2703;
 		int packingChannel = -1;
 		bool packingInvert = false;
 		float packingScale = 1.0f;
@@ -383,6 +384,7 @@ struct RtOptixSceneTracer::Impl
 				uvOffsetX == o.uvOffsetX && uvOffsetY == o.uvOffsetY &&
 				uvRotation == o.uvRotation && texCoordIndex == o.texCoordIndex &&
 				wrapS == o.wrapS && wrapT == o.wrapT &&
+				magFilter == o.magFilter && minFilter == o.minFilter &&
 				packingChannel == o.packingChannel && packingInvert == o.packingInvert &&
 				packingScale == o.packingScale && packingBias == o.packingBias;
 		}
@@ -401,6 +403,8 @@ struct RtOptixSceneTracer::Impl
 			mix(std::hash<int>{}(k.texCoordIndex));
 			mix(std::hash<unsigned int>{}(k.wrapS));
 			mix(std::hash<unsigned int>{}(k.wrapT));
+			mix(std::hash<unsigned int>{}(k.magFilter));
+			mix(std::hash<unsigned int>{}(k.minFilter));
 			mix(std::hash<int>{}(k.packingChannel));
 			mix(std::hash<bool>{}(k.packingInvert));
 			mix(std::hash<float>{}(k.packingScale));
@@ -2164,6 +2168,8 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		out.packingBias = tex.packingBias;
 		out.wrapS = tex.wrapS;
 		out.wrapT = tex.wrapT;
+		out.magFilter = tex.magFilter;
+		out.minFilter = tex.minFilter;
 	};
 
 	// Uploads (or reuses, from Impl::persistentTextureCache - see its own doc
@@ -2194,6 +2200,8 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		key.texCoordIndex  = tex->texCoordIndex;
 		key.wrapS          = tex->wrapS;
 		key.wrapT          = tex->wrapT;
+		key.magFilter      = tex->magFilter;
+		key.minFilter      = tex->minFilter;
 		key.packingChannel = tex->packingChannel;
 		key.packingInvert  = tex->packingInvert;
 		key.packingScale   = tex->packingScale;

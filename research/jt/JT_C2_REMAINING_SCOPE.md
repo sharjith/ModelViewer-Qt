@@ -31,3 +31,7 @@ This audit used existing original project documents and code scope, including [C
 ## Accepted combined checkpoint C2v - 23 October 2026
 
 The owner requested implementing related packages together and testing them in one session. [C2v combined appearance validation](JT_APPEARANCE_BATCH_VALIDATION.md) now groups core combiner and unit/accumulation work (packages 1 and 3), with package-7 copy/export checks and explicit filtering constraints. It prepares a single owner build/native/visual gate rather than a separate gate per operation or field. No package is marked universally complete: arbitrary independent sampling, Combine/vertex-colour interactions, other texture roles, ray-tracer nearest parity and the existing evidence gaps remain. The seven-package table above is the historical scope audit after C2u, not a claim that none of its work has advanced. The owner built and accepted the combined visual batch on 23 October 2026. Native-suite execution was not separately reported; residual scope is unchanged.
+
+## Accepted grouped checkpoint C2w - 23 October 2026
+
+[C2w filtering](JT_TEXTURE_FILTER_PARITY_VALIDATION.md) groups common material sampler transport/cache identity and CPU/OptiX filter selection, advancing packages 2 and 7. It corrects the unconditional smoothing limitation identified in C2v; authored JT mip payloads, exact footprint parity and other evidence/representation gaps stay open. The owner built and accepted the viewer gate on 23 October 2026. Native execution and individual CPU/GPU backend coverage were not separately reported.

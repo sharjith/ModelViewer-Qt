@@ -1,6 +1,7 @@
 #include "CpuPathTracer.h"
 #include "PathUtils.h"
 #include "RtEmbreeScene.h"
+#include "RtTextureSampler.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -407,58 +408,6 @@ namespace
 		outRotation = std::atan2(rotated.y, rotated.x);
 	}
 
-	// Applies the texture's actual declared wrap mode instead of assuming
-	// GL_REPEAT unconditionally - a texture authored as a single centered
-	// decal (CLAMP_TO_EDGE) tiled repeatedly across the whole surface when
-	// wrap mode was ignored (a real, previously-unhandled gap).
-	float applyWrap(float coord, unsigned int mode)
-	{
-		constexpr unsigned int kClampToEdge    = 0x812Fu;
-		constexpr unsigned int kMirroredRepeat = 0x8370u;
-
-		if (mode == kClampToEdge)
-			return std::clamp(coord, 0.0f, 1.0f);
-
-		if (mode == kMirroredRepeat)
-		{
-			const float t = std::fmod(std::abs(coord), 2.0f);
-			return (t > 1.0f) ? (2.0f - t) : t;
-		}
-
-		// GL_REPEAT (0x2901) and anything unrecognized.
-		return coord - std::floor(coord);
-	}
-
-	// Wraps an integer texel index (which may be out-of-range - the whole
-	// point of this function is resolving the neighbor-texel indices a
-	// bilinear fetch needs at a tile edge/corner) according to the same wrap
-	// mode applyWrap() uses for the continuous coordinate. Needed because a
-	// bilinear sample near a REPEAT-wrapped tile's edge must blend with the
-	// texel from the OPPOSITE edge (not clamp to it), and near a MIRRORED_
-	// REPEAT edge must reflect back into the tile - a plain std::clamp would
-	// silently behave like CLAMP_TO_EDGE for every wrap mode.
-	int wrapTexelIndex(int idx, int size, unsigned int mode)
-	{
-		constexpr unsigned int kClampToEdge    = 0x812Fu;
-		constexpr unsigned int kMirroredRepeat = 0x8370u;
-
-		if (mode == kClampToEdge)
-			return std::clamp(idx, 0, size - 1);
-
-		if (mode == kMirroredRepeat)
-		{
-			const int period = 2 * size;
-			int m = idx % period;
-			if (m < 0) m += period;
-			return (m < size) ? m : (period - 1 - m);
-		}
-
-		// GL_REPEAT and anything unrecognized.
-		int m = idx % size;
-		if (m < 0) m += size;
-		return m;
-	}
-
 	// Ported verbatim from sRGBToLinear() in main_scene.frag. Only baseColor
 	// and emissive textures are sRGB-encoded per glTF convention (metallic/
 	// roughness/normal maps are linear data already) - material *factors*
@@ -472,130 +421,7 @@ namespace
 		return result;
 	}
 
-	// ---- Texture sampling (bilinear) ------------------------------------------
-	// Deliberately replicates main_scene.frag's getTransformedUV() pipeline
-	// exactly, step for step. main_scene.frag's getTransformedUV() applies a
-	// single explicit "uv.y = 1 - uv.y" BEFORE scale/rotate/offset (see its
-	// comment: compensating for glTF's image-space, top-origin UV convention),
-	// then hands the result to texture(). This code reads the raw pixel array
-	// directly instead of going through a GL sampler, so there is no second,
-	// separate "GL-side" flip to additionally account for - doing so double-
-	// counts the flip (a net zero-flip for identity-transform materials,
-	// which is why an earlier version of this fix silently changed nothing:
-	// it reduced to the exact same formula as not flipping at all). Exactly
-	// one flip, matching the shader, is correct.
-	//
-	// Bilinear (not nearest-neighbour, an earlier version of this function) -
-	// a fine/high-frequency, tiled texture (e.g. a KHR_materials_iridescence
-	// thicknessTexture with a KHR_texture_transform scale packing several
-	// repeats into a small screen-space area) combined with nearest-neighbour
-	// lookup meant each sample's AA sub-pixel jitter could land on a totally
-	// different, uncorrelated texel from one sample to the next - true
-	// texture aliasing, not Monte Carlo noise, so it never converged no
-	// matter how many samples were accumulated (diagnosed against a swirly
-	// iridescent car-paint material whose thickness map never resolved past
-	// a speckled, non-converging grain even at 256 samples with denoising
-	// disabled). Bilinear interpolation makes the sampled value vary
-	// smoothly and continuously with sub-pixel position instead of snapping
-	// between quantized texel values, matching what GPU texture units do
-	// for raster (mip-mapping/trilinear would be the fully correct fix for
-	// minification, but bilinear alone already removes the snap-between-
-	// uncorrelated-texels behavior that was causing non-convergence here).
-	// Bilinear sample of ONE mip level - factored out of sampleTexture() so
-	// trilinear filtering (below) can call it twice (the two nearest levels)
-	// and blend. st is already wrapped/transformed; width/height/rgba8/wrapS/
-	// wrapT identify the specific level being sampled.
-	glm::vec4 bilinearSampleLevel(int width, int height, const std::vector<uint8_t>& rgba8,
-		unsigned int wrapS, unsigned int wrapT, const glm::vec2& st)
-	{
-		// Standard half-texel-centered bilinear: texel (0,0)'s center sits at
-		// continuous position 0.5, matching GL's own texture-unit convention.
-		const float fx = st.x * width  - 0.5f;
-		const float fy = st.y * height - 0.5f;
-		const int x0 = static_cast<int>(std::floor(fx));
-		const int y0 = static_cast<int>(std::floor(fy));
-		const float tx = fx - static_cast<float>(x0);
-		const float ty = fy - static_cast<float>(y0);
-
-		// Each of the 2x2 neighbor texels is wrapped independently (not
-		// clamped) - see wrapTexelIndex()'s doc comment for why a plain
-		// clamp would be wrong for REPEAT/MIRRORED_REPEAT at a tile edge.
-		auto texel = [&](int x, int y) -> glm::vec4
-		{
-			x = wrapTexelIndex(x, width,  wrapS);
-			y = wrapTexelIndex(y, height, wrapT);
-			const size_t idx = (static_cast<size_t>(y) * width + x) * 4;
-			return glm::vec4(
-				rgba8[idx + 0] / 255.0f,
-				rgba8[idx + 1] / 255.0f,
-				rgba8[idx + 2] / 255.0f,
-				rgba8[idx + 3] / 255.0f);
-		};
-
-		const glm::vec4 c00 = texel(x0,     y0);
-		const glm::vec4 c10 = texel(x0 + 1, y0);
-		const glm::vec4 c01 = texel(x0,     y0 + 1);
-		const glm::vec4 c11 = texel(x0 + 1, y0 + 1);
-
-		const glm::vec4 top    = glm::mix(c00, c10, tx);
-		const glm::vec4 bottom = glm::mix(c01, c11, tx);
-		return glm::mix(top, bottom, ty);
-	}
-
-	// lod: mip level to sample, trilinearly blended between floor(lod) and
-	// ceil(lod) - see RtTextureSample::mips' doc comment for why this exists
-	// (ray-traced texture minification aliasing) and computeTextureLod()
-	// for how callers derive it. Defaults to 0.0f (base level only, the
-	// exact previous behavior) for call sites that don't have per-hit
-	// triangle/camera context cheaply available (shadow rays, alpha-cutout
-	// existence tests, transmission peeks) - those are boolean-ish existence
-	// checks where minification aliasing is far less perceptually important
-	// than on directly-shaded, visible surfaces.
-	glm::vec4 sampleTexture(const RtTextureSample& tex, const glm::vec2 (&texCoords)[4], float lod = 0.0f)
-	{
-		if (tex.width <= 0 || tex.height <= 0 || tex.rgba8.empty())
-			return glm::vec4(1.0f);
-
-		// A texture's KHR-declared texCoordIndex can reference any of the
-		// mesh's 4 UV channels - hardcoding channel 0 for every texture
-		// silently samples the wrong UV set whenever a material uses a
-		// non-zero channel (this was a real, previously-unnoticed bug).
-		const glm::vec2 rawUv = texCoords[std::clamp(tex.texCoordIndex, 0, 3)];
-
-		// Shader's single explicit pre-transform UV.y flip.
-		glm::vec2 uv(rawUv.x, 1.0f - rawUv.y);
-
-		// KHR_texture_transform order: scale, then rotate, then offset.
-		glm::vec2 st = uv * tex.uvScale;
-		if (tex.uvRotation != 0.0f)
-		{
-			const float c = std::cos(tex.uvRotation);
-			const float s = std::sin(tex.uvRotation);
-			st = glm::vec2(st.x * c + st.y * s, -st.x * s + st.y * c);
-		}
-		st += tex.uvOffset;
-
-		// Wrap per-axis using the texture's actual declared wrapS/wrapT.
-		st.x = applyWrap(st.x, tex.wrapS);
-		st.y = applyWrap(st.y, tex.wrapT);
-
-		if (tex.mips.empty() || lod <= 0.0f)
-			return bilinearSampleLevel(tex.width, tex.height, tex.rgba8, tex.wrapS, tex.wrapT, st);
-
-		const float clampedLod = std::clamp(lod, 0.0f, static_cast<float>(tex.mips.size() - 1));
-		const int level0 = static_cast<int>(std::floor(clampedLod));
-		const int level1 = std::min(level0 + 1, static_cast<int>(tex.mips.size()) - 1);
-		const float levelBlend = clampedLod - static_cast<float>(level0);
-
-		const RtTextureMipLevel& mip0 = tex.mips[level0];
-		const glm::vec4 sample0 = bilinearSampleLevel(mip0.width, mip0.height, mip0.rgba8, tex.wrapS, tex.wrapT, st);
-		if (level1 == level0)
-			return sample0;
-
-		const RtTextureMipLevel& mip1 = tex.mips[level1];
-		const glm::vec4 sample1 = bilinearSampleLevel(mip1.width, mip1.height, mip1.rgba8, tex.wrapS, tex.wrapT, st);
-		return glm::mix(sample0, sample1, levelBlend);
-	}
+	using RtTextureSampling::sampleTexture;
 
 	float applyChannelPacking(const glm::vec4& rgba, const RtTextureSample& tex)
 	{

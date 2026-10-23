@@ -304,7 +304,7 @@ struct RtOptixSceneParams
 };
 
 // Device-side counterpart of RtTextureSample - see CpuPathTracer.cpp's
-// sampleTexture()/applyChannelPacking() for the exact bilinear + KHR_texture_
+// sampleTexture()/applyChannelPacking() for the authored filter + KHR_texture_
 // transform + wrap + channel-packing pipeline RtOptixScene.cu's own
 // sampleTexture2D()/applyChannelPacking() port verbatim from. width<=0 means
 // "absent" (same convention as RtOptixEnvironment::faceSize<=0) - baseColor/
@@ -339,6 +339,8 @@ struct RtOptixTexture
 
 	unsigned int wrapS; // raw GL wrap enum (GL_REPEAT/GL_CLAMP_TO_EDGE/GL_MIRRORED_REPEAT) - see RtTextureSample::wrapS's doc comment
 	unsigned int wrapT;
+	unsigned int magFilter;
+	unsigned int minFilter;
 
 	// Box-filtered mip pyramid - device counterpart of RtTextureSample::mips,
 	// same ordering (mips[0] duplicates the base rgba8/width/height above,

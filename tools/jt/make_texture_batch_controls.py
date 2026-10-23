@@ -23,7 +23,7 @@ def attribute(big,family,version,spec):
         stub=family==9 and block<version;role=spec.get('type',9)
         if family==9 and block==1 and role==9:role=2
         b.put('I',0 if stub else role)
-        b.put('8I',0,1,1,4,4,2,spec.get('mode',2),0)
+        b.put('8I',0,spec.get('mag',1),spec.get('min',1),4,4,2,spec.get('mode',2),0)
         b.put('8f',*spec.get('blend',(0,0,0,1)),0,0,0,1)
         b.put('16f',*IDENTITY);b.put('4I',0,0,0,0);b.put('16f',*([0]*16))
         b.put('i',0 if stub else spec.get('unit',0))

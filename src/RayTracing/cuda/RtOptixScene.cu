@@ -99,6 +99,7 @@
 #include <optix.h>
 
 #include "RtOptixSceneParams.h"
+#include "RtTextureFilter.h"
 
 extern "C" {
 __constant__ RtOptixSceneParams params;
@@ -460,6 +461,15 @@ namespace
 		return lerp4(top, bottom, ty);
 	}
 
+    __forceinline__ __device__ float4 sampleLevel2D(const uchar4* rgba8, int width, int height,
+        unsigned int wrapS, unsigned int wrapT, const float2& st, bool nearest)
+    {
+        if (nearest)
+            return fetchTexelWrapped(rgba8, width, height, wrapS, wrapT,
+                static_cast<int>(floorf(st.x * width)), static_cast<int>(floorf(st.y * height)));
+        return bilinearSampleLevel2D(rgba8, width, height, wrapS, wrapT, st);
+    }
+
 	// Per-texture mip level for this specific texture's own resolution -
 	// device counterpart of CpuPathTracer::computeTextureLod(), see that
 	// function's doc comment for the derivation. footprintInUvArea<=0 means
@@ -474,11 +484,9 @@ namespace
 		return 0.5f * log2f(fmaxf(footprintInTexelsSq, 1.0f));
 	}
 
-	// Bilinear, half-texel-centered, wrap-aware, KHR_texture_transform-aware,
-	// trilinear-mip sample - see CpuPathTracer::sampleTexture()'s doc comment
-	// for why each of those matters (a nearest-neighbor or wrap-oblivious
-	// sample would silently regress the exact bugs that function's own
-	// history fixed). Returns raw (not sRGB-decoded) 0-1 RGBA - callers
+	// Authored nearest/linear and mip filtering, with the existing wrap and
+	// UV-transform contract. Selection is shared with the CPU sampler.
+	// Returns raw (not sRGB-decoded) 0-1 RGBA - callers
 	// decide whether this texture's bytes are sRGB color data or linear
 	// scalar/vector data. lod defaults to 0.0f (base level only, the exact
 	// previous behavior) for call sites without per-hit triangle/camera
@@ -504,22 +512,18 @@ namespace
 		st.x = applyWrap(st.x, tex.wrapS);
 		st.y = applyWrap(st.y, tex.wrapT);
 
-		if (tex.mipCount <= 0 || tex.mips == nullptr || lod <= 0.0f)
-			return bilinearSampleLevel2D(tex.rgba8, tex.width, tex.height, tex.wrapS, tex.wrapT, st);
 
-		const float clampedLod = fminf(fmaxf(lod, 0.0f), static_cast<float>(tex.mipCount - 1));
-		const int level0 = static_cast<int>(floorf(clampedLod));
-		const int level1 = min(level0 + 1, tex.mipCount - 1);
-		const float levelBlend = clampedLod - static_cast<float>(level0);
-
-		const RtOptixTextureMipLevel& mip0 = tex.mips[level0];
-		const float4 sample0 = bilinearSampleLevel2D(mip0.rgba8, mip0.width, mip0.height, tex.wrapS, tex.wrapT, st);
-		if (level1 == level0)
-			return sample0;
-
-		const RtOptixTextureMipLevel& mip1 = tex.mips[level1];
-		const float4 sample1 = bilinearSampleLevel2D(mip1.rgba8, mip1.width, mip1.height, tex.wrapS, tex.wrapT, st);
-		return lerp4(sample0, sample1, levelBlend);
+        const int mipCount = tex.mips ? tex.mipCount : 0;
+        const auto selection = RtTextureFiltering::select(tex.magFilter, tex.minFilter, lod, mipCount);
+        if (selection.level0 == 0 && selection.level1 == 0)
+            return sampleLevel2D(tex.rgba8, tex.width, tex.height, tex.wrapS, tex.wrapT, st, selection.nearest);
+        const RtOptixTextureMipLevel& mip0 = tex.mips[selection.level0];
+        const float4 first = sampleLevel2D(mip0.rgba8, mip0.width, mip0.height, tex.wrapS, tex.wrapT, st, selection.nearest);
+        if (selection.blend == 0.0f || selection.level0 == selection.level1)
+            return first;
+        const RtOptixTextureMipLevel& mip1 = tex.mips[selection.level1];
+        return lerp4(first, sampleLevel2D(mip1.rgba8, mip1.width, mip1.height,
+            tex.wrapS, tex.wrapT, st, selection.nearest), selection.blend);
 	}
 
 	__forceinline__ __device__ float applyChannelPacking(const float4& rgba, const RtOptixTexture& tex)

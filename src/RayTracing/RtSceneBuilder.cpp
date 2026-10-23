@@ -396,6 +396,7 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 	float uvRotation = 0.0f;
 	int texCoordIndex = 0;
 	unsigned int wrapS = 0x2901, wrapT = 0x2901; // GL_REPEAT
+	unsigned int magFilter = 0x2601, minFilter = 0x2703;
 
 	if (texPtr)
 	{
@@ -420,6 +421,8 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 		}
 		wrapS = static_cast<unsigned int>(texPtr->wrapS);
 		wrapT = static_cast<unsigned int>(texPtr->wrapT);
+		magFilter = static_cast<unsigned int>(texPtr->magFilter);
+		minFilter = static_cast<unsigned int>(texPtr->minFilter);
 	}
 	else if (!materialMapPath.isEmpty())
 	{
@@ -441,6 +444,8 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 			texCoordIndex = liveTransform.texCoord;
 			wrapS         = static_cast<unsigned int>(materialLevelTex.wrapS);
 			wrapT         = static_cast<unsigned int>(materialLevelTex.wrapT);
+			magFilter     = static_cast<unsigned int>(materialLevelTex.magFilter);
+			minFilter     = static_cast<unsigned int>(materialLevelTex.minFilter);
 		}
 	}
 
@@ -487,6 +492,8 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 	key.texCoordIndex  = texCoordIndex;
 	key.wrapS          = wrapS;
 	key.wrapT          = wrapT;
+	key.magFilter      = magFilter;
+	key.minFilter      = minFilter;
 	key.packingChannel = packingChannel;
 	key.packingInvert  = packingInvert;
 	key.packingScale   = packingScale;
@@ -522,6 +529,8 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 	sample->uvRotation     = uvRotation;
 	sample->wrapS          = wrapS;
 	sample->wrapT          = wrapT;
+	sample->magFilter      = magFilter;
+	sample->minFilter      = minFilter;
 	sample->packingChannel = packingChannel;
 	sample->packingInvert  = packingInvert;
 	sample->packingScale   = packingScale;

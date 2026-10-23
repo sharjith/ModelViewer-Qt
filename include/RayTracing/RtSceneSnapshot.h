@@ -225,8 +225,8 @@ struct RtTextureSample
 	// is no other mechanism here to average away sub-texel detail smaller
 	// than one pixel's footprint. See CpuPathTracer.cpp's computeTextureLod()/
 	// sampleTexture()'s lod parameter for how this is consumed (a ray-cone-
-	// style estimate of the hit's texel footprint, trilinearly blended
-	// between the two nearest levels here). Deliberately built as a
+	// style estimate of the hit's texel footprint, selecting/blending levels
+	// according to minFilter). Deliberately built as a
 	// self-contained, uniformly-indexable chain (duplicating the base into
 	// mips[0]) rather than tacking "levels 1+" onto the existing width/
 	// height/rgba8 fields, for simpler, branch-free level-N sampling code.
@@ -252,6 +252,9 @@ struct RtTextureSample
 	// is assumed unconditionally - this was a real, previously-unhandled gap.
 	unsigned int wrapS = 0x2901; // GL_REPEAT
 	unsigned int wrapT = 0x2901; // GL_REPEAT
+	// Authored filter enums; defaults match Material::Texture.
+	unsigned int magFilter = 0x2601; // GL_LINEAR
+	unsigned int minFilter = 0x2703; // GL_LINEAR_MIPMAP_LINEAR
 
 	// QImage::cacheKey() of the SOURCE image this sample was decoded from
 	// (RtSceneBuilder::extractTextureSample()'s own within-build dedup key

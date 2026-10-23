@@ -32,3 +32,11 @@ if(MV_RT_VERTEX_ALPHA_TESTS)
   target_compile_features(rt_vertex_alpha_tests PRIVATE cxx_std_17)
   add_test(NAME rt_vertex_alpha_tests COMMAND rt_vertex_alpha_tests)
 endif()
+
+# Pure sampler regression: exercises the same lookup used by CpuPathTracer.
+# No Embree, CUDA, window or OpenGL context is needed by this target.
+add_executable(rt_texture_filter_tests rt_texture_filter_tests.cpp)
+target_include_directories(rt_texture_filter_tests PRIVATE ${REPO}/include/RayTracing)
+target_link_libraries(rt_texture_filter_tests PRIVATE glm::glm)
+target_compile_features(rt_texture_filter_tests PRIVATE cxx_std_17)
+add_test(NAME rt_texture_filter_tests COMMAND rt_texture_filter_tests)
