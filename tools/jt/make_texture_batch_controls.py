@@ -23,8 +23,8 @@ def attribute(big,family,version,spec):
         stub=family==9 and block<version;role=spec.get('type',9)
         if family==9 and block==1 and role==9:role=2
         b.put('I',0 if stub else role)
-        b.put('8I',0,spec.get('mag',1),spec.get('min',1),4,4,2,spec.get('mode',2),0)
-        b.put('8f',*spec.get('blend',(0,0,0,1)),0,0,0,1)
+        b.put('8I',spec.get('border_mode',0),spec.get('mag',1),spec.get('min',1),spec.get('wrap_s',4),spec.get('wrap_t',4),2,spec.get('mode',2),0)
+        b.put('8f',*spec.get('blend',(0,0,0,1)),*spec.get('border_color',(0,0,0,1)))
         b.put('16f',*IDENTITY);b.put('4I',0,0,0,0);b.put('16f',*([0]*16))
         b.put('i',0 if stub else spec.get('unit',0))
         if family==10:b.put('i',0)
@@ -39,7 +39,7 @@ def attribute(big,family,version,spec):
                     for x in range(image.width):row.extend(convert(image.getpixel((x,y)),fmt)[0])
                     rows.append(bytes(row))
                 pixels=b''.join(reversed(rows))
-                b.put('II6H',fmt,3,2,1,image.width,image.height,1,0)
+                b.put('II6H',fmt,3,2,1,image.width,image.height,1,spec.get('image_border',0))
                 levels=[pixels]
                 for mip in spec.get('mips',[]):
                     mip_rows=[]
@@ -71,14 +71,14 @@ def assembly(big,family,minor,version,specs,parent,child,front,back):
     return file.data
 
 
-def composed(stages):
+def composed(stages,base=BASE):
     """Independent normalized linear-colour oracle, encoded as sRGB PNG bytes."""
     def linear(v):return v/12.92 if v<=.04045 else ((v+.055)/1.055)**2.4
     def encoded(v):return 12.92*v if v<=.0031308 else 1.055*v**(1/2.4)-.055
-    output=Image.new('RGBA',(2,2))
-    for y in range(2):
-        for x in range(2):
-            rgb=list(BASE[:3]);alpha=BASE[3]
+    output=Image.new('RGBA',stages[0]['image'].size)
+    for y in range(output.height):
+        for x in range(output.width):
+            rgb=list(base[:3]);alpha=base[3]
             for stage in stages:
                 fmt=stage.get('format',2);_,pixel=convert(stage['image'].getpixel((x,y)),fmt)
                 cs=[linear(v/255) for v in pixel[:3]];a=pixel[3]/255;mode=stage.get('mode',2)

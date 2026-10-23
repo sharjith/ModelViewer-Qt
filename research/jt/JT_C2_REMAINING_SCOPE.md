@@ -39,3 +39,7 @@ The owner requested implementing related packages together and testing them in o
 ## Accepted grouped checkpoint C2x - 23 October 2026
 
 [C2x authored mips](JT_AUTHORED_MIP_VALIDATION.md) advances packages 2 and 7 with full border-free 2D source chains, per-level conversion/validation and shared raster/CPU/GPU transport. Its versioned PNG carrier is internal ModelViewer metadata, not portable glTF authored-mip support. Source border mips, composed chains, authentic export comparisons and other scope remain open. Owner rebuild and reported raster mip/filter observations passed. Native/backend coverage remains unreported; the owner subsequently accepted the separate depth correction and reported no regressions in the reopened alpha/mip/filter session.
+
+## Accepted grouped checkpoint C2y - 23 October 2026
+
+[C2y composed/bordered mips](JT_MIP_COMPOSITION_BORDER_VALIDATION.md) advances packages 1/2/3/7 through co-sampled authored levels and a bounded both-axis border profile. It does not complete arbitrary multi-texturing or all border shapes: independent mappings/filtering, nonlinear filtered composition, mixed sampled-border axes, generated border chains, external rings and other listed roles/evidence remain separate. The owner built, reported all controls looked good, and accepted the gate after the agent reviewed all 25 documents on 23 October 2026. Native/backend-specific coverage remains unreported.

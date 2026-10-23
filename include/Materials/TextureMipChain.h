@@ -15,12 +15,19 @@
 namespace TextureMipChain
 {
 inline constexpr char Key[] = "ModelViewer.MipChain.v1";
+inline constexpr char TerminalKey[] = "ModelViewer.MipChain.Terminal.v1";
+inline constexpr char BorderTerminal[] = "border-3x3";
 inline constexpr qint64 Limit = 64 * 1024 * 1024;
 
 inline void validate(const QImage& base, const std::vector<QImage>& levels)
 {
     if (base.isNull() || levels.size() > 15)
         throw std::runtime_error("Invalid authored mip chain");
+    const auto terminal = base.text(QLatin1String(TerminalKey));
+    if (!terminal.isEmpty() && terminal != QLatin1String(BorderTerminal))
+        throw std::runtime_error("Unknown authored mip terminal profile");
+    if (!terminal.isEmpty() && (levels.empty() || base.width() != (3 << levels.size()) || base.height() != base.width()))
+        throw std::runtime_error("Border mip profile requires a square 3*2^N chain");
     int width = base.width(), height = base.height();
     qint64 bytes = qint64(width) * height * 4;
     for (const auto& image : levels)
@@ -32,8 +39,9 @@ inline void validate(const QImage& base, const std::vector<QImage>& levels)
         if (image.isNull() || image.width() != width || image.height() != height || bytes > Limit)
             throw std::runtime_error("Authored mip dimensions or decoded byte limit mismatch");
     }
-    if (bytes > Limit || (!levels.empty() && (width != 1 || height != 1)))
-        throw std::runtime_error("Authored mip chain must end at 1x1 within the decoded byte limit");
+    if (bytes > Limit || (!levels.empty() && (terminal.isEmpty() ? (width != 1 || height != 1) : (width != 3 || height != 3)))
+        || (!terminal.isEmpty() && levels.empty() && (width != 3 || height != 3)))
+        throw std::runtime_error("Authored mip chain terminal dimensions or decoded byte limit mismatch");
 }
 
 inline void attach(QImage& base, const std::vector<QImage>& levels)
@@ -46,6 +54,7 @@ inline void attach(QImage& base, const std::vector<QImage>& levels)
     {
         // No nested carriers; every member is an ordinary pixel-only PNG.
         image.setText(QLatin1String(Key), QString());
+        image.setText(QLatin1String(TerminalKey), QString());
         QByteArray png; QBuffer buffer(&png); buffer.open(QIODevice::WriteOnly);
         if (!image.save(&buffer, "PNG")) throw std::runtime_error("Cannot encode authored mip");
         const auto text = png.toBase64(); bytes += text.size();
@@ -60,7 +69,11 @@ inline void attach(QImage& base, const std::vector<QImage>& levels)
 inline std::vector<QImage> decode(const QImage& base)
 {
     const auto carrier = base.text(QLatin1String(Key));
-    if (carrier.isEmpty()) return {};
+    if (carrier.isEmpty()) {
+        if (!base.text(QLatin1String(TerminalKey)).isEmpty())
+            throw std::runtime_error("Terminal profile without an authored mip chain");
+        return {};
+    }
     if (carrier.size() > Limit) throw std::runtime_error("Authored mip carrier exceeds text limit");
     for(const auto c:carrier)if(c.unicode()>127)throw std::runtime_error("Authored mip carrier must be ASCII");
     QJsonParseError error;
@@ -85,7 +98,7 @@ inline std::vector<QImage> decode(const QImage& base)
         QImageReader reader(&buffer, "PNG");
         if (reader.size() != QSize(width, height)) throw std::runtime_error("Authored mip dimensions mismatch");
         auto image = reader.read();
-        if (image.isNull() || !image.text(QLatin1String(Key)).isEmpty())
+        if (image.isNull() || (!image.text(QLatin1String(Key)).isEmpty() || !image.text(QLatin1String(TerminalKey)).isEmpty()))
             throw std::runtime_error("Invalid or nested authored mip image");
         levels.push_back(image.convertToFormat(QImage::Format_RGBA8888));
     }

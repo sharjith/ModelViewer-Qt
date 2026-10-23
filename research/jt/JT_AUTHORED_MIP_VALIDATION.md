@@ -90,3 +90,5 @@ This acceptance records the reported raster observations, not native-suite, CPU/
 ## Final combined viewer acceptance - 23 October 2026
 
 After rebuilding the narrower depth correction, the owner confirmed the local GLB regression fixed and subsequently reported no regressions in the reopened 21-document JT alpha/mip/filter session. C2x viewer acceptance and the commit hold are closed on that basis. The earlier hold text records the investigation sequence, not the current status. Native execution, CPU/OptiX backend-specific coverage and authentic authored-texture export comparison remain unreported or unqualified as above.
+
+Prepared follow-up: [C2y](JT_MIP_COMPOSITION_BORDER_VALIDATION.md) extends bounded composed chains and a qualified sampled-border profile. C2x remains the accepted border-free baseline; the follow-up has its own owner gate and limitations.

@@ -60,3 +60,5 @@ if(MV_JT_SANITIZE AND MSVC)
   target_link_options(jt9_colour_fixturegen PRIVATE /DEBUG /INCREMENTAL:NO)
   target_link_options(jt_color_fixturegen PRIVATE /DEBUG /INCREMENTAL:NO)
 endif()
+
+target_sources(jt_tests PRIVATE jt_texture_mip_batch_tests.cpp)

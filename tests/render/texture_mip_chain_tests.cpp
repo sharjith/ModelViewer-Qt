@@ -34,6 +34,27 @@ int main(int argc,char** argv){
         for(const auto& text:{QString("[]"),QString("not-json"),QString("[12]"),QString("[\"not base64!\"]")}){
             auto bad=base;bad.setText(QLatin1String(TextureMipChain::Key),text);reject([&]{TextureMipChain::decode(bad);});
         }
+        QImage bordered(12,12,QImage::Format_RGBA8888);bordered.fill(Qt::red);
+        QImage borderMid(6,6,QImage::Format_RGBA8888);borderMid.fill(Qt::green);
+        QImage borderEnd(3,3,QImage::Format_RGBA8888);borderEnd.fill(Qt::yellow);
+        bordered.setText(QLatin1String(TextureMipChain::TerminalKey),QLatin1String(TextureMipChain::BorderTerminal));
+        TextureMipChain::attach(bordered,{borderMid,borderEnd});
+        check(TextureMipChain::decode(bordered).back().size()==QSize(3,3),"Border terminal chain rejected");
+        auto tailPixels=borderEnd;tailPixels.fill(Qt::magenta);tailPixels.setPixelColor(1,1,Qt::yellow);
+        RtTextureSample borderSample;borderSample.width=borderSample.height=12;borderSample.rgba8=bytes(bordered);
+        borderSample.minFilter=0x2700;borderSample.magFilter=0x2600;
+        borderSample.mips={{bytes(bordered),12,12},{bytes(borderMid),6,6},{bytes(tailPixels),3,3}};
+        check(RtTextureSampling::sampleTexture(borderSample,uv,100)==glm::vec4(1,1,0,1),"Terminal 3x3 interior was not sampled at max LOD");
+        glm::vec2 outside[4]={{0,0},{},{},{}};
+        check(RtTextureSampling::sampleTexture(borderSample,outside,100)==glm::vec4(1,0,1,1),"Terminal 3x3 border disappeared at max LOD");
+        auto unflagged=bordered;unflagged.setText(QLatin1String(TextureMipChain::TerminalKey),QString());
+        reject([&]{TextureMipChain::decode(unflagged);});
+        auto unknown=bordered;unknown.setText(QLatin1String(TextureMipChain::TerminalKey),"unknown");
+        reject([&]{TextureMipChain::decode(unknown);});
+        reject([&]{TextureMipChain::attach(bordered,{borderMid});});
+        QByteArray borderPng;QBuffer borderOut(&borderPng);borderOut.open(QIODevice::WriteOnly);
+        check(bordered.save(&borderOut,"PNG"),"Cannot save border chain");
+        check(TextureMipChain::decode(convertToGLFormat(QImage::fromData(borderPng,"PNG"))).back().size()==QSize(3,3),"Border terminal metadata lost in PNG/format conversion");
         auto ordinary=base;ordinary.setText(QLatin1String(TextureMipChain::Key),QString());check(TextureMipChain::decode(ordinary).empty(),"Ordinary image acquired authored levels");
         std::cout<<"Authored mip PNG/conversion, literal alpha/level sampling and malformed-chain checks passed\n";return 0;
     }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

@@ -16,7 +16,7 @@ from texture_fixture_store import TextureFixtureStore
 KEY='ModelViewer.MipChain.v1'
 
 
-def carrier(store,base,levels):
+def carrier(store,base,levels,terminal=None):
     metadata=PngImagePlugin.PngInfo()
     if levels:
         encoded=[]
@@ -24,6 +24,7 @@ def carrier(store,base,levels):
             buffer=io.BytesIO();level.save(buffer,format='PNG')
             encoded.append(base64.b64encode(buffer.getvalue()).decode())
         metadata.add_text(KEY,json.dumps(encoded,separators=(',',':')))
+    if terminal:metadata.add_text("ModelViewer.MipChain.Terminal.v1",terminal)
     output=io.BytesIO();base.save(output,format='PNG',pnginfo=metadata)
     return store.asset(output.getvalue(),'.png')
 

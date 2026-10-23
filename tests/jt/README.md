@@ -185,3 +185,5 @@ Numeric/9.x visual controls now share content-addressed geometry, images, buffer
 ## Combined authored-mip gate C2x
 
 `jt_texture_mip_tests.cpp` prepares enabled modern/9.x family and endian checks, row alignment 1/4/8, deliberate authored level colours, different tails with the same base, incomplete/overlong/short-row/border fallbacks, scene copy and PNG-in-GLB preservation. The original decoder retains bounded higher payloads; default one-level fixture bytes are unchanged. [C2x validation](../../research/jt/JT_AUTHORED_MIP_VALIDATION.md) records the internal carrier, limits, original controls and owner commands. Native execution is pending.
+
+`jt_texture_mip_batch_tests.cpp` prepares C2y matching authored-level composition, both-axis constant/explicit borders, ignored rings, level-invariant UVs, composed rings, malformed/mismatched fallback and scene-copy/GLB checks across enabled modern/9.x families. Owner commands, original control authoring and pending viewer gate: [C2y validation](../../research/jt/JT_MIP_COMPOSITION_BORDER_VALIDATION.md). No agent native execution.

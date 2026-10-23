@@ -465,12 +465,19 @@ struct Builder {
             const auto& data=source.Images()[0];QImage pixels;bool borderHasAlpha=true;
             int width=data.width,height=data.height;
             if(level>data.extraMips.size())throw std::runtime_error("authored mip index exceeds source chain");
-            if(!data.extraMips.empty()&&(data.border!=0||sampleS||sampleT))
-                throw std::runtime_error("authored mip borders require separate qualification");
+            const bool borderMips=!data.extraMips.empty()&&(sampleS||sampleT);
+            const int ring=data.border==1?1:0;
+            int innerWidth=width-2*ring,innerHeight=height-2*ring;
+            if(source.Inline()&&(innerWidth<1||innerHeight<1))throw std::runtime_error("border image has no interior");
+            if(borderMips&&(!sampleS||!sampleT||innerWidth!=innerHeight||(innerWidth&(innerWidth-1))||innerWidth<2))
+                throw std::runtime_error("sampled border mips require both border axes and a square power-of-two interior of at least 2x2");
+            if(borderMips&&ring&&data.format!=2&&data.format!=12)
+                throw std::runtime_error("sampled authored ring mips require RGBA/BGRA");
             for(size_t i=0;i<level;++i){
-                if(width==1&&height==1)throw std::runtime_error("authored mip chain extends past 1x1");
-                width=std::max(1,width/2);height=std::max(1,height/2);
+                if(innerWidth==1&&innerHeight==1)throw std::runtime_error("authored mip chain extends past its source interior");
+                innerWidth=std::max(1,innerWidth/2);innerHeight=std::max(1,innerHeight/2);
             }
+            width=innerWidth+2*ring;height=innerHeight+2*ring;
             const auto& payload=level?data.extraMips[level-1]:data.baseMip;
             auto borderColor=state.borderColor;
             constexpr uint64_t maxBytes=64u*1024u*1024u;
@@ -587,13 +594,13 @@ struct Builder {
                 borderHasAlpha=decoded.hasAlphaChannel();resultImage.format=borderHasAlpha?2:1;
                 pixels=decoded.convertToFormat(QImage::Format_RGBA8888);
                 if(pixels.isNull()||pixels.size()!=size)throw std::runtime_error("external image decoding failed");
-                if(!pixels.text(QLatin1String(TextureMipChain::Key)).isEmpty())throw std::runtime_error("external PNG authored mip carrier is not qualified for JT image import");
+                if(!pixels.text(QLatin1String(TextureMipChain::Key)).isEmpty()||!pixels.text(QLatin1String(TextureMipChain::TerminalKey)).isEmpty())throw std::runtime_error("external PNG authored mip carrier is not qualified for JT image import");
             }
             if(padS||padT){
                 // A constant one-texel halo plus interior-relative UVs reproduces
                 // base-level nearest/linear CLAMP_TO_BORDER via clamp-to-edge.
-                // Mipmap filters are excluded: a regenerated halo chain would
-                // change the source interior's level sizes and filter footprint.
+                // Authored border chains are expanded below to maintain a
+                // level-invariant interior mapping; base-only paths are unchanged.
                 const int width=pixels.width()+2*int(padS),height=pixels.height()+2*int(padT);
                 if(uint64_t(width)*height*4>maxBytes)throw std::runtime_error("padded border texture exceeds image byte limit");
                 JtData_Limits::allocation(size_t(width)*height*4);
@@ -607,6 +614,21 @@ struct Builder {
                 resultImage.offsetS=double(padS)/width;resultImage.offsetT=double(padT)/height;
                 pixels=std::move(padded);
             }
+            if(borderMips){
+                // A 3W-by-3W display image keeps the interior at [1/3,2/3]
+                // at EVERY level. Extend the authored one-texel ring, never
+                // filter it into the interior. The last display level is 3x3.
+                const int extent=3*innerWidth;
+                if(uint64_t(extent)*extent*4>maxBytes)throw std::runtime_error("border mip display image exceeds byte limit");
+                JtData_Limits::allocation(size_t(extent)*extent*4);
+                QImage expanded(extent,extent,QImage::Format_RGBA8888);if(expanded.isNull())throw std::bad_alloc();
+                for(int y=0;y<extent;++y){options.check();auto* dst=expanded.scanLine(y);
+                    const auto* src=pixels.constScanLine(std::clamp(y-innerWidth+1,0,innerWidth+1));
+                    for(int x=0;x<extent;++x)std::memcpy(dst+4*x,src+4*std::clamp(x-innerWidth+1,0,innerWidth+1),4);
+                }
+                pixels=std::move(expanded);
+                resultImage.scaleS=resultImage.scaleT=1.0/3;resultImage.offsetS=resultImage.offsetT=1.0/3;
+            }
             for(int y=0;y<pixels.height();++y){options.check();auto* row=pixels.scanLine(y);
                 for(int x=0;x<pixels.width();++x){if(!allowAlpha)row[4*x+3]=255;else resultImage.alpha=resultImage.alpha||row[4*x+3]<255;}}
             if(level==0&&source.Inline()&&!data.extraMips.empty()){
@@ -616,6 +638,7 @@ struct Builder {
                     if(decoded.mipPixels.isNull())throw std::runtime_error("authored mip could not be decoded");
                     resultImage.alpha=resultImage.alpha||decoded.alpha;mips.push_back(decoded.mipPixels);
                 }
+                if(borderMips)pixels.setText(QLatin1String(TextureMipChain::TerminalKey),QLatin1String(TextureMipChain::BorderTerminal));
                 TextureMipChain::validate(pixels,mips);
                 JtData_Limits::allocation(size_t(data.totalBytes)*8);
                 TextureMipChain::attach(pixels,mips);
@@ -630,7 +653,8 @@ struct Builder {
         if(state.type==0||state.image.IsNull())return {};
         const auto& env=state.environment;
         const bool ignoresBorder=env[3]>=2&&env[3]<=4&&env[4]>=2&&env[4]<=4;
-        const bool sampledBorder=(env[0]==1||env[0]==2)&&(env[3]==5||env[4]==5)&&env[3]>=2&&env[3]<=5&&env[4]>=2&&env[4]<=5&&env[1]>=1&&env[1]<=2&&env[2]>=1&&env[2]<=2;
+        const bool sampledBorder=(env[0]==1||env[0]==2)&&(env[3]==5||env[4]==5)&&env[3]>=2&&env[3]<=5&&env[4]>=2&&env[4]<=5&&env[1]>=1&&env[1]<=2&&env[2]>=1&&env[2]<=6
+            &&(env[2]<=2||(!state.image.IsNull()&&state.image->Inline()&&state.image->Images().size()==1&&!state.image->Images()[0].extraMips.empty()));
         if(state.type!=9||(env[0]!=0&&!ignoresBorder&&!sampledBorder)||(env[6]<1||env[6]>5)||!state.affine2D()||state.coordinate<0||state.coordinate>=4
             ||!state.planar2D()
             ||(env[3]==5&&!sampledBorder)||(env[4]==5&&!sampledBorder)
@@ -671,10 +695,13 @@ struct Builder {
             if(!std::isfinite(style.diffuse.a)||style.diffuse.a<0||style.diffuse.a>1)throw std::runtime_error("invalid incoming material alpha");
             for(const auto* stage:stages){
                 const auto mode=stage->environment[6];
-                if(stage->image->Inline()&&stage->image->Images().size()==1&&!stage->image->Images()[0].extraMips.empty())
-                    throw std::runtime_error("this composed texture requires separately qualified authored mip composition");
-                if((stages.size()>1||mode==1||mode==4||mode==5)&&(stage->environment[1]!=1||stage->environment[2]!=1))
-                    throw std::runtime_error("multi-unit, Decal, Blend and Add composition requires nearest non-mipmapped filters");
+                if(stage->image.IsNull())throw std::runtime_error("texture stack has a missing image");
+                const bool authored=stage->image->Inline()&&stage->image->Images().size()==1&&!stage->image->Images()[0].extraMips.empty();
+                if((stages.size()>1||mode==1||mode==4||mode==5)&&
+                    (stage->environment[1]!=1||(stage->environment[2]!=1&&!(authored&&stage->environment[2]==3))))
+                    throw std::runtime_error("composition requires nearest sampling and matching authored levels for mip selection");
+                if(stage->environment[1]!=primary.environment[1]||stage->environment[2]!=primary.environment[2])
+                    throw std::runtime_error("texture stack uses independent filters");
                 if(stage->coordinate!=primary.coordinate||stage->transform!=primary.transform||stage->generation!=primary.generation||stage->planes!=primary.planes
                    ||stage->environment[3]!=primary.environment[3]||stage->environment[4]!=primary.environment[4])
                     throw std::runtime_error("texture stack uses independent coordinate mappings or wrapping");
@@ -705,7 +732,6 @@ struct Builder {
                 JtData_Limits::allocation(size_t(size.width())*size.height()*8);
                 auto pixels=reader.read().convertToFormat(QImage::Format_RGBA8888);
                 if(pixels.isNull()||pixels.size()!=size)throw std::runtime_error("composed texture decoding failed");
-                if(!pixels.text(QLatin1String(TextureMipChain::Key)).isEmpty())throw std::runtime_error("authored mip composition requires separate qualification");
                 if(!images.empty()&&pixels.size()!=images[0].size())throw std::runtime_error("texture stack uses different image resolutions");
                 images.push_back(std::move(pixels));
             }
@@ -715,30 +741,50 @@ struct Builder {
             // colour space, then encode once. Alpha is always linear.
             const auto linear=[](double v){return v<=.04045?v/12.92:std::pow((v+.055)/1.055,2.4);};
             const auto encoded=[](double v){return v<=.0031308?12.92*v:1.055*std::pow(v,1.0/2.4)-.055;};
-            JtData_Limits::allocation(size_t(images[0].width())*images[0].height()*4);
-            QImage pixels(images[0].size(),QImage::Format_RGBA8888);if(pixels.isNull())throw std::bad_alloc();
+            std::vector<std::vector<QImage>> tails;tails.reserve(images.size());
+            for(const auto& pixels:images)tails.push_back(TextureMipChain::decode(pixels));
+            for(size_t n=1;n<tails.size();++n)
+                if(tails[n].size()!=tails[0].size()||images[n].text(QLatin1String(TextureMipChain::TerminalKey))!=images[0].text(QLatin1String(TextureMipChain::TerminalKey)))
+                    throw std::runtime_error("texture stack uses different authored mip chains or terminal profiles");
+            const auto terminal=images[0].text(QLatin1String(TextureMipChain::TerminalKey));
             output.alpha=false;
-            for(int y=0;y<pixels.height();++y){options.check();auto* row=pixels.scanLine(y);
-                for(int x=0;x<pixels.width();++x){
-                    double rgb[3]={clamp(style.diffuse.r),clamp(style.diffuse.g),clamp(style.diffuse.b)},alpha=style.diffuse.a;
-                    for(size_t n=0;n<stages.size();++n){
-                        const auto* texel=images[n].constScanLine(y)+4*x;const double a=double(texel[3])/255;
-                        const bool hasRGB=formats[n]!=10,hasAlpha=formats[n]==2||formats[n]==4||formats[n]==10||formats[n]==12;
-                        const auto mode=stages[n]->environment[6];
-                        if(hasRGB)for(unsigned c=0;c<3;++c){const double t=linear(double(texel[c])/255);
-                            if(mode==1)rgb[c]=hasAlpha?rgb[c]*(1-a)+t*a:t;
-                            if(mode==2)rgb[c]*=t;
-                            if(mode==3)rgb[c]=t;
-                            if(mode==4)rgb[c]=rgb[c]*(1-t)+clamp(stages[n]->blendColor[c])*t;
-                            if(mode==5)rgb[c]=clamp(rgb[c]+t);
+            auto composeLevel=[&]() {
+                JtData_Limits::allocation(size_t(images[0].width())*images[0].height()*4);
+                QImage pixels(images[0].size(),QImage::Format_RGBA8888);if(pixels.isNull())throw std::bad_alloc();
+                for(int y=0;y<pixels.height();++y){options.check();auto* row=pixels.scanLine(y);
+                    for(int x=0;x<pixels.width();++x){
+                        double rgb[3]={clamp(style.diffuse.r),clamp(style.diffuse.g),clamp(style.diffuse.b)},alpha=style.diffuse.a;
+                        for(size_t n=0;n<stages.size();++n){
+                            const auto* texel=images[n].constScanLine(y)+4*x;const double a=double(texel[3])/255;
+                            const bool hasRGB=formats[n]!=10,hasAlpha=formats[n]==2||formats[n]==4||formats[n]==10||formats[n]==12;
+                            const auto mode=stages[n]->environment[6];
+                            if(hasRGB)for(unsigned c=0;c<3;++c){const double t=linear(double(texel[c])/255);
+                                if(mode==1)rgb[c]=hasAlpha?rgb[c]*(1-a)+t*a:t;
+                                if(mode==2)rgb[c]*=t;
+                                if(mode==3)rgb[c]=t;
+                                if(mode==4)rgb[c]=rgb[c]*(1-t)+clamp(stages[n]->blendColor[c])*t;
+                                if(mode==5)rgb[c]=clamp(rgb[c]+t);
+                            }
+                            if(hasAlpha){if(mode==3)alpha=a;else if(mode!=1)alpha*=a;}
                         }
-                        if(hasAlpha){if(mode==3)alpha=a;else if(mode!=1)alpha*=a;}
+                        for(unsigned c=0;c<3;++c)row[4*x+c]=static_cast<uchar>(std::floor(clamp(encoded(clamp(rgb[c])))*255+.5));
+                        row[4*x+3]=allowAlpha?static_cast<uchar>(std::floor(clamp(alpha)*255+.5)):255;
+                        output.alpha=output.alpha||row[4*x+3]<255;
                     }
-                    for(unsigned c=0;c<3;++c)row[4*x+c]=static_cast<uchar>(std::floor(clamp(encoded(clamp(rgb[c])))*255+.5));
-                    row[4*x+3]=allowAlpha?static_cast<uchar>(std::floor(clamp(alpha)*255+.5)):255;
-                    output.alpha=output.alpha||row[4*x+3]<255;
                 }
+                return pixels;
+            };
+            auto pixels=composeLevel();std::vector<QImage> composedMips;
+            for(size_t level=0;level<tails[0].size();++level){
+                options.check();
+                for(size_t n=0;n<images.size();++n){
+                    images[n]=tails[n][level];
+                    if(images[n].size()!=images[0].size())throw std::runtime_error("texture mip stack uses different level resolutions");
+                }
+                composedMips.push_back(composeLevel());
             }
+            if(!terminal.isEmpty())pixels.setText(QLatin1String(TextureMipChain::TerminalKey),terminal);
+            if(!composedMips.empty())TextureMipChain::attach(pixels,composedMips);
             output.index=embedImage(pixels);output.composed=true;output.format=2;textureCompositions.emplace(std::move(key),output);return output;
         }catch(const Cancelled&){throw;}catch(const std::bad_alloc&){throw;}
         catch(const std::exception& e){textureWarning("JT texture stack not applied: "+QString::fromUtf8(e.what()));return {};}
