@@ -35,3 +35,7 @@ The owner requested implementing related packages together and testing them in o
 ## Accepted grouped checkpoint C2w - 23 October 2026
 
 [C2w filtering](JT_TEXTURE_FILTER_PARITY_VALIDATION.md) groups common material sampler transport/cache identity and CPU/OptiX filter selection, advancing packages 2 and 7. It corrects the unconditional smoothing limitation identified in C2v; authored JT mip payloads, exact footprint parity and other evidence/representation gaps stay open. The owner built and accepted the viewer gate on 23 October 2026. Native execution and individual CPU/GPU backend coverage were not separately reported.
+
+## Accepted grouped checkpoint C2x - 23 October 2026
+
+[C2x authored mips](JT_AUTHORED_MIP_VALIDATION.md) advances packages 2 and 7 with full border-free 2D source chains, per-level conversion/validation and shared raster/CPU/GPU transport. Its versioned PNG carrier is internal ModelViewer metadata, not portable glTF authored-mip support. Source border mips, composed chains, authentic export comparisons and other scope remain open. Owner rebuild and reported raster mip/filter observations passed. Native/backend coverage remains unreported; the owner subsequently accepted the separate depth correction and reported no regressions in the reopened alpha/mip/filter session.

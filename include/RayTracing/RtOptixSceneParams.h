@@ -342,7 +342,7 @@ struct RtOptixTexture
 	unsigned int magFilter;
 	unsigned int minFilter;
 
-	// Box-filtered mip pyramid - device counterpart of RtTextureSample::mips,
+	// Authored or generated mip pyramid - device counterpart of RtTextureSample::mips,
 	// same ordering (mips[0] duplicates the base rgba8/width/height above,
 	// for uniform indexing). nullptr/0 if the upload failed or the source
 	// RtTextureSample had no mips (RtOptixScene.cu's sampleTexture2D() then

@@ -1,6 +1,7 @@
 // Copyright (C) 2026 ModelViewer-Qt contributors. SPDX-License-Identifier: GPL-3.0-only
 // Original bounded texture reader; JT 10.0 section 6.1.2.3 and JT 9.5 section 7.2.1.1.2.3.
 // JT 9.x local-version-1/2/3 hierarchy added 2026-10-22.
+// Authored higher mip bytes retained 2026-10-23.
 #include <JtAttribute_TextureImage.hxx>
 #include <JtData_Reader.hxx>
 #include <JtData_Limits.hxx>
@@ -72,17 +73,18 @@ Standard_Boolean JtAttribute_TextureImage::Read(JtData_Reader& reader)
       total+=unsigned(image.totalBytes);
       if(total>64u*1024u*1024u)throw std::runtime_error("JT texture image byte limit exceeded");
       JtData_Limits::allocation(size_t(mipCount)*sizeof(Jt_I32));image.mipBytes.resize(size_t(mipCount));
+      JtData_Limits::allocation(size_t(mipCount-1)*sizeof(std::vector<Jt_U8>));
+      image.extraMips.resize(size_t(mipCount-1));
       uint64_t consumed=0;
       for(size_t level=0;level<image.mipBytes.size();++level){
         auto& bytes=image.mipBytes[level];
         if(!reader.ReadI32(bytes))return Standard_False;
         if(bytes<0||(consumed+=unsigned(bytes))>unsigned(image.totalBytes))throw std::runtime_error("Invalid JT texture mip byte count");
-        // Retain the base image for supported material mapping. Higher authored
-        // mip levels remain bounded skips; the renderer regenerates its chain.
-        if(level==0){JtData_Limits::allocation(size_t(bytes));image.baseMip.resize(size_t(bytes));}
+        auto& payload=level==0?image.baseMip:image.extraMips[level-1];
+        JtData_Limits::allocation(size_t(bytes));payload.resize(size_t(bytes));
         for(size_t done=0;done<size_t(bytes);){
           JtData_Limits::poll();const size_t n=std::min(size_t(bytes)-done,size_t(65536));
-          if(level==0 ? !reader.ReadBytes(image.baseMip.data()+done,n) : !reader.SkipBytes(n))return Standard_False;
+          if(!reader.ReadBytes(payload.data()+done,n))return Standard_False;
           done+=n;
         }
       }

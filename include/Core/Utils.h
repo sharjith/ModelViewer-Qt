@@ -13,7 +13,10 @@ inline QImage convertToGLFormat(const QImage& image)
 	// Instead, flip UV.y in shader and negate rotation to maintain spec compliance.
 	// This matches KHR Sample Viewer behavior (UNPACK_FLIP_Y_WEBGL = false).
 	// See: https://github.com/KhronosGroup/glTF-Sample-Viewer/issues/16
-	return image.convertToFormat(QImage::Format_RGBA8888);
+	auto converted=image.convertToFormat(QImage::Format_RGBA8888);
+    // Keep image text metadata when normalizing the pixel storage format.
+    for(const auto& key:image.textKeys())converted.setText(key,image.text(key));
+    return converted;
 }
 
 inline QString makeButtonStyleSheet(const QColor& color)

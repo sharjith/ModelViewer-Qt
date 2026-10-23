@@ -3,10 +3,12 @@
 #pragma once
 #include "JtContainerFixture.h"
 #include <array>
+#include <vector>
 #include <algorithm>
 namespace TextureFixture {
 struct Options {bool big=false,inlineImage=true,wrapped=false;unsigned baseVersion=1,version=1;int width=2,height=2,alignment=1,total=12,mipBytes=12,storage=-1,coordinate=2;
     unsigned pixelFormat=1,pixelType=3,inhibit=0,legacyType=2,shared=0,textureType=9,stateFlags=8,finalFields=0,imageCount=1;int channel=0,imageBorder=0,borderMode=0,wrapS=2,wrapT=2,minFilter=2,magFilter=2,blendType=2;QByteArray pixels;
+    std::vector<QByteArray> extraMips;
     std::array<float,4> borderColor{0,0,0,1},blendColor{0,0,0,1};
     std::array<float,16> transform{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
     std::array<unsigned,4> generation{};
@@ -20,10 +22,12 @@ inline Fixture::Bytes body(Options o={}){
     for(float value:o.planes)b.f32(value);
     b.u32(o.channel);b.u32(o.coordinate);b.u32(0);b.u8(o.storage>=0?o.storage:o.inlineImage?1:0);b.u32(o.imageCount);
     if(o.imageCount&&o.inlineImage){
-        b.u32(o.pixelFormat);b.u32(o.pixelType);b.u16(2);b.u16(o.alignment);b.u16(o.width);b.u16(o.height);b.u16(1);b.u16(o.imageBorder);b.u32(o.shared);b.u16(1);
-        b.u32(o.total);b.u32(o.mipBytes);
+        b.u32(o.pixelFormat);b.u32(o.pixelType);b.u16(2);b.u16(o.alignment);b.u16(o.width);b.u16(o.height);b.u16(1);b.u16(o.imageBorder);b.u32(o.shared);b.u16(1+unsigned(o.extraMips.size()));
+        int extraBytes=0;for(const auto& mip:o.extraMips)extraBytes+=mip.size();
+        b.u32(o.total+extraBytes);b.u32(o.mipBytes);
         if(!o.pixels.isNull())b.data+=o.pixels;
         else {const unsigned pixels[]={255,0,0,0,255,0,0,0,255,255,255,255};for(auto v:pixels)b.u8(v);}
+        for(const auto& mip:o.extraMips){b.u32(mip.size());b.data+=mip;}
     }else if(o.imageCount)b.text("original_texture.png");
     if(o.baseVersion==2)b.u32(quint32(-1));return b;
 }
@@ -48,10 +52,12 @@ inline Fixture::Bytes block9(Options o,unsigned block,bool stub=false){
     for(float value:o.transform)b.f32(value);for(auto mode:o.generation)b.u32(mode);for(float value:o.planes)b.f32(value);
     b.u32(stub?0:o.channel);b.u32(0);b.u8(o.storage>=0?o.storage:o.inlineImage?1:0);b.u32(stub?0:o.imageCount);
     if(!stub&&o.imageCount&&o.inlineImage){
-        b.u32(o.pixelFormat);b.u32(o.pixelType);b.u16(2);b.u16(o.alignment);b.u16(o.width);b.u16(o.height);b.u16(1);b.u16(o.imageBorder);b.u8(o.shared);b.u16(1);
-        b.u32(o.total);b.u32(o.mipBytes);
+        b.u32(o.pixelFormat);b.u32(o.pixelType);b.u16(2);b.u16(o.alignment);b.u16(o.width);b.u16(o.height);b.u16(1);b.u16(o.imageBorder);b.u8(o.shared);b.u16(1+unsigned(o.extraMips.size()));
+        int extraBytes=0;for(const auto& mip:o.extraMips)extraBytes+=mip.size();
+        b.u32(o.total+extraBytes);b.u32(o.mipBytes);
         if(!o.pixels.isNull())b.data+=o.pixels;
         else {const unsigned pixels[]={255,0,0,0,255,0,0,0,255,255,255,255};for(auto v:pixels)b.u8(v);}
+        for(const auto& mip:o.extraMips){b.u32(mip.size());b.data+=mip;}
     }else if(!stub&&o.imageCount)b.text("original_texture.png");
     if(block==3)b.u32(o.coordinate);
     return b;

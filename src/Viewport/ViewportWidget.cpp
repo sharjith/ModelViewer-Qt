@@ -1,4 +1,5 @@
-﻿
+﻿#include "TextureMipChain.h"
+
 #include "AssImpMeshBuilder.h"
 #include <QScopeGuard>
 #include "ClippingPlanesEditor.h"
@@ -14518,14 +14519,31 @@ GLuint ViewportWidget::createGPUTextureFromImage(const QImage& image, const Text
 		break;
 	}
 
+	std::vector<QImage> authored;
+    try { authored = TextureMipChain::decode(image); }
+    catch (const std::exception& error) {
+        qWarning() << "Cannot upload authored mip chain:" << error.what();
+        return 0;
+    }
+    if(!authored.empty())internalFormat=GL_RGBA8;
 	GLuint textureID;
 	glGenTextures(1, &textureID);
 
 	glBindTexture(GL_TEXTURE_2D, textureID);
+	GLint oldAlignment=4;glGetIntegerv(GL_UNPACK_ALIGNMENT,&oldAlignment);glPixelStorei(GL_UNPACK_ALIGNMENT,1);
 	glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, glImage.width(), glImage.height(), 0,
 		dataFormat, dataType, glImage.constBits());
-	glGenerateMipmap(GL_TEXTURE_2D);
+    if (authored.empty()) glGenerateMipmap(GL_TEXTURE_2D);
+    else {
+        for (size_t level=0; level<authored.size(); ++level) {
+            const auto rgba=authored[level].convertToFormat(QImage::Format_RGBA8888);
+            glTexImage2D(GL_TEXTURE_2D, GLint(level+1), internalFormat, rgba.width(), rgba.height(),
+                0, GL_RGBA, GL_UNSIGNED_BYTE, rgba.constBits());
+        }
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, GLint(authored.size()));
+    }
 
+	glPixelStorei(GL_UNPACK_ALIGNMENT,oldAlignment);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, samplers.wrapS);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, samplers.wrapT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, samplers.minFilter);

@@ -181,3 +181,7 @@ Numeric/9.x visual controls now share content-addressed geometry, images, buffer
 ## Combined appearance gate C2v
 
 `jt_texture_batch_tests.cpp` and `JtTextureStackFixture.h` add independent literal combiner/alpha vectors, linear-factor/sRGB preservation, sparse ordered units, per-unit inheritance/inhibit/final/forced/reset (including descendant final-reset fences), automatic non-displacement, role/channel validation, incompatible-stack rejection, unit caps, unchanged geometry, scene-copy and GLB checks. Modern field-final and legacy whole-final remain separate. Earlier C2u rejection cases retain incompatible filtering. The original writer `make_texture_batch_controls.py` reuses the common cubes/buffers and independently resolved expected recipes. [Combined validation](../../research/jt/JT_APPEARANCE_BATCH_VALIDATION.md) gives exact owner commands and a single 34-document positive visual session. No agent-native build/test execution or universal multi-texturing/renderer parity is claimed.
+
+## Combined authored-mip gate C2x
+
+`jt_texture_mip_tests.cpp` prepares enabled modern/9.x family and endian checks, row alignment 1/4/8, deliberate authored level colours, different tails with the same base, incomplete/overlong/short-row/border fallbacks, scene copy and PNG-in-GLB preservation. The original decoder retains bounded higher payloads; default one-level fixture bytes are unchanged. [C2x validation](../../research/jt/JT_AUTHORED_MIP_VALIDATION.md) records the internal carrier, limits, original controls and owner commands. Native execution is pending.

@@ -1157,5 +1157,18 @@
       "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_TextureImage.cxx"
     ],
     "validation": "research/jt/JT_TEXTURE_UINT16_VALIDATION.md"
+  },
+  "texture_authored_mip_follow_up": {
+    "date": "2026-10-23",
+    "scope": "Original bounded texture reader retains authored higher-mip payloads instead of skipping them; original adapter validates qualified full 2D chains and carries them in versioned ModelViewer PNG metadata for shared raster/CPU/OptiX use",
+    "references": [
+      "Retained Siemens JT10.0 Rev-B section6.1.2.3.1 and figure54",
+      "Retained Siemens JT9.5 Rev-A section7.2.1.1.2.3.1.3.1"
+    ],
+    "files": [
+      "include/ThirdParty/occt-jt/JtAttribute/JtAttribute_TextureImage.hxx",
+      "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_TextureImage.cxx"
+    ],
+    "validation": "research/jt/JT_AUTHORED_MIP_VALIDATION.md"
   }
 }

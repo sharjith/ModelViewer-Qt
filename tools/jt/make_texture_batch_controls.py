@@ -40,7 +40,16 @@ def attribute(big,family,version,spec):
                     rows.append(bytes(row))
                 pixels=b''.join(reversed(rows))
                 b.put('II6H',fmt,3,2,1,image.width,image.height,1,0)
-                b.put('B' if family==9 else 'I',0);b.put('HII',1,len(pixels),len(pixels));b.data+=pixels
+                levels=[pixels]
+                for mip in spec.get('mips',[]):
+                    mip_rows=[]
+                    for y in range(mip.height):
+                        row=bytearray()
+                        for x in range(mip.width):row.extend(convert(mip.getpixel((x,y)),fmt)[0])
+                        mip_rows.append(bytes(row))
+                    levels.append(b''.join(reversed(mip_rows)))
+                b.put('B' if family==9 else 'I',0);b.put('HI',len(levels),sum(map(len,levels)))
+                for payload in levels:b.put('I',len(payload));b.data+=payload
         if family==9 and block==3:b.put('i',0)
     return b
 

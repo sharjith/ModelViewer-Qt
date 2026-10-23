@@ -1,3 +1,4 @@
+#include "../../../include/Materials/TextureMipChain.h"
 // Copyright (C) 2026 ModelViewer-Qt contributors. SPDX-License-Identifier: GPL-3.0-only
 #include "JtSceneBuilder.h"
 #include <JtData_Model.hxx>
@@ -415,8 +416,8 @@ struct Builder {
     std::vector<std::unique_ptr<aiMaterial>> materials;
     std::vector<std::unique_ptr<aiTexture>> textures;
     std::map<QByteArray,unsigned> texturePixels;
-    struct ImageResult {int index=-1;bool alpha=false;QString error;double scaleS=1,scaleT=1,offsetS=0,offsetT=0;int format=0;bool composed=false;};
-    using TextureSourceKey=std::tuple<const void*,bool,bool,bool,std::array<float,4>>;
+    struct ImageResult {int index=-1;bool alpha=false;QString error;double scaleS=1,scaleT=1,offsetS=0,offsetT=0;int format=0;bool composed=false;QImage mipPixels;};
+    using TextureSourceKey=std::tuple<const void*,bool,bool,bool,std::array<float,4>,size_t>;
     std::map<TextureSourceKey,ImageResult> textureSources;
     std::map<std::vector<float>,ImageResult> textureCompositions;
     std::vector<std::vector<int>> geometryGroups;
@@ -446,12 +447,12 @@ struct Builder {
             const int index=int(textures.size());textures.push_back(std::move(texture));texturePixels.emplace(hash,unsigned(index));return index;
         }
     }
-    ImageResult image(const TextureState& state,bool allowAlpha) {
+    ImageResult image(const TextureState& state,bool allowAlpha,size_t level=0) {
         const bool sampleS=state.environment[0]!=0&&state.environment[3]==5;
         const bool sampleT=state.environment[0]!=0&&state.environment[4]==5;
         const bool padS=state.environment[0]==1&&state.environment[3]==5;
         const bool padT=state.environment[0]==1&&state.environment[4]==5;
-        const TextureSourceKey sourceKey{state.image.get(),allowAlpha,sampleS,sampleT,(padS||padT)?state.borderColor:std::array<float,4>{}};
+        const TextureSourceKey sourceKey{state.image.get(),allowAlpha,sampleS,sampleT,(padS||padT)?state.borderColor:std::array<float,4>{},level};
         if(!state.image.IsNull()) {
             const auto cached=textureSources.find(sourceKey);
             if(cached!=textureSources.end()){if(!cached->second.error.isEmpty())textureWarning(cached->second.error);return cached->second;}
@@ -462,6 +463,15 @@ struct Builder {
             const auto& source=*state.image;
             if(source.Images().size()!=1)throw std::runtime_error("only one 2D image is supported");
             const auto& data=source.Images()[0];QImage pixels;bool borderHasAlpha=true;
+            int width=data.width,height=data.height;
+            if(level>data.extraMips.size())throw std::runtime_error("authored mip index exceeds source chain");
+            if(!data.extraMips.empty()&&(data.border!=0||sampleS||sampleT))
+                throw std::runtime_error("authored mip borders require separate qualification");
+            for(size_t i=0;i<level;++i){
+                if(width==1&&height==1)throw std::runtime_error("authored mip chain extends past 1x1");
+                width=std::max(1,width/2);height=std::max(1,height/2);
+            }
+            const auto& payload=level?data.extraMips[level-1]:data.baseMip;
             auto borderColor=state.borderColor;
             constexpr uint64_t maxBytes=64u*1024u*1024u;
             if(source.Inline()) {
@@ -477,19 +487,19 @@ struct Builder {
                 if(data.dataType<1||data.dataType>9||data.dataType==4||!colorFormat
                     ||data.dimensionality!=2||data.depth!=1||data.border<0||data.border>1)
                     throw std::runtime_error("inline texture requires a supported 2D numeric colour format");
-                if(data.border==1&&(data.width<=2||data.height<=2))throw std::runtime_error("inline border texture has no interior texels");
+                if(data.border==1&&(width<=2||height<=2))throw std::runtime_error("inline border texture has no interior texels");
                 const size_t components=(data.format==2||data.format==12)?4:(data.format==1||data.format==11)?3:data.format==4?2:1;
                 const size_t componentBytes=(data.dataType==2||data.dataType==7||data.dataType==8)?4:(data.dataType==5||data.dataType==6||data.dataType==9)?2:1;
                 const bool signedComponents=data.dataType==1||data.dataType==6||data.dataType==8;
-                const size_t stride=(size_t(data.width)*components*componentBytes+data.alignment-1)&~size_t(data.alignment-1);
-                if(uint64_t(data.width)*data.height*4>maxBytes||data.baseMip.size()!=stride*size_t(data.height))
+                const size_t stride=(size_t(width)*components*componentBytes+data.alignment-1)&~size_t(data.alignment-1);
+                if(uint64_t(width)*height*4>maxBytes||payload.size()!=stride*size_t(height))
                     throw std::runtime_error("inline texture row/image byte count mismatch");
-                JtData_Limits::allocation(size_t(data.width)*data.height*4);
-                pixels=QImage(data.width,data.height,QImage::Format_RGBA8888);
+                JtData_Limits::allocation(size_t(width)*height*4);
+                pixels=QImage(width,height,QImage::Format_RGBA8888);
                 if(pixels.isNull())throw std::bad_alloc();
-                for(int y=0;y<data.height;++y){
-                    options.check();auto* dst=pixels.scanLine(y);const auto* row=data.baseMip.data()+size_t(data.height-1-y)*stride;
-                    for(int x=0;x<data.width;++x){
+                for(int y=0;y<height;++y){
+                    options.check();auto* dst=pixels.scanLine(y);const auto* row=payload.data()+size_t(height-1-y)*stride;
+                    for(int x=0;x<width;++x){
                         const auto* packed=row+size_t(x)*components*componentBytes;auto* out=dst+4*x;
                         unsigned char converted[4];
                         const auto* src=packed;
@@ -546,7 +556,7 @@ struct Builder {
                 if(data.border==1){
                     // Retain the ring only on sampled axes. Cropping the other
                     // axis preserves repeat/mirror/edge sampling of its interior.
-                    const int innerWidth=data.width-2,innerHeight=data.height-2;
+                    const int innerWidth=width-2,innerHeight=height-2;
                     const int width=innerWidth+2*int(sampleS),height=innerHeight+2*int(sampleT);
                     if(!sampleS||!sampleT){
                         JtData_Limits::allocation(size_t(width)*height*4);
@@ -577,6 +587,7 @@ struct Builder {
                 borderHasAlpha=decoded.hasAlphaChannel();resultImage.format=borderHasAlpha?2:1;
                 pixels=decoded.convertToFormat(QImage::Format_RGBA8888);
                 if(pixels.isNull()||pixels.size()!=size)throw std::runtime_error("external image decoding failed");
+                if(!pixels.text(QLatin1String(TextureMipChain::Key)).isEmpty())throw std::runtime_error("external PNG authored mip carrier is not qualified for JT image import");
             }
             if(padS||padT){
                 // A constant one-texel halo plus interior-relative UVs reproduces
@@ -598,7 +609,19 @@ struct Builder {
             }
             for(int y=0;y<pixels.height();++y){options.check();auto* row=pixels.scanLine(y);
                 for(int x=0;x<pixels.width();++x){if(!allowAlpha)row[4*x+3]=255;else resultImage.alpha=resultImage.alpha||row[4*x+3]<255;}}
-            resultImage.index=embedImage(pixels);
+            if(level==0&&source.Inline()&&!data.extraMips.empty()){
+                std::vector<QImage> mips;mips.reserve(data.extraMips.size());
+                for(size_t n=1;n<=data.extraMips.size();++n){
+                    const auto decoded=image(state,allowAlpha,n);
+                    if(decoded.mipPixels.isNull())throw std::runtime_error("authored mip could not be decoded");
+                    resultImage.alpha=resultImage.alpha||decoded.alpha;mips.push_back(decoded.mipPixels);
+                }
+                TextureMipChain::validate(pixels,mips);
+                JtData_Limits::allocation(size_t(data.totalBytes)*8);
+                TextureMipChain::attach(pixels,mips);
+            }
+            if(level==0)resultImage.index=embedImage(pixels);
+            else resultImage.mipPixels=std::move(pixels);
         }catch(const Cancelled&){throw;}catch(const std::bad_alloc&){throw;}
         catch(const std::exception& e){resultImage.error="JT texture not applied: "+QString::fromUtf8(e.what());textureWarning(resultImage.error);}
         textureSources[sourceKey]=resultImage;return resultImage;
@@ -648,6 +671,8 @@ struct Builder {
             if(!std::isfinite(style.diffuse.a)||style.diffuse.a<0||style.diffuse.a>1)throw std::runtime_error("invalid incoming material alpha");
             for(const auto* stage:stages){
                 const auto mode=stage->environment[6];
+                if(stage->image->Inline()&&stage->image->Images().size()==1&&!stage->image->Images()[0].extraMips.empty())
+                    throw std::runtime_error("this composed texture requires separately qualified authored mip composition");
                 if((stages.size()>1||mode==1||mode==4||mode==5)&&(stage->environment[1]!=1||stage->environment[2]!=1))
                     throw std::runtime_error("multi-unit, Decal, Blend and Add composition requires nearest non-mipmapped filters");
                 if(stage->coordinate!=primary.coordinate||stage->transform!=primary.transform||stage->generation!=primary.generation||stage->planes!=primary.planes
@@ -680,6 +705,7 @@ struct Builder {
                 JtData_Limits::allocation(size_t(size.width())*size.height()*8);
                 auto pixels=reader.read().convertToFormat(QImage::Format_RGBA8888);
                 if(pixels.isNull()||pixels.size()!=size)throw std::runtime_error("composed texture decoding failed");
+                if(!pixels.text(QLatin1String(TextureMipChain::Key)).isEmpty())throw std::runtime_error("authored mip composition requires separate qualification");
                 if(!images.empty()&&pixels.size()!=images[0].size())throw std::runtime_error("texture stack uses different image resolutions");
                 images.push_back(std::move(pixels));
             }

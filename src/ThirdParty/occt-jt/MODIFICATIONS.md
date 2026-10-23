@@ -162,3 +162,7 @@ The ModelViewer-original `JtAttribute_TextureImage.cxx` now consumes complete em
 ## C2k texture source byte order — 22 October 2026
 
 The ModelViewer-original texture header/implementation retain the owning file byte order alongside unchanged raw image payloads, allowing the original scene adapter to normalize unsigned 16-bit colour components safely into the existing RGBA8 image path. No upstream-derived source/hashes or decoder file counts change. [C2k validation](../../../research/jt/JT_TEXTURE_UINT16_VALIDATION.md) records source references, prepared original tests and pending owner gate. No vendor implementation was used.
+
+## C2x authored mip preservation - 23 October 2026
+
+The ModelViewer-original texture descriptor header/reader retain bounded higher mip payloads alongside the base image. Record order, version handling, source byte order, byte-total checks and cancellation remain in use. No upstream-derived implementation or hashes change. The application adapter validates qualified full 2D chains and carries canonical display levels in explicitly ModelViewer-private PNG metadata for shared renderer upload/sampling. [C2x validation](../../../research/jt/JT_AUTHORED_MIP_VALIDATION.md) records source URLs/hashes, original controls, private-carrier interoperability limits and the owner-accepted viewer gate (native/backend-specific execution remains unreported). No vendor implementation was used.

@@ -215,7 +215,7 @@ struct RtTextureSample
 	int width  = 0;
 	int height = 0;
 
-	// Box-filtered mip pyramid, built ONCE at texture-load time
+	// Authored mip pyramid when supplied; otherwise box-filtered ONCE at texture-load time
 	// (RtSceneBuilder::extractTextureSample()) - mips[0] duplicates the base
 	// level above (same width/height/rgba8), mips[1] is half-resolution,
 	// mips[2] quarter, etc., down to a 1x1 level. Without this, a path
@@ -273,6 +273,7 @@ struct RtTextureSample
 	// key, mirroring TextureDedupKey's full field set, so a same-image-
 	// different-transform texture still gets its own cache entry.
 	int64_t imageCacheKey = 0;
+    uint64_t authoredMipHash = 0;
 };
 
 // v1 shading vocabulary: diffuse + metallic-roughness + emissive + basic

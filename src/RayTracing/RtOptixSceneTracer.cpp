@@ -366,6 +366,7 @@ struct RtOptixSceneTracer::Impl
 	struct TextureUploadKey
 	{
 		int64_t imageCacheKey = 0;
+        uint64_t authoredMipHash = 0;
 		float uvScaleX = 1.0f, uvScaleY = 1.0f;
 		float uvOffsetX = 0.0f, uvOffsetY = 0.0f;
 		float uvRotation = 0.0f;
@@ -379,7 +380,7 @@ struct RtOptixSceneTracer::Impl
 
 		bool operator==(const TextureUploadKey& o) const
 		{
-			return imageCacheKey == o.imageCacheKey &&
+			return imageCacheKey == o.imageCacheKey && authoredMipHash == o.authoredMipHash &&
 				uvScaleX == o.uvScaleX && uvScaleY == o.uvScaleY &&
 				uvOffsetX == o.uvOffsetX && uvOffsetY == o.uvOffsetY &&
 				uvRotation == o.uvRotation && texCoordIndex == o.texCoordIndex &&
@@ -394,6 +395,7 @@ struct RtOptixSceneTracer::Impl
 		size_t operator()(const TextureUploadKey& k) const
 		{
 			size_t h = std::hash<int64_t>{}(k.imageCacheKey);
+            h ^= std::hash<uint64_t>{}(k.authoredMipHash);
 			auto mix = [&h](size_t v) { h ^= v + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2); };
 			mix(std::hash<float>{}(k.uvScaleX));
 			mix(std::hash<float>{}(k.uvScaleY));
@@ -2192,6 +2194,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 
 		Impl::TextureUploadKey key;
 		key.imageCacheKey  = tex->imageCacheKey;
+        key.authoredMipHash=tex->authoredMipHash;
 		key.uvScaleX       = tex->uvScale.x;
 		key.uvScaleY       = tex->uvScale.y;
 		key.uvOffsetX      = tex->uvOffset.x;

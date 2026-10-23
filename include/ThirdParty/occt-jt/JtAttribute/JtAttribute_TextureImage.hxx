@@ -13,6 +13,7 @@ public:
     Jt_I16 dimensionality=0,alignment=0,width=0,height=0,depth=0,border=0;
     std::vector<Jt_I32> mipBytes;
     std::vector<Jt_U8> baseMip;
+    std::vector<std::vector<Jt_U8>> extraMips; // authored levels 1..N, bounded by totalBytes
     TCollection_ExtendedString externalName;
     Jt_I32 totalBytes=0;
   };

@@ -43,4 +43,6 @@ Sibling validation documents retain the source, measurement and owner-acceptance
 
 29. Accepted shared renderer checkpoint: [C2w texture filter transport and sampling](JT_TEXTURE_FILTER_PARITY_VALIDATION.md); owner viewer acceptance on 23 October 2026; native/backend-specific coverage not separately reported.
 
+30. Owner-accepted combined image checkpoint: [C2x authored mip chains](JT_AUTHORED_MIP_VALIDATION.md); source retention, shared rendering and private-carrier limits; owner raster mip/filter observations passed, native/backend coverage unreported.
+
 Owner-accepted shared raster regression correction: [BLEND depth compatibility](JT_BLEND_COVERAGE_REGRESSION.md); local GLB fix and JT alpha/mip/filter viewer regression checks passed on 23 October. Native/backend-specific coverage remains unreported.
