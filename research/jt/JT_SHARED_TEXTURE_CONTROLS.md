@@ -69,3 +69,6 @@ C2w adds `texture-filter_` sampler-only roots and `texture-filter-ui-fixtures/au
 C2x adds `texture-mip_` roots and `texture-mip-ui-fixtures/authoring.json`. Thirty original roots and five references share one white cube appearance, original common buffers and the inner companion. Five vivid level/alpha cases distinguish authored levels from generated mips, with sixteen positive documents in one session. References use the explicitly ModelViewer-private PNG carrier; they are not standard glTF mip conformance evidence. See [C2x validation](JT_AUTHORED_MIP_VALIDATION.md).
 
 C2y reuses common original cubes and content-addressed resources. `make_texture_mip_batch_controls.py` writes 60 positive roots and ten shared references, with a 25-document launch list under out/. Private carrier references express expected mip pixels and mapping, not independent external-renderer conformance. See [C2y validation](JT_MIP_COMPOSITION_BORDER_VALIDATION.md).
+
+
+C2z uses `tools/jt/make_texture_affine_filter_controls.py` and the same content-addressed store for 78 original roots, 13 reference mappings (11 unique documents) and the 29-document positive checklist. See [C2z validation](JT_AFFINE_FILTER_VALIDATION.md). No generated resources belong in Git.

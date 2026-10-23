@@ -43,3 +43,8 @@ The owner requested implementing related packages together and testing them in o
 ## Accepted grouped checkpoint C2y - 23 October 2026
 
 [C2y composed/bordered mips](JT_MIP_COMPOSITION_BORDER_VALIDATION.md) advances packages 1/2/3/7 through co-sampled authored levels and a bounded both-axis border profile. It does not complete arbitrary multi-texturing or all border shapes: independent mappings/filtering, nonlinear filtered composition, mixed sampled-border axes, generated border chains, external rings and other listed roles/evidence remain separate. The owner built, reported all controls looked good, and accepted the gate after the agent reviewed all 25 documents on 23 October 2026. Native/backend-specific coverage remains unreported.
+
+
+## Accepted grouped checkpoint C2z - 23 October 2026
+
+[C2z affine filtering and colour-layout rings](JT_AFFINE_FILTER_VALIDATION.md) advances packages 1/2/7. Affine single-stage composition can preserve linear/mip filtering; nonlinear and independent stacks stay bounded. All ten existing colour layouts reuse the accepted authored-ring recurrence. Owner build succeeded and delegated raster visual acceptance was recorded on 24 October 2026; application GLB embedded-image export is the next reproduced package-7 defect; remaining packages and authentic-reference gaps stay open.

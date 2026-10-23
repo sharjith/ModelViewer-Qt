@@ -8,6 +8,7 @@
 #include <QColor>
 #include <assimp/Exporter.hpp>
 #include <assimp/Importer.hpp>
+#include <assimp/GltfMaterial.h>
 #include <iostream>
 #include <cmath>
 
@@ -79,9 +80,37 @@ void textureMipBatchTests(){
         auto ringStack=read({ringA,ringB});auto ringImage=image(*ringStack.scene);auto ringTail=TextureMipChain::decode(ringImage);
         check(ringTail.size()==2&&ringImage.pixelColor(5,5)==QColor(Qt::magenta)&&ringTail[0].pixelColor(2,2)==QColor(Qt::cyan)&&ringTail[1].pixelColor(1,1)==QColor(Qt::white),"Composed border mip interiors changed");
         auto ignored=texture(true);auto ignoredScene=read({ignored});check(image(*ignoredScene.scene).size()==QSize(4,4)&&TextureMipChain::decode(image(*ignoredScene.scene)).back().size()==QSize(1,1),"Unsampled rings did not crop per source level");
+        // Affine single-stage operations preserve filter selection. Literal
+        // primary colours avoid deriving the oracle from the implementation.
+        for(int mode:{1,4})for(int filter:{1,2,3,4,5,6}){
+            auto o=texture();o.blendType=mode;o.minFilter=filter;o.magFilter=2;
+            if(mode==1){
+                o.pixelFormat=1;
+                auto rgb=[](const QByteArray& rgba){QByteArray bytes;for(qsizetype i=0;i<rgba.size();i+=4)bytes.append(rgba.constData()+i,3);return bytes;};
+                o.pixels=rgb(o.pixels);for(auto& mip:o.extraMips)mip=rgb(mip);
+                o.total=o.mipBytes=int(o.pixels.size());
+            }
+            auto result=read({o});auto base=image(*result.scene);auto levels=TextureMipChain::decode(base);
+            check(levels.size()==2&&base.pixelColor(0,0)==QColor(mode==1?Qt::red:Qt::blue)
+                &&levels[1].pixelColor(0,0)==QColor(mode==1?Qt::yellow:Qt::blue),"Affine filtered combiner changed literal levels");
+            int actual=0;const int expected[]={0,9728,9729,9984,9985,9986,9987};
+            check(result.scene->mMaterials[result.scene->mMeshes[0]->mMaterialIndex]->Get(AI_MATKEY_GLTF_MAPPINGFILTER_MIN(aiTextureType_DIFFUSE,0),actual)==AI_SUCCESS&&actual==expected[filter],"Affine combiner lost minification filter");
+        }
+        // All previously accepted colour layouts use the same validated ring
+        // recurrence; no format-specific RGBA-only mip envelope is needed.
+        for(unsigned format:{1u,2u,3u,4u,7u,8u,9u,10u,11u,12u}){
+            auto o=texture(true);o.pixelFormat=format;o.wrapS=o.wrapT=5;o.minFilter=6;o.magFilter=2;
+            auto white=[&](int interior){const int width=interior+2;const int components=format==2||format==12?4:format==1||format==11?3:format==4?2:1;return QByteArray(width*width*components,char(255));};
+            o.pixels=white(4);o.extraMips={white(2),white(1)};o.total=o.mipBytes=int(o.pixels.size());
+            auto result=read({o});auto base=image(*result.scene);auto levels=TextureMipChain::decode(base);
+            const QColor expected=format==7?QColor(Qt::red):format==8?QColor(Qt::green):format==9?QColor(Qt::blue):QColor(Qt::white);
+            check(levels.size()==2&&base.pixelColor(0,0)==expected&&levels.back().pixelColor(1,1)==expected,"Colour-layout authored ring changed components");
+        }
         auto reject=[&](std::vector<TextureFixture::Options> attrs){auto result=read(attrs);check(result.scene->mNumMeshes==1&&!result.warnings.isEmpty()&&result.scene->mMaterials[result.scene->mMeshes[0]->mMaterialIndex]->GetTextureCount(aiTextureType_DIFFUSE)==0,"Invalid mip stack/border did not diagnose geometry fallback");};
         auto bad=b;bad.extraMips.pop_back();reject({a,bad});
         bad=b;bad.minFilter=6;bad.magFilter=2;reject({a,bad});
+        bad=texture();bad.blendType=1;bad.minFilter=6;bad.magFilter=2;reject({bad});
+        bad=texture();bad.blendType=5;bad.minFilter=6;bad.magFilter=2;reject({bad});
         bad=texture(true);bad.wrapS=5;bad.wrapT=2;reject({bad});
         bad=texture(true);bad.wrapS=bad.wrapT=5;bad.extraMips[0].chop(1);reject({bad});
     }

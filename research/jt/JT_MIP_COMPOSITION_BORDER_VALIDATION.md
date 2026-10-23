@@ -1,6 +1,6 @@
 # C2y: composed authored mips and border-aware filtering
 
-23 October 2026, `feature/JT-importer`, after accepted C2x `7bb4abc`. **Prepared for owner build/native/viewer checks. No agent C++ build or native execution.**
+23 October 2026, `feature/JT-importer`, after accepted C2x `7bb4abc`. **Owner build and visual gate accepted on 23 October 2026. No agent C++ build or native-suite execution; scoped GUI review is recorded below.**
 
 ## Implemented batch
 

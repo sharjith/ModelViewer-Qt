@@ -128,3 +128,8 @@ The first extra-pass correction failed and was removed. The accepted follow-up i
 ## C2y composed/bordered mips - 23 October 2026
 
 [C2y validation](JT_MIP_COMPOSITION_BORDER_VALIDATION.md) records retained JT10.0 Rev-B/JT9.5 Rev-A and OpenGL2.1 references/hashes, newly consulted public Khronos maximum-level reference/hash, original level-composition and coordinate construction, controls and evidence limits. Existing original application adapter/carrier/renderer and writer code was inspected. No vendor software, SDK/schema, disassembly, third-party implementation, new sample asset or licence interpretation. No vendored decoder/upstream source changes. Authoring produced 60 roots/ten references under ignored out/; existing 110 C2v and 30 C2x root hashes remained unchanged after regeneration. No agent C++ build/native/importer execution. Owner results remain pending; method statements are not legal clearance.
+
+
+## C2z affine filtering and colour-layout ring mips - 23 October 2026
+
+[C2z validation](JT_AFFINE_FILTER_VALIDATION.md) records retained JT10/JT9.5/OpenGL2.1 sources and the affine-filtering argument, original colour-layout/ring controls and qualification limits. No new external source, asset, vendor software, SDK/schema, disassembly, third-party implementation or licence interpretation. Original control authoring and read-only resource/hash inspection ran under ignored out/. Native/importer execution for C2z remains unreported. C2y is now owner-accepted after a scoped agent GUI sanity review; its earlier pending statement above describes pre-review status. Method statements are not legal clearance.

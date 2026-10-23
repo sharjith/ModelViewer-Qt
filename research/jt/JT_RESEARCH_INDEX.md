@@ -48,3 +48,6 @@ Sibling validation documents retain the source, measurement and owner-acceptance
 Owner-accepted shared raster regression correction: [BLEND depth compatibility](JT_BLEND_COVERAGE_REGRESSION.md); local GLB fix and JT alpha/mip/filter viewer regression checks passed on 23 October. Native/backend-specific coverage remains unreported.
 
 31. Owner-accepted combined checkpoint: [C2y mip composition and border filtering](JT_MIP_COMPOSITION_BORDER_VALIDATION.md); owner build and visual acceptance on 23 October 2026; native/backend coverage unreported.
+
+
+32. Accepted combined checkpoint: [C2z filtered affine combiners and colour-layout ring mips](JT_AFFINE_FILTER_VALIDATION.md); owner build and delegated raster visual acceptance on 24 October 2026; native/backend coverage unreported.

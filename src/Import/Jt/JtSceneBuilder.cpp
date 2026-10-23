@@ -471,8 +471,6 @@ struct Builder {
             if(source.Inline()&&(innerWidth<1||innerHeight<1))throw std::runtime_error("border image has no interior");
             if(borderMips&&(!sampleS||!sampleT||innerWidth!=innerHeight||(innerWidth&(innerWidth-1))||innerWidth<2))
                 throw std::runtime_error("sampled border mips require both border axes and a square power-of-two interior of at least 2x2");
-            if(borderMips&&ring&&data.format!=2&&data.format!=12)
-                throw std::runtime_error("sampled authored ring mips require RGBA/BGRA");
             for(size_t i=0;i<level;++i){
                 if(innerWidth==1&&innerHeight==1)throw std::runtime_error("authored mip chain extends past its source interior");
                 innerWidth=std::max(1,innerWidth/2);innerHeight=std::max(1,innerHeight/2);
@@ -697,7 +695,14 @@ struct Builder {
                 const auto mode=stage->environment[6];
                 if(stage->image.IsNull())throw std::runtime_error("texture stack has a missing image");
                 const bool authored=stage->image->Inline()&&stage->image->Images().size()==1&&!stage->image->Images()[0].extraMips.empty();
-                if((stages.size()>1||mode==1||mode==4||mode==5)&&
+                const bool rgbDecal=mode==1&&stage->image->Inline()&&stage->image->Images().size()==1
+                    &&(stage->image->Images()[0].format==1||stage->image->Images()[0].format==11);
+                // With constant incoming material, BLEND and RGB DECAL are
+                // affine in the sampled texel. They commute with spatial/mip
+                // filtering. RGBA DECAL, saturated ADD and multi-unit products
+                // do not generally commute and retain the nearest-only gate.
+                const bool affineSingle=stages.size()==1&&(mode==4||rgbDecal);
+                if(!affineSingle&&(stages.size()>1||mode==1||mode==4||mode==5)&&
                     (stage->environment[1]!=1||(stage->environment[2]!=1&&!(authored&&stage->environment[2]==3))))
                     throw std::runtime_error("composition requires nearest sampling and matching authored levels for mip selection");
                 if(stage->environment[1]!=primary.environment[1]||stage->environment[2]!=primary.environment[2])
