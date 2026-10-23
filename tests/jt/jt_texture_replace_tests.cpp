@@ -34,7 +34,7 @@ void textureReplaceTests(){
             const auto pixels=QImage::fromData(reinterpret_cast<const uchar*>(image->pcData),int(image->mWidth));
             check(pixels.pixelColor(0,0)==QColor(51,102,153,(blend&&alpha)?64:255),"Replace changed source colour/order/alpha policy");
         }
-        for(int mode:{0,1,4,5,6}){auto o=base;o.blendType=mode;write(o,"blend.jt");const auto result=Jt::Importer::read(dir.filePath("replace.jt"));
+        for(int mode:{1,4,5,6}){auto o=base;o.blendType=mode;write(o,"blend.jt");const auto result=Jt::Importer::read(dir.filePath("replace.jt"));
             check(result.scene->mNumMeshes==1&&!result.warnings.isEmpty()&&result.scene->mMaterials[result.scene->mMeshes[0]->mMaterialIndex]->GetTextureCount(aiTextureType_DIFFUSE)==0,"Unqualified combiner did not retain geometry with diagnostic");}
         auto o=base;write(o,"coloured.jt");const auto coloured=Jt::Importer::read(dir.filePath("replace.jt"));
         check(coloured.scene->mMeshes[0]->HasVertexColors(0)&&!coloured.warnings.isEmpty()&&coloured.scene->mMaterials[coloured.scene->mMeshes[0]->mMaterialIndex]->GetTextureCount(aiTextureType_DIFFUSE)==0,"Unqualified vertex-colour Replace lost colours or kept active image");

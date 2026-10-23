@@ -37,4 +37,6 @@ Suggested reading order:
 
 27. Current checkpoint scope: [remaining C2 work packages after C2u](JT_C2_REMAINING_SCOPE.md).
 
+28. Accepted combined checkpoint: [C2v combiners, units and inheritance](JT_APPEARANCE_BATCH_VALIDATION.md); owner visual acceptance on 23 October 2026; native execution not separately reported.
+
 Sibling validation documents retain the source, measurement and owner-acceptance records for earlier gates. Research documents belong here; generated evidence and fixtures remain under ignored `out/jt-research/`. The [repository handout](../../RESEARCH_FOLDER_HANDOUT.md) governs new work. See the [repository README](../../README.md) for user-facing import scope.
