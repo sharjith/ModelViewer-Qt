@@ -1025,7 +1025,8 @@ struct Builder {
         }
         auto resolved=style;
         unsigned activeTextureUnits=0;for(const auto& unit:resolved.textureUnits)if(unit.second.type==9&&unit.second.environment[6]!=0)++activeTextureUnits;
-        if(colored&&(activeTextureUnits>1||resolved.texture.environment[6]!=2)){
+        const bool vertexReplace=colored&&activeTextureUnits<=1&&resolved.texture.replaceRGB();
+        if(colored&&(activeTextureUnits>1||(resolved.texture.environment[6]!=2&&!vertexReplace))){
             textureWarning("JT texture not applied: this combiner/texture stack with vertex colours is not qualified");resolved.texture.type=0;
         }
         if(resolved.texture.type!=0 && resolved.texture.coordinate>=0 && resolved.texture.coordinate<4
@@ -1075,6 +1076,23 @@ struct Builder {
                     resolved.texture.type=0;mat=material(resolved,colored,vertexAlpha);
                 }
             }
+        }
+        if(vertexReplace&&resolved.texture.type!=0
+           &&materials[mat]->GetTextureCount(aiTextureType_DIFFUSE)>0){
+            // REPLACE discards incoming vertex RGB. Only RGBA/BGRA also
+            // discard incoming alpha. Change this appearance-specific mesh
+            // after mapping succeeds so diagnosed fallbacks retain colours.
+            const auto format=resolved.texture.image->Images()[0].format;
+            const bool replaceAlpha=format==2||format==12;
+            vertexAlpha=false;
+            for(unsigned i=0;i<mesh->mNumVertices;++i){
+                if((i&1023)==0)options.check();
+                auto& color=mesh->mColors[0][i];
+                color.r=color.g=color.b=1;
+                if(replaceAlpha)color.a=1;
+                vertexAlpha=vertexAlpha||color.a<1;
+            }
+            mat=material(resolved,colored,vertexAlpha);
         }
         if(style.flatNormals()) {
             const size_t count=size_t(mesh->mNumFaces)*3;

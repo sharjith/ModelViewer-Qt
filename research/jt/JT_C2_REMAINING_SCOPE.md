@@ -53,3 +53,11 @@ The owner requested implementing related packages together and testing them in o
 ## Accepted checkpoint C2aa - 24 October 2026
 
 [C2aa application export](JT_RESIDENT_TEXTURE_EXPORT_VALIDATION.md) advances package 7 by fixing a reproduced embedded-image packaging gap in File > Export. Prepared checks cover image orientation/alpha, private authored mip carriers, ordinary disk images and bounded original 9.x/10.x controls through GLB/glTF. The owner rebuilt and accepted all seven JT round trips and the ordinary disk-reference regression on 24 October 2026; all sixteen exported image/carrier/sampler/sidedness comparisons pass. Native/backend-specific execution remains unreported; authentic exporter, arbitrary variants, other roles and backend gaps remain open.
+
+
+## Accepted grouped checkpoint C2ab - 24 October 2026
+
+[C2ab vertex Replace](JT_VERTEX_REPLACE_VALIDATION.md) advances packages 1/7 with single-stage RGB/BGR/RGBA/BGRA Replace, incoming vertex alpha and shared appearance/fallback checks. Native checks and a grouped 19-document visual gate are prepared. No owner acceptance or native/backend execution yet; Combine, other vertex operations and other remaining packages stay open.
+
+
+C2ab owner acceptance - 24 October 2026: the owner rebuilt and confirmed the remaining comparison fixed after the shared blend, light-range and duplicate raster-light corrections. The bounded viewer gate is accepted; native/backend execution remains unreported. Other C2 packages and evidence gaps remain open. See the C2ab validation record for limits and unreported smoke checks.

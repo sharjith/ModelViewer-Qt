@@ -75,3 +75,6 @@ C2z uses `tools/jt/make_texture_affine_filter_controls.py` and the same content-
 
 
 C2aa reuses eight existing C2z/common source documents and prepares sixteen application GUI export targets with `tools/jt/make_texture_export_checklist.py`. The manifest and exported files stay under ignored `out/jt-research/texture-export-ui-fixtures/`; no geometry/image copies are created during checklist generation. See [application export validation](JT_RESIDENT_TEXTURE_EXPORT_VALIDATION.md).
+
+
+C2ab uses tools/jt/make_texture_vertex_replace_controls.py for 48 original roots and 19 visual documents, including descriptive reference_vertex_<case>.gltf aliases that share existing resources. Original constant-RGBA geometry is content-addressed in the common store; unchanged inner cubes/buffers are reused. See [vertex Replace validation](JT_VERTEX_REPLACE_VALIDATION.md).

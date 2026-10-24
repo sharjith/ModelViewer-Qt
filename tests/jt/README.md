@@ -193,3 +193,6 @@ C2z extends `textureMipBatchTests()` with filtered affine single-stage Blend/RGB
 
 
 C2aa reuses the shared C2z sources for application File > Export round trips; encoder regression coverage is prepared as `embedded_texture_image_tests` in the isolated render tests. Owner build and GUI integration checks remain pending; see [resident image export validation](../../research/jt/JT_RESIDENT_TEXTURE_EXPORT_VALIDATION.md). No native tests were executed by the agent.
+
+
+C2ab extends jt_texture_replace_tests.cpp with vertex RGB/alpha replacement, blend-disable, missing-UV and unsupported-combiner fallback, and shared Replace/Modulate geometry checks. Prepared, not run by the agent. Original 48-root/19-document visual controls and exact generation command are in [C2ab validation](../../research/jt/JT_VERTEX_REPLACE_VALIDATION.md).

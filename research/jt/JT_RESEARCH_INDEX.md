@@ -54,3 +54,6 @@ Owner-accepted shared raster regression correction: [BLEND depth compatibility](
 
 
 33. Owner-accepted application-path checkpoint: [C2aa resident texture export](JT_RESIDENT_TEXTURE_EXPORT_VALIDATION.md); owner accepted GUI round trips on 24 October 2026; sixteen read-only export comparisons pass; native/backend execution unreported.
+
+
+34. Owner-accepted vertex-colour checkpoint: [C2ab Replace and alpha](JT_VERTEX_REPLACE_VALIDATION.md); owner accepted the bounded viewer gate on 24 October 2026; native/backend coverage unreported.

@@ -82,7 +82,10 @@ def quantizer(dst, values):
     return codes
 
 
-def geometry(positions, uvs, indices, store_uv=True,blend=False,diffuse=(1,1,1,1)):
+def geometry(positions, uvs, indices, store_uv=True,blend=False,diffuse=(1,1,1,1),vertex_color=None):
+    if vertex_color is not None and (len(vertex_color)!=4 or any(not math.isfinite(v) or not 0<=v<=1 for v in vertex_color)):
+        raise ValueError('Fixture vertex colour must contain four finite unit components')
+    colour_binding=int(vertex_color is not None)
     big = False
     graph_id = '12345678-1234-5678-9abc-def012345678'
     shape_id = '23456789-1234-5678-9abc-def012345678'
@@ -90,7 +93,7 @@ def geometry(positions, uvs, indices, store_uv=True,blend=False,diffuse=(1,1,1,1
     root.put('I', 0); root.ids([20]); root.ids([2]); root.put('I', 0); root.text('')
     root.put('7f6I', *([0]*13)); element(graph, kind('10dd103e'), 1, root)
     shape.put('I', 0); shape.ids([]); shape.put('12ff6IIf', *([0]*12), 1, *([0]*8))
-    shape.put('III4B', 0, int(store_uv), 0, 0, 0, 0, 0); element(graph, kind('10dd1077'), 2, shape)
+    shape.put('III4B', 0, int(store_uv), colour_binding, 0, 0, 0, 0); element(graph, kind('10dd1077'), 2, shape)
     mat.put('BIH', 8, 0, 0x3990 if blend else 0x3980)
     for field in range(4):
         mat.put('4f', *(diffuse if field == 1 else [0, 0, 0, 1]))
@@ -100,7 +103,7 @@ def geometry(positions, uvs, indices, store_uv=True,blend=False,diffuse=(1,1,1,1
     late = Bytes(); late.put('I', 0); late.guid(shape_id); late.put('I', 7)
     element(graph, 'e0b05be5-fbbd-11d1-a3a7-00aa00d10954', 104, late); end(graph)
     graph.put('HI', 1, 2); graph.put('4I', 1, 100, 101, 0); graph.put('6I', 2, 100, 102, 103, 104, 0)
-    lod = Bytes(); lod.put('H4B4BHH3B4B', 1, 0, int(store_uv), 0, 0, 16, 0, 0, 0, 1, 1, 0, int(store_uv), 0, 16, 0, 0, 0)
+    lod = Bytes(); lod.put('H4B4BHH3B4B', 1, 0, int(store_uv), colour_binding, 0, 16, 0, 0, 0, 1, 1, 0, int(store_uv), colour_binding, 16, 0, 0, 0)
     packet(lod, list(range(0, len(indices)+1, 3)), 'stride')
     codes = [quantizer(lod, [p[axis] for p in positions]) for axis in range(3)]
     lod.put('I', len(positions))
@@ -111,6 +114,12 @@ def geometry(positions, uvs, indices, store_uv=True,blend=False,diffuse=(1,1,1,1
         lod.put('B', 16)
         for c in uv_codes:
             packet(lod, c, 'lag')
+    if vertex_color is not None:
+        lod.put('B',0)  # RGB colour space, four constant component quantizers.
+        for value in vertex_color:
+            lod.put('ffB',value,value,0)
+        lod.put('BBB',8,4,0)
+        packet(lod,[0]*len(positions))
     packet(lod, indices, 'strip')
     shape_data = Bytes(); shape_data.put('I', 17+len(lod.data)); shape_data.guid(kind('10dd10ab')); shape_data.put('B', 0); shape_data.data += lod.data
     segment = Bytes(); segment.guid(shape_id); segment.put('II', 7, 24+len(shape_data.data)); segment.data += shape_data.data

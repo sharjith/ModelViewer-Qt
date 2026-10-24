@@ -144,3 +144,8 @@ C2aa first GUI review on 24 October reproduced remaining GLB image-reference and
 
 
 C2aa acceptance on 24 October 2026: owner rebuilt and accepted all seven JT round trips and the disk-reference pair. Sixteen read-only image/carrier/sampler/sidedness checks pass. Additional Assimp material.h key provenance and the failed intermediate observations are retained in the C2aa validation record. No native suite or backend-specific qualification was inferred.
+
+
+### 24 October 2026 - C2ab vertex Replace
+
+[C2ab validation](JT_VERTEX_REPLACE_VALIDATION.md) records the locally retained OpenGL 2.1 table/hash and existing original serializers/adapter consulted. Original constant-colour control authoring ran under ignored out/. No new download, vendor package, third-party implementation, model or licence interpretation. Owner build, native execution and visual acceptance remain pending.

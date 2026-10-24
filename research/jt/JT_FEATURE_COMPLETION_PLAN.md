@@ -203,3 +203,11 @@ C2aa second owner build fixed GLB embedding (reference RGBA pixels match), but e
 
 
 C2aa owner acceptance - 24 October 2026: after sampler, embedded-reference and two-sided export corrections, the owner reported the Blend linear and all six remaining JT source/reference/GLB/glTF comparisons passed with matching up axes. The disk-reference pair also passed. Read-only exported image/carrier/sampler/sidedness inspection reports 16/16. Native/backend-specific coverage remains unreported. See the C2aa validation record; earlier failed/pending statements above are historical. Other C2 scope and authentic-export gaps remain open.
+
+
+## Accepted grouped gate C2ab - Replace with vertex colours
+
+After accepted C2aa a2debec, [C2ab validation](JT_VERTEX_REPLACE_VALIDATION.md) prepares single-stage inline RGB/BGR/RGBA/BGRA Replace on vertex-coloured geometry, exact incoming/replaced alpha selection and fallback/shared-instance protection. Forty-eight original roots and a nineteen-document positive visual list share common resources and descriptive reference names. Native checks are prepared; no build or native/importer execution by the agent. Owner build and visual confirmation are required. Other C2 packages and evidence gaps remain open.
+
+
+C2ab owner acceptance - 24 October 2026: the owner rebuilt and confirmed the remaining comparison fixed after the shared blend, light-range and duplicate raster-light corrections. The bounded viewer gate is accepted; native/backend execution remains unreported. Other C2 packages and evidence gaps remain open. See the C2ab validation record for limits and unreported smoke checks.
