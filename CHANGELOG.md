@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Reapply each viewport's light intensities while drawing, preventing inconsistent
+  ADS and PBR brightness after deferred settings updates.
 - Removed duplicate default-light illumination in raster PBR for non-glTF models.
   Highlights may appear dimmer and surface shadows stronger; glTF/GLB models
   already used the single default light.

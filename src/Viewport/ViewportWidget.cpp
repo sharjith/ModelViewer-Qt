@@ -8994,6 +8994,12 @@ void ViewportWidget::setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camer
 	QVector3D camDir = camera->getViewDir();
 	const QVector3D shaderLightPos = effectiveWorldLightPosition();
 
+	// Deferred settings/UI updates can run outside this viewport's draw context.
+	// Reapply the stored intensities with the drawing program bound, just as we
+	// do for its position, rather than retaining initialization-time uniforms.
+	prog->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
+	prog->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
+	prog->setUniformValue("lightSource.specular", _specularLight.toVector3D());
 	prog->setUniformValue("lightSource.position",
 		shaderLightPos);
 	prog->setUniformValue("modelViewMatrix", _viewCtrl.modelViewMatrix());
@@ -9077,6 +9083,9 @@ void ViewportWidget::setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camer
 			{"projectionMatrix", matrix(projMatrix)},
 			{"modelMatrix", matrix(_viewCtrl.modelMatrix())},
 			{"lightPosition", vector(shaderLightPos)},
+			{"storedLightAmbient", vector(_ambientLight.toVector3D())},
+			{"storedLightDiffuse", vector(_diffuseLight.toVector3D())},
+			{"storedLightSpecular", vector(_specularLight.toVector3D())},
 			{"lightAmbientUniform", uniformVector("lightSource.ambient")},
 			{"lightDiffuseUniform", uniformVector("lightSource.diffuse")},
 			{"lightSpecularUniform", uniformVector("lightSource.specular")},
