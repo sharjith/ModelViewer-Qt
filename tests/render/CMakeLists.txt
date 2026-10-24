@@ -47,6 +47,12 @@ target_link_libraries(texture_mip_chain_tests PRIVATE Qt6::Gui glm::glm)
 target_compile_features(texture_mip_chain_tests PRIVATE cxx_std_17)
 add_test(NAME texture_mip_chain_tests COMMAND texture_mip_chain_tests)
 
+add_executable(embedded_texture_image_tests embedded_texture_image_tests.cpp)
+target_include_directories(embedded_texture_image_tests PRIVATE ${REPO}/include/Materials)
+target_link_libraries(embedded_texture_image_tests PRIVATE Qt6::Gui)
+target_compile_features(embedded_texture_image_tests PRIVATE cxx_std_17)
+add_test(NAME embedded_texture_image_tests COMMAND embedded_texture_image_tests)
+
 add_executable(blend_depth_policy_tests blend_depth_policy_tests.cpp)
 target_include_directories(blend_depth_policy_tests PRIVATE ${REPO}/include/Render)
 target_link_libraries(blend_depth_policy_tests PRIVATE Qt6::Gui Qt6::OpenGL)

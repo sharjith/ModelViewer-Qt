@@ -51,3 +51,6 @@ Owner-accepted shared raster regression correction: [BLEND depth compatibility](
 
 
 32. Accepted combined checkpoint: [C2z filtered affine combiners and colour-layout ring mips](JT_AFFINE_FILTER_VALIDATION.md); owner build and delegated raster visual acceptance on 24 October 2026; native/backend coverage unreported.
+
+
+33. Owner-accepted application-path checkpoint: [C2aa resident texture export](JT_RESIDENT_TEXTURE_EXPORT_VALIDATION.md); owner accepted GUI round trips on 24 October 2026; sixteen read-only export comparisons pass; native/backend execution unreported.

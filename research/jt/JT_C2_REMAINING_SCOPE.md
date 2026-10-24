@@ -48,3 +48,8 @@ The owner requested implementing related packages together and testing them in o
 ## Accepted grouped checkpoint C2z - 23 October 2026
 
 [C2z affine filtering and colour-layout rings](JT_AFFINE_FILTER_VALIDATION.md) advances packages 1/2/7. Affine single-stage composition can preserve linear/mip filtering; nonlinear and independent stacks stay bounded. All ten existing colour layouts reuse the accepted authored-ring recurrence. Owner build succeeded and delegated raster visual acceptance was recorded on 24 October 2026; application GLB embedded-image export is the next reproduced package-7 defect; remaining packages and authentic-reference gaps stay open.
+
+
+## Accepted checkpoint C2aa - 24 October 2026
+
+[C2aa application export](JT_RESIDENT_TEXTURE_EXPORT_VALIDATION.md) advances package 7 by fixing a reproduced embedded-image packaging gap in File > Export. Prepared checks cover image orientation/alpha, private authored mip carriers, ordinary disk images and bounded original 9.x/10.x controls through GLB/glTF. The owner rebuilt and accepted all seven JT round trips and the ordinary disk-reference regression on 24 October 2026; all sixteen exported image/carrier/sampler/sidedness comparisons pass. Native/backend-specific execution remains unreported; authentic exporter, arbitrary variants, other roles and backend gaps remain open.

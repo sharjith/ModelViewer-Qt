@@ -133,3 +133,14 @@ The first extra-pass correction failed and was removed. The accepted follow-up i
 ## C2z affine filtering and colour-layout ring mips - 23 October 2026
 
 [C2z validation](JT_AFFINE_FILTER_VALIDATION.md) records retained JT10/JT9.5/OpenGL2.1 sources and the affine-filtering argument, original colour-layout/ring controls and qualification limits. No new external source, asset, vendor software, SDK/schema, disassembly, third-party implementation or licence interpretation. Original control authoring and read-only resource/hash inspection ran under ignored out/. Native/importer execution for C2z remains unreported. C2y is now owner-accepted after a scoped agent GUI sanity review; its earlier pending statement above describes pre-review status. Method statements are not legal clearance.
+
+
+### 24 October 2026 - C2aa resident-image application export
+
+Consulted existing original material loader, resident mesh texture, packaging, application GLB/glTF export and private mip-carrier code; reproduced the unresolved embedded-image URI using GUI exports of original C2z controls. Added bounded PNG/carrier packaging and read-only export inspection tooling. No external source, asset, vendor tool, SDK/schema, disassembly, third-party implementation or licence interpretation was introduced. Evidence stays under ignored out/; native execution and the next owner build/visual gate remain pending. See [C2aa validation](JT_RESIDENT_TEXTURE_EXPORT_VALIDATION.md) for method and limits.
+
+
+C2aa first GUI review on 24 October reproduced remaining GLB image-reference and glTF sampler gaps despite successful PNG packaging. The follow-up additionally consulted the installed Assimp 6.0.4 public scene/filter API headers; exact upstream URLs and installed-header hashes are recorded in [the failed integration record](JT_RESIDENT_TEXTURE_EXPORT_VALIDATION.md#first-owner-build-and-failed-gui-integration---24-october-2026). No new vendored implementation or notices change; the follow-up build/GUI gate remains pending.
+
+
+C2aa acceptance on 24 October 2026: owner rebuilt and accepted all seven JT round trips and the disk-reference pair. Sixteen read-only image/carrier/sampler/sidedness checks pass. Additional Assimp material.h key provenance and the failed intermediate observations are retained in the C2aa validation record. No native suite or backend-specific qualification was inferred.

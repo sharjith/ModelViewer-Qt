@@ -21,3 +21,8 @@ The opt-in `MV_RT_VERTEX_ALPHA_TESTS=ON` target `rt_vertex_alpha_tests` links th
 `blend_depth_policy_tests` compiles the production main-scene shaders and uses the same alpha classification/depth decision helper as RenderableMesh. It checks texture-only surface depth, vertex/scalar transparency and adverse triangle order in a textured shell. It needs an offscreen OpenGL 4.5 core context (skip 77 is not a pass). [Coverage regression](../../research/jt/JT_BLEND_COVERAGE_REGRESSION.md) gives owner build/run commands, the failed earlier attempt and the owner-accepted application gate. Native target prepared only; no agent build/native execution.
 
 C2y extends `texture_mip_chain_tests` with the explicit private 3x3 terminal profile, malformed-profile rejection, PNG/format preservation and literal terminal interior/border sampling. [C2y validation](../../research/jt/JT_MIP_COMPOSITION_BORDER_VALIDATION.md) gives owner commands and the pending visual gate. Existing depth-policy and filter checks remain regressions; no agent native execution.
+
+
+## Resident image export encoder
+
+`embedded_texture_image_tests` invokes the PNG encoder used by application texture packaging. It checks asymmetric image orientation, alpha, distinct authored mip tails, border terminal metadata and malformed/missing payload rejection, without an OpenGL context. [C2aa application export](../../research/jt/JT_RESIDENT_TEXTURE_EXPORT_VALIDATION.md) records the separate pending viewer build and GUI GLB/glTF round-trip gate. Prepared only; no agent native execution.

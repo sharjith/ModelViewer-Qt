@@ -190,3 +190,6 @@ Numeric/9.x visual controls now share content-addressed geometry, images, buffer
 
 
 C2z extends `textureMipBatchTests()` with filtered affine single-stage Blend/RGB Decal, sampler preservation, all ten accepted colour layouts in authored rings, and retained nonlinear rejection. See [validation and owner commands](../../research/jt/JT_AFFINE_FILTER_VALIDATION.md). Native execution is pending.
+
+
+C2aa reuses the shared C2z sources for application File > Export round trips; encoder regression coverage is prepared as `embedded_texture_image_tests` in the isolated render tests. Owner build and GUI integration checks remain pending; see [resident image export validation](../../research/jt/JT_RESIDENT_TEXTURE_EXPORT_VALIDATION.md). No native tests were executed by the agent.

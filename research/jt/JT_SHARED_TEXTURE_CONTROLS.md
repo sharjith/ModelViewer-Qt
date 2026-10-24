@@ -72,3 +72,6 @@ C2y reuses common original cubes and content-addressed resources. `make_texture_
 
 
 C2z uses `tools/jt/make_texture_affine_filter_controls.py` and the same content-addressed store for 78 original roots, 13 reference mappings (11 unique documents) and the 29-document positive checklist. See [C2z validation](JT_AFFINE_FILTER_VALIDATION.md). No generated resources belong in Git.
+
+
+C2aa reuses eight existing C2z/common source documents and prepares sixteen application GUI export targets with `tools/jt/make_texture_export_checklist.py`. The manifest and exported files stay under ignored `out/jt-research/texture-export-ui-fixtures/`; no geometry/image copies are created during checklist generation. See [application export validation](JT_RESIDENT_TEXTURE_EXPORT_VALIDATION.md).

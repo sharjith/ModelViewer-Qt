@@ -189,3 +189,17 @@ After accepted C2x, [C2y batch validation](JT_MIP_COMPOSITION_BORDER_VALIDATION.
 ## Accepted combined gate C2z - affine filtering and colour-layout ring mips
 
 After accepted C2y, [C2z validation](JT_AFFINE_FILTER_VALIDATION.md) prepares filtered single-stage Blend/RGB Decal and all ten accepted colour layouts in the existing bounded sampled authored-ring profile. Nonlinear composition and independent sampling remain diagnosed. Original controls provide 78 positive roots, 13 reference mappings (11 shared documents) and one 29-document owner session. Native family/filter/component/fallback checks are prepared. The owner built successfully and delegated visual acceptance; the agent accepted the bounded raster gate on 24 October 2026 after reviewing all 29 documents, representative mip zooms and PBR smoke checks, and correcting single-sided reference controls. Native/backend-specific coverage remains unreported. Application GLB embedded-image export remains a separate reproduced defect for the next gate. No renderer, depth-policy, version or decoder change.
+
+
+## Accepted combined gate C2aa - application resident-image export
+
+After accepted C2z `64d64ef`, [C2aa application export validation](JT_RESIDENT_TEXTURE_EXPORT_VALIDATION.md) addresses a reproduced package-7 seam: application GLB export wrote an unresolved embedded image identity. Resident-image packaging now preserves PNG pixels, alpha and the private authored mip carrier through the ordinary package mapping. Eight existing source documents and sixteen GUI export targets cover bounded 9.x/10.x, alpha, borders and the disk-image regression. Encoder checks are prepared; owner viewer build and delegated GUI export/round-trip inspection remain pending. No renderer, depth-policy, JT version or vendor change.
+
+
+C2aa first owner build succeeded, but first-source GUI exports exposed missing embedded-material rebinding and sampler transport. PNG packaging matched the independent reference pixels; the full export gate did not pass. Both additional seams are corrected in source and await another owner build before continuing the sixteen-export batch. See the C2aa validation record; no dependent gate is accepted.
+
+
+C2aa second owner build fixed GLB embedding (reference RGBA pixels match), but exposed post-processing deletion of the sampler table for unmatched materials. The destructive reset and missing PBR sampler write-back are corrected; another owner build and the same export/visual gate remain pending. C2aa is unaccepted and uncommitted.
+
+
+C2aa owner acceptance - 24 October 2026: after sampler, embedded-reference and two-sided export corrections, the owner reported the Blend linear and all six remaining JT source/reference/GLB/glTF comparisons passed with matching up axes. The disk-reference pair also passed. Read-only exported image/carrier/sampler/sidedness inspection reports 16/16. Native/backend-specific coverage remains unreported. See the C2aa validation record; earlier failed/pending statements above are historical. Other C2 scope and authentic-export gaps remain open.

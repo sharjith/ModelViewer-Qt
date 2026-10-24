@@ -1785,9 +1785,9 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
         if (gltfJson.contains("samplers"))
             samplers = gltfJson["samplers"].toArray();
 
-        // Clear Assimp's samplers - we'll create correct ones from source materials
-        samplers = QJsonArray();
-        gltfJson["samplers"] = samplers;
+        // Keep exporter samplers valid for materials that cannot be matched to
+        // a runtime mesh. Matched materials receive additional source samplers
+        // below; clearing this array leaves untouched texture indices dangling.
 
         // ===== MATERIAL IDENTITY-BASED MATCHING =====
         // NEW APPROACH: Use originalMaterialIndex as the authoritative identifier
@@ -2607,6 +2607,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
                 updateTextureSampler(pbr, "baseColorTexture", sourceMaterial.texture(Material::TextureType::Albedo));
                 updateTextureSampler(pbr, "metallicRoughnessTexture", sourceMaterial.texture(Material::TextureType::Metallic));
+                mat["pbrMetallicRoughness"] = pbr;
             }
             updateTextureSampler(mat, "normalTexture", sourceMaterial.texture(Material::TextureType::Normal));
             updateTextureSampler(mat, "occlusionTexture", sourceMaterial.texture(Material::TextureType::AmbientOcclusion));

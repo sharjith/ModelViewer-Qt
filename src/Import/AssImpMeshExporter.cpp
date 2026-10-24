@@ -3,6 +3,7 @@
 #include "SceneMesh.h"
 #include "Material.h"
 #include "GltfPostProcessor.h"
+#include <assimp/GltfMaterial.h>
 
 #include <numeric>
 #include <QDebug>
@@ -1854,12 +1855,8 @@ aiMaterial* AssImpMeshExporter::createMaterial(
 
     // Double Sided
     {
-        // Try to get the value - the exact method name may vary
-        bool twoSided = material.twoSided();
-        // Check if there's a method to get this - for now default to false
-        // This needs the actual Material header to determine correct getter
-        int twoSidedInt = twoSided ? 1 : 0;
-        aiMat->AddProperty(&twoSidedInt, 1, "$mat.gltf.doubleSided", 0, 0);
+        const int twoSidedInt = material.twoSided() ? 1 : 0;
+        aiMat->AddProperty(&twoSidedInt, 1, AI_MATKEY_TWOSIDED);
     }
 
     // ===== PHASE 2: COMMON EXTENSIONS =====
@@ -2074,6 +2071,11 @@ void AssImpMeshExporter::assignTexturesToMaterial(
         int mappingModeV = aiTextureMapMode_Wrap;
         aiMat->AddProperty(&mappingModeU, 1, AI_MATKEY_MAPPINGMODE_U(aiType, slot));
         aiMat->AddProperty(&mappingModeV, 1, AI_MATKEY_MAPPINGMODE_V(aiType, slot));
+
+        const int magFilter = static_cast<int>(tex.magFilter);
+        const int minFilter = static_cast<int>(tex.minFilter);
+        aiMat->AddProperty(&magFilter, 1, AI_MATKEY_GLTF_MAPPINGFILTER_MAG(aiType, slot));
+        aiMat->AddProperty(&minFilter, 1, AI_MATKEY_GLTF_MAPPINGFILTER_MIN(aiType, slot));
 
         aiUVTransform uvTransform;
         uvTransform.mTranslation = aiVector2D(tex.offset.x, tex.offset.y);
@@ -2761,29 +2763,30 @@ QStringList AssImpMeshExporter::embedTexturesInScene(aiScene* scene, const Textu
     logMessage("Step: Embedding textures into scene...");
 
     std::vector<aiTexture*> textures;
-    QSet<QString> processedResolvedPaths;
+    QMap<QString, int> processedResolvedPaths;
     QStringList embeddedNames;
 
-    auto addTextureIfNeeded = [&](const QString& candidatePath) -> bool {
+    auto addTextureIfNeeded = [&](const QString& candidatePath) -> int {
         QFileInfo fi(candidatePath);
         if (!fi.exists() || !fi.isFile())
-            return false;
+            return -1;
 
         QString dedupeKey = fi.canonicalFilePath();
         if (dedupeKey.isEmpty())
             dedupeKey = fi.absoluteFilePath();
 
         if (processedResolvedPaths.contains(dedupeKey))
-            return false;
+            return processedResolvedPaths.value(dedupeKey);
 
         aiTexture* texture = createEmbeddedTexture(fi.absoluteFilePath());
         if (!texture)
-            return false;
+            return -1;
 
+        const int index = static_cast<int>(textures.size());
         textures.push_back(texture);
         embeddedNames.append(fi.fileName());
-        processedResolvedPaths.insert(dedupeKey);
-        return true;
+        processedResolvedPaths.insert(dedupeKey, index);
+        return index;
         };
 
     // Define texture types + slot indices to check.
@@ -2858,7 +2861,15 @@ QStringList AssImpMeshExporter::embedTexturesInScene(aiScene* scene, const Textu
                     resolvedPath = candidate;
             }
 
-            addTextureIfNeeded(resolvedPath);
+            const int embeddedIndex = addTextureIfNeeded(resolvedPath);
+            if (embeddedIndex >= 0)
+            {
+                // Packaged images have different filenames from resident
+                // identities. Bind the material to the actual scene texture;
+                // attaching mTextures alone cannot resolve embedded:// paths.
+                const aiString reference("*" + std::to_string(embeddedIndex));
+                mat->AddProperty(&reference, AI_MATKEY_TEXTURE(texType, slotIdx));
+            }
         }
     }
 
