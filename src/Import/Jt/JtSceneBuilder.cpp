@@ -3,6 +3,7 @@
 #include "JtSceneBuilder.h"
 #include "JtTextureBorderImage.h"
 #include "JtTextureClampMesh.h"
+#include "JtTextureMapping.h"
 #include <JtData_Model.hxx>
 #include <JtData_Limits.hxx>
 #include <JtNode_Partition.hxx>
@@ -40,6 +41,7 @@
 #include <QCryptographicHash>
 #include <assimp/material.h>
 #include <assimp/GltfMaterial.h>
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -196,23 +198,19 @@ struct TextureState {
         const auto format=image->Images()[0].format;
         return format==1||format==2||format==11||format==12;
     }
-    bool planar2D() const {
-        if(generation[0]<0||generation[0]>1||generation[1]<0||generation[1]>1
-            ||generation[2]!=0||generation[3]!=0)return false;
-        for(unsigned component=0;component<2;++component)if(generation[component]==1){
+    bool modelLinearComponents() const {
+        for(auto mode:generation)if(mode<0||mode>1)return false;
+        for(unsigned component=0;component<4;++component)if(generation[component]==1){
             const auto* p=planes.data()+4*component;
             const double norm=double(p[0])*p[0]+double(p[1])*p[1]+double(p[2])*p[2];
-            if(std::abs(norm-1.0)>1e-5)return false;
+            if(!std::isfinite(norm)||!std::isfinite(p[3])||std::abs(norm-1.0)>1e-5)return false;
         }
         return true;
     }
-    bool affine2D() const {
-        // Serialized JT matrices use the same row-vector placement as geometric
-        // attributes: translation occupies the last row. Only stored (S,T,0,1)
-        // with an unchanged R/Q plane is qualified here; no projective divide.
-        return transform[2]==0&&transform[3]==0&&transform[6]==0&&transform[7]==0
-            &&transform[8]==0&&transform[9]==0&&transform[10]==1&&transform[11]==0
-            &&transform[14]==0&&transform[15]==1;
+    bool finiteTransform() const {
+        // Whether the homogeneous result can be represented by ordinary UVs is
+        // checked against the actual mesh before any coordinates are committed.
+        return std::all_of(transform.begin(),transform.end(),[](float v){return std::isfinite(v);});
     }
     void apply(const Handle(JtAttribute_TextureImage)& source) {
         const auto raw=source->FieldInhibitFlags();
@@ -695,11 +693,11 @@ struct Builder {
             textureWarning("JT texture not applied: legacy CLAMP requires equal non-mip minification/magnification filters");return {};
         }
         const bool sampledBorder=(env[0]==1||env[0]==2)&&(env[3]==1||env[3]==5||env[4]==1||env[4]==5)&&env[3]>=1&&env[3]<=5&&env[4]>=1&&env[4]<=5&&env[1]>=1&&env[1]<=2&&env[2]>=1&&env[2]<=6;
-        if(state.type!=9||(env[0]!=0&&!ignoresBorder&&!sampledBorder)||(env[6]<1||env[6]>5)||!state.affine2D()||state.coordinate<0||state.coordinate>=4
-            ||!state.planar2D()
+        if(state.type!=9||(env[0]!=0&&!ignoresBorder&&!sampledBorder)||(env[6]<1||env[6]>5)||!state.finiteTransform()||state.coordinate<0||state.coordinate>=4
+            ||!state.modelLinearComponents()
             ||(env[3]==5&&!sampledBorder)||(env[4]==5&&!sampledBorder)
             ||env[3]<1||env[3]>5||env[4]<1||env[4]>5) {
-            textureWarning("JT texture not applied: mapping requires pre-lit 2D, a supported combiner, UV0-3 with stored or model-linear S/T, affine 2D mapping and qualified colour borders");return {};
+            textureWarning("JT texture not applied: mapping requires pre-lit 2D, a supported combiner, UV0-3 with stored or finite unit model-linear components and qualified colour borders; view-dependent generation is unsupported");return {};
         }
         if(state.image->Inline()&&state.image->Images().size()==1
             &&state.image->Images()[0].border!=(env[0]==2?1:0)){
@@ -1142,30 +1140,15 @@ struct Builder {
             }
             const auto& t=resolved.texture.transform;bool identity=true;
             for(unsigned i=0;i<16;++i)identity=identity&&t[i]==float(i%5==0);
-            const bool generate=resolved.texture.generation[0]!=0||resolved.texture.generation[1]!=0;
+            const bool generate=std::any_of(resolved.texture.generation.begin(),resolved.texture.generation.end(),[](int mode){return mode!=0;});
             if(!identity||generate||mappedImage.scaleS!=1||mappedImage.scaleT!=1){
                 // Bake effective mapping into this appearance-specific copy.
                 // This also carries shear/reflection through scene copy and GLB
                 // without relying on a restricted scale/rotation material model.
                 const auto channel=unsigned(resolved.texture.coordinate);
-                auto* uv=mesh->mTextureCoords[channel];
-                JtData_Limits::allocation(size_t(mesh->mNumVertices)*sizeof(aiVector3D));
-                std::vector<aiVector3D> mapped(mesh->mNumVertices);bool valid=true;
-                for(unsigned i=0;i<mesh->mNumVertices;++i){
-                    if((i&1023)==0)options.check();
-                    const auto component=[&](unsigned c){
-                        if(resolved.texture.generation[c]==0)return double(c==0?uv[i].x:uv[i].y);
-                        const auto* plane=resolved.texture.planes.data()+4*c;const auto& p=mesh->mVertices[i];
-                        return double(plane[0])*p.x+double(plane[1])*p.y+double(plane[2])*p.z+plane[3];
-                    };
-                    const double baseS=component(0),baseT=component(1);
-                    const double s=(baseS*t[0]+baseT*t[4]+t[12])*mappedImage.scaleS+mappedImage.offsetS;
-                    const double v=(baseS*t[1]+baseT*t[5]+t[13])*mappedImage.scaleT+mappedImage.offsetT;
-                    if(!std::isfinite(s)||!std::isfinite(v)||std::abs(s)>std::numeric_limits<float>::max()
-                        ||std::abs(v)>std::numeric_limits<float>::max()){valid=false;break;}
-                    mapped[i]={float(s),float(v),0};
-                }
-                if(valid){
+                try{
+                    const auto mapped=TextureMapping::map(*mesh,channel,t,resolved.texture.generation,resolved.texture.planes,
+                        {mappedImage.scaleS,mappedImage.scaleT,mappedImage.offsetS,mappedImage.offsetT},[&]{options.check();});
                     // Pad lower absent slots for existing Assimp scene-copy and
                     // export paths, preserving the authored selected set number.
                     for(unsigned c=0;c<=channel;++c)if(!mesh->HasTextureCoords(c)){
@@ -1173,9 +1156,9 @@ struct Builder {
                         mesh->mTextureCoords[c]=new aiVector3D[mesh->mNumVertices]{};mesh->mNumUVComponents[c]=2;
                     }
                     std::copy(mapped.begin(),mapped.end(),mesh->mTextureCoords[channel]);
-                }
-                else {
-                    textureWarning("JT texture not applied: transformed UV exceeds finite render range");
+                }catch(const Cancelled&){throw;}catch(const std::bad_alloc&){throw;}
+                catch(const std::exception& error){
+                    textureWarning("JT texture not applied: "+QString::fromUtf8(error.what()));
                     resolved.texture.type=0;mat=material(resolved,colored,vertexAlpha);
                 }
             }

@@ -202,3 +202,6 @@ C2ac extends the existing Replace/batch native assertions for constant-RGB verte
 
 
 C2ad adds `textureBorderBatchTests()` to the existing owner-run native suite for mixed-axis authored profiles, generated anti-bleed/odd-edge averages, inline/external equivalence, bounded legacy-clamp area/UV invariants and carrier copy/GLB preservation. Shared render carrier tests add rectangular single-axis validation and max-LOD samples. Original UI authoring: `python -B tools/jt/make_texture_border_batch_controls.py out/jt-research/texture-combiner-batch-ui-fixtures out/jt-research/texture-border-batch-ui-fixtures`. See [Batch 2 validation](../../research/jt/JT_BORDER_BATCH_VALIDATION.md) for scope, commands and owner gate. Native execution remains unreported.
+
+
+C2ae prepares `jt_texture_homogeneous_tests.cpp`: literal signed-Q/R contributions, exact face-constant proof, tiny-varying-Q rejection, generated STQ without UVs, UV2 padding, shared appearance separation, geometry/UV fallback preservation and copy/GLB round trips across enabled original texture layouts. These assertions are owner-run; authoring/static inventory is not native-suite execution. See [C2ae validation](../../research/jt/JT_HOMOGENEOUS_MAPPING_VALIDATION.md).

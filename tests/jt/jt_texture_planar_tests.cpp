@@ -72,7 +72,7 @@ void texturePlanarTests(){
         check(pair.scene->mNumMeshes==2&&pair.scene->mNumTextures==1,"Planar variants aliased meshes or duplicated image pixels");
         compare(*pair.scene->mMeshes[0],*plain.scene->mMeshes[0],o);compare(*pair.scene->mMeshes[1],*plain.scene->mMeshes[0],second);
         for(unsigned damage=0;damage<4;++damage){
-            auto bad=o;if(damage==0)bad.generation[0]=2;if(damage==1)bad.generation[2]=1;
+            auto bad=o;if(damage==0)bad.generation[0]=2;if(damage==1)bad.generation[2]=2;
             if(damage==2)bad.planes[0]=2;if(damage==3){bad.planes[3]=std::numeric_limits<float>::max();bad.transform[0]=2;}
             TextureFixture::write(dir.filePath("unsupported.jt"),minor,bad);
             const auto result=Jt::Importer::read(dir.filePath("unsupported.jt"));const auto& mesh=*result.scene->mMeshes[0];

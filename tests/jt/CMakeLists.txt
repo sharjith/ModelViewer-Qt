@@ -63,3 +63,4 @@ endif()
 
 target_sources(jt_tests PRIVATE jt_texture_mip_batch_tests.cpp)
 target_sources(jt_tests PRIVATE jt_texture_border_batch_tests.cpp)
+target_sources(jt_tests PRIVATE jt_texture_homogeneous_tests.cpp)

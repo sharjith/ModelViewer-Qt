@@ -67,3 +67,5 @@ Owner-accepted shared raster regression correction: [BLEND depth compatibility](
 37. Owner-accepted bounded Batch 2 checkpoint: [C2ad image/border batch](JT_BORDER_BATCH_VALIDATION.md); mixed axes, bounded rectangular/generated/external borders and portable non-mip legacy clamp; owner accepted grouped comparisons and focused ADS/PBR/export retest on 24 October 2026; native/backend execution unreported.
 
 38. Owner-accepted shared renderer correction: [raster light-intensity synchronization](JT_RASTER_LIGHT_UNIFORM_VALIDATION.md); stored/GPU vectors agree in the focused five-document retest.
+
+39. Owner-accepted bounded mapping checkpoint: [C2ae exact homogeneous reductions](JT_HOMOGENEOUS_MAPPING_VALIDATION.md); model-linear R/Q and triangle-constant denominator proof; owner accepted grouped visual and four representative exports on 24 October 2026; native/backend execution unreported.

@@ -25,7 +25,7 @@ def attribute(big,family,version,spec):
         b.put('I',0 if stub else role)
         b.put('8I',spec.get('border_mode',0),spec.get('mag',1),spec.get('min',1),spec.get('wrap_s',4),spec.get('wrap_t',4),2,spec.get('mode',2),0)
         b.put('8f',*spec.get('blend',(0,0,0,1)),*spec.get('border_color',(0,0,0,1)))
-        b.put('16f',*IDENTITY);b.put('4I',0,0,0,0);b.put('16f',*([0]*16))
+        b.put('16f',*spec.get('transform',IDENTITY));b.put('4I',*spec.get('generation',(0,0,0,0)));b.put('16f',*spec.get('planes',([0]*16)))
         b.put('i',0 if stub else spec.get('unit',0))
         if family==10:b.put('i',0)
         present=not stub and spec.get('image') is not None

@@ -91,3 +91,11 @@ C2ab uses tools/jt/make_texture_vertex_replace_controls.py for 48 original roots
 
 
 C2ad owner acceptance - 24 October 2026: grouped visual controls passed; the focused source/reference/GLB/glTF/neutral-vertex ADS/PBR retest passed after shared light-intensity synchronization. Read-only inspection reports 6/6 representative exported image/carrier/sampler/sidedness comparisons matching independent references. The bounded border gate is accepted; native/backend execution remains unreported. Batch 1 comeback items and the documented Batch 2 footprint/derivative/format evidence limits remain open. See [C2ad validation](JT_BORDER_BATCH_VALIDATION.md) and [shared raster light correction](JT_RASTER_LIGHT_UNIFORM_VALIDATION.md).
+
+
+## Prepared C2ae homogeneous mapping controls
+
+`tools/jt/make_texture_homogeneous_controls.py` consumes the C2ad manifest and writes original parallel-panel controls plus independently expressed UV references into the existing common store. Gate output: `out/jt-research/texture-homogeneous-ui-fixtures`; grouped launch: `out/jt-research/c2ae-visual-files.json`. Sixty positive roots, ten source/reference pairs and accepted regressions form 26 visual documents. Nine unsupported roots are excluded from the launch list. Reference names are `reference_homogeneous_<case>.gltf`; source names are `texture-homogeneous_<case>_10_0_le.jt`. Two representative sources have four GLB/glTF destinations in `export_pairs`. See [mapping validation](JT_HOMOGENEOUS_MAPPING_VALIDATION.md) for regeneration, limits and owner gate.
+
+
+C2ae owner acceptance - 24 October 2026: owner built/installed, accepted the grouped 26-document comparisons and passed the four representative application GLB/glTF export/reopen checks. Read-only inspection reports 4/4 image/carrier/sampler/sidedness and 4/4 effective-UV comparisons within original quantization tolerance. The bounded homogeneous reduction gate is accepted; native/backend-specific and authentic exporter execution remain unreported. General projective/dynamic mapping and the other recorded C2 residuals remain open. See [C2ae validation](JT_HOMOGENEOUS_MAPPING_VALIDATION.md).

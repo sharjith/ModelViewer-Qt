@@ -1,20 +1,20 @@
-# Remaining C2 work after C2ad
+# Remaining C2 work after C2ae
 
 ## Current scope - 24 October 2026
 
-C2 is accepted through bounded C2ad (2c27d7c), with the shared raster light-uniform correction accepted as 3c7fd30. The owner also accepted the focused non-glTF/glTF PBR smoke check after the shared raster-light correction. The original seven packages below are historical: many of their core features have since passed. Seven residual areas remain, not seven promised builds or a fixed number of sub-gates.
+C2 is accepted through bounded C2ae, including C2ad (2c27d7c) and the shared raster light-uniform correction (3c7fd30). The owner also accepted the focused non-glTF/glTF PBR smoke check after the shared raster-light correction. The original seven packages below are historical: many of their core features have since passed. Seven residual areas remain, not seven promised builds or a fixed number of sub-gates.
 
-| Residual area | Still open after C2ad |
+| Residual area | Still open after C2ae |
 | --- | --- |
 | 1. Combiners and vertex interactions | Combine; varying-RGB Decal/Blend/Add and other interactions beyond the accepted constant-RGB and separable Modulate/Replace paths; non-colour Replace applicability, nonstandard blending and unqualified reset/inhibit/final combinations. Operations needing a richer renderer representation must remain explicitly diagnosed until implemented |
 | 2. Independent texture units | Different coordinates/transforms, image sizes, wraps or filtering per stage; nonlinear combinations with linear/trilinear filtering. Existing ordered co-sampled composition, bounded automatic assignment and differing-resolution nearest base-level grids are delivered |
 | 3. Remaining image/border profiles | Sampled NPOT dimensions, both-axis rectangular full mip footprints, mipmapped/unequal-filter legacy CLAMP, one-bit descriptors and unresolved internal-format applicability. C2ad delivered mixed sampled axes, longest-POT sampled axes with shorter/NPOT unsampled dimensions, generated border chains, external rings and equal-filter non-mip legacy CLAMP |
-| 4. Generated/projective mapping | View-linear and projective coordinates; applicable sphere/reflection/normal generation and reference-plane conventions. Stored UVs, affine transforms and bounded model-linear S/T are delivered |
+| 4. Generated/projective mapping | General varying-Q interpolation, cancellation-only Q proofs, view-linear and applicable sphere/reflection/normal generation, stored higher-dimensional coordinates and dynamic runtime/export semantics. Stored UVs, affine transforms, bounded model-linear S/T and C2ae model-linear R/Q with conservative per-triangle constant-Q reductions are delivered |
 | 5. Other texture/material roles | Applicable normal/bump, gloss, environment/light-map and other pre-/post-lit roles, with role-specific colour-space, coordinate, renderer and export semantics |
 | 6. JT8 authored textures | Applicable 8.0/8.1/8.2 source layouts and mapping need qualified source/reference evidence. Later-family envelopes or reheadered samples are not evidence |
 | 7. Final appearance qualification | Authentic textured exporter comparisons, complete inheritance/shared-instance/family matrix, applicable native-suite and renderer/backend verification, copy/export coverage beyond the accepted bounded cases and explicit unsupported-feature diagnostics |
 
-Next focus after the owner-directed Batch 1 deferral and accepted bounded Batch 2: generated/projective mapping (area 4). Review the retained primary definitions and required raster/copy/export representation before selecting a coherent implementation gate. View-dependent mapping cannot be presented as a fixed import-time UV bake. Batch 1 remains in its comeback list; Batch 2 limits remain open in its validation record. Do not describe the synthetic controls as authentic exporter qualification. JT8/authentic exporter evidence gaps and representation limits cannot be closed merely by adding visual builds. This remaining-scope reconciliation adds no implementation or acceptance beyond the separately recorded bounded gates.
+The portable portion of generated/projective mapping (area 4) is now accepted as C2ae. Further mapping work requires a richer retained coordinate/material and raster/copy/export evaluation contract; review it before selecting a dependent implementation gate. View-dependent mapping cannot be presented as a fixed import-time UV bake. Other material roles (area 5) still require role-specific applicability/evidence review. Batch 1 remains in its comeback list; Batch 2 limits remain open in its validation record. Do not describe the synthetic controls as authentic exporter qualification. JT8/authentic exporter evidence gaps and representation limits cannot be closed merely by adding visual builds. This remaining-scope reconciliation adds no implementation or acceptance beyond the separately recorded bounded gates.
 
 The earlier audit and checkpoint history follow. Where an older paragraph says a later delivered feature is pending, the accepted checkpoint and this current table supersede that historical status. C1 and C3-C7 remain separate; JT10.11 is still deferred.
 
@@ -99,3 +99,11 @@ The owner requested deferring Batch 1 residuals and proceeding to Batch 2 on 24 
 
 
 C2ad owner acceptance - 24 October 2026: grouped visual controls passed; the focused source/reference/GLB/glTF/neutral-vertex ADS/PBR retest passed after shared light-intensity synchronization. Read-only inspection reports 6/6 representative exported image/carrier/sampler/sidedness comparisons matching independent references. The bounded border gate is accepted; native/backend execution remains unreported. Batch 1 comeback items and the documented Batch 2 footprint/derivative/format evidence limits remain open. See [C2ad validation](JT_BORDER_BATCH_VALIDATION.md) and [shared raster light correction](JT_RASTER_LIGHT_UNIFORM_VALIDATION.md).
+
+
+## Prepared C2ae - mapping package, portable subset
+
+[C2ae](JT_HOMOGENEOUS_MAPPING_VALIDATION.md) prepares full homogeneous texture matrices and model-linear R/Q only where an exact constant-denominator-per-triangle proof permits ordinary UVs. General varying-Q interpolation and camera-dependent view/sphere/reflection/normal evaluation remain open, including their runtime/export contract. This advances current area 4 without marking the entire mapping package complete. Owner build/install and grouped visual/export validation are pending; native/backend execution is not claimed.
+
+
+C2ae owner acceptance - 24 October 2026: owner built/installed, accepted the grouped 26-document comparisons and passed the four representative application GLB/glTF export/reopen checks. Read-only inspection reports 4/4 image/carrier/sampler/sidedness and 4/4 effective-UV comparisons within original quantization tolerance. The bounded homogeneous reduction gate is accepted; native/backend-specific and authentic exporter execution remain unreported. General projective/dynamic mapping and the other recorded C2 residuals remain open. See [C2ae validation](JT_HOMOGENEOUS_MAPPING_VALIDATION.md).

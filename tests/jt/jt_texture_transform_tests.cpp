@@ -77,9 +77,10 @@ void textureTransformTests(){
         const auto pair=Jt::Importer::read(dir.filePath("pair.jt"));
         check(pair.scene->mNumMeshes==2&&pair.scene->mNumTextures==1,"Shared image/geometry transform variants collapsed or duplicated pixels");
         compare(*pair.scene->mMeshes[0],source,0);compare(*pair.scene->mMeshes[1],source,3);
-        // Projective and non-2D matrices retain geometry and a diagnostic.
-        for(unsigned field:{3u,7u,14u}){
-            o.transform=matrix(0);o.transform[field]=0.5f;TextureFixture::write(dir.filePath("unsupported.jt"),minor,o);
+        // Varying or zero Q retains geometry and a diagnostic. Changes confined
+        // to the ignored R output are now valid for a 2D image.
+        for(unsigned field:{3u,7u,15u}){
+            o.transform=matrix(0);o.transform[field]=field==15?0:0.5f;TextureFixture::write(dir.filePath("unsupported.jt"),minor,o);
             const auto fallback=Jt::Importer::read(dir.filePath("unsupported.jt"));
             check(fallback.scene->mNumMeshes==1&&!fallback.warnings.isEmpty(),"Unsupported texture matrix lost geometry/diagnostic");
             compare(*fallback.scene->mMeshes[0],source,0);
