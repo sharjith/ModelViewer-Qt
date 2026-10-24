@@ -205,3 +205,6 @@ C2ad adds `textureBorderBatchTests()` to the existing owner-run native suite for
 
 
 C2ae prepares `jt_texture_homogeneous_tests.cpp`: literal signed-Q/R contributions, exact face-constant proof, tiny-varying-Q rejection, generated STQ without UVs, UV2 padding, shared appearance separation, geometry/UV fallback preservation and copy/GLB round trips across enabled original texture layouts. These assertions are owner-run; authoring/static inventory is not native-suite execution. See [C2ae validation](../../research/jt/JT_HOMOGENEOUS_MAPPING_VALIDATION.md).
+
+
+C2af registers `textureRoleTests()` for known-value tangent bases, transactional mirrored/degenerate/cancellation rejection, normal role/colour coexistence and fallback, scene copy, post-lit replacement and GLB unlit retention across enabled original texture layouts. Prepared only: owner native-suite execution is required. Original grouped controls: `python -B tools/jt/make_texture_role_controls.py out/jt-research/texture-roles-ui-fixtures`. See [C2af validation](../../research/jt/JT_TEXTURE_ROLE_VALIDATION.md) for the bounded material contracts and owner build/visual/export gate.

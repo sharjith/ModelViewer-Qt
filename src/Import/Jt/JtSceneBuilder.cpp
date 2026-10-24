@@ -4,6 +4,7 @@
 #include "JtTextureBorderImage.h"
 #include "JtTextureClampMesh.h"
 #include "JtTextureMapping.h"
+#include "JtTextureTangents.h"
 #include <JtData_Model.hxx>
 #include <JtData_Limits.hxx>
 #include <JtNode_Partition.hxx>
@@ -193,6 +194,7 @@ struct TextureState {
     std::array<float,16> transform{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
     std::array<int,4> generation{};
     std::array<float,16> planes{};
+    bool colorRole() const {return type==9||type==2;}
     bool replaceRGB() const {
         if(environment[6]!=3||image.IsNull()||!image->Inline()||image->Images().size()!=1)return false;
         const auto format=image->Images()[0].format;
@@ -244,8 +246,9 @@ struct Appearance {
     TextureState textureDefaults;
     void refreshTexture() {
         texture=TextureState{};
-        for(const auto& item:textureUnits)if(item.second.type==9&&item.second.environment[6]!=0){texture=item.second;break;}
+        for(const auto& item:textureUnits)if(item.second.colorRole()&&item.second.environment[6]!=0){texture=item.second;break;}
     }
+    void discardNormalTextures(){for(auto& unit:textureUnits)if(unit.second.type==4)unit.second.type=0;}
     void applyTexture(const Handle(JtAttribute_TextureImage)& source) {
         const auto reset=source->TextureType()==26;
         if(reset){
@@ -417,7 +420,7 @@ struct Builder {
     std::vector<std::unique_ptr<aiMaterial>> materials;
     std::vector<std::unique_ptr<aiTexture>> textures;
     std::map<QByteArray,unsigned> texturePixels;
-    struct ImageResult {int index=-1;bool alpha=false;QString error;double scaleS=1,scaleT=1,offsetS=0,offsetT=0;int format=0;bool composed=false;QImage mipPixels;};
+    struct ImageResult {int index=-1;bool alpha=false;QString error;double scaleS=1,scaleT=1,offsetS=0,offsetT=0;int format=0;bool composed=false,postLit=false;QImage mipPixels;};
     using TextureSourceKey=std::tuple<const void*,bool,bool,bool,int,bool,std::array<float,4>,size_t>;
     std::map<TextureSourceKey,ImageResult> textureSources;
     std::map<std::vector<float>,ImageResult> textureCompositions;
@@ -693,11 +696,11 @@ struct Builder {
             textureWarning("JT texture not applied: legacy CLAMP requires equal non-mip minification/magnification filters");return {};
         }
         const bool sampledBorder=(env[0]==1||env[0]==2)&&(env[3]==1||env[3]==5||env[4]==1||env[4]==5)&&env[3]>=1&&env[3]<=5&&env[4]>=1&&env[4]<=5&&env[1]>=1&&env[1]<=2&&env[2]>=1&&env[2]<=6;
-        if(state.type!=9||(env[0]!=0&&!ignoresBorder&&!sampledBorder)||(env[6]<1||env[6]>5)||!state.finiteTransform()||state.coordinate<0||state.coordinate>=4
+        if(!state.colorRole()||(env[0]!=0&&!ignoresBorder&&!sampledBorder)||(env[6]<1||env[6]>5)||!state.finiteTransform()||state.coordinate<0||state.coordinate>=4
             ||!state.modelLinearComponents()
             ||(env[3]==5&&!sampledBorder)||(env[4]==5&&!sampledBorder)
             ||env[3]<1||env[3]>5||env[4]<1||env[4]>5) {
-            textureWarning("JT texture not applied: mapping requires pre-lit 2D, a supported combiner, UV0-3 with stored or finite unit model-linear components and qualified colour borders; view-dependent generation is unsupported");return {};
+            textureWarning("JT texture not applied: mapping requires a qualified 2D colour role/combiner, UV0-3 with stored or finite unit model-linear components and qualified colour borders; view-dependent generation is unsupported");return {};
         }
         if(state.image->Inline()&&state.image->Images().size()==1
             &&state.image->Images()[0].border!=(env[0]==2?1:0)){
@@ -714,14 +717,24 @@ struct Builder {
         if(style.textureUnits.empty())stages.push_back(&style.texture);
         else for(const auto& unit:style.textureUnits){
             const auto& state=unit.second;
-            if(state.type==9&&state.environment[6]!=0)stages.push_back(&state);
-            else if(state.type!=0&&!state.automatic&&state.type!=9){
+            if(state.colorRole()&&state.environment[6]!=0)stages.push_back(&state);
+            else if(state.type!=0&&!state.automatic&&!state.colorRole()){
                 textureWarning("JT texture stack not applied: an explicit image role is unsupported");return {};
             }
         }
         if(stages.empty())return {};
         const unsigned src=(style.blendFlags>>6)&31,dst=(style.blendFlags>>11)&31;
         const bool allowAlpha=(style.blendFlags&0x10)&&!(src==1&&dst==0);
+        if(std::any_of(stages.begin(),stages.end(),[](const TextureState* s){return s->type==2;})){
+            if(stages.size()!=1){textureWarning("JT post-lit colour stack not applied: only a single complete RGB replacement is qualified");return {};}
+            const auto& stage=*stages[0];auto decoded=textureStage(stage,allowAlpha);
+            const bool rgb=decoded.format==1||decoded.format==11,rgba=decoded.format==2||decoded.format==12;
+            if(decoded.index<0)return {};
+            if(!((stage.environment[6]==3&&(rgb||rgba))||(stage.environment[6]==1&&rgb))){
+                textureWarning("JT post-lit texture not applied: only RGB/RGBA Replace or RGB Decal is a complete unlit colour replacement");return {};
+            }
+            decoded.postLit=true;return decoded;
+        }
         if(stages.size()==1&&(stages[0]->environment[6]==2||stages[0]->replaceRGB()))return textureStage(*stages[0],allowAlpha);
         ImageResult output;
         try {
@@ -853,6 +866,46 @@ struct Builder {
         }catch(const Cancelled&){throw;}catch(const std::bad_alloc&){throw;}
         catch(const std::exception& e){textureWarning("JT texture stack not applied: "+QString::fromUtf8(e.what()));return {};}
     }
+    const TextureState* normalState(const Appearance& style){
+        const TextureState* normal=nullptr;
+        for(const auto& unit:style.textureUnits)if(unit.second.type==4){
+            if(normal){textureWarning("JT normal maps not applied: multiple tangent-space normal roles are not qualified");return nullptr;}
+            normal=&unit.second;
+        }
+        return normal;
+    }
+    ImageResult normalImage(const Appearance& style,const ImageResult& color){
+        const auto* normal=normalState(style);if(!normal)return {};
+        if(color.postLit){textureWarning("JT normal map retained but not applied to a post-lit unlit replacement");return {};}
+        const auto& state=*normal;const auto& env=state.environment;
+        bool identity=true;for(unsigned i=0;i<16;++i)identity=identity&&state.transform[i]==float(i%5==0);
+        if(state.image.IsNull()||state.coordinate!=0||!identity
+            ||std::any_of(state.generation.begin(),state.generation.end(),[](int mode){return mode!=0;})
+            ||env[0]!=0||env[1]<1||env[1]>2||env[2]<1||env[2]>2
+            ||env[3]<2||env[3]>4||env[4]<2||env[4]>4||env[6]!=2){
+            textureWarning("JT normal map not applied: requires one normalized RGB tangent map, original UV0, identity mapping and no sampled border");return {};
+        }
+        if(state.image->Inline()){
+            if(state.image->Images().size()!=1){textureWarning("JT normal map not applied: requires exactly one image");return {};}
+            const auto& data=state.image->Images()[0];
+            if((data.format!=1&&data.format!=2&&data.format!=11&&data.format!=12)||data.dataType!=3||data.border!=0||!data.extraMips.empty()){
+                textureWarning("JT normal map not applied: only base-level unsigned-byte RGB/BGR/RGBA/BGRA components without an image ring are qualified");return {};
+            }
+        }
+        if(color.index>=0){
+            const auto& primary=style.texture;bool changed=false;
+            for(unsigned i=0;i<16;++i)changed=changed||primary.transform[i]!=float(i%5==0);
+            changed=changed||std::any_of(primary.generation.begin(),primary.generation.end(),[](int mode){return mode!=0;})
+                ||color.scaleS!=1||color.scaleT!=1||color.offsetS!=0||color.offsetT!=0;
+            const bool refined=primary.environment[0]!=0&&(primary.environment[3]==1||primary.environment[4]==1);
+            if((primary.coordinate==0&&changed)||refined){
+                textureWarning("JT normal map not applied: colour UV rewriting would change the original normal-map basis");return {};
+            }
+        }
+        // Normal RGB is vector data. Do not compose material/vertex colour into
+        // it; unused image alpha must never select the transparent draw pass.
+        return image(state,false);
+    }
     std::unique_ptr<aiMetadata> properties(const JtNode_Base& source,const QString& label) {
         std::vector<std::unique_ptr<aiMetadata>> records;
         size_t unsupported=0,unrepresentable=0;
@@ -964,18 +1017,24 @@ struct Builder {
             ||!std::isfinite(style.diffuse.a)||style.diffuse.a<0||style.diffuse.a>1)
             throw std::runtime_error("JT incoming diffuse colour/alpha is invalid");
         const auto mappedTexture=texture(style,textureInput);
-        const bool replace=mappedTexture.index>=0&&style.texture.replaceRGB();
-        const auto format=replace?style.texture.image->Images()[0].format:0;
+        const auto mappedNormal=normalImage(style,mappedTexture);
+        const bool replace=mappedTexture.index>=0&&(mappedTexture.postLit||style.texture.replaceRGB());
+        const auto format=replace?mappedTexture.format:0;
+        const bool replaceAlpha=replace&&(format==2||format==12)&&style.texture.environment[6]==3;
         // REPLACE discards incoming RGB; RGBA also discards incoming alpha.
         // White factors let the existing modulating renderer/export path carry
         // this qualified single-unit result without baking away source pixels.
-        const auto c=(vertexColors||mappedTexture.composed) ? aiColor4D(1,1,1,1) : replace?aiColor4D(1,1,1,(format==2||format==12)?1:style.diffuse.a):style.diffuse;
+        const auto c=(vertexColors||mappedTexture.composed) ? aiColor4D(1,1,1,1) : replace?aiColor4D(1,1,1,replaceAlpha?1:style.diffuse.a):style.diffuse;
         const bool blending=(style.blendFlags&0x10)!=0;
         const unsigned src=(style.blendFlags>>6)&31,dst=(style.blendFlags>>11)&31;
         const float opacity=(!blending || (src==1 && dst==0)) ? 1.0f : c.a;
         std::vector<float> key{c.r,c.g,c.b,opacity,style.ambient.r,style.ambient.g,style.ambient.b,
             style.specular.r,style.specular.g,style.specular.b,style.emission.r,style.emission.g,style.emission.b,
-            style.bumpiness,style.reflectivity,style.shininess,float(style.hasShininess),float(style.overrideColors),float(style.present),float(style.drawFlags),float(style.drawPresent),float(style.blendFlags),float(vertexAlpha),float(mappedTexture.index),float(style.texture.coordinate)};
+            style.bumpiness,style.reflectivity,style.shininess,float(style.hasShininess),float(style.overrideColors),float(style.present),float(style.drawFlags),float(style.drawPresent),float(style.blendFlags),float(vertexAlpha),float(mappedTexture.index),float(style.texture.coordinate),float(mappedTexture.postLit),float(mappedNormal.index)};
+        if(mappedNormal.index>=0){
+            const auto* normal=normalState(style);
+            for(auto value:normal->environment)key.push_back(float(value));
+        }
         if(mappedTexture.composed||replace){
             key.insert(key.end(),{style.diffuse.r,style.diffuse.g,style.diffuse.b,style.diffuse.a,float(mappedTexture.composed)});
         }
@@ -985,7 +1044,7 @@ struct Builder {
             // differ for the actual vertex input (e.g. white Modulate vs Add).
             // Preserve the ordered source program, not only its baked pixels.
             const auto programKey=[&](const TextureState& stage){
-                if(stage.type!=9||stage.environment[6]==0)return;
+                if(!stage.colorRole()||stage.environment[6]==0)return;
                 const auto decoded=textureStage(stage,mappedTexture.composed||(blending&&!(src==1&&dst==0)));
                 key.insert(key.end(),{float(stage.environment[6]),float(decoded.index),float(decoded.format)});
                 for(float value:stage.blendColor)key.push_back(value);
@@ -1035,6 +1094,15 @@ struct Builder {
                 m->AddProperty(&mag,1,AI_MATKEY_GLTF_MAPPINGFILTER_MAG(type,0));m->AddProperty(&min,1,AI_MATKEY_GLTF_MAPPINGFILTER_MIN(type,0));
             }
         }
+        if(mappedNormal.index>=0){
+            const auto& env=normalState(style)->environment;const aiString path("*"+std::to_string(mappedNormal.index));const int coordinate=0;
+            const auto wrap=[](int mode){return int(mode==2?aiTextureMapMode_Wrap:mode==3?aiTextureMapMode_Mirror:aiTextureMapMode_Clamp);};
+            const int u=wrap(env[3]),v=wrap(env[4]),mag=env[1]==1?9728:9729;
+            const int filters[]={9729,9728,9729,9984,9985,9986,9987};const int min=filters[env[2]];
+            m->AddProperty(&path,AI_MATKEY_TEXTURE(aiTextureType_NORMALS,0));m->AddProperty(&coordinate,1,AI_MATKEY_UVWSRC(aiTextureType_NORMALS,0));
+            m->AddProperty(&u,1,AI_MATKEY_MAPPINGMODE_U(aiTextureType_NORMALS,0));m->AddProperty(&v,1,AI_MATKEY_MAPPINGMODE_V(aiTextureType_NORMALS,0));
+            m->AddProperty(&mag,1,AI_MATKEY_GLTF_MAPPINGFILTER_MAG(aiTextureType_NORMALS,0));m->AddProperty(&min,1,AI_MATKEY_GLTF_MAPPINGFILTER_MIN(aiTextureType_NORMALS,0));
+        }
         if(style.present&(1u<<0)) m->AddProperty(&style.ambient,1,AI_MATKEY_COLOR_AMBIENT);
         if(style.present&(1u<<1)) m->AddProperty(&style.specular,1,AI_MATKEY_COLOR_SPECULAR);
         if(style.present&(1u<<2)) m->AddProperty(&style.emission,1,AI_MATKEY_COLOR_EMISSIVE);
@@ -1060,6 +1128,11 @@ struct Builder {
             m->AddProperty(&shading,1,AI_MATKEY_SHADING_MODEL);
             if(twoSided && !unlit && !(style.drawFlags&2))
                 result.warnings.append("JT single-sided lighting without back-face culling is approximated by the renderer's two-sided lighting");
+        }
+        if(mappedTexture.postLit){
+            const int unlit=1;const aiShadingMode shading=aiShadingMode_Unlit;
+            m->AddProperty(&unlit,1,"$mat.gltf.unlit");m->AddProperty(&shading,1,AI_MATKEY_SHADING_MODEL);
+            const aiColor3D zero(0,0,0);m->AddProperty(&zero,1,AI_MATKEY_COLOR_EMISSIVE);
         }
         const unsigned id=unsigned(materials.size());materials.push_back(std::move(m));materialCache.emplace(std::move(key),id);return id;
     }
@@ -1095,6 +1168,9 @@ struct Builder {
             vertexAlpha=vertexAlpha || c.a<1;
         }
         auto resolved=style;
+        if(!mesh->HasTextureCoords(0)&&std::any_of(resolved.textureUnits.begin(),resolved.textureUnits.end(),[](const auto& unit){return unit.second.type==4;})){
+            textureWarning("JT normal map not applied: stored UV0 is absent");resolved.discardNormalTextures();
+        }
         bool factorableVertex=colored;
         const auto checkFactorable=[&](const TextureState& stage){
             if(stage.type==9&&stage.environment[6]!=0&&stage.environment[6]!=2&&stage.environment[6]!=3)factorableVertex=false;
@@ -1188,6 +1264,9 @@ struct Builder {
             const bool bakedConstant=constantVertex&&!factorableVertex&&mappedImage.composed;
             bool replaceColor=bakedConstant,replaceAlpha=false;
             const auto replacedComponents=[&](const TextureState& stage){
+                if(stage.type==2&&mappedImage.postLit){
+                    replaceColor=true;replaceAlpha=stage.environment[6]==3&&(mappedImage.format==2||mappedImage.format==12);return;
+                }
                 if(stage.type!=9||stage.environment[6]!=3)return;
                 const auto format=textureStage(stage,activeAlpha).format;
                 replaceColor=replaceColor||format!=10;
@@ -1230,6 +1309,14 @@ struct Builder {
             if(colored) {delete[] mesh->mColors[0];mesh->mColors[0]=colors.release();}
             for(unsigned channel=0;channel<uv.size();++channel)if(uv[channel]) {delete[] mesh->mTextureCoords[channel];mesh->mTextureCoords[channel]=uv[channel].release();}
             mesh->mNumVertices=unsigned(count);mesh->mVertices=positions.release();mesh->mNormals=normals.release();validate(*mesh);
+        }
+        if(materials[mat]->GetTextureCount(aiTextureType_NORMALS)>0){
+            try{TextureTangents::apply(*mesh,[&]{options.check();});}
+            catch(const Cancelled&){throw;}catch(const std::bad_alloc&){throw;}
+            catch(const std::exception& error){
+                textureWarning("JT normal map not applied: "+QString::fromUtf8(error.what()));resolved.discardNormalTextures();
+                mat=material(resolved,colored,vertexAlpha,textureInput);
+            }
         }
         mesh->mMaterialIndex=mat;mesh->mName=aiString(name.toUtf8().constData());
         meshes.push_back(std::move(mesh)); return unsigned(meshes.size()-1);
@@ -1283,7 +1370,7 @@ struct Builder {
                 const bool explicitImage=basic||type==1||type==2||type==3||type==5||type==7||type==8||type==9||type==10;
                 if(type!=0&&type!=26&&((explicitImage&&channel<0)||(!explicitImage&&channel>=0))){
                     mappedChannel=false;textureWarning("JT texture not applied: channel assignment contradicts the texture role");
-                }else if(type!=0&&type!=26&&!(type==9||(basic&&type==2)))
+                }else if(type!=0&&type!=26&&!(type==9||type==2||(!basic&&type==4)))
                     textureWarning("JT texture role retained in unit state but not rendered by the colour pipeline");
             }
             const auto apply=[&](Appearance& style,aiMatrix4x4& matrix,bool& locked) {

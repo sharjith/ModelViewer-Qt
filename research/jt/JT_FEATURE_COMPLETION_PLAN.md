@@ -237,3 +237,11 @@ Following accepted C2ad, [C2ae validation](JT_HOMOGENEOUS_MAPPING_VALIDATION.md)
 
 
 C2ae owner acceptance - 24 October 2026: owner built/installed, accepted the grouped 26-document comparisons and passed the four representative application GLB/glTF export/reopen checks. Read-only inspection reports 4/4 image/carrier/sampler/sidedness and 4/4 effective-UV comparisons within original quantization tolerance. The bounded homogeneous reduction gate is accepted; native/backend-specific and authentic exporter execution remain unreported. General projective/dynamic mapping and the other recorded C2 residuals remain open. See [C2ae validation](JT_HOMOGENEOUS_MAPPING_VALIDATION.md).
+
+
+## Prepared C2af - bounded additional texture roles
+
+Following accepted C2ae, [C2af validation](JT_TEXTURE_ROLE_VALIDATION.md) prepares one automatic base-level tangent-normal slot on unchanged positive-handed UV0 and one complete post-lit RGB replacement carried as an unlit material. Original controls provide 66 mixed-family roots, eleven source/reference pairs and a 24-document grouped gate including an accepted lit regression. Shared ADS unlit handling is corrected alongside the adapter and must be committed separately after acceptance. Native basis/fallback/copy/post-lit export checks are prepared but not run. Owner build/install, ADS/PBR comparison and four application exports remain pending. Authentic normal encoding/basis, gloss/bump/world-normal/environment/light-map roles and all previously recorded C2 residuals remain open.
+
+
+C2af owner acceptance - 24 October 2026: owner accepted the grouped 24-document ADS/PBR gate, rebuilt after the unlit export correction, and passed the four application GLB/glTF round trips. Read-only role/image/sampler/material and effective-UV inspections each report 4/4. Shared unlit rendering/export correction is committed separately as 7a18b9d. See [C2af validation](JT_TEXTURE_ROLE_VALIDATION.md). Native/backend-specific execution and authentic normal encoding/basis remain unreported; other C2 residuals remain open.

@@ -69,3 +69,8 @@ Owner-accepted shared raster regression correction: [BLEND depth compatibility](
 38. Owner-accepted shared renderer correction: [raster light-intensity synchronization](JT_RASTER_LIGHT_UNIFORM_VALIDATION.md); stored/GPU vectors agree in the focused five-document retest.
 
 39. Owner-accepted bounded mapping checkpoint: [C2ae exact homogeneous reductions](JT_HOMOGENEOUS_MAPPING_VALIDATION.md); model-linear R/Q and triangle-constant denominator proof; owner accepted grouped visual and four representative exports on 24 October 2026; native/backend execution unreported.
+
+
+40. Owner-accepted bounded gate: [C2af bounded tangent-normal and post-lit roles](JT_TEXTURE_ROLE_VALIDATION.md); 66 original roots / 24 grouped documents; grouped visual and four application round trips accepted on 24 October 2026; native/backend execution unreported.
+
+41. Owner-accepted shared correction: [unlit ADS and application export preservation](JT_UNLIT_MATERIAL_VALIDATION.md); shared implementation committed separately from the JT role adapter.

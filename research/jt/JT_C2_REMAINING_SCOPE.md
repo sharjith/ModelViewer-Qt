@@ -1,16 +1,16 @@
-# Remaining C2 work after C2ae
+# Remaining C2 work after C2af
 
 ## Current scope - 24 October 2026
 
-C2 is accepted through bounded C2ae, including C2ad (2c27d7c) and the shared raster light-uniform correction (3c7fd30). The owner also accepted the focused non-glTF/glTF PBR smoke check after the shared raster-light correction. The original seven packages below are historical: many of their core features have since passed. Seven residual areas remain, not seven promised builds or a fixed number of sub-gates.
+C2 is accepted through bounded C2af, including C2ad (2c27d7c) and the shared raster light-uniform correction (3c7fd30). The owner also accepted the focused non-glTF/glTF PBR smoke check after the shared raster-light correction. The original seven packages below are historical: many of their core features have since passed. Seven residual areas remain, not seven promised builds or a fixed number of sub-gates.
 
-| Residual area | Still open after C2ae |
+| Residual area | Still open after C2af |
 | --- | --- |
 | 1. Combiners and vertex interactions | Combine; varying-RGB Decal/Blend/Add and other interactions beyond the accepted constant-RGB and separable Modulate/Replace paths; non-colour Replace applicability, nonstandard blending and unqualified reset/inhibit/final combinations. Operations needing a richer renderer representation must remain explicitly diagnosed until implemented |
 | 2. Independent texture units | Different coordinates/transforms, image sizes, wraps or filtering per stage; nonlinear combinations with linear/trilinear filtering. Existing ordered co-sampled composition, bounded automatic assignment and differing-resolution nearest base-level grids are delivered |
 | 3. Remaining image/border profiles | Sampled NPOT dimensions, both-axis rectangular full mip footprints, mipmapped/unequal-filter legacy CLAMP, one-bit descriptors and unresolved internal-format applicability. C2ad delivered mixed sampled axes, longest-POT sampled axes with shorter/NPOT unsampled dimensions, generated border chains, external rings and equal-filter non-mip legacy CLAMP |
 | 4. Generated/projective mapping | General varying-Q interpolation, cancellation-only Q proofs, view-linear and applicable sphere/reflection/normal generation, stored higher-dimensional coordinates and dynamic runtime/export semantics. Stored UVs, affine transforms, bounded model-linear S/T and C2ae model-linear R/Q with conservative per-triangle constant-Q reductions are delivered |
-| 5. Other texture/material roles | Applicable normal/bump, gloss, environment/light-map and other pre-/post-lit roles, with role-specific colour-space, coordinate, renderer and export semantics |
+| 5. Other texture/material roles | Broader normal mapping (mips, transformed/mirrored charts and authentic basis), bump, gloss, environment/light-map and other pre-/post-lit interactions. C2af delivered one original-UV0/positive-handed base-level tangent-normal slot and complete post-lit RGB/RGBA Replace or RGB Decal through unlit rendering/export |
 | 6. JT8 authored textures | Applicable 8.0/8.1/8.2 source layouts and mapping need qualified source/reference evidence. Later-family envelopes or reheadered samples are not evidence |
 | 7. Final appearance qualification | Authentic textured exporter comparisons, complete inheritance/shared-instance/family matrix, applicable native-suite and renderer/backend verification, copy/export coverage beyond the accepted bounded cases and explicit unsupported-feature diagnostics |
 
@@ -107,3 +107,8 @@ C2ad owner acceptance - 24 October 2026: grouped visual controls passed; the foc
 
 
 C2ae owner acceptance - 24 October 2026: owner built/installed, accepted the grouped 26-document comparisons and passed the four representative application GLB/glTF export/reopen checks. Read-only inspection reports 4/4 image/carrier/sampler/sidedness and 4/4 effective-UV comparisons within original quantization tolerance. The bounded homogeneous reduction gate is accepted; native/backend-specific and authentic exporter execution remain unreported. General projective/dynamic mapping and the other recorded C2 residuals remain open. See [C2ae validation](JT_HOMOGENEOUS_MAPPING_VALIDATION.md).
+
+
+## Accepted C2af - bounded additional texture roles
+
+[C2af](JT_TEXTURE_ROLE_VALIDATION.md) advances area 5 with an independent original-UV0 tangent-normal slot and complete post-lit colour replacement. Owner accepted 24 grouped ADS/PBR documents and four representative GLB/glTF round trips after the separate [shared unlit correction](JT_UNLIT_MATERIAL_VALIDATION.md). Read-only image/material/sampler and UV inspections each pass 4/4. This is not general bump/gloss/environment/light-map support or authentic normal convention evidence. Normal mip/filter expansion is the next bounded applicability review; native and individual backend execution remain unreported. Batch 1 remains deferred.
