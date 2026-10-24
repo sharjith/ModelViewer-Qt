@@ -1,20 +1,20 @@
-# Remaining C2 work after C2ac
+# Remaining C2 work after C2ad
 
 ## Current scope - 24 October 2026
 
-C2 is accepted through C2ac. The owner also accepted the focused non-glTF/glTF PBR smoke check after the shared raster-light correction. The original seven packages below are historical: many of their core features have since passed. Seven residual areas remain, not seven promised builds or a fixed number of sub-gates.
+C2 is accepted through bounded C2ad (2c27d7c), with the shared raster light-uniform correction accepted as 3c7fd30. The owner also accepted the focused non-glTF/glTF PBR smoke check after the shared raster-light correction. The original seven packages below are historical: many of their core features have since passed. Seven residual areas remain, not seven promised builds or a fixed number of sub-gates.
 
-| Residual area | Still open after C2ab |
+| Residual area | Still open after C2ad |
 | --- | --- |
 | 1. Combiners and vertex interactions | Combine; varying-RGB Decal/Blend/Add and other interactions beyond the accepted constant-RGB and separable Modulate/Replace paths; non-colour Replace applicability, nonstandard blending and unqualified reset/inhibit/final combinations. Operations needing a richer renderer representation must remain explicitly diagnosed until implemented |
 | 2. Independent texture units | Different coordinates/transforms, image sizes, wraps or filtering per stage; nonlinear combinations with linear/trilinear filtering. Existing ordered co-sampled composition, bounded automatic assignment and differing-resolution nearest base-level grids are delivered |
-| 3. Remaining image/border profiles | Mixed sampled-border axes, rectangular/non-power-of-two sampled mip interiors, generated sampled-border mip chains, external explicit rings, authored-border legacy CLAMP and unresolved pixel/internal-format applicability. Existing base-level borders and bounded square authored rings are delivered |
+| 3. Remaining image/border profiles | Sampled NPOT dimensions, both-axis rectangular full mip footprints, mipmapped/unequal-filter legacy CLAMP, one-bit descriptors and unresolved internal-format applicability. C2ad delivered mixed sampled axes, longest-POT sampled axes with shorter/NPOT unsampled dimensions, generated border chains, external rings and equal-filter non-mip legacy CLAMP |
 | 4. Generated/projective mapping | View-linear and projective coordinates; applicable sphere/reflection/normal generation and reference-plane conventions. Stored UVs, affine transforms and bounded model-linear S/T are delivered |
 | 5. Other texture/material roles | Applicable normal/bump, gloss, environment/light-map and other pre-/post-lit roles, with role-specific colour-space, coordinate, renderer and export semantics |
 | 6. JT8 authored textures | Applicable 8.0/8.1/8.2 source layouts and mapping need qualified source/reference evidence. Later-family envelopes or reheadered samples are not evidence |
 | 7. Final appearance qualification | Authentic textured exporter comparisons, complete inheritance/shared-instance/family matrix, applicable native-suite and renderer/backend verification, copy/export coverage beyond the accepted bounded cases and explicit unsupported-feature diagnostics |
 
-Suggested next implementation focus: the remaining vertex-colour combiner interactions (area 1), grouped with their reference controls and scene-copy/export checks where exactly representable. Do not describe the synthetic controls as authentic exporter qualification. JT8/authentic exporter evidence gaps and representation limits cannot be closed merely by adding visual builds. No new gate has been implemented or accepted by this scope reconciliation.
+Next focus after the owner-directed Batch 1 deferral and accepted bounded Batch 2: generated/projective mapping (area 4). Review the retained primary definitions and required raster/copy/export representation before selecting a coherent implementation gate. View-dependent mapping cannot be presented as a fixed import-time UV bake. Batch 1 remains in its comeback list; Batch 2 limits remain open in its validation record. Do not describe the synthetic controls as authentic exporter qualification. JT8/authentic exporter evidence gaps and representation limits cannot be closed merely by adding visual builds. This remaining-scope reconciliation adds no implementation or acceptance beyond the separately recorded bounded gates.
 
 The earlier audit and checkpoint history follow. Where an older paragraph says a later delivered feature is pending, the accepted checkpoint and this current table supersede that historical status. C1 and C3-C7 remain separate; JT10.11 is still deferred.
 
