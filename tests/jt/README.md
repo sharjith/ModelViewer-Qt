@@ -208,3 +208,6 @@ C2ae prepares `jt_texture_homogeneous_tests.cpp`: literal signed-Q/R contributio
 
 
 C2af registers `textureRoleTests()` for known-value tangent bases, transactional mirrored/degenerate/cancellation rejection, normal role/colour coexistence and fallback, scene copy, post-lit replacement and GLB unlit retention across enabled original texture layouts. Prepared only: owner native-suite execution is required. Original grouped controls: `python -B tools/jt/make_texture_role_controls.py out/jt-research/texture-roles-ui-fixtures`. See [C2af validation](../../research/jt/JT_TEXTURE_ROLE_VALIDATION.md) for the bounded material contracts and owner build/visual/export gate.
+
+
+C2ag extends textureRoleTests with each normal mip filter, literal base/tail vector bytes and forced unused alpha, invalid-tail fallback, copy and representative GLB mip-carrier retention. Prepared, not executed by the agent. Original control authoring: `python -B tools/jt/make_texture_normal_mip_controls.py out/jt-research/texture-normal-mip-ui-fixtures`. See [C2ag validation](../../research/jt/JT_NORMAL_MIP_VALIDATION.md) for the pending owner gate and remaining basis/portability limits.

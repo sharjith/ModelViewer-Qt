@@ -245,3 +245,11 @@ Following accepted C2ae, [C2af validation](JT_TEXTURE_ROLE_VALIDATION.md) prepar
 
 
 C2af owner acceptance - 24 October 2026: owner accepted the grouped 24-document ADS/PBR gate, rebuilt after the unlit export correction, and passed the four application GLB/glTF round trips. Read-only role/image/sampler/material and effective-UV inspections each report 4/4. Shared unlit rendering/export correction is committed separately as 7a18b9d. See [C2af validation](JT_TEXTURE_ROLE_VALIDATION.md). Native/backend-specific execution and authentic normal encoding/basis remain unreported; other C2 residuals remain open.
+
+
+## Prepared C2ag - normal-map mip/filter extension
+
+Following accepted C2af fe6d623 and shared unlit correction 7a18b9d, [C2ag validation](JT_NORMAL_MIP_VALIDATION.md) prepares authored/generated normal mip filtering through the existing vector-byte image/carrier path. Thirty-six original roots provide six pairs and one grouped 16-document visual/zoom gate. Native literal mip/alpha/filter/fallback/copy/GLB checks are prepared, not run. Owner build/install, ADS/PBR zoom comparison and four representative application exports remain pending. UV/tangent restrictions, private-carrier portability, authentic normal conventions and other C2 residuals remain explicit.
+
+
+C2ag owner acceptance - 24 October 2026: owner built/installed, accepted all 16 grouped ADS/PBR/zoom controls and reported the representative exports worked perfectly. Read-only authored-mip/image/sampler/material and effective-UV inspections each report 4/4. The bounded normal mip/filter gate is accepted; native/backend execution and authentic normal conventions remain unreported. Private-carrier portability and other C2 residuals remain open. See [C2ag validation](JT_NORMAL_MIP_VALIDATION.md).

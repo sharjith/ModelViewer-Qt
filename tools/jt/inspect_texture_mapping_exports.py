@@ -14,7 +14,9 @@ def coordinates(path):
     document, binary = read_document(path)
     primitive = document['meshes'][0]['primitives'][0]
     material = document['materials'][primitive['material']]
-    texture = material['pbrMetallicRoughness']['baseColorTexture']
+    texture = material.get('pbrMetallicRoughness', {}).get('baseColorTexture')
+    if texture is None: texture = material.get('normalTexture')
+    if texture is None: raise ValueError('No colour or normal texture coordinate binding')
     channel = texture.get('texCoord', 0)
     accessor = document['accessors'][primitive['attributes']['TEXCOORD_'+str(channel)]]
     view = document['bufferViews'][accessor['bufferView']]

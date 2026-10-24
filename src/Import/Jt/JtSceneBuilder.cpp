@@ -881,15 +881,15 @@ struct Builder {
         bool identity=true;for(unsigned i=0;i<16;++i)identity=identity&&state.transform[i]==float(i%5==0);
         if(state.image.IsNull()||state.coordinate!=0||!identity
             ||std::any_of(state.generation.begin(),state.generation.end(),[](int mode){return mode!=0;})
-            ||env[0]!=0||env[1]<1||env[1]>2||env[2]<1||env[2]>2
+            ||env[0]!=0||env[1]<1||env[1]>2||env[2]<1||env[2]>6
             ||env[3]<2||env[3]>4||env[4]<2||env[4]>4||env[6]!=2){
             textureWarning("JT normal map not applied: requires one normalized RGB tangent map, original UV0, identity mapping and no sampled border");return {};
         }
         if(state.image->Inline()){
             if(state.image->Images().size()!=1){textureWarning("JT normal map not applied: requires exactly one image");return {};}
             const auto& data=state.image->Images()[0];
-            if((data.format!=1&&data.format!=2&&data.format!=11&&data.format!=12)||data.dataType!=3||data.border!=0||!data.extraMips.empty()){
-                textureWarning("JT normal map not applied: only base-level unsigned-byte RGB/BGR/RGBA/BGRA components without an image ring are qualified");return {};
+            if((data.format!=1&&data.format!=2&&data.format!=11&&data.format!=12)||data.dataType!=3||data.border!=0){
+                textureWarning("JT normal map not applied: only unsigned-byte RGB/BGR/RGBA/BGRA components without an image ring are qualified");return {};
             }
         }
         if(color.index>=0){
@@ -904,6 +904,8 @@ struct Builder {
         }
         // Normal RGB is vector data. Do not compose material/vertex colour into
         // it; unused image alpha must never select the transparent draw pass.
+        // The existing image path validates and carries each authored mip as
+        // vector bytes, without colour composition or gamma conversion.
         return image(state,false);
     }
     std::unique_ptr<aiMetadata> properties(const JtNode_Base& source,const QString& label) {

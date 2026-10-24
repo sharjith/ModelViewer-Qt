@@ -5,10 +5,12 @@
 #include "JtTextureTangents.h"
 #include "Jt/JtImporter.h"
 #include "SceneUtils.h"
+#include "../../include/Materials/TextureMipChain.h"
 #include <QTemporaryDir>
 #include <assimp/Exporter.hpp>
 #include <assimp/Importer.hpp>
 #include <assimp/material.h>
+#include <assimp/GltfMaterial.h>
 #include <cmath>
 #include <iostream>
 
@@ -62,6 +64,31 @@ void textureRoleTests(){
         const auto combined=read({normal,base});const auto& combinedMesh=*combined.scene->mMeshes[0];
         const auto* combinedMat=combined.scene->mMaterials[combinedMesh.mMaterialIndex];
         check(combinedMat->GetTextureCount(aiTextureType_NORMALS)==1&&combinedMat->GetTextureCount(aiTextureType_DIFFUSE)==1,"Explicit color displaced automatic normal map");
+        for(int filter:{3,4,5,6}){
+            auto mip=normal;mip.pixelFormat=2;mip.total=mip.mipBytes=16;mip.minFilter=filter;
+            mip.pixels=QByteArray::fromHex("8080ff008080ff408080ff808080ffff");
+            mip.extraMips={QByteArray::fromHex("80cce600")};
+            const auto verifyMip=[&](const aiScene& scene){
+                const auto* m=scene.mMaterials[scene.mMeshes[0]->mMaterialIndex];aiString imagePath;
+                check(m->GetTexture(aiTextureType_NORMALS,0,&imagePath)==AI_SUCCESS,"Normal mip slot missing");
+                const auto* texture=scene.GetEmbeddedTexture(imagePath.C_Str());check(texture&&texture->mHeight==0,"Normal mip carrier missing");
+                const auto pixels=QImage::fromData(reinterpret_cast<const uchar*>(texture->pcData),int(texture->mWidth),"PNG");
+                const auto levels=TextureMipChain::decode(pixels);
+                check(pixels.pixelColor(0,0)==QColor(128,128,255,255)&&levels.size()==1&&levels[0].pixelColor(0,0)==QColor(128,204,230,255),"Normal mips changed vector bytes or retained unused alpha");
+                const int filters[]={0,0,0,9984,9985,9986,9987};int selected=0;
+                check(m->Get(AI_MATKEY_GLTF_MAPPINGFILTER_MIN(aiTextureType_NORMALS,0),selected)==AI_SUCCESS&&selected==filters[filter],"Normal mip filter lost");
+                aiString alpha;check(m->Get("$mat.gltf.alphaMode",0,0,alpha)==AI_SUCCESS&&alpha==aiString("OPAQUE"),"Unused normal mip alpha enabled transparency");
+            };
+            const auto mapped=read({mip});verifyMip(*mapped.scene);
+            if(family==10&&minor==0&&!big&&filter==6){
+                std::unique_ptr<aiScene> copied(SceneUtils::deepCopyScene(mapped.scene.get()));verifyMip(*copied);
+                Assimp::Exporter exporter;const auto path=dir.filePath("normal_mip.glb").toStdString();
+                check(exporter.Export(mapped.scene.get(),"glb2",path)==AI_SUCCESS,"Normal mip GLB failed");
+                Assimp::Importer importer;const auto* loaded=importer.ReadFile(path,0);check(loaded,"Normal mip GLB reopen failed");verifyMip(*loaded);
+            }
+            mip.extraMips[0].chop(1);const auto invalid=read({mip});const auto& invalidMesh=*invalid.scene->mMeshes[0];
+            check(!invalid.warnings.isEmpty()&&invalid.scene->mMaterials[invalidMesh.mMaterialIndex]->GetTextureCount(aiTextureType_NORMALS)==0,"Malformed normal mip silently used only its base");
+        }
         if(family==10&&minor==0&&!big){
             Assimp::Exporter exporter;const auto path=dir.filePath("normal.glb").toStdString();
             check(exporter.Export(combined.scene.get(),"glb2",path)==AI_SUCCESS,"Normal role export failed");

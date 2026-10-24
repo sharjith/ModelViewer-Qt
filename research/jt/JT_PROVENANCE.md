@@ -169,3 +169,8 @@ Consulted existing original adapter/fixture code and retained texture-descriptor
 ## 24 October 2026 - C2af bounded additional texture roles
 
 Consulted original adapter/material/export/shader code, retained JT10.0 Rev-B type/channel definitions and OpenGL 2.1 complete-replacement functions, plus already local Assimp 6.0.4 glTF2 importer/exporter code for UV and tangent transport. Exact primary URLs, retained PDF and dependency-file hashes, and normal encoding/basis qualification limits are in [C2af validation](JT_TEXTURE_ROLE_VALIDATION.md#evidence-and-provenance). New helpers, images and cubes are original; no source was copied from Assimp and its dependency notices remain intact. No new download, vendor tool/SDK, asset, disassembly or licence interpretation. No agent C++ build/native/viewer execution or authentic exporter agreement is claimed. This records method and limits, not legal clearance.
+
+
+## 24 October 2026 - C2ag normal mip filtering
+
+Consulted original image/carrier/upload/snapshot/sampler/export and fixture code plus accepted C2af/C2x records. No new external source/download, vendor software/SDK, asset, third-party implementation, schema, disassembly or licence interpretation. References/hashes and the unresolved authentic normal encoding/basis limits remain those in [C2af provenance](JT_TEXTURE_ROLE_VALIDATION.md#evidence-and-provenance). New controls use literal original normal directions and explicit opaque reference levels in the existing ModelViewer-private PNG carrier. Owner build/visual/export and native/backend execution remain pending; read-only authoring is not such execution. See [C2ag validation](JT_NORMAL_MIP_VALIDATION.md).

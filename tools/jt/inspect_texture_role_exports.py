@@ -2,12 +2,13 @@
 # Copyright (C) 2026 ModelViewer-Qt contributors. SPDX-License-Identifier: GPL-3.0-only
 """Read-only normal/unlit export comparison for original C2af controls."""
 import argparse
+import base64
 import hashlib
 import io
 import json
 from pathlib import Path
 from PIL import Image
-from inspect_texture_exports import read_document, resource, LIMIT
+from inspect_texture_exports import read_document, resource, LIMIT, KEY, TERMINAL
 
 
 def appearance(path):
@@ -31,10 +32,18 @@ def appearance(path):
         if not encoded or len(encoded)>LIMIT: raise ValueError('Invalid image size')
         pixels = Image.open(io.BytesIO(encoded))
         if pixels.width*pixels.height*4>LIMIT: raise ValueError('Decoded image exceeds limit')
+        metadata=pixels.info.copy()
+        levels=[pixels]+[Image.open(io.BytesIO(base64.b64decode(value,validate=True)))
+                         for value in json.loads(metadata.get(KEY,'[]'))]
+        signatures=[]
+        for level in levels:
+            if level.width*level.height*4>LIMIT:raise ValueError('Decoded mip exceeds limit')
+            signatures.append(dict(size=list(level.size),rgba_sha256=hashlib.sha256(level.convert('RGBA').tobytes()).hexdigest()))
         pixels = pixels.convert('RGBA')
         sampler = document['samplers'][texture['sampler']]
         result[role] = dict(size=list(pixels.size), rgba_sha256=hashlib.sha256(pixels.tobytes()).hexdigest(),
             uv=info.get('texCoord',0), scale=info.get('scale',1),
+            levels=signatures,terminal=metadata.get(TERMINAL,''),
             sampler={key:sampler.get(key) for key in ('wrapS','wrapT','magFilter','minFilter')})
     return result
 
