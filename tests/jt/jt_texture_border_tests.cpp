@@ -99,7 +99,7 @@ void textureBorderTests(){
             for(unsigned i=0;i<mesh.mNumVertices;++i)check(mesh.mVertices[i]==original.mVertices[i]&&mesh.mTextureCoords[0][i]==original.mTextureCoords[0][i],"Border mapping changed positions/UVs");
         }
         for(unsigned damage=0;damage<6;++damage){auto o=base;o.borderMode=2;o.imageBorder=1;pixels(o);
-            if(damage==0)o.wrapS=1;if(damage==1){o.wrapT=5;o.minFilter=3;}if(damage==2)o.imageBorder=0;if(damage==3)o.borderMode=0;
+            if(damage==0){o.wrapS=1;o.minFilter=3;}if(damage==1){o.wrapT=5;o.minFilter=3;o.width=3;}if(damage==2)o.imageBorder=0;if(damage==3)o.borderMode=0;
             if(damage==4)o.width=2;if(damage==5)o.inlineImage=false;write(o);
             const auto result=Jt::Importer::read(dir.filePath("border.jt"));
             check(result.scene->mNumMeshes==1&&result.scene->mNumTextures==0&&!result.warnings.isEmpty(),"Unsupported/inconsistent border did not retain geometry with diagnostic");

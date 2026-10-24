@@ -219,3 +219,13 @@ Following accepted C2ab, [C2ac validation](JT_COMBINER_UNIT_BATCH_VALIDATION.md)
 
 
 C2ac owner acceptance - 24 October 2026: build succeeded; the owner reported the grouped ADS/PBR source/reference comparisons consistent, then all six representative application GLB/glTF exports passed after reopening. The bounded viewer/export gate is accepted. Prepared native-suite and individual CPU/OptiX execution remain unreported; arbitrary sampling, Combine evidence and other residual scope remain open.
+
+
+## Deferred Batch 1 residuals and prepared Batch 2 / C2ad
+
+On 24 October 2026 the owner explicitly requested recording Batch 1 residuals for a later return and proceeding to Batch 2. [Batch 1 comeback list](JT_BATCH1_COMEBACK.md) retains Combine evidence, independent sampling/material representation, varying-RGB affine sums and broader blend/accumulation qualifications without declaring them complete.
+
+[C2ad border batch](JT_BORDER_BATCH_VALIDATION.md) prepares mixed-axis authored profiles, bounded rectangular/NPOT unsampled axes, separately generated border chains, external explicit rings and portable equal-filter/non-mip legacy CLAMP. Source geometry is retained; legacy-clamped display topology may be refined. Ninety original roots supply fifteen independent comparison pairs and one 34-document owner session, with three representative application export pairs. Native/carrier and copy/export checks are prepared, not executed. Owner build and ADS/PBR/zoom/export acceptance remain required. Mipmapped legacy CLAMP, unsupported per-level footprints and unresolved image-format applicability remain explicit limits; no JT version or vendored decoder changes.
+
+
+C2ad owner acceptance - 24 October 2026: grouped visual controls passed; the focused source/reference/GLB/glTF/neutral-vertex ADS/PBR retest passed after shared light-intensity synchronization. Read-only inspection reports 6/6 representative exported image/carrier/sampler/sidedness comparisons matching independent references. The bounded border gate is accepted; native/backend execution remains unreported. Batch 1 comeback items and the documented Batch 2 footprint/derivative/format evidence limits remain open. See [C2ad validation](JT_BORDER_BATCH_VALIDATION.md) and [shared raster light correction](JT_RASTER_LIGHT_UNIFORM_VALIDATION.md).

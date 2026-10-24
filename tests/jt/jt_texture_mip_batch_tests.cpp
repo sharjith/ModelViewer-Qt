@@ -111,7 +111,7 @@ void textureMipBatchTests(){
         bad=b;bad.minFilter=6;bad.magFilter=2;reject({a,bad});
         bad=texture();bad.blendType=1;bad.minFilter=6;bad.magFilter=2;reject({bad});
         bad=texture();bad.blendType=5;bad.minFilter=6;bad.magFilter=2;reject({bad});
-        bad=texture(true);bad.wrapS=5;bad.wrapT=2;reject({bad});
+        bad=texture(true);bad.wrapS=1;bad.wrapT=5;reject({bad}); // Mipmapped legacy CLAMP remains unqualified.
         bad=texture(true);bad.wrapS=bad.wrapT=5;bad.extraMips[0].chop(1);reject({bad});
     }
     std::cout<<"Composed authored chains, border level mapping, copy/GLB, family/endian and diagnosed fallback checks passed\n";

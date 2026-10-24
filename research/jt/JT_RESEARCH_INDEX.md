@@ -60,3 +60,10 @@ Owner-accepted shared raster regression correction: [BLEND depth compatibility](
 
 
 35. Owner-accepted grouped combiner/unit checkpoint: [C2ac constant vertex RGB, wider Replace and common nearest grids](JT_COMBINER_UNIT_BATCH_VALIDATION.md); owner accepted grouped ADS/PBR comparisons and six representative application exports on 24 October 2026; native/backend execution unreported.
+
+
+36. Owner-deferred return list: [Batch 1 comeback prerequisites and residuals](JT_BATCH1_COMEBACK.md); preserved while proceeding to Batch 2.
+
+37. Owner-accepted bounded Batch 2 checkpoint: [C2ad image/border batch](JT_BORDER_BATCH_VALIDATION.md); mixed axes, bounded rectangular/generated/external borders and portable non-mip legacy clamp; owner accepted grouped comparisons and focused ADS/PBR/export retest on 24 October 2026; native/backend execution unreported.
+
+38. Owner-accepted shared renderer correction: [raster light-intensity synchronization](JT_RASTER_LIGHT_UNIFORM_VALIDATION.md); stored/GPU vectors agree in the focused five-document retest.

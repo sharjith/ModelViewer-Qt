@@ -89,3 +89,13 @@ C2ab owner acceptance - 24 October 2026: the owner rebuilt and confirmed the rem
 
 
 C2ac owner acceptance - 24 October 2026: the owner accepted the grouped ADS/PBR comparisons and all six representative reopened GLB/glTF exports. The bounded gate is accepted; native/backend execution remains unreported. The earlier pending statement is historical. This advances residual areas 1/2 without claiming arbitrary multi-texturing or resolving missing Combine evidence.
+
+
+## Owner deferral and prepared C2ad / Batch 2
+
+The owner requested deferring Batch 1 residuals and proceeding to Batch 2 on 24 October 2026. The [comeback list](JT_BATCH1_COMEBACK.md) is the return checklist; current residual areas 1/2 are not marked universally complete.
+
+[C2ad](JT_BORDER_BATCH_VALIDATION.md) prepares mixed sampled axes, bounded rectangular/NPOT unsampled dimensions, separate generated border reduction, external rings and equal-filter/non-mip legacy CLAMP. Fifteen reference pairs and representative exports form the next owner gate. No acceptance yet. Sampled odd axes/two-axis rectangular full chains, derivative-sensitive legacy clamp and unresolved image-format evidence remain distinct Batch 2 limits, rather than silently dropped requirements.
+
+
+C2ad owner acceptance - 24 October 2026: grouped visual controls passed; the focused source/reference/GLB/glTF/neutral-vertex ADS/PBR retest passed after shared light-intensity synchronization. Read-only inspection reports 6/6 representative exported image/carrier/sampler/sidedness comparisons matching independent references. The bounded border gate is accepted; native/backend execution remains unreported. Batch 1 comeback items and the documented Batch 2 footprint/derivative/format evidence limits remain open. See [C2ad validation](JT_BORDER_BATCH_VALIDATION.md) and [shared raster light correction](JT_RASTER_LIGHT_UNIFORM_VALIDATION.md).

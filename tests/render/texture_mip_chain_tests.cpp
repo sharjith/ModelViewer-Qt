@@ -52,6 +52,24 @@ int main(int argc,char** argv){
         auto unknown=bordered;unknown.setText(QLatin1String(TextureMipChain::TerminalKey),"unknown");
         reject([&]{TextureMipChain::decode(unknown);});
         reject([&]{TextureMipChain::attach(bordered,{borderMid});});
+        for(bool s:{false,true}){
+            QImage single(s?24:5,s?5:24,QImage::Format_RGBA8888);single.fill(Qt::red);
+            QImage singleA(s?12:2,s?2:12,QImage::Format_RGBA8888);singleA.fill(Qt::green);
+            QImage singleB(s?6:1,s?1:6,QImage::Format_RGBA8888);singleB.fill(Qt::blue);
+            QImage singleEnd(s?3:1,s?1:3,QImage::Format_RGBA8888);singleEnd.fill(Qt::magenta);
+            singleEnd.setPixelColor(s?1:0,s?0:1,Qt::yellow);
+            single.setText(QLatin1String(TextureMipChain::TerminalKey),QLatin1String(s?TextureMipChain::BorderSTerminal:TextureMipChain::BorderTTerminal));
+            TextureMipChain::attach(single,{singleA,singleB,singleEnd});
+            check(TextureMipChain::decode(single).back()==singleEnd,"Single-axis rectangular profile rejected");
+            auto wrong=single;wrong.setText(QLatin1String(TextureMipChain::TerminalKey),QLatin1String(s?TextureMipChain::BorderTTerminal:TextureMipChain::BorderSTerminal));
+            reject([&]{TextureMipChain::decode(wrong);});
+            RtTextureSample sampler;sampler.width=single.width();sampler.height=single.height();sampler.rgba8=bytes(single);
+            sampler.minFilter=0x2700;sampler.magFilter=0x2600;
+            sampler.mips={{bytes(single),single.width(),single.height()},{bytes(singleA),singleA.width(),singleA.height()},
+                {bytes(singleB),singleB.width(),singleB.height()},{bytes(singleEnd),singleEnd.width(),singleEnd.height()}};
+            check(RtTextureSampling::sampleTexture(sampler,uv,100)==glm::vec4(1,1,0,1),"Single-axis terminal interior disappeared at max LOD");
+            check(RtTextureSampling::sampleTexture(sampler,outside,100)==glm::vec4(1,0,1,1),"Single-axis terminal border disappeared at max LOD");
+        }
         QByteArray borderPng;QBuffer borderOut(&borderPng);borderOut.open(QIODevice::WriteOnly);
         check(bordered.save(&borderOut,"PNG"),"Cannot save border chain");
         check(TextureMipChain::decode(convertToGLFormat(QImage::fromData(borderPng,"PNG"))).back().size()==QSize(3,3),"Border terminal metadata lost in PNG/format conversion");

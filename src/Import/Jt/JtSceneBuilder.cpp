@@ -1,6 +1,8 @@
 #include "../../../include/Materials/TextureMipChain.h"
 // Copyright (C) 2026 ModelViewer-Qt contributors. SPDX-License-Identifier: GPL-3.0-only
 #include "JtSceneBuilder.h"
+#include "JtTextureBorderImage.h"
+#include "JtTextureClampMesh.h"
 #include <JtData_Model.hxx>
 #include <JtData_Limits.hxx>
 #include <JtNode_Partition.hxx>
@@ -418,7 +420,7 @@ struct Builder {
     std::vector<std::unique_ptr<aiTexture>> textures;
     std::map<QByteArray,unsigned> texturePixels;
     struct ImageResult {int index=-1;bool alpha=false;QString error;double scaleS=1,scaleT=1,offsetS=0,offsetT=0;int format=0;bool composed=false;QImage mipPixels;};
-    using TextureSourceKey=std::tuple<const void*,bool,bool,bool,std::array<float,4>,size_t>;
+    using TextureSourceKey=std::tuple<const void*,bool,bool,bool,int,bool,std::array<float,4>,size_t>;
     std::map<TextureSourceKey,ImageResult> textureSources;
     std::map<std::vector<float>,ImageResult> textureCompositions;
     std::vector<std::vector<int>> geometryGroups;
@@ -449,11 +451,12 @@ struct Builder {
         }
     }
     ImageResult image(const TextureState& state,bool allowAlpha,size_t level=0) {
-        const bool sampleS=state.environment[0]!=0&&state.environment[3]==5;
-        const bool sampleT=state.environment[0]!=0&&state.environment[4]==5;
-        const bool padS=state.environment[0]==1&&state.environment[3]==5;
-        const bool padT=state.environment[0]==1&&state.environment[4]==5;
-        const TextureSourceKey sourceKey{state.image.get(),allowAlpha,sampleS,sampleT,(padS||padT)?state.borderColor:std::array<float,4>{},level};
+        const bool sampleS=state.environment[0]!=0&&(state.environment[3]==1||state.environment[3]==5);
+        const bool sampleT=state.environment[0]!=0&&(state.environment[4]==1||state.environment[4]==5);
+        const bool padS=state.environment[0]==1&&sampleS;
+        const bool padT=state.environment[0]==1&&sampleT;
+        const TextureSourceKey sourceKey{state.image.get(),allowAlpha,sampleS,sampleT,state.environment[0],
+            (sampleS||sampleT)&&state.environment[2]>2,(padS||padT)?state.borderColor:std::array<float,4>{},level};
         if(!state.image.IsNull()) {
             const auto cached=textureSources.find(sourceKey);
             if(cached!=textureSources.end()){if(!cached->second.error.isEmpty())textureWarning(cached->second.error);return cached->second;}
@@ -466,12 +469,12 @@ struct Builder {
             const auto& data=source.Images()[0];QImage pixels;bool borderHasAlpha=true;
             int width=data.width,height=data.height;
             if(level>data.extraMips.size())throw std::runtime_error("authored mip index exceeds source chain");
-            const bool borderMips=!data.extraMips.empty()&&(sampleS||sampleT);
-            const int ring=data.border==1?1:0;
+            const bool generateBorderMips=data.extraMips.empty()&&(sampleS||sampleT)&&state.environment[2]>2;
+            const bool borderMips=(!data.extraMips.empty()||generateBorderMips)&&(sampleS||sampleT);
+            const int ring=(source.Inline()?data.border==1:state.environment[0]==2)?1:0;
             int innerWidth=width-2*ring,innerHeight=height-2*ring;
             if(source.Inline()&&(innerWidth<1||innerHeight<1))throw std::runtime_error("border image has no interior");
-            if(borderMips&&(!sampleS||!sampleT||innerWidth!=innerHeight||(innerWidth&(innerWidth-1))||innerWidth<2))
-                throw std::runtime_error("sampled border mips require both border axes and a square power-of-two interior of at least 2x2");
+            if(borderMips&&source.Inline())TextureBorderImage::qualify(innerWidth,innerHeight,sampleS,sampleT);
             for(size_t i=0;i<level;++i){
                 if(innerWidth==1&&innerHeight==1)throw std::runtime_error("authored mip chain extends past its source interior");
                 innerWidth=std::max(1,innerWidth/2);innerHeight=std::max(1,innerHeight/2);
@@ -594,6 +597,19 @@ struct Builder {
                 pixels=decoded.convertToFormat(QImage::Format_RGBA8888);
                 if(pixels.isNull()||pixels.size()!=size)throw std::runtime_error("external image decoding failed");
                 if(!pixels.text(QLatin1String(TextureMipChain::Key)).isEmpty()||!pixels.text(QLatin1String(TextureMipChain::TerminalKey)).isEmpty())throw std::runtime_error("external PNG authored mip carrier is not qualified for JT image import");
+                innerWidth=pixels.width()-2*ring;innerHeight=pixels.height()-2*ring;
+                if(innerWidth<1||innerHeight<1)throw std::runtime_error("external border image has no interior");
+                if(borderMips)TextureBorderImage::qualify(innerWidth,innerHeight,sampleS,sampleT);
+                if(ring){
+                    const int croppedW=innerWidth+2*int(sampleS),croppedH=innerHeight+2*int(sampleT);
+                    if(!sampleS||!sampleT){
+                        JtData_Limits::allocation(size_t(croppedW)*croppedH*4);
+                        pixels=pixels.copy(int(!sampleS),int(!sampleT),croppedW,croppedH);
+                        if(pixels.isNull())throw std::bad_alloc();
+                    }
+                    resultImage.scaleS=double(innerWidth)/croppedW;resultImage.scaleT=double(innerHeight)/croppedH;
+                    resultImage.offsetS=double(sampleS)/croppedW;resultImage.offsetT=double(sampleT)/croppedH;
+                }
             }
             if(padS||padT){
                 // A constant one-texel halo plus interior-relative UVs reproduces
@@ -613,23 +629,45 @@ struct Builder {
                 resultImage.offsetS=double(padS)/width;resultImage.offsetT=double(padT)/height;
                 pixels=std::move(padded);
             }
+            const auto terminal=sampleS?(sampleT?TextureMipChain::BorderTerminal:TextureMipChain::BorderSTerminal):TextureMipChain::BorderTTerminal;
             if(borderMips){
-                // A 3W-by-3W display image keeps the interior at [1/3,2/3]
-                // at EVERY level. Extend the authored one-texel ring, never
-                // filter it into the interior. The last display level is 3x3.
-                const int extent=3*innerWidth;
-                if(uint64_t(extent)*extent*4>maxBytes)throw std::runtime_error("border mip display image exceeds byte limit");
-                JtData_Limits::allocation(size_t(extent)*extent*4);
-                QImage expanded(extent,extent,QImage::Format_RGBA8888);if(expanded.isNull())throw std::bad_alloc();
-                for(int y=0;y<extent;++y){options.check();auto* dst=expanded.scanLine(y);
-                    const auto* src=pixels.constScanLine(std::clamp(y-innerWidth+1,0,innerWidth+1));
-                    for(int x=0;x<extent;++x)std::memcpy(dst+4*x,src+4*std::clamp(x-innerWidth+1,0,innerWidth+1),4);
+                int w=(sampleS?3:1)*innerWidth,h=(sampleT?3:1)*innerHeight;uint64_t bytes=0;
+                for(;;){
+                    bytes+=uint64_t(w)*h*4;
+                    if(bytes>maxBytes)throw std::runtime_error("border mip chain exceeds decoded byte limit");
+                    if(w==(sampleS?3:1)&&h==(sampleT?3:1))break;
+                    w=std::max(1,w/2);h=std::max(1,h/2);
                 }
-                pixels=std::move(expanded);
-                resultImage.scaleS=resultImage.scaleT=1.0/3;resultImage.offsetS=resultImage.offsetT=1.0/3;
             }
-            for(int y=0;y<pixels.height();++y){options.check();auto* row=pixels.scanLine(y);
-                for(int x=0;x<pixels.width();++x){if(!allowAlpha)row[4*x+3]=255;else resultImage.alpha=resultImage.alpha||row[4*x+3]<255;}}
+            const auto poll=[&]{options.check();};
+            const auto applyAlpha=[&](QImage& image){
+                for(int y=0;y<image.height();++y){options.check();auto* row=image.scanLine(y);
+                    for(int x=0;x<image.width();++x){
+                        if((x&1023)==0)options.check();
+                        if(!allowAlpha)row[4*x+3]=255;else resultImage.alpha=resultImage.alpha||row[4*x+3]<255;
+                    }
+                }
+            };
+            std::vector<QImage> generated;
+            if(generateBorderMips){
+                QImage sourceLevel=pixels;int w=innerWidth,h=innerHeight;
+                while(w>1||h>1){
+                    sourceLevel=TextureBorderImage::reduce(sourceLevel,w,h,sampleS,sampleT,poll);
+                    w=std::max(1,w/2);h=std::max(1,h/2);
+                    auto display=TextureBorderImage::expand(sourceLevel,w,h,sampleS,sampleT,poll);
+                    applyAlpha(display);generated.push_back(std::move(display));
+                }
+            }
+            if(borderMips){
+                pixels=TextureBorderImage::expand(pixels,innerWidth,innerHeight,sampleS,sampleT,poll);
+                resultImage.scaleS=sampleS?1.0/3:1;resultImage.scaleT=sampleT?1.0/3:1;
+                resultImage.offsetS=sampleS?1.0/3:0;resultImage.offsetT=sampleT?1.0/3:0;
+            }
+            applyAlpha(pixels);
+            if(generateBorderMips){
+                pixels.setText(QLatin1String(TextureMipChain::TerminalKey),QLatin1String(terminal));
+                TextureMipChain::attach(pixels,generated);
+            }
             if(level==0&&source.Inline()&&!data.extraMips.empty()){
                 std::vector<QImage> mips;mips.reserve(data.extraMips.size());
                 for(size_t n=1;n<=data.extraMips.size();++n){
@@ -637,7 +675,7 @@ struct Builder {
                     if(decoded.mipPixels.isNull())throw std::runtime_error("authored mip could not be decoded");
                     resultImage.alpha=resultImage.alpha||decoded.alpha;mips.push_back(decoded.mipPixels);
                 }
-                if(borderMips)pixels.setText(QLatin1String(TextureMipChain::TerminalKey),QLatin1String(TextureMipChain::BorderTerminal));
+                if(borderMips)pixels.setText(QLatin1String(TextureMipChain::TerminalKey),QLatin1String(terminal));
                 TextureMipChain::validate(pixels,mips);
                 JtData_Limits::allocation(size_t(data.totalBytes)*8);
                 TextureMipChain::attach(pixels,mips);
@@ -652,16 +690,16 @@ struct Builder {
         if(state.type==0||state.image.IsNull())return {};
         const auto& env=state.environment;
         const bool ignoresBorder=env[3]>=2&&env[3]<=4&&env[4]>=2&&env[4]<=4;
-        const bool sampledBorder=(env[0]==1||env[0]==2)&&(env[3]==5||env[4]==5)&&env[3]>=2&&env[3]<=5&&env[4]>=2&&env[4]<=5&&env[1]>=1&&env[1]<=2&&env[2]>=1&&env[2]<=6
-            &&(env[2]<=2||(!state.image.IsNull()&&state.image->Inline()&&state.image->Images().size()==1&&!state.image->Images()[0].extraMips.empty()));
+        const bool legacyClamp=(env[0]==1||env[0]==2)&&(env[3]==1||env[4]==1);
+        if(legacyClamp&&(env[2]>2||env[1]!=env[2])){
+            textureWarning("JT texture not applied: legacy CLAMP requires equal non-mip minification/magnification filters");return {};
+        }
+        const bool sampledBorder=(env[0]==1||env[0]==2)&&(env[3]==1||env[3]==5||env[4]==1||env[4]==5)&&env[3]>=1&&env[3]<=5&&env[4]>=1&&env[4]<=5&&env[1]>=1&&env[1]<=2&&env[2]>=1&&env[2]<=6;
         if(state.type!=9||(env[0]!=0&&!ignoresBorder&&!sampledBorder)||(env[6]<1||env[6]>5)||!state.affine2D()||state.coordinate<0||state.coordinate>=4
             ||!state.planar2D()
             ||(env[3]==5&&!sampledBorder)||(env[4]==5&&!sampledBorder)
             ||env[3]<1||env[3]>5||env[4]<1||env[4]>5) {
             textureWarning("JT texture not applied: mapping requires pre-lit 2D, a supported combiner, UV0-3 with stored or model-linear S/T, affine 2D mapping and qualified colour borders");return {};
-        }
-        if(env[0]==2&&!state.image->Inline()){
-            textureWarning("JT texture not applied: explicit border requires an inline image descriptor");return {};
         }
         if(state.image->Inline()&&state.image->Images().size()==1
             &&state.image->Images()[0].border!=(env[0]==2?1:0)){
@@ -699,6 +737,8 @@ struct Builder {
                 const auto mode=stage->environment[6];
                 if(stage->image.IsNull())throw std::runtime_error("texture stack has a missing image");
                 const bool authored=stage->image->Inline()&&stage->image->Images().size()==1&&!stage->image->Images()[0].extraMips.empty();
+                const bool generatedBorder=!authored&&stage->environment[0]!=0
+                    &&(stage->environment[3]==5||stage->environment[4]==5)&&stage->environment[2]>2;
                 const bool rgbDecal=mode==1&&stage->image->Inline()&&stage->image->Images().size()==1
                     &&(stage->image->Images()[0].format==1||stage->image->Images()[0].format==11);
                 // With constant incoming material, BLEND and RGB DECAL are
@@ -707,7 +747,7 @@ struct Builder {
                 // do not generally commute and retain the nearest-only gate.
                 const bool affineSingle=stages.size()==1&&(mode==4||rgbDecal);
                 if(!affineSingle&&(stages.size()>1||mode==1||mode==4||mode==5)&&
-                    (stage->environment[1]!=1||(stage->environment[2]!=1&&!(authored&&stage->environment[2]==3))))
+                    (stage->environment[1]!=1||(stage->environment[2]!=1&&!((authored||generatedBorder)&&stage->environment[2]==3))))
                     throw std::runtime_error("composition requires nearest sampling and matching authored levels for mip selection");
                 if(stage->environment[1]!=primary.environment[1]||stage->environment[2]!=primary.environment[2])
                     throw std::runtime_error("texture stack uses independent filters");
@@ -1089,6 +1129,17 @@ struct Builder {
         unsigned mat=material(resolved,colored,vertexAlpha,textureInput);
         if(materials[mat]->GetTextureCount(aiTextureType_DIFFUSE)>0){
             const auto mappedImage=texture(resolved,textureInput);
+            const bool clampS=resolved.texture.environment[0]!=0&&resolved.texture.environment[3]==1;
+            const bool clampT=resolved.texture.environment[0]!=0&&resolved.texture.environment[4]==1;
+            const unsigned selected=unsigned(resolved.texture.coordinate);
+            std::array<bool,4> priorUV{};std::vector<aiVector3D> savedUV;
+            if(clampS||clampT){
+                for(unsigned c=0;c<4;++c)priorUV[c]=mesh->HasTextureCoords(c);
+                if(priorUV[selected]){
+                    JtData_Limits::allocation(size_t(mesh->mNumVertices)*sizeof(aiVector3D));
+                    savedUV.assign(mesh->mTextureCoords[selected],mesh->mTextureCoords[selected]+mesh->mNumVertices);
+                }
+            }
             const auto& t=resolved.texture.transform;bool identity=true;
             for(unsigned i=0;i<16;++i)identity=identity&&t[i]==float(i%5==0);
             const bool generate=resolved.texture.generation[0]!=0||resolved.texture.generation[1]!=0;
@@ -1125,6 +1176,22 @@ struct Builder {
                 }
                 else {
                     textureWarning("JT texture not applied: transformed UV exceeds finite render range");
+                    resolved.texture.type=0;mat=material(resolved,colored,vertexAlpha);
+                }
+            }
+            if(resolved.texture.type!=0&&(clampS||clampT)){
+                try{
+                    auto refined=TextureClampMesh::apply(*mesh,selected,clampS,clampT,
+                        {float(mappedImage.offsetS),float(mappedImage.offsetS+mappedImage.scaleS),
+                         float(mappedImage.offsetT),float(mappedImage.offsetT+mappedImage.scaleT)},[&]{options.check();});
+                    if(refined)mesh=std::move(refined);
+                }catch(const Cancelled&){throw;}catch(const std::bad_alloc&){throw;}
+                catch(const std::exception& error){
+                    textureWarning("JT texture not applied: "+QString::fromUtf8(error.what()));
+                    for(unsigned c=0;c<4;++c)if(!priorUV[c]&&mesh->HasTextureCoords(c)){
+                        delete[] mesh->mTextureCoords[c];mesh->mTextureCoords[c]=nullptr;mesh->mNumUVComponents[c]=0;
+                    }
+                    if(!savedUV.empty())std::copy(savedUV.begin(),savedUV.end(),mesh->mTextureCoords[selected]);
                     resolved.texture.type=0;mat=material(resolved,colored,vertexAlpha);
                 }
             }

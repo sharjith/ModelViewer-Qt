@@ -83,3 +83,11 @@ C2ab uses tools/jt/make_texture_vertex_replace_controls.py for 48 original roots
 ## C2ac combiner/unit batch
 
 `make_texture_combiner_batch_controls.py` consumes the accepted C2ab manifest and reuses the common content-addressed asset store. It authors 78 positive roots and 13 descriptive `reference_combiner_batch_<case>.gltf` aliases; the 31-document launch list includes two family representatives and accepted regressions. Three export-pair records target six owner outputs beneath the ignored gate folder. Reference expectations are independently computed from original source images, incoming factors and literal effective stage lists, not importer output. See [C2ac validation](JT_COMBINER_UNIT_BATCH_VALIDATION.md) for generation and owner instructions.
+
+
+## C2ad / Batch 2 border controls
+
+`make_texture_border_batch_controls.py` consumes the accepted C2ac manifest and uses the common content-addressed asset store. Ninety original roots share geometry and image resources; fifteen descriptive `reference_border_batch_<case>.gltf` aliases provide independent pixel/carrier expectations. Legacy references use an original regular face grid rather than importer-derived clipping. The 34-document launch list has no failure cases, and three export pairs target six files under ignored out/. See [C2ad validation](JT_BORDER_BATCH_VALIDATION.md).
+
+
+C2ad owner acceptance - 24 October 2026: grouped visual controls passed; the focused source/reference/GLB/glTF/neutral-vertex ADS/PBR retest passed after shared light-intensity synchronization. Read-only inspection reports 6/6 representative exported image/carrier/sampler/sidedness comparisons matching independent references. The bounded border gate is accepted; native/backend execution remains unreported. Batch 1 comeback items and the documented Batch 2 footprint/derivative/format evidence limits remain open. See [C2ad validation](JT_BORDER_BATCH_VALIDATION.md) and [shared raster light correction](JT_RASTER_LIGHT_UNIFORM_VALIDATION.md).

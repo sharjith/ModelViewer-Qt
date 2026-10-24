@@ -17,6 +17,8 @@ namespace TextureMipChain
 inline constexpr char Key[] = "ModelViewer.MipChain.v1";
 inline constexpr char TerminalKey[] = "ModelViewer.MipChain.Terminal.v1";
 inline constexpr char BorderTerminal[] = "border-3x3";
+inline constexpr char BorderSTerminal[] = "border-3x1";
+inline constexpr char BorderTTerminal[] = "border-1x3";
 inline constexpr qint64 Limit = 64 * 1024 * 1024;
 
 inline void validate(const QImage& base, const std::vector<QImage>& levels)
@@ -24,10 +26,16 @@ inline void validate(const QImage& base, const std::vector<QImage>& levels)
     if (base.isNull() || levels.size() > 15)
         throw std::runtime_error("Invalid authored mip chain");
     const auto terminal = base.text(QLatin1String(TerminalKey));
-    if (!terminal.isEmpty() && terminal != QLatin1String(BorderTerminal))
+    const bool borderBoth=terminal==QLatin1String(BorderTerminal);
+    const bool borderS=borderBoth||terminal==QLatin1String(BorderSTerminal);
+    const bool borderT=borderBoth||terminal==QLatin1String(BorderTTerminal);
+    if (!terminal.isEmpty() && !borderS && !borderT)
         throw std::runtime_error("Unknown authored mip terminal profile");
-    if (!terminal.isEmpty() && (levels.empty() || base.width() != (3 << levels.size()) || base.height() != base.width()))
-        throw std::runtime_error("Border mip profile requires a square 3*2^N chain");
+    const int interiorExtent=1<<levels.size();
+    if (!terminal.isEmpty() && (levels.empty()
+        ||(borderS?base.width()!=3*interiorExtent:base.width()>interiorExtent)
+        ||(borderT?base.height()!=3*interiorExtent:base.height()>interiorExtent)))
+        throw std::runtime_error("Border mip profile requires a longest 3*2^N sampled axis");
     int width = base.width(), height = base.height();
     qint64 bytes = qint64(width) * height * 4;
     for (const auto& image : levels)
@@ -39,8 +47,7 @@ inline void validate(const QImage& base, const std::vector<QImage>& levels)
         if (image.isNull() || image.width() != width || image.height() != height || bytes > Limit)
             throw std::runtime_error("Authored mip dimensions or decoded byte limit mismatch");
     }
-    if (bytes > Limit || (!levels.empty() && (terminal.isEmpty() ? (width != 1 || height != 1) : (width != 3 || height != 3)))
-        || (!terminal.isEmpty() && levels.empty() && (width != 3 || height != 3)))
+    if (bytes > Limit || (!levels.empty() && (width != (borderS?3:1) || height != (borderT?3:1))))
         throw std::runtime_error("Authored mip chain terminal dimensions or decoded byte limit mismatch");
 }
 
