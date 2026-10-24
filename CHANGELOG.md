@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Honour unlit materials in ADS rendering as well as PBR.
+- Preserve unlit materials when exporting GLB and glTF, preventing darker
+  lighting after reopening.
 - Reapply each viewport's light intensities while drawing, preventing inconsistent
   ADS and PBR brightness after deferred settings updates.
 - Removed duplicate default-light illumination in raster PBR for non-glTF models.

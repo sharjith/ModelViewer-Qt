@@ -5,6 +5,7 @@
 #include "RenderableMesh.h"
 #include "SceneMesh.h"
 #include "PunctualLights.h"
+#include "UnlitMaterialExport.h"
 
 #include "GltfAnimationData.h"
 #include "GltfCameraData.h"
@@ -1784,6 +1785,7 @@ aiMaterial* SceneGraphExporter::buildMaterialFromSceneMesh(const SceneMesh* mesh
     const Material material = exportBaseMaterial(mesh);
 
     aiMaterial* aiMat = new aiMaterial();
+    UnlitMaterialExport::apply(*aiMat, material.isUnlit());
 
     const QString materialName =
         material.name().trimmed().isEmpty()

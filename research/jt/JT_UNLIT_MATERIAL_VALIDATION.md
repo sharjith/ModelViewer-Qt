@@ -1,0 +1,13 @@
+# Shared unlit rendering and export preservation
+
+24 October 2026, `feature/JT-importer`. Owner accepted through the bounded C2af source/reference and application export checks. No agent C++ build or native-suite execution.
+
+ADS previously ignored the runtime unlit flag while raster PBR honoured it. The shared fragment shader now uses the same base-colour/emissive and tone-map/gamma calculation for unlit materials in either shading mode. The floor retains its separate path. The accepted lit mapping pair remains a regression control.
+
+Application GLB/glTF export also recreated materials without carrying unlit state. Both the hierarchy-preserving SceneGraphExporter builder and direct/replacement/variant AssImpMeshExporter builder now call the original `UnlitMaterialExport.h` helper for fresh materials. It writes the unlit shading mode read by Assimp's glTF writer and the explicit import flag. Lit material properties are unchanged. Texture, alpha and UV transport are not adjusted by the helper.
+
+The owner built/installed and accepted the grouped ADS/PBR comparisons. First application post-lit round trips failed: independent read-only inspection found missing `KHR_materials_unlit` while image bytes, factors, alpha, samplers and UVs matched. The owner then rebuilt/installed, re-exported the post-lit source and reported "Done, all well. Proceed". All four representative C2af exports now pass image/material/sampler comparison and all four effective-UV comparisons pass within the original 16-bit quantization allowance. This accepts the bounded viewer/export correction, not every material/variant/backend combination.
+
+Reproduce original controls and inspect owner-created exports using the exact commands in [C2af validation](JT_TEXTURE_ROLE_VALIDATION.md). Evidence stays under ignored `out/jt-research/c2af-export-inspection.json` and `c2af-export-uv-inspection.json`. `unlit_material_export_tests` prepares literal lit/unlit GLB/glTF serialization/reimport checks using the production helper, including extension presence/absence, factors and alpha mode; native execution remains unreported.
+
+Method/provenance: original renderer/material/export code and the already local Assimp 6.0.4 glTF2 writer were reviewed. Primary source links, file hashes and retained reference provenance are in [C2af evidence](JT_TEXTURE_ROLE_VALIDATION.md#evidence-and-provenance). No new third-party source, asset, download, vendor tool/SDK, disassembly or licence interpretation. No vendored source changed; new helper/tests are original. This records method and bounded acceptance, not legal clearance.

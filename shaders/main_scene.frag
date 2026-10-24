@@ -3803,8 +3803,21 @@ vec3 evaluateClearcoatIBL(in SurfaceFrame frame, in MaterialParams params)
 // ---- Shading entry points ---------------------------------------------------
 
 // ========== LEGACY BLINN-PHONG SHADING FUNCTION ==========
+vec4 shadeUnlitColor(MaterialParams params)
+{
+	vec3 color = params.baseColor + params.emissive;
+	if (hdrToneMapping) color = applyToneMapping(color);
+	if (gammaCorrection) color = pow(color, vec3(1.0 / screenGamma));
+	return vec4(color, 1.0);
+}
+
 vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
 {
+	// The material's unlit contract is independent of the selected lighting model.
+	// Keep floor shading on its separate legacy path.
+	if (!floorRendering && pbrLighting.unlit)
+		return shadeUnlitColor(gatherMaterialParams());
+
 	vec2 clippedTexCoord = v_texCoord0;
 	float ambientOcclusion = 1.0;
 
@@ -4063,10 +4076,7 @@ vec4 calculatePBRLightingKHR(int renderMode, float side)
 
 	if (params.unlit)
 	{
-		vec3 unlitColor = params.baseColor + params.emissive;
-		if (hdrToneMapping) unlitColor = applyToneMapping(unlitColor);
-		if (gammaCorrection) unlitColor = pow(unlitColor, vec3(1.0 / screenGamma));
-		return vec4(unlitColor, 1.0);
+		return shadeUnlitColor(params);
 	}
 
 	float lightShadowFactor = 0.0;

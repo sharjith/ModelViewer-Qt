@@ -26,3 +26,7 @@ C2y extends `texture_mip_chain_tests` with the explicit private 3x3 terminal pro
 ## Resident image export encoder
 
 `embedded_texture_image_tests` invokes the PNG encoder used by application texture packaging. It checks asymmetric image orientation, alpha, distinct authored mip tails, border terminal metadata and malformed/missing payload rejection, without an OpenGL context. [C2aa application export](../../research/jt/JT_RESIDENT_TEXTURE_EXPORT_VALIDATION.md) records the separate pending viewer build and GUI GLB/glTF round-trip gate. Prepared only; no agent native execution.
+
+## Unlit material export
+
+`unlit_material_export_tests` uses the shared material helper called by both application export builders, then serializes/reimports original lit and unlit triangles through GLB and glTF. It checks the unlit extension/usage declaration and reopened flag, colour factors and alpha mode. It requires Qt Gui and Assimp but no GL context. Build and run this target using the owner-managed isolated render configuration; no agent native execution is claimed. [Shared unlit validation](../../research/jt/JT_UNLIT_MATERIAL_VALIDATION.md) records the separate owner-accepted application rebuild and repeated post-lit export/reopen gate.

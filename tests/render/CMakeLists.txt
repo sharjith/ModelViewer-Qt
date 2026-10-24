@@ -60,3 +60,10 @@ target_compile_definitions(blend_depth_policy_tests PRIVATE MV_REPO_DIR="${REPO}
 target_compile_features(blend_depth_policy_tests PRIVATE cxx_std_17)
 add_test(NAME blend_depth_policy_tests COMMAND blend_depth_policy_tests)
 set_tests_properties(blend_depth_policy_tests PROPERTIES SKIP_RETURN_CODE 77)
+
+find_package(assimp REQUIRED)
+add_executable(unlit_material_export_tests unlit_material_export_tests.cpp)
+target_include_directories(unlit_material_export_tests PRIVATE ${REPO}/include/Materials)
+target_link_libraries(unlit_material_export_tests PRIVATE Qt6::Gui assimp::assimp)
+target_compile_features(unlit_material_export_tests PRIVATE cxx_std_17)
+add_test(NAME unlit_material_export_tests COMMAND unlit_material_export_tests)

@@ -2,6 +2,7 @@
 #include "RenderableMesh.h"
 #include "SceneMesh.h"
 #include "Material.h"
+#include "UnlitMaterialExport.h"
 #include "GltfPostProcessor.h"
 #include <assimp/GltfMaterial.h>
 
@@ -1732,6 +1733,7 @@ aiMaterial* AssImpMeshExporter::createMaterial(
     const QString& meshName)             // NEW parameter: fallback name if material name is empty
 {
     aiMaterial* aiMat = new aiMaterial();
+    UnlitMaterialExport::apply(*aiMat, material.isUnlit());
 
     // Detect export format once (reused throughout)
     QFileInfo fileInfo(exportFileLocation);
