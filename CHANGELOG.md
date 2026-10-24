@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- Removed duplicate default-light illumination in raster PBR for non-glTF models.
+  Highlights may appear dimmer and surface shadows stronger; glTF/GLB models
+  already used the single default light.
+
 ## [2026.11.0] - 2026-10-21
 
 The release that turns ModelViewer from a model viewer into a full engineering

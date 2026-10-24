@@ -1,4 +1,24 @@
-# Remaining C2 work after C2u
+# Remaining C2 work after C2ab
+
+## Current scope - 24 October 2026
+
+C2 is accepted through C2ab. The owner also accepted the focused non-glTF/glTF PBR smoke check after the shared raster-light correction. The original seven packages below are historical: many of their core features have since passed. Seven residual areas remain, not seven promised builds or a fixed number of sub-gates.
+
+| Residual area | Still open after C2ab |
+| --- | --- |
+| 1. Combiners and vertex interactions | Combine; vertex-colour interactions beyond single-stage Modulate and inline RGB/BGR/RGBA/BGRA Replace; remaining Replace formats/resources, nonstandard blending and unqualified reset/inhibit/final combinations. Operations needing a richer renderer representation must remain explicitly diagnosed until implemented |
+| 2. Independent texture units | Different coordinates/transforms, image sizes, wraps or filtering per stage; nonlinear combinations with linear/trilinear filtering. Existing ordered co-sampled composition and bounded automatic assignment are already delivered |
+| 3. Remaining image/border profiles | Mixed sampled-border axes, rectangular/non-power-of-two sampled mip interiors, generated sampled-border mip chains, external explicit rings, authored-border legacy CLAMP and unresolved pixel/internal-format applicability. Existing base-level borders and bounded square authored rings are delivered |
+| 4. Generated/projective mapping | View-linear and projective coordinates; applicable sphere/reflection/normal generation and reference-plane conventions. Stored UVs, affine transforms and bounded model-linear S/T are delivered |
+| 5. Other texture/material roles | Applicable normal/bump, gloss, environment/light-map and other pre-/post-lit roles, with role-specific colour-space, coordinate, renderer and export semantics |
+| 6. JT8 authored textures | Applicable 8.0/8.1/8.2 source layouts and mapping need qualified source/reference evidence. Later-family envelopes or reheadered samples are not evidence |
+| 7. Final appearance qualification | Authentic textured exporter comparisons, complete inheritance/shared-instance/family matrix, applicable native-suite and renderer/backend verification, copy/export coverage beyond the accepted bounded cases and explicit unsupported-feature diagnostics |
+
+Suggested next implementation focus: the remaining vertex-colour combiner interactions (area 1), grouped with their reference controls and scene-copy/export checks where exactly representable. Do not describe the synthetic controls as authentic exporter qualification. JT8/authentic exporter evidence gaps and representation limits cannot be closed merely by adding visual builds. No new gate has been implemented or accepted by this scope reconciliation.
+
+The earlier audit and checkpoint history follow. Where an older paragraph says a later delivered feature is pending, the accepted checkpoint and this current table supersede that historical status. C1 and C3-C7 remain separate; JT10.11 is still deferred.
+
+## Historical audit after C2u
 
 22 October 2026, `feature/JT-importer`. Owner accepted C2u after reporting tests passed. This is a scope audit of the existing [feature plan](JT_FEATURE_COMPLETION_PLAN.md) and accepted validation records, not a new implementation or qualification result.
 
@@ -57,7 +77,7 @@ The owner requested implementing related packages together and testing them in o
 
 ## Accepted grouped checkpoint C2ab - 24 October 2026
 
-[C2ab vertex Replace](JT_VERTEX_REPLACE_VALIDATION.md) advances packages 1/7 with single-stage RGB/BGR/RGBA/BGRA Replace, incoming vertex alpha and shared appearance/fallback checks. Native checks and a grouped 19-document visual gate are prepared. No owner acceptance or native/backend execution yet; Combine, other vertex operations and other remaining packages stay open.
+[C2ab vertex Replace](JT_VERTEX_REPLACE_VALIDATION.md) advances packages 1/7 with single-stage RGB/BGR/RGBA/BGRA Replace, incoming vertex alpha and shared appearance/fallback checks. The owner accepted the grouped 19-document viewer gate and the remaining comparison correction. Native/backend execution remains unreported; Combine, other vertex operations and other remaining packages stay open.
 
 
 C2ab owner acceptance - 24 October 2026: the owner rebuilt and confirmed the remaining comparison fixed after the shared blend, light-range and duplicate raster-light corrections. The bounded viewer gate is accepted; native/backend execution remains unreported. Other C2 packages and evidence gaps remain open. See the C2ab validation record for limits and unreported smoke checks.

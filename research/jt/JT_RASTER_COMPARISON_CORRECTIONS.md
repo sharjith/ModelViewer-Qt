@@ -15,3 +15,14 @@ Opt-in diagnostics use `MODELVIEWER_APPEARANCE_DIAGNOSTICS` with an absolute loc
 Validation limits: the agent ran static source/diff review and read-only local evidence analysis, not a C++ build or native test. Owner viewer acceptance does not establish backend-specific coverage, general transparent ordering or ray-tracing light assembly parity. Blend linear and opaque-interior smoke results were not separately reported in this investigation. Preserve these controls for the next owner gate.
 
 Provenance: existing project source, original project controls, owner screenshots and local diagnostics only; no new external source or third-party implementation was consulted. This records method and scope, not legal clearance or authentic exporter conformance.
+
+## Follow-up independent review and wider smoke coverage
+
+The owner supplied an independent source/screenshot review after acceptance. Its duplicate-light explanation agrees with the source: the synthetic punctual contribution is unshadowed in raster PBR, and fallback eligibility extends beyond JT to non-glTF formats generally. Removing that contribution can visibly reduce highlights and strengthen surface-shadow contrast. An Unreleased changelog entry records this user-visible effect; the published release section is not rewritten.
+
+The audit's claim that ADS never differed overstates the owner record. The owner did observe an inverse ADS brightness difference in one session. The PBR-only punctual loop does not establish its cause, and final owner acceptance must not be rewritten as a numerical proof for every mode. Likewise, the audit's approximate additive-white measurement has not been independently reproduced here.
+
+Additional OBJ or STEP plus glTF PBR smoke coverage is pending, separate from the accepted original JT/reference comparison. Check that non-glTF models remain visibly lit with Default Lights on, lose direct illumination with Default Lights off and Environment IBL off, and retain sensible highlight/shadow transitions while orbiting. glTF should retain its prior appearance under the same settings. Authored-light and CPU/OptiX parity remain unqualified by these checks. No further rendering change or build/test execution was performed for this follow-up.
+
+
+Owner follow-up, 24 October 2026: the owner reported "Looks good on smoke tests" after the requested non-glTF plus glTF PBR smoke check. This accepts that focused regression check; no native suite, authored-light case or CPU/OptiX execution is inferred. The earlier pending smoke-coverage statement is historical.
