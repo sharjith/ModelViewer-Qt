@@ -1715,7 +1715,9 @@ void RenderableMesh::render()
 		_material.alphaThreshold() > 0.0f || _materialState.hasTextureAlpha())
 	{
 		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		// The shared surface shader already premultiplies final coverage.
+		glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA,
+			GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 		glEnable(GL_LINE_SMOOTH);
 		glEnable(GL_POLYGON_SMOOTH);
 	}

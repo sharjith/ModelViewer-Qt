@@ -1718,6 +1718,7 @@ void VisualizationEnvironmentPanel::updateLightPositionRanges(float range, float
 {
 	if (!ui)
 		return;
+	const QVector3D currentOffset=_viewportWidget ? _viewportWidget->getLightOffset() : QVector3D();
 
 	// X/Y span [-range, range-offset]; Z spans [-range/3, range/2] - the
 	// same real-world float ranges this function has always used, just no
@@ -1727,31 +1728,25 @@ void VisualizationEnvironmentPanel::updateLightPositionRanges(float range, float
 	// to a dead 0..0 slider). Each slider always gets kLightSliderSteps
 	// ticks of resolution regardless of how small or large that float range
 	// actually is.
-	auto configureAxis = [](QSlider* slider, LightAxisSliderMapping& mapping, float floatMin, float floatMax)
+	auto configureAxis = [this](QSlider* slider, LightAxisSliderMapping& mapping,
+	                           float floatMin, float floatMax, float currentValue)
 	{
 		mapping.floatMin = floatMin;
 		mapping.unitsPerTick = (floatMax - floatMin) / static_cast<float>(kLightSliderSteps);
-		slider->blockSignals(true);
+		const QSignalBlocker blocker(slider);
 		slider->setRange(0, kLightSliderSteps);
-		slider->setValue(kLightSliderSteps / 2); // same real-world midpoint the old (max+min)/2 reset to
-		slider->blockSignals(false);
+		slider->setValue(offsetToSliderTick(mapping,currentValue));
 	};
 
-	configureAxis(ui->sliderLightPosX, _lightPosXMapping, -range, range - offset);
-	configureAxis(ui->sliderLightPosY, _lightPosYMapping, -range, range - offset);
-	configureAxis(ui->sliderLightPosZ, _lightPosZMapping, -range / 3.0f, range / 2.0f);
+	configureAxis(ui->sliderLightPosX, _lightPosXMapping, -range, range - offset,currentOffset.x());
+	configureAxis(ui->sliderLightPosY, _lightPosYMapping, -range, range - offset,currentOffset.y());
+	configureAxis(ui->sliderLightPosZ, _lightPosZMapping, -range / 3.0f, range / 2.0f,currentOffset.z());
 
 	updateLightPositionValueLabels();
-
-	// Manually trigger light offset update
-	if (_viewportWidget)
-	{
-		_viewportWidget->setLightOffset(QVector3D(
-			sliderTickToOffset(_lightPosXMapping, ui->sliderLightPosX->value()),
-			sliderTickToOffset(_lightPosYMapping, ui->sliderLightPosY->value()),
-			sliderTickToOffset(_lightPosZMapping, ui->sliderLightPosZ->value())));
-		_viewportWidget->updateView();
-	}
+	// This is a UI range refresh, not a light edit. In particular, asymmetric
+	// ranges have nonzero midpoints, and writing rounded slider ticks back
+	// here moved the light during import/visibility synchronization. Keep the
+	// exact runtime offset, even when the current slider range cannot show it.
 }
 
 float VisualizationEnvironmentPanel::sliderTickToOffset(const LightAxisSliderMapping& mapping, int tick) const

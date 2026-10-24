@@ -63,6 +63,12 @@
 #include <QTreeView>
 #include <QVector2D>
 #include <QDebug>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QHash>
+#include <QFileInfo>
+#include <QFile>
 #include "AnimationUtils.h"
 #include "MeshMathUtils.h"
 #include "SceneNode.h"
@@ -3409,7 +3415,13 @@ void ViewportWidget::refreshFallbackLight()
 				static_cast<float>(fallbackLightPos.y()),
 				static_cast<float>(fallbackLightPos.z())
 			), calibratedIntensity);
-			syncPunctualLightUniforms(1, true);
+			// This synthetic light represents the application's default light.
+			// Raster PBR already evaluates lightSource when useDefaultLights is
+			// enabled; adding this again as a punctual light double-lights only
+			// formats eligible for the legacy fallback (glTF is excluded).
+			// Retain the buffer for its other consumers, but do not expose the
+			// synthetic duplicate as an authored raster punctual light.
+			syncPunctualLightUniforms(0, false);
 		}
 		else
 		{
@@ -6701,6 +6713,49 @@ void ViewportWidget::updateMainLightPosition(float halfObjectSize)
 		CoordinateSystemHelper::setCoordinateAlongCurrentWorldUp(_viewCtrl.cameraUpAxisZUp(), _lightPosition,
 			highestUp + halfObjectSize * 5.0f + (_floorSize * _renderCtrl.floorOffsetPercent()));
 	}
+	// Opt-in local evidence for appearance comparisons. No source paths,
+	// images or geometry payloads are logged; ordinary launches stay quiet.
+	const QString diagnosticPath=qEnvironmentVariable("MODELVIEWER_APPEARANCE_DIAGNOSTICS");
+	if (!diagnosticPath.isEmpty())
+	{
+		const auto vector = [](const QVector3D& v) { return QJsonArray{v.x(),v.y(),v.z()}; };
+		const auto matrix = [](const QMatrix4x4& m) {
+			QJsonArray values;for(int i=0;i<16;++i)values.append(m.constData()[i]);return values;
+		};
+		QJsonArray meshes;
+		for(int id : _sceneRuntime.currentVisibleObjectIds())
+			if(const auto* mesh=_sceneRuntime.meshAt(id))
+			{
+				const auto& material=mesh->getMaterial();const auto sphere=mesh->getBoundingSphere();
+				meshes.append(QJsonObject{
+					{"format",QFileInfo(mesh->getSourceFile()).suffix().toLower()},
+					{"center",vector(sphere.getCenter())},{"radius",sphere.getRadius()},
+					{"transform",matrix(mesh->getSceneRenderTransform())},
+					{"albedo",vector(material.albedoColor())},{"opacity",material.opacity()},
+					{"blendMode",int(material.blendMode())},{"twoSided",material.twoSided()},
+					{"unlit",material.isUnlit()},{"metalness",material.metalness()},
+					{"roughness",material.roughness()},{"ambient",vector(material.ambient())},
+					{"specular",vector(material.specular())}});
+			}
+		const auto& box=_viewCtrl.boundingBox();
+		const QJsonObject record{
+			{"viewport",QString::number(quintptr(this),16)},
+			{"zUp",_viewCtrl.cameraUpAxisZUp()},
+			{"bounds",QJsonArray{box.xMin(),box.xMax(),box.yMin(),box.yMax(),box.zMin(),box.zMax()}},
+			{"sceneCenter",vector(_viewCtrl.boundingSphere().getCenter())},
+			{"sceneRadius",_viewCtrl.boundingSphere().getRadius()},
+			{"modelMatrix",matrix(_viewCtrl.modelMatrix())},
+			{"floorSize",_floorSize},{"floorOffset",_renderCtrl.floorOffsetPercent()},
+			{"lightPosition",vector(effectiveWorldLightPosition())},
+			{"lightOffset",vector(effectiveWorldLightOffset())},{"meshes",meshes}};
+		const auto encoded=QJsonDocument(record).toJson(QJsonDocument::Compact);
+		// An explicit local destination also works when the application's
+		// ordinary logger is disabled or filters informational messages.
+		QFile evidence(diagnosticPath);
+		if(QFileInfo(diagnosticPath).isAbsolute()&&evidence.size()<1024*1024
+		   &&evidence.open(QIODevice::WriteOnly|QIODevice::Append))
+			evidence.write(encoded+'\n');
+	}
 }
 
 float ViewportWidget::updateFloorGeometry()
@@ -8992,6 +9047,55 @@ void ViewportWidget::setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camer
 	prog->setUniformValue("worldUpAxis", _viewCtrl.cameraUpAxisZUp() ? 2 : 1);
 
 	bindIBLTextures();
+
+	// Capture final primary-view values, rather than an earlier scene-fit state.
+	// Orthographic framing does not constrain the finite eye position currently
+	// used by PBR specular shading. This evidence is opt-in and deduplicated.
+	const QString diagnosticPath = qEnvironmentVariable("MODELVIEWER_APPEARANCE_DIAGNOSTICS");
+	if (camera == _primaryCamera && prog == _renderCtrl.fgShader()
+		&& !diagnosticPath.isEmpty() && QFileInfo(diagnosticPath).isAbsolute())
+	{
+		const auto vector = [](const QVector3D& v) { return QJsonArray{v.x(), v.y(), v.z()}; };
+		const auto matrix = [](const QMatrix4x4& m) {
+			QJsonArray values;
+			for (int i = 0; i < 16; ++i) values.append(m.constData()[i]);
+			return values;
+		};
+		const QString key = diagnosticPath + ':' + QString::number(quintptr(this), 16);
+		const auto uniformVector = [this, prog](const char* name) {
+			const int location = prog->uniformLocation(name);
+			if (location < 0) return QJsonArray{};
+			GLfloat values[4] = {};
+			glGetUniformfv(prog->programId(), location, values);
+			return QJsonArray{values[0], values[1], values[2]};
+		};
+		const QJsonObject record{
+			{"kind", "draw-uniforms"}, {"viewport", QString::number(quintptr(this), 16)},
+			{"zUp", _viewCtrl.cameraUpAxisZUp()},
+			{"cameraPos", vector(camPos)}, {"cameraDir", vector(camDir)},
+			{"viewMatrix", matrix(camera->getViewMatrix())},
+			{"projectionMatrix", matrix(projMatrix)},
+			{"modelMatrix", matrix(_viewCtrl.modelMatrix())},
+			{"lightPosition", vector(shaderLightPos)},
+			{"lightAmbientUniform", uniformVector("lightSource.ambient")},
+			{"lightDiffuseUniform", uniformVector("lightSource.diffuse")},
+			{"lightSpecularUniform", uniformVector("lightSource.specular")},
+			{"useDefaultLights", _renderCtrl.useDefaultLights()}, {"useIBL", _renderCtrl.useIBL()},
+			{"iblExposure", _renderCtrl.iblExposure()}, {"envMapExposure", _renderCtrl.envMapExposure()},
+			{"shadowsEnabled", showShadows}, {"selfShadowsEnabled", _renderCtrl.selfShadowsEnabled()},
+			{"interactionFastPath", interactionFastPath}};
+		const QByteArray encoded = QJsonDocument(record).toJson(QJsonDocument::Compact);
+		static QHash<QString, QByteArray> previousDrawEvidence;
+		if (previousDrawEvidence.value(key) != encoded)
+		{
+			QFile evidence(diagnosticPath);
+			if (evidence.size() < 1024 * 1024 && evidence.open(QIODevice::WriteOnly | QIODevice::Append))
+			{
+				if (evidence.write(encoded + '\n') == encoded.size() + 1)
+					previousDrawEvidence.insert(key, encoded);
+			}
+		}
+	}
 }
 
 
