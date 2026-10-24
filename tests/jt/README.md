@@ -196,3 +196,6 @@ C2aa reuses the shared C2z sources for application File > Export round trips; en
 
 
 C2ab extends jt_texture_replace_tests.cpp with vertex RGB/alpha replacement, blend-disable, missing-UV and unsupported-combiner fallback, and shared Replace/Modulate geometry checks. Prepared, not run by the agent. Original 48-root/19-document visual controls and exact generation command are in [C2ab validation](../../research/jt/JT_VERTEX_REPLACE_VALIDATION.md).
+
+
+C2ac extends the existing Replace/batch native assertions for constant-RGB vertex combiners, component-separable Modulate/Replace stacks, wider/external Replace, differing-resolution nearest texel grids, expansion limits and common-grid copy/GLB preservation. Run with the existing owner native suite; no new target is required. Original grouped UI controls are authored with `python -B tools/jt/make_texture_combiner_batch_controls.py out/jt-research/texture-vertex-replace-ui-fixtures out/jt-research/texture-combiner-batch-ui-fixtures`. See [C2ac validation](../../research/jt/JT_COMBINER_UNIT_BATCH_VALIDATION.md) for limits and the grouped visual/export gate.

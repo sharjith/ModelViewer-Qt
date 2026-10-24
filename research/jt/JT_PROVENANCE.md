@@ -149,3 +149,8 @@ C2aa acceptance on 24 October 2026: owner rebuilt and accepted all seven JT roun
 ### 24 October 2026 - C2ab vertex Replace
 
 [C2ab validation](JT_VERTEX_REPLACE_VALIDATION.md) records the locally retained OpenGL 2.1 table/hash and existing original serializers/adapter consulted. Original constant-colour control authoring ran under ignored out/. No new download, vendor package, third-party implementation, model or licence interpretation. Owner build, native execution and visual acceptance remain pending.
+
+
+## 24 October 2026 - C2ac combiner/unit composition
+
+Consulted original adapter/composer, fixture writers and local validation records, retained JT10.0 Rev-B texture environment definitions and OpenGL 2.1 texture-function/Combine state definitions. Rechecked retained PDF hashes match the [C2q references](JT_TEXTURE_CONSTANT_BORDER_VALIDATION.md#references-and-provenance). No new external source, third-party implementation, vendor software/SDK, disassembly, asset or licence interpretation was introduced. Original constant-RGBA cubes and literal source images supply 78 mixed-family roots and independent reference recipes under ignored out/. Known source-layout and runtime-representation gaps remain explicit; neither Combine semantics nor authentic exporter agreement is inferred. Native tests and owner visual/export validation remain unexecuted by the agent. This records method, not legal clearance.

@@ -78,3 +78,8 @@ C2aa reuses eight existing C2z/common source documents and prepares sixteen appl
 
 
 C2ab uses tools/jt/make_texture_vertex_replace_controls.py for 48 original roots and 19 visual documents, including descriptive reference_vertex_<case>.gltf aliases that share existing resources. Original constant-RGBA geometry is content-addressed in the common store; unchanged inner cubes/buffers are reused. See [vertex Replace validation](JT_VERTEX_REPLACE_VALIDATION.md).
+
+
+## C2ac combiner/unit batch
+
+`make_texture_combiner_batch_controls.py` consumes the accepted C2ab manifest and reuses the common content-addressed asset store. It authors 78 positive roots and 13 descriptive `reference_combiner_batch_<case>.gltf` aliases; the 31-document launch list includes two family representatives and accepted regressions. Three export-pair records target six owner outputs beneath the ignored gate folder. Reference expectations are independently computed from original source images, incoming factors and literal effective stage lists, not importer output. See [C2ac validation](JT_COMBINER_UNIT_BATCH_VALIDATION.md) for generation and owner instructions.

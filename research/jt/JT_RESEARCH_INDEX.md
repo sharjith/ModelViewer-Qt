@@ -57,3 +57,6 @@ Owner-accepted shared raster regression correction: [BLEND depth compatibility](
 
 
 34. Owner-accepted vertex-colour checkpoint: [C2ab Replace and alpha](JT_VERTEX_REPLACE_VALIDATION.md); owner accepted the bounded viewer gate on 24 October 2026; native/backend coverage unreported.
+
+
+35. Owner-accepted grouped combiner/unit checkpoint: [C2ac constant vertex RGB, wider Replace and common nearest grids](JT_COMBINER_UNIT_BATCH_VALIDATION.md); owner accepted grouped ADS/PBR comparisons and six representative application exports on 24 October 2026; native/backend execution unreported.

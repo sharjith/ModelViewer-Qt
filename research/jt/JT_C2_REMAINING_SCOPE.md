@@ -1,13 +1,13 @@
-# Remaining C2 work after C2ab
+# Remaining C2 work after C2ac
 
 ## Current scope - 24 October 2026
 
-C2 is accepted through C2ab. The owner also accepted the focused non-glTF/glTF PBR smoke check after the shared raster-light correction. The original seven packages below are historical: many of their core features have since passed. Seven residual areas remain, not seven promised builds or a fixed number of sub-gates.
+C2 is accepted through C2ac. The owner also accepted the focused non-glTF/glTF PBR smoke check after the shared raster-light correction. The original seven packages below are historical: many of their core features have since passed. Seven residual areas remain, not seven promised builds or a fixed number of sub-gates.
 
 | Residual area | Still open after C2ab |
 | --- | --- |
-| 1. Combiners and vertex interactions | Combine; vertex-colour interactions beyond single-stage Modulate and inline RGB/BGR/RGBA/BGRA Replace; remaining Replace formats/resources, nonstandard blending and unqualified reset/inhibit/final combinations. Operations needing a richer renderer representation must remain explicitly diagnosed until implemented |
-| 2. Independent texture units | Different coordinates/transforms, image sizes, wraps or filtering per stage; nonlinear combinations with linear/trilinear filtering. Existing ordered co-sampled composition and bounded automatic assignment are already delivered |
+| 1. Combiners and vertex interactions | Combine; varying-RGB Decal/Blend/Add and other interactions beyond the accepted constant-RGB and separable Modulate/Replace paths; non-colour Replace applicability, nonstandard blending and unqualified reset/inhibit/final combinations. Operations needing a richer renderer representation must remain explicitly diagnosed until implemented |
+| 2. Independent texture units | Different coordinates/transforms, image sizes, wraps or filtering per stage; nonlinear combinations with linear/trilinear filtering. Existing ordered co-sampled composition, bounded automatic assignment and differing-resolution nearest base-level grids are delivered |
 | 3. Remaining image/border profiles | Mixed sampled-border axes, rectangular/non-power-of-two sampled mip interiors, generated sampled-border mip chains, external explicit rings, authored-border legacy CLAMP and unresolved pixel/internal-format applicability. Existing base-level borders and bounded square authored rings are delivered |
 | 4. Generated/projective mapping | View-linear and projective coordinates; applicable sphere/reflection/normal generation and reference-plane conventions. Stored UVs, affine transforms and bounded model-linear S/T are delivered |
 | 5. Other texture/material roles | Applicable normal/bump, gloss, environment/light-map and other pre-/post-lit roles, with role-specific colour-space, coordinate, renderer and export semantics |
@@ -81,3 +81,11 @@ The owner requested implementing related packages together and testing them in o
 
 
 C2ab owner acceptance - 24 October 2026: the owner rebuilt and confirmed the remaining comparison fixed after the shared blend, light-range and duplicate raster-light corrections. The bounded viewer gate is accepted; native/backend execution remains unreported. Other C2 packages and evidence gaps remain open. See the C2ab validation record for limits and unreported smoke checks.
+
+
+## Accepted C2ac - first grouped combiner/unit batch
+
+[C2ac validation](JT_COMBINER_UNIT_BATCH_VALIDATION.md) implements the bounded adapter portion of current residual areas 1/2: constant-RGB Decal/Blend/Add, separable Modulate/Replace vertex stacks, wider vertex Replace and different image resolutions on a common nearest base-level texel grid. Incoming vertex alpha remains separate unless replaced. It prepares 13 comparison pairs plus regressions and representative application round trips in one owner session. No acceptance is recorded. Combine operand/function evidence, varying-RGB affine sums, independent UVs/wraps/filters and nonlinear filtered evaluation remain open; this does not silently mark the original broad Batch 1 complete.
+
+
+C2ac owner acceptance - 24 October 2026: the owner accepted the grouped ADS/PBR comparisons and all six representative reopened GLB/glTF exports. The bounded gate is accepted; native/backend execution remains unreported. The earlier pending statement is historical. This advances residual areas 1/2 without claiming arbitrary multi-texturing or resolving missing Combine evidence.

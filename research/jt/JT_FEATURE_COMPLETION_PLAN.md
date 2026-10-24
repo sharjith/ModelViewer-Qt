@@ -211,3 +211,11 @@ After accepted C2aa a2debec, [C2ab validation](JT_VERTEX_REPLACE_VALIDATION.md) 
 
 
 C2ab owner acceptance - 24 October 2026: the owner rebuilt and confirmed the remaining comparison fixed after the shared blend, light-range and duplicate raster-light corrections. The bounded viewer gate is accepted; native/backend execution remains unreported. Other C2 packages and evidence gaps remain open. See the C2ab validation record for limits and unreported smoke checks.
+
+
+## Accepted grouped gate C2ac - combiner/unit batch
+
+Following accepted C2ab, [C2ac validation](JT_COMBINER_UNIT_BATCH_VALIDATION.md) groups constant-RGB vertex Decal/Blend/Add, separable Modulate/Replace stacks, wider vertex Replace and differing-resolution nearest base-level composition. Original controls provide 78 positive roots, 13 comparison pairs and one 31-document viewer list, with three representative application export pairs. Native known-value, fallback, resource-limit and copy/export checks are prepared. Owner build and grouped visual/export confirmation are required; no native/importer/viewer execution by the agent. This advances the exact adapter portion of Batch 1, not arbitrary multi-texturing. Combine evidence, independent UV/filter evaluation and varying-RGB affine sums remain explicit gaps; other C2 packages and version scope are unchanged.
+
+
+C2ac owner acceptance - 24 October 2026: build succeeded; the owner reported the grouped ADS/PBR source/reference comparisons consistent, then all six representative application GLB/glTF exports passed after reopening. The bounded viewer/export gate is accepted. Prepared native-suite and individual CPU/OptiX execution remain unreported; arbitrary sampling, Combine evidence and other residual scope remain open.

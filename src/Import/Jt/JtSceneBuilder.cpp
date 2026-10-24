@@ -45,6 +45,7 @@
 #include <set>
 #include <array>
 #include <limits>
+#include <numeric>
 
 namespace Jt {
 namespace {
@@ -668,8 +669,11 @@ struct Builder {
         }
         return image(state,allowAlpha);
     }
-    ImageResult texture(const Appearance& style) {
+    ImageResult texture(const Appearance& style,const aiColor4D* incoming=nullptr) {
         if(style.texture.type==0||style.texture.image.IsNull())return {};
+        // Constant vertex RGB can be composed exactly like a material factor,
+        // without replacing the original source material retained as metadata.
+        const auto& input=incoming?*incoming:style.diffuse;
         std::vector<const TextureState*> stages;
         if(style.textureUnits.empty())stages.push_back(&style.texture);
         else for(const auto& unit:style.textureUnits){
@@ -688,9 +692,9 @@ struct Builder {
             const auto& primary=*stages[0];std::vector<QImage> images;std::vector<int> formats;std::vector<ImageResult> decodedStages;
             JtData_Limits::allocation(stages.size()*(128+sizeof(ImageResult)+sizeof(QImage))+512);
             images.reserve(stages.size());formats.reserve(stages.size());decodedStages.reserve(stages.size());
-            std::vector<float> key{style.diffuse.r,style.diffuse.g,style.diffuse.b,style.diffuse.a,float(allowAlpha)};
+            std::vector<float> key{input.r,input.g,input.b,input.a,float(allowAlpha)};
             key.reserve(5+7*stages.size());
-            if(!std::isfinite(style.diffuse.a)||style.diffuse.a<0||style.diffuse.a>1)throw std::runtime_error("invalid incoming material alpha");
+            if(!std::isfinite(input.a)||input.a<0||input.a>1)throw std::runtime_error("invalid incoming composition alpha");
             for(const auto* stage:stages){
                 const auto mode=stage->environment[6];
                 if(stage->image.IsNull())throw std::runtime_error("texture stack has a missing image");
@@ -737,7 +741,6 @@ struct Builder {
                 JtData_Limits::allocation(size_t(size.width())*size.height()*8);
                 auto pixels=reader.read().convertToFormat(QImage::Format_RGBA8888);
                 if(pixels.isNull()||pixels.size()!=size)throw std::runtime_error("composed texture decoding failed");
-                if(!images.empty()&&pixels.size()!=images[0].size())throw std::runtime_error("texture stack uses different image resolutions");
                 images.push_back(std::move(pixels));
             }
             const auto clamp=[](double v){return std::max(0.0,std::min(1.0,v));};
@@ -752,15 +755,32 @@ struct Builder {
                 if(tails[n].size()!=tails[0].size()||images[n].text(QLatin1String(TextureMipChain::TerminalKey))!=images[0].text(QLatin1String(TextureMipChain::TerminalKey)))
                     throw std::runtime_error("texture stack uses different authored mip chains or terminal profiles");
             const auto terminal=images[0].text(QLatin1String(TextureMipChain::TerminalKey));
+            QSize grid=images[0].size();
+            for(const auto& image:images)if(image.size()!=grid){
+                // Nearest source texel boundaries coincide on the least common
+                // multiple grid. This is exact for common UVs/wraps, including
+                // non-dividing resolutions; no bilinear or LOD approximation.
+                if(primary.environment[1]!=1||primary.environment[2]!=1||!tails[0].empty()||!terminal.isEmpty())
+                    throw std::runtime_error("different image resolutions require nearest base-level sampling");
+                const auto lcm=[](int a,int b){return uint64_t(a/std::gcd(a,b))*uint64_t(b);};
+                const uint64_t width=lcm(grid.width(),image.width()),height=lcm(grid.height(),image.height());
+                constexpr uint64_t maxPixels=64u*1024u*1024u/4;
+                if(width>maxPixels||height>maxPixels||width*height>maxPixels)
+                    throw std::runtime_error("common nearest texture grid exceeds image byte limit");
+                grid=QSize(int(width),int(height));
+            }
             output.alpha=false;
             auto composeLevel=[&]() {
-                JtData_Limits::allocation(size_t(images[0].width())*images[0].height()*4);
-                QImage pixels(images[0].size(),QImage::Format_RGBA8888);if(pixels.isNull())throw std::bad_alloc();
+                JtData_Limits::allocation(size_t(grid.width())*grid.height()*4);
+                QImage pixels(grid,QImage::Format_RGBA8888);if(pixels.isNull())throw std::bad_alloc();
                 for(int y=0;y<pixels.height();++y){options.check();auto* row=pixels.scanLine(y);
                     for(int x=0;x<pixels.width();++x){
-                        double rgb[3]={clamp(style.diffuse.r),clamp(style.diffuse.g),clamp(style.diffuse.b)},alpha=style.diffuse.a;
+                        if((x&1023)==0)options.check();
+                        double rgb[3]={clamp(input.r),clamp(input.g),clamp(input.b)},alpha=input.a;
                         for(size_t n=0;n<stages.size();++n){
-                            const auto* texel=images[n].constScanLine(y)+4*x;const double a=double(texel[3])/255;
+                            const int sx=int((uint64_t(2)*x+1)*images[n].width()/(uint64_t(2)*pixels.width()));
+                            const int sy=int((uint64_t(2)*y+1)*images[n].height()/(uint64_t(2)*pixels.height()));
+                            const auto* texel=images[n].constScanLine(sy)+4*sx;const double a=double(texel[3])/255;
                             const bool hasRGB=formats[n]!=10,hasAlpha=formats[n]==2||formats[n]==4||formats[n]==10||formats[n]==12;
                             const auto mode=stages[n]->environment[6];
                             if(hasRGB)for(unsigned c=0;c<3;++c){const double t=linear(double(texel[c])/255);
@@ -786,6 +806,7 @@ struct Builder {
                     images[n]=tails[n][level];
                     if(images[n].size()!=images[0].size())throw std::runtime_error("texture mip stack uses different level resolutions");
                 }
+                grid=images[0].size();
                 composedMips.push_back(composeLevel());
             }
             if(!terminal.isEmpty())pixels.setText(QLatin1String(TextureMipChain::TerminalKey),terminal);
@@ -900,11 +921,11 @@ struct Builder {
         for(auto it=materialCache.begin();it!=materialCache.end();) {if(it->second>=c.materials) it=materialCache.erase(it);else ++it;}
         result.storedMeshes=c.stored;result.exactParts=c.exact;result.fallbackParts=c.fallback;
     }
-    unsigned material(const Appearance& style,bool vertexColors=false,bool vertexAlpha=false) {
+    unsigned material(const Appearance& style,bool vertexColors=false,bool vertexAlpha=false,const aiColor4D* textureInput=nullptr) {
         if(!std::isfinite(style.diffuse.r)||!std::isfinite(style.diffuse.g)||!std::isfinite(style.diffuse.b)
             ||!std::isfinite(style.diffuse.a)||style.diffuse.a<0||style.diffuse.a>1)
             throw std::runtime_error("JT incoming diffuse colour/alpha is invalid");
-        const auto mappedTexture=texture(style);
+        const auto mappedTexture=texture(style,textureInput);
         const bool replace=mappedTexture.index>=0&&style.texture.replaceRGB();
         const auto format=replace?style.texture.image->Images()[0].format:0;
         // REPLACE discards incoming RGB; RGBA also discards incoming alpha.
@@ -921,6 +942,18 @@ struct Builder {
             key.insert(key.end(),{style.diffuse.r,style.diffuse.g,style.diffuse.b,style.diffuse.a,float(mappedTexture.composed)});
         }
         if(mappedTexture.index>=0){
+            // Mesh caches consult material(style) before examining vertex RGB.
+            // Different programs can coincide for that material input, yet
+            // differ for the actual vertex input (e.g. white Modulate vs Add).
+            // Preserve the ordered source program, not only its baked pixels.
+            const auto programKey=[&](const TextureState& stage){
+                if(stage.type!=9||stage.environment[6]==0)return;
+                const auto decoded=textureStage(stage,mappedTexture.composed||(blending&&!(src==1&&dst==0)));
+                key.insert(key.end(),{float(stage.environment[6]),float(decoded.index),float(decoded.format)});
+                for(float value:stage.blendColor)key.push_back(value);
+            };
+            if(style.textureUnits.empty())programKey(style.texture);
+            else for(const auto& unit:style.textureUnits)programKey(unit.second);
             for(auto value:style.texture.environment)key.push_back(float(value));
             if(style.texture.environment[0]==1&&(style.texture.environment[3]==5||style.texture.environment[4]==5))
                 for(auto value:style.texture.borderColor)key.push_back(value);
@@ -1024,9 +1057,28 @@ struct Builder {
             vertexAlpha=vertexAlpha || c.a<1;
         }
         auto resolved=style;
-        unsigned activeTextureUnits=0;for(const auto& unit:resolved.textureUnits)if(unit.second.type==9&&unit.second.environment[6]!=0)++activeTextureUnits;
-        const bool vertexReplace=colored&&activeTextureUnits<=1&&resolved.texture.replaceRGB();
-        if(colored&&(activeTextureUnits>1||(resolved.texture.environment[6]!=2&&!vertexReplace))){
+        bool factorableVertex=colored;
+        const auto checkFactorable=[&](const TextureState& stage){
+            if(stage.type==9&&stage.environment[6]!=0&&stage.environment[6]!=2&&stage.environment[6]!=3)factorableVertex=false;
+        };
+        if(resolved.textureUnits.empty())checkFactorable(resolved.texture);
+        else for(const auto& unit:resolved.textureUnits)checkFactorable(unit.second);
+        aiColor4D constantColor(1,1,1,1);bool constantVertex=colored&&mesh->mNumVertices>0;
+        if(constantVertex){
+            constantColor=mesh->mColors[0][0];
+            for(unsigned i=1;i<mesh->mNumVertices;++i){
+                if((i&1023)==0)options.check();
+                const auto& c=mesh->mColors[0][i];
+                if(c.r!=constantColor.r||c.g!=constantColor.g||c.b!=constantColor.b){constantVertex=false;break;}
+            }
+        }
+        // Alpha is separable for all qualified modes: keep it on the vertices
+        // unless a source-format Replace removes that dependence. This avoids
+        // quantizing incoming alpha or changing vertex-alpha depth classification.
+        constantColor.a=1;
+        const aiColor4D neutral(1,1,1,1);
+        const aiColor4D* textureInput=factorableVertex?&neutral:constantVertex?&constantColor:nullptr;
+        if(colored&&!constantVertex&&!factorableVertex){
             textureWarning("JT texture not applied: this combiner/texture stack with vertex colours is not qualified");resolved.texture.type=0;
         }
         if(resolved.texture.type!=0 && resolved.texture.coordinate>=0 && resolved.texture.coordinate<4
@@ -1034,9 +1086,9 @@ struct Builder {
             &&(resolved.texture.generation[0]!=1||resolved.texture.generation[1]!=1)){
             textureWarning("JT texture not applied: selected UV channel is absent and both S/T components are not generated");resolved.texture.type=0;
         }
-        unsigned mat=material(resolved,colored,vertexAlpha);
+        unsigned mat=material(resolved,colored,vertexAlpha,textureInput);
         if(materials[mat]->GetTextureCount(aiTextureType_DIFFUSE)>0){
-            const auto mappedImage=texture(resolved);
+            const auto mappedImage=texture(resolved,textureInput);
             const auto& t=resolved.texture.transform;bool identity=true;
             for(unsigned i=0;i<16;++i)identity=identity&&t[i]==float(i%5==0);
             const bool generate=resolved.texture.generation[0]!=0||resolved.texture.generation[1]!=0;
@@ -1077,22 +1129,31 @@ struct Builder {
                 }
             }
         }
-        if(vertexReplace&&resolved.texture.type!=0
+        if((factorableVertex||constantVertex)&&resolved.texture.type!=0
            &&materials[mat]->GetTextureCount(aiTextureType_DIFFUSE)>0){
-            // REPLACE discards incoming vertex RGB. Only RGBA/BGRA also
-            // discard incoming alpha. Change this appearance-specific mesh
-            // after mapping succeeds so diagnosed fallbacks retain colours.
-            const auto format=resolved.texture.image->Images()[0].format;
-            const bool replaceAlpha=format==2||format==12;
+            const auto mappedImage=texture(resolved,textureInput);
+            // A composed constant input is already present in the pixels.
+            // A Modulate/Replace stack is separable in incoming RGB/alpha:
+            // Modulate retains dependence; a Replace removes it permanently.
+            const bool bakedConstant=constantVertex&&!factorableVertex&&mappedImage.composed;
+            bool replaceColor=bakedConstant,replaceAlpha=false;
+            const auto replacedComponents=[&](const TextureState& stage){
+                if(stage.type!=9||stage.environment[6]!=3)return;
+                const auto format=textureStage(stage,activeAlpha).format;
+                replaceColor=replaceColor||format!=10;
+                replaceAlpha=replaceAlpha||format==2||format==4||format==10||format==12;
+            };
+            if(resolved.textureUnits.empty())replacedComponents(resolved.texture);
+            else for(const auto& unit:resolved.textureUnits)replacedComponents(unit.second);
             vertexAlpha=false;
             for(unsigned i=0;i<mesh->mNumVertices;++i){
                 if((i&1023)==0)options.check();
                 auto& color=mesh->mColors[0][i];
-                color.r=color.g=color.b=1;
+                if(replaceColor)color.r=color.g=color.b=1;
                 if(replaceAlpha)color.a=1;
                 vertexAlpha=vertexAlpha||color.a<1;
             }
-            mat=material(resolved,colored,vertexAlpha);
+            mat=material(resolved,colored,vertexAlpha,textureInput);
         }
         if(style.flatNormals()) {
             const size_t count=size_t(mesh->mNumFaces)*3;
