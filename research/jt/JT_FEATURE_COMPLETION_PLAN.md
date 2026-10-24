@@ -4,6 +4,12 @@
 
 The enabled matrix is 8.0, 8.1, 8.2, 9.0, 9.5, 10.0, 10.3, 10.5, 10.7, 10.8, 10.9 and 10.10. Do not enable 10.11 or missing earlier revisions during this feature pass. Implement by record/codec family, with explicit not-applicable entries when a later family uses a different encoding. Do not create one importer per point release or infer a feature is qualified merely from an accepted version header.
 
+## Current priority override - 24 October 2026
+
+The owner paused further C2 appearance expansion after accepted C2ag dea4c25 and prioritized generic viewing essentials. [Core viewing priority and C2 return record](JT_VIEWING_PRIORITY.md) retains the full residual backlog without discarding it or declaring C2 complete. Begin with C3 line/wire and point coverage, preserving hierarchy, transforms/units, bounds, selection/visibility, resource/cancellation behaviour and useful diagnostics; then prioritize useful C4 information and C5 runtime LOD. Existing accepted appearance remains a regression requirement.
+
+This overrides the earlier implication that all C2 residuals must finish before C3 begins. Do not automatically select another texture-expansion gate. Exact geometry C6, consolidation C7, C1 residuals and the enabled-version policy remain on the plan. Owner build/test checkpoints still apply.
+
 ## Execution gates
 
 | Stage | Deliverable | Completion evidence / owner gate |

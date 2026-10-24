@@ -2,6 +2,8 @@
 
 24 October 2026, `feature/JT-importer`. The owner explicitly deferred these residuals and requested proceeding to Batch 2. This is a return list, not a declaration that all of Batch 1 is complete.
 
+Later owner decision on 24 October 2026: [all remaining C2 expansion is paused at C2ag](JT_VIEWING_PRIORITY.md) while generic viewing capabilities take priority. The rows and prerequisites below remain retained for a later owner-prioritized return.
+
 [C2ac](JT_COMBINER_UNIT_BATCH_VALIDATION.md), accepted and pushed as `ac1d1f3`, delivers constant-RGB vertex combiners, separable Modulate/Replace stacks, wider vertex Replace and bounded mixed-resolution nearest grids. Preserve that accepted subset and its shared-instance/cache, alpha, copy/export and ADS/PBR controls when returning.
 
 | ID | Deferred work | Prerequisite / return check |

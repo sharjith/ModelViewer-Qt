@@ -1,5 +1,9 @@
 # Remaining C2 work after C2ag
 
+## Paused by owner - 24 October 2026
+
+The owner explicitly paused further C2 expansion after accepted C2ag `dea4c25` to prioritize generic viewing essentials. All seven residual areas below remain a retained return backlog; C2 is not declared complete and no accepted functionality is removed. [Core viewing priorities](JT_VIEWING_PRIORITY.md) records the decision, return policy and immediate C3 direction. Do not select another appearance-expansion gate automatically while this pause is in force.
+
 ## Current scope - 24 October 2026
 
 C2 is accepted through bounded C2ag, including C2ad (2c27d7c) and the shared raster light-uniform correction (3c7fd30). The owner also accepted the focused non-glTF/glTF PBR smoke check after the shared raster-light correction. The original seven packages below are historical: many of their core features have since passed. Seven residual areas remain, not seven promised builds or a fixed number of sub-gates.

@@ -2,6 +2,8 @@
 
 22 October 2026, `feature/JT-importer`.
 
+Current owner priority (24 October 2026): [C2 paused at C2ag; core viewing essentials first](JT_VIEWING_PRIORITY.md). The remaining appearance work is retained for later; immediate direction is C3 line/wire and point coverage.
+
 Suggested reading order:
 
 1. [Feasibility and legal scope](JT_IMPORT_FEASIBILITY.md), [JT/Parasolid implementation scope](JT_PARASOLID_IMPLEMENTATION_SCOPE.md), [pass-specific provenance](JT_PROVENANCE.md) and [third-party notices](../../THIRD_PARTY_NOTICES.md).
