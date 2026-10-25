@@ -77,6 +77,33 @@ Document ProductStructureReader::read(const QByteArray& bytes, const Options& op
                 doc.instances.insert(instance.id, instance);
                 // Append after parsing all definitions; XML declaration order is not significant.
             }
+        } else if (tag == QLatin1String("CATMatConnection")) {
+            // A material dressing (covering) the occurrence addressed by a root-to-leaf instance path. MadeOf (core)
+            // links and other roles are ignored: the published guide prefers the covering material for rendering.
+            QString role, materialDocument, materialReference, path; QStringList ids; int layer = 0, depth = 1;
+            while (depth && !xml.atEnd()) {
+                options.check(); xml.readNext(); checkToken(xml);
+                if (xml.isStartElement()) {
+                    ++depth; const auto name = xml.name();
+                    if (name == QLatin1String("PLMRelation")) { role.clear(); ids.clear(); }
+                    else if (name == QLatin1String("C_Role")) { role = xml.readElementText().trimmed(); --depth; }
+                    else if (name == QLatin1String("id")) { ids.append(xml.readElementText().trimmed()); --depth; }
+                    else if (name == QLatin1String("V_Layer")) { layer = xml.readElementText().trimmed().toInt(); --depth; }
+                } else if (xml.isEndElement()) {
+                    if (xml.name() == QLatin1String("PLMRelation")) {
+                        if (role == QLatin1String("CATMaterialToReferenceLink") && ids.size() == 1 && ids.front().contains('#')) {
+                            materialDocument = ArchiveReader::memberPath(ids.front().section('#', 0, 0));
+                            materialReference = ids.front().section('#', -1);
+                        } else if (role == QLatin1String("CATMaterialDressByLink") && !ids.isEmpty()) {
+                            QStringList parts; for (const auto& id : ids) parts.append(id.section('#', -1));
+                            path = parts.join('/');
+                        }
+                    }
+                    --depth;
+                }
+            }
+            if (!materialDocument.isEmpty() && !materialReference.isEmpty() && !path.isEmpty())
+                doc.materialLinks.push_back({materialDocument, materialReference, path, layer});
         } else if (tag == QLatin1String("DefaultViewProperty")) {
             QStringList path; bool hidden = false, hasColor = false; aiColor4D color; int depth = 1, surfaceDepth = -1;
             while (depth && !xml.atEnd()) {
@@ -88,13 +115,17 @@ Document ProductStructureReader::read(const QByteArray& bytes, const Options& op
                         if (hasColor) throw Error(QStringLiteral("Multiple colors in occurrence property"));
                         const auto attributes = xml.attributes();
                         const char* channels[] = {"red","green","blue","alpha"};
+                        bool unset=false;
                         for (int k=0;k<4;++k) {
                             if (k==3 && !attributes.hasAttribute(QLatin1String("alpha"))) { color[k]=1; continue; }
                             bool ok=false; const double value=attributes.value(QLatin1String(channels[k])).toDouble(&ok);
-                            if (!ok || !std::isfinite(value) || value<0 || value>1) throw Error(QStringLiteral("Invalid occurrence color"));
+                            if (!ok || !std::isfinite(value) || value>1) throw Error(QStringLiteral("Invalid occurrence color"));
+                            // The published guide defines channels as 0..1. CATIA V5 writes -1 for an occurrence with no user
+                            // colour (the owner confirmed the sample part has none); treated as "no override".
+                            if (value<0) { if (k<3) unset=true; color[k]=1; continue; }
                             color[k]=static_cast<ai_real>(value);
                         }
-                        hasColor=true;
+                        hasColor=!unset;
                     }
                     if (xml.name() == QLatin1String("GeneralAttributes") && xml.attributes().value("visible") == QLatin1String("false")) hidden = true;
                     if (xml.name() == QLatin1String("id")) {
@@ -134,5 +165,76 @@ Document ProductStructureReader::read(const QByteArray& bytes, const Options& op
         doc.references[link.parent].representations.append(link.target);
     }
     return doc;
+}
+
+QHash<QString, QString> ProductStructureReader::materialRenderingMembers(const QString& document, const QByteArray& bytes)
+{
+    QXmlStreamReader xml(bytes);
+    QHash<QString, QString> domainMembers, result; // domain id -> rendering member; "<document>#<reference>" -> member
+    struct Instance { QString reference, domain; };
+    std::vector<Instance> instances;
+    while (!xml.atEnd()) {
+        xml.readNext(); checkToken(xml);
+        if (!xml.isStartElement()) continue;
+        const QString tag = xml.name().toString();
+        if (tag == QLatin1String("MaterialDomain")) {
+            const QString id = xml.attributes().value("id").toString(), file = xml.attributes().value("associatedFile").toString();
+            QHash<QString, QString> fields;
+            while (xml.readNextStartElement()) fields.insert(xml.name().toString(), xml.readElementText().trimmed());
+            if (!id.isEmpty() && !file.isEmpty() && fields.value("V_MatDomain") == QLatin1String("Rendering"))
+                domainMembers.insert(id, ArchiveReader::memberPath(file));
+        } else if (tag == QLatin1String("MaterialDomainInstance")) {
+            QHash<QString, QString> fields;
+            while (xml.readNextStartElement()) fields.insert(xml.name().toString(), xml.readElementText().trimmed());
+            instances.push_back({fields.value("IsAggregatedBy"), fields.value("IsInstanceOf")});
+        }
+    }
+    finish(xml);
+    for (const auto& instance : instances)
+        if (domainMembers.contains(instance.domain)) result.insert(document + QLatin1Char('#') + instance.reference, domainMembers.value(instance.domain));
+    return result;
+}
+
+MaterialRendering ProductStructureReader::materialRendering(const QByteArray& bytes)
+{
+    QXmlStreamReader xml(bytes);
+    MaterialRendering m; bool found = false, inFeature = false;
+    auto numbers = [](QString value) {
+        value.remove('[').remove(']'); QList<double> out;
+        for (const auto& part : value.split(',', Qt::SkipEmptyParts)) {
+            bool ok = false; const double v = part.trimmed().toDouble(&ok);
+            if (!ok || !std::isfinite(v)) throw Error(QStringLiteral("Invalid material rendering value"));
+            out.append(v);
+        }
+        return out;
+    };
+    auto triple = [&](const QString& value) {
+        const auto v = numbers(value); if (v.size() != 3) throw Error(QStringLiteral("Invalid material rendering color"));
+        return aiColor3D(float(v[0]), float(v[1]), float(v[2]));
+    };
+    auto scalar = [&](const QString& value) {
+        const auto v = numbers(value); if (v.size() != 1) throw Error(QStringLiteral("Invalid material rendering value"));
+        return v[0];
+    };
+    while (!xml.atEnd()) {
+        xml.readNext(); checkToken(xml);
+        if (xml.isStartElement() && xml.name() == QLatin1String("Feature")) inFeature = xml.attributes().value("StartUp") == QLatin1String("RenderingFeature");
+        else if (xml.isEndElement() && xml.name() == QLatin1String("Feature")) inFeature = false;
+        else if (inFeature && xml.isStartElement() && xml.name() == QLatin1String("Attr")) {
+            const QString name = xml.attributes().value("Name").toString(), value = xml.attributes().value("Value").toString();
+            found = true;
+            if (name == QLatin1String("DiffuseColor")) m.diffuse = triple(value);
+            else if (name == QLatin1String("DiffuseCoef")) m.diffuseCoef = scalar(value);
+            else if (name == QLatin1String("SpecularColor")) m.specular = triple(value);
+            else if (name == QLatin1String("SpecularCoef")) m.specularCoef = scalar(value);
+            else if (name == QLatin1String("SpecularExponent")) m.specularExponent = scalar(value);
+            else if (name == QLatin1String("EmissiveColor")) m.emissive = triple(value);
+            else if (name == QLatin1String("EmissiveCoef")) m.emissiveCoef = scalar(value);
+            else if (name == QLatin1String("Transparency")) m.transparency = scalar(value);
+        }
+    }
+    finish(xml);
+    if (!found) throw Error(QStringLiteral("Material rendering has no RenderingFeature"));
+    return m;
 }
 }

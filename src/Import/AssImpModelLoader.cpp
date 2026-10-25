@@ -955,6 +955,11 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			};
 			_threeDXml = ThreeDXml::Importer::read(fi.absoluteFilePath(), options);
 			_scene = _threeDXml.scene.get();
+			// The file's own edge polylines take the B-Rep edge path (edge/wireframe display modes). Stale entries from
+			// an earlier load must go first: mesh pointers can be reused.
+			BRepToAssimpConverter::clearEdgeCache();
+			for (auto edge = _threeDXml.meshEdges.cbegin(); edge != _threeDXml.meshEdges.cend(); ++edge)
+				BRepToAssimpConverter::registerPrecomputedEdges(edge.key(), edge.value()->segments, edge.value()->bounds);
 			for (const QString& warning : _threeDXml.warnings) qWarning().noquote() << warning;
 		} catch (const std::exception& e) {
 			_errorMessage = QString::fromUtf8(e.what());
