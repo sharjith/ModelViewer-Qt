@@ -176,7 +176,7 @@ unsigned color(Reader& r, quint8* alphaByte = nullptr) {
 
 Face primitive(Reader& r, unsigned width, unsigned vertexCount, bool keep) {
     need(r.byte() == 1, "primitive envelope");
-    const unsigned flags = r.byte(); need(flags >= 0x41 && flags <= 0x4f, "primitive flags");
+    const unsigned flags = r.byte(); need(flags >= 0x40 && flags <= 0x4f, "primitive flags"); // 0x40: an empty primitive (index count 0) seen in production exports
     const unsigned lists = flags & 1 ? r.count() : 0, strips = flags & 2 ? r.count() : 0, fans = flags & 4 ? r.count() : 0;
     const unsigned count = r.count(); need(quint64(lists)+strips+fans <= count, "primitive counts");
     Face face; face.constant = flags & 8;
@@ -207,7 +207,8 @@ Face primitive(Reader& r, unsigned width, unsigned vertexCount, bool keep) {
 Body mesh(Reader& r, const Options& options, qsizetype leafEnd) {
     Body body;
     const unsigned vertices = r.count(1000000), records = r.count(1000000);
-    need(vertices > 10 && records > 0 && records <= vertices, "unsupported position/normal counts");
+    // Meshes with no normal records (flat parts) and very small meshes (4-vertex faces) occur in production exports.
+    need(vertices >= 2 && records <= vertices, "unsupported position/normal counts");
     // Three flag bytes. First sample files: 00 00 00. Files saved by a newer CATIA with a texture-mapped material:
     // 01 00 01, meaning a texture-coordinate block follows the flags and an extra float-normal block follows the
     // normal tags (layouts checked on one body whose old and new encodings both decode; the second flag is always 0).
@@ -237,7 +238,7 @@ Body mesh(Reader& r, const Options& options, qsizetype leafEnd) {
             body.positions[i] = previous;
         }
     }
-    const unsigned wordCount = r.count(2000000);
+    const unsigned wordCount = records ? r.count(2000000) : 0; // no normal block at all when there are no records
     body.normalWords.resize(wordCount);
     for (auto& word : body.normalWords) word = qFromLittleEndian<qint16>(reinterpret_cast<const uchar*>(r.raw(2)));
     const QByteArray packed(r.raw((records+1)/2), (records+1)/2);
@@ -266,9 +267,10 @@ Body mesh(Reader& r, const Options& options, qsizetype leafEnd) {
     for (unsigned i = 0; i < coarse; ++i) { options.check(); primitive(r,width,vertices,false); r.scalar(); color(r); }
     const qsizetype containerOffset = r.pos;
     const QByteArray container(r.raw(3),3);
-    // First byte observed as 02, 03 or 04 (04 comes with an extra kind-0 tail group); its meaning is not established.
+    // First byte observed as 02 to 05 (04 comes with an extra kind-0 tail group; 05 in a production export); its meaning is
+    // not established, so any small value is accepted as long as the 02 0a that follows it matches.
     const quint8 containerHead = static_cast<quint8>(container[0]);
-    if (!(containerHead >= 2 && containerHead <= 4 && container.mid(1, 2) == QByteArray::fromHex("020a"))) {
+    if (!(containerHead >= 2 && containerHead <= 15 && container.mid(1, 2) == QByteArray::fromHex("020a"))) {
         // Structural bytes only (no coordinates): lets an unrecognized exporter variant be reported without sharing the model.
         const qsizetype from = std::max<qsizetype>(0, containerOffset-12);
         fail(QStringLiteral("finest-face container %1 at offset 0x%2 (%3 coarse blocks, %4 vertices; preceding bytes %5)")
@@ -279,13 +281,21 @@ Body mesh(Reader& r, const Options& options, qsizetype leafEnd) {
     const unsigned faces = r.count(1000000); body.faces.reserve(faces);
     for (unsigned i = 0; i < faces; ++i) { options.check(); body.faces.push_back(primitive(r,width,vertices,true)); }
     for (auto& face : body.faces) face.rgb = color(r, &face.alphaByte);
-    bool groups[3] = {};
+    bool groups[8] = {};
     // Tail groups (kind 0, 1 or 2) are consumed up to the end of the leaf record. Kinds 1 and 2 are kept as edge
     // polylines; kind 0 (seen once, not understood) is validated and dropped.
     const qsizetype tailEnd = std::min<qsizetype>(leafEnd, r.data.size());
-    while (r.pos+2 <= tailEnd && r.data[r.pos] == 1 && static_cast<quint8>(r.data[r.pos+1]) <= 2) {
+    while (r.pos+2 <= tailEnd && r.data[r.pos] == 1 && (static_cast<quint8>(r.data[r.pos+1]) <= 2 || static_cast<quint8>(r.data[r.pos+1]) == 6)) {
         r.byte(); const unsigned kind = r.byte(); need(!groups[kind], "duplicate tail group"); groups[kind] = true;
         const unsigned count = r.count(1000000);
+        if (kind == 6) {
+            // Explicit 3D points (05 08 01 plus three floats each), not indices into the vertex pool; kept, not displayed.
+            body.points.reserve(count);
+            for (unsigned i = 0; i < count; ++i) { options.check(); r.expect("050801"); body.points.push_back(r.vector()); }
+            const QByteArray pointStyle(r.raw(8),8);
+            need(pointStyle.left(5) == QByteArray::fromHex("102404ffff") || pointStyle.left(5) == QByteArray::fromHex("101404ffff"), "point group style");
+            continue;
+        }
         LineGroup group;
         for (unsigned i = 0; i < count; ++i) {
             options.check(); need(r.byte() == 2, "tail group prefix"); const unsigned n = r.count(1000000);
@@ -357,13 +367,20 @@ Geometry RepresentationReader::read(const QByteArray& member, const Options& opt
     std::map<unsigned, qsizetype> cache;
     std::set<unsigned> active;
     std::vector<unsigned> surfaceOffsets;
+    // A span is the byte length of a record, so it may be as large as the stream itself (a 10.8 MB part occurs in the
+    // production sample); the default compact-count cap of 10,000,000 is too small for it.
+    auto spanCount = [&]() { const unsigned value = r.count(std::numeric_limits<quint32>::max()); need(value <= quint64(skeleton.size()), "record span exceeds the stream"); return value; };
     std::function<void(int)> node = [&](int depth) {
         options.check(); need(depth <= 128 && graph.size() < 100000, "Skeleton graph limit");
         const qsizetype start = r.pos; const unsigned tag = r.byte(); graph[start] = Node{};
-        if (tag == 0x62 || tag == 0xa3) {
+        if (tag == 0x62 || tag == 0xa3 || tag == 0x9a) {
             const qsizetype spanStart = r.pos;
-            const unsigned span = tag == 0xa3 ? r.count() : 0;
-            r.raw(35); attributes(r, r.count(std::numeric_limits<quint32>::max())); const unsigned count = r.count(100000);
+            const unsigned span = tag == 0x62 ? 0 : spanCount();
+            r.raw(35); unsigned flags = r.count(std::numeric_limits<quint32>::max());
+            // Production exports also write a small flags value followed by 00 01 00 00, which carries the 0x100 flag
+            // (the usual form is ff + little-endian 32-bit, e.g. ff 03 01 00 00 for 0x103).
+            if (flags < 255 && r.pos+4 <= r.data.size() && r.data.mid(r.pos, 4) == QByteArray::fromHex("00010000")) { r.raw(4); flags |= 0x100; }
+            attributes(r, flags); const unsigned count = r.count(100000);
             for (unsigned i = 0; i < count; ++i) {
                 const unsigned mode = r.byte(); qsizetype target;
                 if (mode == 0) { target = r.pos; node(depth+1); }
@@ -377,13 +394,48 @@ Geometry RepresentationReader::read(const QByteArray& member, const Options& opt
             if (tag == 0xa3) {
                 need(r.scalar() == 1.0f, "non-unit extended group scalar");
                 need(quint64(r.pos) == quint64(spanStart)+span+1, "extended group span");
+            } else if (tag == 0x9a) {
+                // Same span rule as 0xa3, but the trailer is a compact count followed by that many 4-byte values (0 seen).
+                const unsigned values = r.count(1000000); r.raw(qsizetype(values)*4);
+                need(quint64(r.pos) == quint64(spanStart)+span+1, "extended group span");
             }
         } else if (tag == 0x95) {
-            const qsizetype spanStart = r.pos; const unsigned span = r.count(); r.raw(35); r.expect("ffff020001");
+            const qsizetype spanStart = r.pos; const unsigned span = spanCount(); r.raw(35);
+            if (r.pos+5 <= r.data.size() && r.data.mid(r.pos, 5) == QByteArray::fromHex("ffff020000")) {
+                // Same leaf with the last marker byte 0: a curve (wire) leaf, not a mesh. Skipped by its span; unlike the a1 leaf,
+                // its trailing value is an offset into SurfacicReps (the surface-block partition is complete only with it).
+                r.raw(5); need(quint64(spanStart)+span >= quint64(r.pos), "curve leaf span"); r.raw(qsizetype(quint64(spanStart)+span-quint64(r.pos)));
+                surfaceOffsets.push_back(r.count(128*1024*1024));
+                return;
+            }
+            r.expect("ffff020001");
             Body body = mesh(r, options, qsizetype(quint64(spanStart)+span)); body.offset = start;
             need(quint64(r.pos) == quint64(spanStart)+span, "mesh leaf span");
             surfaceOffsets.push_back(r.count(128*1024*1024));
             graph[start].body = geometry.bodies.size(); geometry.bodies.push_back(std::move(body));
+        } else if (tag == 0x78) {
+            // A curve record without a span: a compact field, the 35-byte header, marker ff ff 02 00, two tolerances
+            // (0.05/0.2 and pi/4), a 4-byte id, 01 + 4-byte id, ff ff, a point count, flag 01, that many 3D points
+            // (a circle polyline in the samples), then fixed bytes, two end points (05 01 + 3 floats, each after an id)
+            // and an 8-byte style. All 8 such records in the production sample follow this grammar exactly.
+            r.count(std::numeric_limits<quint32>::max()); r.raw(35); r.expect("ffff0200"); r.scalar(); r.scalar(); r.raw(4);
+            need(r.byte() == 1, "curve record flag"); r.raw(4); r.expect("ffff");
+            const unsigned points = r.count(1000000); need(r.byte() == 1, "curve point flag");
+            for (unsigned i = 0; i < points; ++i) { options.check(); r.vector(); }
+            r.expect("001400"); r.expect("ffff00ff00ff02000000");
+            for (int end = 0; end < 2; ++end) { r.raw(4); r.expect("0000"); r.expect("0501"); r.vector(); }
+            need(QByteArray(r.raw(8), 8).left(5) == QByteArray::fromHex("000404f9ff"), "curve record style");
+        } else if (tag == 0x64) {
+            // A leaf with only ids and a colour style (one record in the production sample, followed by nothing else).
+            r.count(std::numeric_limits<quint32>::max()); r.raw(35); r.expect("ffff020001"); r.raw(2);
+            r.expect("0000000000"); r.expect("0101"); r.expect("00000000000000000000000000"); r.expect("0504ffff"); r.raw(3);
+        } else if (tag == 0xa1) {
+            // A leaf of a different, non-mesh kind (marker bytes like a mesh's but too short to hold one). Skipped by its
+            // span; a compact value follows it (1 in every sample record). It is not an offset into SurfacicReps: with it
+            // counted, the surface-block partition of the production sample breaks, without it the partition is complete.
+            const qsizetype spanStart = r.pos; const unsigned span = spanCount();
+            need(qsizetype(span) >= r.pos-spanStart, "skipped leaf span"); r.raw(qsizetype(span) - (r.pos-spanStart));
+            r.count();
         } else fail(QStringLiteral("graph record 0x%1 at %2").arg(tag,0,16).arg(start));
     };
     try {

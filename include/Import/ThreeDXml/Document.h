@@ -66,6 +66,7 @@ struct LineGroup {
 };
 struct Body {
     std::vector<LineGroup> lines;
+    std::vector<aiVector3D> points; // explicit points of tail-group kind 6; read but not displayed
     // Per-vertex texture coordinates (texCoordDimension floats each), present only when a file texture material is
     // applied; read but not used for display yet.
     std::vector<float> texCoords;
