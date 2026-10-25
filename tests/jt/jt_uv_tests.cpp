@@ -87,6 +87,30 @@ void uvTests(){
   {JtData_Limits::Scope scope({},16);reject([&]{Reader r(b,major,minor);JtDecode_VertexUV::Read(r,2,6);});}
  }
  for(bool big:{false,true}){
+  // Original literal controls for the hash-verified unpredicted IEEE profile.
+  // Golden lookup2 component-array hashes were calculated independently of
+  // the C++ reader. Preserve the existing Lag1 form with the same values/hash.
+  for(unsigned components:{1u,2u})for(bool predicted:{false,true}) {
+   const float expected[2][6]={{-2,-1,0,.25f,.5f,1},{2,1,.5f,.25f,0,-1}};
+   Fixture::Bytes binary(big);binary.u32(6);binary.u8(components);binary.u8(0);
+   for(unsigned c=0;c<components;++c) {
+    std::vector<uint32_t> words;
+    for(float value:expected[c]){uint32_t word;std::memcpy(&word,&value,4);words.push_back(word);}
+    packet(binary,words,predicted);
+   }
+   binary.u32(components==1?0x45d1bab7u:0xff192c80u);
+   for(unsigned minor:{0u,9u,10u}) {
+    Reader reader(binary,10,minor);JtDecode_VertexData::Decoded values(JtDecode_VertexUV::Read(reader,components,6));
+    check(reader.pos==size_t(binary.data.size()),"Hashed IEEE UV envelope changed");
+    for(unsigned c=0;c<components;++c)for(unsigned i=0;i<6;++i)
+     check(values[int(i)][int(c)]==expected[c][i],"Hashed raw/Lag1 UV profile changed");
+   }
+  }
+  {
+   Fixture::Bytes invalid(big);invalid.u32(6);invalid.u8(1);invalid.u8(0);
+   packet(invalid,{0x7fc00000,0,0,0,0,0},false);invalid.u32(0x6b92ca1a);
+   reject([&]{Reader r(invalid,10,9);JtDecode_VertexUV::Read(r,1,6);});
+  }
   Fixture::Bytes b(big);b.u32(6);b.u8(2);b.u8(24);
   for(float value:{-3.f,2.f}){b.f32(value);b.f32(value);b.u8(0);}
   packet(b,std::vector<uint32_t>(6,0),true);packet(b,std::vector<uint32_t>(6,0),true);b.u32(0);

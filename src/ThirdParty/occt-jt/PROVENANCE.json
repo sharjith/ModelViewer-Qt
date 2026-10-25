@@ -910,7 +910,7 @@
     {
       "file": "include/ThirdParty/occt-jt/JtDecode/JtDecode_VertexUV.hxx",
       "origin": "ModelViewer-original",
-      "notice_date": "2026-10-21"
+      "notice_date": "2026-10-25"
     },
     {
       "file": "include/ThirdParty/occt-jt/JtAttribute/JtAttribute_TextureImage.hxx",
@@ -1170,5 +1170,14 @@
       "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_TextureImage.cxx"
     ],
     "validation": "research/jt/JT_AUTHORED_MIP_VALIDATION.md"
+  },
+  "production_uv_transport_follow_up": {
+    "date": "2026-10-25",
+    "scope": "Original hash-qualified unpredicted modern binary UV compatibility; existing Lag1, 9.x and quantized paths retained; finite output remains required",
+    "reference": "Retained Siemens JT10.0 Rev-B sections 13.1.5/14.6 and Annex C lookup2 word hash attributed to Bob Jenkins (1996), cross-checked against authentic local payload hashes",
+    "files": [
+      "include/ThirdParty/occt-jt/JtDecode/JtDecode_VertexUV.hxx"
+    ],
+    "validation": "research/jt/JT_PRODUCTION_UV_TRANSPORT.md"
   }
 }

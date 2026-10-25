@@ -30,3 +30,5 @@ When you add an asset whose licence needs attribution, add a row here and a cred
 - **JT reference structures/operators:** Copyright 2014 Siemens Product Lifecycle Management Software Inc.; Copyright 2026 Siemens. Used under the published JT reference permissions. See [third-party notices](THIRD_PARTY_NOTICES.md) for the permission sources and limits. No Siemens endorsement or certification is claimed.
 
 - **Assimp glTF transport reference:** the existing Assimp 6.0.4 dependency's glTF2 importer/exporter source was consulted for UV/tangent transport in the original JT role adapter. No source was copied or newly bundled; existing Assimp notices remain with the dependency. See [C2af provenance and hashes](research/jt/JT_TEXTURE_ROLE_VALIDATION.md#evidence-and-provenance).
+
+- **JT component-array hash:** Bob Jenkins' lookup2 word-hash algorithm (1996), described and attributed with a permissive use statement in the retained Siemens JT10 reference, Annex C. Original ModelViewer adapters use it to distinguish a hash-verified production UV transport. See [method and limits](research/jt/JT_PRODUCTION_UV_TRANSPORT.md#method-and-provenance).

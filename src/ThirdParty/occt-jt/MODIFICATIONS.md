@@ -166,3 +166,7 @@ The ModelViewer-original texture header/implementation retain the owning file by
 ## C2x authored mip preservation - 23 October 2026
 
 The ModelViewer-original texture descriptor header/reader retain bounded higher mip payloads alongside the base image. Record order, version handling, source byte order, byte-total checks and cancellation remain in use. No upstream-derived implementation or hashes change. The application adapter validates qualified full 2D chains and carries canonical display levels in explicitly ModelViewer-private PNG metadata for shared renderer upload/sampling. [C2x validation](../../../research/jt/JT_AUTHORED_MIP_VALIDATION.md) records source URLs/hashes, original controls, private-carrier interoperability limits and the owner-accepted viewer gate (native/backend-specific execution remains unreported). No vendor implementation was used.
+
+## 25 October 2026 - production binary UV compatibility
+
+The original VertexUV adapter recognizes an unpredicted modern IEEE-word transport only when the complete component-array lookup2 hash matches the stored hash. The prior Lag1 transport and quantized/9.x rules remain; nonfinite output is still rejected. See [production UV evidence and owner confirmation](../../../research/jt/JT_PRODUCTION_UV_TRANSPORT.md). No C3 wire bypass or new JT version.
