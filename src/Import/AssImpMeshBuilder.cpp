@@ -185,7 +185,8 @@ SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
         textures,
         resolvedMaterial,
         !meshData.morphTargets.isEmpty(),
-        meshData.primitiveMode);
+        meshData.primitiveMode,
+        meshData.sourceMeshIds);
     mesh->setHasNegativeScale(meshData.hasNegativeScale);
     mesh->setSceneIndex(meshData.sceneIndex);
     mesh->setOriginalMaterialIndex(meshData.originalMaterialIndex);

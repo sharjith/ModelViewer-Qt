@@ -141,6 +141,10 @@ struct AssImpMeshData
 
 	// Pre-computed B-Rep edge segments from OCC, flat {x0,y0,z0, x1,y1,z1, ...}
 	// in model space.  Empty for OBJ/glTF; populated for STEP/IGES/BREP.
+	// Importer-supplied per-vertex body ids (one per vertex, same order as `vertices`); empty when the importer
+	// merged nothing. Passed to SceneMesh as its initial source-mesh ids - see MeshImportAdaptor::sourceMeshIds().
+	std::vector<quint64> sourceMeshIds;
+
 	std::vector<float> precomputedOccEdges;
 	// Boundary table: bounds[i] = first vec3-index of topological edge i; bounds.back() = total.
 	std::vector<int>   precomputedOccEdgeBoundaries;

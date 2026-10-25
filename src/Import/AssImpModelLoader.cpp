@@ -2,6 +2,7 @@
 
 #include "BRepToAssimpConverter.h"
 #include "ThreeDXml/Importer.h"
+#include "MeshImportAdaptor.h"
 #include "SceneImportCounts.h"
 #include "IXCAFDocProcessor.hxx"
 #include "XCAFDocProcessorFactory.hxx"
@@ -1943,6 +1944,24 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 			pc.axisX = c.axisX;     pc.axisY = c.axisY;     pc.axisZ = c.axisZ;
 			pc.radius = c.radius;
 			meshData.precomputedOccEdgeCircles.push_back(pc);
+		}
+	}
+
+	// A 3DXML mesh that merged several of the file's own bodies carries one body number per vertex. Turn each
+	// number into a process-unique source-mesh id so Curvature Analysis and MVF keep treating them as separate bodies.
+	{
+		const auto leafIds = _threeDXml.meshLeafIds.constFind(mesh);
+		if (leafIds != _threeDXml.meshLeafIds.cend() && leafIds.value() && leafIds.value()->size() == mesh->mNumVertices)
+		{
+			std::unordered_map<unsigned, quint64> freshIds;
+			meshData.sourceMeshIds.reserve(leafIds.value()->size());
+			for (unsigned leaf : *leafIds.value())
+			{
+				auto inserted = freshIds.emplace(leaf, 0);
+				if (inserted.second)
+					inserted.first->second = MeshImportAdaptor::nextSourceMeshId();
+				meshData.sourceMeshIds.push_back(inserted.first->second);
+			}
 		}
 	}
 
