@@ -53,6 +53,15 @@ These come only from the owner's sample archives and earlier decoding work. They
 - Interpretation (hypothesis): these are the exporter's B-Rep edge lines resampled onto mesh edges; the difference between kinds 1 and 2 is not established. Kind 0 occurs only in one tire part, whose scratch decode failed, so it is not interpreted.
 - Implemented: kinds 1 and 2 are read as polylines and registered with the viewer's precomputed-edge store (the one STEP/IGES/BREP use), so they appear only in the edge and wireframe display modes, not as scene geometry; a segment present in both kinds is stored once. `Options::edges` switches reading off. A first attempt drew them as line meshes, which showed edges in every shading mode and exposed an unrelated viewer bug (the mesh optimizer reordered line indices as triangles when the index count was a multiple of 3).
 
+## Newer-save mesh layout and file-texture materials (observation, 25 October 2026)
+
+- Two files saved later from CATIA (the second with Cedar, Aluminium, Steel and Rubber applied at part level) carry the same skate-board body in a new layout. The three flag bytes after the vertex and normal counts read `01 00 01` instead of `00 00 00`.
+- Method: the same body exists in the first sample (decodes fully) and in the new files. A least-squares fit of the new float block against the old decoded coordinates gives u = x/200 + 0.5 and v = y/200 + 0.5 (maximum error below 1e-6), i.e. planar texture coordinates. The block is one dimension byte (2) then dimension floats per vertex, right after the flags; the packed position stream follows with the same bytes as before.
+- A second extra block follows the normal tags: 2 x vertex-count unit vectors as float triples (lengths 1.0000 within 1e-6). Its length formula is inferred from this single body; with it the whole Skeleton stream is consumed exactly and the edge groups equal the old file's.
+- The attribute image of that body is a 600 x 589 RGB texture (3 bytes per pixel, pixel marker `02 00`, mapping prefix `00 01 01 05 00 01 01 00`) whose name field is a texture file path; the other parts carry the 256 x 256 RGBA placeholder environment image. The rubber tire carries no image.
+- The material colour, coefficients and gloss are inside the 3DRep attribute block as 15 floats per part (no `CATMaterialRef` document in that file): e.g. steel 0.62, 0.2, 0.399, 0.9, 0, 0.3 and aluminium 0.643, 0.25, 0.4, 0.3, 0, 0.7 after nine colour floats. Their meaning is not yet mapped; the CATIA material editor values are needed.
+- Implemented: both extra blocks are read (texture coordinates kept on the body, float normals skipped), RGB images are skipped. Textures are not displayed.
+
 ## Consequences for the importer (observations of the current code)
 
 - Occurrence colour parsing rejects channels outside 0..1; the XML tessellation reader applies the same rule. CATIA writes -1 for "unset".

@@ -66,6 +66,10 @@ struct LineGroup {
 };
 struct Body {
     std::vector<LineGroup> lines;
+    // Per-vertex texture coordinates (texCoordDimension floats each), present only when a file texture material is
+    // applied; read but not used for display yet.
+    std::vector<float> texCoords;
+    unsigned texCoordDimension = 0;
     quint64 offset = 0;
     std::vector<aiVector3D> positions, normals;
     std::vector<qint16> normalWords;
