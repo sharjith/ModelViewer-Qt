@@ -1684,8 +1684,9 @@ void SceneMesh::optimizeMesh()
 	if (_importState.skipOptimization())
 		return;
 
-	// Check if this is a valid triangle mesh
-	if (_indices.empty() || (_indices.size() % 3 != 0))
+	// Check if this is a valid triangle mesh. A line mesh whose index count happens to be a multiple of 3
+	// must not be reordered as triangles: that scrambles its segment pairs.
+	if (_indices.empty() || (_indices.size() % 3 != 0) || _primitiveMode != GL_TRIANGLES)
 	{
 		// Not a triangle mesh - skip meshoptimizer
 		return;
