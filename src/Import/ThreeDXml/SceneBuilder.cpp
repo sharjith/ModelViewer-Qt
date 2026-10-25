@@ -17,19 +17,25 @@ namespace {
 struct VertexKey {
     unsigned position;
     quint64 binding;
-    bool operator==(const VertexKey& rhs) const { return position == rhs.position && binding == rhs.binding; }
+    unsigned rgb; // face colour: a vertex shared by faces of different colours is split, so colour edges stay crisp
+    bool operator==(const VertexKey& rhs) const { return position == rhs.position && binding == rhs.binding && rgb == rhs.rgb; }
 };
 struct VertexHash {
-    size_t operator()(const VertexKey& key) const { return std::hash<quint64>{}((quint64(key.position)<<32)^key.binding); }
+    size_t operator()(const VertexKey& key) const { return std::hash<quint64>{}(((quint64(key.position)<<32)^key.binding) ^ (quint64(key.rgb)*0x9e3779b97f4a7c15ULL)); }
 };
 struct Primitive {
     unsigned rgb = 0;
     ai_real alpha = 1;
+    std::vector<unsigned> vertexRgb; // face colour of each vertex (same order as positions)
+    std::set<unsigned> rgbs;         // distinct face colours; more than one means the mesh carries vertex colours
     std::vector<aiVector3D> positions, normals;
     std::vector<std::array<unsigned,3>> triangles;
     std::unordered_map<VertexKey,unsigned,VertexHash> vertices;
     std::unordered_set<quint64> edgeHits; // edge polyline segments that are edges of this primitive's own triangles
 };
+// A representation with more mesh leaves than this is merged into one mesh per colour group (the exporter writes some
+// parts as thousands of tiny leaves, one per CAD face or feature). Every vertex keeps its leaf number as provenance.
+constexpr size_t kMergeLeafThreshold = 50;
 quint64 segmentKey(unsigned a, unsigned b) { return (quint64(std::min(a,b))<<32) | std::max(a,b); }
 struct BodyMeshes { QString path; std::vector<unsigned> meshes; };
 void children(aiNode& parent, std::vector<std::unique_ptr<aiNode>>& nodes) {
@@ -98,7 +104,54 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
     // Exporter edge polylines, shared by every mesh variant of a body. They are registered with the viewer's
     // precomputed-edge store (not drawn as geometry), so only the edge display modes show them.
     std::map<unsigned,std::shared_ptr<const MeshEdges>> meshEdges;
+    // Per-vertex leaf numbers (1-based) of merged meshes; the viewer turns them into source-mesh ids.
+    std::map<unsigned,std::shared_ptr<const std::vector<unsigned>>> meshLeafIds;
+    size_t mergedMemberCount = 0;
     quint64 collapsedTriangles = 0;
+    // Edges belong to the mesh whose triangles they border (a segment between two colour groups goes to both), so hiding
+    // or isolating a mesh hides or isolates its own edges. Flat {x0,y0,z0,x1,y1,z1,...} in mesh vertex space, one boundary
+    // entry per polyline run; a segment stored in both tail-group kinds is kept once.
+    auto buildEdges = [&](const Primitive& p, const Body& body) -> std::shared_ptr<MeshEdges> {
+        if (p.edgeHits.empty()) return nullptr;
+        auto edges = std::make_shared<MeshEdges>(); std::unordered_set<quint64> emitted;
+        for (const auto& group : body.lines) {
+            options.check();
+            for (const auto& polyline : group.polylines) {
+                const size_t before = edges->segments.size();
+                for (size_t i = 1; i < polyline.size(); ++i) {
+                    const unsigned a = polyline[i-1], b = polyline[i];
+                    const quint64 key = segmentKey(a,b);
+                    if (a == b || !p.edgeHits.count(key) || !emitted.insert(key).second) continue;
+                    for (unsigned v : {a,b}) { const auto& q = body.positions.at(v); edges->segments.insert(edges->segments.end(), {q.x,q.y,q.z}); }
+                }
+                if (edges->segments.size() != before) {
+                    if (edges->bounds.empty()) edges->bounds.push_back(0);
+                    edges->bounds.push_back(static_cast<int>(edges->segments.size()/3));
+                }
+            }
+        }
+        return edges->segments.empty() ? nullptr : edges;
+    };
+    auto makeMesh = [&](const Primitive& p, const QString& name, std::shared_ptr<MeshEdges> edges, std::shared_ptr<const std::vector<unsigned>> leafIds) {
+        auto mesh = std::make_unique<aiMesh>();
+        mesh->mName = aiString(name.toUtf8().constData());
+        // One face colour: it is the material colour, as before. Several: a white material and the colours as vertex colours
+        // (the shader multiplies both directly, so the result is identical), which keeps one mesh per body.
+        const bool vertexColours = p.rgbs.size() > 1 && p.vertexRgb.size() == p.positions.size();
+        mesh->mPrimitiveTypes=aiPrimitiveType_TRIANGLE; mesh->mMaterialIndex=material(vertexColours ? 0xffffffu : (p.rgbs.empty() ? p.rgb : *p.rgbs.begin()), p.alpha);
+        if (vertexColours) {
+            mesh->mColors[0]=new aiColor4D[p.vertexRgb.size()];
+            for (size_t i=0;i<p.vertexRgb.size();++i) mesh->mColors[0][i]=aiColor4D(ai_real((p.vertexRgb[i]>>16)&255)/255,ai_real((p.vertexRgb[i]>>8)&255)/255,ai_real(p.vertexRgb[i]&255)/255,1);
+        }
+        mesh->mNumVertices=static_cast<unsigned>(p.positions.size()); mesh->mVertices=new aiVector3D[p.positions.size()]; mesh->mNormals=new aiVector3D[p.normals.size()];
+        std::copy(p.positions.begin(),p.positions.end(),mesh->mVertices); std::copy(p.normals.begin(),p.normals.end(),mesh->mNormals);
+        mesh->mNumFaces=static_cast<unsigned>(p.triangles.size()); mesh->mFaces=new aiFace[p.triangles.size()];
+        for (size_t i=0;i<p.triangles.size();++i) { mesh->mFaces[i].mNumIndices=3; mesh->mFaces[i].mIndices=new unsigned[3]; std::copy(p.triangles[i].begin(),p.triangles[i].end(),mesh->mFaces[i].mIndices); }
+        const unsigned index = static_cast<unsigned>(meshes.size());
+        if (edges) meshEdges[index] = std::move(edges);
+        if (leafIds) meshLeafIds[index] = std::move(leafIds);
+        meshes.push_back(std::move(mesh)); return index;
+    };
     std::map<QString,std::vector<BodyMeshes>> resources;
     QStringList members;
     QHash<QString,QString> formats;
@@ -118,6 +171,12 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         try { geometry = formats.value(member)==QLatin1String("TESSELLATED") ? TessellatedReader::read(archive.read(member),options) : RepresentationReader::read(archive.read(member),options); }
         catch (const Error& e) { throw Error(QStringLiteral("%1: %2").arg(member,QString::fromUtf8(e.what()))); }
         std::vector<std::vector<unsigned>> bodyResources;
+        const bool mergeLeaves = geometry.bodies.size() > kMergeLeafThreshold;
+        struct Merged { Primitive prim; std::vector<unsigned> leaf; std::shared_ptr<MeshEdges> edges; };
+        std::map<quint64,size_t> mergedByStyle; std::vector<Merged> mergedPrims; unsigned leafNumber = 0;
+        // Provenance tag per leaf: the exporter's own source id from the node header (unique per leaf in every heavily
+        // split part of the production sample); the leaf's ordinal when ids repeat.
+        bool idsUnique = true; { std::set<unsigned> seen; for (const auto& body : geometry.bodies) if (!seen.insert(body.sourceId).second) idsUnique = false; }
         for (const auto& body : geometry.bodies) {
             options.check();
             std::vector<Primitive> primitives; std::map<quint64,size_t> byColor;
@@ -127,7 +186,7 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
             for (size_t fi = 0; fi < body.faces.size(); ++fi) {
                 options.check(); const auto& face = body.faces[fi];
                 if (face.triangles.empty()) continue;
-                const auto styleKey = (quint64(face.alphaByte) << 32) | face.rgb;
+                const quint64 styleKey = face.alphaByte; // opacity needs a material of its own; colour does not
                 if (!byColor.count(styleKey)) { byColor[styleKey] = primitives.size(); Primitive p; p.rgb = face.rgb; p.alpha = ai_real(face.alphaByte) / 255; primitives.push_back(std::move(p)); }
                 auto& p = primitives[byColor.at(styleKey)];
                 aiVector3D constant = face.normal;
@@ -160,52 +219,59 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
                             const auto n = body.normals[source];
                             if (std::isfinite(n.SquareLength()) && n.SquareLength() > 0) { normal=n; binding=0; }
                         }
-                        VertexKey key{source,binding};
+                        VertexKey key{source,binding,face.rgb};
                         auto found = p.vertices.find(key);
                         if (found == p.vertices.end()) {
                             unsigned index = static_cast<unsigned>(p.positions.size());
-                            p.vertices.emplace(key,index); p.positions.push_back(body.positions[source]); p.normals.push_back(normal); output[corner]=index;
+                            p.vertices.emplace(key,index); p.positions.push_back(body.positions[source]); p.normals.push_back(normal); p.vertexRgb.push_back(face.rgb); output[corner]=index;
                         } else output[corner]=found->second;
                     }
-                    p.triangles.push_back(output);
+                    p.triangles.push_back(output); p.rgbs.insert(face.rgb);
                 }
+            }
+            ++leafNumber;
+            if (mergeLeaves) {
+                for (auto& p : primitives) {
+                    if (p.triangles.empty()) continue;
+                    const quint64 key = quint64(std::lround(p.alpha*255));
+                    auto found = mergedByStyle.find(key);
+                    if (found == mergedByStyle.end()) {
+                        found = mergedByStyle.emplace(key, mergedPrims.size()).first;
+                        Merged m; m.prim.rgb = p.rgb; m.prim.alpha = p.alpha; mergedPrims.push_back(std::move(m));
+                    }
+                    Merged& m = mergedPrims[found->second]; const unsigned base = static_cast<unsigned>(m.prim.positions.size());
+                    m.prim.positions.insert(m.prim.positions.end(), p.positions.begin(), p.positions.end());
+                    m.prim.normals.insert(m.prim.normals.end(), p.normals.begin(), p.normals.end());
+                    m.prim.vertexRgb.insert(m.prim.vertexRgb.end(), p.vertexRgb.begin(), p.vertexRgb.end());
+                    m.prim.rgbs.insert(p.rgbs.begin(), p.rgbs.end());
+                    for (const auto& tri : p.triangles) m.prim.triangles.push_back({tri[0]+base, tri[1]+base, tri[2]+base});
+                    m.leaf.insert(m.leaf.end(), p.positions.size(), idsUnique ? body.sourceId : leafNumber);
+                    if (auto edges = buildEdges(p, body)) {
+                        if (!m.edges) m.edges = std::move(edges);
+                        else {
+                            const int shift = static_cast<int>(m.edges->segments.size()/3);
+                            m.edges->segments.insert(m.edges->segments.end(), edges->segments.begin(), edges->segments.end());
+                            for (size_t k = 1; k < edges->bounds.size(); ++k) m.edges->bounds.push_back(edges->bounds[k] + shift);
+                        }
+                    }
+                }
+                continue;
             }
             std::vector<unsigned> bodyMeshes;
             for (auto& p : primitives) {
                 if (p.triangles.empty()) continue;
-                auto mesh = std::make_unique<aiMesh>();
-                mesh->mName = aiString(QStringLiteral("%1__body_%2").arg(member).arg(body.offset).toUtf8().constData());
-                mesh->mPrimitiveTypes=aiPrimitiveType_TRIANGLE; mesh->mMaterialIndex=material(p.rgb,p.alpha);
-                mesh->mNumVertices=static_cast<unsigned>(p.positions.size()); mesh->mVertices=new aiVector3D[p.positions.size()]; mesh->mNormals=new aiVector3D[p.normals.size()];
-                std::copy(p.positions.begin(),p.positions.end(),mesh->mVertices); std::copy(p.normals.begin(),p.normals.end(),mesh->mNormals);
-                mesh->mNumFaces=static_cast<unsigned>(p.triangles.size()); mesh->mFaces=new aiFace[p.triangles.size()];
-                for (size_t i=0;i<p.triangles.size();++i) { mesh->mFaces[i].mNumIndices=3; mesh->mFaces[i].mIndices=new unsigned[3]; std::copy(p.triangles[i].begin(),p.triangles[i].end(),mesh->mFaces[i].mIndices); }
-                // Edges belong to the mesh whose triangles they border (a segment between two colour groups goes to both),
-                // so hiding or isolating a mesh hides or isolates its own edges. Flat {x0,y0,z0,x1,y1,z1,...} in mesh
-                // vertex space, one boundary entry per polyline run; a segment stored in both tail-group kinds is kept once.
-                if (!p.edgeHits.empty()) {
-                    auto edges = std::make_shared<MeshEdges>(); std::unordered_set<quint64> emitted;
-                    for (const auto& group : body.lines) {
-                        options.check();
-                        for (const auto& polyline : group.polylines) {
-                            const size_t before = edges->segments.size();
-                            for (size_t i = 1; i < polyline.size(); ++i) {
-                                const unsigned a = polyline[i-1], b = polyline[i];
-                                const quint64 key = segmentKey(a,b);
-                                if (a == b || !p.edgeHits.count(key) || !emitted.insert(key).second) continue;
-                                for (unsigned v : {a,b}) { const auto& q = body.positions.at(v); edges->segments.insert(edges->segments.end(), {q.x,q.y,q.z}); }
-                            }
-                            if (edges->segments.size() != before) {
-                                if (edges->bounds.empty()) edges->bounds.push_back(0);
-                                edges->bounds.push_back(static_cast<int>(edges->segments.size()/3));
-                            }
-                        }
-                    }
-                    if (!edges->segments.empty()) meshEdges[static_cast<unsigned>(meshes.size())] = std::move(edges);
-                }
-                bodyMeshes.push_back(static_cast<unsigned>(meshes.size())); meshes.push_back(std::move(mesh));
+                bodyMeshes.push_back(makeMesh(p, QStringLiteral("%1__body_%2").arg(member).arg(body.offset), buildEdges(p, body), nullptr));
             }
             bodyResources.push_back(std::move(bodyMeshes));
+        }
+        if (mergeLeaves) {
+            std::vector<unsigned> mergedMeshes;
+            for (auto& m : mergedPrims)
+                mergedMeshes.push_back(makeMesh(m.prim, QStringLiteral("%1__merged").arg(member), std::move(m.edges), std::make_shared<const std::vector<unsigned>>(std::move(m.leaf))));
+            ++mergedMemberCount;
+            result.warnings.append(QStringLiteral("%1: %2 mesh leaves merged into %3 meshes (vertices keep their leaf number).").arg(member).arg(leafNumber).arg(mergedMeshes.size()));
+            resources[member].push_back({QString(), std::move(mergedMeshes)});
+            continue;
         }
         auto& group = resources[member];
         for (const auto& occurrence : geometry.occurrences) group.push_back({occurrence.path,bodyResources.at(occurrence.body)});
@@ -226,16 +292,20 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
                 for (int k=0;k<3;++k) rgb=(rgb<<8)|unsigned(std::lround((*overrideColor)[k]*255));
                 target=material(rgb,overrideColor->a);
             }
-            const auto key=std::make_pair(index,target);
+            const bool stripColours=(rendering||overrideColor) && meshes.at(index)->HasVertexColors(0);
+            const auto key=std::make_pair(index,target|(stripColours ? 0x80000000u : 0u));
             auto found=variants.find(key);
             if (found!=variants.end()) { output.push_back(found->second); continue; }
             unsigned variant=index;
-            if (assigned.contains(index)) {
+            if (assigned.contains(index) || stripColours) {
                 options.check(); aiMesh* copy=nullptr;
                 Assimp::SceneCombiner::Copy(&copy,meshes.at(index).get());
                 std::unique_ptr<aiMesh> owned(copy);
-                owned->mMaterialIndex=target; variant=static_cast<unsigned>(meshes.size()); meshes.push_back(std::move(owned));
+                owned->mMaterialIndex=target;
+                if (stripColours) { delete[] owned->mColors[0]; owned->mColors[0]=nullptr; }
+                variant=static_cast<unsigned>(meshes.size()); meshes.push_back(std::move(owned));
                 const auto edgeSource=meshEdges.find(index); if (edgeSource!=meshEdges.end()) meshEdges[variant]=edgeSource->second;
+                const auto leafSource=meshLeafIds.find(index); if (leafSource!=meshLeafIds.end()) meshLeafIds[variant]=leafSource->second;
             } else { assigned.insert(index); meshes.at(index)->mMaterialIndex=target; }
             variants[key]=variant; output.push_back(variant);
         }
@@ -249,6 +319,13 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         auto existing = dressed.find(link.path);
         if (existing == dressed.end() || existing->first <= link.layer) dressed.insert(link.path, {link.layer, &rendering.value()});
     }
+    // The originating representation (3DRep member, ReferenceRep id and name) of every mesh-bearing node, so a mesh can be
+    // traced to its part without relying on its name.
+    auto setRepresentation = [](aiMetadata& metadata, unsigned base, const Representation& rep) {
+        metadata.Set(base,"3DXMLRepresentation",aiString(rep.member.toUtf8().constData()));
+        metadata.Set(base+1,"3DXMLRepresentationId",aiString(rep.id.toUtf8().constData()));
+        metadata.Set(base+2,"3DXMLRepresentationName",aiString(rep.name.toUtf8().constData()));
+    };
     QSet<QString> active, visitedHidden, visitedColors, visitedMaterials; size_t nodeCount=0;
     std::function<std::unique_ptr<aiNode>(const QString&,const QString&,const QString&,const QString&,const aiMatrix4x4&,bool,const aiColor4D*,const MaterialRendering*,int)> build;
     build = [&](const QString& reference,const QString& name,const QString& path,const QString& id,const aiMatrix4x4& local,bool parentVisible,const aiColor4D* inheritedColor,const MaterialRendering* inheritedMaterial,int depth) {
@@ -264,7 +341,14 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         bool visible=parentVisible && !doc.hiddenPaths.contains(path);
         if (doc.hiddenPaths.contains(path)) visitedHidden.insert(path);
         auto node=std::make_unique<aiNode>(name.isEmpty() ? ref.name.toUtf8().constData() : name.toUtf8().constData()); node->mTransformation=local;
-        node->mMetaData=aiMetadata::Alloc(3);
+        const Representation* attachedRep=nullptr;
+        if (ref.representations.size()==1) {
+            const auto found=doc.representations.constFind(ref.representations.front());
+            if (found!=doc.representations.cend() && (found->format==QLatin1String("UVR") || found->format==QLatin1String("TESSELLATED")) && resources.at(found->member).size()==1)
+                attachedRep=&found.value();
+        }
+        node->mMetaData=aiMetadata::Alloc(attachedRep ? 6 : 3);
+        if (attachedRep) setRepresentation(*node->mMetaData,3,*attachedRep);
         node->mMetaData->Set(0,"3DXMLReference",aiString(reference.toUtf8().constData()));
         node->mMetaData->Set(1,"3DXMLPath",aiString(path.toUtf8().constData()));
         node->mMetaData->Set(2,"3DXMLInstance",aiString(id.toUtf8().constData()));
@@ -280,6 +364,7 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
                 if (++nodeCount > 100000) throw Error(QStringLiteral("Expanded body node limit exceeded"));
                 auto child=std::make_unique<aiNode>(QStringLiteral("%1__body_%2").arg(rep.name,body.path).toUtf8().constData());
                 attach(*child,appearance(body.meshes,color,rendering));
+                child->mMetaData=aiMetadata::Alloc(3); setRepresentation(*child->mMetaData,0,rep);
                 if (!visible) result.hiddenNodes.insert(child.get());
                 nodes.push_back(std::move(child));
             }
@@ -300,6 +385,8 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
     for (size_t i=0;i<meshes.size();++i) {
         const auto edges=meshEdges.find(static_cast<unsigned>(i));
         if (edges!=meshEdges.end()) result.meshEdges.insert(meshes[i].get(),edges->second);
+        const auto leafIds=meshLeafIds.find(static_cast<unsigned>(i));
+        if (leafIds!=meshLeafIds.end()) result.meshLeafIds.insert(meshes[i].get(),leafIds->second);
         result.scene->mMeshes[i]=meshes[i].release();
     }
     result.scene->mMaterials=new aiMaterial*[materials.size()]{};
@@ -307,6 +394,12 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
     for (size_t i=0;i<materials.size();++i) result.scene->mMaterials[i]=materials[i].release();
     if (!result.scene->mNumMeshes) throw Error(QStringLiteral("3DXML contains no supported triangle geometry"));
     if (options.progress) options.progress(QStringLiteral("Complete"),members.size(),members.size());
+    {
+        size_t withGeometry = 0;
+        for (const auto& entry : resources) if (std::any_of(entry.second.begin(), entry.second.end(), [](const BodyMeshes& body) { return !body.meshes.empty(); })) ++withGeometry;
+        result.warnings.append(QStringLiteral("3DXML tally: %1 representations (%2 with geometry, %3 without), %4 meshes, %5 merged representations.")
+            .arg(members.size()).arg(withGeometry).arg(members.size()-static_cast<qsizetype>(withGeometry)).arg(meshes.size()).arg(mergedMemberCount));
+    }
     if (collapsedTriangles) result.warnings.append(QStringLiteral("Skipped %1 collapsed source triangles.").arg(collapsedTriangles));
     return result;
 }

@@ -400,7 +400,9 @@ Geometry RepresentationReader::read(const QByteArray& member, const Options& opt
                 need(quint64(r.pos) == quint64(spanStart)+span+1, "extended group span");
             }
         } else if (tag == 0x95) {
-            const qsizetype spanStart = r.pos; const unsigned span = spanCount(); r.raw(35);
+            const qsizetype spanStart = r.pos; const unsigned span = spanCount();
+            // The last 4 bytes of the 35-byte header are the exporter's source id of this leaf (unique per leaf in the samples).
+            const QByteArray leafHeader(r.raw(35), 35);
             if (r.pos+5 <= r.data.size() && r.data.mid(r.pos, 5) == QByteArray::fromHex("ffff020000")) {
                 // Same leaf with the last marker byte 0: a curve (wire) leaf, not a mesh. Skipped by its span; unlike the a1 leaf,
                 // its trailing value is an offset into SurfacicReps (the surface-block partition is complete only with it).
@@ -410,6 +412,7 @@ Geometry RepresentationReader::read(const QByteArray& member, const Options& opt
             }
             r.expect("ffff020001");
             Body body = mesh(r, options, qsizetype(quint64(spanStart)+span)); body.offset = start;
+            body.sourceId = qFromLittleEndian<quint32>(reinterpret_cast<const uchar*>(leafHeader.constData()) + 31);
             need(quint64(r.pos) == quint64(spanStart)+span, "mesh leaf span");
             surfaceOffsets.push_back(r.count(128*1024*1024));
             graph[start].body = geometry.bodies.size(); geometry.bodies.push_back(std::move(body));
