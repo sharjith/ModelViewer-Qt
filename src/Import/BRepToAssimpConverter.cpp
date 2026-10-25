@@ -598,6 +598,15 @@ BRepToAssimpConverter::getPrecomputedEdges(const aiMesh* mesh)
 	return (it != s_occEdges.end()) ? &it->second : nullptr;
 }
 
+void BRepToAssimpConverter::registerPrecomputedEdges(const aiMesh* mesh, OccEdgeSegments segments, OccEdgeBoundaries bounds)
+{
+	if (!mesh || segments.empty() || bounds.size() < 2) return;
+	OccEdgeData data;
+	data.segments = std::move(segments);
+	data.bounds   = std::move(bounds);
+	s_occEdges[mesh] = std::move(data);
+}
+
 const BRepToAssimpConverter::OccFaceData*
 BRepToAssimpConverter::getPrecomputedFaces(const aiMesh* mesh)
 {

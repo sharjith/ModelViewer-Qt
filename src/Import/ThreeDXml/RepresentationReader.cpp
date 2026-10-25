@@ -161,9 +161,17 @@ std::vector<Entry> compound(const QByteArray& data, const Options& options) {
 
 using Reader = PackedReader;
 
-unsigned color(Reader& r) {
+unsigned color(Reader& r, quint8* alphaByte = nullptr) {
     const QByteArray prefix(r.raw(5), 5);
-    need(prefix == QByteArray::fromHex("300404ffff") || prefix == QByteArray::fromHex("b00404ff7f") || prefix == QByteArray::fromHex("b00404ff00"), "face style");
+    // Head byte observed as 20, 30 or b0; bytes 1-3 are always 04 04 ff. The fifth byte varies (ff, 7f, 00, 37):
+    // it is kept as a candidate opacity byte for the caller, not interpreted here.
+    const quint8 head = static_cast<quint8>(prefix[0]);
+    need((head == 0x20 || head == 0x30 || head == 0xb0) && prefix.mid(1, 3) == QByteArray::fromHex("0404ff"), "face style");
+    // Observed in the samples: head b0 appears only on the part the owner reports as transparent (fifth byte 37); every
+    // other record is head 20/30 with ff. Head bit 0x80 is read as "transparency byte present": opacity = 255 - byte.
+    // The owner recalls CATIA showing that block more opaque than byte/255 would give (byte 7f elsewhere is half either
+    // way). Still unconfirmed against CATIA.
+    if (alphaByte) *alphaByte = (head & 0x80) ? static_cast<quint8>(255 - static_cast<quint8>(prefix[4])) : quint8(255);
     const unsigned b = r.byte(), g = r.byte(), red = r.byte(); return (red<<16)|(g<<8)|b;
 }
 
@@ -197,7 +205,7 @@ Face primitive(Reader& r, unsigned width, unsigned vertexCount, bool keep) {
     need(cursor == count, "unused primitive indices"); return face;
 }
 
-Body mesh(Reader& r, const Options& options) {
+Body mesh(Reader& r, const Options& options, qsizetype leafEnd) {
     Body body;
     const unsigned vertices = r.count(1000000), records = r.count(1000000);
     need(vertices > 10 && records > 0 && records <= vertices, "unsupported position/normal counts");
@@ -244,7 +252,9 @@ Body mesh(Reader& r, const Options& options) {
     for (unsigned i = 0; i < coarse; ++i) { options.check(); primitive(r,width,vertices,false); r.scalar(); color(r); }
     const qsizetype containerOffset = r.pos;
     const QByteArray container(r.raw(3),3);
-    if (container != QByteArray::fromHex("03020a") && container != QByteArray::fromHex("02020a")) {
+    // First byte observed as 02, 03 or 04 (04 comes with an extra kind-0 tail group); its meaning is not established.
+    const quint8 containerHead = static_cast<quint8>(container[0]);
+    if (!(containerHead >= 2 && containerHead <= 4 && container.mid(1, 2) == QByteArray::fromHex("020a"))) {
         // Structural bytes only (no coordinates): lets an unrecognized exporter variant be reported without sharing the model.
         const qsizetype from = std::max<qsizetype>(0, containerOffset-12);
         fail(QStringLiteral("finest-face container %1 at offset 0x%2 (%3 coarse blocks, %4 vertices; preceding bytes %5)")
@@ -254,38 +264,54 @@ Body mesh(Reader& r, const Options& options) {
     }
     const unsigned faces = r.count(1000000); body.faces.reserve(faces);
     for (unsigned i = 0; i < faces; ++i) { options.check(); body.faces.push_back(primitive(r,width,vertices,true)); }
-    for (auto& face : body.faces) face.rgb = color(r);
+    for (auto& face : body.faces) face.rgb = color(r, &face.alphaByte);
     bool groups[3] = {};
-    while (r.pos+2 <= r.data.size() && r.data[r.pos] == 1 && (r.data[r.pos+1] == 1 || r.data[r.pos+1] == 2)) {
+    // Tail groups (kind 0, 1 or 2) are consumed up to the end of the leaf record. Kinds 1 and 2 are kept as edge
+    // polylines; kind 0 (seen once, not understood) is validated and dropped.
+    const qsizetype tailEnd = std::min<qsizetype>(leafEnd, r.data.size());
+    while (r.pos+2 <= tailEnd && r.data[r.pos] == 1 && static_cast<quint8>(r.data[r.pos+1]) <= 2) {
         r.byte(); const unsigned kind = r.byte(); need(!groups[kind], "duplicate tail group"); groups[kind] = true;
         const unsigned count = r.count(1000000);
+        LineGroup group;
         for (unsigned i = 0; i < count; ++i) {
             options.check(); need(r.byte() == 2, "tail group prefix"); const unsigned n = r.count(1000000);
-            for (unsigned j = 0; j < n; ++j) need(r.bits(width) < vertices, "tail index range");
+            std::vector<unsigned> polyline; polyline.reserve(n);
+            for (unsigned j = 0; j < n; ++j) { const auto index = r.bits(width); need(index < vertices, "tail index range"); polyline.push_back(static_cast<unsigned>(index)); }
+            if (polyline.size() >= 2) group.polylines.push_back(std::move(polyline));
         }
         const QByteArray style(r.raw(8),8);
         need(style.left(5) == QByteArray::fromHex("102404ffff") || style.left(5) == QByteArray::fromHex("101404ffff"), "tail style");
+        // Last three style bytes are BGR, like the face styles.
+        group.rgb = (unsigned(quint8(style[7])) << 16) | (unsigned(quint8(style[6])) << 8) | unsigned(quint8(style[5]));
+        if (kind != 0 && options.edges && !group.polylines.empty()) body.lines.push_back(std::move(group));
     }
     return body;
 }
 
 void attributes(Reader& r, unsigned flags) {
     if (!(flags & 0x10000)) return;
+    // Image-bearing tail shared by the image form and the hybrid form below. The pixels are structurally skipped;
+    // the samples applying it use no user texture, so the image is not interpreted or displayed.
+    auto imageTail = [&r]() {
+        r.expect("010101"); r.count(std::numeric_limits<quint32>::max()); need(r.byte() == 3, "attribute image format");
+        quint64 width = r.count(), height = r.count(), bytes = r.count(16*1024*1024);
+        need(bytes == width*height*4, "attribute image dimensions"); r.expect("0301"); r.scalar(); r.scalar(); r.raw(bytes);
+        r.raw(r.count()); r.expect("0000010503010100");
+        for (int i = 0; i < 19; ++i) r.scalar();
+        r.expect("0100");
+    };
     if (r.pos < r.data.size() && r.data[r.pos] == 0) {
         r.expect("0001");
         for (int i=0;i<15;++i) r.scalar();
+        // Hybrid form: the image-free prefix followed by the image tail (seen on parts with an applied material).
+        if (r.pos+3 <= r.data.size() && r.data.mid(r.pos, 3) == QByteArray::fromHex("010101")) { imageTail(); return; }
         r.expect("000001010500010100");
         for (int i=0;i<19;++i) r.scalar();
         r.expect("0100"); return;
     }
     need(r.byte() == 1, "graph attribute prefix");
     for (int i = 0; i < 15; ++i) r.scalar();
-    r.expect("010101"); r.count(std::numeric_limits<quint32>::max()); need(r.byte() == 3, "attribute image format");
-    quint64 width = r.count(), height = r.count(), bytes = r.count(16*1024*1024);
-    need(bytes == width*height*4, "attribute image dimensions"); r.expect("0301"); r.scalar(); r.scalar(); r.raw(bytes);
-    r.raw(r.count()); r.expect("0000010503010100");
-    for (int i = 0; i < 19; ++i) r.scalar();
-    r.expect("0100");
+    imageTail();
 }
 }
 
@@ -333,13 +359,22 @@ Geometry RepresentationReader::read(const QByteArray& member, const Options& opt
             }
         } else if (tag == 0x95) {
             const qsizetype spanStart = r.pos; const unsigned span = r.count(); r.raw(35); r.expect("ffff020001");
-            Body body = mesh(r, options); body.offset = start;
+            Body body = mesh(r, options, qsizetype(quint64(spanStart)+span)); body.offset = start;
             need(quint64(r.pos) == quint64(spanStart)+span, "mesh leaf span");
             surfaceOffsets.push_back(r.count(128*1024*1024));
             graph[start].body = geometry.bodies.size(); geometry.bodies.push_back(std::move(body));
         } else fail(QStringLiteral("graph record 0x%1 at %2").arg(tag,0,16).arg(start));
     };
-    node(0); need(r.pos == skeleton.size() && r.reservoir == 0, "unconsumed Skeleton bytes/bits");
+    try {
+        node(0); need(r.pos == skeleton.size() && r.reservoir == 0, "unconsumed Skeleton bytes/bits");
+    } catch (const Error& e) {
+        if (options.cancelled && options.cancelled()) throw;
+        // Structural context for remote triage: stream offset and a few raw bytes around it (a few dozen bytes; no
+        // geometry is decoded here), so an unrecognized exporter variant can be reported without sharing the model.
+        const qsizetype from = std::max<qsizetype>(0, r.pos-24), to = std::min<qsizetype>(skeleton.size(), r.pos+8);
+        throw Error(QStringLiteral("%1 [Skeleton offset 0x%2 of %3; bytes around it: %4]").arg(QString::fromUtf8(e.what())).arg(r.pos, 0, 16)
+            .arg(skeleton.size()).arg(QString::fromLatin1(skeleton.mid(from, to-from).toHex(' '))));
+    }
     if (!surfaceOffsets.empty()) {
         const QByteArray surfaces = stream(QStringLiteral("SurfacicReps")); Reader surface(surfaces);
         std::sort(surfaceOffsets.begin(),surfaceOffsets.end()); surfaceOffsets.erase(std::unique(surfaceOffsets.begin(),surfaceOffsets.end()),surfaceOffsets.end());

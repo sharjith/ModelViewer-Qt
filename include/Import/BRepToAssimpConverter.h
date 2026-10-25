@@ -150,6 +150,10 @@ public:
 	// this mesh was not produced by BRepToAssimpConverter (e.g. OBJ/glTF).
 	static const OccEdgeData* getPrecomputedEdges(const aiMesh* mesh);
 
+	// Registers exporter-supplied edges (e.g. 3DXML) for a mesh so the loader treats them like
+	// B-Rep edges. Same frame and layout as the OCC path; circles stay empty (no analytic data).
+	static void registerPrecomputedEdges(const aiMesh* mesh, OccEdgeSegments segments, OccEdgeBoundaries bounds);
+
 	// Returns precomputed B-Rep per-face axis data for the given aiMesh*, or
 	// nullptr if this mesh has none (OBJ/glTF, or no cylindrical/conical
 	// faces at all).

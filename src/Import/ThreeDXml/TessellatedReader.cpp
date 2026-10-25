@@ -41,7 +41,9 @@ unsigned color(const Element& e,unsigned inherited) {
     const Element* c=child(*attributes,QStringLiteral("Color")); if(!c) return inherited;
     unsigned rgb=0;
     for(const auto& key:{QStringLiteral("red"),QStringLiteral("green"),QStringLiteral("blue")}) {
-        bool ok=false; double v=c->attributes.value(key).toDouble(&ok); require(ok&&std::isfinite(v)&&v>=0&&v<=1,"color component");
+        bool ok=false; double v=c->attributes.value(key).toDouble(&ok);
+        if(ok&&std::isfinite(v)&&v<0) return inherited; // negative channel = no colour assigned (see ProductStructureReader)
+        require(ok&&std::isfinite(v)&&v<=1,"color component");
         rgb=(rgb<<8)|unsigned(std::lround(v*255));
     }
     return rgb;
