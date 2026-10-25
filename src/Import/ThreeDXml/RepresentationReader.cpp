@@ -168,10 +168,9 @@ unsigned color(Reader& r, quint8* alphaByte = nullptr) {
     const quint8 head = static_cast<quint8>(prefix[0]);
     need((head == 0x20 || head == 0x30 || head == 0xb0) && prefix.mid(1, 3) == QByteArray::fromHex("0404ff"), "face style");
     // Observed in the samples: head b0 appears only on the part the owner reports as transparent (fifth byte 37); every
-    // other record is head 20/30 with ff. Head bit 0x80 is read as "transparency byte present": opacity = 255 - byte.
-    // The owner recalls CATIA showing that block more opaque than byte/255 would give (byte 7f elsewhere is half either
-    // way). Still unconfirmed against CATIA.
-    if (alphaByte) *alphaByte = (head & 0x80) ? static_cast<quint8>(255 - static_cast<quint8>(prefix[4])) : quint8(255);
+    // other record is head 20/30 with ff. Head bit 0x80 means "opacity byte present": opacity = byte/255. Confirmed on
+    // the engine block: CATIA transparency 200 (0 opaque, 255 clear) = opacity 55 = the stored 0x37.
+    if (alphaByte) *alphaByte = (head & 0x80) ? static_cast<quint8>(prefix[4]) : quint8(255);
     const unsigned b = r.byte(), g = r.byte(), red = r.byte(); return (red<<16)|(g<<8)|b;
 }
 
@@ -291,12 +290,19 @@ Body mesh(Reader& r, const Options& options, qsizetype leafEnd) {
 void attributes(Reader& r, unsigned flags) {
     if (!(flags & 0x10000)) return;
     // Image-bearing tail shared by the image form and the hybrid form below. The pixels are structurally skipped;
-    // the samples applying it use no user texture, so the image is not interpreted or displayed.
+    // the image (a placeholder environment map, or a file texture such as a wood material) is not yet displayed.
     auto imageTail = [&r]() {
         r.expect("010101"); r.count(std::numeric_limits<quint32>::max()); need(r.byte() == 3, "attribute image format");
-        quint64 width = r.count(), height = r.count(), bytes = r.count(16*1024*1024);
-        need(bytes == width*height*4, "attribute image dimensions"); r.expect("0301"); r.scalar(); r.scalar(); r.raw(bytes);
-        r.raw(r.count()); r.expect("0000010503010100");
+        quint64 width = r.count(), height = r.count(), bytes = r.count(64*1024*1024);
+        // Pixel marker after the counts: 03 01 with 4 bytes per pixel (the placeholder image in the first samples),
+        // 02 00 with 3 bytes per pixel (a real RGB texture; inferred from one error report, layout after it assumed equal).
+        const bool rgba = bytes == width*height*4, rgb = bytes == width*height*3;
+        need(rgba || rgb, "attribute image dimensions"); r.expect(rgba ? "0301" : "0200"); r.scalar(); r.scalar(); r.raw(bytes);
+        r.raw(r.count());
+        // Mapping prefix: 00 00 01 05 03 01 01 00 after the placeholder environment image, 00 01 01 05 00 01 01 00 after
+        // a file texture (the sample's name field is a texture path); the 19 mapping scalars after it are read alike.
+        const QByteArray mapping(r.raw(8), 8);
+        need(mapping == QByteArray::fromHex("0000010503010100") || mapping == QByteArray::fromHex("0001010500010100"), "attribute image mapping prefix");
         for (int i = 0; i < 19; ++i) r.scalar();
         r.expect("0100");
     };

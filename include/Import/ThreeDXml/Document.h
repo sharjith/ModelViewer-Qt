@@ -53,8 +53,8 @@ struct Face {
     bool constant = false;
     aiVector3D normal;
     unsigned rgb = 0;
-    // Opacity 0-255 from the stored face style (255 unless the record carries the 0x80 head flag, then 255 minus the
-    // stored byte); a hypothesis taken
+    // Opacity 0-255 from the stored face style (255 unless the record carries the 0x80 head flag, then the stored
+    // byte); confirmed on one part against CATIA (transparency 200 = 0x37), taken
     // from sample observation, see research/3dxml/3DXML_published_documentation_findings.md.
     quint8 alphaByte = 255;
 };
