@@ -71,6 +71,7 @@ struct Body {
     // applied; read but not used for display yet.
     std::vector<float> texCoords;
     unsigned texCoordDimension = 0;
+    quint32 sourceId = 0; // exporter source id from the leaf header (identifies the original body)
     quint64 offset = 0;
     std::vector<aiVector3D> positions, normals;
     std::vector<qint16> normalWords;
@@ -88,6 +89,8 @@ struct ImportResult {
     QSet<const aiNode*> hiddenNodes;
     QHash<const aiNode*, QString> occurrencePaths;
     QHash<const aiMesh*, std::shared_ptr<const MeshEdges>> meshEdges;
+    // Merged meshes only: one 1-based leaf number per vertex, so the viewer can keep the former bodies apart.
+    QHash<const aiMesh*, std::shared_ptr<const std::vector<unsigned>>> meshLeafIds;
     QStringList warnings;
 };
 }
