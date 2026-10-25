@@ -208,7 +208,19 @@ Body mesh(Reader& r, const Options& options, qsizetype leafEnd) {
     Body body;
     const unsigned vertices = r.count(1000000), records = r.count(1000000);
     need(vertices > 10 && records > 0 && records <= vertices, "unsupported position/normal counts");
-    r.expect("000000"); unsigned width = 0;
+    // Three flag bytes. First sample files: 00 00 00. Files saved by a newer CATIA with a texture-mapped material:
+    // 01 00 01, meaning a texture-coordinate block follows the flags and an extra float-normal block follows the
+    // normal tags (layouts checked on one body whose old and new encodings both decode; the second flag is always 0).
+    const QByteArray flags(r.raw(3), 3);
+    need(flags[1] == 0 && static_cast<quint8>(flags[0]) <= 1 && static_cast<quint8>(flags[2]) <= 1, "unsupported record prefix");
+    const bool hasTexCoords = flags[0] != 0, hasFloatNormals = flags[2] != 0;
+    if (hasTexCoords) {
+        // One dimension byte (2 here), then that many floats per vertex; for the sample, u = x/200 + 0.5 and v = y/200 + 0.5.
+        const unsigned dimension = r.byte(); need(dimension == 2 || dimension == 3, "texture coordinate dimension");
+        body.texCoordDimension = dimension; body.texCoords.resize(size_t(vertices)*dimension);
+        for (auto& value : body.texCoords) value = r.scalar();
+    }
+    unsigned width = 0;
     // The stored width includes the count itself, including powers of two.
     for (unsigned v = vertices; v; v >>= 1) ++width;
     body.positions.resize(vertices);
@@ -246,6 +258,9 @@ Body mesh(Reader& r, const Options& options, qsizetype leafEnd) {
         body.normals.push_back(normal);
     }
     need(cursor == wordCount, "unconsumed normal words");
+    // Explicit float unit vectors, two per vertex (count inferred from the one body that has them; the stream-end checks
+    // reject a wrong count). Not used: the quantised normals above already cover every vertex.
+    if (hasFloatNormals) for (quint64 i = 0; i < quint64(vertices)*2; ++i) { options.check(); r.vector(); }
     r.scalar();
     const unsigned coarse = r.count(100000);
     for (unsigned i = 0; i < coarse; ++i) { options.check(); primitive(r,width,vertices,false); r.scalar(); color(r); }
