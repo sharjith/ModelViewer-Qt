@@ -57,10 +57,13 @@ void textureReplaceTests(){
             const auto image=QImage::fromData(reinterpret_cast<const uchar*>(encoded->pcData),int(encoded->mWidth));
             check(image.pixelColor(0,0)==QColor(51,102,153,blend&&alpha?64:255),"Vertex Replace changed texel components");
         }
-        auto o=base;o.coordinate=3;write(o,"coloured.jt");const auto coloured=Jt::Importer::read(dir.filePath("replace.jt"));
-        const auto* fallback=coloured.scene->mMeshes[0];
-        check(fallback->HasVertexColors(0)&&!coloured.warnings.isEmpty()&&coloured.scene->mMaterials[fallback->mMaterialIndex]->GetTextureCount(aiTextureType_DIFFUSE)==0
-            &&fallback->mColors[0][0].r==.25f&&fallback->mColors[0][0].g==.5f,"Missing-UV Replace fallback changed source colours");
+        // Legacy 9.x texture blocks carry no coordinate field and always use UV0, so a missing UV set can only be authored in 10.x.
+        if(family==10){
+            auto o=base;o.coordinate=3;write(o,"coloured.jt");const auto coloured=Jt::Importer::read(dir.filePath("replace.jt"));
+            const auto* fallback=coloured.scene->mMeshes[0];
+            check(fallback->HasVertexColors(0)&&!coloured.warnings.isEmpty()&&coloured.scene->mMaterials[fallback->mMaterialIndex]->GetTextureCount(aiTextureType_DIFFUSE)==0
+                &&fallback->mColors[0][0].r==.25f&&fallback->mColors[0][0].g==.5f,"Missing-UV Replace fallback changed source colours");
+        }
         for(int mode:{6}){auto unsupported=base;unsupported.blendType=mode;write(unsupported,"vertex-alpha.jt");
             const auto result=Jt::Importer::read(dir.filePath("replace.jt"));const auto* mesh=result.scene->mMeshes[0];
             check(mesh->HasVertexColors(0)&&mesh->mColors[0][0]==aiColor4D(.25f,.5f,.75f,.25f)

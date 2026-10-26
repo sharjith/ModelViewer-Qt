@@ -7,7 +7,10 @@
 #include <QTemporaryDir>
 #include <assimp/Exporter.hpp>
 #include <assimp/Importer.hpp>
+#include <algorithm>
+#include <array>
 #include <cmath>
+#include <vector>
 #include <iostream>
 #include <limits>
 
@@ -66,8 +69,15 @@ void textureTransformTests(){
                 check(exporter.Export(result.scene.get(),"glb2",path)==AI_SUCCESS,"Cannot export affine texture GLB");
                 Assimp::Importer importer;const auto* loaded=importer.ReadFile(path,0);
                 check(loaded&&loaded->mNumMeshes==1&&loaded->mMeshes[0]->HasTextureCoords(0),"Affine texture GLB lost mesh/UVs");
-                for(unsigned i=0;i<mesh.mNumVertices;++i){const auto a=mesh.mTextureCoords[0][i],b=loaded->mMeshes[0]->mTextureCoords[0][i];
-                    check(near(a.x,b.x)&&near(a.y,b.y),"Affine GLB round trip changed effective UVs");}
+                // The glTF importer may reorder vertices, so compare (position, UV) pairs as an unordered set.
+                const auto& back=*loaded->mMeshes[0];
+                check(back.mNumVertices==mesh.mNumVertices,"Affine GLB round trip changed vertex count");
+                const auto keys=[](const aiMesh& m){
+                    std::vector<std::array<long,5>> k;
+                    for(unsigned i=0;i<m.mNumVertices;++i){const auto p=m.mVertices[i],t=m.mTextureCoords[0][i];
+                        k.push_back({std::lround(p.x*1e4),std::lround(p.y*1e4),std::lround(p.z*1e4),std::lround(t.x*1e4),std::lround(t.y*1e4)});}
+                    std::sort(k.begin(),k.end());return k;};
+                check(keys(mesh)==keys(back),"Affine GLB round trip changed effective UVs");
             }
         }
         // Two references reuse the same decoded geometry and pixels, but their

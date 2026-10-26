@@ -8,21 +8,44 @@
 #include <QTemporaryDir>
 #include <assimp/Exporter.hpp>
 #include <assimp/Importer.hpp>
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <iostream>
+#include <vector>
 
 namespace {
 void check(bool ok,const char* why){if(!ok)throw std::runtime_error(why);}
 bool near(float a,float b){return std::abs(a-b)<1e-5f;}
+std::string where; // failure context for expected(): importer, copy or GLB, plus family/minor/version/endian
 void expected(const aiMesh& mesh,const aiMesh& source,unsigned recipe,unsigned channel=0){
     check(mesh.mNumVertices==source.mNumVertices&&mesh.mNumFaces==source.mNumFaces,"Homogeneous mapping changed topology");
-    check(mesh.HasTextureCoords(channel),"Homogeneous mapping lost its selected coordinate channel");
-    for(unsigned i=0;i<mesh.mNumVertices;++i){
+    check(mesh.HasTextureCoords(channel),("Homogeneous mapping lost its selected coordinate channel ("+where+", recipe "+std::to_string(recipe)+", channel "+std::to_string(channel)
+        +", has "+std::to_string(int(mesh.HasTextureCoords(0)))+std::to_string(int(mesh.HasTextureCoords(1)))+std::to_string(int(mesh.HasTextureCoords(2)))+std::to_string(int(mesh.HasTextureCoords(3)))+")").c_str());
+    const auto expectedUV=[&](unsigned i){
         const auto& uv=source.mTextureCoords[0][i];const auto& p=source.mVertices[i];
-        const float s=recipe==0?uv.x*.5f:recipe==1?-uv.x*.5f:recipe==2?(uv.x+p.x)*.5f:p.x*.5f;
-        const float t=recipe==0?uv.y*.5f:recipe==1?-uv.y*.5f:recipe==2?uv.y*.5f:p.y*.5f;
-        check(mesh.mVertices[i]==p&&mesh.mNormals[i]==source.mNormals[i],"Homogeneous mapping moved source geometry");
-        check(near(mesh.mTextureCoords[channel][i].x,s)&&near(mesh.mTextureCoords[channel][i].y,t),"Homogeneous mapping known-value mismatch");
+        return std::array<float,2>{recipe==0?uv.x*.5f:recipe==1?-uv.x*.5f:recipe==2?(uv.x+p.x)*.5f:p.x*.5f,
+                                   recipe==0?uv.y*.5f:recipe==1?-uv.y*.5f:recipe==2?uv.y*.5f:p.y*.5f};
+    };
+    if(where.rfind("glb",0)==0){
+        // The glTF importer may reorder vertices: compare (position, normal, UV) tuples as an unordered set.
+        using Key=std::array<long,8>;
+        const auto round=[](float v){return std::lround(double(v)*1e4);};
+        std::vector<Key> want,got;
+        for(unsigned i=0;i<mesh.mNumVertices;++i){
+            const auto& p=source.mVertices[i];const auto& n=source.mNormals[i];const auto uv=expectedUV(i);
+            want.push_back({round(p.x),round(p.y),round(p.z),round(n.x),round(n.y),round(n.z),round(uv[0]),round(uv[1])});
+            const auto& q=mesh.mVertices[i];const auto& m=mesh.mNormals[i];const auto& t=mesh.mTextureCoords[channel][i];
+            got.push_back({round(q.x),round(q.y),round(q.z),round(m.x),round(m.y),round(m.z),round(t.x),round(t.y)});
+        }
+        std::sort(want.begin(),want.end());std::sort(got.begin(),got.end());
+        check(want==got,("Homogeneous mapping GLB vertex set differs ("+where+")").c_str());
+        return;
+    }
+    for(unsigned i=0;i<mesh.mNumVertices;++i){
+        const auto uv=expectedUV(i);
+        check(mesh.mVertices[i]==source.mVertices[i]&&mesh.mNormals[i]==source.mNormals[i],("Homogeneous mapping moved source geometry ("+where+", vertex "+std::to_string(i)+")").c_str());
+        check(near(mesh.mTextureCoords[channel][i].x,uv[0])&&near(mesh.mTextureCoords[channel][i].y,uv[1]),"Homogeneous mapping known-value mismatch");
     }
 }
 void directFaceProof(){
@@ -61,20 +84,21 @@ void textureHomogeneousTests(){
             if(family==10){o.baseVersion=minor?2:1;o.wrapped=minor!=0;}
             for(unsigned recipe=0;recipe<4;++recipe){
                 o.transform=TextureFixture::Options{}.transform;o.generation={};o.planes={};o.transform[15]=recipe==1?-2:2;
-                o.coordinate=recipe==3&&!(family==9&&version==1)?2:0;
+                o.coordinate=recipe==3&&!(family==9&&version<3)?2:0; // legacy 9.x blocks 1 and 2 always select UV0
                 if(recipe==0){o.transform[2]=7;o.transform[14]=3;}
                 if(recipe==2){o.generation[2]=1;o.planes[8]=1;o.transform[8]=1;}
                 if(recipe==3){o.generation={1,1,0,1};o.planes[0]=1;o.planes[5]=1;o.planes[14]=1;o.planes[15]=2;o.transform[15]=1;}
                 write(dir.filePath("homogeneous.jt"),family,minor,o,recipe==3);
                 const auto result=Jt::Importer::read(dir.filePath("homogeneous.jt"));const auto& mesh=*result.scene->mMeshes[0];
                 check(result.scene->mMaterials[mesh.mMaterialIndex]->GetTextureCount(aiTextureType_DIFFUSE)==1,"Exact homogeneous mapping lost its texture");
-                expected(mesh,source,recipe,unsigned(o.coordinate));
-                std::unique_ptr<aiScene> copy(SceneUtils::deepCopyScene(result.scene.get()));expected(*copy->mMeshes[0],source,recipe,unsigned(o.coordinate));
+                const std::string tag="family "+std::to_string(family)+" minor "+std::to_string(minor)+" version "+std::to_string(version)+" big "+std::to_string(big);
+                where="import, "+tag;expected(mesh,source,recipe,unsigned(o.coordinate));
+                std::unique_ptr<aiScene> copy(SceneUtils::deepCopyScene(result.scene.get()));where="copy, "+tag;expected(*copy->mMeshes[0],source,recipe,unsigned(o.coordinate));
                 if(family==10&&minor==0&&!big){
                     const auto path=dir.filePath("homogeneous.glb").toStdString();Assimp::Exporter exporter;
                     check(exporter.Export(result.scene.get(),"glb2",path)==AI_SUCCESS,"Cannot export homogeneous UVs");
                     Assimp::Importer importer;const auto* loaded=importer.ReadFile(path,0);
-                    check(loaded&&loaded->mNumMeshes==1,"Homogeneous GLB lost geometry");expected(*loaded->mMeshes[0],source,recipe,unsigned(o.coordinate));
+                    check(loaded&&loaded->mNumMeshes==1,"Homogeneous GLB lost geometry");where="glb, "+tag;expected(*loaded->mMeshes[0],source,recipe,unsigned(o.coordinate));
                 }
             }
             for(unsigned damage=0;damage<5;++damage){

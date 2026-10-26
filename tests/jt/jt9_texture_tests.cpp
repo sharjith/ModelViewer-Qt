@@ -100,8 +100,8 @@ void jt9TextureTests(){
             const auto& mesh=*result.scene->mMeshes[0];const auto& source=*baseline.scene->mMeshes[0];aiString resource;
             const auto* material=result.scene->mMaterials[mesh.mMaterialIndex];
             check(material->GetTexture(aiTextureType_DIFFUSE,0,&resource)==AI_SUCCESS,"Advanced prelit image missing");
-            unsigned coordinate=99;check(material->Get(AI_MATKEY_UVWSRC(aiTextureType_DIFFUSE,0),coordinate)==AI_SUCCESS
-                &&coordinate==unsigned(advanced.coordinate),"Advanced material lost selected coordinate channel");
+            int coordinate=99;check(material->Get(AI_MATKEY_UVWSRC(aiTextureType_DIFFUSE,0),coordinate)==AI_SUCCESS
+                &&coordinate==int(advanced.coordinate),"Advanced material lost selected coordinate channel");
             aiMetadata records,descriptor;int32_t rawVersion=0,rawType=0;
             check(result.scene->mRootNode->mMetaData&&result.scene->mRootNode->mMetaData->Get("JTTextures",records)&&records.Get(0u,descriptor)
                 &&descriptor.Get("TextureType",rawType)&&rawType==9&&descriptor.Get("LocalVersion",rawVersion)&&rawVersion==int(version),"Advanced raw descriptor metadata lost");
@@ -116,9 +116,12 @@ void jt9TextureTests(){
             }
         }
         advanced.generation={};advanced.planes={};advanced.coordinate=0;advanced.transform=TextureFixture::Options{}.transform;
-        for(unsigned type:{2u,13u}){advanced.legacyType=type;TextureFixture::write9(dir.filePath("unsupported.jt"),minor,advanced);
+        // Advanced type 2 is the supported post-lit role (covered by jt_texture_role_tests); only 13 remains unsupported.
+        for(unsigned type:{13u}){advanced.legacyType=type;TextureFixture::write9(dir.filePath("unsupported.jt"),minor,advanced);
             const auto result=Jt::Importer::read(dir.filePath("unsupported.jt"));
-            check(result.scene->mNumMeshes==1&&result.scene->mNumTextures==0&&!result.warnings.isEmpty(),"Advanced type acquired basic type-2 semantics");}
+            check(result.scene->mNumMeshes==1&&result.scene->mNumTextures==0&&!result.warnings.isEmpty(),
+                ("Advanced type acquired basic type-2 semantics (type "+std::to_string(type)+", minor "+std::to_string(minor)+", meshes "+std::to_string(result.scene->mNumMeshes)
+                +", textures "+std::to_string(result.scene->mNumTextures)+", warnings "+std::to_string(result.warnings.size())+")").c_str());}
         for(unsigned damage=0;damage<4;++damage){auto bad=advanced;bad.legacyType=9;
             if(damage==0)bad.legacyType=6;if(damage==1)bad.channel=-2;if(damage==2)bad.coordinate=-2;if(damage==3)bad.channel=32;
             if((damage!=2||version==3)&&(damage!=3||version==2))reject([&]{Reader reader(TextureFixture::body9(bad),minor);Handle(JtAttribute_TextureImage) image=new JtAttribute_TextureImage;check(image->Read(reader),"Invalid advanced descriptor");});

@@ -98,11 +98,16 @@ void textureBorderTests(){
             check(mesh.mNumVertices==original.mNumVertices&&mesh.mNumFaces==original.mNumFaces,"Border mapping changed geometry counts");
             for(unsigned i=0;i<mesh.mNumVertices;++i)check(mesh.mVertices[i]==original.mVertices[i]&&mesh.mTextureCoords[0][i]==original.mTextureCoords[0][i],"Border mapping changed positions/UVs");
         }
+        // Damage 1 uses row alignment 1: a 3-wide and a 4-wide RGBA row share one 16-byte stride at alignment 8, which would hide the size mismatch.
         for(unsigned damage=0;damage<6;++damage){auto o=base;o.borderMode=2;o.imageBorder=1;pixels(o);
-            if(damage==0){o.wrapS=1;o.minFilter=3;}if(damage==1){o.wrapT=5;o.minFilter=3;o.width=3;}if(damage==2)o.imageBorder=0;if(damage==3)o.borderMode=0;
+            if(damage==0){o.wrapS=1;o.minFilter=3;}if(damage==1){o.wrapT=5;o.minFilter=3;o.width=3;o.alignment=1;}if(damage==2)o.imageBorder=0;if(damage==3)o.borderMode=0;
             if(damage==4)o.width=2;if(damage==5)o.inlineImage=false;write(o);
             const auto result=Jt::Importer::read(dir.filePath("border.jt"));
-            check(result.scene->mNumMeshes==1&&result.scene->mNumTextures==0&&!result.warnings.isEmpty(),"Unsupported/inconsistent border did not retain geometry with diagnostic");
+            check(result.scene->mNumMeshes==1&&result.scene->mNumTextures==0&&!result.warnings.isEmpty(),
+                ("Unsupported/inconsistent border did not retain geometry with diagnostic (damage "+std::to_string(damage)+", meshes "+std::to_string(result.scene->mNumMeshes)
+                +", textures "+std::to_string(result.scene->mNumTextures)+", texture "+(result.scene->mNumTextures?std::to_string(result.scene->mTextures[0]->mWidth)+"B":std::string("none"))
+                +", warnings "+std::to_string(result.warnings.size())+" ["+result.warnings.join(" | ").toStdString()+"], family "+std::to_string(family)+", minor "+std::to_string(minor)
+                +", version "+std::to_string(version)+", big "+std::to_string(big)+")").c_str());
         }
         auto invalid=base;invalid.borderMode=2;invalid.imageBorder=1;invalid.pixelType=2;pixels(invalid);
         const uint32_t nan=0x7fc00000;for(unsigned b=0;b<4;++b)invalid.pixels[qsizetype(b)]=char(nan>>(8*(big?3-b:b)));write(invalid);

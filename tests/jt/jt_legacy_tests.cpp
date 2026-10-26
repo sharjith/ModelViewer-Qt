@@ -18,7 +18,7 @@ void legacyTests(){
     LegacyFixture::write(path,{});
     Jt::Options tinyBudget;tinyBudget.decodedAllocationBudget=1;
     bool budgetRejected=false;
-    try{Jt::Importer::read(path,tinyBudget);}catch(const std::runtime_error& e){budgetRejected=std::string(e.what()).find("memory limit")!=std::string::npos;}
+    try{Jt::Importer::read(path,tinyBudget);}catch(const std::runtime_error& e){budgetRejected=std::string(e.what()).find("cumulative allocation budget exceeded")!=std::string::npos;}
     check(budgetRejected,"Importer ignored configured allocation budget");
     for(unsigned minor:{0,1,2})for(bool big:{false,true})for(bool compressed:{false,true})for(bool quirk:{false,true}) {
         if(minor!=1 && quirk)continue; // Warehouse envelope exception is qualified only for 8.1.

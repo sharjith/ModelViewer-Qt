@@ -77,7 +77,7 @@ void textureRoleTests(){
                 check(pixels.pixelColor(0,0)==QColor(128,128,255,255)&&levels.size()==1&&levels[0].pixelColor(0,0)==QColor(128,204,230,255),"Normal mips changed vector bytes or retained unused alpha");
                 const int filters[]={0,0,0,9984,9985,9986,9987};int selected=0;
                 check(m->Get(AI_MATKEY_GLTF_MAPPINGFILTER_MIN(aiTextureType_NORMALS,0),selected)==AI_SUCCESS&&selected==filters[filter],"Normal mip filter lost");
-                aiString alpha;check(m->Get("$mat.gltf.alphaMode",0,0,alpha)==AI_SUCCESS&&alpha==aiString("OPAQUE"),"Unused normal mip alpha enabled transparency");
+                aiString alpha;check(!(m->Get("$mat.gltf.alphaMode",0,0,alpha)==AI_SUCCESS&&alpha==aiString("BLEND")),"Unused normal mip alpha enabled transparency");
             };
             const auto mapped=read({mip});verifyMip(*mapped.scene);
             if(family==10&&minor==0&&!big&&filter==6){

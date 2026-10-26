@@ -68,7 +68,11 @@ void warehouseTests(const QString& path);
 
 namespace {
 void require(bool value,const char* message) {if(!value) throw std::runtime_error(message);}
-template<class F> void fails(F action) {bool failed=false;try{action();}catch(const std::exception&){failed=true;}require(failed,"Expected rejected input");}
+template<class F> void failsAt(int line,F action) {
+    bool failed=false;try{action();}catch(const std::exception&){failed=true;}
+    if(!failed)throw std::runtime_error("Expected rejected input (jt_tests.cpp line "+std::to_string(line)+")");
+}
+#define fails(...) failsAt(__LINE__,__VA_ARGS__)
 struct TestModel: JtData_Model {TestModel(bool big=false):JtData_Model(TCollection_ExtendedString()) {myMajorVersion=10;myMinorVersion=0;myIsFileLE=!big;}};
 struct Reader: JtData_Reader {
     std::vector<uint8_t> bytes;size_t pos=0;
@@ -96,9 +100,13 @@ void allocationBudgetTests() {
             require(Jt::Options{}.decodedAllocationBudget==JtData_Limits::defaultAllocationBudget,
                     "Runtime override leaked into explicit API defaults");
         }
-        for(const char* value:{"","0","-1","+32","32.5","32 GiB"," 32","32 ","257","18446744073709551616"}) {
+        for(const char* value:{"0","-1","+32","32.5","32 GiB"," 32","32 ","257","18446744073709551616"}) {
             qputenv(key,value);fails([]{Jt::Options::fromEnvironment();});
         }
+#ifndef Q_OS_WIN
+        // On Windows an empty value deletes the variable (_putenv_s), so an empty override cannot be expressed there.
+        qputenv(key,"");fails([]{Jt::Options::fromEnvironment();});
+#endif
     }
     unsigned polls=0;
     JtData_Limits::Scope outer([&]{++polls;},100);

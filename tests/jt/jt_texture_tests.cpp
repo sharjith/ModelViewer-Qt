@@ -60,9 +60,11 @@ void mappedImages(const QString& folder){
         const auto& mesh=*scene.mMeshes[0];const auto& baseline=*original.scene->mMeshes[0];
         check(mesh.mNumVertices==baseline.mNumVertices&&mesh.mNumFaces==baseline.mNumFaces,"Image mapping changed geometry");
         for(unsigned i=0;i<mesh.mNumVertices;++i)check(mesh.mTextureCoords[0][i]==baseline.mTextureCoords[0][i],"Image mapping rewrote stored UVs");
-        const auto* material=scene.mMaterials[mesh.mMaterialIndex];aiString resource;unsigned uv=99;
+        const auto* material=scene.mMaterials[mesh.mMaterialIndex];aiString resource;int uv=99;
         check(material->GetTexture(aiTextureType_DIFFUSE,0,&resource)==AI_SUCCESS&&std::string(resource.C_Str())=="*0","Image not bound to mesh material");
-        check(material->Get(AI_MATKEY_UVWSRC(aiTextureType_DIFFUSE,0),uv)==AI_SUCCESS&&uv==0,"Image selected wrong UV set");
+        const auto uvStatus=material->Get(AI_MATKEY_UVWSRC(aiTextureType_DIFFUSE,0),uv);
+        check(uvStatus==AI_SUCCESS&&uv==0,("Image selected wrong UV set (minor "+std::to_string(minor)+", big "+std::to_string(big)+", inline "+std::to_string(inlined)
+            +", status "+std::to_string(int(uvStatus))+", uv "+std::to_string(uv)+")").c_str());
         aiUVTransform transform;
         check(material->Get(AI_MATKEY_UVTRANSFORM(aiTextureType_DIFFUSE,0),transform)!=AI_SUCCESS
             ||(transform.mScaling==aiVector2D(1,1)&&transform.mTranslation==aiVector2D(0,0)&&transform.mRotation==0),

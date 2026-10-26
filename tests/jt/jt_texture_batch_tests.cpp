@@ -79,10 +79,13 @@ void textureBatchTests(){
         if(family==10){locked=tex(4);locked.blendColor={1,.25f,0,1};locked.finalFields=16;
             colour({locked,tex(3,0,2,"ff400040")},QColor(255,30,255,32),{{1,{}, {2},{20}}, {2,"geometry.jt",{}, {21}}});}
         for(unsigned damage:{0u,1u,2u,4u}){auto bad=tex(2,1);
+            if(damage==2&&family==9)continue; // legacy 9.x texture blocks have no coordinate field; the damage cannot be authored
             if(damage==0)bad.minFilter=2;if(damage==1)bad.transform[12]=.25f;if(damage==2)bad.coordinate=2;
             if(damage==4)bad.blendType=6;
             const auto rejected=read({first,bad},{{1,{}, {2},{20,21}}, {2,"geometry.jt",{}, {}}});
-            check(!rejected.warnings.isEmpty()&&material(*rejected.scene)->GetTextureCount(aiTextureType_DIFFUSE)==0,"Incompatible texture stack silently produced partial appearance");
+            check(!rejected.warnings.isEmpty()&&material(*rejected.scene)->GetTextureCount(aiTextureType_DIFFUSE)==0,
+                ("Incompatible texture stack silently produced partial appearance (damage "+std::to_string(damage)+", family "+std::to_string(family)+", minor "+std::to_string(minor)
+                +", warnings "+std::to_string(rejected.warnings.size())+" ["+rejected.warnings.join(" | ").toStdString()+"])").c_str());
         }
         auto coarse=tex(3,0,1);coarse.width=2;coarse.height=1;
         coarse.pixels=QByteArray::fromHex("ff000000ff00");coarse.total=coarse.mipBytes=coarse.pixels.size();
@@ -90,8 +93,12 @@ void textureBatchTests(){
         fine.pixels=QByteArray::fromHex("0000ffffffffffff00");fine.total=fine.mipBytes=fine.pixels.size();
         const auto mixed=read({coarse,fine},{{1,{}, {2},{21,20}}, {2,"geometry.jt",{}, {}}});
         const auto mixedPixels=image(*mixed.scene);check(mixedPixels.size()==QSize(6,1),"Common nearest grid did not use both texel partitions");
-        const QColor expectedCells[]={Qt::black,Qt::black,Qt::red,Qt::green,Qt::green,Qt::green};
-        for(int x=0;x<6;++x)check(mixedPixels.pixelColor(x,0)==expectedCells[x],"Independent-resolution composition chose the wrong texel");
+        // Both images are RGB and geometry.jt carries material alpha 0.5, which RGB Replace/Modulate leave untouched.
+        const auto half=[](QColor c){c.setAlpha(128);return c;};
+        const QColor expectedCells[]={half(Qt::black),half(Qt::black),half(Qt::red),half(Qt::green),half(Qt::green),half(Qt::green)};
+        for(int x=0;x<6;++x)check(mixedPixels.pixelColor(x,0)==expectedCells[x],
+            ("Independent-resolution composition chose the wrong texel (cell "+std::to_string(x)+", family "+std::to_string(family)+", minor "+std::to_string(minor)+", version "+std::to_string(version)
+            +", got "+mixedPixels.pixelColor(x,0).name(QColor::HexArgb).toStdString()+", expected "+expectedCells[x].name(QColor::HexArgb).toStdString()+")").c_str());
         auto excessiveA=coarse,excessiveB=fine;
         excessiveA.width=excessiveA.height=127;excessiveB.width=excessiveB.height=131;
         for(auto* stage:{&excessiveA,&excessiveB}){

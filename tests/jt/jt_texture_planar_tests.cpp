@@ -44,8 +44,8 @@ void texturePlanarTests(){
             const auto result=Jt::Importer::read(dir.filePath("planes.jt"));const auto& mesh=*result.scene->mMeshes[0];
             check(result.scene->mNumMeshes==1&&result.scene->mNumTextures==1,"Planar image/mesh missing");
             compare(mesh,*plain.scene->mMeshes[0],o);
-            const auto* material=result.scene->mMaterials[mesh.mMaterialIndex];unsigned selected=99;
-            check(material->Get(AI_MATKEY_UVWSRC(aiTextureType_DIFFUSE,0),selected)==AI_SUCCESS&&selected==channel,"Generated coordinates selected wrong material set");
+            const auto* material=result.scene->mMaterials[mesh.mMaterialIndex];int selected=99;
+            check(material->Get(AI_MATKEY_UVWSRC(aiTextureType_DIFFUSE,0),selected)==AI_SUCCESS&&selected==int(channel),"Generated coordinates selected wrong material set");
             for(unsigned c=0;c<channel;++c)check(mesh.HasTextureCoords(c),"Generated sparse UV prefix was not padded");
             std::unique_ptr<aiScene> copy(SceneUtils::deepCopyScene(result.scene.get()));check(bool(copy),"Cannot copy planar scene");compare(*copy->mMeshes[0],*plain.scene->mMeshes[0],o);
             if(minor==0&&!big&&!withStored){
@@ -53,7 +53,12 @@ void texturePlanarTests(){
                 check(exporter.Export(result.scene.get(),"glb2",path)==AI_SUCCESS,"Cannot export generated UVs");
                 Assimp::Importer importer;const auto* loaded=importer.ReadFile(path,0);
                 check(loaded&&loaded->mNumMeshes==1&&loaded->mMeshes[0]->HasTextureCoords(channel),"GLB lost generated UV channel");
-                for(unsigned i=0;i<mesh.mNumVertices;++i){const auto a=mesh.mTextureCoords[channel][i],b=loaded->mMeshes[0]->mTextureCoords[channel][i];check(near(a.x,b.x)&&near(a.y,b.y),"Planar GLB UVs changed");}
+                // The glTF importer may reorder vertices; compare through each face corner instead of by vertex index.
+                const auto& back=*loaded->mMeshes[0];
+                check(back.mNumFaces==mesh.mNumFaces,"Planar GLB changed face count");
+                for(unsigned f=0;f<mesh.mNumFaces;++f)for(unsigned c=0;c<3;++c){
+                    const auto a=mesh.mTextureCoords[channel][mesh.mFaces[f].mIndices[c]],b=back.mTextureCoords[channel][back.mFaces[f].mIndices[c]];
+                    check(near(a.x,b.x)&&near(a.y,b.y),"Planar GLB UVs changed");}
             }
         }
         o.coordinate=0;o.transform=TextureFixture::Options{}.transform;
