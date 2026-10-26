@@ -4095,29 +4095,12 @@ PlaneGizmo* ViewportWidget::hitTestPlaneGizmos(const QPoint& pixel)
 	if (!camera)
 		return nullptr;
 
-	// World-space ray for this pixel - replicates SelectionManager::convertClickToRay()'s
-	// own NDC-unprojection technique exactly (that method is private to SelectionManager,
-	// so the math is duplicated here rather than reused).
-	const int yInverted = height() - pixel.y() - 1;
-	const QMatrix4x4 viewMatrix = camera->getViewMatrix();
-	const QMatrix4x4 projectionMatrix = camera->getProjectionMatrix();
-
-	const float ndcX = (2.0f * (pixel.x() - viewport.x())) / viewport.width() - 1.0f;
-	const float ndcY = (2.0f * (yInverted - viewport.y())) / viewport.height() - 1.0f;
-
-	const QVector4D nearNDC(ndcX, ndcY, -1.0f, 1.0f);
-	const QVector4D farNDC(ndcX, ndcY, 1.0f, 1.0f);
-	const QMatrix4x4 inv = (projectionMatrix * viewMatrix).inverted();
-
-	QVector4D nearWorld = inv * nearNDC;
-	QVector4D farWorld = inv * farNDC;
-	if (qFuzzyIsNull(nearWorld.w()) || qFuzzyIsNull(farWorld.w()))
+	// World-space ray for this pixel. Uses the shared unprojection helper: a private copy of this math here once rejected
+	// every perspective ray whose far plane was large (see ViewportInteractionController::convertPixelToRay()).
+	QVector3D rayOrigin;
+	QVector3D rayDir;
+	if (!ViewportInteractionController::convertPixelToRay(pixel, viewport, height(), camera->getViewMatrix(), camera->getProjectionMatrix(), rayOrigin, rayDir))
 		return nullptr;
-	nearWorld /= nearWorld.w();
-	farWorld /= farWorld.w();
-
-	const QVector3D rayOrigin = nearWorld.toVector3D();
-	const QVector3D rayDir = (farWorld.toVector3D() - rayOrigin).normalized();
 
 	// Test ALL visible gizmos and keep the closest hit along the ray - a
 	// screen-space-only test can't disambiguate when several large,
