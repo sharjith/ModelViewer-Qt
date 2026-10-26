@@ -411,6 +411,47 @@ std::unique_ptr<aiMesh> faceSubset(const aiMesh& source,const std::vector<unsign
     }
     validate(*mesh);return mesh;
 }
+// Face-group batches that share a transform and hidden state and differ only in diffuse colour and opacity can be one mesh with
+// per-vertex colours. Textured, colour-overriding or vertex-coloured material states are never merged.
+bool mergeableStyle(const Appearance& s) {
+    return !s.overrideColors && s.textureUnits.empty() && s.texture.image.IsNull() && s.texture.type==0;
+}
+// Every material field except the diffuse colour and alpha (those travel as vertex colours).
+std::vector<float> styleSignature(const Appearance& s) {
+    return {s.ambient.r,s.ambient.g,s.ambient.b,s.specular.r,s.specular.g,s.specular.b,s.emission.r,s.emission.g,s.emission.b,
+        s.bumpiness,s.reflectivity,s.shininess,float(s.hasShininess),float(s.legacyShininess),float(s.overrideColors),float(s.present),
+        float(s.drawFlags),float(s.drawPresent),float(s.blendFlags)};
+}
+// Concatenates triangle pieces of one source mesh into one mesh; every piece's vertices take that piece's colour.
+std::unique_ptr<aiMesh> concatenateColoured(const std::vector<std::unique_ptr<aiMesh>>& pieces,const std::vector<aiColor4D>& colours) {
+    size_t vertices=0,faces=0;
+    for(const auto& piece:pieces){vertices+=piece->mNumVertices;faces+=piece->mNumFaces;}
+    if(pieces.empty()||vertices>std::numeric_limits<unsigned>::max()||faces>std::numeric_limits<unsigned>::max())throw std::runtime_error("JT merged face groups exceed the supported size");
+    JtData_Limits::allocation(vertices*(2*sizeof(aiVector3D)+sizeof(aiColor4D))+faces*(sizeof(aiFace)+3*sizeof(unsigned)));
+    auto mesh=std::make_unique<aiMesh>();mesh->mPrimitiveTypes=aiPrimitiveType_TRIANGLE;
+    mesh->mNumVertices=unsigned(vertices);mesh->mNumFaces=unsigned(faces);
+    mesh->mVertices=new aiVector3D[vertices];mesh->mNormals=new aiVector3D[vertices];mesh->mColors[0]=new aiColor4D[vertices];
+    const auto& first=*pieces.front();
+    for(unsigned channel=0;channel<JtElement_ShapeLOD_Vertex::MaxTextureChannels;++channel)
+        if(first.HasTextureCoords(channel)){mesh->mTextureCoords[channel]=new aiVector3D[vertices];mesh->mNumUVComponents[channel]=first.mNumUVComponents[channel];}
+    mesh->mFaces=new aiFace[faces];
+    unsigned vertexBase=0,faceBase=0;
+    for(size_t k=0;k<pieces.size();++k) {
+        const auto& piece=*pieces[k];
+        for(unsigned i=0;i<piece.mNumVertices;++i) {
+            JtData_Limits::poll();
+            mesh->mVertices[vertexBase+i]=piece.mVertices[i];mesh->mNormals[vertexBase+i]=piece.mNormals[i];mesh->mColors[0][vertexBase+i]=colours[k];
+            for(unsigned channel=0;channel<JtElement_ShapeLOD_Vertex::MaxTextureChannels;++channel)
+                if(mesh->mTextureCoords[channel])mesh->mTextureCoords[channel][vertexBase+i]=piece.mTextureCoords[channel][i];
+        }
+        for(unsigned i=0;i<piece.mNumFaces;++i) {
+            auto& f=mesh->mFaces[faceBase+i];f.mNumIndices=3;f.mIndices=new unsigned[3];
+            for(unsigned j=0;j<3;++j)f.mIndices[j]=vertexBase+piece.mFaces[i].mIndices[j];
+        }
+        vertexBase+=piece.mNumVertices;faceBase+=piece.mNumFaces;
+    }
+    validate(*mesh);return mesh;
+}
 struct Builder {
     const Options& options; QString rootDirectory;
     ImportResult result;
@@ -426,6 +467,8 @@ struct Builder {
     std::map<std::vector<float>,ImageResult> textureCompositions;
     std::vector<std::vector<int>> geometryGroups;
     std::map<std::tuple<unsigned,std::vector<int>,unsigned>,unsigned> groupMeshCache;
+    // Merged face-group meshes: geometry, the merged face groups, and every batch's diffuse colour plus the shared material fields.
+    std::map<std::tuple<unsigned,std::vector<int>,std::vector<float>>,unsigned> mergedGroupCache;
     std::set<const void*> active;
     std::set<QString> activeFiles;
     std::map<QString,Handle(JtNode_Partition)> partitions;
@@ -1007,6 +1050,7 @@ struct Builder {
         meshes.resize(c.meshes);materials.resize(c.materials);result.exactShapes.resize(c.shapes);
         geometries.resize(c.geometries);geometryGroups.resize(c.geometries);
         for(auto it=groupMeshCache.begin();it!=groupMeshCache.end();) {if(it->second>=c.meshes)it=groupMeshCache.erase(it);else ++it;}
+        for(auto it=mergedGroupCache.begin();it!=mergedGroupCache.end();) {if(it->second>=c.meshes)it=mergedGroupCache.erase(it);else ++it;}
         while(result.warnings.size()>c.warnings) result.warnings.removeLast();
         while(hiddenJournal.size()>c.hidden) {result.hiddenNodes.remove(hiddenJournal.back());hiddenJournal.pop_back();}
         for(auto it=meshCache.begin();it!=meshCache.end();) {if(it->second>=c.meshes) it=meshCache.erase(it);else ++it;}
@@ -1489,15 +1533,58 @@ struct Builder {
                                 auto& batch=batches[inserted.first->second];batch.groups.push_back(group.first);batch.faces.insert(batch.faces.end(),group.second.begin(),group.second.end());
                                 if(index==-2)result.warnings.append(label+": inhibited face group retained as hidden geometry; viewer visibility also controls picking");
                             }
-                            for(const auto& batch:batches) {
-                                const auto key=std::make_tuple(geometryIndex,batch.groups,batch.mat);
-                                const auto cached=groupMeshCache.find(key);
-                                const unsigned id=cached!=groupMeshCache.end()?cached->second:add(batch.faces.size()==geometries.at(geometryIndex)->mNumFaces?copyGeometry(geometryIndex):faceSubset(*geometries.at(geometryIndex),batch.faces),batch.style,name);
-                                groupMeshCache[key]=id;
-                                auto child=std::make_unique<aiNode>();child->mName=aiString((name+" / face groups "+QString::number(batch.groups.front())).toUtf8().constData());
-                                child->mNumMeshes=1;child->mMeshes=new unsigned[1]{id};child->mTransformation=batch.local;
-                                if(batch.hidden){result.hiddenNodes.insert(child.get());hiddenJournal.push_back(child.get());}
+                            // Batches with the same transform and hidden state that differ only in diffuse colour/opacity are one body:
+                            // one mesh with per-vertex colours instead of one open piece per colour. Others stay separate.
+                            const bool sourceColoured=geometries.at(geometryIndex)->HasVertexColors(0);
+                            const auto transformKeyOf=[](const aiMatrix4x4& m){std::array<float,16> k;for(unsigned r=0;r<4;++r)for(unsigned c=0;c<4;++c)k[r*4+c]=m[r][c];return k;};
+                            std::map<std::tuple<std::array<float,16>,bool,std::vector<float>>,std::vector<size_t>> mergeSets;
+                            if(!sourceColoured)for(size_t b=0;b<batches.size();++b)if(mergeableStyle(batches[b].style))
+                                mergeSets[std::make_tuple(transformKeyOf(batches[b].local),batches[b].hidden,styleSignature(batches[b].style))].push_back(b);
+                            std::vector<int> setFirst(batches.size(),-1);
+                            for(const auto& entry:mergeSets)if(entry.second.size()>1)for(size_t b:entry.second)setFirst[b]=int(entry.second.front());
+                            // Shape provenance on every body node: the shape, its decoded geometry and the face groups it holds.
+                            const auto addChild=[&](unsigned id,const aiMatrix4x4& local,bool hide,const std::vector<int>& groupIds){
+                                auto child=std::make_unique<aiNode>();child->mName=aiString((name+" / face groups "+QString::number(groupIds.front())).toUtf8().constData());
+                                child->mNumMeshes=1;child->mMeshes=new unsigned[1]{id};child->mTransformation=local;
+                                QStringList groupText;for(int g:groupIds)groupText.append(QString::number(g));
+                                child->mMetaData=aiMetadata::Alloc(3);
+                                child->mMetaData->Set(0,"JTShape",aiString(label.toUtf8().constData()));
+                                child->mMetaData->Set(1,"JTGeometryIndex",aiString(QString::number(geometryIndex).toUtf8().constData()));
+                                child->mMetaData->Set(2,"JTFaceGroups",aiString(groupText.join(',').toUtf8().constData()));
+                                if(hide){result.hiddenNodes.insert(child.get());hiddenJournal.push_back(child.get());}
                                 children.push_back(std::move(child));
+                            };
+                            for(size_t b=0;b<batches.size();++b) {
+                                const auto& batch=batches[b];
+                                if(setFirst[b]>=0 && size_t(setFirst[b])!=b) continue; // emitted with the first batch of its set
+                                if(setFirst[b]<0) {
+                                    const auto key=std::make_tuple(geometryIndex,batch.groups,batch.mat);
+                                    const auto cached=groupMeshCache.find(key);
+                                    const unsigned id=cached!=groupMeshCache.end()?cached->second:add(batch.faces.size()==geometries.at(geometryIndex)->mNumFaces?copyGeometry(geometryIndex):faceSubset(*geometries.at(geometryIndex),batch.faces),batch.style,name);
+                                    groupMeshCache[key]=id;
+                                    addChild(id,batch.local,batch.hidden,batch.groups);
+                                    continue;
+                                }
+                                std::vector<size_t> members;for(size_t k=b;k<batches.size();++k)if(setFirst[k]==int(b))members.push_back(k);
+                                std::vector<int> groupIds;std::vector<float> colourKey=styleSignature(batch.style);
+                                for(size_t k:members){
+                                    groupIds.insert(groupIds.end(),batches[k].groups.begin(),batches[k].groups.end());
+                                    const auto& d=batches[k].style.diffuse;colourKey.insert(colourKey.end(),{d.r,d.g,d.b,d.a});
+                                }
+                                const auto key=std::make_tuple(geometryIndex,groupIds,colourKey);
+                                const auto cached=mergedGroupCache.find(key);
+                                unsigned id;
+                                if(cached!=mergedGroupCache.end())id=cached->second;
+                                else {
+                                    std::vector<std::unique_ptr<aiMesh>> pieces;std::vector<aiColor4D> colours;
+                                    for(size_t k:members){
+                                        pieces.push_back(batches[k].faces.size()==geometries.at(geometryIndex)->mNumFaces?copyGeometry(geometryIndex):faceSubset(*geometries.at(geometryIndex),batches[k].faces));
+                                        colours.push_back(batches[k].style.diffuse);
+                                    }
+                                    id=add(concatenateColoured(pieces,colours),batch.style,name);
+                                    mergedGroupCache[key]=id;
+                                }
+                                addChild(id,batch.local,batch.hidden,groupIds);
                             }
                         } else {
                             // Assembly-only nodes need accumulated state, not
