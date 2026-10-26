@@ -170,3 +170,7 @@ The ModelViewer-original texture descriptor header/reader retain bounded higher 
 ## 25 October 2026 - production binary UV compatibility
 
 The original VertexUV adapter recognizes an unpredicted modern IEEE-word transport only when the complete component-array lookup2 hash matches the stored hash. The prior Lag1 transport and quantized/9.x rules remain; nonfinite output is still rejected. See [production UV evidence and owner confirmation](../../../research/jt/JT_PRODUCTION_UV_TRANSPORT.md). No C3 wire bypass or new JT version.
+
+## 26 October 2026 - production allocation-budget trial
+
+At the owner's explicit request, the original allocation guard raises the cumulative default to 16 GiB and the single-allocation cap to 512 MiB. Distinct errors include requested/charged/budget/cap bytes. Cancellation, rejection accounting and overflow checks remain. See [pending production memory trial](../../../research/jt/JT_PRODUCTION_MEMORY_BUDGET.md). No large-model or native-test pass is claimed.

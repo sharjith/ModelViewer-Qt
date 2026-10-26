@@ -16,8 +16,8 @@ namespace Jt {
 struct Cancelled : std::runtime_error { Cancelled():std::runtime_error("Model loading cancelled by user.") {} };
 struct Options {
     // Cumulative charged allocations, including released scratch arrays; not peak RSS.
-    // The decoder also retains a separate 256 MiB per-allocation limit.
-    size_t decodedAllocationBudget=size_t(6)*1024*1024*1024;
+    // The decoder also retains a separate 512 MiB per-allocation limit.
+    size_t decodedAllocationBudget=size_t(16)*1024*1024*1024;
     std::function<bool()> cancelled;
     std::function<void(const QString&,int,int)> progress;
     // Match the measured Solid Edge DM 10.8.0.1 / JT 10.5, 10.7-10.10 duplicate

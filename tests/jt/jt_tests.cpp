@@ -92,7 +92,36 @@ void allocationBudgetTests() {
     require(JtData_Limits::allocated==60 && JtData_Limits::allocationBudget==100,"Nested budget scope lost parent accounting");
     JtData_Limits::allocation(40);require(polls==3,"Nested scope lost cancellation callback");
     fails([]{JtData_Limits::allocation(size_t(-1));});
-    {JtData_Limits::Scope limit([]{});fails([]{JtData_Limits::allocation(size_t(256)*1024*1024+1);});}
+    // Accounting-only requests: no large buffers are allocated by these cases.
+    require(Jt::Options{}.decodedAllocationBudget==JtData_Limits::defaultAllocationBudget,
+            "Importer and decoder default allocation budgets differ");
+    {JtData_Limits::Scope limit([]{});
+     require(JtData_Limits::allocationBudget==size_t(16)*1024*1024*1024,"Production cumulative budget changed");
+     JtData_Limits::allocation(size_t(256)*1024*1024+1);
+     JtData_Limits::allocation(size_t(512)*1024*1024);
+     const auto before=JtData_Limits::allocated;
+     std::string message;
+     try{JtData_Limits::allocation(size_t(512)*1024*1024+1);}
+     catch(const std::runtime_error& e){message=e.what();}
+     require(message.find("single-allocation limit exceeded")!=std::string::npos &&
+             message.find("requested=536870913 bytes")!=std::string::npos &&
+             message.find("single-allocation cap=536870912 bytes")!=std::string::npos,
+             "Single-allocation diagnostic omitted the limit or request");
+     require(JtData_Limits::allocated==before,"Single-allocation rejection consumed budget");}
+    {JtData_Limits::Scope limit([]{},100);JtData_Limits::allocation(60);
+     std::string message;
+     try{JtData_Limits::allocation(41);}catch(const std::runtime_error& e){message=e.what();}
+     require(message.find("cumulative allocation budget exceeded")!=std::string::npos &&
+             message.find("requested=41 bytes")!=std::string::npos &&
+             message.find("charged before request=60 bytes")!=std::string::npos &&
+             message.find("cumulative budget=100 bytes")!=std::string::npos,
+             "Cumulative allocation diagnostic omitted the budget or counters");
+     require(JtData_Limits::allocated==60,"Cumulative rejection consumed budget");}
+    {JtData_Limits::Scope limit([]{});
+     for(unsigned i=0;i<32;++i)JtData_Limits::allocation(size_t(512)*1024*1024);
+     require(JtData_Limits::allocated==JtData_Limits::defaultAllocationBudget,"Exact cumulative boundary rejected");
+     fails([]{JtData_Limits::allocation(1);});
+     require(JtData_Limits::allocated==JtData_Limits::defaultAllocationBudget,"Over-budget request changed counter");}
     {JtData_Limits::Scope cancel([]{throw Jt::Cancelled();});bool cancelled=false;
      try{JtData_Limits::allocation(1);}catch(const Jt::Cancelled&){cancelled=true;}
      require(cancelled && JtData_Limits::allocated==0,"Budget accounting swallowed cancellation");}

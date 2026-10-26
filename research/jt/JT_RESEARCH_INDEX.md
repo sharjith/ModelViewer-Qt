@@ -80,3 +80,5 @@ Owner-accepted shared raster regression correction: [BLEND depth compatibility](
 42. Owner-accepted bounded gate: [C2ag normal mip filtering](JT_NORMAL_MIP_VALIDATION.md); authored/generated vector levels, 36 original roots / 16 grouped documents; grouped visual and four application exports accepted on 24 October 2026; native/backend execution unreported.
 
 - [Production binary UV compatibility](JT_PRODUCTION_UV_TRANSPORT.md) - 25 October 2026: owner confirmed complete assembly opening after hash-qualified UV correction on 25 October 2026; native regression-suite results remain unreported.
+
+- [Production allocation-budget trial](JT_PRODUCTION_MEMORY_BUDGET.md) - 26 October 2026: owner-requested 16 GiB cumulative / 512 MiB single-allocation limits, differentiated byte-count diagnostics; production and native testing pending.

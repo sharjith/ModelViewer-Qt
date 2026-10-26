@@ -179,7 +179,7 @@
     {
       "file": "include/ThirdParty/occt-jt/JtData/JtData_Limits.hxx",
       "origin": "ModelViewer-original",
-      "notice_date": "2026-10-19"
+      "notice_date": "2026-10-26"
     },
     {
       "file": "include/ThirdParty/occt-jt/JtData/JtData_Message.hxx",
@@ -1179,5 +1179,13 @@
       "include/ThirdParty/occt-jt/JtDecode/JtDecode_VertexUV.hxx"
     ],
     "validation": "research/jt/JT_PRODUCTION_UV_TRANSPORT.md"
+  },
+  "production_memory_budget_follow_up": {
+    "date": "2026-10-26",
+    "scope": "Owner-requested production trial: 16 GiB cumulative budget, 512 MiB single-allocation cap and distinct diagnostics with request/counter/budget/cap bytes; no native or production test pass yet",
+    "files": [
+      "include/ThirdParty/occt-jt/JtData/JtData_Limits.hxx"
+    ],
+    "validation": "research/jt/JT_PRODUCTION_MEMORY_BUDGET.md"
   }
 }
