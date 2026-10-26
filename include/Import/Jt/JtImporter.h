@@ -2,6 +2,7 @@
 #include <QByteArray>
 #include <QStringList>
 #include <QSet>
+#include <QtGlobal>
 #include <TopoDS_Shape.hxx>
 #include <assimp/scene.h>
 #include <functional>
@@ -11,6 +12,7 @@
 #include <array>
 #include <optional>
 #include <cstddef>
+#include <limits>
 
 namespace Jt {
 struct Cancelled : std::runtime_error { Cancelled():std::runtime_error("Model loading cancelled by user.") {} };
@@ -29,6 +31,21 @@ struct Options {
     // Unset selects the first RangeLOD child; this is not runtime LOD switching.
     std::optional<std::array<double,3>> lodEyePoint;
     void check() const { if(cancelled && cancelled()) throw Cancelled(); }
+    // Opt-in desktop runtime override. Plain Options and explicit caller budgets
+    // remain deterministic; the viewer calls this when starting a JT import.
+    static Options fromEnvironment() {
+        Options result;
+        const auto value=qgetenv("MODELVIEWER_JT_BUDGET_GIB");
+        if(value.isNull())return result;
+        bool digits=!value.isEmpty();
+        for(const auto c:value)digits=digits && c>='0' && c<='9';
+        bool ok=false;const auto gib=value.toULongLong(&ok);
+        constexpr size_t unit=size_t(1024)*1024*1024;
+        if(!digits || !ok || gib<1 || gib>256 || gib>std::numeric_limits<size_t>::max()/unit)
+            throw std::runtime_error("Invalid MODELVIEWER_JT_BUDGET_GIB: use a whole number from 1 to 256 (GiB), or remove the variable for the 16 GiB default");
+        result.decodedAllocationBudget=size_t(gib)*unit;
+        return result;
+    }
 };
 struct ImportResult {
     std::unique_ptr<aiScene> scene;

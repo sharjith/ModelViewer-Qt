@@ -80,6 +80,26 @@ struct Reader: JtData_Reader {
 void u32(std::vector<uint8_t>& b,uint32_t n) {for(int i=0;i<4;++i)b.push_back(uint8_t(n>>(8*i)));}
 void f32(std::vector<uint8_t>& b,float value) {uint32_t bits;std::memcpy(&bits,&value,4);u32(b,bits);}
 void allocationBudgetTests() {
+    {
+        const char* key="MODELVIEWER_JT_BUDGET_GIB";
+        struct RestoreEnvironment {
+            const char* key;QByteArray previous;
+            ~RestoreEnvironment(){if(previous.isNull())qunsetenv(key);else qputenv(key,previous);}
+        } restore{key,qgetenv(key)};
+        qunsetenv(key);
+        require(Jt::Options::fromEnvironment().decodedAllocationBudget==JtData_Limits::defaultAllocationBudget,
+                "Absent runtime override changed default budget");
+        for(unsigned gib:{1u,16u,32u,64u,256u}) {
+            qputenv(key,QByteArray::number(gib));
+            require(Jt::Options::fromEnvironment().decodedAllocationBudget==size_t(gib)*1024*1024*1024,
+                    "Runtime GiB override parsed incorrectly");
+            require(Jt::Options{}.decodedAllocationBudget==JtData_Limits::defaultAllocationBudget,
+                    "Runtime override leaked into explicit API defaults");
+        }
+        for(const char* value:{"","0","-1","+32","32.5","32 GiB"," 32","32 ","257","18446744073709551616"}) {
+            qputenv(key,value);fails([]{Jt::Options::fromEnvironment();});
+        }
+    }
     unsigned polls=0;
     JtData_Limits::Scope outer([&]{++polls;},100);
     JtData_Limits::allocation(60);

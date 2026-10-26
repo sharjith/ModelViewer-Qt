@@ -975,7 +975,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	else if (fi.suffix().compare("jt", Qt::CaseInsensitive) == 0)
 	{
 		try {
-			Jt::Options options;
+			Jt::Options options=Jt::Options::fromEnvironment();
 			options.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
 			options.progress = [this](const QString&, int done, int total) {
 				emit fileReadProcessed(total ? float(done)/total : 0.0f);
