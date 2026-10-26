@@ -11,8 +11,6 @@
 #include <atomic>
 #include <vector>
 
-class Triangle;
-
 // Per-instance mutable scene state for a mesh.
 //
 // Owns all transform layers (user TRS, exploded-view TRS, scene render TRS,
@@ -195,9 +193,9 @@ public:
 
     // ---- Runtime bounds update ----------------------------------------------
 
-    // Full O(N) update: recomputes _trsfPoints from geometry, rebuilds picking
-    // triangles, updates _localBoundingBox, _boundingBox, _boundingSphere.
-    // Controls whether updateRuntimeBounds rebuilds picking triangles.
+    // Full O(N) update: recomputes transformed geometry and updates
+    // _localBoundingBox, _boundingBox and _boundingSphere.
+    // Controls whether the indexed geometry participates in CPU ray picking.
     // Set to false for non-triangle primitives (lines, points) so index data
     // is never misinterpreted as triangles.  Defaults to true.
     void setBuildPickingTriangles(bool build) { _buildPickingTriangles = build; }
@@ -232,17 +230,17 @@ public:
 
     bool intersectsWithRay(const QVector3D& rayPos,
                            const QVector3D& rayDir,
+                           const std::vector<unsigned int>& indices,
                            QVector3D& outIntersectionPoint);
 
     // Same closest-hit search as intersectsWithRay(), but also reports
     // which triangle won and its barycentric weights there - the two
     // pieces intersectsWithRay() computes internally and discards. Triangle
-    // index k corresponds to indices[3k], indices[3k+1], indices[3k+2] of
-    // whichever indices buffer buildTriangles() was last called with (i.e.
-    // the same one the caller already has, from SceneMesh). Used to build
-    // a MeshSurfaceAnchor for Measurement/Annotation point picking.
+    // index k corresponds to indices[3k], indices[3k+1], indices[3k+2]. Used
+    // to build a MeshSurfaceAnchor for Measurement/Annotation point picking.
     bool intersectsWithRayDetailed(const QVector3D& rayPos,
                                    const QVector3D& rayDir,
+                                   const std::vector<unsigned int>& indices,
                                    QVector3D& outIntersectionPoint,
                                    int& outTriangleIndex,
                                    QVector3D& outBarycentric);
@@ -256,7 +254,6 @@ private:
     void rebuildAbsoluteTransformation();
     void rebuildExplodedViewTransformation();
     void fastUpdateWorldBounds();
-    void buildTriangles(const std::vector<unsigned int>& indices); // only called when primitiveMode is GL_TRIANGLES
     void computeBounds();
 
     // User TRS
@@ -293,9 +290,6 @@ private:
     std::vector<float> _trsfNormals;
     std::vector<float> _trsfTangents;
     std::vector<float> _trsfBitangents;
-
-    // Picking geometry (derived from _trsfPoints + indices)
-    std::vector<Triangle*> _triangles;
 
     bool _selected              = false;
     bool _hasNegativeScale      = false;

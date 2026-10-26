@@ -1,12 +1,10 @@
 ﻿#include "config.h"
 #include "Point.h"
-#include "TriangleBaldwinWeber.h"
 #include "RenderableMesh.h"
 #include "ScopedMaterialWireframe.h"
 #include "BlendDepthPolicy.h"
 #include "SubTriangleGrid.h"
 #include "SceneMesh.h"
-#include "TriangleMollerTrumbore.h"
 #include "Utils.h"
 #include "Logger.h"
 #include "IGpuContextResource.h"
@@ -2290,7 +2288,7 @@ unsigned long long RenderableMesh::memorySize() const
 
 bool RenderableMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
 {
-	return _instanceState.intersectsWithRay(rayPos, rayDir, outIntersectionPoint);
+	return _instanceState.intersectsWithRay(rayPos, rayDir, _indices, outIntersectionPoint);
 }
 
 

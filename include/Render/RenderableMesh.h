@@ -26,8 +26,6 @@
 #include <QVariant>
 #include <QVector3D>
 
-class Triangle;
-
 // Precomputed texture binding entry — built once per material change by
 // SceneMesh::cacheTextureBindings(), consumed every frame by
 // bindTexturesOptimized() without re-scanning the texture list.
@@ -335,7 +333,8 @@ public:
 	bool intersectsWithRayDetailed(const QVector3D& rayPos, const QVector3D& rayDir,
 		QVector3D& outIntersectionPoint, int& outTriangleIndex, QVector3D& outBarycentric)
 	{
-		return _instanceState.intersectsWithRayDetailed(rayPos, rayDir, outIntersectionPoint, outTriangleIndex, outBarycentric);
+		return _instanceState.intersectsWithRayDetailed(
+			rayPos, rayDir, _indices, outIntersectionPoint, outTriangleIndex, outBarycentric);
 	}
 
 	virtual void setAlbedoPBRMap(unsigned int albedoMap);
