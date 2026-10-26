@@ -17,7 +17,9 @@
 #include <QtEndian>
 #include <iostream>
 #include <cmath>
+#include <cstring>
 #include <map>
+#include <set>
 
 using namespace ThreeDXml;
 void require(bool ok, const char* message) { if (!ok) throw std::runtime_error(message); }
@@ -146,7 +148,8 @@ void synthetic()
     const QByteArray looseXml=QByteArray::fromHex("efbbbf")+"<Model_3dxml>"+tessellatedProduct+"</Model_3dxml>";
     saveFixture("loose.3dxml",looseXml); saveFixture("part.3DRep",tessellated);
     auto loose=Importer::read(temp.filePath("loose.3dxml"));
-    require(loose.scene->mNumMeshes==2&&countSceneMeshOccurrences(loose.scene->mRootNode)==2,"loose XML model with sibling geometry");
+    require(loose.scene->mNumMeshes==1&&countSceneMeshOccurrences(loose.scene->mRootNode)==1,"loose XML model: one body, two face colours, one vertex-coloured mesh");
+    require(loose.scene->mMeshes[0]->HasVertexColors(0),"face colours travel as vertex colours");
     { ArchiveReader directory(temp.filePath("loose.3dxml"),{});
         require(directory.rootDocument()=="loose.3dxml"&&directory.read("part.3DRep")==tessellated,"loose root/member resolution");
         rejects([&] { directory.read("absent.3DRep"); });
@@ -170,7 +173,7 @@ void synthetic()
 #endif
 
     auto importedTessellation=Importer::read(zip);
-    require(importedTessellation.scene->mNumMeshes==2&&countSceneMeshOccurrences(importedTessellation.scene->mRootNode)==2,"XML meshes attached to product scene");
+    require(importedTessellation.scene->mNumMeshes==1&&countSceneMeshOccurrences(importedTessellation.scene->mRootNode)==1,"XML meshes attached to product scene");
 
 
     QByteArray coloredProduct=R"(<Model><ProductStructure root='1'>
@@ -191,7 +194,8 @@ void synthetic()
     require(coloredDoc.occurrenceColors.size()==3&&coloredDoc.occurrenceColors.value("10/12").a==1,"occurrence color paths/default alpha");
     writeZip(zip,{{"Manifest.xml","<m><Root>main.xml</Root></m>"},{"main.xml",coloredProduct},{"part.3DRep",tessellated}});
     auto colored=Importer::read(zip); const auto& coloredScene=*colored.scene;
-    require(coloredScene.mNumMeshes==6&&countSceneMeshOccurrences(coloredScene.mRootNode)==8,"material variants preserve instances");
+    // One vertex-coloured base mesh, plus a blue and a yellow variant that replace its face colours; 4 occurrences.
+    require(coloredScene.mNumMeshes==3&&countSceneMeshOccurrences(coloredScene.mRootNode)==4,"material variants preserve instances");
     QHash<QString,const aiNode*> colorNodes;
     for(auto it=colored.occurrencePaths.cbegin();it!=colored.occurrencePaths.cend();++it) colorNodes.insert(it.value(),it.key());
     auto colorAt=[&](const QString& path,unsigned slot) {
@@ -199,15 +203,22 @@ void synthetic()
         const auto m=coloredScene.mMeshes[n->mMeshes[slot]]; aiColor4D rgba;
         require(coloredScene.mMaterials[m->mMaterialIndex]->Get(AI_MATKEY_BASE_COLOR,rgba)==AI_SUCCESS,"occurrence base color"); return rgba;
     };
-    for(unsigned slot=0;slot<2;++slot) {
+    for(unsigned slot=0;slot<1;++slot) {
         const auto blue=colorAt("10/11",slot),yellow=colorAt("10/12",slot);
         require(blue==aiColor4D(0,0,1,.25f)&&yellow==aiColor4D(1,1,0,1),"inherited and child occurrence override");
         require(colorNodes["10/11"]->mMeshes[slot]==colorNodes["14"]->mMeshes[slot],"same override reuses variant");
         const auto a=coloredScene.mMeshes[colorNodes["10/11"]->mMeshes[slot]],b=coloredScene.mMeshes[colorNodes["10/12"]->mMeshes[slot]];
         require(a->mVertices!=b->mVertices&&a->mNumVertices==b->mNumVertices&&a->mNumFaces==b->mNumFaces,"variant owns independent geometry buffers");
+        require(!a->HasVertexColors(0)&&!b->HasVertexColors(0),"occurrence colour replaces the face colours");
         for(unsigned i=0;i<a->mNumVertices;++i) require(a->mVertices[i]==b->mVertices[i]&&a->mNormals[i]==b->mNormals[i],"variant geometry unchanged");
     }
-    require(colorAt("13",0)==aiColor4D(1,0,0,1)&&colorAt("13",1)==aiColor4D(0,1,0,1),"uncolored instance retains face colors");
+    {
+        const auto& plain=*coloredScene.mMeshes[colorNodes["13"]->mMeshes[0]];
+        require(colorAt("13",0)==aiColor4D(1,1,1,1)&&plain.HasVertexColors(0),"uncolored instance keeps its face colors as vertex colors");
+        bool red=false,green=false;
+        for(unsigned i=0;i<plain.mNumVertices;++i) { const auto& c=plain.mColors[0][i]; red=red||c==aiColor4D(1,0,0,1); green=green||c==aiColor4D(0,1,0,1); }
+        require(red&&green,"both face colors present on the vertices");
+    }
     auto invalidColor=coloredProduct; invalidColor.replace("blue='1'","blue='2'");
     rejects([&] { ProductStructureReader::read(invalidColor,{}); });
     invalidColor=coloredProduct; invalidColor.replace("urn:test#14","urn:test#999");
@@ -228,6 +239,88 @@ void synthetic()
     rejects([&] { TessellatedReader::read(tessellated,cancel); });
     rejects([&] { TessellatedReader::read("<!DOCTYPE x><XMLRepresentation/>",{}); });
 
+}
+
+void appendFloat(QByteArray& out,float value) { quint32 bits; std::memcpy(&bits,&value,4); uchar bytes[4]; qToLittleEndian(bits,bytes); out.append(reinterpret_cast<const char*>(bytes),4); }
+
+// Record variants written by CATIA/3DEXPERIENCE exports (grammars derived from a production sample; see
+// research/3dxml/3DXML_published_documentation_findings.md). Each is a complete skeleton, byte for byte.
+void variants()
+{
+    const QByteArray hdr(35,'\0');
+    // A small group-flags byte followed by 00 01 00 00 carries the 0x100 flag; a plain small flags byte must still parse.
+    require(RepresentationReader::read(binaryFixture(QByteArray(1,char(0x62))+hdr+QByteArray::fromHex("0100010000ff00000000")),{}).bodies.empty(),"small flags + 00 01 00 00");
+    require(RepresentationReader::read(binaryFixture(QByteArray(1,char(0x62))+hdr+QByteArray::fromHex("01ff00000000")),{}).bodies.empty(),"plain small flags");
+    // Group tag 9a: like a3, but the trailer is a compact count (0) and the span ends one byte past it.
+    const QByteArray group9a=QByteArray::fromHex("9aff36000000")+hdr+QByteArray::fromHex("ff03010000ff00000000ff00000000");
+    require(RepresentationReader::read(binaryFixture(group9a),{}).bodies.empty(),"group tag 9a");
+    auto wrongSpan=group9a; wrongSpan[2]=0x35;
+    rejects([&] { RepresentationReader::read(binaryFixture(wrongSpan),{}); });
+    // Leaf tag a1: skipped by its span, followed by one compact value that is not a surface offset.
+    const QByteArray leafA1=QByteArray::fromHex("a1ff0f000000")+QByteArray::fromHex("00112233445566778899")+QByteArray::fromHex("01");
+    require(RepresentationReader::read(binaryFixture(leafA1),{}).bodies.empty(),"leaf tag a1 skipped by span");
+    auto longSpan=leafA1; longSpan[2]=0x40;
+    rejects([&] { RepresentationReader::read(binaryFixture(longSpan),{}); });
+    // Curve record 78: no span; polyline, two end points and a style.
+    auto curve=[&](unsigned points,const QByteArray& style) {
+        QByteArray record=QByteArray::fromHex("78ff85feffff")+hdr+QByteArray::fromHex("ffff0200");
+        appendFloat(record,0.05f); appendFloat(record,0.785398f);
+        record+=QByteArray::fromHex("a5d46853")+QByteArray::fromHex("01")+QByteArray::fromHex("79000000")+QByteArray::fromHex("ffff");
+        record+=QByteArray(1,char(points))+QByteArray::fromHex("01");
+        for(unsigned i=0;i<points;++i) { appendFloat(record,41.f); appendFloat(record,float(i)); appendFloat(record,2.5f); }
+        record+=QByteArray::fromHex("001400")+QByteArray::fromHex("ffff00ff00ff02000000");
+        for(int end=0;end<2;++end) { record+=QByteArray::fromHex("78000000")+QByteArray::fromHex("0000")+QByteArray::fromHex("0501"); appendFloat(record,41.f); appendFloat(record,0.f); appendFloat(record,2.5f); }
+        return record+style;
+    };
+    const QByteArray curveStyle=QByteArray::fromHex("000404f9ff000000");
+    require(RepresentationReader::read(binaryFixture(curve(21,curveStyle)),{}).bodies.empty(),"curve record 78");
+    rejects([&] { RepresentationReader::read(binaryFixture(curve(21,QByteArray::fromHex("300404ffff000000"))),{}); });
+    // Leaf 64: ids and a colour style only.
+    const QByteArray leaf64=QByteArray::fromHex("64ffb5ffffff")+QByteArray(35,'\0')+QByteArray::fromHex("ffff020001")+QByteArray::fromHex("5469")+QByteArray(5,'\0')+QByteArray::fromHex("0101")+QByteArray(13,'\0')+QByteArray::fromHex("0504ffff9999cc");
+    require(RepresentationReader::read(binaryFixture(leaf64),{}).bodies.empty(),"leaf 64");
+    auto brokenLeaf=leaf64; brokenLeaf[brokenLeaf.size()-5]=0x00;
+    rejects([&] { RepresentationReader::read(binaryFixture(brokenLeaf),{}); });
+}
+
+// Scene building: merging heavily split parts, vertex colours, provenance metadata and the import tally.
+void sceneVariants()
+{
+    QTemporaryDir temp; require(temp.isValid(),"fixture directory");
+    const QString zip=temp.filePath("variants.3dxml");
+    auto representation=[](unsigned bodies) {
+        QByteArray xml="<XMLRepresentation xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'><Root xsi:type='BagRepType'>";
+        for(unsigned i=0;i<bodies;++i) {
+            const char* color=(i%2) ? "red='1' green='0' blue='0'" : "red='0' green='1' blue='0'";
+            xml+=QByteArray("<Rep xsi:type='PolygonalRepType'><SurfaceAttributes><Color ")+color+"/></SurfaceAttributes><Faces><Face triangles='0 1 2'/></Faces>"
+                "<VertexBuffer><Positions>0 0 0,1 0 0,0 1 0</Positions><Normals>0 0 1,0 0 1,0 0 1</Normals></VertexBuffer></Rep>";
+        }
+        return xml+"</Root></XMLRepresentation>";
+    };
+    const QByteArray product=R"(<ProductStructure root='1'><Reference3D id='1' name='test'/>
+      <ReferenceRep id='2' name='partrep' format='TESSELLATED' associatedFile='part.3DRep'/>
+      <InstanceRep id='3'><IsAggregatedBy>1</IsAggregatedBy><IsInstanceOf>2</IsInstanceOf></InstanceRep></ProductStructure>)";
+    auto warned=[](const ImportResult& result,const char* text) { for(const auto& w:result.warnings) if(w.contains(QLatin1String(text))) return true; return false; };
+
+    // More than 50 leaves: one mesh per opacity group, vertices keep their leaf number, the node names its representation.
+    writeZip(zip,{{"Manifest.xml","<m><Root>main.xml</Root></m>"},{"main.xml",product},{"part.3DRep",representation(51)}});
+    auto merged=Importer::read(zip); const auto& mergedScene=*merged.scene;
+    require(mergedScene.mNumMeshes==1,"51 leaves merge into one mesh");
+    const auto& mesh=*mergedScene.mMeshes[0];
+    require(QString::fromUtf8(mesh.mName.C_Str()).endsWith("__merged"),"merged mesh name");
+    require(mesh.HasVertexColors(0)&&mesh.mNumVertices==51*3&&mesh.mNumFaces==51,"merged geometry and colours");
+    const auto leafIds=merged.meshLeafIds.value(&mesh);
+    require(leafIds&&leafIds->size()==mesh.mNumVertices,"one leaf number per vertex");
+    require(std::set<unsigned>(leafIds->begin(),leafIds->end()).size()==51,"each leaf keeps its own number");
+    require(warned(merged,"merged into")&&warned(merged,"3DXML tally"),"merge and tally are reported");
+    aiString member; require(mergedScene.mRootNode->mMetaData&&mergedScene.mRootNode->mMetaData->Get("3DXMLRepresentation",member)&&member==aiString("part.3DRep"),"node names its representation");
+
+    // At the threshold (50 leaves) nothing is merged: one mesh per single-colour body, each child node tagged.
+    writeZip(zip,{{"Manifest.xml","<m><Root>main.xml</Root></m>"},{"main.xml",product},{"part.3DRep",representation(50)}});
+    auto kept=Importer::read(zip); const auto& keptScene=*kept.scene;
+    require(keptScene.mNumMeshes==50&&keptScene.mRootNode->mNumChildren==50,"50 leaves stay separate");
+    for(unsigned i=0;i<keptScene.mNumMeshes;++i) require(!keptScene.mMeshes[i]->HasVertexColors(0)&&kept.meshLeafIds.isEmpty(),"single-colour bodies keep a material colour");
+    require(keptScene.mRootNode->mChildren[0]->mMetaData&&keptScene.mRootNode->mChildren[0]->mMetaData->Get("3DXMLRepresentation",member)&&member==aiString("part.3DRep"),"body node names its representation");
+    require(!warned(kept,"merged into")&&warned(kept,"3DXML tally"),"no merge report below the threshold");
 }
 
 void sample(const QString& archive, const QString& glbPath, const QString& occurrencesPath, const QString& output)
@@ -303,23 +396,39 @@ void sample(const QString& archive, const QString& glbPath, const QString& occur
     for(unsigned mi=0;mi<scene.mNumMeshes;++mi) {
         const auto& mesh=*scene.mMeshes[mi]; triangles+=mesh.mNumFaces;
         aiString name; scene.mMaterials[mesh.mMaterialIndex]->Get(AI_MATKEY_NAME,name);
-        auto found=primitives.find(QString::fromUtf8(mesh.mName.C_Str())+'/'+QString::fromUtf8(name.C_Str()));
-        if(found==primitives.end()) continue; // GLB intentionally omitted hidden-only resources.
-        ++compared; auto attrs=found->second["attributes"].toObject();
-        const auto pbr=mats[found->second["material"].toInt()].toObject()["pbrMetallicRoughness"].toObject();
-        const auto rgba=pbr["baseColorFactor"].toArray(); aiColor4D color;
-        require(scene.mMaterials[mesh.mMaterialIndex]->Get(AI_MATKEY_BASE_COLOR,color)==AI_SUCCESS,"base color property");
-        for(int k=0;k<4;++k) require(std::abs(color[k]-rgba[k].toDouble())<1e-7,"material color parity");
-        int position=attrs["POSITION"].toInt(),normal=attrs["NORMAL"].toInt();
-        require(accessors[position].toObject()["count"].toInt()==int(mesh.mNumFaces*3),"primitive triangle count");
-        for(unsigned f=0;f<mesh.mNumFaces;++f) for(unsigned c=0;c<3;++c) {
-            auto i=mesh.mFaces[f].mIndices[c];
-            require((mesh.mVertices[i]-vector(position,f*3+c)).SquareLength()==0,"source position parity");
-            require((mesh.mNormals[i]-vector(normal,f*3+c)).Length()<1e-6,"source normal parity");
+        // The reference has one primitive per body and face colour. A mesh with vertex colours holds several colours: split its
+        // triangles back by colour (every triangle's corners share one colour) and compare each group with its reference primitive.
+        std::map<QString,std::vector<unsigned>> byColor;
+        if(mesh.HasVertexColors(0)) {
+            for(unsigned f=0;f<mesh.mNumFaces;++f) {
+                const auto& c=mesh.mColors[0][mesh.mFaces[f].mIndices[0]];
+                const unsigned rgb=(unsigned(std::lround(c.r*255))<<16)|(unsigned(std::lround(c.g*255))<<8)|unsigned(std::lround(c.b*255));
+                byColor[QStringLiteral("face_rgb_%1").arg(rgb,6,16,QLatin1Char('0'))].push_back(f);
+            }
+        } else {
+            std::vector<unsigned>& all=byColor[QString::fromUtf8(name.C_Str())];
+            for(unsigned f=0;f<mesh.mNumFaces;++f) all.push_back(f);
+        }
+        for(const auto& group:byColor) {
+            auto found=primitives.find(QString::fromUtf8(mesh.mName.C_Str())+'/'+group.first);
+            if(found==primitives.end()) continue; // GLB intentionally omitted hidden-only resources.
+            ++compared; auto attrs=found->second["attributes"].toObject();
+            const auto pbr=mats[found->second["material"].toInt()].toObject()["pbrMetallicRoughness"].toObject();
+            const auto rgba=pbr["baseColorFactor"].toArray(); aiColor4D color;
+            if(mesh.HasVertexColors(0)) color=mesh.mColors[0][mesh.mFaces[group.second.front()].mIndices[0]];
+            else require(scene.mMaterials[mesh.mMaterialIndex]->Get(AI_MATKEY_BASE_COLOR,color)==AI_SUCCESS,"base color property");
+            for(int k=0;k<3;++k) require(std::abs(color[k]-rgba[k].toDouble())<1e-7,"material color parity");
+            int position=attrs["POSITION"].toInt(),normal=attrs["NORMAL"].toInt();
+            require(accessors[position].toObject()["count"].toInt()==int(group.second.size()*3),"primitive triangle count");
+            for(size_t n=0;n<group.second.size();++n) for(unsigned c=0;c<3;++c) {
+                auto i=mesh.mFaces[group.second[n]].mIndices[c];
+                require((mesh.mVertices[i]-vector(position,unsigned(n*3+c))).SquareLength()==0,"source position parity");
+                require((mesh.mNormals[i]-vector(normal,unsigned(n*3+c))).Length()<1e-6,"source normal parity");
+            }
         }
     }
     require(compared==int(primitives.size()),"all reference primitives checked");
-    require(xmlNodes==252 && hiddenXml==17 && visibleBodies==276 && visibleMeshes==538 && visibleTriangles==5608912,"sample scene counts");
+    require(xmlNodes==252 && hiddenXml==17 && visibleBodies==276 && visibleMeshes<=538 && visibleTriangles==5608912,"sample scene counts");
     require(triangles==4152382,"complete source triangle count");
     report["nodes"]=nodes; report["xml_nodes"]=xmlNodes; report["hidden_xml_occurrences"]=hiddenXml;
     report["mesh_occurrences"]=occurrenceCount; report["visible_meshes"]=visibleMeshes;
@@ -386,6 +495,8 @@ int main(int argc,char** argv)
     QCoreApplication app(argc,argv);
     try {
         synthetic();
+        variants();
+        sceneVariants();
         if(argc==4&&QString::fromLocal8Bit(argv[1])==QLatin1String("--audit")) audit(QString::fromLocal8Bit(argv[2]),QString::fromLocal8Bit(argv[3]));
         if(argc==2) {
             auto imported=ThreeDXml::Importer::read(QString::fromLocal8Bit(argv[1]),{});
