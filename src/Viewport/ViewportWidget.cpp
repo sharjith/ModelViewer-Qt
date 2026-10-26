@@ -5566,12 +5566,14 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 		}
 
 		makeCurrent();
+		const int processedMeshCount = loadingWorker->processedMeshCount();
+		const bool preservesNodeTransforms = loadingWorker->preservesNodeTransforms();
 		ImportDiagnostics::checkpoint("viewer.take-meshes");
 		AssImpMeshDataBatch meshes = loadingWorker->takeMeshes();
-		ImportDiagnostics::checkpoint("viewer.meshes-transferred", -1, meshes.size(), meshes.size());
+		ImportDiagnostics::checkpoint("viewer.meshes-transferred", -1, processedMeshCount, processedMeshCount);
 		if (success && !_sceneRuntime.loadCancelled() && !progressiveLoading)
 		{
-			try { onMeshBatchReady(meshes); }
+			try { consumeMeshBatch(std::move(meshes)); }
 			catch (const std::bad_alloc&) { reportBatchFailure("Out of memory (std::bad_alloc) creating viewer meshes"); }
 			catch (const Standard_Failure& e) { reportBatchFailure(e.GetMessageString()); }
 			catch (const std::exception& e) { reportBatchFailure(e.what()); }
@@ -5594,7 +5596,11 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 			meshes.clear();
 			_viewer->updateDisplayList();
 		}
-		if (meshes.empty())
+		const size_t meshCountAfterLoad = _sceneRuntime.meshStore().size();
+		const size_t attachedMeshCount = meshCountAfterLoad >= meshCountBeforeLoad
+			? meshCountAfterLoad - meshCountBeforeLoad
+			: 0;
+		if (attachedMeshCount == 0)
 		{
 			if (error.isEmpty())
 			{
@@ -5621,7 +5627,7 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 			// while the original aiNode* tree is still intact and unmodified.
 			if (success && !_sceneRuntime.pendingSceneUuids().isEmpty())
 			{
-				ImportDiagnostics::checkpoint("viewer.scene-graph-begin", -1, meshes.size());
+				ImportDiagnostics::checkpoint("viewer.scene-graph-begin", -1, attachedMeshCount);
 				_viewer->sceneGraph()->appendFromScene(
 					_sceneRuntime.assimpScene(), fileName, _sceneRuntime.pendingSceneUuids(),
 					SceneUtils::glmToAiMatrix(_sceneRuntime.globalSceneTransform()),
@@ -5650,12 +5656,6 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 					_viewer->sceneGraph()->setVariantData(fileName, vd);
 
 				const GltfAnimationData& ad = loadingWorker->getAnimationData();
-				const bool preservesNodeTransforms =
-					std::any_of(meshes.begin(), meshes.end(),
-						[](const AssImpMeshData& meshData)
-						{
-							return meshData.preserveNodeTransform;
-						});
 				if (!ad.isEmpty() || ad.hasSkinning)
 				{
 					_viewer->sceneGraph()->setAnimationData(fileName, ad);
@@ -5700,11 +5700,11 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 			ImportDiagnostics::checkpoint("viewer.scene-merge-end");
 
 			// Offset the sceneIndices of the meshes that were just added.
-			// They are the last meshes.size() entries in _sceneRuntime.meshStore() because
+			// They are the last attachedMeshCount entries in _sceneRuntime.meshStore() because
 			// addToDisplay() always appends.
-			if (oldMeshCount > 0 && !meshes.empty())
+			if (oldMeshCount > 0 && attachedMeshCount > 0)
 			{
-				const int newCount = static_cast<int>(meshes.size());
+				const int newCount = static_cast<int>(attachedMeshCount);
 				const int storeSize = static_cast<int>(_sceneRuntime.meshStore().size());
 				const int firstNew  = storeSize - newCount;
 				for (int i = firstNew; i < storeSize; ++i)
@@ -13132,11 +13132,12 @@ void ViewportWidget::buildBoxClipPlanes(const QVector3D& pos, QVector4D out[6])
 }
 
 
-SceneMesh* ViewportWidget::createMeshFromData(const AssImpMeshData& meshData)
+SceneMesh* ViewportWidget::createMeshFromData(AssImpMeshData meshData)
 {
 	ImportDiagnostics::checkpoint("viewer.create-mesh-begin",meshData.sceneIndex);
-	auto* mesh = AssImpMeshBuilder::build(meshData, _renderCtrl.fgShader(), this);
-	ImportDiagnostics::checkpoint("viewer.create-mesh-end",meshData.sceneIndex);
+	const int sceneIndex = meshData.sceneIndex;
+	auto* mesh = AssImpMeshBuilder::build(std::move(meshData), _renderCtrl.fgShader(), this);
+	ImportDiagnostics::checkpoint("viewer.create-mesh-end",sceneIndex);
 	return mesh;
 }
 
@@ -14561,20 +14562,7 @@ void ViewportWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
 	ImportDiagnostics::checkpoint("viewer.batch-begin", -1, batch.size());
 	makeCurrent();
 	for (const AssImpMeshData& meshData : batch)
-	{
-		std::unique_ptr<SceneMesh> pendingMesh(createMeshFromData(meshData));
-		SceneMesh* mesh = pendingMesh.get();
-		ImportDiagnostics::checkpoint("viewer.attach-mesh-begin", meshData.sceneIndex);
-		addToDisplay(mesh);
-		pendingMesh.release();
-		ImportDiagnostics::checkpoint("viewer.attach-mesh-end", meshData.sceneIndex);
-		if (!meshData.initiallyVisible) {
-			_initiallyHiddenImportMeshes.insert(mesh->uuid());
-			_sceneRuntime.displayedObjectsIds().pop_back();
-			_sceneRuntime.hiddenObjectsIds().push_back(static_cast<int>(_sceneRuntime.meshStore().size()-1));
-		}
-		_sceneRuntime.pendingSceneUuids().append(mesh->uuid());
-	}
+		attachImportedMesh(meshData);
 	_viewer->updateDisplayList();
 
 	// Progressive AssImp loading emits batches from a worker thread via
@@ -14591,6 +14579,41 @@ void ViewportWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
 	if (_sceneRuntime.progressiveLoadingEnabled())
 		QApplication::processEvents();
 	ImportDiagnostics::checkpoint("viewer.batch-end", -1, batch.size());
+}
+
+void ViewportWidget::consumeMeshBatch(AssImpMeshDataBatch&& batch)
+{
+	const size_t batchSize = batch.size();
+	ImportDiagnostics::checkpoint("viewer.batch-begin", -1, batchSize);
+	makeCurrent();
+	for (AssImpMeshData& meshData : batch)
+		attachImportedMesh(std::move(meshData));
+
+	// Destroy the moved-from records before hierarchy copying/scene merging.
+	// This is the non-progressive path, where the batch may represent the
+	// entire model rather than the bounded progressive batch size.
+	batch.clear();
+	batch.shrink_to_fit();
+	_viewer->updateDisplayList();
+	ImportDiagnostics::checkpoint("viewer.batch-end", -1, batchSize);
+}
+
+void ViewportWidget::attachImportedMesh(AssImpMeshData meshData)
+{
+	const int sceneIndex = meshData.sceneIndex;
+	const bool initiallyVisible = meshData.initiallyVisible;
+	std::unique_ptr<SceneMesh> pendingMesh(createMeshFromData(std::move(meshData)));
+	SceneMesh* mesh = pendingMesh.get();
+	ImportDiagnostics::checkpoint("viewer.attach-mesh-begin", sceneIndex);
+	addToDisplay(mesh);
+	pendingMesh.release();
+	ImportDiagnostics::checkpoint("viewer.attach-mesh-end", sceneIndex);
+	if (!initiallyVisible) {
+		_initiallyHiddenImportMeshes.insert(mesh->uuid());
+		_sceneRuntime.displayedObjectsIds().pop_back();
+		_sceneRuntime.hiddenObjectsIds().push_back(static_cast<int>(_sceneRuntime.meshStore().size()-1));
+	}
+	_sceneRuntime.pendingSceneUuids().append(mesh->uuid());
 }
 
 UVMethod ViewportWidget::promptLargeModelUVDecision(int totalTriangles, UVMethod currentMethod)

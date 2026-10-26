@@ -909,11 +909,6 @@ void AssImpModelLoader::cancelLoading()
 	_loadingCancelled = true;
 }
 
-AssImpMeshDataBatch AssImpModelLoader::getMeshes() const
-{
-	return _meshes;
-}
-
 /*  Functions   */
 // Loads a model with supported ASSIMP extensions from file and stores the resulting meshes in the meshes vector.
 void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
@@ -926,10 +921,12 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	_loadingCancelled = false;
 	_errorMessage.clear();
 	_path = std::string(path);
-	_meshes.clear();	
+	_meshes.clear();
+	_currentBatch.clear();
 	_totalNodeCount = 0;
 	_processedNodeCount = 0;
 	_processedMeshCount = 0;
+	_preservesNodeTransforms = false;
 	_totalMeshOccurrences = 0;
 	_threeDXml = {};
 	_jt = {};
@@ -1244,7 +1241,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	// Process ASSIMP's root node recursively	
 	_importStage = "worker.reserve-mesh-store";
 	ImportDiagnostics::checkpoint(_importStage, -1, 0, _totalMeshOccurrences);
-	if (_totalMeshOccurrences > 0)
+	if (!_progressiveLoading && _totalMeshOccurrences > 0)
 		_meshes.reserve(size_t(_totalMeshOccurrences));
 	if (_progressiveLoading)
 		_currentBatch.reserve(size_t(_batchSize));
@@ -1366,9 +1363,13 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 		AssImpMeshData myMesh = processMesh(mesh, scene, node->mMeshes[i], scene->mNumMeshes, globalTransform, node->mName.C_Str());
 
 		myMesh.initiallyVisible = !_threeDXml.hiddenNodes.contains(node) && !_jt.hiddenNodes.contains(node);
-		_importStage = "worker.mesh-store";
+		_importStage = "worker.mesh-stage";
 		ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
-		_meshes.push_back(std::move(myMesh));
+		_preservesNodeTransforms = _preservesNodeTransforms || myMesh.preserveNodeTransform;
+		if (_progressiveLoading)
+			_currentBatch.push_back(std::move(myMesh));
+		else
+			_meshes.push_back(std::move(myMesh));
 		++_processedMeshCount;
 		emit nodeMeshProgressUpdated(
 			_processedNodeCount,
@@ -1380,15 +1381,15 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 
 		if (_progressiveLoading)
 		{
-			_importStage = "worker.batch-copy";
+			_importStage = "worker.batch-stage";
 			ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
-			_currentBatch.push_back(_meshes.back());
 			if (_currentBatch.size() >= _batchSize)
 			{
 				_importStage = "worker.batch-handoff";
 				ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
 				emit meshBatchReady(std::move(_currentBatch));
-				_currentBatch.clear();
+				_currentBatch = {};
+				_currentBatch.reserve(size_t(_batchSize));
 			}
 		}
 	}

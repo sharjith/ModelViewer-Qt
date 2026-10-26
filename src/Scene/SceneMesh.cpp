@@ -338,12 +338,14 @@ SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> 
 	if (!initialSourceMeshIds.empty() && initialSourceMeshIds.size() == vertices.size())
 		_importState.setSourceMeshIds(std::move(initialSourceMeshIds));
 	//setAutoIncrName(name);
-	_name = name;
-	_vertices = vertices;
-	_baseVertices = vertices;
-	_indices = indices;
-	_textures = textures;
-	_material = material;
+	_name = std::move(name);
+	// Transfer the constructor payload into the live arrays. The required
+	// rest-pose copy is made after optimization, avoiding an extra full vertex
+	// array while meshoptimizer's temporary buffers are live.
+	_vertices = std::move(vertices);
+	_indices = std::move(indices);
+	_textures = std::move(textures);
+	_material = std::move(material);
 	cacheBaseVolumeProperties();
 
 	// Set primitive mode before setupMesh() so picking triangles are built (or
@@ -352,6 +354,7 @@ SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> 
 
 	// Optimize the mesh (reorder indices and vertices for better vertex cache locality, overdraw, and vertex fetch)
 	optimizeMesh();
+	_baseVertices = _vertices;
 
 	// Now that we have all the required data, set the vertex buffers and its attribute pointers.
 	setupMesh();
@@ -1817,11 +1820,6 @@ void SceneMesh::optimizeMesh()
 			meshopt_remapIndexBuffer(remappedLod1.data(), lod1Indices.data(), lod1Indices.size(), remap.data());
 			_pendingLod1Indices = std::move(remappedLod1);
 		}
-
-		// Keep _baseVertices in sync with the reordered _vertices so that
-		// clone() can safely pass _baseVertices + _indices to a new constructor
-		// without index/vertex order mismatch.
-		_baseVertices = _vertices;
 
 		// Same reorder applied to source-mesh provenance (if any was passed
 		// into the constructor) - exact same `remap` permutation as _vertices

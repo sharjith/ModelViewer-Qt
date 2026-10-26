@@ -2040,7 +2040,9 @@ private:
 	void buildBoxClipPlanes(const QVector3D& pos, QVector4D out[6]);
 
 	void onMeshBatchReady(const std::vector<AssImpMeshData>& batch);
-	SceneMesh* createMeshFromData(const AssImpMeshData& meshData);
+	void consumeMeshBatch(AssImpMeshDataBatch&& batch);
+	void attachImportedMesh(AssImpMeshData meshData);
+	SceneMesh* createMeshFromData(AssImpMeshData meshData);
 	void syncFileNodeTransforms(const QString& sourceFile);
 	void reapplyGltfCameraAfterTransform();
 	void applyNodeTransformsToMeshes(const QString& sourceFile,

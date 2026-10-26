@@ -206,9 +206,12 @@ public:
 	// Loads a model with supported ASSIMP extensions from file and stores the resulting meshes in the meshes vector.
 	void loadModel(std::string path, const bool& progressiveLoading = false);
 
-	AssImpMeshDataBatch getMeshes() const;
 	// Transfer after the worker has stopped; avoid copying every geometry buffer.
 	AssImpMeshDataBatch takeMeshes() { return std::move(_meshes); }
+	// Lightweight import results remain available even when progressive batches
+	// have transferred their geometry directly to the viewer.
+	int processedMeshCount() const { return _processedMeshCount; }
+	bool preservesNodeTransforms() const { return _preservesNodeTransforms; }
 
 	glm::mat4 getGlobalSceneTransform() const { return _appliedTransform; }
 
@@ -325,6 +328,7 @@ private:
 	int _totalMeshOccurrences = 0;
 	int _processedNodeCount = 0;
 	int _processedMeshCount = 0;
+	bool _preservesNodeTransforms = false;
 
 	bool _progressiveLoading = false; // If true, emit progress signals during loading
 

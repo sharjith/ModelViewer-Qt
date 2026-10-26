@@ -6,6 +6,8 @@
 
 With `MODELVIEWER_JT_BUDGET_GIB=64`, JT reading passed the cumulative allocation guard. The owner reported that more than 30,000 meshes were processed before the application terminated. The last ordinary application log entry identified scene index 30,950 as stored. Windows reported `ucrtbase.dll` and exception code `0xC0000409`.
 
+After exception containment was installed, the same private assembly produced a controlled `std::bad_alloc` during viewer-mesh creation instead of terminating the process. The opt-in trace placed the failure near viewer scene index 19,982, with process private bytes at approximately 53.2 GiB and working set at approximately 39.7 GiB. Rollback then reduced private bytes to approximately 3 GiB. These measurements show that the post-decode conversion/viewer overlap was material; they do not establish the remaining memory cost of later scene-copy and scene-merge stages because this run did not reach them.
+
 That code is Windows fail-fast status `STATUS_STACK_BUFFER_OVERRUN`, but Microsoft documents that the mechanism is also used for immediate process termination after other unrecoverable runtime failures. An unhandled C++ exception can call `std::terminate`, whose default path calls `abort`. The status and module therefore do not establish a stack overwrite, heap corruption or out-of-memory condition without the fast-fail subcode or a crash dump.
 
 The ordinary application logger is asynchronous. Its last delivered line is evidence that processing reached that point, not proof that the fault occurred on the next statement.
@@ -14,7 +16,11 @@ The ordinary application logger is asynchronous. Its last delivered line is evid
 
 The loader now places an exception boundary around post-read model processing and reports its current stage, scene index and completed occurrence count. Viewer mesh construction has the same boundary. A failure rolls back meshes attached during the current import instead of allowing a C++ exception to escape the worker or GUI event dispatch. `SceneMesh` construction retains temporary ownership until all builder steps succeed, and runtime display registration is transactional before ownership transfers.
 
-Two full geometry-buffer copies in the large-model handoff were reduced: the worker reserves its known occurrence count, moves completed records into its store, and transfers that store to the viewer after the worker stops. Progressive batches still require their independent payload while the worker retains final scene metadata; this pass does not claim a zero-copy progressive pipeline.
+The follow-up memory change separates geometry lifetime from the lightweight import summary. In progressive mode, each converted record moves directly into its bounded handoff batch; the worker no longer retains another full-model `AssImpMeshData` geometry store. In non-progressive mode, the transferred full-model batch is consumed one record at a time and each moved-from source record is destroyed before hierarchy copying and scene merging. `SceneMesh` also moves its by-value constructor buffers into live storage, eliminating a redundant temporary vertex/index/texture copy while retaining its required base-vertex copy.
+
+This lifetime change is in the shared `AssImpModelLoader`/viewer mesh-builder path. It therefore applies to JT, 3DXML and formats imported through Assimp rather than adding a JT-only allocation mode.
+
+Hierarchy creation, animation setup, scene-index adjustment and success detection now use lightweight worker summaries and the actual count of viewer meshes attached during the import. This preserves those paths after progressive geometry has been released. OCC face remapping still keeps a temporary pre-optimization geometry copy for meshes carrying that metadata; other imported formats take the transfer path. The decoded `aiScene` remains alive until scene-graph creation and deep-copy/merge complete, so this is a staged geometry-lifetime improvement rather than a streaming scene representation.
 
 The opt-in trace records synchronously flushed checkpoints independently of the normal queued logger. Each line contains a sequence, time, thread, stage, scene index, completion counts and, on Windows, process private bytes and working-set bytes. It never writes geometry. Exception text can contain a source path and must be reviewed or redacted before sharing. The trace is bounded to approximately 32 MiB and wraps to retain recent events; sequence numbers continue across a wrap.
 
@@ -43,7 +49,7 @@ $env:MODELVIEWER_IMPORT_DIAGNOSTICS = '1'
 
 Load the production assembly once. If it succeeds, record completion and peak process memory. If it reports a controlled error or terminates, retain the newest `import-trace-*.log` and the full dialog/Event Viewer details. The final trace stages distinguish worker conversion/storage/batch handoff, viewer mesh construction/attachment, scene graph creation, scene copy and scene merge.
 
-Also smoke-check one small model in progressive mode, one in non-progressive mode and cancellation of a native CAD import. Acceptance requires unchanged successful display and an atomic rollback on failure/cancel; this document does not infer those results.
+Also smoke-check one small model in progressive mode, one in non-progressive mode and cancellation of a native CAD import. Include at least one textured glTF/GLB or OBJ model and one native JT or 3DXML model so the shared mesh-builder transfer path is covered. Acceptance requires unchanged geometry, materials, visibility, hierarchy and animation behavior, plus atomic rollback on native failure/cancel. Then retry the private assembly with diagnostics enabled and retain the trace through viewer-mesh creation, scene graph, scene copy and scene merge. This document does not infer those results.
 
 To restore the default environment in that shell:
 

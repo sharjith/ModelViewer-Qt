@@ -5,12 +5,13 @@
 
 #include <QString>
 #include <memory>
+#include <utility>
 
-SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
+SceneMesh* AssImpMeshBuilder::build(AssImpMeshData meshData,
                                     QOpenGLShaderProgram* shader,
                                     ViewportWidget* viewportWidget)
 {
-    std::vector<Material::Texture> textures = meshData.textures;
+    std::vector<Material::Texture> textures = std::move(meshData.textures);
     for (Material::Texture& texture : textures)
     {
         const QString originalPath = QString::fromStdString(texture.path);
@@ -44,7 +45,7 @@ SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
         }
     }
 
-    Material resolvedMaterial = meshData.material;
+    Material resolvedMaterial = std::move(meshData.material);
     for (const Material::Texture& texture : textures)
     {
         const QString texturePath = QString::fromStdString(texture.path);
@@ -179,15 +180,26 @@ SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
     // (copy assignment operator doesn't call updateConsistency)
     resolvedMaterial.updateConsistency();
 
+    // OCC face remapping needs the pre-optimization arrays after SceneMesh's
+    // constructor has run. Preserve them only for that uncommon path; every
+    // other format transfers the conversion buffers without another copy.
+    std::vector<Vertex> occSourceVertices;
+    std::vector<unsigned int> occSourceIndices;
+    if (!meshData.precomputedOccFaceTriangleBounds.empty())
+    {
+        occSourceVertices = meshData.vertices;
+        occSourceIndices = meshData.indices;
+    }
+
     auto mesh = std::make_unique<SceneMesh>(shader,
-        meshData.name,
-        meshData.vertices,
-        meshData.indices,
-        textures,
-        resolvedMaterial,
+        std::move(meshData.name),
+        std::move(meshData.vertices),
+        std::move(meshData.indices),
+        std::move(textures),
+        std::move(resolvedMaterial),
         !meshData.morphTargets.isEmpty(),
         meshData.primitiveMode,
-        meshData.sourceMeshIds);
+        std::move(meshData.sourceMeshIds));
     mesh->setHasNegativeScale(meshData.hasNegativeScale);
     mesh->setSceneIndex(meshData.sceneIndex);
     mesh->setOriginalMaterialIndex(meshData.originalMaterialIndex);
@@ -234,9 +246,9 @@ SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
         // cylindrical/conical faces only (most CAD faces are flat/spline -
         // no need to carry those). `mesh` was just constructed above, and
         // its constructor already ran SceneMesh::optimizeMesh() (vertex-
-        // cache/overdraw/vertex-fetch reordering) - meshData.vertices/
-        // indices are the PRE-reorder arrays this table's indices are
-        // valid against, so re-identify each face's triangles by position
+        // cache/overdraw/vertex-fetch reordering) - occSourceVertices/
+        // occSourceIndices retain the PRE-reorder arrays this table's indices
+        // are valid against, so re-identify each face's triangles by position
         // in `mesh`'s own (possibly reordered) current triangle order
         // rather than trusting the table's indices directly (see
         // SceneMesh::remapOccFaceTriangleIndicesByPosition()'s doc comment).
@@ -257,7 +269,7 @@ SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
         {
             std::vector<int> remappedTriangleIndices, remappedFaceIndices;
             SceneMesh::remapOccFaceTriangleIndicesByPosition(
-                meshData.vertices, meshData.indices, srcTriangleIndices, srcFaceIndices,
+                occSourceVertices, occSourceIndices, srcTriangleIndices, srcFaceIndices,
                 mesh.get(), remappedTriangleIndices, remappedFaceIndices);
             mesh->setPrecomputedOccFaceAxes(remappedTriangleIndices, remappedFaceIndices, axes);
         }
