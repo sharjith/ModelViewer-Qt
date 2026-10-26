@@ -339,9 +339,9 @@ SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> 
 		_importState.setSourceMeshIds(std::move(initialSourceMeshIds));
 	//setAutoIncrName(name);
 	_name = std::move(name);
-	// Transfer the constructor payload into the live arrays. The required
-	// rest-pose copy is made after optimization, avoiding an extra full vertex
-	// array while meshoptimizer's temporary buffers are live.
+	// Transfer the constructor payload into the live arrays. A separate rest
+	// pose is allocated later only if setMorphTargets() receives actual morph
+	// data; ordinary rigid assembly meshes keep a single Vertex array.
 	_vertices = std::move(vertices);
 	_indices = std::move(indices);
 	_textures = std::move(textures);
@@ -354,7 +354,6 @@ SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> 
 
 	// Optimize the mesh (reorder indices and vertices for better vertex cache locality, overdraw, and vertex fetch)
 	optimizeMesh();
-	_baseVertices = _vertices;
 
 	// Now that we have all the required data, set the vertex buffers and its attribute pointers.
 	setupMesh();
@@ -381,9 +380,11 @@ SceneMesh::~SceneMesh()
 
 SceneMesh* SceneMesh::clone()
 {
-	// _baseVertices is exactly the array passed into the new constructor
-	// below, so this mesh's OWN current sourceMeshIds() (already aligned to
-	// _baseVertices' order, same invariant clone() relies on for OCC face
+	const std::vector<Vertex>& sourceVertices = restPoseVertices();
+	// sourceVertices is the unmorphed rest pose when one exists, otherwise the
+	// rigid mesh's live array. It is exactly the array passed into the new
+	// constructor below, so this mesh's OWN current sourceMeshIds() (already aligned to
+	// sourceVertices' order, same invariant clone() relies on for OCC face
 	// data) is the right "pre-optimization" SHAPE for the clone too - its own
 	// optimizeMesh() pass reorders it again in lockstep, same as any other
 	// freshly-constructed mesh. The VALUES, though, must NOT be copied
@@ -409,7 +410,7 @@ SceneMesh* SceneMesh::clone()
 			id = it->second;
 		}
 	}
-	SceneMesh* mesh = new SceneMesh(_prog, _name, _baseVertices, _indices, _textures, _material, _importState.skipOptimization(), getPrimitiveMode(), std::move(clonedSourceIds));
+	SceneMesh* mesh = new SceneMesh(_prog, _name, sourceVertices, _indices, _textures, _material, _importState.skipOptimization(), getPrimitiveMode(), std::move(clonedSourceIds));
 	mesh->setPrimitivePointSize(primitivePointSize());
 	mesh->setPrimitiveLineWidth(primitiveLineWidth());
 	mesh->setMorphTargets(_morphTargets, _defaultMorphWeights);
@@ -425,12 +426,12 @@ SceneMesh* SceneMesh::clone()
 		// same skipOptimization setting) isn't guaranteed to reorder
 		// triangles identically to this mesh's, even given the same input
 		// (see SceneMesh::remapOccFaceTriangleIndicesByPosition()'s doc
-		// comment). _baseVertices/_indices are exactly what was just
+		// comment). sourceVertices/_indices are exactly what was just
 		// passed into the clone's constructor above, so they're the
 		// correct "source" reference to re-match against.
 		std::vector<int> remappedTriangleIndices, remappedFaceIndices;
 		SceneMesh::remapOccFaceTriangleIndicesByPosition(
-			_baseVertices, _indices, _importState.occFaceTriangleIndices(), _importState.occFaceIndexPerTriangle(),
+			sourceVertices, _indices, _importState.occFaceTriangleIndices(), _importState.occFaceIndexPerTriangle(),
 			mesh, remappedTriangleIndices, remappedFaceIndices);
 		mesh->setPrecomputedOccFaceAxes(remappedTriangleIndices, remappedFaceIndices, _importState.occFaceAxes());
 	}
@@ -473,6 +474,7 @@ SceneMesh* SceneMesh::clone()
 
 SceneMesh* SceneMesh::extractFragment(const std::vector<int>& triangleIndices, const QString& fragmentName) const
 {
+	const std::vector<Vertex>& sourceVertices = restPoseVertices();
 	// Morph targets and precomputed OCC edge/face data are keyed to THIS
 	// mesh's FULL vertex/triangle index space (see setMorphTargets()'s and
 	// setPrecomputedOccEdges()'s/setPrecomputedOccFaceAxes()'s own doc
@@ -500,7 +502,7 @@ SceneMesh* SceneMesh::extractFragment(const std::vector<int>& triangleIndices, c
 			if (it == oldToNew.end())
 			{
 				newIdx = static_cast<unsigned int>(fragVertices.size());
-				fragVertices.push_back(_baseVertices[oldIdx]);
+				fragVertices.push_back(sourceVertices[oldIdx]);
 				oldToNew.emplace(oldIdx, newIdx);
 			}
 			else
@@ -4165,7 +4167,7 @@ vector<Vertex> SceneMesh::vertices() const
 
 vector<Vertex> SceneMesh::baseVertices() const
 {
-    return _baseVertices;
+    return restPoseVertices();
 }
 
 vector<unsigned int> SceneMesh::indices() const
@@ -4261,10 +4263,13 @@ void SceneMesh::setMeshData(const std::vector<Vertex>& vertices,
 	}
 
 	_vertices = vertices;
-	_baseVertices = vertices;
 	_indices = indices;
 	if (!remappedMorphTargets.isEmpty())
 		_morphTargets = std::move(remappedMorphTargets);
+	if (!_morphTargets.isEmpty())
+		_baseVertices = vertices;
+	else
+		std::vector<Vertex>().swap(_baseVertices);
 
 	// Re-upload to GPU (no optimization)
 	setupMesh();
@@ -4289,6 +4294,11 @@ void SceneMesh::setMorphTargets(const QVector<MorphTargetData>& targets,
 	_morphTargets = targets;
 	_defaultMorphWeights = defaultWeights;
 	_currentMorphWeights.clear();
+	if (_morphTargets.isEmpty())
+	{
+		std::vector<Vertex>().swap(_baseVertices);
+		return;
+	}
 	if (_baseVertices.empty())
 		_baseVertices = _vertices;
 

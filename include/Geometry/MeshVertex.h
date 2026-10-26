@@ -6,9 +6,9 @@
 #include <vector>
 
 // Interleaved per-vertex data used by SceneMesh for meshopt optimisation,
-// morph-target application, and GPU upload.  Stored as _vertices and
-// _baseVertices in SceneMesh; split into separate float arrays in
-// initBuffers() for the GPU buffers.
+// morph-target application, and GPU upload. Stored as _vertices in SceneMesh;
+// morph-target meshes additionally keep an unmorphed _baseVertices copy.
+// Split into separate float arrays in initBuffers() for the GPU buffers.
 struct Vertex
 {
 	// Vertex Color

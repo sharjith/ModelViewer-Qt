@@ -57,7 +57,8 @@ public:
 	// (empty) by every call site except SceneMesh::mergeMeshes() and clone()
 	// (when cloning an already-merged mesh) - stored BEFORE optimizeMesh() runs
 	// so its vertex-fetch reorder can permute this array in lockstep with
-	// _vertices, the same way _baseVertices is kept in sync.
+	// _vertices. Morph-target meshes keep a separate rest-pose array after
+	// construction; rigid and skin-only meshes use _vertices directly.
 	SceneMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Material::Texture> textures, Material material, bool skipOptimization = false, GLenum primitiveMode = GL_TRIANGLES, std::vector<quint64> initialSourceMeshIds = {});
 	~SceneMesh();
 	virtual SceneMesh* clone();
@@ -71,10 +72,9 @@ public:
 
     std::vector<Vertex> vertices() const;
 
-    // True unmorphed rest pose, snapshotted once at load (see applyMorphWeights()'s
-    // own doc comment) - distinct from vertices(), which reflects the current
-    // morph-blended (but not yet skinned) pose. Needed by RtSceneBuilder to feed
-    // GPU morph-blending its bind-pose input.
+	// True unmorphed rest pose for morph-target meshes (see
+	// applyMorphWeights()). Rigid and skin-only meshes do not allocate a second
+	// vertex array, so this returns their live vertices.
     std::vector<Vertex> baseVertices() const;
 
     std::vector<unsigned int> indices() const;
@@ -550,6 +550,10 @@ public:
 	
 private:
 	void optimizeMesh();
+	const std::vector<Vertex>& restPoseVertices() const
+	{
+		return _baseVertices.empty() ? _vertices : _baseVertices;
+	}
 	/*  Functions    */
 	// Initializes all the buffer objects/arrays
 	void setupMesh();
@@ -615,6 +619,9 @@ protected:
 
 	// ---- Interleaved CPU geometry (owned here until DeformableGeometry* composition) ---
 	std::vector<Vertex> _vertices;
+	// Allocated only for morph-target meshes, whose live vertices can diverge
+	// from the unmorphed rest pose. Empty for ordinary rigid and skin-only
+	// meshes; restPoseVertices() supplies the live-array fallback.
 	std::vector<Vertex> _baseVertices;
 
 	// ---- Interaction-time LOD1 hand-off ------------------------------------------
