@@ -1,6 +1,9 @@
 ﻿#include "AssImpModelLoader.h"
 
 #include "BRepToAssimpConverter.h"
+#include "ImportDiagnostics.h"
+#include <Standard_Failure.hxx>
+#include <new>
 #include "ThreeDXml/Importer.h"
 #include "MeshImportAdaptor.h"
 #include "SceneImportCounts.h"
@@ -914,7 +917,11 @@ AssImpMeshDataBatch AssImpModelLoader::getMeshes() const
 /*  Functions   */
 // Loads a model with supported ASSIMP extensions from file and stores the resulting meshes in the meshes vector.
 void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
+	try
 {	
+	_importStage = "worker.initialize";
+	_importSceneIndex = -1;
+	ImportDiagnostics::checkpoint(_importStage);
 	_progressiveLoading = progressiveLoading;
 	_loadingCancelled = false;
 	_errorMessage.clear();
@@ -980,7 +987,11 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			options.progress = [this](const QString&, int done, int total) {
 				emit fileReadProcessed(total ? float(done)/total : 0.0f);
 			};
+			_importStage = "worker.jt-read";
+			ImportDiagnostics::checkpoint(_importStage);
 			_jt = Jt::Importer::read(fi.absoluteFilePath(), options);
+			_importStage = "worker.jt-read-complete";
+			ImportDiagnostics::checkpoint(_importStage);
 			_scene = _jt.scene.get();
 			for (const QString& warning : _jt.warnings) qWarning().noquote() << warning;
 		} catch (const std::exception& e) {
@@ -1231,7 +1242,17 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	}
 
 	// Process ASSIMP's root node recursively	
+	_importStage = "worker.reserve-mesh-store";
+	ImportDiagnostics::checkpoint(_importStage, -1, 0, _totalMeshOccurrences);
+	if (_totalMeshOccurrences > 0)
+		_meshes.reserve(size_t(_totalMeshOccurrences));
+	if (_progressiveLoading)
+		_currentBatch.reserve(size_t(_batchSize));
+	_importStage = "worker.process-nodes";
+	ImportDiagnostics::checkpoint(_importStage, -1, 0, _totalMeshOccurrences);
 	this->processNode(0, _scene->mRootNode, _scene, aiMatrix4x4());
+	_importStage = "worker.nodes-complete";
+	ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
 
 	if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
 	{
@@ -1244,6 +1265,8 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	// Flush any remaining meshes in batch
 	if (!_currentBatch.empty())
 	{
+		_importStage = "worker.final-batch";
+		ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
 		emit meshBatchReady(std::move(_currentBatch));
 		_currentBatch.clear();
 	}
@@ -1290,16 +1313,37 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	}
 
 	// Emit lights for ViewportWidget to handle
+	_importStage = "worker.publish-result";
+	ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
 	emit lightsLoaded(parsedLights);
 	emit loadingFinished(true, _scene);
+}
+catch (const std::bad_alloc&) { failProcessing("Out of memory (std::bad_alloc)"); }
+catch (const Standard_Failure& e) { failProcessing(e.GetMessageString()); }
+catch (const std::exception& e) { failProcessing(e.what()); }
+catch (...) { failProcessing("Unknown C++ exception"); }
+
+void AssImpModelLoader::failProcessing(const char* reason)
+{
+	ImportDiagnostics::failure(_importStage, reason, _importSceneIndex, _processedMeshCount);
+	_currentBatch.clear();
+	_meshes.clear();
+	_errorMessage = QString("Model processing failed at %1; sceneIndex=%2; processed occurrences=%3: %4")
+		.arg(QString::fromLatin1(_importStage))
+		.arg(_importSceneIndex)
+		.arg(_processedMeshCount)
+		.arg(QString::fromUtf8(reason));
+	qCritical().noquote() << _errorMessage;
+	emit loadingFinished(false, nullptr);
 }
 
 
 // Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
 void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene* scene, const aiMatrix4x4& parentTransform)
 {
-	if (_loadingCancelled)
+	if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
 	{
+		_loadingCancelled=true;
 		emit loadingCancelled();
 		return;
 	}
@@ -1310,11 +1354,21 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 
 	for (unsigned int i = 0; i < node->mNumMeshes; i++)
 	{
+		if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
+		{
+			_loadingCancelled = true;
+			return;
+		}
 		aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];		
+		_importSceneIndex = int(node->mMeshes[i]);
+		_importStage = "worker.mesh-convert";
+		ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
 		AssImpMeshData myMesh = processMesh(mesh, scene, node->mMeshes[i], scene->mNumMeshes, globalTransform, node->mName.C_Str());
 
 		myMesh.initiallyVisible = !_threeDXml.hiddenNodes.contains(node) && !_jt.hiddenNodes.contains(node);
-		_meshes.push_back(myMesh);            // full mesh store
+		_importStage = "worker.mesh-store";
+		ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
+		_meshes.push_back(std::move(myMesh));
 		++_processedMeshCount;
 		emit nodeMeshProgressUpdated(
 			_processedNodeCount,
@@ -1326,9 +1380,13 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 
 		if (_progressiveLoading)
 		{
-			_currentBatch.push_back(myMesh);      // batch collection
+			_importStage = "worker.batch-copy";
+			ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
+			_currentBatch.push_back(_meshes.back());
 			if (_currentBatch.size() >= _batchSize)
 			{
+				_importStage = "worker.batch-handoff";
+				ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
 				emit meshBatchReady(std::move(_currentBatch));
 				_currentBatch.clear();
 			}

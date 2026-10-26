@@ -60,3 +60,7 @@ Remove-Item Env:MODELVIEWER_JT_BUDGET_GIB -ErrorAction SilentlyContinue
 ```
 
 The assignment affects processes started from that window; changing it in one shell does not update an already-running viewer or an independently launched process. Record process memory near failure as well as any complete guard diagnostic. No success for either larger trial is claimed. No new external source or asset was used for this original runtime-setting follow-up.
+
+## Owner result with 64 GiB override - 26 October 2026
+
+The owner reported JT reading completed with the 64 GiB cumulative setting. After processing more than 30,000 meshes, the application crashed. The last delivered ordinary log identified scene index 30,950 as stored; Windows reported `ucrtbase.dll` and `0xC0000409`. This records successful progress beyond the allocation guard and a separate subsequent application failure, not full assembly acceptance or proof that physical RAM/VRAM was sufficient. The production model, fast-fail subcode and crash dump remain unavailable. Reading completion does not by itself establish completion of mesh conversion, GUI handoff, tree construction or GPU upload. No second budget increase is made. The follow-up exception boundary and opt-in synchronous trace are recorded in [large-assembly post-decode crash diagnostics](JT_PRODUCTION_IMPORT_CRASH.md).

@@ -4,6 +4,7 @@
 #include "SceneMesh.h"
 
 #include <QString>
+#include <memory>
 
 SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
                                     QOpenGLShaderProgram* shader,
@@ -178,7 +179,7 @@ SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
     // (copy assignment operator doesn't call updateConsistency)
     resolvedMaterial.updateConsistency();
 
-    auto* mesh = new SceneMesh(shader,
+    auto mesh = std::make_unique<SceneMesh>(shader,
         meshData.name,
         meshData.vertices,
         meshData.indices,
@@ -257,7 +258,7 @@ SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
             std::vector<int> remappedTriangleIndices, remappedFaceIndices;
             SceneMesh::remapOccFaceTriangleIndicesByPosition(
                 meshData.vertices, meshData.indices, srcTriangleIndices, srcFaceIndices,
-                mesh, remappedTriangleIndices, remappedFaceIndices);
+                mesh.get(), remappedTriangleIndices, remappedFaceIndices);
             mesh->setPrecomputedOccFaceAxes(remappedTriangleIndices, remappedFaceIndices, axes);
         }
     }
@@ -273,5 +274,5 @@ SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
     mesh->invertOpacityADSMap(runtimeResolved.isOpacityMapInverted());
     mesh->invertOpacityPBRMap(runtimeResolved.isOpacityMapInverted());
 
-    return mesh;
+    return mesh.release();
 }

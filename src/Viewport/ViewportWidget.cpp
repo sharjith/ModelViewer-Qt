@@ -1,6 +1,9 @@
 ﻿#include "TextureMipChain.h"
 
 #include "AssImpMeshBuilder.h"
+#include "ImportDiagnostics.h"
+#include <Standard_Failure.hxx>
+#include <new>
 #include <QScopeGuard>
 #include "ClippingPlanesEditor.h"
 #include "ExplodedViewPanel.h"
@@ -5386,6 +5389,8 @@ void ViewportWidget::centerScreen(std::vector<int> selectedIDs)
 
 bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading)
 {
+	ImportDiagnostics::begin();
+	ImportDiagnostics::checkpoint("viewer.import-begin");
 	SceneNode* importedFileNode = nullptr;
 	_sceneRuntime.setProgressiveLoadingEnabled(progressiveLoading);
 	_sceneRuntime.setCancelRequested(false);
@@ -5436,6 +5441,14 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 		QEventLoop waitLoop;
 		QThread loadingThread;
 		bool loadingCompleted = false;
+		bool batchFailed = false;
+		QString batchFailure;
+		auto reportBatchFailure = [&](const char* reason) {
+			ImportDiagnostics::failure("viewer.mesh-batch", reason);
+			batchFailed = true;
+			batchFailure = QString::fromUtf8(reason);
+			MainWindow::requestFileLoadCancel();
+		};
 
 		QMetaObject::Connection finishedConnection = connect(
 			loadingWorker,
@@ -5499,7 +5512,15 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 			loadingWorker,
 			&AssImpModelLoader::meshBatchReady,
 			this,
-			&ViewportWidget::onMeshBatchReady,
+			[this, &batchFailed, &reportBatchFailure](const AssImpMeshDataBatch& batch) {
+				if (batchFailed)
+					return;
+				try { onMeshBatchReady(batch); }
+				catch (const std::bad_alloc&) { reportBatchFailure("Out of memory (std::bad_alloc) creating viewer meshes"); }
+				catch (const Standard_Failure& e) { reportBatchFailure(e.GetMessageString()); }
+				catch (const std::exception& e) { reportBatchFailure(e.what()); }
+				catch (...) { reportBatchFailure("Unknown C++ exception creating viewer meshes"); }
+			},
 			Qt::BlockingQueuedConnection);
 
 		QMetaObject::Connection cancelRequestConnection = connect(
@@ -5533,6 +5554,7 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 
 		loadingThread.quit();
 		loadingThread.wait();
+		ImportDiagnostics::checkpoint("viewer.worker-joined");
 
 		if (!loadingCompleted)
 		{
@@ -5544,9 +5566,25 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 		}
 
 		makeCurrent();
-		std::vector<AssImpMeshData> meshes = loadingWorker->getMeshes();
-		const bool rollbackNativeCad = isNativeCadImport && (!success || _sceneRuntime.loadCancelled());
-		if (rollbackNativeCad) {
+		ImportDiagnostics::checkpoint("viewer.take-meshes");
+		AssImpMeshDataBatch meshes = loadingWorker->takeMeshes();
+		ImportDiagnostics::checkpoint("viewer.meshes-transferred", -1, meshes.size(), meshes.size());
+		if (success && !_sceneRuntime.loadCancelled() && !progressiveLoading)
+		{
+			try { onMeshBatchReady(meshes); }
+			catch (const std::bad_alloc&) { reportBatchFailure("Out of memory (std::bad_alloc) creating viewer meshes"); }
+			catch (const Standard_Failure& e) { reportBatchFailure(e.GetMessageString()); }
+			catch (const std::exception& e) { reportBatchFailure(e.what()); }
+			catch (...) { reportBatchFailure("Unknown C++ exception creating viewer meshes"); }
+		}
+		if (batchFailed)
+		{
+			success = false;
+			error = QString("Viewer mesh creation failed: %1").arg(batchFailure);
+			_sceneRuntime.setLoadCancelled(false);
+		}
+		const bool rollbackImport = batchFailed || (isNativeCadImport && (!success || _sceneRuntime.loadCancelled()));
+		if (rollbackImport) {
 			// A native archive import is atomic: never attach a complete hierarchy
 			// to only the progressive batches that happened to arrive before Cancel.
 			_sceneRuntime.pendingSceneUuids().clear();
@@ -5571,23 +5609,9 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 		else
 		{
 			success = true;
-			if (!_sceneRuntime.progressiveLoadingEnabled())
-			{
-				for (const AssImpMeshData& meshData : meshes)
-				{
-					SceneMesh* mesh = createMeshFromData(meshData);
-					addToDisplay(mesh);
-					if (!meshData.initiallyVisible) {
-						_initiallyHiddenImportMeshes.insert(mesh->uuid());
-						_sceneRuntime.displayedObjectsIds().pop_back();
-						_sceneRuntime.hiddenObjectsIds().push_back(static_cast<int>(_sceneRuntime.meshStore().size()-1));
-					}
-					_sceneRuntime.pendingSceneUuids().append(mesh->uuid());
-				}
-			}
 		}
 
-		_sceneRuntime.setAssimpScene(rollbackNativeCad ? nullptr : loadingWorker->getScene());
+		_sceneRuntime.setAssimpScene(rollbackImport || !success ? nullptr : loadingWorker->getScene());
 		_sceneRuntime.globalSceneTransform() = loadingWorker->getGlobalSceneTransform();
 		const bool autoOrientCameraEnabled = loadingWorker->isAutoOrientActive();
 		const SceneUpAxis sceneUpAxis = loadingWorker->sceneUpAxis();
@@ -5597,12 +5621,14 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 			// while the original aiNode* tree is still intact and unmodified.
 			if (success && !_sceneRuntime.pendingSceneUuids().isEmpty())
 			{
+				ImportDiagnostics::checkpoint("viewer.scene-graph-begin", -1, meshes.size());
 				_viewer->sceneGraph()->appendFromScene(
 					_sceneRuntime.assimpScene(), fileName, _sceneRuntime.pendingSceneUuids(),
 					SceneUtils::glmToAiMatrix(_sceneRuntime.globalSceneTransform()),
 					loadingWorker->wasAutoOrientApplied(),
 					loadingWorker->wasAutoScaleApplied());
 				importedFileNode = _viewer->sceneGraph()->root()->children.last();
+				ImportDiagnostics::checkpoint("viewer.scene-graph-end");
 				if (loadingWorker->hasThreeDXmlScene()) {
 					// Use the just-appended import, including when this file was imported before.
 					SceneNode* fileNode = _viewer->sceneGraph()->root()->children.last();
@@ -5666,8 +5692,12 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 			const unsigned int oldMeshCount =
 				_sceneRuntime.globalScene() ? _sceneRuntime.globalScene()->mNumMeshes : 0u;
 
+			ImportDiagnostics::checkpoint("viewer.scene-copy-begin");
 			aiScene* copiedScene = SceneUtils::deepCopyScene(_sceneRuntime.assimpScene());
+			ImportDiagnostics::checkpoint("viewer.scene-copy-end");
+			ImportDiagnostics::checkpoint("viewer.scene-merge-begin");
 			SceneUtils::mergeScene(&_sceneRuntime.globalScene(), copiedScene);
+			ImportDiagnostics::checkpoint("viewer.scene-merge-end");
 
 			// Offset the sceneIndices of the meshes that were just added.
 			// They are the last meshes.size() entries in _sceneRuntime.meshStore() because
@@ -5749,6 +5779,7 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 	MainWindow::setLoadingUiLocked(false);
 	_sceneRuntime.setCancelRequested(false);
 
+	ImportDiagnostics::checkpoint("viewer.import-end", -1, success ? 1 : 0);
 	return success;
 }
 
@@ -13103,7 +13134,10 @@ void ViewportWidget::buildBoxClipPlanes(const QVector3D& pos, QVector4D out[6])
 
 SceneMesh* ViewportWidget::createMeshFromData(const AssImpMeshData& meshData)
 {
-	return AssImpMeshBuilder::build(meshData, _renderCtrl.fgShader(), this);
+	ImportDiagnostics::checkpoint("viewer.create-mesh-begin",meshData.sceneIndex);
+	auto* mesh = AssImpMeshBuilder::build(meshData, _renderCtrl.fgShader(), this);
+	ImportDiagnostics::checkpoint("viewer.create-mesh-end",meshData.sceneIndex);
+	return mesh;
 }
 
 void ViewportWidget::syncFileNodeTransforms(const QString& sourceFile)
@@ -14524,11 +14558,16 @@ void ViewportWidget::applyAnimationPose(const QString& sourceFile, int clipIndex
 
 void ViewportWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
 {
+	ImportDiagnostics::checkpoint("viewer.batch-begin", -1, batch.size());
 	makeCurrent();
 	for (const AssImpMeshData& meshData : batch)
 	{
-		SceneMesh* mesh = createMeshFromData(meshData);
+		std::unique_ptr<SceneMesh> pendingMesh(createMeshFromData(meshData));
+		SceneMesh* mesh = pendingMesh.get();
+		ImportDiagnostics::checkpoint("viewer.attach-mesh-begin", meshData.sceneIndex);
 		addToDisplay(mesh);
+		pendingMesh.release();
+		ImportDiagnostics::checkpoint("viewer.attach-mesh-end", meshData.sceneIndex);
 		if (!meshData.initiallyVisible) {
 			_initiallyHiddenImportMeshes.insert(mesh->uuid());
 			_sceneRuntime.displayedObjectsIds().pop_back();
@@ -14551,6 +14590,7 @@ void ViewportWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
 	// anything.
 	if (_sceneRuntime.progressiveLoadingEnabled())
 		QApplication::processEvents();
+	ImportDiagnostics::checkpoint("viewer.batch-end", -1, batch.size());
 }
 
 UVMethod ViewportWidget::promptLargeModelUVDecision(int totalTriangles, UVMethod currentMethod)

@@ -5,6 +5,7 @@
 #include <map>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "SceneMesh.h"
@@ -206,6 +207,8 @@ public:
 	void loadModel(std::string path, const bool& progressiveLoading = false);
 
 	AssImpMeshDataBatch getMeshes() const;
+	// Transfer after the worker has stopped; avoid copying every geometry buffer.
+	AssImpMeshDataBatch takeMeshes() { return std::move(_meshes); }
 
 	glm::mat4 getGlobalSceneTransform() const { return _appliedTransform; }
 
@@ -261,6 +264,9 @@ public slots:
 	void cancelLoading();
 
 private:
+	void failProcessing(const char* reason);
+	const char* _importStage = "idle";
+	int _importSceneIndex = -1;
 	// Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
 	void processNode(int nodeNum, aiNode* node, const aiScene* scene, const aiMatrix4x4& parentTransform);
 

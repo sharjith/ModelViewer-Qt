@@ -209,7 +209,17 @@ int SceneRuntime::addMeshToDisplay(SceneMesh* mesh)
 
 	_meshStore.push_back({ mesh, mesh->uuid() });
 	const int index = static_cast<int>(_meshStore.size() - 1);
-	_displayedObjectsIds.push_back(index);
+	try
+	{
+		_displayedObjectsIds.push_back(index);
+	}
+	catch (...)
+	{
+		// Ownership transfers only after both containers accept the mesh.  This
+		// keeps callers free to destroy it when an allocation fails here.
+		_meshStore.pop_back();
+		throw;
+	}
 	return index;
 }
 
