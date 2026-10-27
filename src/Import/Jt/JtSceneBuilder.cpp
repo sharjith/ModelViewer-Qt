@@ -1764,14 +1764,17 @@ struct PartMerger {
     // Instances of one part build identical pieces, so they share the merged mesh.
     std::map<std::vector<std::pair<unsigned,std::array<float,16>>>,unsigned> merged;
     unsigned mergedParts=0,pieceCount=0,mergedCount=0;
-    bool mergeable(unsigned id,const aiMatrix4x4& matrix) const {
-        if(id>=meshes.size()||!meshes[id])return false;
+    // What the pass saw, reported so a run that merges nothing still says why.
+    unsigned leafParts=0,assemblyParts=0,leafPartsWithMeshes=0,slots=0,candidates=0,groupCount=0,multiGroups=0,rejectedHidden=0,rejectedLayout=0,rejectedMirrored=0;
+    // 0 = can be merged, 1 = mesh layout not supported, 2 = mirrored or non-finite frame
+    int reject(unsigned id,const aiMatrix4x4& matrix) const {
+        if(id>=meshes.size()||!meshes[id])return 1;
         const aiMesh& m=*meshes[id];
-        if(!m.mNumVertices||!m.mNumFaces||!m.HasNormals()||m.HasTangentsAndBitangents()||m.mNumBones||m.mNumAnimMeshes||m.HasVertexColors(1))return false;
-        if(m.mPrimitiveTypes!=aiPrimitiveType_TRIANGLE)return false;
-        for(unsigned r=0;r<4;++r)for(unsigned c=0;c<4;++c)if(!std::isfinite(matrix[r][c]))return false;
+        if(!m.mNumVertices||!m.mNumFaces||!m.HasNormals()||m.HasTangentsAndBitangents()||m.mNumBones||m.mNumAnimMeshes||m.HasVertexColors(1))return 1;
+        if(m.mPrimitiveTypes!=aiPrimitiveType_TRIANGLE)return 1;
+        for(unsigned r=0;r<4;++r)for(unsigned c=0;c<4;++c)if(!std::isfinite(matrix[r][c]))return 2;
         const auto det=matrix.Determinant(); // a mirrored frame would flip the winding once baked
-        return std::isfinite(det)&&det>0;
+        return std::isfinite(det)&&det>0?0:2;
     }
     // Returns true when the node is empty after its pieces were taken and must be removed.
     bool prune(aiNode* node,const std::set<const aiNode*>& touched) {
@@ -1792,8 +1795,14 @@ struct PartMerger {
         std::vector<Entry> entries;
         const std::function<void(aiNode*,const aiMatrix4x4&)> collect=[&](aiNode* node,const aiMatrix4x4& matrix){
             options.check();
-            if(!hidden.contains(node))
-                for(unsigned slot=0;slot<node->mNumMeshes;++slot)if(mergeable(node->mMeshes[slot],matrix))entries.push_back({node,slot,node->mMeshes[slot],matrix});
+            slots+=node->mNumMeshes;
+            if(hidden.contains(node))rejectedHidden+=node->mNumMeshes;
+            else for(unsigned slot=0;slot<node->mNumMeshes;++slot) {
+                const int why=reject(node->mMeshes[slot],matrix);
+                if(why==0){entries.push_back({node,slot,node->mMeshes[slot],matrix});++candidates;}
+                else if(why==1)++rejectedLayout;
+                else ++rejectedMirrored;
+            }
             for(unsigned i=0;i<node->mNumChildren;++i)collect(node->mChildren[i],matrix*node->mChildren[i]->mTransformation);
         };
         collect(part,aiMatrix4x4());
@@ -1806,8 +1815,11 @@ struct PartMerger {
             groups[Key{m.mMaterialIndex,m.HasVertexColors(0),uv}].push_back(i);
         }
         std::map<aiNode*,std::set<unsigned>> taken;std::vector<unsigned> attach;
+        if(!entries.empty())++leafPartsWithMeshes;
+        groupCount+=unsigned(groups.size());
         for(const auto& group:groups) {
             if(group.second.size()<2)continue;
+            ++multiGroups;
             std::vector<std::pair<unsigned,std::array<float,16>>> key;std::vector<MergePiece> pieces;
             for(size_t i:group.second) {
                 const auto& e=entries[i];std::array<float,16> flat;
@@ -1850,6 +1862,7 @@ struct PartMerger {
         options.check();bool nested=false;
         for(unsigned i=0;i<node->mNumChildren;++i)if(visit(node->mChildren[i]))nested=true;
         const bool isPart=parts.count(node)!=0;
+        if(isPart)++(nested?assemblyParts:leafParts);
         if(isPart&&!nested)mergePart(node);
         return isPart||nested;
     }
@@ -1884,6 +1897,10 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
         PartMerger merger{options,b.meshes,b.result.hiddenNodes,{}};
         merger.parts.insert(b.partNodes.begin(),b.partNodes.end());
         merger.visit(tree.get());
+        b.result.warnings.append(QStringLiteral("JT part merge check: %1 Part nodes (%2 leaf, %3 holding other Parts); %4 mesh slots in leaf parts, %5 mergeable "
+            "(not mergeable: %6 hidden, %7 unsupported layout, %8 mirrored); %9 groups, %10 with several meshes.")
+            .arg(b.partNodes.size()).arg(merger.leafParts).arg(merger.assemblyParts).arg(merger.slots).arg(merger.candidates)
+            .arg(merger.rejectedHidden).arg(merger.rejectedLayout).arg(merger.rejectedMirrored).arg(merger.groupCount).arg(merger.multiGroups));
         if(merger.mergedParts) {
             merger.compact(tree.get());
             b.result.warnings.append(QStringLiteral("JT part meshes merged: %1 meshes became %2 in %3 parts (the shape nodes below a part are not kept; MODELVIEWER_JT_MERGE_PART_MESHES=0 turns this off).")
