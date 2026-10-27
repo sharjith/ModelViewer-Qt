@@ -992,7 +992,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			_importStage = "worker.jt-read-complete";
 			ImportDiagnostics::checkpoint(_importStage);
 			_scene = _jt.scene.get();
-			for (const QString& warning : _jt.warnings) qWarning().noquote() << warning;
+			for (const QString& warning : _jt.warnings + _jt.notes) qWarning().noquote() << warning;
 		} catch (const std::exception& e) {
 			_errorMessage = QString::fromUtf8(e.what());
 			if (_loadingCancelled || MainWindow::isFileLoadCancelRequested()) {

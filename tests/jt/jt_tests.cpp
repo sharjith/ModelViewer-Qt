@@ -27,7 +27,7 @@ void jt107108FixtureFiles(const QString& folder);
 void jt105FixtureFiles(const QString& folder);
 void jt90FixtureFiles(const QString& folder);
 void jt95FixtureFiles(const QString& folder);
-void solidEdgeMaterialCompatibilityTests();
+void duplicateMaterialCompatibilityTests();
 void paletteTests();
 void paletteFixtureFiles(const QString& folder);
 void modernAttributeTests();
@@ -283,7 +283,7 @@ void samples(const QString& dir) {
 }
 int main(int argc,char** argv) {
     QCoreApplication app(argc,argv);
-    try {allocationBudgetTests();codecTests();colorStreamTests();uvTests();coordinateTests();quantizedColourTests();jt9ColourTests();attributeTests();sceneTests();containerTests({});legacyTests();huffmanTests();arithmeticCountTests();quantizedTests();modernAttributeTests();paletteTests();solidEdgeMaterialCompatibilityTests();jt95Tests();
+    try {allocationBudgetTests();codecTests();colorStreamTests();uvTests();coordinateTests();quantizedColourTests();jt9ColourTests();attributeTests();sceneTests();containerTests({});legacyTests();huffmanTests();arithmeticCountTests();quantizedTests();modernAttributeTests();paletteTests();duplicateMaterialCompatibilityTests();jt95Tests();
         textureTests();
         textureTransformTests();
         texturePlanarTests();

@@ -60,7 +60,7 @@ aiColor4D colour(const aiScene& s,unsigned mesh){aiColor4D c;check(s.mMaterials[
 void checkPaletteUV(const aiScene& scene){
  for(unsigned m=0;m<scene.mNumMeshes;++m){const auto& mesh=*scene.mMeshes[m];for(unsigned c=0;c<4;++c){check(mesh.HasTextureCoords(c),"Palette subset lost UV channel");for(unsigned i=0;i<mesh.mNumVertices;++i)check(mesh.mTextureCoords[c][i]==aiVector3D(mesh.mVertices[i].x*float(c+1),mesh.mVertices[i].y+float(c),0),"Palette subset remapped UV incorrectly");}}
 }
-void solidEdgeMaterialCompatibilityTests(){
+void duplicateMaterialCompatibilityTests(){
  QTemporaryDir tmp;const auto path=tmp.filePath("source.jt");
  struct Text:JtProperty_String {Text(const char* value){myValue=TCollection_ExtendedString(value);}};
  const auto author=[](JtNode_Base& node,const char* value){node.BindProperty(1,2,new Text("CAD_SOURCE::"),new Text(value));};
@@ -84,7 +84,7 @@ void solidEdgeMaterialCompatibilityTests(){
   if(kind==9)shape->attrs({first,second,new Material(-1,blue)});
   if(kind==10)r->attrs({new Mapping({-1,-1,-1})});
   if(kind==11)r->attrs({new Material(0,blue)});
-  Jt::Options options;options.solidEdgeDuplicateMaterialCompatibility=kind!=5;
+  Jt::Options options;options.duplicateFallbackMaterialCompatibility=kind!=5;
   const auto result=Jt::Detail::buildScene(r,path,options);const auto occ=occurrences(*result.scene);
   check(!occ.empty(),"Source compatibility discarded geometry");
   const auto expected=kind==0||kind==8?red:kind==9?blue:green;
@@ -98,7 +98,7 @@ void solidEdgeMaterialCompatibilityTests(){
   r->children({a,b});const auto result=Jt::Detail::buildScene(r,path,{});checkPaletteUV(*result.scene);const auto occ=occurrences(*result.scene);
   check(occ.size()==2&&colour(*result.scene,occ[0].mesh)==red&&colour(*result.scene,occ[1].mesh)==green,"Source author profile leaked across sibling branches");}
  }
- std::cout<<"Solid Edge 10.5/10.7/10.8/10.9/10.10 duplicate-material profile, opt-out, writer/author/flag/palette guards and sibling isolation passed\n";
+ std::cout<<"Qualified-writer 10.5/10.7/10.8/10.9/10.10 duplicate-material profile, opt-out, writer/author/flag/palette guards and sibling isolation passed\n";
 }
 void paletteTests(){
  QTemporaryDir tmp;const auto path=tmp.filePath("assembly.jt");

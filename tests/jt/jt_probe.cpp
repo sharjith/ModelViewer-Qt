@@ -41,7 +41,7 @@ int main(int argc,char** argv) {
     const QCommandLineOption eye("eye","Import-time RangeLOD eye position in JT world coordinates / source units","x,y,z");
     const QCommandLineOption properties("properties","Print supported JT node metadata as JSON");
     const QCommandLineOption materials("materials","Print resolved JT material/style fields as JSON");
-    const QCommandLineOption publishedMaterials("published-material-order","Disable the narrow Solid Edge duplicate-material compatibility profile");
+    const QCommandLineOption publishedMaterials("published-material-order","Disable the narrow duplicate-material writer compatibility profile");
     const QCommandLineOption sourceAttributes("source-attributes","Print unaccumulated attributes in the input file graph; external partitions are not followed");
     const QCommandLineOption validate("validate","Check geometry, stored-normal lengths and node transforms; print local mesh bounds");
     const QCommandLineOption budget("allocation-budget-mib","Override cumulative charged-allocation budget for native diagnostics","MiB");
@@ -50,7 +50,7 @@ int main(int argc,char** argv) {
     const auto arguments=parser.positionalArguments();
     if(arguments.size()<1 || arguments.size()>2) parser.showHelp(2);
     try {
-        Jt::Options options;options.solidEdgeDuplicateMaterialCompatibility=!parser.isSet(publishedMaterials);
+        Jt::Options options;options.duplicateFallbackMaterialCompatibility=!parser.isSet(publishedMaterials);
         if(parser.isSet(budget)){bool ok=false;const auto mib=parser.value(budget).toULongLong(&ok);if(!ok||!mib||mib>std::numeric_limits<size_t>::max()/(1024*1024))throw std::runtime_error("Invalid allocation budget");options.decodedAllocationBudget=size_t(mib)*1024*1024;}
         size_t charged=0;options.progress=[&](const QString&,int,int){charged=JtData_Limits::allocated;};
         if(parser.isSet(eye)) {

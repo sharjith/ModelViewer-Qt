@@ -22,9 +22,9 @@ struct Options {
     size_t decodedAllocationBudget=size_t(16)*1024*1024*1024;
     std::function<bool()> cancelled;
     std::function<void(const QString&,int,int)> progress;
-    // Match the measured Solid Edge DM 10.8.0.1 / JT 10.5, 10.7-10.10 duplicate
+    // Match the measured exporter profile (DM 10.8.0.1 / JT 10.5, 10.7-10.10) duplicate
     // fallback-material convention. False retains published list order.
-    bool solidEdgeDuplicateMaterialCompatibility=true;
+    bool duplicateFallbackMaterialCompatibility=true;
     // Optional independently licensed XT backend. Empty in the native mesh-only build.
     std::function<TopoDS_Shape(const QByteArray&)> exactDecoder;
     // Optional import-time eye position in JT world coordinates / source units.
@@ -55,6 +55,8 @@ struct Options {
 struct ImportResult {
     std::unique_ptr<aiScene> scene;
     QStringList warnings;
+    // Informational report of the part-mesh merge (counts, per-part provenance); shown with the warnings, not counted as one.
+    QStringList notes;
     QSet<const aiNode*> hiddenNodes;
     std::vector<TopoDS_Shape> exactShapes;
     unsigned storedMeshes=0, exactParts=0, fallbackParts=0;

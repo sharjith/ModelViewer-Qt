@@ -333,24 +333,25 @@ struct Appearance {
     }
 };
 struct MaterialSourceContext {
-    bool qualifiedSolidEdgeWriter=false;
-    bool solidEdgeAuthor=false;
+    bool qualifiedWriter=false;
+    bool qualifiedAuthor=false;
 };
 // This is a measured exporter compatibility profile, not JT list-order semantics.
 // Keep it limited to the tested file/writer pairs and explicit author metadata.
 MaterialSourceContext materialSourceContext(const QString& path,const Options& options) {
     MaterialSourceContext context;
-    if(!options.solidEdgeDuplicateMaterialCompatibility)return context;
+    if(!options.duplicateFallbackMaterialCompatibility)return context;
     QFile file(path);if(!file.open(QIODevice::ReadOnly))return context;
     const auto header=file.read(80).trimmed().simplified();
-    context.qualifiedSolidEdgeWriter=header=="Version 10.9 JT DM 10.8.0.1"
+    context.qualifiedWriter=header=="Version 10.9 JT DM 10.8.0.1"
         ||header=="Version 10.5 JT ISO14306-4 DM 10.8.0.1"
         ||header=="Version 10.7 JT DM 10.8.0.1"
         ||header=="Version 10.8 JT DM 10.8.0.1"
         ||header=="Version 10.10 JT DM 10.8.0.1";
     return context;
 }
-bool solidEdgeAuthor(const JtNode_Base& node) {
+// The CAD_SOURCE value is file data: the exact string the qualified exporter writes, matched as-is.
+bool qualifiedAuthor(const JtNode_Base& node) {
     for(const auto& property:node.Properties()) {
         const auto key=Handle(JtProperty_String)::DownCast(property.key);
         const auto value=Handle(JtProperty_String)::DownCast(property.value);
@@ -1386,10 +1387,10 @@ struct Builder {
         if(source.IsNull()) throw std::runtime_error("Unsupported required JT graph node");
         const bool hidden=parentHidden || source->Ignored();
         const auto name=nameOf(source);const auto label=name.isEmpty()?QStringLiteral("Unnamed JT node"):name;auto node=std::make_unique<aiNode>();node->mName=aiString(name.toUtf8().constData());
-        if(materialSource.qualifiedSolidEdgeWriter&&!materialSource.solidEdgeAuthor)
-            materialSource.solidEdgeAuthor=solidEdgeAuthor(*source);
+        if(materialSource.qualifiedWriter&&!materialSource.qualifiedAuthor)
+            materialSource.qualifiedAuthor=qualifiedAuthor(*source);
         const JtAttribute_Material* skipMaterial=nullptr;
-        if(materialSource.qualifiedSolidEdgeWriter&&materialSource.solidEdgeAuthor
+        if(materialSource.qualifiedWriter&&materialSource.qualifiedAuthor
            &&palette.mapping.IsNull()&&palette.entries->empty()&&!Handle(JtNode_Shape_Base)::DownCast(object).IsNull()) {
             const JtAttribute_Material* secondMaterial=nullptr;
             unsigned materialCount=0;
@@ -1401,7 +1402,7 @@ struct Builder {
             }
             if(ordinary&&materialCount==2) {
                 skipMaterial=secondMaterial;
-                result.warnings.append(label+": Solid Edge duplicate fallback materials: using first material (compatibility profile)");
+                result.warnings.append(label+": duplicate fallback materials: using first material (writer compatibility profile)");
             }
         }
         for(size_t i=0;i<source->Attributes().Count();++i) {
@@ -1941,15 +1942,15 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
         PartMerger merger{options,b.meshes,b.result.hiddenNodes,b,{}};
         merger.parts.insert(b.partNodes.begin(),b.partNodes.end());
         merger.visit(tree.get());
-        b.result.warnings.append(QStringLiteral("JT part merge check: %1 Part nodes (%2 leaf, %3 holding other Parts); %4 mesh slots in leaf parts, %5 mergeable "
+        b.result.notes.append(QStringLiteral("JT part merge check: %1 Part nodes (%2 leaf, %3 holding other Parts); %4 mesh slots in leaf parts, %5 mergeable "
             "(not mergeable: %6 hidden, %7 unsupported layout, %8 mirrored); %9 groups, %10 with several meshes; %11 parts keep more than one mesh.")
             .arg(b.partNodes.size()).arg(merger.leafParts).arg(merger.assemblyParts).arg(merger.meshSlots).arg(merger.candidates)
             .arg(merger.rejectedHidden).arg(merger.rejectedLayout).arg(merger.rejectedMirrored).arg(merger.groupCount).arg(merger.multiGroups).arg(merger.partsLeftSplit));
-        for(const QString& line:merger.provenance)b.result.warnings.append(line);
-        if(merger.provenanceSkipped)b.result.warnings.append(QStringLiteral("JT part merge check: %1 more parts with several meshes are not listed.").arg(merger.provenanceSkipped));
+        for(const QString& line:merger.provenance)b.result.notes.append(line);
+        if(merger.provenanceSkipped)b.result.notes.append(QStringLiteral("JT part merge check: %1 more parts with several meshes are not listed.").arg(merger.provenanceSkipped));
         if(merger.mergedParts) {
             merger.compact(tree.get());
-            b.result.warnings.append(QStringLiteral("JT part meshes merged: %1 meshes became %2 in %3 parts (the shape nodes below a part are not kept; MODELVIEWER_JT_MERGE_PART_MESHES=0 turns this off).")
+            b.result.notes.append(QStringLiteral("JT part meshes merged: %1 meshes became %2 in %3 parts (the shape nodes below a part are not kept; MODELVIEWER_JT_MERGE_PART_MESHES=0 turns this off).")
                 .arg(before).arg(b.meshes.size()).arg(merger.mergedParts));
         }
     }
