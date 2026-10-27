@@ -179,6 +179,16 @@ public:
 	// Called by XCAFDocProcessor::initializeDocumentProcessing() before each new file load.
 	static void clearColorCache();
 
+	// A converted part (sub-scene) copied together with the per-mesh OCC edge and face tables, which are keyed by mesh address, so
+	// a definition converted once can serve every instance of it. discardConverted() deletes a copy kept as a master and drops
+	// its table entries (their keys are addresses that would otherwise be reused).
+	static aiScene* cloneConverted(const aiScene* source);
+	static void discardConverted(aiScene* master);
+	// Names the meshes and root node of a converted part from its definition and instance labels (what convert() always did).
+	static void nameConvertedScene(aiScene* scene, const TDF_Label& defLabel, const TDF_Label& instanceLabel, const std::string& name);
+	// True when part colours come from the STEP colour map, i.e. do not depend on the instance label.
+	static bool stepColourMapActive() { return !s_stepColorMap.empty(); }
+
 	// Stores the STEP-entity colour map built by XCAFSTEPProcessor::buildStepColorMap().
 	// Must be called after reader.Transfer() and before any convert() call.
 	static void setStepColorMap(const StepColorMap& map);

@@ -1,6 +1,7 @@
 ﻿#include "BRepToAssimpConverter.h"
 #include "MainWindow.h"
 #include "FaceFallbackTriangulator.h"
+#include "SceneUtils.h"
 #include <algorithm>
 #include <QCoreApplication>
 #include <QDebug>
@@ -32,6 +33,8 @@
 #include <ShapeFix_Wire.hxx>
 #include <TDataStd_Name.hxx>
 #include <TDF_ChildIterator.hxx>
+#include <TCollection_AsciiString.hxx>
+#include <TDF_Tool.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
@@ -514,6 +517,34 @@ aiScene* BRepToAssimpConverter::convert(
 		}
 	}
 
+	// Set up scene
+	scene->mNumMeshes = meshes.size();
+	scene->mMeshes = new aiMesh * [meshes.size()];
+	for (size_t i = 0; i < meshes.size(); ++i)
+	{
+		scene->mMeshes[i] = meshes[i];
+	}
+
+	scene->mRootNode->mNumMeshes = meshes.size();
+	scene->mRootNode->mMeshes = new unsigned int[meshes.size()];
+	for (size_t i = 0; i < meshes.size(); ++i)
+	{
+		scene->mRootNode->mMeshes[i] = i;
+	}
+
+	scene->mNumMaterials = materials.size();
+	scene->mMaterials = new aiMaterial * [materials.size()];
+	for (size_t i = 0; i < materials.size(); ++i)
+	{
+		scene->mMaterials[i] = materials[i];
+	}
+
+	nameConvertedScene(scene, defLabel, instanceLabel, name);
+	return scene;
+}
+
+void BRepToAssimpConverter::nameConvertedScene(aiScene* scene, const TDF_Label& defLabel, const TDF_Label& instanceLabel, const std::string& name)
+{
 	// Extract actual part name
 	std::string actualPartName = name;
 	Handle(TDataStd_Name) nameAttr;
@@ -539,48 +570,58 @@ aiScene* BRepToAssimpConverter::convert(
 	}
 
 	// Fix mesh names
-	for (size_t i = 0; i < meshes.size(); ++i)
+	for (size_t i = 0; i < static_cast<size_t>(scene->mNumMeshes); ++i)
 	{
-		if (meshes.size() == 1)
+		if (static_cast<size_t>(scene->mNumMeshes) == 1)
 		{
-			meshes[i]->mName = aiString(actualPartName);
+			scene->mMeshes[i]->mName = aiString(actualPartName);
 		}
 		else
 		{
-			meshes[i]->mName = aiString(actualPartName + "_" + std::to_string(i + 1));
+			scene->mMeshes[i]->mName = aiString(actualPartName + "_" + std::to_string(i + 1));
 		}
 	}
 
 	scene->mRootNode->mName = aiString(actualPartName);
 
-	// Set up scene
-	scene->mNumMeshes = meshes.size();
-	scene->mMeshes = new aiMesh * [meshes.size()];
-	for (size_t i = 0; i < meshes.size(); ++i)
-	{
-		scene->mMeshes[i] = meshes[i];
-	}
+}
 
-	scene->mRootNode->mNumMeshes = meshes.size();
-	scene->mRootNode->mMeshes = new unsigned int[meshes.size()];
-	for (size_t i = 0; i < meshes.size(); ++i)
+aiScene* BRepToAssimpConverter::cloneConverted(const aiScene* source)
+{
+	aiScene* copy = SceneUtils::deepCopyScene(source);
+	if (!copy)
+		return nullptr;
+	for (unsigned int i = 0; i < source->mNumMeshes && i < copy->mNumMeshes; ++i)
 	{
-		scene->mRootNode->mMeshes[i] = i;
+		const auto edges = s_occEdges.find(source->mMeshes[i]);
+		if (edges != s_occEdges.end())
+			s_occEdges[copy->mMeshes[i]] = edges->second;
+		const auto faces = s_occFaces.find(source->mMeshes[i]);
+		if (faces != s_occFaces.end())
+			s_occFaces[copy->mMeshes[i]] = faces->second;
 	}
+	return copy;
+}
 
-	scene->mNumMaterials = materials.size();
-	scene->mMaterials = new aiMaterial * [materials.size()];
-	for (size_t i = 0; i < materials.size(); ++i)
+void BRepToAssimpConverter::discardConverted(aiScene* master)
+{
+	if (!master)
+		return;
+	for (unsigned int i = 0; i < master->mNumMeshes; ++i)
 	{
-		scene->mMaterials[i] = materials[i];
+		s_occEdges.erase(master->mMeshes[i]);
+		s_occFaces.erase(master->mMeshes[i]);
 	}
-
-	return scene;
+	delete master;
 }
 
 // Clears per-document colour caches.  Called before each new file load.
+// Face colours found under a definition label by the XCAF sub-label scan, by label entry; cleared with the other per-document caches.
+static std::unordered_map<std::string, std::unordered_map<TopoDS_Shape, Quantity_Color, ShapeHasher, ShapeEqual>> s_definitionFaceColours;
+
 void BRepToAssimpConverter::clearColorCache()
 {
+	s_definitionFaceColours.clear();
 	s_stepColorMap.clear();
 	clearEdgeCache();
 }
@@ -826,20 +867,38 @@ std::vector<aiMesh*> BRepToAssimpConverter::convertFaceGroupToMeshesWithCache(
 	// B. XCAF sub-label scan (fallback: for files where OCCT did create face sub-labels)
 	if (faceColorMap.empty() && !colorTool.IsNull() && !shapeTool.IsNull() && !defLabel.IsNull())
 	{
-		for (TDF_ChildIterator it(defLabel); it.More(); it.Next())
+		// Every solid of a definition asks the same question, and a definition can hold thousands of solids (an IGES assembly is one
+		// compound), so the scan over all its child labels is done once per definition and the colours are looked up per face.
+		TCollection_AsciiString entry;
+		TDF_Tool::Entry(defLabel, entry);
+		const std::string definitionKey = entry.ToCString();
+		auto scanned = s_definitionFaceColours.find(definitionKey);
+		if (scanned == s_definitionFaceColours.end())
 		{
-			const TDF_Label childLabel = it.Value();
-			const TopoDS_Shape subShape = shapeTool->GetShape(childLabel);
-
-			if (subShape.IsNull() || subShape.ShapeType() != TopAbs_FACE)
-				continue;
-
-			Quantity_Color faceCol;
-			if (colorTool->GetColor(childLabel, XCAFDoc_ColorSurf, faceCol) ||
-			    colorTool->GetColor(childLabel, XCAFDoc_ColorGen,  faceCol))
+			std::unordered_map<TopoDS_Shape, Quantity_Color, ShapeHasher, ShapeEqual> definitionColours;
+			for (TDF_ChildIterator it(defLabel); it.More(); it.Next())
 			{
-				faceColorMap[subShape] = faceCol;
+				const TDF_Label childLabel = it.Value();
+				const TopoDS_Shape subShape = shapeTool->GetShape(childLabel);
+
+				if (subShape.IsNull() || subShape.ShapeType() != TopAbs_FACE)
+					continue;
+
+				Quantity_Color faceCol;
+				if (colorTool->GetColor(childLabel, XCAFDoc_ColorSurf, faceCol) ||
+				    colorTool->GetColor(childLabel, XCAFDoc_ColorGen,  faceCol))
+				{
+					definitionColours[subShape] = faceCol;
+				}
 			}
+			scanned = s_definitionFaceColours.emplace(definitionKey, std::move(definitionColours)).first;
+		}
+		for (int f = 1; f <= faceGroup.Extent(); ++f)
+		{
+			const TopoDS_Shape& face = faceGroup(f);
+			const auto found = scanned->second.find(face);
+			if (found != scanned->second.end())
+				faceColorMap[face] = found->second;
 		}
 	}
 
