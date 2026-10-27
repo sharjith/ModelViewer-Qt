@@ -6,6 +6,7 @@
 #include "PackedReader.h"
 #include "../../include/Import/SceneImportCounts.h"
 #include <QCoreApplication>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -20,6 +21,7 @@
 #include <cstring>
 #include <map>
 #include <set>
+#include <functional>
 
 using namespace ThreeDXml;
 void require(bool ok, const char* message) { if (!ok) throw std::runtime_error(message); }
@@ -30,6 +32,40 @@ QString sourceMeshName(const aiMesh& mesh)
 {
     const QString name=QString::fromUtf8(mesh.mName.C_Str()); const int open=name.lastIndexOf('[');
     return open>=0&&name.endsWith(']') ? name.mid(open+1,name.size()-open-2) : name;
+}
+// FNV-1a over everything an import produces, in a fixed order: the same value for the same scene whatever the thread count.
+struct SceneHash {
+    quint64 value = 1469598103934665603ULL;
+    void bytes(const void* data, size_t size) { const auto* p = static_cast<const unsigned char*>(data); for (size_t i = 0; i < size; ++i) { value ^= p[i]; value *= 1099511628211ULL; } }
+    template<class T> void pod(const T& item) { bytes(&item, sizeof(T)); }
+    void text(const QString& item) { const QByteArray utf8 = item.toUtf8(); pod(utf8.size()); bytes(utf8.constData(), size_t(utf8.size())); }
+};
+quint64 hashImport(const ThreeDXml::ImportResult& imported)
+{
+    SceneHash hash; const aiScene& scene = *imported.scene;
+    hash.pod(scene.mNumMeshes); hash.pod(scene.mNumMaterials);
+    for (unsigned i = 0; i < scene.mNumMeshes; ++i) {
+        const aiMesh& mesh = *scene.mMeshes[i];
+        hash.text(QString::fromUtf8(mesh.mName.C_Str())); hash.pod(mesh.mMaterialIndex); hash.pod(mesh.mNumVertices); hash.pod(mesh.mNumFaces);
+        hash.bytes(mesh.mVertices, sizeof(aiVector3D) * mesh.mNumVertices); hash.bytes(mesh.mNormals, sizeof(aiVector3D) * mesh.mNumVertices);
+        if (mesh.HasVertexColors(0)) hash.bytes(mesh.mColors[0], sizeof(aiColor4D) * mesh.mNumVertices);
+        for (unsigned f = 0; f < mesh.mNumFaces; ++f) hash.bytes(mesh.mFaces[f].mIndices, sizeof(unsigned) * mesh.mFaces[f].mNumIndices);
+        if (const auto edges = imported.meshEdges.value(&mesh)) { hash.bytes(edges->segments.data(), sizeof(float) * edges->segments.size()); hash.bytes(edges->bounds.data(), sizeof(int) * edges->bounds.size()); }
+        if (const auto leaves = imported.meshLeafIds.value(&mesh)) hash.bytes(leaves->data(), sizeof(unsigned) * leaves->size());
+    }
+    for (unsigned i = 0; i < scene.mNumMaterials; ++i) {
+        aiString name; scene.mMaterials[i]->Get(AI_MATKEY_NAME, name); hash.text(QString::fromUtf8(name.C_Str()));
+        aiColor4D colour; if (scene.mMaterials[i]->Get(AI_MATKEY_BASE_COLOR, colour) == AI_SUCCESS) hash.pod(colour);
+    }
+    std::function<void(const aiNode*)> walk = [&](const aiNode* node) {
+        hash.text(QString::fromUtf8(node->mName.C_Str())); hash.pod(node->mTransformation);
+        hash.pod(node->mNumMeshes); hash.bytes(node->mMeshes, sizeof(unsigned) * node->mNumMeshes);
+        hash.pod(imported.hiddenNodes.contains(node)); hash.text(imported.occurrencePaths.value(node));
+        hash.pod(node->mNumChildren); for (unsigned c = 0; c < node->mNumChildren; ++c) walk(node->mChildren[c]);
+    };
+    walk(scene.mRootNode);
+    for (const QString& warning : imported.warnings) if (!warning.startsWith(QLatin1String("3DXML scene build timing")) && !warning.startsWith(QLatin1String("3DXML read timing"))) hash.text(warning);
+    return hash.value;
 }
 void writeZip(const QString& path,const std::vector<std::pair<QByteArray,QByteArray>>& entries)
 {
@@ -523,9 +559,12 @@ int main(int argc,char** argv)
         sceneVariants();
         if(argc==4&&QString::fromLocal8Bit(argv[1])==QLatin1String("--audit")) audit(QString::fromLocal8Bit(argv[2]),QString::fromLocal8Bit(argv[3]));
         if(argc==2) {
-            auto imported=ThreeDXml::Importer::read(QString::fromLocal8Bit(argv[1]),{});
+            ThreeDXml::Options options; bool threadsSet=false; const int threadsEnv=qEnvironmentVariableIntValue("MODELVIEWER_3DXML_THREADS",&threadsSet); if(threadsSet&&threadsEnv>=0) options.threads=unsigned(threadsEnv);
+            QElapsedTimer timer; timer.start();
+            auto imported=ThreeDXml::Importer::read(QString::fromLocal8Bit(argv[1]),options);
+            const double seconds=timer.elapsed()/1000.0;
             quint64 triangles=0; for(unsigned i=0;i<imported.scene->mNumMeshes;++i) triangles+=imported.scene->mMeshes[i]->mNumFaces;
-            std::cout<<"Imported "<<imported.scene->mNumMeshes<<" unique meshes, "<<triangles<<" resource triangles\n";
+            std::cout<<"Imported "<<imported.scene->mNumMeshes<<" unique meshes, "<<triangles<<" resource triangles in "<<seconds<<" s; scene hash "<<QString::number(hashImport(imported),16).toStdString()<<"\n";
         }
         if(argc==5) sample(QString::fromLocal8Bit(argv[1]),QString::fromLocal8Bit(argv[2]),QString::fromLocal8Bit(argv[3]),QString::fromLocal8Bit(argv[4]));
         std::cout<<"3DXML checks passed\n"; return 0;

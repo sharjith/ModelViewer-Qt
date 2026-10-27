@@ -23,6 +23,9 @@ struct Options {
     bool parsedNormals = true;
     bool edges = true; // read the exporter's edge polylines (shown in the edge display modes)
     bool strict = false; // fail the whole import on an unreadable representation instead of skipping it with a warning
+    // Threads that parse and convert representations (each with its own archive handle). 0 = automatic (cores - 1), 1 = off.
+    // The result is identical for any value. MODELVIEWER_3DXML_THREADS overrides it in the viewer.
+    unsigned threads = 0;
     void check() const {
         if (cancelled && cancelled()) throw Error(QStringLiteral("Model loading cancelled by user."));
     }

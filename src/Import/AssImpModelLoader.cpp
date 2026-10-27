@@ -1146,6 +1146,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			ThreeDXml::Options options;
 			// MODELVIEWER_3DXML_STRICT=1 restores all-or-nothing: an unreadable representation fails the import.
 			options.strict = qEnvironmentVariableIntValue("MODELVIEWER_3DXML_STRICT") != 0;
+			{ bool ok = false; const int threads = qEnvironmentVariableIntValue("MODELVIEWER_3DXML_THREADS", &ok); if (ok && threads >= 0) options.threads = unsigned(threads); }
 			options.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
 			options.progress = [this](const QString&, int done, int total) {
 				emit fileReadProcessed(total ? float(done)/total : 0.0f);
