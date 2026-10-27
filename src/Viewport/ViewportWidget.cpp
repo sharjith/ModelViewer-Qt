@@ -5759,8 +5759,10 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 			MainWindow::setImportWarnings(fileName, nativeImportWarnings);
 	}
 
+	ImportDiagnostics::checkpoint("viewer.purge-begin");
 	if (success && !_sceneRuntime.loadCancelled() && importedFileNode)
 		_viewer->purgeRedundantNodesAfterLoad(importedFileNode);
+	ImportDiagnostics::checkpoint("viewer.purge-end");
 
 	MainWindow::setProgressValue(0);
 	MainWindow::hideProgressBar();

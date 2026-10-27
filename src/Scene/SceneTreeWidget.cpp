@@ -1,4 +1,5 @@
 #include "SceneTreeWidget.h"
+#include "ImportDiagnostics.h"
 #include "SceneGraph.h"
 #include "SceneNode.h"
 #include "ViewportWidget.h"
@@ -1067,9 +1068,14 @@ void SceneTreeWidget::paintEvent(QPaintEvent* event)
 // rebuild
 // ---------------------------------------------------------------------------
 
+namespace { unsigned g_rebuildBatchCount = 0; } // batches run by the current tree rebuild, for the import trace
+
 void SceneTreeWidget::rebuild()
 {
     if (!_sceneGraph || !_viewportWidget) return;
+
+    g_rebuildBatchCount = 0;
+    ImportDiagnostics::checkpoint("tree.rebuild-begin");
 
     if (_rebuildTimer->isActive())
         _rebuildTimer->stop();
@@ -1668,6 +1674,8 @@ void SceneTreeWidget::processRebuildBatch()
 {
     if (!_rebuildInProgress)
         return;
+    if ((++g_rebuildBatchCount % 50) == 0)
+        ImportDiagnostics::checkpoint("tree.rebuild-batch", -1, g_rebuildBatchCount, static_cast<quint64>(_pendingBuildTasks.size()));
 
     // Use a time budget instead of a fixed item count so that large
     // assemblies (with many children / setExpanded) never block the
@@ -1718,6 +1726,7 @@ void SceneTreeWidget::processRebuildBatch()
 
 void SceneTreeWidget::finalizeRebuild()
 {
+    ImportDiagnostics::checkpoint("tree.finalize-begin", -1, g_rebuildBatchCount, static_cast<quint64>(_uuidToLeaf.size()));
     if (_pendingVisibleUuids.isEmpty())
     {
         for (auto it = _uuidToLeaf.constBegin(); it != _uuidToLeaf.constEnd(); ++it)
@@ -1731,7 +1740,9 @@ void SceneTreeWidget::finalizeRebuild()
         it.value()->setCheckState(0, visible ? Qt::Checked : Qt::Unchecked);
         updateItemIcon(it.value());
     }
+    ImportDiagnostics::checkpoint("tree.finalize-leaves-end");
     refreshAllAssemblyStates();
+    ImportDiagnostics::checkpoint("tree.finalize-assembly-states-end");
 
     for (const QUuid& uuid : std::as_const(_pendingSelectedUuids))
     {
@@ -1743,6 +1754,7 @@ void SceneTreeWidget::finalizeRebuild()
     for (int i = 0; i < topLevelItemCount(); ++i)
         refreshSelectionClosureBottomUp(topLevelItem(i));
 
+    ImportDiagnostics::checkpoint("tree.finalize-selection-end");
     _prevSelection.clear();
     for (QTreeWidgetItem* it : selectedItems())
         _prevSelection.insert(it);
@@ -1763,6 +1775,7 @@ void SceneTreeWidget::finalizeRebuild()
     // Re-apply cut-mark styling if a Cut is pending.
     applyCutMarkStyling();
 
+    ImportDiagnostics::checkpoint("tree.finalize-end");
     emit rebuildComplete();
 }
 

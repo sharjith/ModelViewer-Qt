@@ -1,4 +1,5 @@
 #include "FloatingPanelDialog.h"
+#include "ImportDiagnostics.h"
 #include "AddMeasurementCommand.h"
 #include "AddAnnotationCommand.h"
 #include "MeasurementVisibilityCommand.h"
@@ -1984,6 +1985,7 @@ void ModelViewer::updateDisplayList()
 	const bool shouldAutoFit = _viewportWidget->autoFitViewOnUpdate();
 	_viewportWidget->setAutoFitViewOnUpdate(false);
 
+	ImportDiagnostics::checkpoint("viewer.display-list-begin");
 	_visibleMeshUuids = collectVisibleUuidsFromDisplayList();
 	if (_progressiveLoadingEnabled)
 	{
@@ -1994,11 +1996,14 @@ void ModelViewer::updateDisplayList()
 				_visibleMeshUuids.insert(uuid);
 		}
 	}
+	ImportDiagnostics::checkpoint("viewer.display-list-visible-collected");
 	applyVisibleMeshState(false);
+	ImportDiagnostics::checkpoint("viewer.display-list-visibility-applied");
 
 	++_treeRebuildGeneration;
 	_treeRebuildPending = false;
 	rebuildTreeFromCurrentState();
+	ImportDiagnostics::checkpoint("viewer.display-list-tree-started");
 	_viewportWidget->setAutoFitViewOnUpdate(shouldAutoFit);
 
 	// Start the fit animation immediately using the bounding sphere already
@@ -4343,7 +4348,9 @@ void ModelViewer::purgeRedundantAssemblyNodes(SceneNode* scanRoot, bool automati
 			if (!camera.nodeName.isEmpty())
 				cameraHostNames.insert(camera.nodeName);
 	}
+	ImportDiagnostics::checkpoint("viewer.purge-scan-begin");
 	purgeNodeRecursive(_sceneGraph, _viewportWidget, scanRoot, promotions, cameraHostNames);
+	ImportDiagnostics::checkpoint("viewer.purge-scan-end", -1, static_cast<quint64>(promotions.size()), 0);
 
 	if (promotions.isEmpty())
 	{
@@ -5962,12 +5969,15 @@ bool ModelViewer::loadFile(const QString& fileName)
 		success = _viewportWidget->loadAssImpModel(fileName, method, errMsg, _progressiveLoadingEnabled);
 	}
 
+	ImportDiagnostics::checkpoint("viewer.load-returned", -1, success ? 1 : 0, 0);
 	if (success && !_viewportWidget->getMeshStore().empty())
 	{
 		if (!isNativeSession)
 		{
 			updateDisplayList();
+			ImportDiagnostics::checkpoint("viewer.post-load-display-list-end");
 			markNonUndoDocumentModified();
+			ImportDiagnostics::checkpoint("viewer.post-load-modified-end");
 		}
 
 		treeWidgetModel->scrollToTop();
