@@ -1772,7 +1772,8 @@ struct PartMerger {
     std::map<std::vector<std::pair<unsigned,std::array<float,16>>>,unsigned> merged;
     unsigned mergedParts=0,pieceCount=0,mergedCount=0;
     // What the pass saw, reported so a run that merges nothing still says why.
-    unsigned leafParts=0,assemblyParts=0,leafPartsWithMeshes=0,meshSlots=0,candidates=0,groupCount=0,multiGroups=0,rejectedHidden=0,rejectedLayout=0,rejectedMirrored=0,partsLeftSplit=0;
+    unsigned leafParts=0,assemblyParts=0,leafPartsWithMeshes=0,meshSlots=0,candidates=0,groupCount=0,multiGroups=0,rejectedHidden=0,rejectedLayout=0,rejectedMirrored=0,partsLeftSplit=0,provenanceSkipped=0;
+    QStringList provenance; // one line per part that holds several meshes: where they came from and how they were grouped
     // 0 = can be merged, 1 = mesh layout not supported, 2 = mirrored or non-finite frame
     int reject(unsigned id,const aiMatrix4x4& matrix) const {
         if(id>=meshes.size()||!meshes[id])return 1;
@@ -1829,6 +1830,23 @@ struct PartMerger {
         }
         std::map<aiNode*,std::set<unsigned>> taken;std::vector<unsigned> attach;
         if(!entries.empty())++leafPartsWithMeshes;
+        // Meshes take the part's name, so every mesh can be traced to its part number.
+        for(const auto& e:entries)if(!meshes[e.mesh]->mName.length)meshes[e.mesh]->mName=part->mName;
+        if(entries.size()>1) {
+            if(provenance.size()>=80)++provenanceSkipped;
+            else {
+                QStringList items;
+                for(const auto& e:entries) {
+                    const aiMesh& m=*meshes[e.mesh];const auto& info=builder.meshStyles.at(e.mesh);const auto& d=info.style.diffuse;
+                    QString why;
+                    if(!info.unifiable)why=QStringLiteral(" [kept apart: %1]").arg(m.HasVertexColors(0)?QStringLiteral("own vertex colours"):info.style.overrideColors?QStringLiteral("colour override"):QStringLiteral("textured"));
+                    aiString shape;if(e.node->mMetaData)e.node->mMetaData->Get("JTShape",shape);
+                    items.append(QStringLiteral("%1 faces, rgba %2/%3/%4/%5%6%7").arg(m.mNumFaces).arg(d.r,0,'f',2).arg(d.g,0,'f',2).arg(d.b,0,'f',2).arg(d.a,0,'f',2)
+                        .arg(why,shape.length?QStringLiteral(", shape ")+QString::fromUtf8(shape.C_Str()):QString()));
+                }
+                provenance.append(QStringLiteral("JT part %1: %2 meshes (%3) fall into %4 group(s).").arg(QString::fromUtf8(part->mName.C_Str())).arg(entries.size()).arg(items.join(QStringLiteral("; "))).arg(groups.size()));
+            }
+        }
         groupCount+=unsigned(groups.size());
         if(groups.size()>1)++partsLeftSplit;
         for(const auto& group:groups) {
@@ -1927,6 +1945,8 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
             "(not mergeable: %6 hidden, %7 unsupported layout, %8 mirrored); %9 groups, %10 with several meshes; %11 parts keep more than one mesh.")
             .arg(b.partNodes.size()).arg(merger.leafParts).arg(merger.assemblyParts).arg(merger.meshSlots).arg(merger.candidates)
             .arg(merger.rejectedHidden).arg(merger.rejectedLayout).arg(merger.rejectedMirrored).arg(merger.groupCount).arg(merger.multiGroups).arg(merger.partsLeftSplit));
+        for(const QString& line:merger.provenance)b.result.warnings.append(line);
+        if(merger.provenanceSkipped)b.result.warnings.append(QStringLiteral("JT part merge check: %1 more parts with several meshes are not listed.").arg(merger.provenanceSkipped));
         if(merger.mergedParts) {
             merger.compact(tree.get());
             b.result.warnings.append(QStringLiteral("JT part meshes merged: %1 meshes became %2 in %3 parts (the shape nodes below a part are not kept; MODELVIEWER_JT_MERGE_PART_MESHES=0 turns this off).")
