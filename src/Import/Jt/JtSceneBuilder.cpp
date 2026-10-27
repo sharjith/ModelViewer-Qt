@@ -1772,7 +1772,7 @@ struct PartMerger {
     std::map<std::vector<std::pair<unsigned,std::array<float,16>>>,unsigned> merged;
     unsigned mergedParts=0,pieceCount=0,mergedCount=0;
     // What the pass saw, reported so a run that merges nothing still says why.
-    unsigned leafParts=0,assemblyParts=0,leafPartsWithMeshes=0,meshSlots=0,candidates=0,groupCount=0,multiGroups=0,rejectedHidden=0,rejectedLayout=0,rejectedMirrored=0;
+    unsigned leafParts=0,assemblyParts=0,leafPartsWithMeshes=0,meshSlots=0,candidates=0,groupCount=0,multiGroups=0,rejectedHidden=0,rejectedLayout=0,rejectedMirrored=0,partsLeftSplit=0;
     // 0 = can be merged, 1 = mesh layout not supported, 2 = mirrored or non-finite frame
     int reject(unsigned id,const aiMatrix4x4& matrix) const {
         if(id>=meshes.size()||!meshes[id])return 1;
@@ -1822,12 +1822,15 @@ struct PartMerger {
             std::array<unsigned,AI_MAX_NUMBER_OF_TEXTURECOORDS> uv{};
             for(unsigned c=0;c<AI_MAX_NUMBER_OF_TEXTURECOORDS;++c)uv[c]=m.HasTextureCoords(c)?m.mNumUVComponents[c]+1:0;
             const auto& info=builder.meshStyles.at(entries[i].mesh);
-            if(info.unifiable)groups[Key{true,0,styleSignature(info.style),false,uv}].push_back(i);
+            // One part is one body: face colours differ, but a part's other material fields (specular, shininess) are not worth a
+            // separate mesh. Draw mode and blending still split, since they change how the whole mesh is rendered.
+            if(info.unifiable)groups[Key{true,0,{float(info.style.drawFlags),float(info.style.drawPresent),float(info.style.blendFlags),float(info.style.diffuse.a<1)},false,uv}].push_back(i);
             else groups[Key{false,m.mMaterialIndex,{},m.HasVertexColors(0),uv}].push_back(i);
         }
         std::map<aiNode*,std::set<unsigned>> taken;std::vector<unsigned> attach;
         if(!entries.empty())++leafPartsWithMeshes;
         groupCount+=unsigned(groups.size());
+        if(groups.size()>1)++partsLeftSplit;
         for(const auto& group:groups) {
             if(group.second.size()<2)continue;
             ++multiGroups;
@@ -1840,7 +1843,8 @@ struct PartMerger {
             }
             auto found=merged.find(key);
             if(found==merged.end()) {
-                const unsigned firstId=entries[group.second.front()].mesh;
+                unsigned firstId=entries[group.second.front()].mesh; // the largest piece supplies the shared material fields and name
+                for(size_t i:group.second)if(meshes[entries[i].mesh]->mNumFaces>meshes[firstId]->mNumFaces)firstId=entries[i].mesh;
                 const bool unified=std::get<0>(group.first);
                 std::vector<aiColor4D> colours;bool differ=false;
                 if(unified)for(size_t i:group.second){
@@ -1920,14 +1924,22 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
         merger.parts.insert(b.partNodes.begin(),b.partNodes.end());
         merger.visit(tree.get());
         b.result.warnings.append(QStringLiteral("JT part merge check: %1 Part nodes (%2 leaf, %3 holding other Parts); %4 mesh slots in leaf parts, %5 mergeable "
-            "(not mergeable: %6 hidden, %7 unsupported layout, %8 mirrored); %9 groups, %10 with several meshes.")
+            "(not mergeable: %6 hidden, %7 unsupported layout, %8 mirrored); %9 groups, %10 with several meshes; %11 parts keep more than one mesh.")
             .arg(b.partNodes.size()).arg(merger.leafParts).arg(merger.assemblyParts).arg(merger.meshSlots).arg(merger.candidates)
-            .arg(merger.rejectedHidden).arg(merger.rejectedLayout).arg(merger.rejectedMirrored).arg(merger.groupCount).arg(merger.multiGroups));
+            .arg(merger.rejectedHidden).arg(merger.rejectedLayout).arg(merger.rejectedMirrored).arg(merger.groupCount).arg(merger.multiGroups).arg(merger.partsLeftSplit));
         if(merger.mergedParts) {
             merger.compact(tree.get());
             b.result.warnings.append(QStringLiteral("JT part meshes merged: %1 meshes became %2 in %3 parts (the shape nodes below a part are not kept; MODELVIEWER_JT_MERGE_PART_MESHES=0 turns this off).")
                 .arg(before).arg(b.meshes.size()).arg(merger.mergedParts));
         }
+    }
+    {
+        // Nodes the file leaves unnamed (wrapper levels, shape nodes) take the nearest named ancestor's name rather than showing blank.
+        const std::function<void(aiNode*,const aiString&)> fill=[&](aiNode* node,const aiString& inherited){
+            if(!node->mName.length)node->mName=inherited;
+            for(unsigned i=0;i<node->mNumChildren;++i)fill(node->mChildren[i],node->mName);
+        };
+        fill(tree.get(),aiString(info.completeBaseName().toUtf8().constData()));
     }
     b.result.scene=std::make_unique<aiScene>();auto& scene=*b.result.scene;
     scene.mRootNode=tree.release();scene.mNumMeshes=unsigned(b.meshes.size());scene.mMeshes=new aiMesh*[scene.mNumMeshes]{};
