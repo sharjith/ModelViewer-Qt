@@ -7,6 +7,7 @@
 #include <JtAttribute_Material.hxx>
 #include <set>
 #include <QCoreApplication>
+#include <QElapsedTimer>
 #include <QCommandLineParser>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -45,6 +46,8 @@ int main(int argc,char** argv) {
     const QCommandLineOption sourceAttributes("source-attributes","Print unaccumulated attributes in the input file graph; external partitions are not followed");
     const QCommandLineOption validate("validate","Check geometry, stored-normal lengths and node transforms; print local mesh bounds");
     const QCommandLineOption budget("allocation-budget-mib","Override cumulative charged-allocation budget for native diagnostics","MiB");
+    const QCommandLineOption decodeThreads("decode-threads","Threads decoding shape payloads ahead of the build (0 = automatic, 1 = off)","N");
+    parser.addOption(decodeThreads);
     parser.addOption(budget);parser.addOption(sourceAttributes);parser.addOption(publishedMaterials);
     parser.addOption(eye);parser.addOption(properties);parser.addOption(materials);parser.addOption(validate);parser.process(app);
     const auto arguments=parser.positionalArguments();
@@ -52,6 +55,7 @@ int main(int argc,char** argv) {
     try {
         Jt::Options options;options.duplicateFallbackMaterialCompatibility=!parser.isSet(publishedMaterials);
         if(parser.isSet(budget)){bool ok=false;const auto mib=parser.value(budget).toULongLong(&ok);if(!ok||!mib||mib>std::numeric_limits<size_t>::max()/(1024*1024))throw std::runtime_error("Invalid allocation budget");options.decodedAllocationBudget=size_t(mib)*1024*1024;}
+        if(parser.isSet(decodeThreads)){bool ok=false;const auto n=parser.value(decodeThreads).toUInt(&ok);if(!ok)throw std::runtime_error("Invalid --decode-threads");options.decodeThreads=n;}
         size_t charged=0;options.progress=[&](const QString&,int,int){charged=JtData_Limits::allocated;};
         if(parser.isSet(eye)) {
             const auto coordinates=parser.value(eye).split(',');
@@ -86,7 +90,10 @@ int main(int argc,char** argv) {
             };walk(root,0);
             std::cout<<QJsonDocument(QJsonObject{{"nodes",nodes},{"externalPartitionsFollowed",false}}).toJson(QJsonDocument::Compact).constData()<<'\n';return 0;
         }
+        QElapsedTimer readTimer;readTimer.start();
         auto result=Jt::Importer::read(arguments[0],options);
+        std::cout<<"read seconds="<<readTimer.elapsed()/1000.0<<'\n';
+        for(const auto& note:result.notes)if(note.startsWith("JT read timing"))std::cout<<note.toStdString()<<'\n';
         std::cout<<"charged allocation bytes="<<charged<<'\n';
         unsigned vertices=0,triangles=0;
         for(unsigned i=0;i<result.scene->mNumMeshes;++i) {vertices+=result.scene->mMeshes[i]->mNumVertices;triangles+=result.scene->mMeshes[i]->mNumFaces;}

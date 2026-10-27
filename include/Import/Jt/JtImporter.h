@@ -34,12 +34,17 @@ struct Options {
     // its vertices). The part is one body; thousands of shape meshes make a large assembly slow to display. The individual
     // shape nodes and their metadata are not kept. MODELVIEWER_JT_MERGE_PART_MESHES=0 turns it off in fromEnvironment().
     bool mergePartMeshes=true;
+    // Threads that decode shape payloads ahead of the (single-threaded) scene build. 0 = automatic (cores - 1), 1 = off.
+    // The decoder keeps its limits per thread and opens its own file stream for every segment, so payloads decode independently.
+    // MODELVIEWER_JT_DECODE_THREADS overrides it in fromEnvironment().
+    unsigned decodeThreads=0;
     void check() const { if(cancelled && cancelled()) throw Cancelled(); }
     // Opt-in desktop runtime override. Plain Options and explicit caller budgets
     // remain deterministic; the viewer calls this when starting a JT import.
     static Options fromEnvironment() {
         Options result;
         if(qgetenv("MODELVIEWER_JT_MERGE_PART_MESHES")=="0")result.mergePartMeshes=false;
+        {bool ok=false;const int threads=qEnvironmentVariableIntValue("MODELVIEWER_JT_DECODE_THREADS",&ok);if(ok&&threads>=0)result.decodeThreads=unsigned(threads);}
         const auto value=qgetenv("MODELVIEWER_JT_BUDGET_GIB");
         if(value.isNull())return result;
         bool digits=!value.isEmpty();

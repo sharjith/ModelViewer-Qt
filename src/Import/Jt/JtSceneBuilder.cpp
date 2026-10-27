@@ -52,6 +52,12 @@
 #include <limits>
 #include <numeric>
 #include <functional>
+#include <chrono>
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace Jt {
@@ -455,6 +461,84 @@ std::unique_ptr<aiMesh> concatenateColoured(const std::vector<std::unique_ptr<ai
     }
     validate(*mesh);return mesh;
 }
+// Decodes shape payloads ahead of the single-threaded scene build, on a few threads. The build asks for payloads in a fixed order;
+// the prefetcher is given the properties it will ask for, in that order, and keeps at most `window` decoded payloads ahead of the
+// one being consumed (decoded payloads are large). A payload that fails to decode here is simply decoded again by the build, which
+// then reports the failure exactly as it always did. The decoder keeps its limits per thread and opens its own stream for every
+// segment (JtData_Model::ReadSegment), so independent payloads decode independently.
+class Prefetcher {
+public:
+    Prefetcher(std::vector<Handle(JtProperty_LateLoaded)> properties,const Options& opts,unsigned threads,size_t lookahead)
+        :props(std::move(properties)),options(opts),window(lookahead),state(props.size(),Pending),claimed(props.size(),0) {
+        for(size_t i=0;i<props.size();++i)index.emplace(props[i].get(),i);
+        for(unsigned t=0;t<threads;++t)workers.emplace_back([this,threads]{work(threads);});
+    }
+    Prefetcher(const Prefetcher&)=delete;Prefetcher& operator=(const Prefetcher&)=delete;
+    ~Prefetcher(){stop();}
+    void stop() {
+        {std::lock_guard<std::mutex> guard(mutex);stopping=true;}
+        wake.notify_all();
+        for(auto& worker:workers)if(worker.joinable())worker.join();
+        workers.clear();
+        for(size_t i=0;i<props.size();++i)if(!claimed[i]&&state[i]==Done)props[i]->Unload();
+    }
+    // Blocks until the payload of `prop` is decoded (or its decoding failed); does nothing for a property it was not given.
+    void wait(const Handle(JtProperty_LateLoaded)& prop) {
+        const auto found=index.find(prop.get());
+        if(found==index.end())return;
+        const size_t i=found->second;
+        std::unique_lock<std::mutex> lock(mutex);
+        if(i+1>consumed) {
+            // Payloads the build never asked for (alternatives it did not take) are not decoded, or are released.
+            for(size_t j=consumed;j<i;++j) {
+                if(state[j]==Pending)state[j]=Skipped;
+                else if(state[j]==Done&&!claimed[j]){props[j]->Unload();state[j]=Skipped;}
+            }
+            consumed=i+1;
+            wake.notify_all();
+        }
+        claimed[i]=1;
+        wake.wait(lock,[&]{return state[i]==Done||state[i]==Failed||state[i]==Skipped;});
+    }
+private:
+    enum State:char {Pending,Running,Done,Failed,Skipped};
+    void work(unsigned threads) {
+        // Limits are per thread: this thread's share of the import's cumulative decode budget, and the same cancellation check.
+        JtData_Limits::Scope limits([this]{options.check();},options.decodedAllocationBudget/std::max(1u,threads));
+        for(;;) {
+            size_t i;
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                for(;;) {
+                    while(next<props.size()&&state[next]==Skipped)++next;
+                    if(stopping||next>=props.size())return;
+                    if(next<consumed+window)break;
+                    wake.wait(lock);
+                }
+                i=next++;
+                state[i]=Running;
+            }
+            bool decoded=false;
+            try{props[i]->Load();decoded=!props[i]->DefferedObject().IsNull();}
+            catch(...){props[i]->Unload();}
+            {
+                std::lock_guard<std::mutex> guard(mutex);
+                state[i]=decoded?Done:Failed;
+            }
+            wake.notify_all();
+        }
+    }
+    std::vector<Handle(JtProperty_LateLoaded)> props;
+    const Options& options;
+    size_t window;
+    std::unordered_map<const void*,size_t> index;
+    std::vector<char> state,claimed;
+    size_t next=0,consumed=0;
+    bool stopping=false;
+    std::mutex mutex;
+    std::condition_variable wake;
+    std::vector<std::thread> workers;
+};
 struct Builder {
     const Options& options; QString rootDirectory;
     ImportResult result;
@@ -484,6 +568,14 @@ struct Builder {
     struct MeshStyle {Appearance style;bool unifiable;};
     std::vector<MeshStyle> meshStyles;
     unsigned nodes=0;
+    // Where the read spends its time (reported in the import notes): opening part files, decoding shape payloads, converting them.
+    double openMs=0,decodeMs=0,convertMs=0;unsigned filesOpened=0,shapesDecoded=0,prefetched=0;
+    std::unique_ptr<Prefetcher> prefetch;
+    struct Timed {
+        double& total;std::chrono::steady_clock::time_point begin=std::chrono::steady_clock::now();
+        explicit Timed(double& accumulator):total(accumulator){}
+        ~Timed(){total+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begin).count();}
+    };
     void textureWarning(const QString& text) {if(!result.warnings.contains(text))result.warnings.append(text);}
     int embedImage(const QImage& pixels) {
         constexpr uint64_t maxBytes=64u*1024u*1024u;
@@ -1378,6 +1470,55 @@ struct Builder {
         meshStyles.push_back({style,!colored&&mergeableStyle(style)});
         meshes.push_back(std::move(mesh)); return unsigned(meshes.size()-1);
     }
+    // Walks the product structure the way visit() will (without building anything) and lists, in visit order, the shape payloads it
+    // will decode, opening part files on the way (visit() reuses them). It only has to be a good guess: a payload it lists that the
+    // build does not use is skipped, one it misses is decoded by the build itself.
+    void scout(const Handle(JtData_Object)& object,std::unordered_set<const void*>& seen,std::vector<Handle(JtProperty_LateLoaded)>& out) {
+        if(object.IsNull()||!seen.insert(object.get()).second)return;
+        options.check();
+        const auto shape=Handle(JtNode_Shape_Base)::DownCast(object);
+        if(!shape.IsNull()) {
+            for(size_t i=0;i<shape->LateLoads().Count();++i) {
+                const auto prop=shape->LateLoads()[i];
+                if(prop->SegmentType()<6||prop->SegmentType()>16)continue;
+                out.push_back(prop);break; // visit() stops at the first alternative that loads
+            }
+            return;
+        }
+        const auto instance=Handle(JtNode_Instance)::DownCast(object);
+        if(!instance.IsNull())scout(instance->Object(),seen,out);
+        const auto group=Handle(JtNode_Group)::DownCast(object);
+        if(group.IsNull())return;
+        const auto partition=Handle(JtNode_Partition)::DownCast(object);
+        if(!partition.IsNull()&&group->Children().IsEmpty()) {
+            const QString reference=QString::fromUtf16(reinterpret_cast<const char16_t*>(partition->FileName().ToExtString()));
+            if(reference.isEmpty())return;
+            const QString origin=QString::fromUtf16(reinterpret_cast<const char16_t*>(partition->OriginFileName().ToExtString()));
+            const QString file=QFileInfo(QFileInfo(origin).dir().filePath(reference)).canonicalFilePath();
+            if(file.isEmpty()||!insideDirectory(file,rootDirectory))return; // visit() reports it
+            auto& root=partitions[fileKey(file)];
+            if(root.IsNull()) {
+                try {
+                    Timed timed(openMs);++filesOpened;
+                    Handle(JtData_Model) m=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(file.utf16())));
+                    root=m->Init();
+                } catch(const Cancelled&) {throw;}
+                  catch(...) {root.Nullify();return;} // visit() opens it again and reports the failure
+            }
+            scout(root,seen,out);
+            return;
+        }
+        const bool lod=!Handle(JtNode_LOD)::DownCast(object).IsNull();
+        const auto switchNode=Handle(JtNode_Switch)::DownCast(object);
+        const size_t childCount=group->Children().Count();
+        if(!switchNode.IsNull()) {
+            const auto selected=switchNode->SelectedChild();
+            if(selected!=0xffffffffu&&selected<childCount)scout(group->Children()[selected],seen,out);
+        } else if(lod) {
+            if(options.lodEyePoint||!childCount)return; // the preferred child depends on a distance: leave it to the build
+            scout(group->Children()[0],seen,out);
+        } else for(size_t i=0;i<childCount;++i)scout(group->Children()[i],seen,out);
+    }
     std::unique_ptr<aiNode> visit(const Handle(JtData_Object)& object,Appearance style={},bool parentHidden=false,bool transformLocked=false,const aiMatrix4x4& parentWorld=aiMatrix4x4(),PaletteContext palette={},MaterialSourceContext materialSource={}) {
         options.check();if(object.IsNull()) throw std::runtime_error("JT has an unresolved graph reference");
         JtData_Limits::allocation(style.textureUnits.size()*(sizeof(TextureState)+64));
@@ -1494,7 +1635,7 @@ struct Builder {
                         if(geometry!=geometryCache.end())geometryIndex=geometry->second;
                         else {
                             struct Unload {Handle(JtProperty_LateLoaded) p;~Unload(){p->Unload();}} unload{prop};
-                            options.check();prop->Load();const auto mesh=Handle(JtElement_ShapeLOD_Vertex)::DownCast(prop->DefferedObject());
+                            options.check();{Timed timed(decodeMs);if(prefetch)prefetch->wait(prop);if(prop->DefferedObject().IsNull())prop->Load();}++shapesDecoded;const auto mesh=Handle(JtElement_ShapeLOD_Vertex)::DownCast(prop->DefferedObject());
                             if(mesh.IsNull())throw std::runtime_error("Unsupported JT tessellation payload");
                             if(mesh->ExplicitEmpty()) {
                                 if(!shape->DeclaresEmptyGeometry())throw std::runtime_error("JT empty payload contradicts advertised shape geometry");
@@ -1502,7 +1643,7 @@ struct Builder {
                                 loaded=true;break;
                             }
                             unsigned repairedNormals=0;
-                            geometryIndex=unsigned(geometries.size());geometries.push_back(storedMesh(mesh,repairedNormals));
+                            geometryIndex=unsigned(geometries.size());{Timed timed(convertMs);geometries.push_back(storedMesh(mesh,repairedNormals));}
                             geometryGroups.emplace_back();const auto& groups=mesh->FaceGroups();
                             if(groups.Count()) {
                                 if(groups.Count()!=int(geometries.back()->mNumFaces))throw std::runtime_error("JT face-group/triangle count mismatch");
@@ -1628,7 +1769,7 @@ struct Builder {
                         activeFiles.insert(fileKey(file));
                         struct FilePop {std::set<QString>& files;QString path;~FilePop(){files.erase(path);}} filePop{activeFiles,fileKey(file)};
                         auto& root=partitions[fileKey(file)];
-                        if(root.IsNull()) {Handle(JtData_Model) m=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(file.utf16())));root=m->Init();}
+                        if(root.IsNull()) {Timed timed(openMs);++filesOpened;Handle(JtData_Model) m=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(file.utf16())));root=m->Init();}
                         children.push_back(visit(root,style,hidden,transformLocked,world,palette,materialSourceContext(file,options)));
                     }
                 } else {
@@ -1936,7 +2077,23 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
     if(options.lodEyePoint) for(double coordinate:*options.lodEyePoint)
         if(!std::isfinite(coordinate)) throw std::runtime_error("Invalid JT RangeLOD eye point");
     Builder b{options,info.canonicalPath()};b.activeFiles.insert(fileKey(info.canonicalFilePath()));b.material(Appearance{});
-    auto tree=b.visit(root,{},false,false,aiMatrix4x4(),{},materialSourceContext(info.absoluteFilePath(),options));if(b.meshes.empty()) throw std::runtime_error("JT contains no supported tessellation and no validated exact geometry");
+    {
+        // Decode shape payloads on a few threads ahead of the build. Small inputs are not worth the threads.
+        const unsigned cores=std::max(1u,std::thread::hardware_concurrency());
+        const unsigned threads=options.decodeThreads?options.decodeThreads:(cores>1?cores-1:1u);
+        bool minimumSet=false;const int minimumEnv=qEnvironmentVariableIntValue("MODELVIEWER_JT_PREFETCH_MIN",&minimumSet);
+        const size_t minimum=minimumSet&&minimumEnv>=1?size_t(minimumEnv):size_t(16);
+        if(threads>1) {
+            std::unordered_set<const void*> seen;std::vector<Handle(JtProperty_LateLoaded)> properties;
+            b.scout(root,seen,properties);
+            if(properties.size()>=minimum) {
+                const unsigned pool=unsigned(std::min<size_t>(std::min(threads,16u),properties.size()));
+                b.prefetched=unsigned(properties.size());
+                b.prefetch=std::make_unique<Prefetcher>(std::move(properties),options,pool,size_t(pool)*3);
+            }
+        }
+    }
+    auto tree=b.visit(root,{},false,false,aiMatrix4x4(),{},materialSourceContext(info.absoluteFilePath(),options));b.prefetch.reset();if(b.meshes.empty()) throw std::runtime_error("JT contains no supported tessellation and no validated exact geometry");
     if(options.mergePartMeshes) {
         const size_t before=b.meshes.size();
         PartMerger merger{options,b.meshes,b.result.hiddenNodes,b,{}};
@@ -1962,6 +2119,8 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
         };
         fill(tree.get(),aiString(info.completeBaseName().toUtf8().constData()));
     }
+    b.result.notes.append(QStringLiteral("JT read timing: %1 part files opened in %2 ms, %3 shape payloads decoded in %4 ms, converted to meshes in %5 ms; %6 payloads were queued for parallel decoding (decode time is the build's wait for them).")
+        .arg(b.filesOpened).arg(qint64(b.openMs)).arg(b.shapesDecoded).arg(qint64(b.decodeMs)).arg(qint64(b.convertMs)).arg(b.prefetched));
     b.result.scene=std::make_unique<aiScene>();auto& scene=*b.result.scene;
     scene.mRootNode=tree.release();scene.mNumMeshes=unsigned(b.meshes.size());scene.mMeshes=new aiMesh*[scene.mNumMeshes]{};
     for(unsigned i=0;i<scene.mNumMeshes;++i) scene.mMeshes[i]=b.meshes[i].release();
