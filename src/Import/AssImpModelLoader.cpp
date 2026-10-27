@@ -5,6 +5,7 @@
 #include <QElapsedTimer>
 #include <algorithm>
 #include <atomic>
+#include <functional>
 #include <chrono>
 #include <thread>
 #include <Standard_Failure.hxx>
@@ -889,18 +890,73 @@ AssImpModelLoader::AssImpModelLoader() : QObject(),
 
 namespace
 {
+	// Trace aid (only computed when MODELVIEWER_IMPORT_DIAGNOSTICS is set): an FNV-1a hash of everything in an imported scene, in a
+	// fixed order, so two runs - say with and without an optimisation - can be compared for an identical result.
+	quint64 hashImportedScene(const aiScene& scene)
+	{
+		quint64 hash = 1469598103934665603ULL;
+		const auto bytes = [&hash](const void* data, size_t size) {
+			const auto* p = static_cast<const unsigned char*>(data);
+			for (size_t i = 0; i < size; ++i) { hash ^= p[i]; hash *= 1099511628211ULL; }
+		};
+		bytes(&scene.mNumMeshes, sizeof(scene.mNumMeshes)); bytes(&scene.mNumMaterials, sizeof(scene.mNumMaterials));
+		for (unsigned i = 0; i < scene.mNumMeshes; ++i)
+		{
+			const aiMesh& mesh = *scene.mMeshes[i];
+			bytes(mesh.mName.C_Str(), mesh.mName.length); bytes(&mesh.mMaterialIndex, sizeof(unsigned)); bytes(&mesh.mNumVertices, sizeof(unsigned)); bytes(&mesh.mNumFaces, sizeof(unsigned));
+			if (mesh.mVertices) bytes(mesh.mVertices, sizeof(aiVector3D) * mesh.mNumVertices);
+			if (mesh.mNormals) bytes(mesh.mNormals, sizeof(aiVector3D) * mesh.mNumVertices);
+			if (mesh.HasVertexColors(0)) bytes(mesh.mColors[0], sizeof(aiColor4D) * mesh.mNumVertices);
+			for (unsigned f = 0; f < mesh.mNumFaces; ++f) bytes(mesh.mFaces[f].mIndices, sizeof(unsigned) * mesh.mFaces[f].mNumIndices);
+		}
+		for (unsigned i = 0; i < scene.mNumMaterials; ++i)
+		{
+			aiString name; scene.mMaterials[i]->Get(AI_MATKEY_NAME, name); bytes(name.C_Str(), name.length);
+			aiColor4D colour; if (scene.mMaterials[i]->Get(AI_MATKEY_BASE_COLOR, colour) == AI_SUCCESS) bytes(&colour, sizeof(colour));
+			if (scene.mMaterials[i]->Get(AI_MATKEY_COLOR_DIFFUSE, colour) == AI_SUCCESS) bytes(&colour, sizeof(colour));
+		}
+		const std::function<void(const aiNode*)> walk = [&](const aiNode* node) {
+			bytes(node->mName.C_Str(), node->mName.length); bytes(&node->mTransformation, sizeof(aiMatrix4x4));
+			bytes(&node->mNumMeshes, sizeof(unsigned)); bytes(node->mMeshes, sizeof(unsigned) * node->mNumMeshes);
+			bytes(&node->mNumChildren, sizeof(unsigned));
+			for (unsigned c = 0; c < node->mNumChildren; ++c) walk(node->mChildren[c]);
+		};
+		if (scene.mRootNode) walk(scene.mRootNode);
+		return hash;
+	}
+}
+
+namespace
+{
 	void optimizeMeshData(AssImpMeshData& mesh, bool computeEdges)
 	{
-		if (mesh.geometryPrepared || mesh.featureEdgesPrepared)
+		if (mesh.geometryPrepared || mesh.featureEdgesPrepared || mesh.occFaceRemapPrepared)
 			return;
-		// Same conditions SceneMesh's constructor applies before optimizeMesh(), plus the cases whose later steps need the
-		// pre-optimisation arrays (OCC face tables) or per-vertex data this pass does not remap (skin, morph targets).
-		if (!mesh.morphTargets.isEmpty() || !mesh.skinJoints.isEmpty() || !mesh.precomputedOccFaceTriangleBounds.empty())
+		// Same conditions SceneMesh's constructor applies before optimizeMesh(), plus per-vertex data this pass does not remap
+		// (skin, morph targets).
+		if (!mesh.morphTargets.isEmpty() || !mesh.skinJoints.isEmpty())
 			return;
 		if (mesh.primitiveMode != GL_TRIANGLES || mesh.indices.empty() || (mesh.indices.size() % 3) != 0)
 			return;
 		try
 		{
+			// OCC meshes carry a per-face triangle table whose indices are valid against the PRE-optimisation triangle order; keep
+			// the positions and indices to re-identify each face's triangles by position afterwards (what AssImpMeshBuilder did on
+			// the GUI thread, after the constructor's own optimisation).
+			const bool hasOccFaces = !mesh.precomputedOccFaceTriangleBounds.empty();
+			// MODELVIEWER_NO_OCC_PREPARE=1 leaves OCC meshes to the constructor and the builder, as before (to compare the two paths).
+			static const bool occPrepare = qEnvironmentVariableIntValue("MODELVIEWER_NO_OCC_PREPARE") == 0;
+			if (hasOccFaces && !occPrepare)
+				return;
+			std::vector<glm::vec3> occSourcePositions;
+			std::vector<unsigned int> occSourceIndices;
+			if (hasOccFaces)
+			{
+				occSourcePositions.reserve(mesh.vertices.size());
+				for (const Vertex& vertex : mesh.vertices)
+					occSourcePositions.push_back(vertex.Position);
+				occSourceIndices = mesh.indices;
+			}
 			std::vector<unsigned int> lod1, remap;
 			if (SceneMesh::optimizeGeometry(mesh.vertices, mesh.indices, true, lod1, remap))
 			{
@@ -916,6 +972,26 @@ namespace
 				mesh.geometryPrepared = true;
 			}
 			// Too small to optimise: the constructor leaves such arrays alone too, so they are final already.
+			if (hasOccFaces)
+			{
+				// Cylindrical and conical faces only, in the original triangle order, exactly as the builder expanded them.
+				std::vector<int> srcTriangleIndices, srcFaceIndices;
+				const std::vector<int>& faceBounds = mesh.precomputedOccFaceTriangleBounds;
+				for (size_t f = 0; f + 1 < faceBounds.size(); ++f)
+				{
+					if (f >= mesh.precomputedOccFaceAxes.size() || (!mesh.precomputedOccFaceAxes[f].isCylinder && !mesh.precomputedOccFaceAxes[f].isCone))
+						continue;
+					for (int t = faceBounds[f]; t < faceBounds[f + 1]; ++t)
+					{
+						srcTriangleIndices.push_back(t);
+						srcFaceIndices.push_back(static_cast<int>(f));
+					}
+				}
+				if (!srcTriangleIndices.empty())
+					SceneMesh::remapOccFaceTriangleIndicesFromArrays(occSourcePositions, occSourceIndices, srcTriangleIndices, srcFaceIndices,
+						mesh.vertices, mesh.indices, mesh.preparedOccTriangleIndices, mesh.preparedOccFaceIndices);
+				mesh.occFaceRemapPrepared = true;
+			}
 			if (computeEdges)
 			{
 				mesh.preparedFeatureEdges = SceneMesh::computeFeatureEdges(mesh.vertices, mesh.indices, 15.0f);
@@ -1451,6 +1527,8 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	}
 	_importStage = "worker.nodes-complete";
 	ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
+	if (_scene && qEnvironmentVariableIntValue("MODELVIEWER_IMPORT_DIAGNOSTICS") != 0)
+		ImportDiagnostics::checkpoint("worker.scene-hash", -1, hashImportedScene(*_scene), _scene->mNumMeshes);
 
 	if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
 	{

@@ -214,6 +214,13 @@ public:
 		const std::vector<Vertex>& srcVertices, const std::vector<unsigned int>& srcIndices,
 		const std::vector<int>& srcTriangleIndices, const std::vector<int>& srcFaceIndices,
 		SceneMesh* dst, std::vector<int>& outTriangleIndices, std::vector<int>& outFaceIndices);
+	// The same matching on plain arrays (source positions and indices, destination vertices and indices), with no SceneMesh and no
+	// shared state, so an importer can run it on a worker thread against the arrays the constructor will receive.
+	static void remapOccFaceTriangleIndicesFromArrays(
+		const std::vector<glm::vec3>& srcPositions, const std::vector<unsigned int>& srcIndices,
+		const std::vector<int>& srcTriangleIndices, const std::vector<int>& srcFaceIndices,
+		const std::vector<Vertex>& dstVertices, const std::vector<unsigned int>& dstIndices,
+		std::vector<int>& outTriangleIndices, std::vector<int>& outFaceIndices);
 
 	// Heuristic feature-edge list (dihedral-angle/seam-aware classifier,
 	// see buildAndUploadFeatureEdges()) - flat pairs of indices into THIS

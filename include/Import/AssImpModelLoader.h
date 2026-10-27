@@ -157,6 +157,10 @@ struct AssImpMeshData
 	// Feature edges computed on a worker thread against the final vertices/indices (see SceneMesh::computeFeatureEdges()).
 	bool featureEdgesPrepared = false;
 	std::vector<uint32_t> preparedFeatureEdges;
+	// OCC meshes: the cylinder/cone face table remapped onto the final (optimised) triangle order, computed on a worker thread
+	// against the pre-optimisation positions (see SceneMesh::remapOccFaceTriangleIndicesFromArrays()).
+	bool occFaceRemapPrepared = false;
+	std::vector<int> preparedOccTriangleIndices, preparedOccFaceIndices;
 
 	std::vector<float> precomputedOccEdges;
 	// Boundary table: bounds[i] = first vec3-index of topological edge i; bounds.back() = total.

@@ -3546,6 +3546,63 @@ void SceneMesh::remapOccFaceTriangleIndicesByPosition(
 	}
 }
 
+void SceneMesh::remapOccFaceTriangleIndicesFromArrays(
+	const std::vector<glm::vec3>& srcPositions, const std::vector<unsigned int>& srcIndices,
+	const std::vector<int>& srcTriangleIndices, const std::vector<int>& srcFaceIndices,
+	const std::vector<Vertex>& dstVertices, const std::vector<unsigned int>& dstIndices,
+	std::vector<int>& outTriangleIndices, std::vector<int>& outFaceIndices)
+{
+	outTriangleIndices.clear();
+	outFaceIndices.clear();
+	if (srcTriangleIndices.empty())
+		return;
+
+	// Same quantized, winding-independent triangle signature as remapOccFaceTriangleIndicesByPosition().
+	auto quantize = [](float v) -> int64_t { return static_cast<int64_t>(std::lround(v * 100000.0f)); };
+	auto triangleKey = [&](const glm::vec3& a, const glm::vec3& b, const glm::vec3& c) -> uint64_t {
+		std::array<std::array<int64_t, 3>, 3> pts = { {
+			{ quantize(a.x), quantize(a.y), quantize(a.z) },
+			{ quantize(b.x), quantize(b.y), quantize(b.z) },
+			{ quantize(c.x), quantize(c.y), quantize(c.z) }
+		} };
+		std::sort(pts.begin(), pts.end());
+		uint64_t h = 1469598103934665603ull;  // FNV-1a offset basis
+		for (const auto& p : pts)
+		{
+			for (int64_t v : p)
+			{
+				h ^= static_cast<uint64_t>(v);
+				h *= 1099511628211ull;  // FNV-1a prime
+			}
+		}
+		return h;
+	};
+
+	std::unordered_map<uint64_t, int> signatureToFace;
+	signatureToFace.reserve(srcTriangleIndices.size());
+	for (size_t i = 0; i < srcTriangleIndices.size(); ++i)
+	{
+		const size_t base = static_cast<size_t>(srcTriangleIndices[i]) * 3;
+		if (base + 2 >= srcIndices.size())
+			continue;
+		signatureToFace[triangleKey(srcPositions[srcIndices[base]], srcPositions[srcIndices[base + 1]], srcPositions[srcIndices[base + 2]])] = srcFaceIndices[i];
+	}
+
+	const size_t dstTriCount = dstIndices.size() / 3;
+	outTriangleIndices.reserve(signatureToFace.size());
+	outFaceIndices.reserve(signatureToFace.size());
+	for (size_t t = 0; t < dstTriCount; ++t)
+	{
+		const size_t base = t * 3;
+		const auto it = signatureToFace.find(triangleKey(dstVertices[dstIndices[base]].Position, dstVertices[dstIndices[base + 1]].Position, dstVertices[dstIndices[base + 2]].Position));
+		if (it != signatureToFace.end())
+		{
+			outTriangleIndices.push_back(static_cast<int>(t));
+			outFaceIndices.push_back(it->second);
+		}
+	}
+}
+
 void SceneMesh::buildTriangleAdjacency() const
 {
 	_triangleAdjacencyCacheBuilt = true;  // set even below's early-returns, so an invalid mesh isn't retried on every call

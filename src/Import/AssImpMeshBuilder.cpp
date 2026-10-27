@@ -1,4 +1,5 @@
 #include "AssImpMeshBuilder.h"
+#include "ImportDiagnostics.h"
 #include "AssImpModelLoader.h"
 #include "ViewportWidget.h"
 #include "SceneMesh.h"
@@ -185,7 +186,7 @@ SceneMesh* AssImpMeshBuilder::build(AssImpMeshData meshData,
     // other format transfers the conversion buffers without another copy.
     std::vector<Vertex> occSourceVertices;
     std::vector<unsigned int> occSourceIndices;
-    if (!meshData.precomputedOccFaceTriangleBounds.empty())
+    if (!meshData.precomputedOccFaceTriangleBounds.empty() && !meshData.occFaceRemapPrepared)
     {
         occSourceVertices = meshData.vertices;
         occSourceIndices = meshData.indices;
@@ -245,6 +246,14 @@ SceneMesh* AssImpMeshBuilder::build(AssImpMeshData meshData,
             axes.push_back(info);
         }
 
+        if (meshData.occFaceRemapPrepared)
+        {
+            // Already remapped onto the final triangle order on a worker thread (empty when no cylindrical/conical face).
+            if (!meshData.preparedOccTriangleIndices.empty())
+                mesh->setPrecomputedOccFaceAxes(meshData.preparedOccTriangleIndices, meshData.preparedOccFaceIndices, axes);
+        }
+        else
+        {
         // Expand the dense (pre-optimization) per-face triangle-range table
         // into a sparse per-triangle list, ORIGINAL triangle order,
         // cylindrical/conical faces only (most CAD faces are flat/spline -
@@ -277,6 +286,16 @@ SceneMesh* AssImpMeshBuilder::build(AssImpMeshData meshData,
                 mesh.get(), remappedTriangleIndices, remappedFaceIndices);
             mesh->setPrecomputedOccFaceAxes(remappedTriangleIndices, remappedFaceIndices, axes);
         }
+        }
+    }
+    if (!meshData.precomputedOccFaceTriangleBounds.empty())
+    {
+        // Trace aid: a checksum of the mesh's cylinder/cone face table, to compare runs (it must not depend on where it was computed).
+        quint64 checksum = 1469598103934665603ULL;
+        const auto& tris = mesh->getOccFaceTriangleIndices();
+        const auto& faces = mesh->getOccFaceIndexPerTriangle();
+        for (size_t i = 0; i < tris.size(); ++i) { checksum = (checksum ^ quint64(tris[i])) * 1099511628211ULL; checksum = (checksum ^ quint64(i < faces.size() ? faces[i] : -1)) * 1099511628211ULL; }
+        ImportDiagnostics::checkpoint("viewer.occ-face-table", mesh->getSceneIndex(), checksum, tris.size());
     }
     if (!meshData.variantMappings.isEmpty())
     {
