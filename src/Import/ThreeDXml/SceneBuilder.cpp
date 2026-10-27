@@ -33,9 +33,6 @@ struct Primitive {
     std::unordered_map<VertexKey,unsigned,VertexHash> vertices;
     std::unordered_set<quint64> edgeHits; // edge polyline segments that are edges of this primitive's own triangles
 };
-// A representation with more mesh leaves than this is merged into one mesh per colour group (the exporter writes some
-// parts as thousands of tiny leaves, one per CAD face or feature). Every vertex keeps its leaf number as provenance.
-constexpr size_t kMergeLeafThreshold = 50;
 quint64 segmentKey(unsigned a, unsigned b) { return (quint64(std::min(a,b))<<32) | std::max(a,b); }
 struct BodyMeshes { QString path; std::vector<unsigned> meshes; };
 void children(aiNode& parent, std::vector<std::unique_ptr<aiNode>>& nodes) {
@@ -153,7 +150,7 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         meshes.push_back(std::move(mesh)); return index;
     };
     std::map<QString,std::vector<BodyMeshes>> resources;
-    QStringList members;
+    QStringList members, skippedMembers;
     QHash<QString,QString> formats;
     for (auto it = doc.representations.cbegin(); it != doc.representations.cend(); ++it) {
         if (it->format == QLatin1String("UVR") || it->format == QLatin1String("TESSELLATED")) {
@@ -169,9 +166,19 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         if (options.progress) options.progress(member, memberIndex, members.size());
         Geometry geometry;
         try { geometry = formats.value(member)==QLatin1String("TESSELLATED") ? TessellatedReader::read(archive.read(member),options) : RepresentationReader::read(archive.read(member),options); }
-        catch (const Error& e) { throw Error(QStringLiteral("%1: %2").arg(member,QString::fromUtf8(e.what()))); }
+        catch (const Error& e) {
+            options.check(); // a cancellation is reported as an Error too and must never be turned into a skip
+            const QString reason = QStringLiteral("%1: %2").arg(member,QString::fromUtf8(e.what()));
+            if (options.strict) throw Error(reason);
+            // The rest of the assembly still loads; occurrences that reference the member simply have no geometry.
+            skippedMembers.append(reason); resources[member];
+            result.warnings.append(QStringLiteral("Skipped unreadable representation %1").arg(reason));
+            continue;
+        }
         std::vector<std::vector<unsigned>> bodyResources;
-        const bool mergeLeaves = geometry.bodies.size() > kMergeLeafThreshold;
+        // A representation is one part: its leaves (the exporter may write one per CAD face or feature) are merged into one
+        // mesh per opacity group, face colours becoming vertex colours. Every vertex keeps its leaf number as provenance.
+        const bool mergeLeaves = geometry.bodies.size() > 1;
         struct Merged { Primitive prim; std::vector<unsigned> leaf; std::shared_ptr<MeshEdges> edges; };
         std::map<quint64,size_t> mergedByStyle; std::vector<Merged> mergedPrims; unsigned leafNumber = 0;
         // Provenance tag per leaf: the exporter's own source id from the node header (unique per leaf in every heavily
@@ -392,7 +399,9 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
     result.scene->mMaterials=new aiMaterial*[materials.size()]{};
     result.scene->mNumMaterials=static_cast<unsigned>(materials.size());
     for (size_t i=0;i<materials.size();++i) result.scene->mMaterials[i]=materials[i].release();
-    if (!result.scene->mNumMeshes) throw Error(QStringLiteral("3DXML contains no supported triangle geometry"));
+    if (!result.scene->mNumMeshes)
+        throw Error(skippedMembers.isEmpty() ? QStringLiteral("3DXML contains no supported triangle geometry")
+                                             : QStringLiteral("3DXML contains no readable geometry; first failure: %1").arg(skippedMembers.front()));
     if (options.progress) options.progress(QStringLiteral("Complete"),members.size(),members.size());
     {
         size_t withGeometry = 0;
@@ -400,6 +409,7 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         result.warnings.append(QStringLiteral("3DXML tally: %1 representations (%2 with geometry, %3 without), %4 meshes, %5 merged representations.")
             .arg(members.size()).arg(withGeometry).arg(members.size()-static_cast<qsizetype>(withGeometry)).arg(meshes.size()).arg(mergedMemberCount));
     }
+    if (!skippedMembers.isEmpty()) result.warnings.append(QStringLiteral("%1 of %2 representations could not be read and were skipped; the model is incomplete.").arg(skippedMembers.size()).arg(members.size()));
     if (collapsedTriangles) result.warnings.append(QStringLiteral("Skipped %1 collapsed source triangles.").arg(collapsedTriangles));
     return result;
 }

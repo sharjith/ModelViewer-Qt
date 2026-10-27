@@ -233,6 +233,8 @@ public:
 
 	const aiScene* getScene() const { return _scene; }
 	bool hasThreeDXmlScene() const { return bool(_threeDXml.scene); }
+	// Warnings the native importers (3DXML, JT) reported for the file just read; empty for other formats.
+	QStringList importWarnings() const { return _threeDXml.scene ? _threeDXml.warnings : _jt.scene ? _jt.warnings : QStringList(); }
 
 	// Returns variant data parsed from KHR_materials_variants.
 	// Empty when the loaded file has no variant extension.
