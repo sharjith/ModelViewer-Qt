@@ -1765,7 +1765,7 @@ struct PartMerger {
     std::map<std::vector<std::pair<unsigned,std::array<float,16>>>,unsigned> merged;
     unsigned mergedParts=0,pieceCount=0,mergedCount=0;
     // What the pass saw, reported so a run that merges nothing still says why.
-    unsigned leafParts=0,assemblyParts=0,leafPartsWithMeshes=0,slots=0,candidates=0,groupCount=0,multiGroups=0,rejectedHidden=0,rejectedLayout=0,rejectedMirrored=0;
+    unsigned leafParts=0,assemblyParts=0,leafPartsWithMeshes=0,meshSlots=0,candidates=0,groupCount=0,multiGroups=0,rejectedHidden=0,rejectedLayout=0,rejectedMirrored=0;
     // 0 = can be merged, 1 = mesh layout not supported, 2 = mirrored or non-finite frame
     int reject(unsigned id,const aiMatrix4x4& matrix) const {
         if(id>=meshes.size()||!meshes[id])return 1;
@@ -1795,7 +1795,7 @@ struct PartMerger {
         std::vector<Entry> entries;
         const std::function<void(aiNode*,const aiMatrix4x4&)> collect=[&](aiNode* node,const aiMatrix4x4& matrix){
             options.check();
-            slots+=node->mNumMeshes;
+            meshSlots+=node->mNumMeshes;
             if(hidden.contains(node))rejectedHidden+=node->mNumMeshes;
             else for(unsigned slot=0;slot<node->mNumMeshes;++slot) {
                 const int why=reject(node->mMeshes[slot],matrix);
@@ -1899,7 +1899,7 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
         merger.visit(tree.get());
         b.result.warnings.append(QStringLiteral("JT part merge check: %1 Part nodes (%2 leaf, %3 holding other Parts); %4 mesh slots in leaf parts, %5 mergeable "
             "(not mergeable: %6 hidden, %7 unsupported layout, %8 mirrored); %9 groups, %10 with several meshes.")
-            .arg(b.partNodes.size()).arg(merger.leafParts).arg(merger.assemblyParts).arg(merger.slots).arg(merger.candidates)
+            .arg(b.partNodes.size()).arg(merger.leafParts).arg(merger.assemblyParts).arg(merger.meshSlots).arg(merger.candidates)
             .arg(merger.rejectedHidden).arg(merger.rejectedLayout).arg(merger.rejectedMirrored).arg(merger.groupCount).arg(merger.multiGroups));
         if(merger.mergedParts) {
             merger.compact(tree.get());
