@@ -4349,7 +4349,12 @@ void ModelViewer::purgeRedundantAssemblyNodes(SceneNode* scanRoot, bool automati
 				cameraHostNames.insert(camera.nodeName);
 	}
 	ImportDiagnostics::checkpoint("viewer.purge-scan-begin");
-	purgeNodeRecursive(_sceneGraph, _viewportWidget, scanRoot, promotions, cameraHostNames);
+	{
+		// Every promotion edits the scene graph three times; without a batch each edit rebuilt the whole tree and re-ran the
+		// validators, which is quadratic in the part count (hours for an assembly of tens of thousands of parts).
+		SceneGraph::StructureBatch batch(*_sceneGraph);
+		purgeNodeRecursive(_sceneGraph, _viewportWidget, scanRoot, promotions, cameraHostNames);
+	}
 	ImportDiagnostics::checkpoint("viewer.purge-scan-end", -1, static_cast<quint64>(promotions.size()), 0);
 
 	if (promotions.isEmpty())

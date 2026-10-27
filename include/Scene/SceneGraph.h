@@ -332,6 +332,19 @@ public:
     // is destroyed in the undone state.  Does NOT touch _meshUuidToNode.
     static void deleteDetachedSubtree(SceneNode* root);
 
+    // Defers structureChanged() while a bulk edit runs (batches nest). One signal is emitted when the outermost batch ends,
+    // so listeners that rescan the whole scene (the tree rebuild, the data validators) run once instead of once per edit.
+    void beginStructureBatch() { ++_structureBatchDepth; }
+    void endStructureBatch();
+    struct StructureBatch {
+        explicit StructureBatch(SceneGraph& graph) : _graph(graph) { _graph.beginStructureBatch(); }
+        ~StructureBatch() { _graph.endStructureBatch(); }
+        StructureBatch(const StructureBatch&) = delete;
+        StructureBatch& operator=(const StructureBatch&) = delete;
+    private:
+        SceneGraph& _graph;
+    };
+
 signals:
     // Emitted after any structural change (append, clear, remove, restore).
     // The tree widget connects to this to rebuild or refresh its items.
@@ -360,6 +373,10 @@ signals:
     void lightDataChanged();
 
 private:
+    void notifyStructureChanged();
+    int  _structureBatchDepth = 0;
+    bool _structureDirty      = false;
+
     // Recursively build a SceneNode subtree that mirrors ainode and its
     // descendants.  cursor advances through uuids as mesh UUIDs are assigned
     // to nodes — the traversal order must match processNode() exactly.
