@@ -1,4 +1,5 @@
 #include "SceneBuilder.h"
+#include <chrono>
 #include "ArchiveReader.h"
 #include "RepresentationReader.h"
 #include "TessellatedReader.h"
@@ -150,6 +151,7 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         meshes.push_back(std::move(mesh)); return index;
     };
     std::map<QString,std::vector<BodyMeshes>> resources;
+    double parseMs = 0, memberMs = 0; // representation parse, and everything per representation (parse + mesh conversion)
     // A representation belongs to the part (Reference3D) that aggregates it. Its meshes carry that part name, so an EBOM part
     // number can be read from the mesh itself; the representation member stays in brackets for exact tracing.
     QHash<QString,QString> partOfMember;
@@ -175,9 +177,15 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
     members.removeDuplicates(); members.sort();
     for (int memberIndex = 0; memberIndex < members.size(); ++memberIndex) {
         options.check(); const QString member = members[memberIndex];
+        const auto memberStart = std::chrono::steady_clock::now();
+        struct MemberTime { double& total; std::chrono::steady_clock::time_point start; ~MemberTime() { total += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count(); } } memberTime{ memberMs, memberStart };
         if (options.progress) options.progress(member, memberIndex, members.size());
         Geometry geometry;
-        try { geometry = formats.value(member)==QLatin1String("TESSELLATED") ? TessellatedReader::read(archive.read(member),options) : RepresentationReader::read(archive.read(member),options); }
+        try {
+            const auto parseStart = std::chrono::steady_clock::now();
+            geometry = formats.value(member)==QLatin1String("TESSELLATED") ? TessellatedReader::read(archive.read(member),options) : RepresentationReader::read(archive.read(member),options);
+            parseMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - parseStart).count();
+        }
         catch (const Error& e) {
             options.check(); // a cancellation is reported as an Error too and must never be turned into a skip
             const QString reason = QStringLiteral("%1: %2").arg(member,QString::fromUtf8(e.what()));
@@ -394,7 +402,9 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         }
         children(*node,nodes); active.remove(reference); return node;
     };
+    const auto treeStart = std::chrono::steady_clock::now();
     result.scene->mRootNode=build(doc.root,doc.references[doc.root].name,{},{},aiMatrix4x4(),true,nullptr,nullptr,0).release();
+    const double treeMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - treeStart).count();
     if (visitedHidden != doc.hiddenPaths) throw Error(QStringLiteral("Unresolved visibility occurrence path"));
     if (visitedColors.size()!=doc.occurrenceColors.size()) throw Error(QStringLiteral("Unresolved color occurrence path"));
     if (visitedMaterials.size()!=dressed.size()) result.warnings.append(QStringLiteral("%1 material link(s) address occurrences that were not found; ignored.").arg(dressed.size()-visitedMaterials.size()));
@@ -418,6 +428,8 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
     {
         size_t withGeometry = 0;
         for (const auto& entry : resources) if (std::any_of(entry.second.begin(), entry.second.end(), [](const BodyMeshes& body) { return !body.meshes.empty(); })) ++withGeometry;
+        result.warnings.append(QStringLiteral("3DXML scene build timing: %1 representations parsed in %2 ms, converted to meshes in %3 ms, product tree built in %4 ms.")
+            .arg(members.size()).arg(qint64(parseMs)).arg(qint64(memberMs - parseMs)).arg(qint64(treeMs)));
         result.warnings.append(QStringLiteral("3DXML tally: %1 representations (%2 with geometry, %3 without), %4 meshes, %5 merged representations.")
             .arg(members.size()).arg(withGeometry).arg(members.size()-static_cast<qsizetype>(withGeometry)).arg(meshes.size()).arg(mergedMemberCount));
     }
