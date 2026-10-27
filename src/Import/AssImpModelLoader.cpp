@@ -1878,7 +1878,9 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	QString meshName = QString::fromStdString(mesh->mName.C_Str());
 	if(meshName.isEmpty())
 	{
-		meshName = QFileInfo(QString(_path.data())).baseName() + " (Unnamed Mesh)";
+		// An unnamed mesh is traced through the node that owns it (the part or instance name) rather than shown anonymously.
+		const QString ownerName = nodeName ? QString::fromUtf8(nodeName) : QString();
+		meshName = QFileInfo(QString(_path.data())).baseName() + " (" + (ownerName.isEmpty() ? QStringLiteral("Unnamed Mesh") : ownerName) + ")";
 	}
 	else
 	{
