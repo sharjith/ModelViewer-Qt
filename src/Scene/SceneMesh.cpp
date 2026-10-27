@@ -1883,11 +1883,33 @@ void SceneMesh::setupMesh()
 	points.reserve(vertexTotal * 3);
 	normals.reserve(vertexTotal * 3);
 	colors.reserve(vertexTotal * 4);
-	texCoords.reserve(vertexTotal * 8);
 	tangents.reserve(vertexTotal * 3);
 	bitangents.reserve(vertexTotal * 3);
-	jointIndices.reserve(vertexTotal * 4);
-	jointWeights.reserve(vertexTotal * 4);
+
+	// Texture coordinates and skinning data that are all zero are not uploaded: a disabled vertex attribute reads as zero
+	// in the shader, which is what the zeros would have been, and a mesh that is later given a UV set or skinned goes
+	// through setMeshData() and this function again. For a CAD part (no UVs, no skin) that is 64 of the 128 bytes a
+	// vertex took in each of the CPU copy and the GPU buffers. MODELVIEWER_FULL_VERTEX_ATTRIBUTES=1 uploads everything.
+	static const bool fullAttributes = qEnvironmentVariableIntValue("MODELVIEWER_FULL_VERTEX_ATTRIBUTES") != 0;
+	bool hasUvs = fullAttributes, hasSkin = fullAttributes;
+	if (!fullAttributes)
+	{
+		for (const Vertex& v : _vertices)
+		{
+			for (int i = 0; i < 4 && !hasUvs; ++i)
+				hasUvs = v.TexCoords[i].x != 0.0f || v.TexCoords[i].y != 0.0f;
+			hasSkin = hasSkin || v.JointWeights != glm::vec4(0.0f) || v.JointIndices != glm::vec4(0.0f);
+			if (hasUvs && hasSkin)
+				break;
+		}
+	}
+	if (hasUvs)
+		texCoords.reserve(vertexTotal * 8);
+	if (hasSkin)
+	{
+		jointIndices.reserve(vertexTotal * 4);
+		jointWeights.reserve(vertexTotal * 4);
+	}
 
 	for (const Vertex& v : _vertices)
 	{
@@ -1906,11 +1928,12 @@ void SceneMesh::setupMesh()
 		colors.push_back(v.Color.a);
 		
 		// Extract all 4 texCoord sets
-		for (int i = 0; i < 4; i++)
-		{
-			texCoords.push_back(v.TexCoords[i].x);
-			texCoords.push_back(v.TexCoords[i].y);
-		}
+		if (hasUvs)
+			for (int i = 0; i < 4; i++)
+			{
+				texCoords.push_back(v.TexCoords[i].x);
+				texCoords.push_back(v.TexCoords[i].y);
+			}
 
 		tangents.push_back(v.Tangent.x);
 		tangents.push_back(v.Tangent.y);
@@ -1920,19 +1943,23 @@ void SceneMesh::setupMesh()
 		bitangents.push_back(v.Bitangent.y);
 		bitangents.push_back(v.Bitangent.z);
 
-		jointIndices.push_back(v.JointIndices.x);
-		jointIndices.push_back(v.JointIndices.y);
-		jointIndices.push_back(v.JointIndices.z);
-		jointIndices.push_back(v.JointIndices.w);
+		if (hasSkin)
+		{
+			jointIndices.push_back(v.JointIndices.x);
+			jointIndices.push_back(v.JointIndices.y);
+			jointIndices.push_back(v.JointIndices.z);
+			jointIndices.push_back(v.JointIndices.w);
 
-		jointWeights.push_back(v.JointWeights.x);
-		jointWeights.push_back(v.JointWeights.y);
-		jointWeights.push_back(v.JointWeights.z);
-		jointWeights.push_back(v.JointWeights.w);
+			jointWeights.push_back(v.JointWeights.x);
+			jointWeights.push_back(v.JointWeights.y);
+			jointWeights.push_back(v.JointWeights.z);
+			jointWeights.push_back(v.JointWeights.w);
+		}
 	}
 
 	ImportDiagnostics::checkpoint("mesh.setup-arrays-end", -1, _vertices.size(), _indices.size());
-	initBuffers(&_indices, &points, &normals, &colors, &texCoords, &tangents, &bitangents, &jointIndices, &jointWeights);
+	initBuffers(&_indices, &points, &normals, &colors, hasUvs ? &texCoords : nullptr, &tangents, &bitangents, hasSkin ? &jointIndices : nullptr,
+		hasSkin ? &jointWeights : nullptr);
 	ImportDiagnostics::checkpoint("mesh.setup-gl-upload-end");
 	uploadLodTier();
 	computeBounds();

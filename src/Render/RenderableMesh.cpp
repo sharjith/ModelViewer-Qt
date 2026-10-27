@@ -567,14 +567,20 @@ void RenderableMesh::initBuffers(
 
 	if (texCoords)
 		_texCoords = *texCoords;
+	else
+		_texCoords.clear(); // not supplied (e.g. all zero): nothing of an earlier upload may linger
 	if (tangents)
 		_tangents = *tangents;
 	if (bitangents)
 		_bitangents = *bitangents;
 	if (jointIndices)
 		_jointIndices = *jointIndices;
+	else
+		_jointIndices.clear();
 	if (jointWeights)
 		_jointWeights = *jointWeights;
+	else
+		_jointWeights.clear();
 
 	_memorySize = 0;
 	_memorySize = (_points.size() + _normals.size() + _indices.size()) * sizeof(float);
