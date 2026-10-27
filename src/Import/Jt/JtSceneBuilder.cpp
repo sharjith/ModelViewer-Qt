@@ -479,6 +479,9 @@ struct Builder {
     std::map<const void*,unsigned> geometryCache;
     std::vector<const aiNode*> hiddenJournal;
     std::vector<const aiNode*> partNodes; // nodes built from a JT Part; rolled back with the LOD alternatives that created them
+    // The style each mesh was added with, parallel to meshes. Meshes that differ only in diffuse colour can later be one mesh.
+    struct MeshStyle {Appearance style;bool unifiable;};
+    std::vector<MeshStyle> meshStyles;
     unsigned nodes=0;
     void textureWarning(const QString& text) {if(!result.warnings.contains(text))result.warnings.append(text);}
     int embedImage(const QImage& pixels) {
@@ -1052,6 +1055,7 @@ struct Builder {
     Checkpoint checkpoint() const {return {meshes.size(),materials.size(),result.exactShapes.size(),hiddenJournal.size(),geometries.size(),result.warnings.size(),result.storedMeshes,result.exactParts,result.fallbackParts,partNodes.size()};}
     void rollback(const Checkpoint& c) {
         partNodes.resize(c.parts);
+        meshStyles.resize(c.meshes);
         meshes.resize(c.meshes);materials.resize(c.materials);result.exactShapes.resize(c.shapes);
         geometries.resize(c.geometries);geometryGroups.resize(c.geometries);
         for(auto it=groupMeshCache.begin();it!=groupMeshCache.end();) {if(it->second>=c.meshes)it=groupMeshCache.erase(it);else ++it;}
@@ -1370,6 +1374,7 @@ struct Builder {
             }
         }
         mesh->mMaterialIndex=mat;mesh->mName=aiString(name.toUtf8().constData());
+        meshStyles.push_back({style,!colored&&mergeableStyle(style)});
         meshes.push_back(std::move(mesh)); return unsigned(meshes.size()-1);
     }
     std::unique_ptr<aiNode> visit(const Handle(JtData_Object)& object,Appearance style={},bool parentHidden=false,bool transformLocked=false,const aiMatrix4x4& parentWorld=aiMatrix4x4(),PaletteContext palette={},MaterialSourceContext materialSource={}) {
@@ -1718,7 +1723,7 @@ struct Builder {
 };
 // Concatenates meshes into one, baking each piece's matrix (its frame relative to the part node) into positions and normals.
 struct MergePiece {const aiMesh* mesh;aiMatrix4x4 matrix;};
-std::unique_ptr<aiMesh> concatenateTransformed(const std::vector<MergePiece>& pieces) {
+std::unique_ptr<aiMesh> concatenateTransformed(const std::vector<MergePiece>& pieces,const std::vector<aiColor4D>* colours=nullptr) {
     size_t vertices=0,faces=0;
     for(const auto& piece:pieces){vertices+=piece.mesh->mNumVertices;faces+=piece.mesh->mNumFaces;}
     if(pieces.empty()||vertices>std::numeric_limits<unsigned>::max()||faces>std::numeric_limits<unsigned>::max())throw std::runtime_error("JT merged part meshes exceed the supported size");
@@ -1728,12 +1733,13 @@ std::unique_ptr<aiMesh> concatenateTransformed(const std::vector<MergePiece>& pi
     mesh->mName=first.mName;mesh->mMaterialIndex=first.mMaterialIndex;mesh->mPrimitiveTypes=aiPrimitiveType_TRIANGLE;
     mesh->mNumVertices=unsigned(vertices);mesh->mNumFaces=unsigned(faces);
     mesh->mVertices=new aiVector3D[vertices];mesh->mNormals=new aiVector3D[vertices];
-    if(first.HasVertexColors(0))mesh->mColors[0]=new aiColor4D[vertices];
+    if(colours||first.HasVertexColors(0))mesh->mColors[0]=new aiColor4D[vertices];
     for(unsigned channel=0;channel<AI_MAX_NUMBER_OF_TEXTURECOORDS;++channel)
         if(first.HasTextureCoords(channel)){mesh->mTextureCoords[channel]=new aiVector3D[vertices];mesh->mNumUVComponents[channel]=first.mNumUVComponents[channel];}
     mesh->mFaces=new aiFace[faces];
     unsigned vertexBase=0,faceBase=0;
-    for(const auto& piece:pieces) {
+    for(size_t k=0;k<pieces.size();++k) {
+        const auto& piece=pieces[k];
         const aiMesh& source=*piece.mesh;
         const bool identity=piece.matrix.IsIdentity();
         aiMatrix3x3 normalMatrix(piece.matrix);normalMatrix.Inverse().Transpose();
@@ -1743,7 +1749,7 @@ std::unique_ptr<aiMesh> concatenateTransformed(const std::vector<MergePiece>& pi
             aiVector3D normal=identity?source.mNormals[i]:normalMatrix*source.mNormals[i];
             if(!identity&&normal.SquareLength()>0)normal.Normalize();
             mesh->mNormals[vertexBase+i]=normal;
-            if(mesh->mColors[0])mesh->mColors[0][vertexBase+i]=source.mColors[0][i];
+            if(mesh->mColors[0])mesh->mColors[0][vertexBase+i]=colours?(*colours)[k]:source.mColors[0][i];
             for(unsigned channel=0;channel<AI_MAX_NUMBER_OF_TEXTURECOORDS;++channel)
                 if(mesh->mTextureCoords[channel])mesh->mTextureCoords[channel][vertexBase+i]=source.mTextureCoords[channel][i];
         }
@@ -1760,6 +1766,7 @@ struct PartMerger {
     const Options& options;
     std::vector<std::unique_ptr<aiMesh>>& meshes;
     QSet<const aiNode*>& hidden;
+    Builder& builder;
     std::unordered_set<const aiNode*> parts;
     // Instances of one part build identical pieces, so they share the merged mesh.
     std::map<std::vector<std::pair<unsigned,std::array<float,16>>>,unsigned> merged;
@@ -1806,13 +1813,17 @@ struct PartMerger {
             for(unsigned i=0;i<node->mNumChildren;++i)collect(node->mChildren[i],matrix*node->mChildren[i]->mTransformation);
         };
         collect(part,aiMatrix4x4());
-        using Key=std::tuple<unsigned,bool,std::array<unsigned,AI_MAX_NUMBER_OF_TEXTURECOORDS>>;
+        // Meshes whose styles differ only in diffuse colour and opacity (and carry no colours or textures of their own) form one
+        // group and become one mesh with per-vertex colours; every other mesh groups by its material.
+        using Key=std::tuple<bool,unsigned,std::vector<float>,bool,std::array<unsigned,AI_MAX_NUMBER_OF_TEXTURECOORDS>>;
         std::map<Key,std::vector<size_t>> groups;
         for(size_t i=0;i<entries.size();++i) {
             const aiMesh& m=*meshes[entries[i].mesh];
             std::array<unsigned,AI_MAX_NUMBER_OF_TEXTURECOORDS> uv{};
             for(unsigned c=0;c<AI_MAX_NUMBER_OF_TEXTURECOORDS;++c)uv[c]=m.HasTextureCoords(c)?m.mNumUVComponents[c]+1:0;
-            groups[Key{m.mMaterialIndex,m.HasVertexColors(0),uv}].push_back(i);
+            const auto& info=builder.meshStyles.at(entries[i].mesh);
+            if(info.unifiable)groups[Key{true,0,styleSignature(info.style),false,uv}].push_back(i);
+            else groups[Key{false,m.mMaterialIndex,{},m.HasVertexColors(0),uv}].push_back(i);
         }
         std::map<aiNode*,std::set<unsigned>> taken;std::vector<unsigned> attach;
         if(!entries.empty())++leafPartsWithMeshes;
@@ -1829,8 +1840,19 @@ struct PartMerger {
             }
             auto found=merged.find(key);
             if(found==merged.end()) {
-                auto mesh=concatenateTransformed(pieces);
-                found=merged.emplace(std::move(key),unsigned(meshes.size())).first;meshes.push_back(std::move(mesh));
+                const unsigned firstId=entries[group.second.front()].mesh;
+                const bool unified=std::get<0>(group.first);
+                std::vector<aiColor4D> colours;bool differ=false;
+                if(unified)for(size_t i:group.second){
+                    colours.push_back(builder.meshStyles.at(entries[i].mesh).style.diffuse);
+                    differ=differ||colours.back()!=colours.front();
+                }
+                auto mesh=concatenateTransformed(pieces,differ?&colours:nullptr);
+                unsigned id;
+                const Builder::MeshStyle firstStyle=builder.meshStyles.at(firstId); // copied: add() grows the vector
+                if(differ)id=builder.add(std::move(mesh),firstStyle.style,QString::fromUtf8(meshes[firstId]->mName.C_Str()));
+                else {id=unsigned(meshes.size());builder.meshStyles.push_back({firstStyle.style,false});meshes.push_back(std::move(mesh));}
+                found=merged.emplace(std::move(key),id).first;
             }
             attach.push_back(found->second);pieceCount+=unsigned(group.second.size());++mergedCount;
         }
@@ -1894,7 +1916,7 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
     auto tree=b.visit(root,{},false,false,aiMatrix4x4(),{},materialSourceContext(info.absoluteFilePath(),options));if(b.meshes.empty()) throw std::runtime_error("JT contains no supported tessellation and no validated exact geometry");
     if(options.mergePartMeshes) {
         const size_t before=b.meshes.size();
-        PartMerger merger{options,b.meshes,b.result.hiddenNodes,{}};
+        PartMerger merger{options,b.meshes,b.result.hiddenNodes,b,{}};
         merger.parts.insert(b.partNodes.begin(),b.partNodes.end());
         merger.visit(tree.get());
         b.result.warnings.append(QStringLiteral("JT part merge check: %1 Part nodes (%2 leaf, %3 holding other Parts); %4 mesh slots in leaf parts, %5 mergeable "
