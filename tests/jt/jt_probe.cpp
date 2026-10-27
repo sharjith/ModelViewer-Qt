@@ -93,7 +93,7 @@ int main(int argc,char** argv) {
         QElapsedTimer readTimer;readTimer.start();
         auto result=Jt::Importer::read(arguments[0],options);
         std::cout<<"read seconds="<<readTimer.elapsed()/1000.0<<'\n';
-        for(const auto& note:result.notes)if(note.startsWith("JT read timing"))std::cout<<note.toStdString()<<'\n';
+        for(const auto& note:result.notes)if(note.startsWith("JT read timing")||note.startsWith("JT build timing"))std::cout<<note.toStdString()<<'\n';
         std::cout<<"charged allocation bytes="<<charged<<'\n';
         unsigned vertices=0,triangles=0;
         for(unsigned i=0;i<result.scene->mNumMeshes;++i) {vertices+=result.scene->mMeshes[i]->mNumVertices;triangles+=result.scene->mMeshes[i]->mNumFaces;}

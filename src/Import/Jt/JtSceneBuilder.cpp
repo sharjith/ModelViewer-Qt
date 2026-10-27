@@ -569,7 +569,7 @@ struct Builder {
     std::vector<MeshStyle> meshStyles;
     unsigned nodes=0;
     // Where the read spends its time (reported in the import notes): opening part files, decoding shape payloads, converting them.
-    double openMs=0,decodeMs=0,convertMs=0;unsigned filesOpened=0,shapesDecoded=0,prefetched=0;
+    double openMs=0,decodeMs=0,convertMs=0,copyMs=0,addMs=0,metaMs=0,sourceCtxMs=0,attrMs=0;unsigned filesOpened=0,shapesDecoded=0,prefetched=0;
     std::unique_ptr<Prefetcher> prefetch;
     struct Timed {
         double& total;std::chrono::steady_clock::time_point begin=std::chrono::steady_clock::now();
@@ -1285,6 +1285,7 @@ struct Builder {
         const unsigned id=unsigned(materials.size());materials.push_back(std::move(m));materialCache.emplace(std::move(key),id);return id;
     }
     std::unique_ptr<aiMesh> copyGeometry(unsigned index) {
+        Timed timed(copyMs);
         const auto& source=*geometries.at(index);auto copy=std::make_unique<aiMesh>();
         copy->mPrimitiveTypes=source.mPrimitiveTypes;copy->mNumVertices=source.mNumVertices;copy->mNumFaces=source.mNumFaces;
         JtData_Limits::allocation(size_t(copy->mNumVertices)*2*sizeof(aiVector3D)+size_t(copy->mNumFaces)*(sizeof(aiFace)+3*sizeof(unsigned)));
@@ -1304,6 +1305,7 @@ struct Builder {
         return copy;
     }
     unsigned add(std::unique_ptr<aiMesh> mesh,const Appearance& style,const QString& name) {
+        Timed timed(addMs);
         if(mesh->HasVertexColors(0) && style.overrideColors) {delete[] mesh->mColors[0];mesh->mColors[0]=nullptr;}
         const bool colored=mesh->HasVertexColors(0);
         const unsigned src=(style.blendFlags>>6)&31,dst=(style.blendFlags>>11)&31;
@@ -1770,7 +1772,8 @@ struct Builder {
                         struct FilePop {std::set<QString>& files;QString path;~FilePop(){files.erase(path);}} filePop{activeFiles,fileKey(file)};
                         auto& root=partitions[fileKey(file)];
                         if(root.IsNull()) {Timed timed(openMs);++filesOpened;Handle(JtData_Model) m=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(file.utf16())));root=m->Init();}
-                        children.push_back(visit(root,style,hidden,transformLocked,world,palette,materialSourceContext(file,options)));
+                        MaterialSourceContext partContext;{Timed timed(sourceCtxMs);partContext=materialSourceContext(file,options);}
+                        children.push_back(visit(root,style,hidden,transformLocked,world,palette,std::move(partContext)));
                     }
                 } else {
                     const bool lod=!Handle(JtNode_LOD)::DownCast(object).IsNull();
@@ -1837,8 +1840,8 @@ struct Builder {
         node->mNumMeshes=unsigned(attached.size());if(!attached.empty()) {node->mMeshes=new unsigned[attached.size()];std::copy(attached.begin(),attached.end(),node->mMeshes);}
         node->mNumChildren=unsigned(children.size());if(!children.empty()) {node->mChildren=new aiNode*[children.size()]{};for(size_t i=0;i<children.size();++i) {children[i]->mParent=node.get();node->mChildren[i]=children[i].release();}}
         const bool selectionNode=!switchNode.IsNull() || !Handle(JtNode_LOD)::DownCast(object).IsNull();
-        auto sourceProperties=properties(*source,label);
-        auto sourceTextures=textureDescriptors(*source,label);
+        std::unique_ptr<aiMetadata> sourceProperties,sourceTextures;
+        {Timed timed(metaMs);sourceProperties=properties(*source,label);sourceTextures=textureDescriptors(*source,label);}
         const bool unitMetadata=!style.textureUnits.empty()&&(sourceTextures||!attached.empty());
         node->mMetaData=aiMetadata::Alloc(1+(selectionNode?1:0)+(lodDistance?1:0)+(sourceProperties?1:0)+(sourceTextures?1:0)+(unitMetadata?1:0));
         unsigned meta=0;node->mMetaData->Set(meta++,"JTRepresentation",aiString(exact ? "BRep" : attached.empty() ? "Assembly" : "StoredTessellation"));
@@ -2077,6 +2080,10 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
     if(options.lodEyePoint) for(double coordinate:*options.lodEyePoint)
         if(!std::isfinite(coordinate)) throw std::runtime_error("Invalid JT RangeLOD eye point");
     Builder b{options,info.canonicalPath()};b.activeFiles.insert(fileKey(info.canonicalFilePath()));b.material(Appearance{});
+    double scoutMs=0,visitMs=0,mergeMs=0,nameMs=0;
+    const auto stamp=[]{return std::chrono::steady_clock::now();};
+    const auto since=[&](std::chrono::steady_clock::time_point t){return std::chrono::duration<double,std::milli>(stamp()-t).count();};
+    auto phase=stamp();
     {
         // Decode shape payloads on a few threads ahead of the build. Small inputs are not worth the threads.
         const unsigned cores=std::max(1u,std::thread::hardware_concurrency());
@@ -2093,7 +2100,8 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
             }
         }
     }
-    auto tree=b.visit(root,{},false,false,aiMatrix4x4(),{},materialSourceContext(info.absoluteFilePath(),options));b.prefetch.reset();if(b.meshes.empty()) throw std::runtime_error("JT contains no supported tessellation and no validated exact geometry");
+    scoutMs=since(phase);phase=stamp();
+    auto tree=b.visit(root,{},false,false,aiMatrix4x4(),{},materialSourceContext(info.absoluteFilePath(),options));b.prefetch.reset();visitMs=since(phase);phase=stamp();if(b.meshes.empty()) throw std::runtime_error("JT contains no supported tessellation and no validated exact geometry");
     if(options.mergePartMeshes) {
         const size_t before=b.meshes.size();
         PartMerger merger{options,b.meshes,b.result.hiddenNodes,b,{}};
@@ -2111,6 +2119,7 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
                 .arg(before).arg(b.meshes.size()).arg(merger.mergedParts));
         }
     }
+    mergeMs=since(phase);phase=stamp();
     {
         // Nodes the file leaves unnamed (wrapper levels, shape nodes) take the nearest named ancestor's name rather than showing blank.
         const std::function<void(aiNode*,const aiString&)> fill=[&](aiNode* node,const aiString& inherited){
@@ -2119,6 +2128,9 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
         };
         fill(tree.get(),aiString(info.completeBaseName().toUtf8().constData()));
     }
+    nameMs=since(phase);
+    b.result.notes.append(QStringLiteral("JT build timing: scout and part-file opening %1 ms, scene build %2 ms (of which decode wait %3 ms, shape conversion %4 ms, geometry copies %7 ms, mesh finishing and materials %8 ms, node metadata %9 ms, part-file header reads %10 ms), part-mesh merge %5 ms, naming %6 ms.")
+        .arg(qint64(scoutMs)).arg(qint64(visitMs)).arg(qint64(b.decodeMs)).arg(qint64(b.convertMs)).arg(qint64(mergeMs)).arg(qint64(nameMs)).arg(qint64(b.copyMs)).arg(qint64(b.addMs)).arg(qint64(b.metaMs)).arg(qint64(b.sourceCtxMs)));
     b.result.notes.append(QStringLiteral("JT read timing: %1 part files opened in %2 ms, %3 shape payloads decoded in %4 ms, converted to meshes in %5 ms; %6 payloads were queued for parallel decoding (decode time is the build's wait for them).")
         .arg(b.filesOpened).arg(qint64(b.openMs)).arg(b.shapesDecoded).arg(qint64(b.decodeMs)).arg(qint64(b.convertMs)).arg(b.prefetched));
     b.result.scene=std::make_unique<aiScene>();auto& scene=*b.result.scene;
