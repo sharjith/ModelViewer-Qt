@@ -25,6 +25,12 @@ using namespace ThreeDXml;
 void require(bool ok, const char* message) { if (!ok) throw std::runtime_error(message); }
 template<class Fn> void rejects(Fn fn) { bool rejected=false; try { fn(); } catch (const Error&) { rejected=true; } require(rejected,"expected checked rejection"); }
 QByteArray readFile(const QString& path) { QFile f(path); require(f.open(QIODevice::ReadOnly),"cannot open reference file"); return f.readAll(); }
+// Mesh names read "<part name> [<representation member>__body_N]"; the bracketed source id is what the references are keyed by.
+QString sourceMeshName(const aiMesh& mesh)
+{
+    const QString name=QString::fromUtf8(mesh.mName.C_Str()); const int open=name.lastIndexOf('[');
+    return open>=0&&name.endsWith(']') ? name.mid(open+1,name.size()-open-2) : name;
+}
 void writeZip(const QString& path,const std::vector<std::pair<QByteArray,QByteArray>>& entries)
 {
     zipFile zip=zipOpen64(QFile::encodeName(path).constData(),APPEND_STATUS_CREATE);
@@ -306,7 +312,7 @@ void sceneVariants()
     auto merged=Importer::read(zip); const auto& mergedScene=*merged.scene;
     require(mergedScene.mNumMeshes==1,"51 leaves merge into one mesh");
     const auto& mesh=*mergedScene.mMeshes[0];
-    require(QString::fromUtf8(mesh.mName.C_Str()).endsWith("__merged"),"merged mesh name");
+    require(QString::fromUtf8(mesh.mName.C_Str())==QStringLiteral("test [part.3DRep__merged]"),"merged mesh name carries the part name and the representation member");
     require(mesh.HasVertexColors(0)&&mesh.mNumVertices==51*3&&mesh.mNumFaces==51,"merged geometry and colours");
     const auto leafIds=merged.meshLeafIds.value(&mesh);
     require(leafIds&&leafIds->size()==mesh.mNumVertices,"one leaf number per vertex");
@@ -428,7 +434,7 @@ void sample(const QString& archive, const QString& glbPath, const QString& occur
             for(unsigned f=0;f<mesh.mNumFaces;++f) all.push_back(f);
         }
         for(const auto& group:byColor) {
-            auto found=primitives.find(QString::fromUtf8(mesh.mName.C_Str())+'/'+group.first);
+            auto found=primitives.find(sourceMeshName(mesh)+'/'+group.first);
             if(found==primitives.end()) continue; // GLB intentionally omitted hidden-only resources.
             ++compared; auto attrs=found->second["attributes"].toObject();
             const auto pbr=mats[found->second["material"].toInt()].toObject()["pbrMetallicRoughness"].toObject();
@@ -488,7 +494,7 @@ void audit(const QString& path,const QString& output) {
                 require(mat->Get(AI_MATKEY_BASE_COLOR,base)==AI_SUCCESS&&mat->Get(AI_MATKEY_COLOR_DIFFUSE,diffuse)==AI_SUCCESS,"audit color properties");
                 require(mat->Get(AI_MATKEY_OPACITY,opacity)==AI_SUCCESS&&base==diffuse&&base.a==opacity,"audit color/opacity bindings");
                 colors.append(QJsonArray{base.r,base.g,base.b,base.a});
-                names.append(QString::fromUtf8(mesh->mName.C_Str())); triangleCounts.append(int(mesh->mNumFaces));
+                names.append(sourceMeshName(*mesh)); triangleCounts.append(int(mesh->mNumFaces));
             }
             appearances.append(QJsonObject{{"path",occurrence},{"colors",colors},{"meshes",names},{"triangles",triangleCounts},{"overridden",product.occurrenceColors.contains(ancestor)}});
         }

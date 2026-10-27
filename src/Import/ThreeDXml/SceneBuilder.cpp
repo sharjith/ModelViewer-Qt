@@ -150,6 +150,18 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         meshes.push_back(std::move(mesh)); return index;
     };
     std::map<QString,std::vector<BodyMeshes>> resources;
+    // A representation belongs to the part (Reference3D) that aggregates it. Its meshes carry that part name, so an EBOM part
+    // number can be read from the mesh itself; the representation member stays in brackets for exact tracing.
+    QHash<QString,QString> partOfMember;
+    for (const auto& ref : doc.references)
+        for (const QString& repId : ref.representations) {
+            const auto found = doc.representations.constFind(repId);
+            if (found != doc.representations.cend() && !ref.name.isEmpty() && !partOfMember.contains(found->member)) partOfMember.insert(found->member, ref.name);
+        }
+    const auto meshLabel = [&](const QString& member, const QString& suffix) {
+        const QString part = partOfMember.value(member);
+        return part.isEmpty() ? member + suffix : QStringLiteral("%1 [%2%3]").arg(part, member, suffix);
+    };
     QStringList members, skippedMembers;
     QHash<QString,QString> formats;
     for (auto it = doc.representations.cbegin(); it != doc.representations.cend(); ++it) {
@@ -267,14 +279,14 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
             std::vector<unsigned> bodyMeshes;
             for (auto& p : primitives) {
                 if (p.triangles.empty()) continue;
-                bodyMeshes.push_back(makeMesh(p, QStringLiteral("%1__body_%2").arg(member).arg(body.offset), buildEdges(p, body), nullptr));
+                bodyMeshes.push_back(makeMesh(p, meshLabel(member, QStringLiteral("__body_%1").arg(body.offset)), buildEdges(p, body), nullptr));
             }
             bodyResources.push_back(std::move(bodyMeshes));
         }
         if (mergeLeaves) {
             std::vector<unsigned> mergedMeshes;
             for (auto& m : mergedPrims)
-                mergedMeshes.push_back(makeMesh(m.prim, QStringLiteral("%1__merged").arg(member), std::move(m.edges), std::make_shared<const std::vector<unsigned>>(std::move(m.leaf))));
+                mergedMeshes.push_back(makeMesh(m.prim, meshLabel(member, QStringLiteral("__merged")), std::move(m.edges), std::make_shared<const std::vector<unsigned>>(std::move(m.leaf))));
             ++mergedMemberCount;
             result.warnings.append(QStringLiteral("%1: %2 mesh leaves merged into %3 meshes (vertices keep their leaf number).").arg(member).arg(leafNumber).arg(mergedMeshes.size()));
             resources[member].push_back({QString(), std::move(mergedMeshes)});
