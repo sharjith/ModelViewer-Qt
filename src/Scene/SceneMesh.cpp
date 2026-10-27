@@ -1,4 +1,5 @@
 #include "SceneMesh.h"
+#include "ImportDiagnostics.h"
 #include "ScopedMaterialWireframe.h"
 #include "TextureLocationManager.h"
 #include "IGpuContextResource.h"
@@ -314,6 +315,11 @@ inline bool wireframeFeaturesEnabled()
 
 }
 
+bool SceneMesh::featureEdgesEnabledInSettings()
+{
+	return wireframeFeaturesEnabled();
+}
+
 bool SceneMesh::_currentBlendEnabled;
 GLenum SceneMesh::_currentFrontFace;
 QOpenGLShaderProgram* SceneMesh::_currentUniformStateShader = nullptr;
@@ -322,7 +328,7 @@ bool SceneMesh::_currentUniformStateHadDebugOverrides = false;
 
 /*  Functions  */
 // Constructor
-SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<Material::Texture> textures, Material material, bool skipOptimization, GLenum primitiveMode, std::vector<quint64> initialSourceMeshIds)
+SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<Material::Texture> textures, Material material, bool skipOptimization, GLenum primitiveMode, std::vector<quint64> initialSourceMeshIds, std::vector<unsigned int> preparedLod1Indices, bool geometryPrepared, std::vector<uint32_t> preparedFeatureEdges, bool featureEdgesPrepared)
     : RenderableMesh(shader, "SceneMesh")
     , _textures(_materialState.textures())
     , _currentMorphWeights(_animState.currentMorphWeights())
@@ -352,8 +358,16 @@ SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> 
 	// correctly skipped) for the right primitive type from the first upload.
 	setPrimitiveMode(primitiveMode);
 
-	// Optimize the mesh (reorder indices and vertices for better vertex cache locality, overdraw, and vertex fetch)
-	optimizeMesh();
+	// Optimize the mesh (reorder indices and vertices for better vertex cache locality, overdraw, and vertex fetch). An importer may
+	// already have done this on a worker thread (optimizeGeometry()); then the arrays arrive reordered, with the LOD1 tier.
+	_preparedFeatureEdges = std::move(preparedFeatureEdges);
+	_featureEdgesPrepared = featureEdgesPrepared;
+	ImportDiagnostics::checkpoint("mesh.ctor-optimize-begin");
+	if (geometryPrepared)
+		_pendingLod1Indices = std::move(preparedLod1Indices);
+	else
+		optimizeMesh();
+	ImportDiagnostics::checkpoint("mesh.ctor-optimize-end");
 
 	// Now that we have all the required data, set the vertex buffers and its attribute pointers.
 	setupMesh();
@@ -1681,6 +1695,108 @@ namespace
 	constexpr size_t kLodMinTriangleCount = 5000;
 }
 
+bool SceneMesh::optimizeGeometry(std::vector<Vertex>& vertices, std::vector<unsigned int>& indices, bool allowLod,
+	std::vector<unsigned int>& outLod1Indices, std::vector<unsigned int>& outRemap)
+{
+	outLod1Indices.clear();
+	outRemap.clear();
+	if (!(indices.size() > 300 && vertices.size() > 100))
+		return false;
+
+	const size_t vertexCount = vertices.size();
+
+	// Extract positions temporarily for overdraw optimization
+	std::vector<float> tempPositions(vertexCount * 3);
+	for (size_t i = 0; i < vertexCount; i++)
+	{
+		tempPositions[i * 3 + 0] = vertices[i].Position.x;
+		tempPositions[i * 3 + 1] = vertices[i].Position.y;
+		tempPositions[i * 3 + 2] = vertices[i].Position.z;
+	}
+
+	// Step 1: Vertex Cache Optimization
+	meshopt_optimizeVertexCache(indices.data(), indices.data(), indices.size(), vertexCount);
+
+	// Step 2: Overdraw Optimization
+	meshopt_optimizeOverdraw(indices.data(), indices.data(), indices.size(), tempPositions.data(), vertexCount, sizeof(float) * 3, 1.05f);
+
+	// Step 3: interaction-time LOD1 (coarse) tier - generated BEFORE vertex-fetch reordering below, since meshopt_simplify needs
+	// an index array still referencing the CURRENT (pre-reorder) vertex layout, and the vertex-fetch remap computed after this
+	// must be applied to both LOD0 and LOD1 consistently (see Step 4). The caller decides eligibility (rigid meshes only:
+	// skinning/morph data isn't remapped by this pass, and a simplified skinned mesh's weights would no longer correspond to the
+	// simplified topology).
+	std::vector<unsigned int> lod1Indices;
+	if (allowLod && indices.size() >= kLodMinTriangleCount * 3)
+	{
+		const size_t targetIndexCount = (static_cast<size_t>(indices.size() * kLod1TriangleRatio) / 3) * 3;
+		float resultError = 0.0f;
+		lod1Indices.resize(indices.size());
+		size_t lod1Count = meshopt_simplify(
+			lod1Indices.data(),
+			indices.data(),
+			indices.size(),
+			tempPositions.data(),
+			vertexCount,
+			sizeof(float) * 3,
+			targetIndexCount,
+			kLod1TargetError,
+			meshopt_SimplifyLockBorder,
+			&resultError
+		);
+		lod1Indices.resize(lod1Count);
+
+		// meshopt_simplify can stop early due to topology constraints and return close to the original count for some meshes -
+		// only keep LOD1 if it's a meaningful reduction.
+		if (lod1Count > 0 && lod1Count < indices.size() * 0.9)
+		{
+			meshopt_optimizeVertexCache(lod1Indices.data(), lod1Indices.data(), lod1Indices.size(), vertexCount);
+			meshopt_optimizeOverdraw(lod1Indices.data(), lod1Indices.data(), lod1Indices.size(),
+				tempPositions.data(), vertexCount, sizeof(float) * 3, 1.05f);
+		}
+		else
+		{
+			lod1Indices.clear();
+		}
+	}
+
+	// Step 4: Vertex Fetch Optimization - ONE shared remap computed from LOD0's access pattern (it's the tier drawn almost always),
+	// then applied to the vertex buffer AND to every index array that references it (LOD0 always, LOD1 if generated above).
+	std::vector<unsigned int> remap(vertexCount);
+	const size_t uniqueVertexCount = meshopt_optimizeVertexFetchRemap(remap.data(), indices.data(), indices.size(), vertexCount);
+
+	// meshopt_optimizeVertexFetchRemap only assigns a destination slot to vertices actually referenced by the indices - orphaned
+	// vertices are left as the ~0u sentinel, which meshopt_remapVertexBuffer would silently skip, leaving a default-constructed
+	// (zero/origin) Vertex in that slot. CAD-tessellated STEP/IGES/BREP meshes genuinely have orphaned vertices
+	// (convertFaceGroupToMesh() keeps a face's vertices even when some of its triangles are filtered out as degenerate), so each
+	// orphan gets a real tail slot instead of rotting into a phantom (0,0,0) vertex that corrupts the bounding box.
+	unsigned int nextOrphanSlot = static_cast<unsigned int>(uniqueVertexCount);
+	for (size_t i = 0; i < vertexCount; ++i)
+	{
+		if (remap[i] == ~0u)
+			remap[i] = nextOrphanSlot++;
+	}
+
+	// Build every result first and only then commit, so a failed allocation leaves the caller's arrays exactly as they were.
+	std::vector<Vertex> remappedVertices(vertexCount);
+	meshopt_remapVertexBuffer(remappedVertices.data(), vertices.data(), vertexCount, sizeof(Vertex), remap.data());
+
+	std::vector<unsigned int> remappedLod0(indices.size());
+	meshopt_remapIndexBuffer(remappedLod0.data(), indices.data(), indices.size(), remap.data());
+
+	std::vector<unsigned int> remappedLod1;
+	if (!lod1Indices.empty())
+	{
+		remappedLod1.resize(lod1Indices.size());
+		meshopt_remapIndexBuffer(remappedLod1.data(), lod1Indices.data(), lod1Indices.size(), remap.data());
+	}
+
+	vertices = std::move(remappedVertices);
+	indices = std::move(remappedLod0);
+	outLod1Indices = std::move(remappedLod1);
+	outRemap = std::move(remap);
+	return true;
+}
+
 void SceneMesh::optimizeMesh()
 {
 	// ============================================
@@ -1696,181 +1812,53 @@ void SceneMesh::optimizeMesh()
 		// Not a triangle mesh - skip meshoptimizer
 		return;
 	}
-	if (_indices.size() > 300 && _vertices.size() > 100)
+
+	// False positive: this runs from optimizeMesh(), called from SceneMesh's own constructor (not a base class ctor), so
+	// SceneMesh's own vtable is already active here - SceneMesh has no further subclass, so its own hasSkinning()/
+	// hasMorphTargets() overrides ARE what's being called, not a "wrong" base version.
+	const bool eligibleForLod = !hasSkinning() && !hasMorphTargets() // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
+		&& _primitiveMode == GL_TRIANGLES
+		&& _indices.size() >= kLodMinTriangleCount * 3;
+
+	const size_t vertexCount = _vertices.size();
+	std::vector<unsigned int> lod1Indices, remap;
+	if (!optimizeGeometry(_vertices, _indices, eligibleForLod, lod1Indices, remap))
+		return;
+
+	if (!lod1Indices.empty())
+		_pendingLod1Indices = std::move(lod1Indices);
+
+	// Same reorder applied to source-mesh provenance (if any was passed into the constructor) - exact same `remap` permutation as
+	// _vertices, so getSourceMeshIds()[i] stays aligned with vertices()[i] after this reorder. No orphan-slot special-casing
+	// needed: remap[] already has a valid destination for every ORIGINAL vertex index, and _sourceMeshIds is exactly vertexCount
+	// long (constructor guarantees this or leaves it empty) - see MeshImportAdaptor::sourceMeshIds().
+	if (_importState.hasSourceMeshIds())
 	{
-		size_t vertexCount = _vertices.size();
-
-		// Extract positions temporarily for overdraw optimization
-		std::vector<float> tempPositions(vertexCount * 3);
-		for (size_t i = 0; i < vertexCount; i++)
-		{
-			tempPositions[i * 3 + 0] = _vertices[i].Position.x;
-			tempPositions[i * 3 + 1] = _vertices[i].Position.y;
-			tempPositions[i * 3 + 2] = _vertices[i].Position.z;
-		}
-
-		// Step 1: Vertex Cache Optimization
-		meshopt_optimizeVertexCache(
-			_indices.data(),
-			_indices.data(),
-			_indices.size(),
-			vertexCount
-		);
-
-		// Step 2: Overdraw Optimization
-		meshopt_optimizeOverdraw(
-			_indices.data(),
-			_indices.data(),
-			_indices.size(),
-			tempPositions.data(),
-			vertexCount,
-			sizeof(float) * 3,
-			1.05f
-		);
-
-		// Step 3: interaction-time LOD1 (coarse) tier - generated here, BEFORE
-		// vertex-fetch reordering below, since meshopt_simplify needs an index
-		// array still referencing the CURRENT (pre-reorder) vertex layout, and
-		// the vertex-fetch remap computed after this must be applied to both
-		// LOD0 and LOD1 consistently (see Step 4). Restricted to rigid meshes
-		// only - skinning/morph target data isn't remapped by this pass, and a
-		// simplified skinned mesh's weights would no longer correspond to the
-		// simplified topology.
-		std::vector<unsigned int> lod1Indices;
-		// False positive: this runs from optimizeMesh(), called from
-		// SceneMesh's own constructor (not a base class ctor), so
-		// SceneMesh's own vtable is already active here - SceneMesh has no
-		// further subclass, so its own hasSkinning()/hasMorphTargets()
-		// overrides ARE what's being called, not a "wrong" base version.
-		const bool eligibleForLod = !hasSkinning() && !hasMorphTargets() // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
-			&& _primitiveMode == GL_TRIANGLES
-			&& _indices.size() >= kLodMinTriangleCount * 3;
-		if (eligibleForLod)
-		{
-			const size_t targetIndexCount = (static_cast<size_t>(_indices.size() * kLod1TriangleRatio) / 3) * 3;
-			float resultError = 0.0f;
-			lod1Indices.resize(_indices.size());
-			size_t lod1Count = meshopt_simplify(
-				lod1Indices.data(),
-				_indices.data(),
-				_indices.size(),
-				tempPositions.data(),
-				vertexCount,
-				sizeof(float) * 3,
-				targetIndexCount,
-				kLod1TargetError,
-				meshopt_SimplifyLockBorder,
-				&resultError
-			);
-			lod1Indices.resize(lod1Count);
-
-			// meshopt_simplify can stop early due to topology constraints and
-			// return close to the original count for some meshes - only keep
-			// LOD1 if it's a meaningful reduction.
-			if (lod1Count > 0 && lod1Count < _indices.size() * 0.9)
-			{
-				meshopt_optimizeVertexCache(lod1Indices.data(), lod1Indices.data(), lod1Indices.size(), vertexCount);
-				meshopt_optimizeOverdraw(lod1Indices.data(), lod1Indices.data(), lod1Indices.size(),
-					tempPositions.data(), vertexCount, sizeof(float) * 3, 1.05f);
-			}
-			else
-			{
-				lod1Indices.clear();
-			}
-		}
-
-		// Step 4: Vertex Fetch Optimization - ONE shared remap computed from
-		// LOD0's access pattern (it's the tier drawn almost always), then
-		// applied to the vertex buffer AND to every index array that
-		// references it (LOD0 always, LOD1 if generated above). Using
-		// meshopt_optimizeVertexFetch directly (as before this LOD feature
-		// existed) only remaps the single index array passed to it - fine
-		// when there was only ever one, but it would silently desync LOD1
-		// from the reordered vertex buffer, so the remap has to be computed
-		// once and applied explicitly to both.
-		std::vector<unsigned int> remap(vertexCount);
-		const size_t uniqueVertexCount = meshopt_optimizeVertexFetchRemap(remap.data(), _indices.data(), _indices.size(), vertexCount);
-
-		// meshopt_optimizeVertexFetchRemap only assigns a destination slot to
-		// vertices actually referenced by _indices - vertices never referenced
-		// by any surviving triangle (orphaned) are left as the ~0u sentinel,
-		// which meshopt_remapVertexBuffer below then silently skips writing,
-		// leaving that destination slot as a default-constructed (zero/origin)
-		// Vertex. CAD-tessellated STEP/IGES/BREP meshes genuinely have orphaned
-		// vertices - convertFaceGroupToMesh() keeps a face's vertices even when
-		// some of its triangles are filtered out as degenerate - so give every
-		// orphaned vertex a real tail slot instead of letting it rot into a
-		// phantom (0,0,0) vertex that silently corrupts the mesh's bounding box.
-		unsigned int nextOrphanSlot = static_cast<unsigned int>(uniqueVertexCount);
+		const std::vector<quint64>& srcIds = _importState.sourceMeshIds();
+		std::vector<quint64> remappedIds(vertexCount, 0);
 		for (size_t i = 0; i < vertexCount; ++i)
+			remappedIds[remap[i]] = srcIds[i];
+		_importState.setSourceMeshIds(std::move(remappedIds));
+	}
+
+	// Morph target position/normal/tangent deltas (MorphTargetData) are separate parallel arrays indexed the same way as
+	// _vertices, NOT part of the Vertex struct the remap above just reordered - each delta[i] must land at the SAME destination
+	// slot remap[i] its corresponding _vertices[i] did, or morph displacement ends up applied to the wrong vertex entirely
+	// (found via a glTF-Sample-Assets regression sweep: MorphPrimitivesTest). eligibleForLod already excludes morph-targeted
+	// meshes from the topology-changing simplification; this vertex-FETCH remap only reorders, so it was never gated on them.
+	for (MorphTargetData& target : _morphTargets)
+	{
+		auto remapDeltas = [&remap, vertexCount](std::vector<glm::vec3>& deltas)
 		{
-			if (remap[i] == ~0u)
-				remap[i] = nextOrphanSlot++;
-		}
-
-		std::vector<Vertex> remappedVertices(vertexCount);
-		meshopt_remapVertexBuffer(remappedVertices.data(), _vertices.data(), vertexCount, sizeof(Vertex), remap.data());
-		_vertices = std::move(remappedVertices);
-
-		std::vector<unsigned int> remappedLod0(_indices.size());
-		meshopt_remapIndexBuffer(remappedLod0.data(), _indices.data(), _indices.size(), remap.data());
-		_indices = std::move(remappedLod0);
-
-		if (!lod1Indices.empty())
-		{
-			std::vector<unsigned int> remappedLod1(lod1Indices.size());
-			meshopt_remapIndexBuffer(remappedLod1.data(), lod1Indices.data(), lod1Indices.size(), remap.data());
-			_pendingLod1Indices = std::move(remappedLod1);
-		}
-
-		// Same reorder applied to source-mesh provenance (if any was passed
-		// into the constructor) - exact same `remap` permutation as _vertices
-		// above, so getSourceMeshIds()[i] stays aligned with vertices()[i]
-		// after this reorder. No orphan-slot special-casing needed: remap[]
-		// already has a valid destination for every ORIGINAL vertex index
-		// (assigned either by meshopt or the orphan-slot loop above), and
-		// _sourceMeshIds is exactly vertexCount long (constructor guarantees
-		// this or leaves it empty) - see MeshImportAdaptor::sourceMeshIds().
-		if (_importState.hasSourceMeshIds())
-		{
-			const std::vector<quint64>& srcIds = _importState.sourceMeshIds();
-			std::vector<quint64> remappedIds(vertexCount, 0);
-			for (size_t i = 0; i < vertexCount; ++i)
-				remappedIds[remap[i]] = srcIds[i];
-			_importState.setSourceMeshIds(std::move(remappedIds));
-		}
-
-		// Morph target position/normal/tangent deltas (MorphTargetData) are
-		// separate parallel arrays indexed the same way as _vertices, NOT
-		// part of the Vertex struct the remap above just reordered - each
-		// delta[i] must land at the SAME destination slot remap[i] its
-		// corresponding _vertices[i] did, or morph displacement ends up
-		// applied to the wrong vertex entirely once _vertices is reordered.
-		// eligibleForLod above already excludes morph-targeted meshes from
-		// Step 3's topology-changing SIMPLIFICATION (vertex COUNT changes
-		// there, genuinely incompatible with a fixed-size delta array), but
-		// that exclusion never covered this vertex-FETCH remap - an
-		// orthogonal concern that only REORDERS the existing vertices
-		// without changing how many there are, so it was never gated on
-		// hasMorphTargets() and silently desynced every sufficiently large
-		// morph-targeted mesh's deltas from their vertices. Found via a
-		// glTF-Sample-Assets regression sweep (MorphPrimitivesTest, whose
-		// two morph-displaced primitives showed the wrong proportion of
-		// each primitive's material visible after this pass ran).
-		for (MorphTargetData& target : _morphTargets)
-		{
-			auto remapDeltas = [&remap, vertexCount](std::vector<glm::vec3>& deltas)
-			{
-				if (deltas.size() != vertexCount)
-					return;
-				std::vector<glm::vec3> remappedDeltas(vertexCount);
-				meshopt_remapVertexBuffer(remappedDeltas.data(), deltas.data(), vertexCount, sizeof(glm::vec3), remap.data());
-				deltas = std::move(remappedDeltas);
-			};
-			remapDeltas(target.positionDeltas);
-			remapDeltas(target.normalDeltas);
-			remapDeltas(target.tangentDeltas);
-		}
+			if (deltas.size() != vertexCount)
+				return;
+			std::vector<glm::vec3> remappedDeltas(vertexCount);
+			meshopt_remapVertexBuffer(remappedDeltas.data(), deltas.data(), vertexCount, sizeof(glm::vec3), remap.data());
+			deltas = std::move(remappedDeltas);
+		};
+		remapDeltas(target.positionDeltas);
+		remapDeltas(target.normalDeltas);
+		remapDeltas(target.tangentDeltas);
 	}
 }
 
@@ -1889,6 +1877,17 @@ void SceneMesh::setupMesh()
 	std::vector<float> bitangents;
 	std::vector<float> jointIndices;
 	std::vector<float> jointWeights;
+
+	// Sized up front: growing eight arrays push_back by push_back reallocates them over and over for a large mesh.
+	const size_t vertexTotal = _vertices.size();
+	points.reserve(vertexTotal * 3);
+	normals.reserve(vertexTotal * 3);
+	colors.reserve(vertexTotal * 4);
+	texCoords.reserve(vertexTotal * 8);
+	tangents.reserve(vertexTotal * 3);
+	bitangents.reserve(vertexTotal * 3);
+	jointIndices.reserve(vertexTotal * 4);
+	jointWeights.reserve(vertexTotal * 4);
 
 	for (const Vertex& v : _vertices)
 	{
@@ -1932,11 +1931,15 @@ void SceneMesh::setupMesh()
 		jointWeights.push_back(v.JointWeights.w);
 	}
 
+	ImportDiagnostics::checkpoint("mesh.setup-arrays-end", -1, _vertices.size(), _indices.size());
 	initBuffers(&_indices, &points, &normals, &colors, &texCoords, &tangents, &bitangents, &jointIndices, &jointWeights);
+	ImportDiagnostics::checkpoint("mesh.setup-gl-upload-end");
 	uploadLodTier();
 	computeBounds();
+	ImportDiagnostics::checkpoint("mesh.setup-bounds-end");
 	if (wireframeFeaturesEnabled())
 		buildAndUploadFeatureEdges(15.0f);
+	ImportDiagnostics::checkpoint("mesh.setup-edges-end");
 }
 
 void SceneMesh::uploadLodTier()
@@ -1962,9 +1965,9 @@ void SceneMesh::uploadLodTier()
 	_pendingLod1Indices.clear();
 }
 
-std::vector<uint32_t> SceneMesh::buildPositionWeldMap() const
+std::vector<uint32_t> SceneMesh::buildPositionWeldMapFor(const std::vector<Vertex>& vertices)
 {
-	const uint32_t vertCount = static_cast<uint32_t>(_vertices.size());
+	const uint32_t vertCount = static_cast<uint32_t>(vertices.size());
 	std::vector<uint32_t> weld(vertCount);
 	if (vertCount == 0)
 		return weld;
@@ -1987,7 +1990,7 @@ std::vector<uint32_t> SceneMesh::buildPositionWeldMap() const
 	posMap.reserve(vertCount);
 	for (uint32_t i = 0; i < vertCount; ++i)
 	{
-		const glm::vec3& p = _vertices[i].Position;
+		const glm::vec3& p = vertices[i].Position;
 		QPos q{ static_cast<int32_t>(std::round(p.x / eps)),
 		        static_cast<int32_t>(std::round(p.y / eps)),
 		        static_cast<int32_t>(std::round(p.z / eps)) };
@@ -1997,20 +2000,25 @@ std::vector<uint32_t> SceneMesh::buildPositionWeldMap() const
 	return weld;
 }
 
-void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
+std::vector<uint32_t> SceneMesh::buildPositionWeldMap() const
 {
-	// Only valid for indexed triangle meshes.
-	if (_vertices.empty() || _indices.size() % 3 != 0 || _primitiveMode != GL_TRIANGLES)
-		return;
+	return buildPositionWeldMapFor(_vertices);
+}
 
-	const uint32_t vertCount = static_cast<uint32_t>(_vertices.size());
-	const uint32_t triCount  = static_cast<uint32_t>(_indices.size() / 3);
+std::vector<uint32_t> SceneMesh::computeFeatureEdges(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices, float thresholdDegrees)
+{
+	// Only valid for indexed triangle lists.
+	if (vertices.empty() || indices.size() % 3 != 0)
+		return {};
+
+	const uint32_t vertCount = static_cast<uint32_t>(vertices.size());
+	const uint32_t triCount  = static_cast<uint32_t>(indices.size() / 3);
 
 	// --- Step 1: Position weld ---
 	// Vertices at UV seams or hard-edge splits share the same 3D position but have
 	// different indices. Quantizing by a small epsilon groups them so adjacency is
 	// correctly detected across the seam.
-	const std::vector<uint32_t> weld = buildPositionWeldMap();
+	const std::vector<uint32_t> weld = buildPositionWeldMapFor(vertices);
 
 	// --- Step 2: Build edge adjacency storing vertex normals at each endpoint ---
 	// Key: packed sorted pair of welded vertex indices.
@@ -2032,7 +2040,7 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 	bool useVertexNormals = false;
 	for (uint32_t i = 0; i < std::min(vertCount, 16u); ++i)
 	{
-		const glm::vec3& vn = _vertices[i].Normal;
+		const glm::vec3& vn = vertices[i].Normal;
 		if (glm::dot(vn, vn) > 1e-6f)
 		{ useVertexNormals = true; break; }
 	}
@@ -2047,16 +2055,16 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 		uint8_t   triCount   = 0;
 	};
 	std::unordered_map<uint64_t, EdgeData> edgeMap;
-	edgeMap.reserve(_indices.size());
+	edgeMap.reserve(indices.size());
 
 	for (uint32_t t = 0; t < triCount; ++t)
 	{
-		const uint32_t oi[3] = { _indices[t*3], _indices[t*3+1], _indices[t*3+2] };
+		const uint32_t oi[3] = { indices[t*3], indices[t*3+1], indices[t*3+2] };
 		const uint32_t wi[3] = { weld[oi[0]], weld[oi[1]], weld[oi[2]] };
 
-		const glm::vec3& p0 = _vertices[oi[0]].Position;
-		const glm::vec3& p1 = _vertices[oi[1]].Position;
-		const glm::vec3& p2 = _vertices[oi[2]].Position;
+		const glm::vec3& p0 = vertices[oi[0]].Position;
+		const glm::vec3& p1 = vertices[oi[1]].Position;
+		const glm::vec3& p2 = vertices[oi[2]].Position;
 		glm::vec3 fn = glm::cross(p1 - p0, p2 - p0);
 		float fnLen = glm::length(fn);
 		const glm::vec3 faceNorm = fnLen > 1e-12f ? fn / fnLen : glm::vec3(0.f, 0.f, 1.f);
@@ -2079,8 +2087,8 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 				ed.faceN[slot] = faceNorm;
 				if (useVertexNormals)
 				{
-					ed.vNormMin[slot] = _vertices[oA].Normal;
-					ed.vNormMax[slot] = _vertices[oB].Normal;
+					ed.vNormMin[slot] = vertices[oA].Normal;
+					ed.vNormMax[slot] = vertices[oB].Normal;
 				}
 			}
 			// When the second triangle arrives, detect split-vertex seams.
@@ -2175,7 +2183,26 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 		featureEdges.push_back(entry.orig1);
 	}
 
-	_featureEdgeIndices = std::move(featureEdges);
+	return featureEdges;
+}
+
+void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
+{
+	// Only valid for indexed triangle meshes.
+	if (_vertices.empty() || _indices.size() % 3 != 0 || _primitiveMode != GL_TRIANGLES)
+		return;
+
+	// An importer may already have computed the edges on a worker thread, against these very arrays (first build only).
+	if (_featureEdgesPrepared)
+	{
+		_featureEdgeIndices = std::move(_preparedFeatureEdges);
+		_preparedFeatureEdges.clear();
+		_featureEdgesPrepared = false;
+	}
+	else
+	{
+		_featureEdgeIndices = computeFeatureEdges(_vertices, _indices, thresholdDegrees);
+	}
 
 	_featureEdgeCount = static_cast<GLsizei>(_featureEdgeIndices.size());
 	if (_featureEdgeCount == 0)

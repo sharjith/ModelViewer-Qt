@@ -74,7 +74,13 @@ void write(const char* stage, const char* reason, qint64 index,
         }
 #endif
         // Keep disk usage bounded while retaining the most recent checkpoints.
-        if (std::ftell(state.file) > 32 * 1024 * 1024)
+        // MODELVIEWER_IMPORT_DIAGNOSTICS_MAX_MB raises the cap (default 32 MB); a 30000-part import writes far more than that.
+        static const long long maxBytes = [] {
+            bool ok = false;
+            const long long mb = qEnvironmentVariableIntValue("MODELVIEWER_IMPORT_DIAGNOSTICS_MAX_MB", &ok);
+            return (ok && mb >= 1 ? mb : 32) * 1024 * 1024;
+        }();
+        if (std::ftell(state.file) > maxBytes)
         {
 #ifdef Q_OS_WIN
             const bool truncated = _chsize_s(_fileno(state.file), 0) == 0;

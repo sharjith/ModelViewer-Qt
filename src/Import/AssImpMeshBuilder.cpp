@@ -199,7 +199,11 @@ SceneMesh* AssImpMeshBuilder::build(AssImpMeshData meshData,
         std::move(resolvedMaterial),
         !meshData.morphTargets.isEmpty(),
         meshData.primitiveMode,
-        std::move(meshData.sourceMeshIds));
+        std::move(meshData.sourceMeshIds),
+        std::move(meshData.preparedLod1Indices),
+        meshData.geometryPrepared,
+        std::move(meshData.preparedFeatureEdges),
+        meshData.featureEdgesPrepared);
     mesh->setHasNegativeScale(meshData.hasNegativeScale);
     mesh->setSceneIndex(meshData.sceneIndex);
     mesh->setOriginalMaterialIndex(meshData.originalMaterialIndex);

@@ -5376,6 +5376,13 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 	ImportDiagnostics::checkpoint("viewer.import-begin");
 	SceneNode* importedFileNode = nullptr;
 	QStringList nativeImportWarnings; // taken from the loader before it is deleted, shown once the load UI is reset
+	_progressivePaintClock.invalidate();
+	_progressivePaintCostMs = 0;
+	// Painting is suspended between the paced repaints of a progressive import; whatever way the import ends, resume it.
+	struct PaintResume {
+		ViewportWidget* widget;
+		~PaintResume() { widget->setUpdatesEnabled(true); widget->update(); }
+	} paintResume{ this };
 	_sceneRuntime.setProgressiveLoadingEnabled(progressiveLoading);
 	_sceneRuntime.setCancelRequested(false);
 	_sceneRuntime.setLoadCancelled(false);
@@ -5625,6 +5632,7 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 					if (fileNode && !fileNode->importUnitUserOverridden) fileNode->importUnit = LengthUnit::Millimeter;
 				}
 
+				ImportDiagnostics::checkpoint("viewer.scene-graph-extras-begin");
 				// Register per-file punctual lights (if any) for this file.
 				// setLightData() emits lightDataChanged() which triggers the
 				// PunctualLightsPanel to refresh and ViewportWidget to rebuild the GPU list.
@@ -5656,7 +5664,9 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 				else if (preservesNodeTransforms)
 				{
 					_animCtrl.removeAnimationFile(fileName);
+					ImportDiagnostics::checkpoint("viewer.sync-node-transforms-begin");
 					syncFileNodeTransforms(fileName);
+					ImportDiagnostics::checkpoint("viewer.sync-node-transforms-end");
 				}
 
 				// Register glTF camera data (if any) for this file.
@@ -5677,7 +5687,11 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 				_sceneRuntime.globalScene() ? _sceneRuntime.globalScene()->mNumMeshes : 0u;
 
 			ImportDiagnostics::checkpoint("viewer.scene-copy-begin");
-			aiScene* copiedScene = SceneUtils::deepCopyScene(_sceneRuntime.assimpScene());
+			// A natively imported scene (JT, 3DXML) is adopted as it is: the loader is deleted right after this, so copying every
+			// mesh (seconds and a second full copy of the geometry for a large assembly) would only be thrown away again.
+			aiScene* copiedScene = loadingWorker->releaseNativeScene();
+			if (!copiedScene)
+				copiedScene = SceneUtils::deepCopyScene(_sceneRuntime.assimpScene());
 			ImportDiagnostics::checkpoint("viewer.scene-copy-end");
 			ImportDiagnostics::checkpoint("viewer.scene-merge-begin");
 			SceneUtils::mergeScene(&_sceneRuntime.globalScene(), copiedScene);
@@ -5701,6 +5715,7 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 			}
 		}
 		_sceneRuntime.setAssimpScene(nullptr);
+		ImportDiagnostics::checkpoint("viewer.scene-index-fixup-end");
 
 		if (success && autoOrientCameraEnabled)
 		{
@@ -5715,6 +5730,7 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 			}
 		}
 
+		ImportDiagnostics::checkpoint("viewer.auto-orient-end");
 		if (success)
 			nativeImportWarnings = loadingWorker->importWarnings();
 		disconnect(finishedConnection);
@@ -5728,7 +5744,9 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 		disconnect(lightsConnection);
 
 		loadingWorker->moveToThread(this->thread());
+		ImportDiagnostics::checkpoint("viewer.worker-delete-begin");
 		delete loadingWorker;
+		ImportDiagnostics::checkpoint("viewer.worker-delete-end");
 	}
 
 	if (_sceneRuntime.loadCancelled())
@@ -5766,7 +5784,9 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 
 	MainWindow::setProgressValue(0);
 	MainWindow::hideProgressBar();
+	ImportDiagnostics::checkpoint("viewer.ui-unlock-begin");
 	MainWindow::setLoadingUiLocked(false);
+	ImportDiagnostics::checkpoint("viewer.ui-unlock-end");
 	_sceneRuntime.setCancelRequested(false);
 
 	ImportDiagnostics::checkpoint("viewer.import-end", -1, success ? 1 : 0);
@@ -12241,8 +12261,15 @@ void ViewportWidget::bindIBLTextures()
 void ViewportWidget::render(Camera* camera)
 {
 	QElapsedTimer frameTimer;
-	const bool profileRendering =
-		QSettings().value(QStringLiteral("profileRenderingCheckBox"), false).toBool();
+	// QSettings is a registry read on Windows; the checkbox does not change often enough to need it every frame.
+	static QElapsedTimer profileSettingClock;
+	static bool profileSetting = false;
+	if (!profileSettingClock.isValid() || profileSettingClock.elapsed() > 1000)
+	{
+		profileSetting = QSettings().value(QStringLiteral("profileRenderingCheckBox"), false).toBool();
+		profileSettingClock.restart();
+	}
+	const bool profileRendering = profileSetting;
 	RenderableMesh::beginRenderDiagnosticsFrame(profileRendering);
 	if (profileRendering)
 		frameTimer.start();
@@ -14553,7 +14580,6 @@ void ViewportWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
 	makeCurrent();
 	for (const AssImpMeshData& meshData : batch)
 		attachImportedMesh(meshData);
-	_viewer->updateDisplayList();
 
 	// Progressive AssImp loading emits batches from a worker thread via
 	// BlockingQueuedConnection. Yield once here so paint/update events run
@@ -14566,8 +14592,32 @@ void ViewportWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
 	// for the duration via MainWindow::setLoadingUiLocked(), so letting
 	// user-input events through here only lets the Cancel button do
 	// anything.
-	if (_sceneRuntime.progressiveLoadingEnabled())
-		QApplication::processEvents();
+	//
+	// The display list update (visibility, tree) and the repaint each cost O(meshes so far), so doing both at every batch is
+	// quadratic over the import. They are paced instead: they run when the cost of the last round has been amortised (about
+	// 20% overhead, between 250 ms and 5 s apart). The other yields only service input, so Cancel stays responsive without
+	// redrawing a model that grows by a batch each time. The caller's final updateDisplayList() settles whatever was skipped.
+	if (!_sceneRuntime.progressiveLoadingEnabled())
+	{
+		_viewer->updateDisplayList();
+	}
+	else
+	{
+		const qint64 interval = qBound(qint64(250), 5 * _progressivePaintCostMs, qint64(5000));
+		if (!_progressivePaintClock.isValid() || _progressivePaintClock.elapsed() >= interval)
+		{
+			QElapsedTimer cost;
+			cost.start();
+			_viewer->updateDisplayList();
+			setUpdatesEnabled(true);
+			QApplication::processEvents();
+			setUpdatesEnabled(false);
+			_progressivePaintCostMs = cost.elapsed();
+			_progressivePaintClock.restart();
+		}
+		else
+			QApplication::processEvents();
+	}
 	ImportDiagnostics::checkpoint("viewer.batch-end", -1, batch.size());
 }
 

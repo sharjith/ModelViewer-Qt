@@ -146,6 +146,14 @@ struct AssImpMeshData
 	// merged nothing. Passed to SceneMesh as its initial source-mesh ids - see MeshImportAdaptor::sourceMeshIds().
 	std::vector<quint64> sourceMeshIds;
 
+	// Set by AssImpModelLoader::optimizeBatch(): the vertices/indices above already went through SceneMesh::optimizeGeometry() on a
+	// worker thread (sourceMeshIds permuted to match), so the viewer's SceneMesh constructor skips that pass and only uploads.
+	bool geometryPrepared = false;
+	std::vector<unsigned int> preparedLod1Indices;
+	// Feature edges computed on a worker thread against the final vertices/indices (see SceneMesh::computeFeatureEdges()).
+	bool featureEdgesPrepared = false;
+	std::vector<uint32_t> preparedFeatureEdges;
+
 	std::vector<float> precomputedOccEdges;
 	// Boundary table: bounds[i] = first vec3-index of topological edge i; bounds.back() = total.
 	std::vector<int>   precomputedOccEdgeBoundaries;
@@ -241,7 +249,32 @@ public:
 	const aiScene* getScene() const { return _scene; }
 	bool hasThreeDXmlScene() const { return bool(_threeDXml.scene); }
 	// Warnings the native importers (3DXML, JT) reported for the file just read; empty for other formats.
-	QStringList importWarnings() const { return _threeDXml.scene ? _threeDXml.warnings : _jt.scene ? QStringList(_jt.warnings + _jt.notes) : QStringList(); }
+	QStringList importWarnings() const
+	{
+		if (_sceneReleased)
+			return _releasedWarnings;
+		return _threeDXml.scene ? _threeDXml.warnings : _jt.scene ? QStringList(_jt.warnings + _jt.notes) : QStringList();
+	}
+	// Runs the vertex-cache/overdraw/LOD1/vertex-fetch optimisation (SceneMesh::optimizeGeometry) for every eligible mesh of the batch
+	// on a pool of threads. It is pure CPU work on the meshes' own arrays, and was done one mesh at a time on the GUI thread inside
+	// the SceneMesh constructor. Meshes that are skinned, morphed, not triangle lists or carry OCC face tables are left to the
+	// constructor as before.
+	static void optimizeBatch(std::vector<AssImpMeshData>& batch);
+
+	// Hands the natively imported (JT, 3DXML) scene to the caller, so the viewer can adopt it instead of deep-copying every mesh.
+	// Null for formats whose scene Assimp's importer owns; the caller then copies as before. importWarnings() keeps working.
+	aiScene* releaseNativeScene()
+	{
+		aiScene* scene = nullptr;
+		if (_threeDXml.scene || _jt.scene)
+		{
+			_releasedWarnings = importWarnings();
+			_sceneReleased = true;
+			scene = _threeDXml.scene ? _threeDXml.scene.release() : _jt.scene.release();
+			_scene = nullptr;
+		}
+		return scene;
+	}
 
 	// Returns variant data parsed from KHR_materials_variants.
 	// Empty when the loaded file has no variant extension.
@@ -322,6 +355,8 @@ private:
 	int _batchSize = 20;
 
 	const aiScene* _scene = nullptr; // Holds the loaded scene
+	bool _sceneReleased = false;     // the native scene was handed to the viewer (releaseNativeScene())
+	QStringList _releasedWarnings;
 	ThreeDXml::ImportResult _threeDXml; // Owns custom aiScene independently of Assimp::Importer.
 	Jt::ImportResult _jt;
 	

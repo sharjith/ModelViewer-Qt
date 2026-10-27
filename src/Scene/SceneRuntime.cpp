@@ -379,14 +379,35 @@ std::vector<SceneMesh*> SceneRuntime::meshPointers() const
 	return result;
 }
 
+int SceneRuntime::indexOfUuid(const QUuid& uuid) const
+{
+	const auto valid = [&](int index) {
+		return index >= 0 && index < static_cast<int>(_meshStore.size())
+			&& _meshStore[static_cast<size_t>(index)].mesh
+			&& _meshStore[static_cast<size_t>(index)].mesh->uuid() == uuid;
+	};
+	const auto found = _uuidToIndex.constFind(uuid);
+	if (found != _uuidToIndex.cend() && valid(found.value()))
+		return found.value();
+
+	// Unknown or stale: rebuild once from the live store. The first mesh with a uuid wins, as the scan it replaces did.
+	_uuidToIndex.clear();
+	_uuidToIndex.reserve(static_cast<qsizetype>(_meshStore.size()));
+	for (size_t i = 0; i < _meshStore.size(); ++i)
+	{
+		const SceneMesh* mesh = _meshStore[i].mesh;
+		if (mesh && !_uuidToIndex.contains(mesh->uuid()))
+			_uuidToIndex.insert(mesh->uuid(), static_cast<int>(i));
+	}
+	const auto rebuilt = _uuidToIndex.constFind(uuid);
+	return rebuilt != _uuidToIndex.cend() ? rebuilt.value() : -1;
+}
+
 SceneMesh* SceneRuntime::getMeshByUuid(const QUuid& uuid) const
 {
-	for (const SceneMeshRecord& meshRecord : _meshStore)
-	{
-		SceneMesh* mesh = meshRecord.mesh;
-		if (mesh && mesh->uuid() == uuid)
-			return mesh;
-	}
+	const int index = indexOfUuid(uuid);
+	if (index >= 0)
+		return _meshStore[static_cast<size_t>(index)].mesh;
 
 	if (_recycleBin.contains(uuid))
 		return _recycleBin.value(uuid).mesh;
@@ -403,13 +424,7 @@ SceneMesh* SceneRuntime::getMeshByIndex(int index) const
 
 int SceneRuntime::getIndexByUuid(const QUuid& uuid) const
 {
-	for (size_t i = 0; i < _meshStore.size(); ++i)
-	{
-		SceneMesh* mesh = _meshStore[i].mesh;
-		if (mesh && mesh->uuid() == uuid)
-			return static_cast<int>(i);
-	}
-	return -1;
+	return indexOfUuid(uuid);
 }
 
 QUuid SceneRuntime::getUuidByIndex(int index) const

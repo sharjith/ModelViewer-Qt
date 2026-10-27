@@ -213,6 +213,12 @@ private:
 	// ---- Recycle bin ----
 	QMap<QUuid, RecycleBinEntry> _recycleBin;
 
+	// uuid -> index into _meshStore, so lookups by uuid are O(1) instead of a scan of every mesh (the tree builds one leaf per
+	// mesh and the purge looks meshes up per promotion: quadratic at tens of thousands of meshes). Every hit is validated against
+	// the live store, so a stale entry (the store is edited directly in places) is detected and the index rebuilt, never trusted.
+	int indexOfUuid(const QUuid& uuid) const;
+	mutable QHash<QUuid, int> _uuidToIndex;
+
 	// ---- Texture cache ----
 	std::unordered_map<QString, CachedTextureEntry> _texCache;
 	std::unordered_map<unsigned int, int>           _texRefCount;

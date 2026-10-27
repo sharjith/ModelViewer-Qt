@@ -2,6 +2,9 @@
 
 #include "BRepToAssimpConverter.h"
 #include "ImportDiagnostics.h"
+#include <algorithm>
+#include <atomic>
+#include <thread>
 #include <Standard_Failure.hxx>
 #include <new>
 #include "ThreeDXml/Importer.h"
@@ -882,6 +885,88 @@ AssImpModelLoader::AssImpModelLoader() : QObject(),
 		.value("assimpAutoOrientCheckBox", true).toBool();
 }
 
+namespace
+{
+	void optimizeMeshData(AssImpMeshData& mesh, bool computeEdges)
+	{
+		if (mesh.geometryPrepared || mesh.featureEdgesPrepared)
+			return;
+		// Same conditions SceneMesh's constructor applies before optimizeMesh(), plus the cases whose later steps need the
+		// pre-optimisation arrays (OCC face tables) or per-vertex data this pass does not remap (skin, morph targets).
+		if (!mesh.morphTargets.isEmpty() || !mesh.skinJoints.isEmpty() || !mesh.precomputedOccFaceTriangleBounds.empty())
+			return;
+		if (mesh.primitiveMode != GL_TRIANGLES || mesh.indices.empty() || (mesh.indices.size() % 3) != 0)
+			return;
+		try
+		{
+			std::vector<unsigned int> lod1, remap;
+			if (SceneMesh::optimizeGeometry(mesh.vertices, mesh.indices, true, lod1, remap))
+			{
+				const size_t vertexCount = mesh.vertices.size();
+				if (!mesh.sourceMeshIds.empty() && mesh.sourceMeshIds.size() == vertexCount)
+				{
+					std::vector<quint64> remappedIds(vertexCount, 0);
+					for (size_t i = 0; i < vertexCount; ++i)
+						remappedIds[remap[i]] = mesh.sourceMeshIds[i];
+					mesh.sourceMeshIds = std::move(remappedIds);
+				}
+				mesh.preparedLod1Indices = std::move(lod1);
+				mesh.geometryPrepared = true;
+			}
+			// Too small to optimise: the constructor leaves such arrays alone too, so they are final already.
+			if (computeEdges)
+			{
+				mesh.preparedFeatureEdges = SceneMesh::computeFeatureEdges(mesh.vertices, mesh.indices, 15.0f);
+				mesh.featureEdgesPrepared = true;
+			}
+		}
+		catch (...)
+		{
+			// optimizeGeometry() leaves the arrays untouched when it throws; the constructor then does this mesh itself.
+		}
+	}
+}
+
+void AssImpModelLoader::optimizeBatch(std::vector<AssImpMeshData>& batch)
+{
+	if (batch.empty())
+		return;
+	// Largest meshes first, so the pool is not left waiting on one big mesh that started last.
+	std::vector<size_t> order(batch.size());
+	for (size_t i = 0; i < order.size(); ++i)
+		order[i] = i;
+	std::sort(order.begin(), order.end(), [&batch](size_t a, size_t b) { return batch[a].indices.size() > batch[b].indices.size(); });
+
+	// Read once here (QSettings), not per mesh on the pool threads.
+	const bool computeEdges = SceneMesh::featureEdgesEnabledInSettings();
+	const size_t hardware = std::max<size_t>(1, std::thread::hardware_concurrency());
+	// One core is left to the GUI thread (it is uploading the previous batch's meshes meanwhile).
+	const size_t workers = std::min(order.size(), hardware > 1 ? hardware - 1 : size_t(1));
+	std::atomic<size_t> next{ 0 };
+	auto run = [&]()
+	{
+		for (;;)
+		{
+			const size_t slot = next.fetch_add(1);
+			if (slot >= order.size())
+				break;
+			optimizeMeshData(batch[order[slot]], computeEdges);
+		}
+	};
+	if (workers <= 1)
+	{
+		run();
+		return;
+	}
+	std::vector<std::thread> threads;
+	threads.reserve(workers - 1);
+	for (size_t t = 1; t < workers; ++t)
+		threads.emplace_back(run);
+	run();
+	for (std::thread& thread : threads)
+		thread.join();
+}
+
 AssImpModelLoader::~AssImpModelLoader()
 {
 	disconnect(_progHandler, SIGNAL(fileReadProcessed(float)), this, SLOT(processFileReadProgress(float)));
@@ -1250,6 +1335,13 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	_importStage = "worker.process-nodes";
 	ImportDiagnostics::checkpoint(_importStage, -1, 0, _totalMeshOccurrences);
 	this->processNode(0, _scene->mRootNode, _scene, aiMatrix4x4());
+	if (!_progressiveLoading && !_loadingCancelled)
+	{
+		_importStage = "worker.optimize-meshes";
+		ImportDiagnostics::checkpoint(_importStage, -1, _meshes.size(), 0);
+		optimizeBatch(_meshes);
+		ImportDiagnostics::checkpoint("worker.optimize-meshes-end", -1, _meshes.size(), 0);
+	}
 	_importStage = "worker.nodes-complete";
 	ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
 
@@ -1266,6 +1358,8 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	{
 		_importStage = "worker.final-batch";
 		ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
+		optimizeBatch(_currentBatch);
+		ImportDiagnostics::checkpoint("worker.batch-optimized", -1, _currentBatch.size(), 0);
 		emit meshBatchReady(std::move(_currentBatch));
 		_currentBatch.clear();
 	}
@@ -1389,6 +1483,8 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 			{
 				_importStage = "worker.batch-handoff";
 				ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
+				optimizeBatch(_currentBatch);
+				ImportDiagnostics::checkpoint("worker.batch-optimized", -1, _currentBatch.size(), 0);
 				emit meshBatchReady(std::move(_currentBatch));
 				_currentBatch = {};
 				_currentBatch.reserve(size_t(_batchSize));

@@ -1684,6 +1684,9 @@ protected:
 
 private:
 	QSet<QUuid> _initiallyHiddenImportMeshes; // Import defaults, separate from subsequent user visibility edits.
+	// Progressive import: repainting the whole viewport at every batch costs O(meshes so far) each time, so painting is paced.
+	QElapsedTimer _progressivePaintClock;
+	qint64        _progressivePaintCostMs = 0;
 
 	void createShaderPrograms();
 	void syncUniformsToFlatShader();

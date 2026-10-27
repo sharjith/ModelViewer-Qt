@@ -59,8 +59,27 @@ public:
 	// so its vertex-fetch reorder can permute this array in lockstep with
 	// _vertices. Morph-target meshes keep a separate rest-pose array after
 	// construction; rigid and skin-only meshes use _vertices directly.
-	SceneMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Material::Texture> textures, Material material, bool skipOptimization = false, GLenum primitiveMode = GL_TRIANGLES, std::vector<quint64> initialSourceMeshIds = {});
+	SceneMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Material::Texture> textures, Material material, bool skipOptimization = false, GLenum primitiveMode = GL_TRIANGLES, std::vector<quint64> initialSourceMeshIds = {},
+		std::vector<unsigned int> preparedLod1Indices = {}, bool geometryPrepared = false,
+		std::vector<uint32_t> preparedFeatureEdges = {}, bool featureEdgesPrepared = false);
 	~SceneMesh();
+
+	// The vertex-cache / overdraw / LOD1 / vertex-fetch reordering optimizeMesh() applies, on caller-owned arrays. It touches no GL
+	// state and no shared data, so importers run it for many meshes in parallel on worker threads, then pass the result to the
+	// constructor (geometryPrepared = true) so the GUI thread only uploads. Returns false, leaving the arrays untouched, for a mesh
+	// too small to benefit. outRemap is the vertex permutation (parallel per-vertex arrays must follow it); outLod1Indices is the
+	// coarse tier, already remapped, empty when none was worth generating. If it throws, (vertices, indices) is still a
+	// valid pair (the triangles may have been reordered, the vertices not yet).
+	static bool optimizeGeometry(std::vector<Vertex>& vertices, std::vector<unsigned int>& indices, bool allowLod,
+		std::vector<unsigned int>& outLod1Indices, std::vector<unsigned int>& outRemap);
+
+	// Feature (hard/boundary/crease) edges of an indexed triangle list as pairs of vertex indices: the classification half of
+	// buildAndUploadFeatureEdges(), with no GL and no shared state, so importers can run it on worker threads for the arrays the
+	// constructor will receive and pass the result in (featureEdgesPrepared = true). 15 degrees is the value setupMesh() uses.
+	static std::vector<uint32_t> computeFeatureEdges(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices, float thresholdDegrees = 15.0f);
+
+	// Whether feature edges are built at all (the 'show wireframe' setting); read once by importers before they fan out.
+	static bool featureEdgesEnabledInSettings();
 	virtual SceneMesh* clone();
 	void setProg(QOpenGLShaderProgram* prog) override;
 	void render();
@@ -567,6 +586,7 @@ private:
 	// here) and buildTriangleAdjacency() - the two need different per-edge
 	// payloads (vertex normals vs. triangle indices) but the same weld.
 	std::vector<uint32_t> buildPositionWeldMap() const;
+	static std::vector<uint32_t> buildPositionWeldMapFor(const std::vector<Vertex>& vertices);
 	// Builds _triangleAdjacencyCache (mutable, safe to call from const
 	// context) - see getTriangleAdjacency()'s doc comment. Split out from
 	// the public accessor so the accessor itself stays a trivial "build
@@ -632,6 +652,9 @@ protected:
 	std::vector<unsigned int> _pendingLod1Indices;
 	std::vector<unsigned int> _lod1Indices;
 	std::vector<uint32_t> _featureEdgeIndices;
+	// Handed over by an importer, consumed by the first buildAndUploadFeatureEdges() (see computeFeatureEdges()).
+	std::vector<uint32_t> _preparedFeatureEdges;
+	bool                  _featureEdgesPrepared = false;
 
 	// ---- Lazy triangle-adjacency cache (see getTriangleAdjacency()) -------------
 	mutable std::vector<std::array<int, 3>> _triangleAdjacencyCache;
