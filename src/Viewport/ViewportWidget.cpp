@@ -5375,6 +5375,7 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 	ImportDiagnostics::begin();
 	ImportDiagnostics::checkpoint("viewer.import-begin");
 	SceneNode* importedFileNode = nullptr;
+	QStringList nativeImportWarnings; // taken from the loader before it is deleted, shown once the load UI is reset
 	_sceneRuntime.setProgressiveLoadingEnabled(progressiveLoading);
 	_sceneRuntime.setCancelRequested(false);
 	_sceneRuntime.setLoadCancelled(false);
@@ -5714,6 +5715,8 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 			}
 		}
 
+		if (success)
+			nativeImportWarnings = loadingWorker->importWarnings();
 		disconnect(finishedConnection);
 		disconnect(cancelledConnection);
 		disconnect(fileProgressConnection);
@@ -5752,6 +5755,8 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 	else
 	{
 		MainWindow::showStatusMessage("");
+		if (success)
+			MainWindow::setImportWarnings(fileName, nativeImportWarnings);
 	}
 
 	if (success && !_sceneRuntime.loadCancelled() && importedFileNode)

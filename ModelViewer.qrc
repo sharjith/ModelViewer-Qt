@@ -180,6 +180,7 @@
         <file>res/tutorial.png</file>
         <file>res/quick_help.png</file>
         <file>res/about.png</file>
+        <file>res/import_warnings.png</file>
         <file>res/exit.png</file>
         <file>res/file_close.png</file>
         <file>res/window_close_all.png</file>

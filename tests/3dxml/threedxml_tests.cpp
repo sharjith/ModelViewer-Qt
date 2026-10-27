@@ -301,7 +301,7 @@ void sceneVariants()
       <InstanceRep id='3'><IsAggregatedBy>1</IsAggregatedBy><IsInstanceOf>2</IsInstanceOf></InstanceRep></ProductStructure>)";
     auto warned=[](const ImportResult& result,const char* text) { for(const auto& w:result.warnings) if(w.contains(QLatin1String(text))) return true; return false; };
 
-    // More than 50 leaves: one mesh per opacity group, vertices keep their leaf number, the node names its representation.
+    // Several leaves (any number) form one part: one mesh per opacity group, vertices keep their leaf number, the node names its representation.
     writeZip(zip,{{"Manifest.xml","<m><Root>main.xml</Root></m>"},{"main.xml",product},{"part.3DRep",representation(51)}});
     auto merged=Importer::read(zip); const auto& mergedScene=*merged.scene;
     require(mergedScene.mNumMeshes==1,"51 leaves merge into one mesh");
@@ -314,13 +314,31 @@ void sceneVariants()
     require(warned(merged,"merged into")&&warned(merged,"3DXML tally"),"merge and tally are reported");
     aiString member; require(mergedScene.mRootNode->mMetaData&&mergedScene.mRootNode->mMetaData->Get("3DXMLRepresentation",member)&&member==aiString("part.3DRep"),"node names its representation");
 
-    // At the threshold (50 leaves) nothing is merged: one mesh per single-colour body, each child node tagged.
-    writeZip(zip,{{"Manifest.xml","<m><Root>main.xml</Root></m>"},{"main.xml",product},{"part.3DRep",representation(50)}});
+    // Two leaves already merge: there is no size threshold. A single leaf is left as it is, with its material colour.
+    writeZip(zip,{{"Manifest.xml","<m><Root>main.xml</Root></m>"},{"main.xml",product},{"part.3DRep",representation(2)}});
+    auto two=Importer::read(zip);
+    require(two.scene->mNumMeshes==1&&two.scene->mMeshes[0]->HasVertexColors(0),"2 leaves of different colours merge into one mesh with vertex colours");
+    writeZip(zip,{{"Manifest.xml","<m><Root>main.xml</Root></m>"},{"main.xml",product},{"part.3DRep",representation(1)}});
     auto kept=Importer::read(zip); const auto& keptScene=*kept.scene;
-    require(keptScene.mNumMeshes==50&&keptScene.mRootNode->mNumChildren==50,"50 leaves stay separate");
-    for(unsigned i=0;i<keptScene.mNumMeshes;++i) require(!keptScene.mMeshes[i]->HasVertexColors(0)&&kept.meshLeafIds.isEmpty(),"single-colour bodies keep a material colour");
-    require(keptScene.mRootNode->mChildren[0]->mMetaData&&keptScene.mRootNode->mChildren[0]->mMetaData->Get("3DXMLRepresentation",member)&&member==aiString("part.3DRep"),"body node names its representation");
-    require(!warned(kept,"merged into")&&warned(kept,"3DXML tally"),"no merge report below the threshold");
+    require(keptScene.mNumMeshes==1&&!keptScene.mMeshes[0]->HasVertexColors(0)&&kept.meshLeafIds.isEmpty(),"a single leaf keeps a material colour and is not merged");
+    require(!warned(kept,"merged into")&&warned(kept,"3DXML tally"),"no merge report for a single leaf");
+
+    // An unreadable representation is skipped and listed; the rest of the assembly loads. Strict mode keeps all-or-nothing.
+    const QByteArray twoReps=R"(<ProductStructure root='1'><Reference3D id='1' name='test'/>
+      <ReferenceRep id='2' name='goodrep' format='TESSELLATED' associatedFile='part.3DRep'/>
+      <ReferenceRep id='6' name='badrep' format='TESSELLATED' associatedFile='bad.3DRep'/>
+      <InstanceRep id='3'><IsAggregatedBy>1</IsAggregatedBy><IsInstanceOf>2</IsInstanceOf></InstanceRep>
+      <InstanceRep id='5'><IsAggregatedBy>1</IsAggregatedBy><IsInstanceOf>6</IsInstanceOf></InstanceRep></ProductStructure>)";
+    writeZip(zip,{{"Manifest.xml","<m><Root>main.xml</Root></m>"},{"main.xml",twoReps},{"part.3DRep",representation(2)},{"bad.3DRep","this is not xml"}});
+    auto partial=Importer::read(zip);
+    require(partial.scene->mNumMeshes==1,"the readable representation still loads");
+    require(warned(partial,"Skipped unreadable representation bad.3DRep")&&warned(partial,"1 of 2 representations could not be read"),"the skipped member is listed by name");
+    Options strict; strict.strict=true;
+    rejects([&] { Importer::read(zip,strict); });
+    writeZip(zip,{{"Manifest.xml","<m><Root>main.xml</Root></m>"},{"main.xml",twoReps},{"part.3DRep","also not xml"},{"bad.3DRep","this is not xml"}});
+    bool noGeometry=false;
+    try { Importer::read(zip); } catch(const Error& e) { noGeometry=QString::fromUtf8(e.what()).contains(QLatin1String("no readable geometry; first failure")); }
+    require(noGeometry,"all representations unreadable still fails, naming the first failure");
 }
 
 void sample(const QString& archive, const QString& glbPath, const QString& occurrencesPath, const QString& output)

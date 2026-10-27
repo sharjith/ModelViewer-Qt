@@ -22,6 +22,7 @@ struct Options {
     std::function<void(const QString&, int, int)> progress;
     bool parsedNormals = true;
     bool edges = true; // read the exporter's edge polylines (shown in the edge display modes)
+    bool strict = false; // fail the whole import on an unreadable representation instead of skipping it with a warning
     void check() const {
         if (cancelled && cancelled()) throw Error(QStringLiteral("Model loading cancelled by user."));
     }
