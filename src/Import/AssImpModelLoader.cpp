@@ -2,8 +2,10 @@
 
 #include "BRepToAssimpConverter.h"
 #include "ImportDiagnostics.h"
+#include <QElapsedTimer>
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <thread>
 #include <Standard_Failure.hxx>
 #include <new>
@@ -967,8 +969,110 @@ void AssImpModelLoader::optimizeBatch(std::vector<AssImpMeshData>& batch)
 		thread.join();
 }
 
+void AssImpModelLoader::publishBatch(AssImpMeshDataBatch&& batch)
+{
+	size_t queued = 0;
+	int waitedMs = 0;
+	{
+		std::unique_lock<std::mutex> lock(_batchMutex);
+		// Bounded: the viewer creates meshes for earlier batches on the GUI thread while this thread converts the next one.
+		// Cancelling releases the wait; the batch is then dropped, as the import is being abandoned.
+		QElapsedTimer waited;
+		waited.start();
+		while (_readyBatches.size() >= kMaxQueuedBatches)
+		{
+			if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
+				return;
+			_batchSpace.wait_for(lock, std::chrono::milliseconds(50));
+		}
+		waitedMs = int(waited.elapsed());
+		_readyBatches.push_back(std::move(batch));
+		queued = _readyBatches.size();
+	}
+	ImportDiagnostics::checkpoint("worker.batch-published", waitedMs, queued, 0);
+	emit meshBatchAvailable();
+}
+
+void AssImpModelLoader::submitBatch(AssImpMeshDataBatch&& batch)
+{
+	std::unique_lock<std::mutex> lock(_prepMutex);
+	if (!_prepThread.joinable())
+		_prepThread = std::thread([this] { prepareLoop(); });
+	while (_prepQueue.size() >= kMaxPrepBatches)
+	{
+		if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
+			return;
+		_prepIdle.wait_for(lock, std::chrono::milliseconds(50));
+	}
+	_prepQueue.push_back(std::move(batch));
+	_prepWake.notify_one();
+}
+
+void AssImpModelLoader::prepareLoop()
+{
+	for (;;)
+	{
+		AssImpMeshDataBatch batch;
+		{
+			std::unique_lock<std::mutex> lock(_prepMutex);
+			_prepWake.wait(lock, [this] { return _prepStop || !_prepQueue.empty(); });
+			if (_prepQueue.empty())
+				return; // stop requested and nothing left
+			batch = std::move(_prepQueue.front());
+			_prepQueue.pop_front();
+			_prepBusy = true;
+		}
+		_prepIdle.notify_all(); // room for the conversion thread
+		try
+		{
+			if (!(_loadingCancelled || MainWindow::isFileLoadCancelRequested()))
+			{
+				optimizeBatch(batch);
+				ImportDiagnostics::checkpoint("worker.batch-optimized", -1, batch.size(), 0);
+				publishBatch(std::move(batch));
+			}
+		}
+		catch (...)
+		{
+			_loadingCancelled = true;
+			_errorMessage = "Model loading failed while preparing meshes (out of memory).";
+		}
+		{
+			std::lock_guard<std::mutex> lock(_prepMutex);
+			_prepBusy = false;
+		}
+		_prepIdle.notify_all();
+	}
+}
+
+void AssImpModelLoader::flushBatches()
+{
+	std::unique_lock<std::mutex> lock(_prepMutex);
+	if (!_prepThread.joinable())
+		return;
+	_prepIdle.wait(lock, [this] { return _prepQueue.empty() && !_prepBusy; });
+	_prepStop = true;
+	_prepWake.notify_all();
+	lock.unlock();
+	_prepThread.join();
+	lock.lock();
+	_prepStop = false;
+}
+
+bool AssImpModelLoader::takeReadyBatch(AssImpMeshDataBatch& out)
+{
+	std::lock_guard<std::mutex> lock(_batchMutex);
+	if (_readyBatches.empty())
+		return false;
+	out = std::move(_readyBatches.front());
+	_readyBatches.pop_front();
+	_batchSpace.notify_all();
+	return true;
+}
+
 AssImpModelLoader::~AssImpModelLoader()
 {
+	flushBatches();
 	disconnect(_progHandler, SIGNAL(fileReadProcessed(float)), this, SLOT(processFileReadProgress(float)));
 	//delete _progHandler; // causes crash
 	_progHandler = nullptr;
@@ -1334,6 +1438,8 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		_currentBatch.reserve(size_t(_batchSize));
 	_importStage = "worker.process-nodes";
 	ImportDiagnostics::checkpoint(_importStage, -1, 0, _totalMeshOccurrences);
+	// Whatever way processing ends, the preparation stage must be drained and stopped before loadingFinished is emitted.
+	struct BatchFlush { AssImpModelLoader* loader; ~BatchFlush() { loader->flushBatches(); } } batchFlush{ this };
 	this->processNode(0, _scene->mRootNode, _scene, aiMatrix4x4());
 	if (!_progressiveLoading && !_loadingCancelled)
 	{
@@ -1347,6 +1453,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 
 	if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
 	{
+		flushBatches();
 		_loadingCancelled = true;
 		_errorMessage = "Model loading cancelled by user.";
 		emit loadingFinished(false, _scene);
@@ -1358,11 +1465,11 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	{
 		_importStage = "worker.final-batch";
 		ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
-		optimizeBatch(_currentBatch);
-		ImportDiagnostics::checkpoint("worker.batch-optimized", -1, _currentBatch.size(), 0);
-		emit meshBatchReady(std::move(_currentBatch));
+		submitBatch(std::move(_currentBatch));
 		_currentBatch.clear();
 	}
+	// Every batch is on its way to the viewer before anything that follows (lights, loadingFinished).
+	flushBatches();
 
 	// === Parse KHR_lights_punctual extension ===
 	GltfLightData parsedLights;
@@ -1483,9 +1590,7 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 			{
 				_importStage = "worker.batch-handoff";
 				ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
-				optimizeBatch(_currentBatch);
-				ImportDiagnostics::checkpoint("worker.batch-optimized", -1, _currentBatch.size(), 0);
-				emit meshBatchReady(std::move(_currentBatch));
+				submitBatch(std::move(_currentBatch));
 				_currentBatch = {};
 				_currentBatch.reserve(size_t(_batchSize));
 			}

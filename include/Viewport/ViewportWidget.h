@@ -2042,7 +2042,7 @@ private:
 	// (main mesh shaders) and drawSectionCapping() (stencil-fill shader).
 	void buildBoxClipPlanes(const QVector3D& pos, QVector4D out[6]);
 
-	void onMeshBatchReady(const std::vector<AssImpMeshData>& batch);
+	void onMeshBatchReady(std::vector<AssImpMeshData>&& batch);
 	void consumeMeshBatch(AssImpMeshDataBatch&& batch);
 	void attachImportedMesh(AssImpMeshData meshData);
 	SceneMesh* createMeshFromData(AssImpMeshData meshData);

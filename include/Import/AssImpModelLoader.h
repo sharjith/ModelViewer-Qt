@@ -2,7 +2,11 @@
 
 #include <fstream>
 #include <iostream>
+#include <condition_variable>
+#include <deque>
 #include <map>
+#include <mutex>
+#include <thread>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -261,6 +265,11 @@ public:
 	// constructor as before.
 	static void optimizeBatch(std::vector<AssImpMeshData>& batch);
 
+	// GUI side of the progressive hand-off: moves the oldest waiting batch out of the queue. Returns false when none is waiting.
+	// The worker keeps converting the next batch while the viewer creates meshes for this one; it only waits when more than
+	// kMaxQueuedBatches are already waiting, so memory stays bounded.
+	bool takeReadyBatch(AssImpMeshDataBatch& out);
+
 	// Hands the natively imported (JT, 3DXML) scene to the caller, so the viewer can adopt it instead of deep-copying every mesh.
 	// Null for formats whose scene Assimp's importer owns; the caller then copies as before. importWarnings() keeps working.
 	aiScene* releaseNativeScene()
@@ -291,7 +300,9 @@ signals:
 	void fileReadProcessed(float percent);
 	void verticesProcessed(float percent);
 	void nodeMeshProgressUpdated(int processedNodes, int totalNodes, int processedMeshes, int totalMeshes, bool uvProcessed);
-	void meshBatchReady(AssImpMeshDataBatch batch);
+	// A converted batch is waiting in the hand-off queue (see takeReadyBatch()). Carries no payload: queued connections copy their
+	// arguments, and a batch is megabytes of vertices.
+	void meshBatchAvailable();
 	void sceneUpAxisDetected(SceneUpAxis sceneUpAxis, bool autoOrientCameraEnabled);
 	void loadingFinished(bool successFlag, const aiScene* scene);
 	void loadingCancelled();
@@ -355,6 +366,24 @@ private:
 	int _batchSize = 20;
 
 	const aiScene* _scene = nullptr; // Holds the loaded scene
+	void publishBatch(AssImpMeshDataBatch&& batch);
+	// Progressive pipeline, in three stages on three threads: this (conversion) thread builds a batch and submitBatch()es it; a
+	// preparation thread optimises it (optimizeBatch) and publishBatch()es it; the GUI thread takes it (takeReadyBatch). Each
+	// hand-off is bounded, so memory stays bounded and a slow stage holds back the one before it. flushBatches() waits until
+	// everything submitted has been published and stops the preparation thread; it must run before loadingFinished is emitted.
+	void submitBatch(AssImpMeshDataBatch&& batch);
+	void flushBatches();
+	void prepareLoop();
+	static constexpr size_t kMaxPrepBatches = 2;
+	std::thread _prepThread;
+	std::mutex _prepMutex;
+	std::condition_variable _prepWake, _prepIdle;
+	std::deque<AssImpMeshDataBatch> _prepQueue;
+	bool _prepBusy = false, _prepStop = false;
+	static constexpr size_t kMaxQueuedBatches = 2;
+	std::mutex _batchMutex;
+	std::condition_variable _batchSpace;
+	std::deque<AssImpMeshDataBatch> _readyBatches;
 	bool _sceneReleased = false;     // the native scene was handed to the viewer (releaseNativeScene())
 	QStringList _releasedWarnings;
 	ThreeDXml::ImportResult _threeDXml; // Owns custom aiScene independently of Assimp::Importer.

@@ -5499,20 +5499,36 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 			},
 			Qt::BlockingQueuedConnection);
 
+		// Batches are handed over through a small queue in the loader, not a blocking call: the worker converts the next batch while
+		// this thread creates meshes for the previous one. The signal only says that one is waiting. onMeshBatchReady() spins the
+		// event loop, which can deliver the next signal while a batch is being handled; that re-entry returns at once and the
+		// drain loop of the outer call picks the new batch up. Signals from the worker reach this thread in order, so every batch
+		// has been taken before loadingFinished is handled.
+		bool drainingBatches = false;
 		QMetaObject::Connection batchConnection = connect(
 			loadingWorker,
-			&AssImpModelLoader::meshBatchReady,
+			&AssImpModelLoader::meshBatchAvailable,
 			this,
-			[this, &batchFailed, &reportBatchFailure](const AssImpMeshDataBatch& batch) {
-				if (batchFailed)
+			[this, loadingWorker, &drainingBatches, &batchFailed, &reportBatchFailure]() {
+				if (drainingBatches)
 					return;
-				try { onMeshBatchReady(batch); }
-				catch (const std::bad_alloc&) { reportBatchFailure("Out of memory (std::bad_alloc) creating viewer meshes"); }
-				catch (const Standard_Failure& e) { reportBatchFailure(e.GetMessageString()); }
-				catch (const std::exception& e) { reportBatchFailure(e.what()); }
-				catch (...) { reportBatchFailure("Unknown C++ exception creating viewer meshes"); }
+				drainingBatches = true;
+				AssImpMeshDataBatch batch;
+				while (loadingWorker->takeReadyBatch(batch))
+				{
+					if (!batchFailed)
+					{
+						try { onMeshBatchReady(std::move(batch)); }
+						catch (const std::bad_alloc&) { reportBatchFailure("Out of memory (std::bad_alloc) creating viewer meshes"); }
+						catch (const Standard_Failure& e) { reportBatchFailure(e.GetMessageString()); }
+						catch (const std::exception& e) { reportBatchFailure(e.what()); }
+						catch (...) { reportBatchFailure("Unknown C++ exception creating viewer meshes"); }
+					}
+					batch.clear();
+				}
+				drainingBatches = false;
 			},
-			Qt::BlockingQueuedConnection);
+			Qt::QueuedConnection);
 
 		QMetaObject::Connection cancelRequestConnection = connect(
 			this,
@@ -14574,12 +14590,16 @@ void ViewportWidget::applyAnimationPose(const QString& sourceFile, int clipIndex
 	update();
 }
 
-void ViewportWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
+void ViewportWidget::onMeshBatchReady(std::vector<AssImpMeshData>&& batch)
 {
 	ImportDiagnostics::checkpoint("viewer.batch-begin", -1, batch.size());
 	makeCurrent();
-	for (const AssImpMeshData& meshData : batch)
-		attachImportedMesh(meshData);
+	const size_t batchSize = batch.size();
+	for (AssImpMeshData& meshData : batch)
+		attachImportedMesh(std::move(meshData));
+	// The records are moved-from; release them before the display-list update and the repaint.
+	batch.clear();
+	batch.shrink_to_fit();
 
 	// Progressive AssImp loading emits batches from a worker thread via
 	// BlockingQueuedConnection. Yield once here so paint/update events run
@@ -14618,7 +14638,7 @@ void ViewportWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
 		else
 			QApplication::processEvents();
 	}
-	ImportDiagnostics::checkpoint("viewer.batch-end", -1, batch.size());
+	ImportDiagnostics::checkpoint("viewer.batch-end", -1, batchSize);
 }
 
 void ViewportWidget::consumeMeshBatch(AssImpMeshDataBatch&& batch)
