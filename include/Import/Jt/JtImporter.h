@@ -30,11 +30,16 @@ struct Options {
     // Optional import-time eye position in JT world coordinates / source units.
     // Unset selects the first RangeLOD child; this is not runtime LOD switching.
     std::optional<std::array<double,3>> lodEyePoint;
+    // Meshes of one leaf part that share a material and vertex layout become one mesh (each shape's transform is baked into
+    // its vertices). The part is one body; thousands of shape meshes make a large assembly slow to display. The individual
+    // shape nodes and their metadata are not kept. MODELVIEWER_JT_MERGE_PART_MESHES=0 turns it off in fromEnvironment().
+    bool mergePartMeshes=true;
     void check() const { if(cancelled && cancelled()) throw Cancelled(); }
     // Opt-in desktop runtime override. Plain Options and explicit caller budgets
     // remain deterministic; the viewer calls this when starting a JT import.
     static Options fromEnvironment() {
         Options result;
+        if(qgetenv("MODELVIEWER_JT_MERGE_PART_MESHES")=="0")result.mergePartMeshes=false;
         const auto value=qgetenv("MODELVIEWER_JT_BUDGET_GIB");
         if(value.isNull())return result;
         bool digits=!value.isEmpty();

@@ -51,6 +51,8 @@
 #include <array>
 #include <limits>
 #include <numeric>
+#include <functional>
+#include <unordered_set>
 
 namespace Jt {
 namespace {
@@ -476,6 +478,7 @@ struct Builder {
     std::map<std::vector<float>,unsigned> materialCache;
     std::map<const void*,unsigned> geometryCache;
     std::vector<const aiNode*> hiddenJournal;
+    std::vector<const aiNode*> partNodes; // nodes built from a JT Part; rolled back with the LOD alternatives that created them
     unsigned nodes=0;
     void textureWarning(const QString& text) {if(!result.warnings.contains(text))result.warnings.append(text);}
     int embedImage(const QImage& pixels) {
@@ -1044,9 +1047,11 @@ struct Builder {
         size_t meshes,materials,shapes,hidden,geometries;
         qsizetype warnings;
         unsigned stored,exact,fallback;
+        size_t parts;
     };
-    Checkpoint checkpoint() const {return {meshes.size(),materials.size(),result.exactShapes.size(),hiddenJournal.size(),geometries.size(),result.warnings.size(),result.storedMeshes,result.exactParts,result.fallbackParts};}
+    Checkpoint checkpoint() const {return {meshes.size(),materials.size(),result.exactShapes.size(),hiddenJournal.size(),geometries.size(),result.warnings.size(),result.storedMeshes,result.exactParts,result.fallbackParts,partNodes.size()};}
     void rollback(const Checkpoint& c) {
+        partNodes.resize(c.parts);
         meshes.resize(c.meshes);materials.resize(c.materials);result.exactShapes.resize(c.shapes);
         geometries.resize(c.geometries);geometryGroups.resize(c.geometries);
         for(auto it=groupMeshCache.begin();it!=groupMeshCache.end();) {if(it->second>=c.meshes)it=groupMeshCache.erase(it);else ++it;}
@@ -1681,6 +1686,7 @@ struct Builder {
         if(hasBrep && !exact && attached.empty() && std::none_of(children.begin(),children.end(),[](const auto& child){return containsMesh(*child);}))
             throw std::runtime_error("JT part has B-Rep but no usable tessellation fallback");
         if(hidden) {result.hiddenNodes.insert(node.get());hiddenJournal.push_back(node.get());}
+        if(!part.IsNull()&&!exact)partNodes.push_back(node.get());
         node->mNumMeshes=unsigned(attached.size());if(!attached.empty()) {node->mMeshes=new unsigned[attached.size()];std::copy(attached.begin(),attached.end(),node->mMeshes);}
         node->mNumChildren=unsigned(children.size());if(!children.empty()) {node->mChildren=new aiNode*[children.size()]{};for(size_t i=0;i<children.size();++i) {children[i]->mParent=node.get();node->mChildren[i]=children[i].release();}}
         const bool selectionNode=!switchNode.IsNull() || !Handle(JtNode_LOD)::DownCast(object).IsNull();
@@ -1710,6 +1716,160 @@ struct Builder {
         return node;
     }
 };
+// Concatenates meshes into one, baking each piece's matrix (its frame relative to the part node) into positions and normals.
+struct MergePiece {const aiMesh* mesh;aiMatrix4x4 matrix;};
+std::unique_ptr<aiMesh> concatenateTransformed(const std::vector<MergePiece>& pieces) {
+    size_t vertices=0,faces=0;
+    for(const auto& piece:pieces){vertices+=piece.mesh->mNumVertices;faces+=piece.mesh->mNumFaces;}
+    if(pieces.empty()||vertices>std::numeric_limits<unsigned>::max()||faces>std::numeric_limits<unsigned>::max())throw std::runtime_error("JT merged part meshes exceed the supported size");
+    const aiMesh& first=*pieces.front().mesh;
+    JtData_Limits::allocation(vertices*(2*sizeof(aiVector3D)+sizeof(aiColor4D)+AI_MAX_NUMBER_OF_TEXTURECOORDS*sizeof(aiVector3D))+faces*(sizeof(aiFace)+3*sizeof(unsigned)));
+    auto mesh=std::make_unique<aiMesh>();
+    mesh->mName=first.mName;mesh->mMaterialIndex=first.mMaterialIndex;mesh->mPrimitiveTypes=aiPrimitiveType_TRIANGLE;
+    mesh->mNumVertices=unsigned(vertices);mesh->mNumFaces=unsigned(faces);
+    mesh->mVertices=new aiVector3D[vertices];mesh->mNormals=new aiVector3D[vertices];
+    if(first.HasVertexColors(0))mesh->mColors[0]=new aiColor4D[vertices];
+    for(unsigned channel=0;channel<AI_MAX_NUMBER_OF_TEXTURECOORDS;++channel)
+        if(first.HasTextureCoords(channel)){mesh->mTextureCoords[channel]=new aiVector3D[vertices];mesh->mNumUVComponents[channel]=first.mNumUVComponents[channel];}
+    mesh->mFaces=new aiFace[faces];
+    unsigned vertexBase=0,faceBase=0;
+    for(const auto& piece:pieces) {
+        const aiMesh& source=*piece.mesh;
+        const bool identity=piece.matrix.IsIdentity();
+        aiMatrix3x3 normalMatrix(piece.matrix);normalMatrix.Inverse().Transpose();
+        for(unsigned i=0;i<source.mNumVertices;++i) {
+            JtData_Limits::poll();
+            mesh->mVertices[vertexBase+i]=identity?source.mVertices[i]:piece.matrix*source.mVertices[i];
+            aiVector3D normal=identity?source.mNormals[i]:normalMatrix*source.mNormals[i];
+            if(!identity&&normal.SquareLength()>0)normal.Normalize();
+            mesh->mNormals[vertexBase+i]=normal;
+            if(mesh->mColors[0])mesh->mColors[0][vertexBase+i]=source.mColors[0][i];
+            for(unsigned channel=0;channel<AI_MAX_NUMBER_OF_TEXTURECOORDS;++channel)
+                if(mesh->mTextureCoords[channel])mesh->mTextureCoords[channel][vertexBase+i]=source.mTextureCoords[channel][i];
+        }
+        for(unsigned i=0;i<source.mNumFaces;++i) {
+            auto& f=mesh->mFaces[faceBase+i];f.mNumIndices=3;f.mIndices=new unsigned[3];
+            for(unsigned j=0;j<3;++j)f.mIndices[j]=vertexBase+source.mFaces[i].mIndices[j];
+        }
+        vertexBase+=source.mNumVertices;faceBase+=source.mNumFaces;
+    }
+    validate(*mesh);return mesh;
+}
+// Merges the meshes of every leaf part (a Part node with no Part below it) that share a material and vertex layout.
+struct PartMerger {
+    const Options& options;
+    std::vector<std::unique_ptr<aiMesh>>& meshes;
+    QSet<const aiNode*>& hidden;
+    std::unordered_set<const aiNode*> parts;
+    // Instances of one part build identical pieces, so they share the merged mesh.
+    std::map<std::vector<std::pair<unsigned,std::array<float,16>>>,unsigned> merged;
+    unsigned mergedParts=0,pieceCount=0,mergedCount=0;
+    bool mergeable(unsigned id,const aiMatrix4x4& matrix) const {
+        if(id>=meshes.size()||!meshes[id])return false;
+        const aiMesh& m=*meshes[id];
+        if(!m.mNumVertices||!m.mNumFaces||!m.HasNormals()||m.HasTangentsAndBitangents()||m.mNumBones||m.mNumAnimMeshes||m.HasVertexColors(1))return false;
+        if(m.mPrimitiveTypes!=aiPrimitiveType_TRIANGLE)return false;
+        for(unsigned r=0;r<4;++r)for(unsigned c=0;c<4;++c)if(!std::isfinite(matrix[r][c]))return false;
+        const auto det=matrix.Determinant(); // a mirrored frame would flip the winding once baked
+        return std::isfinite(det)&&det>0;
+    }
+    // Returns true when the node is empty after its pieces were taken and must be removed.
+    bool prune(aiNode* node,const std::set<const aiNode*>& touched) {
+        std::vector<aiNode*> kept;bool removed=false;
+        for(unsigned i=0;i<node->mNumChildren;++i) {
+            aiNode* child=node->mChildren[i];
+            if(prune(child,touched)){node->mChildren[i]=nullptr;delete child;removed=true;} else kept.push_back(child);
+        }
+        if(removed) {
+            delete[] node->mChildren;node->mNumChildren=unsigned(kept.size());
+            node->mChildren=kept.empty()?nullptr:new aiNode*[kept.size()];
+            std::copy(kept.begin(),kept.end(),node->mChildren);
+        }
+        return !node->mNumMeshes&&!node->mNumChildren&&!hidden.contains(node)&&(removed||touched.count(node));
+    }
+    void mergePart(aiNode* part) {
+        struct Entry {aiNode* node;unsigned slot;unsigned mesh;aiMatrix4x4 matrix;};
+        std::vector<Entry> entries;
+        const std::function<void(aiNode*,const aiMatrix4x4&)> collect=[&](aiNode* node,const aiMatrix4x4& matrix){
+            options.check();
+            if(!hidden.contains(node))
+                for(unsigned slot=0;slot<node->mNumMeshes;++slot)if(mergeable(node->mMeshes[slot],matrix))entries.push_back({node,slot,node->mMeshes[slot],matrix});
+            for(unsigned i=0;i<node->mNumChildren;++i)collect(node->mChildren[i],matrix*node->mChildren[i]->mTransformation);
+        };
+        collect(part,aiMatrix4x4());
+        using Key=std::tuple<unsigned,bool,std::array<unsigned,AI_MAX_NUMBER_OF_TEXTURECOORDS>>;
+        std::map<Key,std::vector<size_t>> groups;
+        for(size_t i=0;i<entries.size();++i) {
+            const aiMesh& m=*meshes[entries[i].mesh];
+            std::array<unsigned,AI_MAX_NUMBER_OF_TEXTURECOORDS> uv{};
+            for(unsigned c=0;c<AI_MAX_NUMBER_OF_TEXTURECOORDS;++c)uv[c]=m.HasTextureCoords(c)?m.mNumUVComponents[c]+1:0;
+            groups[Key{m.mMaterialIndex,m.HasVertexColors(0),uv}].push_back(i);
+        }
+        std::map<aiNode*,std::set<unsigned>> taken;std::vector<unsigned> attach;
+        for(const auto& group:groups) {
+            if(group.second.size()<2)continue;
+            std::vector<std::pair<unsigned,std::array<float,16>>> key;std::vector<MergePiece> pieces;
+            for(size_t i:group.second) {
+                const auto& e=entries[i];std::array<float,16> flat;
+                for(unsigned r=0;r<4;++r)for(unsigned c=0;c<4;++c)flat[r*4+c]=e.matrix[r][c];
+                key.emplace_back(e.mesh,flat);pieces.push_back({meshes[e.mesh].get(),e.matrix});
+                taken[e.node].insert(e.slot);
+            }
+            auto found=merged.find(key);
+            if(found==merged.end()) {
+                auto mesh=concatenateTransformed(pieces);
+                found=merged.emplace(std::move(key),unsigned(meshes.size())).first;meshes.push_back(std::move(mesh));
+            }
+            attach.push_back(found->second);pieceCount+=unsigned(group.second.size());++mergedCount;
+        }
+        if(attach.empty())return;
+        ++mergedParts;
+        std::set<const aiNode*> touched;
+        for(const auto& item:taken) {
+            aiNode* node=item.first;touched.insert(node);
+            std::vector<unsigned> kept;
+            for(unsigned slot=0;slot<node->mNumMeshes;++slot)if(!item.second.count(slot))kept.push_back(node->mMeshes[slot]);
+            delete[] node->mMeshes;node->mNumMeshes=unsigned(kept.size());
+            node->mMeshes=kept.empty()?nullptr:new unsigned[kept.size()];std::copy(kept.begin(),kept.end(),node->mMeshes);
+        }
+        std::vector<unsigned> all(part->mMeshes,part->mMeshes+part->mNumMeshes);all.insert(all.end(),attach.begin(),attach.end());
+        delete[] part->mMeshes;part->mNumMeshes=unsigned(all.size());part->mMeshes=new unsigned[all.size()];std::copy(all.begin(),all.end(),part->mMeshes);
+        // The part itself always stays; the emptied shape nodes below it go.
+        std::vector<aiNode*> kept;bool removed=false;
+        for(unsigned i=0;i<part->mNumChildren;++i) {
+            aiNode* child=part->mChildren[i];
+            if(prune(child,touched)){delete child;removed=true;} else kept.push_back(child);
+        }
+        if(removed) {
+            delete[] part->mChildren;part->mNumChildren=unsigned(kept.size());
+            part->mChildren=kept.empty()?nullptr:new aiNode*[kept.size()];std::copy(kept.begin(),kept.end(),part->mChildren);
+        }
+    }
+    // Returns whether the subtree holds a Part node; a Part with another Part below it is an assembly and is left alone.
+    bool visit(aiNode* node) {
+        options.check();bool nested=false;
+        for(unsigned i=0;i<node->mNumChildren;++i)if(visit(node->mChildren[i]))nested=true;
+        const bool isPart=parts.count(node)!=0;
+        if(isPart&&!nested)mergePart(node);
+        return isPart||nested;
+    }
+    // Drops meshes no node uses any more and renumbers the rest.
+    void compact(aiNode* root) {
+        std::vector<char> used(meshes.size(),0);
+        const std::function<void(const aiNode*)> mark=[&](const aiNode* node){
+            for(unsigned i=0;i<node->mNumMeshes;++i)used.at(node->mMeshes[i])=1;
+            for(unsigned i=0;i<node->mNumChildren;++i)mark(node->mChildren[i]);
+        };
+        mark(root);
+        std::vector<unsigned> remap(meshes.size(),0);std::vector<std::unique_ptr<aiMesh>> next;
+        for(size_t i=0;i<meshes.size();++i)if(used[i]){remap[i]=unsigned(next.size());next.push_back(std::move(meshes[i]));}
+        const std::function<void(aiNode*)> apply=[&](aiNode* node){
+            for(unsigned i=0;i<node->mNumMeshes;++i)node->mMeshes[i]=remap[node->mMeshes[i]];
+            for(unsigned i=0;i<node->mNumChildren;++i)apply(node->mChildren[i]);
+        };
+        apply(root);meshes=std::move(next);
+    }
+};
 }
 ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QString& path,const Options& options) {
     std::unique_ptr<JtData_Limits::Scope> scope;
@@ -1719,6 +1879,17 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
         if(!std::isfinite(coordinate)) throw std::runtime_error("Invalid JT RangeLOD eye point");
     Builder b{options,info.canonicalPath()};b.activeFiles.insert(fileKey(info.canonicalFilePath()));b.material(Appearance{});
     auto tree=b.visit(root,{},false,false,aiMatrix4x4(),{},materialSourceContext(info.absoluteFilePath(),options));if(b.meshes.empty()) throw std::runtime_error("JT contains no supported tessellation and no validated exact geometry");
+    if(options.mergePartMeshes) {
+        const size_t before=b.meshes.size();
+        PartMerger merger{options,b.meshes,b.result.hiddenNodes,{}};
+        merger.parts.insert(b.partNodes.begin(),b.partNodes.end());
+        merger.visit(tree.get());
+        if(merger.mergedParts) {
+            merger.compact(tree.get());
+            b.result.warnings.append(QStringLiteral("JT part meshes merged: %1 meshes became %2 in %3 parts (the shape nodes below a part are not kept; MODELVIEWER_JT_MERGE_PART_MESHES=0 turns this off).")
+                .arg(before).arg(b.meshes.size()).arg(merger.mergedParts));
+        }
+    }
     b.result.scene=std::make_unique<aiScene>();auto& scene=*b.result.scene;
     scene.mRootNode=tree.release();scene.mNumMeshes=unsigned(b.meshes.size());scene.mMeshes=new aiMesh*[scene.mNumMeshes]{};
     for(unsigned i=0;i<scene.mNumMeshes;++i) scene.mMeshes[i]=b.meshes[i].release();
