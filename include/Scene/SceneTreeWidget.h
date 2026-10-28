@@ -410,6 +410,15 @@ private:
     void refreshParentSelectionUpward(QTreeWidgetItem* startParent);
     void refreshSelectionClosureBottomUp(QTreeWidgetItem* item);
 
+    // Bulk selection. QTreeWidgetItem::setSelected() copies and re-merges the selection model's whole range list on every
+    // call, so selecting N items one by one is O(N^2) - tens of seconds for a 34 000-part assembly. These build ONE
+    // QItemSelection (contiguous sibling rows become a single range) and apply it with one selection-model call.
+    void setItemsSelected(const QList<QTreeWidgetItem*>& items, bool select);
+    void setSubtreeSelected(QTreeWidgetItem* root, bool select);
+    // Whole-tree equivalent of calling refreshSelectionClosureBottomUp() on every top-level item: an assembly is selected
+    // iff all its direct children are. Works from one snapshot of the selection and applies the result in two bulk calls.
+    void refreshSelectionClosureAll();
+
     // Bulk assembly tristate + icon refresh (used after show/hide all)
     void refreshAllAssemblyStates();
     void refreshAssemblyBottomUp(QTreeWidgetItem* item);

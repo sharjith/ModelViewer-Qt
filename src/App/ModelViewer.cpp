@@ -2534,6 +2534,7 @@ void ModelViewer::setLastSelectedFilter(const QString& lastSelectedFilter)
 void ModelViewer::showContextMenu(const QPoint& pos)
 {
 	setFocus();
+	ImportDiagnostics::checkpoint("tree.contextmenu-begin");
 
 	const bool clickedAssembly = treeWidgetModel->isAssemblyAt(pos);
 
@@ -2541,6 +2542,7 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	// mesh descendants (used to decide which menu sections to show).
 	if (clickedAssembly)
 		treeWidgetModel->ensureAssemblySelectionAt(pos);
+	ImportDiagnostics::checkpoint("tree.contextmenu-ensure-end");
 
 	// NOT hasMeshSelection(): on a first right-click of a previously
 	// unselected assembly, ensureAssemblySelectionAt() above selects only
@@ -2570,8 +2572,10 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	// Visual feedback: narrow the highlight to just the right-clicked node.
 	// Save the full selection so we can restore it if the user dismisses.
 	const QSet<QUuid> savedSelection = getSelectedUuids();
+	ImportDiagnostics::checkpoint("tree.contextmenu-saved-selection", -1, savedSelection.size());
 	if (clickedAssembly)
 		treeWidgetModel->highlightSingleItemAt(pos);
+	ImportDiagnostics::checkpoint("tree.contextmenu-highlight-end");
 
 	// Flag set by any action that intentionally changes selection state.
 	// If the menu is dismissed without an action, savedSelection is restored.
@@ -2745,11 +2749,13 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		myMenu.addAction(QIcon(":/icons/res/mesh_info.png"), tr("Mesh Info"), this, expandThen([this]() { displaySelectedMeshInfo(); }));
 	}
 
+	ImportDiagnostics::checkpoint("tree.contextmenu-built");
 	myMenu.exec(treeWidgetModel->mapMenuToGlobal(pos));
 
 	// If no action was taken (menu dismissed), restore the previous selection.
 	if (!actionTaken)
 		setSelectionWithoutUndo(savedSelection);
+	ImportDiagnostics::checkpoint("tree.contextmenu-end");
 }
 
 void ModelViewer::centerScreen()
@@ -5415,16 +5421,22 @@ void ModelViewer::showEnvironmentPage()
 
 void ModelViewer::handleTreeWidgetVisibilityChanged()
 {
+	ImportDiagnostics::checkpoint("tree.visibility-changed-begin");
 	_visibleMeshUuids = treeWidgetModel->getVisibleUuids();
+	ImportDiagnostics::checkpoint("tree.visibility-uuids-end", -1, _visibleMeshUuids.size());
 	applyVisibleMeshState(false);
+	ImportDiagnostics::checkpoint("tree.visibility-state-end");
 	// Scene-tree checkboxes bypass setVisibilityWithoutUndo(), so they must
 	// explicitly refresh Plot3D's shared axis extent as well.
 	refreshPlot3DAxes();
+	ImportDiagnostics::checkpoint("tree.visibility-changed-end");
 }
 
 void ModelViewer::handleTreeWidgetSelectionChanged()
 {
+	ImportDiagnostics::checkpoint("tree.selection-changed-begin");
 	const std::vector<int> selectedVec = treeWidgetModel->getSelectedIndices();
+	ImportDiagnostics::checkpoint("tree.selection-indices-end", -1, selectedVec.size());
 	const QList<int> selectedIds(selectedVec.begin(), selectedVec.end());
 
 	// Tree-initiated selection: sync SelectionManager silently (no signal) to avoid
@@ -5435,9 +5447,11 @@ void ModelViewer::handleTreeWidgetSelectionChanged()
 
 	_viewportWidget->update();
 	updateSelectionStatusMessage();
+	ImportDiagnostics::checkpoint("tree.selection-visual-end");
 
 	// Notify panels connected to ViewportWidget::selectionChanged (e.g. TextureDebugPanel).
 	emit _viewportWidget->selectionChanged(selectedIds);
+	ImportDiagnostics::checkpoint("tree.selection-panels-end");
 
 	if (selectedVec.empty())
 	{

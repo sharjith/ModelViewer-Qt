@@ -10,6 +10,8 @@
 #include <QContextMenuEvent>
 #include <QElapsedTimer>
 #include <QHeaderView>
+#include <QItemSelection>
+#include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QMouseEvent>
@@ -535,15 +537,17 @@ void SceneTreeWidget::setSelectionByUuids(const QSet<QUuid>& uuids)
     _updatingTree = true;
     blockSignals(true);
     clearSelection();
+    QList<QTreeWidgetItem*> leaves;
+    leaves.reserve(uuids.size());
     for (const QUuid& uuid : uuids)
     {
         auto it = _uuidToLeaf.find(uuid);
         if (it != _uuidToLeaf.end())
-            it.value()->setSelected(true);
+            leaves.append(it.value());
     }
+    setItemsSelected(leaves, true);
 
-    for (int i = 0; i < topLevelItemCount(); ++i)
-        refreshSelectionClosureBottomUp(topLevelItem(i));
+    refreshSelectionClosureAll();
 
     blockSignals(false);
 
@@ -821,8 +825,7 @@ void SceneTreeWidget::filterItems(const QString& filter)
     viewport()->setUpdatesEnabled(true);
     viewport()->update();
 
-    for (int i = 0; i < topLevelItemCount(); ++i)
-        refreshSelectionClosureBottomUp(topLevelItem(i));
+    refreshSelectionClosureAll();
 
     _prevSelection.clear();
     for (QTreeWidgetItem* it : selectedItems())
@@ -930,8 +933,7 @@ bool SceneTreeWidget::selectNodeByUuid(const QUuid& nodeUuid)
         selectSearchMatch(target);
     }
 
-    for (int i = 0; i < topLevelItemCount(); ++i)
-        refreshSelectionClosureBottomUp(topLevelItem(i));
+    refreshSelectionClosureAll();
 
     // NOT setCurrentItem() here - depending on selection mode/behavior that
     // can itself re-narrow the selection down to just target, silently
@@ -1485,9 +1487,32 @@ void SceneTreeWidget::onItemChanged(QTreeWidgetItem* item, int /*column*/)
 
         _updatingTree = true;
         blockSignals(true);
-        propagateCheckDown(item, cs);
-        updateItemIcon(item);               // assembly's own icon after propagation
-        refreshCheckUpward(item->parent()); // update ancestors
+        {
+            // blockSignals(true) above only silences this widget's itemChanged, not the model's dataChanged, so each
+            // descendant's setCheckState()/setIcon() would still notify the view (a repaint request plus header
+            // bookkeeping per call). For a 34 000-part subtree that is the whole cost. Mute the model and repaint once;
+            // the same Fixed-header trick setVisibilityByUuids() uses stops ResizeToContents re-measuring meanwhile.
+            QElapsedTimer timer;
+            timer.start();
+            const QSignalBlocker modelBlocker(model());
+            const int headerWidth = columnWidth(0);
+            const auto previousResizeMode = header()->sectionResizeMode(0);
+            setUpdatesEnabled(false);
+            header()->setSectionResizeMode(0, QHeaderView::Fixed);
+            if (headerWidth > 0)
+                setColumnWidth(0, headerWidth);
+
+            propagateCheckDown(item, cs);
+            updateItemIcon(item);               // assembly's own icon after propagation
+            refreshCheckUpward(item->parent()); // update ancestors
+
+            header()->setSectionResizeMode(0, previousResizeMode);
+            if (previousResizeMode == QHeaderView::Fixed && headerWidth > 0)
+                setColumnWidth(0, headerWidth);
+            setUpdatesEnabled(true);
+            viewport()->update();
+            ImportDiagnostics::checkpoint("tree.check-propagate-end", -1, static_cast<quint64>(timer.elapsed()));
+        }
         blockSignals(false);
         _updatingTree = false;
         emit meshVisibilityChanged();
@@ -1530,12 +1555,7 @@ void SceneTreeWidget::onItemSelectionChanged()
         if (root->data(0, IsLeafRole).toBool())
             return;
 
-        QList<QTreeWidgetItem*> subtree;
-        subtree.reserve(32);
-        collectSubtreeItems(root, subtree); // your helper (root + descendants)
-
-        for (QTreeWidgetItem* it : subtree)
-            it->setSelected(select);
+        setSubtreeSelected(root, select); // root + descendants in one selection-model call
         };
 
     // Key ordering: removed first, then added (prevents the “2-level glitch”)
@@ -1744,15 +1764,19 @@ void SceneTreeWidget::finalizeRebuild()
     refreshAllAssemblyStates();
     ImportDiagnostics::checkpoint("tree.finalize-assembly-states-end");
 
-    for (const QUuid& uuid : std::as_const(_pendingSelectedUuids))
     {
-        auto it = _uuidToLeaf.find(uuid);
-        if (it != _uuidToLeaf.end())
-            it.value()->setSelected(true);
+        QList<QTreeWidgetItem*> pendingLeaves;
+        pendingLeaves.reserve(_pendingSelectedUuids.size());
+        for (const QUuid& uuid : std::as_const(_pendingSelectedUuids))
+        {
+            auto it = _uuidToLeaf.find(uuid);
+            if (it != _uuidToLeaf.end())
+                pendingLeaves.append(it.value());
+        }
+        setItemsSelected(pendingLeaves, true);
     }
 
-    for (int i = 0; i < topLevelItemCount(); ++i)
-        refreshSelectionClosureBottomUp(topLevelItem(i));
+    refreshSelectionClosureAll();
 
     ImportDiagnostics::checkpoint("tree.finalize-selection-end");
     _prevSelection.clear();
@@ -2121,8 +2145,7 @@ void SceneTreeWidget::selectSearchMatch(QTreeWidgetItem* item)
 
     QList<QTreeWidgetItem*> leaves;
     collectLeaves(item, leaves);
-    for (QTreeWidgetItem* leaf : leaves)
-        leaf->setSelected(true);
+    setItemsSelected(leaves, true);
 }
 
 bool SceneTreeWidget::applySubstringFilter(QTreeWidgetItem* item,
@@ -2297,6 +2320,123 @@ void SceneTreeWidget::refreshParentSelectionUpward(QTreeWidgetItem* startParent)
 
         p->setSelected(shouldSelect);
     }
+}
+
+void SceneTreeWidget::setItemsSelected(const QList<QTreeWidgetItem*>& items, bool select)
+{
+    if (items.isEmpty())
+        return;
+
+    QHash<QTreeWidgetItem*, QSet<QTreeWidgetItem*>> byParent;
+    for (QTreeWidgetItem* item : items)
+        byParent[item->parent()].insert(item);
+
+    QItemSelection selection;
+    for (auto group = byParent.cbegin(); group != byParent.cend(); ++group)
+    {
+        QTreeWidgetItem* parent = group.key();
+        const QModelIndex parentIndex = parent ? indexFromItem(parent, 0) : QModelIndex();
+        const int count = parent ? parent->childCount() : topLevelItemCount();
+
+        int runStart = -1;
+        for (int row = 0; row <= count; ++row)
+        {
+            QTreeWidgetItem* child = row == count ? nullptr : (parent ? parent->child(row) : topLevelItem(row));
+            const bool inGroup = child && group.value().contains(child);
+            if (inGroup && runStart < 0)
+            {
+                runStart = row;
+            }
+            else if (!inGroup && runStart >= 0)
+            {
+                selection.select(model()->index(runStart, 0, parentIndex), model()->index(row - 1, 0, parentIndex));
+                runStart = -1;
+            }
+        }
+    }
+
+    selectionModel()->select(selection, (select ? QItemSelectionModel::Select : QItemSelectionModel::Deselect)
+                                        | QItemSelectionModel::Rows);
+}
+
+void SceneTreeWidget::setSubtreeSelected(QTreeWidgetItem* root, bool select)
+{
+    if (!root)
+        return;
+
+    QItemSelection selection;
+    const QModelIndex rootIndex = indexFromItem(root, 0);
+    selection.select(rootIndex, rootIndex);
+
+    // Child indexes come from the parent's own index (O(1) each), never from indexFromItem(), which searches the sibling list.
+    std::function<void(QTreeWidgetItem*, const QModelIndex&)> addChildren =
+        [&](QTreeWidgetItem* item, const QModelIndex& index)
+    {
+        const int count = item->childCount();
+        if (count == 0)
+            return;
+        selection.select(model()->index(0, 0, index), model()->index(count - 1, 0, index));
+        for (int i = 0; i < count; ++i)
+        {
+            QTreeWidgetItem* child = item->child(i);
+            if (child->childCount() > 0)
+                addChildren(child, model()->index(i, 0, index));
+        }
+    };
+    addChildren(root, rootIndex);
+
+    selectionModel()->select(selection, (select ? QItemSelectionModel::Select : QItemSelectionModel::Deselect)
+                                        | QItemSelectionModel::Rows);
+}
+
+void SceneTreeWidget::refreshSelectionClosureAll()
+{
+    QSet<QTreeWidgetItem*> selected;
+    for (QTreeWidgetItem* item : selectedItems())
+        selected.insert(item);
+
+    QList<QTreeWidgetItem*> toSelect, toDeselect;
+
+    // Post-order, exactly like refreshSelectionClosureBottomUp(): children settle first, then each assembly is selected
+    // iff it has children and every one of them is selected. Every child is visited (no short-circuit).
+    std::function<bool(QTreeWidgetItem*)> settle = [&](QTreeWidgetItem* item) -> bool
+    {
+        if (item->data(0, IsLeafRole).toBool())
+        {
+            for (int i = 0; i < item->childCount(); ++i)
+                settle(item->child(i));
+            return selected.contains(item);
+        }
+
+        bool all = item->childCount() > 0;
+        for (int i = 0; i < item->childCount(); ++i)
+        {
+            if (!settle(item->child(i)))
+                all = false;
+        }
+
+        const bool current = selected.contains(item);
+        if (current != all)
+        {
+            if (all)
+            {
+                selected.insert(item);
+                toSelect.append(item);
+            }
+            else
+            {
+                selected.remove(item);
+                toDeselect.append(item);
+            }
+        }
+        return all;
+    };
+
+    for (int i = 0; i < topLevelItemCount(); ++i)
+        settle(topLevelItem(i));
+
+    setItemsSelected(toDeselect, false);
+    setItemsSelected(toSelect, true);
 }
 
 void SceneTreeWidget::refreshSelectionClosureBottomUp(QTreeWidgetItem* item)
