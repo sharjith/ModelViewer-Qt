@@ -2,6 +2,8 @@
 
 Status: **proposal only, no code written. Stages B and C are conditional.** Owner decision 2026-10-28: do the cheaper options first on `feature/JT-importer` (per-definition preparation, removing duplicate CPU vertex copies, culling if draw calls dominate). Stages B and C start only if production-model measurements justify them, on a separate branch.
 
+**Owner observation 2026-10-28: the production 34 000-part model has very few repeating parts.** Stages B and C would therefore gain little on the target workload and are shelved; revisit only for assemblies that repeat parts heavily. Stage A is implemented (`7083b79`) and measured at about 17% of the optimise stage on a sample with 1537 occurrences of 913 meshes.
+
 Go/no-go for Stages B and C (thresholds to be set by the owner before the measurements are read): memory above what the production machines can hold after the cheaper options, or orbit frame time / hover latency still unacceptable, and a high share of parts that repeat a definition.
 Date: 2026-10-28. Branch context: `feature/JT-importer` (applies to every importer that produces shared definitions: JT, 3DXML, STEP/IGES/BREP via XCAF).
 

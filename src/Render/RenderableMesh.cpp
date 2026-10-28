@@ -2028,19 +2028,19 @@ const std::vector<float>& RenderableMesh::getTrsfPoints() const
 	return _instanceState.getTrsfPoints();
 }
 
-const std::vector<float>& RenderableMesh::getTrsfNormals() const
+std::vector<float> RenderableMesh::getTrsfNormals() const
 {
-	return _instanceState.getTrsfNormals();
+	return _instanceState.transformedNormals(_normals);
 }
 
-const std::vector<float>& RenderableMesh::getTrsfTangents() const
+std::vector<float> RenderableMesh::getTrsfTangents() const
 {
-	return _instanceState.getTrsfTangents();
+	return _instanceState.transformedTangents(_tangents);
 }
 
-const std::vector<float>& RenderableMesh::getTrsfBitangents() const
+std::vector<float> RenderableMesh::getTrsfBitangents() const
 {
-	return _instanceState.getTrsfBitangents();
+	return _instanceState.transformedBitangents(_bitangents);
 }
 
 void RenderableMesh::resetTransformations()

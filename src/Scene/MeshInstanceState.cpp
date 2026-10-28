@@ -245,6 +245,63 @@ void MeshInstanceState::computeBounds()
         zmin.z(), zmax.z());
 }
 
+// Rotation-only part of the combined render transform (translation column zeroed), used for directions.
+static QMatrix4x4 instanceDirectionMatrix(const QMatrix4x4& combined)
+{
+    QMatrix4x4 rotMat = combined;
+    rotMat.setColumn(3, QVector4D(0, 0, 0, 1));
+    return rotMat;
+}
+
+std::vector<float> MeshInstanceState::transformedNormals(const std::vector<float>& normals) const
+{
+    std::vector<float> out;
+    out.reserve(normals.size());
+    const QMatrix4x4 rotMat = instanceDirectionMatrix(combinedRenderTransform());
+    for (size_t i = 0; i < normals.size(); i += 3)
+    {
+        const QVector3D tn = rotMat.map(QVector3D(normals[i], normals[i + 1], normals[i + 2]));
+        out.push_back(tn.x());
+        out.push_back(tn.y());
+        out.push_back(tn.z());
+    }
+    return out;
+}
+
+std::vector<float> MeshInstanceState::transformedTangents(const std::vector<float>& tangents) const
+{
+    std::vector<float> out;
+    out.reserve(tangents.size());
+    const QMatrix4x4 rotMat = instanceDirectionMatrix(combinedRenderTransform());
+    for (size_t i = 0; i < tangents.size(); i += 3)
+    {
+        QVector3D tt = rotMat.map(QVector3D(tangents[i], tangents[i + 1], tangents[i + 2]));
+        const float len = tt.length();
+        tt = (len > 0.001f) ? tt.normalized() : QVector3D(1.f, 0.f, 0.f);
+        out.push_back(tt.x());
+        out.push_back(tt.y());
+        out.push_back(tt.z());
+    }
+    return out;
+}
+
+std::vector<float> MeshInstanceState::transformedBitangents(const std::vector<float>& bitangents) const
+{
+    std::vector<float> out;
+    out.reserve(bitangents.size());
+    const QMatrix4x4 rotMat = instanceDirectionMatrix(combinedRenderTransform());
+    for (size_t i = 0; i < bitangents.size(); i += 3)
+    {
+        QVector3D tb = rotMat.map(QVector3D(bitangents[i], bitangents[i + 1], bitangents[i + 2]));
+        const float len = tb.length();
+        tb = (len > 0.001f) ? tb.normalized() : QVector3D(0.f, 1.f, 0.f);
+        out.push_back(tb.x());
+        out.push_back(tb.y());
+        out.push_back(tb.z());
+    }
+    return out;
+}
+
 void MeshInstanceState::updateRuntimeBounds(
     const std::vector<float>& points,
     const std::vector<float>& normals,
@@ -277,9 +334,7 @@ void MeshInstanceState::updateRuntimeBounds(
     }
 
     _trsfPoints.clear();
-    _trsfNormals.clear();
-    _trsfTangents.clear();
-    _trsfBitangents.clear();
+    _trsfPoints.reserve(points.size());
 
     const QMatrix4x4 combined = combinedRenderTransform();
 
@@ -293,46 +348,10 @@ void MeshInstanceState::updateRuntimeBounds(
         _trsfPoints.push_back(tp.z());
     }
 
-    // Transform normals (inverse-transpose: zero out translation column)
-    QMatrix4x4 rotMat = combined;
-    rotMat.setColumn(3, QVector4D(0, 0, 0, 1));
-    for (size_t i = 0; i < normals.size(); i += 3)
-    {
-        const QVector3D n(normals[i], normals[i + 1], normals[i + 2]);
-        const QVector3D tn = rotMat.map(n);
-        _trsfNormals.push_back(tn.x());
-        _trsfNormals.push_back(tn.y());
-        _trsfNormals.push_back(tn.z());
-    }
-
-    // Transform tangents
-    if (!tangents.empty())
-    {
-        for (size_t i = 0; i < tangents.size(); i += 3)
-        {
-            QVector3D tt = rotMat.map(QVector3D(tangents[i], tangents[i + 1], tangents[i + 2]));
-            const float len = tt.length();
-            tt = (len > 0.001f) ? tt.normalized() : QVector3D(1.f, 0.f, 0.f);
-            _trsfTangents.push_back(tt.x());
-            _trsfTangents.push_back(tt.y());
-            _trsfTangents.push_back(tt.z());
-        }
-    }
-
-    // Transform bitangents
-    if (!bitangents.empty())
-    {
-        for (size_t i = 0; i < bitangents.size(); i += 3)
-        {
-            QVector3D tb = rotMat.map(QVector3D(bitangents[i], bitangents[i + 1], bitangents[i + 2]));
-            const float len = tb.length();
-            tb = (len > 0.001f) ? tb.normalized() : QVector3D(0.f, 1.f, 0.f);
-            _trsfBitangents.push_back(tb.x());
-            _trsfBitangents.push_back(tb.y());
-            _trsfBitangents.push_back(tb.z());
-        }
-    }
-
+    // Normals, tangents and bitangents are transformed on request - see transformedNormals().
+    Q_UNUSED(normals)
+    Q_UNUSED(tangents)
+    Q_UNUSED(bitangents)
     Q_UNUSED(indices)
     computeBounds();
     markRuntimeBoundsChanged();

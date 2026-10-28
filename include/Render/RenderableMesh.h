@@ -248,9 +248,10 @@ public:
 	std::vector<float> getNormals() const;
 	std::vector<float> getTexCoords() const;
 	const std::vector<float>& getTrsfPoints() const;
-	const std::vector<float>& getTrsfNormals() const;
-	const std::vector<float>& getTrsfTangents() const;
-	const std::vector<float>& getTrsfBitangents() const;
+	// World-space normals/tangents/bitangents, computed on each call (O(N)) from the current transform - not cached.
+	std::vector<float> getTrsfNormals() const;
+	std::vector<float> getTrsfTangents() const;
+	std::vector<float> getTrsfBitangents() const;
 
 	void resetTransformations();
 	void resetExplodedViewTransformations();

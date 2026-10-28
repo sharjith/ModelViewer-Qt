@@ -217,14 +217,16 @@ public:
 
     const std::vector<float>& getTrsfPoints() const     { return _trsfPoints; }
     // World-space normals/tangents/bitangents, transformed by the
-    // rotation-only (translation-stripped) part of combinedRenderTransform()
-    // - see fullUpdateRuntimeBounds()'s "Transform normals"/"Transform
-    // tangents"/"Transform bitangents" steps. Parallel to getTrsfPoints(),
-    // one vec3 per vertex in the same order; tangents/bitangents are empty
-    // if the source mesh has none.
-    const std::vector<float>& getTrsfNormals() const    { return _trsfNormals; }
-    const std::vector<float>& getTrsfTangents() const   { return _trsfTangents; }
-    const std::vector<float>& getTrsfBitangents() const { return _trsfBitangents; }
+    // rotation-only (translation-stripped) part of combinedRenderTransform().
+    // Parallel to getTrsfPoints(), one vec3 per vertex in the same order;
+    // tangents/bitangents come back empty if the source mesh has none.
+    // Computed on request from the untransformed arrays the owner passes in,
+    // not cached: only a few one-shot operations (merge, measurement patches,
+    // analysis snapshots) read them, and keeping all three would cost 36 bytes
+    // per vertex plus their update on every transform change.
+    std::vector<float> transformedNormals(const std::vector<float>& normals) const;
+    std::vector<float> transformedTangents(const std::vector<float>& tangents) const;
+    std::vector<float> transformedBitangents(const std::vector<float>& bitangents) const;
 
     // ---- Ray intersection (picking) -----------------------------------------
 
@@ -287,9 +289,6 @@ private:
 
     // O(N) transformed geometry caches (world space)
     std::vector<float> _trsfPoints;
-    std::vector<float> _trsfNormals;
-    std::vector<float> _trsfTangents;
-    std::vector<float> _trsfBitangents;
 
     bool _selected              = false;
     bool _hasNegativeScale      = false;
