@@ -5712,6 +5712,12 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 			ImportDiagnostics::checkpoint("viewer.scene-merge-begin");
 			SceneUtils::mergeScene(&_sceneRuntime.globalScene(), copiedScene);
 			ImportDiagnostics::checkpoint("viewer.scene-merge-end");
+			// Nothing reads the retained scene's geometry (the meshes and the scene graph hold it; exports build their own scene), so
+			// the imported arrays are freed here. MODELVIEWER_KEEP_SCENE_GEOMETRY=1 keeps them, as before.
+			static const bool keepSceneGeometry = qEnvironmentVariableIntValue("MODELVIEWER_KEEP_SCENE_GEOMETRY") != 0;
+			if (!keepSceneGeometry)
+				SceneUtils::releaseMeshGeometry(_sceneRuntime.globalScene(), oldMeshCount);
+			ImportDiagnostics::checkpoint("viewer.scene-geometry-released");
 
 			// Offset the sceneIndices of the meshes that were just added.
 			// They are the last attachedMeshCount entries in _sceneRuntime.meshStore() because

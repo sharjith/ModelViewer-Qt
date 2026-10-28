@@ -158,6 +158,42 @@ aiAnimation* cloneAnimation(const aiAnimation* srcAnimation)
 }
 }
 
+void SceneUtils::releaseMeshGeometry(aiScene* scene, unsigned int firstMesh)
+{
+	if (!scene)
+		return;
+	for (unsigned int i = firstMesh; i < scene->mNumMeshes; ++i)
+	{
+		aiMesh* mesh = scene->mMeshes[i];
+		if (!mesh)
+			continue;
+		// The faces own their index arrays; aiFace's destructor frees them.
+		delete[] mesh->mFaces;
+		mesh->mFaces = nullptr;
+		mesh->mNumFaces = 0;
+		delete[] mesh->mVertices;
+		mesh->mVertices = nullptr;
+		delete[] mesh->mNormals;
+		mesh->mNormals = nullptr;
+		delete[] mesh->mTangents;
+		mesh->mTangents = nullptr;
+		delete[] mesh->mBitangents;
+		mesh->mBitangents = nullptr;
+		for (unsigned int c = 0; c < AI_MAX_NUMBER_OF_COLOR_SETS; ++c)
+		{
+			delete[] mesh->mColors[c];
+			mesh->mColors[c] = nullptr;
+		}
+		for (unsigned int t = 0; t < AI_MAX_NUMBER_OF_TEXTURECOORDS; ++t)
+		{
+			delete[] mesh->mTextureCoords[t];
+			mesh->mTextureCoords[t] = nullptr;
+			mesh->mNumUVComponents[t] = 0;
+		}
+		mesh->mNumVertices = 0;
+	}
+}
+
 void SceneUtils::mergeScene(aiScene** globalScene, aiScene* source)
 {
 	if (!source || !source->mRootNode)
