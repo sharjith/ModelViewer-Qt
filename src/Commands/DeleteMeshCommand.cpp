@@ -78,6 +78,17 @@ void DeleteMeshCommand::undo()
         }
         _viewportWidget->restoreFromRecycleBinBatch(toRestore);
 
+        // A mesh goes to the bin still flagged as selected, but the live selection no longer
+        // contains it, so it came back highlighted with nothing able to deselect it.
+        for (const QUuid& uuid : toRestore)
+        {
+            if (SceneMesh* mesh = _viewportWidget->getMeshByUuid(uuid))
+            {
+                if (mesh->isSelected())
+                    mesh->deselect();
+            }
+        }
+
         // Restore UUIDs in the SceneGraph at their original nodes and positions
         if (sg)
         {
