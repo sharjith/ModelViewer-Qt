@@ -41,6 +41,9 @@
 #include <cmath>
 #include <limits>
 #include <unordered_set>
+#include <mutex>
+#include <memory>
+#include <unordered_map>
 
 using namespace std;
 
@@ -928,6 +931,79 @@ namespace
 
 namespace
 {
+	// Repeat occurrences of one part (the same aiMesh referenced by several nodes) are prepared once. The first occurrence runs the
+	// full optimisation; later ones - same source mesh, same pre-optimisation index array, same extents - take its vertex remap,
+	// optimised indices, LOD1 indices and feature edges instead of repeating meshopt. MODELVIEWER_NO_DEFINITION_PREP=1 turns this off.
+	// The overdraw pass is tuned to the first occurrence's orientation; only the triangle draw order within the mesh is affected.
+	struct DefinitionPrep
+	{
+		std::mutex mutex; // held while the first occurrence computes, so a concurrent repeat waits for it instead of redoing the work
+		bool ready = false;
+		quint64 indexHash = 0;
+		size_t vertexCount = 0, indexCount = 0;
+		float extents[3] = { 0.0f, 0.0f, 0.0f };
+		std::vector<unsigned int> remap, indices, lod1;
+		std::vector<uint32_t> featureEdges;
+		bool hasFeatureEdges = false;
+	};
+
+	std::mutex g_definitionPrepMutex;
+	std::unordered_map<int, std::shared_ptr<DefinitionPrep>> g_definitionPrep;
+	std::atomic<int> g_definitionPrepHits{ 0 }, g_definitionPrepMisses{ 0 };
+
+	std::shared_ptr<DefinitionPrep> definitionPrepFor(int sceneIndex)
+	{
+		std::lock_guard<std::mutex> lock(g_definitionPrepMutex);
+		std::shared_ptr<DefinitionPrep>& entry = g_definitionPrep[sceneIndex];
+		if (!entry)
+			entry = std::make_shared<DefinitionPrep>();
+		return entry;
+	}
+
+	void releaseDefinitionPrep()
+	{
+		{
+			std::lock_guard<std::mutex> lock(g_definitionPrepMutex);
+			g_definitionPrep.clear();
+		}
+		const int hits = g_definitionPrepHits.exchange(0), misses = g_definitionPrepMisses.exchange(0);
+		if (hits + misses > 0)
+			ImportDiagnostics::checkpoint("worker.definition-prep", -1, hits, misses);
+	}
+
+	quint64 hashIndices(const std::vector<unsigned int>& indices)
+	{
+		quint64 hash = 1469598103934665603ULL;
+		for (const unsigned int index : indices)
+		{
+			hash ^= index;
+			hash *= 1099511628211ULL;
+		}
+		return hash;
+	}
+
+	void sortedExtents(const std::vector<Vertex>& vertices, float out[3])
+	{
+		glm::vec3 lo(std::numeric_limits<float>::max()), hi(-std::numeric_limits<float>::max());
+		for (const Vertex& vertex : vertices)
+		{
+			lo = glm::min(lo, vertex.Position);
+			hi = glm::max(hi, vertex.Position);
+		}
+		const glm::vec3 size = hi - lo;
+		out[0] = size.x; out[1] = size.y; out[2] = size.z;
+		std::sort(out, out + 3);
+	}
+
+	bool sameExtents(const float a[3], const float b[3])
+	{
+		const float tolerance = 1.0e-4f * std::max(1.0f, a[2]);
+		return std::fabs(a[0] - b[0]) <= tolerance && std::fabs(a[1] - b[1]) <= tolerance && std::fabs(a[2] - b[2]) <= tolerance;
+	}
+}
+
+namespace
+{
 	void optimizeMeshData(AssImpMeshData& mesh, bool computeEdges)
 	{
 		if (mesh.geometryPrepared || mesh.featureEdgesPrepared || mesh.occFaceRemapPrepared)
@@ -956,6 +1032,44 @@ namespace
 				for (const Vertex& vertex : mesh.vertices)
 					occSourcePositions.push_back(vertex.Position);
 				occSourceIndices = mesh.indices;
+			}
+			static const bool definitionPrep = qEnvironmentVariableIntValue("MODELVIEWER_NO_DEFINITION_PREP") == 0;
+			std::shared_ptr<DefinitionPrep> definition;
+			std::unique_lock<std::mutex> definitionLock;
+			float extents[3] = { 0.0f, 0.0f, 0.0f };
+			quint64 indexHash = 0;
+			if (definitionPrep && !hasOccFaces && mesh.sceneIndex >= 0)
+			{
+				definition = definitionPrepFor(mesh.sceneIndex);
+				definitionLock = std::unique_lock<std::mutex>(definition->mutex);
+				indexHash = hashIndices(mesh.indices);
+				sortedExtents(mesh.vertices, extents);
+				if (definition->ready && definition->vertexCount == mesh.vertices.size() && definition->indexCount == mesh.indices.size()
+					&& definition->indexHash == indexHash && sameExtents(extents, definition->extents)
+					&& (!computeEdges || definition->hasFeatureEdges))
+				{
+					std::vector<Vertex> remapped(mesh.vertices.size());
+					for (size_t i = 0; i < mesh.vertices.size(); ++i)
+						remapped[definition->remap[i]] = mesh.vertices[i];
+					mesh.vertices = std::move(remapped);
+					if (!mesh.sourceMeshIds.empty() && mesh.sourceMeshIds.size() == mesh.vertices.size())
+					{
+						std::vector<quint64> remappedIds(mesh.vertices.size(), 0);
+						for (size_t i = 0; i < mesh.vertices.size(); ++i)
+							remappedIds[definition->remap[i]] = mesh.sourceMeshIds[i];
+						mesh.sourceMeshIds = std::move(remappedIds);
+					}
+					mesh.indices = definition->indices;
+					mesh.preparedLod1Indices = definition->lod1;
+					mesh.geometryPrepared = true;
+					if (computeEdges)
+					{
+						mesh.preparedFeatureEdges = definition->featureEdges;
+						mesh.featureEdgesPrepared = true;
+					}
+					++g_definitionPrepHits;
+					return;
+				}
 			}
 			std::vector<unsigned int> lod1, remap;
 			if (SceneMesh::optimizeGeometry(mesh.vertices, mesh.indices, true, lod1, remap))
@@ -996,6 +1110,22 @@ namespace
 			{
 				mesh.preparedFeatureEdges = SceneMesh::computeFeatureEdges(mesh.vertices, mesh.indices, 15.0f);
 				mesh.featureEdgesPrepared = true;
+			}
+			if (definition && mesh.geometryPrepared && !definition->ready)
+			{
+				// Remember this occurrence's result for the repeats (the lock is still held, so waiting repeats see it complete).
+				definition->indexHash = indexHash;
+				definition->vertexCount = mesh.vertices.size();
+				definition->indexCount = mesh.indices.size();
+				std::copy(extents, extents + 3, definition->extents);
+				definition->remap = std::move(remap);
+				definition->indices = mesh.indices;
+				definition->lod1 = mesh.preparedLod1Indices;
+				definition->hasFeatureEdges = mesh.featureEdgesPrepared;
+				if (mesh.featureEdgesPrepared)
+					definition->featureEdges = mesh.preparedFeatureEdges;
+				definition->ready = true;
+				++g_definitionPrepMisses;
 			}
 		}
 		catch (...)
@@ -1516,7 +1646,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	_importStage = "worker.process-nodes";
 	ImportDiagnostics::checkpoint(_importStage, -1, 0, _totalMeshOccurrences);
 	// Whatever way processing ends, the preparation stage must be drained and stopped before loadingFinished is emitted.
-	struct BatchFlush { AssImpModelLoader* loader; ~BatchFlush() { loader->flushBatches(); } } batchFlush{ this };
+	struct BatchFlush { AssImpModelLoader* loader; ~BatchFlush() { loader->flushBatches(); releaseDefinitionPrep(); } } batchFlush{ this };
 	this->processNode(0, _scene->mRootNode, _scene, aiMatrix4x4());
 	if (!_progressiveLoading && !_loadingCancelled)
 	{
@@ -1524,6 +1654,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		ImportDiagnostics::checkpoint(_importStage, -1, _meshes.size(), 0);
 		optimizeBatch(_meshes);
 		ImportDiagnostics::checkpoint("worker.optimize-meshes-end", -1, _meshes.size(), 0);
+			ImportDiagnostics::checkpoint("worker.definition-prep", -1, g_definitionPrepHits.load(), g_definitionPrepMisses.load());
 	}
 	_importStage = "worker.nodes-complete";
 	ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
