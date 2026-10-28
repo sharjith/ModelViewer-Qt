@@ -5328,13 +5328,16 @@ std::vector<int> ModelViewer::getSelectedIDs() const
 
 QSet<QUuid> ModelViewer::getSelectedUuids() const
 {
-	std::vector<int> selectedIds = getSelectedIDs();
+	// The tree already holds the selection as mesh uuids; round-tripping them through viewport indices
+	// and back (as this used to) only repeated a hash lookup per mesh. Meshes the viewport no longer
+	// has are still dropped.
+	const QList<QUuid> meshUuids = treeWidgetModel->selectedMeshUuids();
 	QSet<QUuid> selectedUuids;
+	selectedUuids.reserve(meshUuids.size());
 
-	for (int id : selectedIds)
+	for (const QUuid& uuid : meshUuids)
 	{
-		QUuid uuid = _viewportWidget->getUuidByIndex(id);
-		if (!uuid.isNull())
+		if (!uuid.isNull() && _viewportWidget->getIndexByUuid(uuid) >= 0)
 			selectedUuids.insert(uuid);
 	}
 
