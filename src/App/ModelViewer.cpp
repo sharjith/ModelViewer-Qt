@@ -23,6 +23,7 @@
 #include "ExplodedViewPanel.h"
 #include "PasteCommand.h"
 #include "RenameMeshCommand.h"
+#include "RenameNodeCommand.h"
 #include "ViewportWidget.h"
 #include "MeasurementDialog.h"
 #include "AnnotationDialog.h"
@@ -469,6 +470,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	// Rename via tree widget's internal delegate handling
 	connect(treeWidgetModel, &SceneTreeWidget::meshRenamed,
 	        this, &ModelViewer::handleTreeWidgetMeshRenamed);
+	connect(treeWidgetModel, &SceneTreeWidget::nodeRenamed,
+	        this, &ModelViewer::handleTreeWidgetNodeRenamed);
 
 	QTimer* searchTimer = new QTimer(this);
 	searchTimer->setSingleShot(true);
@@ -2657,6 +2660,17 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		}
 	}
 
+	// ---- Rename --------------------------------------------------------------
+	// Double-click expands/collapses an assembly, so renaming has its own entry (and F2).
+	if (treeWidgetModel->itemAt(pos))
+	{
+		myMenu.addAction(tr("Rename	F2"), this, [this, pos, &actionTaken]() {
+			actionTaken = true;
+			treeWidgetModel->beginRenameAt(pos);
+		});
+		myMenu.addSeparator();
+	}
+
 	// ---- Copy / Cut --------------------------------------------------------
 	myMenu.addAction(QIcon(":/icons/res/copy.png"), tr("Copy"), this, [this, &actionTaken]() {
 		actionTaken = true;
@@ -2757,7 +2771,13 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 
 	// If no action was taken (menu dismissed), restore the previous selection.
 	if (!actionTaken)
+	{
+		// Restoring must neither scroll nor expand: scrolling to the first selected mesh
+		// opens every ancestor, which undid Expand/Collapse to 1st Level and Collapse All.
+		treeWidgetModel->setRevealOnSelect(false);
 		setSelectionWithoutUndo(savedSelection);
+		treeWidgetModel->setRevealOnSelect(true);
+	}
 	ImportDiagnostics::checkpoint("tree.contextmenu-end");
 }
 
@@ -5488,6 +5508,19 @@ void ModelViewer::handleTreeWidgetMeshRenamed(const QUuid& uuid, const QString& 
 	    this, _viewportWidget, treeWidgetModel,
 	    uuid, oldName, finalName,
 	    tr("Rename \"%1\" to \"%2\"").arg(oldName, finalName)));
+}
+
+void ModelViewer::handleTreeWidgetNodeRenamed(const QUuid& nodeUuid, const QString& newName)
+{
+	if (!_sceneGraph) return;
+	const SceneNode* node = _sceneGraph->findNodeByUuid(nodeUuid);
+	if (!node || node->name == newName) return;
+
+	const QString oldName = node->name;
+	_undoStack->push(new RenameNodeCommand(
+	    this, _viewportWidget, treeWidgetModel,
+	    nodeUuid, oldName, newName,
+	    tr("Rename \"%1\" to \"%2\"").arg(oldName, newName)));
 }
 
 void ModelViewer::checkAndRenameModel(SceneMesh* mesh, const QString& name)

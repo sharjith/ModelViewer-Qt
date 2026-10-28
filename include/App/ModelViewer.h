@@ -883,6 +883,7 @@ private slots:
 	void handleTreeWidgetVisibilityChanged();
 	void handleTreeWidgetSelectionChanged();
 	void handleTreeWidgetMeshRenamed(const QUuid& uuid, const QString& newName);
+	void handleTreeWidgetNodeRenamed(const QUuid& nodeUuid, const QString& newName);
 
 	void onPredefinedMaterialSelected(const Material& mat);
 

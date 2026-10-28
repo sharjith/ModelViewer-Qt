@@ -443,8 +443,31 @@ SceneTreeWidget::SceneTreeWidget(QWidget* parent)
             });
 
     connect(itemDelegate(), &QAbstractItemDelegate::closeEditor,
-            this, [this](QWidget* editor, QAbstractItemDelegate::EndEditHint) {
+            this, [this](QWidget* editor, QAbstractItemDelegate::EndEditHint hint) {
                 _inRename = false;
+
+                // An assembly is editable only while F2 / context-menu Rename has it open.
+                if (QTreeWidgetItem* asm_ = _renamingAssembly)
+                {
+                    _renamingAssembly = nullptr;
+                    asm_->setFlags(asm_->flags() & ~Qt::ItemIsEditable);
+
+                    auto* aLe = qobject_cast<QLineEdit*>(editor);
+                    const QString oldName = asm_->data(0, PureNameRole).toString();
+                    const QString typed = aLe ? aLe->text().trimmed() : QString();
+                    const QUuid nodeUuid = asm_->data(0, NodeUuidRole).value<QUuid>();
+
+                    // Put the old text back first; the command applies the accepted one.
+                    _updatingTree = true;
+                    blockSignals(true);
+                    asm_->setText(0, oldName);
+                    blockSignals(false);
+                    _updatingTree = false;
+
+                    if (!typed.isEmpty() && typed != oldName && hint != QAbstractItemDelegate::RevertModelCache)
+                        emit nodeRenamed(nodeUuid, typed);
+                    return;
+                }
 
                 QTreeWidgetItem* cur = currentItem();
                 if (!cur || !cur->data(0, IsLeafRole).toBool()) return;
@@ -1008,6 +1031,10 @@ void SceneTreeWidget::collapseAllBelowAt(const QPoint& localPos)
 
 void SceneTreeWidget::scrollFirstSelectedToCenter()
 {
+    // scrollToItem() expands every ancestor of the item, which undoes Collapse / 1st Level.
+    if (!_revealOnSelect)
+        return;
+
     const QList<QTreeWidgetItem*> sel = selectedItems();
     if (sel.isEmpty())
         return;
@@ -1209,6 +1236,19 @@ void SceneTreeWidget::keyPressEvent(QKeyEvent* event)
             _updatingTree = false;
             emit meshVisibilityChanged();
         }
+    }
+    else if (event->key() == Qt::Key_F2 && currentItem())
+    {
+        beginRename(currentItem());
+        event->accept();
+    }
+    else if ((event->key() == Qt::Key_Home || event->key() == Qt::Key_End)
+             && (event->modifiers() & Qt::ControlModifier))
+    {
+        // Scroll only; the selection is left alone.
+        if (QScrollBar* bar = verticalScrollBar())
+            bar->setValue(event->key() == Qt::Key_Home ? bar->minimum() : bar->maximum());
+        event->accept();
     }
     else
     {
@@ -1935,6 +1975,7 @@ QTreeWidgetItem* SceneTreeWidget::makeAssemblyItem(const SceneNode* node)
       item->setData(0, IsLeafRole,      false);
       item->setData(0, IsSyntheticRole, node->isSynthetic);
       item->setData(0, NodeUuidRole,    node->nodeUuid);
+      item->setData(0, PureNameRole,    node->name);
       return item;
 }
 
@@ -2052,6 +2093,54 @@ void SceneTreeWidget::collectSubtreeItems(QTreeWidgetItem* root,
     out.append(root);
     for (int i = 0; i < root->childCount(); ++i)
         collectSubtreeItems(root->child(i), out);
+}
+
+void SceneTreeWidget::updateNodeName(const QUuid& nodeUuid, const QString& name)
+{
+    QList<QTreeWidgetItem*> stack;
+    for (int i = 0; i < topLevelItemCount(); ++i)
+        stack.append(topLevelItem(i));
+    while (!stack.isEmpty())
+    {
+        QTreeWidgetItem* it = stack.takeLast();
+        if (!it->data(0, IsLeafRole).toBool() && it->data(0, NodeUuidRole).value<QUuid>() == nodeUuid)
+        {
+            _updatingTree = true;
+            blockSignals(true);
+            it->setText(0, name);
+            it->setData(0, PureNameRole, name);
+            blockSignals(false);
+            _updatingTree = false;
+            return;
+        }
+        for (int i = 0; i < it->childCount(); ++i)
+            if (it->child(i)->childCount() > 0)
+                stack.append(it->child(i));
+    }
+}
+
+void SceneTreeWidget::beginRename(QTreeWidgetItem* item)
+{
+    if (!item)
+        return;
+    setCurrentItem(item, 0, QItemSelectionModel::NoUpdate);
+    if (!item->data(0, IsLeafRole).toBool())
+    {
+        _renamingAssembly = item;
+        item->setFlags(item->flags() | Qt::ItemIsEditable);
+    }
+    editItem(item, 0);
+    // editItem() refuses (e.g. item not editable / view not editable): don't leave the flag set.
+    if (_renamingAssembly && state() != QAbstractItemView::EditingState)
+    {
+        _renamingAssembly->setFlags(_renamingAssembly->flags() & ~Qt::ItemIsEditable);
+        _renamingAssembly = nullptr;
+    }
+}
+
+void SceneTreeWidget::beginRenameAt(const QPoint& localPos)
+{
+    beginRename(itemAt(localPos));
 }
 
 void SceneTreeWidget::updateMeshName(const QUuid& uuid, const QString& name)
@@ -2376,6 +2465,22 @@ private:
 void SceneTreeWidget::expandOneLevel(QTreeWidgetItem* item)
 {
     if (!item) return;
+    TreeBatchGuard guard(this);
+    // Toggle: a node already showing exactly its first level collapses into itself.
+    if (item->isExpanded())
+    {
+        bool deeperOpen = false;
+        for (int i = 0; i < item->childCount() && !deeperOpen; ++i)
+        {
+            QTreeWidgetItem* child = item->child(i);
+            deeperOpen = child->childCount() > 0 && child->isExpanded();
+        }
+        if (!deeperOpen)
+        {
+            item->setExpanded(false);
+            return;
+        }
+    }
     item->setExpanded(true);
     // Collapse every direct child so their subtrees stay hidden.
     // Without this, children that were previously expanded would show their
@@ -2405,6 +2510,7 @@ void SceneTreeWidget::collapseOneLevel(QTreeWidgetItem* item)
     // 'item' itself expanded — the children stay visible and can be
     // individually re-opened.  Deeper levels are untouched.
     if (!item) return;
+    TreeBatchGuard guard(this);
     for (int i = 0; i < item->childCount(); ++i)
     {
         QTreeWidgetItem* child = item->child(i);
@@ -2419,9 +2525,10 @@ void SceneTreeWidget::collapseAllBelow(QTreeWidgetItem* item)
     // Deep-collapse the whole subtree rooted at 'item'. This matches the
     // context-menu expectation that "Collapse All Children" hides even direct
     // mesh leaves immediately under the clicked assembly node.
-    // No TreeBatchGuard here: with the view's updates, animation and header mode held off,
-    // setExpanded(false) did not take effect (same failure as the one-level operations).
+    // The batch guard holds off animation and header re-measure; the earlier "does nothing"
+    // reports were the selection restore re-expanding the tree, not the guard.
     if (!item) return;
+    TreeBatchGuard guard(this);
     collapseSubtreeHelper(item);
 }
 

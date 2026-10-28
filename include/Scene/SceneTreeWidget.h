@@ -212,6 +212,11 @@ public:
     void expandSubtreeAt(const QPoint& localPos);
     void collapseAllBelowAt(const QPoint& localPos);
     void scrollFirstSelectedToCenter();
+
+    // When false, setting a selection does not scroll to (and so does not expand the
+    // ancestors of) the first selected item. Used while restoring a selection that the
+    // user did not change, e.g. after dismissing the context menu.
+    void setRevealOnSelect(bool reveal) { _revealOnSelect = reveal; }
     void setDetachedOverlayMode(bool enabled);
 
     // -----------------------------------------------------------------------
@@ -244,6 +249,17 @@ public slots:
      */
     void updateMeshName(const QUuid& uuid, const QString& name);
 
+    /** Same for an assembly / file node, found by its node UUID (RenameNodeCommand). */
+    void updateNodeName(const QUuid& nodeUuid, const QString& name);
+
+    /**
+     * Open the in-place name editor on an item: a mesh leaf or an assembly / file node.
+     * Double-click edits only leaves (it expands/collapses assemblies), so F2 and the
+     * context menu's Rename use this.
+     */
+    void beginRename(QTreeWidgetItem* item);
+    void beginRenameAt(const QPoint& localPos);
+
 signals:
     /** Emitted when the user changes the selection (not programmatic). */
     void selectionUpdated();
@@ -253,6 +269,9 @@ signals:
 
     /** Emitted when a mesh leaf is successfully renamed by the user. */
     void meshRenamed(const QUuid& uuid, const QString& newName);
+
+    /** Emitted when an assembly / file node is successfully renamed by the user. */
+    void nodeRenamed(const QUuid& nodeUuid, const QString& newName);
 
     /** Emitted when the asynchronous tree rebuild has fully completed. */
     void rebuildComplete();
@@ -519,6 +538,8 @@ private:
     QSet<QUuid> _cutNodeUuids;  // assembly nodeUuids currently marked as cut
 
     bool _updatingTree = false; // suppress re-entrant signal handling
+    bool _revealOnSelect = true; // see setRevealOnSelect()
+    QTreeWidgetItem* _renamingAssembly = nullptr; // assembly item being edited (made editable only meanwhile)
     bool _inRename     = false; // suppress itemChanged during delegate setModelData
     bool _detachedOverlayMode = false;
     bool _savedAutoFillBackground = false;
