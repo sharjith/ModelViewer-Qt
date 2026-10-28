@@ -2349,7 +2349,6 @@ private:
 void SceneTreeWidget::expandOneLevel(QTreeWidgetItem* item)
 {
     if (!item) return;
-    TreeBatchGuard guard(this);
     item->setExpanded(true);
     // Collapse every direct child so their subtrees stay hidden.
     // Without this, children that were previously expanded would show their
@@ -2379,7 +2378,6 @@ void SceneTreeWidget::collapseOneLevel(QTreeWidgetItem* item)
     // 'item' itself expanded — the children stay visible and can be
     // individually re-opened.  Deeper levels are untouched.
     if (!item) return;
-    TreeBatchGuard guard(this);
     for (int i = 0; i < item->childCount(); ++i)
     {
         QTreeWidgetItem* child = item->child(i);
