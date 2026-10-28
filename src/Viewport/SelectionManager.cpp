@@ -870,20 +870,24 @@ void SelectionManager::deselect(int id)
 
 void SelectionManager::syncMeshSelectionVisualState()
 {
-    for (const SceneMeshRecord& meshRecord : _meshStore)
-    {
-        if (meshRecord.mesh)
-            meshRecord.mesh->deselect();
-    }
-
+    // Only meshes whose state actually changes are touched: select()/deselect() dirty the
+    // mesh's uniforms, which is wasted work for the thousands that stay as they were.
+    std::vector<char> wanted(_meshStore.size(), 0);
     for (int id : _selectedMeshIds)
     {
-        if (id < 0 || id >= static_cast<int>(_meshStore.size()))
-            continue;
+        if (id >= 0 && id < static_cast<int>(_meshStore.size()))
+            wanted[static_cast<size_t>(id)] = 1;
+    }
 
-        SceneMesh* mesh = _meshStore.at(id).mesh;
-        if (mesh)
+    for (size_t i = 0; i < _meshStore.size(); ++i)
+    {
+        SceneMesh* mesh = _meshStore[i].mesh;
+        if (!mesh || mesh->isSelected() == (wanted[i] != 0))
+            continue;
+        if (wanted[i])
             mesh->select();
+        else
+            mesh->deselect();
     }
 }
 
