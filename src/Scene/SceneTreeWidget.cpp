@@ -2419,8 +2419,9 @@ void SceneTreeWidget::collapseAllBelow(QTreeWidgetItem* item)
     // Deep-collapse the whole subtree rooted at 'item'. This matches the
     // context-menu expectation that "Collapse All Children" hides even direct
     // mesh leaves immediately under the clicked assembly node.
+    // No TreeBatchGuard here: with the view's updates, animation and header mode held off,
+    // setExpanded(false) did not take effect (same failure as the one-level operations).
     if (!item) return;
-    TreeBatchGuard guard(this);
     collapseSubtreeHelper(item);
 }
 
