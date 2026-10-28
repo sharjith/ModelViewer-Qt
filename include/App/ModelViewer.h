@@ -433,6 +433,8 @@ public:
 
 public slots:
 	void updateDisplayList();
+	// While true, updateDisplayList() refreshes the viewport but leaves the navigation tree alone.
+	void setTreeRebuildDeferred(bool deferred) { _treeRebuildDeferred = deferred; }
 	void updateSelectionStatusMessage();
 	void showAllItems();
 	void showSelectedItems();
@@ -1220,6 +1222,7 @@ private:
 	QSet<QUuid> _visibleMeshUuids;       // Authoritative visible mesh state
 	int _treeRebuildGeneration = 0;
 	bool _treeRebuildPending = false;
+	bool _treeRebuildDeferred = false;   // progressive-load batches skip the tree rebuild; the final update builds it once
 	int _treeVisibilitySyncGeneration = 0;
 	bool _treeVisibilityDirty = false;
 

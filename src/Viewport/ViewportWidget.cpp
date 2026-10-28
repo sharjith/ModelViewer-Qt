@@ -14634,7 +14634,9 @@ void ViewportWidget::onMeshBatchReady(std::vector<AssImpMeshData>&& batch)
 		{
 			QElapsedTimer cost;
 			cost.start();
+			_viewer->setTreeRebuildDeferred(true);
 			_viewer->updateDisplayList();
+			_viewer->setTreeRebuildDeferred(false);
 			setUpdatesEnabled(true);
 			QApplication::processEvents();
 			setUpdatesEnabled(false);

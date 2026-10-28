@@ -2002,7 +2002,10 @@ void ModelViewer::updateDisplayList()
 
 	++_treeRebuildGeneration;
 	_treeRebuildPending = false;
-	rebuildTreeFromCurrentState();
+	// A progressive load calls this after every paced batch; restarting a whole-tree rebuild each
+	// time keeps the panel flickering and, on a large assembly, never lets it finish.
+	if (!_treeRebuildDeferred)
+		rebuildTreeFromCurrentState();
 	ImportDiagnostics::checkpoint("viewer.display-list-tree-started");
 	_viewportWidget->setAutoFitViewOnUpdate(shouldAutoFit);
 
