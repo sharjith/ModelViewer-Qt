@@ -322,6 +322,9 @@ protected:
     // consumes wheel events that land on either scrollbar (after letting it scroll) so they are
     // never relayed to the viewport once the scrollbar hits an extent.
     bool eventFilter(QObject* watched, QEvent* event) override;
+    // Diagnostics only: logs (tree.slow-event) any event the tree or its viewport spends over 30 ms handling.
+    bool event(QEvent* event) override;
+    bool viewportEvent(QEvent* event) override;
 
     // Position-mapped redelivery of `event` to _viewportWidget - see mousePressEvent()'s doc
     // comment above for why this exists instead of relying on event->ignore() propagation.

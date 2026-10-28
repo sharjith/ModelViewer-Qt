@@ -1411,6 +1411,36 @@ bool SceneTreeWidget::eventFilter(QObject* watched, QEvent* event)
     return QTreeWidget::eventFilter(watched, event);
 }
 
+namespace
+{
+	void logSlowTreeEvent(const char* where, QEvent::Type type, qint64 ms)
+	{
+		// Mouse-move and paint dominate event counts, so only slow ones are written.
+		if (ms >= 30)
+			ImportDiagnostics::checkpoint(where, static_cast<qint64>(type), static_cast<quint64>(ms));
+	}
+}
+
+bool SceneTreeWidget::event(QEvent* event)
+{
+	QElapsedTimer timer;
+	timer.start();
+	const QEvent::Type type = event->type();
+	const bool handled = QTreeWidget::event(event);
+	logSlowTreeEvent("tree.slow-event", type, timer.elapsed());
+	return handled;
+}
+
+bool SceneTreeWidget::viewportEvent(QEvent* event)
+{
+	QElapsedTimer timer;
+	timer.start();
+	const QEvent::Type type = event->type();
+	const bool handled = QTreeWidget::viewportEvent(event);
+	logSlowTreeEvent("tree.slow-viewport-event", type, timer.elapsed());
+	return handled;
+}
+
 // See this override's doc comment in the header for why DefaultContextMenu policy (routing
 // every request through here first) replaces the CustomContextMenu policy the rest of the
 // tree's context menu still logically relies on (ModelViewer::showContextMenu(), wired to
