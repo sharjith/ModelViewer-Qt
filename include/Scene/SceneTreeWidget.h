@@ -479,6 +479,10 @@ private:
     bool _pressValid = false;
     QSet<QTreeWidgetItem*> _prevSelection;
 
+    // selectedMeshUuids() result, reused until the selection or tree structure changes.
+    mutable QList<QUuid> _selectedMeshCache;
+    mutable bool         _selectedMeshCacheValid = false;
+
     // Node UUIDs of non-leaf items the user (or a caller acting deliberately
     // on their behalf, e.g. "Select Parent") directly targeted, as opposed
     // to ones that became selected only because refreshParentSelectionUpward()

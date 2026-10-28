@@ -355,6 +355,18 @@ SceneTreeWidget::SceneTreeWidget(QWidget* parent)
     setAnimated(true);
     setRootIsDecorated(true);
     setUniformRowHeights(true);
+
+    // Anything that can change what selectedMeshUuids() returns drops its cache.
+    {
+        const auto invalidate = [this]() { _selectedMeshCacheValid = false; };
+        connect(selectionModel(), &QItemSelectionModel::selectionChanged, this, invalidate);
+        connect(model(), &QAbstractItemModel::rowsInserted, this, invalidate);
+        connect(model(), &QAbstractItemModel::rowsRemoved, this, invalidate);
+        connect(model(), &QAbstractItemModel::rowsMoved, this, invalidate);
+        connect(model(), &QAbstractItemModel::modelReset, this, invalidate);
+        connect(model(), &QAbstractItemModel::layoutChanged, this, invalidate);
+        connect(model(), &QAbstractItemModel::dataChanged, this, invalidate);
+    }
     setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
     // Passive hover (mouse moved with no button held) only generates QEvent::MouseMove - and
@@ -476,33 +488,55 @@ void SceneTreeWidget::setViewportWidget(ViewportWidget* viewportWidget)
 
 QList<QUuid> SceneTreeWidget::selectedMeshUuids() const
 {
+    if (_selectedMeshCacheValid)
+        return _selectedMeshCache;
+
+    const QList<QTreeWidgetItem*> selected = selectedItems();
+    const QSet<QTreeWidgetItem*> selectedSet(selected.cbegin(), selected.cend());
+
     QList<QUuid> result;
-    for (QTreeWidgetItem* item : selectedItems())
+    QSet<QUuid> seen;
+    const auto add = [&](const QUuid& uuid)
     {
+        if (seen.contains(uuid))
+            return;
+        seen.insert(uuid);
+        result << uuid;
+    };
+
+    for (QTreeWidgetItem* item : selected)
+    {
+        // A selected ancestor already contributes every leaf below it, so
+        // walking this item's own subtree again would only repeat work (with a
+        // fully selected assembly that made the cost proportional to depth x leaves).
+        bool covered = false;
+        for (QTreeWidgetItem* p = item->parent(); p; p = p->parent())
+        {
+            if (selectedSet.contains(p))
+            {
+                covered = true;
+                break;
+            }
+        }
+        if (covered)
+            continue;
+
         if (item->data(0, IsLeafRole).toBool())
         {
-            result << item->data(0, MeshUuidRole).value<QUuid>();
+            add(item->data(0, MeshUuidRole).value<QUuid>());
         }
         else
         {
             QList<QTreeWidgetItem*> leaves;
             collectLeaves(item, leaves);
             for (QTreeWidgetItem* leaf : leaves)
-                result << leaf->data(0, MeshUuidRole).value<QUuid>();
+                add(leaf->data(0, MeshUuidRole).value<QUuid>());
         }
     }
 
-    QList<QUuid> deduped;
-    QSet<QUuid> seen;
-    for (const QUuid& uuid : std::as_const(result))
-    {
-        if (!seen.contains(uuid))
-        {
-            seen.insert(uuid);
-            deduped << uuid;
-        }
-    }
-    return deduped;
+    _selectedMeshCache = result;
+    _selectedMeshCacheValid = true;
+    return result;
 }
 
 bool SceneTreeWidget::hasMeshSelection() const
@@ -2273,23 +2307,70 @@ QTreeWidgetItem* SceneTreeWidget::findBestFuzzyMatch(QTreeWidgetItem* item,
     return bestItem;
 }
 
+namespace
+{
+// Programmatic expand/collapse touches many items; with animation on, every call grabs a pixmap
+// of the viewport, and with a ResizeToContents header every call re-measures the column. Hold
+// both off, and repaint once, for the duration of one batch.
+class TreeBatchGuard
+{
+public:
+    explicit TreeBatchGuard(SceneTreeWidget* tree)
+        : _tree(tree)
+        , _animated(tree->isAnimated())
+        , _mode(tree->header()->sectionResizeMode(0))
+        , _width(tree->columnWidth(0))
+    {
+        _tree->setUpdatesEnabled(false);
+        _tree->setAnimated(false);
+        _tree->header()->setSectionResizeMode(0, QHeaderView::Fixed);
+        if (_width > 0)
+            _tree->setColumnWidth(0, _width);
+    }
+
+    ~TreeBatchGuard()
+    {
+        _tree->header()->setSectionResizeMode(0, _mode);
+        if (_mode == QHeaderView::Fixed && _width > 0)
+            _tree->setColumnWidth(0, _width);
+        _tree->setAnimated(_animated);
+        _tree->setUpdatesEnabled(true);
+        _tree->viewport()->update();
+    }
+
+private:
+    SceneTreeWidget* _tree;
+    bool _animated;
+    QHeaderView::ResizeMode _mode;
+    int _width;
+};
+} // namespace
+
 void SceneTreeWidget::expandOneLevel(QTreeWidgetItem* item)
 {
     if (!item) return;
+    TreeBatchGuard guard(this);
     item->setExpanded(true);
     // Collapse every direct child so their subtrees stay hidden.
     // Without this, children that were previously expanded would show their
     // grandchildren too, making "Expand" indistinguishable from "Expand All".
+    // Childless leaves have nothing to collapse, and touching each one costs
+    // a sibling scan (a node can hold thousands of leaves).
     for (int i = 0; i < item->childCount(); ++i)
-        item->child(i)->setExpanded(false);
+    {
+        QTreeWidgetItem* child = item->child(i);
+        if (child->childCount() > 0)
+            child->setExpanded(false);
+    }
 }
 
 void SceneTreeWidget::expandSubtree(QTreeWidgetItem* item)
 {
     if (!item) return;
-    expandItem(item);
-    for (int i = 0; i < item->childCount(); ++i)
-        expandSubtree(item->child(i));
+    TreeBatchGuard guard(this);
+    // One call expands the whole subtree with a single deferred layout, instead of
+    // re-laying out the visible rows after every item.
+    expandRecursively(indexFromItem(item));
 }
 
 void SceneTreeWidget::collapseOneLevel(QTreeWidgetItem* item)
@@ -2298,8 +2379,13 @@ void SceneTreeWidget::collapseOneLevel(QTreeWidgetItem* item)
     // 'item' itself expanded — the children stay visible and can be
     // individually re-opened.  Deeper levels are untouched.
     if (!item) return;
+    TreeBatchGuard guard(this);
     for (int i = 0; i < item->childCount(); ++i)
-        collapseItem(item->child(i));
+    {
+        QTreeWidgetItem* child = item->child(i);
+        if (child->childCount() > 0)
+            collapseItem(child);
+    }
     // item stays expanded
 }
 
@@ -2309,13 +2395,16 @@ void SceneTreeWidget::collapseAllBelow(QTreeWidgetItem* item)
     // context-menu expectation that "Collapse All Children" hides even direct
     // mesh leaves immediately under the clicked assembly node.
     if (!item) return;
+    TreeBatchGuard guard(this);
     collapseSubtreeHelper(item);
 }
 
 // Internal recursive helper: collapse 'item' and all its descendants.
 void SceneTreeWidget::collapseSubtreeHelper(QTreeWidgetItem* item)
 {
-    if (!item) return;
+    // Childless leaves cannot be expanded; calling setExpanded() on each one
+    // cost a view lookup per leaf, which dominated on a 34k-part tree.
+    if (!item || item->childCount() == 0) return;
     for (int i = 0; i < item->childCount(); ++i)
         collapseSubtreeHelper(item->child(i));
     // Use setExpanded(false) directly — collapseItem() can silently no-op
