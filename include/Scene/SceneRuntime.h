@@ -176,6 +176,12 @@ public:
 
 	bool moveToRecycleBin(const QUuid& uuid, int originalIndex);
 	bool restoreFromRecycleBin(const QUuid& uuid);
+
+	// Many meshes at once, with the same end state as calling the single versions in order but one pass over the store
+	// (each single call scans, erases from the middle of the vector, remaps both id lists and invalidates the uuid index, so
+	// N calls over M meshes cost N x M). Returns how many meshes were moved/restored; uuids that are not found are skipped.
+	int moveToRecycleBinBatch(const std::vector<std::pair<QUuid, int>>& uuidsAndOriginalIndices);
+	int restoreFromRecycleBinBatch(const std::vector<QUuid>& uuids);
 	bool permanentlyDeleteFromRecycleBin(const QUuid& uuid);
 	bool           isInRecycleBin(const QUuid& uuid) const  { return _recycleBin.contains(uuid); }
 	QVector<QUuid> recycleBinUuids()                 const  { return _recycleBin.keys().toVector(); }

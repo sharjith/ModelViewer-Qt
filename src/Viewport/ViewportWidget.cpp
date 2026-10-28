@@ -1072,6 +1072,31 @@ void ViewportWidget::moveToRecycleBin(const QUuid& uuid, int originalIndex)
 	emit meshRecycleStateChanged(uuid, true);
 }
 
+void ViewportWidget::moveToRecycleBinBatch(const std::vector<std::pair<QUuid, int>>& uuidsAndOriginalIndices)
+{
+	if (uuidsAndOriginalIndices.empty())
+		return;
+	const int moved = _sceneRuntime.moveToRecycleBinBatch(uuidsAndOriginalIndices);
+	if (moved < static_cast<int>(uuidsAndOriginalIndices.size()))
+		qWarning() << "ViewportWidget::moveToRecycleBinBatch - meshes not found:"
+		           << (uuidsAndOriginalIndices.size() - static_cast<size_t>(moved));
+	// The only listener ignores the uuid and refreshes panels, so one notification covers the whole batch.
+	if (moved > 0)
+		emit meshRecycleStateChanged(uuidsAndOriginalIndices.front().first, true);
+}
+
+void ViewportWidget::restoreFromRecycleBinBatch(const std::vector<QUuid>& uuids)
+{
+	if (uuids.empty())
+		return;
+	const int restored = _sceneRuntime.restoreFromRecycleBinBatch(uuids);
+	if (restored < static_cast<int>(uuids.size()))
+		qWarning() << "ViewportWidget::restoreFromRecycleBinBatch - meshes not in bin:"
+		           << (uuids.size() - static_cast<size_t>(restored));
+	if (restored > 0)
+		emit meshRecycleStateChanged(uuids.front(), false);
+}
+
 bool ViewportWidget::restoreFromRecycleBin(const QUuid& uuid)
 {
 	if (!_sceneRuntime.restoreFromRecycleBin(uuid))

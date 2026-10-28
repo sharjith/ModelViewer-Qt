@@ -1196,6 +1196,9 @@ public:
 	// Recycle bin operations (used by DeleteCommand)
 	void moveToRecycleBin(const QUuid& uuid, int originalIndex);
 	bool restoreFromRecycleBin(const QUuid& uuid);
+	// Whole-selection versions: one pass over the mesh store and one meshRecycleStateChanged() for the batch.
+	void moveToRecycleBinBatch(const std::vector<std::pair<QUuid, int>>& uuidsAndOriginalIndices);
+	void restoreFromRecycleBinBatch(const std::vector<QUuid>& uuids);
 	void permanentlyDeleteFromBin(const QUuid& uuid);
 
 	// Query methods
