@@ -1622,17 +1622,44 @@ void SceneTreeWidget::onItemSelectionChanged()
         setSubtreeSelected(root, select); // root + descendants in one selection-model call
         };
 
+    // Only the topmost changed items need their subtree applied: a changed item below another
+    // changed item is covered by that item's own subtree operation. With a whole assembly
+    // previously selected, `removed` holds every assembly in it, and applying each one's subtree
+    // separately made the work grow with depth x items.
+    const auto topmostOf = [](const QSet<QTreeWidgetItem*>& changed)
+    {
+        QList<QTreeWidgetItem*> top;
+        for (QTreeWidgetItem* it : changed)
+        {
+            bool covered = false;
+            for (QTreeWidgetItem* p = it->parent(); p; p = p->parent())
+            {
+                if (changed.contains(p))
+                {
+                    covered = true;
+                    break;
+                }
+            }
+            if (!covered)
+                top.append(it);
+        }
+        return top;
+    };
+    const QList<QTreeWidgetItem*> removedTop = topmostOf(removed);
+    const QList<QTreeWidgetItem*> addedTop = topmostOf(added);
+
     // Key ordering: removed first, then added (prevents the “2-level glitch”)
-    for (QTreeWidgetItem* it : removed)
+    for (QTreeWidgetItem* it : removedTop)
         applySubtreeSelect(it, false);
 
-    for (QTreeWidgetItem* it : added)
+    for (QTreeWidgetItem* it : addedTop)
         applySubtreeSelect(it, true);
 
-    
-    // Collect candidate parents affected by this change
+
+    // Collect candidate parents affected by this change. Items inside an applied subtree are
+    // already uniform, so only the parents of the topmost items can have become inconsistent.
     QSet<QTreeWidgetItem*> parentsToRefresh;
-    parentsToRefresh.reserve((added.size() + removed.size()) * 2);
+    parentsToRefresh.reserve((addedTop.size() + removedTop.size()) * 2);
 
     auto addParentChainStart = [&](QTreeWidgetItem* it) {
         if (!it) return;
@@ -1640,8 +1667,8 @@ void SceneTreeWidget::onItemSelectionChanged()
         if (p) parentsToRefresh.insert(p);
         };
 
-    for (QTreeWidgetItem* it : added)   addParentChainStart(it);
-    for (QTreeWidgetItem* it : removed) addParentChainStart(it);
+    for (QTreeWidgetItem* it : addedTop)   addParentChainStart(it);
+    for (QTreeWidgetItem* it : removedTop) addParentChainStart(it);
 
     // Enforce: parent selected iff all direct children selected
     for (QTreeWidgetItem* p : parentsToRefresh)
@@ -2416,10 +2443,13 @@ bool SceneTreeWidget::allDirectChildrenSelected(QTreeWidgetItem* parent) const
     const int n = parent->childCount();
     if (n == 0) return false;
 
+    // Child indexes come from the parent's own index (O(1) each); QTreeWidgetItem::isSelected()
+    // would search the sibling list for every child, which is quadratic for a node with
+    // thousands of leaves.
+    const QModelIndex parentIndex = indexFromItem(parent, 0);
     for (int i = 0; i < n; ++i)
     {
-        QTreeWidgetItem* c = parent->child(i);
-        if (!c || !c->isSelected())
+        if (!selectionModel()->isSelected(model()->index(i, 0, parentIndex)))
             return false;
     }
     return true;
