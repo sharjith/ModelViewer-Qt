@@ -274,8 +274,10 @@ public:
 	// kMaxQueuedBatches are already waiting, so memory stays bounded.
 	bool takeReadyBatch(AssImpMeshDataBatch& out);
 
-	// Hands the natively imported (JT, 3DXML) scene to the caller, so the viewer can adopt it instead of deep-copying every mesh.
-	// Null for formats whose scene Assimp's importer owns; the caller then copies as before. importWarnings() keeps working.
+	// Hands the imported scene to the caller, so the viewer can adopt it instead of deep-copying every mesh: the native JT and
+	// 3DXML scenes, the scenes built from OCC documents (STEP, IGES, BREP, VRML) and the scene Assimp's importer read (orphaned
+	// from the importer, which then no longer frees it). Null when there is no scene to hand over, or after
+	// MODELVIEWER_COPY_IMPORT_SCENE=1, which restores the deep copy. importWarnings() keeps working.
 	aiScene* releaseNativeScene()
 	{
 		aiScene* scene = nullptr;
@@ -285,6 +287,15 @@ public:
 			_sceneReleased = true;
 			scene = _threeDXml.scene ? _threeDXml.scene.release() : _jt.scene.release();
 			_scene = nullptr;
+		}
+		else if (_scene && qEnvironmentVariableIntValue("MODELVIEWER_COPY_IMPORT_SCENE") == 0)
+		{
+			if (_xcafScene && _scene == _xcafScene.get())
+				scene = _xcafScene.release();
+			else if (_scene == _importer.GetScene())
+				scene = _importer.GetOrphanedScene();
+			if (scene)
+				_scene = nullptr;
 		}
 		return scene;
 	}
@@ -391,6 +402,7 @@ private:
 	bool _sceneReleased = false;     // the native scene was handed to the viewer (releaseNativeScene())
 	QStringList _releasedWarnings;
 	ThreeDXml::ImportResult _threeDXml; // Owns custom aiScene independently of Assimp::Importer.
+	std::unique_ptr<aiScene> _xcafScene; // Owns the scene an OCC document processor built (STEP, IGES, BREP, VRML).
 	Jt::ImportResult _jt;
 	
 	SceneMeshInfo _sceneStats; // Holds statistics about the scene

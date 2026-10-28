@@ -1330,6 +1330,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	_materialProcessor.clearLoadedTextures();
 
 	_importer.FreeScene(); // Free any previously loaded scene
+	_xcafScene.reset();
 	_scene = nullptr; // Reset scene pointer
 		
 	QFileInfo fi(path.c_str());
@@ -1344,7 +1345,8 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	std::unique_ptr<IXCAFDocProcessor> processor = XCAFDocProcessorFactory::createProcessor(fi.suffix().toLower().toStdString());
 	if (processor)
 	{
-		_scene = processor->processFile(path);
+		_xcafScene.reset(processor->processFile(path));
+		_scene = _xcafScene.get();
 	}
 	else if (fi.suffix().compare("3dxml", Qt::CaseInsensitive) == 0)
 	{
@@ -2691,6 +2693,7 @@ bool AssImpModelLoader::regenerateUVs(SceneMesh* mesh,
 void AssImpModelLoader::freeScene()
 {
 	_importer.FreeScene();
+	_xcafScene.reset();
 	_threeDXml = {};
 	_jt = {};
 	_scene = nullptr;
