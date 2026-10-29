@@ -5,6 +5,7 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QDir>
+#include <QSettings>
 #include <QStandardPaths>
 
 #include <cstdio>
@@ -74,11 +75,15 @@ void write(const char* stage, const char* reason, qint64 index,
         }
 #endif
         // Keep disk usage bounded while retaining the most recent checkpoints.
-        // MODELVIEWER_IMPORT_DIAGNOSTICS_MAX_MB raises the cap (default 32 MB); a 30000-part import writes far more than that.
+        // MODELVIEWER_IMPORT_DIAGNOSTICS_MAX_MB (or the "importDiagnosticsMaxMB" setting) raises the cap (default 32 MB);
+        // a 30000-part import writes far more than that.
         static const long long maxBytes = [] {
             bool ok = false;
             const long long mb = qEnvironmentVariableIntValue("MODELVIEWER_IMPORT_DIAGNOSTICS_MAX_MB", &ok);
-            return (ok && mb >= 1 ? mb : 32) * 1024 * 1024;
+            if (ok && mb >= 1)
+                return mb * 1024 * 1024;
+            // Settings dialog value (Debug tab); read once per run like the environment variable.
+            return qMax<long long>(1, QSettings().value(QStringLiteral("importDiagnosticsMaxMB"), 32).toLongLong()) * 1024 * 1024;
         }();
         if (std::ftell(state.file) > maxBytes)
         {
@@ -149,11 +154,25 @@ void terminated() noexcept
 }
 }
 
+bool ImportDiagnostics::requested() noexcept
+{
+    try
+    {
+        if (qgetenv("MODELVIEWER_IMPORT_DIAGNOSTICS") == "1")
+            return true;
+        return QSettings().value(QStringLiteral("importDiagnostics"), false).toBool();
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
 void ImportDiagnostics::begin() noexcept
 {
     try
     {
-        if (qgetenv("MODELVIEWER_IMPORT_DIAGNOSTICS") != "1")
+        if (!requested())
             return;
 
         auto& state = trace();

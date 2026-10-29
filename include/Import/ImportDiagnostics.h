@@ -8,6 +8,9 @@
 // The terminate hook records C++ exceptions; it cannot catch SEH
 // access violations, direct aborts, heap corruption or Windows fast-fail.
 namespace ImportDiagnostics {
+// True when MODELVIEWER_IMPORT_DIAGNOSTICS=1 is set, or the registry/QSettings flag "importDiagnostics" is true
+// (so a run from the IDE needs no environment variable).
+bool requested() noexcept;
 void begin() noexcept;
 void checkpoint(const char* stage, qint64 sceneIndex = -1, quint64 completed = 0,
                 quint64 total = 0) noexcept;

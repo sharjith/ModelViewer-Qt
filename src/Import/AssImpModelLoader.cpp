@@ -3,6 +3,7 @@
 #include "BRepToAssimpConverter.h"
 #include "ImportDiagnostics.h"
 #include <QElapsedTimer>
+#include <QSettings>
 #include <algorithm>
 #include <atomic>
 #include <functional>
@@ -1353,7 +1354,10 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		try {
 			ThreeDXml::Options options;
 			// MODELVIEWER_3DXML_STRICT=1 restores all-or-nothing: an unreadable representation fails the import.
-			options.strict = qEnvironmentVariableIntValue("MODELVIEWER_3DXML_STRICT") != 0;
+			// The Settings dialog (Debug tab) sets the defaults; the environment variables override them.
+			options.strict = QSettings().value(QStringLiteral("threeDxmlStrict"), false).toBool()
+				|| qEnvironmentVariableIntValue("MODELVIEWER_3DXML_STRICT") != 0;
+			{ const int threads = QSettings().value(QStringLiteral("threeDxmlThreads"), 0).toInt(); if (threads >= 0) options.threads = unsigned(threads); }
 			{ bool ok = false; const int threads = qEnvironmentVariableIntValue("MODELVIEWER_3DXML_THREADS", &ok); if (ok && threads >= 0) options.threads = unsigned(threads); }
 			options.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
 			options.progress = [this](const QString&, int done, int total) {
@@ -1661,7 +1665,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	}
 	_importStage = "worker.nodes-complete";
 	ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
-	if (_scene && qEnvironmentVariableIntValue("MODELVIEWER_IMPORT_DIAGNOSTICS") != 0)
+	if (_scene && ImportDiagnostics::requested())
 		ImportDiagnostics::checkpoint("worker.scene-hash", -1, hashImportedScene(*_scene), _scene->mNumMeshes);
 
 	if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())

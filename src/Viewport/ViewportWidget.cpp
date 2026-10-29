@@ -77,7 +77,21 @@
 #include "SceneNode.h"
 
 
-constexpr auto  MAX_MODEL_SIZE_BYTES       = 52428800; // bytes
+// Displayed-geometry size above which the interaction fast path (low-res drawing, small-part culling) applies.
+// QSettings "interactionFastPathMB" (default 50); this is called per frame and in event handlers, so the registry is read
+// at most once a second. A change in the Settings dialog is therefore picked up within a second.
+static unsigned long long interactionFastPathBytes()
+{
+	static QElapsedTimer clock;
+	static unsigned long long bytes = 52428800ull;
+	if (!clock.isValid() || clock.elapsed() > 1000)
+	{
+		bytes = (unsigned long long)qBound(1, QSettings().value(QStringLiteral("interactionFastPathMB"), 50).toInt(), 65536) * 1024ull * 1024ull;
+		clock.restart();
+	}
+	return bytes;
+}
+#define MAX_MODEL_SIZE_BYTES interactionFastPathBytes()
 
 // Times a candidate-selection (culling) call for the profile-rendering diagnostics; free when profiling is off.
 struct CullProfileScope

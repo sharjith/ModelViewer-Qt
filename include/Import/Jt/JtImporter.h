@@ -1,5 +1,6 @@
 #pragma once
 #include <QByteArray>
+#include <QSettings>
 #include <QStringList>
 #include <QSet>
 #include <QtGlobal>
@@ -43,6 +44,12 @@ struct Options {
     // remain deterministic; the viewer calls this when starting a JT import.
     static Options fromEnvironment() {
         Options result;
+        // Settings dialog (Debug tab) values first; an environment variable, when set, overrides them.
+        QSettings settings;
+        if(!settings.value(QStringLiteral("jtMergePartMeshes"),true).toBool())result.mergePartMeshes=false;
+        {const int threads=settings.value(QStringLiteral("jtDecodeThreads"),0).toInt();if(threads>=0)result.decodeThreads=unsigned(threads);}
+        {const int gib=settings.value(QStringLiteral("jtBudgetGiB"),16).toInt();
+         if(gib>=1&&gib<=256)result.decodedAllocationBudget=size_t(gib)*size_t(1024)*1024*1024;}
         if(qgetenv("MODELVIEWER_JT_MERGE_PART_MESHES")=="0")result.mergePartMeshes=false;
         {bool ok=false;const int threads=qEnvironmentVariableIntValue("MODELVIEWER_JT_DECODE_THREADS",&ok);if(ok&&threads>=0)result.decodeThreads=unsigned(threads);}
         const auto value=qgetenv("MODELVIEWER_JT_BUDGET_GIB");

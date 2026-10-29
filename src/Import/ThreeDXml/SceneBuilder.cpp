@@ -1,4 +1,5 @@
 #include "SceneBuilder.h"
+#include <QSettings>
 #include <chrono>
 #include <condition_variable>
 #include <exception>
@@ -339,7 +340,8 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
     const unsigned cores = std::max(1u, std::thread::hardware_concurrency());
     const unsigned threads = options.threads ? options.threads : (cores > 1 ? cores - 1 : 1u);
     bool minimumSet = false; const int minimumEnv = qEnvironmentVariableIntValue("MODELVIEWER_3DXML_PARALLEL_MIN", &minimumSet);
-    const size_t minimumMembers = minimumSet && minimumEnv >= 1 ? size_t(minimumEnv) : size_t(8);
+    const int minimumSetting = QSettings().value(QStringLiteral("threeDxmlParallelMin"), 8).toInt(); // Settings dialog, Debug tab
+    const size_t minimumMembers = minimumSet && minimumEnv >= 1 ? size_t(minimumEnv) : size_t(minimumSetting >= 1 ? minimumSetting : 8);
     const bool parallel = threads > 1 && members.size() >= minimumMembers;
     const size_t window = size_t(std::min<size_t>(threads, 16)) * 3;
     std::mutex gate; std::condition_variable wake;

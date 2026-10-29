@@ -34,6 +34,7 @@
 #include <Standard_Failure.hxx>
 #include <QDir>
 #include <QFileInfo>
+#include <QSettings>
 #include <QFile>
 #include <QBuffer>
 #include <QImage>
@@ -2089,7 +2090,8 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
         const unsigned cores=std::max(1u,std::thread::hardware_concurrency());
         const unsigned threads=options.decodeThreads?options.decodeThreads:(cores>1?cores-1:1u);
         bool minimumSet=false;const int minimumEnv=qEnvironmentVariableIntValue("MODELVIEWER_JT_PREFETCH_MIN",&minimumSet);
-        const size_t minimum=minimumSet&&minimumEnv>=1?size_t(minimumEnv):size_t(16);
+        const int minimumSetting=QSettings().value(QStringLiteral("jtPrefetchMin"),16).toInt(); // Settings dialog, Debug tab
+        const size_t minimum=minimumSet&&minimumEnv>=1?size_t(minimumEnv):size_t(minimumSetting>=1?minimumSetting:16);
         if(threads>1) {
             std::unordered_set<const void*> seen;std::vector<Handle(JtProperty_LateLoaded)> properties;
             b.scout(root,seen,properties);
