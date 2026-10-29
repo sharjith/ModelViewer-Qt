@@ -25,6 +25,17 @@ struct FrustumContext
     QVector4D planes[6] = {};
 };
 
+// Projected-size (small-part) culling state, built once per frame from the view and projection matrices.
+// A box whose projected size stays under minPixels is not worth drawing while the user is moving the camera.
+struct ScreenSizeContext
+{
+    bool  enabled = false;
+    bool  perspective = true;
+    float minPixels = 0.0f;
+    float pixelScale = 0.0f;       // projection[1][1] * viewport height in pixels
+    float viewZRow[4] = {};        // third row of the view matrix: view-space z of a world point
+};
+
 // Per-axis clipping state derived from SceneRenderController + scene AABB center.
 struct ClipAxisContext
 {
@@ -58,6 +69,14 @@ struct BoxClippingContext
 bool isBoundingBoxOutside(const BoundingBox& bb, const FrustumContext& ctx);
 bool isMeshOutside(const SceneMesh* mesh, const FrustumContext& ctx);
 bool isMeshFullyInside(const SceneMesh* mesh, const FrustumContext& ctx);
+
+// ---- Projected-size test ---------------------------------------------------
+
+// True when the box's bounding sphere projects to fewer than ctx.minPixels pixels across. Conservative: the
+// sphere is taken from the box's half diagonal and measured at its nearest point, so a part is never judged
+// smaller than it is. A box that reaches the eye plane is never reported as small.
+bool isBoundingBoxTooSmall(const BoundingBox& bb, const ScreenSizeContext& ctx);
+bool isMeshTooSmall(const SceneMesh* mesh, const ScreenSizeContext& ctx);
 
 // ---- Clip-plane tests (per axis) ------------------------------------------
 

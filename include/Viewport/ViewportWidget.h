@@ -1658,6 +1658,15 @@ protected:
 
 	void renderSingleView(QColor& topColor, QColor& botColor);
 
+	// GPU time of render() for the profile-rendering diagnostics. Two timer queries are used alternately
+	// and read one frame late, so the profiler never stalls the pipeline waiting for a result.
+	void beginFrameGpuTimer();
+	void endFrameGpuTimer();
+	GLuint _frameGpuQueries[2] = { 0, 0 };
+	bool   _frameGpuQueryIssued[2] = { false, false };
+	int    _frameGpuQueryIndex = 0;
+	bool   _frameGpuQueryActive = false;
+
 	void renderMultiView(QColor& topColor, QColor& botColor);
 	void renderComparePanes(QColor& topColor, QColor& botColor);
 	// Fit-to-screen in compare mode. The fit maths sizes the picture for a viewport of this size - a pane's, so a
@@ -2133,6 +2142,8 @@ private:
 	VisibilityComputationHelper::FrustumContext  _frustumCtx;
 	VisibilityComputationHelper::ClippingContext _clippingCtx;
 	VisibilityComputationHelper::BoxClippingContext _boxClipCtx;
+	// Small-part culling while the camera is moving on a large model; rebuilt in extractFrustumPlanes().
+	VisibilityComputationHelper::ScreenSizeContext _screenSizeCtx;
 
 	ViewToolbar* _viewToolbar;
     TabbedViewportToolbar* _tabbedToolbar = nullptr;

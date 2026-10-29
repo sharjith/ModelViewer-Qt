@@ -62,6 +62,12 @@ struct RenderDiagnostics
 	double textureBindCpuMs = 0.0;
 	double renderStateCpuMs = 0.0;
 	double drawCpuMs = 0.0;
+	double cullCpuMs = 0.0;
+	double gpuMs = 0.0;
+	int gpuSamples = 0;
+	qint64 triangles = 0;
+	qint64 cullPassedMeshes = 0;
+	qint64 displayedMeshes = 0;
 };
 
 RenderDiagnostics s_renderDiagnostics;
@@ -330,11 +336,38 @@ void RenderableMesh::recordJointUniformUploads(int count)
 		s_renderDiagnostics.jointUniformUploads += count;
 }
 
-void RenderableMesh::recordDrawCall(bool indexed, bool transparent)
+void RenderableMesh::recordCullCpuMs(double ms)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.cullCpuMs += ms;
+}
+
+void RenderableMesh::recordCullResult(qint64 passedMeshes)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.cullPassedMeshes += passedMeshes;
+}
+
+void RenderableMesh::recordGpuMs(double ms)
+{
+	if (!s_renderDiagnostics.enabled)
+		return;
+	s_renderDiagnostics.gpuMs += ms;
+	++s_renderDiagnostics.gpuSamples;
+}
+
+void RenderableMesh::recordDisplayedMeshes(qint64 meshes)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.displayedMeshes += meshes;
+}
+
+void RenderableMesh::recordDrawCall(bool indexed, bool transparent, qint64 triangleCount)
 {
 	if (!s_renderDiagnostics.enabled)
 		return;
 	++s_renderDiagnostics.drawCalls;
+	s_renderDiagnostics.triangles += triangleCount;
 	if (indexed)
 		++s_renderDiagnostics.indexedDrawCalls;
 	else
@@ -390,7 +423,7 @@ void RenderableMesh::flushRenderDiagnostics()
 
 	const double frames = static_cast<double>(s_renderDiagnostics.frames);
 	Logger::instance().info(
-		QStringLiteral("[RenderDiagnostics] windowMs=%1 frames=%2 frameCpuMs/frame=%3 opaqueMs/frame=%4 transparentMs/frame=%5 floorMs/frame=%6 meshModeMs/frame=%7 assImpMs/frame=%8 textureCacheMs/frame=%9 transformUniformMs/frame=%10 materialUniformMs/frame=%11 textureBindMs/frame=%12 renderStateMs/frame=%13 drawMs/frame=%14 draws/frame=%15 indexed/frame=%16 arrays/frame=%17 transparentDraws/frame=%18 rawProgBinds/frame=%19 progBindObservations/frame=%20 progCacheHits/frame=%21 rawTexBinds/frame=%22 texBindObservations/frame=%23 texCacheHits/frame=%24 vaoReconfig/frame=%25 materialRefresh/frame=%26 materialDirtyRefresh/frame=%27 materialShaderSwitchRefresh/frame=%28 materialSignatureRefresh/frame=%29 materialDebugBlockedRefresh/frame=%30 materialDirtyBySetProg/frame=%31 materialReuse/frame=%32 transformUniforms/frame=%33 jointUniforms/frame=%34")
+		QStringLiteral("[RenderDiagnostics] windowMs=%1 frames=%2 frameCpuMs/frame=%3 opaqueMs/frame=%4 transparentMs/frame=%5 floorMs/frame=%6 meshModeMs/frame=%7 assImpMs/frame=%8 textureCacheMs/frame=%9 transformUniformMs/frame=%10 materialUniformMs/frame=%11 textureBindMs/frame=%12 renderStateMs/frame=%13 drawMs/frame=%14 draws/frame=%15 indexed/frame=%16 arrays/frame=%17 transparentDraws/frame=%18 rawProgBinds/frame=%19 progBindObservations/frame=%20 progCacheHits/frame=%21 rawTexBinds/frame=%22 texBindObservations/frame=%23 texCacheHits/frame=%24 vaoReconfig/frame=%25 materialRefresh/frame=%26 materialDirtyRefresh/frame=%27 materialShaderSwitchRefresh/frame=%28 materialSignatureRefresh/frame=%29 materialDebugBlockedRefresh/frame=%30 materialDirtyBySetProg/frame=%31 materialReuse/frame=%32 transformUniforms/frame=%33 jointUniforms/frame=%34 cullMs/frame=%35 meshesAfterCull/frame=%36 meshesDisplayed/frame=%37 triangles/frame=%38 gpuMs/frame=%39 gpuSamples=%40")
 			.arg(windowMs)
 			.arg(s_renderDiagnostics.frames)
 			.arg(s_renderDiagnostics.frameCpuMs / frames, 0, 'f', 3)
@@ -424,7 +457,13 @@ void RenderableMesh::flushRenderDiagnostics()
 			.arg(s_renderDiagnostics.materialDirtyBySetProg / frames, 0, 'f', 1)
 			.arg(s_renderDiagnostics.materialUniformReuses / frames, 0, 'f', 1)
 			.arg(s_renderDiagnostics.transformUniformUploads / frames, 0, 'f', 1)
-			.arg(s_renderDiagnostics.jointUniformUploads / frames, 0, 'f', 1),
+			.arg(s_renderDiagnostics.jointUniformUploads / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.cullCpuMs / frames, 0, 'f', 3)
+			.arg(s_renderDiagnostics.cullPassedMeshes / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.displayedMeshes / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.triangles / frames, 0, 'f', 0)
+			.arg(s_renderDiagnostics.gpuSamples > 0 ? s_renderDiagnostics.gpuMs / s_renderDiagnostics.gpuSamples : 0.0, 0, 'f', 3)
+			.arg(s_renderDiagnostics.gpuSamples),
 		QStringLiteral("Performance"));
 
 	s_renderDiagnostics = RenderDiagnostics{};

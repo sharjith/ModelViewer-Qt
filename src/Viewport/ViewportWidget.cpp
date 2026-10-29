@@ -78,6 +78,23 @@
 
 
 constexpr auto  MAX_MODEL_SIZE_BYTES       = 52428800; // bytes
+
+// Times a candidate-selection (culling) call for the profile-rendering diagnostics; free when profiling is off.
+struct CullProfileScope
+{
+	CullProfileScope() : _on(RenderableMesh::renderDiagnosticsEnabled())
+	{
+		if (_on)
+			_timer.start();
+	}
+	~CullProfileScope()
+	{
+		if (_on)
+			RenderableMesh::recordCullCpuMs(static_cast<double>(_timer.nsecsElapsed()) / 1000000.0);
+	}
+	QElapsedTimer _timer;
+	bool _on;
+};
 constexpr float kDefaultFloorOffsetPercent = 0.0f;
 
 // Degenerate-guard floor for TransformGizmo::computeWorldScale(), not a
@@ -8093,7 +8110,11 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 	{
 		std::vector<int> candidateIds;
 		candidateIds.reserve(_sceneRuntime.currentVisibleObjectIds().size());
-		collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(), activeClipPlaneIndex, false, candidateIds);
+		{
+			CullProfileScope cullProfile;
+			collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(), activeClipPlaneIndex, false, candidateIds);
+		}
+		RenderableMesh::recordCullResult(static_cast<qint64>(candidateIds.size()));
 		opaque.reserve(candidateIds.size());
 		for (int id : candidateIds)
 		{
@@ -8386,7 +8407,11 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 	{
 		std::vector<int> candidateIds;
 		candidateIds.reserve(_sceneRuntime.currentVisibleObjectIds().size());
-		collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(), activeClipPlaneIndex, true, candidateIds);
+		{
+			CullProfileScope cullProfile;
+			collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(), activeClipPlaneIndex, true, candidateIds);
+		}
+		RenderableMesh::recordCullResult(static_cast<qint64>(candidateIds.size()));
 		transparent.reserve(candidateIds.size());
 		for (int id : candidateIds)
 		{
@@ -8715,6 +8740,9 @@ void ViewportWidget::collectVisibleMeshIdsForPass(int nodeIndex,
 	namespace VCH = VisibilityComputationHelper;
 	if (VCH::isBoundingBoxOutside(runtimeNode.subtreeBounds, _frustumCtx))
 		return;
+	// Everything below a subtree that is itself only a few pixels across is smaller still.
+	if (VCH::isBoundingBoxTooSmall(runtimeNode.subtreeBounds, _screenSizeCtx))
+		return;
 
 	// Box-clip passes take no tree-level pruning: the axis-only checks below
 	// would be vacuously true here (no axis plane enabled) and drop the ENTIRE
@@ -8747,6 +8775,9 @@ void ViewportWidget::collectVisibleMeshIdsForPass(int nodeIndex,
 			continue;
 		if (!isMeshVisible(mesh, activeClipPlaneIndex))
 			continue;
+		// Skinned meshes keep bind-pose bounds, which are not reliable for size either.
+		if (!mesh->hasSkinning() && VCH::isMeshTooSmall(mesh, _screenSizeCtx))
+			continue;
 		if (mesh->isTransparent() == wantTransparent)
 			out.push_back(meshIndex);
 	}
@@ -8761,6 +8792,31 @@ void ViewportWidget::extractFrustumPlanes()
 	const QVector4D* planes = _viewCtrl.frustumPlanes();
 	for (int i = 0; i < 6; ++i)
 		_frustumCtx.planes[i] = planes[i];
+
+	// Small-part culling: only while the camera is moving on a model large enough for the interaction fast path,
+	// so small models and resting views are drawn in full. Pixel threshold in QSettings "smallPartCullPixels"
+	// (default 4, 0 turns it off); read at most once a second because QSettings is a registry read on Windows.
+	static QElapsedTimer cullSettingClock;
+	static float cullPixels = 4.0f;
+	if (!cullSettingClock.isValid() || cullSettingClock.elapsed() > 1000)
+	{
+		cullPixels = QSettings().value(QStringLiteral("smallPartCullPixels"), 4.0).toFloat();
+		cullSettingClock.restart();
+	}
+	VisibilityComputationHelper::ScreenSizeContext& screen = _screenSizeCtx;
+	screen.enabled = cullPixels > 0.0f && _renderCtrl.lowResEnabled() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES;
+	if (screen.enabled)
+	{
+		const QMatrix4x4& view = _viewCtrl.viewMatrix();
+		const QMatrix4x4& proj = _viewCtrl.projectionMatrix();
+		screen.minPixels = cullPixels;
+		screen.perspective = !(proj(3, 3) == 1.0f && proj(3, 2) == 0.0f);
+		screen.pixelScale = proj(1, 1) * static_cast<float>(height() * devicePixelRatioF());
+		for (int i = 0; i < 4; ++i)
+			screen.viewZRow[i] = view(2, i);
+		if (screen.pixelScale <= 0.0f)
+			screen.enabled = false;
+	}
 }
 
 void ViewportWidget::rebuildClippingContext()
@@ -8967,8 +9023,11 @@ void ViewportWidget::drawSSSMeshesOnly(QOpenGLShaderProgram* prog, int activeCli
 		_sceneRuntime.runtimeVisibilityRootIndex() >= 0)
 	{
 		std::vector<int> candidateIds;
-		collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(),
-		                             activeClipPlaneIndex, false, candidateIds);
+		{
+			CullProfileScope cullProfile;
+			collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(),
+			                             activeClipPlaneIndex, false, candidateIds);
+		}
 		sssMeshes.reserve(candidateIds.size());
 		for (int id : candidateIds)
 		{
@@ -12319,7 +12378,11 @@ void ViewportWidget::render(Camera* camera)
 	const bool profileRendering = profileSetting;
 	RenderableMesh::beginRenderDiagnosticsFrame(profileRendering);
 	if (profileRendering)
+	{
 		frameTimer.start();
+		beginFrameGpuTimer();
+		RenderableMesh::recordDisplayedMeshes(static_cast<qint64>(_sceneRuntime.currentVisibleObjectIds().size()));
+	}
 
 	glEnable(GL_DEPTH_TEST);
 	glDisable(GL_BLEND);
@@ -12575,8 +12638,49 @@ void ViewportWidget::render(Camera* camera)
 	}
 	if (_renderCtrl.showLights()) drawLights();
 	if (profileRendering)
+	{
+		endFrameGpuTimer();
 		RenderableMesh::recordFrameCpuMs(static_cast<double>(frameTimer.nsecsElapsed()) / 1000000.0);
+	}
 	RenderableMesh::flushRenderDiagnostics();
+}
+
+void ViewportWidget::beginFrameGpuTimer()
+{
+	if (_frameGpuQueryActive)
+		return; // render() re-entered (multi-view / compare): one timer covers the outermost call
+	if (_frameGpuQueries[0] == 0)
+		glGenQueries(2, _frameGpuQueries);
+
+	// Collect the result issued on the previous frame, if the GPU has finished it.
+	const int previous = 1 - _frameGpuQueryIndex;
+	if (_frameGpuQueryIssued[previous])
+	{
+		GLint available = 0;
+		glGetQueryObjectiv(_frameGpuQueries[previous], GL_QUERY_RESULT_AVAILABLE, &available);
+		if (available)
+		{
+			GLuint64 nanoseconds = 0;
+			glGetQueryObjectui64v(_frameGpuQueries[previous], GL_QUERY_RESULT, &nanoseconds);
+			RenderableMesh::recordGpuMs(static_cast<double>(nanoseconds) / 1000000.0);
+			_frameGpuQueryIssued[previous] = false;
+		}
+	}
+
+	if (_frameGpuQueryIssued[_frameGpuQueryIndex])
+		return; // this slot's old result is still pending; skip this frame rather than stall
+	glBeginQuery(GL_TIME_ELAPSED, _frameGpuQueries[_frameGpuQueryIndex]);
+	_frameGpuQueryActive = true;
+}
+
+void ViewportWidget::endFrameGpuTimer()
+{
+	if (!_frameGpuQueryActive)
+		return;
+	glEndQuery(GL_TIME_ELAPSED);
+	_frameGpuQueryIssued[_frameGpuQueryIndex] = true;
+	_frameGpuQueryIndex = 1 - _frameGpuQueryIndex;
+	_frameGpuQueryActive = false;
 }
 
 

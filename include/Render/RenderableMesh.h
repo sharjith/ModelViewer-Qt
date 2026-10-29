@@ -88,7 +88,14 @@ public:
 	static void recordMaterialDirtyBySetProg();
 	static void recordTransformUniformUploads(int count);
 	static void recordJointUniformUploads(int count);
-	static void recordDrawCall(bool indexed, bool transparent);
+	// triangleCount: triangles submitted by this draw (0 for non-triangle primitives).
+	static void recordDrawCall(bool indexed, bool transparent, qint64 triangleCount = 0);
+	// CPU time spent selecting this frame's candidate meshes (frustum/clip culling), and how many survived.
+	static void recordCullCpuMs(double ms);
+	static void recordCullResult(qint64 passedMeshes);
+	// GPU time of the frame's raster work (timer query), and the number of meshes in the display list.
+	static void recordGpuMs(double ms);
+	static void recordDisplayedMeshes(qint64 meshes);
 	static void recordTextureCacheCpuMs(double ms);
 	static void recordTransformUniformCpuMs(double ms);
 	static void recordMaterialUniformCpuMs(double ms);

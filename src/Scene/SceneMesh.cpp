@@ -1430,7 +1430,10 @@ void SceneMesh::render()
 				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _indexBuffer.bufferId());
 			glDrawElements(_primitiveMode, drawLod1 ? static_cast<GLsizei>(_nVertsLod1) : drawCount, GL_UNSIGNED_INT, nullptr);
 		}
-		recordDrawCall(!_indices.empty(), isTransparent());
+		recordDrawCall(!_indices.empty(), isTransparent(),
+			_primitiveMode == GL_TRIANGLES
+				? static_cast<qint64>((_hasLod1 && !_indices.empty() && RenderableMesh::lodPolicyActive() ? _nVertsLod1 : drawCount) / 3)
+				: 0);
 		if (profiling)
 			recordDrawCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
 		if (_primitiveMode == GL_POINTS)
