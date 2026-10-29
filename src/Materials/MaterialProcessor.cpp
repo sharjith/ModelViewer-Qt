@@ -514,7 +514,7 @@ void MaterialProcessor::setDefaultMaterial(Material& mat)
 bool MaterialProcessor::decodeTextureImage(Material::Texture& texture,
 	QImage& outImage,
 	bool& outHasAlpha,
-	const std::vector<uint8_t>* glbBinaryBuffer,
+	const QByteArray* glbBinaryBuffer,
 	const QJsonArray* jsonBufferViews,
 	const QJsonArray* jsonImages)
 {
@@ -656,7 +656,7 @@ bool MaterialProcessor::decodeTextureImage(Material::Texture& texture,
 }
 
 unsigned int MaterialProcessor::createTextureOnGPU(Material::Texture& texture,
-	const std::vector<uint8_t>* glbBinaryBuffer,
+	const QByteArray* glbBinaryBuffer,
 	const QJsonArray* jsonBufferViews,
 	const QJsonArray* jsonImages)
 {
@@ -986,9 +986,10 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 
 	QJsonDocument doc;
 	std::vector<uint8_t> glbBinaryBuffer;
-	// Points at glbBinaryBuffer on the first call and at the cached copy afterwards. This function runs once
-	// per mesh, and copying a multi-hundred-MB binary each time dominated large-assembly GLB imports.
-	const std::vector<uint8_t>* glbBinaryPtr = &glbBinaryBuffer;
+	// The GLB binary as a shared (reference-counted) QByteArray: the cache entry and this local view share one
+	// allocation, so this function - which runs once per mesh - never copies a multi-hundred-MB binary again.
+	QByteArray glbBinaryData;
+	const QByteArray* glbBinaryPtr = &glbBinaryData;
 
 	if (isGLB)
 	{
@@ -1011,12 +1012,14 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 			}
 
 			s_glbJsonCache.insert(gltfPath, doc);
-			s_glbBinaryCache.insert(gltfPath, glbBinaryBuffer);
+			glbBinaryData = QByteArray(reinterpret_cast<const char*>(glbBinaryBuffer.data()),
+				static_cast<qsizetype>(glbBinaryBuffer.size()));
+			s_glbBinaryCache.insert(gltfPath, glbBinaryData);
 		}
 		else
 		{
 			doc = s_glbJsonCache.value(gltfPath);
-			glbBinaryPtr = &s_glbBinaryCache[gltfPath];
+			glbBinaryData = s_glbBinaryCache.value(gltfPath);
 		}
 
 		// === PRE-LOAD GLB IMAGES INTO GPU - ONLY ONCE PER FILE ===
@@ -1028,7 +1031,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 			QJsonArray jsonTextures = root.value("textures").toArray();
 			QJsonArray jsonSamplers = root.value("samplers").toArray();
 
-			if (!glbBinaryPtr->empty())
+			if (!glbBinaryPtr->isEmpty())
 			{
 				for (int imgIdx = 0; imgIdx < jsonImages.size(); ++imgIdx)
 				{
@@ -2769,12 +2772,10 @@ bool MaterialProcessor::fillAnimDataFromCache(const QString& path, QJsonDocument
 	if (!s_glbJsonCache.contains(path) || !s_glbBinaryCache.contains(path))
 		return false;
 	outDoc = s_glbJsonCache[path];
-	const std::vector<uint8_t>& bin = s_glbBinaryCache[path];
 	outBufferData.clear();
-	// Read-only view of the cached binary, not a copy: this is called once per mesh and the binary can be
-	// hundreds of MB. The cache entry outlives the callers' use of it.
-	outBufferData.append(QByteArray::fromRawData(reinterpret_cast<const char*>(bin.data()),
-		static_cast<qsizetype>(bin.size())));
+	// Shares the cached allocation (reference count only, no copy: this is called once per mesh and the binary
+	// can be hundreds of MB) and keeps it alive for as long as the caller holds it.
+	outBufferData.append(s_glbBinaryCache.value(path));
 	return outDoc.isObject();
 }
 
@@ -2784,7 +2785,8 @@ void MaterialProcessor::seedGlbCacheIfAbsent(const QString& path, const QJsonDoc
 	if (!s_glbJsonCache.contains(path))
 	{
 		s_glbJsonCache[path] = doc;
-		s_glbBinaryCache[path] = std::move(binary);
+		s_glbBinaryCache[path] = QByteArray(reinterpret_cast<const char*>(binary.data()),
+			static_cast<qsizetype>(binary.size()));
 	}
 }
 

@@ -93,7 +93,7 @@ private:
 	void validateMaterialConsistency(Material& mat);
 
 	unsigned int createTextureOnGPU(Material::Texture& texture,
-		const std::vector<uint8_t>* glbBinaryBuffer = nullptr,
+		const QByteArray* glbBinaryBuffer = nullptr,
 		const QJsonArray* jsonBufferViews = nullptr,
 		const QJsonArray* jsonImages = nullptr);
 
@@ -106,7 +106,7 @@ private:
 	bool decodeTextureImage(Material::Texture& texture,
 		QImage& outImage,
 		bool& outHasAlpha,
-		const std::vector<uint8_t>* glbBinaryBuffer = nullptr,
+		const QByteArray* glbBinaryBuffer = nullptr,
 		const QJsonArray* jsonBufferViews = nullptr,
 		const QJsonArray* jsonImages = nullptr);
 
@@ -202,7 +202,9 @@ private:
 	// Caches for both .gltf and .glb
 	QHash<QString, QJsonDocument> s_gltfJsonCache;
 	QHash<QString, QJsonDocument> s_glbJsonCache;
-	QHash<QString, std::vector<uint8_t>> s_glbBinaryCache;
+	// Reference-counted, so a reader that took the binary (fillAnimDataFromCache(), image decoding) keeps it alive
+	// even if the cache entry is replaced or cleared meanwhile; handing out raw views of a std::vector did not.
+	QHash<QString, QByteArray> s_glbBinaryCache;
 	QHash<QString, bool> s_glbImagesLoaded;  // Track if images uploaded to GPU
 	QHash<QString, bool> s_glbScenesSynced;  // Track which scenes have been synced
 	QHash<QString, std::vector<size_t>> s_glbImageIndices; // Maps: glbPath -> list of indices in _loadedTextures
