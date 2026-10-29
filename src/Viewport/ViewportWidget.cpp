@@ -1307,7 +1307,9 @@ void ViewportWidget::initializeGL()
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	// Set Anisotropic Filtering Level
 	int anIsoVals[] = { 1, 2, 4, 8, 16, 32 };
-	_renderCtrl.setAnisotropicFilteringLevel(anIsoVals[settings.value("anisotropyComboBox", 4).toInt()]);
+	// Default 4x (index 2), and never more than the GPU reports (maxAniso, queried above; 0 if unsupported).
+	const int anIsoLevel = anIsoVals[std::clamp(settings.value("anisotropyComboBox", 2).toInt(), 0, 5)];
+	_renderCtrl.setAnisotropicFilteringLevel(maxAniso >= 1.0f ? std::min<float>(static_cast<float>(anIsoLevel), maxAniso) : 1.0f);
 
 	_viewCtrl.setUserShowAxisOverride(settings.value("showCenterTrihedronCheckBox", true).toBool());
 	_viewCtrl.setUserShowCornerAxisOverride(settings.value("showCornerTrihedronCheckBox", true).toBool());

@@ -13,6 +13,38 @@
 
 namespace
 {
+// Index of the highest entry whose value (item data) does not exceed `limit`: the default for MSAA and anisotropic
+// filtering is 4x, or the best the GPU offers below that. The lists only hold supported levels, so "None"/"1x" is
+// the fallback when nothing else qualifies.
+int defaultLevelIndex(const QComboBox* combo, double limit)
+{
+    int best = 0;
+    double bestValue = -1.0;
+    for (int i = 0; i < combo->count(); ++i)
+    {
+        const double value = combo->itemData(i).toDouble();
+        if (value <= limit && value > bestValue)
+        {
+            best = i;
+            bestValue = value;
+        }
+    }
+    return best;
+}
+
+// A stored index counts only while it still points at an entry of the (GPU-dependent) list.
+int storedOrDefaultIndex(const QSettings& settings, const char* key, const QComboBox* combo, double defaultLimit)
+{
+    const int fallback = defaultLevelIndex(combo, defaultLimit);
+    if (!settings.contains(key))
+        return fallback;
+    const int stored = settings.value(key).toInt();
+    return (stored >= 0 && stored < combo->count()) ? stored : fallback;
+}
+} // namespace
+
+namespace
+{
 constexpr int kCornerTrihedronTopLeft = 0;
 constexpr int kCornerTrihedronTopRight = 1;
 constexpr int kCornerTrihedronBottomLeft = 2;
@@ -202,8 +234,7 @@ void SettingsDialog::setMaxMSAASamples(int maxSamples)
     if (maxSamples >= 32) ui->msaaComboBox->addItem("32x", 32);
 
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-    int val = settings.value("msaaComboBox", ui->msaaComboBox->currentIndex()).toInt();
-    ui->msaaComboBox->setCurrentIndex(val);
+    ui->msaaComboBox->setCurrentIndex(storedOrDefaultIndex(settings, "msaaComboBox", ui->msaaComboBox, 4.0));
     ui->msaaComboBox->blockSignals(oldState);
 }
 
@@ -217,8 +248,7 @@ void SettingsDialog::setMaxAnisotropy(int maxAnisotropy)
     if (maxAnisotropy >= 8) ui->anisotropyComboBox->addItem("8x", 8.0f);
     if (maxAnisotropy >= 16) ui->anisotropyComboBox->addItem("16x", 16.0f);
     QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-    int val = settings.value("anisotropyComboBox", ui->anisotropyComboBox->currentIndex()).toInt();
-    ui->anisotropyComboBox->setCurrentIndex(val);
+    ui->anisotropyComboBox->setCurrentIndex(storedOrDefaultIndex(settings, "anisotropyComboBox", ui->anisotropyComboBox, 4.0));
     ui->anisotropyComboBox->blockSignals(oldState);
 }
 
@@ -524,17 +554,9 @@ void SettingsDialog::setDefaultValues()
     ui->shaderModelComboBox->setCurrentIndex(0);             // "Blinn-Phong (ADS)"
     ui->shadingNormalComboBox->setCurrentIndex(0);           // "Smooth"
     	
-	int maxSamples = ModelViewerApplication::supportedMSAASamples();
-	if(maxSamples >= 4)
-        ui->msaaComboBox->setCurrentIndex(3);                    // "4x"    
-    else
-        ui->msaaComboBox->setCurrentIndex(0);                    // "1 (No MSAA)"
-    
-	int maxAnisotropy = ModelViewerApplication::supportedAnisotropicFilteringLevel();
-    if(maxAnisotropy >= 4)
-        ui->anisotropyComboBox->setCurrentIndex(3);              // "4x"
-	else
-        ui->anisotropyComboBox->setCurrentIndex(0);              // "1x (Off)"
+    // 4x, or the best the GPU supports below that (the lists only hold supported levels).
+    ui->msaaComboBox->setCurrentIndex(defaultLevelIndex(ui->msaaComboBox, 4.0));
+    ui->anisotropyComboBox->setCurrentIndex(defaultLevelIndex(ui->anisotropyComboBox, 4.0));
 
     // Section Capping - same hardcoded defaults SceneRenderController's own
     // member initializers used before this tab existed (PROCEDURAL,

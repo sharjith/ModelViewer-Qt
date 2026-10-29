@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "ModelViewerApplication.h"
 #include <QOpenGLFunctions>
 #include <QSettings>
@@ -47,7 +48,10 @@ ModelViewerApplication::ModelViewerApplication(int& argc, char** argv)
 
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	int values[] = {0, 2, 4, 8, 16, 32};
-	int samples = values[settings.value("msaaComboBox", 4).toInt()];
+	// Default 4x (index 2). The index is only ever saved from the settings dialog's list of supported levels, so a
+	// stored value stays valid; the clamp guards a hand-edited or stale one. No GL context exists yet, so an
+	// unsupported request is left to Qt's pixel-format selection, which falls back to the nearest supported count.
+	int samples = values[std::clamp(settings.value("msaaComboBox", 2).toInt(), 0, 5)];
 	bool vsyncEnabled = settings.value("vsyncCheckBox", true).toBool();
 
 	QSurfaceFormat format;

@@ -296,7 +296,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	setAttribute(Qt::WA_DeleteOnClose);
 		
 	int values[] = { 0, 2, 4, 8, 16, 32 };
-	int samples = values[settings.value("msaaComboBox", 4).toInt()];
+	int samples = values[std::clamp(settings.value("msaaComboBox", 2).toInt(), 0, 5)]; // default 4x, see ModelViewerApplication.cpp
 	bool vsyncEnabled = settings.value("vsyncCheckBox", true).toBool();
 
 	QSurfaceFormat format;
