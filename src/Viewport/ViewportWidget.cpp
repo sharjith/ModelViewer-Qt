@@ -12586,6 +12586,7 @@ void ViewportWidget::render(Camera* camera)
 
 	glEnable(GL_DEPTH_TEST);
 	glDisable(GL_BLEND);
+	glDisable(GL_POLYGON_SMOOTH);
 	if (_renderCtrl.backfaceCulling()) { glEnable(GL_CULL_FACE); glCullFace(GL_BACK); }
 	else glDisable(GL_CULL_FACE);
 	glFrontFace(GL_CCW);

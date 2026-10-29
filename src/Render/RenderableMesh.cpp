@@ -1832,7 +1832,7 @@ void RenderableMesh::render()
 		glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA,
 			GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 		glEnable(GL_LINE_SMOOTH);
-		glEnable(GL_POLYGON_SMOOTH);
+		// No GL_POLYGON_SMOOTH: it draws seams along shared triangle edges when blending (see SceneMesh::setRenderStateOptimized).
 	}
 	else
 	{

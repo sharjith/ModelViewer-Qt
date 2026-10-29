@@ -4200,7 +4200,9 @@ void SceneMesh::setRenderStateOptimized()
 			glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA,
 				GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 			glEnable(GL_LINE_SMOOTH);
-			glEnable(GL_POLYGON_SMOOTH);
+			// GL_POLYGON_SMOOTH deliberately not enabled: it antialiases every triangle's edges by coverage, so with blending
+			// on, the shared edges between neighbouring triangles let the background show through as faint seams (visible
+			// as a wireframe overlay whenever MSAA is off; the driver ignores it with MSAA on).
 		}
 		else
 		{
