@@ -986,6 +986,9 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 
 	QJsonDocument doc;
 	std::vector<uint8_t> glbBinaryBuffer;
+	// Points at glbBinaryBuffer on the first call and at the cached copy afterwards. This function runs once
+	// per mesh, and copying a multi-hundred-MB binary each time dominated large-assembly GLB imports.
+	const std::vector<uint8_t>* glbBinaryPtr = &glbBinaryBuffer;
 
 	if (isGLB)
 	{
@@ -1013,7 +1016,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		else
 		{
 			doc = s_glbJsonCache.value(gltfPath);
-			glbBinaryBuffer = s_glbBinaryCache.value(gltfPath);
+			glbBinaryPtr = &s_glbBinaryCache[gltfPath];
 		}
 
 		// === PRE-LOAD GLB IMAGES INTO GPU - ONLY ONCE PER FILE ===
@@ -1025,7 +1028,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 			QJsonArray jsonTextures = root.value("textures").toArray();
 			QJsonArray jsonSamplers = root.value("samplers").toArray();
 
-			if (!glbBinaryBuffer.empty())
+			if (!glbBinaryPtr->empty())
 			{
 				for (int imgIdx = 0; imgIdx < jsonImages.size(); ++imgIdx)
 				{
@@ -1042,14 +1045,14 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					int byteOffset = bvObj.value("byteOffset").toInt(0);
 					int byteLength = bvObj.value("byteLength").toInt(-1);
 
-					if (byteLength <= 0 || byteOffset + byteLength > static_cast<int>(glbBinaryBuffer.size()))
+					if (byteLength <= 0 || byteOffset + byteLength > static_cast<int>(glbBinaryPtr->size()))
 					{
 						qWarning() << "processGltf2CoreAndExtensions: Invalid bufferView range for image" << imgIdx;
 						continue;
 					}
 
 					// Extract image bytes from binary buffer
-					QByteArray imageData(reinterpret_cast<const char*>(glbBinaryBuffer.data() + byteOffset), byteLength);
+					QByteArray imageData(reinterpret_cast<const char*>(glbBinaryPtr->data() + byteOffset), byteLength);
 
 					// KTX2/Basis Universal (KHR_texture_basisu) - QImage has
 					// no decoder for this container format at all, so
@@ -1715,7 +1718,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 				// createTextureOnGPU must examine newTexture.wrapS/wrapT/magFilter/minFilter when creating the GL sampler
 				// assume this function sets newTexture.id (or returns id)
 				texID = createTextureOnGPU(newTexture,
-					isGLB ? &glbBinaryBuffer : nullptr,
+					isGLB ? glbBinaryPtr : nullptr,
 					isGLB ? &jsonBufferViews : nullptr,
 					isGLB ? &jsonImages : nullptr);
 				if (texID == 0 && newTexture.imageData.isNull()) return false;
@@ -2768,8 +2771,10 @@ bool MaterialProcessor::fillAnimDataFromCache(const QString& path, QJsonDocument
 	outDoc = s_glbJsonCache[path];
 	const std::vector<uint8_t>& bin = s_glbBinaryCache[path];
 	outBufferData.clear();
-	outBufferData.append(QByteArray(reinterpret_cast<const char*>(bin.data()),
-		static_cast<int>(bin.size())));
+	// Read-only view of the cached binary, not a copy: this is called once per mesh and the binary can be
+	// hundreds of MB. The cache entry outlives the callers' use of it.
+	outBufferData.append(QByteArray::fromRawData(reinterpret_cast<const char*>(bin.data()),
+		static_cast<qsizetype>(bin.size())));
 	return outDoc.isObject();
 }
 

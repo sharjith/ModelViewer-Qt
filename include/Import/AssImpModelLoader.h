@@ -428,6 +428,8 @@ private:
 
 	// Map from mesh index to primitive mode (from glTF)
 	std::unordered_map<unsigned int, GLenum> _gltfMeshPrimitiveModes;
+	// -1 = not checked yet for this import, 0 = the glTF has no morph targets, 1 = it has some.
+	int _gltfHasMorphTargets = -1;
 	UVDecisionFn _uvDecisionCallback;
 
 	// Map from aiMesh index to original material index (before deduplication)

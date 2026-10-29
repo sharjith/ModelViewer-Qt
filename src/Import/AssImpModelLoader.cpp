@@ -1645,6 +1645,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		_meshes.reserve(size_t(_totalMeshOccurrences));
 	if (_progressiveLoading)
 		_currentBatch.reserve(size_t(_batchSize));
+	_gltfHasMorphTargets = -1;
 	_importStage = "worker.process-nodes";
 	ImportDiagnostics::checkpoint(_importStage, -1, 0, _totalMeshOccurrences);
 	// Whatever way processing ends, the preparation stage must be drained and stopped before loadingFinished is emitted.
@@ -2082,6 +2083,35 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	const QString importPath = QString::fromStdString(_path);
 	if (importPath.endsWith(".gltf", Qt::CaseInsensitive) || importPath.endsWith(".glb", Qt::CaseInsensitive))
 	{
+		// loadMorphTargetsForAiMesh walks the node tree from the root for every call, which is quadratic over a
+		// large assembly. Ask once whether any primitive has morph targets and skip the walk when none does.
+		if (_gltfHasMorphTargets < 0)
+		{
+			_gltfHasMorphTargets = 1; // if the file cannot be inspected, keep the old behaviour
+			QJsonDocument morphDoc;
+			QVector<QByteArray> morphBuffers;
+			if (loadAnimationJsonAndBuffer(importPath, morphDoc, morphBuffers, &_materialProcessor) && morphDoc.isObject())
+			{
+				bool any = false;
+				const QJsonArray jsonMeshes = morphDoc.object().value("meshes").toArray();
+				for (const QJsonValue& meshValue : jsonMeshes)
+				{
+					const QJsonArray primitives = meshValue.toObject().value("primitives").toArray();
+					for (const QJsonValue& primitiveValue : primitives)
+					{
+						if (!primitiveValue.toObject().value("targets").toArray().isEmpty())
+						{
+							any = true;
+							break;
+						}
+					}
+					if (any)
+						break;
+				}
+				_gltfHasMorphTargets = any ? 1 : 0;
+			}
+		}
+		if (_gltfHasMorphTargets != 0)
 		loadMorphTargetsForAiMesh(
 			importPath, scene, meshIndex, mesh->mNumVertices, morphTargets, defaultMorphWeights, &morphBaseBasis,
 			&_materialProcessor);
