@@ -38,6 +38,14 @@ def box(sx, sy, sz):
     return pos, nrm, idx
 
 
+def flip_winding(idx):
+    """Counter-clockwise winding seen from outside, matching the outward normals (glTF front faces)."""
+    out = list(idx)
+    for i in range(0, len(out), 3):
+        out[i + 1], out[i + 2] = out[i + 2], out[i + 1]
+    return out
+
+
 def cylinder(radius, height, segments):
     """Capped cylinder along Y with smooth side normals."""
     pos, nrm, idx = [], [], []
@@ -62,7 +70,7 @@ def cylinder(radius, height, segments):
         for i in range(segments):
             j = (i + 1) % segments
             idx += [centre, ring + i, ring + j] if sign > 0 else [centre, ring + j, ring + i]
-    return pos, nrm, idx
+    return pos, nrm, flip_winding(idx)
 
 
 def torus(major, minor, nu, nv):
@@ -81,7 +89,7 @@ def torus(major, minor, nu, nv):
             a = i * (nv + 1) + j
             b = a + nv + 1
             idx += [a, b, a + 1, a + 1, b, b + 1]
-    return pos, nrm, idx
+    return pos, nrm, flip_winding(idx)
 
 
 def uvsphere(radius, lon, lat):
@@ -102,7 +110,7 @@ def uvsphere(radius, lon, lat):
                 idx += [a, b, a + 1]
             if i < lat - 1:
                 idx += [a + 1, b, b + 1]
-    return pos, nrm, idx
+    return pos, nrm, flip_winding(idx)
 
 
 class Builder:
