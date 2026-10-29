@@ -19,9 +19,8 @@
 #include <QImage>
 #include <QMatrix4x4>
 #include <QMap>
-#include <QOpenGLBuffer>
+#include "FastGlObjects.h"
 #include <QOpenGLContext>
-#include <QOpenGLVertexArrayObject>
 #include <QQuaternion>
 #include <QVariant>
 #include <QVector3D>
@@ -90,6 +89,8 @@ public:
 	static void recordJointUniformUploads(int count);
 	// triangleCount: triangles submitted by this draw (0 for non-triangle primitives).
 	static void recordDrawCall(bool indexed, bool transparent, qint64 triangleCount = 0);
+	static void recordBatchedDraw(qint64 meshes);
+	static void recordBatchCpuMs(double ms);
 	// CPU time spent selecting this frame's candidate meshes (frustum/clip culling), and how many survived.
 	static void recordCullCpuMs(double ms);
 	static void recordCullResult(qint64 passedMeshes);
@@ -98,6 +99,9 @@ public:
 	static void recordDisplayedMeshes(qint64 meshes);
 	static void recordTextureCacheCpuMs(double ms);
 	static void recordTransformUniformCpuMs(double ms);
+	// Contiguous slices of SceneMesh::render(), reported as probesMs/frame (diagnostics only).
+	static constexpr int kRenderProbeCount = 9;
+	static void recordRenderProbeMs(int slot, double ms);
 	static void recordMaterialUniformCpuMs(double ms);
 	static void recordTextureBindCpuMs(double ms);
 	static void recordRenderStateCpuMs(double ms);
@@ -150,7 +154,7 @@ public:
 	QVector3D getStableTransformCenter() const;
 	float getStableTransformRadius() const;
 
-	virtual QOpenGLVertexArrayObject& getVAO();
+	virtual FastGlVertexArray& getVAO();
 	virtual QString getName() const
 	{
 		return _name;
@@ -243,6 +247,7 @@ public:
 	QMatrix4x4 getExplodedViewTransformation() const;
 	QMatrix4x4 getSceneRenderTransform() const;
 	QMatrix4x4 combinedRenderTransform() const;
+	const QMatrix4x4& combinedRenderTransformRef() const; // no copy; see MeshInstanceState
 
 	// Explosion offset — world-space translation added by ExplodedViewManager.
 	// Baked into combinedRenderTransform() so every render path (main + selection)
@@ -595,6 +600,19 @@ public:
 	// class's doc comment.
 	quint64 geometryRevision() const { return _geometryRevision; }
 
+	// Read-only views of the CPU-side geometry last passed to initBuffers(), for DrawBatcher, which merges the
+	// geometry of many meshes into shared buffers. Valid until the next initBuffers().
+	const std::vector<unsigned int>& cpuIndices() const { return _indices; }
+	const std::vector<float>& cpuPoints() const { return _points; }
+	const std::vector<float>& cpuNormals() const { return _normals; }
+	const std::vector<float>& cpuColors() const { return _colors; }
+	const std::vector<float>& cpuTexCoords() const { return _texCoords; } // 8 floats per vertex (4 UV sets)
+	const std::vector<float>& cpuTangents() const { return _tangents; }
+	const std::vector<float>& cpuBitangents() const { return _bitangents; }
+	// Interaction-time coarse index tier. The CPU copy is not kept after upload, so it is read back from the GPU.
+	bool hasLod1() const { return _hasLod1; }
+	bool readLod1Indices(std::vector<unsigned int>& out);
+
 protected: // methods
 	// Upload geometry from a MeshGeometry object: copies vectors into _points/_normals/etc.
 	// and calls initBuffers() to create GL buffers. Bounds are recomputed automatically.
@@ -628,6 +646,23 @@ protected: // methods
 	int uniformLocationCached(const QByteArray& name) const;
 	int uniformLocationCached(const QString& name) const;
 	void clearUniformLocationCache();
+
+	// Locations of the uniforms every main-scene draw sets, resolved once per program so the per-mesh
+	// path uploads by integer location instead of looking each name up again.
+	struct DrawUniformLocations
+	{
+		int modelMatrix = -1;
+		int modelViewMatrix = -1;
+		int normalMatrix = -1;
+		int worldNormalMatrix = -1;
+		int hasSkinning = -1;
+		int jointCount = -1;
+		int analysisOverlayActive = -1;
+		int analysisOverlayBands = -1;
+		int analysisOverlayColormap = -1;
+		bool resolved = false;
+	};
+	const DrawUniformLocations& drawUniformLocations() const;
 	static const QMatrix4x4& currentGlobalModelMatrix();
 	static const QMatrix4x4& currentViewMatrix();
 
@@ -646,13 +681,13 @@ protected:
 	MeshInstanceState _instanceState;
 
 	// ---- GL buffer objects (direct members, MeshVizAdaptor dissolved) -------
-	QOpenGLBuffer _indexBuffer;
-	QOpenGLBuffer _positionBuffer;
-	QOpenGLBuffer _normalBuffer;
-	QOpenGLBuffer _colorBuffer;
+	FastGlBuffer _indexBuffer;
+	FastGlBuffer _positionBuffer;
+	FastGlBuffer _normalBuffer;
+	FastGlBuffer _colorBuffer;
 	// Dedicated Surface Analysis overlay buffer - see setAnalysisOverlayColors()'s
 	// doc comment. NEVER aliased with _colorBuffer above.
-	QOpenGLBuffer _analysisOverlayColorBuffer;
+	FastGlBuffer _analysisOverlayColorBuffer;
 
 	// Flat-per-face Surface Analysis overlay - a small, entirely SEPARATE
 	// VAO/buffer set (own position/normal/color, duplicated 3 unique
@@ -665,10 +700,10 @@ protected:
 	// top of it (same surface, same depth - drawing both would just
 	// z-fight, and the overlay is meant to override normal appearance, not
 	// layer under/over it).
-	QOpenGLVertexArrayObject _analysisFlatVAO;
-	QOpenGLBuffer _analysisFlatPositionBuffer { QOpenGLBuffer::VertexBuffer };
-	QOpenGLBuffer _analysisFlatNormalBuffer   { QOpenGLBuffer::VertexBuffer };
-	QOpenGLBuffer _analysisFlatColorBuffer    { QOpenGLBuffer::VertexBuffer };
+	FastGlVertexArray _analysisFlatVAO;
+	FastGlBuffer _analysisFlatPositionBuffer { FastGlBuffer::VertexBuffer };
+	FastGlBuffer _analysisFlatNormalBuffer   { FastGlBuffer::VertexBuffer };
+	FastGlBuffer _analysisFlatColorBuffer    { FastGlBuffer::VertexBuffer };
 	unsigned int  _analysisFlatVertexCount = 0;
 	// Uploads already-expanded (3 vertices per drawn triangle) position/normal/colour arrays into the flat overlay's
 	// buffers and switches it on - the shared tail of setAnalysisOverlayFlatColors()/...SubTriangleColors().
@@ -678,21 +713,21 @@ protected:
 	// See setZebraStripeActive()'s doc comment (public section).
 	bool  _zebraStripeActive = false;
 	float _zebraStripeFrequency = 10.0f;
-	QOpenGLBuffer _texCoord0Buffer;
-	QOpenGLBuffer _texCoord1Buffer;
-	QOpenGLBuffer _texCoord2Buffer;
-	QOpenGLBuffer _texCoord3Buffer;
-	QOpenGLBuffer _tangentBuf;
-	QOpenGLBuffer _bitangentBuf;
-	QOpenGLBuffer _jointIndexBuffer;
-	QOpenGLBuffer _jointWeightBuffer;
-	QOpenGLBuffer _coordBuf;
+	FastGlBuffer _texCoord0Buffer;
+	FastGlBuffer _texCoord1Buffer;
+	FastGlBuffer _texCoord2Buffer;
+	FastGlBuffer _texCoord3Buffer;
+	FastGlBuffer _tangentBuf;
+	FastGlBuffer _bitangentBuf;
+	FastGlBuffer _jointIndexBuffer;
+	FastGlBuffer _jointWeightBuffer;
+	FastGlBuffer _coordBuf;
 
 	unsigned int               _nVerts = 0;
 	std::vector<int>           _drawFirsts, _drawCounts; // see setDrawRanges()
 	bool                       _drawRangesActive = false;
-	QOpenGLVertexArrayObject   _vertexArrayObject;
-	std::vector<QOpenGLBuffer> _buffers;
+	FastGlVertexArray   _vertexArrayObject;
+	std::vector<FastGlBuffer> _buffers;
 
 	MaterialVizState _materialState;
 	Material& _material;   // reference alias into _materialState
@@ -709,6 +744,7 @@ protected:
 	bool                           _textureBindingsDirty = true;
 	bool                           _uniformsDirty        = true;
 	mutable QHash<QByteArray, int> _uniformLocationCache;
+	mutable DrawUniformLocations   _drawUniformLocations;
 	mutable QOpenGLShaderProgram*  _vaoConfiguredProgram = nullptr;
 
 	static QMatrix4x4 _currentGlobalModelMatrix;
@@ -720,8 +756,8 @@ protected:
 	QMap<QString, QVariant> _debugUniformOverrides;
 
 	// ---- Feature-edge VAO/VBO (heuristic silhouette edges) ----------------
-	QOpenGLBuffer            _featureEdgeIndexBuffer { QOpenGLBuffer::IndexBuffer };
-	QOpenGLVertexArrayObject _featureEdgeVAO;
+	FastGlBuffer            _featureEdgeIndexBuffer { FastGlBuffer::IndexBuffer };
+	FastGlVertexArray _featureEdgeVAO;
 	int                      _featureEdgeCount = 0;
 
 	// ---- Interaction-time LOD1 (coarse) index buffer -----------------------
@@ -732,13 +768,13 @@ protected:
 	// setMeshData()'s round trip) keeps seeing full-resolution geometry
 	// unmodified. Only populated for eligible rigid meshes - see
 	// SceneMesh::optimizeMesh()'s eligibility gate and SceneMesh::uploadLodTier().
-	QOpenGLBuffer _lodIndexBuffer { QOpenGLBuffer::IndexBuffer };
+	FastGlBuffer _lodIndexBuffer { FastGlBuffer::IndexBuffer };
 	unsigned int  _nVertsLod1 = 0;
 	bool          _hasLod1    = false;
 
 	// ---- OCC B-Rep edge VAO/VBO (STEP/IGES/BREP exact topology) -----------
-	QOpenGLBuffer            _occEdgeVertexBuffer { QOpenGLBuffer::VertexBuffer };
-	QOpenGLVertexArrayObject _occEdgeVAO;
+	FastGlBuffer            _occEdgeVertexBuffer { FastGlBuffer::VertexBuffer };
+	FastGlVertexArray _occEdgeVAO;
 	int                      _occEdgeCount = 0;
 
 	// ---- Precomputed texture binding table --------------------------------

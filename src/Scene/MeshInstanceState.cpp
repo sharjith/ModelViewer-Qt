@@ -143,6 +143,13 @@ QMatrix4x4 MeshInstanceState::combinedRenderTransform() const
     return _cachedCombinedRenderTransform;
 }
 
+const QMatrix4x4& MeshInstanceState::combinedRenderTransformRef() const
+{
+    if (_combinedRenderTransformDirty)
+        combinedRenderTransform(); // refreshes the cache
+    return _cachedCombinedRenderTransform;
+}
+
 void MeshInstanceState::invalidateCombinedRenderTransformCache() const
 {
     _combinedRenderTransformDirty = true;

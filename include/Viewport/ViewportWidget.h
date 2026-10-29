@@ -82,6 +82,7 @@ class ToolsToolbar;
 namespace Mvf { struct Document; }
 
 class TextRenderer;
+class DrawBatcher;
 class ClippingPlanesEditor;
 class ExplodedViewPanel;
 class ExplodedViewManager;
@@ -1660,6 +1661,7 @@ protected:
 
 	// GPU time of render() for the profile-rendering diagnostics. Two timer queries are used alternately
 	// and read one frame late, so the profiler never stalls the pipeline waiting for a result.
+	void logBatchDiagnostics();
 	void beginFrameGpuTimer();
 	void endFrameGpuTimer();
 	GLuint _frameGpuQueries[2] = { 0, 0 };
@@ -1808,10 +1810,12 @@ private:
 	bool isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex, bool includeVolumeReplacement = false) const;
 	bool sceneHasVisibleTransmissionMaterials() const;
 	bool sceneHasVisibleSSSMaterials() const;
+	// otherOut (optional) receives the visible meshes of the other kind, so one traversal serves both passes.
 	void collectVisibleMeshIdsForPass(int nodeIndex,
 	                                  int activeClipPlaneIndex,
 	                                  bool wantTransparent,
-	                                  std::vector<int>& out) const;
+	                                  std::vector<int>& out,
+	                                  std::vector<int>* otherOut = nullptr) const;
 
 	void drawSectionCapping();
 	// Box-mode counterpart of drawSectionCapping()'s per-axis loop (called from it
@@ -2139,6 +2143,19 @@ private:
 
 	// Cached per-frame culling contexts â€” rebuilt in extractFrustumPlanes() /
 	// rebuildClippingContext(). Avoids repeated look-ups inside tight render loops.
+	// Transparent meshes found by the opaque pass's traversal, for the transparent pass of the same camera and frame.
+	struct CullCache
+	{
+		bool valid = false;
+		quint64 frame = 0;
+		int clipIndex = 0;
+		VisibilityComputationHelper::FrustumContext frustum;
+		VisibilityComputationHelper::ScreenSizeContext screen;
+		std::vector<int> transparent;
+	};
+	CullCache _cullCache;
+	quint64 _renderFrameCounter = 0;
+
 	VisibilityComputationHelper::FrustumContext  _frustumCtx;
 	VisibilityComputationHelper::ClippingContext _clippingCtx;
 	VisibilityComputationHelper::BoxClippingContext _boxClipCtx;
@@ -2829,6 +2846,10 @@ private:
 	// their own existing initializeGL() call sites.
 	GpuResourceRegistry _gpuResourceRegistry;
 	std::vector<std::unique_ptr<IGpuContextResource>> _gpuResourceAdapters;
+
+	// Merges static parts into shared GPU buffers for the main opaque pass of very large models. Created on first
+	// use; its GL objects are released with the other context-bound resources (see releaseLoadedMeshGpuResources()).
+	std::unique_ptr<DrawBatcher> _drawBatcher;
 	// Guards the one-time LambdaGpuResource registration for the
 	// transmission/SSS buffer pairs - see their call site in initializeGL().
 	bool _bufferGpuResourcesRegistered = false;

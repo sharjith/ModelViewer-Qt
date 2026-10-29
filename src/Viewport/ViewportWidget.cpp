@@ -46,7 +46,12 @@
 #include "TangentGenerator.h"
 #include "TextRenderer.h"
 #include "Utils.h"
+#include "Logger.h"
+#include "DrawBatcher.h"
+#include <cstring>
 #include <algorithm>
+#include <functional>
+#include <unordered_map>
 #include <set>
 #include <array>
 #include <cmath>
@@ -857,6 +862,15 @@ _floorPlane(nullptr),
 
 ViewportWidget::~ViewportWidget()
 {
+	// Stage timings for the shutdown of a large model (logged at Info, category Performance).
+	QElapsedTimer teardownClock;
+	teardownClock.start();
+	const qint64 teardownMeshes = static_cast<qint64>(_sceneRuntime.meshStore().size());
+	const auto teardownStage = [&](const char* stage)
+	{
+		Logger::instance().info(QStringLiteral("[Teardown] %1 at %2 ms (%3 meshes)")
+			.arg(QLatin1String(stage)).arg(teardownClock.elapsed()).arg(teardownMeshes), QStringLiteral("Performance"));
+	};
 	// Must be first: disconnects the QOpenGLContext::aboutToBeDestroyed()
 	// handler wired up in initializeGL() before the explicit cleanup below
 	// runs. Without this, the base QOpenGLWidget destructor's later context
@@ -900,10 +914,34 @@ ViewportWidget::~ViewportWidget()
 	// initializeGL()'s and paintGL()'s own isOpenGLInitialized() guards),
 	// _renderCtrl/PunctualLights never resolved their GL function pointers,
 	// so any GL call below (even via a "valid" context) segfaults.
+	// Meshes are deleted while the context is still current (below), so their GL buffers are freed straight away
+	// instead of being queued. Called again after the context block for the no-context case; the pointers are cleared
+	// as they go, so the second call is a no-op when the first one ran.
+	const auto deleteAllMeshes = [&]()
+	{
+		qint64 deleted = 0;
+		qint64 chunkStart = teardownClock.elapsed();
+		auto& meshRecords = _sceneRuntime.meshStore();
+		for (size_t recordIndex = meshRecords.size(); recordIndex-- > 0;)
+		{
+			delete meshRecords[recordIndex].mesh;
+			meshRecords[recordIndex].mesh = nullptr;
+			// Progress for very large models: if the time per chunk grows, deletion is not linear.
+			if (teardownMeshes > 5000 && ++deleted % 5000 == 0)
+			{
+				const qint64 now = teardownClock.elapsed();
+				Logger::instance().info(QStringLiteral("[Teardown] deleted %1 of %2 meshes (+%3 ms for the last 5000)")
+					.arg(deleted).arg(teardownMeshes).arg(now - chunkStart), QStringLiteral("Performance"));
+				chunkStart = now;
+			}
+		}
+	};
+
 	if (context() && context()->isValid() && _renderCtrl.isOpenGLInitialized())
 	{
 		makeCurrent();
 		releaseGLSceneResources();
+		teardownStage("gpu-resources-released");
 		// Must run before doneCurrent(): unlike releaseGLSceneResources()
 		// (which only releases GPU handles, keeping the C++ objects alive
 		// for a future restore), this actually deletes them - their
@@ -915,6 +953,9 @@ ViewportWidget::~ViewportWidget()
 		// null) - nothing to delete, and no current context to safely
 		// delete through if there somehow were.
 		deleteGpuOwnedObjects();
+		teardownStage("gpu-owned-objects-deleted");
+		deleteAllMeshes();
+		teardownStage("meshes-deleted-with-context");
 		doneCurrent();  // Release context
 
 		qInfo() << "ViewportWidget::~ViewportWidget - OpenGL resources cleaned up successfully.";
@@ -924,10 +965,8 @@ ViewportWidget::~ViewportWidget()
 		qWarning() << "ViewportWidget::~ViewportWidget - No valid OpenGL context for cleanup.";
 	}
 
-	for (auto& a : _sceneRuntime.meshStore())
-	{
-		delete a.mesh;
-	}
+	deleteAllMeshes(); // no-op unless the context block above did not run
+	teardownStage("meshes-deleted");
 	if (_primaryCamera)
 		delete _primaryCamera;
 	if (_orthoViewsCamera)
@@ -938,6 +977,7 @@ ViewportWidget::~ViewportWidget()
 		SceneUtils::deleteScene(_sceneRuntime.globalScene());
 		_sceneRuntime.setGlobalScene(nullptr);
 	}
+	teardownStage("scene-deleted");
 
 	// _assimpModelLoader deletion also moved into releaseGLSceneResources()
 	// above, same reasoning as _textRenderer/_axisTextRenderer - kept out of
@@ -1045,12 +1085,32 @@ void ViewportWidget::invalidateTextureCacheGpuResources()
 
 void ViewportWidget::releaseLoadedMeshGpuResources()
 {
+	QElapsedTimer releaseClock;
+	releaseClock.start();
+	if (_drawBatcher)
+		_drawBatcher->invalidate();
 	invalidateTextureCacheGpuResources();
-	for (const SceneMeshRecord& meshRecord : _sceneRuntime.meshStore())
+	qint64 releasedCount = 0;
+	qint64 releaseChunkStart = 0;
+	// Order does not matter any more: the mesh buffers and VAOs are FastGlBuffer/FastGlVertexArray, whose release
+	// cost does not depend on how many other objects are alive (see FastGlObjects.h).
+	const auto& releaseRecords = _sceneRuntime.meshStore();
+	for (size_t recordIndex = releaseRecords.size(); recordIndex-- > 0;)
 	{
+		const SceneMeshRecord& meshRecord = releaseRecords[recordIndex];
 		if (meshRecord.mesh)
 			meshRecord.mesh->releaseContextBoundGpuResources();
+		if (_sceneRuntime.meshStore().size() > 5000 && ++releasedCount % 5000 == 0)
+		{
+			const qint64 now = releaseClock.elapsed();
+			Logger::instance().info(QStringLiteral("[Teardown] released GPU resources of %1 meshes (+%2 ms for the last 5000)")
+				.arg(releasedCount).arg(now - releaseChunkStart), QStringLiteral("Performance"));
+			releaseChunkStart = now;
+		}
 	}
+	if (_sceneRuntime.meshStore().size() > 1000)
+		Logger::instance().info(QStringLiteral("[Teardown] released GPU resources of %1 meshes in %2 ms")
+			.arg(_sceneRuntime.meshStore().size()).arg(releaseClock.elapsed()), QStringLiteral("Performance"));
 }
 
 void ViewportWidget::restoreLoadedMeshGpuResources()
@@ -8126,7 +8186,15 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 		candidateIds.reserve(_sceneRuntime.currentVisibleObjectIds().size());
 		{
 			CullProfileScope cullProfile;
-			collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(), activeClipPlaneIndex, false, candidateIds);
+			// One traversal sorts opaque and transparent meshes; the transparent pass of this camera and frame reuses it.
+			_cullCache.transparent.clear();
+			collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(), activeClipPlaneIndex, false, candidateIds,
+				&_cullCache.transparent);
+			_cullCache.valid = true;
+			_cullCache.frame = _renderFrameCounter;
+			_cullCache.clipIndex = activeClipPlaneIndex;
+			_cullCache.frustum = _frustumCtx;
+			_cullCache.screen = _screenSizeCtx;
 		}
 		RenderableMesh::recordCullResult(static_cast<qint64>(candidateIds.size()));
 		opaque.reserve(candidateIds.size());
@@ -8371,7 +8439,78 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 	}
 	else
 	{
-		for (auto& [key, id] : opaque)
+		// Large models: draw the static parts from merged buffers, one multi-draw per material group, and fall
+		// through to the per-mesh loop below for everything the batches do not cover (selected, hovered, moved,
+		// transparent-like, ...). See DrawBatcher.
+		std::vector<int> drawIds;
+		drawIds.reserve(opaque.size());
+		bool batchedPass = false;
+		const bool anyClipping = activeClipPlaneIndex >= 0 || _renderCtrl.yzClippingEnabled()
+			|| _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled() || _renderCtrl.boxClippingEnabled();
+		if (_displayMode == DisplayMode::SHADED && !flatProg && !anyClipping)
+		{
+			const DrawBatcher::Settings batchSettings = DrawBatcher::readSettings();
+			if (!_drawBatcher)
+				_drawBatcher = std::make_unique<DrawBatcher>();
+			const auto meshLookup = [this](int meshId) { return _sceneRuntime.meshAt(meshId); };
+			QElapsedTimer batchTimer;
+			if (RenderableMesh::renderDiagnosticsEnabled())
+				batchTimer.start();
+			_drawBatcher->update(_sceneRuntime.currentVisibleObjectIds(), meshLookup, batchSettings);
+			if (batchSettings.enabled && _drawBatcher->hasBatches()
+				&& static_cast<int>(_sceneRuntime.currentVisibleObjectIds().size()) >= batchSettings.minDisplayedMeshes)
+			{
+				std::vector<int> culledIds;
+				culledIds.reserve(opaque.size());
+				for (const auto& entry : opaque)
+					culledIds.push_back(entry.second);
+				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+				glLineWidth(1.0f);
+				glDisable(GL_POLYGON_OFFSET_FILL);
+				prog->setUniformValue("hovered", false);
+				_drawBatcher->drawBatches(prog, culledIds,
+					hoverHighlightingEnabled ? _selectionManager->getHoveredId() : -1, meshLookup, drawIds);
+				batchedPass = true;
+			}
+			if (batchTimer.isValid())
+				RenderableMesh::recordBatchCpuMs(static_cast<double>(batchTimer.nsecsElapsed()) / 1000000.0);
+			else if (!batchSettings.enabled && _drawBatcher->hasBatches())
+				_drawBatcher->releaseGl();
+		}
+		if (!batchedPass)
+			for (const auto& entry : opaque)
+				drawIds.push_back(entry.second);
+
+		// Plain shaded mode only needs the fill/line/offset state set once for the whole loop;
+		// renderMeshWithDisplayMode() set and reset it around every single mesh (six GL calls each).
+		const bool directShaded = (_displayMode == DisplayMode::SHADED);
+		if (directShaded)
+		{
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			glLineWidth(1.0f);
+			glDisable(GL_POLYGON_OFFSET_FILL);
+		}
+		// "hovered" only changes for the hovered mesh: look the location up once per program and upload on change.
+		struct HoverUniform { QOpenGLShaderProgram* program = nullptr; int location = -1; int last = -1; };
+		HoverUniform hoverUniforms[2];
+		const auto setHovered = [&](QOpenGLShaderProgram* p, bool value)
+		{
+			HoverUniform& state = (p == prog) ? hoverUniforms[0] : hoverUniforms[1];
+			if (state.program != p)
+			{
+				state.program = p;
+				state.location = p->uniformLocation("hovered");
+				state.last = -1;
+			}
+			if (state.location >= 0 && state.last != (value ? 1 : 0))
+			{
+				p->setUniformValue(state.location, value);
+				state.last = value ? 1 : 0;
+			}
+		};
+		const int hoveredIdNow = hoverHighlightingEnabled ? _selectionManager->getHoveredId() : -1;
+
+		for (int id : drawIds)
 		{
 			if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
 			{
@@ -8393,11 +8532,13 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 				}
 				mesh->setProg(activeProg);
 				RenderableMesh::bindProgramCached(activeProg);
-				activeProg->setUniformValue("hovered",
-					hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
+				setHovered(activeProg, hoveredIdNow >= 0 && id == hoveredIdNow);
 				if (activeSssObjectIdLocation >= 0)
 					activeProg->setUniformValue(activeSssObjectIdLocation, float(id + 1));
-				renderMeshExploded(mesh, _displayMode);
+				if (directShaded)
+					mesh->render();
+				else
+					renderMeshExploded(mesh, _displayMode);
 			}
 		}
 	}
@@ -8423,7 +8564,15 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 		candidateIds.reserve(_sceneRuntime.currentVisibleObjectIds().size());
 		{
 			CullProfileScope cullProfile;
-			collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(), activeClipPlaneIndex, true, candidateIds);
+			const bool reuse = _cullCache.valid && _cullCache.frame == _renderFrameCounter
+				&& _cullCache.clipIndex == activeClipPlaneIndex
+				&& std::memcmp(&_cullCache.frustum, &_frustumCtx, sizeof(_frustumCtx)) == 0
+				&& std::memcmp(&_cullCache.screen, &_screenSizeCtx, sizeof(_screenSizeCtx)) == 0;
+			if (reuse)
+				candidateIds = std::move(_cullCache.transparent);
+			else
+				collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(), activeClipPlaneIndex, true, candidateIds);
+			_cullCache.valid = false;
 		}
 		RenderableMesh::recordCullResult(static_cast<qint64>(candidateIds.size()));
 		transparent.reserve(candidateIds.size());
@@ -8708,11 +8857,10 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 	}
 	else
 	{
-		for (auto& it : transparent)
+		const auto drawTransparentMesh = [&](int id)
 		{
-			if (SceneMesh* mesh = _sceneRuntime.meshAt(it.second))
+			if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
 			{
-				const int id = it.second;
 				QOpenGLShaderProgram* activeProg = prog;
 				int activeSssObjectIdLocation = sssObjectIdLocation;
 				// See drawMeshSubset()'s equivalent opaque-pass guard.
@@ -8729,7 +8877,35 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 					activeProg->setUniformValue(activeSssObjectIdLocation, float(id + 1));
 				renderMeshExploded(mesh, _displayMode);
 			}
+		};
+
+		// Plain shaded mode on a large model: draw consecutive transparent meshes that share a batch with one
+		// multi-draw each, in exactly the sorted back-to-front order. Everything else goes through the lambda above.
+		bool batchedTransparent = false;
+		if (_displayMode == DisplayMode::SHADED && !flatProg && _drawBatcher && _drawBatcher->hasBatches())
+		{
+			const bool anyClippingT = activeClipPlaneIndex >= 0 || _renderCtrl.yzClippingEnabled()
+				|| _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled() || _renderCtrl.boxClippingEnabled();
+			const DrawBatcher::Settings batchSettingsT = DrawBatcher::readSettings();
+			if (!anyClippingT && batchSettingsT.enabled
+				&& static_cast<int>(_sceneRuntime.currentVisibleObjectIds().size()) >= batchSettingsT.minDisplayedMeshes)
+			{
+				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+				glLineWidth(1.0f);
+				glDisable(GL_POLYGON_OFFSET_FILL);
+				std::vector<int> orderedIds;
+				orderedIds.reserve(transparent.size());
+				for (const auto& it : transparent)
+					orderedIds.push_back(it.second);
+				const auto meshLookupT = [this](int meshId) { return _sceneRuntime.meshAt(meshId); };
+				_drawBatcher->drawTransparentSequence(prog, orderedIds,
+					hoverHighlightingEnabledT ? _selectionManager->getHoveredId() : -1, meshLookupT, drawTransparentMesh);
+				batchedTransparent = true;
+			}
 		}
+		if (!batchedTransparent)
+			for (const auto& it : transparent)
+				drawTransparentMesh(it.second);
 	}
 
 	glDepthMask(GL_TRUE);
@@ -8743,7 +8919,8 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 void ViewportWidget::collectVisibleMeshIdsForPass(int nodeIndex,
                                             int activeClipPlaneIndex,
                                             bool wantTransparent,
-                                            std::vector<int>& out) const
+                                            std::vector<int>& out,
+                                            std::vector<int>* otherOut) const
 {
 	if (nodeIndex < 0 || nodeIndex >= _sceneRuntime.runtimeVisibilityNodes().size())
 		return;
@@ -8794,10 +8971,12 @@ void ViewportWidget::collectVisibleMeshIdsForPass(int nodeIndex,
 			continue;
 		if (mesh->isTransparent() == wantTransparent)
 			out.push_back(meshIndex);
+		else if (otherOut)
+			otherOut->push_back(meshIndex);
 	}
 
 	for (int childIndex : std::as_const(runtimeNode.children))
-		collectVisibleMeshIdsForPass(childIndex, activeClipPlaneIndex, wantTransparent, out);
+		collectVisibleMeshIdsForPass(childIndex, activeClipPlaneIndex, wantTransparent, out, otherOut);
 }
 
 void ViewportWidget::extractFrustumPlanes()
@@ -12390,12 +12569,15 @@ void ViewportWidget::render(Camera* camera)
 		profileSettingClock.restart();
 	}
 	const bool profileRendering = profileSetting;
+	FastGlBuffer::flushPendingDeletes();
+	++_renderFrameCounter;
 	RenderableMesh::beginRenderDiagnosticsFrame(profileRendering);
 	if (profileRendering)
 	{
 		frameTimer.start();
 		beginFrameGpuTimer();
 		RenderableMesh::recordDisplayedMeshes(static_cast<qint64>(_sceneRuntime.currentVisibleObjectIds().size()));
+		logBatchDiagnostics();
 	}
 
 	glEnable(GL_DEPTH_TEST);
@@ -12659,6 +12841,83 @@ void ViewportWidget::render(Camera* camera)
 	RenderableMesh::flushRenderDiagnostics();
 }
 
+// Draw-batching study: how many distinct draw groups do the displayed meshes fall into, and how many could be
+// merged at all (see research/rendering/DRAW_BATCHING_DESIGN.md). Walks every displayed mesh, so it runs at most
+// every 5 seconds, only while render profiling is on and only for models large enough to matter.
+void ViewportWidget::logBatchDiagnostics()
+{
+	static QElapsedTimer clock;
+	if (clock.isValid() && clock.elapsed() < 5000)
+		return;
+	const std::vector<int>& ids = _sceneRuntime.currentVisibleObjectIds();
+	if (ids.size() < 100)
+		return;
+	clock.restart();
+
+	std::unordered_map<quint64, int> groups; // key -> candidate meshes in the group
+	qint64 candidates = 0;
+	// Why meshes are not candidates (a mesh counts under the first reason that applies).
+	// Of the transparent meshes: by what the material says (a mesh counts under the first that applies).
+	qint64 trTransmission = 0, trBlendAlpha = 0, trOpacityLow = 0, trOpacityMap = 0, trOther = 0, trOpacityBelowHalf = 0;
+	qint64 notLines = 0, notTransparent = 0, notSkinMorph = 0, notNegScale = 0, notSelected = 0, notMaterial = 0, notOther = 0;
+	for (int id : ids)
+	{
+		const SceneMesh* mesh = _sceneRuntime.meshAt(id);
+		if (!mesh)
+			continue;
+		if (!mesh->isStaticBatchCandidate())
+		{
+			if (mesh->getPrimitiveMode() != GL_TRIANGLES) ++notLines;
+			else if (mesh->isTransparent())
+			{
+				++notTransparent;
+				const Material& tm = mesh->getMaterial();
+				if (tm.opacity() < 0.5f) ++trOpacityBelowHalf;
+				if (tm.transmission() > 0.0f) ++trTransmission;
+				else if (tm.blendMode() == Material::BlendMode::Alpha) ++trBlendAlpha;
+				else if (tm.opacity() < 0.999f) ++trOpacityLow;
+				else if (tm.hasOpacityMap() || tm.hasTransmissionMap()) ++trOpacityMap;
+				else ++trOther; // texture alpha (not visible through the material API)
+			}
+			else if (mesh->hasSkinning() || mesh->hasMorphTargets()) ++notSkinMorph;
+			else if (mesh->hasNegativeScale()) ++notNegScale;
+			else if (mesh->isSelected()) ++notSelected;
+			else if (mesh->getMaterial().wireframe() || mesh->getMaterial().hasVolumeScattering()
+				|| mesh->getMaterial().hasTransmission()) ++notMaterial;
+			else ++notOther;
+			continue;
+		}
+		++candidates;
+		++groups[mesh->drawGroupKey()];
+	}
+
+	std::vector<int> sizes;
+	sizes.reserve(groups.size());
+	qint64 singletons = 0;
+	for (const auto& entry : groups)
+	{
+		sizes.push_back(entry.second);
+		if (entry.second == 1)
+			++singletons;
+	}
+	std::sort(sizes.begin(), sizes.end(), std::greater<int>());
+	QStringList top;
+	for (size_t i = 0; i < sizes.size() && i < 8; ++i)
+		top << QString::number(sizes[i]);
+	const qint64 draws = static_cast<qint64>(ids.size());
+	const qint64 afterBatching = draws - candidates + static_cast<qint64>(groups.size());
+	Logger::instance().info(
+		QStringLiteral("[BatchDiagnostics] displayed=%1 candidates=%2 notCandidates=%3 groups=%4 singletonGroups=%5 "
+			"largestGroups=%6 drawsIfBatched=%7 | notCandidate: lines/points=%8 transparent=%9 skinOrMorph=%10 "
+			"negativeScale=%11 selected=%12 material=%13 other=%14 | transparent by: transmission=%15 blendAlpha=%16 "
+			"opacityBelow1=%17 opacityMap=%18 textureAlpha/other=%19 (opacityBelowHalf=%20)")
+			.arg(draws).arg(candidates).arg(draws - candidates).arg(groups.size()).arg(singletons)
+			.arg(top.join(QLatin1Char('/'))).arg(afterBatching)
+			.arg(notLines).arg(notTransparent).arg(notSkinMorph).arg(notNegScale).arg(notSelected).arg(notMaterial).arg(notOther)
+			.arg(trTransmission).arg(trBlendAlpha).arg(trOpacityLow).arg(trOpacityMap).arg(trOther).arg(trOpacityBelowHalf),
+		QStringLiteral("Performance"));
+}
+
 void ViewportWidget::beginFrameGpuTimer()
 {
 	if (_frameGpuQueryActive)
@@ -12666,18 +12925,20 @@ void ViewportWidget::beginFrameGpuTimer()
 	if (_frameGpuQueries[0] == 0)
 		glGenQueries(2, _frameGpuQueries);
 
-	// Collect the result issued on the previous frame, if the GPU has finished it.
-	const int previous = 1 - _frameGpuQueryIndex;
-	if (_frameGpuQueryIssued[previous])
+	// Collect every finished result. Checking only the previous slot left a slot that was skipped as "still
+	// pending" uncollected forever, so the timer went silent for the rest of the session.
+	for (int slot = 0; slot < 2; ++slot)
 	{
+		if (!_frameGpuQueryIssued[slot])
+			continue;
 		GLint available = 0;
-		glGetQueryObjectiv(_frameGpuQueries[previous], GL_QUERY_RESULT_AVAILABLE, &available);
+		glGetQueryObjectiv(_frameGpuQueries[slot], GL_QUERY_RESULT_AVAILABLE, &available);
 		if (available)
 		{
 			GLuint64 nanoseconds = 0;
-			glGetQueryObjectui64v(_frameGpuQueries[previous], GL_QUERY_RESULT, &nanoseconds);
+			glGetQueryObjectui64v(_frameGpuQueries[slot], GL_QUERY_RESULT, &nanoseconds);
 			RenderableMesh::recordGpuMs(static_cast<double>(nanoseconds) / 1000000.0);
-			_frameGpuQueryIssued[previous] = false;
+			_frameGpuQueryIssued[slot] = false;
 		}
 	}
 

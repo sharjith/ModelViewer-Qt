@@ -506,6 +506,22 @@ public:
 	const QVector<GltfSkinJoint>& skinJoints() const         { return _importState.skinJoints(); }
 	bool hasSkinning() const override                        { return _importState.hasSkinning(); }
 
+	// Draw-batching study (research/rendering/DRAW_BATCHING_DESIGN.md): meshes sharing this key need identical
+	// program, material and texture state, so they could be merged; candidates exclude everything that must stay
+	// an individual draw. Diagnostics only - nothing renders from these yet.
+	quint64 drawGroupKey() const;
+	// Opaque meshes only (batched in the opaque pass).
+	bool isStaticBatchCandidate() const;
+	// transparent == true: a mesh that is drawn in the sorted transparent pass but could still share a batch with
+	// neighbours in the sort order (see DrawBatcher::drawTransparentSequence()).
+	bool isBatchCandidate(bool transparent) const;
+
+	// Everything render() does before its draw call, for a DrawBatcher batch: binds `prog`, uploads the transform
+	// uniforms (the mesh's own transform is already baked into the batch geometry, so modelMatrix is just the
+	// global model matrix), then the material state, textures and render state of this mesh, which stands for every
+	// mesh in the batch (they share a drawGroupKey()).
+	void prepareBatchDraw(QOpenGLShaderProgram* prog);
+
 	// ---- Animation state (moved from RenderableMesh) ------------------------
 	MeshAnimationState&        animationState()       { return _animState; }
 	const MeshAnimationState&  animationState() const { return _animState; }

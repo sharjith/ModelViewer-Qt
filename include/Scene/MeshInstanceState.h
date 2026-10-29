@@ -164,6 +164,8 @@ public:
     //              * transformation * sceneRenderTransform
     // This exact order is the load-bearing contract; do not change it.
     QMatrix4x4 combinedRenderTransform() const;
+    // Same matrix without the copy; valid until the transform next changes. For hot per-mesh comparisons.
+    const QMatrix4x4& combinedRenderTransformRef() const;
     void invalidateCombinedRenderTransformCache() const;
 
     // ---- Bounds -------------------------------------------------------------

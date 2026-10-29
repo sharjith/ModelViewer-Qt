@@ -410,6 +410,8 @@ void SettingsDialog::applySettings()
     settings.setValue("importDiagnosticsMaxMB", ui->importDiagnosticsMaxMbSpinBox->value());
     settings.setValue("interactionFastPathMB", ui->interactionFastPathMbSpinBox->value());
     settings.setValue("smallPartCullPixels", ui->smallPartCullSpinBox->value());
+    settings.setValue("batchedDrawing", ui->batchedDrawingCheckBox->isChecked());
+    settings.setValue("batchMinMeshes", ui->batchMinMeshesSpinBox->value());
     settings.setValue("jtMergePartMeshes", ui->jtMergePartMeshesCheckBox->isChecked());
     settings.setValue("jtDecodeThreads", ui->jtDecodeThreadsSpinBox->value());
     settings.setValue("jtBudgetGiB", ui->jtBudgetGibSpinBox->value());
@@ -597,6 +599,8 @@ void SettingsDialog::setDefaultValues()
     ui->importDiagnosticsMaxMbSpinBox->setValue(32);
     ui->interactionFastPathMbSpinBox->setValue(50);
     ui->smallPartCullSpinBox->setValue(4.0);
+    ui->batchedDrawingCheckBox->setChecked(true);
+    ui->batchMinMeshesSpinBox->setValue(3000);
     ui->jtMergePartMeshesCheckBox->setChecked(true);
     ui->jtDecodeThreadsSpinBox->setValue(0);
     ui->jtBudgetGibSpinBox->setValue(16);
@@ -967,6 +971,8 @@ void SettingsDialog::loadSettings()
     ui->importDiagnosticsMaxMbSpinBox->setValue(settings.value("importDiagnosticsMaxMB", 32).toInt());
     ui->interactionFastPathMbSpinBox->setValue(settings.value("interactionFastPathMB", 50).toInt());
     ui->smallPartCullSpinBox->setValue(settings.value("smallPartCullPixels", 4.0).toDouble());
+    ui->batchedDrawingCheckBox->setChecked(settings.value("batchedDrawing", true).toBool());
+    ui->batchMinMeshesSpinBox->setValue(settings.value("batchMinMeshes", 3000).toInt());
     ui->jtMergePartMeshesCheckBox->setChecked(settings.value("jtMergePartMeshes", true).toBool());
     ui->jtDecodeThreadsSpinBox->setValue(settings.value("jtDecodeThreads", 0).toInt());
     ui->jtBudgetGibSpinBox->setValue(settings.value("jtBudgetGiB", 16).toInt());
@@ -1068,7 +1074,7 @@ void SettingsDialog::restoreDefaults()
         ui->profileRenderingCheckBox,
         ui->showTextureDebugPanelCheckBox,
         ui->importDiagnosticsCheckBox, ui->importDiagnosticsMaxMbSpinBox, ui->interactionFastPathMbSpinBox,
-        ui->smallPartCullSpinBox, ui->jtMergePartMeshesCheckBox, ui->jtDecodeThreadsSpinBox,
+        ui->smallPartCullSpinBox, ui->batchedDrawingCheckBox, ui->batchMinMeshesSpinBox, ui->jtMergePartMeshesCheckBox, ui->jtDecodeThreadsSpinBox,
         ui->jtBudgetGibSpinBox, ui->jtPrefetchMinSpinBox, ui->threeDxmlStrictCheckBox,
         ui->threeDxmlThreadsSpinBox, ui->threeDxmlParallelMinSpinBox,
         ui->clearCacheButton

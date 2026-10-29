@@ -1,7 +1,6 @@
 #pragma once
 
-#include <QOpenGLBuffer>
-#include <QOpenGLVertexArrayObject>
+#include "FastGlObjects.h"
 #include <QHash>
 #include <QByteArray>
 #include <QImage>
@@ -44,7 +43,7 @@ public:
     MeshVizAdaptor() = default;
 
     // MeshVizAdaptor is non-copyable and non-movable because it contains
-    // QObject-derived members (QOpenGLVertexArrayObject) and QOpenGLBuffer
+    // QObject-derived members (FastGlVertexArray) and FastGlBuffer
     // objects whose ownership must not be transferred implicitly.
     MeshVizAdaptor(const MeshVizAdaptor&)            = delete;
     MeshVizAdaptor& operator=(const MeshVizAdaptor&) = delete;
@@ -52,23 +51,23 @@ public:
     MeshVizAdaptor& operator=(MeshVizAdaptor&&)      = delete;
 
     // ---- Vertex / index buffers -----------------------------------------
-    QOpenGLBuffer& indexBuffer()       { return _indexBuffer; }
-    QOpenGLBuffer& positionBuffer()    { return _positionBuffer; }
-    QOpenGLBuffer& normalBuffer()      { return _normalBuffer; }
-    QOpenGLBuffer& colorBuffer()       { return _colorBuffer; }
-    QOpenGLBuffer& texCoord0Buffer()   { return _texCoord0Buffer; }
-    QOpenGLBuffer& texCoord1Buffer()   { return _texCoord1Buffer; }
-    QOpenGLBuffer& texCoord2Buffer()   { return _texCoord2Buffer; }
-    QOpenGLBuffer& texCoord3Buffer()   { return _texCoord3Buffer; }
-    QOpenGLBuffer& tangentBuffer()     { return _tangentBuf; }
-    QOpenGLBuffer& bitangentBuffer()   { return _bitangentBuf; }
-    QOpenGLBuffer& jointIndexBuffer()  { return _jointIndexBuffer; }
-    QOpenGLBuffer& jointWeightBuffer() { return _jointWeightBuffer; }
-    QOpenGLBuffer& coordBuffer()       { return _coordBuf; }
+    FastGlBuffer& indexBuffer()       { return _indexBuffer; }
+    FastGlBuffer& positionBuffer()    { return _positionBuffer; }
+    FastGlBuffer& normalBuffer()      { return _normalBuffer; }
+    FastGlBuffer& colorBuffer()       { return _colorBuffer; }
+    FastGlBuffer& texCoord0Buffer()   { return _texCoord0Buffer; }
+    FastGlBuffer& texCoord1Buffer()   { return _texCoord1Buffer; }
+    FastGlBuffer& texCoord2Buffer()   { return _texCoord2Buffer; }
+    FastGlBuffer& texCoord3Buffer()   { return _texCoord3Buffer; }
+    FastGlBuffer& tangentBuffer()     { return _tangentBuf; }
+    FastGlBuffer& bitangentBuffer()   { return _bitangentBuf; }
+    FastGlBuffer& jointIndexBuffer()  { return _jointIndexBuffer; }
+    FastGlBuffer& jointWeightBuffer() { return _jointWeightBuffer; }
+    FastGlBuffer& coordBuffer()       { return _coordBuf; }
 
     // ---- VAO & buffer ownership list ------------------------------------
-    QOpenGLVertexArrayObject& vao()          { return _vertexArrayObject; }
-    std::vector<QOpenGLBuffer>& buffers()    { return _buffers; }
+    FastGlVertexArray& vao()          { return _vertexArrayObject; }
+    std::vector<FastGlBuffer>& buffers()    { return _buffers; }
 
     // ---- Vertex count ---------------------------------------------------
     unsigned int& nVerts() { return _nVerts; }
@@ -95,13 +94,13 @@ public:
     QMap<QString, QVariant>&    debugUniformOverrides()  { return _debugUniformOverrides; }
 
     // ---- Feature-edge VAO/VBO (heuristic silhouette edges) --------------
-    QOpenGLBuffer&              featureEdgeIndexBuffer() { return _featureEdgeIndexBuffer; }
-    QOpenGLVertexArrayObject&   featureEdgeVAO()         { return _featureEdgeVAO; }
+    FastGlBuffer&              featureEdgeIndexBuffer() { return _featureEdgeIndexBuffer; }
+    FastGlVertexArray&   featureEdgeVAO()         { return _featureEdgeVAO; }
     int&                        featureEdgeCount()       { return _featureEdgeCount; }
 
     // ---- OCC B-Rep edge VAO/VBO (STEP/IGES/BREP exact topology) ---------
-    QOpenGLBuffer&              occEdgeVertexBuffer()    { return _occEdgeVertexBuffer; }
-    QOpenGLVertexArrayObject&   occEdgeVAO()             { return _occEdgeVAO; }
+    FastGlBuffer&              occEdgeVertexBuffer()    { return _occEdgeVertexBuffer; }
+    FastGlVertexArray&   occEdgeVAO()             { return _occEdgeVAO; }
     int&                        occEdgeCount()           { return _occEdgeCount; }
 
     // ---- Precomputed texture binding table ------------------------------
@@ -116,22 +115,22 @@ public:
     quint64& cachedUniformStateSignature()   const { return _cachedUniformStateSignature; }
 
 private:
-    QOpenGLBuffer _indexBuffer;
-    QOpenGLBuffer _positionBuffer;
-    QOpenGLBuffer _normalBuffer;
-    QOpenGLBuffer _colorBuffer;
-    QOpenGLBuffer _texCoord0Buffer;
-    QOpenGLBuffer _texCoord1Buffer;
-    QOpenGLBuffer _texCoord2Buffer;
-    QOpenGLBuffer _texCoord3Buffer;
-    QOpenGLBuffer _tangentBuf;
-    QOpenGLBuffer _bitangentBuf;
-    QOpenGLBuffer _jointIndexBuffer;
-    QOpenGLBuffer _jointWeightBuffer;
-    QOpenGLBuffer _coordBuf;
+    FastGlBuffer _indexBuffer;
+    FastGlBuffer _positionBuffer;
+    FastGlBuffer _normalBuffer;
+    FastGlBuffer _colorBuffer;
+    FastGlBuffer _texCoord0Buffer;
+    FastGlBuffer _texCoord1Buffer;
+    FastGlBuffer _texCoord2Buffer;
+    FastGlBuffer _texCoord3Buffer;
+    FastGlBuffer _tangentBuf;
+    FastGlBuffer _bitangentBuf;
+    FastGlBuffer _jointIndexBuffer;
+    FastGlBuffer _jointWeightBuffer;
+    FastGlBuffer _coordBuf;
 
-    QOpenGLVertexArrayObject   _vertexArrayObject;
-    std::vector<QOpenGLBuffer> _buffers;
+    FastGlVertexArray   _vertexArrayObject;
+    std::vector<FastGlBuffer> _buffers;
     unsigned int               _nVerts = 0;
 
     QImage       _fallbackTextureImage;
@@ -147,12 +146,12 @@ private:
     QMap<int, unsigned int>  _debugTextureOverrides;
     QMap<QString, QVariant>  _debugUniformOverrides;
 
-    QOpenGLBuffer            _featureEdgeIndexBuffer { QOpenGLBuffer::IndexBuffer };
-    QOpenGLVertexArrayObject _featureEdgeVAO;
+    FastGlBuffer            _featureEdgeIndexBuffer { FastGlBuffer::IndexBuffer };
+    FastGlVertexArray _featureEdgeVAO;
     int                      _featureEdgeCount = 0;
 
-    QOpenGLBuffer            _occEdgeVertexBuffer { QOpenGLBuffer::VertexBuffer };
-    QOpenGLVertexArrayObject _occEdgeVAO;
+    FastGlBuffer            _occEdgeVertexBuffer { FastGlBuffer::VertexBuffer };
+    FastGlVertexArray _occEdgeVAO;
     int                      _occEdgeCount = 0;
 
     std::vector<PrecomputedTexture> _textureBindings;

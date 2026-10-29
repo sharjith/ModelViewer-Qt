@@ -1223,6 +1223,18 @@ void SceneMesh::render()
 	const bool profiling = renderDiagnosticsEnabled();
 	if (profiling)
 		renderTimer.start();
+	QElapsedTimer probeTimer;
+	int probeSlot = 0;
+	auto probeLap = [&]()
+	{
+		if (profiling)
+		{
+			recordRenderProbeMs(probeSlot++, static_cast<double>(probeTimer.nsecsElapsed()) / 1000000.0);
+			probeTimer.restart();
+		}
+	};
+	if (profiling)
+		probeTimer.start();
 
 	const QMatrix4x4& globalModelMatrix = currentGlobalModelMatrix();
 	const QMatrix4x4 modelMatrix = globalModelMatrix * combinedRenderTransform();
@@ -1234,6 +1246,7 @@ void SceneMesh::render()
 	// (re-)binds the correct program before calling render(), so the cached
 	// value is authoritative at this point.
 	bindProgramCached(_prog);
+	probeLap(); // 0: matrix prep + program bind
 
 	QElapsedTimer stageTimer;
 	if (profiling)
@@ -1241,6 +1254,7 @@ void SceneMesh::render()
 	cacheTextureBindings();
 	if (profiling)
 		recordTextureCacheCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
+	probeLap(); // 1: texture binding cache
 
 	// Always upload the per-mesh transform state. Skipping identity meshes lets
 	// them inherit the previous draw's model matrix from shader state, which
@@ -1248,34 +1262,35 @@ void SceneMesh::render()
 	if (profiling)
 		stageTimer.restart();
 	int transformUniformUploads = 0;
-	if (uniformLocationCached("modelMatrix") >= 0)
+	const DrawUniformLocations& drawLoc = drawUniformLocations();
+	if (drawLoc.modelMatrix >= 0)
 	{
-		_prog->setUniformValue("modelMatrix", modelMatrix);
+		_prog->setUniformValue(drawLoc.modelMatrix, modelMatrix);
 		++transformUniformUploads;
 	}
-	if (uniformLocationCached("modelViewMatrix") >= 0)
+	if (drawLoc.modelViewMatrix >= 0)
 	{
-		_prog->setUniformValue("modelViewMatrix", modelViewMatrix);
+		_prog->setUniformValue(drawLoc.modelViewMatrix, modelViewMatrix);
 		++transformUniformUploads;
 	}
-	if (uniformLocationCached("normalMatrix") >= 0)
+	if (drawLoc.normalMatrix >= 0)
 	{
-		_prog->setUniformValue("normalMatrix", modelViewMatrix.normalMatrix());
+		_prog->setUniformValue(drawLoc.normalMatrix, modelViewMatrix.normalMatrix());
 		++transformUniformUploads;
 	}
-	if (uniformLocationCached("worldNormalMatrix") >= 0)
+	if (drawLoc.worldNormalMatrix >= 0)
 	{
-		_prog->setUniformValue("worldNormalMatrix", modelMatrix.normalMatrix());
+		_prog->setUniformValue(drawLoc.worldNormalMatrix, modelMatrix.normalMatrix());
 		++transformUniformUploads;
 	}
-	if (uniformLocationCached("hasSkinning") >= 0)
+	if (drawLoc.hasSkinning >= 0)
 	{
-		_prog->setUniformValue("hasSkinning", hasSkinning());
+		_prog->setUniformValue(drawLoc.hasSkinning, hasSkinning());
 		++transformUniformUploads;
 	}
-	if (uniformLocationCached("jointCount") >= 0)
+	if (drawLoc.jointCount >= 0)
 	{
-		_prog->setUniformValue("jointCount", static_cast<int>(jointPalette().size()));
+		_prog->setUniformValue(drawLoc.jointCount, static_cast<int>(jointPalette().size()));
 		++transformUniformUploads;
 	}
 	if (hasSkinning() && !jointPalette().isEmpty())
@@ -1293,6 +1308,7 @@ void SceneMesh::render()
 	recordTransformUniformUploads(transformUniformUploads);
 	if (profiling)
 		recordTransformUniformCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
+	probeLap(); // 2: transform uniforms
 
 	const bool hasDebugUniformOverrides = !_debugUniformOverrides.isEmpty();
 	const quint64 uniformSignature = uniformStateSignature();
@@ -1327,14 +1343,20 @@ void SceneMesh::render()
 	_currentUniformStateShader = _prog;
 	_currentUniformStateSignature = uniformSignature;
 	_currentUniformStateHadDebugOverrides = hasDebugUniformOverrides;
+	probeLap(); // 3: material signature + uniform refresh
 
+	if (profiling)
+		stageTimer.restart();
 	uploadAnalysisOverlayUniforms(); // every draw - see its definition
+	if (profiling)
+		recordTransformUniformCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
 
 	// Apply debug uniform overrides (TextureDebugPanel extension toggles).
 	// Called unconditionally — NOT inside the _uniformsDirty gate — so the
 	// shader reflects the user's toggle state every frame even when the
 	// uniform cache is clean.
 	applyDebugUniformOverrides();
+	probeLap(); // 4: analysis overlay + debug overrides
 
 	// Bind textures efficiently
 	if (profiling)
@@ -1343,6 +1365,7 @@ void SceneMesh::render()
 	applyDebugTextureOverrides();  // TextureDebugPanel per-unit overrides
 	if (profiling)
 		recordTextureBindCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
+	probeLap(); // 5: texture binds
 
 	// Set render state efficiently
 	if (profiling)
@@ -1350,6 +1373,7 @@ void SceneMesh::render()
 	setRenderStateOptimized();
 	if (profiling)
 		recordRenderStateCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
+	probeLap(); // 6: render state
 	
 	// Transparent draws must NOT write depth, but should still depth-test.	
 	constexpr GLboolean prevDepthMask = GL_TRUE;
@@ -1407,6 +1431,7 @@ void SceneMesh::render()
 
 		// Draw indexed primitives when an element buffer exists, otherwise fall
 		// back to array drawing for glTF point/line primitives that omit indices.
+		probeLap(); // 7: wireframe scope, VAO bind, per-draw GL state
 		if (profiling)
 			stageTimer.restart();
 		if (_indices.empty())
@@ -1444,9 +1469,91 @@ void SceneMesh::render()
 		_vertexArrayObject.release();
 	}
 
+	probeLap(); // 8: draw + VAO release (plus mesh-wireframe scope exit)
 	if (isTransparent()) glDepthMask(prevDepthMask); // restore immediately
 	if (profiling)
 		recordAssImpRenderCpuMs(static_cast<double>(renderTimer.nsecsElapsed()) / 1000000.0);
+}
+
+void SceneMesh::prepareBatchDraw(QOpenGLShaderProgram* prog)
+{
+	setProg(prog);
+	bindProgramCached(_prog);
+	cacheTextureBindings();
+
+	// The batch geometry already carries each part's own transform, so only the global model matrix remains.
+	const QMatrix4x4 modelMatrix = currentGlobalModelMatrix();
+	const QMatrix4x4 modelViewMatrix = currentViewMatrix() * modelMatrix;
+	const DrawUniformLocations& drawLoc = drawUniformLocations();
+	int transformUniformUploads = 0;
+	if (drawLoc.modelMatrix >= 0)
+	{
+		_prog->setUniformValue(drawLoc.modelMatrix, modelMatrix);
+		++transformUniformUploads;
+	}
+	if (drawLoc.modelViewMatrix >= 0)
+	{
+		_prog->setUniformValue(drawLoc.modelViewMatrix, modelViewMatrix);
+		++transformUniformUploads;
+	}
+	if (drawLoc.normalMatrix >= 0)
+	{
+		_prog->setUniformValue(drawLoc.normalMatrix, modelViewMatrix.normalMatrix());
+		++transformUniformUploads;
+	}
+	if (drawLoc.worldNormalMatrix >= 0)
+	{
+		_prog->setUniformValue(drawLoc.worldNormalMatrix, modelMatrix.normalMatrix());
+		++transformUniformUploads;
+	}
+	if (drawLoc.hasSkinning >= 0)
+	{
+		_prog->setUniformValue(drawLoc.hasSkinning, false);
+		++transformUniformUploads;
+	}
+	if (drawLoc.jointCount >= 0)
+	{
+		_prog->setUniformValue(drawLoc.jointCount, 0);
+		++transformUniformUploads;
+	}
+	recordTransformUniformUploads(transformUniformUploads);
+
+	// Same uniform-state reuse as render(): meshes of one batch share a signature, so this normally refreshes
+	// only when the batch's material differs from the previous draw.
+	const bool hasDebugUniformOverrides = !_debugUniformOverrides.isEmpty();
+	const quint64 uniformSignature = uniformStateSignature();
+	const bool sameUniformShader = (_currentUniformStateShader == _prog);
+	const bool signatureMatches = sameUniformShader && (_currentUniformStateSignature == uniformSignature);
+	const bool canReuseUniformState =
+		sameUniformShader &&
+		signatureMatches &&
+		!hasDebugUniformOverrides &&
+		!_currentUniformStateHadDebugOverrides;
+	if (!canReuseUniformState || _uniformsDirty)
+	{
+		const bool explicitDirty = _uniformsDirty;
+		const bool shaderSwitch = !sameUniformShader;
+		const bool signatureMismatch = sameUniformShader && !signatureMatches;
+		const bool debugBlocked = hasDebugUniformOverrides || _currentUniformStateHadDebugOverrides;
+		if (!_uniformsDirty)
+			_uniformsDirty = true;
+		setupUniformsOptimized();
+		recordMaterialUniformRefresh(explicitDirty);
+		recordMaterialRefreshReason(explicitDirty, shaderSwitch, signatureMismatch, debugBlocked);
+	}
+	else
+	{
+		recordMaterialUniformReuse();
+	}
+	_currentUniformStateShader = _prog;
+	_currentUniformStateSignature = uniformSignature;
+	_currentUniformStateHadDebugOverrides = hasDebugUniformOverrides;
+
+	uploadAnalysisOverlayUniforms();
+	applyDebugUniformOverrides();
+	bindTexturesOptimized();
+	applyDebugTextureOverrides();
+	setRenderStateOptimized();
 }
 
 void SceneMesh::renderWireframeFast(QOpenGLShaderProgram* wireProg)
@@ -1519,6 +1626,36 @@ void SceneMesh::renderWireframeFast(QOpenGLShaderProgram* wireProg)
 		wireProg->setUniformValue("hasSkinning", false);
 		wireProg->setUniformValue("jointCount",  0);
 	}
+}
+
+quint64 SceneMesh::drawGroupKey() const
+{
+	// The program is deliberately not part of the key: a batch is drawn with whichever program the pass uses, and
+	// the caller only batches while that is a single program.
+	return uniformStateSignature();
+}
+
+bool SceneMesh::isStaticBatchCandidate() const
+{
+	return isBatchCandidate(false);
+}
+
+bool SceneMesh::isBatchCandidate(bool transparent) const
+{
+	return _primitiveMode == GL_TRIANGLES
+		&& !_indices.empty()
+		&& isTransparent() == transparent
+		&& !hasSkinning()
+		&& !hasMorphTargets()
+		&& !hasAnalysisOverlay()
+		&& !isSelected()
+		&& !hasNegativeScale()
+		&& !_material.wireframe()
+		&& !_material.hasVolumeScattering()
+		&& !_material.hasTransmission()
+		&& _material.diffuseTransmissionFactor() <= 0.0f
+		&& !_zebraStripeActive
+		&& _debugUniformOverrides.isEmpty();
 }
 
 quint64 SceneMesh::uniformStateSignature() const
@@ -1981,7 +2118,7 @@ void SceneMesh::uploadLodTier()
 	if (!_lodIndexBuffer.isCreated())
 		_lodIndexBuffer.create();
 	_lodIndexBuffer.bind();
-	_lodIndexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_lodIndexBuffer.setUsagePattern(FastGlBuffer::StaticDraw);
 	const std::vector<unsigned int>& lodIndices =
 		_pendingLod1Indices.empty() ? _lod1Indices : _pendingLod1Indices;
 	_lodIndexBuffer.allocate(lodIndices.data(),
@@ -2242,7 +2379,7 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 	if (!_featureEdgeIndexBuffer.isCreated())
 		_featureEdgeIndexBuffer.create();
 	_featureEdgeIndexBuffer.bind();
-	_featureEdgeIndexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_featureEdgeIndexBuffer.setUsagePattern(FastGlBuffer::StaticDraw);
 	_featureEdgeIndexBuffer.allocate(_featureEdgeIndices.data(),
 	                                 static_cast<int>(_featureEdgeIndices.size() * sizeof(uint32_t)));
 	_featureEdgeIndexBuffer.release();
@@ -3709,7 +3846,7 @@ void SceneMesh::setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
 	if (!_occEdgeVertexBuffer.isCreated())
 		_occEdgeVertexBuffer.create();
 	_occEdgeVertexBuffer.bind();
-	_occEdgeVertexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_occEdgeVertexBuffer.setUsagePattern(FastGlBuffer::StaticDraw);
 	_occEdgeVertexBuffer.allocate(edgeVerts.data(),
 	                              static_cast<int>(edgeVerts.size() * sizeof(float)));
 	_occEdgeVertexBuffer.release();
@@ -5012,9 +5149,9 @@ void SceneMesh::restoreContextBoundGpuResources(QOpenGLShaderProgram* prog)
 
 	if (!shareContexts)
 	{
-		_lodIndexBuffer = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
-		_featureEdgeIndexBuffer = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
-		_occEdgeVertexBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+		_lodIndexBuffer = FastGlBuffer(FastGlBuffer::IndexBuffer);
+		_featureEdgeIndexBuffer = FastGlBuffer(FastGlBuffer::IndexBuffer);
+		_occEdgeVertexBuffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
 	}
 	if (_featureEdgeVAO.isCreated())
 		_featureEdgeVAO.destroy();
@@ -5051,7 +5188,7 @@ void SceneMesh::restoreContextBoundGpuResources(QOpenGLShaderProgram* prog)
 			if (!_featureEdgeIndexBuffer.isCreated())
 				_featureEdgeIndexBuffer.create();
 			_featureEdgeIndexBuffer.bind();
-			_featureEdgeIndexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+			_featureEdgeIndexBuffer.setUsagePattern(FastGlBuffer::StaticDraw);
 			_featureEdgeIndexBuffer.allocate(_featureEdgeIndices.data(),
 				static_cast<int>(_featureEdgeIndices.size() * sizeof(uint32_t)));
 			_featureEdgeIndexBuffer.release();

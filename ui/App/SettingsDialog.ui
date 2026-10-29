@@ -2507,6 +2507,54 @@ Interaction Fast-Path Size. Takes effect within a second.</string>
             </property>
            </widget>
           </item>
+          <item row="4" column="0" colspan="2">
+           <widget class="QCheckBox" name="batchedDrawingCheckBox">
+            <property name="toolTip">
+             <string>Draw large models with far fewer GPU draw calls by
+merging static parts of the same material into shared
+buffers. Parts that are selected, hovered, moved or
+otherwise special are still drawn individually.
+Takes effect within a second.</string>
+            </property>
+            <property name="text">
+             <string>Batched Drawing (large models)</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="0">
+           <widget class="QLabel" name="batchMinMeshesLabel">
+            <property name="text">
+             <string>Batching Minimum Model Size:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="1">
+           <widget class="QSpinBox" name="batchMinMeshesSpinBox">
+            <property name="toolTip">
+             <string>Batched drawing is only used when at least this many
+parts are displayed, so ordinary models are never
+affected. Takes effect within a second.</string>
+            </property>
+            <property name="suffix">
+             <string> parts</string>
+            </property>
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>1000000</number>
+            </property>
+            <property name="singleStep">
+             <number>500</number>
+            </property>
+            <property name="value">
+             <number>3000</number>
+            </property>
+           </widget>
+          </item>
          </layout>
         </widget>
        </item>
@@ -2597,6 +2645,8 @@ Interaction Fast-Path Size. Takes effect within a second.</string>
   <tabstop>importDiagnosticsMaxMbSpinBox</tabstop>
   <tabstop>interactionFastPathMbSpinBox</tabstop>
   <tabstop>smallPartCullSpinBox</tabstop>
+  <tabstop>batchedDrawingCheckBox</tabstop>
+  <tabstop>batchMinMeshesSpinBox</tabstop>
   <tabstop>jtMergePartMeshesCheckBox</tabstop>
   <tabstop>jtDecodeThreadsSpinBox</tabstop>
   <tabstop>jtBudgetGibSpinBox</tabstop>
