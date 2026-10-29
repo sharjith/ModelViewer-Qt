@@ -204,7 +204,8 @@ void MeshInstanceState::fastUpdateWorldBounds()
         static_cast<double>(xMin), static_cast<double>(xMax),
         static_cast<double>(yMin), static_cast<double>(yMax),
         static_cast<double>(zMin), static_cast<double>(zMax));
-    markRuntimeBoundsChanged();
+    if (_affectsSceneRevision)
+        markRuntimeBoundsChanged();
 }
 
 // ---------------------------------------------------------------------------
@@ -361,7 +362,8 @@ void MeshInstanceState::updateRuntimeBounds(
     Q_UNUSED(bitangents)
     Q_UNUSED(indices)
     computeBounds();
-    markRuntimeBoundsChanged();
+    if (_affectsSceneRevision)
+        markRuntimeBoundsChanged();
 }
 
 void MeshInstanceState::fullUpdateRuntimeBounds(

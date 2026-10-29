@@ -248,6 +248,9 @@ public:
 	QMatrix4x4 getSceneRenderTransform() const;
 	QMatrix4x4 combinedRenderTransform() const;
 	const QMatrix4x4& combinedRenderTransformRef() const; // no copy; see MeshInstanceState
+	// Decoration objects (view cube, light markers) call this with false so that moving them every frame does not
+	// tick currentRuntimeBoundsRevision(), which scene caches treat as "something in the model changed".
+	void setAffectsSceneRevision(bool affects) { _instanceState.setAffectsSceneRevision(affects); }
 
 	// Explosion offset — world-space translation added by ExplodedViewManager.
 	// Baked into combinedRenderTransform() so every render path (main + selection)

@@ -12324,6 +12324,7 @@ void ViewportWidget::drawViewCube(const QMatrix4x4* overrideRotationMatrix)
 	glFrontFace(GL_CCW);
 	glCullFace(GL_BACK);
 	glDepthFunc(GL_LEQUAL);
+	_viewCube->setAffectsSceneRevision(false); // decoration: must not tick the scene revision
 	_viewCube->setSceneRenderTransformFast(modelMatrix);
 	_viewCube->setProg(_renderCtrl.viewCubeShader());
 
@@ -12461,6 +12462,7 @@ void ViewportWidget::drawLights()
 	_renderCtrl.lightCubeShader()->setUniformValue("lightColor", _diffuseLight.toVector3D());	
 	_renderCtrl.lightCubeShader()->setUniformValue("intensity", 1.0f);
 	_renderCtrl.lightCubeShader()->setUniformValue("intensityScale", 1.0f);  // Tune brightness
+	_lightCube->setAffectsSceneRevision(false); // decoration: must not tick the scene revision
 	_lightCube->setSceneRenderTransformFast(model);
 	_lightCube->render();
 
@@ -12521,11 +12523,13 @@ void ViewportWidget::drawLights()
 
 			if (lightType == LightType::Directional)
 			{
+				_lightCube->setAffectsSceneRevision(false); // decoration: must not tick the scene revision
 				_lightCube->setSceneRenderTransformFast(lightModel);
 				_lightCube->render();
 			}
 			else
 			{
+				_lightSphere->setAffectsSceneRevision(false); // decoration: must not tick the scene revision
 				_lightSphere->setSceneRenderTransformFast(lightModel);
 				_lightSphere->render();
 			}

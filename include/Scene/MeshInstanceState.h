@@ -253,6 +253,8 @@ public:
     // Read by the scene runtime to invalidate the visibility BVH.
     static quint64 currentRuntimeBoundsRevision();
     static void    markRuntimeBoundsChanged();
+    void setAffectsSceneRevision(bool affects) { _affectsSceneRevision = affects; }
+    bool affectsSceneRevision() const { return _affectsSceneRevision; }
 
 private:
     void rebuildAbsoluteTransformation();
@@ -279,6 +281,9 @@ private:
 
     mutable QMatrix4x4 _cachedCombinedRenderTransform;
     mutable bool       _combinedRenderTransformDirty = true;
+    // False for decoration objects (view cube, light markers) whose per-frame updates must not tick the scene-wide
+    // revision that scene caches (runtime visibility bounds, batches, overlays) compare against.
+    bool               _affectsSceneRevision = true;
 
     // World-space bounds (transform-dependent)
     BoundingSphere _boundingSphere;
