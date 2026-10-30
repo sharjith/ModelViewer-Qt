@@ -20,6 +20,9 @@ constexpr qint64 kMaxChunkVertices = 1000000;          // one group buffer never
 constexpr qint64 kMaxTotalVertices = 64000000;         // safety valve on the extra GPU memory a batch set may take
 constexpr qint64 kBuildBudgetMicros = 6000;            // per frame, while building
 constexpr qint64 kScanBudgetMicros = 4000;             // per frame, while scanning
+constexpr qint64 kMissingMillisBeforeRebuild = 2000;   // ...or this long, whichever comes first: frames can take 0.5 s each
+constexpr double kBuildShareOfFrame = 0.4;             // while the batches are behind the frame is slow anyway; spend this share of it building
+constexpr qint64 kMaxBuildSliceMicros = 250000;
 constexpr int    kMissingFramesBeforeRebuild = 30;     // frames in a row with many meshes outside the batches before rebuilding
 constexpr qint64 kMinMillisBetweenBuilds = 1500;
 constexpr qint64 kMaxMillisBetweenBuilds = 30000;
@@ -466,6 +469,11 @@ void DrawBatcher::update(const std::vector<int>& visibleIds, const MeshLookup& m
 	_enabledLastFrame = true;
 	ensureGlFunctions();
 
+	// A fixed 6 ms slice per frame made a rebuild after a large visibility change take minutes on a very heavy model, whose
+	// frames last 0.3-0.5 s while meshes outside the batches draw one by one: scale the slice with the frame interval.
+	const qint64 frameIntervalMs = _updateClock.isValid() ? _updateClock.restart() : (_updateClock.start(), 0);
+	const qint64 scaledSlice = std::min<qint64>(kMaxBuildSliceMicros, static_cast<qint64>(frameIntervalMs * 1000.0 * kBuildShareOfFrame));
+
 	const quint64 revision = RenderableMesh::currentRuntimeBoundsRevision();
 	if (revision == _lastRuntimeRevision)
 		++_stableFrames;
@@ -496,6 +504,10 @@ void DrawBatcher::update(const std::vector<int>& visibleIds, const MeshLookup& m
 		const bool tooManyMissing = _candidatesLastFrame > 0
 			&& _missingLastFrame > std::max(200, _candidatesLastFrame / 20);
 		_missingStreak = tooManyMissing ? _missingStreak + 1 : 0;
+		if (!tooManyMissing)
+			_missingSince.invalidate();
+		else if (!_missingSince.isValid())
+			_missingSince.start();
 		const bool cooledDown = !_sinceBuild.isValid() || _sinceBuild.elapsed() > _cooldownMs;
 		// The first build does not wait for a perfectly still scene (something touches the scene's bounds revision
 		// every frame, so it is never still): it starts after 2 stable frames or 1.5 s. A rebuild starts once many
@@ -503,7 +515,8 @@ void DrawBatcher::update(const std::vector<int>& visibleIds, const MeshLookup& m
 		const bool immediate = neverBuilt && settings.immediateInitialBuild;
 		const bool settled = neverBuilt
 			? (immediate || _stableFrames >= 2 || (_wantedSince.isValid() && _wantedSince.elapsed() > 1500))
-			: _missingStreak >= kMissingFramesBeforeRebuild;
+			: (_missingStreak >= kMissingFramesBeforeRebuild
+				|| (_missingSince.isValid() && _missingSince.elapsed() >= kMissingMillisBeforeRebuild));
 		if ((neverBuilt || tooManyMissing) && settled && cooledDown)
 		{
 			if (!neverBuilt)
@@ -520,7 +533,7 @@ void DrawBatcher::update(const std::vector<int>& visibleIds, const MeshLookup& m
 
 	if (_phase == Phase::Scanning)
 	{
-		if (!advanceScan(meshAt, settings, _buildSynchronously ? std::numeric_limits<qint64>::max() / 4 : kScanBudgetMicros))
+		if (!advanceScan(meshAt, settings, _buildSynchronously ? std::numeric_limits<qint64>::max() / 4 : std::max(kScanBudgetMicros, scaledSlice)))
 			return;
 	}
 
@@ -528,7 +541,7 @@ void DrawBatcher::update(const std::vector<int>& visibleIds, const MeshLookup& m
 	{
 		QElapsedTimer slice;
 		slice.start();
-		const qint64 buildBudget = _buildSynchronously ? std::numeric_limits<qint64>::max() / 4 : kBuildBudgetMicros;
+		const qint64 buildBudget = _buildSynchronously ? std::numeric_limits<qint64>::max() / 4 : std::max(kBuildBudgetMicros, scaledSlice);
 		while (_buildPos < _buildQueue.size() && slice.nsecsElapsed() / 1000 < buildBudget)
 			buildSpec(_buildQueue[_buildPos++], meshAt);
 		if (_buildPos >= _buildQueue.size())

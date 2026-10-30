@@ -175,5 +175,7 @@ private:
 	std::vector<int> _runCounts;
 	std::vector<const void*> _runOffsets;
 	QElapsedTimer _wantedSince;   // how long the model has been large enough to batch
+	QElapsedTimer _updateClock;   // time between update() calls: the frame interval, which sizes the build slices
+	QElapsedTimer _missingSince;  // how long many meshes have been continuously missing from the batches
 	QElapsedTimer _stateLogClock;
 };
