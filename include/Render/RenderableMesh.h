@@ -468,6 +468,9 @@ public:
 	virtual void clearAllPBRMaps();
 	
 	virtual Material getMaterial() const;
+	// The mesh's own material, without the ~5 KB copy getMaterial() makes. For per-frame scans over every mesh; the
+	// reference is valid until the material is replaced or the mesh is destroyed.
+	const Material& materialRef() const { return _material; }
 	virtual void setMaterial(const Material& material);
 
 	virtual void setTextureMaps(const Material& material);

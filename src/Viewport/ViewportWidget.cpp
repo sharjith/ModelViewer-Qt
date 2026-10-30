@@ -1723,10 +1723,41 @@ void ViewportWidget::resizeGL(int width, int height)
 	update();
 }
 
+// Profile-rendering aid: where the CPU time of one paintGL() call goes (background, scene, overlays, tail), logged
+// once a second as "[PaintDiagnostics]" while "Profile rendering" is on. render() is only part of the scene section;
+// the scans and passes around it (renderSingleView()) are not covered by the render() profiler.
+namespace
+{
+struct PaintProbe
+{
+	QElapsedTimer cpu;
+	QElapsedTimer window;
+	double cpuSum = 0.0;
+	double cpuAt[5] = {};      // elapsed ms at: start, after background, after scene, after overlays, end
+	double cpuLap[4] = {};     // summed: background, scene, overlays, alpha stomp + tail
+	int cpuCount = 0;
+};
+PaintProbe g_paintProbe;
+}
+
 void ViewportWidget::paintGL()
 {
 	if (!_renderCtrl.isOpenGLInitialized())
 		return;
+
+	PaintProbe& probe = g_paintProbe;
+	const bool probing = ModelViewerApplication::slowEventTraceEnabled();
+	if (probing)
+	{
+		probe.cpu.start();
+		if (!probe.window.isValid())
+			probe.window.start();
+	}
+	const auto probeMark = [&](int index)
+	{
+		if (probing)
+			probe.cpuAt[index] = static_cast<double>(probe.cpu.nsecsElapsed()) / 1.0e6;
+	};
 
 	// Pull the latest interactive PT frame BEFORE the raster pass so the
 	// same published camera pose can drive both the presenter overlay and
@@ -1795,6 +1826,7 @@ void ViewportWidget::paintGL()
 			gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
 				botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _renderCtrl.gradientStyle());
 
+		probeMark(1);
 		_renderCtrl.fgShader()->bind();
 		_renderCtrl.punctualLights()->bind(_renderCtrl.fgShader()->programId());
 		_renderCtrl.fgShader()->setUniformValue("lightCount", _renderCtrl.punctualLights()->getLightCount());
@@ -1814,6 +1846,7 @@ void ViewportWidget::paintGL()
 		{
 			renderSingleView(topColor, botColor);
 		}
+		probeMark(2);
 
 		// Self-healing watchdog: armed, but neither counting down to a settle
 		// nor actually tracing nor showing a result - something (a visibility
@@ -1947,10 +1980,38 @@ void ViewportWidget::paintGL()
 	// alpha-blends against the desktop, showing whatever's behind the window
 	// through those pixels. The color mask restricts this to the alpha channel
 	// only, so it can't affect the RGB result already rendered this frame.
+	if (probing)
+		probe.cpuAt[3] = static_cast<double>(probe.cpu.nsecsElapsed()) / 1.0e6;
 	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+
+	if (probing)
+	{
+		probe.cpuAt[4] = static_cast<double>(probe.cpu.nsecsElapsed()) / 1.0e6;
+		probe.cpuLap[0] += probe.cpuAt[1];
+		probe.cpuLap[1] += probe.cpuAt[2] - probe.cpuAt[1];
+		probe.cpuLap[2] += probe.cpuAt[3] - probe.cpuAt[2];
+		probe.cpuLap[3] += probe.cpuAt[4] - probe.cpuAt[3];
+		probe.cpuSum += probe.cpuAt[4];
+		++probe.cpuCount;
+		if (probe.window.elapsed() >= 1000 && probe.cpuCount > 0)
+		{
+			const double c = probe.cpuCount;
+			Logger::instance().info(
+				QStringLiteral("[PaintDiagnostics] paints=%1 paintCpuMs=%2 (background %3, scene %4, overlays %5, alpha stomp %6)")
+					.arg(probe.cpuCount).arg(probe.cpuSum / c, 0, 'f', 1)
+					.arg(probe.cpuLap[0] / c, 0, 'f', 1).arg(probe.cpuLap[1] / c, 0, 'f', 1)
+					.arg(probe.cpuLap[2] / c, 0, 'f', 1).arg(probe.cpuLap[3] / c, 0, 'f', 1),
+				QStringLiteral("Performance"));
+			probe.cpuSum = 0.0;
+			probe.cpuCount = 0;
+			for (double& v : probe.cpuLap)
+				v = 0.0;
+			probe.window.restart();
+		}
+	}
 
 	// For testing rendered shadow map
 	/*_renderCtrl.debugShader()->bind();
@@ -9198,7 +9259,7 @@ bool ViewportWidget::sceneHasVisibleTransmissionMaterials() const
 		if (!mesh || !isMeshAnimationVisible(mesh))
 			continue;
 
-		const Material& mat = mesh->getMaterial();
+		const Material& mat = mesh->materialRef();
 		if (mat.hasTransmission() || mat.diffuseTransmissionFactor() > 0.0f)
 			return true;
 	}
@@ -9215,7 +9276,7 @@ bool ViewportWidget::sceneHasVisibleSSSMaterials() const
 		const SceneMesh* mesh = _sceneRuntime.meshAt(id);
 		if (!mesh || !isMeshAnimationVisible(mesh))
 			continue;
-		if (mesh->getMaterial().hasVolumeScattering())
+		if (mesh->materialRef().hasVolumeScattering())
 			return true;
 	}
 	return false;
@@ -9245,7 +9306,7 @@ void ViewportWidget::drawSSSMeshesOnly(QOpenGLShaderProgram* prog, int activeCli
 		for (int id : candidateIds)
 		{
 			if (const SceneMesh* mesh = _sceneRuntime.meshAt(id))
-				if (mesh->getMaterial().hasVolumeScattering())
+				if (mesh->materialRef().hasVolumeScattering())
 					sssMeshes.emplace_back(mesh->getRenderMaterialSortKey(), id);
 		}
 	}
@@ -9257,7 +9318,7 @@ void ViewportWidget::drawSSSMeshesOnly(QOpenGLShaderProgram* prog, int activeCli
 		{
 			SceneMesh* mesh = _sceneRuntime.meshAt(id);
 			if (!mesh || mesh->isTransparent()) continue;
-			if (!mesh->getMaterial().hasVolumeScattering()) continue;
+			if (!mesh->materialRef().hasVolumeScattering()) continue;
 			if (!isMeshVisible(mesh, activeClipPlaneIndex)) continue;
 			sssMeshes.emplace_back(mesh->getRenderMaterialSortKey(), id);
 		}
@@ -12593,6 +12654,7 @@ void ViewportWidget::render(Camera* camera)
 		profileSettingClock.restart();
 	}
 	const bool profileRendering = profileSetting;
+	ModelViewerApplication::setSlowEventTraceEnabled(profileRendering);
 	FastGlBuffer::flushPendingDeletes();
 	++_renderFrameCounter;
 	RenderableMesh::beginRenderDiagnosticsFrame(profileRendering);
@@ -12984,7 +13046,7 @@ void ViewportWidget::logBatchDiagnostics()
 			else if (mesh->isTransparent())
 			{
 				++notTransparent;
-				const Material& tm = mesh->getMaterial();
+				const Material& tm = mesh->materialRef();
 				if (tm.opacity() < 0.5f) ++trOpacityBelowHalf;
 				if (tm.transmission() > 0.0f) ++trTransmission;
 				else if (tm.blendMode() == Material::BlendMode::Alpha) ++trBlendAlpha;
@@ -12995,8 +13057,8 @@ void ViewportWidget::logBatchDiagnostics()
 			else if (mesh->hasSkinning() || mesh->hasMorphTargets()) ++notSkinMorph;
 			else if (mesh->hasNegativeScale()) ++notNegScale;
 			else if (mesh->isSelected()) ++notSelected;
-			else if (mesh->getMaterial().wireframe() || mesh->getMaterial().hasVolumeScattering()
-				|| mesh->getMaterial().hasTransmission()) ++notMaterial;
+			else if (mesh->materialRef().wireframe() || mesh->materialRef().hasVolumeScattering()
+				|| mesh->materialRef().hasTransmission()) ++notMaterial;
 			else ++notOther;
 			continue;
 		}
