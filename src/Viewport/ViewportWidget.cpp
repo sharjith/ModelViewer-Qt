@@ -5494,6 +5494,13 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 {
 	ImportDiagnostics::begin();
 	ImportDiagnostics::checkpoint("viewer.import-begin");
+	// Hand-off points of the import, in the main log (the import trace wraps long before a large import ends).
+	QElapsedTimer loadClock;
+	loadClock.start();
+	auto phase = [&loadClock](const char* what) {
+		Logger::instance().info(QStringLiteral("[LoadPhases] %1 at %2 ms").arg(QLatin1String(what)).arg(loadClock.elapsed()),
+			QStringLiteral("Performance"));
+	};
 	SceneNode* importedFileNode = nullptr;
 	QStringList nativeImportWarnings; // taken from the loader before it is deleted, shown once the load UI is reset
 	_progressivePaintClock.invalidate();
@@ -5565,7 +5572,8 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 			loadingWorker,
 			&AssImpModelLoader::loadingFinished,
 			this,
-			[this, loadingWorker, &success, &error, &loadingCompleted, &waitLoop](bool successFlag, const aiScene* /*scene*/) {
+			[this, loadingWorker, &success, &error, &loadingCompleted, &waitLoop, &phase](bool successFlag, const aiScene* /*scene*/) {
+				phase("loadingFinished handled on viewer thread");
 				loadingCompleted = true;
 				success = successFlag;
 				error = loadingWorker->getErrorMessage();
@@ -5682,6 +5690,7 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 		loadingThread.quit();
 		loadingThread.wait();
 		ImportDiagnostics::checkpoint("viewer.worker-joined");
+		phase("worker joined");
 
 		if (!loadingCompleted)
 		{
@@ -5700,12 +5709,14 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 		ImportDiagnostics::checkpoint("viewer.meshes-transferred", -1, processedMeshCount, processedMeshCount);
 		if (success && !_sceneRuntime.loadCancelled() && !progressiveLoading)
 		{
+			phase("consumeMeshBatch begin");
 			try { consumeMeshBatch(std::move(meshes)); }
 			catch (const std::bad_alloc&) { reportBatchFailure("Out of memory (std::bad_alloc) creating viewer meshes"); }
 			catch (const Standard_Failure& e) { reportBatchFailure(e.GetMessageString()); }
 			catch (const std::exception& e) { reportBatchFailure(e.what()); }
 			catch (...) { reportBatchFailure("Unknown C++ exception creating viewer meshes"); }
 		}
+		phase("mesh creation done");
 		if (batchFailed)
 		{
 			success = false;
@@ -6044,7 +6055,10 @@ void ViewportWidget::showFileReadingProgress(float percent)
 
 void ViewportWidget::showMeshLoadingProgress(float /*percent*/)
 {
-	makeCurrent();
+	// Progress slots can be queued by the tens of thousands behind a large import; re-making the context current
+	// each time was measurable.
+	if (QOpenGLContext::currentContext() != context())
+		makeCurrent();
 }
 
 void ViewportWidget::showNodeMeshLoadingProgress(int processedNodes, int totalNodes, int processedMeshes, int totalMeshes, bool uvProcessed)
@@ -6062,7 +6076,8 @@ void ViewportWidget::showNodeMeshLoadingProgress(int processedNodes, int totalNo
 		MainWindow::setProgressValue(static_cast<int>((static_cast<float>(processedNodes) / static_cast<float>(totalNodes)) * 100.0f));
 	}
 
-	makeCurrent();
+	if (QOpenGLContext::currentContext() != context())
+		makeCurrent();
 }
 
 void ViewportWidget::swapVisible(bool checked)

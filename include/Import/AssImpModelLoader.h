@@ -414,6 +414,7 @@ private:
 	// tens of thousands of status-bar updates long after a 40,000-part import had finished.
 	void emitNodeMeshProgress(bool uvProcessed, bool force = false);
 	QElapsedTimer _progressClock;
+	QElapsedTimer _vertexProgressClock; // same limit for verticesProcessed, which was emitted once per mesh
 	int _processedMeshCount = 0;
 	bool _preservesNodeTransforms = false;
 

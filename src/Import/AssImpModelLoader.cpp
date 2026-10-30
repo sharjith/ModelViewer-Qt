@@ -1987,8 +1987,9 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 
 		vertices.push_back(vertex);
 
-		if (i % 100000 == 0)
+		if (i % 100000 == 0 && (!_vertexProgressClock.isValid() || _vertexProgressClock.elapsed() >= 50))
 		{
+			_vertexProgressClock.restart();
 			emit verticesProcessed(static_cast<float>(i) / nbVertices * 100.0f);
 		}
 	}
