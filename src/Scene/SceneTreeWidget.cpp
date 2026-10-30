@@ -673,6 +673,11 @@ void SceneTreeWidget::setVisibilityByUuids(const QSet<QUuid>& visibleUuids)
         const int headerWidth = columnWidth(0);
         const auto previousResizeMode = header()->sectionResizeMode(0);
 
+        // With animation on, every setExpanded() below grabs a pixmap of the viewport: thousands of expanded
+        // assemblies in a large model froze the application for minutes (see TreeBatchGuard).
+        const bool wasAnimated = isAnimated();
+        setAnimated(false);
+
         setUpdatesEnabled(false);
         viewport()->setUpdatesEnabled(false);
         header()->setSectionResizeMode(0, QHeaderView::Fixed);
@@ -702,6 +707,7 @@ void SceneTreeWidget::setVisibilityByUuids(const QSet<QUuid>& visibleUuids)
         if (previousResizeMode == QHeaderView::Fixed && headerWidth > 0)
             setColumnWidth(0, headerWidth);
 
+        setAnimated(wasAnimated);
         setUpdatesEnabled(true);
         viewport()->setUpdatesEnabled(true);
         viewport()->update();
