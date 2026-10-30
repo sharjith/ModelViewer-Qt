@@ -6004,6 +6004,15 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 	MainWindow::setLoadingUiLocked(false);
 	ImportDiagnostics::checkpoint("viewer.ui-unlock-end");
 	_sceneRuntime.setCancelRequested(false);
+	// Locking and unlocking the UI around an import moves keyboard focus away from the viewport, so the view shortcuts
+	// (PBR, shading modes, ...) would do nothing until the user clicked in it. Deferred so it runs after the unlocked
+	// widgets have settled; the window may have lost activation to a dialog meanwhile, in which case leave focus alone.
+	if (success)
+		QTimer::singleShot(0, this, [this]()
+		{
+			if (isVisible() && window() && window()->isActiveWindow())
+				setFocus(Qt::OtherFocusReason);
+		});
 
 	ImportDiagnostics::checkpoint("viewer.import-end", -1, success ? 1 : 0);
 	return success;
