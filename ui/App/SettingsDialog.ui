@@ -2555,6 +2555,41 @@ affected. Takes effect within a second.</string>
             </property>
            </widget>
           </item>
+          <item row="6" column="0">
+           <widget class="QLabel" name="lodMinTrianglesLabel">
+            <property name="text">
+             <string>Coarse Copy Minimum Part Size:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="1">
+           <widget class="QSpinBox" name="lodMinTrianglesSpinBox">
+            <property name="toolTip">
+             <string>Parts with at least this many triangles get a
+coarser copy, drawn while the camera moves on a
+large model (above the Interaction Fast-Path Size).
+Smaller parts always draw at full detail. Lower values
+speed up interaction on huge models but lengthen
+loading and use more memory. Applies to models
+loaded after restarting the application.</string>
+            </property>
+            <property name="suffix">
+             <string> triangles</string>
+            </property>
+            <property name="minimum">
+             <number>300</number>
+            </property>
+            <property name="maximum">
+             <number>1000000</number>
+            </property>
+            <property name="singleStep">
+             <number>500</number>
+            </property>
+            <property name="value">
+             <number>2000</number>
+            </property>
+           </widget>
+          </item>
          </layout>
         </widget>
        </item>
@@ -2647,6 +2682,7 @@ affected. Takes effect within a second.</string>
   <tabstop>smallPartCullSpinBox</tabstop>
   <tabstop>batchedDrawingCheckBox</tabstop>
   <tabstop>batchMinMeshesSpinBox</tabstop>
+  <tabstop>lodMinTrianglesSpinBox</tabstop>
   <tabstop>jtMergePartMeshesCheckBox</tabstop>
   <tabstop>jtDecodeThreadsSpinBox</tabstop>
   <tabstop>jtBudgetGibSpinBox</tabstop>
