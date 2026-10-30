@@ -9,6 +9,7 @@
 #include "Logger.h"
 #include <unordered_map>
 #include "MeshBuildProfile.h"
+#include "ProcessMemory.h"
 #include "IGpuContextResource.h"
 #include <algorithm>
 #include <array>
@@ -463,6 +464,18 @@ void RenderableMesh::flushRenderDiagnostics()
 		return;
 
 	const double frames = static_cast<double>(s_renderDiagnostics.frames);
+	{
+		// Page faults over the window: a frame that reads paged-out memory back shows as a jump (BATCH_GPU_RESIDENCY_DESIGN.md 6.3).
+		static quint64 lastFaults = 0;
+		quint64 faults = 0;
+		if (ProcessMemory::pageFaults(faults))
+		{
+			Logger::instance().info(QStringLiteral("[RenderDiagnostics] pageFaults/frame=%1 (window %2 faults over %3 frames)")
+				.arg(static_cast<double>(faults - lastFaults) / frames, 0, 'f', 0).arg(faults - lastFaults).arg(s_renderDiagnostics.frames),
+				QStringLiteral("Performance"));
+			lastFaults = faults;
+		}
+	}
 	QStringList probeParts;
 	for (double ms : s_renderDiagnostics.probeCpuMs)
 		probeParts << QString::number(ms / frames, 'f', 2);

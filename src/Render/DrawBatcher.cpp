@@ -488,11 +488,13 @@ void DrawBatcher::update(const std::vector<int>& visibleIds, const MeshLookup& m
 		_stateLogClock.restart();
 		Logger::instance().info(
 			QStringLiteral("[DrawBatcher] state visible=%1 phase=%2 stableFrames=%3 needsInitialBuild=%4 groups=%5 "
-				"candidates=%6 missing=%7 fastHits=%8 rechecked=%9 epoch=%10 verifyMismatches=%11 fastDisabled=%12")
+				"candidates=%6 missing=%7 fastHits=%8 rechecked=%9 epoch=%10 verifyMismatches=%11 fastDisabled=%12 "
+				"individual: hovered=%13 notCandidate=%14 missing=%15 leftOut=%16 batchGpuMB=%17")
 				.arg(visibleIds.size()).arg(static_cast<int>(_phase)).arg(_stableFrames).arg(_needsInitialBuild)
 				.arg(_groups.size()).arg(_candidatesLastFrame).arg(_missingLastFrame)
 				.arg(_fastHitsLastFrame).arg(_slowChecksLastFrame).arg(RenderableMesh::renderStateEpoch())
-				.arg(_verifyMismatches).arg(_fastDisabled) + epochSiteSummary(),
+				.arg(_verifyMismatches).arg(_fastDisabled).arg(_indHovered).arg(_indNotCandidate).arg(_indMissing).arg(_indLeftOut)
+			.arg(static_cast<double>(gpuBytes()) / (1024.0 * 1024.0), 0, 'f', 0) + epochSiteSummary(),
 			QStringLiteral("Performance"));
 	}
 
@@ -595,6 +597,7 @@ int DrawBatcher::drawBatches(QOpenGLShaderProgram* prog, const std::vector<int>&
 	int batched = 0;
 	int fastHits = 0;
 	int slowChecks = 0;
+	int indHovered = 0, indNotCandidate = 0, indMissing = 0, indLeftOut = 0;
 
 	// A mesh's answer depends on state that is spread over several kilobytes of the mesh object, so re-checking all
 	// of them every frame is dominated by cache misses. The answer is cached in the mesh's Entry together with the
@@ -682,6 +685,17 @@ int DrawBatcher::drawBatches(QOpenGLShaderProgram* prog, const std::vector<int>&
 		{
 			if (missingIfNotHovered && id != hoveredId)
 				++missing;
+			// Why this mesh draws on its own (diagnostics only): hovered; not a batch candidate at all (selected transparent,
+			// skinned, wireframe material, ...); new or changed since the build; or a candidate the build left out on purpose
+			// (group too small, transform not a similarity, vertex cap).
+			if (id == hoveredId)
+				++indHovered;
+			else if (!candidate)
+				++indNotCandidate;
+			else if (missingIfNotHovered)
+				++indMissing;
+			else
+				++indLeftOut;
 			individual.push_back(id);
 			continue;
 		}
@@ -709,6 +723,10 @@ int DrawBatcher::drawBatches(QOpenGLShaderProgram* prog, const std::vector<int>&
 		++batched;
 	}
 	_missingLastFrame = missing;
+	_indHovered = indHovered;
+	_indNotCandidate = indNotCandidate;
+	_indMissing = indMissing;
+	_indLeftOut = indLeftOut;
 	_candidatesLastFrame = candidates;
 	_fastHitsLastFrame = fastHits;
 	_slowChecksLastFrame = slowChecks;

@@ -7,6 +7,9 @@ namespace ProcessMemory
 {
 bool query(quint64& privateBytes, quint64& workingSetBytes);
 
+// Page faults taken by the process so far (soft and hard). A frame that has to read paged-out memory back shows up as a jump.
+bool pageFaults(quint64& count);
+
 // Where the process's committed memory lives (Windows only; all zero elsewhere).
 struct Breakdown
 {

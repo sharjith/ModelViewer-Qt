@@ -14,6 +14,8 @@
 #include <QVariantMap>
 #include <QDebug>
 #include <QSettings>
+#include <atomic>
+#include "Logger.h"
 #include <mutex>
 #include <QCoreApplication>
 #include <QOpenGLContext>
@@ -364,6 +366,7 @@ SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> 
 	// pose is allocated later only if setMorphTargets() receives actual morph
 	// data; ordinary rigid assembly meshes keep a single Vertex array.
 	_vertices = std::move(vertices);
+	trackVertexStructBytes();
 	_indices = std::move(indices);
 	_textures = std::move(textures);
 	_material = std::move(material);
@@ -406,11 +409,14 @@ SceneMesh::~SceneMesh()
 	// but SceneMesh has no further subclass, so this - unlike the base
 	// class's own later call - already reaches the real, only override.
 	deleteTextures(); // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
+	std::vector<Vertex>().swap(_vertices);
+	trackVertexStructBytes();
 }
 
 SceneMesh* SceneMesh::clone()
 {
-	const std::vector<Vertex>& sourceVertices = restPoseVertices();
+	std::vector<Vertex> sourceScratch;
+	const std::vector<Vertex>& sourceVertices = restPoseVertices(sourceScratch);
 	// sourceVertices is the unmorphed rest pose when one exists, otherwise the
 	// rigid mesh's live array. It is exactly the array passed into the new
 	// constructor below, so this mesh's OWN current sourceMeshIds() (already aligned to
@@ -504,7 +510,8 @@ SceneMesh* SceneMesh::clone()
 
 SceneMesh* SceneMesh::extractFragment(const std::vector<int>& triangleIndices, const QString& fragmentName) const
 {
-	const std::vector<Vertex>& sourceVertices = restPoseVertices();
+	std::vector<Vertex> sourceScratch;
+	const std::vector<Vertex>& sourceVertices = restPoseVertices(sourceScratch);
 	// Morph targets and precomputed OCC edge/face data are keyed to THIS
 	// mesh's FULL vertex/triangle index space (see setMorphTargets()'s and
 	// setPrecomputedOccEdges()'s/setPrecomputedOccFaceAxes()'s own doc
@@ -2069,6 +2076,7 @@ void SceneMesh::optimizeMesh()
 // Initializes all the buffer objects/arrays
 void SceneMesh::setupMesh()
 {
+	restoreVertexStructs(); // a repeat setup (setMeshData(), texture changes) works from the structs
 	MeshBuildProfile::Lap arraysLap(MeshBuildProfile::SetupArrays);
 	// ============================================
 	// Extract to separate arrays
@@ -2177,6 +2185,7 @@ void SceneMesh::setupMesh()
 	if (wireframeFeaturesEnabled())
 		buildAndUploadFeatureEdges(15.0f);
 	ImportDiagnostics::checkpoint("mesh.setup-edges-end");
+	dropVertexStructsIfLarge();
 }
 
 void SceneMesh::uploadLodTier()
@@ -2239,6 +2248,8 @@ std::vector<uint32_t> SceneMesh::buildPositionWeldMapFor(const std::vector<Verte
 
 std::vector<uint32_t> SceneMesh::buildPositionWeldMap() const
 {
+	if (_vertexStructsDropped)
+		return buildPositionWeldMapFor(rebuildVertexStructs());
 	return buildPositionWeldMapFor(_vertices);
 }
 
@@ -2426,7 +2437,7 @@ std::vector<uint32_t> SceneMesh::computeFeatureEdges(const std::vector<Vertex>& 
 void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 {
 	// Only valid for indexed triangle meshes.
-	if (_vertices.empty() || _indices.size() % 3 != 0 || _primitiveMode != GL_TRIANGLES)
+	if (vertexCount() == 0 || _indices.size() % 3 != 0 || _primitiveMode != GL_TRIANGLES)
 		return;
 
 	// An importer may already have computed the edges on a worker thread, against these very arrays (first build only).
@@ -2438,7 +2449,8 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 	}
 	else
 	{
-		_featureEdgeIndices = computeFeatureEdges(_vertices, _indices, thresholdDegrees);
+		_featureEdgeIndices = _vertexStructsDropped ? computeFeatureEdges(rebuildVertexStructs(), _indices, thresholdDegrees)
+			: computeFeatureEdges(_vertices, _indices, thresholdDegrees);
 	}
 
 	_featureEdgeCount = static_cast<GLsizei>(_featureEdgeIndices.size());
@@ -3544,11 +3556,11 @@ bool SceneMesh::resolveEdgeMarkLocalEndpoints(int edgeIndex, glm::vec3& outStart
 	const size_t base = static_cast<size_t>(edgeIndex) * 2;
 	if (base + 1 >= featureEdges.size())
 		return false;
-	if (featureEdges[base] >= _vertices.size() || featureEdges[base + 1] >= _vertices.size())
+	if (featureEdges[base] >= vertexCount() || featureEdges[base + 1] >= vertexCount())
 		return false;
 
-	outStart = _vertices[featureEdges[base]].Position;
-	outEnd = _vertices[featureEdges[base + 1]].Position;
+	outStart = positionAt(featureEdges[base]);
+	outEnd = positionAt(featureEdges[base + 1]);
 	return true;
 }
 
@@ -3634,9 +3646,9 @@ void SceneMesh::buildDetectedCircularLoops() const
 		restPosePoints.reserve(static_cast<int>(loop.size()));
 		for (uint32_t v : loop)
 		{
-			if (v >= _vertices.size())
+			if (v >= vertexCount())
 				continue;
-			const glm::vec3& p = _vertices[v].Position;
+			const glm::vec3 p = positionAt(v);
 			restPosePoints.append(QVector3D(p.x, p.y, p.z));
 		}
 		if (restPosePoints.size() < static_cast<int>(kMinLoopSize))
@@ -3859,7 +3871,7 @@ void SceneMesh::buildTriangleAdjacency() const
 
 	// Only valid for indexed triangle meshes - same guard as
 	// buildAndUploadFeatureEdges().
-	if (_vertices.empty() || _indices.size() % 3 != 0 || _primitiveMode != GL_TRIANGLES)
+	if (vertexCount() == 0 || _indices.size() % 3 != 0 || _primitiveMode != GL_TRIANGLES)
 		return;
 
 	const uint32_t triCount = static_cast<uint32_t>(_indices.size() / 3);
@@ -4500,12 +4512,123 @@ GLuint SceneMesh::createGLTextureFromFile(const QString& fullPath, bool& outHasA
 
 vector<Vertex> SceneMesh::vertices() const
 {
+    if (_vertexStructsDropped)
+        return rebuildVertexStructs();
     return _vertices;
 }
 
 vector<Vertex> SceneMesh::baseVertices() const
 {
-    return restPoseVertices();
+    std::vector<Vertex> scratch;
+    const std::vector<Vertex>& rest = restPoseVertices(scratch);
+    if (&rest == &scratch)
+        return scratch;
+    return rest;
+}
+
+const std::vector<Vertex>& SceneMesh::restPoseVertices(std::vector<Vertex>& scratch) const
+{
+	if (!_baseVertices.empty())
+		return _baseVertices;
+	if (!_vertexStructsDropped)
+		return _vertices;
+	scratch = rebuildVertexStructs();
+	return scratch;
+}
+
+// Rebuilds the interleaved structs from the separate CPU arrays setupMesh() filled them into. Lossless: texture coordinates
+// and skinning data that were all zero were never stored, and read back as zero here.
+std::vector<Vertex> SceneMesh::rebuildVertexStructs() const
+{
+	const std::vector<float>& points = cpuPoints();
+	const std::vector<float>& normals = cpuNormals();
+	const std::vector<float>& colors = cpuColors();
+	const std::vector<float>& texCoords = cpuTexCoords();
+	const std::vector<float>& tangents = cpuTangents();
+	const std::vector<float>& bitangents = cpuBitangents();
+	const std::vector<float>& jointIndices = cpuJointIndices();
+	const std::vector<float>& jointWeights = cpuJointWeights();
+	const size_t count = points.size() / 3;
+	const bool hasUvs = texCoords.size() == count * 8;
+	const bool hasJoints = jointIndices.size() == count * 4 && jointWeights.size() == count * 4;
+
+	std::vector<Vertex> out(count);
+	for (size_t i = 0; i < count; ++i)
+	{
+		Vertex& v = out[i];
+		v.Position = glm::vec3(points[i * 3], points[i * 3 + 1], points[i * 3 + 2]);
+		if (normals.size() == count * 3)
+			v.Normal = glm::vec3(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
+		if (colors.size() == count * 4)
+			v.Color = glm::vec4(colors[i * 4], colors[i * 4 + 1], colors[i * 4 + 2], colors[i * 4 + 3]);
+		if (tangents.size() == count * 3)
+			v.Tangent = glm::vec3(tangents[i * 3], tangents[i * 3 + 1], tangents[i * 3 + 2]);
+		if (bitangents.size() == count * 3)
+			v.Bitangent = glm::vec3(bitangents[i * 3], bitangents[i * 3 + 1], bitangents[i * 3 + 2]);
+		for (int k = 0; k < 4; ++k)
+			v.TexCoords[k] = hasUvs ? glm::vec2(texCoords[i * 8 + k * 2], texCoords[i * 8 + k * 2 + 1]) : glm::vec2(0.0f);
+		if (hasJoints)
+		{
+			v.JointIndices = glm::vec4(jointIndices[i * 4], jointIndices[i * 4 + 1], jointIndices[i * 4 + 2], jointIndices[i * 4 + 3]);
+			v.JointWeights = glm::vec4(jointWeights[i * 4], jointWeights[i * 4 + 1], jointWeights[i * 4 + 2], jointWeights[i * 4 + 3]);
+		}
+	}
+	return out;
+}
+
+void SceneMesh::restoreVertexStructs()
+{
+	if (!_vertexStructsDropped)
+		return;
+	_vertices = rebuildVertexStructs();
+	_vertexStructsDropped = false;
+	trackVertexStructBytes();
+}
+
+namespace
+{
+std::atomic<qint64> s_liveVertexStructBytes{0};
+
+qint64 compactVertexStorageBudgetBytes()
+{
+	static const qint64 bytes = static_cast<qint64>(qBound(0, QSettings().value(QStringLiteral("compactVertexStorageMB"), 1024).toInt(), 1048576)) * 1024 * 1024;
+	return bytes;
+}
+}
+
+void SceneMesh::trackVertexStructBytes()
+{
+	const qint64 now = static_cast<qint64>(_vertices.capacity() * sizeof(Vertex));
+	s_liveVertexStructBytes += now - _vertexStructBytesCounted;
+	_vertexStructBytesCounted = now;
+}
+
+// Called at the end of setupMesh(), when the separate arrays hold everything the structs do.
+void SceneMesh::dropVertexStructsIfLarge()
+{
+	trackVertexStructBytes();
+	const qint64 budget = compactVertexStorageBudgetBytes();
+	if (budget <= 0 || s_liveVertexStructBytes.load() <= budget || _vertices.empty())
+		return;
+	// Skinned and morph-target meshes keep their structs: their update paths work on them.
+	if (hasSkinning() || hasMorphTargets() || !_baseVertices.empty()) // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
+		return;
+	const size_t n = _vertices.size();
+	if (cpuPoints().size() != n * 3 || cpuNormals().size() != n * 3 || cpuColors().size() != n * 4
+		|| cpuTangents().size() != n * 3 || cpuBitangents().size() != n * 3)
+		return;
+	// MODELVIEWER_VERIFY_VERTEX_DROP=1: prove the rebuild is bit-exact before the originals are freed (logged once per mesh on a miss).
+	static const bool verify = qEnvironmentVariableIntValue("MODELVIEWER_VERIFY_VERTEX_DROP") != 0;
+	if (verify)
+	{
+		const std::vector<Vertex> rebuilt = rebuildVertexStructs();
+		if (rebuilt.size() != n || std::memcmp(rebuilt.data(), _vertices.data(), n * sizeof(Vertex)) != 0)
+			Logger::instance().warning(QStringLiteral("[VertexDrop] rebuild differs from the original for mesh '%1' (%2 vertices)")
+				.arg(_name).arg(n), QStringLiteral("Performance"));
+	}
+	std::vector<Vertex>().swap(_vertices);
+	_vertexStructsDropped = true;
+	trackVertexStructBytes();
 }
 
 const vector<unsigned int>& SceneMesh::indices() const
@@ -4521,7 +4644,7 @@ vector<Material::Texture> SceneMesh::textures() const
 void SceneMesh::getMeshData(std::vector<Vertex>& vertices,
 	std::vector<unsigned int>& indices) const
 {
-	vertices = _vertices;
+	vertices = _vertexStructsDropped ? rebuildVertexStructs() : _vertices;
 	indices = _indices;
 }
 
@@ -4601,6 +4724,8 @@ void SceneMesh::setMeshData(const std::vector<Vertex>& vertices,
 	}
 
 	_vertices = vertices;
+	_vertexStructsDropped = false;
+	trackVertexStructBytes();
 	_indices = indices;
 	noteRenderStateChanged(MeshInstanceState::SiteIndexRemap);
 	if (!remappedMorphTargets.isEmpty())
@@ -4639,6 +4764,7 @@ void SceneMesh::setMorphTargets(const QVector<MorphTargetData>& targets,
 		std::vector<Vertex>().swap(_baseVertices);
 		return;
 	}
+	restoreVertexStructs();
 	if (_baseVertices.empty())
 		_baseVertices = _vertices;
 
@@ -4671,6 +4797,8 @@ void SceneMesh::applyMorphWeights(const QVector<float>& weights)
 		return;
 
 	_vertices = _baseVertices;
+	_vertexStructsDropped = false;
+	trackVertexStructBytes();
 	for (size_t vertexIndex = 0; vertexIndex < _vertices.size(); ++vertexIndex)
 	{
 		glm::vec3 position = _baseVertices[vertexIndex].Position;

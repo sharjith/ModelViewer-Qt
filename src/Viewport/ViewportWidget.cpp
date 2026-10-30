@@ -13008,6 +13008,15 @@ void ViewportWidget::logMemoryAudit()
 			record.mesh->addMemoryUsage(u);
 
 	const auto mb = [&](qint64 bytes) { return QString::number(static_cast<double>(bytes) / MB, 'f', 0); };
+	// What the meshes' own GPU buffers should hold: the arrays uploaded in RenderableMesh::initBuffers() (the CPU copies have
+	// the same sizes) plus the LOD index tier, against the merged buffers of the draw batches. Phase 0 of
+	// research/rendering/BATCH_GPU_RESIDENCY_DESIGN.md: confirms how much a residency scheme could free.
+	const qint64 perMeshGpuBytes = u.points + u.normals + u.colors + u.texCoords + u.tangents + u.joints + u.indices + u.lodIndices;
+	const qint64 batchGpuBytes = _drawBatcher ? _drawBatcher->gpuBytes() : 0;
+	Logger::instance().info(
+		QStringLiteral("[MemoryAudit] GPU buffers (estimate): per-mesh=%1 MB, draw batches=%2 MB")
+			.arg(mb(perMeshGpuBytes)).arg(mb(batchGpuBytes)),
+		QStringLiteral("Performance"));
 	Logger::instance().info(
 		QStringLiteral("[MemoryAudit] meshes=%1 vertices=%2 triangles=%3 | MB: vertexStructs=%4 points=%5 normals=%6 "
 			"colors=%7 texCoords=%8 tangents=%9 joints=%10 indices=%11 worldPoints=%12 lodIndices=%13 edges=%14 "

@@ -33,6 +33,25 @@ bool query(quint64& privateBytes, quint64& workingSetBytes)
 #endif
 }
 
+bool pageFaults(quint64& count)
+{
+#ifdef _WIN32
+	using Query = BOOL (WINAPI*)(HANDLE, PPROCESS_MEMORY_COUNTERS, DWORD);
+	static const Query query = reinterpret_cast<Query>(
+		GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "K32GetProcessMemoryInfo"));
+	if (!query)
+		return false;
+	PROCESS_MEMORY_COUNTERS_EX counters{};
+	if (!query(GetCurrentProcess(), reinterpret_cast<PPROCESS_MEMORY_COUNTERS>(&counters), sizeof(counters)))
+		return false;
+	count = counters.PageFaultCount;
+	return true;
+#else
+	Q_UNUSED(count)
+	return false;
+#endif
+}
+
 bool breakdown(Breakdown& out)
 {
 #ifdef _WIN32

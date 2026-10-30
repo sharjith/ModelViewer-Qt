@@ -170,7 +170,7 @@ public:
 	// is consumed.
 	void setPrecomputedSourceMeshIds(const std::vector<quint64>& ids)
 	{
-		if (ids.size() == _vertices.size())
+		if (ids.size() == vertexCount())
 			_importState.setSourceMeshIds(ids);
 	}
 	// True when Repair Mesh deliberately split non-manifold vertices to make this mesh a valid polygon
@@ -596,10 +596,28 @@ public:
 	
 private:
 	void optimizeMesh();
-	const std::vector<Vertex>& restPoseVertices() const
+	// The unmorphed rest pose when one exists, otherwise the live array. When the vertex structs were dropped (see
+	// dropVertexStructsIfLarge()) the array is rebuilt into `scratch` and that is returned.
+	const std::vector<Vertex>& restPoseVertices(std::vector<Vertex>& scratch) const;
+	// --- Vertex structs of very large models (research/rendering/BATCH_GPU_RESIDENCY_DESIGN.md section 6) ---
+	// setupMesh() splits _vertices into the separate CPU arrays RenderableMesh keeps (cpuPoints() etc.), so on a model with
+	// tens of millions of vertices the 128-byte structs are a full second copy. Once the structs held by live meshes pass a
+	// budget (QSettings compactVertexStorageMB, default 1024; 0 turns it off) a mesh frees its structs after setup and
+	// rebuilds them, losslessly, from those arrays whenever vertices() or an editing tool needs them.
+	size_t vertexCount() const { return _vertexStructsDropped ? cpuPoints().size() / 3 : _vertices.size(); }
+	glm::vec3 positionAt(size_t index) const
 	{
-		return _baseVertices.empty() ? _vertices : _baseVertices;
+		if (!_vertexStructsDropped)
+			return _vertices[index].Position;
+		const std::vector<float>& p = cpuPoints();
+		return glm::vec3(p[index * 3], p[index * 3 + 1], p[index * 3 + 2]);
 	}
+	std::vector<Vertex> rebuildVertexStructs() const;
+	void restoreVertexStructs();
+	void dropVertexStructsIfLarge();
+	void trackVertexStructBytes();
+	bool _vertexStructsDropped = false;
+	qint64 _vertexStructBytesCounted = 0;
 	/*  Functions    */
 	// Initializes all the buffer objects/arrays
 	void setupMesh();

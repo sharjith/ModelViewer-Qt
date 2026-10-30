@@ -625,6 +625,8 @@ public:
 	const std::vector<float>& cpuTexCoords() const { return _texCoords; } // 8 floats per vertex (4 UV sets)
 	const std::vector<float>& cpuTangents() const { return _tangents; }
 	const std::vector<float>& cpuBitangents() const { return _bitangents; }
+	const std::vector<float>& cpuJointIndices() const { return _jointIndices; } // 4 floats per vertex, empty when not skinned
+	const std::vector<float>& cpuJointWeights() const { return _jointWeights; }
 	// Interaction-time coarse index tier. The CPU copy is not kept after upload, so it is read back from the GPU.
 	bool hasLod1() const { return _hasLod1; }
 	bool readLod1Indices(std::vector<unsigned int>& out);

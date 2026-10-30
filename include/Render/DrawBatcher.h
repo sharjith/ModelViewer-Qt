@@ -79,6 +79,8 @@ public:
 	                             const MeshLookup& meshAt, const DrawOne& drawIndividual);
 
 	bool hasBatches() const { return !_groups.empty(); }
+	// Video memory taken by the merged buffers of all groups (diagnostics).
+	qint64 gpuBytes() const { qint64 total = 0; for (const Group& g : _groups) total += g.bytes; return total; }
 
 private:
 	struct Entry
@@ -167,6 +169,8 @@ private:
 	// slice that is re-checked anyway to catch a state change that did not bump the epoch, and what that found.
 	int _fastHitsLastFrame = 0;
 	int _slowChecksLastFrame = 0;
+	// Why meshes were drawn individually in the last drawBatches() call (diagnostics, [DrawBatcher] state line).
+	int _indHovered = 0, _indNotCandidate = 0, _indMissing = 0, _indLeftOut = 0;
 	size_t _verifyCursor = 0;
 	int _verifyMismatches = 0;
 	bool _fastDisabled = false;
