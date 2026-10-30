@@ -76,6 +76,9 @@ DrawBatcher::Settings DrawBatcher::readSettings()
 		cached.enabled = settings.value(QStringLiteral("batchedDrawing"), true).toBool();
 		cached.minDisplayedMeshes = std::max(0, settings.value(QStringLiteral("batchMinMeshes"), 3000).toInt());
 		cached.minGroupSize = std::max(2, settings.value(QStringLiteral("batchMinGroupSize"), 6).toInt());
+		cached.fastValidation = settings.value(QStringLiteral("batchFastValidation"), true).toBool();
+		cached.fastValidation = settings.value(QStringLiteral("batchFastValidation"), true).toBool();
+		cached.fastValidation = settings.value(QStringLiteral("batchFastValidation"), true).toBool();
 		clock.restart();
 	}
 	return cached;
@@ -419,6 +422,23 @@ void DrawBatcher::configureVao(Group& g, QOpenGLShaderProgram* prog)
 	g.configuredProgram = prog;
 }
 
+// "sources: transform=12 uniforms=3 ..." since the last call: which kinds of change keep moving the render-state epoch.
+static QString epochSiteSummary()
+{
+	static const char* names[MeshInstanceState::SiteCount] = { "other", "transform", "uniforms", "textures", "primitiveMode",
+		"negativeScale", "geometry", "debugOverride", "skin", "morph", "indexRemap" };
+	static quint64 last[MeshInstanceState::SiteCount] = {};
+	QString text = QStringLiteral(" sources:");
+	for (int i = 0; i < MeshInstanceState::SiteCount; ++i)
+	{
+		const quint64 now = MeshInstanceState::renderStateEpochSiteCount(i);
+		if (now != last[i])
+			text += QStringLiteral(" %1=%2").arg(QLatin1String(names[i])).arg(now - last[i]);
+		last[i] = now;
+	}
+	return text;
+}
+
 void DrawBatcher::update(const std::vector<int>& visibleIds, const MeshLookup& meshAt, const Settings& settings)
 {
 	const bool wanted = settings.enabled && static_cast<int>(visibleIds.size()) >= settings.minDisplayedMeshes;
@@ -459,9 +479,11 @@ void DrawBatcher::update(const std::vector<int>& visibleIds, const MeshLookup& m
 		_stateLogClock.restart();
 		Logger::instance().info(
 			QStringLiteral("[DrawBatcher] state visible=%1 phase=%2 stableFrames=%3 needsInitialBuild=%4 groups=%5 "
-				"candidates=%6 missing=%7")
+				"candidates=%6 missing=%7 fastHits=%8 rechecked=%9 epoch=%10 verifyMismatches=%11 fastDisabled=%12")
 				.arg(visibleIds.size()).arg(static_cast<int>(_phase)).arg(_stableFrames).arg(_needsInitialBuild)
-				.arg(_groups.size()).arg(_candidatesLastFrame).arg(_missingLastFrame),
+				.arg(_groups.size()).arg(_candidatesLastFrame).arg(_missingLastFrame)
+				.arg(_fastHitsLastFrame).arg(_slowChecksLastFrame).arg(RenderableMesh::renderStateEpoch())
+				.arg(_verifyMismatches).arg(_fastDisabled) + epochSiteSummary(),
 			QStringLiteral("Performance"));
 	}
 
@@ -547,25 +569,90 @@ int DrawBatcher::drawBatches(QOpenGLShaderProgram* prog, const std::vector<int>&
 	int missing = 0;
 	int candidates = 0;
 	int batched = 0;
-	for (int id : ids)
+	int fastHits = 0;
+	int slowChecks = 0;
+
+	// A mesh's answer depends on state that is spread over several kilobytes of the mesh object, so re-checking all
+	// of them every frame is dominated by cache misses. The answer is cached in the mesh's Entry together with the
+	// render-state epoch (RenderableMesh::renderStateEpoch(): bumped by every transform, material/uniform, geometry,
+	// selection, overlay, skin and morph change) and reused while the epoch is unchanged. The hovered mesh is handled
+	// per frame. A rotating slice of the visible meshes is re-checked from scratch every frame; if that ever disagrees
+	// with the cache, some change did not bump the epoch: the epoch is bumped to repair it, and after 3 such findings
+	// the cache is switched off for the session. Setting: batchFastValidation (QSettings, default on).
+	const bool fastAllowed = readSettings().fastValidation && !_fastDisabled;
+	const quint64 epoch = RenderableMesh::renderStateEpoch();
+	constexpr size_t kVerifyPerFrame = 256;
+	const size_t idCount = ids.size();
+	const size_t verifyBegin = idCount ? (_verifyCursor % idCount) : 0;
+	const size_t verifyEnd = verifyBegin + kVerifyPerFrame;
+	_verifyCursor += kVerifyPerFrame;
+
+	for (size_t position = 0; position < idCount; ++position)
 	{
+		const int id = ids[position];
 		SceneMesh* mesh = meshAt(id);
 		if (!mesh)
 			continue; // the unbatched loop skips these too
-		const bool candidate = mesh->isStaticBatchCandidate();
+
+		Entry* entry = (static_cast<size_t>(id) < _entries.size()) ? &_entries[static_cast<size_t>(id)] : nullptr;
+		const bool verifyThis = fastAllowed
+			&& ((position >= verifyBegin && position < verifyEnd) || (verifyEnd > idCount && position < verifyEnd - idCount));
+
+		bool candidate = false;
+		bool missingIfNotHovered = false;
+		bool okIgnoringHover = false;
+		const bool cacheUsable = fastAllowed && entry && entry->checkedEpoch == epoch && entry->mesh == mesh;
+		if (cacheUsable && !verifyThis)
+		{
+			candidate = entry->cachedCandidate;
+			missingIfNotHovered = entry->cachedMissing;
+			okIgnoringHover = entry->cachedOk;
+			++fastHits;
+		}
+		else
+		{
+			candidate = mesh->isStaticBatchCandidate();
+			const bool known = entry && entry->group == -2 && entry->mesh == mesh && !entry->transparent
+				&& mesh->geometryRevision() == entry->geometryRevision && mesh->drawGroupKey() == entry->key;
+			okIgnoringHover = entry && entry->group >= 0 && entry->mesh == mesh && !entry->transparent && candidate
+				&& mesh->geometryRevision() == entry->geometryRevision
+				&& mesh->drawGroupKey() == entry->key
+				&& sameTransform(entry->transform, mesh->combinedRenderTransformRef());
+			missingIfNotHovered = candidate && !known;
+			++slowChecks;
+			if (cacheUsable && (entry->cachedOk != okIgnoringHover || entry->cachedCandidate != candidate
+				|| entry->cachedMissing != missingIfNotHovered))
+			{
+				// A change that did not bump the epoch. Use the fresh answer and re-check everything next frame.
+				MeshInstanceState::bumpRenderStateEpoch();
+				if (++_verifyMismatches <= 5)
+					Logger::instance().warning(
+						QStringLiteral("[DrawBatcher] fast validation disagreed with a full check for mesh %1 (cached ok=%2 candidate=%3, "
+							"now ok=%4 candidate=%5); re-checking all meshes").arg(id).arg(entry->cachedOk).arg(entry->cachedCandidate)
+							.arg(okIgnoringHover).arg(candidate),
+						QStringLiteral("Performance"));
+				if (_verifyMismatches >= 3 && !_fastDisabled)
+				{
+					_fastDisabled = true;
+					Logger::instance().warning(QStringLiteral("[DrawBatcher] fast validation switched off after repeated disagreements"),
+						QStringLiteral("Performance"));
+				}
+			}
+			if (fastAllowed && entry)
+			{
+				entry->checkedEpoch = epoch;
+				entry->cachedOk = okIgnoringHover;
+				entry->cachedCandidate = candidate;
+				entry->cachedMissing = missingIfNotHovered;
+			}
+		}
+
 		if (candidate)
 			++candidates;
-
-		const Entry* entry = (static_cast<size_t>(id) < _entries.size()) ? &_entries[static_cast<size_t>(id)] : nullptr;
-		const bool known = entry && entry->group == -2 && entry->mesh == mesh && !entry->transparent
-			&& mesh->geometryRevision() == entry->geometryRevision && mesh->drawGroupKey() == entry->key;
-		bool ok = entry && entry->group >= 0 && entry->mesh == mesh && !entry->transparent && candidate && id != hoveredId
-			&& mesh->geometryRevision() == entry->geometryRevision
-			&& mesh->drawGroupKey() == entry->key
-			&& sameTransform(entry->transform, mesh->combinedRenderTransformRef());
+		const bool ok = okIgnoringHover && id != hoveredId;
 		if (!ok)
 		{
-			if (candidate && id != hoveredId && !known)
+			if (missingIfNotHovered && id != hoveredId)
 				++missing;
 			individual.push_back(id);
 			continue;
@@ -590,6 +677,8 @@ int DrawBatcher::drawBatches(QOpenGLShaderProgram* prog, const std::vector<int>&
 	}
 	_missingLastFrame = missing;
 	_candidatesLastFrame = candidates;
+	_fastHitsLastFrame = fastHits;
+	_slowChecksLastFrame = slowChecks;
 
 	for (Group& g : _groups)
 	{

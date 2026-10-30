@@ -118,6 +118,27 @@ quint64 MeshInstanceState::currentRuntimeBoundsRevision()
     return _runtimeBoundsRevision.load(std::memory_order_relaxed);
 }
 
+static std::atomic<quint64> g_renderStateEpoch{1};
+
+quint64 MeshInstanceState::renderStateEpoch()
+{
+    return g_renderStateEpoch.load(std::memory_order_relaxed);
+}
+
+static std::atomic<quint64> g_renderStateEpochSites[MeshInstanceState::SiteCount];
+
+void MeshInstanceState::bumpRenderStateEpoch(int site)
+{
+    g_renderStateEpoch.fetch_add(1, std::memory_order_relaxed);
+    if (site >= 0 && site < SiteCount)
+        g_renderStateEpochSites[site].fetch_add(1, std::memory_order_relaxed);
+}
+
+quint64 MeshInstanceState::renderStateEpochSiteCount(int site)
+{
+    return (site >= 0 && site < SiteCount) ? g_renderStateEpochSites[site].load(std::memory_order_relaxed) : 0;
+}
+
 void MeshInstanceState::markRuntimeBoundsChanged()
 {
     _runtimeBoundsRevision.fetch_add(1, std::memory_order_relaxed);
@@ -153,6 +174,8 @@ const QMatrix4x4& MeshInstanceState::combinedRenderTransformRef() const
 void MeshInstanceState::invalidateCombinedRenderTransformCache() const
 {
     _combinedRenderTransformDirty = true;
+    if (_affectsSceneRevision)
+        bumpRenderStateEpoch(SiteTransform);
 }
 
 // ---------------------------------------------------------------------------

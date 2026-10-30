@@ -40,6 +40,7 @@ public:
 		bool enabled = true;
 		int  minDisplayedMeshes = 3000; // below this, batching is never used, so ordinary models are untouched
 		int  minGroupSize = 6;          // smaller groups are not worth a buffer of their own
+		bool fastValidation = true;     // skip re-checking meshes while nothing that affects batching has changed
 	};
 	using MeshLookup = std::function<SceneMesh*(int)>;
 	using DrawOne = std::function<void(int)>;
@@ -47,7 +48,8 @@ public:
 	DrawBatcher();
 	~DrawBatcher();
 
-	// QSettings keys: batchedDrawing (bool), batchMinMeshes (int), batchMinGroupSize (int). Cached for one second.
+	// QSettings keys: batchedDrawing (bool), batchMinMeshes (int), batchMinGroupSize (int), batchFastValidation (bool).
+	// Cached for one second.
 	static Settings readSettings();
 
 	// Frees every GL object. Needs the owning context to be current. Safe to call repeatedly.
@@ -86,6 +88,11 @@ private:
 		quint32 lodFirst = 0;
 		quint32 lodCount = 0;
 		bool transparent = false;
+		// Result of drawBatches() per-mesh check, valid while RenderableMesh::renderStateEpoch() == checkedEpoch.
+		quint64 checkedEpoch = 0;
+		bool cachedOk = false;        // batched, ignoring the hovered mesh
+		bool cachedCandidate = false;
+		bool cachedMissing = false;   // a candidate that is not (or no longer) in a batch
 	};
 
 	struct Group
@@ -145,6 +152,13 @@ private:
 	// Staleness tracking
 	int _missingLastFrame = 0;
 	int _candidatesLastFrame = 0;
+	// Fast validation (see drawBatches()): meshes re-checked from scratch vs answered from the cache last frame, a rotating
+	// slice that is re-checked anyway to catch a state change that did not bump the epoch, and what that found.
+	int _fastHitsLastFrame = 0;
+	int _slowChecksLastFrame = 0;
+	size_t _verifyCursor = 0;
+	int _verifyMismatches = 0;
+	bool _fastDisabled = false;
 	quint64 _lastRuntimeRevision = 0;
 	int _stableFrames = 0;
 	QElapsedTimer _sinceBuild;

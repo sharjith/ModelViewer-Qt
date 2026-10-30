@@ -4540,6 +4540,7 @@ void SceneMesh::setMeshData(const std::vector<Vertex>& vertices,
 
 	_vertices = vertices;
 	_indices = indices;
+	noteRenderStateChanged(MeshInstanceState::SiteIndexRemap);
 	if (!remappedMorphTargets.isEmpty())
 		_morphTargets = std::move(remappedMorphTargets);
 	if (!_morphTargets.isEmpty())
@@ -4568,6 +4569,7 @@ void SceneMesh::setMorphTargets(const QVector<MorphTargetData>& targets,
 	const QVector<float>& defaultWeights)
 {
 	_morphTargets = targets;
+	noteRenderStateChanged(MeshInstanceState::SiteMorph);
 	_defaultMorphWeights = defaultWeights;
 	_currentMorphWeights.clear();
 	if (_morphTargets.isEmpty())

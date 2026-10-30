@@ -108,12 +108,21 @@ public:
 	static void recordDrawCpuMs(double ms);
 	static void flushRenderDiagnostics();
 	static quint64 currentRuntimeBoundsRevision();
+	// See MeshInstanceState::renderStateEpoch().
+	static quint64 renderStateEpoch() { return MeshInstanceState::renderStateEpoch(); }
+	// Bumps the epoch unless this mesh is a decoration that does not affect the scene revision.
+	void noteRenderStateChanged(int site = MeshInstanceState::SiteOther) const
+	{
+		if (_instanceState.affectsSceneRevision())
+			MeshInstanceState::bumpRenderStateEpoch(site);
+	}
 
 	// Setter for primitive mode (from glTF)
 	void setPrimitiveMode(GLenum mode)
 	{
 		_primitiveMode = mode;
 		_instanceState.setBuildPickingTriangles(mode == GL_TRIANGLES);
+		noteRenderStateChanged(MeshInstanceState::SitePrimitiveMode);
 	}
 
 	GLenum getPrimitiveMode() const
@@ -315,6 +324,7 @@ public:
 	void setHasNegativeScale(bool hasNegativeScale)
 	{
 		_instanceState.setHasNegativeScale(hasNegativeScale);
+		noteRenderStateChanged(MeshInstanceState::SiteNegativeScale);
 	}
 	bool hasNegativeScale() const { return _instanceState.hasNegativeScale(); }
 
@@ -482,8 +492,8 @@ public:
 	virtual void clearAllADSMaps();
 	
 
-	virtual void markTexturesDirty() { _textureBindingsDirty = true; }
-	virtual void markUniformsDirty() { _uniformsDirty = true; }
+	virtual void markTexturesDirty() { _textureBindingsDirty = true; noteRenderStateChanged(MeshInstanceState::SiteTextures); }
+	virtual void markUniformsDirty() { _uniformsDirty = true; noteRenderStateChanged(MeshInstanceState::SiteUniforms); }
 	virtual void updateRuntimeBounds();
 
 	virtual void deleteTextures();

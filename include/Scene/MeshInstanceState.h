@@ -252,6 +252,16 @@ public:
     // ---- Static: monotonic counter incremented whenever bounds change --------
     // Read by the scene runtime to invalidate the visibility BVH.
     static quint64 currentRuntimeBoundsRevision();
+    // Process-wide counter bumped by everything that can change whether, or how, a scene mesh is batched: its transform,
+    // material/uniform state, geometry, selection, overlays, skin/morph state. DrawBatcher skips re-validating a mesh
+    // while the counter is unchanged (see DrawBatcher::drawBatches()). Decoration meshes (view cube, light markers) that
+    // do not affect the scene revision never bump it, so they cannot keep it moving every frame.
+    static quint64 renderStateEpoch();
+    enum EpochSite { SiteOther = 0, SiteTransform, SiteUniforms, SiteTextures, SitePrimitiveMode, SiteNegativeScale,
+                     SiteGeometry, SiteDebugOverride, SiteSkin, SiteMorph, SiteIndexRemap, SiteCount };
+    static void bumpRenderStateEpoch(int site = SiteOther);
+    // How often each source has bumped the epoch (diagnostics: finds what keeps the batch cache from being reused).
+    static quint64 renderStateEpochSiteCount(int site);
     static void    markRuntimeBoundsChanged();
     void setAffectsSceneRevision(bool affects) { _affectsSceneRevision = affects; }
     bool affectsSceneRevision() const { return _affectsSceneRevision; }

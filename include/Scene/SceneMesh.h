@@ -502,7 +502,7 @@ public:
 	void    setSourceNodeName(const QString& name) { _importState.setSourceNodeName(name); }
 	QString getSourceNodeName() const              { return _importState.sourceNodeName(); }
 
-	void setSkinJoints(const QVector<GltfSkinJoint>& joints) { _importState.setSkinJoints(joints); }
+	void setSkinJoints(const QVector<GltfSkinJoint>& joints) { _importState.setSkinJoints(joints); noteRenderStateChanged(MeshInstanceState::SiteSkin); }
 	const QVector<GltfSkinJoint>& skinJoints() const         { return _importState.skinJoints(); }
 	bool hasSkinning() const override                        { return _importState.hasSkinning(); }
 

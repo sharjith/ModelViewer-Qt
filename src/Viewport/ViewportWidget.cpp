@@ -1546,6 +1546,7 @@ void ViewportWidget::initializeGL()
 		// Initial size only - kept in sync afterward by setParameters()
 		// call sites elsewhere, so a stale size from construct-once is safe.
 		_axisCone = new ConeRenderable(_renderCtrl.axisShader(), _viewCtrl.viewRange() / size / 15, _viewCtrl.viewRange() / size / 5, 8u, 1u);
+		_axisCone->setAffectsSceneRevision(false); // decoration: rebuilt as the view changes, must not tick the scene revision
 		registerDecorationGpuResource(_axisCone, [this] { return _renderCtrl.axisShader(); });
 	}
 	if (_viewCube == nullptr)

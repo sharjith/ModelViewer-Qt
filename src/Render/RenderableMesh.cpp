@@ -631,6 +631,7 @@ void RenderableMesh::initBuffers(
 	// live at the same address by this value, so two uploads must never produce the same number.
 	static std::atomic<quint64> s_geometryRevisionCounter{ 0 };
 	_geometryRevision = ++s_geometryRevisionCounter;
+	noteRenderStateChanged(MeshInstanceState::SiteGeometry);
 
 	// A real geometry rebuild invalidates any Surface Analysis overlay this
 	// mesh was showing - its GPU buffers (positions in particular, for the
@@ -3035,16 +3036,19 @@ void RenderableMesh::applyDebugTextureOverrides()
 void RenderableMesh::setDebugUniformOverride(const QString& name, const QVariant& value)
 {
 	_debugUniformOverrides[name] = value;
+	noteRenderStateChanged(MeshInstanceState::SiteDebugOverride);
 }
 
 void RenderableMesh::clearDebugUniformOverride(const QString& name)
 {
 	_debugUniformOverrides.remove(name);
+	noteRenderStateChanged(MeshInstanceState::SiteDebugOverride);
 }
 
 void RenderableMesh::clearAllDebugUniformOverrides()
 {
 	_debugUniformOverrides.clear();
+	noteRenderStateChanged(MeshInstanceState::SiteDebugOverride);
 }
 
 void RenderableMesh::setAnalysisOverlayColors(const std::vector<float>& rgba)
