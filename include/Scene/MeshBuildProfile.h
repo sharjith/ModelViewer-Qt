@@ -23,6 +23,9 @@ enum Stage
 	BuilderPost,       // AssImpMeshBuilder::build() after the constructor
 	Attach,            // addToDisplay() and the per-mesh bookkeeping after it
 	UpdateDisplayList, // the single display-list update at the end of the batch
+	GlAlloc,           // inside GlUpload: the glBufferData calls (index, position, normal, colour, tangent, ...)
+	GlAttrib,          // inside GlUpload: VAO attribute setup
+	RuntimeBounds,     // inside GlUpload: updateRuntimeBounds() (CPU, picking triangles and bounds)
 	StageCount
 };
 
@@ -46,7 +49,7 @@ inline QString end()
 {
 	active() = false;
 	static const char* names[StageCount] = { "createTotal", "builderPre", "sceneMeshTotal", "ctorBody", "setupArrays", "glUpload",
-		"lodAndBounds", "featureEdges", "baseGlObjects", "baseAutoName", "builderPost", "attach", "updateDisplayList" };
+		"lodAndBounds", "featureEdges", "baseGlObjects", "baseAutoName", "builderPost", "attach", "updateDisplayList", "inGlAlloc", "inGlAttrib", "inRuntimeBounds" };
 	QString text = QStringLiteral("[MeshBuildProfile] meshes=%1").arg(meshCount());
 	for (int i = 0; i < StageCount; ++i)
 		text += QStringLiteral(" %1=%2ms").arg(QLatin1String(names[i])).arg(totals()[i] / 1000000);

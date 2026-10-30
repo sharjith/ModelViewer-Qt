@@ -7,6 +7,7 @@
 #include "SceneMesh.h"
 #include "Utils.h"
 #include "Logger.h"
+#include <unordered_map>
 #include "MeshBuildProfile.h"
 #include "IGpuContextResource.h"
 #include <algorithm>
@@ -621,6 +622,52 @@ void RenderableMesh::uploadGeometry(const MeshGeometry& geom)
 	_hasVertexColors = geom.hasVertexColors();
 }
 
+namespace
+{
+// Attribute locations by (program, attribute name). QOpenGLShaderProgram's by-name enableAttributeArray()/setAttributeBuffer()
+// each ask the driver for the location (glGetAttribLocation); ten attributes per mesh over 40,000 meshes made the VAO setup
+// the bulk of mesh creation. The shaders fix the locations with layout(location = N), so a relink does not move them.
+// Keyed by the name literal's address plus the program id; GUI thread only.
+int cachedAttributeLocation(QOpenGLShaderProgram* prog, const char* name)
+{
+	struct Key
+	{
+		GLuint program;
+		const char* name;
+		bool operator==(const Key& o) const { return program == o.program && name == o.name; }
+	};
+	struct KeyHash
+	{
+		size_t operator()(const Key& k) const
+		{
+			return std::hash<const void*>()(k.name) ^ (static_cast<size_t>(k.program) * 2654435761u);
+		}
+	};
+	static std::unordered_map<Key, int, KeyHash> cache;
+	const Key key{ prog->programId(), name };
+	const auto it = cache.find(key);
+	if (it != cache.end())
+		return it->second;
+	const int location = prog->attributeLocation(name);
+	cache.emplace(key, location);
+	return location;
+}
+
+void enableAttributeCached(QOpenGLShaderProgram* prog, const char* name)
+{
+	const int location = cachedAttributeLocation(prog, name);
+	if (location >= 0)
+		prog->enableAttributeArray(location);
+}
+
+void setAttributeBufferCached(QOpenGLShaderProgram* prog, const char* name, GLenum type, int offset, int tupleSize, int stride = 0)
+{
+	const int location = cachedAttributeLocation(prog, name);
+	if (location >= 0)
+		prog->setAttributeBuffer(location, type, offset, tupleSize, stride);
+}
+}
+
 void RenderableMesh::initBuffers(
 	std::vector<unsigned int>* indices,
 	std::vector<float>* points,
@@ -693,6 +740,7 @@ void RenderableMesh::initBuffers(
 		? static_cast<unsigned int>(points->size() / 3)
 		: static_cast<unsigned int>(indices->size());
 
+	MeshBuildProfile::Lap allocLap(MeshBuildProfile::GlAlloc);
 	_buffers.push_back(_indexBuffer);
 	_indexBuffer.bind();
 	_indexBuffer.setUsagePattern(FastGlBuffer::StaticDraw);
@@ -754,6 +802,8 @@ void RenderableMesh::initBuffers(
 		_memorySize += _jointWeights.size() * sizeof(float);
 	}
 
+	allocLap.stop();
+	MeshBuildProfile::Lap attribLap(MeshBuildProfile::GlAttrib);
 	_vertexArrayObject.bind();
 
 	_indexBuffer.bind();
@@ -762,21 +812,21 @@ void RenderableMesh::initBuffers(
 	_positionBuffer.bind();
 	//glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	//glEnableVertexAttribArray(0);  // Vertex position
-	_prog->enableAttributeArray("vertexPosition");
-	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+	enableAttributeCached(_prog, "vertexPosition");
+	setAttributeBufferCached(_prog, "vertexPosition", GL_FLOAT, 0, 3);
 
 	// Normal
 	_normalBuffer.bind();
 	//glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	//glEnableVertexAttribArray(1);  // Normal
-	_prog->enableAttributeArray("vertexNormal");
-	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+	enableAttributeCached(_prog, "vertexNormal");
+	setAttributeBufferCached(_prog, "vertexNormal", GL_FLOAT, 0, 3);
 
 	if (_hasVertexColors)
 	{
 		_colorBuffer.bind();
-		_prog->enableAttributeArray("vertexColor");
-		_prog->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 4);
+		enableAttributeCached(_prog, "vertexColor");
+		setAttributeBufferCached(_prog, "vertexColor", GL_FLOAT, 0, 4);
 	}
 
 	if (_tangents.size())
@@ -784,29 +834,29 @@ void RenderableMesh::initBuffers(
 		_tangentBuf.bind();
 		//glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 0, 0);
 		//glEnableVertexAttribArray(3);  // Tangents
-		_prog->enableAttributeArray("vertexTangent");
-		_prog->setAttributeBuffer("vertexTangent", GL_FLOAT, 0, 3);
+		enableAttributeCached(_prog, "vertexTangent");
+		setAttributeBufferCached(_prog, "vertexTangent", GL_FLOAT, 0, 3);
 	}
 
 	if (_bitangents.size())
 	{
 		_bitangentBuf.bind();
-		_prog->enableAttributeArray("vertexBitangent");
-		_prog->setAttributeBuffer("vertexBitangent", GL_FLOAT, 0, 3);
+		enableAttributeCached(_prog, "vertexBitangent");
+		setAttributeBufferCached(_prog, "vertexBitangent", GL_FLOAT, 0, 3);
 	}
 
 	if (_jointIndices.size())
 	{
 		_jointIndexBuffer.bind();
-		_prog->enableAttributeArray("jointIndices");
-		_prog->setAttributeBuffer("jointIndices", GL_FLOAT, 0, 4);
+		enableAttributeCached(_prog, "jointIndices");
+		setAttributeBufferCached(_prog, "jointIndices", GL_FLOAT, 0, 4);
 	}
 
 	if (_jointWeights.size())
 	{
 		_jointWeightBuffer.bind();
-		_prog->enableAttributeArray("jointWeights");
-		_prog->setAttributeBuffer("jointWeights", GL_FLOAT, 0, 4);
+		enableAttributeCached(_prog, "jointWeights");
+		setAttributeBufferCached(_prog, "jointWeights", GL_FLOAT, 0, 4);
 	}
 
 	// Tex coords
@@ -866,26 +916,28 @@ void RenderableMesh::initBuffers(
 
 		// Set up vertex attributes (stride = 0 for each, since they're separate)
 		_texCoord0Buffer.bind();
-		_prog->enableAttributeArray("texCoord0");
-		_prog->setAttributeBuffer("texCoord0", GL_FLOAT, 0, 2, 0);
+		enableAttributeCached(_prog, "texCoord0");
+		setAttributeBufferCached(_prog, "texCoord0", GL_FLOAT, 0, 2, 0);
 
 		_texCoord1Buffer.bind();
-		_prog->enableAttributeArray("texCoord1");
-		_prog->setAttributeBuffer("texCoord1", GL_FLOAT, 0, 2, 0);
+		enableAttributeCached(_prog, "texCoord1");
+		setAttributeBufferCached(_prog, "texCoord1", GL_FLOAT, 0, 2, 0);
 
 		_texCoord2Buffer.bind();
-		_prog->enableAttributeArray("texCoord2");
-		_prog->setAttributeBuffer("texCoord2", GL_FLOAT, 0, 2, 0);
+		enableAttributeCached(_prog, "texCoord2");
+		setAttributeBufferCached(_prog, "texCoord2", GL_FLOAT, 0, 2, 0);
 
 		_texCoord3Buffer.bind();
-		_prog->enableAttributeArray("texCoord3");
-		_prog->setAttributeBuffer("texCoord3", GL_FLOAT, 0, 2, 0);
+		enableAttributeCached(_prog, "texCoord3");
+		setAttributeBufferCached(_prog, "texCoord3", GL_FLOAT, 0, 2, 0);
 
 	}
 
 	_vertexArrayObject.release();
+	attribLap.stop();
 
 	// Initialize picking triangles and bounds for the newly loaded geometry.
+	MeshBuildProfile::Lap boundsLap(MeshBuildProfile::RuntimeBounds);
 	_instanceState.updateRuntimeBounds(_points, _normals, _tangents, _bitangents, _indices);
 }
 
@@ -908,21 +960,21 @@ void RenderableMesh::setProg(QOpenGLShaderProgram* prog)
 
 		// Position
 		_positionBuffer.bind();
-		_prog->enableAttributeArray("vertexPosition");
-		_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+		enableAttributeCached(_prog, "vertexPosition");
+		setAttributeBufferCached(_prog, "vertexPosition", GL_FLOAT, 0, 3);
 
 		// Normal
 		_normalBuffer.bind();
-		_prog->enableAttributeArray("vertexNormal");
-		_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+		enableAttributeCached(_prog, "vertexNormal");
+		setAttributeBufferCached(_prog, "vertexNormal", GL_FLOAT, 0, 3);
 
 		// Color
 		if (_colors.size())
 		{
 			_hasVertexColors = true;
 			_colorBuffer.bind();
-			_prog->enableAttributeArray("vertexColor");
-			_prog->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 4);
+			enableAttributeCached(_prog, "vertexColor");
+			setAttributeBufferCached(_prog, "vertexColor", GL_FLOAT, 0, 4);
 		}
 
 		// Surface Analysis overlay - rebind whenever the program changes,
@@ -935,58 +987,58 @@ void RenderableMesh::setProg(QOpenGLShaderProgram* prog)
 		if (!_analysisOverlayColors.empty())
 		{
 			_analysisOverlayColorBuffer.bind();
-			_prog->enableAttributeArray("analysisColor");
-			_prog->setAttributeBuffer("analysisColor", GL_FLOAT, 0, 4);
+			enableAttributeCached(_prog, "analysisColor");
+			setAttributeBufferCached(_prog, "analysisColor", GL_FLOAT, 0, 4);
 		}
 
 		// Tex coords
 		if (_texCoords.size())
 		{
 			_texCoord0Buffer.bind();
-			_prog->enableAttributeArray("texCoord0");
-			_prog->setAttributeBuffer("texCoord0", GL_FLOAT, 0, 2);
+			enableAttributeCached(_prog, "texCoord0");
+			setAttributeBufferCached(_prog, "texCoord0", GL_FLOAT, 0, 2);
 
 			_texCoord1Buffer.bind();
-			_prog->enableAttributeArray("texCoord1");
-			_prog->setAttributeBuffer("texCoord1", GL_FLOAT, 0, 2);
+			enableAttributeCached(_prog, "texCoord1");
+			setAttributeBufferCached(_prog, "texCoord1", GL_FLOAT, 0, 2);
 
 			_texCoord2Buffer.bind();
-			_prog->enableAttributeArray("texCoord2");
-			_prog->setAttributeBuffer("texCoord2", GL_FLOAT, 0, 2);
+			enableAttributeCached(_prog, "texCoord2");
+			setAttributeBufferCached(_prog, "texCoord2", GL_FLOAT, 0, 2);
 		
 			_texCoord3Buffer.bind();
-			_prog->enableAttributeArray("texCoord3");
-			_prog->setAttributeBuffer("texCoord3", GL_FLOAT, 0, 2);
+			enableAttributeCached(_prog, "texCoord3");
+			setAttributeBufferCached(_prog, "texCoord3", GL_FLOAT, 0, 2);
 		}
 
 		// Tangents
 		if (_tangents.size())
 		{
 			_tangentBuf.bind();
-			_prog->enableAttributeArray("vertexTangent");
-			_prog->setAttributeBuffer("vertexTangent", GL_FLOAT, 0, 3);
+			enableAttributeCached(_prog, "vertexTangent");
+			setAttributeBufferCached(_prog, "vertexTangent", GL_FLOAT, 0, 3);
 		}
 
 		// Bitangents
 		if (_bitangents.size())
 		{
 			_bitangentBuf.bind();
-			_prog->enableAttributeArray("vertexBitangent");
-			_prog->setAttributeBuffer("vertexBitangent", GL_FLOAT, 0, 3);
+			enableAttributeCached(_prog, "vertexBitangent");
+			setAttributeBufferCached(_prog, "vertexBitangent", GL_FLOAT, 0, 3);
 		}
 
 		if (_jointIndices.size())
 		{
 			_jointIndexBuffer.bind();
-			_prog->enableAttributeArray("jointIndices");
-			_prog->setAttributeBuffer("jointIndices", GL_FLOAT, 0, 4);
+			enableAttributeCached(_prog, "jointIndices");
+			setAttributeBufferCached(_prog, "jointIndices", GL_FLOAT, 0, 4);
 		}
 
 		if (_jointWeights.size())
 		{
 			_jointWeightBuffer.bind();
-			_prog->enableAttributeArray("jointWeights");
-			_prog->setAttributeBuffer("jointWeights", GL_FLOAT, 0, 4);
+			enableAttributeCached(_prog, "jointWeights");
+			setAttributeBufferCached(_prog, "jointWeights", GL_FLOAT, 0, 4);
 		}
 
 		_vertexArrayObject.release();
@@ -1013,16 +1065,16 @@ void RenderableMesh::setProg(QOpenGLShaderProgram* prog)
 			_analysisFlatVAO.bind();
 
 			_analysisFlatPositionBuffer.bind();
-			_prog->enableAttributeArray("vertexPosition");
-			_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+			enableAttributeCached(_prog, "vertexPosition");
+			setAttributeBufferCached(_prog, "vertexPosition", GL_FLOAT, 0, 3);
 
 			_analysisFlatNormalBuffer.bind();
-			_prog->enableAttributeArray("vertexNormal");
-			_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+			enableAttributeCached(_prog, "vertexNormal");
+			setAttributeBufferCached(_prog, "vertexNormal", GL_FLOAT, 0, 3);
 
 			_analysisFlatColorBuffer.bind();
-			_prog->enableAttributeArray("analysisColor");
-			_prog->setAttributeBuffer("analysisColor", GL_FLOAT, 0, 4);
+			enableAttributeCached(_prog, "analysisColor");
+			setAttributeBufferCached(_prog, "analysisColor", GL_FLOAT, 0, 4);
 
 			_analysisFlatVAO.release();
 		}
@@ -3089,8 +3141,8 @@ void RenderableMesh::setAnalysisOverlayColors(const std::vector<float>& rgba)
 	{
 		_vertexArrayObject.bind();
 		_analysisOverlayColorBuffer.bind();
-		_prog->enableAttributeArray("analysisColor");
-		_prog->setAttributeBuffer("analysisColor", GL_FLOAT, 0, 4);
+		enableAttributeCached(_prog, "analysisColor");
+		setAttributeBufferCached(_prog, "analysisColor", GL_FLOAT, 0, 4);
 	}
 
 	// Mutually exclusive with the flat-per-face path below - see this
@@ -3202,20 +3254,20 @@ void RenderableMesh::uploadAnalysisFlatBuffers(
 	_analysisFlatPositionBuffer.bind();
 	_analysisFlatPositionBuffer.setUsagePattern(FastGlBuffer::DynamicDraw);
 	_analysisFlatPositionBuffer.allocate(positions.data(), static_cast<int>(positions.size() * sizeof(float)));
-	_prog->enableAttributeArray("vertexPosition");
-	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+	enableAttributeCached(_prog, "vertexPosition");
+	setAttributeBufferCached(_prog, "vertexPosition", GL_FLOAT, 0, 3);
 
 	_analysisFlatNormalBuffer.bind();
 	_analysisFlatNormalBuffer.setUsagePattern(FastGlBuffer::DynamicDraw);
 	_analysisFlatNormalBuffer.allocate(normals.data(), static_cast<int>(normals.size() * sizeof(float)));
-	_prog->enableAttributeArray("vertexNormal");
-	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+	enableAttributeCached(_prog, "vertexNormal");
+	setAttributeBufferCached(_prog, "vertexNormal", GL_FLOAT, 0, 3);
 
 	_analysisFlatColorBuffer.bind();
 	_analysisFlatColorBuffer.setUsagePattern(FastGlBuffer::DynamicDraw);
 	_analysisFlatColorBuffer.allocate(colors.data(), static_cast<int>(colors.size() * sizeof(float)));
-	_prog->enableAttributeArray("analysisColor");
-	_prog->setAttributeBuffer("analysisColor", GL_FLOAT, 0, 4);
+	enableAttributeCached(_prog, "analysisColor");
+	setAttributeBufferCached(_prog, "analysisColor", GL_FLOAT, 0, 4);
 
 	_analysisFlatVAO.release();
 
