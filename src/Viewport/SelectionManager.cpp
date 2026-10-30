@@ -4,6 +4,8 @@
 #include "PickingHelper.h"
 #include "RenderableMesh.h"
 #include "MeasurementGeometry.h"
+#include "Logger.h"
+#include <QElapsedTimer>
 #include <QOpenGLFunctions_4_5_Core>
 #include <QOpenGLContext>
 #include <QOpenGLVersionFunctionsFactory>
@@ -71,6 +73,8 @@ int SelectionManager::clickSelect(const QPoint& pixel)
     rayDir.normalize();
 
     // === Ray-based intersection test ===
+    QElapsedTimer pickClock;
+    pickClock.start();
     QMap<int, float> selectedIdsDist;
     for (int i : ids) {
         SceneMesh* mesh = _meshStore.at(i).mesh;
@@ -94,9 +98,16 @@ int SelectionManager::clickSelect(const QPoint& pixel)
     // This is the authoritative path for animated meshes because it uses the
     // current render-time transforms / skinning state rather than cached CPU
     // triangle data.
+    const qint64 rayMs = pickClock.elapsed();
     const int colId = processSelection(pixel);
+    const qint64 totalMs = pickClock.elapsed();
 
     QApplication::restoreOverrideCursor();
+    if (totalMs >= 150)
+        Logger::instance().info(
+            QStringLiteral("[SelectDiagnostics] click pick took %1 ms: CPU ray pass %2 ms (%3 hits), GPU colour pass %4 ms; %5 meshes")
+                .arg(totalMs).arg(rayMs).arg(selectedIdsDist.size()).arg(totalMs - rayMs).arg(ids.size()),
+            QStringLiteral("Performance"));
 
     int selectedId = -1;
     switch (_selectionMode) {
@@ -711,11 +722,31 @@ QList<int> SelectionManager::sweepSelect(const QPoint& p1, const QPoint& p2, Sel
     // empty, so its net effect from here on is identical to Add), Subtract
     // removes instead, mirroring deselect()'s own _selectedMeshIds.removeAll()
     // idiom above rather than inventing a new removal pattern.
-    auto applyCoverage = [&selectedIds, mode](int i) {
+    // Membership by id, not selectedIds.contains()/removeAll() per mesh: those are linear, so selecting most of a 40,000-mesh
+    // model was quadratic.
+    std::vector<char> member(_meshStore.size(), 0);
+    for (int id : selectedIds)
+    {
+        if (id >= 0 && id < static_cast<int>(member.size()))
+            member[static_cast<size_t>(id)] = 1;
+    }
+    bool removedAny = false;
+    auto applyCoverage = [&selectedIds, &member, &removedAny, mode](int i) {
+        if (i < 0 || i >= static_cast<int>(member.size()))
+            return;
         if (mode == SelectionCombineMode::Subtract)
-            selectedIds.removeAll(i);
-        else if (!selectedIds.contains(i))
+        {
+            if (member[static_cast<size_t>(i)])
+            {
+                member[static_cast<size_t>(i)] = 0;
+                removedAny = true;
+            }
+        }
+        else if (!member[static_cast<size_t>(i)])
+        {
+            member[static_cast<size_t>(i)] = 1;
             selectedIds.push_back(i);
+        }
     };
 
     for (int i : ids)
@@ -770,6 +801,13 @@ QList<int> SelectionManager::sweepSelect(const QPoint& p1, const QPoint& p2, Sel
         }
     }
 
+    if (removedAny)
+    {
+        selectedIds.removeIf([&member](int id) {
+            return id < 0 || id >= static_cast<int>(member.size()) || !member[static_cast<size_t>(id)];
+        });
+    }
+
     QApplication::restoreOverrideCursor();
 
     _selectedMeshIds = selectedIds;
@@ -794,6 +832,14 @@ QList<int> SelectionManager::lassoSelect(const QPolygon& lassoPath, SelectionCom
     QApplication::setOverrideCursor(Qt::WaitCursor);
     selectedIds.reserve(selectedIds.size() + static_cast<qsizetype>(ids.size()));
 
+    std::vector<char> member(_meshStore.size(), 0);
+    for (int id : selectedIds)
+    {
+        if (id >= 0 && id < static_cast<int>(member.size()))
+            member[static_cast<size_t>(id)] = 1;
+    }
+    bool removedAny = false;
+
     for (int i : ids)
     {
         SceneMesh* mesh = _meshStore.at(i).mesh;
@@ -814,11 +860,29 @@ QList<int> SelectionManager::lassoSelect(const QPolygon& lassoPath, SelectionCom
 
         if (lassoPath.containsPoint(screenCenter.toPoint(), Qt::OddEvenFill))
         {
+            if (i < 0 || i >= static_cast<int>(member.size()))
+                continue;
             if (mode == SelectionCombineMode::Subtract)
-                selectedIds.removeAll(i);
-            else if (!selectedIds.contains(i))
+            {
+                if (member[static_cast<size_t>(i)])
+                {
+                    member[static_cast<size_t>(i)] = 0;
+                    removedAny = true;
+                }
+            }
+            else if (!member[static_cast<size_t>(i)])
+            {
+                member[static_cast<size_t>(i)] = 1;
                 selectedIds.push_back(i);
+            }
         }
+    }
+
+    if (removedAny)
+    {
+        selectedIds.removeIf([&member](int id) {
+            return id < 0 || id >= static_cast<int>(member.size()) || !member[static_cast<size_t>(id)];
+        });
     }
 
     QApplication::restoreOverrideCursor();
@@ -1096,11 +1160,51 @@ int SelectionManager::processSelection(const QPoint& pixel)
     selectionShader->setProperty("globalModelMatrix", QVariant::fromValue(_viewportWidget->getModelMatrix()));
     selectionShader->setUniformValue("viewMatrix", selCamera->getViewMatrix());
 
+    // The pass only has to decide ONE pixel. Drawing all 40,000 meshes at full resolution for that took 4-12 s on a very
+    // large assembly, so skip every mesh whose bounding sphere cannot reach the pixel (plus a margin for the 2x2 read window
+    // and for the sphere's projection being larger than its centre-plus-radius estimate off-axis). Meshes whose bounds do not
+    // follow their drawn pose (skinned, morphing, or any animation pose being active) are always drawn.
+    const bool poseDriven = !_viewportWidget->activeAnimationFile().isEmpty() && _viewportWidget->activeAnimationClip() >= 0;
+    const QMatrix4x4 pickViewProj = selCamera->getProjectionMatrix() * selCamera->getViewMatrix();
+    const QMatrix4x4 pickView = selCamera->getViewMatrix();
+    const QVector3D camRight(pickView(0, 0), pickView(0, 1), pickView(0, 2));
+    const QRect pickViewport = PickingHelper::viewportRectForPoint(
+        pixel, widgetWidth, widgetHeight, _viewportWidget->isMultiViewActive());
+    const float pickGlX = static_cast<float>(pixel.x());
+    const float pickGlY = static_cast<float>(widgetHeight - pixel.y() - 1);
+    auto mayCoverPixel = [&](const SceneMesh* mesh) -> bool
+    {
+        if (poseDriven || mesh->hasSkinning() || mesh->hasMorphTargets())
+            return true;
+        const BoundingSphere sphere = mesh->getBoundingSphere();
+        const QVector3D center = sphere.getCenter();
+        const float radius = sphere.getRadius();
+        const QVector4D c = pickViewProj * QVector4D(center, 1.0f);
+        const QVector4D e = pickViewProj * QVector4D(center + camRight * radius, 1.0f);
+        if (c.w() <= 1.0e-6f || e.w() <= 1.0e-6f)
+            return true; // behind or crossing the camera plane: not worth reasoning about
+        const float cx = pickViewport.x() + (c.x() / c.w() * 0.5f + 0.5f) * pickViewport.width();
+        const float cy = pickViewport.y() + (c.y() / c.w() * 0.5f + 0.5f) * pickViewport.height();
+        const float ex = pickViewport.x() + (e.x() / e.w() * 0.5f + 0.5f) * pickViewport.width();
+        const float ey = pickViewport.y() + (e.y() / e.w() * 0.5f + 0.5f) * pickViewport.height();
+        const float radiusPx = std::hypot(ex - cx, ey - cy) * 1.5f + 8.0f;
+        return std::hypot(cx - pickGlX, cy - pickGlY) <= radiusPx;
+    };
+
+    unsigned int drawnSinceFlush = 0;
+    int culledForPick = 0;
+    QElapsedTimer passClock;
+    passClock.start();
     for (int i : visibleIds)
     {
         try
         {
             SceneMesh* mesh = _meshStore.at(i).mesh;
+            if (mesh && !mayCoverPixel(mesh))
+            {
+                ++culledForPick;
+                continue;
+            }
             if (mesh && _viewportWidget->isMeshAnimationVisibleForSelection(mesh))
             {
                 const QColor pickColor = PickingHelper::indexToColor(i + 1);
@@ -1126,8 +1230,11 @@ int SelectionManager::processSelection(const QPoint& pixel)
                 else
                     f->glDrawElements(mesh->getPrimitiveMode(), static_cast<int>(mesh->getIndices().size()), GL_UNSIGNED_INT, nullptr);
                 mesh->getVAO().release();
-                f->glFlush();
-                f->glFinish();
+                // Not a glFinish() per mesh: that made one click a CPU/GPU round trip per mesh (40,000 of them on a big
+                // assembly, seconds per click). glReadPixels below waits for the pass; a periodic flush just keeps the
+                // driver's command buffer from growing without bound.
+                if ((++drawnSinceFlush & 0x1FF) == 0)
+                    f->glFlush();
             }
         }
         catch (const std::exception& ex)
@@ -1136,6 +1243,7 @@ int SelectionManager::processSelection(const QPoint& pixel)
         }
     }
 
+    const qint64 drawLoopMs = passClock.elapsed();
     f->glReadBuffer(GL_COLOR_ATTACHMENT0);
     f->glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     const int pixelWinSize = 2;
@@ -1160,6 +1268,12 @@ int SelectionManager::processSelection(const QPoint& pixel)
 
     std::vector<float> res(static_cast<size_t>(readWidth) * static_cast<size_t>(readHeight) * 4u);
     f->glReadPixels(readX, readY, readWidth, readHeight, GL_RGBA, GL_FLOAT, res.data());
+    const qint64 readMs = passClock.elapsed() - drawLoopMs;
+    if (drawLoopMs + readMs >= 150)
+        Logger::instance().info(
+            QStringLiteral("[SelectDiagnostics] colour pass: %1 of %4 meshes drawn (%5 culled) took %2 ms on the CPU, waiting for the GPU at readback %3 ms")
+                .arg(static_cast<int>(visibleIds.size()) - culledForPick).arg(drawLoopMs).arg(readMs).arg(visibleIds.size()).arg(culledForPick),
+            QStringLiteral("Performance"));
     std::map<int, int> voteCount;
     for (size_t i = 0; i < res.size(); i += 4)
     {
