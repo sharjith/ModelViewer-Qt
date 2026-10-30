@@ -581,6 +581,12 @@ int DrawBatcher::drawBatches(QOpenGLShaderProgram* prog, const std::vector<int>&
 		g.lodOffsets.clear();
 		g.frameRep = nullptr;
 		g.frameTriangles = 0;
+		g.selCounts.clear();
+		g.selOffsets.clear();
+		g.selLodCounts.clear();
+		g.selLodOffsets.clear();
+		g.frameRepSelected = nullptr;
+		g.frameTrianglesSelected = 0;
 	}
 
 	const bool lodActive = RenderableMesh::lodPolicyActive();
@@ -619,12 +625,14 @@ int DrawBatcher::drawBatches(QOpenGLShaderProgram* prog, const std::vector<int>&
 		bool candidate = false;
 		bool missingIfNotHovered = false;
 		bool okIgnoringHover = false;
+		bool selectedNow = false;
 		const bool cacheUsable = fastAllowed && entry && entry->checkedEpoch == epoch && entry->mesh == mesh;
 		if (cacheUsable && !verifyThis)
 		{
 			candidate = entry->cachedCandidate;
 			missingIfNotHovered = entry->cachedMissing;
 			okIgnoringHover = entry->cachedOk;
+			selectedNow = entry->cachedSelected;
 			++fastHits;
 		}
 		else
@@ -637,9 +645,10 @@ int DrawBatcher::drawBatches(QOpenGLShaderProgram* prog, const std::vector<int>&
 				&& mesh->drawGroupKey() == entry->key
 				&& sameTransform(entry->transform, mesh->combinedRenderTransformRef());
 			missingIfNotHovered = candidate && !known;
+			selectedNow = mesh->isSelected();
 			++slowChecks;
 			if (cacheUsable && (entry->cachedOk != okIgnoringHover || entry->cachedCandidate != candidate
-				|| entry->cachedMissing != missingIfNotHovered))
+				|| entry->cachedMissing != missingIfNotHovered || entry->cachedSelected != selectedNow))
 			{
 				// A change that did not bump the epoch. Use the fresh answer and re-check everything next frame.
 				MeshInstanceState::bumpRenderStateEpoch();
@@ -662,6 +671,7 @@ int DrawBatcher::drawBatches(QOpenGLShaderProgram* prog, const std::vector<int>&
 				entry->cachedOk = okIgnoringHover;
 				entry->cachedCandidate = candidate;
 				entry->cachedMissing = missingIfNotHovered;
+				entry->cachedSelected = selectedNow;
 			}
 		}
 
@@ -677,19 +687,24 @@ int DrawBatcher::drawBatches(QOpenGLShaderProgram* prog, const std::vector<int>&
 		}
 
 		Group& g = _groups[static_cast<size_t>(entry->group)];
-		if (!g.frameRep)
-			g.frameRep = mesh;
+		// A selected mesh stays in its group but is drawn in the group's second, selected pass.
+		SceneMesh*& rep = selectedNow ? g.frameRepSelected : g.frameRep;
+		if (!rep)
+			rep = mesh;
+		qint64& triangles = selectedNow ? g.frameTrianglesSelected : g.frameTriangles;
 		if (lodActive && entry->lodCount > 0)
 		{
-			g.lodCounts.push_back(static_cast<int>(entry->lodCount));
-			g.lodOffsets.push_back(reinterpret_cast<const void*>(static_cast<quintptr>(entry->lodFirst) * sizeof(unsigned int)));
-			g.frameTriangles += entry->lodCount / 3;
+			(selectedNow ? g.selLodCounts : g.lodCounts).push_back(static_cast<int>(entry->lodCount));
+			(selectedNow ? g.selLodOffsets : g.lodOffsets).push_back(
+				reinterpret_cast<const void*>(static_cast<quintptr>(entry->lodFirst) * sizeof(unsigned int)));
+			triangles += entry->lodCount / 3;
 		}
 		else
 		{
-			g.counts.push_back(static_cast<int>(entry->indexCount));
-			g.offsets.push_back(reinterpret_cast<const void*>(static_cast<quintptr>(entry->firstIndex) * sizeof(unsigned int)));
-			g.frameTriangles += entry->indexCount / 3;
+			(selectedNow ? g.selCounts : g.counts).push_back(static_cast<int>(entry->indexCount));
+			(selectedNow ? g.selOffsets : g.offsets).push_back(
+				reinterpret_cast<const void*>(static_cast<quintptr>(entry->firstIndex) * sizeof(unsigned int)));
+			triangles += entry->indexCount / 3;
 		}
 		++batched;
 	}
@@ -698,30 +713,35 @@ int DrawBatcher::drawBatches(QOpenGLShaderProgram* prog, const std::vector<int>&
 	_fastHitsLastFrame = fastHits;
 	_slowChecksLastFrame = slowChecks;
 
-	for (Group& g : _groups)
+	const auto drawSet = [&](Group& g, SceneMesh* rep, const std::vector<int>& counts, const std::vector<const void*>& offsets,
+	                         const std::vector<int>& lodCounts, const std::vector<const void*>& lodOffsets, qint64 triangles)
 	{
-		if (!g.frameRep || (g.counts.empty() && g.lodCounts.empty()))
-			continue;
-		g.frameRep->prepareBatchDraw(prog);
+		if (!rep || (counts.empty() && lodCounts.empty()))
+			return;
+		rep->prepareBatchDraw(prog); // the representative's own selection state supplies the "selected" uniform
 		if (g.configuredProgram != prog)
 			configureVao(g, prog);
 
 		glBindVertexArray(g.vao);
-		if (!g.counts.empty())
+		if (!counts.empty())
 		{
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g.indexBuffer);
-			glMultiDrawElements(GL_TRIANGLES, g.counts.data(), GL_UNSIGNED_INT, g.offsets.data(),
-				static_cast<GLsizei>(g.counts.size()));
+			glMultiDrawElements(GL_TRIANGLES, counts.data(), GL_UNSIGNED_INT, offsets.data(), static_cast<GLsizei>(counts.size()));
 		}
-		if (!g.lodCounts.empty() && g.lodIndexBuffer)
+		if (!lodCounts.empty() && g.lodIndexBuffer)
 		{
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g.lodIndexBuffer);
-			glMultiDrawElements(GL_TRIANGLES, g.lodCounts.data(), GL_UNSIGNED_INT, g.lodOffsets.data(),
-				static_cast<GLsizei>(g.lodCounts.size()));
+			glMultiDrawElements(GL_TRIANGLES, lodCounts.data(), GL_UNSIGNED_INT, lodOffsets.data(), static_cast<GLsizei>(lodCounts.size()));
 		}
 		glBindVertexArray(0);
-		RenderableMesh::recordDrawCall(true, false, g.frameTriangles);
-		RenderableMesh::recordBatchedDraw(static_cast<qint64>(g.counts.size() + g.lodCounts.size()));
+		RenderableMesh::recordDrawCall(true, false, triangles);
+		RenderableMesh::recordBatchedDraw(static_cast<qint64>(counts.size() + lodCounts.size()));
+	};
+
+	for (Group& g : _groups)
+	{
+		drawSet(g, g.frameRep, g.counts, g.offsets, g.lodCounts, g.lodOffsets, g.frameTriangles);
+		drawSet(g, g.frameRepSelected, g.selCounts, g.selOffsets, g.selLodCounts, g.selLodOffsets, g.frameTrianglesSelected);
 	}
 	return batched;
 }

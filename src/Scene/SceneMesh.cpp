@@ -1209,6 +1209,7 @@ quint64 SceneMesh::getRenderMaterialSortKey() const
 void SceneMesh::markUniformsDirty()
 {
 	_uniformStateSignatureDirty = true;
+	_batchKeyDirty = true;
 	RenderableMesh::markUniformsDirty();
 }
 
@@ -1647,8 +1648,15 @@ void SceneMesh::renderWireframeFast(QOpenGLShaderProgram* wireProg)
 quint64 SceneMesh::drawGroupKey() const
 {
 	// The program is deliberately not part of the key: a batch is drawn with whichever program the pass uses, and
-	// the caller only batches while that is a single program.
-	return uniformStateSignature();
+	// the caller only batches while that is a single program. Selection is deliberately not part of it either: a
+	// selected mesh stays in its group and the group is drawn in an unselected and a selected pass (the only thing
+	// selection changes for an opaque mesh is the "selected" uniform), so selecting does not move meshes between batches.
+	if (_batchKeyDirty)
+	{
+		_cachedBatchKey = computeUniformStateSignature(false);
+		_batchKeyDirty = false;
+	}
+	return _cachedBatchKey;
 }
 
 void SceneMesh::addMemoryUsage(MeshMemoryUsage& u) const
@@ -1686,7 +1694,7 @@ bool SceneMesh::isBatchCandidate(bool transparent) const
 		&& !hasSkinning()
 		&& !hasMorphTargets()
 		&& !hasAnalysisOverlay()
-		&& !isSelected()
+		&& (!transparent || !isSelected()) // a transparent run is drawn in sort order under one set of uniforms
 		&& !hasNegativeScale()
 		&& !_material.wireframe()
 		&& !_material.hasVolumeScattering()
@@ -1701,12 +1709,20 @@ quint64 SceneMesh::uniformStateSignature() const
 	if (!_uniformStateSignatureDirty)
 		return _cachedUniformStateSignature;
 
+	_cachedUniformStateSignature = computeUniformStateSignature(true);
+	_uniformStateSignatureDirty = false;
+	return _cachedUniformStateSignature;
+}
+
+quint64 SceneMesh::computeUniformStateSignature(bool includeSelection) const
+{
 	quint64 hash = kFnvOffset;
 
 	mixInt(hash, static_cast<int>(_primitiveMode));
 	mixBool(hash, _hasVertexColors);
 	mixBool(hash, hasNegativeScale());
-	mixBool(hash, isSelected());
+	if (includeSelection)
+		mixBool(hash, isSelected());
 
 	mixVec3(hash, _material.ambient());
 	mixVec3(hash, _material.diffuse());
@@ -1846,9 +1862,7 @@ quint64 SceneMesh::uniformStateSignature() const
 	mixFloat(hash, opacityPacking.scale);
 	mixFloat(hash, opacityPacking.bias);
 
-	_cachedUniformStateSignature = hash;
-	_uniformStateSignatureDirty = false;
-	return _cachedUniformStateSignature;
+	return hash;
 }
 
 namespace

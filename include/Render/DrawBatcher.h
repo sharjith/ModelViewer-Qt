@@ -98,6 +98,7 @@ private:
 		bool cachedOk = false;        // batched, ignoring the hovered mesh
 		bool cachedCandidate = false;
 		bool cachedMissing = false;   // a candidate that is not (or no longer) in a batch
+		bool cachedSelected = false;  // drawn in the group's selected pass
 	};
 
 	struct Group
@@ -120,6 +121,11 @@ private:
 		std::vector<const void*> offsets, lodOffsets;
 		SceneMesh* frameRep = nullptr;
 		qint64 frameTriangles = 0;
+		// The selected meshes of the group, drawn after the others under their own uniforms (selected = true).
+		std::vector<int> selCounts, selLodCounts;
+		std::vector<const void*> selOffsets, selLodOffsets;
+		SceneMesh* frameRepSelected = nullptr;
+		qint64 frameTrianglesSelected = 0;
 	};
 
 	struct Spec

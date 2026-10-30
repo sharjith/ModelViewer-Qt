@@ -649,6 +649,9 @@ private:
 	// not at load: 40,000 parts spent about 5 s and 80,000 driver objects on edges that a shaded view never draws.
 	void ensureFeatureEdgesOnGpu();
 	quint64 uniformStateSignature() const;
+	quint64 computeUniformStateSignature(bool includeSelection) const;
+	mutable bool    _batchKeyDirty = true;
+	mutable quint64 _cachedBatchKey = 0;
 	void removeTexturesByType(std::initializer_list<std::string> types);
 
 	// sync texture path entries into _textures from the material's stored map (if _textures empty)
