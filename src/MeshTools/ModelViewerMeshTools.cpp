@@ -1,10 +1,15 @@
 #include "ModelViewer.h"
 #include "ToolsToolbar.h"
+#include "Logger.h"
+#include <QElapsedTimer>
 
 QMap<QString, QString> ModelViewer::meshToolDisabledReasons() const
 {
     // Resolve assemblies and deduplicate descendants without changing selection.
+    QElapsedTimer lapClock;
+    lapClock.start();
     const auto selected = treeWidgetModel->selectedMeshUuids();
+    const qint64 selectedMs = lapClock.elapsed();
     int count = 0;
     GLenum primitive = GL_TRIANGLES;
     bool samePrimitive = true;
@@ -18,6 +23,7 @@ QMap<QString, QString> ModelViewer::meshToolDisabledReasons() const
         triangles &= mesh->getPrimitiveMode() == GL_TRIANGLES && !mesh->indices().empty();
         ++count;
     }
+    const qint64 loopMs = lapClock.elapsed() - selectedMs;
     const QString one = invalid ? tr("Some selected meshes are not available yet.")
         : count == 0 ? tr("Select at least one mesh.") : QString();
     const QString two = !one.isEmpty() ? one : count < 2 ? tr("Select at least two meshes.") : QString();
@@ -43,6 +49,13 @@ QMap<QString, QString> ModelViewer::meshToolDisabledReasons() const
     }
     const QString duplicate = !one.isEmpty() ? one : containsMultiMeshAssembly
         ? tr("Select mesh leaves or single-mesh assemblies.\nUse Copy and Paste for a multi-mesh assembly.") : QString();
+    const qint64 totalMs = lapClock.elapsed();
+    if (totalMs >= 100)
+        Logger::instance().info(
+            QStringLiteral("[SelectDiagnostics] meshToolDisabledReasons took %1 ms for %2 selected meshes: selectedMeshUuids %3 ms, "
+                "per-mesh checks %4 ms, assembly nodes %5 ms")
+                .arg(totalMs).arg(selected.size()).arg(selectedMs).arg(loopMs).arg(totalMs - selectedMs - loopMs),
+            QStringLiteral("Performance"));
     return {{"split_by_connectivity", split}, {"merge_selected", merge},
         {"merge_by_adjacency", merge}, {"mesh_union", booleanUnion},
         {"group_meshes", one}, {"duplicate_meshes", duplicate}, {"mesh_info", one}};

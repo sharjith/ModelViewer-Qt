@@ -2786,6 +2786,10 @@ QList<const SceneNode*> SceneTreeWidget::selectedAssemblyNodes() const
 QList<const SceneNode*> SceneTreeWidget::explicitlySelectedAssemblyNodes() const
 {
     QList<const SceneNode*> result;
+    // Nothing was clicked as an assembly (a rubber-band or viewport selection): skip building selectedItems(), which on a
+    // selection of tens of thousands of leaves took most of a second per call.
+    if (_explicitlySelectedAssemblyUuids.isEmpty())
+        return result;
     for (const SceneNode* node : selectedAssemblyNodes())
         if (_explicitlySelectedAssemblyUuids.contains(node->nodeUuid))
             result.append(node);

@@ -267,7 +267,7 @@ public:
 	void setExplosionOffset(const QVector3D& offset) { _instanceState.setExplosionOffset(offset); }
 	QVector3D explosionOffset() const { return _instanceState.explosionOffset(); }
 
-	std::vector<unsigned int> getIndices() const;
+	const std::vector<unsigned int>& getIndices() const; // by reference: see SceneMesh::indices()
 	std::vector<float> getPoints() const;
 	std::vector<float> getNormals() const;
 	std::vector<float> getTexCoords() const;

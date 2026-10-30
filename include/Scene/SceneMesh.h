@@ -96,7 +96,8 @@ public:
 	// vertex array, so this returns their live vertices.
     std::vector<Vertex> baseVertices() const;
 
-    std::vector<unsigned int> indices() const;
+    // By reference: callers test .empty()/.size() per mesh over tens of thousands of meshes; a by-value return copied the whole array each time.
+    const std::vector<unsigned int>& indices() const;
 
     std::vector<Material::Texture> textures() const;
 

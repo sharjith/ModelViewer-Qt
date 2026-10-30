@@ -4483,7 +4483,7 @@ vector<Vertex> SceneMesh::baseVertices() const
     return restPoseVertices();
 }
 
-vector<unsigned int> SceneMesh::indices() const
+const vector<unsigned int>& SceneMesh::indices() const
 {
     return _indices;
 }

@@ -2235,7 +2235,7 @@ void RenderableMesh::resetExplodedViewTransformations()
 	_instanceState.resetExplodedViewTransformations(_points, _normals, _tangents, _bitangents, _indices);
 }
 
-std::vector<unsigned int> RenderableMesh::getIndices() const
+const std::vector<unsigned int>& RenderableMesh::getIndices() const
 {
 	return _indices;
 }
