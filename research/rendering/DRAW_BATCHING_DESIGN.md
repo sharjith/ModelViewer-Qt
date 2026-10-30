@@ -270,3 +270,42 @@ drawing them one at a time. The gain depends on run length: it is large when tra
 materials (the yellow parts in the JT test), small when many different transparent materials interleave in depth order.
 Used only where opaque batching is (plain shaded mode, no clipping, no flat shading, model above the part threshold).
 Not yet measured.
+
+### 8.11 Memory and load findings (2026-10-30, synthetic 40k heavy model, owner machine, release build)
+
+Observations (log lines `[MemoryAudit]`, `[LoadPhases]`, `[Teardown]`; regenerate by loading `out/perf/synthetic_40k_heavy.glb` with
+"Profile rendering" on and reading the newest files in the application log folder):
+
+- Every `RenderableMesh` built its own 128x128 fallback texture image (about 200 KB each; 40,000 meshes about 5 GB).
+  One shared 1x1 white image replaces them. Private memory 14.3 GB -> 9.05 GB, peak 16.4 GB -> about 11.1 GB, close
+  29 s -> about 10 s (mesh deletion dominates what is left).
+- The GPU driver keeps about 6 KB of system memory per buffer object; roughly 6 buffers per mesh is a further cost
+  (idea, not done: one interleaved buffer per mesh).
+- Load tail: after the worker thread had finished reading (about 36 s) the viewer thread needed another 3 min 22 s
+  before it handled `loadingFinished`. Cause: `Logger::processQueue` sent each formatted log line to the console panel
+  with its own queued call, and a 40,000-part import writes about 480,000 debug lines. Lines are now sent in one batched
+  call per drain round (the newest 1,000 of a burst; the log file keeps every line). Worker-finished ->
+  `loadingFinished` handled: 3 min 22 s -> 0.05 s. Launch -> first rendered frame: about 5 min -> about 78 s, of which
+  mesh creation is about 18 s (about 0.45 ms per mesh).
+- Smaller load-tail contributors, also fixed: the loader emitted `nodeMeshProgressUpdated` per mesh and per node and
+  `verticesProcessed` per mesh (both now at most every 50 ms), and their slots called `makeCurrent()` every time.
+- Show All after a large hide froze the application for minutes: `SceneTreeWidget::setVisibilityByUuids` collapses and
+  re-expands every expanded assembly and tree animation was on, so each call grabbed a pixmap of the viewport. With
+  animation off for the duration the tree sync takes about 160 ms (`[VisibilityDiagnostics]` lines).
+
+### 8.12 Per-frame CPU left at 40,000 meshes (not changed; measured 2026-10-30)
+
+Steady state, plain shaded view: frame CPU 32 ms, GPU 22.5 ms, 40 batched draws. Of the CPU time 10.2 ms is culling
+(`collectVisibleMeshIdsForPass`) and 13.5 ms is the batch pass (`DrawBatcher::drawBatches` validating each visible mesh).
+Both are bound by cache misses: a `SceneMesh` is 8,096 bytes with a 5,384-byte `Material` embedded in it, and the
+checks read fields spread over it. Candidate fixes and why they were deferred:
+
+- Skip per-mesh validation on frames where nothing changed: needs one change counter that every input of
+  `isBatchCandidate()` / `drawGroupKey()` / the transform feeds. `markUniformsDirty()` is one funnel, but selection,
+  zebra, analysis overlay, skin/morph state and the transform have their own paths, so a missed path would draw a stale
+  state. Needs an audit of every input before it is safe.
+- Software prefetch of the mesh state a few iterations ahead: semantics-neutral, gain unknown because the fields sit in
+  many cache lines.
+- A compact per-mesh culling record (bounds, flags) in the runtime-visibility nodes instead of reading `SceneMesh`;
+  needs invalidation when a mesh's transparency changes.
+- Expected gain of all three: the frame becomes GPU bound (about 22 ms), i.e. about 1.4x.
