@@ -4023,6 +4023,24 @@ void AssImpModelLoader::parseSceneAnimations()
 			clip.channels.append(pointerChannel);
 		}
 
+		// The channels taken from Assimp above name their node only by string. A glTF may repeat a node name (instanced
+		// sub-assemblies), and a name resolves to the first node carrying it, so such a channel would pose the wrong node and
+		// overwrite its static translation. The index-based channels read from the JSON cover the same nodes exactly.
+		QHash<QString, int> nodeNameCount;
+		for (const GltfAnimationNodeBinding& nodeBinding : std::as_const(_animationData.nodeBindings))
+			++nodeNameCount[nodeBinding.nodeName];
+		QVector<GltfAnimationChannel> unambiguousChannels;
+		unambiguousChannels.reserve(clip.channels.size());
+		for (const GltfAnimationChannel& animChannel : std::as_const(clip.channels))
+		{
+			const bool nodeTransform = animChannel.targetPath == GltfAnimationTargetPath::Translation ||
+				animChannel.targetPath == GltfAnimationTargetPath::Rotation ||
+				animChannel.targetPath == GltfAnimationTargetPath::Scale;
+			if (nodeTransform && animChannel.targetNodeIndex < 0 && nodeNameCount.value(animChannel.targetNodeName) > 1)
+				continue;
+			unambiguousChannels.append(animChannel);
+		}
+		clip.channels = unambiguousChannels;
 	}
 
 	_animationData.hasNodeAnimations = false;
