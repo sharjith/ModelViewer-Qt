@@ -516,6 +516,9 @@ public:
 	// neighbours in the sort order (see DrawBatcher::drawTransparentSequence()).
 	bool isBatchCandidate(bool transparent) const;
 
+	// Adds this mesh's CPU-side array capacities to `usage` (diagnostics: the "[MemoryAudit]" log line).
+	void addMemoryUsage(struct MeshMemoryUsage& usage) const;
+
 	// Everything render() does before its draw call, for a DrawBatcher batch: binds `prog`, uploads the transform
 	// uniforms (the mesh's own transform is already baked into the batch geometry, so modelMatrix is just the
 	// global model matrix), then the material state, textures and render state of this mesh, which stands for every

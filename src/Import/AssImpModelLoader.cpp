@@ -1791,12 +1791,7 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 		else
 			_meshes.push_back(std::move(myMesh));
 		++_processedMeshCount;
-		emit nodeMeshProgressUpdated(
-			_processedNodeCount,
-			_totalNodeCount,
-			_processedMeshCount,
-			_totalMeshOccurrences,
-			_needsUVGeneration && _selectedUVMethod != UVMethod::None);
+		emitNodeMeshProgress(_needsUVGeneration && _selectedUVMethod != UVMethod::None);
 
 
 		if (_progressiveLoading)
@@ -1827,6 +1822,14 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 	}
 
 	const bool uvProcessed = _needsUVGeneration && _selectedUVMethod != UVMethod::None;
+	emitNodeMeshProgress(uvProcessed, node == scene->mRootNode);
+}
+
+void AssImpModelLoader::emitNodeMeshProgress(bool uvProcessed, bool force)
+{
+	if (!force && _progressClock.isValid() && _progressClock.elapsed() < 50)
+		return;
+	_progressClock.restart();
 	emit nodeMeshProgressUpdated(_processedNodeCount, _totalNodeCount, _processedMeshCount, _totalMeshOccurrences, uvProcessed);
 }
 

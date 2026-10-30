@@ -48,6 +48,8 @@
 #include "Utils.h"
 #include "Logger.h"
 #include "DrawBatcher.h"
+#include "MeshMemoryUsage.h"
+#include "ProcessMemory.h"
 #include <cstring>
 #include <algorithm>
 #include <functional>
@@ -12584,6 +12586,7 @@ void ViewportWidget::render(Camera* camera)
 		beginFrameGpuTimer();
 		RenderableMesh::recordDisplayedMeshes(static_cast<qint64>(_sceneRuntime.currentVisibleObjectIds().size()));
 		logBatchDiagnostics();
+		logMemoryAudit();
 	}
 
 	glEnable(GL_DEPTH_TEST);
@@ -12851,6 +12854,93 @@ void ViewportWidget::render(Camera* camera)
 // Draw-batching study: how many distinct draw groups do the displayed meshes fall into, and how many could be
 // merged at all (see research/rendering/DRAW_BATCHING_DESIGN.md). Walks every displayed mesh, so it runs at most
 // every 5 seconds, only while render profiling is on and only for models large enough to matter.
+// Where does a large model's memory go? Sums the CPU-side arrays every mesh holds and sets the total against what the
+// OS says the process holds (the difference is the scene graph, the imported scene, driver copies of GL buffers, the
+// heap's own overhead and everything the application holds before any model is loaded). Logged once at the first
+// frame (the empty application) and then every 15 seconds for models of at least 1000 meshes, while render
+// profiling is on.
+void ViewportWidget::logMemoryAudit()
+{
+	static QElapsedTimer clock;
+	static bool baselineLogged = false;
+	const size_t meshCount = _sceneRuntime.meshStore().size();
+	if (baselineLogged && (meshCount < 1000 || (clock.isValid() && clock.elapsed() < 15000)))
+		return;
+	clock.restart();
+
+	constexpr double MB = 1024.0 * 1024.0;
+	quint64 privateBytes = 0, workingSet = 0;
+	const bool haveProcess = ProcessMemory::query(privateBytes, workingSet);
+
+	QString gpu;
+	if (context() && context()->hasExtension(QByteArrayLiteral("GL_NVX_gpu_memory_info")))
+	{
+		GLint totalKb = 0, availableKb = 0;
+		glGetIntegerv(0x9048 /*GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX*/, &totalKb);
+		glGetIntegerv(0x9049 /*GPU_MEMORY_INFO_CURRENT_AVAILABLE_VIDMEM_NVX*/, &availableKb);
+		gpu = QStringLiteral(" gpuUsedMB=%1 gpuTotalMB=%2")
+			.arg((totalKb - availableKb) / 1024).arg(totalKb / 1024);
+	}
+
+	if (!baselineLogged)
+	{
+		baselineLogged = true;
+		Logger::instance().info(QStringLiteral("[MemoryAudit] startup privateMB=%1 workingSetMB=%2%3")
+			.arg(privateBytes / MB, 0, 'f', 0).arg(workingSet / MB, 0, 'f', 0).arg(gpu), QStringLiteral("Performance"));
+		if (meshCount < 1000)
+			return;
+	}
+
+	MeshMemoryUsage u;
+	for (const SceneMeshRecord& record : _sceneRuntime.meshStore())
+		if (record.mesh)
+			record.mesh->addMemoryUsage(u);
+
+	const auto mb = [&](qint64 bytes) { return QString::number(static_cast<double>(bytes) / MB, 'f', 0); };
+	Logger::instance().info(
+		QStringLiteral("[MemoryAudit] meshes=%1 vertices=%2 triangles=%3 | MB: vertexStructs=%4 points=%5 normals=%6 "
+			"colors=%7 texCoords=%8 tangents=%9 joints=%10 indices=%11 worldPoints=%12 lodIndices=%13 edges=%14 "
+			"caches=%15 | meshArraysMB=%16 | privateMB=%17 workingSetMB=%18 otherMB=%19%20")
+			.arg(u.meshes).arg(u.vertices).arg(u.triangles).arg(mb(u.vertexStructs)).arg(mb(u.points)).arg(mb(u.normals))
+			.arg(mb(u.colors)).arg(mb(u.texCoords)).arg(mb(u.tangents)).arg(mb(u.joints)).arg(mb(u.indices))
+			.arg(mb(u.worldPoints)).arg(mb(u.lodIndices)).arg(mb(u.edges)).arg(mb(u.caches)).arg(mb(u.total()))
+			.arg(haveProcess ? QString::number(privateBytes / MB, 'f', 0) : QStringLiteral("?"))
+			.arg(haveProcess ? QString::number(workingSet / MB, 'f', 0) : QStringLiteral("?"))
+			.arg(haveProcess ? QString::number((static_cast<double>(privateBytes) - static_cast<double>(u.total())) / MB, 'f', 0)
+				: QStringLiteral("?"))
+			.arg(gpu),
+		QStringLiteral("Performance"));
+
+	static bool detailLogged = false;
+	if (!detailLogged && haveProcess)
+	{
+		detailLogged = true;
+		// Fixed per-mesh object sizes: the arrays above are only part of what 40,000 mesh objects hold.
+		Logger::instance().info(
+			QStringLiteral("[MemoryAudit] object sizes (bytes): SceneMesh=%1 (x%2 = %3 MB) Material=%4 MeshInstanceState=%5 "
+				"MeshImportAdaptor=%6 MeshAnimationState=%7 Vertex=%8")
+				.arg(sizeof(SceneMesh)).arg(u.meshes).arg(static_cast<double>(sizeof(SceneMesh)) * u.meshes / MB, 0, 'f', 0)
+				.arg(sizeof(Material)).arg(sizeof(MeshInstanceState)).arg(sizeof(MeshImportAdaptor))
+				.arg(sizeof(MeshAnimationState)).arg(sizeof(Vertex)),
+			QStringLiteral("Performance"));
+		ProcessMemory::Breakdown b;
+		if (ProcessMemory::breakdown(b))
+		{
+			const auto m = [&](quint64 bytes) { return QString::number(static_cast<double>(bytes) / MB, 'f', 0); };
+			Logger::instance().info(
+				QStringLiteral("[MemoryAudit] where: heaps=%1 heapAllocatedMB=%2 heapCommittedMB=%3 | privateCommittedMB=%4 "
+					"mappedMB=%5 imageMB=%6 | private regions MB (count): <64KB %7 (%8), <1MB %9 (%10), <16MB %11 (%12), "
+					"<256MB %13 (%14), >=256MB %15 (%16)")
+					.arg(b.heapCount).arg(m(b.heapAllocated)).arg(m(b.heapCommitted)).arg(m(b.privateCommitted))
+					.arg(m(b.mappedCommitted)).arg(m(b.imageCommitted))
+					.arg(m(b.regionBytes[0])).arg(b.regionCount[0]).arg(m(b.regionBytes[1])).arg(b.regionCount[1])
+					.arg(m(b.regionBytes[2])).arg(b.regionCount[2]).arg(m(b.regionBytes[3])).arg(b.regionCount[3])
+					.arg(m(b.regionBytes[4])).arg(b.regionCount[4]),
+				QStringLiteral("Performance"));
+		}
+	}
+}
+
 void ViewportWidget::logBatchDiagnostics()
 {
 	static QElapsedTimer clock;

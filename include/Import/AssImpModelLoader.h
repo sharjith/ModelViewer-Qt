@@ -25,6 +25,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <gp_Trsf.hxx>
+#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QImage>
 #include <QMatrix4x4>
@@ -409,6 +410,10 @@ private:
 	int _totalNodeCount = 0;
 	int _totalMeshOccurrences = 0;
 	int _processedNodeCount = 0;
+	// Progress is reported at most every 50 ms: one queued signal per mesh and node left the viewer thread draining
+	// tens of thousands of status-bar updates long after a 40,000-part import had finished.
+	void emitNodeMeshProgress(bool uvProcessed, bool force = false);
+	QElapsedTimer _progressClock;
 	int _processedMeshCount = 0;
 	bool _preservesNodeTransforms = false;
 

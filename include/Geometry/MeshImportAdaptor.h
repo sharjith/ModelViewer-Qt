@@ -126,6 +126,14 @@ public:
     const std::vector<int>& occFaceIndexPerTriangle() const { return _occFaceIndexPerTriangle; }
     const std::vector<OccFaceAxisInfo>& occFaceAxes() const { return _occFaceAxes; }
     bool hasOccFaces() const { return !_occFaceTriangleIndices.empty(); }
+    // Heap bytes held by the OCC edge/face and provenance arrays (diagnostics).
+    qint64 occDataBytes() const
+    {
+        return static_cast<qint64>(_occEdgeSegments.capacity() * sizeof(float) + _occEdgeBoundaries.capacity() * sizeof(int)
+            + _occEdgeCircles.capacity() * sizeof(OccEdgeCircleInfo) + _occFaceTriangleIndices.capacity() * sizeof(int)
+            + _occFaceIndexPerTriangle.capacity() * sizeof(int) + _occFaceAxes.capacity() * sizeof(OccFaceAxisInfo)
+            + _sourceMeshIds.capacity() * sizeof(quint64));
+    }
 
     // ---- Source-mesh provenance (Curvature Analysis cross-body advisory) ---
     // One id per CURRENT vertex (same order as SceneMesh::vertices()), tying

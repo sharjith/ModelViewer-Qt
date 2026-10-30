@@ -564,10 +564,13 @@ _hasVertexColors(false)
 
 	_vertexArrayObject.create();
 
-	QImage dummy(128, 128, QImage::Format_ARGB32);
-	dummy.fill(Qt::white);
-	_fallbackTextureBuffer = dummy;
-	_fallbackTextureImage = convertToGLFormat(_fallbackTextureBuffer);
+	// The fallback texture is plain white, so one texel samples identically to any larger image under every filter and
+	// wrap mode. It used to be a private 128x128 image per mesh (two CPU copies of 64 KB plus a 64-85 KB GL texture),
+	// about 200 KB each: 8 GB for a 40,000-part assembly. The images are shared (QImage is copy-on-write).
+	static const QImage s_fallbackBuffer = []() { QImage image(1, 1, QImage::Format_ARGB32); image.fill(Qt::white); return image; }();
+	static const QImage s_fallbackGlImage = convertToGLFormat(s_fallbackBuffer);
+	_fallbackTextureBuffer = s_fallbackBuffer;
+	_fallbackTextureImage = s_fallbackGlImage;
 
 	recreateFallbackTexture();
 }

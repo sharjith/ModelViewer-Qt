@@ -1,4 +1,5 @@
 #include "SceneMesh.h"
+#include "MeshMemoryUsage.h"
 #include "ImportDiagnostics.h"
 #include "ScopedMaterialWireframe.h"
 #include "TextureLocationManager.h"
@@ -1633,6 +1634,28 @@ quint64 SceneMesh::drawGroupKey() const
 	// The program is deliberately not part of the key: a batch is drawn with whichever program the pass uses, and
 	// the caller only batches while that is a single program.
 	return uniformStateSignature();
+}
+
+void SceneMesh::addMemoryUsage(MeshMemoryUsage& u) const
+{
+	const auto bytes = [](const auto& v) { return static_cast<qint64>(v.capacity()) * static_cast<qint64>(sizeof(typename std::decay_t<decltype(v)>::value_type)); };
+	++u.meshes;
+	u.vertices += static_cast<qint64>(_points.size() / 3);
+	u.triangles += static_cast<qint64>(_indices.size() / 3);
+	u.vertexStructs += bytes(_vertices) + bytes(_baseVertices);
+	u.points += bytes(_points);
+	u.normals += bytes(_normals);
+	u.colors += bytes(_colors);
+	u.texCoords += bytes(_texCoords);
+	u.tangents += bytes(_tangents) + bytes(_bitangents);
+	u.joints += bytes(_jointIndices) + bytes(_jointWeights);
+	u.indices += bytes(_indices);
+	u.worldPoints += bytes(getTrsfPoints());
+	u.lodIndices += bytes(_pendingLod1Indices) + bytes(_lod1Indices);
+	u.edges += bytes(_featureEdgeIndices) + bytes(_preparedFeatureEdges) + _importState.occDataBytes();
+	u.caches += bytes(_triangleAdjacencyCache) + bytes(_detectedCircularLoopsCache)
+		+ static_cast<qint64>(_occTriangleFaceLookup.size()) * 40;
+	u.morph += static_cast<qint64>(_morphTargets.size()) * 64;
 }
 
 bool SceneMesh::isStaticBatchCandidate() const

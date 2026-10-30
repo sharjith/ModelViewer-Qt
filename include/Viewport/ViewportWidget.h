@@ -1662,6 +1662,7 @@ protected:
 	// GPU time of render() for the profile-rendering diagnostics. Two timer queries are used alternately
 	// and read one frame late, so the profiler never stalls the pipeline waiting for a result.
 	void logBatchDiagnostics();
+	void logMemoryAudit();
 	void beginFrameGpuTimer();
 	void endFrameGpuTimer();
 	GLuint _frameGpuQueries[2] = { 0, 0 };

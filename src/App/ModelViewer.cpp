@@ -1,5 +1,7 @@
 #include "FloatingPanelDialog.h"
 #include "ImportDiagnostics.h"
+#include "Logger.h"
+#include <QElapsedTimer>
 #include "AddMeasurementCommand.h"
 #include "AddAnnotationCommand.h"
 #include "MeasurementVisibilityCommand.h"
@@ -5252,8 +5254,26 @@ void ModelViewer::deleteSceneState(const QUuid& stateId)
 	_undoStack->push(new DeleteSceneStateCommand(this, _viewportWidget, stateId));
 }
 
+namespace {
+// Logs how long a visibility step took (only steps slower than 20 ms) so a slow Show All / Hide on a large model can be traced.
+struct VisibilityLap
+{
+	const char* label;
+	QElapsedTimer clock;
+	explicit VisibilityLap(const char* l) : label(l) { clock.start(); }
+	~VisibilityLap()
+	{
+		const qint64 ms = clock.elapsed();
+		if (ms >= 20)
+			Logger::instance().info(QStringLiteral("[VisibilityDiagnostics] %1 took %2 ms").arg(QLatin1String(label)).arg(ms),
+				QStringLiteral("Performance"));
+	}
+};
+}
+
 void ModelViewer::showAllItems()
 {
+	VisibilityLap lapShowAll("showAllItems total");
 	// Show All is one coherent action across every content type - see
 	// hideAllItems()'s identical reasoning.
 	if (_undoStack)
@@ -8231,8 +8251,20 @@ void ModelViewer::applyVisibleMeshState(bool syncTree,
 	if (!_viewportWidget)
 		return;
 
-	_viewportWidget->setDisplayList(visibleIndicesFromState());
-	updateVisibilityUiFromState();
+	VisibilityLap lapApply("applyVisibleMeshState total");
+	{
+		std::vector<int> ids;
+		{
+			VisibilityLap lap("visibleIndicesFromState");
+			ids = visibleIndicesFromState();
+		}
+		VisibilityLap lap("setDisplayList");
+		_viewportWidget->setDisplayList(ids);
+	}
+	{
+		VisibilityLap lap("updateVisibilityUiFromState");
+		updateVisibilityUiFromState();
+	}
 
 	if (syncTree)
 	{
@@ -8305,6 +8337,7 @@ void ModelViewer::scheduleTreeVisibilitySync(int delayMs)
 void ModelViewer::syncTreeVisibilityFromModel()
 {
 	_treeVisibilityDirty = false;
+	VisibilityLap lap("tree setVisibilityByUuids");
 	treeWidgetModel->setVisibilityByUuids(_visibleMeshUuids);
 }
 
