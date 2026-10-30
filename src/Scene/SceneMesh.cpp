@@ -1884,7 +1884,18 @@ namespace
 	// once at load time - small parts (fasteners, brackets) that appear by
 	// the hundreds in mechanical assemblies dominate mesh COUNT but not
 	// triangle cost.
-	constexpr size_t kLodMinTriangleCount = 5000;
+	// Default only: QSettings "lodMinTriangles" overrides it (read once per session, see lodMinTriangleCount()).
+	constexpr size_t kLodMinTriangleCountDefault = 2000;
+
+	// Smallest mesh that gets an interaction-time LOD1 tier. 5000 left the typical part of a 40,000-part assembly (a few
+	// thousand triangles) at full cost while the model was being orbited, so the default is lower; a part this small costs
+	// about a millisecond to simplify once at load.
+	size_t lodMinTriangleCount()
+	{
+		static const size_t value = static_cast<size_t>(
+			qBound(300, QSettings().value(QStringLiteral("lodMinTriangles"), static_cast<int>(kLodMinTriangleCountDefault)).toInt(), 1000000));
+		return value;
+	}
 }
 
 bool SceneMesh::optimizeGeometry(std::vector<Vertex>& vertices, std::vector<unsigned int>& indices, bool allowLod,
@@ -1918,7 +1929,7 @@ bool SceneMesh::optimizeGeometry(std::vector<Vertex>& vertices, std::vector<unsi
 	// skinning/morph data isn't remapped by this pass, and a simplified skinned mesh's weights would no longer correspond to the
 	// simplified topology).
 	std::vector<unsigned int> lod1Indices;
-	if (allowLod && indices.size() >= kLodMinTriangleCount * 3)
+	if (allowLod && indices.size() >= lodMinTriangleCount() * 3)
 	{
 		const size_t targetIndexCount = (static_cast<size_t>(indices.size() * kLod1TriangleRatio) / 3) * 3;
 		float resultError = 0.0f;
@@ -2010,7 +2021,7 @@ void SceneMesh::optimizeMesh()
 	// hasMorphTargets() overrides ARE what's being called, not a "wrong" base version.
 	const bool eligibleForLod = !hasSkinning() && !hasMorphTargets() // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
 		&& _primitiveMode == GL_TRIANGLES
-		&& _indices.size() >= kLodMinTriangleCount * 3;
+		&& _indices.size() >= lodMinTriangleCount() * 3;
 
 	const size_t vertexCount = _vertices.size();
 	std::vector<unsigned int> lod1Indices, remap;

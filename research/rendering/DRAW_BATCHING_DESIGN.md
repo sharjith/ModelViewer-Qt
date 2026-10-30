@@ -358,3 +358,31 @@ Observations (log lines `[MeshBuildProfile]`, `[LoadPhases]`, `[SlowFrame]`; own
 Still open (measured, not changed): GL upload 3.7 s, array setup 1.0 s, constructor body 0.8 s, worker tail
 `optimize-meshes` about 6 s, per-mesh conversion about 17 s single-threaded, GLB parse about 10 s.
 Smoke test by the owner (wireframe/edges, selection/hover, textured glTF, skinned/animated glTF): passed, 2026-10-30.
+
+### 8.15 Interaction on a very heavy model (2026-10-30; synthetic 40k very heavy: 147 M triangles, 101 M vertices, owner machine, release build)
+
+Observations (log lines `[SelectDiagnostics]`, `[SlowEvent]`, `[SlowFrame]`, `[RenderDiagnostics]`, `[DrawBatcher]`):
+
+- **Rebuild after a large visibility change** took 4 minutes (240 s), because the build slice was a fixed 6 ms per frame and
+  frames lasted 0.3-0.5 s while the missing meshes drew one by one; it also waited for 30 frames in a row. The slice is now about 40% of
+  the frame interval (capped at 250 ms) and a rebuild starts after 2 s of missing meshes. The owner confirmed show/hide recovers fast.
+- **Click and rubber-band press froze for 4-12 s.** `SelectionManager::processSelection()` drew all 40,000 meshes at full
+  resolution with a `glFinish()` after each, to decide one pixel (CPU ray pass: 2 ms). It now skips meshes whose bounding sphere
+  cannot reach the pixel (skinned, morphing and pose-driven meshes are always drawn) and flushes periodically; a click took
+  about 150-240 ms afterwards. `sweepSelect()`/`lassoSelect()` no longer use `QList::contains()`/`removeAll()` per mesh.
+- **The 1-3 s freeze after a selection** was two queued `updateMeshTools()` calls (viewport and tree both emit `selectionChanged`):
+  `SceneMesh::indices()` returned the index vector by value, so the per-mesh check copied every array (1,728 ms for 9,835
+  meshes, 8 ms after returning a const reference; `RenderableMesh::getIndices()` likewise), and
+  `SceneTreeWidget::explicitlySelectedAssemblyNodes()` built `selectedItems()` for tens of thousands of leaves (about 0.75 s
+  per call; early return when no assembly was clicked).
+- **Selected meshes no longer leave their batch.** The group key (`SceneMesh::drawGroupKey()`) ignores selection and each
+  group draws its unselected ranges, then its selected ranges under a selected representative's uniforms (the only thing
+  selection changes for an opaque mesh is the `selected` uniform). Selecting 37,799 meshes had cost a 2.8-3.3 s frame; transparent
+  meshes still leave their run when selected.
+- **LOD threshold.** The interaction tier was only built for meshes of 5,000 or more triangles; this model averages 3,700.
+  QSettings `lodMinTriangles` (default now 2000, range 300-1,000,000). Orbit: triangles per frame 109 M to 43 M, GPU time about
+  85 ms to about 60 ms; the frame is then CPU bound at about 76 ms (13,849 meshes drawn individually). Cost: load about 34 s
+  longer (10%) from the extra simplification.
+- **Not changed:** the batch set stops at `kMaxTotalVertices` = 64 M vertices (26,151 of 40,000 meshes, 5.2 GB), a deliberate cap on
+  extra GPU memory; this model already uses 12.4 of 16 GB. Freeing the per-mesh buffers of batched meshes would be the way past it.
+  On the 40,000-mesh heavy model (about 400 triangles per part) the LOD threshold has no effect.
