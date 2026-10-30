@@ -7,6 +7,7 @@
 #include "SceneMesh.h"
 #include "Utils.h"
 #include "Logger.h"
+#include "MeshBuildProfile.h"
 #include "IGpuContextResource.h"
 #include <algorithm>
 #include <array>
@@ -530,7 +531,10 @@ RenderableMesh::RenderableMesh(QOpenGLShaderProgram* prog, const QString name) :
 _material(_materialState.material()),
 _hasVertexColors(false)
 {
-	setAutoIncrName(name);
+	{
+		MeshBuildProfile::Lap nameLap(MeshBuildProfile::BaseAutoName);
+		setAutoIncrName(name);
+	}
 	_memorySize = 0;
 	// Transform/bounds state lives in _instanceState; material state in _materialState.
 
@@ -548,21 +552,24 @@ _hasVertexColors(false)
 	_jointIndexBuffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
 	_jointWeightBuffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
 
+	MeshBuildProfile::Lap glObjectsLap(MeshBuildProfile::BaseGlObjects);
 	_indexBuffer.create();
 	_positionBuffer.create();
 	_normalBuffer.create();
 	_colorBuffer.create();
-	_analysisOverlayColorBuffer.create();
-	_texCoord0Buffer.create();
-	_texCoord1Buffer.create();
-	_texCoord2Buffer.create();
-	_texCoord3Buffer.create();
+	// Filled only by meshes that have analysis colours, texture coordinates or skinning: the name is generated at the first bind.
+	_analysisOverlayColorBuffer.createLazily();
+	_texCoord0Buffer.createLazily();
+	_texCoord1Buffer.createLazily();
+	_texCoord2Buffer.createLazily();
+	_texCoord3Buffer.createLazily();
 	_tangentBuf.create();
 	_bitangentBuf.create();
-	_jointIndexBuffer.create();
-	_jointWeightBuffer.create();
+	_jointIndexBuffer.createLazily();
+	_jointWeightBuffer.createLazily();
 
 	_vertexArrayObject.create();
+	glObjectsLap.stop();
 
 	// The fallback texture is plain white, so one texel samples identically to any larger image under every filter and
 	// wrap mode. It used to be a private 128x128 image per mesh (two CPU copies of 64 KB plus a 64-85 KB GL texture),
@@ -572,7 +579,11 @@ _hasVertexColors(false)
 	_fallbackTextureBuffer = s_fallbackBuffer;
 	_fallbackTextureImage = s_fallbackGlImage;
 
-	recreateFallbackTexture();
+	// The GL texture itself is created when it is first bound (bindTexturesOptimized()): most meshes of a large assembly never
+	// draw individually. recreateFallbackTexture() used to run here and also left texture unit 0 active and
+	// GL_UNPACK_ALIGNMENT at 1 for the code after it; keep those two side effects.
+	glActiveTexture(GL_TEXTURE0);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 }
 
 void RenderableMesh::cacheBaseVolumeProperties()
@@ -1101,6 +1112,11 @@ void RenderableMesh::setupTextures()
 		: (_material.hasDiffuseMap() ? _material.diffuseTextureId() : 0U);
 
 	glActiveTexture(GL_TEXTURE0);
+	if (_fallbackTexture == 0)
+	{
+		recreateFallbackTexture();
+		_textureBindingsDirty = true; // a new texture has no image yet; the upload below runs on this flag
+	}
 	glBindTexture(GL_TEXTURE_2D, _fallbackTexture);
 	if (_textureBindingsDirty && !_fallbackTextureImage.isNull())
 	{

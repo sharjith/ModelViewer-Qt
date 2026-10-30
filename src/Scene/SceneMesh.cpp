@@ -1,4 +1,5 @@
 #include "SceneMesh.h"
+#include "MeshBuildProfile.h"
 #include "MeshMemoryUsage.h"
 #include "ImportDiagnostics.h"
 #include "ScopedMaterialWireframe.h"
@@ -13,6 +14,7 @@
 #include <QVariantMap>
 #include <QDebug>
 #include <QSettings>
+#include <mutex>
 #include <QCoreApplication>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
@@ -306,12 +308,23 @@ inline void mixVec3(quint64& hash, const QVector3D& value)
 	mixFloat(hash, value.z());
 }
 
+// Read once a second at most: this is asked for every mesh created, and a QSettings read is a registry read on Windows
+// (about 70 us each, 2.8 s for a 40,000-part assembly). A change in the Settings dialog is picked up within a second.
 inline bool wireframeFeaturesEnabled()
 {
-	return QSettings(QCoreApplication::organizationName(),
-	                 QCoreApplication::applicationName())
-	    .value("showWireframeCheckBox", true)
-	    .toBool();
+	static std::mutex mutex;
+	static QElapsedTimer clock;
+	static bool cached = true;
+	std::lock_guard<std::mutex> lock(mutex);
+	if (!clock.isValid() || clock.elapsed() > 1000)
+	{
+		cached = QSettings(QCoreApplication::organizationName(),
+		                   QCoreApplication::applicationName())
+		    .value("showWireframeCheckBox", true)
+		    .toBool();
+		clock.restart();
+	}
+	return cached;
 }
 
 }
@@ -334,6 +347,7 @@ SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> 
     , _textures(_materialState.textures())
     , _currentMorphWeights(_animState.currentMorphWeights())
 {
+	MeshBuildProfile::Lap ctorBodyLap(MeshBuildProfile::CtorBody);
 	_currentBlendEnabled = false;
 	_currentFrontFace = GL_CCW;
 	_importState.setSkipOptimization(skipOptimization);
@@ -371,6 +385,7 @@ SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> 
 	ImportDiagnostics::checkpoint("mesh.ctor-optimize-end");
 
 	// Now that we have all the required data, set the vertex buffers and its attribute pointers.
+	ctorBodyLap.stop();
 	setupMesh();
 }
 
@@ -2029,6 +2044,7 @@ void SceneMesh::optimizeMesh()
 // Initializes all the buffer objects/arrays
 void SceneMesh::setupMesh()
 {
+	MeshBuildProfile::Lap arraysLap(MeshBuildProfile::SetupArrays);
 	// ============================================
 	// Extract to separate arrays
 	// ============================================
@@ -2121,12 +2137,18 @@ void SceneMesh::setupMesh()
 	}
 
 	ImportDiagnostics::checkpoint("mesh.setup-arrays-end", -1, _vertices.size(), _indices.size());
+	arraysLap.stop();
+	MeshBuildProfile::Lap glLap(MeshBuildProfile::GlUpload);
 	initBuffers(&_indices, &points, &normals, &colors, hasUvs ? &texCoords : nullptr, &tangents, &bitangents, hasSkin ? &jointIndices : nullptr,
 		hasSkin ? &jointWeights : nullptr);
 	ImportDiagnostics::checkpoint("mesh.setup-gl-upload-end");
+	glLap.stop();
+	MeshBuildProfile::Lap boundsLap(MeshBuildProfile::LodAndBounds);
 	uploadLodTier();
 	computeBounds();
 	ImportDiagnostics::checkpoint("mesh.setup-bounds-end");
+	boundsLap.stop();
+	MeshBuildProfile::Lap edgesLap(MeshBuildProfile::FeatureEdges);
 	if (wireframeFeaturesEnabled())
 		buildAndUploadFeatureEdges(15.0f);
 	ImportDiagnostics::checkpoint("mesh.setup-edges-end");
@@ -2398,7 +2420,19 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 	if (_featureEdgeCount == 0)
 		return;
 
-	// --- Step 4: Upload index buffer ---
+	// The GPU objects are created by the first draw that needs them (ensureFeatureEdgesOnGpu()).
+	_featureEdgesGpuPending = true;
+}
+
+void SceneMesh::ensureFeatureEdgesOnGpu()
+{
+	if (!_featureEdgesGpuPending)
+		return;
+	_featureEdgesGpuPending = false;
+	if (_featureEdgeIndices.empty())
+		return;
+
+	// --- Upload index buffer ---
 	if (!_featureEdgeIndexBuffer.isCreated())
 		_featureEdgeIndexBuffer.create();
 	_featureEdgeIndexBuffer.bind();
@@ -2407,7 +2441,7 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 	                                 static_cast<int>(_featureEdgeIndices.size() * sizeof(uint32_t)));
 	_featureEdgeIndexBuffer.release();
 
-	// --- Step 5: Create feature edge VAO ---
+	// --- Create feature edge VAO ---
 	// Reuses the same vertex VBOs as the main VAO; only the index buffer differs.
 	// Attribute locations (0=pos, 1=norm, 2=color, 9=jointIdx, 10=jointWgt) are
 	// fixed by layout(location=N) in wireframe.vert, so _prog's locations match.
@@ -3939,7 +3973,10 @@ void SceneMesh::renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg)
 		return;
 	}
 
-	if (!_featureEdgeVAO.isCreated() || _featureEdgeCount == 0)
+	if (_featureEdgeCount == 0)
+		return;
+	ensureFeatureEdgesOnGpu();
+	if (!_featureEdgeVAO.isCreated())
 		return;
 	ScopedWireVertexAlpha vertexAlpha(wireProg,
 		_hasVertexColors && _material.blendMode() == Material::BlendMode::Alpha);

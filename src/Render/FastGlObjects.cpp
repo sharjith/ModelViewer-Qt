@@ -46,6 +46,7 @@ FastGlBuffer::State::~State()
 
 void FastGlBuffer::State::release()
 {
+	lazy = false;
 	if (id == 0)
 		return;
 	QOpenGLContext* ctx = QOpenGLContext::currentContext();
@@ -76,9 +77,15 @@ bool FastGlBuffer::create()
 	return _state->id != 0;
 }
 
+void FastGlBuffer::createLazily()
+{
+	if (_state->id == 0)
+		_state->lazy = true;
+}
+
 bool FastGlBuffer::isCreated() const
 {
-	return _state->id != 0;
+	return _state->id != 0 || _state->lazy;
 }
 
 void FastGlBuffer::destroy()
@@ -88,6 +95,8 @@ void FastGlBuffer::destroy()
 
 bool FastGlBuffer::bind()
 {
+	if (_state->id == 0 && _state->lazy)
+		create();
 	QOpenGLExtraFunctions* f = currentFunctions();
 	if (!f || _state->id == 0)
 		return false;

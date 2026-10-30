@@ -41,6 +41,11 @@ public:
 		int  minDisplayedMeshes = 3000; // below this, batching is never used, so ordinary models are untouched
 		int  minGroupSize = 6;          // smaller groups are not worth a buffer of their own
 		bool fastValidation = true;     // skip re-checking meshes while nothing that affects batching has changed
+		// Set by the caller, not read from QSettings: build the first batches in one go, before this frame is drawn, instead of
+		// spread over many frames after it. Without it the first frame of a 40,000-part model draws every mesh individually
+		// (12 s, mostly first-use state setup) and the batches only take over a few seconds later. For callers that know the
+		// scene is complete (no import in progress).
+		bool immediateInitialBuild = false;
 	};
 	using MeshLookup = std::function<SceneMesh*(int)>;
 	using DrawOne = std::function<void(int)>;
@@ -159,6 +164,7 @@ private:
 	size_t _verifyCursor = 0;
 	int _verifyMismatches = 0;
 	bool _fastDisabled = false;
+	bool _buildSynchronously = false; // the build in progress is the immediate initial one: no per-frame time budgets
 	quint64 _lastRuntimeRevision = 0;
 	int _stableFrames = 0;
 	QElapsedTimer _sinceBuild;

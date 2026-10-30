@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <cstring>
 
 namespace
@@ -499,8 +500,9 @@ void DrawBatcher::update(const std::vector<int>& visibleIds, const MeshLookup& m
 		// The first build does not wait for a perfectly still scene (something touches the scene's bounds revision
 		// every frame, so it is never still): it starts after 2 stable frames or 1.5 s. A rebuild starts once many
 		// meshes have been missing from the batches for a while; the wait between builds backs off if they keep recurring.
+		const bool immediate = neverBuilt && settings.immediateInitialBuild;
 		const bool settled = neverBuilt
-			? (_stableFrames >= 2 || (_wantedSince.isValid() && _wantedSince.elapsed() > 1500))
+			? (immediate || _stableFrames >= 2 || (_wantedSince.isValid() && _wantedSince.elapsed() > 1500))
 			: _missingStreak >= kMissingFramesBeforeRebuild;
 		if ((neverBuilt || tooManyMissing) && settled && cooledDown)
 		{
@@ -510,6 +512,7 @@ void DrawBatcher::update(const std::vector<int>& visibleIds, const MeshLookup& m
 			_missingStreak = 0;
 			startScan(visibleIds);
 			_needsInitialBuild = false;
+			_buildSynchronously = immediate;
 		}
 		if (_phase == Phase::Idle)
 			return;
@@ -517,7 +520,7 @@ void DrawBatcher::update(const std::vector<int>& visibleIds, const MeshLookup& m
 
 	if (_phase == Phase::Scanning)
 	{
-		if (!advanceScan(meshAt, settings, kScanBudgetMicros))
+		if (!advanceScan(meshAt, settings, _buildSynchronously ? std::numeric_limits<qint64>::max() / 4 : kScanBudgetMicros))
 			return;
 	}
 
@@ -525,7 +528,8 @@ void DrawBatcher::update(const std::vector<int>& visibleIds, const MeshLookup& m
 	{
 		QElapsedTimer slice;
 		slice.start();
-		while (_buildPos < _buildQueue.size() && slice.nsecsElapsed() / 1000 < kBuildBudgetMicros)
+		const qint64 buildBudget = _buildSynchronously ? std::numeric_limits<qint64>::max() / 4 : kBuildBudgetMicros;
+		while (_buildPos < _buildQueue.size() && slice.nsecsElapsed() / 1000 < buildBudget)
 			buildSpec(_buildQueue[_buildPos++], meshAt);
 		if (_buildPos >= _buildQueue.size())
 		{
@@ -538,6 +542,7 @@ void DrawBatcher::update(const std::vector<int>& visibleIds, const MeshLookup& m
 			_buildQueue.clear();
 			_buildQueue.shrink_to_fit();
 			_phase = Phase::Idle;
+			_buildSynchronously = false;
 			_sinceBuild.restart();
 			_missingLastFrame = 0;
 		}

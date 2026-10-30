@@ -3,6 +3,7 @@
 #include "AssImpModelLoader.h"
 #include "ViewportWidget.h"
 #include "SceneMesh.h"
+#include "MeshBuildProfile.h"
 
 #include <QString>
 #include <memory>
@@ -12,6 +13,7 @@ SceneMesh* AssImpMeshBuilder::build(AssImpMeshData meshData,
                                     QOpenGLShaderProgram* shader,
                                     ViewportWidget* viewportWidget)
 {
+    MeshBuildProfile::Lap builderPre(MeshBuildProfile::BuilderPre);
     std::vector<Material::Texture> textures = std::move(meshData.textures);
     for (Material::Texture& texture : textures)
     {
@@ -192,6 +194,8 @@ SceneMesh* AssImpMeshBuilder::build(AssImpMeshData meshData,
         occSourceIndices = meshData.indices;
     }
 
+    builderPre.stop();
+    MeshBuildProfile::Lap sceneMeshTotal(MeshBuildProfile::SceneMeshTotal);
     auto mesh = std::make_unique<SceneMesh>(shader,
         std::move(meshData.name),
         std::move(meshData.vertices),
@@ -205,6 +209,8 @@ SceneMesh* AssImpMeshBuilder::build(AssImpMeshData meshData,
         meshData.geometryPrepared,
         std::move(meshData.preparedFeatureEdges),
         meshData.featureEdgesPrepared);
+    sceneMeshTotal.stop();
+    MeshBuildProfile::Lap builderPost(MeshBuildProfile::BuilderPost);
     mesh->setHasNegativeScale(meshData.hasNegativeScale);
     mesh->setSceneIndex(meshData.sceneIndex);
     mesh->setOriginalMaterialIndex(meshData.originalMaterialIndex);

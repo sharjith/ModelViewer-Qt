@@ -337,3 +337,24 @@ and `[SlowEvent]` in the newest log files.
   `paintGL()`) and `[SlowEvent]` (events of 8 ms or more) show the rest.
 - Not changed: culling is still 12.5 ms per frame (hidden behind the GPU now); the frame is GPU bound at about 25 ms
   (13 million triangles). `getMaterial()` callers outside the per-frame path (export, dialogs, load) still copy.
+
+### 8.14 Mesh creation and first frame (2026-10-30, synthetic 40k heavy model, release build)
+
+Observations (log lines `[MeshBuildProfile]`, `[LoadPhases]`, `[SlowFrame]`; owner machine):
+
+- Mesh creation on the GUI thread fell from 17.9 s to 10.6 s; the first frame from 12 s to 1.27 s.
+- Per-mesh GL objects that most meshes never use are now created on first use: the feature-edge buffers, the 1x1 fallback
+  texture and seven seldom-used buffer names (`FastGlBuffer::createLazily()`; `isCreated()` is true for a lazy object and
+  `bind()` creates it). Feature-edge GPU upload waits for `ensureFeatureEdgesOnGpu()`, called when edges are drawn.
+- `SceneMesh::wireframeFeaturesEnabled()` read QSettings once per mesh; it is cached for 1 s.
+- `DrawBatcher::Settings::immediateInitialBuild`: once an import has finished (no pending scene uuids) the first batch build
+  runs synchronously with the per-frame time budgets off, so the first frame draws batches rather than 40,000 individual
+  meshes (the 12 s first frame was first-use state setup in the individual path).
+- `include/Scene/MeshBuildProfile.h` times each stage of mesh creation (CtorBody, SetupArrays, GlUpload, LodAndBounds,
+  FeatureEdges, BaseGlObjects, BaseAutoName, builder pre/post, attach, display-list update).
+- `logMemoryAudit` walked the whole address space (about 4 s on a 9 GB process); the breakdown is now opt-in
+  (QSettings `memoryAuditBreakdown`) and the audit logs its own cost when it exceeds 50 ms.
+
+Still open (measured, not changed): GL upload 3.7 s, array setup 1.0 s, constructor body 0.8 s, worker tail
+`optimize-meshes` about 6 s, per-mesh conversion about 17 s single-threaded, GLB parse about 10 s.
+Smoke test by the owner (wireframe/edges, selection/hover, textured glTF, skinned/animated glTF): passed, 2026-10-30.

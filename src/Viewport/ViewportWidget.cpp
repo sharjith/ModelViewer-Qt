@@ -49,6 +49,7 @@
 #include "Logger.h"
 #include "DrawBatcher.h"
 #include "MeshMemoryUsage.h"
+#include "MeshBuildProfile.h"
 #include "ProcessMemory.h"
 #include <cstring>
 #include <algorithm>
@@ -8530,7 +8531,9 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 			|| _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled() || _renderCtrl.boxClippingEnabled();
 		if (_displayMode == DisplayMode::SHADED && !flatProg && !anyClipping)
 		{
-			const DrawBatcher::Settings batchSettings = DrawBatcher::readSettings();
+			DrawBatcher::Settings batchSettings = DrawBatcher::readSettings();
+			// No import in progress: the scene is complete, so the first batches can be built before this frame is drawn.
+			batchSettings.immediateInitialBuild = _sceneRuntime.pendingSceneUuids().isEmpty();
 			if (!_drawBatcher)
 				_drawBatcher = std::make_unique<DrawBatcher>();
 			const auto meshLookup = [this](int meshId) { return _sceneRuntime.meshAt(meshId); };
@@ -12645,6 +12648,7 @@ void ViewportWidget::bindIBLTextures()
 void ViewportWidget::render(Camera* camera)
 {
 	QElapsedTimer frameTimer;
+	double slowFrameLap[4] = {}; // ms since the frame began: after the visibility cache, before opaque, after opaque, after transparent
 	// QSettings is a registry read on Windows; the checkbox does not change often enough to need it every frame.
 	static QElapsedTimer profileSettingClock;
 	static bool profileSetting = false;
@@ -12695,6 +12699,8 @@ void ViewportWidget::render(Camera* camera)
 		(_viewer && _viewer->sceneGraph()) ? _viewer->sceneGraph()->root() : nullptr,
 		RenderableMesh::currentRuntimeBoundsRevision(),
 		[this](const SceneMesh* mesh) { return isMeshAnimationVisible(mesh); });
+	if (profileRendering)
+		slowFrameLap[0] = static_cast<double>(frameTimer.nsecsElapsed()) / 1.0e6;
 
 	// While an interactive PT frame is being composited for the primary
 	// view, keep the raster skybox (drawn from the PT frame's own published
@@ -12781,6 +12787,8 @@ void ViewportWidget::render(Camera* camera)
 		_renderCtrl.fgShader()->bind();
 		RenderableMesh::recordProgramBindCall(true);
 		setCommonUniforms(_renderCtrl.fgShader(), camera);	
+		if (profileRendering)
+			slowFrameLap[1] = static_cast<double>(frameTimer.nsecsElapsed()) / 1.0e6;
 		{
 			QElapsedTimer opaqueTimer;
 			if (profileRendering)
@@ -12789,6 +12797,8 @@ void ViewportWidget::render(Camera* camera)
 			if (profileRendering)
 				RenderableMesh::recordOpaquePassCpuMs(static_cast<double>(opaqueTimer.nsecsElapsed()) / 1000000.0);
 		}
+		if (profileRendering)
+			slowFrameLap[2] = static_cast<double>(frameTimer.nsecsElapsed()) / 1.0e6;
 		_renderCtrl.fgShader()->release();
 	}
 
@@ -12884,6 +12894,8 @@ void ViewportWidget::render(Camera* camera)
 			if (profileRendering)
 				RenderableMesh::recordTransparentPassCpuMs(static_cast<double>(transparentTimer.nsecsElapsed()) / 1000000.0);
 		}
+		if (profileRendering)
+			slowFrameLap[3] = static_cast<double>(frameTimer.nsecsElapsed()) / 1.0e6;
 		_renderCtrl.fgShader()->release();
 	}
 
@@ -12924,7 +12936,17 @@ void ViewportWidget::render(Camera* camera)
 	if (profileRendering)
 	{
 		endFrameGpuTimer();
-		RenderableMesh::recordFrameCpuMs(static_cast<double>(frameTimer.nsecsElapsed()) / 1000000.0);
+		const double frameMs = static_cast<double>(frameTimer.nsecsElapsed()) / 1.0e6;
+		RenderableMesh::recordFrameCpuMs(frameMs);
+		// A frame of half a second or more (the first frame of a big model, a rebuild): where did it go?
+		if (frameMs >= 500.0)
+			Logger::instance().info(
+				QStringLiteral("[SlowFrame] total=%1 ms: visibility cache %2, skybox/pre-passes/uniforms %3, opaque pass %4, "
+					"floor + transparent %5, rest %6")
+					.arg(frameMs, 0, 'f', 0).arg(slowFrameLap[0], 0, 'f', 0).arg(slowFrameLap[1] - slowFrameLap[0], 0, 'f', 0)
+					.arg(slowFrameLap[2] - slowFrameLap[1], 0, 'f', 0).arg(slowFrameLap[3] - slowFrameLap[2], 0, 'f', 0)
+					.arg(frameMs - slowFrameLap[3], 0, 'f', 0),
+				QStringLiteral("Performance"));
 	}
 	RenderableMesh::flushRenderDiagnostics();
 }
@@ -12947,6 +12969,8 @@ void ViewportWidget::logMemoryAudit()
 	clock.restart();
 
 	constexpr double MB = 1024.0 * 1024.0;
+	QElapsedTimer auditClock;
+	auditClock.start();
 	quint64 privateBytes = 0, workingSet = 0;
 	const bool haveProcess = ProcessMemory::query(privateBytes, workingSet);
 
@@ -13001,8 +13025,9 @@ void ViewportWidget::logMemoryAudit()
 				.arg(sizeof(Material)).arg(sizeof(MeshInstanceState)).arg(sizeof(MeshImportAdaptor))
 				.arg(sizeof(MeshAnimationState)).arg(sizeof(Vertex)),
 			QStringLiteral("Performance"));
+		// Walks every region of the address space: seconds on a 9 GB process. Opt-in: QSettings memoryAuditBreakdown (bool).
 		ProcessMemory::Breakdown b;
-		if (ProcessMemory::breakdown(b))
+		if (QSettings().value(QStringLiteral("memoryAuditBreakdown"), false).toBool() && ProcessMemory::breakdown(b))
 		{
 			const auto m = [&](quint64 bytes) { return QString::number(static_cast<double>(bytes) / MB, 'f', 0); };
 			Logger::instance().info(
@@ -13017,6 +13042,8 @@ void ViewportWidget::logMemoryAudit()
 				QStringLiteral("Performance"));
 		}
 	}
+	if (auditClock.elapsed() >= 50)
+		Logger::instance().info(QStringLiteral("[MemoryAudit] the audit itself took %1 ms").arg(auditClock.elapsed()), QStringLiteral("Performance"));
 }
 
 void ViewportWidget::logBatchDiagnostics()
@@ -15233,6 +15260,7 @@ void ViewportWidget::consumeMeshBatch(AssImpMeshDataBatch&& batch)
 	const size_t batchSize = batch.size();
 	ImportDiagnostics::checkpoint("viewer.batch-begin", -1, batchSize);
 	makeCurrent();
+	MeshBuildProfile::begin();
 	for (AssImpMeshData& meshData : batch)
 		attachImportedMesh(std::move(meshData));
 
@@ -15241,7 +15269,11 @@ void ViewportWidget::consumeMeshBatch(AssImpMeshDataBatch&& batch)
 	// entire model rather than the bounded progressive batch size.
 	batch.clear();
 	batch.shrink_to_fit();
-	_viewer->updateDisplayList();
+	{
+		MeshBuildProfile::Lap displayListLap(MeshBuildProfile::UpdateDisplayList);
+		_viewer->updateDisplayList();
+	}
+	Logger::instance().info(MeshBuildProfile::end(), QStringLiteral("Performance"));
 	ImportDiagnostics::checkpoint("viewer.batch-end", -1, batchSize);
 }
 
@@ -15249,7 +15281,13 @@ void ViewportWidget::attachImportedMesh(AssImpMeshData meshData)
 {
 	const int sceneIndex = meshData.sceneIndex;
 	const bool initiallyVisible = meshData.initiallyVisible;
-	std::unique_ptr<SceneMesh> pendingMesh(createMeshFromData(std::move(meshData)));
+	std::unique_ptr<SceneMesh> pendingMesh;
+	{
+		MeshBuildProfile::Lap createLap(MeshBuildProfile::CreateTotal);
+		pendingMesh.reset(createMeshFromData(std::move(meshData)));
+	}
+	++MeshBuildProfile::meshCount();
+	MeshBuildProfile::Lap attachLap(MeshBuildProfile::Attach);
 	SceneMesh* mesh = pendingMesh.get();
 	ImportDiagnostics::checkpoint("viewer.attach-mesh-begin", sceneIndex);
 	addToDisplay(mesh);

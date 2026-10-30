@@ -644,6 +644,9 @@ private:
 	void setRenderStateOptimized();
 	void setupUniformsOptimized();
 	void bindFeatureEdgeVertexState();
+	// Creates the feature-edge index buffer and vertex array when they are first needed (a draw in a wireframe/edge pass),
+	// not at load: 40,000 parts spent about 5 s and 80,000 driver objects on edges that a shaded view never draws.
+	void ensureFeatureEdgesOnGpu();
 	quint64 uniformStateSignature() const;
 	void removeTexturesByType(std::initializer_list<std::string> types);
 
@@ -678,6 +681,7 @@ protected:
 	std::vector<unsigned int> _pendingLod1Indices;
 	std::vector<unsigned int> _lod1Indices;
 	std::vector<uint32_t> _featureEdgeIndices;
+	bool _featureEdgesGpuPending = false; // _featureEdgeIndices is final but not yet uploaded; see ensureFeatureEdgesOnGpu()
 	// Handed over by an importer, consumed by the first buildAndUploadFeatureEdges() (see computeFeatureEdges()).
 	std::vector<uint32_t> _preparedFeatureEdges;
 	bool                  _featureEdgesPrepared = false;
