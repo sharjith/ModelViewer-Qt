@@ -309,3 +309,31 @@ checks read fields spread over it. Candidate fixes and why they were deferred:
 - A compact per-mesh culling record (bounds, flags) in the runtime-visibility nodes instead of reading `SceneMesh`;
   needs invalidation when a mesh's transparency changes.
 - Expected gain of all three: the frame becomes GPU bound (about 22 ms), i.e. about 1.4x.
+
+### 8.13 Per-frame CPU: what was fixed (2026-10-30, synthetic 40k heavy model, orbit, release build)
+
+Regenerate with "Profile rendering" on: orbit for 15 s, then read `[RenderDiagnostics]`, `[DrawBatcher] state`, `[PaintDiagnostics]`
+and `[SlowEvent]` in the newest log files.
+
+| | before | after |
+|---|---|---|
+| batch pass (`batchMs`) | 16 ms | 4.5 ms |
+| `render()` CPU | 38 ms | 24 ms |
+| one `paintGL()` call | 62 ms | 25 ms |
+| frames per second while orbiting | 14 | 25-34 |
+
+- Fast validation (section 8.12, first option) is implemented: a process-wide render-state epoch
+  (`MeshInstanceState::renderStateEpoch()`), bumped by every transform, uniform/material/texture, geometry, primitive-mode,
+  negative-scale, debug-override, skin, morph and index-remap change; `DrawBatcher::drawBatches()` caches each mesh's answer
+  against it and re-checks a rotating slice of 256 meshes per frame, repairing and eventually disabling itself if the slice
+  ever disagrees (`verifyMismatches` in the `[DrawBatcher] state` line). QSettings key `batchFastValidation` (default on).
+  It only paid off after the axis-triad cone, which is rebuilt as the view changes, was marked as a decoration
+  (`setAffectsSceneRevision(false)`); until then it moved the epoch 15-50 times a second.
+- The larger loss was outside `render()`: `renderSingleView()` ran `sceneHasVisibleSSSMaterials()` and
+  `sceneHasVisibleTransmissionMaterials()` every frame over every mesh, and both called `getMaterial()`, which returns the
+  5.4 KB `Material` by value (about 80,000 copies per frame). `RenderableMesh::materialRef()` returns a reference. This is
+  what `[PaintDiagnostics]` exposed: the paint call took 62 ms while the render profiler reported 24 ms.
+- Lesson for further profiling: the render profiler only covers `render()`. `[PaintDiagnostics]` (CPU per section of
+  `paintGL()`) and `[SlowEvent]` (events of 8 ms or more) show the rest.
+- Not changed: culling is still 12.5 ms per frame (hidden behind the GPU now); the frame is GPU bound at about 25 ms
+  (13 million triangles). `getMaterial()` callers outside the per-frame path (export, dialogs, load) still copy.
