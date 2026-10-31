@@ -5,6 +5,7 @@
 #include "JtTextureClampMesh.h"
 #include "JtTextureMapping.h"
 #include "JtTextureTangents.h"
+#include "JtPrimitiveTopology.h"
 #include <JtData_Model.hxx>
 #include <JtData_Limits.hxx>
 #include <JtNode_Partition.hxx>
@@ -85,17 +86,13 @@ bool containsMesh(const aiNode& node) {
 }
 void validate(const aiMesh& mesh) {
     if(!mesh.mNumVertices || !mesh.mNumFaces || !mesh.mVertices || !mesh.mFaces)
-        throw std::runtime_error("JT representation contains no triangles");
+        throw std::runtime_error(Detail::meshIndexCount(mesh)==3 ? "JT representation contains no triangles" : "JT representation contains no primitives");
     for(unsigned i=0;i<mesh.mNumVertices;++i) {
         if(!finite(mesh.mVertices[i])) throw std::runtime_error("JT has nonfinite vertex coordinates");
         if(mesh.mNormals && (!finite(mesh.mNormals[i]) || mesh.mNormals[i].SquareLength()<0.1f))
             throw std::runtime_error("JT has invalid vertex normals");
     }
-    for(unsigned i=0;i<mesh.mNumFaces;++i) {
-        const auto& f=mesh.mFaces[i];
-        if(f.mNumIndices!=3 || !f.mIndices) throw std::runtime_error("JT has a non-triangle render primitive");
-        for(unsigned j=0;j<3;++j) if(f.mIndices[j]>=mesh.mNumVertices) throw std::runtime_error("JT triangle index out of range");
-    }
+    Detail::validateFaceTopology(mesh);
 }
 std::unique_ptr<aiMesh> exactMesh(const TopoDS_Shape& shape,const Options& options) {
     if(shape.IsNull() || !BRepCheck_Analyzer(shape).IsValid()) throw std::runtime_error("Exact JT shape failed B-Rep validation");
@@ -396,30 +393,27 @@ aiMatrix4x4 transformMatrix(const JtAttribute_GeometricTransform& source) {
 std::unique_ptr<aiMesh> faceSubset(const aiMesh& source,const std::vector<unsigned>& faces) {
     // A sorted index vector avoids a tree node allocation per used vertex and
     // charges actual arrays separately, rather than treating their sum as one allocation.
-    JtData_Limits::allocation(faces.size()*3*sizeof(unsigned));
-    std::vector<unsigned> vertices;vertices.reserve(faces.size()*3);
-    for(auto face:faces)for(unsigned j=0;j<3;++j)vertices.push_back(source.mFaces[face].mIndices[j]);
-    std::sort(vertices.begin(),vertices.end());vertices.erase(std::unique(vertices.begin(),vertices.end()),vertices.end());
+    const unsigned indexCount=Detail::meshIndexCount(source);
+    if(!indexCount)throw std::runtime_error("JT mesh does not hold exactly one primitive kind");
+    JtData_Limits::allocation(faces.size()*indexCount*sizeof(unsigned));
+    const std::vector<unsigned> vertices=Detail::usedVertices(source,faces);
     const unsigned next=unsigned(vertices.size());
-    auto mesh=std::make_unique<aiMesh>();mesh->mPrimitiveTypes=aiPrimitiveType_TRIANGLE;
+    auto mesh=std::make_unique<aiMesh>();mesh->mPrimitiveTypes=source.mPrimitiveTypes?source.mPrimitiveTypes:aiPrimitiveType_TRIANGLE;
     mesh->mNumVertices=next;mesh->mNumFaces=unsigned(faces.size());
     JtData_Limits::allocation(size_t(next)*sizeof(aiVector3D));mesh->mVertices=new aiVector3D[next];
-    JtData_Limits::allocation(size_t(next)*sizeof(aiVector3D));mesh->mNormals=new aiVector3D[next];
+    if(source.mNormals){JtData_Limits::allocation(size_t(next)*sizeof(aiVector3D));mesh->mNormals=new aiVector3D[next];}
     if(source.HasVertexColors(0)){JtData_Limits::allocation(size_t(next)*sizeof(aiColor4D));mesh->mColors[0]=new aiColor4D[next];}
     for(unsigned channel=0;channel<JtElement_ShapeLOD_Vertex::MaxTextureChannels;++channel)
         if(source.HasTextureCoords(channel)){JtData_Limits::allocation(size_t(next)*sizeof(aiVector3D));mesh->mTextureCoords[channel]=new aiVector3D[next];mesh->mNumUVComponents[channel]=source.mNumUVComponents[channel];}
     for(unsigned i=0;i<next;++i) {
-        mesh->mVertices[i]=source.mVertices[vertices[i]];mesh->mNormals[i]=source.mNormals[vertices[i]];
+        mesh->mVertices[i]=source.mVertices[vertices[i]];if(mesh->mNormals)mesh->mNormals[i]=source.mNormals[vertices[i]];
         if(mesh->mColors[0])mesh->mColors[0][i]=source.mColors[0][vertices[i]];
         for(unsigned channel=0;channel<JtElement_ShapeLOD_Vertex::MaxTextureChannels;++channel)
             if(mesh->mTextureCoords[channel])mesh->mTextureCoords[channel][i]=source.mTextureCoords[channel][vertices[i]];
     }
     JtData_Limits::allocation(faces.size()*sizeof(aiFace));mesh->mFaces=new aiFace[faces.size()];
-    JtData_Limits::allocation(faces.size()*3*sizeof(unsigned));
-    for(unsigned i=0;i<faces.size();++i){
-        JtData_Limits::poll();auto& f=mesh->mFaces[i];f.mNumIndices=3;f.mIndices=new unsigned[3];
-        for(unsigned j=0;j<3;++j)f.mIndices[j]=unsigned(std::lower_bound(vertices.begin(),vertices.end(),source.mFaces[faces[i]].mIndices[j])-vertices.begin());
-    }
+    JtData_Limits::allocation(faces.size()*indexCount*sizeof(unsigned));
+    Detail::remapFaces(source,faces,vertices,*mesh,[]{JtData_Limits::poll();});
     validate(*mesh);return mesh;
 }
 // Face-group batches that share a transform and hidden state and differ only in diffuse colour and opacity can be one mesh with
@@ -438,6 +432,7 @@ std::unique_ptr<aiMesh> concatenateColoured(const std::vector<std::unique_ptr<ai
     size_t vertices=0,faces=0;
     for(const auto& piece:pieces){vertices+=piece->mNumVertices;faces+=piece->mNumFaces;}
     if(pieces.empty()||vertices>std::numeric_limits<unsigned>::max()||faces>std::numeric_limits<unsigned>::max())throw std::runtime_error("JT merged face groups exceed the supported size");
+    for(const auto& piece:pieces)if(!Detail::isTriangleMesh(*piece))throw std::runtime_error("JT face-group merging supports triangle meshes only");
     JtData_Limits::allocation(vertices*(2*sizeof(aiVector3D)+sizeof(aiColor4D))+faces*(sizeof(aiFace)+3*sizeof(unsigned)));
     auto mesh=std::make_unique<aiMesh>();mesh->mPrimitiveTypes=aiPrimitiveType_TRIANGLE;
     mesh->mNumVertices=unsigned(vertices);mesh->mNumFaces=unsigned(faces);
@@ -1290,9 +1285,9 @@ struct Builder {
         Timed timed(copyMs);
         const auto& source=*geometries.at(index);auto copy=std::make_unique<aiMesh>();
         copy->mPrimitiveTypes=source.mPrimitiveTypes;copy->mNumVertices=source.mNumVertices;copy->mNumFaces=source.mNumFaces;
-        JtData_Limits::allocation(size_t(copy->mNumVertices)*2*sizeof(aiVector3D)+size_t(copy->mNumFaces)*(sizeof(aiFace)+3*sizeof(unsigned)));
-        copy->mVertices=new aiVector3D[copy->mNumVertices];copy->mNormals=new aiVector3D[copy->mNumVertices];
-        std::copy_n(source.mVertices,copy->mNumVertices,copy->mVertices);std::copy_n(source.mNormals,copy->mNumVertices,copy->mNormals);
+        JtData_Limits::allocation(size_t(copy->mNumVertices)*2*sizeof(aiVector3D)+size_t(copy->mNumFaces)*(sizeof(aiFace)+Detail::meshIndexCount(source)*sizeof(unsigned)));
+        copy->mVertices=new aiVector3D[copy->mNumVertices];if(source.mNormals)copy->mNormals=new aiVector3D[copy->mNumVertices];
+        std::copy_n(source.mVertices,copy->mNumVertices,copy->mVertices);if(source.mNormals)std::copy_n(source.mNormals,copy->mNumVertices,copy->mNormals);
         if(source.HasVertexColors(0)) {
             JtData_Limits::allocation(size_t(copy->mNumVertices)*sizeof(aiColor4D));
             copy->mColors[0]=new aiColor4D[copy->mNumVertices];std::copy_n(source.mColors[0],copy->mNumVertices,copy->mColors[0]);
@@ -1303,7 +1298,7 @@ struct Builder {
             std::copy_n(source.mTextureCoords[channel],copy->mNumVertices,copy->mTextureCoords[channel]);
         }
         copy->mFaces=new aiFace[copy->mNumFaces];
-        for(unsigned i=0;i<copy->mNumFaces;++i) {copy->mFaces[i].mNumIndices=3;copy->mFaces[i].mIndices=new unsigned[3];std::copy_n(source.mFaces[i].mIndices,3,copy->mFaces[i].mIndices);}
+        Detail::copyFaces(source,*copy);
         return copy;
     }
     unsigned add(std::unique_ptr<aiMesh> mesh,const Appearance& style,const QString& name) {
@@ -1436,7 +1431,7 @@ struct Builder {
             }
             mat=material(resolved,colored,vertexAlpha,textureInput);
         }
-        if(style.flatNormals()) {
+        if(style.flatNormals() && Detail::isTriangleMesh(*mesh)) {
             const size_t count=size_t(mesh->mNumFaces)*3;
             if(count>std::numeric_limits<unsigned>::max()) throw std::runtime_error("JT flat-normal vertex count exceeds render limits");
             JtData_Limits::allocation(count*(2*sizeof(aiVector3D)+sizeof(unsigned)));
@@ -1462,7 +1457,7 @@ struct Builder {
             for(unsigned channel=0;channel<uv.size();++channel)if(uv[channel]) {delete[] mesh->mTextureCoords[channel];mesh->mTextureCoords[channel]=uv[channel].release();}
             mesh->mNumVertices=unsigned(count);mesh->mVertices=positions.release();mesh->mNormals=normals.release();validate(*mesh);
         }
-        if(materials[mat]->GetTextureCount(aiTextureType_NORMALS)>0){
+        if(materials[mat]->GetTextureCount(aiTextureType_NORMALS)>0 && Detail::isTriangleMesh(*mesh)){
             try{TextureTangents::apply(*mesh,[&]{options.check();});}
             catch(const Cancelled&){throw;}catch(const std::bad_alloc&){throw;}
             catch(const std::exception& error){
@@ -1471,7 +1466,7 @@ struct Builder {
             }
         }
         mesh->mMaterialIndex=mat;mesh->mName=aiString(name.toUtf8().constData());
-        meshStyles.push_back({style,!colored&&mergeableStyle(style)});
+        meshStyles.push_back({style,!colored&&mergeableStyle(style)&&Detail::isTriangleMesh(*mesh)});
         meshes.push_back(std::move(mesh)); return unsigned(meshes.size()-1);
     }
     // Walks the product structure the way visit() will (without building anything) and lists, in visit order, the shape payloads it
@@ -1874,6 +1869,7 @@ std::unique_ptr<aiMesh> concatenateTransformed(const std::vector<MergePiece>& pi
     size_t vertices=0,faces=0;
     for(const auto& piece:pieces){vertices+=piece.mesh->mNumVertices;faces+=piece.mesh->mNumFaces;}
     if(pieces.empty()||vertices>std::numeric_limits<unsigned>::max()||faces>std::numeric_limits<unsigned>::max())throw std::runtime_error("JT merged part meshes exceed the supported size");
+    for(const auto& piece:pieces)if(!Detail::isTriangleMesh(*piece.mesh))throw std::runtime_error("JT part-mesh merging supports triangle meshes only");
     const aiMesh& first=*pieces.front().mesh;
     JtData_Limits::allocation(vertices*(2*sizeof(aiVector3D)+sizeof(aiColor4D)+AI_MAX_NUMBER_OF_TEXTURECOORDS*sizeof(aiVector3D))+faces*(sizeof(aiFace)+3*sizeof(unsigned)));
     auto mesh=std::make_unique<aiMesh>();

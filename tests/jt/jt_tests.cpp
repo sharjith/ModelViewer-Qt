@@ -61,6 +61,7 @@ void quantizedColourTests();
 void huffmanTests();
 void arithmeticCountTests();
 void skippedContentTests();
+void primitiveTopologyTests();
 void arithmeticCountFixtureFiles(const QString& folder);
 void quantizedTests();
 void quantizedFixtureFiles(const QString& folder);
@@ -284,7 +285,7 @@ void samples(const QString& dir) {
 }
 int main(int argc,char** argv) {
     QCoreApplication app(argc,argv);
-    try {allocationBudgetTests();codecTests();colorStreamTests();uvTests();coordinateTests();quantizedColourTests();jt9ColourTests();attributeTests();sceneTests();containerTests({});legacyTests();huffmanTests();arithmeticCountTests();skippedContentTests();quantizedTests();modernAttributeTests();paletteTests();duplicateMaterialCompatibilityTests();jt95Tests();
+    try {allocationBudgetTests();codecTests();colorStreamTests();uvTests();coordinateTests();quantizedColourTests();jt9ColourTests();attributeTests();sceneTests();containerTests({});legacyTests();huffmanTests();arithmeticCountTests();skippedContentTests();primitiveTopologyTests();quantizedTests();modernAttributeTests();paletteTests();duplicateMaterialCompatibilityTests();jt95Tests();
         textureTests();
         textureTransformTests();
         texturePlanarTests();
