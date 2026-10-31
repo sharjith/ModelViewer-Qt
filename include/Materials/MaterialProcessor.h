@@ -73,7 +73,8 @@ public:
 		Material& outMaterial,
 		std::vector<Material::Texture>& outTextures);
 
-	static QString extractJsonFromGLB(const QString& glbPath, std::vector<uint8_t>& outBinaryBuffer);
+	// readBinaryChunk=false skips the BIN chunk (seeks past it) for callers that only need the JSON; outBinaryBuffer stays empty.
+	static QString extractJsonFromGLB(const QString& glbPath, std::vector<uint8_t>& outBinaryBuffer, bool readBinaryChunk = true);
 
 	void clearGLBCaches();
 

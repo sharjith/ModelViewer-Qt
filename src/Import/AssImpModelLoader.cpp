@@ -3,6 +3,7 @@
 #include "BRepToAssimpConverter.h"
 #include "ImportDiagnostics.h"
 #include <QElapsedTimer>
+#include "Logger.h"
 #include <QSettings>
 #include <algorithm>
 #include <atomic>
@@ -1310,6 +1311,12 @@ void AssImpModelLoader::cancelLoading()
 void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	try
 {	
+	QElapsedTimer workerClock;
+	workerClock.start();
+	auto workerLap = [&workerClock](const char* what) {
+		Logger::instance().info(QStringLiteral("[WorkerPhases] %1 at %2 ms").arg(QLatin1String(what)).arg(workerClock.elapsed()),
+			QStringLiteral("Performance"));
+	};
 	_importStage = "worker.initialize";
 	_importSceneIndex = -1;
 	ImportDiagnostics::checkpoint(_importStage);
@@ -1455,6 +1462,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		}
 
 		_scene = _importer.ReadFile(path, importFlags);
+		workerLap("assimp ReadFile done");
 	}
 
 	// Check for errors
@@ -1509,16 +1517,21 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 
 		// Update aiScene materials to match glTF structure (deduplicate, fix references)
 		// This must happen BEFORE processing nodes so meshes get correct material assignments
+		workerLap("before updateAiSceneWithGltfMaterials");
 		updateAiSceneWithGltfMaterials(qPath, const_cast<aiScene*>(_scene));
+		workerLap("updateAiSceneWithGltfMaterials done");
 
 		// Parse primitive modes for rendering
 		parseGltfPrimitiveModes(qPath);
+		workerLap("parseGltfPrimitiveModes done");
 
 		// Parse KHR_materials_variants (after material dedup so indices are stable)
 		_variantData = GltfVariantData();
 		parseGltfVariants(qPath);
+		workerLap("parseGltfVariants done");
 		_animationData = GltfAnimationData();
 		parseSceneAnimations();
+		workerLap("parseSceneAnimations done");
 		// parseSceneCameras() is deferred until after the import-time scale pass
 		// so that findNodeWorldTransform() sees the same scaled root-node matrix
 		// that the runtime meshes use.
@@ -1545,7 +1558,9 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 
 	// Apply any import-time scale normalization. Orientation compensation now
 	// lives in camera space rather than mutating the imported scene graph.
+	workerLap("scene stats done");
 	applyCoordinateSystemTransformations(path);
+	workerLap("applyCoordinateSystemTransformations done");
 
 	// Parse cameras AFTER the scale correction so that findNodeWorldTransform()
 	// accumulates the same scaled root-node matrix that mesh vertices occupy.
@@ -1654,12 +1669,15 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	ImportDiagnostics::checkpoint(_importStage, -1, 0, _totalMeshOccurrences);
 	// Whatever way processing ends, the preparation stage must be drained and stopped before loadingFinished is emitted.
 	struct BatchFlush { AssImpModelLoader* loader; ~BatchFlush() { loader->flushBatches(); releaseDefinitionPrep(); } } batchFlush{ this };
+	workerLap("before processNode");
 	this->processNode(0, _scene->mRootNode, _scene, aiMatrix4x4());
+	workerLap("processNode done");
 	if (!_progressiveLoading && !_loadingCancelled)
 	{
 		_importStage = "worker.optimize-meshes";
 		ImportDiagnostics::checkpoint(_importStage, -1, _meshes.size(), 0);
 		optimizeBatch(_meshes);
+		workerLap("optimizeBatch done");
 		ImportDiagnostics::checkpoint("worker.optimize-meshes-end", -1, _meshes.size(), 0);
 			ImportDiagnostics::checkpoint("worker.definition-prep", -1, g_definitionPrepHits.load(), g_definitionPrepMisses.load());
 	}
@@ -1687,6 +1705,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	}
 	// Every batch is on its way to the viewer before anything that follows (lights, loadingFinished).
 	flushBatches();
+	workerLap("flushBatches done");
 
 	// === Parse KHR_lights_punctual extension ===
 	GltfLightData parsedLights;
@@ -1695,6 +1714,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	if (gltfPath.endsWith(".gltf", Qt::CaseInsensitive) || gltfPath.endsWith(".glb", Qt::CaseInsensitive))
 	{
 		parsedLights = _materialProcessor.parseKHRLightsPunctual(gltfPath);
+		workerLap("parseKHRLightsPunctual done");
 		if (!parsedLights.isEmpty())
 		{
 			qDebug() << "AssImpModelLoader: Loaded" << parsedLights.lights.size() << "KHR lights with transforms";
@@ -1733,6 +1753,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	_importStage = "worker.publish-result";
 	ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
 	emit lightsLoaded(parsedLights);
+	workerLap("emitting loadingFinished");
 	emit loadingFinished(true, _scene);
 }
 catch (const std::bad_alloc&) { failProcessing("Out of memory (std::bad_alloc)"); }
@@ -3066,21 +3087,26 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 	// ===== HANDLE GLB FILES =====
 	if (isGLB)
 	{
-		std::vector<uint8_t> glbBinaryBuffer;
-		QString jsonString = MaterialProcessor::extractJsonFromGLB(gltfPath, glbBinaryBuffer);
-
-		if (jsonString.isEmpty())
+		// The material pass has already parsed this GLB's JSON (parsing it again takes about a second on a 40k-mesh file).
+		QVector<QByteArray> cachedBuffers;
+		if (!_materialProcessor.fillAnimDataFromCache(gltfPath, doc, cachedBuffers))
 		{
-			qWarning() << "parseGltfPrimitiveModes: Failed to extract JSON from GLB:" << gltfPath;
-			return;
-		}
+			std::vector<uint8_t> glbBinaryBuffer;
+			QString jsonString = MaterialProcessor::extractJsonFromGLB(gltfPath, glbBinaryBuffer, /*readBinaryChunk=*/false);
 
-		QJsonParseError perr;
-		doc = QJsonDocument::fromJson(jsonString.toUtf8(), &perr);
-		if (perr.error != QJsonParseError::NoError)
-		{
-			qWarning() << "parseGltfPrimitiveModes: JSON parse error in GLB:" << perr.errorString();
-			return;
+			if (jsonString.isEmpty())
+			{
+				qWarning() << "parseGltfPrimitiveModes: Failed to extract JSON from GLB:" << gltfPath;
+				return;
+			}
+
+			QJsonParseError perr;
+			doc = QJsonDocument::fromJson(jsonString.toUtf8(), &perr);
+			if (perr.error != QJsonParseError::NoError)
+			{
+				qWarning() << "parseGltfPrimitiveModes: JSON parse error in GLB:" << perr.errorString();
+				return;
+			}
 		}
 	}
 	// ===== HANDLE GLTF FILES =====
@@ -3288,19 +3314,24 @@ void AssImpModelLoader::parseGltfVariants(const QString& gltfPath)
 	QJsonDocument doc;
 	if (isGLB)
 	{
-		std::vector<uint8_t> glbBinaryBuffer;
-		const QString jsonString = MaterialProcessor::extractJsonFromGLB(gltfPath, glbBinaryBuffer);
-		if (jsonString.isEmpty())
+		// Parsed once already by the material pass; see parseGltfPrimitiveModes().
+		QVector<QByteArray> cachedBuffers;
+		if (!_materialProcessor.fillAnimDataFromCache(gltfPath, doc, cachedBuffers))
 		{
-			qWarning() << "parseGltfVariants: failed to extract JSON from GLB:" << gltfPath;
-			return;
-		}
-		QJsonParseError perr;
-		doc = QJsonDocument::fromJson(jsonString.toUtf8(), &perr);
-		if (perr.error != QJsonParseError::NoError)
-		{
-			qWarning() << "parseGltfVariants: JSON parse error:" << perr.errorString();
-			return;
+			std::vector<uint8_t> glbBinaryBuffer;
+			const QString jsonString = MaterialProcessor::extractJsonFromGLB(gltfPath, glbBinaryBuffer, /*readBinaryChunk=*/false);
+			if (jsonString.isEmpty())
+			{
+				qWarning() << "parseGltfVariants: failed to extract JSON from GLB:" << gltfPath;
+				return;
+			}
+			QJsonParseError perr;
+			doc = QJsonDocument::fromJson(jsonString.toUtf8(), &perr);
+			if (perr.error != QJsonParseError::NoError)
+			{
+				qWarning() << "parseGltfVariants: JSON parse error:" << perr.errorString();
+				return;
+			}
 		}
 	}
 	else

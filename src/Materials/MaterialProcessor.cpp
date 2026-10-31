@@ -2689,7 +2689,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 }
 
 
-QString MaterialProcessor::extractJsonFromGLB(const QString& glbPath, std::vector<uint8_t>& outBinaryBuffer)
+QString MaterialProcessor::extractJsonFromGLB(const QString& glbPath, std::vector<uint8_t>& outBinaryBuffer, bool readBinaryChunk)
 {
 	QFile file(glbPath);
 	if (!file.open(QIODevice::ReadOnly))
@@ -2735,6 +2735,14 @@ QString MaterialProcessor::extractJsonFromGLB(const QString& glbPath, std::vecto
 
 		uint32_t chunkSize = *reinterpret_cast<const uint32_t*>(chunkHeader.constData());
 		uint32_t chunkType = *reinterpret_cast<const uint32_t*>(chunkHeader.constData() + 4);
+
+		if (!readBinaryChunk && chunkType != 0x4E4F534A)
+		{
+			// Not the JSON chunk and the caller does not want the binary data: step over it without reading it.
+			if (!file.seek(file.pos() + chunkSize))
+				break;
+			continue;
+		}
 
 		QByteArray chunkData = file.read(chunkSize);
 		if (chunkData.size() != static_cast<int>(chunkSize))
