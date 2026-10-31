@@ -1014,8 +1014,14 @@ void main()
 	}
 	else
 	{
-		v_color_front = calculatePBRLighting(renderingMode, 1.0f);
-		v_color_back = calculatePBRLighting(renderingMode, -1.0f);
+		// Only the side that is actually shown is lit; the selection below reads exactly one of the two, and the full PBR
+		// evaluation is by far the most expensive thing this shader does.
+		v_color_front = vec4(0.0);
+		v_color_back  = vec4(0.0);
+		if (isFrontFacing)
+			v_color_front = calculatePBRLighting(renderingMode, 1.0f);
+		else
+			v_color_back = calculatePBRLighting(renderingMode, -1.0f);
 	}
 
 	// Two-sided coloring
