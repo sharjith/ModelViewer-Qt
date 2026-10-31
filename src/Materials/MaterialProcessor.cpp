@@ -14,6 +14,12 @@
 #include <QCryptographicHash>
 #include <QBuffer>
 #include <QImageReader>
+#include <QElapsedTimer>
+#include <QImageWriter>
+#include <atomic>
+#include <thread>
+#include <algorithm>
+#include "Logger.h"
 #include <assimp/GltfMaterial.h>
 
 using namespace std;
@@ -1031,6 +1037,64 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 			QJsonArray jsonTextures = root.value("textures").toArray();
 			QJsonArray jsonSamplers = root.value("samplers").toArray();
 
+			// Time spent per step over all images, logged once below (Performance, Info).
+			double msDecode = 0, msSave = 0, msAlpha = 0, msConvert = 0, msUpload = 0;
+			QElapsedTimer stepClock;
+			// The on-disk PNG cache of the embedded images is written first, in parallel and with fast compression:
+			// encoding a 4K image to PNG at the default level takes a second or more, which made a 45-image GLB spend
+			// over a minute here, one image at a time. The loop below then finds every file already in place.
+			if (!glbBinaryPtr->isEmpty())
+			{
+				struct CacheJob { const char* data; int size; QString diskPath; };
+				std::vector<CacheJob> cacheJobs;
+				const QString preCacheDir = getGlbCacheDir(gltfPath);
+				for (int imgIdx = 0; imgIdx < jsonImages.size(); ++imgIdx)
+				{
+					const QJsonObject imgObj = jsonImages.at(imgIdx).toObject();
+					if (imgObj.value("mimeType").toString() == QLatin1String("image/ktx2"))
+						continue;
+					const int bufferViewIdx = imgObj.value("bufferView").toInt(-1);
+					if (bufferViewIdx < 0 || bufferViewIdx >= jsonBufferViews.size())
+						continue;
+					const QJsonObject bvObj = jsonBufferViews.at(bufferViewIdx).toObject();
+					const int byteOffset = bvObj.value("byteOffset").toInt(0);
+					const int byteLength = bvObj.value("byteLength").toInt(-1);
+					if (byteLength <= 0 || byteOffset + byteLength > static_cast<int>(glbBinaryPtr->size()))
+						continue;
+					const QString diskPath = preCacheDir + "/" + QString("image_%1.png").arg(imgIdx);
+					if (QFile::exists(diskPath))
+						continue;
+					cacheJobs.push_back({ glbBinaryPtr->constData() + byteOffset, byteLength, diskPath });
+				}
+				if (!cacheJobs.empty())
+				{
+					std::atomic<size_t> nextJob{ 0 };
+					const auto runJobs = [&cacheJobs, &nextJob]()
+					{
+						for (;;)
+						{
+							const size_t slot = nextJob.fetch_add(1);
+							if (slot >= cacheJobs.size())
+								break;
+							const CacheJob& job = cacheJobs[slot];
+							QImage image;
+							if (!image.loadFromData(reinterpret_cast<const uchar*>(job.data), job.size))
+								continue;
+							QImageWriter writer(job.diskPath, "PNG");
+							writer.setQuality(90); // low zlib effort: a temp cache, speed matters more than file size
+							writer.write(image);
+						}
+					};
+					const size_t hardware = (std::max)(size_t(1), size_t(std::thread::hardware_concurrency()));
+					const size_t workers = (std::min)(cacheJobs.size(), hardware);
+					std::vector<std::thread> threads;
+					for (size_t t = 1; t < workers; ++t)
+						threads.emplace_back(runJobs);
+					runJobs();
+					for (std::thread& thread : threads)
+						thread.join();
+				}
+			}
 			if (!glbBinaryPtr->isEmpty())
 			{
 				for (int imgIdx = 0; imgIdx < jsonImages.size(); ++imgIdx)
@@ -1104,7 +1168,10 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					else
 					{
 						// Load image from bytes
-						if (!qImg.loadFromData(reinterpret_cast<const uchar*>(imageData.constData()), imageData.size()))
+						stepClock.restart();
+						const bool imageLoaded = qImg.loadFromData(reinterpret_cast<const uchar*>(imageData.constData()), imageData.size());
+						msDecode += stepClock.nsecsElapsed() / 1.0e6;
+						if (!imageLoaded)
 						{
 							qWarning() << "processGltf2CoreAndExtensions: Failed to load image" << imgIdx << "from GLB buffer";
 							continue;
@@ -1115,16 +1182,22 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 						diskPath = cacheDir + "/" + fileName;
 
 						// Save if not already cached
+						stepClock.restart();
 						if (!QFile::exists(diskPath))
 						{
 							qImg.save(diskPath);
 						}
+						msSave += stepClock.nsecsElapsed() / 1.0e6;
 
 						// Check alpha before conversion
+						stepClock.restart();
 						hasAlpha = checkImageForAlpha(qImg);  // Check original image
+						msAlpha += stepClock.nsecsElapsed() / 1.0e6;
 
 						// Prepare for OpenGL
+						stepClock.restart();
 						qImg = convertToGLFormat(qImg);
+						msConvert += stepClock.nsecsElapsed() / 1.0e6;
 					}
 
 					// Create texture struct with embedded marker (not a file path)
@@ -1219,10 +1292,12 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					else
 					{
 						tex.imageData = qImg;
+						stepClock.restart();
 						if (_imageTextureUploader)
 						{
 							textureID = _imageTextureUploader(tex, qImg);
 						}
+						msUpload += stepClock.nsecsElapsed() / 1.0e6;
 
 						if (_imageTextureUploader && textureID == 0)
 						{
@@ -1239,6 +1314,9 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 				}
 			}
 
+			Logger::instance().info(QStringLiteral("[GlbImages] %1 images: decode %2 ms, png save %3 ms, alpha scan %4 ms, gl convert %5 ms, upload %6 ms")
+				.arg(jsonImages.size()).arg(msDecode, 0, 'f', 0).arg(msSave, 0, 'f', 0).arg(msAlpha, 0, 'f', 0).arg(msConvert, 0, 'f', 0).arg(msUpload, 0, 'f', 0),
+				QStringLiteral("Performance"));
 			s_glbImagesLoaded.insert(gltfPath, true);
 		}
 	}
