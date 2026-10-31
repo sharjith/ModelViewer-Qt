@@ -151,6 +151,12 @@ private:
 	std::vector<Entry> _entries;   // indexed by mesh id
 	std::vector<Group> _groups;
 
+	// Debug trigger of RenderableMesh::evictGpuBuffers() for the meshes the batches cover (see update()).
+	std::vector<int> _evictQueue;
+	size_t _evictPos = 0;
+	qint64 _evictedBytes = 0;
+	qint64 _evictedMeshes = 0;
+
 	// Scan / build state
 	std::vector<int> _scanIds;
 	size_t _scanPos = 0;

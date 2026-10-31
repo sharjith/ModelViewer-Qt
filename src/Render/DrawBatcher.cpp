@@ -489,13 +489,42 @@ void DrawBatcher::update(const std::vector<int>& visibleIds, const MeshLookup& m
 		Logger::instance().info(
 			QStringLiteral("[DrawBatcher] state visible=%1 phase=%2 stableFrames=%3 needsInitialBuild=%4 groups=%5 "
 				"candidates=%6 missing=%7 fastHits=%8 rechecked=%9 epoch=%10 verifyMismatches=%11 fastDisabled=%12 "
-				"individual: hovered=%13 notCandidate=%14 missing=%15 leftOut=%16 batchGpuMB=%17")
+				"individual: hovered=%13 notCandidate=%14 missing=%15 leftOut=%16 batchGpuMB=%17 evictedMB=%18 restores=%19")
 				.arg(visibleIds.size()).arg(static_cast<int>(_phase)).arg(_stableFrames).arg(_needsInitialBuild)
 				.arg(_groups.size()).arg(_candidatesLastFrame).arg(_missingLastFrame)
 				.arg(_fastHitsLastFrame).arg(_slowChecksLastFrame).arg(RenderableMesh::renderStateEpoch())
 				.arg(_verifyMismatches).arg(_fastDisabled).arg(_indHovered).arg(_indNotCandidate).arg(_indMissing).arg(_indLeftOut)
-			.arg(static_cast<double>(gpuBytes()) / (1024.0 * 1024.0), 0, 'f', 0) + epochSiteSummary(),
+			.arg(static_cast<double>(gpuBytes()) / (1024.0 * 1024.0), 0, 'f', 0)
+				.arg(static_cast<double>(_evictedBytes) / (1024.0 * 1024.0), 0, 'f', 0).arg(RenderableMesh::gpuRestoreCount()) + epochSiteSummary(),
 			QStringLiteral("Performance"));
+	}
+
+	if (_phase == Phase::Idle && _evictPos < _evictQueue.size())
+	{
+		// Debug trigger of the residency API (MODELVIEWER_DEBUG_EVICT_BATCHED=1): free the per-mesh buffers of the meshes the
+		// batches now draw, a few milliseconds per frame. The policy proper is phase 2 of BATCH_GPU_RESIDENCY_DESIGN.md.
+		QElapsedTimer evictSlice;
+		evictSlice.start();
+		while (_evictPos < _evictQueue.size() && evictSlice.nsecsElapsed() < 8000000)
+		{
+			const int id = _evictQueue[_evictPos++];
+			SceneMesh* mesh = meshAt(id);
+			if (!mesh || static_cast<size_t>(id) >= _entries.size() || _entries[static_cast<size_t>(id)].mesh != mesh)
+				continue;
+			const qint64 bytes = mesh->evictGpuBuffers();
+			if (bytes > 0)
+			{
+				_evictedBytes += bytes;
+				++_evictedMeshes;
+			}
+		}
+		if (_evictPos >= _evictQueue.size())
+		{
+			Logger::instance().info(QStringLiteral("[DrawBatcher] evicted the per-mesh GPU buffers of %1 meshes (%2 MB)")
+				.arg(_evictedMeshes).arg(static_cast<double>(_evictedBytes) / (1024.0 * 1024.0), 0, 'f', 0), QStringLiteral("Performance"));
+			_evictQueue.clear();
+			_evictPos = 0;
+		}
 	}
 
 	if (_phase == Phase::Idle)
@@ -556,6 +585,17 @@ void DrawBatcher::update(const std::vector<int>& visibleIds, const MeshLookup& m
 				QStringLiteral("Performance"));
 			_buildQueue.clear();
 			_buildQueue.shrink_to_fit();
+			static const bool debugEvict = qEnvironmentVariableIntValue("MODELVIEWER_DEBUG_EVICT_BATCHED") != 0;
+			if (debugEvict)
+			{
+				_evictQueue.clear();
+				_evictPos = 0;
+				_evictedBytes = 0;
+				_evictedMeshes = 0;
+				for (size_t id = 0; id < _entries.size(); ++id)
+					if (_entries[id].mesh && _entries[id].group >= 0)
+						_evictQueue.push_back(static_cast<int>(id));
+			}
 			_phase = Phase::Idle;
 			_buildSynchronously = false;
 			_sinceBuild.restart();

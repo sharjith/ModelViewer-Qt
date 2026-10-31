@@ -753,6 +753,22 @@ void RenderableMesh::initBuffers(
 		? static_cast<unsigned int>(points->size() / 3)
 		: static_cast<unsigned int>(indices->size());
 
+	uploadGpuBuffers();
+
+	// Initialize picking triangles and bounds for the newly loaded geometry.
+	MeshBuildProfile::Lap boundsLap(MeshBuildProfile::RuntimeBounds);
+	_instanceState.updateRuntimeBounds(_points, _normals, _tangents, _bitangents, _indices);
+}
+
+// Allocates the GL buffers from the CPU arrays and wires the VAO: the second half of initBuffers(), and the restore path of
+// meshes whose buffers were evicted.
+void RenderableMesh::uploadGpuBuffers()
+{
+	_gpuEvicted = false;
+	const std::vector<unsigned int>* indices = &_indices;
+	const std::vector<float>* points = &_points;
+	const std::vector<float>* normals = &_normals;
+
 	MeshBuildProfile::Lap allocLap(MeshBuildProfile::GlAlloc);
 	_buffers.push_back(_indexBuffer);
 	_indexBuffer.bind();
@@ -948,10 +964,66 @@ void RenderableMesh::initBuffers(
 
 	_vertexArrayObject.release();
 	attribLap.stop();
+}
 
-	// Initialize picking triangles and bounds for the newly loaded geometry.
-	MeshBuildProfile::Lap boundsLap(MeshBuildProfile::RuntimeBounds);
-	_instanceState.updateRuntimeBounds(_points, _normals, _tangents, _bitangents, _indices);
+// Frees the per-vertex GL buffers of a mesh whose geometry is drawn from a shared draw batch. The CPU arrays stay, so the
+// buffers can be rebuilt exactly (BATCH_GPU_RESIDENCY_DESIGN.md section 3). The LOD index buffer stays: DrawBatcher reads it
+// back when it builds a batch. Needs the GL context. Returns the bytes released, 0 when nothing was evicted.
+qint64 RenderableMesh::evictGpuBuffers()
+{
+	if (_gpuEvicted || _points.empty() || !_vertexArrayObject.isCreated() || _buffers.empty())
+		return 0;
+	const qint64 released = static_cast<qint64>(_memorySize);
+	for (FastGlBuffer& buffer : _buffers)
+		buffer.destroy(); // copies share one GL buffer, so this frees the members' too
+	_buffers.clear();
+	_gpuEvicted = true;
+	return released;
+}
+
+// Rebuilds what evictGpuBuffers() freed: same upload as initBuffers(), without its side effects (no new geometry revision, so
+// DrawBatcher's batches stay valid, and the analysis overlay stays).
+static std::atomic<qint64> s_gpuRestoreCount{ 0 };
+
+qint64 RenderableMesh::gpuRestoreCount()
+{
+	return s_gpuRestoreCount.load();
+}
+
+void RenderableMesh::restoreGpuBuffers()
+{
+	if (!_gpuEvicted)
+		return;
+	++s_gpuRestoreCount;
+	_indexBuffer.create();
+	_positionBuffer.create();
+	_normalBuffer.create();
+	if (_colors.size())
+		_colorBuffer.create();
+	if (_tangents.size())
+		_tangentBuf.create();
+	if (_bitangents.size())
+		_bitangentBuf.create();
+	if (_jointIndices.size())
+		_jointIndexBuffer.create();
+	if (_jointWeights.size())
+		_jointWeightBuffer.create();
+	if (_texCoords.size())
+	{
+		_texCoord0Buffer.create();
+		_texCoord1Buffer.create();
+		_texCoord2Buffer.create();
+		_texCoord3Buffer.create();
+	}
+	const size_t memorySize = _memorySize;
+	uploadGpuBuffers();
+	_memorySize = memorySize;
+	// uploadGpuBuffers() wires the attributes of the current program only; setProg() also wires the overlay buffers.
+	QOpenGLShaderProgram* const prog = _prog;
+	_vaoConfiguredProgram = nullptr;
+	if (prog)
+		setProg(prog);
+	afterGpuBuffersRestored();
 }
 
 void RenderableMesh::setProg(QOpenGLShaderProgram* prog)
@@ -964,7 +1036,8 @@ void RenderableMesh::setProg(QOpenGLShaderProgram* prog)
 		clearUniformLocationCache();
 	}
 
-	if (_vaoConfiguredProgram != prog)
+	// Evicted buffers cannot be wired; restoreGpuBuffers() configures the VAO for the then-current program.
+	if (_vaoConfiguredProgram != prog && !_gpuEvicted)
 	{
 		recordVaoProgramReconfigure();
 		_vertexArrayObject.bind();
@@ -1942,6 +2015,7 @@ void RenderableMesh::render()
 	}
 	else
 	{
+		ensureResident();
 		_vertexArrayObject.bind();
 		const bool drawLod1 = _hasLod1 && lodPolicyActive();
 		if (drawLod1)
@@ -1984,6 +2058,7 @@ void RenderableMesh::renderShadow()
 	// Handle negative scaling (important for shadow mapping!)
 	glFrontFace(hasNegativeScale() ? GL_CW : GL_CCW);
 
+	ensureResident();
 	_vertexArrayObject.bind();
 	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
 	_vertexArrayObject.release();
@@ -2478,6 +2553,7 @@ void RenderableMesh::setPBRRoughness(const float& val)
 
 FastGlVertexArray& RenderableMesh::getVAO()
 {
+	ensureResident(); // callers bind it to draw
 	return _vertexArrayObject;
 }
 
@@ -3152,6 +3228,7 @@ void RenderableMesh::setAnalysisOverlayColors(const std::vector<float>& rgba)
 
 	if (_prog && _vertexArrayObject.isCreated())
 	{
+		ensureResident();
 		_vertexArrayObject.bind();
 		_analysisOverlayColorBuffer.bind();
 		enableAttributeCached(_prog, "analysisColor");

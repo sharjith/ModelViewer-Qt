@@ -631,6 +631,15 @@ public:
 	bool hasLod1() const { return _hasLod1; }
 	bool readLod1Indices(std::vector<unsigned int>& out);
 
+	// ---- GPU residency (research/rendering/BATCH_GPU_RESIDENCY_DESIGN.md section 3) ----
+	// A mesh drawn from a shared draw batch does not need its own per-vertex GL buffers. evictGpuBuffers() frees them (the CPU
+	// arrays stay); every path that binds the mesh's own VAO or buffers calls ensureResident() first, which rebuilds them.
+	// GL context required for both.
+	bool isGpuResident() const { return !_gpuEvicted; }
+	void ensureResident() { if (_gpuEvicted) restoreGpuBuffers(); }
+	qint64 evictGpuBuffers();
+	static qint64 gpuRestoreCount(); // restores since start, for diagnostics
+
 protected: // methods
 	// Upload geometry from a MeshGeometry object: copies vectors into _points/_normals/etc.
 	// and calls initBuffers() to create GL buffers. Bounds are recomputed automatically.
@@ -649,6 +658,10 @@ protected: // methods
 		std::vector<float>* jointWeights = nullptr
 	);
 
+	// Called at the end of restoreGpuBuffers(): derived classes re-wire VAOs of their own that point at the restored buffers.
+	virtual void afterGpuBuffersRestored() {}
+	void uploadGpuBuffers();   // GL buffers + VAO from the CPU arrays (second half of initBuffers())
+	void restoreGpuBuffers();  // undoes evictGpuBuffers()
     void computeBounds();
     void deleteBuffers();
 	void recreateContextBoundBufferObjects();
@@ -746,6 +759,7 @@ protected:
 	bool                       _drawRangesActive = false;
 	FastGlVertexArray   _vertexArrayObject;
 	std::vector<FastGlBuffer> _buffers;
+	bool                      _gpuEvicted = false; // see evictGpuBuffers()
 
 	MaterialVizState _materialState;
 	Material& _material;   // reference alias into _materialState

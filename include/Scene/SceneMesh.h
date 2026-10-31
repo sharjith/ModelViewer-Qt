@@ -663,6 +663,7 @@ private:
 	void setRenderStateOptimized();
 	void setupUniformsOptimized();
 	void bindFeatureEdgeVertexState();
+	void afterGpuBuffersRestored() override;
 	// Creates the feature-edge index buffer and vertex array when they are first needed (a draw in a wireframe/edge pass),
 	// not at load: 40,000 parts spent about 5 s and 80,000 driver objects on edges that a shaded view never draws.
 	void ensureFeatureEdgesOnGpu();

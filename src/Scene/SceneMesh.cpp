@@ -1433,6 +1433,7 @@ void SceneMesh::render()
 	}
 	else
 	{
+		ensureResident();
 		_vertexArrayObject.bind();
 
 		// Adjust vertex count based on primitive mode
@@ -1633,6 +1634,7 @@ void SceneMesh::renderWireframeFast(QOpenGLShaderProgram* wireProg)
 				glUniformMatrix4fv(baseLoc + i, 1, GL_FALSE, jointPalette()[i].constData());
 	}
 
+	ensureResident();
 	_vertexArrayObject.bind();
 	if (_indices.empty())
 		glDrawArrays(_primitiveMode, 0, _nVerts);
@@ -3955,8 +3957,16 @@ void SceneMesh::setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
 	_occEdgeVertexBuffer.release();
 }
 
+// The feature-edge VAO points at the mesh's position/normal/colour buffers; a restore gives those new GL names.
+void SceneMesh::afterGpuBuffersRestored()
+{
+	if (_featureEdgeVAO.isCreated() && _featureEdgeCount > 0)
+		bindFeatureEdgeVertexState();
+}
+
 void SceneMesh::bindFeatureEdgeVertexState()
 {
+	ensureResident(); // shares the position, normal and colour buffers
 	if (!_featureEdgeVAO.isCreated())
 		_featureEdgeVAO.create();
 	_featureEdgeVAO.bind();
@@ -4035,6 +4045,7 @@ void SceneMesh::renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg)
 				glUniformMatrix4fv(baseLoc + i, 1, GL_FALSE, jointPalette()[i].constData());
 	}
 
+	ensureResident(); // the feature-edge VAO reads the mesh's position and normal buffers
 	_featureEdgeVAO.bind();
 	glDrawElements(GL_LINES, _featureEdgeCount, GL_UNSIGNED_INT, nullptr);
 	_featureEdgeVAO.release();
