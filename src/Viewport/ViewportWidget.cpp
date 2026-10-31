@@ -9498,6 +9498,12 @@ void ViewportWidget::setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camer
 	// interaction+oversized-model window, snapping back to full resolution
 	// the instant lowResEnabled() clears. See RenderableMesh::setLodPolicy().
 	RenderableMesh::setLodPolicy(interactionFastPath);
+	// Same window: rasterize single-sample while interacting with an oversized model. Multisampled coverage multiplies the
+	// fragments shaded along every triangle edge, which dominates on dense models; the full-quality image returns at rest.
+	if (interactionFastPath)
+		glDisable(GL_MULTISAMPLE);
+	else
+		glEnable(GL_MULTISAMPLE);
 	prog->setUniformValue("modelMatrix", _viewCtrl.modelMatrix());
 	prog->setUniformValue("viewMatrix", camera->getViewMatrix());
 	prog->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
