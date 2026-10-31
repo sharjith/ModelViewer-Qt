@@ -7938,10 +7938,46 @@ void ViewportWidget::drawFloor(const bool& drawReflection)
 	_renderCtrl.fgShader()->setUniformValue("sssCapture", false);
 	_renderCtrl.fgShader()->setUniformValue("modelMatrix", model);
 	RenderableMesh::setCurrentRenderContext(model, _viewCtrl.viewMatrix());
-	if (_renderCtrl.reflectionsEnabled() && drawReflection)
+	// The reflection redraws the whole scene a second time; on a large model it is skipped while the camera is moving
+	// (same gate as the shadow passes) and comes back when the interaction ends.
+	const bool skipReflectionForInteraction = _renderCtrl.lowResEnabled() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES;
+	if (_renderCtrl.reflectionsEnabled() && drawReflection && !skipReflectionForInteraction)
 	{
 		_renderCtrl.fgShader()->setUniformValue("renderingMode", static_cast<int>(_renderCtrl.renderingMode()));
-		drawMesh(_renderCtrl.fgShader());
+		// Large models: the mirrored scene is drawn from the same merged buffers as the main pass (the model matrix above is
+		// a uniform, so the baked batches mirror with it); only what the batches do not cover is drawn mesh by mesh.
+		bool reflectionBatched = false;
+		// The mirror image is dim and secondary: on an oversized model draw it from the coarse LOD tier (the same one the
+		// interaction fast path uses) so its triangle cost is a fraction of the main pass.
+		const bool previousLodPolicy = RenderableMesh::lodPolicyActive();
+		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
+			RenderableMesh::setLodPolicy(true);
+		const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
+		const bool anyClipping = _renderCtrl.yzClippingEnabled() || _renderCtrl.zxClippingEnabled()
+			|| _renderCtrl.xyClippingEnabled() || _renderCtrl.boxClippingEnabled();
+		if (_drawBatcher && _drawBatcher->hasBatches() && _displayMode == DisplayMode::SHADED
+			&& _shadingNormalMode != ShadingNormalMode::FLAT && !anyClipping)
+		{
+			const DrawBatcher::Settings batchSettings = DrawBatcher::readSettings();
+			if (batchSettings.enabled && static_cast<int>(visibleIds.size()) >= batchSettings.minDisplayedMeshes)
+			{
+				QOpenGLShaderProgram* prog = _renderCtrl.fgShader();
+				setupClippingUniforms(prog, _primaryCamera->getRenderPosition());
+				glDisable(GL_BLEND);
+				glDepthMask(GL_TRUE);
+				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+				glDisable(GL_POLYGON_OFFSET_FILL);
+				prog->setUniformValue("hovered", false);
+				std::vector<int> individual;
+				_drawBatcher->drawBatches(prog, visibleIds, -1,
+					[this](int meshId) { return _sceneRuntime.meshAt(meshId); }, individual);
+				drawMeshSubset(prog, individual);
+				reflectionBatched = true;
+			}
+		}
+		if (!reflectionBatched)
+			drawMesh(_renderCtrl.fgShader());
+		RenderableMesh::setLodPolicy(previousLodPolicy);
 	}
 
 	glStencilMask(0x00);
