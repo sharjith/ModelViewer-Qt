@@ -3843,6 +3843,9 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	}
 
 	// --- Normal / Parallax (same as before) ---
+	// The caller passes the side it wants lit (the geometric normal, or its negation for the back face of a double-sided
+	// surface). A bump-mapped normal is built from the front orientation, so flip it back when it disagrees with that side.
+	const vec3 requestedSideNormal = normal;
 	if (shadingNormalMode != 1 && hasNormalTexture)
 		normal = calcBumpedNormal(texture_normal, getNormalTextureUV());
 
@@ -3851,6 +3854,9 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 		clippedTexCoord = applyParallaxMapping(getHeightUV(), texture_height, heightScale, hasHeightTexture);
 		normal = calcBumpedNormal(normalMap, clippedTexCoord);
 	}
+
+	if (dot(normal, requestedSideNormal) < 0.0)
+		normal = -normal;
 
 	// --- Lighting vectors ---
 	// ADS stays in view space: the active camera convention already rotates the
