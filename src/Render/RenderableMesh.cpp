@@ -974,6 +974,17 @@ qint64 RenderableMesh::evictGpuBuffers()
 	if (_gpuEvicted || _points.empty() || !_vertexArrayObject.isCreated() || _buffers.empty())
 		return 0;
 	const qint64 released = static_cast<qint64>(_memorySize);
+	// A deleted buffer is only freed once no vertex array still references it, so detach every attribute and the element
+	// buffer from this mesh's VAO first (restore re-wires them through setProg()). Without this the driver keeps the memory.
+	_vertexArrayObject.bind();
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	for (GLuint location = 0; location < 12; ++location)
+	{
+		glDisableVertexAttribArray(location);
+		glVertexAttribPointer(location, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
+	}
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	_vertexArrayObject.release();
 	for (FastGlBuffer& buffer : _buffers)
 		buffer.destroy(); // copies share one GL buffer, so this frees the members' too
 	_buffers.clear();
