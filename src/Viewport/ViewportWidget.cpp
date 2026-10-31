@@ -7968,8 +7968,33 @@ void ViewportWidget::drawFloor(const bool& drawReflection)
 				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 				glDisable(GL_POLYGON_OFFSET_FILL);
 				prog->setUniformValue("hovered", false);
+				// Only meshes whose mirror image falls inside the camera frustum can show up in the reflection; the
+				// others (the camera sees them directly but their image lies below the screen or behind the camera)
+				// are not drawn. The mirror is a reflection about the floor plane, so a box maps to a box.
+				const bool zUp = _viewCtrl.cameraUpAxisZUp();
+				std::vector<int> mirroredVisibleIds;
+				mirroredVisibleIds.reserve(visibleIds.size());
+				for (int id : visibleIds)
+				{
+					const SceneMesh* mesh = _sceneRuntime.meshAt(id);
+					if (!mesh)
+						continue;
+					if (mesh->hasSkinning()) // bind-pose bounds are not reliable for a skinned mesh
+					{
+						mirroredVisibleIds.push_back(id);
+						continue;
+					}
+					const BoundingBox& bb = mesh->getBoundingBox();
+					BoundingBox mirrored;
+					if (zUp)
+						mirrored.setLimits(bb.xMin(), bb.xMax(), bb.yMin(), bb.yMax(), 2.0f * floorPos - bb.zMax(), 2.0f * floorPos - bb.zMin());
+					else
+						mirrored.setLimits(bb.xMin(), bb.xMax(), 2.0f * floorPos - bb.yMax(), 2.0f * floorPos - bb.yMin(), bb.zMin(), bb.zMax());
+					if (!VisibilityComputationHelper::isBoundingBoxOutside(mirrored, _frustumCtx))
+						mirroredVisibleIds.push_back(id);
+				}
 				std::vector<int> individual;
-				_drawBatcher->drawBatches(prog, visibleIds, -1,
+				_drawBatcher->drawBatches(prog, mirroredVisibleIds, -1,
 					[this](int meshId) { return _sceneRuntime.meshAt(meshId); }, individual);
 				drawMeshSubset(prog, individual);
 				reflectionBatched = true;
