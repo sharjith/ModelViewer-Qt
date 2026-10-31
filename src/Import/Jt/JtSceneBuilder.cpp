@@ -15,6 +15,7 @@
 #include <JtNode_Switch.hxx>
 #include <JtNode_Shape_Base.hxx>
 #include <JtElement_ShapeLOD_Vertex.hxx>
+#include <JtData_SkippedContent.hxx>
 #include <JtElement_XTBRep.hxx>
 #include <JtAttribute_Material.hxx>
 #include <JtAttribute_GeometricTransform.hxx>
@@ -2103,7 +2104,18 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
         }
     }
     scoutMs=since(phase);phase=stamp();
-    auto tree=b.visit(root,{},false,false,aiMatrix4x4(),{},materialSourceContext(info.absoluteFilePath(),options));b.prefetch.reset();visitMs=since(phase);phase=stamp();if(b.meshes.empty()) throw std::runtime_error("JT contains no supported tessellation and no validated exact geometry");
+    auto tree=b.visit(root,{},false,false,aiMatrix4x4(),{},materialSourceContext(info.absoluteFilePath(),options));b.prefetch.reset();visitMs=since(phase);phase=stamp();
+    // Display content the decoder recognises but cannot read (line/point shapes, precise wireframe): reported, never dropped silently.
+    QStringList skippedContent;
+    for(const auto& [what,count]:JtData_SkippedContent::take())
+        skippedContent.append(QStringLiteral("%1 x %2").arg(qulonglong(count)).arg(QString::fromStdString(what)));
+    if(b.meshes.empty()) {
+        std::string message="JT contains no supported tessellation and no validated exact geometry";
+        if(!skippedContent.isEmpty()) message+="; it does contain display content that is not decoded yet ("+skippedContent.join(QStringLiteral("; ")).toStdString()+")";
+        throw std::runtime_error(message);
+    }
+    if(!skippedContent.isEmpty())
+        b.result.warnings.append(QStringLiteral("JT display content that is not decoded yet and is therefore not shown: %1.").arg(skippedContent.join(QStringLiteral("; "))));
     if(options.mergePartMeshes) {
         const size_t before=b.meshes.size();
         PartMerger merger{options,b.meshes,b.result.hiddenNodes,b,{}};

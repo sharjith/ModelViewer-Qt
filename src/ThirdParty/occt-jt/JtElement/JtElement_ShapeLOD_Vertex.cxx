@@ -27,6 +27,7 @@
 
 #include <JtData_Reader.hxx>
 #include <JtData_Inflate.hxx>
+#include <JtData_SkippedContent.hxx>
 
 #include <JtDecode_Int32CDP.hxx>
 #include <JtDecode_VertexData.hxx>
@@ -315,8 +316,12 @@ Standard_Boolean JtElement_ShapeLOD_Vertex::readVertexShapeLODData (
     if (theIsTriStripSet)
       return readTopologicallyCompressedData (theReader);
     else
+    {
       // TODO: Read TopoMesh Compressed Rep Data
+      // Not decoded: the shape carries no geometry here. Counted so the importer reports it instead of dropping it silently.
+      JtData_SkippedContent::record("vertex shape LOD with TopoMesh compressed representation data (not a tri-strip set)");
       return Standard_True;
+    }
   }
 }
 

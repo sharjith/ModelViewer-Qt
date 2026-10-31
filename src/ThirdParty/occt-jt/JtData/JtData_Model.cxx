@@ -25,6 +25,7 @@
 #include <JtData_Model.hxx>
 #include <JtData_FileReader.hxx>
 #include <JtData_Inflate.hxx>
+#include <JtData_SkippedContent.hxx>
 #include <JtData_BufferReader.hxx>
 #include <memory>
 #include <set>
@@ -216,6 +217,8 @@ Standard_Boolean JtData_Model::readTOC (std::ifstream& theFile, const Jt_I64 the
     }
 
     const Standard_Integer aType = (aAttrib >> 24) & 0xFF;
+    // Segment type 18 is the precise Wireframe Rep, which no reader here decodes: counted so the importer can say so.
+    if (aType == 18) JtData_SkippedContent::record("precise wireframe segment (Wireframe Rep, segment type 18)");
     if(aOffset<0 || aLength<24 || size_t(aOffset)>aReader.End() || size_t(aLength)>aReader.End()-size_t(aOffset) || myTOC.IsBound(aGUID)) throw std::runtime_error("Invalid JT table-of-contents entry");
     if (aTypeMap.IsBound (aType))
       aTypeMap.ChangeFind (aType)++;
@@ -594,6 +597,14 @@ Standard_Boolean JtData_Model::readElement (JtData_Reader& theInput,
   if (!info)
   {
     if (wrapped) throw std::runtime_error("Unsupported JT Sabot wrapped attribute type");
+    // Display content the decoder has no reader for: counted so the importer can report it rather than drop it silently.
+    static const struct {Jt_GUID guid; const char* label;} displayContent[] = {
+      {Jt_GUID("10dd1046-2ac8-11d1-9b-6b-00-80-c7-bb-59-97"), "polyline shape node"},
+      {Jt_GUID("10dd10a1-2ac8-11d1-9b-6b-00-80-c7-bb-59-97"), "polyline shape LOD element"},
+      {Jt_GUID("98134716-0010-0818-19-98-08-00-09-83-5d-5a"), "point shape node"},
+      {Jt_GUID("98134716-0011-0818-19-98-08-00-09-83-5d-5a"), "point shape LOD element"}};
+    for (const auto& entry : displayContent)
+      if (type == entry.guid) {JtData_SkippedContent::record(entry.label); break;}
     theObject = new JtData_Object;
     return reader.SkipBytes(end-reader.GetPosition());
   }

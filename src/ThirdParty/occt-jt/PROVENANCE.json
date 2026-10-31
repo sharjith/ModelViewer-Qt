@@ -270,6 +270,11 @@
       "modified": true
     },
     {
+      "file": "include/ThirdParty/occt-jt/JtData/JtData_SkippedContent.hxx",
+      "origin": "ModelViewer-original",
+      "notice_date": "2026-10-31"
+    },
+    {
       "file": "include/ThirdParty/occt-jt/JtData/JtData_Types.hxx",
       "origin": "upstream-derived",
       "notice_date": "2026-10-19",
@@ -1187,5 +1192,15 @@
       "include/ThirdParty/occt-jt/JtData/JtData_Limits.hxx"
     ],
     "validation": "research/jt/JT_PRODUCTION_MEMORY_BUDGET.md"
+  },
+  "skipped_display_content_follow_up": {
+    "date": "2026-10-31",
+    "scope": "Reporting only, no new decoding: unknown element GUIDs of polyline/point shape nodes and LODs, table-of-contents entries of the precise wireframe segment type, and vertex shape LODs whose TopoMesh compressed representation data is not read, are counted and surfaced as an import warning (or in the no-geometry error) instead of being dropped silently; no native test pass yet",
+    "files": [
+      "include/ThirdParty/occt-jt/JtData/JtData_SkippedContent.hxx",
+      "src/ThirdParty/occt-jt/JtData/JtData_Model.cxx",
+      "src/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.cxx"
+    ],
+    "validation": "research/jt/JT_DISPLAY_PRIMITIVES_AUDIT.md"
   }
 }

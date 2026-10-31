@@ -174,3 +174,7 @@ The original VertexUV adapter recognizes an unpredicted modern IEEE-word transpo
 ## 26 October 2026 - production allocation-budget trial
 
 At the owner's explicit request, the original allocation guard raises the cumulative default to 16 GiB and the single-allocation cap to 512 MiB. Distinct errors include requested/charged/budget/cap bytes. Cancellation, rejection accounting and overflow checks remain. See [pending production memory trial](../../../research/jt/JT_PRODUCTION_MEMORY_BUDGET.md). No large-model or native-test pass is claimed.
+
+## 31 October 2026 - skipped display content reporting (C3 stage A)
+
+The original `JtData_SkippedContent.hxx` counts display-significant content the decoder recognises but cannot read: unknown element GUIDs for polyline and point shape nodes and LODs (recorded where `JtData_Model::readElement` skips an unregistered type) and table-of-contents entries of segment type 18, the precise Wireframe Rep (recorded in `readTOC`), and vertex shape LODs whose TopoMesh compressed representation data is still the unimplemented branch of `JtElement_ShapeLOD_Vertex`. The scene adapter reports the counts as an import warning, or appends them to the no-geometry error. Nothing is decoded and no element is newly rejected; this only stops the omission being silent. See the [C3 audit](../../../research/jt/JT_DISPLAY_PRIMITIVES_AUDIT.md). No native test pass is claimed.
