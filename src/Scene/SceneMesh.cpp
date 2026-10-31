@@ -2097,8 +2097,6 @@ void SceneMesh::setupMesh()
 	points.reserve(vertexTotal * 3);
 	normals.reserve(vertexTotal * 3);
 	colors.reserve(vertexTotal * 4);
-	tangents.reserve(vertexTotal * 3);
-	bitangents.reserve(vertexTotal * 3);
 
 	// Texture coordinates and skinning data that are all zero are not uploaded: a disabled vertex attribute reads as zero
 	// in the shader, which is what the zeros would have been, and a mesh that is later given a UV set or skinned goes
@@ -2117,8 +2115,14 @@ void SceneMesh::setupMesh()
 				break;
 		}
 	}
+	// Tangents and bitangents only matter to normal, height and anisotropy sampling, none of which can happen without a UV
+	// set, and the shader already treats a (zero) tangent shorter than 0.01 as absent. Another 24 bytes a vertex saved.
 	if (hasUvs)
+	{
 		texCoords.reserve(vertexTotal * 8);
+		tangents.reserve(vertexTotal * 3);
+		bitangents.reserve(vertexTotal * 3);
+	}
 	if (hasSkin)
 	{
 		jointIndices.reserve(vertexTotal * 4);
@@ -2149,13 +2153,16 @@ void SceneMesh::setupMesh()
 				texCoords.push_back(v.TexCoords[i].y);
 			}
 
-		tangents.push_back(v.Tangent.x);
-		tangents.push_back(v.Tangent.y);
-		tangents.push_back(v.Tangent.z);
+		if (hasUvs)
+		{
+			tangents.push_back(v.Tangent.x);
+			tangents.push_back(v.Tangent.y);
+			tangents.push_back(v.Tangent.z);
 
-		bitangents.push_back(v.Bitangent.x);
-		bitangents.push_back(v.Bitangent.y);
-		bitangents.push_back(v.Bitangent.z);
+			bitangents.push_back(v.Bitangent.x);
+			bitangents.push_back(v.Bitangent.y);
+			bitangents.push_back(v.Bitangent.z);
+		}
 
 		if (hasSkin)
 		{
