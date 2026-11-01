@@ -69,7 +69,7 @@ Generic and read-only; no unit conversion, no PMI.
 
 - `NodeProperties.h/.cpp` flattens a node's Assimp metadata to display rows (key, value, type). JT `JTProperties` records become one row each; other nested blocks show an entry count. Rows are capped per node.
 - `AssImpModelLoader::processNode` builds, per node that carries meshes, a chain of its own set and each ancestor's (flattened once per node per load) and stores it on `AssImpMeshData`, then `MeshImportAdaptor`/`SceneMesh`. Meshes of one node share it.
-- Tools → Node Properties... opens `NodePropertiesDialog`: mesh selection box, search, Copy rows; each row names its source node and marks ancestors as "(parent)". Ancestors are listed, never merged into the mesh's own node.
+- The Mesh Info context-menu command (tree and viewport) opens `MeshInfoDialog` in place of the former message box: mesh statistics for every format, then source properties where the importer kept any. Mesh selection box, search, Copy rows; each property row names its source node and numbers ancestors ("ancestor N", counted over ancestors that carry properties). Ancestors are listed, never merged into the mesh's own node. A first version added a Tools menu entry; it was folded into Mesh Info because most formats keep no node properties.
 - Limits: not stored in MVF, not copied by `clone()`, so absent after reopening an MVF; the Mesh column shows the first mesh of a shared node plus a count.
 - Tests: `tests/jt/jt_node_properties_tests.cpp` (literal in-memory metadata, same layout as `JtSceneBuilder::properties()`); not evidence about authentic files. Expected owner check: open the C4 controls and compare the table with the strings listed above (units property reads `meters` / `millimeters`).
 

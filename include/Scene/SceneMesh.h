@@ -502,6 +502,7 @@ public:
 	QString getSourceFile() const                  { return _importState.sourceFile(); }
 	void    setSourceNodeName(const QString& name) { _importState.setSourceNodeName(name); }
 	QString getSourceNodeName() const              { return _importState.sourceNodeName(); }
+	size_t pointCount() const { return vertexCount(); }
 	void setNodeProperties(NodePropertyChainPtr chain) { _importState.setNodeProperties(std::move(chain)); }
 	const NodePropertyChainPtr& getNodeProperties() const { return _importState.nodeProperties(); }
 

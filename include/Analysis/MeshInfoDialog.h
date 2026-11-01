@@ -12,22 +12,23 @@ class MeshSelectionBox;
 class ModelViewer;
 
 // ---------------------------------------------------------------------------
-// NodePropertiesDialog (Tools -> Node Properties...)
+// MeshInfoDialog (mesh / tree context menu -> Mesh Info)
 //
-// Read-only table of the source properties an importer kept on the nodes the selected meshes hang from (JT
-// properties, 3DXML references, glTF extras ... anything the importer put in Assimp node metadata, flattened by
-// NodeProperties.h). Each row names the node it came from; a mesh's ancestors are listed too but never merged into the
-// mesh's own node. Meshes that share a node are shown once. No units are interpreted or converted and nothing is
-// written back to the model.
+// Table for the selected meshes: always the mesh statistics (points, triangles, memory, material, source file and node),
+// then the source properties an importer kept on the nodes they hang from (JT properties, 3DXML references ... anything
+// the importer put in Assimp node metadata, flattened by NodeProperties.h). Formats that keep no node properties
+// therefore still show the statistics. Each property row names the node it came from; a mesh's ancestors that carry
+// properties are listed too but never merged into the mesh's own node. Meshes that share a node are shown once.
+// Values are shown exactly as stored: no units are interpreted or converted and nothing is written back to the model.
 //
 // Non-modal like MassPropertiesDialog, with the same selection box; the table is rebuilt when that list changes or on
 // Refresh. Properties are import-time data: they are not stored in MVF files and are absent from cloned meshes.
 // ---------------------------------------------------------------------------
-class NodePropertiesDialog : public QDialog
+class MeshInfoDialog : public QDialog
 {
 	Q_OBJECT
 public:
-	explicit NodePropertiesDialog(ModelViewer* modelViewer, QWidget* parent = nullptr);
+	explicit MeshInfoDialog(ModelViewer* modelViewer, QWidget* parent = nullptr);
 
 	// Re-seeds the mesh list from the viewport selection (used when the tool is invoked while the dialog is open).
 	void seedFromViewportSelection();

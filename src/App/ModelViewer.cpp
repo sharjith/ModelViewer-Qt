@@ -32,7 +32,7 @@
 #include "ShrinkWrapDialog.h"
 #include "SurfaceAnalysisDialog.h"
 #include "MassPropertiesDialog.h"
-#include "NodePropertiesDialog.h"
+#include "MeshInfoDialog.h"
 #include "ReportExportDialog.h"
 #include "BatchRenderViewsDialog.h"
 #include "SubdivisionDialog.h"
@@ -4467,23 +4467,6 @@ void ModelViewer::openMassPropertiesDialog()
 	dialog->activateWindow();
 }
 
-void ModelViewer::openNodePropertiesDialog()
-{
-	NodePropertiesDialog* dialog = findChild<NodePropertiesDialog*>(QString(), Qt::FindDirectChildrenOnly);
-	if (dialog)
-	{
-		dialog->seedFromViewportSelection();
-	}
-	else
-	{
-		dialog = new NodePropertiesDialog(this, this);
-		dialog->setAttribute(Qt::WA_DeleteOnClose);
-	}
-	dialog->show();
-	dialog->raise();
-	dialog->activateWindow();
-}
-
 void ModelViewer::commitShrinkWrap(SceneNode* wrapNode, SceneNode* wrapParent, int wrapPosition,
                                     const QUuid& wrappedMeshUuid, const QSet<QUuid>& originalSelection)
 {
@@ -5404,63 +5387,23 @@ QSet<QUuid> ModelViewer::getSelectedUuids() const
 
 void ModelViewer::displaySelectedMeshInfo()
 {
-	// Trimmed to mesh statistics only (points/triangles/memory) - a quick
-	// glance stat from the tree's context menu. Mass properties (volume,
-	// surface area, mass, center of mass, bounding box) moved to the
-	// purpose-built Tools -> Mass Properties... dialog (MassPropertiesDialog),
-	// which has room for the "N/A + reason" nuance those values need (an
-	// open mesh has no valid volume, a material with no assigned density has
-	// no valid mass, etc.) that a single QMessageBox string dump doesn't.
-	std::vector<int> selected = getSelectedIDs();
-	if (selected.size() != 0)
+	// Mesh statistics plus any source properties the importer kept, in a non-modal table (MeshInfoDialog). Mass
+	// properties (volume, surface area, mass, center of mass) stay in the Tools -> Mass Properties... dialog.
+	if (getSelectedIDs().empty())
+		return;
+	MeshInfoDialog* dialog = findChild<MeshInfoDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (dialog)
 	{
-		std::vector<SceneMesh*> meshes = _viewportWidget->getMeshStore();
-		QString name;
-		size_t points = 0, triangles = 0;
-		unsigned long long rawmem = 0;
-		SceneMesh* mesh = nullptr;
-		size_t selectionCount = selected.size();
-		if (selectionCount > 1)
-			name = QString("%1 Meshes\n").arg(selectionCount);
-		else
-			name = meshes.at(selected[0])->getName() + "\n";
-		for (int id : selected)
-		{
-			mesh = meshes.at(id);
-			points += mesh->getPoints().size() / 3;
-			triangles += mesh->getIndices().size() / 3;
-			rawmem += mesh->memorySize();
-		}
-
-		QString strpoints = QString(tr("Points: %1\n")).arg(points);
-		QString strtriangles = QString(tr("Triangles: %1\n")).arg(triangles);
-		unsigned long long mem = 0;
-		QString units;
-		if (rawmem < 1024)
-		{
-			mem = rawmem;
-			units = "bytes";
-		}
-		else if (rawmem < (1024 * 1024))
-		{
-			mem = rawmem / 1024;
-			units = "kb";
-		}
-		else if (rawmem < (1024 * 1024 * 1024))
-		{
-			mem = rawmem / (1024 * 1024);
-			units = "mb";
-		}
-		else
-		{
-			mem = rawmem / (1024 * 1024 * 1024);
-			units = "gb";
-		}
-		QString meshSize = QString(tr("Memory: %1 ")).arg(mem) + units;
-
-		QString info = name + strpoints + strtriangles + meshSize;
-		QMessageBox::information(this, tr("Mesh Info"), info);
+		dialog->seedFromViewportSelection();
 	}
+	else
+	{
+		dialog = new MeshInfoDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
 }
 
 void ModelViewer::showVisualizationModelPage()
@@ -8432,7 +8375,6 @@ void ModelViewer::executeToolCommand(const QString& command)
     else if (command == QLatin1String("simulation_open")) openSimulationResult();
     else if (command == QLatin1String("uv")) openUVGenerationDialog();
     else if (command == QLatin1String("mass")) openMassPropertiesDialog();
-    else if (command == QLatin1String("nodeprops")) openNodePropertiesDialog();
     else if (command == QLatin1String("report")) { ReportExportDialog dialog(this, this); dialog.exec(); }
     else if (command == QLatin1String("batch")) { BatchRenderViewsDialog dialog(this, this); dialog.exec(); }
     else if (command == QLatin1String("texture_debug")) showTextureDebugPanel();

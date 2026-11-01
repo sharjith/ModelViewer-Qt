@@ -1,9 +1,10 @@
-#include "NodePropertiesDialog.h"
+#include "MeshInfoDialog.h"
 #include "ModelViewer.h"
 #include "ViewportWidget.h"
 #include "SceneMesh.h"
 #include "MeshSelectionBox.h"
 #include "NodeProperties.h"
+#include "Material.h"
 
 #include <QApplication>
 #include <QClipboard>
@@ -27,6 +28,24 @@ namespace
 {
 	// Largest number of table rows built; a selection spanning very many nodes is cut here and says so.
 	constexpr int MaxTableRows = 20000;
+	// Per-mesh statistics are listed up to this many meshes; beyond it only the selection totals are shown.
+	constexpr int MaxMeshesWithOwnRows = 100;
+
+	QString memoryText(unsigned long long bytes)
+	{
+		if (bytes < 1024ull)
+			return QObject::tr("%1 bytes").arg(bytes);
+		if (bytes < 1024ull * 1024)
+			return QObject::tr("%1 kb").arg(bytes / 1024);
+		if (bytes < 1024ull * 1024 * 1024)
+			return QObject::tr("%1 mb").arg(bytes / (1024 * 1024));
+		return QObject::tr("%1 gb").arg(bytes / (1024ull * 1024 * 1024));
+	}
+
+	struct InfoRow
+	{
+		QString mesh, source, property, value, type;
+	};
 
 	QMdiArea* findMdiArea(QWidget* widget)
 	{
@@ -47,25 +66,25 @@ namespace
 	};
 }
 
-NodePropertiesDialog::NodePropertiesDialog(ModelViewer* modelViewer, QWidget* parent)
+MeshInfoDialog::MeshInfoDialog(ModelViewer* modelViewer, QWidget* parent)
 	: QDialog(parent)
 	, _modelViewer(modelViewer)
 {
-	setWindowTitle(tr("Node Properties"));
+	setWindowTitle(tr("Mesh Info"));
 	resize(720, 460);
 
 	auto* layout = new QVBoxLayout(this);
 	layout->setContentsMargins(16, 16, 16, 16);
 	layout->setSpacing(12);
 
-	auto* introLabel = new QLabel(tr("Source properties kept from the imported file for the selected meshes' nodes - "
-	                                  "read-only, values exactly as stored (no unit conversion)."), this);
+	auto* introLabel = new QLabel(tr("Statistics for the selected meshes, then the source properties kept from the imported "
+	                                  "file for their nodes - read-only, values exactly as stored (no unit conversion)."), this);
 	introLabel->setWordWrap(true);
 	introLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
 	layout->addWidget(introLabel);
 
 	_selectionBox = new MeshSelectionBox(_modelViewer, this);
-	_selectionBox->setFieldToolTip(tr("The meshes whose node properties are listed. Right-click to edit or clear."));
+	_selectionBox->setFieldToolTip(tr("The meshes this table describes. Right-click to edit or clear."));
 	_selectionBox->setEditorTexts(tr("Review and refine the meshes in this list."), tr("Meshes"));
 	layout->addWidget(_selectionBox);
 
@@ -81,9 +100,9 @@ NodePropertiesDialog::NodePropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 	layout->addWidget(_noSelectionLabel, 1);
 
 	_searchEdit = new QLineEdit(this);
-	_searchEdit->setPlaceholderText(tr("Search nodes, properties or values..."));
+	_searchEdit->setPlaceholderText(tr("Search meshes, properties or values..."));
 	_searchEdit->setClearButtonEnabled(true);
-	connect(_searchEdit, &QLineEdit::textChanged, this, &NodePropertiesDialog::applySearchFilter);
+	connect(_searchEdit, &QLineEdit::textChanged, this, &MeshInfoDialog::applySearchFilter);
 	layout->addWidget(_searchEdit);
 
 	_table = new QTableWidget(this);
@@ -101,7 +120,7 @@ NodePropertiesDialog::NodePropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 	_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
 	_table->setSelectionBehavior(QAbstractItemView::SelectRows);
 	_table->setContextMenuPolicy(Qt::CustomContextMenu);
-	connect(_table, &QWidget::customContextMenuRequested, this, &NodePropertiesDialog::showTableContextMenu);
+	connect(_table, &QWidget::customContextMenuRequested, this, &MeshInfoDialog::showTableContextMenu);
 	layout->addWidget(_table, 1);
 
 	_refreshButton = new QPushButton(tr("Refresh"), this);
@@ -123,19 +142,19 @@ NodePropertiesDialog::NodePropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 	if (_modelViewer)
 	{
 		if (QMdiArea* mdiArea = findMdiArea(_modelViewer))
-			connect(mdiArea, &QMdiArea::subWindowActivated, this, &NodePropertiesDialog::onActiveSubWindowChanged);
+			connect(mdiArea, &QMdiArea::subWindowActivated, this, &MeshInfoDialog::onActiveSubWindowChanged);
 	}
 
 	populate();
 	loadSettings();
 }
 
-void NodePropertiesDialog::seedFromViewportSelection()
+void MeshInfoDialog::seedFromViewportSelection()
 {
 	_selectionBox->seedFromViewportSelection(); // rebuilds through meshUuidsChanged()
 }
 
-void NodePropertiesDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)
+void MeshInfoDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)
 {
 	const bool isOwnDocumentActive = _modelViewer
 		&& activeSubWindow
@@ -143,7 +162,7 @@ void NodePropertiesDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWind
 	setVisible(isOwnDocumentActive);
 }
 
-void NodePropertiesDialog::applySearchFilter()
+void MeshInfoDialog::applySearchFilter()
 {
 	const QString needle = _searchEdit->text().trimmed();
 	for (int row = 0; row < _table->rowCount(); ++row)
@@ -158,7 +177,7 @@ void NodePropertiesDialog::applySearchFilter()
 	}
 }
 
-void NodePropertiesDialog::showTableContextMenu(const QPoint& pos)
+void MeshInfoDialog::showTableContextMenu(const QPoint& pos)
 {
 	const QModelIndexList rows = _table->selectionModel()->selectedRows();
 	if (rows.isEmpty())
@@ -181,7 +200,7 @@ void NodePropertiesDialog::showTableContextMenu(const QPoint& pos)
 	QApplication::clipboard()->setText(lines.join(QLatin1Char('\n')));
 }
 
-void NodePropertiesDialog::populate()
+void MeshInfoDialog::populate()
 {
 	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
 	if (!viewport)
@@ -190,14 +209,15 @@ void NodePropertiesDialog::populate()
 	const std::vector<SceneMesh*> meshStore = viewport->getMeshStore();
 	std::vector<SetUse> uses;
 	std::unordered_map<const NodePropertySet*, size_t> useIndex;
-	int meshes = 0, meshesWithout = 0;
+	std::vector<const SceneMesh*> selected;
+	int meshesWithout = 0;
 	for (const QUuid& uuid : _selectionBox->meshUuids())
 	{
 		const int id = viewport->getIndexByUuid(uuid);
 		if (id < 0 || size_t(id) >= meshStore.size() || !meshStore[size_t(id)])
 			continue; // deleted since it was added
 		const SceneMesh* mesh = meshStore[size_t(id)];
-		++meshes;
+		selected.push_back(mesh);
 		const NodePropertyChainPtr& chain = mesh->getNodeProperties();
 		if (!chain || chain->empty())
 		{
@@ -217,6 +237,7 @@ void NodePropertiesDialog::populate()
 		}
 	}
 
+	const int meshes = int(selected.size());
 	_noSelectionLabel->setVisible(meshes == 0);
 	_searchEdit->setVisible(meshes != 0);
 	_table->setVisible(meshes != 0);
@@ -226,65 +247,95 @@ void NodePropertiesDialog::populate()
 	if (meshes == 0)
 		return;
 
-	int rows = 0;
-	bool cut = false;
-	for (const SetUse& use : uses)
-		rows += int(use.set->rows.size());
-	if (rows > MaxTableRows)
+	std::vector<InfoRow> rows;
+	auto add = [&rows](const QString& mesh, const QString& source, const QString& property, const QString& value, const QString& type) {
+		rows.push_back({ mesh, source, property, value, type });
+	};
+	const QString meshSource = tr("Mesh");
+	size_t totalPoints = 0, totalTriangles = 0;
+	unsigned long long totalMemory = 0;
+	for (const SceneMesh* mesh : selected)
 	{
-		rows = MaxTableRows;
-		cut = true;
+		const size_t points = mesh->pointCount();
+		const size_t triangles = mesh->getIndices().size() / 3;
+		const unsigned long long memory = mesh->memorySize();
+		totalPoints += points;
+		totalTriangles += triangles;
+		totalMemory += memory;
+		if (meshes > MaxMeshesWithOwnRows)
+			continue;
+		const QString name = mesh->getName();
+		add(name, meshSource, tr("Points"), QString::number(points), QStringLiteral("integer"));
+		add(name, meshSource, tr("Triangles"), QString::number(triangles), QStringLiteral("integer"));
+		add(name, meshSource, tr("Memory"), memoryText(memory), QStringLiteral("text"));
+		add(name, meshSource, tr("Material"), mesh->materialRef().name(), QStringLiteral("text"));
+		if (!mesh->getSourceFile().isEmpty())
+			add(name, meshSource, tr("Source file"), mesh->getSourceFile(), QStringLiteral("text"));
+		if (!mesh->getSourceNodeName().isEmpty())
+			add(name, meshSource, tr("Source node"), mesh->getSourceNodeName(), QStringLiteral("text"));
 	}
-	_table->setRowCount(rows);
-	int row = 0;
+	if (meshes > 1)
+	{
+		const QString label = tr("%1 meshes").arg(meshes);
+		const QString totals = tr("Selection");
+		add(label, totals, tr("Points"), QString::number(totalPoints), QStringLiteral("integer"));
+		add(label, totals, tr("Triangles"), QString::number(totalTriangles), QStringLiteral("integer"));
+		add(label, totals, tr("Memory"), memoryText(totalMemory), QStringLiteral("text"));
+	}
 	for (const SetUse& use : uses)
 	{
 		const QString meshText = use.meshCount > 1 ? tr("%1 (+%2 more)").arg(use.firstMesh).arg(use.meshCount - 1) : use.firstMesh;
 		const QString nodeText = use.level > 0 ? tr("%1 (ancestor %2)").arg(use.set->nodeName).arg(use.level) : use.set->nodeName;
 		for (const NodePropertyRow& property : use.set->rows)
-		{
-			if (row >= rows)
-				break;
-			_table->setItem(row, 0, new QTableWidgetItem(meshText));
-			_table->setItem(row, 1, new QTableWidgetItem(nodeText));
-			_table->setItem(row, 2, new QTableWidgetItem(property.key));
-			auto* valueItem = new QTableWidgetItem(property.value);
-			valueItem->setToolTip(property.value); // the full text, whatever the column width
-			_table->setItem(row, 3, valueItem);
-			_table->setItem(row, 4, new QTableWidgetItem(property.type));
-			++row;
-		}
+			add(meshText, nodeText, property.key, property.value, property.type);
+	}
+
+	const bool cut = int(rows.size()) > MaxTableRows;
+	const int count = cut ? MaxTableRows : int(rows.size());
+	_table->setRowCount(count);
+	for (int row = 0; row < count; ++row)
+	{
+		const InfoRow& r = rows[size_t(row)];
+		_table->setItem(row, 0, new QTableWidgetItem(r.mesh));
+		_table->setItem(row, 1, new QTableWidgetItem(r.source));
+		_table->setItem(row, 2, new QTableWidgetItem(r.property));
+		auto* valueItem = new QTableWidgetItem(r.value);
+		valueItem->setToolTip(r.value); // the full text, whatever the column width
+		_table->setItem(row, 3, valueItem);
+		_table->setItem(row, 4, new QTableWidgetItem(r.type));
 	}
 
 	QString summary = tr("%n mesh(es) selected; %1 without source properties.", nullptr, meshes).arg(meshesWithout);
+	if (meshes > MaxMeshesWithOwnRows)
+		summary += tr(" Per-mesh statistics are listed for up to %1 meshes; totals only here.").arg(MaxMeshesWithOwnRows);
 	if (cut)
 		summary += tr(" Only the first %1 rows are shown.").arg(MaxTableRows);
 	_summaryLabel->setText(summary);
 	applySearchFilter();
 }
 
-void NodePropertiesDialog::closeEvent(QCloseEvent* event)
+void MeshInfoDialog::closeEvent(QCloseEvent* event)
 {
 	saveSettings();
 	QDialog::closeEvent(event);
 }
 
-void NodePropertiesDialog::reject()
+void MeshInfoDialog::reject()
 {
 	saveSettings();
 	QDialog::reject();
 }
 
-void NodePropertiesDialog::loadSettings()
+void MeshInfoDialog::loadSettings()
 {
 	QSettings settings;
-	const QByteArray geometry = settings.value("nodeProperties/geometry", QByteArray()).toByteArray();
+	const QByteArray geometry = settings.value("meshInfo/geometry", QByteArray()).toByteArray();
 	if (!geometry.isEmpty())
 		restoreGeometry(geometry);
 }
 
-void NodePropertiesDialog::saveSettings()
+void MeshInfoDialog::saveSettings()
 {
 	QSettings settings;
-	settings.setValue("nodeProperties/geometry", saveGeometry());
+	settings.setValue("meshInfo/geometry", saveGeometry());
 }
