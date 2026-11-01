@@ -83,6 +83,7 @@
 #include "AnimationUtils.h"
 #include "MeshMathUtils.h"
 #include "SceneNode.h"
+#include "RecordedPmiBuilder.h"
 
 
 // Displayed-geometry size above which the interaction fast path (low-res drawing, small-part culling) applies.
@@ -5844,6 +5845,16 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 					// The file states its own unit (JT): record it on the file node, never as a geometry scale.
 					SceneNode* fileNode = _viewer->sceneGraph()->root()->children.last();
 					if (fileNode && !fileNode->importUnitUserOverridden) fileNode->importUnit = loadingWorker->declaredLengthUnit();
+				}
+				// Recorded PMI dimensions (JT): anchor each on its part's mesh and keep them with the document.
+				if (meshCountAfterLoad > meshCountBeforeLoad) {
+					const auto& store = _sceneRuntime.meshStore();
+					const std::vector<SceneMeshRecord> importedMeshes(store.begin() + std::ptrdiff_t(meshCountBeforeLoad), store.begin() + std::ptrdiff_t(meshCountAfterLoad));
+					const RecordedPmi::BuildResult recordedPmi = RecordedPmi::buildLinearDimensions(importedMeshes, importedFileNode->importUnit);
+					for (const Measurement& recorded : recordedPmi.measurements)
+						_viewer->sceneGraph()->addMeasurement(recorded);
+					for (const QString& note : recordedPmi.notes)
+						qWarning().noquote() << note;
 				}
 
 				ImportDiagnostics::checkpoint("viewer.scene-graph-extras-begin");

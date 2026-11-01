@@ -305,6 +305,14 @@ QString MeasurementController::measurementSummaryText(const Measurement& m) cons
 			return QString();
 		const QVector3D a = resolveMeasurementAnchor(m.anchors[0]);
 		const QVector3D b = resolveMeasurementAnchor(m.anchors[1]);
+		if (m.origin == MeasurementOrigin::Recorded)
+		{
+			// The authored value first and unmodified; the mesh's own number is shown beside it, never instead of it.
+			const QString authored = m.recordedUnit.isEmpty()
+				? QString::number(m.recordedValue, 'f', m.recordedPrecision)
+				: QStringLiteral("%1 %2").arg(m.recordedValue, 0, 'f', m.recordedPrecision).arg(m.recordedUnit);
+			return tr("Recorded distance: %1 (mesh: %2 scene units)").arg(authored).arg(a.distanceToPoint(b), 0, 'f', 3);
+		}
 		return tr("Distance: %1").arg(a.distanceToPoint(b), 0, 'f', 3);
 	}
 	case MeasurementType::ArcRadius3Point:

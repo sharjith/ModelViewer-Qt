@@ -64,6 +64,17 @@ The vendored reader models an older layout in which each PMI kind had its own ty
 - **Tests:** `tests/jt/jt_pmi_tests.cpp` (literal fixtures in both byte orders, rejections, truncation) and a flattening case in `jt_node_properties_tests.cpp`. Not run yet.
 - **Not verified:** that the part nodes of the controls actually carry the segment-type-3 late load (this is what the owner's run on the controls will show) and that readers of other exporters or versions agree.
 
+## Step 2 implementation: recorded linear dimensions (1 November 2026, awaiting owner build and test)
+
+Owner decision: recorded dimensions are persisted in MVF, not re-read from the JT on load.
+
+- **Model:** `Measurement` gains an origin (`Measured` or `Recorded`) and, for recorded ones, the authored value, its unit, the decimals the source asked for and a source label. Anchors, offset fields and undo are unchanged. MVF stores the extra fields only for recorded ones; files without them read back as measured, so older files and older readers are unaffected.
+- **Creation:** at the end of a JT import, `RecordedPmi::buildLinearDimensions` takes the new meshes, finds each part's PMI rows, and for every complete linear dimension (entity "Dimension", `type` 1, a value and both leader terminators) anchors the two end points on the nearest triangle of that part's meshes. A point farther than 3 percent of the mesh diagonal from every triangle is skipped and reported. (A first tolerance of 0.1 percent skipped the two 100 mm dimensions of the chamfered extended control: their end points are the original sharp corners, 1.6 to 2.3 mm off the chamfered mesh; every other end point lies exactly on the surface, so the tolerance admits virtual corners but still rejects a wrong frame.) At most 2,000 are created per import. Each assembly instance gets its own set, because each instance has its own part node.
+- **Value:** the stored number is in the file's unit. With a declared file unit it is converted to the dimension's display unit (`millimeters` and the other units the importer can represent); with no declared unit the raw number is kept and shown without a unit.
+- **Display:** the dimension draws through the existing Distance path. Its text reads "Recorded distance: 100.00 mm (mesh: <n> scene units)": the authored value first and unmodified, the mesh's own number beside it. The two are never merged.
+- **Not done, deliberately:** diameters, radii, angles, notes, balloons and the other PMI kinds; placing the dimension line where the author put it (the stored text origin is parsed but not yet used, so the line uses the camera-derived default); drawing the stored arrows and glyph strokes (C4d, after C3); reconciling recorded items when a file is re-imported.
+- **Tests:** `tests/jt/jt_recorded_pmi_tests.cpp` covers the row parsing and the closest-triangle geometry on literal data. The anchoring, conversion, persistence and drawing are exercised only by opening the controls in the application.
+
 ## Measured and recorded dimensions
 
 Recommended vocabulary for the two kinds of measurement, as the owner proposed:

@@ -282,11 +282,29 @@ enum class MeasurementTool
     GeodesicDistance,
 };
 
+// Where a measurement's number comes from. Measured: the viewer computes it from the picked anchors on the mesh. Recorded: it
+// is the value the authoring system stored in the imported file (a PMI dimension); the anchors only place it on the mesh, and the
+// value is shown as authored, next to what the mesh measures at the same two points. The two are never mixed in one label.
+enum class MeasurementOrigin
+{
+    Measured = 0,
+    Recorded = 1,
+};
+
 struct Measurement
 {
     QUuid                          id;
     QString                        name;
     MeasurementType                type = MeasurementType::Point;
+
+    MeasurementOrigin              origin = MeasurementOrigin::Measured;
+    // Recorded measurements only: the authored value converted to recordedUnit (empty unit means the value is still in the
+    // file's own coordinate unit, which the file did not declare), the number of decimals the source asked for, and where it
+    // came from (e.g. "JT PMI 3"). Persisted in MVF; absent for measured ones.
+    double                         recordedValue = 0.0;
+    QString                        recordedUnit;
+    int                            recordedPrecision = 2;
+    QString                        recordedSource;
 
     // Anchor count is determined by type: 1 for Point or EdgeRadius, 2 for
     // Distance/FaceToFace/PointToFace, 3 for either arc type (see

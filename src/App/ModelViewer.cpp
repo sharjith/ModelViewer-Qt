@@ -6318,6 +6318,14 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			m.offsetReferenceDir = jsonArrayToVec3Measurement(measurementObj[QStringLiteral("offsetReferenceDir")].toArray());
 			m.offsetDistance = static_cast<float>(measurementObj[QStringLiteral("offsetDistance")].toDouble());
 			m.offsetVector = jsonArrayToVec3Measurement(measurementObj[QStringLiteral("offsetVector")].toArray());
+			if (measurementObj[QStringLiteral("origin")].toString() == QLatin1String("recorded"))
+			{
+				m.origin = MeasurementOrigin::Recorded;
+				m.recordedValue = measurementObj[QStringLiteral("recordedValue")].toDouble();
+				m.recordedUnit = measurementObj[QStringLiteral("recordedUnit")].toString();
+				m.recordedPrecision = qBound(0, measurementObj[QStringLiteral("recordedPrecision")].toInt(2), 8);
+				m.recordedSource = measurementObj[QStringLiteral("recordedSource")].toString();
+			}
 
 			const QJsonArray anchorsArr = measurementObj[QStringLiteral("anchors")].toArray();
 			m.anchors.reserve(anchorsArr.size());
@@ -7421,6 +7429,15 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 			measurementObj.insert(QStringLiteral("offsetReferenceDir"), vec3ToJson(m.offsetReferenceDir));
 			measurementObj.insert(QStringLiteral("offsetDistance"), static_cast<double>(m.offsetDistance));
 			measurementObj.insert(QStringLiteral("offsetVector"), vec3ToJson(m.offsetVector));
+			if (m.origin == MeasurementOrigin::Recorded)
+			{
+				// Only recorded ones carry these; files written before them (or without any) read back as measured.
+				measurementObj.insert(QStringLiteral("origin"), QStringLiteral("recorded"));
+				measurementObj.insert(QStringLiteral("recordedValue"), m.recordedValue);
+				measurementObj.insert(QStringLiteral("recordedUnit"), m.recordedUnit);
+				measurementObj.insert(QStringLiteral("recordedPrecision"), m.recordedPrecision);
+				measurementObj.insert(QStringLiteral("recordedSource"), m.recordedSource);
+			}
 			measurementObj.insert(QStringLiteral("anchors"), anchorsJson);
 			measurementsJson.append(measurementObj);
 		}
