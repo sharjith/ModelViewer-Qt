@@ -90,7 +90,9 @@ void nodePropertiesTests(){
  check(Jt::declaredLengthUnit({QStringLiteral("millimeters")},notes)==LengthUnit::Millimeter,"Millimeters recognised");
  check(Jt::declaredLengthUnit({QStringLiteral("meters")},notes)==LengthUnit::Meter && notes.isEmpty(),"Meters recognised");
  check(Jt::declaredLengthUnit({QStringLiteral("Meters")},notes)==LengthUnit::Meter,"Spelling is matched without regard to case");
+ check(Jt::declaredLengthUnit({QStringLiteral("centimeters")},notes)==LengthUnit::Centimeter && Jt::declaredLengthUnit({QStringLiteral("Inches")},notes)==LengthUnit::Inch && Jt::declaredLengthUnit({QStringLiteral("feet")},notes)==LengthUnit::Foot && notes.isEmpty(),"Centimeters, inches and feet are recognised");
  check(Jt::declaredLengthUnit({QStringLiteral("furlongs")},notes)==LengthUnit::Unknown && notes.size()==1 && notes[0].contains("furlongs"),"An unrecognised unit stays unknown and is explained");
+ check(Jt::declaredLengthUnit({QStringLiteral("yards")},notes)==LengthUnit::Unknown && notes.size()==2,"A listed unit the viewer cannot represent stays unknown and is explained");
  notes.clear();
  check(Jt::declaredLengthUnit({QStringLiteral("meters"),QStringLiteral("millimeters")},notes)==LengthUnit::Unknown && notes.size()==1,"Disagreeing nodes leave the unit unknown and explain why");
 }
