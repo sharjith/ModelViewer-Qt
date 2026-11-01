@@ -15,11 +15,16 @@
 // on <http://www.gnu.org/licenses/>.
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
-// Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
-// see src/ThirdParty/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
+// Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling; the element reader was
+// replaced on 2026-11-01 by the JT 10.6 section 8.3 layout (see MODIFICATIONS.md and PROVENANCE.json).
 
 #include <JtElement_MetaData_PMIManager.hxx>
 #include <JtData_Reader.hxx>
+#include <JtData_Limits.hxx>
+
+#include <limits>
+#include <stdexcept>
+#include <string>
 
 IMPLEMENT_STANDARD_HANDLE (JtElement_MetaData_PMIManager, JtData_Object)
 IMPLEMENT_STANDARD_RTTIEXT(JtElement_MetaData_PMIManager, JtData_Object)
@@ -27,385 +32,105 @@ IMPLEMENT_STANDARD_RTTIEXT(JtElement_MetaData_PMIManager, JtData_Object)
 IMPLEMENT_OBJECT_CLASS(JtElement_MetaData_PMIManager, "PMI Manager Meta Data Object",
                        "ce357249-38fb-11d1-a5-06-00-60-97-bd-c6-e1")
 
-class JtElement_MetaData_PMIManager::EntitiesSorter
+namespace
 {
-  Jt_I32 myIdxIdx;
-  Jt_VecI32::Ref myIndices;
-  JtData_Vector <Entity*, Jt_I32>::Ref myEntities;
+  constexpr std::uint32_t NoString = 0xFFFFFFFFu;
+  constexpr std::size_t MaxEntities = 1u << 20;
+  constexpr std::size_t MaxStrings = 1u << 22;
+  constexpr std::size_t MaxProperties = 1u << 16;
 
-public:
-  EntitiesSorter (Jt_VecI32::Ref theIndices, JtData_Vector <Entity*, Jt_I32>::Ref theEntities)
-    : myIdxIdx (0), myIndices (theIndices), myEntities (theEntities) {}
-
-  template <class Entity, class SizeT>
-  Standard_Boolean operator() (const JtData_Vector<Entity, SizeT>& theEntities)
+  // Bounded element-level reads on top of JtData_Reader: counts must be plausible against the bytes the element still has.
+  struct Cursor
   {
-    for (SizeT i = 0; i < theEntities.Count(); i++)
+    JtData_Reader& R;
+
+    [[noreturn]] static void Fail (const char* theWhat)
     {
-      if (myIdxIdx > myIndices.Count())
-        return Standard_False;
-
-      Jt_I32 anIdx = myIndices[myIdxIdx];
-      if (anIdx > myEntities.Count())
-        return Standard_False;
-
-      myEntities[anIdx] = &theEntities[i];
-      myIdxIdx++;
+      throw std::runtime_error (std::string ("Truncated or invalid JT PMI Manager element: ") + theWhat);
     }
 
-    return Standard_True;
-  }
-};
+    std::uint8_t U8 (const char* theWhat) { Jt_U8 v; if (!R.ReadU8 (v)) Fail (theWhat); return v; }
+    std::int16_t I16 (const char* theWhat) { Jt_I16 v; if (!R.ReadI16 (v)) Fail (theWhat); return v; }
+    std::uint16_t U16 (const char* theWhat) { Jt_U16 v; if (!R.Read (v)) Fail (theWhat); return v; }
+    std::int32_t I32 (const char* theWhat) { Jt_I32 v; if (!R.ReadI32 (v)) Fail (theWhat); return v; }
+    std::uint32_t U32 (const char* theWhat) { Jt_U32 v; if (!R.ReadU32 (v)) Fail (theWhat); return v; }
+    float F32 (const char* theWhat) { Jt_F32 v; if (!R.ReadF32 (v)) Fail (theWhat); return v; }
 
-class JtElement_MetaData_PMIManager::PMIReader : public JtData_Reader::Wrapper<PMIReader>
-{
-public:
-  PMIReader (JtData_Reader& theReader) : JtData_Reader::Wrapper<PMIReader> (theReader) {}
-
-  Standard_Boolean ReadObject (TextPolylineData&)
-  {
-    PolylineData aData;
-    if (!Read (aData.SegmentIndices))
-      return Standard_False;
-
-    return aData.SegmentIndices.IsEmpty() || Read (aData.VertexCoords);
-  }
-
-  Standard_Boolean ReadObject (NonTextPolylineData&)
-  {
-    PolylineData aData;
-    if (!Read (aData.SegmentIndices))
-      return Standard_False;
-
-    if (myVersion > 4)
+    std::size_t Count (std::size_t theItemBytes, std::size_t theLimit, const char* theWhat)
     {
-      JtData_Vector<Jt_I16, Jt_I32> aTypes;
-      if (!Read (aTypes))
-        return Standard_False;
+      const std::int32_t aCount = I32 (theWhat);
+      if (aCount < 0 || std::size_t (aCount) > theLimit
+       || std::size_t (aCount) > R.ElementBytesRemaining() / (theItemBytes ? theItemBytes : 1))
+        Fail (theWhat);
+      return std::size_t (aCount);
     }
 
-    return Read (aData.VertexCoords);
-  }
-
-  Standard_Boolean ReadObject (PMIBaseData& theData)
-  {
-    Jt_U8 a2DFrameFlag;
-    if (!Read (theData.UserLabel)
-     || !Read (a2DFrameFlag))
-      return Standard_False;
-
-    if (a2DFrameFlag)
+    std::u16string String (const char* theWhat)
     {
-      RefFrame2D a2DRefFrame;
-      if (!ReadUniformStruct<Jt_F32> (a2DRefFrame))
-        return Standard_False;
+      TCollection_ExtendedString aString;
+      if (!R.ReadMbString (aString)) Fail (theWhat);
+      const Standard_ExtString aData = aString.ToExtString();
+      return std::u16string (reinterpret_cast<const char16_t*> (aData), std::size_t (aString.Length()));
     }
 
-    if (!Read (theData.TextHeight))
-      return Standard_False;
-
-    if (myVersion > 4)
+    template <class T> std::vector<T> Array (std::size_t theCount, const char* theWhat)
     {
-      if (!Read (theData.ValidFlag))
-        return Standard_False;
+      JtData_Limits::allocation (theCount * sizeof (T));
+      std::vector<T> aValues (theCount);
+      if (theCount && !R.ReadPrimitiveArray (aValues.data(), theCount)) Fail (theWhat);
+      return aValues;
     }
-    else
-      theData.ValidFlag = 1;
+  };
 
-    return Standard_True;
-  }
-
-  Standard_Boolean ReadObject (TextData2D& theData)
+  void ReadEntity (Cursor& C, const std::vector<std::u16string>& theStrings, JtElement_MetaData_PMIManager::Entity& E)
   {
-    Jt_I32 aReservedI32;
-    Jt_F32 aReservedF32;
-    return Read (theData.StringID)
-        && Read (theData.Font)
-        && Read (aReservedI32)
-        && Read (aReservedF32)
-        && ReadUniformStruct<Jt_F32> (theData.TextBox)
-        && Read (theData.PolylineData);
-  }
-
-  Standard_Boolean ReadObject (PMI2DData& theData)
-  {
-    return Read (static_cast <PMIBaseData&> (theData))
-        && Read (theData.TextEntities)
-        && Read (theData.PolylineData);
-  }
-
-  Standard_Boolean ReadObject (PMI3DData& theData)
-  {
-    Jt_I16 aPolylineDimensionality;
-    PolylineData aPolylineData;
-    return Read (static_cast <PMIBaseData&> (theData))
-        && Read (theData.StringID)
-        && Read (aPolylineDimensionality)
-        && Read (aPolylineData.SegmentIndices)
-        && Read (aPolylineData.VertexCoords);
-  }
-
-  Standard_Boolean ReadObject (Note& theData)
-  {
-    if (!Read (static_cast <PMI2DData&> (theData)))
-      return Standard_False;
-
-    if (myVersion > 5)
+    // PMI 2D Data: base data, then text entities, then non-text polylines.
+    E.UserLabel = C.I32 ("user label");
+    const std::uint8_t aFrameFlag = C.U8 ("frame flag");
+    if (aFrameFlag)
     {
-      Jt_U32 anURLFlag;
-      if (!Read (anURLFlag))
-        return Standard_False;
+      E.HasFrame = true;
+      for (float& aValue : E.Frame) aValue = C.F32 ("reference frame");
     }
+    E.TextHeight = C.F32 ("text height");
+    E.SymbolValid = C.U8 ("symbol valid flag");
+    if (C.I32 ("text entity count") != 0)
+      throw std::runtime_error ("JT PMI 2D text entities are not supported (no authentic sample has been decoded)");
 
-    return Standard_True;
-  }
+    const std::size_t anIndexCount = C.Count (4, 1u << 24, "polyline index count");
+    E.PolylineIndices = C.Array<std::int32_t> (anIndexCount, "polyline indices");
+    const std::size_t aTypeCount = C.Count (2, 1u << 24, "polyline type count");
+    E.PolylineTypes = C.Array<std::int16_t> (aTypeCount, "polyline types");
+    const std::size_t aWidthCount = C.Count (2, 1u << 24, "polyline width count");
+    E.PolylineWidths = C.Array<std::int16_t> (aWidthCount, "polyline widths");
+    const std::size_t aCoordCount = C.Count (4, std::size_t (3) << 24, "vertex coordinate count");
+    if (aCoordCount % 3) throw std::runtime_error ("JT PMI polyline coordinates are not 3D triples");
+    E.Vertices = C.Array<float> (aCoordCount, "vertex coordinates");
+    for (std::int32_t anIndex : E.PolylineIndices)
+      if (anIndex < 0 || std::size_t (anIndex) > aCoordCount / 3)
+        throw std::runtime_error ("JT PMI polyline index exceeds the vertex array");
 
-  Standard_Boolean ReadObject (SpotWeld& theData)
-  {
-    if (!Read (static_cast <PMI3DData&> (theData)))
-      return Standard_False;
-
-    if (myVersion >= 4)
+    // Generic entity: properties (each atom is a string and one flag byte in version 5), type names, type codes, user flags.
+    const std::size_t aPropertyCount = C.Count (10, MaxProperties, "property count");
+    JtData_Limits::allocation (aPropertyCount * sizeof (JtElement_MetaData_PMIManager::Property));
+    E.Properties.reserve (aPropertyCount);
+    for (std::size_t i = 0; i < aPropertyCount; ++i)
     {
-      Jt_CoordF32 aWeldPoint;
-      Jt_DirF32 anApproachDirection, aClampingDirection, aNormalDirection;
-      if (!Read (aWeldPoint)
-       || !Read (anApproachDirection)
-       || !Read (aClampingDirection)
-       || !Read (aNormalDirection))
-        return Standard_False;
+      JtElement_MetaData_PMIManager::Property aProperty;
+      aProperty.Key = C.String ("property key");
+      C.U8 ("property key flag");
+      aProperty.Value = C.String ("property value");
+      C.U8 ("property value flag");
+      E.Properties.push_back (std::move (aProperty));
     }
-
-    return Standard_True;
+    const std::uint32_t aTypeName = C.U32 ("type name id"), aParentName = C.U32 ("parent type name id");
+    if (aTypeName != NoString && aTypeName < theStrings.size()) E.TypeName = theStrings[aTypeName];
+    if (aParentName != NoString && aParentName < theStrings.size()) E.ParentTypeName = theStrings[aParentName];
+    E.EntityType = C.U16 ("entity type");
+    E.ParentType = C.U16 ("parent type");
+    E.UserFlags = C.U16 ("user flags");
   }
-
-  Standard_Boolean ReadObject (MeasurePoint& theData)
-  {
-    if (!Read (static_cast <PMI3DData&> (theData)))
-      return Standard_False;
-
-    if (myVersion >= 4)
-    {
-      Jt_CoordF32 aLocation;
-      Jt_DirF32 aMeasurementDirection, aCoordinateDirection, aNormalDirection;
-      if (!Read (aLocation)
-       || !Read (aMeasurementDirection)
-       || !Read (aCoordinateDirection)
-       || !Read (aNormalDirection))
-        return Standard_False;
-    }
-
-    return Standard_True;
-  }
-
-  Standard_Boolean ReadObject (DesignGroupAttribute& theData)
-  {
-    if (!Read (theData.Type))
-      return Standard_False;
-
-    Standard_Boolean aResult = Standard_False;
-    switch (theData.Type)
-    {
-    case 1: aResult = Read (theData.Int);      break;
-    case 2: aResult = Read (theData.Double);   break;
-    case 3: aResult = Read (theData.StringID); break;
-    }
-
-    return aResult && Read (theData.LabelStringID)
-                   && Read (theData.DescrStringID);
-  }
-
-  Standard_Boolean ReadObject (DesignGroup& theData)
-  {
-    if (!Read (theData.NameStringID))
-      return Standard_False;
-
-    if (myVersion >= 3)
-    {
-      JtData_Vector <DesignGroupAttribute, Jt_I32> anAttributes;
-      if (!Read (anAttributes))
-        return Standard_False;
-    }
-
-    return Standard_True;
-  }
-
-  Standard_Boolean ReadObject (CoordSystem& theData)
-  {
-    Jt_CoordF32 anOrigin, anXAxisPoint, anYAxisPoint;
-    return Read (theData.NameStringID)
-        && Read (anOrigin)
-        && Read (anXAxisPoint)
-        && Read (anYAxisPoint);
-  }
-
-  Standard_Boolean ReadObject (PMIEntities& theData)
-  {
-    return Read (theData.DimensionEntities)
-        && Read (theData.NoteEntities)
-        && Read (theData.DFSEntities)
-        && Read (theData.DatumTargetEntities)
-        && Read (theData.FCFEntities)
-        && Read (theData.LineWeldEntities)
-        && Read (theData.SpotWeldEntities)
-        && Read (theData.SFEntities)
-        && Read (theData.MPEntities)
-        && Read (theData.LocatorEntities)
-        && Read (theData.RefGeometryEntities)
-        && Read (theData.DesignGroupEntities)
-        && Read (theData.CoordSystemEntities);
-  }
-
-  Standard_Boolean ReadObject (Association& theData)
-  {
-    return ReadUniformStruct<Jt_I32> (theData);
-  }
-
-  Standard_Boolean ReadObject (UserAttribute& theData)
-  {
-    return Read (theData.KeyStringID) && Read (theData.ValueStringID);
-  }
-
-  Standard_Boolean ReadObject (ModelView& theData)
-  {
-    Jt_DirF32   anEyeDirection;
-    Jt_F32      anAngle;
-    Jt_CoordF32 anEyePosition;
-    Jt_CoordF32 aTargetPoint;
-    Jt_CoordF32 aViewAngle;
-    Jt_F32      aViewportDiameter;
-    Jt_F32      aReservedF32;
-    Jt_I32      aReservedI32;
-    Jt_I32      anActiveFlag;
-    Jt_I32      aViewID;
-
-    return Read (anEyeDirection)
-        && Read (anAngle)
-        && Read (anEyePosition)
-        && Read (aTargetPoint)
-        && Read (aViewAngle)
-        && Read (aViewportDiameter)
-        && Read (aReservedF32)
-        && Read (aReservedI32)
-        && Read (anActiveFlag)
-        && Read (aViewID)
-        && Read (theData.NameStringID);
-  }
-
-  Standard_Boolean ReadObject (PropertyAtom& theData)
-  {
-    if (!Read (static_cast <TCollection_ExtendedString&> (theData)))
-      return Standard_False;
-
-    if (myVersion > 6)
-    {
-      Jt_U32 aHiddenFlag;
-      if (!Read (aHiddenFlag))
-        return Standard_False;
-    }
-
-    return Standard_True;
-  }
-
-  Standard_Boolean ReadObject (Property& theData)
-  {
-    return Read (theData.Key) && Read (theData.Value);
-  }
-
-  Standard_Boolean ReadObject (GenericEntity& theData)
-  {
-    if (!Read (static_cast <PMI2DData&> (theData)))
-      return Standard_False;
-
-    if (!Read (theData.Properties)
-     || !Read (theData.EntityTypeStringID)
-     || !Read (theData.ParentTypeStringID)
-     || !Read (theData.EntityType)
-     || !Read (theData.ParentType))
-        return Standard_False;
-
-    if (myVersion > 6)
-    {
-      Jt_U16 aUserFlags;
-      if (!Read (aUserFlags))
-        return Standard_False;
-    }
-
-    return Standard_True;
-  }
-
-  Standard_Boolean ReadObject (JtElement_MetaData_PMIManager& theData)
-  {
-    // Read additional version if JT version is 9.x or higher
-    if (Model()->MajorVersion() > 8)
-    {
-      Jt_I16 aVersion;
-      if (!Read (aVersion))
-        return Standard_False;
-    }
-
-    // Read permanent data
-    Jt_I16 aReserved;
-    JtData_Vector <Association, Jt_I32> aPMIAssociations;
-    if (!ReadI16 (myVersion)
-     || !Read    (aReserved)
-     || !Read    (static_cast <PMIEntities&> (theData.myEntities))
-     || !Read    (aPMIAssociations)
-     || !Read    (theData.myUserAttributes)
-     || !Read    (theData.myStringTable))
-      return Standard_False;
-
-    // Read Model Views and Generic PMI Entities if present
-    if (myVersion > 5)
-    {
-      if (!Read (theData.myModelViews)
-       || !Read (theData.myEntities.GenericEntities))
-        return Standard_False;
-    }
-
-    // Read CAD Tag Data if present
-    JtData_Vector <Entity*, Jt_I32> anEntitiesSortedByCADTagIndices;
-    if (myVersion > 7)
-    {
-      Jt_U32 aCADTagsFlag;
-      if (!Read (aCADTagsFlag))
-        return Standard_False;
-
-      if (aCADTagsFlag == 1)
-      {
-        Jt_VecI32 aCADTagIndices;
-        if (!Read (aCADTagIndices))
-          return Standard_False;
-
-        // read Compressed CAD Tag Data collection
-        Standard_Size aStartPos = GetPosition();
-        if (Model()->MajorVersion() > 8)
-        {
-          Jt_I16 aVersion;
-          if (!Read (aVersion))
-            return Standard_False;
-        }
-
-        Jt_I32 aDataLength, aVersionNumber, aCADTagCount;
-        if (!Read (aDataLength) || !Read (aVersionNumber) || !Read (aCADTagCount))
-          return Standard_False;
-
-        anEntitiesSortedByCADTagIndices.Allocate (aCADTagCount);
-        if (!theData.SortEntities (EntitiesSorter (aCADTagIndices, anEntitiesSortedByCADTagIndices)))
-          return Standard_False;
-
-        // skip reading the remaining Compressed CAD Tag Data
-        if (!Skip (aDataLength - (GetPosition() - aStartPos)))
-          return Standard_False;
-      }
-    }
-
-    return Standard_True;
-  }
-
-protected:
-  Standard_Integer myVersion;
-};
+}
 
 //=======================================================================
 //function : Read
@@ -413,8 +138,39 @@ protected:
 //=======================================================================
 Standard_Boolean JtElement_MetaData_PMIManager::Read (JtData_Reader& theReader)
 {
-  return JtData_Object::Read (theReader)
-    && PMIReader (theReader).Read (*this);
+  if (!JtData_Object::Read (theReader))
+    return Standard_False;
+
+  Cursor C{theReader};
+  myVersion = C.U8 ("version");
+  if (myVersion != 5)
+    throw std::runtime_error ("Unsupported JT PMI Manager element version " + std::to_string (int (myVersion)));
+  C.I16 ("empty field");
+
+  const std::uint32_t aDesignGroups = C.U32 ("design group count");
+  const std::uint32_t anAssociations = C.U32 ("association count");
+  const std::uint32_t aUserAttributes = C.U32 ("user attribute count");
+  if (aDesignGroups || anAssociations || aUserAttributes)
+    throw std::runtime_error ("JT PMI design groups, associations and user attributes are not supported (no authentic sample has been decoded)");
+
+  const std::size_t aStringCount = C.Count (4, MaxStrings, "string count");
+  myStrings.reserve (aStringCount);
+  for (std::size_t i = 0; i < aStringCount; ++i)
+    myStrings.push_back (C.String ("string table"));
+
+  if (C.U32 ("model view count") != 0)
+    throw std::runtime_error ("JT PMI model views are not supported (no authentic sample has been decoded)");
+
+  const std::size_t anEntityCount = C.Count (30, MaxEntities, "entity count");
+  JtData_Limits::allocation (anEntityCount * sizeof (Entity));
+  myEntities.reserve (anEntityCount);
+  for (std::size_t i = 0; i < anEntityCount; ++i)
+  {
+    myEntities.emplace_back();
+    ReadEntity (C, myStrings, myEntities.back());
+  }
+  // The trailing sections (version overlays, sort orders, association properties) are left to the caller to skip.
+  return Standard_True;
 }
 
 //=======================================================================
@@ -423,25 +179,6 @@ Standard_Boolean JtElement_MetaData_PMIManager::Read (JtData_Reader& theReader)
 //=======================================================================
 Standard_Integer JtElement_MetaData_PMIManager::Dump (Standard_OStream& theStream) const
 {
-  theStream << "JtElement_MetaData_PMIManager ";
+  theStream << "JtElement_MetaData_PMIManager version " << int (myVersion) << ", " << myEntities.size() << " entities ";
   return JtData_Object::Dump (theStream);
-}
-
-Standard_Boolean JtElement_MetaData_PMIManager::SortEntities (EntitiesSorter theSorter) const
-{
-  return theSorter (myEntities.LineWeldEntities)
-      && theSorter (myEntities.SpotWeldEntities)
-      && theSorter (myEntities.SFEntities)
-      && theSorter (myEntities.MPEntities)
-      && theSorter (myEntities.RefGeometryEntities)
-      && theSorter (myEntities.DatumTargetEntities)
-      && theSorter (myEntities.FCFEntities)
-      && theSorter (myEntities.LocatorEntities)
-      && theSorter (myEntities.DimensionEntities)
-      && theSorter (myEntities.DFSEntities)
-      && theSorter (myEntities.NoteEntities)
-      && theSorter (myModelViews)
-      && theSorter (myEntities.DesignGroupEntities)
-      && theSorter (myEntities.CoordSystemEntities)
-      && theSorter (myEntities.GenericEntities);
 }
