@@ -35,6 +35,16 @@ Begin with a read-only coverage/evidence audit for C3 line/wire and point repres
 
 These are priorities for auditing existing coverage and filling gaps, not claims that all listed behaviour is absent or that complete C3/C4/C5 is one build. Group related cases into meaningful owner checkpoints. The owner continues to build/test; native-suite and backend acceptance must be reported separately from visual acceptance. Do not infer a pass from a request to continue.
 
+## Future generic viewing feature: demand-driven assembly loading
+
+Retain a future requirement modelled on the owner's Siemens VisMockup workflow: initially present a large assembly's product structure without loading and displaying every part. In ModelViewer, checking a node in the scene tree should resolve the referenced individual JT file on disk, then load, decode and display that node's required part geometry; unchecked unresolved nodes remain lightweight. Teamcenter is only the workflow analogy and is not a dependency of the intended implementation. Keep file resolution behind a source-provider boundary so other managed sources could be added later without coupling them to JT rendering.
+
+This requires an explicit node lifecycle such as unresolved, loading, loaded, failed and cancelled rather than treating the visibility checkbox as a Boolean attached only to an existing `SceneMesh`. Preserve occurrence identity, transforms, properties and hierarchy before geometry hydration. Shared parts should load once and instance safely; repeated checks must coalesce concurrent requests. Unchecking should hide immediately, while unloading should be a separate cache/eviction decision governed by a memory budget so ordinary visibility toggles do not repeatedly fetch the same part. The tree needs progress, cancellation, retry and partial-failure feedback for subassemblies.
+
+Feasibility depends on the source. An assembly whose structure refers to individual JT part files can load those files from disk on demand. The resolver must handle relative paths, missing or relocated files and repeated references deterministically. A monolithic JT can defer geometry only where its structure and segment layout permit independent access; the viewer must not claim equivalent on-demand loading when the file has already required full decode.
+
+This is recorded for later prioritization, not added to the current C3 gate and not claimed as implemented.
+
 Exact geometry C6 and consolidation C7 remain on the [feature plan](JT_FEATURE_COMPLETION_PLAN.md). C1 residuals also remain open; address a concrete dependency when a priority viewing feature needs it. The paused appearance backlog is not a prerequisite for every subsequent stage. JT10.11 and additional revisions remain deferred under the existing enabled-version policy.
 
 ## Method and provenance

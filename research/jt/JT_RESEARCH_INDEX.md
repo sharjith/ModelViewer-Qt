@@ -26,6 +26,7 @@ Suggested reading order:
 18. Current texture-control storage: [shared resources and reference mappings](JT_SHARED_TEXTURE_CONTROLS.md).
 19. Owner-accepted signed image path: [C2o signed integer image components](JT_TEXTURE_SIGNED_VALIDATION.md).
 20. Owner-accepted unsampled borders: [C2p unsampled image borders](JT_TEXTURE_BORDER_VALIDATION.md).
+21. Independent production investigation: [10.9 structural diagnostics](JT_PRODUCTION_DIAGNOSTICS.md); wireframe-export correlation established, exact records unresolved.
 
 22. Owner-accepted sampled constant borders: [C2q RGBA constant-colour borders](JT_TEXTURE_CONSTANT_BORDER_VALIDATION.md).
 
@@ -79,6 +80,9 @@ Owner-accepted shared raster regression correction: [BLEND depth compatibility](
 
 42. Owner-accepted bounded gate: [C2ag normal mip filtering](JT_NORMAL_MIP_VALIDATION.md); authored/generated vector levels, 36 original roots / 16 grouped documents; grouped visual and four application exports accepted on 24 October 2026; native/backend execution unreported.
 
+43. Current C3 research: [line/wire and point coverage audit](JT_DISPLAY_PRIMITIVES_AUDIT.md); missing registrations/triangle assumptions confirmed, family differences and authentic payload evidence request recorded; no C3 decoder/build acceptance yet.
+
 - [Production binary UV compatibility](JT_PRODUCTION_UV_TRANSPORT.md) - 25 October 2026: owner confirmed complete assembly opening after hash-qualified UV correction on 25 October 2026; native regression-suite results remain unreported.
 
-- [Production allocation-budget trial](JT_PRODUCTION_MEMORY_BUDGET.md) - 26 October 2026: owner-requested 16 GiB cumulative / 512 MiB single-allocation limits, differentiated byte-count diagnostics; production and native testing pending.
+- [Production allocation-budget trial](JT_PRODUCTION_MEMORY_BUDGET.md) - 26 October 2026: 16 GiB guard identified as the first limit; 64 GiB passed decoding before a distinct post-read crash.
+- [Large-assembly post-decode crash diagnostics](JT_PRODUCTION_IMPORT_CRASH.md) - 26 October 2026: prepared exception containment, reduced handoff copies and an opt-in flushed stage/memory trace; owner build and production validation pending.

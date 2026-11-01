@@ -119,6 +119,10 @@ C2g is pushed as `38f6c9a`. [Pixel-format validation](JT_TEXTURE_PIXEL_VALIDATIO
 
 C2h is pushed as `d757c2f`. [9.x texture validation](JT_9X_TEXTURE_VALIDATION.md) covers the distinct basic local-version-1 layout for enabled 9.0/9.5, including old type mapping, implicit UV0, U8 shared flag and raw source metadata. Existing pixel/affine/planar mapping is reused. Advanced blocks remain diagnosed fallbacks. The owner reported C2i tests passed on 22 October 2026 and authorized commit/push. Python authoring ran, no native/viewer execution by the agent. Authentic authored-texture qualification remains open, alongside JT8.x texture layouts and other C1/C2/C3–C7 work; no version changes.
 
+## Production-driven priority — wire display representations
+
+On 22 October the owner isolated production JT10.9 failures to VisMockup's wireframe-object export option; PMI was not the cause in the reported combinations. [Production triage](JT_PRODUCTION_DIAGNOSTICS.md) distinguishes this from triangle-mesh wire rendering and records the inventory tool's missing LZMA graph scan. C3 line/polyline/wireframe investigation remains a priority, but the owner deferred production testing until tomorrow and requested independent C2 work in the meantime. Exact production record identity is still unestablished; do not reinterpret unknown required objects as ordinary groups or silently omit parts. Other feature items remain on the plan.
+
 ## Accepted gate C2j — advanced 9.x texture blocks
 
 C2i is owner-accepted and pushed as `0034b48`. [Advanced 9.x texture validation](JT_9X_ADVANCED_TEXTURE_VALIDATION.md) adds the published compatibility-stub hierarchy, active version-2/3 pre-lit 2D image mapping and trailing version-3 coordinate selection. Original checks and 48 authored visual controls are prepared. Authoring ran; the agent did not build/run native tests or the viewer. The owner reported C2j tests passed on 22 October 2026 and authorized commit/push/proceeding after every successful test report. C3 production tests can wait independently; other C2 modes and authentic textured-export qualification remain open. No version or dependency changes.
@@ -259,3 +263,8 @@ Following accepted C2af fe6d623 and shared unlit correction 7a18b9d, [C2ag valid
 
 
 C2ag owner acceptance - 24 October 2026: owner built/installed, accepted all 16 grouped ADS/PBR/zoom controls and reported the representative exports worked perfectly. Read-only authored-mip/image/sampler/material and effective-UV inspections each report 4/4. The bounded normal mip/filter gate is accepted; native/backend execution and authentic normal conventions remain unreported. Private-carrier portability and other C2 residuals remain open. See [C2ag validation](JT_NORMAL_MIP_VALIDATION.md).
+
+
+## C3 initial line/point coverage audit - 24 October 2026
+
+[Display primitive audit](JT_DISPLAY_PRIMITIVES_AUDIT.md) identifies missing polyline/point node/LOD registrations, the unimplemented TopoMesh representation branch and triangle-only validation/copy/subset assumptions. Shared raster/import/export paths already support line/point primitive modes; picking and ray-tracing limits remain separate. JT9.5/JT10 record differences and missing authentic payload expectations are recorded before decoder implementation. A small authentic wire/point control is requested to qualify the first grouped decoder/viewer gate. No C3 implementation, build or native acceptance yet; C2 remains paused.

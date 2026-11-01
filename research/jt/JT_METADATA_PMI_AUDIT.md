@@ -81,7 +81,9 @@ Generic and read-only; no unit conversion, no PMI.
 
 **Change.** The JT builder collects the distinct `JT_PROP_MEASUREMENT_UNITS` values (`ImportResult::measurementUnits`). `Jt::declaredLengthUnit` maps a single recognised value to `LengthUnit`; an unrecognised value or disagreeing nodes leave it unset and add a note. `ViewportWidget` stores the result on the imported file node's `importUnit` (unless the user already overrode it), the same field the 3DXML path and the Import Units dialog use, so Mass Properties and Surface Analysis report in the right unit. **Geometry is not scaled**; whether to scale to a common unit remains the owner's decision.
 
-**Limits.** Only the two observed spellings are mapped (other JT unit names are not verified here). Interaction with the loader's conditional auto-scale for very small or very large models is not checked. Test coverage is the mapping helper only; the importer side is checked by opening the controls.
+**Limits.** The two spellings seen in exports are `meters` and `millimeters`; the JT 10.6 reference also lists centimeters, inches, feet, yards, micrometers, decimeters, kilometers, mils and miles. Centimeters, inches and feet are mapped from the reference without a sample; the rest are left unset with a note. The reference says the property should appear once per part and that, if it appears on several nodes, the lowest node along a path wins, so mixed-unit assemblies are legitimate; the current code leaves the unit unset when nodes disagree instead of converting per part. Interaction with the loader's conditional auto-scale for very small or very large models is not checked. Test coverage is the mapping helper only; the importer side is checked by opening the controls.
+
+The PMI segment itself is studied in [the PMI study](JT_PMI_STUDY.md) (observed contents, recorded versus measured dimensions, staging).
 
 ## Not established
 
