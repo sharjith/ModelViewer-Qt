@@ -56,6 +56,14 @@ The tool is exploratory: it decompresses the PMI segment, lists the string table
 
 The vendored reader models an older layout in which each PMI kind had its own typed collection; these Solid Edge 10.10 files use only the generic entity collection described in section 8.3 of the 10.6 reference. Reusing it for these files would misparse them. The practical path is a new reader for the 10.6 layout, written against `decode_pmi_segment.py` and the reference, with the vendored reader left untouched. The handoff from the other contributor recommended routing segment 3 through the vendored reader first; this finding argues against that, and the point is flagged for confirmation by running it, which needs a build.
 
+## Step 1 implementation (1 November 2026, awaiting owner build and test)
+
+- **Reader:** `JtElement_MetaData_PMIManager::Read` now implements the layout above for element version 5 (see `src/ThirdParty/occt-jt/MODIFICATIONS.md`); other versions and unseen features are rejected with a message.
+- **Hook:** `JtSceneBuilder` loads each part node's late-loaded property of segment type 3, converts the entities to nested metadata `JTPMI` on that part node (type name, codes, label, text height, polyline vertex count, ordered properties), and reports a warning instead of failing the import if the segment cannot be read. Polyline vertices are held by the reader but not yet copied into the scene.
+- **Display:** `NodeProperties` flattens `JTPMI` into Mesh Info rows: one summary row per entity, then its properties as `PMI <n>.<key>`.
+- **Tests:** `tests/jt/jt_pmi_tests.cpp` (literal fixtures in both byte orders, rejections, truncation) and a flattening case in `jt_node_properties_tests.cpp`. Not run yet.
+- **Not verified:** that the part nodes of the controls actually carry the segment-type-3 late load (this is what the owner's run on the controls will show) and that readers of other exporters or versions agree.
+
 ## Measured and recorded dimensions
 
 Recommended vocabulary for the two kinds of measurement, as the owner proposed:

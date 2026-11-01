@@ -84,6 +84,21 @@ void nodePropertiesTests(){
  for(unsigned i=0;i<many;++i)big.mMetaData->Set(i,std::to_string(i),int32_t(i));
  set=NodeProperties::fromNode(big);
  check(set && set->rows.size()==NodeProperties::MaxRowsPerNode+1 && set->rows.back().value=="truncated","Row cap adds one truncation row");
+ // Recorded PMI (C4c): one summary row per entity, then its properties prefixed with the entity number.
+ {
+  std::unique_ptr<aiMetadata> props(aiMetadata::Alloc(2));
+  props->Set(0,"0",*record("value",&part,nullptr,nullptr));
+  props->Set(1,"1",*record("unit",&unitName,nullptr,nullptr));
+  std::unique_ptr<aiMetadata> entity(aiMetadata::Alloc(5));
+  entity->Set(0,"TypeName",aiString("Dimension"));entity->Set(1,"UserLabel",int32_t(3));entity->Set(2,"PolylineVertices",int32_t(125));
+  entity->Set(3,"PropertyCount",int32_t(2));entity->Set(4,"Properties",*props);
+  std::unique_ptr<aiMetadata> pmi(aiMetadata::Alloc(1));pmi->Set(0,"0",*entity);
+  aiNode node;node.mName=aiString("pmi");node.mMetaData=aiMetadata::Alloc(1);node.mMetaData->Set(0,"JTPMI",*pmi);
+  const auto flat=NodeProperties::fromNode(node);
+  check(flat && flat->rows.size()==3,"PMI rows: summary plus two properties");
+  check(flat->rows[0].key=="PMI 0 Dimension" && flat->rows[0].type=="group" && flat->rows[0].value.contains("label 3") && flat->rows[0].value.contains("125"),"PMI summary row");
+  check(flat->rows[1].key=="PMI 0.value" && flat->rows[1].value=="Bracket" && flat->rows[2].key=="PMI 0.unit" && flat->rows[2].value=="millimeters","PMI property rows keep order and entity prefix");
+ }
  // Declared length unit (C4b): reported from the JT property only when one recognised value is found.
  QStringList notes;
  check(Jt::declaredLengthUnit({},notes)==LengthUnit::Unknown && notes.isEmpty(),"No declared unit stays unknown without a note");

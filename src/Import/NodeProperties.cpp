@@ -124,6 +124,48 @@ NodePropertySetPtr fromNode(const aiNode& node)
 					set->rows.push_back({ name, value, type });
 				}
 			}
+			else if (key == QLatin1String("JTPMI"))
+			{
+				// Recorded PMI (see JtSceneBuilder pmiMetadata()): one summary row per entity, then its properties.
+				for (unsigned e = 0; e < group->mNumProperties; ++e)
+				{
+					const aiMetadata* entity = nested(group->mValues[e]);
+					if (!entity)
+						continue;
+					QString typeName, ignored, labelText, verticesText, countText;
+					QString dummyType;
+					if (const aiMetadataEntry* v = find(*entity, "TypeName")) scalar(*v, typeName, dummyType);
+					if (const aiMetadataEntry* v = find(*entity, "UserLabel")) scalar(*v, labelText, dummyType);
+					if (const aiMetadataEntry* v = find(*entity, "PolylineVertices")) scalar(*v, verticesText, dummyType);
+					if (const aiMetadataEntry* v = find(*entity, "PropertyCount")) scalar(*v, countText, dummyType);
+					if (full())
+					{
+						truncated = true;
+						break;
+					}
+					const QString prefix = QStringLiteral("PMI %1").arg(e);
+					set->rows.push_back({ typeName.isEmpty() ? prefix : prefix + QLatin1Char(' ') + typeName,
+						QObject::tr("label %1, %2 polyline vertices, %3 properties").arg(labelText, verticesText, countText),
+						QStringLiteral("group") });
+					const aiMetadataEntry* propertyEntry = find(*entity, "Properties");
+					const aiMetadata* properties = propertyEntry ? nested(*propertyEntry) : nullptr;
+					for (unsigned p = 0; properties && p < properties->mNumProperties; ++p)
+					{
+						if (full())
+						{
+							truncated = true;
+							break;
+						}
+						const aiMetadata* record = nested(properties->mValues[p]);
+						const aiMetadataEntry* k = record ? find(*record, "Key") : nullptr;
+						const aiMetadataEntry* v = record ? find(*record, "Value") : nullptr;
+						QString name, value, type;
+						if (!k || !v || !scalar(*k, name, ignored) || !scalar(*v, value, type))
+							continue;
+						set->rows.push_back({ prefix + QLatin1Char('.') + name, value, type });
+					}
+				}
+			}
 			else
 				set->rows.push_back({ key, QObject::tr("%1 entries").arg(group->mNumProperties), QStringLiteral("group") });
 			continue;
