@@ -1061,6 +1061,7 @@ struct Builder {
                 return QString::fromUtf16(reinterpret_cast<const char16_t*>(value.ToExtString()),value.Length()).toUtf8();
             };
             const auto k=utf8(key->Value());const auto v=text.IsNull() ? QByteArray() : utf8(text->Value());
+            if(!text.IsNull() && k=="JT_PROP_MEASUREMENT_UNITS") result.measurementUnits.insert(QString::fromUtf8(v));
             // aiString has a fixed UTF-8 byte limit. Do not silently truncate
             // source keys/values or emit nonfinite numbers as valid metadata.
             if(k.size()>=AI_MAXLEN || v.size()>=AI_MAXLEN || k.contains('\0') || v.contains('\0') || (!real.IsNull() && !std::isfinite(real->Value()))) {

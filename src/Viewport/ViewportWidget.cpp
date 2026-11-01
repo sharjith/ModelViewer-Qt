@@ -5840,6 +5840,10 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 					// Use the just-appended import, including when this file was imported before.
 					SceneNode* fileNode = _viewer->sceneGraph()->root()->children.last();
 					if (fileNode && !fileNode->importUnitUserOverridden) fileNode->importUnit = LengthUnit::Millimeter;
+				} else if (loadingWorker->declaredLengthUnit() != LengthUnit::Unknown) {
+					// The file states its own unit (JT): record it on the file node, never as a geometry scale.
+					SceneNode* fileNode = _viewer->sceneGraph()->root()->children.last();
+					if (fileNode && !fileNode->importUnitUserOverridden) fileNode->importUnit = loadingWorker->declaredLengthUnit();
 				}
 
 				ImportDiagnostics::checkpoint("viewer.scene-graph-extras-begin");

@@ -70,6 +70,9 @@ struct ImportResult {
     // Informational report of the part-mesh merge (counts, per-part provenance); shown with the warnings, not counted as one.
     QStringList notes;
     QSet<const aiNode*> hiddenNodes;
+    // Distinct values of the JT_PROP_MEASUREMENT_UNITS string property found on the nodes, as stored. The coordinates in
+    // the file are in this unit; it is only reported, never used to scale geometry.
+    QSet<QString> measurementUnits;
     std::vector<TopoDS_Shape> exactShapes;
     unsigned storedMeshes=0, exactParts=0, fallbackParts=0;
 };

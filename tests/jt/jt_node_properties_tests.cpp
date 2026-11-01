@@ -2,6 +2,7 @@
 // Original literal in-memory tests of the node-metadata flattening behind the read-only property table (C4a). They use
 // hand-built Assimp metadata laid out like JtSceneBuilder::properties(); they say nothing about any authentic JT file.
 #include "NodeProperties.h"
+#include "Jt/JtLengthUnit.h"
 #include <assimp/scene.h>
 #include <memory>
 #include <string>
@@ -83,4 +84,13 @@ void nodePropertiesTests(){
  for(unsigned i=0;i<many;++i)big.mMetaData->Set(i,std::to_string(i),int32_t(i));
  set=NodeProperties::fromNode(big);
  check(set && set->rows.size()==NodeProperties::MaxRowsPerNode+1 && set->rows.back().value=="truncated","Row cap adds one truncation row");
+ // Declared length unit (C4b): reported from the JT property only when one recognised value is found.
+ QStringList notes;
+ check(Jt::declaredLengthUnit({},notes)==LengthUnit::Unknown && notes.isEmpty(),"No declared unit stays unknown without a note");
+ check(Jt::declaredLengthUnit({QStringLiteral("millimeters")},notes)==LengthUnit::Millimeter,"Millimeters recognised");
+ check(Jt::declaredLengthUnit({QStringLiteral("meters")},notes)==LengthUnit::Meter && notes.isEmpty(),"Meters recognised");
+ check(Jt::declaredLengthUnit({QStringLiteral("Meters")},notes)==LengthUnit::Meter,"Spelling is matched without regard to case");
+ check(Jt::declaredLengthUnit({QStringLiteral("furlongs")},notes)==LengthUnit::Unknown && notes.size()==1 && notes[0].contains("furlongs"),"An unrecognised unit stays unknown and is explained");
+ notes.clear();
+ check(Jt::declaredLengthUnit({QStringLiteral("meters"),QStringLiteral("millimeters")},notes)==LengthUnit::Unknown && notes.size()==1,"Disagreeing nodes leave the unit unknown and explain why");
 }

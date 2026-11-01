@@ -1,4 +1,5 @@
 ﻿#include "AssImpModelLoader.h"
+#include "Jt/JtLengthUnit.h"
 
 #include "BRepToAssimpConverter.h"
 #include "ImportDiagnostics.h"
@@ -1333,6 +1334,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	_totalMeshOccurrences = 0;
 	_threeDXml = {};
 	_jt = {};
+	_declaredLengthUnit = LengthUnit::Unknown;
 
 	_materialProcessor.clearGLBCaches();
 	_materialProcessor.clearLoadedTextures();
@@ -1401,6 +1403,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			_importStage = "worker.jt-read-complete";
 			ImportDiagnostics::checkpoint(_importStage);
 			_scene = _jt.scene.get();
+			_declaredLengthUnit = Jt::declaredLengthUnit(_jt.measurementUnits, _jt.notes);
 			for (const QString& warning : _jt.warnings + _jt.notes) qWarning().noquote() << warning;
 		} catch (const std::exception& e) {
 			_errorMessage = QString::fromUtf8(e.what());

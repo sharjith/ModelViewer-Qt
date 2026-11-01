@@ -75,6 +75,14 @@ Generic and read-only; no unit conversion, no PMI.
 
 **Owner check (1 November 2026, screenshots):** both the C4-M1 and C4-U1 controls open in the dialog. C4-M1 shows `JT_PROP_MEASUREMENT_UNITS` = `meters` and `JT_PMI_CONTENT_HINT` = `VisiblePMI`; C4-U1 shows `millimeters` and `none`. This matches the string listing above. The dialog lists the part node first, then its ancestors that carry properties.
 
+## C4b units (1 November 2026, awaiting owner build and test)
+
+**Observation** (read-only `jt_probe --validate` on the controls, local mesh bounds): the second part exported in metres spans 0 to 0.1 in each of two axes and -0.05 to 0.05 in the third; the same part exported in millimetres spans 0 to 100 and -50 to 50. Solid Edge therefore writes coordinates in the unit named by `JT_PROP_MEASUREMENT_UNITS`, and a millimetre file imports 1000 times larger than a metre file in the viewer's scene units. This is one exporter and two spellings (`meters`, `millimeters`).
+
+**Change.** The JT builder collects the distinct `JT_PROP_MEASUREMENT_UNITS` values (`ImportResult::measurementUnits`). `Jt::declaredLengthUnit` maps a single recognised value to `LengthUnit`; an unrecognised value or disagreeing nodes leave it unset and add a note. `ViewportWidget` stores the result on the imported file node's `importUnit` (unless the user already overrode it), the same field the 3DXML path and the Import Units dialog use, so Mass Properties and Surface Analysis report in the right unit. **Geometry is not scaled**; whether to scale to a common unit remains the owner's decision.
+
+**Limits.** Only the two observed spellings are mapped (other JT unit names are not verified here). Interaction with the loader's conditional auto-scale for very small or very large models is not checked. Test coverage is the mapping helper only; the importer side is checked by opening the controls.
+
 ## Not established
 
 Whether millimetre output rescales coordinates, the PMI element layout version, and how the vendored PMI reader handles this segment are not verified. Decoder correctness against real exporters stays unclaimed until C4b/C4c tests run on these controls.

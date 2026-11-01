@@ -48,6 +48,7 @@
 #include "GltfCameraData.h"
 #include "ThreeDXml/Document.h"
 #include "Jt/JtImporter.h"
+#include "LengthUnits.h"
 #include "GltfVariantData.h"
 
 
@@ -261,6 +262,10 @@ public:
 
 	const aiScene* getScene() const { return _scene; }
 	bool hasThreeDXmlScene() const { return bool(_threeDXml.scene); }
+	// Length unit the imported file itself declares (JT: JT_PROP_MEASUREMENT_UNITS, when every node agrees and the value is
+	// a recognised one); Unknown when the file declares none or the format does not carry one. Reported only: the geometry
+	// is not scaled by it.
+	LengthUnit declaredLengthUnit() const { return _declaredLengthUnit; }
 	// Warnings the native importers (3DXML, JT) reported for the file just read; empty for other formats.
 	QStringList importWarnings() const
 	{
@@ -409,6 +414,7 @@ private:
 	ThreeDXml::ImportResult _threeDXml; // Owns custom aiScene independently of Assimp::Importer.
 	std::unique_ptr<aiScene> _xcafScene; // Owns the scene an OCC document processor built (STEP, IGES, BREP, VRML).
 	Jt::ImportResult _jt;
+	LengthUnit _declaredLengthUnit = LengthUnit::Unknown;
 	
 	SceneMeshInfo _sceneStats; // Holds statistics about the scene
 	int _totalNodeCount = 0;
