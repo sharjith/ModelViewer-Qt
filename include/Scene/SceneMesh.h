@@ -502,6 +502,8 @@ public:
 	QString getSourceFile() const                  { return _importState.sourceFile(); }
 	void    setSourceNodeName(const QString& name) { _importState.setSourceNodeName(name); }
 	QString getSourceNodeName() const              { return _importState.sourceNodeName(); }
+	void setNodeProperties(NodePropertyChainPtr chain) { _importState.setNodeProperties(std::move(chain)); }
+	const NodePropertyChainPtr& getNodeProperties() const { return _importState.nodeProperties(); }
 
 	void setSkinJoints(const QVector<GltfSkinJoint>& joints) { _importState.setSkinJoints(joints); noteRenderStateChanged(MeshInstanceState::SiteSkin); }
 	const QVector<GltfSkinJoint>& skinJoints() const         { return _importState.skinJoints(); }

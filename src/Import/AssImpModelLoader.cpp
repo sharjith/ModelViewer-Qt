@@ -1790,6 +1790,20 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 	aiMatrix4x4 globalTransform = parentTransform * node->mTransformation;
 	++_processedNodeCount;
 
+	if (node == scene->mRootNode)
+	{
+		_nodePath.clear();
+		_nodePropertyCache.clear();
+	}
+	_nodePath.push_back(node);
+	struct PathPop
+	{
+		std::vector<const aiNode*>& path;
+		~PathPop() { path.pop_back(); }
+	} pathPop{ _nodePath };
+	NodePropertyChainPtr nodeProperties;
+	bool nodePropertiesBuilt = false;
+
 	for (unsigned int i = 0; i < node->mNumMeshes; i++)
 	{
 		if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
@@ -1802,6 +1816,12 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 		_importStage = "worker.mesh-convert";
 		ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
 		AssImpMeshData myMesh = processMesh(mesh, scene, node->mMeshes[i], scene->mNumMeshes, globalTransform, node->mName.C_Str());
+		if (!nodePropertiesBuilt)
+		{
+			nodeProperties = nodePropertyChain();
+			nodePropertiesBuilt = true;
+		}
+		myMesh.nodeProperties = nodeProperties;
 
 		myMesh.initiallyVisible = !_threeDXml.hiddenNodes.contains(node) && !_jt.hiddenNodes.contains(node);
 		_importStage = "worker.mesh-stage";
@@ -1844,6 +1864,22 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 
 	const bool uvProcessed = _needsUVGeneration && _selectedUVMethod != UVMethod::None;
 	emitNodeMeshProgress(uvProcessed, node == scene->mRootNode);
+}
+
+// Chain for the node at the end of _nodePath: its own flattened metadata first, then each ancestor's. Each node is
+// flattened once per load; null when none of them has metadata.
+NodePropertyChainPtr AssImpModelLoader::nodePropertyChain()
+{
+	auto chain = std::make_shared<NodePropertyChain>();
+	for (auto it = _nodePath.rbegin(); it != _nodePath.rend(); ++it)
+	{
+		auto cached = _nodePropertyCache.find(*it);
+		if (cached == _nodePropertyCache.end())
+			cached = _nodePropertyCache.emplace(*it, NodeProperties::fromNode(**it)).first;
+		if (cached->second)
+			chain->push_back(cached->second);
+	}
+	return chain->empty() ? nullptr : NodePropertyChainPtr(chain);
 }
 
 void AssImpModelLoader::emitNodeMeshProgress(bool uvProcessed, bool force)

@@ -191,6 +191,7 @@
     <addaction name="actionExportReport"/>
     <addaction name="actionBatchRenderViews"/>
     <addaction name="actionMassProperties"/>
+    <addaction name="actionNodeProperties"/>
     <addaction name="actionSurfaceAnalysis"/>
     <addaction name="separator"/>
     <addaction name="actionShrinkWrap"/>
@@ -917,6 +918,14 @@
    </property>
    <property name="statusTip">
     <string>Volume, surface area, mass, and center of mass for the current selection</string>
+   </property>
+  </action>
+  <action name="actionNodeProperties">
+   <property name="text">
+    <string>Node Properties...</string>
+   </property>
+   <property name="statusTip">
+    <string>Read-only source properties kept from the imported file for the current selection</string>
    </property>
   </action>
   <action name="actionSurfaceAnalysis">

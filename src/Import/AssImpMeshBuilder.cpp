@@ -216,6 +216,7 @@ SceneMesh* AssImpMeshBuilder::build(AssImpMeshData meshData,
     mesh->setOriginalMaterialIndex(meshData.originalMaterialIndex);
     mesh->setSourceFile(meshData.sourceFile);
     mesh->setSourceNodeName(meshData.sourceNodeName);
+    mesh->setNodeProperties(std::move(meshData.nodeProperties));
     mesh->setSkinJoints(meshData.skinJoints);
     mesh->setMorphTargets(meshData.morphTargets, meshData.defaultMorphWeights);
     if (meshData.preserveNodeTransform)

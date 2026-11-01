@@ -9,6 +9,7 @@
 #include <thread>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -16,6 +17,7 @@
 #include "BoundingBox.h"
 #include "MaterialProcessor.h"
 #include "MeshAnalyzer.h"
+#include "NodeProperties.h"
 #include "RenderableMesh.h"
 #include "UVGenerator.h"
 #include <assimp/Importer.hpp>
@@ -128,6 +130,8 @@ struct AssImpMeshData
 	// Absolute path of the file this mesh was loaded from.
 	QString sourceFile;
 	QString sourceNodeName;
+	// Metadata of the source node and its ancestors for the read-only property table; null when there is none.
+	NodePropertyChainPtr nodeProperties;
 	bool preserveNodeTransform = false;
 	QMatrix4x4 nodeWorldTransform;
 
@@ -410,6 +414,10 @@ private:
 	int _totalNodeCount = 0;
 	int _totalMeshOccurrences = 0;
 	int _processedNodeCount = 0;
+	// Nodes from the root to the one being processed, and the flattened metadata already built for them.
+	std::vector<const aiNode*> _nodePath;
+	std::unordered_map<const aiNode*, NodePropertySetPtr> _nodePropertyCache;
+	NodePropertyChainPtr nodePropertyChain();
 	// Progress is reported at most every 50 ms: one queued signal per mesh and node left the viewer thread draining
 	// tens of thousands of status-bar updates long after a 40,000-part import had finished.
 	void emitNodeMeshProgress(bool uvProcessed, bool force = false);

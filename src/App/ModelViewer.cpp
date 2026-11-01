@@ -32,6 +32,7 @@
 #include "ShrinkWrapDialog.h"
 #include "SurfaceAnalysisDialog.h"
 #include "MassPropertiesDialog.h"
+#include "NodePropertiesDialog.h"
 #include "ReportExportDialog.h"
 #include "BatchRenderViewsDialog.h"
 #include "SubdivisionDialog.h"
@@ -4466,6 +4467,23 @@ void ModelViewer::openMassPropertiesDialog()
 	dialog->activateWindow();
 }
 
+void ModelViewer::openNodePropertiesDialog()
+{
+	NodePropertiesDialog* dialog = findChild<NodePropertiesDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (dialog)
+	{
+		dialog->seedFromViewportSelection();
+	}
+	else
+	{
+		dialog = new NodePropertiesDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+}
+
 void ModelViewer::commitShrinkWrap(SceneNode* wrapNode, SceneNode* wrapParent, int wrapPosition,
                                     const QUuid& wrappedMeshUuid, const QSet<QUuid>& originalSelection)
 {
@@ -8414,6 +8432,7 @@ void ModelViewer::executeToolCommand(const QString& command)
     else if (command == QLatin1String("simulation_open")) openSimulationResult();
     else if (command == QLatin1String("uv")) openUVGenerationDialog();
     else if (command == QLatin1String("mass")) openMassPropertiesDialog();
+    else if (command == QLatin1String("nodeprops")) openNodePropertiesDialog();
     else if (command == QLatin1String("report")) { ReportExportDialog dialog(this, this); dialog.exec(); }
     else if (command == QLatin1String("batch")) { BatchRenderViewsDialog dialog(this, this); dialog.exec(); }
     else if (command == QLatin1String("texture_debug")) showTextureDebugPanel();

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GltfAnimationData.h"
+#include "NodeProperties.h"
 
 #include <QRandomGenerator>
 #include <QString>
@@ -72,6 +73,12 @@ public:
 
     void    setSourceNodeName(const QString& name) { _sourceNodeName = name; }
     QString sourceNodeName() const                 { return _sourceNodeName; }
+
+    // ---- Source node properties (read-only, import-time) ---------------------
+    // Metadata of the node this mesh hung from and of its ancestors, flattened to strings (see NodeProperties.h). Shared
+    // between all meshes of one node; null when the importer supplied none. Not persisted in MVF and not copied by clone().
+    void setNodeProperties(NodePropertyChainPtr chain) { _nodeProperties = std::move(chain); }
+    const NodePropertyChainPtr& nodeProperties() const { return _nodeProperties; }
 
     // ---- Skinning — joint definitions (import-time, static) -------------
     // Runtime joint palette lives in MeshAnimationState (Phase 6).
@@ -225,6 +232,7 @@ private:
     int     _originalMaterialIndex = -1;
     QString _sourceFile;
     QString _sourceNodeName;
+    NodePropertyChainPtr    _nodeProperties;
     QVector<GltfSkinJoint>  _skinJoints;
     // _jointPalette → MeshAnimationState (Phase 6)
     std::vector<float>      _occEdgeSegments;

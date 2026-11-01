@@ -944,6 +944,11 @@ MainWindow::MainWindow(QWidget* parent)
         if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("mass"));
     });
 
+	// Tools → Node Properties... - read-only table of the source properties kept for the selected meshes' nodes.
+	connect(ui->actionNodeProperties, &QAction::triggered, this, [this]() {
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("nodeprops"));
+    });
+
 	// Tools → Surface Analysis... - opens the non-modal SurfaceAnalysisDialog,
 	// same wiring shape as actionShrinkWrap above (an ongoing interactive
 	// tool, not a one-shot report like Mass Properties just above).
@@ -2835,6 +2840,7 @@ void MainWindow::updateMenus()
 	ui->actionExportReport->setEnabled(hasMdiChild);
 	ui->actionBatchRenderViews->setEnabled(hasMdiChild);
 	ui->actionMassProperties->setEnabled(hasMdiChild);
+	ui->actionNodeProperties->setEnabled(hasMdiChild);
 	ui->actionSurfaceAnalysis->setEnabled(hasMdiChild);
 	ui->actionShrinkWrap->setEnabled(hasMdiChild);
 	ui->actionSubdivideSurface->setEnabled(hasMdiChild);

@@ -834,6 +834,8 @@ public slots:
 	// Mass Properties: opens the non-modal MassPropertiesDialog, reusing one that is already open (re-seeded from
 	// the current viewport selection) - same findChild-reuse-or-create/show/raise pattern as above.
 	void openMassPropertiesDialog();
+	// Tools -> Node Properties...: non-modal read-only table of the source properties kept for the selected meshes' nodes.
+	void openNodePropertiesDialog();
     void executeToolCommand(const QString& command);
     void updateMeshTools();
     QMap<QString, QString> meshToolDisabledReasons() const;
