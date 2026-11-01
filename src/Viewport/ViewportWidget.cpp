@@ -5850,10 +5850,15 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 				if (meshCountAfterLoad > meshCountBeforeLoad) {
 					const auto& store = _sceneRuntime.meshStore();
 					const std::vector<SceneMeshRecord> importedMeshes(store.begin() + std::ptrdiff_t(meshCountBeforeLoad), store.begin() + std::ptrdiff_t(meshCountAfterLoad));
-					const RecordedPmi::BuildResult recordedPmi = RecordedPmi::buildLinearDimensions(importedMeshes, importedFileNode->importUnit);
+					const RecordedPmi::BuildResult recordedPmi = RecordedPmi::buildDimensions(importedMeshes, importedFileNode->importUnit);
 					for (const Measurement& recorded : recordedPmi.measurements)
 						_viewer->sceneGraph()->addMeasurement(recorded);
 					for (const QString& note : recordedPmi.notes)
+						qWarning().noquote() << note;
+					const RecordedPmi::AnnotationResult recordedNotes = RecordedPmi::buildAnnotations(importedMeshes);
+					for (const Annotation& recorded : recordedNotes.annotations)
+						_viewer->sceneGraph()->addAnnotation(recorded);
+					for (const QString& note : recordedNotes.notes)
 						qWarning().noquote() << note;
 				}
 

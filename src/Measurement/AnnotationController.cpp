@@ -539,6 +539,7 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
 
     struct LabelEntry { QVector3D worldPos; QString text; };
     std::vector<float> lineVertices;
+    std::vector<float> fillVertices;  // filled letters of recorded notes, drawn as triangles after the lines
     QVector<LabelEntry> labels;
 
     const QVector3D noteColor(1.0f, 0.85f, 0.3f);       // sticky-note yellow - visually distinct from Measurement's palette
@@ -574,6 +575,18 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
         if (isHovered)
             color = color * 0.5f + QVector3D(1.0f, 1.0f, 1.0f) * 0.5f;  // blend toward white - lighter preview than full selection
         const float sizeMultiplier = isSelected ? 1.5f : (isHovered ? 1.25f : 1.0f);
+
+        // A recorded annotation is drawn as its author drew it, in its own annotation plane (leader, symbol and text strokes
+        // from the file), instead of with the viewer's marker, frame, leader and camera-facing label.
+        if (a.recordedDrawing)
+        {
+            if (SceneMesh* strokeOwner = getMeshByUuid(a.recordedDrawing->meshUuid))
+            {
+                RecordedPmi::appendStrokes(*a.recordedDrawing, strokeOwner->combinedRenderTransform(), camera->getRenderPosition(),
+                    color, lineVertices, &fillVertices);  // authored size: a symbol's text must stay inside its circle
+                continue;
+            }
+        }
 
         const QVector3D anchorPos = resolveAnnotationAnchor(a.anchor);
         const QVector3D labelPos = anchorPos + resolveAnnotationLeaderOffset(a, camera);
@@ -626,6 +639,9 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
     {
         // Mirrors MeasurementController::drawMeasurementOverlay()'s exact
         // upload/draw pattern, using the dedicated annotation-overlay buffer.
+        const GLsizei lineCount = static_cast<GLsizei>(lineVertices.size() / 6);
+        const GLsizei fillCount = static_cast<GLsizei>(fillVertices.size() / 6);
+        lineVertices.insert(lineVertices.end(), fillVertices.begin(), fillVertices.end());
         _renderCtrl.initAnnotationOverlayGeometry(lineVertices);
         glBindVertexArray(_renderCtrl.annotationOverlayVAO());
         glBindBuffer(GL_ARRAY_BUFFER, _renderCtrl.annotationOverlayVBO());
@@ -643,7 +659,9 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
         _renderCtrl.axisShader()->setUniformValue("projectionMatrix", camera->getProjectionMatrix());
         _renderCtrl.axisShader()->setUniformValue("renderCone", false);
         glLineWidth(2.0f);
-        glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(lineVertices.size() / 6));
+        glDrawArrays(GL_LINES, 0, lineCount);
+        if (fillCount > 0)
+            glDrawArrays(GL_TRIANGLES, lineCount, fillCount);
         glLineWidth(1.0f);
         _renderCtrl.axisShader()->release();
 

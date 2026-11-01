@@ -1114,7 +1114,7 @@ struct Builder {
             }
             const auto typeName=utf8(entity.TypeName),parentName=utf8(entity.ParentTypeName);
             JtData_Limits::allocation(2*(sizeof(aiMetadata)+9*(sizeof(aiString)+sizeof(aiMetadataEntry))+2*sizeof(aiString)));
-            auto record=std::unique_ptr<aiMetadata>(aiMetadata::Alloc(list?9:8));
+            auto record=std::unique_ptr<aiMetadata>(aiMetadata::Alloc(8+(entity.HasFrame?1:0)+(list?1:0)));
             unsigned field=0;
             record->Set(field++,"TypeName",aiString(typeName.size()<AI_MAXLEN?typeName.constData():""));
             record->Set(field++,"ParentTypeName",aiString(parentName.size()<AI_MAXLEN?parentName.constData():""));
@@ -1124,6 +1124,8 @@ struct Builder {
             record->Set(field++,"TextHeight",entity.TextHeight);
             record->Set(field++,"PolylineVertices",int32_t(entity.Vertices.size()/3));
             record->Set(field++,"PropertyCount",int32_t(entity.Properties.size()));
+            // The entity's 2D reference frame origin: a dimension's own origin (its first end point, a circle's centre, an angle's vertex).
+            if(entity.HasFrame) {const auto origin=QStringLiteral("%1 %2 %3").arg(double(entity.Frame[0]),0,'g',9).arg(double(entity.Frame[1]),0,'g',9).arg(double(entity.Frame[2]),0,'g',9).toUtf8();record->Set(field++,"FrameOrigin",aiString(origin.constData()));}
             if(list) record->Set(field++,"Properties",*list);
             records.push_back(std::move(record));
         }
@@ -1131,6 +1133,21 @@ struct Builder {
         auto output=std::unique_ptr<aiMetadata>(aiMetadata::Alloc(unsigned(records.size())));
         for(unsigned i=0;i<records.size();++i) output->Set(i,std::to_string(i),*records[i]);
         return output;
+    }
+    // The stored drawing of every PMI entity of a part (frame and polylines in the part's frame), indexed by entity number.
+    std::shared_ptr<const PmiGeometry> pmiGeometryOf(const JtElement_MetaData_PMIManager& pmi) {
+        auto all=std::make_shared<PmiGeometry>();
+        all->reserve(pmi.Entities().size());
+        for(const auto& entity:pmi.Entities()) {
+            options.check();
+            JtData_Limits::allocation(entity.PolylineIndices.size()*4+entity.PolylineTypes.size()*2+entity.Vertices.size()*4);
+            PmiEntityGeometry g;
+            g.hasFrame=entity.HasFrame;
+            for(unsigned i=0;i<9;++i)g.frame[i]=entity.Frame[i];
+            g.indices=entity.PolylineIndices;g.types=entity.PolylineTypes;g.vertices=entity.Vertices;
+            all->push_back(std::move(g));
+        }
+        return all;
     }
     std::unique_ptr<aiMetadata> textureDescriptors(const JtNode_Base& source,const QString& label) {
         std::vector<std::unique_ptr<aiMetadata>> records;
@@ -1890,7 +1907,7 @@ struct Builder {
                 options.check();prop->Load();
                 const auto pmi=Handle(JtElement_MetaData_PMIManager)::DownCast(prop->DefferedObject());
                 if(pmi.IsNull()) throw std::runtime_error("unsupported or unreadable PMI payload");
-                {Timed timed(metaMs);auto converted=pmiMetadata(*pmi,label);if(converted){if(sourcePmi)result.warnings.append(label+": additional JT PMI segment ignored");else sourcePmi=std::move(converted);}}
+                {Timed timed(metaMs);auto converted=pmiMetadata(*pmi,label);if(converted){if(sourcePmi)result.warnings.append(label+": additional JT PMI segment ignored");else {sourcePmi=std::move(converted);result.pmiGeometry[node.get()]=pmiGeometryOf(*pmi);}}}
             } catch(const Cancelled&) {throw;}
               catch(const std::bad_alloc&) {throw;}
               catch(const std::exception& e) {result.warnings.append(label+": JT PMI data not read: "+QString::fromUtf8(e.what()));}

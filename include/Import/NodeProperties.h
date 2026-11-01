@@ -1,5 +1,7 @@
 #pragma once
 
+#include "PmiGeometry.h"
+
 #include <QString>
 #include <memory>
 #include <vector>
@@ -21,6 +23,9 @@ struct NodePropertySet
 {
     QString nodeName;
     std::vector<NodePropertyRow> rows;
+    // Recorded PMI of this node's part: the stored drawing of each entity, indexed by the entity number of the "PMI <n>" rows.
+    // Null when the importer kept none.
+    std::shared_ptr<const PmiGeometry> pmiGeometry;
 };
 
 using NodePropertySetPtr = std::shared_ptr<const NodePropertySet>;
@@ -36,7 +41,8 @@ constexpr size_t MaxRowsPerNode = 4096;
 
 // Flattens one metadata block. A JT "JTProperties" block (ordered Key/Value records) becomes one row per record; any
 // other nested block becomes a single "group" row holding its entry count. Returns null when the node has no metadata.
-NodePropertySetPtr fromNode(const aiNode& node);
+// `pmiGeometry` (optional) is attached to the result as the node's recorded PMI drawings.
+NodePropertySetPtr fromNode(const aiNode& node, std::shared_ptr<const PmiGeometry> pmiGeometry = nullptr);
 
 // True when the metadata block holds at least one entry.
 bool hasEntries(const aiMetadata* metadata);

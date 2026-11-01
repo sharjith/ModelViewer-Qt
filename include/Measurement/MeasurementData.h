@@ -1,5 +1,7 @@
 #pragma once
 
+#include "RecordedDrawing.h"
+
 #include <QUuid>
 #include <QString>
 #include <QVector>
@@ -291,6 +293,16 @@ enum class MeasurementOrigin
     Recorded = 1,
 };
 
+// What a recorded measurement states. Distance: a linear dimension. Diameter and Radius: the value is the circle's diameter or
+// radius, anchored on two opposite rim points. Angle: the value is in degrees, anchored at the vertex.
+enum class RecordedKind
+{
+    Distance = 0,
+    Diameter = 1,
+    Radius = 2,
+    Angle = 3,
+};
+
 struct Measurement
 {
     QUuid                          id;
@@ -305,6 +317,13 @@ struct Measurement
     QString                        recordedUnit;
     int                            recordedPrecision = 2;
     QString                        recordedSource;
+    RecordedKind                   recordedKind = RecordedKind::Distance;
+    // Recorded radius only: true when the author put the text inside the circle, so the arrow points outward at the rim; false
+    // (text outside) draws the arrow pointing inward, as drafting radius dimensions do.
+    bool                           recordedTextInside = false;
+    // Recorded measurements: the item as its author drew it (arrows, extension lines, leaders and text strokes in its annotation
+    // plane). When set, it is drawn instead of the viewer's own dimension graphics and label. Null for measured ones.
+    std::shared_ptr<const RecordedDrawing> recordedDrawing;
 
     // Anchor count is determined by type: 1 for Point or EdgeRadius, 2 for
     // Distance/FaceToFace/PointToFace, 3 for either arc type (see

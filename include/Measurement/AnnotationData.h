@@ -42,4 +42,12 @@ struct Annotation
     // consulted for this annotation.
     QVector3D             offsetReferenceDir;
     QVector3D             leaderOffset;
+
+    // Annotations read from the PMI of an imported file (notes, balloon notes, datum targets, regions, surface finish
+    // symbols) name their source kind here; empty for ones the user made. recordedSource says where it came from.
+    QString               recordedKind;
+    QString               recordedSource;
+    // The item as its author drew it; when set it is drawn instead of the marker, frame, leader and label.
+    std::shared_ptr<const RecordedDrawing> recordedDrawing;
+    bool isRecorded() const { return !recordedKind.isEmpty(); }
 };

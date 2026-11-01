@@ -10,22 +10,26 @@
 #include <limits>
 #include <vector>
 
-// Recorded PMI: dimensions an authoring system stored in the file (as opposed to measured ones, which the viewer computes from
-// picked points). This header holds the pure parts - reading a node's flattened PMI rows into linear dimensions and placing a
-// point on a triangle mesh - so they can be tested without the viewer. RecordedPmi.cpp turns them into scene measurements.
+// Recorded PMI: items an authoring system stored in the file (as opposed to measured ones, which the viewer computes from
+// picked points). This header holds the pure parts - reading a node's flattened PMI rows into dimensions and annotation-like
+// items, and placing a point on a triangle mesh - so they can be tested without the viewer. RecordedPmiBuilder.cpp turns them
+// into scene measurements and annotations.
+//
+// Rows come from NodeProperties (see JtSceneBuilder pmiMetadata()): "PMI <n> <type name>" summary rows, "PMI <n>.<key>" property
+// rows, plus two synthetic rows per entity, "PMI <n>.(entity type)" (the decimal entity type code of the JT 10.6 reference,
+// Table 56) and, when the entity stores a 2D reference frame, "PMI <n>.(frame origin)".
 namespace RecordedPmi
 {
-// A linear dimension as stored: value and the two end points of its leader, in the part's coordinate unit and frame.
-struct LinearDimension
+// Entity type codes of the JT 10.6 reference, Table 56.
+namespace TypeCode
 {
-	int entity = -1;           // index of the PMI entity on its node
-	double value = 0.0;        // in the file's coordinate unit
-	QString unit;              // the stored display-unit name, e.g. "millimeters"
-	int precision = 2;
-	QVector3D from, to;        // Leader[0].terminator, Leader[1].terminator
-	QVector3D textOrigin;
-	bool hasTextOrigin = false;
-};
+constexpr int SurfaceFinish = 0x0041;
+constexpr int Dimension = 0x0082;
+constexpr int DatumTarget = 0x0088;
+constexpr int Note = 0x0100;
+constexpr int BalloonNote = 0x0235;
+constexpr int Region = 0x0246;
+}
 
 inline bool parseVector(const QString& text, QVector3D& out)
 {
@@ -40,13 +44,18 @@ inline bool parseVector(const QString& text, QVector3D& out)
 	return true;
 }
 
-// Reads the "PMI <n> <type>" summary rows and "PMI <n>.<key>" property rows that NodeProperties produces for a part's JTPMI
-// metadata. Only entities named "Dimension" whose `type` property is 1 (linear, per the JT-IF PMI guide) and that carry a value
-// and both leader terminators are returned; everything else is left for later steps.
-inline std::vector<LinearDimension> linearDimensions(const NodePropertySet& set)
+// One PMI entity regrouped from the flattened rows.
+struct Entity
 {
-	struct Entity { QString typeName; QMap<QString, QString> properties; };
-	QMap<int, Entity> entities;
+	int number = -1;
+	int entityType = -1; // -1 when the rows carry no type code
+	QString typeName;
+	QMap<QString, QString> properties;
+};
+
+inline std::vector<Entity> entities(const NodePropertySet& set)
+{
+	QMap<int, Entity> byNumber;
 	for (const NodePropertyRow& row : set.rows)
 	{
 		if (!row.key.startsWith(QLatin1String("PMI ")))
@@ -63,31 +72,191 @@ inline std::vector<LinearDimension> linearDimensions(const NodePropertySet& set)
 		}
 		if (!any || position >= row.key.size())
 			continue;
+		Entity& e = byNumber[number];
+		e.number = number;
 		const QChar separator = row.key[position];
 		const QString rest = row.key.mid(position + 1);
 		if (separator == QLatin1Char('.'))
-			entities[number].properties.insert(rest, row.value);
+		{
+			if (rest == QLatin1String("(entity type)"))
+			{
+				bool ok = false;
+				const int code = row.value.toInt(&ok);
+				if (ok)
+					e.entityType = code;
+			}
+			else
+				e.properties.insert(rest, row.value);
+		}
 		else if (separator == QLatin1Char(' '))
-			entities[number].typeName = rest;
+			e.typeName = rest;
 	}
-	std::vector<LinearDimension> result;
-	for (auto it = entities.cbegin(); it != entities.cend(); ++it)
+	std::vector<Entity> result;
+	for (auto it = byNumber.cbegin(); it != byNumber.cend(); ++it)
+		result.push_back(it.value());
+	return result;
+}
+
+enum class DimensionKind { Linear, Diameter, Radius, Angle };
+
+// A dimension as stored. Values and points are in the part's coordinate unit and frame, except an angle's value, which is in
+// radians (observed on one exporter; the angle format property says how the source displays it).
+struct Dimension
+{
+	DimensionKind kind = DimensionKind::Linear;
+	int entity = -1;
+	double value = 0.0;
+	QString unit;              // the stored display-unit name, e.g. "millimeters"
+	int precision = 2;
+	QVector3D from, to;        // linear: the two leader terminators. Diameter/radius: a rim point and the opposite rim point
+	QVector3D vertex;          // angle: the vertex (the 2D frame origin, where the two extension lines meet)
+	QVector3D textOrigin;
+	bool hasTextOrigin = false;
+};
+
+// Dimension entities whose rows carry what their kind needs:
+//  linear   - type 1 with a value and both leader terminators;
+//  diameter - type 3, style 0 or 3, a value, the rim terminator and the frame origin (the circle's centre);
+//  radius   - type 3, style 1, same needs;
+//  angle    - type 2 with a value and the frame origin (the vertex).
+// Entities of other kinds, and incomplete ones, are left out.
+inline std::vector<Dimension> dimensions(const NodePropertySet& set)
+{
+	std::vector<Dimension> result;
+	for (const Entity& e : entities(set))
 	{
-		const Entity& e = it.value();
-		if (e.typeName != QLatin1String("Dimension") || e.properties.value(QStringLiteral("type")) != QLatin1String("1"))
+		const bool isDimension = e.entityType == TypeCode::Dimension || (e.entityType < 0 && e.typeName == QLatin1String("Dimension"));
+		if (!isDimension)
 			continue;
-		LinearDimension d;
-		d.entity = it.key();
+		const QString type = e.properties.value(QStringLiteral("type"));
+		const QString style = e.properties.value(QStringLiteral("style"));
+		Dimension d;
+		d.entity = e.number;
 		bool valueOk = false;
 		d.value = e.properties.value(QStringLiteral("value")).toDouble(&valueOk);
-		if (!valueOk || !std::isfinite(d.value)
-			|| !parseVector(e.properties.value(QStringLiteral("Leader[0].terminator")), d.from)
-			|| !parseVector(e.properties.value(QStringLiteral("Leader[1].terminator")), d.to))
+		if (!valueOk || !std::isfinite(d.value))
 			continue;
 		d.unit = e.properties.value(QStringLiteral("unit"));
 		d.precision = qBound(0, e.properties.value(QStringLiteral("precision"), QStringLiteral("2")).toInt(), 8);
 		d.hasTextOrigin = parseVector(e.properties.value(QStringLiteral("textOrigin")), d.textOrigin);
+		QVector3D frameOrigin;
+		const bool hasFrame = parseVector(e.properties.value(QStringLiteral("(frame origin)")), frameOrigin);
+		QVector3D terminator;
+		const bool hasTerminator = parseVector(e.properties.value(QStringLiteral("Leader[0].terminator")), terminator);
+		if (type == QLatin1String("1"))
+		{
+			d.kind = DimensionKind::Linear;
+			if (!hasTerminator || !parseVector(e.properties.value(QStringLiteral("Leader[1].terminator")), d.to))
+				continue;
+			d.from = terminator;
+		}
+		else if (type == QLatin1String("3"))
+		{
+			if (style == QLatin1String("0") || style == QLatin1String("3"))
+				d.kind = DimensionKind::Diameter;
+			else if (style == QLatin1String("1"))
+				d.kind = DimensionKind::Radius;
+			else
+				continue;
+			if (!hasTerminator || !hasFrame)
+				continue;
+			d.from = terminator;
+			d.to = 2.0f * frameOrigin - terminator; // the opposite point of the same circle
+		}
+		else if (type == QLatin1String("2"))
+		{
+			if (!hasFrame)
+				continue;
+			d.kind = DimensionKind::Angle;
+			d.vertex = frameOrigin;
+		}
+		else
+			continue;
 		result.push_back(d);
+	}
+	return result;
+}
+
+// Annotation-like entities: notes, balloon notes, datum targets, regions (datum points) and surface finish symbols.
+struct Note
+{
+	int entity = -1;
+	int entityType = -1;
+	QString text;              // empty for symbols that carry none
+	QVector3D anchor;          // where the symbol points at: its leader terminator, else its frame origin, else its text origin
+	bool hasAnchor = false;
+	bool hasLeader = false;
+	QVector3D textOrigin;
+	bool hasTextOrigin = false;
+};
+
+// Text lines of an entity: `Text[i].Item[j].string` properties, items of one text joined by a space, texts by a newline.
+inline QString noteText(const QMap<QString, QString>& properties)
+{
+	QMap<int, QMap<int, QString>> lines;
+	for (auto it = properties.cbegin(); it != properties.cend(); ++it)
+	{
+		const QString& key = it.key();
+		if (!key.startsWith(QLatin1String("Text[")) || !key.endsWith(QLatin1String("].string")))
+			continue;
+		// Text[i].Item[j].string
+		const int closeFirst = key.indexOf(QLatin1Char(']'));
+		const int openSecond = key.indexOf(QLatin1String(".Item["), closeFirst);
+		const int closeSecond = key.indexOf(QLatin1Char(']'), openSecond + 6);
+		if (closeFirst < 0 || openSecond < 0 || closeSecond < 0)
+			continue;
+		bool a = false, b = false;
+		const int i = key.mid(5, closeFirst - 5).toInt(&a);
+		const int j = key.mid(openSecond + 6, closeSecond - openSecond - 6).toInt(&b);
+		if (a && b)
+			lines[i].insert(j, it.value());
+	}
+	QStringList result;
+	for (auto line = lines.cbegin(); line != lines.cend(); ++line)
+		result.append(QStringList(line.value().values()).join(QLatin1Char(' ')));
+	return result.join(QLatin1Char('\n'));
+}
+
+inline std::vector<Note> notes(const NodePropertySet& set)
+{
+	std::vector<Note> result;
+	for (const Entity& e : entities(set))
+	{
+		Note n;
+		n.entity = e.number;
+		n.entityType = e.entityType;
+		switch (e.entityType)
+		{
+		case TypeCode::Note: n.text = noteText(e.properties); break;
+		case TypeCode::BalloonNote:
+			n.text = noteText(e.properties);
+			if (n.text.isEmpty())
+				n.text = e.properties.value(QStringLiteral("balloonId"));
+			break;
+		case TypeCode::DatumTarget: n.text = e.properties.value(QStringLiteral("label")) + e.properties.value(QStringLiteral("index")); break;
+		case TypeCode::Region: n.text = e.properties.value(QStringLiteral("Description")); break;
+		case TypeCode::SurfaceFinish: break; // a symbol; the builder names it
+		default: continue;
+		}
+		QVector3D point;
+		if (parseVector(e.properties.value(QStringLiteral("Leader[0].terminator")), point))
+		{
+			n.anchor = point;
+			n.hasAnchor = n.hasLeader = true;
+		}
+		else if (parseVector(e.properties.value(QStringLiteral("(frame origin)")), point))
+		{
+			n.anchor = point;
+			n.hasAnchor = true;
+		}
+		n.hasTextOrigin = parseVector(e.properties.value(QStringLiteral("textOrigin")), n.textOrigin);
+		if (!n.hasAnchor && n.hasTextOrigin)
+		{
+			n.anchor = n.textOrigin;
+			n.hasAnchor = true;
+		}
+		if (n.hasAnchor)
+			result.push_back(n);
 	}
 	return result;
 }

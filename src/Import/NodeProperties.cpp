@@ -83,12 +83,13 @@ bool hasEntries(const aiMetadata* metadata)
 	return metadata && metadata->mNumProperties > 0 && metadata->mKeys && metadata->mValues;
 }
 
-NodePropertySetPtr fromNode(const aiNode& node)
+NodePropertySetPtr fromNode(const aiNode& node, std::shared_ptr<const PmiGeometry> pmiGeometry)
 {
 	if (!hasEntries(node.mMetaData))
 		return nullptr;
 	auto set = std::make_shared<NodePropertySet>();
 	set->nodeName = text(node.mName);
+	set->pmiGeometry = std::move(pmiGeometry);
 	const aiMetadata& block = *node.mMetaData;
 	set->rows.reserve(block.mNumProperties);
 	bool truncated = false;
@@ -147,6 +148,19 @@ NodePropertySetPtr fromNode(const aiNode& node)
 					set->rows.push_back({ typeName.isEmpty() ? prefix : prefix + QLatin1Char(' ') + typeName,
 						QObject::tr("label %1, %2 polyline vertices, %3 properties").arg(labelText, verticesText, countText),
 						QStringLiteral("group") });
+					// Two synthetic rows the recorded-PMI import reads: the entity type code and the 2D frame origin.
+					if (const aiMetadataEntry* v = find(*entity, "EntityType"))
+					{
+						QString code, codeType;
+						if (scalar(*v, code, codeType))
+							set->rows.push_back({ prefix + QStringLiteral(".(entity type)"), code, QStringLiteral("integer") });
+					}
+					if (const aiMetadataEntry* v = find(*entity, "FrameOrigin"))
+					{
+						QString origin, originType;
+						if (scalar(*v, origin, originType))
+							set->rows.push_back({ prefix + QStringLiteral(".(frame origin)"), origin, QStringLiteral("text") });
+					}
 					const aiMetadataEntry* propertyEntry = find(*entity, "Properties");
 					const aiMetadata* properties = propertyEntry ? nested(*propertyEntry) : nullptr;
 					for (unsigned p = 0; properties && p < properties->mNumProperties; ++p)

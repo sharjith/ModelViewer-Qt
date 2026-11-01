@@ -295,6 +295,8 @@ QString MeasurementController::measurementSummaryText(const Measurement& m) cons
 	{
 		if (m.anchors.isEmpty())
 			return QString();
+		if (m.origin == MeasurementOrigin::Recorded && m.recordedKind == RecordedKind::Angle)
+			return tr("Recorded angle: %1 %2").arg(m.recordedValue, 0, 'f', m.recordedPrecision).arg(m.recordedUnit);
 		const QVector3D p = resolveMeasurementAnchor(m.anchors[0]);
 		return tr("Point: (%1, %2, %3)")
 			.arg(p.x(), 0, 'f', 3).arg(p.y(), 0, 'f', 3).arg(p.z(), 0, 'f', 3);
@@ -311,7 +313,12 @@ QString MeasurementController::measurementSummaryText(const Measurement& m) cons
 			const QString authored = m.recordedUnit.isEmpty()
 				? QString::number(m.recordedValue, 'f', m.recordedPrecision)
 				: QStringLiteral("%1 %2").arg(m.recordedValue, 0, 'f', m.recordedPrecision).arg(m.recordedUnit);
-			return tr("Recorded distance: %1 (mesh: %2 scene units)").arg(authored).arg(a.distanceToPoint(b), 0, 'f', 3);
+			const float meshValue = a.distanceToPoint(b);
+			if (m.recordedKind == RecordedKind::Diameter)
+				return tr("Recorded diameter: %1%2 (mesh: %3 scene units)").arg(QChar(0x00D8)).arg(authored).arg(meshValue, 0, 'f', 3);
+			if (m.recordedKind == RecordedKind::Radius)
+				return tr("Recorded radius: R%1 (mesh: %2 scene units)").arg(authored).arg(meshValue * 0.5f, 0, 'f', 3);
+			return tr("Recorded distance: %1 (mesh: %2 scene units)").arg(authored).arg(meshValue, 0, 'f', 3);
 		}
 		return tr("Distance: %1").arg(a.distanceToPoint(b), 0, 'f', 3);
 	}
@@ -3989,6 +3996,46 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 		addCone(b, dirN, coneRadius, coneHeight, color);
 	};
 
+	// CAD-style radius leader. Text outside the circle (the default): a straight line from the centre through the rim point and on
+	// beyond it, an arrowhead whose tip touches the rim and points inward, then a short horizontal shoulder on screen carrying
+	// the value. Text inside the circle: the line stops at the rim, the arrowhead points outward and the value sits on the line.
+	// Either way the value is not at the centre, which only carries a small marker. Returns the position for the label.
+	auto addRadiusLeader = [&](const QVector3D& center, const QVector3D& rim, const QVector3D& color, bool textInside = false) -> QVector3D {
+		const QVector3D toRim = rim - center;
+		const float length = toRim.length();
+		if (length < 1.0e-6f)
+		{
+			addMarker(center, color);
+			return center;
+		}
+		const QVector3D outward = toRim / length;
+		if (textInside)
+		{
+			addSegment(center, rim, color);
+			const float insideCone = coneScaleAt(rim) * 0.6f;
+			addCone(rim, outward, insideCone, std::min(insideCone * 3.0f, length * 0.4f), color);
+			return (center + rim) * 0.5f;
+		}
+		const float extension = std::max(length * 0.5f, markerSize * 6.0f);
+		const QVector3D end = rim + outward * extension;
+		addSegment(center, end, color);
+		const float coneRadius = coneScaleAt(rim) * 0.6f;
+		addCone(rim, -outward, coneRadius, std::min(coneRadius * 3.0f, length * 0.4f), color);
+		// The leader bends into a short landing so the value reads left to right. A leader that leaves at an angle gets a
+		// horizontal landing (on screen) running away from it. A leader that is itself (nearly) horizontal on screen would show
+		// no bend with a horizontal landing, so it gets a short upward riser instead, and the text continues beyond it.
+		const QVector3D right = camera->getRightVector();
+		const QVector3D up = camera->getUpVector();
+		const float across = QVector3D::dotProduct(outward, right);
+		const float vertical = QVector3D::dotProduct(outward, up);
+		const float side = across >= 0.0f ? 1.0f : -1.0f;
+		const bool angled = std::abs(vertical) >= 0.35f;
+		const QVector3D landing = angled ? right * side : up;
+		const QVector3D shoulderEnd = end + landing * (markerSize * 5.0f);
+		addSegment(end, shoulderEnd, color);
+		return shoulderEnd + (angled ? right * (side * markerSize * 3.0f) : right * (side * markerSize * 3.0f) + up * (markerSize * 1.5f));
+	};
+
 	// Full CAD-style linear dimension: the dimension line itself is offset
 	// away from the actual measured points [a,b] (not coincident with them),
 	// connected back via thin extension ("witness") lines - the standard CAD
@@ -4176,7 +4223,24 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 			? (color * 0.4f + QVector3D(1.0f, 1.0f, 1.0f) * 0.6f)
 			: color;
 
-		if (m.type == MeasurementType::Point && !m.anchors.isEmpty())
+		// A recorded item is drawn as its author drew it, in its own annotation plane (arrows, extension lines, leader and text
+		// strokes from the file), instead of with the viewer's dimension graphics and a camera-facing label.
+		bool drewRecordedStrokes = false;
+		if (m.recordedDrawing)
+		{
+			if (SceneMesh* strokeOwner = getMeshByUuid(m.recordedDrawing->meshUuid))
+			{
+				RecordedPmi::appendStrokes(*m.recordedDrawing, strokeOwner->combinedRenderTransform(), camera->getRenderPosition(),
+					dimensionColor, lineVertices, &triangleVertices);
+				drewRecordedStrokes = true;
+			}
+		}
+
+		if (drewRecordedStrokes)
+		{
+			// Drawn above.
+		}
+		else if (m.type == MeasurementType::Point && !m.anchors.isEmpty())
 		{
 			const QVector3D p = resolveMeasurementAnchor(m.anchors[0]);
 			addMarker(p, color, sizeMultiplier);
@@ -4186,10 +4250,21 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 		{
 			const QVector3D a = resolveMeasurementAnchor(m.anchors[0]);
 			const QVector3D b = resolveMeasurementAnchor(m.anchors[1]);
-			addMarker(a, color, sizeMultiplier);
-			addMarker(b, color, sizeMultiplier);
-			const QVector3D labelPos = addOffsetDimension(a, b, dimensionColor, m);
-			labels.append({ labelPos, summary });
+			if (m.origin == MeasurementOrigin::Recorded && m.recordedKind == RecordedKind::Radius)
+			{
+				// A recorded radius is anchored on two opposite rim points; draw it as a radius: the centre marked and a leader
+				// from it through the rim point and out, with the value at the outer end.
+				const QVector3D center = (a + b) * 0.5f;
+				addMarker(center, color, sizeMultiplier * 0.6f);
+				labels.append({ addRadiusLeader(center, a, dimensionColor, m.recordedTextInside), summary });
+			}
+			else
+			{
+				addMarker(a, color, sizeMultiplier);
+				addMarker(b, color, sizeMultiplier);
+				const QVector3D labelPos = addOffsetDimension(a, b, dimensionColor, m);
+				labels.append({ labelPos, summary });
+			}
 		}
 		else if (m.type == MeasurementType::ArcRadius3Point && m.anchors.size() >= 3)
 		{
@@ -4205,7 +4280,7 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 				addMarker(p2, color, sizeMultiplier);
 				addMarker(center, color, sizeMultiplier * 0.6f);
 				addCircleOutline(center, normal, radius, color);
-				labels.append({ center, summary });
+				labels.append({ addRadiusLeader(center, p0, dimensionColor), summary });
 			}
 		}
 		else if (m.type == MeasurementType::ArcRadiusCenterPoint && m.anchors.size() >= 3)
@@ -4220,10 +4295,9 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 				addMarker(center, color, sizeMultiplier * 0.6f);
 				addMarker(p1, color, sizeMultiplier);
 				addMarker(p2, color, sizeMultiplier);
-				addSegment(center, p1, color);
 				addSegment(center, p2, color);
 				addCircleOutline(center, normal, radius, color);
-				labels.append({ center, summary });
+				labels.append({ addRadiusLeader(center, p1, dimensionColor), summary });
 			}
 		}
 		else if (m.type == MeasurementType::EdgeRadius && !m.anchors.isEmpty())
@@ -4234,7 +4308,13 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 			{
 				addMarker(center, color, sizeMultiplier * 0.6f);
 				addCircleOutline(center, axis, radius, color);
-				labels.append({ center, summary });
+				// The circle has no rim point of its own: lead out in the plane, across the view direction captured when the
+				// measurement was made (so it does not swim as the camera orbits), or any in-plane direction without one.
+				const QVector3D axisN = axis.normalized();
+				QVector3D lead = QVector3D::crossProduct(axisN, m.offsetReferenceDir);
+				if (lead.lengthSquared() < 1.0e-8f)
+					lead = QVector3D::crossProduct(axisN, std::abs(axisN.x()) < 0.9f ? QVector3D(1.0f, 0.0f, 0.0f) : QVector3D(0.0f, 1.0f, 0.0f));
+				labels.append({ addRadiusLeader(center, center + lead.normalized() * radius, dimensionColor), summary });
 			}
 		}
 		else if (m.type == MeasurementType::FaceToFace && m.anchors.size() >= 2)

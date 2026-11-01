@@ -1878,7 +1878,10 @@ NodePropertyChainPtr AssImpModelLoader::nodePropertyChain()
 	{
 		auto cached = _nodePropertyCache.find(*it);
 		if (cached == _nodePropertyCache.end())
-			cached = _nodePropertyCache.emplace(*it, NodeProperties::fromNode(**it)).first;
+		{
+			const auto drawings = _jt.pmiGeometry.find(*it);
+			cached = _nodePropertyCache.emplace(*it, NodeProperties::fromNode(**it, drawings != _jt.pmiGeometry.end() ? drawings->second : nullptr)).first;
+		}
 		if (cached->second)
 			chain->push_back(cached->second);
 	}

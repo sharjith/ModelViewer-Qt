@@ -5,10 +5,12 @@
 #include <QSet>
 #include <QtGlobal>
 #include <TopoDS_Shape.hxx>
+#include "PmiGeometry.h"
 #include <assimp/scene.h>
 #include <functional>
 #include <memory>
 #include <stdexcept>
+#include <unordered_map>
 #include <vector>
 #include <array>
 #include <optional>
@@ -73,6 +75,9 @@ struct ImportResult {
     // Distinct values of the JT_PROP_MEASUREMENT_UNITS string property found on the nodes, as stored. The coordinates in
     // the file are in this unit; it is only reported, never used to scale geometry.
     QSet<QString> measurementUnits;
+    // Recorded PMI drawings of each part node that carries PMI (polylines in the part's frame), keyed by the node of the
+    // returned scene; used while that scene is being turned into meshes.
+    std::unordered_map<const aiNode*, std::shared_ptr<const PmiGeometry>> pmiGeometry;
     std::vector<TopoDS_Shape> exactShapes;
     unsigned storedMeshes=0, exactParts=0, fallbackParts=0;
 };

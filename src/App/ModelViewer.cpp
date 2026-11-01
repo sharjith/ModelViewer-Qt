@@ -32,6 +32,7 @@
 #include "ShrinkWrapDialog.h"
 #include "SurfaceAnalysisDialog.h"
 #include "MassPropertiesDialog.h"
+#include "RecordedDrawingJson.h"
 #include "MeshInfoDialog.h"
 #include "ReportExportDialog.h"
 #include "BatchRenderViewsDialog.h"
@@ -6325,6 +6326,10 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 				m.recordedUnit = measurementObj[QStringLiteral("recordedUnit")].toString();
 				m.recordedPrecision = qBound(0, measurementObj[QStringLiteral("recordedPrecision")].toInt(2), 8);
 				m.recordedSource = measurementObj[QStringLiteral("recordedSource")].toString();
+				const int kind = measurementObj[QStringLiteral("recordedKind")].toInt(0);
+				m.recordedKind = (kind >= 0 && kind <= static_cast<int>(RecordedKind::Angle)) ? static_cast<RecordedKind>(kind) : RecordedKind::Distance;
+				m.recordedTextInside = measurementObj[QStringLiteral("recordedTextInside")].toBool(false);
+				m.recordedDrawing = RecordedPmi::drawingFromJson(measurementObj[QStringLiteral("drawing")].toObject());
 			}
 
 			const QJsonArray anchorsArr = measurementObj[QStringLiteral("anchors")].toArray();
@@ -6358,6 +6363,9 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			a.visible = annotationObj[QStringLiteral("visible")].toBool(true);
 			a.offsetReferenceDir = jsonArrayToVec3Measurement(annotationObj[QStringLiteral("offsetReferenceDir")].toArray());
 			a.leaderOffset = jsonArrayToVec3Measurement(annotationObj[QStringLiteral("leaderOffset")].toArray());
+			a.recordedKind = annotationObj[QStringLiteral("recordedKind")].toString();
+			a.recordedSource = annotationObj[QStringLiteral("recordedSource")].toString();
+			a.recordedDrawing = RecordedPmi::drawingFromJson(annotationObj[QStringLiteral("drawing")].toObject());
 
 			const QJsonObject anchorObj = annotationObj[QStringLiteral("anchor")].toObject();
 			a.anchor.meshUuid = QUuid(anchorObj[QStringLiteral("meshUuid")].toString());
@@ -7437,6 +7445,11 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 				measurementObj.insert(QStringLiteral("recordedUnit"), m.recordedUnit);
 				measurementObj.insert(QStringLiteral("recordedPrecision"), m.recordedPrecision);
 				measurementObj.insert(QStringLiteral("recordedSource"), m.recordedSource);
+				measurementObj.insert(QStringLiteral("recordedKind"), static_cast<int>(m.recordedKind));
+				if (m.recordedTextInside)
+					measurementObj.insert(QStringLiteral("recordedTextInside"), true);
+				if (m.recordedDrawing)
+					measurementObj.insert(QStringLiteral("drawing"), RecordedPmi::drawingToJson(*m.recordedDrawing));
 			}
 			measurementObj.insert(QStringLiteral("anchors"), anchorsJson);
 			measurementsJson.append(measurementObj);
@@ -7472,6 +7485,13 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 			annotationObj.insert(QStringLiteral("visible"), a.visible);
 			annotationObj.insert(QStringLiteral("offsetReferenceDir"), vec3ToJson(a.offsetReferenceDir));
 			annotationObj.insert(QStringLiteral("leaderOffset"), vec3ToJson(a.leaderOffset));
+			if (a.isRecorded())
+			{
+				annotationObj.insert(QStringLiteral("recordedKind"), a.recordedKind);
+				annotationObj.insert(QStringLiteral("recordedSource"), a.recordedSource);
+				if (a.recordedDrawing)
+					annotationObj.insert(QStringLiteral("drawing"), RecordedPmi::drawingToJson(*a.recordedDrawing));
+			}
 			annotationsJson.append(annotationObj);
 		}
 		package.document.mvfSession.insert(QStringLiteral("annotations"), annotationsJson);
