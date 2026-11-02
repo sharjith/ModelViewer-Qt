@@ -14,6 +14,8 @@
 #include <QString>
 #include <QUuid>
 #include <QVector3D>
+#include <QHash>
+#include <vector>
 
 class Camera;
 class ModelViewer;
@@ -266,6 +268,8 @@ private:
     QVector3D _leaderDragAxis;                // plane normal (camera view dir at drag start) - drag is free within this screen-parallel plane
     QVector3D _leaderDragStartOffset;
     QUuid _hoveredLeaderId;
+    // The segments of each recorded (authored) note as last drawn, which hover and click test against.
+    QHash<QUuid, std::vector<QVector3D>> _recordedStrokes;
 
 public:
     // Exposed for ViewportWidget's mouse-event dispatch (press-vs-drag

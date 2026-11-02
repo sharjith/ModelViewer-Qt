@@ -196,4 +196,14 @@ inline void appendStrokes(const RecordedDrawing& drawing, const QMatrix4x4& toWo
 			}
 	}
 }
+
+// The segment endpoints (two per segment) among the lines appendStrokes() added from float index `from` on (x y z r g b per vertex),
+// kept by the overlay so hover and click can be tested against what was actually drawn.
+inline std::vector<QVector3D> strokeSegments(const std::vector<float>& lines, size_t from)
+{
+	std::vector<QVector3D> result;
+	for (size_t i = from; i + 5 < lines.size(); i += 6)
+		result.emplace_back(lines[i], lines[i + 1], lines[i + 2]);
+	return result;
+}
 }

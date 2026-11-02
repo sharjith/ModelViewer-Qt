@@ -7,6 +7,7 @@
 #include "SelectionManager.h"  // HoverHighlightMode - used as a value field type below
 
 #include <QHash>
+#include <vector>
 #include <QObject>
 #include <QOpenGLFunctions_4_5_Core>
 #include <QPoint>
@@ -368,6 +369,8 @@ private:
 	// A report-style measurement's label: the point its leader starts from and the normal of the plane the label lies in.
 	struct LabelHandle { QVector3D attach; QVector3D planeNormal; QVector3D shownOffset; };  // shownOffset: where the label stands now (its saved offset, else the default)
 	QHash<QUuid, LabelHandle> _labelHandles;
+	// The segments of each recorded (authored) drawing as last drawn, which is what hover and click test against.
+	QHash<QUuid, std::vector<QVector3D>> _recordedStrokes;
 	// The segment a MinDistance dimension line is drawn for (found by a search too slow to repeat on every mouse move).
 	QHash<QUuid, std::pair<QVector3D, QVector3D>> _minDistanceSegments;
 	QUuid _hoveredDimensionId;

@@ -453,6 +453,19 @@ QUuid AnnotationController::hitTestAnnotation(const QPoint& pixel, Camera* camer
         if (!isEffectivelyVisible(a))
             continue;
 
+        // A recorded (authored) note is tested where it was drawn, not at the geometry it was recorded on.
+        if (a.recordedDrawing)
+        {
+            const auto strokes = _recordedStrokes.constFind(a.id);
+            if (strokes != _recordedStrokes.constEnd())
+            {
+                for (size_t i = 0; i + 1 < strokes->size(); i += 2)
+                    if (distPointToSegment(clickPt2, toScreen((*strokes)[i]), toScreen((*strokes)[i + 1])) < static_cast<float>(pixelRadius))
+                        return a.id;
+                continue;
+            }
+        }
+
         const QVector3D anchorPos = resolveAnnotationAnchor(a.anchor);
         const QVector3D labelPos = anchorPos + resolveAnnotationLeaderOffset(a, camera);
 
@@ -509,7 +522,12 @@ QUuid AnnotationController::hitTestAnnotationLeader(const QPoint& pixel, Camera*
     // distinction - see hitTestAnnotation()'s doc comment). Kept as its own
     // method to mirror ViewportWidget's existing press-vs-drag dispatch
     // shape and leave room for a future distinction.
-    return hitTestAnnotation(pixel, camera, viewportSize, axisTextRenderer, pixelRadius);
+    const QUuid hit = hitTestAnnotation(pixel, camera, viewportSize, axisTextRenderer, pixelRadius);
+    // A recorded note keeps the layout its author drew: it can be hovered and selected but has no leader to drag.
+    const int index = hit.isNull() ? -1 : _viewer->sceneGraph()->annotationIndexById(hit);
+    if (index >= 0 && _viewer->sceneGraph()->annotations().at(index).recordedDrawing)
+        return QUuid();
+    return hit;
 }
 
 void AnnotationController::updateHoverAnnotation(const QPoint& pixel, Camera* camera, const QSize& viewportSize, TextRenderer* axisTextRenderer)
@@ -617,6 +635,7 @@ void AnnotationController::finishAnnotationLeaderDrag(ViewportWidget* viewportWi
 
 void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& viewportSize, TextRenderer* axisTextRenderer)
 {
+    _recordedStrokes.clear();
     if (!_glFunctionsInitialized || !camera || !axisTextRenderer || !_renderCtrl.axisShader() || !_viewer || !_viewer->sceneGraph())
         return;
 
@@ -669,8 +688,10 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
         {
             if (SceneMesh* strokeOwner = getMeshByUuid(a.recordedDrawing->meshUuid))
             {
+                const size_t strokeStart = lineVertices.size();
                 RecordedPmi::appendStrokes(*a.recordedDrawing, strokeOwner->combinedRenderTransform(), camera->getRenderPosition(),
                     color, lineVertices, &fillVertices);  // authored size: a symbol's text must stay inside its circle
+                _recordedStrokes.insert(a.id, RecordedPmi::strokeSegments(lineVertices, strokeStart));
                 continue;
             }
         }

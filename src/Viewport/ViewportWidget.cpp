@@ -16581,6 +16581,16 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 				return;
 			}
 
+			// A recorded note has no leader to drag, so it is selected straight away.
+			const QUuid hitRecordedNote = _annotationController->hitTestAnnotation(clickPoint, _primaryCamera, QSize(width(), height()), _axisTextRenderer, 8);
+			if (!hitRecordedNote.isNull())
+			{
+				setSelectedAnnotationIds({ hitRecordedNote });
+				if (_selectionManager)
+					_selectionManager->setSelectedIds({});
+				return;
+			}
+
 			setSelectedAnnotationIds({});
 		}
 
