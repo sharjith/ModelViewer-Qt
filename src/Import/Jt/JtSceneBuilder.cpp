@@ -6,6 +6,7 @@
 #include "JtTextureMapping.h"
 #include "JtTextureTangents.h"
 #include "JtPrimitiveTopology.h"
+#include "JtMemoryGuard.h"
 #include <JtData_Model.hxx>
 #include <JtData_Limits.hxx>
 #include <JtNode_Partition.hxx>
@@ -501,8 +502,9 @@ public:
 private:
     enum State:char {Pending,Running,Done,Failed,Skipped};
     void work(unsigned threads) {
-        // Limits are per thread: this thread's share of the import's cumulative decode budget, and the same cancellation check.
-        JtData_Limits::Scope limits([this]{options.check();},options.decodedAllocationBudget/std::max(1u,threads));
+        // Limits are per thread: the decode budget bounds one payload (restarted below for each), plus the same cancellation check.
+        (void)threads;
+        JtData_Limits::Scope limits([this]{options.check();},options.decodedAllocationBudget);
         for(;;) {
             size_t i;
             {
@@ -517,8 +519,8 @@ private:
                 state[i]=Running;
             }
             bool decoded=false;
-            try{props[i]->Load();decoded=!props[i]->DefferedObject().IsNull();}
-            catch(...){props[i]->Unload();}
+            try{Detail::beginUnit(options);props[i]->Load();decoded=!props[i]->DefferedObject().IsNull();}
+            catch(...){props[i]->Unload();} // out of memory included: the build decodes it again and reports it
             {
                 std::lock_guard<std::mutex> guard(mutex);
                 state[i]=decoded?Done:Failed;
@@ -1560,7 +1562,7 @@ struct Builder {
             auto& root=partitions[fileKey(file)];
             if(root.IsNull()) {
                 try {
-                    Timed timed(openMs);++filesOpened;
+                    Timed timed(openMs);++filesOpened;JtData_Limits::beginUnit();
                     Handle(JtData_Model) m=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(file.utf16())));
                     root=m->Init();
                 } catch(const Cancelled&) {throw;}
@@ -1696,7 +1698,7 @@ struct Builder {
                         if(geometry!=geometryCache.end())geometryIndex=geometry->second;
                         else {
                             struct Unload {Handle(JtProperty_LateLoaded) p;~Unload(){p->Unload();}} unload{prop};
-                            options.check();{Timed timed(decodeMs);if(prefetch)prefetch->wait(prop);if(prop->DefferedObject().IsNull())prop->Load();}++shapesDecoded;const auto mesh=Handle(JtElement_ShapeLOD_Vertex)::DownCast(prop->DefferedObject());
+                            options.check();Detail::beginUnit(options);{Timed timed(decodeMs);if(prefetch)prefetch->wait(prop);if(prop->DefferedObject().IsNull())prop->Load();}++shapesDecoded;const auto mesh=Handle(JtElement_ShapeLOD_Vertex)::DownCast(prop->DefferedObject());
                             if(mesh.IsNull())throw std::runtime_error("Unsupported JT tessellation payload");
                             if(mesh->ExplicitEmpty()) {
                                 if(!shape->DeclaresEmptyGeometry())throw std::runtime_error("JT empty payload contradicts advertised shape geometry");
@@ -1830,7 +1832,7 @@ struct Builder {
                         activeFiles.insert(fileKey(file));
                         struct FilePop {std::set<QString>& files;QString path;~FilePop(){files.erase(path);}} filePop{activeFiles,fileKey(file)};
                         auto& root=partitions[fileKey(file)];
-                        if(root.IsNull()) {Timed timed(openMs);++filesOpened;Handle(JtData_Model) m=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(file.utf16())));root=m->Init();}
+                        if(root.IsNull()) {Detail::beginUnit(options);Timed timed(openMs);++filesOpened;Handle(JtData_Model) m=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(file.utf16())));root=m->Init();}
                         MaterialSourceContext partContext;{Timed timed(sourceCtxMs);partContext=materialSourceContext(file,options);}
                         children.push_back(visit(root,style,hidden,transformLocked,world,palette,std::move(partContext)));
                     }

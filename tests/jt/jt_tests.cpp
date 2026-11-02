@@ -1,4 +1,5 @@
 #include "Jt/JtImporter.h"
+#include "JtMemoryGuard.h"
 #include <JtData_Reader.hxx>
 #include <JtData_Limits.hxx>
 #include <JtDecode_Int32CDP.hxx>
@@ -125,6 +126,26 @@ void allocationBudgetTests() {
     require(JtData_Limits::allocated==60 && JtData_Limits::allocationBudget==100,"Nested budget scope lost parent accounting");
     JtData_Limits::allocation(40);require(polls==3,"Nested scope lost cancellation callback");
     fails([]{JtData_Limits::allocation(size_t(-1));});
+    // The budget bounds one unit of work: many units that each fit never exhaust it, while one unit still cannot exceed it.
+    {JtData_Limits::Scope units([]{},100);
+     for(int i=0;i<50;++i){JtData_Limits::beginUnit();JtData_Limits::allocation(60);}
+     require(JtData_Limits::allocated==60,"A new unit did not restart the allocation counter");
+     fails([]{JtData_Limits::allocation(41);});
+     JtData_Limits::beginUnit();JtData_Limits::allocation(100);fails([]{JtData_Limits::allocation(1);});
+     require(JtData_Limits::allocationBudget==100,"A new unit changed the per-unit budget");}
+    // The free-memory guard bounds the assembly: it stops the import with a clear message, and a reading of 0 means unknown.
+    {Jt::Options guard;guard.minFreeMemoryBytes=size_t(1000)*1024*1024;
+     JtData_Limits::Scope units([]{},100);
+     JtData_Limits::allocation(60);
+     guard.availableMemory=[]{return size_t(2000)*1024*1024;};
+     Jt::Detail::beginUnit(guard);require(JtData_Limits::allocated==0,"The memory guard did not start a unit");
+     guard.availableMemory=[]{return size_t(0);};Jt::Detail::beginUnit(guard);
+     guard.availableMemory=[]{return size_t(500)*1024*1024;};
+     std::string message;
+     try{Jt::Detail::beginUnit(guard);}catch(const std::bad_alloc& e){message=e.what();}
+     require(message.find("Not enough free memory")!=std::string::npos && message.find("500 MiB free")!=std::string::npos &&
+             message.find("1000 MiB are needed")!=std::string::npos,"The memory guard did not report the shortage");
+     guard.minFreeMemoryBytes=0;Jt::Detail::beginUnit(guard);}
     // Accounting-only requests: no large buffers are allocated by these cases.
     require(Jt::Options{}.decodedAllocationBudget==JtData_Limits::defaultAllocationBudget,
             "Importer and decoder default allocation budgets differ");

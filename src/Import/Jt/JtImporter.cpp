@@ -13,6 +13,8 @@ ImportResult Importer::read(const QString& path,const Options& options) try {
     Handle(JtData_Model) model=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(info.absoluteFilePath().utf16())));
     const auto root=model->Init();if(root.IsNull()) throw std::runtime_error("Cannot decode JT product structure");
     return Detail::buildScene(root,path,options);
+} catch(const JtData_Limits::OutOfMemory& error) {
+    throw std::runtime_error(error.what()); // a plain message, not the generic std::bad_alloc one
 } catch(const Standard_Failure& error) {
     throw std::runtime_error(std::string("JT kernel error: ")+error.GetMessageString());
 }

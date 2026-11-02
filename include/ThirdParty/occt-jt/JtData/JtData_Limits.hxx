@@ -5,6 +5,7 @@
 // and distinct single-allocation/cumulative diagnostics with byte counts.
 #pragma once
 #include <functional>
+#include <new>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -14,6 +15,17 @@ inline thread_local size_t allocated=0;
 inline constexpr size_t defaultAllocationBudget=size_t(16)*1024*1024*1024;
 inline constexpr size_t singleAllocationLimit=size_t(512)*1024*1024;
 inline thread_local size_t allocationBudget=defaultAllocationBudget;
+// ModelViewer update, 2026-11-02: the charge counts one unit of work (a shape payload, a part-file open), not the whole import.
+// A caller starts each unit with beginUnit(); the counter only ever grows within a unit, so it still stops a corrupt payload,
+// while a large assembly decoded unit by unit no longer exhausts it. The total in memory is bounded by the free-memory guard.
+inline void beginUnit() {allocated=0;}
+// Thrown when the machine is short of free memory. It is a std::bad_alloc so every existing handler that rethrows an
+// out-of-memory condition (instead of reporting a rejected payload and carrying on) rethrows it too.
+struct OutOfMemory : std::bad_alloc {
+  std::string text;
+  explicit OutOfMemory(std::string message):text(std::move(message)) {}
+  const char* what() const noexcept override {return text.c_str();}
+};
 inline void poll() {if(check) check();}
 inline void allocation(size_t bytes) {
   poll();

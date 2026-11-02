@@ -20,9 +20,15 @@
 namespace Jt {
 struct Cancelled : std::runtime_error { Cancelled():std::runtime_error("Model loading cancelled by user.") {} };
 struct Options {
-    // Cumulative charged allocations, including released scratch arrays; not peak RSS.
+    // Charged allocations (including released scratch arrays; not peak RSS) of ONE unit of work: a shape payload or a part-file
+    // open. The counter restarts for each unit, so it stops a corrupt payload without limiting how large an assembly can be.
     // The decoder also retains a separate 512 MiB per-allocation limit.
     size_t decodedAllocationBudget=size_t(16)*1024*1024*1024;
+    // The import stops with a clear message when the free physical memory falls below this, checked before each unit of work.
+    // This, not the allocation counter, bounds a large assembly. 0 turns it off.
+    size_t minFreeMemoryBytes=size_t(1)*1024*1024*1024;
+    // Free physical memory in bytes; empty = ask the operating system. A test hook.
+    std::function<size_t()> availableMemory;
     std::function<bool()> cancelled;
     std::function<void(const QString&,int,int)> progress;
     // Match the measured exporter profile (DM 10.8.0.1 / JT 10.5, 10.7-10.10) duplicate
