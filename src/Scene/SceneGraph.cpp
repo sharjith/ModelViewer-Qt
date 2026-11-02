@@ -1124,6 +1124,26 @@ void SceneGraph::setAnnotationText(const QUuid& id, const QString& text)
     emit annotationsChanged();
 }
 
+void SceneGraph::setMeasurementOrientation(const QUuid& id, LabelOrientation orientation)
+{
+    const int index = measurementIndexById(id);
+    if (index < 0 || _measurements.at(index).orientation == orientation)
+        return;
+    _measurements[index].orientation = orientation;
+    // A frame placed in a plane has no stored offset, but one the user already dragged does: leave it, so switching modes never
+    // moves a placed dimension.
+    emit measurementsChanged();
+}
+
+void SceneGraph::setAnnotationOrientation(const QUuid& id, LabelOrientation orientation)
+{
+    const int index = annotationIndexById(id);
+    if (index < 0 || _annotations.at(index).orientation == orientation)
+        return;
+    _annotations[index].orientation = orientation;
+    emit annotationsChanged();
+}
+
 void SceneGraph::setAnnotationLeaderOffset(const QUuid& id, const QVector3D& leaderOffset)
 {
     const int index = annotationIndexById(id);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "LabelPlane.h"
 #include "RecordedDrawing.h"
 
 #include <QUuid>
@@ -397,6 +398,10 @@ struct Measurement
     // measurement from then on. Undoable, same reasoning as offsetDistance
     // above.
     QVector3D                      offsetVector;
+
+    // How the dimension's frame and value are laid out: in a model plane or the creation view's plane (they turn with the model),
+    // or with the value always facing the screen. Older sessions without the field load as FaceCamera, their original look.
+    LabelOrientation               orientation = LabelOrientation::ModelPlane;
 };
 
 // How many anchor picks a tool needs before a Measurement is complete - for

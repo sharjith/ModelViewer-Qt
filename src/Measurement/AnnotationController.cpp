@@ -1,4 +1,5 @@
 #include "AnnotationController.h"
+#include "InPlaneText.h"
 
 #include "AnnotationOffsetCommand.h"
 #include "Camera.h"
@@ -172,9 +173,75 @@ float AnnotationController::defaultLeaderOffsetMagnitude(Camera* camera) const
 
 QVector3D AnnotationController::resolveAnnotationLeaderOffset(const Annotation& a, Camera* camera) const
 {
+    const LabelPlane::Basis plane = annotationPlane(a);
     if (a.leaderOffset.lengthSquared() > 1.0e-10f)
-        return a.leaderOffset;  // user has dragged this - use the exact vector (direction + magnitude)
+    {
+        if (!plane.valid)
+            return a.leaderOffset;  // user has dragged this - use the exact vector (direction + magnitude)
+        // In a plane the leader stays in it, however the offset was stored.
+        return a.leaderOffset - plane.normal * QVector3D::dotProduct(a.leaderOffset, plane.normal);
+    }
+    if (plane.valid)
+    {
+        // Up and to the right in the plane, on the side of its axes that points up in the model (+Z, else +Y, else +X).
+        QVector3D up = plane.y;
+        for (int axis = 2; axis >= 0; --axis)
+            if (std::abs(up[axis]) > 1.0e-3f)
+            {
+                if (up[axis] < 0.0f)
+                    up = -up;
+                break;
+            }
+        return (up + plane.x * 0.5f).normalized() * defaultLeaderOffsetMagnitude(camera);
+    }
     return defaultLeaderDirection(a.offsetReferenceDir) * defaultLeaderOffsetMagnitude(camera);
+}
+
+LabelPlane::Basis AnnotationController::annotationPlane(const Annotation& a) const
+{
+    return LabelPlane::forOrientation(a.orientation, a.offsetReferenceDir);
+}
+
+AnnotationController::InPlaneNote AnnotationController::layoutInPlaneNote(const Annotation& a, const QVector3D& labelPos, Camera* camera,
+    const QSize& viewportSize) const
+{
+    InPlaneNote note;
+    if (!camera)
+        return note;
+    const LabelPlane::Basis plane = annotationPlane(a);
+    if (plane.valid)
+    {
+        const LabelPlane::Basis reading = LabelPlane::readable(plane, camera->getRenderPosition(), labelPos, camera->getRightVector());
+        note.x = reading.x;
+        note.y = reading.y;
+        note.capHeight = std::max(camera->getViewRange(), 0.0001f) * 0.01f * 1.8f;
+    }
+    else
+    {
+        // A note that faces the screen lies in the camera's own plane, at a fixed size on screen.
+        const QRect viewportRect(0, 0, viewportSize.width(), viewportSize.height());
+        note.x = camera->getRightVector();
+        note.y = camera->getUpVector();
+        note.capHeight = LabelPlane::BillboardCapPixels
+            * LabelPlane::worldPerPixel(labelPos, camera->getViewMatrix(), camera->getProjectionMatrix(), viewportRect);
+    }
+
+    const QStringList lines = a.text.split(QChar('\n'));
+    float widest = 0.0f;
+    for (const QString& line : lines)
+    {
+        const InPlaneText::Outline& o = InPlaneText::outline(line);
+        widest = std::max(widest, o.right - o.left);
+    }
+    const float cap = note.capHeight;
+    const float pad = 0.45f * cap;
+    const float left = -pad, right = widest * cap + pad;
+    const float bottom = -0.3f * cap - pad;
+    const float top = cap * (1.0f + 1.6f * float(lines.size() - 1)) + pad;
+    auto at = [&](float u, float v) { return labelPos + note.x * u + note.y * v; };
+    note.corners = { at(left, top), at(right, top), at(right, bottom), at(left, bottom) };
+    note.valid = true;
+    return note;
 }
 
 QRectF AnnotationController::frameScreenRectForLabel(const QVector3D& labelPos, const QString& text,
@@ -394,6 +461,24 @@ QUuid AnnotationController::hitTestAnnotation(const QPoint& pixel, Camera* camer
         // discoverable grab area than a thin line alone (the ask that
         // motivated this: the old thin-leader hit test made a note
         // difficult to reliably select or drag).
+        {
+            // The frame is a quad in space; test the click against its projection.
+            const InPlaneNote note = layoutInPlaneNote(a, labelPos, camera, viewportSize);
+            if (note.valid)
+            {
+                QPolygonF quad;
+                for (const QVector3D& corner : note.corners)
+                {
+                    const QVector2D s = toScreen(corner);
+                    quad << QPointF(double(s.x()), double(s.y()));
+                }
+                if (quad.containsPoint(clickPtF, Qt::OddEvenFill))
+                    return a.id;
+                if (distPointToSegment(clickPt2, toScreen(anchorPos), toScreen(note.corners[3])) < static_cast<float>(pixelRadius))
+                    return a.id;
+            }
+            continue;
+        }
         const QRectF frame = frameScreenRectForLabel(labelPos, a.text, camera, viewportSize, axisTextRenderer);
         if (frame.isValid() && frame.contains(clickPtF))
             return a.id;
@@ -451,7 +536,9 @@ void AnnotationController::beginAnnotationLeaderDrag(const QUuid& annotationId, 
     // normal = the measured segment's own direction, keeping the offset
     // perpendicular to it), there is no measured segment here, so the drag
     // is simply free within the screen-parallel plane.
-    _leaderDragAxis = camera->getViewDir().normalized();
+    // A note laid out in a plane slides within that plane instead.
+    const LabelPlane::Basis plane = annotationPlane(a);
+    _leaderDragAxis = plane.valid ? plane.normal : camera->getViewDir().normalized();
     _leaderDragStartOffset = resolveAnnotationLeaderOffset(a, camera);
     _leaderDragActive = true;
 }
@@ -592,6 +679,25 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
         const QVector3D labelPos = anchorPos + resolveAnnotationLeaderOffset(a, camera);
 
         addMarker(anchorPos, color, sizeMultiplier);
+
+        {
+            // Frame, leader and text all lie in the note's plane (the camera's own plane for a note that faces the screen).
+            const InPlaneNote note = layoutInPlaneNote(a, labelPos, camera, viewportSize);
+            if (note.valid)
+            {
+                addSegment(anchorPos, note.corners[3], color);
+                for (int i = 0; i < 4; ++i)
+                    addSegment(note.corners[i], note.corners[(i + 1) % 4], color);
+                const QStringList noteLines = a.text.split(QChar('\n'));
+                for (int i = 0; i < noteLines.size(); ++i)
+                {
+                    const float lift = note.capHeight * 1.6f * float(noteLines.size() - 1 - i);
+                    InPlaneText::appendHaloText(noteLines[i], labelPos + note.y * lift, note.x, note.y, note.capHeight, color,
+                        QVector3D(0.06f, 0.06f, 0.08f), fillVertices, 1.0f);
+                }
+                continue;
+            }
+        }
 
         // Rectangular frame around the note's text - the primary grab
         // target for repositioning it (see hitTestAnnotation()'s doc

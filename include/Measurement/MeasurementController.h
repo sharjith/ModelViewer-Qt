@@ -223,7 +223,7 @@ public:
 	mutable std::map<QUuid, GeodesicDistanceCacheEntry> m_geodesicDistanceCache;
 	bool resolveMeasurementDimensionSegment(const Measurement& m, QVector3D& outA, QVector3D& outB) const;
 	QVector3D dimensionLinePerp(const QVector3D& a, const QVector3D& b,
-		const QVector3D& referenceDir, Camera* camera) const;
+		const QVector3D& referenceDir, Camera* camera, LabelOrientation orientation = LabelOrientation::ModelPlane) const;
 	float defaultDimensionOffsetMagnitude(Camera* camera) const;
 	QVector3D resolveDimensionOffsetVector(const QVector3D& a, const QVector3D& b,
 		const Measurement& m, Camera* camera) const;

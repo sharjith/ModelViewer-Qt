@@ -249,6 +249,10 @@ public:
     // as setMeasurementOffsetVector().
     void setAnnotationLeaderOffset(const QUuid& id, const QVector3D& leaderOffset);
 
+    // How a measurement's or note's label is laid out (see LabelOrientation). Not undoable, like the visibility toggles.
+    void setMeasurementOrientation(const QUuid& id, LabelOrientation orientation);
+    void setAnnotationOrientation(const QUuid& id, LabelOrientation orientation);
+
     // -----------------------------------------------------------------------
     // Named selection sets ("Selection -> Save Selection Set..."). Document-
     // level, not per-file - see SelectionSetData.h. Same shape as the

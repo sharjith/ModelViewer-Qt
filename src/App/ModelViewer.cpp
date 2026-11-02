@@ -6319,6 +6319,8 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			m.offsetReferenceDir = jsonArrayToVec3Measurement(measurementObj[QStringLiteral("offsetReferenceDir")].toArray());
 			m.offsetDistance = static_cast<float>(measurementObj[QStringLiteral("offsetDistance")].toDouble());
 			m.offsetVector = jsonArrayToVec3Measurement(measurementObj[QStringLiteral("offsetVector")].toArray());
+			m.orientation = static_cast<LabelOrientation>(measurementObj[QStringLiteral("labelOrientation")].toInt(
+				static_cast<int>(LabelOrientation::FaceCamera)));  // sessions from before the setting looked screen-facing
 			if (measurementObj[QStringLiteral("origin")].toString() == QLatin1String("recorded"))
 			{
 				m.origin = MeasurementOrigin::Recorded;
@@ -6363,6 +6365,8 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			a.visible = annotationObj[QStringLiteral("visible")].toBool(true);
 			a.offsetReferenceDir = jsonArrayToVec3Measurement(annotationObj[QStringLiteral("offsetReferenceDir")].toArray());
 			a.leaderOffset = jsonArrayToVec3Measurement(annotationObj[QStringLiteral("leaderOffset")].toArray());
+			a.orientation = static_cast<LabelOrientation>(annotationObj[QStringLiteral("labelOrientation")].toInt(
+				static_cast<int>(LabelOrientation::FaceCamera)));  // sessions from before the setting looked screen-facing
 			a.recordedKind = annotationObj[QStringLiteral("recordedKind")].toString();
 			a.recordedSource = annotationObj[QStringLiteral("recordedSource")].toString();
 			a.recordedDrawing = RecordedPmi::drawingFromJson(annotationObj[QStringLiteral("drawing")].toObject());
@@ -7437,6 +7441,7 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 			measurementObj.insert(QStringLiteral("offsetReferenceDir"), vec3ToJson(m.offsetReferenceDir));
 			measurementObj.insert(QStringLiteral("offsetDistance"), static_cast<double>(m.offsetDistance));
 			measurementObj.insert(QStringLiteral("offsetVector"), vec3ToJson(m.offsetVector));
+			measurementObj.insert(QStringLiteral("labelOrientation"), static_cast<int>(m.orientation));
 			if (m.origin == MeasurementOrigin::Recorded)
 			{
 				// Only recorded ones carry these; files written before them (or without any) read back as measured.
@@ -7485,6 +7490,7 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 			annotationObj.insert(QStringLiteral("visible"), a.visible);
 			annotationObj.insert(QStringLiteral("offsetReferenceDir"), vec3ToJson(a.offsetReferenceDir));
 			annotationObj.insert(QStringLiteral("leaderOffset"), vec3ToJson(a.leaderOffset));
+			annotationObj.insert(QStringLiteral("labelOrientation"), static_cast<int>(a.orientation));
 			if (a.isRecorded())
 			{
 				annotationObj.insert(QStringLiteral("recordedKind"), a.recordedKind);

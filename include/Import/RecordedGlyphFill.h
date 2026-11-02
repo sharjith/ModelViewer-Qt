@@ -244,6 +244,36 @@ inline void triangulate(std::vector<P2> outer, std::vector<std::vector<P2>> hole
 	}
 	clipEars(std::move(poly), tol, out);
 }
+
+// Fills closed loops by even-odd containment: a loop wholly inside an odd number of others is a hole of the smallest loop around
+// it, and loops that merely overlap are separate shapes. Triangles are appended to `out`.
+inline void fillLoops(const std::vector<std::vector<P2>>& loops, double tol, std::vector<std::array<P2, 3>>& out)
+{
+	const size_t n = loops.size();
+	std::vector<double> area(n);
+	for (size_t i = 0; i < n; ++i)
+		area[i] = std::abs(Glyph::signedArea(loops[i]));
+	std::vector<int> depth(n, 0), parent(n, -1);
+	for (size_t i = 0; i < n; ++i)
+		for (size_t j = 0; j < n; ++j)
+			if (i != j && area[j] > area[i] && Glyph::allInside(loops[j], loops[i]))
+			{
+				++depth[i];
+				if (parent[i] < 0 || area[j] < area[size_t(parent[i])])
+					parent[i] = int(j);
+			}
+
+	for (size_t i = 0; i < n; ++i)
+	{
+		if (depth[i] % 2 != 0)
+			continue;
+		std::vector<std::vector<P2>> holes;
+		for (size_t j = 0; j < n; ++j)
+			if (depth[j] % 2 != 0 && parent[j] == int(i))
+				holes.push_back(loops[j]);
+		triangulate(loops[i], std::move(holes), tol, out);
+	}
+}
 }
 
 // The filled text of a drawing, in the part's frame: `triangles` (x y z, three vertices each) and `outlines` (x y z, two vertices per
@@ -431,32 +461,8 @@ inline GlyphFill glyphFill(const PmiEntityGeometry& g, const std::vector<std::in
 		loops.push_back(Glyph::smoothLoop(loop));
 	}
 
-	// Even-odd nesting: a loop inside an odd number of others is a hole of the smallest loop around it.
-	const size_t n = loops.size();
-	std::vector<double> area(n);
-	for (size_t i = 0; i < n; ++i)
-		area[i] = std::abs(Glyph::signedArea(loops[i]));
-	std::vector<int> depth(n, 0), parent(n, -1);
-	for (size_t i = 0; i < n; ++i)
-		for (size_t j = 0; j < n; ++j)
-			if (i != j && area[j] > area[i] && Glyph::allInside(loops[j], loops[i]))
-			{
-				++depth[i];
-				if (parent[i] < 0 || area[j] < area[size_t(parent[i])])
-					parent[i] = int(j);
-			}
-
 	std::vector<std::array<P2, 3>> triangles;
-	for (size_t i = 0; i < n; ++i)
-	{
-		if (depth[i] % 2 != 0)
-			continue;
-		std::vector<std::vector<P2>> holes;
-		for (size_t j = 0; j < n; ++j)
-			if (depth[j] % 2 != 0 && parent[j] == int(i))
-				holes.push_back(loops[j]);
-		Glyph::triangulate(loops[i], std::move(holes), tol, triangles);
-	}
+	Glyph::fillLoops(loops, tol, triangles);
 
 	const double w = liftCount ? lift / double(liftCount) : 0.0;
 	auto lifted = [&](const P2& p) { return origin + xAxis * float(p.u) + yAxis * float(p.v) + normal * float(w); };

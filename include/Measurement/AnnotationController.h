@@ -190,6 +190,21 @@ private:
     // otherwise the default direction/magnitude above.
     QVector3D resolveAnnotationLeaderOffset(const Annotation& a, Camera* camera) const;
 
+    // The plane of an annotation that is laid out in one (not FaceCamera): invalid for a camera-facing note.
+    LabelPlane::Basis annotationPlane(const Annotation& a) const;
+
+    // An in-plane note's text, frame and leader attachment in world space. `x`/`y` are the reading directions (see
+    // LabelPlane::readable), `capHeight` the length of one cap height, and `corners` the frame's top-left, top-right,
+    // bottom-right and bottom-left corners; the text starts at `labelPos` and its first baseline is `labelPos` itself.
+    struct InPlaneNote
+    {
+        QVector3D x, y;
+        float capHeight = 0.0f;
+        QVector<QVector3D> corners;
+        bool valid = false;
+    };
+    InPlaneNote layoutInPlaneNote(const Annotation& a, const QVector3D& labelPos, Camera* camera, const QSize& viewportSize) const;
+
     // The on-screen rectangle drawn around a note's text (see
     // drawAnnotationOverlay()) and used to hit-test/drag it (see
     // hitTestAnnotation()) - one shared computation so rendering and

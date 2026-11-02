@@ -68,6 +68,7 @@ protected:
 	void reject() override;
 
 private slots:
+	void onOrientationActivated(int index);
 	void onToolComboChanged(int index);
 	// Fires from any of cylindricalDiameterOptionsGroup's 4 spin boxes' valueChanged - reads all
 	// four and forwards to ViewportWidget's Cylindrical Diameter setters immediately (session
@@ -98,6 +99,7 @@ private slots:
 	void onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow);
 
 private:
+	void syncOrientationFromSelection();
 	void refreshResultsList();
 	// Selects `tool` in the combo without re-triggering onToolComboChanged()'s
 	// own setMeasurementTool() call - needed when the sync is going the OTHER
