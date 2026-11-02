@@ -83,7 +83,7 @@
 #include "AnimationUtils.h"
 #include "MeshMathUtils.h"
 #include "SceneNode.h"
-#include "RecordedPmiBuilder.h"
+#include "Jt/RecordedPmiBuilder.h"
 
 
 // Displayed-geometry size above which the interaction fast path (low-res drawing, small-part culling) applies.
@@ -5855,6 +5855,8 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 						_viewer->sceneGraph()->addMeasurement(recorded);
 					for (const QString& note : recordedPmi.notes)
 						qWarning().noquote() << note;
+					if (!recordedPmi.warning.isEmpty())
+						QMessageBox::warning(this, tr("Recorded PMI"), recordedPmi.warning);
 					const RecordedPmi::AnnotationResult recordedNotes = RecordedPmi::buildAnnotations(importedMeshes);
 					for (const Annotation& recorded : recordedNotes.annotations)
 						_viewer->sceneGraph()->addAnnotation(recorded);

@@ -1,5 +1,6 @@
-#include "RecordedPmiBuilder.h"
-#include "RecordedPmi.h"
+#include "Jt/RecordedPmiBuilder.h"
+#include "Jt/RecordedPmi.h"
+#include "RecordedPmiSanity.h"
 #include "SceneMesh.h"
 
 #include <QObject>
@@ -174,6 +175,7 @@ BuildResult buildDimensions(const std::vector<SceneMeshRecord>& meshes, LengthUn
 {
 	BuildResult result;
 	int skippedOffMesh = 0;
+	std::vector<double> ratios;
 	for (const PartGroup& group : groupParts(meshes))
 	{
 		for (const Dimension& d : dimensions(*group.set))
@@ -272,11 +274,22 @@ BuildResult buildDimensions(const std::vector<SceneMeshRecord>& meshes, LengthUn
 					m.recordedValue = d.value; // file unit undeclared: the raw stored number, shown without a unit
 			}
 			m.recordedDrawing = drawingOf(group, d.entity, first.anchor.meshUuid);
+			// For the import's consistency check: authored and mesh length in the part's own units, when both ends lie on one mesh.
+			if (d.kind != DimensionKind::Angle && first.mesh && first.mesh == second.mesh)
+			{
+				const double mesh = double((second.surfacePoint - first.surfacePoint).length());
+				const double authored = d.kind == DimensionKind::Radius ? d.value * 2.0 : d.value;
+				if (mesh > 1e-9 && authored > 0.0)
+					ratios.push_back(authored / mesh);
+			}
 			result.measurements.append(m);
 		}
 	}
 	if (skippedOffMesh)
 		result.notes.append(QObject::tr("%1 recorded PMI dimension(s) skipped: an end point does not lie on the mesh.").arg(skippedOffMesh));
+	const SanityReport sanity = checkAgainstMesh(ratios);
+	result.notes.append(sanity.notes);
+	result.warning = sanity.warning;
 	return result;
 }
 

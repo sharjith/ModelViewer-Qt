@@ -310,16 +310,16 @@ QString MeasurementController::measurementSummaryText(const Measurement& m) cons
 		const QVector3D b = resolveMeasurementAnchor(m.anchors[1]);
 		if (m.origin == MeasurementOrigin::Recorded)
 		{
-			// The authored value first and unmodified; the mesh's own number is shown beside it, never instead of it.
+			// The authored value, unmodified: it comes from the CAD system and is the truth. The mesh's own number is not shown, as
+			// it is only an approximation (see RecordedPmiSanity.h for the import-time consistency check).
 			const QString authored = m.recordedUnit.isEmpty()
 				? QString::number(m.recordedValue, 'f', m.recordedPrecision)
 				: QStringLiteral("%1 %2").arg(m.recordedValue, 0, 'f', m.recordedPrecision).arg(m.recordedUnit);
-			const float meshValue = a.distanceToPoint(b);
 			if (m.recordedKind == RecordedKind::Diameter)
-				return tr("Recorded diameter: %1%2 (mesh: %3 scene units)").arg(QChar(0x00D8)).arg(authored).arg(meshValue, 0, 'f', 3);
+				return tr("Recorded diameter: %1%2").arg(QChar(0x00D8)).arg(authored);
 			if (m.recordedKind == RecordedKind::Radius)
-				return tr("Recorded radius: R%1 (mesh: %2 scene units)").arg(authored).arg(meshValue * 0.5f, 0, 'f', 3);
-			return tr("Recorded distance: %1 (mesh: %2 scene units)").arg(authored).arg(meshValue, 0, 'f', 3);
+				return tr("Recorded radius: R%1").arg(authored);
+			return tr("Recorded distance: %1").arg(authored);
 		}
 		return tr("Distance: %1").arg(a.distanceToPoint(b), 0, 'f', 3);
 	}

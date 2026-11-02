@@ -15,6 +15,7 @@ struct BuildResult
 {
 	QVector<Measurement> measurements;
 	QStringList notes; // things skipped or capped, for the import log
+	QString warning;   // set only when the dimensions deviate grossly from the mesh (see RecordedPmiSanity.h): shown to the user
 };
 
 struct AnnotationResult

@@ -2,7 +2,8 @@
 // Original literal in-memory tests of the pure parts of recorded-PMI import (reading dimensions and annotation-like items out of
 // a part's flattened PMI rows, and placing a point on a triangle mesh). They use hand-built rows and meshes; they are not
 // evidence about any file.
-#include "RecordedPmi.h"
+#include "Jt/RecordedPmi.h"
+#include "RecordedPmiSanity.h"
 #include "RecordedDrawingJson.h"
 #include <cmath>
 #include <stdexcept>
@@ -199,4 +200,16 @@ void recordedPmiTests(){
    bad=json;bad.insert(QStringLiteral("vertices"),packArray(std::vector<float>{1,2}));check(!drawingFromJson(bad),"Vertices that are not triples are refused");
    bad=json;bad.insert(QStringLiteral("vertices"),QStringLiteral("AAA"));check(!drawingFromJson(bad),"A truncated array is refused");
    bad=json;bad.remove(QStringLiteral("vertices"));check(!drawingFromJson(bad),"A drawing without vertices is refused"); }
+ { // Import-time consistency check: quiet for snapping noise, loud only for a gross deviation.
+   SanityReport close=checkAgainstMesh({1.0,1.02,0.97,1.04});
+   check(close.compared==4&&close.off==0&&close.notes.isEmpty()&&close.warning.isEmpty(),"Values close to the mesh say nothing");
+   SanityReport some=checkAgainstMesh({1.0,1.01,0.98,1.3});
+   check(some.off==1&&some.notes.size()==1&&some.warning.isEmpty(),"A single outlier is logged, not shown");
+   SanityReport units=checkAgainstMesh({25.4,25.5,25.3,25.4});
+   check(units.off==4&&!units.warning.isEmpty(),"A systematic unit factor is shown to the user");
+   check(near(units.medianRatio,25.4,0.1),"The median ratio is reported");
+   SanityReport junk=checkAgainstMesh({0.0,-1.0,std::nan("")});
+   check(junk.compared==0&&junk.warning.isEmpty()&&junk.notes.isEmpty(),"Unusable ratios are ignored");
+   check(checkAgainstMesh({}).compared==0,"No dimensions, nothing to check");
+ }
 }
