@@ -402,6 +402,10 @@ struct Measurement
     // How the dimension's frame and value are laid out: in a model plane or the creation view's plane (they turn with the model),
     // or with the value always facing the screen. Older sessions without the field load as FaceCamera, their original look.
     LabelOrientation               orientation = LabelOrientation::ModelPlane;
+
+    // A 3-point angle measures between two rays, so it has two readings: the angle between them, or the angle on the other side
+    // of the same rays (360 degrees minus it). Set by dragging the arc past the vertex. Sessions without the field read as false.
+    bool                           reflexAngle = false;
 };
 
 // How many anchor picks a tool needs before a Measurement is complete - for

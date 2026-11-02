@@ -8,11 +8,15 @@ MeasurementOffsetCommand::MeasurementOffsetCommand(ModelViewer* viewer,
     const QUuid& measurementId,
     float oldOffsetDistance,
     float newOffsetDistance,
+    bool oldReflexAngle,
+    bool newReflexAngle,
     const QString& text)
     : ModelViewerCommand(viewer, viewportWidget, text)
     , _measurementId(measurementId)
     , _oldOffsetDistance(oldOffsetDistance)
     , _newOffsetDistance(newOffsetDistance)
+    , _oldReflexAngle(oldReflexAngle)
+    , _newReflexAngle(newReflexAngle)
 {
 }
 
@@ -22,6 +26,7 @@ void MeasurementOffsetCommand::undo()
     if (!sg)
         return;
     sg->setMeasurementOffsetDistance(_measurementId, _oldOffsetDistance);
+    sg->setMeasurementReflexAngle(_measurementId, _oldReflexAngle);
 }
 
 void MeasurementOffsetCommand::redo()
@@ -30,6 +35,7 @@ void MeasurementOffsetCommand::redo()
     if (!sg)
         return;
     sg->setMeasurementOffsetDistance(_measurementId, _newOffsetDistance);
+    sg->setMeasurementReflexAngle(_measurementId, _newReflexAngle);
 
     if (_viewer)
         _viewer->setDocumentModified(true);

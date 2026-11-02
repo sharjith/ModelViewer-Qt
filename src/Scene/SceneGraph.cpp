@@ -951,6 +951,15 @@ void SceneGraph::setMeasurementOffsetDistance(const QUuid& id, float offsetDista
     // of times per second for no visible change, for no reason.
 }
 
+void SceneGraph::setMeasurementReflexAngle(const QUuid& id, bool reflex)
+{
+    const int index = measurementIndexById(id);
+    if (index < 0 || _measurements.at(index).reflexAngle == reflex)
+        return;
+    _measurements[index].reflexAngle = reflex;
+    emit measurementsChanged();
+}
+
 void SceneGraph::setMeasurementOffsetVector(const QUuid& id, const QVector3D& offsetVector)
 {
     const int index = measurementIndexById(id);

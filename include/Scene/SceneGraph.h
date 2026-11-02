@@ -221,6 +221,10 @@ public:
     // Measurement::offsetVector's doc comment.
     void setMeasurementOffsetVector(const QUuid& id, const QVector3D& offsetVector);
 
+    // Switches a 3-point angle between the angle and its reflex (see Measurement::reflexAngle). The value shown changes, so
+    // listeners are told.
+    void setMeasurementReflexAngle(const QUuid& id, bool reflex);
+
     // -----------------------------------------------------------------------
     // Annotations ("Annotate" tool) - text notes with a leader line, anchored
     // to a mesh surface point. Document-level, not per-file - see

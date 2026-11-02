@@ -6319,6 +6319,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			m.offsetReferenceDir = jsonArrayToVec3Measurement(measurementObj[QStringLiteral("offsetReferenceDir")].toArray());
 			m.offsetDistance = static_cast<float>(measurementObj[QStringLiteral("offsetDistance")].toDouble());
 			m.offsetVector = jsonArrayToVec3Measurement(measurementObj[QStringLiteral("offsetVector")].toArray());
+			m.reflexAngle = measurementObj[QStringLiteral("reflexAngle")].toBool(false);
 			m.orientation = static_cast<LabelOrientation>(measurementObj[QStringLiteral("labelOrientation")].toInt(
 				static_cast<int>(LabelOrientation::FaceCamera)));  // sessions from before the setting looked screen-facing
 			if (measurementObj[QStringLiteral("origin")].toString() == QLatin1String("recorded"))
@@ -7442,6 +7443,8 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 			measurementObj.insert(QStringLiteral("offsetDistance"), static_cast<double>(m.offsetDistance));
 			measurementObj.insert(QStringLiteral("offsetVector"), vec3ToJson(m.offsetVector));
 			measurementObj.insert(QStringLiteral("labelOrientation"), static_cast<int>(m.orientation));
+			if (m.reflexAngle)
+				measurementObj.insert(QStringLiteral("reflexAngle"), true);
 			if (m.origin == MeasurementOrigin::Recorded)
 			{
 				// Only recorded ones carry these; files written before them (or without any) read back as measured.

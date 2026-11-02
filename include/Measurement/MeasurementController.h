@@ -6,6 +6,7 @@
 #include "MeshEdgeCircleAnchor.h"
 #include "SelectionManager.h"  // HoverHighlightMode - used as a value field type below
 
+#include <QHash>
 #include <QObject>
 #include <QOpenGLFunctions_4_5_Core>
 #include <QPoint>
@@ -99,7 +100,9 @@ public:
 	// Which kind of draggable dimension geometry a hit corresponds to - the
 	// two kinds need different drag math (see updateDimensionLineDrag()'s
 	// doc comment), so callers need to know which one they grabbed.
-	enum class DimensionDragKind { None, Linear, AngleRadius };
+	// Label: the value of a report-style measurement (area, chain length, ...) that has no dimension line, dragged in its plane
+	// on a leader from its attach point (Measurement::offsetVector is the label's offset from that point).
+	enum class DimensionDragKind { None, Linear, AngleRadius, Label };
 	struct DimensionHit { QUuid measurementId; DimensionDragKind kind = DimensionDragKind::None; };
 
 	// ---- Tool state ------------------------------------------------------
@@ -355,8 +358,18 @@ private:
 	QVector3D _dimensionDragPivot;
 	QVector3D _dimensionDragAxis;
 	float _dimensionDragRefLength = 1.0f;
-	QVector3D _dimensionDragStartOffsetVector;  // Linear
+	QVector3D _dimensionDragStartOffsetVector;  // Linear, Label
 	float _dimensionDragStartOffsetScalar = 0.0f;  // AngleRadius
+	bool _dimensionDragStartReflex = false;        // AngleRadius on a 3-point angle: which side the drag began on
+	QVector3D _dimensionDragGrab;  // Label: where the label was grabbed relative to its anchor, so it does not jump to the pointer
+	bool _dimensionDragGrabSet = false;
+
+	// What the last overlay draw recorded, so hit-testing and dragging use exactly what was drawn without redoing the geometry.
+	// A report-style measurement's label: the point its leader starts from and the normal of the plane the label lies in.
+	struct LabelHandle { QVector3D attach; QVector3D planeNormal; QVector3D shownOffset; };  // shownOffset: where the label stands now (its saved offset, else the default)
+	QHash<QUuid, LabelHandle> _labelHandles;
+	// The segment a MinDistance dimension line is drawn for (found by a search too slow to repeat on every mouse move).
+	QHash<QUuid, std::pair<QVector3D, QVector3D>> _minDistanceSegments;
 	QUuid _hoveredDimensionId;
 	DimensionDragKind _hoveredDimensionKind = DimensionDragKind::None;
 

@@ -24,6 +24,8 @@ public:
         const QUuid& measurementId,
         float oldOffsetDistance,
         float newOffsetDistance,
+        bool oldReflexAngle = false,
+        bool newReflexAngle = false,
         const QString& text = QObject::tr("Reposition Dimension Line"));
 
     void undo() override;
@@ -33,4 +35,6 @@ private:
     QUuid _measurementId;
     float _oldOffsetDistance;
     float _newOffsetDistance;
+    bool _oldReflexAngle;
+    bool _newReflexAngle;
 };
