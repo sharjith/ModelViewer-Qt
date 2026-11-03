@@ -2688,6 +2688,7 @@ void MainWindow::on_actionSettings_triggered()
 				vp->loadNavigationSettings();
 				vp->loadRenderSettings();
 				vp->loadTextOverlaySettings();
+				vp->loadSectionCappingSettings();
 
 				vp->restoreCameraPose(pose);
 

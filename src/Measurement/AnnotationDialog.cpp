@@ -132,6 +132,8 @@ AnnotationDialog::AnnotationDialog(ModelViewer* modelViewer, QWidget* parent)
     ui->textPaneLayout->replaceWidget(ui->textEdit, textEdit);
     delete ui->textEdit;
     ui->textEdit = textEdit;
+    // A tab in a note is 4 characters wide, instead of the editor's default 80 px, which is far wider than the note's own indent.
+    textEdit->setTabStopDistance(4 * textEdit->fontMetrics().averageCharWidth());
 
     // Equal-weight split by default - not expressible as a plain .ui
     // property, set here same as the original hand-built constructor did.

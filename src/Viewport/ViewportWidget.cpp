@@ -6492,34 +6492,9 @@ void ViewportWidget::createCappingPlanes()
 	// "comboCameraUpAxis"/"comboDefaultView" above in this class - replaces
 	// SceneRenderController's own hardcoded member-initializer defaults
 	// (PROCEDURAL/Diagonal 45/100/0.05/1.0/black) as the effective source of
-	// truth without needing to touch that class. Mode is intentionally only
-	// read here, once - see ClippingPlanesEditor's own doc comment on why
-	// it's no longer a live in-panel toggle.
-	{
-		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-		_renderCtrl.setHatchMode(static_cast<ClippingPlaneHatchMode>(
-			settings.value("sectionCappingMode", 0).toInt()));
-		_renderCtrl.setHatchPattern(static_cast<HatchPattern>(
-			settings.value("sectionCappingHatchPattern", 0).toInt()));
-		_renderCtrl.setHatchTiling(settings.value("sectionCappingHatchTiling", 100).toInt());
-		_renderCtrl.setHatchThickness(static_cast<float>(
-			settings.value("sectionCappingHatchThickness", 0.05).toDouble()));
-		_renderCtrl.setHatchSpacingMode(static_cast<HatchSpacingMode>(
-			settings.value("sectionCappingHatchSpacingMode", 0).toInt()));
-		_renderCtrl.setHatchSpacingPx(static_cast<float>(
-			settings.value("sectionCappingHatchSpacingPx", double(OverlayLineWeights::hatchSpacingPx)).toDouble()));
-		_renderCtrl.setHatchSpacingModelUnits(static_cast<float>(
-			settings.value("sectionCappingHatchSpacingModelUnits", 2.0).toDouble()));
-		_renderCtrl.setHatchWidthPx(static_cast<float>(
-			settings.value("sectionCappingHatchWidthPx", double(OverlayLineWeights::hatchLine)).toDouble()));
-		_renderCtrl.setTextureTiling(settings.value("sectionCappingTextureTiling", 3).toInt());
-		_renderCtrl.setTextureBlend(static_cast<float>(settings.value("sectionCappingTextureBlend", 0.25).toDouble()));
-		_renderCtrl.setHatchIntensity(static_cast<float>(
-			settings.value("sectionCappingHatchIntensity", 1.0).toDouble()));
-		const QColor hatchColor = settings.value("sectionCappingHatchLineColor", QColor(0, 0, 0)).value<QColor>();
-		_renderCtrl.setHatchLineColor(QVector3D(static_cast<float>(hatchColor.redF()),
-			static_cast<float>(hatchColor.greenF()), static_cast<float>(hatchColor.blueF())));
-	}
+	// truth without needing to touch that class. Settings -> Apply re-runs the
+	// same read for every open document (MainWindow), so these are live too.
+	loadSectionCappingSettings();
     _renderCtrl.setCappingTexture(loadTextureFromFile(QString(path + "textures/patterns/hatch_03.png").toStdString().c_str()));
 	glActiveTexture(GL_TEXTURE6);
 	glBindTexture(GL_TEXTURE_2D, _renderCtrl.cappingTexture());
@@ -13689,6 +13664,35 @@ void ViewportWidget::loadBgColorSettings()
 		bgStyleValue.isValid() && bgStyleValue.canConvert<int>() ? bgStyleValue.toInt() : 0);
 }
 
+void ViewportWidget::loadSectionCappingSettings()
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	_renderCtrl.setHatchMode(static_cast<ClippingPlaneHatchMode>(
+		settings.value("sectionCappingMode", 0).toInt()));
+	_renderCtrl.setHatchPattern(static_cast<HatchPattern>(
+		settings.value("sectionCappingHatchPattern", 0).toInt()));
+	_renderCtrl.setHatchTiling(settings.value("sectionCappingHatchTiling", 100).toInt());
+	_renderCtrl.setHatchThickness(static_cast<float>(
+		settings.value("sectionCappingHatchThickness", 0.05).toDouble()));
+	_renderCtrl.setHatchSpacingMode(static_cast<HatchSpacingMode>(
+		settings.value("sectionCappingHatchSpacingMode", 0).toInt()));
+	_renderCtrl.setHatchSpacingPx(static_cast<float>(
+		settings.value("sectionCappingHatchSpacingPx", double(OverlayLineWeights::hatchSpacingPx)).toDouble()));
+	_renderCtrl.setHatchSpacingModelUnits(static_cast<float>(
+		settings.value("sectionCappingHatchSpacingModelUnits", 2.0).toDouble()));
+	_renderCtrl.setHatchWidthPx(static_cast<float>(
+		settings.value("sectionCappingHatchWidthPx", double(OverlayLineWeights::hatchLine)).toDouble()));
+	_renderCtrl.setTextureTiling(settings.value("sectionCappingTextureTiling", 3).toInt());
+	_renderCtrl.setTextureBlend(static_cast<float>(settings.value("sectionCappingTextureBlend", 0.25).toDouble()));
+	_renderCtrl.setHatchIntensity(static_cast<float>(
+		settings.value("sectionCappingHatchIntensity", 1.0).toDouble()));
+	const QColor hatchColor = settings.value("sectionCappingHatchLineColor", QColor(0, 0, 0)).value<QColor>();
+	_renderCtrl.setHatchLineColor(QVector3D(static_cast<float>(hatchColor.redF()),
+		static_cast<float>(hatchColor.greenF()), static_cast<float>(hatchColor.blueF())));
+	update();
+	emit sectionCappingSettingsReloaded();
+}
+
 void ViewportWidget::loadTextOverlaySettings()
 {
 	if (!_textRenderer || !_axisTextRenderer)
@@ -17064,7 +17068,8 @@ void ViewportWidget::mouseDoubleClickEvent(QMouseEvent* e)
 		return;
 	}
 
-	const QUuid hitAnnotation = _annotationController->hitTestAnnotationLeader(
+	// hitTestAnnotation() rather than the leader test: a recorded note has no draggable leader, but it opens its dialog all the same.
+	const QUuid hitAnnotation = _annotationController->hitTestAnnotation(
 		clickPoint, _primaryCamera, QSize(width(), height()), _axisTextRenderer, 8);
 	if (!hitAnnotation.isNull())
 		_viewer->openAnnotationDialog(hitAnnotation);

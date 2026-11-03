@@ -21,6 +21,21 @@ struct Outline
 	float left = 0, right = 0;
 };
 
+// A tab means "move to the next tab stop", which a glyph outline cannot express: spaces up to the next multiple of `tabWidth`
+// characters take its place, so indented notes keep their indentation.
+inline QString expandTabs(const QString& text, int tabWidth = 4)
+{
+	QString out;
+	for (const QChar ch : text)
+	{
+		if (ch == QChar('\t'))
+			out.append(QString(tabWidth - out.size() % tabWidth, QChar(' ')));
+		else
+			out.append(ch);
+	}
+	return out;
+}
+
 // The triangulated outline of `text` in the application's default font, bold, cached per string.
 inline const Outline& outline(const QString& text)
 {
@@ -35,7 +50,8 @@ inline const Outline& outline(const QString& text)
 	font.setBold(true); // thick strokes keep the yellow visible inside the dark outline at small sizes
 	const qreal cap = std::max<qreal>(QFontMetricsF(font).capHeight(), 1.0);
 	QPainterPath path;
-	path.addText(0, 0, font, text);
+	const QString expanded = expandTabs(text);
+	path.addText(0, 0, font, expanded);
 
 	std::vector<std::vector<RecordedPmi::Glyph::P2>> loops;
 	for (const QPolygonF& polygon : path.toSubpathPolygons())
@@ -54,7 +70,9 @@ inline const Outline& outline(const QString& text)
 		for (const RecordedPmi::Glyph::P2& p : t)
 			result.uv.insert(result.uv.end(), { float(p.u), float(p.v) });
 	const QRectF box = path.boundingRect();
-	result.left = float(box.left() / cap);
+	// Leading spaces (an indent) have no glyphs, so a line that starts with whitespace is measured from where its pen starts,
+	// or left alignment would drop the indent.
+	result.left = expanded.startsWith(QChar(' ')) ? 0.0f : float(box.left() / cap);
 	result.right = float(box.right() / cap);
 	return cache.insert(text, std::move(result)).value();
 }

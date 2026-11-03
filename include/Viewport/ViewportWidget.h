@@ -647,6 +647,9 @@ public:
 	void loadBgColorSettings();
 	void loadNavigationSettings();
 	void loadRenderSettings();
+	// Reads the Section Capping defaults (Settings -> Rendering) into this document; run at creation and again on Settings -> Apply.
+	void loadSectionCappingSettings();
+
 	// Settings -> Display -> Overlay Text Scale, re-read and re-applied to
 	// both TextRenderer instances - callable both at construction
 	// (initializeGL()) and live from MainWindow's SettingsDialog::
@@ -1257,6 +1260,8 @@ signals:
     void viewStateChanged();
 	// A Clipping Plane was switched, moved or flipped (every change of the Clipping Planes editor ends in updateClippingPlane()).
 	void clippingPlanesChanged();
+	// The Section Capping defaults were re-read from Settings (the cap mode may have changed).
+	void sectionCappingSettingsReloaded();
     void toolCommandRequested(const QString& command);
 	// Fired synchronously, on the two actual `delete meshRecord.mesh`/
 	// `delete entry.mesh` call sites (permanentlyDeleteFromBin(),

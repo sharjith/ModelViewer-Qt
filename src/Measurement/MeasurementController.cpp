@@ -3759,6 +3759,24 @@ MeasurementController::DimensionHit MeasurementController::hitTestDimensionLine(
 			// scaled so a click at that distance ranks like one at pixelRadius from a line.
 			float d = (clickPt - labelScreen).length() * (static_cast<float>(pixelRadius) / kLabelGrabPixels);
 			d = std::min(d, distPointToSegment(clickPt, toScreen(labelHandle->attach), labelScreen));
+			// A diameter's own line through the circle is part of what can be grabbed, not just the value on it.
+			if (m.type == MeasurementType::CylindricalDiameter && !m.anchors.isEmpty())
+			{
+				float diameter = 0.0f;
+				QVector3D axisOrigin, axisDir, pickedPoint;
+				bool isCone = false;
+				if (resolveMeasurementCylindricalDiameter(m.anchors[0], diameter, axisOrigin, axisDir, pickedPoint, isCone))
+				{
+					const QVector3D center = labelHandle->attach;
+					const float radius = diameter * 0.5f;
+					QVector3D lineDir = labelHandle->shownOffset.length() > radius * 1.0e-3f ? labelHandle->shownOffset : pickedPoint - (center * 2.0f - pickedPoint);
+					if (lineDir.lengthSquared() > 1.0e-12f)
+					{
+						lineDir.normalize();
+						d = std::min(d, distPointToSegment(clickPt, toScreen(center - lineDir * radius), toScreen(center + lineDir * radius)));
+					}
+				}
+			}
 			if (d < bestDist)
 			{
 				bestDist = d;
