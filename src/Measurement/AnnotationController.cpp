@@ -204,7 +204,7 @@ LabelPlane::Basis AnnotationController::annotationPlane(const Annotation& a) con
 }
 
 AnnotationController::InPlaneNote AnnotationController::layoutInPlaneNote(const Annotation& a, const QVector3D& labelPos, Camera* camera,
-    const QSize& viewportSize) const
+    const QSize& viewportSize, float textScale) const
 {
     InPlaneNote note;
     if (!camera)
@@ -215,7 +215,7 @@ AnnotationController::InPlaneNote AnnotationController::layoutInPlaneNote(const 
         const LabelPlane::Basis reading = LabelPlane::readable(plane, camera->getRenderPosition(), labelPos, camera->getRightVector());
         note.x = reading.x;
         note.y = reading.y;
-        note.capHeight = std::max(camera->getViewRange(), 0.0001f) * 0.01f * LabelPlane::InPlaneCapScale;
+        note.capHeight = std::max(camera->getViewRange(), 0.0001f) * 0.01f * LabelPlane::InPlaneCapScale * textScale;
     }
     else
     {
@@ -223,7 +223,7 @@ AnnotationController::InPlaneNote AnnotationController::layoutInPlaneNote(const 
         const QRect viewportRect(0, 0, viewportSize.width(), viewportSize.height());
         note.x = camera->getRightVector();
         note.y = camera->getUpVector();
-        note.capHeight = LabelPlane::BillboardCapPixels
+        note.capHeight = LabelPlane::BillboardCapPixels * textScale
             * LabelPlane::worldPerPixel(labelPos, camera->getViewMatrix(), camera->getProjectionMatrix(), viewportRect);
     }
 
@@ -477,7 +477,8 @@ QUuid AnnotationController::hitTestAnnotation(const QPoint& pixel, Camera* camer
         // difficult to reliably select or drag).
         {
             // The frame is a quad in space; test the click against its projection.
-            const InPlaneNote note = layoutInPlaneNote(a, labelPos, camera, viewportSize);
+            const InPlaneNote note = layoutInPlaneNote(a, labelPos, camera, viewportSize,
+                axisTextRenderer ? axisTextRenderer->globalScale() : 1.0f);
             if (note.valid)
             {
                 QPolygonF quad;
@@ -704,7 +705,8 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
 
         {
             // Frame, leader and text all lie in the note's plane (the camera's own plane for a note that faces the screen).
-            const InPlaneNote note = layoutInPlaneNote(a, labelPos, camera, viewportSize);
+            const InPlaneNote note = layoutInPlaneNote(a, labelPos, camera, viewportSize,
+                axisTextRenderer ? axisTextRenderer->globalScale() : 1.0f);
             if (note.valid)
             {
                 addSegment(anchorPos, note.corners[3], color);

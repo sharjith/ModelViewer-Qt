@@ -19,11 +19,13 @@ enum class LabelOrientation : int
 
 namespace LabelPlane
 {
+// Both label sizes below are multiplied by the Overlay Text Scale setting (TextRenderer::globalScale()).
+
 // Cap height, in pixels, of a label that faces the screen: it keeps this size on screen however the view is zoomed.
-constexpr float BillboardCapPixels = 9.0f;
+constexpr float BillboardCapPixels = 8.0f;
 
 // Cap height of a label that lies in a plane, as a multiple of the marker size (1% of the view range), so it scales with the view.
-constexpr float InPlaneCapScale = 1.4f;
+constexpr float InPlaneCapScale = 1.25f;
 
 // The world length of one screen pixel at `position`, for any projection.
 inline float worldPerPixel(const QVector3D& position, const QMatrix4x4& view, const QMatrix4x4& projection, const QRect& viewport)

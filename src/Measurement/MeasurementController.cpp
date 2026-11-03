@@ -4138,6 +4138,8 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 	// small detail or looking at the whole model. sizeMultiplier gives
 	// hover/selection extra visual weight beyond just a color change.
 	const float markerSize = std::max(camera->getViewRange(), 0.0001f) * 0.01f;
+	// The Overlay Text Scale setting, applied to the labels drawn as geometry (in plane and facing the screen).
+	const float labelScale = axisTextRenderer ? axisTextRenderer->globalScale() : 1.0f;
 
 	// Arrowhead cones use a per-point constant-screen-size scale instead -
 	// mirrors TransformGizmo::computeWorldScale()'s exact technique (same
@@ -4402,7 +4404,7 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 		const bool reversed = QVector3D::dotProduct(along, right) < 0.0f;
 		const QVector3D xDir = reversed ? -along : along;
 		const QVector3D yDir = QVector3D::crossProduct(normal, xDir).normalized();
-		const float capHeight = markerSize * LabelPlane::InPlaneCapScale;
+		const float capHeight = markerSize * LabelPlane::InPlaneCapScale * labelScale;
 		const QStringList lines = text.split(QChar('\n'));
 		for (int i = 0; i < lines.size(); ++i)
 		{
@@ -4417,7 +4419,7 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 	// A label that faces the screen, in the same filled, outlined font as the in-plane labels, at a fixed size on screen.
 	auto addBillboardLabel = [&](const QVector3D& labelPos, const QString& text, const QVector3D& color) {
 		const QRect viewportRect(0, 0, viewportSize.width(), viewportSize.height());
-		const float capHeight = LabelPlane::BillboardCapPixels
+		const float capHeight = LabelPlane::BillboardCapPixels * labelScale
 			* LabelPlane::worldPerPixel(labelPos, camera->getViewMatrix(), camera->getProjectionMatrix(), viewportRect);
 		const QVector3D xDir = camera->getRightVector();
 		const QVector3D yDir = camera->getUpVector();
@@ -5316,8 +5318,8 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 					const QVector3D end = center + offsetInPlane;
 					// The line runs on under the whole value, which stands on it: measure the text to know how far.
 					const bool inPlaneText = m.orientation != LabelOrientation::FaceCamera;
-					const float textCap = inPlaneText ? markerSize * LabelPlane::InPlaneCapScale
-						: LabelPlane::BillboardCapPixels * LabelPlane::worldPerPixel(end, camera->getViewMatrix(), camera->getProjectionMatrix(),
+					const float textCap = inPlaneText ? markerSize * LabelPlane::InPlaneCapScale * labelScale
+						: LabelPlane::BillboardCapPixels * labelScale * LabelPlane::worldPerPixel(end, camera->getViewMatrix(), camera->getProjectionMatrix(),
 							QRect(0, 0, viewportSize.width(), viewportSize.height()));
 					const InPlaneText::Outline& textShape = InPlaneText::outline(summary);
 					const float textWidth = (textShape.right - textShape.left) * textCap;

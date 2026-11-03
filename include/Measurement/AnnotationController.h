@@ -205,7 +205,8 @@ private:
         QVector<QVector3D> corners;
         bool valid = false;
     };
-    InPlaneNote layoutInPlaneNote(const Annotation& a, const QVector3D& labelPos, Camera* camera, const QSize& viewportSize) const;
+    InPlaneNote layoutInPlaneNote(const Annotation& a, const QVector3D& labelPos, Camera* camera, const QSize& viewportSize,
+        float textScale = 1.0f) const;
 
     // The on-screen rectangle drawn around a note's text (see
     // drawAnnotationOverlay()) and used to hit-test/drag it (see
