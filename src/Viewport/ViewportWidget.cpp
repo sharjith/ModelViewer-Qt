@@ -9953,7 +9953,7 @@ void ViewportWidget::drawSectionCapping()
 				_renderCtrl.clippingPlaneShader()->setUniformValue("worldUnitsPerTile", worldUnitsPerTile);
 				// procedural hatch params (tweak to taste)
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchThickness", _renderCtrl.hatchThickness());
-				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchWidthPx", OverlayLineWeights::thinLine);
+				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchWidthPx", OverlayLineWeights::hatchLine);
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchIntensity", _renderCtrl.hatchIntensity());
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchLayers", _renderCtrl.hatchLayers());
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchLineColor", _renderCtrl.hatchLineColor());
@@ -10097,7 +10097,7 @@ void ViewportWidget::drawBoxSectionCapping(float localCappingSceneDiag)
 		hatchRef[axis] = planePos;
 		capShader->setUniformValue("worldUnitsPerTile", hatchWorldUnitsPerTile(hatchRef, localCappingSceneDiag / tilesAcross, wantTexture));
 		capShader->setUniformValue("hatchThickness", _renderCtrl.hatchThickness());
-		capShader->setUniformValue("hatchWidthPx", OverlayLineWeights::thinLine);
+		capShader->setUniformValue("hatchWidthPx", OverlayLineWeights::hatchLine);
 		capShader->setUniformValue("hatchIntensity", _renderCtrl.hatchIntensity());
 		capShader->setUniformValue("hatchLayers", _renderCtrl.hatchLayers());
 		capShader->setUniformValue("hatchLineColor", _renderCtrl.hatchLineColor());
