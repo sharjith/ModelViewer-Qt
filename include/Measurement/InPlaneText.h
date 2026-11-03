@@ -21,7 +21,7 @@ struct Outline
 	float left = 0, right = 0;
 };
 
-// The triangulated outline of `text` in the application's default font, cached per string.
+// The triangulated outline of `text` in the application's default font, bold, cached per string.
 inline const Outline& outline(const QString& text)
 {
 	static QHash<QString, Outline> cache;
@@ -32,6 +32,7 @@ inline const Outline& outline(const QString& text)
 	Outline result;
 	QFont font;
 	font.setPixelSize(100);
+	font.setBold(true); // thick strokes keep the yellow visible inside the dark outline at small sizes
 	const qreal cap = std::max<qreal>(QFontMetricsF(font).capHeight(), 1.0);
 	QPainterPath path;
 	path.addText(0, 0, font, text);
@@ -78,7 +79,7 @@ inline void appendText(const QString& text, const QVector3D& anchor, const QVect
 inline void appendHaloText(const QString& text, const QVector3D& anchor, const QVector3D& xDir, const QVector3D& yDir, float capHeight,
 	const QVector3D& color, const QVector3D& haloColor, std::vector<float>& triangles, float align = 0.0f)
 {
-	const float reach = capHeight * 0.07f;
+	const float reach = capHeight * 0.05f;
 	for (int k = 0; k < 8; ++k)
 	{
 		const float angle = 0.78539816f * float(k);
