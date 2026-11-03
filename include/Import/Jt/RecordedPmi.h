@@ -6,6 +6,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVector3D>
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <vector>
@@ -41,6 +42,21 @@ inline bool parseVector(const QString& text, QVector3D& out)
 	if (!ok[0] || !ok[1] || !ok[2] || !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z))
 		return false;
 	out = QVector3D(float(x), float(y), float(z));
+	return true;
+}
+
+// A colour as the JT reference stores it: "0x00bbggrr" (blue, green, red). Colours too dark to read on the viewer's dark
+// backgrounds are refused, so the item keeps the viewer's own colour instead of vanishing.
+inline bool parseColour(const QString& text, QVector3D& out)
+{
+	bool ok = false;
+	const quint32 value = text.trimmed().toUInt(&ok, 16);
+	if (!ok)
+		return false;
+	const QVector3D rgb(float(value & 0xffu) / 255.0f, float((value >> 8) & 0xffu) / 255.0f, float((value >> 16) & 0xffu) / 255.0f);
+	if (std::max({ rgb.x(), rgb.y(), rgb.z() }) < 0.25f)
+		return false;
+	out = rgb;
 	return true;
 }
 
@@ -112,6 +128,8 @@ struct Dimension
 	QVector3D vertex;          // angle: the vertex (the 2D frame origin, where the two extension lines meet)
 	QVector3D textOrigin;
 	bool hasTextOrigin = false;
+	QVector3D color;           // PMIGeometryColor, when present and readable
+	bool hasColor = false;
 };
 
 // Dimension entities whose rows carry what their kind needs:
@@ -139,6 +157,7 @@ inline std::vector<Dimension> dimensions(const NodePropertySet& set)
 		d.unit = e.properties.value(QStringLiteral("unit"));
 		d.precision = qBound(0, e.properties.value(QStringLiteral("precision"), QStringLiteral("2")).toInt(), 8);
 		d.hasTextOrigin = parseVector(e.properties.value(QStringLiteral("textOrigin")), d.textOrigin);
+		d.hasColor = parseColour(e.properties.value(QStringLiteral("PMIGeometryColor")), d.color);
 		QVector3D frameOrigin;
 		const bool hasFrame = parseVector(e.properties.value(QStringLiteral("(frame origin)")), frameOrigin);
 		QVector3D terminator;
@@ -188,6 +207,8 @@ struct Note
 	bool hasLeader = false;
 	QVector3D textOrigin;
 	bool hasTextOrigin = false;
+	QVector3D color;           // PMIGeometryColor, when present and readable
+	bool hasColor = false;
 };
 
 // Text lines of an entity: `Text[i].Item[j].string` properties, items of one text joined by a space, texts by a newline.
@@ -250,6 +271,7 @@ inline std::vector<Note> notes(const NodePropertySet& set)
 			n.hasAnchor = true;
 		}
 		n.hasTextOrigin = parseVector(e.properties.value(QStringLiteral("textOrigin")), n.textOrigin);
+		n.hasColor = parseColour(e.properties.value(QStringLiteral("PMIGeometryColor")), n.color);
 		if (!n.hasAnchor && n.hasTextOrigin)
 		{
 			n.anchor = n.textOrigin;

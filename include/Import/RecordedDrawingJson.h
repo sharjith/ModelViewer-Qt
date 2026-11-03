@@ -36,6 +36,8 @@ inline QJsonObject drawingToJson(const RecordedDrawing& d)
 		return o;
 	const PmiEntityGeometry& g = *d.geometry;
 	o.insert(QStringLiteral("meshUuid"), d.meshUuid.toString(QUuid::WithoutBraces));
+	if (d.hasColor)
+		o.insert(QStringLiteral("color"), QJsonArray{ double(d.color.x()), double(d.color.y()), double(d.color.z()) });
 	if (g.hasFrame)
 	{
 		QJsonArray frame;
@@ -74,6 +76,12 @@ inline std::shared_ptr<const RecordedDrawing> drawingFromJson(const QJsonObject&
 	auto d = std::make_shared<RecordedDrawing>();
 	d->meshUuid = QUuid(o[QStringLiteral("meshUuid")].toString());
 	d->geometry = g;
+	const QJsonArray color = o[QStringLiteral("color")].toArray();
+	if (color.size() == 3)
+	{
+		d->hasColor = true;
+		d->color = QVector3D(float(color[0].toDouble()), float(color[1].toDouble()), float(color[2].toDouble()));
+	}
 	return d;
 }
 }

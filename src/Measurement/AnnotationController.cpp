@@ -691,8 +691,12 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
             if (SceneMesh* strokeOwner = getMeshByUuid(a.recordedDrawing->meshUuid))
             {
                 const size_t strokeStart = lineVertices.size();
+                // The author's colour, unless the item is selected (selection must read); hover lightens it as it does any colour.
+                QVector3D strokeColor = color;
+                if (a.recordedDrawing->hasColor && !isSelected)
+                    strokeColor = isHovered ? a.recordedDrawing->color * 0.5f + QVector3D(1.0f, 1.0f, 1.0f) * 0.5f : a.recordedDrawing->color;
                 RecordedPmi::appendStrokes(*a.recordedDrawing, strokeOwner->combinedRenderTransform(), camera->getRenderPosition(),
-                    color, lineVertices, &fillVertices);  // authored size: a symbol's text must stay inside its circle
+                    strokeColor, lineVertices, &fillVertices);  // authored size: a symbol's text must stay inside its circle
                 _recordedStrokes.insert(a.id, RecordedPmi::strokeSegments(lineVertices, strokeStart));
                 continue;
             }

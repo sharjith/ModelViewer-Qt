@@ -149,7 +149,7 @@ bool place(const PartGroup& group, const QVector3D& point, Placement& out)
 }
 
 // The stored drawing of entity `number` of a part, placed by the render transform of `mesh`, or null when the importer kept none.
-std::shared_ptr<const RecordedDrawing> drawingOf(const PartGroup& group, int number, const QUuid& mesh)
+std::shared_ptr<const RecordedDrawing> drawingOf(const PartGroup& group, int number, const QUuid& mesh, const QVector3D* color = nullptr)
 {
 	if (!group.set->pmiGeometry || number < 0 || size_t(number) >= group.set->pmiGeometry->size())
 		return nullptr;
@@ -159,6 +159,11 @@ std::shared_ptr<const RecordedDrawing> drawingOf(const PartGroup& group, int num
 	auto drawing = std::make_shared<RecordedDrawing>();
 	drawing->meshUuid = mesh;
 	drawing->geometry = std::shared_ptr<const PmiEntityGeometry>(group.set->pmiGeometry, &g); // shares the part's data
+	if (color)
+	{
+		drawing->hasColor = true;
+		drawing->color = *color;
+	}
 	return drawing;
 }
 
@@ -273,7 +278,7 @@ BuildResult buildDimensions(const std::vector<SceneMeshRecord>& meshes, LengthUn
 				else
 					m.recordedValue = d.value; // file unit undeclared: the raw stored number, shown without a unit
 			}
-			m.recordedDrawing = drawingOf(group, d.entity, first.anchor.meshUuid);
+			m.recordedDrawing = drawingOf(group, d.entity, first.anchor.meshUuid, d.hasColor ? &d.color : nullptr);
 			// For the import's consistency check: authored and mesh length in the part's own units, when both ends lie on one mesh.
 			if (d.kind != DimensionKind::Angle && first.mesh && first.mesh == second.mesh)
 			{
@@ -340,7 +345,7 @@ AnnotationResult buildAnnotations(const std::vector<SceneMeshRecord>& meshes)
 				if (offset.lengthSquared() > 1e-12f)
 					a.leaderOffset = toWorldVector(*at.mesh, offset);
 			}
-			a.recordedDrawing = drawingOf(group, n.entity, at.anchor.meshUuid);
+			a.recordedDrawing = drawingOf(group, n.entity, at.anchor.meshUuid, n.hasColor ? &n.color : nullptr);
 			result.annotations.append(a);
 		}
 	}

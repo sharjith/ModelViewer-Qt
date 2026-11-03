@@ -19,6 +19,8 @@ struct RecordedDrawing
 {
 	QUuid meshUuid;                                  // the mesh whose render transform places the drawing (its part's frame)
 	std::shared_ptr<const PmiEntityGeometry> geometry; // shared with the importer's per-part data
+	bool hasColor = false;                           // the author's geometry colour, when the file gives a usable one
+	QVector3D color;                                 // red, green, blue in 0..1
 	// Triangles that fill the text outlines (see glyphFillTriangles), built on first use. Not stored in the MVF.
 	mutable bool fillBuilt = false;
 	mutable std::vector<float> fill;

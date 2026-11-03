@@ -304,3 +304,9 @@ So all eleven dimensions are one entity type (Dimension 0x0082), and diameter, r
 | C4-M4 | The C4-M1 part with named PMI views | Model-view records |
 
 Owner acceptance has not been given for any statement here.
+
+## Authored colour and line width (2 November 2026)
+
+**Observation (controls C4-M1 to C4-M3 and the assembly part, this exporter only).** `PMIGeometryColor`, `PMITextForegroundColor`, `Leader[n].colour`, `textColour` and `symbolColour` appear on every entity, with two distinct values across the controls (`0x00b43c78` and `0x00dc6e00`, blue-green-red byte order, equal for one entity's geometry and text). The generic-entity line width arrays are empty in every control and `Leader[n].arrowLineThickness` is `0`, so **no authored line width is available to read**; it is not implemented.
+
+**Implemented, owner test pending.** `PMIGeometryColor` colours a recorded item's strokes (dimension, note, symbol) when it parses and is not nearly black (largest channel below 0.25 keeps the viewer colour, so an authored black does not vanish on a dark background). Selection still shows the selection colour; hover lightens the authored colour. The colour is stored with the drawing in the MVF (`color`, three floats), absent in older sessions. Unit test: `parseColour` in `tests/jt/jt_recorded_pmi_tests.cpp`.

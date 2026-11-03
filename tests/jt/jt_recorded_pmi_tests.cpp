@@ -30,7 +30,12 @@ void recordedPmiTests(){
  QVector3D v;
  check(parseVector(QStringLiteral("1 -2 3.5"),v) && v==QVector3D(1,-2,3.5f),"Three numbers parse");
  check(parseVector(QStringLiteral("  1   2\t3 "),v) && v==QVector3D(1,2,3),"Extra whitespace is tolerated");
- check(!parseVector(QStringLiteral("1 2"),v) && !parseVector(QStringLiteral("a b c"),v) && !parseVector(QStringLiteral("1 2 3 4"),v) && !parseVector(QStringLiteral("1 2 nan"),v) && !parseVector(QString(),v),"Malformed vectors are rejected");
+ { QVector3D c; // authored colours are 0x00bbggrr
+   check(parseColour(QStringLiteral("0x00b43c78"),c) && near(c.x(),0x78/255.0) && near(c.y(),0x3c/255.0) && near(c.z(),0xb4/255.0),"Colour bytes are blue, green, red");
+   check(parseColour(QStringLiteral("0x00dc6e00"),c) && near(c.x(),0) && near(c.z(),0xdc/255.0),"A second authored colour");
+   check(!parseColour(QStringLiteral("0x00000000"),c) && !parseColour(QStringLiteral("0x00101010"),c),"A colour too dark to read is refused");
+   check(!parseColour(QStringLiteral("blue"),c) && !parseColour(QString(),c),"Malformed colours are refused"); }
+ check(!parseVector(QStringLiteral("1 2"),v) &&!parseVector(QStringLiteral("a b c"),v) && !parseVector(QStringLiteral("1 2 3 4"),v) && !parseVector(QStringLiteral("1 2 nan"),v) && !parseVector(QString(),v),"Malformed vectors are rejected");
 
  // Dimensions: the four kinds, in entity order, with what each needs; the rest are left out.
  NodePropertySet set;set.nodeName="part";
